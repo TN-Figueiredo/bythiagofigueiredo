@@ -170,6 +170,52 @@ Os 3 itens abaixo dependem de acesso/credenciais do user. Eu posso fazer o resto
 
 Após 1–3: me avise que eu flipo Sprint 0 pra ✅ no roadmap e partimos pro Sprint 1.
 
+## Verification Checklist (pós-blockers)
+
+Depois de resolver B1–B3, rodar estes comandos do root do repo para confirmar que Sprint 0 está 100% funcional. Todos devem passar:
+
+```bash
+# 1. GitHub secret existe?
+gh secret list | grep -q NPM_TOKEN && echo "✅ NPM_TOKEN present" || echo "❌ missing"
+
+# 2. CI verde no último run?
+gh run list --limit 1 --json conclusion -q '.[0].conclusion' | grep -q success && echo "✅ CI green" || echo "❌ CI not green"
+
+# 3. Supabase CLI linkado?
+[ -f supabase/.temp/project-ref ] && echo "✅ linked to $(cat supabase/.temp/project-ref)" || echo "❌ not linked"
+
+# 4. .env.local presentes e ignorados?
+git check-ignore apps/web/.env.local apps/api/.env.local >/dev/null && echo "✅ env.local ignored" || echo "❌ env.local exposed"
+
+# 5. config.toml com project_id real?
+grep -q 'project_id = "bythiagofigueiredo"' supabase/config.toml && echo "✅ config.toml ok" || echo "❌ placeholder still there"
+
+# 6. DNS do domain principal resolve?
+dig +short bythiagofigueiredo.com | grep -q . && echo "✅ DNS ok" || echo "❌ DNS not ready"
+```
+
+Todos ✅ = Sprint 0 pode ir pra `✅ done` no roadmap.
+
+## Provisioning Inventory
+
+Tabela authoritative dos recursos provisionados neste sprint. Se algum valor mudar, atualizar aqui:
+
+| Recurso | Onde | Identifier / URL | Restaurável? |
+|---------|------|------------------|--------------|
+| Supabase org | supabase.com | `ByThiagoFigueiredo` (free tier) | sim, recriar org |
+| Supabase project | supabase.com | `bythiagofigueiredo` (ref: `novkqtvcnsiwhkxihurk`, region: sa-east-1) | migration + pg_dump |
+| Supabase DB password | (keychain) | — | reset via dashboard |
+| Sentry org | sentry.io | `figueiredo-technology-ltda` | — |
+| Sentry project (web) | sentry.io | `bythiagofigueiredo-nextjs` | sim |
+| Sentry project (api) | sentry.io | `bythiagofigueiredo-api` | sim |
+| Sentry auth token | (Vercel + .env.local) | org-scoped, `project:releases` + `org:read` | gerar novo |
+| Vercel project (web) | vercel.com | `bythiagofigueiredo-web` | redeploy |
+| Vercel project (api) | vercel.com | `bythiagofigueiredo-api` | redeploy |
+| NPM_TOKEN | Vercel + GitHub Actions (pendente) + `~/.npmrc` | GitHub PAT c/ `read:packages` | regenerar no GitHub |
+| CRON_SECRET | Vercel + `.env.local` | 256-bit hex gerado localmente | gerar novo + rotacionar Vercel |
+| Domain primary | DNS | `bythiagofigueiredo.com` → Vercel `216.198.79.193` | — |
+| Domain api | DNS | `api.bythiagofigueiredo.com` (pending propagation) | — |
+
 ## Recovery Runbook (máquina morre / novo dev)
 
 Em caso de perda total do ambiente local:
