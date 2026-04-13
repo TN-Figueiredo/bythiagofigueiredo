@@ -1,4 +1,5 @@
 {
+  "framework": null,
   "buildCommand": "sh build.sh",
   "outputDirectory": "public",
   "rewrites": [
