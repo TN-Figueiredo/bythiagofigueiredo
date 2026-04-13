@@ -5,6 +5,34 @@
 **Type:** Cross-repo sprint (NÃO é side-sprint — é ~12-17h de trabalho)
 **Repos afetados:** `tnf-ecosystem`, `tonagarantia`, `bythiagofigueiredo`, `bright-tale` (Rafael)
 
+## Execution Log (2026-04-13)
+
+**Fase 0 — tnf-ecosystem hygiene** ✅
+- Tag `pre-migration-2026-04-13` pushed
+- 2 commits (promo-codes pino fix + 4 untracked packages)
+- 41 commits pushed to origin/main
+- 9 stale branches deleted remote + 1 local blocked by worktree (feat/admin-package em .worktrees/admin-package — active work, preserved)
+- changeset-release/main deixado intacto
+
+**Fase 1 — Package migration** ✅ (com desvios)
+- Repo transferido `TN-Figueiredo/tnf-ecosystem` → `figueiredo-technology/tnf-ecosystem` via `gh api` (sem email confirmation)
+- Branch `migration/figueiredo-technology-scope`
+- 107 arquivos renomeados (.ts .tsx .json .md)
+- 24 package.json com version bumps (19× 1.0.0, 4× 2.0.0, 1× 3.0.0 pra auth-nextjs)
+- 17 internal dep refs normalizadas
+- 2 bugs pre-flight esquecidos: `.github/workflows/release.yml` tinha `scope: '@tn-figueiredo'` hardcoded + `.npmrc` raiz. Fixados antes do PR final.
+- Build 24/24 verde, tests 110/110 passing
+- PR #6 → merge → release workflow verde em 3m36s
+- **23/24 packages publicados** em `@figueiredo-technology/*`
+- **auth-expo marcado `private: true`** no package.json — **intencionalmente não publicado** (package interno pro TNG mobile). Confirmado via commit `ff72d3a` do changelog histórico.
+
+**Desvios do plano original:**
+- Layer-by-layer publish (Checkpoints 2a/2b/2c) **não aconteceu** — `changeset publish` atua atômico em todos os packages com versões novas. Publish foi de uma vez. Design assumia gh api delete por layer — incompatível com changesets. Mitigação natural: tudo passou build antes do publish, então integridade preservada.
+
+**Vulnerabilidades não-bloqueantes identificadas:**
+- `npm audit` reportou 8 vulns (1 critical, 3 high, 4 moderate) — triagem em task futura
+- GitHub deprecou Node.js 20 em Actions runners (removal 2026-09-16) — todo futuro
+
 ## Changelog
 
 - **rev 4.2 (2026-04-13):** adicionado **bright-tale** (Rafael) como 3º consumer. Owner externo, teu access é push-only — fase 3.5 split em code migration (você) + admin actions (Rafael). Escopo: 15-22h. Atenção especial a feature jumps: bright-tale usa `auth 1.2.1` e `admin 0.1.1` (versões antigas) — regression testing obrigatório.
