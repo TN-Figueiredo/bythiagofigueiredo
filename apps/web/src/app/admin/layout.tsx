@@ -1,6 +1,6 @@
-// TODO: [APP_NAME] Configure admin layout with @tn-figueiredo/admin
-// import { createAdminLayout } from '@tn-figueiredo/admin'
-// import type { AdminLayoutConfig } from '@tn-figueiredo/admin'
+// TODO: [APP_NAME] Configure admin layout with @figueiredo-technology/admin
+// import { createAdminLayout } from '@figueiredo-technology/admin'
+// import type { AdminLayoutConfig } from '@figueiredo-technology/admin'
 //
 // const config: AdminLayoutConfig = {
 //   sidebar: [

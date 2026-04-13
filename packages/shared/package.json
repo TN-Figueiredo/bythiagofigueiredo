@@ -16,7 +16,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@tn-figueiredo/shared": "0.8.0"
+    "@figueiredo-technology/shared": "1.0.0"
   },
   "devDependencies": {
     "typescript": "^5.8.3"

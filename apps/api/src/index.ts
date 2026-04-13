@@ -15,7 +15,7 @@ server.register(cors, {
 server.register(helmet)
 
 // TODO: [APP_NAME] Register auth routes
-// import { registerAuthRoutes } from '@tn-figueiredo/auth-fastify'
+// import { registerAuthRoutes } from '@figueiredo-technology/auth-fastify'
 // server.register(registerAuthRoutes, { supabaseUrl: ..., supabaseKey: ... })
 
 // TODO: [APP_NAME] Register app-specific routes
