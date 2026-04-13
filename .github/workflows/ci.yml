@@ -1,0 +1,100 @@
+name: CI
+
+on:
+  push:
+    branches: [staging]
+  pull_request:
+    branches: [staging]
+
+jobs:
+  ecosystem-pinning:
+    name: Ecosystem Pinning Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check @tn-figueiredo/* packages are pinned (no ^ or ~)
+        run: |
+          if grep -r '"@tn-figueiredo/' apps/ packages/ --include="package.json" | grep -E '"\^|"~'; then
+            echo "❌ Found unpinned @tn-figueiredo/* packages. Use exact versions."
+            exit 1
+          fi
+          echo "✅ All @tn-figueiredo/* packages are pinned."
+
+  typecheck:
+    name: Typecheck (${{ matrix.workspace }})
+    runs-on: ubuntu-latest
+    needs: ecosystem-pinning
+    strategy:
+      matrix:
+        workspace: [apps/api, apps/web]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Authenticate GitHub Packages
+        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.NPM_TOKEN }}" >> ~/.npmrc
+      - run: npm ci
+      - name: Typecheck ${{ matrix.workspace }}
+        run: cd ${{ matrix.workspace }} && npx tsc --noEmit
+
+  test-api:
+    name: Test — API
+    runs-on: ubuntu-latest
+    needs: ecosystem-pinning
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Authenticate GitHub Packages
+        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.NPM_TOKEN }}" >> ~/.npmrc
+      - run: npm ci
+      - run: npm run test:api
+
+  test-web:
+    name: Test — Web
+    runs-on: ubuntu-latest
+    needs: ecosystem-pinning
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Authenticate GitHub Packages
+        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.NPM_TOKEN }}" >> ~/.npmrc
+      - run: npm ci
+      - run: npm run test:web
+
+  audit:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Authenticate GitHub Packages
+        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.NPM_TOKEN }}" >> ~/.npmrc
+      - run: npm ci
+      - run: npm audit --audit-level=high
+
+  secret-scan:
+    name: Secret Scan (TruffleHog)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: TruffleHog OSS
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --debug --only-verified
