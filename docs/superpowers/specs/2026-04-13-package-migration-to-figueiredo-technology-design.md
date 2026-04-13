@@ -3,10 +3,12 @@
 **Date:** 2026-04-13
 **Status:** Approved (rev 4 — empirically accurate scope)
 **Type:** Cross-repo sprint (NÃO é side-sprint — é ~12-17h de trabalho)
-**Repos afetados:** `tnf-ecosystem`, `tonagarantia`, `bythiagofigueiredo`
+**Repos afetados:** `tnf-ecosystem`, `tonagarantia`, `bythiagofigueiredo`, `bright-tale` (Rafael)
 
 ## Changelog
 
+- **rev 4.2 (2026-04-13):** adicionado **bright-tale** (Rafael) como 3º consumer. Owner externo, teu access é push-only — fase 3.5 split em code migration (você) + admin actions (Rafael). Escopo: 15-22h. Atenção especial a feature jumps: bright-tale usa `auth 1.2.1` e `admin 0.1.1` (versões antigas) — regression testing obrigatório.
+- **rev 4.1 (2026-04-13):** reconhecido TNG = 3 apps (api, web, **mobile Expo**) + packages/shared. Riscos R11/R12 mobile-specific.
 - **rev 4 (2026-04-13):** reconciled scope vs reality after empirical audit — **24 packages** (não 13), 39 unpushed commits, 4 untracked packages, 8 stale branches. TNG **incluído** na migração (user decisão). Escopo agora é ~12-17h, não 4-6h.
 - **rev 3 (2026-04-13):** dep graph parcial, rollback plan — baseado em dados incompletos (api-only).
 - **rev 2 (2026-04-13):** expandido com 7 riscos — ainda com 13 packages errados.
@@ -37,10 +39,11 @@ L2 (4): auth-expo(auth), auth-fastify(auth), auth-nextjs(auth,shared),
 
 ### Consumidores afetados
 
-| Consumer | Packages consumidos | Status | Risk |
-|----------|---------------------|--------|------|
-| **tonagarantia** | **24/24** (all) | PRODUÇÃO | 🔴 alto |
-| **bythiagofigueiredo** | 10/24 (subset) | scaffold novo | 🟢 baixo |
+| Consumer | Packages consumidos | Status | Risk | Owner |
+|----------|---------------------|--------|------|-------|
+| **tonagarantia** | **24/24** (all) | PRODUÇÃO | 🔴 alto | TN-Figueiredo |
+| **bythiagofigueiredo** | 10/24 (subset) | scaffold novo | 🟢 baixo | figueiredo-technology |
+| **bright-tale** | 5/24 (auth, auth-fastify, auth-supabase, admin, auth-nextjs) | em desenvolvimento | 🟡 médio | **FigueiredoRafael** — teu access: push ✅, admin ❌ |
 
 ### Scope de infrastructure
 
@@ -202,6 +205,33 @@ Meta: main limpo, pushed, com os 24 packages trackados, sem branches lixo.
 60. Merge → deploy prod (web automático via Vercel; mobile via EAS update/submit)
 61. Monitorar Sentry 1h pós-deploy — **3 projetos** (api, web, mobile)
 
+### Fase 3.5 — bright-tale consumer (~2-3h + coordination)
+
+**Access constraint:** teu user `TN-Figueiredo` tem push mas não admin em `FigueiredoRafael/bright-tale`. Fase split em 2 partes:
+
+**Parte A — code migration (eu/você fazemos via PR):**
+62. **[Checkpoint 4.5]** Confirm bright-tale migration
+63. Clone/pull `FigueiredoRafael/bright-tale`
+64. Branch `migration/figueiredo-technology-scope`
+65. Update `.npmrc` scope line
+66. Update package.json deps (5 packages):
+   - `apps/api`: `auth`, `auth-fastify`, `auth-supabase` → versões novas
+   - `apps/web`: `admin`, `auth-nextjs` → versões novas
+   - ⚠️ **Feature jump atenção:** `auth 1.2.1 → 2.0.0` (bump através de 1.3.0 primeiro), `admin 0.1.1 → 1.0.0` (através de 0.2.0 e 0.3.0) — **requer regression testing**
+67. Update imports (sed)
+68. `npm install` local + build + test
+69. Open PR com título claro: `feat: migrate packages to @figueiredo-technology scope`
+70. No PR body: explicar breaking change + versions jumps + checklist pro Rafael
+
+**Parte B — Rafael (admin actions):**
+71. **Você coordena com Rafael** — mensagem/call
+72. Rafael review + merge PR
+73. Rafael: Settings → Actions → Workflow permissions → Read/write
+74. Rafael: update `.github/workflows/ci.yml`: `NPM_TOKEN` → `GITHUB_TOKEN`
+75. Rafael: `gh secret delete NPM_TOKEN` (ou UI Settings → Secrets)
+76. Rafael: em cada um dos 5 packages @figueiredo-technology/* → Manage Actions access → authorize `FigueiredoRafael/bright-tale`
+77. CI de bright-tale verde sem NPM_TOKEN
+
 ### Fase 4 — Kill NPM_TOKEN (~1-2h)
 
 56. Org `figueiredo-technology` → Settings → Packages → **Allow Actions** inbound
@@ -285,6 +315,8 @@ gh api /repos/figueiredo-technology/tnf-ecosystem/tags -q '.[] | select(.name ==
 | R10 | Sentry source maps antigos referenciam `@tn-figueiredo/*` | 10% | 🟢 baixo | Só afeta debugging retrospectivo; não quebra prod |
 | R11 | **Mobile (Expo) build quebrar** após rename — Metro bundler nem sempre resolve scope change bem | 35% | 🔴 alto | `expo doctor` + clear cache (`expo start -c`) + EAS build staging antes de submit prod |
 | R12 | Users com app mobile antigo instalado ficam com versão outdated enquanto EAS update não propaga | 30% | 🟡 médio | EAS update envia patch sem rebuild nativo; monitorar rollout em %; fallback: forçar app update |
+| R13 | **Bright-tale feature jump** (auth 1.2.1→2.0.0 pula 1.3.0; admin 0.1.1→1.0.0 pula 0.2.0/0.3.0) quebra comportamento | 50% | 🔴 alto | Regression test completo antes de merge; Rafael valida flows críticos de auth + admin |
+| R14 | Coordenação com Rafael atrasa sprint — ele indisponível, PR fica pending | 40% | 🟡 médio | Merge PR não é crítico pro bythiagofigueiredo + TNG (migrations independentes); bright-tale pode demorar sem bloqueio global |
 
 ## Rollback Plan (step-by-step)
 
@@ -351,9 +383,10 @@ git revert <commit>
 | 1 | Package migration | 5-7h |
 | 2 | bythiagofigueiredo consumer | 1-2h |
 | 3 | tonagarantia consumer (api+web+**mobile Expo**+shared) | 4-5h |
-| 4 | Kill NPM_TOKEN | 1-2h |
+| 3.5 | **bright-tale consumer (PR + Rafael coordination)** | 2-3h |
+| 4 | Kill NPM_TOKEN (bythiagofigueiredo + TNG; bright-tale = Rafael) | 1-2h |
 | 5 | Closeout | 1h |
-| **Total** | | **13-19h** |
+| **Total** | | **15-22h** |
 
 **Realistic: 2 dias de trabalho focado.**
 
