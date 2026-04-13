@@ -109,3 +109,11 @@ Lista completa de 9 riscos: `~/Workspace/ideias/bythiagofigueiredo/03-roadmap-cr
 
 - **2026-04-13 rev2:** matemática de horas reconciliada, exit criteria por fase, rollup de packages, progresso corrigido, riscos linkados ao source.
 - **2026-04-13 rev1:** versão inicial.
+
+## Side-sprint update — 2026-04-13
+
+- Package Ecosystem Migration iniciada
+- Fase 0 (tnf-ecosystem hygiene): ✅ done
+- Fase 1 (package migration): ✅ done — 23/24 packages em `@figueiredo-technology/*` (auth-expo mantido private)
+- Spec: [2026-04-13-package-migration-to-figueiredo-technology-design.md](../superpowers/specs/2026-04-13-package-migration-to-figueiredo-technology-design.md)
+- Fases restantes: 2 (bythiagofigueiredo) → 3 (TNG prod) → 3.5 (bright-tale) → 4 (kill NPM_TOKEN) → 5 (closeout)
