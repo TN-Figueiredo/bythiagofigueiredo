@@ -4,15 +4,19 @@ import helmet from '@fastify/helmet'
 
 const server = Fastify({ logger: true })
 
-await server.register(cors, {
+// Plugin registration — Fastify resolves these during server.ready().
+// Don't `await` here: this file is loaded as CommonJS on Vercel
+// (package.json has no "type": "module") and top-level await is not
+// allowed in CJS.
+server.register(cors, {
   origin: process.env.WEB_URL ?? 'http://localhost:3001',
 })
 
-await server.register(helmet)
+server.register(helmet)
 
 // TODO: [APP_NAME] Register auth routes
 // import { registerAuthRoutes } from '@tn-figueiredo/auth-fastify'
-// await registerAuthRoutes(server, { supabaseUrl: ..., supabaseKey: ... })
+// server.register(registerAuthRoutes, { supabaseUrl: ..., supabaseKey: ... })
 
 // TODO: [APP_NAME] Register app-specific routes
 
@@ -38,7 +42,7 @@ const start = async (): Promise<void> => {
 // Vercel runs the app via the serverless handler (api/index.ts).
 // Locally we boot the long-running Fastify server.
 if (!process.env.VERCEL) {
-  await start()
+  start()
 }
 
 export default server
