@@ -6,19 +6,23 @@ on:
   pull_request:
     branches: [main, staging]
 
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   ecosystem-pinning:
     name: Ecosystem Pinning Check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check @tn-figueiredo/* packages are pinned (no ^ or ~)
+      - name: Check @figueiredo-technology/* packages are pinned (no ^ or ~)
         run: |
-          if grep -r '"@tn-figueiredo/' apps/ packages/ --include="package.json" | grep -E '"\^|"~'; then
-            echo "❌ Found unpinned @tn-figueiredo/* packages. Use exact versions."
+          if grep -r '"@figueiredo-technology/' apps/ packages/ --include="package.json" | grep -E '"\^|"~'; then
+            echo "❌ Found unpinned @figueiredo-technology/* packages. Use exact versions."
             exit 1
           fi
-          echo "✅ All @tn-figueiredo/* packages are pinned."
+          echo "✅ All @figueiredo-technology/* packages are pinned."
 
   typecheck:
     name: Typecheck (${{ matrix.workspace }})
@@ -34,7 +38,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - name: Authenticate GitHub Packages
-        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.NPM_TOKEN }}" >> ~/.npmrc
+        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
       - run: npm ci
       - name: Typecheck ${{ matrix.workspace }}
         run: cd ${{ matrix.workspace }} && npx tsc --noEmit
@@ -50,7 +54,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - name: Authenticate GitHub Packages
-        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.NPM_TOKEN }}" >> ~/.npmrc
+        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
       - run: npm ci
       - run: npm run test:api
 
@@ -65,7 +69,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - name: Authenticate GitHub Packages
-        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.NPM_TOKEN }}" >> ~/.npmrc
+        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
       - run: npm ci
       - run: npm run test:web
 
@@ -80,7 +84,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - name: Authenticate GitHub Packages
-        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.NPM_TOKEN }}" >> ~/.npmrc
+        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
       - run: npm ci
       - run: npm audit --audit-level=high
 
