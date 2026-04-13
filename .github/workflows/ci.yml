@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [staging]
+    branches: [main, staging]
   pull_request:
-    branches: [staging]
+    branches: [main, staging]
 
 jobs:
   ecosystem-pinning:
