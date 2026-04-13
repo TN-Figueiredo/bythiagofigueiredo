@@ -24,12 +24,12 @@
 ## Progresso global
 
 ```
-▓░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  ~2% (8h / 424h)
+▓░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  ~3% (12h / 424h — pendente resolver blockers B1–B3 pra flip S0 a ✅)
 ```
 
-**Done até agora (~8h):** scaffold do tnf-scaffold (monorepo 6h + CI 2h).
-**Em progresso:** Sprint 0 — Supabase project remoto + env vars (4h restantes).
-**Sprint ativo:** Sprint 0 → Sprint 1 (Foundation).
+**Done até agora (~12h):** scaffold + CI workflow + Supabase provisionado + Vercel/Sentry env vars (ver spec do Sprint 0).
+**Blockers ativos:** `NPM_TOKEN` ausente no GitHub Actions → CI falhando.
+**Sprint ativo:** Sprint 0 (fechamento) → Sprint 1 (Foundation).
 
 ## Legenda de status
 
