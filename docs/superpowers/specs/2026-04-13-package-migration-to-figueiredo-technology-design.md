@@ -5,6 +5,19 @@
 **Type:** Cross-repo sprint (NÃO é side-sprint — é ~12-17h de trabalho)
 **Repos afetados:** `tnf-ecosystem`, `tonagarantia`, `bythiagofigueiredo`, `bright-tale` (Rafael)
 
+## 🔴 Lessons learned — Vercel Hobby + org-owned private repos
+
+**Fato descoberto durante execução (NÃO no design):** Vercel Hobby plan (free) **NÃO suporta repos privados owned por organization**. Só user-owned private OR org-owned public.
+
+**Implicação:** transferir repos com apps Vercel pra org requer upgrade Pro ($20/user/mês). Plano B: manter apps no user account.
+
+**Decisão post-facto:**
+- `tnf-ecosystem` fica em `figueiredo-technology` (packages não afetados)
+- `bythiagofigueiredo`, `tonagarantia`, `tnf-scaffold` permanecem em `TN-Figueiredo` user
+- Packages são consumidos cross-owner via "Manage Actions access" (modal aceita repos externos à org)
+
+**Deveria estar em rev4:** R19 — "Vercel Hobby não suporta org-owned private repos". Erro do spec.
+
 ## Execution Log (2026-04-13)
 
 **Fase 0 — tnf-ecosystem hygiene** ✅
