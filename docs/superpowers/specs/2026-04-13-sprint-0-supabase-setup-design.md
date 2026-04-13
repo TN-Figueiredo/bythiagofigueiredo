@@ -145,6 +145,49 @@ Não bloqueia Sprint 0. Usando `bythiagofigueiredo-api.vercel.app` como placehol
 - [ ] Commit feito
 - [ ] Status Sprint 0 no roadmap → ✅
 
+## User Action List (pra fechar Sprint 0)
+
+Os 3 itens abaixo dependem de acesso/credenciais do user. Eu posso fazer o resto:
+
+1. **GitHub Actions secret (desbloqueia CI):**
+   ```
+   https://github.com/<owner>/bythiagofigueiredo/settings/secrets/actions
+   → New repository secret
+   → Name: NPM_TOKEN
+   → Value: GitHub PAT com scope read:packages
+   ```
+
+2. **Confirmar DB password do Supabase salvo:**
+   - Abre 1Password/keychain e procura entry `bythiagofigueiredo-supabase`
+   - Se não existe: **Dashboard → Project Settings → Database → Reset database password** e salvar o novo
+   - Sem password = sem acesso ao DB via `psql` ou CLI, só via dashboard
+
+3. **Link do Supabase CLI:**
+   ```bash
+   npx supabase link --project-ref novkqtvcnsiwhkxihurk
+   # vai pedir o DB password do item 2
+   ```
+
+Após 1–3: me avise que eu flipo Sprint 0 pra ✅ no roadmap e partimos pro Sprint 1.
+
+## Recovery Runbook (máquina morre / novo dev)
+
+Em caso de perda total do ambiente local:
+
+1. **Clone:** `git clone git@github.com:<owner>/bythiagofigueiredo.git && cd bythiagofigueiredo`
+2. **Node:** `nvm use` (lê `.nvmrc` → Node 22)
+3. **GitHub Packages auth:** garantir `~/.npmrc` com `//npm.pkg.github.com/:_authToken=<PAT>`
+4. **Install:** `npm install`
+5. **Restaurar `.env.local`:**
+   - `apps/web/.env.local` e `apps/api/.env.local` **não estão no git**
+   - Supabase: `Dashboard → <org>/bythiagofigueiredo → Project Settings → API` → copiar URL + anon + service_role
+   - DB password: recuperar do 1Password/keychain; se perdido, **Reset** no dashboard
+   - Sentry: `figueiredo-technology-ltda.sentry.io → projects → bythiagofigueiredo-{nextjs,api}` → Settings → Client Keys (DSN)
+   - Sentry auth token: `User Settings → Auth Tokens` — se perdeu, cria novo (org-scoped, `project:releases` + `org:read`)
+   - CRON_SECRET: **não recuperável** — gerar novo (`openssl rand -hex 32`) e atualizar Vercel prod env também
+6. **Link CLI:** `npx supabase link --project-ref novkqtvcnsiwhkxihurk`
+7. **Smoke:** `npm run dev -w apps/web` deve subir sem erro
+
 ## Lessons learned
 
 1. **Sempre spec primeiro** — mesmo pra 4h sprint. Evitaria decisões de escopo (Vercel+Sentry) derivando organicamente.
