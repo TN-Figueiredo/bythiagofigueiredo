@@ -1,5 +1,51 @@
-#!/bin/sh
-. "$(dirname "$0")/_/husky.sh"
+#!/usr/bin/env sh
 
-npm run test:api -- --bail
-npm run test:web -- --bail
+# Roda exatamente o que a Vercel roda (next build) + testes.
+# Custo: ~10s por commit. Vale a pena pra não descobrir build quebrada no deploy.
+
+echo "🧪 Rodando testes do web..."
+npm run test:web -- --bail 2>&1
+WEB_TEST_EXIT=$?
+
+if [ $WEB_TEST_EXIT -ne 0 ]; then
+  echo ""
+  echo "❌ Testes do web falharam. Commit bloqueado."
+  exit 1
+fi
+
+echo "🏗️  Buildando web (next build — paridade com Vercel)..."
+npm run build:web > /tmp/precommit-web-build.log 2>&1
+WEB_BUILD_EXIT=$?
+
+if [ $WEB_BUILD_EXIT -ne 0 ]; then
+  echo ""
+  echo "❌ Build do web falhou. Commit bloqueado."
+  echo "   Log completo: /tmp/precommit-web-build.log"
+  echo ""
+  tail -40 /tmp/precommit-web-build.log
+  exit 1
+fi
+
+echo "🧪 Rodando testes da API..."
+cd apps/api && npx vitest run --bail 1 2>&1
+API_TEST_EXIT=$?
+cd ../..
+
+if [ $API_TEST_EXIT -ne 0 ]; then
+  echo ""
+  echo "❌ Testes da API falharam. Commit bloqueado."
+  exit 1
+fi
+
+echo "🔍 Typechecking API..."
+cd apps/api && npx tsc --noEmit 2>&1
+API_TC_EXIT=$?
+cd ../..
+
+if [ $API_TC_EXIT -ne 0 ]; then
+  echo ""
+  echo "❌ Typecheck da API falhou. Commit bloqueado."
+  exit 1
+fi
+
+echo "✅ Tudo verde — testes, build do web e typecheck da API."
