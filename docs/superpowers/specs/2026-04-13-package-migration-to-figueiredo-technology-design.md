@@ -151,7 +151,7 @@ Meta: main limpo, pushed, com os 24 packages trackados, sem branches lixo.
     - Version bumps conforme mapping
 17. **Batch sed** em `packages/*/src/**/*.ts`:
     - imports `@tn-figueiredo/*` → `@figueiredo-technology/*`
-18. Update publishing CI (`.github/workflows/publish*.yml`): NPM_TOKEN → GITHUB_TOKEN
+18. ~~Update publishing CI~~ — **SKIP: já usa GITHUB_TOKEN** (verificado via grep em `.github/workflows/ci.yml` + `release.yml`)
 19. `npm install` root + build all packages locally — confirma cross-refs
 20. Commit atomic em layers topológicas (3 commits ou 1 atomic)
 21. **[Checkpoint 2a]** Confirm publish L0
@@ -189,7 +189,7 @@ Meta: main limpo, pushed, com os 24 packages trackados, sem branches lixo.
 44. Update `apps/api/package.json` — 18 deps
 45. Update `apps/web/package.json` — 5 deps
 46. Update `apps/mobile/package.json` — 3 deps (auth-expo, ad-engine, sound-engine) — **atenção Expo**
-47. Update `packages/shared/package.json` se aplicável
+47. Update `packages/shared/package.json` — **1 dep confirmado: `@tn-figueiredo/shared@0.8.0`**
 48. 24 deps `@tn-figueiredo/*` → `@figueiredo-technology/*` distribuídas
 49. Update imports em `apps/**/src/**/*.ts`, `apps/**/src/**/*.tsx`
 50. `rm -rf node_modules package-lock.json && npm install`
@@ -235,7 +235,7 @@ Meta: main limpo, pushed, com os 24 packages trackados, sem branches lixo.
 ### Fase 4 — Kill NPM_TOKEN (~1-2h)
 
 56. Org `figueiredo-technology` → Settings → Packages → **Allow Actions** inbound
-57. Para cada um dos 24 packages: Package settings → Manage Actions access → authorize `figueiredo-technology/bythiagofigueiredo` + `TN-Figueiredo/tonagarantia` (scriptar via API se possível)
+57. Para cada um dos 24 packages: Package settings → Manage Actions access → authorize consumers. **GitHub Packages NÃO TEM API pública pra isso** — 24 cliques UI. **Workaround:** marcar packages como `internal` visibility (auto-grant pra repos da mesma org) → reduz pra 1 toggle por package mas só cobre `bythiagofigueiredo` (org-mate). Pra `tonagarantia` e `bright-tale` (fora da org) ainda precisa 24× authorize.
 58. Update `bythiagofigueiredo/.github/workflows/ci.yml`: `secrets.NPM_TOKEN` → `secrets.GITHUB_TOKEN`
 59. Push → CI verde sem NPM_TOKEN
 60. `gh secret delete NPM_TOKEN --repo figueiredo-technology/bythiagofigueiredo`
@@ -317,6 +317,10 @@ gh api /repos/figueiredo-technology/tnf-ecosystem/tags -q '.[] | select(.name ==
 | R12 | Users com app mobile antigo instalado ficam com versão outdated enquanto EAS update não propaga | 30% | 🟡 médio | EAS update envia patch sem rebuild nativo; monitorar rollout em %; fallback: forçar app update |
 | R13 | **Bright-tale feature jump** (auth 1.2.1→2.0.0 pula 1.3.0; admin 0.1.1→1.0.0 pula 0.2.0/0.3.0) quebra comportamento | 50% | 🔴 alto | Regression test completo antes de merge; Rafael valida flows críticos de auth + admin |
 | R14 | Coordenação com Rafael atrasa sprint — ele indisponível, PR fica pending | 40% | 🟡 médio | Merge PR não é crítico pro bythiagofigueiredo + TNG (migrations independentes); bright-tale pode demorar sem bloqueio global |
+| R15 | GitHub Actions free minutes exhaust se publish falha + retry 24x | 10% | 🟢 baixo | Monorepo publish = 1 CI run independente do número de packages; retry idempotente limita custo |
+| R16 | GitHub Packages storage quota (500MB free) — republicar 24 packages dobra storage | 20% | 🟢 baixo | GitHub Packages private tem 500MB free. Ecosystem atual ~50MB. Novo scope = +50MB = 100MB total. Folga grande. |
+| R17 | npm cache issues após scope rename em consumer — builds usam resolução cached | 40% | 🟡 médio | `rm -rf node_modules package-lock.json` obrigatório antes de `npm install`; documentar no runbook |
+| R18 | Per-package "Manage Actions access" é 24 cliques UI sem API | 100% | 🟡 médio | Workaround "internal visibility" reduz pra `bythiagofigueiredo` (org-mate); TNG+bright-tale fora da org ainda precisam aprovar 24×; aceitar trabalho manual |
 
 ## Rollback Plan (step-by-step)
 
@@ -388,7 +392,126 @@ git revert <commit>
 | 5 | Closeout | 1h |
 | **Total** | | **15-22h** |
 
-**Realistic: 2 dias de trabalho focado.**
+**Realistic: 2-3 dias de trabalho focado.**
+
+## Concrete Commands (execution-ready)
+
+Comandos exatos pra usar durante execução — elimina ambiguidade.
+
+### Fase 0 hygiene
+```bash
+cd ~/Workspace/tnf-ecosystem
+git tag pre-migration-2026-04-13
+git push origin pre-migration-2026-04-13
+git add packages/promo-codes
+git commit -m "feat(promo-codes): complete use cases + types"
+git add packages/brasil-tax-id packages/crypto packages/entity-resolver packages/ranking
+git commit -m "feat: add 4 new packages (brasil-tax-id, crypto, entity-resolver, ranking)"
+git push origin main
+git push origin --delete chore/integration-tests feat/auth-core feat/auth-fastify feat/email-templates-parameterize feat/feature-flags feat/gamification-and-polish feat/shared-theme-rich-tokens feat/types-enhancements feat/utils-module
+git branch -D feat/admin-package
+```
+
+### Fase 1 transfer + rename
+```bash
+# Transfer (Checkpoint 1)
+gh api -X POST /repos/TN-Figueiredo/tnf-ecosystem/transfer -f new_owner=figueiredo-technology
+
+# Update remote
+cd ~/Workspace/tnf-ecosystem
+git remote set-url origin git@github.com:figueiredo-technology/tnf-ecosystem.git
+git fetch origin
+
+# Branch
+git checkout -b migration/figueiredo-technology-scope
+
+# Batch rename in package.jsons
+find packages -name "package.json" -not -path "*/node_modules/*" -exec sed -i '' \
+  -e 's|"@tn-figueiredo/|"@figueiredo-technology/|g' {} \;
+
+# Batch rename in TS sources
+find packages -type f \( -name "*.ts" -o -name "*.tsx" \) -not -path "*/node_modules/*" -exec sed -i '' \
+  -e "s|'@tn-figueiredo/|'@figueiredo-technology/|g" \
+  -e 's|"@tn-figueiredo/|"@figueiredo-technology/|g' {} \;
+
+# Version bumps (manual per package, use npm version)
+for pkg in shared audit admin ad-engine affiliate billing brasil-tax-id cron-lock crypto entity-resolver fraud-detection-utils gamification notifications seo sound-engine lgpd fraud-detection promo-codes ranking; do
+  (cd packages/$pkg && npm version 1.0.0 --no-git-tag-version)
+done
+for pkg in auth auth-expo auth-fastify auth-supabase; do
+  (cd packages/$pkg && npm version 2.0.0 --no-git-tag-version)
+done
+(cd packages/auth-nextjs && npm version 3.0.0 --no-git-tag-version)
+
+# Build + install
+rm -rf node_modules */node_modules package-lock.json packages/*/package-lock.json
+npm install
+npm run build
+
+# Commit + push
+git add -A
+git commit -m "feat: migrate to @figueiredo-technology scope + version bumps"
+git push -u origin migration/figueiredo-technology-scope
+```
+
+### Fase 2 bythiagofigueiredo consumer
+```bash
+cd ~/Workspace/bythiagofigueiredo
+git checkout -b migration/figueiredo-technology-scope
+
+# .npmrc
+sed -i '' 's|@tn-figueiredo:|@figueiredo-technology:|' .npmrc
+
+# package.json batch
+find apps packages -name "package.json" -not -path "*/node_modules/*" -exec sed -i '' \
+  's|"@tn-figueiredo/|"@figueiredo-technology/|g' {} \;
+
+# Versions precisam ser atualizadas (manual ou com jq)
+# TS/TSX imports
+find apps packages -type f \( -name "*.ts" -o -name "*.tsx" \) -not -path "*/node_modules/*" -exec sed -i '' \
+  -e "s|'@tn-figueiredo/|'@figueiredo-technology/|g" \
+  -e 's|"@tn-figueiredo/|"@figueiredo-technology/|g' {} \;
+
+# Reinstall
+rm -rf node_modules package-lock.json apps/*/node_modules packages/*/node_modules
+npm install
+
+# Validate
+npm run typecheck
+npm run test
+npm run build:web
+
+# Commit
+git add -A && git commit -m "feat: migrate to @figueiredo-technology scope"
+git push -u origin migration/figueiredo-technology-scope
+```
+
+### Comms template pra Rafael (bright-tale PR)
+```
+Olá Rafael,
+
+Migramos o ecossistema de packages @tn-figueiredo/* → @figueiredo-technology/*
+(nova org GitHub consolidando o ecossistema).
+
+Este PR em bright-tale:
+- Atualiza .npmrc pra novo scope
+- Atualiza 5 deps: auth, auth-fastify, auth-supabase (api) + admin, auth-nextjs (web)
+- Atualiza imports no código
+
+⚠️ Importante — há feature jump além do scope rename:
+- auth 1.2.1 → 2.0.0 (pula 1.3.0 entre)
+- admin 0.1.1 → 1.0.0 (pula 0.2.0 e 0.3.0)
+
+Requer regression test dos flows de auth + admin antes de mergear.
+
+Após merge, você (admin):
+1. Settings → Actions → Workflow permissions: Read/write
+2. Update .github/workflows/ci.yml: NPM_TOKEN → GITHUB_TOKEN
+3. gh secret delete NPM_TOKEN
+4. Em cada um dos 5 packages (@figueiredo-technology/auth, etc.): Package settings → Manage Actions access → authorize FigueiredoRafael/bright-tale
+
+Qualquer dúvida me chama.
+```
 
 Pode ser dividido:
 - **Dia 1 AM:** Fase 0 + Fase 1 (hygiene + package migration) — 7-10h
