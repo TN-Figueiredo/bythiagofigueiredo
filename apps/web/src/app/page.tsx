@@ -1,25 +1,21 @@
-import { Navbar } from '@/components/layout/navbar'
-import { Footer } from '@/components/layout/footer'
-import { Hero } from '@/components/sections/hero'
-import { About } from '@/components/sections/about'
-import { Experience } from '@/components/sections/experience'
-import { Projects } from '@/components/sections/projects'
-import { Testimonials } from '@/components/sections/testimonials'
-import { Contact } from '@/components/sections/contact'
+import { HubHeader } from '@/components/hub/hub-header'
+import { HubHero } from '@/components/hub/hub-hero'
+import { HubLinks } from '@/components/hub/hub-links'
+import { HubNewsletter } from '@/components/hub/hub-newsletter'
+import { HubSocials } from '@/components/hub/hub-socials'
+import { HubFooter } from '@/components/hub/hub-footer'
 
 export default function Home() {
   return (
     <>
-      <Navbar />
+      <HubHeader />
       <main>
-        <Hero />
-        <About />
-        <Experience />
-        <Projects />
-        <Testimonials />
-        <Contact />
+        <HubHero />
+        <HubLinks />
+        <HubNewsletter />
+        <HubSocials />
       </main>
-      <Footer />
+      <HubFooter />
     </>
   )
 }

@@ -11,13 +11,13 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: 'Thiago Figueiredo | Builder & Founder',
+  title: 'Thiago Figueiredo — Creator & Builder',
   description:
-    'Thiago Figueiredo — Founder da Figueiredo Technology. Mais de 12 anos construindo produtos digitais com React, TypeScript e Node.js.',
+    'Hub de Thiago Figueiredo. YouTube, blog, newsletter e projetos. Build in public, learn out loud.',
   openGraph: {
-    title: 'Thiago Figueiredo | Builder & Founder',
+    title: 'Thiago Figueiredo — Creator & Builder',
     description:
-      'Founder da Figueiredo Technology. Mais de 12 anos construindo produtos digitais.',
+      'Hub de Thiago Figueiredo. YouTube, blog, newsletter e projetos.',
     type: 'website',
     locale: 'pt_BR',
     url: 'https://bythiagofigueiredo.com',
