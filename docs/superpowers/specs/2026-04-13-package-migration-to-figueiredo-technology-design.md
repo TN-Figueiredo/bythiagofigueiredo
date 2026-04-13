@@ -1,312 +1,360 @@
-# Design: Package Ecosystem Migration — `@tn-figueiredo/*` → `@figueiredo-technology/*`
+# Design: Ecosystem Migration — `@tn-figueiredo/*` → `@figueiredo-technology/*`
 
 **Date:** 2026-04-13
-**Status:** Approved (rev 3)
-**Type:** Side-sprint (entre Sprint 0 e Sprint 1 do roadmap bythiagofigueiredo)
-**Estimated effort:** 4–6h
+**Status:** Approved (rev 4 — empirically accurate scope)
+**Type:** Cross-repo sprint (NÃO é side-sprint — é ~12-17h de trabalho)
+**Repos afetados:** `tnf-ecosystem`, `tonagarantia`, `bythiagofigueiredo`
 
 ## Changelog
 
-- **rev 3 (2026-04-13):** gap analysis — adicionado dep graph empírico (gh api), rollback step-by-step, decisão sobre relação com Sprint 0 (bloqueia fechamento até CI verde sem NPM_TOKEN).
-- **rev 2 (2026-04-13):** expandido após crítica — 7 riscos, exit criteria, verification checklist, version strategy corrigida, ordem topológica explícita.
-- **rev 1 (2026-04-13):** design inicial — poucos riscos, sem exit criteria.
+- **rev 4 (2026-04-13):** reconciled scope vs reality after empirical audit — **24 packages** (não 13), 39 unpushed commits, 4 untracked packages, 8 stale branches. TNG **incluído** na migração (user decisão). Escopo agora é ~12-17h, não 4-6h.
+- **rev 3 (2026-04-13):** dep graph parcial, rollback plan — baseado em dados incompletos (api-only).
+- **rev 2 (2026-04-13):** expandido com 7 riscos — ainda com 13 packages errados.
+- **rev 1 (2026-04-13):** design inicial simplista.
 
-## Context
+## Context & Real State (pre-flight audit, 2026-04-13)
 
-Durante Sprint 0 do bythiagofigueiredo, user decidiu migrar os packages do ecossistema do user account `TN-Figueiredo` para a nova org `figueiredo-technology`, com objetivo de:
-1. Consolidar identidade: ecossistema inteiro sob uma org
-2. **Eliminar `NPM_TOKEN`** no CI trocando por `GITHUB_TOKEN` automático
-3. Habilitar Organization-level governance (audit, permissions, secrets)
+### tnf-ecosystem (source repo)
 
-Todos os 13 packages vivem num único monorepo `TN-Figueiredo/tnf-ecosystem`.
+**24 packages locais:**
+```
+L0 (15, zero deps): shared, audit, admin, ad-engine, affiliate, billing,
+  brasil-tax-id, cron-lock, crypto, entity-resolver, fraud-detection-utils,
+  gamification, notifications, seo, sound-engine
+L1 (5): auth(audit,shared), lgpd(audit), fraud-detection(fraud-detection-utils),
+  promo-codes(billing,affiliate), ranking(gamification)
+L2 (4): auth-expo(auth), auth-fastify(auth), auth-nextjs(auth,shared),
+  auth-supabase(auth)
+```
 
-## Goals
+**Estado git pré-migração:**
+- 39 commits locais em `main` **não pushados**
+- 4 packages untracked (brasil-tax-id, crypto, entity-resolver, ranking) — sem git history, mas publicados no registry 0.1.0
+- `promo-codes` com 6 arquivos modificados não commitados
+- 8 feature branches remotas **totalmente merged em main** (já integradas, são lixo)
+- 1 branch `changeset-release/main` com 1 commit ahead (changeset automation)
+- 1 branch local vazia `feat/admin-package`
 
-1. Transferir `tnf-ecosystem` → `figueiredo-technology/tnf-ecosystem`
-2. Republicar todos os 13 packages sob scope `@figueiredo-technology/*`
-3. Migrar consumer `bythiagofigueiredo` para o novo scope
-4. Configurar `GITHUB_TOKEN` read access para packages do org
-5. Deletar `NPM_TOKEN` secret em `bythiagofigueiredo`
-6. Fechar Sprint 0 do bythiagofigueiredo junto com este sprint
+### Consumidores afetados
+
+| Consumer | Packages consumidos | Status | Risk |
+|----------|---------------------|--------|------|
+| **tonagarantia** | **24/24** (all) | PRODUÇÃO | 🔴 alto |
+| **bythiagofigueiredo** | 10/24 (subset) | scaffold novo | 🟢 baixo |
+
+### Scope de infrastructure
+
+- GitHub org `figueiredo-technology` criada
+- Repo `bythiagofigueiredo` já transferido pra org
+- Repo `tnf-ecosystem` ainda em `TN-Figueiredo`
+- Repo `tonagarantia` ainda em `TN-Figueiredo`
+- NPM_TOKEN existe em `bythiagofigueiredo` (repo-level) e `tonagarantia` (repo-level)
+
+## Goals (user approved)
+
+1. Todos 24 packages republicados sob `@figueiredo-technology/*`
+2. `tnf-ecosystem` repo transferido pra org, hygiene completa (merge/push/cleanup)
+3. `bythiagofigueiredo` migrado pra novo scope + NPM_TOKEN eliminado
+4. `tonagarantia` migrado pra novo scope + NPM_TOKEN eliminado — production-safe
+5. GITHUB_TOKEN usado para publish + consume em toda a org
+6. `@tn-figueiredo/*` packages permanecem instaláveis (não deprecate ainda)
 
 ## Non-Goals
 
-- Migração do **tonagarantia** (em produção — risco alto, sprint próprio)
-- Deprecation dos `@tn-figueiredo/*` antigos (fora deste sprint; fazer após bythiagofigueiredo estável por 1 semana)
-- Alterar comportamento ou API dos packages (só rename de scope)
+- Refactor de API dos packages (só scope rename)
+- Testes novos (exceto smoke)
+- Transfer do repo `tonagarantia` pra org — fica em TN-Figueiredo por ora (decisão separada)
+- Deprecation dos `@tn-figueiredo/*` — adiada pra sprint futuro (após TNG estável 1 semana)
 
-## Decisions
+## Decisions (from user, 2026-04-13)
 
-### D1 — Scope target: `@figueiredo-technology/*`
+- **D1:** Push all 39 local commits to main before migration (Q1 user response)
+- **D2:** Commit + push 4 untracked packages (Q2 user response)
+- **D3:** Feature branches: as 8 merged → **deletar** (não merge, já merged). changeset-release/main → mergear ou descartar após review
+- **D4:** `promo-codes` mods são prontos → commit
+- **D5:** TNG incluído — migration production-aware (Q5 user response)
+- **D6:** Target scope `@figueiredo-technology/*` (rev3 D1)
+- **D7:** Version strategy semver-correct (rev3 D2 — atualizada pros 24)
+- **D8:** Checkpoint-driven execution (rev3 D6)
 
-**Chosen:** matches org name exatamente.
-**Alternatives rejeitadas:**
-- `@tnf/*` — `tnf` username GitHub já tomado
-- `@tn-figueiredo/*` + transfer só source — GITHUB_TOKEN do org repo não publica no namespace user
+## Version Mapping (24 packages)
 
-### D2 — Version strategy por mapping
+Regra: 0.x.y → **1.0.0** (promover estável). 1.x.y ou superior → **major bump** (breaking por scope).
 
-Bump reflete semver correto considerando estado atual de cada package:
-
-| Package | Atual | Novo | Tipo |
-|---------|:-----:|:----:|------|
-| shared | 0.8.0 | 1.0.0 | promover estável |
-| audit | 0.1.0 | 1.0.0 | promover estável |
-| admin | 0.2.0 (ou 0.3.0 se published) | 1.0.0 | promover estável |
-| ad-engine | 0.1.0 | 1.0.0 | promover estável |
-| notifications | 0.1.0 | 1.0.0 | promover estável |
-| seo | 0.1.0 | 1.0.0 | promover estável |
-| sound-engine | 0.2.0 | 1.0.0 | promover estável |
-| lgpd | 0.1.0 | 1.0.0 | promover estável |
-| auth | 1.3.0 | 2.0.0 | major (breaking scope) |
-| auth-fastify | 1.1.0 | 2.0.0 | major (breaking scope) |
-| auth-supabase | 1.1.0 | 2.0.0 | major (breaking scope) |
-| auth-expo | 1.0.0 | 2.0.0 | major (breaking scope) |
-| auth-nextjs | 2.0.0 | 3.0.0 | major (breaking scope) |
-
-**Pré-migração:** verificar versão publicada atual em GitHub Packages (pode diferir do source main).
-
-### D3 — Internal refs: bump all together (atomic)
-
-Package A (dep) + Package B (depends on A) migram no mesmo commit. Internal refs em `dependencies`/`peerDependencies` atualizam para o novo scope + nova versão.
-
-### D4 — Execution order: transfer → rename → publish topológico → migrate consumer → kill NPM_TOKEN
-
-Ver seção "Execution Plan" abaixo.
-
-### D5 — Include all 13 packages (including `auth-expo` e `sound-engine`)
-
-Mesmo que `bythiagofigueiredo` não consuma os 13, migrar parcialmente deixa o monorepo em estado inconsistente. Custo marginal zero (mesmo sed batch).
-
-### D6 — Checkpoint-driven execution
-
-4 checkpoints humanos:
-1. Antes de transferir repo
-2. Antes de publish Layer 0
-3. Antes de migrar consumer
-4. Antes de deletar NPM_TOKEN
-
-Reduz blast radius de erros irreversíveis.
-
-### D7 — Sprint 0 fica 🟡 até este sprint fechar
-
-Sprint 0 do bythiagofigueiredo tem blocker "NPM_TOKEN no GitHub Actions". Como vamos eliminar NPM_TOKEN, adicionar + deletar em 4h seria retrabalho. Melhor: side-sprint fecha o Sprint 0 ao terminar.
-
-## Dependency Graph (empírico via `gh api`)
-
-```
-Layer 0 (zero @tn-figueiredo deps — publica em paralelo):
-  shared         (0.8.0)
-  audit          (0.1.0)
-  admin          (0.2.0)
-  ad-engine      (0.1.0)
-  notifications  (0.1.0)
-  seo            (0.1.0)
-  sound-engine   (0.2.0)
-
-Layer 1 (depende de L0):
-  auth           (1.3.0)  → audit + shared
-  lgpd           (0.1.0)  → audit
-
-Layer 2 (depende de L1):
-  auth-expo      (1.0.0)  → auth
-  auth-fastify   (1.1.0)  → auth
-  auth-nextjs    (2.0.0)  → auth + shared
-  auth-supabase  (1.1.0)  → auth
-```
-
-Publish em ordem de layer. Dentro de cada layer, paralelização OK.
+| Package | Atual | Novo |
+|---------|:-----:|:----:|
+| shared | 0.8.0 | 1.0.0 |
+| audit | 0.1.0 | 1.0.0 |
+| admin | 0.3.0 | 1.0.0 |
+| ad-engine | 0.1.0 | 1.0.0 |
+| affiliate | 0.1.0 | 1.0.0 |
+| billing | 0.1.0 | 1.0.0 |
+| brasil-tax-id | 0.1.0 | 1.0.0 |
+| cron-lock | 0.1.0 | 1.0.0 |
+| crypto | 0.1.0 | 1.0.0 |
+| entity-resolver | 0.1.0 | 1.0.0 |
+| fraud-detection-utils | 0.1.0 | 1.0.0 |
+| gamification | 0.1.0 | 1.0.0 |
+| notifications | 0.1.0 | 1.0.0 |
+| seo | 0.1.0 | 1.0.0 |
+| sound-engine | 0.2.0 | 1.0.0 |
+| lgpd | 0.1.0 | 1.0.0 |
+| fraud-detection | 0.1.0 | 1.0.0 |
+| promo-codes | 0.1.0 | 1.0.0 |
+| ranking | 0.1.0 | 1.0.0 |
+| auth | 1.3.0 | 2.0.0 |
+| auth-expo | 1.0.0 | 2.0.0 |
+| auth-fastify | 1.1.0 | 2.0.0 |
+| auth-supabase | 1.1.0 | 2.0.0 |
+| auth-nextjs | 2.0.0 | 3.0.0 |
 
 ## Execution Plan
 
-### Fase 1 — Transfer + Rename (~30min)
+### Fase 0 — tnf-ecosystem hygiene (~2-3h)
 
-1. Tag `pre-migration-2026-04-13` em `TN-Figueiredo/tnf-ecosystem` (backup)
-2. **[Checkpoint 1]** Confirm transfer
-3. `gh api -X POST repos/TN-Figueiredo/tnf-ecosystem/transfer -f new_owner=figueiredo-technology`
-4. Aceitar transfer se pedir confirmação email
-5. Update local clone remote: `git remote set-url origin git@github.com:figueiredo-technology/tnf-ecosystem.git`
-6. Branch `migration/figueiredo-technology-scope`
-7. Batch sed em `packages/*/package.json`:
-   - `"name": "@tn-figueiredo/X"` → `"name": "@figueiredo-technology/X"`
-   - dependency refs `@tn-figueiredo/X` → `@figueiredo-technology/X`
-   - Version bumps conforme D2 mapping
-8. Batch sed em `packages/*/src/**/*.ts`:
-   - `from '@tn-figueiredo/X'` → `from '@figueiredo-technology/X'`
-9. Atualizar CI workflow (`.github/workflows/publish.yml`): NPM_TOKEN → GITHUB_TOKEN
-10. `npm install` local + `npm run build` para confirmar que cross-refs resolvem
-11. Commit em layers (7 commits de Layer 0, 2 de Layer 1, 4 de Layer 2) — ou 1 commit atomic
+Meta: main limpo, pushed, com os 24 packages trackados, sem branches lixo.
 
-### Fase 2 — Publish topológico (~45min)
+1. **[Checkpoint 0a]** Backup: tag `pre-migration-2026-04-13` em current HEAD
+2. Revisar diff das 6 files modificadas em `promo-codes`
+3. Commit promo-codes WIP (`git add packages/promo-codes && git commit`)
+4. `git add packages/brasil-tax-id packages/crypto packages/entity-resolver packages/ranking`
+5. Commit untracked packages (4 packages, 1 commit ou split por package)
+6. Push main → 39 + novos commits vão pra origin
+7. Deletar feature branches stale (8 remotas):
+   ```
+   git push origin --delete chore/integration-tests feat/auth-core feat/auth-fastify \
+     feat/email-templates-parameterize feat/feature-flags feat/gamification-and-polish \
+     feat/shared-theme-rich-tokens feat/types-enhancements feat/utils-module
+   ```
+8. Review `changeset-release/main`: merge if relevant, delete otherwise
+9. Deletar branch local `feat/admin-package`
+10. CI verde no main pós-push?
 
-12. **[Checkpoint 2]** Confirm publish
-13. Push branch → abre PR ou merge direto em main
-14. CI de publish dispara — publica Layer 0 em paralelo (7 packages)
-15. Smoke: `npm view @figueiredo-technology/shared version` retorna 1.0.0
-16. Se L0 ok, trigger manual/auto para Layer 1 (auth, lgpd)
-17. Smoke L1 ok → Layer 2 (auth-expo, auth-fastify, auth-nextjs, auth-supabase)
-18. Final smoke: todos 13 retornam via `npm view`
+**Exit Fase 0:**
+- [ ] `git status` clean
+- [ ] `git log origin/main..HEAD` zero
+- [ ] `git branch -a` mostra só main (+ uma HEAD)
 
-### Fase 3 — Migrate consumer (bythiagofigueiredo) (~1h)
+### Fase 1 — Package migration (tnf-ecosystem) (~5-7h)
 
-19. **[Checkpoint 3]** Confirm consumer migration
-20. Branch `migration/figueiredo-technology-scope` em `bythiagofigueiredo`
-21. `.npmrc`:
-    - `@tn-figueiredo:registry=...` → `@figueiredo-technology:registry=https://npm.pkg.github.com`
-    - `//npm.pkg.github.com/:_authToken=${NPM_TOKEN}` → mantém (local dev precisa)
-22. `apps/web/package.json` + `apps/api/package.json` + `packages/shared/package.json`:
-    - Renomear todas `@tn-figueiredo/*` → `@figueiredo-technology/*` com novas versões
-23. Sed em `apps/*/src/**/*.ts` + `packages/*/src/**/*.ts`:
-    - Imports `@tn-figueiredo/*` → `@figueiredo-technology/*`
-24. `rm -rf node_modules package-lock.json`
-25. `npm install`
-26. Build: `npm run build:web` + `npm run typecheck -w apps/api`
-27. Smoke: `npm run test`
-28. Commit + push branch → CI roda com NPM_TOKEN temporariamente
+11. **[Checkpoint 1]** Confirm transfer
+12. `gh api -X POST /repos/TN-Figueiredo/tnf-ecosystem/transfer -f new_owner=figueiredo-technology`
+13. Aceitar transfer (email se pedir)
+14. Update local remote: `git remote set-url origin git@github.com:figueiredo-technology/tnf-ecosystem.git`
+15. Branch `migration/figueiredo-technology-scope`
+16. **Batch sed** em `packages/*/package.json`:
+    - `"name": "@tn-figueiredo/X"` → `"name": "@figueiredo-technology/X"`
+    - dep refs `@tn-figueiredo/X` → `@figueiredo-technology/X` (em deps + peerDeps)
+    - Version bumps conforme mapping
+17. **Batch sed** em `packages/*/src/**/*.ts`:
+    - imports `@tn-figueiredo/*` → `@figueiredo-technology/*`
+18. Update publishing CI (`.github/workflows/publish*.yml`): NPM_TOKEN → GITHUB_TOKEN
+19. `npm install` root + build all packages locally — confirma cross-refs
+20. Commit atomic em layers topológicas (3 commits ou 1 atomic)
+21. **[Checkpoint 2a]** Confirm publish L0
+22. PR + merge em main → CI publica L0 (15 packages em paralelo)
+23. Smoke: `npm view @figueiredo-technology/shared version` = 1.0.0
+24. **[Checkpoint 2b]** Confirm publish L1
+25. Trigger L1 publish (5 packages)
+26. Smoke L1 ok
+27. **[Checkpoint 2c]** Confirm publish L2
+28. Trigger L2 publish (4 packages)
+29. Smoke: todos 24 via `npm view` retornam nova versão
 
-### Fase 4 — Kill NPM_TOKEN (~30min)
+### Fase 2 — bythiagofigueiredo consumer (~1-2h)
 
-29. **[Checkpoint 4]** Confirm kill
-30. Configurar Org Settings → Packages → Allow Actions inbound
-31. Per-package "Manage Actions access": autorizar `figueiredo-technology/bythiagofigueiredo` para todos 13 packages
-32. Update `.github/workflows/ci.yml` do bythiagofigueiredo: trocar `secrets.NPM_TOKEN` por `secrets.GITHUB_TOKEN`
-33. Push → CI re-roda
-34. Verificar CI verde sem NPM_TOKEN
-35. `gh secret delete NPM_TOKEN --repo figueiredo-technology/bythiagofigueiredo`
-36. Merge branch em staging
-37. Verify final CI verde na staging
+30. **[Checkpoint 3]** Confirm consumer migration (bythiagofigueiredo)
+31. Branch `migration/figueiredo-technology-scope`
+32. Update `.npmrc`: scope line
+33. Update `apps/web/package.json`, `apps/api/package.json`, `packages/shared/package.json`:
+    - 10 deps `@tn-figueiredo/*` → `@figueiredo-technology/*` com novas versões
+34. Update imports em `apps/**/*.ts` + `packages/**/*.ts`
+35. `rm -rf node_modules package-lock.json && npm install`
+36. Build + typecheck + test
+37. Commit + push branch
+38. CI roda no branch (com NPM_TOKEN ainda — intermediário)
+39. Merge staging
 
-### Fase 5 — Closeout
+### Fase 3 — tonagarantia consumer (production-aware) (~3-4h)
 
-38. Atualizar roadmap: Sprint 0 → ✅, side-sprint logged
-39. Update spec com outcomes
-40. Update memory se aplicável
-41. Commit "sprint-0 + package migration closed"
+40. **[Checkpoint 4]** Confirm TNG migration
+41. Clone/pull tonagarantia localmente
+42. Branch `migration/figueiredo-technology-scope`
+43. Update `.npmrc` + package.json de todos workspaces (apps/api, apps/web, apps/mobile se existir, packages/*)
+44. 24 deps `@tn-figueiredo/*` → `@figueiredo-technology/*`
+45. Update imports (mesma sed de Fase 2, escalado)
+46. `rm -rf node_modules package-lock.json && npm install`
+47. Build + typecheck + TEST SUITE COMPLETA
+48. Open PR pro staging do TNG
+49. CI verde
+50. **[Checkpoint 5]** Confirm TNG deploy staging
+51. Deploy staging, monitorar erros no Sentry
+52. Smoke test TNG staging (auth flow, critical paths)
+53. **[Checkpoint 6]** Confirm TNG deploy prod
+54. Merge → deploy prod
+55. Monitorar Sentry 1h pós-deploy
+
+### Fase 4 — Kill NPM_TOKEN (~1-2h)
+
+56. Org `figueiredo-technology` → Settings → Packages → **Allow Actions** inbound
+57. Para cada um dos 24 packages: Package settings → Manage Actions access → authorize `figueiredo-technology/bythiagofigueiredo` + `TN-Figueiredo/tonagarantia` (scriptar via API se possível)
+58. Update `bythiagofigueiredo/.github/workflows/ci.yml`: `secrets.NPM_TOKEN` → `secrets.GITHUB_TOKEN`
+59. Push → CI verde sem NPM_TOKEN
+60. `gh secret delete NPM_TOKEN --repo figueiredo-technology/bythiagofigueiredo`
+61. Update `tonagarantia/.github/workflows/ci.yml`: same
+62. Push TNG → CI verde sem NPM_TOKEN
+63. `gh secret delete NPM_TOKEN --repo TN-Figueiredo/tonagarantia`
+
+### Fase 5 — Closeout (~1h)
+
+64. Verification checklist (abaixo) — todos ✅
+65. Update roadmap do bythiagofigueiredo: Sprint 0 → ✅, side-sprint logged
+66. Update memory (Claude memory) sobre novo scope + org
+67. Tag de sucesso `migration-complete-2026-04-13` em ambos repos
+68. Commit final em bythiagofigueiredo
 
 ## Exit Criteria
 
-- [ ] 13 packages `@figueiredo-technology/*` publicados, acessíveis via `npm view`
-- [ ] bythiagofigueiredo `.npmrc`, `package.json` (3 arquivos) e TS imports referenciam novo scope
-- [ ] `grep -r "@tn-figueiredo" apps/ packages/` retorna 0 matches
-- [ ] CI do bythiagofigueiredo verde sem `NPM_TOKEN` no workflow
-- [ ] `gh secret list` em bythiagofigueiredo não retorna `NPM_TOKEN`
-- [ ] `@tn-figueiredo/*` packages continuam instaláveis (TNG não quebra)
-- [ ] Sprint 0 do roadmap bythiagofigueiredo flipado para ✅
+- [ ] 24 packages `@figueiredo-technology/*` publicados e instaláveis
+- [ ] tnf-ecosystem transferido pra `figueiredo-technology` org
+- [ ] bythiagofigueiredo consome `@figueiredo-technology/*` + CI verde sem NPM_TOKEN
+- [ ] tonagarantia consome `@figueiredo-technology/*` + CI verde + prod estável
+- [ ] `@tn-figueiredo/*` packages permanecem instaláveis (fallback/continuidade)
+- [ ] NPM_TOKEN deletado em ambos consumer repos
+- [ ] Sprint 0 do bythiagofigueiredo → ✅
 
 ## Verification Checklist
 
 ```bash
-# 1. Todos 13 packages publicados em @figueiredo-technology/*?
-for pkg in shared audit admin ad-engine notifications seo sound-engine lgpd auth auth-expo auth-fastify auth-nextjs auth-supabase; do
-  echo -n "@figueiredo-technology/$pkg: "
-  npm view @figueiredo-technology/$pkg version 2>&1 | head -1
+# 1. 24 packages publicados no novo scope
+for pkg in shared audit admin ad-engine affiliate billing brasil-tax-id cron-lock \
+  crypto entity-resolver fraud-detection-utils gamification notifications seo sound-engine \
+  lgpd fraud-detection promo-codes ranking auth auth-expo auth-fastify auth-supabase auth-nextjs; do
+  v=$(npm view @figueiredo-technology/$pkg version 2>&1 | tail -1)
+  echo "@figueiredo-technology/$pkg: $v"
 done
 
-# 2. bythiagofigueiredo sem refs antigas
-grep -r "@tn-figueiredo" /Users/figueiredo/Workspace/bythiagofigueiredo/apps /Users/figueiredo/Workspace/bythiagofigueiredo/packages 2>&1 | grep -v node_modules | grep -v .git
-# esperado: nenhum match
+# 2. bythiagofigueiredo limpo
+grep -r "@tn-figueiredo" ~/Workspace/bythiagofigueiredo/apps ~/Workspace/bythiagofigueiredo/packages 2>&1 | grep -v node_modules
+# esperado: 0 matches
 
-# 3. CI verde?
-cd /Users/figueiredo/Workspace/bythiagofigueiredo
-gh run list --limit 1 --json conclusion -q '.[0].conclusion'
+# 3. tonagarantia limpo
+grep -r "@tn-figueiredo" ~/Workspace/tonagarantia/apps ~/Workspace/tonagarantia/packages 2>&1 | grep -v node_modules
+# esperado: 0 matches
+
+# 4. Secrets mortos
+gh secret list --repo figueiredo-technology/bythiagofigueiredo | grep NPM_TOKEN
+gh secret list --repo TN-Figueiredo/tonagarantia | grep NPM_TOKEN
+# esperado: nenhum
+
+# 5. CIs verdes
+gh run list --limit 1 --repo figueiredo-technology/bythiagofigueiredo --json conclusion -q '.[0].conclusion'
+gh run list --limit 1 --repo TN-Figueiredo/tonagarantia --json conclusion -q '.[0].conclusion'
 # esperado: success
 
-# 4. NPM_TOKEN eliminado?
-gh secret list --repo figueiredo-technology/bythiagofigueiredo | grep NPM_TOKEN
-# esperado: nenhum match
-
-grep -r "NPM_TOKEN" /Users/figueiredo/Workspace/bythiagofigueiredo/.github/
-# esperado: nenhum match (ou só referências histórias comentadas)
-
-# 5. TNG ainda vivo?
-curl -sI https://tonagarantia.com.br -o /dev/null -w "%{http_code}"
+# 6. TNG prod ok
+curl -sI https://tonagarantia.com.br -o /dev/null -w "%{http_code}\n"
 # esperado: 200 ou 301
 
-# 6. @tn-figueiredo/* ainda instalável (TNG continuity)?
-npm view @tn-figueiredo/auth version
-# esperado: algum numero (prova que GitHub redirect funciona)
+# 7. Backup preservado
+gh api /repos/figueiredo-technology/tnf-ecosystem/tags -q '.[] | select(.name == "pre-migration-2026-04-13") | .name'
+# esperado: pre-migration-2026-04-13
 ```
 
-Todos ✅ = side-sprint + Sprint 0 do bythiagofigueiredo = DONE.
-
-## Risks (7)
+## Risks (10)
 
 | # | Risco | Prob | Impacto | Mitigação |
 |---|-------|:----:|:-------:|-----------|
-| R1 | Publish CI falha deixando N/13 publicados | 30% | 🔴 alto | ordem topológica + retry idempotente + checkpoint humano antes de L0 |
-| R2 | TNG quebra durante janela | 20% | 🔴 alto | não tocar em TNG; `@tn-figueiredo/*` mantém via redirect do GitHub |
-| R3 | bythiagofigueiredo Vercel auto-deploy durante migração | 30% | 🟡 médio | trabalhar em branch feature; não merge até Fase 4 completa |
-| R4 | GITHUB_TOKEN permissions insuficientes pra ler packages | 40% | 🟡 médio | testar com 1 package (shared) antes do batch; fallback para PAT se necessário |
-| R5 | Internal TS imports não cobertos pelo sed | 50% | 🟢 baixo | build local (Fase 1 passo 10) detecta antes de publish |
-| R6 | `.npmrc` repo-level override do global | 30% | 🟢 baixo | testar `npm install` local após rename |
-| R7 | Sentry source maps antigos referenciam `@tn-figueiredo/*` | 10% | 🟢 baixo | só afeta debugging retrospectivo; não quebra prod |
+| R1 | `promo-codes` mods serem WIP (não prontos) mesmo que user disse prontos | 30% | 🟡 médio | Eu mostro o diff antes de commitar; user dá go/no-go |
+| R2 | 39 commits unpushed terem lixo (commits ruins misturados) | 20% | 🟡 médio | Review do `git log origin/main..HEAD` antes do push |
+| R3 | Publish CI falha no meio (N/24 publicados) | 30% | 🔴 alto | Ordem topológica por layer + checkpoint entre layers + retry idempotente |
+| R4 | TNG PROD quebra após migração | 25% | 🔴 crítico | Staging deploy + 1h monitoring Sentry antes de prod; rollback via revert commit + redeploy |
+| R5 | GITHUB_TOKEN permissions insuficientes | 40% | 🟡 médio | Testar com 1 package antes do batch; fallback PAT se falhar |
+| R6 | Internal TS imports não cobertos pelo sed | 50% | 🟢 baixo | Build local (Fase 1 #19) detecta antes de publish |
+| R7 | Feature branches tinham work importante que eu assumi "merged" incorretamente | 10% | 🟡 médio | Mesmo todas sendo +0/-N, double-check comparing files before delete |
+| R8 | Untracked packages (brasil-tax-id etc) terem conteúdo diferente do que foi publicado | 40% | 🟡 médio | Smoke test consumer install + reproduce old behavior antes de publish |
+| R9 | `.npmrc` repo-level override do global causar install quebrado | 30% | 🟢 baixo | Test local após each .npmrc change |
+| R10 | Sentry source maps antigos referenciam `@tn-figueiredo/*` | 10% | 🟢 baixo | Só afeta debugging retrospectivo; não quebra prod |
 
 ## Rollback Plan (step-by-step)
 
-### Rollback durante Fase 1 (pre-publish)
+### Fase 0 rollback (before transfer)
 ```bash
-git checkout main
-git branch -D migration/figueiredo-technology-scope
-# se quiser reverter transfer: gh api -X POST repos/figueiredo-technology/tnf-ecosystem/transfer -f new_owner=TN-Figueiredo
+# Unstage WIP if committed wrongly
+git reset HEAD~N   # N = novos commits
+# Restore deleted branches if needed (they're already merged, so low impact)
 ```
 
-### Rollback durante Fase 2 (mid-publish, N/13 publicados)
+### Fase 1 rollback (mid-publish)
 ```bash
-# Opção A: completar mesmo assim (publicações antigas @tn-figueiredo continuam válidas)
-# Opção B: deletar publicações parciais
-for pkg in <lista dos publicados>; do
-  gh api -X DELETE /orgs/figueiredo-technology/packages/npm/$pkg
+# Delete novos packages @figueiredo-technology/*
+for pkg in <já publicados>; do
+  gh api -X DELETE "/orgs/figueiredo-technology/packages/npm/$pkg"
 done
-# Reset monorepo
+# Reset source repo
 git reset --hard pre-migration-2026-04-13
 git push --force origin main
+# Transfer repo back: gh api -X POST /repos/figueiredo-technology/tnf-ecosystem/transfer -f new_owner=TN-Figueiredo
 ```
 
-### Rollback durante Fase 3 (consumer migration)
+### Fase 2 rollback (bythiagofigueiredo)
 ```bash
-# bythiagofigueiredo branch ainda não mergeada
+# Branch ainda não merged em staging
 git checkout staging
 git branch -D migration/figueiredo-technology-scope
-# packages novos ficam publicados mas não consumidos — ok, não bloqueia nada
 ```
 
-### Rollback durante Fase 4 (kill NPM_TOKEN)
+### Fase 3 rollback (TNG, production emergency)
 ```bash
-# re-adicionar NPM_TOKEN
-gh secret set NPM_TOKEN --repo figueiredo-technology/bythiagofigueiredo
-# reverter workflow
-git revert <commit do workflow change>
+# In TNG repo:
+git revert <merge commit>
+git push staging
+# Vercel redeploy automático
+# Monitorar Sentry drop nos erros
 ```
 
-### Nuclear rollback (nada funciona)
-- Transfer repo back: `gh api -X POST repos/figueiredo-technology/tnf-ecosystem/transfer -f new_owner=TN-Figueiredo`
-- Deprecate `@figueiredo-technology/*` publicados (via `gh api` delete)
-- bythiagofigueiredo reverter para commit pre-migração
-- Sprint 0 segue com NPM_TOKEN tradicional
+### Fase 4 rollback (NPM_TOKEN deletion)
+```bash
+# Re-add token
+gh secret set NPM_TOKEN --repo <owner/repo>
+# Revert workflow change
+git revert <commit>
+```
 
-## User Actions Required
+## User Actions Required (estimate 20min distributed)
 
-1. **[Checkpoint 1]** Confirm transfer no chat
-2. Aceitar email de transfer do GitHub se vier (pode não vir se teu token tem scope admin:org)
-3. **[Checkpoint 2]** Confirm publish
-4. **Org Settings → Packages → Allow Actions inbound** (UI)
-5. **Per-package Manage Actions access** — 13 toggles (UI); alternativamente script via API
-6. **[Checkpoint 3]** Confirm consumer migration
-7. **[Checkpoint 4]** Confirm NPM_TOKEN delete
+1. **[Cp 0a]** Review `git diff` do promo-codes, confirmar mods prontos → commit
+2. **[Cp 1]** Confirm transfer tnf-ecosystem
+3. Accept GitHub transfer email se pedir
+4. **[Cp 2a, 2b, 2c]** Confirm publishes (3x)
+5. **Org Settings UI:** enable Actions inbound access pra Packages
+6. **Per-package UI (24×):** Manage Actions access — ou script via API se der
+7. **[Cp 3]** Confirm bythiagofigueiredo migration
+8. **[Cp 4, 5, 6]** Confirm TNG migration + staging deploy + prod deploy
+9. Monitor Sentry pós-TNG-prod
 
-**Total user time estimado:** ~10min distribuídos em 4 momentos.
+## Time Budget (honest)
 
-## Generated Artifacts
+| Fase | Atividade | Estimativa |
+|------|-----------|:----------:|
+| 0 | tnf-ecosystem hygiene | 2-3h |
+| 1 | Package migration | 5-7h |
+| 2 | bythiagofigueiredo consumer | 1-2h |
+| 3 | tonagarantia consumer (prod) | 3-4h |
+| 4 | Kill NPM_TOKEN | 1-2h |
+| 5 | Closeout | 1h |
+| **Total** | | **13-19h** |
 
-Ao final:
-- Este spec em `docs/superpowers/specs/`
-- Plan em `docs/superpowers/plans/` (gerado via `writing-plans`)
-- Commits estruturados em 2 repos (tnf-ecosystem + bythiagofigueiredo)
-- Roadmap atualizado refletindo side-sprint
+**Realistic: 2 dias de trabalho focado.**
 
-## Lessons Learned (a validar pós-execução)
+Pode ser dividido:
+- **Dia 1 AM:** Fase 0 + Fase 1 (hygiene + package migration) — 7-10h
+- **Dia 1 PM / Dia 2:** Fases 2-5 (consumers + cleanup) — 6-9h
 
-- Monorepo facilita migração vs N repos separados
-- Scope change = breaking change sempre; version major obrigatório
-- Checkpoint-driven execution reduz rework em falhas
-- GITHUB_TOKEN > PAT quando tudo vive na mesma org
+## Open Questions
+
+Nenhuma — user respondeu Q1-Q5. Pronto para execução.
+
+## Process Notes
+
+Esta é a **rev 4** do spec. Revisões anteriores (rev1-rev3) tinham dados incompletos, principalmente por não terem feito pre-flight audit local. Lesson: **sempre `ls` local antes de desenhar scope**, não confiar em gh api pra estado de working tree.
