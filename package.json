@@ -16,7 +16,7 @@
     "test": "npm run test:api && npm run test:web",
     "test:api": "npm run test -w apps/api",
     "test:web": "npm run test -w apps/web",
-    "prepare": "husky"
+    "prepare": "husky || true"
   },
   "engines": {
     "node": ">= 18.0.0"
