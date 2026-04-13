@@ -175,24 +175,32 @@ Meta: main limpo, pushed, com os 24 packages trackados, sem branches lixo.
 38. CI roda no branch (com NPM_TOKEN ainda — intermediário)
 39. Merge staging
 
-### Fase 3 — tonagarantia consumer (production-aware) (~3-4h)
+### Fase 3 — tonagarantia consumer (production-aware) (~4-5h)
+
+**Estrutura TNG confirmada:** 3 apps (api, web, **mobile**) + `packages/shared`. Mobile = Expo (React Native) consumindo `auth-expo`, `ad-engine`, `sound-engine`.
 
 40. **[Checkpoint 4]** Confirm TNG migration
 41. Clone/pull tonagarantia localmente
 42. Branch `migration/figueiredo-technology-scope`
-43. Update `.npmrc` + package.json de todos workspaces (apps/api, apps/web, apps/mobile se existir, packages/*)
-44. 24 deps `@tn-figueiredo/*` → `@figueiredo-technology/*`
-45. Update imports (mesma sed de Fase 2, escalado)
-46. `rm -rf node_modules package-lock.json && npm install`
-47. Build + typecheck + TEST SUITE COMPLETA
-48. Open PR pro staging do TNG
-49. CI verde
-50. **[Checkpoint 5]** Confirm TNG deploy staging
-51. Deploy staging, monitorar erros no Sentry
-52. Smoke test TNG staging (auth flow, critical paths)
-53. **[Checkpoint 6]** Confirm TNG deploy prod
-54. Merge → deploy prod
-55. Monitorar Sentry 1h pós-deploy
+43. Update `.npmrc` scope line (TNG uses mesmo pattern do bythiagofigueiredo)
+44. Update `apps/api/package.json` — 18 deps
+45. Update `apps/web/package.json` — 5 deps
+46. Update `apps/mobile/package.json` — 3 deps (auth-expo, ad-engine, sound-engine) — **atenção Expo**
+47. Update `packages/shared/package.json` se aplicável
+48. 24 deps `@tn-figueiredo/*` → `@figueiredo-technology/*` distribuídas
+49. Update imports em `apps/**/src/**/*.ts`, `apps/**/src/**/*.tsx`
+50. `rm -rf node_modules package-lock.json && npm install`
+51. Build web + typecheck api
+52. Mobile: `npx expo prebuild` se necessário + `npx expo doctor` pra validar
+53. TEST SUITE COMPLETA (unit + integration)
+54. Open PR pro staging do TNG
+55. CI verde
+56. **[Checkpoint 5]** Confirm TNG deploy staging
+57. Deploy staging, monitorar erros no Sentry (**api** + **web** + **mobile** EAS build)
+58. Smoke test TNG staging (auth flow, critical paths, mobile OTA update)
+59. **[Checkpoint 6]** Confirm TNG deploy prod
+60. Merge → deploy prod (web automático via Vercel; mobile via EAS update/submit)
+61. Monitorar Sentry 1h pós-deploy — **3 projetos** (api, web, mobile)
 
 ### Fase 4 — Kill NPM_TOKEN (~1-2h)
 
@@ -275,6 +283,8 @@ gh api /repos/figueiredo-technology/tnf-ecosystem/tags -q '.[] | select(.name ==
 | R8 | Untracked packages (brasil-tax-id etc) terem conteúdo diferente do que foi publicado | 40% | 🟡 médio | Smoke test consumer install + reproduce old behavior antes de publish |
 | R9 | `.npmrc` repo-level override do global causar install quebrado | 30% | 🟢 baixo | Test local após each .npmrc change |
 | R10 | Sentry source maps antigos referenciam `@tn-figueiredo/*` | 10% | 🟢 baixo | Só afeta debugging retrospectivo; não quebra prod |
+| R11 | **Mobile (Expo) build quebrar** após rename — Metro bundler nem sempre resolve scope change bem | 35% | 🔴 alto | `expo doctor` + clear cache (`expo start -c`) + EAS build staging antes de submit prod |
+| R12 | Users com app mobile antigo instalado ficam com versão outdated enquanto EAS update não propaga | 30% | 🟡 médio | EAS update envia patch sem rebuild nativo; monitorar rollout em %; fallback: forçar app update |
 
 ## Rollback Plan (step-by-step)
 
@@ -340,7 +350,7 @@ git revert <commit>
 | 0 | tnf-ecosystem hygiene | 2-3h |
 | 1 | Package migration | 5-7h |
 | 2 | bythiagofigueiredo consumer | 1-2h |
-| 3 | tonagarantia consumer (prod) | 3-4h |
+| 3 | tonagarantia consumer (api+web+**mobile Expo**+shared) | 4-5h |
 | 4 | Kill NPM_TOKEN | 1-2h |
 | 5 | Closeout | 1h |
 | **Total** | | **13-19h** |
