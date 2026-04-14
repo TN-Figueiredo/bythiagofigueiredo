@@ -97,3 +97,54 @@ describe.skipIf(skipIfNoLocalDb())('migration 0002 blog_posts', () => {
     expect(rows[0].status).toBe('draft')
   })
 })
+
+describe.skipIf(skipIfNoLocalDb())('migration 0003 blog_translations', () => {
+  const client = new Client({ connectionString: DB_URL })
+  beforeAll(async () => { await client.connect() })
+  afterAll(async () => { await client.end() })
+
+  it('blog_translations table has expected columns', async () => {
+    const { rows } = await client.query(`
+      select column_name from information_schema.columns
+      where table_schema='public' and table_name='blog_translations'
+    `)
+    const names = rows.map(r => r.column_name)
+    for (const c of ['id','post_id','locale','title','slug','excerpt','content_md',
+      'cover_image_url','meta_title','meta_description','og_image_url',
+      'created_at','updated_at']) {
+      expect(names).toContain(c)
+    }
+  })
+
+  it('unique (post_id, locale) is enforced', async () => {
+    await client.query(`insert into public.authors(name,slug) values('B','b') on conflict do nothing`)
+    const { rows: [a] } = await client.query(`select id from public.authors where slug='b'`)
+    const { rows: [p] } = await client.query(
+      `insert into public.blog_posts(author_id) values ($1) returning id`, [a.id]
+    )
+    await client.query(
+      `insert into public.blog_translations(post_id,locale,title,slug,content_md)
+       values ($1,'pt-BR','T','s1','c')`, [p.id]
+    )
+    await expect(client.query(
+      `insert into public.blog_translations(post_id,locale,title,slug,content_md)
+       values ($1,'pt-BR','T2','s2','c2')`, [p.id]
+    )).rejects.toThrow()
+  })
+
+  it('cascades delete when post is removed', async () => {
+    const { rows: [a] } = await client.query(`select id from public.authors where slug='b'`)
+    const { rows: [p] } = await client.query(
+      `insert into public.blog_posts(author_id) values ($1) returning id`, [a.id]
+    )
+    await client.query(
+      `insert into public.blog_translations(post_id,locale,title,slug,content_md)
+       values ($1,'en','T','en-slug','c')`, [p.id]
+    )
+    await client.query(`delete from public.blog_posts where id=$1`, [p.id])
+    const { rows } = await client.query(
+      `select 1 from public.blog_translations where post_id=$1`, [p.id]
+    )
+    expect(rows).toHaveLength(0)
+  })
+})
