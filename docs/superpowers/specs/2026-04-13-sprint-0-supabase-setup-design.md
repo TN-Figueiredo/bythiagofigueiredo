@@ -5,6 +5,41 @@
 **Sprint:** 0 (Infraestrutura — Fase 1 MVP)
 **Budget:** 4h restantes (scaffold + CI já concluídos)
 
+## Appendix — CI Optimization Lessons Learned (from TNG, 2026-04-14)
+
+Durante otimização do CI do TNG (aplicada após este Sprint 0), 3 padrões emergiram que devem ser adotados em **todo CI novo do bythiagofigueiredo**:
+
+### 1. Cache sharing via setup job + actions/cache
+
+Em vez de `npm ci` em cada job (3-6× duplicação), usar:
+- Job "setup" com `npm ci` + cache save de `node_modules` + `packages/*/node_modules` + `apps/*/node_modules`
+- Downstream jobs fazem cache restore (~20s vs 90s npm ci)
+- **Savings: 40-60% de runner minutes**
+
+### 2. Vitest pool: `forks`, não `vmForks`
+
+`vmForks` tem issue de `vi.mock` hoisting em Ubuntu CI (passa local macOS, falha CI). Sempre usar `pool: 'forks'` em `vitest.config.ts`.
+
+### 3. TZ consistency
+
+CI Ubuntu runs em UTC. Helpers de data que usam `Date.setHours()` calculam em TZ local → off-by-one em dias cross-timezone. Fixes:
+- **Preferred:** refatorar helpers para usar `setUTCHours()` (tz-agnostic)
+- **Band-aid:** `env: TZ: America/Sao_Paulo` no workflow + `process.env.TZ` em test setup
+
+### 4. paths-ignore + concurrency
+
+- `paths-ignore` pra skip docs-only changes
+- `concurrency: cancel-in-progress: true` para cancelar runs anteriores em push
+
+### 5. deployment_status trigger separado
+
+Smoke test em workflow próprio (`smoke.yml`) com trigger `deployment_status`. NÃO deixar no mesmo workflow que CI normal — dispara TODOS os jobs desnecessariamente.
+
+### Referência
+
+Implementação real: `TN-Figueiredo/tonagarantia/.github/workflows/ci.yml` (merged PR #3, 2026-04-14).
+Resultado empírico: 26min baseline → 10m22s (60% reduction).
+
 ## Changelog
 
 - **rev 3 (2026-04-13 — closure):** Sprint 0 fechado. Scripts DB padrão TNG adicionados (`db:link:prod`, `db:push:prod`, `db:start/stop/reset/status`, `db:env`, `db:which`). `config.toml` corrigido (project_id, major_version=17, key deprecated `auth.enable_sign_up` removida). `.gitignore` atualizado pra excluir `supabase/.temp/` (credentials cache) + `.env.local-db` (local Docker env). CLAUDE.md criado com runbook.
