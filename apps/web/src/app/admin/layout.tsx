@@ -1,19 +1,40 @@
-// TODO: [APP_NAME] Configure admin layout with @tn-figueiredo/admin
-// import { createAdminLayout } from '@tn-figueiredo/admin'
-// import type { AdminLayoutConfig } from '@tn-figueiredo/admin'
-//
-// const config: AdminLayoutConfig = {
-//   sidebar: [
-//     { label: 'Dashboard', href: '/admin', icon: 'LayoutDashboard' },
-//     // TODO: [APP_NAME] Add sidebar items
-//   ],
-// }
-// export default createAdminLayout(config)
+import { createAdminLayout } from '@tn-figueiredo/admin'
+import { createServerClient, requireUser } from '@tn-figueiredo/auth-nextjs'
+import { cookies } from 'next/headers'
+import type { ReactNode } from 'react'
 
-export default function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
-  return <>{children}</>
+const AdminLayout = createAdminLayout({
+  appName: 'Admin',
+  sections: [
+    {
+      group: 'System',
+      items: [
+        { label: 'Dashboard', path: '/admin', icon: 'LayoutDashboard' },
+        { label: 'Users', path: '/admin/users', icon: 'Users' },
+        { label: 'Settings', path: '/admin/settings', icon: 'Settings' },
+      ],
+    },
+  ],
+})
+
+export default async function Layout({ children }: { children: ReactNode }) {
+  const cookieStore = await cookies()
+  const user = await requireUser(
+    createServerClient({
+      env: {
+        apiBaseUrl: process.env.NEXT_PUBLIC_API_URL ?? '',
+        supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      },
+      cookies: {
+        getAll: () => cookieStore.getAll(),
+        setAll: (list) => {
+          for (const { name, value, options } of list) {
+            cookieStore.set(name, value, options)
+          }
+        },
+      },
+    }),
+  )
+  return <AdminLayout userEmail={user.email}>{children}</AdminLayout>
 }
