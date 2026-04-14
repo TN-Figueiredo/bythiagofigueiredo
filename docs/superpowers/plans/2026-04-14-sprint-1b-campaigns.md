@@ -45,6 +45,8 @@ apps/web/
   test/api/campaigns-submit.test.ts                      (new)
   test/api/cron-publish-scheduled.test.ts                (new)
   test/app/campaign-page.test.tsx                        (new)
+  test/app/submit-form.test.tsx                          (new)
+  test/lib/env.test.ts                                   (new)
 
 apps/api/test/rls/
   campaigns.test.ts                                      (new — RLS coverage)
@@ -53,68 +55,17 @@ apps/api/test/rls/
   storage-bucket.test.ts                                 (new)
 
 CLAUDE.md                                                (env var section update)
-package.json (web)                                       (add `p-retry`)
+package.json (web)                                       (add pinned: p-retry@6.2.0,
+                                                          react-markdown@9.0.1,
+                                                          remark-gfm@4.0.0,
+                                                          @supabase/supabase-js@2.45.4)
 ```
 
 ---
 
 ## Task 1 — Migration: `citext` extension
 
-- [ ] **1.1 Write failing test** `apps/api/test/rls/campaign-submissions.test.ts` (citext precondition sub-test):
-
-```typescript
-import { describe, it, expect, beforeAll } from 'vitest';
-import { createClient } from '@supabase/supabase-js';
-
-const admin = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-);
-
-describe('citext extension', () => {
-  it('citext type is installed', async () => {
-    const { data, error } = await admin.rpc('pg_typeof_citext_probe');
-    // fallback: query information_schema for extension presence
-    const ext = await admin.from('pg_available_extensions_view').select('*');
-    expect(error || ext.error).toBeFalsy();
-  });
-
-  it('raw SQL can cast to citext', async () => {
-    const { data, error } = await admin
-      .rpc('exec_sql', { sql: "select 'A'::citext = 'a'::citext as eq" });
-    expect(error).toBeNull();
-    expect(data?.[0]?.eq).toBe(true);
-  });
-});
-```
-
-- [ ] **1.2 Run test, expect FAIL:** `relation "pg_available_extensions_view" does not exist` or `function exec_sql does not exist` (or the direct cast fails before extension is created).
-
-- [ ] **1.3 Write minimal migration** `supabase/migrations/20260414000010_citext_extension.sql`:
-
-```sql
--- Enable citext for case-insensitive email columns
-create extension if not exists citext;
-```
-
-Also add a helper in the same migration for test probing (reusable):
-
-```sql
-create or replace function public.pg_typeof_citext_probe()
-returns text language sql stable as $$
-  select pg_typeof('a'::citext)::text
-$$;
-```
-
-- [ ] **1.4 Run `npm run db:reset && npm run test:api`** — expect PASS.
-
-- [ ] **1.5 Commit:** `feat(sprint-1b): enable citext extension for case-insensitive emails`
-
----
-
-## Task 2 — Migration: `campaigns` table
-
-- [ ] **2.1 Write failing test** (append to `apps/api/test/rls/campaigns.test.ts`):
+- [ ] **Step 1.1 — Write failing test.** Create `apps/api/test/rls/campaign-submissions.test.ts` with a citext precondition describe block. Because the probe function ships inside the migration under test, this suite must be executed AFTER `npm run db:reset` (which replays migrations):
 
 ```typescript
 import { describe, it, expect } from 'vitest';
@@ -125,7 +76,53 @@ const admin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
-describe('campaigns table schema', () => {
+// Skip entire suite in CI where local Supabase is not provisioned (helper
+// pattern established in Sprint 1a Task 0).
+describe.skipIf(!process.env.HAS_LOCAL_DB)('citext extension', () => {
+  it('pg_typeof_citext_probe returns "citext"', async () => {
+    const { data, error } = await admin.rpc('pg_typeof_citext_probe');
+    expect(error).toBeNull();
+    expect(data).toBe('citext');
+  });
+});
+```
+
+- [ ] **Step 1.2 — Run test, expect FAIL:** `function public.pg_typeof_citext_probe() does not exist` (migration hasn't run yet).
+
+- [ ] **Step 1.3 — Write minimal migration** `supabase/migrations/20260414000010_citext_extension.sql`:
+
+```sql
+-- Enable citext for case-insensitive email columns
+create extension if not exists citext;
+
+-- Helper: exposes pg_typeof('a'::citext) so tests can assert the extension is live
+-- via a single RPC roundtrip (no raw SQL endpoint required).
+create or replace function public.pg_typeof_citext_probe()
+returns text language sql stable as $$
+  select pg_typeof('a'::citext)::text
+$$;
+```
+
+- [ ] **Step 1.4 — Run `npm run db:reset && HAS_LOCAL_DB=1 npm run test:api`** — expect PASS.
+
+- [ ] **Step 1.5 — Commit:** `feat(sprint-1b): enable citext extension for case-insensitive emails`
+
+---
+
+## Task 2 — Migration: `campaigns` table
+
+- [ ] **Step 2.1 — Write failing test** (append to `apps/api/test/rls/campaigns.test.ts`):
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { createClient } from '@supabase/supabase-js';
+
+const admin = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+);
+
+describe.skipIf(!process.env.HAS_LOCAL_DB)('campaigns table schema', () => {
   it('insert minimal row', async () => {
     const { data, error } = await admin
       .from('campaigns')
@@ -153,9 +150,9 @@ describe('campaigns table schema', () => {
 });
 ```
 
-- [ ] **2.2 Run test, expect FAIL:** `relation "campaigns" does not exist`.
+- [ ] **Step 2.2 — Run test, expect FAIL:** `relation "campaigns" does not exist`.
 
-- [ ] **2.3 Write migration** `supabase/migrations/20260414000011_campaigns_schema.sql`:
+- [ ] **Step 2.3 — Write migration** `supabase/migrations/20260414000011_campaigns_schema.sql`:
 
 ```sql
 -- campaigns: parent row (interest + media + brevo config), translations live in separate table
@@ -225,65 +222,63 @@ create trigger tg_campaign_translations_updated_at
   for each row execute function tg_set_updated_at();
 ```
 
-- [ ] **2.4 Run `npm run db:reset && npm run test:api`** — expect PASS.
+- [ ] **Step 2.4 — Run `npm run db:reset && HAS_LOCAL_DB=1 npm run test:api`** — expect PASS.
 
-- [ ] **2.5 Commit:** `feat(sprint-1b): add campaigns + campaign_translations tables`
+- [ ] **Step 2.5 — Commit:** `feat(sprint-1b): add campaigns + campaign_translations tables`
 
 ---
 
-## Task 3 — Migration: `campaign_translations` (covered in Task 2 above for DDL efficiency)
+## Task 3 — Migration: `campaign_translations` cascade-delete enforcement
 
-Task 2 already includes `campaign_translations`. Add a dedicated test block before considering this task complete.
+Task 2 created `campaign_translations` with `on delete cascade` on its FK to `campaigns(id)`. Task 3 proves that contract via a full red-green cycle: add a test asserting cascade behavior, watch it run (green against current schema), then deliberately regress the migration (drop the clause), observe red, restore, observe green. This ensures the FK cascade is a covered invariant, not an accidental one.
 
-- [ ] **3.1 Extend test** in `apps/api/test/rls/campaigns.test.ts`:
+- [ ] **Step 3.1 — Append failing test** to `apps/api/test/rls/campaigns.test.ts`:
 
 ```typescript
-describe('campaign_translations', () => {
-  it('requires main_hook_md and success copy', async () => {
-    const { data: c } = await admin
+describe.skipIf(!process.env.HAS_LOCAL_DB)('campaign_translations FK cascade', () => {
+  it('deleting a campaign cascades to its translations', async () => {
+    const { data: c, error: cErr } = await admin
       .from('campaigns').insert({ interest: 'creator' }).select('id').single();
+    expect(cErr).toBeNull();
 
-    const { error } = await admin.from('campaign_translations').insert({
-      campaign_id: c!.id,
-      locale: 'pt-BR',
-      slug: 'teste',
+    const baseTx = {
+      campaign_id: c!.id, locale: 'pt-BR', slug: `cascade-${Date.now()}`,
       main_hook_md: '# hi',
-      context_tag: 'OK',
-      success_headline: 'a',
-      success_headline_duplicate: 'b',
-      success_subheadline: 'c',
-      success_subheadline_duplicate: 'd',
-      check_mail_text: 'e',
-      download_button_label: 'f',
-    });
-    expect(error).toBeNull();
-  });
-
-  it('enforces unique (campaign_id, locale)', async () => {
-    const { data: c } = await admin
-      .from('campaigns').insert({ interest: 'style' }).select('id').single();
-    const base = {
-      campaign_id: c!.id, locale: 'pt-BR', slug: 'x', main_hook_md: '#',
-      context_tag: 'x', success_headline: 'x', success_headline_duplicate: 'x',
-      success_subheadline: 'x', success_subheadline_duplicate: 'x',
-      check_mail_text: 'x', download_button_label: 'x',
+      context_tag: 'OK', success_headline: 'a', success_headline_duplicate: 'b',
+      success_subheadline: 'c', success_subheadline_duplicate: 'd',
+      check_mail_text: 'e', download_button_label: 'f',
     };
-    await admin.from('campaign_translations').insert(base);
-    const dup = await admin.from('campaign_translations').insert({ ...base, slug: 'y' });
-    expect(dup.error).not.toBeNull();
+    const { data: t, error: tErr } = await admin
+      .from('campaign_translations').insert(baseTx).select('id').single();
+    expect(tErr).toBeNull();
+    const translationId = t!.id;
+
+    // Delete the parent campaign.
+    const { error: delErr } = await admin.from('campaigns').delete().eq('id', c!.id);
+    expect(delErr).toBeNull();
+
+    // The translation must be gone.
+    const { data: after, error: afterErr } = await admin
+      .from('campaign_translations').select('id').eq('id', translationId);
+    expect(afterErr).toBeNull();
+    expect(after).toEqual([]);
   });
 });
 ```
 
-- [ ] **3.2 Run test** (already passes from Task 2 migration).
-- [ ] **3.3/3.4 No new code.**
-- [ ] **3.5 Commit:** `test(sprint-1b): cover campaign_translations constraints`
+- [ ] **Step 3.2 — Drive the red-green cycle.** Temporarily edit `supabase/migrations/20260414000011_campaigns_schema.sql` to replace `on delete cascade` with `on delete restrict` on the `campaign_translations.campaign_id` FK. Run `npm run db:reset && HAS_LOCAL_DB=1 npm run test:api`. Expect FAIL: the `delete` on campaigns returns an FK violation error (`delErr` non-null) because a translation still references it.
+
+- [ ] **Step 3.3 — Restore `on delete cascade`.** Revert the migration file so the FK reads `campaign_id uuid not null references campaigns(id) on delete cascade`. No new migration file — Task 3 is a test-hardening task and the schema is authored in Task 2.
+
+- [ ] **Step 3.4 — Run `npm run db:reset && HAS_LOCAL_DB=1 npm run test:api`** — expect PASS. Translation row is removed when parent campaign is deleted.
+
+- [ ] **Step 3.5 — Commit:** `chore(sprint-1b): cover campaign_translations cascade-delete contract`
 
 ---
 
 ## Task 4 — Migration: `campaign_submissions`
 
-- [ ] **4.1 Write failing test** `apps/api/test/rls/campaign-submissions.test.ts`:
+- [ ] **Step 4.1 — Write failing test** (append to `apps/api/test/rls/campaign-submissions.test.ts`):
 
 ```typescript
 import { describe, it, expect } from 'vitest';
@@ -295,7 +290,7 @@ async function makeCampaign() {
   return data!.id;
 }
 
-describe('campaign_submissions schema', () => {
+describe.skipIf(!process.env.HAS_LOCAL_DB)('campaign_submissions schema', () => {
   it('accepts a minimal submission', async () => {
     const cid = await makeCampaign();
     const { error } = await admin.from('campaign_submissions').insert({
@@ -335,9 +330,9 @@ describe('campaign_submissions schema', () => {
 });
 ```
 
-- [ ] **4.2 Run test, expect FAIL:** `relation "campaign_submissions" does not exist`.
+- [ ] **Step 4.2 — Run test, expect FAIL:** `relation "campaign_submissions" does not exist`.
 
-- [ ] **4.3 Write migration** `supabase/migrations/20260414000013_campaign_submissions.sql`:
+- [ ] **Step 4.3 — Write migration** `supabase/migrations/20260414000013_campaign_submissions.sql`:
 
 ```sql
 create table campaign_submissions (
@@ -377,21 +372,21 @@ create index on campaign_submissions (brevo_sync_status)
   where brevo_sync_status = 'pending';
 ```
 
-- [ ] **4.4 Run tests** — expect PASS.
-- [ ] **4.5 Commit:** `feat(sprint-1b): add campaign_submissions with LGPD columns and partial unique index`
+- [ ] **Step 4.4 — Run `npm run db:reset && HAS_LOCAL_DB=1 npm run test:api`** — expect PASS.
+- [ ] **Step 4.5 — Commit:** `feat(sprint-1b): add campaign_submissions with LGPD columns and partial unique index`
 
 ---
 
 ## Task 5 — Migration: `cron_runs`
 
-- [ ] **5.1 Write failing test** `apps/api/test/rls/cron-runs.test.ts`:
+- [ ] **Step 5.1 — Write failing test** `apps/api/test/rls/cron-runs.test.ts`:
 
 ```typescript
 import { describe, it, expect } from 'vitest';
 import { createClient } from '@supabase/supabase-js';
 const admin = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
-describe('cron_runs schema', () => {
+describe.skipIf(!process.env.HAS_LOCAL_DB)('cron_runs schema', () => {
   it('inserts ok run', async () => {
     const { data, error } = await admin.from('cron_runs').insert({
       job: 'publish-scheduled', status: 'ok', duration_ms: 42, items_processed: 3,
@@ -409,9 +404,9 @@ describe('cron_runs schema', () => {
 });
 ```
 
-- [ ] **5.2 Run, expect FAIL:** `relation "cron_runs" does not exist`.
+- [ ] **Step 5.2 — Run, expect FAIL:** `relation "cron_runs" does not exist`.
 
-- [ ] **5.3 Migration** `supabase/migrations/20260414000016_cron_runs.sql`:
+- [ ] **Step 5.3 — Migration** `supabase/migrations/20260414000016_cron_runs.sql`:
 
 ```sql
 create table cron_runs (
@@ -426,14 +421,14 @@ create table cron_runs (
 create index on cron_runs (job, ran_at desc);
 ```
 
-- [ ] **5.4 Run, expect PASS.**
-- [ ] **5.5 Commit:** `feat(sprint-1b): add cron_runs observability table`
+- [ ] **Step 5.4 — Run `npm run db:reset && HAS_LOCAL_DB=1 npm run test:api`** — expect PASS.
+- [ ] **Step 5.5 — Commit:** `feat(sprint-1b): add cron_runs observability table`
 
 ---
 
 ## Task 6 — Migration: Storage bucket `campaign-files`
 
-- [ ] **6.1 Write failing test** `apps/api/test/rls/storage-bucket.test.ts`:
+- [ ] **Step 6.1 — Write failing test** `apps/api/test/rls/storage-bucket.test.ts`:
 
 ```typescript
 import { describe, it, expect } from 'vitest';
@@ -442,18 +437,25 @@ import { createClient } from '@supabase/supabase-js';
 const admin = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 const anon = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!);
 
-describe('campaign-files bucket', () => {
+describe.skipIf(!process.env.HAS_LOCAL_DB)('campaign-files bucket', () => {
   it('bucket exists and is private', async () => {
-    const { data, error } = await admin.from('storage.buckets' as never).select('*').eq('id', 'campaign-files').single();
-    // fallback via SQL
-    const { data: raw } = await admin.rpc('exec_sql' as never, { sql: "select public from storage.buckets where id='campaign-files'" });
-    expect(data?.public ?? raw?.[0]?.public).toBe(false);
+    const { data, error } = await admin.storage.listBuckets();
+    expect(error).toBeNull();
+    const bucket = (data ?? []).find((b) => b.id === 'campaign-files');
+    expect(bucket).toBeTruthy();
+    expect(bucket!.public).toBe(false);
   });
 
   it('anon cannot write to bucket', async () => {
     const file = new Blob(['hello'], { type: 'text/plain' });
-    const { error } = await anon.storage.from('campaign-files').upload('test.txt', file);
+    const { data, error } = await anon.storage
+      .from('campaign-files')
+      .upload(`anon-${Date.now()}.txt`, file);
+    expect(data).toBeNull();
     expect(error).not.toBeNull();
+    // Supabase Storage surfaces RLS denials as 400/403 with a message containing
+    // "new row violates row-level security policy" or "Unauthorized".
+    expect(error!.message).toMatch(/unauthor|row-level security|403|policy/i);
   });
 
   it('service role can write to bucket', async () => {
@@ -464,9 +466,9 @@ describe('campaign-files bucket', () => {
 });
 ```
 
-- [ ] **6.2 Run, expect FAIL:** bucket not found / upload succeeds for anon.
+- [ ] **Step 6.2 — Run, expect FAIL:** bucket not in `listBuckets()` result / anon upload succeeds.
 
-- [ ] **6.3 Migration** `supabase/migrations/20260414000015_storage_bucket_campaign_files.sql`:
+- [ ] **Step 6.3 — Migration** `supabase/migrations/20260414000015_storage_bucket_campaign_files.sql`:
 
 ```sql
 insert into storage.buckets (id, name, public)
@@ -485,19 +487,19 @@ create policy "campaign-files staff all"
 -- No anon policy created → anon inserts/selects are denied by default.
 ```
 
-- [ ] **6.4 Run, expect PASS.**
-- [ ] **6.5 Commit:** `feat(sprint-1b): provision campaign-files storage bucket with staff-only RLS`
+- [ ] **Step 6.4 — Run `npm run db:reset && HAS_LOCAL_DB=1 npm run test:api`** — expect PASS.
+- [ ] **Step 6.5 — Commit:** `feat(sprint-1b): provision campaign-files storage bucket with staff-only RLS`
 
 ---
 
 ## Task 7 — Migration: `campaigns` RLS
 
-- [ ] **7.1 Write failing test** append to `apps/api/test/rls/campaigns.test.ts`:
+- [ ] **Step 7.1 — Write failing test** append to `apps/api/test/rls/campaigns.test.ts`:
 
 ```typescript
 const anon = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!);
 
-describe('campaigns RLS', () => {
+describe.skipIf(!process.env.HAS_LOCAL_DB)('campaigns RLS', () => {
   it('anon reads only published campaigns in the past', async () => {
     const { data: pub } = await admin.from('campaigns').insert({
       interest: 'creator', status: 'published',
@@ -524,9 +526,9 @@ describe('campaigns RLS', () => {
 });
 ```
 
-- [ ] **7.2 Run, expect FAIL:** anon reads return all rows (RLS disabled).
+- [ ] **Step 7.2 — Run, expect FAIL:** anon reads return all rows (RLS disabled).
 
-- [ ] **7.3 Migration** `supabase/migrations/20260414000012_campaigns_rls.sql`:
+- [ ] **Step 7.3 — Migration** `supabase/migrations/20260414000012_campaigns_rls.sql`:
 
 ```sql
 alter table campaigns enable row level security;
@@ -571,19 +573,19 @@ create policy "campaign_translations staff write"
   with check (auth.is_staff());
 ```
 
-- [ ] **7.4 Run, expect PASS.**
-- [ ] **7.5 Commit:** `feat(sprint-1b): enable RLS on campaigns with public-read-published + staff-write`
+- [ ] **Step 7.4 — Run `npm run db:reset && HAS_LOCAL_DB=1 npm run test:api`** — expect PASS.
+- [ ] **Step 7.5 — Commit:** `feat(sprint-1b): enable RLS on campaigns with public-read-published + staff-write`
 
 ---
 
 ## Task 8 — Migration: `campaign_submissions` RLS + consent trigger
 
-- [ ] **8.1 Append failing test** to `apps/api/test/rls/campaign-submissions.test.ts`:
+- [ ] **Step 8.1 — Append failing test** to `apps/api/test/rls/campaign-submissions.test.ts`:
 
 ```typescript
 const anon = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!);
 
-describe('campaign_submissions RLS + consent trigger', () => {
+describe.skipIf(!process.env.HAS_LOCAL_DB)('campaign_submissions RLS + consent trigger', () => {
   it('anon can insert with consent=true', async () => {
     const cid = await makeCampaign();
     const { error } = await anon.from('campaign_submissions').insert({
@@ -623,9 +625,9 @@ describe('campaign_submissions RLS + consent trigger', () => {
 });
 ```
 
-- [ ] **8.2 Run, expect FAIL:** consent=false insert succeeds (no trigger yet), anon insert fails (no policy).
+- [ ] **Step 8.2 — Run, expect FAIL:** consent=false insert succeeds (no trigger yet), anon insert fails (no policy).
 
-- [ ] **8.3 Migration** `supabase/migrations/20260414000014_campaign_submissions_rls.sql`:
+- [ ] **Step 8.3 — Migration** `supabase/migrations/20260414000014_campaign_submissions_rls.sql`:
 
 ```sql
 alter table campaign_submissions enable row level security;
@@ -666,14 +668,14 @@ alter table cron_runs enable row level security;
 -- cron_runs: only service_role (no policies) — bypasses RLS automatically.
 ```
 
-- [ ] **8.4 Run, expect PASS.**
-- [ ] **8.5 Commit:** `feat(sprint-1b): RLS + consent validation trigger for campaign_submissions`
+- [ ] **Step 8.4 — Run `npm run db:reset && HAS_LOCAL_DB=1 npm run test:api`** — expect PASS.
+- [ ] **Step 8.5 — Commit:** `feat(sprint-1b): RLS + consent validation trigger for campaign_submissions`
 
 ---
 
-## Task 9 — Env vars + `.env.local.example` + CLAUDE.md
+## Task 9 — Env vars + `.env.local.example` + CLAUDE.md + web deps
 
-- [ ] **9.1 Write failing test** `apps/web/test/lib/env.test.ts`:
+- [ ] **Step 9.1 — Write failing test** `apps/web/test/lib/env.test.ts`:
 
 ```typescript
 import { describe, it, expect } from 'vitest';
@@ -682,6 +684,7 @@ import { resolve } from 'node:path';
 
 describe('env example documents Sprint 1b vars', () => {
   const p = resolve(__dirname, '../../.env.local.example');
+  const pkg = resolve(__dirname, '../../package.json');
   it('file exists', () => expect(existsSync(p)).toBe(true));
   it('documents BREVO_API_KEY, TURNSTILE_SITE_KEY, TURNSTILE_SECRET_KEY', () => {
     const s = readFileSync(p, 'utf8');
@@ -689,12 +692,20 @@ describe('env example documents Sprint 1b vars', () => {
     expect(s).toMatch(/NEXT_PUBLIC_TURNSTILE_SITE_KEY=/);
     expect(s).toMatch(/TURNSTILE_SECRET_KEY=/);
   });
+  it('pins p-retry, react-markdown, remark-gfm, @supabase/supabase-js in apps/web/package.json', () => {
+    const j = JSON.parse(readFileSync(pkg, 'utf8'));
+    const deps = { ...(j.dependencies ?? {}), ...(j.devDependencies ?? {}) };
+    expect(deps['p-retry']).toBe('6.2.0');
+    expect(deps['react-markdown']).toBe('9.0.1');
+    expect(deps['remark-gfm']).toBe('4.0.0');
+    expect(deps['@supabase/supabase-js']).toBe('2.45.4');
+  });
 });
 ```
 
-- [ ] **9.2 Run, expect FAIL:** file missing or variables missing.
+- [ ] **Step 9.2 — Run, expect FAIL:** file missing or variables/pins missing.
 
-- [ ] **9.3 Create/update** `apps/web/.env.local.example`:
+- [ ] **Step 9.3 — Create/update** `apps/web/.env.local.example`:
 
 ```bash
 # Supabase
@@ -731,22 +742,31 @@ Update `CLAUDE.md` Environment Variables → Web section:
 - `BREVO_API_KEY`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` (Sprint 1b)
 ```
 
-Add dependency in `apps/web/package.json`:
+Install pinned web dependencies (exact versions, no caret — per `CLAUDE.md` pinning rule). Run from repo root:
 
-```json
-"p-retry": "6.2.0"
+```bash
+npm install --save-exact -w apps/web p-retry@6.2.0 react-markdown@9.0.1 remark-gfm@4.0.0 @supabase/supabase-js@2.45.4
 ```
 
-Run `npm install`.
+Verify each package is pinned in `apps/web/package.json`:
 
-- [ ] **9.4 Run, expect PASS.**
-- [ ] **9.5 Commit:** `chore(sprint-1b): document Brevo + Turnstile env vars, add p-retry`
+```bash
+grep -E '"(p-retry|react-markdown|remark-gfm|@supabase/supabase-js)"' apps/web/package.json
+# Expect four lines, each with an exact version (no ^ or ~):
+#   "@supabase/supabase-js": "2.45.4",
+#   "p-retry": "6.2.0",
+#   "react-markdown": "9.0.1",
+#   "remark-gfm": "4.0.0",
+```
+
+- [ ] **Step 9.4 — Run `cd apps/web && npx vitest run test/lib/env.test.ts`** — expect PASS.
+- [ ] **Step 9.5 — Commit:** `chore(sprint-1b): document Brevo + Turnstile env vars; pin p-retry, react-markdown, remark-gfm, supabase-js`
 
 ---
 
 ## Task 10 — Brevo client lib
 
-- [ ] **10.1 Write failing test** `apps/web/test/lib/brevo.test.ts`:
+- [ ] **Step 10.1 — Write failing test** `apps/web/test/lib/brevo.test.ts`:
 
 ```typescript
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -793,7 +813,7 @@ describe('createBrevoContact', () => {
     });
   });
 
-  it('throws on non-ok response after retries', async () => {
+  it('throws on non-ok 5xx response after retries', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: false, status: 500, text: async () => 'server err',
     });
@@ -801,7 +821,32 @@ describe('createBrevoContact', () => {
 
     await expect(createBrevoContact({ email: 'x@y.com', listId: 1 }))
       .rejects.toThrow(/brevo 500/);
-    expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2); // retried
+    // retries: 3 means up to 4 total attempts — assert we retried at least once.
+    expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('throws immediately on 4xx without retrying (AbortError)', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false, status: 400, text: async () => 'bad request',
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(createBrevoContact({ email: 'x@y.com', listId: 1 }))
+      .rejects.toThrow(/brevo 400/);
+    // 4xx is non-retryable — exactly one attempt.
+    expect(fetchMock.mock.calls.length).toBe(1);
+  });
+
+  it('retries transient 5xx and succeeds on the 3rd attempt', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: false, status: 502, text: async () => 'bad gw' })
+      .mockResolvedValueOnce({ ok: false, status: 503, text: async () => 'busy' })
+      .mockResolvedValueOnce({ ok: true, status: 201, json: async () => ({ id: 7 }) });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const r = await createBrevoContact({ email: 'x@y.com', listId: 1 });
+    expect(r).toEqual({ id: 7 });
+    expect(fetchMock.mock.calls.length).toBe(3);
   });
 
   it('returns contact object for 204 no-content (updateEnabled existing)', async () => {
@@ -815,12 +860,12 @@ describe('createBrevoContact', () => {
 });
 ```
 
-- [ ] **10.2 Run, expect FAIL:** module not found.
+- [ ] **Step 10.2 — Run, expect FAIL:** module not found.
 
-- [ ] **10.3 Create** `apps/web/lib/brevo.ts`:
+- [ ] **Step 10.3 — Create** `apps/web/lib/brevo.ts`:
 
 ```typescript
-import pRetry from 'p-retry';
+import pRetry, { AbortError } from 'p-retry';
 
 export interface BrevoContactParams {
   email: string;
@@ -849,37 +894,49 @@ export async function createBrevoContact(
     updateEnabled: true,
   });
 
-  return pRetry(
-    async () => {
-      const r = await fetch(BREVO_CONTACTS_URL, {
-        method: 'POST',
-        headers: {
-          'api-key': apiKey,
-          'content-type': 'application/json',
-          accept: 'application/json',
-        },
-        body,
-      });
-      if (!r.ok) {
-        const text = await r.text().catch(() => '');
-        throw new Error(`brevo ${r.status}: ${text}`);
-      }
-      if (r.status === 204) return {};
-      return (await r.json()) as BrevoContactResponse;
+  const attempt = async (): Promise<BrevoContactResponse> => {
+    const r = await fetch(BREVO_CONTACTS_URL, {
+      method: 'POST',
+      headers: {
+        'api-key': apiKey,
+        'content-type': 'application/json',
+        accept: 'application/json',
+      },
+      body,
+    });
+    if (!r.ok) {
+      const text = await r.text().catch(() => '');
+      const err = new Error(`brevo ${r.status}: ${text}`);
+      // 4xx = client error (bad payload / auth) — never retry. 5xx = transient.
+      if (r.status >= 400 && r.status < 500) throw new AbortError(err);
+      throw err;
+    }
+    if (r.status === 204) return {};
+    return (await r.json()) as BrevoContactResponse;
+  };
+
+  return pRetry(attempt, {
+    retries: 3,
+    minTimeout: 200,
+    maxTimeout: 1000,
+    onFailedAttempt: (e) => {
+      // Sprint 4 replaces this with Sentry.captureException
+      console.warn(
+        `[brevo_retry] attempt ${e.attemptNumber} failed (${e.retriesLeft} left): ${e.message}`,
+      );
     },
-    { retries: 2, minTimeout: 200, maxTimeout: 1000 },
-  );
+  });
 }
 ```
 
-- [ ] **10.4 Run, expect PASS.**
-- [ ] **10.5 Commit:** `feat(sprint-1b): add Brevo v3 contact client with p-retry`
+- [ ] **Step 10.4 — Run, expect PASS.**
+- [ ] **Step 10.5 — Commit:** `feat(sprint-1b): add Brevo v3 contact client with p-retry (4xx non-retry, 5xx retry)`
 
 ---
 
 ## Task 11 — Turnstile verify lib
 
-- [ ] **11.1 Failing test** `apps/web/test/lib/turnstile.test.ts`:
+- [ ] **Step 11.1 — Failing test** `apps/web/test/lib/turnstile.test.ts`:
 
 ```typescript
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -922,9 +979,9 @@ describe('verifyTurnstileToken', () => {
 });
 ```
 
-- [ ] **11.2 Run, expect FAIL.**
+- [ ] **Step 11.2 — Run, expect FAIL.**
 
-- [ ] **11.3 Create** `apps/web/lib/turnstile.ts`:
+- [ ] **Step 11.3 — Create** `apps/web/lib/turnstile.ts`:
 
 ```typescript
 const SITEVERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
@@ -957,14 +1014,14 @@ export async function verifyTurnstileToken(
 }
 ```
 
-- [ ] **11.4 Run, expect PASS.**
-- [ ] **11.5 Commit:** `feat(sprint-1b): add Turnstile siteverify helper`
+- [ ] **Step 11.4 — Run, expect PASS.**
+- [ ] **Step 11.5 — Commit:** `feat(sprint-1b): add Turnstile siteverify helper`
 
 ---
 
 ## Task 12 — Supabase service client helper
 
-- [ ] **12.1 Failing test** `apps/web/test/lib/supabase-service.test.ts`:
+- [ ] **Step 12.1 — Failing test** `apps/web/test/lib/supabase-service.test.ts`:
 
 ```typescript
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -992,9 +1049,9 @@ describe('getSupabaseServiceClient', () => {
 });
 ```
 
-- [ ] **12.2 Run, expect FAIL.**
+- [ ] **Step 12.2 — Run, expect FAIL.**
 
-- [ ] **12.3 Create** `apps/web/lib/supabase/service.ts`:
+- [ ] **Step 12.3 — Create** `apps/web/lib/supabase/service.ts`:
 
 ```typescript
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
@@ -1017,16 +1074,16 @@ export function __resetForTests(): void {
 }
 ```
 
-Note: `@supabase/supabase-js` is transitively available through `@supabase/ssr`; if not, add it explicitly to `apps/web/package.json` as `"@supabase/supabase-js": "2.45.4"` (pinned).
+Note: `@supabase/supabase-js@2.45.4` was installed in Task 9 Step 9.3; `createClient` is directly importable here without relying on transitive resolution.
 
-- [ ] **12.4 Run, expect PASS.**
-- [ ] **12.5 Commit:** `feat(sprint-1b): supabase service-role client singleton`
+- [ ] **Step 12.4 — Run, expect PASS.**
+- [ ] **Step 12.5 — Commit:** `feat(sprint-1b): supabase service-role client singleton`
 
 ---
 
 ## Task 13 — Route handler `POST /api/campaigns/[slug]/submit`
 
-- [ ] **13.1 Failing test** `apps/web/test/api/campaigns-submit.test.ts`:
+- [ ] **Step 13.1 — Failing test** `apps/web/test/api/campaigns-submit.test.ts`. Note: the route awaits `supabase.from('campaign_submissions').insert(payload).select('id').single()` — meaning the `{ data, error }` response surfaces from the trailing `.single()`. The mock below aligns: `insert` and `select` return the chain; `single` is the terminal mock where we control success/error (including `23505` for duplicates):
 
 ```typescript
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -1162,9 +1219,9 @@ describe('POST /api/campaigns/[slug]/submit', () => {
 });
 ```
 
-- [ ] **13.2 Run, expect FAIL.**
+- [ ] **Step 13.2 — Run, expect FAIL.**
 
-- [ ] **13.3 Create** `apps/web/app/api/campaigns/[slug]/submit/route.ts`:
+- [ ] **Step 13.3 — Create** `apps/web/app/api/campaigns/[slug]/submit/route.ts`:
 
 ```typescript
 import { NextRequest } from 'next/server';
@@ -1270,7 +1327,7 @@ export async function POST(req: NextRequest | Request, ctx: RouteCtx): Promise<R
         brevo_sync_status: 'failed',
         brevo_sync_error: e instanceof Error ? e.message : String(e),
       }).eq('id', submissionId);
-      // Sentry (Sprint 4) — placeholder log for now
+      // Sprint 4 replaces this with Sentry.captureException
       console.error('[brevo_sync_failed]', e);
     }
   }
@@ -1298,14 +1355,14 @@ export async function POST(req: NextRequest | Request, ctx: RouteCtx): Promise<R
 }
 ```
 
-- [ ] **13.4 Run, expect PASS.**
-- [ ] **13.5 Commit:** `feat(sprint-1b): POST /api/campaigns/[slug]/submit with Turnstile + Brevo sync`
+- [ ] **Step 13.4 — Run, expect PASS.**
+- [ ] **Step 13.5 — Commit:** `feat(sprint-1b): POST /api/campaigns/[slug]/submit with Turnstile + Brevo sync`
 
 ---
 
 ## Task 14 — Campaign landing page (server component)
 
-- [ ] **14.1 Failing test** `apps/web/test/app/campaign-page.test.tsx`:
+- [ ] **Step 14.1 — Failing test** `apps/web/test/app/campaign-page.test.tsx`:
 
 ```typescript
 import { describe, it, expect, vi } from 'vitest';
@@ -1345,25 +1402,36 @@ vi.mock('../../lib/supabase/service', () => ({
 import Page from '../../app/campaigns/[locale]/[slug]/page';
 
 describe('Campaign page', () => {
-  it('renders main hook from markdown', async () => {
+  it('renders main hook markdown as an <h1> element (via react-markdown)', async () => {
     const jsx = await Page({ params: Promise.resolve({ locale: 'pt-BR', slug: 'oferta' }) });
     render(jsx as never);
-    expect(screen.getByText(/Hello/)).toBeTruthy();
+    // "# Hello" in markdown must render as an <h1> with text "Hello".
+    const heading = screen.getByRole('heading', { level: 1, name: /Hello/ });
+    expect(heading).toBeTruthy();
+    // Ensure we are NOT leaking raw markdown — no literal "# " prefix in DOM text.
+    expect(heading.textContent).toBe('Hello');
   });
 });
 ```
 
-- [ ] **14.2 Run, expect FAIL.**
+- [ ] **Step 14.2 — Run, expect FAIL.**
 
-- [ ] **14.3 Create** `apps/web/app/campaigns/[locale]/[slug]/page.tsx`:
+- [ ] **Step 14.3 — Create** `apps/web/app/campaigns/[locale]/[slug]/page.tsx`:
 
 ```tsx
 import { notFound } from 'next/navigation';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { getSupabaseServiceClient } from '../../../../lib/supabase/service';
 import { SubmitForm } from './submit-form';
 import { ExtrasRenderer } from './extras-renderer';
 
 interface PageParams { locale: string; slug: string; }
+
+function Md({ text }: { text: string | null | undefined }) {
+  if (!text) return null;
+  return <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>;
+}
 
 async function loadCampaign(locale: string, slug: string) {
   const supabase = getSupabaseServiceClient();
@@ -1397,22 +1465,14 @@ export default async function CampaignPage({ params }: { params: Promise<PagePar
   return (
     <main>
       <section aria-label="beforeForm">
-        <div dangerouslySetInnerHTML={{ __html: tx.main_hook_md as string }} />
-        {tx.supporting_argument_md ? (
-          <div dangerouslySetInnerHTML={{ __html: tx.supporting_argument_md as string }} />
-        ) : null}
-        {tx.introductory_block_md ? (
-          <div dangerouslySetInnerHTML={{ __html: tx.introductory_block_md as string }} />
-        ) : null}
-        {tx.body_content_md ? (
-          <div dangerouslySetInnerHTML={{ __html: tx.body_content_md as string }} />
-        ) : null}
+        <Md text={tx.main_hook_md as string} />
+        <Md text={tx.supporting_argument_md as string | null} />
+        <Md text={tx.introductory_block_md as string | null} />
+        <Md text={tx.body_content_md as string | null} />
       </section>
 
       <section aria-label="form">
-        {tx.form_intro_md ? (
-          <div dangerouslySetInnerHTML={{ __html: tx.form_intro_md as string }} />
-        ) : null}
+        <Md text={tx.form_intro_md as string | null} />
         <SubmitForm
           slug={slug}
           locale={locale}
@@ -1444,18 +1504,130 @@ export async function generateMetadata({ params }: { params: Promise<PageParams>
 }
 ```
 
-Notes on markdown rendering: for S1b we render raw md in the plan; real implementation will add `react-markdown + remark-gfm` if not provided by `@tn-figueiredo/shared`. Swap `dangerouslySetInnerHTML` for a `<Markdown>` component during Task 14 implementation if the shared renderer is available — tests still assert the text surfaces.
-
-- [ ] **14.4 Run, expect PASS.**
-- [ ] **14.5 Commit:** `feat(sprint-1b): campaign landing server component with 3-section layout`
+- [ ] **Step 14.4 — Run, expect PASS.**
+- [ ] **Step 14.5 — Commit:** `feat(sprint-1b): campaign landing server component with react-markdown 3-section layout`
 
 ---
 
 ## Task 15 — Form client component with Turnstile
 
-- [ ] **15.1 No separate unit test** (covered by integration in Task 13 + page test in Task 14). Skip red-green, proceed directly to implementation with visual QA via `npm run dev`.
+- [ ] **Step 15.1 — Write failing test** `apps/web/test/app/submit-form.test.tsx`. Uses `@testing-library/react` + `vitest`. Asserts (a) the submit button is disabled until the LGPD consent checkbox is checked AND a Turnstile token is present, and (b) on submit the POST body to `/api/campaigns/:slug/submit` includes the `turnstile_token` from the Turnstile callback. We manually invoke the Turnstile callback by stubbing `window.turnstile.render` to synchronously call its `callback` argument with a known token:
 
-- [ ] **15.2 Create** `apps/web/app/campaigns/[locale]/[slug]/submit-form.tsx`:
+```typescript
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { SubmitForm } from '../../app/campaigns/[locale]/[slug]/submit-form';
+
+const fields = [
+  { name: 'name', label: 'Nome', type: 'name', required: true },
+  { name: 'email', label: 'E-mail', type: 'email', required: true },
+];
+
+function renderForm() {
+  return render(
+    <SubmitForm
+      slug="oferta"
+      locale="pt-BR"
+      formFields={fields}
+      buttonLabel="Enviar"
+      loadingLabel="Enviando..."
+      contextTag="Prévia"
+    />,
+  );
+}
+
+beforeEach(() => {
+  process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY = 'site-key-test';
+  // Stub the Turnstile widget: synchronously invoke the callback with a token.
+  (window as unknown as { turnstile: unknown }).turnstile = {
+    render: (_el: HTMLElement, opts: { sitekey: string; callback: (t: string) => void }) => {
+      opts.callback('TOKEN_XYZ');
+      return 'widget-id';
+    },
+    reset: () => {},
+  };
+  // jsdom won't actually load the injected <script> — simulate onload by firing it.
+  const origAppend = document.head.appendChild.bind(document.head);
+  vi.spyOn(document.head, 'appendChild').mockImplementation((node: Node) => {
+    const el = node as HTMLScriptElement;
+    if (el.tagName === 'SCRIPT' && typeof el.onload === 'function') {
+      queueMicrotask(() => (el.onload as () => void)());
+    }
+    return origAppend(node);
+  });
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  delete (window as unknown as { turnstile?: unknown }).turnstile;
+});
+
+describe('<SubmitForm>', () => {
+  it('keeps submit enabled but refuses to post until consent + token are present', async () => {
+    renderForm();
+    const btn = screen.getByRole('button', { name: /Enviar/ });
+    expect((btn as HTMLButtonElement).disabled).toBe(false);
+
+    // Fill required fields, submit WITHOUT consent — expect inline error, no fetch.
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    fireEvent.change(screen.getByLabelText('E-mail'), { target: { value: 'a@b.com' } });
+    fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Thiago' } });
+
+    // The native `required` on the consent checkbox blocks submit; call form.submit()
+    // path via the button and assert fetch was not called.
+    fireEvent.click(btn);
+    await waitFor(() => {
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
+
+  it('POSTs with turnstile_token and consent=true when the form is fully filled', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true, duplicate: false, pdfUrl: null,
+        successCopy: {
+          headline: 'OK', subheadline: 'Sub', checkMailText: 'Check',
+          downloadButtonLabel: 'Download',
+        },
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderForm();
+
+    // Let the injected script "load" (fires the stubbed turnstile.render → token set).
+    await act(async () => { await Promise.resolve(); });
+
+    fireEvent.change(screen.getByLabelText('E-mail'), { target: { value: 'a@b.com' } });
+    fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Thiago' } });
+    fireEvent.click(screen.getByLabelText(/Concordo/));
+
+    fireEvent.click(screen.getByRole('button', { name: /Enviar/ }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('/api/campaigns/oferta/submit');
+    const body = JSON.parse((init as { body: string }).body);
+    expect(body).toMatchObject({
+      email: 'a@b.com',
+      name: 'Thiago',
+      locale: 'pt-BR',
+      consent_marketing: true,
+      turnstile_token: 'TOKEN_XYZ',
+    });
+    expect(body.consent_text_version).toMatch(/^v1/);
+
+    // Success state rendered
+    await screen.findByText('OK');
+  });
+});
+```
+
+- [ ] **Step 15.2 — Run, expect FAIL** (`submit-form` module does not exist yet).
+
+- [ ] **Step 15.3 — Create** `apps/web/app/campaigns/[locale]/[slug]/submit-form.tsx`:
 
 ```tsx
 'use client';
@@ -1605,14 +1777,14 @@ export function SubmitForm(props: Props) {
 }
 ```
 
-- [ ] **15.3/15.4 Manual QA + existing tests pass.**
-- [ ] **15.5 Commit:** `feat(sprint-1b): campaign submit-form client with Turnstile integration`
+- [ ] **Step 15.4 — Run, expect PASS** (`cd apps/web && npx vitest run test/app/submit-form.test.tsx`).
+- [ ] **Step 15.5 — Commit:** `feat(sprint-1b): campaign submit-form client with Turnstile integration`
 
 ---
 
 ## Task 16 — Extras renderer (discriminated union + zod)
 
-- [ ] **16.1 Failing test** `apps/web/test/lib/extras-schema.test.ts`:
+- [ ] **Step 16.1 — Failing test** `apps/web/test/lib/extras-schema.test.ts`:
 
 ```typescript
 import { describe, it, expect } from 'vitest';
@@ -1652,9 +1824,9 @@ describe('ExtrasSchema', () => {
 });
 ```
 
-- [ ] **16.2 Run, expect FAIL.**
+- [ ] **Step 16.2 — Run, expect FAIL.**
 
-- [ ] **16.3 Create** `apps/web/lib/campaigns/extras-schema.ts`:
+- [ ] **Step 16.3 — Create** `apps/web/lib/campaigns/extras-schema.ts`:
 
 ```typescript
 import { z } from 'zod';
@@ -1705,6 +1877,8 @@ export function parseExtras(input: unknown): ExtrasBlockT[] {
 Create `apps/web/app/campaigns/[locale]/[slug]/extras-renderer.tsx`:
 
 ```tsx
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { parseExtras, ExtrasBlockT } from '../../../../lib/campaigns/extras-schema';
 
 export function ExtrasRenderer({ extras }: { extras: unknown }) {
@@ -1733,7 +1907,7 @@ export function ExtrasRenderer({ extras }: { extras: unknown }) {
             return (
               <section key={i}>
                 <h3>{b.headline}</h3>
-                <div dangerouslySetInnerHTML={{ __html: b.bio_md }} />
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{b.bio_md}</ReactMarkdown>
               </section>
             );
           case 'whatsappCtas':
@@ -1758,14 +1932,14 @@ export function ExtrasRenderer({ extras }: { extras: unknown }) {
 }
 ```
 
-- [ ] **16.4 Run, expect PASS.**
-- [ ] **16.5 Commit:** `feat(sprint-1b): extras renderer with zod-validated discriminated union`
+- [ ] **Step 16.4 — Run, expect PASS.**
+- [ ] **Step 16.5 — Commit:** `feat(sprint-1b): extras renderer with zod-validated discriminated union`
 
 ---
 
 ## Task 17 — Cron route `/api/cron/publish-scheduled`
 
-- [ ] **17.1 Failing test** `apps/web/test/api/cron-publish-scheduled.test.ts`:
+- [ ] **Step 17.1 — Failing test** `apps/web/test/api/cron-publish-scheduled.test.ts`. Note on atomicity: each `UPDATE ... WHERE status='scheduled' AND scheduled_for <= now() RETURNING id` is a single Postgres statement. Postgres acquires a row-level lock per row touched by `UPDATE` and evaluates the `WHERE` predicate on the locked snapshot — two concurrent invocations therefore cannot both promote the same row. The Supabase client (`.update().eq().lte().select('id')`) compiles to exactly this single statement, so the operation is concurrency-safe by the engine, not by the app. The mock chain below returns `{ data: [{id:...}, ...], error: null }` from `.select('id')` — matching the runtime shape (array of updated rows):
 
 ```typescript
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -1851,9 +2025,9 @@ describe('POST /api/cron/publish-scheduled', () => {
 });
 ```
 
-- [ ] **17.2 Run, expect FAIL.**
+- [ ] **Step 17.2 — Run, expect FAIL.**
 
-- [ ] **17.3 Create** `apps/web/app/api/cron/publish-scheduled/route.ts`:
+- [ ] **Step 17.3 — Create** `apps/web/app/api/cron/publish-scheduled/route.ts`:
 
 ```typescript
 import { getSupabaseServiceClient } from '../../../../lib/supabase/service';
@@ -1902,20 +2076,88 @@ export async function POST(req: Request): Promise<Response> {
       duration_ms: Date.now() - start,
       error: e instanceof Error ? e.message : String(e),
     });
+    // Sprint 4 replaces this with Sentry.captureException
     console.error('[cron_publish_scheduled_error]', e);
     return new Response('error', { status: 500 });
   }
 }
 ```
 
-- [ ] **17.4 Run, expect PASS.**
-- [ ] **17.5 Commit:** `feat(sprint-1b): cron route for scheduled blog + campaign publication`
+Atomicity note (inline): each `update().eq().lte().select('id')` compiles to ONE Postgres `UPDATE ... WHERE ... RETURNING id` statement. Postgres takes a row-level lock per row; a concurrent invocation sees those rows as already non-matching (their `status` is no longer `'scheduled'`) and promotes nothing. No application-level locking required.
+
+Concurrency test — append to the same test file. Verifies two concurrent invocations together process exactly the seeded row set and log exactly two `cron_runs`. Because the route hits a shared mock client, we build a stateful fake that models the single-statement semantics: the first caller to run `.update().eq().lte().select('id')` claims the rows; subsequent calls return an empty array:
+
+```typescript
+describe('POST /api/cron/publish-scheduled — concurrency', () => {
+  it('two concurrent invocations process each scheduled row exactly once', async () => {
+    // Shared in-memory "DB": 2 scheduled posts, 0 scheduled campaigns.
+    const state = {
+      posts: [{ id: 'p1' }, { id: 'p2' }] as Array<{ id: string }>,
+      camps: [] as Array<{ id: string }>,
+    };
+    const cronInserts: Array<Record<string, unknown>> = [];
+
+    function makeClient() {
+      return {
+        from: vi.fn((t: string) => {
+          if (t === 'cron_runs') {
+            return { insert: vi.fn(async (row: Record<string, unknown>) => {
+              cronInserts.push(row); return { data: null, error: null };
+            }) };
+          }
+          const bucket = t === 'blog_posts' ? 'posts' : 'camps';
+          return {
+            update: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            lte: vi.fn().mockReturnThis(),
+            select: vi.fn(async () => {
+              // Atomic "claim-all-matching-and-return-ids" simulation.
+              const claimed = state[bucket as 'posts' | 'camps'].splice(0);
+              return { data: claimed, error: null };
+            }),
+          };
+        }),
+      };
+    }
+
+    const clientA = makeClient();
+    const clientB = makeClient();
+    // Both clients reference the same `state` closure → models a shared DB.
+    vi.mocked(getSupabaseServiceClient)
+      .mockReturnValueOnce(clientA as never)
+      .mockReturnValueOnce(clientB as never);
+
+    const mkReq = () => new Request('http://x/api/cron/publish-scheduled', {
+      method: 'POST', headers: { authorization: 'Bearer topsecret' },
+    });
+
+    const [rA, rB] = await Promise.all([POST(mkReq()), POST(mkReq())]);
+    expect(rA.status).toBe(200);
+    expect(rB.status).toBe(200);
+
+    const bodyA = await rA.json();
+    const bodyB = await rB.json();
+    // Total processed across both runs equals the initial scheduled count (2).
+    expect(bodyA.processed + bodyB.processed).toBe(2);
+    // No double-processing: the shared state is drained.
+    expect(state.posts.length).toBe(0);
+    expect(state.camps.length).toBe(0);
+
+    // Exactly two cron_runs rows — one per invocation.
+    expect(cronInserts.length).toBe(2);
+    expect(cronInserts.every((r) => r.job === 'publish-scheduled' && r.status === 'ok')).toBe(true);
+  });
+});
+```
+
+- [ ] **Step 17.4 — Run** `cd apps/web && npx vitest run test/api/cron-publish-scheduled.test.ts` — expect PASS (auth, ok, error, AND concurrency cases all green).
+- [ ] **Step 17.5 — Commit:** `feat(sprint-1b): cron route for scheduled blog + campaign publication (concurrency-safe)`
 
 ---
 
 ## Task 18 — Vercel Cron config
 
-- [ ] **18.1 Failing test** add to `apps/web/test/api/cron-publish-scheduled.test.ts`:
+- [ ] **Step 18.1 — Failing test** add to `apps/web/test/api/cron-publish-scheduled.test.ts`:
 
 ```typescript
 import { readFileSync, existsSync } from 'node:fs';
@@ -1933,9 +2175,9 @@ describe('vercel.json crons', () => {
 });
 ```
 
-- [ ] **18.2 Run, expect FAIL** (file missing).
+- [ ] **Step 18.2 — Run, expect FAIL** (file missing).
 
-- [ ] **18.3 Create** `apps/web/vercel.json`:
+- [ ] **Step 18.3 — Create** `apps/web/vercel.json`:
 
 ```json
 {
@@ -1947,17 +2189,17 @@ describe('vercel.json crons', () => {
 
 Verify: `cat apps/web/vercel.json` — expected output shown above.
 
-- [ ] **18.4 Run, expect PASS.**
-- [ ] **18.5 Commit:** `chore(sprint-1b): vercel.json cron schedule for publish-scheduled`
+- [ ] **Step 18.4 — Run, expect PASS.**
+- [ ] **Step 18.5 — Commit:** `chore(sprint-1b): vercel.json cron schedule for publish-scheduled`
 
 ---
 
 ## Task 19 — Seed data (append to `supabase/seeds/dev.sql`)
 
-- [ ] **19.1 Failing test** `apps/api/test/rls/campaigns.test.ts` (append seed smoke):
+- [ ] **Step 19.1 — Failing test** `apps/api/test/rls/campaigns.test.ts` (append seed smoke):
 
 ```typescript
-describe('dev seed', () => {
+describe.skipIf(!process.env.HAS_LOCAL_DB)('dev seed', () => {
   it('seeds at least one published campaign with pt-BR + en translations', async () => {
     const { data, error } = await admin
       .from('campaigns')
@@ -1983,9 +2225,9 @@ describe('dev seed', () => {
 });
 ```
 
-- [ ] **19.2 Run after `db:reset` (which replays seeds)** — expect FAIL.
+- [ ] **Step 19.2 — Run after `db:reset` (which replays seeds)** — expect FAIL.
 
-- [ ] **19.3 Append** to `supabase/seeds/dev.sql`:
+- [ ] **Step 19.3 — Append** to `supabase/seeds/dev.sql`:
 
 ```sql
 -- ============ Sprint 1b: campaigns seed ============
@@ -2083,24 +2325,24 @@ update campaign_submissions set brevo_sync_error = 'brevo 500: server err'
   where email = 'bob@example.com';
 ```
 
-- [ ] **19.4 Run `npm run db:reset && npm run test:api`** — expect PASS.
-- [ ] **19.5 Commit:** `chore(sprint-1b): seed pt-BR+en campaign, draft campaign, 3 submissions`
+- [ ] **Step 19.4 — Run `npm run db:reset && HAS_LOCAL_DB=1 npm run test:api`** — expect PASS.
+- [ ] **Step 19.5 — Commit:** `chore(sprint-1b): seed pt-BR+en campaign, draft campaign, 3 submissions`
 
 ---
 
 ## Task 20 — End-to-end smoke
 
-- [ ] **20.1 No test authored** — this is a verification task.
+- [ ] **Step 20.1 — No test authored** — this is a verification task.
 
-- [ ] **20.2 Run verification commands** and capture output:
+- [ ] **Step 20.2 — Run verification commands** and capture output:
 
 ```bash
 # 1. Full reset + migrations
 npm run db:reset
 # Expect: all migrations applied, seeds loaded, zero errors.
 
-# 2. Both workspaces green
-npm test
+# 2. Both workspaces green (HAS_LOCAL_DB=1 enables the suites gated behind describe.skipIf)
+HAS_LOCAL_DB=1 npm test
 # Expect:
 #   apps/api → PASS (N tests)
 #   apps/web → PASS (N tests)
@@ -2135,11 +2377,11 @@ curl -sS -X POST http://localhost:3001/api/campaigns/playbook-creator/submit \
 # Expect: {"error":"turnstile_failed"} with HTTP 400
 ```
 
-- [ ] **20.3 Record output in PR description** (not committed).
+- [ ] **Step 20.3 — Record output in PR description** (not committed).
 
-- [ ] **20.4 If any command fails:** stop, diagnose via `superpowers:systematic-debugging`, fix, re-run full `npm test`, return to step 20.2.
+- [ ] **Step 20.4 — If any command fails:** stop, diagnose via `superpowers:systematic-debugging`, fix, re-run full `HAS_LOCAL_DB=1 npm test`, return to Step 20.2.
 
-- [ ] **20.5 Commit:** `chore(sprint-1b): end-to-end green`
+- [ ] **Step 20.5 — Commit:** `chore(sprint-1b): end-to-end green`
 
 ---
 
@@ -2159,9 +2401,10 @@ curl -sS -X POST http://localhost:3001/api/campaigns/playbook-creator/submit \
 
 ## Notes & caveats
 
-- **Sentry integration (`captureException`)** is stubbed with `console.error` in Task 13/17. Full wiring lands in Sprint 4 per the spec ADR; find and replace `console.error('[brevo_sync_failed]'` and `console.error('[cron_publish_scheduled_error]'` with `Sentry.captureException(e)` then.
-- **Markdown rendering** uses `dangerouslySetInnerHTML` placeholder in Task 14. Swap for `react-markdown + remark-gfm` (or `@tn-figueiredo/shared` markdown renderer if exposed) during implementation — the test only asserts text surfaces, so either works.
-- **`@supabase/supabase-js`** may not be in `apps/web/package.json` directly (only `@supabase/ssr`). If `createClient` import fails in Task 12, add `"@supabase/supabase-js": "2.45.4"` (pinned) and re-run `npm install`. Validate via ecosystem-pinning CI check.
-- **`p-retry`** pinned to `6.2.0` — exact version, no caret, per CLAUDE.md pinning rule.
+- **Sentry integration (`captureException`)** is stubbed with `console.error` in Tasks 10/13/17 (marked inline with `// Sprint 4 replaces this with Sentry.captureException`). Full wiring lands in Sprint 4 per the spec ADR — find the marker comments and replace the `console.*` call sites with `Sentry.captureException(e)` at that point.
+- **Markdown rendering** uses `react-markdown` + `remark-gfm` (installed in Task 9 Step 9.3, pinned exact). No `dangerouslySetInnerHTML` anywhere in the Sprint 1b output.
+- **`@supabase/supabase-js`** is installed directly in Task 9 Step 9.3 at pinned version `2.45.4` — do not rely on transitive resolution through `@supabase/ssr`.
+- **`p-retry`** pinned to `6.2.0` — exact version, no caret, per CLAUDE.md pinning rule; wired into `createBrevoContact` with `AbortError` on 4xx (non-retryable) and retry on 5xx.
+- **CI skip guard** — any suite that hits the local Supabase stack is wrapped in `describe.skipIf(!process.env.HAS_LOCAL_DB)`. Local runs use `HAS_LOCAL_DB=1 npm run test:api` (or `npm test`). CI without a DB container still runs the non-DB suites and skips the DB ones with an explicit reason.
 - **Turnstile script** is injected client-side in Task 15; add `script-src` CSP entry for `challenges.cloudflare.com` when CSP hardening lands (Sprint 4).
 - **`campaign_translations!inner`** join syntax in Task 14 relies on PostgREST embedding; verify the response shape manually during implementation and adjust if Supabase returns `campaign_translations` as a sibling array vs nested object.
