@@ -552,3 +552,46 @@ Nenhuma — user respondeu Q1-Q5. Pronto para execução.
 ## Process Notes
 
 Esta é a **rev 4** do spec. Revisões anteriores (rev1-rev3) tinham dados incompletos, principalmente por não terem feito pre-flight audit local. Lesson: **sempre `ls` local antes de desenhar scope**, não confiar em gh api pra estado de working tree.
+
+---
+
+## POST-MORTEM (2026-04-13 — migration aborted)
+
+**Status final:** ❌ Revertido após completar Fases 0-2.
+
+**Commits de revert:** tnf-ecosystem PR #7 (squash merge em `92d7a5e`), `@figueiredo-technology/*` packages deletados, repos `tonagarantia`, `bythiagofigueiredo`, `tnf-scaffold`, `tnf-ecosystem` voltaram pra `TN-Figueiredo` user.
+
+### O que aconteceu
+
+1. ✅ Fase 0 hygiene — ok
+2. ✅ Fase 1 publish — 23/24 packages live em `@figueiredo-technology/*`
+3. ✅ Fase 2 code migration em bythiagofigueiredo — branch pronto, local ok
+4. ❌ CI do consumer falhou 401 — PAT não autenticava cross-owner
+5. 🔴 **Bloqueio descoberto tarde:** Vercel Hobby plan não suporta org-owned private repos → impossível mover consumer repos pra org
+6. Tentamos workaround: manter consumers em TN-Figueiredo + packages em figueiredo-technology → CI continuou falhando mesmo trocando GITHUB_TOKEN por NPM_TOKEN (PAT classic com read:packages tested working locally, but falha em CI — causa não-diagnosticada)
+
+### Root cause da decisão errada
+
+Meu spec (rev4) **não incluiu Vercel Hobby constraint como risk**. R19 só apareceu post-facto em rev4.2 quando user apontou. Era previsível se eu tivesse pesquisado "Vercel free plan org repos" antes de propor transfer de consumer repos.
+
+**Lesson:** SaaS plan limits são parte do spec design. Verificar pricing tiers de TODO external service (Vercel, Supabase, Sentry, GitHub Packages) antes de propor topology changes.
+
+### Preservado (lições)
+
+- Tag `pre-migration-2026-04-13` mantida em `TN-Figueiredo/tnf-ecosystem` (backup)
+- Specs revs 1-4.3 preservadas neste arquivo (histórico do raciocínio)
+- Org `figueiredo-technology` mantida existindo (pode ser útil futuramente pra cases onde Vercel não é fator)
+
+### Impacto
+
+- **Ecossistema voltou pra `@tn-figueiredo/*`** — estado funcional prévio
+- **Tempo investido:** ~4h (execução + debug + revert)
+- **Dano a prod:** zero (TNG nunca foi tocado, apenas bythiagofigueiredo em migration branch que foi descartada)
+- **Custo financeiro:** zero (não upgrade Pro Vercel)
+
+### Recomendação pra futuro
+
+Se decidir migrar packages pra org algum dia, precondições:
+1. Upgrade Vercel pra Pro ($20/user/mês) — **antes** de mover apps
+2. OU aceitar que apps ficam em user account + packages em org, e resolver o 401 CI issue primeiro (test small scope)
+3. Ou: criar org com plano Team ($4/user/mês) que provavelmente ainda tem Vercel Hobby limit — verificar
