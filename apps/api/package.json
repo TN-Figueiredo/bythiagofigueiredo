@@ -24,8 +24,10 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@types/jsonwebtoken": "9.0.7",
     "@types/node": "^22.14.1",
     "@types/pg": "8.11.10",
+    "jsonwebtoken": "9.0.2",
     "pg": "8.13.1",
     "tsx": "^4.19.3",
     "typescript": "^5.8.3",
