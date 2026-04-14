@@ -275,3 +275,21 @@ Em caso de perda total do ambiente local:
 1. **Sempre spec primeiro** — mesmo pra 4h sprint. Evitaria decisões de escopo (Vercel+Sentry) derivando organicamente.
 2. **Verify, don't trust** — "já está no Vercel" ≠ "já está em todo lugar". `gh secret list` levou 2s e descobriu o blocker real.
 3. **DNS state empírico** — `dig` em 3s resolve contradições ao invés de assumir baseado em memória do user.
+
+## ⚠️ Security Note (post-closure)
+
+Durante esta sessão, o `NPM_TOKEN` PAT foi compartilhado em chat (`ghp_6FyMsPS7...`). Foi usado em 3 repo secrets. **Rotação recomendada:**
+
+1. `https://github.com/settings/tokens` → revoke token antigo
+2. Gerar novo classic PAT (scopes: `read:packages`)
+3. Atualizar:
+   ```bash
+   NEW_TOKEN="<novo token>"
+   echo "$NEW_TOKEN" | gh secret set NPM_TOKEN --repo TN-Figueiredo/tonagarantia
+   echo "$NEW_TOKEN" | gh secret set NPM_TOKEN --repo TN-Figueiredo/bythiagofigueiredo
+   echo "$NEW_TOKEN" | gh secret set NPM_TOKEN --repo FigueiredoRafael/bright-tale
+   ```
+4. Atualizar `~/.zshrc` e `~/.npmrc` com novo token
+5. `source ~/.zshrc`
+
+Prioridade: baixa (teu PAT privado, chat não vai pra público), mas boa higiene.
