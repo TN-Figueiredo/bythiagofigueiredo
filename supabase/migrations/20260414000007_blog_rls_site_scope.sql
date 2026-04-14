@@ -8,9 +8,6 @@
 --
 -- The Next middleware sets `app.site_id` per-request via
 --   select set_config('app.site_id', '<uuid>', true)
--- For tests and server middleware we expose a tiny RPC `public.set_app_site_id`
--- that wraps set_config with transaction-local=false so the setting persists
--- across PostgREST-pooled statements on the same connection.
 
 drop policy if exists blog_posts_public_read_published on public.blog_posts;
 
@@ -43,18 +40,3 @@ create policy blog_translations_public_read on public.blog_translations
         or p.site_id = nullif(current_setting('app.site_id', true), '')::uuid
       )
   ));
-
--- Helper RPC: set the per-request site context.
--- Intended for the Next middleware and for RLS test harnesses.
--- Pass '' (empty string) to clear the setting.
-create or replace function public.set_app_site_id(p_site_id text)
-returns void
-language plpgsql
-volatile
-as $$
-begin
-  perform set_config('app.site_id', coalesce(p_site_id, ''), false);
-end;
-$$;
-
-grant execute on function public.set_app_site_id(text) to anon, authenticated, service_role;

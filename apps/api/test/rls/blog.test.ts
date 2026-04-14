@@ -164,6 +164,25 @@ describe.skipIf(skipIfNoLocalDb())('RLS: blog_posts + blog_translations + author
       }
     }
 
+    it('anon with GUC never set (missing_ok path) sees null + both site posts', async () => {
+      const client = new Client({ connectionString: 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' })
+      await client.connect()
+      try {
+        await client.query('begin')
+        await client.query(`set local role anon`)
+        // intentionally no set_config — exercises current_setting(..., true) returning null
+        const { rows } = await client.query<{ id: string; site_id: string | null }>(
+          `select id, site_id from public.blog_posts where status='published'`
+        )
+        const ids = rows.map(r => r.id)
+        expect(ids).toContain(publishedId)
+        expect(ids).toContain(postSiteAId)
+        expect(ids).toContain(postSiteBId)
+        expect(ids).not.toContain(draftId)
+        await client.query('rollback')
+      } finally { await client.end() }
+    })
+
     it('anon without app.site_id sees null-site AND site-scoped posts (backward compat)', async () => {
       const { postIds } = await asAnonWithSite(null)
       expect(postIds).toContain(publishedId)
