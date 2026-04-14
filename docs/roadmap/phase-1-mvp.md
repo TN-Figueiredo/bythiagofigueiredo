@@ -23,22 +23,24 @@
 
 ---
 
-## Sprint 0 — Infraestrutura [🟡 in-progress] (12h)
+## Sprint 0 — Infraestrutura [✅ done] (12h)
 
 **Goal:** Monorepo, Supabase project, CI rodando.
+**Fechado:** 2026-04-13
 
 **Epics** (soma = 12h):
 - [x] Monorepo skeleton (tnf-scaffold) — apps/web + apps/api + packages/shared (6h)
-- [x] GitHub Actions CI workflow — typecheck, test, audit, secret-scan (2h) ⚠️ *CI runs falhando por falta de `NPM_TOKEN` secret — ver blocker B1 no spec*
-- [x] Supabase project remoto + `.env.local` + Vercel env vars + Sentry projects (4h) — *executado, spec escrito post-facto*
+- [x] GitHub Actions CI workflow — typecheck, test, audit, secret-scan (2h)
+- [x] Supabase project remoto + `.env.local` + Vercel env vars + Sentry projects (4h)
 
-**Blockers pra flip a ✅:**
-- [ ] 🔴 **B1:** adicionar `NPM_TOKEN` em GitHub Actions secrets (user action)
-- [ ] 🟡 **B2:** confirmar DB password salvo em keychain (user action)
-- [ ] 🟡 **B3:** rodar `npx supabase link --project-ref novkqtvcnsiwhkxihurk` (user action)
+**Blockers resolvidos:**
+- [x] ✅ `NPM_TOKEN` configurado em GitHub Actions (classic PAT com `read:packages`)
+- [x] ✅ DB password salvo em keychain
+- [x] ✅ Supabase CLI linkado (`supabase/.temp/project-ref` = `novkqtvcnsiwhkxihurk`)
+- [x] ✅ `config.toml` atualizado (project_id + major_version 17 + enable_sign_up deprecated removed)
+- [x] ✅ npm scripts padrão TNG: `db:link:prod`, `db:push:prod`, `db:start/stop/reset/status`, `db:env`, `db:which`
 
 **Spec:** [`2026-04-13-sprint-0-supabase-setup-design.md`](../superpowers/specs/2026-04-13-sprint-0-supabase-setup-design.md)
-**Plan:** — (Sprint 0 é setup manual, não implementação code — não passa por `writing-plans`)
 
 ---
 

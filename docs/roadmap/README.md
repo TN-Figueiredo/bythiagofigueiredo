@@ -24,12 +24,11 @@
 ## Progresso global
 
 ```
-▓░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  ~3% (12h / 424h — pendente resolver blockers B1–B3 pra flip S0 a ✅)
+▓░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  ~3% (12h / 424h — Sprint 0 ✅ done)
 ```
 
-**Done até agora (~12h):** scaffold + CI workflow + Supabase provisionado + Vercel/Sentry env vars (ver spec do Sprint 0).
-**Blockers ativos:** `NPM_TOKEN` ausente no GitHub Actions → CI falhando.
-**Sprint ativo:** Sprint 0 (fechamento) → Sprint 1 (Foundation).
+**Done até agora (~12h):** Sprint 0 fechado ✅ — scaffold + CI + Supabase provisionado/linkado + Vercel/Sentry env vars + npm scripts de DB padrão TNG.
+**Sprint ativo:** Sprint 1 (Foundation — 40h).
 
 ## Legenda de status
 
