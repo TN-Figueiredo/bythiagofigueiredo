@@ -1,6 +1,6 @@
 # A string used to distinguish different Supabase projects on the same host.
 # Defaults to the working directory name when running `supabase init`.
-project_id = "app-name"
+project_id = "bythiagofigueiredo"
 
 [api]
 enabled = true
@@ -20,7 +20,7 @@ port = 54322
 # Port used by db diff command to initialize the shadow database.
 shadow_port = 54320
 # The database major version to use. This has to be the same as your remote database's. Run `SHOW server_version;` on the remote database to check.
-major_version = 15
+major_version = 17
 
 [studio]
 enabled = true
@@ -50,8 +50,6 @@ additional_redirect_urls = ["https://127.0.0.1:3001"]
 jwt_expiry = 3600
 # If disabled, the refresh token will never expire.
 enable_refresh_token_rotation = true
-# Allows session invalidation on logout from other clients.
-enable_sign_up = true
 
 [auth.email]
 # Allow/disallow new user signups via email to your project.

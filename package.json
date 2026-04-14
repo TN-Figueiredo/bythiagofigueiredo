@@ -16,6 +16,14 @@
     "test": "npm run test:api && npm run test:web",
     "test:api": "npm run test -w apps/api",
     "test:web": "npm run test -w apps/web",
+    "db:link:prod": "echo '[PROD] novkqtvcnsiwhkxihurk' && supabase link --project-ref novkqtvcnsiwhkxihurk",
+    "db:push:prod": "npm run db:link:prod && bash scripts/db-push-prod.sh",
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "db:reset": "supabase db reset",
+    "db:status": "supabase status",
+    "db:env": "bash scripts/db-env.sh",
+    "db:which": "bash scripts/db-which.sh",
     "prepare": "husky || true"
   },
   "engines": {
