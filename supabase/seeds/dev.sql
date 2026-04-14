@@ -1,6 +1,19 @@
 -- DEV SEED ONLY — do not run against production
 -- Creates a local super_admin user with a known password and fixed UUIDs.
 -- Running this against prod would reset/overwrite real auth data.
+
+-- Idempotence: truncate all dev application tables in FK-safe order.
+-- `cascade` auto-truncates any future tables with FKs into these (e.g. Sprint 1b
+-- campaigns, campaign_translations, campaign_submissions referencing authors) —
+-- so no extra lines are needed here when new tables land.
+-- Note: auth.users is handled via `on conflict do update` below because we can't
+-- truncate the auth schema from a user-level seed.
+truncate table
+  public.blog_translations,
+  public.blog_posts,
+  public.authors
+restart identity cascade;
+
 do $$
 declare
   v_user_id uuid := '00000000-0000-0000-0000-000000000001';
@@ -28,16 +41,12 @@ begin
   on conflict (id) do update set
     raw_app_meta_data = excluded.raw_app_meta_data;
 
+  -- After truncate this insert always succeeds; `on conflict` kept as a cheap
+  -- defensive guard in case another author insert is added above this one later.
   insert into public.authors (user_id, name, slug, bio_md)
   values (v_user_id, 'Thiago Figueiredo', 'thiago', 'Builder. Writer.')
   on conflict (slug) do update set user_id = excluded.user_id
   returning id into v_author_id;
-
-  if v_author_id is null then
-    select id into v_author_id from public.authors where slug='thiago';
-  end if;
-
-  delete from public.blog_posts where author_id = v_author_id;
 
   insert into public.blog_posts (author_id, status, published_at)
   values (v_author_id, 'published', now() - interval '1 day')
