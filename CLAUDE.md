@@ -56,6 +56,28 @@ npm run db:start && npm run db:reset  # Valida local primeiro
 
 Salvo em keychain/1Password. Recuperar via: Supabase Dashboard → Project Settings → Database → Reset database password (se perdido).
 
+## Testes com DB local
+
+Tests que dependem de Supabase local (RLS, migrations, seed, integration) são gated em `process.env.HAS_LOCAL_DB`. Helper: `apps/{api,web}/test/helpers/db-skip.ts`.
+
+```bash
+# Suite completa (local, com DB rodando)
+npm run db:start
+HAS_LOCAL_DB=1 npm test
+
+# Suite "sem DB" (o que CI faz) — describe.skipIf(skipIfNoLocalDb()) pula os gated
+npm test
+```
+
+Convenção nos testes:
+
+```typescript
+import { skipIfNoLocalDb, getLocalJwtSecret } from './helpers/db-skip'
+describe.skipIf(skipIfNoLocalDb())('<suite que precisa de DB>', () => { ... })
+```
+
+Override do JWT secret: `SUPABASE_JWT_SECRET=xxx HAS_LOCAL_DB=1 npm test`.
+
 ## Environment Variables
 
 ### Web (`apps/web/.env.local`)
