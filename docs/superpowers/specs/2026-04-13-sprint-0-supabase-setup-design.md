@@ -31,7 +31,20 @@ CI Ubuntu runs em UTC. Helpers de data que usam `Date.setHours()` calculam em TZ
 - `paths-ignore` pra skip docs-only changes
 - `concurrency: cancel-in-progress: true` para cancelar runs anteriores em push
 
-### 5. deployment_status trigger separado
+### 5. Path-based job skipping (dorny/paths-filter)
+
+Job `changes` detecta workspaces afetados; downstream jobs usam `if: needs.changes.outputs.{workspace} == 'true'`. **CRITICAL:** matrix + job-level `if` NÃO funcionam juntos no GitHub Actions — use jobs individuais por workspace.
+
+**Filters:**
+- api: `apps/api/** + packages/shared/**`
+- web: `apps/web/** + packages/shared/**`
+- mobile: `apps/mobile/** + packages/shared/**`
+- deps: `package.json, package-lock.json`
+- workflow: `.github/workflows/**`
+
+**Savings empíricos (TNG):** PR só api = 2m26s (vs 10m22s full = **76% reduction**).
+
+### 6. deployment_status trigger separado
 
 Smoke test em workflow próprio (`smoke.yml`) com trigger `deployment_status`. NÃO deixar no mesmo workflow que CI normal — dispara TODOS os jobs desnecessariamente.
 
