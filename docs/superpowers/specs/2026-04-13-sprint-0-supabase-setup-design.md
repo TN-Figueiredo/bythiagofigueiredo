@@ -7,6 +7,7 @@
 
 ## Changelog
 
+- **rev 3 (2026-04-13 — closure):** Sprint 0 fechado. Scripts DB padrão TNG adicionados (`db:link:prod`, `db:push:prod`, `db:start/stop/reset/status`, `db:env`, `db:which`). `config.toml` corrigido (project_id, major_version=17, key deprecated `auth.enable_sign_up` removida). `.gitignore` atualizado pra excluir `supabase/.temp/` (credentials cache) + `.env.local-db` (local Docker env). CLAUDE.md criado com runbook.
 - **rev 2 (2026-04-13):** written retroactively after audit revealed missing spec and 3 failing CI runs. Added NPM_TOKEN blocker to scope, resolved DNS contradiction, consolidated Vercel/Sentry decisions that had leaked outside Sprint 0 budget.
 - **rev 1 — never written** (process violation — design discussed inline but not captured in spec).
 
