@@ -54,3 +54,46 @@ describe.skipIf(skipIfNoLocalDb())('migration 0001 authors', () => {
       .toBeGreaterThan(new Date(r1.rows[0].updated_at).getTime())
   })
 })
+
+describe.skipIf(skipIfNoLocalDb())('migration 0002 blog_posts', () => {
+  const client = new Client({ connectionString: DB_URL })
+  beforeAll(async () => { await client.connect() })
+  afterAll(async () => { await client.end() })
+
+  it('post_status enum exists with 4 values', async () => {
+    const { rows } = await client.query(`
+      select unnest(enum_range(null::post_status))::text as v order by 1
+    `)
+    expect(rows.map(r => r.v).sort()).toEqual(['archived','draft','published','scheduled'])
+  })
+
+  it('blog_posts table exists with expected columns and FK', async () => {
+    const { rows } = await client.query(`
+      select column_name from information_schema.columns
+      where table_schema='public' and table_name='blog_posts'
+    `)
+    const names = rows.map(r => r.column_name)
+    for (const c of ['id','site_id','author_id','status','published_at','scheduled_for',
+      'cover_image_url','created_at','updated_at','created_by','updated_by']) {
+      expect(names).toContain(c)
+    }
+  })
+
+  it('cannot insert blog_post without author_id (NOT NULL)', async () => {
+    await expect(client.query(
+      `insert into public.blog_posts(status) values ('draft')`
+    )).rejects.toThrow(/author_id/)
+  })
+
+  it('can insert blog_post with author', async () => {
+    await client.query(
+      `insert into public.authors(name, slug) values ('A','a') on conflict (slug) do nothing`
+    )
+    const { rows: [a] } = await client.query(`select id from public.authors where slug='a'`)
+    const { rows } = await client.query(
+      `insert into public.blog_posts(author_id, status) values ($1,'draft') returning id, status`,
+      [a.id]
+    )
+    expect(rows[0].status).toBe('draft')
+  })
+})
