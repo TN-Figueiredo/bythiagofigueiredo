@@ -25,8 +25,6 @@
 --
 -- Idempotent DDL.
 
-drop function if exists public.update_campaign_atomic(uuid, jsonb, jsonb);
-
 create or replace function public.update_campaign_atomic(
   p_campaign_id uuid,
   p_patch jsonb,
