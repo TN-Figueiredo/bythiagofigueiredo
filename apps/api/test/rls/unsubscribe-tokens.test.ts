@@ -1,10 +1,11 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest'
 import { createClient } from '@supabase/supabase-js'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { SUPABASE_URL, SERVICE_KEY } from '../helpers/local-supabase'
+import { SUPABASE_URL, SERVICE_KEY, ANON_KEY } from '../helpers/local-supabase'
 import { ensureSharedSites, SHARED_SITE_A_ID } from '../helpers/ring-fixtures'
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY)
+const anon = createClient(SUPABASE_URL, ANON_KEY)
 
 function hexToken(seed: string): string {
   return seed.padEnd(64, '0')
@@ -83,5 +84,22 @@ describe.skipIf(skipIfNoLocalDb())('unsubscribe_tokens + unsubscribe_via_token R
     expect(error).toBeNull()
     expect(data.ok).toBe(true)
     expect(data.already).toBe(true)
+  })
+
+  it('anon client cannot read unsubscribe_tokens (deny-all RLS policy)', async () => {
+    // Insert a token via service-role so there is at least one row
+    const t = hexToken('denyal1test')
+    await admin.from('unsubscribe_tokens').insert({
+      token: t, site_id: SHARED_SITE_A_ID, email: 'deny-anon@x.com',
+    })
+
+    // Anon select — expect 0 rows (RLS deny-all) or a PostgREST error
+    const { data, error } = await anon.from('unsubscribe_tokens').select('*')
+    if (error) {
+      // PostgREST may return 42501 permission denied — that's fine
+      expect(error).toBeTruthy()
+    } else {
+      expect(data).toHaveLength(0)
+    }
   })
 })
