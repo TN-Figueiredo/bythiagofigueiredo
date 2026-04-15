@@ -9,6 +9,9 @@ create table public.unsubscribe_tokens (
 
 create index on public.unsubscribe_tokens (email);
 
+-- RLS: no policies. Table is opaque to anon and authenticated.
+-- Reads/writes happen exclusively through the security-definer RPC unsubscribe_via_token.
+-- The unsubscribe URL token IS the capability — no row-level access needed elsewhere.
 alter table public.unsubscribe_tokens enable row level security;
 
 -- service role only direct access; anon via RPC

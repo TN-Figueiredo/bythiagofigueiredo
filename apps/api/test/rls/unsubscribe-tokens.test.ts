@@ -62,13 +62,14 @@ describe.skipIf(skipIfNoLocalDb())('unsubscribe_tokens + unsubscribe_via_token R
     const email = 'unsub-idempotent@x.com'
     const t = hexToken('11223344')
 
-    await admin.from('newsletter_subscriptions').insert({
+    const { data: sub2 } = await admin.from('newsletter_subscriptions').insert({
       site_id: SHARED_SITE_A_ID, email,
       status: 'pending_confirmation',
       confirmation_token: hexToken('sub-token-2'),
       confirmation_expires_at: new Date(Date.now() + 86400_000).toISOString(),
       consent_text_version: 'v1',
     }).select('id').single()
+    if (sub2?.id) subIds.push(sub2.id)
 
     await admin.from('unsubscribe_tokens').insert({
       token: t, site_id: SHARED_SITE_A_ID, email,
