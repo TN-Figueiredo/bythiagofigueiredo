@@ -19,9 +19,12 @@ create table public.newsletter_subscriptions (
 -- Note: status='confirmed' brevo_contact_id check is loosened to allow cron-driven sync.
 -- Production invariant enforced in cron sync logic, not at DB level (cron will sync brevo_contact_id immediately after confirm).
 
+-- now() is volatile and not allowed in index predicates — expiration is enforced
+-- inside the confirm RPC. This index is superseded by newsletter_pending_token_hash
+-- in 20260416000014 once tokens move to hashed storage.
 create unique index newsletter_pending_token
   on public.newsletter_subscriptions (confirmation_token)
-  where status = 'pending_confirmation' and confirmation_expires_at > now();
+  where status = 'pending_confirmation';
 create index on public.newsletter_subscriptions (site_id, status);
 
 alter table public.newsletter_subscriptions enable row level security;
