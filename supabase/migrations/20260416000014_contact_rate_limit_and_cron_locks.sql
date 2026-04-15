@@ -71,10 +71,8 @@ update public.unsubscribe_tokens
   set token_hash = encode(sha256(token::bytea), 'hex')
   where token is not null and token_hash is null;
 
--- Make token nullable (we'll drop it after RPC is updated).
-alter table public.unsubscribe_tokens alter column token drop not null;
-
 -- Drop the old PK on token plaintext and old format check.
+-- (PK drop must come first — cannot alter nullability of a PK column.)
 alter table public.unsubscribe_tokens drop constraint if exists unsubscribe_tokens_pkey;
 alter table public.unsubscribe_tokens drop constraint if exists unsubscribe_tokens_token_check;
 
