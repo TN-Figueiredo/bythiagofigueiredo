@@ -105,6 +105,9 @@ export class SupabasePostRepository extends SupabaseContentRepository implements
         ...(t.content_compiled !== undefined ? { content_compiled: t.content_compiled } : {}),
         ...(t.content_toc !== undefined ? { content_toc: t.content_toc } : {}),
         ...(t.reading_time_min !== undefined ? { reading_time_min: t.reading_time_min } : {}),
+        ...(t.meta_title !== undefined ? { meta_title: t.meta_title } : {}),
+        ...(t.meta_description !== undefined ? { meta_description: t.meta_description } : {}),
+        ...(t.og_image_url !== undefined ? { og_image_url: t.og_image_url } : {}),
       }).eq('post_id', id).eq('locale', t.locale)
       if (error) throw error
     }
@@ -221,6 +224,9 @@ export class SupabasePostRepository extends SupabaseContentRepository implements
         content_compiled: (t.content_compiled as string | null) ?? null,
         content_toc: (t.content_toc as Array<{ depth: number; text: string; slug: string }>) ?? [],
         reading_time_min: (t.reading_time_min as number) ?? 0,
+        meta_title: (t.meta_title as string | null) ?? null,
+        meta_description: (t.meta_description as string | null) ?? null,
+        og_image_url: (t.og_image_url as string | null) ?? null,
         created_at: t.created_at as string,
         updated_at: t.updated_at as string,
       })),

@@ -13,6 +13,10 @@ export interface SavePostActionInput {
   title: string
   slug: string
   excerpt?: string | null
+  meta_title?: string | null
+  meta_description?: string | null
+  og_image_url?: string | null
+  cover_image_url?: string | null
 }
 
 export type SavePostActionResult =
@@ -48,6 +52,7 @@ export async function savePost(
 
   try {
     await postRepo().update(id, {
+      ...(input.cover_image_url !== undefined ? { cover_image_url: input.cover_image_url } : {}),
       translation: {
         locale,
         title: input.title,
@@ -57,6 +62,9 @@ export async function savePost(
         content_compiled: compiled.compiledSource,
         content_toc: compiled.toc,
         reading_time_min: compiled.readingTimeMin,
+        ...(input.meta_title !== undefined ? { meta_title: input.meta_title } : {}),
+        ...(input.meta_description !== undefined ? { meta_description: input.meta_description } : {}),
+        ...(input.og_image_url !== undefined ? { og_image_url: input.og_image_url } : {}),
       },
     })
   } catch (e) {

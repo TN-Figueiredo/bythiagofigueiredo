@@ -11,6 +11,9 @@ export interface PostTranslation {
   content_compiled: string | null
   content_toc: Array<{ depth: number; text: string; slug: string }>
   reading_time_min: number
+  meta_title: string | null
+  meta_description: string | null
+  og_image_url: string | null
   created_at: string
   updated_at: string
 }
