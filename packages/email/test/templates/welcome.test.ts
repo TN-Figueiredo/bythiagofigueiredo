@@ -10,11 +10,15 @@ describe('welcomeTemplate', () => {
     expect(r.html).toContain('Obrigado por se inscrever')
     expect(r.html).toContain('TestBrand')
     expect(r.html).toContain('https://x.com')
+    expect(r.text).toBeTruthy()
+    expect(r.text).toContain('Obrigado por se inscrever')
   })
   it('renders en without name', async () => {
     const r = await welcomeTemplate.render({ siteUrl: 'https://x.com', branding }, 'en')
     expect(r.subject).toBe('Welcome!')
     expect(r.html).toContain('Thanks for subscribing')
+    expect(r.text).toBeTruthy()
+    expect(r.text).toContain('Thanks for subscribing')
   })
   it('escapes HTML in name', async () => {
     const r = await welcomeTemplate.render({ name: '<script>x</script>', siteUrl: 'https://x.com', branding }, 'pt-BR')

@@ -18,6 +18,8 @@ describe('contactAdminAlertTemplate', () => {
     expect(r.html).toContain('Mensagem:')
     expect(r.html).toContain('Ver no admin')
     expect(r.html).toContain('Hello<br>World')
+    expect(r.text).toBeTruthy()
+    expect(r.text).toContain('Novo contato: Alice')
   })
   it('renders en', async () => {
     const r = await contactAdminAlertTemplate.render(baseVars, 'en')
@@ -25,6 +27,8 @@ describe('contactAdminAlertTemplate', () => {
     expect(r.html).toContain('From:')
     expect(r.html).toContain('Message:')
     expect(r.html).toContain('View in admin')
+    expect(r.text).toBeTruthy()
+    expect(r.text).toContain('New contact: Alice')
   })
   it('escapes HTML in message and submitter fields', async () => {
     const r = await contactAdminAlertTemplate.render(

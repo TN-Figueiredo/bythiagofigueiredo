@@ -12,6 +12,9 @@ export class BrevoEmailAdapter implements IEmailService {
   private timeoutMs = 8000
 
   constructor(private apiKey: string) {
+    if (!apiKey || apiKey.trim().length === 0) {
+      throw new Error('BrevoEmailAdapter: apiKey must be a non-empty string')
+    }
     // Brevo free tier limit: 300/min = 5/sec
     this.queue = new PQueue({ concurrency: 5, interval: 1000, intervalCap: 5 })
   }

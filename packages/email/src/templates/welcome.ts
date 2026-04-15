@@ -1,4 +1,4 @@
-import { emailLayout, emailButton, escapeHtml } from './base-layout'
+import { emailLayout, emailButton, escapeHtml, htmlToText } from './base-layout'
 import type { IEmailTemplate } from '../interfaces/email-template'
 import type { EmailBranding } from '../types/branding'
 
@@ -23,12 +23,11 @@ export const welcomeTemplate: IEmailTemplate<WelcomeVars> = {
       label: isEn ? 'Visit the site' : 'Visite o site',
       color: vars.branding.primaryColor,
     })
-    return {
-      subject,
-      html: emailLayout({
-        body: `<h1>${subject}</h1>${intro}<p>${cta}</p>`,
-        branding: vars.branding,
-      }),
-    }
+    const html = emailLayout({
+      body: `<h1>${subject}</h1>${intro}<p>${cta}</p>`,
+      branding: vars.branding,
+      locale,
+    })
+    return { subject, html, text: htmlToText(html) }
   },
 }
