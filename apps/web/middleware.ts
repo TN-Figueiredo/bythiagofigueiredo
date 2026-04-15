@@ -1,18 +1,20 @@
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 import { createAuthMiddleware } from '@tn-figueiredo/auth-nextjs/middleware'
+import { SupabaseRingContext } from '@tn-figueiredo/cms'
+import { getSupabaseServiceClient } from './lib/supabase/service'
 
 /**
  * Middleware responsibilities:
  * 1. Subdomain rewrite: dev.bythiagofigueiredo.com → /dev internally
- * 2. Auth gating: protect /cms and /admin via createAuthMiddleware
+ * 2. Site resolution: hostname → site_id/org_id/default_locale (Sprint 2)
+ * 3. Auth gating: protect /cms and /admin via createAuthMiddleware
  *
  * Hostname-based rewrites must NOT use redirects (would expose /dev path).
  * Use rewrite so the URL bar stays at dev.bythiagofigueiredo.com.
  */
 
 const authMiddleware = createAuthMiddleware({
-  publicRoutes: [/^\/$/, '/signin', /^\/api\//, /^\/_next\//],
+  publicRoutes: [/^\/$/, '/signin', /^\/api\//, /^\/_next\//, /^\/blog/, /^\/campaigns/],
   protectedRoutes: [/^\/cms(\/.*)?$/, /^\/admin(\/.*)?$/],
   signInPath: '/signin',
   env: {
@@ -24,26 +26,41 @@ const authMiddleware = createAuthMiddleware({
 export default async function middleware(
   request: NextRequest,
 ): Promise<NextResponse> {
-  const host = request.headers.get('host') ?? ''
+  const host = request.headers.get('host') ?? request.nextUrl.host ?? ''
+  const hostname = host.split(':')[0] ?? ''
   const url = request.nextUrl.clone()
 
-  // Strip port for local dev (e.g. dev.localhost:3001 → dev.localhost)
-  const hostname = host.split(':')[0] ?? ''
-
+  // Dev subdomain rewrite (unchanged from Sprint 1a)
   const isDevSubdomain =
     hostname === 'dev.bythiagofigueiredo.com' ||
     hostname === 'dev.localhost'
-
   if (isDevSubdomain && !url.pathname.startsWith('/dev')) {
     url.pathname = `/dev${url.pathname === '/' ? '' : url.pathname}`
     return NextResponse.rewrite(url)
   }
 
+  // Auth gating for protected routes — run FIRST to preserve its response shape
+  // (it may redirect/block before we attach site headers; that's fine).
   if (/^\/(cms|admin)(\/|$)/.test(request.nextUrl.pathname)) {
     return authMiddleware(request)
   }
 
-  return NextResponse.next()
+  // Site resolution for public routes (Sprint 2).
+  const res = NextResponse.next()
+  try {
+    const ring = new SupabaseRingContext(getSupabaseServiceClient())
+    const site = await ring.getSiteByDomain(hostname)
+    if (site) {
+      res.headers.set('x-site-id', site.id)
+      res.headers.set('x-org-id', site.org_id)
+      res.headers.set('x-default-locale', site.default_locale)
+    }
+  } catch {
+    // Resolution failed (DB down, service-role env missing in edge context).
+    // Leave headers unset — server components will throw via getSiteContext().
+  }
+
+  return res
 }
 
 export const config = {
