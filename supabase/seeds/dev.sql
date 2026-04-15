@@ -2,17 +2,38 @@
 -- Creates a local super_admin user with a known password and fixed UUIDs.
 -- Running this against prod would reset/overwrite real auth data.
 
--- Idempotence: truncate all dev application tables in FK-safe order.
--- `cascade` auto-truncates any future tables with FKs into these (e.g. Sprint 1b
--- campaigns, campaign_translations, campaign_submissions referencing authors) —
--- so no extra lines are needed here when new tables land.
--- Note: auth.users is handled via `on conflict do update` below because we can't
--- truncate the auth schema from a user-level seed.
+-- Idempotence: truncate all dev application tables in child-to-parent FK order
+-- so this seed can be re-run cleanly.
+--
+-- auth.users is NOT truncated — a user-level seed cannot truncate the auth
+-- schema, so it is handled via `on conflict (id) do update` below.
+--
+-- IMPORTANT — extending this list:
+-- When a later sprint adds tables with their own dev fixtures (e.g. Sprint 1b
+-- campaigns / campaign_translations / campaign_submissions / cron_runs, which
+-- attach to `auth.users` rather than `public.authors` and therefore are NOT
+-- reached by any cascade from the blog tables), the author MUST add those
+-- tables to this truncate list explicitly, in child-to-parent order.
+--
+-- `restrict` (not `cascade`) is deliberate: if a future table grows an FK into
+-- one of these and is not added here, the truncate will fail loudly with an FK
+-- error instead of silently leaving stale rows behind and making the seed
+-- non-idempotent.
+--
+-- On-conflict contract below:
+--   * auth.users uses `on conflict (id) do update` — guarantees the row exists
+--     after the statement.
+--   * public.authors uses `on conflict (slug) do update ... returning id` —
+--     guarantees `v_author_id` is populated.
+--   If either is ever switched to `on conflict do nothing`, `returning id` may
+--   yield no row and `v_author_id` can end up NULL; in that case a fallback
+--   `select id into v_author_id from public.authors where slug = 'thiago'`
+--   must be re-introduced after the authors insert.
 truncate table
   public.blog_translations,
   public.blog_posts,
   public.authors
-restart identity cascade;
+restrict;
 
 do $$
 declare
