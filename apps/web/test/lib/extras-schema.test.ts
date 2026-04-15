@@ -30,4 +30,39 @@ describe('ExtrasSchema', () => {
     const ok = [{ kind: 'youtube', videoId: 'x', title: 't' }] as const
     expect(parseExtras(ok)).toEqual(ok)
   })
+
+  it('whatsappCtas accepts 1 CTA', () => {
+    const r = ExtrasSchema.safeParse([
+      { kind: 'whatsappCtas', ctas: [
+        { kind: 'joinChannel', label: 'Join', url: 'https://wa.me/1' },
+      ] },
+    ])
+    expect(r.success).toBe(true)
+  })
+
+  it('whatsappCtas accepts 2 CTAs', () => {
+    const r = ExtrasSchema.safeParse([
+      { kind: 'whatsappCtas', ctas: [
+        { kind: 'joinChannel', label: 'Join', url: 'https://wa.me/1' },
+        { kind: 'startChatWithText', label: 'Chat', phone: '+55', text: 'hi' },
+      ] },
+    ])
+    expect(r.success).toBe(true)
+  })
+
+  it('whatsappCtas rejects empty ctas array', () => {
+    const r = ExtrasSchema.safeParse([{ kind: 'whatsappCtas', ctas: [] }])
+    expect(r.success).toBe(false)
+  })
+
+  it('whatsappCtas rejects 3 CTAs', () => {
+    const r = ExtrasSchema.safeParse([
+      { kind: 'whatsappCtas', ctas: [
+        { kind: 'joinChannel', label: 'a', url: 'https://wa.me/1' },
+        { kind: 'joinChannel', label: 'b', url: 'https://wa.me/2' },
+        { kind: 'joinChannel', label: 'c', url: 'https://wa.me/3' },
+      ] },
+    ])
+    expect(r.success).toBe(false)
+  })
 })

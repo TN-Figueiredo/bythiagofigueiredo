@@ -32,7 +32,7 @@ const WhatsappCta = z.discriminatedUnion('kind', [
 
 const WhatsappCtasBlock = z.object({
   kind: z.literal('whatsappCtas'),
-  ctas: z.array(WhatsappCta).max(1),
+  ctas: z.array(WhatsappCta).min(1).max(2),
 })
 
 export const ExtrasBlock = z.discriminatedUnion('kind', [

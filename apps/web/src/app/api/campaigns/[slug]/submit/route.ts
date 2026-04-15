@@ -15,24 +15,27 @@ const BodySchema = z.object({
   interest: z.string().optional(),
 });
 
+const CampaignTranslationZ = z.object({
+  success_headline: z.string(),
+  success_headline_duplicate: z.string(),
+  success_subheadline: z.string(),
+  success_subheadline_duplicate: z.string(),
+  check_mail_text: z.string(),
+  download_button_label: z.string(),
+});
+const CampaignRowZ = z.object({
+  id: z.string(),
+  brevo_list_id: z.number().nullable(),
+  pdf_storage_path: z.string().nullable(),
+  interest: z.string(),
+  campaign_translations: z.array(CampaignTranslationZ).min(1),
+});
+
+const PDF_SIGNED_URL_TTL_SECONDS = Number(
+  process.env.CAMPAIGN_PDF_SIGNED_URL_TTL ?? 86_400,
+); // default 24h
+
 interface RouteCtx { params: Promise<{ slug: string }>; }
-
-interface CampaignTranslation {
-  success_headline: string;
-  success_headline_duplicate: string;
-  success_subheadline: string;
-  success_subheadline_duplicate: string;
-  check_mail_text: string;
-  download_button_label: string;
-}
-
-interface CampaignRow {
-  id: string;
-  brevo_list_id: number | null;
-  pdf_storage_path: string | null;
-  interest: string;
-  campaign_translations: CampaignTranslation[];
-}
 
 export async function POST(req: NextRequest | Request, ctx: RouteCtx): Promise<Response> {
   const { slug } = await ctx.params;
@@ -44,7 +47,9 @@ export async function POST(req: NextRequest | Request, ctx: RouteCtx): Promise<R
     return Response.json({ error: 'invalid_body' }, { status: 400 });
   }
 
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
+  const ip =
+    req.headers.get('x-vercel-forwarded-for')?.split(',')[0]?.trim() ??
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
   const ua = req.headers.get('user-agent') ?? undefined;
 
   const turnstileOk = await verifyTurnstileToken(parsed.turnstile_token, ip);
@@ -62,7 +67,16 @@ export async function POST(req: NextRequest | Request, ctx: RouteCtx): Promise<R
   if (campaignRes.error || !campaignRes.data) {
     return Response.json({ error: 'campaign_not_found' }, { status: 404 });
   }
-  const campaign = campaignRes.data as unknown as CampaignRow;
+  let campaign: z.infer<typeof CampaignRowZ>;
+  try {
+    campaign = CampaignRowZ.parse(campaignRes.data);
+  } catch (e) {
+    getLogger().error('[invalid_campaign_shape]', {
+      message: e instanceof Error ? e.message : String(e),
+      stack: e instanceof Error ? e.stack : undefined,
+    });
+    return Response.json({ error: 'invalid_campaign_shape' }, { status: 500 });
+  }
   const tx = campaign.campaign_translations[0];
   if (!tx) {
     return Response.json({ error: 'campaign_not_found' }, { status: 404 });
@@ -112,6 +126,7 @@ export async function POST(req: NextRequest | Request, ctx: RouteCtx): Promise<R
       // Sprint 4 replaces this with Sentry.captureException
       getLogger().error('[brevo_sync_failed]', {
         message: e instanceof Error ? e.message : String(e),
+        stack: e instanceof Error ? e.stack : undefined,
       });
     }
   }
@@ -121,7 +136,7 @@ export async function POST(req: NextRequest | Request, ctx: RouteCtx): Promise<R
   if (campaign.pdf_storage_path) {
     const signed = await supabase.storage
       .from('campaign-files')
-      .createSignedUrl(campaign.pdf_storage_path, 7 * 24 * 3600);
+      .createSignedUrl(campaign.pdf_storage_path, PDF_SIGNED_URL_TTL_SECONDS);
     pdfUrl = signed.data?.signedUrl ?? null;
   }
 

@@ -3,6 +3,26 @@
 import { useState, useRef, useEffect } from 'react'
 import { CONSENT_VERSION } from '../../../../../lib/campaigns/consent'
 
+const FORM_STRINGS = {
+  'pt-BR': {
+    turnstileLoading: 'Turnstile ainda carregando.',
+    consentRequired: 'Consentimento obrigatório.',
+    submitError: 'Erro ao enviar.',
+    consentLabel: 'Concordo em receber comunicações (LGPD).',
+  },
+  en: {
+    turnstileLoading: 'Turnstile still loading.',
+    consentRequired: 'Consent is required.',
+    submitError: 'Submit error.',
+    consentLabel: 'I agree to receive communications (LGPD).',
+  },
+} as const
+
+type FormLocale = keyof typeof FORM_STRINGS
+function stringsFor(locale: string) {
+  return FORM_STRINGS[(locale in FORM_STRINGS ? locale : 'pt-BR') as FormLocale]
+}
+
 interface FormField {
   name: string
   label: string
@@ -42,12 +62,14 @@ declare global {
 
 export function SubmitForm(props: Props) {
   const { slug, locale, formFields, buttonLabel, loadingLabel, contextTag } = props
+  const t = stringsFor(locale)
   const fields = formFields as FormField[]
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState<SuccessState | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const turnstileRef = useRef<HTMLDivElement>(null)
+  const widgetIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
@@ -58,10 +80,11 @@ export function SubmitForm(props: Props) {
     script.defer = true
     script.onload = () => {
       if (window.turnstile && turnstileRef.current) {
-        window.turnstile.render(turnstileRef.current, {
+        const id = window.turnstile.render(turnstileRef.current, {
           sitekey: siteKey,
-          callback: (t) => setToken(t),
+          callback: (tok) => setToken(tok),
         })
+        widgetIdRef.current = id
       }
     }
     document.head.appendChild(script)
@@ -70,17 +93,25 @@ export function SubmitForm(props: Props) {
     }
   }, [])
 
+  function resetTurnstile() {
+    if (window.turnstile && widgetIdRef.current) {
+      window.turnstile.reset(widgetIdRef.current)
+    }
+    setToken(null)
+  }
+
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError(null)
     if (!token) {
-      setError('Turnstile ainda carregando.')
+      setError(t.turnstileLoading)
       return
     }
     const data = new FormData(e.currentTarget)
     const consent = data.get('consent_marketing') === 'on'
     if (!consent) {
-      setError('Consentimento obrigatório.')
+      setError(t.consentRequired)
+      resetTurnstile()
       return
     }
     setLoading(true)
@@ -98,7 +129,8 @@ export function SubmitForm(props: Props) {
         }),
       })
       if (!res.ok) {
-        setError('Erro ao enviar.')
+        setError(t.submitError)
+        resetTurnstile()
         return
       }
       const body = (await res.json()) as SuccessState & { success: boolean }
@@ -145,7 +177,7 @@ export function SubmitForm(props: Props) {
       ))}
       <label>
         <input type="checkbox" name="consent_marketing" required />
-        Concordo em receber comunicações (LGPD).
+        {t.consentLabel}
       </label>
       <div ref={turnstileRef} />
       {error ? <p role="alert">{error}</p> : null}

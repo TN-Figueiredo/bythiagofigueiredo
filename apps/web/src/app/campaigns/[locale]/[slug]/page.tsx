@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { notFound } from 'next/navigation'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -10,12 +11,29 @@ interface PageParams {
   slug: string
 }
 
+interface ParsedCampaign {
+  id: string
+  status: string
+  pdf_storage_path: string | null
+  brevo_list_id: number | null
+  interest: string
+  form_fields: unknown[]
+  campaign_translations: Array<Record<string, unknown>>
+}
+
 function Md({ text }: { text: string | null | undefined }) {
   if (!text) return null
   return <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
 }
 
-async function loadCampaign(locale: string, slug: string) {
+function parseCampaign(raw: unknown): ParsedCampaign | null {
+  if (!raw || typeof raw !== 'object') return null
+  const r = raw as { campaign_translations?: unknown[] }
+  if (!Array.isArray(r.campaign_translations) || r.campaign_translations.length === 0) return null
+  return raw as ParsedCampaign
+}
+
+const loadCampaign = cache(async function loadCampaignImpl(locale: string, slug: string) {
   const supabase = getSupabaseServiceClient()
   const { data, error } = await supabase
     .from('campaigns')
@@ -36,15 +54,14 @@ async function loadCampaign(locale: string, slug: string) {
     .eq('campaign_translations.slug', slug)
     .maybeSingle()
   if (error || !data) return null
-  return data
-}
+  return parseCampaign(data)
+})
 
 export default async function CampaignPage({ params }: { params: Promise<PageParams> }) {
   const { locale, slug } = await params
   const campaign = await loadCampaign(locale, slug)
   if (!campaign) notFound()
-  const tx = (campaign as { campaign_translations: Array<Record<string, unknown>> })
-    .campaign_translations[0]
+  const tx = campaign.campaign_translations[0]
   if (!tx) notFound()
 
   return (
@@ -61,7 +78,7 @@ export default async function CampaignPage({ params }: { params: Promise<PagePar
         <SubmitForm
           slug={slug}
           locale={locale}
-          formFields={(campaign as { form_fields: unknown }).form_fields as unknown[]}
+          formFields={campaign.form_fields}
           buttonLabel={tx.form_button_label as string}
           loadingLabel={tx.form_button_loading_label as string}
           contextTag={tx.context_tag as string}
@@ -79,8 +96,7 @@ export async function generateMetadata({ params }: { params: Promise<PageParams>
   const { locale, slug } = await params
   const c = await loadCampaign(locale, slug)
   if (!c) return {}
-  const tx = (c as { campaign_translations: Array<Record<string, unknown>> })
-    .campaign_translations[0]
+  const tx = c.campaign_translations[0]
   if (!tx) return {}
   return {
     title: tx.meta_title as string,
