@@ -6,12 +6,6 @@ import { createServerClient } from '@supabase/ssr'
 import type { CookieOptions } from '@supabase/ssr'
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
 
-// ─── types ───────────────────────────────────────────────────────────────────
-
-export type AcceptResult =
-  | { ok: true; org_id: string }
-  | { ok: false; error: string }
-
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 async function getUserClient() {
@@ -41,8 +35,9 @@ async function getUserClient() {
 /**
  * Called when the visitor is already signed in and we just need to run the
  * atomic accept RPC (which binds auth.uid() server-side).
+ * Redirects to /cms on success, or back to the invite page with ?error=<code> on failure.
  */
-export async function acceptInviteForCurrentUser(token: string): Promise<AcceptResult> {
+export async function acceptInviteForCurrentUser(token: string): Promise<void> {
   const supabase = await getUserClient()
 
   const {
@@ -50,7 +45,7 @@ export async function acceptInviteForCurrentUser(token: string): Promise<AcceptR
   } = await supabase.auth.getUser()
 
   if (!user) {
-    return { ok: false, error: 'not_authenticated' }
+    redirect(`/signup/invite/${token}?error=unauthenticated`)
   }
 
   // RPC signature: accept_invitation_atomic(p_token text)
@@ -60,18 +55,20 @@ export async function acceptInviteForCurrentUser(token: string): Promise<AcceptR
   })
 
   if (error) {
-    return { ok: false, error: `rpc_failed: ${error.message}` }
+    redirect(`/signup/invite/${token}?error=rpc_failed`)
   }
 
   // RPC returns json: { ok: boolean, error?: string, org_id?: string }
-  return data as AcceptResult
+  const result = data as { ok: boolean; error?: string }
+  if (!result.ok) {
+    const code = result.error ?? 'rpc_failed'
+    redirect(`/signup/invite/${token}?error=${encodeURIComponent(code)}`)
+  }
+
+  redirect('/cms')
 }
 
 // ─── action: sign up + accept for new user ───────────────────────────────────
-
-export type AcceptWithPasswordResult =
-  | { ok: true; redirectTo: string }
-  | { ok: false; error: string; message?: string }
 
 /**
  * Full flow for a new user:
@@ -80,11 +77,13 @@ export type AcceptWithPasswordResult =
  *  3. Sign the new user in (establishes a session so auth.uid() resolves).
  *  4. Call accept_invitation_atomic(p_token) — RPC uses auth.uid() internally.
  *  5. On RPC failure: compensate by deleting the newly created user.
+ *
+ * Redirects to /cms on success, or back to the invite page with ?error=<code> on failure.
  */
 export async function acceptInviteWithPassword(
   token: string,
   password: string,
-): Promise<AcceptWithPasswordResult> {
+): Promise<void> {
   const service = getSupabaseServiceClient()
 
   // Step 1 — Fetch invitation details (anon-safe RPC, used only for email lookup)
@@ -93,13 +92,13 @@ export async function acceptInviteWithPassword(
   })
 
   if (invErr || !rows || (Array.isArray(rows) && rows.length === 0)) {
-    return { ok: false, error: 'invalid_or_expired' }
+    redirect(`/signup/invite/${token}?error=not_found`)
   }
 
   // get_invitation_by_token returns SETOF (table function) → array
   const inv = Array.isArray(rows) ? rows[0] : rows
   if (!inv || inv.expired) {
-    return { ok: false, error: 'invalid_or_expired' }
+    redirect(`/signup/invite/${token}?error=expired`)
   }
 
   const invitedEmail = String(inv.email)
@@ -113,9 +112,9 @@ export async function acceptInviteWithPassword(
 
   if (createErr || !created.user) {
     if (createErr?.message?.match(/already registered/i)) {
-      return { ok: false, error: 'email_already_registered' }
+      redirect(`/signup/invite/${token}?error=email_already_registered`)
     }
-    return { ok: false, error: 'signup_failed' }
+    redirect(`/signup/invite/${token}?error=signup_failed`)
   }
 
   const userId = created.user.id
@@ -136,7 +135,7 @@ export async function acceptInviteWithPassword(
     await service.auth.admin.deleteUser(userId)
     // C6: clear orphan session cookie on failure path
     await userClient.auth.signOut()
-    return { ok: false, error: 'signin_after_signup_failed' }
+    redirect(`/signup/invite/${token}?error=signup_failed`)
   }
 
   // Step 4 — Accept invitation atomically (RPC binds auth.uid() server-side)
@@ -152,15 +151,10 @@ export async function acceptInviteWithPassword(
     // logging in and the page will call acceptInviteForCurrentUser on next visit.
     console.error('[acceptInviteWithPassword] accept_invitation_atomic failed', acceptErr?.message ?? JSON.stringify(acceptData))
     await userClient.auth.signOut()
-
-    return {
-      ok: false,
-      error: 'rpc_failed',
-      message: 'Sua conta foi criada mas a aceitação do convite falhou. Faça login e contate o admin.',
-    }
+    redirect(`/signup/invite/${token}?error=rpc_failed`)
   }
 
-  return { ok: true, redirectTo: '/cms' }
+  redirect('/cms')
 }
 
 // ─── action: redirect helper (used in server-action forms) ───────────────────

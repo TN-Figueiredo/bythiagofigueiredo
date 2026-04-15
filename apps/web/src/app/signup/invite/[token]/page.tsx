@@ -8,6 +8,7 @@ import { SubmitButton } from './_components/SubmitButton'
 
 interface Props {
   params: Promise<{ token: string }>
+  searchParams: Promise<{ error?: string }>
 }
 
 interface InvitationRow {
@@ -18,8 +19,22 @@ interface InvitationRow {
   expired: boolean
 }
 
-export default async function InviteAcceptPage({ params }: Props) {
+const errorMessages: Record<string, string> = {
+  rpc_failed:
+    'Sua conta foi criada mas a aceitação do convite falhou. Faça login e contate o admin.',
+  expired: 'Este convite expirou.',
+  email_mismatch: 'O email do convite não corresponde ao seu login.',
+  already_accepted: 'Este convite já foi aceito.',
+  not_found: 'Convite inválido.',
+  unauthenticated: 'Você precisa estar autenticado para aceitar este convite.',
+  email_already_registered:
+    'Este email já está cadastrado. Faça login para aceitar o convite.',
+  signup_failed: 'Falha ao criar conta. Tente novamente.',
+}
+
+export default async function InviteAcceptPage({ params, searchParams }: Props) {
   const { token } = await params
+  const { error: errorCode } = await searchParams
   const service = getSupabaseServiceClient()
 
   // Fetch invitation details — anon-safe RPC, returns SETOF (array)
@@ -45,6 +60,11 @@ export default async function InviteAcceptPage({ params }: Props) {
       </main>
     )
   }
+
+  const errorMessage =
+    errorCode != null
+      ? (errorMessages[errorCode] ?? 'Ocorreu um erro. Tente novamente.')
+      : null
 
   // Check if visitor already has a session
   const cookieStore = await cookies()
@@ -94,11 +114,15 @@ export default async function InviteAcceptPage({ params }: Props) {
           Você foi convidado para <strong>{inv.org_name}</strong> como{' '}
           <strong>{inv.role}</strong>.
         </p>
+        {errorMessage && (
+          <div role="status" aria-live="polite">
+            {errorMessage}
+          </div>
+        )}
         <form
           action={async () => {
             'use server'
-            const result = await acceptInviteForCurrentUser(token)
-            if (result.ok) redirect('/cms')
+            await acceptInviteForCurrentUser(token)
           }}
         >
           <SubmitButton>Aceitar convite</SubmitButton>
@@ -129,14 +153,18 @@ export default async function InviteAcceptPage({ params }: Props) {
         Convite para <strong>{inv.email}</strong> em <strong>{inv.org_name}</strong> como{' '}
         <strong>{inv.role}</strong>.
       </p>
+      {errorMessage && (
+        <div role="status" aria-live="polite">
+          {errorMessage}
+        </div>
+      )}
       <form
         action={async (formData: FormData) => {
           'use server'
           const password = formData.get('password') as string
           const confirm = formData.get('confirm') as string
           if (!password || password !== confirm || password.length < 8) return
-          const result = await acceptInviteWithPassword(token, password)
-          if (result.ok) redirect(result.redirectTo)
+          await acceptInviteWithPassword(token, password)
         }}
       >
         <input type="password" name="password" required placeholder="Senha (mínimo 8 caracteres)" />

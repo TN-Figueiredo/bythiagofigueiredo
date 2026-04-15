@@ -1,5 +1,6 @@
 'use server'
 import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { createServerClient } from '@supabase/ssr'
 import type { CookieOptions } from '@supabase/ssr'
@@ -66,15 +67,15 @@ export async function createInvitation(input: {
     // I10: never surface raw db error.message to callers — log internally
     console.error('[createInvitation] db error', error.code, error.message)
     if (error.message.match(/rate_limit_exceeded/)) {
-      return { ok: false as const, error: 'Limite de 20 convites/hora excedido' }
+      redirect('/admin/users?notice=invite_rate_limited')
     }
     if (error.code === '23505') {
-      return { ok: false as const, error: 'Já existe um convite pendente para esse email.' }
+      redirect('/admin/users?notice=invite_duplicate')
     }
     if (error.code === '23503') {
-      return { ok: false as const, error: 'Organização inválida.' }
+      redirect('/admin/users?notice=invite_failed')
     }
-    return { ok: false as const, error: 'Erro ao criar convite. Tente novamente.' }
+    redirect('/admin/users?notice=invite_failed')
   }
 
   // Get org name for email
@@ -122,7 +123,7 @@ export async function createInvitation(input: {
   }
 
   revalidatePath('/admin/users')
-  return { ok: true as const, invitationId: inv.id }
+  redirect('/admin/users?notice=invite_created')
 }
 
 export async function revokeInvitation(invitationId: string) {
@@ -140,9 +141,10 @@ export async function revokeInvitation(invitationId: string) {
     .update({ revoked_at: new Date().toISOString(), revoked_by_user_id: userId })
     .eq('id', invitationId)
   revalidatePath('/admin/users')
+  redirect('/admin/users?notice=invitation_revoked')
 }
 
-export async function resendInvitation(invitationId: string): Promise<{ ok: true } | { ok: false; error: string; message: string }> {
+export async function resendInvitation(invitationId: string): Promise<void> {
   const supabase = getSupabaseServiceClient()
   const { data: row } = await supabase
     .from('invitations')
@@ -156,7 +158,7 @@ export async function resendInvitation(invitationId: string): Promise<{ ok: true
   const { data: updated } = await supabase.rpc('increment_invitation_resend', { p_id: invitationId })
 
   if (!updated) {
-    return { ok: false, error: 'too_soon', message: 'Aguarde 30 segundos antes de reenviar.' }
+    redirect('/admin/users?notice=resend_too_soon')
   }
 
   const ctx = await getSiteContext()
@@ -194,5 +196,5 @@ export async function resendInvitation(invitationId: string): Promise<{ ok: true
   )
 
   revalidatePath('/admin/users')
-  return { ok: true }
+  redirect('/admin/users?notice=resend_sent')
 }

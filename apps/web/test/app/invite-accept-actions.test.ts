@@ -2,6 +2,7 @@
  * Tests for /signup/invite/[token] server actions.
  *
  * All Supabase calls are mocked; no real network or DB needed.
+ * Actions now redirect() instead of returning result objects.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -24,8 +25,14 @@ vi.mock('next/headers', () => ({
     }),
 }))
 
+// redirect throws a special NEXT_REDIRECT error internally — vi.fn() lets us inspect calls
+const redirectMock = vi.fn()
 vi.mock('next/navigation', () => ({
-  redirect: vi.fn(),
+  redirect: (url: string) => {
+    redirectMock(url)
+    // Simulate Next's redirect by throwing so the action stops
+    throw new Error(`NEXT_REDIRECT:${url}`)
+  },
 }))
 
 vi.mock('@supabase/ssr', () => ({
@@ -80,6 +87,18 @@ function mockValidInvitation() {
   })
 }
 
+/** Helper: run action and capture redirect URL (action always redirects) */
+async function captureRedirect(fn: () => Promise<void>): Promise<string> {
+  try {
+    await fn()
+  } catch (e) {
+    const msg = (e as Error).message
+    if (msg.startsWith('NEXT_REDIRECT:')) return msg.slice('NEXT_REDIRECT:'.length)
+    throw e
+  }
+  throw new Error('Expected action to redirect but it did not throw')
+}
+
 // ─── acceptInviteForCurrentUser ───────────────────────────────────────────────
 
 describe('acceptInviteForCurrentUser', () => {
@@ -87,37 +106,38 @@ describe('acceptInviteForCurrentUser', () => {
     vi.clearAllMocks()
   })
 
-  it('returns not_authenticated when no user session', async () => {
+  it('redirects to ?error=unauthenticated when no user session', async () => {
     getUserMock.mockResolvedValueOnce({ data: { user: null } })
 
-    const result = await acceptInviteForCurrentUser('tok-123')
+    const url = await captureRedirect(() => acceptInviteForCurrentUser('tok-123'))
+    expect(url).toBe('/signup/invite/tok-123?error=unauthenticated')
+  })
 
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error).toBe('not_authenticated')
+  it('redirects to /cms on success', async () => {
+    getUserMock.mockResolvedValueOnce({ data: { user: { id: 'u1', email: 'alice@example.com' } } })
+    rpcMock.mockResolvedValueOnce({ data: { ok: true, org_id: 'org-1' }, error: null })
+
+    const url = await captureRedirect(() => acceptInviteForCurrentUser('tok-123'))
+    expect(url).toBe('/cms')
   })
 
   it('calls rpc with only p_token when user is authenticated', async () => {
     getUserMock.mockResolvedValueOnce({ data: { user: { id: 'u1', email: 'alice@example.com' } } })
     rpcMock.mockResolvedValueOnce({ data: { ok: true, org_id: 'org-1' }, error: null })
 
-    const result = await acceptInviteForCurrentUser('tok-123')
-
+    await captureRedirect(() => acceptInviteForCurrentUser('tok-123'))
     expect(rpcMock).toHaveBeenCalledWith('accept_invitation_atomic', { p_token: 'tok-123' })
-    expect(result.ok).toBe(true)
-    if (result.ok) expect(result.org_id).toBe('org-1')
   })
 
-  it('returns rpc_failed when rpc returns a postgres error', async () => {
+  it('redirects to ?error=rpc_failed when rpc returns a postgres error', async () => {
     getUserMock.mockResolvedValueOnce({ data: { user: { id: 'u1' } } })
     rpcMock.mockResolvedValueOnce({ data: null, error: { message: 'connection refused' } })
 
-    const result = await acceptInviteForCurrentUser('tok-bad')
-
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error).toMatch(/rpc_failed/)
+    const url = await captureRedirect(() => acceptInviteForCurrentUser('tok-bad'))
+    expect(url).toBe('/signup/invite/tok-bad?error=rpc_failed')
   })
 
-  it('passes rpc error codes through (email_mismatch, expired, already_accepted)', async () => {
+  it('redirects to ?error=<code> when RPC returns ok:false with error codes', async () => {
     for (const errorCode of ['email_mismatch', 'expired', 'already_accepted', 'revoked']) {
       vi.clearAllMocks()
       getUserMock.mockResolvedValueOnce({ data: { user: { id: 'u1' } } })
@@ -126,10 +146,8 @@ describe('acceptInviteForCurrentUser', () => {
         error: null,
       })
 
-      const result = await acceptInviteForCurrentUser('tok-x')
-
-      expect(result.ok).toBe(false)
-      if (!result.ok) expect(result.error).toBe(errorCode)
+      const url = await captureRedirect(() => acceptInviteForCurrentUser('tok-x'))
+      expect(url).toBe(`/signup/invite/tok-x?error=${encodeURIComponent(errorCode)}`)
     }
   })
 })
@@ -142,16 +160,14 @@ describe('acceptInviteWithPassword', () => {
     signOutMock.mockResolvedValue({})
   })
 
-  it('returns invalid_or_expired when get_invitation_by_token finds nothing', async () => {
+  it('redirects to ?error=not_found when get_invitation_by_token finds nothing', async () => {
     rpcMock.mockResolvedValueOnce({ data: [], error: null })
 
-    const result = await acceptInviteWithPassword('tok-gone', 'Password1!')
-
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error).toBe('invalid_or_expired')
+    const url = await captureRedirect(() => acceptInviteWithPassword('tok-gone', 'Password1!'))
+    expect(url).toBe('/signup/invite/tok-gone?error=not_found')
   })
 
-  it('returns invalid_or_expired when invitation is expired', async () => {
+  it('redirects to ?error=expired when invitation is expired', async () => {
     rpcMock.mockResolvedValueOnce({
       data: [
         {
@@ -165,48 +181,41 @@ describe('acceptInviteWithPassword', () => {
       error: null,
     })
 
-    const result = await acceptInviteWithPassword('tok-old', 'Password1!')
-
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error).toBe('invalid_or_expired')
+    const url = await captureRedirect(() => acceptInviteWithPassword('tok-old', 'Password1!'))
+    expect(url).toBe('/signup/invite/tok-old?error=expired')
   })
 
-  it('returns email_already_registered when createUser says already registered', async () => {
+  it('redirects to ?error=email_already_registered when createUser says already registered', async () => {
     mockValidInvitation()
     createUserMock.mockResolvedValueOnce({
       data: { user: null },
       error: { message: 'User already registered' },
     })
 
-    const result = await acceptInviteWithPassword('tok-dup', 'Password1!')
-
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error).toBe('email_already_registered')
+    const url = await captureRedirect(() => acceptInviteWithPassword('tok-dup', 'Password1!'))
+    expect(url).toBe('/signup/invite/tok-dup?error=email_already_registered')
   })
 
-  it('returns signup_failed when createUser fails for other reasons', async () => {
+  it('redirects to ?error=signup_failed when createUser fails for other reasons', async () => {
     mockValidInvitation()
     createUserMock.mockResolvedValueOnce({
       data: { user: null },
       error: { message: 'internal server error' },
     })
 
-    const result = await acceptInviteWithPassword('tok-err', 'Password1!')
-
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error).toBe('signup_failed')
+    const url = await captureRedirect(() => acceptInviteWithPassword('tok-err', 'Password1!'))
+    expect(url).toBe('/signup/invite/tok-err?error=signup_failed')
   })
 
-  it('deletes newly created user and returns error when signIn fails', async () => {
+  it('deletes newly created user and redirects to ?error=signup_failed when signIn fails', async () => {
     mockValidInvitation()
     createUserMock.mockResolvedValueOnce({ data: { user: { id: 'new-uid' } }, error: null })
     signInMock.mockResolvedValueOnce({ error: { message: 'bad credentials' } })
 
-    const result = await acceptInviteWithPassword('tok-si', 'Password1!')
+    const url = await captureRedirect(() => acceptInviteWithPassword('tok-si', 'Password1!'))
 
     expect(deleteUserMock).toHaveBeenCalledWith('new-uid')
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error).toBe('signin_after_signup_failed')
+    expect(url).toBe('/signup/invite/tok-si?error=signup_failed')
     // C6: signOut should be called to clear orphan cookies on failure
     expect(signOutMock).toHaveBeenCalled()
   })
@@ -218,14 +227,13 @@ describe('acceptInviteWithPassword', () => {
     // accept_invitation_atomic called via userClient.rpc — network error / RPC failure
     rpcMock.mockResolvedValueOnce({ data: null, error: { message: 'expired' } })
 
-    const result = await acceptInviteWithPassword('tok-ra', 'Password1!')
+    const url = await captureRedirect(() => acceptInviteWithPassword('tok-ra', 'Password1!'))
 
     // C2: must NOT delete — RPC may have committed even if response was lost
     expect(deleteUserMock).not.toHaveBeenCalled()
     // C2: must sign out to clear cookies
     expect(signOutMock).toHaveBeenCalled()
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error).toBe('rpc_failed')
+    expect(url).toBe('/signup/invite/tok-ra?error=rpc_failed')
   })
 
   it('C2: does NOT delete user and calls signOut when RPC returns ok:false', async () => {
@@ -234,26 +242,24 @@ describe('acceptInviteWithPassword', () => {
     signInMock.mockResolvedValueOnce({ error: null })
     rpcMock.mockResolvedValueOnce({ data: { ok: false, error: 'email_mismatch' }, error: null })
 
-    const result = await acceptInviteWithPassword('tok-mm', 'Password1!')
+    const url = await captureRedirect(() => acceptInviteWithPassword('tok-mm', 'Password1!'))
 
     // C2: must NOT delete — RPC was reachable, user account is created, preserve it
     expect(deleteUserMock).not.toHaveBeenCalled()
     expect(signOutMock).toHaveBeenCalled()
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error).toBe('rpc_failed')
+    expect(url).toBe('/signup/invite/tok-mm?error=rpc_failed')
   })
 
-  it('returns ok with redirectTo:/cms on full success', async () => {
+  it('redirects to /cms on full success', async () => {
     mockValidInvitation()
     createUserMock.mockResolvedValueOnce({ data: { user: { id: 'new-uid-ok' } }, error: null })
     signInMock.mockResolvedValueOnce({ error: null })
     rpcMock.mockResolvedValueOnce({ data: { ok: true, org_id: 'org-happy' }, error: null })
 
-    const result = await acceptInviteWithPassword('tok-ok', 'Password1!')
+    const url = await captureRedirect(() => acceptInviteWithPassword('tok-ok', 'Password1!'))
 
     expect(deleteUserMock).not.toHaveBeenCalled()
-    expect(result.ok).toBe(true)
-    if (result.ok) expect(result.redirectTo).toBe('/cms')
+    expect(url).toBe('/cms')
   })
 
   it('does NOT pass p_user_id to accept_invitation_atomic (single-param RPC)', async () => {
@@ -262,7 +268,7 @@ describe('acceptInviteWithPassword', () => {
     signInMock.mockResolvedValueOnce({ error: null })
     rpcMock.mockResolvedValueOnce({ data: { ok: true, org_id: 'org-1' }, error: null })
 
-    await acceptInviteWithPassword('tok-sig', 'Password1!')
+    await captureRedirect(() => acceptInviteWithPassword('tok-sig', 'Password1!'))
 
     // The accept RPC call should only have p_token, not p_user_id
     const acceptCall = rpcMock.mock.calls.find((c) => c[0] === 'accept_invitation_atomic')

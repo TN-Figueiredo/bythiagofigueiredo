@@ -58,6 +58,15 @@ vi.mock('next/headers', () => ({
     }),
 }))
 
+// redirect throws a special NEXT_REDIRECT error internally — vi.fn() lets us inspect calls
+const redirectMock = vi.fn()
+vi.mock('next/navigation', () => ({
+  redirect: (url: string) => {
+    redirectMock(url)
+    throw new Error(`NEXT_REDIRECT:${url}`)
+  },
+}))
+
 // ── Supabase service client fluent-chain mock ─────────────────────────────
 // These variables are mutated in beforeEach to set per-test return values.
 
@@ -125,6 +134,18 @@ function mockAuthorizedUser() {
   rpcMock.mockResolvedValue({ data: 'admin', error: null })
 }
 
+/** Helper: run action and capture redirect URL (action always redirects on success/failure) */
+async function captureRedirect(fn: () => Promise<void>): Promise<string> {
+  try {
+    await fn()
+  } catch (e) {
+    const msg = (e as Error).message
+    if (msg.startsWith('NEXT_REDIRECT:')) return msg.slice('NEXT_REDIRECT:'.length)
+    throw e
+  }
+  throw new Error('Expected action to redirect but it did not throw')
+}
+
 // ── createInvitation ──────────────────────────────────────────────────────
 
 describe('createInvitation', () => {
@@ -142,21 +163,20 @@ describe('createInvitation', () => {
     mockAuthorizedUser()
   })
 
-  it('returns ok=true on happy path', async () => {
-    const result = await createInvitation({ email: 'bob@example.com', role: 'author' })
-    expect(result.ok).toBe(true)
-    if (result.ok) {
-      expect(result.invitationId).toBe('inv-1')
-    }
+  it('redirects to ?notice=invite_created on happy path', async () => {
+    const url = await captureRedirect(() =>
+      createInvitation({ email: 'bob@example.com', role: 'author' }),
+    )
+    expect(url).toBe('/admin/users?notice=invite_created')
   })
 
   it('calls revalidatePath on success', async () => {
-    await createInvitation({ email: 'bob@example.com', role: 'author' })
+    await captureRedirect(() => createInvitation({ email: 'bob@example.com', role: 'author' }))
     const { revalidatePath } = await import('next/cache')
     expect(revalidatePath).toHaveBeenCalledWith('/admin/users')
   })
 
-  it('returns ok=false when rate_limit_exceeded trigger fires', async () => {
+  it('redirects to ?notice=invite_rate_limited when rate_limit_exceeded trigger fires', async () => {
     nextInsertSingleResult = {
       data: null,
       error: {
@@ -164,51 +184,43 @@ describe('createInvitation', () => {
         code: 'P0001',
       },
     }
-    const result = await createInvitation({ email: 'bob@example.com', role: 'author' })
-    expect(result.ok).toBe(false)
-    if (!result.ok) {
-      // N19: assert on pattern rather than exact string
-      expect(result.error).toMatch(/20 convites/)
-    }
+    const url = await captureRedirect(() =>
+      createInvitation({ email: 'bob@example.com', role: 'author' }),
+    )
+    expect(url).toBe('/admin/users?notice=invite_rate_limited')
   })
 
-  it('returns ok=false on duplicate pending invite (23505)', async () => {
+  it('redirects to ?notice=invite_duplicate on duplicate pending invite (23505)', async () => {
     nextInsertSingleResult = {
       data: null,
       error: { message: 'duplicate key value', code: '23505' },
     }
-    const result = await createInvitation({ email: 'bob@example.com', role: 'editor' })
-    expect(result.ok).toBe(false)
-    if (!result.ok) {
-      // N19: assert on pattern
-      expect(result.error).toMatch(/pendente/)
-    }
+    const url = await captureRedirect(() =>
+      createInvitation({ email: 'bob@example.com', role: 'editor' }),
+    )
+    expect(url).toBe('/admin/users?notice=invite_duplicate')
   })
 
-  it('I10: returns generic message for other DB errors (no raw error.message exposed)', async () => {
+  it('redirects to ?notice=invite_failed for other DB errors', async () => {
     nextInsertSingleResult = {
       data: null,
       error: { message: 'some other db error', code: '42P01' },
     }
-    const result = await createInvitation({ email: 'bob@example.com', role: 'author' })
-    expect(result.ok).toBe(false)
-    if (!result.ok) {
-      // I10: must NOT include raw db error string
-      expect(result.error).not.toMatch(/some other db error/)
-      expect(result.error).toMatch(/Erro ao criar convite/)
-    }
+    const url = await captureRedirect(() =>
+      createInvitation({ email: 'bob@example.com', role: 'author' }),
+    )
+    expect(url).toBe('/admin/users?notice=invite_failed')
   })
 
-  it('I10: returns Organização inválida for FK violation (23503)', async () => {
+  it('redirects to ?notice=invite_failed for FK violation (23503)', async () => {
     nextInsertSingleResult = {
       data: null,
       error: { message: 'foreign key violation', code: '23503' },
     }
-    const result = await createInvitation({ email: 'bob@example.com', role: 'author' })
-    expect(result.ok).toBe(false)
-    if (!result.ok) {
-      expect(result.error).toMatch(/Organização inválida/)
-    }
+    const url = await captureRedirect(() =>
+      createInvitation({ email: 'bob@example.com', role: 'author' }),
+    )
+    expect(url).toBe('/admin/users?notice=invite_failed')
   })
 
   it('throws forbidden when caller has author role', async () => {
@@ -225,11 +237,13 @@ describe('createInvitation', () => {
     )
   })
 
-  it('does not fail invitation even when email send throws', async () => {
+  it('still redirects to invite_created even when email send throws', async () => {
     sendTemplateMock.mockRejectedValueOnce(new Error('Brevo error'))
-    const result = await createInvitation({ email: 'bob@example.com', role: 'author' })
-    // Email failure is caught + logged; invitation still returns ok
-    expect(result.ok).toBe(true)
+    const url = await captureRedirect(() =>
+      createInvitation({ email: 'bob@example.com', role: 'author' }),
+    )
+    // Email failure is caught + logged; invitation still succeeds
+    expect(url).toBe('/admin/users?notice=invite_created')
   })
 })
 
@@ -246,11 +260,16 @@ describe('revokeInvitation', () => {
   })
 
   it('calls update with revoked_at and revoked_by_user_id', async () => {
-    await revokeInvitation('inv-1')
+    await captureRedirect(() => revokeInvitation('inv-1'))
     expect(capturedUpdateArg).toMatchObject({
       revoked_at: expect.any(String),
       revoked_by_user_id: 'user-1',
     })
+  })
+
+  it('redirects to ?notice=invitation_revoked on success', async () => {
+    const url = await captureRedirect(() => revokeInvitation('inv-1'))
+    expect(url).toBe('/admin/users?notice=invitation_revoked')
   })
 
   it('throws not_found when invitation does not exist', async () => {
@@ -264,7 +283,7 @@ describe('revokeInvitation', () => {
   })
 
   it('calls revalidatePath after revoke', async () => {
-    await revokeInvitation('inv-1')
+    await captureRedirect(() => revokeInvitation('inv-1'))
     const { revalidatePath } = await import('next/cache')
     expect(revalidatePath).toHaveBeenCalledWith('/admin/users')
   })
@@ -300,14 +319,17 @@ describe('resendInvitation', () => {
   })
 
   it('calls sendTemplate', async () => {
-    await resendInvitation('inv-1')
+    await captureRedirect(() => resendInvitation('inv-1'))
     expect(sendTemplateMock).toHaveBeenCalledOnce()
   })
 
+  it('redirects to ?notice=resend_sent on success', async () => {
+    const url = await captureRedirect(() => resendInvitation('inv-1'))
+    expect(url).toBe('/admin/users?notice=resend_sent')
+  })
+
   it('uses inviter full_name from user_metadata (I12)', async () => {
-    await resendInvitation('inv-1')
-    const callArgs = sendTemplateMock.mock.calls[0]![2] as Record<string, unknown>
-    // sendTemplate is called with (template, sender, email, data, locale)
+    await captureRedirect(() => resendInvitation('inv-1'))
     const data = sendTemplateMock.mock.calls[0]![3] as Record<string, unknown>
     expect(data.inviterName).toBe('Alice Admin')
   })
@@ -316,26 +338,22 @@ describe('resendInvitation', () => {
     getUserByIdMock.mockResolvedValueOnce({
       data: { user: { id: 'inviter-uid', email: 'boss@acme.com', user_metadata: {} } },
     })
-    await resendInvitation('inv-1')
+    await captureRedirect(() => resendInvitation('inv-1'))
     const data = sendTemplateMock.mock.calls[0]![3] as Record<string, unknown>
     expect(data.inviterName).toBe('boss')
   })
 
   it('calls increment_invitation_resend RPC instead of direct update (I13)', async () => {
-    await resendInvitation('inv-1')
+    await captureRedirect(() => resendInvitation('inv-1'))
     expect(serviceRpcMock).toHaveBeenCalledWith('increment_invitation_resend', { p_id: 'inv-1' })
     // No direct update to resend_count
     expect(capturedUpdateArg).toBeNull()
   })
 
-  it('I4: returns too_soon when RPC returns false (30s cooldown active)', async () => {
+  it('I4: redirects to ?notice=resend_too_soon when RPC returns false (30s cooldown active)', async () => {
     serviceRpcMock.mockResolvedValueOnce({ data: false, error: null })
-    const result = await resendInvitation('inv-1')
-    expect(result).toBeDefined()
-    if (result && !result.ok) {
-      expect(result.error).toBe('too_soon')
-      expect(result.message).toMatch(/30 segundos/)
-    }
+    const url = await captureRedirect(() => resendInvitation('inv-1'))
+    expect(url).toBe('/admin/users?notice=resend_too_soon')
     // Email should NOT be sent when rate-limited
     expect(sendTemplateMock).not.toHaveBeenCalled()
   })
@@ -346,7 +364,7 @@ describe('resendInvitation', () => {
   })
 
   it('calls revalidatePath after resend', async () => {
-    await resendInvitation('inv-1')
+    await captureRedirect(() => resendInvitation('inv-1'))
     const { revalidatePath } = await import('next/cache')
     expect(revalidatePath).toHaveBeenCalledWith('/admin/users')
   })

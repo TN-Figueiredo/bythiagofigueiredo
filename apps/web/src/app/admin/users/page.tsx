@@ -9,7 +9,22 @@ import { SubmitButton } from './_components/SubmitButton'
 
 export const dynamic = 'force-dynamic'
 
-export default async function AdminUsersPage() {
+const noticeMessages: Record<string, string> = {
+  resend_too_soon: 'Aguarde 30 segundos antes de reenviar.',
+  resend_sent: 'Convite reenviado.',
+  invitation_revoked: 'Convite revogado.',
+  invite_created: 'Convite criado e enviado.',
+  invite_failed: 'Falha ao criar convite. Tente novamente.',
+  invite_rate_limited: 'Limite de 20 convites/hora excedido.',
+  invite_duplicate: 'Já existe um convite pendente para esse email.',
+}
+
+interface Props {
+  searchParams: Promise<{ notice?: string }>
+}
+
+export default async function AdminUsersPage({ searchParams }: Props) {
+  const { notice } = await searchParams
   const ctx = await getSiteContext()
   const cookieStore = await cookies()
   const userClient = createServerClient(
@@ -58,9 +73,30 @@ export default async function AdminUsersPage() {
     }),
   )
 
+  const noticeMessage =
+    notice != null
+      ? (noticeMessages[notice] ?? null)
+      : null
+
+  const isError = notice != null && (notice.startsWith('invite_failed') || notice === 'invite_rate_limited' || notice === 'invite_duplicate')
+
   return (
     <main className="p-8">
       <h1 className="text-2xl font-bold mb-6">Usuários e convites</h1>
+
+      {noticeMessage && (
+        <div
+          role="status"
+          aria-live="polite"
+          className={`mb-4 rounded-lg px-4 py-3 text-sm ${
+            isError
+              ? 'bg-red-50 text-red-700'
+              : 'bg-green-50 text-green-700'
+          }`}
+        >
+          {noticeMessage}
+        </div>
+      )}
 
       <section className="mb-8">
         <h2 className="text-lg font-semibold mb-3">
