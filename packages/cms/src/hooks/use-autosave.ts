@@ -167,6 +167,14 @@ export function useAutosave<T>(
     removeDraft(key)
     initialDraftRef.current = null
     lastSerializedRef.current = null
+    // Clear any pending debounced write so a subsequent unmount-flush cannot
+    // resurrect a pre-save snapshot after a successful save (Round-3 C2).
+    pendingSerializedRef.current = null
+    pendingKeyRef.current = null
+    if (timerRef.current != null) {
+      clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
     setHasDraft(false)
   }, [key])
 

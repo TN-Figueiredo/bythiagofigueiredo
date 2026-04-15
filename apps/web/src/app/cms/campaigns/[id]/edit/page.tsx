@@ -76,9 +76,19 @@ export default async function EditCampaignPage({ params }: Props) {
     'use server'
     // Strip the editor-only `slug` field from the campaigns patch — slug is a
     // translation column and is passed through each translation entry below.
-    // The update_campaign_atomic RPC now rejects unknown keys, so this strip
-    // is load-bearing.
-    const { slug: slugFromMeta, ...rest } = input.patch
+    // Also strip status / scheduled_for / published_at: those transitions are
+    // owned by dedicated server actions (publish/unpublish/archive) and the
+    // RPC now rejects them.
+    const {
+      slug: slugFromMeta,
+      status: _statusIgnored,
+      scheduled_for: _scheduledIgnored,
+      published_at: _publishedIgnored,
+      ...rest
+    } = input.patch as Record<string, unknown>
+    void _statusIgnored
+    void _scheduledIgnored
+    void _publishedIgnored
     const campaignPatch = rest as SaveCampaignPatch
     const translations: SaveCampaignTranslationPatch[] = input.translations.map((t) => ({
       locale: t.locale,

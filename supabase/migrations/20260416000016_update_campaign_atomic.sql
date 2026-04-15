@@ -16,6 +16,13 @@
 --   * Reject unknown patch / translation keys with an explicit exception so
 --     typos aren't silently dropped by the whitelist.
 --
+-- Hardening (round 3):
+--   * `status`, `published_at`, `scheduled_for` removed from the patch
+--     whitelist. Status transitions MUST go through the dedicated server
+--     actions (publish/unpublish/archive/schedule) which call repo-level
+--     helpers — never this generic patch. Keeps lifecycle invariants in one
+--     place and prevents the editor's content save from flipping status.
+--
 -- Idempotent DDL.
 
 drop function if exists public.update_campaign_atomic(uuid, jsonb, jsonb);
@@ -57,7 +64,7 @@ begin
     select array_agg(k) into v_unknown_keys
       from keys
      where k not in (
-       'status','scheduled_for','published_at','interest',
+       'interest',
        'pdf_storage_path','brevo_list_id','brevo_template_id',
        'form_fields','updated_by'
      );
@@ -90,17 +97,12 @@ begin
     end loop;
   end if;
 
-  -- apply partial patch to campaigns using jsonb_populate_record merge
+  -- apply partial patch to campaigns using jsonb_populate_record merge.
+  -- NOTE: `status`, `published_at`, `scheduled_for` are intentionally NOT
+  -- handled here. Status transitions go through dedicated repo actions.
   if p_patch is not null and jsonb_typeof(p_patch) = 'object' and p_patch <> '{}'::jsonb then
     update public.campaigns c
-       set status           = coalesce((p_patch->>'status')::public.post_status, c.status),
-           scheduled_for    = case when p_patch ? 'scheduled_for'
-                                   then nullif(p_patch->>'scheduled_for','')::timestamptz
-                                   else c.scheduled_for end,
-           published_at     = case when p_patch ? 'published_at'
-                                   then nullif(p_patch->>'published_at','')::timestamptz
-                                   else c.published_at end,
-           interest         = coalesce(p_patch->>'interest', c.interest),
+       set interest         = coalesce(p_patch->>'interest', c.interest),
            pdf_storage_path = case when p_patch ? 'pdf_storage_path'
                                    then nullif(p_patch->>'pdf_storage_path','')
                                    else c.pdf_storage_path end,

@@ -29,8 +29,13 @@ export interface SaveCampaignTranslationPatch {
 }
 
 export interface SaveCampaignPatch {
-  status?: 'draft' | 'scheduled' | 'published' | 'archived'
-  scheduled_for?: string | null
+  /**
+   * NOTE: `status`, `scheduled_for`, `published_at` are intentionally NOT
+   * part of the save patch. Status transitions go through the dedicated
+   * `publishCampaign` / `unpublishCampaign` / `archiveCampaign` actions.
+   * If callers include them here they'll be filtered and a
+   * `status_transition_rejected` result is returned.
+   */
   interest?: string
   pdf_storage_path?: string | null
   brevo_list_id?: number | null
@@ -41,7 +46,10 @@ export interface SaveCampaignPatch {
 export type SaveCampaignResult =
   | { ok: true; campaignId: string }
   | { ok: false; error: 'validation_failed'; fields: Record<string, string> }
+  | { ok: false; error: 'status_transition_rejected'; message: string }
   | { ok: false; error: 'db_error'; message: string }
+
+const STATUS_TRANSITION_KEYS = ['status', 'scheduled_for', 'published_at'] as const
 
 /**
  * Save a campaign's scalar patch + translations in a single transaction via
@@ -52,6 +60,18 @@ export async function saveCampaign(
   patch: SaveCampaignPatch,
   translations: SaveCampaignTranslationPatch[],
 ): Promise<SaveCampaignResult> {
+  // Reject any caller that tries to sneak status/timestamp transitions through
+  // the generic save path. Those must go through dedicated action helpers.
+  const rawPatch = (patch ?? {}) as Record<string, unknown>
+  const offending = STATUS_TRANSITION_KEYS.filter((k) => k in rawPatch)
+  if (offending.length > 0) {
+    return {
+      ok: false,
+      error: 'status_transition_rejected',
+      message: `status transitions must use publish/unpublish/archive actions (got: ${offending.join(', ')})`,
+    }
+  }
+
   for (const t of translations) {
     if (!t.locale || !t.locale.trim()) {
       return { ok: false, error: 'validation_failed', fields: { locale: 'required' } }

@@ -59,7 +59,7 @@ describe('saveCampaign', () => {
   it('returns ok and calls update_campaign_atomic for valid input', async () => {
     const result = await saveCampaign(
       'c1',
-      { status: 'draft' },
+      { interest: 'lead_magnet' },
       [{ locale: 'pt-BR', slug: 'promo', main_hook_md: 'Hook' }],
     )
     expect(result.ok).toBe(true)
@@ -67,10 +67,22 @@ describe('saveCampaign', () => {
       'update_campaign_atomic',
       expect.objectContaining({
         p_campaign_id: 'c1',
-        p_patch: expect.objectContaining({ status: 'draft' }),
+        p_patch: expect.objectContaining({ interest: 'lead_magnet' }),
         p_translations: expect.any(Array),
       }),
     )
+  })
+
+  it('rejects patches containing status/scheduled_for/published_at', async () => {
+    const result = await saveCampaign(
+      'c1',
+      { status: 'published' } as unknown as Parameters<typeof saveCampaign>[1],
+      [{ locale: 'pt-BR', slug: 'promo' }],
+    )
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.error).toBe('status_transition_rejected')
+    }
   })
 
   it('returns validation error when translation locale is missing', async () => {
@@ -101,7 +113,7 @@ describe('saveCampaign', () => {
     rpcMock.mockResolvedValueOnce({ data: null, error: { message: 'boom' } })
     const result = await saveCampaign(
       'c1',
-      { status: 'draft' },
+      { interest: 'lead_magnet' },
       [{ locale: 'pt-BR', slug: 'promo' }],
     )
     expect(result.ok).toBe(false)

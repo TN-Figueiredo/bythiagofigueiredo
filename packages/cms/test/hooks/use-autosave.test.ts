@@ -146,6 +146,55 @@ describe('useAutosave', () => {
     expect(window.localStorage.getItem('post-draft:off')).toBe(null)
   })
 
+  it('discard() cancels a pending debounced write (no post-save resurrection)', () => {
+    const { result, rerender, unmount } = renderHook(
+      ({ value }) =>
+        useAutosave('post-draft:discard-race', value, { debounceMs: 1000 }),
+      { initialProps: { value: { title: 'initial' } } },
+    )
+    // Schedule a pending write but don't let it flush yet.
+    rerender({ value: { title: 'pending' } })
+    act(() => {
+      vi.advanceTimersByTime(500)
+    })
+    expect(window.localStorage.getItem('post-draft:discard-race')).toBe(null)
+
+    // User saves successfully → caller invokes discard().
+    act(() => {
+      result.current.discard()
+    })
+
+    // Re-run timers past the original debounce window. localStorage must NOT
+    // contain the pre-save snapshot.
+    act(() => {
+      vi.advanceTimersByTime(10_000)
+    })
+    expect(window.localStorage.getItem('post-draft:discard-race')).toBe(null)
+
+    // Unmount-flush must also not resurrect it.
+    unmount()
+    expect(window.localStorage.getItem('post-draft:discard-race')).toBe(null)
+  })
+
+  it('unmount flushes pending write so last edits are preserved', () => {
+    const { rerender, unmount } = renderHook(
+      ({ value }) =>
+        useAutosave('post-draft:unmount-flush', value, { debounceMs: 2000 }),
+      { initialProps: { value: { title: 'v1' } } },
+    )
+    rerender({ value: { title: 'v2-latest' } })
+    // Debounce still pending.
+    act(() => {
+      vi.advanceTimersByTime(100)
+    })
+    expect(window.localStorage.getItem('post-draft:unmount-flush')).toBe(null)
+
+    unmount()
+    expect(window.localStorage.getItem('post-draft:unmount-flush')).toBe(
+      JSON.stringify({ title: 'v2-latest' }),
+    )
+  })
+
   it('is SSR-safe: does not throw when window is undefined', async () => {
     // Simulate SSR by temporarily hiding window. We import fresh and call the
     // body without touching localStorage — the hook internals guard on
