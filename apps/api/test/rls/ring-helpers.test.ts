@@ -74,3 +74,23 @@ describe.skipIf(skipIfNoLocalDb())('ring RLS helpers', () => {
     expect(data).toBe(false)
   })
 })
+
+describe.skipIf(skipIfNoLocalDb())('is_org_staff', () => {
+  const orgIds: string[] = []
+  afterAll(async () => {
+    if (orgIds.length) await admin.from('organizations').delete().in('id', orgIds)
+  })
+
+  // Note: is_org_staff uses auth.uid() internally — we test the contract
+  // transitively through can_admin_site_for_user in this suite. But we add
+  // a signature/plumbing test here to detect if the function is dropped.
+  it('is_org_staff RPC exists and returns non-staff for service role context', async () => {
+    const orgId = await makeOrg(admin, orgIds)
+    const { data, error } = await admin.rpc('is_org_staff', { p_org_id: orgId })
+    expect(error).toBeNull()
+    // Service role context → auth.uid() returns null → no membership row →
+    // org_role returns null → `null in (...)` evaluates to null (SQL three-valued logic).
+    // Either null or false means "not staff" — both are acceptable.
+    expect(data === false || data === null).toBe(true)
+  })
+})

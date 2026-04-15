@@ -1,11 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { Client } from 'pg'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-
-const DB_URL = 'postgres://postgres:postgres@127.0.0.1:54322/postgres'
+import { PG_URL } from '../helpers/local-supabase'
 
 describe.skipIf(skipIfNoLocalDb())('migration 0001 authors', () => {
-  const client = new Client({ connectionString: DB_URL })
+  const client = new Client({ connectionString: PG_URL })
   beforeAll(async () => { await client.connect() })
   afterAll(async () => { await client.end() })
 
@@ -56,7 +55,7 @@ describe.skipIf(skipIfNoLocalDb())('migration 0001 authors', () => {
 })
 
 describe.skipIf(skipIfNoLocalDb())('migration 0002 blog_posts', () => {
-  const client = new Client({ connectionString: DB_URL })
+  const client = new Client({ connectionString: PG_URL })
   beforeAll(async () => { await client.connect() })
   afterAll(async () => { await client.end() })
 
@@ -99,7 +98,7 @@ describe.skipIf(skipIfNoLocalDb())('migration 0002 blog_posts', () => {
 })
 
 describe.skipIf(skipIfNoLocalDb())('migration 0003 blog_translations', () => {
-  const client = new Client({ connectionString: DB_URL })
+  const client = new Client({ connectionString: PG_URL })
   beforeAll(async () => { await client.connect() })
   afterAll(async () => { await client.end() })
 

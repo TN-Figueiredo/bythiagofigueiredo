@@ -1,11 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { Client } from 'pg'
 import { getLocalJwtSecret, skipIfNoLocalDb } from '../helpers/db-skip'
+import { PG_URL } from '../helpers/local-supabase'
 
 // Referenced to satisfy import usage in environments needing the JWT secret.
 void getLocalJwtSecret
-
-const DB_URL = 'postgres://postgres:postgres@127.0.0.1:54322/postgres'
 
 async function withJwtClaim(client: Client, claims: object, fn: () => Promise<void>) {
   await client.query('begin')
@@ -14,7 +13,7 @@ async function withJwtClaim(client: Client, claims: object, fn: () => Promise<vo
 }
 
 describe.skipIf(skipIfNoLocalDb())('migration 0004 rls helpers', () => {
-  const client = new Client({ connectionString: DB_URL })
+  const client = new Client({ connectionString: PG_URL })
   beforeAll(async () => { await client.connect() })
   afterAll(async () => { await client.end() })
 
