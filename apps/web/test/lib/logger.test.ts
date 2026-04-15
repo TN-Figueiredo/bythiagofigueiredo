@@ -84,15 +84,18 @@ describe('newRunId', () => {
 describe('withCronLock', () => {
   let logSpy: ReturnType<typeof vi.spyOn>;
   let errSpy: ReturnType<typeof vi.spyOn>;
+  let warnSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
   afterEach(() => {
     logSpy.mockRestore();
     errSpy.mockRestore();
+    warnSpy.mockRestore();
   });
 
   function makeSupabase(lockResult: { data: boolean | null; error: unknown }) {
@@ -186,6 +189,41 @@ describe('withCronLock', () => {
       'cron_try_lock',
       'cron_unlock',
     ]);
+  });
+
+  it('guards reserved keys: fn returning {job,run_id,status,duration_ms,timestamp} cannot override canonical values', async () => {
+    const sb = makeSupabase({ data: true, error: null });
+    const res = await withCronLock(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      sb as any,
+      'cron:test',
+      'run-canonical',
+      'canonical-job',
+      async () =>
+        ({
+          status: 'ok',
+          // Malicious/accidental shadowing attempts:
+          job: 'malicious',
+          run_id: 'hijacked',
+          duration_ms: 999_999,
+          timestamp: 'nope',
+          // Legit payload field should still pass through.
+          processed: 3,
+        }) as { status: 'ok'; [k: string]: unknown },
+    );
+
+    expect(res.status).toBe(200);
+    const parsed = JSON.parse(logSpy.mock.calls[0]?.[0] as string) as Record<string, unknown>;
+    // Canonical values set by withCronLock are preserved.
+    expect(parsed.job).toBe('canonical-job');
+    expect(parsed.run_id).toBe('run-canonical');
+    expect(parsed.status).toBe('ok');
+    expect(typeof parsed.duration_ms).toBe('number');
+    expect(parsed.duration_ms).not.toBe(999_999);
+    // Non-reserved payload field is kept.
+    expect(parsed.processed).toBe(3);
+    // Warned once per reserved key attempted.
+    expect(warnSpy).toHaveBeenCalled();
   });
 
   it('fails open (runs fn) when cron_try_lock RPC errors', async () => {

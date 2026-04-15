@@ -173,6 +173,9 @@ describe('vercel.json crons', () => {
   it('contains all expected cron entries with correct schedules', () => {
     const p = resolve(__dirname, '../../vercel.json');
     const j = JSON.parse(readFileSync(p, 'utf8'));
+    // Pin array length so a future PR that adds a 4th cron trips this guard
+    // and gets reviewer attention before merge.
+    expect(j.crons).toHaveLength(3);
     expect(j.crons).toContainEqual({
       path: '/api/cron/publish-scheduled',
       schedule: '*/5 * * * *',

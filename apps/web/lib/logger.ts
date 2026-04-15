@@ -85,6 +85,21 @@ export function newRunId(): string {
 
 type CronFnResult = { status: 'ok' | 'error'; [k: string]: unknown };
 
+// Keys set by withCronLock itself in the logCron call. If fn returns any of
+// these in its `...extra` payload they would silently override the canonical
+// values. Strip them and warn so the collision is visible in logs.
+const RESERVED_CRON_LOG_KEYS = ['job', 'run_id', 'status', 'duration_ms', 'timestamp'] as const;
+
+function stripReservedKeys(extra: Record<string, unknown>): void {
+  for (const k of RESERVED_CRON_LOG_KEYS) {
+    if (k in extra) {
+      // eslint-disable-next-line no-console
+      console.warn(`withCronLock: ignoring reserved key "${k}" from fn return`);
+      delete extra[k];
+    }
+  }
+}
+
 export async function withCronLock<T extends CronFnResult>(
   supabase: SupabaseClient,
   lockName: string,
@@ -113,6 +128,7 @@ export async function withCronLock<T extends CronFnResult>(
       const result = await fn();
       const duration_ms = Date.now() - start;
       const { status, ...extra } = result;
+      stripReservedKeys(extra);
       logCron({ job, run_id: runId, status, duration_ms, ...extra });
       if (status === 'error') {
         return Response.json({ ...extra }, { status: 500 });
@@ -121,13 +137,15 @@ export async function withCronLock<T extends CronFnResult>(
     } catch (e) {
       const duration_ms = Date.now() - start;
       const message = e instanceof Error ? e.message : String(e);
+      const extra: Record<string, unknown> = { error: message };
+      stripReservedKeys(extra);
       logCron({
         job,
         run_id: runId,
         status: 'error',
         duration_ms,
         err_code: 'unhandled',
-        error: message,
+        ...extra,
       });
       return Response.json({ error: 'cron_failed' }, { status: 500 });
     }
