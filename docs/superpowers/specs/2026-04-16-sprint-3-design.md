@@ -708,3 +708,47 @@ Epics 4, 5, 6 são parallelizáveis (diferentes files/areas) após Epics 1-3.
 - **i18n:** Sprint 3 expands `getEditorStrings(locale)` with new entries. pt-BR + en supported. Other locales fallback to pt-BR.
 - **LGPD:** two-consent pattern (processing + marketing) on contact form. Audit trail in sent_emails. Right-to-be-forgotten flow comes Sprint 4.
 - **Carry-over polish moves to package:** autosave + meta SEO + cover picker = PostEditor improvements in `@tn-figueiredo/cms`. Reusable by 4 consumers.
+
+---
+
+## Retrospective (2026-04-15)
+
+### What shipped
+
+- **Epic 1 — `@tn-figueiredo/email` package** ✅ — interfaces, `BrevoEmailAdapter` com `p-queue` rate limit, 5 templates (welcome, invite, confirm-subscription, contact-received, contact-admin-alert), `ensureUnsubscribeToken` helper, test suite verde. Package vive em `packages/email/` como workspace `0.1.0-dev` (extraction → Sprint 4 Epic 7).
+- **Epic 2 — Database schemas** ✅ — 7 migrations aplicadas (invitations + RLS + RPCs, contact_submissions, newsletter_subscriptions + confirm RPC, unsubscribe_tokens + RPC, sent_emails + enum, rate-limit trigger em invitations, sites.brevo_newsletter_list_id + contact_notification_email). Migration extra `20260416000014_contact_rate_limit_and_cron_locks.sql` adicionou rate-limit em contato + locks distribuídos em cron.
+- **Epic 3 — Auth flow** ✅ — `/signin` port (email+senha + Google OAuth + Turnstile), `/auth/callback`, `/signin/forgot` + `/signin/reset`, `/admin/users` com invite/revoke/resend, `/signup/invite/[token]` atomic accept, `accept_invitation_atomic` RPC com FOR UPDATE + compensating deleteUser.
+- **Epic 4 — Newsletter + contact + cron** ✅ — `<NewsletterSignup>`, `/newsletter/confirm/[token]`, `/unsubscribe/[token]`, `<ContactForm>` + `/contact`, `/cms/contacts` list+detail, `/api/cron/sync-newsletter-pending` (Brevo sync + welcome email + unsub cleanup).
+- **Epic 5 — Campaign admin CRUD** ✅ — `SupabaseCampaignRepository` no package, `/cms/campaigns` list/new/edit/submissions, `<CampaignEditor>` em `apps/web` com seções colapsáveis, `update_campaign_atomic` RPC.
+- **Epic 6 — Carry-over polish** ✅ — `useAutosave` hook + restore prompt no PostEditor, meta SEO fields (metaTitle/metaDescription/ogImageUrl), cover image picker (shared per-post), locale switcher em `/blog/[locale]/[slug]` com hreflang alternates, AlertDialog delete em `/cms/blog`, `requireSiteAdminForRow` refactor genérico.
+
+### What was deferred to Sprint 4
+
+- **Epic 7 — Package extraction (T14)** — ambos `@tn-figueiredo/cms` e `@tn-figueiredo/email` continuam como workspace packages. Movidos integralmente para Sprint 4 Epics 6 e 7. Decisão: priorizou-se consolidar features + polish no Sprint 3 antes de cristalizar a API pública.
+- **DB-gated integration tests para RPCs** — `confirm_newsletter_subscription`, `unsubscribe_via_token`, `update_campaign_atomic`, `cron_try_lock`/`cron_unlock` têm só unit tests com mock → Sprint 4 Epic 8.
+- **Sentry + logs estruturados em cron** — oncall ainda é grep em Vercel logs → Sprint 4 Epic 9.
+- **LGPD: unsubscribe anonymization + purge `sent_emails` 90d** — unsubscribe flipa status mas não anonymiza; purge cron pendente → Sprint 4 Epic 10.
+
+### Audit trajectory
+
+| Epic | Início | Final | Δ |
+|---|:---:|:---:|:---:|
+| Epic 3 (Auth flow) | 82 | 98 | +16 |
+| Epic 4 (Newsletter + contact + cron) | 62 | 99 | +37 |
+| Epic 5 (Campaign admin CRUD) | 82 | 99 | +17 |
+| Sprint-wide | 93 | 99 | +6 |
+
+Epic 4 foi o maior ganho (+37) — audit inicial apontou gaps em rate limiting (contact auto-reply), cron idempotency (sem locks distribuídos), e treatment de Brevo errors. Migration `20260416000014` e subsequent hardening fecharam a maioria dos pontos.
+
+### Métricas
+
+- **Commits:** ~40 ao longo do sprint.
+- **Tests:** suite verde em todos workspaces (pre-commit hook enforces).
+- **Migrations aplicadas em prod:** 7 planejadas + 1 adicional (rate limit + cron locks) = 8 total.
+
+### Lessons learned
+
+- **Package extraction é seu próprio epic** — tentar extrair no mesmo sprint das features novas criou risco de API churn. Adiar para Sprint 4 foi a call correta.
+- **Cron observability importa cedo** — debuggar `sync-newsletter-pending` em staging sem logs estruturados custou horas. Epic 9 do Sprint 4 endereça.
+- **Rate limiting é fácil de esquecer** — contact form foi pro audit sem rate limit; migration 14 corrigiu. Padrão: todo endpoint anon-writable precisa rate limit explícito desde o PR inicial.
+

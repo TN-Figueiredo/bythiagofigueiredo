@@ -156,7 +156,8 @@ CMS reutilizável publicado em `@tn-figueiredo/cms` (extração pra repo própri
 - **Sprint 1a** ✅ done — blog schema, RLS, homepage, API setup, site_visible helper
 - **Sprint 1b** ✅ done — campaigns schema/RLS, Brevo+Turnstile libs, landing pages, cron, seed
 - **Sprint 2** ✅ done — @tn-figueiredo/cms package, multi-ring schema, blog MDX rendering, admin CRUD
-- **Sprint 3** next — Admin login UI, newsletter/contact forms, campaign admin CRUD, package extraction
+- **Sprint 3** ✅ done — auth + invite flow, newsletter/contact forms, campaign admin CRUD, PostEditor polish, cron locks (~40 commits, audit 93→99)
+- **Sprint 4** next — package extraction (cms + email), observability (Sentry + structured cron logs), LGPD retention, DB-gated RPC integration tests. Spec: [sprint-4.md](docs/superpowers/specs/sprint-4.md)
 - Spec de cada sprint em `docs/superpowers/specs/`
 
 ### Sprint 3 → Sprint 4 carry-over
