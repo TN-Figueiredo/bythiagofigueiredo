@@ -9,31 +9,44 @@
 alter table public.contact_submissions
   add column if not exists anonymized_at timestamptz;
 
+-- Partial index for admin UI filters like `where anonymized_at is null`
+-- (list of non-anonymized submissions) — avoids full scan once volume grows.
+create index if not exists contact_submissions_pending_anonymize
+  on public.contact_submissions (site_id, submitted_at desc)
+  where anonymized_at is null;
+
 create or replace function public.anonymize_contact_submission(p_id uuid) returns void language plpgsql security definer set search_path = public as $fn$
-declare v_sub record; v_hash text;
+declare v_sub record; v_site_id uuid; v_hash text;
 begin
   if p_id is null then
     raise exception 'invalid_id';
   end if;
 
-  -- Access control: staff of the submission's site/org, or service_role caller.
-  -- is_staff() returns true for global staff (owner/admin/editor at master ring),
-  -- and we also accept the service_role JWT (server actions running server-side).
-  if not (public.is_staff() or current_setting('request.jwt.claims', true)::jsonb ->> 'role' = 'service_role') then
-    -- Additionally, allow site-scoped admins via can_admin_site against the row's site.
-    select site_id into v_sub from public.contact_submissions where id = p_id;
-    if v_sub.site_id is null or not public.can_admin_site(v_sub.site_id) then
-      raise exception 'forbidden';
-    end if;
-  end if;
-
-  select id, email, anonymized_at into v_sub
+  -- Lock the row up-front and fetch every field we'll need. Single query so the
+  -- authz check and the update see the same committed state — no TOCTOU.
+  select id, site_id, email, anonymized_at
+    into v_sub
   from public.contact_submissions
   where id = p_id
   for update;
 
   if v_sub.id is null then
-    raise exception 'not_found';
+    -- Fail-closed on missing row WITHOUT revealing existence to non-staff.
+    -- Global staff get an explicit 'not_found'; anyone else gets 'forbidden'.
+    if public.is_staff() or current_setting('request.jwt.claims', true)::jsonb ->> 'role' = 'service_role' then
+      raise exception 'not_found';
+    end if;
+    raise exception 'forbidden';
+  end if;
+
+  v_site_id := v_sub.site_id;
+
+  -- Access control: staff of the submission's site/org, service_role, or
+  -- site-scoped admin via can_admin_site against the resolved site_id.
+  if not (public.is_staff()
+          or current_setting('request.jwt.claims', true)::jsonb ->> 'role' = 'service_role'
+          or (v_site_id is not null and public.can_admin_site(v_site_id))) then
+    raise exception 'forbidden';
   end if;
 
   if v_sub.anonymized_at is not null then

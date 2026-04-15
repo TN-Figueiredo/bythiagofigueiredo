@@ -10,15 +10,12 @@
 -- in force when the user subscribed (LGPD accountability requires proving
 -- which consent text was accepted).
 --
--- A unique partial index on (site_id, email) where status='unsubscribed'
--- prevents re-subscribing with the exact same hashed email (and therefore the
--- same raw email — sha256 is deterministic).
-
--- Idempotent unique index on unsubscribed rows (prevents the resub path from
--- inserting a fresh pending row with the same email once it's been anonymized).
-create unique index if not exists newsletter_subscriptions_anon_unique
-  on public.newsletter_subscriptions (site_id, email)
-  where status = 'unsubscribed';
+-- Note: the table already has `unique (site_id, email)` at the full level,
+-- which covers the anonymized case automatically — adding a partial index
+-- would be redundant AND would mislead readers (raw email ≠ stored hash
+-- at lookup time, so the unique doesn't actually block re-subscribe with
+-- the same raw email). Re-subscribe semantics are enforced by the subscribe
+-- action which checks status before insert.
 
 -- Rewrite the RPC. Keep signature + grants stable; only the body changes.
 create or replace function public.unsubscribe_via_token(p_token_hash text) returns json language plpgsql security definer as $fn$

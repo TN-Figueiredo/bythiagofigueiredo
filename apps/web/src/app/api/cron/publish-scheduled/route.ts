@@ -63,9 +63,13 @@ export async function POST(req: Request): Promise<Response> {
 
     let processed = 0;
     const errors: string[] = [];
+    const stacks: string[] = [];
     for (const r of results) {
       if (r.status === 'fulfilled') processed += r.value;
-      else errors.push(r.reason instanceof Error ? r.reason.message : String(r.reason));
+      else {
+        errors.push(r.reason instanceof Error ? r.reason.message : String(r.reason));
+        if (r.reason instanceof Error && r.reason.stack) stacks.push(r.reason.stack);
+      }
     }
 
     const duration_ms = Date.now() - start;
@@ -91,6 +95,7 @@ export async function POST(req: Request): Promise<Response> {
         published_count: processed,
         err_code: 'update_failed',
         error: errMsg,
+        stack: stacks.length ? stacks.join('\n---\n') : undefined,
       });
       return Response.json({ error: 'cron_failed', processed }, { status: 500 });
     }
