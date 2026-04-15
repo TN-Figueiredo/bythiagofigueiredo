@@ -67,6 +67,49 @@ sites
 
 **Ring hierarchy:** `parent_org_id` permite N níveis. Staff do parent ring pode administrar sites dos child rings (cascade up). Sprint 2 suporta 2 níveis (master + direct children).
 
+### RLS policies nas tabelas novas
+
+```sql
+-- organizations: public read (site names are public), staff write
+ALTER TABLE organizations ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "orgs public read" ON organizations FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY "orgs owner write" ON organizations FOR ALL TO authenticated
+  USING (public.is_org_staff(id)) WITH CHECK (public.is_org_staff(id));
+
+-- organization_members: only org owners/admins can manage membership
+ALTER TABLE organization_members ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "members self read" ON organization_members FOR SELECT TO authenticated
+  USING (user_id = auth.uid() OR public.is_org_staff(org_id));
+CREATE POLICY "members admin write" ON organization_members FOR ALL TO authenticated
+  USING (public.org_role(org_id) IN ('owner','admin'))
+  WITH CHECK (public.org_role(org_id) IN ('owner','admin'));
+
+-- sites: public read (domains are public for resolution), org staff write
+ALTER TABLE sites ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "sites public read" ON sites FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY "sites org staff write" ON sites FOR ALL TO authenticated
+  USING (public.can_admin_site(id)) WITH CHECK (public.can_admin_site(id));
+```
+
+### Site resolution flow (middleware)
+
+O web app precisa resolver hostname → site_id em cada request. O middleware Next.js é o ponto certo:
+
+```
+Request chega com Host: bythiagofigueiredo.com
+  ↓
+Middleware:
+  1. SELECT id, org_id, default_locale FROM sites WHERE $1 = ANY(domains)
+     -- $1 = hostname extraído do header (sem porta)
+  2. Se encontrou → set_config('app.site_id', site.id, true)
+     -- Disponível pra RLS policies via current_setting('app.site_id', true)
+  3. Se não encontrou → 404 ou fallback pro site default
+  4. Passa site_id + org_id + default_locale como headers internos
+     (x-site-id, x-org-id, x-default-locale) pra server components lerem
+```
+
+Em dev local (`localhost:3001`), o middleware faz fallback pro site seed (bythiagofigueiredo) quando hostname não bate com nenhum domínio.
+
 **Existing FK enforcement:** `blog_posts.site_id` e `campaigns.site_id` (hoje `uuid NULL` sem FK) ganham:
 1. UPDATE existing rows → set site_id to the default site
 2. ALTER to NOT NULL
@@ -104,7 +147,7 @@ ALTER TABLE blog_translations RENAME COLUMN content_md TO content_mdx;
 
 -- New columns for pre-compiled output
 ALTER TABLE blog_translations
-  ADD COLUMN content_compiled jsonb,          -- serialized MDX (pre-compiled on save)
+  ADD COLUMN content_compiled text,            -- compiled JS module source (pre-compiled on save via @mdx-js/mdx)
   ADD COLUMN content_toc jsonb DEFAULT '[]',  -- [{depth, text, slug}] headings
   ADD COLUMN reading_time_min int DEFAULT 0;  -- ceil(word_count / 200)
 
@@ -209,7 +252,7 @@ interface IRingContext {
 type ComponentRegistry = Record<string, React.ComponentType<Record<string, unknown>>>
 
 interface CompiledMdx {
-  serialized: MDXRemoteSerializeResult  // from next-mdx-remote
+  compiledSource: string  // compiled JS module source from @mdx-js/mdx
   toc: TocEntry[]
   readingTimeMin: number
 }
@@ -250,12 +293,35 @@ const myRegistry = { ...defaultComponents, PricingTable: MyPricingTable }
 
 A allowlist do MDX compiler usa `Object.keys(registry)` — só componentes registrados ficam disponíveis.
 
+### MDX compilation strategy
+
+`next-mdx-remote` v5 usa `compileMDX()` que retorna JSX server-side — NÃO é serializável pra jsonb. Para o pattern compile-on-save + store-in-DB + render-on-read, usamos `@mdx-js/mdx` diretamente:
+
+```
+Compile path (server action, on save):
+  1. @mdx-js/mdx compile(source, { remarkPlugins, rehypePlugins }) → VFile
+  2. VFile.toString() → string (compiled JS module source)
+  3. Store string in blog_translations.content_compiled (text column, NOT jsonb)
+  4. Extract TOC + reading time from the remark AST during compilation
+
+Render path (server component, on read):
+  1. Read content_compiled from DB (string)
+  2. @mdx-js/mdx run(content_compiled, { ...runtime }) → MDXContent component
+  3. <MDXContent components={registry} />
+
+Fallback (content_compiled is NULL — legacy posts):
+  1. Read content_mdx from DB
+  2. Compile + run in one step (slower, ~100ms)
+```
+
+**Decisão:** `content_compiled` é `text` (JS source string), não `jsonb`. `@mdx-js/mdx` é a dep direta (não `next-mdx-remote`). O package re-exporta `compileMdx()` e `<MdxRunner>` como wrappers tipados.
+
 ### Dependencies
 
 ```json
 {
   "dependencies": {
-    "next-mdx-remote": "5.0.0",
+    "@mdx-js/mdx": "3.x",
     "zod": "3.x"
   },
   "peerDependencies": {
@@ -552,6 +618,71 @@ Epic 4 e 5 são parcialmente paralelizáveis depois do Epic 3.
 | Package dev loop lento (repo separado) | 30% | médio | Develop em `packages/cms/` via workspace → extrair no final |
 | Ring RLS quebra testes existentes | 25% | alto | `is_staff()` mantido como backward compat; `can_admin_site()` adicionado incrementalmente |
 | Editor preview debounce causa UX ruim | 20% | baixo | Server action < 200ms (shiki warm); fallback: increase debounce |
+
+## Package development workflow
+
+O `@tn-figueiredo/cms` é desenvolvido como workspace interno durante o sprint e extraído no final:
+
+```
+Épicos 1-3 (dev):
+  packages/cms/ vive no monorepo como npm workspace
+  apps/web importa via: "@tn-figueiredo/cms": "workspace:*" no package.json
+  Imports: import { PostEditor } from '@tn-figueiredo/cms'
+  → npm resolve pro workspace local, zero publish necessário
+
+Final do Épico 3 (extraction):
+  1. git subtree split -P packages/cms -b cms-extract
+  2. Push pra novo repo TN-Figueiredo/cms
+  3. npm publish v0.1.0 no GitHub Packages
+  4. apps/web troca "workspace:*" → "0.1.0" (pinned, sem ^)
+  5. Remove packages/cms/ do monorepo
+  6. Commit: "chore: extract @tn-figueiredo/cms to own repo"
+
+Épicos 4-5 (consumer):
+  Usam a versão publicada "@tn-figueiredo/cms": "0.1.0"
+  Se precisar de fix no package durante 4-5: bump + publish patch
+```
+
+Import path `@tn-figueiredo/cms` é estável durante TODO o sprint — npm workspaces resolve pra local durante dev, pra published depois da extraction. Zero mudança de import.
+
+### Editor callback pattern
+
+`<PostEditor>` é `'use client'` e NÃO importa server actions diretamente (isso acoplaria ao Next.js). Em vez disso, aceita callbacks:
+
+```tsx
+interface PostEditorProps {
+  initialContent: string
+  locale: string
+  registry: ComponentRegistry
+  onSave: (fields: SavePostInput) => Promise<SaveResult>
+  onPreview: (source: string) => Promise<CompiledMdx>
+  onUpload: (file: File) => Promise<{ url: string }>
+}
+```
+
+O consumer (page `/cms/blog/[id]/edit`) wires as callbacks pra server actions:
+
+```tsx
+// Server component wrapper
+import { savePost, compilePreview, uploadAsset } from './actions'
+
+export default function EditPage({ params }) {
+  return (
+    <PostEditor
+      onSave={(fields) => savePost(postId, fields)}
+      onPreview={(source) => compilePreview(source)}
+      onUpload={(file) => uploadAsset(file, postId)}
+      // ...
+    />
+  )
+}
+```
+
+O package é framework-agnostic nos callbacks; o consumer escolhe se usa server actions, API routes, ou fetch direto.
+
+### Author assignment
+
+Sprint 2: `author_id` é auto-assigned pro user atual (`auth.uid()` → `authors.user_id`). O editor NÃO mostra selector de autor. Quando houver múltiplos autores (Sprint 3+), adicionar dropdown de seleção — a interface `CreatePostInput` já aceita `authorId?: string` optional (default = current user).
 
 ## Fora do escopo (Sprint 3+)
 
