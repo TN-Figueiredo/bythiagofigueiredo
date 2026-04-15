@@ -7,6 +7,7 @@ import { verifyTurnstileToken } from '../../../../lib/turnstile'
 import { getEmailService } from '../../../../lib/email/service'
 import { getEmailSender } from '../../../../lib/email/sender'
 import { getSiteContext } from '../../../../lib/cms/site-context'
+import { getClientIp, isValidInet } from '../../../../lib/request-ip'
 import { confirmSubscriptionTemplate, ensureUnsubscribeToken } from '@tn-figueiredo/email'
 import { NEWSLETTER_CONSENT_VERSION } from '../consent'
 
@@ -55,18 +56,18 @@ export async function subscribeToNewsletter(formData: FormData): Promise<Subscri
   const supabase = getSupabaseServiceClient()
 
   // Per-IP+site rate limit (best-effort — don't oracle on DB errors).
+  // Always call the RPC — even with null IP, it still enforces the per-email limit.
   const h = await headers()
-  const ip = h.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null
-  if (ip) {
-    const { data: rateOk } = await supabase.rpc('newsletter_rate_check', {
-      p_site_id: siteId,
-      p_ip: ip,
-    })
-    if (rateOk === false) {
-      // Neutral response — don't reveal state to callers. Still returns ok to
-      // avoid giving enumeration oracles.
-      return { status: 'ok' }
-    }
+  const ip = getClientIp(h)
+  const { data: rateOk } = await supabase.rpc('newsletter_rate_check', {
+    p_site_id: siteId,
+    p_ip: ip,
+    p_email: email,
+  })
+  if (rateOk === false) {
+    // Neutral response — don't reveal state to callers. Still returns ok to
+    // avoid giving enumeration oracles.
+    return { status: 'ok' }
   }
 
   // Check for existing subscription
@@ -111,7 +112,7 @@ export async function subscribeToNewsletter(formData: FormData): Promise<Subscri
     confirmation_token_hash: hashToken(rawToken),
     confirmation_expires_at: expiresAt.toISOString(),
     consent_text_version: NEWSLETTER_CONSENT_VERSION,
-    ip: ip ?? null,
+    ip: isValidInet(ip) ? ip : null,
   })
 
   if (error) {

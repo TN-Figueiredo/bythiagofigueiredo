@@ -8,6 +8,7 @@ import { getSupabaseServiceClient } from '../../../lib/supabase/service'
 import { getEmailService } from '../../../lib/email/service'
 import { getEmailSender } from '../../../lib/email/sender'
 import { getSiteContext } from '../../../lib/cms/site-context'
+import { getClientIp, isValidInet } from '../../../lib/request-ip'
 import { verifyTurnstileToken } from '../../../lib/turnstile'
 import {
   CONTACT_CONSENT_VERSION,
@@ -32,7 +33,7 @@ export type ContactResult =
 
 export async function submitContact(formData: FormData): Promise<ContactResult> {
   const h = await headers()
-  const ip = h.get('x-forwarded-for')?.split(',')[0]?.trim() ?? undefined
+  const ip = getClientIp(h)
   const userAgent = h.get('user-agent') ?? undefined
 
   const ctx = await getSiteContext()
@@ -53,17 +54,18 @@ export async function submitContact(formData: FormData): Promise<ContactResult> 
 
   const input = parsed.data
 
-  const turnstileOk = await verifyTurnstileToken(input.turnstile_token, ip)
+  const turnstileOk = await verifyTurnstileToken(input.turnstile_token, ip ?? undefined)
   if (!turnstileOk) {
     return { status: 'captcha_failed' }
   }
 
   const supabase = getSupabaseServiceClient()
 
-  // Server-side rate limit (IP + email, 10min window)
+  // Server-side rate limit (IP + email, 10min window). Always call — even with
+  // null IP the RPC still enforces the per-email limit.
   const { data: rateOk, error: rateErr } = await supabase.rpc('contact_rate_check', {
     p_site_id: ctx.siteId,
-    p_ip: ip ?? null,
+    p_ip: ip,
     p_email: input.email,
   })
   if (rateErr) {
@@ -87,7 +89,7 @@ export async function submitContact(formData: FormData): Promise<ContactResult> 
       consent_marketing_text_version: input.consent_marketing
         ? CONTACT_MARKETING_CONSENT_VERSION
         : null,
-      ip: ip ?? null,
+      ip: isValidInet(ip) ? ip : null,
       user_agent: userAgent ?? null,
     })
     .select('id')

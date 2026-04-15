@@ -109,6 +109,9 @@ beforeEach(() => {
     brandName: 'Test Site',
     primaryColor: '#000',
   })
+  // Default rate-check response: allowed. Individual tests can override via
+  // mockResolvedValueOnce for the unsubscribe RPC path.
+  rpcMock.mockResolvedValue({ data: true, error: null })
 })
 
 afterEach(() => {
