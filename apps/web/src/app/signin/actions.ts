@@ -41,11 +41,10 @@ export async function signInWithPasswordAction(input: {
     password: input.password,
   })
   if (error) {
-    if (/invalid login credentials/i.test(error.message)) {
-      return { ok: false, error: 'Email ou senha incorretos' }
-    }
-    if (/email not confirmed/i.test(error.message)) {
-      return { ok: false, error: 'Confirme seu email antes de entrar' }
+    // I7: collapse "invalid login credentials" and "email not confirmed" into the same
+    // generic message — prevents email enumeration via distinct error responses.
+    if (/invalid login credentials/i.test(error.message) || /email not confirmed/i.test(error.message)) {
+      return { ok: false, error: 'Email ou senha incorretos.' }
     }
     return { ok: false, error: 'Erro ao entrar. Tente novamente.' }
   }

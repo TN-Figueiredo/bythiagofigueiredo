@@ -71,7 +71,7 @@ export async function acceptInviteForCurrentUser(token: string): Promise<AcceptR
 
 export type AcceptWithPasswordResult =
   | { ok: true; redirectTo: string }
-  | { ok: false; error: string }
+  | { ok: false; error: string; message?: string }
 
 /**
  * Full flow for a new user:
@@ -146,16 +146,18 @@ export async function acceptInviteWithPassword(
   )
 
   if (acceptErr || (acceptData && !(acceptData as { ok: boolean }).ok)) {
-    // Compensate: delete the user we just created
-    await service.auth.admin.deleteUser(userId)
-    // C6: clear orphan session cookie on RPC failure path
+    // C2: DO NOT delete the user on RPC failure — the RPC may have committed even if
+    // the response was lost (network timeout). Deleting here would create orphan FK rows.
+    // Instead: log server-side and sign out to clear cookies. The user can retry by
+    // logging in and the page will call acceptInviteForCurrentUser on next visit.
+    console.error('[acceptInviteWithPassword] accept_invitation_atomic failed', acceptErr?.message ?? JSON.stringify(acceptData))
     await userClient.auth.signOut()
 
-    const rpcError =
-      acceptErr?.message ??
-      ((acceptData as { ok: false; error: string } | null)?.error ?? 'accept_failed')
-
-    return { ok: false, error: rpcError }
+    return {
+      ok: false,
+      error: 'rpc_failed',
+      message: 'Sua conta foi criada mas a aceitação do convite falhou. Faça login e contate o admin.',
+    }
   }
 
   return { ok: true, redirectTo: '/cms' }

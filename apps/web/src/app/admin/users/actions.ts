@@ -63,13 +63,18 @@ export async function createInvitation(input: {
     .single()
 
   if (error) {
+    // I10: never surface raw db error.message to callers — log internally
+    console.error('[createInvitation] db error', error.code, error.message)
     if (error.message.match(/rate_limit_exceeded/)) {
       return { ok: false as const, error: 'Limite de 20 convites/hora excedido' }
     }
     if (error.code === '23505') {
-      return { ok: false as const, error: 'Já existe um convite pendente para esse email' }
+      return { ok: false as const, error: 'Já existe um convite pendente para esse email.' }
     }
-    return { ok: false as const, error: `db_error: ${error.message}` }
+    if (error.code === '23503') {
+      return { ok: false as const, error: 'Organização inválida.' }
+    }
+    return { ok: false as const, error: 'Erro ao criar convite. Tente novamente.' }
   }
 
   // Get org name for email
@@ -137,7 +142,7 @@ export async function revokeInvitation(invitationId: string) {
   revalidatePath('/admin/users')
 }
 
-export async function resendInvitation(invitationId: string) {
+export async function resendInvitation(invitationId: string): Promise<{ ok: true } | { ok: false; error: string; message: string }> {
   const supabase = getSupabaseServiceClient()
   const { data: row } = await supabase
     .from('invitations')
@@ -146,6 +151,13 @@ export async function resendInvitation(invitationId: string) {
     .maybeSingle()
   if (!row) throw new Error('not_found')
   await requireOrgAdmin(row.org_id as string)
+
+  // I4: atomic increment with 30s cooldown guard BEFORE sending — RPC returns boolean
+  const { data: updated } = await supabase.rpc('increment_invitation_resend', { p_id: invitationId })
+
+  if (!updated) {
+    return { ok: false, error: 'too_soon', message: 'Aguarde 30 segundos antes de reenviar.' }
+  }
 
   const ctx = await getSiteContext()
   const sender = await getEmailSender(ctx.siteId)
@@ -181,8 +193,6 @@ export async function resendInvitation(invitationId: string) {
     ctx.defaultLocale,
   )
 
-  // I13: atomic increment via RPC — avoids read-modify-write race condition
-  await supabase.rpc('increment_invitation_resend', { p_id: invitationId })
-
   revalidatePath('/admin/users')
+  return { ok: true }
 }

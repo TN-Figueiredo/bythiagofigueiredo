@@ -185,7 +185,7 @@ describe('createInvitation', () => {
     }
   })
 
-  it('returns ok=false with db_error prefix for other DB errors', async () => {
+  it('I10: returns generic message for other DB errors (no raw error.message exposed)', async () => {
     nextInsertSingleResult = {
       data: null,
       error: { message: 'some other db error', code: '42P01' },
@@ -193,8 +193,21 @@ describe('createInvitation', () => {
     const result = await createInvitation({ email: 'bob@example.com', role: 'author' })
     expect(result.ok).toBe(false)
     if (!result.ok) {
-      // N19: assert on error code prefix pattern
-      expect(result.error).toMatch(/db_error/)
+      // I10: must NOT include raw db error string
+      expect(result.error).not.toMatch(/some other db error/)
+      expect(result.error).toMatch(/Erro ao criar convite/)
+    }
+  })
+
+  it('I10: returns Organização inválida for FK violation (23503)', async () => {
+    nextInsertSingleResult = {
+      data: null,
+      error: { message: 'foreign key violation', code: '23503' },
+    }
+    const result = await createInvitation({ email: 'bob@example.com', role: 'author' })
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.error).toMatch(/Organização inválida/)
     }
   })
 
@@ -277,8 +290,8 @@ describe('resendInvitation', () => {
       error: null,
     }
     sendTemplateMock.mockResolvedValue({ messageId: 'msg-2' })
-    // I13: RPC mock for atomic resend_count increment
-    serviceRpcMock.mockResolvedValue({ data: null, error: null })
+    // I4: RPC mock for atomic resend_count increment — returns true (cooldown not active)
+    serviceRpcMock.mockResolvedValue({ data: true, error: null })
     // I12: inviter user mock
     getUserByIdMock.mockResolvedValue({
       data: { user: { id: 'inviter-uid', email: 'inviter@example.com', user_metadata: { full_name: 'Alice Admin' } } },
@@ -313,6 +326,18 @@ describe('resendInvitation', () => {
     expect(serviceRpcMock).toHaveBeenCalledWith('increment_invitation_resend', { p_id: 'inv-1' })
     // No direct update to resend_count
     expect(capturedUpdateArg).toBeNull()
+  })
+
+  it('I4: returns too_soon when RPC returns false (30s cooldown active)', async () => {
+    serviceRpcMock.mockResolvedValueOnce({ data: false, error: null })
+    const result = await resendInvitation('inv-1')
+    expect(result).toBeDefined()
+    if (result && !result.ok) {
+      expect(result.error).toBe('too_soon')
+      expect(result.message).toMatch(/30 segundos/)
+    }
+    // Email should NOT be sent when rate-limited
+    expect(sendTemplateMock).not.toHaveBeenCalled()
   })
 
   it('throws not_found when invitation does not exist', async () => {

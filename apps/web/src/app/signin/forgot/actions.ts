@@ -1,9 +1,10 @@
 'use server'
 
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
 import type { CookieOptions } from '@supabase/ssr'
 import { verifyTurnstileToken } from '../../../../lib/turnstile'
+import { getSupabaseServiceClient } from '../../../../lib/supabase/service'
 
 export async function forgotPasswordAction(input: {
   email: string
@@ -12,6 +13,21 @@ export async function forgotPasswordAction(input: {
   // C2: verify Turnstile server-side before doing anything
   const turnstileOk = await verifyTurnstileToken(input.turnstileToken)
   if (!turnstileOk) return { ok: false, error: 'Verificação anti-bot falhou' }
+
+  // C3: DB-side rate limit — 5 requests/hour per email (enum-resistant: never surface to user)
+  const headerStore = await headers()
+  const ip = headerStore.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null
+  const serviceClient = getSupabaseServiceClient()
+  const { data: allowed } = await serviceClient.rpc('record_password_reset_attempt', {
+    p_email: input.email,
+    p_ip: ip ?? '',
+  })
+
+  if (!allowed) {
+    // Rate-limited: log internally but still return generic success (enum-resistance)
+    console.error('[forgotPasswordAction] rate-limited email', input.email.replace(/@.*/, '@…'))
+    return { ok: true }
+  }
 
   const cookieStore = await cookies()
   const supabase = createServerClient(

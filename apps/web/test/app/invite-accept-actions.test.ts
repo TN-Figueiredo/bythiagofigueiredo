@@ -211,20 +211,24 @@ describe('acceptInviteWithPassword', () => {
     expect(signOutMock).toHaveBeenCalled()
   })
 
-  it('deletes newly created user and returns error when accept RPC fails', async () => {
+  it('C2: does NOT delete user and calls signOut when accept RPC errors (network/timeout)', async () => {
     mockValidInvitation()
     createUserMock.mockResolvedValueOnce({ data: { user: { id: 'new-uid-2' } }, error: null })
     signInMock.mockResolvedValueOnce({ error: null })
-    // accept_invitation_atomic called via userClient.rpc
+    // accept_invitation_atomic called via userClient.rpc — network error / RPC failure
     rpcMock.mockResolvedValueOnce({ data: null, error: { message: 'expired' } })
 
     const result = await acceptInviteWithPassword('tok-ra', 'Password1!')
 
-    expect(deleteUserMock).toHaveBeenCalledWith('new-uid-2')
+    // C2: must NOT delete — RPC may have committed even if response was lost
+    expect(deleteUserMock).not.toHaveBeenCalled()
+    // C2: must sign out to clear cookies
+    expect(signOutMock).toHaveBeenCalled()
     expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error).toBe('rpc_failed')
   })
 
-  it('deletes newly created user when RPC returns ok:false', async () => {
+  it('C2: does NOT delete user and calls signOut when RPC returns ok:false', async () => {
     mockValidInvitation()
     createUserMock.mockResolvedValueOnce({ data: { user: { id: 'new-uid-3' } }, error: null })
     signInMock.mockResolvedValueOnce({ error: null })
@@ -232,9 +236,11 @@ describe('acceptInviteWithPassword', () => {
 
     const result = await acceptInviteWithPassword('tok-mm', 'Password1!')
 
-    expect(deleteUserMock).toHaveBeenCalledWith('new-uid-3')
+    // C2: must NOT delete — RPC was reachable, user account is created, preserve it
+    expect(deleteUserMock).not.toHaveBeenCalled()
+    expect(signOutMock).toHaveBeenCalled()
     expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error).toBe('email_mismatch')
+    if (!result.ok) expect(result.error).toBe('rpc_failed')
   })
 
   it('returns ok with redirectTo:/cms on full success', async () => {

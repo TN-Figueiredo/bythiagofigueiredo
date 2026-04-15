@@ -161,7 +161,7 @@ describe('<SignInPage>', () => {
   })
 
   it('shows error message and resets turnstile on failed sign-in', async () => {
-    mockSignInWithPassword.mockResolvedValue({ ok: false, error: 'Email ou senha incorretos' })
+    mockSignInWithPassword.mockResolvedValue({ ok: false, error: 'Email ou senha incorretos.' })
 
     render(<SignInPage />)
     await act(async () => {
@@ -175,7 +175,7 @@ describe('<SignInPage>', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert')).toBeTruthy()
     })
-    expect(screen.getByRole('alert').textContent).toBe('Email ou senha incorretos')
+    expect(screen.getByRole('alert').textContent).toBe('Email ou senha incorretos.')
     expect(turnstileReset).toHaveBeenCalledWith('widget-id')
   })
 
@@ -213,6 +213,25 @@ describe('<SignInPage>', () => {
     })
 
     Object.defineProperty(window, 'location', { configurable: true, value: originalLocation })
+  })
+
+  it('I7: shows same error for "email not confirmed" as for bad credentials (no enumeration)', async () => {
+    // Action now collapses both into the same message
+    mockSignInWithPassword.mockResolvedValue({ ok: false, error: 'Email ou senha incorretos.' })
+
+    render(<SignInPage />)
+    await act(async () => { await Promise.resolve() })
+
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'unconfirmed@example.com' } })
+    fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'somepassword' } })
+    fireEvent.click(screen.getByRole('button', { name: /^Entrar$/i }))
+
+    await waitFor(() => {
+      const alert = screen.getByRole('alert')
+      expect(alert.textContent).toBe('Email ou senha incorretos.')
+      // Must NOT expose "email not confirmed" or "confirme seu email"
+      expect(alert.textContent).not.toMatch(/confirme/i)
+    })
   })
 
   it('shows error on failed Google sign-in', async () => {

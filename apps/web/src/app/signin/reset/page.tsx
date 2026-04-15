@@ -26,19 +26,33 @@ export default function ResetPage() {
     return () => subscription.unsubscribe()
   }, [])
 
+  function validatePassword(pw: string): string | null {
+    if (pw.length < 8) return 'Senha deve ter pelo menos 8 caracteres.'
+    if (!/[A-Za-z]/.test(pw)) return 'Senha muito fraca. Use ao menos 8 caracteres com letras e números.'
+    if (!/\d/.test(pw)) return 'Senha muito fraca. Use ao menos 8 caracteres com letras e números.'
+    return null
+  }
+
+  function mapSupabaseError(msg: string): string {
+    if (/should be different/i.test(msg)) return 'A nova senha deve ser diferente da atual.'
+    if (/weak password/i.test(msg)) return 'Senha muito fraca. Use ao menos 8 caracteres com letras e números.'
+    return 'Não foi possível redefinir a senha. Tente novamente.'
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
     if (!canReset) return
-    if (password !== confirm) { setError('Senhas não coincidem'); return }
-    if (password.length < 8) { setError('Senha deve ter pelo menos 8 caracteres'); return }
+    if (password !== confirm) { setError('Senhas não coincidem.'); return }
+    const validationError = validatePassword(password)
+    if (validationError) { setError(validationError); return }
 
     const supabase = createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     )
     const { error: e1 } = await supabase.auth.updateUser({ password })
-    if (e1) { setError(e1.message); return }
+    if (e1) { setError(mapSupabaseError(e1.message)); return }
     // I25: force full page reload so SSR picks up the new session cookie
     window.location.href = '/cms'
   }

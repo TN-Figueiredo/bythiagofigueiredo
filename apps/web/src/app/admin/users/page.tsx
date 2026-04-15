@@ -5,6 +5,7 @@ import type { CookieOptions } from '@supabase/ssr'
 import { getSupabaseServiceClient } from '../../../../lib/supabase/service'
 import { getSiteContext } from '../../../../lib/cms/site-context'
 import { createInvitation, revokeInvitation, resendInvitation } from './actions'
+import { SubmitButton } from './_components/SubmitButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -91,9 +92,9 @@ export default async function AdminUsersPage() {
                   await resendInvitation(inv.id as string)
                 }}
               >
-                <button type="submit" className="text-blue-600 hover:underline">
+                <SubmitButton className="text-blue-600 hover:underline">
                   Reenviar
-                </button>
+                </SubmitButton>
               </form>
               <form
                 action={async () => {
@@ -101,9 +102,9 @@ export default async function AdminUsersPage() {
                   await revokeInvitation(inv.id as string)
                 }}
               >
-                <button type="submit" className="text-red-600 hover:underline">
+                <SubmitButton className="text-red-600 hover:underline">
                   Revogar
-                </button>
+                </SubmitButton>
               </form>
             </li>
           ))}
@@ -145,12 +146,9 @@ export default async function AdminUsersPage() {
               <option value="admin">admin</option>
             </select>
           </div>
-          <button
-            type="submit"
-            className="bg-blue-600 text-white rounded px-4 py-2 text-sm hover:bg-blue-700"
-          >
+          <SubmitButton className="bg-blue-600 text-white rounded px-4 py-2 text-sm hover:bg-blue-700">
             Convidar
-          </button>
+          </SubmitButton>
         </form>
       </section>
     </main>

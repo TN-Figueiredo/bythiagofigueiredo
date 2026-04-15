@@ -4,6 +4,7 @@ import { createServerClient } from '@supabase/ssr'
 import type { CookieOptions } from '@supabase/ssr'
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
 import { acceptInviteForCurrentUser, acceptInviteWithPassword } from './actions'
+import { SubmitButton } from './_components/SubmitButton'
 
 interface Props {
   params: Promise<{ token: string }>
@@ -100,7 +101,7 @@ export default async function InviteAcceptPage({ params }: Props) {
             if (result.ok) redirect('/cms')
           }}
         >
-          <button type="submit">Aceitar convite</button>
+          <SubmitButton>Aceitar convite</SubmitButton>
         </form>
       </main>
     )
@@ -140,7 +141,7 @@ export default async function InviteAcceptPage({ params }: Props) {
       >
         <input type="password" name="password" required placeholder="Senha (mínimo 8 caracteres)" />
         <input type="password" name="confirm" required placeholder="Confirmar senha" />
-        <button type="submit">Criar conta e aceitar convite</button>
+        <SubmitButton>Criar conta e aceitar convite</SubmitButton>
       </form>
     </main>
   )

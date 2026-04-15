@@ -259,7 +259,47 @@ describe('ResetPage', () => {
     expect(mockPush).not.toHaveBeenCalled()
   })
 
-  it('shows error when updateUser fails', async () => {
+  it('I6: maps Supabase "should be different" error to pt-BR', async () => {
+    mockUpdateUser.mockResolvedValue({ error: { message: 'New password should be different from the old password.' } })
+    render(<ResetPage />)
+    await act(async () => { authStateCallback?.('PASSWORD_RECOVERY') })
+
+    fireEvent.change(screen.getByPlaceholderText('Nova senha'), {
+      target: { value: 'newpassword123' },
+    })
+    fireEvent.change(screen.getByPlaceholderText('Confirme'), {
+      target: { value: 'newpassword123' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Atualizar senha/i }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toBeTruthy()
+      expect(screen.getByText(/diferente da atual/i)).toBeTruthy()
+    })
+    // Must NOT expose raw Supabase message
+    expect(screen.queryByText(/should be different/i)).toBeNull()
+  })
+
+  it('I6: maps Supabase "weak password" error to pt-BR', async () => {
+    mockUpdateUser.mockResolvedValue({ error: { message: 'Password should be a weak password.' } })
+    render(<ResetPage />)
+    await act(async () => { authStateCallback?.('PASSWORD_RECOVERY') })
+
+    fireEvent.change(screen.getByPlaceholderText('Nova senha'), {
+      target: { value: 'newpassword123' },
+    })
+    fireEvent.change(screen.getByPlaceholderText('Confirme'), {
+      target: { value: 'newpassword123' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Atualizar senha/i }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toBeTruthy()
+      expect(screen.getByText(/Senha muito fraca/i)).toBeTruthy()
+    })
+  })
+
+  it('I6: maps unknown Supabase errors to generic pt-BR message (no raw error exposed)', async () => {
     mockUpdateUser.mockResolvedValue({ error: { message: 'Token expired' } })
     render(<ResetPage />)
     await act(async () => { authStateCallback?.('PASSWORD_RECOVERY') })
@@ -274,8 +314,29 @@ describe('ResetPage', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toBeTruthy()
-      expect(screen.getByText('Token expired')).toBeTruthy()
+      // I6: must NOT expose raw 'Token expired' message
+      expect(screen.queryByText('Token expired')).toBeNull()
+      expect(screen.getByText(/Não foi possível redefinir/i)).toBeTruthy()
     })
+  })
+
+  it('I6: rejects password without digits (complexity check)', async () => {
+    render(<ResetPage />)
+    await act(async () => { authStateCallback?.('PASSWORD_RECOVERY') })
+
+    fireEvent.change(screen.getByPlaceholderText('Nova senha'), {
+      target: { value: 'onlyletters' },
+    })
+    fireEvent.change(screen.getByPlaceholderText('Confirme'), {
+      target: { value: 'onlyletters' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Atualizar senha/i }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toBeTruthy()
+      expect(screen.getByText(/letras e números/i)).toBeTruthy()
+    })
+    expect(mockUpdateUser).not.toHaveBeenCalled()
   })
 
   it('unsubscribes auth listener on unmount', () => {
