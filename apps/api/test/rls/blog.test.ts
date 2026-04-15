@@ -76,21 +76,21 @@ describe.skipIf(skipIfNoLocalDb())('RLS: blog_posts + blog_translations + author
 
     trNullId = (await insertOne(
       service.from('blog_translations').insert({
-        post_id: publishedId, locale: 'en', title: 'null-site', slug: 'null-site', content_md: 'x',
+        post_id: publishedId, locale: 'en', title: 'null-site', slug: 'null-site', content_mdx: 'x',
       }).select('id').single(),
       'tN'
     )).id
 
     trSiteAId = (await insertOne(
       service.from('blog_translations').insert({
-        post_id: postSiteAId, locale: 'en', title: 'site-a', slug: 'site-a', content_md: 'x',
+        post_id: postSiteAId, locale: 'en', title: 'site-a', slug: 'site-a', content_mdx: 'x',
       }).select('id').single(),
       'tA'
     )).id
 
     trSiteBId = (await insertOne(
       service.from('blog_translations').insert({
-        post_id: postSiteBId, locale: 'en', title: 'site-b', slug: 'site-b', content_md: 'x',
+        post_id: postSiteBId, locale: 'en', title: 'site-b', slug: 'site-b', content_mdx: 'x',
       }).select('id').single(),
       'tB'
     )).id

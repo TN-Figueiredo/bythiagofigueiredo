@@ -50,11 +50,11 @@ describe.skipIf(skipIfNoLocalDb())('trigger validate_translation_slug_unique_per
       `insert into public.blog_posts(author_id, site_id) values ($1,$2) returning id`, [authorId, SITE_A]
     )
     await db.query(
-      `insert into public.blog_translations(post_id,locale,title,slug,content_md)
+      `insert into public.blog_translations(post_id,locale,title,slug,content_mdx)
        values ($1,'pt-BR','t1','dup','c')`, [p1.id]
     )
     await expect(db.query(
-      `insert into public.blog_translations(post_id,locale,title,slug,content_md)
+      `insert into public.blog_translations(post_id,locale,title,slug,content_mdx)
        values ($1,'pt-BR','t2','dup','c')`, [p2.id]
     )).rejects.toThrow(/slug/i)
   })
@@ -64,11 +64,11 @@ describe.skipIf(skipIfNoLocalDb())('trigger validate_translation_slug_unique_per
       `insert into public.blog_posts(author_id, site_id) values ($1,$2) returning id`, [authorId, SITE_B]
     )
     await db.query(
-      `insert into public.blog_translations(post_id,locale,title,slug,content_md)
+      `insert into public.blog_translations(post_id,locale,title,slug,content_mdx)
        values ($1,'pt-BR','x','same','c')`, [p.id]
     )
     await db.query(
-      `insert into public.blog_translations(post_id,locale,title,slug,content_md)
+      `insert into public.blog_translations(post_id,locale,title,slug,content_mdx)
        values ($1,'en','x','same','c')`, [p.id]
     )
   })

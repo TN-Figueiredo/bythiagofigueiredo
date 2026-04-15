@@ -96,7 +96,7 @@ begin
   insert into public.blog_posts (author_id, status, published_at, site_id)
   values (v_author_id, 'published', now() - interval '1 day', v_site_id)
   returning id into v_post1;
-  insert into public.blog_translations (post_id, locale, title, slug, excerpt, content_md)
+  insert into public.blog_translations (post_id, locale, title, slug, excerpt, content_mdx)
   values
     (v_post1, 'pt-BR', 'Primeiro post', 'primeiro-post', 'Olá mundo', '# Olá\n\nConteúdo pt-BR.'),
     (v_post1, 'en',    'First post',    'first-post',    'Hello world', '# Hello\n\nEnglish content.');
@@ -104,13 +104,13 @@ begin
   insert into public.blog_posts (author_id, status, site_id)
   values (v_author_id, 'draft', v_site_id)
   returning id into v_post2;
-  insert into public.blog_translations (post_id, locale, title, slug, content_md)
+  insert into public.blog_translations (post_id, locale, title, slug, content_mdx)
   values (v_post2, 'pt-BR', 'Rascunho', 'rascunho', '# WIP');
 
   insert into public.blog_posts (author_id, status, scheduled_for, site_id)
   values (v_author_id, 'scheduled', now() + interval '7 days', v_site_id)
   returning id into v_post3;
-  insert into public.blog_translations (post_id, locale, title, slug, content_md)
+  insert into public.blog_translations (post_id, locale, title, slug, content_mdx)
   values (v_post3, 'pt-BR', 'Agendado', 'agendado', '# Em breve');
 
   -- ============ Sprint 1b: campaigns seed ============
