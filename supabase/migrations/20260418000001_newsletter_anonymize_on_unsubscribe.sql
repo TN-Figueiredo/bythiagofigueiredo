@@ -15,7 +15,15 @@
 -- would be redundant AND would mislead readers (raw email ≠ stored hash
 -- at lookup time, so the unique doesn't actually block re-subscribe with
 -- the same raw email). Re-subscribe semantics are enforced by the subscribe
--- action which checks status before insert.
+-- action.
+--
+-- Re-subscribe semantics: the subscribe action queries by BOTH the raw email
+-- and its sha256 hash (same encoding as this RPC produces). A hashed-email
+-- match with status='unsubscribed' triggers a new double-opt-in flow that
+-- restores the raw email on the same row, rotates the confirmation token,
+-- and clears `unsubscribed_at`. This preserves a single row per human and
+-- honors the prior unsubscribe as acknowledged (not silently undone —
+-- explicit opt-in via confirm link is still required).
 
 -- Rewrite the RPC. Keep signature + grants stable; only the body changes.
 create or replace function public.unsubscribe_via_token(p_token_hash text) returns json language plpgsql security definer as $fn$

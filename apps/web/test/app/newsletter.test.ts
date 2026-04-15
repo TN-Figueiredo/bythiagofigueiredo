@@ -79,6 +79,7 @@ function makeSbChain(result: { data: unknown; error: unknown }) {
   const chain = {
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
+    or: vi.fn().mockReturnThis(),
     maybeSingle: vi.fn().mockResolvedValue(result),
     insert: vi.fn().mockReturnThis(),
     update: vi.fn().mockReturnThis(),
@@ -170,6 +171,7 @@ describe('subscribeToNewsletter', () => {
       // First call: select existing subscription → not found
       .mockReturnValueOnce({
         select: vi.fn().mockReturnThis(),
+        or: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
         maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
       })
@@ -192,6 +194,7 @@ describe('subscribeToNewsletter', () => {
     fromMock.mockReturnValueOnce({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
+      or: vi.fn().mockReturnThis(),
       maybeSingle: vi.fn().mockResolvedValue({
         data: { id: 'sub-1', status: 'confirmed' },
         error: null,
@@ -215,6 +218,7 @@ describe('subscribeToNewsletter', () => {
       // First: select existing — returns pending
       .mockReturnValueOnce({
         select: vi.fn().mockReturnThis(),
+        or: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
         maybeSingle: vi.fn().mockResolvedValue({
           data: { id: 'sub-2', status: 'pending_confirmation' },
@@ -242,6 +246,7 @@ describe('subscribeToNewsletter', () => {
       // First: select existing — not found
       .mockReturnValueOnce({
         select: vi.fn().mockReturnThis(),
+        or: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
         maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
       })
@@ -268,6 +273,58 @@ describe('subscribeToNewsletter', () => {
     })
     const result = await subscribeToNewsletter(fd)
     expect(result).toEqual({ status: 'error', code: 'captcha_required' })
+  })
+
+  it('re-subscribes a previously anonymized-unsubscribed email in-place (one row, raw email restored)', async () => {
+    // Simulate: user subscribed before, unsubscribed via token → RPC anonymized
+    // the row (email stored as sha256). User comes back and re-subscribes with
+    // the SAME raw email. The select must match via the hashed-email branch
+    // of the .or() filter; the update must restore the raw email + rotate
+    // token + clear unsubscribed_at, without inserting a new row.
+    const { createHash } = await import('node:crypto')
+    const rawEmail = 'comeback@example.com'
+    const emailHash = createHash('sha256').update(rawEmail).digest('hex')
+
+    const updateMock = vi.fn().mockReturnThis()
+    const updateEqMock = vi.fn().mockResolvedValue({ data: null, error: null })
+    const insertMock = vi.fn()
+
+    fromMock
+      // First: select existing row — .or() match via hashed email
+      .mockReturnValueOnce({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        or: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue({
+          data: { id: 'sub-unsub-1', status: 'unsubscribed', email: emailHash },
+          error: null,
+        }),
+      })
+      // Second: update in place (NOT insert)
+      .mockReturnValueOnce({
+        update: updateMock,
+        eq: updateEqMock,
+        insert: insertMock,
+      })
+
+    const fd = makeFormData({
+      email: rawEmail,
+      consent_processing: 'on',
+      consent_marketing: 'on',
+    })
+    const result = await subscribeToNewsletter(fd)
+
+    expect(result).toEqual({ status: 'ok' })
+    // Exactly one row preserved: update called, insert never called.
+    expect(updateMock).toHaveBeenCalledOnce()
+    expect(insertMock).not.toHaveBeenCalled()
+    // The update payload must restore the raw email + reset unsubscribed_at.
+    const updatePayload = updateMock.mock.calls[0][0] as Record<string, unknown>
+    expect(updatePayload.email).toBe(rawEmail)
+    expect(updatePayload.status).toBe('pending_confirmation')
+    expect(updatePayload.unsubscribed_at).toBeNull()
+    // New confirm email dispatched (double-opt-in re-required).
+    expect(sendTemplateMock).toHaveBeenCalledOnce()
   })
 })
 

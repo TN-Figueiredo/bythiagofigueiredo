@@ -76,12 +76,16 @@ export async function subscribeToNewsletter(formData: FormData): Promise<Subscri
     return { status: 'ok' }
   }
 
-  // Check for existing subscription
+  // Check for existing subscription. Match both the raw email AND its sha256
+  // hash — the unsubscribe flow anonymizes the row by replacing `email` with
+  // the hex digest (see migration 20260418000001). Without the hash branch,
+  // a re-subscribe after anonymization would silently create a duplicate row.
+  const emailHash = createHash('sha256').update(email).digest('hex')
   const { data: existing } = await supabase
     .from('newsletter_subscriptions')
-    .select('id, status')
+    .select('id, status, email')
     .eq('site_id', siteId)
-    .eq('email', email)
+    .or(`email.eq.${email},email.eq.${emailHash}`)
     .maybeSingle()
 
   if (existing) {
@@ -90,12 +94,16 @@ export async function subscribeToNewsletter(formData: FormData): Promise<Subscri
       return { status: 'ok' }
     }
     // pending_confirmation or unsubscribed — rotate token + resend confirm email.
+    // When the existing row is an anonymized unsubscribe (email stored as hash),
+    // we also restore the raw email so the confirm/unsubscribe flow works
+    // again. The user is explicitly opting back in via double-opt-in.
     const rawToken = generateToken()
     const expiresAt = new Date(Date.now() + CONFIRMATION_TTL_MS)
     await supabase
       .from('newsletter_subscriptions')
       .update({
         status: 'pending_confirmation',
+        email,
         confirmation_token_hash: hashToken(rawToken),
         confirmation_expires_at: expiresAt.toISOString(),
         consent_text_version: NEWSLETTER_CONSENT_VERSION,
