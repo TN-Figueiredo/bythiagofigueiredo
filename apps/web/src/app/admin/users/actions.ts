@@ -100,11 +100,12 @@ export async function createInvitation(input: {
       ctx.defaultLocale,
     )
 
+    // I14: subject uses org name instead of inviter PII
     await supabase.from('sent_emails').insert({
       site_id: ctx.siteId,
       template_name: 'invite',
       to_email: input.email,
-      subject: `${inviterEmail.split('@')[0]} convidou você`,
+      subject: `Você foi convidado para ${org?.name ?? 'a organização'}`,
       provider: 'brevo',
       provider_message_id: result.messageId,
       status: 'queued',
@@ -140,7 +141,7 @@ export async function resendInvitation(invitationId: string) {
   const supabase = getSupabaseServiceClient()
   const { data: row } = await supabase
     .from('invitations')
-    .select('id, email, role, org_id, token, expires_at, organization:organizations(name)')
+    .select('id, email, role, org_id, token, expires_at, invited_by, organization:organizations(name)')
     .eq('id', invitationId)
     .maybeSingle()
   if (!row) throw new Error('not_found')
@@ -151,13 +152,27 @@ export async function resendInvitation(invitationId: string) {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
   const acceptUrl = `${baseUrl}/signup/invite/${row.token as string}`
 
+  // I12: resolve real inviter name from auth.users metadata, fallback to email local-part
+  const orgName = (row.organization as { name?: string } | null)?.name ?? 'TN Figueiredo'
+  let inviterName = orgName
+  if (row.invited_by) {
+    const { data: inviterUser } = await supabase.auth.admin.getUserById(row.invited_by as string)
+    if (inviterUser.user) {
+      const meta = inviterUser.user.user_metadata as Record<string, string> | undefined
+      inviterName =
+        meta?.full_name ??
+        meta?.name ??
+        (inviterUser.user.email ? inviterUser.user.email.split('@')[0]! : orgName)
+    }
+  }
+
   await getEmailService().sendTemplate(
     inviteTemplate,
     sender,
     row.email as string,
     {
-      inviterName: 'TN Figueiredo',
-      orgName: (row.organization as { name?: string } | null)?.name ?? 'TN Figueiredo',
+      inviterName,
+      orgName,
       role: row.role as 'admin' | 'editor' | 'author' | 'owner',
       acceptUrl,
       expiresAt: new Date(row.expires_at as string),
@@ -166,18 +181,8 @@ export async function resendInvitation(invitationId: string) {
     ctx.defaultLocale,
   )
 
-  const { data: current } = await supabase
-    .from('invitations')
-    .select('resend_count')
-    .eq('id', invitationId)
-    .single()
+  // I13: atomic increment via RPC — avoids read-modify-write race condition
+  await supabase.rpc('increment_invitation_resend', { p_id: invitationId })
 
-  await supabase
-    .from('invitations')
-    .update({
-      last_sent_at: new Date().toISOString(),
-      resend_count: ((current?.resend_count as number | null) ?? 0) + 1,
-    })
-    .eq('id', invitationId)
   revalidatePath('/admin/users')
 }

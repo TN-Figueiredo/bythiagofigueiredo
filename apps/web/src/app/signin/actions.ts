@@ -4,6 +4,7 @@ import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
 import type { CookieOptions } from '@supabase/ssr'
 import { verifyTurnstileToken } from '../../../lib/turnstile'
+import { safeRedirect } from '../../../lib/auth/safe-redirect'
 
 async function getUserClient() {
   const cookieStore = await cookies()
@@ -30,6 +31,7 @@ export async function signInWithPasswordAction(input: {
   password: string
   turnstileToken: string
 }): Promise<{ ok: true } | { ok: false; error: string }> {
+  // TODO(Sprint 4): add rate limiting via Redis/Upstash to prevent brute-force (C5)
   const turnstileOk = await verifyTurnstileToken(input.turnstileToken)
   if (!turnstileOk) return { ok: false, error: 'Verificação anti-bot falhou' }
 
@@ -53,13 +55,21 @@ export async function signInWithPasswordAction(input: {
 export async function signInWithGoogleAction(input: {
   redirectTo: string
 }): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  const safeNext = safeRedirect(input.redirectTo) // C1: sanitise before embedding in OAuth URL
   const supabase = await getUserClient()
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback?next=${encodeURIComponent(input.redirectTo)}`,
+      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback?next=${encodeURIComponent(safeNext)}`,
     },
   })
-  if (error) return { ok: false, error: error.message }
+  if (error) {
+    console.error('[signInWithGoogleAction] OAuth error', error) // I9: log real error, surface generic
+    return { ok: false, error: 'Falha ao iniciar login com Google' }
+  }
+  if (!data.url) {
+    console.error('[signInWithGoogleAction] OAuth returned no URL') // I22: null guard
+    return { ok: false, error: 'Falha ao iniciar login com Google' }
+  }
   return { ok: true, url: data.url }
 }

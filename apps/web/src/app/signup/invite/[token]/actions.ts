@@ -122,6 +122,10 @@ export async function acceptInviteWithPassword(
 
   // Step 3 — Sign the new user in so auth.uid() resolves in the RPC
   const userClient = await getUserClient()
+
+  // C6: clear any pre-existing session before establishing the new one
+  await userClient.auth.signOut()
+
   const { error: signInErr } = await userClient.auth.signInWithPassword({
     email: invitedEmail,
     password,
@@ -130,6 +134,8 @@ export async function acceptInviteWithPassword(
   if (signInErr) {
     // Compensate: delete the user we just created
     await service.auth.admin.deleteUser(userId)
+    // C6: clear orphan session cookie on failure path
+    await userClient.auth.signOut()
     return { ok: false, error: 'signin_after_signup_failed' }
   }
 
@@ -142,6 +148,8 @@ export async function acceptInviteWithPassword(
   if (acceptErr || (acceptData && !(acceptData as { ok: boolean }).ok)) {
     // Compensate: delete the user we just created
     await service.auth.admin.deleteUser(userId)
+    // C6: clear orphan session cookie on RPC failure path
+    await userClient.auth.signOut()
 
     const rpcError =
       acceptErr?.message ??

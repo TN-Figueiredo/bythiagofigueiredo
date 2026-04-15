@@ -216,7 +216,8 @@ describe('<SignInPage>', () => {
   })
 
   it('shows error on failed Google sign-in', async () => {
-    mockSignInWithGoogle.mockResolvedValue({ ok: false, error: 'Erro OAuth' })
+    // I9: action now returns generic 'Falha ao iniciar login com Google'
+    mockSignInWithGoogle.mockResolvedValue({ ok: false, error: 'Falha ao iniciar login com Google' })
 
     render(<SignInPage />)
     await act(async () => {
@@ -226,7 +227,7 @@ describe('<SignInPage>', () => {
     fireEvent.click(screen.getByRole('button', { name: /Entrar com Google/i }))
 
     await waitFor(() => {
-      expect(screen.getByRole('alert').textContent).toBe('Erro OAuth')
+      expect(screen.getByRole('alert').textContent).toBe('Falha ao iniciar login com Google')
     })
   })
 })

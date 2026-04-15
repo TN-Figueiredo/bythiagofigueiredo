@@ -4,6 +4,7 @@ import { Suspense, useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { signInWithPasswordAction, signInWithGoogleAction } from './actions'
+import { safeRedirect } from '../../../lib/auth/safe-redirect'
 
 declare global {
   interface Window {
@@ -33,7 +34,7 @@ function SignInForm() {
   const widgetIdRef = useRef<string | null>(null)
   const router = useRouter()
   const sp = useSearchParams()
-  const redirect = sp.get('redirect') ?? '/cms'
+  const redirect = safeRedirect(sp.get('redirect')) // C1: block open-redirect
 
   // Email hint from invite redirect
   useEffect(() => {

@@ -18,7 +18,7 @@ const authMiddleware = createAuthMiddleware({
     /^\/$/,
     '/signin',
     /^\/signin\/(forgot|reset)/,
-    /^\/auth\//,
+    /^\/auth\/callback$/,
     /^\/api\//,
     /^\/_next\//,
     /^\/blog/,

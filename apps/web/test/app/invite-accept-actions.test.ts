@@ -12,6 +12,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const rpcMock = vi.fn()
 const getUserMock = vi.fn()
 const signInMock = vi.fn()
+const signOutMock = vi.fn()
 const createUserMock = vi.fn()
 const deleteUserMock = vi.fn()
 
@@ -32,6 +33,7 @@ vi.mock('@supabase/ssr', () => ({
     auth: {
       getUser: getUserMock,
       signInWithPassword: signInMock,
+      signOut: signOutMock,
     },
     rpc: rpcMock,
   }),
@@ -44,7 +46,6 @@ vi.mock('../../lib/supabase/service', () => ({
       admin: {
         createUser: createUserMock,
         deleteUser: deleteUserMock,
-        listUsers: vi.fn().mockResolvedValue({ data: { users: [] } }),
       },
     },
   }),
@@ -138,6 +139,7 @@ describe('acceptInviteForCurrentUser', () => {
 describe('acceptInviteWithPassword', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    signOutMock.mockResolvedValue({})
   })
 
   it('returns invalid_or_expired when get_invitation_by_token finds nothing', async () => {
@@ -205,6 +207,8 @@ describe('acceptInviteWithPassword', () => {
     expect(deleteUserMock).toHaveBeenCalledWith('new-uid')
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error).toBe('signin_after_signup_failed')
+    // C6: signOut should be called to clear orphan cookies on failure
+    expect(signOutMock).toHaveBeenCalled()
   })
 
   it('deletes newly created user and returns error when accept RPC fails', async () => {

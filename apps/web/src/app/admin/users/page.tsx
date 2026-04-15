@@ -25,10 +25,14 @@ export default async function AdminUsersPage() {
       },
     },
   )
+
+  // I10: authz check BEFORE constructing service-role client / fetching data
   const { data: role } = await userClient.rpc('org_role', { p_org_id: ctx.orgId })
   if (role !== 'owner' && role !== 'admin') redirect('/cms')
 
+  // Only reached if caller is owner or admin
   const supabase = getSupabaseServiceClient()
+
   const { data: members } = await supabase
     .from('organization_members')
     .select('user_id, role')
@@ -40,18 +44,31 @@ export default async function AdminUsersPage() {
     .is('accepted_at', null)
     .is('revoked_at', null)
 
+  // N15: enrich members with email via service-role admin getUserById
+  type MemberWithEmail = { user_id: string; role: string; email: string }
+  const membersWithEmail: MemberWithEmail[] = await Promise.all(
+    (members ?? []).map(async (m) => {
+      const { data } = await supabase.auth.admin.getUserById(m.user_id as string)
+      return {
+        user_id: m.user_id as string,
+        role: m.role as string,
+        email: data.user?.email ?? m.user_id as string,
+      }
+    }),
+  )
+
   return (
     <main className="p-8">
       <h1 className="text-2xl font-bold mb-6">Usuários e convites</h1>
 
       <section className="mb-8">
         <h2 className="text-lg font-semibold mb-3">
-          Membros ativos ({members?.length ?? 0})
+          Membros ativos ({membersWithEmail.length})
         </h2>
         <ul className="space-y-2">
-          {members?.map((m) => (
-            <li key={m.user_id as string} className="text-sm text-gray-700">
-              {m.user_id as string} · {m.role as string}
+          {membersWithEmail.map((m) => (
+            <li key={m.user_id} className="text-sm text-gray-700">
+              {m.email} · {m.role}
             </li>
           ))}
         </ul>

@@ -65,18 +65,22 @@ let nextInsertSingleResult: { data: unknown; error: { message: string; code?: st
   data: { id: 'inv-1', expires_at: '2026-04-23T00:00:00Z' },
   error: null,
 }
-let nextSelectSingleResult: { data: unknown; error: unknown } = {
-  data: { resend_count: 0 },
-  error: null,
-}
 let nextMaybySingleResult: { data: unknown; error: unknown } = {
   data: { org_id: 'org-1' },
   error: null,
 }
 let capturedUpdateArg: unknown = null
+const serviceRpcMock = vi.fn()
+const getUserByIdMock = vi.fn()
 
 vi.mock('../../lib/supabase/service', () => ({
   getSupabaseServiceClient: () => ({
+    rpc: serviceRpcMock,
+    auth: {
+      admin: {
+        getUserById: getUserByIdMock,
+      },
+    },
     from: (_table: string) => ({
       insert: (_values: unknown) => ({
         select: (_cols: string) => ({
@@ -86,7 +90,7 @@ vi.mock('../../lib/supabase/service', () => ({
       select: (_cols: string) => ({
         eq: (_col: string, _val: unknown) => ({
           maybeSingle: () => Promise.resolve(nextMaybySingleResult),
-          single: () => Promise.resolve(nextSelectSingleResult),
+          single: () => Promise.resolve({ data: { name: 'My Org' }, error: null }),
           is: (_c: string, _v: unknown) => ({
             is: (_c2: string, _v2: unknown) => Promise.resolve({ data: [], error: null }),
           }),
@@ -131,9 +135,10 @@ describe('createInvitation', () => {
       data: { id: 'inv-1', expires_at: '2026-04-23T00:00:00Z' },
       error: null,
     }
-    nextSelectSingleResult = { data: { name: 'My Org' }, error: null }
     nextMaybySingleResult = { data: { org_id: 'org-1' }, error: null }
     sendTemplateMock.mockResolvedValue({ messageId: 'msg-1' })
+    serviceRpcMock.mockResolvedValue({ data: null, error: null })
+    getUserByIdMock.mockResolvedValue({ data: { user: null } })
     mockAuthorizedUser()
   })
 
@@ -162,6 +167,7 @@ describe('createInvitation', () => {
     const result = await createInvitation({ email: 'bob@example.com', role: 'author' })
     expect(result.ok).toBe(false)
     if (!result.ok) {
+      // N19: assert on pattern rather than exact string
       expect(result.error).toMatch(/20 convites/)
     }
   })
@@ -174,6 +180,7 @@ describe('createInvitation', () => {
     const result = await createInvitation({ email: 'bob@example.com', role: 'editor' })
     expect(result.ok).toBe(false)
     if (!result.ok) {
+      // N19: assert on pattern
       expect(result.error).toMatch(/pendente/)
     }
   })
@@ -186,6 +193,7 @@ describe('createInvitation', () => {
     const result = await createInvitation({ email: 'bob@example.com', role: 'author' })
     expect(result.ok).toBe(false)
     if (!result.ok) {
+      // N19: assert on error code prefix pattern
       expect(result.error).toMatch(/db_error/)
     }
   })
@@ -219,6 +227,8 @@ describe('revokeInvitation', () => {
     vi.clearAllMocks()
     capturedUpdateArg = null
     nextMaybySingleResult = { data: { org_id: 'org-1' }, error: null }
+    serviceRpcMock.mockResolvedValue({ data: null, error: null })
+    getUserByIdMock.mockResolvedValue({ data: { user: null } })
     mockAuthorizedUser()
   })
 
@@ -261,12 +271,18 @@ describe('resendInvitation', () => {
         org_id: 'org-1',
         token: 'abc123',
         expires_at: '2026-04-23T00:00:00Z',
+        invited_by: 'inviter-uid',
         organization: { name: 'My Org' },
       },
       error: null,
     }
-    nextSelectSingleResult = { data: { resend_count: 2 }, error: null }
     sendTemplateMock.mockResolvedValue({ messageId: 'msg-2' })
+    // I13: RPC mock for atomic resend_count increment
+    serviceRpcMock.mockResolvedValue({ data: null, error: null })
+    // I12: inviter user mock
+    getUserByIdMock.mockResolvedValue({
+      data: { user: { id: 'inviter-uid', email: 'inviter@example.com', user_metadata: { full_name: 'Alice Admin' } } },
+    })
     mockAuthorizedUser()
   })
 
@@ -275,9 +291,28 @@ describe('resendInvitation', () => {
     expect(sendTemplateMock).toHaveBeenCalledOnce()
   })
 
-  it('increments resend_count by 1', async () => {
+  it('uses inviter full_name from user_metadata (I12)', async () => {
     await resendInvitation('inv-1')
-    expect(capturedUpdateArg).toMatchObject({ resend_count: 3, last_sent_at: expect.any(String) })
+    const callArgs = sendTemplateMock.mock.calls[0]![2] as Record<string, unknown>
+    // sendTemplate is called with (template, sender, email, data, locale)
+    const data = sendTemplateMock.mock.calls[0]![3] as Record<string, unknown>
+    expect(data.inviterName).toBe('Alice Admin')
+  })
+
+  it('falls back to email local-part when no full_name in metadata (I12)', async () => {
+    getUserByIdMock.mockResolvedValueOnce({
+      data: { user: { id: 'inviter-uid', email: 'boss@acme.com', user_metadata: {} } },
+    })
+    await resendInvitation('inv-1')
+    const data = sendTemplateMock.mock.calls[0]![3] as Record<string, unknown>
+    expect(data.inviterName).toBe('boss')
+  })
+
+  it('calls increment_invitation_resend RPC instead of direct update (I13)', async () => {
+    await resendInvitation('inv-1')
+    expect(serviceRpcMock).toHaveBeenCalledWith('increment_invitation_resend', { p_id: 'inv-1' })
+    // No direct update to resend_count
+    expect(capturedUpdateArg).toBeNull()
   })
 
   it('throws not_found when invitation does not exist', async () => {

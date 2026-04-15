@@ -108,11 +108,10 @@ export default async function InviteAcceptPage({ params }: Props) {
 
   // ── Anonymous path ──────────────────────────────────────────────────────────
 
-  // Check if an account already exists for this email address
-  const { data: listData } = await service.auth.admin.listUsers()
-  const emailAlreadyExists = (listData?.users ?? []).some(
-    (u) => u.email?.toLowerCase() === inv.email.toLowerCase(),
-  )
+  // C3: use point-lookup RPC instead of unbounded listUsers() scan
+  const { data: emailAlreadyExists } = await service.rpc('user_exists_by_email', {
+    p_email: inv.email,
+  })
 
   if (emailAlreadyExists) {
     // Existing user — redirect to sign-in so they can authenticate first
