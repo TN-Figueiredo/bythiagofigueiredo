@@ -8,7 +8,7 @@ const nextConfig: NextConfig = {
   // `npm run build` in packages/cms on every change. When the package is
   // extracted and published (Sprint 2 T14), this entry can be removed — the
   // published tarball ships pre-built dist/.
-  transpilePackages: ['@tn-figueiredo/cms'],
+  transpilePackages: ['@tn-figueiredo/cms', '@tn-figueiredo/email'],
 
   async headers() {
     return [

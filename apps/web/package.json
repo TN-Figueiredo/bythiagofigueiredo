@@ -16,6 +16,7 @@
     "@tn-figueiredo/admin": "0.3.0",
     "@tn-figueiredo/auth-nextjs": "2.0.0",
     "@tn-figueiredo/cms": "*",
+    "@tn-figueiredo/email": "*",
     "@tn-figueiredo/notifications": "0.1.0",
     "@tn-figueiredo/seo": "0.1.0",
     "@tn-figueiredo/shared": "0.8.0",
