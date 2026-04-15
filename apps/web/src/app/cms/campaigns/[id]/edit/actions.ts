@@ -5,6 +5,7 @@ import { isSafeUrl } from '@tn-figueiredo/cms'
 import { campaignRepo } from '../../../../../../lib/cms/repositories'
 import { getSupabaseServiceClient } from '../../../../../../lib/supabase/service'
 import { requireSiteAdminForRow } from '../../../../../../lib/cms/auth-guards'
+import { captureServerActionError } from '../../../../../lib/sentry-wrap'
 
 export interface SaveCampaignTranslationPatch {
   locale: string
@@ -94,6 +95,11 @@ export async function saveCampaign(
     p_translations: translations ?? [],
   })
   if (error) {
+    captureServerActionError(error, {
+      action: 'save_campaign',
+      campaign_id: id,
+      site_id: siteId,
+    })
     return { ok: false, error: 'db_error', message: error.message }
   }
 
@@ -109,10 +115,19 @@ export async function saveCampaign(
 
 export async function publishCampaign(id: string): Promise<void> {
   const { siteId } = await requireSiteAdminForRow('campaigns', id)
-  const campaign = await campaignRepo().publish(id, siteId)
-  revalidatePath('/cms/campaigns')
-  for (const tx of campaign.translations) {
-    revalidatePath(`/campaigns/${tx.locale}/${encodeURIComponent(tx.slug)}`)
+  try {
+    const campaign = await campaignRepo().publish(id, siteId)
+    revalidatePath('/cms/campaigns')
+    for (const tx of campaign.translations) {
+      revalidatePath(`/campaigns/${tx.locale}/${encodeURIComponent(tx.slug)}`)
+    }
+  } catch (err) {
+    captureServerActionError(err, {
+      action: 'publish_campaign',
+      campaign_id: id,
+      site_id: siteId,
+    })
+    throw err
   }
 }
 

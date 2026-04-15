@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { createServerClient } from '@supabase/ssr'
 import type { CookieOptions } from '@supabase/ssr'
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
+import { captureServerActionError } from '../../../../lib/sentry-wrap'
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -55,6 +56,7 @@ export async function acceptInviteForCurrentUser(token: string): Promise<void> {
   })
 
   if (error) {
+    captureServerActionError(error, { action: 'accept_invitation', path: 'current_user' })
     redirect(`/signup/invite/${token}?error=rpc_failed`)
   }
 
@@ -150,6 +152,10 @@ export async function acceptInviteWithPassword(
     // Instead: log server-side and sign out to clear cookies. The user can retry by
     // logging in and the page will call acceptInviteForCurrentUser on next visit.
     console.error('[acceptInviteWithPassword] accept_invitation_atomic failed', acceptErr?.message ?? JSON.stringify(acceptData))
+    captureServerActionError(acceptErr ?? new Error(`accept_invitation_atomic returned not-ok: ${JSON.stringify(acceptData)}`), {
+      action: 'accept_invitation',
+      path: 'signup_with_password',
+    })
     await userClient.auth.signOut()
     redirect(`/signup/invite/${token}?error=rpc_failed`)
   }

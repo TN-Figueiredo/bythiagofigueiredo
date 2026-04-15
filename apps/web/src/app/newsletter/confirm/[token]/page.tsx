@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
+import { captureServerActionError } from '../../../../lib/sentry-wrap'
 
 interface Props {
   params: Promise<{ token: string }>
@@ -116,6 +117,9 @@ export default async function NewsletterConfirmPage({ params }: Props) {
   const c = pickCopy(locale)
 
   if (rpcError || !result) {
+    if (rpcError) {
+      captureServerActionError(rpcError, { action: 'confirm_newsletter' })
+    }
     return (
       <main>
         <h1>{c.rpc_error_title}</h1>

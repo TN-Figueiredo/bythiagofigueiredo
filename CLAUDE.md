@@ -146,7 +146,9 @@ CMS reutilizável publicado em `@tn-figueiredo/cms` (extração pra repo própri
 ### Web (`apps/web/.env.local`)
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
 - `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_URL`
-- `SENTRY_*` (vazio até Sprint 4)
+- **Sentry (Sprint 4 Epic 9 T66+T68):**
+  - `NEXT_PUBLIC_SENTRY_DSN` — client + server runtime DSN. **Required** em Production/Preview; **optional** em Development (empty → SDK init vira no-op, nenhum evento é enviado).
+  - `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN` — usados apenas no **build** do Vercel para source map upload via `withSentryConfig`. Required em Production/Preview, optional em Dev. Obs: o build atual não wrappa `next.config.ts` com `withSentryConfig` (fallback do spec) enquanto um prerender issue pré-existente não for resolvido; SDK runtime continua ativo via `instrumentation.ts`.
 - `CRON_SECRET`
 - `BREVO_API_KEY`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` (Sprint 1b)
 - `CAMPAIGN_PDF_SIGNED_URL_TTL` (opcional, default 86400 = 24h — TTL em segundos dos signed URLs de PDFs de campanha)
@@ -155,7 +157,8 @@ CMS reutilizável publicado em `@tn-figueiredo/cms` (extração pra repo própri
 ### API (`apps/api/.env.local`)
 - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
 - `PORT`, `WEB_URL`
-- `SENTRY_*` (vazio até Sprint 4)
+- **Sentry (Sprint 4 Epic 9 T67+T68):**
+  - `SENTRY_DSN` — required em Production, optional em Development (empty → `initSentry()` vira no-op). `onError` hook captura exceções com tag `route`.
 
 ### Production (Vercel)
 - Mesmos valores do `.env.local` mas com URLs de prod
