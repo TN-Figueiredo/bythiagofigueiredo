@@ -148,7 +148,7 @@ CMS reutilizável publicado em `@tn-figueiredo/cms` (extração pra repo própri
 - `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_URL`
 - **Sentry (Sprint 4 Epic 9 T66+T68):**
   - `NEXT_PUBLIC_SENTRY_DSN` — client + server runtime DSN. **Required** em Production/Preview; **optional** em Development (empty → SDK init vira no-op, nenhum evento é enviado).
-  - `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN` — usados apenas no **build** do Vercel para source map upload via `withSentryConfig`. Required em Production/Preview, optional em Dev. Obs: o build atual não wrappa `next.config.ts` com `withSentryConfig` (fallback do spec) enquanto um prerender issue pré-existente não for resolvido; SDK runtime continua ativo via `instrumentation.ts`.
+  - `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN` — usados apenas no **build** do Vercel para source map upload. `next.config.ts` wrappa com `withSentryConfig` preservando `transpilePackages`. Required em Production/Preview, optional em Dev.
 - `CRON_SECRET`
 - `BREVO_API_KEY`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` (Sprint 1b)
 - `CAMPAIGN_PDF_SIGNED_URL_TTL` (opcional, default 86400 = 24h — TTL em segundos dos signed URLs de PDFs de campanha)
