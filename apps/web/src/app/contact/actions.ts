@@ -175,28 +175,40 @@ async function sendContactEmails(opts: {
   const adminEmail =
     (site?.contact_notification_email as string | null) ?? sender.email
 
-  const adminAlertResult = await emailService.sendTemplate(
-    contactAdminAlertTemplate,
-    { email: sender.email, name: sender.name },
-    adminEmail,
-    {
-      submitterName: opts.name,
-      submitterEmail: opts.email,
-      message: opts.message,
-      viewInAdminUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://bythiagofigueiredo.com'}/cms/contacts/${opts.submissionId}`,
-      branding,
-    },
-    opts.locale,
-  )
+  // Admin alert — dedupe on (site_id, 'contact-admin-alert', submission_id)
+  // via unique partial index; 23505 means we've already alerted for this
+  // submission. Catch it and treat as no-op.
+  try {
+    const adminAlertResult = await emailService.sendTemplate(
+      contactAdminAlertTemplate,
+      { email: sender.email, name: sender.name },
+      adminEmail,
+      {
+        submitterName: opts.name,
+        submitterEmail: opts.email,
+        message: opts.message,
+        viewInAdminUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://bythiagofigueiredo.com'}/cms/contacts/${opts.submissionId}`,
+        branding,
+      },
+      opts.locale,
+    )
 
-  await supabase.from('sent_emails').insert({
-    site_id: opts.siteId,
-    template_name: 'contact-admin-alert',
-    to_email: adminEmail,
-    subject: `Novo contato: ${opts.name}`,
-    provider: 'brevo',
-    provider_message_id: adminAlertResult.messageId ?? null,
-    status: 'sent',
-    metadata: { submission_id: opts.submissionId },
-  })
+    const { error: adminInsErr } = await supabase.from('sent_emails').insert({
+      site_id: opts.siteId,
+      template_name: 'contact-admin-alert',
+      to_email: adminEmail,
+      subject: `Novo contato: ${opts.name}`,
+      provider: 'brevo',
+      provider_message_id: adminAlertResult.messageId ?? null,
+      status: 'sent',
+      metadata: { submission_id: opts.submissionId },
+    })
+
+    // 23505 = unique violation → already alerted for this submission.
+    if (adminInsErr && (adminInsErr as { code?: string }).code !== '23505') {
+      // other DB errors — swallowed (best effort)
+    }
+  } catch {
+    /* admin alert send failure swallowed */
+  }
 }

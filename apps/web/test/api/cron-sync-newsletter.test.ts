@@ -99,7 +99,16 @@ function fakeClient(opts: FakeClientOptions = {}) {
         return { insert: cronInsert };
       }
       if (table === 'sent_emails') {
-        return { insert: sentEmailsInsert };
+        // Support both the pre-check select-chain (welcome dedupe) and insert.
+        const selectChain = {
+          eq: vi.fn().mockReturnThis(),
+          limit: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+        };
+        return {
+          insert: sentEmailsInsert,
+          select: vi.fn().mockReturnValue(selectChain),
+        };
       }
       if (table === 'newsletter_subscriptions') {
         return {

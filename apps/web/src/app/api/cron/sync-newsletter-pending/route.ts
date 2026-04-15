@@ -63,7 +63,8 @@ export async function POST(req: Request): Promise<Response> {
   const start = Date.now();
   let synced = 0;
   let unsubscribed = 0;
-  const errors: string[] = [];
+  // H2: errors log subscription_id only — never raw email (PII).
+  const errors: Array<{ id: string | null; error: string }> = [];
 
   // M6: hoist email service + base url out of the loop.
   const emailService = getEmailService();
@@ -99,7 +100,7 @@ export async function POST(req: Request): Promise<Response> {
       .limit(BATCH_SIZE);
 
     if (pendingErr) {
-      errors.push(`query pending: ${pendingErr.message}`);
+      errors.push({ id: null, error: `query pending: ${pendingErr.message}` });
     }
 
     for (const row of (pending as PendingSub[] | null) ?? []) {
@@ -129,13 +130,34 @@ export async function POST(req: Request): Promise<Response> {
 
         const brevoId = contact.id != null ? String(contact.id) : 'synced';
 
+        // Commit the Brevo sync FIRST. If the welcome-email step crashes for
+        // any reason, the next cron run will NOT re-sync this row (avoiding
+        // both a duplicate Brevo contact and a duplicate welcome send).
         await supabase
           .from('newsletter_subscriptions')
           .update({ brevo_contact_id: brevoId })
           .eq('id', row.id);
 
-        // Send welcome email (best-effort — don't fail the sync if email sending fails)
+        // Send welcome email (best-effort — don't fail the sync if email sending fails).
+        // Belt+suspenders against C1 double-send:
+        //   1. Pre-check sent_emails for an existing welcome row (skip if present).
+        //   2. Wrap insert in 23505 catch (the new unique partial index makes
+        //      concurrent double-inserts impossible at the DB level).
         try {
+          const { data: existingWelcome } = await supabase
+            .from('sent_emails')
+            .select('id')
+            .eq('site_id', row.site_id)
+            .eq('to_email', row.email)
+            .eq('template_name', 'welcome')
+            .limit(1)
+            .maybeSingle();
+
+          if (existingWelcome) {
+            synced++;
+            continue;
+          }
+
           const sender = await senderFor(row.site_id);
           const unsubscribeUrl = await ensureUnsubscribeToken(
             supabase,
@@ -159,7 +181,7 @@ export async function POST(req: Request): Promise<Response> {
           );
 
           // H8: send is synchronous here → status 'sent', not 'queued'.
-          await supabase.from('sent_emails').insert({
+          const { error: welcomeInsErr } = await supabase.from('sent_emails').insert({
             site_id: row.site_id,
             template_name: 'welcome',
             to_email: row.email,
@@ -168,10 +190,19 @@ export async function POST(req: Request): Promise<Response> {
             provider_message_id: result.messageId ?? null,
             status: 'sent',
           });
+
+          // 23505 = duplicate via unique partial index → already sent, no-op.
+          if (welcomeInsErr && (welcomeInsErr as { code?: string }).code !== '23505') {
+            errors.push({
+              id: row.id,
+              error: `welcome insert: ${welcomeInsErr.message}`,
+            });
+          }
         } catch (emailErr) {
-          errors.push(
-            `welcome email for ${row.email}: ${emailErr instanceof Error ? emailErr.message : String(emailErr)}`,
-          );
+          errors.push({
+            id: row.id,
+            error: `welcome: ${emailErr instanceof Error ? emailErr.message : String(emailErr)}`,
+          });
         }
 
         synced++;
@@ -186,9 +217,10 @@ export async function POST(req: Request): Promise<Response> {
         } catch {
           /* best-effort */
         }
-        errors.push(
-          `sync ${row.email}: ${e instanceof Error ? e.message : String(e)}`,
-        );
+        errors.push({
+          id: row.id,
+          error: `sync: ${e instanceof Error ? e.message : String(e)}`,
+        });
       }
     }
 
@@ -201,7 +233,7 @@ export async function POST(req: Request): Promise<Response> {
       .limit(BATCH_SIZE);
 
     if (unsubErr) {
-      errors.push(`query unsubscribed: ${unsubErr.message}`);
+      errors.push({ id: null, error: `query unsubscribed: ${unsubErr.message}` });
     }
 
     for (const sub of (unsubs as UnsubSub[] | null) ?? []) {
@@ -212,9 +244,10 @@ export async function POST(req: Request): Promise<Response> {
           .eq('id', sub.id);
         unsubscribed++;
       } catch (e) {
-        errors.push(
-          `unsub clear ${sub.id}: ${e instanceof Error ? e.message : String(e)}`,
-        );
+        errors.push({
+          id: sub.id,
+          error: `unsub clear: ${e instanceof Error ? e.message : String(e)}`,
+        });
       }
     }
 
@@ -225,7 +258,13 @@ export async function POST(req: Request): Promise<Response> {
         status: errors.length > 0 ? 'error' : 'ok',
         duration_ms: Date.now() - start,
         items_processed: synced + unsubscribed,
-        error: errors.length > 0 ? errors.join('; ').slice(0, 1000) : null,
+        error:
+          errors.length > 0
+            ? errors
+                .map((e) => `${e.id ?? '-'}:${e.error}`)
+                .join('; ')
+                .slice(0, 1000)
+            : null,
       });
     } catch {
       /* best-effort */
