@@ -15,12 +15,7 @@ drop policy if exists "_deny_all" on public.password_reset_attempts;
 create policy "_deny_all" on public.password_reset_attempts for all using (false) with check (false);
 
 -- Atomic check + insert. Returns true if allowed, false if rate-limited.
-create or replace function public.record_password_reset_attempt(p_email text, p_ip text default null)
-returns boolean
-language plpgsql
-security definer
-set search_path = public, pg_temp
-as $fn$
+create or replace function public.record_password_reset_attempt(p_email text, p_ip text default null) returns boolean language plpgsql security definer set search_path = public, pg_temp as $fn$
 declare
   v_count int;
 begin

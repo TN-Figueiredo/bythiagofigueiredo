@@ -31,12 +31,7 @@ create or replace function public.update_campaign_atomic(
   p_campaign_id uuid,
   p_patch jsonb,
   p_translations jsonb
-)
-returns public.campaigns
-language plpgsql
-security definer
-set search_path = public
-as $fn$
+) returns public.campaigns language plpgsql security definer set search_path = public as $fn$
 declare
   v_site_id uuid;
   v_row public.campaigns;

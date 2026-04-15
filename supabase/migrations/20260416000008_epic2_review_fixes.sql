@@ -12,10 +12,7 @@ drop function if exists public.accept_invitation_atomic(text, uuid);
 
 create or replace function public.accept_invitation_atomic(
   p_token text
-) returns json
-language plpgsql
-security definer
-as $fn$
+) returns json language plpgsql security definer as $fn$
 declare
   v_user_id uuid := auth.uid();
   v_inv record;
@@ -87,8 +84,7 @@ create unique index if not exists newsletter_pending_token
 -- I1: confirm_newsletter_subscription — add invalid_state guard
 -- ============================================================
 
-create or replace function public.confirm_newsletter_subscription(p_token text)
-returns json language plpgsql security definer as $fn$
+create or replace function public.confirm_newsletter_subscription(p_token text) returns json language plpgsql security definer as $fn$
 declare v_sub record;
 begin
   select id, site_id, email, status, confirmation_expires_at into v_sub

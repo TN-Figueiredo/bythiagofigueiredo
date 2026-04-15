@@ -8,12 +8,7 @@
 -- 1: invitations_rate_limit — NULL guard for invited_by
 -- ============================================================
 
-create or replace function public.invitations_rate_limit()
-returns trigger
-language plpgsql
-security definer
-set search_path = public, pg_temp
-as $fn$
+create or replace function public.invitations_rate_limit() returns trigger language plpgsql security definer set search_path = public, pg_temp as $fn$
 declare
   v_count int;
 begin

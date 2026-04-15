@@ -30,8 +30,7 @@ create unique index if not exists newsletter_pending_token_hash
   where status = 'pending_confirmation' and confirmation_token_hash is not null;
 
 -- Swap the RPC to lookup-by-hash. Caller passes the hash (app hashes the raw token).
-create or replace function public.confirm_newsletter_subscription(p_token_hash text)
-returns json language plpgsql security definer as $fn$
+create or replace function public.confirm_newsletter_subscription(p_token_hash text) returns json language plpgsql security definer as $fn$
 declare v_sub record;
 begin
   select id, site_id, email, status, confirmation_expires_at into v_sub
@@ -90,8 +89,7 @@ alter table public.unsubscribe_tokens
 alter table public.unsubscribe_tokens drop column if exists token;
 
 -- Rewrite RPC to look up by hash.
-create or replace function public.unsubscribe_via_token(p_token_hash text)
-returns json language plpgsql security definer as $fn$
+create or replace function public.unsubscribe_via_token(p_token_hash text) returns json language plpgsql security definer as $fn$
 declare v_tok record; v_sub record;
 begin
   select token_hash, site_id, email, used_at into v_tok
@@ -146,11 +144,7 @@ drop function if exists public.contact_rate_check(uuid, text, text);
 
 create or replace function public.contact_rate_check(
   p_site_id uuid, p_ip text, p_email text
-) returns boolean
-language plpgsql
-security definer
-set search_path = public
-as $fn$
+) returns boolean language plpgsql security definer set search_path = public as $fn$
 declare
   v_ip_inet inet;
   v_count int;
@@ -190,11 +184,7 @@ drop function if exists public.newsletter_rate_check(uuid, text, text);
 
 create or replace function public.newsletter_rate_check(
   p_site_id uuid, p_ip text, p_email text
-) returns boolean
-language plpgsql
-security definer
-set search_path = public
-as $fn$
+) returns boolean language plpgsql security definer set search_path = public as $fn$
 declare
   v_ip_inet inet;
   v_count int;
@@ -231,13 +221,11 @@ grant execute on function public.newsletter_rate_check(uuid, text, text)
 drop function if exists public.cron_try_lock(text);
 drop function if exists public.cron_unlock(text);
 
-create or replace function public.cron_try_lock(p_job text)
-returns boolean language sql security definer as $fn$
+create or replace function public.cron_try_lock(p_job text) returns boolean language sql security definer as $fn$
   select pg_try_advisory_lock(hashtextextended(p_job, 0));
 $fn$;
 
-create or replace function public.cron_unlock(p_job text)
-returns boolean language sql security definer as $fn$
+create or replace function public.cron_unlock(p_job text) returns boolean language sql security definer as $fn$
   select pg_advisory_unlock(hashtextextended(p_job, 0));
 $fn$;
 

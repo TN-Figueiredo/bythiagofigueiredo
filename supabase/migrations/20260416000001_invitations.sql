@@ -34,17 +34,7 @@ create policy "invitations admin manage"
   with check (public.org_role(org_id) in ('owner','admin'));
 
 -- RPC: get invitation by token (anon-callable, returns minimal info)
-create or replace function public.get_invitation_by_token(p_token text)
-returns table (
-  email citext,
-  role text,
-  org_name text,
-  expires_at timestamptz,
-  expired boolean
-)
-language sql
-stable
-as $fn$
+create or replace function public.get_invitation_by_token(p_token text) returns table ( email citext, role text, org_name text, expires_at timestamptz, expired boolean ) language sql stable as $fn$
   select
     i.email,
     i.role,
@@ -63,10 +53,7 @@ grant execute on function public.get_invitation_by_token(text) to anon, authenti
 create or replace function public.accept_invitation_atomic(
   p_token text,
   p_user_id uuid
-) returns json
-language plpgsql
-security definer
-as $fn$
+) returns json language plpgsql security definer as $fn$
 declare
   v_inv record;
   v_user_email citext;

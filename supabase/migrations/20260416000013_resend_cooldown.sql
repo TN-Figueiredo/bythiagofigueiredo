@@ -7,12 +7,7 @@ drop function if exists public.increment_invitation_resend(uuid);
 
 -- increment_invitation_resend: atomic increment with 30s cooldown guard (I4 fix)
 -- Returns true if the row was updated (cooldown not active), false if skipped.
-create or replace function public.increment_invitation_resend(p_id uuid)
-returns boolean
-language plpgsql
-security definer
-set search_path = public, pg_temp
-as $fn$
+create or replace function public.increment_invitation_resend(p_id uuid) returns boolean language plpgsql security definer set search_path = public, pg_temp as $fn$
 declare v_updated int;
 begin
   update public.invitations

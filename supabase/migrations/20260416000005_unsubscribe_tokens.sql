@@ -18,8 +18,7 @@ alter table public.unsubscribe_tokens enable row level security;
 drop policy if exists "unsubscribe service write" on public.unsubscribe_tokens;
 -- (no policy = effectively service-role only via bypass)
 
-create or replace function public.unsubscribe_via_token(p_token text)
-returns json language plpgsql security definer as $fn$
+create or replace function public.unsubscribe_via_token(p_token text) returns json language plpgsql security definer as $fn$
 declare v_tok record; v_sub record;
 begin
   select token, site_id, email, used_at into v_tok

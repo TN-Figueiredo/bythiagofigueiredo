@@ -46,8 +46,7 @@ create policy "newsletter staff read"
   using (public.can_admin_site(site_id) or public.is_staff());
 
 -- RPC: confirm subscription via token
-create or replace function public.confirm_newsletter_subscription(p_token text)
-returns json language plpgsql security definer as $fn$
+create or replace function public.confirm_newsletter_subscription(p_token text) returns json language plpgsql security definer as $fn$
 declare v_sub record;
 begin
   select id, site_id, email, status, confirmation_expires_at into v_sub

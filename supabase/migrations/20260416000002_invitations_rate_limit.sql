@@ -1,8 +1,7 @@
 -- Rate limit: max 20 invitations per hour per (invited_by). Defense against
 -- compromised admin credentials spamming invites.
 
-create or replace function public.invitations_rate_limit()
-returns trigger language plpgsql as $fn$
+create or replace function public.invitations_rate_limit() returns trigger language plpgsql as $fn$
 declare v_count int;
 begin
   select count(*) into v_count from public.invitations

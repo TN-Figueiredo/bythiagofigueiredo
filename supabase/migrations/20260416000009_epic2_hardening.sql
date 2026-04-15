@@ -15,12 +15,7 @@
 -- 1+2+9: unsubscribe_via_token — search_path + PII strip + null confirmation_token
 -- ============================================================
 
-create or replace function public.unsubscribe_via_token(p_token text)
-returns json
-language plpgsql
-security definer
-set search_path = public, pg_temp
-as $fn$
+create or replace function public.unsubscribe_via_token(p_token text) returns json language plpgsql security definer set search_path = public, pg_temp as $fn$
 declare
   v_tok record;
   v_sub record;
@@ -64,12 +59,7 @@ grant execute on function public.unsubscribe_via_token(text) to anon, authentica
 -- 1+2: confirm_newsletter_subscription — search_path + PII strip + oracle fix
 -- ============================================================
 
-create or replace function public.confirm_newsletter_subscription(p_token text)
-returns json
-language plpgsql
-security definer
-set search_path = public, pg_temp
-as $fn$
+create or replace function public.confirm_newsletter_subscription(p_token text) returns json language plpgsql security definer set search_path = public, pg_temp as $fn$
 declare
   v_sub record;
 begin
@@ -113,12 +103,7 @@ grant execute on function public.confirm_newsletter_subscription(text) to anon, 
 -- 1+6: accept_invitation_atomic — search_path + role-gated authors insert + slug fallback
 -- ============================================================
 
-create or replace function public.accept_invitation_atomic(p_token text)
-returns json
-language plpgsql
-security definer
-set search_path = public, pg_temp
-as $fn$
+create or replace function public.accept_invitation_atomic(p_token text) returns json language plpgsql security definer set search_path = public, pg_temp as $fn$
 declare
   v_user_id uuid := auth.uid();
   v_inv record;
@@ -201,19 +186,7 @@ grant execute on function public.accept_invitation_atomic(text) to authenticated
 -- 1: get_invitation_by_token — add search_path
 -- ============================================================
 
-create or replace function public.get_invitation_by_token(p_token text)
-returns table (
-  email citext,
-  role text,
-  org_name text,
-  expires_at timestamptz,
-  expired boolean
-)
-language sql
-stable
-security definer
-set search_path = public, pg_temp
-as $fn$
+create or replace function public.get_invitation_by_token(p_token text) returns table ( email citext, role text, org_name text, expires_at timestamptz, expired boolean ) language sql stable security definer set search_path = public, pg_temp as $fn$
   select
     i.email,
     i.role,
@@ -232,11 +205,7 @@ grant execute on function public.get_invitation_by_token(text) to anon, authenti
 -- 3: invitations_rate_limit — search_path + advisory xact lock (race fix)
 -- ============================================================
 
-create or replace function public.invitations_rate_limit()
-returns trigger
-language plpgsql
-set search_path = public, pg_temp
-as $fn$
+create or replace function public.invitations_rate_limit() returns trigger language plpgsql set search_path = public, pg_temp as $fn$
 declare
   v_count int;
 begin

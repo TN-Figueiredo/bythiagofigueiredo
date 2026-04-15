@@ -30,10 +30,7 @@ alter table public.campaigns
 -- Row-level trigger: reject inserts/updates where status='scheduled' but
 -- scheduled_for is in the past. This is not a CHECK because now() is not
 -- IMMUTABLE.
-create or replace function public.tg_campaigns_scheduled_for_future()
-returns trigger
-language plpgsql
-as $fn$
+create or replace function public.tg_campaigns_scheduled_for_future() returns trigger language plpgsql as $fn$
 begin
   if new.status = 'scheduled' and new.scheduled_for is not null and new.scheduled_for < now() then
     raise exception 'campaigns.scheduled_for must be in the future when status=scheduled (got %)',
