@@ -117,15 +117,14 @@ export default async function EditCampaignPage({ params }: Props) {
           )
         : translations
     const result = await saveCampaign(id, campaignPatch, translationsWithSlug)
-    if (result.ok) return { ok: true }
+    if (result.ok) return { ok: true, campaignId: result.campaignId }
     if (result.error === 'validation_failed') {
-      return {
-        ok: false,
-        error: result.error,
-        message: Object.entries(result.fields).map(([k, v]) => `${k}: ${v}`).join(', '),
-      }
+      return { ok: false, error: 'validation_failed', fields: result.fields }
     }
-    return { ok: false, error: result.error, message: result.message }
+    if (result.error === 'status_transition_rejected') {
+      return { ok: false, error: 'status_transition_rejected', message: result.message }
+    }
+    return { ok: false, error: 'db_error', message: result.message }
   }
 
   return (

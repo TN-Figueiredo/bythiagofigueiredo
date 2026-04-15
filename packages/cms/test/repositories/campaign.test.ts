@@ -305,4 +305,29 @@ describe('SupabaseCampaignRepository', () => {
     expect(eqArgs).toContainEqual(['id', 'c1'])
     expect(eqArgs).toContainEqual(['site_id', 's1'])
   })
+
+  it('delete does not throw when the row has translations (cascade relies on DB FK)', async () => {
+    // Mirrors the DB schema: campaign_translations.campaign_id has
+    // `on delete cascade`, so deleting the parent row is a single statement.
+    // This test simulates a successful cascade: the single DELETE resolves
+    // without an error even though translations exist on the row.
+    const { client, terminalResults } = makeWriteAwareClient()
+    terminalResults.push({ error: null })
+    const repo = new SupabaseCampaignRepository(client as never)
+    await expect(repo.delete('c1', 's1')).resolves.not.toThrow()
+  })
+
+  it('update surfaces RPC/DB errors from unknown-patch-key rejections', async () => {
+    const { client, terminalResults } = makeWriteAwareClient()
+    // First parent update fails with the RPC's raise-exception message.
+    terminalResults.push({ error: { message: 'update_campaign_atomic: unknown patch keys: bogus' } })
+    const repo = new SupabaseCampaignRepository(client as never)
+    await expect(
+      repo.update('c1', 's1', {
+        // use a real supported key — the fake client doesn't care which keys
+        // are in the payload, it just returns the queued error.
+        status: 'draft',
+      }),
+    ).rejects.toThrow(/unknown patch keys/)
+  })
 })

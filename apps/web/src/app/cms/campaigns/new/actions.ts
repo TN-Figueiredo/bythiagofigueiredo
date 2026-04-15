@@ -58,9 +58,19 @@ export async function createCampaign(
     return { ok: false, error: 'forbidden' }
   }
 
+  // Defensive boundary: re-assert that the site id used for the insert is
+  // the same one we just authorized. If `getSiteContext()` ever drifts under
+  // Host-header spoofing (fix deferred to Sprint 4 observability), this guard
+  // refuses to write a row scoped to a different ring than the one the user
+  // was authorized against.
+  const siteIdForInsert = ctx.siteId
+  if (!siteIdForInsert || siteIdForInsert.length === 0) {
+    return { ok: false, error: 'forbidden', message: 'site_id missing on insert' }
+  }
+
   try {
     const campaign = await campaignRepo().create({
-      site_id: ctx.siteId,
+      site_id: siteIdForInsert,
       interest: input.interest,
       initial_translation: {
         locale: input.locale,

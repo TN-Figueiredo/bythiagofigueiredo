@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { getEditorStrings } from './strings'
 import { useAutosave } from '../hooks/use-autosave'
+import { getNewDraftId, clearNewDraftId } from '../hooks/new-draft-id'
 import {
   CampaignMetaForm,
   type CampaignMetaFormValue,
@@ -45,8 +46,11 @@ export interface CampaignEditorSaveInput {
 }
 
 export type CampaignEditorSaveResult =
-  | { ok: true }
-  | { ok: false; error: string; message?: string }
+  | { ok: true; campaignId?: string }
+  | { ok: false; error: 'validation_failed'; fields: Record<string, string> }
+  | { ok: false; error: 'compile_failed'; message: string }
+  | { ok: false; error: 'db_error'; message: string }
+  | { ok: false; error: 'status_transition_rejected'; message: string }
 
 export interface CampaignEditorProps {
   campaignId: string
@@ -108,8 +112,18 @@ export function CampaignEditor(props: CampaignEditorProps) {
   )
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({})
 
-  const autosaveKey = `campaign-draft:${props.campaignId}`
+  // Mint per-tab session id when the campaign has no stable id yet.
+  const newDraftIdRef = React.useRef<string | null>(null)
+  const isNewDraft = !props.campaignId || props.campaignId === 'new'
+  if (isNewDraft && newDraftIdRef.current == null) {
+    newDraftIdRef.current = getNewDraftId('campaign')
+  }
+  const draftKeyId = isNewDraft
+    ? (newDraftIdRef.current ?? 'new')
+    : props.campaignId
+  const autosaveKey = `campaign-draft:${draftKeyId}`
   const snapshot = React.useMemo<CampaignDraft>(
     () => ({ campaign, translations, activeLocale }),
     [campaign, translations, activeLocale],
@@ -149,6 +163,7 @@ export function CampaignEditor(props: CampaignEditorProps) {
 
   async function handleSave() {
     setError(null)
+    setFieldErrors({})
     setSaving(true)
     try {
       const patch: Partial<CampaignEditorInitialCampaign> = {
@@ -163,9 +178,15 @@ export function CampaignEditor(props: CampaignEditorProps) {
       }
       const result = await props.onSave({ patch, translations })
       if (!result.ok) {
-        setError(result.message ?? result.error ?? s.campaign_editor_save_error)
+        if (result.error === 'validation_failed') {
+          setFieldErrors(result.fields)
+          setError(s.validationFailed(Object.keys(result.fields)))
+        } else {
+          setError(result.message ?? s.campaign_editor_save_error)
+        }
       } else {
         autosave.discard()
+        if (isNewDraft) clearNewDraftId('campaign')
       }
     } finally {
       setSaving(false)
@@ -241,6 +262,15 @@ export function CampaignEditor(props: CampaignEditorProps) {
       </section>
 
       {error && <p role="alert">{error}</p>}
+      {Object.keys(fieldErrors).length > 0 && (
+        <ul data-testid="campaign-field-errors" role="list">
+          {Object.entries(fieldErrors).map(([field, msg]) => (
+            <li key={field} data-field={field}>
+              <strong>{field}</strong>: {msg}
+            </li>
+          ))}
+        </ul>
+      )}
 
       <button type="button" disabled={saving} onClick={handleSave}>
         {saving ? s.savingButton : s.saveButton}

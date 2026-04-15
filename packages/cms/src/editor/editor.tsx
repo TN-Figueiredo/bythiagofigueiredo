@@ -7,6 +7,7 @@ import { EditorPreview } from './preview'
 import { AssetPicker } from './asset-picker'
 import { getEditorStrings } from './strings'
 import { useAutosave } from '../hooks/use-autosave'
+import { getNewDraftId, clearNewDraftId } from '../hooks/new-draft-id'
 
 export interface SavePostInput {
   content_mdx: string
@@ -75,7 +76,14 @@ export function PostEditor(props: PostEditorProps) {
   const [error, setError] = React.useState<string | null>(null)
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
 
-  const autosaveKey = `post-draft:${props.postId ?? 'new'}`
+  // For drafts without a real postId, mint a per-tab session id so two tabs
+  // editing "new post" don't clobber each other in localStorage.
+  const newDraftIdRef = React.useRef<string | null>(null)
+  if (!props.postId && newDraftIdRef.current == null) {
+    newDraftIdRef.current = getNewDraftId('post')
+  }
+  const draftKeyId = props.postId ?? newDraftIdRef.current ?? 'new'
+  const autosaveKey = `post-draft:${draftKeyId}`
   const autosaveValue = React.useMemo<DraftSnapshot>(
     () => ({
       source,
@@ -148,6 +156,11 @@ export function PostEditor(props: PostEditorProps) {
       } else {
         // Successful save — clear any residual draft.
         autosave.discard()
+        if (!props.postId) {
+          // New draft got a real id on the server; release the session id so
+          // the next "new" draft mints a fresh one.
+          clearNewDraftId('post')
+        }
       }
     } finally {
       setSaving(false)
