@@ -167,7 +167,6 @@ begin
 end;
 $fn$;
 
-  to anon, authenticated, service_role;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Newsletter rate-limit RPC (inet-typed, 1-hour window, 5/window).
@@ -206,7 +205,6 @@ begin
 end;
 $fn$;
 
-  to anon, authenticated, service_role;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- H6/H7: Advisory-lock RPCs for cron routes (serialise concurrent invocations).

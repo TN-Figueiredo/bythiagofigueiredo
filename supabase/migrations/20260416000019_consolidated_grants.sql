@@ -35,8 +35,8 @@ grant execute on function public.increment_invitation_resend(uuid) to service_ro
 -- from 20260416000014_contact_rate_limit_and_cron_locks.sql
 grant execute on function public.confirm_newsletter_subscription(text) to anon, authenticated;
 grant execute on function public.unsubscribe_via_token(text) to anon, authenticated;
-grant execute on function public.contact_rate_check(uuid, text, text)
-grant execute on function public.newsletter_rate_check(uuid, text, text)
+grant execute on function public.contact_rate_check(uuid, text, text) to anon, authenticated, service_role;
+grant execute on function public.newsletter_rate_check(uuid, text, text) to anon, authenticated, service_role;
 grant execute on function public.cron_try_lock(text) to service_role;
 grant execute on function public.cron_unlock(text) to service_role;
 
