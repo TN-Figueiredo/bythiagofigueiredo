@@ -98,8 +98,8 @@ begin
   returning id into v_post1;
   insert into public.blog_translations (post_id, locale, title, slug, excerpt, content_mdx)
   values
-    (v_post1, 'pt-BR', 'Primeiro post', 'primeiro-post', 'Olá mundo', '# Olá\n\nConteúdo pt-BR.'),
-    (v_post1, 'en',    'First post',    'first-post',    'Hello world', '# Hello\n\nEnglish content.');
+    (v_post1, 'pt-BR', 'Primeiro post', 'primeiro-post', 'Olá mundo', E'# Olá\n\nConteúdo pt-BR.'),
+    (v_post1, 'en',    'First post',    'first-post',    'Hello world', E'# Hello\n\nEnglish content.');
 
   insert into public.blog_posts (author_id, status, site_id)
   values (v_author_id, 'draft', v_site_id)
