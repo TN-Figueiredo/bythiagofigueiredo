@@ -1,7 +1,8 @@
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service';
-import { getLogger } from '../../../../../lib/logger';
+import { logCron, newRunId } from '../../../../../lib/logger';
 
 const LOCK_KEY = 'cron:publish-scheduled';
+const JOB = 'publish-scheduled';
 
 type SupabaseSvc = ReturnType<typeof getSupabaseServiceClient>;
 
@@ -31,10 +32,12 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   const supabase = getSupabaseServiceClient();
+  const run_id = newRunId();
 
   // H7: advisory lock — skip overlapping runs.
   const gotLock = await tryLock(supabase);
   if (!gotLock) {
+    logCron({ job: JOB, run_id, status: 'locked' });
     return Response.json({ status: 'locked' }, { status: 200 });
   }
 
@@ -65,32 +68,46 @@ export async function POST(req: Request): Promise<Response> {
       else errors.push(r.reason instanceof Error ? r.reason.message : String(r.reason));
     }
 
+    const duration_ms = Date.now() - start;
+
     if (errors.length > 0) {
       const errMsg = errors.join('; ');
       try {
         await supabase.from('cron_runs').insert({
-          job: 'publish-scheduled',
+          job: JOB,
           status: 'error',
-          duration_ms: Date.now() - start,
+          duration_ms,
           items_processed: processed,
           error: errMsg,
         });
       } catch {
         /* best-effort */
       }
-      const rejected = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
-      getLogger().error('[cron_publish_scheduled_error]', {
+      logCron({
+        job: JOB,
+        run_id,
+        status: 'error',
+        duration_ms,
+        published_count: processed,
+        err_code: 'update_failed',
         error: errMsg,
-        stack: rejected?.reason instanceof Error ? rejected.reason.stack : undefined,
       });
       return Response.json({ error: 'cron_failed', processed }, { status: 500 });
     }
 
     await supabase.from('cron_runs').insert({
-      job: 'publish-scheduled',
+      job: JOB,
       status: 'ok',
-      duration_ms: Date.now() - start,
+      duration_ms,
       items_processed: processed,
+    });
+
+    logCron({
+      job: JOB,
+      run_id,
+      status: 'ok',
+      duration_ms,
+      published_count: processed,
     });
 
     return Response.json({ processed });

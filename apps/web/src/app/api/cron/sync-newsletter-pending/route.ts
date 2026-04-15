@@ -3,9 +3,11 @@ import { getSupabaseServiceClient } from '../../../../../lib/supabase/service';
 import { getEmailService } from '../../../../../lib/email/service';
 import { getEmailSender } from '../../../../../lib/email/sender';
 import { createBrevoContact } from '../../../../../lib/brevo';
+import { logCron, newRunId } from '../../../../../lib/logger';
 
 const BATCH_SIZE = 50;
 const LOCK_KEY = 'cron:sync-newsletter-pending';
+const JOB = 'sync-newsletter-pending';
 
 interface PendingSub {
   id: string;
@@ -53,10 +55,12 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   const supabase = getSupabaseServiceClient();
+  const run_id = newRunId();
 
   // H6: advisory lock — skip overlapping runs.
   const gotLock = await tryLock(supabase);
   if (!gotLock) {
+    logCron({ job: JOB, run_id, status: 'locked' });
     return Response.json({ status: 'locked' }, { status: 200 });
   }
 
@@ -252,23 +256,41 @@ export async function POST(req: Request): Promise<Response> {
     }
 
     // --- Cron audit log ---
+    const duration_ms = Date.now() - start;
+    const hasErrors = errors.length > 0;
     try {
       await supabase.from('cron_runs').insert({
-        job: 'sync-newsletter-pending',
-        status: errors.length > 0 ? 'error' : 'ok',
-        duration_ms: Date.now() - start,
+        job: JOB,
+        status: hasErrors ? 'error' : 'ok',
+        duration_ms,
         items_processed: synced + unsubscribed,
-        error:
-          errors.length > 0
-            ? errors
-                .map((e) => `${e.id ?? '-'}:${e.error}`)
-                .join('; ')
-                .slice(0, 1000)
-            : null,
+        error: hasErrors
+          ? errors
+              .map((e) => `${e.id ?? '-'}:${e.error}`)
+              .join('; ')
+              .slice(0, 1000)
+          : null,
       });
     } catch {
       /* best-effort */
     }
+
+    // Structured log. `brevo_created` == `synced` (a row is counted there
+    // after the Brevo create RPC succeeds, whether or not the welcome email
+    // was skipped due to the duplicate-send guard). Tracking
+    // `welcome_sent` distinctly would require a structural change beyond
+    // this logging swap and is deferred.
+    logCron({
+      job: JOB,
+      run_id,
+      status: hasErrors ? 'error' : 'ok',
+      duration_ms,
+      processed: synced + unsubscribed,
+      brevo_created: synced,
+      unsubscribed,
+      errors_count: errors.length,
+      ...(hasErrors ? { err_code: 'partial_failure' } : {}),
+    });
 
     return Response.json({ synced, unsubscribed, errors: errors.length });
   } finally {
