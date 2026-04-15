@@ -129,9 +129,15 @@ describe.skipIf(skipIfNoLocalDb())('campaign_submissions RLS + consent trigger',
   })
 
   async function makeCampaign(): Promise<string> {
+    // Anon insert policy requires the campaign to be publicly visible
+    // (status='published', published_at<=now()) — see migration 000018.
     const { data, error } = await admin
       .from('campaigns')
-      .insert({ interest: 'creator' })
+      .insert({
+        interest: 'creator',
+        status: 'published',
+        published_at: new Date(Date.now() - 60_000).toISOString(),
+      })
       .select('id')
       .single()
     if (error || !data) throw error ?? new Error('campaign insert failed')

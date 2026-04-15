@@ -3,17 +3,12 @@
 -- Running this against prod would reset/overwrite real auth data.
 
 -- Idempotence: truncate all dev application tables in child-to-parent FK order
--- so this seed can be re-run cleanly.
+-- so this seed can be re-run cleanly. Sprint 1b tables (campaigns /
+-- campaign_translations / campaign_submissions / cron_runs) are now listed.
+-- Future sprints: add new tables child-to-parent here.
 --
 -- auth.users is NOT truncated — a user-level seed cannot truncate the auth
 -- schema, so it is handled via `on conflict (id) do update` below.
---
--- IMPORTANT — extending this list:
--- When a later sprint adds tables with their own dev fixtures (e.g. Sprint 1b
--- campaigns / campaign_translations / campaign_submissions / cron_runs, which
--- attach to `auth.users` rather than `public.authors` and therefore are NOT
--- reached by any cascade from the blog tables), the author MUST add those
--- tables to this truncate list explicitly, in child-to-parent order.
 --
 -- `restrict` (not `cascade`) is deliberate: if a future table grows an FK into
 -- one of these and is not added here, the truncate will fail loudly with an FK
@@ -30,6 +25,10 @@
 --   `select id into v_author_id from public.authors where slug = 'thiago'`
 --   must be re-introduced after the authors insert.
 truncate table
+  public.campaign_submissions,
+  public.campaign_translations,
+  public.campaigns,
+  public.cron_runs,
   public.blog_translations,
   public.blog_posts,
   public.authors
