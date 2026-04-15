@@ -146,10 +146,41 @@ describe('publish/unpublish/archive/delete transitions', () => {
     expect(revalidatePath).toHaveBeenCalled()
   })
 
-  it('deleteCampaign revalidates cms list', async () => {
-    await deleteCampaign('c1')
+  it('deleteCampaign returns ok:true for a draft', async () => {
+    const result = await deleteCampaign('c1')
+    expect(result).toEqual({ ok: true })
     const { revalidatePath } = await import('next/cache')
     expect(revalidatePath).toHaveBeenCalledWith('/cms/campaigns')
+  })
+})
+
+describe('saveCampaign URL sanitization', () => {
+  beforeEach(() => {
+    vi.mocked(authGuards.requireSiteAdminForRow).mockResolvedValue({ siteId: 's1' })
+    rpcMock.mockClear()
+    rpcMock.mockResolvedValue({ data: null, error: null })
+  })
+
+  it('rejects javascript: og_image_url in a translation', async () => {
+    const result = await saveCampaign(
+      'c1',
+      { interest: 'x' },
+      [{ locale: 'pt-BR', slug: 'p', og_image_url: 'javascript:alert(1)' }],
+    )
+    expect(result.ok).toBe(false)
+    if (!result.ok && result.error === 'validation_failed') {
+      expect(result.fields.og_image_url).toBe('invalid_url')
+    }
+    expect(rpcMock).not.toHaveBeenCalled()
+  })
+
+  it('accepts https og_image_url', async () => {
+    const result = await saveCampaign(
+      'c1',
+      { interest: 'x' },
+      [{ locale: 'pt-BR', slug: 'p', og_image_url: 'https://cdn.example.com/x.png' }],
+    )
+    expect(result.ok).toBe(true)
   })
 })
 

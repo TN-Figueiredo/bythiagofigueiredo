@@ -13,10 +13,27 @@ import {
   AlertDialogTrigger,
 } from '../../../../components/ui/alert-dialog'
 
+export type DeleteCampaignActionResult =
+  | { ok: true }
+  | { ok: false; error: 'already_published' | 'not_found' | 'db_error'; message?: string }
+
 export interface DeleteCampaignButtonProps {
   campaignId: string
   campaignLabel: string
-  onDelete: (id: string) => Promise<void>
+  onDelete: (id: string) => Promise<DeleteCampaignActionResult>
+}
+
+function describeDeleteError(
+  r: Extract<DeleteCampaignActionResult, { ok: false }>,
+): string {
+  switch (r.error) {
+    case 'already_published':
+      return 'Esta campanha foi publicada e não pode mais ser excluída. Recarregue a lista.'
+    case 'not_found':
+      return 'Campanha não encontrada (pode já ter sido excluída).'
+    case 'db_error':
+      return r.message ?? 'Falha no banco ao excluir.'
+  }
 }
 
 export function DeleteCampaignButton({
@@ -33,9 +50,13 @@ export function DeleteCampaignButton({
     setError(null)
     startTransition(async () => {
       try {
-        await onDelete(campaignId)
-        setDeleted(true)
-        setOpen(false)
+        const result = await onDelete(campaignId)
+        if (result.ok) {
+          setDeleted(true)
+          setOpen(false)
+        } else {
+          setError(describeDeleteError(result))
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Falha ao excluir')
       }

@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { isSafeUrl } from '@tn-figueiredo/cms'
 import { campaignRepo } from '../../../../../../lib/cms/repositories'
 import { getSupabaseServiceClient } from '../../../../../../lib/supabase/service'
 import { requireSiteAdminForRow } from '../../../../../../lib/cms/auth-guards'
@@ -79,6 +80,9 @@ export async function saveCampaign(
     if (t.slug !== undefined && !t.slug.trim()) {
       return { ok: false, error: 'validation_failed', fields: { slug: 'required' } }
     }
+    if (!isSafeUrl(t.og_image_url ?? null)) {
+      return { ok: false, error: 'validation_failed', fields: { og_image_url: 'invalid_url' } }
+    }
   }
 
   const { siteId } = await requireSiteAdminForRow('campaigns', id)
@@ -130,14 +134,29 @@ export async function archiveCampaign(id: string): Promise<void> {
   }
 }
 
-export async function deleteCampaign(id: string): Promise<void> {
+export type DeleteCampaignResult =
+  | { ok: true }
+  | { ok: false; error: 'already_published' | 'not_found' | 'db_error'; message?: string }
+
+export async function deleteCampaign(id: string): Promise<DeleteCampaignResult> {
   const { siteId } = await requireSiteAdminForRow('campaigns', id)
   const campaign = await campaignRepo().getById(id, siteId)
-  if (campaign && (campaign.status === 'draft' || campaign.status === 'archived')) {
-    await campaignRepo().delete(id, siteId)
-    for (const tx of campaign.translations) {
-      revalidatePath(`/campaigns/${tx.locale}/${encodeURIComponent(tx.slug)}`)
-    }
-    revalidatePath('/cms/campaigns')
+  if (!campaign) return { ok: false, error: 'not_found' }
+  if (campaign.status !== 'draft' && campaign.status !== 'archived') {
+    return { ok: false, error: 'already_published' }
   }
+  try {
+    await campaignRepo().delete(id, siteId)
+  } catch (e) {
+    return {
+      ok: false,
+      error: 'db_error',
+      message: e instanceof Error ? e.message : String(e),
+    }
+  }
+  for (const tx of campaign.translations) {
+    revalidatePath(`/campaigns/${tx.locale}/${encodeURIComponent(tx.slug)}`)
+  }
+  revalidatePath('/cms/campaigns')
+  return { ok: true }
 }

@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { compileMdx, uploadContentAsset, type CompiledMdx } from '@tn-figueiredo/cms'
+import { compileMdx, uploadContentAsset, isSafeUrl, type CompiledMdx } from '@tn-figueiredo/cms'
 import { postRepo } from '../../../../../../lib/cms/repositories'
 import { blogRegistry } from '../../../../../../lib/cms/registry'
 import { getSiteContext } from '../../../../../../lib/cms/site-context'
@@ -35,6 +35,12 @@ export async function savePost(
   }
   if (!input.slug.trim()) {
     return { ok: false, error: 'validation_failed', fields: { slug: 'required' } }
+  }
+  if (!isSafeUrl(input.og_image_url)) {
+    return { ok: false, error: 'validation_failed', fields: { og_image_url: 'invalid_url' } }
+  }
+  if (!isSafeUrl(input.cover_image_url)) {
+    return { ok: false, error: 'validation_failed', fields: { cover_image_url: 'invalid_url' } }
   }
 
   await requireSiteAdminForRow('blog_posts', id)

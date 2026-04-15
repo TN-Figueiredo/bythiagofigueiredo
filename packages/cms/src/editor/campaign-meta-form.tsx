@@ -27,6 +27,34 @@ function parseIntOrNull(raw: string): number | null {
   return Number.isFinite(n) ? n : null
 }
 
+/**
+ * Convert an HTML `<input type="datetime-local">` value (wall-clock, no
+ * offset) into an ISO-8601 UTC string using the browser's local TZ.
+ * Returns null for empty input and for inputs `new Date` rejects.
+ */
+export function localDatetimeToIso(raw: string): string | null {
+  if (raw.trim() === '') return null
+  const d = new Date(raw)
+  if (Number.isNaN(d.getTime())) return null
+  return d.toISOString()
+}
+
+/**
+ * Convert an ISO timestamp back to a `datetime-local` wall-clock string for
+ * display in the input. Returns '' for null/invalid input.
+ */
+export function isoToLocalDatetime(iso: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  // yyyy-MM-ddTHH:mm in local TZ
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  )
+}
+
 export function CampaignMetaForm({ locale, value, onChange }: CampaignMetaFormProps) {
   const s = getEditorStrings(locale)
 
@@ -54,27 +82,31 @@ export function CampaignMetaForm({ locale, value, onChange }: CampaignMetaFormPr
         />
       </label>
 
-      <label>
-        {s.campaign_editor_status}
-        <select
-          aria-label={s.campaign_editor_status}
-          value={value.status}
-          onChange={(e) => onChange({ status: e.target.value as CampaignStatus })}
-        >
-          <option value="draft">{s.campaign_editor_status_draft}</option>
-          <option value="scheduled">{s.campaign_editor_status_scheduled}</option>
-          <option value="published">{s.campaign_editor_status_published}</option>
-          <option value="archived">{s.campaign_editor_status_archived}</option>
-        </select>
-      </label>
+      {/* Status is read-only in this form: the RPC rejects status transitions
+          via the generic save path. Keep it visible as a label so authors
+          know the current state; transitions go through dedicated buttons. */}
+      <p data-testid="campaign-status-readonly">
+        <strong>{s.campaign_editor_status}:</strong>{' '}
+        <span data-status={value.status}>
+          {value.status === 'draft'
+            ? s.campaign_editor_status_draft
+            : value.status === 'scheduled'
+              ? s.campaign_editor_status_scheduled
+              : value.status === 'published'
+                ? s.campaign_editor_status_published
+                : s.campaign_editor_status_archived}
+        </span>
+      </p>
 
       <label>
         {s.campaign_editor_scheduled_for}
         <input
           type="datetime-local"
           aria-label={s.campaign_editor_scheduled_for}
-          value={value.scheduled_for ?? ''}
-          onChange={(e) => onChange({ scheduled_for: e.target.value || null })}
+          value={isoToLocalDatetime(value.scheduled_for)}
+          onChange={(e) =>
+            onChange({ scheduled_for: localDatetimeToIso(e.target.value) })
+          }
         />
       </label>
 

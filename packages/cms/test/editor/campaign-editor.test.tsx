@@ -162,6 +162,43 @@ describe('CampaignEditor', () => {
     })
   })
 
+  it('debounces autosave writes under fake timers', async () => {
+    vi.useFakeTimers()
+    try {
+      render(
+        <CampaignEditor
+          campaignId="c-debounce"
+          initialCampaign={baseCampaign}
+          initialTranslations={[ptTranslation]}
+          locale="pt-BR"
+          availableLocales={['pt-BR']}
+          onSave={vi.fn().mockResolvedValue({ ok: true })}
+        />,
+      )
+      const slugInput = screen.getByRole('textbox', {
+        name: /^Slug$/i,
+      }) as HTMLInputElement
+      fireEvent.change(slugInput, { target: { value: 'draft-slug-xx' } })
+
+      // Before the debounce window elapses, nothing is written.
+      act(() => {
+        vi.advanceTimersByTime(500)
+      })
+      expect(window.localStorage.getItem('campaign-draft:c-debounce')).toBe(null)
+
+      // After the default 2000ms window, the draft is persisted.
+      act(() => {
+        vi.advanceTimersByTime(2000)
+      })
+      const persisted = window.localStorage.getItem('campaign-draft:c-debounce')
+      expect(persisted).not.toBe(null)
+      const parsed = JSON.parse(persisted!)
+      expect(parsed.campaign.slug).toBe('draft-slug-xx')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('shows autosave restore banner when draft exists in storage', async () => {
     const draft = {
       campaign: { ...baseCampaign, slug: 'draft-slug' },
