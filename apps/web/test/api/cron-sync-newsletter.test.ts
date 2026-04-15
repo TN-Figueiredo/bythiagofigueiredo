@@ -52,9 +52,9 @@ function makePendingSub(overrides: Record<string, unknown> = {}) {
 
 interface FakeClientOptions {
   pendingSubs?: unknown[];
-  pendingError?: { message: string };
+  pendingError?: { message: string } | null;
   unsubSubs?: unknown[];
-  brevoContactId?: string;
+  lockAcquired?: boolean;
 }
 
 function fakeClient(opts: FakeClientOptions = {}) {
@@ -62,18 +62,36 @@ function fakeClient(opts: FakeClientOptions = {}) {
     pendingSubs = [],
     pendingError = null,
     unsubSubs = [],
+    lockAcquired = true,
   } = opts;
 
   const cronInsert = vi.fn().mockResolvedValue({ data: null, error: null });
   const sentEmailsInsert = vi.fn().mockResolvedValue({ data: null, error: null });
-  const updateChain = {
-    eq: vi.fn().mockResolvedValue({ data: null, error: null }),
-  };
 
-  // track state per table per call
+  // Chainable result for update(...).eq(...) that also supports .is().select() + .like().
+  const updateEq = vi.fn().mockImplementation(() => {
+    const resolved = { data: [{ id: 'sub-1' }], error: null };
+    const obj: Record<string, unknown> = {
+      is: vi.fn().mockReturnValue({
+        select: vi.fn().mockResolvedValue(resolved),
+      }),
+      like: vi.fn().mockResolvedValue(resolved),
+      select: vi.fn().mockResolvedValue(resolved),
+      then: (onFulfilled: (v: typeof resolved) => void) =>
+        Promise.resolve(resolved).then(onFulfilled),
+    };
+    return obj;
+  });
+  const updateChain = { eq: updateEq };
+
   const callCounts: Record<string, number> = {};
 
   const client = {
+    rpc: vi.fn().mockImplementation((fn: string) => {
+      if (fn === 'cron_try_lock') return Promise.resolve({ data: lockAcquired, error: null });
+      if (fn === 'cron_unlock') return Promise.resolve({ data: true, error: null });
+      return Promise.resolve({ data: null, error: null });
+    }),
     from: vi.fn((table: string) => {
       callCounts[table] = (callCounts[table] ?? 0) + 1;
 
@@ -90,9 +108,6 @@ function fakeClient(opts: FakeClientOptions = {}) {
           is: vi.fn().mockReturnThis(),
           not: vi.fn().mockReturnThis(),
           limit: vi.fn().mockImplementation(() => {
-            // Determine which query this is based on call count
-            // First call = pending (confirmed + brevo_contact_id IS NULL)
-            // Second call = unsubscribes
             const count = callCounts[table];
             if (count === 1) {
               return Promise.resolve({ data: pendingSubs, error: pendingError });
@@ -127,7 +142,6 @@ beforeEach(() => {
   process.env.CRON_SECRET = 'topsecret';
   process.env.NEXT_PUBLIC_APP_URL = 'https://example.com';
   vi.clearAllMocks();
-  // Re-apply implementations cleared by clearAllMocks
   vi.mocked(getEmailSender).mockResolvedValue(MOCK_SENDER);
   vi.mocked(ensureUnsubscribeToken).mockResolvedValue('https://example.com/unsubscribe?token=abc');
   vi.mocked(getEmailService).mockReturnValue({
@@ -163,6 +177,19 @@ describe('POST /api/cron/sync-newsletter-pending — auth', () => {
   });
 });
 
+describe('POST /api/cron/sync-newsletter-pending — locking', () => {
+  it('returns {status:locked} when advisory lock is held', async () => {
+    const c = fakeClient({ lockAcquired: false });
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(c as never);
+    const res = await POST(makeReq('Bearer topsecret'));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.status).toBe('locked');
+    // No DB work attempted.
+    expect(c._cronInsert).not.toHaveBeenCalled();
+  });
+});
+
 describe('POST /api/cron/sync-newsletter-pending — no pending subs', () => {
   it('200 with empty response when no pending subs', async () => {
     const c = fakeClient({ pendingSubs: [], unsubSubs: [] });
@@ -176,7 +203,6 @@ describe('POST /api/cron/sync-newsletter-pending — no pending subs', () => {
     expect(body.unsubscribed).toBe(0);
     expect(body.errors).toBe(0);
 
-    // cron_runs logged as ok
     expect(c._cronInsert).toHaveBeenCalledWith(
       expect.objectContaining({ job: 'sync-newsletter-pending', status: 'ok', items_processed: 0 }),
     );
@@ -196,26 +222,24 @@ describe('POST /api/cron/sync-newsletter-pending — happy path', () => {
     expect(body.synced).toBe(1);
     expect(body.errors).toBe(0);
 
-    // Brevo called with correct params
     expect(createBrevoContact).toHaveBeenCalledWith(
       expect.objectContaining({ email: 'user@example.com', listId: 42 }),
     );
 
-    // update called with brevo_contact_id
+    // update().eq('id', ...) called for sentinel-reserve + final brevo_contact_id write.
     expect(c._updateChain.eq).toHaveBeenCalledWith('id', 'sub-1');
 
-    // sent_emails insert called
+    // H8: status is 'sent', not 'queued'.
     expect(c._sentEmailsInsert).toHaveBeenCalledWith(
       expect.objectContaining({
         site_id: 'site-1',
         template_name: 'welcome',
         to_email: 'user@example.com',
         provider: 'brevo',
-        status: 'queued',
+        status: 'sent',
       }),
     );
 
-    // cron logged as ok
     expect(c._cronInsert).toHaveBeenCalledWith(
       expect.objectContaining({ job: 'sync-newsletter-pending', status: 'ok', items_processed: 1 }),
     );
@@ -223,7 +247,7 @@ describe('POST /api/cron/sync-newsletter-pending — happy path', () => {
 });
 
 describe('POST /api/cron/sync-newsletter-pending — Brevo failure', () => {
-  it('records error, leaves brevo_contact_id null, returns errors count', async () => {
+  it('records error, returns errors count', async () => {
     const sub = makePendingSub();
     const c = fakeClient({ pendingSubs: [sub] });
     vi.mocked(getSupabaseServiceClient).mockReturnValue(c as never);
@@ -235,9 +259,6 @@ describe('POST /api/cron/sync-newsletter-pending — Brevo failure', () => {
     expect(body.synced).toBe(0);
     expect(body.errors).toBeGreaterThan(0);
 
-    // brevo_contact_id should NOT have been updated
-    // (update chain would have been called after the contact creation which failed)
-    // We verify by checking cronInsert captured the error
     expect(c._cronInsert).toHaveBeenCalledWith(
       expect.objectContaining({ job: 'sync-newsletter-pending', status: 'error' }),
     );
@@ -256,7 +277,6 @@ describe('POST /api/cron/sync-newsletter-pending — unsubscribe sync', () => {
     expect(body.unsubscribed).toBe(1);
     expect(body.synced).toBe(0);
 
-    // update called with null brevo_contact_id
     expect(c._updateChain.eq).toHaveBeenCalledWith('id', 'sub-2');
 
     expect(c._cronInsert).toHaveBeenCalledWith(
@@ -281,7 +301,6 @@ describe('POST /api/cron/sync-newsletter-pending — skip sub with no list id', 
     const res = await POST(makeReq('Bearer topsecret'));
     expect(res.status).toBe(200);
     const body = await res.json();
-    // synced=0 because no listId → skipped
     expect(body.synced).toBe(0);
     expect(body.errors).toBe(0);
     expect(createBrevoContact).not.toHaveBeenCalled();

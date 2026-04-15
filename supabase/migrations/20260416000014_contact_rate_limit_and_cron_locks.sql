@@ -162,6 +162,22 @@ end $$;
 grant execute on function public.newsletter_rate_check(uuid, text) to anon, authenticated, service_role;
 
 -- ─────────────────────────────────────────────────────────────────────────────
+-- H6/H7: Advisory-lock RPCs for cron routes (serialise concurrent invocations).
+-- ─────────────────────────────────────────────────────────────────────────────
+create or replace function public.cron_try_lock(p_job text)
+returns boolean language sql security definer as $$
+  select pg_try_advisory_lock(hashtext(p_job));
+$$;
+
+create or replace function public.cron_unlock(p_job text)
+returns boolean language sql security definer as $$
+  select pg_advisory_unlock(hashtext(p_job));
+$$;
+
+grant execute on function public.cron_try_lock(text) to service_role;
+grant execute on function public.cron_unlock(text) to service_role;
+
+-- ─────────────────────────────────────────────────────────────────────────────
 -- C4: Unique partial index for contact auto-reply dedupe (per day UTC).
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Uses ((sent_at at time zone 'UTC')::date) because date_trunc is STABLE but
