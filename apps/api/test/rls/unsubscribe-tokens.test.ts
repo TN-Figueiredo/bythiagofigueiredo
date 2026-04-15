@@ -50,7 +50,7 @@ describe.skipIf(skipIfNoLocalDb())('unsubscribe_tokens + unsubscribe_via_token R
     const { data, error } = await admin.rpc('unsubscribe_via_token', { p_token: t })
     expect(error).toBeNull()
     expect(data.ok).toBe(true)
-    expect(data.email).toBe(email)
+    // PII (email, site_id, sub_id) intentionally stripped from response
 
     // Verify subscription status changed
     const { data: updated } = await admin.from('newsletter_subscriptions')

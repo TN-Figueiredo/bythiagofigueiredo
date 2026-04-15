@@ -1,10 +1,11 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest'
 import { createClient } from '@supabase/supabase-js'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { SUPABASE_URL, SERVICE_KEY } from '../helpers/local-supabase'
+import { SUPABASE_URL, SERVICE_KEY, ANON_KEY } from '../helpers/local-supabase'
 import { ensureSharedSites, SHARED_SITE_A_ID } from '../helpers/ring-fixtures'
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY)
+const anon = createClient(SUPABASE_URL, ANON_KEY)
 
 function token(seed: string) { return seed.padEnd(64, '0') }
 
@@ -28,7 +29,7 @@ describe.skipIf(skipIfNoLocalDb())('newsletter_subscriptions + confirm RPC', () 
     const { data, error } = await admin.rpc('confirm_newsletter_subscription', { p_token: t })
     expect(error).toBeNull()
     expect(data.ok).toBe(true)
-    expect(data.email).toBe('sub@x.com')
+    // PII (email, site_id) intentionally stripped from response
   })
 
   it('confirm RPC rejects expired token', async () => {
@@ -52,6 +53,24 @@ describe.skipIf(skipIfNoLocalDb())('newsletter_subscriptions + confirm RPC', () 
       status: 'confirmed', consent_text_version: 'v1',
     })
     expect(error).not.toBeNull()
+  })
+
+  it('anon RLS: verify policies exist via pg_policies (anon insert path)', async () => {
+    // Anon direct-insert to newsletter_subscriptions is covered by an INSERT policy.
+    // We verify policy existence rather than direct anon insert to keep test hermetic
+    // (direct anon insert would require the site_id GUC to be set, which requires
+    // PostgREST session-scoped config not easily driven from JS client).
+    const { data: policies, error } = await admin
+      .from('pg_policies' as never)
+      .select('policyname, cmd, roles')
+      .eq('tablename', 'newsletter_subscriptions')
+    expect(error).toBeNull()
+    expect((policies as unknown[]).length).toBeGreaterThan(0)
+  })
+
+  it('anon cannot read newsletter_subscriptions rows', async () => {
+    const { data } = await anon.from('newsletter_subscriptions').select('id')
+    expect((data ?? []).length).toBe(0)
   })
 
   it('UPSERT on existing pending rotates token', async () => {

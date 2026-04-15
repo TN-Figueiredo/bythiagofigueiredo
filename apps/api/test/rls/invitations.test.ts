@@ -209,6 +209,38 @@ describe.skipIf(skipIfNoLocalDb())('accept_invitation_atomic RPC', () => {
   })
 })
 
+describe.skipIf(skipIfNoLocalDb())('invitations revoke → reinvite', () => {
+  const inviteIds: string[] = []
+  beforeAll(async () => { await ensureSharedSites(admin) })
+  afterAll(async () => {
+    if (inviteIds.length) await admin.from('invitations').delete().in('id', inviteIds)
+  })
+
+  it('revoke then reinvite same email succeeds (partial unique allows)', async () => {
+    const t1 = '7'.repeat(64), t2 = '8'.repeat(64)
+    const email = 'reinvite@example.com'
+
+    // Insert pending invitation
+    const a = await admin.from('invitations').insert({
+      email, org_id: SHARED_RING_ORG_ID,
+      role: 'editor', token: t1, invited_by: SEED_USER,
+    }).select('id').single()
+    expect(a.error).toBeNull()
+    if (a.data?.id) inviteIds.push(a.data.id)
+
+    // Revoke it
+    await admin.from('invitations').update({ revoked_at: new Date().toISOString() }).eq('id', a.data!.id)
+
+    // Reinvite same email — partial unique only covers WHERE pending (accepted_at IS NULL AND revoked_at IS NULL)
+    const b = await admin.from('invitations').insert({
+      email, org_id: SHARED_RING_ORG_ID,
+      role: 'editor', token: t2, invited_by: SEED_USER,
+    }).select('id').single()
+    expect(b.error).toBeNull()
+    if (b.data?.id) inviteIds.push(b.data.id)
+  })
+})
+
 describe.skipIf(skipIfNoLocalDb())('invitations rate limit', () => {
   const inviteIds: string[] = []
   afterAll(async () => {
