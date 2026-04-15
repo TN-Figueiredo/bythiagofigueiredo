@@ -28,12 +28,8 @@ vi.mock('@tn-figueiredo/email', () => ({
   contactAdminAlertTemplate: { name: 'contact-admin-alert' },
 }))
 
-const redirectMock = vi.fn()
-vi.mock('next/navigation', () => ({
-  redirect: (url: string) => {
-    redirectMock(url)
-    throw new Error(`NEXT_REDIRECT:${url}`)
-  },
+vi.mock('next/cache', () => ({
+  revalidatePath: vi.fn(),
 }))
 
 vi.mock('next/headers', () => ({
@@ -57,12 +53,16 @@ let insertResult: { data: unknown; error: unknown } = {
   error: null,
 }
 
-let sentEmailsData: unknown[] = []
+let rateCheckResult: { data: unknown; error: unknown } = { data: true, error: null }
 
 const sendTemplateMock = vi.fn().mockResolvedValue({ messageId: 'msg-1' })
 
 function buildSupabaseMock() {
   return {
+    rpc: (name: string, _args: unknown) => {
+      if (name === 'contact_rate_check') return Promise.resolve(rateCheckResult)
+      return Promise.resolve({ data: null, error: null })
+    },
     from: (table: string) => {
       if (table === 'contact_submissions') {
         return {
@@ -75,17 +75,6 @@ function buildSupabaseMock() {
       }
       if (table === 'sent_emails') {
         return {
-          select: (_cols: string) => ({
-            eq: (_c: string, _v: unknown) => ({
-              eq: (_c2: string, _v2: unknown) => ({
-                eq: (_c3: string, _v3: unknown) => ({
-                  gte: (_c4: string, _v4: unknown) => ({
-                    limit: (_n: number) => Promise.resolve({ data: sentEmailsData, error: null }),
-                  }),
-                }),
-              }),
-            }),
-          }),
           insert: (_values: unknown) => Promise.resolve({ data: null, error: null }),
         }
       }
@@ -126,22 +115,10 @@ function makeFormData(overrides: Record<string, string> = {}): FormData {
   fd.set('email', 'joao@example.com')
   fd.set('message', 'Olá! Tenho uma dúvida sobre seus serviços.')
   fd.set('consent_processing', 'on')
-  fd.set('consent_processing_text_version', 'contact-v1-2026-04')
   fd.set('consent_marketing', 'false')
   fd.set('turnstile_token', 'valid-token-123')
   for (const [k, v] of Object.entries(overrides)) fd.set(k, v)
   return fd
-}
-
-async function captureRedirect(fn: () => Promise<void>): Promise<string> {
-  try {
-    await fn()
-  } catch (e) {
-    const msg = (e as Error).message
-    if (msg.startsWith('NEXT_REDIRECT:')) return msg.slice('NEXT_REDIRECT:'.length)
-    throw e
-  }
-  throw new Error('Expected redirect but action returned normally')
 }
 
 // ── Tests ────────────────────────────────────────────────────────────────────
@@ -149,9 +126,8 @@ async function captureRedirect(fn: () => Promise<void>): Promise<string> {
 describe('submitContact', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    redirectMock.mockReset()
     insertResult = { data: { id: 'sub-1' }, error: null }
-    sentEmailsData = []
+    rateCheckResult = { data: true, error: null }
     vi.mocked(getSupabaseServiceClient).mockReturnValue(buildSupabaseMock() as ReturnType<typeof getSupabaseServiceClient>)
     vi.mocked(verifyTurnstileToken).mockResolvedValue(true)
     vi.mocked(getEmailService).mockReturnValue({
@@ -165,53 +141,44 @@ describe('submitContact', () => {
     })
   })
 
-  it('happy path: redirects to ?notice=contact_received', async () => {
-    const url = await captureRedirect(() => submitContact(makeFormData()))
-    expect(url).toBe('/contact?notice=contact_received')
+  it('happy path: returns status:ok', async () => {
+    const result = await submitContact(makeFormData())
+    expect(result).toEqual({ status: 'ok' })
   })
 
-  it('Turnstile fail: redirects to ?error=bot_check_failed', async () => {
+  it('Turnstile fail: returns captcha_failed', async () => {
     vi.mocked(verifyTurnstileToken).mockResolvedValueOnce(false)
-    const url = await captureRedirect(() => submitContact(makeFormData()))
-    expect(url).toBe('/contact?error=bot_check_failed')
+    const result = await submitContact(makeFormData())
+    expect(result).toEqual({ status: 'captcha_failed' })
   })
 
-  it('validation fail (name too short): redirects to ?error=validation_error', async () => {
-    const url = await captureRedirect(() => submitContact(makeFormData({ name: 'X' })))
-    expect(url).toBe('/contact?error=validation_error')
+  it('validation fail (name too short): returns validation', async () => {
+    const result = await submitContact(makeFormData({ name: 'X' }))
+    expect(result).toEqual({ status: 'validation' })
   })
 
-  it('validation fail (consent_processing missing): redirects to ?error=validation_error', async () => {
+  it('validation fail (consent_processing missing): returns validation', async () => {
     const fd = makeFormData()
     fd.delete('consent_processing')
-    const url = await captureRedirect(() => submitContact(fd))
-    expect(url).toBe('/contact?error=validation_error')
+    const result = await submitContact(fd)
+    expect(result).toEqual({ status: 'validation' })
   })
 
-  it('DB insert error: redirects to ?error=submit_failed', async () => {
+  it('DB insert error: returns error', async () => {
     insertResult = { data: null, error: { message: 'db error', code: '42P01' } }
-    const url = await captureRedirect(() => submitContact(makeFormData()))
-    expect(url).toBe('/contact?error=submit_failed')
+    const result = await submitContact(makeFormData())
+    expect(result).toEqual({ status: 'error' })
   })
 
-  it('does NOT send auto-reply when a recent sent_email exists for same email/site/24h', async () => {
-    sentEmailsData = [{ id: 'existing-email-1' }]
-    const url = await captureRedirect(() => submitContact(makeFormData()))
-    expect(url).toBe('/contact?notice=contact_received')
-    // sendTemplate should only be called once (admin alert), not twice
-    // Wait a tick for the fire-and-forget to resolve
-    await new Promise((r) => setTimeout(r, 50))
-    const callTemplateNames = sendTemplateMock.mock.calls.map(
-      (c) => (c[0] as { name: string }).name,
-    )
-    expect(callTemplateNames).not.toContain('contact-received')
-    expect(callTemplateNames).toContain('contact-admin-alert')
+  it('rate limit hit: returns rate_limited', async () => {
+    rateCheckResult = { data: false, error: null }
+    const result = await submitContact(makeFormData())
+    expect(result).toEqual({ status: 'rate_limited' })
   })
 
-  it('sends auto-reply when no prior sent email within 24h', async () => {
-    sentEmailsData = []
-    const url = await captureRedirect(() => submitContact(makeFormData()))
-    expect(url).toBe('/contact?notice=contact_received')
+  it('sends admin alert and auto-reply', async () => {
+    const result = await submitContact(makeFormData())
+    expect(result).toEqual({ status: 'ok' })
     await new Promise((r) => setTimeout(r, 50))
     const callTemplateNames = sendTemplateMock.mock.calls.map(
       (c) => (c[0] as { name: string }).name,
@@ -220,9 +187,9 @@ describe('submitContact', () => {
     expect(callTemplateNames).toContain('contact-admin-alert')
   })
 
-  it('email failure does not affect redirect (best-effort)', async () => {
+  it('email failure does not affect ok result (best-effort)', async () => {
     sendTemplateMock.mockRejectedValue(new Error('Brevo down'))
-    const url = await captureRedirect(() => submitContact(makeFormData()))
-    expect(url).toBe('/contact?notice=contact_received')
+    const result = await submitContact(makeFormData())
+    expect(result).toEqual({ status: 'ok' })
   })
 })

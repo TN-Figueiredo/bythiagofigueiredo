@@ -1,7 +1,7 @@
 'use server'
 
-import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
+import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { contactReceivedTemplate, contactAdminAlertTemplate } from '@tn-figueiredo/email'
 import { getSupabaseServiceClient } from '../../../lib/supabase/service'
@@ -9,53 +9,71 @@ import { getEmailService } from '../../../lib/email/service'
 import { getEmailSender } from '../../../lib/email/sender'
 import { getSiteContext } from '../../../lib/cms/site-context'
 import { verifyTurnstileToken } from '../../../lib/turnstile'
+import {
+  CONTACT_CONSENT_VERSION,
+  CONTACT_MARKETING_CONSENT_VERSION,
+} from './consent'
 
 const ContactSchema = z.object({
   name: z.string().min(2).max(200),
   email: z.string().email().max(320),
   message: z.string().min(10).max(5000),
   consent_processing: z.literal('on'),
-  consent_processing_text_version: z.string().min(1),
   consent_marketing: z.string().transform((v) => v === 'true'),
-  consent_marketing_text_version: z.string().optional(),
   turnstile_token: z.string().min(1),
 })
 
-export async function submitContact(formData: FormData) {
+export type ContactResult =
+  | { status: 'ok' }
+  | { status: 'validation' }
+  | { status: 'captcha_failed' }
+  | { status: 'rate_limited' }
+  | { status: 'error' }
+
+export async function submitContact(formData: FormData): Promise<ContactResult> {
   const h = await headers()
   const ip = h.get('x-forwarded-for')?.split(',')[0]?.trim() ?? undefined
   const userAgent = h.get('user-agent') ?? undefined
 
   const ctx = await getSiteContext()
 
-  // 1. Parse + validate
   const raw = {
     name: formData.get('name'),
     email: formData.get('email'),
     message: formData.get('message'),
     consent_processing: formData.get('consent_processing'),
-    consent_processing_text_version: formData.get('consent_processing_text_version'),
     consent_marketing: formData.get('consent_marketing'),
-    consent_marketing_text_version: formData.get('consent_marketing_text_version') ?? undefined,
     turnstile_token: formData.get('turnstile_token'),
   }
 
   const parsed = ContactSchema.safeParse(raw)
   if (!parsed.success) {
-    redirect('/contact?error=validation_error')
+    return { status: 'validation' }
   }
 
   const input = parsed.data
 
-  // 2. Verify Turnstile
   const turnstileOk = await verifyTurnstileToken(input.turnstile_token, ip)
   if (!turnstileOk) {
-    redirect('/contact?error=bot_check_failed')
+    return { status: 'captcha_failed' }
   }
 
   const supabase = getSupabaseServiceClient()
 
-  // 3. Insert into contact_submissions
+  // Server-side rate limit (IP + email, 10min window)
+  const { data: rateOk, error: rateErr } = await supabase.rpc('contact_rate_check', {
+    p_site_id: ctx.siteId,
+    p_ip: ip ?? null,
+    p_email: input.email,
+  })
+  if (rateErr) {
+    return { status: 'error' }
+  }
+  if (rateOk === false) {
+    return { status: 'rate_limited' }
+  }
+
+  // Insert submission with server-controlled consent versions (client values ignored).
   const { data: submission, error: insertError } = await supabase
     .from('contact_submissions')
     .insert({
@@ -64,10 +82,10 @@ export async function submitContact(formData: FormData) {
       email: input.email,
       message: input.message,
       consent_processing: true,
-      consent_processing_text_version: input.consent_processing_text_version,
+      consent_processing_text_version: CONTACT_CONSENT_VERSION,
       consent_marketing: input.consent_marketing,
       consent_marketing_text_version: input.consent_marketing
-        ? (input.consent_marketing_text_version ?? null)
+        ? CONTACT_MARKETING_CONSENT_VERSION
         : null,
       ip: ip ?? null,
       user_agent: userAgent ?? null,
@@ -76,10 +94,13 @@ export async function submitContact(formData: FormData) {
     .single()
 
   if (insertError || !submission) {
-    redirect('/contact?error=submit_failed')
+    return { status: 'error' }
   }
 
-  // 4. Fire emails in background (best-effort — errors should not block redirect)
+  // Revalidate admin list so new row appears.
+  revalidatePath('/cms/contacts')
+
+  // Fire emails in background — failures must not surface.
   void sendContactEmails({
     siteId: ctx.siteId,
     submissionId: submission.id as string,
@@ -88,10 +109,10 @@ export async function submitContact(formData: FormData) {
     message: input.message,
     locale: 'pt-BR',
   }).catch(() => {
-    // swallow — email failures must not surface to user
+    /* swallow */
   })
 
-  redirect('/contact?notice=contact_received')
+  return { status: 'ok' }
 }
 
 async function sendContactEmails(opts: {
@@ -112,18 +133,9 @@ async function sendContactEmails(opts: {
     siteUrl: process.env.NEXT_PUBLIC_APP_URL ?? 'https://bythiagofigueiredo.com',
   }
 
-  // 4a. Auto-reply — rate-limited to 1 per email/site/24h
-  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-  const { data: recentSent } = await supabase
-    .from('sent_emails')
-    .select('id')
-    .eq('site_id', opts.siteId)
-    .eq('template_name', 'contact-received')
-    .eq('to_email', opts.email)
-    .gte('sent_at', since)
-    .limit(1)
-
-  if (!recentSent || recentSent.length === 0) {
+  // Auto-reply — rely on unique partial index (sent_emails_contact_autoreply_daily)
+  // to prevent duplicate sends for (site_id, to_email, 'contact-received', UTC day).
+  try {
     const autoReplyResult = await emailService.sendTemplate(
       contactReceivedTemplate,
       { email: sender.email, name: sender.name },
@@ -131,7 +143,8 @@ async function sendContactEmails(opts: {
       { name: opts.name, expectedReplyTime: '2 dias úteis', branding },
       opts.locale,
     )
-    await supabase.from('sent_emails').insert({
+
+    const { error: insErr } = await supabase.from('sent_emails').insert({
       site_id: opts.siteId,
       template_name: 'contact-received',
       to_email: opts.email,
@@ -141,9 +154,16 @@ async function sendContactEmails(opts: {
       status: 'sent',
       metadata: { submission_id: opts.submissionId },
     })
+
+    // 23505 = unique violation → already sent today, treated as throttled no-op.
+    if (insErr && (insErr as { code?: string }).code !== '23505') {
+      // other DB errors — swallowed (best effort)
+    }
+  } catch {
+    /* email send failure swallowed */
   }
 
-  // 4b. Admin alert
+  // Admin alert
   const { data: site } = await supabase
     .from('sites')
     .select('contact_notification_email')

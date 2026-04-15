@@ -1,8 +1,14 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 
-export const CONTACT_CONSENT_VERSION = 'contact-v1-2026-04'
+export type ContactResult =
+  | { status: 'ok' }
+  | { status: 'validation' }
+  | { status: 'captcha_failed' }
+  | { status: 'rate_limited' }
+  | { status: 'error' }
 
 const FORM_STRINGS = {
   'pt-BR': {
@@ -21,6 +27,9 @@ const FORM_STRINGS = {
     turnstileLoading: 'Verificação anti-bot ainda carregando. Aguarde.',
     consentRequired: 'Você precisa concordar com o tratamento de dados para enviar.',
     submitError: 'Erro ao enviar. Tente novamente.',
+    rateLimited: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.',
+    captchaFailed: 'Verificação anti-bot falhou. Recarregue a página e tente novamente.',
+    validationError: 'Dados inválidos. Verifique os campos e tente novamente.',
   },
   en: {
     namePlaceholder: 'Your name',
@@ -37,6 +46,9 @@ const FORM_STRINGS = {
     turnstileLoading: 'Bot-check still loading. Please wait.',
     consentRequired: 'You must agree to data processing to submit.',
     submitError: 'Submit error. Please try again.',
+    rateLimited: 'Too many attempts. Please wait a few minutes and try again.',
+    captchaFailed: 'Bot-check failed. Refresh the page and try again.',
+    validationError: 'Invalid data. Please check the fields and try again.',
   },
 } as const
 
@@ -56,11 +68,12 @@ declare global {
 
 interface Props {
   locale?: string
-  submitAction: (formData: FormData) => Promise<void>
+  submitAction: (formData: FormData) => Promise<ContactResult>
 }
 
 export function ContactForm({ locale = 'pt-BR', submitAction }: Props) {
   const s = t(locale)
+  const router = useRouter()
   const [token, setToken] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -114,17 +127,33 @@ export function ContactForm({ locale = 'pt-BR', submitAction }: Props) {
     }
 
     data.set('turnstile_token', token)
-    data.set('consent_processing_text_version', CONTACT_CONSENT_VERSION)
-    if (data.get('consent_marketing') !== 'on') {
-      data.set('consent_marketing', 'false')
-    } else {
-      data.set('consent_marketing', 'true')
-      data.set('consent_marketing_text_version', CONTACT_CONSENT_VERSION)
-    }
+    // Normalise the marketing checkbox to a boolean-ish string. Consent versions
+    // are resolved server-side (never trust client-supplied version strings).
+    data.set('consent_marketing', data.get('consent_marketing') === 'on' ? 'true' : 'false')
 
     setLoading(true)
     try {
-      await submitAction(data)
+      const result = await submitAction(data)
+      switch (result.status) {
+        case 'ok':
+          router.push('/contact?notice=contact_received')
+          return
+        case 'rate_limited':
+          setError(s.rateLimited)
+          resetTurnstile()
+          break
+        case 'captcha_failed':
+          setError(s.captchaFailed)
+          resetTurnstile()
+          break
+        case 'validation':
+          setError(s.validationError)
+          resetTurnstile()
+          break
+        default:
+          setError(s.submitError)
+          resetTurnstile()
+      }
     } catch {
       setError(s.submitError)
       resetTurnstile()

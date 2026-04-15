@@ -36,8 +36,10 @@ export default async function CmsContactsPage({ searchParams }: Props) {
       },
     },
   )
-  const { data: role } = await userClient.rpc('org_role', { p_org_id: ctx.orgId })
-  if (!role) redirect('/cms')
+  const { data: canAdmin } = await userClient.rpc('can_admin_site', {
+    p_site_id: ctx.siteId,
+  })
+  if (canAdmin !== true) redirect('/cms')
 
   const supabase = getSupabaseServiceClient()
   const { data: submissions } = await supabase

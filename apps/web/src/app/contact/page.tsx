@@ -13,6 +13,7 @@ const errorMessages: Record<string, string> = {
   validation_error: 'Dados inválidos. Verifique os campos e tente novamente.',
   bot_check_failed: 'Verificação anti-bot falhou. Recarregue a página e tente novamente.',
   submit_failed: 'Erro ao enviar. Por favor, tente novamente.',
+  rate_limited: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.',
 }
 
 interface Props {

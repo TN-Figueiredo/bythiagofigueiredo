@@ -13,6 +13,29 @@ interface Props {
 
 async function markReplied(submissionId: string, siteId: string) {
   'use server'
+  // Re-check authz inside the action — do not rely on the page's earlier check.
+  const cookieStore = await cookies()
+  const userClient = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(c: Array<{ name: string; value: string; options?: CookieOptions }>) {
+          for (const { name, value, options } of c) cookieStore.set(name, value, options)
+        },
+      },
+    },
+  )
+  const { data: canAdmin } = await userClient.rpc('can_admin_site', {
+    p_site_id: siteId,
+  })
+  if (canAdmin !== true) {
+    redirect('/cms')
+  }
+
   const supabase = getSupabaseServiceClient()
   await supabase
     .from('contact_submissions')
@@ -42,8 +65,10 @@ export default async function CmsContactDetailPage({ params }: Props) {
       },
     },
   )
-  const { data: role } = await userClient.rpc('org_role', { p_org_id: ctx.orgId })
-  if (!role) redirect('/cms')
+  const { data: canAdmin } = await userClient.rpc('can_admin_site', {
+    p_site_id: ctx.siteId,
+  })
+  if (canAdmin !== true) redirect('/cms')
 
   const supabase = getSupabaseServiceClient()
   const { data: sub } = await supabase
