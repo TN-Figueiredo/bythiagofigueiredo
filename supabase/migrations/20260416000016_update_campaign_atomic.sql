@@ -10,6 +10,12 @@
 --                   columns. Rows with matching (campaign_id, locale) are
 --                   updated; missing ones are inserted.
 --
+-- Hardening (round 2):
+--   * SELECT ... FOR UPDATE on campaigns to close the TOCTOU window between
+--     authz check and write.
+--   * Reject unknown patch / translation keys with an explicit exception so
+--     typos aren't silently dropped by the whitelist.
+--
 -- Idempotent DDL.
 
 drop function if exists public.update_campaign_atomic(uuid, jsonb, jsonb);
@@ -28,17 +34,60 @@ declare
   v_site_id uuid;
   v_row public.campaigns;
   v_translation jsonb;
+  v_unknown_keys text[];
 begin
-  select site_id into v_site_id from public.campaigns where id = p_campaign_id;
-  if v_site_id is null then
-    -- either the row doesn't exist or site_id is actually null; try an existence check
-    if not exists (select 1 from public.campaigns where id = p_campaign_id) then
-      raise exception 'campaign % not found', p_campaign_id using errcode = 'P0002';
-    end if;
+  -- Row-lock the campaign up-front. This both asserts existence and prevents
+  -- TOCTOU between the can_admin_site() check and subsequent writes.
+  select site_id into v_site_id
+    from public.campaigns
+    where id = p_campaign_id
+    for update;
+
+  if not found then
+    raise exception using message = 'campaign_not_found';
   end if;
 
   if v_site_id is not null and not public.can_admin_site(v_site_id) then
     raise exception 'permission denied for campaign %', p_campaign_id using errcode = '42501';
+  end if;
+
+  -- Reject unknown keys in p_patch (surface typos instead of silently dropping).
+  if p_patch is not null and jsonb_typeof(p_patch) = 'object' then
+    with keys as (select jsonb_object_keys(p_patch) as k)
+    select array_agg(k) into v_unknown_keys
+      from keys
+     where k not in (
+       'status','scheduled_for','published_at','interest',
+       'pdf_storage_path','brevo_list_id','brevo_template_id',
+       'form_fields','updated_by'
+     );
+    if v_unknown_keys is not null then
+      raise exception 'update_campaign_atomic: unknown patch keys: %',
+        array_to_string(v_unknown_keys, ',');
+    end if;
+  end if;
+
+  -- Reject unknown keys in each translation entry.
+  if p_translations is not null and jsonb_typeof(p_translations) = 'array' then
+    for v_translation in select * from jsonb_array_elements(p_translations)
+    loop
+      with keys as (select jsonb_object_keys(v_translation) as k)
+      select array_agg(k) into v_unknown_keys
+        from keys
+       where k not in (
+         'locale','slug','meta_title','meta_description','og_image_url',
+         'main_hook_md','supporting_argument_md','introductory_block_md',
+         'body_content_md','form_intro_md','form_button_label',
+         'form_button_loading_label','context_tag',
+         'success_headline','success_headline_duplicate',
+         'success_subheadline','success_subheadline_duplicate',
+         'check_mail_text','download_button_label','extras'
+       );
+      if v_unknown_keys is not null then
+        raise exception 'update_campaign_atomic: unknown translation keys: %',
+          array_to_string(v_unknown_keys, ',');
+      end if;
+    end loop;
   end if;
 
   -- apply partial patch to campaigns using jsonb_populate_record merge
@@ -100,7 +149,7 @@ begin
         v_translation->>'introductory_block_md',
         v_translation->>'body_content_md',
         v_translation->>'form_intro_md',
-        coalesce(v_translation->>'form_button_label', 'Enviar'),
+        v_translation->>'form_button_label',
         coalesce(v_translation->>'form_button_loading_label', 'Enviando...'),
         coalesce(v_translation->>'context_tag', ''),
         coalesce(v_translation->>'success_headline', ''),
