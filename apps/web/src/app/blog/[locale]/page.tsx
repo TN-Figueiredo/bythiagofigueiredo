@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { postRepo } from '../../../../lib/cms/repositories'
 import { getSiteContext } from '../../../../lib/cms/site-context'
+import { LocaleSwitcher } from '../../../components/locale-switcher'
 
 export const revalidate = 3600
 
@@ -25,9 +26,21 @@ export default async function BlogListPage({ params, searchParams }: Props) {
     perPage: 12,
   })
 
+  // Derive locales available across the current page of posts. Not exhaustive
+  // across the whole site (we don't have a sites.locales column), but good
+  // enough to hide the switcher on single-locale sites.
+  const availableLocales = Array.from(
+    new Set(posts.flatMap((p) => p.available_locales ?? []).concat(locale))
+  )
+
   return (
     <main>
       <h1>Blog</h1>
+      <LocaleSwitcher
+        available={availableLocales}
+        current={locale}
+        hrefFor={(loc) => `/blog/${loc}`}
+      />
       {posts.length === 0 && <p>Nenhum post ainda.</p>}
       <ul>
         {posts.map((p) => (
@@ -50,9 +63,19 @@ export default async function BlogListPage({ params, searchParams }: Props) {
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params
+  // Emit a minimal hreflang set for blog listings. pt-BR + en are the only
+  // configured site locales today (see CLAUDE.md). When the site schema gains
+  // an explicit `locales` column this should read from there.
+  const knownLocales = ['pt-BR', 'en']
+  const languages: Record<string, string> = {}
+  for (const loc of knownLocales) languages[loc] = `/blog/${loc}`
+  languages['x-default'] = `/blog/pt-BR`
   return {
     title: 'Blog',
     description: 'Últimos posts do blog.',
-    alternates: { canonical: `/blog/${locale}` },
+    alternates: {
+      canonical: `/blog/${locale}`,
+      languages,
+    },
   }
 }

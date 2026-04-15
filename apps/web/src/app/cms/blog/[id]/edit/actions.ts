@@ -106,6 +106,7 @@ export async function deletePost(id: string): Promise<void> {
     await postRepo().delete(id)
     const tx = post.translations[0]
     if (tx) revalidatePath(`/blog/${tx.locale}`)
+    revalidatePath('/cms/blog')
   }
 }
 
