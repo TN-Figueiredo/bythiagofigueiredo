@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import type { FastifyInstance } from 'fastify'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { SUPABASE_URL, ANON_KEY, SERVICE_KEY } from '../helpers/local-keys'
+import { SUPABASE_URL, ANON_KEY, SERVICE_KEY } from '../helpers/local-supabase'
 
 // Point the app at the local Supabase BEFORE importing the server/env.
 const LOCAL_ANON_KEY = process.env.LOCAL_SUPABASE_ANON_KEY ?? ANON_KEY

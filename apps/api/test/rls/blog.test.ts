@@ -2,10 +2,19 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { createClient } from '@supabase/supabase-js'
 import { Client } from 'pg'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { SUPABASE_URL, ANON_KEY, SERVICE_KEY, PG_URL, adminJwt } from '../helpers/local-keys'
+import { SUPABASE_URL, ANON_KEY, SERVICE_KEY, PG_URL, adminJwt } from '../helpers/local-supabase'
 
 const SITE_A = '11111111-1111-1111-1111-111111111111'
 const SITE_B = '22222222-2222-2222-2222-222222222222'
+
+async function insertOne<T extends { id: string }>(
+  query: PromiseLike<{ data: T | null; error: unknown }>,
+  label: string
+): Promise<T> {
+  const { data, error } = await query
+  if (error || !data) throw error ?? new Error(`${label}: insert returned no row`)
+  return data
+}
 
 describe.skipIf(skipIfNoLocalDb())('RLS: blog_posts + blog_translations + authors', () => {
   const service = createClient(SUPABASE_URL, SERVICE_KEY)
@@ -31,45 +40,59 @@ describe.skipIf(skipIfNoLocalDb())('RLS: blog_posts + blog_translations + author
     // Test-unique slug to reduce races with seed.test.ts, which concurrently
     // re-applies supabase/seeds/dev.sql (inserting a 'thiago' author).
     const uniqueSlug = `rls-author-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    const { data: a, error: aErr } = await service.from('authors')
-      .insert({ name: 'RLS Author', slug: uniqueSlug }).select('id').single()
-    if (aErr || !a) throw aErr ?? new Error('author insert returned no row')
-    authorId = a.id
+    authorId = (await insertOne(
+      service.from('authors').insert({ name: 'RLS Author', slug: uniqueSlug }).select('id').single(),
+      'author'
+    )).id
 
-    const { data: pub } = await service.from('blog_posts').insert({
-      author_id: authorId, status: 'published', published_at: new Date().toISOString(),
-    }).select('id').single()
-    publishedId = pub!.id
+    publishedId = (await insertOne(
+      service.from('blog_posts').insert({
+        author_id: authorId, status: 'published', published_at: new Date().toISOString(),
+      }).select('id').single(),
+      'pub'
+    )).id
 
-    const { data: draft } = await service.from('blog_posts').insert({
-      author_id: authorId, status: 'draft',
-    }).select('id').single()
-    draftId = draft!.id
+    draftId = (await insertOne(
+      service.from('blog_posts').insert({
+        author_id: authorId, status: 'draft',
+      }).select('id').single(),
+      'draft'
+    )).id
 
-    const { data: pA } = await service.from('blog_posts').insert({
-      author_id: authorId, status: 'published', published_at: new Date().toISOString(), site_id: SITE_A,
-    }).select('id').single()
-    postSiteAId = pA!.id
+    postSiteAId = (await insertOne(
+      service.from('blog_posts').insert({
+        author_id: authorId, status: 'published', published_at: new Date().toISOString(), site_id: SITE_A,
+      }).select('id').single(),
+      'pA'
+    )).id
 
-    const { data: pB } = await service.from('blog_posts').insert({
-      author_id: authorId, status: 'published', published_at: new Date().toISOString(), site_id: SITE_B,
-    }).select('id').single()
-    postSiteBId = pB!.id
+    postSiteBId = (await insertOne(
+      service.from('blog_posts').insert({
+        author_id: authorId, status: 'published', published_at: new Date().toISOString(), site_id: SITE_B,
+      }).select('id').single(),
+      'pB'
+    )).id
 
-    const { data: tN } = await service.from('blog_translations').insert({
-      post_id: publishedId, locale: 'en', title: 'null-site', slug: 'null-site', content_md: 'x',
-    }).select('id').single()
-    trNullId = tN!.id
+    trNullId = (await insertOne(
+      service.from('blog_translations').insert({
+        post_id: publishedId, locale: 'en', title: 'null-site', slug: 'null-site', content_md: 'x',
+      }).select('id').single(),
+      'tN'
+    )).id
 
-    const { data: tA } = await service.from('blog_translations').insert({
-      post_id: postSiteAId, locale: 'en', title: 'site-a', slug: 'site-a', content_md: 'x',
-    }).select('id').single()
-    trSiteAId = tA!.id
+    trSiteAId = (await insertOne(
+      service.from('blog_translations').insert({
+        post_id: postSiteAId, locale: 'en', title: 'site-a', slug: 'site-a', content_md: 'x',
+      }).select('id').single(),
+      'tA'
+    )).id
 
-    const { data: tB } = await service.from('blog_translations').insert({
-      post_id: postSiteBId, locale: 'en', title: 'site-b', slug: 'site-b', content_md: 'x',
-    }).select('id').single()
-    trSiteBId = tB!.id
+    trSiteBId = (await insertOne(
+      service.from('blog_translations').insert({
+        post_id: postSiteBId, locale: 'en', title: 'site-b', slug: 'site-b', content_md: 'x',
+      }).select('id').single(),
+      'tB'
+    )).id
   })
 
   it('anon sees only published posts', async () => {
@@ -94,13 +117,14 @@ describe.skipIf(skipIfNoLocalDb())('RLS: blog_posts + blog_translations + author
   })
 
   it('super_admin can insert/update/delete', async () => {
-    const { data: ins, error: ie } = await admin.from('blog_posts')
-      .insert({ author_id: authorId, status: 'draft' }).select('id').single()
-    expect(ie).toBeNull()
+    const ins = await insertOne(
+      admin.from('blog_posts').insert({ author_id: authorId, status: 'draft' }).select('id').single(),
+      'admin-insert'
+    )
     const { error: ue } = await admin.from('blog_posts')
-      .update({ status: 'archived' }).eq('id', ins!.id)
+      .update({ status: 'archived' }).eq('id', ins.id)
     expect(ue).toBeNull()
-    const { error: de } = await admin.from('blog_posts').delete().eq('id', ins!.id)
+    const { error: de } = await admin.from('blog_posts').delete().eq('id', ins.id)
     expect(de).toBeNull()
   })
 

@@ -6,5 +6,6 @@ export default defineConfig({
     environment: 'node',
     exclude: ['**/node_modules/**', '**/dist/**'],
     setupFiles: ['./test/setup.ts'],
+    fileParallelism: process.env.HAS_LOCAL_DB ? false : true,
   },
 })
