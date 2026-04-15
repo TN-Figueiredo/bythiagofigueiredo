@@ -21,4 +21,3 @@ begin
 end;
 $fn$;
 revoke all on function public.increment_invitation_resend(uuid) from public, anon, authenticated;
-grant execute on function public.increment_invitation_resend(uuid) to service_role;

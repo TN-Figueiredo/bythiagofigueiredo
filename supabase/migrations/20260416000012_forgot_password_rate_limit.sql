@@ -33,4 +33,3 @@ begin
 end;
 $fn$;
 revoke all on function public.record_password_reset_attempt(text, text) from public, anon, authenticated;
-grant execute on function public.record_password_reset_attempt(text, text) to service_role;

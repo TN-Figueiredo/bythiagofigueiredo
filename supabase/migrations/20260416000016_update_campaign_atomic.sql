@@ -184,5 +184,3 @@ begin
   return v_row;
 end
 $fn$;
-
-grant execute on function public.update_campaign_atomic(uuid, jsonb, jsonb) to authenticated;

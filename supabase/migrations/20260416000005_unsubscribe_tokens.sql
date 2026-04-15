@@ -42,5 +42,3 @@ begin
 
   return json_build_object('ok', true, 'site_id', v_tok.site_id, 'email', v_tok.email, 'sub_id', v_sub.id);
 end $fn$;
-
-grant execute on function public.unsubscribe_via_token(text) to anon, authenticated;

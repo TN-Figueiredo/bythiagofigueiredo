@@ -53,8 +53,6 @@ begin
   return json_build_object('ok', true);
 end $fn$;
 
-grant execute on function public.unsubscribe_via_token(text) to anon, authenticated;
-
 -- ============================================================
 -- 1+2: confirm_newsletter_subscription — search_path + PII strip + oracle fix
 -- ============================================================
@@ -96,8 +94,6 @@ begin
   -- Fix #2: return only ok, no email/site_id
   return json_build_object('ok', true);
 end $fn$;
-
-grant execute on function public.confirm_newsletter_subscription(text) to anon, authenticated;
 
 -- ============================================================
 -- 1+6: accept_invitation_atomic — search_path + role-gated authors insert + slug fallback
@@ -180,8 +176,6 @@ begin
   return json_build_object('ok', true, 'org_id', v_inv.org_id);
 end $fn$;
 
-grant execute on function public.accept_invitation_atomic(text) to authenticated;
-
 -- ============================================================
 -- 1: get_invitation_by_token — add search_path
 -- ============================================================
@@ -198,8 +192,6 @@ create or replace function public.get_invitation_by_token(p_token text) returns 
   where i.token = p_token
   limit 1
 $fn$;
-
-grant execute on function public.get_invitation_by_token(text) to anon, authenticated;
 
 -- ============================================================
 -- 3: invitations_rate_limit — search_path + advisory xact lock (race fix)

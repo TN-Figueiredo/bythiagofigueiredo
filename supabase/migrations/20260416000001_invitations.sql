@@ -47,8 +47,6 @@ create or replace function public.get_invitation_by_token(p_token text) returns 
   limit 1
 $fn$;
 
-grant execute on function public.get_invitation_by_token(text) to anon, authenticated;
-
 -- RPC: accept invitation atomically (security definer + FOR UPDATE lock)
 create or replace function public.accept_invitation_atomic(
   p_token text,
@@ -103,5 +101,3 @@ begin
 
   return json_build_object('ok', true, 'org_id', v_inv.org_id);
 end $fn$;
-
-grant execute on function public.accept_invitation_atomic(text, uuid) to authenticated;

@@ -58,8 +58,6 @@ begin
   return json_build_object('ok', true, 'email', v_sub.email, 'site_id', v_sub.site_id);
 end $fn$;
 
-grant execute on function public.confirm_newsletter_subscription(text) to anon, authenticated;
-
 -- ─────────────────────────────────────────────────────────────────────────────
 -- C1: Hash unsubscribe_tokens at rest
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -113,8 +111,6 @@ begin
 
   return json_build_object('ok', true, 'site_id', v_tok.site_id, 'email', v_tok.email, 'sub_id', v_sub.id);
 end $fn$;
-
-grant execute on function public.unsubscribe_via_token(text) to anon, authenticated;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- M3: Persist preferred locale on newsletter subscriptions.
@@ -170,7 +166,6 @@ begin
 end;
 $fn$;
 
-grant execute on function public.contact_rate_check(uuid, text, text)
   to anon, authenticated, service_role;
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -210,7 +205,6 @@ begin
 end;
 $fn$;
 
-grant execute on function public.newsletter_rate_check(uuid, text, text)
   to anon, authenticated, service_role;
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -228,9 +222,6 @@ $fn$;
 create or replace function public.cron_unlock(p_job text) returns boolean language sql security definer as $fn$
   select pg_advisory_unlock(hashtextextended(p_job, 0));
 $fn$;
-
-grant execute on function public.cron_try_lock(text) to service_role;
-grant execute on function public.cron_unlock(text) to service_role;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Email dedupe indexes.

@@ -68,8 +68,6 @@ begin
   return json_build_object('ok', true, 'org_id', v_inv.org_id);
 end $fn$;
 
-grant execute on function public.accept_invitation_atomic(text) to authenticated;
-
 -- ============================================================
 -- I2: newsletter_pending_token — drop now() from partial index predicate
 -- ============================================================
@@ -118,5 +116,3 @@ begin
 
   return json_build_object('ok', true, 'email', v_sub.email, 'site_id', v_sub.site_id);
 end $fn$;
-
-grant execute on function public.confirm_newsletter_subscription(text) to anon, authenticated;
