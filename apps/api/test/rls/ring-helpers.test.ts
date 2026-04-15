@@ -88,9 +88,9 @@ describe.skipIf(skipIfNoLocalDb())('is_org_staff', () => {
     const orgId = await makeOrg(admin, orgIds)
     const { data, error } = await admin.rpc('is_org_staff', { p_org_id: orgId })
     expect(error).toBeNull()
-    // Service role context → auth.uid() returns null → no membership row →
-    // org_role returns null → `null in (...)` evaluates to null (SQL three-valued logic).
-    // Either null or false means "not staff" — both are acceptable.
-    expect(data === false || data === null).toBe(true)
+    // Service role context → auth.uid() returns null → no membership row.
+    // is_org_staff wraps the result in coalesce(..., false) so it always
+    // returns a concrete boolean.
+    expect(data).toBe(false)
   })
 })
