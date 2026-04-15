@@ -1,0 +1,228 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+// ── Mocks must be defined before any imports ─────────────────────────────────
+
+vi.mock('../../lib/cms/site-context', () => ({
+  getSiteContext: () =>
+    Promise.resolve({ siteId: 'site-1', orgId: 'org-1', defaultLocale: 'pt-BR' }),
+}))
+
+vi.mock('../../lib/supabase/service', () => ({
+  getSupabaseServiceClient: vi.fn(),
+}))
+
+vi.mock('../../lib/email/service', () => ({
+  getEmailService: vi.fn(),
+}))
+
+vi.mock('../../lib/email/sender', () => ({
+  getEmailSender: vi.fn(),
+}))
+
+vi.mock('../../lib/turnstile', () => ({
+  verifyTurnstileToken: vi.fn(),
+}))
+
+vi.mock('@tn-figueiredo/email', () => ({
+  contactReceivedTemplate: { name: 'contact-received' },
+  contactAdminAlertTemplate: { name: 'contact-admin-alert' },
+}))
+
+const redirectMock = vi.fn()
+vi.mock('next/navigation', () => ({
+  redirect: (url: string) => {
+    redirectMock(url)
+    throw new Error(`NEXT_REDIRECT:${url}`)
+  },
+}))
+
+vi.mock('next/headers', () => ({
+  headers: () =>
+    Promise.resolve({
+      get: (key: string) => {
+        if (key === 'x-forwarded-for') return '1.2.3.4'
+        if (key === 'user-agent') return 'test-agent'
+        if (key === 'x-site-id') return 'site-1'
+        if (key === 'x-org-id') return 'org-1'
+        if (key === 'x-default-locale') return 'pt-BR'
+        return null
+      },
+    }),
+}))
+
+// ── Dynamic mock state ───────────────────────────────────────────────────────
+
+let insertResult: { data: unknown; error: unknown } = {
+  data: { id: 'sub-1' },
+  error: null,
+}
+
+let sentEmailsData: unknown[] = []
+
+const sendTemplateMock = vi.fn().mockResolvedValue({ messageId: 'msg-1' })
+
+function buildSupabaseMock() {
+  return {
+    from: (table: string) => {
+      if (table === 'contact_submissions') {
+        return {
+          insert: (_values: unknown) => ({
+            select: (_cols: string) => ({
+              single: () => Promise.resolve(insertResult),
+            }),
+          }),
+        }
+      }
+      if (table === 'sent_emails') {
+        return {
+          select: (_cols: string) => ({
+            eq: (_c: string, _v: unknown) => ({
+              eq: (_c2: string, _v2: unknown) => ({
+                eq: (_c3: string, _v3: unknown) => ({
+                  gte: (_c4: string, _v4: unknown) => ({
+                    limit: (_n: number) => Promise.resolve({ data: sentEmailsData, error: null }),
+                  }),
+                }),
+              }),
+            }),
+          }),
+          insert: (_values: unknown) => Promise.resolve({ data: null, error: null }),
+        }
+      }
+      if (table === 'sites') {
+        return {
+          select: (_cols: string) => ({
+            eq: (_c: string, _v: unknown) => ({
+              single: () =>
+                Promise.resolve({ data: { contact_notification_email: 'admin@example.com' }, error: null }),
+            }),
+          }),
+        }
+      }
+      return {
+        select: () => ({
+          eq: () => ({
+            single: () => Promise.resolve({ data: null, error: null }),
+          }),
+        }),
+      }
+    },
+  }
+}
+
+// ── Import after mocks ───────────────────────────────────────────────────────
+
+import { submitContact } from '../../src/app/contact/actions'
+import { getSupabaseServiceClient } from '../../lib/supabase/service'
+import { getEmailService } from '../../lib/email/service'
+import { getEmailSender } from '../../lib/email/sender'
+import { verifyTurnstileToken } from '../../lib/turnstile'
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function makeFormData(overrides: Record<string, string> = {}): FormData {
+  const fd = new FormData()
+  fd.set('name', 'João Silva')
+  fd.set('email', 'joao@example.com')
+  fd.set('message', 'Olá! Tenho uma dúvida sobre seus serviços.')
+  fd.set('consent_processing', 'on')
+  fd.set('consent_processing_text_version', 'contact-v1-2026-04')
+  fd.set('consent_marketing', 'false')
+  fd.set('turnstile_token', 'valid-token-123')
+  for (const [k, v] of Object.entries(overrides)) fd.set(k, v)
+  return fd
+}
+
+async function captureRedirect(fn: () => Promise<void>): Promise<string> {
+  try {
+    await fn()
+  } catch (e) {
+    const msg = (e as Error).message
+    if (msg.startsWith('NEXT_REDIRECT:')) return msg.slice('NEXT_REDIRECT:'.length)
+    throw e
+  }
+  throw new Error('Expected redirect but action returned normally')
+}
+
+// ── Tests ────────────────────────────────────────────────────────────────────
+
+describe('submitContact', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    redirectMock.mockReset()
+    insertResult = { data: { id: 'sub-1' }, error: null }
+    sentEmailsData = []
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(buildSupabaseMock() as ReturnType<typeof getSupabaseServiceClient>)
+    vi.mocked(verifyTurnstileToken).mockResolvedValue(true)
+    vi.mocked(getEmailService).mockReturnValue({
+      sendTemplate: sendTemplateMock,
+    } as ReturnType<typeof getEmailService>)
+    vi.mocked(getEmailSender).mockResolvedValue({
+      email: 'noreply@example.com',
+      name: 'My Site',
+      brandName: 'My Site',
+      primaryColor: '#0070f3',
+    })
+  })
+
+  it('happy path: redirects to ?notice=contact_received', async () => {
+    const url = await captureRedirect(() => submitContact(makeFormData()))
+    expect(url).toBe('/contact?notice=contact_received')
+  })
+
+  it('Turnstile fail: redirects to ?error=bot_check_failed', async () => {
+    vi.mocked(verifyTurnstileToken).mockResolvedValueOnce(false)
+    const url = await captureRedirect(() => submitContact(makeFormData()))
+    expect(url).toBe('/contact?error=bot_check_failed')
+  })
+
+  it('validation fail (name too short): redirects to ?error=validation_error', async () => {
+    const url = await captureRedirect(() => submitContact(makeFormData({ name: 'X' })))
+    expect(url).toBe('/contact?error=validation_error')
+  })
+
+  it('validation fail (consent_processing missing): redirects to ?error=validation_error', async () => {
+    const fd = makeFormData()
+    fd.delete('consent_processing')
+    const url = await captureRedirect(() => submitContact(fd))
+    expect(url).toBe('/contact?error=validation_error')
+  })
+
+  it('DB insert error: redirects to ?error=submit_failed', async () => {
+    insertResult = { data: null, error: { message: 'db error', code: '42P01' } }
+    const url = await captureRedirect(() => submitContact(makeFormData()))
+    expect(url).toBe('/contact?error=submit_failed')
+  })
+
+  it('does NOT send auto-reply when a recent sent_email exists for same email/site/24h', async () => {
+    sentEmailsData = [{ id: 'existing-email-1' }]
+    const url = await captureRedirect(() => submitContact(makeFormData()))
+    expect(url).toBe('/contact?notice=contact_received')
+    // sendTemplate should only be called once (admin alert), not twice
+    // Wait a tick for the fire-and-forget to resolve
+    await new Promise((r) => setTimeout(r, 50))
+    const callTemplateNames = sendTemplateMock.mock.calls.map(
+      (c) => (c[0] as { name: string }).name,
+    )
+    expect(callTemplateNames).not.toContain('contact-received')
+    expect(callTemplateNames).toContain('contact-admin-alert')
+  })
+
+  it('sends auto-reply when no prior sent email within 24h', async () => {
+    sentEmailsData = []
+    const url = await captureRedirect(() => submitContact(makeFormData()))
+    expect(url).toBe('/contact?notice=contact_received')
+    await new Promise((r) => setTimeout(r, 50))
+    const callTemplateNames = sendTemplateMock.mock.calls.map(
+      (c) => (c[0] as { name: string }).name,
+    )
+    expect(callTemplateNames).toContain('contact-received')
+    expect(callTemplateNames).toContain('contact-admin-alert')
+  })
+
+  it('email failure does not affect redirect (best-effort)', async () => {
+    sendTemplateMock.mockRejectedValue(new Error('Brevo down'))
+    const url = await captureRedirect(() => submitContact(makeFormData()))
+    expect(url).toBe('/contact?notice=contact_received')
+  })
+})

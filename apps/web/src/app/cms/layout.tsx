@@ -20,6 +20,12 @@ const CmsLayout = createAdminLayout({
         { label: 'Submissions', path: '/cms/submissions', icon: 'Inbox' },
       ],
     },
+    {
+      group: 'Contatos',
+      items: [
+        { label: 'Contatos recebidos', path: '/cms/contacts', icon: 'Mail' },
+      ],
+    },
   ],
 })
 
