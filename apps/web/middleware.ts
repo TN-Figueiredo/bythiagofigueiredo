@@ -14,7 +14,20 @@ import { getSupabaseServiceClient } from './lib/supabase/service'
  */
 
 const authMiddleware = createAuthMiddleware({
-  publicRoutes: [/^\/$/, '/signin', /^\/api\//, /^\/_next\//, /^\/blog/, /^\/campaigns/],
+  publicRoutes: [
+    /^\/$/,
+    '/signin',
+    /^\/signin\/(forgot|reset)/,
+    /^\/auth\//,
+    /^\/api\//,
+    /^\/_next\//,
+    /^\/blog/,
+    /^\/campaigns/,
+    /^\/contact$/,
+    /^\/signup\/invite\//,
+    /^\/unsubscribe\//,
+    /^\/newsletter\/confirm\//,
+  ],
   protectedRoutes: [/^\/cms(\/.*)?$/, /^\/admin(\/.*)?$/],
   signInPath: '/signin',
   env: {
