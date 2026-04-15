@@ -44,7 +44,7 @@ returns table (
 )
 language sql
 stable
-as $$
+as $fn$
   select
     i.email,
     i.role,
@@ -55,7 +55,7 @@ as $$
   join public.organizations o on o.id = i.org_id
   where i.token = p_token
   limit 1
-$$;
+$fn$;
 
 grant execute on function public.get_invitation_by_token(text) to anon, authenticated;
 
@@ -66,7 +66,7 @@ create or replace function public.accept_invitation_atomic(
 ) returns json
 language plpgsql
 security definer
-as $$
+as $fn$
 declare
   v_inv record;
   v_user_email citext;
@@ -115,6 +115,6 @@ begin
   where id = v_inv.id;
 
   return json_build_object('ok', true, 'org_id', v_inv.org_id);
-end $$;
+end $fn$;
 
 grant execute on function public.accept_invitation_atomic(text, uuid) to authenticated;

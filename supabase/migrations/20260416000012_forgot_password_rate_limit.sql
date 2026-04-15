@@ -20,7 +20,7 @@ returns boolean
 language plpgsql
 security definer
 set search_path = public, pg_temp
-as $$
+as $fn$
 declare
   v_count int;
 begin
@@ -36,6 +36,6 @@ begin
     values (p_email, nullif(p_ip, '')::inet);
   return true;
 end;
-$$;
+$fn$;
 revoke all on function public.record_password_reset_attempt(text, text) from public, anon, authenticated;
 grant execute on function public.record_password_reset_attempt(text, text) to service_role;

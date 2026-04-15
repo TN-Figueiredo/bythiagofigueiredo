@@ -2,7 +2,7 @@
 -- compromised admin credentials spamming invites.
 
 create or replace function public.invitations_rate_limit()
-returns trigger language plpgsql as $$
+returns trigger language plpgsql as $fn$
 declare v_count int;
 begin
   select count(*) into v_count from public.invitations
@@ -13,7 +13,7 @@ begin
       using errcode = 'check_violation';
   end if;
   return new;
-end $$;
+end $fn$;
 
 drop trigger if exists tg_invitations_rate_limit on public.invitations;
 create trigger tg_invitations_rate_limit

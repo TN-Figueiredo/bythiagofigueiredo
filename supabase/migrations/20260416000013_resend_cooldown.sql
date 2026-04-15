@@ -12,7 +12,7 @@ returns boolean
 language plpgsql
 security definer
 set search_path = public, pg_temp
-as $$
+as $fn$
 declare v_updated int;
 begin
   update public.invitations
@@ -24,6 +24,6 @@ begin
   get diagnostics v_updated = row_count;
   return v_updated > 0;
 end;
-$$;
+$fn$;
 revoke all on function public.increment_invitation_resend(uuid) from public, anon, authenticated;
 grant execute on function public.increment_invitation_resend(uuid) to service_role;

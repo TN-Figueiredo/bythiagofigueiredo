@@ -33,7 +33,7 @@ alter table public.campaigns
 create or replace function public.tg_campaigns_scheduled_for_future()
 returns trigger
 language plpgsql
-as $$
+as $fn$
 begin
   if new.status = 'scheduled' and new.scheduled_for is not null and new.scheduled_for < now() then
     raise exception 'campaigns.scheduled_for must be in the future when status=scheduled (got %)',
@@ -42,7 +42,7 @@ begin
   end if;
   return new;
 end
-$$;
+$fn$;
 
 drop trigger if exists tg_campaigns_scheduled_for_future on public.campaigns;
 create trigger tg_campaigns_scheduled_for_future

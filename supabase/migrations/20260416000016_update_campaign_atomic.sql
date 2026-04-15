@@ -36,7 +36,7 @@ returns public.campaigns
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $fn$
 declare
   v_site_id uuid;
   v_row public.campaigns;
@@ -188,6 +188,6 @@ begin
   select * into v_row from public.campaigns where id = p_campaign_id;
   return v_row;
 end
-$$;
+$fn$;
 
 grant execute on function public.update_campaign_atomic(uuid, jsonb, jsonb) to authenticated;

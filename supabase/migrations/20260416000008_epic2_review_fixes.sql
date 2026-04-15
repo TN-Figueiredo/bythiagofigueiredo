@@ -15,7 +15,7 @@ create or replace function public.accept_invitation_atomic(
 ) returns json
 language plpgsql
 security definer
-as $$
+as $fn$
 declare
   v_user_id uuid := auth.uid();
   v_inv record;
@@ -69,7 +69,7 @@ begin
   where id = v_inv.id;
 
   return json_build_object('ok', true, 'org_id', v_inv.org_id);
-end $$;
+end $fn$;
 
 grant execute on function public.accept_invitation_atomic(text) to authenticated;
 
@@ -88,7 +88,7 @@ create unique index if not exists newsletter_pending_token
 -- ============================================================
 
 create or replace function public.confirm_newsletter_subscription(p_token text)
-returns json language plpgsql security definer as $$
+returns json language plpgsql security definer as $fn$
 declare v_sub record;
 begin
   select id, site_id, email, status, confirmation_expires_at into v_sub
@@ -121,6 +121,6 @@ begin
   where id = v_sub.id;
 
   return json_build_object('ok', true, 'email', v_sub.email, 'site_id', v_sub.site_id);
-end $$;
+end $fn$;
 
 grant execute on function public.confirm_newsletter_subscription(text) to anon, authenticated;

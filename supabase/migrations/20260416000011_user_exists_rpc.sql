@@ -9,9 +9,9 @@ returns boolean
 language sql
 security definer
 set search_path = public, pg_temp
-as $$
+as $fn$
   select exists(select 1 from auth.users where email = p_email);
-$$;
+$fn$;
 revoke all on function public.user_exists_by_email(text) from public, anon, authenticated;
 grant execute on function public.user_exists_by_email(text) to service_role;
 
@@ -21,12 +21,12 @@ returns void
 language sql
 security definer
 set search_path = public, pg_temp
-as $$
+as $fn$
   update public.invitations
      set resend_count = resend_count + 1,
          resent_at = now(),
          last_sent_at = now()
    where id = p_id;
-$$;
+$fn$;
 revoke all on function public.increment_invitation_resend(uuid) from public, anon, authenticated;
 grant execute on function public.increment_invitation_resend(uuid) to service_role;

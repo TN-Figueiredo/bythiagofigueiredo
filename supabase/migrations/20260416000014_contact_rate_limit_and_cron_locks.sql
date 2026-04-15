@@ -31,7 +31,7 @@ create unique index if not exists newsletter_pending_token_hash
 
 -- Swap the RPC to lookup-by-hash. Caller passes the hash (app hashes the raw token).
 create or replace function public.confirm_newsletter_subscription(p_token_hash text)
-returns json language plpgsql security definer as $$
+returns json language plpgsql security definer as $fn$
 declare v_sub record;
 begin
   select id, site_id, email, status, confirmation_expires_at into v_sub
@@ -57,7 +57,7 @@ begin
   where id = v_sub.id;
 
   return json_build_object('ok', true, 'email', v_sub.email, 'site_id', v_sub.site_id);
-end $$;
+end $fn$;
 
 grant execute on function public.confirm_newsletter_subscription(text) to anon, authenticated;
 
@@ -91,7 +91,7 @@ alter table public.unsubscribe_tokens drop column if exists token;
 
 -- Rewrite RPC to look up by hash.
 create or replace function public.unsubscribe_via_token(p_token_hash text)
-returns json language plpgsql security definer as $$
+returns json language plpgsql security definer as $fn$
 declare v_tok record; v_sub record;
 begin
   select token_hash, site_id, email, used_at into v_tok
@@ -114,7 +114,7 @@ begin
   update public.unsubscribe_tokens set used_at = now() where token_hash = p_token_hash;
 
   return json_build_object('ok', true, 'site_id', v_tok.site_id, 'email', v_tok.email, 'sub_id', v_sub.id);
-end $$;
+end $fn$;
 
 grant execute on function public.unsubscribe_via_token(text) to anon, authenticated;
 
@@ -128,7 +128,7 @@ alter table public.newsletter_subscriptions
 -- Newsletter subscription state-machine documentation.
 -- ─────────────────────────────────────────────────────────────────────────────
 comment on table public.newsletter_subscriptions is
-$$Newsletter subscription state machine:
+$fn$Newsletter subscription state machine:
   pending_confirmation → confirmed   (via public.confirm_newsletter_subscription)
   confirmed            → unsubscribed (via public.unsubscribe_via_token)
   unsubscribed         → pending_confirmation (re-subscribe flow: token rotates,
@@ -136,7 +136,7 @@ $$Newsletter subscription state machine:
   pending_confirmation → pending_confirmation (re-subscribe while pending: token
                                                rotates, expires_at resets)
 Tokens are stored hashed (sha256 hex). Expiry enforced server-side by the RPCs,
-not by a partial index (now() in a predicate is nondeterministic).$$;
+not by a partial index (now() in a predicate is nondeterministic).$fn$;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- C4 + C5: Contact submission rate-limit RPC (inet-typed, 10-min window, 5/window).
@@ -150,7 +150,7 @@ create or replace function public.contact_rate_check(
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $fn$
 declare
   v_ip_inet inet;
   v_count int;
@@ -174,7 +174,7 @@ begin
 
   return v_count < 5;
 end;
-$$;
+$fn$;
 
 grant execute on function public.contact_rate_check(uuid, text, text)
   to anon, authenticated, service_role;
@@ -194,7 +194,7 @@ create or replace function public.newsletter_rate_check(
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $fn$
 declare
   v_ip_inet inet;
   v_count int;
@@ -218,7 +218,7 @@ begin
 
   return v_count < 5;
 end;
-$$;
+$fn$;
 
 grant execute on function public.newsletter_rate_check(uuid, text, text)
   to anon, authenticated, service_role;
@@ -232,14 +232,14 @@ drop function if exists public.cron_try_lock(text);
 drop function if exists public.cron_unlock(text);
 
 create or replace function public.cron_try_lock(p_job text)
-returns boolean language sql security definer as $$
+returns boolean language sql security definer as $fn$
   select pg_try_advisory_lock(hashtextextended(p_job, 0));
-$$;
+$fn$;
 
 create or replace function public.cron_unlock(p_job text)
-returns boolean language sql security definer as $$
+returns boolean language sql security definer as $fn$
   select pg_advisory_unlock(hashtextextended(p_job, 0));
-$$;
+$fn$;
 
 grant execute on function public.cron_try_lock(text) to service_role;
 grant execute on function public.cron_unlock(text) to service_role;

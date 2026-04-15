@@ -20,7 +20,7 @@ returns json
 language plpgsql
 security definer
 set search_path = public, pg_temp
-as $$
+as $fn$
 declare
   v_tok record;
   v_sub record;
@@ -56,7 +56,7 @@ begin
 
   -- Fix #2: return only ok, no email/site_id/sub_id
   return json_build_object('ok', true);
-end $$;
+end $fn$;
 
 grant execute on function public.unsubscribe_via_token(text) to anon, authenticated;
 
@@ -69,7 +69,7 @@ returns json
 language plpgsql
 security definer
 set search_path = public, pg_temp
-as $$
+as $fn$
 declare
   v_sub record;
 begin
@@ -105,7 +105,7 @@ begin
 
   -- Fix #2: return only ok, no email/site_id
   return json_build_object('ok', true);
-end $$;
+end $fn$;
 
 grant execute on function public.confirm_newsletter_subscription(text) to anon, authenticated;
 
@@ -118,7 +118,7 @@ returns json
 language plpgsql
 security definer
 set search_path = public, pg_temp
-as $$
+as $fn$
 declare
   v_user_id uuid := auth.uid();
   v_inv record;
@@ -193,7 +193,7 @@ begin
   where id = v_inv.id;
 
   return json_build_object('ok', true, 'org_id', v_inv.org_id);
-end $$;
+end $fn$;
 
 grant execute on function public.accept_invitation_atomic(text) to authenticated;
 
@@ -213,7 +213,7 @@ language sql
 stable
 security definer
 set search_path = public, pg_temp
-as $$
+as $fn$
   select
     i.email,
     i.role,
@@ -224,7 +224,7 @@ as $$
   join public.organizations o on o.id = i.org_id
   where i.token = p_token
   limit 1
-$$;
+$fn$;
 
 grant execute on function public.get_invitation_by_token(text) to anon, authenticated;
 
@@ -236,7 +236,7 @@ create or replace function public.invitations_rate_limit()
 returns trigger
 language plpgsql
 set search_path = public, pg_temp
-as $$
+as $fn$
 declare
   v_count int;
 begin
@@ -252,7 +252,7 @@ begin
       using errcode = 'check_violation';
   end if;
   return new;
-end $$;
+end $fn$;
 
 -- Trigger already exists pointing to function name — no need to recreate
 

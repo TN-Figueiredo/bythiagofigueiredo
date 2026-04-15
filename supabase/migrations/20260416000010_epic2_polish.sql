@@ -13,7 +13,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = public, pg_temp
-as $$
+as $fn$
 declare
   v_count int;
 begin
@@ -34,7 +34,7 @@ begin
       using errcode = 'check_violation';
   end if;
   return new;
-end $$;
+end $fn$;
 
 -- ============================================================
 -- 2: Idempotent length CHECK constraints

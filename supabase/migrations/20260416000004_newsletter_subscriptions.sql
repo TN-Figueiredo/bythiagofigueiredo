@@ -47,7 +47,7 @@ create policy "newsletter staff read"
 
 -- RPC: confirm subscription via token
 create or replace function public.confirm_newsletter_subscription(p_token text)
-returns json language plpgsql security definer as $$
+returns json language plpgsql security definer as $fn$
 declare v_sub record;
 begin
   select id, site_id, email, status, confirmation_expires_at into v_sub
@@ -73,6 +73,6 @@ begin
   where id = v_sub.id;
 
   return json_build_object('ok', true, 'email', v_sub.email, 'site_id', v_sub.site_id);
-end $$;
+end $fn$;
 
 grant execute on function public.confirm_newsletter_subscription(text) to anon, authenticated;

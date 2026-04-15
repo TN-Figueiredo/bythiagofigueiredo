@@ -19,7 +19,7 @@ drop policy if exists "unsubscribe service write" on public.unsubscribe_tokens;
 -- (no policy = effectively service-role only via bypass)
 
 create or replace function public.unsubscribe_via_token(p_token text)
-returns json language plpgsql security definer as $$
+returns json language plpgsql security definer as $fn$
 declare v_tok record; v_sub record;
 begin
   select token, site_id, email, used_at into v_tok
@@ -42,6 +42,6 @@ begin
   update public.unsubscribe_tokens set used_at = now() where token = p_token;
 
   return json_build_object('ok', true, 'site_id', v_tok.site_id, 'email', v_tok.email, 'sub_id', v_sub.id);
-end $$;
+end $fn$;
 
 grant execute on function public.unsubscribe_via_token(text) to anon, authenticated;
