@@ -4,6 +4,7 @@ import { createServerClient } from '@supabase/ssr'
 import type { CookieOptions } from '@supabase/ssr'
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
 import { getSiteContext } from '../../../../../lib/cms/site-context'
+import { captureServerActionError } from '../../../../lib/sentry-wrap'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,11 +38,19 @@ async function markReplied(submissionId: string, siteId: string) {
   }
 
   const supabase = getSupabaseServiceClient()
-  await supabase
+  const { error: updateErr } = await supabase
     .from('contact_submissions')
     .update({ replied_at: new Date().toISOString() })
     .eq('id', submissionId)
     .eq('site_id', siteId)
+  if (updateErr) {
+    captureServerActionError(updateErr, {
+      action: 'contact_mark_replied',
+      site_id: siteId,
+      submission_id: submissionId,
+      pg_code: updateErr.code,
+    })
+  }
   redirect(`/cms/contacts?notice=marked_replied`)
 }
 

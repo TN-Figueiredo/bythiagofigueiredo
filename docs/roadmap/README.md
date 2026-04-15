@@ -34,7 +34,7 @@
 - Sprint 2 ✅ — `@tn-figueiredo/cms` package, multi-ring schema, blog MDX rendering, admin CRUD (2026-04-15, merged PR #4, 198 tests). T14 extraction deferred to Sprint 3.
 - Sprint 3 ✅ — auth + invite flow, newsletter/contact forms + cron sync, campaign admin CRUD, PostEditor polish (autosave/meta SEO/cover/locale switcher/delete UI), rate limiting + cron locks. ~40 commits. Epic audit trajectory: Epic 3 82→98, Epic 4 62→99, Epic 5 82→99, sprint-wide 93→99. Package extraction (T14) + observability/LGPD carry-over ⇒ Sprint 4. Spec: [2026-04-16-sprint-3-design.md](../superpowers/specs/2026-04-16-sprint-3-design.md).
 
-**Sprint ativo:** Sprint 4 (package extraction + observability + LGPD — ~40h). Spec: [sprint-4.md](../superpowers/specs/sprint-4.md).
+**Sprint ativo:** Sprint 4 (package extraction + observability + LGPD — ~40h) — 🟡 **in progress (partial ship — Epics 8+9+10 ready; 6+7 package extraction carry-over)**. Spec: [sprint-4.md](../superpowers/specs/sprint-4.md).
 
 ## Legenda de status
 

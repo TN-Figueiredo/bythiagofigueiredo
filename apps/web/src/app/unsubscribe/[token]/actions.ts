@@ -2,6 +2,7 @@
 
 import { createHash } from 'node:crypto'
 import { getSupabaseServiceClient } from '../../../../lib/supabase/service'
+import { captureServerActionError } from '../../../lib/sentry-wrap'
 
 interface UnsubscribeRpcResult {
   ok: boolean
@@ -30,6 +31,10 @@ export async function unsubscribeViaToken(token: string): Promise<UnsubscribeRes
   })
 
   if (error || data === null) {
+    captureServerActionError(error ?? new Error('unsubscribe_rpc_returned_null'), {
+      action: 'unsubscribe_via_token',
+      branch: 'rpc',
+    })
     return { status: 'error' }
   }
 
@@ -37,6 +42,10 @@ export async function unsubscribeViaToken(token: string): Promise<UnsubscribeRes
 
   if (!result.ok) {
     if (result.error === 'not_found') return { status: 'not_found' }
+    captureServerActionError(new Error(`unsubscribe_rpc_not_ok: ${JSON.stringify(result)}`), {
+      action: 'unsubscribe_via_token',
+      branch: 'rpc_not_ok',
+    })
     return { status: 'error' }
   }
 

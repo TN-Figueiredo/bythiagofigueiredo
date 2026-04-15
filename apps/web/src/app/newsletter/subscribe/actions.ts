@@ -11,6 +11,7 @@ import { getSiteContext } from '../../../../lib/cms/site-context'
 import { getClientIp, isValidInet } from '../../../../lib/request-ip'
 import { confirmSubscriptionTemplate, ensureUnsubscribeToken } from '@tn-figueiredo/email'
 import { NEWSLETTER_CONSENT_VERSION } from '../consent'
+import { captureServerActionError } from '../../../lib/sentry-wrap'
 
 // Supported locales for newsletter emails. Falls back to pt-BR on anything else.
 const LocaleSchema = z.enum(['pt-BR', 'en'])
@@ -136,6 +137,12 @@ export async function subscribeToNewsletter(formData: FormData): Promise<Subscri
       // Race-condition duplicate — treat as ok (no oracle).
       return { status: 'ok' }
     }
+    captureServerActionError(error, {
+      action: 'newsletter_subscribe',
+      site_id: siteId,
+      branch: 'insert',
+      pg_code: error.code,
+    })
     return { status: 'error', code: 'db_error' }
   }
 

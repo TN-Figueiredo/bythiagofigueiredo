@@ -10,6 +10,7 @@ import { getEmailSender } from '../../../lib/email/sender'
 import { getSiteContext } from '../../../lib/cms/site-context'
 import { getClientIp, isValidInet } from '../../../lib/request-ip'
 import { verifyTurnstileToken } from '../../../lib/turnstile'
+import { captureServerActionError } from '../../lib/sentry-wrap'
 import {
   CONTACT_CONSENT_VERSION,
   CONTACT_MARKETING_CONSENT_VERSION,
@@ -72,6 +73,11 @@ export async function submitContact(formData: FormData): Promise<ContactResult> 
     p_email: input.email,
   })
   if (rateErr) {
+    captureServerActionError(rateErr, {
+      action: 'submit_contact',
+      site_id: ctx.siteId,
+      branch: 'rate_check',
+    })
     return { status: 'error' }
   }
   if (rateOk === false) {
@@ -99,6 +105,12 @@ export async function submitContact(formData: FormData): Promise<ContactResult> 
     .single()
 
   if (insertError || !submission) {
+    captureServerActionError(insertError ?? new Error('contact_insert_no_submission_returned'), {
+      action: 'submit_contact',
+      site_id: ctx.siteId,
+      branch: 'insert',
+      pg_code: (insertError as { code?: string } | null)?.code,
+    })
     return { status: 'error' }
   }
 

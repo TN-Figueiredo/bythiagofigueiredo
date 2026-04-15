@@ -120,7 +120,7 @@
 
 ---
 
-## Sprint 4 — LGPD & Deployment [☐ not-started] (38h)
+## Sprint 4 — LGPD & Deployment [🟡 in-progress — partial ship] (38h)
 
 **Goal:** Compliance LGPD, SEO, testes, deploy em staging.
 **Estimativa:** semanas 7–8

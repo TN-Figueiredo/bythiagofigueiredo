@@ -156,3 +156,22 @@ Epics 6 e 7 compartilham o final (`next.config.ts` cleanup + `npm install`); pod
 | Purge retention | 90d hard delete | soft-delete via `archived_at` + hard delete 365d |
 | Package repo naming | `TN-Figueiredo/cms` + `TN-Figueiredo/email` | `TN-Figueiredo/packages-cms` (verbose) |
 | Publish channel | GitHub Packages (já em uso) | npmjs público (rejeitado — private fica em GH) |
+
+---
+
+### Status (2026-04-15)
+
+Partial ship — observability + LGPD infrastructure landed; package extraction deferred.
+
+**Shipped:**
+- Epic 8 (RPC integration tests) — `test/integration/rpc-*.test.ts` suites gated on `HAS_LOCAL_DB=1` (cron-locks, confirm-newsletter, unsubscribe, update-campaign).
+- Epic 9 (Observability) — `@sentry/nextjs` wired in `instrumentation.ts` + `sentry.{server,edge,client}.config.ts`; `captureServerActionError` helper in `src/lib/sentry-wrap.ts` wired to invite/campaign/newsletter-confirm/newsletter-subscribe/contact-submit/unsubscribe/contact-mark-replied paths; `withSentryConfig` gated on full `SENTRY_AUTH_TOKEN`+`SENTRY_ORG`+`SENTRY_PROJECT` trifecta so local/branch builds don't noisily fail source-map upload; `sendDefaultPii: false` + `beforeSend: scrubEventPii` (regex email redaction) in all three init sites.
+- Epic 10 (LGPD retention) — `unsubscribe_via_token` RPC anonymizes row (email→sha256 hex, ip/user_agent/locale→NULL); re-subscribe flow handles hashed-email rows via `.or()` filter + in-place update that restores raw email on double-opt-in; `sent_emails` 90d purge RPC + cron; `contact_submissions` anonymize-on-request RPC.
+
+**Deferred → Sprint 4.1 (or next carry-over):**
+- Epic 6 (`@tn-figueiredo/cms` extraction, T46–T52) — workspace package still consumed via `transpilePackages`; `git subtree split` + repo creation + publish pending.
+- Epic 7 (`@tn-figueiredo/email` extraction, T53–T57) — same posture.
+
+**Rationale:** extraction requires a clean bisect-friendly window (single atomic PR removing workspace + `transpilePackages` + flipping pinned versions) which doesn't fit a hardening round. Shipping observability+LGPD first keeps prod-safety high while the extraction window is scheduled.
+
+**Test counts at ship:** 263 web tests passing (+15 integration skipped — gated on local DB), 4 api tests passing.
