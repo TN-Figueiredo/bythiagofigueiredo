@@ -134,6 +134,27 @@ describe('POST /api/cron/purge-sent-emails', () => {
     const res = await POST(req);
     expect(res.status).toBe(500);
   });
+
+  // M1: cron_runs insert is best-effort — a failed audit write MUST NOT
+  // fail the purge call itself (purge already succeeded).
+  it('200 + ok even when cron_runs best-effort insert rejects', async () => {
+    const c = fakeClient({ purge: { data: 7, error: null } });
+    // Override from('cron_runs').insert to reject.
+    const failingInsert = vi.fn().mockRejectedValue(new Error('cron_runs table missing'));
+    c.from = vi.fn(() => ({ insert: failingInsert })) as never;
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(c as never);
+
+    const req = new Request('http://x/api/cron/purge-sent-emails', {
+      method: 'POST',
+      headers: { authorization: 'Bearer topsecret' },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.deleted_count).toBe(7);
+    expect(failingInsert).toHaveBeenCalled();
+  });
 });
 
 describe('vercel.json crons', () => {
@@ -141,6 +162,25 @@ describe('vercel.json crons', () => {
     const p = resolve(__dirname, '../../vercel.json');
     expect(existsSync(p)).toBe(true);
     const j = JSON.parse(readFileSync(p, 'utf8'));
+    expect(j.crons).toContainEqual({
+      path: '/api/cron/purge-sent-emails',
+      schedule: '0 6 * * *',
+    });
+  });
+
+  // M5: guard the full cron array so a future PR cannot silently delete
+  // publish-scheduled or sync-newsletter-pending.
+  it('contains all expected cron entries with correct schedules', () => {
+    const p = resolve(__dirname, '../../vercel.json');
+    const j = JSON.parse(readFileSync(p, 'utf8'));
+    expect(j.crons).toContainEqual({
+      path: '/api/cron/publish-scheduled',
+      schedule: '*/5 * * * *',
+    });
+    expect(j.crons).toContainEqual({
+      path: '/api/cron/sync-newsletter-pending',
+      schedule: '* * * * *',
+    });
     expect(j.crons).toContainEqual({
       path: '/api/cron/purge-sent-emails',
       schedule: '0 6 * * *',

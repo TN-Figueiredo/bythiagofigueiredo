@@ -3,7 +3,7 @@ import { getSupabaseServiceClient } from '../../../../../lib/supabase/service';
 import { getEmailService } from '../../../../../lib/email/service';
 import { getEmailSender } from '../../../../../lib/email/sender';
 import { createBrevoContact } from '../../../../../lib/brevo';
-import { logCron, newRunId } from '../../../../../lib/logger';
+import { withCronLock, newRunId, logCron } from '../../../../../lib/logger';
 
 const BATCH_SIZE = 50;
 const LOCK_KEY = 'cron:sync-newsletter-pending';
@@ -27,24 +27,25 @@ interface UnsubSub {
   brevo_contact_id: string | null;
 }
 
-type SupabaseSvc = ReturnType<typeof getSupabaseServiceClient>;
+// M2: scrub PII — replace email addresses with <email> and extract only
+// { code, message } from Supabase/Brevo error objects. Applied to both
+// per-row error collection and batch-level error messages.
+const EMAIL_RE = /[\w.+-]+@[\w-]+\.[\w.-]+/g;
 
-async function tryLock(supabase: SupabaseSvc): Promise<boolean> {
-  try {
-    const { data, error } = await supabase.rpc('cron_try_lock', { p_job: LOCK_KEY });
-    if (error) return true; // fail open in envs where RPC isn't deployed yet
-    return data === true;
-  } catch {
-    return true;
-  }
+function scrubEmails(s: string): string {
+  return s.replace(EMAIL_RE, '<email>');
 }
 
-async function releaseLock(supabase: SupabaseSvc): Promise<void> {
-  try {
-    await supabase.rpc('cron_unlock', { p_job: LOCK_KEY });
-  } catch {
-    /* best-effort */
+function sanitizeError(e: unknown): string {
+  if (e && typeof e === 'object') {
+    const obj = e as { code?: unknown; message?: unknown };
+    const code = typeof obj.code === 'string' ? obj.code : undefined;
+    const rawMsg = typeof obj.message === 'string' ? obj.message : String(e);
+    const msg = scrubEmails(rawMsg);
+    return code ? `${code}: ${msg}` : msg;
   }
+  if (e instanceof Error) return scrubEmails(e.message);
+  return scrubEmails(String(e));
 }
 
 export async function POST(req: Request): Promise<Response> {
@@ -55,35 +56,27 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   const supabase = getSupabaseServiceClient();
-  const run_id = newRunId();
+  const runId = newRunId();
 
-  // H6: advisory lock — skip overlapping runs.
-  const gotLock = await tryLock(supabase);
-  if (!gotLock) {
-    logCron({ job: JOB, run_id, status: 'locked' });
-    return Response.json({ status: 'locked' }, { status: 200 });
-  }
+  return withCronLock(supabase, LOCK_KEY, runId, JOB, async () => {
+    let synced = 0;
+    let unsubscribed = 0;
+    // H2: errors log subscription_id only — never raw email (PII).
+    const errors: Array<{ id: string | null; error: string }> = [];
 
-  const start = Date.now();
-  let synced = 0;
-  let unsubscribed = 0;
-  // H2: errors log subscription_id only — never raw email (PII).
-  const errors: Array<{ id: string | null; error: string }> = [];
-
-  // M6: hoist email service + base url out of the loop.
-  const emailService = getEmailService();
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001';
-  const senderCache = new Map<string, Awaited<ReturnType<typeof getEmailSender>>>();
-  async function senderFor(siteId: string) {
-    let s = senderCache.get(siteId);
-    if (!s) {
-      s = await getEmailSender(siteId);
-      senderCache.set(siteId, s);
+    // M6: hoist email service + base url out of the loop.
+    const emailService = getEmailService();
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001';
+    const senderCache = new Map<string, Awaited<ReturnType<typeof getEmailSender>>>();
+    async function senderFor(siteId: string) {
+      let s = senderCache.get(siteId);
+      if (!s) {
+        s = await getEmailSender(siteId);
+        senderCache.set(siteId, s);
+      }
+      return s;
     }
-    return s;
-  }
 
-  try {
     // --- Sync pending confirms → Brevo ---
     const { data: pending, error: pendingErr } = await supabase
       .from('newsletter_subscriptions')
@@ -104,7 +97,7 @@ export async function POST(req: Request): Promise<Response> {
       .limit(BATCH_SIZE);
 
     if (pendingErr) {
-      errors.push({ id: null, error: `query pending: ${pendingErr.message}` });
+      errors.push({ id: null, error: `query pending: ${sanitizeError(pendingErr)}` });
     }
 
     for (const row of (pending as PendingSub[] | null) ?? []) {
@@ -199,13 +192,13 @@ export async function POST(req: Request): Promise<Response> {
           if (welcomeInsErr && (welcomeInsErr as { code?: string }).code !== '23505') {
             errors.push({
               id: row.id,
-              error: `welcome insert: ${welcomeInsErr.message}`,
+              error: `welcome insert: ${sanitizeError(welcomeInsErr)}`,
             });
           }
         } catch (emailErr) {
           errors.push({
             id: row.id,
-            error: `welcome: ${emailErr instanceof Error ? emailErr.message : String(emailErr)}`,
+            error: `welcome: ${sanitizeError(emailErr)}`,
           });
         }
 
@@ -223,7 +216,7 @@ export async function POST(req: Request): Promise<Response> {
         }
         errors.push({
           id: row.id,
-          error: `sync: ${e instanceof Error ? e.message : String(e)}`,
+          error: `sync: ${sanitizeError(e)}`,
         });
       }
     }
@@ -237,7 +230,7 @@ export async function POST(req: Request): Promise<Response> {
       .limit(BATCH_SIZE);
 
     if (unsubErr) {
-      errors.push({ id: null, error: `query unsubscribed: ${unsubErr.message}` });
+      errors.push({ id: null, error: `query unsubscribed: ${sanitizeError(unsubErr)}` });
     }
 
     for (const sub of (unsubs as UnsubSub[] | null) ?? []) {
@@ -250,19 +243,17 @@ export async function POST(req: Request): Promise<Response> {
       } catch (e) {
         errors.push({
           id: sub.id,
-          error: `unsub clear: ${e instanceof Error ? e.message : String(e)}`,
+          error: `unsub clear: ${sanitizeError(e)}`,
         });
       }
     }
 
-    // --- Cron audit log ---
-    const duration_ms = Date.now() - start;
+    // --- Cron audit log (best-effort) ---
     const hasErrors = errors.length > 0;
     try {
       await supabase.from('cron_runs').insert({
         job: JOB,
         status: hasErrors ? 'error' : 'ok',
-        duration_ms,
         items_processed: synced + unsubscribed,
         error: hasErrors
           ? errors
@@ -275,27 +266,40 @@ export async function POST(req: Request): Promise<Response> {
       /* best-effort */
     }
 
-    // Structured log. `brevo_created` == `synced` (a row is counted there
-    // after the Brevo create RPC succeeds, whether or not the welcome email
-    // was skipped due to the duplicate-send guard). Tracking
-    // `welcome_sent` distinctly would require a structural change beyond
-    // this logging swap and is deferred.
-    logCron({
-      job: JOB,
-      run_id,
-      status: hasErrors ? 'error' : 'ok',
-      duration_ms,
+    // Partial failures (per-row errors) still return HTTP 200 — the cron as a
+    // whole succeeded in reaching the end of its batch. Emit a dedicated
+    // 'error' log event for partial_failure so Sentry/log-search pick it up,
+    // independent of the 'ok' status returned to withCronLock.
+    if (hasErrors) {
+      logCron({
+        job: JOB,
+        run_id: runId,
+        status: 'error',
+        err_code: 'partial_failure',
+        processed: synced + unsubscribed,
+        brevo_created: synced,
+        unsubscribed,
+        errors_count: errors.length,
+      });
+    }
+
+    // Return shape:
+    // - status drives withCronLock's HTTP code (ok → 200, error → 500).
+    // - remaining fields are spread into both the log event and response body.
+    // - `brevo_created` == `synced` (a row is counted there after the Brevo
+    //   create RPC succeeds, whether or not the welcome email was skipped
+    //   due to the duplicate-send guard). `welcome_sent` distinct tracking
+    //   is deferred (structural change beyond this swap).
+    return {
+      status: 'ok' as const,
+      synced,
+      unsubscribed,
+      errors: errors.length,
       processed: synced + unsubscribed,
       brevo_created: synced,
-      unsubscribed,
       errors_count: errors.length,
-      ...(hasErrors ? { err_code: 'partial_failure' } : {}),
-    });
-
-    return Response.json({ synced, unsubscribed, errors: errors.length });
-  } finally {
-    await releaseLock(supabase);
-  }
+    };
+  });
 }
 
 function cryptoRandom(): string {
