@@ -37,6 +37,17 @@ describe.skipIf(skipIfNoLocalDb())('RLS: blog_posts + blog_translations + author
     await service.from('blog_posts').delete().neq('id', '00000000-0000-0000-0000-000000000000')
     await service.from('authors').delete().neq('id', '00000000-0000-0000-0000-000000000000')
 
+    // Ensure SITE_A and SITE_B exist to satisfy blog_posts.site_id FK.
+    const orgSuffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const { data: org } = await service.from('organizations').insert({
+      name: `Blog RLS Org ${orgSuffix}`,
+      slug: `blog-rls-org-${orgSuffix}`,
+    }).select('id').single()
+    await service.from('sites').upsert([
+      { id: SITE_A, org_id: org!.id, name: 'Site A', slug: `site-a-${orgSuffix}`, domains: [], default_locale: 'pt-BR', supported_locales: ['pt-BR'] },
+      { id: SITE_B, org_id: org!.id, name: 'Site B', slug: `site-b-${orgSuffix}`, domains: [], default_locale: 'pt-BR', supported_locales: ['pt-BR'] },
+    ])
+
     // Test-unique slug to reduce races with seed.test.ts, which concurrently
     // re-applies supabase/seeds/dev.sql (inserting a 'thiago' author).
     const uniqueSlug = `rls-author-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -238,4 +249,22 @@ describe.skipIf(skipIfNoLocalDb())('RLS: blog_posts + blog_translations + author
       expect(ids).toContain(draftId)
     })
   })
+})
+
+describe.skipIf(skipIfNoLocalDb())('blog_posts site_id FK', () => {
+  const admin = createClient(SUPABASE_URL, SERVICE_KEY)
+
+  it('rejects blog_posts with non-existent site_id', async () => {
+    const { data: a } = await admin.from('authors')
+      .insert({ name: 'T', slug: `t-${Date.now()}` }).select('id').single()
+    const { error } = await admin.from('blog_posts').insert({
+      author_id: a!.id,
+      status: 'draft',
+      site_id: '99999999-9999-9999-9999-999999999999',
+    })
+    expect(error).not.toBeNull()
+    expect(error!.message).toMatch(/foreign key|violates/i)
+  })
+
+  // NOT NULL enforcement deferred to a later migration after seed backfills.
 })
