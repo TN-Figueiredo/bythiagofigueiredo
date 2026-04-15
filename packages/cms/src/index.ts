@@ -1,13 +1,42 @@
-export * from './types/content'
-export * from './types/post'
-export * from './types/campaign'
-export * from './types/organization'
-export * from './types/schemas'
-export * from './interfaces/content-repository'
-export * from './interfaces/post-repository'
-export * from './interfaces/campaign-repository'
-export * from './interfaces/content-renderer'
-export * from './interfaces/ring-context'
+// ---- Types (explicit re-exports; kept alphabetized by file) ----
+export type {
+  ContentStatus,
+  ContentListOpts,
+  ContentCountOpts,
+  TocEntry,
+  CompiledMdx,
+} from './types/content'
+export type {
+  PostTranslation,
+  Post,
+  PostListItem,
+  CreatePostInput,
+  UpdatePostInput,
+} from './types/post'
+export type {
+  CampaignExtras,
+  CampaignTranslation,
+  CampaignFormField,
+  Campaign,
+  CampaignListItem,
+  CreateCampaignInput,
+  UpdateCampaignInput,
+} from './types/campaign'
+export type { Organization, Site } from './types/organization'
+export {
+  ContentStatusZ,
+  TocEntryZ,
+  PostTranslationZ,
+  PostZ,
+  CreatePostInputZ,
+} from './types/schemas'
+
+// ---- Interfaces ----
+export type { IContentRepository } from './interfaces/content-repository'
+export type { IPostRepository } from './interfaces/post-repository'
+export type { ICampaignRepository } from './interfaces/campaign-repository'
+export type { IContentRenderer, ComponentRegistry } from './interfaces/content-renderer'
+export type { IRingContext } from './interfaces/ring-context'
 export { compileMdx } from './mdx/compiler'
 export { MdxRunner } from './mdx/renderer'
 export { defaultComponents } from './mdx/default-components'

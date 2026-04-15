@@ -186,7 +186,11 @@ export function useAutosave<T>(
   }
 }
 
-// Exposed for tests / advanced consumers.
+/**
+ * @internal
+ * Exposed for tests and advanced consumers only. Not part of the package's
+ * supported API — use `useAutosave` instead.
+ */
 export const __autosaveInternals = {
   readDraft,
   writeDraft,
