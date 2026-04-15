@@ -13,6 +13,16 @@ export interface EditorStrings {
   previewBytes: (bytes: number) => string
   assetPickerButton: string
   assetPickerUploading: string
+  seoSectionLabel: string
+  seoTitleLabel: string
+  seoDescriptionLabel: string
+  ogImageUrlLabel: string
+  coverImageLabel: string
+  coverImagePick: string
+  coverImageClear: string
+  autosaveRestoreBanner: string
+  autosaveRestore: string
+  autosaveDiscard: string
   toolbarPlaceholders: {
     text: string
     h1: string
@@ -38,6 +48,16 @@ export const ptBR: EditorStrings = {
   previewBytes: (bytes) => `${bytes} bytes compilados`,
   assetPickerButton: '📎 Escolher arquivo',
   assetPickerUploading: 'Enviando…',
+  seoSectionLabel: 'SEO',
+  seoTitleLabel: 'SEO: título',
+  seoDescriptionLabel: 'SEO: descrição',
+  ogImageUrlLabel: 'Imagem Open Graph (URL)',
+  coverImageLabel: 'Imagem de capa',
+  coverImagePick: 'Escolher capa',
+  coverImageClear: 'Remover capa',
+  autosaveRestoreBanner: 'Rascunho anterior disponível',
+  autosaveRestore: 'Restaurar',
+  autosaveDiscard: 'Descartar',
   toolbarPlaceholders: {
     text: 'texto',
     h1: 'Título',
@@ -63,6 +83,16 @@ export const en: EditorStrings = {
   previewBytes: (bytes) => `${bytes} bytes compiled`,
   assetPickerButton: '📎 Choose file',
   assetPickerUploading: 'Uploading…',
+  seoSectionLabel: 'SEO',
+  seoTitleLabel: 'SEO: title',
+  seoDescriptionLabel: 'SEO: description',
+  ogImageUrlLabel: 'Open Graph image (URL)',
+  coverImageLabel: 'Cover image',
+  coverImagePick: 'Pick cover',
+  coverImageClear: 'Remove cover',
+  autosaveRestoreBanner: 'Previous draft available',
+  autosaveRestore: 'Restore',
+  autosaveDiscard: 'Discard',
   toolbarPlaceholders: {
     text: 'text',
     h1: 'Heading',
