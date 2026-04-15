@@ -4,6 +4,12 @@ const nextConfig: NextConfig = {
   // TODO: [APP_NAME] Add Sentry integration when DSN is configured
   // import { withSentryConfig } from '@sentry/nextjs'
 
+  // Transpile workspace package source directly so dev loop doesn't require
+  // `npm run build` in packages/cms on every change. When the package is
+  // extracted and published (Sprint 2 T14), this entry can be removed — the
+  // published tarball ships pre-built dist/.
+  transpilePackages: ['@tn-figueiredo/cms'],
+
   async headers() {
     return [
       {
