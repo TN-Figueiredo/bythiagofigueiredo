@@ -14,7 +14,7 @@ alter table public.newsletter_subscriptions
 
 -- Backfill: any existing plaintext token gets hashed with sha256 hex (lowercase).
 update public.newsletter_subscriptions
-  set confirmation_token_hash = encode(digest(confirmation_token, 'sha256'), 'hex')
+  set confirmation_token_hash = encode(sha256(confirmation_token::bytea), 'hex')
   where confirmation_token is not null
     and confirmation_token_hash is null;
 
@@ -68,7 +68,7 @@ alter table public.unsubscribe_tokens
 
 -- Backfill hash from existing plaintext token values.
 update public.unsubscribe_tokens
-  set token_hash = encode(digest(token, 'sha256'), 'hex')
+  set token_hash = encode(sha256(token::bytea), 'hex')
   where token is not null and token_hash is null;
 
 -- Make token nullable (we'll drop it after RPC is updated).
