@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
-    "@supabase/supabase-js": "2.45.4",
+    "@supabase/supabase-js": "2.103.0",
     "@tn-figueiredo/admin": "0.3.0",
     "@tn-figueiredo/auth-nextjs": "2.0.0",
     "@tn-figueiredo/cms": "*",

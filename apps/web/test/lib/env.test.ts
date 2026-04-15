@@ -18,6 +18,6 @@ describe('env example documents Sprint 1b vars', () => {
     expect(deps['p-retry']).toBe('6.2.0');
     expect(deps['react-markdown']).toBe('9.0.1');
     expect(deps['remark-gfm']).toBe('4.0.0');
-    expect(deps['@supabase/supabase-js']).toBe('2.45.4');
+    expect(deps['@supabase/supabase-js']).toBe('2.103.0');
   });
 });
