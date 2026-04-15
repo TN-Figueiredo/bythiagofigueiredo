@@ -1,11 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { Client } from 'pg'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-
-const DB_URL = 'postgres://postgres:postgres@127.0.0.1:54322/postgres'
+import { PG_URL } from '../helpers/local-supabase'
 
 describe.skipIf(skipIfNoLocalDb())('migration 0001 authors', () => {
-  const client = new Client({ connectionString: DB_URL })
+  const client = new Client({ connectionString: PG_URL })
   beforeAll(async () => { await client.connect() })
   afterAll(async () => { await client.end() })
 
@@ -56,7 +55,7 @@ describe.skipIf(skipIfNoLocalDb())('migration 0001 authors', () => {
 })
 
 describe.skipIf(skipIfNoLocalDb())('migration 0002 blog_posts', () => {
-  const client = new Client({ connectionString: DB_URL })
+  const client = new Client({ connectionString: PG_URL })
   beforeAll(async () => { await client.connect() })
   afterAll(async () => { await client.end() })
 
@@ -99,7 +98,7 @@ describe.skipIf(skipIfNoLocalDb())('migration 0002 blog_posts', () => {
 })
 
 describe.skipIf(skipIfNoLocalDb())('migration 0003 blog_translations', () => {
-  const client = new Client({ connectionString: DB_URL })
+  const client = new Client({ connectionString: PG_URL })
   beforeAll(async () => { await client.connect() })
   afterAll(async () => { await client.end() })
 
@@ -109,7 +108,7 @@ describe.skipIf(skipIfNoLocalDb())('migration 0003 blog_translations', () => {
       where table_schema='public' and table_name='blog_translations'
     `)
     const names = rows.map(r => r.column_name)
-    for (const c of ['id','post_id','locale','title','slug','excerpt','content_md',
+    for (const c of ['id','post_id','locale','title','slug','excerpt','content_mdx',
       'cover_image_url','meta_title','meta_description','og_image_url',
       'created_at','updated_at']) {
       expect(names).toContain(c)
@@ -123,11 +122,11 @@ describe.skipIf(skipIfNoLocalDb())('migration 0003 blog_translations', () => {
       `insert into public.blog_posts(author_id) values ($1) returning id`, [a.id]
     )
     await client.query(
-      `insert into public.blog_translations(post_id,locale,title,slug,content_md)
+      `insert into public.blog_translations(post_id,locale,title,slug,content_mdx)
        values ($1,'pt-BR','T','s1','c')`, [p.id]
     )
     await expect(client.query(
-      `insert into public.blog_translations(post_id,locale,title,slug,content_md)
+      `insert into public.blog_translations(post_id,locale,title,slug,content_mdx)
        values ($1,'pt-BR','T2','s2','c2')`, [p.id]
     )).rejects.toThrow()
   })
@@ -138,7 +137,7 @@ describe.skipIf(skipIfNoLocalDb())('migration 0003 blog_translations', () => {
       `insert into public.blog_posts(author_id) values ($1) returning id`, [a.id]
     )
     await client.query(
-      `insert into public.blog_translations(post_id,locale,title,slug,content_md)
+      `insert into public.blog_translations(post_id,locale,title,slug,content_mdx)
        values ($1,'en','T','en-slug','c')`, [p.id]
     )
     await client.query(`delete from public.blog_posts where id=$1`, [p.id])

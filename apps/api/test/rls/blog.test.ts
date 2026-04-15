@@ -3,9 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { Client } from 'pg'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { SUPABASE_URL, ANON_KEY, SERVICE_KEY, PG_URL, adminJwt } from '../helpers/local-supabase'
-
-const SITE_A = '11111111-1111-1111-1111-111111111111'
-const SITE_B = '22222222-2222-2222-2222-222222222222'
+import { ensureSharedSites, SHARED_SITE_A_ID as SITE_A, SHARED_SITE_B_ID as SITE_B } from '../helpers/ring-fixtures'
 
 async function insertOne<T extends { id: string }>(
   query: PromiseLike<{ data: T | null; error: unknown }>,
@@ -36,6 +34,9 @@ describe.skipIf(skipIfNoLocalDb())('RLS: blog_posts + blog_translations + author
     await service.from('blog_translations').delete().neq('id', '00000000-0000-0000-0000-000000000000')
     await service.from('blog_posts').delete().neq('id', '00000000-0000-0000-0000-000000000000')
     await service.from('authors').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+
+    // Ensure SITE_A and SITE_B exist to satisfy blog_posts.site_id FK.
+    await ensureSharedSites(service)
 
     // Test-unique slug to reduce races with seed.test.ts, which concurrently
     // re-applies supabase/seeds/dev.sql (inserting a 'thiago' author).
@@ -75,21 +76,21 @@ describe.skipIf(skipIfNoLocalDb())('RLS: blog_posts + blog_translations + author
 
     trNullId = (await insertOne(
       service.from('blog_translations').insert({
-        post_id: publishedId, locale: 'en', title: 'null-site', slug: 'null-site', content_md: 'x',
+        post_id: publishedId, locale: 'en', title: 'null-site', slug: 'null-site', content_mdx: 'x',
       }).select('id').single(),
       'tN'
     )).id
 
     trSiteAId = (await insertOne(
       service.from('blog_translations').insert({
-        post_id: postSiteAId, locale: 'en', title: 'site-a', slug: 'site-a', content_md: 'x',
+        post_id: postSiteAId, locale: 'en', title: 'site-a', slug: 'site-a', content_mdx: 'x',
       }).select('id').single(),
       'tA'
     )).id
 
     trSiteBId = (await insertOne(
       service.from('blog_translations').insert({
-        post_id: postSiteBId, locale: 'en', title: 'site-b', slug: 'site-b', content_md: 'x',
+        post_id: postSiteBId, locale: 'en', title: 'site-b', slug: 'site-b', content_mdx: 'x',
       }).select('id').single(),
       'tB'
     )).id
@@ -238,4 +239,22 @@ describe.skipIf(skipIfNoLocalDb())('RLS: blog_posts + blog_translations + author
       expect(ids).toContain(draftId)
     })
   })
+})
+
+describe.skipIf(skipIfNoLocalDb())('blog_posts site_id FK', () => {
+  const admin = createClient(SUPABASE_URL, SERVICE_KEY)
+
+  it('rejects blog_posts with non-existent site_id', async () => {
+    const { data: a } = await admin.from('authors')
+      .insert({ name: 'T', slug: `t-${Date.now()}` }).select('id').single()
+    const { error } = await admin.from('blog_posts').insert({
+      author_id: a!.id,
+      status: 'draft',
+      site_id: '99999999-9999-9999-9999-999999999999',
+    })
+    expect(error).not.toBeNull()
+    expect(error!.message).toMatch(/foreign key|violates/i)
+  })
+
+  // NOT NULL enforcement deferred to a later migration after seed backfills.
 })

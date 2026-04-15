@@ -4,10 +4,14 @@ import { Client } from 'pg'
 import { skipIfNoLocalDb, getLocalJwtSecret } from '../helpers/db-skip'
 import { SUPABASE_URL, SERVICE_KEY, ANON_KEY, PG_URL, adminJwt } from '../helpers/local-supabase'
 import { makeCampaign } from '../helpers/campaign-fixtures'
+import { ensureSharedSites } from '../helpers/ring-fixtures'
 import jwt from 'jsonwebtoken'
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY)
 const anon = createClient(SUPABASE_URL, ANON_KEY)
+
+// Ensure the SITE_A / SITE_B test sites exist to satisfy campaigns.site_id FK.
+beforeAll(() => ensureSharedSites(admin))
 
 // Track inserted campaign IDs for cleanup so this suite leaves no shared state.
 const createdCampaignIds: string[] = []
@@ -326,4 +330,15 @@ describe.skipIf(!process.env.HAS_LOCAL_DB)('dev seed', () => {
     expect(statuses.has('failed')).toBe(true);
     expect(statuses.has('pending')).toBe(true);
   });
+})
+
+describe.skipIf(skipIfNoLocalDb())('campaigns site_id FK', () => {
+  it('rejects campaign with non-existent site_id', async () => {
+    const { error } = await admin.from('campaigns').insert({
+      interest: 'creator',
+      site_id: '99999999-9999-9999-9999-999999999999',
+    })
+    expect(error).not.toBeNull()
+    expect(error!.message).toMatch(/foreign key|violates/i)
+  })
 })

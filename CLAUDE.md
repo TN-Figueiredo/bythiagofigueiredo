@@ -86,6 +86,47 @@ Override do JWT secret: `SUPABASE_JWT_SECRET=xxx HAS_LOCAL_DB=1 npm test`.
 - Staff (`editor|admin|super_admin`) bypassa o filtro via policies `_staff_read_all` — OR com a policy pública.
 - **Idempotência em migrations de RLS:** sempre prefixe `create policy` com `drop policy if exists "<name>" on <table>;` e `create trigger` com `drop trigger if exists <name> on <table>;`. `create or replace function` já é idempotente. Pattern canônico: `supabase/migrations/20260414000008_rls_site_helper.sql` e `…000018_submissions_published_guard.sql`.
 
+## Multi-ring (CMS conglomerate)
+
+Conglomerado multi-site onde cada "ring" (organização) controla seus sites filhos. `bythiagofigueiredo.com` é o master ring — pode administrar child rings via cascade-up de `public.can_admin_site()`.
+
+**Schema (Sprint 2):**
+- `organizations` — rings, com `parent_org_id` (NULL = master ring). Slug global unique.
+- `organization_members` — per-org roles: `owner | admin | editor | author`. Staff = `owner|admin|editor`. Unique `(org_id, user_id)`.
+- `sites` — belong to an org. `domains text[]` pra hostname resolution. Slug unique per `(org_id, slug)`.
+- `blog_posts.site_id` e `campaigns.site_id` — FK para `sites.id` (nullable até seed backfill; NOT NULL em migration futura).
+
+**Helpers RLS (além dos do Sprint 1a):**
+- `public.org_role(p_org_id)` — role do current user no org (via `auth.uid()`), ou NULL.
+- `public.is_org_staff(p_org_id)` — `org_role IN ('owner','admin','editor')`, coalesce → false.
+- `public.can_admin_site(p_site_id)` — staff do site's org OR staff do parent org (cascade up).
+- `is_staff()` global (Sprint 1) permanece como "god mode" pra backward compat.
+
+**Site resolution (middleware):**
+Request com `Host: bythiagofigueiredo.com` → middleware chama `SupabaseRingContext.getSiteByDomain()` → seta headers `x-site-id`, `x-org-id`, `x-default-locale`. Server components leem via `getSiteContext()` em `apps/web/lib/cms/site-context.ts`.
+
+**Server actions:**
+Write actions (save/publish/unpublish/archive/delete/upload) DEVEM chamar `requireSiteAdmin(postId)` no topo. Esse helper resolve o user via `@supabase/ssr` + cookies e chama RPC `can_admin_site`. Service-role client (`getSupabaseServiceClient`) bypassa RLS — sem esse guard explícito, cross-ring writes seriam possíveis.
+
+## @tn-figueiredo/cms package
+
+CMS reutilizável publicado em `@tn-figueiredo/cms` (extração pra repo próprio fica pro Sprint 3 quando segundo consumer aparecer). Durante Sprint 2: workspace em `packages/cms/`, consumido via `apps/web/package.json "@tn-figueiredo/cms": "*"` + `transpilePackages` no `next.config.ts`.
+
+**Exports principais:**
+- Interfaces: `IContentRepository<T>`, `IPostRepository`, `IContentRenderer`, `IRingContext`
+- Supabase impls: `SupabasePostRepository`, `SupabaseRingContext`, `uploadContentAsset`
+- MDX: `compileMdx`, `MdxRunner`, `defaultComponents`, `extractToc`, `calculateReadingTime`
+- Editor (client): `PostEditor`, `EditorToolbar`, `EditorPreview`, `AssetPicker`
+- i18n: `getEditorStrings(locale)` — pt-BR + en, extensível
+- Opt-in shiki: `import { ShikiCodeBlock } from '@tn-figueiredo/cms/code'` (lazy)
+
+**MDX strategy:** `@mdx-js/mdx@3.x compile()` on save → `content_compiled text` column no DB → `run()` at render time. Public pages caem em runtime compile se `content_compiled IS NULL` (legacy posts).
+
+**Dev loop:**
+- Package tem `prepare` hook que roda `tsc` em `npm install` → `dist/` sempre atualizado
+- Após mudança em `packages/cms/src/*`: rodar `npm run build -w packages/cms` (ou `npm install` pra trigger prepare)
+- `next.config.ts` tem `transpilePackages: ['@tn-figueiredo/cms']` — Next transpila direto
+
 ## Environment Variables
 
 ### Web (`apps/web/.env.local`)
@@ -95,6 +136,7 @@ Override do JWT secret: `SUPABASE_JWT_SECRET=xxx HAS_LOCAL_DB=1 npm test`.
 - `CRON_SECRET`
 - `BREVO_API_KEY`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` (Sprint 1b)
 - `CAMPAIGN_PDF_SIGNED_URL_TTL` (opcional, default 86400 = 24h — TTL em segundos dos signed URLs de PDFs de campanha)
+- Sprint 2: nenhuma env var nova — multi-ring scoping resolve via middleware + `sites.domains` array no DB
 
 ### API (`apps/api/.env.local`)
 - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
@@ -113,7 +155,8 @@ Override do JWT secret: `SUPABASE_JWT_SECRET=xxx HAS_LOCAL_DB=1 npm test`.
 - **Sprint 0** ✅ done — infra + env + db link
 - **Sprint 1a** ✅ done — blog schema, RLS, homepage, API setup, site_visible helper
 - **Sprint 1b** ✅ done — campaigns schema/RLS, Brevo+Turnstile libs, landing pages, cron, seed
-- **Sprint 2** next — Auth flows, admin dashboard, CMS CRUD
+- **Sprint 2** ✅ done — @tn-figueiredo/cms package, multi-ring schema, blog MDX rendering, admin CRUD
+- **Sprint 3** next — Admin login UI, newsletter/contact forms, campaign admin CRUD, package extraction
 - Spec de cada sprint em `docs/superpowers/specs/`
 
 ## Code Standards
@@ -145,7 +188,7 @@ Versões exatas (sem `^`) — pre-commit hook valida pinning.
 
 Packages instalados (conforme `package.json`):
 - api: `auth@1.3.0`, `auth-fastify@1.1.0`, `auth-supabase@1.1.0`, `audit@0.1.0`, `lgpd@0.1.0`, `shared@0.8.0`
-- web: `admin@0.3.0`, `auth-nextjs@2.0.0`, `notifications@0.1.0`, `seo@0.1.0`, `shared@0.8.0`
+- web: `admin@0.3.0`, `auth-nextjs@2.0.0`, `cms@0.1.0-dev (workspace)`, `notifications@0.1.0`, `seo@0.1.0`, `shared@0.8.0`
 
 Upgrade: editar `package.json` + `npm install` → CI valida pinning.
 
@@ -163,3 +206,5 @@ Triggers em `main` + `staging` (push e PR).
 - Não usar `any` no código
 - Não criar files desnecessários (preferir editar existentes)
 - Não fazer force-push em `main` ou `staging` sem autorização explícita
+- Não chamar `getSupabaseServiceClient()` de server actions sem antes validar `canAdminSite(siteId)` — service role bypassa RLS e permite cross-ring writes
+- Não importar server actions diretamente em client components — passe callbacks via props (pattern do `@tn-figueiredo/cms` PostEditor)
