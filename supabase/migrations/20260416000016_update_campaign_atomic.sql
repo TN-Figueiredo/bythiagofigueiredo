@@ -98,19 +98,19 @@ begin
   if p_patch is not null and jsonb_typeof(p_patch) = 'object' and p_patch <> '{}'::jsonb then
     update public.campaigns c
        set interest         = coalesce(p_patch->>'interest', c.interest),
-           pdf_storage_path = case when p_patch ? 'pdf_storage_path'
+           pdf_storage_path = case when jsonb_exists(p_patch, 'pdf_storage_path')
                                    then nullif(p_patch->>'pdf_storage_path','')
                                    else c.pdf_storage_path end,
-           brevo_list_id    = case when p_patch ? 'brevo_list_id'
+           brevo_list_id    = case when jsonb_exists(p_patch, 'brevo_list_id')
                                    then nullif(p_patch->>'brevo_list_id','')::int
                                    else c.brevo_list_id end,
-           brevo_template_id= case when p_patch ? 'brevo_template_id'
+           brevo_template_id= case when jsonb_exists(p_patch, 'brevo_template_id')
                                    then nullif(p_patch->>'brevo_template_id','')::int
                                    else c.brevo_template_id end,
-           form_fields      = case when p_patch ? 'form_fields'
+           form_fields      = case when jsonb_exists(p_patch, 'form_fields')
                                    then coalesce(p_patch->'form_fields', '[]'::jsonb)
                                    else c.form_fields end,
-           updated_by       = case when p_patch ? 'updated_by'
+           updated_by       = case when jsonb_exists(p_patch, 'updated_by')
                                    then nullif(p_patch->>'updated_by','')::uuid
                                    else c.updated_by end
      where c.id = p_campaign_id;
@@ -159,24 +159,24 @@ begin
       )
       on conflict (campaign_id, locale) do update set
         slug                         = coalesce(excluded.slug, public.campaign_translations.slug),
-        meta_title                   = case when v_translation ? 'meta_title' then excluded.meta_title else public.campaign_translations.meta_title end,
-        meta_description             = case when v_translation ? 'meta_description' then excluded.meta_description else public.campaign_translations.meta_description end,
-        og_image_url                 = case when v_translation ? 'og_image_url' then excluded.og_image_url else public.campaign_translations.og_image_url end,
-        main_hook_md                 = case when v_translation ? 'main_hook_md' then excluded.main_hook_md else public.campaign_translations.main_hook_md end,
-        supporting_argument_md       = case when v_translation ? 'supporting_argument_md' then excluded.supporting_argument_md else public.campaign_translations.supporting_argument_md end,
-        introductory_block_md        = case when v_translation ? 'introductory_block_md' then excluded.introductory_block_md else public.campaign_translations.introductory_block_md end,
-        body_content_md              = case when v_translation ? 'body_content_md' then excluded.body_content_md else public.campaign_translations.body_content_md end,
-        form_intro_md                = case when v_translation ? 'form_intro_md' then excluded.form_intro_md else public.campaign_translations.form_intro_md end,
-        form_button_label            = case when v_translation ? 'form_button_label' then excluded.form_button_label else public.campaign_translations.form_button_label end,
-        form_button_loading_label    = case when v_translation ? 'form_button_loading_label' then excluded.form_button_loading_label else public.campaign_translations.form_button_loading_label end,
-        context_tag                  = case when v_translation ? 'context_tag' then excluded.context_tag else public.campaign_translations.context_tag end,
-        success_headline             = case when v_translation ? 'success_headline' then excluded.success_headline else public.campaign_translations.success_headline end,
-        success_headline_duplicate   = case when v_translation ? 'success_headline_duplicate' then excluded.success_headline_duplicate else public.campaign_translations.success_headline_duplicate end,
-        success_subheadline          = case when v_translation ? 'success_subheadline' then excluded.success_subheadline else public.campaign_translations.success_subheadline end,
-        success_subheadline_duplicate= case when v_translation ? 'success_subheadline_duplicate' then excluded.success_subheadline_duplicate else public.campaign_translations.success_subheadline_duplicate end,
-        check_mail_text              = case when v_translation ? 'check_mail_text' then excluded.check_mail_text else public.campaign_translations.check_mail_text end,
-        download_button_label        = case when v_translation ? 'download_button_label' then excluded.download_button_label else public.campaign_translations.download_button_label end,
-        extras                       = case when v_translation ? 'extras' then excluded.extras else public.campaign_translations.extras end;
+        meta_title                   = case when jsonb_exists(v_translation, 'meta_title') then excluded.meta_title else public.campaign_translations.meta_title end,
+        meta_description             = case when jsonb_exists(v_translation, 'meta_description') then excluded.meta_description else public.campaign_translations.meta_description end,
+        og_image_url                 = case when jsonb_exists(v_translation, 'og_image_url') then excluded.og_image_url else public.campaign_translations.og_image_url end,
+        main_hook_md                 = case when jsonb_exists(v_translation, 'main_hook_md') then excluded.main_hook_md else public.campaign_translations.main_hook_md end,
+        supporting_argument_md       = case when jsonb_exists(v_translation, 'supporting_argument_md') then excluded.supporting_argument_md else public.campaign_translations.supporting_argument_md end,
+        introductory_block_md        = case when jsonb_exists(v_translation, 'introductory_block_md') then excluded.introductory_block_md else public.campaign_translations.introductory_block_md end,
+        body_content_md              = case when jsonb_exists(v_translation, 'body_content_md') then excluded.body_content_md else public.campaign_translations.body_content_md end,
+        form_intro_md                = case when jsonb_exists(v_translation, 'form_intro_md') then excluded.form_intro_md else public.campaign_translations.form_intro_md end,
+        form_button_label            = case when jsonb_exists(v_translation, 'form_button_label') then excluded.form_button_label else public.campaign_translations.form_button_label end,
+        form_button_loading_label    = case when jsonb_exists(v_translation, 'form_button_loading_label') then excluded.form_button_loading_label else public.campaign_translations.form_button_loading_label end,
+        context_tag                  = case when jsonb_exists(v_translation, 'context_tag') then excluded.context_tag else public.campaign_translations.context_tag end,
+        success_headline             = case when jsonb_exists(v_translation, 'success_headline') then excluded.success_headline else public.campaign_translations.success_headline end,
+        success_headline_duplicate   = case when jsonb_exists(v_translation, 'success_headline_duplicate') then excluded.success_headline_duplicate else public.campaign_translations.success_headline_duplicate end,
+        success_subheadline          = case when jsonb_exists(v_translation, 'success_subheadline') then excluded.success_subheadline else public.campaign_translations.success_subheadline end,
+        success_subheadline_duplicate= case when jsonb_exists(v_translation, 'success_subheadline_duplicate') then excluded.success_subheadline_duplicate else public.campaign_translations.success_subheadline_duplicate end,
+        check_mail_text              = case when jsonb_exists(v_translation, 'check_mail_text') then excluded.check_mail_text else public.campaign_translations.check_mail_text end,
+        download_button_label        = case when jsonb_exists(v_translation, 'download_button_label') then excluded.download_button_label else public.campaign_translations.download_button_label end,
+        extras                       = case when jsonb_exists(v_translation, 'extras') then excluded.extras else public.campaign_translations.extras end;
     end loop;
   end if;
 
