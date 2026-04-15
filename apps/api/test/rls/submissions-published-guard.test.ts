@@ -2,6 +2,7 @@ import { describe, it, expect, afterAll } from 'vitest'
 import { createClient } from '@supabase/supabase-js'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { SUPABASE_URL, SERVICE_KEY, ANON_KEY } from '../helpers/local-supabase'
+import { makeCampaign, type CampaignFixtureOptions } from '../helpers/campaign-fixtures'
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY)
 const anon = createClient(SUPABASE_URL, ANON_KEY)
@@ -12,17 +13,11 @@ describe.skipIf(skipIfNoLocalDb())('campaign_submissions anon insert requires pu
     if (campaignIds.length) await admin.from('campaigns').delete().in('id', campaignIds)
   })
 
-  async function makeCampaign(overrides: Record<string, unknown> = {}): Promise<string> {
-    const { data, error } = await admin.from('campaigns')
-      .insert({ interest: 'creator', ...overrides })
-      .select('id').single()
-    if (error || !data) throw error ?? new Error('campaign insert failed')
-    campaignIds.push(data.id)
-    return data.id
-  }
+  const makeCampaignHere = (overrides: CampaignFixtureOptions = {}) =>
+    makeCampaign(admin, campaignIds, overrides)
 
   it('anon insert rejected when campaign is draft', async () => {
-    const cid = await makeCampaign({ status: 'draft' })
+    const cid = await makeCampaignHere({ status: 'draft' })
     const { error } = await anon.from('campaign_submissions').insert({
       campaign_id: cid, email: `d${Date.now()}@x.com`, locale: 'pt-BR',
       consent_marketing: true, consent_text_version: 'v1',
@@ -31,7 +26,7 @@ describe.skipIf(skipIfNoLocalDb())('campaign_submissions anon insert requires pu
   })
 
   it('anon insert rejected when campaign is scheduled in the future', async () => {
-    const cid = await makeCampaign({
+    const cid = await makeCampaignHere({
       status: 'scheduled',
       scheduled_for: new Date(Date.now() + 60_000).toISOString(),
     })
@@ -43,7 +38,7 @@ describe.skipIf(skipIfNoLocalDb())('campaign_submissions anon insert requires pu
   })
 
   it('anon insert rejected when published_at is in the future', async () => {
-    const cid = await makeCampaign({
+    const cid = await makeCampaignHere({
       status: 'published',
       published_at: new Date(Date.now() + 60_000).toISOString(),
     })
@@ -55,7 +50,7 @@ describe.skipIf(skipIfNoLocalDb())('campaign_submissions anon insert requires pu
   })
 
   it('anon insert accepted when campaign is published in the past', async () => {
-    const cid = await makeCampaign({
+    const cid = await makeCampaignHere({
       status: 'published',
       published_at: new Date(Date.now() - 60_000).toISOString(),
     })

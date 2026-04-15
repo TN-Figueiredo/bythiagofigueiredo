@@ -13,9 +13,11 @@ export const PG_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 
 export type AdminJwtRole = 'super_admin' | 'admin' | 'editor' | 'author'
 
-export function adminJwt(opts?: { sub?: string; role?: AdminJwtRole }): string {
+// Accept stock roles with completion, plus any string for less-common roles
+// (e.g. 'user') without forcing test authors to cast.
+export function adminJwt(opts?: { sub?: string; role?: AdminJwtRole | (string & {}) }): string {
   const sub = opts?.sub ?? '00000000-0000-0000-0000-000000000001'
-  const role: AdminJwtRole = opts?.role ?? 'super_admin'
+  const role: string = opts?.role ?? 'super_admin'
   return jwt.sign(
     {
       role: 'authenticated',

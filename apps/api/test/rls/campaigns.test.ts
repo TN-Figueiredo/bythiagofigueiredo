@@ -1,8 +1,10 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest'
 import { createClient } from '@supabase/supabase-js'
 import { Client } from 'pg'
-import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { SUPABASE_URL, SERVICE_KEY, ANON_KEY, PG_URL } from '../helpers/local-supabase'
+import { skipIfNoLocalDb, getLocalJwtSecret } from '../helpers/db-skip'
+import { SUPABASE_URL, SERVICE_KEY, ANON_KEY, PG_URL, adminJwt } from '../helpers/local-supabase'
+import { makeCampaign } from '../helpers/campaign-fixtures'
+import jwt from 'jsonwebtoken'
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY)
 const anon = createClient(SUPABASE_URL, ANON_KEY)
@@ -45,6 +47,12 @@ describe.skipIf(skipIfNoLocalDb())('campaigns table schema', () => {
       .insert({ interest: 'style', status: 'bogus' as never })
     expect(error).not.toBeNull()
   })
+
+  it('rejects unknown interest value', async () => {
+    const { error } = await admin.from('campaigns').insert({ interest: 'notavalidinterest' })
+    expect(error).not.toBeNull()
+    expect(error!.message).toMatch(/check|constraint|vocab/i)
+  })
 })
 
 describe.skipIf(skipIfNoLocalDb())('campaign_translations FK cascade', () => {
@@ -85,14 +93,8 @@ describe.skipIf(skipIfNoLocalDb())('campaign_translations slug uniqueness per (s
     if (ids.length) await admin.from('campaigns').delete().in('id', ids)
   })
 
-  async function makeCampaign(siteId: string | null): Promise<string> {
-    const { data, error } = await admin.from('campaigns')
-      .insert({ interest: 'creator', site_id: siteId })
-      .select('id').single()
-    if (error || !data) throw error ?? new Error('campaign insert failed')
-    ids.push(data.id)
-    return data.id
-  }
+  const makeCampaignWithSite = (siteId: string | null) =>
+    makeCampaign(admin, ids, { site_id: siteId })
 
   function tx(campaignId: string, locale: string, slug: string) {
     return {
@@ -105,8 +107,8 @@ describe.skipIf(skipIfNoLocalDb())('campaign_translations slug uniqueness per (s
   }
 
   it('rejects duplicate (locale, slug) within the same site', async () => {
-    const c1 = await makeCampaign(SITE_A)
-    const c2 = await makeCampaign(SITE_A)
+    const c1 = await makeCampaignWithSite(SITE_A)
+    const c2 = await makeCampaignWithSite(SITE_A)
     const slug = `dup-${Date.now()}`
     const ins1 = await admin.from('campaign_translations').insert(tx(c1, 'pt-BR', slug))
     expect(ins1.error).toBeNull()
@@ -117,8 +119,8 @@ describe.skipIf(skipIfNoLocalDb())('campaign_translations slug uniqueness per (s
 
   it('allows same (locale, slug) across different sites', async () => {
     const SITE_B = '22222222-2222-2222-2222-222222222222'
-    const cA = await makeCampaign(SITE_A)
-    const cB = await makeCampaign(SITE_B)
+    const cA = await makeCampaignWithSite(SITE_A)
+    const cB = await makeCampaignWithSite(SITE_B)
     const slug = `cross-${Date.now()}`
     const iA = await admin.from('campaign_translations').insert(tx(cA, 'pt-BR', slug))
     const iB = await admin.from('campaign_translations').insert(tx(cB, 'pt-BR', slug))
@@ -127,7 +129,7 @@ describe.skipIf(skipIfNoLocalDb())('campaign_translations slug uniqueness per (s
   })
 
   it('allows same slug across different locales on same site', async () => {
-    const c = await makeCampaign(SITE_A)
+    const c = await makeCampaignWithSite(SITE_A)
     const slug = `multi-locale-${Date.now()}`
     const iPt = await admin.from('campaign_translations').insert(tx(c, 'pt-BR', slug))
     const iEn = await admin.from('campaign_translations').insert(tx(c, 'en', slug))
@@ -136,8 +138,8 @@ describe.skipIf(skipIfNoLocalDb())('campaign_translations slug uniqueness per (s
   })
 
   it('allows same (locale, slug) when both sites are null (global content)', async () => {
-    const cX = await makeCampaign(null)
-    const cY = await makeCampaign(null)
+    const cX = await makeCampaignWithSite(null)
+    const cY = await makeCampaignWithSite(null)
     const slug = `null-${Date.now()}`
     const iX = await admin.from('campaign_translations').insert(tx(cX, 'pt-BR', slug))
     const iY = await admin.from('campaign_translations').insert(tx(cY, 'pt-BR', slug))
@@ -240,5 +242,63 @@ describe.skipIf(skipIfNoLocalDb())('campaigns RLS', () => {
         await pg.query('rollback')
       }
     })
+  })
+})
+
+describe.skipIf(skipIfNoLocalDb())('campaigns RLS: role differentiation', () => {
+  const campaignIds: string[] = []
+  let draftId: string
+
+  beforeAll(async () => {
+    const { data } = await admin
+      .from('campaigns')
+      .insert({ interest: 'creator', status: 'draft' })
+      .select('id')
+      .single()
+    draftId = data!.id
+    campaignIds.push(draftId)
+  })
+
+  afterAll(async () => {
+    if (campaignIds.length) await admin.from('campaigns').delete().in('id', campaignIds)
+  })
+
+  function clientForRole(role: 'editor' | 'admin' | 'super_admin' | 'author' | 'user') {
+    if (role === 'user') {
+      const token = jwt.sign(
+        {
+          role: 'authenticated',
+          sub: '00000000-0000-0000-0000-000000000099',
+          app_metadata: { role: 'user' },
+        },
+        getLocalJwtSecret(),
+        { expiresIn: '1h' }
+      )
+      return createClient(SUPABASE_URL, ANON_KEY, {
+        global: { headers: { Authorization: `Bearer ${token}` } },
+      })
+    }
+    return createClient(SUPABASE_URL, ANON_KEY, {
+      global: { headers: { Authorization: `Bearer ${adminJwt({ role })}` } },
+    })
+  }
+
+  it.each([
+    ['super_admin', true],
+    ['admin', true],
+    ['editor', true],
+  ] as const)('%s sees draft campaigns (is_staff)', async (role, canSee) => {
+    const client = clientForRole(role)
+    const { data } = await client.from('campaigns').select('id').eq('id', draftId)
+    expect((data ?? []).length === 1).toBe(canSee)
+  })
+
+  it.each([
+    ['author', false],
+    ['user', false],
+  ] as const)('%s cannot see draft campaigns (non-staff)', async (role, canSee) => {
+    const client = clientForRole(role)
+    const { data } = await client.from('campaigns').select('id').eq('id', draftId)
+    expect((data ?? []).length === 1).toBe(canSee)
   })
 })

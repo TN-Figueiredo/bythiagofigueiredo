@@ -2,6 +2,7 @@ import { describe, it, expect, afterAll } from 'vitest'
 import { createClient } from '@supabase/supabase-js'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { SUPABASE_URL, SERVICE_KEY, ANON_KEY } from '../helpers/local-supabase'
+import { makeCampaign, makePublishedCampaign } from '../helpers/campaign-fixtures'
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY)
 const anon = createClient(SUPABASE_URL, ANON_KEY)
@@ -27,19 +28,10 @@ describe.skipIf(skipIfNoLocalDb())('campaign_submissions schema', () => {
     }
   })
 
-  async function makeCampaign(): Promise<string> {
-    const { data, error } = await admin
-      .from('campaigns')
-      .insert({ interest: 'creator' })
-      .select('id')
-      .single()
-    if (error || !data) throw error ?? new Error('campaign insert failed')
-    createdCampaignIds.push(data.id)
-    return data.id
-  }
+  const makeCampaignHere = () => makeCampaign(admin, createdCampaignIds)
 
   it('accepts a minimal submission', async () => {
-    const cid = await makeCampaign()
+    const cid = await makeCampaignHere()
     const { data, error } = await admin
       .from('campaign_submissions')
       .insert({
@@ -56,7 +48,7 @@ describe.skipIf(skipIfNoLocalDb())('campaign_submissions schema', () => {
   })
 
   it('email is citext (case-insensitive unique)', async () => {
-    const cid = await makeCampaign()
+    const cid = await makeCampaignHere()
     const { data: r1, error: e1 } = await admin
       .from('campaign_submissions')
       .insert({
@@ -83,7 +75,7 @@ describe.skipIf(skipIfNoLocalDb())('campaign_submissions schema', () => {
   })
 
   it('partial index allows re-signup after anonymization', async () => {
-    const cid = await makeCampaign()
+    const cid = await makeCampaignHere()
     const { data: r1, error: e1 } = await admin
       .from('campaign_submissions')
       .insert({
@@ -128,25 +120,12 @@ describe.skipIf(skipIfNoLocalDb())('campaign_submissions RLS + consent trigger',
     }
   })
 
-  async function makeCampaign(): Promise<string> {
-    // Anon insert policy requires the campaign to be publicly visible
-    // (status='published', published_at<=now()) — see migration 000018.
-    const { data, error } = await admin
-      .from('campaigns')
-      .insert({
-        interest: 'creator',
-        status: 'published',
-        published_at: new Date(Date.now() - 60_000).toISOString(),
-      })
-      .select('id')
-      .single()
-    if (error || !data) throw error ?? new Error('campaign insert failed')
-    createdCampaignIds.push(data.id)
-    return data.id
-  }
+  // Anon insert policy requires the campaign to be publicly visible
+  // (status='published', published_at<=now()) — see migration 000018.
+  const makeCampaignHere = () => makePublishedCampaign(admin, createdCampaignIds)
 
   it('anon can insert with consent=true', async () => {
-    const cid = await makeCampaign()
+    const cid = await makeCampaignHere()
     const { error } = await anon.from('campaign_submissions').insert({
       campaign_id: cid,
       email: `a${Date.now()}@x.com`,
@@ -164,7 +143,7 @@ describe.skipIf(skipIfNoLocalDb())('campaign_submissions RLS + consent trigger',
   })
 
   it('trigger rejects consent=false', async () => {
-    const cid = await makeCampaign()
+    const cid = await makeCampaignHere()
     const { error } = await anon.from('campaign_submissions').insert({
       campaign_id: cid,
       email: `b${Date.now()}@x.com`,
@@ -182,7 +161,7 @@ describe.skipIf(skipIfNoLocalDb())('campaign_submissions RLS + consent trigger',
   })
 
   it('service role reads and updates freely', async () => {
-    const cid = await makeCampaign()
+    const cid = await makeCampaignHere()
     const { data: ins, error: iErr } = await admin
       .from('campaign_submissions')
       .insert({
