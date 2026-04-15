@@ -1,27 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { createClient } from '@supabase/supabase-js'
 import { Client } from 'pg'
-import jwt from 'jsonwebtoken'
-import { skipIfNoLocalDb, getLocalJwtSecret } from '../helpers/db-skip'
-
-const SUPABASE_URL = 'http://127.0.0.1:54321'
-const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0'
-const SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU'
+import { skipIfNoLocalDb } from '../helpers/db-skip'
+import { SUPABASE_URL, ANON_KEY, SERVICE_KEY, PG_URL, adminJwt } from '../helpers/local-keys'
 
 const SITE_A = '11111111-1111-1111-1111-111111111111'
 const SITE_B = '22222222-2222-2222-2222-222222222222'
-
-function adminJwt(): string {
-  return jwt.sign(
-    {
-      role: 'authenticated',
-      sub: '00000000-0000-0000-0000-000000000001',
-      app_metadata: { role: 'super_admin' },
-    },
-    getLocalJwtSecret(),
-    { expiresIn: '1h' }
-  )
-}
 
 describe.skipIf(skipIfNoLocalDb())('RLS: blog_posts + blog_translations + authors', () => {
   const service = createClient(SUPABASE_URL, SERVICE_KEY)
@@ -139,7 +123,7 @@ describe.skipIf(skipIfNoLocalDb())('RLS: blog_posts + blog_translations + author
     let pg: Client
 
     beforeAll(async () => {
-      pg = new Client({ connectionString: 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' })
+      pg = new Client({ connectionString: PG_URL })
       await pg.connect()
     })
 
@@ -165,7 +149,7 @@ describe.skipIf(skipIfNoLocalDb())('RLS: blog_posts + blog_translations + author
     }
 
     it('anon with GUC never set (missing_ok path) sees null + both site posts', async () => {
-      const client = new Client({ connectionString: 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' })
+      const client = new Client({ connectionString: PG_URL })
       await client.connect()
       try {
         await client.query('begin')
