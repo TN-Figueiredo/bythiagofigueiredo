@@ -19,13 +19,12 @@ interface Props {
 
 export default async function EditCampaignPage({ params }: Props) {
   const { id } = await params
-  const campaign = await campaignRepo().getById(id)
-  if (!campaign) notFound()
   const ctx = await getSiteContext()
-  if (campaign.site_id !== ctx.siteId) {
-    // Cross-ring access: surface as 404 to avoid leaking existence.
-    notFound()
-  }
+  // getById is now site-scoped: returns null for ids that belong to another
+  // ring, so a cross-ring access falls through to notFound() without leaking
+  // existence.
+  const campaign = await campaignRepo().getById(id, ctx.siteId)
+  if (!campaign) notFound()
 
   const primary = campaign.translations[0]
   const label = primary?.meta_title ?? primary?.slug ?? campaign.interest

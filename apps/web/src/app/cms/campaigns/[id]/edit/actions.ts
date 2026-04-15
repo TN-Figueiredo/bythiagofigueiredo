@@ -61,7 +61,7 @@ export async function saveCampaign(
     }
   }
 
-  await requireSiteAdminForRow('campaigns', id)
+  const { siteId } = await requireSiteAdminForRow('campaigns', id)
 
   const supabase = getSupabaseServiceClient()
   const { error } = await supabase.rpc('update_campaign_atomic', {
@@ -73,50 +73,50 @@ export async function saveCampaign(
     return { ok: false, error: 'db_error', message: error.message }
   }
 
-  const refreshed = await campaignRepo().getById(id)
+  const refreshed = await campaignRepo().getById(id, siteId)
   revalidatePath('/cms/campaigns')
   if (refreshed) {
     for (const tx of refreshed.translations) {
-      revalidatePath(`/campaigns/${tx.locale}/${tx.slug}`)
+      revalidatePath(`/campaigns/${tx.locale}/${encodeURIComponent(tx.slug)}`)
     }
   }
   return { ok: true, campaignId: id }
 }
 
 export async function publishCampaign(id: string): Promise<void> {
-  await requireSiteAdminForRow('campaigns', id)
-  const campaign = await campaignRepo().publish(id)
+  const { siteId } = await requireSiteAdminForRow('campaigns', id)
+  const campaign = await campaignRepo().publish(id, siteId)
   revalidatePath('/cms/campaigns')
   for (const tx of campaign.translations) {
-    revalidatePath(`/campaigns/${tx.locale}/${tx.slug}`)
+    revalidatePath(`/campaigns/${tx.locale}/${encodeURIComponent(tx.slug)}`)
   }
 }
 
 export async function unpublishCampaign(id: string): Promise<void> {
-  await requireSiteAdminForRow('campaigns', id)
-  const campaign = await campaignRepo().unpublish(id)
+  const { siteId } = await requireSiteAdminForRow('campaigns', id)
+  const campaign = await campaignRepo().unpublish(id, siteId)
   revalidatePath('/cms/campaigns')
   for (const tx of campaign.translations) {
-    revalidatePath(`/campaigns/${tx.locale}/${tx.slug}`)
+    revalidatePath(`/campaigns/${tx.locale}/${encodeURIComponent(tx.slug)}`)
   }
 }
 
 export async function archiveCampaign(id: string): Promise<void> {
-  await requireSiteAdminForRow('campaigns', id)
-  const campaign = await campaignRepo().archive(id)
+  const { siteId } = await requireSiteAdminForRow('campaigns', id)
+  const campaign = await campaignRepo().archive(id, siteId)
   revalidatePath('/cms/campaigns')
   for (const tx of campaign.translations) {
-    revalidatePath(`/campaigns/${tx.locale}/${tx.slug}`)
+    revalidatePath(`/campaigns/${tx.locale}/${encodeURIComponent(tx.slug)}`)
   }
 }
 
 export async function deleteCampaign(id: string): Promise<void> {
-  await requireSiteAdminForRow('campaigns', id)
-  const campaign = await campaignRepo().getById(id)
+  const { siteId } = await requireSiteAdminForRow('campaigns', id)
+  const campaign = await campaignRepo().getById(id, siteId)
   if (campaign && (campaign.status === 'draft' || campaign.status === 'archived')) {
-    await campaignRepo().delete(id)
+    await campaignRepo().delete(id, siteId)
     for (const tx of campaign.translations) {
-      revalidatePath(`/campaigns/${tx.locale}/${tx.slug}`)
+      revalidatePath(`/campaigns/${tx.locale}/${encodeURIComponent(tx.slug)}`)
     }
     revalidatePath('/cms/campaigns')
   }

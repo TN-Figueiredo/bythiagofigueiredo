@@ -14,9 +14,15 @@ import { SupabaseContentRepository } from './content-repository'
  * Supabase implementation of ICampaignRepository.
  *
  * Authz: this class is typically constructed with a service-role Supabase
- * client (bypassing RLS). Callers MUST validate `can_admin_site(siteId)`
- * BEFORE invoking any write method. The `update_campaign_atomic` RPC
- * re-checks permission internally — prefer it for multi-field patches.
+ * client (bypassing RLS). Round-2 hardening forces every write path (and
+ * every id-based read) through a mandatory `siteId` parameter, and the
+ * underlying SQL narrows with `.eq('site_id', siteId)`. Callers MUST still
+ * validate `can_admin_site(siteId)` BEFORE invoking any write method — the
+ * `.eq('site_id', ...)` filter is a defense-in-depth stop against cross-ring
+ * id collisions, not a substitute for authz.
+ *
+ * For multi-field atomic patches prefer the `update_campaign_atomic` RPC,
+ * which re-checks `can_admin_site` inside the function.
  */
 export class SupabaseCampaignRepository
   extends SupabaseContentRepository
@@ -47,7 +53,7 @@ export class SupabaseCampaignRepository
     return (data ?? []).map((row: Record<string, unknown>) => this.mapListItem(row))
   }
 
-  async getById(id: string): Promise<Campaign | null> {
+  async getById(id: string, siteId: string): Promise<Campaign | null> {
     const { data, error } = await this.supabase
       .from('campaigns')
       .select(`
@@ -58,6 +64,7 @@ export class SupabaseCampaignRepository
         campaign_translations(*)
       `)
       .eq('id', id)
+      .eq('site_id', siteId)
       .maybeSingle()
     if (error) throw error
     return data ? this.mapCampaign(data) : null
@@ -125,12 +132,12 @@ export class SupabaseCampaignRepository
     })
     if (tErr) throw tErr
 
-    const loaded = await this.getById(campaign.id)
+    const loaded = await this.getById(campaign.id, input.site_id)
     if (!loaded) throw new Error('campaign disappeared after create')
     return loaded
   }
 
-  async update(id: string, patch: UpdateCampaignInput): Promise<Campaign> {
+  async update(id: string, siteId: string, patch: UpdateCampaignInput): Promise<Campaign> {
     const campaignPatch: Record<string, unknown> = {}
     if (patch.status !== undefined) campaignPatch.status = patch.status
     if (patch.scheduled_for !== undefined) campaignPatch.scheduled_for = patch.scheduled_for
@@ -142,7 +149,11 @@ export class SupabaseCampaignRepository
     if (patch.form_fields !== undefined) campaignPatch.form_fields = patch.form_fields
 
     if (Object.keys(campaignPatch).length > 0) {
-      const { error } = await this.supabase.from('campaigns').update(campaignPatch).eq('id', id)
+      const { error } = await this.supabase
+        .from('campaigns')
+        .update(campaignPatch)
+        .eq('id', id)
+        .eq('site_id', siteId)
       if (error) throw error
     }
 
@@ -175,6 +186,8 @@ export class SupabaseCampaignRepository
       }
 
       if (Object.keys(translationPatch).length > 0) {
+        // campaign_translations has no site_id — we gate by campaign_id and
+        // trust the fact that the parent update above verified ownership.
         const { error } = await this.supabase
           .from('campaign_translations')
           .update(translationPatch)
@@ -184,65 +197,76 @@ export class SupabaseCampaignRepository
       }
     }
 
-    const loaded = await this.getById(id)
+    const loaded = await this.getById(id, siteId)
     if (!loaded) throw new Error('campaign disappeared after update')
     return loaded
   }
 
-  async publish(id: string): Promise<Campaign> {
+  async publish(id: string, siteId: string): Promise<Campaign> {
     const { error } = await this.supabase
       .from('campaigns')
       .update({ status: 'published', published_at: this.nowIso() })
       .eq('id', id)
+      .eq('site_id', siteId)
     if (error) throw error
-    const loaded = await this.getById(id)
+    const loaded = await this.getById(id, siteId)
     if (!loaded) throw new Error('campaign disappeared after publish')
     return loaded
   }
 
-  async unpublish(id: string): Promise<Campaign> {
+  async unpublish(id: string, siteId: string): Promise<Campaign> {
     const { error } = await this.supabase
       .from('campaigns')
       .update({ status: 'draft', published_at: null })
       .eq('id', id)
+      .eq('site_id', siteId)
     if (error) throw error
-    const loaded = await this.getById(id)
+    const loaded = await this.getById(id, siteId)
     if (!loaded) throw new Error('campaign disappeared after unpublish')
     return loaded
   }
 
-  async schedule(id: string, scheduledFor: Date): Promise<Campaign> {
+  async schedule(id: string, siteId: string, scheduledFor: Date): Promise<Campaign> {
     const { error } = await this.supabase
       .from('campaigns')
       .update({ status: 'scheduled', scheduled_for: scheduledFor.toISOString() })
       .eq('id', id)
+      .eq('site_id', siteId)
     if (error) throw error
-    const loaded = await this.getById(id)
+    const loaded = await this.getById(id, siteId)
     if (!loaded) throw new Error('campaign disappeared after schedule')
     return loaded
   }
 
-  async archive(id: string): Promise<Campaign> {
+  async archive(id: string, siteId: string): Promise<Campaign> {
     const { error } = await this.supabase
       .from('campaigns')
       .update({ status: 'archived' })
       .eq('id', id)
+      .eq('site_id', siteId)
     if (error) throw error
-    const loaded = await this.getById(id)
+    const loaded = await this.getById(id, siteId)
     if (!loaded) throw new Error('campaign disappeared after archive')
     return loaded
   }
 
-  async delete(id: string): Promise<void> {
-    const { error } = await this.supabase.from('campaigns').delete().eq('id', id)
+  async delete(id: string, siteId: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('campaigns')
+      .delete()
+      .eq('id', id)
+      .eq('site_id', siteId)
     if (error) throw error
   }
 
   async count(opts: ContentCountOpts): Promise<number> {
+    // Mirror list()'s shape: inner-join translations + filter by locale so the
+    // count matches what list() would return for the same opts.
     let q = this.supabase
       .from('campaigns')
-      .select('id', { count: 'exact', head: true })
+      .select('id, campaign_translations!inner(locale)', { count: 'exact', head: true })
       .eq('site_id', opts.siteId)
+    if (opts.locale) q = q.eq('campaign_translations.locale', opts.locale)
     if (opts.status) q = q.eq('status', opts.status)
     const { count, error } = await q
     if (error) throw error

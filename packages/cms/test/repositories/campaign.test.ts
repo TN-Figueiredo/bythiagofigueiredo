@@ -172,19 +172,21 @@ describe('SupabaseCampaignRepository', () => {
     const { client, terminalResults } = makeFakeClient()
     terminalResults.push({ data: null, error: null })
     const repo = new SupabaseCampaignRepository(client as never)
-    const result = await repo.getById('missing')
+    const result = await repo.getById('missing', 's1')
     expect(result).toBeNull()
   })
 
-  it('getById maps nested campaign_translations', async () => {
-    const { client, terminalResults } = makeFakeClient()
+  it('getById maps nested campaign_translations and scopes by site_id', async () => {
+    const { client, terminalResults, eqArgs } = makeFakeClient()
     terminalResults.push({ data: sampleRow(), error: null })
     const repo = new SupabaseCampaignRepository(client as never)
-    const c = await repo.getById('c1')
+    const c = await repo.getById('c1', 's1')
     expect(c).not.toBeNull()
     expect(c!.id).toBe('c1')
     expect(c!.translations).toHaveLength(1)
     expect(c!.translations[0]!.main_hook_md).toBe('hook')
+    expect(eqArgs).toContainEqual(['id', 'c1'])
+    expect(eqArgs).toContainEqual(['site_id', 's1'])
   })
 
   it('getBySlug filters by site_id + locale + slug', async () => {
@@ -226,51 +228,81 @@ describe('SupabaseCampaignRepository', () => {
     expect(tables).toContain('campaign_translations')
   })
 
-  it('update applies parent patch and translation patch', async () => {
-    const { client, chain, terminalResults, updateArgs } = makeWriteAwareClient()
+  it('update applies parent patch and translation patch, scoped by site_id', async () => {
+    const { client, chain, terminalResults, updateArgs, eqArgs } = makeWriteAwareClient()
     // parent update await → {error:null}; translation update await → {error:null}; then getById maybeSingle
     terminalResults.push({ error: null })
     terminalResults.push({ error: null })
     terminalResults.push({ data: sampleRow(), error: null })
     const repo = new SupabaseCampaignRepository(client as never)
-    await repo.update('c1', {
+    await repo.update('c1', 's1', {
       status: 'published',
       translation: { locale: 'pt-BR', main_hook_md: 'new hook' },
     })
     expect(updateArgs[0]!.patch).toMatchObject({ status: 'published' })
     expect(updateArgs[1]!.patch).toMatchObject({ main_hook_md: 'new hook' })
+    // Parent campaigns update narrows by both id and site_id.
+    expect(eqArgs).toContainEqual(['id', 'c1'])
+    expect(eqArgs).toContainEqual(['site_id', 's1'])
     void chain // keep ref
   })
 
-  it('publish sets status=published and published_at', async () => {
-    const { client, terminalResults, updateArgs } = makeWriteAwareClient()
+  it('publish sets status=published and published_at, scoped by site_id', async () => {
+    const { client, terminalResults, updateArgs, eqArgs } = makeWriteAwareClient()
     terminalResults.push({ error: null }) // update await
     terminalResults.push({ data: sampleRow(), error: null }) // getById
     const repo = new SupabaseCampaignRepository(client as never)
-    const c = await repo.publish('c1')
+    const c = await repo.publish('c1', 's1')
     expect(c.status).toBe('published')
     expect(updateArgs[0]!.patch).toMatchObject({ status: 'published' })
     expect((updateArgs[0]!.patch as Record<string, unknown>).published_at).toBeTruthy()
+    expect(eqArgs).toContainEqual(['site_id', 's1'])
   })
 
   it('unpublish resets status to draft and clears published_at', async () => {
-    const { client, terminalResults, updateArgs } = makeWriteAwareClient()
+    const { client, terminalResults, updateArgs, eqArgs } = makeWriteAwareClient()
     terminalResults.push({ error: null })
     terminalResults.push({
       data: { ...sampleRow(), status: 'draft', published_at: null },
       error: null,
     })
     const repo = new SupabaseCampaignRepository(client as never)
-    const c = await repo.unpublish('c1')
+    const c = await repo.unpublish('c1', 's1')
     expect(c.status).toBe('draft')
     expect(updateArgs[0]!.patch).toMatchObject({ status: 'draft', published_at: null })
+    expect(eqArgs).toContainEqual(['site_id', 's1'])
   })
 
-  it('delete issues delete + eq(id)', async () => {
+  it('archive scopes by site_id', async () => {
+    const { client, terminalResults, eqArgs } = makeWriteAwareClient()
+    terminalResults.push({ error: null })
+    terminalResults.push({ data: sampleRow(), error: null })
+    const repo = new SupabaseCampaignRepository(client as never)
+    await repo.archive('c1', 's1')
+    expect(eqArgs).toContainEqual(['id', 'c1'])
+    expect(eqArgs).toContainEqual(['site_id', 's1'])
+  })
+
+  it('schedule scopes by site_id', async () => {
+    const { client, terminalResults, updateArgs, eqArgs } = makeWriteAwareClient()
+    terminalResults.push({ error: null })
+    terminalResults.push({ data: sampleRow(), error: null })
+    const repo = new SupabaseCampaignRepository(client as never)
+    const when = new Date('2026-05-01T00:00:00Z')
+    await repo.schedule('c1', 's1', when)
+    expect(updateArgs[0]!.patch).toMatchObject({
+      status: 'scheduled',
+      scheduled_for: when.toISOString(),
+    })
+    expect(eqArgs).toContainEqual(['site_id', 's1'])
+  })
+
+  it('delete issues delete + eq(id) + eq(site_id)', async () => {
     const { client, terminalResults, eqArgs } = makeWriteAwareClient()
     terminalResults.push({ error: null })
     const repo = new SupabaseCampaignRepository(client as never)
-    await repo.delete('c1')
+    await repo.delete('c1', 's1')
     expect(eqArgs).toContainEqual(['id', 'c1'])
+    expect(eqArgs).toContainEqual(['site_id', 's1'])
   })
 })
