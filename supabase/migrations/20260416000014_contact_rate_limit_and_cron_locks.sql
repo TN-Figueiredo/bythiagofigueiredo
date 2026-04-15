@@ -30,6 +30,8 @@ create unique index if not exists newsletter_pending_token_hash
   where status = 'pending_confirmation' and confirmation_token_hash is not null;
 
 -- Swap the RPC to lookup-by-hash. Caller passes the hash (app hashes the raw token).
+-- Drop first — Postgres rejects CREATE OR REPLACE when input parameter name changes.
+drop function if exists public.confirm_newsletter_subscription(text);
 create or replace function public.confirm_newsletter_subscription(p_token_hash text) returns json language plpgsql security definer as $fn$
 declare v_sub record;
 begin
@@ -86,7 +88,8 @@ alter table public.unsubscribe_tokens
 -- Drop the plaintext column now.
 alter table public.unsubscribe_tokens drop column if exists token;
 
--- Rewrite RPC to look up by hash.
+-- Rewrite RPC to look up by hash. Drop first — param name change requires it.
+drop function if exists public.unsubscribe_via_token(text);
 create or replace function public.unsubscribe_via_token(p_token_hash text) returns json language plpgsql security definer as $fn$
 declare v_tok record; v_sub record;
 begin
