@@ -4,7 +4,8 @@
 
 -- Idempotence: truncate all dev application tables in child-to-parent FK order
 -- so this seed can be re-run cleanly. Sprint 1b tables (campaigns /
--- campaign_translations / campaign_submissions / cron_runs) are now listed.
+-- campaign_translations / campaign_submissions / cron_runs) and Sprint 2
+-- tables (organization_members / sites / organizations) are now listed.
 -- Future sprints: add new tables child-to-parent here.
 --
 -- auth.users is NOT truncated — a user-level seed cannot truncate the auth
@@ -31,7 +32,10 @@ truncate table
   public.cron_runs,
   public.blog_translations,
   public.blog_posts,
-  public.authors
+  public.authors,
+  public.organization_members,
+  public.sites,
+  public.organizations
 restrict;
 
 do $$
@@ -41,6 +45,8 @@ declare
   v_post1 uuid;
   v_post2 uuid;
   v_post3 uuid;
+  v_org_id uuid;
+  v_site_id uuid;
 begin
   insert into auth.users (
     id, instance_id, aud, role, email,
@@ -61,6 +67,25 @@ begin
   on conflict (id) do update set
     raw_app_meta_data = excluded.raw_app_meta_data;
 
+  -- ============ Sprint 2: master ring + site ============
+  insert into public.organizations (name, slug)
+  values ('Figueiredo Technology', 'figueiredo-tech')
+  returning id into v_org_id;
+
+  insert into public.sites (org_id, name, slug, domains, default_locale, supported_locales)
+  values (
+    v_org_id,
+    'ByThiagoFigueiredo',
+    'bythiagofigueiredo',
+    array['bythiagofigueiredo.com', 'www.bythiagofigueiredo.com', 'localhost', '127.0.0.1'],
+    'pt-BR',
+    array['pt-BR','en']
+  )
+  returning id into v_site_id;
+
+  insert into public.organization_members (org_id, user_id, role)
+  values (v_org_id, v_user_id, 'owner');
+
   -- After truncate this insert always succeeds; `on conflict` kept as a cheap
   -- defensive guard in case another author insert is added above this one later.
   insert into public.authors (user_id, name, slug, bio_md)
@@ -68,22 +93,22 @@ begin
   on conflict (slug) do update set user_id = excluded.user_id
   returning id into v_author_id;
 
-  insert into public.blog_posts (author_id, status, published_at)
-  values (v_author_id, 'published', now() - interval '1 day')
+  insert into public.blog_posts (author_id, status, published_at, site_id)
+  values (v_author_id, 'published', now() - interval '1 day', v_site_id)
   returning id into v_post1;
   insert into public.blog_translations (post_id, locale, title, slug, excerpt, content_md)
   values
     (v_post1, 'pt-BR', 'Primeiro post', 'primeiro-post', 'Olá mundo', '# Olá\n\nConteúdo pt-BR.'),
     (v_post1, 'en',    'First post',    'first-post',    'Hello world', '# Hello\n\nEnglish content.');
 
-  insert into public.blog_posts (author_id, status)
-  values (v_author_id, 'draft')
+  insert into public.blog_posts (author_id, status, site_id)
+  values (v_author_id, 'draft', v_site_id)
   returning id into v_post2;
   insert into public.blog_translations (post_id, locale, title, slug, content_md)
   values (v_post2, 'pt-BR', 'Rascunho', 'rascunho', '# WIP');
 
-  insert into public.blog_posts (author_id, status, scheduled_for)
-  values (v_author_id, 'scheduled', now() + interval '7 days')
+  insert into public.blog_posts (author_id, status, scheduled_for, site_id)
+  values (v_author_id, 'scheduled', now() + interval '7 days', v_site_id)
   returning id into v_post3;
   insert into public.blog_translations (post_id, locale, title, slug, content_md)
   values (v_post3, 'pt-BR', 'Agendado', 'agendado', '# Em breve');
@@ -91,7 +116,7 @@ begin
   -- ============ Sprint 1b: campaigns seed ============
 
   -- Published campaign with pt-BR + en
-  insert into campaigns (id, interest, status, published_at, pdf_storage_path, brevo_list_id, form_fields)
+  insert into campaigns (id, interest, status, published_at, pdf_storage_path, brevo_list_id, form_fields, site_id)
   values (
     '11111111-1111-1111-1111-111111111111',
     'creator',
@@ -102,7 +127,8 @@ begin
     '[
       {"name":"name","label":"Nome","type":"name","required":true},
       {"name":"email","label":"E-mail","type":"email","required":true}
-    ]'::jsonb
+    ]'::jsonb,
+    v_site_id
   )
   on conflict (id) do nothing;
 
@@ -147,9 +173,9 @@ begin
   on conflict do nothing;
 
   -- Draft campaign
-  insert into campaigns (id, interest, status, form_fields)
+  insert into campaigns (id, interest, status, form_fields, site_id)
   values (
-    '22222222-2222-2222-2222-222222222222', 'fitness', 'draft', '[]'::jsonb
+    '22222222-2222-2222-2222-222222222222', 'fitness', 'draft', '[]'::jsonb, v_site_id
   ) on conflict (id) do nothing;
 
   insert into campaign_translations (
