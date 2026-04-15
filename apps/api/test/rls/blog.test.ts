@@ -131,15 +131,24 @@ describe.skipIf(skipIfNoLocalDb())('RLS: blog_posts + blog_translations + author
       await pg.end()
     })
 
-    async function asAnonWithSite(siteId: string | null): Promise<{ postIds: string[]; trIds: string[] }> {
+    async function asAnonWithSite(siteId: string): Promise<{ postIds: string[]; trIds: string[] }> {
       await pg.query('begin')
       try {
         await pg.query('set local role anon')
-        if (siteId === null) {
-          await pg.query(`select set_config('app.site_id', '', true)`)
-        } else {
-          await pg.query(`select set_config('app.site_id', $1, true)`, [siteId])
-        }
+        await pg.query(`select set_config('app.site_id', $1, true)`, [siteId])
+        const posts = await pg.query<{ id: string }>('select id from public.blog_posts')
+        const trs = await pg.query<{ id: string }>('select id from public.blog_translations')
+        return { postIds: posts.rows.map(r => r.id), trIds: trs.rows.map(r => r.id) }
+      } finally {
+        await pg.query('rollback')
+      }
+    }
+
+    async function asAnonNoSite(): Promise<{ postIds: string[]; trIds: string[] }> {
+      await pg.query('begin')
+      try {
+        await pg.query('set local role anon')
+        // intentionally no set_config — exercises current_setting(..., true) returning null
         const posts = await pg.query<{ id: string }>('select id from public.blog_posts')
         const trs = await pg.query<{ id: string }>('select id from public.blog_translations')
         return { postIds: posts.rows.map(r => r.id), trIds: trs.rows.map(r => r.id) }
@@ -149,30 +158,27 @@ describe.skipIf(skipIfNoLocalDb())('RLS: blog_posts + blog_translations + author
     }
 
     it('anon with GUC never set (missing_ok path) sees null + both site posts', async () => {
-      const client = new Client({ connectionString: PG_URL })
-      await client.connect()
-      try {
-        await client.query('begin')
-        await client.query(`set local role anon`)
-        // intentionally no set_config — exercises current_setting(..., true) returning null
-        const { rows } = await client.query<{ id: string; site_id: string | null }>(
-          `select id, site_id from public.blog_posts where status='published'`
-        )
-        const ids = rows.map(r => r.id)
-        expect(ids).toContain(publishedId)
-        expect(ids).toContain(postSiteAId)
-        expect(ids).toContain(postSiteBId)
-        expect(ids).not.toContain(draftId)
-        await client.query('rollback')
-      } finally { await client.end() }
-    })
-
-    it('anon without app.site_id sees null-site AND site-scoped posts (backward compat)', async () => {
-      const { postIds } = await asAnonWithSite(null)
+      const { postIds } = await asAnonNoSite()
       expect(postIds).toContain(publishedId)
       expect(postIds).toContain(postSiteAId)
       expect(postIds).toContain(postSiteBId)
       expect(postIds).not.toContain(draftId)
+    })
+
+    it('anon with empty app.site_id sees null-site AND site-scoped posts (backward compat)', async () => {
+      await pg.query('begin')
+      try {
+        await pg.query('set local role anon')
+        await pg.query(`select set_config('app.site_id', '', true)`)
+        const posts = await pg.query<{ id: string }>('select id from public.blog_posts')
+        const ids = posts.rows.map(r => r.id)
+        expect(ids).toContain(publishedId)
+        expect(ids).toContain(postSiteAId)
+        expect(ids).toContain(postSiteBId)
+        expect(ids).not.toContain(draftId)
+      } finally {
+        await pg.query('rollback')
+      }
     })
 
     it('anon with app.site_id = siteA sees null-site + siteA, not siteB', async () => {
@@ -188,6 +194,24 @@ describe.skipIf(skipIfNoLocalDb())('RLS: blog_posts + blog_translations + author
       expect(trIds).toContain(trNullId)
       expect(trIds).toContain(trSiteAId)
       expect(trIds).not.toContain(trSiteBId)
+    })
+
+    it('anon with app.site_id = siteB sees null-site + siteB, not siteA', async () => {
+      const { postIds } = await asAnonWithSite(SITE_B)
+      expect(postIds).toContain(publishedId)
+      expect(postIds).toContain(postSiteBId)
+      expect(postIds).not.toContain(postSiteAId)
+      expect(postIds).not.toContain(draftId)
+    })
+
+    it('staff sees every site regardless of app.site_id (is_staff OR bypasses site filter)', async () => {
+      const { data, error } = await admin.from('blog_posts').select('id')
+      expect(error).toBeNull()
+      const ids = (data ?? []).map(r => r.id)
+      expect(ids).toContain(publishedId)
+      expect(ids).toContain(postSiteAId)
+      expect(ids).toContain(postSiteBId)
+      expect(ids).toContain(draftId)
     })
   })
 })
