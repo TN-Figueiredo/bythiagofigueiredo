@@ -302,3 +302,28 @@ describe.skipIf(skipIfNoLocalDb())('campaigns RLS: role differentiation', () => 
     expect((data ?? []).length === 1).toBe(canSee)
   })
 })
+
+describe.skipIf(!process.env.HAS_LOCAL_DB)('dev seed', () => {
+  it('seeds at least one published campaign with pt-BR + en translations', async () => {
+    const { data, error } = await admin
+      .from('campaigns')
+      .select('id, status, campaign_translations(locale, slug)')
+      .eq('status', 'published');
+    expect(error).toBeNull();
+    expect(data!.length).toBeGreaterThan(0);
+    const seeded = data!.find(c =>
+      (c.campaign_translations as Array<{ locale: string }>).some(t => t.locale === 'pt-BR')
+      && (c.campaign_translations as Array<{ locale: string }>).some(t => t.locale === 'en'));
+    expect(seeded).toBeTruthy();
+  });
+
+  it('seeds three submissions with mixed brevo_sync_status', async () => {
+    const { data } = await admin
+      .from('campaign_submissions')
+      .select('brevo_sync_status');
+    const statuses = new Set((data ?? []).map(r => r.brevo_sync_status));
+    expect(statuses.has('synced')).toBe(true);
+    expect(statuses.has('failed')).toBe(true);
+    expect(statuses.has('pending')).toBe(true);
+  });
+})

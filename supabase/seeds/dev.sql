@@ -87,4 +87,98 @@ begin
   returning id into v_post3;
   insert into public.blog_translations (post_id, locale, title, slug, content_md)
   values (v_post3, 'pt-BR', 'Agendado', 'agendado', '# Em breve');
+
+  -- ============ Sprint 1b: campaigns seed ============
+
+  -- Published campaign with pt-BR + en
+  insert into campaigns (id, interest, status, published_at, pdf_storage_path, brevo_list_id, form_fields)
+  values (
+    '11111111-1111-1111-1111-111111111111',
+    'creator',
+    'published',
+    now() - interval '1 day',
+    'seed/creator-playbook.pdf',
+    1,
+    '[
+      {"name":"name","label":"Nome","type":"name","required":true},
+      {"name":"email","label":"E-mail","type":"email","required":true}
+    ]'::jsonb
+  )
+  on conflict (id) do nothing;
+
+  insert into campaign_translations (
+    campaign_id, locale, slug, meta_title, meta_description,
+    main_hook_md, supporting_argument_md, introductory_block_md, body_content_md,
+    form_intro_md, form_button_label, form_button_loading_label,
+    context_tag, success_headline, success_headline_duplicate,
+    success_subheadline, success_subheadline_duplicate,
+    check_mail_text, download_button_label
+  ) values
+  (
+    '11111111-1111-1111-1111-111111111111', 'pt-BR', 'playbook-creator',
+    'Playbook Creator — Thiago Figueiredo',
+    'Guia gratuito para criadores de conteúdo',
+    '# Transforme sua presença digital',
+    'Argumento de suporte',
+    'Bloco introdutório',
+    'Conteúdo principal em markdown',
+    'Preencha o formulário para receber',
+    'Enviar', 'Enviando...',
+    'Parabéns!', 'Tudo certo!', 'Você já estava na lista!',
+    'Enviamos o PDF para o seu e-mail.', 'Você já tinha baixado antes.',
+    'Verifique sua caixa (e spam).',
+    'Baixar o playbook'
+  ),
+  (
+    '11111111-1111-1111-1111-111111111111', 'en', 'creator-playbook',
+    'Creator Playbook — Thiago Figueiredo',
+    'Free guide for content creators',
+    '# Transform your digital presence',
+    'Supporting argument',
+    'Intro block',
+    'Main markdown body',
+    'Fill the form below',
+    'Submit', 'Sending...',
+    'Welcome!', 'Hello again!', 'You were already on the list!',
+    'We sent the PDF to your inbox.', 'You had already downloaded it.',
+    'Check your inbox (and spam).',
+    'Download the playbook'
+  )
+  on conflict do nothing;
+
+  -- Draft campaign
+  insert into campaigns (id, interest, status, form_fields)
+  values (
+    '22222222-2222-2222-2222-222222222222', 'fitness', 'draft', '[]'::jsonb
+  ) on conflict (id) do nothing;
+
+  insert into campaign_translations (
+    campaign_id, locale, slug,
+    main_hook_md, form_button_label, form_button_loading_label,
+    context_tag, success_headline, success_headline_duplicate,
+    success_subheadline, success_subheadline_duplicate,
+    check_mail_text, download_button_label
+  ) values (
+    '22222222-2222-2222-2222-222222222222', 'pt-BR', 'rascunho-fitness',
+    '# Em breve', 'Enviar', 'Enviando...',
+    'Prévia', 'Obrigado!', 'Você já está!',
+    'Em breve.', 'Em breve.',
+    'Fique de olho.', 'Baixar'
+  ) on conflict do nothing;
+
+  -- Submissions: synced / failed / pending
+  insert into campaign_submissions
+    (campaign_id, email, name, locale, consent_marketing, consent_text_version,
+     brevo_sync_status, brevo_contact_id, brevo_synced_at)
+  values
+    ('11111111-1111-1111-1111-111111111111', 'alice@example.com', 'Alice',
+     'pt-BR', true, 'v1-2026-04', 'synced', 'brv_100', now()),
+    ('11111111-1111-1111-1111-111111111111', 'bob@example.com', 'Bob',
+     'pt-BR', true, 'v1-2026-04', 'failed', null, null),
+    ('11111111-1111-1111-1111-111111111111', 'carol@example.com', 'Carol',
+     'en', true, 'v1-2026-04', 'pending', null, null)
+  on conflict do nothing;
+
+  update campaign_submissions set brevo_sync_error = 'brevo 500: server err'
+    where email = 'bob@example.com';
 end $$;
