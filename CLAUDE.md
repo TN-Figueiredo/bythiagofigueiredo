@@ -78,6 +78,14 @@ describe.skipIf(skipIfNoLocalDb())('<suite que precisa de DB>', () => { ... })
 
 Override do JWT secret: `SUPABASE_JWT_SECRET=xxx HAS_LOCAL_DB=1 npm test`.
 
+### Integration tests: `apps/web/test/integration/*.test.ts`
+
+Suítes de integração contra Supabase local vivem em `apps/web/test/integration/` e cobrem RPCs críticos (`confirm_newsletter_subscription`, `unsubscribe_via_token`, `update_campaign_atomic`, `cron_try_lock`/`cron_unlock`). Todas usam service-role client (RLS bypass para seed) + `describe.skipIf(skipIfNoLocalDb())` — CI sem `HAS_LOCAL_DB=1` pula silenciosamente.
+
+Seed helpers reutilizáveis em `apps/web/test/helpers/db-seed.ts`: `seedSite()`, `seedStaffUser()`, `seedPendingNewsletterSub()`, `seedUnsubscribeToken()`, `seedCampaign()`, além de `signUserJwt()` para exercitar branches de `permission denied` via JWT de usuário não-membro. Tokens são hasheados com `sha256(raw).digest('hex')` para bater com o app.
+
+Para o cron-locks test (advisory locks session-scoped), duas conexões `pg.Client` independentes simulam invocações concorrentes — supabase-js não serve porque compartilha pool REST.
+
 ## Database RLS helpers
 
 - Helpers ficam em `public` (ownership do `auth` pertence a `supabase_admin`): `public.user_role()`, `public.is_staff()`, `public.is_admin()`, `public.site_visible(uuid)`.
@@ -85,6 +93,12 @@ Override do JWT secret: `SUPABASE_JWT_SECRET=xxx HAS_LOCAL_DB=1 npm test`.
 - Contrato do GUC `app.site_id`: Next middleware executa `select set_config('app.site_id', '<uuid>', true)` por request. Valor vazio/unset = sem filtro (admin/cross-site). Valor inválido (não-uuid) = fail closed (esconde rows site-scoped).
 - Staff (`editor|admin|super_admin`) bypassa o filtro via policies `_staff_read_all` — OR com a policy pública.
 - **Idempotência em migrations de RLS:** sempre prefixe `create policy` com `drop policy if exists "<name>" on <table>;` e `create trigger` com `drop trigger if exists <name> on <table>;`. `create or replace function` já é idempotente. Pattern canônico: `supabase/migrations/20260414000008_rls_site_helper.sql` e `…000018_submissions_published_guard.sql`.
+
+### LGPD retention policies (Sprint 4 / Epic 10)
+
+- **Unsubscribe anonymization** — `unsubscribe_via_token(p_token_hash)` RPC (migration `20260418000001_newsletter_anonymize_on_unsubscribe.sql`) flipa status para `unsubscribed` E anonymiza a row: `email = encode(sha256(email::bytea), 'hex')`, `ip = null`, `user_agent = null`, `locale = null`. Mantém `site_id`, `unsubscribed_at`, e versões de consent aceitas para accountability LGPD. Unique partial index `newsletter_subscriptions_anon_unique on (site_id, email) where status='unsubscribed'` impede re-subscribe com o mesmo endereço (sha256 é determinístico).
+- **Contact right-to-be-forgotten** — `anonymize_contact_submission(p_id uuid)` RPC (migration `…000002`) zera `name/email/ip/user_agent/message` da submissão e grava `anonymized_at`. Guardado por `is_staff() OR can_admin_site(site_id) OR service_role`. Server action do admin UI deve re-validar staff status antes de chamar.
+- **Sent emails 90-day purge** — `purge_sent_emails(p_older_than_days int default 90)` RPC (migration `…000003`) deleta rows de `sent_emails` com `sent_at < now() - interval`, retorna contagem. Execute só para `service_role`. Invocado diariamente via `/api/cron/purge-sent-emails` (03:00 America/Sao_Paulo = `0 6 * * *` UTC).
 
 ## Multi-ring (CMS conglomerate)
 
