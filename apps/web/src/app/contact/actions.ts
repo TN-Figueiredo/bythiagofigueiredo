@@ -126,9 +126,10 @@ async function sendContactEmails(opts: {
   if (!recentSent || recentSent.length === 0) {
     const autoReplyResult = await emailService.sendTemplate(
       contactReceivedTemplate,
-      { to: opts.email, from: sender.email, fromName: sender.name },
-      opts.locale,
+      { email: sender.email, name: sender.name },
+      opts.email,
       { name: opts.name, expectedReplyTime: '2 dias úteis', branding },
+      opts.locale,
     )
     await supabase.from('sent_emails').insert({
       site_id: opts.siteId,
@@ -154,8 +155,8 @@ async function sendContactEmails(opts: {
 
   const adminAlertResult = await emailService.sendTemplate(
     contactAdminAlertTemplate,
-    { to: adminEmail, from: sender.email, fromName: sender.name },
-    opts.locale,
+    { email: sender.email, name: sender.name },
+    adminEmail,
     {
       submitterName: opts.name,
       submitterEmail: opts.email,
@@ -163,6 +164,7 @@ async function sendContactEmails(opts: {
       viewInAdminUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://bythiagofigueiredo.com'}/cms/contacts/${opts.submissionId}`,
       branding,
     },
+    opts.locale,
   )
 
   await supabase.from('sent_emails').insert({
