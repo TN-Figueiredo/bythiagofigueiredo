@@ -1,14 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createBrevoContact } from '../../lib/brevo';
+import { setLogger, resetLogger } from '../../lib/logger';
 
 const OLD_ENV = process.env;
 
 beforeEach(() => {
   process.env = { ...OLD_ENV, BREVO_API_KEY: 'test-key' };
+  setLogger({ warn: () => {}, error: () => {} });
 });
 afterEach(() => {
   process.env = OLD_ENV;
   vi.restoreAllMocks();
+  resetLogger();
 });
 
 describe('createBrevoContact', () => {
@@ -83,5 +86,18 @@ describe('createBrevoContact', () => {
     vi.stubGlobal('fetch', fetchMock);
     const r = await createBrevoContact({ email: 'x@y.com', listId: 1 });
     expect(r).toEqual({});
+  });
+
+  it('treats timeout (AbortError) as transient and retries', async () => {
+    const abortErr = new Error('aborted');
+    abortErr.name = 'AbortError';
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(abortErr)
+      .mockResolvedValueOnce({ ok: true, status: 201, json: async () => ({ id: 5 }) });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const r = await createBrevoContact({ email: 'x@y.com', listId: 1, timeoutMs: 10_000 });
+    expect(r).toEqual({ id: 5 });
+    expect(fetchMock.mock.calls.length).toBe(2);
   });
 });

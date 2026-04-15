@@ -19,4 +19,25 @@ describe('getSupabaseServiceClient', () => {
     const mod = await import('../../lib/supabase/service');
     expect(() => mod.getSupabaseServiceClient()).toThrow(/SUPABASE_SERVICE_ROLE_KEY/);
   });
+
+  it('configures server-only auth flags (no session persistence/refresh/url detection)', async () => {
+    vi.doMock('@supabase/supabase-js', () => ({
+      createClient: vi.fn().mockReturnValue({}),
+    }));
+    const mod = await import('../../lib/supabase/service');
+    const sb = await import('@supabase/supabase-js');
+    mod.getSupabaseServiceClient();
+    expect(sb.createClient).toHaveBeenCalledWith(
+      'https://x.supabase.co',
+      'svc',
+      expect.objectContaining({
+        auth: expect.objectContaining({
+          persistSession: false,
+          autoRefreshToken: false,
+          detectSessionInUrl: false,
+        }),
+      }),
+    );
+    vi.doUnmock('@supabase/supabase-js');
+  });
 });
