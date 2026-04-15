@@ -1,9 +1,11 @@
-import { describe, it, expect, afterAll } from 'vitest'
+import { describe, it, expect, afterAll, beforeAll } from 'vitest'
 import { createClient } from '@supabase/supabase-js'
+import { Client } from 'pg'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { SUPABASE_URL, SERVICE_KEY } from '../helpers/local-supabase'
+import { SUPABASE_URL, SERVICE_KEY, ANON_KEY, PG_URL } from '../helpers/local-supabase'
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY)
+const anon = createClient(SUPABASE_URL, ANON_KEY)
 
 // Track inserted campaign IDs for cleanup so this suite leaves no shared state.
 const createdCampaignIds: string[] = []
@@ -143,5 +145,100 @@ describe.skipIf(skipIfNoLocalDb())('campaign_translations slug uniqueness per (s
     // Blog pattern does the same. Adjust assertion if product disagrees.
     expect(iX.error).toBeNull()
     expect(iY.error).not.toBeNull()
+  })
+})
+
+describe.skipIf(skipIfNoLocalDb())('campaigns RLS', () => {
+  const SITE_A = '11111111-1111-1111-1111-111111111111'
+  const SITE_B = '22222222-2222-2222-2222-222222222222'
+
+  const createdIds: string[] = []
+  let pubNullId: string
+  let pubSiteAId: string
+  let pubSiteBId: string
+  let draftId: string
+
+  beforeAll(async () => {
+    const past = new Date(Date.now() - 60_000).toISOString()
+    const ins = async (payload: Record<string, unknown>) => {
+      const { data, error } = await admin.from('campaigns').insert(payload).select('id').single()
+      if (error || !data) throw error ?? new Error('insert failed')
+      createdIds.push(data.id)
+      return data.id
+    }
+    pubNullId = await ins({ interest: 'creator', status: 'published', published_at: past })
+    pubSiteAId = await ins({ interest: 'creator', status: 'published', published_at: past, site_id: SITE_A })
+    pubSiteBId = await ins({ interest: 'creator', status: 'published', published_at: past, site_id: SITE_B })
+    draftId = await ins({ interest: 'creator', status: 'draft' })
+  })
+
+  afterAll(async () => {
+    if (createdIds.length) await admin.from('campaigns').delete().in('id', createdIds)
+  })
+
+  it('anon reads only published campaigns in the past', async () => {
+    const { data, error } = await anon.from('campaigns').select('id,status')
+    expect(error).toBeNull()
+    expect(data!.every((r) => r.status === 'published')).toBe(true)
+    const ids = data!.map((r) => r.id)
+    expect(ids).toContain(pubNullId)
+    expect(ids).not.toContain(draftId)
+  })
+
+  it('anon cannot insert', async () => {
+    const { error } = await anon.from('campaigns').insert({ interest: 'creator' })
+    expect(error).not.toBeNull()
+  })
+
+  it('service role sees everything', async () => {
+    const { data, error } = await admin.from('campaigns').select('id,status')
+    expect(error).toBeNull()
+    const ids = (data ?? []).map((r) => r.id)
+    expect(ids).toContain(draftId)
+    expect(ids).toContain(pubNullId)
+  })
+
+  describe('site_id scoping via app.site_id GUC', () => {
+    let pg: Client
+
+    beforeAll(async () => {
+      pg = new Client({ connectionString: PG_URL })
+      await pg.connect()
+    })
+
+    afterAll(async () => {
+      await pg.end()
+    })
+
+    it('anon with GUC=SITE_A sees only null-site + siteA published campaigns', async () => {
+      await pg.query('begin')
+      try {
+        await pg.query('set local role anon')
+        await pg.query(`select set_config('app.site_id', $1, true)`, [SITE_A])
+        const r = await pg.query<{ id: string }>('select id from public.campaigns')
+        const ids = r.rows.map((x) => x.id)
+        expect(ids).toContain(pubNullId)
+        expect(ids).toContain(pubSiteAId)
+        expect(ids).not.toContain(pubSiteBId)
+        expect(ids).not.toContain(draftId)
+      } finally {
+        await pg.query('rollback')
+      }
+    })
+
+    it('anon without GUC sees all published regardless of site', async () => {
+      await pg.query('begin')
+      try {
+        await pg.query('set local role anon')
+        const r = await pg.query<{ id: string }>('select id from public.campaigns')
+        const ids = r.rows.map((x) => x.id)
+        expect(ids).toContain(pubNullId)
+        expect(ids).toContain(pubSiteAId)
+        expect(ids).toContain(pubSiteBId)
+        expect(ids).not.toContain(draftId)
+      } finally {
+        await pg.query('rollback')
+      }
+    })
   })
 })
