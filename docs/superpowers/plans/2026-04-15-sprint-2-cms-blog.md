@@ -33,9 +33,11 @@ apps/api/test/helpers/
   ring-fixtures.ts                                  (new — makeOrg, makeSite, makeMembership)
 
 apps/api/test/rls/
-  organizations.test.ts                             (new — ring CRUD + policies)
-  sites.test.ts                                     (new — site resolution, ring scope)
-  blog.test.ts                                      (updated — uses site_id FK, content_mdx)
+  organizations.test.ts                             (new — org + members + sites + seed)
+  ring-helpers.test.ts                              (new — org_role, is_org_staff, can_admin_site)
+  ring-policies.test.ts                             (new — RLS on org tables)
+  content-files-bucket.test.ts                     (new — storage bucket RLS)
+  blog.test.ts                                      (updated — site_id FK + content_mdx rename)
   campaigns.test.ts                                 (updated — site_id FK)
 
 packages/cms/                                       (new — workspace package)
@@ -683,20 +685,10 @@ git commit -m "feat(sprint-2): RLS policies on organizations, members, sites"
 - [ ] **Step 4.1 — Write failing test** (append to `apps/api/test/rls/blog.test.ts`):
 
 ```typescript
-describe.skipIf(skipIfNoLocalDb())('blog_posts site_id FK + NOT NULL', () => {
-  it('rejects blog_posts with NULL site_id', async () => {
-    const { data: a } = await admin.from('authors')
-      .insert({ name: 'T', slug: `t-${Date.now()}` }).select('id').single()
-    const { error } = await admin.from('blog_posts').insert({
-      author_id: a!.id, status: 'draft', site_id: null,
-    })
-    expect(error).not.toBeNull()
-    expect(error!.message).toMatch(/null|not-null/i)
-  })
-
+describe.skipIf(skipIfNoLocalDb())('blog_posts site_id FK', () => {
   it('rejects blog_posts with non-existent site_id', async () => {
     const { data: a } = await admin.from('authors')
-      .insert({ name: 'T', slug: `t2-${Date.now()}` }).select('id').single()
+      .insert({ name: 'T', slug: `t-${Date.now()}` }).select('id').single()
     const { error } = await admin.from('blog_posts').insert({
       author_id: a!.id,
       status: 'draft',
@@ -705,47 +697,42 @@ describe.skipIf(skipIfNoLocalDb())('blog_posts site_id FK + NOT NULL', () => {
     expect(error).not.toBeNull()
     expect(error!.message).toMatch(/foreign key|violates/i)
   })
+
+  it('accepts blog_posts with valid site_id', async () => {
+    const { data: a } = await admin.from('authors')
+      .insert({ name: 'T', slug: `t2-${Date.now()}` }).select('id').single()
+    const { data: site } = await admin.from('sites')
+      .select('id').eq('slug', 'bythiagofigueiredo').maybeSingle()
+    const { error } = await admin.from('blog_posts').insert({
+      author_id: a!.id, status: 'draft', site_id: site!.id,
+    })
+    expect(error).toBeNull()
+  })
+
+  // NOT NULL enforcement comes in a later migration once seed backfills site_id
+  // for all existing rows. This task only adds the FK constraint (nullable).
 })
 ```
 
 - [ ] **Step 4.2 — Write migration** `supabase/migrations/20260415000023_blog_site_fk.sql`:
 
 ```sql
--- Enforce blog_posts.site_id → sites.id FK and NOT NULL.
--- Migration strategy: UPDATE existing rows first → ALTER NOT NULL → ADD FK.
--- The seed (dev.sql) provides a default site; this migration uses it.
+-- Add FK on blog_posts.site_id → sites.id.
+-- Kept NULLABLE intentionally: NOT NULL enforcement comes in a later migration
+-- after the seed (Task 6) backfills site_id for all existing rows.
+-- This migration runs BEFORE the seed on db:reset, so enforcing NOT NULL here
+-- would fail (sites table is empty at migration time).
 
--- 1. UPDATE existing blog_posts with NULL site_id → set to the first site
---    that belongs to the master org (bythiagofigueiredo). The seed creates
---    this site. If running against a fresh DB with no sites, this UPDATE
---    touches zero rows (blog_posts is empty at that point).
-update public.blog_posts
-   set site_id = (select id from public.sites where slug = 'bythiagofigueiredo' limit 1)
- where site_id is null;
-
--- 2. Enforce NOT NULL
-alter table public.blog_posts alter column site_id set not null;
-
--- 3. Add FK
 alter table public.blog_posts
   add constraint blog_posts_site_id_fkey
   foreign key (site_id) references public.sites(id) on delete restrict;
 ```
 
-**Important:** This migration depends on the seed having created the `bythiagofigueiredo` site. Task 6 updates the seed to insert site BEFORE blog_posts. Because `db:reset` replays migrations then seeds, and the seed truncates blog tables first, the UPDATE touches nothing on fresh reset. On production (where blog_posts exist from Sprint 1a), the seed's truncate doesn't run — we need a data migration. For Sprint 2, this migration assumes no prod data yet OR runs after the seed creates the site. If prod has blog_posts but no sites, this migration fails at step 2 — the implementer must run `INSERT INTO sites` first (manually or via ad-hoc migration).
+- [ ] **Step 4.3 — Run tests** — expect PASS.
 
-- [ ] **Step 4.3 — Run** — expect PASS. Note: fresh `db:reset` will fail this migration because sites table is empty when it runs (seed runs after migrations). **Solution:** the seed update in Task 6 moves site insertion into a migration OR we split: this migration just adds FK+NOT NULL conditionally. Simpler: **defer this migration's NOT NULL enforcement** — in this task, only add the FK but keep nullable. Make it NOT NULL after seed fixture lands.
-
-**Revised Step 4.2:**
-
-```sql
--- Add FK only (nullable for now); NOT NULL enforced after seed populates sites.
-alter table public.blog_posts
-  add constraint blog_posts_site_id_fkey
-  foreign key (site_id) references public.sites(id) on delete restrict;
+```bash
+npm run db:reset && HAS_LOCAL_DB=1 npm run test:api -- test/rls/blog.test.ts
 ```
-
-The NOT NULL enforcement moves to a later migration (Task 7's companion — after seed ensures all site_ids are populated). Document this in a comment.
 
 - [ ] **Step 4.4 — Commit**
 
@@ -1185,7 +1172,20 @@ Read current `package.json`. In `workspaces` array, add `"packages/*"` if not pr
 }
 ```
 
-Also create `packages/cms/tsconfig.build.json` (same as above with `declaration: true`).
+Also create `packages/cms/tsconfig.build.json`:
+
+```json
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "emitDeclarationOnly": false
+  },
+  "include": ["src/**/*"],
+  "exclude": ["dist", "node_modules", "test", "**/*.test.ts", "**/*.test.tsx"]
+}
+```
 
 - [ ] **Step 9.4 — Create** `packages/cms/vitest.config.ts`:
 
@@ -2455,35 +2455,56 @@ export interface EditorPreviewProps {
   debounceMs?: number
 }
 
+type PreviewState =
+  | { kind: 'idle' }
+  | { kind: 'compiling' }
+  | { kind: 'ok'; readingTimeMin: number; tocLength: number; sourceBytes: number }
+  | { kind: 'error'; message: string }
+
 export function EditorPreview({ source, onCompile, debounceMs = 500 }: EditorPreviewProps) {
-  const [html, setHtml] = React.useState<string>('')
-  const [error, setError] = React.useState<string | null>(null)
+  const [state, setState] = React.useState<PreviewState>({ kind: 'idle' })
   const lastSourceRef = React.useRef(source)
 
   React.useEffect(() => {
     lastSourceRef.current = source
+    setState({ kind: 'compiling' })
     const handle = window.setTimeout(async () => {
       try {
-        setError(null)
         const compiled = await onCompile(source)
-        if (lastSourceRef.current === source) {
-          setHtml(compiled.compiledSource.slice(0, 5000)) // TODO: actually run compiled; for preview show compiled length
-        }
+        if (lastSourceRef.current !== source) return
+        setState({
+          kind: 'ok',
+          readingTimeMin: compiled.readingTimeMin,
+          tocLength: compiled.toc.length,
+          sourceBytes: compiled.compiledSource.length,
+        })
       } catch (e) {
-        if (lastSourceRef.current === source) {
-          setError(e instanceof Error ? e.message : String(e))
-        }
+        if (lastSourceRef.current !== source) return
+        setState({ kind: 'error', message: e instanceof Error ? e.message : String(e) })
       }
     }, debounceMs)
     return () => window.clearTimeout(handle)
   }, [source, onCompile, debounceMs])
 
-  if (error) return <pre role="alert" data-preview-error>{error}</pre>
-  return <div data-preview dangerouslySetInnerHTML={{ __html: html }} />
+  // Safe status-only preview for Sprint 2. Full MDX render requires running
+  // compiled JS module on the client (via @mdx-js/mdx run), which has
+  // CSP + hydration constraints. Shown: compile success + stats. Errors are
+  // rendered as text (never innerHTML, to avoid XSS from user-controlled MDX).
+  if (state.kind === 'error') {
+    return <pre role="alert" data-preview-error>{state.message}</pre>
+  }
+  if (state.kind === 'compiling') return <p data-preview-status>Compilando…</p>
+  if (state.kind === 'idle') return <p data-preview-status>Aguardando…</p>
+  return (
+    <div data-preview role="status">
+      <p>✓ MDX compila sem erros</p>
+      <p>{state.readingTimeMin} min de leitura · {state.tocLength} headings · {state.sourceBytes} bytes compilados</p>
+    </div>
+  )
 }
 ```
 
-Note: For Sprint 2, the preview shows compiledSource (raw compiled JS) as a fallback — a proper render requires client-side `run()` which has constraints. The implementer can enhance this with real rendering via `MdxRunner` adapted for client. For now, the simpler path is the preview shows the compile result exists (no error) as a signal. A more polished implementation can replace this file.
+**Note:** For Sprint 2, preview is a compile-check indicator (compiles / error + stats). Full interactive MDX render on client requires `@mdx-js/mdx run()` which needs `react/jsx-runtime` and `new Function()` — works but has CSP constraints. A future polish task can replace this with a client-side `MdxRunner`. The critical path (save, publish, render on server) is unaffected.
 
 - [ ] **Step 13.4 — Create** `packages/cms/src/editor/asset-picker.tsx`:
 
@@ -2758,6 +2779,31 @@ git push origin main --tags
 ```
 
 Wait for the publish workflow to succeed.
+
+- [ ] **Step 14.6b — Smoke test the published package** (before installing in web):
+
+Create a scratch project and verify the package resolves and runs:
+
+```bash
+mkdir /tmp/cms-smoke && cd /tmp/cms-smoke
+npm init -y
+npm install @tn-figueiredo/cms@0.1.0 react@19 react-dom@19 @supabase/supabase-js@2.45.4
+cat > smoke.mjs <<'EOF'
+import { compileMdx, defaultComponents, calculateReadingTime, extractToc } from '@tn-figueiredo/cms'
+
+const result = await compileMdx('# Hello\n\nWorld', defaultComponents)
+if (!result.compiledSource || result.toc.length !== 1 || result.readingTimeMin !== 1) {
+  console.error('FAIL', result)
+  process.exit(1)
+}
+if (calculateReadingTime('a '.repeat(400)) !== 2) { console.error('FAIL readingTime'); process.exit(1) }
+if (extractToc('# A\n## B').length !== 2) { console.error('FAIL toc'); process.exit(1) }
+console.log('OK')
+EOF
+node smoke.mjs
+```
+
+Expected: `OK`. If fails, the published package has a build/export issue — fix in the external repo before proceeding.
 
 - [ ] **Step 14.7 — Install published version in apps/web**
 
@@ -3650,6 +3696,97 @@ git commit -m "feat(sprint-2): server actions (save, publish, unpublish, archive
 
 ---
 
+## Task 21 — Docs + prod deploy
+
+**Files:**
+- Update: `CLAUDE.md` (new concepts + env vars + roadmap)
+- No code — prod DB push is manual (like Sprint 1b)
+
+- [ ] **Step 21.1 — Update** `CLAUDE.md`:
+
+Add to the existing `## Database RLS helpers` section:
+
+```markdown
+## Multi-ring (CMS conglomerate)
+
+- Schema: `organizations` (rings) + `organization_members` (per-org roles) + `sites` (domain-scoped).
+- Hierarchy: `parent_org_id NULL` = master ring. Staff of a parent ring can administer child ring sites (cascade up) via `public.can_admin_site()`.
+- Roles per org: `owner`, `admin`, `editor`, `author`. Staff = `owner|admin|editor`.
+- `public.is_staff()` (global) remains as backward compat "god mode"; new write policies ADD `public.can_admin_site()` as refinement.
+- `bythiagofigueiredo` site (master ring `figueiredo-tech`) resolves from hostname via middleware → `x-site-id`, `x-org-id`, `x-default-locale` request headers.
+```
+
+Add to `### Web` env section:
+
+```markdown
+- `CAMPAIGN_PDF_SIGNED_URL_TTL` (optional, default 86400)
+- No new env vars in Sprint 2 — multi-ring scoping uses DB-level resolution via middleware.
+```
+
+Update Roadmap section:
+
+```markdown
+- **Sprint 1a** ✅ done — blog schema, RLS, homepage, API setup, site_visible helper
+- **Sprint 1b** ✅ done — campaigns schema/RLS, Brevo+Turnstile libs, landing pages, cron, seed
+- **Sprint 2** ✅ done — @tn-figueiredo/cms package, multi-ring schema, blog MDX rendering, admin CRUD
+- **Sprint 3** next — Admin login UI, newsletter/contact forms, campaign admin CRUD
+```
+
+Add a new section `## @tn-figueiredo/cms package`:
+
+```markdown
+## @tn-figueiredo/cms package
+
+Reusable CMS published at https://github.com/TN-Figueiredo/cms. Consumed by `bythiagofigueiredo.com` (master ring) and future conglomerate sites.
+
+- Exports: `IContentRepository<T>`, `IPostRepository`, `SupabasePostRepository`, `SupabaseRingContext`, `compileMdx`, `MdxRunner`, `defaultComponents`, `PostEditor`, `EditorToolbar`, `EditorPreview`, `uploadContentAsset`.
+- Opt-in shiki: `import { ShikiCodeBlock } from '@tn-figueiredo/cms/code'` (lazy-loaded).
+- Version policy: pinned exact in consumers (no `^` or `~`). Current: `0.1.0`.
+- MDX strategy: `@mdx-js/mdx compile()` on save → `content_compiled` text column → `run()` on read. Public pages fall back to runtime compile if `content_compiled` is NULL.
+```
+
+- [ ] **Step 21.2 — Run tests** (pre-commit hook will do this anyway):
+
+```bash
+npm test && npm run test:web
+```
+
+- [ ] **Step 21.3 — Commit CLAUDE.md**
+
+```bash
+git add CLAUDE.md
+git commit -m "docs(sprint-2): document multi-ring, @tn-figueiredo/cms package, update roadmap"
+```
+
+- [ ] **Step 21.4 — Push, PR, merge** (follow Sprint 1b pattern):
+
+```bash
+git push origin staging
+gh pr create --base main --head staging --title "feat: Sprint 2 — @tn-figueiredo/cms + multi-ring + blog CMS" --body "..."
+gh pr merge <PR#> --merge --admin
+git pull origin main
+```
+
+- [ ] **Step 21.5 — Prod DB push** (manual, needs YES confirmation — mirror Sprint 1b):
+
+```bash
+npm run db:push:prod
+# 8 new migrations:
+# 20260415000020 organizations_sites
+# 20260415000021 ring_rls_helpers
+# 20260415000022 ring_rls_policies
+# 20260415000023 blog_site_fk
+# 20260415000024 campaigns_site_fk
+# 20260415000025 content_files_bucket
+# 20260415000026 blog_mdx_columns
+# 20260415000027 blog_title_search_index
+# Type YES when prompted.
+```
+
+After prod push, optionally run `INSERT INTO organizations, sites, organization_members` on prod via Supabase SQL editor (mirroring seed) — or via a one-off data migration. **Do NOT run the dev seed against prod** (it truncates tables).
+
+---
+
 ## Done criteria (Sprint 2)
 
 - [ ] All 8 new migrations apply cleanly on `db:reset`
@@ -3666,6 +3803,8 @@ git commit -m "feat(sprint-2): server actions (save, publish, unpublish, archive
 - [ ] `is_staff()` backward compat preserved — 135 existing tests stay green
 - [ ] `npm test` verde em ambos workspaces
 - [ ] Full E2E smoke passes (steps in Task 20.4)
+- [ ] CLAUDE.md documents multi-ring + package (Task 21)
+- [ ] Prod DB pushed with 8 new migrations (Task 21.5)
 
 ## Notes & caveats
 
