@@ -159,16 +159,13 @@ CMS reutilizável publicado em `@tn-figueiredo/cms` (extração pra repo própri
 - **Sprint 3** next — Admin login UI, newsletter/contact forms, campaign admin CRUD, package extraction
 - Spec de cada sprint em `docs/superpowers/specs/`
 
-### Sprint 2 → Sprint 3 carry-over
+### Sprint 3 → Sprint 4 carry-over
 
-Items from Sprint 2 spec exit criteria that were defensibly deferred:
-
-- **localStorage autosave with restore prompt** — `PostEditor` has `onSave` callback but no debounced auto-persist. Implement before Sprint 3 admin login UI ships.
-- **Meta SEO fields in editor** — `meta_title`, `meta_description`, `og_image_url` columns exist in `blog_translations` but `<PostEditor>` doesn't expose them.
-- **Cover image picker** — `<AssetPicker>` exists but isn't wired into the editor's cover field.
-- **Locale switcher on `/blog/[locale]/[slug]`** — `available_locales` is on `PostListItem` but not displayed.
-- **Delete button in `/cms/blog`** — `deletePost` server action exists but no UI trigger.
-- **`@tn-figueiredo/cms` extraction** (T14 of Sprint 2) — workspace package needs to move to own repo + publish v0.1.0 before second consumer arrives.
+- **`@tn-figueiredo/cms` extraction** (Epic 6 T38-T44) — workspace package moves to own repo + publish v0.1.0 before second consumer arrives.
+- **`@tn-figueiredo/email` extraction** — same pattern.
+- **DB-gated integration tests for RPCs** — `confirm_newsletter_subscription`, `unsubscribe_via_token`, `update_campaign_atomic`, `cron_try_lock`/`cron_unlock`. Unit tests mock the RPC; Sprint 4 adds `describe.skipIf(skipIfNoLocalDb())` coverage that hits real PG.
+- **Sentry + structured cron logs** — oncall story today is grep Vercel function logs. Sprint 4 instruments `apps/web/src/app/api/cron/*` with `console.error({job, err_code, site_id})` JSON + Sentry transport.
+- **LGPD retention** — unsubscribe flips status but doesn't anonymize; `sent_emails` 90-day purge cron pending.
 
 ## Code Standards
 

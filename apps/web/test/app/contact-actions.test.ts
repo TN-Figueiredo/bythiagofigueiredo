@@ -128,11 +128,12 @@ describe('submitContact', () => {
     vi.clearAllMocks()
     insertResult = { data: { id: 'sub-1' }, error: null }
     rateCheckResult = { data: true, error: null }
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(buildSupabaseMock() as ReturnType<typeof getSupabaseServiceClient>)
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(buildSupabaseMock() as unknown as ReturnType<typeof getSupabaseServiceClient>)
     vi.mocked(verifyTurnstileToken).mockResolvedValue(true)
     vi.mocked(getEmailService).mockReturnValue({
       sendTemplate: sendTemplateMock,
-    } as ReturnType<typeof getEmailService>)
+      send: vi.fn(),
+    } as unknown as ReturnType<typeof getEmailService>)
     vi.mocked(getEmailSender).mockResolvedValue({
       email: 'noreply@example.com',
       name: 'My Site',

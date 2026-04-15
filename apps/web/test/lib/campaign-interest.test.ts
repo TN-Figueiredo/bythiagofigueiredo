@@ -12,7 +12,7 @@ describe('CAMPAIGN_INTERESTS matches SQL check constraint vocabulary', () => {
     const sql = readFileSync(path, 'utf8')
     const m = sql.match(/interest in \(([^)]+)\)/i)
     expect(m).not.toBeNull()
-    const sqlValues = m![1]
+    const sqlValues = m![1]!
       .split(',')
       .map((s) => s.trim().replace(/^'|'$/g, ''))
       .sort()

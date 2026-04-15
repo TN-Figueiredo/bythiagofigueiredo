@@ -36,7 +36,7 @@ describe('createBrevoContact', () => {
         }),
       }),
     );
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const body = JSON.parse(fetchMock.mock.calls[0]![1].body);
     expect(body).toEqual({
       email: 'x@y.com',
       listIds: [7],
