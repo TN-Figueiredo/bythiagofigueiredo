@@ -13,10 +13,25 @@ import {
   AlertDialogTrigger,
 } from '../../../../components/ui/alert-dialog'
 
+export type DeletePostActionResult =
+  | { ok: true }
+  | { ok: false; error: 'already_published' | 'not_found' | 'db_error'; message?: string }
+
 export interface DeletePostButtonProps {
   postId: string
   postTitle: string
-  onDelete: (id: string) => Promise<void>
+  onDelete: (id: string) => Promise<DeletePostActionResult>
+}
+
+function describeDeleteError(r: Extract<DeletePostActionResult, { ok: false }>): string {
+  switch (r.error) {
+    case 'already_published':
+      return 'Este post foi publicado e não pode mais ser excluído. Recarregue a lista.'
+    case 'not_found':
+      return 'Post não encontrado (pode já ter sido excluído).'
+    case 'db_error':
+      return r.message ?? 'Falha no banco ao excluir.'
+  }
 }
 
 export function DeletePostButton({ postId, postTitle, onDelete }: DeletePostButtonProps) {
@@ -29,9 +44,13 @@ export function DeletePostButton({ postId, postTitle, onDelete }: DeletePostButt
     setError(null)
     startTransition(async () => {
       try {
-        await onDelete(postId)
-        setDeleted(true)
-        setOpen(false)
+        const result = await onDelete(postId)
+        if (result.ok) {
+          setDeleted(true)
+          setOpen(false)
+        } else {
+          setError(describeDeleteError(result))
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Falha ao excluir')
       }

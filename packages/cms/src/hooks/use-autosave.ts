@@ -85,8 +85,12 @@ export function useAutosave<T>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key])
 
-  // Track last-serialized value to skip redundant writes.
+  // Track last-serialized value to skip redundant writes, and the pending
+  // (scheduled but not yet flushed) serialized snapshot so an unmount can
+  // flush it synchronously without losing the last ≤debounceMs of edits.
   const lastSerializedRef = React.useRef<string | null>(null)
+  const pendingSerializedRef = React.useRef<string | null>(null)
+  const pendingKeyRef = React.useRef<string | null>(null)
   const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
   React.useEffect(() => {
@@ -101,6 +105,9 @@ export function useAutosave<T>(
     }
     if (serialized === lastSerializedRef.current) return
 
+    pendingSerializedRef.current = serialized
+    pendingKeyRef.current = key
+
     if (timerRef.current != null) {
       clearTimeout(timerRef.current)
     }
@@ -108,11 +115,16 @@ export function useAutosave<T>(
       try {
         window.localStorage.setItem(key, serialized)
         lastSerializedRef.current = serialized
+        pendingSerializedRef.current = null
       } catch {
         /* ignore */
       }
     }, debounceMs)
 
+    // NOTE: intentionally no flush inside this cleanup. Per-render cleanups
+    // run between renders (e.g. when `value` changes) — flushing there would
+    // defeat the debounce. The unmount-only effect below handles the true
+    // "leaving the editor" flush.
     return () => {
       if (timerRef.current != null) {
         clearTimeout(timerRef.current)
@@ -121,8 +133,32 @@ export function useAutosave<T>(
     }
   }, [key, value, debounceMs, enabled])
 
+  // Unmount-only: flush any pending write synchronously so the last batch of
+  // edits isn't lost when the user navigates away. Documented side effect:
+  // "flushes pending write on unmount to avoid losing last <debounceMs>s of
+  // edits".
+  React.useEffect(() => {
+    return () => {
+      if (!isBrowser()) return
+      const pending = pendingSerializedRef.current
+      const pendingKey = pendingKeyRef.current
+      if (pending != null && pendingKey != null && pending !== lastSerializedRef.current) {
+        try {
+          window.localStorage.setItem(pendingKey, pending)
+          lastSerializedRef.current = pending
+          pendingSerializedRef.current = null
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  }, [])
+
   const restore = React.useCallback((): T | null => {
     const snap = initialDraftRef.current
+    // Clear the cached snapshot so subsequent restore() calls return null and
+    // a later rerender can't re-apply a stale draft (M2 fix).
+    initialDraftRef.current = null
     setHasDraft(false)
     return snap
   }, [])

@@ -67,7 +67,7 @@ describe('DeletePostButton', () => {
       <DeletePostButton
         postId="p1"
         postTitle="Meu Post"
-        onDelete={vi.fn().mockResolvedValue(undefined)}
+        onDelete={vi.fn().mockResolvedValue({ ok: true })}
       />,
     )
     fireEvent.click(screen.getByRole('button', { name: /Excluir Meu Post/i }))
@@ -78,7 +78,7 @@ describe('DeletePostButton', () => {
   })
 
   it('calls onDelete and shows success state on confirm', async () => {
-    const onDelete = vi.fn().mockResolvedValue(undefined)
+    const onDelete = vi.fn().mockResolvedValue({ ok: true })
     render(<DeletePostButton postId="p1" postTitle="Meu Post" onDelete={onDelete} />)
     fireEvent.click(screen.getByRole('button', { name: /Excluir Meu Post/i }))
     await waitFor(() => screen.getByText('Confirmar exclusão'))
@@ -101,7 +101,7 @@ describe('DeletePostButton', () => {
   })
 
   it('does not render trigger when already deleted (after successful delete)', async () => {
-    const onDelete = vi.fn().mockResolvedValue(undefined)
+    const onDelete = vi.fn().mockResolvedValue({ ok: true })
     render(<DeletePostButton postId="p1" postTitle="Meu Post" onDelete={onDelete} />)
     fireEvent.click(screen.getByRole('button', { name: /Excluir Meu Post/i }))
     await waitFor(() => screen.getByText('Confirmar exclusão'))

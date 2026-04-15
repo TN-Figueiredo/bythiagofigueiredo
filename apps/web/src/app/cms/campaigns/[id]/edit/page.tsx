@@ -1,4 +1,9 @@
 import { notFound } from 'next/navigation'
+import {
+  CampaignEditor,
+  type CampaignEditorSaveInput,
+  type CampaignEditorSaveResult,
+} from '@tn-figueiredo/cms'
 import { campaignRepo } from '../../../../../../lib/cms/repositories'
 import { getSiteContext } from '../../../../../../lib/cms/site-context'
 import {
@@ -20,28 +25,98 @@ interface Props {
 export default async function EditCampaignPage({ params }: Props) {
   const { id } = await params
   const ctx = await getSiteContext()
-  // getById is now site-scoped: returns null for ids that belong to another
-  // ring, so a cross-ring access falls through to notFound() without leaking
-  // existence.
+  // getById is site-scoped: returns null for ids that belong to another
+  // ring, so cross-ring access falls through to notFound() without leaking.
   const campaign = await campaignRepo().getById(id, ctx.siteId)
   if (!campaign) notFound()
 
   const primary = campaign.translations[0]
   const label = primary?.meta_title ?? primary?.slug ?? campaign.interest
 
-  // FIXME: wire full CampaignEditor once T30 ships (parallel agent is building
-  // `packages/cms/src/editor/campaign-*`). Once exported from @tn-figueiredo/cms,
-  // replace the placeholder below and pass:
-  //   onSave={async (patch, translations) => saveCampaign(id, patch, translations)}
-  const onSave = async (
-    patch: SaveCampaignPatch,
-    translations: SaveCampaignTranslationPatch[],
-  ) => {
-    'use server'
-    return saveCampaign(id, patch, translations)
+  // Derive locale tabs: whatever translations already exist, plus the site's
+  // default locale so authors can always add a missing primary-locale entry.
+  const existingLocales = campaign.translations.map((t) => t.locale)
+  const availableLocales = existingLocales.includes(ctx.defaultLocale)
+    ? existingLocales
+    : [ctx.defaultLocale, ...existingLocales]
+
+  // Map DB row → editor shape. `slug` in the editor's campaign meta mirrors
+  // the primary translation's slug (campaigns has no scalar slug column).
+  const initialCampaign = {
+    slug: primary?.slug ?? '',
+    interest: campaign.interest,
+    status: campaign.status as 'draft' | 'scheduled' | 'published' | 'archived',
+    scheduled_for: campaign.scheduled_for,
+    pdf_storage_path: campaign.pdf_storage_path,
+    brevo_list_id: campaign.brevo_list_id,
+    brevo_template_id: campaign.brevo_template_id,
+    form_fields: campaign.form_fields,
   }
-  // Suppress unused-var lint — onSave is the wired callback for the future editor.
-  void onSave
+
+  const initialTranslations = campaign.translations.map((t) => ({
+    locale: t.locale,
+    main_hook_md: t.main_hook_md,
+    supporting_argument_md: t.supporting_argument_md,
+    introductory_block_md: t.introductory_block_md,
+    body_content_md: t.body_content_md,
+    form_intro_md: t.form_intro_md,
+    form_button_label: t.form_button_label,
+    context_tag: t.context_tag,
+    meta_title: t.meta_title,
+    meta_description: t.meta_description,
+    og_image_url: t.og_image_url,
+    extras: t.extras,
+  }))
+
+  const primaryLocale = campaign.translations[0]?.locale ?? ctx.defaultLocale
+
+  const onSave = async (
+    input: CampaignEditorSaveInput,
+  ): Promise<CampaignEditorSaveResult> => {
+    'use server'
+    // Strip the editor-only `slug` field from the campaigns patch — slug is a
+    // translation column and is passed through each translation entry below.
+    // The update_campaign_atomic RPC now rejects unknown keys, so this strip
+    // is load-bearing.
+    const { slug: slugFromMeta, ...rest } = input.patch
+    const campaignPatch = rest as SaveCampaignPatch
+    const translations: SaveCampaignTranslationPatch[] = input.translations.map((t) => ({
+      locale: t.locale,
+      main_hook_md: t.main_hook_md,
+      supporting_argument_md: t.supporting_argument_md,
+      introductory_block_md: t.introductory_block_md,
+      body_content_md: t.body_content_md,
+      form_intro_md: t.form_intro_md,
+      ...(t.form_button_label !== null && t.form_button_label !== undefined
+        ? { form_button_label: t.form_button_label }
+        : {}),
+      ...(t.context_tag !== null && t.context_tag !== undefined
+        ? { context_tag: t.context_tag }
+        : {}),
+      meta_title: t.meta_title,
+      meta_description: t.meta_description,
+      og_image_url: t.og_image_url,
+      extras: t.extras,
+    }))
+    // If the editor shipped a slug via meta, apply it to the primary
+    // translation so authors can rename the slug.
+    const translationsWithSlug =
+      typeof slugFromMeta === 'string'
+        ? translations.map((t) =>
+            t.locale === primaryLocale ? { ...t, slug: slugFromMeta } : t,
+          )
+        : translations
+    const result = await saveCampaign(id, campaignPatch, translationsWithSlug)
+    if (result.ok) return { ok: true }
+    if (result.error === 'validation_failed') {
+      return {
+        ok: false,
+        error: result.error,
+        message: Object.entries(result.fields).map(([k, v]) => `${k}: ${v}`).join(', '),
+      }
+    }
+    return { ok: false, error: result.error, message: result.message }
+  }
 
   return (
     <main>
@@ -52,23 +127,14 @@ export default async function EditCampaignPage({ params }: Props) {
         </p>
       </header>
 
-      {/* FIXME: wire full CampaignEditor once T30 ships */}
-      <div role="region" aria-label="CampaignEditor placeholder">
-        CampaignEditor TBD — will mount @tn-figueiredo/cms CampaignEditor and
-        invoke saveCampaign(id, patch, translations) on save.
-      </div>
-
-      <section aria-label="Translations">
-        <h2>Traduções</h2>
-        <ul>
-          {campaign.translations.map((tx) => (
-            <li key={tx.id}>
-              <strong>{tx.locale}</strong> — {tx.slug}
-              {tx.meta_title ? ` — ${tx.meta_title}` : ''}
-            </li>
-          ))}
-        </ul>
-      </section>
+      <CampaignEditor
+        campaignId={id}
+        initialCampaign={initialCampaign}
+        initialTranslations={initialTranslations}
+        locale={ctx.defaultLocale}
+        availableLocales={availableLocales}
+        onSave={onSave}
+      />
 
       <div>
         {campaign.status !== 'published' && (

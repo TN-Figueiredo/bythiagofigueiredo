@@ -76,7 +76,7 @@ export async function savePost(
   }
 
   revalidatePath(`/blog/${locale}`)
-  revalidatePath(`/blog/${locale}/${input.slug}`)
+  revalidatePath(`/blog/${locale}/${encodeURIComponent(input.slug)}`)
   return { ok: true, postId: id }
 }
 
@@ -107,15 +107,33 @@ export async function archivePost(id: string): Promise<void> {
   if (tx) revalidatePath(`/blog/${tx.locale}`)
 }
 
-export async function deletePost(id: string): Promise<void> {
+export type DeletePostResult =
+  | { ok: true }
+  | { ok: false; error: 'already_published' | 'not_found' | 'db_error'; message?: string }
+
+export async function deletePost(id: string): Promise<DeletePostResult> {
   await requireSiteAdminForRow('blog_posts', id)
   const post = await postRepo().getById(id)
-  if (post && (post.status === 'draft' || post.status === 'archived')) {
-    await postRepo().delete(id)
-    const tx = post.translations[0]
-    if (tx) revalidatePath(`/blog/${tx.locale}`)
-    revalidatePath('/cms/blog')
+  if (!post) return { ok: false, error: 'not_found' }
+  if (post.status !== 'draft' && post.status !== 'archived') {
+    // Stale delete attempt from a list view that showed the post as deletable
+    // before it was published elsewhere. Surface explicitly so the UI can
+    // re-render.
+    return { ok: false, error: 'already_published' }
   }
+  try {
+    await postRepo().delete(id)
+  } catch (e) {
+    return {
+      ok: false,
+      error: 'db_error',
+      message: e instanceof Error ? e.message : String(e),
+    }
+  }
+  const tx = post.translations[0]
+  if (tx) revalidatePath(`/blog/${tx.locale}`)
+  revalidatePath('/cms/blog')
+  return { ok: true }
 }
 
 // readonly, no authz needed

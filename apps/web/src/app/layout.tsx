@@ -10,7 +10,15 @@ const inter = Inter({
   weight: ['400', '500', '600', '700', '800'],
 })
 
+// metadataBase drives resolution of relative URLs in alternates / openGraph /
+// twitter images. Without it, Next emits a console warning and relative hrefs
+// (e.g. blog hreflang alternates) don't expand to absolute. Falls back to the
+// prod host so local dev without NEXT_PUBLIC_APP_URL still builds.
+const metadataBaseUrl =
+  process.env.NEXT_PUBLIC_APP_URL ?? 'https://bythiagofigueiredo.com'
+
 export const metadata: Metadata = {
+  metadataBase: new URL(metadataBaseUrl),
   title: 'Thiago Figueiredo — Creator & Builder',
   description:
     'Hub de Thiago Figueiredo. YouTube, blog, newsletter e projetos. Build in public, learn out loud.',

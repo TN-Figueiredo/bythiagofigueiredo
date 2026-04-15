@@ -53,7 +53,9 @@ export default async function BlogDetailPage({ params }: Props) {
           <LocaleSwitcher
             available={availableLocales}
             current={locale}
-            hrefFor={(loc) => `/blog/${loc}/${slugByLocale.get(loc) ?? slug}`}
+            hrefFor={(loc) =>
+              `/blog/${loc}/${encodeURIComponent(slugByLocale.get(loc) ?? slug)}`
+            }
           />
           <h1>{tx.title}</h1>
           {tx.excerpt && <p>{tx.excerpt}</p>}
@@ -89,16 +91,16 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   // (falling back to the current locale if pt-BR is absent for the post).
   const languages: Record<string, string> = {}
   for (const t of loaded.translations) {
-    languages[t.locale] = `/blog/${t.locale}/${t.slug}`
+    languages[t.locale] = `/blog/${t.locale}/${encodeURIComponent(t.slug)}`
   }
   const defaultTx = loaded.translations.find((t) => t.locale === 'pt-BR') ?? tx
-  languages['x-default'] = `/blog/${defaultTx.locale}/${defaultTx.slug}`
+  languages['x-default'] = `/blog/${defaultTx.locale}/${encodeURIComponent(defaultTx.slug)}`
 
   return {
     title: tx.title,
     description: tx.excerpt ?? undefined,
     alternates: {
-      canonical: `/blog/${locale}/${slug}`,
+      canonical: `/blog/${locale}/${encodeURIComponent(slug)}`,
       languages,
     },
   }

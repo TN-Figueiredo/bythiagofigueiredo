@@ -28,6 +28,25 @@ export type { ToolbarAction, EditorToolbarProps } from './editor/toolbar'
 export type { EditorPreviewProps } from './editor/preview'
 export type { AssetPickerProps } from './editor/asset-picker'
 export type { PostEditorProps, SavePostInput, SaveResult } from './editor/editor'
+export { CampaignEditor } from './editor/campaign-editor'
+export type {
+  CampaignEditorProps,
+  CampaignEditorInitialCampaign,
+  CampaignEditorInitialTranslation,
+  CampaignEditorSaveInput,
+  CampaignEditorSaveResult,
+} from './editor/campaign-editor'
+export { CampaignMetaForm } from './editor/campaign-meta-form'
+export type {
+  CampaignMetaFormProps,
+  CampaignMetaFormValue,
+  CampaignStatus,
+} from './editor/campaign-meta-form'
+export { CampaignTranslationForm } from './editor/campaign-translation-form'
+export type {
+  CampaignTranslationFormProps,
+  CampaignTranslationFormValue,
+} from './editor/campaign-translation-form'
 export { getEditorStrings, EDITOR_STRINGS, ptBR, en } from './editor/strings'
 export type { EditorStrings } from './editor/strings'
 export { useAutosave } from './hooks/use-autosave'
