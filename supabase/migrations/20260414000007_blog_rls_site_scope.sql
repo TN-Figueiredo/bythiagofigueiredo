@@ -1,0 +1,42 @@
+-- Scope public read of blog_posts (and blog_translations, which joins through posts)
+-- by an optional per-request site context GUC `app.site_id`.
+--
+-- Three-branch visibility rule (see CLAUDE.md § Database / RLS notes):
+--   1. site_id IS NULL                         → global/cross-site content, always visible
+--   2. app.site_id unset or empty              → no site filter (admin / cross-site tooling)
+--   3. site_id = app.site_id (uuid)            → row belongs to the requesting site
+--
+-- The Next middleware sets `app.site_id` per-request via
+--   select set_config('app.site_id', '<uuid>', true)
+
+drop policy if exists blog_posts_public_read_published on public.blog_posts;
+
+create policy blog_posts_public_read_published on public.blog_posts
+  for select
+  using (
+    status = 'published'
+    and published_at is not null
+    and published_at <= now()
+    and (
+      site_id is null
+      or coalesce(nullif(current_setting('app.site_id', true), ''), '') = ''
+      or site_id = nullif(current_setting('app.site_id', true), '')::uuid
+    )
+  );
+
+drop policy if exists blog_translations_public_read on public.blog_translations;
+
+create policy blog_translations_public_read on public.blog_translations
+  for select
+  using (exists (
+    select 1 from public.blog_posts p
+    where p.id = blog_translations.post_id
+      and p.status = 'published'
+      and p.published_at is not null
+      and p.published_at <= now()
+      and (
+        p.site_id is null
+        or coalesce(nullif(current_setting('app.site_id', true), ''), '') = ''
+        or p.site_id = nullif(current_setting('app.site_id', true), '')::uuid
+      )
+  ));

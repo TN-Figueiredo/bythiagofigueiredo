@@ -11,6 +11,11 @@ export default defineConfig({
       ['src/app/api/**', 'node'],
       ['src/lib/**', 'node'],
     ],
+    server: {
+      deps: {
+        inline: [/@tn-figueiredo\/auth-nextjs/],
+      },
+    },
     pool: 'forks',
     poolOptions: {
       forks: {

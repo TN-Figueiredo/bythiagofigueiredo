@@ -22,6 +22,12 @@ shadow_port = 54320
 # The database major version to use. This has to be the same as your remote database's. Run `SHOW server_version;` on the remote database to check.
 major_version = 17
 
+[db.seed]
+# Apply local-only dev seed (super_admin user, author, sample posts) on `supabase db reset`.
+# This file is gitignored from prod paths and must NOT be applied to remote.
+enabled = true
+sql_paths = ["./seeds/dev.sql"]
+
 [studio]
 enabled = true
 # Port to use for Supabase Studio.

@@ -56,6 +56,36 @@ npm run db:start && npm run db:reset  # Valida local primeiro
 
 Salvo em keychain/1Password. Recuperar via: Supabase Dashboard → Project Settings → Database → Reset database password (se perdido).
 
+## Testes com DB local
+
+Tests que dependem de Supabase local (RLS, migrations, seed, integration) são gated em `process.env.HAS_LOCAL_DB`. Helper: `apps/{api,web}/test/helpers/db-skip.ts`.
+
+```bash
+# Suite completa (local, com DB rodando)
+npm run db:start
+HAS_LOCAL_DB=1 npm test
+
+# Suite "sem DB" (o que CI faz) — describe.skipIf(skipIfNoLocalDb()) pula os gated
+npm test
+```
+
+Convenção nos testes:
+
+```typescript
+import { skipIfNoLocalDb, getLocalJwtSecret } from './helpers/db-skip'
+describe.skipIf(skipIfNoLocalDb())('<suite que precisa de DB>', () => { ... })
+```
+
+Override do JWT secret: `SUPABASE_JWT_SECRET=xxx HAS_LOCAL_DB=1 npm test`.
+
+## Database RLS helpers
+
+- Helpers ficam em `public` (ownership do `auth` pertence a `supabase_admin`): `public.user_role()`, `public.is_staff()`, `public.is_admin()`, `public.site_visible(uuid)`.
+- Policies de leitura pública de tabelas site-scoped DEVEM usar `public.site_visible(site_id)` — nunca duplicar a regra de três ramos inline.
+- Contrato do GUC `app.site_id`: Next middleware executa `select set_config('app.site_id', '<uuid>', true)` por request. Valor vazio/unset = sem filtro (admin/cross-site). Valor inválido (não-uuid) = fail closed (esconde rows site-scoped).
+- Staff (`editor|admin|super_admin`) bypassa o filtro via policies `_staff_read_all` — OR com a policy pública.
+- **Idempotência em migrations de RLS:** sempre prefixe `create policy` com `drop policy if exists "<name>" on <table>;` e `create trigger` com `drop trigger if exists <name> on <table>;`. `create or replace function` já é idempotente. Pattern canônico: `supabase/migrations/20260414000008_rls_site_helper.sql` e `…000018_submissions_published_guard.sql`.
+
 ## Environment Variables
 
 ### Web (`apps/web/.env.local`)
@@ -63,6 +93,8 @@ Salvo em keychain/1Password. Recuperar via: Supabase Dashboard → Project Setti
 - `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_URL`
 - `SENTRY_*` (vazio até Sprint 4)
 - `CRON_SECRET`
+- `BREVO_API_KEY`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` (Sprint 1b)
+- `CAMPAIGN_PDF_SIGNED_URL_TTL` (opcional, default 86400 = 24h — TTL em segundos dos signed URLs de PDFs de campanha)
 
 ### API (`apps/api/.env.local`)
 - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
@@ -79,7 +111,9 @@ Salvo em keychain/1Password. Recuperar via: Supabase Dashboard → Project Setti
 `docs/roadmap/README.md` — 3 fases, 424h, 19 semanas.
 
 - **Sprint 0** ✅ done — infra + env + db link
-- **Sprint 1** next — Foundation (auth, blog schema, homepage, API setup)
+- **Sprint 1a** ✅ done — blog schema, RLS, homepage, API setup, site_visible helper
+- **Sprint 1b** ✅ done — campaigns schema/RLS, Brevo+Turnstile libs, landing pages, cron, seed
+- **Sprint 2** next — Auth flows, admin dashboard, CMS CRUD
 - Spec de cada sprint em `docs/superpowers/specs/`
 
 ## Code Standards
