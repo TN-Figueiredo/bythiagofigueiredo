@@ -15,6 +15,7 @@ import {
   type SaveCampaignPatch,
   type SaveCampaignTranslationPatch,
 } from './actions'
+import { DeleteCampaignButton } from '../../_components/delete-campaign-button'
 
 export const dynamic = 'force-dynamic'
 
@@ -177,14 +178,11 @@ export default async function EditCampaignPage({ params }: Props) {
           </form>
         )}
         {(campaign.status === 'draft' || campaign.status === 'archived') && (
-          <form
-            action={async () => {
-              'use server'
-              await deleteCampaign(id)
-            }}
-          >
-            <button type="submit">Excluir</button>
-          </form>
+          <DeleteCampaignButton
+            campaignId={id}
+            campaignLabel={primary?.main_hook_md?.slice(0, 60) ?? campaign.interest}
+            onDelete={deleteCampaign}
+          />
         )}
       </div>
     </main>

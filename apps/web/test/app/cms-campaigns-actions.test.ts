@@ -15,14 +15,11 @@ vi.mock('../../lib/supabase/service', () => ({
   getSupabaseServiceClient: () => ({ rpc: rpcMock }),
 }))
 
+const getByIdMock = vi.fn()
+const deleteMock = vi.fn()
 vi.mock('../../lib/cms/repositories', () => ({
   campaignRepo: () => ({
-    getById: vi.fn().mockResolvedValue({
-      id: 'c1',
-      site_id: 's1',
-      status: 'draft',
-      translations: [{ locale: 'pt-BR', slug: 'promo' }],
-    }),
+    getById: getByIdMock,
     publish: vi.fn().mockResolvedValue({
       id: 'c1',
       translations: [{ locale: 'pt-BR', slug: 'promo' }],
@@ -35,7 +32,7 @@ vi.mock('../../lib/cms/repositories', () => ({
       id: 'c1',
       translations: [{ locale: 'pt-BR', slug: 'promo' }],
     }),
-    delete: vi.fn().mockResolvedValue(undefined),
+    delete: deleteMock,
   }),
 }))
 
@@ -126,6 +123,15 @@ describe('saveCampaign', () => {
 describe('publish/unpublish/archive/delete transitions', () => {
   beforeEach(() => {
     vi.mocked(authGuards.requireSiteAdminForRow).mockResolvedValue({ siteId: 's1' })
+    getByIdMock.mockReset()
+    getByIdMock.mockResolvedValue({
+      id: 'c1',
+      site_id: 's1',
+      status: 'draft',
+      translations: [{ locale: 'pt-BR', slug: 'promo' }],
+    })
+    deleteMock.mockReset()
+    deleteMock.mockResolvedValue(undefined)
   })
 
   it('publishCampaign revalidates public paths', async () => {
@@ -151,6 +157,25 @@ describe('publish/unpublish/archive/delete transitions', () => {
     expect(result).toEqual({ ok: true })
     const { revalidatePath } = await import('next/cache')
     expect(revalidatePath).toHaveBeenCalledWith('/cms/campaigns')
+  })
+
+  it('deleteCampaign returns already_published when status is published', async () => {
+    getByIdMock.mockResolvedValueOnce({
+      id: 'c1',
+      site_id: 's1',
+      status: 'published',
+      translations: [{ locale: 'pt-BR', slug: 'promo' }],
+    })
+    const result = await deleteCampaign('c1')
+    expect(result).toEqual({ ok: false, error: 'already_published' })
+    expect(deleteMock).not.toHaveBeenCalled()
+  })
+
+  it('deleteCampaign returns not_found when getById yields null', async () => {
+    getByIdMock.mockResolvedValueOnce(null)
+    const result = await deleteCampaign('c1')
+    expect(result).toEqual({ ok: false, error: 'not_found' })
+    expect(deleteMock).not.toHaveBeenCalled()
   })
 })
 
