@@ -1,13 +1,18 @@
 'use server'
 
+import { createHash } from 'node:crypto'
+import { headers } from 'next/headers'
 import { getSupabaseServiceClient } from '../../../../lib/supabase/service'
 import { verifyTurnstileToken } from '../../../../lib/turnstile'
 import { getEmailService } from '../../../../lib/email/service'
 import { getEmailSender } from '../../../../lib/email/sender'
 import { getSiteContext } from '../../../../lib/cms/site-context'
 import { confirmSubscriptionTemplate, ensureUnsubscribeToken } from '@tn-figueiredo/email'
+import { NEWSLETTER_CONSENT_VERSION } from '../consent'
 
-export const NEWSLETTER_CONSENT_VERSION = 'newsletter-v1-2026-04'
+// Re-export for backward compat with existing importers.
+export { NEWSLETTER_CONSENT_VERSION }
+
 const CONFIRMATION_TTL_MS = 24 * 60 * 60 * 1000 // 24h
 
 function generateToken(): string {
@@ -16,9 +21,12 @@ function generateToken(): string {
   return [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
+function hashToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex')
+}
+
 export type SubscribeResult =
   | { status: 'ok' }
-  | { status: 'duplicate' }
   | { status: 'error'; code: string }
 
 export async function subscribeToNewsletter(formData: FormData): Promise<SubscribeResult> {
@@ -34,14 +42,32 @@ export async function subscribeToNewsletter(formData: FormData): Promise<Subscri
     return { status: 'error', code: 'consent_required' }
   }
 
-  // Verify Turnstile (skip in test env when key absent)
-  if (process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && turnstileToken) {
+  // Turnstile: if a site key is configured the token MUST be present and valid.
+  if (process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY) {
+    if (!turnstileToken) {
+      return { status: 'error', code: 'captcha_required' }
+    }
     const ok = await verifyTurnstileToken(turnstileToken)
     if (!ok) return { status: 'error', code: 'turnstile_failed' }
   }
 
   const { siteId } = await getSiteContext()
   const supabase = getSupabaseServiceClient()
+
+  // Per-IP+site rate limit (best-effort — don't oracle on DB errors).
+  const h = await headers()
+  const ip = h.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null
+  if (ip) {
+    const { data: rateOk } = await supabase.rpc('newsletter_rate_check', {
+      p_site_id: siteId,
+      p_ip: ip,
+    })
+    if (rateOk === false) {
+      // Neutral response — don't reveal state to callers. Still returns ok to
+      // avoid giving enumeration oracles.
+      return { status: 'ok' }
+    }
+  }
 
   // Check for existing subscription
   const { data: existing } = await supabase
@@ -53,48 +79,50 @@ export async function subscribeToNewsletter(formData: FormData): Promise<Subscri
 
   if (existing) {
     if (existing.status === 'confirmed') {
-      return { status: 'duplicate' }
+      // Do not reveal confirmed state. Return ok without re-sending email.
+      return { status: 'ok' }
     }
-    // pending_confirmation or unsubscribed — resubscribe: update token + expires
-    const token = generateToken()
+    // pending_confirmation or unsubscribed — rotate token + resend confirm email.
+    const rawToken = generateToken()
     const expiresAt = new Date(Date.now() + CONFIRMATION_TTL_MS)
     await supabase
       .from('newsletter_subscriptions')
       .update({
         status: 'pending_confirmation',
-        confirmation_token: token,
+        confirmation_token_hash: hashToken(rawToken),
         confirmation_expires_at: expiresAt.toISOString(),
         consent_text_version: NEWSLETTER_CONSENT_VERSION,
         unsubscribed_at: null,
       })
       .eq('id', existing.id)
 
-    await sendConfirmEmail({ supabase, siteId, email, token, expiresAt })
+    await sendConfirmEmail({ supabase, siteId, email, rawToken, expiresAt })
     return { status: 'ok' }
   }
 
   // New subscription
-  const token = generateToken()
+  const rawToken = generateToken()
   const expiresAt = new Date(Date.now() + CONFIRMATION_TTL_MS)
 
   const { error } = await supabase.from('newsletter_subscriptions').insert({
     site_id: siteId,
     email,
     status: 'pending_confirmation',
-    confirmation_token: token,
+    confirmation_token_hash: hashToken(rawToken),
     confirmation_expires_at: expiresAt.toISOString(),
     consent_text_version: NEWSLETTER_CONSENT_VERSION,
+    ip: ip ?? null,
   })
 
   if (error) {
     if (error.code === '23505') {
-      // Race-condition duplicate — treat as ok
-      return { status: 'duplicate' }
+      // Race-condition duplicate — treat as ok (no oracle).
+      return { status: 'ok' }
     }
     return { status: 'error', code: 'db_error' }
   }
 
-  await sendConfirmEmail({ supabase, siteId, email, token, expiresAt })
+  await sendConfirmEmail({ supabase, siteId, email, rawToken, expiresAt })
   return { status: 'ok' }
 }
 
@@ -102,13 +130,13 @@ async function sendConfirmEmail(opts: {
   supabase: ReturnType<typeof getSupabaseServiceClient>
   siteId: string
   email: string
-  token: string
+  rawToken: string
   expiresAt: Date
 }) {
-  const { supabase, siteId, email, token, expiresAt } = opts
+  const { supabase, siteId, email, rawToken, expiresAt } = opts
   try {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-    const confirmUrl = `${baseUrl}/newsletter/confirm/${token}`
+    const confirmUrl = `${baseUrl}/newsletter/confirm/${rawToken}`
     const unsubscribeUrl = await ensureUnsubscribeToken(supabase, siteId, email, baseUrl)
     const sender = await getEmailSender(siteId)
     const emailService = getEmailService()

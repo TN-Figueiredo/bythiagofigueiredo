@@ -37,6 +37,16 @@ vi.mock('../../lib/cms/site-context', () => ({
   getSiteContext: vi.fn(),
 }))
 
+vi.mock('next/headers', () => ({
+  headers: () =>
+    Promise.resolve({
+      get: (key: string) => {
+        if (key === 'x-forwarded-for') return null
+        return null
+      },
+    }),
+}))
+
 vi.mock('@tn-figueiredo/email', async () => {
   const actual = await vi.importActual<object>('@tn-figueiredo/email')
   return {
@@ -175,7 +185,7 @@ describe('subscribeToNewsletter', () => {
     expect(sendTemplateMock).toHaveBeenCalledOnce()
   })
 
-  it('returns duplicate when confirmed subscription already exists', async () => {
+  it('returns ok (no oracle) when confirmed subscription already exists', async () => {
     fromMock.mockReturnValueOnce({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
@@ -191,7 +201,9 @@ describe('subscribeToNewsletter', () => {
       consent_marketing: 'on',
     })
     const result = await subscribeToNewsletter(fd)
-    expect(result).toEqual({ status: 'duplicate' })
+    expect(result).toEqual({ status: 'ok' })
+    // Must not leak the duplicate state by re-sending a confirm email.
+    expect(sendTemplateMock).not.toHaveBeenCalled()
   })
 
   it('re-sends confirm email for pending_confirmation existing subscription', async () => {
@@ -222,7 +234,7 @@ describe('subscribeToNewsletter', () => {
     expect(sendTemplateMock).toHaveBeenCalledOnce()
   })
 
-  it('handles DB unique constraint race as duplicate', async () => {
+  it('handles DB unique constraint race as ok (no oracle)', async () => {
     fromMock
       // First: select existing — not found
       .mockReturnValueOnce({
@@ -241,7 +253,18 @@ describe('subscribeToNewsletter', () => {
       consent_marketing: 'on',
     })
     const result = await subscribeToNewsletter(fd)
-    expect(result).toEqual({ status: 'duplicate' })
+    expect(result).toEqual({ status: 'ok' })
+  })
+
+  it('returns captcha_required when site key configured but token missing', async () => {
+    process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY = 'key-test'
+    const fd = makeFormData({
+      email: 'user@example.com',
+      consent_processing: 'on',
+      consent_marketing: 'on',
+    })
+    const result = await subscribeToNewsletter(fd)
+    expect(result).toEqual({ status: 'error', code: 'captcha_required' })
   })
 })
 
@@ -260,7 +283,9 @@ describe('unsubscribeViaToken', () => {
     })
     const result = await unsubscribeViaToken('valid-token-64chars')
     expect(result).toEqual({ status: 'ok' })
-    expect(rpcMock).toHaveBeenCalledWith('unsubscribe_via_token', { p_token: 'valid-token-64chars' })
+    expect(rpcMock).toHaveBeenCalledWith('unsubscribe_via_token', {
+      p_token_hash: expect.stringMatching(/^[a-f0-9]{64}$/),
+    })
   })
 
   it('returns already when token was already used', async () => {

@@ -79,7 +79,7 @@ export interface NewsletterSignupProps {
 
 export function NewsletterSignup({ locale = 'pt-BR', className }: NewsletterSignupProps) {
   const strings = t(locale)
-  const [status, setStatus] = useState<'idle' | 'success' | 'duplicate'>('idle')
+  const [status, setStatus] = useState<'idle' | 'success'>('idle')
   const [error, setError] = useState<string | null>(null)
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
   const turnstileRef = useRef<HTMLDivElement>(null)
@@ -140,12 +140,11 @@ export function NewsletterSignup({ locale = 'pt-BR', className }: NewsletterSign
     startTransition(async () => {
       const result = await subscribeToNewsletter(formData)
       if (result.status === 'ok') {
+        // Always show success — server no longer reveals duplicate state.
         setStatus('success')
-      } else if (result.status === 'duplicate') {
-        setStatus('duplicate')
       } else {
         const code = result.code
-        if (code === 'turnstile_failed') {
+        if (code === 'turnstile_failed' || code === 'captcha_required') {
           setError(strings.errorTurnstile)
         } else if (code === 'consent_required') {
           setError(strings.errorConsent)
@@ -165,13 +164,6 @@ export function NewsletterSignup({ locale = 'pt-BR', className }: NewsletterSign
     )
   }
 
-  if (status === 'duplicate') {
-    return (
-      <div role="status" aria-live="polite" className={className}>
-        <p>{strings.duplicateMessage}</p>
-      </div>
-    )
-  }
 
   return (
     <form action={handleAction} className={className} noValidate>

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
 
 interface Props {
@@ -23,8 +24,9 @@ export default async function NewsletterConfirmPage({ params }: Props) {
   }
 
   const supabase = getSupabaseServiceClient()
+  const tokenHash = createHash('sha256').update(token).digest('hex')
   const { data, error: rpcError } = await supabase.rpc('confirm_newsletter_subscription', {
-    p_token: token,
+    p_token_hash: tokenHash,
   })
 
   // RPC returns a JSON object
