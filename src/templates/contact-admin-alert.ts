@@ -1,4 +1,4 @@
-import { emailLayout, emailButton, escapeHtml } from './base-layout'
+import { emailLayout, emailButton, escapeHtml, htmlToText } from './base-layout'
 import type { IEmailTemplate } from '../interfaces/email-template'
 import type { EmailBranding } from '../types/branding'
 
@@ -24,6 +24,7 @@ export const contactAdminAlertTemplate: IEmailTemplate<ContactAdminAlertVars> = 
       <p><strong>${messageLine}:</strong></p>
       <blockquote style="border-left:3px solid #ddd;padding-left:12px;margin:12px 0;color:#555;">${escapeHtml(vars.message).replace(/\n/g, '<br>')}</blockquote>
       <p>${emailButton({ url: vars.viewInAdminUrl, label: isEn ? 'View in admin' : 'Ver no admin', color: vars.branding.primaryColor })}</p>`
-    return { subject, html: emailLayout({ body, branding: vars.branding }) }
+    const html = emailLayout({ body, branding: vars.branding, locale })
+    return { subject, html, text: htmlToText(html) }
   },
 }

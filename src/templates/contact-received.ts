@@ -1,4 +1,4 @@
-import { emailLayout, escapeHtml } from './base-layout'
+import { emailLayout, escapeHtml, htmlToText } from './base-layout'
 import type { IEmailTemplate } from '../interfaces/email-template'
 import type { EmailBranding } from '../types/branding'
 
@@ -20,6 +20,7 @@ export const contactReceivedTemplate: IEmailTemplate<ContactReceivedVars> = {
       : `<h1>Olá, ${escapeHtml(vars.name)}</h1>
          <p>Obrigado pelo contato. Recebemos sua mensagem e responderemos em até ${vars.expectedReplyTime}.</p>
          <p>— Equipe ${escapeHtml(vars.branding.brandName)}</p>`
-    return { subject, html: emailLayout({ body, branding: vars.branding }) }
+    const html = emailLayout({ body, branding: vars.branding, locale })
+    return { subject, html, text: htmlToText(html) }
   },
 }

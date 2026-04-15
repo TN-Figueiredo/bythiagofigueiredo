@@ -74,6 +74,15 @@ describe('BrevoEmailAdapter', () => {
     await expect(adapter.handleWebhook!({}, '')).rejects.toThrow(/not_implemented/)
   })
 
+  it('constructor throws on empty apiKey', () => {
+    expect(() => new BrevoEmailAdapter('')).toThrow(/apiKey/)
+    expect(() => new BrevoEmailAdapter('   ')).toThrow(/apiKey/)
+  })
+
+  it('constructor accepts valid apiKey', () => {
+    expect(() => new BrevoEmailAdapter('test-key')).not.toThrow()
+  })
+
   it('sendTemplate calls render + send with template metadata', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true, status: 201, json: async () => ({ messageId: 'm3' }),

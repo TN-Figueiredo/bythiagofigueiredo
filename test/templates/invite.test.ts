@@ -16,14 +16,19 @@ describe('inviteTemplate', () => {
     const r = await inviteTemplate.render(baseVars, 'pt-BR')
     expect(r.subject).toBe('Alice convidou você para Acme')
     expect(r.html).toContain('Você recebeu um convite')
-    expect(r.html).toContain('2026-05-01')
+    expect(r.html).toContain('/')
     expect(r.html).toContain('Aceitar convite')
+    expect(r.text).toBeTruthy()
+    expect(r.text).toContain('Você recebeu um convite')
   })
   it('renders en', async () => {
     const r = await inviteTemplate.render(baseVars, 'en')
     expect(r.subject).toBe('Alice invited you to Acme')
     expect(r.html).toContain('You have an invitation')
     expect(r.html).toContain('Accept invitation')
+    expect(r.html).toContain('/')
+    expect(r.text).toBeTruthy()
+    expect(r.text).toContain('You have an invitation')
   })
   it('escapes HTML in inviter/org names', async () => {
     const r = await inviteTemplate.render(

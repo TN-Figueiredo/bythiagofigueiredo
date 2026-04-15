@@ -1,4 +1,4 @@
-import { emailLayout, emailButton, escapeHtml } from './base-layout'
+import { emailLayout, emailButton, escapeHtml, formatDate, htmlToText } from './base-layout'
 import type { IEmailTemplate } from '../interfaces/email-template'
 import type { EmailBranding } from '../types/branding'
 
@@ -22,7 +22,7 @@ export const inviteTemplate: IEmailTemplate<InviteVars> = {
       ? `${vars.inviterName} invited you to ${vars.orgName}`
       : `${vars.inviterName} convidou você para ${vars.orgName}`
     const role = isEn ? ROLES_EN[vars.role] : ROLES_PT[vars.role]
-    const expiresFmt = vars.expiresAt.toISOString().slice(0, 10)
+    const expiresFmt = formatDate(vars.expiresAt, locale)
     const body = isEn
       ? `<h1>You have an invitation</h1>
          <p><strong>${escapeHtml(vars.inviterName)}</strong> invited you to join <strong>${escapeHtml(vars.orgName)}</strong> as <strong>${escapeHtml(role!)}</strong>.</p>
@@ -32,6 +32,7 @@ export const inviteTemplate: IEmailTemplate<InviteVars> = {
          <p><strong>${escapeHtml(vars.inviterName)}</strong> convidou você para <strong>${escapeHtml(vars.orgName)}</strong> como <strong>${escapeHtml(role!)}</strong>.</p>
          <p>O convite expira em ${expiresFmt}.</p>
          <p>${emailButton({ url: vars.acceptUrl, label: 'Aceitar convite', color: vars.branding.primaryColor })}</p>`
-    return { subject, html: emailLayout({ body, branding: vars.branding }) }
+    const html = emailLayout({ body, branding: vars.branding, locale })
+    return { subject, html, text: htmlToText(html) }
   },
 }
