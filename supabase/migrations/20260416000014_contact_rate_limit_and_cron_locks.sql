@@ -1,5 +1,10 @@
--- Epic 4 hardening: token hashing, contact rate limit, auto-reply dedupe,
--- and fix a volatile now() partial index.
+-- Epic 4 hardening (round-4 consolidated): token hashing, contact/newsletter
+-- rate-limit RPCs (inet-typed), advisory cron locks (64-bit hash), email
+-- dedupe indexes, locale column on newsletter_subscriptions, state-machine
+-- documentation, and performance indexes for cron sync.
+--
+-- This migration is the FINAL state — it supersedes the early split between
+-- 000014 + 000015 that existed only in staging before first deploy.
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- C1: Hash newsletter confirmation_token at rest
@@ -114,76 +119,159 @@ end $$;
 grant execute on function public.unsubscribe_via_token(text) to anon, authenticated;
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- C4 + C5: Contact submission rate-limit RPC
+-- M3: Persist preferred locale on newsletter subscriptions.
 -- ─────────────────────────────────────────────────────────────────────────────
--- Returns true when submission is allowed; false when either IP or email has
--- already produced > 5 submissions in the last 10 minutes for this site.
+alter table public.newsletter_subscriptions
+  add column if not exists locale text;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Newsletter subscription state-machine documentation.
+-- ─────────────────────────────────────────────────────────────────────────────
+comment on table public.newsletter_subscriptions is
+$$Newsletter subscription state machine:
+  pending_confirmation → confirmed   (via public.confirm_newsletter_subscription)
+  confirmed            → unsubscribed (via public.unsubscribe_via_token)
+  unsubscribed         → pending_confirmation (re-subscribe flow: token rotates,
+                                               consent version re-captured)
+  pending_confirmation → pending_confirmation (re-subscribe while pending: token
+                                               rotates, expires_at resets)
+Tokens are stored hashed (sha256 hex). Expiry enforced server-side by the RPCs,
+not by a partial index (now() in a predicate is nondeterministic).$$;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- C4 + C5: Contact submission rate-limit RPC (inet-typed, 10-min window, 5/window).
+-- H3 note: window and cap are enforced here — tests do not need to re-validate.
+-- ─────────────────────────────────────────────────────────────────────────────
+drop function if exists public.contact_rate_check(uuid, text, text);
+
 create or replace function public.contact_rate_check(
   p_site_id uuid, p_ip text, p_email text
-) returns boolean language plpgsql security definer as $$
-declare v_ip_count int; v_email_count int;
+) returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_ip_inet inet;
+  v_count int;
 begin
   if p_site_id is null then return false; end if;
 
-  select count(*) into v_ip_count
-  from public.contact_submissions
-  where site_id = p_site_id
-    and p_ip is not null
-    and host(ip) = p_ip
-    and submitted_at > now() - interval '10 minutes';
+  begin
+    v_ip_inet := case when p_ip is null or p_ip = '' then null else p_ip::inet end;
+  exception when others then
+    v_ip_inet := null;
+  end;
 
-  select count(*) into v_email_count
-  from public.contact_submissions
-  where site_id = p_site_id
-    and p_email is not null
-    and email = p_email::citext
-    and submitted_at > now() - interval '10 minutes';
-
-  return coalesce(v_ip_count, 0) <= 5 and coalesce(v_email_count, 0) <= 5;
-end $$;
-
-grant execute on function public.contact_rate_check(uuid, text, text) to anon, authenticated, service_role;
-
--- Also expose a newsletter rate-limit RPC for per-IP+site throttling (H1).
-create or replace function public.newsletter_rate_check(
-  p_site_id uuid, p_ip text
-) returns boolean language plpgsql security definer as $$
-declare v_count int;
-begin
-  if p_site_id is null or p_ip is null then return true; end if;
   select count(*) into v_count
-  from public.newsletter_subscriptions
+  from contact_submissions
   where site_id = p_site_id
-    and host(ip) = p_ip
-    and subscribed_at > now() - interval '10 minutes';
-  return coalesce(v_count, 0) <= 5;
-end $$;
+    and submitted_at > now() - interval '10 minutes'
+    and (
+      (p_email is not null and email = p_email::citext)
+      or (v_ip_inet is not null and ip = v_ip_inet)
+    );
 
-grant execute on function public.newsletter_rate_check(uuid, text) to anon, authenticated, service_role;
+  return v_count < 5;
+end;
+$$;
+
+grant execute on function public.contact_rate_check(uuid, text, text)
+  to anon, authenticated, service_role;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Newsletter rate-limit RPC (inet-typed, 1-hour window, 5/window).
+-- H3 note: window is 1 hour here, which is looser than contact (10min). Newsletter
+-- confirm flow is self-gated by unique email + pending status; this just caps
+-- churn per IP/email pair across subscribe attempts.
+-- ─────────────────────────────────────────────────────────────────────────────
+drop function if exists public.newsletter_rate_check(uuid, text);
+drop function if exists public.newsletter_rate_check(uuid, text, text);
+
+create or replace function public.newsletter_rate_check(
+  p_site_id uuid, p_ip text, p_email text
+) returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_ip_inet inet;
+  v_count int;
+begin
+  if p_site_id is null then return false; end if;
+
+  begin
+    v_ip_inet := case when p_ip is null or p_ip = '' then null else p_ip::inet end;
+  exception when others then
+    v_ip_inet := null;
+  end;
+
+  select count(*) into v_count
+  from newsletter_subscriptions
+  where site_id = p_site_id
+    and subscribed_at > now() - interval '1 hour'
+    and (
+      email = p_email
+      or (v_ip_inet is not null and ip = v_ip_inet)
+    );
+
+  return v_count < 5;
+end;
+$$;
+
+grant execute on function public.newsletter_rate_check(uuid, text, text)
+  to anon, authenticated, service_role;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- H6/H7: Advisory-lock RPCs for cron routes (serialise concurrent invocations).
+-- Use hashtextextended (64-bit variant) rather than hashtext (32-bit) — lower
+-- collision probability across the advisory-lock namespace.
 -- ─────────────────────────────────────────────────────────────────────────────
+drop function if exists public.cron_try_lock(text);
+drop function if exists public.cron_unlock(text);
+
 create or replace function public.cron_try_lock(p_job text)
 returns boolean language sql security definer as $$
-  select pg_try_advisory_lock(hashtext(p_job));
+  select pg_try_advisory_lock(hashtextextended(p_job, 0));
 $$;
 
 create or replace function public.cron_unlock(p_job text)
 returns boolean language sql security definer as $$
-  select pg_advisory_unlock(hashtext(p_job));
+  select pg_advisory_unlock(hashtextextended(p_job, 0));
 $$;
 
 grant execute on function public.cron_try_lock(text) to service_role;
 grant execute on function public.cron_unlock(text) to service_role;
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- C4: Unique partial index for contact auto-reply dedupe (per day UTC).
+-- Email dedupe indexes.
 -- ─────────────────────────────────────────────────────────────────────────────
--- Uses ((sent_at at time zone 'UTC')::date) because date_trunc is STABLE but
--- cast to timestamptz of utc is immutable for indexing.
-create unique index if not exists sent_emails_contact_autoreply_daily
+
+-- Contact auto-reply: one per (site, to_email, UTC day).
+drop index if exists public.sent_emails_contact_autoreply_daily;
+create unique index sent_emails_contact_autoreply_daily
   on public.sent_emails (
     site_id, to_email, template_name, ((sent_at at time zone 'UTC')::date)
   )
   where template_name = 'contact-received';
+
+-- Newsletter welcome: only one per (site, to_email), ever.
+drop index if exists public.sent_emails_welcome_unique;
+create unique index sent_emails_welcome_unique
+  on public.sent_emails (site_id, to_email)
+  where template_name = 'welcome';
+
+-- Contact admin alert: one per submission_id (prevents double-alerts on retries).
+drop index if exists public.sent_emails_admin_alert_unique;
+create unique index sent_emails_admin_alert_unique
+  on public.sent_emails (site_id, template_name, ((metadata->>'submission_id')))
+  where template_name = 'contact-admin-alert';
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Perf index: cron sync-newsletter-pending scans rows needing Brevo push.
+-- ─────────────────────────────────────────────────────────────────────────────
+drop index if exists public.newsletter_pending_brevo_sync;
+create index newsletter_pending_brevo_sync
+  on public.newsletter_subscriptions (site_id)
+  where status = 'confirmed' and brevo_contact_id is null;
