@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { readFileSync, existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 vi.mock('../../lib/supabase/service', () => ({
   getSupabaseServiceClient: vi.fn(),
@@ -134,5 +136,16 @@ describe('POST /api/cron/publish-scheduled — concurrency', () => {
 
     expect(cronInserts.length).toBe(2);
     expect(cronInserts.every((r) => r.job === 'publish-scheduled' && r.status === 'ok')).toBe(true);
+  });
+});
+
+describe('vercel.json crons', () => {
+  it('schedules publish-scheduled every 5 minutes', () => {
+    const p = resolve(__dirname, '../../vercel.json');
+    expect(existsSync(p)).toBe(true);
+    const j = JSON.parse(readFileSync(p, 'utf8'));
+    expect(j.crons).toEqual([
+      { path: '/api/cron/publish-scheduled', schedule: '*/5 * * * *' },
+    ]);
   });
 });
