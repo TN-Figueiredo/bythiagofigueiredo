@@ -48,11 +48,10 @@ export async function POST(req: Request): Promise<Response> {
     } catch {
       /* best-effort */
     }
+    const rejected = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
     getLogger().error('[cron_publish_scheduled_error]', {
       error: errMsg,
-      stack: results.find((r) => r.status === 'rejected' && r.reason instanceof Error)
-        ? (results.find((r) => r.status === 'rejected') as PromiseRejectedResult).reason?.stack
-        : undefined,
+      stack: rejected?.reason instanceof Error ? rejected.reason.stack : undefined,
     });
     return Response.json({ error: 'cron_failed', processed }, { status: 500 });
   }

@@ -94,6 +94,7 @@ Override do JWT secret: `SUPABASE_JWT_SECRET=xxx HAS_LOCAL_DB=1 npm test`.
 - `SENTRY_*` (vazio até Sprint 4)
 - `CRON_SECRET`
 - `BREVO_API_KEY`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` (Sprint 1b)
+- `CAMPAIGN_PDF_SIGNED_URL_TTL` (opcional, default 86400 = 24h — TTL em segundos dos signed URLs de PDFs de campanha)
 
 ### API (`apps/api/.env.local`)
 - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
@@ -110,7 +111,9 @@ Override do JWT secret: `SUPABASE_JWT_SECRET=xxx HAS_LOCAL_DB=1 npm test`.
 `docs/roadmap/README.md` — 3 fases, 424h, 19 semanas.
 
 - **Sprint 0** ✅ done — infra + env + db link
-- **Sprint 1** next — Foundation (auth, blog schema, homepage, API setup)
+- **Sprint 1a** ✅ done — blog schema, RLS, homepage, API setup, site_visible helper
+- **Sprint 1b** ✅ done — campaigns schema/RLS, Brevo+Turnstile libs, landing pages, cron, seed
+- **Sprint 2** next — Auth flows, admin dashboard, CMS CRUD
 - Spec de cada sprint em `docs/superpowers/specs/`
 
 ## Code Standards

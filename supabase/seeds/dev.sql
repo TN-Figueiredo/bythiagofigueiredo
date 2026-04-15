@@ -180,5 +180,6 @@ begin
   on conflict do nothing;
 
   update campaign_submissions set brevo_sync_error = 'brevo 500: server err'
-    where email = 'bob@example.com';
+    where email = 'bob@example.com'
+      and campaign_id = '11111111-1111-1111-1111-111111111111';
 end $$;
