@@ -24,7 +24,8 @@ set search_path = public, pg_temp
 as $$
   update public.invitations
      set resend_count = resend_count + 1,
-         resent_at = now()
+         resent_at = now(),
+         last_sent_at = now()
    where id = p_id;
 $$;
 revoke all on function public.increment_invitation_resend(uuid) from public, anon, authenticated;
