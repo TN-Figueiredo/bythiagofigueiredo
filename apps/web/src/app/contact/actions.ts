@@ -22,6 +22,8 @@ const ContactSchema = z.object({
   consent_processing: z.literal('on'),
   consent_marketing: z.string().transform((v) => v === 'true'),
   turnstile_token: z.string().min(1),
+  // M3: optional — falls back to pt-BR when unset/invalid.
+  locale: z.enum(['pt-BR', 'en']).optional(),
 })
 
 export type ContactResult =
@@ -45,6 +47,7 @@ export async function submitContact(formData: FormData): Promise<ContactResult> 
     consent_processing: formData.get('consent_processing'),
     consent_marketing: formData.get('consent_marketing'),
     turnstile_token: formData.get('turnstile_token'),
+    locale: formData.get('locale') ?? undefined,
   }
 
   const parsed = ContactSchema.safeParse(raw)
@@ -109,7 +112,7 @@ export async function submitContact(formData: FormData): Promise<ContactResult> 
     name: input.name,
     email: input.email,
     message: input.message,
-    locale: 'pt-BR',
+    locale: input.locale ?? 'pt-BR',
   }).catch(() => {
     /* swallow */
   })

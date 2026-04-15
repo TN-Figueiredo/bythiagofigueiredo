@@ -2,6 +2,7 @@
 
 import { createHash } from 'node:crypto'
 import { headers } from 'next/headers'
+import { z } from 'zod'
 import { getSupabaseServiceClient } from '../../../../lib/supabase/service'
 import { verifyTurnstileToken } from '../../../../lib/turnstile'
 import { getEmailService } from '../../../../lib/email/service'
@@ -11,8 +12,9 @@ import { getClientIp, isValidInet } from '../../../../lib/request-ip'
 import { confirmSubscriptionTemplate, ensureUnsubscribeToken } from '@tn-figueiredo/email'
 import { NEWSLETTER_CONSENT_VERSION } from '../consent'
 
-// Re-export for backward compat with existing importers.
-export { NEWSLETTER_CONSENT_VERSION }
+// Supported locales for newsletter emails. Falls back to pt-BR on anything else.
+const LocaleSchema = z.enum(['pt-BR', 'en'])
+type NewsletterLocale = z.infer<typeof LocaleSchema>
 
 const CONFIRMATION_TTL_MS = 24 * 60 * 60 * 1000 // 24h
 
@@ -35,6 +37,10 @@ export async function subscribeToNewsletter(formData: FormData): Promise<Subscri
   const consentProcessing = formData.get('consent_processing') === 'on'
   const consentMarketing = formData.get('consent_marketing') === 'on'
   const turnstileToken = formData.get('turnstile_token') as string | null
+
+  // Locale: validated via Zod enum — any unknown value falls back to pt-BR.
+  const localeParse = LocaleSchema.safeParse(formData.get('locale'))
+  const locale: NewsletterLocale = localeParse.success ? localeParse.data : 'pt-BR'
 
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return { status: 'error', code: 'invalid_email' }
@@ -93,11 +99,12 @@ export async function subscribeToNewsletter(formData: FormData): Promise<Subscri
         confirmation_token_hash: hashToken(rawToken),
         confirmation_expires_at: expiresAt.toISOString(),
         consent_text_version: NEWSLETTER_CONSENT_VERSION,
+        locale,
         unsubscribed_at: null,
       })
       .eq('id', existing.id)
 
-    await sendConfirmEmail({ supabase, siteId, email, rawToken, expiresAt })
+    await sendConfirmEmail({ supabase, siteId, email, rawToken, expiresAt, locale })
     return { status: 'ok' }
   }
 
@@ -112,6 +119,7 @@ export async function subscribeToNewsletter(formData: FormData): Promise<Subscri
     confirmation_token_hash: hashToken(rawToken),
     confirmation_expires_at: expiresAt.toISOString(),
     consent_text_version: NEWSLETTER_CONSENT_VERSION,
+    locale,
     ip: isValidInet(ip) ? ip : null,
   })
 
@@ -123,7 +131,7 @@ export async function subscribeToNewsletter(formData: FormData): Promise<Subscri
     return { status: 'error', code: 'db_error' }
   }
 
-  await sendConfirmEmail({ supabase, siteId, email, rawToken, expiresAt })
+  await sendConfirmEmail({ supabase, siteId, email, rawToken, expiresAt, locale })
   return { status: 'ok' }
 }
 
@@ -133,8 +141,9 @@ async function sendConfirmEmail(opts: {
   email: string
   rawToken: string
   expiresAt: Date
+  locale: NewsletterLocale
 }) {
-  const { supabase, siteId, email, rawToken, expiresAt } = opts
+  const { supabase, siteId, email, rawToken, expiresAt, locale } = opts
   try {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
     const confirmUrl = `${baseUrl}/newsletter/confirm/${rawToken}`
@@ -154,7 +163,7 @@ async function sendConfirmEmail(opts: {
           unsubscribeUrl,
         },
       },
-      'pt-BR',
+      locale,
     )
   } catch {
     // Email delivery failure is non-fatal — subscription row already created

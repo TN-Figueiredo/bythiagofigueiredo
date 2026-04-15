@@ -179,12 +179,15 @@ describe('submitContact', () => {
   it('sends admin alert and auto-reply', async () => {
     const result = await submitContact(makeFormData())
     expect(result).toEqual({ status: 'ok' })
-    await new Promise((r) => setTimeout(r, 50))
-    const callTemplateNames = sendTemplateMock.mock.calls.map(
-      (c) => (c[0] as { name: string }).name,
-    )
-    expect(callTemplateNames).toContain('contact-received')
-    expect(callTemplateNames).toContain('contact-admin-alert')
+    // L4: replace flaky 50ms sleep with vi.waitFor — emails are sent in a
+    // fire-and-forget background task, so we poll for the two template sends.
+    await vi.waitFor(() => {
+      const names = sendTemplateMock.mock.calls.map(
+        (c) => (c[0] as { name: string }).name,
+      )
+      expect(names).toContain('contact-received')
+      expect(names).toContain('contact-admin-alert')
+    })
   })
 
   it('email failure does not affect ok result (best-effort)', async () => {

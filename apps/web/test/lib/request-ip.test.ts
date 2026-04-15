@@ -60,4 +60,16 @@ describe('isValidInet', () => {
   it('rejects overly long inputs', () => {
     expect(isValidInet('a'.repeat(46))).toBe(false)
   })
+
+  it('rejects IPv6 strings with triple colons (no RFC 5952 elision that deep)', () => {
+    expect(isValidInet('2001:db8:::1')).toBe(false)
+    expect(isValidInet(':::')).toBe(false)
+    expect(isValidInet('a:::b')).toBe(false)
+  })
+
+  it('accepts canonical IPv6 elision forms', () => {
+    expect(isValidInet('2001:db8::1')).toBe(true)
+    expect(isValidInet('fe80::')).toBe(true)
+    expect(isValidInet('::ffff')).toBe(true)
+  })
 })

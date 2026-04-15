@@ -127,6 +127,9 @@ export function ContactForm({ locale = 'pt-BR', submitAction }: Props) {
     }
 
     data.set('turnstile_token', token)
+    // M3: propagate the locale the user saw so server action picks the matching
+    // email template (auto-reply + admin alert).
+    data.set('locale', locale)
     // Normalise the marketing checkbox to a boolean-ish string. Consent versions
     // are resolved server-side (never trust client-supplied version strings).
     data.set('consent_marketing', data.get('consent_marketing') === 'on' ? 'true' : 'false')

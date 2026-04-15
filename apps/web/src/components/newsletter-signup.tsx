@@ -9,7 +9,7 @@ import { subscribeToNewsletter } from '../app/newsletter/subscribe/actions'
 function SubmitButton({ label, loadingLabel }: { label: string; loadingLabel: string }) {
   const { pending } = useFormStatus()
   return (
-    <button type="submit" disabled={pending}>
+    <button type="submit" disabled={pending} aria-live="polite">
       {pending ? loadingLabel : label}
     </button>
   )
@@ -167,6 +167,8 @@ export function NewsletterSignup({ locale = 'pt-BR', className }: NewsletterSign
 
   return (
     <form action={handleAction} className={className} noValidate>
+      {/* M3: propagate locale to server action so confirm/welcome emails match. */}
+      <input type="hidden" name="locale" value={locale} />
       <label>
         <span className="sr-only">{strings.emailLabel}</span>
         <input
