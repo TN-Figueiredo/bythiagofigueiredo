@@ -4,33 +4,14 @@ import { Client } from 'pg'
 import { skipIfNoLocalDb, getLocalJwtSecret } from '../helpers/db-skip'
 import { SUPABASE_URL, SERVICE_KEY, ANON_KEY, PG_URL, adminJwt } from '../helpers/local-supabase'
 import { makeCampaign } from '../helpers/campaign-fixtures'
+import { ensureSharedSites } from '../helpers/ring-fixtures'
 import jwt from 'jsonwebtoken'
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY)
 const anon = createClient(SUPABASE_URL, ANON_KEY)
 
 // Ensure the SITE_A / SITE_B test sites exist to satisfy campaigns.site_id FK.
-// Idempotent: upserts an org + two sites with fixed UUIDs shared across this
-// file's describes (and compatible with blog.test.ts which uses the same IDs).
-const SHARED_SITE_A = '11111111-1111-1111-1111-111111111111'
-const SHARED_SITE_B = '22222222-2222-2222-2222-222222222222'
-async function ensureSharedSites() {
-  const orgSlug = 'campaigns-rls-shared-org'
-  const { data: existing } = await admin.from('organizations')
-    .select('id').eq('slug', orgSlug).maybeSingle()
-  let orgId = existing?.id as string | undefined
-  if (!orgId) {
-    const { data } = await admin.from('organizations')
-      .insert({ name: 'Campaigns RLS Shared Org', slug: orgSlug })
-      .select('id').single()
-    orgId = data!.id
-  }
-  await admin.from('sites').upsert([
-    { id: SHARED_SITE_A, org_id: orgId, name: 'Shared A', slug: 'shared-a', domains: [], default_locale: 'pt-BR', supported_locales: ['pt-BR'] },
-    { id: SHARED_SITE_B, org_id: orgId, name: 'Shared B', slug: 'shared-b', domains: [], default_locale: 'pt-BR', supported_locales: ['pt-BR'] },
-  ])
-}
-beforeAll(ensureSharedSites)
+beforeAll(() => ensureSharedSites(admin))
 
 // Track inserted campaign IDs for cleanup so this suite leaves no shared state.
 const createdCampaignIds: string[] = []

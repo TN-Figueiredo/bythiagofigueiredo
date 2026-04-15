@@ -1,16 +1,18 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { createClient } from '@supabase/supabase-js'
 import { Client } from 'pg'
-import { randomUUID } from 'crypto'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { PG_URL } from '../helpers/local-supabase'
+import { PG_URL, SUPABASE_URL, SERVICE_KEY } from '../helpers/local-supabase'
+import {
+  ensureSharedSites,
+  SHARED_SITE_A_ID as SITE_A,
+  SHARED_SITE_B_ID as SITE_B,
+} from '../helpers/ring-fixtures'
 
-// Per-run unique fixtures so we don't collide with other DB-gated tests
-// (blog.test.ts wipes authors in beforeAll, etc.). fileParallelism is already
-// off under HAS_LOCAL_DB, but uniqueness keeps this robust even if a run is
-// re-ordered or re-run against a dirty DB.
+// Per-run unique author slug to avoid collisions with blog.test.ts, which wipes
+// authors in beforeAll. fileParallelism is off under HAS_LOCAL_DB, but uniqueness
+// keeps this robust against dirty DBs.
 const AUTHOR_SLUG = `slug-trigger-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-const SITE_A = randomUUID()
-const SITE_B = randomUUID()
 
 describe.skipIf(skipIfNoLocalDb())('trigger validate_translation_slug_unique_per_site', () => {
   const db = new Client({ connectionString: PG_URL })
@@ -18,27 +20,18 @@ describe.skipIf(skipIfNoLocalDb())('trigger validate_translation_slug_unique_per
 
   beforeAll(async () => {
     await db.connect()
+    // Use the shared fixture to guarantee SITE_A/SITE_B exist without clobbering
+    // another suite's org_id (they all upsert to the same SHARED_RING_ORG_ID).
+    await ensureSharedSites(createClient(SUPABASE_URL, SERVICE_KEY))
     const { rows: [a] } = await db.query(
       `insert into public.authors(name, slug) values('T', $1) returning id`,
       [AUTHOR_SLUG]
     )
     authorId = a.id
-    // Create an org + two sites with the SITE_A/SITE_B UUIDs to satisfy blog_posts.site_id FK.
-    const slugSuffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    const { rows: [org] } = await db.query(
-      `insert into public.organizations(name, slug) values($1, $2) returning id`,
-      [`Slug Trigger Org ${slugSuffix}`, `slug-trigger-org-${slugSuffix}`]
-    )
-    await db.query(
-      `insert into public.sites(id, org_id, name, slug, domains, default_locale, supported_locales)
-       values ($1,$2,'SA',$3,'{}','pt-BR','{pt-BR}'),
-              ($4,$2,'SB',$5,'{}','pt-BR','{pt-BR}')`,
-      [SITE_A, org.id, `sa-${slugSuffix}`, SITE_B, `sb-${slugSuffix}`]
-    )
   })
 
   afterAll(async () => {
-    // Clean up in FK-safe order: translations -> posts -> author -> sites -> org.
+    // Clean up only this suite's rows; the shared org+sites persist by design.
     await db.query(
       `delete from public.blog_translations
          where post_id in (select id from public.blog_posts where author_id = $1)`,
@@ -46,7 +39,6 @@ describe.skipIf(skipIfNoLocalDb())('trigger validate_translation_slug_unique_per
     )
     await db.query(`delete from public.blog_posts where author_id = $1`, [authorId])
     await db.query(`delete from public.authors where id = $1`, [authorId])
-    await db.query(`delete from public.sites where id in ($1,$2)`, [SITE_A, SITE_B])
     await db.end()
   })
 

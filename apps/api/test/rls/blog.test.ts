@@ -3,9 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { Client } from 'pg'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { SUPABASE_URL, ANON_KEY, SERVICE_KEY, PG_URL, adminJwt } from '../helpers/local-supabase'
-
-const SITE_A = '11111111-1111-1111-1111-111111111111'
-const SITE_B = '22222222-2222-2222-2222-222222222222'
+import { ensureSharedSites, SHARED_SITE_A_ID as SITE_A, SHARED_SITE_B_ID as SITE_B } from '../helpers/ring-fixtures'
 
 async function insertOne<T extends { id: string }>(
   query: PromiseLike<{ data: T | null; error: unknown }>,
@@ -38,15 +36,7 @@ describe.skipIf(skipIfNoLocalDb())('RLS: blog_posts + blog_translations + author
     await service.from('authors').delete().neq('id', '00000000-0000-0000-0000-000000000000')
 
     // Ensure SITE_A and SITE_B exist to satisfy blog_posts.site_id FK.
-    const orgSuffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    const { data: org } = await service.from('organizations').insert({
-      name: `Blog RLS Org ${orgSuffix}`,
-      slug: `blog-rls-org-${orgSuffix}`,
-    }).select('id').single()
-    await service.from('sites').upsert([
-      { id: SITE_A, org_id: org!.id, name: 'Site A', slug: `site-a-${orgSuffix}`, domains: [], default_locale: 'pt-BR', supported_locales: ['pt-BR'] },
-      { id: SITE_B, org_id: org!.id, name: 'Site B', slug: `site-b-${orgSuffix}`, domains: [], default_locale: 'pt-BR', supported_locales: ['pt-BR'] },
-    ])
+    await ensureSharedSites(service)
 
     // Test-unique slug to reduce races with seed.test.ts, which concurrently
     // re-applies supabase/seeds/dev.sql (inserting a 'thiago' author).
