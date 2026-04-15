@@ -1,4 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import * as authGuards from '../../lib/cms/auth-guards'
+
+vi.mock('../../lib/cms/auth-guards', () => ({
+  requireSiteAdminForRow: vi.fn().mockResolvedValue({ siteId: 's1' }),
+}))
 
 vi.mock('../../lib/cms/site-context', () => ({
   getSiteContext: () => Promise.resolve({ siteId: 's1', orgId: 'o1', defaultLocale: 'pt-BR' }),
@@ -35,24 +40,11 @@ vi.mock('@tn-figueiredo/cms', async () => {
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
-vi.mock('next/headers', () => ({
-  cookies: () => Promise.resolve({ getAll: () => [], set: () => {} }),
-}))
-
-// Default: authorized. Individual tests can override the rpc mock before import.
-const rpcMock = vi.fn().mockResolvedValue({ data: true, error: null })
-vi.mock('@supabase/ssr', () => ({
-  createServerClient: () => ({
-    auth: { getUser: () => Promise.resolve({ data: { user: { id: 'u1' } } }) },
-    rpc: rpcMock,
-  }),
-}))
-
 import { savePost, publishPost } from '../../src/app/cms/blog/[id]/edit/actions'
 
 describe('savePost', () => {
   beforeEach(() => {
-    rpcMock.mockResolvedValue({ data: true, error: null })
+    vi.mocked(authGuards.requireSiteAdminForRow).mockResolvedValue({ siteId: 's1' })
   })
 
   it('returns ok for valid input', async () => {
@@ -83,7 +75,7 @@ describe('savePost', () => {
 
 describe('publishPost', () => {
   beforeEach(() => {
-    rpcMock.mockResolvedValue({ data: true, error: null })
+    vi.mocked(authGuards.requireSiteAdminForRow).mockResolvedValue({ siteId: 's1' })
   })
 
   it('calls postRepo.publish + revalidates paths', async () => {
@@ -94,15 +86,15 @@ describe('publishPost', () => {
 })
 
 describe('authorization', () => {
-  it('savePost throws when can_admin_site returns false', async () => {
-    rpcMock.mockResolvedValueOnce({ data: false, error: null })
+  it('savePost throws when requireSiteAdminForRow throws forbidden', async () => {
+    vi.mocked(authGuards.requireSiteAdminForRow).mockRejectedValueOnce(new Error('forbidden'))
     await expect(
       savePost('p1', 'pt-BR', { content_mdx: '', title: 'T', slug: 's' }),
     ).rejects.toThrow(/forbidden/)
   })
 
-  it('publishPost throws when can_admin_site returns false', async () => {
-    rpcMock.mockResolvedValueOnce({ data: false, error: null })
+  it('publishPost throws when requireSiteAdminForRow throws forbidden', async () => {
+    vi.mocked(authGuards.requireSiteAdminForRow).mockRejectedValueOnce(new Error('forbidden'))
     await expect(publishPost('p1')).rejects.toThrow(/forbidden/)
   })
 })
