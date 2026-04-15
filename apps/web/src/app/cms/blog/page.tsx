@@ -2,6 +2,8 @@ import Link from 'next/link'
 import type { ContentStatus } from '@tn-figueiredo/cms'
 import { postRepo } from '../../../../lib/cms/repositories'
 import { getSiteContext } from '../../../../lib/cms/site-context'
+import { deletePost } from './[id]/edit/actions'
+import { DeletePostButton } from './_components/delete-post-button'
 
 interface Props {
   searchParams: Promise<{ status?: string; locale?: string; search?: string }>
@@ -62,6 +64,13 @@ export default async function CmsBlogListPage({ searchParams }: Props) {
                 <span>{p.available_locales.join(', ')}</span>
                 {p.published_at && <time>{p.published_at}</time>}
               </Link>
+              {(p.status === 'draft' || p.status === 'archived') && (
+                <DeletePostButton
+                  postId={p.id}
+                  postTitle={p.translation.title}
+                  onDelete={deletePost}
+                />
+              )}
             </li>
           ))}
         </ul>

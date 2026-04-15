@@ -30,10 +30,15 @@ export default async function EditPostPage({ params }: Props) {
         <h1>Editando: {tx.title}</h1>
       </header>
       <PostEditor
+        postId={id}
         initialContent={tx.content_mdx}
         initialTitle={tx.title}
         initialSlug={tx.slug}
         initialExcerpt={tx.excerpt}
+        initialMetaTitle={tx.meta_title}
+        initialMetaDescription={tx.meta_description}
+        initialOgImageUrl={tx.og_image_url}
+        initialCoverImageUrl={post.cover_image_url}
         locale={tx.locale}
         componentNames={Object.keys(blogRegistry)}
         onSave={async (input) => savePost(id, tx.locale, input)}

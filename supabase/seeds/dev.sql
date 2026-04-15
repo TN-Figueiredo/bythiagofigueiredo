@@ -26,6 +26,11 @@
 --   `select id into v_author_id from public.authors where slug = 'thiago'`
 --   must be re-introduced after the authors insert.
 truncate table
+  public.sent_emails,
+  public.unsubscribe_tokens,
+  public.newsletter_subscriptions,
+  public.contact_submissions,
+  public.invitations,
   public.campaign_submissions,
   public.campaign_translations,
   public.campaigns,
@@ -83,6 +88,11 @@ begin
   )
   returning id into v_site_id;
 
+  update public.sites
+  set brevo_newsletter_list_id = 1,
+      contact_notification_email = 'thiago@bythiagofigueiredo.com'
+  where id = v_site_id;
+
   insert into public.organization_members (org_id, user_id, role)
   values (v_org_id, v_user_id, 'owner');
 
@@ -98,8 +108,8 @@ begin
   returning id into v_post1;
   insert into public.blog_translations (post_id, locale, title, slug, excerpt, content_mdx)
   values
-    (v_post1, 'pt-BR', 'Primeiro post', 'primeiro-post', 'Olá mundo', '# Olá\n\nConteúdo pt-BR.'),
-    (v_post1, 'en',    'First post',    'first-post',    'Hello world', '# Hello\n\nEnglish content.');
+    (v_post1, 'pt-BR', 'Primeiro post', 'primeiro-post', 'Olá mundo', E'# Olá\n\nConteúdo pt-BR.'),
+    (v_post1, 'en',    'First post',    'first-post',    'Hello world', E'# Hello\n\nEnglish content.');
 
   insert into public.blog_posts (author_id, status, site_id)
   values (v_author_id, 'draft', v_site_id)

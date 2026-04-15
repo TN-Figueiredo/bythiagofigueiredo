@@ -21,7 +21,7 @@ describe('verifyTurnstileToken', () => {
     const ok = await verifyTurnstileToken('tok', '1.2.3.4');
     expect(ok).toBe(true);
 
-    const [url, init] = fetchMock.mock.calls[0];
+    const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe('https://challenges.cloudflare.com/turnstile/v0/siteverify');
     expect(init.method).toBe('POST');
     expect(init.body).toBeInstanceOf(URLSearchParams);

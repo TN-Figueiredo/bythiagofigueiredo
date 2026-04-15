@@ -1,17 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import * as authGuards from '../../lib/cms/auth-guards'
+
+vi.mock('../../lib/cms/auth-guards', () => ({
+  requireSiteAdminForRow: vi.fn().mockResolvedValue({ siteId: 's1' }),
+}))
 
 vi.mock('../../lib/cms/site-context', () => ({
   getSiteContext: () => Promise.resolve({ siteId: 's1', orgId: 'o1', defaultLocale: 'pt-BR' }),
 }))
 
+const getByIdMock = vi.fn().mockResolvedValue({
+  id: 'p1',
+  site_id: 's1',
+  status: 'draft',
+  translations: [{ locale: 'pt-BR', slug: 'hello' }],
+})
+const deleteMock = vi.fn().mockResolvedValue(undefined)
 vi.mock('../../lib/cms/repositories', () => ({
   postRepo: () => ({
-    getById: vi.fn().mockResolvedValue({
-      id: 'p1',
-      site_id: 's1',
-      status: 'draft',
-      translations: [{ locale: 'pt-BR', slug: 'hello' }],
-    }),
+    getById: getByIdMock,
     update: vi.fn().mockResolvedValue({
       id: 'p1',
       translations: [{ locale: 'pt-BR', slug: 'hello' }],
@@ -20,6 +27,7 @@ vi.mock('../../lib/cms/repositories', () => ({
       id: 'p1',
       translations: [{ locale: 'pt-BR', slug: 'hello' }],
     }),
+    delete: deleteMock,
   }),
 }))
 
@@ -35,24 +43,15 @@ vi.mock('@tn-figueiredo/cms', async () => {
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
-vi.mock('next/headers', () => ({
-  cookies: () => Promise.resolve({ getAll: () => [], set: () => {} }),
-}))
-
-// Default: authorized. Individual tests can override the rpc mock before import.
-const rpcMock = vi.fn().mockResolvedValue({ data: true, error: null })
-vi.mock('@supabase/ssr', () => ({
-  createServerClient: () => ({
-    auth: { getUser: () => Promise.resolve({ data: { user: { id: 'u1' } } }) },
-    rpc: rpcMock,
-  }),
-}))
-
-import { savePost, publishPost } from '../../src/app/cms/blog/[id]/edit/actions'
+import {
+  savePost,
+  publishPost,
+  deletePost,
+} from '../../src/app/cms/blog/[id]/edit/actions'
 
 describe('savePost', () => {
   beforeEach(() => {
-    rpcMock.mockResolvedValue({ data: true, error: null })
+    vi.mocked(authGuards.requireSiteAdminForRow).mockResolvedValue({ siteId: 's1' })
   })
 
   it('returns ok for valid input', async () => {
@@ -83,7 +82,7 @@ describe('savePost', () => {
 
 describe('publishPost', () => {
   beforeEach(() => {
-    rpcMock.mockResolvedValue({ data: true, error: null })
+    vi.mocked(authGuards.requireSiteAdminForRow).mockResolvedValue({ siteId: 's1' })
   })
 
   it('calls postRepo.publish + revalidates paths', async () => {
@@ -93,16 +92,91 @@ describe('publishPost', () => {
   })
 })
 
+describe('savePost URL-encodes slug in revalidatePath', () => {
+  beforeEach(() => {
+    vi.mocked(authGuards.requireSiteAdminForRow).mockResolvedValue({ siteId: 's1' })
+  })
+
+  it('encodes slug with non-ASCII characters when revalidating', async () => {
+    const { revalidatePath } = await import('next/cache')
+    vi.mocked(revalidatePath).mockClear()
+    await savePost('p1', 'pt-BR', {
+      content_mdx: '# Hi',
+      title: 'Olá',
+      slug: 'ação-e-reação',
+    })
+    expect(revalidatePath).toHaveBeenCalledWith(
+      `/blog/pt-BR/${encodeURIComponent('ação-e-reação')}`,
+    )
+  })
+})
+
+describe('deletePost discriminated result', () => {
+  beforeEach(() => {
+    vi.mocked(authGuards.requireSiteAdminForRow).mockResolvedValue({ siteId: 's1' })
+    getByIdMock.mockReset()
+    deleteMock.mockReset()
+    deleteMock.mockResolvedValue(undefined)
+  })
+
+  it('returns ok:true when post is draft and delete succeeds', async () => {
+    getByIdMock.mockResolvedValueOnce({
+      id: 'p1',
+      site_id: 's1',
+      status: 'draft',
+      translations: [{ locale: 'pt-BR', slug: 'hi' }],
+    })
+    const result = await deletePost('p1')
+    expect(result).toEqual({ ok: true })
+    expect(deleteMock).toHaveBeenCalledWith('p1')
+  })
+
+  it('returns not_found when repo returns null (stale id)', async () => {
+    getByIdMock.mockResolvedValueOnce(null)
+    const result = await deletePost('gone')
+    expect(result).toEqual({ ok: false, error: 'not_found' })
+    expect(deleteMock).not.toHaveBeenCalled()
+  })
+
+  it('returns already_published when status transitioned to published between list render and click', async () => {
+    getByIdMock.mockResolvedValueOnce({
+      id: 'p1',
+      site_id: 's1',
+      status: 'published',
+      translations: [{ locale: 'pt-BR', slug: 'hi' }],
+    })
+    const result = await deletePost('p1')
+    expect(result).toEqual({ ok: false, error: 'already_published' })
+    expect(deleteMock).not.toHaveBeenCalled()
+  })
+
+  it('returns db_error when the delete call throws', async () => {
+    getByIdMock.mockResolvedValueOnce({
+      id: 'p1',
+      site_id: 's1',
+      status: 'draft',
+      translations: [{ locale: 'pt-BR', slug: 'hi' }],
+    })
+    deleteMock.mockRejectedValueOnce(new Error('boom'))
+    const result = await deletePost('p1')
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.error).toBe('db_error')
+      expect(result.message).toBe('boom')
+    }
+  })
+})
+
 describe('authorization', () => {
-  it('savePost throws when can_admin_site returns false', async () => {
-    rpcMock.mockResolvedValueOnce({ data: false, error: null })
+  it('savePost throws when requireSiteAdminForRow throws forbidden', async () => {
+    vi.mocked(authGuards.requireSiteAdminForRow).mockRejectedValueOnce(new Error('forbidden'))
     await expect(
       savePost('p1', 'pt-BR', { content_mdx: '', title: 'T', slug: 's' }),
     ).rejects.toThrow(/forbidden/)
   })
 
-  it('publishPost throws when can_admin_site returns false', async () => {
-    rpcMock.mockResolvedValueOnce({ data: false, error: null })
+  it('publishPost throws when requireSiteAdminForRow throws forbidden', async () => {
+    vi.mocked(authGuards.requireSiteAdminForRow).mockRejectedValueOnce(new Error('forbidden'))
     await expect(publishPost('p1')).rejects.toThrow(/forbidden/)
   })
 })

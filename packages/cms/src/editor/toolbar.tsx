@@ -47,6 +47,12 @@ export function EditorToolbar({ onAction, componentNames }: EditorToolbarProps) 
   )
 }
 
+/**
+ * @internal
+ * Exported for <PostEditor> and for test consumption. Not part of the
+ * documented package API — the supported surface is the editor components
+ * themselves.
+ */
 export function applyToolbarAction(
   source: string,
   selection: { start: number; end: number },

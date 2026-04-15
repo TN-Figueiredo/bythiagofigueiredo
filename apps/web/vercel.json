@@ -1,6 +1,7 @@
 {
   "framework": "nextjs",
   "crons": [
-    { "path": "/api/cron/publish-scheduled", "schedule": "*/5 * * * *" }
+    { "path": "/api/cron/publish-scheduled", "schedule": "*/5 * * * *" },
+    { "path": "/api/cron/sync-newsletter-pending", "schedule": "* * * * *" }
   ]
 }

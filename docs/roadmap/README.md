@@ -27,8 +27,14 @@
 ▓░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  ~3% (12h / 424h — Sprint 0 ✅ done)
 ```
 
-**Done até agora (~12h):** Sprint 0 fechado ✅ — scaffold + CI + Supabase provisionado/linkado + Vercel/Sentry env vars + npm scripts de DB padrão TNG.
-**Sprint ativo:** Sprint 1 (Foundation — 40h).
+**Done até agora:**
+- Sprint 0 ✅ — scaffold + CI + Supabase provisionado/linkado + Vercel/Sentry env vars + npm scripts de DB padrão TNG (~12h).
+- Sprint 1a ✅ — blog schema, RLS, homepage, API setup, `site_visible` helper (2026-04-14).
+- Sprint 1b ✅ — campaigns schema/RLS, Brevo+Turnstile libs, landing pages, cron, seed (2026-04-14, merged PR #3, 135 tests).
+- Sprint 2 ✅ — `@tn-figueiredo/cms` package, multi-ring schema, blog MDX rendering, admin CRUD (2026-04-15, merged PR #4, 198 tests). T14 extraction deferred to Sprint 3.
+- Sprint 3 ✅ — auth + invite flow, newsletter/contact forms + cron sync, campaign admin CRUD, PostEditor polish (autosave/meta SEO/cover/locale switcher/delete UI), rate limiting + cron locks. ~40 commits. Epic audit trajectory: Epic 3 82→98, Epic 4 62→99, Epic 5 82→99, sprint-wide 93→99. Package extraction (T14) + observability/LGPD carry-over ⇒ Sprint 4. Spec: [2026-04-16-sprint-3-design.md](../superpowers/specs/2026-04-16-sprint-3-design.md).
+
+**Sprint ativo:** Sprint 4 (package extraction + observability + LGPD — ~40h). Spec: [sprint-4.md](../superpowers/specs/sprint-4.md).
 
 ## Legenda de status
 

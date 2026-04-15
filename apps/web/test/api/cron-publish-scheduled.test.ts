@@ -144,8 +144,8 @@ describe('vercel.json crons', () => {
     const p = resolve(__dirname, '../../vercel.json');
     expect(existsSync(p)).toBe(true);
     const j = JSON.parse(readFileSync(p, 'utf8'));
-    expect(j.crons).toEqual([
+    expect(j.crons).toContainEqual(
       { path: '/api/cron/publish-scheduled', schedule: '*/5 * * * *' },
-    ]);
+    );
   });
 });
