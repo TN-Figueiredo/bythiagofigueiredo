@@ -2,9 +2,11 @@
 
 import * as React from 'react'
 import type { CompiledMdx } from '../types/content'
+import { getEditorStrings } from './strings'
 
 export interface EditorPreviewProps {
   source: string
+  locale: string
   onCompile: (source: string) => Promise<CompiledMdx>
   debounceMs?: number
 }
@@ -15,7 +17,8 @@ type PreviewState =
   | { kind: 'ok'; readingTimeMin: number; tocLength: number; sourceBytes: number }
   | { kind: 'error'; message: string }
 
-export function EditorPreview({ source, onCompile, debounceMs = 500 }: EditorPreviewProps) {
+export function EditorPreview({ source, locale, onCompile, debounceMs = 500 }: EditorPreviewProps) {
+  const s = getEditorStrings(locale)
   const [state, setState] = React.useState<PreviewState>({ kind: 'idle' })
   const lastSourceRef = React.useRef(source)
 
@@ -43,12 +46,12 @@ export function EditorPreview({ source, onCompile, debounceMs = 500 }: EditorPre
   if (state.kind === 'error') {
     return <pre role="alert" data-preview-error>{state.message}</pre>
   }
-  if (state.kind === 'compiling') return <p data-preview-status>Compilando…</p>
-  if (state.kind === 'idle') return <p data-preview-status>Aguardando…</p>
+  if (state.kind === 'compiling') return <p data-preview-status>{s.previewCompiling}</p>
+  if (state.kind === 'idle') return <p data-preview-status>{s.previewIdle}</p>
   return (
     <div data-preview role="status">
-      <p>✓ MDX compila sem erros</p>
-      <p>{state.readingTimeMin} min de leitura · {state.tocLength} headings · {state.sourceBytes} bytes compilados</p>
+      <p>{s.previewOk}</p>
+      <p>{s.previewReadingTime(state.readingTimeMin)} · {s.previewHeadings(state.tocLength)} · {s.previewBytes(state.sourceBytes)}</p>
     </div>
   )
 }

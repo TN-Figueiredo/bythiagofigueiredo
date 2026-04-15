@@ -4,6 +4,7 @@ import * as React from 'react'
 import type { CompiledMdx } from '../types/content'
 import { EditorToolbar, applyToolbarAction, type ToolbarAction } from './toolbar'
 import { EditorPreview } from './preview'
+import { getEditorStrings } from './strings'
 
 export interface SavePostInput {
   content_mdx: string
@@ -31,6 +32,7 @@ export interface PostEditorProps {
 }
 
 export function PostEditor(props: PostEditorProps) {
+  const s = getEditorStrings(props.locale)
   const [source, setSource] = React.useState(props.initialContent)
   const [title, setTitle] = React.useState(props.initialTitle ?? '')
   const [slug, setSlug] = React.useState(props.initialSlug ?? '')
@@ -46,6 +48,7 @@ export function PostEditor(props: PostEditorProps) {
       source,
       { start: ta.selectionStart, end: ta.selectionEnd },
       action,
+      s.toolbarPlaceholders,
     )
     setSource(next)
     window.setTimeout(() => {
@@ -66,7 +69,7 @@ export function PostEditor(props: PostEditorProps) {
       })
       if (!result.ok) {
         if (result.error === 'validation_failed') {
-          setError(`Campos inválidos: ${Object.keys(result.fields).join(', ')}`)
+          setError(s.validationFailed(Object.keys(result.fields)))
         } else {
           setError(result.message)
         }
@@ -80,15 +83,15 @@ export function PostEditor(props: PostEditorProps) {
     <div data-post-editor>
       <div>
         <label>
-          Título
+          {s.titleLabel}
           <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} />
         </label>
         <label>
-          Slug
+          {s.slugLabel}
           <input type="text" value={slug} onChange={(e) => setSlug(e.target.value)} />
         </label>
         <label>
-          Excerpt
+          {s.excerptLabel}
           <input type="text" value={excerpt} onChange={(e) => setExcerpt(e.target.value)} />
         </label>
       </div>
@@ -103,13 +106,13 @@ export function PostEditor(props: PostEditorProps) {
           onChange={(e) => setSource(e.target.value)}
           rows={30}
         />
-        <EditorPreview source={source} onCompile={props.onPreview} />
+        <EditorPreview source={source} locale={props.locale} onCompile={props.onPreview} />
       </div>
 
       {error && <p role="alert">{error}</p>}
 
       <button type="button" disabled={saving} onClick={handleSave}>
-        {saving ? 'Salvando…' : 'Salvar'}
+        {saving ? s.savingButton : s.saveButton}
       </button>
     </div>
   )

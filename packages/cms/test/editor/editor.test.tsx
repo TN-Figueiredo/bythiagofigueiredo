@@ -37,4 +37,18 @@ describe('PostEditor', () => {
     fireEvent.click(screen.getByRole('button', { name: /bold/i }))
     expect(ta.value).toContain('**')
   })
+
+  it('renders English strings when locale=en', () => {
+    render(
+      <PostEditor
+        initialContent=""
+        locale="en"
+        componentNames={[]}
+        onSave={vi.fn()}
+        onPreview={vi.fn().mockResolvedValue({ compiledSource: '', toc: [], readingTimeMin: 1 })}
+      />
+    )
+    expect(screen.getByRole('button', { name: /^save$/i })).toBeTruthy()
+    expect(screen.getByText('Title')).toBeTruthy()
+  })
 })

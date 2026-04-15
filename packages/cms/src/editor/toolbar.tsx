@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { ptBR, type EditorStrings } from './strings'
 
 export type ToolbarAction =
   | { kind: 'bold' | 'italic' | 'h1' | 'h2' | 'inline-code' | 'code-block' | 'link' | 'image' }
@@ -50,28 +51,30 @@ export function applyToolbarAction(
   source: string,
   selection: { start: number; end: number },
   action: ToolbarAction,
+  placeholders?: EditorStrings['toolbarPlaceholders'],
 ): { source: string; selectionStart: number } {
+  const p = placeholders ?? ptBR.toolbarPlaceholders
   const before = source.slice(0, selection.start)
   const sel = source.slice(selection.start, selection.end)
   const after = source.slice(selection.end)
 
   switch (action.kind) {
     case 'bold':
-      return { source: `${before}**${sel || 'texto'}**${after}`, selectionStart: before.length + 2 }
+      return { source: `${before}**${sel || p.text}**${after}`, selectionStart: before.length + 2 }
     case 'italic':
-      return { source: `${before}*${sel || 'texto'}*${after}`, selectionStart: before.length + 1 }
+      return { source: `${before}*${sel || p.text}*${after}`, selectionStart: before.length + 1 }
     case 'h1':
-      return { source: `${before}\n# ${sel || 'Título'}\n${after}`, selectionStart: before.length + 3 }
+      return { source: `${before}\n# ${sel || p.h1}\n${after}`, selectionStart: before.length + 3 }
     case 'h2':
-      return { source: `${before}\n## ${sel || 'Subtítulo'}\n${after}`, selectionStart: before.length + 4 }
+      return { source: `${before}\n## ${sel || p.h2}\n${after}`, selectionStart: before.length + 4 }
     case 'inline-code':
-      return { source: `${before}\`${sel || 'code'}\`${after}`, selectionStart: before.length + 1 }
+      return { source: `${before}\`${sel || p.code}\`${after}`, selectionStart: before.length + 1 }
     case 'code-block':
       return { source: `${before}\n\`\`\`\n${sel || ''}\n\`\`\`\n${after}`, selectionStart: before.length + 5 }
     case 'link':
-      return { source: `${before}[${sel || 'texto'}](url)${after}`, selectionStart: before.length + 1 }
+      return { source: `${before}[${sel || p.linkText}](url)${after}`, selectionStart: before.length + 1 }
     case 'image':
-      return { source: `${before}![${sel || 'alt'}](url)${after}`, selectionStart: before.length + 2 }
+      return { source: `${before}![${sel || p.imageAlt}](url)${after}`, selectionStart: before.length + 2 }
     case 'component':
       return { source: `${before}<${action.name}>\n${sel}\n</${action.name}>${after}`, selectionStart: before.length + action.name.length + 2 }
   }
