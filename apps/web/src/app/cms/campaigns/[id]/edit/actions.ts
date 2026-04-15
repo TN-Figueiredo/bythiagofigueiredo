@@ -1,0 +1,123 @@
+'use server'
+
+import { revalidatePath } from 'next/cache'
+import { campaignRepo } from '../../../../../../lib/cms/repositories'
+import { getSupabaseServiceClient } from '../../../../../../lib/supabase/service'
+import { requireSiteAdminForRow } from '../../../../../../lib/cms/auth-guards'
+
+export interface SaveCampaignTranslationPatch {
+  locale: string
+  slug?: string
+  meta_title?: string | null
+  meta_description?: string | null
+  og_image_url?: string | null
+  main_hook_md?: string
+  supporting_argument_md?: string | null
+  introductory_block_md?: string | null
+  body_content_md?: string | null
+  form_intro_md?: string | null
+  form_button_label?: string
+  form_button_loading_label?: string
+  context_tag?: string
+  success_headline?: string
+  success_headline_duplicate?: string
+  success_subheadline?: string
+  success_subheadline_duplicate?: string
+  check_mail_text?: string
+  download_button_label?: string
+  extras?: unknown
+}
+
+export interface SaveCampaignPatch {
+  status?: 'draft' | 'scheduled' | 'published' | 'archived'
+  scheduled_for?: string | null
+  interest?: string
+  pdf_storage_path?: string | null
+  brevo_list_id?: number | null
+  brevo_template_id?: number | null
+  form_fields?: unknown
+}
+
+export type SaveCampaignResult =
+  | { ok: true; campaignId: string }
+  | { ok: false; error: 'validation_failed'; fields: Record<string, string> }
+  | { ok: false; error: 'db_error'; message: string }
+
+/**
+ * Save a campaign's scalar patch + translations in a single transaction via
+ * the `update_campaign_atomic` RPC. Guarded by `requireSiteAdminForRow`.
+ */
+export async function saveCampaign(
+  id: string,
+  patch: SaveCampaignPatch,
+  translations: SaveCampaignTranslationPatch[],
+): Promise<SaveCampaignResult> {
+  for (const t of translations) {
+    if (!t.locale || !t.locale.trim()) {
+      return { ok: false, error: 'validation_failed', fields: { locale: 'required' } }
+    }
+    if (t.slug !== undefined && !t.slug.trim()) {
+      return { ok: false, error: 'validation_failed', fields: { slug: 'required' } }
+    }
+  }
+
+  await requireSiteAdminForRow('campaigns', id)
+
+  const supabase = getSupabaseServiceClient()
+  const { error } = await supabase.rpc('update_campaign_atomic', {
+    p_campaign_id: id,
+    p_patch: patch ?? {},
+    p_translations: translations ?? [],
+  })
+  if (error) {
+    return { ok: false, error: 'db_error', message: error.message }
+  }
+
+  const refreshed = await campaignRepo().getById(id)
+  revalidatePath('/cms/campaigns')
+  if (refreshed) {
+    for (const tx of refreshed.translations) {
+      revalidatePath(`/campaigns/${tx.locale}/${tx.slug}`)
+    }
+  }
+  return { ok: true, campaignId: id }
+}
+
+export async function publishCampaign(id: string): Promise<void> {
+  await requireSiteAdminForRow('campaigns', id)
+  const campaign = await campaignRepo().publish(id)
+  revalidatePath('/cms/campaigns')
+  for (const tx of campaign.translations) {
+    revalidatePath(`/campaigns/${tx.locale}/${tx.slug}`)
+  }
+}
+
+export async function unpublishCampaign(id: string): Promise<void> {
+  await requireSiteAdminForRow('campaigns', id)
+  const campaign = await campaignRepo().unpublish(id)
+  revalidatePath('/cms/campaigns')
+  for (const tx of campaign.translations) {
+    revalidatePath(`/campaigns/${tx.locale}/${tx.slug}`)
+  }
+}
+
+export async function archiveCampaign(id: string): Promise<void> {
+  await requireSiteAdminForRow('campaigns', id)
+  const campaign = await campaignRepo().archive(id)
+  revalidatePath('/cms/campaigns')
+  for (const tx of campaign.translations) {
+    revalidatePath(`/campaigns/${tx.locale}/${tx.slug}`)
+  }
+}
+
+export async function deleteCampaign(id: string): Promise<void> {
+  await requireSiteAdminForRow('campaigns', id)
+  const campaign = await campaignRepo().getById(id)
+  if (campaign && (campaign.status === 'draft' || campaign.status === 'archived')) {
+    await campaignRepo().delete(id)
+    for (const tx of campaign.translations) {
+      revalidatePath(`/campaigns/${tx.locale}/${tx.slug}`)
+    }
+    revalidatePath('/cms/campaigns')
+  }
+}
