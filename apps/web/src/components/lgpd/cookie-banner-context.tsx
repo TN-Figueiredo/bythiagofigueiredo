@@ -92,6 +92,14 @@ function writeConsent(next: CookieConsent) {
   // reads — keeps the init path a simple string comparison.
   localStorage.setItem(ANALYTICS_CONSENT_MIRROR_KEY, next.analytics ? 'true' : 'false')
   localStorage.setItem(ANON_ID_STORAGE_KEY, next.anonymousId)
+  // Same-tab notification — the native `storage` event only fires in OTHER
+  // tabs, so we dispatch a custom event for listeners in this tab (e.g.
+  // the Sentry consent-aware init reads this to re-init on opt-in).
+  try {
+    window.dispatchEvent(new CustomEvent('lgpd:consent-changed', { detail: next }))
+  } catch {
+    // Environments without CustomEvent (SSR, old polyfills) — skip silently.
+  }
 }
 
 export interface CookieBannerProviderProps {
