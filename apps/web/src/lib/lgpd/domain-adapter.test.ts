@@ -153,8 +153,13 @@ describe('BythiagoLgpdDomainAdapter', () => {
   });
 
   describe('phase1Cleanup', () => {
-    it('pre-captures email + dispatches lgpd_phase1_cleanup RPC', async () => {
-      const { supabase, rpc, getUserById } = makeSupabase();
+    // Fix 9 (Sprint 5a): pre-capture passes `newsletter_emails: string[]`
+    // (the key the RPC reads) — not the legacy `email: string`.
+    it('pre-captures newsletter + contact emails + dispatches the RPC', async () => {
+      const { supabase, rpc, getUserById } = makeSupabase({
+        newsletter_subscriptions: [{ email: 'a@x.com' }, { email: 'second@x.com' }],
+        contact_submissions: [{ email: 'a@x.com' }, { email: 'third@x.com' }],
+      });
       getUserById.mockResolvedValue({
         data: { user: { id: 'u1', email: 'a@x.com' } },
         error: null,
@@ -164,10 +169,38 @@ describe('BythiagoLgpdDomainAdapter', () => {
       const adapter = new BythiagoLgpdDomainAdapter(supabase);
       await adapter.phase1Cleanup('u1');
 
-      expect(rpc).toHaveBeenCalledWith('lgpd_phase1_cleanup', {
-        p_user_id: 'u1',
-        p_pre_capture: expect.objectContaining({ email: 'a@x.com' }),
+      const args = rpc.mock.calls[0];
+      expect(args?.[0]).toBe('lgpd_phase1_cleanup');
+      const payload = args?.[1] as {
+        p_user_id: string;
+        p_pre_capture: { newsletter_emails: string[] };
+      };
+      expect(payload.p_user_id).toBe('u1');
+      expect(payload.p_pre_capture.newsletter_emails).toEqual(
+        expect.arrayContaining(['a@x.com', 'second@x.com', 'third@x.com']),
+      );
+      // Dedup: auth email appears once, not multiple.
+      const count = payload.p_pre_capture.newsletter_emails.filter(
+        (e) => e === 'a@x.com',
+      ).length;
+      expect(count).toBe(1);
+    });
+
+    it('falls back to just the auth email when lookup tables are empty', async () => {
+      const { supabase, rpc, getUserById } = makeSupabase();
+      getUserById.mockResolvedValue({
+        data: { user: { id: 'u1', email: 'solo@x.com' } },
+        error: null,
       });
+      rpc.mockResolvedValue({ data: null, error: null });
+
+      const adapter = new BythiagoLgpdDomainAdapter(supabase);
+      await adapter.phase1Cleanup('u1');
+
+      const payload = rpc.mock.calls[0]?.[1] as {
+        p_pre_capture: { newsletter_emails: string[] };
+      };
+      expect(payload.p_pre_capture.newsletter_emails).toEqual(['solo@x.com']);
     });
 
     it('throws when the RPC fails', async () => {

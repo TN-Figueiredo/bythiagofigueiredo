@@ -42,6 +42,10 @@ function makeReq(body: unknown, headers: Record<string, string> = {}) {
 beforeEach(() => {
   process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://supabase.local';
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-key';
+  // Fix 14 (Sprint 5a): verify-password now signs a server-side
+  // `lgpd_recently_verified` cookie on success; tests must provide a key
+  // so signRecentlyVerified can HMAC a value.
+  process.env.LGPD_VERIFY_SECRET = 'test-verify-secret';
   vi.clearAllMocks();
 });
 
@@ -81,7 +85,17 @@ describe('POST /api/auth/verify-password', () => {
     });
   });
 
-  it('200 + valid when password re-auth succeeds; calls signOut', async () => {
+  it('200 + valid when password re-auth succeeds; calls signOut; sets verify cookie', async () => {
+    const setCookie = vi.fn();
+    // Re-mock next/headers to observe cookie writes for this single test.
+    const { cookies } = await import('next/headers');
+    vi.mocked(cookies).mockResolvedValueOnce({
+      getAll: () => [],
+      get: () => undefined,
+      set: setCookie,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
     vi.mocked(requireUser).mockResolvedValueOnce({
       id: 'u1',
       email: 'a@b.com',
@@ -97,6 +111,18 @@ describe('POST /api/auth/verify-password', () => {
     const body = await res.json();
     expect(body.valid).toBe(true);
     expect(signOut).toHaveBeenCalled();
+    // Fix 14: server sets a signed HTTPOnly verify cookie.
+    const setCall = setCookie.mock.calls.find(
+      (c) => c[0] === 'lgpd_recently_verified',
+    );
+    expect(setCall).toBeDefined();
+    const opts = setCall![2] as Record<string, unknown>;
+    expect(opts.httpOnly).toBe(true);
+    expect(opts.sameSite).toBe('strict');
+    expect(opts.maxAge).toBe(300);
+    // Cookie value binds to userId.
+    expect(typeof setCall![1]).toBe('string');
+    expect(String(setCall![1]).startsWith('u1.')).toBe(true);
   });
 
   it('400 when body is missing password', async () => {

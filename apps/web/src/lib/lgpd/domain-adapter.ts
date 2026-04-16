@@ -44,14 +44,60 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
   // ------------------------------------------------------------------
   async phase1Cleanup(userId: string): Promise<void> {
     // Pre-capture PII we'll need to anonymize rows by before the auth.users
-    // row is gone. For now: email (enough for newsletter anonymization by the
-    // RPC). Captured at the app layer so the RPC stays a pure SQL routine.
+    // row is gone. The RPC (migration …000006) reads
+    // `p_pre_capture -> 'newsletter_emails'` as a JSON array of email strings
+    // and anonymizes both newsletter_subscriptions and contact_submissions
+    // rows matching ANY of them. We gather:
+    //   1. the auth-level email of the user being deleted
+    //   2. every distinct email in `newsletter_subscriptions` linked to the user
+    //   3. every distinct email in `contact_submissions` linked to the user
+    // so the atomic RPC has the full anonymization set before the auth row
+    // is wiped. Fix 9 (Sprint 5a): earlier revision passed { email: <str> }
+    // which the RPC ignores — leaving newsletter + contact PII undeleted.
     const { data: userRes, error: userErr } = await this.supabase.auth.admin.getUserById(userId);
     if (userErr) {
       throw new Error(`phase1Cleanup: getUserById failed: ${userErr.message}`);
     }
+    const userEmail = userRes?.user?.email ?? null;
+
+    const [subsRes, contactsRes] = await Promise.all([
+      this.supabase
+        .from('newsletter_subscriptions')
+        .select('email')
+        .eq('user_id', userId)
+        .limit(1000),
+      this.supabase
+        .from('contact_submissions')
+        .select('email')
+        .eq('user_id', userId)
+        .limit(1000),
+    ]);
+    // Query errors on the lookup tables are non-fatal — the RPC still
+    // anonymizes the auth email set below; we log by throwing only on
+    // the hard RPC call. But surface real failures (not "no rows") to
+    // avoid silently skipping rows.
+    if (subsRes.error) {
+      throw new Error(`phase1Cleanup: newsletter_subscriptions lookup failed: ${subsRes.error.message}`);
+    }
+    if (contactsRes.error) {
+      throw new Error(`phase1Cleanup: contact_submissions lookup failed: ${contactsRes.error.message}`);
+    }
+
+    const subEmails = ((subsRes.data ?? []) as Array<{ email: string | null }>)
+      .map((r) => r.email)
+      .filter((e): e is string => !!e);
+    const contactEmails = ((contactsRes.data ?? []) as Array<{ email: string | null }>)
+      .map((r) => r.email)
+      .filter((e): e is string => !!e);
+
+    const emails = Array.from(
+      new Set<string>(
+        [userEmail, ...subEmails, ...contactEmails].filter((e): e is string => !!e),
+      ),
+    );
+
     const preCapture: Record<string, unknown> = {
-      email: userRes?.user?.email ?? null,
+      newsletter_emails: emails,
     };
 
     const { error } = await this.supabase.rpc('lgpd_phase1_cleanup', {

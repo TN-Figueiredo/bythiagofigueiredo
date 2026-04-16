@@ -11,14 +11,17 @@
 import { describe, it, expectTypeOf } from 'vitest';
 import type {
   ILgpdDomainAdapter,
-  ILgpdRequestRepository,
   ILgpdAuditLogRepository,
   ILgpdEmailService,
   IAccountStatusCache,
 } from '@tn-figueiredo/lgpd/interfaces';
 
 import { BythiagoLgpdDomainAdapter } from '../../src/lib/lgpd/domain-adapter';
-import { SupabaseLgpdRequestRepository } from '../../src/lib/lgpd/request-repo';
+// Fix 7 (Sprint 5a): SupabaseLgpdRequestRepository was dead code — nothing
+// called its methods since the use-case glue writes to `lgpd_requests`
+// directly. The container now satisfies the `ILgpdRequestRepository` slot
+// in LgpdConfig via a null-object (every method throws). No concrete class
+// remains to contract-test here.
 import { AuditLogLgpdRepository } from '../../src/lib/lgpd/audit-repo';
 import { BrevoLgpdEmailService } from '../../src/lib/lgpd/email-service';
 import { DirectQueryAccountStatusCache } from '../../src/lib/lgpd/account-status-cache';
@@ -30,10 +33,6 @@ import {
 describe('LGPD adapter contracts', () => {
   it('BythiagoLgpdDomainAdapter satisfies ILgpdDomainAdapter', () => {
     expectTypeOf<BythiagoLgpdDomainAdapter>().toMatchTypeOf<ILgpdDomainAdapter>();
-  });
-
-  it('SupabaseLgpdRequestRepository satisfies ILgpdRequestRepository', () => {
-    expectTypeOf<SupabaseLgpdRequestRepository>().toMatchTypeOf<ILgpdRequestRepository>();
   });
 
   it('AuditLogLgpdRepository satisfies ILgpdAuditLogRepository', () => {

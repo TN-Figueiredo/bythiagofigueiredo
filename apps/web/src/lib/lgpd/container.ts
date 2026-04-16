@@ -9,7 +9,6 @@ import { getEmailService } from '../../../lib/email/service';
 import { logCron } from '../../../lib/logger';
 
 import { BythiagoLgpdDomainAdapter } from './domain-adapter';
-import { SupabaseLgpdRequestRepository } from './request-repo';
 import { AuditLogLgpdRepository } from './audit-repo';
 import { BrevoLgpdEmailService } from './email-service';
 import { DirectQueryAccountStatusCache } from './account-status-cache';
@@ -913,9 +912,39 @@ export function createLgpdContainer(): LgpdContainer {
     branding: { brandName: brand.brandName, siteUrl: appUrl },
   });
 
+  // Null-object for `lgpdRequestRepo`: @tn-figueiredo/lgpd@0.1.0 ships only
+  // interfaces (no use-case factories), so our local use-case glue writes to
+  // `lgpd_requests` via the admin client directly. The `ILgpdRequestRepository`
+  // slot is retained in LgpdConfig for future-minor bump compatibility — no
+  // call site invokes it in Sprint 5a (Fix 7). If a future factory does,
+  // every method throws so the regression is obvious.
+  const notUsed =
+    (method: string) =>
+    (..._args: unknown[]): never => {
+      throw new Error(
+        `lgpdRequestRepo.${method}: not used — remove null-object when @tn-figueiredo/lgpd exposes real use-case factories`,
+      );
+    };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const nullLgpdRequestRepo = {
+    create: notUsed('create'),
+    findById: notUsed('findById'),
+    findByUserId: notUsed('findByUserId'),
+    findPendingByUserId: notUsed('findPendingByUserId'),
+    findByConfirmationToken: notUsed('findByConfirmationToken'),
+    findByDeletionPhaseOlderThan: notUsed('findByDeletionPhaseOlderThan'),
+    findPendingExports: notUsed('findPendingExports'),
+    findExpiredExports: notUsed('findExpiredExports'),
+    update: notUsed('update'),
+    countByStatus: notUsed('countByStatus'),
+    countByTypeAndStatus: notUsed('countByTypeAndStatus'),
+    countCompletedThisMonth: notUsed('countCompletedThisMonth'),
+    avgProcessingTime: notUsed('avgProcessingTime'),
+  } as unknown as LgpdConfig['lgpdRequestRepo'];
+
   const config: LgpdConfig = {
     domainAdapter,
-    lgpdRequestRepo: new SupabaseLgpdRequestRepository(admin),
+    lgpdRequestRepo: nullLgpdRequestRepo,
     lgpdAuditLogRepo: new AuditLogLgpdRepository(admin),
     emailService: lgpdEmail,
     accountStatusCache: new DirectQueryAccountStatusCache(admin),

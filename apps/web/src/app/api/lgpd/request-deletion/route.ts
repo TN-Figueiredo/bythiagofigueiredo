@@ -8,6 +8,10 @@ import {
 // Track B will publish this module; Phase-2 integration reconciles any
 // shape drift. Tests mock this import with vi.mock('@/lib/lgpd/container').
 import { createLgpdContainer } from '@/lib/lgpd/container';
+import {
+  verifyRecentlyVerified,
+  LGPD_VERIFY_COOKIE_NAME,
+} from '@/lib/lgpd/verify-cookie';
 import { getLogger } from '../../../../../lib/logger';
 
 /**
@@ -49,8 +53,43 @@ export async function POST(req: Request): Promise<Response> {
     throw err;
   }
 
+  // Fix 14 (Sprint 5a): enforce fresh password re-auth via signed cookie.
+  const verifyCookie = cookieStore.get(LGPD_VERIFY_COOKIE_NAME)?.value;
+  if (!verifyRecentlyVerified(verifyCookie, user.id)) {
+    return NextResponse.json(
+      { error: 'password_reauth_required' },
+      { status: 403 },
+    );
+  }
+
+  const container = createLgpdContainer();
+
+  // Deletion safety gate (Fix 12): block the sole master_admin or any other
+  // row the `check_deletion_safety` RPC flags as non-removable. Returns 409
+  // with the blocker array so the UI can explain the reason.
   try {
-    const container = createLgpdContainer();
+    const safety = await container.domainAdapter.checkDeletionSafety(user.id);
+    if (!safety.can_delete) {
+      return NextResponse.json(
+        {
+          error: 'deletion_blocked',
+          blockers: safety.blockers,
+          ...(safety.details ? { details: safety.details } : {}),
+        },
+        { status: 409 },
+      );
+    }
+  } catch (e) {
+    getLogger().error('[lgpd_request_deletion_safety_failed]', {
+      message: e instanceof Error ? e.message : String(e),
+    });
+    return NextResponse.json(
+      { error: 'safety_check_failed' },
+      { status: 500 },
+    );
+  }
+
+  try {
     const { requestId, expiresAt } = await container.accountDeletion.request(
       user.id,
     );
