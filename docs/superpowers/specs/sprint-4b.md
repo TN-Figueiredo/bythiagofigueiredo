@@ -229,3 +229,36 @@ Spec v3 locked — execution pending. Previous partial plan scored 74/100 (basel
 - `TN-Figueiredo/cms` repo: exists (empty) ✅
 - `TN-Figueiredo/email` repo: **não existe** — criar em T54
 - Sprint 4a shipped ✅ (263 web + 4 api green)
+
+---
+
+## Execution retrospective (2026-04-15)
+
+Sprint 4b executed on branch `feat/sprint-4b-package-extraction` (tip `1fe6b45`, 6 commits). Published: `@tn-figueiredo/cms@0.1.0-beta.1`, `@tn-figueiredo/cms@0.1.0-beta.2` (adds `./ring` Edge-safe subpath), `@tn-figueiredo/email@0.1.0`. `apps/web` consumes pinned: `cms@0.1.0-beta.2`, `email@0.1.0`. Branch protection applied to both extracted repos. Tests green: 263 web + 15 skipped, 4 api + 139 skipped. `next build` clean. Below, the 9 discoveries not anticipated in v3 spec.
+
+### 1. `npm publish --provenance` requires public packages
+**Issue:** GitHub Packages with `access: restricted` rejects `--provenance` (error `EUSAGE`). **Resolution:** removed `--provenance` flag and `id-token: write` permission from publish workflows; template at `docs/superpowers/templates/package-repo/.github/workflows/publish.yml` updated. Exit criterion §7 ("OIDC provenance") is currently unreachable for private packages.
+
+### 2. Git worktrees share `.git/config` with parent
+**Issue:** `git remote set-url origin <url>` inside a worktree mutates the parent repo's origin. Cost us a recovery step mid-execution. **Resolution:** either enable `git config extensions.worktreeConfig true` + per-worktree config, OR never persist remotes inside worktrees (use explicit `git push <url>` URLs). We adopted the latter.
+
+### 3. `cms` dist ESM + JSX requires `transpilePackages` permanently
+**Issue:** `compileMdx` uses `import.meta.url`; tsconfig ships `jsx: preserve`. Next/webpack parses neither natively. **Resolution:** `transpilePackages: ['@tn-figueiredo/cms']` is a v0.1.x contract. beta.2 exposes `./ring` subpath (Edge-safe, no MDX renderer) so middleware can skip the transpile cost. Root `.` subpath still needs it.
+
+### 4. Vitest `server.deps.inline` required for both packages
+**Issue:** Node native ESM resolver rejects published dist (missing `.js` extensions in relative imports + `import.meta.url`); Vite bundler handles both. **Resolution:** added `@tn-figueiredo/cms` and `@tn-figueiredo/email` to `server.deps.inline` in `apps/web/vitest.config.ts`.
+
+### 5. `supabase-js` version dedup
+**Issue:** `apps/web` pinned `2.103.0`; cms/email/auth-nextjs peers `^2.103.0` resolved to `2.103.2`. Two copies installed (root + `apps/web/node_modules/`), TS complained about incompatible `SupabaseClient` types. **Resolution:** bumped `apps/web/package.json` `@supabase/supabase-js` to exact `2.103.2` — single dedup'd install at root.
+
+### 6. Legacy content collision in `TN-Figueiredo/cms`
+**Issue:** pre-existing repo had `master`, `develop`, `fk` branches with unrelated PHP/Laravel content; GH default-branch resolved to `master`. **Resolution:** `gh repo edit TN-Figueiredo/cms --default-branch main`. Old branches preserved (no deletion without explicit auth).
+
+### 7. Dependabot fires immediately on first push
+**Issue:** ~90s after initial `main` push to `TN-Figueiredo/email`, 3 Dependabot PRs opened against pre-fix workflow files. **Resolution:** closed as "will re-open after v0.1.0 stabilizes." Future: stage `.github/dependabot.yml` in a second commit, or set generous `schedule.interval` on repo creation.
+
+### 8. Idempotency guard catches tag re-push, not registry policy
+**Issue:** `npm view <pkg>@<v>` skip-if-exists guard worked as specified, but the `--provenance` / private-package incompatibility (Discovery #1) was only surfaced on first real publish. **Resolution:** add `npm publish --dry-run` as a pre-publish CI step so registry-policy errors fail the tag-push workflow before the actual publish attempt.
+
+### 9. Consumer-smoke fixture gaps
+**Issue:** Template under `docs/superpowers/templates/package-repo/test/consumer-smoke/` didn't install `@types/react` + `typescript` as devDependencies (next build typecheck phase fails without them), and `next.config.ts` needs a per-package customization for `transpilePackages`. **Resolution:** both captured in the template README; smoke fixtures at `/tmp/tnf-cms-extract/test/consumer-smoke/` and `/tmp/tnf-email-extract/test/consumer-smoke/` reflect the working shape.

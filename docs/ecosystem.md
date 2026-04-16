@@ -45,7 +45,7 @@ Consumers MUST pin **exact** versions:
 }
 ```
 
-Never `^0.8.0` or `~0.8.0`. Enforced by the pre-commit hook (`scripts/ecosystem-pinning.sh`) and CI (`.github/workflows/ci.yml` → `ecosystem-pinning` job). Rationale: private registry + fast-moving 0.x releases; lockstep upgrades happen in focused PRs where the consumer reviews the diff explicitly.
+Never `^0.8.0` or `~0.8.0`. Enforced by CI — inline grep step in the `ecosystem-pinning` job of `.github/workflows/ci.yml` (no standalone `scripts/ecosystem-pinning.sh`; the husky `pre-commit` hook at `.husky/pre-commit` runs tests + build + typecheck and does not re-check pinning). Rationale: private registry + fast-moving 0.x releases; lockstep upgrades happen in focused PRs where the consumer reviews the diff explicitly.
 
 ## 5. Peer dependencies contract
 
@@ -166,9 +166,28 @@ Open an issue in the affected package repo tagged `incident`, linking: bad versi
 | `@tn-figueiredo/audit` | https://github.com/TN-Figueiredo/audit | 0.1.0 | api |
 | `@tn-figueiredo/lgpd` | https://github.com/TN-Figueiredo/lgpd | 0.1.0 | api |
 | `@tn-figueiredo/admin` | https://github.com/TN-Figueiredo/admin | 0.3.0 | web |
-| `@tn-figueiredo/cms` | https://github.com/TN-Figueiredo/cms | 0.1.0 (extracting) | web |
-| `@tn-figueiredo/email` | https://github.com/TN-Figueiredo/email | 0.1.0 (extracting) | web, api |
+| `@tn-figueiredo/cms` | https://github.com/TN-Figueiredo/cms | 0.1.0-beta.2 | web |
+| `@tn-figueiredo/email` | https://github.com/TN-Figueiredo/email | 0.1.0 | web, api |
 | `@tn-figueiredo/notifications` | https://github.com/TN-Figueiredo/notifications | 0.1.0 | web |
 | `@tn-figueiredo/seo` | https://github.com/TN-Figueiredo/seo | 0.1.0 | web |
 
-> **Footnote — Confirm at kickoff.** The exact repo URLs, Node engines floor (`>=20`), tarball size budget (`512 KB`), and the "72h unpublish window" reflect GitHub Packages defaults as of 2026-04-15 and the solo-maintainer defaults chosen for this ecosystem. Re-confirm the unpublish window against GitHub's current docs before relying on it during an incident.
+> **Footnote — Post-Sprint-4b verification (2026-04-15).** Repo naming `TN-Figueiredo/<name>` confirmed live for cms + email. Node engines floor `>=20` confirmed across all published packages. Tarball size budget `< 512 KB` confirmed in practice (cms `28.1 KB`, email `9.5 KB` — well under). **The 72h unpublish window remains an assumption** against GitHub Packages policy as of 2026-04-15; re-check GitHub's current docs before relying on it during an incident.
+
+## 13. Known package contracts (v0.1.x)
+
+Contracts below are **permanent for the v0.1.x line** and may relax in a future major. Consumers MUST honor them to avoid build failures.
+
+### `@tn-figueiredo/cms`
+
+- **Requires `transpilePackages: ['@tn-figueiredo/cms']` in Next consumers.** Root entry (`.`) ships MDX renderer with `import.meta.url` and preserved JSX (`jsx: preserve`); Next's webpack cannot parse either natively.
+- **Subpaths:**
+  - `.` (root) — server components, `compileMdx`, `PostEditor`, etc. **Needs transpile.**
+  - `./ring` — Edge-safe (no MDX renderer, no JSX). Use in middleware / Edge runtime. Middleware may drop this from the transpile list if isolated.
+  - `./code` — opt-in shiki code block (lazy).
+- **Vitest:** consumers must add `@tn-figueiredo/cms` to `server.deps.inline` (Node native ESM rejects the dist; Vite bundler handles it).
+
+### `@tn-figueiredo/email`
+
+- Pure Node. No Next transform required — `transpilePackages` is NOT needed.
+- Server-only (imports `nodemailer`-style Node APIs); do not import from client components or Edge routes.
+- **Vitest:** same `server.deps.inline` requirement as cms.
