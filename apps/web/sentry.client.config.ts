@@ -7,10 +7,16 @@ import { scrubEventPii } from './src/lib/sentry-pii'
 
 const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN
 
+const commitSha =
+  process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA ??
+  process.env.VERCEL_GIT_COMMIT_SHA
+const release = commitSha ? `s4.75-rbac-${commitSha.slice(0, 7)}` : undefined
+
 if (dsn) {
   Sentry.init({
     dsn,
     environment: process.env.NEXT_PUBLIC_VERCEL_ENV ?? process.env.VERCEL_ENV ?? 'dev',
+    release,
     // Errors only; performance tracing is Sprint 5+.
     tracesSampleRate: 0.1,
     sendDefaultPii: false,
