@@ -76,6 +76,12 @@ export async function seedSite(
 }
 
 export type StaffRole = 'owner' | 'admin' | 'editor'
+// Full org role union (Sprint 2 schema `organization_members.role check`).
+export type OrgMemberRole = StaffRole | 'author'
+// JWT `app_metadata.role` string accepted by `is_staff()` / `is_admin()`
+// (migration 20260414000004) — includes `super_admin` which has no org_members
+// row requirement. Kept separate so tests can seed stale/elevated JWTs.
+export type JwtAreaRole = OrgMemberRole | 'super_admin' | 'user'
 
 /**
  * Seeds an `organization_members` row for a synthetic user and returns a JWT
@@ -89,12 +95,17 @@ export type StaffRole = 'owner' | 'admin' | 'editor'
  *   (a) create an auth user via `admin.auth.admin.createUser()` first, or
  *   (b) deliberately seed a membership referencing an existing auth user.
  * The helper below takes the optional `userId` parameter to accommodate (b).
+ *
+ * The `app_metadata.role` baked into the JWT defaults to the `role` param so
+ * `is_staff()` / `is_admin()` — which read from `request.jwt.claims` — see a
+ * consistent value. Pass `opts.jwtAppRole` to simulate a stale JWT (e.g. role
+ * was demoted in DB but the signed claim still says `editor`).
  */
 export async function seedStaffUser(
   db: SupabaseClient,
   orgId: string,
-  role: StaffRole = 'admin',
-  opts: { userId?: string; email?: string } = {},
+  role: OrgMemberRole = 'admin',
+  opts: { userId?: string; email?: string; jwtAppRole?: JwtAreaRole } = {},
 ): Promise<{ userId: string; jwt: string }> {
   let userId = opts.userId
   if (!userId) {
@@ -116,11 +127,26 @@ export async function seedStaffUser(
   if (memberErr) throw memberErr
 
   const token = jwt.sign(
-    { role: 'authenticated', sub: userId, app_metadata: { role } },
+    { role: 'authenticated', sub: userId, app_metadata: { role: opts.jwtAppRole ?? role } },
     getLocalJwtSecret(),
     { expiresIn: '1h' },
   )
 
+  return { userId, jwt: token }
+}
+
+/**
+ * Signs an expired JWT for the given user. Used to exercise the "cookie
+ * expired mid-request" middleware branch — Supabase `auth.getUser()` will
+ * reject the token server-side and the middleware will treat the request as
+ * anonymous (redirect to the area sign-in path).
+ */
+export function signExpiredUserJwt(userId: string = randomUUID(), role: string = 'editor'): { userId: string; jwt: string } {
+  const nowSec = Math.floor(Date.now() / 1000)
+  const token = jwt.sign(
+    { role: 'authenticated', sub: userId, app_metadata: { role }, iat: nowSec - 7200, exp: nowSec - 3600 },
+    getLocalJwtSecret(),
+  )
   return { userId, jwt: token }
 }
 
