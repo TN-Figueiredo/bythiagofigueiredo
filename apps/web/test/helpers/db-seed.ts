@@ -46,24 +46,65 @@ export async function seedSite(
 ): Promise<{ siteId: string; orgId: string }> {
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
-  const { data: org, error: orgErr } = await db
-    .from('organizations')
-    .insert({
-      name: opts.orgName ?? `Seed Org ${suffix}`,
-      slug: opts.orgSlug ?? `seed-org-${suffix}`,
-      parent_org_id: opts.parentOrgId ?? null,
-    })
-    .select('id')
-    .single()
-  if (orgErr || !org) throw orgErr ?? new Error('seedSite: organizations insert failed')
+  // RBAC v3 (migration 20260420000001) enforces a single master ring via
+  // `organizations_single_master` unique index. When a test calls seedSite()
+  // without an explicit parentOrgId, we reuse the existing master ring instead
+  // of creating a new one (which would violate the uniqueness constraint and
+  // break legacy tests like rpc-confirm-newsletter, rpc-unsubscribe, etc.).
+  const wantsMasterRing = opts.parentOrgId === null || opts.parentOrgId === undefined
+
+  let orgId: string
+  if (wantsMasterRing) {
+    const { data: existingMaster } = await db
+      .from('organizations')
+      .select('id')
+      .is('parent_org_id', null)
+      .limit(1)
+      .maybeSingle()
+
+    if (existingMaster) {
+      orgId = existingMaster.id
+    } else {
+      const { data: org, error: orgErr } = await db
+        .from('organizations')
+        .insert({
+          name: opts.orgName ?? `Seed Master ${suffix}`,
+          slug: opts.orgSlug ?? `seed-master-${suffix}`,
+          parent_org_id: null,
+        })
+        .select('id')
+        .single()
+      if (orgErr || !org) throw orgErr ?? new Error('seedSite: master org insert failed')
+      orgId = org.id
+    }
+  } else {
+    // Child ring — always create fresh (no uniqueness on non-null parent_org_id).
+    const { data: org, error: orgErr } = await db
+      .from('organizations')
+      .insert({
+        name: opts.orgName ?? `Seed Org ${suffix}`,
+        slug: opts.orgSlug ?? `seed-org-${suffix}`,
+        parent_org_id: opts.parentOrgId,
+      })
+      .select('id')
+      .single()
+    if (orgErr || !org) throw orgErr ?? new Error('seedSite: child org insert failed')
+    orgId = org.id
+  }
+
+  // sites.primary_domain became NOT NULL in RBAC v3 migration 8.
+  // Always supply a value; use first domain or a synthetic default.
+  const domains = opts.domains ?? [`seed-${suffix}.test`]
+  const primaryDomain = domains[0] ?? `seed-${suffix}.test`
 
   const { data: site, error: siteErr } = await db
     .from('sites')
     .insert({
-      org_id: org.id,
+      org_id: orgId,
       name: opts.siteName ?? `Seed Site ${suffix}`,
       slug: opts.siteSlug ?? `seed-site-${suffix}`,
-      domains: opts.domains ?? [],
+      domains,
+      primary_domain: primaryDomain,
       default_locale: opts.defaultLocale ?? 'pt-BR',
       supported_locales: [opts.defaultLocale ?? 'pt-BR'],
       brevo_newsletter_list_id: opts.brevoNewsletterListId ?? null,
@@ -72,7 +113,7 @@ export async function seedSite(
     .single()
   if (siteErr || !site) throw siteErr ?? new Error('seedSite: sites insert failed')
 
-  return { siteId: site.id, orgId: org.id }
+  return { siteId: site.id, orgId }
 }
 
 export type StaffRole = 'owner' | 'admin' | 'editor'

@@ -42,6 +42,20 @@ FROM (
 WHERE c.site_id = sub.site_id AND c.owner_user_id IS NULL;
 
 -- Step 6: sites.primary_domain NOT NULL
+-- Fallback for any site with empty/null domains[] so ALTER doesn't fail in prod.
+UPDATE sites
+SET primary_domain = COALESCE(primary_domain, 'site-' || slug || '.invalid')
+WHERE primary_domain IS NULL;
+
+DO $$
+DECLARE v_missing integer;
+BEGIN
+  SELECT count(*) INTO v_missing FROM sites WHERE primary_domain IS NULL;
+  IF v_missing > 0 THEN
+    RAISE EXCEPTION 'Pre-NOT-NULL check failed: % sites still have NULL primary_domain', v_missing;
+  END IF;
+END $$;
+
 ALTER TABLE sites ALTER COLUMN primary_domain SET NOT NULL;
 
 -- Step 7: migrate legacy invitation rows to v3 roles
