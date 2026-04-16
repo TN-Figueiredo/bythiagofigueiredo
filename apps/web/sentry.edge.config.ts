@@ -1,5 +1,6 @@
 // Sprint 4 Epic 9 T66 — Sentry Edge runtime SDK config (middleware, edge routes).
-// Initialized only when NEXT_PUBLIC_SENTRY_DSN is set (empty string → no-op).
+// Reads NEXT_PUBLIC_SENTRY_DSN then falls back to SENTRY_DSN. Init is no-op
+// when neither is set.
 import * as Sentry from '@sentry/nextjs'
 import { scrubEventPii } from './src/lib/sentry-pii'
 

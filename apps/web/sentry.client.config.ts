@@ -1,5 +1,7 @@
 // Sprint 4 Epic 9 T66 — Sentry browser SDK config.
-// Initialized only when NEXT_PUBLIC_SENTRY_DSN is set (empty string → no-op).
+// Reads NEXT_PUBLIC_SENTRY_DSN only — Next.js does NOT expose non-prefixed
+// env vars to the browser bundle, so SENTRY_DSN (server-only) cannot be
+// used as a fallback here. Init is no-op when unset.
 import * as Sentry from '@sentry/nextjs'
 import { scrubEventPii } from './src/lib/sentry-pii'
 
