@@ -16,11 +16,18 @@ export const metadata = {
 
 interface SupabaseConsentRow {
   id: string
-  category: 'functional' | 'analytics' | 'marketing'
+  category:
+    | 'cookie_functional'
+    | 'cookie_analytics'
+    | 'cookie_marketing'
+    | 'newsletter'
+    | 'privacy_policy'
+    | 'terms_of_service'
   granted: boolean
   granted_at: string
   withdrawn_at: string | null
-  version: number
+  consent_text_id: string | null
+  consent_texts: { version: number; locale: string } | { version: number; locale: string }[] | null
 }
 
 interface SupabaseLgpdRequestRow {
@@ -66,17 +73,26 @@ export default async function PrivacySettingsPage() {
       }
     })
       .from('consents')
-      .select('id,category,granted,granted_at,withdrawn_at,version')
+      .select(
+        'id,category,granted,granted_at,withdrawn_at,consent_text_id,consent_texts(version,locale)',
+      )
       .order('granted_at', { ascending: false })
     if (data) {
-      consents = data.map((row) => ({
-        id: row.id,
-        category: row.category,
-        granted: row.granted,
-        grantedAt: row.granted_at,
-        withdrawnAt: row.withdrawn_at,
-        version: row.version,
-      }))
+      consents = data.map((row) => {
+        // supabase-js foreign-table notation returns either a single object
+        // (one-to-one) or an array depending on FK cardinality; normalise.
+        const ct = Array.isArray(row.consent_texts)
+          ? row.consent_texts[0] ?? null
+          : row.consent_texts
+        return {
+          id: row.id,
+          category: row.category,
+          granted: row.granted,
+          grantedAt: row.granted_at,
+          withdrawnAt: row.withdrawn_at,
+          version: ct?.version ?? 1,
+        }
+      })
     }
   } catch {
     /* table doesn't exist yet */

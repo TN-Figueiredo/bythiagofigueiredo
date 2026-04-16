@@ -8,7 +8,24 @@
 
 import { useState } from 'react'
 
-export type ConsentCategory = 'functional' | 'analytics' | 'marketing'
+/**
+ * The DB `consents.category` enum is keyed on prefixed, canonical values
+ * (`cookie_functional|cookie_analytics|cookie_marketing` plus non-cookie
+ * categories like `newsletter`, `privacy_policy`, `terms_of_service`).
+ * The UI historically used the shorter `functional|analytics|marketing`
+ * variants; we accept both so older callers and ad-hoc seed rows still
+ * render, but display + revoke keys off the DB value.
+ */
+export type ConsentCategory =
+  | 'cookie_functional'
+  | 'cookie_analytics'
+  | 'cookie_marketing'
+  | 'newsletter'
+  | 'privacy_policy'
+  | 'terms_of_service'
+  | 'functional'
+  | 'analytics'
+  | 'marketing'
 
 export interface ConsentRecord {
   id: string
@@ -20,15 +37,32 @@ export interface ConsentRecord {
 }
 
 const CATEGORY_LABEL: Record<ConsentCategory, string> = {
-  functional: 'Funcionais',
-  analytics: 'Analytics',
-  marketing: 'Marketing',
+  cookie_functional: 'Cookies funcionais',
+  cookie_analytics: 'Cookies de analytics',
+  cookie_marketing: 'Cookies de marketing',
+  newsletter: 'Newsletter',
+  privacy_policy: 'Política de privacidade',
+  terms_of_service: 'Termos de uso',
+  // Short aliases (legacy / pre-DB values).
+  functional: 'Cookies funcionais',
+  analytics: 'Cookies de analytics',
+  marketing: 'Cookies de marketing',
 }
 
 const CATEGORY_HELP: Record<ConsentCategory, string> = {
+  cookie_functional: 'Necessário para o site funcionar — não pode ser revogado.',
+  cookie_analytics: 'Medição de uso agregada, sem identificação pessoal.',
+  cookie_marketing: 'Personalização de conteúdo e campanhas.',
+  newsletter: 'Assinatura de emails e novidades.',
+  privacy_policy: 'Aceite da Política de Privacidade vigente.',
+  terms_of_service: 'Aceite dos Termos de Uso vigentes.',
   functional: 'Necessário para o site funcionar — não pode ser revogado.',
   analytics: 'Medição de uso agregada, sem identificação pessoal.',
   marketing: 'Personalização de conteúdo e campanhas.',
+}
+
+function isFunctionalCategory(category: ConsentCategory): boolean {
+  return category === 'cookie_functional' || category === 'functional'
 }
 
 export interface ConsentRevocationPanelProps {
@@ -55,7 +89,7 @@ export function ConsentRevocationPanel({ consents }: ConsentRevocationPanelProps
       const r = await fetch('/api/consents/revoke', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ consent_id: row.id, category: row.category }),
+        body: JSON.stringify({ category: row.category }),
       })
       if (!r.ok) {
         setError('Não foi possível revogar agora. Tente novamente em instantes.')
@@ -84,7 +118,7 @@ export function ConsentRevocationPanel({ consents }: ConsentRevocationPanelProps
       )}
       <ul className="flex flex-col gap-2">
         {rows.map((row) => {
-          const isFunctional = row.category === 'functional'
+          const isFunctional = isFunctionalCategory(row.category)
           const active = row.granted && !row.withdrawnAt
           return (
             <li
