@@ -3,6 +3,9 @@
 -- 2.90 prepared-statement splitter bug.
 
 -- Step 1: remap org-level roles (owner,admin → org_admin)
+
+BEGIN;
+
 UPDATE organization_members SET role = 'org_admin' WHERE role IN ('owner','admin');
 
 -- Step 2: lift editor/author org-level rows to site_memberships
@@ -21,3 +24,5 @@ DELETE FROM organization_members WHERE role IN ('editor','author');
 ALTER TABLE organization_members DROP CONSTRAINT IF EXISTS organization_members_role_check;
 ALTER TABLE organization_members ADD CONSTRAINT organization_members_role_check
   CHECK (role = 'org_admin');
+
+COMMIT;

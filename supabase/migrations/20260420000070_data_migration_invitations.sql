@@ -2,6 +2,9 @@
 -- No $$ blocks — pure UPDATE / ALTER / ADD CONSTRAINT (CLI-safe).
 
 -- Remap org-level invitation roles (owner/admin → org_admin).
+
+BEGIN;
+
 UPDATE invitations SET role = 'org_admin' WHERE role IN ('owner','admin');
 
 -- Editor/author invitations without site_id → coerce to org_admin (single-tenant
@@ -26,3 +29,5 @@ ALTER TABLE invitations ADD CONSTRAINT inv_scope_check CHECK (
   (role_scope = 'org' AND site_id IS NULL AND role = 'org_admin')
   OR (role_scope = 'site' AND site_id IS NOT NULL AND role IN ('editor','reporter'))
 );
+
+COMMIT;
