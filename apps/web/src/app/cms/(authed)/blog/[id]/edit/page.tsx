@@ -1,8 +1,8 @@
 import { notFound } from 'next/navigation'
 import { PostEditor } from '@tn-figueiredo/cms'
-import { postRepo } from '../../../../../../lib/cms/repositories'
-import { blogRegistry } from '../../../../../../lib/cms/registry'
-import { getSiteContext } from '../../../../../../lib/cms/site-context'
+import { postRepo } from '../../../../../../../lib/cms/repositories'
+import { blogRegistry } from '../../../../../../../lib/cms/registry'
+import { getSiteContext } from '../../../../../../../lib/cms/site-context'
 import { savePost, publishPost, unpublishPost, archivePost, compilePreview, uploadAsset } from './actions'
 
 export const dynamic = 'force-dynamic'

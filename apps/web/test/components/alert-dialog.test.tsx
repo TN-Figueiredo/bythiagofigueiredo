@@ -11,7 +11,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '../../src/components/ui/alert-dialog'
-import { DeletePostButton } from '../../src/app/cms/blog/_components/delete-post-button'
+import { DeletePostButton } from '../../src/app/cms/(authed)/blog/_components/delete-post-button'
 
 function Harness({ onConfirm }: { onConfirm?: () => void }) {
   return (

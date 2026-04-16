@@ -10,9 +10,10 @@ vi.mock('@tn-figueiredo/admin', () => ({
 vi.mock('@tn-figueiredo/auth-nextjs', () => ({
   createServerClient: vi.fn(() => ({} as unknown)),
   requireUser: vi.fn(async () => ({ id: 'u1', email: 'thiago@example.com' })),
+  requireArea: vi.fn(async () => undefined),
 }))
 
-import Layout from '../src/app/admin/layout'
+import Layout from '../src/app/admin/(authed)/layout'
 
 describe('admin/layout', () => {
   it('renders admin shell', async () => {

@@ -28,7 +28,7 @@ vi.mock('../../lib/cms/repositories', () => ({
   }),
 }))
 
-import CmsBlogListPage from '../../src/app/cms/blog/page'
+import CmsBlogListPage from '../../src/app/cms/(authed)/blog/page'
 
 describe('CmsBlogListPage', () => {
   it('renders post rows with status labels', async () => {
@@ -52,7 +52,7 @@ describe('CmsBlogListPage', () => {
       postRepo: () => ({ list: vi.fn().mockResolvedValue([]) }),
     }))
     vi.resetModules()
-    const { default: Page } = await import('../../src/app/cms/blog/page')
+    const { default: Page } = await import('../../src/app/cms/(authed)/blog/page')
     const jsx = await Page({ searchParams: Promise.resolve({}) })
     const { container } = render(jsx as never)
     expect(container.textContent).toContain('Nenhum post encontrado')

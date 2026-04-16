@@ -3,8 +3,8 @@ import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
 import type { CookieOptions } from '@supabase/ssr'
-import { getSupabaseServiceClient } from '../../../../lib/supabase/service'
-import { getSiteContext } from '../../../../lib/cms/site-context'
+import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
+import { getSiteContext } from '../../../../../lib/cms/site-context'
 
 export const dynamic = 'force-dynamic'
 

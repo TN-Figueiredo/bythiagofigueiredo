@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createCampaign } from './actions'
-import { getSiteContext } from '../../../../../lib/cms/site-context'
+import { getSiteContext } from '../../../../../../lib/cms/site-context'
 
 export const dynamic = 'force-dynamic'
 

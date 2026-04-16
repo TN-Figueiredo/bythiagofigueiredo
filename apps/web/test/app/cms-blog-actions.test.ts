@@ -47,7 +47,7 @@ import {
   savePost,
   publishPost,
   deletePost,
-} from '../../src/app/cms/blog/[id]/edit/actions'
+} from '../../src/app/cms/(authed)/blog/[id]/edit/actions'
 
 describe('savePost', () => {
   beforeEach(() => {

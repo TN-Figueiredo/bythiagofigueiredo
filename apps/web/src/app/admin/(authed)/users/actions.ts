@@ -5,10 +5,10 @@ import { revalidatePath } from 'next/cache'
 import { createServerClient } from '@supabase/ssr'
 import type { CookieOptions } from '@supabase/ssr'
 import { inviteTemplate } from '@tn-figueiredo/email'
-import { getSupabaseServiceClient } from '../../../../lib/supabase/service'
-import { getEmailService } from '../../../../lib/email/service'
-import { getEmailSender } from '../../../../lib/email/sender'
-import { getSiteContext } from '../../../../lib/cms/site-context'
+import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
+import { getEmailService } from '../../../../../lib/email/service'
+import { getEmailSender } from '../../../../../lib/email/sender'
+import { getSiteContext } from '../../../../../lib/cms/site-context'
 
 function generateToken(): string {
   const bytes = new Uint8Array(32)

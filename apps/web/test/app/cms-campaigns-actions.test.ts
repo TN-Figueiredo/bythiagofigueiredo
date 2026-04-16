@@ -44,7 +44,7 @@ import {
   unpublishCampaign,
   archiveCampaign,
   deleteCampaign,
-} from '../../src/app/cms/campaigns/[id]/edit/actions'
+} from '../../src/app/cms/(authed)/campaigns/[id]/edit/actions'
 
 describe('saveCampaign', () => {
   beforeEach(() => {

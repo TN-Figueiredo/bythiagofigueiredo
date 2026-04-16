@@ -1,9 +1,9 @@
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
-import { postRepo } from '../../../../../lib/cms/repositories'
-import { getSiteContext } from '../../../../../lib/cms/site-context'
-import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
+import { postRepo } from '../../../../../../lib/cms/repositories'
+import { getSiteContext } from '../../../../../../lib/cms/site-context'
+import { getSupabaseServiceClient } from '../../../../../../lib/supabase/service'
 
 export const dynamic = 'force-dynamic'
 

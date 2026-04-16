@@ -1,5 +1,9 @@
 import { createAdminLayout } from '@tn-figueiredo/admin'
-import { createServerClient, requireUser } from '@tn-figueiredo/auth-nextjs'
+import {
+  createServerClient,
+  requireArea,
+  requireUser,
+} from '@tn-figueiredo/auth-nextjs'
 import { cookies } from 'next/headers'
 import type { ReactNode } from 'react'
 
@@ -48,5 +52,8 @@ export default async function Layout({ children }: { children: ReactNode }) {
       },
     }),
   )
+  // Area gate — redirects to `/?error=insufficient_access` on denial.
+  // RPC-first: `is_staff()` is trusted over JWT app_metadata (stale until refresh).
+  await requireArea('cms')
   return <CmsLayout userEmail={user.email ?? ''}>{children}</CmsLayout>
 }

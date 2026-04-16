@@ -2,9 +2,9 @@ import { notFound, redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
 import type { CookieOptions } from '@supabase/ssr'
-import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
-import { getSiteContext } from '../../../../../lib/cms/site-context'
-import { captureServerActionError } from '../../../../lib/sentry-wrap'
+import { getSupabaseServiceClient } from '../../../../../../lib/supabase/service'
+import { getSiteContext } from '../../../../../../lib/cms/site-context'
+import { captureServerActionError } from '../../../../../lib/sentry-wrap'
 
 export const dynamic = 'force-dynamic'
 

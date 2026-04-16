@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import type { ContentStatus } from '@tn-figueiredo/cms'
-import { campaignRepo } from '../../../../lib/cms/repositories'
-import { getSiteContext } from '../../../../lib/cms/site-context'
+import { campaignRepo } from '../../../../../lib/cms/repositories'
+import { getSiteContext } from '../../../../../lib/cms/site-context'
 import { deleteCampaign } from './[id]/edit/actions'
 import { DeleteCampaignButton } from './_components/delete-campaign-button'
 

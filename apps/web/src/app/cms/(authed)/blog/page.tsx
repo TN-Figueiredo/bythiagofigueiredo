@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import type { ContentStatus } from '@tn-figueiredo/cms'
-import { postRepo } from '../../../../lib/cms/repositories'
-import { getSiteContext } from '../../../../lib/cms/site-context'
+import { postRepo } from '../../../../../lib/cms/repositories'
+import { getSiteContext } from '../../../../../lib/cms/site-context'
 import { deletePost } from './[id]/edit/actions'
 import { DeletePostButton } from './_components/delete-post-button'
 
