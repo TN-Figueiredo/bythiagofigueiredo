@@ -4,7 +4,7 @@
 > **Source of truth de execução:** este diretório.
 > **Rationale de produto e scoring:** `~/Workspace/ideias/bythiagofigueiredo/` (docs 01–05, 2026-04-12).
 
-**Versão:** 2026-04-16 · **Revisão:** 4 (Sprint 4.5 Phases 1-3 published; Phase 4 pending)
+**Versão:** 2026-04-16 · **Revisão:** 5 (Sprint 4.5 complete — Phase 4 landed on staging)
 
 ## Visão macro
 
@@ -24,10 +24,10 @@
 ## Progresso global
 
 ```
-▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░░░░░░░░  ~39% (180h / 464h — Sprints 0–4 ✅ + Sprint 4.5 Phases 1-3 ✅)
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░░░░░░░  ~40% (184h / 464h — Sprints 0–4 ✅ + Sprint 4.5 ✅)
 ```
 
-> Hours reconciled 2026-04-16: 12 (S0) + 40 (S1a+1b) + 42 (S2) + 40 (S3) + 40 (S4 actual — extraction + obs + LGPD retention, 4a+4b) + 6 (S4.5 Phases 1-3 — auth-nextjs 2.1.0 + admin 0.5.0 + cms beta.3 built, tested, published) = **180h delivered**. Sprint 4.5 Phase 4 (consumer wiring em apps/web — ~4h) é o próximo gate antes de Sprint 5. Sprint 5 ("Public launch prep" — 38h) e Sprint 6 ("Burnout & MVP Launch" — 30h) ainda pendentes. Denominador 464h = Fase 1 (242h) + Fase 2 (152h) + Fase 3 (70h). Sprint 4 shipou scope diferente do planejado; LGPD/deploy público foi re-slotted em Sprint 5. Ver phase-1 footnote.
+> Hours reconciled 2026-04-16: 12 (S0) + 40 (S1a+1b) + 42 (S2) + 40 (S3) + 40 (S4 actual — extraction + obs + LGPD retention, 4a+4b) + 10 (S4.5 complete — auth-nextjs 2.1.1 + admin 0.5.0 + cms beta.3 published + apps/web consumer wiring landed) = **184h delivered**. **Sprint 5 ("Public launch prep" — 38h) is now the next sprint.** Sprint 6 ("Burnout & MVP Launch" — 30h) pending after. Denominador 464h = Fase 1 (242h) + Fase 2 (152h) + Fase 3 (70h). Sprint 4 shipou scope diferente do planejado; LGPD/deploy público foi re-slotted em Sprint 5. Ver phase-1 footnote.
 
 **Done até agora:**
 - Sprint 0 ✅ — scaffold + CI + Supabase provisionado/linkado + Vercel/Sentry env vars + npm scripts de DB padrão TNG (~12h).
@@ -46,7 +46,22 @@
   - Plans: [auth-nextjs-2.1](../superpowers/plans/2026-04-15-auth-nextjs-2.1-actions.md) · [admin-0.4-login](../superpowers/plans/2026-04-15-admin-0.4-login.md) · [cms-beta3-login](../superpowers/plans/2026-04-15-cms-beta3-login.md).
   - Nota infra: tnf-ecosystem Release workflow falhou por `npm ci` 401 em `@tn-figueiredo/affiliate@0.1.0` (pré-existente, docs(adr) falhou mesma causa 5h antes) — destrave foi `npm publish` manual. Changesets Action precisa debug separado (lockfile orphan ou tarball removido do GH Packages).
 
-**Sprint ativo:** 🟡 **Sprint 4.5 Phase 4 (Consumer wiring em apps/web)** — próximo gate antes de Sprint 5. Escopo: bump pins (`auth-nextjs 2.0.0→2.1.0`, `admin 0.3.0→0.5.0`, `cms beta.2→beta.3`) + subpath resolution smoke tests + type-equivalence test-d (admin/cms inlined vs auth-nextjs canonical); criar rotas `/admin/login`/`/cms/login`/forgot/reset + `/admin/logout` + `/cms/logout` POST-only; middleware dispatch dual `createAuthMiddleware` per prefix; `requireArea` guards nos layouts admin+cms; flash `?error=insufficient_access` na home; deletar `/signin` + tests antigos; flip tipos inlined admin+cms pra imports auth-nextjs (+peer dep); Supabase Dashboard config (URL allowlist + recovery email template); DB-gated 10-case RLS matrix. Plan: [web-consumer-login-wiring](../superpowers/plans/2026-04-15-web-consumer-login-wiring.md) (~4h).
+- **Sprint 4.5 Phase 4 ✅ (2026-04-16)** — consumer wiring de `apps/web` landed em `staging` (13 commits, 253 tests passed + 25 skipped incluindo o novo RLS matrix DB-gated, typecheck green em ambos workspaces):
+  - Pins bumped: auth-nextjs `2.0.0 → 2.1.1` (patch pra consertar 2 bugs de publish — `./server` subpath missing + UI types não re-exportados de `/actions`), admin `0.3.0 → 0.5.0`, cms `0.1.0-beta.2 → 0.1.0-beta.3`
+  - Subpath smoke tests + type-equivalence test-d (AuthStrings + AuthTheme — ActionResult/AuthPageProps têm drift conhecido defer T10e)
+  - Rotas criadas: `/admin/{login,forgot,reset,logout}`, `/cms/{login,forgot,reset,logout}` — logout POST-only com GET→405
+  - Middleware com dual `createAuthMiddleware` dispatch por prefix
+  - Route group `(authed)` split — authed content em `app/{admin,cms}/(authed)/`, públicas em `app/{admin,cms}/{login,forgot,reset,logout}/` — evita infinite redirect trap
+  - `requireArea('admin'|'cms')` guards nos layouts `(authed)` — redirect hardcoded `/?error=insufficient_access`
+  - Flash banner `insufficient_access` na home (`app/(public)/page.tsx`)
+  - `/signin` tree + 27 tests antigos deletados; auth/callback com `areaLoginPath` helper; invite redirect purged
+  - Security headers (`X-Frame-Options: DENY` + CSP `frame-ancestors 'none'`) em todas 6 paths de auth
+  - DB-gated 10-case RLS integration matrix (`test/integration/area-authorization.test.ts`) com HAS_LOCAL_DB=1 → 10/10 pass
+  - Pré-existing typecheck errors em 5 test files corrigidos (`noUncheckedIndexedAccess` non-null asserts) — gate final truly green
+  - Plan: [web-consumer-login-wiring](../superpowers/plans/2026-04-15-web-consumer-login-wiring.md). 13 commits: `02e9488`, `649686d`, `38e61c8`, `716645a`, `272808b`, `3bb126a`, `e0aa20d`, `adc5c45`, `106ad82`, `e106cfc`, `a743995`, `52d20e4`, `bed49f1`.
+  - **Follow-ups** (não-blocking): T10e flip cms types pra `auth-nextjs/actions` imports (separate PR em `tn-cms`); drift alignment de `ActionResult`/`AuthPageProps` entre admin/cms/canonical; gap descoberto em T10d — `requireArea` usa JWT-based `is_staff()` em vez de re-check `organization_members` toda render (issue de staleness de claim documentada no test docstring).
+
+**Sprint ativo:** nenhum — Sprint 4.5 completo e no `staging`. **Próximo: Sprint 5 (Public Launch Prep — 38h)** — LGPD público (privacy policy + terms + cookie banner + delete account + data export), SEO completo, testes E2E, deploy hardening.
 
 ## Legenda de status
 

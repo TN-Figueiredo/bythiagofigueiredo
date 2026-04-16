@@ -151,7 +151,7 @@
 
 ---
 
-## Sprint 4.5 — Login Split + Package Coordination [🟡 Phase 4 pending] (~10h)
+## Sprint 4.5 — Login Split + Package Coordination [✅ done] (~10h)
 
 **Nota:** Não é um sprint full-size — coordenação inter-package pra splitar `/signin` único em `/admin/login` e `/cms/login`. Gate natural entre Sprint 4 e Sprint 5.
 
@@ -237,7 +237,7 @@ Sprint 3: Admin login/editor (11h)                    [11h]  ✅ done
     ↓
 Sprint 4: Package extraction + observability (~40h)   [40h]  ✅ done (scope shift)
     ↓
-Sprint 4.5: Login split (auth-nextjs+admin+cms+web)   [~10h] 🟡 Phases 1-3 ✅ / Phase 4 pending
+Sprint 4.5: Login split (auth-nextjs+admin+cms+web)   [~10h] ✅ done
     ↓
 Sprint 5: Tests E2E + deploy + LGPD pública (15h)     [15h]  ☐
     ↓
