@@ -27,6 +27,13 @@ const adminAuth = createAuthMiddleware({
     /^\/admin\/login$/,
     /^\/admin\/forgot$/,
     /^\/admin\/reset/,
+    // Logout POSTs clear the session and redirect to /admin/login. Without
+    // this, the middleware would race the outgoing 303: the cookie is cleared
+    // in the response but the *next* guarded request (the redirect target)
+    // runs through the middleware and sees no session — which is fine — but
+    // the logout route itself also needs to execute, and a mid-request
+    // redirect by the middleware would swallow the signOut server action.
+    /^\/admin\/logout$/,
     /^\/auth\/callback$/,
     /^\/api\//,
     /^\/_next\//,
@@ -41,6 +48,8 @@ const cmsAuth = createAuthMiddleware({
     /^\/cms\/login$/,
     /^\/cms\/forgot$/,
     /^\/cms\/reset/,
+    // See /admin/logout comment above — same rationale applies to the cms area.
+    /^\/cms\/logout$/,
     /^\/auth\/callback$/,
     /^\/api\//,
     /^\/_next\//,
