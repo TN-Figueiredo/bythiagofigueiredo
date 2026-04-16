@@ -1,70 +1,98 @@
 # @tn-figueiredo/cms
 
-Reusable CMS for the TN-Figueiredo conglomerate. Provides generic content repository interfaces, Supabase implementations, MDX compilation pipeline, and React editor components.
+Reusable Next.js + Supabase CMS with MDX compile-on-save — the `@tn-figueiredo` ecosystem.
 
 ## Install
+
+This package is published to **GitHub Packages** under the `@tn-figueiredo` scope.
+
+Create/extend `.npmrc` at your project root:
+
+```ini
+@tn-figueiredo:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${NPM_TOKEN}
+```
+
+Export a `NPM_TOKEN` with `read:packages` scope (GitHub PAT), then:
 
 ```bash
 npm install @tn-figueiredo/cms --save-exact
 ```
 
-Peer deps: `react@^19`, `react-dom@^19`, `@supabase/supabase-js@^2.45`.
+> The `@tn-figueiredo` ecosystem pins **exact** versions (no `^`/`~`) across apps. Peer deps keep ranges by npm convention.
 
-## Usage
+## Peer dependencies
 
-```ts
-import {
-  SupabasePostRepository,
-  SupabaseRingContext,
-  compileMdx,
-  MdxRunner,
-  defaultComponents,
-  PostEditor,
-} from '@tn-figueiredo/cms'
+| Package                   | Range    |
+| ------------------------- | -------- |
+| `react`                   | `^19.0.0` |
+| `react-dom`               | `^19.0.0` |
+| `@supabase/supabase-js`   | `^2.103.0` |
 
-// Opt-in shiki syntax highlighting
-import { ShikiCodeBlock } from '@tn-figueiredo/cms/code'
-```
+Optional: `@shikijs/rehype@3.0.0` — only required if you import `@tn-figueiredo/cms/code`.
 
-### Repository
+Node: `>=20`.
 
-```ts
-const repo = new SupabasePostRepository(supabaseClient)
-const posts = await repo.list({ siteId, locale: 'pt-BR', status: 'published' })
-```
+## Exports
 
-### MDX compilation (on save)
+| Entry                        | Contents                                               |
+| ---------------------------- | ------------------------------------------------------ |
+| `@tn-figueiredo/cms`         | Types, interfaces, Supabase repos, MDX pipeline, editor, i18n, `log` |
+| `@tn-figueiredo/cms/code`    | Opt-in `ShikiCodeBlock` (lazy, requires `@shikijs/rehype`) |
 
-```ts
-const compiled = await compileMdx(source, { ...defaultComponents })
-// Store compiled.compiledSource in DB, render via <MdxRunner />
-```
-
-### Editor
+## Quick start
 
 ```tsx
-<PostEditor
-  initialContent={post.content_mdx}
-  locale="pt-BR"
-  componentNames={Object.keys(blogRegistry)}
-  onSave={savePostAction}
-  onPreview={compilePreviewAction}
-  onUpload={uploadAssetAction}
-/>
+import { PostEditor } from '@tn-figueiredo/cms'
+
+export default function EditPostPage({ post }) {
+  return (
+    <PostEditor
+      initialContent={post.content_mdx}
+      locale="pt-BR"
+      componentNames={['Callout', 'Figure']}
+      onSave={savePostAction}
+      onPreview={compilePreviewAction}
+      onUpload={uploadAssetAction}
+    />
+  )
+}
 ```
 
-## Architecture
+Repository + MDX:
 
-- **Interfaces** (`IContentRepository<T>`, `IPostRepository`, `IRingContext`, `IContentRenderer`) — contracts consumers depend on.
-- **Supabase impls** — ready-to-use Supabase-backed repositories.
-- **MDX pipeline** — `@mdx-js/mdx` compile-on-save + `run()` at render time. `compileMdx()` extracts TOC + reading time.
-- **Editor** — textarea + toolbar + live preview. Framework-agnostic callbacks (`onSave`, `onPreview`, `onUpload`).
-- **i18n** — editor strings in pt-BR (default) and en. Extensible via `getEditorStrings(locale)`.
+```ts
+import { SupabasePostRepository, compileMdx, MdxRunner } from '@tn-figueiredo/cms'
 
-## Multi-ring ("One Ring")
+const repo = new SupabasePostRepository(supabaseClient)
+const posts = await repo.list({ siteId, locale: 'pt-BR', status: 'published' })
 
-This package powers `bythiagofigueiredo.com` (master ring) and other sites in the conglomerate. Each site scopes content by `site_id`. Master ring staff can administer child-ring sites via `can_admin_site()` cascade-up logic.
+const compiled = await compileMdx(source)
+// Persist `compiled.compiledSource` in `blog_posts.content_compiled`.
+```
+
+## MDX strategy
+
+Compile on save (`compileMdx()` → `content_compiled text` column). Render time uses `MdxRunner` which calls `@mdx-js/mdx` `run()` against the pre-compiled source. Public pages can fall back to runtime compile when `content_compiled IS NULL` (legacy rows).
+
+## Multi-ring
+
+`SupabaseRingContext.getSiteByDomain(host)` resolves requests against `sites.domains text[]`. Cross-site admin authority cascades via the `can_admin_site()` RPC (master-ring staff can admin child rings).
+
+## Debug logs
+
+Namespaced [debug](https://www.npmjs.com/package/debug) loggers:
+
+```bash
+DEBUG=tn-figueiredo:cms:* node ./server.js
+```
+
+Available namespaces: `editor`, `repo`, `mdx`, `ring`.
+
+## Versioning
+
+The `@tn-figueiredo` ecosystem pins exact versions across apps. See the ecosystem versioning policy: <https://github.com/TN-Figueiredo/bythiagofigueiredo/blob/main/docs/ecosystem.md>.
 
 ## License
 
-Internal. See LICENSE.
+MIT © 2026 Thiago Figueiredo. See [LICENSE](./LICENSE).

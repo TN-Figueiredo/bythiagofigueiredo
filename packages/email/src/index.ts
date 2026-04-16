@@ -11,3 +11,4 @@ export { confirmSubscriptionTemplate, type ConfirmSubscriptionVars } from './tem
 export { contactReceivedTemplate, type ContactReceivedVars } from './templates/contact-received'
 export { contactAdminAlertTemplate, type ContactAdminAlertVars } from './templates/contact-admin-alert'
 export { ensureUnsubscribeToken } from './helpers/unsubscribe-token'
+export * as log from './debug'

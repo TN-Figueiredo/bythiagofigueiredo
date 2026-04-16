@@ -1,0 +1,76 @@
+# Template — adapt per extracted repo. Do not commit as-is in monorepo.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  test:
+    name: Test (node ${{ matrix.node }}, supabase ${{ matrix.supabase }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20']
+        supabase: ['2.103.0', 'latest']
+    env:
+      NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@tn-figueiredo'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install @supabase/supabase-js@${{ matrix.supabase }}
+        run: npm install --force @supabase/supabase-js@${{ matrix.supabase }}
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+
+      - name: Pack (dry run)
+        run: npm pack --dry-run
+
+      - name: Pack tarball
+        run: npm pack
+
+      - name: Assert tarball under 512KB
+        run: |
+          size=$(stat -f%z *.tgz 2>/dev/null || stat -c%s *.tgz)
+          echo "Tarball size: $size bytes"
+          test $size -lt 524288
+
+      - name: Consumer smoke — install tarball into fixture
+        working-directory: test/consumer-smoke
+        run: |
+          npm install ../../$(ls ../../*.tgz | head -n1) --no-save
+          npm install
+
+      - name: Consumer smoke — build fixture
+        working-directory: test/consumer-smoke
+        run: npm run build
+
+      - name: Cleanup tarball
+        if: always()
+        run: rm -f *.tgz

@@ -1,0 +1,62 @@
+# Template — adapt per extracted repo. Do not commit as-is in monorepo.
+name: Publish
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  id-token: write
+  contents: write
+  packages: write
+
+jobs:
+  publish:
+    name: Publish to GitHub Packages
+    runs-on: ubuntu-latest
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@tn-figueiredo'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Test (publish gate)
+        run: npm run test
+
+      - name: Idempotent publish
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          PKG=$(node -p "require('./package.json').name")
+          echo "Checking if $PKG@$VERSION is already published..."
+          if npm view "$PKG@$VERSION" version --registry=https://npm.pkg.github.com 2>/dev/null; then
+            echo "Version $VERSION already published, skipping"
+            exit 0
+          fi
+          npm publish --provenance --access restricted
+
+      - name: Create GitHub release
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists, skipping"
+            exit 0
+          fi
+          gh release create "$GITHUB_REF_NAME" --generate-notes

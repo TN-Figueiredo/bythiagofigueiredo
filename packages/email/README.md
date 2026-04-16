@@ -1,12 +1,38 @@
 # @tn-figueiredo/email
 
-Transactional email package for the TN-Figueiredo conglomerate. Brevo adapter, template registry, i18n, unsubscribe token helper.
+Brevo-backed transactional email adapter with templates and unsubscribe tokens — part of the `@tn-figueiredo/*` ecosystem.
 
 ## Install
 
-```bash
-npm install @tn-figueiredo/email --save-exact
+The package lives on GitHub Packages. Configure `.npmrc` at your repo root:
+
+```ini
+@tn-figueiredo:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${NPM_TOKEN}
 ```
+
+Then install with an exact version (ecosystem policy — no `^`):
+
+```bash
+npm install @tn-figueiredo/email@0.1.0 --save-exact
+```
+
+## Peer dependencies
+
+| Peer | Version |
+|------|---------|
+| `@supabase/supabase-js` | `^2.103.0` |
+
+Supabase is only required if you use `ensureUnsubscribeToken`.
+
+## Exports
+
+- `BrevoEmailAdapter` — transactional sender (Brevo HTTP API, with `p-queue` concurrency control).
+- `TemplateRegistry` and built-ins: `welcomeTemplate`, `inviteTemplate`, `confirmSubscriptionTemplate`, `contactReceivedTemplate`, `contactAdminAlertTemplate`.
+- Layout helpers: `emailLayout`, `emailButton`, `formatDatePtBR`, `escapeHtml`.
+- `ensureUnsubscribeToken` — sha256 hashed tokens with expiry.
+- `log` — `debug` namespaces (`tn-figueiredo:email:adapter|templates|unsubscribe`).
+- Types: `IEmailService`, `IEmailTemplate`, `EmailMessage`, `Branding`.
 
 ## Usage
 
@@ -14,17 +40,32 @@ npm install @tn-figueiredo/email --save-exact
 import { BrevoEmailAdapter, welcomeTemplate } from '@tn-figueiredo/email'
 
 const email = new BrevoEmailAdapter(process.env.BREVO_API_KEY!)
-await email.sendTemplate(welcomeTemplate, sender, 'user@example.com', {
-  brandName: 'My Site', siteUrl: 'https://...', unsubscribeUrl: '...',
-}, 'pt-BR')
+
+await email.sendTemplate(
+  welcomeTemplate,
+  { email: 'hello@site.com', name: 'Site' },
+  'user@example.com',
+  { brandName: 'My Site', siteUrl: 'https://site.com', unsubscribeUrl: 'https://site.com/u?t=...' },
+  'pt-BR',
+)
 ```
+
+Enable debug tracing with `DEBUG=tn-figueiredo:email:*`.
+
+## Environment
+
+| Var | Purpose |
+|-----|---------|
+| `BREVO_API_KEY` | API key for Brevo (required to construct `BrevoEmailAdapter`). |
 
 ## Architecture
 
-Decoupled from marketing list management (use existing `lib/brevo.ts createBrevoContact` for that). This package handles **transactional** emails: 1 recipient, template + variables, optional reply-to.
+Decoupled from marketing list management — handles **transactional** emails only: one recipient, template + variables, optional reply-to. Templates accept a locale (`pt-BR` or `en`) and per-site branding. Unsubscribe helpers expect an `unsubscribe_tokens` table in Supabase.
 
-Templates accept locale (pt-BR or en) and per-site branding. Helpers manage unsubscribe tokens stored in `unsubscribe_tokens` table.
+## Versioning
+
+Follows [Semantic Versioning](https://semver.org/). The `@tn-figueiredo/*` ecosystem pins exact versions — see the monorepo `docs/ecosystem.md` for the upgrade policy.
 
 ## License
 
-Internal.
+MIT © 2026 Thiago Figueiredo
