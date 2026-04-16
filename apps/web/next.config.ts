@@ -2,11 +2,11 @@ import type { NextConfig } from 'next'
 import { withSentryConfig } from '@sentry/nextjs'
 
 const nextConfig: NextConfig = {
-  // Transpile workspace package source directly so dev loop doesn't require
-  // `npm run build` in packages/cms on every change. When the package is
-  // extracted and published (Sprint 2 T14), this entry can be removed — the
-  // published tarball ships pre-built dist/.
-  transpilePackages: ['@tn-figueiredo/cms', '@tn-figueiredo/email'],
+  // @tn-figueiredo/cms ships ESM with `import.meta.url` (MDX renderer) +
+  // preserved JSX — Next requires `transpilePackages` to parse both. This is
+  // a permanent contract of cms v0.1.x (see packages docs). email is pure
+  // Node and does not need the transform.
+  transpilePackages: ['@tn-figueiredo/cms'],
 
   async headers() {
     return [
