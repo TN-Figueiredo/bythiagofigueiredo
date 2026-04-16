@@ -46,7 +46,7 @@ Today the consumer app (`apps/web`) has a single `/signin` page that protects bo
   │                        signInWithGoogle, forgotPassword, resetPassword
   └── /safe-redirect       NEW — safeRedirect helper (moved from apps/web)
 
-@tn-figueiredo/admin@0.4.0  (MINOR bump)
+@tn-figueiredo/admin@0.5.0  (MINOR bump from actual 0.4.2)
   ├── /                    existing createAdminLayout
   └── /login               NEW — <AdminLogin/>, <AdminForgotPassword/>,
                            <AdminResetPassword/>, getAdminAuthStrings(locale)
@@ -285,7 +285,7 @@ Identical flow on admin side, different components.
 | Package | From | To | Reason |
 |---|---|---|---|
 | `@tn-figueiredo/auth-nextjs` | 2.0.0 | 2.1.0 | New `/actions` + `/safe-redirect` subpaths. No breaking change. |
-| `@tn-figueiredo/admin` | 0.3.0 | 0.4.0 | New `/login` subpath. Main `/` export unchanged. |
+| `@tn-figueiredo/admin` | 0.4.2 | 0.5.0 | New `/login` subpath. Main `/` export unchanged. |
 | `@tn-figueiredo/cms` | 0.1.0-beta.2 | 0.1.0-beta.3 | New `/login` subpath. Rest unchanged. |
 
 **Rollback:** if a deploy regresses, consumer reverts version pin in `apps/web/package.json` to previous exact versions. GitHub Packages retains all published versions (publish.yml is idempotent; never deletes). Zero-cost rollback.
