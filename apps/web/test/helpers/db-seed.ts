@@ -566,3 +566,57 @@ export async function cleanupRbacScenario(
     await admin.from('organizations').delete().in('id', cleanup.orgIds)
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LGPD scenario (Sprint 5a Track A)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Seeds an LGPD scenario on top of the RBAC v3 scenario. Optionally creates:
+ *   - Authed user consents (reporter_a)  — functional granted, analytics denied
+ *   - Anonymous consents (random UUID v4) — functional granted
+ *   - Pending deletion request for reporter_a
+ *   - Pending export request for editor_a
+ */
+export async function seedLgpdScenario(admin: SupabaseClient, opts?: {
+  userWithConsents?: boolean;
+  anonymousWithConsents?: boolean;
+  pendingDeletion?: boolean;
+  pendingExport?: boolean;
+}) {
+  const rbac = await seedRbacScenario(admin)
+  const suffix = randomUUID().slice(0, 8)
+  const anonId = randomUUID()
+
+  if (opts?.userWithConsents) {
+    await admin.from('consents').insert([
+      { user_id: rbac.reporterAId, category: 'cookie_functional', consent_text_id: 'cookie_functional_v1_pt-BR', granted: true },
+      { user_id: rbac.reporterAId, category: 'cookie_analytics', consent_text_id: 'cookie_analytics_v1_pt-BR', granted: false },
+    ])
+  }
+  if (opts?.anonymousWithConsents) {
+    await admin.from('consents').insert([
+      { anonymous_id: anonId, category: 'cookie_functional', consent_text_id: 'cookie_functional_v1_pt-BR', granted: true },
+    ])
+  }
+  let deletionRequestId: string | undefined
+  if (opts?.pendingDeletion) {
+    const { data } = await admin.from('lgpd_requests').insert({
+      user_id: rbac.reporterAId,
+      type: 'account_deletion',
+      status: 'pending',
+      confirmation_token_hash: `test-${suffix}`,
+    }).select('id').single()
+    deletionRequestId = data?.id
+  }
+  let exportRequestId: string | undefined
+  if (opts?.pendingExport) {
+    const { data } = await admin.from('lgpd_requests').insert({
+      user_id: rbac.editorAId,
+      type: 'data_export',
+      status: 'pending',
+    }).select('id').single()
+    exportRequestId = data?.id
+  }
+  return { ...rbac, lgpd: { anonymousId: anonId, deletionRequestId, exportRequestId } }
+}
