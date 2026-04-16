@@ -49,7 +49,9 @@ describe('AccountDeleteWizard', () => {
         return Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 }))
       }
       if (url === '/api/lgpd/request-deletion') {
-        return Promise.resolve(new Response(JSON.stringify({ id: 'req-1' }), { status: 201 }))
+        return Promise.resolve(
+          new Response(JSON.stringify({ requestId: 'req-1' }), { status: 201 }),
+        )
       }
       return Promise.resolve(new Response('{}', { status: 200 }))
     })
@@ -61,13 +63,14 @@ describe('AccountDeleteWizard', () => {
     // Step 2
     await screen.findByRole('heading', { name: /revisar impacto/i })
     fireEvent.click(screen.getByRole('button', { name: /solicitar exclus[ãa]o/i }))
-    // Step 3
+    // Step 3 — reads `requestId` from response body and renders it.
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: /verifique seu email/i })).toBeTruthy()
       expect(fetchMock).toHaveBeenCalledWith(
         '/api/lgpd/request-deletion',
         expect.objectContaining({ method: 'POST' }),
       )
+      expect(screen.getByText(/req-1/)).toBeTruthy()
     })
   })
 
