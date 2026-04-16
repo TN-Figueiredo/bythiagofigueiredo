@@ -14,5 +14,3 @@ CREATE OR REPLACE FUNCTION public.user_accessible_sites() RETURNS TABLE (
   WHERE public.can_view_site(s.id)
   ORDER BY (CASE WHEN o.parent_org_id IS NULL THEN 0 ELSE 1 END), o.name, s.name;
 $$;
-
-GRANT EXECUTE ON FUNCTION public.user_accessible_sites() TO authenticated;

@@ -2,9 +2,6 @@
 -- top of Sprint 3's cooldown behavior. Drop + recreate so callers can
 -- differentiate cooldown (P0001 HINT='cooldown') from insufficient_access
 -- (P0001 with no HINT). Branches on role_scope.
-
-DROP FUNCTION IF EXISTS public.increment_invitation_resend(uuid);
-
 CREATE OR REPLACE FUNCTION public.increment_invitation_resend(p_id uuid) RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE v_inv invitations%ROWTYPE;
@@ -25,5 +22,3 @@ BEGIN
   END IF;
   UPDATE invitations SET resend_count = resend_count + 1, last_sent_at = now() WHERE id = p_id;
 END $$;
-
-GRANT EXECUTE ON FUNCTION public.increment_invitation_resend(uuid) TO authenticated;

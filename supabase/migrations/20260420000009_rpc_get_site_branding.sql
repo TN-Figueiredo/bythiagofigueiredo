@@ -10,5 +10,3 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
     'default_locale', s.default_locale
   ) FROM sites s WHERE s.id = p_site_id;
 $$;
-
-GRANT EXECUTE ON FUNCTION public.get_site_branding(uuid) TO authenticated, anon;

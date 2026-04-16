@@ -24,5 +24,3 @@ BEGIN
   v_count := v_count + v_tmp;
   RETURN v_count;
 END $$;
-
-GRANT EXECUTE ON FUNCTION public.reassign_content(uuid, uuid, uuid) TO authenticated;
