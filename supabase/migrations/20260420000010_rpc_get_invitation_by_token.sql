@@ -25,5 +25,3 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
     AND i.revoked_at IS NULL
     AND i.expires_at > now();
 $$;
-
-GRANT EXECUTE ON FUNCTION public.get_invitation_by_token(text) TO anon, authenticated;
