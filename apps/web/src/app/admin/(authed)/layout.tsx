@@ -5,7 +5,11 @@ import {
 } from '@tn-figueiredo/auth-nextjs'
 import { cookies } from 'next/headers'
 import type { ReactNode } from 'react'
-import { AdminShellWithSwitcher } from '../../../components/cms/site-switcher-provider'
+import {
+  AdminShellWithSwitcher,
+  AdminSiteSwitcherSlot,
+  type AccessibleSite,
+} from '../../../components/cms/site-switcher-provider'
 
 const ADMIN_CONFIG = {
   appName: 'Admin',
@@ -43,11 +47,20 @@ export default async function Layout({ children }: { children: ReactNode }) {
   // RPC-first: `is_admin()` is trusted over JWT app_metadata (stale until refresh).
   await requireArea('admin')
 
+  // Track F3 — resolve accessible sites for the admin shell. Same contract
+  // as /cms/(authed)/layout.tsx; see note there.
+  const { data: sitesData } = await supabase.rpc('user_accessible_sites')
+  const sites = (sitesData ?? []) as AccessibleSite[]
+
   return (
     <AdminShellWithSwitcher
-      sites={[]}
+      sites={sites}
       userEmail={user.email ?? ''}
-      config={{ ...ADMIN_CONFIG, logoutPath: '/admin/logout' }}
+      config={{
+        ...ADMIN_CONFIG,
+        logoutPath: '/admin/logout',
+        siteSwitcherSlot: <AdminSiteSwitcherSlot />,
+      }}
     >
       {children}
     </AdminShellWithSwitcher>

@@ -5,7 +5,11 @@ import {
 } from '@tn-figueiredo/auth-nextjs'
 import { cookies } from 'next/headers'
 import type { ReactNode } from 'react'
-import { AdminShellWithSwitcher } from '../../../components/cms/site-switcher-provider'
+import {
+  AdminShellWithSwitcher,
+  CmsSiteSwitcherSlot,
+  type AccessibleSite,
+} from '../../../components/cms/site-switcher-provider'
 
 const CMS_CONFIG = {
   appName: 'CMS',
@@ -55,11 +59,24 @@ export default async function Layout({ children }: { children: ReactNode }) {
   // RPC-first: `is_staff()` is trusted over JWT app_metadata (stale until refresh).
   await requireArea('cms')
 
+  // Track F3 — resolve accessible sites so the CMS shell can render the
+  // multi-site dropdown. `user_accessible_sites()` returns rows the signed-in
+  // user can view (site_memberships + cascade-up via organization_members).
+  // Swallow RPC errors to an empty array — the switcher renders null for
+  // <2 sites, so a failure degrades to the single-site experience rather
+  // than blocking the entire CMS shell.
+  const { data: sitesData } = await supabase.rpc('user_accessible_sites')
+  const sites = (sitesData ?? []) as AccessibleSite[]
+
   return (
     <AdminShellWithSwitcher
-      sites={[]}
+      sites={sites}
       userEmail={user.email ?? ''}
-      config={{ ...CMS_CONFIG, logoutPath: '/cms/logout' }}
+      config={{
+        ...CMS_CONFIG,
+        logoutPath: '/cms/logout',
+        siteSwitcherSlot: <CmsSiteSwitcherSlot />,
+      }}
     >
       {children}
     </AdminShellWithSwitcher>
