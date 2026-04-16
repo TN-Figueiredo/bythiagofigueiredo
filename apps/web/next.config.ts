@@ -2,10 +2,12 @@ import type { NextConfig } from 'next'
 import { withSentryConfig } from '@sentry/nextjs'
 
 const nextConfig: NextConfig = {
-  // @tn-figueiredo/cms ships ESM with `import.meta.url` (MDX renderer) +
-  // preserved JSX — Next requires `transpilePackages` to parse both. This is
-  // a permanent contract of cms v0.1.x (see packages docs). email is pure
-  // Node and does not need the transform.
+  // @tn-figueiredo/cms v0.1.x ships ESM with `import.meta.url` (MDX renderer)
+  // and preserved JSX. Next requires `transpilePackages` to parse both.
+  // Contract: https://github.com/TN-Figueiredo/cms/blob/main/README.md#nextjs-configuration
+  // The `/ring` subpath (used by middleware) is Edge-safe and does not need
+  // transpilation — only the root `.` subpath (server components using
+  // compileMdx, PostEditor, etc.) goes through here.
   transpilePackages: ['@tn-figueiredo/cms'],
 
   async headers() {
