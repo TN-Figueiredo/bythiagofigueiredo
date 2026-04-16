@@ -3,13 +3,20 @@
 -- C2: Add clarifying comment to unsubscribe_tokens (RLS deny-all documented)
 -- I1: Add status guard in confirm_newsletter_subscription
 -- I2: Drop now() from newsletter_pending_token partial index predicate
+--
+-- Wrapped in DO + EXECUTE to be Supabase CLI 2.90-safe (multi-statement
+-- parser combines sequential top-level statements into a single prepared
+-- statement; DO blocks are always parsed as one top-level statement,
+-- EXECUTE runs each inner statement dynamically). Same pattern as
+-- supabase/migrations/20260420000020_grants.sql.
 
--- ============================================================
--- C1: accept_invitation_atomic — bind to auth.uid(), remove p_user_id param
--- ============================================================
+DO $mig$ BEGIN
 
-drop function if exists public.accept_invitation_atomic(text, uuid);
+EXECUTE $stmt$
+drop function if exists public.accept_invitation_atomic(text, uuid)
+$stmt$;
 
+EXECUTE $stmt$
 create or replace function public.accept_invitation_atomic(
   p_token text
 ) returns json language plpgsql security definer as $fn$
@@ -22,7 +29,6 @@ begin
     return json_build_object('ok', false, 'error', 'unauthenticated');
   end if;
 
-  -- Lock the invitation row
   select id, email, org_id, role, expires_at, accepted_at, revoked_at
     into v_inv
   from public.invitations
@@ -42,13 +48,11 @@ begin
     return json_build_object('ok', false, 'error', 'expired');
   end if;
 
-  -- Verify caller's email matches invitation email
   select email::citext into v_user_email from auth.users where id = v_user_id;
   if v_user_email is null or lower(v_user_email::text) <> lower(v_inv.email::text) then
     return json_build_object('ok', false, 'error', 'email_mismatch');
   end if;
 
-  -- Atomic inserts
   insert into public.organization_members (org_id, user_id, role)
   values (v_inv.org_id, v_user_id, v_inv.role)
   on conflict (org_id, user_id) do nothing;
@@ -66,22 +70,20 @@ begin
   where id = v_inv.id;
 
   return json_build_object('ok', true, 'org_id', v_inv.org_id);
-end $fn$;
+end $fn$
+$stmt$;
 
--- ============================================================
--- I2: newsletter_pending_token — drop now() from partial index predicate
--- ============================================================
+EXECUTE $stmt$
+drop index if exists public.newsletter_pending_token
+$stmt$;
 
-drop index if exists public.newsletter_pending_token;
-
+EXECUTE $stmt$
 create unique index if not exists newsletter_pending_token
   on public.newsletter_subscriptions (confirmation_token)
-  where status = 'pending_confirmation';
+  where status = 'pending_confirmation'
+$stmt$;
 
--- ============================================================
--- I1: confirm_newsletter_subscription — add invalid_state guard
--- ============================================================
-
+EXECUTE $stmt$
 create or replace function public.confirm_newsletter_subscription(p_token text) returns json language plpgsql security definer as $fn$
 declare v_sub record;
 begin
@@ -94,8 +96,6 @@ begin
     return json_build_object('ok', false, 'error', 'not_found');
   end if;
 
-  -- Guard: only pending_confirmation and confirmed are valid states here.
-  -- unsubscribed subscriptions must re-subscribe rather than re-confirm.
   if v_sub.status not in ('pending_confirmation', 'confirmed') then
     return json_build_object('ok', false, 'error', 'invalid_state');
   end if;
@@ -115,4 +115,7 @@ begin
   where id = v_sub.id;
 
   return json_build_object('ok', true, 'email', v_sub.email, 'site_id', v_sub.site_id);
-end $fn$;
+end $fn$
+$stmt$;
+
+END $mig$;
