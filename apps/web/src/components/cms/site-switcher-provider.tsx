@@ -1,34 +1,25 @@
 'use client'
 /**
- * Track F wrapper around `@tn-figueiredo/admin`'s shell + provider and
- * `@tn-figueiredo/cms`'s `CmsSiteSwitcher`.
+ * Client-side composition of admin + cms site-switcher primitives.
  *
- * Why this wrapper exists:
- *   `admin@0.6.0` ships `SiteSwitcherProvider` in the same root bundle as
- *   `createAdminLayout`. The root module evaluates `createContext(null)` at
- *   top level and ships without a `'use client'` directive, so importing the
- *   admin root from a server component evaluates the module in the RSC
- *   runtime — which does not expose `React.createContext` → build fails with
- *   `createContext is not a function`.
- *
- *   By collecting every admin root import into this single file (which starts
- *   with `'use client'`), we force the whole admin root through the client
- *   bundle. Server layouts only see local types + this shim, so they never
- *   evaluate admin's module on the server.
- *
- *   When `@tn-figueiredo/admin` splits its context into a `./site-switcher`
- *   subpath with its own `'use client'` directive (follow-up work), this
- *   shim can be simplified or removed.
+ * As of `@tn-figueiredo/admin@0.6.2`, the client-only primitives live in the
+ * `./site-switcher` subpath with an explicit `'use client'` banner, so server
+ * components can import `createAdminLayout` from the root without tripping the
+ * RSC bundler. The shim in this file no longer forces the whole admin root
+ * through the client bundle — it just groups the slot components that want
+ * React context.
  */
 import {
   createAdminLayout,
+  type AdminLayoutConfig,
+  type SiteBranding,
+} from '@tn-figueiredo/admin'
+import {
   SiteSwitcher,
   SiteSwitcherProvider,
   useSiteSwitcher,
-  type AdminLayoutConfig,
   type AccessibleSite,
-  type SiteBranding,
-} from '@tn-figueiredo/admin'
+} from '@tn-figueiredo/admin/site-switcher'
 import { CmsSiteSwitcher } from '@tn-figueiredo/cms'
 import type { ReactNode } from 'react'
 import { useMemo } from 'react'

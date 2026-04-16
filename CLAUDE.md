@@ -100,21 +100,45 @@ Para o cron-locks test (advisory locks session-scoped), duas conexões `pg.Clien
 - **Contact right-to-be-forgotten** — `anonymize_contact_submission(p_id uuid)` RPC (migration `…000002`) zera `name/email/ip/user_agent/message` da submissão e grava `anonymized_at`. Guardado por `is_staff() OR can_admin_site(site_id) OR service_role`. Server action do admin UI deve re-validar staff status antes de chamar.
 - **Sent emails 90-day purge** — `purge_sent_emails(p_older_than_days int default 90)` RPC (migration `…000003`) deleta rows de `sent_emails` com `sent_at < now() - interval`, retorna contagem. Execute só para `service_role`. Invocado diariamente via `/api/cron/purge-sent-emails` (03:00 America/Sao_Paulo = `0 6 * * *` UTC).
 
-## Multi-ring (CMS conglomerate)
+## Multi-ring (CMS conglomerate) — Sprint 4.75 RBAC v3
 
-Conglomerado multi-site onde cada "ring" (organização) controla seus sites filhos. `bythiagofigueiredo.com` é o master ring — pode administrar child rings via cascade-up de `public.can_admin_site()`.
+Conglomerado multi-site com 4 papéis derivados. `bythiagofigueiredo.com` é o master ring.
 
-**Schema (Sprint 2):**
-- `organizations` — rings, com `parent_org_id` (NULL = master ring). Slug global unique.
-- `organization_members` — per-org roles: `owner | admin | editor | author`. Staff = `owner|admin|editor`. Unique `(org_id, user_id)`.
-- `sites` — belong to an org. `domains text[]` pra hostname resolution. Slug unique per `(org_id, slug)`.
-- `blog_posts.site_id` e `campaigns.site_id` — FK para `sites.id` (nullable até seed backfill; NOT NULL em migration futura).
+**Roles (RBAC v3):**
+- `super_admin` — `organization_members.role='org_admin'` do master ring (`parent_org_id IS NULL`). Bypassa tudo. Revogável via DELETE.
+- `org_admin` — `organization_members.role='org_admin'` de uma org. Gerencia usuários + conteúdo + sites da org.
+- `editor` — `site_memberships.role='editor'` de um site. CRUD completo + publish naquele site.
+- `reporter` — `site_memberships.role='reporter'` de um site. Cria/edita apenas próprio conteúdo; publish bloqueado por trigger DB.
 
-**Helpers RLS (além dos do Sprint 1a):**
-- `public.org_role(p_org_id)` — role do current user no org (via `auth.uid()`), ou NULL.
-- `public.is_org_staff(p_org_id)` — `org_role IN ('owner','admin','editor')`, coalesce → false.
-- `public.can_admin_site(p_site_id)` — staff do site's org OR staff do parent org (cascade up).
-- `is_staff()` global (Sprint 1) permanece como "god mode" pra backward compat.
+**Schema (v3, migrações `20260420000001`–`20260420000009`):**
+- `organizations` — `parent_org_id` (NULL = master ring, único via `organizations_single_master` index).
+- `organization_members(org_id, user_id, role)` — role check `= 'org_admin'` apenas (legacy owner/admin migrados).
+- `site_memberships(site_id, user_id, role)` — NOVA tabela; role check IN `('editor','reporter')`.
+- `sites` — ganhou `primary_domain NOT NULL`, `cms_enabled boolean`, `logo_url`, `primary_color`.
+- `blog_posts.owner_user_id`, `campaigns.owner_user_id` — NOVA coluna FK→`auth.users`, backfilled.
+- `invitations` — ganhou `site_id uuid NULL`, `role_scope text ('org'|'site')` + CHECK constraint.
+- `audit_log(id, actor_user_id, action, resource_type, resource_id, org_id, site_id, before_data, after_data, ip, user_agent, created_at)` — NOVA tabela com triggers em `organization_members`, `site_memberships`, `invitations`.
+
+**Helpers RLS (v3, SECURITY DEFINER + `SET search_path = public`):**
+- `public.is_super_admin()` — member of master ring.
+- `public.is_org_admin(uuid)` — super_admin OR org_admin of org.
+- `public.can_view_site(uuid)` — super_admin OR org_admin OR site member (any role).
+- `public.can_edit_site(uuid)` — super_admin OR org_admin OR site editor.
+- `public.can_publish_site(uuid)` — same as edit (reporters não publicam).
+- `public.can_admin_site_users(uuid)` — super_admin OR org_admin.
+- `public.is_member_staff()` — DB-checked (NÃO usa JWT claim) — usado por `requireArea()` em `@tn-figueiredo/auth-nextjs@2.2.0+`. Fecha JWT staleness gap do Sprint 4.5 T10d.
+- `is_staff()` legacy — mantido pra backward compat mas NÃO é usado em policies v3. Dropped das policies de conteúdo.
+
+**Publish review trigger (`enforce_publish_permission`):**
+BEFORE INSERT OR UPDATE em `blog_posts` e `campaigns` — bloqueia transição para `status IN ('published','scheduled')` quando `NOT can_publish_site(site_id)`. Raises `ERRCODE P0001` + `HINT = 'requires_editor_role'`. Reporter pode mover draft → `pending_review` (novo enum value).
+
+**Audit log GUC injection (migration 9):**
+Trigger lê `current_setting('app.client_ip')` e `current_setting('app.user_agent')` setados pela RPC `public.set_audit_context(ip, ua)`. Server actions chamam no início da request pra LGPD accountability. Fallback: `inet_client_addr()` se GUC não setado.
+
+**Invitation scope (Sprint 4.75 extension):**
+- `role_scope='org'` + `site_id IS NULL` + `role='org_admin'` — convite organizacional.
+- `role_scope='site'` + `site_id NOT NULL` + `role IN ('editor','reporter')` — convite scoped a site.
+- `accept_invitation_atomic(p_token_hash, p_user_id)` branch-a em `role_scope` e retorna `redirect_url` cross-domain (primário do site ou `bythiagofigueiredo.com`).
 
 **Site resolution (middleware):**
 Request com `Host: bythiagofigueiredo.com` → middleware chama `SupabaseRingContext.getSiteByDomain()` → seta headers `x-site-id`, `x-org-id`, `x-default-locale`. Server components leem via `getSiteContext()` em `apps/web/lib/cms/site-context.ts`.
