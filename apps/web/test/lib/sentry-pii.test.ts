@@ -45,8 +45,8 @@ describe('scrubEventPii', () => {
         ],
       },
     })
-    expect(out.exception?.values?.[0].value).toBe('duplicate key on <email>')
-    expect(out.exception?.values?.[1].value).toBe('no email here')
+    expect(out.exception?.values?.[0]!.value).toBe('duplicate key on <email>')
+    expect(out.exception?.values?.[1]!.value).toBe('no email here')
   })
 
   it('scrubs each breadcrumb.message', () => {
@@ -56,8 +56,8 @@ describe('scrubEventPii', () => {
         { message: 'navigation: /cms' },
       ],
     })
-    expect(out.breadcrumbs?.[0].message).toBe('click: [data-email="<email>"]')
-    expect(out.breadcrumbs?.[1].message).toBe('navigation: /cms')
+    expect(out.breadcrumbs?.[0]!.message).toBe('click: [data-email="<email>"]')
+    expect(out.breadcrumbs?.[1]!.message).toBe('navigation: /cms')
   })
 
   it('is a no-op on events without any of the scrubbable fields', () => {

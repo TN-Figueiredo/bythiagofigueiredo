@@ -319,7 +319,7 @@ describe('subscribeToNewsletter', () => {
     expect(updateMock).toHaveBeenCalledOnce()
     expect(insertMock).not.toHaveBeenCalled()
     // The update payload must restore the raw email + reset unsubscribed_at.
-    const updatePayload = updateMock.mock.calls[0][0] as Record<string, unknown>
+    const updatePayload = updateMock.mock.calls[0]![0] as Record<string, unknown>
     expect(updatePayload.email).toBe(rawEmail)
     expect(updatePayload.status).toBe('pending_confirmation')
     expect(updatePayload.unsubscribed_at).toBeNull()
