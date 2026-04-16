@@ -4,28 +4,30 @@
 > **Source of truth de execução:** este diretório.
 > **Rationale de produto e scoring:** `~/Workspace/ideias/bythiagofigueiredo/` (docs 01–05, 2026-04-12).
 
-**Versão:** 2026-04-13 · **Revisão:** 2 (numbers reconciled, exit criteria added)
+**Versão:** 2026-04-16 · **Revisão:** 3 (Sprint 4a+4b closure, roadmap re-aligned to reality)
 
 ## Visão macro
 
 | Fase | Sprints | Horas | Semanas | Status | Arquivo |
 |------|:-------:|:-----:|:-------:|:------:|---------|
-| **1 — MVP** | 0–5 | 202h | 9 | 🟡 in-progress | [phase-1-mvp.md](phase-1-mvp.md) |
-| **2 — Nice-to-Have** | 6–9 | 152h | 7 | ☐ not-started | [phase-2-nice-to-have.md](phase-2-nice-to-have.md) |
-| **3 — CMS Hub Distribution** | 10–11 | 70h | 3 | ☐ not-started | [phase-3-cms-hub.md](phase-3-cms-hub.md) |
-| **Total** | 11 | **424h** | **19** | | |
+| **1 — MVP** | 0–6 | ~242h | 10–11 | 🟡 in-progress (5/7 sprints ✅) | [phase-1-mvp.md](phase-1-mvp.md) |
+| **2 — Nice-to-Have** | 7–10 | 152h | 7 | ☐ not-started | [phase-2-nice-to-have.md](phase-2-nice-to-have.md) |
+| **3 — CMS Hub Distribution** | 11–12 | 70h | 3 | ☐ not-started | [phase-3-cms-hub.md](phase-3-cms-hub.md) |
+| **Total** | 12 | **~464h** | **20–21** | | |
 
-> **Nota sobre totais:** source doc (`03-roadmap-creator.md`) reporta agregado de **414h / 192h Fase 1**. Somando sprint-a-sprint (12+40+42+40+38+30) dá **202h** na Fase 1 / 424h total. Variação de 10h atribuída a arredondamento de calibração. **Este roadmap usa os valores per-sprint como autoridade de execução.**
+> **Nota sobre totais (rev 3, 2026-04-16):** source doc original reportava 202h / Fase 1, assumindo Sprint 4 = "LGPD & Deployment" (38h). Durante execução, Sprint 4 shipou outro escopo (package extraction + observability + LGPD retention, ~40h realizados) e o trabalho de LGPD público/deploy foi re-slotted num novo Sprint 5 — "Public launch prep". Burnout/MVP Launch renumerado Sprint 5→6. Nova soma Fase 1: 12+40+42+40+40+38+30 = **242h** (+40h vs plano). Total global **~464h** (+40h). Sprints downstream da Fase 2/3 renumerados (+1). Este roadmap usa os valores per-sprint como autoridade de execução.
 
-**Estimativa de timeline:** 19 semanas a partir de 2026-04-13 (~final de Julho 2026, antes da viagem pra Ásia ~Agosto). Datas absolutas em cada fase são **estimativas**, sujeitas à velocidade real.
+**Estimativa de timeline:** 20–21 semanas a partir de 2026-04-13 (~início de Setembro 2026, antes da viagem pra Ásia). Datas absolutas em cada fase são **estimativas**, sujeitas à velocidade real. (rev 3: +1–2 semanas vs plano original, por conta do scope shift do Sprint 4 e realocação do launch prep em Sprint 5.)
 
 **Capacidade planejada:** 40h/week com burnout sprint (30h) a cada 4 sprints.
 
 ## Progresso global
 
 ```
-▓░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  ~3% (12h / 424h — Sprint 0 ✅ done)
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░░░░░░░░░  ~37% (174h / 464h — Sprints 0–4 ✅ done)
 ```
+
+> Hours reconciled 2026-04-16: 12 (S0) + 40 (S1a+1b) + 42 (S2) + 40 (S3) + 40 (S4 actual — extraction + obs + LGPD retention, 4a+4b) = **174h delivered**. Sprint 5 ("Public launch prep" — 38h) e Sprint 6 ("Burnout & MVP Launch" — 30h) ainda pendentes. Denominador 464h = Fase 1 (242h) + Fase 2 (152h) + Fase 3 (70h). Sprint 4 shipou scope diferente do planejado; LGPD/deploy público foi re-slotted em Sprint 5. Ver phase-1 footnote.
 
 **Done até agora:**
 - Sprint 0 ✅ — scaffold + CI + Supabase provisionado/linkado + Vercel/Sentry env vars + npm scripts de DB padrão TNG (~12h).
@@ -33,8 +35,10 @@
 - Sprint 1b ✅ — campaigns schema/RLS, Brevo+Turnstile libs, landing pages, cron, seed (2026-04-14, merged PR #3, 135 tests).
 - Sprint 2 ✅ — `@tn-figueiredo/cms` package, multi-ring schema, blog MDX rendering, admin CRUD (2026-04-15, merged PR #4, 198 tests). T14 extraction deferred to Sprint 3.
 - Sprint 3 ✅ — auth + invite flow, newsletter/contact forms + cron sync, campaign admin CRUD, PostEditor polish (autosave/meta SEO/cover/locale switcher/delete UI), rate limiting + cron locks. ~40 commits. Epic audit trajectory: Epic 3 82→98, Epic 4 62→99, Epic 5 82→99, sprint-wide 93→99. Package extraction (T14) + observability/LGPD carry-over ⇒ Sprint 4. Spec: [2026-04-16-sprint-3-design.md](../superpowers/specs/2026-04-16-sprint-3-design.md).
+- **Sprint 4a ✅** — Epics 8+9+10 of sprint-4: DB-gated RPC integration tests (15 tests, gated `HAS_LOCAL_DB=1`), Sentry SDK wired web+api (`@sentry/nextjs` + `@sentry/node` + `captureServerActionError` + PII scrubber), structured cron logs (`logger.ts` + `withCronLock`), LGPD retention (unsubscribe anonymization via sha256, `anonymize_contact_submission` RPC, `purge_sent_emails` 90d cron). 263 web + 15 skipped + 4 api tests. 3 migrations `20260418000001-03` live em prod. Merged to main 2026-04-15. Spec: [sprint-4.md](../superpowers/specs/sprint-4.md).
+- **Sprint 4b ✅** — Epics 6+7 of sprint-4: extracted `@tn-figueiredo/cms@0.1.0-beta.1/beta.2` (repo `TN-Figueiredo/cms`) + `@tn-figueiredo/email@0.1.0` (repo `TN-Figueiredo/email`) to own repos, published to GitHub Packages, apps/web consome versões pinadas. `transpilePackages: ['@tn-figueiredo/cms']` retido (contrato do package em v0.1.x — ESM + JSX preservado). Novo subpath Edge-safe `/ring` no cms permite middleware pular transpile. 263 web + 4 api tests. 12 commits merged to staging + auto-synced to main 2026-04-16. Spec: [sprint-4b.md](../superpowers/specs/sprint-4b.md).
 
-**Sprint ativo:** Sprint 4 (package extraction + observability + LGPD — ~40h) — 🟡 **in progress (partial ship — Epics 8+9+10 ready; 6+7 package extraction carry-over)**. Spec: [sprint-4.md](../superpowers/specs/sprint-4.md).
+**Sprint ativo:** nenhum — próxima sessão seleciona. **Em planejamento (inter-sprint "Sprint 4.5 — Login split + package coordination")**: split do `/signin` único em `/admin/login` + `/cms/login`, coordenando bumps de `@tn-figueiredo/admin@0.4`, `@tn-figueiredo/auth-nextjs@2.1`, `@tn-figueiredo/cms@beta.3`, apps/web. Plans: [admin-0.4-login](../superpowers/plans/2026-04-15-admin-0.4-login.md), [auth-nextjs-2.1-actions](../superpowers/plans/2026-04-15-auth-nextjs-2.1-actions.md), [cms-beta3-login](../superpowers/plans/2026-04-15-cms-beta3-login.md), [web-consumer-login-wiring](../superpowers/plans/2026-04-15-web-consumer-login-wiring.md). Design spec: [admin-cms-login-split-design](../superpowers/specs/2026-04-15-admin-cms-login-split-design.md).
 
 ## Legenda de status
 
@@ -48,11 +52,11 @@ Aplicada em 3 níveis: fase, sprint, epic.
 
 Entregáveis de ecossistema — reutilizáveis em outros apps @tnf/*:
 
-| Package | Sprint | Horas | Fase | ROI estimado |
-|---------|:------:|:-----:|:----:|:------------:|
-| **@tnf/cms** (NEW) | S2 | 24h | 1 | ~60h poupadas em 5+ sites |
-| **@tnf/email** (NEW — setup em S3, extract em S7) | S3 + S7 | 6h + 8h | 1+2 | ~48h em 6+ apps |
-| **@tnf/storage** (NEW) | S8 | 10h | 2 | ~24h em 6+ apps |
+| Package | Sprint | Horas | Fase | Status | ROI estimado |
+|---------|:------:|:-----:|:----:|:------:|:------------:|
+| **@tn-figueiredo/cms** (NEW) | S2 + S4b extract | 24h + ~8h | 1 | ✅ `v0.1.0-beta.2` published | ~60h poupadas em 5+ sites |
+| **@tn-figueiredo/email** (NEW) | S3 setup + S4b extract | 6h + ~8h | 1 | ✅ `v0.1.0` published | ~48h em 6+ apps |
+| **@tnf/storage** (NEW) | S9 (renumerado de S8) | 10h | 2 | ☐ | ~24h em 6+ apps |
 
 ## Como usar este roadmap (workflow superpowers)
 
@@ -112,6 +116,7 @@ Lista completa de 9 riscos: `~/Workspace/ideias/bythiagofigueiredo/03-roadmap-cr
 
 ## Changelog
 
+- **2026-04-16 rev3:** Sprint 4a + 4b fechados e documentados. Sprint 4 original (LGPD/deploy) re-slotted em Sprint 5 ("Public launch prep"). Progress bar atualizado para ~50%. Sprint ativo = inter-sprint "Login split + package coordination" em planejamento.
 - **2026-04-13 rev2:** matemática de horas reconciliada, exit criteria por fase, rollup de packages, progresso corrigido, riscos linkados ao source.
 - **2026-04-13 rev1:** versão inicial.
 

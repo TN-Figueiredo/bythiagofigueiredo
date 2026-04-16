@@ -174,16 +174,12 @@ CMS reutilizável publicado em `@tn-figueiredo/cms` (extração pra repo própri
 - **Sprint 1b** ✅ done — campaigns schema/RLS, Brevo+Turnstile libs, landing pages, cron, seed
 - **Sprint 2** ✅ done — @tn-figueiredo/cms package, multi-ring schema, blog MDX rendering, admin CRUD
 - **Sprint 3** ✅ done — auth + invite flow, newsletter/contact forms, campaign admin CRUD, PostEditor polish, cron locks (~40 commits, audit 93→99)
-- **Sprint 4** next — package extraction (cms + email), observability (Sentry + structured cron logs), LGPD retention, DB-gated RPC integration tests. Spec: [sprint-4.md](docs/superpowers/specs/sprint-4.md)
-- Spec de cada sprint em `docs/superpowers/specs/`
-
-### Sprint 3 → Sprint 4 carry-over
-
-- **`@tn-figueiredo/cms` extraction** (Epic 6 T38-T44) — workspace package moves to own repo + publish v0.1.0 before second consumer arrives.
-- **`@tn-figueiredo/email` extraction** — same pattern.
-- **DB-gated integration tests for RPCs** — `confirm_newsletter_subscription`, `unsubscribe_via_token`, `update_campaign_atomic`, `cron_try_lock`/`cron_unlock`. Unit tests mock the RPC; Sprint 4 adds `describe.skipIf(skipIfNoLocalDb())` coverage that hits real PG.
-- **Sentry + structured cron logs** — oncall story today is grep Vercel function logs. Sprint 4 instruments `apps/web/src/app/api/cron/*` with `console.error({job, err_code, site_id})` JSON + Sentry transport.
-- **LGPD retention** — unsubscribe flips status but doesn't anonymize; `sent_emails` 90-day purge cron pending.
+- **Sprint 4a** ✅ done (2026-04-15) — Epics 8+9+10: DB-gated RPC integration tests, Sentry observability (web+api) + PII scrubber, structured cron logs (`lib/logger.ts`), LGPD retention (unsubscribe anonymization, contact anonymize RPC, `purge_sent_emails` 90d cron). 263 web + 4 api tests. 3 migrations em prod.
+- **Sprint 4b** ✅ done (2026-04-16) — Epics 6+7: `@tn-figueiredo/cms@0.1.0-beta.2` + `@tn-figueiredo/email@0.1.0` published to GitHub Packages (repos `TN-Figueiredo/cms` + `TN-Figueiredo/email`). apps/web consome pinned. `transpilePackages: ['@tn-figueiredo/cms']` retido (contrato v0.1.x — ESM + JSX preservado); `/ring` subpath Edge-safe. Spec: [sprint-4b.md](docs/superpowers/specs/sprint-4b.md)
+- **Sprint 4.5** 🟡 in planning — login split (admin/cms). Plans commitados em `docs/superpowers/plans/2026-04-15-*.md`. Design: [admin-cms-login-split-design](docs/superpowers/specs/2026-04-15-admin-cms-login-split-design.md)
+- **Sprint 5** ☐ next — public launch prep (privacy/terms UI, cookie banner, delete account, full SEO, Vercel deploy hardening). 38h — herdou escopo original de "Sprint 4 LGPD/Deploy"
+- **Sprint 6** ☐ — Burnout & MVP Launch (30h)
+- Roadmap source of truth: [docs/roadmap/README.md](docs/roadmap/README.md)
 
 ## Code Standards
 
