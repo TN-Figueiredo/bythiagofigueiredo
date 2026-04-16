@@ -1,117 +1,159 @@
-'use client'
-
-// Sprint 5a Track D — D8: Layout shell for /privacy + /terms.
-//
-// Responsibilities:
-//  - Provide a two-column layout with sticky table of contents (h2 headings)
-//  - Display last-updated footer
-//  - Render locale switcher when multiple locales are provided
-//
-// Server component friendly: the TOC is extracted on the client by scanning
-// `h2` elements in the rendered subtree, so MDX content can be arbitrary.
-
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { LocaleSwitcher } from '../locale-switcher'
-
-type Locale = 'pt-BR' | 'en'
-
-const LABELS: Record<Locale, { toc: string; lastUpdated: string }> = {
-  'pt-BR': { toc: 'Índice', lastUpdated: 'Última atualização' },
-  en: { toc: 'Contents', lastUpdated: 'Last updated' },
-}
+import Link from 'next/link'
+import type { ReactNode } from 'react'
 
 export interface LegalShellProps {
-  locale: Locale
+  /**
+   * Active locale for the document rendered inside `children`. Used to
+   * mark the active link in the locale switcher and to render the
+   * `lang` attribute on the article root for accessibility.
+   */
+  locale: 'pt-BR' | 'en'
+  /**
+   * ISO-8601 date string (YYYY-MM-DD) surfaced in the footer so users
+   * can see the effective date. Matches the `effectiveDate` front-matter
+   * on each MDX file.
+   */
   lastUpdated: string
+  /**
+   * Compiled MDX content (a React element tree). LegalShell wraps it
+   * with a prose-styled `<article>` and sticky TOC scaffolding.
+   */
   children: ReactNode
-  availableLocales?: Locale[]
-  hrefFor?: (locale: Locale) => string
 }
 
-interface TocEntry {
-  id: string
-  text: string
-}
+const LABELS = {
+  'pt-BR': {
+    skipLink: 'Pular para o conteúdo',
+    backHome: 'Voltar para o início',
+    languageSwitcher: 'Idioma',
+    languageShort: { 'pt-BR': 'Português', en: 'English' },
+    lastUpdatedLabel: 'Última atualização',
+    privacy: 'Política de Privacidade',
+    terms: 'Termos de Uso',
+    related: 'Documentos relacionados',
+  },
+  en: {
+    skipLink: 'Skip to content',
+    backHome: 'Back to home',
+    languageSwitcher: 'Language',
+    languageShort: { 'pt-BR': 'Português', en: 'English' },
+    lastUpdatedLabel: 'Last updated',
+    privacy: 'Privacy Policy',
+    terms: 'Terms of Service',
+    related: 'Related documents',
+  },
+} as const
 
-export function LegalShell({
-  locale,
-  lastUpdated,
-  children,
-  availableLocales,
-  hrefFor,
-}: LegalShellProps) {
-  const contentRef = useRef<HTMLDivElement>(null)
-  const [toc, setToc] = useState<TocEntry[]>([])
-  const labels = LABELS[locale]
-
-  useEffect(() => {
-    if (!contentRef.current) return
-    const heads = Array.from(contentRef.current.querySelectorAll('h2'))
-    const next: TocEntry[] = []
-    for (const h of heads) {
-      let id = h.id
-      if (!id) {
-        id = (h.textContent ?? '')
-          .trim()
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/^-|-$/g, '')
-        h.id = id
-      }
-      next.push({ id, text: h.textContent ?? '' })
-    }
-    setToc(next)
-  }, [children])
-
-  const showToc = toc.length > 0
-  const showLocaleSwitcher = Boolean(
-    availableLocales && availableLocales.length > 1 && hrefFor,
-  )
-
-  const switcher = useMemo(() => {
-    if (!showLocaleSwitcher || !availableLocales || !hrefFor) return null
-    return (
-      <LocaleSwitcher
-        available={availableLocales}
-        current={locale}
-        hrefFor={(l) => hrefFor(l as Locale)}
-        label={labels.toc}
-      />
-    )
-  }, [showLocaleSwitcher, availableLocales, locale, hrefFor, labels.toc])
+/**
+ * LegalShell — layout for /privacy and /terms MDX pages.
+ *
+ * Responsibilities:
+ *  - Renders a top header with "back home" + locale switcher (pt-BR ⇄ en)
+ *  - Wraps MDX children in a `prose`-styled `<article>` with the right `lang`
+ *  - Sticky TOC placeholder (visual scaffolding; real anchors come from MDX `##`)
+ *  - Footer with the document's `lastUpdated` stamp + links to the counterpart
+ *
+ * Intentionally a **server component** (no client hooks) so it can be imported
+ * directly by page.tsx server components. All locale switching happens via
+ * plain `<Link>` — query param `?lang=` is recognized by the page negotiator.
+ */
+export function LegalShell({ locale, lastUpdated, children }: LegalShellProps) {
+  const t = LABELS[locale]
+  const otherLocale: 'pt-BR' | 'en' = locale === 'pt-BR' ? 'en' : 'pt-BR'
 
   return (
-    <main className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-8 sm:px-6 lg:grid lg:grid-cols-[220px_1fr] lg:gap-10">
-      {(showToc || showLocaleSwitcher) && (
-        <aside className="order-1 flex flex-col gap-4 lg:sticky lg:top-6 lg:self-start">
-          {switcher}
-          {showToc && (
-            <nav aria-label={labels.toc} className="flex flex-col gap-1 text-sm">
-              <span className="text-xs uppercase tracking-wide text-[var(--text-tertiary)]">
-                {labels.toc}
-              </span>
-              <ul className="flex flex-col gap-1">
-                {toc.map((entry) => (
-                  <li key={entry.id}>
-                    <a
-                      href={`#${entry.id}`}
-                      className="text-[var(--text-secondary)] underline-offset-2 hover:text-[var(--text)] hover:underline"
-                    >
-                      {entry.text}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </nav>
-          )}
+    <div data-testid="legal-shell" lang={locale} className="min-h-screen bg-white text-slate-900">
+      <a
+        href="#legal-main"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:bg-white focus:px-3 focus:py-2 focus:shadow"
+      >
+        {t.skipLink}
+      </a>
+      <header className="border-b border-slate-200">
+        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4">
+          <Link
+            href="/"
+            data-testid="legal-shell-home-link"
+            className="text-sm font-medium text-slate-700 hover:text-slate-900"
+          >
+            ← {t.backHome}
+          </Link>
+          <nav
+            aria-label={t.languageSwitcher}
+            data-testid="legal-shell-locale-switcher"
+            className="flex items-center gap-2 text-sm"
+          >
+            <span className="text-slate-500">{t.languageSwitcher}:</span>
+            <span
+              aria-current="true"
+              lang={locale}
+              className="font-semibold text-slate-900"
+              data-testid={`legal-shell-locale-current-${locale}`}
+            >
+              {t.languageShort[locale]}
+            </span>
+            <span aria-hidden="true" className="text-slate-300">
+              |
+            </span>
+            <Link
+              href={`?lang=${otherLocale}`}
+              hrefLang={otherLocale}
+              lang={otherLocale}
+              className="text-slate-600 underline hover:text-slate-900"
+              data-testid={`legal-shell-locale-other-${otherLocale}`}
+            >
+              {t.languageShort[otherLocale]}
+            </Link>
+          </nav>
+        </div>
+      </header>
+
+      <div className="mx-auto grid max-w-6xl grid-cols-1 gap-8 px-4 py-8 lg:grid-cols-[1fr_240px]">
+        <article
+          id="legal-main"
+          data-testid="legal-shell-article"
+          className="prose prose-slate max-w-none"
+        >
+          {children}
+        </article>
+        <aside
+          aria-label="Table of contents"
+          data-testid="legal-shell-toc"
+          className="hidden lg:block"
+        >
+          <div className="sticky top-8 border-l border-slate-200 pl-4 text-sm text-slate-600">
+            <p className="font-semibold text-slate-900">{t.related}</p>
+            <ul className="mt-2 space-y-1">
+              <li>
+                <Link href="/privacy" className="hover:text-slate-900">
+                  {t.privacy}
+                </Link>
+              </li>
+              <li>
+                <Link href="/terms" className="hover:text-slate-900">
+                  {t.terms}
+                </Link>
+              </li>
+            </ul>
+          </div>
         </aside>
-      )}
-      <div ref={contentRef} className="order-2 prose prose-slate max-w-none dark:prose-invert">
-        {children}
-        <footer className="mt-10 border-t border-[var(--border)] pt-4 text-xs text-[var(--text-tertiary)]">
-          {labels.lastUpdated}: {lastUpdated}
-        </footer>
       </div>
-    </main>
+
+      <footer className="border-t border-slate-200">
+        <div className="mx-auto flex max-w-4xl flex-col gap-2 px-4 py-6 text-sm text-slate-500 sm:flex-row sm:justify-between">
+          <span data-testid="legal-shell-last-updated">
+            {t.lastUpdatedLabel}:{' '}
+            <time dateTime={lastUpdated} className="font-medium text-slate-700">
+              {lastUpdated}
+            </time>
+          </span>
+          <span>
+            <Link href="/" className="hover:text-slate-900">
+              bythiagofigueiredo.com
+            </Link>
+          </span>
+        </div>
+      </footer>
+    </div>
   )
 }

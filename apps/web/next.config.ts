@@ -1,5 +1,6 @@
 import type { NextConfig } from 'next'
 import { withSentryConfig } from '@sentry/nextjs'
+import createMDX from '@next/mdx'
 
 const nextConfig: NextConfig = {
   // @tn-figueiredo/cms v0.1.x ships ESM with `import.meta.url` (MDX renderer)
@@ -13,6 +14,12 @@ const nextConfig: NextConfig = {
   // explicit `'use client'` banner in the published bundle — the consumer no
   // longer needs to add admin to `transpilePackages`.
   transpilePackages: ['@tn-figueiredo/cms'],
+
+  // Sprint 5a Track E — enable .mdx as page/module file extensions so that
+  // `import('@/content/legal/privacy.pt-BR.mdx')` works for the /privacy and
+  // /terms legal pages. The MDX loader compiles MDX → React at build time,
+  // same flow as @next/mdx default.
+  pageExtensions: ['ts', 'tsx', 'js', 'jsx', 'mdx'],
 
   async headers() {
     const loginPaths = [
@@ -99,12 +106,21 @@ const sentryUploadEnabled =
   !!process.env.SENTRY_ORG &&
   !!process.env.SENTRY_PROJECT
 
+// Sprint 5a Track E — MDX wrapper for /privacy and /terms legal content.
+// `withMDX` registers `.mdx` compilation via `@mdx-js/loader`. It must wrap
+// before Sentry because Sentry's plugin also wraps the config.
+const withMDX = createMDX({
+  extension: /\.mdx?$/,
+})
+
+const finalConfig = withMDX(nextConfig)
+
 export default sentryUploadEnabled
-  ? withSentryConfig(nextConfig, {
+  ? withSentryConfig(finalConfig, {
       silent: true,
       org: process.env.SENTRY_ORG,
       project: process.env.SENTRY_PROJECT,
       authToken: process.env.SENTRY_AUTH_TOKEN,
       disableLogger: true,
     })
-  : nextConfig
+  : finalConfig
