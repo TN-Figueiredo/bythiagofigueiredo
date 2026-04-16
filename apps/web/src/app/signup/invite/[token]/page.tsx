@@ -141,7 +141,7 @@ export default async function InviteAcceptPage({ params, searchParams }: Props) 
   if (emailAlreadyExists) {
     // Existing user — redirect to sign-in so they can authenticate first
     redirect(
-      `/signin?redirect=${encodeURIComponent(`/signup/invite/${token}`)}&hint=${encodeURIComponent(inv.email)}`,
+      `/admin/login?redirect=${encodeURIComponent(`/signup/invite/${token}`)}&hint=${encodeURIComponent(inv.email)}`,
     )
   }
 
