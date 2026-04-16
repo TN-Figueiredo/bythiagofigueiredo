@@ -36,6 +36,11 @@ async function getUserClient() {
 /**
  * Called when the visitor is already signed in and we just need to run the
  * atomic accept RPC (which binds auth.uid() server-side).
+ *
+ * Uses the Sprint 3 single-arg overload of `accept_invitation_atomic(p_token)`
+ * which still exists alongside the RBAC v3 two-arg variant. Returns
+ * `{ ok: boolean, error?: string, org_id?: string }`.
+ *
  * Redirects to /cms on success, or back to the invite page with ?error=<code> on failure.
  */
 export async function acceptInviteForCurrentUser(token: string): Promise<void> {
@@ -73,14 +78,24 @@ export async function acceptInviteForCurrentUser(token: string): Promise<void> {
 // ─── action: sign up + accept for new user ───────────────────────────────────
 
 /**
- * Full flow for a new user:
- *  1. Validate invitation details via get_invitation_by_token (anon-safe).
- *  2. Create the auth user via service-role admin (email_confirm: true).
- *  3. Sign the new user in (establishes a session so auth.uid() resolves).
- *  4. Call accept_invitation_atomic(p_token) — RPC uses auth.uid() internally.
- *  5. On RPC failure: compensate by deleting the newly created user.
+ * Full flow for a new user accepting an invite:
  *
- * Redirects to /cms on success, or back to the invite page with ?error=<code> on failure.
+ *  1. Validate invitation via `get_invitation_by_token` (anon-safe).
+ *  2. Create the auth user via service-role admin (`email_confirm: true`).
+ *  3. Call `accept_invitation_atomic(p_token_hash, p_user_id)` — the RBAC v3
+ *     two-arg overload binds the target user explicitly so we don't need a
+ *     session yet. Returns `{ redirect_url, role_scope, role, org_id, site_id }`.
+ *  4. On partial failure (user created but RPC errors): delete the newly
+ *     created auth user via `admin.auth.admin.deleteUser` to keep the table
+ *     clean. The RPC is transactional (FOR UPDATE + UPDATE invitations) so
+ *     a raised exception means no row was mutated; the user we just created
+ *     would be orphaned unless we roll it back.
+ *  5. On success: cross-domain redirect to `result.redirect_url` — the
+ *     master ring's `/cms/login` for org-scope invites, or the site's
+ *     primary_domain `/cms/login` for site-scope invites.
+ *
+ * Redirects to /cms/login (same-origin fallback) or the remote site on
+ * success; back to the invite page with ?error=<code> on any failure.
  */
 export async function acceptInviteWithPassword(
   token: string,
@@ -121,46 +136,55 @@ export async function acceptInviteWithPassword(
 
   const userId = created.user.id
 
-  // Step 3 — Sign the new user in so auth.uid() resolves in the RPC
-  const userClient = await getUserClient()
-
-  // C6: clear any pre-existing session before establishing the new one
-  await userClient.auth.signOut()
-
-  const { error: signInErr } = await userClient.auth.signInWithPassword({
-    email: invitedEmail,
-    password,
-  })
-
-  if (signInErr) {
-    // Compensate: delete the user we just created
-    await service.auth.admin.deleteUser(userId)
-    // C6: clear orphan session cookie on failure path
-    await userClient.auth.signOut()
-    redirect(`/signup/invite/${token}?error=signup_failed`)
-  }
-
-  // Step 4 — Accept invitation atomically (RPC binds auth.uid() server-side)
-  const { data: acceptData, error: acceptErr } = await userClient.rpc(
+  // Step 3 — Accept invitation atomically using the RBAC v3 two-arg RPC so we
+  // don't need a user session yet. Service-role bypasses RLS; the SECURITY
+  // DEFINER function itself enforces the invariants (token match, not expired,
+  // not revoked, FOR UPDATE).
+  const { data: acceptData, error: acceptErr } = await service.rpc(
     'accept_invitation_atomic',
-    { p_token: token },
+    { p_token_hash: token, p_user_id: userId },
   )
 
-  if (acceptErr || (acceptData && !(acceptData as { ok: boolean }).ok)) {
-    // C2: DO NOT delete the user on RPC failure — the RPC may have committed even if
-    // the response was lost (network timeout). Deleting here would create orphan FK rows.
-    // Instead: log server-side and sign out to clear cookies. The user can retry by
-    // logging in and the page will call acceptInviteForCurrentUser on next visit.
-    console.error('[acceptInviteWithPassword] accept_invitation_atomic failed', acceptErr?.message ?? JSON.stringify(acceptData))
-    captureServerActionError(acceptErr ?? new Error(`accept_invitation_atomic returned not-ok: ${JSON.stringify(acceptData)}`), {
-      action: 'accept_invitation',
-      path: 'signup_with_password',
-    })
-    await userClient.auth.signOut()
+  if (acceptErr || !acceptData) {
+    // Partial-failure cleanup: the user was created but the invitation RPC
+    // failed (token mismatch/expired/revoked/exception). Delete the orphan
+    // auth user so the inviter can retry cleanly.
+    console.error(
+      '[acceptInviteWithPassword] accept_invitation_atomic failed — cleaning up orphan user',
+      acceptErr?.message ?? 'no data returned',
+    )
+    captureServerActionError(
+      acceptErr ??
+        new Error(`accept_invitation_atomic returned null: ${JSON.stringify(acceptData)}`),
+      { action: 'accept_invitation', path: 'signup_with_password' },
+    )
+    try {
+      await service.auth.admin.deleteUser(userId)
+    } catch (cleanupErr) {
+      // If cleanup also fails, log but still redirect to error — admin can
+      // manually sweep orphans via /admin/users.
+      console.error('[acceptInviteWithPassword] orphan cleanup failed', cleanupErr)
+    }
     redirect(`/signup/invite/${token}?error=rpc_failed`)
   }
 
-  redirect('/cms')
+  // Step 4 — Cross-domain redirect to the target's /cms/login.
+  // RPC returns: { redirect_url, role_scope, role, org_id, site_id }
+  const result = acceptData as {
+    redirect_url?: string
+    role_scope?: string
+    role?: string
+    org_id?: string
+    site_id?: string
+  }
+
+  if (result.redirect_url) {
+    redirect(result.redirect_url)
+  }
+
+  // Same-origin fallback if the RPC response is missing redirect_url for
+  // some reason (defensive — shouldn't happen in practice).
+  redirect('/cms/login')
 }
 
 // ─── action: redirect helper (used in server-action forms) ───────────────────

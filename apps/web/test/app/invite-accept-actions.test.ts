@@ -207,73 +207,75 @@ describe('acceptInviteWithPassword', () => {
     expect(url).toBe('/signup/invite/tok-err?error=signup_failed')
   })
 
-  it('deletes newly created user and redirects to ?error=signup_failed when signIn fails', async () => {
-    mockValidInvitation()
-    createUserMock.mockResolvedValueOnce({ data: { user: { id: 'new-uid' } }, error: null })
-    signInMock.mockResolvedValueOnce({ error: { message: 'bad credentials' } })
-
-    const url = await captureRedirect(() => acceptInviteWithPassword('tok-si', 'Password1!'))
-
-    expect(deleteUserMock).toHaveBeenCalledWith('new-uid')
-    expect(url).toBe('/signup/invite/tok-si?error=signup_failed')
-    // C6: signOut should be called to clear orphan cookies on failure
-    expect(signOutMock).toHaveBeenCalled()
-  })
-
-  it('C2: does NOT delete user and calls signOut when accept RPC errors (network/timeout)', async () => {
+  it('Track G: deletes orphan user and redirects to rpc_failed on partial failure (accept RPC errors)', async () => {
     mockValidInvitation()
     createUserMock.mockResolvedValueOnce({ data: { user: { id: 'new-uid-2' } }, error: null })
-    signInMock.mockResolvedValueOnce({ error: null })
-    // accept_invitation_atomic called via userClient.rpc — network error / RPC failure
-    rpcMock.mockResolvedValueOnce({ data: null, error: { message: 'expired' } })
+    // accept_invitation_atomic called via service.rpc — RPC failure
+    rpcMock.mockResolvedValueOnce({ data: null, error: { message: 'invitation_invalid' } })
 
     const url = await captureRedirect(() => acceptInviteWithPassword('tok-ra', 'Password1!'))
 
-    // C2: must NOT delete — RPC may have committed even if response was lost
-    expect(deleteUserMock).not.toHaveBeenCalled()
-    // C2: must sign out to clear cookies
-    expect(signOutMock).toHaveBeenCalled()
+    // Track G partial-failure cleanup: delete the orphan user since the
+    // RPC exception means the invitation row was NOT mutated.
+    expect(deleteUserMock).toHaveBeenCalledWith('new-uid-2')
     expect(url).toBe('/signup/invite/tok-ra?error=rpc_failed')
   })
 
-  it('C2: does NOT delete user and calls signOut when RPC returns ok:false', async () => {
-    mockValidInvitation()
-    createUserMock.mockResolvedValueOnce({ data: { user: { id: 'new-uid-3' } }, error: null })
-    signInMock.mockResolvedValueOnce({ error: null })
-    rpcMock.mockResolvedValueOnce({ data: { ok: false, error: 'email_mismatch' }, error: null })
-
-    const url = await captureRedirect(() => acceptInviteWithPassword('tok-mm', 'Password1!'))
-
-    // C2: must NOT delete — RPC was reachable, user account is created, preserve it
-    expect(deleteUserMock).not.toHaveBeenCalled()
-    expect(signOutMock).toHaveBeenCalled()
-    expect(url).toBe('/signup/invite/tok-mm?error=rpc_failed')
-  })
-
-  it('redirects to /cms on full success', async () => {
+  it('Track G: cross-domain redirects to primary_domain /cms/login on site-scope success', async () => {
     mockValidInvitation()
     createUserMock.mockResolvedValueOnce({ data: { user: { id: 'new-uid-ok' } }, error: null })
-    signInMock.mockResolvedValueOnce({ error: null })
-    rpcMock.mockResolvedValueOnce({ data: { ok: true, org_id: 'org-happy' }, error: null })
+    // RBAC v3 RPC returns { redirect_url, role_scope, role, org_id, site_id }
+    rpcMock.mockResolvedValueOnce({
+      data: {
+        redirect_url: 'https://site-a.example.com/cms/login',
+        role_scope: 'site',
+        role: 'editor',
+        org_id: 'org-1',
+        site_id: 'site-1',
+      },
+      error: null,
+    })
 
     const url = await captureRedirect(() => acceptInviteWithPassword('tok-ok', 'Password1!'))
 
     expect(deleteUserMock).not.toHaveBeenCalled()
-    expect(url).toBe('/cms')
+    expect(url).toBe('https://site-a.example.com/cms/login')
   })
 
-  it('does NOT pass p_user_id to accept_invitation_atomic (single-param RPC)', async () => {
+  it('Track G: redirects to master-ring /cms/login on org-scope success', async () => {
+    mockValidInvitation()
+    createUserMock.mockResolvedValueOnce({ data: { user: { id: 'new-uid-org' } }, error: null })
+    rpcMock.mockResolvedValueOnce({
+      data: {
+        redirect_url: 'https://bythiagofigueiredo.com/cms/login',
+        role_scope: 'org',
+        role: 'org_admin',
+        org_id: 'org-1',
+      },
+      error: null,
+    })
+
+    const url = await captureRedirect(() => acceptInviteWithPassword('tok-org', 'Password1!'))
+
+    expect(deleteUserMock).not.toHaveBeenCalled()
+    expect(url).toBe('https://bythiagofigueiredo.com/cms/login')
+  })
+
+  it('Track G: passes p_token_hash + p_user_id to the two-arg accept_invitation_atomic RPC', async () => {
     mockValidInvitation()
     createUserMock.mockResolvedValueOnce({ data: { user: { id: 'uid-check' } }, error: null })
-    signInMock.mockResolvedValueOnce({ error: null })
-    rpcMock.mockResolvedValueOnce({ data: { ok: true, org_id: 'org-1' }, error: null })
+    rpcMock.mockResolvedValueOnce({
+      data: {
+        redirect_url: 'https://bythiagofigueiredo.com/cms/login',
+        role_scope: 'org',
+      },
+      error: null,
+    })
 
     await captureRedirect(() => acceptInviteWithPassword('tok-sig', 'Password1!'))
 
-    // The accept RPC call should only have p_token, not p_user_id
     const acceptCall = rpcMock.mock.calls.find((c) => c[0] === 'accept_invitation_atomic')
     expect(acceptCall).toBeDefined()
-    expect(acceptCall![1]).toEqual({ p_token: 'tok-sig' })
-    expect(acceptCall![1]).not.toHaveProperty('p_user_id')
+    expect(acceptCall![1]).toEqual({ p_token_hash: 'tok-sig', p_user_id: 'uid-check' })
   })
 })

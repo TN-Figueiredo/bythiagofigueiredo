@@ -3,7 +3,8 @@ import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
 import type { CookieOptions } from '@supabase/ssr'
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
-import { acceptInviteForCurrentUser, acceptInviteWithPassword } from './actions'
+import { acceptInviteForCurrentUser } from './actions'
+import { AcceptInviteForm } from './accept-invite-form'
 import { SubmitButton } from './_components/SubmitButton'
 
 interface Props {
@@ -21,7 +22,7 @@ interface InvitationRow {
 
 const errorMessages: Record<string, string> = {
   rpc_failed:
-    'Sua conta foi criada mas a aceitação do convite falhou. Faça login e contate o admin.',
+    'Não foi possível completar o convite. Tente novamente ou contate o admin.',
   expired: 'Este convite expirou.',
   email_mismatch: 'O email do convite não corresponde ao seu login.',
   already_accepted: 'Este convite já foi aceito.',
@@ -45,18 +46,22 @@ export default async function InviteAcceptPage({ params, searchParams }: Props) 
 
   if (!inv) {
     return (
-      <main>
-        <h1>Convite inválido</h1>
-        <p>Este link de convite não existe ou já foi removido.</p>
+      <main className="mx-auto max-w-md py-12 px-4">
+        <h1 className="text-xl font-semibold">Convite inválido</h1>
+        <p className="mt-4 text-sm text-gray-700">
+          Este link de convite não existe ou já foi removido.
+        </p>
       </main>
     )
   }
 
   if (inv.expired) {
     return (
-      <main>
-        <h1>Convite expirado</h1>
-        <p>Solicite um novo convite ao administrador da organização.</p>
+      <main className="mx-auto max-w-md py-12 px-4">
+        <h1 className="text-xl font-semibold">Convite expirado</h1>
+        <p className="mt-4 text-sm text-gray-700">
+          Solicite um novo convite ao administrador da organização.
+        </p>
       </main>
     )
   }
@@ -95,27 +100,29 @@ export default async function InviteAcceptPage({ params, searchParams }: Props) 
   if (user) {
     if (user.email?.toLowerCase() !== inv.email.toLowerCase()) {
       return (
-        <main>
-          <h1>Email diferente</h1>
-          <p>
+        <main className="mx-auto max-w-md py-12 px-4">
+          <h1 className="text-xl font-semibold">Email diferente</h1>
+          <p className="mt-4 text-sm text-gray-700">
             Este convite é para <strong>{inv.email}</strong> mas você está logado como{' '}
             <strong>{user.email}</strong>.
           </p>
-          <p>Saia da sua conta e tente novamente, ou solicite um convite para o email correto.</p>
+          <p className="mt-2 text-sm text-gray-700">
+            Saia da sua conta e tente novamente, ou solicite um convite para o email correto.
+          </p>
         </main>
       )
     }
 
     // User is logged in with the correct email — show one-click accept button
     return (
-      <main>
-        <h1>Aceitar convite</h1>
-        <p>
+      <main className="mx-auto max-w-md py-12 px-4">
+        <h1 className="text-xl font-semibold">Aceitar convite</h1>
+        <p className="mt-4 text-sm text-gray-700">
           Você foi convidado para <strong>{inv.org_name}</strong> como{' '}
           <strong>{inv.role}</strong>.
         </p>
         {errorMessage && (
-          <div role="status" aria-live="polite">
+          <div role="status" aria-live="polite" className="mt-3 rounded bg-red-50 px-3 py-2 text-sm text-red-700">
             {errorMessage}
           </div>
         )}
@@ -124,6 +131,7 @@ export default async function InviteAcceptPage({ params, searchParams }: Props) 
             'use server'
             await acceptInviteForCurrentUser(token)
           }}
+          className="mt-6"
         >
           <SubmitButton>Aceitar convite</SubmitButton>
         </form>
@@ -145,32 +153,25 @@ export default async function InviteAcceptPage({ params, searchParams }: Props) 
     )
   }
 
-  // New user — show password creation form
+  // New user — show password creation form (client component wires local
+  // validation + useTransition around the server action).
   return (
-    <main>
-      <h1>Criar conta</h1>
-      <p>
+    <main className="mx-auto max-w-md py-12 px-4">
+      <h1 className="text-xl font-semibold">Criar conta</h1>
+      <p className="mt-4 text-sm text-gray-700">
         Convite para <strong>{inv.email}</strong> em <strong>{inv.org_name}</strong> como{' '}
         <strong>{inv.role}</strong>.
       </p>
       {errorMessage && (
-        <div role="status" aria-live="polite">
+        <div
+          role="status"
+          aria-live="polite"
+          className="mt-3 rounded bg-red-50 px-3 py-2 text-sm text-red-700"
+        >
           {errorMessage}
         </div>
       )}
-      <form
-        action={async (formData: FormData) => {
-          'use server'
-          const password = formData.get('password') as string
-          const confirm = formData.get('confirm') as string
-          if (!password || password !== confirm || password.length < 8) return
-          await acceptInviteWithPassword(token, password)
-        }}
-      >
-        <input type="password" name="password" required placeholder="Senha (mínimo 8 caracteres)" />
-        <input type="password" name="confirm" required placeholder="Confirmar senha" />
-        <SubmitButton>Criar conta e aceitar convite</SubmitButton>
-      </form>
+      <AcceptInviteForm token={token} email={inv.email} />
     </main>
   )
 }
