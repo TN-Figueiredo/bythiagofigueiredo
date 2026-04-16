@@ -100,6 +100,70 @@ Para o cron-locks test (advisory locks session-scoped), duas conexões `pg.Clien
 - **Contact right-to-be-forgotten** — `anonymize_contact_submission(p_id uuid)` RPC (migration `…000002`) zera `name/email/ip/user_agent/message` da submissão e grava `anonymized_at`. Guardado por `is_staff() OR can_admin_site(site_id) OR service_role`. Server action do admin UI deve re-validar staff status antes de chamar.
 - **Sent emails 90-day purge** — `purge_sent_emails(p_older_than_days int default 90)` RPC (migration `…000003`) deleta rows de `sent_emails` com `sent_at < now() - interval`, retorna contagem. Execute só para `service_role`. Invocado diariamente via `/api/cron/purge-sent-emails` (03:00 America/Sao_Paulo = `0 6 * * *` UTC).
 
+## LGPD compliance (Sprint 5a) — `@tn-figueiredo/lgpd@0.1.0` wiring
+
+Sprint 5a implementa os fluxos user-facing de LGPD/GDPR (privacy page, cookie banner, account deletion 3-fase, data export, consents).
+
+### 6-adapter wiring pattern
+
+`apps/web/src/lib/lgpd/container.ts` monta o `LgpdConfig` a partir de 6 adapters concretos que implementam as interfaces de `@tn-figueiredo/lgpd@0.1.0`:
+
+1. **`BythiagoLgpdDomainAdapter`** (`ILgpdDomainAdapter`) — implementa `collectUserData`, `phase1Cleanup`, `phase2Cleanup` (no-op), `phase3Cleanup`, `checkDeletionSafety`.
+2. **`SupabaseLgpdRequestRepository`** (`ILgpdRequestRepository`) — CRUD sobre a tabela `lgpd_requests`.
+3. **`AuditLogLgpdRepository`** (`ILgpdAuditLogRepository`) — reusa `audit_log` do Sprint 4.75 (trigger-driven).
+4. **`BrevoLgpdEmailService`** (`ILgpdEmailService`) — 5 templates Brevo via `@tn-figueiredo/email`.
+5. **`DirectQueryAccountStatusCache`** (`IAccountStatusCache`) — null-object shim que consulta `auth.admin.getUserById().banned_until` direto (sem cache).
+6. **`SupabaseInactiveUserFinder`** (`IInactiveUserFinder`) — query em `auth.users` por `last_sign_in_at < now - 365d`.
+
+Config:
+
+```typescript
+{
+  ...adapters,
+  phase2DelayDays: 0,   // phase 2 é no-op (hybrid C)
+  phase3DelayDays: 15,  // hard delete no D+15 (≤ LGPD 45d)
+  exportExpiryDays: 7,
+  inactiveWarningDays: 365,
+}
+```
+
+### 3-phase deletion model
+
+LGPD Art. 18 V — deletion com grace period cancelável:
+
+- **Phase 1 (instant no confirm via email):** `lgpd_phase1_cleanup(user_id, pre_capture)` em transação atômica — anonymize newsletter_subs (via pre-capture dos emails), anonymize contact_submissions, reassign content ao master_admin (via `reassign_authors`), null em `authors.user_id`, cancel pending invitations, null em `audit_log.actor_user_id`, delete orphaned export blobs. Usa `SET LOCAL app.skip_cascade_audit='1'` pra evitar noise de audit. Em seguida, app chama `auth.admin.updateUserById(id, {ban_duration: 'infinite'})`.
+- **Phase 2:** no-op (hybrid C — `phase2DelayDays: 0`).
+- **Phase 3 (D+15):** cron `/api/cron/lgpd-cleanup-sweep` advance para phase 3 → `auth.admin.deleteUser(id)` OR (se FK bloquear) mantém anonymized permanentemente como "effective deletion". `scheduled_purge_at = phase1_completed_at + 15d`. Cancel dentro do grace period via `cancel_account_deletion_in_grace(token_hash)` — app unbana via `auth.admin.updateUserById(id, {ban_duration: null})`.
+
+### Export format — schema version `v1`
+
+`collectUserData()` retorna JSON versionado com `version: "v1"` no top-level. Schema inclui `$schema` URI + blog MDX completo (translations[].content_mdx), campaigns com submissions, consent_texts inlined, audit_log.as_actor com IP + user_agent, e PII de terceiros redacted por regex (`EMAIL_RE`, `PHONE_RE` → `[REDACTED_EMAIL]`/`[REDACTED_PHONE]`) com flag `redaction_applied: true`. Upload em `lgpd-exports/{user_id}/{request_id}.json` com signed URL (TTL 7d).
+
+### Cookie banner integration contract
+
+- **Render site:** apenas em `app/(public)/layout.tsx` via `<CookieBanner />` + `<CookieBannerTrigger />` gated por `NEXT_PUBLIC_LGPD_BANNER_ENABLED === 'true'`. Nunca em `/admin`, `/cms`, `/account`.
+- **Granularidade (opt-in):** 3 toggles (Functional ON-locked, Analytics OFF default, Marketing OFF default). Accept/Reject com prominência igual (anti-dark-pattern LGPD).
+- **Anonymous flow:** `crypto.randomUUID()` v4 gerado client-side e armazenado em `localStorage.lgpd_anon_id` + POST `/api/consents/anonymous` (service-role insert, rate-limited por IP).
+- **Sign-in merge:** `/api/consents/merge` chama `merge_anonymous_consents(anonymous_id)` com `FOR UPDATE` lock pra segurança contra sign-ins concorrentes. Consentimentos anônimos viram consentimentos do `user_id` autenticado.
+- **Expiry:** 30d pré-auth, 1y pós-auth. Re-prompt em version bump via `X-Lgpd-Consent-Fingerprint` header.
+- **`<ConsentGate>`:** wrapper client-only (nunca SSR-render) pra analytics scripts. `window.addEventListener('storage', ...)` para multi-tab sync.
+- **Sentry:** error tracking sempre ligado (legítimo interesse LGPD Art. 7 **VIII** — NÃO IX, que não existe). Replay + performance tracing só com consent de analytics.
+
+### Feature flags
+
+4 flags permitem rollback granular:
+
+- **`NEXT_PUBLIC_LGPD_BANNER_ENABLED`** — renderização do cookie banner.
+- **`NEXT_PUBLIC_ACCOUNT_DELETE_ENABLED`** — UI de `/account/delete`.
+- **`NEXT_PUBLIC_ACCOUNT_EXPORT_ENABLED`** — UI de `/account/export`.
+- **`LGPD_CRON_SWEEP_ENABLED`** — toggle server-side do cron de cleanup.
+
+Configurar em `apps/web/.env.local` e em Vercel Environment Variables. Estado inicial de prod: todos `true`.
+
+### MDX content
+
+Política de Privacidade + Termos de Uso em `apps/web/src/content/legal/` (pt-BR + en). 14 seções na privacy (DPO exemption via Resolução CD/ANPD 2/2022, SCCs para Vercel/Sentry/Cloudflare nos EUA, teste de balanceamento Sentry LGPD Art. 7 VIII, ANPD + EDPB complaint paths). 12 seções no terms (jurisdição Foro SP/Brasil, cap de responsabilidade R$ 500). MDX compilado via `@next/mdx@15.5.15` (wrapped em `next.config.ts`). Versões ficam em `consent_texts (category, locale, version)` pra accountability de consentimento.
+
 ## Multi-ring (CMS conglomerate) — Sprint 4.75 RBAC v3
 
 Conglomerado multi-site com 4 papéis derivados. `bythiagofigueiredo.com` é o master ring.
