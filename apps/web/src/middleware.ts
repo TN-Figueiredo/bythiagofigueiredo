@@ -6,34 +6,48 @@ import { getSupabaseServiceClient } from '../lib/supabase/service'
 /**
  * Middleware responsibilities:
  * 1. Subdomain rewrite: dev.bythiagofigueiredo.com → /dev internally
- * 2. Site resolution: hostname → site_id/org_id/default_locale (Sprint 2)
- * 3. Auth gating: protect /cms and /admin via createAuthMiddleware
+ * 2. Auth gating: /admin protected by adminAuth (signInPath /admin/login)
+ *                 /cms protected by cmsAuth (signInPath /cms/login)
+ * 3. Site resolution: hostname → site_id/org_id/default_locale for public routes
  *
- * Hostname-based rewrites must NOT use redirects (would expose /dev path).
- * Use rewrite so the URL bar stays at dev.bythiagofigueiredo.com.
+ * Note: `@tn-figueiredo/auth-nextjs` exports `buildAuthRegex` for consumers
+ * that use locale-prefixed routing (next-intl, [locale] segments). apps/web
+ * is single-locale at the URL level today, so plain regex literals suffice.
+ * If locale routing is ever adopted, replace the literals below with
+ * `buildAuthRegex({ path: '/admin/login', locales: [...] })` etc.
  */
 
-const authMiddleware = createAuthMiddleware({
+const env = {
+  supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+}
+
+const adminAuth = createAuthMiddleware({
   publicRoutes: [
-    /^\/$/,
-    '/signin',
-    /^\/signin\/(forgot|reset)/,
+    /^\/admin\/login$/,
+    /^\/admin\/forgot$/,
+    /^\/admin\/reset/,
     /^\/auth\/callback$/,
     /^\/api\//,
     /^\/_next\//,
-    /^\/blog/,
-    /^\/campaigns/,
-    /^\/contact$/,
-    /^\/signup\/invite\//,
-    /^\/unsubscribe\//,
-    /^\/newsletter\/confirm\//,
   ],
-  protectedRoutes: [/^\/cms(\/.*)?$/, /^\/admin(\/.*)?$/],
-  signInPath: '/signin',
-  env: {
-    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  },
+  protectedRoutes: [/^\/admin(\/.*)?$/],
+  signInPath: '/admin/login',
+  env,
+})
+
+const cmsAuth = createAuthMiddleware({
+  publicRoutes: [
+    /^\/cms\/login$/,
+    /^\/cms\/forgot$/,
+    /^\/cms\/reset/,
+    /^\/auth\/callback$/,
+    /^\/api\//,
+    /^\/_next\//,
+  ],
+  protectedRoutes: [/^\/cms(\/.*)?$/],
+  signInPath: '/cms/login',
+  env,
 })
 
 export default async function middleware(
@@ -42,6 +56,7 @@ export default async function middleware(
   const host = request.headers.get('host') ?? request.nextUrl.host ?? ''
   const hostname = host.split(':')[0] ?? ''
   const url = request.nextUrl.clone()
+  const { pathname } = request.nextUrl
 
   // Dev subdomain rewrite (unchanged from Sprint 1a)
   const isDevSubdomain =
@@ -52,11 +67,9 @@ export default async function middleware(
     return NextResponse.rewrite(url)
   }
 
-  // Auth gating for protected routes — run FIRST to preserve its response shape
-  // (it may redirect/block before we attach site headers; that's fine).
-  if (/^\/(cms|admin)(\/|$)/.test(request.nextUrl.pathname)) {
-    return authMiddleware(request)
-  }
+  // Auth gating — dispatch to area-specific instance
+  if (pathname.startsWith('/admin')) return adminAuth(request)
+  if (pathname.startsWith('/cms')) return cmsAuth(request)
 
   // Site resolution for public routes (Sprint 2).
   const res = NextResponse.next()
@@ -78,13 +91,6 @@ export default async function middleware(
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization)
-     * - favicon.ico
-     * - public files
-     */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

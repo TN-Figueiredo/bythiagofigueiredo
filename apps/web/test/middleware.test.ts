@@ -23,11 +23,18 @@ function makeReq(path: string): NextRequest {
 }
 
 describe('middleware', () => {
-  it('redirects unauthenticated request to /cms → /signin', async () => {
+  it('redirects unauthenticated request to /cms → /cms/login', async () => {
     const middleware = await loadMiddleware()
     const res = await middleware(makeReq('/cms'))
     expect([307, 308]).toContain(res.status)
-    expect(res.headers.get('location') ?? '').toMatch(/\/signin/)
+    expect(res.headers.get('location') ?? '').toMatch(/\/cms\/login/)
+  })
+
+  it('redirects unauthenticated request to /admin → /admin/login', async () => {
+    const middleware = await loadMiddleware()
+    const res = await middleware(makeReq('/admin'))
+    expect([307, 308]).toContain(res.status)
+    expect(res.headers.get('location') ?? '').toMatch(/\/admin\/login/)
   })
 
   it('lets anonymous GET / through', async () => {
