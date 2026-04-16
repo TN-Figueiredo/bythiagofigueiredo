@@ -61,11 +61,13 @@ jobs:
           echo "Tarball size: $size bytes"
           test $size -lt 524288
 
-      - name: Consumer smoke — install tarball into fixture
+      - name: Consumer smoke — install deps and tarball
         working-directory: test/consumer-smoke
         run: |
-          npm install ../../$(ls ../../*.tgz | head -n1) --no-save
+          TARBALL=$(ls ../../*.tgz | head -n1)
+          echo "Installing tarball: $TARBALL"
           npm install
+          npm install "$TARBALL" --no-save
 
       - name: Consumer smoke — build fixture
         working-directory: test/consumer-smoke
