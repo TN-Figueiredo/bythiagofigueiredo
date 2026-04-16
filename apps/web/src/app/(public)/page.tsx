@@ -14,10 +14,36 @@ const links = [
   { platform: 'youtube_pt', url: 'https://www.youtube.com/@thiagonfigueiredo', label: 'YouTube (PT)' },
 ]
 
-export default function Home() {
+interface HomeProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}
+
+export default async function Home({ searchParams }: HomeProps) {
   const t = en as Record<string, string>
+  // requireArea redirects here with ?error=insufficient_access when a user
+  // lacks access to the admin/cms area they tried to reach. Render a
+  // dismissible-feel banner (reload clears the URL param) so the user gets
+  // a clear reason instead of a silent bounce.
+  const sp = await searchParams
+  const showInsufficientAccess = sp.error === 'insufficient_access'
   return (
     <>
+      {showInsufficientAccess && (
+        <div
+          role="alert"
+          aria-live="polite"
+          data-testid="insufficient-access-banner"
+          style={{
+            background: '#fef3c7',
+            color: '#92400e',
+            padding: '12px 16px',
+            borderBottom: '1px solid #f59e0b',
+            textAlign: 'center',
+          }}
+        >
+          Você não tem acesso a essa área.
+        </div>
+      )}
       <Header />
       <Hero headline={t['hero.headline']!} subheadline={t['hero.subheadline']!} />
       <section className="text-center p-[var(--spacing-lg)]">
