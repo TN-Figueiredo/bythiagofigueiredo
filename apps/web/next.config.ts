@@ -26,6 +26,23 @@ const nextConfig: NextConfig = {
         { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
       ],
     }))
+    // Sprint 4.75 Track B/B5 — global CSP. Next.js matches the FIRST header
+    // block whose `source` matches; to guarantee the CSP rides on every route
+    // (including the rewrite targets /site-not-configured, /site-error,
+    // /cms/disabled) we register it under `/:path*` alongside the existing
+    // baseline headers.
+    const globalCsp = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in",
+      "font-src 'self' data:",
+      "connect-src 'self' https://*.supabase.co https://*.supabase.in https://o*.ingest.sentry.io https://api.brevo.com",
+      "frame-src https://challenges.cloudflare.com",
+      "frame-ancestors 'none'",
+      "form-action 'self'",
+      "base-uri 'self'",
+    ].join('; ')
     return [
       {
         source: '/(.*)',
@@ -49,6 +66,15 @@ const nextConfig: NextConfig = {
           {
             key: 'Permissions-Policy',
             value: 'camera=(), microphone=(), geolocation=()',
+          },
+        ],
+      },
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: globalCsp,
           },
         ],
       },
