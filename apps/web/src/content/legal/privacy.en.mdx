@@ -46,21 +46,31 @@ For each data category, we list the purpose and the LGPD legal basis (Art. 7):
 | Newsletter | Send opt-in emails (articles, updates) | Art. 7 I (consent) |
 | Contact form | Reply to the contact requested by the data subject | Art. 7 I (consent) and V (pre-contractual execution) |
 | Audit logs | Legal compliance, security, fraud prevention | Art. 7 VI (regular exercise of rights) |
-| Error telemetry (Sentry) | Identify, diagnose, and fix failures | Art. 7 VIII (legitimate interest) |
+| **Error** telemetry (Sentry, stack traces + metadata only) | Identify, diagnose, and fix failures | Art. 7 VIII (legitimate interest) |
+| **Performance** telemetry (Sentry Browser Tracing) and **Session Replay** | Detailed navigation metrics and session reconstruction for debugging | Art. 7 I (consent — analytics) |
 | Functional cookies | Session, preferences, CSRF | Art. 7 V (contract execution) |
 | Analytics/marketing cookies | Aggregate metrics, personalization | Art. 7 I (consent) |
 
-### Balancing test — Sentry (legitimate interest)
+### Balancing test — Sentry (legitimate interest, errors only)
 
-We use **Sentry** for error tracking on the basis of **legitimate interest (LGPD Art. 7 VIII)**. Balancing-test outcome:
+The **always-on** Sentry layer captures **application errors only** (stack traces + route metadata) on the basis of **legitimate interest (LGPD Art. 7 VIII)**. Balancing-test outcome:
 
 - **Legitimate purpose:** ensure service stability, security, and availability — a legitimate expectation of any user.
 - **Necessity:** without error telemetry, critical bugs (data loss, checkout failures, login failures) may go unnoticed for days, causing direct harm to the data subject.
-- **Minimization applied:** PII from form fields is filtered before transmission via a dedicated scrubber (`sensitiveDataTransport`). Only stack traces, route, and anonymous metadata are transmitted.
+- **Minimization applied:** PII (email, phone, CPF) is filtered before transmission by a dedicated scrubber applied to breadcrumbs, messages, headers, and HTTP request bodies. Performance sampling (`tracesSampleRate`) and session replay (`replaysSessionSampleRate` / `replaysOnErrorSampleRate`) are set to **zero** in this layer.
 - **Protection:** 30-day retention; access restricted to authenticated administrators with 2FA.
-- **Right to object:** you can object to this processing at any time via privacidade@bythiagofigueiredo.com (see Section 7).
+- **Right to object:** you can object to this processing at any time via privacidade@bythiagofigueiredo.com (see Section 7). To opt out before transmission you may block third-party JavaScript or request account deletion (Section 7).
 
-Conclusion: legitimate interest prevails, subject to proportionate mitigation. We do NOT rely on Art. 7 IX (which does not exist under the Brazilian LGPD — the list ends at X).
+### Additional layer — Sentry Browser Tracing + Session Replay (analytics consent)
+
+When — and **only when** — you accept the **analytics** cookies in the consent banner, two additional Sentry components become active:
+
+- **Browser Tracing:** navigation-performance sampling (route load times, API request timings).
+- **Session Replay:** session reconstruction with **all input boxes masked (`maskAllInputs: true`)** — what you type and passwords are never captured. Visible text on the page and images are recorded for visual reproduction of bugs.
+
+These two components are attached dynamically upon granting analytics consent and **stopped at runtime** when consent is withdrawn. The legal basis is **consent (LGPD Art. 7 I / GDPR Art. 6(1)(a))**, and unlike the error layer, we **do not** rely on legitimate interest for tracing/replay.
+
+We do NOT rely on Art. 7 IX (which does not exist under the Brazilian LGPD — the list ends at X).
 
 ## 4. Sharing with third parties (sub-processors)
 
@@ -140,7 +150,7 @@ We use 3 categories of cookies/storage. You can accept or decline granularly via
 | Category | Cookies/storage | Purpose | TTL | Consent |
 |----------|-----------------|---------|-----|---------|
 | Functional (required) | `sb-access-token`, `sb-refresh-token`, `preferred_locale`, `lgpd_anon_id`, CSRF tokens | Authentication, session, preferences, security | Session to 30 days | Not required (contract execution) |
-| Analytics (opt-in) | `lgpd_consent_v1.analytics`, Sentry Replay | Aggregated usage metrics | 1 year | Explicit opt-in |
+| Analytics (opt-in) | `lgpd_consent_v1.analytics`, `cookie_analytics_consent` (localStorage), Sentry Session Replay + Browser Tracing | Session reconstruction for debugging + performance metrics | 1 year | Explicit opt-in |
 | Marketing (opt-in) | `lgpd_consent_v1.marketing` | Personalization | 1 year | Explicit opt-in |
 
 You can revoke consents at any time via the footer or `/account/settings/privacy`.
@@ -163,17 +173,22 @@ In case of a **security incident** involving personal data exposure, we will not
 
 This site is **not intended for minors under 18** and we do not knowingly collect data from that age group. If you are a legal guardian and identify that a minor under your care has provided data, write to privacidade@bythiagofigueiredo.com for immediate deletion.
 
-## 11. International transfers (detail)
+## 11. Requesting copies of the protection agreements
 
-As stated in Section 5, transfers to the US (Vercel, Sentry, Cloudflare) are covered by **EU Commission-approved Standard Contractual Clauses (SCCs)** — GDPR Art. 46(2)(c). The SCCs guarantee a level of protection equivalent to the European one for EU data subjects, and compatible with LGPD for Brazilian data subjects.
+The grounds for international transfers are listed in Section 5 (processors + countries + transfer basis). If you want to inspect the instruments in force:
 
-Copies of data-protection agreements (DPAs) can be requested via email.
+- **SCCs (Standard Contractual Clauses)** signed with Vercel, Sentry, and Cloudflare — text per EU Commission Implementing Decision 2021/914.
+- **DPAs (Data Processing Agreements)** with each processor, describing scope of processing, authorized sub-processors, and incident SLAs.
+
+Send a request to **privacidade@bythiagofigueiredo.com** with the subject "DPA/SCC copy" identifying the processor(s) of interest. We reply within 15 calendar days with the redacted documents (signatures and commercial clauses may be masked).
 
 ## 12. Data Protection Officer (DPO)
 
 Thiago Figueiredo operates this site as a **natural person** (solo operator). Under **ANPD Resolution CD/ANPD No. 2 of January 27, 2022** (LGPD Application Regulation for Small-Sized Processing Agents), **small-sized agents are exempt from the mandatory appointment of a formal DPO** (Art. 11 of the Resolution).
 
 In addition, under **GDPR Art. 37(1)**, the obligation to appoint a DPO applies only to: public authorities, entities whose core activities require regular and systematic large-scale monitoring, or those processing special categories at large scale — none of which applies here.
+
+**EU representative (GDPR Art. 27):** Art. 27 of the GDPR requires controllers outside the EU to designate a written representative inside the EU when they offer goods/services to EU residents or monitor their behaviour in a substantial way. EU-originating traffic to this site is currently marginal (under 1% of monthly total), fitting the Art. 27(2)(a) exception — "occasional processing, which does not include, on a large scale, processing of special categories". If the EU visitor volume becomes material and the exception no longer applies, we will formally designate an EU representative and update this section with the relevant contact. Until then, EU visitors may use the privacy channel below.
 
 **Privacy contact channel (single point of contact):** **privacidade@bythiagofigueiredo.com**
 

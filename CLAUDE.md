@@ -162,7 +162,11 @@ Configurar em `apps/web/.env.local` e em Vercel Environment Variables. Estado in
 
 ### MDX content
 
-Política de Privacidade + Termos de Uso em `apps/web/src/content/legal/` (pt-BR + en). 14 seções na privacy (DPO exemption via Resolução CD/ANPD 2/2022, SCCs para Vercel/Sentry/Cloudflare nos EUA, teste de balanceamento Sentry LGPD Art. 7 VIII, ANPD + EDPB complaint paths). 12 seções no terms (jurisdição Foro SP/Brasil, cap de responsabilidade R$ 500). MDX compilado via `@next/mdx@15.5.15` (wrapped em `next.config.ts`). Versões ficam em `consent_texts (category, locale, version)` pra accountability de consentimento.
+Política de Privacidade + Termos de Uso em `apps/web/src/content/legal/` (pt-BR + en). 14 seções na privacy (DPO exemption via Resolução CD/ANPD 2/2022, SCCs para Vercel/Sentry/Cloudflare nos EUA, teste de balanceamento Sentry LGPD Art. 7 VIII + nota sobre Tracing/Replay sob consentimento, ANPD + EDPB complaint paths). 12 seções no terms (jurisdição Foro SP/Brasil, cap de responsabilidade R$ 500). MDX compilado via `@next/mdx@15.5.15` (wrapped em `next.config.ts`). Versões ficam em `consent_texts (category, locale, version)` pra accountability de consentimento.
+
+**consent_texts versions:**
+- **v1.0** (migration `20260430000012_consent_texts.sql`) — seed inicial, descrições curtas. Mantidas permanentemente como accountability record para consentimentos já coletados com esse texto. Marcadas como `superseded_at = now()` pela migração 022.
+- **v2.0** (migration `20260430000022_consent_texts_v2_seed.sql`) — texto expandido para atender o bar "livre, informada, inequívoca" do LGPD Art. 8: cada texto agora explicita categorias de dados, processadores + país + base de transferência, retenção e canal de revogação. Usado para todos os consentimentos novos a partir do deploy dessa migração. App lê a maior versão não-superseded de `(category, locale)`.
 
 ## Multi-ring (CMS conglomerate) — Sprint 4.75 RBAC v3
 
