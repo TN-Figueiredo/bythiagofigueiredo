@@ -42,7 +42,7 @@ beforeEach(() => { vi.clearAllMocks() })
 
 describe('middleware site resolution', () => {
   it('sets x-site-id, x-org-id, x-default-locale headers for a known host', async () => {
-    const { default: middleware } = await import('../middleware')
+    const { default: middleware } = await import('../src/middleware')
     const req = new NextRequest(
       new Request('http://bythiagofigueiredo.com/blog', { headers: { host: 'bythiagofigueiredo.com' } }),
     )
@@ -53,7 +53,7 @@ describe('middleware site resolution', () => {
   })
 
   it('does NOT set site headers for an unknown host', async () => {
-    const { default: middleware } = await import('../middleware')
+    const { default: middleware } = await import('../src/middleware')
     const req = new NextRequest(
       new Request('http://unknown.example/blog', { headers: { host: 'unknown.example' } }),
     )
@@ -62,7 +62,7 @@ describe('middleware site resolution', () => {
   })
 
   it('resolves hostname stripping port (dev: localhost:3001)', async () => {
-    const { default: middleware } = await import('../middleware')
+    const { default: middleware } = await import('../src/middleware')
     const req = new NextRequest(
       new Request('http://localhost:3001/blog', { headers: { host: 'localhost:3001' } }),
     )

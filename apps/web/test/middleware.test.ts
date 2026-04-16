@@ -12,7 +12,7 @@ afterAll(() => {
 })
 
 async function loadMiddleware() {
-  const mod = await import('../middleware')
+  const mod = await import('../src/middleware')
   return mod.default
 }
 
