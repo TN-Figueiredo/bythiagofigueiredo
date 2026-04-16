@@ -21,6 +21,19 @@ npm install @tn-figueiredo/cms --save-exact
 
 > The `@tn-figueiredo` ecosystem pins **exact** versions (no `^`/`~`) across apps. Peer deps keep ranges by npm convention.
 
+## Next.js configuration
+
+This package ships ESM with `import.meta.url` (used by the MDX runtime) and preserved JSX. Next.js consumers must add:
+
+~~~ts
+// next.config.ts
+export default {
+  transpilePackages: ['@tn-figueiredo/cms'],
+}
+~~~
+
+This is a permanent requirement of v0.1.x. A future major may eliminate it by refactoring the MDX renderer.
+
 ## Peer dependencies
 
 | Package                   | Range    |

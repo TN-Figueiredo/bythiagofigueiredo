@@ -28,6 +28,9 @@ Repeat for `email`.
 
 - `test/consumer-smoke/app/page.tsx` — swap `PKG_NAME` → `cms` or `email`; uncomment import and reference a real export (e.g. `SupabasePostRepository` for cms, `BrevoTransport` for email).
 - `test/consumer-smoke/package.json` — remove the `comments` block if desired.
+
+> **Per-package customization:** if the package ships ESM with `import.meta.*`, preserved JSX, or requires any other Next-level transform, add `transpilePackages: ['@tn-figueiredo/PKG']` to `test/consumer-smoke/next.config.mjs`. This matches how the real consumer app (apps/web) must also configure transpilePackages — the smoke test is the earliest place to catch mismatches.
+
 - Root `README.md` of the extracted repo — add CI badge pointing to its workflow runs, install instructions with `.npmrc` for GH Packages auth.
 - Root `package.json` — add `"smoke": "npm pack && cd test/consumer-smoke && npm install ../../*.tgz --no-save && npm install && npm run build"` to `scripts`.
 

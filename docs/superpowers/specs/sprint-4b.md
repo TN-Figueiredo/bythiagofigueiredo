@@ -17,7 +17,7 @@ Score target: **98+/100** vs. o plano Sprint 4 original (74/100) endereçando: L
 - [ ] `@tn-figueiredo/cms@0.1.0` publicado em GitHub Packages (após `0.1.0-beta.1` validado)
 - [ ] `@tn-figueiredo/email@0.1.0` publicado em GitHub Packages (direto, sem beta)
 - [ ] Ambos repos com branch protection em `main`: CI required, force-push bloqueado
-- [ ] `apps/web` consome ambos pinados (`"@tn-figueiredo/cms": "0.1.0"`, `"@tn-figueiredo/email": "0.1.0"`), sem `transpilePackages`, sem entry de workspace
+- [ ] `apps/web` consome ambos pinados (`"@tn-figueiredo/cms": "0.1.0"`, `"@tn-figueiredo/email": "0.1.0"`); `transpilePackages` retained for `@tn-figueiredo/cms` (permanent contract — package ships ESM + JSX); REMOVED for `@tn-figueiredo/email` (pure Node, no transform needed); sem entry de workspace
 - [ ] Root `package.json` `workspaces` contém apenas `apps/*` + `packages/shared`
 - [ ] `packages/cms/` e `packages/email/` removidos do monorepo (preservados na história dos repos extraídos via subtree)
 - [ ] 263+ web tests green, 4 api tests green, `tsc --noEmit` clean em todos workspaces
@@ -178,6 +178,7 @@ PR para `staging` → CI green → merge → push prod.
 | Repo naming | `TN-Figueiredo/cms`, `TN-Figueiredo/email` (match do `@tn-figueiredo` scope) |
 | Publish channel | GitHub Packages (continuidade do ecossistema) |
 | Sprint 4a `@tn-figueiredo/cms` workspace consumer | Removido inteiro no Commit A da Phase 4 |
+| `transpilePackages` removal | Só email | Ambos (não viável em cms) |
 
 ---
 
@@ -194,7 +195,7 @@ PR para `staging` → CI green → merge → push prod.
 
 | Risco | Prob | Impacto | Mitigação |
 |---|---|---|---|
-| `transpilePackages` removal quebra Edge runtime no middleware | 25% | alto | T51a gate: `next dev` + request real antes do swap commit; rollback via `git revert` |
+| `transpilePackages` removal quebra Edge runtime no middleware | CONFIRMED (Phase 2 smoke) | alto | cms cannot work without `transpilePackages` (ships ESM `import.meta.url` + preserved JSX); email works without it (pure Node). Tratamento: cms v0.1.x documenta `transpilePackages` como contrato. v1.0 poderá eliminar (requer refactor do MDX renderer pra não usar `import.meta.url` + emit `.js` ao invés de `.jsx`). |
 | `publish.yml` falha em produção (GH Packages perms / OIDC config) | 20% | médio | `0.1.0-beta.1` dry run em cms primeiro; `npm view` gate após cada publish |
 | `publish.yml` não idempotente → tag re-push quebra workflow | 15% | médio | `npm view <pkg>@<v> \|\| npm publish` guard em T48c/T55c |
 | Consumer swap commits landam antes de ambos publishes concluírem | 10% | alto | Phase 4 gateada em `npm view` success para ambos packages (Phase 3 exit gate) |

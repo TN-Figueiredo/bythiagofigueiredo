@@ -22,5 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `uploadContentAsset()` helper for Supabase Storage uploads.
 - `debug` namespaced loggers exported as `log` (`tn-figueiredo:cms:editor|repo|mdx|ring`).
 
+### Notes
+
+- Requires Next.js `transpilePackages: ['@tn-figueiredo/cms']` in consumer (see README §Next.js configuration). This is part of the v0.1.x contract.
+
 [unreleased]: https://github.com/TN-Figueiredo/cms/compare/v0.1.0-beta.1...HEAD
 [0.1.0-beta.1]: https://github.com/TN-Figueiredo/cms/releases/tag/v0.1.0-beta.1

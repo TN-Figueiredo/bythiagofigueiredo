@@ -10,6 +10,12 @@
     "react": "19.0.0",
     "react-dom": "19.0.0"
   },
+  "devDependencies": {
+    "@types/node": "20.x",
+    "@types/react": "19.0.0",
+    "@types/react-dom": "19.0.0",
+    "typescript": "5.6.3"
+  },
   "comments": {
     "install": "The extracted repo CI runs `npm pack` in the repo root then `npm install ../*.tgz --no-save` in THIS directory to link the just-built tarball. Do not add the @tn-figueiredo/<pkg> dep here — it is injected by the workflow."
   }
