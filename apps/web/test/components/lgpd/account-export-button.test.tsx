@@ -12,13 +12,14 @@ describe('AccountExportButton', () => {
     expect(screen.getByRole('button', { name: /exportar/i })).toBeTruthy()
   })
 
-  it('POSTs /api/lgpd/request-export and shows signed URL on success', async () => {
+  it('POSTs /api/lgpd/request-export and shows async-email confirmation on success', async () => {
+    const expiresAt = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString()
     vi.stubGlobal(
       'fetch',
       vi.fn(() =>
         Promise.resolve(
           new Response(
-            JSON.stringify({ id: 'exp-1', downloadUrl: 'https://example.supabase/storage/x' }),
+            JSON.stringify({ requestId: 'req-123', expiresAt }),
             { status: 200 },
           ),
         ),
@@ -27,11 +28,12 @@ describe('AccountExportButton', () => {
     render(<AccountExportButton />)
     fireEvent.click(screen.getByRole('button', { name: /exportar/i }))
     await waitFor(() => {
-      expect(screen.getByRole('link', { name: /baixar/i })).toHaveProperty(
-        'href',
-        'https://example.supabase/storage/x',
-      )
+      const status = screen.getByRole('status')
+      expect(status.textContent).toMatch(/req-123/)
+      expect(status.textContent?.toLowerCase()).toMatch(/email/)
     })
+    // No direct download link must be rendered — the signed URL is email-only.
+    expect(screen.queryByRole('link', { name: /baixar/i })).toBeNull()
   })
 
   it('shows rate-limit error when server returns 429', async () => {
