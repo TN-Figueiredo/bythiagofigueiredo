@@ -274,3 +274,254 @@ export async function seedCampaign(
   if (error || !data) throw error ?? new Error('seedCampaign: insert failed')
   return { campaignId: data.id }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RBAC v3 scenario (Sprint 4.75 Track A)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Seeds the canonical RBAC v3 test matrix:
+ *   - master org (no parent) + child org (parent = master)
+ *   - siteA + siteB (both under child org, distinct primary_domain)
+ *   - super_admin: org_admin on master → can see/edit everything
+ *   - org_admin:   org_admin on child  → can see/edit sites A + B
+ *   - editor_a:    site_memberships role=editor on siteA
+ *   - reporter_a:  site_memberships role=reporter on siteA
+ *   - random:      auth user with zero memberships
+ *
+ * Returns ids so tests can thread them through assertions. Use together with
+ * `signUserJwt(userId)` to mint per-role JWTs and exercise RLS.
+ *
+ * The helper pushes all created ids into `cleanup` so the caller's afterAll
+ * can drop them in a single batch (sites first, then orgs, then users).
+ */
+export interface RbacScenario {
+  orgMasterId: string
+  orgChildId: string
+  siteAId: string
+  siteBId: string
+  superAdminId: string
+  orgAdminId: string
+  editorAId: string
+  reporterAId: string
+  randomId: string
+  /** Per-user author_id — blog_posts.author_id is NOT NULL, so every user that
+   * may create posts needs a matching authors row. */
+  authorsByUser: Record<string, string>
+  cleanup: {
+    userIds: string[]
+    siteIds: string[]
+    orgIds: string[]
+    authorIds: string[]
+  }
+}
+
+export async function seedRbacScenario(admin: SupabaseClient): Promise<RbacScenario> {
+  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+
+  // NOTE: A unique index enforces a single master ring (parent_org_id IS NULL)
+  // across the whole DB. Reuse the existing master if present; otherwise create.
+  let orgMasterId: string
+  const { data: existingMaster } = await admin
+    .from('organizations')
+    .select('id')
+    .is('parent_org_id', null)
+    .limit(1)
+    .maybeSingle()
+  if (existingMaster) {
+    orgMasterId = existingMaster.id
+  } else {
+    const { data: m, error: mErr } = await admin
+      .from('organizations')
+      .insert({ name: `RBAC Master ${suffix}`, slug: `rbac-master-${suffix}` })
+      .select('id')
+      .single()
+    if (mErr || !m) throw mErr ?? new Error('seedRbacScenario: master insert failed')
+    orgMasterId = m.id
+  }
+
+  const { data: child, error: childErr } = await admin
+    .from('organizations')
+    .insert({
+      name: `RBAC Child ${suffix}`,
+      slug: `rbac-child-${suffix}`,
+      parent_org_id: orgMasterId,
+    })
+    .select('id')
+    .single()
+  if (childErr || !child) throw childErr ?? new Error('seedRbacScenario: child insert failed')
+
+  const { data: siteA, error: sAErr } = await admin
+    .from('sites')
+    .insert({
+      org_id: child.id,
+      name: `Site A ${suffix}`,
+      slug: `site-a-${suffix}`,
+      domains: [`a-${suffix}.test`],
+      primary_domain: `a-${suffix}.test`,
+      default_locale: 'pt-BR',
+      supported_locales: ['pt-BR'],
+    })
+    .select('id')
+    .single()
+  if (sAErr || !siteA) throw sAErr ?? new Error('seedRbacScenario: siteA insert failed')
+
+  const { data: siteB, error: sBErr } = await admin
+    .from('sites')
+    .insert({
+      org_id: child.id,
+      name: `Site B ${suffix}`,
+      slug: `site-b-${suffix}`,
+      domains: [`b-${suffix}.test`],
+      primary_domain: `b-${suffix}.test`,
+      default_locale: 'pt-BR',
+      supported_locales: ['pt-BR'],
+    })
+    .select('id')
+    .single()
+  if (sBErr || !siteB) throw sBErr ?? new Error('seedRbacScenario: siteB insert failed')
+
+  const authAdmin = (admin as unknown as {
+    auth: {
+      admin: {
+        createUser: (a: {
+          email: string
+          password: string
+          email_confirm: boolean
+        }) => Promise<{ data: { user: { id: string } | null }; error: unknown }>
+      }
+    }
+  }).auth.admin
+
+  async function createUser(prefix: string): Promise<string> {
+    const email = `${prefix}-${suffix}@example.test`
+    const { data, error } = await authAdmin.createUser({
+      email,
+      password: 'seed-pw-12345678',
+      email_confirm: true,
+    })
+    if (error || !data.user) throw error ?? new Error(`seedRbacScenario: createUser(${prefix}) failed`)
+    return data.user.id
+  }
+
+  const superAdminId = await createUser('su')
+  const orgAdminId = await createUser('oa')
+  const editorAId = await createUser('ea')
+  const reporterAId = await createUser('ra')
+  const randomId = await createUser('rn')
+
+  const { error: omMasterErr } = await admin.from('organization_members').insert({
+    org_id: orgMasterId,
+    user_id: superAdminId,
+    role: 'org_admin',
+  })
+  if (omMasterErr) throw omMasterErr
+
+  const { error: omChildErr } = await admin.from('organization_members').insert({
+    org_id: child.id,
+    user_id: orgAdminId,
+    role: 'org_admin',
+  })
+  if (omChildErr) throw omChildErr
+
+  const { error: smEditErr } = await admin.from('site_memberships').insert({
+    site_id: siteA.id,
+    user_id: editorAId,
+    role: 'editor',
+  })
+  if (smEditErr) throw smEditErr
+
+  const { error: smReptErr } = await admin.from('site_memberships').insert({
+    site_id: siteA.id,
+    user_id: reporterAId,
+    role: 'reporter',
+  })
+  if (smReptErr) throw smReptErr
+
+  // Seed `authors` row per user (blog_posts.author_id is NOT NULL; unique on user_id).
+  const authorsByUser: Record<string, string> = {}
+  const authorIds: string[] = []
+  for (const [label, uid] of [
+    ['su', superAdminId],
+    ['oa', orgAdminId],
+    ['ea', editorAId],
+    ['ra', reporterAId],
+    ['rn', randomId],
+  ] as const) {
+    const { data: a, error: aErr } = await admin
+      .from('authors')
+      .insert({ user_id: uid, name: `${label}-${suffix}`, slug: `${label}-${suffix}` })
+      .select('id')
+      .single()
+    if (aErr || !a) throw aErr ?? new Error(`seedRbacScenario: authors insert ${label} failed`)
+    authorsByUser[uid] = a.id
+    authorIds.push(a.id)
+  }
+
+  return {
+    orgMasterId,
+    orgChildId: child.id,
+    siteAId: siteA.id,
+    siteBId: siteB.id,
+    superAdminId,
+    orgAdminId,
+    editorAId,
+    reporterAId,
+    randomId,
+    authorsByUser,
+    cleanup: {
+      userIds: [superAdminId, orgAdminId, editorAId, reporterAId, randomId],
+      siteIds: [siteA.id, siteB.id],
+      // Only drop orgs we created — never the shared master.
+      orgIds: [child.id],
+      authorIds,
+    },
+  }
+}
+
+/**
+ * Tears down a scenario created by `seedRbacScenario`. Deletes dependent rows
+ * (blog_posts, campaigns, site_memberships, organization_members, invitations,
+ * audit_log) before sites/orgs/users so FKs don't block cleanup.
+ */
+export async function cleanupRbacScenario(
+  admin: SupabaseClient,
+  scenario: RbacScenario,
+): Promise<void> {
+  const { cleanup } = scenario
+  if (cleanup.siteIds.length) {
+    await admin.from('blog_posts').delete().in('site_id', cleanup.siteIds)
+    await admin.from('campaigns').delete().in('site_id', cleanup.siteIds)
+    await admin.from('site_memberships').delete().in('site_id', cleanup.siteIds)
+    await admin.from('contact_submissions').delete().in('site_id', cleanup.siteIds)
+    await admin.from('newsletter_subscriptions').delete().in('site_id', cleanup.siteIds)
+    await admin.from('audit_log').delete().in('site_id', cleanup.siteIds)
+  }
+  if (cleanup.authorIds?.length) {
+    await admin.from('authors').delete().in('id', cleanup.authorIds)
+  }
+  if (cleanup.orgIds.length) {
+    await admin.from('invitations').delete().in('org_id', cleanup.orgIds)
+    await admin.from('organization_members').delete().in('org_id', cleanup.orgIds)
+    await admin.from('audit_log').delete().in('org_id', cleanup.orgIds)
+  }
+  // Users must be deleted via auth admin (cascades auth.users rows).
+  const authAdmin = (admin as unknown as {
+    auth: {
+      admin: { deleteUser: (id: string) => Promise<{ error: unknown }> }
+    }
+  }).auth.admin
+  for (const uid of cleanup.userIds) {
+    try {
+      await authAdmin.deleteUser(uid)
+    } catch {
+      /* best-effort — other tests' teardown may race. */
+    }
+  }
+  if (cleanup.siteIds.length) {
+    await admin.from('sites').delete().in('id', cleanup.siteIds)
+  }
+  if (cleanup.orgIds.length) {
+    await admin.from('organizations').delete().in('id', cleanup.orgIds)
+  }
+}
