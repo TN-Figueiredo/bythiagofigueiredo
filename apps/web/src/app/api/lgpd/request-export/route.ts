@@ -6,6 +6,10 @@ import {
   UnauthenticatedError,
 } from '@tn-figueiredo/auth-nextjs/server';
 import { createLgpdContainer } from '@/lib/lgpd/container';
+import {
+  verifyRecentlyVerified,
+  LGPD_VERIFY_COOKIE_NAME,
+} from '@/lib/lgpd/verify-cookie';
 import { getLogger } from '../../../../../lib/logger';
 
 /**
@@ -51,6 +55,15 @@ export async function POST(req: Request): Promise<Response> {
       return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
     }
     throw err;
+  }
+
+  // Fix 14 (Sprint 5a): enforce fresh password re-auth via signed cookie.
+  const verifyCookie = cookieStore.get(LGPD_VERIFY_COOKIE_NAME)?.value;
+  if (!verifyRecentlyVerified(verifyCookie, user.id)) {
+    return NextResponse.json(
+      { error: 'password_reauth_required' },
+      { status: 403 },
+    );
   }
 
   try {

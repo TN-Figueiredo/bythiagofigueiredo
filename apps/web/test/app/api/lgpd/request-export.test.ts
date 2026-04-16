@@ -2,6 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const exportRequestFn = vi.fn();
 
+// Mutable cookie jar so individual tests can simulate a missing / stale
+// `lgpd_recently_verified` cookie. Keyed by cookie name.
+const cookieJar: Record<string, string> = {};
+
 vi.mock('@/lib/lgpd/container', () => ({
   createLgpdContainer: () => ({
     dataExport: {
@@ -23,7 +27,10 @@ vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
 
 vi.mock('next/headers', () => ({
   cookies: vi.fn(async () => ({
-    getAll: () => [],
+    getAll: () =>
+      Object.entries(cookieJar).map(([name, value]) => ({ name, value })),
+    get: (name: string) =>
+      cookieJar[name] ? { name, value: cookieJar[name] } : undefined,
     set: () => {},
   })),
 }));
@@ -33,6 +40,10 @@ import {
   requireUser,
   UnauthenticatedError,
 } from '@tn-figueiredo/auth-nextjs/server';
+import {
+  signRecentlyVerified,
+  LGPD_VERIFY_COOKIE_NAME,
+} from '../../../../src/lib/lgpd/verify-cookie';
 
 function makeReq() {
   return new Request('http://x/api/lgpd/request-export', { method: 'POST' });
@@ -41,7 +52,12 @@ function makeReq() {
 beforeEach(() => {
   process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://supabase.local';
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon';
+  process.env.LGPD_VERIFY_SECRET = 'test-verify-secret';
   vi.clearAllMocks();
+  // Default: fresh verify cookie for user u1 so the happy-path tests pass
+  // the Fix 14 gate. 403 tests clear this jar.
+  for (const k of Object.keys(cookieJar)) delete cookieJar[k];
+  cookieJar[LGPD_VERIFY_COOKIE_NAME] = signRecentlyVerified('u1');
 });
 
 afterEach(() => {
@@ -107,5 +123,31 @@ describe('POST /api/lgpd/request-export', () => {
 
     const res = await POST(makeReq());
     expect(res.status).toBe(500);
+  });
+
+  // Fix 14 (Sprint 5a): missing / stale verify cookie must 403.
+  it('403 when the lgpd_recently_verified cookie is missing', async () => {
+    vi.mocked(requireUser).mockResolvedValueOnce({
+      id: 'u1',
+      email: 'a@b.com',
+    });
+    delete cookieJar[LGPD_VERIFY_COOKIE_NAME];
+
+    const res = await POST(makeReq());
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).toBe('password_reauth_required');
+    expect(exportRequestFn).not.toHaveBeenCalled();
+  });
+
+  it('403 when the verify cookie belongs to a different user', async () => {
+    vi.mocked(requireUser).mockResolvedValueOnce({
+      id: 'u1',
+      email: 'a@b.com',
+    });
+    cookieJar[LGPD_VERIFY_COOKIE_NAME] = signRecentlyVerified('someone-else');
+
+    const res = await POST(makeReq());
+    expect(res.status).toBe(403);
   });
 });

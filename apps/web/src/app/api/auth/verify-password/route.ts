@@ -7,6 +7,11 @@ import {
   createServerClient,
   UnauthenticatedError,
 } from '@tn-figueiredo/auth-nextjs/server';
+import {
+  signRecentlyVerified,
+  LGPD_VERIFY_COOKIE_NAME,
+  LGPD_VERIFY_MAX_AGE_SEC,
+} from '@/lib/lgpd/verify-cookie';
 
 const BodySchema = z.object({
   password: z.string().min(1),
@@ -88,5 +93,34 @@ export async function POST(req: Request): Promise<Response> {
   } catch {
     /* best-effort */
   }
+
+  // Fix 14 (Sprint 5a): server-enforced password re-auth. Set a signed,
+  // HTTPOnly cookie that /api/lgpd/request-deletion + /api/lgpd/request-export
+  // verify on each call. Cookie TTL is 300s — forces a fresh prompt for
+  // every high-risk action. Signing key is LGPD_VERIFY_SECRET (falls back
+  // to CRON_SECRET; both empty → signRecentlyVerified throws).
+  try {
+    const signed = signRecentlyVerified(user.id);
+    cookieStore.set(LGPD_VERIFY_COOKIE_NAME, signed, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: LGPD_VERIFY_MAX_AGE_SEC,
+      path: '/',
+    });
+  } catch (e) {
+    // Fail the whole flow rather than return 200 without the cookie —
+    // that would silently downgrade enforcement to "password matched but
+    // no server proof". Client should see 500 + retry after env fix.
+    return NextResponse.json(
+      {
+        valid: false,
+        error: 'verify_cookie_signing_failed',
+        message: e instanceof Error ? e.message : String(e),
+      },
+      { status: 500 },
+    );
+  }
+
   return NextResponse.json({ valid: true }, { status: 200 });
 }
