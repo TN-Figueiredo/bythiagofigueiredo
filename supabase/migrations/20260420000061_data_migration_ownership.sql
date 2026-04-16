@@ -2,6 +2,9 @@
 -- blog_posts.owner_user_id ← authors.user_id via authors FK.
 -- campaigns.owner_user_id ← any org_admin of the site's org (DISTINCT ON).
 
+
+BEGIN;
+
 UPDATE blog_posts bp SET owner_user_id = a.user_id
 FROM authors a
 WHERE bp.author_id = a.id AND bp.owner_user_id IS NULL;
@@ -18,3 +21,5 @@ FROM (
   ORDER BY s.id, om.user_id
 ) sub
 WHERE c.site_id = sub.site_id AND c.owner_user_id IS NULL;
+
+COMMIT;
