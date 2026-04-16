@@ -15,11 +15,13 @@ bythiagofigueiredo.com is operated solo by Thiago Figueiredo, who acts as both t
 
 Deletion uses a **3-phase lifecycle** to reconcile LGPD Art. 18 VI ("right to deletion") with Art. 16 ("data retention obligation for regulatory/legal defense"):
 
-- **Phase 1 — Immediate soft-anonymize (T+0):** On user confirmation, PII is nulled/pseudonymized in `auth.users` and profile tables; content ownership reassigned to the `deleted_user` sentinel; session tokens revoked; a row is inserted into `lgpd_requests` with `status = 'phase_1_complete'`. This phase is idempotent and reversible within a 15-day cancellation window.
-- **Phase 2 — Quiet period (T+0 to T+15):** No-op. The row sits in `lgpd_requests` awaiting either user cancellation (`status = 'cancelled'`) or cron promotion to phase 3. Account login is blocked; profile is a tombstone.
-- **Phase 3 — Hard delete (T+15, cron):** Removes residual rows (`auth.users` record, anonymized profile, export blobs older than 7-day TTL). `status = 'phase_3_complete'`. No recovery after this point.
+- **Phase 1 — Immediate soft-anonymize (T+0):** On user confirmation, PII is nulled/pseudonymized in newsletter/contact rows; content ownership (`blog_posts.owner_user_id`, `campaigns.owner_user_id`) is reassigned to a master_ring `org_admin`; `authors.user_id` is nulled; session tokens revoked via `auth.admin.updateUserById(id, { ban_duration: 'infinite' })`; the `lgpd_requests` row advances to `status = 'processing'`, `phase = 1`, with `phase_1_completed_at` set and `scheduled_purge_at = now() + 15 days`. This phase is idempotent and reversible within a 15-day cancellation window.
+- **Phase 2 — Quiet period (T+0 to T+15):** No-op (`phase2DelayDays: 0` in config). The row sits in `lgpd_requests` awaiting either user cancellation (`cancel_account_deletion_in_grace(token_hash)` → `status = 'cancelled'`) or cron promotion to phase 3. Login is blocked via `banned_until = 'infinity'`.
+- **Phase 3 — Hard delete (T+15, cron `/api/cron/lgpd-cleanup-sweep`):** Attempts `auth.admin.deleteUser(id)`. If FKs block removal, the row soft-completes with `status = 'completed_soft'` (effective deletion via anonymization). On success, `status = 'completed'`, `phase = 3`, `phase_3_completed_at` set. Export blobs older than 7 days are deleted in the same sweep (`blob_deleted_at` stamped). No recovery after this point.
 
-The `lgpd_requests` table carries: `id`, `user_id`, `request_type` (`deletion` | `export` | `access` | `rectification`), `status`, `requested_at`, `phase_1_at`, `phase_3_at`, `cancelled_at`, `metadata` (jsonb: `pre_capture`, `blob_path`, `retry_count`, `notes`). Thiago is the sole reviewer and sign-off authority; there is no second-person control.
+The `lgpd_requests` table carries: `id`, `user_id`, `type` (`data_export` | `account_deletion` | `consent_revocation`), `status` (`pending` | `processing` | `completed` | `completed_soft` | `cancelled` | `failed`), `phase` (1–3), `confirmation_token_hash`, `requested_at`, `confirmed_at`, `scheduled_purge_at`, `phase_1_completed_at`, `phase_3_completed_at`, `completed_at`, `cancelled_at`, `blob_path`, `blob_uploaded_at`, `blob_deleted_at`, `metadata` (jsonb: `pre_capture`, `retry_count`, `notes`, `last_error`). Thiago is the sole reviewer and sign-off authority; there is no second-person control.
+
+> **Note on data-subject-rights request types not tracked in `lgpd_requests`:** Access and rectification requests arrive via `privacidade@bythiagofigueiredo.com` and are handled manually (see §3) — they are **not** persisted as rows in `lgpd_requests`. That table is restricted by CHECK constraint to the three automated flows above. For audit purposes, manual handling of access/rectification is logged in `metadata.notes` of a related row when one exists, or otherwise only in the inbox thread.
 
 ---
 
@@ -48,24 +50,20 @@ Thiago Figueiredo
 Encarregado pelo Tratamento de Dados Pessoais
 ```
 
-3. Create an entry in `/admin/lgpd-requests` with `request_type = 'anpd_inquiry'` and paste the ofício number + deadline into `metadata.notes`.
+3. Create a tracking note in the `privacidade@bythiagofigueiredo.com` inbox with label `anpd-oficio` containing the ofício number + deadline. The `lgpd_requests` table does **not** support an `anpd_inquiry` row type (CHECK constraint restricts `type` to `data_export`/`account_deletion`/`consent_revocation`). If a specific user row exists for the ANPD subject, append the ofício number to that row's `metadata.notes` in `/admin/lgpd-requests`.
 
 ### 2.2 Subject identification
 
-The letter will reference either a CPF (hashed in our DB) or an email. Resolve to `user_id`:
+The letter will reference either a CPF (not stored in our DB — no CPF column currently exists) or an email. Resolve to `user_id`:
 
 ```sql
 -- By email
-SELECT id, email, created_at, deleted_at
+SELECT id, email, created_at, last_sign_in_at, banned_until
 FROM auth.users
 WHERE lower(email) = lower('<email-from-letter>');
-
--- By CPF hash (if stored in profile)
-SELECT u.id, u.email, p.cpf_hash
-FROM auth.users u
-JOIN profiles p ON p.user_id = u.id
-WHERE p.cpf_hash = crypt('<cpf-from-letter>', p.cpf_salt);
 ```
+
+CPF resolution is not available — we do not persist CPF. If the ofício references only a CPF, reply requesting an email identifier, citing LGPD Art. 9 (data minimization).
 
 If no match: reply stating no data found under the provided identifiers, request clarification, and log in `metadata.notes`.
 
@@ -94,12 +92,22 @@ ORDER BY granted_at DESC;
 Supplementary if the inquiry references content:
 
 ```sql
--- Posts authored by the user (pre- and post-reassignment)
-SELECT id, title, created_at, author_id,
-       CASE WHEN author_id = '<uuid>' THEN 'original'
-            ELSE 'reassigned_to_deleted_user' END AS ownership
-FROM posts
-WHERE author_id = '<uuid>' OR legacy_author_id = '<uuid>';
+-- Blog posts owned or authored by the user.
+-- Post-deletion, `owner_user_id` is reassigned to a master_admin and the
+-- authors.user_id pointer is nulled (we do NOT carry a legacy_author_id
+-- column). Pre-capture snapshot of authorship lives in
+-- lgpd_requests.metadata.pre_capture for deletion requests.
+SELECT bp.id, bp.site_id, bp.status, bp.created_at, bp.owner_user_id,
+       a.id AS author_id, a.user_id AS author_user_id, a.name AS author_name
+FROM blog_posts bp
+LEFT JOIN authors a ON a.id = bp.author_id
+WHERE bp.owner_user_id = '<uuid>'
+   OR a.user_id = '<uuid>';
+
+-- Campaigns owned by the user
+SELECT id, site_id, status, created_at, owner_user_id
+FROM campaigns
+WHERE owner_user_id = '<uuid>';
 ```
 
 ### 2.4 Response drafting checklist
@@ -171,7 +179,7 @@ SELECT email, created_at, last_sign_in_at, raw_user_meta_data
 FROM auth.users WHERE id = '<uuid>';
 ```
 
-Paste results (redacted) into the email reply. Log in `lgpd_requests` with `request_type = 'access'`, `status = 'completed_manual'`.
+Paste results (redacted) into the email reply. Access requests are **not persisted** in `lgpd_requests` (table CHECK constraint restricts `type` to `data_export`/`account_deletion`/`consent_revocation`). Log the handled request in the `privacidade@` inbox thread — label `access-request-fulfilled` — and retain the thread for the LGPD accountability window (5 years per Art. 37 §1).
 
 ---
 
@@ -201,54 +209,56 @@ Click **Retry** in `/admin/lgpd-requests/<id>`. The action is idempotent: it re-
 
 ### 4.3 Manual phase 1 cleanup (if retry fails)
 
-Only when automated retry has failed twice and Sentry shows an unrecoverable error (e.g., schema drift, FK violation). Run inside a transaction:
+Only when automated retry has failed twice and Sentry shows an unrecoverable error (e.g., schema drift, FK violation). Prefer to invoke the server-side RPC (which matches the app code path) rather than hand-rolling SQL. The RPC does steps 1–7 atomically:
 
 ```sql
 BEGIN;
 
--- 1. Null PII
-UPDATE auth.users
-SET email = 'deleted-' || id || '@deleted.local',
-    encrypted_password = NULL,
-    raw_user_meta_data = '{}'::jsonb,
-    phone = NULL,
-    banned_until = 'infinity'
-WHERE id = '<uuid>';
+-- 1. Reuse the production RPC — matches what the app does.
+--    pre_capture MUST include the user's newsletter emails so
+--    newsletter_subscriptions rows get hashed, not just the owner relation.
+SELECT public.lgpd_phase1_cleanup(
+  p_user_id := '<uuid>',
+  p_pre_capture := jsonb_build_object(
+    'newsletter_emails', (
+      SELECT COALESCE(jsonb_agg(DISTINCT email), '[]'::jsonb)
+      FROM newsletter_subscriptions
+      WHERE email = (SELECT email FROM auth.users WHERE id = '<uuid>')
+    )
+  )
+);
 
--- 2. Anonymize profile
-UPDATE profiles
-SET display_name = 'Deleted User',
-    bio = NULL, avatar_url = NULL,
-    cpf_hash = NULL, cpf_salt = NULL
-WHERE user_id = '<uuid>';
-
--- 3. Reassign content to sentinel
-UPDATE posts SET author_id = '00000000-0000-0000-0000-000000000000',
-                 legacy_author_id = '<uuid>'
-WHERE author_id = '<uuid>';
-
-UPDATE comments SET author_id = '00000000-0000-0000-0000-000000000000',
-                    legacy_author_id = '<uuid>'
-WHERE author_id = '<uuid>';
-
--- 4. Revoke sessions
+-- 2. Ban login (the RPC does NOT touch auth.users; the app layer does this via
+--    supabase.auth.admin.updateUserById after the RPC returns).
+--    Manual equivalent:
+UPDATE auth.users SET banned_until = 'infinity' WHERE id = '<uuid>';
 DELETE FROM auth.sessions WHERE user_id = '<uuid>';
 DELETE FROM auth.refresh_tokens WHERE user_id = '<uuid>';
 
--- 5. Mark request complete
+-- 3. Mark request complete (matches column names in
+--    supabase/migrations/20260430000001_lgpd_requests.sql).
 UPDATE lgpd_requests
-SET status = 'phase_1_complete',
-    phase_1_at = NOW(),
-    metadata = metadata || jsonb_build_object('manual_recovery', true, 'recovered_by', 'thiago', 'recovered_at', NOW())
+SET status = 'processing',
+    phase = 1,
+    phase_1_completed_at = NOW(),
+    scheduled_purge_at = NOW() + interval '15 days',
+    metadata = metadata || jsonb_build_object(
+      'manual_recovery', true,
+      'recovered_by', 'thiago',
+      'recovered_at', NOW()
+    )
 WHERE id = '<request-uuid>';
 
 -- Verify before committing:
 SELECT email, banned_until FROM auth.users WHERE id = '<uuid>';
-SELECT status, phase_1_at FROM lgpd_requests WHERE id = '<request-uuid>';
+SELECT status, phase, phase_1_completed_at, scheduled_purge_at
+FROM lgpd_requests WHERE id = '<request-uuid>';
 
 COMMIT;
 -- If anything looks wrong: ROLLBACK;
 ```
+
+> Schema reality check: there is no `profiles.cpf_hash`, no `posts` table (use `blog_posts`), no `legacy_author_id`, and no deleted-user sentinel uuid. `authors.user_id` is simply nulled on deletion (FK `ON DELETE SET NULL`). Content ownership is reassigned by setting `blog_posts.owner_user_id` and `campaigns.owner_user_id` to a master_ring org_admin — this is what the RPC does automatically.
 
 ### 4.4 Escalation
 
@@ -268,35 +278,39 @@ Disable user-facing LGPD surfaces without requiring a deploy:
 # Requires Vercel CLI + env access
 vercel env pull .env.production
 # Then in Vercel dashboard or via CLI:
-vercel env add FEATURE_COOKIE_BANNER false production
-vercel env add FEATURE_ACCOUNT_DELETE false production
-vercel env add FEATURE_ACCOUNT_EXPORT false production
-vercel env add FEATURE_LGPD_CRON false production
+vercel env add NEXT_PUBLIC_LGPD_BANNER_ENABLED false production
+vercel env add NEXT_PUBLIC_ACCOUNT_DELETE_ENABLED false production
+vercel env add NEXT_PUBLIC_ACCOUNT_EXPORT_ENABLED false production
+vercel env add LGPD_CRON_SWEEP_ENABLED false production
 # Trigger a redeploy (env changes need it):
 vercel --prod --force
 ```
 
-Flags read in `packages/config/flags.ts`. When `FEATURE_LGPD_CRON=false`, the D+15 cron short-circuits with a logged skip.
+The four flags are read directly from `process.env` at runtime. When `LGPD_CRON_SWEEP_ENABLED=false`, the D+15 cron short-circuits with a logged skip.
 
 ### 5.2 DB restore from migration backup
 
-Sprint 5a follows the Sprint 4.75 backup pattern (`rbac_migration_backup`). Before the LGPD migration ran, full table snapshots were written to `lgpd_migration_backup_v1`:
+Sprint 5a follows the Sprint 4.75 backup pattern. Before migration 011 flipped FK delete semantics, snapshots of FK-affected rows were captured in a single flat table `lgpd_migration_backup_v1(table_name, row_snapshot jsonb, backed_up_at)` — see `supabase/migrations/20260430000000_lgpd_backup_snapshot.sql`. Snapshots cover `blog_posts`, `campaigns`, and a 10k-row `audit_log_sample`.
 
 ```sql
 -- Inspect what's in the backup
-SELECT table_name, row_count, backed_up_at
-FROM lgpd_migration_backup_v1_manifest;
+SELECT table_name, COUNT(*) AS rows, MIN(backed_up_at), MAX(backed_up_at)
+FROM lgpd_migration_backup_v1
+GROUP BY table_name;
 
--- Restore a specific table (example: consents)
+-- Restore a specific row (example: single campaign by id)
 BEGIN;
-TRUNCATE consents;
-INSERT INTO consents SELECT * FROM lgpd_migration_backup_v1.consents;
-SELECT COUNT(*) FROM consents;
--- If correct:
+UPDATE campaigns c
+SET owner_user_id = (row_snapshot->>'owner_user_id')::uuid
+FROM lgpd_migration_backup_v1 b
+WHERE b.table_name = 'campaigns'
+  AND (b.row_snapshot->>'id')::uuid = c.id
+  AND c.id = '<campaign-uuid>';
+-- Verify, then:
 COMMIT;
 ```
 
-**Do not** restore `auth.users` from backup without Supabase support in the loop — auth table restores can break session integrity globally.
+**Do not** restore `auth.users` from backup — the backup table does not contain it. For auth restore contact Supabase support; auth table restores can break session integrity globally.
 
 ### 5.3 Vercel deploy rollback
 
@@ -329,7 +343,7 @@ Or from Vercel dashboard → Deployments → "..." → Promote to Production.
   | Alert                     | Meaning                                                  | SLA             |
   |---------------------------|----------------------------------------------------------|-----------------|
   | `lgpd_phase_failure`      | A phase 1 or phase 3 step threw in production            | Investigate <1h |
-  | `lgpd_cron_backlog`       | >10 requests stuck in phase_1_complete beyond T+15       | Check cron <4h  |
+  | `lgpd_cron_backlog`       | >10 requests with `status='processing'` + `phase=1` past `scheduled_purge_at` | Check cron <4h  |
   | `consent_insert_failure`  | Banner POST to `/api/consents` failing — attack or infra | Investigate <1h |
   | `export_blob_stale`       | Signed URL TTL check found blob >7d still linked         | Clean <24h      |
 
@@ -337,8 +351,8 @@ Or from Vercel dashboard → Deployments → "..." → Promote to Production.
 
 Admin UI at `https://bythiagofigueiredo.com/admin/lgpd-requests` (requires `is_member_staff = true`).
 
-- Filters: status, request_type, date range.
-- Row detail pane shows `metadata.pre_capture` (state snapshot at request time), `metadata.blob_path` (for exports), and a **Retry** button when `status = 'failed'`.
+- Filters: status, type, date range.
+- Row detail pane shows `metadata.pre_capture` (state snapshot at request time), `blob_path` (top-level column, populated for completed exports), and a **Retry** button when `status = 'failed'`.
 - Notes field is append-only; use it for ANPD ofício cross-references.
 
 ### 6.3 `/admin/consents-stats`
@@ -377,7 +391,7 @@ Engage counsel **before** responding when any of the following apply:
 |-------------------------|-----------------------------------------|
 | Privacy inbox           | privacidade@bythiagofigueiredo.com      |
 | Controller / DPO        | Thiago Figueiredo (same mailbox)        |
-| Legal counsel           | **[TBD — placeholder; fill before S5a goes live]** |
+| Legal counsel           | *To be assigned* — escalate first to the DPO contact at `privacidade@bythiagofigueiredo.com`; for formal ANPD responses engage external counsel before sending (see §7.1 triggers). |
 | Sentry alert recipient  | Thiago's primary email                  |
 | ANPD comms              | comunicacao@anpd.gov.br                 |
 | Supabase support        | support@supabase.io (include project ref) |
@@ -393,17 +407,17 @@ Thiago is the sole controller and sign-off. For ANPD responses: **mandatory 2-ho
 
 ```sql
 -- Pending deletion requests (phase 1 complete, awaiting phase 3)
-SELECT id, user_id, requested_at, phase_1_at,
-       (phase_1_at + interval '15 days') AS phase_3_due
+SELECT id, user_id, requested_at, phase_1_completed_at, scheduled_purge_at
 FROM lgpd_requests
-WHERE request_type = 'deletion'
-  AND status = 'phase_1_complete'
-ORDER BY phase_1_at ASC;
+WHERE type = 'account_deletion'
+  AND status = 'processing'
+  AND phase = 1
+ORDER BY phase_1_completed_at ASC;
 
 -- Pending export requests (not yet delivered)
-SELECT id, user_id, requested_at, metadata->>'blob_path' AS blob_path
+SELECT id, user_id, requested_at, blob_path
 FROM lgpd_requests
-WHERE request_type = 'export'
+WHERE type = 'data_export'
   AND status IN ('pending', 'processing')
 ORDER BY requested_at ASC;
 
@@ -427,7 +441,7 @@ WHERE granted_at > NOW() - interval '7 days'
 GROUP BY 1 ORDER BY 1 DESC;
 
 -- Failed phase transitions (last 7 days)
-SELECT id, user_id, request_type, status,
+SELECT id, user_id, type, status,
        metadata->>'last_error' AS last_error,
        metadata->>'retry_count' AS retries,
        requested_at
@@ -446,12 +460,13 @@ ORDER BY last_sign_in_at ASC
 LIMIT 100;
 
 -- Export blobs past 7-day TTL still referenced
-SELECT lr.id, lr.user_id, lr.metadata->>'blob_path' AS path,
-       lr.phase_1_at, NOW() - lr.phase_1_at AS age
+SELECT lr.id, lr.user_id, lr.blob_path,
+       lr.blob_uploaded_at, NOW() - lr.blob_uploaded_at AS age
 FROM lgpd_requests lr
-WHERE lr.request_type = 'export'
-  AND lr.metadata ? 'blob_path'
-  AND lr.phase_1_at < NOW() - interval '7 days';
+WHERE lr.type = 'data_export'
+  AND lr.blob_path IS NOT NULL
+  AND lr.blob_deleted_at IS NULL
+  AND lr.blob_uploaded_at < NOW() - interval '7 days';
 ```
 
 ---
@@ -464,6 +479,7 @@ WHERE lr.request_type = 'export'
 - **Sole-operator risk:** No second person reviews ANPD responses. Mandatory 2-hour cool-off between draft and send is the only compensating control.
 - **No on-call rotation:** Sentry alerts outside waking hours may be missed. For ANPD SLA math, "business days" gives buffer — don't overreact to a weekend alert, but do triage first thing Monday.
 - **Brevo email deliverability:** LGPD confirmation emails (`deletion_initiated`, `export_ready`) depend on Brevo. If Brevo is down, the UI shows "Email delayed — your request is still being processed" but we must not block the phase 1 action on email success.
+- **Reminder email cancel link is broken (ops workaround required):** The grace-period reminder email built by `cleanupSweep` points to `/account/delete?requestId=<id>`, but the cancel RPC (`cancel_account_deletion_in_grace`) needs the raw confirmation **token**, not the request id — so the reminder-link path cannot cancel. Operational workaround until code is fixed: when a user replies to a reminder asking to cancel, instruct them to open the **original** "deletion confirmation" email and click the cancel link there (that email carries the token). If they no longer have that email, you must manually cancel via `/admin/lgpd-requests/<id>` → Cancel button, which runs the admin cancel path. Tracked as a follow-up to this runbook.
 
 ---
 
