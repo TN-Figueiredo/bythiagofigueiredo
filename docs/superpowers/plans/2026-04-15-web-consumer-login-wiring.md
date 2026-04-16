@@ -2,12 +2,12 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace the single `/signin` route with per-area `/admin/login` + `/cms/login` (plus forgot/reset siblings), update middleware to dispatch two `createAuthMiddleware` instances, remove the now-redundant `/signin` directory and its tests, and wire up the `X-Frame-Options: DENY` header on all login pages.
+**Goal:** Replace the single `/signin` route with per-area `/admin/login` + `/cms/login` (plus forgot/reset siblings), update middleware to dispatch two `createAuthMiddleware` instances, remove the now-redundant `/signin` directory and its tests, wire up the `X-Frame-Options: DENY` header on all login pages, add `requireArea` guards + `insufficient_access` flash, and add POST-only `/admin/logout` + `/cms/logout` routes.
 
 **Depends on (execute AFTER):**
-- Phase 1: `@tn-figueiredo/auth-nextjs@2.1.0` published (adds `/actions` + `/safe-redirect` subpaths).
-- Phase 2: `@tn-figueiredo/admin@0.4.0` published (adds `/login` subpath with `<AdminLogin>`, `<AdminForgotPassword>`, `<AdminResetPassword>`).
-- Phase 3: `@tn-figueiredo/cms@0.1.0-beta.3` published (adds `/login` subpath with `<CmsLogin>`, `<CmsForgotPassword>`, `<CmsResetPassword>`).
+- Phase 1: `@tn-figueiredo/auth-nextjs@2.1.0` published (adds `/actions` + `/safe-redirect` subpaths, plus `requireArea`, `signOutAction`, and `buildAuthRegex` helpers).
+- Phase 2: `@tn-figueiredo/admin@0.5.0` published (adds `/login` subpath with `<AdminLogin>`, `<AdminForgotPassword>`, `<AdminResetPassword>`). Note the version jumps from `0.3.0` → `0.5.0` (skipping `0.4.x`) — see T1 for the minor-version audit.
+- Phase 3: `@tn-figueiredo/cms@0.1.0-beta.3` published (adds `/login` subpath with `<CmsLogin>`, `<CmsForgotPassword>`, `<CmsResetPassword>`). Phase 3 ships with locally-inlined login types + a `TODO(phase4-consumer)` banner at `src/login/types.ts` — see T13 for the flip-to-published-import follow-up once `auth-nextjs@2.1.0` is on the registry.
 
 **Rollback note:** This plan's execution spans several commits. If a deploy regresses after the final commit, revert `apps/web/package.json` to the prior exact version pins and `git revert` the commit that deleted `apps/web/src/app/signin/`. GitHub Packages retains all published versions; the old binaries are always available. No rollback touch needed on packages 1-3.
 
@@ -26,23 +26,29 @@ apps/web/src/app/admin/forgot/page.tsx
 apps/web/src/app/admin/forgot/actions.ts
 apps/web/src/app/admin/reset/page.tsx
 apps/web/src/app/admin/reset/actions.ts
+apps/web/src/app/admin/logout/route.ts
 apps/web/src/app/cms/login/page.tsx
 apps/web/src/app/cms/login/actions.ts
 apps/web/src/app/cms/forgot/page.tsx
 apps/web/src/app/cms/forgot/actions.ts
 apps/web/src/app/cms/reset/page.tsx
 apps/web/src/app/cms/reset/actions.ts
+apps/web/src/app/cms/logout/route.ts
 apps/web/test/app/admin-login.test.tsx
 apps/web/test/app/cms-login.test.tsx
+apps/web/test/integration/area-authorization.test.ts
 ```
 
 Files **modified** by this plan:
 
 ```
-apps/web/package.json                            (pin bumps)
+apps/web/package.json                            (pin bumps: auth-nextjs 2.1.0, admin 0.5.0, cms 0.1.0-beta.3)
 apps/web/src/middleware.ts                       (two createAuthMiddleware instances)
+apps/web/src/app/admin/layout.tsx                (requireArea('admin') + POST logout form)
+apps/web/src/app/cms/layout.tsx                  (requireArea('cms') + POST logout form)
+apps/web/src/app/page.tsx                        (insufficient_access flash banner reader)
 apps/web/test/middleware.test.ts                 (per-area redirect expectations)
-apps/web/src/app/auth/callback/route.ts          (safe-redirect import source + error redirects)
+apps/web/src/app/auth/callback/route.ts          (safe-redirect import + area-aware next redirect)
 apps/web/src/app/signup/invite/[token]/page.tsx  (/signin → /admin/login redirect)
 apps/web/next.config.ts                          (X-Frame-Options DENY on login paths)
 ```
@@ -59,6 +65,35 @@ apps/web/test/app/forgot-reset.test.tsx
 
 ## Tasks
 
+### T0 — Supabase Dashboard configuration checklist (manual, out-of-code gate)
+
+**This is a manual, out-of-code checklist.** No file edits. It MUST be completed before the final merge step (T12), and ideally validated before T9's QA pass so OAuth + recovery flows can be exercised end-to-end against a correctly-configured project.
+
+Per the spec sections "Supabase project configuration (out-of-code, required)" and "Plan amendments required by this review", the following config lives in the Supabase Dashboard (Project `novkqtvcnsiwhkxihurk`) and is environment-scoped (local / preview / prod) — edit each env independently:
+
+- [ ] **Redirect URL allowlist** (Authentication → URL Configuration → Redirect URLs):
+
+  Add the following URLs per env (substitute `{APP_URL}` appropriately: `http://localhost:3001`, Vercel preview deployments, `https://bythiagofigueiredo.com`):
+
+  - `{APP_URL}/auth/callback` (shared — default Option A; see T7)
+  - `{APP_URL}/admin/auth/callback` and `{APP_URL}/cms/auth/callback` (only if Option B is adopted in T7)
+  - `{APP_URL}/admin/reset`
+  - `{APP_URL}/cms/reset`
+
+- [ ] **Site URL** (Authentication → URL Configuration → Site URL) set to the prod domain: `https://bythiagofigueiredo.com`.
+
+- [ ] **Password recovery email template** (Authentication → Email Templates → Reset Password):
+
+  Prefer the per-call override approach (already in the spec) — the forgot action passes `supabase.auth.resetPasswordForEmail(email, { redirectTo: `${appUrl}/admin/reset` | `/cms/reset` })`, so the template's `{{ .ConfirmationURL }}` resolves to the right area automatically. The template body itself can stay as the Supabase default (neutral copy). If per-call override is not viable, fall back to a shared neutral URL like `{{ .SiteURL }}/auth/reset#…` that disambiguates the target area client-side via the current role.
+
+- [ ] **Known limitation to document** (in release notes, not in code):
+
+  Supabase recovery email templates are project-level, not user-level — the template locale is global. If localized recovery emails are ever needed, it requires duplicating the Supabase project or moving to a third-party transactional email provider for password resets.
+
+> **Gate:** Do NOT merge T12 until every box above is checked for both Preview and Production. Local-env checkboxes can be deferred if the dev loop already has working callback + reset links.
+
+---
+
 ### T1 — Bump package pins in `apps/web/package.json`
 
 Update three `@tn-figueiredo/*` pins to the versions that carry the new `/login` subpaths. No `^` prefix — pre-commit hook enforces exact pins.
@@ -72,10 +107,18 @@ Update three `@tn-figueiredo/*` pins to the versions that carry the new `/login`
 "@tn-figueiredo/cms": "0.1.0-beta.2",
 
 // After
-"@tn-figueiredo/admin": "0.4.0",
+"@tn-figueiredo/admin": "0.5.0",
 "@tn-figueiredo/auth-nextjs": "2.1.0",
 "@tn-figueiredo/cms": "0.1.0-beta.3",
 ```
+
+**Note on the `admin` version jump (`0.3.0` → `0.5.0`, skipping `0.4.x`):** the admin package shipped a `0.4.x` minor line for the initial `/login` subpath before stabilizing APIs; `0.5.0` folds those changes in plus any post-review adjustments. Before committing the pin bump, **audit the admin package CHANGELOG (or the GitHub Packages release notes) across the `0.3.0 → 0.5.0` span** and confirm:
+
+1. The existing `createAdminLayout` export and its props contract (used by both `apps/web/src/app/admin/layout.tsx` and `apps/web/src/app/cms/layout.tsx`) are unchanged — no removed or renamed fields.
+2. No CSS / Tailwind class name breakage in the sidebar / header that the consumer visually depends on.
+3. Runtime smoke test: after `npm install`, open `/admin` and `/cms` locally and confirm the existing UI still renders.
+
+If any of the three checks flag a regression, stop and reconcile before proceeding. The typecheck step below catches TS-level breakage but not CSS/runtime regressions.
 
 - [ ] Run install and verify resolution:
 
@@ -83,6 +126,89 @@ Update three `@tn-figueiredo/*` pins to the versions that carry the new `/login`
 npm install --workspace=apps/web
 # Expected: no errors; lock file updated with new sha sums.
 ```
+
+- [ ] **Subpath smoke test** (catches export-map misconfigs before code writes start):
+
+Create `apps/web/test/smoke/sprint-4.5-pins.test.ts`:
+
+```typescript
+import { describe, it, expect } from 'vitest'
+
+describe('sprint-4.5 package pin smoke', () => {
+  it('resolves @tn-figueiredo/auth-nextjs/actions', async () => {
+    const mod = await import('@tn-figueiredo/auth-nextjs/actions')
+    expect(typeof mod.signInWithPassword).toBe('function')
+    expect(typeof mod.signOutAction).toBe('function')
+  })
+
+  it('resolves @tn-figueiredo/auth-nextjs/safe-redirect', async () => {
+    const { safeRedirect } = await import('@tn-figueiredo/auth-nextjs/safe-redirect')
+    expect(safeRedirect('/admin', '/', { areaPrefix: '/admin' })).toBe('/admin')
+    expect(safeRedirect('/cms/x', '/', { areaPrefix: '/admin' })).toBe('/')
+  })
+
+  it('resolves @tn-figueiredo/auth-nextjs/server requireArea + pre-existing requireRole', async () => {
+    const mod = await import('@tn-figueiredo/auth-nextjs/server')
+    expect(typeof mod.requireArea).toBe('function')
+    expect(typeof mod.requireRole).toBe('function') // pre-existing, must coexist
+    expect(typeof mod.requireUser).toBe('function')
+  })
+
+  it('resolves @tn-figueiredo/admin/login', async () => {
+    const mod = await import('@tn-figueiredo/admin/login')
+    expect(typeof mod.AdminLogin).toBe('function')
+    expect(typeof mod.AdminForgotPassword).toBe('function')
+    expect(typeof mod.AdminResetPassword).toBe('function')
+  })
+
+  it('resolves @tn-figueiredo/cms/login', async () => {
+    const mod = await import('@tn-figueiredo/cms/login')
+    expect(typeof mod.CmsLogin).toBe('function')
+  })
+})
+```
+
+Run: `npm run test --workspace=apps/web -- smoke/sprint-4.5-pins`. Expected all green before touching any app code.
+
+- [ ] **Type equivalence check** (catches admin/cms inlined-type drift from auth-nextjs canonical):
+
+Create `apps/web/test/smoke/sprint-4.5-types.test-d.ts`:
+
+```typescript
+// @vitest-environment node — type-only file; no runtime assertions needed.
+import type {
+  AuthTheme as Canonical,
+  AuthStrings as CanonicalStrings,
+  AuthPageProps as CanonicalProps,
+  ActionResult as CanonicalResult,
+} from '@tn-figueiredo/auth-nextjs/actions'
+import type {
+  AuthTheme as AdminTheme,
+  AuthStrings as AdminStrings,
+  AuthPageProps as AdminProps,
+  ActionResult as AdminResult,
+} from '@tn-figueiredo/admin/login'
+import type {
+  AuthTheme as CmsTheme,
+  AuthStrings as CmsStrings,
+  AuthPageProps as CmsProps,
+  ActionResult as CmsResult,
+} from '@tn-figueiredo/cms/login'
+
+// Bi-directional structural equivalence — fails compile if admin/cms inlined
+// types drift from canonical. Stays valid after Phase 4 flips them to imports.
+type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false
+const _assertThemeAdmin: Equal<AdminTheme, Canonical> = true
+const _assertThemeCms: Equal<CmsTheme, Canonical> = true
+const _assertStringsAdmin: Equal<AdminStrings, CanonicalStrings> = true
+const _assertStringsCms: Equal<CmsStrings, CanonicalStrings> = true
+const _assertPropsAdmin: Equal<AdminProps, CanonicalProps> = true
+const _assertPropsCms: Equal<CmsProps, CanonicalProps> = true
+const _assertResultAdmin: Equal<AdminResult, CanonicalResult> = true
+const _assertResultCms: Equal<CmsResult, CanonicalResult> = true
+```
+
+Run: `npm run typecheck --workspace=apps/web`. Any drift between admin's inlined `AuthTheme` and auth-nextjs's canonical surfaces here as a compile error — cheap, immediate, automatic.
 
 - [ ] Run typecheck to catch any removed-symbol breakage early:
 
@@ -94,7 +220,7 @@ npm run typecheck --workspace=apps/web
 - [ ] Commit:
 
 ```
-chore(sprint-4c): bump auth-nextjs@2.1.0 admin@0.4.0 cms@0.1.0-beta.3
+chore(web): bump auth-nextjs@2.1.0 admin@0.5.0 cms@0.1.0-beta.3 + sprint-4.5 pin smoke tests
 ```
 
 ---
@@ -163,7 +289,7 @@ npm run test --workspace=apps/web -- --reporter=verbose middleware.test
 - [ ] Commit (failing test is intentional TDD gate):
 
 ```
-test(sprint-4c): update middleware expectations to per-area login paths
+test(web): update middleware expectations to per-area login paths
 ```
 
 ---
@@ -263,7 +389,7 @@ npm run test --workspace=apps/web
 - [ ] Commit:
 
 ```
-feat(sprint-4c): add /admin/login, /admin/forgot, /admin/reset pages + actions
+feat(web): add /admin/login, /admin/forgot, /admin/reset pages + actions
 ```
 
 ---
@@ -363,7 +489,7 @@ npm run test --workspace=apps/web
 - [ ] Commit:
 
 ```
-feat(sprint-4c): add /cms/login, /cms/forgot, /cms/reset pages + actions
+feat(web): add /cms/login, /cms/forgot, /cms/reset pages + actions
 ```
 
 ---
@@ -371,6 +497,8 @@ feat(sprint-4c): add /cms/login, /cms/forgot, /cms/reset pages + actions
 ### T5 — Update middleware to dispatch per-area auth instances
 
 Replace the single `authMiddleware` with two instances: `adminAuth` (signInPath `/admin/login`) and `cmsAuth` (signInPath `/cms/login`). Remove `/signin` from the public routes list.
+
+**Re: `buildAuthRegex` helper (Phase 1).** Phase 1 of the Sprint 4b auth-nextjs publish ships a `buildAuthRegex` helper intended for consumers that use locale-prefixed routing (`next-intl`, `[locale]` segments, etc.) so they can match `/pt-BR/admin/login` as readily as `/admin/login`. `apps/web` does **not** currently use `next-intl` and has no `[locale]` app-router segments — so this plan keeps plain string-anchored regexes inline with a comment noting that `buildAuthRegex` is the canonical path if locale routing is ever adopted. Adopting the helper prematurely would add cross-package coupling with zero present benefit.
 
 - [ ] Edit `apps/web/src/middleware.ts` — replace the entire file content:
 
@@ -386,6 +514,12 @@ import { getSupabaseServiceClient } from '../lib/supabase/service'
  * 2. Auth gating: /admin protected by adminAuth (signInPath /admin/login)
  *                 /cms protected by cmsAuth (signInPath /cms/login)
  * 3. Site resolution: hostname → site_id/org_id/default_locale for public routes
+ *
+ * Note: `@tn-figueiredo/auth-nextjs` exports `buildAuthRegex` for consumers
+ * that use locale-prefixed routing (next-intl, [locale] segments). apps/web
+ * is single-locale at the URL level today, so plain regex literals suffice.
+ * If locale routing is ever adopted, replace the literals below with
+ * `buildAuthRegex({ path: '/admin/login', locales: [...] })` etc.
  */
 
 const env = {
@@ -491,7 +625,7 @@ npm run test --workspace=apps/web
 - [ ] Commit:
 
 ```
-feat(sprint-4c): dispatch per-area auth middleware for /admin and /cms
+feat(web): dispatch per-area auth middleware for /admin and /cms
 ```
 
 ---
@@ -536,7 +670,7 @@ npm run typecheck --workspace=apps/web
 - [ ] Commit:
 
 ```
-security(sprint-4c): add X-Frame-Options DENY + CSP frame-ancestors on login pages
+security(web): add X-Frame-Options DENY + CSP frame-ancestors on login pages
 ```
 
 ---
@@ -547,7 +681,17 @@ Two files outside `/signin/` still reference `/signin`. Update them to point to 
 
 **Note:** `apps/web/src/lib/auth/safe-redirect.ts` does **not exist** as a standalone file — it was always local to the signin module (`apps/web/src/app/signin/page.tsx` and `apps/web/src/app/signin/actions.ts` import it as `'../../../lib/auth/safe-redirect'`). After Phase 1, the canonical implementation lives in `@tn-figueiredo/auth-nextjs/safe-redirect`. The only consumer outside `/signin/` is `apps/web/src/app/auth/callback/route.ts`.
 
-- [ ] Edit `apps/web/src/app/auth/callback/route.ts`:
+#### Callback strategy — Option A (chosen) vs. Option B (documented)
+
+The round-2 review asked whether the OAuth callback should be split per-area. Two options were considered:
+
+**Option A — single shared callback, area inferred from `next` (chosen default).** Keep one `apps/web/src/app/auth/callback/route.ts`. It reads the `next` query param, runs it through `safeRedirect`, and derives the "area" (and therefore the fallback path on error) from whether `next` starts with `/admin` or `/cms`. OAuth providers are registered in Supabase with a single redirect URL (`{APP_URL}/auth/callback`), so the Dashboard config is minimal. This is the spec's recommendation and the default this plan executes.
+
+**Option B — split into `/admin/auth/callback` and `/cms/auth/callback`.** Create two route handlers, register two provider redirect URLs in Supabase, and each handler is hard-coded to its area's fallback. Cleaner boundary, but doubles the provider-side config and the files to maintain; only worth it if area-specific OAuth customization is needed later (e.g. different Google OAuth clients per area). If adopted, add `apps/web/src/app/admin/auth/callback/route.ts` + `apps/web/src/app/cms/auth/callback/route.ts` to the File inventory, register both URLs per env in Supabase Dashboard (see T0), and skip the area-detection block in the single-callback implementation below.
+
+This task executes **Option A**. If a future review swaps to Option B, the File inventory, T0 Dashboard checklist, and this task body all need to be updated together.
+
+- [ ] Edit `apps/web/src/app/auth/callback/route.ts` to use the new import and to derive the error-redirect area from `next`:
 
 ```typescript
 // Line 5: change
@@ -555,15 +699,8 @@ import { safeRedirect } from '../../../../lib/auth/safe-redirect'
 // to
 import { safeRedirect } from '@tn-figueiredo/auth-nextjs/safe-redirect'
 
-// Line 14: change fallback error redirect
-return NextResponse.redirect(`${url.origin}/signin?error=oauth_no_code`)
-// to (admin is the primary OAuth entry point; error surfaced on admin login page)
-return NextResponse.redirect(`${url.origin}/admin/login?error=oauth_no_code`)
-
-// Line 37: change
-return NextResponse.redirect(`${url.origin}/signin?error=oauth_exchange_failed`)
-// to
-return NextResponse.redirect(`${url.origin}/admin/login?error=oauth_exchange_failed`)
+// Add helper: derive the area prefix from the sanitised `next` path.
+// Fallback to '/admin' because admin is the primary OAuth entry point.
 ```
 
 Full file after edit:
@@ -575,14 +712,21 @@ import { createServerClient } from '@supabase/ssr'
 import type { CookieOptions } from '@supabase/ssr'
 import { safeRedirect } from '@tn-figueiredo/auth-nextjs/safe-redirect'
 
+/** Derive which login page to bounce back to on OAuth error. */
+function areaLoginPath(next: string): '/admin/login' | '/cms/login' {
+  if (next.startsWith('/cms')) return '/cms/login'
+  return '/admin/login' // default — admin is the primary OAuth entry point
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url)
   const code = url.searchParams.get('code')
   // C1 / I8: sanitise `next` param to block open-redirect attacks
   const next = safeRedirect(url.searchParams.get('next'))
+  const loginPath = areaLoginPath(next)
 
   if (!code) {
-    return NextResponse.redirect(`${url.origin}/admin/login?error=oauth_no_code`)
+    return NextResponse.redirect(`${url.origin}${loginPath}?error=oauth_no_code`)
   }
 
   const cookieStore = await cookies()
@@ -605,7 +749,7 @@ export async function GET(request: Request) {
 
   const { error } = await supabase.auth.exchangeCodeForSession(code)
   if (error) {
-    return NextResponse.redirect(`${url.origin}/admin/login?error=oauth_exchange_failed`)
+    return NextResponse.redirect(`${url.origin}${loginPath}?error=oauth_exchange_failed`)
   }
 
   return NextResponse.redirect(`${url.origin}${next}`)
@@ -636,7 +780,7 @@ npm run typecheck --workspace=apps/web && npm run test --workspace=apps/web
 - [ ] Commit:
 
 ```
-fix(sprint-4c): update auth/callback + invite redirect from /signin to /admin/login
+fix(web): update auth/callback + invite redirect from /signin to /admin/login
 ```
 
 ---
@@ -779,7 +923,7 @@ npm run test --workspace=apps/web
 - [ ] Commit:
 
 ```
-test(sprint-4c): add admin-login + cms-login consumer render tests
+test(web): add admin-login + cms-login consumer render tests
 ```
 
 ---
@@ -848,8 +992,223 @@ npm run typecheck --workspace=apps/web
 - [ ] Commit:
 
 ```
-chore(sprint-4c): delete /signin route + related tests (replaced by per-area login)
+chore(web): delete /signin route + related tests (replaced by per-area login)
 ```
+
+---
+
+### T10a — Add `requireArea` guards + POST logout forms in admin/cms layouts
+
+The spec's "Area authorization (RBAC) — middleware vs. layout" section scopes middleware to "is authenticated" and defers role enforcement to the layout level, so that unauthenticated users see a login prompt (middleware redirect) while authenticated-but-wrong-role users see a `/?error=insufficient_access` flash on the home page (layout-level `requireArea` redirect). Phase 1's `@tn-figueiredo/auth-nextjs@2.1.0` exports `requireArea(roles, { onDenied })` and a `signOutAction` from `@tn-figueiredo/auth-nextjs/server` to support this.
+
+Additionally, the spec's "Logout flow" section requires logout to be a POST-only action from a `<form>` (CSRF hardening) — not a `<Link>` or a GET — so a malicious third-party page cannot log the user out via a crafted `<img src="/admin/logout">`. The layout header menus are updated to render a `<form method="POST" action="/admin/logout">` / `.../cms/logout` wrapping a "Sair" button.
+
+- [ ] Edit `apps/web/src/app/admin/layout.tsx`:
+
+```typescript
+// Add to the imports
+import { createServerClient, requireUser, requireArea } from '@tn-figueiredo/auth-nextjs'
+
+// After the existing `requireUser(...)` call, add:
+await requireArea('admin')
+// On denial, requireArea internally redirects to `/?error=insufficient_access`
+// (hardcoded in @tn-figueiredo/auth-nextjs@2.1.0; no per-call override — by design,
+// to keep the flash contract single-source-of-truth).
+```
+
+- [ ] Edit `apps/web/src/app/cms/layout.tsx` similarly:
+
+```typescript
+import { createServerClient, requireUser, requireArea } from '@tn-figueiredo/auth-nextjs'
+
+// After requireUser(...):
+await requireArea('cms')
+```
+
+**Area signature:** `requireArea` in 2.1.0 accepts the string literal union `'admin' | 'cms'` — TypeScript rejects any other value at compile time. Internally `'admin'` maps to `rpc('is_admin')` and `'cms'` to `rpc('is_staff')`. Adding a third area means adding a new DB RPC first and extending the switch in `@tn-figueiredo/auth-nextjs/server/require-area.ts`. The helper is deliberately distinct from the pre-existing `requireRole({user, roleName, resolver})` resolver-pattern helper — both coexist; don't mix them up.
+
+- [ ] Update the admin/cms header menu (rendered inside `createAdminLayout` from `@tn-figueiredo/admin`). The admin package exposes the header "user menu" slot; if the existing admin@0.5.0 surface already renders a `<form method="POST" action="{logoutPath}">` when given a `logoutPath` prop, pass `logoutPath="/admin/logout"` (or `/cms/logout`) to `createAdminLayout`. If the admin package still renders a `<Link>`-based logout, open a follow-up issue against `@tn-figueiredo/admin` and temporarily render the form inline via a layout override. Verify the admin CHANGELOG entry for `0.4.x`/`0.5.0` notes POST-logout support; otherwise the fix belongs in the admin package.
+
+- [ ] Run typecheck:
+
+```bash
+npm run typecheck --workspace=apps/web
+# Expected: exits 0 — requireArea types resolve from @tn-figueiredo/auth-nextjs@2.1.0.
+```
+
+- [ ] Commit:
+
+```
+feat(web): add requireArea guards in admin/cms layouts + POST logout forms
+```
+
+---
+
+### T10b — Add `/admin/logout` and `/cms/logout` POST-only route handlers
+
+Per the spec's "Logout flow" section, logout is POST-only. Each area gets a thin route handler that invokes `signOutAction` (Phase 1, exported from `@tn-figueiredo/auth-nextjs/server`) and redirects to its area's login page. GET requests return `405 Method Not Allowed` so a direct browser navigation or image preload cannot trigger signout.
+
+- [ ] Create `apps/web/src/app/admin/logout/route.ts`:
+
+```typescript
+import { NextResponse } from 'next/server'
+import { signOutAction } from '@tn-figueiredo/auth-nextjs/server'
+
+export async function POST(request: Request) {
+  await signOutAction()
+  const origin = new URL(request.url).origin
+  return NextResponse.redirect(`${origin}/admin/login`, { status: 303 })
+}
+
+export function GET() {
+  return new NextResponse('Method Not Allowed', {
+    status: 405,
+    headers: { Allow: 'POST' },
+  })
+}
+```
+
+- [ ] Create `apps/web/src/app/cms/logout/route.ts` (same pattern, `/cms/login` target):
+
+```typescript
+import { NextResponse } from 'next/server'
+import { signOutAction } from '@tn-figueiredo/auth-nextjs/server'
+
+export async function POST(request: Request) {
+  await signOutAction()
+  const origin = new URL(request.url).origin
+  return NextResponse.redirect(`${origin}/cms/login`, { status: 303 })
+}
+
+export function GET() {
+  return new NextResponse('Method Not Allowed', {
+    status: 405,
+    headers: { Allow: 'POST' },
+  })
+}
+```
+
+- [ ] Add the corresponding public-route regex to both middleware instances so logout is reachable while signed in but protected once session cookies are cleared. Edit `apps/web/src/middleware.ts` — append `/^\/admin\/logout$/` to `adminAuth.publicRoutes` and `/^\/cms\/logout$/` to `cmsAuth.publicRoutes`. (Without this, `signOutAction` would clear the session then the middleware would immediately bounce the redirect to `/admin/login` which is the desired end state anyway — but the explicit allowlist removes any race between cookie clear and redirect.)
+
+- [ ] Run tests:
+
+```bash
+npm run test --workspace=apps/web
+# Expected: all tests pass.
+```
+
+- [ ] Commit:
+
+```
+feat(web): add POST-only /admin/logout and /cms/logout route handlers
+```
+
+---
+
+### T10c — Add `insufficient_access` flash banner on home page
+
+The spec's "Area authorization (RBAC) — middleware vs. layout" section specifies that a logged-in user who tries to enter an area they lack the role for should land on `/` with `?error=insufficient_access` and see a human-readable flash banner. Phase 4 reads the search param in `apps/web/src/app/page.tsx` (or whatever renders the root marketing landing) and renders a dismissible banner.
+
+- [ ] **TDD first:** add two render tests to `apps/web/test/app/` (e.g. `home-flash.test.tsx`) covering:
+  - Rendering `<HomePage />` with `searchParams={{ error: 'insufficient_access' }}` shows the banner with text `Você não tem acesso a essa área.`.
+  - Rendering without the param (or with any other value) does NOT render the banner.
+
+- [ ] Edit `apps/web/src/app/page.tsx` (or the root page component that renders the marketing landing) to accept `searchParams` and conditionally render the flash. Prefer reusing existing visual primitives already in the marketing page; if none fit, a minimal Tailwind block is acceptable:
+
+```tsx
+// Pseudocode — adapt to the existing page's actual structure.
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>
+}) {
+  const params = await searchParams
+  const showFlash = params?.error === 'insufficient_access'
+  return (
+    <>
+      {showFlash ? (
+        <div
+          role="alert"
+          className="bg-amber-50 border border-amber-200 text-amber-900 px-4 py-3 text-sm"
+        >
+          Você não tem acesso a essa área.
+        </div>
+      ) : null}
+      {/* existing marketing content */}
+    </>
+  )
+}
+```
+
+If the home page is a client component, read `useSearchParams()` inside a small client banner subcomponent instead. Do not introduce a new state-management library for a single-string flash.
+
+- [ ] Run tests:
+
+```bash
+npm run test --workspace=apps/web
+# Expected: the two new flash tests pass; rest of suite unaffected.
+```
+
+- [ ] Commit:
+
+```
+feat(web): add insufficient_access flash banner on home page
+```
+
+---
+
+### T10d — DB-gated integration test for area authorization matrix
+
+The spec enumerates a 10-case role-authorization test matrix under "Area authorization (RBAC) — middleware vs. layout". Add a `describe.skipIf(skipIfNoLocalDb())` integration suite that seeds users across the roles × areas matrix and asserts the correct redirect/flash outcome for each combination. Per repo convention, CI without `HAS_LOCAL_DB=1` skips silently.
+
+- [ ] Create `apps/web/test/integration/area-authorization.test.ts`:
+
+  - Import the existing seed helpers from `apps/web/test/helpers/db-seed.ts` (e.g. `seedSite()`, `seedStaffUser()`) and `signUserJwt()` from the same module.
+  - Wrap the suite in `describe.skipIf(skipIfNoLocalDb())('area authorization matrix', () => { ... })`.
+  - Cover each row of the 10-case matrix enumerated in the spec section "Area authorization (RBAC) — middleware vs. layout". **Do not re-enumerate the matrix here** — the executing agent MUST open `docs/superpowers/specs/2026-04-15-admin-cms-login-split-design.md` and implement one `it(...)` per spec row, using the exact role / area / expected-outcome triples listed there.
+  - For each case, assert one of: (a) middleware redirect to `/admin/login` or `/cms/login` with `next=` preserved, (b) layout-level redirect to `/?error=insufficient_access`, or (c) successful render of the area dashboard — per the spec's expected outcome column.
+
+- [ ] Run the integration test against the local DB:
+
+```bash
+npm run db:start
+HAS_LOCAL_DB=1 npm run test --workspace=apps/web -- area-authorization.test
+# Expected: all 10 cases pass.
+```
+
+- [ ] Run the full suite without the DB flag to confirm it still skips silently in CI mode:
+
+```bash
+npm run test --workspace=apps/web
+# Expected: area-authorization.test SKIPPED; all other tests pass.
+```
+
+- [ ] Commit:
+
+```
+test(web): DB-gated area-authorization integration matrix (10 cases)
+```
+
+---
+
+### T10e — Flip `@tn-figueiredo/cms` consumer to published auth-nextjs login types
+
+Phase 3 shipped `@tn-figueiredo/cms@0.1.0-beta.3` with **locally-inlined** login types and a `TODO(phase4-consumer)` banner at the top of `src/login/types.ts` — a necessary workaround because `@tn-figueiredo/auth-nextjs@2.1.0` wasn't on the registry when `cms@0.1.0-beta.3` was built. Phase 4 completes the flip **once `auth-nextjs@2.1.0` is published**.
+
+This flip does NOT happen in this repo — it's a follow-up on the `tn-cms` package repo. The task here is to gate the Phase 4 merge on the follow-up being either (a) executed as a patch PR against `tn-cms` or (b) explicitly deferred with a tracked issue.
+
+- [ ] **Verify the state of the `tn-cms` follow-up** before merging Phase 4. Two acceptable outcomes:
+
+  1. **Executed (preferred).** Open a patch PR on `tn-cms` that:
+     - Deletes the inlined types in `src/login/types.ts` and replaces them with `export * from '@tn-figueiredo/auth-nextjs/login-types'` (or whichever export path `auth-nextjs@2.1.0` ships).
+     - Removes the `TODO(phase4-consumer)` banner.
+     - Bumps `cms` to `0.1.0-beta.4` (or `0.1.0` if the flip is considered GA).
+     - Once merged and published, bump the pin here too and re-run this plan's T1 + typecheck gates.
+  2. **Deferred.** Document in the Phase 4 PR description that the flip lives on the `tn-cms` `feat/cms-beta3-login` branch as a pending follow-up, link the tracking issue, and confirm that `beta.3` with inlined types is a known, acceptable intermediate state.
+
+- [ ] This task is a manual gate — no code changes in **this** repo unless option 1 completes and a new cms pin is available.
+
+> **Gate:** Do NOT close Phase 4 without confirming one of the two outcomes above is on record.
 
 ---
 
@@ -882,13 +1241,13 @@ const unpinned = tnDeps.filter(([, v]) => v.startsWith('^') || v.startsWith('~')
 if (unpinned.length) { console.error('UNPINNED:', unpinned); process.exit(1); }
 console.log('All @tn-figueiredo/* pins are exact:', tnDeps.map(([k,v]) => k+'@'+v).join(', '));
 "
-# Expected: prints exact versions for admin@0.4.0, auth-nextjs@2.1.0, cms@0.1.0-beta.3 (and others).
+# Expected: prints exact versions for admin@0.5.0, auth-nextjs@2.1.0, cms@0.1.0-beta.3 (and others).
 ```
 
 - [ ] Commit:
 
 ```
-chore(sprint-4c): verify full test + typecheck + pinning gate after login split
+chore(web): verify full test + typecheck + pinning gate after login split
 ```
 
 ---
@@ -912,8 +1271,13 @@ npm run dev --workspace=apps/web
   - [ ] Login on `/cms/login` succeeds and lands on `/cms`.
   - [ ] Forgot password on `/admin/forgot` → generic success message shown.
   - [ ] Forgot password on `/cms/forgot` → generic success message shown.
-  - [ ] OAuth callback errors redirect to `/admin/login?error=…` (check network tab on a forced OAuth error).
+  - [ ] OAuth callback errors redirect to the correct area login (`/admin/login?error=…` when `next` is `/admin/*` or unset; `/cms/login?error=…` when `next` is `/cms/*`).
   - [ ] Invite link for an existing user redirects to `/admin/login?redirect=…&hint=…`.
+  - [ ] Logged-in user with role `editor` hitting `/admin` → redirected to `/?error=insufficient_access`; home page renders the "Você não tem acesso a essa área." flash banner.
+  - [ ] Logged-in user with role `author` hitting `/cms` → redirected to `/?error=insufficient_access` with the flash banner visible.
+  - [ ] Click the "Sair" button in the admin header → `POST /admin/logout` fires, session is cleared, browser lands on `/admin/login`.
+  - [ ] `GET http://localhost:3001/admin/logout` → `405 Method Not Allowed` (no session change).
+  - [ ] Click "Sair" in the CMS header → POST `/cms/logout`, lands on `/cms/login`.
 
 - [ ] Stop dev server.
 
@@ -923,18 +1287,24 @@ npm run dev --workspace=apps/web
 
 | # | Task | Commit message |
 |---|------|---------------|
-| 1 | T1 | `chore(sprint-4c): bump auth-nextjs@2.1.0 admin@0.4.0 cms@0.1.0-beta.3` |
-| 2 | T2 | `test(sprint-4c): update middleware expectations to per-area login paths` |
-| 3 | T3 | `feat(sprint-4c): add /admin/login, /admin/forgot, /admin/reset pages + actions` |
-| 4 | T4 | `feat(sprint-4c): add /cms/login, /cms/forgot, /cms/reset pages + actions` |
-| 5 | T5 | `feat(sprint-4c): dispatch per-area auth middleware for /admin and /cms` |
-| 6 | T6 | `security(sprint-4c): add X-Frame-Options DENY + CSP frame-ancestors on login pages` |
-| 7 | T7 | `fix(sprint-4c): update auth/callback + invite redirect from /signin to /admin/login` |
-| 8 | T8 | `test(sprint-4c): add admin-login + cms-login consumer render tests` |
-| 9 | T9 | (manual QA — no commit) |
-| 10 | T10 | `chore(sprint-4c): delete /signin route + related tests (replaced by per-area login)` |
-| 11 | T11 | `chore(sprint-4c): verify full test + typecheck + pinning gate after login split` |
-| 12 | T12 | (manual QA — no commit) |
+| — | T0 | (manual Supabase Dashboard checklist — no commit) |
+| 1 | T1 | `chore(web): bump auth-nextjs@2.1.0 admin@0.5.0 cms@0.1.0-beta.3` |
+| 2 | T2 | `test(web): update middleware expectations to per-area login paths` |
+| 3 | T3 | `feat(web): add /admin/login, /admin/forgot, /admin/reset pages + actions` |
+| 4 | T4 | `feat(web): add /cms/login, /cms/forgot, /cms/reset pages + actions` |
+| 5 | T5 | `feat(web): dispatch per-area auth middleware for /admin and /cms` |
+| 6 | T6 | `security(web): add X-Frame-Options DENY + CSP frame-ancestors on login pages` |
+| 7 | T7 | `fix(web): update auth/callback + invite redirect from /signin to /admin/login` |
+| 8 | T8 | `test(web): add admin-login + cms-login consumer render tests` |
+| — | T9 | (manual QA — no commit) |
+| 9 | T10 | `chore(web): delete /signin route + related tests (replaced by per-area login)` |
+| 10 | T10a | `feat(web): add requireArea guards in admin/cms layouts + POST logout forms` |
+| 11 | T10b | `feat(web): add POST-only /admin/logout and /cms/logout route handlers` |
+| 12 | T10c | `feat(web): add insufficient_access flash banner on home page` |
+| 13 | T10d | `test(web): DB-gated area-authorization integration matrix (10 cases)` |
+| — | T10e | (manual follow-up gate on `tn-cms` repo — no commit in this repo) |
+| 14 | T11 | `chore(web): verify full test + typecheck + pinning gate after login split` |
+| — | T12 | (manual QA — no commit) |
 
 ---
 
@@ -944,4 +1314,6 @@ npm run dev --workspace=apps/web
 2. **Exact pins.** All `@tn-figueiredo/*` entries in `apps/web/package.json` must use exact version strings. The pre-commit hook rejects `^` or `~` prefixes.
 3. **`'use server'` boundary.** Every `actions.ts` file starts with `'use server'`. The `page.tsx` files import from their co-located `actions.ts`, not from the package directly — this satisfies Next.js's server action boundary rule.
 4. **`safeRedirect` source.** After T7, the only consumer of `safeRedirect` outside the deleted `/signin/` is `auth/callback/route.ts`, which imports from `@tn-figueiredo/auth-nextjs/safe-redirect`. There is no `apps/web/src/lib/auth/safe-redirect.ts` file to delete (it never existed as a standalone module; the old import path was relative from within the signin directory).
-5. **OAuth error redirects.** Both error redirect paths in `auth/callback/route.ts` point to `/admin/login` — admin is the primary OAuth entry point (both admin and CMS users use the same Supabase auth provider; the OAuth callback is area-agnostic). If a CMS-only flow via Google is needed in the future, the `next` param in the OAuth URL builder already handles the post-login destination.
+5. **OAuth error redirects.** Error redirect paths in `auth/callback/route.ts` are derived from the sanitised `next` query param via `areaLoginPath(next)`: `/cms/*` → `/cms/login`, everything else → `/admin/login` (admin is the primary OAuth entry point). Both admin and CMS users use the same Supabase auth provider; the OAuth callback is area-agnostic at the provider level but area-aware at the redirect level. If a provider-level split is ever desired, see Option B in T7.
+6. **RBAC layering — middleware = auth, layout = area.** Middleware answers only "is the user authenticated?" for `/admin/*` and `/cms/*`. Area enforcement (admin area = `admin|super_admin`; CMS area = `editor|admin|super_admin`) lives in the area layout via `requireArea('admin')` or `requireArea('cms')` from `@tn-figueiredo/auth-nextjs/server`. On denial, `requireArea` redirects to `/?error=insufficient_access` (hardcoded — single source of truth for the flash contract). This keeps the redirect semantics distinct: unauthenticated → area login, wrong area → home with flash.
+7. **Logout is POST-only.** Neither `/admin/logout` nor `/cms/logout` accepts GET (returns 405). The layout's "Sair" button is rendered inside a `<form method="POST" action="…">`, never a `<Link>` or an `<a>`. This is CSRF hardening — a crafted `<img src="/admin/logout">` or a cross-site link must not be able to log the user out.
