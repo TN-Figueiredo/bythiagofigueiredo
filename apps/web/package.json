@@ -14,7 +14,7 @@
     "@radix-ui/react-alert-dialog": "1.1.4",
     "@sentry/nextjs": "10.48.0",
     "@supabase/ssr": "^0.5.2",
-    "@supabase/supabase-js": "2.103.0",
+    "@supabase/supabase-js": "2.103.2",
     "@tn-figueiredo/admin": "0.3.0",
     "@tn-figueiredo/auth-nextjs": "2.0.0",
     "@tn-figueiredo/cms": "0.1.0-beta.1",

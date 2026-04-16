@@ -13,7 +13,15 @@ export default defineConfig({
     ],
     server: {
       deps: {
-        inline: [/@tn-figueiredo\/auth-nextjs/],
+        // Inline @tn-figueiredo/cms + /auth-nextjs — both ship ESM that Node's
+        // native resolver can't handle (missing .js extensions, import.meta.url).
+        // Vite's bundler re-resolves them for the test run — matches the
+        // transpilePackages behavior that Next uses at build time.
+        inline: [
+          /@tn-figueiredo\/auth-nextjs/,
+          /@tn-figueiredo\/cms/,
+          /@tn-figueiredo\/email/,
+        ],
       },
     },
     pool: 'forks',
