@@ -11,6 +11,21 @@ const nextConfig: NextConfig = {
   transpilePackages: ['@tn-figueiredo/cms'],
 
   async headers() {
+    const loginPaths = [
+      '/admin/login',
+      '/admin/forgot',
+      '/admin/reset',
+      '/cms/login',
+      '/cms/forgot',
+      '/cms/reset',
+    ]
+    const loginHeaders = loginPaths.map((source) => ({
+      source,
+      headers: [
+        { key: 'X-Frame-Options', value: 'DENY' },
+        { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
+      ],
+    }))
     return [
       {
         source: '/(.*)',
@@ -37,6 +52,7 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      ...loginHeaders,
     ]
   },
 }
