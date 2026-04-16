@@ -4,7 +4,7 @@
 > **Source of truth de execução:** este diretório.
 > **Rationale de produto e scoring:** `~/Workspace/ideias/bythiagofigueiredo/` (docs 01–05, 2026-04-12).
 
-**Versão:** 2026-04-16 · **Revisão:** 3 (Sprint 4a+4b closure, roadmap re-aligned to reality)
+**Versão:** 2026-04-16 · **Revisão:** 4 (Sprint 4.5 Phases 1-3 published; Phase 4 pending)
 
 ## Visão macro
 
@@ -24,10 +24,10 @@
 ## Progresso global
 
 ```
-▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░░░░░░░░░  ~37% (174h / 464h — Sprints 0–4 ✅ done)
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░░░░░░░░  ~39% (180h / 464h — Sprints 0–4 ✅ + Sprint 4.5 Phases 1-3 ✅)
 ```
 
-> Hours reconciled 2026-04-16: 12 (S0) + 40 (S1a+1b) + 42 (S2) + 40 (S3) + 40 (S4 actual — extraction + obs + LGPD retention, 4a+4b) = **174h delivered**. Sprint 5 ("Public launch prep" — 38h) e Sprint 6 ("Burnout & MVP Launch" — 30h) ainda pendentes. Denominador 464h = Fase 1 (242h) + Fase 2 (152h) + Fase 3 (70h). Sprint 4 shipou scope diferente do planejado; LGPD/deploy público foi re-slotted em Sprint 5. Ver phase-1 footnote.
+> Hours reconciled 2026-04-16: 12 (S0) + 40 (S1a+1b) + 42 (S2) + 40 (S3) + 40 (S4 actual — extraction + obs + LGPD retention, 4a+4b) + 6 (S4.5 Phases 1-3 — auth-nextjs 2.1.0 + admin 0.5.0 + cms beta.3 built, tested, published) = **180h delivered**. Sprint 4.5 Phase 4 (consumer wiring em apps/web — ~4h) é o próximo gate antes de Sprint 5. Sprint 5 ("Public launch prep" — 38h) e Sprint 6 ("Burnout & MVP Launch" — 30h) ainda pendentes. Denominador 464h = Fase 1 (242h) + Fase 2 (152h) + Fase 3 (70h). Sprint 4 shipou scope diferente do planejado; LGPD/deploy público foi re-slotted em Sprint 5. Ver phase-1 footnote.
 
 **Done até agora:**
 - Sprint 0 ✅ — scaffold + CI + Supabase provisionado/linkado + Vercel/Sentry env vars + npm scripts de DB padrão TNG (~12h).
@@ -37,8 +37,16 @@
 - Sprint 3 ✅ — auth + invite flow, newsletter/contact forms + cron sync, campaign admin CRUD, PostEditor polish (autosave/meta SEO/cover/locale switcher/delete UI), rate limiting + cron locks. ~40 commits. Epic audit trajectory: Epic 3 82→98, Epic 4 62→99, Epic 5 82→99, sprint-wide 93→99. Package extraction (T14) + observability/LGPD carry-over ⇒ Sprint 4. Spec: [2026-04-16-sprint-3-design.md](../superpowers/specs/2026-04-16-sprint-3-design.md).
 - **Sprint 4a ✅** — Epics 8+9+10 of sprint-4: DB-gated RPC integration tests (15 tests, gated `HAS_LOCAL_DB=1`), Sentry SDK wired web+api (`@sentry/nextjs` + `@sentry/node` + `captureServerActionError` + PII scrubber), structured cron logs (`logger.ts` + `withCronLock`), LGPD retention (unsubscribe anonymization via sha256, `anonymize_contact_submission` RPC, `purge_sent_emails` 90d cron). 263 web + 15 skipped + 4 api tests. 3 migrations `20260418000001-03` live em prod. Merged to main 2026-04-15. Spec: [sprint-4.md](../superpowers/specs/sprint-4.md).
 - **Sprint 4b ✅** — Epics 6+7 of sprint-4: extracted `@tn-figueiredo/cms@0.1.0-beta.1/beta.2` (repo `TN-Figueiredo/cms`) + `@tn-figueiredo/email@0.1.0` (repo `TN-Figueiredo/email`) to own repos, published to GitHub Packages, apps/web consome versões pinadas. `transpilePackages: ['@tn-figueiredo/cms']` retido (contrato do package em v0.1.x — ESM + JSX preservado). Novo subpath Edge-safe `/ring` no cms permite middleware pular transpile. 263 web + 4 api tests. 12 commits merged to staging + auto-synced to main 2026-04-16. Spec: [sprint-4b.md](../superpowers/specs/sprint-4b.md).
+- **Sprint 4.5 Phases 1-3 ✅ (2026-04-16)** — split do `/signin` monolítico preparado em 3 pacotes co-lançados:
+  - `@tn-figueiredo/auth-nextjs@2.1.0` — new subpaths `/actions` (signInWithPassword, signInWithGoogle, signOutAction, forgot/reset + UI contract types `AuthPageProps`/`AuthTheme`/`AuthStrings`/`ActionResult`) + `/safe-redirect` (com overload `areaPrefix`); new helpers `buildAuthRegex` (middleware) + `requireArea('admin'|'cms')` (server, RPC-first + React-cache memoised, coexiste com `requireRole({resolver})` existente). 172 tests, 8 commits merged via PR #8 + `npm publish` manual (CI infra unrelated issue).
+  - `@tn-figueiredo/admin@0.5.0` — new `/login` subpath: `<AdminLogin>`, `<AdminForgotPassword>`, `<AdminResetPassword>` + `getAdminAuthStrings` + `mergeTheme`/`buildThemeVars` utils + neutral slate preset. 227 tests, 9 commits merged via PR #9 + published manually.
+  - `@tn-figueiredo/cms@0.1.0-beta.3` — new `/login` subpath: `<CmsLogin>`, `<CmsForgotPassword>`, `<CmsResetPassword>` + `getCmsAuthStrings` + neutral stone/zinc preset. 127 tests, 9 commits merged via PR #6 + tagged + auto-published.
+  - Admin+cms shipam com UI types inlined + `TODO(phase4-consumer)` banner pointing to auth-nextjs/actions canonical; Phase 4 flip pendente.
+  - Spec: [admin-cms-login-split-design](../superpowers/specs/2026-04-15-admin-cms-login-split-design.md) (99/100 round-2 review).
+  - Plans: [auth-nextjs-2.1](../superpowers/plans/2026-04-15-auth-nextjs-2.1-actions.md) · [admin-0.4-login](../superpowers/plans/2026-04-15-admin-0.4-login.md) · [cms-beta3-login](../superpowers/plans/2026-04-15-cms-beta3-login.md).
+  - Nota infra: tnf-ecosystem Release workflow falhou por `npm ci` 401 em `@tn-figueiredo/affiliate@0.1.0` (pré-existente, docs(adr) falhou mesma causa 5h antes) — destrave foi `npm publish` manual. Changesets Action precisa debug separado (lockfile orphan ou tarball removido do GH Packages).
 
-**Sprint ativo:** nenhum — próxima sessão seleciona. **Em planejamento (inter-sprint "Sprint 4.5 — Login split + package coordination")**: split do `/signin` único em `/admin/login` + `/cms/login`, coordenando bumps de `@tn-figueiredo/admin@0.4`, `@tn-figueiredo/auth-nextjs@2.1`, `@tn-figueiredo/cms@beta.3`, apps/web. Plans: [admin-0.4-login](../superpowers/plans/2026-04-15-admin-0.4-login.md), [auth-nextjs-2.1-actions](../superpowers/plans/2026-04-15-auth-nextjs-2.1-actions.md), [cms-beta3-login](../superpowers/plans/2026-04-15-cms-beta3-login.md), [web-consumer-login-wiring](../superpowers/plans/2026-04-15-web-consumer-login-wiring.md). Design spec: [admin-cms-login-split-design](../superpowers/specs/2026-04-15-admin-cms-login-split-design.md).
+**Sprint ativo:** 🟡 **Sprint 4.5 Phase 4 (Consumer wiring em apps/web)** — próximo gate antes de Sprint 5. Escopo: bump pins (`auth-nextjs 2.0.0→2.1.0`, `admin 0.3.0→0.5.0`, `cms beta.2→beta.3`) + subpath resolution smoke tests + type-equivalence test-d (admin/cms inlined vs auth-nextjs canonical); criar rotas `/admin/login`/`/cms/login`/forgot/reset + `/admin/logout` + `/cms/logout` POST-only; middleware dispatch dual `createAuthMiddleware` per prefix; `requireArea` guards nos layouts admin+cms; flash `?error=insufficient_access` na home; deletar `/signin` + tests antigos; flip tipos inlined admin+cms pra imports auth-nextjs (+peer dep); Supabase Dashboard config (URL allowlist + recovery email template); DB-gated 10-case RLS matrix. Plan: [web-consumer-login-wiring](../superpowers/plans/2026-04-15-web-consumer-login-wiring.md) (~4h).
 
 ## Legenda de status
 
@@ -54,7 +62,7 @@ Entregáveis de ecossistema — reutilizáveis em outros apps @tnf/*:
 
 | Package | Sprint | Horas | Fase | Status | ROI estimado |
 |---------|:------:|:-----:|:----:|:------:|:------------:|
-| **@tn-figueiredo/cms** (NEW) | S2 + S4b extract | 24h + ~8h | 1 | ✅ `v0.1.0-beta.2` published | ~60h poupadas em 5+ sites |
+| **@tn-figueiredo/cms** (NEW) | S2 + S4b extract + S4.5 /login | 24h + ~8h + ~2h | 1 | ✅ `v0.1.0-beta.3` published (login subpath) | ~60h poupadas em 5+ sites |
 | **@tn-figueiredo/email** (NEW) | S3 setup + S4b extract | 6h + ~8h | 1 | ✅ `v0.1.0` published | ~48h em 6+ apps |
 | **@tnf/storage** (NEW) | S9 (renumerado de S8) | 10h | 2 | ☐ | ~24h em 6+ apps |
 

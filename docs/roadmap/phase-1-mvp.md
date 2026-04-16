@@ -151,17 +151,21 @@
 
 ---
 
-## Sprint 4.5 — Login Split + Package Coordination [🟡 in planning] (inter-sprint)
+## Sprint 4.5 — Login Split + Package Coordination [🟡 Phase 4 pending] (~10h)
 
-**Nota:** Não é um sprint full-size — coordenação inter-package pra splitar `/signin` único em `/admin/login` e `/cms/login`. Precedeu alguma decisão natural antes do Sprint 5.
+**Nota:** Não é um sprint full-size — coordenação inter-package pra splitar `/signin` único em `/admin/login` e `/cms/login`. Gate natural entre Sprint 4 e Sprint 5.
 
-**Plans commitados (não-executados ainda):**
-- [admin-0.4-login](../superpowers/plans/2026-04-15-admin-0.4-login.md) — bump `@tn-figueiredo/admin@0.4`
-- [auth-nextjs-2.1-actions](../superpowers/plans/2026-04-15-auth-nextjs-2.1-actions.md) — bump `@tn-figueiredo/auth-nextjs@2.1`
-- [cms-beta3-login](../superpowers/plans/2026-04-15-cms-beta3-login.md) — bump `@tn-figueiredo/cms@beta.3`
-- [web-consumer-login-wiring](../superpowers/plans/2026-04-15-web-consumer-login-wiring.md) — apps/web consumer wiring
+**Phases 1-3 ✅ (2026-04-16, ~6h):**
+- [auth-nextjs-2.1-actions](../superpowers/plans/2026-04-15-auth-nextjs-2.1-actions.md) — `@tn-figueiredo/auth-nextjs@2.1.0` published (new `/actions` + `/safe-redirect` subpaths + `requireArea` + `buildAuthRegex` helpers). 172 tests.
+- [admin-0.4-login](../superpowers/plans/2026-04-15-admin-0.4-login.md) — `@tn-figueiredo/admin@0.5.0` published (new `/login` subpath). 227 tests.
+- [cms-beta3-login](../superpowers/plans/2026-04-15-cms-beta3-login.md) — `@tn-figueiredo/cms@0.1.0-beta.3` published (new `/login` subpath). 127 tests.
 
-**Design spec:** [admin-cms-login-split-design](../superpowers/specs/2026-04-15-admin-cms-login-split-design.md)
+**Phase 4 pending (~4h):**
+- [web-consumer-login-wiring](../superpowers/plans/2026-04-15-web-consumer-login-wiring.md) — bump pins em `apps/web`, criar rotas `/admin/login`+`/cms/login`+forgot+reset+logout POST, middleware dual, `requireArea` guards nos layouts, flash `insufficient_access`, Supabase Dashboard config (URL allowlist + recovery template), delete `/signin`, DB-gated 10-case RLS matrix.
+
+**Design spec:** [admin-cms-login-split-design](../superpowers/specs/2026-04-15-admin-cms-login-split-design.md) (99/100 round-2 review).
+
+**Nota operacional:** publish de `auth-nextjs@2.1.0` + `admin@0.5.0` foi manual (`npm publish`) porque Release workflow do tnf-ecosystem tá falhando no `npm ci` com 401 pré-existente em `@tn-figueiredo/affiliate@0.1.0`. Bug de infra separado, não relacionado ao sprint.
 
 ---
 
@@ -232,6 +236,8 @@ Sprint 2: @tn-figueiredo/cms (24h) + Blog CRUD (8h)   [32h]  ✅ done
 Sprint 3: Admin login/editor (11h)                    [11h]  ✅ done
     ↓
 Sprint 4: Package extraction + observability (~40h)   [40h]  ✅ done (scope shift)
+    ↓
+Sprint 4.5: Login split (auth-nextjs+admin+cms+web)   [~10h] 🟡 Phases 1-3 ✅ / Phase 4 pending
     ↓
 Sprint 5: Tests E2E + deploy + LGPD pública (15h)     [15h]  ☐
     ↓
