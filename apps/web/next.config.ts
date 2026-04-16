@@ -8,7 +8,12 @@ const nextConfig: NextConfig = {
   // The `/ring` subpath (used by middleware) is Edge-safe and does not need
   // transpilation — only the root `.` subpath (server components using
   // compileMdx, PostEditor, etc.) goes through here.
-  transpilePackages: ['@tn-figueiredo/cms'],
+  // `@tn-figueiredo/admin@0.6.0` ships SiteSwitcher/SiteSwitcherProvider next
+  // to the server-safe `createAdminLayout` in the same root bundle. Adding it
+  // to `transpilePackages` lets Next's RSC-aware transform recognise the
+  // client-marked wrapper (`components/cms/site-switcher-provider.tsx` /
+  // `admin-site-switcher-provider.tsx`) and keep server imports working.
+  transpilePackages: ['@tn-figueiredo/cms', '@tn-figueiredo/admin'],
 
   async headers() {
     const loginPaths = [

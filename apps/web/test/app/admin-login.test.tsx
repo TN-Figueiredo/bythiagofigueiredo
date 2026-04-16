@@ -11,6 +11,17 @@ vi.mock('@tn-figueiredo/admin/login', () => ({
   AdminResetPassword: (_props: unknown) => <div data-testid="admin-reset-component">AdminResetPassword mounted</div>,
 }))
 
+// Track F4 made /admin/login a server component. See cms-login.test.tsx for
+// the shared mock contract.
+vi.mock('next/headers', () => ({
+  headers: async () => ({ get: () => null }),
+}))
+vi.mock('@supabase/supabase-js', () => ({
+  createClient: vi.fn(() => ({
+    rpc: vi.fn(async () => ({ data: null, error: null })),
+  })),
+}))
+
 // Mock the actions re-exports (these are 'use server' — cannot run in vitest)
 vi.mock('../../src/app/admin/login/actions', () => ({
   signInWithPassword: vi.fn(),
@@ -28,9 +39,10 @@ import AdminForgotPage from '../../src/app/admin/forgot/page'
 import AdminResetPage from '../../src/app/admin/reset/page'
 
 describe('admin login pages', () => {
-  it('mounts <AdminLogin> with actions and optional turnstile prop', () => {
+  it('mounts <AdminLogin> with actions and optional turnstile prop', async () => {
     process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY = 'test-key'
-    render(<AdminLoginPage />)
+    const el = await AdminLoginPage()
+    render(el)
     expect(screen.getByTestId('admin-login-component')).toBeTruthy()
     const callProps = mockAdminLogin.mock.calls[0]?.[0] as Record<string, unknown>
     expect(callProps).toHaveProperty('actions')
@@ -38,10 +50,11 @@ describe('admin login pages', () => {
     expect((callProps.turnstile as { siteKey: string }).siteKey).toBe('test-key')
   })
 
-  it('passes undefined turnstile when NEXT_PUBLIC_TURNSTILE_SITE_KEY is unset', () => {
+  it('passes undefined turnstile when NEXT_PUBLIC_TURNSTILE_SITE_KEY is unset', async () => {
     delete process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
     mockAdminLogin.mockClear()
-    render(<AdminLoginPage />)
+    const el = await AdminLoginPage()
+    render(el)
     const callProps = mockAdminLogin.mock.calls[0]?.[0] as Record<string, unknown>
     expect(callProps.turnstile).toBeUndefined()
   })

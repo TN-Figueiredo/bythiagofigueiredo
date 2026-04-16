@@ -2,15 +2,40 @@ import { describe, it, expect, vi } from 'vitest'
 import { render } from '@testing-library/react'
 import React from 'react'
 
-vi.mock('next/headers', () => ({ cookies: async () => ({ getAll: () => [], set: () => {} }) }))
-vi.mock('@tn-figueiredo/admin', () => ({
-  createAdminLayout: () =>
-    function MockLayout({ children }: { userEmail: string; children: React.ReactNode }) {
-      return <div data-testid="admin-shell">{children}</div>
-    },
+// See apps/web/test/admin-layout.test.tsx — mirror setup for the CMS
+// (authed) layout which also went through the Track F3/F4 refactor.
+vi.mock('next/headers', () => ({
+  cookies: async () => ({ getAll: () => [], set: () => {} }),
+  headers: async () => ({ get: () => null }),
 }))
+
+vi.mock('../src/components/cms/site-switcher-provider', () => ({
+  AdminShellWithSwitcher: ({
+    userEmail,
+    config,
+    children,
+  }: {
+    userEmail: string
+    config: { logoutPath?: string }
+    children: React.ReactNode
+  }) =>
+    React.createElement(
+      'div',
+      { 'data-testid': 'admin-shell', 'data-email': userEmail },
+      React.createElement(
+        'form',
+        { action: config.logoutPath, method: 'post' },
+        React.createElement('button', { type: 'submit' }, 'Sair'),
+      ),
+      children,
+    ),
+  CmsSiteSwitcherSlot: () => null,
+}))
+
 vi.mock('@tn-figueiredo/auth-nextjs', () => ({
-  createServerClient: vi.fn(() => ({} as unknown)),
+  createServerClient: vi.fn(() => ({
+    rpc: vi.fn(async () => ({ data: [], error: null })),
+  })),
   requireUser: vi.fn(async () => ({ id: 'u1', email: 'thiago@example.com' })),
   requireArea: vi.fn(async () => undefined),
 }))
