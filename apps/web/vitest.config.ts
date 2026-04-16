@@ -18,6 +18,7 @@ export default defineConfig({
         // Vite's bundler re-resolves them for the test run — matches the
         // transpilePackages behavior that Next uses at build time.
         inline: [
+          /@tn-figueiredo\/admin/,
           /@tn-figueiredo\/auth-nextjs/,
           /@tn-figueiredo\/cms/,
           /@tn-figueiredo\/email/,
