@@ -9,5 +9,6 @@ DO $grants$ BEGIN
   EXECUTE $stmt$REVOKE EXECUTE ON FUNCTION public.lgpd_phase1_cleanup(uuid, jsonb) FROM public$stmt$;
   EXECUTE $stmt$GRANT EXECUTE ON FUNCTION public.lgpd_phase1_cleanup(uuid, jsonb) TO service_role$stmt$;
   EXECUTE $stmt$GRANT EXECUTE ON FUNCTION public.merge_anonymous_consents(text) TO authenticated$stmt$;
-  EXECUTE $stmt$GRANT EXECUTE ON FUNCTION public.get_anonymous_consents(text) TO anon$stmt$;
+  -- get_anonymous_consents grant moved to 20260430000013b so it runs after
+  -- the consents table + the RPC itself (both declared at/after 013).
 END $grants$;
