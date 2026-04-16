@@ -23,4 +23,14 @@ describe('cms/layout', () => {
     const { getByText } = render(el)
     expect(getByText('hello-cms')).toBeTruthy()
   })
+
+  it('includes POST logout form targeting /cms/logout', async () => {
+    const el = await Layout({ children: <div>hello-cms</div> })
+    const { container, getByRole } = render(el)
+    const form = container.querySelector('form[action="/cms/logout"]')
+    expect(form).toBeTruthy()
+    expect(form?.getAttribute('method')?.toLowerCase()).toBe('post')
+    const button = getByRole('button', { name: /sair/i })
+    expect(button.getAttribute('type')).toBe('submit')
+  })
 })

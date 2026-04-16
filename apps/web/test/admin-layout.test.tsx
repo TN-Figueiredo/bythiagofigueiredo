@@ -21,4 +21,14 @@ describe('admin/layout', () => {
     const { getByText } = render(el)
     expect(getByText('hello-admin')).toBeTruthy()
   })
+
+  it('includes POST logout form targeting /admin/logout', async () => {
+    const el = await Layout({ children: <div>hello-admin</div> })
+    const { container, getByRole } = render(el)
+    const form = container.querySelector('form[action="/admin/logout"]')
+    expect(form).toBeTruthy()
+    expect(form?.getAttribute('method')?.toLowerCase()).toBe('post')
+    const button = getByRole('button', { name: /sair/i })
+    expect(button.getAttribute('type')).toBe('submit')
+  })
 })
