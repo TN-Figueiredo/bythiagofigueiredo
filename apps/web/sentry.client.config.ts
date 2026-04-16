@@ -24,7 +24,7 @@
 // Reads NEXT_PUBLIC_SENTRY_DSN only — server-only SENTRY_DSN is not
 // available in the browser bundle.
 import * as Sentry from '@sentry/nextjs'
-import { scrubEventPii } from './src/lib/sentry-pii'
+import { scrubBreadcrumbPii, scrubEventPii } from './src/lib/sentry-pii'
 
 const ANALYTICS_CONSENT_KEY = 'cookie_analytics_consent'
 
@@ -61,6 +61,7 @@ function initSentryCore(): void {
     sendDefaultPii: false,
     integrations: [],
     beforeSend: scrubEventPii,
+    beforeBreadcrumb: scrubBreadcrumbPii,
   })
   coreInitialized = true
 }
