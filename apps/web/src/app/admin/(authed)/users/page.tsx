@@ -1,11 +1,17 @@
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
+import Link from 'next/link'
 import { createServerClient } from '@supabase/ssr'
 import type { CookieOptions } from '@supabase/ssr'
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
 import { getSiteContext } from '../../../../../lib/cms/site-context'
-import { createInvitation, revokeInvitation, resendInvitation } from './actions'
+import {
+  createInvitationAction,
+  revokeInvitation,
+  resendInvitation,
+} from './actions'
 import { SubmitButton } from './_components/SubmitButton'
+import { InviteForm, type SiteOption } from './invite-form'
 
 export const dynamic = 'force-dynamic'
 
@@ -44,41 +50,80 @@ export default async function AdminUsersPage({ searchParams }: Props) {
 
   // I10: authz check BEFORE constructing service-role client / fetching data
   const { data: role } = await userClient.rpc('org_role', { p_org_id: ctx.orgId })
-  if (role !== 'owner' && role !== 'admin') redirect('/cms')
+  if (role !== 'owner' && role !== 'admin' && role !== 'org_admin') redirect('/cms')
 
-  // Only reached if caller is owner or admin
+  // Only reached if caller is org admin
   const supabase = getSupabaseServiceClient()
 
   const { data: members } = await supabase
     .from('organization_members')
     .select('user_id, role')
     .eq('org_id', ctx.orgId)
+
+  const { data: siteMembers } = await supabase
+    .from('site_memberships')
+    .select('user_id, site_id, role, site:sites(name, primary_domain)')
+
   const { data: invites } = await supabase
     .from('invitations')
-    .select('id, email, role, expires_at, last_sent_at, resend_count')
+    .select('id, email, role, role_scope, site_id, expires_at, last_sent_at, resend_count')
     .eq('org_id', ctx.orgId)
     .is('accepted_at', null)
     .is('revoked_at', null)
 
+  // Fetch sites belonging to the current org for the scope picker.
+  const { data: sitesRaw } = await supabase
+    .from('sites')
+    .select('id, name, primary_domain')
+    .eq('org_id', ctx.orgId)
+    .order('name')
+  const sites: SiteOption[] = (sitesRaw ?? []).map((s) => ({
+    id: s.id as string,
+    name: s.name as string,
+    primary_domain: (s.primary_domain as string | null) ?? '',
+  }))
+
   // N15: enrich members with email via service-role admin getUserById
-  type MemberWithEmail = { user_id: string; role: string; email: string }
-  const membersWithEmail: MemberWithEmail[] = await Promise.all(
+  type OrgMemberWithEmail = { user_id: string; role: string; email: string }
+  const orgMembers: OrgMemberWithEmail[] = await Promise.all(
     (members ?? []).map(async (m) => {
       const { data } = await supabase.auth.admin.getUserById(m.user_id as string)
       return {
         user_id: m.user_id as string,
         role: m.role as string,
-        email: data.user?.email ?? m.user_id as string,
+        email: data.user?.email ?? (m.user_id as string),
+      }
+    }),
+  )
+
+  type SiteMemberWithEmail = {
+    user_id: string
+    site_id: string
+    role: string
+    site_name: string
+    email: string
+  }
+  const siteMembersWithEmail: SiteMemberWithEmail[] = await Promise.all(
+    (siteMembers ?? []).map(async (m) => {
+      const { data } = await supabase.auth.admin.getUserById(m.user_id as string)
+      const site = (m.site as { name?: string } | null) ?? {}
+      return {
+        user_id: m.user_id as string,
+        site_id: m.site_id as string,
+        role: m.role as string,
+        site_name: site.name ?? '',
+        email: data.user?.email ?? (m.user_id as string),
       }
     }),
   )
 
   const noticeMessage =
-    notice != null
-      ? (noticeMessages[notice] ?? null)
-      : null
-
-  const isError = notice != null && (notice.startsWith('invite_failed') || notice === 'invite_rate_limited' || notice === 'invite_duplicate')
+    notice != null ? (noticeMessages[notice] ?? null) : null
+  const isError =
+    notice != null &&
+    (notice.startsWith('invite_failed') ||
+      notice === 'invite_rate_limited' ||
+      notice === 'invite_duplicate')
 
   return (
     <main className="p-8">
@@ -89,9 +134,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
           role="status"
           aria-live="polite"
           className={`mb-4 rounded-lg px-4 py-3 text-sm ${
-            isError
-              ? 'bg-red-50 text-red-700'
-              : 'bg-green-50 text-green-700'
+            isError ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'
           }`}
         >
           {noticeMessage}
@@ -100,12 +143,44 @@ export default async function AdminUsersPage({ searchParams }: Props) {
 
       <section className="mb-8">
         <h2 className="text-lg font-semibold mb-3">
-          Membros ativos ({membersWithEmail.length})
+          Org admins ({orgMembers.length})
         </h2>
         <ul className="space-y-2">
-          {membersWithEmail.map((m) => (
-            <li key={m.user_id} className="text-sm text-gray-700">
-              {m.email} · {m.role}
+          {orgMembers.map((m) => (
+            <li key={m.user_id} className="text-sm text-gray-700 flex items-center gap-3">
+              <span>
+                {m.email} · {m.role}
+              </span>
+              <Link
+                href={`/admin/users/${m.user_id}/edit`}
+                className="text-blue-600 hover:underline text-xs"
+              >
+                editar
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="mb-8">
+        <h2 className="text-lg font-semibold mb-3">
+          Membros de sites ({siteMembersWithEmail.length})
+        </h2>
+        <ul className="space-y-2">
+          {siteMembersWithEmail.map((m) => (
+            <li
+              key={`${m.user_id}:${m.site_id}`}
+              className="text-sm text-gray-700 flex items-center gap-3"
+            >
+              <span>
+                {m.email} · {m.site_name} · {m.role}
+              </span>
+              <Link
+                href={`/admin/users/${m.user_id}/edit`}
+                className="text-blue-600 hover:underline text-xs"
+              >
+                editar
+              </Link>
             </li>
           ))}
         </ul>
@@ -119,7 +194,8 @@ export default async function AdminUsersPage({ searchParams }: Props) {
           {invites?.map((inv) => (
             <li key={inv.id as string} className="flex items-center gap-4 text-sm">
               <span>
-                {inv.email as string} · {inv.role as string} · expira em{' '}
+                {inv.email as string} · {inv.role as string} (
+                {inv.role_scope as string}) · expira em{' '}
                 {String(inv.expires_at).slice(0, 10)}
               </span>
               <form
@@ -149,43 +225,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
 
       <section>
         <h2 className="text-lg font-semibold mb-3">Novo convite</h2>
-        <form
-          action={async (formData) => {
-            'use server'
-            await createInvitation({
-              email: formData.get('email') as string,
-              role: formData.get('role') as 'admin' | 'editor' | 'author',
-            })
-          }}
-          className="flex gap-3 items-end"
-        >
-          <div>
-            <label htmlFor="invite-email" className="block text-sm font-medium mb-1">
-              Email
-            </label>
-            <input
-              id="invite-email"
-              type="email"
-              name="email"
-              required
-              placeholder="email@example.com"
-              className="border rounded px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label htmlFor="invite-role" className="block text-sm font-medium mb-1">
-              Papel
-            </label>
-            <select id="invite-role" name="role" className="border rounded px-3 py-2 text-sm">
-              <option value="author">author</option>
-              <option value="editor">editor</option>
-              <option value="admin">admin</option>
-            </select>
-          </div>
-          <SubmitButton className="bg-blue-600 text-white rounded px-4 py-2 text-sm hover:bg-blue-700">
-            Convidar
-          </SubmitButton>
-        </form>
+        <InviteForm sites={sites} action={createInvitationAction} />
       </section>
     </main>
   )
