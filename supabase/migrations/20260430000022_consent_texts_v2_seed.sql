@@ -76,7 +76,7 @@ $$**Cookies de marketing (opcional — requer aceite)**
 
 - **Dados coletados:** flag `lgpd_consent_v1.marketing` em `localStorage`. Nenhum pixel ou tag de terceiros é carregado hoje; a categoria existe apenas para acomodar parceiros futuros com consentimento granular — quando isso acontecer, esta descrição será atualizada e o consentimento v2 será reobtido.
 - **Finalidade:** personalização de conteúdo e campanhas.
-- **Processadores:** **nenhum no momento**. Ao contratarmos um parceiro (p. ex. remarketing), atualizaremos esta descrição e solicitaremos novo consentimento.
+- **Processadores:** **nenhum no momento**. Ao contratarmos um parceiro (por exemplo, remarketing), atualizaremos esta descrição e solicitaremos novo consentimento.
 - **Base legal:** LGPD Art. 7º I (consentimento) e GDPR Art. 6(1)(a).
 - **Retenção:** flag em `localStorage` durante 1 ano a partir do aceite.
 - **Como revogar:** clique em "Gerenciar cookies" no rodapé ou em `/account/settings/privacy`.$$),
@@ -142,7 +142,7 @@ $$**Terms of Use — v2**
 ('newsletter_v2_pt-BR','newsletter','pt-BR','2.0',
 $$**Newsletter bythiagofigueiredo — consentimento específico**
 
-- **Dados coletados:** endereço de e-mail; IP e user-agent no momento da inscrição (LGPD Art. 9º — acountability do consentimento); versão do texto aceito.
+- **Dados coletados:** endereço de e-mail; IP e user-agent no momento da inscrição (LGPD Art. 9º — accountability do consentimento); versão do texto aceito.
 - **Finalidade:** enviar e-mails com artigos, atualizações e comunicações relacionadas ao site. Sem remarketing, sem revenda, sem compartilhamento com anunciantes.
 - **Processadores:** Supabase Inc. (armazenamento — BR) e Brevo SAS (envio de e-mails — França, UE, país adequado — GDPR Art. 45).
 - **Base legal:** LGPD Art. 7º I (consentimento explícito opt-in) e GDPR Art. 6(1)(a).
