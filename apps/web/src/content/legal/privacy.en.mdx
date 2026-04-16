@@ -46,21 +46,31 @@ For each data category, we list the purpose and the LGPD legal basis (Art. 7):
 | Newsletter | Send opt-in emails (articles, updates) | Art. 7 I (consent) |
 | Contact form | Reply to the contact requested by the data subject | Art. 7 I (consent) and V (pre-contractual execution) |
 | Audit logs | Legal compliance, security, fraud prevention | Art. 7 VI (regular exercise of rights) |
-| Error telemetry (Sentry) | Identify, diagnose, and fix failures | Art. 7 VIII (legitimate interest) |
+| **Error** telemetry (Sentry, stack traces + metadata only) | Identify, diagnose, and fix failures | Art. 7 VIII (legitimate interest) |
+| **Performance** telemetry (Sentry Browser Tracing) and **Session Replay** | Detailed navigation metrics and session reconstruction for debugging | Art. 7 I (consent — analytics) |
 | Functional cookies | Session, preferences, CSRF | Art. 7 V (contract execution) |
 | Analytics/marketing cookies | Aggregate metrics, personalization | Art. 7 I (consent) |
 
-### Balancing test — Sentry (legitimate interest)
+### Balancing test — Sentry (legitimate interest, errors only)
 
-We use **Sentry** for error tracking on the basis of **legitimate interest (LGPD Art. 7 VIII)**. Balancing-test outcome:
+The **always-on** Sentry layer captures **application errors only** (stack traces + route metadata) on the basis of **legitimate interest (LGPD Art. 7 VIII)**. Balancing-test outcome:
 
 - **Legitimate purpose:** ensure service stability, security, and availability — a legitimate expectation of any user.
 - **Necessity:** without error telemetry, critical bugs (data loss, checkout failures, login failures) may go unnoticed for days, causing direct harm to the data subject.
-- **Minimization applied:** PII from form fields is filtered before transmission via a dedicated scrubber (`sensitiveDataTransport`). Only stack traces, route, and anonymous metadata are transmitted.
+- **Minimization applied:** PII (email, phone, CPF) is filtered before transmission by a dedicated scrubber applied to breadcrumbs, messages, headers, and HTTP request bodies. Performance sampling (`tracesSampleRate`) and session replay (`replaysSessionSampleRate` / `replaysOnErrorSampleRate`) are set to **zero** in this layer.
 - **Protection:** 30-day retention; access restricted to authenticated administrators with 2FA.
-- **Right to object:** you can object to this processing at any time via privacidade@bythiagofigueiredo.com (see Section 7).
+- **Right to object:** you can object to this processing at any time via privacidade@bythiagofigueiredo.com (see Section 7). To opt out before transmission you may block third-party JavaScript or request account deletion (Section 7).
 
-Conclusion: legitimate interest prevails, subject to proportionate mitigation. We do NOT rely on Art. 7 IX (which does not exist under the Brazilian LGPD — the list ends at X).
+### Additional layer — Sentry Browser Tracing + Session Replay (analytics consent)
+
+When — and **only when** — you accept the **analytics** cookies in the consent banner, two additional Sentry components become active:
+
+- **Browser Tracing:** navigation-performance sampling (route load times, API request timings).
+- **Session Replay:** session reconstruction with **all input boxes masked (`maskAllInputs: true`)** — what you type and passwords are never captured. Visible text on the page and images are recorded for visual reproduction of bugs.
+
+These two components are attached dynamically upon granting analytics consent and **stopped at runtime** when consent is withdrawn. The legal basis is **consent (LGPD Art. 7 I / GDPR Art. 6(1)(a))**, and unlike the error layer, we **do not** rely on legitimate interest for tracing/replay.
+
+We do NOT rely on Art. 7 IX (which does not exist under the Brazilian LGPD — the list ends at X).
 
 ## 4. Sharing with third parties (sub-processors)
 
@@ -140,7 +150,7 @@ We use 3 categories of cookies/storage. You can accept or decline granularly via
 | Category | Cookies/storage | Purpose | TTL | Consent |
 |----------|-----------------|---------|-----|---------|
 | Functional (required) | `sb-access-token`, `sb-refresh-token`, `preferred_locale`, `lgpd_anon_id`, CSRF tokens | Authentication, session, preferences, security | Session to 30 days | Not required (contract execution) |
-| Analytics (opt-in) | `lgpd_consent_v1.analytics`, Sentry Replay | Aggregated usage metrics | 1 year | Explicit opt-in |
+| Analytics (opt-in) | `lgpd_consent_v1.analytics`, `cookie_analytics_consent` (localStorage), Sentry Session Replay + Browser Tracing | Session reconstruction for debugging + performance metrics | 1 year | Explicit opt-in |
 | Marketing (opt-in) | `lgpd_consent_v1.marketing` | Personalization | 1 year | Explicit opt-in |
 
 You can revoke consents at any time via the footer or `/account/settings/privacy`.

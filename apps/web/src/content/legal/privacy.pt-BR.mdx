@@ -44,21 +44,31 @@ Para cada categoria de dado, listamos a finalidade e a base legal da LGPD (Art. 
 | Newsletter | Enviar e-mails opt-in (artigos, atualizações) | Art. 7º I (consentimento) |
 | Formulário de contato | Responder ao contato solicitado pelo titular | Art. 7º I (consentimento) e V (execução de contrato pré-contratual) |
 | Logs de auditoria | Conformidade legal, segurança, prevenção a fraude | Art. 7º VI (exercício regular de direitos) |
-| Telemetria de erros (Sentry) | Identificar, diagnosticar e corrigir falhas | Art. 7º VIII (legítimo interesse) |
+| Telemetria de **erros** (Sentry, somente stack traces + metadados) | Identificar, diagnosticar e corrigir falhas | Art. 7º VIII (legítimo interesse) |
+| Telemetria de **performance** (Sentry Browser Tracing) e **Session Replay** | Métricas detalhadas de navegação e reprodução de sessão para debugging | Art. 7º I (consentimento — analytics) |
 | Cookies funcionais | Sessão, preferências, CSRF | Art. 7º V (execução de contrato) |
 | Cookies de analytics/marketing | Métricas agregadas, personalização | Art. 7º I (consentimento) |
 
-### Teste de balanceamento — Sentry (legítimo interesse)
+### Teste de balanceamento — Sentry (legítimo interesse, apenas erros)
 
-Utilizamos **Sentry** para rastreamento de erros com base em **legítimo interesse (LGPD Art. 7º VIII)**. Este é o resultado do teste de balanceamento:
+A camada **sempre ativa** do Sentry captura apenas **erros de aplicação** (stack traces + metadados de rota), com base em **legítimo interesse (LGPD Art. 7º VIII)**. Este é o resultado do teste de balanceamento:
 
 - **Finalidade legítima:** garantir estabilidade, segurança e disponibilidade do serviço — expectativa legítima de qualquer usuário.
 - **Necessidade:** sem telemetria de erros, bugs críticos (perda de dados, falha de checkout, falha de login) podem passar despercebidos por dias, causando prejuízo ao próprio titular.
-- **Minimização aplicada:** PII de formulário é filtrada antes do envio via scrubber dedicado (`sensitiveDataTransport`). Apenas stack traces, rota, e metadados anônimos são enviados.
+- **Minimização aplicada:** PII (e-mail, telefone, CPF) é filtrada antes do envio por scrubber dedicado, aplicado a breadcrumbs, mensagens, headers e bodies de requisições HTTP. Amostragem de performance (`tracesSampleRate`) e gravação de sessão (`replaysSessionSampleRate` / `replaysOnErrorSampleRate`) ficam em **zero** nesta camada.
 - **Proteção:** retenção de 30 dias; acesso restrito a administradores autenticados com 2FA.
-- **Direito de oposição:** você pode se opor a este tratamento a qualquer momento pelo e-mail privacidade@bythiagofigueiredo.com (veja Seção 7).
+- **Direito de oposição:** você pode se opor a este tratamento a qualquer momento pelo e-mail privacidade@bythiagofigueiredo.com (veja Seção 7). Para opor-se antes do envio, você pode desativar o JavaScript de terceiros ou solicitar a exclusão da conta (Seção 7).
 
-Conclusão: o legítimo interesse prevalece, com medidas mitigadoras proporcionais. Não utilizamos o inciso IX do Art. 7º (que não existe na LGPD brasileira — a lista termina no X).
+### Camada adicional — Sentry Browser Tracing + Session Replay (consentimento de analytics)
+
+Quando — e **somente quando** — você aceita os cookies de **analytics** no banner de consentimento, dois componentes adicionais do Sentry passam a operar:
+
+- **Browser Tracing:** amostragem de performance de navegação (tempo de carregamento de rotas, requisições de API).
+- **Session Replay:** reprodução de sessão com **todas as caixas de entrada mascaradas (`maskAllInputs: true`)** — digitamos e senhas nunca são capturados. Texto visível na página e imagens são gravados para reconstrução visual do bug.
+
+Esses dois componentes são ativados dinamicamente ao conceder o consentimento de analytics e **interrompidos em tempo real** ao revogá-lo. A base legal é **consentimento (LGPD Art. 7º I / GDPR Art. 6(1)(a))** e, ao contrário da camada de erros, **não operamos sob legítimo interesse para tracing/replay**.
+
+Não utilizamos o inciso IX do Art. 7º (que não existe na LGPD brasileira — a lista termina no X).
 
 ## 4. Compartilhamento com terceiros (suboperadores)
 
@@ -138,7 +148,7 @@ Usamos 3 categorias de cookies/storage. Você pode aceitar ou recusar granularme
 | Categoria | Cookies/storage | Finalidade | TTL | Consentimento |
 |-----------|-----------------|------------|-----|---------------|
 | Funcionais (obrigatórios) | `sb-access-token`, `sb-refresh-token`, `preferred_locale`, `lgpd_anon_id`, CSRF tokens | Autenticação, sessão, preferências, segurança | Sessão a 30 dias | Não requer (execução de contrato) |
-| Analytics (opt-in) | `lgpd_consent_v1.analytics`, Sentry Replay | Métricas agregadas de uso | 1 ano | Opt-in explícito |
+| Analytics (opt-in) | `lgpd_consent_v1.analytics`, `cookie_analytics_consent` (localStorage), Sentry Session Replay + Browser Tracing | Reprodução de sessão para debugging + métricas de performance | 1 ano | Opt-in explícito |
 | Marketing (opt-in) | `lgpd_consent_v1.marketing` | Personalização | 1 ano | Opt-in explícito |
 
 Você pode revogar consentimentos a qualquer momento pelo rodapé ou em `/account/settings/privacy`.
