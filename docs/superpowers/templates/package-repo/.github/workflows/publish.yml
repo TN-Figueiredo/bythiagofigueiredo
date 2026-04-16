@@ -6,7 +6,6 @@ on:
     tags: ['v*']
 
 permissions:
-  id-token: write
   contents: write
   packages: write
 
@@ -48,7 +47,7 @@ jobs:
             echo "Version $VERSION already published, skipping"
             exit 0
           fi
-          npm publish --provenance --access restricted
+          npm publish --access restricted
 
       - name: Create GitHub release
         if: success()
