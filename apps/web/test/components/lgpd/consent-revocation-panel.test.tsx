@@ -5,21 +5,21 @@ import { ConsentRevocationPanel } from '../../../src/components/lgpd/consent-rev
 const sampleConsents = [
   {
     id: 'c1',
-    category: 'analytics' as const,
+    category: 'cookie_analytics' as const,
     granted: true,
     grantedAt: '2026-04-10T10:00:00Z',
     version: 1,
   },
   {
     id: 'c2',
-    category: 'marketing' as const,
+    category: 'cookie_marketing' as const,
     granted: true,
     grantedAt: '2026-04-10T10:00:00Z',
     version: 1,
   },
   {
     id: 'c3',
-    category: 'functional' as const,
+    category: 'cookie_functional' as const,
     granted: true,
     grantedAt: '2026-04-10T10:00:00Z',
     version: 1,
@@ -34,31 +34,40 @@ describe('ConsentRevocationPanel', () => {
     )
   })
 
-  it('lists all consents by category', () => {
+  it('lists all consents by category using DB-aligned labels', () => {
     render(<ConsentRevocationPanel consents={sampleConsents} />)
-    expect(screen.getByText(/^analytics$/i)).toBeTruthy()
-    expect(screen.getByText(/^marketing$/i)).toBeTruthy()
-    expect(screen.getByText(/^funcionais$/i)).toBeTruthy()
+    // Labels appear at least once as the list-item heading; the revoke
+    // button may echo the label too, so use getAllByText and assert count>=1.
+    expect(screen.getAllByText(/cookies de analytics/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/cookies de marketing/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/cookies funcionais/i).length).toBeGreaterThan(0)
   })
 
   it('shows a revoke button for revocable categories but NOT for functional', () => {
     render(<ConsentRevocationPanel consents={sampleConsents} />)
-    const revokeAnalytics = screen.getByRole('button', { name: /revogar analytics/i })
+    const revokeAnalytics = screen.getByRole('button', {
+      name: /revogar cookies de analytics/i,
+    })
     expect(revokeAnalytics).toBeTruthy()
-    expect(screen.queryByRole('button', { name: /revogar funcionais/i })).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: /revogar cookies funcionais/i }),
+    ).toBeNull()
   })
 
-  it('POSTs to /api/consents/revoke when the revoke button is clicked', async () => {
+  it('POSTs to /api/consents/revoke with the canonical category name', async () => {
     const fetchMock = vi.fn(() =>
-      Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 })),
+      Promise.resolve(new Response(JSON.stringify({ revoked: true }), { status: 200 })),
     )
     vi.stubGlobal('fetch', fetchMock)
     render(<ConsentRevocationPanel consents={sampleConsents} />)
-    fireEvent.click(screen.getByRole('button', { name: /revogar analytics/i }))
+    fireEvent.click(screen.getByRole('button', { name: /revogar cookies de analytics/i }))
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         '/api/consents/revoke',
-        expect.objectContaining({ method: 'POST' }),
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.stringContaining('cookie_analytics'),
+        }),
       )
     })
   })

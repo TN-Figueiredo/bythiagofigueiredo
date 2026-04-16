@@ -1,9 +1,10 @@
 'use client'
 
 // Sprint 5a Track D — D4: Data-export trigger.
-// POSTs /api/lgpd/request-export (synchronous — spec Section 2 v2) and
-// renders the signed download URL when ready. Also handles 429 rate
-// limits (server enforces 1/30d) with human-readable error.
+// POSTs /api/lgpd/request-export (async — the route queues the export and
+// emails the signed URL when ready). UI acknowledges receipt; it never
+// renders a direct download link because the signed URL is only delivered
+// via email (spec Section 2 v2 + post-audit contract alignment).
 
 import { useState } from 'react'
 
@@ -14,7 +15,7 @@ export interface AccountExportButtonProps {
 type State =
   | { kind: 'idle' }
   | { kind: 'pending' }
-  | { kind: 'ready'; url: string; id?: string }
+  | { kind: 'requested'; requestId: string; expiresAt: string }
   | { kind: 'error'; message: string }
 
 export function AccountExportButton({ enabled = true }: AccountExportButtonProps) {
@@ -57,15 +58,23 @@ export function AccountExportButton({ enabled = true }: AccountExportButtonProps
         })
         return
       }
-      const body = (await r.json().catch(() => ({}))) as { id?: string; downloadUrl?: string }
-      if (!body.downloadUrl) {
+      const body = (await r.json().catch(() => ({}))) as {
+        requestId?: string
+        expiresAt?: string
+      }
+      if (!body.requestId) {
         setState({
           kind: 'error',
-          message: 'Exportação criada, mas o link ainda não está disponível. Verifique seu email.',
+          message:
+            'Exportação iniciada, mas não recebemos o código da solicitação. Verifique seu email.',
         })
         return
       }
-      setState({ kind: 'ready', url: body.downloadUrl, id: body.id })
+      setState({
+        kind: 'requested',
+        requestId: body.requestId,
+        expiresAt: body.expiresAt ?? '',
+      })
     } catch {
       setState({
         kind: 'error',
@@ -94,21 +103,18 @@ export function AccountExportButton({ enabled = true }: AccountExportButtonProps
           {state.kind === 'pending' ? 'Gerando…' : 'Exportar meus dados'}
         </button>
       </div>
-      {state.kind === 'ready' && (
-        <div className="flex flex-col gap-2">
-          <p className="text-sm text-[var(--text-secondary)]">
-            Pronto! Seu arquivo estará disponível por 7 dias. Também enviamos o link para seu email.
+      {state.kind === 'requested' && (
+        <div
+          role="status"
+          className="flex flex-col gap-2 rounded-md border border-[var(--accent)]/40 bg-[var(--accent)]/10 p-3 text-sm text-[var(--text)]"
+        >
+          <p>
+            Exportação iniciada. Você receberá um email com o link de download em alguns
+            minutos. ID da solicitação: <code>{state.requestId}</code>
           </p>
-          <a
-            href={state.url}
-            className="inline-flex w-fit items-center rounded-md border border-[var(--accent)]/40 bg-[var(--accent)]/10 px-3 py-2 text-sm font-medium text-[var(--accent)] hover:bg-[var(--accent)]/20"
-            rel="noopener"
-          >
-            Baixar exportação
-          </a>
-          {state.id && (
+          {state.expiresAt && (
             <p className="text-xs text-[var(--text-tertiary)]">
-              Código: <code>{state.id}</code>
+              O link expira em {new Date(state.expiresAt).toLocaleString('pt-BR')}.
             </p>
           )}
         </div>

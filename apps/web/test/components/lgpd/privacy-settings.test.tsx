@@ -38,7 +38,7 @@ describe('PrivacySettings', () => {
         consents={[
           {
             id: 'c1',
-            category: 'analytics',
+            category: 'cookie_analytics',
             granted: true,
             grantedAt: '2026-04-10T10:00:00Z',
             version: 1,
@@ -47,7 +47,9 @@ describe('PrivacySettings', () => {
         requests={[]}
       />,
     )
-    expect(screen.getByRole('button', { name: /revogar analytics/i })).toBeTruthy()
+    expect(
+      screen.getByRole('button', { name: /revogar cookies de analytics/i }),
+    ).toBeTruthy()
   })
 
   it('renders per-request status cards', () => {

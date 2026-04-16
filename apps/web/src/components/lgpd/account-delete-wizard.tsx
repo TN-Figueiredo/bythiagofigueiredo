@@ -78,8 +78,8 @@ export function AccountDeleteWizard({ userEmail, enabled = true }: AccountDelete
         }
         return
       }
-      const body = (await r.json().catch(() => ({}))) as { id?: string }
-      if (body.id) setRequestId(body.id)
+      const body = (await r.json().catch(() => ({}))) as { requestId?: string }
+      if (body.requestId) setRequestId(body.requestId)
       setStep(3)
     } catch {
       setError('Não foi possível abrir a solicitação agora. Tente novamente em instantes.')
