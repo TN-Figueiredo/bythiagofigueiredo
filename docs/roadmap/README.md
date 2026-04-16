@@ -4,7 +4,7 @@
 > **Source of truth de execução:** este diretório.
 > **Rationale de produto e scoring:** `~/Workspace/ideias/bythiagofigueiredo/` (docs 01–05, 2026-04-12).
 
-**Versão:** 2026-04-16 · **Revisão:** 5 (Sprint 4.5 complete — Phase 4 landed on staging)
+**Versão:** 2026-04-16 · **Revisão:** 6 (Sprint 4.5 follow-ups — admin@0.5.1 + cms@0.1.0-beta.4 landed)
 
 ## Visão macro
 
@@ -59,9 +59,15 @@
   - DB-gated 10-case RLS integration matrix (`test/integration/area-authorization.test.ts`) com HAS_LOCAL_DB=1 → 10/10 pass
   - Pré-existing typecheck errors em 5 test files corrigidos (`noUncheckedIndexedAccess` non-null asserts) — gate final truly green
   - Plan: [web-consumer-login-wiring](../superpowers/plans/2026-04-15-web-consumer-login-wiring.md). 13 commits: `02e9488`, `649686d`, `38e61c8`, `716645a`, `272808b`, `3bb126a`, `e0aa20d`, `adc5c45`, `106ad82`, `e106cfc`, `a743995`, `52d20e4`, `bed49f1`.
-  - **Follow-ups** (não-blocking): T10e flip cms types pra `auth-nextjs/actions` imports (separate PR em `tn-cms`); drift alignment de `ActionResult`/`AuthPageProps` entre admin/cms/canonical; gap descoberto em T10d — `requireArea` usa JWT-based `is_staff()` em vez de re-check `organization_members` toda render (issue de staleness de claim documentada no test docstring).
+  - **Follow-ups pós-Phase 4 (2026-04-16)** — 3 patches adicionais landed na mesma data:
+    - `@tn-figueiredo/cms@0.1.0-beta.4` — T10e executado: primitive types (`ActionResult`, `SignIn*`/`ForgotPassword`/`ResetPasswordInput`, `AuthTheme`, `AuthStrings`) flipados de inline pra imports de `@tn-figueiredo/auth-nextjs/actions`. `AuthPageProps`/`ForgotPasswordPageProps`/`ResetPasswordPageProps` ficam cms-local (narrower component-facing shapes pro padrão consumer-wraps-action). Published via `npm publish --tag beta`. PR #7 merged.
+    - `@tn-figueiredo/auth-nextjs@2.1.1` — patch pra 2 bugs publish-time do 2.1.0: missing `./server` subpath no exports map + UI types não re-exportados de `/actions`. PR #10 merged, published manual.
+    - `@tn-figueiredo/admin@0.5.1` — CHANGELOG.md + README.md agora shipam no tarball (antes só `dist/`). Types flip deferred pra 0.6.0 (workspace symlink complica DTS build). PR #11 merged, published manual.
+    - Consumer bumps em `apps/web` (`a59dc4d`): admin 0.5.0→0.5.1, cms beta.3→beta.4. 255 tests, typecheck green em ambos workspaces.
+    - Logout UI gap fechado (`2c03a0a`): POST forms em `/admin/(authed)/layout.tsx` + `/cms/(authed)/layout.tsx` (workaround até admin exportar `logoutPath` prop).
+  - **Não-blocking, deferidos**: `requireArea` usa JWT-based `is_staff()` RPC (stale claim até refresh ~1h) — fix real requer nova RPC `is_member_staff()` lendo `organization_members`, schema work Sprint 5+; admin types flip → 0.6.0; CI Release workflows do tnf-ecosystem ainda bloqueados por `npm ci` 401 em `@tn-figueiredo/affiliate@0.1.0` (pré-existente).
 
-**Sprint ativo:** nenhum — Sprint 4.5 completo e no `staging`. **Próximo: Sprint 5 (Public Launch Prep — 38h)** — LGPD público (privacy policy + terms + cookie banner + delete account + data export), SEO completo, testes E2E, deploy hardening.
+**Sprint ativo:** nenhum — Sprint 4.5 + follow-ups completo no `staging`. **Próximo: Sprint 5 (Public Launch Prep — 38h)** — LGPD público (privacy policy + terms + cookie banner + delete account + data export), SEO completo, testes E2E, deploy hardening.
 
 ## Legenda de status
 
@@ -77,7 +83,7 @@ Entregáveis de ecossistema — reutilizáveis em outros apps @tnf/*:
 
 | Package | Sprint | Horas | Fase | Status | ROI estimado |
 |---------|:------:|:-----:|:----:|:------:|:------------:|
-| **@tn-figueiredo/cms** (NEW) | S2 + S4b extract + S4.5 /login | 24h + ~8h + ~2h | 1 | ✅ `v0.1.0-beta.3` published (login subpath) | ~60h poupadas em 5+ sites |
+| **@tn-figueiredo/cms** (NEW) | S2 + S4b extract + S4.5 /login | 24h + ~8h + ~3h | 1 | ✅ `v0.1.0-beta.4` published (canonical types) | ~60h poupadas em 5+ sites |
 | **@tn-figueiredo/email** (NEW) | S3 setup + S4b extract | 6h + ~8h | 1 | ✅ `v0.1.0` published | ~48h em 6+ apps |
 | **@tnf/storage** (NEW) | S9 (renumerado de S8) | 10h | 2 | ☐ | ~24h em 6+ apps |
 
