@@ -7,7 +7,7 @@ vi.mock('../lib/supabase/service', () => ({
 }))
 
 // Mock SupabaseRingContext from the package — isolate middleware from real DB
-vi.mock('@tn-figueiredo/cms', () => {
+vi.mock('@tn-figueiredo/cms/ring', () => {
   return {
     SupabaseRingContext: vi.fn().mockImplementation(() => ({
       getSiteByDomain: vi.fn().mockImplementation((domain: string) => {

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createAuthMiddleware } from '@tn-figueiredo/auth-nextjs/middleware'
-import { SupabaseRingContext } from '@tn-figueiredo/cms'
+import { SupabaseRingContext } from '@tn-figueiredo/cms/ring'
 import { getSupabaseServiceClient } from './lib/supabase/service'
 
 /**
