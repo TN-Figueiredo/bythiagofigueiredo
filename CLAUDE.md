@@ -264,8 +264,12 @@ CMS reutilizável publicado em `@tn-figueiredo/cms` (extração pra repo própri
 - **Sprint 3** ✅ done — auth + invite flow, newsletter/contact forms, campaign admin CRUD, PostEditor polish, cron locks (~40 commits, audit 93→99)
 - **Sprint 4a** ✅ done (2026-04-15) — Epics 8+9+10: DB-gated RPC integration tests, Sentry observability (web+api) + PII scrubber, structured cron logs (`lib/logger.ts`), LGPD retention (unsubscribe anonymization, contact anonymize RPC, `purge_sent_emails` 90d cron). 263 web + 4 api tests. 3 migrations em prod.
 - **Sprint 4b** ✅ done (2026-04-16) — Epics 6+7: `@tn-figueiredo/cms@0.1.0-beta.2` + `@tn-figueiredo/email@0.1.0` published to GitHub Packages (repos `TN-Figueiredo/cms` + `TN-Figueiredo/email`). apps/web consome pinned. `transpilePackages: ['@tn-figueiredo/cms']` retido (contrato v0.1.x — ESM + JSX preservado); `/ring` subpath Edge-safe. Spec: [sprint-4b.md](docs/superpowers/specs/sprint-4b.md)
-- **Sprint 4.5** 🟡 in planning — login split (admin/cms). Plans commitados em `docs/superpowers/plans/2026-04-15-*.md`. Design: [admin-cms-login-split-design](docs/superpowers/specs/2026-04-15-admin-cms-login-split-design.md)
-- **Sprint 5** ☐ next — public launch prep (privacy/terms UI, cookie banner, delete account, full SEO, Vercel deploy hardening). 38h — herdou escopo original de "Sprint 4 LGPD/Deploy"
+- **Sprint 4.5** ✅ done — login split (admin/cms).
+- **Sprint 4.75** ✅ done (2026-04-16) — RBAC v3 + multi-site hardening: 4 roles (super_admin/org_admin/editor/reporter), `site_memberships` table, DB-checked role helpers (`is_member_staff()` closes JWT staleness gap), `audit_log` + triggers + IP/UA GUC, publish-review trigger, invitation role_scope, cross-domain redirects. 5 parallel tracks, ~70 migrations.
+- **Sprint 5a** ✅ done (2026-04-16) — LGPD compliance: 18 migrations (`lgpd_requests`, `consents`, `consent_texts`, 7 RPCs, storage bucket, FK ON DELETE SET NULL, audit_log skip-cascade guard), `@tn-figueiredo/lgpd@0.1.0` wiring (6 adapters + container + use-case glue), 9 API routes, 8 UI components, 6 account pages, consent-aware Sentry init, privacy+terms MDX (pt-BR+en), `/privacy` + `/terms` routes, CI DB-integration job, 4 feature flags, vitest coverage for `lib/lgpd/**`. Prod DB on-schema; Vercel deploy pending via PR #24.
+- **Sprint 5b** ☐ next — SEO hardening (structured data, sitemap, OG tags, robots).
+- **Sprint 5c** ☐ — E2E suite (Playwright) covering auth + CMS critical paths.
+- **Sprint 5d** ☐ — Vercel deploy hardening (build perf, edge config).
 - **Sprint 6** ☐ — Burnout & MVP Launch (30h)
 - Roadmap source of truth: [docs/roadmap/README.md](docs/roadmap/README.md)
 
