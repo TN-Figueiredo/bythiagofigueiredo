@@ -380,3 +380,77 @@ Filter Sentry: `seo:true component:og-route last:24h`.
 
 - **Owner unreachable:** revert to last-known-good Vercel deployment via Dashboard → Deployments → ⋯ → "Promote to Production" on the previous green build.
 - **Total SEO outage (multiple flags failing):** `vercel rollback` to pre-Sprint-5b deployment SHA. SEO regresses to Sprint 5a baseline (no sitemap, no JSON-LD, no dynamic OG) but site stays up.
+
+---
+
+## Known limitations (shipped 2026-04-17, track as follow-ups)
+
+These are **not incidents** — they are documented gaps shipped intentionally. Mitigations below; open GitHub issues if impact turns out worse than expected.
+
+### 1. Person.imageUrl 404 until photo supplied
+
+**Contract:** `https://bythiagofigueiredo.com/identity/thiago.jpg` (declared in `apps/web/lib/seo/identity-profiles.ts`).
+**Reality:** file is `.gitkeep` placeholder; path 404s.
+**Impact:** Google Knowledge Graph logs a broken-image warning for the `Person` JSON-LD node. Does NOT break the Person entity itself (other fields resolve); just no profile image in the Knowledge Panel.
+**Fix:** commit a real 1:1 JPEG ≥400×400, <100KB to `apps/web/public/identity/thiago.jpg`. No code change. Next Vercel deploy serves it.
+**Tracker:** follow-up issue.
+
+### 2. OG default image is programmatic placeholder
+
+**Location:** `apps/web/public/og-default.png` (1200×630, ~20KB).
+**Trigger:** served on any `next/og` render error (302 fallback in `renderBlogOgImage`/`renderCampaignOgImage`/`renderGenericOgImage`).
+**Impact:** acceptable visual for dev; looks unbranded on real social shares. Only appears on error path, so low user-visible incidence in steady state.
+**Fix:** Figma export of the `GenericOgTemplate` design with proper branding. Replace the file; no code change.
+
+### 3. Inter Bold font unsubsetted (~415KB vs ~35KB ideal)
+
+**Location:** `apps/web/lib/seo/og/fonts/Inter-Bold.subset.ttf` (file name retained for path stability; contents are the full TTF).
+**Impact:** Satori loads the full TTF per OG render but only embeds glyphs actually used in the rendered JSX, so final PNG size is unaffected. Cold-start memory and next build bundle grow by ~380KB. Measure impact via `next build` output size before optimizing.
+**Fix:** install `fonttools` Python package, run `pyftsubset Inter-Bold.ttf --unicodes=U+0020-007E,U+00A0-024F --layout-features='*' --no-hinting --output-file=Inter-Bold.subset.ttf`. Commit the smaller file.
+
+### 4. FAQ/HowTo/Video rich results: direct-query workaround for seo_extras
+
+**Why:** `@tn-figueiredo/cms@0.2.0` `PostTranslation` type doesn't expose `seo_extras` (schema added in PR-A migration 02; cms package types not bumped).
+**Current behavior (audit R2 fix, commit `95663b3`):** `apps/web/src/app/blog/[locale]/[slug]/page.tsx` calls `loadSeoExtrasByLocale(postId)` as a direct supabase query, validates each row with `SeoExtrasSchema`, and threads the resulting Map into `toTranslationInputs`. FAQ/HowTo/Video nodes DO emit when `blog_translations.seo_extras` is populated + `NEXT_PUBLIC_SEO_EXTENDED_SCHEMAS_ENABLED=true`.
+**Cost:** 1 extra DB query per blog-detail page load (unindexed `post_id` lookup on `blog_translations` — ~5ms cached, ~30ms cold). Acceptable until cms@0.3.0.
+**Fix:** bump `@tn-figueiredo/cms` to expose `seo_extras` on `PostTranslation`, then remove `loadSeoExtrasByLocale` + switch `toTranslationInputs` to read `t.seo_extras` directly.
+
+### 5. Blog post timestamps may degrade JSON-LD
+
+**Why:** `Post.published_at`/`updated_at` are typed `string | null` in the cms package but occasionally arrive as empty strings from bulk imports.
+**Current behavior:** `parseDateOrNull` defensive helper in `apps/web/src/app/blog/[locale]/[slug]/page.tsx` — when timestamps are invalid, `BlogPosting` node is skipped and graph degrades to `BreadcrumbList` + extras only. Metadata degrades to canonical-only (no `publishedTime`/`modifiedTime`).
+**Impact:** affected posts don't emit BlogPosting rich results; still indexable, just no rich card in SERP.
+**Fix:** either backfill prod `blog_posts.published_at` for legacy rows, OR update cms package to narrow the type + enforce non-null `updated_at` at ingest.
+
+### 6. Contact page locale hardcoded `pt-BR`
+
+**Location:** `apps/web/src/app/contact/page.tsx`.
+**Impact:** `generateContactMetadata(config, 'pt-BR')` always called; EN visitors see PT metadata.
+**Fix:** split to `/contact/[locale]/page.tsx` with `generateStaticParams` for supported locales. Estimated 1h in Sprint 5c or dedicated polish sprint.
+
+### 7. Lighthouse CI `numberOfRuns: 1`
+
+**Location:** `.lighthouserc.yml` + `.lighthouserc.mobile.yml`.
+**Impact:** single-run scores are ~±5 noisy around thresholds (e.g. perf score jumps 78→83 between runs due to VM variance). Could false-fail a PR on a cold run.
+**Fix:** bump `numberOfRuns` to 3 once CI runner minutes budget permits (each run adds ~90s).
+
+### 8. Multi-site cache invalidation is broad
+
+**Location:** `apps/web/lib/seo/config.ts` uses `unstable_cache` with tag `seo-config` (global).
+**Impact:** when a site's branding or identity changes, ALL sites' SEO config caches are invalidated. Acceptable for single-site today; wasteful at multi-site scale.
+**Fix:** migrate tag to `seo-config:${siteId}` (per-site) once a second ring site ships. `apps/web/lib/seo/cache-invalidation.ts` `revalidateSiteBranding()` accepts a `siteId` and targets the specific tag.
+
+---
+
+## Follow-up tracker
+
+| # | Item | Priority | Sprint / owner |
+|---|---|:-:|---|
+| 1 | Commit real `thiago.jpg` photo | med | any sprint |
+| 2 | Figma-export og-default.png | med | next polish sprint |
+| 3 | Subset Inter Bold TTF (pyftsubset) | low | next polish sprint |
+| 4 | Bump `@tn-figueiredo/cms` to expose `seo_extras` + `cover_image_url` per-translation | med | Sprint 6+ |
+| 5 | Enforce `updated_at` non-null ingest | low | any sprint |
+| 6 | `/contact/[locale]` routing | low | Sprint 5c or polish |
+| 7 | LHCI `numberOfRuns: 3` | low | after first ~10 PRs (budget data) |
+| 8 | Per-site `seo-config:${siteId}` tag | low | second site onboarding |
