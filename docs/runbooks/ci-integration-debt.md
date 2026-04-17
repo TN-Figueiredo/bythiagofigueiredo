@@ -28,7 +28,7 @@ All 18 failures were resolved in the follow-up fixture migration work:
 
 4. **`lgpd_phase1_cleanup` caller guard** — guard used `current_user` which in a
    `SECURITY DEFINER` function always returns the function owner (`postgres`). Fixed
-   via migration `20260430000032_fix_phase1_cleanup_guard.sql` to use `auth.role()`
+   via migration `20260501000006_fix_phase1_cleanup_guard.sql` to use `auth.role()`
    (JWT claim) instead.
 
 5. **`blog_posts` INSERT** — removed non-existent `slug` column from the test INSERT;
@@ -39,7 +39,7 @@ All 18 failures were resolved in the follow-up fixture migration work:
    site resolution uses a stub localhost site rather than hitting the DB.
 
 7. **`can_admin_site_for_user` RBAC v3** — migration
-   `20260430000031_fix_can_admin_site_for_user_rbac_v3.sql` updated
+   `20260501000005_fix_can_admin_site_for_user_rbac_v3.sql` updated
    `is_org_staff_for_user` and `can_admin_site_for_user` to use only `'org_admin'`
    role (RBAC v3 constraint).
 

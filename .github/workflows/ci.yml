@@ -75,7 +75,7 @@ jobs:
   test-db-integration:
     name: Integration (DB-gated)
     runs-on: ubuntu-latest
-    # All 123 integration tests pass as of Sprint 5b fixture migration (20260430000031-32).
+    # All 123 integration tests pass as of Sprint 5b fixture migration (20260501000005-6).
     # Gate is hard — failures block merges.
     services:
       postgres:

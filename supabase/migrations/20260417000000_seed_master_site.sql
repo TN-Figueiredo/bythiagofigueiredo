@@ -8,7 +8,7 @@
 -- `supabase db reset`). Prod was unaffected because the column was already
 -- present at the time this migration was applied there.
 --
--- The seed logic was moved to 20260430000030_seed_master_site.sql, which
+-- The seed logic was moved to 20260501000004_seed_master_site.sql, which
 -- runs after all column-adding migrations and remains idempotent.
 --
 -- This file is retained as a no-op to preserve the reference in
