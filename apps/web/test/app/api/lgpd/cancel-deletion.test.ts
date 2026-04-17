@@ -11,24 +11,6 @@ vi.mock('@/lib/lgpd/container', () => ({
   }),
 }));
 
-vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
-  requireUser: vi.fn(),
-  createServerClient: vi.fn(),
-  UnauthenticatedError: class UnauthenticatedError extends Error {
-    constructor() {
-      super('User is not authenticated');
-      this.name = 'UnauthenticatedError';
-    }
-  },
-}));
-
-vi.mock('next/headers', () => ({
-  cookies: vi.fn(async () => ({
-    getAll: () => [],
-    set: () => {},
-  })),
-}));
-
 vi.mock('../../../../lib/supabase/service', () => ({
   getSupabaseServiceClient: vi.fn(() => ({
     auth: { admin: { updateUserById } },
@@ -37,10 +19,6 @@ vi.mock('../../../../lib/supabase/service', () => ({
 
 import { POST } from '../../../../src/app/api/lgpd/cancel-deletion/route';
 import { getSupabaseServiceClient } from '../../../../lib/supabase/service';
-import {
-  requireUser,
-  UnauthenticatedError,
-} from '@tn-figueiredo/auth-nextjs/server';
 
 function makeReq(body: unknown) {
   return new Request('http://x/api/lgpd/cancel-deletion', {
@@ -58,7 +36,6 @@ beforeEach(() => {
   vi.mocked(getSupabaseServiceClient).mockReturnValue({
     auth: { admin: { updateUserById } },
   } as never);
-  vi.mocked(requireUser).mockResolvedValue({ id: 'u1', email: 'a@b.com' });
 });
 
 afterEach(() => {
@@ -78,7 +55,6 @@ describe('POST /api/lgpd/cancel-deletion', () => {
     const body = await res.json();
     expect(body.ok).toBe(true);
     expect(cancelFn).toHaveBeenCalledWith('raw');
-    // Unban so the user can log back in.
     expect(updateUserById).toHaveBeenCalledWith('u1', { ban_duration: 'none' });
   });
 
@@ -91,30 +67,16 @@ describe('POST /api/lgpd/cancel-deletion', () => {
   it('handles container.cancel returning void (legacy shape)', async () => {
     cancelFn.mockResolvedValueOnce(undefined);
     const res = await POST(makeReq({ token: 'raw' }));
-    // Without userId we cannot unban — still return 200 so the UX doesn't
-    // confuse the user; the cron sweep will reconcile.
     expect(res.status).toBe(200);
   });
 
-  // Fix 13 (Sprint 5a): auth gate + token-ownership check.
-  it('401 when unauthenticated', async () => {
-    vi.mocked(requireUser).mockRejectedValueOnce(new UnauthenticatedError());
-    const res = await POST(makeReq({ token: 'raw' }));
-    expect(res.status).toBe(401);
-    expect(cancelFn).not.toHaveBeenCalled();
-  });
-
-  it('403 when token resolves to a different user (ownership mismatch)', async () => {
-    vi.mocked(requireUser).mockResolvedValueOnce({
-      id: 'u1',
-      email: 'a@b.com',
-    });
-    cancelFn.mockResolvedValueOnce({ userId: 'u2' });
-    const res = await POST(makeReq({ token: 'stolen' }));
-    expect(res.status).toBe(403);
-    const body = await res.json();
-    expect(body.error).toBe('token_ownership_mismatch');
-    // Ban was NOT lifted.
-    expect(updateUserById).not.toHaveBeenCalled();
+  // Round 2 critic P1-12: cancel is unauthenticated by design.
+  // The user is banned post-phase-1, so requireUser would 401 on the
+  // reminder-email click. Token possession IS the identity proof.
+  it('accepts unauthenticated request when token is valid', async () => {
+    cancelFn.mockResolvedValueOnce({ userId: 'u1' });
+    const res = await POST(makeReq({ token: 'valid-from-email' }));
+    expect(res.status).toBe(200);
+    expect(cancelFn).toHaveBeenCalled();
   });
 });

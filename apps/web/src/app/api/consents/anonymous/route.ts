@@ -36,15 +36,19 @@ async function resolveConsentTextId(
   admin: ReturnType<typeof getSupabaseServiceClient>,
   category: Category,
 ): Promise<string> {
-  // Prefer the most recent version of the pt-BR text; fall back to the
-  // canonical v1 id string the seed migration uses.
+  // Pick the active (not-superseded) text with the newest effective_at.
+  // Ordering by `effective_at DESC` (timestamp) is stable across version
+  // bumps; ordering by `version` string breaks at v10 (lex order puts
+  // '10.0' < '2.0'). Fall back to the v2 id (current at time of writing,
+  // matches migration 20260430000022_consent_texts_v2_seed.sql).
   try {
     const { data } = await admin
       .from('consent_texts')
       .select('id')
       .eq('category', category)
       .eq('locale', 'pt-BR')
-      .order('version', { ascending: false })
+      .is('superseded_at', null)
+      .order('effective_at', { ascending: false })
       .limit(1)
       .maybeSingle();
     const row = data as { id?: string } | null;
@@ -52,7 +56,7 @@ async function resolveConsentTextId(
   } catch {
     /* fall through to hardcoded default */
   }
-  return `${category}_v1_pt-BR`;
+  return `${category}_v2_pt-BR`;
 }
 
 /**

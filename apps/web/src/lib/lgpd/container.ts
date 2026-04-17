@@ -199,6 +199,12 @@ function generateRawToken(): string {
  * the `consents.category` + `consent_texts.id` values the schema uses. Falls
  * through unchanged for categories that already match (e.g. `newsletter`,
  * `privacy_policy`) — the caller can pass the canonical DB name directly.
+ *
+ * The returned `textId` is a safety-net FALLBACK — container callers should
+ * prefer a DB lookup (`consent_texts WHERE category = $1 AND locale = $2
+ * AND superseded_at IS NULL ORDER BY effective_at DESC LIMIT 1`) and only
+ * use this id when that lookup errors. Kept in sync with the latest seeded
+ * version (currently v2 — migration 20260430000022_consent_texts_v2_seed.sql).
  */
 function resolveConsentCategory(category: string): {
   dbCategory: string;
@@ -207,9 +213,9 @@ function resolveConsentCategory(category: string): {
   const short = category.toLowerCase();
   if (short === 'functional' || short === 'analytics' || short === 'marketing') {
     const dbCategory = `cookie_${short}`;
-    return { dbCategory, textId: `${dbCategory}_v1_pt-BR` };
+    return { dbCategory, textId: `${dbCategory}_v2_pt-BR` };
   }
-  return { dbCategory: short, textId: `${short}_v1_pt-BR` };
+  return { dbCategory: short, textId: `${short}_v2_pt-BR` };
 }
 
 // --- Email helpers for LGPD templates NOT in BrevoLgpdEmailService ----------

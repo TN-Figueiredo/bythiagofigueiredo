@@ -545,7 +545,7 @@ describe('consent.recordAnonymous', () => {
     expect(ins).toBeDefined();
     const p = ins!.payload as Record<string, unknown>;
     expect(p.category).toBe('cookie_analytics');
-    expect(p.consent_text_id).toBe('cookie_analytics_v1_pt-BR');
+    expect(p.consent_text_id).toBe('cookie_analytics_v2_pt-BR');
     expect(p.granted).toBe(true);
     expect(p.anonymous_id).toBe('d9b2b3c4-e5f6-4a7b-8c9d-0e1f2a3b4c5d');
   });
@@ -572,7 +572,7 @@ describe('consent.merge', () => {
             id: 'anon-1',
             category: 'cookie_analytics',
             site_id: null,
-            consent_text_id: 'cookie_analytics_v1_pt-BR',
+            consent_text_id: 'cookie_analytics_v2_pt-BR',
             granted: true,
             granted_at: '2026-04-16T10:00:00Z',
             ip: null,
@@ -615,7 +615,7 @@ describe('consent.merge', () => {
               id: 'anon-1',
               category: 'cookie_analytics',
               site_id: null,
-              consent_text_id: 'cookie_analytics_v1_pt-BR',
+              consent_text_id: 'cookie_analytics_v2_pt-BR',
               granted: true,
               granted_at: '2026-04-16T10:00:00Z',
               ip: null,
