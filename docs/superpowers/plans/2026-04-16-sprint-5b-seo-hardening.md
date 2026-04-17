@@ -40,7 +40,7 @@
 
 **Resolution:** New **Task A.0** — `20260417000000_seed_master_site.sql` — inserts `Figueiredo Technology` master org + `bythiagofigueiredo` site row. Applied first in the push (timestamp ordering). All 4 migrations applied via `npx supabase db push --linked --include-all` (the original plan's `npm run db:push:prod` rejected the older timestamp without the flag).
 
-**Plan command drift to fix:** Tasks A.1 and A.5 use `npx supabase db query --linked` — Supabase CLI 2.90 dropped this; correct is `npx supabase db query --linked`. Future re-runs of this plan section MUST substitute that command.
+**Plan command drift fixed in commit `a205a0b`:** original tasks A.1 / A.5 used `npx supabase db remote sql --linked` (legacy form dropped in Supabase CLI 2.90). All 8 instances were sed-substituted to `npx supabase db query --linked`, the modern equivalent. Re-runners can now copy the commands verbatim.
 
 ---
 
