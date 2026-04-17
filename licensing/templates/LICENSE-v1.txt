@@ -704,7 +704,7 @@ ARTIGO 15 — DISCLOSURE RESPONSÁVEL DE VULNERABILIDADES
 
 15.1. CANAL. Vulnerabilidades de segurança identificadas no Software
 devem ser reportadas, com caráter confidencial, pelo canal
-`security@figueiredotech.com.br`, com detalhamento técnico suficiente
+`security@bythiagofigueiredo.com`, com detalhamento técnico suficiente
 para reprodução.
 
 15.2. PRAZO DE CIÊNCIA. O TITULAR compromete-se a acusar recebimento
@@ -732,7 +732,7 @@ efetuada por uma das seguintes formas, cumulativa ou alternativamente:
 (a) CARTA COM AVISO DE RECEBIMENTO (AR), endereçada à sede de cada
 Parte;
 
-(b) MENSAGEM ELETRÔNICA endereçada aos e-mails `licensing@figueiredotech.com.br`
+(b) MENSAGEM ELETRÔNICA endereçada aos e-mails `licensing@bythiagofigueiredo.com`
 (TITULAR) e ao endereço indicado pelo LICENCIADO no Acordo Master ou
 Autorização, com CONFIRMAÇÃO de recebimento (resposta expressa ou
 mecanismo técnico equivalente, tal como read receipt assinado);
@@ -858,13 +858,13 @@ ARTIGO 21 — CONTATO
 21.1. Canais oficiais do TITULAR:
 
 (a) Questões de licenciamento, Autorizações e renovações:
-    `licensing@figueiredotech.com.br`
+    `licensing@bythiagofigueiredo.com`
 
 (b) Relato de vulnerabilidades e incidentes de segurança:
-    `security@figueiredotech.com.br`
+    `security@bythiagofigueiredo.com`
 
 (c) Notificações jurídicas, demandas formais e comunicações vinculantes:
-    `juridico@figueiredotech.com.br`
+    `juridico@bythiagofigueiredo.com`
 
 21.2. O TITULAR poderá alterar seus canais oficiais mediante
 notificação ao LICENCIADO, observado o Artigo 16.

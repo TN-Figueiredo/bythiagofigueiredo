@@ -74,7 +74,7 @@ licensing/                                       # novo diretório (root)
 **Placeholders deliberados no texto** (preencher em Fase 0):
 - `[endereço cadastrado na Junta Comercial]`
 - Data: `2026-04-16`
-- E-mails: `licensing@figueiredotech.com.br`, `security@...`, `juridico@...`
+- E-mails: `licensing@bythiagofigueiredo.com`, `security@...`, `juridico@...`
 
 **Critério:** arquivo `.txt` (não `.md`) porque SPDX-License-Identifier convenção + ferramentas `npm`/`license-check` reconhecem melhor.
 

@@ -49,10 +49,9 @@ Spec completa: [../docs/superpowers/specs/2026-04-16-ecosystem-licensing-design.
 
 ## Checklist Fase 0 — Pré-requisitos (obrigatórios antes de qualquer rollout)
 
-- [ ] Registrar domínio `figueiredotech.com.br` (Registro.br) para e-mails institucionais.
+- [ ] Configurar aliases institucionais (`licensing@`, `security@`, `juridico@`, `privacidade@`) no domínio existente `bythiagofigueiredo.com` via Cloudflare Email Routing (free) ou Zoho Mail (free). Domínio `bythiagofigueiredo.com` já é o principal — não registrar `figueiredotech.com.br`.
 - [ ] Advogado de Propriedade Intelectual revisa `templates/LICENSE-v1.txt` e `templates/master-agreement.md`.
 - [ ] Preencher placeholders de endereço da Figueiredo Technology LTDA em todos os templates (`{{ENDERECO_TITULAR}}`).
-- [ ] Preencher placeholders de e-mails institucionais (`legal@`, `security@`, `licensing@figueiredotech.com.br`).
 - [ ] Calibrar cláusula penal do Anexo A (intragrupo — irmão) com valor simbólico acordado em família.
 - [ ] Validar jurisdição e foro (Foro SP/Brasil) com advogado.
 - [ ] Revisar compatibilidade LGPD do fluxo de auditoria com DPO (ou decisão formal de DPO exemption via Resolução CD/ANPD 2/2022).

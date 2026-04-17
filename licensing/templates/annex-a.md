@@ -180,7 +180,7 @@ ________________________________________
 CNPJ: 44.243.373/0001-69
 Representante: Thiago Figueiredo
 Cargo: Sócio-Administrador
-E-mail: `licensing@figueiredotech.com.br`
+E-mail: `licensing@bythiagofigueiredo.com`
 
 **LICENCIADO:**
 

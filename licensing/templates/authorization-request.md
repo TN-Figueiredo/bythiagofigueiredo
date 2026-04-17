@@ -4,7 +4,7 @@
 
 **Instruções:**
 1. Preencha integralmente todos os campos abaixo.
-2. Encaminhe o formulário preenchido para `licensing@figueiredotech.com.br`.
+2. Encaminhe o formulário preenchido para `licensing@bythiagofigueiredo.com`.
 3. SLA de resposta: **3 (três) dias úteis** após recebimento.
 4. Campos marcados com `*` são obrigatórios.
 

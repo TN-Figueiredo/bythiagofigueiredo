@@ -12,7 +12,7 @@
 
 ## Passo 1 — Validar solicitação
 
-- [ ] Solicitação chegou por escrito (e-mail para `licensing@figueiredotech.com.br` ou formulário).
+- [ ] Solicitação chegou por escrito (e-mail para `licensing@bythiagofigueiredo.com` ou formulário).
 - [ ] Validar CNPJ do solicitante via <https://solucoes.receita.fazenda.gov.br/Servicos/cnpjreva/cnpjreva_solicitacao.asp> (status `ATIVA`; razão social bate com a declarada).
 - [ ] Confirmar que solicitante é PJ (CNPJ). Não licenciamos para PF.
 - [ ] Validar CPFs dos Usuários Autorizados propostos (DV correto — ferramenta online ou algoritmo).

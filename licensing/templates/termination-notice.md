@@ -20,7 +20,7 @@
 
 **EMITENTE (Notificante):**
 
-**FIGUEIREDO TECHNOLOGY LTDA.**, CNPJ 44.243.373/0001-69, com sede em `[endereço cadastrado na Junta Comercial]`, neste ato representada por **Thiago Figueiredo**, na qualidade de sócio-administrador, e-mail `juridico@figueiredotech.com.br` (doravante "TITULAR").
+**FIGUEIREDO TECHNOLOGY LTDA.**, CNPJ 44.243.373/0001-69, com sede em `[endereço cadastrado na Junta Comercial]`, neste ato representada por **Thiago Figueiredo**, na qualidade de sócio-administrador, e-mail `juridico@bythiagofigueiredo.com` (doravante "TITULAR").
 
 **DESTINATÁRIO (Notificado):**
 
@@ -199,8 +199,8 @@ Esta notificação NÃO configura renúncia, quitação ou remissão, pelo TITUL
 
 Eventuais manifestações do LICENCIADO em resposta a esta notificação devem ser endereçadas a:
 
-- **E-mail jurídico:** `juridico@figueiredotech.com.br`
-- **Cópia:** `licensing@figueiredotech.com.br`
+- **E-mail jurídico:** `juridico@bythiagofigueiredo.com`
+- **Cópia:** `licensing@bythiagofigueiredo.com`
 - **Referência:** nº desta notificação + CNPJ do LICENCIADO.
 
 ---
@@ -214,7 +214,7 @@ ________________________________________
 CNPJ: 44.243.373/0001-69
 Representante: Thiago Figueiredo
 Cargo: Sócio-Administrador
-E-mail: `juridico@figueiredotech.com.br`
+E-mail: `juridico@bythiagofigueiredo.com`
 
 ---
 

@@ -220,10 +220,10 @@ AS PARTES, em cumprimento aos princípios da boa-fé objetiva, função social d
 
 | Parte | E-mail principal | Endereço físico |
 |-------|-----------------|-----------------|
-| **TITULAR** | `licensing@figueiredotech.com.br` | `[endereço cadastrado na Junta Comercial]` |
+| **TITULAR** | `licensing@bythiagofigueiredo.com` | `[endereço cadastrado na Junta Comercial]` |
 | **LICENCIADO** | `[e-mail do Licenciado]` | `[endereço do Licenciado]` |
 
-14.2. Notificações de natureza jurídica vinculante (e.g. aviso de término, notificação de violação, cobrança) deverão observar adicionalmente o canal `juridico@figueiredotech.com.br` em cópia ao TITULAR.
+14.2. Notificações de natureza jurídica vinculante (e.g. aviso de término, notificação de violação, cobrança) deverão observar adicionalmente o canal `juridico@bythiagofigueiredo.com` em cópia ao TITULAR.
 
 14.3. As Partes obrigam-se a manter seus endereços atualizados, comunicando qualquer alteração em até 15 (quinze) dias.
 
@@ -272,7 +272,7 @@ ________________________________________
 Representante: Thiago Figueiredo
 CPF: `[CPF]`
 Cargo: Sócio-Administrador
-E-mail: `licensing@figueiredotech.com.br`
+E-mail: `licensing@bythiagofigueiredo.com`
 
 **LICENCIADO:**
 

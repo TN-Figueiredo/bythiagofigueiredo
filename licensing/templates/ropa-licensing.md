@@ -86,7 +86,7 @@ Na concessão futura de autorização pelo ANPD ou adequação pela Resolução 
 
 ## 8. Direitos dos titulares (LGPD Art. 18)
 
-Os titulares podem exercer os seguintes direitos mediante requisição formal ao endereço `juridico@figueiredotech.com.br`:
+Os titulares podem exercer os seguintes direitos mediante requisição formal ao endereço `juridico@bythiagofigueiredo.com`:
 
 | Direito | Art. LGPD | Viabilidade | Observações |
 |---------|-----------|-------------|-------------|
@@ -138,7 +138,7 @@ Os titulares podem exercer os seguintes direitos mediante requisição formal ao
 
 **Dispensa formal:** Figueiredo Technology LTDA qualifica-se como **agente de pequeno porte** nos termos da **Resolução CD/ANPD nº 2, de 27 de janeiro de 2022** (Art. 11). Não há obrigação de indicação formal de Encarregado. Contato para questões de privacidade:
 
-- **E-mail dedicado:** `juridico@figueiredotech.com.br` (ou `privacidade@figueiredotech.com.br` se habilitado)
+- **E-mail dedicado:** `juridico@bythiagofigueiredo.com` (ou `privacidade@bythiagofigueiredo.com` se habilitado)
 - **Representante:** Thiago Figueiredo, sócio-administrador
 - **Prazo de resposta:** até 15 dias úteis conforme LGPD Art. 19
 

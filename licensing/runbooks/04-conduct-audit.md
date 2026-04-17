@@ -66,7 +66,7 @@ apuradas violações materiais (LICENSE Art. 10.5).
 Atenciosamente,
 Thiago Figueiredo
 Figueiredo Tech
-licensing@figueiredotech.com.br
+licensing@bythiagofigueiredo.com
 ```
 
 ## Passo 3 — Coleta de evidências (D+0 a D+30)

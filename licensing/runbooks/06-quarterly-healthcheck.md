@@ -65,7 +65,7 @@ gh api -X GET "orgs/TN-Figueiredo/audit-log?phrase=created:>=YYYY-MM-01+created:
 
 ### 6. Correspondência não-arquivada
 
-- [ ] Inbox `licensing@figueiredotech.com.br` + pessoal: qualquer thread relativa a parceiro ativo que não foi arquivada em `licensing/partners/<slug>/correspondence/`.
+- [ ] Inbox `licensing@bythiagofigueiredo.com` + pessoal: qualquer thread relativa a parceiro ativo que não foi arquivada em `licensing/partners/<slug>/correspondence/`.
 - [ ] Arquivar threads pendentes (`.eml` + anexos).
 
 ### 7. Avisos de 90d pendentes
