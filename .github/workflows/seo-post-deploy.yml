@@ -1,0 +1,31 @@
+name: SEO Post-Deploy Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      host:
+        description: 'Target host with protocol (e.g. https://bythiagofigueiredo.com)'
+        required: true
+        default: 'https://bythiagofigueiredo.com'
+        type: string
+      skip_health:
+        description: 'Skip /api/health/seo check (use pre-PR-E)'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  smoke:
+    name: SEO smoke against ${{ inputs.host }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install xmllint
+        run: sudo apt-get update && sudo apt-get install -y libxml2-utils
+      - name: Run smoke script
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SKIP_HEALTH: ${{ inputs.skip_health == true && '1' || '0' }}
+        run: |
+          chmod +x scripts/seo-smoke.sh
+          ./scripts/seo-smoke.sh "${{ inputs.host }}"
