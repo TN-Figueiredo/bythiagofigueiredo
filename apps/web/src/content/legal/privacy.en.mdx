@@ -149,6 +149,10 @@ The platform operates as a **multi-site network** (the bythiagofigueiredo networ
 
 To manage consents across all sites you have visited in a consolidated view, go to **[/account/settings/privacy](/account/settings/privacy)** while authenticated — that screen lists all consents on your account across sites, with per-row withdrawal. Alternatively, you can visit the cookie banner on each domain.
 
+### Residual persistence in backups after deletion
+
+After permanent deletion (D+15), your data may persist in **encrypted backups for up to 30 additional days** (Supabase backup-retention window). During that period, the data is accessible only for **disaster-recovery purposes** and is **not used for active processing**. After that term, the backups are overwritten automatically and the deletion becomes **irreversible**. This window stems from the operational necessity of being able to restore the service in the event of corruption, hardware failure, or a security incident, and is covered by **LGPD Art. 16** (retention for fulfillment of a legal or regulatory obligation).
+
 ## 8. Cookies and local storage
 
 We use 3 categories of cookies/storage. You can accept or decline granularly via the **cookie banner** or the "Manage cookies" link in the footer.
