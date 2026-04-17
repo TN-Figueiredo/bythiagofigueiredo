@@ -38,9 +38,13 @@ const BodySchema = z.object({
  * re-request deletion. This is a defensible trade-off versus the
  * harder failure mode of a banned user being unable to cancel.
  *
- * Rate limit (IP-scoped) guards against token-guessing attacks. Audit
- * log captures every attempt, successful or not, with the source IP
- * so ANPD / forensic review can trace activity.
+ * Brute-force resistance comes from token entropy (32 random bytes =
+ * 256 bits; sha256-hashed at rest). No application-level rate limit is
+ * applied — guessing a single valid hash from 2^256 space is infeasible,
+ * and adding a limiter here would trade that for a DoS surface on
+ * legitimate banned-user clicks. Audit log captures every attempt,
+ * successful or not, with the source IP so ANPD / forensic review can
+ * trace activity.
  */
 export async function POST(req: Request): Promise<Response> {
   let parsed: z.infer<typeof BodySchema>;
