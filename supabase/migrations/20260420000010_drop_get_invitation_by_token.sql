@@ -1,0 +1,26 @@
+-- Sprint 4.75: drop legacy get_invitation_by_token RPC.
+--
+-- Pre-existing (since 20260416000001_invitations.sql, hardened in
+-- 20260416000009_epic2_hardening.sql):
+--   CREATE OR REPLACE FUNCTION public.get_invitation_by_token(p_token text)
+--   RETURNS TABLE (email citext, role text, org_name text, expires_at timestamptz, expired boolean)
+--
+-- New signature (applied in 20260420000017):
+--   RETURNS jsonb
+--
+-- `CREATE OR REPLACE FUNCTION` cannot change the return type; `DROP + CREATE`
+-- is required. Split into two migration files (DROP here, CREATE at 017) to
+-- satisfy Supabase CLI 2.90's prepared-statement splitter — putting both
+-- statements in one file triggers "cannot insert multiple commands into a
+-- prepared statement" (SQLSTATE 42601).
+--
+-- Function identity in PostgreSQL is (name, arg types), so dropping
+-- `get_invitation_by_token(text)` removes the pre-existing definition
+-- regardless of param name (`p_token` vs `p_token_hash`).
+--
+-- No dependent objects in prod today: consumer code using the jsonb
+-- signature (apps/web /signup/invite/[token]) hasn't been deployed yet;
+-- the TABLE-returning variant was only called from Sprint 3 code that
+-- was removed during Sprint 4.5's /signin purge.
+
+DROP FUNCTION IF EXISTS public.get_invitation_by_token(text);

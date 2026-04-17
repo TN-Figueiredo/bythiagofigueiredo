@@ -9,12 +9,12 @@ describe('safeRedirect', () => {
 
   it('returns custom fallback when input is null', () => {
     expect(safeRedirect(null)).toBe('/cms')
-    expect(safeRedirect(null, '/signin')).toBe('/signin')
+    expect(safeRedirect(null, '/admin/login')).toBe('/admin/login')
   })
 
   it('returns custom fallback when input is undefined', () => {
     expect(safeRedirect(undefined)).toBe('/cms')
-    expect(safeRedirect(undefined, '/signin')).toBe('/signin')
+    expect(safeRedirect(undefined, '/admin/login')).toBe('/admin/login')
   })
 
   it('returns fallback when input is empty string', () => {
@@ -41,8 +41,8 @@ describe('safeRedirect', () => {
   })
 
   it('uses provided fallback when blocking', () => {
-    expect(safeRedirect('https://evil.com', '/signin')).toBe('/signin')
-    expect(safeRedirect('//evil.com', '/signin')).toBe('/signin')
+    expect(safeRedirect('https://evil.com', '/admin/login')).toBe('/admin/login')
+    expect(safeRedirect('//evil.com', '/admin/login')).toBe('/admin/login')
   })
 
   it('allows nested relative paths', () => {

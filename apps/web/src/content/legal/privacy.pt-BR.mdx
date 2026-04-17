@@ -1,0 +1,264 @@
+---
+title: "Política de Privacidade"
+version: "1.0"
+effectiveDate: "2026-04-16"
+locale: "pt-BR"
+---
+
+# Política de Privacidade
+
+**Versão 1.0 — em vigor desde 16 de abril de 2026.**
+
+Esta Política de Privacidade descreve como coletamos, usamos, armazenamos e protegemos seus dados pessoais quando você usa o site **bythiagofigueiredo.com** e serviços relacionados. Foi escrita em linguagem simples para ser compreensível por qualquer pessoa — sem jargão jurídico desnecessário — e atende aos requisitos da Lei Geral de Proteção de Dados (LGPD, Lei 13.709/2018) e do Regulamento Geral sobre a Proteção de Dados (GDPR, Regulamento UE 2016/679) para visitantes na União Europeia.
+
+## 1. Identificação do controlador
+
+O controlador dos dados pessoais tratados neste site é:
+
+- **Responsável:** Thiago Figueiredo (pessoa física, operador solo)
+- **Site:** https://bythiagofigueiredo.com
+- **Contato para assuntos de privacidade:** privacidade@bythiagofigueiredo.com
+- **Endereço postal:** São Paulo — SP, Brasil (endereço completo disponível mediante solicitação por escrito)
+
+## 2. Dados que coletamos
+
+Coletamos apenas os dados estritamente necessários para cada finalidade. Detalhamento por superfície:
+
+- **Conta de usuário (quando você se cadastra):** e-mail, senha (armazenada em hash bcrypt pelo Supabase Auth), data de criação, data do último login, locale preferido.
+- **Newsletter:** e-mail, data de inscrição, versão do texto de consentimento aceito, IP + user-agent no momento da inscrição (accountability LGPD Art. 9º).
+- **Formulário de contato:** nome, e-mail, mensagem, IP + user-agent, timestamp.
+- **Conteúdo autoral (se você for editor/repórter):** posts de blog, campanhas, biografia, avatar, metadados de edição.
+- **Logs de auditoria:** ações administrativas (criar/editar/publicar conteúdo, convites) associadas ao seu `user_id`, com IP e user-agent.
+- **Cookies e armazenamento local:** veja a Seção 8.
+- **Telemetria de erros (Sentry):** stack traces, URL da rota, user-agent, metadados anônimos. PII é filtrada por um scrubber de campo antes do envio.
+
+**Não coletamos:** CPF, RG, dados bancários, localização GPS, dados biométricos, dados de menores de 18 anos (veja Seção 10).
+
+## 3. Finalidades e bases legais
+
+Para cada categoria de dado, listamos a finalidade e a base legal da LGPD (Art. 7º):
+
+| Categoria | Finalidade | Base legal |
+|-----------|-----------|------------|
+| Conta de usuário | Autenticação, controle de acesso, segurança | Art. 7º V (execução de contrato) |
+| Newsletter | Enviar e-mails opt-in (artigos, atualizações) | Art. 7º I (consentimento) |
+| Formulário de contato | Responder ao contato solicitado pelo titular | Art. 7º I (consentimento) e V (execução de contrato pré-contratual) |
+| Logs de auditoria | Conformidade legal, segurança, prevenção a fraude | Art. 7º VI (exercício regular de direitos) |
+| Telemetria de **erros** (Sentry, somente stack traces + metadados) | Identificar, diagnosticar e corrigir falhas | Art. 7º VIII (legítimo interesse) |
+| Telemetria de **performance** (Sentry Browser Tracing) e **Session Replay** | Métricas detalhadas de navegação e reprodução de sessão para debugging | Art. 7º I (consentimento — analytics) |
+| Cookies funcionais | Sessão, preferências, CSRF | Art. 7º V (execução de contrato) |
+| Cookies de analytics/marketing | Métricas agregadas, personalização | Art. 7º I (consentimento) |
+
+### Teste de balanceamento — Sentry (legítimo interesse, apenas erros)
+
+A camada **sempre ativa** do Sentry captura apenas **erros de aplicação** (stack traces + metadados de rota), com base em **legítimo interesse (LGPD Art. 7º VIII)**. Este é o resultado do teste de balanceamento:
+
+- **Finalidade legítima:** garantir estabilidade, segurança e disponibilidade do serviço — expectativa legítima de qualquer usuário.
+- **Necessidade:** sem telemetria de erros, bugs críticos (perda de dados, falha de checkout, falha de login) podem passar despercebidos por dias, causando prejuízo ao próprio titular.
+- **Minimização aplicada:** PII (e-mail, telefone, CPF) é filtrada antes do envio por scrubber dedicado, aplicado a breadcrumbs, mensagens, headers e bodies de requisições HTTP. Amostragem de performance (`tracesSampleRate`) e gravação de sessão (`replaysSessionSampleRate` / `replaysOnErrorSampleRate`) ficam em **zero** nesta camada.
+- **Proteção:** retenção de 30 dias; acesso restrito a administradores autenticados com 2FA.
+- **Direito de oposição:** você pode se opor a este tratamento a qualquer momento pelo e-mail privacidade@bythiagofigueiredo.com (veja Seção 7). Para opor-se antes do envio, você pode desativar o JavaScript de terceiros ou solicitar a exclusão da conta (Seção 7).
+
+### Camada adicional — Sentry Browser Tracing + Session Replay (consentimento de analytics)
+
+Quando — e **somente quando** — você aceita os cookies de **analytics** no banner de consentimento, dois componentes adicionais do Sentry passam a operar:
+
+- **Browser Tracing:** amostragem de performance de navegação (tempo de carregamento de rotas, requisições de API).
+- **Session Replay:** reprodução de sessão com **todas as caixas de entrada mascaradas (`maskAllInputs: true`)** — digitamos e senhas nunca são capturados. Texto visível na página e imagens são gravados para reconstrução visual do bug.
+
+Esses dois componentes são ativados dinamicamente ao conceder o consentimento de analytics e **interrompidos em tempo real** ao revogá-lo. A base legal é **consentimento (LGPD Art. 7º I / GDPR Art. 6(1)(a))** e, ao contrário da camada de erros, **não operamos sob legítimo interesse para tracing/replay**.
+
+Não utilizamos o inciso IX do Art. 7º (que não existe na LGPD brasileira — a lista termina no X).
+
+## 4. Compartilhamento com terceiros (suboperadores)
+
+Compartilhamos dados estritamente necessários com os seguintes operadores, todos sob contrato de proteção de dados:
+
+| Operador | Finalidade | Localização | Base de transferência |
+|----------|-----------|-------------|----------------------|
+| Supabase Inc. | Banco de dados + autenticação + storage | AWS sa-east-1 (São Paulo/BR) | Sem transferência internacional (BR→BR) |
+| Brevo SAS | Envio de e-mails transacionais e de newsletter | França (UE) | País com nível de proteção adequado (GDPR Art. 45) |
+| Vercel Inc. | Hospedagem da aplicação Next.js (web hosting) | EUA | Cláusulas Contratuais Padrão (SCCs, GDPR Art. 46(2)(c)) + DPA assinado |
+| Sentry (Functional Software Inc.) | Telemetria de erros | EUA | Cláusulas Contratuais Padrão (SCCs, GDPR Art. 46(2)(c)) + DPA assinado |
+| Cloudflare Inc. | CAPTCHA (Turnstile) | EUA | Cláusulas Contratuais Padrão (SCCs, GDPR Art. 46(2)(c)) |
+
+Não vendemos, não alugamos, nem cedemos seus dados a anunciantes ou data brokers.
+
+## 5. Transferências internacionais
+
+Os dados tratados ficam armazenados em **São Paulo (Brasil)** no Supabase (AWS sa-east-1). Algumas operações auxiliares envolvem transferência internacional para:
+
+- **Estados Unidos** (Vercel hosting, Sentry telemetria, Cloudflare Turnstile) — todas amparadas por **Cláusulas Contratuais Padrão (SCCs) aprovadas pela Comissão Europeia** (GDPR Art. 46(2)(c)), além de DPAs (Data Processing Agreements) individuais.
+- **União Europeia** (Brevo, França) — país com nível de proteção adequado reconhecido pela ANPD e pela Comissão Europeia.
+
+Nos termos da **LGPD Art. 33** e **GDPR Capítulo V**, essas transferências são amparadas em:
+- Cláusulas-padrão contratuais (para EUA — SCCs);
+- Adequação de país (para França/UE).
+
+Você pode solicitar cópia das SCCs/DPAs em vigor pelo e-mail privacidade@bythiagofigueiredo.com.
+
+## 6. Retenção (SLA de prazos)
+
+Retemos cada categoria pelo prazo mínimo necessário à finalidade ou exigido por lei:
+
+| Categoria | Prazo de retenção |
+|-----------|-------------------|
+| Conta de usuário (ativa) | Enquanto a conta existir |
+| Conta de usuário (após pedido de exclusão) | 15 dias de carência (possibilidade de cancelamento) → exclusão definitiva |
+| Inscrições na newsletter | Anonimizadas imediatamente no unsubscribe (e-mail → hash SHA-256) |
+| Submissões do formulário de contato | Até 2 anos (anonimização automática semanal por cron); anonimização sob solicitação a qualquer momento |
+| E-mails enviados (`sent_emails`) | Purga automática após **90 dias** |
+| Logs de auditoria | 5 anos (exigência regulatória para accountability) |
+| Consentimentos (`consents`) | Mantidos enquanto válidos + 5 anos após revogação (accountability) |
+| Telemetria Sentry | 30 dias |
+| Exportações de dados (blobs Storage) | 7 dias após geração |
+| Pedidos LGPD (`lgpd_requests`) | 5 anos após conclusão (accountability) |
+
+Após esses prazos os dados são excluídos ou anonimizados de forma irreversível. **A retenção de 2 anos de submissões do formulário de contato é automaticamente aplicada via cron semanal** (`purge_old_contact_submissions` — anonimização irreversível, preservando `site_id` e `submitted_at` apenas para analytics agregado).
+
+## 7. Direitos do titular (LGPD Art. 18)
+
+Você tem os seguintes direitos, que pode exercer gratuitamente a qualquer momento:
+
+1. **Confirmação** da existência de tratamento
+2. **Acesso** aos dados
+3. **Correção** de dados incompletos, inexatos ou desatualizados
+4. **Anonimização, bloqueio ou eliminação** de dados desnecessários, excessivos ou tratados em desconformidade
+5. **Portabilidade** a outro fornecedor (via exportação JSON em formato aberto, schema v1)
+6. **Eliminação** dos dados tratados com base no consentimento
+7. **Informação** sobre compartilhamento
+8. **Informação** sobre a possibilidade de não fornecer consentimento e consequências
+9. **Revogação do consentimento**
+10. **Oposição** ao tratamento realizado com base em outra hipótese legal
+
+### Como exercer seus direitos
+
+Ferramentas self-service disponíveis após login:
+
+- **Acesso + portabilidade:** `/account/export` — gera um pacote JSON completo em schema **v1**, entregue via link assinado (validade 7 dias).
+- **Exclusão:** `/account/delete` — fluxo de 3 fases com confirmação por e-mail, anonimização imediata, **15 dias de carência** para cancelar, e exclusão definitiva na fase 3 (D+15).
+- **Consentimentos + cookies:** `/account/settings/privacy` — histórico e revogação granular.
+
+Para os demais direitos, escreva para **privacidade@bythiagofigueiredo.com** — respondemos em até **15 dias** (LGPD Art. 19 §1º).
+
+### Escopo multi-site da revogação de consentimento
+
+A plataforma opera como uma **rede multi-site** (a rede bythiagofigueiredo), em que cada domínio — `bythiagofigueiredo.com` e sites irmãos que compartilham a mesma infraestrutura — registra consentimentos de forma **independente, por site (`site_id`)**. Isso significa que **revogar um consentimento em um domínio não cascata automaticamente para os demais sites da rede**: se você aceitou cookies de analytics em dois sites distintos e depois revogou em um, o consentimento no outro permanece ativo até que você o revogue explicitamente naquele domínio.
+
+Para gerenciar consentimentos em todos os sites que você visitou de forma consolidada, acesse **[/account/settings/privacy](/account/settings/privacy)** quando autenticado — essa tela lista todos os consentimentos da sua conta cruzando sites, com revogação individual por linha. Alternativamente, você pode visitar o banner de cookies em cada domínio.
+
+### Persistência residual em backups após exclusão
+
+Após a exclusão definitiva (D+15), seus dados podem persistir em **backups criptografados por até 30 dias adicionais** (janela de retenção de backup do Supabase). Durante esse período, os dados são acessíveis apenas para fins de **recuperação de desastre** e **não são utilizados para processamento ativo**. Após esse prazo, os backups são sobrescritos automaticamente e a exclusão se torna **irreversível**. Essa janela decorre da necessidade operacional de poder restaurar o serviço em caso de corrupção, falha de hardware ou incidente de segurança, e está coberta pelo **Art. 16 da LGPD** (conservação para cumprimento de obrigação legal ou regulatória).
+
+## 8. Cookies e armazenamento local
+
+Usamos 3 categorias de cookies/storage. Você pode aceitar ou recusar granularmente através do **banner de cookies** ou do link "Gerenciar cookies" no rodapé.
+
+| Categoria | Cookies/storage | Finalidade | TTL | Consentimento |
+|-----------|-----------------|------------|-----|---------------|
+| Funcionais (obrigatórios) | `sb-access-token`, `sb-refresh-token`, `preferred_locale`, `lgpd_anon_id`, CSRF tokens | Autenticação, sessão, preferências, segurança | Sessão a 30 dias | Não requer (execução de contrato) |
+| Analytics (opt-in) | `lgpd_consent_v1.analytics`, `cookie_analytics_consent` (localStorage), Sentry Session Replay + Browser Tracing | Reprodução de sessão para debugging + métricas de performance | 1 ano | Opt-in explícito |
+| Marketing (opt-in) | `lgpd_consent_v1.marketing` | Personalização | 1 ano | Opt-in explícito |
+
+Você pode revogar consentimentos a qualquer momento pelo rodapé ou em `/account/settings/privacy`.
+
+## 9. Segurança
+
+Aplicamos medidas técnicas e organizacionais adequadas ao risco:
+
+- **TLS 1.3** em todas as conexões
+- **Row-Level Security (RLS)** no Supabase para isolar dados entre usuários
+- **Senhas com hash bcrypt** (nunca armazenadas em texto puro)
+- **Logs de auditoria** imutáveis para ações administrativas
+- **Sentry com scrubber de PII** — campos de e-mail, senha, etc. são filtrados antes do envio de eventos
+- **Rate limiting** em endpoints sensíveis (verify-password, request-deletion, request-export)
+- **Backup diário** criptografado, retido por 30 dias
+
+Em caso de **incidente de segurança** que exponha dados pessoais, notificaremos a ANPD e os titulares afetados nos prazos da LGPD Art. 48.
+
+## 10. Menores de 18 anos (LGPD Art. 14)
+
+Este site **não é direcionado a menores de 18 anos** — o conteúdo, os formatos e os canais de conteúdo são voltados ao público adulto. Contudo, reconhecemos que menores podem acessar ou utilizar o site, e esta seção descreve nosso tratamento à luz do **Art. 14 da LGPD**.
+
+### Base legal e consentimento parental (LGPD Art. 14 §1º)
+
+Quando um titular for identificado como **criança (até 12 anos incompletos)** ou **adolescente (12 a 17 anos)**, o tratamento de seus dados pessoais só pode ocorrer:
+
+- **Para crianças (Art. 14 §1º):** mediante **consentimento específico e em destaque, dado por pelo menos um dos pais ou responsável legal**;
+- **Para adolescentes:** observando sempre o **melhor interesse** do titular, e — nos casos em que o consentimento seja a base legal aplicável — com consentimento do responsável legal quando exigido pela interpretação prevalente do ANPD.
+
+### Ausência de verificação de idade na coleta (full disclosure)
+
+Não utilizamos gate etário automatizado no cadastro ou em formulários públicos. Essa é uma **decisão consciente** que, embora reduza o atrito de uso, pode resultar em registros de menores sem validação prévia de consentimento parental. Mitigamos esse risco com os mecanismos descritos abaixo.
+
+### Canal para responsáveis legais
+
+Pais e responsáveis legais que identifiquem que um menor sob sua tutela cadastrou-se ou forneceu dados neste site podem enviar solicitação para **privacidade@bythiagofigueiredo.com**, com o assunto "LGPD Art. 14 — menor de idade". Nesse canal aceitamos:
+
+- Pedidos de **exclusão imediata** dos dados do menor;
+- Pedidos de **acesso** aos dados coletados;
+- Pedidos de **correção** ou **oposição** ao tratamento.
+
+### SLA de resposta e exclusão (Art. 14)
+
+Ao sermos notificados por um responsável legal de que um menor registrou dados **sem consentimento parental**, comprometemo-nos a **excluir os dados em até 15 dias corridos** a contar da notificação, confirmar a exclusão por e-mail ao responsável, e registrar a operação em nosso log de auditoria para fins de accountability.
+
+### Dados considerados categoria especial
+
+Dados de menores recebem **o mesmo nível de proteção técnica** aplicado aos demais titulares (TLS 1.3, RLS, backups criptografados, minimização Sentry) — e não são utilizados para finalidades secundárias (marketing, personalização, perfilamento) em nenhuma hipótese.
+
+## 11. Solicitação de cópia dos contratos de proteção
+
+Os fundamentos das transferências internacionais estão listados na Seção 5 (processadores + países + base de transferência). Se você quiser inspecionar os instrumentos em vigor:
+
+- **SCCs (Standard Contractual Clauses)** assinadas com Vercel, Sentry e Cloudflare — texto conforme a Decisão de Execução (UE) 2021/914 da Comissão Europeia.
+- **DPAs (Data Processing Agreements)** com cada processador, contendo escopo de tratamento, sub-subcontratados autorizados e SLAs de incidente.
+
+Envie um pedido para **privacidade@bythiagofigueiredo.com** com o assunto "Cópia de DPA/SCC" identificando o(s) processador(es) de interesse. Respondemos em até 15 dias corridos com os documentos redigidos (assinaturas e cláusulas comerciais podem ser mascaradas).
+
+## 12. Encarregado pelo Tratamento de Dados (DPO)
+
+Thiago Figueiredo opera este site como **pessoa física** (operador solo). Nos termos da **Resolução CD/ANPD Nº 2, de 27 de janeiro de 2022** (Regulamento de Aplicação da LGPD para Agentes de Tratamento de Pequeno Porte), **agentes de pequeno porte estão dispensados da indicação obrigatória de Encarregado (DPO) formal** (Art. 11º da Resolução).
+
+Ademais, nos termos do **GDPR Art. 37(1)**, a obrigatoriedade de DPO aplica-se apenas a: autoridade pública, entidades cujas atividades principais exigem monitoramento regular e sistemático em larga escala, ou que tratem categorias especiais de dados em larga escala — nenhum desses critérios se aplica.
+
+**Representante na União Europeia (GDPR Art. 27):** o Art. 27 do GDPR exige que controladores fora da UE nomeiem um representante por escrito dentro da UE quando oferecem bens/serviços a residentes da UE ou monitoram seu comportamento de forma significativa. Atualmente o tráfego proveniente da UE é marginal (menos de 1% do total mensal), enquadrando-se na exceção do Art. 27(2)(a) — "processamento ocasional, que não inclui, em larga escala, tratamento de categorias especiais". Se o volume de visitantes europeus passar a ser material e deixar de caber na exceção, nomearemos um representante formal na UE e atualizaremos esta seção com o respectivo contato. Até lá, visitantes da UE podem dirigir-se ao canal de privacidade abaixo.
+
+**Contato para assuntos de privacidade (canal único):** **privacidade@bythiagofigueiredo.com**
+
+Todas as comunicações relacionadas a LGPD/GDPR devem ser endereçadas a este canal. Respondemos em até **15 dias corridos**.
+
+## 13. Atualizações desta política
+
+Esta política pode ser atualizada para refletir mudanças legais, de serviço ou de parceiros.
+
+- **Alterações materiais** (novas finalidades, novos suboperadores, novas bases legais) dispararão **re-prompt de consentimento** via banner de cookies e um e-mail de aviso para usuários autenticados.
+- **Versões anteriores** ficam arquivadas em `consent_texts` no banco, identificadas por `(category, locale, version)`. Você pode solicitar a versão vigente no momento do seu cadastro.
+- **Histórico de versões:**
+  - v1.0 — 2026-04-16 — versão inicial.
+
+## 14. Autoridade competente (direito de reclamação)
+
+Se você entender que seus direitos não foram respeitados, pode apresentar reclamação:
+
+### Para residentes no Brasil
+
+**Autoridade Nacional de Proteção de Dados (ANPD):**
+- Site: https://www.gov.br/anpd
+- E-mail: comunicacao@anpd.gov.br
+- Canais formais de denúncia: https://www.gov.br/anpd/pt-br/canais_atendimento
+
+### Para residentes na União Europeia
+
+Você pode se dirigir à **Autoridade de Proteção de Dados (DPA) do seu país** através do portal da **European Data Protection Board (EDPB)**:
+- Portal EDPB: https://edpb.europa.eu/about-edpb/about-edpb/members_en
+- Lista de DPAs nacionais por país membro
+
+Recomendamos que, antes de recorrer à autoridade, tente resolver a questão diretamente conosco: **privacidade@bythiagofigueiredo.com**.
+
+---
+
+**Versão 1.0 — em vigor desde 16 de abril de 2026.**
+
+Em caso de conflito entre traduções, **prevalece a versão em português (pt-BR)**.

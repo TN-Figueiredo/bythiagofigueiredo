@@ -38,7 +38,7 @@ describe('captureServerActionError', () => {
     })
 
     expect(Sentry.captureException).toHaveBeenCalledTimes(1)
-    const [capturedErr, opts] = vi.mocked(Sentry.captureException).mock.calls[0]
+    const [capturedErr, opts] = vi.mocked(Sentry.captureException).mock.calls[0]!
     expect(capturedErr).toBe(err)
     expect(opts).toEqual({
       tags: {
@@ -75,7 +75,7 @@ describe('captureServerActionError', () => {
       huge: bigString,
     })
 
-    const [, opts] = vi.mocked(Sentry.captureException).mock.calls[0]
+    const [, opts] = vi.mocked(Sentry.captureException).mock.calls[0]!
     expect((opts as { tags: Record<string, string> }).tags).toEqual({
       action: 'save_campaign',
       campaign_id: '42',

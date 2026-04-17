@@ -123,7 +123,7 @@ import {
   createInvitation,
   revokeInvitation,
   resendInvitation,
-} from '../../src/app/admin/users/actions'
+} from '../../src/app/admin/(authed)/users/actions'
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 

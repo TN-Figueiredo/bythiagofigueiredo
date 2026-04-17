@@ -19,6 +19,9 @@ jobs:
             exit 1
           fi
           echo "✅ All @tn-figueiredo/* packages are pinned."
+      - name: Check proprietary LICENSE integrity
+        continue-on-error: true  # TODO: remove after Fase 1 rollout applies LICENSE to 32 packages
+        run: bash licensing/scripts/check-license.sh
 
   typecheck:
     name: Typecheck (${{ matrix.workspace }})
@@ -68,6 +71,30 @@ jobs:
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
       - run: npm run test:web
+
+  test-db-integration:
+    name: Integration (DB-gated)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: supabase/postgres:15.1.0.147
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20', cache: 'npm' }
+      - run: npm ci
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - run: npx supabase start --exclude gotrue,realtime,storage-api,imgproxy --ignore-health-check
+      - run: npx supabase db reset --local
+      - run: HAS_LOCAL_DB=1 npm test --workspace=apps/web -- integration/
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   audit:
     name: Dependency Audit

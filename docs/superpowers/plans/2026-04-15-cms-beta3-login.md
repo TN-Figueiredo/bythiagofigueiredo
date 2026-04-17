@@ -1,6 +1,14 @@
 # CMS `0.1.0-beta.3` — `/login` Subpath Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **✅ EXECUTED 2026-04-16** — branch `feat/cms-beta3-login` in `tn-cms` repo (9 commits, 127 tests passing, typecheck clean, `dist/login.{js,d.ts}` emitted).
+>
+> **Deviations applied during execution** (inherited by any rerun of this plan):
+> - **Package substitution:** `@axe-core/vitest` does not exist on npm (404). Replaced with `vitest-axe@0.1.0` (same jest-axe lineage, same matcher API). Test imports: `import { axe } from 'vitest-axe'` + `import { toHaveNoViolations } from 'vitest-axe/matchers'` + `expect.extend({ toHaveNoViolations })`.
+> - **Types inlined:** because `@tn-figueiredo/auth-nextjs@2.1.0` was not yet published at execution time, `src/login/types.ts` defines `ActionResult` / `SignInPasswordInput` / `SignInGoogleInput` / `ForgotPasswordInput` / `ResetPasswordInput` inline with a `// TODO(phase4-consumer)` header comment. Phase 4 (web consumer wiring) is responsible for flipping these to `import type { … } from '@tn-figueiredo/auth-nextjs/actions'` and adding the peer dep.
+> - **Reset test fix:** plan had `import { act } from 'vitest'`; `act` actually lives in `@testing-library/react`. Fixed during execution.
+> - **Not pushed / not published:** branch is local-only. `v0.1.0-beta.3` tag + GH Packages publish are deferred to post-review sign-off.
+>
+> **For agentic workers (historical reference):** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a `/login` subpath to `@tn-figueiredo/cms` exporting three UI-only auth page components (`<CmsLogin>`, `<CmsForgotPassword>`, `<CmsResetPassword>`) and a `getCmsAuthStrings(locale)` i18n helper, then publish `0.1.0-beta.3` to GitHub Packages.
 
