@@ -138,11 +138,20 @@ jobs:
       - run: npm ci
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-      - name: Verify PR-A SEO columns exist in prod
+      - name: Verify PR-A SEO columns exist in prod (soft-gate)
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
         run: |
+          # Audit R2: soft-gate behavior. Secrets may not be configured in
+          # the repo (NEXT_PUBLIC_SUPABASE_URL/ANON_KEY are not currently in
+          # CI secrets as of Sprint 5b PR-B ship). When absent, skip the
+          # check with a warning; reviewer eyeballs the migration verifically.
+          # When present, run the real check (blocks merge if columns missing).
+          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ]; then
+            echo "::warning::NEXT_PUBLIC_SUPABASE_URL/ANON_KEY secrets not configured; skipping schema pre-check. Add the secrets in repo Settings → Actions → Secrets to activate this gate."
+            exit 0
+          fi
           node -e "
           const { createClient } = require('@supabase/supabase-js');
           const supabase = createClient(
