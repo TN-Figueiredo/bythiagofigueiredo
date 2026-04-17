@@ -4,6 +4,7 @@ import type { Metadata } from 'next'
 import { compileMdx, MdxRunner } from '@tn-figueiredo/cms'
 import { postRepo } from '../../../../../lib/cms/repositories'
 import { getSiteContext, tryGetSiteContext } from '../../../../../lib/cms/site-context'
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { blogRegistry } from '../../../../../lib/cms/registry'
 import { LocaleSwitcher } from '../../../../components/locale-switcher'
 import { getSiteSeoConfig, type SiteSeoConfig } from '@/lib/seo/config'
@@ -18,7 +19,7 @@ import {
 import { composeGraph } from '@/lib/seo/jsonld/graph'
 import { JsonLdScript } from '@/lib/seo/jsonld/render'
 import type { JsonLdNode } from '@/lib/seo/jsonld/types'
-import type { SeoExtras } from '@/lib/seo/jsonld/extras-schema'
+import { SeoExtrasSchema, type SeoExtras } from '@/lib/seo/jsonld/extras-schema'
 
 export const revalidate = 3600
 
@@ -37,17 +38,50 @@ async function loadPostWithLocales(siteId: string, locale: string, slug: string)
   if (!post) return null
   const full = await postRepo().getById(post.id)
   const translations = full?.translations ?? post.translations
-  return { post, translations, full }
+  // Sprint 5b audit R2 — enrich translations with seo_extras via direct
+  // supabase query. @tn-figueiredo/cms PostTranslation type doesn't expose
+  // the column (schema added in PR-A migration 02 but package types not
+  // bumped). This unblocks C-maximalist FAQ/HowTo/Video rich results.
+  // Swap to `tx.seo_extras` direct access once cms@0.3.0 ships the field.
+  const extrasByLocale = await loadSeoExtrasByLocale(post.id)
+  return { post, translations, full, extrasByLocale }
+}
+
+async function loadSeoExtrasByLocale(postId: string): Promise<Map<string, SeoExtras | null>> {
+  try {
+    const supabase = getSupabaseServiceClient()
+    const { data, error } = await supabase
+      .from('blog_translations')
+      .select('locale, seo_extras')
+      .eq('post_id', postId)
+    if (error || !data) return new Map()
+    const map = new Map<string, SeoExtras | null>()
+    for (const row of data) {
+      const raw = (row as { locale: string; seo_extras: unknown }).seo_extras
+      if (raw == null) {
+        map.set((row as { locale: string }).locale, null)
+        continue
+      }
+      const parsed = SeoExtrasSchema.safeParse(raw)
+      map.set((row as { locale: string }).locale, parsed.success ? parsed.data : null)
+    }
+    return map
+  } catch {
+    // Supabase env vars missing (unit tests) or transient DB failure —
+    // graceful degrade: page still renders without extras rich results.
+    // Production env always has the vars; the catch is test-safety only.
+    return new Map()
+  }
 }
 
 // Sprint 5b PR-C C.4 — adapt @tn-figueiredo/cms PostTranslation rows to the
 // TranslationInput shape expected by the SEO factories + builders.
 // PostTranslation does not currently expose `cover_image_url` (it lives on
-// Post) nor `seo_extras` (the column was added in PR-A migration 03 but
-// the cms package types haven't been bumped yet — see PR-C concern). For
-// now we propagate the post-level cover image to every translation and
-// pass null for seo_extras; once the cms package is bumped to expose the
-// per-translation seo_extras, swap the assignment below.
+// Post) nor `seo_extras` (schema added in PR-A migration 02 but cms package
+// types not bumped). We propagate the post-level cover image to every
+// translation and plumb seo_extras via `loadSeoExtrasByLocale` direct
+// query (audit R2 fix). Swap to `tx.seo_extras`/`tx.cover_image_url` once
+// cms@0.3.0 ships the fields.
 type TxIn = {
   locale: string
   slug: string
@@ -64,6 +98,7 @@ function toTranslationInputs(
     title: string
     excerpt: string | null
   }>,
+  extrasByLocale: Map<string, SeoExtras | null>,
 ): TxIn[] {
   return translations.map((t) => ({
     locale: t.locale,
@@ -71,16 +106,13 @@ function toTranslationInputs(
     title: t.title,
     excerpt: t.excerpt,
     cover_image_url: postCover,
-    seo_extras: null,
+    seo_extras: extrasByLocale.get(t.locale) ?? null,
   }))
 }
 
-// Sprint 5b PR-C C.4 — derive optional structured-data nodes from the
-// blog_translations.seo_extras jsonb column. Returns an empty array when
-// extras are absent so the result is safe to spread into composeGraph.
-// Currently always returns [] because PostTranslation doesn't surface
-// seo_extras yet (see toTranslationInputs comment); kept here so the
-// downstream wiring is ready when the cms package adds the field.
+// Sprint 5b PR-C C.4 (R2 audit fix) — derive optional structured-data
+// nodes from blog_translations.seo_extras jsonb. Emits FAQ/HowTo/Video
+// rich-result schemas when MDX frontmatter populated the column.
 function buildExtraNodesFromSeoExtras(extras: SeoExtras | null): JsonLdNode[] {
   if (!extras) return []
   const nodes: JsonLdNode[] = []
@@ -96,7 +128,7 @@ export default async function BlogDetailPage({ params }: Props) {
 
   const loaded = await loadPostWithLocales(ctx.siteId, locale, slug)
   if (!loaded) notFound()
-  const { translations, full } = loaded
+  const { translations, full, extrasByLocale } = loaded
   const tx = translations.find((t) => t.locale === locale)
   if (!tx) notFound()
 
@@ -117,7 +149,7 @@ export default async function BlogDetailPage({ params }: Props) {
   // duplicate WebSite node mounted here would be harmless either way.
   const host = (await headers()).get('host') ?? ctx.primaryDomain ?? ''
   const config = await getSiteSeoConfig(ctx.siteId, host).catch(() => null)
-  const detailGraph = buildDetailGraph(config, full ?? loaded.post, tx, translations, locale, slug)
+  const detailGraph = buildDetailGraph(config, full ?? loaded.post, tx, translations, locale, slug, extrasByLocale)
 
   return (
     <>
@@ -172,9 +204,10 @@ function buildDetailGraph(
   translations: Array<{ locale: string; slug: string; title: string; excerpt: string | null }>,
   locale: string,
   slug: string,
+  extrasByLocale: Map<string, SeoExtras | null>,
 ) {
   if (!config) return null
-  const txInputs = toTranslationInputs(post.cover_image_url, translations)
+  const txInputs = toTranslationInputs(post.cover_image_url, translations, extrasByLocale)
   const crumbs = buildBreadcrumbNode([
     { name: 'Home', url: config.siteUrl },
     { name: 'Blog', url: `${config.siteUrl}/blog/${locale}` },
@@ -183,9 +216,11 @@ function buildDetailGraph(
       url: `${config.siteUrl}/blog/${locale}/${encodeURIComponent(slug)}`,
     },
   ])
-  // Until cms package surfaces seo_extras on translations, this is always [].
+  // Audit R2: seo_extras now populated via loadSeoExtrasByLocale direct query.
+  // Gated by NEXT_PUBLIC_SEO_EXTENDED_SCHEMAS_ENABLED env flag.
+  const extrasDisabled = process.env.NEXT_PUBLIC_SEO_EXTENDED_SCHEMAS_ENABLED === 'false'
   const activeTxIn = txInputs.find((t) => t.locale === locale)
-  const extras = buildExtraNodesFromSeoExtras(activeTxIn?.seo_extras ?? null)
+  const extras = extrasDisabled ? [] : buildExtraNodesFromSeoExtras(activeTxIn?.seo_extras ?? null)
 
   const updatedAt = parseDateOrNull(post.updated_at)
   const publishedAt = parseDateOrNull(post.published_at) ?? updatedAt
@@ -242,7 +277,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   }
 
   const post = full ?? loaded.post
-  const txInputs = toTranslationInputs(post.cover_image_url, translations)
+  const txInputs = toTranslationInputs(post.cover_image_url, translations, loaded.extrasByLocale)
   const updatedAt = parseDateOrNull(post.updated_at)
   const publishedAt = parseDateOrNull(post.published_at) ?? updatedAt
   if (!publishedAt || !updatedAt) {
