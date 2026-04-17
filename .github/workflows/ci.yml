@@ -19,6 +19,9 @@ jobs:
             exit 1
           fi
           echo "✅ All @tn-figueiredo/* packages are pinned."
+      - name: Check proprietary LICENSE integrity
+        continue-on-error: true  # TODO: remove after Fase 1 rollout applies LICENSE to 32 packages
+        run: bash licensing/scripts/check-license.sh
 
   typecheck:
     name: Typecheck (${{ matrix.workspace }})

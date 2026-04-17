@@ -1,0 +1,30 @@
+# .github/workflows/backup.yml — weekly encrypted backup to B2
+name: Weekly backup
+on:
+  schedule:
+    - cron: '0 3 * * 0'  # Domingo 03:00 UTC
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install B2 CLI
+        run: pip install b2
+      - name: Tar + encrypt
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          TS=$(date -u +%Y-%m-%dT%H-%M-%SZ)
+          tar czf "licensing-archive-${TS}.tar.gz" --exclude='.git' --exclude='.github' .
+          gpg --batch --yes --passphrase "$BACKUP_PASSPHRASE" -c "licensing-archive-${TS}.tar.gz"
+          rm "licensing-archive-${TS}.tar.gz"
+      - name: Upload to B2
+        env:
+          B2_APPLICATION_KEY_ID: ${{ secrets.B2_KEY_ID }}
+          B2_APPLICATION_KEY: ${{ secrets.B2_APP_KEY }}
+          B2_BUCKET: ${{ secrets.B2_BUCKET }}
+        run: |
+          b2 authorize-account "$B2_APPLICATION_KEY_ID" "$B2_APPLICATION_KEY"
+          b2 upload-file "$B2_BUCKET" licensing-archive-*.tar.gz.gpg "backups/$(ls licensing-archive-*.tar.gz.gpg)"
