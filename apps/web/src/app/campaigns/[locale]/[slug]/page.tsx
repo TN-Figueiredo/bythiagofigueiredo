@@ -1,10 +1,18 @@
 import { cache } from 'react'
 import { notFound } from 'next/navigation'
+import { headers } from 'next/headers'
+import type { Metadata } from 'next'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
+import { tryGetSiteContext } from '../../../../../lib/cms/site-context'
 import { SubmitForm } from './submit-form'
 import { ExtrasRenderer } from './extras-renderer'
+import { getSiteSeoConfig, type SiteSeoConfig } from '@/lib/seo/config'
+import { generateCampaignMetadata } from '@/lib/seo/page-metadata'
+import { buildArticleNode, buildBreadcrumbNode } from '@/lib/seo/jsonld/builders'
+import { composeGraph } from '@/lib/seo/jsonld/graph'
+import { JsonLdScript } from '@/lib/seo/jsonld/render'
 
 interface PageParams {
   locale: string
@@ -18,6 +26,9 @@ interface ParsedCampaign {
   brevo_list_id: number | null
   interest: string
   form_fields: unknown[]
+  created_at?: string | null
+  updated_at?: string | null
+  published_at?: string | null
   campaign_translations: Array<Record<string, unknown>>
 }
 
@@ -40,6 +51,7 @@ const loadCampaign = cache(async function loadCampaignImpl(locale: string, slug:
     .select(
       `
       id, status, pdf_storage_path, brevo_list_id, interest, form_fields,
+      created_at, updated_at, published_at,
       campaign_translations!inner(
         locale, slug, meta_title, meta_description, og_image_url,
         main_hook_md, supporting_argument_md, introductory_block_md, body_content_md,
@@ -57,6 +69,13 @@ const loadCampaign = cache(async function loadCampaignImpl(locale: string, slug:
   return parseCampaign(data)
 })
 
+// Sprint 5b PR-C C.5 — defensive Date parser (mirrors blog detail page).
+function parseDateOrNull(s: string | null | undefined): Date | null {
+  if (!s) return null
+  const d = new Date(s)
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
 export default async function CampaignPage({ params }: { params: Promise<PageParams> }) {
   const { locale, slug } = await params
   const campaign = await loadCampaign(locale, slug)
@@ -64,43 +83,135 @@ export default async function CampaignPage({ params }: { params: Promise<PagePar
   const tx = campaign.campaign_translations[0]
   if (!tx) notFound()
 
+  // Sprint 5b PR-C C.5 — JSON-LD: Article + Breadcrumb. Reuses buildArticleNode
+  // (same shape as BlogPosting with @type swapped) to describe the campaign
+  // landing page. Root WebSite + Person/Org nodes come from the public layout.
+  const ctx = await tryGetSiteContext()
+  const host = (await headers()).get('host') ?? ctx?.primaryDomain ?? ''
+  const config = ctx
+    ? await getSiteSeoConfig(ctx.siteId, host).catch(() => null)
+    : null
+  const graph = buildCampaignGraph(config, campaign, tx, locale, slug)
+
   return (
-    <main>
-      <section aria-label="beforeForm">
-        <Md text={tx.main_hook_md as string} />
-        <Md text={tx.supporting_argument_md as string | null} />
-        <Md text={tx.introductory_block_md as string | null} />
-        <Md text={tx.body_content_md as string | null} />
-      </section>
+    <>
+      {graph && <JsonLdScript graph={graph} />}
+      <main>
+        <section aria-label="beforeForm">
+          <Md text={tx.main_hook_md as string} />
+          <Md text={tx.supporting_argument_md as string | null} />
+          <Md text={tx.introductory_block_md as string | null} />
+          <Md text={tx.body_content_md as string | null} />
+        </section>
 
-      <section aria-label="form">
-        <Md text={tx.form_intro_md as string | null} />
-        <SubmitForm
-          slug={slug}
-          locale={locale}
-          formFields={campaign.form_fields}
-          buttonLabel={tx.form_button_label as string}
-          loadingLabel={tx.form_button_loading_label as string}
-          contextTag={tx.context_tag as string}
-        />
-      </section>
+        <section aria-label="form">
+          <Md text={tx.form_intro_md as string | null} />
+          <SubmitForm
+            slug={slug}
+            locale={locale}
+            formFields={campaign.form_fields}
+            buttonLabel={tx.form_button_label as string}
+            loadingLabel={tx.form_button_loading_label as string}
+            contextTag={tx.context_tag as string}
+          />
+        </section>
 
-      <section aria-label="afterForm">
-        {tx.extras ? <ExtrasRenderer extras={tx.extras} /> : null}
-      </section>
-    </main>
+        <section aria-label="afterForm">
+          {tx.extras ? <ExtrasRenderer extras={tx.extras} /> : null}
+        </section>
+      </main>
+    </>
   )
 }
 
-export async function generateMetadata({ params }: { params: Promise<PageParams> }) {
+function buildCampaignGraph(
+  config: SiteSeoConfig | null,
+  campaign: ParsedCampaign,
+  tx: Record<string, unknown>,
+  locale: string,
+  slug: string,
+) {
+  if (!config) return null
+  const title = (tx.meta_title as string | undefined) ?? slug
+  const crumbs = buildBreadcrumbNode([
+    { name: 'Home', url: config.siteUrl },
+    { name: 'Campaigns', url: `${config.siteUrl}/campaigns/${locale}` },
+    {
+      name: title,
+      url: `${config.siteUrl}/campaigns/${locale}/${encodeURIComponent(slug)}`,
+    },
+  ])
+  const updatedAt = parseDateOrNull(campaign.updated_at)
+  const publishedAt = parseDateOrNull(campaign.published_at) ?? updatedAt
+  if (!publishedAt || !updatedAt) {
+    return composeGraph([crumbs])
+  }
+  // Adapt to BlogPostInput/TranslationInput shapes expected by
+  // buildArticleNode. Campaigns don't have a blog-style cover_image_url on
+  // the row; use the translation og_image_url if present, else null (the
+  // builder falls back to the site default OG endpoint).
+  const ogUrl = (tx.og_image_url as string | null | undefined) ?? null
+  const articleNode = buildArticleNode(
+    config,
+    {
+      id: campaign.id,
+      translation: {
+        title,
+        slug,
+        excerpt: (tx.meta_description as string | null | undefined) ?? null,
+        reading_time_min: 0,
+      },
+      updated_at: updatedAt,
+      published_at: publishedAt,
+    },
+    [
+      {
+        locale,
+        slug,
+        title,
+        excerpt: (tx.meta_description as string | null | undefined) ?? null,
+        cover_image_url: ogUrl,
+        seo_extras: null,
+      },
+    ],
+  )
+  return composeGraph([articleNode, crumbs])
+}
+
+// Sprint 5b PR-C C.5 — replace the artisan generateMetadata with
+// generateCampaignMetadata(config, input). The factory emits canonical,
+// OG type=article, and OG image (explicit og_image_url > dynamic OG
+// endpoint fallback), so the page no longer hardcodes any of that.
+export async function generateMetadata({ params }: { params: Promise<PageParams> }): Promise<Metadata> {
   const { locale, slug } = await params
   const c = await loadCampaign(locale, slug)
   if (!c) return {}
   const tx = c.campaign_translations[0]
   if (!tx) return {}
-  return {
-    title: tx.meta_title as string,
-    description: tx.meta_description as string,
-    openGraph: { images: tx.og_image_url ? [{ url: tx.og_image_url as string }] : [] },
+  const ctx = await tryGetSiteContext()
+  if (!ctx) {
+    // No site context -> minimal fallback: title + description only. No
+    // canonical because we can't guarantee the path resolves to a single
+    // site.
+    return {
+      title: tx.meta_title as string,
+      description: tx.meta_description as string,
+    }
+  }
+  const host = (await headers()).get('host') ?? ctx.primaryDomain ?? ''
+  try {
+    const config = await getSiteSeoConfig(ctx.siteId, host)
+    return generateCampaignMetadata(config, {
+      slug,
+      locale,
+      meta_title: tx.meta_title as string,
+      meta_description: tx.meta_description as string,
+      og_image_url: (tx.og_image_url as string | null | undefined) ?? null,
+    })
+  } catch {
+    return {
+      title: tx.meta_title as string,
+      description: tx.meta_description as string,
+    }
   }
 }
