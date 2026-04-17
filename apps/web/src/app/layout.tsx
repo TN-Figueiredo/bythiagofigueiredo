@@ -14,22 +14,18 @@ const inter = Inter({
 // twitter images. Without it, Next emits a console warning and relative hrefs
 // (e.g. blog hreflang alternates) don't expand to absolute. Falls back to the
 // prod host so local dev without NEXT_PUBLIC_APP_URL still builds.
+//
+// Per-site metadata (title, description, openGraph, twitter, etc.) is resolved
+// in `app/(public)/layout.tsx` via `generateRootMetadata(getSiteSeoConfig(...))`
+// so that multi-tenant builds pick up the correct site by host. This root
+// layout is shell-only: HTML structure, font, ThemeScript, and the safe
+// metadataBase fallback for routes that run outside the `(public)` group
+// (e.g. `/cms`, `/account`) before their own layouts resolve metadata.
 const metadataBaseUrl =
   process.env.NEXT_PUBLIC_APP_URL ?? 'https://bythiagofigueiredo.com'
 
 export const metadata: Metadata = {
   metadataBase: new URL(metadataBaseUrl),
-  title: 'Thiago Figueiredo — Creator & Builder',
-  description:
-    'Hub de Thiago Figueiredo. YouTube, blog, newsletter e projetos. Build in public, learn out loud.',
-  openGraph: {
-    title: 'Thiago Figueiredo — Creator & Builder',
-    description:
-      'Hub de Thiago Figueiredo. YouTube, blog, newsletter e projetos.',
-    type: 'website',
-    locale: 'pt_BR',
-    url: 'https://bythiagofigueiredo.com',
-  },
 }
 
 export default function RootLayout({
