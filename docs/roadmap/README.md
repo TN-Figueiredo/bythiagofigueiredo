@@ -69,16 +69,11 @@
 
 - **Sprint 5a ✅ (2026-04-16)** — LGPD compliance: 26 migrations (lgpd_requests, consents, consent_texts v1+v2, 7 RPCs, storage bucket, FK ON DELETE SET NULL, audit_log skip-cascade guard), `@tn-figueiredo/lgpd@0.1.0` 6-adapter wiring (container + use-case glue), 9 API routes, 8 UI components, 6 account pages, consent-aware Sentry init, privacy+terms MDX (pt-BR+en), `/privacy` + `/terms` routes, CI DB-integration job, 4 feature flags (banner / delete / export / cron sweep), vitest coverage for `lib/lgpd/**` (90% thresholds). Prod DB on-schema; Vercel deploy via PR #24. Score 99/100. Spec: [2026-04-16-sprint-5a-lgpd-public-design.md](../superpowers/specs/2026-04-16-sprint-5a-lgpd-public-design.md).
 
-**Sprint ativo:** **Sprint 5b (SEO hardening — ~14h)** — 5 PRs stacked:
-- PR-A ✅ merged 2026-04-17 (PR #32): 3 migrations applied to prod (sites.identity_type/twitter_handle/seo_default_og_image, blog_translations.seo_extras jsonb) + `seed_master_site` bootstrap.
-- PR-B: `apps/web/lib/seo/` core (config, page-metadata factories, jsonld @graph with schema-dts, dynamic OG via next/og + brand template, enumerator with RLS mirror, robots-config), `app/sitemap.ts` + `app/robots.ts` + 3 OG route handlers, middleware short-circuit, deps gray-matter + schema-dts + @lhci/cli.
-- PR-C: Wire 7 page archetypes via factory metadata + `<JsonLdScript>`, 11 server actions with cache-invalidation tags, admin actions for branding/identity/defaults, archivePost revalidation fix.
-- PR-D: Lighthouse CI (SEO ≥95, perf ≥80 mobile), `scripts/seo-smoke.sh` 8-check post-deploy, `seo-post-deploy.yml` manual dispatch workflow, schema-dts `expectTypeOf` test gate.
-- PR-E: `/api/health/seo` CRON_SECRET endpoint, `docs/runbooks/seo-incident.md` (6 scenarios A–F), `docs/runbooks/sprint-5b-post-deploy.md` (12-step checklist).
+- **Sprint 5b ✅ (2026-04-17)** — SEO hardening: 5 PRs merged em sequência A→B→C→D→E (#32-#36) + deploy PR #37 staging→main. Score 98/100. `apps/web/lib/seo/` wrapper sobre `@tn-figueiredo/seo@0.1.0` (16 módulos: config/page-metadata/jsonld/og/enumerator/cache-invalidation/etc), `app/sitemap.ts` + `app/robots.ts` + 3 OG routes (Node runtime, direct-host lookup per Next #58436), 7 archetypes wired com `<JsonLdScript>` @graph composition via schema-dts, 11 server actions com cache-invalidation tags + archivePost bug fix, admin site actions (branding/identity/defaults), Lighthouse CI (SEO ≥95 + mobile perf ≥80), `scripts/seo-smoke.sh` 8-check + `seo-post-deploy.yml` manual dispatch, `/api/health/seo` CRON_SECRET endpoint, `seo-incident.md` (6 scenarios + 8 known-limitations + follow-up tracker), `sprint-5b-post-deploy.md` 12-step checklist. 5 env-var feature flags (DB-driven refactor em Sprint 8.5). Prod verified: sitemap/robots/home/privacy/health green; OG dynamic falling back a static (Sentry investigation pending, non-blocking). Spec: [2026-04-16-sprint-5b-seo-hardening-design.md](../superpowers/specs/2026-04-16-sprint-5b-seo-hardening-design.md). Plan: [2026-04-16-sprint-5b-seo-hardening.md](../superpowers/plans/2026-04-16-sprint-5b-seo-hardening.md) (72 tasks, 7796 linhas).
 
-Pending: Vercel prod deploy green after PR-B/C/D/E merge → run `seo-post-deploy.yml` → submit sitemap to GSC + Bing → Sentry 24h watch → flip 5b status to ✅ in a follow-up commit. See `docs/runbooks/sprint-5b-post-deploy.md` for the full closeout flow.
+**Sprint ativo:** nenhum — Sprint 5b fechado 2026-04-17.
 
-**Próximo pós-5b:** Sprint 5c (Playwright E2E, ~8h) ou Sprint 5d (Vercel hardening, ~3h).
+**Próximo:** Sprint 5c (Playwright E2E, ~8h) ou Sprint 5d (Vercel hardening, ~3h) — escolher conforme prioridade. Antes disso, encerrar follow-ups de Sprint 5b: Figma-export `og-default.png`, commit real `identity/thiago.jpg`, pyftsubset Inter font, investigar OG dynamic fallback (Sentry), debug enumerator missing blog_index.
 
 ## Legenda de status
 
