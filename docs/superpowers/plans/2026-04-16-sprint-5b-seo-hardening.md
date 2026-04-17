@@ -1355,12 +1355,12 @@ describe('JsonLdScript', () => {
   })
 
   it('returns null when flag disabled', () => {
-    process.env.NEXT_PUBLIC_SEO_JSONLD_ENABLED = 'false'
+    vi.stubEnv('NEXT_PUBLIC_SEO_JSONLD_ENABLED', 'false')
     const html = renderToString(
       <JsonLdScript graph={{ '@context': 'https://schema.org', '@graph': [] }} />
     )
     expect(html).toBe('')
-    delete process.env.NEXT_PUBLIC_SEO_JSONLD_ENABLED
+    vi.unstubAllEnvs()
   })
 })
 ```
@@ -1814,13 +1814,107 @@ git commit -m "feat(seo): 7 page metadata factories + OG image precedence chain"
 
 ---
 
+### Task B.14a: Extend `test/helpers/db-seed.ts` with blog-post helpers
+
+**Files:**
+- Modify: `apps/web/test/helpers/db-seed.ts` (extend existing helper module)
+
+CLAUDE.md confirms `db-seed.ts` exports `seedSite`, `seedStaffUser`, `seedPendingNewsletterSub`, `seedUnsubscribeToken`, `seedCampaign`, `signUserJwt` — but no blog-post helpers. B.14 enumerator test depends on 3 new helpers.
+
+- [ ] **Step 1: Read existing helpers to match conventions**
+
+```bash
+cat apps/web/test/helpers/db-seed.ts
+```
+
+Note the patterns: returns inserted row id, uses service-role client, idempotent where applicable.
+
+- [ ] **Step 2: Append helpers**
+
+```typescript
+// Append to apps/web/test/helpers/db-seed.ts
+export async function seedPublishedPost(
+  siteId: string,
+  opts: { slug: string; locale: string; title?: string; ownerUserId?: string },
+): Promise<{ postId: string; translationId: string }> {
+  const supabase = getSupabaseServiceClient()
+  const { data: post, error: pe } = await supabase
+    .from('blog_posts')
+    .insert({
+      site_id: siteId, status: 'published',
+      published_at: new Date(Date.now() - 1000).toISOString(),
+      owner_user_id: opts.ownerUserId ?? null,
+    })
+    .select('id').single()
+  if (pe || !post) throw new Error(`seedPublishedPost: ${pe?.message}`)
+  const { data: tx, error: te } = await supabase
+    .from('blog_translations')
+    .insert({
+      post_id: post.id, locale: opts.locale, slug: opts.slug,
+      title: opts.title ?? `Post ${opts.slug}`, content_mdx: '# Body', excerpt: 'excerpt',
+      reading_time_min: 1, content_toc: [],
+    })
+    .select('id').single()
+  if (te || !tx) throw new Error(`seedPublishedPost translation: ${te?.message}`)
+  return { postId: post.id, translationId: tx.id }
+}
+
+export async function seedDraftPost(
+  siteId: string, opts: { slug: string; locale: string; ownerUserId?: string },
+): Promise<{ postId: string }> {
+  const supabase = getSupabaseServiceClient()
+  const { data, error } = await supabase
+    .from('blog_posts')
+    .insert({ site_id: siteId, status: 'draft', published_at: null, owner_user_id: opts.ownerUserId ?? null })
+    .select('id').single()
+  if (error || !data) throw new Error(`seedDraftPost: ${error?.message}`)
+  await supabase.from('blog_translations').insert({
+    post_id: data.id, locale: opts.locale, slug: opts.slug, title: 'Draft',
+    content_mdx: '# Body', excerpt: 'x', reading_time_min: 1, content_toc: [],
+  })
+  return { postId: data.id }
+}
+
+export async function seedFutureScheduledPost(
+  siteId: string, opts: { slug: string; locale: string; ownerUserId?: string },
+): Promise<{ postId: string }> {
+  const supabase = getSupabaseServiceClient()
+  const future = new Date(Date.now() + 7 * 86400_000).toISOString()
+  const { data, error } = await supabase
+    .from('blog_posts')
+    .insert({ site_id: siteId, status: 'scheduled', published_at: future, owner_user_id: opts.ownerUserId ?? null })
+    .select('id').single()
+  if (error || !data) throw new Error(`seedFutureScheduledPost: ${error?.message}`)
+  await supabase.from('blog_translations').insert({
+    post_id: data.id, locale: opts.locale, slug: opts.slug, title: 'Future',
+    content_mdx: '# Body', excerpt: 'x', reading_time_min: 1, content_toc: [],
+  })
+  return { postId: data.id }
+}
+```
+
+- [ ] **Step 3: Verify imports compile**
+
+```bash
+cd apps/web && npx tsc --noEmit
+```
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add apps/web/test/helpers/db-seed.ts
+git commit -m "test(seo): extend db-seed helpers (seedPublishedPost/Draft/FutureScheduledPost) for enumerator tests"
+```
+
+---
+
 ### Task B.14: `lib/seo/enumerator.ts` (RLS-mirroring sitemap enumerator)
 
 **Files:**
 - Create: `apps/web/lib/seo/enumerator.ts`
 - Test: `apps/web/test/lib/seo/enumerator.test.ts` (DB-gated integration)
 
-- [ ] **Step 1: Test (DB-gated)**
+- [ ] **Step 1: Test (DB-gated, requires Task B.14a helpers)**
 
 ```typescript
 // apps/web/test/lib/seo/enumerator.test.ts
@@ -2392,6 +2486,71 @@ git commit -m "feat(seo): /og/blog/[locale]/[slug] dynamic OG route (Node runtim
 
 ---
 
+### Task B.19a: Add `campaignRepo().getBySlug` wrapper
+
+**Files:**
+- Modify: `apps/web/lib/cms/repositories.ts`
+- Test: `apps/web/test/lib/cms/repositories.test.ts` (extend or create)
+
+`@tn-figueiredo/cms` `SupabaseCampaignRepository` exposes `getById/list/create/update/publish/...` but NOT `getBySlug`. B.20 OG route needs slug-based lookup. Add a thin wrapper.
+
+- [ ] **Step 1: Inspect existing repositories.ts**
+
+```bash
+cat apps/web/lib/cms/repositories.ts
+```
+
+Note pattern: factories `postRepo()` / `campaignRepo()` returning package class instances.
+
+- [ ] **Step 2: Add wrapper function**
+
+Edit `apps/web/lib/cms/repositories.ts`:
+
+```typescript
+import { getSupabaseServiceClient } from '../supabase/service'
+
+// existing exports preserved...
+
+// NEW: slug-based campaign lookup (Sprint 5b — needed by /og/campaigns route).
+// Mirrors RLS public-read filters for safety even though service-role client is used.
+export async function getCampaignBySlug(input: { siteId: string; locale: string; slug: string }) {
+  const supabase = getSupabaseServiceClient()
+  const { data, error } = await supabase
+    .from('campaigns')
+    .select(`
+      id, site_id, status,
+      campaign_translations!inner(locale, slug, meta_title, meta_description, og_image_url)
+    `)
+    .eq('site_id', input.siteId)
+    .eq('status', 'active')
+    .eq('campaign_translations.locale', input.locale)
+    .eq('campaign_translations.slug', input.slug)
+    .maybeSingle()
+  if (error) throw error
+  if (!data) return null
+  const tx = (data as any).campaign_translations?.[0]
+  if (!tx) return null
+  return { id: (data as any).id, translation: tx }
+}
+```
+
+- [ ] **Step 3: Typecheck**
+
+```bash
+cd apps/web && npx tsc --noEmit
+```
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add apps/web/lib/cms/repositories.ts
+git commit -m "feat(cms): add getCampaignBySlug helper (Sprint 5b — needed by /og/campaigns OG route)"
+```
+
+In Task B.20, replace the `campaignRepo().getBySlug(...)` call with `getCampaignBySlug({ siteId, locale, slug })`.
+
+---
+
 ### Task B.20: `app/og/campaigns/[locale]/[slug]/route.tsx` + `app/og/[type]/route.tsx`
 
 **Files:**
@@ -2808,6 +2967,8 @@ function toSitemapEntry(
 git add apps/web/src/app/sitemap.ts apps/web/test/app/sitemap.test.ts
 git commit -m "feat(seo): app/sitemap.ts (Node runtime, force-dynamic, direct host lookup)"
 ```
+
+**Caching note (informational, no code):** `app/sitemap.ts` MetadataRoute return shape doesn't accept custom HTTP headers — Next.js controls them. With `dynamic = 'force-dynamic'`, every request rebuilds (no s-maxage), but Vercel CDN can still cache via the `Cache-Tag` header it adds automatically. If post-deploy metrics show DB pressure from frequent crawler hits, convert to `app/sitemap.xml/route.ts` (Route Handler) where you can set `Cache-Control: public, s-maxage=3600, stale-while-revalidate=86400` manually. Spec calls this out as future optimization.
 
 ---
 
@@ -5934,6 +6095,8 @@ git commit -m "ci(seo): add seo-post-deploy workflow (manual dispatch with HOST 
 **Files:**
 - Modify: `.github/workflows/ci.yml`
 
+**MERGE ORDERING NOTE:** PR-B Task B.26 also appends to `ci.yml` (the `check-migration-applied` job). PR-D should be developed AFTER PR-B's `check-migration-applied` job has merged to `staging`. If both PRs are open simultaneously, rebase PR-D onto PR-B's tip before opening for review. Conflict zone: end of `jobs:` block. Resolution is purely additive (both jobs sit alongside).
+
 - [ ] **Step 1: Append jobs**
 
 At the end of the `jobs:` block in `ci.yml`:
@@ -7466,6 +7629,100 @@ And create `~/.claude/projects/-Users-figueiredo-Workspace/memory/project_sprint
 - ✅ Memory entry `project_sprint5b_closed.md` created
 
 Sprint 5b CLOSED. Next: Sprint 5c (Playwright E2E, ~8h) or Sprint 5d (Vercel hardening, ~3h).
+
+---
+
+### Task E.10: Sprint 5b end-to-end acceptance verification
+
+**Files:** none (pure verification gate; output documented in PR-E description).
+
+After PRs A-E all merged + deployed to prod, run this single integrative checklist BEFORE closing the sprint. Goal: confirm the 5 PRs collectively satisfy every spec goal.
+
+- [ ] **Step 1: Spec-goal traceability**
+
+For each Goal in the spec (`docs/superpowers/specs/2026-04-16-sprint-5b-seo-hardening-design.md` Goals section), verify with a curl or DevTools check:
+
+```bash
+HOST=https://bythiagofigueiredo.com
+
+# G1: Indexability — every public page emits canonical + robots
+for path in / /privacy /terms /contact /blog/pt-BR /blog/pt-BR/welcome; do
+  echo "=== $path ==="
+  curl -sf "$HOST$path" | grep -oE '<link rel="canonical"[^>]+>' | head -1
+  curl -sf "$HOST$path" | grep -oE '<meta name="robots"[^>]+>' | head -1
+done
+
+# G2: Discoverability — sitemap enumerates blog + campaigns + static
+curl -sf $HOST/sitemap.xml | xmllint --xpath 'count(//*[local-name()="url"])' -
+
+# G3: Rich results — JSON-LD @graph on every blog post
+curl -sf $HOST/blog/pt-BR/welcome | grep -oE 'application/ld\+json' | wc -l
+curl -sf $HOST/blog/pt-BR/welcome | grep -c '"@graph"'
+
+# G4: Brand share previews — OG image returns PNG 1200x630
+OG=$(curl -sf $HOST/blog/pt-BR/welcome | grep -oE 'og:image"[^>]*content="[^"]+"' | head -1 | sed 's/.*content="//;s/"//')
+curl -sfI "$OG" | grep -i content-type   # image/png expected
+
+# G5: Multi-domain ready — sitemap honors host
+curl -sf $HOST/sitemap.xml | head -3
+curl -sf https://dev.bythiagofigueiredo.com/sitemap.xml   # expect empty <urlset>
+
+# G6: Quality gate — Lighthouse CI passing on last 3 PRs
+gh run list --workflow=lighthouse.yml --limit=3 --json conclusion,headBranch
+
+# G7: Operability — health endpoint + flag check + smoke
+curl -sf -H "Authorization: Bearer $CRON_SECRET" $HOST/api/health/seo | jq
+gh workflow run seo-post-deploy.yml -f host=$HOST -f skip_health=false
+```
+
+- [ ] **Step 2: Feature flag matrix verification**
+
+Test each rollback flag individually in a Vercel preview (NOT prod):
+
+| Flag | Action | Verify |
+|---|---|---|
+| `NEXT_PUBLIC_SEO_JSONLD_ENABLED=false` | redeploy | view-source: no `<script type="application/ld+json">` |
+| `NEXT_PUBLIC_SEO_DYNAMIC_OG_ENABLED=false` | redeploy | `/og/blog/...` returns 302 → `/og-default.png` |
+| `NEXT_PUBLIC_SEO_EXTENDED_SCHEMAS_ENABLED=false` | redeploy | post with `seo_extras.faq` shows BlogPosting but no FAQPage |
+| `SEO_AI_CRAWLERS_BLOCKED=true` | redeploy | robots.txt has `User-agent: GPTBot\nDisallow: /` |
+| `SEO_SITEMAP_KILLED=true` | redeploy | `/sitemap.xml` returns empty `<urlset>` |
+
+After verification, set all flags back to defaults in prod. Document the flag matrix in `docs/runbooks/seo-incident.md` (PR-E Task 4-9 already did this).
+
+- [ ] **Step 3: External validators**
+
+- [ ] Google Rich Results Test on 1 blog post → BlogPosting + BreadcrumbList + Person valid (no errors, no warnings worth fixing)
+- [ ] Google Rich Results Test on 1 campaign → Article + BreadcrumbList valid
+- [ ] Schema.org Validator (https://validator.schema.org) on 1 blog post → 0 errors
+- [ ] LinkedIn Post Inspector → OG preview correct
+- [ ] WhatsApp link share (manual) → OG preview correct
+- [ ] Slack link unfurl (manual) → OG preview correct
+
+- [ ] **Step 4: Sentry 24h watch**
+
+```bash
+# After 24h post-deploy, query Sentry for errors with SEO tags:
+# Filter: tags["component"] in ("og-route","sitemap","robots","jsonld","seo-host-resolve","seo-enumerator")
+# Expected: 0 unresolved errors. If any, open the matching scenario in seo-incident.md.
+```
+
+- [ ] **Step 5: Spec-goal sign-off matrix**
+
+In the PR-E description (or a separate "Sprint 5b closure" GitHub issue), check off each spec Goal:
+
+```markdown
+- [x] G1: Indexability — verified Step 1
+- [x] G2: Discoverability — sitemap enumerates N URLs
+- [x] G3: Rich results — JSON-LD validated by Google + schema.org
+- [x] G4: Brand share previews — OG validated by LI/WA/Slack
+- [x] G5: Multi-domain ready — preview/dev short-circuit verified
+- [x] G6: Quality gate — Lighthouse SEO ≥95 last 3 PRs
+- [x] G7: Operability — flag matrix tested, 0 Sentry errors 24h
+```
+
+- [ ] **Step 6: Mark sprint closed**
+
+After all 5 spec goals signed off + memory entry created (Task E covered), mark Sprint 5b ✅ in `docs/roadmap/phase-1-mvp.md` and `docs/roadmap/README.md` with deploy date.
 
 ---
 
