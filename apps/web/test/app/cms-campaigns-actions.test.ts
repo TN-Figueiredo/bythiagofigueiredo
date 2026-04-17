@@ -36,7 +36,16 @@ vi.mock('../../lib/cms/repositories', () => ({
   }),
 }))
 
-vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }))
+
+const { revalidateCampaignSeoMock } = vi.hoisted(() => ({
+  revalidateCampaignSeoMock: vi.fn(),
+}))
+vi.mock('@/lib/seo/cache-invalidation', () => ({
+  revalidateCampaignSeo: revalidateCampaignSeoMock,
+  revalidateBlogPostSeo: vi.fn(),
+  revalidateSiteBranding: vi.fn(),
+}))
 
 import {
   saveCampaign,
@@ -51,6 +60,14 @@ describe('saveCampaign', () => {
     vi.mocked(authGuards.requireSiteAdminForRow).mockResolvedValue({ siteId: 's1' })
     rpcMock.mockClear()
     rpcMock.mockResolvedValue({ data: null, error: null })
+    revalidateCampaignSeoMock.mockClear()
+    getByIdMock.mockReset()
+    getByIdMock.mockResolvedValue({
+      id: 'c1',
+      site_id: 's1',
+      status: 'draft',
+      translations: [{ locale: 'pt-BR', slug: 'promo' }],
+    })
   })
 
   it('returns ok and calls update_campaign_atomic for valid input', async () => {
@@ -68,6 +85,27 @@ describe('saveCampaign', () => {
         p_translations: expect.any(Array),
       }),
     )
+  })
+
+  it('calls revalidateCampaignSeo once per refreshed translation', async () => {
+    getByIdMock.mockResolvedValueOnce({
+      id: 'c1',
+      site_id: 's1',
+      status: 'draft',
+      translations: [
+        { locale: 'pt-BR', slug: 'promo' },
+        { locale: 'en', slug: 'promo-en' },
+      ],
+    })
+    const result = await saveCampaign(
+      'c1',
+      { interest: 'lead_magnet' },
+      [{ locale: 'pt-BR', slug: 'promo', main_hook_md: 'Hook' }],
+    )
+    expect(result.ok).toBe(true)
+    expect(revalidateCampaignSeoMock).toHaveBeenCalledTimes(2)
+    expect(revalidateCampaignSeoMock).toHaveBeenCalledWith('s1', 'c1', 'pt-BR', 'promo')
+    expect(revalidateCampaignSeoMock).toHaveBeenCalledWith('s1', 'c1', 'en', 'promo-en')
   })
 
   it('rejects patches containing status/scheduled_for/published_at', async () => {
@@ -123,6 +161,7 @@ describe('saveCampaign', () => {
 describe('publish/unpublish/archive/delete transitions', () => {
   beforeEach(() => {
     vi.mocked(authGuards.requireSiteAdminForRow).mockResolvedValue({ siteId: 's1' })
+    revalidateCampaignSeoMock.mockClear()
     getByIdMock.mockReset()
     getByIdMock.mockResolvedValue({
       id: 'c1',
@@ -134,27 +173,25 @@ describe('publish/unpublish/archive/delete transitions', () => {
     deleteMock.mockResolvedValue(undefined)
   })
 
-  it('publishCampaign revalidates public paths', async () => {
+  it('publishCampaign calls revalidateCampaignSeo per translation', async () => {
     await publishCampaign('c1')
-    const { revalidatePath } = await import('next/cache')
-    expect(revalidatePath).toHaveBeenCalledWith('/campaigns/pt-BR/promo')
+    expect(revalidateCampaignSeoMock).toHaveBeenCalledWith('s1', 'c1', 'pt-BR', 'promo')
   })
 
-  it('unpublishCampaign revalidates', async () => {
+  it('unpublishCampaign calls revalidateCampaignSeo per translation', async () => {
     await unpublishCampaign('c1')
-    const { revalidatePath } = await import('next/cache')
-    expect(revalidatePath).toHaveBeenCalled()
+    expect(revalidateCampaignSeoMock).toHaveBeenCalledWith('s1', 'c1', 'pt-BR', 'promo')
   })
 
-  it('archiveCampaign revalidates', async () => {
+  it('archiveCampaign calls revalidateCampaignSeo per translation', async () => {
     await archiveCampaign('c1')
-    const { revalidatePath } = await import('next/cache')
-    expect(revalidatePath).toHaveBeenCalled()
+    expect(revalidateCampaignSeoMock).toHaveBeenCalledWith('s1', 'c1', 'pt-BR', 'promo')
   })
 
-  it('deleteCampaign returns ok:true for a draft', async () => {
+  it('deleteCampaign returns ok:true for a draft and revalidates SEO + listing', async () => {
     const result = await deleteCampaign('c1')
     expect(result).toEqual({ ok: true })
+    expect(revalidateCampaignSeoMock).toHaveBeenCalledWith('s1', 'c1', 'pt-BR', 'promo')
     const { revalidatePath } = await import('next/cache')
     expect(revalidatePath).toHaveBeenCalledWith('/cms/campaigns')
   })
@@ -169,6 +206,7 @@ describe('publish/unpublish/archive/delete transitions', () => {
     const result = await deleteCampaign('c1')
     expect(result).toEqual({ ok: false, error: 'already_published' })
     expect(deleteMock).not.toHaveBeenCalled()
+    expect(revalidateCampaignSeoMock).not.toHaveBeenCalled()
   })
 
   it('deleteCampaign returns not_found when getById yields null', async () => {
@@ -176,6 +214,7 @@ describe('publish/unpublish/archive/delete transitions', () => {
     const result = await deleteCampaign('c1')
     expect(result).toEqual({ ok: false, error: 'not_found' })
     expect(deleteMock).not.toHaveBeenCalled()
+    expect(revalidateCampaignSeoMock).not.toHaveBeenCalled()
   })
 })
 
@@ -184,6 +223,14 @@ describe('saveCampaign URL sanitization', () => {
     vi.mocked(authGuards.requireSiteAdminForRow).mockResolvedValue({ siteId: 's1' })
     rpcMock.mockClear()
     rpcMock.mockResolvedValue({ data: null, error: null })
+    revalidateCampaignSeoMock.mockClear()
+    getByIdMock.mockReset()
+    getByIdMock.mockResolvedValue({
+      id: 'c1',
+      site_id: 's1',
+      status: 'draft',
+      translations: [{ locale: 'pt-BR', slug: 'p' }],
+    })
   })
 
   it('rejects javascript: og_image_url in a translation', async () => {
@@ -197,6 +244,7 @@ describe('saveCampaign URL sanitization', () => {
       expect(result.fields.og_image_url).toBe('invalid_url')
     }
     expect(rpcMock).not.toHaveBeenCalled()
+    expect(revalidateCampaignSeoMock).not.toHaveBeenCalled()
   })
 
   it('accepts https og_image_url', async () => {
