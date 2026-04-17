@@ -62,3 +62,64 @@ describe('page-metadata factories', () => {
     expect((m.robots as { index?: boolean } | null)?.index).not.toBe(false)
   })
 })
+
+// C.1 — Snapshot tests that lock the metadata SHAPE before the PR-C page
+// refactors wire these factories into real pages. If a refactor changes the
+// metadata shape unintentionally, these snapshots will fail. Intentional
+// shape changes must be accompanied by an updated snapshot AND a note on
+// why the change is backwards-compatible (or why we accept breakage).
+//
+// Each snapshot uses JSON.stringify(..., null, 2) to get stable diffs — the
+// URL instance in metadataBase is serialized to a string via toString(),
+// which vitest's default inline snapshot would otherwise drop.
+function serialize(m: unknown): string {
+  return JSON.stringify(
+    m,
+    (_key, value) => (value instanceof URL ? value.toString() : value),
+    2,
+  )
+}
+
+describe('page-metadata factories — snapshots', () => {
+  it('generateRootMetadata shape', () => {
+    expect(serialize(generateRootMetadata(mockConfig))).toMatchSnapshot()
+  })
+
+  it('generateBlogIndexMetadata shape', () => {
+    expect(serialize(generateBlogIndexMetadata(mockConfig, 'pt-BR'))).toMatchSnapshot()
+  })
+
+  it('generateBlogPostMetadata shape', () => {
+    expect(
+      serialize(generateBlogPostMetadata(mockConfig, mockPost, mockTxs)),
+    ).toMatchSnapshot()
+  })
+
+  it('generateCampaignMetadata shape', () => {
+    expect(
+      serialize(
+        generateCampaignMetadata(mockConfig, {
+          slug: 'c1',
+          locale: 'pt-BR',
+          meta_title: 'Título da campanha',
+          meta_description: 'Descrição da campanha',
+          og_image_url: 'https://example.com/og/c1.png',
+        }),
+      ),
+    ).toMatchSnapshot()
+  })
+
+  it('generateLegalMetadata shape (privacy pt-BR)', () => {
+    expect(
+      serialize(generateLegalMetadata(mockConfig, 'privacy', 'pt-BR')),
+    ).toMatchSnapshot()
+  })
+
+  it('generateContactMetadata shape (pt-BR)', () => {
+    expect(serialize(generateContactMetadata(mockConfig, 'pt-BR'))).toMatchSnapshot()
+  })
+
+  it('generateNoindexMetadata shape', () => {
+    expect(serialize(generateNoindexMetadata(mockConfig))).toMatchSnapshot()
+  })
+})
