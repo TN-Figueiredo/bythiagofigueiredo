@@ -51,7 +51,20 @@ function makeAdminMock(scripts: Record<string, Scripted[] | Scripted>) {
     const chain: Record<string, unknown> = {};
     const passthrough = () => chain;
     // Filter mutators — all return the chain.
-    for (const m of ['eq', 'neq', 'in', 'is', 'not', 'gt', 'gte', 'lt', 'lte', 'order', 'limit']) {
+    for (const m of [
+      'eq',
+      'neq',
+      'in',
+      'is',
+      'not',
+      'gt',
+      'gte',
+      'lt',
+      'lte',
+      'order',
+      'limit',
+      'or', // P1-1/P1-4: tokenLookup + cancel now .or(…) over hash fields.
+    ]) {
       chain[m] = (...args: unknown[]) => {
         filters.push({ op: m, args });
         return chain;
@@ -362,6 +375,18 @@ describe('accountDeletion.cancel', () => {
   it('calls cancel RPC and returns userId + scheduledPurgeAt on success', async () => {
     const future = new Date(Date.now() + 86400_000).toISOString();
     const { admin, state } = makeAdminMock({
+      // P1-1: lookup by confirmation_token_hash OR metadata.cancel_token_hash
+      // OR metadata.reminder_cancel_token_hash. The mock returns a row shaped
+      // to include the confirmation_token_hash so the RPC receives the
+      // original hash to do its FOR UPDATE cancel.
+      'select:lgpd_requests:maybeSingle': {
+        result: {
+          id: 'req-1',
+          user_id: 'u1',
+          confirmation_token_hash: 'stored-confirm-hash',
+          metadata: {},
+        },
+      },
       'rpc:cancel_account_deletion_in_grace': {
         result: { cancelled: true, user_id: 'u1', scheduled_purge_at: future },
       },
@@ -374,8 +399,24 @@ describe('accountDeletion.cancel', () => {
     expect(state.rpcCalls[0]?.fn).toBe('cancel_account_deletion_in_grace');
   });
 
+  it('throws not_in_grace when no row matches any token field (P1-1)', async () => {
+    const { admin } = makeAdminMock({
+      'select:lgpd_requests:maybeSingle': { result: null },
+    });
+    const c = await loadWith(admin);
+    await expect(c.accountDeletion.cancel('tok')).rejects.toThrow(/not_in_grace/);
+  });
+
   it('throws not_in_grace when the RPC signals cancelled:false', async () => {
     const { admin } = makeAdminMock({
+      'select:lgpd_requests:maybeSingle': {
+        result: {
+          id: 'req-1',
+          user_id: 'u1',
+          confirmation_token_hash: 'stored-confirm-hash',
+          metadata: {},
+        },
+      },
       'rpc:cancel_account_deletion_in_grace': { result: { cancelled: false } },
     });
     const c = await loadWith(admin);
@@ -625,10 +666,13 @@ describe('cleanupSweep', () => {
     expect((upds[0]!.payload as Record<string, unknown>).status).toBe('completed');
   });
 
-  it('advancePhase3: soft-completes when phase3Cleanup throws', async () => {
+  it('advancePhase3: soft-completes immediately on a TERMINAL error (P1-3)', async () => {
     const { admin, state } = makeAdminMock({
       'select:lgpd_requests': { result: [{ id: 'r1', user_id: 'u1' }] },
-      'rpc:lgpd_phase3_prenullify_fks': { error: { message: 'fk blocks' } },
+      // "foreign key" substring is recognised as terminal.
+      'rpc:lgpd_phase3_prenullify_fks': {
+        error: { message: 'foreign key violation on referring_table' },
+      },
       'update:lgpd_requests': { result: null },
     });
     const c = await loadWith(admin);
@@ -636,22 +680,78 @@ describe('cleanupSweep', () => {
     expect(res.processed).toBe(1);
     const upd = state.updates.find((u) => u.table === 'lgpd_requests');
     expect((upd!.payload as Record<string, unknown>).status).toBe('completed_soft');
+    const meta = (upd!.payload as Record<string, unknown>).metadata as Record<
+      string,
+      unknown
+    >;
+    expect(meta.soft_kind).toBe('terminal');
+    expect(meta.phase3_attempts).toBe(1);
   });
 
-  it('sendReminders: emails rows in the D+13→D+15 window and stamps metadata', async () => {
-    const soon = new Date(Date.now() + 36 * 3600_000).toISOString();
+  it('advancePhase3: TRANSIENT error bumps attempts + leaves status=processing (P1-3)', async () => {
     const { admin, state } = makeAdminMock({
       'select:lgpd_requests': {
-        result: [
-          {
-            id: 'r1',
-            user_id: 'u1',
-            scheduled_purge_at: soon,
-            confirmation_token_hash: 'hash',
-            metadata: {},
-          },
-        ],
+        result: [{ id: 'r1', user_id: 'u1', metadata: { phase3_attempts: 2 } }],
       },
+      // 5xx-like message → transient classification.
+      'rpc:lgpd_phase3_prenullify_fks': {
+        error: { message: 'internal server error' },
+      },
+      'update:lgpd_requests': { result: null },
+    });
+    const c = await loadWith(admin);
+    const res = await c.cleanupSweep.advancePhase3();
+    // Not yet soft-completed — attempts are below the cap of 5.
+    expect(res.processed).toBe(0);
+    const upd = state.updates.find((u) => u.table === 'lgpd_requests');
+    const payload = upd!.payload as Record<string, unknown>;
+    expect(payload.status).toBeUndefined();
+    const meta = payload.metadata as Record<string, unknown>;
+    expect(meta.phase3_attempts).toBe(3);
+    expect(meta.phase3_last_error).toMatch(/internal server error/);
+  });
+
+  it('advancePhase3: TRANSIENT soft-completes after exhausting retries (P1-3)', async () => {
+    const { admin, state } = makeAdminMock({
+      'select:lgpd_requests': {
+        result: [{ id: 'r1', user_id: 'u1', metadata: { phase3_attempts: 4 } }],
+      },
+      'rpc:lgpd_phase3_prenullify_fks': {
+        error: { message: 'service unavailable' },
+      },
+      'update:lgpd_requests': { result: null },
+    });
+    const c = await loadWith(admin);
+    const res = await c.cleanupSweep.advancePhase3();
+    expect(res.processed).toBe(1);
+    const upd = state.updates.find((u) => u.table === 'lgpd_requests');
+    const payload = upd!.payload as Record<string, unknown>;
+    expect(payload.status).toBe('completed_soft');
+    const meta = payload.metadata as Record<string, unknown>;
+    expect(meta.soft_kind).toBe('transient');
+    expect(meta.phase3_attempts).toBe(5);
+  });
+
+  it('sendReminders: emails D+14 window rows and stamps reminder_d14_sent_at + rotating cancel hash (P1-1 / P1-2)', async () => {
+    // D+14 bucket = scheduled_purge_at within 1d from now.
+    const soonD14 = new Date(Date.now() + 12 * 3600_000).toISOString();
+    const { admin, state } = makeAdminMock({
+      'select:lgpd_requests': [
+        // First query — D+7 bucket (no rows).
+        { result: [] },
+        // Second query — D+14 bucket (one row).
+        {
+          result: [
+            {
+              id: 'r1',
+              user_id: 'u1',
+              scheduled_purge_at: soonD14,
+              confirmation_token_hash: 'hash',
+              metadata: {},
+            },
+          ],
+        },
+      ],
       'auth:getUserById': { result: { user: { email: 'a@b.com' } } },
       'update:lgpd_requests': { result: null },
     });
@@ -663,23 +763,66 @@ describe('cleanupSweep', () => {
     expect(upd).toBeDefined();
     const p = upd!.payload as Record<string, unknown>;
     const meta = p.metadata as Record<string, unknown>;
-    expect(meta.reminder_sent_at).toBeDefined();
+    expect(meta.reminder_d14_sent_at).toBeDefined();
+    // P1-1: rotating cancel token hash — a fresh sha256(hex) is stored on
+    // every reminder send so a leaked older reminder cancel link loses
+    // validity once a newer one is dispatched.
+    expect(typeof meta.reminder_cancel_token_hash).toBe('string');
+    expect((meta.reminder_cancel_token_hash as string).length).toBe(64);
   });
 
-  it('sendReminders: skips rows that already have reminder_sent_at', async () => {
-    const soon = new Date(Date.now() + 36 * 3600_000).toISOString();
+  it('sendReminders: emails D+7 window rows and stamps reminder_d7_sent_at (P1-2)', async () => {
+    // D+7 bucket = scheduled_purge_at within 7d..8d from now.
+    const soonD7 = new Date(Date.now() + 7.5 * 24 * 3600_000).toISOString();
+    const { admin, state } = makeAdminMock({
+      'select:lgpd_requests': [
+        // First query — D+7 bucket (one row).
+        {
+          result: [
+            {
+              id: 'r7',
+              user_id: 'u1',
+              scheduled_purge_at: soonD7,
+              confirmation_token_hash: 'hash',
+              metadata: {},
+            },
+          ],
+        },
+        // Second query — D+14 bucket (no rows).
+        { result: [] },
+      ],
+      'auth:getUserById': { result: { user: { email: 'a@b.com' } } },
+      'update:lgpd_requests': { result: null },
+    });
+    const c = await loadWith(admin);
+    const res = await c.cleanupSweep.sendReminders();
+    expect(res.sent).toBe(1);
+    const upd = state.updates.find((u) => u.table === 'lgpd_requests');
+    expect(upd).toBeDefined();
+    const p = upd!.payload as Record<string, unknown>;
+    const meta = p.metadata as Record<string, unknown>;
+    expect(meta.reminder_d7_sent_at).toBeDefined();
+  });
+
+  it('sendReminders: skips rows that already have the bucket flag (P1-2)', async () => {
+    const soonD14 = new Date(Date.now() + 12 * 3600_000).toISOString();
     const { admin } = makeAdminMock({
-      'select:lgpd_requests': {
-        result: [
-          {
-            id: 'r1',
-            user_id: 'u1',
-            scheduled_purge_at: soon,
-            confirmation_token_hash: 'hash',
-            metadata: { reminder_sent_at: new Date().toISOString() },
-          },
-        ],
-      },
+      'select:lgpd_requests': [
+        // D+7 — no rows.
+        { result: [] },
+        // D+14 — already reminded.
+        {
+          result: [
+            {
+              id: 'r1',
+              user_id: 'u1',
+              scheduled_purge_at: soonD14,
+              confirmation_token_hash: 'hash',
+              metadata: { reminder_d14_sent_at: new Date().toISOString() },
+            },
+          ],
+        },
+      ],
     });
     const c = await loadWith(admin);
     const res = await c.cleanupSweep.sendReminders();

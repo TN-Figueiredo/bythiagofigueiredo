@@ -14,6 +14,89 @@ import { BrevoLgpdEmailService } from './email-service';
 import { DirectQueryAccountStatusCache } from './account-status-cache';
 import { SupabaseInactiveUserFinder, type IInactiveUserFinder } from './inactive-user-finder';
 
+// --- P1-3: phase3 error classification --------------------------------------
+
+/**
+ * Classify errors thrown out of `phase3Cleanup` as either:
+ *
+ *   - 'terminal'  — deterministic failures we should NOT retry. Examples:
+ *       FK violations, permission denied, invalid input. Caller should
+ *       fall through to `completed_soft` so the user remains anonymized
+ *       without burning retries.
+ *
+ *   - 'transient' — infra glitches (5xx, network, timeouts). Caller should
+ *       keep `status='processing'` and retry on the next cron tick up to
+ *       `PHASE3_MAX_ATTEMPTS` times, only soft-completing after exhausting.
+ *
+ * Heuristic over message / status / code, biased toward 'transient' for
+ * ambiguous cases (so a flaky Auth API doesn't permanently soft-complete
+ * a user who could still be hard-deleted on a retry).
+ */
+type Phase3ErrorKind = 'terminal' | 'transient';
+
+function classifyPhase3Error(err: unknown): Phase3ErrorKind {
+  const msg = err instanceof Error ? err.message : String(err ?? '');
+  const status = (err as { status?: number } | null)?.status;
+  const code = (err as { code?: string } | null)?.code;
+
+  // Explicit 5xx → transient.
+  if (typeof status === 'number' && status >= 500 && status < 600) {
+    return 'transient';
+  }
+  // Explicit 4xx (excluding 429 rate-limit which we retry) → terminal.
+  if (typeof status === 'number' && status >= 400 && status < 500 && status !== 429) {
+    return 'terminal';
+  }
+
+  // Postgres error codes that mean "schema rejected this, will reject again".
+  //   23503 = foreign_key_violation
+  //   23505 = unique_violation
+  //   42501 = insufficient_privilege (permission denied)
+  //   23502 = not_null_violation
+  if (
+    typeof code === 'string' &&
+    ['23503', '23505', '42501', '23502', 'P0001'].includes(code)
+  ) {
+    return 'terminal';
+  }
+
+  // Message sniffing for Supabase Auth admin responses that don't surface
+  // a numeric `status` consistently.
+  const lc = msg.toLowerCase();
+  if (
+    lc.includes('foreign key') ||
+    lc.includes('permission denied') ||
+    lc.includes('not found') ||
+    lc.includes('user_not_found') ||
+    lc.includes('invalid input')
+  ) {
+    return 'terminal';
+  }
+  if (
+    lc.includes('timeout') ||
+    lc.includes('timed out') ||
+    lc.includes('etimedout') ||
+    lc.includes('econnreset') ||
+    lc.includes('enotfound') ||
+    lc.includes('fetch failed') ||
+    lc.includes('network') ||
+    lc.includes('service unavailable') ||
+    lc.includes('internal server error') ||
+    lc.includes('bad gateway') ||
+    lc.includes('gateway timeout')
+  ) {
+    return 'transient';
+  }
+
+  // Default: be conservative and retry — we'd rather burn 5 retries and
+  // then soft-complete than permanently soft-complete a recoverable user.
+  return 'transient';
+}
+
+const PHASE3_MAX_ATTEMPTS = 5;
+
+export { classifyPhase3Error, PHASE3_MAX_ATTEMPTS };
+
 // --- use-case shapes --------------------------------------------------------
 
 export interface AccountDeletionUseCases {
@@ -101,7 +184,6 @@ const GRACE_PERIOD_DAYS = 15;                            // phase3DelayDays
 const BLOB_TTL_DAYS = 7;                                 // exportExpiryDays
 const DOWNLOAD_SIGNED_URL_TTL_SEC = 60 * 10;             // 10 minutes
 const EXPORT_SIGNED_URL_TTL_SEC = BLOB_TTL_DAYS * 24 * 60 * 60; // 7 days
-const REMINDER_WINDOW_DAYS = 2;                          // D+13 → D+15
 const EXPORTS_BUCKET = 'lgpd-exports';
 
 function sha256Hex(input: string): string {
@@ -219,6 +301,11 @@ function makeAccountDeletion(deps: UseCaseDeps): AccountDeletionUseCases {
     async request(userId) {
       const token = generateRawToken();
       const hash = sha256Hex(token);
+      // P1-1: generate a DISTINCT cancel token alongside the confirm token
+      // so the confirmation email can surface a one-click abort link that
+      // a leaked confirm-link cannot auto-consume (different hash).
+      const cancelToken = generateRawToken();
+      const cancelTokenHash = sha256Hex(cancelToken);
       const expiresAt = new Date(Date.now() + DELETION_CONFIRM_TTL_MS);
 
       const { data: ures, error: uerr } = await admin.auth.admin.getUserById(userId);
@@ -234,7 +321,10 @@ function makeAccountDeletion(deps: UseCaseDeps): AccountDeletionUseCases {
           type: 'account_deletion',
           status: 'pending',
           confirmation_token_hash: hash,
-          metadata: { confirmation_expires_at: expiresAt.toISOString() },
+          metadata: {
+            confirmation_expires_at: expiresAt.toISOString(),
+            cancel_token_hash: cancelTokenHash,
+          },
         })
         .select('id')
         .single();
@@ -244,8 +334,9 @@ function makeAccountDeletion(deps: UseCaseDeps): AccountDeletionUseCases {
       const requestId = (row as { id: string }).id;
 
       const confirmUrl = `${appUrl}/lgpd/confirm/${token}`;
+      const cancelUrl = `${appUrl}/lgpd/confirm/${cancelToken}`;
       try {
-        await lgpdEmail.sendDeletionConfirmation(email, confirmUrl, expiresAt);
+        await lgpdEmail.sendDeletionConfirmation(email, confirmUrl, expiresAt, cancelUrl);
       } catch (e) {
         logger.warn('[lgpd_email_confirmation_failed]', {
           message: e instanceof Error ? e.message : String(e),
@@ -255,6 +346,24 @@ function makeAccountDeletion(deps: UseCaseDeps): AccountDeletionUseCases {
       void emailService;
       void sender;
       void brand;
+
+      // P1-6: write an explicit auth_user-scoped audit entry so the user
+      // can SELECT their own lifecycle stream via the
+      // `audit_log_self_lifecycle_target` RLS policy (resource_type='auth_user').
+      try {
+        await admin.from('audit_log').insert({
+          actor_user_id: userId,
+          resource_type: 'auth_user',
+          resource_id: userId,
+          action: 'lifecycle_deletion_requested',
+          after_data: { requestId },
+        });
+      } catch (e) {
+        logger.warn('[lgpd_audit_deletion_requested_failed]', {
+          message: e instanceof Error ? e.message : String(e),
+          requestId,
+        });
+      }
 
       return { requestId, token, expiresAt };
     },
@@ -308,6 +417,26 @@ function makeAccountDeletion(deps: UseCaseDeps): AccountDeletionUseCases {
         throw new Error(`account_deletion.confirm: update failed: ${updErr.message}`);
       }
 
+      // P1-6: lifecycle audit entry keyed on auth_user so the user can
+      // read their own confirmation event via the self-target RLS policy.
+      try {
+        await admin.from('audit_log').insert({
+          actor_user_id: typedRow.user_id,
+          resource_type: 'auth_user',
+          resource_id: typedRow.user_id,
+          action: 'lifecycle_deletion_confirmed',
+          after_data: {
+            requestId: typedRow.id,
+            scheduledPurgeAt: scheduledPurgeAt.toISOString(),
+          },
+        });
+      } catch (e) {
+        logger.warn('[lgpd_audit_deletion_confirmed_failed]', {
+          message: e instanceof Error ? e.message : String(e),
+          requestId: typedRow.id,
+        });
+      }
+
       return {
         userId: typedRow.user_id,
         scheduledPurgeAt,
@@ -317,8 +446,46 @@ function makeAccountDeletion(deps: UseCaseDeps): AccountDeletionUseCases {
 
     async cancel(token) {
       const hash = sha256Hex(token);
+
+      // P1-1: accept tokens that match EITHER
+      //   - the original confirmation_token_hash (confirm email cancel link),
+      //   - metadata.cancel_token_hash (dedicated cancel token from the
+      //     original confirmation email — distinct from confirm),
+      //   - metadata.reminder_cancel_token_hash (rotated on each D+7 / D+14
+      //     reminder — last-write-wins).
+      // We resolve the row in JS so the RPC (keyed on confirmation_token_hash)
+      // can finish the state flip with its original FOR UPDATE lock.
+      const { data: row, error: selErr } = await admin
+        .from('lgpd_requests')
+        .select('id, user_id, confirmation_token_hash, metadata')
+        .eq('type', 'account_deletion')
+        .or(
+          [
+            `confirmation_token_hash.eq.${hash}`,
+            `metadata->>cancel_token_hash.eq.${hash}`,
+            `metadata->>reminder_cancel_token_hash.eq.${hash}`,
+          ].join(','),
+        )
+        .maybeSingle();
+      if (selErr) {
+        throw new Error(`account_deletion.cancel: lookup failed: ${selErr.message}`);
+      }
+      if (!row) {
+        throw new Error('not_in_grace');
+      }
+      const rowTyped = row as {
+        id: string;
+        user_id: string;
+        confirmation_token_hash: string | null;
+        metadata: Record<string, unknown> | null;
+      };
+
+      if (!rowTyped.confirmation_token_hash) {
+        throw new Error('not_in_grace');
+      }
+
       const { data, error } = await admin.rpc('cancel_account_deletion_in_grace', {
-        p_token_hash: hash,
+        p_token_hash: rowTyped.confirmation_token_hash,
       });
       if (error) {
         throw new Error(`account_deletion.cancel: RPC failed: ${error.message}`);
@@ -345,6 +512,22 @@ function makeAccountDeletion(deps: UseCaseDeps): AccountDeletionUseCases {
         }
       } catch (e) {
         logger.warn('[lgpd_email_cancelled_failed]', {
+          message: e instanceof Error ? e.message : String(e),
+          userId,
+        });
+      }
+
+      // P1-6: lifecycle audit entry keyed on auth_user.
+      try {
+        await admin.from('audit_log').insert({
+          actor_user_id: userId,
+          resource_type: 'auth_user',
+          resource_id: userId,
+          action: 'lifecycle_deletion_cancelled',
+          after_data: { requestId: rowTyped.id },
+        });
+      } catch (e) {
+        logger.warn('[lgpd_audit_deletion_cancelled_failed]', {
           message: e instanceof Error ? e.message : String(e),
           userId,
         });
@@ -475,6 +658,22 @@ function makeDataExport(deps: UseCaseDeps): DataExportUseCases {
         }
       } catch (e) {
         logger.warn('[lgpd_email_export_ready_failed]', {
+          message: e instanceof Error ? e.message : String(e),
+          requestId,
+        });
+      }
+
+      // P1-6: lifecycle audit entry keyed on auth_user.
+      try {
+        await admin.from('audit_log').insert({
+          actor_user_id: userId,
+          resource_type: 'auth_user',
+          resource_id: userId,
+          action: 'lifecycle_export_requested',
+          after_data: { requestId },
+        });
+      } catch (e) {
+        logger.warn('[lgpd_audit_export_requested_failed]', {
           message: e instanceof Error ? e.message : String(e),
           requestId,
         });
@@ -638,7 +837,7 @@ function makeCleanupSweep(deps: UseCaseDeps): CleanupSweepUseCases {
       const nowIso = new Date().toISOString();
       const { data, error } = await admin
         .from('lgpd_requests')
-        .select('id, user_id')
+        .select('id, user_id, metadata')
         .eq('type', 'account_deletion')
         .eq('status', 'processing')
         .eq('phase', 1)
@@ -646,7 +845,11 @@ function makeCleanupSweep(deps: UseCaseDeps): CleanupSweepUseCases {
       if (error) {
         throw new Error(`cleanup.advancePhase3: query failed: ${error.message}`);
       }
-      const rows = (data ?? []) as Array<{ id: string; user_id: string }>;
+      const rows = (data ?? []) as Array<{
+        id: string;
+        user_id: string;
+        metadata: Record<string, unknown> | null;
+      }>;
 
       let processed = 0;
       for (const r of rows) {
@@ -667,10 +870,47 @@ function makeCleanupSweep(deps: UseCaseDeps): CleanupSweepUseCases {
           }
           processed += 1;
         } catch (e) {
-          // Soft-complete on failure so the user is effectively deleted
-          // (anonymized) even when FKs block `auth.users` removal.
+          // P1-3: distinguish terminal vs transient errors so a single
+          // 5xx from auth.admin.deleteUser doesn't permanently lock the
+          // user into `completed_soft` without retry.
           const msg = e instanceof Error ? e.message : String(e);
-          logger.warn('[lgpd_sweep_phase3_soft]', { requestId: r.id, message: msg });
+          const kind = classifyPhase3Error(e);
+          const prevMeta = (r.metadata ?? {}) as Record<string, unknown>;
+          const prevAttempts =
+            typeof prevMeta.phase3_attempts === 'number'
+              ? (prevMeta.phase3_attempts as number)
+              : 0;
+          const nextAttempts = prevAttempts + 1;
+
+          if (kind === 'transient' && nextAttempts < PHASE3_MAX_ATTEMPTS) {
+            logger.warn('[lgpd_sweep_phase3_transient]', {
+              requestId: r.id,
+              message: msg,
+              attempts: nextAttempts,
+            });
+            await admin
+              .from('lgpd_requests')
+              .update({
+                metadata: {
+                  ...prevMeta,
+                  phase3_attempts: nextAttempts,
+                  phase3_last_error: msg,
+                  phase3_last_error_at: new Date().toISOString(),
+                },
+              })
+              .eq('id', r.id);
+            // Do NOT increment `processed` — the row still needs work.
+            continue;
+          }
+
+          // Terminal or retry-budget exhausted → soft-complete so the
+          // user remains anonymized without burning further retries.
+          logger.warn('[lgpd_sweep_phase3_soft]', {
+            requestId: r.id,
+            message: msg,
+            attempts: nextAttempts,
+            kind,
+          });
           const finishedAt = new Date().toISOString();
           await admin
             .from('lgpd_requests')
@@ -678,7 +918,12 @@ function makeCleanupSweep(deps: UseCaseDeps): CleanupSweepUseCases {
               status: 'completed_soft',
               phase_3_completed_at: finishedAt,
               completed_at: finishedAt,
-              metadata: { soft_reason: msg },
+              metadata: {
+                ...prevMeta,
+                phase3_attempts: nextAttempts,
+                soft_reason: msg,
+                soft_kind: kind,
+              },
             })
             .eq('id', r.id);
           processed += 1;
@@ -688,70 +933,102 @@ function makeCleanupSweep(deps: UseCaseDeps): CleanupSweepUseCases {
     },
 
     async sendReminders() {
-      const now = Date.now();
-      const lowerIso = new Date(now).toISOString();
-      const upperIso = new Date(now + REMINDER_WINDOW_DAYS * DAY_MS).toISOString();
-      const { data, error } = await admin
-        .from('lgpd_requests')
-        .select('id, user_id, scheduled_purge_at, confirmation_token_hash, metadata')
-        .eq('type', 'account_deletion')
-        .eq('status', 'processing')
-        .eq('phase', 1)
-        .gt('scheduled_purge_at', lowerIso)
-        .lt('scheduled_purge_at', upperIso);
-      if (error) {
-        throw new Error(`cleanup.sendReminders: query failed: ${error.message}`);
-      }
-      const rows = (data ?? []) as Array<{
-        id: string;
-        user_id: string;
-        scheduled_purge_at: string;
-        confirmation_token_hash: string | null;
-        metadata: Record<string, unknown> | null;
-      }>;
-
+      // P1-2: two distinct windows so the user gets separate D+7 and D+14
+      // reminders instead of a single nag at ~D+13.
+      //
+      //   D+7 window  : scheduled_purge_at ∈ (now+7d, now+8d]
+      //                  → the account is 7d away from hard-delete (scheduled
+      //                    15d out from phase 1), flag `reminder_d7_sent_at`.
+      //   D+14 window : scheduled_purge_at ∈ (now, now+1d]
+      //                  → last-call 24h before hard-delete, flag
+      //                    `reminder_d14_sent_at`.
+      //
+      // P1-1: every reminder rotates a fresh cancel token. We store its hash
+      // under `metadata.reminder_cancel_token_hash` (overwritten per send) and
+      // embed the raw token in the email's cancel button URL. The previously
+      // stored hash is invalidated by the overwrite — so a leaked older
+      // reminder cannot be used to cancel after a newer reminder lands.
       let sent = 0;
-      for (const r of rows) {
-        const meta = (r.metadata ?? {}) as Record<string, unknown>;
-        if (meta.reminder_sent_at) continue;
-
-        try {
-          const { data: ures } = await admin.auth.admin.getUserById(r.user_id);
-          const email = ures?.user?.email ?? null;
-          if (!email) {
-            // No email on the auth row (already anonymized? unusual in grace).
-            // Skip silently — nothing actionable.
-            continue;
-          }
-          // The cancel URL needs the raw token; we only have the hash, so the
-          // reminder links to the `/lgpd/cancel` landing page and relies on
-          // the original email's token. Reminder body simply re-states the
-          // grace end and points to the account page.
-          const cancelUrl = `${appUrl}/account/delete?requestId=${r.id}`;
-          const graceEndsAt = new Date(r.scheduled_purge_at);
-          await sendDeletionReminderEmail(
-            emailService,
-            sender,
-            brand,
-            email,
-            cancelUrl,
-            graceEndsAt,
-          );
-          await admin
-            .from('lgpd_requests')
-            .update({
-              metadata: { ...meta, reminder_sent_at: new Date().toISOString() },
-            })
-            .eq('id', r.id);
-          sent += 1;
-        } catch (e) {
-          logger.warn('[lgpd_sweep_reminder_failed]', {
-            requestId: r.id,
-            message: e instanceof Error ? e.message : String(e),
-          });
-        }
-      }
+      sent += await runReminderWindow('d7', 7 * DAY_MS, 8 * DAY_MS);
+      sent += await runReminderWindow('d14', 0, 1 * DAY_MS);
       return { sent };
+
+      async function runReminderWindow(
+        bucket: 'd7' | 'd14',
+        fromOffsetMs: number,
+        toOffsetMs: number,
+      ): Promise<number> {
+        const now = Date.now();
+        const lowerIso = new Date(now + fromOffsetMs).toISOString();
+        const upperIso = new Date(now + toOffsetMs).toISOString();
+        const flagCol =
+          bucket === 'd7' ? 'reminder_d7_sent_at' : 'reminder_d14_sent_at';
+        const { data, error } = await admin
+          .from('lgpd_requests')
+          .select('id, user_id, scheduled_purge_at, confirmation_token_hash, metadata')
+          .eq('type', 'account_deletion')
+          .eq('status', 'processing')
+          .eq('phase', 1)
+          .gt('scheduled_purge_at', lowerIso)
+          .lte('scheduled_purge_at', upperIso);
+        if (error) {
+          throw new Error(`cleanup.sendReminders[${bucket}]: query failed: ${error.message}`);
+        }
+        const rows = (data ?? []) as Array<{
+          id: string;
+          user_id: string;
+          scheduled_purge_at: string;
+          confirmation_token_hash: string | null;
+          metadata: Record<string, unknown> | null;
+        }>;
+
+        let windowSent = 0;
+        for (const r of rows) {
+          const meta = (r.metadata ?? {}) as Record<string, unknown>;
+          if (meta[flagCol]) continue;
+
+          try {
+            const { data: ures } = await admin.auth.admin.getUserById(r.user_id);
+            const email = ures?.user?.email ?? null;
+            if (!email) {
+              // No email on the auth row (already anonymized? unusual in grace).
+              // Skip silently — nothing actionable.
+              continue;
+            }
+            // P1-1: rotate a fresh cancel token per reminder.
+            const rawCancelToken = generateRawToken();
+            const rawCancelTokenHash = sha256Hex(rawCancelToken);
+            const cancelUrl = `${appUrl}/lgpd/confirm/${rawCancelToken}`;
+            const graceEndsAt = new Date(r.scheduled_purge_at);
+            await sendDeletionReminderEmail(
+              emailService,
+              sender,
+              brand,
+              email,
+              cancelUrl,
+              graceEndsAt,
+            );
+            await admin
+              .from('lgpd_requests')
+              .update({
+                metadata: {
+                  ...meta,
+                  [flagCol]: new Date().toISOString(),
+                  reminder_cancel_token_hash: rawCancelTokenHash,
+                },
+              })
+              .eq('id', r.id);
+            windowSent += 1;
+          } catch (e) {
+            logger.warn('[lgpd_sweep_reminder_failed]', {
+              bucket,
+              requestId: r.id,
+              message: e instanceof Error ? e.message : String(e),
+            });
+          }
+        }
+        return windowSent;
+      }
     },
 
     async deleteExpiredBlobs() {
@@ -804,12 +1081,27 @@ function makeTokenLookup(deps: UseCaseDeps): TokenLookupUseCases {
     async resolve(token) {
       if (!token) return null;
       const hash = sha256Hex(token);
+      // P1-4: look up by confirmation_token_hash OR any of the cancel-
+      // typed metadata hashes. We carry a `matchedAs` discriminator so
+      // a cancel-typed hash against an account_deletion row resolves to
+      // `account_deletion_cancel` even when status is `pending`.
+      //
+      // Type filter is applied below — we never bridge a hash collision
+      // between `data_export` and `account_deletion` by mistake. Even on
+      // (astronomically unlikely) sha256 collision, the `row.type` check
+      // routes into a single branch.
       const { data, error } = await admin
         .from('lgpd_requests')
         .select(
-          'id, user_id, type, status, scheduled_purge_at, blob_path, blob_uploaded_at, blob_deleted_at',
+          'id, user_id, type, status, scheduled_purge_at, blob_path, blob_uploaded_at, blob_deleted_at, confirmation_token_hash, metadata',
         )
-        .eq('confirmation_token_hash', hash)
+        .or(
+          [
+            `confirmation_token_hash.eq.${hash}`,
+            `metadata->>cancel_token_hash.eq.${hash}`,
+            `metadata->>reminder_cancel_token_hash.eq.${hash}`,
+          ].join(','),
+        )
         .maybeSingle();
       if (error) {
         throw new Error(`token_lookup.resolve: query failed: ${error.message}`);
@@ -824,9 +1116,26 @@ function makeTokenLookup(deps: UseCaseDeps): TokenLookupUseCases {
         blob_path: string | null;
         blob_uploaded_at: string | null;
         blob_deleted_at: string | null;
+        confirmation_token_hash: string | null;
+        metadata: Record<string, unknown> | null;
       };
 
+      // Determine which hash matched so cancel-typed tokens resolve to
+      // the cancel kind rather than the confirm kind.
+      const meta = (row.metadata ?? {}) as Record<string, unknown>;
+      const matchedConfirm = row.confirmation_token_hash === hash;
+      const matchedCancel =
+        meta.cancel_token_hash === hash ||
+        meta.reminder_cancel_token_hash === hash;
+
       if (row.type === 'data_export') {
+        // P1-4: explicit type discrimination. Even though the .or() filter
+        // keyed on three hash fields, we still bucket by `row.type` so a
+        // hash collision between an export row and a deletion row can
+        // NEVER route cross-branch. If the match came from a cancel
+        // metadata field on an export row (which should not exist —
+        // export requests don't store cancel hashes), reject as invalid.
+        if (matchedCancel) return null;
         if (!row.blob_path || row.blob_deleted_at) {
           return null;
         }
@@ -850,10 +1159,18 @@ function makeTokenLookup(deps: UseCaseDeps): TokenLookupUseCases {
         };
       }
 
-      // account_deletion — distinguish between "confirm pending" and
-      // "cancel-in-grace" so the page renders the right action.
-      const kind: 'account_deletion' | 'account_deletion_cancel' =
-        row.status === 'processing' ? 'account_deletion_cancel' : 'account_deletion';
+      // account_deletion branch — decide between confirm-pending, cancel
+      // (pre-confirm via the dedicated cancel token from the original email,
+      // or rotated via reminders), and confirm-processing (legacy cancel via
+      // original confirmation hash while in grace).
+      let kind: 'account_deletion' | 'account_deletion_cancel';
+      if (matchedCancel) {
+        kind = 'account_deletion_cancel';
+      } else if (row.status === 'processing') {
+        kind = 'account_deletion_cancel';
+      } else {
+        kind = 'account_deletion';
+      }
       return {
         requestId: row.id,
         type: 'account_deletion',
