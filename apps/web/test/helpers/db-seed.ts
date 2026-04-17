@@ -23,7 +23,7 @@ const PG_URL =
  * Inserts a row directly into auth.users (bypasses GoTrue, which is excluded
  * in CI via `--exclude gotrue`). Returns the new user's id.
  */
-async function insertAuthUser(email: string, id: string = randomUUID()): Promise<string> {
+export async function insertAuthUser(email: string, id: string = randomUUID()): Promise<string> {
   const client = new Client({ connectionString: PG_URL })
   await client.connect()
   try {
@@ -45,7 +45,7 @@ async function insertAuthUser(email: string, id: string = randomUUID()): Promise
 /**
  * Deletes a row directly from auth.users (bypasses GoTrue).
  */
-async function deleteAuthUser(id: string): Promise<void> {
+export async function deleteAuthUser(id: string): Promise<void> {
   const client = new Client({ connectionString: PG_URL })
   await client.connect()
   try {
