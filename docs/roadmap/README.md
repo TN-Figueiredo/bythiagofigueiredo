@@ -71,9 +71,11 @@
 
 - **Sprint 5b ✅ (2026-04-17)** — SEO hardening: 5 PRs merged em sequência A→B→C→D→E (#32-#36) + deploy PR #37 staging→main. Score 98/100. `apps/web/lib/seo/` wrapper sobre `@tn-figueiredo/seo@0.1.0` (16 módulos: config/page-metadata/jsonld/og/enumerator/cache-invalidation/etc), `app/sitemap.ts` + `app/robots.ts` + 3 OG routes (Node runtime, direct-host lookup per Next #58436), 7 archetypes wired com `<JsonLdScript>` @graph composition via schema-dts, 11 server actions com cache-invalidation tags + archivePost bug fix, admin site actions (branding/identity/defaults), Lighthouse CI (SEO ≥95 + mobile perf ≥80), `scripts/seo-smoke.sh` 8-check + `seo-post-deploy.yml` manual dispatch, `/api/health/seo` CRON_SECRET endpoint, `seo-incident.md` (6 scenarios + 8 known-limitations + follow-up tracker), `sprint-5b-post-deploy.md` 12-step checklist. 5 env-var feature flags (DB-driven refactor em Sprint 8.5). Prod verified: sitemap/robots/home/privacy/health green; OG dynamic falling back a static (Sentry investigation pending, non-blocking). Spec: [2026-04-16-sprint-5b-seo-hardening-design.md](../superpowers/specs/2026-04-16-sprint-5b-seo-hardening-design.md). Plan: [2026-04-16-sprint-5b-seo-hardening.md](../superpowers/plans/2026-04-16-sprint-5b-seo-hardening.md) (72 tasks, 7796 linhas).
 
-**Sprint ativo:** nenhum — Sprint 5b fechado 2026-04-17.
+- **CI hardening ✅ (2026-04-17)** — PR #39 (5 fixes: API env, migration order, dev seed, health timeout, soft-gate) + PR #40 (drain 18 failing DB-gated tests + hard-gate Integration job). Correção de segurança: `lgpd_phase1_cleanup` guard usava `current_user` (no-op em SECURITY DEFINER) → migrado para `auth.role()`. Migrations `20260501000004-6` aplicadas em prod. CI 100% hard-gated.
 
-**Próximo:** Sprint 5c (Playwright E2E, ~8h) ou Sprint 5d (Vercel hardening, ~3h) — escolher conforme prioridade. Antes disso, encerrar follow-ups de Sprint 5b: Figma-export `og-default.png`, commit real `identity/thiago.jpg`, pyftsubset Inter font, investigar OG dynamic fallback (Sentry), debug enumerator missing blog_index.
+**Sprint ativo:** nenhum.
+
+**Próximo:** Sprint 5c (Playwright E2E, ~8h) — cobre auth + CMS critical paths ponta-a-ponta. Bloqueador de confiança para o MVP Launch.
 
 ## Legenda de status
 
