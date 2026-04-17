@@ -29,10 +29,70 @@
 
 ---
 
-## PR-A: DB Schema (~30 min)
+## PR-A: DB Schema (~30 min) — **EXECUTED 2026-04-17 — 4 migrations applied, see PR #32**
 
 **Sprint:** 5b SEO Hardening
-**Scope:** 3 idempotent SQL migrations + pre-flight verification + post-verification + rollback reference. Zero application code.
+**Scope:** 4 idempotent SQL migrations (NOT 3 — a bootstrap migration was added mid-execution after pre-flight discovered prod's `sites`/`organizations` tables were empty). Zero application code.
+
+### EXECUTION DIVERGENCE FROM ORIGINAL PLAN (2026-04-17)
+
+**Discovery:** PR-A pre-flight (Task A.1) found `public.sites` and `public.organizations` tables EMPTY in prod. The site at bythiagofigueiredo.com renders only because the homepage uses hardcoded i18n JSON (no DB dependency). Sprint 5b SEO requires `getSiteByDomain()` to resolve, so a bootstrap migration was added.
+
+**Resolution:** New **Task A.0** — `20260417000000_seed_master_site.sql` — inserts `Figueiredo Technology` master org + `bythiagofigueiredo` site row. Applied first in the push (timestamp ordering). All 4 migrations applied via `npx supabase db push --linked --include-all` (the original plan's `npm run db:push:prod` rejected the older timestamp without the flag).
+
+**Plan command drift to fix:** Tasks A.1 and A.5 use `npx supabase db query --linked` — Supabase CLI 2.90 dropped this; correct is `npx supabase db query --linked`. Future re-runs of this plan section MUST substitute that command.
+
+---
+
+### Task A.0: Bootstrap migration (`20260417000000_seed_master_site.sql`)
+
+**Files:**
+- Create: `supabase/migrations/20260417000000_seed_master_site.sql`
+
+**Why:** prod had empty `organizations`/`sites` — Sprint 5b SEO can't function without the master site row. Idempotent via `ON CONFLICT (slug)` on both tables (verified `organizations_slug_key` UNIQUE constraint exists).
+
+```sql
+do $$
+declare
+  v_org_id uuid;
+  v_site_id uuid;
+begin
+  insert into public.organizations (name, slug, parent_org_id)
+  values ('Figueiredo Technology', 'figueiredo-tech', null)
+  on conflict (slug) do update set name = excluded.name
+  returning id into v_org_id;
+
+  insert into public.sites (
+    org_id, name, slug, domains, primary_domain,
+    default_locale, supported_locales, contact_notification_email
+  )
+  values (
+    v_org_id, 'ByThiagoFigueiredo', 'bythiagofigueiredo',
+    array['bythiagofigueiredo.com', 'www.bythiagofigueiredo.com'],
+    'bythiagofigueiredo.com', 'pt-BR', array['pt-BR', 'en'],
+    'thiago@bythiagofigueiredo.com'
+  )
+  on conflict (org_id, slug) do update set
+    domains = excluded.domains, primary_domain = excluded.primary_domain,
+    supported_locales = excluded.supported_locales,
+    contact_notification_email = excluded.contact_notification_email
+  returning id into v_site_id;
+
+  raise notice 'Seeded master org % and site % (bythiagofigueiredo.com)', v_org_id, v_site_id;
+end $$;
+```
+
+Verification (post-deploy, ran 2026-04-17):
+```sql
+select slug, primary_domain, supported_locales from public.organizations o
+  join public.sites s on s.org_id = o.id
+  where s.slug = 'bythiagofigueiredo';
+-- Returns: ('figueiredo-tech', 'bythiagofigueiredo.com', '{pt-BR,en}')
+```
+
+---
+
+### Original PR-A plan tasks (3 migrations) below — preserved for audit trail. **DO NOT re-execute** — already applied 2026-04-17.
 **Spec section:** "Schema changes" + "Rollout sequence > PR-A — DB schema".
 
 Conventions enforced:
@@ -58,7 +118,7 @@ Expected: line containing `novkqtvcnsiwhkxihurk`. If not linked: `npm run db:lin
 - [ ] **Step 2: Snapshot sites row(s)**
 
 ```bash
-cd /Users/figueiredo/Workspace/bythiagofigueiredo && npx supabase db remote sql --linked "select slug, primary_domain, supported_locales, default_locale from public.sites order by slug;"
+cd /Users/figueiredo/Workspace/bythiagofigueiredo && npx supabase db query --linked "select slug, primary_domain, supported_locales, default_locale from public.sites order by slug;"
 ```
 
 Expected: row with `slug='bythiagofigueiredo'`. Record `supported_locales` — backfill in Task A.4 only fires when it equals `{pt-BR}`.
@@ -66,13 +126,13 @@ Expected: row with `slug='bythiagofigueiredo'`. Record `supported_locales` — b
 - [ ] **Step 3: Confirm new columns don't already exist**
 
 ```bash
-cd /Users/figueiredo/Workspace/bythiagofigueiredo && npx supabase db remote sql --linked "select column_name from information_schema.columns where table_schema='public' and table_name='sites' and column_name in ('identity_type','twitter_handle','seo_default_og_image');"
+cd /Users/figueiredo/Workspace/bythiagofigueiredo && npx supabase db query --linked "select column_name from information_schema.columns where table_schema='public' and table_name='sites' and column_name in ('identity_type','twitter_handle','seo_default_og_image');"
 ```
 
 Expected: 0 rows.
 
 ```bash
-cd /Users/figueiredo/Workspace/bythiagofigueiredo && npx supabase db remote sql --linked "select column_name from information_schema.columns where table_schema='public' and table_name='blog_translations' and column_name='seo_extras';"
+cd /Users/figueiredo/Workspace/bythiagofigueiredo && npx supabase db query --linked "select column_name from information_schema.columns where table_schema='public' and table_name='blog_translations' and column_name='seo_extras';"
 ```
 
 Expected: 0 rows.
@@ -281,14 +341,14 @@ Confirm with `Y` when prompted. If push fails on a pre-existing row violating a 
 - [ ] **Step 3: Post-deploy verification**
 
 ```bash
-npx supabase db remote sql --linked \
+npx supabase db query --linked \
   "select slug, identity_type, twitter_handle, seo_default_og_image, supported_locales from public.sites order by slug;"
 ```
 
 Expected: master row with `identity_type='person'`, `twitter_handle='tnFigueiredo'`, `seo_default_og_image=null`, `supported_locales={pt-BR,en}`.
 
 ```bash
-npx supabase db remote sql --linked \
+npx supabase db query --linked \
   "select column_name, data_type from information_schema.columns \
    where table_schema='public' and table_name='blog_translations' and column_name='seo_extras';"
 ```
@@ -296,7 +356,7 @@ npx supabase db remote sql --linked \
 Expected: `seo_extras | jsonb`.
 
 ```bash
-npx supabase db remote sql --linked \
+npx supabase db query --linked \
   "select conname from pg_constraint \
    where conrelid in ('public.sites'::regclass, 'public.blog_translations'::regclass) \
    and (conname like '%seo%' or conname like '%identity_type%' or conname like '%twitter%') order by conname;"
@@ -353,7 +413,7 @@ CI should pass — migrations don't touch TypeScript.
 **Files:** none — incident-response only.
 
 ```sql
--- Rollback in REVERSE order. Apply via npx supabase db remote sql --linked.
+-- Rollback in REVERSE order. Apply via npx supabase db query --linked.
 -- Then ADD new migration 20260501999999_revert_sprint5b_pra.sql with these statements —
 -- NEVER delete rows from supabase_migrations.schema_migrations.
 
