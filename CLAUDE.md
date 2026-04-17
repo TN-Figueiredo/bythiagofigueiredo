@@ -168,6 +168,156 @@ Política de Privacidade + Termos de Uso em `apps/web/src/content/legal/` (pt-BR
 - **v1.0** (migration `20260430000012_consent_texts.sql`) — seed inicial, descrições curtas. Mantidas permanentemente como accountability record para consentimentos já coletados com esse texto. Marcadas como `superseded_at = now()` pela migração 022.
 - **v2.0** (migration `20260430000022_consent_texts_v2_seed.sql`) — texto expandido para atender o bar "livre, informada, inequívoca" do LGPD Art. 8: cada texto agora explicita categorias de dados, processadores + país + base de transferência, retenção e canal de revogação. Usado para todos os consentimentos novos a partir do deploy dessa migração. App lê a maior versão não-superseded de `(category, locale)`.
 
+## SEO hardening (Sprint 5b) — `lib/seo/` wrapper over `@tn-figueiredo/seo@0.1.0`
+
+Sprint 5b implementa o stack SEO completo: indexability + discoverability + rich results + brand share previews + multi-domain ready, com Lighthouse CI gate e runbook operacional.
+
+> **Status (2026-04-16):** 🟡 in-progress. PR-A merged 2026-04-17 (3 migrations + `seed_master_site` em prod). PR-B/C/D/E stacked on `feat/sprint-5b-pr-e-ops` pending merge + Vercel prod deploy green. Final ✅ flip no phase-1-mvp.md / README.md / aqui acontece em follow-up commit pós-`seo-post-deploy.yml` all-8-pass + sitemap submitted to GSC + Bing + Sentry 24h watch clean. Ver `docs/runbooks/sprint-5b-post-deploy.md` para o checklist completo.
+
+### Layer overview
+
+`apps/web/lib/seo/` é o wrapper local sobre `@tn-figueiredo/seo@0.1.0` (que provê primitives `generateMetadata`/`buildSitemap`/`buildRobots`). Wrapper local resolve gaps:
+- `alternates.languages` (hreflang per-route) — package só emite canonical
+- Sitemap manual (não usa `buildSitemap`) — package faz blanket hreflang que quebra paths locale-prefixed
+- `keywords/authors/publishedTime/modifiedTime` no Metadata
+- Validação JSON-LD via `schema-dts@1.1.5` (Google-maintained types)
+
+```
+lib/seo/
+├── config.ts                  getSiteSeoConfig() per-request, unstable_cache key=[siteId,host]
+├── host.ts                    resolveSiteByHost, isPreviewOrDevHost
+├── identity-profiles.ts       PROFILES Record<siteSlug, PersonProfile|OrgProfile> (committed JSON)
+├── page-metadata.ts           7 factories — generateXxxMetadata por archetype
+├── jsonld/
+│   ├── builders.ts            buildPersonNode/OrgNode/WebSiteNode/BlogPostingNode/ArticleNode/BreadcrumbNode/FaqNode/HowToNode/VideoNode
+│   ├── graph.ts               composeGraph({nodes}) → @graph + dedupeBy_id
+│   ├── extras-schema.ts       SeoExtrasSchema (Zod) para FAQ/HowTo/Video frontmatter
+│   ├── render.tsx             <JsonLdScript graph={...}/> com escapeJsonForScript
+│   └── types.ts               schema-dts re-exports
+├── og/
+│   ├── template.tsx           BlogOgTemplate + CampaignOgTemplate + GenericOgTemplate
+│   └── render.ts              generateOgImage({variant, params}) → ImageResponse
+├── noindex.ts                 NOINDEX_PATTERNS + isPathIndexable + PROTECTED_DISALLOW_PATHS
+├── enumerator.ts              enumerateSiteRoutes(siteId, config) — RLS-mirroring filters
+├── cache-invalidation.ts      revalidateBlogPostSeo/CampaignSeo/SiteBranding
+├── robots-config.ts           buildRobotsRules({config, host, aiCrawlersBlocked, protectedPaths})
+└── frontmatter.ts             parseMdxFrontmatter wrap gray-matter@4.0.3
+```
+
+### Multi-domain pattern — direct host lookup, NÃO middleware-dependent
+
+`app/sitemap.ts` e `app/robots.ts` fazem sua própria resolução `host → site` via `SupabaseRingContext.getSiteByDomain(host)` em vez de ler `headers().get('x-site-id')` do middleware. Razão: Next.js [discussion #58436](https://github.com/vercel/next.js/discussions/58436) confirma que middleware-injected headers NÃO são confiáveis em MetadataRoute handlers (mesmo com matcher cobrindo `.xml`/`.txt`). Duplica ~5 linhas de lógica mas é bulletproof.
+
+`isPreviewOrDevHost(host)` short-circuita pra noindex (Disallow:/) em:
+- `dev.bythiagofigueiredo.com`
+- `*.vercel.app`
+- `localhost*` / `dev.localhost`
+
+Middleware (`apps/web/src/middleware.ts`) tem short-circuit pra `/sitemap.xml` + `/robots.txt` — pula o rewrite `dev.bythiagofigueiredo.com/x → /dev/x` pra essas rotas dinâmicas rodarem com host original.
+
+### JSON-LD `@graph` composition
+
+Cada página renderiza UM `<script type="application/ld+json">` contendo `{'@context':'https://schema.org', '@graph': [...nodes]}`. Nós linkam via `@id` (URLs como identifiers).
+
+Por archetype:
+- `app/(public)/layout.tsx` (root) → `WebSite` (com `potentialAction: SearchAction`) + (`Person` ou `Organization` per `identityType`)
+- `/blog/[locale]/[slug]` → `BlogPosting` + `BreadcrumbList` + extras de `seo_extras` (`FAQPage`/`HowTo`/`VideoObject`)
+- `/blog/[locale]` → `BreadcrumbList`
+- `/campaigns/[locale]/[slug]` → `Article` + `BreadcrumbList`
+- `/privacy`, `/terms` → `BreadcrumbList`
+- `/contact` → `BreadcrumbList` + `ContactPage`
+
+Layout root nodes aparecem em toda página; per-page nodes empilham; `composeGraph` deduplica por `@id` (priority: nó com mais keys vence, deterministic).
+
+`<JsonLdScript>` SSR-safe via `escapeJsonForScript` (escapa `<`, `>`, `&`, U+2028, U+2029). Renderizado dentro de `<body>` (App Router não permite `<script>` custom em `<head>` via Metadata API). Googlebot lê do body sem problema.
+
+Type safety: `expectTypeOf().toMatchTypeOf<BlogPosting>()` em vitest pega regression compile-time.
+
+### OG image precedence chain
+
+Per blog/campaign:
+1. `seo_extras.og_image_url` (per-translation explicit override via frontmatter)
+2. `cover_image_url` from `blog_translations` (existing column, surfaced em Sprint 5b)
+3. Dynamic OG via `/og/blog/{locale}/{slug}` (gated por `NEXT_PUBLIC_SEO_DYNAMIC_OG_ENABLED=true`)
+4. `sites.seo_default_og_image` (NEW column, site-wide static fallback)
+5. `/og-default.png` (committed em `apps/web/public/`, last-resort)
+
+OG routes: `app/og/blog/[locale]/[slug]/route.tsx`, `app/og/campaigns/[locale]/[slug]/route.tsx`, `app/og/[type]/route.tsx`. Cache `public, max-age=3600, s-maxage=86400, swr=604800`. Inter font subset latin-only ~35KB. Erro → redirect 302 pra `/og-default.png` + `Sentry.captureException` com `tags: { component: 'og-route', type: 'blog' }`.
+
+### Identity profiles — committed JSON, NÃO em DB
+
+`apps/web/lib/seo/identity-profiles.ts` exporta `IDENTITY_PROFILES: Record<siteSlug, PersonProfile|OrgProfile>` com `name/jobTitle/imageUrl/sameAs[]`. Edits triggam code review intencional — identity é security-grade (sameAs links impactam Google Knowledge Graph). Sprint 11 (CMS Hub) pode mover pra DB se non-dev editing virar need.
+
+`apps/web/public/identity/thiago.jpg` (1:1 ratio, ≥400×400, JPEG <100KB) committed em PR-B.
+
+### Cache invalidation — tag taxonomy
+
+| Tag | Invalida | Set por |
+|---|---|---|
+| `seo-config` | `getSiteSeoConfig` (todos sites) | admin actions: `updateSiteBranding`, `updateSiteIdentity`, `updateSiteSeoDefaults` |
+| `blog:post:${postId}` | per-post fetches (metadata + OG) | blog `savePost`/`publishPost`/`unpublishPost`/`archivePost`/`deletePost` |
+| `og:blog:${postId}` | OG image route cache | mesmas blog actions |
+| `campaign:${campaignId}` | per-campaign fetches | campaign save/publish/etc |
+| `og:campaign:${campaignId}` | OG image route cache | mesmas campaign actions |
+| `sitemap:${siteId}` | enumerator query | qualquer post/campaign mutation |
+
+Helper canônico: `revalidateBlogPostSeo(siteId, postId, locale, slug)` em `lib/seo/cache-invalidation.ts`. **archivePost teve bug fix em PR-C** — antes só revalidava `/blog/${locale}` index, missing slug page.
+
+### RLS-aware sitemap enumerator
+
+`enumerateSiteRoutes(siteId, config)` consulta `blog_translations` + `campaign_translations` via service-role client mas aplica WHERE filters explicitos espelhando RLS public-read policies (`status='published'`, `published_at <= now()`, `published_at is not null`). DB-gated integration test cria draft + future-scheduled post + verifica que neither leaks. Static routes sempre incluídas: `/`, `/privacy`, `/terms`, `/contact`, `/blog/${defaultLocale}`. Ordenação: `lastModified DESC`.
+
+### Frontmatter — `gray-matter@4.0.3`
+
+`@tn-figueiredo/cms` `compileMdx` NÃO expõe frontmatter (verificado: retorna só `{compiledSource, toc, readingTimeMin}`). `lib/seo/frontmatter.ts` wrappa `gray-matter` (~30KB), valida `seo_extras` via `SeoExtrasSchema` (Zod), strip do conteúdo antes de `compileMdx`. Save action (`cms/(authed)/blog/[id]/edit/actions.ts`) chama `parseMdxFrontmatter(input.content_mdx)` antes de compilar, persiste `seo_extras` em `blog_translations.seo_extras` jsonb.
+
+Sprint 6+: extrair `parseFrontmatter` upstream pra `@tn-figueiredo/cms@0.3.0` se segundo consumer aparecer.
+
+### Schema migrations (3 + 1 seed, 2026-04-16, PR-A merged)
+
+- `20260417000000_seed_master_site.sql` — bootstrap `Figueiredo Technology` org + `bythiagofigueiredo` site row (was empty in prod, site renders only via hardcoded i18n JSON until now)
+- `20260501000001_sites_seo_columns.sql` — `sites.identity_type` text NOT NULL DEFAULT 'person' check IN ('person','organization'); `sites.twitter_handle` text check ~ '^[A-Za-z0-9_]{1,15}$'; `sites.seo_default_og_image` text check ~ '^https://'
+- `20260501000002_blog_translations_seo_extras.sql` — `blog_translations.seo_extras` jsonb + structural CHECK (object shape, faq array, howTo object, video object, og_image_url string)
+- `20260501000003_seo_backfill.sql` (idempotent) — `update sites set twitter_handle='tnFigueiredo' where slug='bythiagofigueiredo'`; backfill `supported_locales=array['pt-BR','en']`
+
+**Reuso:** `sites.supported_locales` já existia (Sprint 4.75), Sprint 5b consome — não duplica.
+
+### Feature flags (5)
+
+Granular rollback per-surface:
+
+- `NEXT_PUBLIC_SEO_JSONLD_ENABLED` — `<JsonLdScript>` returns null quando `false` (default true)
+- `NEXT_PUBLIC_SEO_DYNAMIC_OG_ENABLED` — pula step 3 da precedence chain (default true)
+- `NEXT_PUBLIC_SEO_EXTENDED_SCHEMAS_ENABLED` — drop FAQ/HowTo/Video nodes (default true)
+- `SEO_AI_CRAWLERS_BLOCKED` — adiciona Disallow para GPTBot/CCBot/anthropic-ai/Google-Extended/PerplexityBot/ClaudeBot/Bytespider/Amazonbot (default false; decisão do usuário per spec Open Decisions #1)
+- `SEO_SITEMAP_KILLED` — emergency `app/sitemap.ts` retorna `[]` (default false)
+
+Configurar em `apps/web/.env.local` + Vercel Environment Variables. Estado inicial prod: 4 first true, AI blocker false, kill switch false. Ver `docs/runbooks/seo-incident.md` pra triggers de cada flag.
+
+### CI quality gates (PR-D)
+
+- `.lighthouserc.yml` (LHCI) — SEO ≥95 (error), perf ≥80 mobile (warn), `uses-rel-canonical: error`, `hreflang: error`, `structured-data: warn`. Roda em `.github/workflows/lighthouse.yml` em PRs tocando `apps/web/**`, espera Vercel preview, `lhci autorun`.
+- `scripts/seo-smoke.sh $HOST` — 8 checks (sitemap valid XML, robots Sitemap line, robots disallow protected paths, JSON-LD `@graph` em blog post, OG content-type=image/png, hreflang alternates, dev subdomain `Disallow:/`, health endpoint `ok:true`).
+- `.github/workflows/seo-post-deploy.yml` — manual dispatch após deploy verde, roda smoke contra prod.
+- Vitest schema-dts `expectTypeOf` gate — pega schema regressions compile-time.
+
+### Health endpoint + runbook (PR-E)
+
+- `apps/web/src/app/api/health/seo/route.ts` — GET `Authorization: Bearer ${CRON_SECRET}` retorna `{ok, siteId, siteSlug, identityType, seoConfigCachedMs, sitemapBuildMs, sitemapRouteCount, schemaVersion: 'v1', flags: {jsonLd, dynamicOg, extendedSchemas, aiCrawlersBlocked, sitemapKilled}}`. 401 sem auth, 503 quando site não resolve.
+- `docs/runbooks/seo-incident.md` — 6 scenarios (A: sitemap empty, B: OG broken, C: Rich Results fail, D: hreflang wrong, E: AI crawler spike, F: drafts leaked CRITICAL).
+- `docs/runbooks/sprint-5b-post-deploy.md` — 12-step verification checklist.
+
+### Sentry tag conventions (Sprint 5b)
+
+Toda exceção SEO-layer taggeada com `seo: true` + `component`:
+- `component: 'sitemap'`, `'robots'`, `'og-route'` (sub-tag `type: 'blog'|'campaign'|'generic'`), `'jsonld'`, `'seo-config'`
+
+Filtro Sentry: `seo:true component:og-route last:24h`.
+
+### Server actions modificadas em PR-C (12 sites)
+
+`apps/web/src/app/cms/(authed)/blog/[id]/edit/actions.ts` (5 funções) + `apps/web/src/app/cms/(authed)/campaigns/{new,[id]/edit}/actions.ts` (5 funções) + `apps/web/src/app/cms/(authed)/blog/new/page.tsx` (1 server component) + admin actions novos em `apps/web/src/app/admin/(authed)/sites/actions.ts` (`updateSiteBranding`, `updateSiteIdentity`, `updateSiteSeoDefaults`). Cada site chama `revalidateBlogPostSeo`/`revalidateCampaignSeo`/`revalidateTag('seo-config')` conforme operação.
+
 ## Multi-ring (CMS conglomerate) — Sprint 4.75 RBAC v3
 
 Conglomerado multi-site com 4 papéis derivados. `bythiagofigueiredo.com` é o master ring.
