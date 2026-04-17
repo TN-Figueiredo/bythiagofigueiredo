@@ -41,7 +41,24 @@ export default async function EditPostPage({ params }: Props) {
         initialCoverImageUrl={post.cover_image_url}
         locale={tx.locale}
         componentNames={Object.keys(blogRegistry)}
-        onSave={async (input) => savePost(id, tx.locale, input)}
+        onSave={async (input) => {
+          const result = await savePost(id, tx.locale, input)
+          // Adapter: Sprint 5b PR-C added `invalid_seo_extras` to savePost's
+          // result union, but @tn-figueiredo/cms@0.2.0's PostEditor SaveResult
+          // type doesn't know about it. Project it onto the editor's existing
+          // `validation_failed` shape so the error surfaces under the content
+          // field (the frontmatter lives in the MDX body).
+          if (!result.ok && result.error === 'invalid_seo_extras') {
+            return {
+              ok: false,
+              error: 'validation_failed',
+              fields: {
+                content_mdx: result.details[0]?.message ?? 'invalid seo_extras frontmatter',
+              },
+            }
+          }
+          return result
+        }}
         onPreview={async (source) => compilePreview(source)}
         onUpload={async (file) => uploadAsset(file, id)}
       />
