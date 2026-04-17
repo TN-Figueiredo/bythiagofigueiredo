@@ -1,0 +1,242 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`graph composition snapshots (output drift detection) > blog post @graph — full extras 1`] = `
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@id": "https://example.com/#website",
+      "@type": "WebSite",
+      "inLanguage": "pt-BR",
+      "name": "Example",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "query-input": "required name=search_term_string",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": "https://example.com/blog/pt-BR?q={search_term_string}",
+        },
+      },
+      "publisher": {
+        "@id": "https://example.com/#person",
+      },
+      "url": "https://example.com",
+    },
+    {
+      "@id": "https://example.com/#person",
+      "@type": "Person",
+      "image": "https://example.com/identity/thiago.jpg",
+      "jobTitle": "Creator & Builder",
+      "name": "Thiago Figueiredo",
+      "sameAs": [
+        "https://www.instagram.com/x",
+        "https://github.com/x",
+      ],
+      "url": "https://example.com",
+    },
+    {
+      "@id": "https://example.com/blog/en/hello-world-en#blogposting",
+      "@type": "BlogPosting",
+      "author": {
+        "@id": "https://example.com/#person",
+      },
+      "dateModified": "2026-04-15T00:00:00.000Z",
+      "datePublished": "2026-04-14T00:00:00.000Z",
+      "description": "exc-en",
+      "headline": "Hello World",
+      "image": "https://example.com/og/blog/en/hello-world-en",
+      "inLanguage": "en",
+      "mainEntityOfPage": {
+        "@id": "https://example.com/blog/en/hello-world-en",
+      },
+      "publisher": {
+        "@id": "https://example.com/#person",
+      },
+      "url": "https://example.com/blog/en/hello-world-en",
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "item": "https://example.com/",
+          "name": "Home",
+          "position": 1,
+        },
+        {
+          "@type": "ListItem",
+          "item": "https://example.com/blog/pt-BR",
+          "name": "Blog",
+          "position": 2,
+        },
+        {
+          "@type": "ListItem",
+          "item": "https://example.com/blog/pt-BR/hello-world",
+          "name": "Hello World",
+          "position": 3,
+        },
+      ],
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "A1.",
+          },
+          "name": "Q1?",
+        },
+        {
+          "@type": "Question",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "A2.",
+          },
+          "name": "Q2?",
+        },
+      ],
+    },
+  ],
+}
+`;
+
+exports[`graph composition snapshots (output drift detection) > blog post @graph — minimal (no extras) 1`] = `
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@id": "https://example.com/#website",
+      "@type": "WebSite",
+      "inLanguage": "pt-BR",
+      "name": "Example",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "query-input": "required name=search_term_string",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": "https://example.com/blog/pt-BR?q={search_term_string}",
+        },
+      },
+      "publisher": {
+        "@id": "https://example.com/#person",
+      },
+      "url": "https://example.com",
+    },
+    {
+      "@id": "https://example.com/#person",
+      "@type": "Person",
+      "image": "https://example.com/identity/thiago.jpg",
+      "jobTitle": "Creator & Builder",
+      "name": "Thiago Figueiredo",
+      "sameAs": [
+        "https://www.instagram.com/x",
+        "https://github.com/x",
+      ],
+      "url": "https://example.com",
+    },
+    {
+      "@id": "https://example.com/blog/en/hello-world-en#blogposting",
+      "@type": "BlogPosting",
+      "author": {
+        "@id": "https://example.com/#person",
+      },
+      "dateModified": "2026-04-15T00:00:00.000Z",
+      "datePublished": "2026-04-14T00:00:00.000Z",
+      "description": "exc-en",
+      "headline": "Hello World",
+      "image": "https://example.com/og/blog/en/hello-world-en",
+      "inLanguage": "en",
+      "mainEntityOfPage": {
+        "@id": "https://example.com/blog/en/hello-world-en",
+      },
+      "publisher": {
+        "@id": "https://example.com/#person",
+      },
+      "url": "https://example.com/blog/en/hello-world-en",
+    },
+  ],
+}
+`;
+
+exports[`graph composition snapshots (output drift detection) > campaign @graph — Article + BreadcrumbList 1`] = `
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@id": "https://example.com/#website",
+      "@type": "WebSite",
+      "inLanguage": "pt-BR",
+      "name": "Example",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "query-input": "required name=search_term_string",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": "https://example.com/blog/pt-BR?q={search_term_string}",
+        },
+      },
+      "publisher": {
+        "@id": "https://example.com/#person",
+      },
+      "url": "https://example.com",
+    },
+    {
+      "@id": "https://example.com/#person",
+      "@type": "Person",
+      "image": "https://example.com/identity/thiago.jpg",
+      "jobTitle": "Creator & Builder",
+      "name": "Thiago Figueiredo",
+      "sameAs": [
+        "https://www.instagram.com/x",
+        "https://github.com/x",
+      ],
+      "url": "https://example.com",
+    },
+    {
+      "@id": "https://example.com/blog/en/hello-world-en#article",
+      "@type": "Article",
+      "author": {
+        "@id": "https://example.com/#person",
+      },
+      "dateModified": "2026-04-15T00:00:00.000Z",
+      "datePublished": "2026-04-14T00:00:00.000Z",
+      "description": "exc-en",
+      "headline": "Hello World",
+      "image": "https://example.com/og/blog/en/hello-world-en",
+      "inLanguage": "en",
+      "mainEntityOfPage": {
+        "@id": "https://example.com/blog/en/hello-world-en",
+      },
+      "publisher": {
+        "@id": "https://example.com/#person",
+      },
+      "url": "https://example.com/blog/en/hello-world-en",
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "item": "https://example.com/",
+          "name": "Home",
+          "position": 1,
+        },
+        {
+          "@type": "ListItem",
+          "item": "https://example.com/campaigns/pt-BR",
+          "name": "Campaigns",
+          "position": 2,
+        },
+        {
+          "@type": "ListItem",
+          "item": "https://example.com/campaigns/pt-BR/hello-world",
+          "name": "Hello World",
+          "position": 3,
+        },
+      ],
+    },
+  ],
+}
+`;
