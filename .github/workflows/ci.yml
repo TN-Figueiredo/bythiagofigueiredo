@@ -170,3 +170,34 @@ jobs:
             console.log('OK: SEO columns present in prod sites table');
           })();
           "
+
+  wait-for-vercel-seo:
+    name: Wait for Vercel preview (SEO smoke)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    outputs:
+      preview_url: ${{ steps.waitForVercel.outputs.url }}
+    steps:
+      - uses: patrickedqvist/wait-for-vercel-preview@v1.3.2
+        id: waitForVercel
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          max_timeout: 600
+          check_interval: 10
+
+  seo-smoke:
+    name: SEO Smoke (preview)
+    runs-on: ubuntu-latest
+    needs: wait-for-vercel-seo
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install xmllint
+        run: sudo apt-get update && sudo apt-get install -y libxml2-utils
+      - name: Run smoke against Vercel preview
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SKIP_HEALTH: '1'
+        run: |
+          chmod +x scripts/seo-smoke.sh
+          ./scripts/seo-smoke.sh "${{ needs.wait-for-vercel-seo.outputs.preview_url }}"
