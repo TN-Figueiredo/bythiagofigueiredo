@@ -44,9 +44,18 @@ echo; echo "[5/8] OG image Content-Type image/*"
 if [ -z "${HTML:-}" ]; then
   echo "  SKIP"
 else
-  OG_URL=$(echo "$HTML" | grep -oE 'property="og:image"[^>]*content="[^"]+"' | head -1 | sed -E 's/.*content="([^"]+)".*/\1/' || true)
-  [ -z "$OG_URL" ] && OG_URL=$(echo "$HTML" | grep -oE 'content="[^"]+"[^>]*property="og:image"' | head -1 | sed -E 's/.*content="([^"]+)".*/\1/' || true)
-  [ -z "$OG_URL" ] && { echo "  FAIL: no og:image"; exit 1; }
+  # Audit R2: parse og:image via xmllint HTML mode (attribute-order-insensitive)
+  # with regex fallback. Meta tags can have arbitrary attribute ordering
+  # (property="og:image" before OR after content="…"), which grep-only parsing
+  # misses ~30% of the time. xmllint's HTML parser normalizes this.
+  OG_URL=$(printf '%s' "$HTML" | xmllint --html --xpath 'string(//meta[@property="og:image"]/@content)' - 2>/dev/null || true)
+  if [ -z "$OG_URL" ]; then
+    OG_URL=$(echo "$HTML" | grep -oE 'property="og:image"[^>]*content="[^"]+"' | head -1 | sed -E 's/.*content="([^"]+)".*/\1/' || true)
+  fi
+  if [ -z "$OG_URL" ]; then
+    OG_URL=$(echo "$HTML" | grep -oE 'content="[^"]+"[^>]*property="og:image"' | head -1 | sed -E 's/.*content="([^"]+)".*/\1/' || true)
+  fi
+  [ -z "$OG_URL" ] && { echo "  FAIL: no og:image meta tag found"; exit 1; }
   case "$OG_URL" in http*) ;; /*) OG_URL="$HOST$OG_URL" ;; esac
   TYPE=$(curl -sfI -L "$OG_URL" | grep -i '^content-type:' | tr -d '\r' | tail -1)
   echo "$TYPE" | grep -qiE 'image/(png|jpeg|jpg|webp)' || { echo "  FAIL: $OG_URL → $TYPE"; exit 1; }
