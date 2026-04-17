@@ -4,7 +4,7 @@
 > **Source of truth de execução:** este diretório.
 > **Rationale de produto e scoring:** `~/Workspace/ideias/bythiagofigueiredo/` (docs 01–05, 2026-04-12).
 
-**Versão:** 2026-04-16 · **Revisão:** 6 (Sprint 4.5 follow-ups — admin@0.5.1 + cms@0.1.0-beta.4 landed)
+**Versão:** 2026-04-17 · **Revisão:** 8 (CI hardening ✅ — PR #39+40, migrations 20260501000004-6 em prod)
 
 ## Visão macro
 
@@ -24,10 +24,10 @@
 ## Progresso global
 
 ```
-▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░░░░░░  ~42% (197h / 464h — Sprints 0–4.5 + 5a ✅, 5b em PRs stacked)
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░░░░  ~47% (218h / 464h — Sprints 0–5b + CI hardening ✅)
 ```
 
-> Hours reconciled 2026-04-16: 12 (S0) + 40 (S1a+1b) + 42 (S2) + 40 (S3) + 40 (S4 actual — extraction + obs + LGPD retention, 4a+4b) + 10 (S4.5 complete) + 13 (S5a LGPD pública ✅) = **197h delivered**. Sprint 5 decomposto: 5a (LGPD ✅) + 5b (SEO, ~14h, 5 PRs stacked pending Vercel deploy green) + 5c (E2E, ~8h pending) + 5d (Vercel hardening, ~3h pending). Sprint 6 ("Burnout & MVP Launch" — 30h) follows. Denominador 464h = Fase 1 (242h) + Fase 2 (152h) + Fase 3 (70h). Sprint 4 shipou scope diferente do planejado; LGPD/deploy público foi re-slotted em Sprint 5. Ver phase-1 footnote.
+> Hours reconciled 2026-04-17: 12 (S0) + 40 (S1a+1b) + 42 (S2) + 40 (S3) + 40 (S4a+4b) + 10 (S4.5) + 13 (S5a) + 14 (S5b) + ~7 (S4.75 RBAC v3 — subset, já contabilizado em S4.75) = **~218h delivered**. Sprint 5c (~8h) + 5d (~3h) + Sprint 6 (30h) = ~41h restantes para MVP. Denominador 464h = Fase 1 (242h) + Fase 2 (152h) + Fase 3 (70h).
 
 **Done até agora:**
 - Sprint 0 ✅ — scaffold + CI + Supabase provisionado/linkado + Vercel/Sentry env vars + npm scripts de DB padrão TNG (~12h).
@@ -153,6 +153,7 @@ Lista completa de 9 riscos: `~/Workspace/ideias/bythiagofigueiredo/03-roadmap-cr
 
 ## Changelog
 
+- **2026-04-17 rev8:** Sprint 5b ✅ + CI hardening ✅ (PR #39+40 — 18 integration test failures drained, Integration job hard-gated, security fix lgpd_phase1_cleanup guard, migrations 20260501000004-6 em prod). Progress ~47% (218h / 464h). Sprint ativo: nenhum. Próximo: Sprint 5c (Playwright E2E, ~8h).
 - **2026-04-16 rev7:** Sprint 5a ✅ closed (LGPD pública — 26 migrations, 6-adapter wiring, 13h). Sprint 5b 🟡 in-progress (SEO hardening — 5 PRs stacked: A migrated; B/C/D/E pending merge + Vercel deploy + GSC/Bing submission). Progress ~42% (197h / 464h). Sprint 5 decomposto em 5a ✅ + 5b 🟡 + 5c ☐ + 5d ☐. Final ✅ flip para 5b pós-deploy via follow-up commit.
 - **2026-04-16 rev3:** Sprint 4a + 4b fechados e documentados. Sprint 4 original (LGPD/deploy) re-slotted em Sprint 5 ("Public launch prep"). Progress bar atualizado para ~50%. Sprint ativo = inter-sprint "Login split + package coordination" em planejamento.
 - **2026-04-13 rev2:** matemática de horas reconciliada, exit criteria por fase, rollup de packages, progresso corrigido, riscos linkados ao source.
