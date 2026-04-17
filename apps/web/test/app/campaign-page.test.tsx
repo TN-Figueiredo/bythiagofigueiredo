@@ -1,6 +1,16 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
+// Sprint 5b PR-C C.5: campaign page now reads headers() + site context +
+// SEO config to build Article + Breadcrumb JSON-LD. Stub the out-of-scope
+// dependencies so the unit test keeps asserting rendering behavior only.
+vi.mock('next/headers', () => ({
+  headers: () => Promise.resolve(new Map([['host', 'example.com']])),
+}))
+vi.mock('../../lib/cms/site-context', () => ({
+  tryGetSiteContext: () => Promise.resolve(null),
+}))
+
 vi.mock('../../lib/supabase/service', () => ({
   getSupabaseServiceClient: () => ({
     from: () => ({
