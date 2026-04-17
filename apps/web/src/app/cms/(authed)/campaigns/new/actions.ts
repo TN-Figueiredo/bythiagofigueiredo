@@ -20,6 +20,10 @@ export type CreateCampaignActionResult =
 /**
  * Server action: create a campaign under the current site_context. Validates
  * the current user can admin the target site before inserting.
+ *
+ * Sprint 5b PR-C (C.8): no revalidation here — drafts are not visible in the
+ * public site (sitemap filters `status='published'`). Publication status
+ * changes trigger `revalidateCampaignSeo` via `publishCampaign`.
  */
 export async function createCampaign(
   input: CreateCampaignActionInput,
