@@ -10,7 +10,7 @@
 
 | Fase | Sprints | Horas | Semanas | Status | Arquivo |
 |------|:-------:|:-----:|:-------:|:------:|---------|
-| **1 — MVP** | 0–6 | ~242h | 10–11 | 🟡 in-progress (5/7 sprints ✅) | [phase-1-mvp.md](phase-1-mvp.md) |
+| **1 — MVP** | 0–6 | ~242h | 10–11 | 🟡 in-progress (Sprints 0–4.5 + 5a ✅; 5b stacked PRs open; 5c/5d/6 pending) | [phase-1-mvp.md](phase-1-mvp.md) |
 | **2 — Nice-to-Have** | 7–10 | 152h | 7 | ☐ not-started | [phase-2-nice-to-have.md](phase-2-nice-to-have.md) |
 | **3 — CMS Hub Distribution** | 11–12 | 70h | 3 | ☐ not-started | [phase-3-cms-hub.md](phase-3-cms-hub.md) |
 | **Total** | 12 | **~464h** | **20–21** | | |
@@ -24,10 +24,10 @@
 ## Progresso global
 
 ```
-▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░░░░░░░  ~40% (184h / 464h — Sprints 0–4 ✅ + Sprint 4.5 ✅)
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░░░░░░  ~42% (197h / 464h — Sprints 0–4.5 + 5a ✅, 5b em PRs stacked)
 ```
 
-> Hours reconciled 2026-04-16: 12 (S0) + 40 (S1a+1b) + 42 (S2) + 40 (S3) + 40 (S4 actual — extraction + obs + LGPD retention, 4a+4b) + 10 (S4.5 complete — auth-nextjs 2.1.1 + admin 0.5.0 + cms beta.3 published + apps/web consumer wiring landed) = **184h delivered**. **Sprint 5 ("Public launch prep" — 38h) is now the next sprint.** Sprint 6 ("Burnout & MVP Launch" — 30h) pending after. Denominador 464h = Fase 1 (242h) + Fase 2 (152h) + Fase 3 (70h). Sprint 4 shipou scope diferente do planejado; LGPD/deploy público foi re-slotted em Sprint 5. Ver phase-1 footnote.
+> Hours reconciled 2026-04-16: 12 (S0) + 40 (S1a+1b) + 42 (S2) + 40 (S3) + 40 (S4 actual — extraction + obs + LGPD retention, 4a+4b) + 10 (S4.5 complete) + 13 (S5a LGPD pública ✅) = **197h delivered**. Sprint 5 decomposto: 5a (LGPD ✅) + 5b (SEO, ~14h, 5 PRs stacked pending Vercel deploy green) + 5c (E2E, ~8h pending) + 5d (Vercel hardening, ~3h pending). Sprint 6 ("Burnout & MVP Launch" — 30h) follows. Denominador 464h = Fase 1 (242h) + Fase 2 (152h) + Fase 3 (70h). Sprint 4 shipou scope diferente do planejado; LGPD/deploy público foi re-slotted em Sprint 5. Ver phase-1 footnote.
 
 **Done até agora:**
 - Sprint 0 ✅ — scaffold + CI + Supabase provisionado/linkado + Vercel/Sentry env vars + npm scripts de DB padrão TNG (~12h).
@@ -67,7 +67,18 @@
     - Logout UI gap fechado (`2c03a0a`): POST forms em `/admin/(authed)/layout.tsx` + `/cms/(authed)/layout.tsx` (workaround até admin exportar `logoutPath` prop).
   - **Não-blocking, deferidos**: `requireArea` usa JWT-based `is_staff()` RPC (stale claim até refresh ~1h) — fix real requer nova RPC `is_member_staff()` lendo `organization_members`, schema work Sprint 5+; admin types flip → 0.6.0; CI Release workflows do tnf-ecosystem ainda bloqueados por `npm ci` 401 em `@tn-figueiredo/affiliate@0.1.0` (pré-existente).
 
-**Sprint ativo:** nenhum — Sprint 4.5 + follow-ups completo no `staging`. **Próximo: Sprint 5 (Public Launch Prep — 38h)** — LGPD público (privacy policy + terms + cookie banner + delete account + data export), SEO completo, testes E2E, deploy hardening.
+- **Sprint 5a ✅ (2026-04-16)** — LGPD compliance: 26 migrations (lgpd_requests, consents, consent_texts v1+v2, 7 RPCs, storage bucket, FK ON DELETE SET NULL, audit_log skip-cascade guard), `@tn-figueiredo/lgpd@0.1.0` 6-adapter wiring (container + use-case glue), 9 API routes, 8 UI components, 6 account pages, consent-aware Sentry init, privacy+terms MDX (pt-BR+en), `/privacy` + `/terms` routes, CI DB-integration job, 4 feature flags (banner / delete / export / cron sweep), vitest coverage for `lib/lgpd/**` (90% thresholds). Prod DB on-schema; Vercel deploy via PR #24. Score 99/100. Spec: [2026-04-16-sprint-5a-lgpd-public-design.md](../superpowers/specs/2026-04-16-sprint-5a-lgpd-public-design.md).
+
+**Sprint ativo:** **Sprint 5b (SEO hardening — ~14h)** — 5 PRs stacked:
+- PR-A ✅ merged 2026-04-17 (PR #32): 3 migrations applied to prod (sites.identity_type/twitter_handle/seo_default_og_image, blog_translations.seo_extras jsonb) + `seed_master_site` bootstrap.
+- PR-B: `apps/web/lib/seo/` core (config, page-metadata factories, jsonld @graph with schema-dts, dynamic OG via next/og + brand template, enumerator with RLS mirror, robots-config), `app/sitemap.ts` + `app/robots.ts` + 3 OG route handlers, middleware short-circuit, deps gray-matter + schema-dts + @lhci/cli.
+- PR-C: Wire 7 page archetypes via factory metadata + `<JsonLdScript>`, 11 server actions with cache-invalidation tags, admin actions for branding/identity/defaults, archivePost revalidation fix.
+- PR-D: Lighthouse CI (SEO ≥95, perf ≥80 mobile), `scripts/seo-smoke.sh` 8-check post-deploy, `seo-post-deploy.yml` manual dispatch workflow, schema-dts `expectTypeOf` test gate.
+- PR-E: `/api/health/seo` CRON_SECRET endpoint, `docs/runbooks/seo-incident.md` (6 scenarios A–F), `docs/runbooks/sprint-5b-post-deploy.md` (12-step checklist).
+
+Pending: Vercel prod deploy green after PR-B/C/D/E merge → run `seo-post-deploy.yml` → submit sitemap to GSC + Bing → Sentry 24h watch → flip 5b status to ✅ in a follow-up commit. See `docs/runbooks/sprint-5b-post-deploy.md` for the full closeout flow.
+
+**Próximo pós-5b:** Sprint 5c (Playwright E2E, ~8h) ou Sprint 5d (Vercel hardening, ~3h).
 
 ## Legenda de status
 
@@ -145,6 +156,7 @@ Lista completa de 9 riscos: `~/Workspace/ideias/bythiagofigueiredo/03-roadmap-cr
 
 ## Changelog
 
+- **2026-04-16 rev7:** Sprint 5a ✅ closed (LGPD pública — 26 migrations, 6-adapter wiring, 13h). Sprint 5b 🟡 in-progress (SEO hardening — 5 PRs stacked: A migrated; B/C/D/E pending merge + Vercel deploy + GSC/Bing submission). Progress ~42% (197h / 464h). Sprint 5 decomposto em 5a ✅ + 5b 🟡 + 5c ☐ + 5d ☐. Final ✅ flip para 5b pós-deploy via follow-up commit.
 - **2026-04-16 rev3:** Sprint 4a + 4b fechados e documentados. Sprint 4 original (LGPD/deploy) re-slotted em Sprint 5 ("Public launch prep"). Progress bar atualizado para ~50%. Sprint ativo = inter-sprint "Login split + package coordination" em planejamento.
 - **2026-04-13 rev2:** matemática de horas reconciliada, exit criteria por fase, rollup de packages, progresso corrigido, riscos linkados ao source.
 - **2026-04-13 rev1:** versão inicial.
