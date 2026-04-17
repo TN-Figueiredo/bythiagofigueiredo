@@ -108,7 +108,7 @@ We retain each category for the minimum term required by the purpose or by law:
 | User account (active) | While the account exists |
 | User account (after deletion request) | 15-day grace period (cancellable) → permanent deletion |
 | Newsletter subscriptions | Anonymized immediately upon unsubscribe (email → SHA-256 hash) |
-| Contact-form submissions | Up to 2 years; anonymized upon request at any time |
+| Contact-form submissions | Up to 2 years (automatic weekly cron anonymization); anonymized upon request at any time |
 | Sent emails (`sent_emails`) | Automatic purge after **90 days** |
 | Audit logs | 5 years (regulatory requirement for accountability) |
 | Consents (`consents`) | Retained while valid + 5 years after withdrawal (accountability) |
@@ -116,7 +116,7 @@ We retain each category for the minimum term required by the purpose or by law:
 | Data exports (Storage blobs) | 7 days after generation |
 | LGPD requests (`lgpd_requests`) | 5 years after completion (accountability) |
 
-After these periods, the data is deleted or irreversibly anonymized.
+After these periods, the data is deleted or irreversibly anonymized. **The 2-year retention of contact-form submissions is automatically enforced by a weekly cron** (`purge_old_contact_submissions` — irreversible anonymization, preserving `site_id` and `submitted_at` only for aggregate analytics).
 
 ## 7. Data subject rights (LGPD Art. 18)
 

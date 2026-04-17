@@ -106,7 +106,7 @@ Retemos cada categoria pelo prazo mínimo necessário à finalidade ou exigido p
 | Conta de usuário (ativa) | Enquanto a conta existir |
 | Conta de usuário (após pedido de exclusão) | 15 dias de carência (possibilidade de cancelamento) → exclusão definitiva |
 | Inscrições na newsletter | Anonimizadas imediatamente no unsubscribe (e-mail → hash SHA-256) |
-| Submissões do formulário de contato | Até 2 anos; anonimização sob solicitação a qualquer momento |
+| Submissões do formulário de contato | Até 2 anos (anonimização automática semanal por cron); anonimização sob solicitação a qualquer momento |
 | E-mails enviados (`sent_emails`) | Purga automática após **90 dias** |
 | Logs de auditoria | 5 anos (exigência regulatória para accountability) |
 | Consentimentos (`consents`) | Mantidos enquanto válidos + 5 anos após revogação (accountability) |
@@ -114,7 +114,7 @@ Retemos cada categoria pelo prazo mínimo necessário à finalidade ou exigido p
 | Exportações de dados (blobs Storage) | 7 dias após geração |
 | Pedidos LGPD (`lgpd_requests`) | 5 anos após conclusão (accountability) |
 
-Após esses prazos os dados são excluídos ou anonimizados de forma irreversível.
+Após esses prazos os dados são excluídos ou anonimizados de forma irreversível. **A retenção de 2 anos de submissões do formulário de contato é automaticamente aplicada via cron semanal** (`purge_old_contact_submissions` — anonimização irreversível, preservando `site_id` e `submitted_at` apenas para analytics agregado).
 
 ## 7. Direitos do titular (LGPD Art. 18)
 
