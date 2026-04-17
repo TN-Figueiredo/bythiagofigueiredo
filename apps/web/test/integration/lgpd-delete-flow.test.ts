@@ -125,22 +125,20 @@ describe.skipIf(skipIfNoLocalDb())('LGPD delete flow', () => {
 
   it('lgpd_phase1_cleanup reassigns blog_posts.owner_user_id to master admin', async () => {
     // Use editor_a (Site A editor) who has an authors row.
-    const { data: author } = await admin
-      .from('authors')
-      .select('id')
-      .eq('user_id', scenario.editorAId)
-      .single()
-    const { data: post } = await admin
+    // Use the stored author ID directly to avoid a query that may fail if a
+    // previous (concurrent) test run already nulled editorAId's authors.user_id.
+    const authorId = scenario.authorsByUser[scenario.editorAId]
+    const { data: post, error: postErr } = await admin
       .from('blog_posts')
       .insert({
         site_id: scenario.siteAId,
-        author_id: author!.id,
+        author_id: authorId,
         owner_user_id: scenario.editorAId,
-        slug: `test-${randomUUID().slice(0, 8)}`,
         status: 'draft',
       })
       .select('id')
       .single()
+    expect(postErr).toBeNull()
 
     await admin.rpc('lgpd_phase1_cleanup', {
       p_user_id: scenario.editorAId,
@@ -159,7 +157,10 @@ describe.skipIf(skipIfNoLocalDb())('LGPD delete flow', () => {
   })
 
   it('lgpd_phase1_cleanup nullifies authors.user_id for target user', async () => {
-    const userId = scenario.reporterAId
+    // Earlier tests called phase1 for reporterAId (newsletter + contact cleanup),
+    // which already nulled reporter's authors.user_id. Use randomId instead —
+    // no prior test in this suite has run phase1 for randomId at this point.
+    const userId = scenario.randomId
     const { data: before } = await admin.from('authors').select('user_id').eq('user_id', userId)
     expect((before ?? []).length).toBeGreaterThan(0)
 
@@ -222,9 +223,31 @@ describe.skipIf(skipIfNoLocalDb())('LGPD delete flow', () => {
   })
 
   it('check_deletion_safety flags master_ring_sole_admin when only 1 master admin exists', async () => {
+    // Temporarily make superAdminId the sole master ring admin by removing
+    // any other org_admin rows (e.g. the dev seed user) for this check.
+    const { data: otherAdmins } = await admin
+      .from('organization_members')
+      .select('id, org_id, user_id, role')
+      .eq('org_id', scenario.orgMasterId)
+      .neq('user_id', scenario.superAdminId)
+    if (otherAdmins?.length) {
+      await admin
+        .from('organization_members')
+        .delete()
+        .eq('org_id', scenario.orgMasterId)
+        .neq('user_id', scenario.superAdminId)
+    }
+
     const { data } = await admin.rpc('check_deletion_safety', { p_user_id: scenario.superAdminId })
+
+    // Restore other admins.
+    if (otherAdmins?.length) {
+      await admin.from('organization_members').insert(
+        otherAdmins.map(({ org_id, user_id, role }) => ({ org_id, user_id, role })),
+      )
+    }
+
     const parsed = data as { can_delete: boolean; blockers: string[] }
-    // Seed created the only master admin = superAdminId, so this should block.
     expect(parsed.blockers).toContain('master_ring_sole_admin')
     expect(parsed.can_delete).toBe(false)
   })

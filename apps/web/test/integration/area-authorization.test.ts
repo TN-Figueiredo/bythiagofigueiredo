@@ -46,6 +46,24 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { randomUUID } from 'node:crypto'
 import { NextRequest } from 'next/server'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
+
+// Mirror middleware.test.ts: stub ring so site resolution uses localhost
+// instead of hitting the DB (which has no localhost site row).
+vi.mock('@tn-figueiredo/cms/ring', () => ({
+  SupabaseRingContext: class {
+    constructor(_client: unknown) {}
+    getSiteByDomain(domain: string) {
+      if (domain === 'localhost') {
+        return Promise.resolve({
+          id: 'site-1', org_id: 'org-1', default_locale: 'pt-BR',
+          domains: ['localhost'], supported_locales: ['pt-BR'],
+          name: 'LocalDev', slug: 'localdev', created_at: '', updated_at: '', cms_enabled: true,
+        })
+      }
+      return Promise.resolve(null)
+    }
+  },
+}))
 import {
   SUPABASE_URL,
   SERVICE_KEY,
@@ -243,6 +261,13 @@ describe.skipIf(skipIfNoLocalDb())('area authorization (admin + cms) — DB-gate
     const { siteId, orgId } = await freshSite()
     const { userId, jwt } = await freshUser(orgId, 'editor')
 
+    // RBAC v3: editors live in site_memberships, not organization_members.
+    // Insert a site-level membership so can_admin_site_for_user returns true.
+    const { error: smErr } = await db
+      .from('site_memberships')
+      .insert({ site_id: siteId, user_id: userId, role: 'editor' })
+    expect(smErr).toBeNull()
+
     // Pre-delete: both layers agree the editor can access.
     expect(await requireAreaWouldAllow(jwt, 'cms')).toBe(true)
     {
@@ -254,11 +279,12 @@ describe.skipIf(skipIfNoLocalDb())('area authorization (admin + cms) — DB-gate
       expect(data).toBe(true)
     }
 
-    // Membership revoked server-side (e.g. admin removed the editor from org).
+    // Membership revoked server-side (e.g. admin removed the editor from site).
+    // RBAC v3: editors are in site_memberships, not organization_members.
     const { error: delErr } = await db
-      .from('organization_members')
+      .from('site_memberships')
       .delete()
-      .match({ org_id: orgId, user_id: userId })
+      .match({ site_id: siteId, user_id: userId })
     expect(delErr).toBeNull()
 
     // Site-scoped helper (DB-queried) correctly denies — this is the check

@@ -19,6 +19,8 @@ import {
   SERVICE_KEY,
   seedRbacScenario,
   cleanupRbacScenario,
+  insertAuthUser,
+  deleteAuthUser,
   type RbacScenario,
 } from '../helpers/db-seed'
 
@@ -72,16 +74,8 @@ describe.skipIf(skipIfNoLocalDb())('RBAC v3 accept_invitation_atomic (two-param)
       role: 'org_admin',
       orgId: s.orgChildId,
     })
-    // We insert a throwaway auth user so FKs are satisfied.
-    const authAdmin = (admin as unknown as {
-      auth: { admin: { createUser: (a: {email:string;password:string;email_confirm:boolean}) => Promise<{data:{user:{id:string}|null};error:unknown}>; deleteUser: (id:string) => Promise<{error:unknown}> } }
-    }).auth.admin
-    const newUser = await authAdmin.createUser({
-      email: `acceptor-org-${Date.now()}@test`,
-      password: 'acc-pw-12345678',
-      email_confirm: true,
-    })
-    const newUserId = newUser.data.user!.id
+    // Insert throwaway auth user via pg.Client (GoTrue excluded in CI).
+    const newUserId = await insertAuthUser(`acceptor-org-${Date.now()}@test`)
 
     const { data, error } = await admin.rpc('accept_invitation_atomic', {
       p_token_hash: token,
@@ -100,7 +94,7 @@ describe.skipIf(skipIfNoLocalDb())('RBAC v3 accept_invitation_atomic (two-param)
       .single()
     expect(om!.role).toBe('org_admin')
 
-    await authAdmin.deleteUser(newUserId)
+    await deleteAuthUser(newUserId)
   })
 
   it('site invite creates site_memberships row + returns site.primary_domain redirect', async () => {
@@ -110,15 +104,7 @@ describe.skipIf(skipIfNoLocalDb())('RBAC v3 accept_invitation_atomic (two-param)
       orgId: s.orgChildId,
       siteId: s.siteAId,
     })
-    const authAdmin = (admin as unknown as {
-      auth: { admin: { createUser: (a: {email:string;password:string;email_confirm:boolean}) => Promise<{data:{user:{id:string}|null};error:unknown}>; deleteUser: (id:string) => Promise<{error:unknown}> } }
-    }).auth.admin
-    const newUser = await authAdmin.createUser({
-      email: `acceptor-site-${Date.now()}@test`,
-      password: 'acc-pw-12345678',
-      email_confirm: true,
-    })
-    const newUserId = newUser.data.user!.id
+    const newUserId = await insertAuthUser(`acceptor-site-${Date.now()}@test`)
 
     const { data, error } = await admin.rpc('accept_invitation_atomic', {
       p_token_hash: token,
@@ -139,7 +125,7 @@ describe.skipIf(skipIfNoLocalDb())('RBAC v3 accept_invitation_atomic (two-param)
       .single()
     expect(sm!.role).toBe('editor')
 
-    await authAdmin.deleteUser(newUserId)
+    await deleteAuthUser(newUserId)
   })
 
   it('unknown token raises P0002 (invitation_invalid)', async () => {
@@ -174,15 +160,7 @@ describe.skipIf(skipIfNoLocalDb())('RBAC v3 accept_invitation_atomic (two-param)
       orgId: s.orgChildId,
       siteId: s.siteAId,
     })
-    const authAdmin = (admin as unknown as {
-      auth: { admin: { createUser: (a: {email:string;password:string;email_confirm:boolean}) => Promise<{data:{user:{id:string}|null};error:unknown}>; deleteUser: (id:string) => Promise<{error:unknown}> } }
-    }).auth.admin
-    const newUser = await authAdmin.createUser({
-      email: `acceptor-again-${Date.now()}@test`,
-      password: 'acc-pw-12345678',
-      email_confirm: true,
-    })
-    const newUserId = newUser.data.user!.id
+    const newUserId = await insertAuthUser(`acceptor-again-${Date.now()}@test`)
 
     const first = await admin.rpc('accept_invitation_atomic', {
       p_token_hash: token,
@@ -197,7 +175,7 @@ describe.skipIf(skipIfNoLocalDb())('RBAC v3 accept_invitation_atomic (two-param)
     expect(second.error).not.toBeNull()
     expect(second.error!.code).toBe('P0002')
 
-    await authAdmin.deleteUser(newUserId)
+    await deleteAuthUser(newUserId)
   })
 
   it('invitations scope CHECK rejects org-scope with a non-null site_id', async () => {

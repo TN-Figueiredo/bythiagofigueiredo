@@ -139,9 +139,14 @@ describe.skipIf(skipIfNoLocalDb())('LGPD consents + merge', () => {
   })
 
   it('partial unique index blocks duplicate current (category, site_id) per user', async () => {
+    // The unique index consents_auth_current is on (user_id, category, site_id)
+    // WHERE user_id IS NOT NULL AND withdrawn_at IS NULL. PostgreSQL treats NULL
+    // as distinct in unique indexes, so site_id=NULL does NOT trigger the
+    // constraint. A non-NULL site_id is required for the index to fire.
     const uid = scenario.reporterAId
     const { data: a, error: e1 } = await admin.from('consents').insert({
       user_id: uid,
+      site_id: scenario.siteAId,
       category: 'newsletter',
       consent_text_id: 'newsletter_v1_pt-BR',
       granted: true,
@@ -150,6 +155,7 @@ describe.skipIf(skipIfNoLocalDb())('LGPD consents + merge', () => {
 
     const { error: e2 } = await admin.from('consents').insert({
       user_id: uid,
+      site_id: scenario.siteAId,
       category: 'newsletter',
       consent_text_id: 'newsletter_v1_pt-BR',
       granted: false,
