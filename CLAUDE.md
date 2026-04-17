@@ -312,10 +312,37 @@ Upgrade: editar `package.json` + `npm install` → CI valida pinning.
 
 ## CI
 
-`.github/workflows/ci.yml` — typecheck, test, audit, secret-scan, ecosystem-pinning.
-Triggers em `main` + `staging` (push e PR).
+### Workflows
 
-`NPM_TOKEN` secret (classic PAT com `read:packages`) necessário pra install dos `@tn-figueiredo/*`.
+| Workflow | Trigger | Purpose |
+|---|---|---|
+| `ci.yml` | push/PR `staging` | typecheck, test (api+web), audit, secret-scan, ecosystem-pinning, seo-smoke (preview, SKIP_HEALTH=1), check-migration-applied |
+| `lighthouse.yml` | PR `staging`/`main` on apps/web/packages/cms changes | LHCI desktop + mobile; SEO ≥95 error, perf ≥80 warn |
+| `seo-post-deploy.yml` | manual dispatch | Run `scripts/seo-smoke.sh` against any host (typically prod post-deploy) |
+
+### Secrets
+
+| Secret | Required | Used by |
+|---|---|---|
+| `NPM_TOKEN` | yes | classic PAT `read:packages` for `@tn-figueiredo/*` |
+| `GITHUB_TOKEN` | auto | wait-for-vercel-preview, gh CLI |
+| `CRON_SECRET` | yes | seo-smoke check #8 (`/api/health/seo`) |
+| `LHCI_GITHUB_APP_TOKEN` | optional | Lighthouse CI PR comments |
+
+### SEO post-deploy smoke (manual)
+
+`scripts/seo-smoke.sh` runs 8 checks. Invocation:
+
+```bash
+# Local against prod:
+CRON_SECRET=$(grep CRON_SECRET apps/web/.env.local | cut -d= -f2) \
+  ./scripts/seo-smoke.sh https://bythiagofigueiredo.com
+
+# Pre-PR-E (skip health check):
+SKIP_HEALTH=1 ./scripts/seo-smoke.sh https://bythiagofigueiredo.com
+```
+
+Manual flow: Actions → SEO Post-Deploy Smoke → Run workflow → enter `host` + `skip_health`.
 
 ## O que NÃO fazer
 
