@@ -125,3 +125,39 @@ jobs:
           base: ${{ github.event.repository.default_branch }}
           head: HEAD
           extra_args: --debug --only-verified
+
+  check-migration-applied:
+    name: SEO Migration Pre-Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Verify PR-A SEO columns exist in prod
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          node -e "
+          const { createClient } = require('@supabase/supabase-js');
+          const supabase = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+          );
+          (async () => {
+            const { error } = await supabase
+              .from('sites')
+              .select('identity_type, twitter_handle, seo_default_og_image')
+              .limit(0);
+            if (error) {
+              console.error('FAIL: PR-A migrations not applied to prod:', error.message);
+              process.exit(1);
+            }
+            console.log('OK: SEO columns present in prod sites table');
+          })();
+          "
