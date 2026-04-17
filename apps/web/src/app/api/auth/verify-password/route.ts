@@ -12,10 +12,19 @@ import {
   LGPD_VERIFY_COOKIE_NAME,
   LGPD_VERIFY_MAX_AGE_SEC,
 } from '@/lib/lgpd/verify-cookie';
+import { verifyPasswordRateLimiter } from '@/lib/lgpd/verify-password-rate-limiter';
 
 const BodySchema = z.object({
   password: z.string().min(1),
 });
+
+// P1-5 (Sprint 5a): rate-limit verify-password to 5 attempts per hour
+// per-user. Closes the brute-force gap where an attacker with a stolen
+// session cookie could hammer the endpoint. The singleton is imported
+// from `@/lib/lgpd/verify-password-rate-limiter` so the route file only
+// exports route handlers — Next.js rejects any other export name.
+const RATE_LIMIT_MAX = 5;
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 
 /**
  * POST /api/auth/verify-password
@@ -66,6 +75,32 @@ export async function POST(req: Request): Promise<Response> {
     return NextResponse.json({ error: 'invalid_body' }, { status: 400 });
   }
 
+  // P1-5: rate-limit check BEFORE hitting Supabase Auth. Uses the
+  // `isAllowed(key, max, windowMs)` API from @tn-figueiredo/audit —
+  // sliding-window semantics: each call increments the count, returns
+  // false once the window's count reaches `max`. We key on the user's
+  // stable auth id so a signed-in attacker can't bypass by rotating
+  // IPs/headers.
+  const rlKey = `verify-password:${user.id}`;
+  const allowed = await verifyPasswordRateLimiter.isAllowed(
+    rlKey,
+    RATE_LIMIT_MAX,
+    RATE_LIMIT_WINDOW_MS,
+  );
+  if (!allowed) {
+    return NextResponse.json(
+      {
+        valid: false,
+        error: 'rate_limited',
+        retryAfterSec: Math.ceil(RATE_LIMIT_WINDOW_MS / 1000),
+      },
+      {
+        status: 429,
+        headers: { 'Retry-After': String(Math.ceil(RATE_LIMIT_WINDOW_MS / 1000)) },
+      },
+    );
+  }
+
   // Ephemeral, session-less client — does NOT touch cookies, so the user's
   // primary server-side session remains the authoritative one. We explicitly
   // signOut() to revoke the just-issued refresh token server-side.
@@ -92,6 +127,16 @@ export async function POST(req: Request): Promise<Response> {
     await ephemeral.auth.signOut();
   } catch {
     /* best-effort */
+  }
+
+  // P1-5: correct password → reset the rate-limit counter so a legitimate
+  // user who just recovered from a typo isn't stuck at 1/5 for an hour.
+  try {
+    verifyPasswordRateLimiter._store.delete(rlKey);
+  } catch {
+    /* store introspection is best-effort — a failure here doesn't change
+       the correctness of the 429 gating above, it just means the counter
+       ticks down naturally by its window reset. */
   }
 
   // Fix 14 (Sprint 5a): server-enforced password re-auth. Set a signed,

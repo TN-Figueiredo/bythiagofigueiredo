@@ -56,12 +56,25 @@ export class BrevoLgpdEmailService implements ILgpdEmailService {
     to: string,
     confirmUrl: string,
     expiresAt: Date,
+    /**
+     * P1-1 (Sprint 5a): optional dedicated cancel URL. When present, the
+     * email offers a one-click abort link whose raw token is DIFFERENT
+     * from the confirm token — so interception of the confirm link does
+     * not trivially yield a cancel capability (and vice-versa).
+     */
+    cancelUrl?: string,
   ): Promise<void> {
     const expires = formatDatePtBR(expiresAt);
     const body = `
       <p>Recebemos uma solicitação para excluir a sua conta no ${this.brandName}.</p>
       <p>Para confirmar, clique no botão abaixo. O link expira em <strong>${expires}</strong>.</p>
       ${emailButton({ url: confirmUrl, label: 'Confirmar exclusão', ...(this.branding.primaryColor ? { color: this.branding.primaryColor } : {}) })}
+      ${
+        cancelUrl
+          ? `<p style="margin-top: 24px;">Se você não solicitou, pode cancelar agora:</p>
+      ${emailButton({ url: cancelUrl, label: 'Cancelar solicitação' })}`
+          : ''
+      }
       <p style="font-size: 13px; color: #666;">
         Se você não solicitou esta exclusão, ignore este email — nada será feito.
       </p>
