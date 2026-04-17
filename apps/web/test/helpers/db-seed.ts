@@ -126,17 +126,10 @@ export type OrgMemberRole = StaffRole | 'author'
 export type JwtAreaRole = OrgMemberRole | 'super_admin' | 'user'
 
 /**
- * Seeds an `organization_members` row for a synthetic user and returns a JWT
- * signed with the local Supabase CLI's default JWT secret. The JWT carries
- * `role: 'authenticated'` + `sub: <userId>` — PostgREST will expose the uid to
- * `auth.uid()` inside RPCs.
- *
- * NOTE: We skip creating an `auth.users` row. The `organization_members.user_id`
- * FK references `auth.users(id)` with `on delete cascade`, so a synthetic uid
- * will violate the FK. Tests that need the membership row must either:
- *   (a) create an auth user via `admin.auth.admin.createUser()` first, or
- *   (b) deliberately seed a membership referencing an existing auth user.
- * The helper below takes the optional `userId` parameter to accommodate (b).
+ * Creates a real auth user, optionally inserts an organization_members row
+ * (RBAC v3: only 'admin'/'owner' map to 'org_admin'; 'editor'/'reporter'/
+ * 'author' have no org-level row — they use site_memberships or JWT claims
+ * only), and returns a signed JWT for the new user.
  *
  * The `app_metadata.role` baked into the JWT defaults to the `role` param so
  * `is_staff()` / `is_admin()` — which read from `request.jwt.claims` — see a
@@ -152,7 +145,6 @@ export async function seedStaffUser(
   let userId = opts.userId
   if (!userId) {
     const email = opts.email ?? `seed-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@example.test`
-    // createUser requires admin privileges (service-role client).
     const authAdmin = (db as unknown as {
       auth: { admin: { createUser: (a: { email: string; password: string; email_confirm: boolean }) => Promise<{ data: { user: { id: string } | null }; error: unknown }> } }
     }).auth.admin
@@ -161,12 +153,17 @@ export async function seedStaffUser(
     userId = data.user.id
   }
 
-  const { error: memberErr } = await db.from('organization_members').insert({
-    org_id: orgId,
-    user_id: userId,
-    role,
-  })
-  if (memberErr) throw memberErr
+  // RBAC v3: organization_members only accepts role='org_admin'. Map legacy
+  // roles: admin/owner → org_admin (insert row); editor/reporter/author →
+  // no org-level row (site_memberships or JWT-claim-only as needed by the test).
+  if (role === 'admin' || role === 'owner') {
+    const { error: memberErr } = await db.from('organization_members').insert({
+      org_id: orgId,
+      user_id: userId,
+      role: 'org_admin',
+    })
+    if (memberErr) throw memberErr
+  }
 
   const token = jwt.sign(
     { role: 'authenticated', sub: userId, app_metadata: { role: opts.jwtAppRole ?? role } },
@@ -209,6 +206,7 @@ export interface SeedPendingSubOpts {
   consentTextVersion?: string
   expiresInMinutes?: number
   locale?: string | null
+  brevoContactId?: string
 }
 
 /**
@@ -226,6 +224,9 @@ export async function seedPendingNewsletterSub(
   const tokenHash = sha256Hex(rawToken)
   const expiresAt = new Date(Date.now() + (opts.expiresInMinutes ?? 60) * 60_000).toISOString()
 
+  // brevo_contact_id must be non-null when status flips to 'confirmed'
+  // (newsletter_subscriptions_check constraint). Seed with a CI placeholder so
+  // confirm_newsletter_subscription can transition without a constraint violation.
   const { data, error } = await db
     .from('newsletter_subscriptions')
     .insert({
@@ -236,6 +237,7 @@ export async function seedPendingNewsletterSub(
       confirmation_expires_at: expiresAt,
       consent_text_version: opts.consentTextVersion ?? 'v1',
       locale: opts.locale ?? null,
+      brevo_contact_id: opts.brevoContactId ?? 'ci-brevo-placeholder',
     })
     .select('id')
     .single()

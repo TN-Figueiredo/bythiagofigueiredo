@@ -38,7 +38,30 @@ describe.skipIf(skipIfNoLocalDb())('LGPD RPCs', () => {
   })
 
   it('check_deletion_safety identifies master_ring_sole_admin', async () => {
+    // Temporarily make superAdminId the sole master ring admin by removing
+    // any other org_admin rows (e.g. the dev seed user) for this check.
+    const { data: otherAdmins } = await admin
+      .from('organization_members')
+      .select('id, org_id, user_id, role')
+      .eq('org_id', scenario.orgMasterId)
+      .neq('user_id', scenario.superAdminId)
+    if (otherAdmins?.length) {
+      await admin
+        .from('organization_members')
+        .delete()
+        .eq('org_id', scenario.orgMasterId)
+        .neq('user_id', scenario.superAdminId)
+    }
+
     const { data } = await admin.rpc('check_deletion_safety', { p_user_id: scenario.superAdminId })
+
+    // Restore other admins.
+    if (otherAdmins?.length) {
+      await admin.from('organization_members').insert(
+        otherAdmins.map(({ org_id, user_id, role }) => ({ org_id, user_id, role })),
+      )
+    }
+
     const parsed = data as { can_delete: boolean; blockers: string[] }
     expect(parsed.blockers).toContain('master_ring_sole_admin')
   })
@@ -74,7 +97,11 @@ describe.skipIf(skipIfNoLocalDb())('LGPD RPCs', () => {
   })
 
   it('reassign_authors moves authors.user_id with permission check', async () => {
-    // Call as super_admin JWT (can admin all sites)
+    // The RPC does `UPDATE authors SET user_id = p_to WHERE user_id = p_from`.
+    // p_to (editorAId) already has an authors row → unique violation unless we
+    // clear editorAId's user_id first so the reassignment has room to land.
+    await admin.from('authors').update({ user_id: null }).eq('user_id', scenario.editorAId)
+
     const { jwt } = signUserJwt(scenario.superAdminId)
     const client = createClient(SUPABASE_URL, ANON_KEY, {
       auth: { persistSession: false },
@@ -111,16 +138,20 @@ describe.skipIf(skipIfNoLocalDb())('LGPD RPCs', () => {
   })
 
   it('lgpd_phase1_cleanup is restricted to service_role (not callable by authenticated)', async () => {
+    // The caller guard allows a user to clean their OWN account (p_user_id = auth.uid()).
+    // To exercise the "forbidden" branch, the JWT must belong to a DIFFERENT user than
+    // the p_user_id target — the guard raises P0001 when auth.uid() ≠ p_user_id and
+    // current_user is not service_role/supabase_admin/postgres.
     const { jwt } = signUserJwt(scenario.editorAId)
     const client = createClient(SUPABASE_URL, ANON_KEY, {
       auth: { persistSession: false },
       global: { headers: { Authorization: `Bearer ${jwt}` } },
     })
     const { error } = await client.rpc('lgpd_phase1_cleanup', {
-      p_user_id: scenario.editorAId,
+      p_user_id: scenario.reporterAId, // different from auth.uid() (editorAId)
       p_pre_capture: {},
     })
-    expect(error).not.toBeNull() // Permission denied for non-service role.
+    expect(error).not.toBeNull() // Permission denied: can only clean own account.
   })
 
   it('merge_anonymous_consents requires authentication', async () => {

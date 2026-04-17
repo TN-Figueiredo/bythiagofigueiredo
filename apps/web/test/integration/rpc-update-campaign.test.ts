@@ -156,6 +156,8 @@ describe.skipIf(skipIfNoLocalDb())('RPC update_campaign_atomic', () => {
         success_subheadline_duplicate: 'sshd1',
         check_mail_text: 'check',
         download_button_label: 'download',
+        form_button_label: 'Enviar',
+        form_button_loading_label: 'Enviando...',
       },
     ]
 
@@ -179,7 +181,7 @@ describe.skipIf(skipIfNoLocalDb())('RPC update_campaign_atomic', () => {
       p_campaign_id: campaignId,
       p_patch: null,
       p_translations: [
-        { locale: 'pt-BR', main_hook_md: '# Updated hook' },
+        { locale: 'pt-BR', main_hook_md: '# Updated hook', form_button_label: 'Enviar', form_button_loading_label: 'Enviando...' },
         {
           locale: 'en',
           slug: `integration-en-${Date.now()}`,
@@ -191,6 +193,8 @@ describe.skipIf(skipIfNoLocalDb())('RPC update_campaign_atomic', () => {
           success_subheadline_duplicate: 'sshd2',
           check_mail_text: 'chk',
           download_button_label: 'dl',
+          form_button_label: 'Send',
+          form_button_loading_label: 'Sending...',
         },
       ],
     })

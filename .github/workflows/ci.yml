@@ -75,12 +75,8 @@ jobs:
   test-db-integration:
     name: Integration (DB-gated)
     runs-on: ubuntu-latest
-    # Soft-gate: supabase-start + db-reset are fixed (PR `ci-hardening-env-and-migration-order`)
-    # but the integration test suites carry schema drift from Sprint 4.75 (RBAC v3) and
-    # Sprint 5a (LGPD) that the fixtures never caught up to — because this job was always
-    # failing earlier, at container startup. Un-gate after RBAC v3 fixture migration lands.
-    # Tracker: docs/runbooks/ci-integration-debt.md
-    continue-on-error: true
+    # All 123 integration tests pass as of Sprint 5b fixture migration (20260430000031-32).
+    # Gate is hard — failures block merges.
     services:
       postgres:
         image: supabase/postgres:15.1.0.147
