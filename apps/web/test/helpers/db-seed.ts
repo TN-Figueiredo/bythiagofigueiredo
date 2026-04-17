@@ -11,6 +11,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import jwt from 'jsonwebtoken'
 import { getLocalJwtSecret } from './db-skip'
+import { getSupabaseServiceClient } from '../../lib/supabase/service'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Local Supabase CLI default constants (not secrets — published defaults).
@@ -619,4 +620,105 @@ export async function seedLgpdScenario(admin: SupabaseClient, opts?: {
     exportRequestId = data?.id
   }
   return { ...rbac, lgpd: { anonymousId: anonId, deletionRequestId, exportRequestId } }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sprint 5b PR-B Phase 2 — blog-post helpers used by enumerator integration test
+// (B.14). Unlike the older helpers above (which take an explicit `db` client),
+// these instantiate the service-role client internally so the call sites in the
+// SEO enumerator test stay terse. RLS-bypass is intentional — the enumerator
+// itself uses the service client for the same reason (reads cross-site).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function seedPublishedPost(
+  siteId: string,
+  opts: { slug: string; locale: string; title?: string; ownerUserId?: string },
+): Promise<{ postId: string; translationId: string }> {
+  const supabase = getSupabaseServiceClient()
+  const { data: post, error: pe } = await supabase
+    .from('blog_posts')
+    .insert({
+      site_id: siteId,
+      status: 'published',
+      published_at: new Date(Date.now() - 1000).toISOString(),
+      owner_user_id: opts.ownerUserId ?? null,
+    })
+    .select('id')
+    .single()
+  if (pe || !post) throw new Error(`seedPublishedPost: ${pe?.message}`)
+  const { data: tx, error: te } = await supabase
+    .from('blog_translations')
+    .insert({
+      post_id: post.id,
+      locale: opts.locale,
+      slug: opts.slug,
+      title: opts.title ?? `Post ${opts.slug}`,
+      content_mdx: '# Body',
+      excerpt: 'excerpt',
+      reading_time_min: 1,
+      content_toc: [],
+    })
+    .select('id')
+    .single()
+  if (te || !tx) throw new Error(`seedPublishedPost translation: ${te?.message}`)
+  return { postId: post.id, translationId: tx.id }
+}
+
+export async function seedDraftPost(
+  siteId: string,
+  opts: { slug: string; locale: string; ownerUserId?: string },
+): Promise<{ postId: string }> {
+  const supabase = getSupabaseServiceClient()
+  const { data, error } = await supabase
+    .from('blog_posts')
+    .insert({
+      site_id: siteId,
+      status: 'draft',
+      published_at: null,
+      owner_user_id: opts.ownerUserId ?? null,
+    })
+    .select('id')
+    .single()
+  if (error || !data) throw new Error(`seedDraftPost: ${error?.message}`)
+  await supabase.from('blog_translations').insert({
+    post_id: data.id,
+    locale: opts.locale,
+    slug: opts.slug,
+    title: 'Draft',
+    content_mdx: '# Body',
+    excerpt: 'x',
+    reading_time_min: 1,
+    content_toc: [],
+  })
+  return { postId: data.id }
+}
+
+export async function seedFutureScheduledPost(
+  siteId: string,
+  opts: { slug: string; locale: string; ownerUserId?: string },
+): Promise<{ postId: string }> {
+  const supabase = getSupabaseServiceClient()
+  const future = new Date(Date.now() + 7 * 86400_000).toISOString()
+  const { data, error } = await supabase
+    .from('blog_posts')
+    .insert({
+      site_id: siteId,
+      status: 'scheduled',
+      published_at: future,
+      owner_user_id: opts.ownerUserId ?? null,
+    })
+    .select('id')
+    .single()
+  if (error || !data) throw new Error(`seedFutureScheduledPost: ${error?.message}`)
+  await supabase.from('blog_translations').insert({
+    post_id: data.id,
+    locale: opts.locale,
+    slug: opts.slug,
+    title: 'Future',
+    content_mdx: '# Body',
+    excerpt: 'x',
+    reading_time_min: 1,
+    content_toc: [],
+  })
+  return { postId: data.id }
 }

@@ -116,10 +116,17 @@ export async function middleware(
 
   // Dev subdomain rewrite (unchanged from Sprint 1a) — runs before site
   // resolution because the rewrite changes the pathname, not the host.
+  //
+  // Sprint 5b PR-B: short-circuit `/sitemap.xml` and `/robots.txt` so the
+  // dev subdomain rewrite does NOT divert them to `/dev/sitemap.xml` etc.
+  // The route handlers themselves detect `isPreviewOrDevHost(host)` and
+  // return `Disallow: /` (robots) or `[]` (sitemap) for dev — but only if
+  // they actually run, which requires NOT being rewritten away first.
   const isDevSubdomain =
     hostname === 'dev.bythiagofigueiredo.com' ||
     hostname === 'dev.localhost'
-  if (isDevSubdomain && !url.pathname.startsWith('/dev')) {
+  const isSeoRoute = pathname === '/sitemap.xml' || pathname === '/robots.txt'
+  if (isDevSubdomain && !isSeoRoute && !url.pathname.startsWith('/dev')) {
     url.pathname = `/dev${url.pathname === '/' ? '' : url.pathname}`
     return NextResponse.rewrite(url)
   }

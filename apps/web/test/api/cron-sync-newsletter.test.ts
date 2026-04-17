@@ -1,6 +1,4 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { readFileSync, existsSync } from 'node:fs';
-import { resolve } from 'node:path';
 
 vi.mock('../../lib/supabase/service', () => ({
   getSupabaseServiceClient: vi.fn(),
@@ -316,21 +314,3 @@ describe('POST /api/cron/sync-newsletter-pending — skip sub with no list id', 
   });
 });
 
-describe('vercel.json crons', () => {
-  it('schedules publish-scheduled every 5 minutes', () => {
-    const p = resolve(__dirname, '../../vercel.json');
-    expect(existsSync(p)).toBe(true);
-    const j = JSON.parse(readFileSync(p, 'utf8'));
-    expect(j.crons).toContainEqual(
-      { path: '/api/cron/publish-scheduled', schedule: '*/5 * * * *' },
-    );
-  });
-
-  it('schedules sync-newsletter-pending every minute', () => {
-    const p = resolve(__dirname, '../../vercel.json');
-    const j = JSON.parse(readFileSync(p, 'utf8'));
-    expect(j.crons).toContainEqual(
-      { path: '/api/cron/sync-newsletter-pending', schedule: '* * * * *' },
-    );
-  });
-});

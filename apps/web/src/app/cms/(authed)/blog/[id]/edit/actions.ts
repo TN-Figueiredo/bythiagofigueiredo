@@ -7,6 +7,9 @@ import { blogRegistry } from '../../../../../../../lib/cms/registry'
 import { getSiteContext } from '../../../../../../../lib/cms/site-context'
 import { getSupabaseServiceClient } from '../../../../../../../lib/supabase/service'
 import { requireSiteAdminForRow } from '../../../../../../../lib/cms/auth-guards'
+import { revalidateBlogPostSeo } from '@/lib/seo/cache-invalidation'
+import { parseMdxFrontmatter, SeoExtrasValidationError } from '@/lib/seo/frontmatter'
+import type { ZodIssue } from 'zod'
 
 export interface SavePostActionInput {
   content_mdx: string
@@ -23,6 +26,7 @@ export type SavePostActionResult =
   | { ok: true; postId?: string }
   | { ok: false; error: 'validation_failed'; fields: Record<string, string> }
   | { ok: false; error: 'compile_failed'; message: string }
+  | { ok: false; error: 'invalid_seo_extras'; details: ZodIssue[] }
   | { ok: false; error: 'db_error'; message: string }
 
 export async function savePost(
@@ -43,11 +47,25 @@ export async function savePost(
     return { ok: false, error: 'validation_failed', fields: { cover_image_url: 'invalid_url' } }
   }
 
-  await requireSiteAdminForRow('blog_posts', id)
+  const { siteId } = await requireSiteAdminForRow('blog_posts', id)
+
+  // Sprint 5b PR-C: parse YAML frontmatter (seo_extras) BEFORE compile.
+  // Stripped content is what we compile + persist so the editor doesn't
+  // re-render the frontmatter as MDX body on next open.
+  let parsed: ReturnType<typeof parseMdxFrontmatter>
+  try {
+    parsed = parseMdxFrontmatter(input.content_mdx)
+  } catch (e) {
+    if (e instanceof SeoExtrasValidationError) {
+      return { ok: false, error: 'invalid_seo_extras', details: e.issues }
+    }
+    throw e
+  }
+  const { content: strippedContent, seoExtras } = parsed
 
   let compiled: CompiledMdx
   try {
-    compiled = await compileMdx(input.content_mdx, blogRegistry)
+    compiled = await compileMdx(strippedContent, blogRegistry)
   } catch (e) {
     return {
       ok: false,
@@ -64,7 +82,7 @@ export async function savePost(
         title: input.title,
         slug: input.slug,
         excerpt: input.excerpt ?? null,
-        content_mdx: input.content_mdx,
+        content_mdx: strippedContent,
         content_compiled: compiled.compiledSource,
         content_toc: compiled.toc,
         reading_time_min: compiled.readingTimeMin,
@@ -81,36 +99,65 @@ export async function savePost(
     }
   }
 
-  revalidatePath(`/blog/${locale}`)
-  revalidatePath(`/blog/${locale}/${encodeURIComponent(input.slug)}`)
+  // Workaround: @tn-figueiredo/cms@0.2.0 `UpdatePostInput.translation` does
+  // NOT expose `seo_extras` (only set added by Sprint 5b PR-A migration
+  // 20260501000002). Apply the column update via the service-role client
+  // directly. Authorization already enforced via `requireSiteAdminForRow`.
+  // TODO(cms): when @tn-figueiredo/cms ships seo_extras in UpdatePostInput,
+  // collapse this into the call above.
+  //
+  // We only write when frontmatter actually parsed to a non-null value so
+  // submitting the editor with plain MDX (no `---` block) leaves the existing
+  // seo_extras untouched. To clear it the editor must emit an explicit
+  // `seo_extras: {}` block (rejected by the Zod `.strict()` schema as empty
+  // — Sprint 6+ admin UI will surface a "remove extras" affordance).
+  if (seoExtras !== null) {
+    try {
+      const supabase = getSupabaseServiceClient()
+      await supabase
+        .from('blog_translations')
+        .update({ seo_extras: seoExtras })
+        .eq('post_id', id)
+        .eq('locale', locale)
+    } catch (e) {
+      return {
+        ok: false,
+        error: 'db_error',
+        message: e instanceof Error ? e.message : String(e),
+      }
+    }
+  }
+
+  revalidateBlogPostSeo(siteId, id, locale, input.slug)
   return { ok: true, postId: id }
 }
 
 export async function publishPost(id: string): Promise<void> {
-  await requireSiteAdminForRow('blog_posts', id)
+  const { siteId } = await requireSiteAdminForRow('blog_posts', id)
   const post = await postRepo().publish(id)
-  const tx = post.translations[0]
-  if (tx) {
-    revalidatePath(`/blog/${tx.locale}`)
-    revalidatePath(`/blog/${tx.locale}/${tx.slug}`)
+  for (const tx of post.translations) {
+    revalidateBlogPostSeo(siteId, id, tx.locale, tx.slug)
   }
 }
 
 export async function unpublishPost(id: string): Promise<void> {
-  await requireSiteAdminForRow('blog_posts', id)
+  const { siteId } = await requireSiteAdminForRow('blog_posts', id)
   const post = await postRepo().unpublish(id)
-  const tx = post.translations[0]
-  if (tx) {
-    revalidatePath(`/blog/${tx.locale}`)
-    revalidatePath(`/blog/${tx.locale}/${tx.slug}`)
+  for (const tx of post.translations) {
+    revalidateBlogPostSeo(siteId, id, tx.locale, tx.slug)
   }
 }
 
 export async function archivePost(id: string): Promise<void> {
-  await requireSiteAdminForRow('blog_posts', id)
+  const { siteId } = await requireSiteAdminForRow('blog_posts', id)
   const post = await postRepo().archive(id)
-  const tx = post.translations[0]
-  if (tx) revalidatePath(`/blog/${tx.locale}`)
+  // Sprint 5b PR-C bug fix: previously only `revalidatePath('/blog/${locale}')`
+  // was called for the FIRST translation. The slug page was missed (stale
+  // archived post visible until next on-demand revalidate). The SEO helper
+  // covers both the index AND the slug page, plus tag-based invalidation.
+  for (const tx of post.translations) {
+    revalidateBlogPostSeo(siteId, id, tx.locale, tx.slug)
+  }
 }
 
 export type DeletePostResult =
@@ -118,7 +165,7 @@ export type DeletePostResult =
   | { ok: false; error: 'already_published' | 'not_found' | 'db_error'; message?: string }
 
 export async function deletePost(id: string): Promise<DeletePostResult> {
-  await requireSiteAdminForRow('blog_posts', id)
+  const { siteId } = await requireSiteAdminForRow('blog_posts', id)
   const post = await postRepo().getById(id)
   if (!post) return { ok: false, error: 'not_found' }
   if (post.status !== 'draft' && post.status !== 'archived') {
@@ -136,8 +183,9 @@ export async function deletePost(id: string): Promise<DeletePostResult> {
       message: e instanceof Error ? e.message : String(e),
     }
   }
-  const tx = post.translations[0]
-  if (tx) revalidatePath(`/blog/${tx.locale}`)
+  for (const tx of post.translations) {
+    revalidateBlogPostSeo(siteId, id, tx.locale, tx.slug)
+  }
   revalidatePath('/cms/blog')
   return { ok: true }
 }

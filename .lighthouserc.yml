@@ -1,0 +1,27 @@
+# .lighthouserc.yml
+ci:
+  collect:
+    url:
+      - https://${LHCI_PREVIEW_URL}/
+      - https://${LHCI_PREVIEW_URL}/blog/pt-BR
+      - https://${LHCI_PREVIEW_URL}/blog/pt-BR/welcome
+      - https://${LHCI_PREVIEW_URL}/privacy
+      - https://${LHCI_PREVIEW_URL}/contact
+    numberOfRuns: 1
+    settings:
+      preset: desktop
+      throttlingMethod: simulate
+      onlyCategories: [seo, accessibility, performance, best-practices]
+      skipAudits: [uses-http2]
+  assert:
+    assertions:
+      categories:seo: ['error', { minScore: 0.95 }]
+      categories:accessibility: ['warn', { minScore: 0.90 }]
+      categories:performance: ['warn', { minScore: 0.80 }]
+      categories:best-practices: ['warn', { minScore: 0.90 }]
+      uses-text-compression: error
+      uses-rel-canonical: error
+      hreflang: error
+      structured-data: warn
+  upload:
+    target: temporary-public-storage

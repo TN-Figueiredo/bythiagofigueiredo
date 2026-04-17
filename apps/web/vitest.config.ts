@@ -43,8 +43,22 @@ export default defineConfig({
     },
   },
   resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
-    },
+    alias: [
+      // Sprint 5b — `apps/web/lib/seo/` lives outside `src/`. Map specifically
+      // so plan-prescribed `@/lib/seo/...` imports resolve correctly without
+      // shadowing other `@/lib/*` paths under `src/lib/` (e.g. lgpd).
+      { find: /^@\/lib\/seo(.*)$/, replacement: path.resolve(__dirname, './lib/seo$1') },
+      // Sprint 5b PR-B Phase 2 — SEO module also imports cms repositories +
+      // supabase service client which live outside `src/lib/`. Map them
+      // explicitly so `@/lib/cms/...` / `@/lib/supabase/...` resolve correctly
+      // (otherwise the catch-all `@` alias would point them at non-existent
+      // `src/lib/...` paths).
+      { find: /^@\/lib\/cms(.*)$/, replacement: path.resolve(__dirname, './lib/cms$1') },
+      { find: /^@\/lib\/supabase(.*)$/, replacement: path.resolve(__dirname, './lib/supabase$1') },
+      // Allow tests to import other test helpers via `@/test/...` (used by
+      // enumerator integration test).
+      { find: /^@\/test(.*)$/, replacement: path.resolve(__dirname, './test$1') },
+      { find: '@', replacement: path.resolve(__dirname, './src') },
+    ],
   },
 })

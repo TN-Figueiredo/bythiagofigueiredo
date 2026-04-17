@@ -6,6 +6,7 @@ import { campaignRepo } from '../../../../../../../lib/cms/repositories'
 import { getSupabaseServiceClient } from '../../../../../../../lib/supabase/service'
 import { requireSiteAdminForRow } from '../../../../../../../lib/cms/auth-guards'
 import { captureServerActionError } from '../../../../../../lib/sentry-wrap'
+import { revalidateCampaignSeo } from '@/lib/seo/cache-invalidation'
 
 export interface SaveCampaignTranslationPatch {
   locale: string
@@ -107,7 +108,7 @@ export async function saveCampaign(
   revalidatePath('/cms/campaigns')
   if (refreshed) {
     for (const tx of refreshed.translations) {
-      revalidatePath(`/campaigns/${tx.locale}/${encodeURIComponent(tx.slug)}`)
+      revalidateCampaignSeo(siteId, id, tx.locale, tx.slug)
     }
   }
   return { ok: true, campaignId: id }
@@ -119,7 +120,7 @@ export async function publishCampaign(id: string): Promise<void> {
     const campaign = await campaignRepo().publish(id, siteId)
     revalidatePath('/cms/campaigns')
     for (const tx of campaign.translations) {
-      revalidatePath(`/campaigns/${tx.locale}/${encodeURIComponent(tx.slug)}`)
+      revalidateCampaignSeo(siteId, id, tx.locale, tx.slug)
     }
   } catch (err) {
     captureServerActionError(err, {
@@ -136,7 +137,7 @@ export async function unpublishCampaign(id: string): Promise<void> {
   const campaign = await campaignRepo().unpublish(id, siteId)
   revalidatePath('/cms/campaigns')
   for (const tx of campaign.translations) {
-    revalidatePath(`/campaigns/${tx.locale}/${encodeURIComponent(tx.slug)}`)
+    revalidateCampaignSeo(siteId, id, tx.locale, tx.slug)
   }
 }
 
@@ -145,7 +146,7 @@ export async function archiveCampaign(id: string): Promise<void> {
   const campaign = await campaignRepo().archive(id, siteId)
   revalidatePath('/cms/campaigns')
   for (const tx of campaign.translations) {
-    revalidatePath(`/campaigns/${tx.locale}/${encodeURIComponent(tx.slug)}`)
+    revalidateCampaignSeo(siteId, id, tx.locale, tx.slug)
   }
 }
 
@@ -170,7 +171,7 @@ export async function deleteCampaign(id: string): Promise<DeleteCampaignResult> 
     }
   }
   for (const tx of campaign.translations) {
-    revalidatePath(`/campaigns/${tx.locale}/${encodeURIComponent(tx.slug)}`)
+    revalidateCampaignSeo(siteId, id, tx.locale, tx.slug)
   }
   revalidatePath('/cms/campaigns')
   return { ok: true }

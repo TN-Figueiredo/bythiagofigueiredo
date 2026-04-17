@@ -125,3 +125,79 @@ jobs:
           base: ${{ github.event.repository.default_branch }}
           head: HEAD
           extra_args: --debug --only-verified
+
+  check-migration-applied:
+    name: SEO Migration Pre-Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Verify PR-A SEO columns exist in prod (soft-gate)
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          # Audit R2: soft-gate behavior. Secrets may not be configured in
+          # the repo (NEXT_PUBLIC_SUPABASE_URL/ANON_KEY are not currently in
+          # CI secrets as of Sprint 5b PR-B ship). When absent, skip the
+          # check with a warning; reviewer eyeballs the migration verifically.
+          # When present, run the real check (blocks merge if columns missing).
+          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ]; then
+            echo "::warning::NEXT_PUBLIC_SUPABASE_URL/ANON_KEY secrets not configured; skipping schema pre-check. Add the secrets in repo Settings → Actions → Secrets to activate this gate."
+            exit 0
+          fi
+          node -e "
+          const { createClient } = require('@supabase/supabase-js');
+          const supabase = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+          );
+          (async () => {
+            const { error } = await supabase
+              .from('sites')
+              .select('identity_type, twitter_handle, seo_default_og_image')
+              .limit(0);
+            if (error) {
+              console.error('FAIL: PR-A migrations not applied to prod:', error.message);
+              process.exit(1);
+            }
+            console.log('OK: SEO columns present in prod sites table');
+          })();
+          "
+
+  wait-for-vercel-seo:
+    name: Wait for Vercel preview (SEO smoke)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    outputs:
+      preview_url: ${{ steps.waitForVercel.outputs.url }}
+    steps:
+      - uses: patrickedqvist/wait-for-vercel-preview@v1.3.2
+        id: waitForVercel
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          max_timeout: 600
+          check_interval: 10
+
+  seo-smoke:
+    name: SEO Smoke (preview)
+    runs-on: ubuntu-latest
+    needs: wait-for-vercel-seo
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install xmllint
+        run: sudo apt-get update && sudo apt-get install -y libxml2-utils
+      - name: Run smoke against Vercel preview
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SKIP_HEALTH: '1'
+        run: |
+          chmod +x scripts/seo-smoke.sh
+          ./scripts/seo-smoke.sh "${{ needs.wait-for-vercel-seo.outputs.preview_url }}"

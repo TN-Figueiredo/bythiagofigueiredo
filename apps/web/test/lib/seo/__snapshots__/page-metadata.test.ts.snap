@@ -1,0 +1,179 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`page-metadata factories — snapshots > generateBlogIndexMetadata shape 1`] = `
+"{
+  "metadataBase": "https://example.com/",
+  "openGraph": {
+    "siteName": "Example",
+    "locale": "pt_BR"
+  },
+  "twitter": {
+    "site": "@tnFigueiredo",
+    "creator": "@tnFigueiredo",
+    "card": "summary_large_image"
+  },
+  "title": "Blog",
+  "description": "Últimos posts de Example.",
+  "alternates": {
+    "canonical": "/blog/pt-BR",
+    "languages": {
+      "pt-BR": "/blog/pt-BR",
+      "en": "/blog/en",
+      "x-default": "/blog/pt-BR"
+    }
+  }
+}"
+`;
+
+exports[`page-metadata factories — snapshots > generateBlogPostMetadata shape 1`] = `
+"{
+  "metadataBase": "https://example.com/",
+  "openGraph": {
+    "siteName": "Example",
+    "locale": "pt_BR",
+    "type": "article",
+    "publishedTime": "2026-04-14T00:00:00.000Z",
+    "modifiedTime": "2026-04-15T00:00:00.000Z",
+    "images": [
+      {
+        "url": "https://example.com/og/blog/en/hello-world-en",
+        "width": 1200,
+        "height": 630
+      }
+    ]
+  },
+  "twitter": {
+    "site": "@tnFigueiredo",
+    "creator": "@tnFigueiredo",
+    "card": "summary_large_image"
+  },
+  "title": "Hello World",
+  "description": "exc-en",
+  "alternates": {
+    "canonical": "/blog/en/hello-world-en",
+    "languages": {
+      "pt-BR": "/blog/pt-BR/hello-world",
+      "en": "/blog/en/hello-world-en",
+      "x-default": "/blog/pt-BR/hello-world"
+    }
+  }
+}"
+`;
+
+exports[`page-metadata factories — snapshots > generateCampaignMetadata shape 1`] = `
+"{
+  "metadataBase": "https://example.com/",
+  "openGraph": {
+    "siteName": "Example",
+    "locale": "pt_BR",
+    "type": "article",
+    "images": [
+      {
+        "url": "https://example.com/og/c1.png",
+        "width": 1200,
+        "height": 630
+      }
+    ]
+  },
+  "twitter": {
+    "site": "@tnFigueiredo",
+    "creator": "@tnFigueiredo",
+    "card": "summary_large_image"
+  },
+  "title": "Título da campanha",
+  "description": "Descrição da campanha",
+  "alternates": {
+    "canonical": "/campaigns/pt-BR/c1"
+  }
+}"
+`;
+
+exports[`page-metadata factories — snapshots > generateContactMetadata shape (pt-BR) 1`] = `
+"{
+  "metadataBase": "https://example.com/",
+  "openGraph": {
+    "siteName": "Example",
+    "locale": "pt_BR"
+  },
+  "twitter": {
+    "site": "@tnFigueiredo",
+    "creator": "@tnFigueiredo",
+    "card": "summary_large_image"
+  },
+  "title": "Fale comigo",
+  "description": "Entre em contato com Example.",
+  "alternates": {
+    "canonical": "/contact"
+  },
+  "robots": {
+    "index": true,
+    "follow": true
+  }
+}"
+`;
+
+exports[`page-metadata factories — snapshots > generateLegalMetadata shape (privacy pt-BR) 1`] = `
+"{
+  "metadataBase": "https://example.com/",
+  "openGraph": {
+    "siteName": "Example",
+    "locale": "pt_BR"
+  },
+  "twitter": {
+    "site": "@tnFigueiredo",
+    "creator": "@tnFigueiredo",
+    "card": "summary_large_image"
+  },
+  "title": "Política de Privacidade",
+  "description": "LGPD — dados, direitos, cookies.",
+  "alternates": {
+    "canonical": "/privacy"
+  },
+  "robots": {
+    "index": true,
+    "follow": true
+  }
+}"
+`;
+
+exports[`page-metadata factories — snapshots > generateNoindexMetadata shape 1`] = `
+"{
+  "metadataBase": "https://example.com/",
+  "openGraph": {
+    "siteName": "Example",
+    "locale": "pt_BR"
+  },
+  "twitter": {
+    "site": "@tnFigueiredo",
+    "creator": "@tnFigueiredo",
+    "card": "summary_large_image"
+  },
+  "robots": {
+    "index": false,
+    "follow": false
+  }
+}"
+`;
+
+exports[`page-metadata factories — snapshots > generateRootMetadata shape 1`] = `
+"{
+  "metadataBase": "https://example.com/",
+  "openGraph": {
+    "siteName": "Example",
+    "locale": "pt_BR"
+  },
+  "twitter": {
+    "site": "@tnFigueiredo",
+    "creator": "@tnFigueiredo",
+    "card": "summary_large_image"
+  },
+  "title": {
+    "default": "Example",
+    "template": "%s — Example"
+  },
+  "description": "Hub de Thiago Figueiredo. Build in public, learn out loud.",
+  "alternates": {
+    "canonical": "/"
+  }
+}"
+`;

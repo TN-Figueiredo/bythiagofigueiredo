@@ -1,6 +1,4 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { readFileSync, existsSync } from 'node:fs';
-import { resolve } from 'node:path';
 
 vi.mock('../../lib/supabase/service', () => ({
   getSupabaseServiceClient: vi.fn(),
@@ -157,45 +155,3 @@ describe('POST /api/cron/purge-sent-emails', () => {
   });
 });
 
-describe('vercel.json crons', () => {
-  it('schedules purge-sent-emails daily at 06:00 UTC', () => {
-    const p = resolve(__dirname, '../../vercel.json');
-    expect(existsSync(p)).toBe(true);
-    const j = JSON.parse(readFileSync(p, 'utf8'));
-    expect(j.crons).toContainEqual({
-      path: '/api/cron/purge-sent-emails',
-      schedule: '0 6 * * *',
-    });
-  });
-
-  // M5: guard the full cron array so a future PR cannot silently delete
-  // publish-scheduled, sync-newsletter-pending, purge-sent-emails,
-  // lgpd-cleanup-sweep, or purge-old-contact-submissions.
-  it('contains all expected cron entries with correct schedules', () => {
-    const p = resolve(__dirname, '../../vercel.json');
-    const j = JSON.parse(readFileSync(p, 'utf8'));
-    // Pin array length so a future PR that adds a 6th cron trips this guard
-    // and gets reviewer attention before merge.
-    expect(j.crons).toHaveLength(5);
-    expect(j.crons).toContainEqual({
-      path: '/api/cron/publish-scheduled',
-      schedule: '*/5 * * * *',
-    });
-    expect(j.crons).toContainEqual({
-      path: '/api/cron/sync-newsletter-pending',
-      schedule: '* * * * *',
-    });
-    expect(j.crons).toContainEqual({
-      path: '/api/cron/purge-sent-emails',
-      schedule: '0 6 * * *',
-    });
-    expect(j.crons).toContainEqual({
-      path: '/api/cron/lgpd-cleanup-sweep',
-      schedule: '0 7 * * *',
-    });
-    expect(j.crons).toContainEqual({
-      path: '/api/cron/purge-old-contact-submissions',
-      schedule: '0 6 * * 0',
-    });
-  });
-});

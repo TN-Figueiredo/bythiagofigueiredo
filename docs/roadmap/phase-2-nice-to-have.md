@@ -70,6 +70,39 @@
 
 ---
 
+## Sprint 8.5 — Feature Flag Consolidation [☐ not-started] (~12h)
+
+**Goal:** Migrar env-var-based feature flags pra sistema DB-driven consistente com padrão de kill switches usado em outros projetos (ex: tonagarantia). Permite flip instantâneo (sem 60s de Vercel redeploy) pra flags emergenciais + scope per-site quando multi-ring.
+
+**Motivação:** Sprint 5a (LGPD) e Sprint 5b (SEO) shipou 9 feature flags como env vars (`NEXT_PUBLIC_LGPD_BANNER_ENABLED`, `NEXT_PUBLIC_ACCOUNT_DELETE_ENABLED`, `NEXT_PUBLIC_ACCOUNT_EXPORT_ENABLED`, `LGPD_CRON_SWEEP_ENABLED`, `NEXT_PUBLIC_SEO_JSONLD_ENABLED`, `NEXT_PUBLIC_SEO_DYNAMIC_OG_ENABLED`, `NEXT_PUBLIC_SEO_EXTENDED_SCHEMAS_ENABLED`, `SEO_SITEMAP_KILLED`, `SEO_AI_CRAWLERS_BLOCKED`). Flags emergenciais (`SEO_SITEMAP_KILLED`, `LGPD_CRON_SWEEP_ENABLED`) sofrem com TTR de 60s em incidente. Multi-ring futuro quer scope per-site.
+
+**Pre-study (required before sprint execution):**
+- [ ] Auditar flags existentes em tonagarantia: tabela schema, admin UI pattern, cache strategy, audit log
+- [ ] Decidir entre rolling de zero vs package reutilizável (`@tn-figueiredo/feature-flags` extraction candidate)
+- [ ] Definir SLA de flag invalidação (Next cache revalidate vs Redis vs direct query)
+- [ ] Decidir admin UI location (`/admin/feature-flags`) + RBAC (só super_admin, ou org_admin pode flipar site-scoped?)
+
+**Epics (soma = 12h, ajustar após pre-study):**
+- [ ] Schema + migrations (`feature_flags` table: key/enabled/scope/site_id/description/updated_at/updated_by + audit trigger) — 2h
+- [ ] Core lib `@tn-figueiredo/feature-flags` OR local `apps/web/lib/feature-flags/` (TBD by pre-study) — 4h
+- [ ] Migrar 9 flags de env → DB (mantém env var como fallback pra cold-start resilience) — 3h
+- [ ] Admin UI `/admin/feature-flags` (list, toggle, scope selector, audit view) — 2h
+- [ ] Runbook update: flip instructions via SQL + via admin UI — 1h
+
+**Trade-offs conhecidos:**
+- +1 DB round-trip por page render (mitigado por `unstable_cache` + tag invalidation 30-60s)
+- Sobrevive a DB outage? Adicionar fallback read from env var quando DB inacessível
+- Preview deploys: flip pra true/false em preview sem tocar prod? Scope `environment` ou branch matching
+
+**Deliverables:**
+- Todos 9 flags flipáveis via SQL ou admin UI sem redeploy
+- Audit log de todos os flips (who + when + from→to)
+- Runbook documenta dois caminhos: env-var (legacy, cold-start fallback) + DB (primary, instant flip)
+
+**Spec / Plan:** pendente — abrir brainstorming antes do sprint.
+
+---
+
 ## Sprint 9 — Burnout & CMS Hub Prep [☐ not-started] (30h)
 
 **Goal:** Polish da Fase 2 + preparar terreno pra Fase 3.
