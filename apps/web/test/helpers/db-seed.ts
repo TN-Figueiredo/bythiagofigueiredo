@@ -9,9 +9,51 @@
  */
 import { createHash, randomUUID } from 'node:crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { Client } from 'pg'
 import jwt from 'jsonwebtoken'
 import { getLocalJwtSecret } from './db-skip'
 import { getSupabaseServiceClient } from '../../lib/supabase/service'
+
+// Direct postgres URL — matches supabase start local defaults.
+// Used instead of auth.admin.createUser/deleteUser because CI excludes GoTrue.
+const PG_URL =
+  process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
+
+/**
+ * Inserts a row directly into auth.users (bypasses GoTrue, which is excluded
+ * in CI via `--exclude gotrue`). Returns the new user's id.
+ */
+async function insertAuthUser(email: string, id: string = randomUUID()): Promise<string> {
+  const client = new Client({ connectionString: PG_URL })
+  await client.connect()
+  try {
+    await client.query(
+      `INSERT INTO auth.users
+         (id, instance_id, email, encrypted_password, email_confirmed_at,
+          aud, role, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+       VALUES ($1, '00000000-0000-0000-0000-000000000000', $2, '', now(),
+               'authenticated', 'authenticated', '{}', '{}', now(), now())
+       ON CONFLICT (id) DO NOTHING`,
+      [id, email],
+    )
+  } finally {
+    await client.end()
+  }
+  return id
+}
+
+/**
+ * Deletes a row directly from auth.users (bypasses GoTrue).
+ */
+async function deleteAuthUser(id: string): Promise<void> {
+  const client = new Client({ connectionString: PG_URL })
+  await client.connect()
+  try {
+    await client.query('DELETE FROM auth.users WHERE id = $1', [id])
+  } finally {
+    await client.end()
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Local Supabase CLI default constants (not secrets — published defaults).
@@ -145,12 +187,7 @@ export async function seedStaffUser(
   let userId = opts.userId
   if (!userId) {
     const email = opts.email ?? `seed-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@example.test`
-    const authAdmin = (db as unknown as {
-      auth: { admin: { createUser: (a: { email: string; password: string; email_confirm: boolean }) => Promise<{ data: { user: { id: string } | null }; error: unknown }> } }
-    }).auth.admin
-    const { data, error } = await authAdmin.createUser({ email, password: 'seed-pw-12345678', email_confirm: true })
-    if (error || !data.user) throw error ?? new Error('seedStaffUser: createUser failed')
-    userId = data.user.id
+    userId = await insertAuthUser(email)
   }
 
   // RBAC v3: organization_members only accepts role='org_admin'. Map legacy
@@ -425,27 +462,9 @@ export async function seedRbacScenario(admin: SupabaseClient): Promise<RbacScena
     .single()
   if (sBErr || !siteB) throw sBErr ?? new Error('seedRbacScenario: siteB insert failed')
 
-  const authAdmin = (admin as unknown as {
-    auth: {
-      admin: {
-        createUser: (a: {
-          email: string
-          password: string
-          email_confirm: boolean
-        }) => Promise<{ data: { user: { id: string } | null }; error: unknown }>
-      }
-    }
-  }).auth.admin
-
   async function createUser(prefix: string): Promise<string> {
     const email = `${prefix}-${suffix}@example.test`
-    const { data, error } = await authAdmin.createUser({
-      email,
-      password: 'seed-pw-12345678',
-      email_confirm: true,
-    })
-    if (error || !data.user) throw error ?? new Error(`seedRbacScenario: createUser(${prefix}) failed`)
-    return data.user.id
+    return insertAuthUser(email)
   }
 
   const superAdminId = await createUser('su')
@@ -549,15 +568,10 @@ export async function cleanupRbacScenario(
     await admin.from('organization_members').delete().in('org_id', cleanup.orgIds)
     await admin.from('audit_log').delete().in('org_id', cleanup.orgIds)
   }
-  // Users must be deleted via auth admin (cascades auth.users rows).
-  const authAdmin = (admin as unknown as {
-    auth: {
-      admin: { deleteUser: (id: string) => Promise<{ error: unknown }> }
-    }
-  }).auth.admin
+  // Delete users directly from auth.users (GoTrue excluded in CI).
   for (const uid of cleanup.userIds) {
     try {
-      await authAdmin.deleteUser(uid)
+      await deleteAuthUser(uid)
     } catch {
       /* best-effort — other tests' teardown may race. */
     }
