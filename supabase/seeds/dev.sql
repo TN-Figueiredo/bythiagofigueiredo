@@ -4,8 +4,9 @@
 
 -- Idempotence: truncate all dev application tables in child-to-parent FK order
 -- so this seed can be re-run cleanly. Sprint 1b tables (campaigns /
--- campaign_translations / campaign_submissions / cron_runs) and Sprint 2
--- tables (organization_members / sites / organizations) are now listed.
+-- campaign_translations / campaign_submissions / cron_runs), Sprint 2
+-- tables (organization_members / sites / organizations), Sprint 4.75 tables
+-- (site_memberships / audit_log) and Sprint 5a tables (consents) are listed.
 -- Future sprints: add new tables child-to-parent here.
 --
 -- auth.users is NOT truncated — a user-level seed cannot truncate the auth
@@ -38,6 +39,9 @@ truncate table
   public.blog_translations,
   public.blog_posts,
   public.authors,
+  public.audit_log,
+  public.consents,
+  public.site_memberships,
   public.organization_members,
   public.sites,
   public.organizations
@@ -53,6 +57,12 @@ declare
   v_org_id uuid;
   v_site_id uuid;
 begin
+  -- Bypass user-defined triggers (e.g. enforce_publish_permission from
+  -- Sprint 4.75) for the duration of this seed. Seed runs as postgres
+  -- superuser without an auth.uid(), so can_publish_site() would deny
+  -- inserting rows with status='published'. Replica-mode fires only
+  -- replica-enabled triggers, skipping our enforcement triggers.
+  set local session_replication_role = 'replica';
   insert into auth.users (
     id, instance_id, aud, role, email,
     encrypted_password, email_confirmed_at,
@@ -77,12 +87,13 @@ begin
   values ('Figueiredo Technology', 'figueiredo-tech')
   returning id into v_org_id;
 
-  insert into public.sites (org_id, name, slug, domains, default_locale, supported_locales)
+  insert into public.sites (org_id, name, slug, domains, primary_domain, default_locale, supported_locales)
   values (
     v_org_id,
     'ByThiagoFigueiredo',
     'bythiagofigueiredo',
     array['bythiagofigueiredo.com', 'www.bythiagofigueiredo.com', 'localhost', '127.0.0.1'],
+    'bythiagofigueiredo.com',
     'pt-BR',
     array['pt-BR','en']
   )
@@ -93,8 +104,10 @@ begin
       contact_notification_email = 'thiago@bythiagofigueiredo.com'
   where id = v_site_id;
 
+  -- Sprint 4.75 RBAC v3: role check constraint only accepts 'org_admin'
+  -- (legacy 'owner'/'admin' were migrated by 20260420000001_rbac_v3_schema).
   insert into public.organization_members (org_id, user_id, role)
-  values (v_org_id, v_user_id, 'owner');
+  values (v_org_id, v_user_id, 'org_admin');
 
   -- After truncate this insert always succeeds; `on conflict` kept as a cheap
   -- defensive guard in case another author insert is added above this one later.

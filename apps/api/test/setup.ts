@@ -23,5 +23,14 @@ try {
     }
   }
 } catch {
-  // .env.local not present — rely on process.env
+  // .env.local not present — rely on process.env + CI fallback defaults below
+}
+
+// CI fallback — src/env.ts validates at module-load time and requires
+// SUPABASE_SERVICE_ROLE_KEY. Tests that transitively import src/* (server,
+// plugins/auth, plugins/health) would crash in CI where no .env.local exists.
+// Inject a clearly-placeholder value so the schema parse succeeds; real DB
+// work is gated behind HAS_LOCAL_DB and uses its own client setup.
+if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'ci-placeholder-service-role-key'
 }
