@@ -43,8 +43,12 @@ export default defineConfig({
     },
   },
   resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
-    },
+    alias: [
+      // Sprint 5b — `apps/web/lib/seo/` lives outside `src/`. Map specifically
+      // so plan-prescribed `@/lib/seo/...` imports resolve correctly without
+      // shadowing other `@/lib/*` paths under `src/lib/` (e.g. lgpd).
+      { find: /^@\/lib\/seo(.*)$/, replacement: path.resolve(__dirname, './lib/seo$1') },
+      { find: '@', replacement: path.resolve(__dirname, './src') },
+    ],
   },
 })
