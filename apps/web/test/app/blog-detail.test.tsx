@@ -3,6 +3,40 @@ import { render } from '@testing-library/react'
 
 vi.mock('../../lib/cms/site-context', () => ({
   getSiteContext: () => Promise.resolve({ siteId: 's1', orgId: 'o1', defaultLocale: 'pt-BR' }),
+  tryGetSiteContext: () =>
+    Promise.resolve({ siteId: 's1', orgId: 'o1', defaultLocale: 'pt-BR' }),
+}))
+
+// Sprint 5b PR-C C.4: page now resolves SEO config via the SEO factory,
+// which talks to Supabase. Stub it with a fixed config so unit tests don't
+// need a live DB. The shape mirrors SiteSeoConfig.
+vi.mock('../../lib/seo/config', () => ({
+  getSiteSeoConfig: vi.fn().mockResolvedValue({
+    siteId: 's1',
+    siteName: 'Example',
+    siteUrl: 'https://example.com',
+    defaultLocale: 'pt-BR',
+    supportedLocales: ['pt-BR', 'en'],
+    identityType: 'person',
+    primaryColor: '#0F172A',
+    logoUrl: null,
+    twitterHandle: 'tnFigueiredo',
+    defaultOgImageUrl: null,
+    contentPaths: { blog: '/blog', campaigns: '/campaigns' },
+    personIdentity: {
+      type: 'person',
+      name: 'Thiago',
+      jobTitle: 'Creator',
+      imageUrl: 'https://example.com/p.jpg',
+      sameAs: [],
+    },
+    orgIdentity: null,
+  }),
+}))
+
+vi.mock('next/headers', () => ({
+  headers: () => Promise.resolve(new Map([['host', 'example.com']])),
+  cookies: () => Promise.resolve({ get: () => undefined }),
 }))
 
 const samplePost = {
@@ -10,11 +44,11 @@ const samplePost = {
   site_id: 's1',
   author_id: 'a1',
   status: 'published',
-  published_at: '2026-01-01',
+  published_at: '2026-01-01T00:00:00Z',
   scheduled_for: null,
   cover_image_url: null,
-  created_at: '',
-  updated_at: '',
+  created_at: '2026-01-01T00:00:00Z',
+  updated_at: '2026-01-01T00:00:00Z',
   translations: [
     {
       id: 't1',
@@ -27,8 +61,8 @@ const samplePost = {
       content_compiled: null,
       content_toc: [{ depth: 1, text: 'Hello', slug: 'hello' }],
       reading_time_min: 1,
-      created_at: '',
-      updated_at: '',
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
     },
   ],
 }
@@ -143,6 +177,7 @@ describe('BlogDetailPage generateMetadata', () => {
   it('returns empty object when site context missing', async () => {
     vi.doMock('../../lib/cms/site-context', () => ({
       getSiteContext: () => Promise.reject(new Error('no site')),
+      tryGetSiteContext: () => Promise.resolve(null),
     }))
     vi.resetModules()
     const { generateMetadata: gen } = await import('../../src/app/blog/[locale]/[slug]/page')
