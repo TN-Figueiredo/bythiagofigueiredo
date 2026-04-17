@@ -23,7 +23,7 @@
 | **PR-E** | `/api/health/seo` + `docs/runbooks/seo-incident.md` + post-deploy checklist + roadmap + CLAUDE.md | 1h | PR-A → PR-D |
 
 **Pre-flight (before any PR):** user must confirm 3 open decisions from spec:
-1. **Twitter handle** `@thiagonfigueiredo` (assumption — confirms PR-A backfill).
+1. **Twitter handle** `@tnFigueiredo` (confirmed 2026-04-17 — distinct from Instagram/YouTube `thiagonfigueiredo`).
 2. **`apps/web/public/identity/thiago.jpg`** photo file (1:1, ≥400×400, JPEG <100KB) — blocks PR-B merge.
 3. **AI crawler stance** — default permit (no `Disallow:` for GPTBot/CCBot); env `SEO_AI_CRAWLERS_BLOCKED=true` to flip later.
 
@@ -79,7 +79,7 @@ Expected: 0 rows.
 
 - [ ] **Step 4: Confirm Twitter handle decision**
 
-Verbal/chat confirmation from user: Twitter handle for master site = `thiagonfigueiredo`. If different, change literal in Task A.4 migration body before generating the file.
+Confirmed 2026-04-17: Twitter handle for master site = `tnFigueiredo` (NOT `thiagonfigueiredo` which is the Instagram/YouTube handle — distinct platforms, distinct usernames).
 
 ---
 
@@ -223,7 +223,7 @@ Expected: 1 row, `seo_extras | jsonb`.
 
 -- 1. Backfill twitter handle for master site. Only sets when currently NULL — re-runs are no-op.
 update public.sites
-set twitter_handle = 'thiagonfigueiredo'
+set twitter_handle = 'tnFigueiredo'
 where slug = 'bythiagofigueiredo'
   and twitter_handle is null;
 
@@ -243,7 +243,7 @@ cd /Users/figueiredo/Workspace/bythiagofigueiredo && npm run db:reset && \
     "select slug, supported_locales, twitter_handle from public.sites where slug='bythiagofigueiredo';"
 ```
 
-Expected: row with `supported_locales = {pt-BR,en}` and `twitter_handle = thiagonfigueiredo`.
+Expected: row with `supported_locales = {pt-BR,en}` and `twitter_handle = tnFigueiredo`.
 
 Re-apply backfill (simulating re-run):
 
@@ -285,7 +285,7 @@ npx supabase db remote sql --linked \
   "select slug, identity_type, twitter_handle, seo_default_og_image, supported_locales from public.sites order by slug;"
 ```
 
-Expected: master row with `identity_type='person'`, `twitter_handle='thiagonfigueiredo'`, `seo_default_og_image=null`, `supported_locales={pt-BR,en}`.
+Expected: master row with `identity_type='person'`, `twitter_handle='tnFigueiredo'`, `seo_default_og_image=null`, `supported_locales={pt-BR,en}`.
 
 ```bash
 npx supabase db remote sql --linked \
@@ -331,7 +331,7 @@ feat(db): Sprint 5b PR-A — SEO schema (sites identity_type/twitter_handle/seo_
 3 idempotent migrations:
 - 20260501000001: add identity_type/twitter_handle/seo_default_og_image to sites with CHECK constraints.
 - 20260501000002: add blog_translations.seo_extras jsonb with structural shape CHECK.
-- 20260501000003: idempotent backfill — twitter_handle='thiagonfigueiredo' + supported_locales={pt-BR,en}.
+- 20260501000003: idempotent backfill — twitter_handle='tnFigueiredo' + supported_locales={pt-BR,en}.
 
 Application code in PR-B reads with fallbacks; this PR is independently mergeable.
 EOF
@@ -359,7 +359,7 @@ CI should pass — migrations don't touch TypeScript.
 
 -- Revert backfill data (idempotent):
 update public.sites set twitter_handle = null
-  where slug = 'bythiagofigueiredo' and twitter_handle = 'thiagonfigueiredo';
+  where slug = 'bythiagofigueiredo' and twitter_handle = 'tnFigueiredo';
 update public.sites set supported_locales = array['pt-BR']
   where slug = 'bythiagofigueiredo' and supported_locales = array['pt-BR','en'];
 
@@ -448,7 +448,7 @@ NEXT_PUBLIC_SEO_EXTENDED_SCHEMAS_ENABLED=true
 # Emergency kill switch for sitemap (returns [] if 'true'; use only to stop draft leak).
 SEO_SITEMAP_KILLED=false
 # AI crawler stance (GPTBot/CCBot/anthropic-ai). Default permit; set 'true' to Disallow.
-SEO_AI_CRAWLERS_BLOCKED=false
+SEO_AI_CRAWLERS_BLOCKED=true
 ```
 
 - [ ] **Step 2: Commit**
@@ -960,7 +960,7 @@ export const mockConfig: SiteSeoConfig = {
   identityType: 'person',
   primaryColor: '#0F172A',
   logoUrl: null,
-  twitterHandle: 'thiagonfigueiredo',
+  twitterHandle: 'tnFigueiredo',
   defaultOgImageUrl: null,
   contentPaths: { blog: '/blog', campaigns: '/campaigns' },
   personIdentity: mockPersonProfile,
@@ -1521,7 +1521,7 @@ describe('getSiteSeoConfig', () => {
                   id: 'site-1', name: 'Thiago Figueiredo', slug: 'bythiagofigueiredo',
                   primary_domain: 'bythiagofigueiredo.com', default_locale: 'pt-BR',
                   supported_locales: ['pt-BR', 'en'], identity_type: 'person',
-                  primary_color: '#FF0066', logo_url: null, twitter_handle: 'thiagonfigueiredo',
+                  primary_color: '#FF0066', logo_url: null, twitter_handle: 'tnFigueiredo',
                   seo_default_og_image: null,
                 },
                 error: null,
@@ -2206,7 +2206,31 @@ import type { SiteSeoConfig } from './config'
 
 type Rule = NonNullable<MetadataRoute.Robots['rules']>[number] | Record<string, unknown>
 
-const AI_CRAWLERS = ['GPTBot', 'CCBot', 'anthropic-ai', 'PerplexityBot', 'ClaudeBot']
+// AI/LLM crawlers + scrapers blocked when SEO_AI_CRAWLERS_BLOCKED=true.
+// Curated list — explicitly KEEPS social-preview bots (facebookexternalhit,
+// Twitterbot, LinkedInBot, Slackbot, WhatsApp, TelegramBot) and search engines
+// (Googlebot, Bingbot, DuckDuckBot, YandexBot) under the default `User-agent: *`
+// Allow rule. Only model-training and aggressive scrapers are denied.
+const AI_CRAWLERS = [
+  'GPTBot',                  // OpenAI training
+  'ChatGPT-User',            // OpenAI live retrieval
+  'OAI-SearchBot',           // OpenAI search index
+  'ClaudeBot',               // Anthropic training (current)
+  'anthropic-ai',            // Anthropic legacy UA
+  'Claude-Web',              // Anthropic search retrieval
+  'CCBot',                   // Common Crawl (feeds many LLMs)
+  'PerplexityBot',           // Perplexity AI
+  'Google-Extended',         // Google AI training opt-out (does NOT affect Googlebot for search)
+  'Applebot-Extended',       // Apple AI training opt-out (does NOT affect Applebot for Spotlight/Siri)
+  'FacebookBot',             // Meta AI (NOT facebookexternalhit which is link-share preview)
+  'Bytespider',              // ByteDance/TikTok
+  'Amazonbot',               // Amazon LLM
+  'Diffbot',                 // structured-data scraper
+  'Omgilibot',               // aggregator scraper
+  'YouBot',                  // You.com
+  'cohere-ai',               // Cohere training
+  'AI2Bot',                  // Allen AI
+]
 
 export function buildRobotsRules(input: {
   config: SiteSeoConfig | null
@@ -3286,7 +3310,7 @@ const config: SiteSeoConfig = {
   identityType: 'person',
   primaryColor: '#0F172A',
   logoUrl: 'https://bythiagofigueiredo.com/logo.png',
-  twitterHandle: 'thiagonfigueiredo',
+  twitterHandle: 'tnFigueiredo',
   defaultOgImageUrl: 'https://bythiagofigueiredo.com/og-default.png',
   contentPaths: { blog: '/blog', campaigns: '/campaigns' },
   personIdentity: personProfile,
@@ -3504,7 +3528,7 @@ vi.mock('../../../lib/seo/config', () => ({
     siteUrl: 'https://bythiagofigueiredo.com',
     defaultLocale: 'pt-BR', supportedLocales: ['pt-BR', 'en'],
     identityType: 'person', primaryColor: '#0F172A',
-    logoUrl: null, twitterHandle: 'thiagonfigueiredo',
+    logoUrl: null, twitterHandle: 'tnFigueiredo',
     defaultOgImageUrl: null,
     contentPaths: { blog: '/blog', campaigns: '/campaigns' },
     personIdentity: {
@@ -3761,7 +3785,7 @@ vi.mock('../../../lib/seo/config', () => ({
     siteUrl: 'https://bythiagofigueiredo.com',
     defaultLocale: 'pt-BR', supportedLocales: ['pt-BR', 'en'],
     identityType: 'person', primaryColor: '#0F172A',
-    logoUrl: null, twitterHandle: 'thiagonfigueiredo',
+    logoUrl: null, twitterHandle: 'tnFigueiredo',
     defaultOgImageUrl: null,
     contentPaths: { blog: '/blog', campaigns: '/campaigns' },
     personIdentity: null, orgIdentity: null,
@@ -4142,7 +4166,7 @@ vi.mock('../../../lib/seo/config', () => ({
     siteUrl: 'https://bythiagofigueiredo.com',
     defaultLocale: 'pt-BR', supportedLocales: ['pt-BR', 'en'],
     identityType: 'person', primaryColor: '#0F172A',
-    logoUrl: null, twitterHandle: 'thiagonfigueiredo',
+    logoUrl: null, twitterHandle: 'tnFigueiredo',
     defaultOgImageUrl: null,
     contentPaths: { blog: '/blog', campaigns: '/campaigns' },
     personIdentity: {
@@ -6537,7 +6561,7 @@ Append to `apps/web/test/app/api/health-seo.test.ts` inside the existing `descri
       supportedLocales: ['pt-BR', 'en'],
       primaryColor: '#0F172A',
       logoUrl: null,
-      twitterHandle: 'thiagonfigueiredo',
+      twitterHandle: 'tnFigueiredo',
       defaultOgImageUrl: null,
       contentPaths: { blog: '/blog', campaigns: '/campaigns' },
       personIdentity: null,
@@ -7467,7 +7491,7 @@ Sprint 6+: extrair `parseFrontmatter` upstream pra `@tn-figueiredo/cms@0.3.0` se
 
 - `20260501000001_sites_seo_columns.sql` — `sites.identity_type` text NOT NULL DEFAULT 'person' check IN ('person','organization'); `sites.twitter_handle` text check ~ '^[A-Za-z0-9_]{1,15}$'; `sites.seo_default_og_image` text check ~ '^https://'
 - `20260501000002_blog_translations_seo_extras.sql` — `blog_translations.seo_extras` jsonb + structural CHECK (object shape, faq array, howTo object, video object, og_image_url string)
-- `20260501000003_seo_backfill.sql` (idempotent) — `update sites set twitter_handle='thiagonfigueiredo' where slug='bythiagofigueiredo'`; backfill `supported_locales=array['pt-BR','en']`
+- `20260501000003_seo_backfill.sql` (idempotent) — `update sites set twitter_handle='tnFigueiredo' where slug='bythiagofigueiredo'`; backfill `supported_locales=array['pt-BR','en']`
 
 **Reuso:** `sites.supported_locales` já existia (Sprint 4.75 migration `…000020`), Sprint 5b consome — não duplica.
 
