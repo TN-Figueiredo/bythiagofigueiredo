@@ -169,14 +169,14 @@ describe('vercel.json crons', () => {
   });
 
   // M5: guard the full cron array so a future PR cannot silently delete
-  // publish-scheduled, sync-newsletter-pending, purge-sent-emails, or
-  // lgpd-cleanup-sweep.
+  // publish-scheduled, sync-newsletter-pending, purge-sent-emails,
+  // lgpd-cleanup-sweep, or purge-old-contact-submissions.
   it('contains all expected cron entries with correct schedules', () => {
     const p = resolve(__dirname, '../../vercel.json');
     const j = JSON.parse(readFileSync(p, 'utf8'));
-    // Pin array length so a future PR that adds a 5th cron trips this guard
+    // Pin array length so a future PR that adds a 6th cron trips this guard
     // and gets reviewer attention before merge.
-    expect(j.crons).toHaveLength(4);
+    expect(j.crons).toHaveLength(5);
     expect(j.crons).toContainEqual({
       path: '/api/cron/publish-scheduled',
       schedule: '*/5 * * * *',
@@ -192,6 +192,10 @@ describe('vercel.json crons', () => {
     expect(j.crons).toContainEqual({
       path: '/api/cron/lgpd-cleanup-sweep',
       schedule: '0 7 * * *',
+    });
+    expect(j.crons).toContainEqual({
+      path: '/api/cron/purge-old-contact-submissions',
+      schedule: '0 6 * * 0',
     });
   });
 });

@@ -106,7 +106,7 @@ Retemos cada categoria pelo prazo mínimo necessário à finalidade ou exigido p
 | Conta de usuário (ativa) | Enquanto a conta existir |
 | Conta de usuário (após pedido de exclusão) | 15 dias de carência (possibilidade de cancelamento) → exclusão definitiva |
 | Inscrições na newsletter | Anonimizadas imediatamente no unsubscribe (e-mail → hash SHA-256) |
-| Submissões do formulário de contato | Até 2 anos; anonimização sob solicitação a qualquer momento |
+| Submissões do formulário de contato | Até 2 anos (anonimização automática semanal por cron); anonimização sob solicitação a qualquer momento |
 | E-mails enviados (`sent_emails`) | Purga automática após **90 dias** |
 | Logs de auditoria | 5 anos (exigência regulatória para accountability) |
 | Consentimentos (`consents`) | Mantidos enquanto válidos + 5 anos após revogação (accountability) |
@@ -114,7 +114,7 @@ Retemos cada categoria pelo prazo mínimo necessário à finalidade ou exigido p
 | Exportações de dados (blobs Storage) | 7 dias após geração |
 | Pedidos LGPD (`lgpd_requests`) | 5 anos após conclusão (accountability) |
 
-Após esses prazos os dados são excluídos ou anonimizados de forma irreversível.
+Após esses prazos os dados são excluídos ou anonimizados de forma irreversível. **A retenção de 2 anos de submissões do formulário de contato é automaticamente aplicada via cron semanal** (`purge_old_contact_submissions` — anonimização irreversível, preservando `site_id` e `submitted_at` apenas para analytics agregado).
 
 ## 7. Direitos do titular (LGPD Art. 18)
 
@@ -140,6 +140,16 @@ Ferramentas self-service disponíveis após login:
 - **Consentimentos + cookies:** `/account/settings/privacy` — histórico e revogação granular.
 
 Para os demais direitos, escreva para **privacidade@bythiagofigueiredo.com** — respondemos em até **15 dias** (LGPD Art. 19 §1º).
+
+### Escopo multi-site da revogação de consentimento
+
+A plataforma opera como uma **rede multi-site** (a rede bythiagofigueiredo), em que cada domínio — `bythiagofigueiredo.com` e sites irmãos que compartilham a mesma infraestrutura — registra consentimentos de forma **independente, por site (`site_id`)**. Isso significa que **revogar um consentimento em um domínio não cascata automaticamente para os demais sites da rede**: se você aceitou cookies de analytics em dois sites distintos e depois revogou em um, o consentimento no outro permanece ativo até que você o revogue explicitamente naquele domínio.
+
+Para gerenciar consentimentos em todos os sites que você visitou de forma consolidada, acesse **[/account/settings/privacy](/account/settings/privacy)** quando autenticado — essa tela lista todos os consentimentos da sua conta cruzando sites, com revogação individual por linha. Alternativamente, você pode visitar o banner de cookies em cada domínio.
+
+### Persistência residual em backups após exclusão
+
+Após a exclusão definitiva (D+15), seus dados podem persistir em **backups criptografados por até 30 dias adicionais** (janela de retenção de backup do Supabase). Durante esse período, os dados são acessíveis apenas para fins de **recuperação de desastre** e **não são utilizados para processamento ativo**. Após esse prazo, os backups são sobrescritos automaticamente e a exclusão se torna **irreversível**. Essa janela decorre da necessidade operacional de poder restaurar o serviço em caso de corrupção, falha de hardware ou incidente de segurança, e está coberta pelo **Art. 16 da LGPD** (conservação para cumprimento de obrigação legal ou regulatória).
 
 ## 8. Cookies e armazenamento local
 
@@ -167,9 +177,36 @@ Aplicamos medidas técnicas e organizacionais adequadas ao risco:
 
 Em caso de **incidente de segurança** que exponha dados pessoais, notificaremos a ANPD e os titulares afetados nos prazos da LGPD Art. 48.
 
-## 10. Menores de 18 anos
+## 10. Menores de 18 anos (LGPD Art. 14)
 
-Este site **não se destina a menores de 18 anos** e não coletamos conscientemente dados dessa faixa etária. Se você é responsável legal e identifica que um menor sob sua tutela forneceu dados, escreva para privacidade@bythiagofigueiredo.com para exclusão imediata.
+Este site **não é direcionado a menores de 18 anos** — o conteúdo, os formatos e os canais de conteúdo são voltados ao público adulto. Contudo, reconhecemos que menores podem acessar ou utilizar o site, e esta seção descreve nosso tratamento à luz do **Art. 14 da LGPD**.
+
+### Base legal e consentimento parental (LGPD Art. 14 §1º)
+
+Quando um titular for identificado como **criança (até 12 anos incompletos)** ou **adolescente (12 a 17 anos)**, o tratamento de seus dados pessoais só pode ocorrer:
+
+- **Para crianças (Art. 14 §1º):** mediante **consentimento específico e em destaque, dado por pelo menos um dos pais ou responsável legal**;
+- **Para adolescentes:** observando sempre o **melhor interesse** do titular, e — nos casos em que o consentimento seja a base legal aplicável — com consentimento do responsável legal quando exigido pela interpretação prevalente do ANPD.
+
+### Ausência de verificação de idade na coleta (full disclosure)
+
+Não utilizamos gate etário automatizado no cadastro ou em formulários públicos. Essa é uma **decisão consciente** que, embora reduza o atrito de uso, pode resultar em registros de menores sem validação prévia de consentimento parental. Mitigamos esse risco com os mecanismos descritos abaixo.
+
+### Canal para responsáveis legais
+
+Pais e responsáveis legais que identifiquem que um menor sob sua tutela cadastrou-se ou forneceu dados neste site podem enviar solicitação para **privacidade@bythiagofigueiredo.com**, com o assunto "LGPD Art. 14 — menor de idade". Nesse canal aceitamos:
+
+- Pedidos de **exclusão imediata** dos dados do menor;
+- Pedidos de **acesso** aos dados coletados;
+- Pedidos de **correção** ou **oposição** ao tratamento.
+
+### SLA de resposta e exclusão (Art. 14)
+
+Ao sermos notificados por um responsável legal de que um menor registrou dados **sem consentimento parental**, comprometemo-nos a **excluir os dados em até 15 dias corridos** a contar da notificação, confirmar a exclusão por e-mail ao responsável, e registrar a operação em nosso log de auditoria para fins de accountability.
+
+### Dados considerados categoria especial
+
+Dados de menores recebem **o mesmo nível de proteção técnica** aplicado aos demais titulares (TLS 1.3, RLS, backups criptografados, minimização Sentry) — e não são utilizados para finalidades secundárias (marketing, personalização, perfilamento) em nenhuma hipótese.
 
 ## 11. Solicitação de cópia dos contratos de proteção
 
