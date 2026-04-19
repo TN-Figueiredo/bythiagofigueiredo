@@ -44,6 +44,7 @@ export function PinboardHeader({ locale, currentTheme, t }: Props) {
           <Link href={locale === 'pt-BR' ? '/pt-BR' : '/'} className="hover:text-pb-ink transition-colors">{t['nav.home']}</Link>
           <Link href={locale === 'pt-BR' ? '/blog/pt-BR' : '/blog/en'} className="hover:text-pb-ink transition-colors">{t['nav.writing']}</Link>
           <Link href={YT_CHANNELS[locale]} className="hover:text-pb-ink transition-colors" target="_blank" rel="noopener">{t['nav.videos']}</Link>
+          <Link href={locale === 'pt-BR' ? '/pt-BR/newsletters' : '/newsletters'} className="hover:text-pb-ink transition-colors">{t['nav.newsletter'] ?? 'Newsletter'}</Link>
           <Link href="/contact" className="hover:text-pb-ink transition-colors">{t['nav.contact']}</Link>
           <a href="https://dev.bythiagofigueiredo.com" className="hover:text-pb-ink transition-colors opacity-60" target="_blank" rel="noopener">
             {t['nav.devSite']} ↗
