@@ -5,11 +5,9 @@ import { headers } from 'next/headers'
 import { z } from 'zod'
 import { getSupabaseServiceClient } from '../../../../lib/supabase/service'
 import { verifyTurnstileToken } from '../../../../lib/turnstile'
-import { getEmailService } from '../../../../lib/email/service'
-import { getEmailSender } from '../../../../lib/email/sender'
+import { sendTransactionalEmail } from '../../../../lib/email/resend'
 import { getSiteContext } from '../../../../lib/cms/site-context'
 import { getClientIp, isValidInet } from '../../../../lib/request-ip'
-import { confirmSubscriptionTemplate, ensureUnsubscribeToken } from '@tn-figueiredo/email'
 import { NEWSLETTER_CONSENT_VERSION } from '../consent'
 import { captureServerActionError } from '../../../lib/sentry-wrap'
 
@@ -29,6 +27,32 @@ function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex')
 }
 
+function buildConfirmationHtml(confirmUrl: string, locale: string): string {
+  const isPt = locale === 'pt-BR'
+  return `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>${isPt ? 'Confirme sua inscrição' : 'Confirm your subscription'}</title></head>
+<body style="font-family:sans-serif;max-width:480px;margin:40px auto;color:#161208;background:#FBF6E8;padding:32px;border-radius:8px;">
+  <h1 style="font-size:24px;margin-bottom:16px;">${isPt ? 'Quase lá!' : 'Almost there!'}</h1>
+  <p style="font-size:16px;line-height:1.6;margin-bottom:24px;">
+    ${isPt
+      ? 'Clique no botão abaixo para confirmar sua inscrição na newsletter.'
+      : 'Click the button below to confirm your newsletter subscription.'}
+  </p>
+  <a href="${confirmUrl}" style="display:inline-block;background:#C14513;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;">
+    ${isPt ? 'Confirmar inscrição' : 'Confirm subscription'}
+  </a>
+  <p style="font-size:12px;color:#6A5F48;margin-top:32px;">
+    ${isPt
+      ? 'Se você não se inscreveu, ignore este email.'
+      : "If you didn't subscribe, ignore this email."}
+  </p>
+</body>
+</html>
+  `.trim()
+}
+
 export type SubscribeResult =
   | { status: 'ok' }
   | { status: 'error'; code: string }
@@ -42,6 +66,8 @@ export async function subscribeToNewsletter(formData: FormData): Promise<Subscri
   // Locale: validated via Zod enum — any unknown value falls back to pt-BR.
   const localeParse = LocaleSchema.safeParse(formData.get('locale'))
   const locale: NewsletterLocale = localeParse.success ? localeParse.data : 'pt-BR'
+
+  const newsletter_id = (formData.get('newsletter_id') as string | null) ?? 'main-pt'
 
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return { status: 'error', code: 'invalid_email' }
@@ -113,7 +139,7 @@ export async function subscribeToNewsletter(formData: FormData): Promise<Subscri
       })
       .eq('id', existing.id)
 
-    await sendConfirmEmail({ supabase, siteId, email, rawToken, expiresAt, locale })
+    await sendConfirmEmail({ email, rawToken, locale })
     return { status: 'ok' }
   }
 
@@ -129,6 +155,7 @@ export async function subscribeToNewsletter(formData: FormData): Promise<Subscri
     confirmation_expires_at: expiresAt.toISOString(),
     consent_text_version: NEWSLETTER_CONSENT_VERSION,
     locale,
+    newsletter_id,
     ip: isValidInet(ip) ? ip : null,
   })
 
@@ -146,40 +173,20 @@ export async function subscribeToNewsletter(formData: FormData): Promise<Subscri
     return { status: 'error', code: 'db_error' }
   }
 
-  await sendConfirmEmail({ supabase, siteId, email, rawToken, expiresAt, locale })
+  await sendConfirmEmail({ email, rawToken, locale })
   return { status: 'ok' }
 }
 
-async function sendConfirmEmail(opts: {
-  supabase: ReturnType<typeof getSupabaseServiceClient>
-  siteId: string
-  email: string
-  rawToken: string
-  expiresAt: Date
-  locale: NewsletterLocale
-}) {
-  const { supabase, siteId, email, rawToken, expiresAt, locale } = opts
+async function sendConfirmEmail({
+  email, rawToken, locale,
+}: { email: string; rawToken: string; locale: string }) {
+  const confirmUrl = `${process.env.NEXT_PUBLIC_APP_URL}/newsletter/confirm?token=${rawToken}`
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-    const confirmUrl = `${baseUrl}/newsletter/confirm/${rawToken}`
-    const unsubscribeUrl = await ensureUnsubscribeToken(supabase, siteId, email, baseUrl)
-    const sender = await getEmailSender(siteId)
-    const emailService = getEmailService()
-    await emailService.sendTemplate(
-      confirmSubscriptionTemplate,
-      { email: sender.email, name: sender.name },
-      email,
-      {
-        confirmUrl,
-        expiresAt,
-        branding: {
-          brandName: sender.brandName,
-          primaryColor: sender.primaryColor,
-          unsubscribeUrl,
-        },
-      },
-      locale,
-    )
+    await sendTransactionalEmail({
+      to: email,
+      subject: locale === 'pt-BR' ? 'Confirme sua inscrição' : 'Confirm your subscription',
+      html: buildConfirmationHtml(confirmUrl, locale),
+    })
   } catch {
     // Email delivery failure is non-fatal — subscription row already created
   }
