@@ -655,13 +655,25 @@ describe('getFeaturedPost', () => {
   beforeEach(() => vi.clearAllMocks())
 
   it('falls back to most recent when no featured post', async () => {
-    // First call (is_featured=true) returns null
-    mockSingle.mockResolvedValueOnce({ data: null, error: null })
-    // Second call (fallback) returns a post
-    const post = { id: 'p1', slug: 'hello', locale: 'en', title: 'Hello', excerpt: null,
+    // Featured query: ends with .limit(1).single()
+    //   → limit() must return chain (so .single() can be called on it)
+    //   → single() returns the resolved data
+    // Fallback query: ends with .limit(1) (no .single())
+    //   → limit() returns the resolved data directly
+    //
+    // mockReturnValue(chain) is the permanent default, but one-time overrides
+    // take precedence in FIFO order. We push chain first (for the featured
+    // query's limit call), then the data (for the fallback's limit call).
+    const fallbackPost = {
+      id: 'p1', slug: 'hello', locale: 'en', title: 'Hello', excerpt: null,
       published_at: '2026-01-01', category: null, reading_time_min: 3,
-      cover_image_url: null, is_featured: false }
-    mockLimit.mockResolvedValueOnce({ data: [post], error: null })
+      cover_image_url: null, is_featured: false,
+      blog_posts: { id: 'p1', published_at: '2026-01-01', category: null, is_featured: false },
+    }
+    mockSingle.mockResolvedValueOnce({ data: null, error: null })
+    mockLimit
+      .mockReturnValueOnce(chain)  // first limit() call: keep chaining so .single() works
+      .mockResolvedValueOnce({ data: [fallbackPost], error: null })  // second limit() call: fallback data
 
     const result = await getFeaturedPost('en')
     expect(result).not.toBeNull()
@@ -793,15 +805,13 @@ export async function getNewslettersForLocale(locale: string): Promise<HomeNewsl
 }
 ```
 
-**Note on import path:** Check `apps/web/lib/seo/enumerator.ts` for the exact import used for the service client — use the same path. Common patterns: `'../supabase/service'` or `'@/lib/supabase/service'`.
+The import path `'../supabase/service'` is correct — confirmed by reading `apps/web/lib/supabase/service.ts` directly. `getSupabaseServiceClient` is the exported function name.
 
-- [ ] **Step 7.4: Run test — fix import path if needed**
+- [ ] **Step 7.4: Run test — expect PASS**
 
 ```bash
 npm run test:web -- --reporter=verbose test/lib/home/queries.test.ts
 ```
-
-If the service client mock path is wrong, adjust the `vi.mock(...)` path to match the actual import in `queries.ts`.
 
 Expected: 2 tests passing.
 
@@ -990,31 +1000,67 @@ function buildConfirmationHtml(confirmUrl: string, locale: string): string {
 }
 ```
 
-- [ ] **Step 9.2: Replace the Brevo email send call**
+- [ ] **Step 9.2: Replace the `sendConfirmEmail` function**
 
-In the same `actions.ts`, find where the existing email service is called to send the confirmation email (look for `emailService.sendTemplate(...)` or similar). Replace that block with:
-
-```ts
-const confirmUrl = `${process.env.NEXT_PUBLIC_APP_URL}/newsletter/confirm?token=${rawToken}`
-await sendTransactionalEmail({
-  to: email,
-  subject: locale === 'pt-BR' ? 'Confirme sua inscrição' : 'Confirm your subscription',
-  html: buildConfirmationHtml(confirmUrl, locale),
-}).catch((err) => {
-  // Non-fatal: subscription row exists; user can re-request confirmation
-  console.error('[newsletter] confirmation email failed', err)
-})
-```
-
-- [ ] **Step 9.3: Also add `newsletter_id` extraction from formData**
-
-In the existing action, after the locale extraction, add:
+The existing `actions.ts` has a `sendConfirmEmail` function (after the main `subscribeToNewsletter` function) that calls `emailService.sendTemplate(confirmSubscriptionTemplate, ...)`. Replace the **entire body** of that function:
 
 ```ts
-const newsletter_id = (formData.get('newsletter_id') as string) || 'main-pt'
+// BEFORE (remove this):
+async function sendConfirmEmail({ supabase, siteId, email, rawToken, expiresAt, locale }: ...) {
+  const sender = await getEmailSender(siteId)
+  const emailService = getEmailService()
+  await emailService.sendTemplate(confirmSubscriptionTemplate, {
+    to: email,
+    locale,
+    data: { confirmUrl, expiresAt, branding: { ... } },
+  })
+}
+
+// AFTER (replace with this exact function):
+async function sendConfirmEmail({
+  email, rawToken, locale,
+}: { email: string; rawToken: string; locale: string }) {
+  const confirmUrl = `${process.env.NEXT_PUBLIC_APP_URL}/newsletter/confirm?token=${rawToken}`
+  await sendTransactionalEmail({
+    to: email,
+    subject: locale === 'pt-BR' ? 'Confirme sua inscrição' : 'Confirm your subscription',
+    html: buildConfirmationHtml(confirmUrl, locale),
+  })
+}
 ```
 
-And in the Supabase insert object, add `newsletter_id`.
+Also update every call site of `sendConfirmEmail` to remove the now-unused `supabase` and `siteId` args:
+
+```ts
+// BEFORE:
+await sendConfirmEmail({ supabase, siteId, email, rawToken, expiresAt, locale })
+
+// AFTER:
+await sendConfirmEmail({ email, rawToken, locale })
+```
+
+- [ ] **Step 9.3: Add `newsletter_id` extraction from formData**
+
+In `subscribeToNewsletter`, after the locale extraction block, add:
+
+```ts
+const newsletter_id = (formData.get('newsletter_id') as string | null) ?? 'main-pt'
+```
+
+In the Supabase insert object (the one that creates the `newsletter_subscriptions` row), add `newsletter_id` to the object:
+
+```ts
+{
+  site_id: siteId,
+  email,
+  status: 'pending_confirmation',
+  newsletter_id,          // ← add this line
+  locale,
+  consent_text_version: NEWSLETTER_CONSENT_VERSION,
+  confirmation_token_hash: tokenHash,
+  confirmation_expires_at: expiresAt,
+}
+```
 
 - [ ] **Step 9.4: Run tests**
 
@@ -1043,28 +1089,36 @@ git commit -m "feat(newsletter): swap confirmation email transport from Brevo to
 
 ```ts
 // apps/web/test/app/(public)/actions/newsletter-inline.test.ts
+// Path math from this file's dir (test/app/(public)/actions/):
+//   ../../../../ = apps/web/    ../../../../lib/ = apps/web/lib/
+//   ../../../../src/ = apps/web/src/
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const mockRateCheck = vi.fn().mockResolvedValue({ data: { allowed: true }, error: null })
 const mockInsert = vi.fn().mockResolvedValue({ data: { id: 'sub-1' }, error: null })
 const mockFrom = vi.fn()
 
-vi.mock('../../../../../lib/supabase/service', () => ({
+vi.mock('../../../../lib/supabase/service', () => ({
   getSupabaseServiceClient: vi.fn(() => ({
     rpc: mockRateCheck,
     from: mockFrom.mockReturnValue({ insert: mockInsert }),
   })),
 }))
 
-vi.mock('../../../../../lib/email/resend', () => ({
+vi.mock('../../../../lib/email/resend', () => ({
   sendTransactionalEmail: vi.fn().mockResolvedValue(undefined),
 }))
 
-vi.mock('../../../../../lib/turnstile', () => ({
+vi.mock('../../../../lib/turnstile', () => ({
   verifyTurnstile: vi.fn().mockResolvedValue(true),
 }))
 
-import { subscribeNewsletterInline } from '../../../../../src/app/(public)/actions/newsletter-inline'
+// getSiteContext reads x-site-id header set by middleware
+vi.mock('../../../../lib/cms/site-context', () => ({
+  getSiteContext: vi.fn().mockResolvedValue({ siteId: 'test-site-uuid' }),
+}))
+
+import { subscribeNewsletterInline } from '../../../../src/app/(public)/actions/newsletter-inline'
 
 describe('subscribeNewsletterInline', () => {
   beforeEach(() => vi.clearAllMocks())
@@ -1122,6 +1176,7 @@ Expected: FAIL — module not found.
 import crypto from 'node:crypto'
 import { z } from 'zod'
 import { getSupabaseServiceClient } from '../../../../lib/supabase/service'
+import { getSiteContext } from '../../../../lib/cms/site-context'
 import { sendTransactionalEmail } from '../../../../lib/email/resend'
 import { verifyTurnstile } from '../../../../lib/turnstile'
 
@@ -1152,8 +1207,12 @@ export async function subscribeNewsletterInline(
 
   const { email, newsletter_id, locale, turnstile_token } = parsed.data
 
-  // Turnstile verification (skip in test env)
-  if (process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && turnstile_token) {
+  // siteId from middleware header — same pattern as newsletter/subscribe/actions.ts
+  const { siteId } = await getSiteContext()
+
+  // Turnstile: required when NEXT_PUBLIC_TURNSTILE_SITE_KEY is configured
+  if (process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY) {
+    if (!turnstile_token) return { error: 'Verificação necessária. / Verification required.' }
     const ok = await verifyTurnstile(turnstile_token)
     if (!ok) return { error: 'Verificação falhou. / Verification failed.' }
   }
@@ -1171,9 +1230,9 @@ export async function subscribeNewsletterInline(
   const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex')
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
 
-  // Insert subscription (upsert on conflict — existing pending row is refreshed)
+  // Insert subscription
   const { error: insertError } = await db.from('newsletter_subscriptions').insert({
-    site_id: process.env.MASTER_SITE_ID,
+    site_id: siteId,
     email,
     status: 'pending_confirmation',
     newsletter_id,
@@ -1193,21 +1252,17 @@ export async function subscribeNewsletterInline(
   await sendTransactionalEmail({
     to: email,
     subject: isPt ? 'Confirme sua inscrição' : 'Confirm your subscription',
-    html: `
-      <div style="font-family:sans-serif;max-width:480px;margin:40px auto;">
-        <h2>${isPt ? 'Confirme sua inscrição' : 'Confirm your subscription'}</h2>
-        <a href="${confirmUrl}" style="background:#C14513;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;">
-          ${isPt ? 'Confirmar' : 'Confirm'}
-        </a>
-      </div>
-    `,
+    html: `<!DOCTYPE html><html><body style="font-family:sans-serif;max-width:480px;margin:40px auto;">
+      <h2>${isPt ? 'Confirme sua inscrição' : 'Confirm your subscription'}</h2>
+      <a href="${confirmUrl}" style="background:#C14513;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;">
+        ${isPt ? 'Confirmar' : 'Confirm'}
+      </a>
+    </body></html>`,
   }).catch(() => undefined)
 
   return { success: true }
 }
 ```
-
-**Note:** `MASTER_SITE_ID` must be set in env. Check existing `.env.local` — it may be `NEXT_PUBLIC_SITE_ID` or set it from the DB's site row for `bythiagofigueiredo`. Look at how other actions obtain the site_id (e.g., `apps/web/src/app/newsletter/subscribe/actions.ts`) and use the same approach.
 
 - [ ] **Step 10.4: Run test — expect PASS**
 
@@ -1336,17 +1391,20 @@ No unit tests — visual primitives; verified in browser after Task 21.
 
 ```tsx
 // apps/web/src/app/(public)/components/PaperCard.tsx
-import { type ReactNode, CSSProperties } from 'react'
+import { type ReactNode, type CSSProperties } from 'react'
 
 type Props = {
   index: number
   variant?: 'paper' | 'paper2'
   className?: string
+  /** Override the computed rotation — used by DualHero for precise hero angles */
+  rotationDeg?: number
   children: ReactNode
 }
 
-export function PaperCard({ index, variant = 'paper', className = '', children }: Props) {
-  const rotateDeg = (((index * 37) % 7) - 3) * 0.5
+export function PaperCard({ index, variant = 'paper', className = '', rotationDeg, children }: Props) {
+  const computedRotate = (((index * 37) % 7) - 3) * 0.5
+  const rotateDeg = rotationDeg ?? computedRotate
   const translateY = (((index * 53) % 5) - 2) * 2
 
   const style: CSSProperties = {
@@ -1356,7 +1414,7 @@ export function PaperCard({ index, variant = 'paper', className = '', children }
 
   return (
     <div
-      className={`relative rounded-sm transition-shadow hover:shadow-xl ${className} pb-rotate`}
+      className={`relative rounded-sm transition-shadow hover:shadow-xl pb-rotate ${className}`}
       style={style}
     >
       {children}
@@ -1413,15 +1471,18 @@ git commit -m "feat(ui): add PaperCard + Tape primitives"
 // apps/web/src/app/(public)/components/ThemeToggle.tsx
 'use client'
 
-import { useTransition } from 'react'
+import { useState, useTransition } from 'react'
 
 type Props = { currentTheme: 'dark' | 'light' }
 
 export function ThemeToggle({ currentTheme }: Props) {
+  // useState so the icon updates immediately after click (prop alone is server-rendered, static)
+  const [theme, setTheme] = useState<'dark' | 'light'>(currentTheme)
   const [pending, startTransition] = useTransition()
 
   function toggle() {
-    const next = currentTheme === 'dark' ? 'light' : 'dark'
+    const next = theme === 'dark' ? 'light' : 'dark'
+    setTheme(next) // optimistic update — icon flips immediately
     startTransition(async () => {
       await fetch('/api/theme', {
         method: 'POST',
@@ -1437,10 +1498,10 @@ export function ThemeToggle({ currentTheme }: Props) {
     <button
       onClick={toggle}
       disabled={pending}
-      aria-label={currentTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+      aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
       className="text-pb-muted hover:text-pb-ink transition-colors text-sm font-mono px-2 py-1 rounded"
     >
-      {currentTheme === 'dark' ? '☀' : '☾'}
+      {theme === 'dark' ? '☀' : '☾'}
     </button>
   )
 }
@@ -1580,8 +1641,8 @@ export function DualHero({ post, video, locale, t, isDark }: Props) {
 
   return (
     <section className="grid grid-cols-1 md:grid-cols-2 gap-8 py-10 px-6">
-      {/* Featured Post */}
-      <PaperCard index={0} className="overflow-hidden pb-fade-in" style={{ transform: 'rotate(-0.8deg)' }}>
+      {/* Featured Post — rotationDeg prop overrides the computed index-based rotation */}
+      <PaperCard index={0} rotationDeg={-0.8} className="overflow-hidden pb-fade-in">
         <Tape variant="tape" className="-top-2 left-6" rotate={-6} />
         <Tape variant="tape2" className="-top-2 right-6" rotate={5} />
 
@@ -1636,7 +1697,7 @@ export function DualHero({ post, video, locale, t, isDark }: Props) {
 
       {/* Featured Video */}
       {video && (
-        <PaperCard index={1} variant="paper2" className="overflow-hidden pb-fade-in" style={{ transform: 'rotate(0.8deg)' }}>
+        <PaperCard index={1} variant="paper2" rotationDeg={0.8} className="overflow-hidden pb-fade-in">
           <Tape variant="tapeR" className="-top-2 left-1/2 -translate-x-1/2" rotate={-2} />
 
           <a href={video.youtubeUrl} target="_blank" rel="noopener noreferrer" className="block group">
@@ -2068,15 +2129,13 @@ import { NewsletterInline } from './NewsletterInline'
 import { PinboardFooter } from './PinboardFooter'
 import { getFeaturedPost, getLatestPosts, getNewslettersForLocale } from '../../../../lib/home/queries'
 import { SAMPLE_VIDEOS } from '../../../../lib/home/videos-data'
+// Static imports — statically analyzable, avoids dynamic import edge cases in Next.js build
+import enStrings from '../../../locales/en.json'
+import ptBrStrings from '../../../locales/pt-BR.json'
 
-// Locale string loaders
-async function loadTranslations(locale: 'en' | 'pt-BR'): Promise<Record<string, string>> {
-  if (locale === 'pt-BR') {
-    const m = await import('../../../locales/pt-BR.json')
-    return m.default as Record<string, string>
-  }
-  const m = await import('../../../locales/en.json')
-  return m.default as Record<string, string>
+const TRANSLATIONS: Record<'en' | 'pt-BR', Record<string, string>> = {
+  en: enStrings as Record<string, string>,
+  'pt-BR': ptBrStrings as Record<string, string>,
 }
 
 type Props = { locale: 'en' | 'pt-BR' }
@@ -2085,12 +2144,13 @@ export async function PinboardHome({ locale }: Props) {
   const cookieStore = await cookies()
   const theme = cookieStore.get('btf_theme')?.value === 'light' ? 'light' : 'dark'
   const isDark = theme === 'dark'
+  const t = TRANSLATIONS[locale]
 
-  const [featuredPost, latestPosts, newsletters, t] = await Promise.all([
+  // Fetch 9 posts: after filtering out the featured one we still have up to 8 for the feed
+  const [featuredPost, latestPosts, newsletters] = await Promise.all([
     getFeaturedPost(locale),
-    getLatestPosts(locale, 8),
+    getLatestPosts(locale, 9),
     getNewslettersForLocale(locale),
-    loadTranslations(locale),
   ])
 
   const localeVideos = SAMPLE_VIDEOS.filter(v => v.locale === locale)
