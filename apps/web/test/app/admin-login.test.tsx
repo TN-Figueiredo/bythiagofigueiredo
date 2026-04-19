@@ -41,7 +41,7 @@ import AdminResetPage from '../../src/app/admin/reset/page'
 describe('admin login pages', () => {
   it('mounts <AdminLogin> with actions and optional turnstile prop', async () => {
     process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY = 'test-key'
-    const el = await AdminLoginPage()
+    const el = await AdminLoginPage({})
     render(el)
     expect(screen.getByTestId('admin-login-component')).toBeTruthy()
     const callProps = mockAdminLogin.mock.calls[0]?.[0] as Record<string, unknown>
@@ -53,7 +53,7 @@ describe('admin login pages', () => {
   it('passes undefined turnstile when NEXT_PUBLIC_TURNSTILE_SITE_KEY is unset', async () => {
     delete process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
     mockAdminLogin.mockClear()
-    const el = await AdminLoginPage()
+    const el = await AdminLoginPage({})
     render(el)
     const callProps = mockAdminLogin.mock.calls[0]?.[0] as Record<string, unknown>
     expect(callProps.turnstile).toBeUndefined()

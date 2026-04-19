@@ -21,50 +21,81 @@
 
 ---
 
-## Sprint 6 — Portfolio & YouTube Hub [☐ not-started] (40h)
+## Sprint 6 — Portfolio, YouTube Hub & Affiliate MVP [☐ not-started] (46h)
 
-**Goal:** Portfolio, YouTube hub, transcripts pesquisáveis.
+**Goal:** Portfolio, YouTube hub, transcripts pesquisáveis + MVP de affiliate products (`/setup` + `<ProductCard />`).
 **Estimativa:** semanas 10–11
 
-**Epics** (soma = 40h):
+**Epics** (soma = 46h):
 - [ ] Portfolio page (`/portfolio`) + project showcases (3–5 apps) — 16h
 - [ ] YouTube hub (`/youtube`) — playlist embeds EN+PT + latest + CTA — 6h
 - [ ] Video transcripts — fetch YouTube API, store Supabase, full-text search — 12h
 - [ ] RSS feed (`/feed.xml`, Atom 1.0) — 4h
 - [ ] Twitter/X share widget — 2h
+- [ ] **[AFFILIATE MVP]** `/setup` page (MDX estático, pt-BR + en) com gear por categoria (câmera, iluminação, audio, periféricos) — 2h
+- [ ] **[AFFILIATE MVP]** `<ProductCard />` Server Component com props inline (sem DB) + badge `#publi` obrigatório + JSON-LD `schema.org/Product` — 2h
+- [ ] **[AFFILIATE MVP]** `/go/[slug]` redirect estático via `next.config.ts` (sem tracking ainda) — 1h
+- [ ] **[AFFILIATE MVP]** Injetar `ProductCard` no `blogRegistry` em `lib/cms/registry.ts` — 1h
 
-**Spec / Plan:** —
+**Notas affiliate MVP:**
+- Produto definido inline no MDX: `<ProductCard name="..." platform="amazon" href="/go/..." price={2899} />`
+- Sem DB neste sprint — valida UX antes de investir em schema
+- Compliance: badge `#publi` + tooltip disclosure + texto Amazon Associates no footer da `/setup`
+
+**Spec / Plan:** Spec: [2026-04-19-affiliate-products-design.md](../superpowers/specs/2026-04-19-affiliate-products-design.md)
 
 ---
 
-## Sprint 7 — Translations & Email [☐ not-started] (42h)
+## Sprint 7 — Translations, Email & Affiliate System [☐ not-started] (56h)
 
-**Goal:** AI translations, `@tnf/email` extraído, newsletter segmentada.
+**Goal:** AI translations, `@tnf/email` extraído, newsletter segmentada + sistema completo de affiliate products.
 **Estimativa:** semanas 12–13
 
-**Epics** (soma = 42h):
+**Pre-study (antes de executar):**
+- [ ] Auditar `@tn-figueiredo/affiliate` no ecossistema — tem link builder / redirect handler / tracking? Consumir se compatível.
+- [ ] Verificar elegibilidade Amazon Associates BR e Shopee Affiliates (volume mínimo).
+
+**Epics** (soma = 56h):
 - [ ] AI-assisted translations (Claude API / DeepL) — auto-draft on publish — 16h
 - [ ] **@tnf/email package (NEW — extract)** — generalizar Brevo integration, interface + adapter, publicar — 8h
 - [ ] Advanced newsletter segmentation (EN/PT, tags comportamentais) — 6h
 - [ ] Email template variants + A/B testing (Brevo native) — 6h
 - [ ] Email-to-RSS sync (subs escolhem formato) — 4h
 - [ ] Telegram channel integration (bot) — 2h
+- [ ] **[AFFILIATE]** Migrations `affiliate_products` + `affiliate_product_links` + RLS — 3h
+- [ ] **[AFFILIATE]** `/go/[product_id]` handler dinâmico: busca DB, dispatch `affiliate_click`, redirect 302 — 3h
+- [ ] **[AFFILIATE]** `<ProductCard id="uuid" />` migrado para DB (depreca props inline do S6) + `unstable_cache` — 2h
+- [ ] **[AFFILIATE]** Modal de inserção no PostEditor (busca por nome, insere MDX) — 2h
+- [ ] **[AFFILIATE]** Cron `/api/cron/check-affiliate-links` — HEAD requests + `is_broken` flag + Sentry — 2h
+- [ ] **[AFFILIATE]** Admin UI de produtos: list, create, edit, upload de imagem (Supabase Storage) — 2h
 
-**Spec / Plan:** —
+**Spec / Plan:** Spec: [2026-04-19-affiliate-products-design.md](../superpowers/specs/2026-04-19-affiliate-products-design.md)
 
 ---
 
-## Sprint 8 — Analytics & Storage [☐ not-started] (40h)
+## Sprint 8 — Analytics, Pixels & Storage [☐ not-started] (48h)
 
-**Goal:** Analytics dashboard, `@tnf/storage`, image optimization, media manager.
+**Goal:** Consumir `@tn-figueiredo/analytics` e `@tn-figueiredo/pixels`, criar `@tn-figueiredo/storage`, media manager, image optimization.
 **Estimativa:** semanas 14–15
 
-**Epics** (soma = 40h):
-- [ ] **@tnf/storage package (NEW)** — Supabase Storage wrapper (upload, getPublicUrl, getSignedUrl, delete, optimização) — 10h
+**Pre-study (antes de executar):**
+- [ ] Auditar estado de `@tn-figueiredo/analytics` — existe? qual API? adapters disponíveis?
+- [ ] Auditar estado de `@tn-figueiredo/pixels` — GTM / Meta Pixel / GA4? consent-aware já implementado?
+- [ ] Definir eventos a trackear (page_view, newsletter_signup, campaign_conversion, blog_read_complete)
+- [ ] Decidir server-side (Conversions API) vs client-side (CSP + consent gate) para pixels
+
+**Epics** (soma = 52h):
+- [ ] **@tn-figueiredo/analytics** — consumir package; wiring no admin: page views, unique visitors, top posts, campaign conversions (Recharts) — 12h
+- [ ] **@tn-figueiredo/pixels** — consumir package; GTM + Meta Pixel + GA4 consent-aware via `<ConsentGate>`; server-side Conversions API para newsletter_signup + campaign_conversion — 10h
+- [ ] **@tn-figueiredo/storage (NEW)** — Supabase Storage wrapper (upload, getPublicUrl, getSignedUrl, delete, otimização) — 10h
 - [ ] Media manager admin UI (upload, browse, delete) — 8h
 - [ ] Subscriber dashboard (list, segmentação, export CSV) — 6h
-- [ ] Analytics dashboard (@tnf/admin + Recharts) — 10h
-- [ ] Image optimization (Next Image + WebP + lazy) — 6h
+- [ ] Image optimization (Next Image + WebP + lazy) — 6h _(pode mover pra S8.5 se sprint esticar)_
+- [ ] **[AFFILIATE]** Dashboard de affiliate clicks: top produtos, conversão por post, breakdown por plataforma (Amazon vs Shopee) via `@tn-figueiredo/analytics` — 4h
+
+**Dependências de ecossistema:**
+- `@tn-figueiredo/analytics` deve estar publicado antes da execução; se não, cria local `lib/analytics/` e extrai depois
+- `@tn-figueiredo/pixels` idem
 
 **Spec / Plan:** —
 
