@@ -1,7 +1,5 @@
-'use client'
-
 import Link from 'next/link'
-import { ThemeToggle } from '@/components/ui/theme-toggle'
+import { ThemeToggle } from './ThemeToggle'
 
 type Props = {
   locale: 'en' | 'pt-BR'
@@ -25,7 +23,7 @@ export function PinboardHeader({ locale, currentTheme, t }: Props) {
         <Link href={altHref} className="hover:text-pb-ink transition-colors font-mono" hrefLang={altLocale}>
           {altLocale === 'pt-BR' ? '🇧🇷 PT-BR' : '🌎 EN'}
         </Link>
-        <ThemeToggle />
+        <ThemeToggle currentTheme={currentTheme} />
       </div>
 
       {/* Main header row */}
