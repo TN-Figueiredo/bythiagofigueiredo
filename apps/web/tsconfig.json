@@ -23,6 +23,7 @@
     "paths": {
       "@/lib/seo/*": ["./lib/seo/*"],
       "@/lib/cms/*": ["./lib/cms/*"],
+      "@/lib/home/*": ["./lib/home/*"],
       "@/lib/supabase/*": ["./lib/supabase/*"],
       "@/test/*": ["./test/*"],
       "@/*": ["./src/*"]

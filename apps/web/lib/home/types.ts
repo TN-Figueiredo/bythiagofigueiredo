@@ -18,3 +18,12 @@ export type HomeVideo = {
   series: string
   youtubeUrl: string
 }
+
+export type HomeNewsletter = {
+  id: string
+  name: string
+  tagline: string | null
+  cadence: string | null
+  color: string
+  locale: 'en' | 'pt-BR'
+}
