@@ -2,6 +2,11 @@ import { PaperCard } from './PaperCard'
 import { YOUTUBE_CHANNELS } from '@/lib/home/videos-data'
 import type { HomeChannel } from '@/lib/home/types'
 
+const CHANNEL_DESCRIPTIONS: Record<'en' | 'pt-BR', string> = {
+  en: 'Software, travel, and building in public — in English.',
+  'pt-BR': 'Dev, estrada e construção em público — em português.',
+}
+
 type Props = {
   locale: 'en' | 'pt-BR'
   t: Record<string, string>
@@ -24,19 +29,26 @@ function ChannelCard({
       variant={index % 2 === 0 ? 'paper' : 'paper2'}
       className="p-5 flex flex-col gap-4"
     >
-      <div className="flex items-center gap-3">
-        {/* Avatar placeholder */}
-        <div className="w-12 h-12 rounded-full bg-pb-yt flex items-center justify-center text-white font-bold text-lg shrink-0">
-          TF
+      <div className="flex items-start gap-3">
+        {/* Flag avatar */}
+        <div
+          className="w-12 h-12 rounded-lg flex items-center justify-center text-2xl shrink-0 border border-[--pb-line]"
+          style={{ background: 'var(--pb-bg)', lineHeight: 1 }}
+          aria-hidden="true"
+        >
+          {channel.flag}
         </div>
-        <div>
+        <div className="flex-1 min-w-0">
           <p className="font-fraunces text-pb-ink text-lg leading-tight">
             {channel.name}
           </p>
-          <p className="font-mono text-pb-muted text-xs">{channel.handle}</p>
+          <p className="font-mono text-pb-muted text-xs mt-0.5">{channel.handle}</p>
+          <p className="text-pb-faint text-xs mt-1 leading-snug">
+            {CHANNEL_DESCRIPTIONS[channel.locale]}
+          </p>
         </div>
         {isPrimary && (
-          <span className="ml-auto font-mono text-xs bg-pb-marker text-pb-bg px-2 py-0.5 rounded">
+          <span className="font-mono text-xs bg-pb-marker text-pb-bg px-2 py-0.5 rounded shrink-0">
             {t['channels.primary']}
           </span>
         )}
@@ -47,9 +59,9 @@ function ChannelCard({
         target="_blank"
         rel="noopener noreferrer"
         aria-label={`${t['channels.subscribe']} ${channel.name}`}
-        className="inline-flex items-center gap-2 bg-pb-yt text-white font-mono font-semibold text-sm px-4 py-2 rounded self-start"
+        className="inline-flex items-center gap-2 bg-pb-yt text-white font-mono font-semibold text-sm px-4 py-2 rounded self-start hover:opacity-90 transition-opacity"
       >
-        {channel.flag} {t['channels.subscribe']}
+        ▶ {t['channels.subscribe']}
       </a>
     </PaperCard>
   )

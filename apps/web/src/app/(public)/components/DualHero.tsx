@@ -27,6 +27,7 @@ export function DualHero({ post, video, locale, t, isDark }: Props) {
   const muted   = isDark ? '#958A75' : '#6A5F48'
   const line    = isDark ? '#2E2718' : '#CEBFA0'
   const accent  = isDark ? '#FF8240' : '#C14513'
+  const cat     = isDark ? '#5B9BD5' : '#1E4D7A'
   const yt      = '#FF3333'
   const tape1   = isDark ? 'rgba(255,226,140,0.42)' : 'rgba(255,226,140,0.75)'
   const tape2   = isDark ? 'rgba(209,224,255,0.36)' : 'rgba(200,220,255,0.7)'
@@ -43,6 +44,13 @@ export function DualHero({ post, video, locale, t, isDark }: Props) {
     ? new Date(post.publishedAt).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })
     : null
 
+  const videoDate = video
+    ? new Date(video.publishedAt).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })
+    : null
+
+  const hasContent = post || video
+  if (!hasContent) return null
+
   return (
     <section style={{ maxWidth: 1280, margin: '0 auto', padding: '56px 28px 40px' }}>
       {/* Section header */}
@@ -56,17 +64,20 @@ export function DualHero({ post, video, locale, t, isDark }: Props) {
         </span>
       </div>
 
-      {/* Two-column grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40 }}>
+      {/* Two-column grid — stacks on mobile */}
+      <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: 40 }}>
 
         {/* ── Post card ── */}
-        <div style={{ position: 'relative', paddingTop: 20 }}>
-          <div style={{ background: paper, position: 'relative', transform: 'rotate(-0.8deg)', boxShadow: shadow }}>
-            {/* Tapes — outside the paper, sticking over the top edge */}
-            <div aria-hidden="true" style={{ position: 'absolute', width: 80, height: 18, background: tape1, boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.2)', top: -10, left: '18%', transform: 'rotate(-4deg)' }} />
-            <div aria-hidden="true" style={{ position: 'absolute', width: 80, height: 18, background: tape2, boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.2)', top: -10, right: '18%', transform: 'rotate(5deg)' }} />
+        {post && (
+          <div style={{ position: 'relative', paddingTop: 20 }}>
+            <div
+              className="dh-card"
+              style={{ background: paper, position: 'relative', transform: 'rotate(-0.8deg)', boxShadow: shadow }}
+            >
+              {/* Tapes — sticking over the top edge */}
+              <div aria-hidden="true" style={{ position: 'absolute', width: 80, height: 18, background: tape1, boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.2)', top: -10, left: '18%', transform: 'rotate(-4deg)' }} />
+              <div aria-hidden="true" style={{ position: 'absolute', width: 80, height: 18, background: tape2, boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.2)', top: -10, right: '18%', transform: 'rotate(5deg)' }} />
 
-            {post ? (
               <Link href={`${blogBase}/${post.slug}`} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
                 {/* Cover */}
                 <div style={{ position: 'relative', overflow: 'hidden', background: coverGradient(post.category, isDark), aspectRatio: '16 / 9' }}>
@@ -80,7 +91,7 @@ export function DualHero({ post, video, locale, t, isDark }: Props) {
                 <div style={{ padding: '22px 26px 26px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
                     {post.category && (
-                      <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#1E4D7A', fontWeight: 500 }}>
+                      <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: cat, fontWeight: 500 }}>
                         {post.category}
                       </span>
                     )}
@@ -98,24 +109,22 @@ export function DualHero({ post, video, locale, t, isDark }: Props) {
                       {post.excerpt}
                     </p>
                   )}
+                  <div style={{ marginTop: 16, fontFamily: '"Caveat", cursive', color: accent, fontSize: 20, transform: 'rotate(-2deg)', display: 'inline-block' }}>
+                    {t['hero.post.mustRead'] ?? (isPt ? '← leitura obrigatória' : '← must-read')}
+                  </div>
                 </div>
               </Link>
-            ) : (
-              <div style={{ padding: '56px 26px', textAlign: 'center', color: muted, fontFamily: '"Fraunces", serif', fontSize: 20 }}>
-                {isPt ? 'Em breve' : 'Coming soon'}
-              </div>
-            )}
+            </div>
           </div>
-          {/* Handwritten bottom label */}
-          <div style={{ position: 'absolute', bottom: -22, left: 32, fontFamily: '"Caveat", cursive', color: accent, fontSize: 20, transform: 'rotate(-2deg)', pointerEvents: 'none' }}>
-            ← {isPt ? 'leitura obrigatória' : 'must-read'}
-          </div>
-        </div>
+        )}
 
         {/* ── Video card ── */}
-        {video ? (
+        {video && (
           <div style={{ position: 'relative', paddingTop: 20 }}>
-            <div style={{ background: paper, position: 'relative', transform: 'rotate(0.8deg)', boxShadow: shadow }}>
+            <div
+              className="dh-card dh-card-video"
+              style={{ background: paper, position: 'relative', transform: 'rotate(0.8deg)', boxShadow: shadow }}
+            >
               <div aria-hidden="true" style={{ position: 'absolute', width: 80, height: 18, background: tapeR, boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.2)', top: -10, left: '22%', transform: 'rotate(4deg)' }} />
               <div aria-hidden="true" style={{ position: 'absolute', width: 80, height: 18, background: tape1, boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.2)', top: -10, right: '15%', transform: 'rotate(-3deg)' }} />
 
@@ -142,28 +151,27 @@ export function DualHero({ post, video, locale, t, isDark }: Props) {
                       {video.series}
                     </span>
                     <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, color: muted, letterSpacing: '0.1em' }}>
-                      {video.viewCount} · {video.publishedAt}
+                      {video.viewCount !== '—' ? `${video.viewCount} · ` : ''}{videoDate}
                     </span>
                   </div>
                   <h2 style={{ fontFamily: '"Fraunces", serif', fontSize: 'clamp(22px, 2.6vw, 34px)', lineHeight: 1.08, letterSpacing: '-0.02em', margin: 0, fontWeight: 500, color: ink }}>
                     {video.title}
                   </h2>
-                  <p style={{ fontSize: 14.5, color: muted, lineHeight: 1.55, marginTop: 12, marginBottom: 0 }}>
+                  <p style={{ fontSize: 14.5, color: muted, lineHeight: 1.55, marginTop: 12, marginBottom: 0, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                     {video.description}
                   </p>
+                  <div style={{ marginTop: 16, fontFamily: '"Caveat", cursive', color: accent, fontSize: 20, transform: 'rotate(2deg)', display: 'inline-block' }}>
+                    {t['hero.video.fresh'] ?? (isPt ? 'novo no canal →' : 'fresh on the channel →')}
+                  </div>
                 </div>
               </a>
             </div>
-            {/* Handwritten bottom label */}
-            <div style={{ position: 'absolute', bottom: -22, right: 32, fontFamily: '"Caveat", cursive', color: accent, fontSize: 20, transform: 'rotate(2deg)', pointerEvents: 'none' }}>
-              {isPt ? 'novo no canal →' : 'fresh on the channel →'}
-            </div>
           </div>
-        ) : null}
+        )}
       </div>
 
-      {/* Extra bottom breathing room for the hanging labels */}
-      <div style={{ height: 32 }} />
+      {/* Breathing room */}
+      <div style={{ height: 16 }} />
     </section>
   )
 }

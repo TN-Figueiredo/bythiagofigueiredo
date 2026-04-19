@@ -4,24 +4,22 @@ type Props = {
   index: number
   variant?: 'paper' | 'paper2'
   className?: string
-  /** Override the computed rotation — used by DualHero for precise hero angles */
-  rotationDeg?: number
   children: ReactNode
 }
 
-export function PaperCard({ index, variant = 'paper', className = '', rotationDeg, children }: Props) {
+export function PaperCard({ index, variant = 'paper', className = '', children }: Props) {
   const computedRotate = (((index * 37) % 7) - 3) * 0.5
-  const rotateDeg = rotationDeg ?? computedRotate
   const translateY = (((index * 53) % 5) - 2) * 2
 
   const style: CSSProperties = {
-    transform: `rotate(${rotateDeg}deg) translateY(${translateY}px)`,
+    transform: `rotate(${computedRotate}deg) translateY(${translateY}px)`,
     backgroundColor: `var(--pb-${variant})`,
+    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
   }
 
   return (
     <div
-      className={`relative rounded-sm transition-shadow hover:shadow-xl pb-rotate ${className}`}
+      className={`relative rounded-sm hover:shadow-xl ${className}`}
       style={style}
     >
       {children}

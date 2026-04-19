@@ -107,8 +107,7 @@ function FeedCard({
                 </span>
               )}
               <span className="font-mono text-xs text-pb-faint ml-auto">
-                {item.readingTimeMin}
-                {t['feed.readMin']}
+                {item.readingTimeMin} {t['feed.readMin']}
               </span>
             </div>
             <h3

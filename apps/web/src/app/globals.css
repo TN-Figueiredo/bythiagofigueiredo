@@ -55,6 +55,9 @@
 
 html {
   scroll-behavior: smooth;
+  /* Prevents warm-brown overscroll flash on pinboard pages. --pb-bg is always
+     defined for both themes; non-pinboard pages override via their own bg. */
+  background-color: var(--pb-bg);
 }
 
 body {
@@ -150,7 +153,41 @@ body {
 }
 .pb-fade-in { animation: pb-fade-in 0.4s ease both; }
 
+/* Staggered section entrance */
+@keyframes pb-section-in {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.pb-section {
+  animation: pb-section-in 0.5s ease both;
+}
+.pb-section:nth-child(2) { animation-delay: 0.07s; }
+.pb-section:nth-child(3) { animation-delay: 0.14s; }
+.pb-section:nth-child(4) { animation-delay: 0.21s; }
+.pb-section:nth-child(5) { animation-delay: 0.28s; }
+
+/* Semantic marker for paper cards — no visual effect, preserves reduced-motion target */
+.pb-rotate {}
+
+/* DualHero card hover lifts — !important needed to override inline transform/box-shadow */
+.dh-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.dh-card:hover {
+  transform: rotate(-0.8deg) translateY(-3px) !important;
+}
+.dh-card-video:hover {
+  transform: rotate(0.8deg) translateY(-3px) !important;
+}
+[data-theme="dark"] .dh-card:hover,
+:root .dh-card:hover {
+  box-shadow: 0 2px 0 rgba(0,0,0,0.6), 0 20px 40px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,255,255,0.05) !important;
+}
+[data-theme="light"] .dh-card:hover {
+  box-shadow: 0 1px 0 rgba(0,0,0,0.06), 0 16px 36px rgba(70,50,20,0.24), inset 0 0 0 1px rgba(0,0,0,0.04) !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .pb-rotate { transform: none !important; }
   .pb-tape   { display: none !important; }
+  .pb-section { animation: none !important; }
 }

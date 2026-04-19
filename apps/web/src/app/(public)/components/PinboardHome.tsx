@@ -48,11 +48,11 @@ export async function PinboardHome({ locale }: Props) {
       <PinboardHeader locale={locale} currentTheme={theme} t={t} />
 
       <main id="main-content">
-        <DualHero post={featuredPost} video={featuredVideo} locale={locale} t={t} isDark={isDark} />
-        <ChannelStrip locale={locale} t={t} />
-        <UnifiedFeed posts={feedPosts} videos={localeVideos.slice(1)} locale={locale} t={t} isDark={isDark} />
+        <div className="pb-section"><DualHero post={featuredPost} video={featuredVideo} locale={locale} t={t} isDark={isDark} /></div>
+        <div className="pb-section"><ChannelStrip locale={locale} t={t} /></div>
+        <div className="pb-section"><UnifiedFeed posts={feedPosts} videos={localeVideos.slice(1)} locale={locale} t={t} isDark={isDark} /></div>
         {primaryNewsletter && (
-          <NewsletterInline locale={locale} primaryNewsletter={primaryNewsletter} t={t} />
+          <div className="pb-section"><NewsletterInline locale={locale} primaryNewsletter={primaryNewsletter} t={t} /></div>
         )}
       </main>
 
