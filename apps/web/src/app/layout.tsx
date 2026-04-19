@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import { Inter, Fraunces, JetBrains_Mono, Caveat } from 'next/font/google'
+import { cookies } from 'next/headers'
 import './globals.css'
 import { ThemeScript } from '@/components/ui/theme-toggle'
 
@@ -8,6 +9,22 @@ const inter = Inter({
   display: 'swap',
   variable: '--font-sans',
   weight: ['400', '500', '600', '700', '800'],
+})
+
+const fraunces = Fraunces({
+  subsets: ['latin'],
+  variable: '--font-fraunces-var',
+  display: 'swap',
+})
+const jetbrains = JetBrains_Mono({
+  subsets: ['latin'],
+  variable: '--font-jetbrains-var',
+  display: 'swap',
+})
+const caveat = Caveat({
+  subsets: ['latin'],
+  variable: '--font-caveat-var',
+  display: 'swap',
 })
 
 // metadataBase drives resolution of relative URLs in alternates / openGraph /
@@ -32,13 +49,20 @@ export const metadata: Metadata = {
   },
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const cookieStore = await cookies()
+  const theme = cookieStore.get('btf_theme')?.value === 'light' ? 'light' : 'dark'
   return (
-    <html lang="pt-BR" className={inter.variable} suppressHydrationWarning>
+    <html
+      lang="pt-BR"
+      className={`${theme === 'dark' ? 'dark' : ''} ${inter.variable} ${fraunces.variable} ${jetbrains.variable} ${caveat.variable}`}
+      data-theme={theme}
+      suppressHydrationWarning
+    >
       <head>
         <ThemeScript />
       </head>
