@@ -16,7 +16,7 @@ export async function getFeaturedPost(locale: string): Promise<HomePost | null> 
     .eq('blog_posts.status', 'published')
     .eq('blog_posts.is_featured', true)
     .lte('blog_posts.published_at', now)
-    .order('blog_posts.published_at', { ascending: false })
+    .order('published_at', { referencedTable: 'blog_posts', ascending: false })
     .limit(1)
     .single()
 
@@ -30,7 +30,7 @@ export async function getFeaturedPost(locale: string): Promise<HomePost | null> 
       .eq('locale', locale)
       .eq('blog_posts.status', 'published')
       .lte('blog_posts.published_at', now)
-      .order('blog_posts.published_at', { ascending: false })
+      .order('published_at', { referencedTable: 'blog_posts', ascending: false })
       .limit(1)
     return data?.[0] ?? null
   })()
@@ -65,7 +65,7 @@ export async function getLatestPosts(locale: string, limit = 8): Promise<HomePos
     .eq('locale', locale)
     .eq('blog_posts.status', 'published')
     .lte('blog_posts.published_at', now)
-    .order('blog_posts.published_at', { ascending: false })
+    .order('published_at', { referencedTable: 'blog_posts', ascending: false })
     .limit(limit)
 
   if (error) throw error
@@ -95,7 +95,6 @@ export async function getNewslettersForLocale(locale: string): Promise<HomeNewsl
     .eq('active', true)
     .order('sort_order')
 
-  // Table may not exist yet before migrations are applied (PGRST205)
   if (error) return []
   return (data ?? []) as HomeNewsletter[]
 }
