@@ -3,10 +3,10 @@ import { render } from '@testing-library/react'
 import Home from '../src/app/(public)/page'
 
 describe('homepage', () => {
-  it('renders hero headline', async () => {
+  it('renders PinboardHome', async () => {
     const el = await Home({ searchParams: Promise.resolve({}) })
-    const { container } = render(el)
-    expect(container.querySelector('h2')).toBeTruthy()
+    const { getByTestId } = render(el)
+    expect(getByTestId('pinboard-home')).toBeTruthy()
   })
 
   it('does NOT render the insufficient_access banner when no error param', async () => {
