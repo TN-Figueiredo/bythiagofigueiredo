@@ -43,7 +43,7 @@ import CmsResetPage from '../../src/app/cms/reset/page'
 describe('cms login pages', () => {
   it('mounts <CmsLogin> with actions and optional turnstile prop', async () => {
     process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY = 'test-key'
-    const el = await CmsLoginPage()
+    const el = await CmsLoginPage({})
     render(el)
     expect(screen.getByTestId('cms-login-component')).toBeTruthy()
     const callProps = mockCmsLogin.mock.calls[0]?.[0] as Record<string, unknown>
@@ -55,7 +55,7 @@ describe('cms login pages', () => {
   it('passes undefined turnstile when NEXT_PUBLIC_TURNSTILE_SITE_KEY is unset', async () => {
     delete process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
     mockCmsLogin.mockClear()
-    const el = await CmsLoginPage()
+    const el = await CmsLoginPage({})
     render(el)
     const callProps = mockCmsLogin.mock.calls[0]?.[0] as Record<string, unknown>
     expect(callProps.turnstile).toBeUndefined()

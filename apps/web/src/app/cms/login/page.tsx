@@ -33,7 +33,13 @@ async function loadBranding(): Promise<SiteBrandingRow | null> {
   return (data ?? null) as SiteBrandingRow | null
 }
 
-export default async function Page() {
+export default async function Page({
+  searchParams,
+}: {
+  searchParams?: Promise<{ next?: string }>
+}) {
+  const { next } = (await searchParams) ?? {}
+  const redirectTo = next ?? '/cms'
   const branding = await loadBranding()
   const logo = branding?.logo_url ? (
     <img
@@ -57,6 +63,7 @@ export default async function Page() {
     <Suspense fallback={null}>
       <CmsLogin
         actions={{ signInWithPassword, signInWithGoogle }}
+        redirectTo={redirectTo}
         logo={logo}
         theme={theme}
         turnstile={

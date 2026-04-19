@@ -85,15 +85,29 @@
 
 Aplicada em 3 níveis: fase, sprint, epic.
 
-## Packages novos a nascer deste projeto
+## Packages do ecossistema @tn-figueiredo/*
 
-Entregáveis de ecossistema — reutilizáveis em outros apps @tnf/*:
+### Criados neste projeto
 
 | Package | Sprint | Horas | Fase | Status | ROI estimado |
 |---------|:------:|:-----:|:----:|:------:|:------------:|
-| **@tn-figueiredo/cms** (NEW) | S2 + S4b extract + S4.5 /login | 24h + ~8h + ~3h | 1 | ✅ `v0.1.0-beta.4` published (canonical types) | ~60h poupadas em 5+ sites |
+| **@tn-figueiredo/cms** (NEW) | S2 + S4b extract + S4.5 /login | 24h + ~8h + ~3h | 1 | ✅ `v0.2.0` published | ~60h poupadas em 5+ sites |
 | **@tn-figueiredo/email** (NEW) | S3 setup + S4b extract | 6h + ~8h | 1 | ✅ `v0.1.0` published | ~48h em 6+ apps |
-| **@tnf/storage** (NEW) | S9 (renumerado de S8) | 10h | 2 | ☐ | ~24h em 6+ apps |
+| **@tn-figueiredo/storage** (NEW) | S8 | 10h | 2 | ☐ not-started | ~24h em 6+ apps |
+
+### Consumidos do ecossistema (criados em outros projetos)
+
+| Package | Versão atual | Consumido em | Status | Notas |
+|---------|:------------:|:------------:|:------:|-------|
+| **@tn-figueiredo/seo** | `0.1.0` | Sprint 5b ✅ | ✅ em uso | Wrapper local `lib/seo/` estende com hreflang + sitemap manual |
+| **@tn-figueiredo/auth-nextjs** | `2.2.0` | Sprint 4.5 ✅ | ✅ em uso | `requireArea`, `createAuthMiddleware`, `/actions` |
+| **@tn-figueiredo/admin** | `0.6.2` | Sprint 4.5 ✅ | ✅ em uso | Shell + login UI do `/admin` |
+| **@tn-figueiredo/lgpd** | `0.1.0` | Sprint 5a ✅ | ✅ em uso | 6 adapters + container |
+| **@tn-figueiredo/notifications** | `0.1.0` | Sprint 3 ✅ | ✅ em uso | — |
+| **@tn-figueiredo/shared** | `0.8.0` | Sprint 0 ✅ | ✅ em uso | — |
+| **@tn-figueiredo/analytics** | TBD | Sprint 8 ☐ | ☐ aguardando publicação | Dashboard + event tracking (Recharts + Supabase) |
+| **@tn-figueiredo/pixels** | TBD | Sprint 8 ☐ | ☐ aguardando publicação | GTM + Meta Pixel + GA4 server-side; consent-aware via `/consents` |
+| **@tn-figueiredo/affiliate** | TBD | Fase 2+ | ☐ bloqueado | 401 no CI — package lockfile orphan (pré-existente) |
 
 ## Como usar este roadmap (workflow superpowers)
 
@@ -153,6 +167,8 @@ Lista completa de 9 riscos: `~/Workspace/ideias/bythiagofigueiredo/03-roadmap-cr
 
 ## Changelog
 
+- **2026-04-19 rev10:** Affiliate Products & Setup Page adicionados (98/100 spec). Sprints 6 (+6h→46h), 7 (+14h→56h), 8 (+4h→52h). Total Fase 2: +24h (~176h). Spec: `docs/superpowers/specs/2026-04-19-affiliate-products-design.md`. Feature: `<ProductCard />` MDX + `/setup` bilíngue + `/go/[id]` redirect handler + `affiliate_products` DB + click tracking + cron de link expiry + compliance LGPD/CONAR/Amazon Associates.
+- **2026-04-19 rev9:** Roadmap de packages atualizado — tabela separada "criados" vs "consumidos"; `@tn-figueiredo/analytics` e `@tn-figueiredo/pixels` adicionados como targets de consumo no Sprint 8; Sprint 8 renomeado "Analytics, Pixels & Storage" (+8h, 40h→48h); pre-study gates adicionados. Dev local desbloqueado: `NEXT_PUBLIC_DEV_SITE_HOSTNAME` override no middleware + fix redirect no cms/login e admin/login (`searchParams → redirectTo`).
 - **2026-04-17 rev8:** Sprint 5b ✅ + CI hardening ✅ (PR #39+40 — 18 integration test failures drained, Integration job hard-gated, security fix lgpd_phase1_cleanup guard, migrations 20260501000004-6 em prod). Progress ~47% (218h / 464h). Sprint ativo: nenhum. Próximo: Sprint 5c (Playwright E2E, ~8h).
 - **2026-04-16 rev7:** Sprint 5a ✅ closed (LGPD pública — 26 migrations, 6-adapter wiring, 13h). Sprint 5b 🟡 in-progress (SEO hardening — 5 PRs stacked: A migrated; B/C/D/E pending merge + Vercel deploy + GSC/Bing submission). Progress ~42% (197h / 464h). Sprint 5 decomposto em 5a ✅ + 5b 🟡 + 5c ☐ + 5d ☐. Final ✅ flip para 5b pós-deploy via follow-up commit.
 - **2026-04-16 rev3:** Sprint 4a + 4b fechados e documentados. Sprint 4 original (LGPD/deploy) re-slotted em Sprint 5 ("Public launch prep"). Progress bar atualizado para ~50%. Sprint ativo = inter-sprint "Login split + package coordination" em planejamento.

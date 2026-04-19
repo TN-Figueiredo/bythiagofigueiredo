@@ -16,6 +16,7 @@ const STATIC_ROUTE_DEFS: ReadonlyArray<{
   priority: number
 }> = [
   { path: '/', changeFrequency: 'weekly', priority: 1.0 },
+  { path: '/pt-BR', changeFrequency: 'weekly', priority: 1.0 },
   { path: '/privacy', changeFrequency: 'yearly', priority: 0.3 },
   { path: '/terms', changeFrequency: 'yearly', priority: 0.3 },
   { path: '/contact', changeFrequency: 'monthly', priority: 0.5 },

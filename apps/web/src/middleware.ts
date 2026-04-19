@@ -131,10 +131,20 @@ export async function middleware(
     return NextResponse.rewrite(url)
   }
 
+  // Dev hostname override: when running on localhost, resolve the site using
+  // NEXT_PUBLIC_DEV_SITE_HOSTNAME instead of 'localhost' (which isn't
+  // registered in the DB). Set in .env.local — no-op in production because
+  // the var is absent and the real hostname is used as-is.
+  const resolveHostname =
+    (hostname === 'localhost' || hostname === '127.0.0.1') &&
+    process.env.NEXT_PUBLIC_DEV_SITE_HOSTNAME
+      ? process.env.NEXT_PUBLIC_DEV_SITE_HOSTNAME
+      : hostname
+
   // Site resolution runs FIRST (Edge-safe, anon key). Unknown host or
   // disabled CMS short-circuits BEFORE auth. On success, site headers are
   // attached to the downstream response and we fall through to auth.
-  const siteRes = await resolveSite(request, hostname, pathname)
+  const siteRes = await resolveSite(request, resolveHostname, pathname)
   if (siteRes.shortCircuit) return siteRes.response
 
   // Auth gating — dispatch to area-specific instance. The site headers are

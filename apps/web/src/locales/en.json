@@ -1,11 +1,56 @@
 {
-    "meta.title": "Thiago Figueiredo — Creator & Builder",
-    "hero.headline": "Build in public. Learn out loud.",
-    "hero.subheadline": "Follow projects, launches, and experiments.",
-    "social.title": "Find me online",
-    "footer.note": "Site under construction",
-    "notFound.title": "Page not found",
-    "notFound.message": "We couldn't find the page you're looking for.",
-    "notFound.cta": "Go back home"
-  }
+  "meta.title": "Thiago Figueiredo — Creator & Builder",
+  "meta.description": "Writing, videos, and experiments from the edge of the keyboard.",
+  "hero.headline": "Build in public. Learn out loud.",
+  "hero.subheadline": "Follow projects, launches, and experiments.",
+  "social.title": "Find me online",
+  "footer.note": "Site under construction",
+  "notFound.title": "Page not found",
+  "notFound.message": "We couldn't find the page you're looking for.",
+  "notFound.cta": "Go back home",
+
+  "nav.home": "Home",
+  "nav.writing": "Writing",
+  "nav.videos": "Videos",
+  "nav.newsletter": "Newsletter",
+  "nav.about": "About",
+  "nav.contact": "Contact",
+  "nav.devSite": "Dev Site",
+
+  "header.subscribe": "Subscribe on YouTube",
+  "header.newsletter": "Get the newsletter",
+
+  "hero.post.badge": "POST",
+  "hero.post.mustRead": "← must-read",
+  "hero.video.badge": "VIDEO",
+  "hero.video.fresh": "fresh on the channel →",
+  "hero.comingSoon": "Coming soon",
+
+  "feed.type.post": "TEXT",
+  "feed.type.video": "VIDEO",
+  "feed.seeAll": "See all →",
+  "feed.readMin": "min read",
+
+  "channels.title": "Watch on YouTube",
+  "channels.subscribersSuffix": "subscribers",
+  "channels.subscribe": "Subscribe",
+  "channels.primary": "Main channel",
+
+  "newsletter.title": "Join the newsletter",
+  "newsletter.subtitle": "Words from the edge of the keyboard — weekly.",
+  "newsletter.emailPlaceholder": "your@email.com",
+  "newsletter.submit": "Subscribe",
+  "newsletter.success": "Check your inbox to confirm!",
+  "newsletter.more": "→ more newsletters",
+  "newsletter.consent": "By subscribing you agree to our Privacy Policy.",
+
+  "footer.blog": "Blog",
+  "footer.videos": "Videos",
+  "footer.newsletter": "Newsletter",
+  "footer.about": "About",
+  "footer.contact": "Contact",
+  "footer.tagline": "Ideas built in public.",
+  "footer.madeIn": "Made in Brazil",
+  "footer.copyright": "© {year} Thiago Figueiredo"
+}
   

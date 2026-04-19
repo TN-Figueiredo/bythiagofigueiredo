@@ -1,0 +1,55 @@
+{
+  "meta.title": "Thiago Figueiredo — Criador & Builder",
+  "meta.description": "Textos, vídeos e experimentos da beira do teclado.",
+  "hero.headline": "Construindo em público. Aprendendo em voz alta.",
+  "hero.subheadline": "Acompanhe projetos, lançamentos e experimentos.",
+  "social.title": "Me encontre online",
+  "footer.note": "Site em construção",
+  "notFound.title": "Página não encontrada",
+  "notFound.message": "Não encontramos a página que você está procurando.",
+  "notFound.cta": "Voltar ao início",
+
+  "nav.home": "Início",
+  "nav.writing": "Textos",
+  "nav.videos": "Vídeos",
+  "nav.newsletter": "Newsletter",
+  "nav.about": "Sobre",
+  "nav.contact": "Contato",
+  "nav.devSite": "Site Dev",
+
+  "header.subscribe": "Inscrever no YouTube",
+  "header.newsletter": "Receber newsletter",
+
+  "hero.post.badge": "TEXTO",
+  "hero.post.mustRead": "← leitura obrigatória",
+  "hero.video.badge": "VÍDEO",
+  "hero.video.fresh": "novo no canal →",
+  "hero.comingSoon": "Em breve",
+
+  "feed.type.post": "TEXTO",
+  "feed.type.video": "VÍDEO",
+  "feed.seeAll": "Ver todos →",
+  "feed.readMin": "min de leitura",
+
+  "channels.title": "Assista no YouTube",
+  "channels.subscribersSuffix": "inscritos",
+  "channels.subscribe": "Inscrever-se",
+  "channels.primary": "Canal principal",
+
+  "newsletter.title": "Entre para a newsletter",
+  "newsletter.subtitle": "Palavras da beira do teclado — semanalmente.",
+  "newsletter.emailPlaceholder": "seu@email.com",
+  "newsletter.submit": "Inscrever",
+  "newsletter.success": "Confirme sua inscrição no email!",
+  "newsletter.more": "→ mais newsletters",
+  "newsletter.consent": "Ao se inscrever você concorda com nossa Política de Privacidade.",
+
+  "footer.blog": "Blog",
+  "footer.videos": "Vídeos",
+  "footer.newsletter": "Newsletter",
+  "footer.about": "Sobre",
+  "footer.contact": "Contato",
+  "footer.tagline": "Ideias construídas em público.",
+  "footer.madeIn": "Feito no Brasil",
+  "footer.copyright": "© {year} Thiago Figueiredo"
+}

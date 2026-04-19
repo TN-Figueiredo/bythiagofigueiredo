@@ -55,6 +55,9 @@
 
 html {
   scroll-behavior: smooth;
+  /* Prevents warm-brown overscroll flash on pinboard pages. --pb-bg is always
+     defined for both themes; non-pinboard pages override via their own bg. */
+  background-color: var(--pb-bg);
 }
 
 body {
@@ -91,4 +94,100 @@ body {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* ── Pinboard palette ─────────────────────────────────────── */
+:root,
+[data-theme="dark"] {
+  --pb-bg:     #14110B;
+  --pb-paper:  #2A241A;
+  --pb-paper2: #312A1E;
+  --pb-ink:    #EFE6D2;
+  --pb-muted:  #958A75;
+  --pb-faint:  #6B634F;
+  --pb-line:   #2E2718;
+  --pb-accent: #FF8240;
+  --pb-yt:     #FF3333;
+  --pb-marker: #FFE37A;
+  --pb-tape:   rgba(255, 226, 140, 0.42);
+  --pb-tape2:  rgba(209, 224, 255, 0.36);
+  --pb-tapeR:  rgba(255, 120, 120, 0.40);
+}
+
+[data-theme="light"] {
+  --pb-bg:     #E9E1CE;
+  --pb-paper:  #FBF6E8;
+  --pb-paper2: #F5EDD6;
+  --pb-ink:    #161208;
+  --pb-muted:  #6A5F48;
+  --pb-faint:  #9C9178;
+  --pb-line:   #CEBFA0;
+  --pb-accent: #C14513;
+  --pb-yt:     #FF3333;
+  --pb-marker: #FFE37A;
+  --pb-tape:   rgba(255, 226, 140, 0.75);
+  --pb-tape2:  rgba(200, 220, 255, 0.70);
+  --pb-tapeR:  rgba(255, 150, 150, 0.70);
+}
+
+@theme inline {
+  --color-pb-bg:     var(--pb-bg);
+  --color-pb-paper:  var(--pb-paper);
+  --color-pb-paper2: var(--pb-paper2);
+  --color-pb-ink:    var(--pb-ink);
+  --color-pb-muted:  var(--pb-muted);
+  --color-pb-faint:  var(--pb-faint);
+  --color-pb-line:   var(--pb-line);
+  --color-pb-accent: var(--pb-accent);
+  --color-pb-yt:     var(--pb-yt);
+  --color-pb-marker: var(--pb-marker);
+
+  --font-fraunces:     var(--font-fraunces-var);
+  --font-jetbrains:    var(--font-jetbrains-var);
+  --font-caveat:       var(--font-caveat-var);
+}
+
+@keyframes pb-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.pb-fade-in { animation: pb-fade-in 0.4s ease both; }
+
+/* Staggered section entrance */
+@keyframes pb-section-in {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.pb-section {
+  animation: pb-section-in 0.5s ease both;
+}
+.pb-section:nth-child(2) { animation-delay: 0.07s; }
+.pb-section:nth-child(3) { animation-delay: 0.14s; }
+.pb-section:nth-child(4) { animation-delay: 0.21s; }
+.pb-section:nth-child(5) { animation-delay: 0.28s; }
+
+/* Semantic marker for paper cards — no visual effect, preserves reduced-motion target */
+.pb-rotate {}
+
+/* DualHero card hover lifts — !important needed to override inline transform/box-shadow */
+.dh-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.dh-card:hover {
+  transform: rotate(-0.8deg) translateY(-3px) !important;
+}
+.dh-card-video:hover {
+  transform: rotate(0.8deg) translateY(-3px) !important;
+}
+[data-theme="dark"] .dh-card:hover,
+:root .dh-card:hover {
+  box-shadow: 0 2px 0 rgba(0,0,0,0.6), 0 20px 40px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,255,255,0.05) !important;
+}
+[data-theme="light"] .dh-card:hover {
+  box-shadow: 0 1px 0 rgba(0,0,0,0.06), 0 16px 36px rgba(70,50,20,0.24), inset 0 0 0 1px rgba(0,0,0,0.04) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pb-tape   { display: none !important; }
+  .pb-section { animation: none !important; }
 }
