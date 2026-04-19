@@ -10,8 +10,8 @@ export function PinboardFooter({ locale, t }: Props) {
   const blogHref = locale === 'pt-BR' ? '/blog/pt-BR' : '/blog/en'
 
   return (
-    <footer className="border-t border-[--pb-line] bg-[--pb-bg] px-6 py-10 mt-8">
-      <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+    <footer className="border-t border-[--pb-line] bg-[--pb-bg] mt-8" style={{ padding: '40px 28px' }}>
+      <div style={{ maxWidth: 1280, margin: '0 auto' }} className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         {/* Brand + tagline */}
         <div>
           <span className="font-fraunces text-pb-ink text-lg" style={{ letterSpacing: '-0.02em' }}>

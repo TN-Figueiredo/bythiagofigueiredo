@@ -1,9 +1,14 @@
 import Link from 'next/link'
-import Image from 'next/image'
-import { PaperCard } from './PaperCard'
-import { Tape } from './Tape'
 import { coverGradient } from '../../../../lib/home/cover-image'
 import type { HomePost, HomeVideo } from '../../../../lib/home/types'
+
+function getWeekNumber(date: Date): number {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  const dayNum = d.getUTCDay() || 7
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum)
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
+  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
+}
 
 type Props = {
   post: HomePost | null
@@ -15,100 +20,150 @@ type Props = {
 
 export function DualHero({ post, video, locale, t, isDark }: Props) {
   const blogBase = locale === 'pt-BR' ? '/blog/pt-BR' : '/blog/en'
+  const isPt = locale === 'pt-BR'
+
+  const paper   = isDark ? '#2A241A' : '#FBF6E8'
+  const ink     = isDark ? '#EFE6D2' : '#161208'
+  const muted   = isDark ? '#958A75' : '#6A5F48'
+  const line    = isDark ? '#2E2718' : '#CEBFA0'
+  const accent  = isDark ? '#FF8240' : '#C14513'
+  const yt      = '#FF3333'
+  const tape1   = isDark ? 'rgba(255,226,140,0.42)' : 'rgba(255,226,140,0.75)'
+  const tape2   = isDark ? 'rgba(209,224,255,0.36)' : 'rgba(200,220,255,0.7)'
+  const tapeR   = isDark ? 'rgba(255,120,120,0.40)' : 'rgba(255,150,150,0.7)'
+  const shadow  = isDark
+    ? '0 2px 0 rgba(0,0,0,0.5), 0 12px 24px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.03)'
+    : '0 1px 0 rgba(0,0,0,0.04), 0 8px 20px rgba(70,50,20,0.16), inset 0 0 0 1px rgba(0,0,0,0.03)'
+
+  const now = new Date()
+  const weekNum = getWeekNumber(now)
+  const year = now.getFullYear()
+
+  const postDate = post
+    ? new Date(post.publishedAt).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })
+    : null
 
   return (
-    <section className="grid grid-cols-1 md:grid-cols-2 gap-8 py-10 px-6">
-      {/* Featured Post — rotationDeg prop overrides the computed index-based rotation */}
-      <PaperCard index={0} rotationDeg={-0.8} className="overflow-hidden pb-fade-in">
-        <Tape variant="tape" className="-top-2 left-6" rotate={-6} />
-        <Tape variant="tape2" className="-top-2 right-6" rotate={5} />
+    <section style={{ maxWidth: 1280, margin: '0 auto', padding: '56px 28px 40px' }}>
+      {/* Section header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 36 }}>
+        <div style={{ fontFamily: '"Caveat", cursive', color: accent, fontSize: 30, transform: 'rotate(-1.5deg)', display: 'inline-block', whiteSpace: 'nowrap' }}>
+          ★ {isPt ? 'o destaque da semana' : "this week's highlight"}
+        </div>
+        <div style={{ flex: 1, height: 1, background: line }} />
+        <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, color: muted, letterSpacing: '0.14em', whiteSpace: 'nowrap' }}>
+          {isPt ? 'SEM' : 'WK'} {weekNum} · {year}
+        </span>
+      </div>
 
-        {post ? (
-          <Link href={`${blogBase}/${post.slug}`} className="block group">
-            {/* Cover */}
-            <div className="h-52 w-full overflow-hidden">
-              {post.coverImageUrl ? (
-                <Image
-                  src={post.coverImageUrl}
-                  alt={post.title}
-                  width={600}
-                  height={208}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                />
-              ) : (
-                <div
-                  className="w-full h-full"
-                  style={{ background: coverGradient(post.category, isDark) }}
-                />
-              )}
-            </div>
+      {/* Two-column grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40 }}>
 
-            <div className="p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="font-mono text-xs font-bold text-pb-accent tracking-widest">
-                  ▤ {t['hero.post.badge']}
-                </span>
-                {post.category && (
-                  <span className="font-mono text-xs text-pb-muted capitalize">{post.category}</span>
-                )}
-                <span className="font-mono text-xs text-pb-faint ml-auto">
-                  {post.readingTimeMin} {t['feed.readMin']}
-                </span>
-              </div>
-              <h2 className="font-fraunces text-pb-ink text-2xl md:text-3xl leading-tight mb-2 group-hover:text-pb-accent transition-colors" style={{ letterSpacing: '-0.02em' }}>
-                {post.title}
-              </h2>
-              {post.excerpt && (
-                <p className="text-pb-muted text-sm leading-relaxed line-clamp-3">{post.excerpt}</p>
-              )}
-            </div>
-          </Link>
-        ) : (
-          <div className="p-5 h-64 flex items-center justify-center">
-            <span className="font-fraunces text-pb-faint text-xl">{t['hero.comingSoon']}</span>
-          </div>
-        )}
+        {/* ── Post card ── */}
+        <div style={{ position: 'relative', paddingTop: 20 }}>
+          <div style={{ background: paper, position: 'relative', transform: 'rotate(-0.8deg)', boxShadow: shadow }}>
+            {/* Tapes — outside the paper, sticking over the top edge */}
+            <div aria-hidden="true" style={{ position: 'absolute', width: 80, height: 18, background: tape1, boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.2)', top: -10, left: '18%', transform: 'rotate(-4deg)' }} />
+            <div aria-hidden="true" style={{ position: 'absolute', width: 80, height: 18, background: tape2, boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.2)', top: -10, right: '18%', transform: 'rotate(5deg)' }} />
 
-        <p className="font-caveat text-pb-muted text-base px-5 pb-4">{t['hero.post.mustRead']}</p>
-      </PaperCard>
-
-      {/* Featured Video */}
-      {video && (
-        <PaperCard index={1} variant="paper2" rotationDeg={0.8} className="overflow-hidden pb-fade-in">
-          <Tape variant="tapeR" className="-top-2 left-1/2 -translate-x-1/2" rotate={-2} />
-
-          <a href={video.youtubeUrl} target="_blank" rel="noopener noreferrer" className="block group">
-            {/* Thumbnail */}
-            <div className="h-52 w-full relative overflow-hidden bg-pb-bg">
-              {video.thumbnailUrl ? (
-                <Image src={video.thumbnailUrl} alt={video.title} fill className="object-cover group-hover:scale-105 transition-transform duration-500" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg,#1a0a0a 0%,#3a1010 100%)' }}>
-                  <span className="text-5xl text-pb-yt opacity-80">▶</span>
+            {post ? (
+              <Link href={`${blogBase}/${post.slug}`} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+                {/* Cover */}
+                <div style={{ position: 'relative', overflow: 'hidden', background: coverGradient(post.category, isDark), aspectRatio: '16 / 9' }}>
+                  <div style={{ position: 'absolute', top: 8, left: 8 }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px', background: ink, color: isDark ? '#14110B' : '#FBF6E8', fontFamily: '"JetBrains Mono", monospace', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600 }}>
+                      ▤ {isPt ? 'texto' : 'post'}
+                    </span>
+                  </div>
                 </div>
-              )}
-              {/* Play overlay */}
-              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                <span className="text-6xl text-white drop-shadow-lg">▶</span>
+                {/* Body */}
+                <div style={{ padding: '22px 26px 26px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
+                    {post.category && (
+                      <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#1E4D7A', fontWeight: 500 }}>
+                        {post.category}
+                      </span>
+                    )}
+                    {postDate && (
+                      <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, color: muted, letterSpacing: '0.1em' }}>
+                        {postDate} · {post.readingTimeMin} min
+                      </span>
+                    )}
+                  </div>
+                  <h2 style={{ fontFamily: '"Fraunces", serif', fontSize: 'clamp(22px, 2.6vw, 34px)', lineHeight: 1.08, letterSpacing: '-0.02em', margin: 0, fontWeight: 500, color: ink }}>
+                    {post.title}
+                  </h2>
+                  {post.excerpt && (
+                    <p style={{ fontSize: 14.5, color: muted, lineHeight: 1.55, marginTop: 12, marginBottom: 0, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                      {post.excerpt}
+                    </p>
+                  )}
+                </div>
+              </Link>
+            ) : (
+              <div style={{ padding: '56px 26px', textAlign: 'center', color: muted, fontFamily: '"Fraunces", serif', fontSize: 20 }}>
+                {isPt ? 'Em breve' : 'Coming soon'}
               </div>
-            </div>
+            )}
+          </div>
+          {/* Handwritten bottom label */}
+          <div style={{ position: 'absolute', bottom: -22, left: 32, fontFamily: '"Caveat", cursive', color: accent, fontSize: 20, transform: 'rotate(-2deg)', pointerEvents: 'none' }}>
+            ← {isPt ? 'leitura obrigatória' : 'must-read'}
+          </div>
+        </div>
 
-            <div className="p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="font-mono text-xs font-bold text-pb-yt tracking-widest">▶ {t['hero.video.badge']}</span>
-                <span className="font-mono text-xs text-pb-muted">{video.series}</span>
-                <span className="font-mono text-xs text-pb-faint ml-auto">{video.duration}</span>
-              </div>
-              <h2 className="font-fraunces text-pb-ink text-2xl md:text-3xl leading-tight mb-2 group-hover:text-pb-yt transition-colors" style={{ letterSpacing: '-0.02em' }}>
-                {video.title}
-              </h2>
-              <p className="text-pb-muted text-sm leading-relaxed line-clamp-2">{video.description}</p>
-            </div>
-          </a>
+        {/* ── Video card ── */}
+        {video ? (
+          <div style={{ position: 'relative', paddingTop: 20 }}>
+            <div style={{ background: paper, position: 'relative', transform: 'rotate(0.8deg)', boxShadow: shadow }}>
+              <div aria-hidden="true" style={{ position: 'absolute', width: 80, height: 18, background: tapeR, boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.2)', top: -10, left: '22%', transform: 'rotate(4deg)' }} />
+              <div aria-hidden="true" style={{ position: 'absolute', width: 80, height: 18, background: tape1, boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.2)', top: -10, right: '15%', transform: 'rotate(-3deg)' }} />
 
-          <p className="font-caveat text-pb-muted text-base px-5 pb-4 text-right">{t['hero.video.fresh']}</p>
-        </PaperCard>
-      )}
+              <a href={video.youtubeUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+                {/* Thumbnail */}
+                <div style={{ position: 'relative', aspectRatio: '16 / 9', overflow: 'hidden', background: 'linear-gradient(135deg, #51201F 0%, #142229 100%)' }}>
+                  <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(transparent 40%, rgba(0,0,0,0.55))' }} />
+                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ width: 68, height: 48, background: yt, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(255,51,51,0.4)' }}>
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="#FFF"><path d="M8 5v14l11-7z" /></svg>
+                    </div>
+                  </div>
+                  <div style={{ position: 'absolute', top: 8, left: 8, background: yt, color: '#FFF', fontFamily: '"JetBrains Mono", monospace', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700, padding: '3px 7px' }}>
+                    ▶ YouTube
+                  </div>
+                  <div style={{ position: 'absolute', bottom: 8, right: 8, background: 'rgba(0,0,0,0.85)', color: '#FFF', fontFamily: '"JetBrains Mono", monospace', fontSize: 11, padding: '2px 7px' }}>
+                    {video.duration}
+                  </div>
+                </div>
+                {/* Body */}
+                <div style={{ padding: '22px 26px 26px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
+                    <span style={{ padding: '2px 8px', background: yt, color: '#FFF', fontFamily: '"JetBrains Mono", monospace', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600 }}>
+                      {video.series}
+                    </span>
+                    <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, color: muted, letterSpacing: '0.1em' }}>
+                      {video.viewCount} · {video.publishedAt}
+                    </span>
+                  </div>
+                  <h2 style={{ fontFamily: '"Fraunces", serif', fontSize: 'clamp(22px, 2.6vw, 34px)', lineHeight: 1.08, letterSpacing: '-0.02em', margin: 0, fontWeight: 500, color: ink }}>
+                    {video.title}
+                  </h2>
+                  <p style={{ fontSize: 14.5, color: muted, lineHeight: 1.55, marginTop: 12, marginBottom: 0 }}>
+                    {video.description}
+                  </p>
+                </div>
+              </a>
+            </div>
+            {/* Handwritten bottom label */}
+            <div style={{ position: 'absolute', bottom: -22, right: 32, fontFamily: '"Caveat", cursive', color: accent, fontSize: 20, transform: 'rotate(2deg)', pointerEvents: 'none' }}>
+              {isPt ? 'novo no canal →' : 'fresh on the channel →'}
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      {/* Extra bottom breathing room for the hanging labels */}
+      <div style={{ height: 32 }} />
     </section>
   )
 }

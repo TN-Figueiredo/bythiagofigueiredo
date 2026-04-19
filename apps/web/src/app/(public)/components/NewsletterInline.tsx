@@ -16,7 +16,7 @@ export function NewsletterInline({ locale, primaryNewsletter, t }: Props) {
   const [state, dispatch, pending] = useActionState(subscribeNewsletterInline, INITIAL)
 
   return (
-    <section id="newsletter" className="px-6 py-12 border-t border-[--pb-line]">
+    <section id="newsletter" className="border-t border-[--pb-line]" style={{ maxWidth: 1280, margin: '0 auto', padding: '48px 28px' }}>
       <div className="max-w-md mx-auto text-center">
         <h2 className="font-fraunces text-pb-ink text-3xl mb-2" style={{ letterSpacing: '-0.03em' }}>
           {t['newsletter.title']}

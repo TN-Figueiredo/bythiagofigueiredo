@@ -30,7 +30,7 @@ export function UnifiedFeed({ posts, videos, locale, t, isDark }: Props) {
   if (items.length === 0) return null
 
   return (
-    <section className="px-6 py-8">
+    <section style={{ maxWidth: 1280, margin: '0 auto', padding: '8px 28px 48px' }}>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {items.map((item, i) => (
           <FeedCard

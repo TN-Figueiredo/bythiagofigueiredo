@@ -60,7 +60,7 @@ export function ChannelStrip({ locale, t }: Props) {
   const secondary = YOUTUBE_CHANNELS[locale === 'en' ? 'pt-BR' : 'en']
 
   return (
-    <section className="px-6 py-8">
+    <section style={{ maxWidth: 1280, margin: '0 auto', padding: '8px 28px 40px' }}>
       <h2
         className="font-fraunces text-pb-ink text-2xl mb-6"
         style={{ letterSpacing: '-0.02em' }}
