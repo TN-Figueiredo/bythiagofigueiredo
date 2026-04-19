@@ -24,13 +24,11 @@ vi.mock('../../lib/turnstile', () => ({
   verifyTurnstileToken: vi.fn(),
 }))
 
-const sendTemplateMock = vi.fn()
-vi.mock('../../lib/email/service', () => ({
-  getEmailService: () => ({ sendTemplate: sendTemplateMock }),
+const { sendTransactionalEmailMock } = vi.hoisted(() => ({
+  sendTransactionalEmailMock: vi.fn(),
 }))
-
-vi.mock('../../lib/email/sender', () => ({
-  getEmailSender: vi.fn(),
+vi.mock('../../lib/email/resend', () => ({
+  sendTransactionalEmail: sendTransactionalEmailMock,
 }))
 
 vi.mock('../../lib/cms/site-context', () => ({
@@ -47,13 +45,6 @@ vi.mock('next/headers', () => ({
     }),
 }))
 
-vi.mock('@tn-figueiredo/email', async () => {
-  const actual = await vi.importActual<object>('@tn-figueiredo/email')
-  return {
-    ...actual,
-    ensureUnsubscribeToken: vi.fn(),
-  }
-})
 
 // ─── Imports (after mocks) ────────────────────────────────────────────────────
 
@@ -61,8 +52,6 @@ import { subscribeToNewsletter } from '../../src/app/newsletter/subscribe/action
 import { unsubscribeViaToken } from '../../src/app/unsubscribe/[token]/actions'
 import { verifyTurnstileToken } from '../../lib/turnstile'
 import { getSiteContext } from '../../lib/cms/site-context'
-import { ensureUnsubscribeToken } from '@tn-figueiredo/email'
-import { getEmailSender } from '../../lib/email/sender'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -101,15 +90,8 @@ beforeEach(() => {
     orgId: 'org-1',
     defaultLocale: 'pt-BR',
   })
-  vi.mocked(ensureUnsubscribeToken).mockResolvedValue('http://localhost:3000/unsubscribe/tok-unsub')
-  sendTemplateMock.mockResolvedValue({ messageId: 'msg-1' })
+  sendTransactionalEmailMock.mockResolvedValue(undefined)
   vi.mocked(verifyTurnstileToken).mockResolvedValue(true)
-  vi.mocked(getEmailSender).mockResolvedValue({
-    email: 'noreply@example.com',
-    name: 'Test Site',
-    brandName: 'Test Site',
-    primaryColor: '#000',
-  })
   // Default rate-check response: allowed. Individual tests can override via
   // mockResolvedValueOnce for the unsubscribe RPC path.
   rpcMock.mockResolvedValue({ data: true, error: null })
@@ -187,7 +169,7 @@ describe('subscribeToNewsletter', () => {
     })
     const result = await subscribeToNewsletter(fd)
     expect(result).toEqual({ status: 'ok' })
-    expect(sendTemplateMock).toHaveBeenCalledOnce()
+    expect(sendTransactionalEmailMock).toHaveBeenCalledOnce()
   })
 
   it('returns ok (no oracle) when confirmed subscription already exists', async () => {
@@ -209,7 +191,7 @@ describe('subscribeToNewsletter', () => {
     const result = await subscribeToNewsletter(fd)
     expect(result).toEqual({ status: 'ok' })
     // Must not leak the duplicate state by re-sending a confirm email.
-    expect(sendTemplateMock).not.toHaveBeenCalled()
+    expect(sendTransactionalEmailMock).not.toHaveBeenCalled()
   })
 
   it('re-sends confirm email for pending_confirmation existing subscription', async () => {
@@ -238,7 +220,7 @@ describe('subscribeToNewsletter', () => {
     })
     const result = await subscribeToNewsletter(fd)
     expect(result).toEqual({ status: 'ok' })
-    expect(sendTemplateMock).toHaveBeenCalledOnce()
+    expect(sendTransactionalEmailMock).toHaveBeenCalledOnce()
   })
 
   it('handles DB unique constraint race as ok (no oracle)', async () => {
@@ -324,7 +306,7 @@ describe('subscribeToNewsletter', () => {
     expect(updatePayload.status).toBe('pending_confirmation')
     expect(updatePayload.unsubscribed_at).toBeNull()
     // New confirm email dispatched (double-opt-in re-required).
-    expect(sendTemplateMock).toHaveBeenCalledOnce()
+    expect(sendTransactionalEmailMock).toHaveBeenCalledOnce()
   })
 })
 
