@@ -1,3 +1,16 @@
+export type HomePost = {
+  id: string
+  slug: string
+  locale: string
+  title: string
+  excerpt: string | null
+  publishedAt: string
+  category: string | null
+  readingTimeMin: number
+  coverImageUrl: string | null
+  isFeatured: boolean
+}
+
 export type HomeChannel = {
   locale: 'en' | 'pt-BR'
   handle: string
@@ -25,5 +38,5 @@ export type HomeNewsletter = {
   tagline: string | null
   cadence: string | null
   color: string
-  locale: 'en' | 'pt-BR'
+  locale: string
 }
