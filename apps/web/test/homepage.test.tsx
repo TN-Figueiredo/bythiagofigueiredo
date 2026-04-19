@@ -1,5 +1,29 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render } from '@testing-library/react'
+
+// Mock PinboardHome and all its transitive deps (resend, supabase, etc.)
+vi.mock('../src/app/(public)/components/PinboardHome', () => ({
+  PinboardHome: () => null,
+}))
+
+vi.mock('next/headers', () => ({
+  cookies: vi.fn().mockResolvedValue({ get: vi.fn().mockReturnValue(undefined) }),
+  headers: vi.fn().mockResolvedValue({ get: vi.fn().mockReturnValue(null) }),
+}))
+
+vi.mock('@/lib/cms/site-context', () => ({
+  tryGetSiteContext: vi.fn().mockResolvedValue(null),
+  getSiteContext: vi.fn().mockResolvedValue({ siteId: 'test-site' }),
+}))
+
+vi.mock('@/lib/seo/config', () => ({
+  getSiteSeoConfig: vi.fn().mockResolvedValue({}),
+}))
+
+vi.mock('@/lib/seo/page-metadata', () => ({
+  generateRootMetadata: vi.fn().mockReturnValue({ title: 'Test' }),
+}))
+
 import Home from '../src/app/(public)/page'
 
 describe('homepage', () => {

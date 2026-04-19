@@ -4,6 +4,7 @@ import en from '@/locales/en.json'
 import { tryGetSiteContext } from '@/lib/cms/site-context'
 import { getSiteSeoConfig } from '@/lib/seo/config'
 import { generateRootMetadata } from '@/lib/seo/page-metadata'
+import { PinboardHome } from './components/PinboardHome'
 
 // Sprint 5b PR-C C.3 — home metadata now flows through the SEO factory so
 // that site name / twitter handle / metadataBase stay in sync with the
@@ -55,7 +56,7 @@ export default async function Home({ searchParams }: HomeProps) {
           Você não tem acesso a essa área.
         </div>
       )}
-      {/* TODO: PinboardHome component will be rendered here by Task 21 */}
+      <PinboardHome locale="en" />
     </>
   )
 }
