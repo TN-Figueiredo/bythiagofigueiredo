@@ -17,6 +17,7 @@
     "test": "npm run test:api && npm run test:web",
     "test:api": "npm run test -w apps/api",
     "test:web": "npm run test -w apps/web",
+    "db:new": "bash scripts/new-migration.sh",
     "db:link:prod": "echo '[PROD] novkqtvcnsiwhkxihurk' && supabase link --project-ref novkqtvcnsiwhkxihurk",
     "db:push:prod": "npm run db:link:prod && bash scripts/db-push-prod.sh",
     "db:start": "supabase start",

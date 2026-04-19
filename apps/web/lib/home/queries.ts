@@ -95,6 +95,7 @@ export async function getNewslettersForLocale(locale: string): Promise<HomeNewsl
     .eq('active', true)
     .order('sort_order')
 
-  if (error) throw error
+  // Table may not exist yet before migrations are applied (PGRST205)
+  if (error) return []
   return (data ?? []) as HomeNewsletter[]
 }
