@@ -479,9 +479,33 @@ Remove `vi.mock` for `createBrevoContact`. Remove all Brevo sync assertions (`ex
 
 - [ ] **Step 3: Rewrite sync-newsletter-pending test**
 
-In the sync-newsletter test file:
+Replace the test body in the sync-newsletter test file. The new test exercises the welcome-email-only flow:
 
-Remove all `createBrevoContact` mocks. Update the fake client to return data matching the new query shape (no `brevo_contact_id`). Test the new welcome-email-only flow: confirmed + `welcome_sent=false` → send welcome → set `welcome_sent=true`.
+```typescript
+// Mock getEmailService to return a mock send fn
+const sendMock = vi.fn().mockResolvedValue({ messageId: 'msg_w1', provider: 'resend' })
+vi.mock('../../../lib/email/service', () => ({
+  getEmailService: () => ({ send: sendMock }),
+}))
+
+// Update the fake supabase client:
+// .from('newsletter_subscriptions').select(...).eq('status','confirmed').eq('welcome_sent',false).limit(50)
+// should return [{ id: 'sub1', site_id: 's1', email: 'test@example.com', consent_text_version: '1.0' }]
+
+it('sends welcome email and sets welcome_sent=true', async () => {
+  // ... setup fromMock to return pending subs with welcome_sent=false
+  const res = await POST(req(CRON_SECRET))
+  expect(res.status).toBe(200)
+  expect(sendMock).toHaveBeenCalledWith(expect.objectContaining({
+    to: 'test@example.com',
+    subject: expect.stringContaining('Welcome'),
+  }))
+  // Verify .update({ welcome_sent: true }).eq('id', 'sub1') was called
+  expect(updateMock).toHaveBeenCalled()
+})
+```
+
+Remove: all `createBrevoContact` mocks, `brevo_contact_id` in fake data, `syncing:RANDOM` assertions.
 
 - [ ] **Step 4: Fix admin users actions test**
 
@@ -1859,10 +1883,51 @@ export default async function NewsletterDashboardPage({
 Run: `npx tsc --noEmit -p apps/web/tsconfig.json`
 Expected: 0 errors.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 3: Add import smoke test**
+
+Create `apps/web/test/app/cms-newsletter-dashboard.test.ts`:
+
+```typescript
+import { describe, it, expect, vi } from 'vitest'
+
+vi.mock('../../lib/supabase/service', () => ({
+  getSupabaseServiceClient: () => ({
+    from: vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          order: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue({ data: [] }),
+            data: [],
+          }),
+          data: [],
+        }),
+      }),
+    }),
+  }),
+}))
+
+vi.mock('../../lib/cms/site-context', () => ({
+  getSiteContext: () => Promise.resolve({ siteId: 's1', orgId: 'o1', defaultLocale: 'pt-BR' }),
+}))
+
+describe('newsletter dashboard page', () => {
+  it('exports default function', async () => {
+    const mod = await import('../../src/app/cms/(authed)/newsletters/page')
+    expect(typeof mod.default).toBe('function')
+  })
+})
+```
+
+- [ ] **Step 4: Run test**
+
+Run: `npx vitest run apps/web/test/app/cms-newsletter-dashboard.test.ts`
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
 
 ```bash
-git add apps/web/src/app/cms/\(authed\)/newsletters/page.tsx
+git add apps/web/src/app/cms/\(authed\)/newsletters/page.tsx \
+       apps/web/test/app/cms-newsletter-dashboard.test.ts
 git commit -m "feat(cms): newsletter dashboard page — type cards, filters, editions table"
 ```
 
