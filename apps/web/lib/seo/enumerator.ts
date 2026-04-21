@@ -109,6 +109,23 @@ export async function enumerateSiteRoutes(
     }
   }
 
+  // Newsletter archive (sent editions)
+  const { data: sentEditions } = await supabase
+    .from('newsletter_editions')
+    .select('id, sent_at')
+    .eq('site_id', siteId)
+    .eq('status', 'sent')
+    .order('sent_at', { ascending: false })
+    .limit(200)
+
+  const archiveRoutes: SitemapRouteEntry[] = (sentEditions ?? []).map((edition) => ({
+    path: `/newsletter/archive/${edition.id}`,
+    lastModified: edition.sent_at ? new Date(edition.sent_at) : new Date(),
+    changeFrequency: 'yearly' as const,
+    priority: 0.5,
+    alternates: {},
+  }))
+
   const blogIndex: SitemapRouteEntry = {
     path: `${config.contentPaths.blog}/${config.defaultLocale}`,
     lastModified: new Date(),
@@ -119,7 +136,7 @@ export async function enumerateSiteRoutes(
     ),
   }
 
-  const all = [...buildStaticRoutes(config), blogIndex, ...postRoutes, ...campaignRoutes]
+  const all = [...buildStaticRoutes(config), blogIndex, ...postRoutes, ...campaignRoutes, ...archiveRoutes]
   return all.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime())
 }
 
