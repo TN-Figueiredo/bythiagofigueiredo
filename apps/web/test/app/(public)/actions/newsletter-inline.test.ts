@@ -11,8 +11,8 @@ vi.mock('../../../../lib/supabase/service', () => ({
   })),
 }))
 
-vi.mock('../../../../lib/email/resend', () => ({
-  sendTransactionalEmail: vi.fn().mockResolvedValue(undefined),
+vi.mock('../../../../lib/email/service', () => ({
+  getEmailService: () => ({ send: vi.fn().mockResolvedValue({ messageId: 'x', provider: 'resend' }) }),
 }))
 
 vi.mock('../../../../lib/cms/site-context', () => ({

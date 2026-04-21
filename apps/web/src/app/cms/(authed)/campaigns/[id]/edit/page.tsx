@@ -49,9 +49,11 @@ export default async function EditCampaignPage({ params }: Props) {
     status: campaign.status as 'draft' | 'scheduled' | 'published' | 'archived',
     scheduled_for: campaign.scheduled_for,
     pdf_storage_path: campaign.pdf_storage_path,
-    brevo_list_id: campaign.brevo_list_id,
-    brevo_template_id: campaign.brevo_template_id,
     form_fields: campaign.form_fields,
+    // Deprecated Brevo fields — required by @tn-figueiredo/cms@0.1.0 type;
+    // removed from DB in migration 20260421000001. Drop after cms@0.2.0.
+    brevo_list_id: null,
+    brevo_template_id: null,
   }
 
   const initialTranslations = campaign.translations.map((t) => ({

@@ -11,39 +11,75 @@ vi.mock('resend', () => ({
   })),
 }))
 
-import { sendTransactionalEmail } from '../../../lib/email/resend'
+import { createResendEmailService } from '../../../lib/email/resend'
 
-describe('sendTransactionalEmail', () => {
-  beforeEach(() => vi.clearAllMocks())
+describe('createResendEmailService', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    process.env.RESEND_API_KEY = 're_test_key'
+  })
 
-  it('calls resend with correct params', async () => {
-    await sendTransactionalEmail({
+  it('throws when RESEND_API_KEY is not configured', () => {
+    delete process.env.RESEND_API_KEY
+    expect(() => createResendEmailService()).toThrow('RESEND_API_KEY is not configured')
+  })
+
+  it('send() calls resend with correct params', async () => {
+    const svc = createResendEmailService()
+    const result = await svc.send({
+      from: { name: 'Thiago', email: 'no-reply@bythiagofigueiredo.com' },
       to: 'test@example.com',
       subject: 'Hello',
       html: '<p>World</p>',
     })
     expect(mockSend).toHaveBeenCalledWith({
       from: 'Thiago <no-reply@bythiagofigueiredo.com>',
-      to: 'test@example.com',
+      to: ['test@example.com'],
       subject: 'Hello',
       html: '<p>World</p>',
+      text: undefined,
+      replyTo: undefined,
+      headers: undefined,
     })
+    expect(result.messageId).toBe('test-123')
+    expect(result.provider).toBe('resend')
   })
 
-  it('allows overriding the from address', async () => {
-    await sendTransactionalEmail({
-      to: 'a@b.com',
-      subject: 'S',
-      html: '<p/>',
-      from: 'custom@domain.com',
-    })
-    expect(mockSend).toHaveBeenCalledWith(expect.objectContaining({ from: 'custom@domain.com' }))
-  })
-
-  it('throws when resend returns an error', async () => {
+  it('send() throws when resend returns an error', async () => {
     mockSend.mockResolvedValueOnce({ data: null, error: { message: 'rate limited' } })
+    const svc = createResendEmailService()
     await expect(
-      sendTransactionalEmail({ to: 'x@y.com', subject: 'S', html: '<p/>' })
+      svc.send({
+        from: { name: 'T', email: 'x@y.com' },
+        to: 'a@b.com',
+        subject: 'S',
+        html: '<p/>',
+      })
     ).rejects.toThrow('rate limited')
+  })
+
+  it('sendTemplate() renders template and calls send', async () => {
+    const svc = createResendEmailService()
+    const template = {
+      render: vi.fn().mockReturnValue({
+        subject: 'Rendered Subject',
+        html: '<p>Rendered HTML</p>',
+        text: 'Rendered text',
+      }),
+    }
+    const result = await svc.sendTemplate(
+      template as never,
+      { name: 'Thiago', email: 'noreply@example.com' },
+      'recipient@example.com',
+      { foo: 'bar' },
+      'pt-BR',
+    )
+    expect(template.render).toHaveBeenCalledWith({ foo: 'bar' }, 'pt-BR')
+    expect(mockSend).toHaveBeenCalledWith(expect.objectContaining({
+      subject: 'Rendered Subject',
+      html: '<p>Rendered HTML</p>',
+      text: 'Rendered text',
+    }))
+    expect(result.messageId).toBe('test-123')
   })
 })

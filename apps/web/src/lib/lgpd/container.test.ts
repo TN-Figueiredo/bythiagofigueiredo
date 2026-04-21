@@ -168,7 +168,7 @@ describe('createLgpdContainer', () => {
     vi.resetModules();
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://x.supabase.co';
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'svc';
-    process.env.BREVO_API_KEY = 'brevo';
+    process.env.RESEND_API_KEY = 're_test_key';
     process.env.NEXT_PUBLIC_APP_URL = 'https://site.test';
     sendFn.mockReset();
     sendFn.mockResolvedValue();
@@ -267,7 +267,7 @@ describe('accountDeletion.request', () => {
     vi.resetModules();
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://x.supabase.co';
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'svc';
-    process.env.BREVO_API_KEY = 'brevo';
+    process.env.RESEND_API_KEY = 're_test_key';
     process.env.NEXT_PUBLIC_APP_URL = 'https://site.test';
     sendFn.mockReset();
     sendFn.mockResolvedValue();

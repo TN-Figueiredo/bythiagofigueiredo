@@ -4,7 +4,7 @@ import crypto from 'node:crypto'
 import { z } from 'zod'
 import { getSupabaseServiceClient } from '../../../../lib/supabase/service'
 import { getSiteContext } from '../../../../lib/cms/site-context'
-import { sendTransactionalEmail } from '../../../../lib/email/resend'
+import { getEmailService } from '../../../../lib/email/service'
 import { verifyTurnstileToken } from '../../../../lib/turnstile'
 
 const CONSENT_VERSION = 'newsletter-v1-2026-04'
@@ -79,7 +79,9 @@ export async function subscribeNewsletterInline(
   // Send confirmation email (non-fatal)
   const confirmUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/newsletter/confirm?token=${rawToken}`
   const isPt = locale === 'pt-BR'
-  await sendTransactionalEmail({
+  const domain = process.env.NEWSLETTER_FROM_DOMAIN ?? 'bythiagofigueiredo.com'
+  await getEmailService().send({
+    from: { name: 'Thiago Figueiredo', email: `no-reply@${domain}` },
     to: email,
     subject: isPt ? 'Confirme sua inscrição' : 'Confirm your subscription',
     html: `<!DOCTYPE html><html><body style="font-family:sans-serif;max-width:480px;margin:40px auto;">

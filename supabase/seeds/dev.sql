@@ -100,8 +100,7 @@ begin
   returning id into v_site_id;
 
   update public.sites
-  set brevo_newsletter_list_id = 1,
-      contact_notification_email = 'thiago@bythiagofigueiredo.com'
+  set contact_notification_email = 'thiago@bythiagofigueiredo.com'
   where id = v_site_id;
 
   -- Sprint 4.75 RBAC v3: role check constraint only accepts 'org_admin'
@@ -139,14 +138,13 @@ begin
   -- ============ Sprint 1b: campaigns seed ============
 
   -- Published campaign with pt-BR + en
-  insert into campaigns (id, interest, status, published_at, pdf_storage_path, brevo_list_id, form_fields, site_id)
+  insert into campaigns (id, interest, status, published_at, pdf_storage_path, form_fields, site_id)
   values (
     '11111111-1111-1111-1111-111111111111',
     'creator',
     'published',
     now() - interval '1 day',
     'seed/creator-playbook.pdf',
-    1,
     '[
       {"name":"name","label":"Nome","type":"name","required":true},
       {"name":"email","label":"E-mail","type":"email","required":true}
@@ -215,20 +213,15 @@ begin
     'Fique de olho.', 'Baixar'
   ) on conflict do nothing;
 
-  -- Submissions: synced / failed / pending
+  -- Submissions
   insert into campaign_submissions
-    (campaign_id, email, name, locale, consent_marketing, consent_text_version,
-     brevo_sync_status, brevo_contact_id, brevo_synced_at)
+    (campaign_id, email, name, locale, consent_marketing, consent_text_version)
   values
     ('11111111-1111-1111-1111-111111111111', 'alice@example.com', 'Alice',
-     'pt-BR', true, 'v1-2026-04', 'synced', 'brv_100', now()),
+     'pt-BR', true, 'v1-2026-04'),
     ('11111111-1111-1111-1111-111111111111', 'bob@example.com', 'Bob',
-     'pt-BR', true, 'v1-2026-04', 'failed', null, null),
+     'pt-BR', true, 'v1-2026-04'),
     ('11111111-1111-1111-1111-111111111111', 'carol@example.com', 'Carol',
-     'en', true, 'v1-2026-04', 'pending', null, null)
+     'en', true, 'v1-2026-04')
   on conflict do nothing;
-
-  update campaign_submissions set brevo_sync_error = 'brevo 500: server err'
-    where email = 'bob@example.com'
-      and campaign_id = '11111111-1111-1111-1111-111111111111';
 end $$;

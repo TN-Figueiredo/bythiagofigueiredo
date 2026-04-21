@@ -111,7 +111,7 @@ Sprint 5a implementa os fluxos user-facing de LGPD/GDPR (privacy page, cookie ba
 1. **`BythiagoLgpdDomainAdapter`** (`ILgpdDomainAdapter`) — implementa `collectUserData`, `phase1Cleanup`, `phase2Cleanup` (no-op), `phase3Cleanup`, `checkDeletionSafety`.
 2. **`SupabaseLgpdRequestRepository`** (`ILgpdRequestRepository`) — CRUD sobre a tabela `lgpd_requests`.
 3. **`AuditLogLgpdRepository`** (`ILgpdAuditLogRepository`) — reusa `audit_log` do Sprint 4.75 (trigger-driven).
-4. **`BrevoLgpdEmailService`** (`ILgpdEmailService`) — 5 templates Brevo via `@tn-figueiredo/email`.
+4. **`LgpdEmailService`** (`ILgpdEmailService`) — 5 templates via `@tn-figueiredo/email` (Resend adapter).
 5. **`DirectQueryAccountStatusCache`** (`IAccountStatusCache`) — null-object shim que consulta `auth.admin.getUserById().banned_until` direto (sem cache).
 6. **`SupabaseInactiveUserFinder`** (`IInactiveUserFinder`) — query em `auth.users` por `last_sign_in_at < now - 365d`.
 
@@ -392,7 +392,8 @@ CMS reutilizável publicado em `@tn-figueiredo/cms` (extração pra repo própri
   - `NEXT_PUBLIC_SENTRY_DSN` — client + server runtime DSN. **Required** em Production/Preview; **optional** em Development (empty → SDK init vira no-op, nenhum evento é enviado).
   - `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN` — usados apenas no **build** do Vercel para source map upload. `next.config.ts` wrappa com `withSentryConfig` preservando `transpilePackages`. Required em Production/Preview, optional em Dev.
 - `CRON_SECRET`
-- `BREVO_API_KEY`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` (Sprint 1b)
+- `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, `NEWSLETTER_FROM_DOMAIN` (Sprint 1b — Brevo removed)
+- `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` (Sprint 1b)
 - `CAMPAIGN_PDF_SIGNED_URL_TTL` (opcional, default 86400 = 24h — TTL em segundos dos signed URLs de PDFs de campanha)
 - Sprint 2: nenhuma env var nova — multi-ring scoping resolve via middleware + `sites.domains` array no DB
 

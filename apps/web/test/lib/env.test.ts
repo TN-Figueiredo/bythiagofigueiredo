@@ -6,9 +6,9 @@ describe('env example documents Sprint 1b vars', () => {
   const p = resolve(__dirname, '../../.env.local.example');
   const pkg = resolve(__dirname, '../../package.json');
   it('file exists', () => expect(existsSync(p)).toBe(true));
-  it('documents BREVO_API_KEY, TURNSTILE_SITE_KEY, TURNSTILE_SECRET_KEY', () => {
+  it('documents RESEND_API_KEY, TURNSTILE_SITE_KEY, TURNSTILE_SECRET_KEY', () => {
     const s = readFileSync(p, 'utf8');
-    expect(s).toMatch(/BREVO_API_KEY=/);
+    expect(s).toMatch(/RESEND_API_KEY=/);
     expect(s).toMatch(/NEXT_PUBLIC_TURNSTILE_SITE_KEY=/);
     expect(s).toMatch(/TURNSTILE_SECRET_KEY=/);
   });

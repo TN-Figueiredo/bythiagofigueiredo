@@ -2,7 +2,7 @@ import type { IEmailService, EmailSender, EmailMessage } from '@tn-figueiredo/em
 import { emailLayout, emailButton, formatDatePtBR } from '@tn-figueiredo/email';
 import type { ILgpdEmailService } from '@tn-figueiredo/lgpd/interfaces';
 
-export interface BrevoLgpdEmailServiceOptions {
+export interface LgpdEmailServiceOptions {
   /** Sender identity (noreply@domain). Caller resolves per-site branding. */
   sender: EmailSender;
   /** Brand + logo for the email layout. Optional — fallback uses sender.name. */
@@ -25,13 +25,13 @@ export interface BrevoLgpdEmailServiceOptions {
  * Once @tn-figueiredo/email ships LGPD templates we can switch to
  * `sendTemplate()` + delete the inline strings.
  */
-export class BrevoLgpdEmailService implements ILgpdEmailService {
+export class LgpdEmailService implements ILgpdEmailService {
   private readonly sender: EmailSender;
-  private readonly branding: NonNullable<BrevoLgpdEmailServiceOptions['branding']>;
+  private readonly branding: NonNullable<LgpdEmailServiceOptions['branding']>;
 
   constructor(
     private readonly inner: IEmailService,
-    opts: BrevoLgpdEmailServiceOptions,
+    opts: LgpdEmailServiceOptions,
   ) {
     this.sender = opts.sender;
     this.branding = opts.branding ?? {};

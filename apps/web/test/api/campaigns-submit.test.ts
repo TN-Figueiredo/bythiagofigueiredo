@@ -1,14 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../../lib/turnstile', () => ({ verifyTurnstileToken: vi.fn() }));
-vi.mock('../../lib/brevo', () => ({ createBrevoContact: vi.fn() }));
 vi.mock('../../lib/supabase/service', () => ({
   getSupabaseServiceClient: vi.fn(),
 }));
 
 import { POST } from '../../src/app/api/campaigns/[slug]/submit/route';
 import { verifyTurnstileToken } from '../../lib/turnstile';
-import { createBrevoContact } from '../../lib/brevo';
 import { getSupabaseServiceClient } from '../../lib/supabase/service';
 import { setLogger, resetLogger } from '../../lib/logger';
 
@@ -26,7 +24,7 @@ function fakeSupabase(overrides: Record<string, unknown> = {}) {
     eq: vi.fn().mockReturnThis(),
     maybeSingle: vi.fn().mockResolvedValue({
       data: {
-        id: 'c1', brevo_list_id: 42, pdf_storage_path: 'pdfs/a.pdf', interest: 'creator',
+        id: 'c1', pdf_storage_path: 'pdfs/a.pdf', interest: 'creator',
         campaign_translations: [{
           success_headline: 'OK', success_headline_duplicate: 'Again',
           success_subheadline: 'Sub', success_subheadline_duplicate: 'SubDup',
@@ -84,7 +82,6 @@ describe('POST /api/campaigns/[slug]/submit', () => {
 
   it('200 with pdfUrl on valid submit', async () => {
     vi.mocked(verifyTurnstileToken).mockResolvedValue(true);
-    vi.mocked(createBrevoContact).mockResolvedValue({ id: 99 });
     const s = fakeSupabase();
     vi.mocked(getSupabaseServiceClient).mockReturnValue(s as never);
 
@@ -116,24 +113,6 @@ describe('POST /api/campaigns/[slug]/submit', () => {
     const body = await res.json();
     expect(body.duplicate).toBe(true);
     expect(body.successCopy.headline).toBe('Again');
-  });
-
-  it('200 with status=failed in DB when Brevo fails', async () => {
-    vi.mocked(verifyTurnstileToken).mockResolvedValue(true);
-    vi.mocked(createBrevoContact).mockRejectedValue(new Error('brevo 500'));
-    const s = fakeSupabase();
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(s as never);
-
-    const res = await POST(req({
-      email: 'a@b.com', locale: 'pt-BR', consent_marketing: true,
-      consent_text_version: 'v1', turnstile_token: 't',
-    }), { params: Promise.resolve({ slug: 'my-slug' }) });
-
-    expect(res.status).toBe(200);
-    // verify update call was made with brevo_sync_status='failed'
-    const updateCalls = s.update.mock.calls;
-    expect(updateCalls.some((c: unknown[]) =>
-      JSON.stringify(c[0]).includes('"brevo_sync_status":"failed"'))).toBe(true);
   });
 
   it('prefers x-vercel-forwarded-for over x-forwarded-for when both set', async () => {
@@ -183,7 +162,6 @@ describe('POST /api/campaigns/[slug]/submit', () => {
     process.env.CAMPAIGN_PDF_SIGNED_URL_TTL = '3600';
     vi.resetModules();
     vi.doMock('../../lib/turnstile', () => ({ verifyTurnstileToken: vi.fn().mockResolvedValue(true) }));
-    vi.doMock('../../lib/brevo', () => ({ createBrevoContact: vi.fn().mockResolvedValue({ id: 1 }) }));
     const createSignedUrl = vi.fn().mockResolvedValue({
       data: { signedUrl: 'https://sig.example/pdf' }, error: null,
     });
@@ -193,7 +171,7 @@ describe('POST /api/campaigns/[slug]/submit', () => {
       eq: vi.fn().mockReturnThis(),
       maybeSingle: vi.fn().mockResolvedValue({
         data: {
-          id: 'c1', brevo_list_id: 42, pdf_storage_path: 'pdfs/a.pdf', interest: 'creator',
+          id: 'c1', pdf_storage_path: 'pdfs/a.pdf', interest: 'creator',
           campaign_translations: [{
             success_headline: 'OK', success_headline_duplicate: 'Again',
             success_subheadline: 'Sub', success_subheadline_duplicate: 'SubDup',
@@ -225,7 +203,6 @@ describe('POST /api/campaigns/[slug]/submit', () => {
     delete process.env.CAMPAIGN_PDF_SIGNED_URL_TTL;
     vi.doUnmock('../../lib/supabase/service');
     vi.doUnmock('../../lib/turnstile');
-    vi.doUnmock('../../lib/brevo');
   });
 
   it('404 when campaign not found', async () => {

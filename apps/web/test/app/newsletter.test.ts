@@ -24,11 +24,11 @@ vi.mock('../../lib/turnstile', () => ({
   verifyTurnstileToken: vi.fn(),
 }))
 
-const { sendTransactionalEmailMock } = vi.hoisted(() => ({
-  sendTransactionalEmailMock: vi.fn(),
+const { sendMock } = vi.hoisted(() => ({
+  sendMock: vi.fn().mockResolvedValue({ messageId: 'test-123', provider: 'resend' }),
 }))
-vi.mock('../../lib/email/resend', () => ({
-  sendTransactionalEmail: sendTransactionalEmailMock,
+vi.mock('../../lib/email/service', () => ({
+  getEmailService: () => ({ send: sendMock }),
 }))
 
 vi.mock('../../lib/cms/site-context', () => ({
@@ -90,7 +90,7 @@ beforeEach(() => {
     orgId: 'org-1',
     defaultLocale: 'pt-BR',
   })
-  sendTransactionalEmailMock.mockResolvedValue(undefined)
+  sendMock.mockResolvedValue(undefined)
   vi.mocked(verifyTurnstileToken).mockResolvedValue(true)
   // Default rate-check response: allowed. Individual tests can override via
   // mockResolvedValueOnce for the unsubscribe RPC path.
@@ -169,7 +169,7 @@ describe('subscribeToNewsletter', () => {
     })
     const result = await subscribeToNewsletter(fd)
     expect(result).toEqual({ status: 'ok' })
-    expect(sendTransactionalEmailMock).toHaveBeenCalledOnce()
+    expect(sendMock).toHaveBeenCalledOnce()
   })
 
   it('returns ok (no oracle) when confirmed subscription already exists', async () => {
@@ -191,7 +191,7 @@ describe('subscribeToNewsletter', () => {
     const result = await subscribeToNewsletter(fd)
     expect(result).toEqual({ status: 'ok' })
     // Must not leak the duplicate state by re-sending a confirm email.
-    expect(sendTransactionalEmailMock).not.toHaveBeenCalled()
+    expect(sendMock).not.toHaveBeenCalled()
   })
 
   it('re-sends confirm email for pending_confirmation existing subscription', async () => {
@@ -220,7 +220,7 @@ describe('subscribeToNewsletter', () => {
     })
     const result = await subscribeToNewsletter(fd)
     expect(result).toEqual({ status: 'ok' })
-    expect(sendTransactionalEmailMock).toHaveBeenCalledOnce()
+    expect(sendMock).toHaveBeenCalledOnce()
   })
 
   it('handles DB unique constraint race as ok (no oracle)', async () => {
@@ -306,7 +306,7 @@ describe('subscribeToNewsletter', () => {
     expect(updatePayload.status).toBe('pending_confirmation')
     expect(updatePayload.unsubscribed_at).toBeNull()
     // New confirm email dispatched (double-opt-in re-required).
-    expect(sendTransactionalEmailMock).toHaveBeenCalledOnce()
+    expect(sendMock).toHaveBeenCalledOnce()
   })
 })
 

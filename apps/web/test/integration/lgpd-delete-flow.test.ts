@@ -66,7 +66,6 @@ describe.skipIf(skipIfNoLocalDb())('LGPD delete flow', () => {
         email,
         status: 'confirmed',
         consent_text_version: 'v1',
-        brevo_contact_id: 'brevo-test',
         confirmed_at: new Date().toISOString(),
       })
       .select('id')

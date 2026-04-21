@@ -37,7 +37,6 @@ vi.mock('../../lib/email/sender', () => ({
 
 vi.mock('@tn-figueiredo/email', () => ({
   inviteTemplate: { name: 'invite', render: vi.fn() },
-  BrevoEmailAdapter: vi.fn(),
 }))
 
 const rpcMock = vi.fn()

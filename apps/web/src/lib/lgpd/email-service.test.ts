@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { BrevoLgpdEmailService } from './email-service';
+import { LgpdEmailService } from './email-service';
 
 function makeEmailService() {
   const send = vi.fn().mockResolvedValue({ messageId: 'm1', provider: 'brevo' });
@@ -10,10 +10,10 @@ function makeEmailService() {
 
 const sender = { email: 'noreply@bythiagofigueiredo.com', name: 'bythiagofigueiredo' };
 
-describe('BrevoLgpdEmailService', () => {
+describe('LgpdEmailService', () => {
   it('sendDeletionConfirmation calls send with a confirmation subject + URL', async () => {
     const inner = makeEmailService();
-    const svc = new BrevoLgpdEmailService(inner, { sender });
+    const svc = new LgpdEmailService(inner, { sender });
     const expires = new Date('2026-04-17T00:00:00Z');
     await svc.sendDeletionConfirmation('a@x.com', 'https://app/confirm?t=abc', expires);
 
@@ -27,7 +27,7 @@ describe('BrevoLgpdEmailService', () => {
 
   it('sendExportReady embeds the signed download URL', async () => {
     const inner = makeEmailService();
-    const svc = new BrevoLgpdEmailService(inner, { sender });
+    const svc = new LgpdEmailService(inner, { sender });
     const expires = new Date('2026-04-23T00:00:00Z');
     await svc.sendExportReady('a@x.com', 'https://storage/signed/x', expires);
 
@@ -38,7 +38,7 @@ describe('BrevoLgpdEmailService', () => {
 
   it('sendCleanupWarning includes the days-remaining copy', async () => {
     const inner = makeEmailService();
-    const svc = new BrevoLgpdEmailService(inner, { sender });
+    const svc = new LgpdEmailService(inner, { sender });
     await svc.sendCleanupWarning('a@x.com', 30);
 
     const msg = inner.send.mock.calls[0][0];
@@ -47,7 +47,7 @@ describe('BrevoLgpdEmailService', () => {
 
   it('sendCleanupFinalWarning sends a distinct final subject', async () => {
     const inner = makeEmailService();
-    const svc = new BrevoLgpdEmailService(inner, { sender });
+    const svc = new LgpdEmailService(inner, { sender });
     await svc.sendCleanupFinalWarning('a@x.com');
 
     const msg = inner.send.mock.calls[0][0];
@@ -56,7 +56,7 @@ describe('BrevoLgpdEmailService', () => {
 
   it('sendConsentRevocationConfirmation acknowledges the revocation', async () => {
     const inner = makeEmailService();
-    const svc = new BrevoLgpdEmailService(inner, { sender });
+    const svc = new LgpdEmailService(inner, { sender });
     await svc.sendConsentRevocationConfirmation('a@x.com');
 
     const msg = inner.send.mock.calls[0][0];
@@ -67,7 +67,7 @@ describe('BrevoLgpdEmailService', () => {
   it('propagates errors from underlying send', async () => {
     const inner = makeEmailService();
     inner.send.mockRejectedValueOnce(new Error('brevo 500'));
-    const svc = new BrevoLgpdEmailService(inner, { sender });
+    const svc = new LgpdEmailService(inner, { sender });
     await expect(
       svc.sendConsentRevocationConfirmation('a@x.com'),
     ).rejects.toThrow(/brevo 500/);
