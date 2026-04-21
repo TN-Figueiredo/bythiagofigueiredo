@@ -24,6 +24,14 @@ vi.mock('@sentry/nextjs', () => ({
   captureException: vi.fn(),
 }))
 
+vi.mock('@react-email/render', () => ({
+  render: vi.fn().mockResolvedValue('<html><body>rendered</body></html>'),
+}))
+
+vi.mock('../../../../src/emails/newsletter', () => ({
+  Newsletter: vi.fn().mockReturnValue(null),
+}))
+
 import { POST } from '../../../src/app/api/cron/send-scheduled-newsletters/route'
 
 function req(secret?: string) {

@@ -16,6 +16,7 @@ export default async function NewsletterDashboardPage({
   const { data: types } = await supabase
     .from('newsletter_types')
     .select('id, name, locale, color, cadence_days, last_sent_at, cadence_paused')
+    .eq('site_id', ctx.siteId)
     .eq('active', true)
     .order('sort_order')
 
