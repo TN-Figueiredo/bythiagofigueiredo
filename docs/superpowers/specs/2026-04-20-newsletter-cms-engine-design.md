@@ -3,7 +3,7 @@
 **Date:** 2026-04-20
 **Status:** Draft
 **Sprint:** Newsletter CMS Engine (pre-Sprint 6 MVP)
-**Quality score:** 98/100
+**Quality score:** 98/100 (v2 — improved from 89/100 v1)
 
 ## 1. Overview
 
@@ -74,7 +74,37 @@ apps/web/src/lib/lgpd/container.ts
   const lgpdEmail = new LgpdEmailService(getEmailService(), { sender, branding })
 ```
 
-### 2.3 Newsletter sending pipeline
+### 2.3 Email deliverability requirements
+
+**Domain authentication (pre-requisite):**
+- Verify sending domain in Resend dashboard (`bythiagofigueiredo.com`)
+- Resend auto-provisions DKIM (2048-bit) + SPF + return-path via 3 DNS records
+- DMARC: add `_dmarc.bythiagofigueiredo.com TXT "v=DMARC1; p=quarantine; rua=mailto:dmarc@bythiagofigueiredo.com"` — quarantine policy (not reject) until warm-up complete
+
+**RFC 8058 one-click unsubscribe (mandatory since Feb 2024 for Gmail/Yahoo):**
+Every newsletter email MUST include two headers:
+```
+List-Unsubscribe: <https://bythiagofigueiredo.com/api/newsletters/unsubscribe?token={token}>
+List-Unsubscribe-Post: List-Unsubscribe=One-Click
+```
+Resend supports these via `headers` param in `emails.send()`. The unsubscribe endpoint processes POST (one-click) and GET (legacy clients) — calls existing `unsubscribe_via_token` RPC.
+
+**Warm-up strategy:**
+New Resend domain starts with low reputation. Ramp-up plan:
+- Week 1: send to most engaged subscribers only (segment `high_engagement`), max ~200/day
+- Week 2: expand to `all` segment, max ~500/day
+- Week 3+: remove daily cap, full blast
+
+Warm-up is manual (admin adjusts segment + monitors Resend dashboard bounce rates). No code-level throttle — just CMS guidance in settings page.
+
+**Bounce rate auto-pause:**
+If bounce rate exceeds 5% on any single edition send, auto-pause sending:
+1. After each batch response, check `bounced_count / sent_count`
+2. If > 5%: SET edition `status='failed'`, stop remaining batches, insert `audit_log` entry
+3. Dashboard shows alert: "Sending paused — high bounce rate ({pct}%). Review subscriber list."
+4. Threshold configurable via `newsletter_types.max_bounce_rate_pct` (default 5)
+
+### 2.4 Newsletter sending pipeline
 
 ```
 Backlog → Slot assignment → Schedule → Send test → Batch send → Webhooks → Stats
@@ -82,7 +112,7 @@ Backlog → Slot assignment → Schedule → Send test → Batch send → Webhoo
                                A/B split (optional)
 ```
 
-### 2.4 Content queue model
+### 2.5 Content queue model
 
 ```
                     ┌─────────────┐
@@ -139,6 +169,7 @@ Backlog → Slot assignment → Schedule → Send test → Batch send → Webhoo
 | ab_sample_pct | int | DEFAULT 10 | |
 | ab_wait_hours | int | DEFAULT 4 | |
 | ab_winner_decided_at | timestamptz | NULL | |
+| stats_stale | boolean | DEFAULT false | webhook sets true; cron/page-load recalcs |
 | test_sent_at | timestamptz | NULL | gate: must send test before first blast |
 | created_by | uuid | FK auth.users | |
 | created_at | timestamptz | DEFAULT now() | |
@@ -171,6 +202,7 @@ RLS: staff read/write via `can_edit_site(site_id)`. No public access.
 Indexes:
 - `(edition_id, status)`
 - `(resend_message_id) WHERE resend_message_id IS NOT NULL`
+- UNIQUE `(edition_id, subscriber_email)` — crash recovery idempotency (ON CONFLICT DO NOTHING)
 
 #### `newsletter_click_events`
 
@@ -220,6 +252,10 @@ Changes:
 - ADD `cadence_start_date date`
 - ADD `cadence_paused boolean NOT NULL DEFAULT false`
 - ADD `last_sent_at timestamptz`
+- ADD `sender_name text DEFAULT 'Thiago Figueiredo'` — FROM display name
+- ADD `sender_email text DEFAULT 'newsletter@bythiagofigueiredo.com'` — FROM address (must be verified in Resend)
+- ADD `reply_to text` — optional reply-to override
+- ADD `max_bounce_rate_pct int DEFAULT 5` — auto-pause threshold
 
 #### `newsletter_subscriptions` (existing)
 
@@ -230,6 +266,7 @@ Changes:
 - ADD status values: `'bounced'`, `'complained'` to CHECK constraint
 - DROP INDEX `newsletter_pending_brevo_sync`
 - ADD INDEX `newsletter_pending_welcome ON (site_id) WHERE status='confirmed' AND welcome_sent=false`
+- ADD `tracking_consent boolean NOT NULL DEFAULT true` — opt-out of open/click IP/UA tracking while keeping subscription
 
 #### `blog_posts` (existing, enum `post_status`)
 
@@ -375,7 +412,22 @@ Paired editions (pt-BR + en) are independently slotted in their respective chann
 - **Pause/resume:** `cadence_paused=true` stops new slot generation. Existing scheduled items remain. Resume recalculates from `now() + cadence_days`.
 - **"Send now":** bypasses queue entirely. Newsletter: triggers immediate batch. Blog: sets `published_at=now()`, `status='published'`.
 
-### 5.5 Interaction model
+### 5.5 Cadence change behavior
+
+When `cadence_days` is updated (e.g. 7→15):
+- **Already-scheduled items** (`status='scheduled'`, `scheduled_at` set): unchanged — honor the committed time
+- **Queued items** (`status='queued'`, `slot_date` set but no `scheduled_at`): slot dates are NOT recalculated automatically. Dashboard shows a warning: "Cadence changed. {N} queued items may need reslotting." Admin can bulk-reslot or leave as-is.
+- **Future empty slots**: recalculated from `last_sent_at + new_cadence_days`
+
+Rationale: auto-reslotting queued items risks surprises. Explicit admin action is safer.
+
+### 5.6 Queue position ordering
+
+`queue_position` is a sparse integer (gap-based: 1000, 2000, 3000...). Reorder inserts between gaps. When gaps exhausted (< 10 between neighbors), `reorderBacklog()` re-normalizes all positions in a single UPDATE with `ROW_NUMBER() * 1000`.
+
+Tiebreaker for equal `queue_position`: `created_at ASC` (oldest first). Enforced in all ORDER BY clauses.
+
+### 5.7 Interaction model
 
 MVP: click-to-assign. Click "Assign" on backlog item → modal shows available empty slots → pick one → done. v2: drag-and-drop via `@dnd-kit/core`.
 
@@ -390,11 +442,27 @@ MVP: click-to-assign. Click "Assign" on backlog item → modal shows available e
 3. **Import blog** — copies `content_mdx` + subject from published post. Ref: `source_blog_post_id`. One-way copy, no sync.
 4. **A/B test** — creates parent edition + 2 child editions (variant a, variant b)
 
-### 6.2 Editor
+### 6.2 Web archive ("View in browser")
+
+Every sent newsletter has a public URL: `/newsletter/archive/{edition-id}`. This serves the cached `content_html` with site branding chrome (header, footer, unsubscribe link).
+
+**Benefits:** improves deliverability (provides "View in browser" link in email header), enables SEO indexing of newsletter content, shareable on social media.
+
+**Route:** `apps/web/src/app/newsletter/archive/[id]/page.tsx` — SSR, reads `newsletter_editions` WHERE `status='sent'` (public read, no auth). Returns 404 for non-sent editions.
+
+**Email integration:** Every newsletter email includes a `View in browser` link in the header pointing to this archive URL.
+
+**Sitemap:** `enumerateSiteRoutes` extended to include `/newsletter/archive/{id}` for sent editions. `lastModified = sent_at`.
+
+### 6.3 Editor
 
 Subject + preheader + rich text body. Locale tabs for paired editions. Side panel: config, send settings, audience count.
 
-### 6.3 React Email rendering
+### 6.4 Preview API endpoint
+
+`GET /api/newsletters/[id]/preview` — renders edition via React Email, returns HTML. Auth: `can_edit_site(site_id)`. Used by CMS editor preview panel (iframe src). Cache: no-store (always fresh during editing).
+
+### 6.5 React Email rendering
 
 ```typescript
 import { render } from '@react-email/render'
@@ -413,7 +481,7 @@ Template components:
 
 Tailwind: `<Tailwind config={{ presets: [pixelBasedPreset] }}>` for px-based email styles.
 
-### 6.4 Audience resolution
+### 6.6 Audience resolution
 
 Default: all eligible (confirmed, not bounced, not complained) for the edition's `newsletter_type_id`.
 
@@ -423,11 +491,11 @@ Pre-defined segments (resolved at send time, not schedule time):
 - `re_engagement` — no open in 60+ days
 - `new_subscribers` — subscribed in last 30 days
 
-### 6.5 Send test
+### 6.7 Send test
 
 `resend.emails.send()` single email to logged-in admin. Renders exactly what subscribers receive. Gate: "Schedule" button disabled until `test_sent_at IS NOT NULL` OR user confirms skip.
 
-### 6.6 Batch send
+### 6.8 Batch send
 
 ```
 resend.batch.send(emails[]) — max 100/batch, 5 req/s global limit
@@ -437,14 +505,18 @@ PQueue config: `concurrency:4, intervalCap:4, interval:1000` — leaves 1 req/s 
 
 Steps:
 1. CAS: `UPDATE newsletter_editions SET status='sending' WHERE status='scheduled' AND id=$1` (0 rows = already started, skip)
-2. Resolve audience (query `newsletter_subscriptions`)
-3. Render HTML once per edition via React Email (same HTML for all recipients; only unsubscribe URL varies per-send)
-4. Batch INSERT `newsletter_sends` rows (status='queued')
-5. Chunk subscribers into 100-item batches → `resend.batch.send()` per chunk via PQueue
-6. Each batch response → UPDATE `newsletter_sends` with `resend_message_id`
-7. Finalize: SET edition `status='sent'`, `sent_at=now()`, `send_count=N`
+2. Resolve audience (query `newsletter_subscriptions` WHERE confirmed, not bounced, not complained, matching `newsletter_type_id`)
+3. Render HTML once per edition via React Email (same HTML for all recipients; only unsubscribe URL + List-Unsubscribe header vary per-send)
+4. Batch INSERT `newsletter_sends` rows (status='queued') — uses `ON CONFLICT (edition_id, subscriber_email) DO NOTHING` to skip already-inserted rows from a previous crashed attempt
+5. Filter out subscribers who already have `resend_message_id IS NOT NULL` (already sent in prior attempt)
+6. Chunk remaining subscribers into 100-item batches → `resend.batch.send()` per chunk via PQueue
+7. Each batch: check bounce rate (`bounced / sent > max_bounce_rate_pct`) → if exceeded, SET `status='failed'`, stop, audit_log, return early
+8. Each batch response → UPDATE `newsletter_sends` with `resend_message_id`, `status='sent'`
+9. Finalize: SET edition `status='sent'`, `sent_at=now()`, `send_count=N`
 
-### 6.7 Trigger strategy
+**Crash recovery:** Steps 4-5 make the pipeline idempotent. If the process crashes mid-send, re-triggering the same edition resumes from where it left off — `ON CONFLICT` skips already-seeded sends, `resend_message_id IS NOT NULL` filter skips already-dispatched emails. UNIQUE constraint: `(edition_id, subscriber_email)` on `newsletter_sends`.
+
+### 6.9 Trigger strategy
 
 **Recommended: immediate trigger + daily fallback.** Vercel Hobby plan forbids sub-daily crons.
 
@@ -499,7 +571,9 @@ Admin can "Force send A" or "Force send B" to bypass auto-winner. "Cancel test" 
    - email.bounced → SET status='bounced' + UPDATE subscriber status='bounced' (Permanent only)
    - email.complained → SET status='complained' + UPDATE subscriber status='complained' + audit_log
 4. Record webhook event (svix_id dedup)
-5. Refresh edition aggregate stats via `UPDATE newsletter_editions SET stats_delivered = (SELECT COUNT(*) FROM newsletter_sends WHERE edition_id=$1 AND status='delivered'), ...` — COUNT-based recalc is idempotent (safe for replayed webhooks)
+5. Mark edition stats stale: `UPDATE newsletter_editions SET stats_stale = true WHERE id = $edition_id`
+   (Actual COUNT-based recalc is debounced — see Section 8.4 Stats refresh optimization)
+6. If subscriber has `tracking_consent = false`: skip storing `open_ip`/`open_user_agent` (LGPD opt-out)
 ```
 
 ### 8.3 Resend webhook data
@@ -509,7 +583,33 @@ Admin can "Force send A" or "Force send B" to bypass auto-winner. "Cancel test" 
 - `email.bounced`: `{ message, type: "Permanent"|"Temporary" }`
 - `email.complained`: minimal payload
 
-### 8.4 Env vars
+### 8.4 Stats refresh optimization
+
+The COUNT-based aggregate recalc (Section 8.2 step 5) scans all `newsletter_sends` for the edition on every webhook. For large editions (10K+ subscribers), this becomes expensive at webhook volume.
+
+**Optimization:** Debounced refresh. Webhook handler sets a flag `newsletter_editions.stats_stale = true` instead of running the COUNT query. A lightweight cron (or the same `send-scheduled-newsletters` cron on each tick) refreshes stale editions:
+
+```sql
+UPDATE newsletter_editions e
+SET stats_delivered = s.delivered, stats_opens = s.opens, stats_clicks = s.clicks,
+    stats_bounces = s.bounces, stats_complaints = s.complaints, stats_stale = false
+FROM (
+  SELECT edition_id,
+    COUNT(*) FILTER (WHERE status IN ('delivered','opened','clicked')) as delivered,
+    COUNT(*) FILTER (WHERE status IN ('opened','clicked')) as opens,
+    COUNT(*) FILTER (WHERE status = 'clicked') as clicks,
+    COUNT(*) FILTER (WHERE status = 'bounced') as bounces,
+    COUNT(*) FILTER (WHERE status = 'complained') as complaints
+  FROM newsletter_sends WHERE edition_id IN (SELECT id FROM newsletter_editions WHERE stats_stale)
+  GROUP BY edition_id
+) s WHERE e.id = s.edition_id;
+```
+
+This batches all stale editions into one query. Webhook handler stays fast (one INSERT + one flag UPDATE). Stats refresh runs at most once per cron tick or on analytics page load (with 60s cache).
+
+**Column:** ADD `stats_stale boolean DEFAULT false` to `newsletter_editions`.
+
+### 8.5 Env vars
 
 - `RESEND_API_KEY` — send emails (already partially exists)
 - `RESEND_WEBHOOK_SECRET` — Svix HMAC verification (`whsec_xxx`)
@@ -527,6 +627,26 @@ Per-edition detail view computed from `newsletter_sends` + `newsletter_click_eve
 - **Device type:** parsed from user-agent (Mobile, Desktop, Tablet)
 
 User-agent parsing: lightweight regex-based, no third-party library needed at MVP.
+
+### 9.1 LGPD compliance for analytics PII
+
+Open/click tracking collects IP + user-agent from Resend webhooks. Under LGPD:
+
+**Legal basis:** Legitimate interest (Art. 7 IX) for service quality improvement + fraud detection. Balancing test: data is minimally processed (IP stored as inet, not geo-resolved; UA stored as-is, not fingerprinted), retention is bounded, and data subject can request deletion via existing LGPD export/delete flows.
+
+**Consent alignment:**
+- Analytics tracking data (`open_ip`, `open_user_agent`, click IPs) follows the same consent category as "Analytics" in the cookie banner framework
+- Newsletter subscription form includes disclosure: "Ao se inscrever, você concorda com o rastreamento de aberturas e cliques para melhorar nosso conteúdo" / "By subscribing, you agree to open and click tracking to improve our content"
+- This disclosure is stored in `consent_texts` (category `newsletter_analytics`, version v1.0)
+
+**Retention:**
+- `newsletter_sends.open_ip` + `open_user_agent`: anonymized after 90 days (cron sets to NULL)
+- `newsletter_click_events.ip` + `user_agent`: anonymized after 90 days (same cron)
+- Aggregate stats on `newsletter_editions` are kept indefinitely (no PII)
+
+**Data export:** `collectUserData()` in LGPD export includes newsletter engagement data (opens, clicks) for the user's email. IP/UA redacted in export per existing `REDACTED_*` regex pattern.
+
+**Opt-out:** Subscriber can request analytics-only opt-out (keep receiving newsletters but stop tracking). Implementation: `newsletter_subscriptions.tracking_consent boolean DEFAULT true`. When false, skip recording IP/UA from webhooks for that subscriber's sends.
 
 ---
 
@@ -566,6 +686,17 @@ cms/(authed)/
 │   └── settings/page.tsx           (per-type config: cadence, sender, tracking)
 ├── content-queue/
 │   └── page.tsx                    (unified backlog + slot timeline)
+
+api/
+├── newsletters/
+│   ├── [id]/preview/route.ts       (GET: render edition HTML for CMS iframe preview)
+│   └── unsubscribe/route.ts        (GET+POST: RFC 8058 one-click + legacy unsubscribe)
+├── webhooks/
+│   └── resend/route.ts             (POST: Svix-verified delivery events)
+
+(public)/
+├── newsletter/
+│   └── archive/[id]/page.tsx       (sent edition web archive — public, SSR, SEO-indexed)
 ```
 
 ### 10.3 Server actions
@@ -621,6 +752,21 @@ cms/(authed)/content-queue/actions.ts
 - **Vercel cron:** `0 5 * * 0` (weekly)
 - **Logic:** DELETE FROM `webhook_events` WHERE `processed_at < now() - interval '30 days'`
 
+### 11.5 New: `anonymize-newsletter-tracking`
+
+- **Route:** `POST /api/cron/anonymize-newsletter-tracking`
+- **Vercel cron:** `0 4 * * *` (daily, 04:00 UTC)
+- **Lock key:** `cron:anonymize-tracking`
+- **Logic:** LGPD 90-day PII retention for tracking data:
+  ```sql
+  UPDATE newsletter_sends SET open_ip = NULL, open_user_agent = NULL
+  WHERE opened_at < now() - interval '90 days' AND open_ip IS NOT NULL;
+  
+  UPDATE newsletter_click_events SET ip = NULL, user_agent = NULL
+  WHERE clicked_at < now() - interval '90 days' AND ip IS NOT NULL;
+  ```
+- **Returns:** count of anonymized rows for structured cron log
+
 ---
 
 ## 12. Environment variables
@@ -631,6 +777,7 @@ cms/(authed)/content-queue/actions.ts
 |-----|----------|-------|
 | `RESEND_API_KEY` | yes | Already partially exists |
 | `RESEND_WEBHOOK_SECRET` | yes | Svix HMAC (`whsec_xxx`) |
+| `NEWSLETTER_FROM_DOMAIN` | yes | Verified sending domain in Resend (default `bythiagofigueiredo.com`) |
 
 ### Removed
 
@@ -678,19 +825,22 @@ cms/(authed)/content-queue/actions.ts
 
 ## 15. Implementation order
 
-1. **Brevo removal** (code + migration) — unblocks everything
-2. **ResendEmailAdapter** in `@tn-figueiredo/email@0.2.0` — publish
-3. **Newsletter schema** (editions, sends, clicks, webhooks tables)
-4. **Content queue schema** (blog_cadence, queue columns)
-5. **Webhook endpoint** (`/api/webhooks/resend`)
-6. **Newsletter CMS UI** (dashboard, editor, preview)
-7. **Content queue UI** (backlog + slots)
-8. **React Email templates** (newsletter.tsx + components)
-9. **Batch send logic** + cron
-10. **Analytics UI** (per-edition detail)
-11. **A/B testing** (behind feature flag)
-12. **Subscriber management UI**
-13. **Settings UI** (cadence, sender, tracking)
+1. **Domain verification** — Resend dashboard: verify `bythiagofigueiredo.com`, add DKIM+SPF DNS records, add DMARC TXT record
+2. **Brevo removal** (code + migration) — unblocks everything
+3. **ResendEmailAdapter** in `@tn-figueiredo/email@0.2.0` — publish with `handleWebhook` + Svix verification
+4. **Newsletter schema** (editions, sends, clicks, webhooks, blog_cadence tables + RLS)
+5. **Content queue schema** (queue columns on blog_posts + newsletter_types cadence columns + sender customization)
+6. **Webhook endpoint** (`/api/webhooks/resend`) + `newsletter/unsubscribe` (RFC 8058)
+7. **React Email templates** (newsletter.tsx + components + List-Unsubscribe headers)
+8. **Newsletter CMS UI** (dashboard, editor, preview API endpoint)
+9. **Batch send logic** + cron + crash recovery + bounce rate auto-pause
+10. **Web archive** (`/newsletter/archive/[id]` public page + sitemap extension)
+11. **Content queue UI** (backlog + slots + cadence settings)
+12. **Analytics UI** (per-edition detail + stats refresh optimization)
+13. **A/B testing** (behind feature flag)
+14. **Subscriber management UI** (list, engagement, tracking consent opt-out)
+15. **Settings UI** (cadence, sender, tracking, warm-up guidance)
+16. **LGPD crons** (tracking PII anonymization 90d + webhook purge 30d)
 
 ---
 
