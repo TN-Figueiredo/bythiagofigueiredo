@@ -2326,6 +2326,37 @@ git commit -m "feat(db): add refresh_newsletter_stats RPC for debounced stats re
 
 ---
 
+### Task 15d: Newsletter analytics consent_texts seed
+
+**Files:**
+- Create: `supabase/migrations/20260421000005_newsletter_analytics_consent_text.sql`
+
+- [ ] **Step 1: Write the migration**
+
+```sql
+-- 20260421000005_newsletter_analytics_consent_text.sql
+-- LGPD consent text for newsletter open/click tracking analytics
+
+INSERT INTO public.consent_texts (category, locale, version, short_text, full_text)
+VALUES
+  ('newsletter_analytics', 'pt-BR', '1.0',
+   'Rastreamento de aberturas e cliques de newsletter',
+   'Ao se inscrever, você concorda com o rastreamento de aberturas e cliques para melhorar nosso conteúdo. Processadores: Resend (EUA, SCCs). Retenção: 90 dias para IP/user-agent, agregados indefinidamente. Revogação: desative via preferências de assinatura ou solicite via tnfigueiredotv@gmail.com.'),
+  ('newsletter_analytics', 'en', '1.0',
+   'Newsletter open and click tracking',
+   'By subscribing, you agree to open and click tracking to improve our content. Processors: Resend (US, SCCs). Retention: 90 days for IP/user-agent, aggregates kept indefinitely. Revocation: disable via subscription preferences or request via tnfigueiredotv@gmail.com.')
+ON CONFLICT (category, locale, version) DO NOTHING;
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add supabase/migrations/20260421000005_newsletter_analytics_consent_text.sql
+git commit -m "feat(db): seed newsletter_analytics consent_texts for LGPD compliance"
+```
+
+---
+
 ### Task 16: Newsletter send cron route
 
 **Files:**
@@ -2535,25 +2566,26 @@ async function sendEdition(
     archiveUrl: `${appUrl}/newsletter/archive/${edition.id}`,
   }))
 
-  // Pre-generate unsubscribe tokens for all subscribers
-  // Uses existing unsubscribe_tokens table (same as newsletter confirm flow)
+  // Batch-generate unsubscribe tokens for all subscribers
+  const { createHash, randomUUID } = await import('crypto')
   const tokenMap = new Map<string, string>()
-  for (const send of unsent) {
-    const rawToken = crypto.randomUUID() + crypto.randomUUID().replace(/-/g, '')
-    const tokenHash = (await import('crypto')).createHash('sha256').update(rawToken).digest('hex')
-    await supabase.from('unsubscribe_tokens').insert({
-      site_id: edition.site_id,
-      email: send.subscriber_email,
-      token: tokenHash,
-    }).then(() => {}, () => {})
+  const tokenRows = unsent.map((send) => {
+    const rawToken = randomUUID() + randomUUID().replace(/-/g, '')
+    const tokenHash = createHash('sha256').update(rawToken).digest('hex')
     tokenMap.set(send.subscriber_email, rawToken)
-  }
+    return { site_id: edition.site_id, email: send.subscriber_email, token: tokenHash }
+  })
+  // Batch insert (ON CONFLICT ignore for crash recovery)
+  await supabase.from('unsubscribe_tokens')
+    .upsert(tokenRows, { onConflict: 'site_id,email', ignoreDuplicates: true })
 
   const emailService = getEmailService()
   let sentCount = 0
   let bounceCount = 0
 
-  // Send in batches (100/batch matching Resend batch.send limit)
+  // Send in batches of BATCH_SIZE.
+  // MVP: sequential sends via emailService.send() for simplicity + per-send error handling.
+  // v2 optimization: use resend.batch.send(emails[]) for 100x throughput (max 100/call).
   for (let i = 0; i < unsent.length; i += BATCH_SIZE) {
     const batch = unsent.slice(i, i + BATCH_SIZE)
 
@@ -2820,12 +2852,31 @@ export default async function ContentQueuePage() {
                       </Link>
                       <span className="ml-2 text-xs text-gray-400">{post.status}</span>
                     </div>
-                    <form action={async () => {
-                      'use server'
-                      await publishBlogNow(post.id)
-                    }}>
-                      <button className="text-xs text-gray-500 hover:text-orange-600">Publish now</button>
-                    </form>
+                    <div className="flex gap-2">
+                      <form action={async () => {
+                        'use server'
+                        // Assign to next available slot (first empty future slot)
+                        const nextSlot = blogCadences?.find(c => c.locale === post.blog_translations?.[0]?.locale)
+                        if (nextSlot) {
+                          const { generateSlots } = await import('@/lib/content-queue/slots')
+                          const slots = generateSlots({
+                            cadenceDays: nextSlot.cadence_days,
+                            startDate: nextSlot.cadence_start_date ?? today,
+                            lastSentAt: nextSlot.last_published_at,
+                            paused: nextSlot.cadence_paused,
+                          }, { today, count: 1 })
+                          if (slots[0]) await assignBlogToSlot(post.id, slots[0])
+                        }
+                      }}>
+                        <button className="text-xs text-gray-500 hover:text-blue-600" data-testid="assign-slot-btn">Assign slot</button>
+                      </form>
+                      <form action={async () => {
+                        'use server'
+                        await publishBlogNow(post.id)
+                      }}>
+                        <button className="text-xs text-gray-500 hover:text-orange-600" data-testid="publish-now-btn">Publish now</button>
+                      </form>
+                    </div>
                   </li>
                 )
               })}
