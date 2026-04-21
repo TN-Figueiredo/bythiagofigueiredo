@@ -56,20 +56,27 @@ async function processEvent(
   const messageId = event.data.email_id as string | undefined
   if (!messageId) return
 
-  // Look up the send row
+  // Look up the send row + edition's site_id for proper scoping
   const { data: send } = await supabase
     .from('newsletter_sends')
-    .select('id, edition_id, subscriber_email')
+    .select('id, edition_id, subscriber_email, newsletter_editions(site_id, newsletter_type_id)')
     .eq('resend_message_id', messageId)
     .maybeSingle()
 
   if (!send) return // Not a newsletter email (transactional), ignore
 
-  // Check tracking consent
+  const editionData = Array.isArray(send.newsletter_editions)
+    ? send.newsletter_editions[0] as { site_id: string; newsletter_type_id: string } | undefined
+    : send.newsletter_editions as { site_id: string; newsletter_type_id: string } | null
+  const siteId = editionData?.site_id
+  const newsletterId = editionData?.newsletter_type_id
+
+  // Check tracking consent — scoped to site
   const { data: sub } = await supabase
     .from('newsletter_subscriptions')
     .select('tracking_consent')
     .eq('email', send.subscriber_email)
+    .eq('site_id', siteId ?? '')
     .maybeSingle()
 
   const trackPii = sub?.tracking_consent !== false
@@ -114,10 +121,12 @@ async function processEvent(
         status: 'bounced',
         bounce_type: event.data.type as string,
       }).eq('id', send.id)
-      if (event.data.type === 'Permanent') {
+      if (event.data.type === 'Permanent' && siteId && newsletterId) {
         await supabase.from('newsletter_subscriptions').update({
           status: 'bounced',
         }).eq('email', send.subscriber_email)
+          .eq('site_id', siteId)
+          .eq('newsletter_id', newsletterId)
       }
       break
 
@@ -125,9 +134,13 @@ async function processEvent(
       await supabase.from('newsletter_sends').update({
         status: 'complained',
       }).eq('id', send.id)
-      await supabase.from('newsletter_subscriptions').update({
-        status: 'complained',
-      }).eq('email', send.subscriber_email)
+      if (siteId && newsletterId) {
+        await supabase.from('newsletter_subscriptions').update({
+          status: 'complained',
+        }).eq('email', send.subscriber_email)
+          .eq('site_id', siteId)
+          .eq('newsletter_id', newsletterId)
+      }
       break
   }
 

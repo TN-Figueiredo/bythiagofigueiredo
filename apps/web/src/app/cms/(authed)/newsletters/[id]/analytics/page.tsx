@@ -32,10 +32,18 @@ export default async function EditionAnalyticsPage({
     if (refreshed) Object.assign(edition, refreshed)
   }
 
-  const { data: clicks } = await supabase
-    .from('newsletter_click_events')
-    .select('url, send_id!inner(edition_id)')
-    .eq('send_id.edition_id', id)
+  // Two-step: get send IDs for this edition, then fetch clicks
+  const { data: sendIds } = await supabase
+    .from('newsletter_sends')
+    .select('id')
+    .eq('edition_id', id)
+
+  const { data: clicks } = sendIds?.length
+    ? await supabase
+        .from('newsletter_click_events')
+        .select('url')
+        .in('send_id', sendIds.map((s) => s.id))
+    : { data: [] as { url: string }[] }
 
   const clickMap = new Map<string, number>()
   for (const c of clicks ?? []) {

@@ -3,12 +3,19 @@
 import { revalidatePath } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
+import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 
 type ActionResult = { ok: true } | { ok: false; error: string }
 
-export async function assignBlogToSlot(postId: string, slotDate: string): Promise<ActionResult> {
+async function requireCmsEdit() {
   const ctx = await getSiteContext()
-  const supabase = getSupabaseServiceClient()
+  const res = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
+  if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
+  return { ctx, supabase: getSupabaseServiceClient() }
+}
+
+export async function assignBlogToSlot(postId: string, slotDate: string): Promise<ActionResult> {
+  const { ctx, supabase } = await requireCmsEdit()
   const { error } = await supabase
     .from('blog_posts')
     .update({ status: 'queued', slot_date: slotDate, queue_position: null })
@@ -21,8 +28,7 @@ export async function assignBlogToSlot(postId: string, slotDate: string): Promis
 }
 
 export async function unslotBlogPost(postId: string): Promise<ActionResult> {
-  const ctx = await getSiteContext()
-  const supabase = getSupabaseServiceClient()
+  const { ctx, supabase } = await requireCmsEdit()
   const { error } = await supabase
     .from('blog_posts')
     .update({ status: 'ready', slot_date: null })
@@ -35,8 +41,7 @@ export async function unslotBlogPost(postId: string): Promise<ActionResult> {
 }
 
 export async function publishBlogNow(postId: string): Promise<ActionResult> {
-  const ctx = await getSiteContext()
-  const supabase = getSupabaseServiceClient()
+  const { ctx, supabase } = await requireCmsEdit()
   const { error } = await supabase
     .from('blog_posts')
     .update({ status: 'published', published_at: new Date().toISOString() })
@@ -49,8 +54,7 @@ export async function publishBlogNow(postId: string): Promise<ActionResult> {
 }
 
 export async function markBlogReady(postId: string): Promise<ActionResult> {
-  const ctx = await getSiteContext()
-  const supabase = getSupabaseServiceClient()
+  const { ctx, supabase } = await requireCmsEdit()
   const { error } = await supabase
     .from('blog_posts')
     .update({ status: 'ready' })
@@ -65,12 +69,13 @@ export async function markBlogReady(postId: string): Promise<ActionResult> {
 export async function reorderBacklog(
   items: { id: string; position: number }[],
 ): Promise<ActionResult> {
-  const supabase = getSupabaseServiceClient()
+  const { ctx, supabase } = await requireCmsEdit()
   for (const item of items) {
     await supabase
       .from('blog_posts')
       .update({ queue_position: item.position })
       .eq('id', item.id)
+      .eq('site_id', ctx.siteId)
   }
   revalidatePath('/cms/content-queue')
   return { ok: true }
@@ -80,8 +85,7 @@ export async function updateBlogCadence(
   locale: string,
   patch: { cadence_days?: number; preferred_send_time?: string; cadence_paused?: boolean },
 ): Promise<ActionResult> {
-  const ctx = await getSiteContext()
-  const supabase = getSupabaseServiceClient()
+  const { ctx, supabase } = await requireCmsEdit()
   const { error } = await supabase
     .from('blog_cadence')
     .upsert({

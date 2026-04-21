@@ -1,13 +1,16 @@
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { getSiteContext } from '@/lib/cms/site-context'
 import { updateCadence } from '../actions'
 
 export const dynamic = 'force-dynamic'
 
 export default async function NewsletterSettingsPage() {
+  const ctx = await getSiteContext()
   const supabase = getSupabaseServiceClient()
   const { data: types } = await supabase
     .from('newsletter_types')
     .select('*')
+    .eq('site_id', ctx.siteId)
     .eq('active', true)
     .order('sort_order')
 

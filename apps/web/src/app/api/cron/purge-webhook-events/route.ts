@@ -7,7 +7,8 @@ const LOCK_KEY = 'cron:purge-webhooks'
 
 export async function POST(req: Request): Promise<Response> {
   const auth = req.headers.get('authorization')
-  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  const secret = process.env.CRON_SECRET
+  if (!secret || auth !== `Bearer ${secret}`) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
 
