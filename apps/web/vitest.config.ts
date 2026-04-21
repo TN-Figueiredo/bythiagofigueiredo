@@ -55,6 +55,7 @@ export default defineConfig({
       // `src/lib/...` paths).
       { find: /^@\/lib\/cms(.*)$/, replacement: path.resolve(__dirname, './lib/cms$1') },
       { find: /^@\/lib\/supabase(.*)$/, replacement: path.resolve(__dirname, './lib/supabase$1') },
+      { find: /^@\/lib\/content-queue(.*)$/, replacement: path.resolve(__dirname, './lib/content-queue$1') },
       // Allow tests to import other test helpers via `@/test/...` (used by
       // enumerator integration test).
       { find: /^@\/test(.*)$/, replacement: path.resolve(__dirname, './test$1') },
