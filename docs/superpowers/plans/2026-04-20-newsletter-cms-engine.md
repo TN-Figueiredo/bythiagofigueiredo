@@ -284,7 +284,7 @@ export function createResendEmailService(): IEmailService {
         headers: msg.metadata?.headers as Record<string, string> | undefined,
       })
       if (error) throw new Error(error.message)
-      return { messageId: data!.id, provider: 'resend' as never }
+      return { messageId: data!.id, provider: 'resend' as const }
     },
 
     async sendTemplate<V extends Record<string, unknown>>(
@@ -358,31 +358,46 @@ git commit -m "feat: remove Brevo, wire Resend as sole email provider via IEmail
 
 - [ ] **Step 1: Rewrite sync-newsletter-pending cron**
 
-In `apps/web/src/app/api/cron/sync-newsletter-pending/route.ts`:
-
-Remove all `createBrevoContact` imports and calls. The new logic is simpler — find confirmed subscribers where `welcome_sent=false`, send welcome email via `getEmailService()`, then set `welcome_sent=true`.
-
-The core query changes from selecting subscribers needing Brevo sync to:
+Replace the entire body of the `handler` function inside `withCronLock` in `apps/web/src/app/api/cron/sync-newsletter-pending/route.ts`. Delete all `createBrevoContact` imports and the entire Brevo sync logic. The new handler:
 
 ```typescript
+import { getEmailService } from '@/lib/email/service'
+
+// Inside withCronLock callback:
 const { data: pending } = await supabase
   .from('newsletter_subscriptions')
   .select('id, site_id, email, consent_text_version')
   .eq('status', 'confirmed')
   .eq('welcome_sent', false)
   .limit(50)
+
+if (!pending?.length) return { status: 'ok' as const, sent: 0 }
+
+const emailService = getEmailService()
+let sent = 0
+
+for (const sub of pending) {
+  try {
+    await emailService.send({
+      from: { name: 'Thiago Figueiredo', email: 'newsletter@bythiagofigueiredo.com' },
+      to: sub.email,
+      subject: 'Welcome to the newsletter!',
+      html: `<p>Thanks for confirming your subscription.</p>`,
+    })
+    await supabase
+      .from('newsletter_subscriptions')
+      .update({ welcome_sent: true })
+      .eq('id', sub.id)
+    sent++
+  } catch (err) {
+    Sentry.captureException(err, { tags: { component: 'cron', job: JOB, subId: sub.id } })
+  }
+}
+
+return { status: 'ok' as const, sent }
 ```
 
-After sending welcome email, update:
-
-```typescript
-await supabase
-  .from('newsletter_subscriptions')
-  .update({ welcome_sent: true })
-  .eq('id', sub.id)
-```
-
-Remove all Brevo-related code paths: `brevo_contact_id` updates, unsubscribed user cleanup, the `syncing:RANDOM` sentinel pattern. Keep the `withCronLock` wrapper and structured logging.
+Remove: `import { createBrevoContact }`, `brevo_contact_id` updates, `syncing:RANDOM` sentinel, unsubscribed user cleanup. Keep `withCronLock` wrapper + `Sentry` import + structured logging.
 
 - [ ] **Step 2: Remove Brevo from campaign submit route**
 
@@ -556,6 +571,8 @@ git commit -m "chore: update env/config/docs/CSP after Brevo removal"
 - Modify: `apps/web/package.json`
 
 - [ ] **Step 1: Install Svix + React Email**
+
+Note: `resend@6.12.0` is already installed. Only add the new deps:
 
 Run: `npm install svix @react-email/render @react-email/components --workspace=apps/web`
 
@@ -1493,6 +1510,7 @@ import { revalidatePath } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteAdminForRow } from '@/lib/cms/auth-guards'
+import { requireSiteScope } from '@tn-figueiredo/auth-nextjs'
 import { getEmailService } from '../../../../lib/email/service'
 
 type ActionResult =
@@ -1500,6 +1518,7 @@ type ActionResult =
   | { ok: false; error: string }
 
 async function requireEditionAdmin(editionId: string) {
+  // Same pattern as blog/campaign actions: look up row → check site permission
   const supabase = getSupabaseServiceClient()
   const { data } = await supabase
     .from('newsletter_editions')
@@ -1507,9 +1526,7 @@ async function requireEditionAdmin(editionId: string) {
     .eq('id', editionId)
     .maybeSingle()
   if (!data) throw new Error('not_found')
-  // Reuse site-level auth check
-  const ctx = await getSiteContext()
-  if (data.site_id !== ctx.siteId) throw new Error('forbidden')
+  await requireSiteScope({ area: 'cms', siteId: data.site_id, mode: 'edit' })
   return { siteId: data.site_id, supabase }
 }
 
@@ -1532,8 +1549,12 @@ export async function createEdition(
   subject: string,
 ): Promise<ActionResult> {
   const ctx = await getSiteContext()
+  await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
   const supabase = getSupabaseServiceClient()
-  const user = await supabase.auth.getUser()
+  // Get authenticated user from cookie-based client (not service-role)
+  const { createServerClient } = await import('@/lib/supabase/server')
+  const userClient = await createServerClient()
+  const { data: { user } } = await userClient.auth.getUser()
   const { data, error } = await supabase
     .from('newsletter_editions')
     .insert({
@@ -1541,7 +1562,7 @@ export async function createEdition(
       newsletter_type_id: newsletterTypeId,
       subject,
       status: 'draft',
-      created_by: user.data.user?.id,
+      created_by: user?.id,
     })
     .select('id')
     .single()
@@ -1593,8 +1614,11 @@ export async function sendTestEmail(editionId: string): Promise<ActionResult> {
   const senderName = type?.sender_name ?? 'Thiago Figueiredo'
   const senderEmail = type?.sender_email ?? 'newsletter@bythiagofigueiredo.com'
 
-  const user = await supabase.auth.getUser()
-  const toEmail = user.data.user?.email
+  // Get user email from cookie-based client (not service-role)
+  const { createServerClient } = await import('@/lib/supabase/server')
+  const userClient = await createServerClient()
+  const { data: { user } } = await userClient.auth.getUser()
+  const toEmail = user?.email
   if (!toEmail) return { ok: false, error: 'no_user_email' }
 
   const html = edition.content_html ?? `<p>${edition.content_mdx ?? ''}</p>`
@@ -1654,6 +1678,8 @@ export async function updateCadence(
   typeId: string,
   patch: { cadence_days?: number; preferred_send_time?: string; cadence_paused?: boolean },
 ): Promise<ActionResult> {
+  const ctx = await getSiteContext()
+  await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
   const supabase = getSupabaseServiceClient()
   const { error } = await supabase
     .from('newsletter_types')
@@ -1732,6 +1758,7 @@ export default async function NewsletterDashboardPage({
         <Link
           href="/cms/newsletters/new"
           className="rounded-md bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700"
+          data-testid="new-edition-btn"
         >
           New Edition
         </Link>
@@ -2080,11 +2107,19 @@ export async function GET(
 
   const { data: edition } = await supabase
     .from('newsletter_editions')
-    .select('content_html, content_mdx, subject')
+    .select('content_html, content_mdx, subject, site_id')
     .eq('id', id)
     .maybeSingle()
 
   if (!edition) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+
+  // Auth gate: only staff who can view this site's content
+  const { requireSiteScope } = await import('@tn-figueiredo/auth-nextjs')
+  try {
+    await requireSiteScope({ area: 'cms', siteId: edition.site_id, mode: 'view' })
+  } catch {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  }
 
   const html = edition.content_html ?? wrapBasicHtml(edition.content_mdx ?? '', edition.subject)
 
@@ -2485,18 +2520,46 @@ async function sendEdition(
   const senderName = type?.sender_name ?? 'Thiago Figueiredo'
   const senderEmail = type?.sender_email ?? 'newsletter@bythiagofigueiredo.com'
   const maxBounceRate = type?.max_bounce_rate_pct ?? 5
-  const html = edition.content_html ?? `<p>${edition.subject}</p>`
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://bythiagofigueiredo.com'
+
+  // Render HTML once via React Email (same for all recipients)
+  const { render } = await import('@react-email/render')
+  const { Newsletter } = await import('@/emails/newsletter')
+  const html = edition.content_html ?? await render(Newsletter({
+    subject: edition.subject,
+    preheader: '',
+    contentHtml: `<p>${edition.subject}</p>`,
+    typeName: edition.newsletter_type_id,
+    typeColor: '#e97316',
+    unsubscribeUrl: `${appUrl}/api/newsletters/unsubscribe?token=PLACEHOLDER`,
+    archiveUrl: `${appUrl}/newsletter/archive/${edition.id}`,
+  }))
+
+  // Pre-generate unsubscribe tokens for all subscribers
+  // Uses existing unsubscribe_tokens table (same as newsletter confirm flow)
+  const tokenMap = new Map<string, string>()
+  for (const send of unsent) {
+    const rawToken = crypto.randomUUID() + crypto.randomUUID().replace(/-/g, '')
+    const tokenHash = (await import('crypto')).createHash('sha256').update(rawToken).digest('hex')
+    await supabase.from('unsubscribe_tokens').insert({
+      site_id: edition.site_id,
+      email: send.subscriber_email,
+      token: tokenHash,
+    }).then(() => {}, () => {})
+    tokenMap.set(send.subscriber_email, rawToken)
+  }
 
   const emailService = getEmailService()
   let sentCount = 0
   let bounceCount = 0
 
-  // Send in batches
+  // Send in batches (100/batch matching Resend batch.send limit)
   for (let i = 0; i < unsent.length; i += BATCH_SIZE) {
     const batch = unsent.slice(i, i + BATCH_SIZE)
 
     for (const send of batch) {
       try {
+        const unsubToken = tokenMap.get(send.subscriber_email) ?? ''
         const result = await emailService.send({
           from: { name: senderName, email: senderEmail },
           to: send.subscriber_email,
@@ -2504,10 +2567,7 @@ async function sendEdition(
           html,
           metadata: {
             headers: {
-              // Token is the subscriber_email — the unsubscribe endpoint hashes it
-              // to match the token stored in newsletter_subscriptions.
-              // Same pattern as existing /unsubscribe/[token] flow.
-              'List-Unsubscribe': `<${process.env.NEXT_PUBLIC_APP_URL}/api/newsletters/unsubscribe?token=${encodeURIComponent(send.subscriber_email)}>`,
+              'List-Unsubscribe': `<${appUrl}/api/newsletters/unsubscribe?token=${unsubToken}>`,
               'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
             },
           },
@@ -2524,7 +2584,7 @@ async function sendEdition(
       }
     }
 
-    // Check bounce rate
+    // Check bounce rate after each batch
     if (sentCount > 0 && (bounceCount / sentCount) * 100 > maxBounceRate) {
       await supabase.from('newsletter_editions').update({ status: 'failed' }).eq('id', edition.id)
       return sentCount
@@ -2901,22 +2961,23 @@ export default async function EditionAnalyticsPage({
   if (!edition || edition.site_id !== ctx.siteId) return notFound()
   if (edition.status !== 'sent') return notFound()
 
-  // Refresh stats if stale
+  // Refresh stats if stale (calls the RPC from Task 15c migration)
   if (edition.stats_stale) {
-    const counts = await supabase
-      .from('newsletter_sends')
-      .select('status', { count: 'exact' })
-      .eq('edition_id', id)
-
-    // Simplified: use the cached stats for display
+    await supabase.rpc('refresh_newsletter_stats')
+    // Re-fetch edition with fresh stats
+    const { data: refreshed } = await supabase
+      .from('newsletter_editions')
+      .select('stats_delivered, stats_opens, stats_clicks, stats_bounces, stats_complaints')
+      .eq('id', id)
+      .single()
+    if (refreshed) Object.assign(edition, refreshed)
   }
 
+  // Fetch clicks via join (no N+1 — single query)
   const { data: clicks } = await supabase
     .from('newsletter_click_events')
-    .select('url')
-    .in('send_id', (
-      await supabase.from('newsletter_sends').select('id').eq('edition_id', id)
-    ).data?.map(s => s.id) ?? [])
+    .select('url, send_id!inner(edition_id)')
+    .eq('send_id.edition_id', id)
 
   // Aggregate click URLs
   const clickMap = new Map<string, number>()
@@ -3290,6 +3351,8 @@ export default async function NewsletterArchivePage({
         </p>
         <h1 className="text-3xl font-bold">{edition.subject}</h1>
       </header>
+      {/* Safe: content_html is generated server-side by React Email render
+         from admin-authored MDX — never from user input */}
       {edition.content_html ? (
         <div dangerouslySetInnerHTML={{ __html: edition.content_html }} />
       ) : (
