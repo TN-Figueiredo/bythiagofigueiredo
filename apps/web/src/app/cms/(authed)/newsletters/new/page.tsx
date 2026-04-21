@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getSupabaseServiceClient } from '../../../../../../lib/supabase/service'
 import { getSiteContext } from '../../../../../../lib/cms/site-context'
+import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,15 +11,18 @@ export default async function NewEditionPage({
   searchParams: Promise<{ type?: string }>
 }) {
   const ctx = await getSiteContext()
+  const res = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
+  if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
+
   const params = await searchParams
   const supabase = getSupabaseServiceClient()
 
-  // Use the first active type if none specified
   let typeId = params.type
   if (!typeId) {
     const { data: types } = await supabase
       .from('newsletter_types')
       .select('id')
+      .eq('site_id', ctx.siteId)
       .eq('active', true)
       .order('sort_order')
       .limit(1)

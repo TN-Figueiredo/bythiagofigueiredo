@@ -9,6 +9,8 @@ import { getSiteContext } from '../../../../../lib/cms/site-context'
 import { requireSiteAdminForRow } from '../../../../../lib/cms/auth-guards'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getEmailService } from '../../../../../lib/email/service'
+import { render } from '@react-email/render'
+import { Newsletter } from '../../../../emails/newsletter'
 
 type ActionResult =
   | { ok: true; editionId?: string }
@@ -126,7 +128,16 @@ export async function sendTestEmail(editionId: string): Promise<ActionResult> {
   const toEmail = user?.email
   if (!toEmail) return { ok: false, error: 'no_user_email' }
 
-  const html = edition.content_html ?? `<p>${edition.content_mdx ?? ''}</p>`
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://bythiagofigueiredo.com'
+  const html = await render(Newsletter({
+    subject: edition.subject,
+    preheader: undefined,
+    contentHtml: edition.content_html ?? `<p>${edition.content_mdx ?? ''}</p>`,
+    typeName: type?.sender_name ?? 'Newsletter',
+    typeColor: '#ea580c',
+    unsubscribeUrl: `${appUrl}/newsletter/unsubscribe`,
+    archiveUrl: `${appUrl}/newsletter/archive`,
+  }))
 
   const emailService = getEmailService()
   await emailService.send({
