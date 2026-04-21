@@ -41,8 +41,6 @@ export interface SaveCampaignPatch {
    */
   interest?: string
   pdf_storage_path?: string | null
-  brevo_list_id?: number | null
-  brevo_template_id?: number | null
   form_fields?: unknown
 }
 

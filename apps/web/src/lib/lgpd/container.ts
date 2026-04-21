@@ -10,7 +10,7 @@ import { logCron } from '../../../lib/logger';
 
 import { BythiagoLgpdDomainAdapter } from './domain-adapter';
 import { AuditLogLgpdRepository } from './audit-repo';
-import { BrevoLgpdEmailService } from './email-service';
+import { LgpdEmailService } from './email-service';
 import { DirectQueryAccountStatusCache } from './account-status-cache';
 import { SupabaseInactiveUserFinder, type IInactiveUserFinder } from './inactive-user-finder';
 
@@ -218,7 +218,7 @@ function resolveConsentCategory(category: string): {
   return { dbCategory: short, textId: `${short}_v2_pt-BR` };
 }
 
-// --- Email helpers for LGPD templates NOT in BrevoLgpdEmailService ----------
+// --- Email helpers for LGPD templates NOT in LgpdEmailService ----------
 
 interface BrandOpts {
   brandName: string;
@@ -294,7 +294,7 @@ interface UseCaseDeps {
   appUrl: string;
   domainAdapter: BythiagoLgpdDomainAdapter;
   emailService: ReturnType<typeof getEmailService>;
-  lgpdEmail: BrevoLgpdEmailService;
+  lgpdEmail: LgpdEmailService;
   sender: { email: string; name: string };
   brand: BrandOpts;
   logger: LgpdConfig['logger'];
@@ -1230,7 +1230,7 @@ export function createLgpdContainer(): LgpdContainer {
     brandName: 'bythiagofigueiredo',
     siteUrl: appUrl,
   };
-  const lgpdEmail = new BrevoLgpdEmailService(emailService, {
+  const lgpdEmail = new LgpdEmailService(emailService, {
     sender,
     branding: { brandName: brand.brandName, siteUrl: appUrl },
   });

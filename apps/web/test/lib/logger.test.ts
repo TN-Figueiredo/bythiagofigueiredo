@@ -38,7 +38,7 @@ describe('logCron', () => {
       job: 'test-job',
       run_id: 'r2',
       status: 'error',
-      err_code: 'brevo_down',
+      err_code: 'email_send_failed',
       site_id: 'site-uuid',
       errors_count: 3,
     });
@@ -47,7 +47,7 @@ describe('logCron', () => {
     expect(logSpy).not.toHaveBeenCalled();
     const parsed = JSON.parse(errSpy.mock.calls[0]?.[0] as string) as Record<string, unknown>;
     expect(parsed.status).toBe('error');
-    expect(parsed.err_code).toBe('brevo_down');
+    expect(parsed.err_code).toBe('email_send_failed');
     expect(parsed.site_id).toBe('site-uuid');
     expect(parsed.errors_count).toBe(3);
   });

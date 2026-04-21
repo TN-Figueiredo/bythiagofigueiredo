@@ -1,11 +1,10 @@
-import { BrevoEmailAdapter, type IEmailService } from '@tn-figueiredo/email'
+import type { IEmailService } from '@tn-figueiredo/email'
+import { createResendEmailService } from './resend'
 
 let cached: IEmailService | null = null
 
 export function getEmailService(): IEmailService {
   if (cached) return cached
-  const apiKey = process.env.BREVO_API_KEY
-  if (!apiKey) throw new Error('BREVO_API_KEY is not configured')
-  cached = new BrevoEmailAdapter(apiKey)
+  cached = createResendEmailService()
   return cached
 }

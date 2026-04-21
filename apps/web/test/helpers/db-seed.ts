@@ -76,7 +76,6 @@ export interface SeedSiteOpts {
   siteSlug?: string
   domains?: string[]
   defaultLocale?: string
-  brevoNewsletterListId?: number | null
 }
 
 /**
@@ -150,7 +149,6 @@ export async function seedSite(
       primary_domain: primaryDomain,
       default_locale: opts.defaultLocale ?? 'pt-BR',
       supported_locales: [opts.defaultLocale ?? 'pt-BR'],
-      brevo_newsletter_list_id: opts.brevoNewsletterListId ?? null,
     })
     .select('id')
     .single()
@@ -243,7 +241,6 @@ export interface SeedPendingSubOpts {
   consentTextVersion?: string
   expiresInMinutes?: number
   locale?: string | null
-  brevoContactId?: string
 }
 
 /**
@@ -261,9 +258,6 @@ export async function seedPendingNewsletterSub(
   const tokenHash = sha256Hex(rawToken)
   const expiresAt = new Date(Date.now() + (opts.expiresInMinutes ?? 60) * 60_000).toISOString()
 
-  // brevo_contact_id must be non-null when status flips to 'confirmed'
-  // (newsletter_subscriptions_check constraint). Seed with a CI placeholder so
-  // confirm_newsletter_subscription can transition without a constraint violation.
   const { data, error } = await db
     .from('newsletter_subscriptions')
     .insert({
@@ -274,7 +268,6 @@ export async function seedPendingNewsletterSub(
       confirmation_expires_at: expiresAt,
       consent_text_version: opts.consentTextVersion ?? 'v1',
       locale: opts.locale ?? null,
-      brevo_contact_id: opts.brevoContactId ?? 'ci-brevo-placeholder',
     })
     .select('id')
     .single()
@@ -314,7 +307,6 @@ export async function seedUnsubscribeToken(
         status: 'confirmed',
         confirmed_at: new Date().toISOString(),
         consent_text_version: 'v1',
-        brevo_contact_id: 'brevo-seed-1',
       })
       .select('id')
       .single()
@@ -329,8 +321,7 @@ export interface SeedCampaignOverrides {
   interest?: string
   status?: 'draft' | 'scheduled' | 'published' | 'archived'
   pdfStoragePath?: string | null
-  brevoListId?: number | null
-  brevoTemplateId?: number | null
+
   formFields?: unknown[]
 }
 
@@ -346,8 +337,6 @@ export async function seedCampaign(
       interest: overrides.interest ?? 'creator',
       status: overrides.status ?? 'draft',
       pdf_storage_path: overrides.pdfStoragePath ?? null,
-      brevo_list_id: overrides.brevoListId ?? null,
-      brevo_template_id: overrides.brevoTemplateId ?? null,
       form_fields: overrides.formFields ?? [],
     })
     .select('id')

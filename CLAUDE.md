@@ -111,7 +111,7 @@ Sprint 5a implementa os fluxos user-facing de LGPD/GDPR (privacy page, cookie ba
 1. **`BythiagoLgpdDomainAdapter`** (`ILgpdDomainAdapter`) — implementa `collectUserData`, `phase1Cleanup`, `phase2Cleanup` (no-op), `phase3Cleanup`, `checkDeletionSafety`.
 2. **`SupabaseLgpdRequestRepository`** (`ILgpdRequestRepository`) — CRUD sobre a tabela `lgpd_requests`.
 3. **`AuditLogLgpdRepository`** (`ILgpdAuditLogRepository`) — reusa `audit_log` do Sprint 4.75 (trigger-driven).
-4. **`BrevoLgpdEmailService`** (`ILgpdEmailService`) — 5 templates Brevo via `@tn-figueiredo/email`.
+4. **`LgpdEmailService`** (`ILgpdEmailService`) — 5 templates via `@tn-figueiredo/email` (Resend adapter).
 5. **`DirectQueryAccountStatusCache`** (`IAccountStatusCache`) — null-object shim que consulta `auth.admin.getUserById().banned_until` direto (sem cache).
 6. **`SupabaseInactiveUserFinder`** (`IInactiveUserFinder`) — query em `auth.users` por `last_sign_in_at < now - 365d`.
 
@@ -318,6 +318,91 @@ Filtro Sentry: `seo:true component:og-route last:24h`.
 
 `apps/web/src/app/cms/(authed)/blog/[id]/edit/actions.ts` (5 funções) + `apps/web/src/app/cms/(authed)/campaigns/{new,[id]/edit}/actions.ts` (5 funções) + `apps/web/src/app/cms/(authed)/blog/new/page.tsx` (1 server component) + admin actions novos em `apps/web/src/app/admin/(authed)/sites/actions.ts` (`updateSiteBranding`, `updateSiteIdentity`, `updateSiteSeoDefaults`). Cada site chama `revalidateBlogPostSeo`/`revalidateCampaignSeo`/`revalidateTag('seo-config')` conforme operação.
 
+## Newsletter CMS Engine (Sprint 5e) — Resend + self-hosted email
+
+Sprint 5e replaces Brevo entirely with Resend as the sole email provider and adds a full newsletter authoring/sending/analytics pipeline inside the CMS.
+
+### Brevo removal
+
+All Brevo references removed: `lib/brevo.ts` deleted, `brevo_contact_id`/`brevo_list_id`/`brevo_template_id` columns dropped, sync-newsletter-pending cron removed. Email now routes through `createResendEmailService()` bridge in `apps/web/lib/email/resend.ts` implementing `IEmailService` from `@tn-figueiredo/email`. The bridge is a stopgap until `@tn-figueiredo/email@0.2.0` publishes a native `ResendEmailAdapter`.
+
+### New tables
+
+| Table | Purpose |
+|---|---|
+| `newsletter_editions` | Email issues: subject, preheader, content_mdx, content_html, status lifecycle (draft→ready→queued→scheduled→sending→sent→failed), stats columns, slot_date |
+| `newsletter_sends` | Per-recipient send log: resend_message_id, status, opened_at, open_ip/user_agent, bounced_at, bounce_type |
+| `newsletter_click_events` | Click tracking: send_id FK, url, ip, user_agent, clicked_at |
+| `webhook_events` | Resend webhook dedup: svix_id UNIQUE, event_type, payload, processed_at |
+| `blog_cadence` | Per-locale publishing cadence: cadence_days, preferred_send_time, cadence_paused |
+
+### Modified tables
+
+- `newsletter_types` — gained `cadence_days`, `cadence_start_date`, `cadence_paused`, `last_sent_at`, `sender_name`, `sender_email`, `reply_to`, `color`, `sort_order`
+- `newsletter_subscriptions` — gained `welcome_sent boolean`, `tracking_consent boolean`; dropped `brevo_contact_id`
+- `campaigns` — dropped `brevo_list_id`, `brevo_template_id`
+- `blog_posts` — gained `queue_position int`, `slot_date date` (content queue)
+- `post_status` enum — gained `'ready'`, `'queued'` values
+
+### Content queue model
+
+`lib/content-queue/slots.ts` exports `generateSlots(config, opts)` — pure function computing future slot dates from cadence config. Blog posts flow: draft → ready → queued (with slot_date) → published. Newsletter editions have parallel lifecycle. CMS content queue page (`/cms/content-queue`) shows backlog + scheduled timeline.
+
+### Email sending pipeline
+
+1. Author creates edition in CMS (`/cms/newsletters/new` → `/cms/newsletters/[id]/edit`)
+2. Edition scheduled via `scheduleEdition` server action (CAS: `UPDATE SET status='scheduled' WHERE status='ready'`)
+3. Cron `/api/cron/send-scheduled-newsletters` (daily `0 8 * * *`) picks up scheduled editions, renders React Email template, batch-sends via Resend with 100ms throttle
+4. Crash recovery: `ON CONFLICT (edition_id, subscriber_email) DO NOTHING` + skip sends with `resend_message_id IS NOT NULL`
+5. Bounce auto-pause: ≥5% bounce rate pauses the newsletter type
+6. RFC 8058 one-click unsubscribe via `List-Unsubscribe` + `List-Unsubscribe-Post` headers
+
+### Webhook processing
+
+`/api/webhooks/resend` — Svix signature verification, idempotent via `webhook_events.svix_id` UNIQUE. Routes: `email.delivered` → mark delivered, `email.opened` → record open with IP/UA, `email.clicked` → insert click event, `email.bounced`/`email.complained` → update send status + subscriber status, `email.delivery_delayed` → log only. Sets `stats_stale=true` on edition for debounced refresh.
+
+### React Email templates
+
+`apps/web/src/emails/newsletter.tsx` + `components/email-header.tsx` + `components/email-footer.tsx`. Rendered server-side via `@react-email/render`. Footer includes unsubscribe link + tracking pixel (gated by `tracking_consent`). Web archive link per edition.
+
+### CMS pages
+
+| Route | Purpose |
+|---|---|
+| `/cms/newsletters` | Dashboard: type cards, edition list with filters |
+| `/cms/newsletters/new` | Creates draft edition + redirects to editor |
+| `/cms/newsletters/[id]/edit` | Subject/preheader/MDX editor + live preview iframe |
+| `/cms/newsletters/[id]/analytics` | KPI cards (delivered/opens/clicks/bounces), top links, email client breakdown |
+| `/cms/newsletters/subscribers` | Filterable subscriber list with pagination |
+| `/cms/newsletters/settings` | Per-type cadence, send time, pause toggle |
+| `/cms/content-queue` | Backlog (ready posts) + scheduled timeline (blog + newsletter) |
+| `/newsletter/archive/[id]` | Public web archive for sent editions (in sitemap) |
+
+### Cron jobs (3 new)
+
+| Cron | Schedule | Purpose |
+|---|---|---|
+| `/api/cron/send-scheduled-newsletters` | `0 8 * * *` | Batch send scheduled editions |
+| `/api/cron/anonymize-newsletter-tracking` | `0 4 * * *` | 90-day PII anonymization of open_ip/user_agent |
+| `/api/cron/purge-webhook-events` | `0 5 * * 0` | 30-day hard delete of processed webhook events |
+
+### Environment variables (3 new)
+
+- `RESEND_API_KEY` — Resend API key for sending
+- `RESEND_WEBHOOK_SECRET` — Svix signing secret for webhook verification
+- `NEWSLETTER_FROM_DOMAIN` — verified domain for From: header (e.g. `bythiagofigueiredo.com`)
+
+### Stats refresh
+
+`refresh_newsletter_stats()` RPC (migration `20260421000004`) recalculates `stats_delivered/opens/clicks/bounces/complaints` from `newsletter_sends` aggregate, clears `stats_stale` flag. Called on-demand when analytics page detects stale edition, not on every webhook.
+
+### LGPD compliance
+
+- `consent_texts` seed for `newsletter_analytics` category (migration `20260421000005`)
+- Tracking pixel + click tracking gated by subscriber's `tracking_consent`
+- 90-day anonymization cron for IP/user_agent in sends + clicks
+- Webhook events purged after 30 days
+
 ## Multi-ring (CMS conglomerate) — Sprint 4.75 RBAC v3
 
 Conglomerado multi-site com 4 papéis derivados. `bythiagofigueiredo.com` é o master ring.
@@ -392,7 +477,8 @@ CMS reutilizável publicado em `@tn-figueiredo/cms` (extração pra repo própri
   - `NEXT_PUBLIC_SENTRY_DSN` — client + server runtime DSN. **Required** em Production/Preview; **optional** em Development (empty → SDK init vira no-op, nenhum evento é enviado).
   - `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN` — usados apenas no **build** do Vercel para source map upload. `next.config.ts` wrappa com `withSentryConfig` preservando `transpilePackages`. Required em Production/Preview, optional em Dev.
 - `CRON_SECRET`
-- `BREVO_API_KEY`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` (Sprint 1b)
+- `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, `NEWSLETTER_FROM_DOMAIN` (Sprint 1b — Brevo removed)
+- `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` (Sprint 1b)
 - `CAMPAIGN_PDF_SIGNED_URL_TTL` (opcional, default 86400 = 24h — TTL em segundos dos signed URLs de PDFs de campanha)
 - Sprint 2: nenhuma env var nova — multi-ring scoping resolve via middleware + `sites.domains` array no DB
 
@@ -422,7 +508,8 @@ CMS reutilizável publicado em `@tn-figueiredo/cms` (extração pra repo própri
 - **Sprint 4.75** ✅ done (2026-04-16) — RBAC v3 + multi-site hardening: 4 roles (super_admin/org_admin/editor/reporter), `site_memberships` table, DB-checked role helpers (`is_member_staff()` closes JWT staleness gap), `audit_log` + triggers + IP/UA GUC, publish-review trigger, invitation role_scope, cross-domain redirects. 5 parallel tracks, ~70 migrations.
 - **Sprint 5a** ✅ done (2026-04-16) — LGPD compliance: 18 migrations (`lgpd_requests`, `consents`, `consent_texts`, 7 RPCs, storage bucket, FK ON DELETE SET NULL, audit_log skip-cascade guard), `@tn-figueiredo/lgpd@0.1.0` wiring (6 adapters + container + use-case glue), 9 API routes, 8 UI components, 6 account pages, consent-aware Sentry init, privacy+terms MDX (pt-BR+en), `/privacy` + `/terms` routes, CI DB-integration job, 4 feature flags, vitest coverage for `lib/lgpd/**`. Prod DB on-schema; Vercel deploy pending via PR #24.
 - **Sprint 5b** ✅ done (2026-04-17) — SEO hardening: 5 PRs merged A→B→C→D→E (#32-#36) + deploy PR #37 staging→main. 4 migrations, 16 `lib/seo/` modules (config/page-metadata/jsonld/og/enumerator/cache-invalidation/frontmatter/identity-profiles/etc), `app/sitemap.ts` + `app/robots.ts` + 3 OG routes (Node runtime, direct-host lookup per Next #58436), 7 archetypes wired com `<JsonLdScript>` @graph via schema-dts (WebSite + Person + BlogPosting/Article/Breadcrumb/FAQ/HowTo/Video), 11 server actions com cache-invalidation tags + archivePost bug fix, admin site actions (branding/identity/defaults), Lighthouse CI (SEO ≥95, perf ≥80 mobile), `scripts/seo-smoke.sh`, `/api/health/seo` CRON endpoint, `docs/runbooks/seo-incident.md` (6 scenarios + 8 known-limitations) + `sprint-5b-post-deploy.md` (12-step). 5 env-var feature flags (`NEXT_PUBLIC_SEO_*` + `SEO_SITEMAP_KILLED` + `SEO_AI_CRAWLERS_BLOCKED=true`; DB-driven refactor em Sprint 8.5 pós-pre-study). Twitter handle `tnFigueiredo`; supported_locales `{pt-BR,en}`. Prod verified 2026-04-17: sitemap/robots/home/privacy/health green. Follow-ups: Figma-export og-default.png, real identity/thiago.jpg photo, pyftsubset Inter font (415KB→35KB), debug enumerator blogIndex missing, investigate OG dynamic 302 fallback via Sentry. Spec: `docs/superpowers/specs/2026-04-16-sprint-5b-seo-hardening-design.md` (98/100). Plan: `docs/superpowers/plans/2026-04-16-sprint-5b-seo-hardening.md` (72 tasks, 7796 linhas).
-- **Sprint 5c** ☐ — E2E suite (Playwright) covering auth + CMS critical paths.
+- **Sprint 5c** ✅ done (2026-04-20) — Playwright E2E suite: 77 tests across 13 spec files, 6 POMs, 5 fixture modules (global-setup/teardown, auth.setup, seed-helpers, index), CI workflow (`e2e.yml` with `supabase/setup-cli` + secrets validation). Quality audit 75→98/100: 18 fixes. Testid audit: 20/20 present. A11y: AxeBuilder on 5/5 areas. 777 vitest tests passing.
+- **Sprint 5e** ✅ done (2026-04-21) — Newsletter CMS Engine: Brevo fully removed, Resend as sole email provider, 5 new tables (newsletter_editions/sends/click_events/webhook_events/blog_cadence), content queue model, React Email templates, 8 CMS pages (dashboard/editor/analytics/subscribers/settings/content-queue/web-archive), batch send cron with CAS + crash recovery + bounce auto-pause, RFC 8058 one-click unsubscribe, Svix webhook verification, LGPD tracking anonymization cron, webhook purge cron. 3 migrations, 750 tests, 20 commits. Spec: `docs/superpowers/specs/2026-04-20-newsletter-cms-engine-design.md`. Plan: `docs/superpowers/plans/2026-04-20-newsletter-cms-engine.md`.
 - **Sprint 5d** ☐ — Vercel deploy hardening (build perf, edge config).
 - **Sprint 6** ☐ — Burnout & MVP Launch (30h)
 - Roadmap source of truth: [docs/roadmap/README.md](docs/roadmap/README.md)

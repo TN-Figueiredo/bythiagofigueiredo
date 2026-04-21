@@ -23,7 +23,7 @@ vi.mock('../../lib/supabase/service', () => ({
                   id: 'c1',
                   status: 'published',
                   pdf_storage_path: null,
-                  brevo_list_id: null,
+
                   interest: 'creator',
                   form_fields: [],
                   campaign_translations: [

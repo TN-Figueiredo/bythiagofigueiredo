@@ -1,7 +1,7 @@
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '../supabase/service'
 
-export type AuthorizableTable = 'blog_posts' | 'campaigns'
+export type AuthorizableTable = 'blog_posts' | 'campaigns' | 'newsletter_editions'
 
 /**
  * Authorization guard for write server actions on site-scoped rows.

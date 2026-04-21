@@ -23,7 +23,7 @@ import { BythiagoLgpdDomainAdapter } from '../../src/lib/lgpd/domain-adapter';
 // in LgpdConfig via a null-object (every method throws). No concrete class
 // remains to contract-test here.
 import { AuditLogLgpdRepository } from '../../src/lib/lgpd/audit-repo';
-import { BrevoLgpdEmailService } from '../../src/lib/lgpd/email-service';
+import { LgpdEmailService } from '../../src/lib/lgpd/email-service';
 import { DirectQueryAccountStatusCache } from '../../src/lib/lgpd/account-status-cache';
 import {
   SupabaseInactiveUserFinder,
@@ -39,8 +39,8 @@ describe('LGPD adapter contracts', () => {
     expectTypeOf<AuditLogLgpdRepository>().toMatchTypeOf<ILgpdAuditLogRepository>();
   });
 
-  it('BrevoLgpdEmailService satisfies ILgpdEmailService', () => {
-    expectTypeOf<BrevoLgpdEmailService>().toMatchTypeOf<ILgpdEmailService>();
+  it('LgpdEmailService satisfies ILgpdEmailService', () => {
+    expectTypeOf<LgpdEmailService>().toMatchTypeOf<ILgpdEmailService>();
   });
 
   it('DirectQueryAccountStatusCache satisfies IAccountStatusCache', () => {

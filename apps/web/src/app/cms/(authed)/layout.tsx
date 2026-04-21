@@ -29,6 +29,20 @@ const CMS_CONFIG = {
       ],
     },
     {
+      group: 'Newsletter',
+      items: [
+        { label: 'Editions', path: '/cms/newsletters', icon: 'Mail' },
+        { label: 'Subscribers', path: '/cms/newsletters/subscribers', icon: 'Users' },
+        { label: 'Settings', path: '/cms/newsletters/settings', icon: 'Settings' },
+      ],
+    },
+    {
+      group: 'Queue',
+      items: [
+        { label: 'Content Queue', path: '/cms/content-queue', icon: 'Clock' },
+      ],
+    },
+    {
       group: 'Contatos',
       items: [
         { label: 'Contatos recebidos', path: '/cms/contacts', icon: 'Mail' },

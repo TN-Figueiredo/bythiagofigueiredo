@@ -5,7 +5,7 @@ import { headers } from 'next/headers'
 import { z } from 'zod'
 import { getSupabaseServiceClient } from '../../../../lib/supabase/service'
 import { verifyTurnstileToken } from '../../../../lib/turnstile'
-import { sendTransactionalEmail } from '../../../../lib/email/resend'
+import { getEmailService } from '../../../../lib/email/service'
 import { getSiteContext } from '../../../../lib/cms/site-context'
 import { getClientIp, isValidInet } from '../../../../lib/request-ip'
 import { NEWSLETTER_CONSENT_VERSION } from '../consent'
@@ -182,7 +182,9 @@ async function sendConfirmEmail({
 }: { email: string; rawToken: string; locale: string }) {
   const confirmUrl = `${process.env.NEXT_PUBLIC_APP_URL}/newsletter/confirm?token=${rawToken}`
   try {
-    await sendTransactionalEmail({
+    const domain = process.env.NEWSLETTER_FROM_DOMAIN ?? 'bythiagofigueiredo.com'
+    await getEmailService().send({
+      from: { name: 'Thiago Figueiredo', email: `no-reply@${domain}` },
       to: email,
       subject: locale === 'pt-BR' ? 'Confirme sua inscrição' : 'Confirm your subscription',
       html: buildConfirmationHtml(confirmUrl, locale),

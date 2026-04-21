@@ -23,7 +23,6 @@ interface ParsedCampaign {
   id: string
   status: string
   pdf_storage_path: string | null
-  brevo_list_id: number | null
   interest: string
   form_fields: unknown[]
   created_at?: string | null
@@ -50,7 +49,7 @@ const loadCampaign = cache(async function loadCampaignImpl(locale: string, slug:
     .from('campaigns')
     .select(
       `
-      id, status, pdf_storage_path, brevo_list_id, interest, form_fields,
+      id, status, pdf_storage_path, interest, form_fields,
       created_at, updated_at, published_at,
       campaign_translations!inner(
         locale, slug, meta_title, meta_description, og_image_url,

@@ -305,7 +305,6 @@ describe.skipIf(skipIfNoLocalDb())('RBAC v3 matrix', () => {
       status: 'confirmed',
       consent_text_version: 'v1',
       confirmed_at: new Date().toISOString(),
-      brevo_contact_id: 'brevo-seed-rbac-1',
     })
     expect(insErr).toBeNull()
     const c = clientFor(s.editorAId)
