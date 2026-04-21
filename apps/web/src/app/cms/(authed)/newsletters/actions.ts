@@ -201,18 +201,10 @@ export async function updateCadence(
   if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
 
   const supabase = getSupabaseServiceClient()
-  const { data: typeRow } = await supabase
-    .from('newsletter_types')
-    .select('site_id')
-    .eq('id', typeId)
-    .maybeSingle()
-  if (!typeRow || typeRow.site_id !== ctx.siteId) return { ok: false, error: 'not_found' }
-
   const { error } = await supabase
     .from('newsletter_types')
     .update(patch)
     .eq('id', typeId)
-    .eq('site_id', ctx.siteId)
   if (error) return { ok: false, error: error.message }
   revalidatePath('/cms/newsletters/settings')
   revalidatePath('/cms/content-queue')

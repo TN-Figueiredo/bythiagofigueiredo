@@ -50,7 +50,6 @@ export default async function ContentQueuePage() {
   const { data: nlTypes } = await supabase
     .from('newsletter_types')
     .select('id, name, locale, cadence_days, cadence_start_date, cadence_paused, last_sent_at')
-    .eq('site_id', ctx.siteId)
     .eq('active', true)
 
   // Suppress unused variable warning — nlTypes is fetched for future use

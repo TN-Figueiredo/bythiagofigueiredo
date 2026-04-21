@@ -22,7 +22,6 @@ export default async function NewEditionPage({
     const { data: types } = await supabase
       .from('newsletter_types')
       .select('id')
-      .eq('site_id', ctx.siteId)
       .eq('active', true)
       .order('sort_order')
       .limit(1)
