@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
+import { parseUserAgent } from '@/lib/newsletter/stats'
 import { EditionAnalytics } from '@tn-figueiredo/newsletter-admin/client'
 import type { AnalyticsData } from '@tn-figueiredo/newsletter-admin'
 
@@ -56,21 +57,6 @@ export default async function EditionAnalyticsPage({
     .slice(0, 10)
     .map(([url, count]) => ({ url, count }))
 
-  function parseUA(ua: string): { client: string; device: string } {
-    const lc = ua.toLowerCase()
-    const client =
-      lc.includes('gmail') ? 'Gmail' :
-      lc.includes('apple') || lc.includes('webkit') ? 'Apple Mail' :
-      lc.includes('outlook') || lc.includes('microsoft') ? 'Outlook' :
-      lc.includes('thunderbird') ? 'Thunderbird' :
-      'Other'
-    const device =
-      lc.includes('mobile') || lc.includes('android') || lc.includes('iphone') ? 'Mobile' :
-      lc.includes('tablet') || lc.includes('ipad') ? 'Tablet' :
-      'Desktop'
-    return { client, device }
-  }
-
   const { data: opens } = await supabase
     .from('newsletter_sends')
     .select('open_user_agent')
@@ -82,7 +68,7 @@ export default async function EditionAnalyticsPage({
   const deviceCounts = new Map<string, number>()
   for (const o of opens ?? []) {
     if (!o.open_user_agent) continue
-    const parsed = parseUA(o.open_user_agent)
+    const parsed = parseUserAgent(o.open_user_agent)
     clientCounts.set(parsed.client, (clientCounts.get(parsed.client) ?? 0) + 1)
     deviceCounts.set(parsed.device, (deviceCounts.get(parsed.device) ?? 0) + 1)
   }

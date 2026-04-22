@@ -83,11 +83,13 @@ export async function scheduleEdition(
 ): Promise<ActionResult> {
   await requireSiteAdminForRow('newsletter_editions', editionId)
   const supabase = getSupabaseServiceClient()
-  const { error } = await supabase
+  const { error, count } = await supabase
     .from('newsletter_editions')
     .update({ status: 'scheduled', scheduled_at: scheduledAt })
     .eq('id', editionId)
+    .in('status', ['draft', 'ready'])
   if (error) return { ok: false, error: error.message }
+  if (count === 0) return { ok: false, error: 'edition_not_schedulable' }
   revalidatePath('/cms/newsletters')
   return { ok: true }
 }

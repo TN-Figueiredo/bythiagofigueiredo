@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { getSiteContext } from '@/lib/cms/site-context'
 import type { Metadata } from 'next'
 
 export const dynamic = 'force-dynamic'
@@ -10,11 +11,13 @@ export async function generateMetadata({
   params: Promise<{ id: string }>
 }): Promise<Metadata> {
   const { id } = await params
+  const ctx = await getSiteContext()
   const supabase = getSupabaseServiceClient()
   const { data } = await supabase
     .from('newsletter_editions')
     .select('subject')
     .eq('id', id)
+    .eq('site_id', ctx.siteId)
     .eq('status', 'sent')
     .maybeSingle()
   return { title: data?.subject ?? 'Newsletter' }
@@ -26,12 +29,14 @@ export default async function NewsletterArchivePage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
+  const ctx = await getSiteContext()
   const supabase = getSupabaseServiceClient()
 
   const { data: edition } = await supabase
     .from('newsletter_editions')
     .select('subject, content_html, sent_at, newsletter_types(name, color)')
     .eq('id', id)
+    .eq('site_id', ctx.siteId)
     .eq('status', 'sent')
     .maybeSingle()
 
