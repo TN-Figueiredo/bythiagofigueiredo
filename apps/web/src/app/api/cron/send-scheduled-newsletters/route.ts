@@ -222,7 +222,8 @@ async function sendEdition(
       }
     }
 
-    if (sentCount > 0 && (errorCount / sentCount) * 100 > maxBounceRate) {
+    const totalAttempted = sentCount + errorCount
+    if (totalAttempted >= 10 && (errorCount / totalAttempted) * 100 > maxBounceRate) {
       await supabase.from('newsletter_editions').update({ status: 'failed' }).eq('id', edition.id)
       return sentCount
     }

@@ -26,7 +26,7 @@ export default async function EditionAnalyticsPage({
   if (edition.status !== 'sent') return notFound()
 
   if (edition.stats_stale) {
-    await supabase.rpc('refresh_newsletter_stats')
+    await supabase.rpc('refresh_newsletter_stats', { p_edition_id: id })
     const { data: refreshed } = await supabase
       .from('newsletter_editions')
       .select('stats_delivered, stats_opens, stats_clicks, stats_bounces, stats_complaints')
