@@ -2,7 +2,6 @@
   "framework": "nextjs",
   "crons": [
     { "path": "/api/cron/publish-scheduled", "schedule": "0 9 * * *" },
-    { "path": "/api/cron/sync-newsletter-pending", "schedule": "0 10 * * *" },
     { "path": "/api/cron/purge-sent-emails", "schedule": "0 6 * * *" },
     { "path": "/api/cron/lgpd-cleanup-sweep", "schedule": "0 7 * * *" },
     { "path": "/api/cron/purge-old-contact-submissions", "schedule": "0 6 * * 0" },

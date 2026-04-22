@@ -9,9 +9,6 @@ import type {
 
 /**
  * Creates a Resend-backed IEmailService.
- *
- * Note: @tn-figueiredo/email@0.1.0 has provider: 'brevo' hard-coded in EmailResult.
- * We cast to satisfy the interface until the package widens the union in 0.2.0.
  */
 export function createResendEmailService(): IEmailService {
   const apiKey = process.env.RESEND_API_KEY
@@ -30,9 +27,8 @@ export function createResendEmailService(): IEmailService {
         headers: msg.metadata?.headers as Record<string, string> | undefined,
       })
       if (error) throw new Error(error.message)
-      // provider cast: EmailResult.provider is 'brevo' in @tn-figueiredo/email@0.1.0;
-      // widened to 'brevo' | 'resend' in upcoming 0.2.0
-      return { messageId: data!.id, provider: 'resend' as unknown as 'brevo' }
+      if (!data?.id) throw new Error('Resend returned no message ID')
+      return { messageId: data.id, provider: 'resend' }
     },
 
     async sendTemplate<V extends Record<string, unknown>>(

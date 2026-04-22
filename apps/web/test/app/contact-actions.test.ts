@@ -192,7 +192,7 @@ describe('submitContact', () => {
   })
 
   it('email failure does not affect ok result (best-effort)', async () => {
-    sendTemplateMock.mockRejectedValue(new Error('Brevo down'))
+    sendTemplateMock.mockRejectedValue(new Error('Email provider down'))
     const result = await submitContact(makeFormData())
     expect(result).toEqual({ status: 'ok' })
   })

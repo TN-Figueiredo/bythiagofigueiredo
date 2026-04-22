@@ -1,9 +1,18 @@
 import { describe, it, expect, vi } from 'vitest';
+
+// Mock @tn-figueiredo/email to avoid transitive nodemailer import (optional peer dep)
+vi.mock('@tn-figueiredo/email', () => ({
+  emailLayout: ({ body }: { body: string }) => `<html><body>${body}</body></html>`,
+  emailButton: ({ url, label }: { url: string; label: string }) =>
+    `<a href="${url}">${label}</a>`,
+  formatDatePtBR: (d: Date) => d.toISOString(),
+}));
+
 import { LgpdEmailService } from './email-service';
 
 function makeEmailService() {
-  const send = vi.fn().mockResolvedValue({ messageId: 'm1', provider: 'brevo' });
-  const sendTemplate = vi.fn().mockResolvedValue({ messageId: 'm1', provider: 'brevo' });
+  const send = vi.fn().mockResolvedValue({ messageId: 'm1', provider: 'resend' });
+  const sendTemplate = vi.fn().mockResolvedValue({ messageId: 'm1', provider: 'resend' });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return { send, sendTemplate, handleWebhook: vi.fn() } as any;
 }
@@ -66,10 +75,10 @@ describe('LgpdEmailService', () => {
 
   it('propagates errors from underlying send', async () => {
     const inner = makeEmailService();
-    inner.send.mockRejectedValueOnce(new Error('brevo 500'));
+    inner.send.mockRejectedValueOnce(new Error('resend 500'));
     const svc = new LgpdEmailService(inner, { sender });
     await expect(
       svc.sendConsentRevocationConfirmation('a@x.com'),
-    ).rejects.toThrow(/brevo 500/);
+    ).rejects.toThrow(/resend 500/);
   });
 });

@@ -237,7 +237,7 @@ describe('createInvitation', () => {
   })
 
   it('still redirects to invite_created even when email send throws', async () => {
-    sendTemplateMock.mockRejectedValueOnce(new Error('Brevo error'))
+    sendTemplateMock.mockRejectedValueOnce(new Error('Resend error'))
     const url = await captureRedirect(() =>
       createInvitation({ email: 'bob@example.com', role: 'author' }),
     )

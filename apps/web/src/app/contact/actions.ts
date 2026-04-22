@@ -4,6 +4,12 @@ import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { contactReceivedTemplate, contactAdminAlertTemplate } from '@tn-figueiredo/email'
+import type { IEmailTemplate } from '@tn-figueiredo/email'
+
+// email@0.2.0 typed templates use strict interfaces that don't satisfy
+// Record<string, unknown> index signature — cast once here.
+const contactReceived = contactReceivedTemplate as unknown as IEmailTemplate<Record<string, unknown>>
+const contactAdminAlert = contactAdminAlertTemplate as unknown as IEmailTemplate<Record<string, unknown>>
 import { getSupabaseServiceClient } from '../../../lib/supabase/service'
 import { getEmailService } from '../../../lib/email/service'
 import { getEmailSender } from '../../../lib/email/sender'
@@ -154,7 +160,7 @@ async function sendContactEmails(opts: {
   // to prevent duplicate sends for (site_id, to_email, 'contact-received', UTC day).
   try {
     const autoReplyResult = await emailService.sendTemplate(
-      contactReceivedTemplate,
+      contactReceived,
       { email: sender.email, name: sender.name },
       opts.email,
       { name: opts.name, expectedReplyTime: '2 dias úteis', branding },
@@ -195,7 +201,7 @@ async function sendContactEmails(opts: {
   // submission. Catch it and treat as no-op.
   try {
     const adminAlertResult = await emailService.sendTemplate(
-      contactAdminAlertTemplate,
+      contactAdminAlert,
       { email: sender.email, name: sender.name },
       adminEmail,
       {

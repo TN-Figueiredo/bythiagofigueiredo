@@ -172,6 +172,12 @@ describe('createLgpdContainer', () => {
     process.env.NEXT_PUBLIC_APP_URL = 'https://site.test';
     sendFn.mockReset();
     sendFn.mockResolvedValue();
+    // Mock @tn-figueiredo/email to avoid transitive nodemailer import (optional peer dep)
+    vi.doMock('@tn-figueiredo/email', () => ({
+      emailLayout: ({ body }: { body: string }) => body,
+      emailButton: ({ url }: { url: string }) => `<a href="${url}"></a>`,
+      formatDatePtBR: (d: Date) => d.toISOString(),
+    }));
   });
 
   it('wires all 7 adapters and exposes a single LgpdConfig', async () => {
@@ -256,6 +262,11 @@ async function loadWith(
   const send = extraEmailMock?.send ?? sendFn;
   vi.doMock('../../../lib/email/service', () => ({
     getEmailService: () => ({ send }),
+  }));
+  vi.doMock('@tn-figueiredo/email', () => ({
+    emailLayout: (s: string) => s,
+    emailButton: () => '',
+    formatDatePtBR: (d: Date) => d.toISOString(),
   }));
   const mod = await import('./container');
   mod.__resetLgpdContainerForTests();
