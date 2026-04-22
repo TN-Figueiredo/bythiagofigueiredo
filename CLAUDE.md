@@ -324,7 +324,7 @@ Sprint 5e replaces Brevo entirely with Resend as the sole email provider and add
 
 ### Brevo removal
 
-All Brevo references removed: `lib/brevo.ts` deleted, `brevo_contact_id`/`brevo_list_id`/`brevo_template_id` columns dropped, sync-newsletter-pending cron removed. Email now routes through `createResendEmailService()` bridge in `apps/web/lib/email/resend.ts` implementing `IEmailService` from `@tn-figueiredo/email`. The bridge is a stopgap until `@tn-figueiredo/email@0.2.0` publishes a native `ResendEmailAdapter`.
+All Brevo references removed: `lib/brevo.ts` deleted, `brevo_contact_id`/`brevo_list_id`/`brevo_template_id` columns dropped, sync-newsletter-pending cron removed. Email now routes through `@tn-figueiredo/email@0.2.0` which includes native Resend support (provider union widened). Bridge in `apps/web/lib/email/resend.ts` cleaned to consume the package directly.
 
 ### New tables
 
@@ -403,6 +403,15 @@ All Brevo references removed: `lib/brevo.ts` deleted, `brevo_contact_id`/`brevo_
 - 90-day anonymization cron for IP/user_agent in sends + clicks
 - Webhook events purged after 30 days
 
+### Package wiring (Sprint 5e extraction)
+
+Local code replaced with `@tn-figueiredo/*` package imports:
+- `lib/content-queue/slots.ts` → re-exports `generateSlots` from `@tn-figueiredo/newsletter`
+- `lib/newsletter/stats.ts` → re-exports `parseUserAgent` from `@tn-figueiredo/newsletter`
+- `lib/email/resend.ts` → cleaned for `@tn-figueiredo/email@0.2.0` (provider union widened)
+- CMS pages: analytics, subscribers, settings → wired to `@tn-figueiredo/newsletter-admin/client` components
+- Brevo sync cron removed, all Brevo references purged from tests
+
 ## Multi-ring (CMS conglomerate) — Sprint 4.75 RBAC v3
 
 Conglomerado multi-site com 4 papéis derivados. `bythiagofigueiredo.com` é o master ring.
@@ -466,7 +475,7 @@ CMS reutilizável publicado em `@tn-figueiredo/cms` (extração pra repo própri
 **Dev loop:**
 - Package tem `prepare` hook que roda `tsc` em `npm install` → `dist/` sempre atualizado
 - Após mudança em `packages/cms/src/*`: rodar `npm run build -w packages/cms` (ou `npm install` pra trigger prepare)
-- `next.config.ts` tem `transpilePackages: ['@tn-figueiredo/cms']` — Next transpila direto
+- `next.config.ts` tem `transpilePackages: ['@tn-figueiredo/cms', '@tn-figueiredo/newsletter', '@tn-figueiredo/newsletter-admin']` — Next transpila direto
 
 ## Environment Variables
 
@@ -509,7 +518,7 @@ CMS reutilizável publicado em `@tn-figueiredo/cms` (extração pra repo própri
 - **Sprint 5a** ✅ done (2026-04-16) — LGPD compliance: 18 migrations (`lgpd_requests`, `consents`, `consent_texts`, 7 RPCs, storage bucket, FK ON DELETE SET NULL, audit_log skip-cascade guard), `@tn-figueiredo/lgpd@0.1.0` wiring (6 adapters + container + use-case glue), 9 API routes, 8 UI components, 6 account pages, consent-aware Sentry init, privacy+terms MDX (pt-BR+en), `/privacy` + `/terms` routes, CI DB-integration job, 4 feature flags, vitest coverage for `lib/lgpd/**`. Prod DB on-schema; Vercel deploy pending via PR #24.
 - **Sprint 5b** ✅ done (2026-04-17) — SEO hardening: 5 PRs merged A→B→C→D→E (#32-#36) + deploy PR #37 staging→main. 4 migrations, 16 `lib/seo/` modules (config/page-metadata/jsonld/og/enumerator/cache-invalidation/frontmatter/identity-profiles/etc), `app/sitemap.ts` + `app/robots.ts` + 3 OG routes (Node runtime, direct-host lookup per Next #58436), 7 archetypes wired com `<JsonLdScript>` @graph via schema-dts (WebSite + Person + BlogPosting/Article/Breadcrumb/FAQ/HowTo/Video), 11 server actions com cache-invalidation tags + archivePost bug fix, admin site actions (branding/identity/defaults), Lighthouse CI (SEO ≥95, perf ≥80 mobile), `scripts/seo-smoke.sh`, `/api/health/seo` CRON endpoint, `docs/runbooks/seo-incident.md` (6 scenarios + 8 known-limitations) + `sprint-5b-post-deploy.md` (12-step). 5 env-var feature flags (`NEXT_PUBLIC_SEO_*` + `SEO_SITEMAP_KILLED` + `SEO_AI_CRAWLERS_BLOCKED=true`; DB-driven refactor em Sprint 8.5 pós-pre-study). Twitter handle `tnFigueiredo`; supported_locales `{pt-BR,en}`. Prod verified 2026-04-17: sitemap/robots/home/privacy/health green. Follow-ups: Figma-export og-default.png, real identity/thiago.jpg photo, pyftsubset Inter font (415KB→35KB), debug enumerator blogIndex missing, investigate OG dynamic 302 fallback via Sentry. Spec: `docs/superpowers/specs/2026-04-16-sprint-5b-seo-hardening-design.md` (98/100). Plan: `docs/superpowers/plans/2026-04-16-sprint-5b-seo-hardening.md` (72 tasks, 7796 linhas).
 - **Sprint 5c** ✅ done (2026-04-20) — Playwright E2E suite: 77 tests across 13 spec files, 6 POMs, 5 fixture modules (global-setup/teardown, auth.setup, seed-helpers, index), CI workflow (`e2e.yml` with `supabase/setup-cli` + secrets validation). Quality audit 75→98/100: 18 fixes. Testid audit: 20/20 present. A11y: AxeBuilder on 5/5 areas. 777 vitest tests passing.
-- **Sprint 5e** ✅ done (2026-04-21) — Newsletter CMS Engine: Brevo fully removed, Resend as sole email provider, 5 new tables (newsletter_editions/sends/click_events/webhook_events/blog_cadence), content queue model, React Email templates, 8 CMS pages (dashboard/editor/analytics/subscribers/settings/content-queue/web-archive), batch send cron with CAS + crash recovery + bounce auto-pause, RFC 8058 one-click unsubscribe, Svix webhook verification, LGPD tracking anonymization cron, webhook purge cron. 3 migrations, 750 tests, 20 commits. Spec: `docs/superpowers/specs/2026-04-20-newsletter-cms-engine-design.md`. Plan: `docs/superpowers/plans/2026-04-20-newsletter-cms-engine.md`.
+- **Sprint 5e** ✅ done (2026-04-22) — Newsletter CMS Engine: Brevo fully removed, Resend as sole email provider, 5 new tables (newsletter_editions/sends/click_events/webhook_events/blog_cadence), content queue model, React Email templates, 8 CMS pages (dashboard/editor/analytics/subscribers/settings/content-queue/web-archive), batch send cron with CAS + crash recovery + bounce auto-pause, RFC 8058 one-click unsubscribe, Svix webhook verification, LGPD tracking anonymization cron, webhook purge cron. 3 migrations, 750 tests, 20 commits. Package extraction: `@tn-figueiredo/email@0.2.0`, `@tn-figueiredo/newsletter@0.1.0`, `@tn-figueiredo/newsletter-admin@0.1.0` published. App wired to consume packages. Spec: `docs/superpowers/specs/2026-04-20-newsletter-cms-engine-design.md`. Plan: `docs/superpowers/plans/2026-04-20-newsletter-cms-engine.md`.
 - **Sprint 5d** ☐ — Vercel deploy hardening (build perf, edge config).
 - **Sprint 6** ☐ — Burnout & MVP Launch (30h)
 - Roadmap source of truth: [docs/roadmap/README.md](docs/roadmap/README.md)
@@ -543,7 +552,7 @@ Versões exatas (sem `^`) — pre-commit hook valida pinning.
 
 Packages instalados (conforme `package.json`):
 - api: `auth@1.3.0`, `auth-fastify@1.1.0`, `auth-supabase@1.1.0`, `audit@0.1.0`, `lgpd@0.1.0`, `shared@0.8.0`
-- web: `admin@0.3.0`, `auth-nextjs@2.0.0`, `cms@0.1.0-dev (workspace)`, `notifications@0.1.0`, `seo@0.1.0`, `shared@0.8.0`
+- web: `admin@0.3.0`, `auth-nextjs@2.0.0`, `cms@0.1.0-dev (workspace)`, `email@0.2.0`, `newsletter@0.1.0`, `newsletter-admin@0.1.0`, `notifications@0.1.0`, `seo@0.1.0`, `shared@0.8.0`
 
 Upgrade: editar `package.json` + `npm install` → CI valida pinning.
 
