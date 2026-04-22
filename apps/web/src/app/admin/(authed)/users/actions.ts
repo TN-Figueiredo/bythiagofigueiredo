@@ -6,6 +6,11 @@ import { createServerClient } from '@supabase/ssr'
 import type { CookieOptions } from '@supabase/ssr'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { inviteTemplate } from '@tn-figueiredo/email'
+import type { IEmailTemplate } from '@tn-figueiredo/email'
+
+// email@0.2.0 typed templates use strict interfaces that don't satisfy
+// Record<string, unknown> index signature — cast once here.
+const invite = inviteTemplate as unknown as IEmailTemplate<Record<string, unknown>>
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
 import { getEmailService } from '../../../../../lib/email/service'
 import { getEmailSender } from '../../../../../lib/email/sender'
@@ -124,7 +129,7 @@ export async function createInvitation(input: {
   // Send invite email
   try {
     const result = await getEmailService().sendTemplate(
-      inviteTemplate,
+      invite,
       sender,
       input.email,
       {
@@ -213,7 +218,7 @@ export async function resendInvitation(invitationId: string): Promise<void> {
   }
 
   await getEmailService().sendTemplate(
-    inviteTemplate,
+    invite,
     sender,
     row.email as string,
     {
@@ -327,7 +332,7 @@ export async function createInvitationAction(input: {
     const acceptUrl = `${baseUrl}/signup/invite/${row.token as string}`
     try {
       const result = await getEmailService().sendTemplate(
-        inviteTemplate,
+        invite,
         sender,
         input.email,
         {

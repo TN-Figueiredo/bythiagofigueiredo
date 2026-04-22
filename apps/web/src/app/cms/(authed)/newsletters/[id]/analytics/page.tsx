@@ -1,6 +1,8 @@
 import { notFound } from 'next/navigation'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
+import { EditionAnalytics } from '@tn-figueiredo/newsletter-admin/client'
+import type { AnalyticsData } from '@tn-figueiredo/newsletter-admin'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,6 +54,7 @@ export default async function EditionAnalyticsPage({
   const topLinks = [...clickMap.entries()]
     .sort((a, b) => b[1] - a[1])
     .slice(0, 10)
+    .map(([url, count]) => ({ url, count }))
 
   function parseUA(ua: string): { client: string; device: string } {
     const lc = ua.toLowerCase()
@@ -84,73 +87,23 @@ export default async function EditionAnalyticsPage({
     deviceCounts.set(parsed.device, (deviceCounts.get(parsed.device) ?? 0) + 1)
   }
 
-  const d = (edition.stats_delivered as number) || 1
-  const openRate = Math.round(((edition.stats_opens as number) / d) * 100)
-  const clickRate = Math.round(((edition.stats_clicks as number) / d) * 100)
+  const analyticsData: AnalyticsData = {
+    subject: edition.subject as string,
+    sent_at: edition.sent_at as string,
+    send_count: edition.send_count as number,
+    stats_delivered: (edition.stats_delivered as number) ?? 0,
+    stats_opens: (edition.stats_opens as number) ?? 0,
+    stats_clicks: (edition.stats_clicks as number) ?? 0,
+    stats_bounces: (edition.stats_bounces as number) ?? 0,
+    stats_complaints: (edition.stats_complaints as number) ?? 0,
+    topLinks,
+    emailClients: [...clientCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, count]) => ({ name, count })),
+    devices: [...deviceCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, count]) => ({ name, count })),
+  }
 
-  return (
-    <div className="space-y-8">
-      <h1 className="text-2xl font-bold">{edition.subject as string}</h1>
-      <p className="text-sm text-gray-500">
-        Sent {new Date(edition.sent_at as string).toLocaleString()} · {edition.send_count as number} recipients
-      </p>
-
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <KpiCard label="Delivered" value={edition.stats_delivered as number} />
-        <KpiCard label="Opened" value={edition.stats_opens as number} pct={openRate} />
-        <KpiCard label="Clicked" value={edition.stats_clicks as number} pct={clickRate} />
-        <KpiCard label="Bounced" value={edition.stats_bounces as number} />
-      </div>
-
-      <section>
-        <h2 className="text-lg font-semibold mb-2">Top Links</h2>
-        {topLinks.length === 0 ? (
-          <p className="text-gray-400 text-sm">No clicks yet.</p>
-        ) : (
-          <ul className="space-y-1">
-            {topLinks.map(([url, count]) => (
-              <li key={url} className="flex items-center gap-3 text-sm">
-                <span className="font-mono text-gray-400 w-8 text-right">{count}</span>
-                <span className="truncate text-gray-700">{url}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section>
-        <h2 className="text-lg font-semibold mb-2">Email Clients</h2>
-        <div className="flex gap-4">
-          {[...clientCounts.entries()].sort((a, b) => b[1] - a[1]).map(([name, count]) => (
-            <span key={name} className="text-sm">
-              {name}: <strong>{count}</strong>
-            </span>
-          ))}
-        </div>
-      </section>
-
-      <section>
-        <h2 className="text-lg font-semibold mb-2">Devices</h2>
-        <div className="flex gap-4">
-          {[...deviceCounts.entries()].sort((a, b) => b[1] - a[1]).map(([name, count]) => (
-            <span key={name} className="text-sm">
-              {name}: <strong>{count}</strong>
-            </span>
-          ))}
-        </div>
-      </section>
-    </div>
-  )
-}
-
-function KpiCard({ label, value, pct }: { label: string; value: number; pct?: number }) {
-  return (
-    <div className="rounded-lg border p-4">
-      <div className="text-2xl font-bold">{(value ?? 0).toLocaleString()}</div>
-      <div className="text-sm text-gray-500">
-        {label}
-        {pct !== undefined && <span className="ml-1 text-gray-400">({pct}%)</span>}
-      </div>
-    </div>
-  )
+  return <EditionAnalytics data={analyticsData} />
 }

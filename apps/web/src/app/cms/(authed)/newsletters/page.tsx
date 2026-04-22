@@ -1,3 +1,5 @@
+// TODO: Consider using <NewsletterDashboard> from @tn-figueiredo/newsletter-admin/client
+// when it supports a linkComponent prop for Next.js <Link> client-side navigation
 import Link from 'next/link'
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
 import { getSiteContext } from '../../../../../lib/cms/site-context'
