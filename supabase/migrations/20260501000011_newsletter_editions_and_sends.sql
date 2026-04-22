@@ -1,7 +1,6 @@
 -- 20260421000002_newsletter_editions_and_sends.sql
 -- Newsletter sending tables: editions, sends, click_events, webhook_events, blog_cadence
 
-BEGIN;
 
 -- ============================================================
 -- 1. newsletter_editions
@@ -173,4 +172,3 @@ CREATE POLICY "blog_cadence_staff_rw"
   USING (public.can_edit_site(site_id))
   WITH CHECK (public.can_edit_site(site_id));
 
-COMMIT;
