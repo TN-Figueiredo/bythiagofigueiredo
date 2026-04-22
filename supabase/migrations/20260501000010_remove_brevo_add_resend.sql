@@ -71,7 +71,10 @@ ALTER TYPE public.email_provider ADD VALUE IF NOT EXISTS 'resend';
 
 -- ============================================================
 -- 6. update_campaign_atomic RPC: remove brevo fields from patch whitelist
+--    Original returns `public.campaigns`, new version returns `jsonb`.
+--    Must drop first because PG cannot change return type in-place.
 -- ============================================================
+DROP FUNCTION IF EXISTS public.update_campaign_atomic(uuid, jsonb, jsonb);
 CREATE OR REPLACE FUNCTION public.update_campaign_atomic(
   p_campaign_id uuid,
   p_patch jsonb DEFAULT '{}'::jsonb,
@@ -152,3 +155,5 @@ BEGIN
   RETURN jsonb_build_object('ok', true, 'campaign', v_result);
 END;
 $$;
+
+GRANT EXECUTE ON FUNCTION public.update_campaign_atomic(uuid, jsonb, jsonb) TO authenticated;
