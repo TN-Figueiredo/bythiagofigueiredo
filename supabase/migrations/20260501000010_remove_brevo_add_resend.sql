@@ -2,6 +2,9 @@
 -- Phase 1: Remove all Brevo columns, indexes, constraints
 -- Phase 2: Add Resend email_provider enum value + welcome_sent + tracking_consent
 
+-- DROP+CREATE with $$ blocks requires disable-transaction for CLI statement splitting
+-- supabase:disable-transaction
+
 -- ============================================================
 -- 1. newsletter_subscriptions: drop brevo, add welcome_sent + tracking_consent
 -- ============================================================
