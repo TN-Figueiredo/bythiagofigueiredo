@@ -45,6 +45,13 @@ const TwitterHandle = z
 
 const SiteId = z.string().uuid('invalid_site_id')
 
+const CmsEnabledSchema = z
+  .object({
+    siteId: SiteId,
+    cmsEnabled: z.boolean(),
+  })
+  .strict()
+
 // ── Input schemas ─────────────────────────────────────────────────────────
 
 const BrandingSchema = z
@@ -165,6 +172,40 @@ export async function updateSiteIdentity(
   } catch (err) {
     Sentry.captureException(err, {
       tags: { component: 'admin-sites-actions', action: 'updateSiteIdentity' },
+    })
+    throw err
+  }
+}
+
+export async function updateSiteCmsEnabled(
+  input: { siteId: string; cmsEnabled: boolean },
+): Promise<ActionResult> {
+  const parsed = CmsEnabledSchema.safeParse(input)
+  if (!parsed.success) {
+    return { ok: false, error: 'validation_failed', details: parsed.error.issues }
+  }
+
+  try {
+    await requireArea('admin')
+
+    const supabase = getSupabaseServiceClient()
+    const { error } = await supabase
+      .from('sites')
+      .update({ cms_enabled: parsed.data.cmsEnabled })
+      .eq('id', parsed.data.siteId)
+
+    if (error) {
+      Sentry.captureException(error, {
+        tags: { component: 'admin-sites-actions', action: 'updateSiteCmsEnabled' },
+      })
+      return { ok: false, error: 'db_error', details: error.message }
+    }
+
+    revalidateSiteBranding()
+    return { ok: true }
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { component: 'admin-sites-actions', action: 'updateSiteCmsEnabled' },
     })
     throw err
   }

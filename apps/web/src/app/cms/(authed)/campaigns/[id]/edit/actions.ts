@@ -8,6 +8,10 @@ import { requireSiteAdminForRow } from '../../../../../../../lib/cms/auth-guards
 import { captureServerActionError } from '../../../../../../lib/sentry-wrap'
 import { revalidateCampaignSeo } from '@/lib/seo/cache-invalidation'
 
+export type UploadCampaignPdfResult =
+  | { ok: true; path: string }
+  | { ok: false; message: string }
+
 export interface SaveCampaignTranslationPatch {
   locale: string
   slug?: string
