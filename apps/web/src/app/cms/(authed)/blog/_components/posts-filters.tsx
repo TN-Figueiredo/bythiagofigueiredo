@@ -14,7 +14,7 @@ const STATUS_TABS = [
 ] as const
 
 const STATUS_COLORS: Record<string, string> = {
-  '': '', draft: 'text-cms-amber', pending_review: 'text-yellow-500', ready: 'text-blue-500',
+  '': '', draft: 'text-cms-amber', pending_review: 'text-[var(--cms-amber,#f59e0b)]', ready: 'text-cms-accent',
   queued: 'text-cms-purple', published: 'text-cms-green', archived: 'text-cms-text-dim',
 }
 

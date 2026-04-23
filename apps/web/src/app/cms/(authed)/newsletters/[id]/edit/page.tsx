@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
+import { StatusBadge, type StatusVariant } from '@/components/cms/ui'
 import { saveEdition, sendTestEmail, scheduleEdition, cancelEdition } from '../../actions'
 
 export const dynamic = 'force-dynamic'
@@ -33,15 +34,9 @@ export default async function EditEditionPage({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">{edition.subject || 'Untitled'}</h1>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-cms-text-muted">
             {edition.newsletter_types?.name} ·{' '}
-            <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
-              edition.status === 'sent' ? 'bg-green-100 text-green-700' :
-              edition.status === 'draft' ? 'bg-gray-100 text-gray-600' :
-              'bg-blue-100 text-blue-700'
-            }`}>
-              {edition.status}
-            </span>
+            <StatusBadge variant={edition.status as StatusVariant} pill />
           </p>
         </div>
         <div className="flex gap-2">
@@ -50,7 +45,7 @@ export default async function EditEditionPage({
               'use server'
               await sendTestEmail(id)
             }}>
-              <button className="rounded border px-3 py-1.5 text-sm hover:bg-gray-50">
+              <button className="rounded border px-3 py-1.5 text-sm hover:bg-cms-surface-hover">
                 Send Test
               </button>
             </form>
@@ -70,7 +65,7 @@ export default async function EditEditionPage({
               'use server'
               await cancelEdition(id)
             }}>
-              <button className="rounded border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50">
+              <button className="rounded border border-[rgba(239,68,68,.3)] px-3 py-1.5 text-sm text-cms-red hover:bg-[rgba(239,68,68,.05)]">
                 Cancel
               </button>
             </form>
@@ -118,10 +113,10 @@ export default async function EditEditionPage({
             />
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-cms-text-muted">
               Audience: ~{subscriberCount ?? 0} subscribers
             </span>
-            <button type="submit" className="rounded bg-gray-900 px-4 py-2 text-sm text-white hover:bg-gray-800">
+            <button type="submit" className="rounded bg-cms-accent px-4 py-2 text-sm text-white hover:opacity-90">
               Save Draft
             </button>
           </div>
@@ -143,7 +138,7 @@ export default async function EditEditionPage({
 
       {/* Test send gate */}
       {edition.test_sent_at && (
-        <p className="text-xs text-green-600">
+        <p className="text-xs text-[var(--cms-green,#22c55e)]">
           Test sent: {new Date(edition.test_sent_at).toLocaleString()}
         </p>
       )}

@@ -4,8 +4,8 @@ import {
   type CampaignEditorSaveInput,
   type CampaignEditorSaveResult,
 } from '@tn-figueiredo/cms'
-import { campaignRepo } from '../../../../../../../lib/cms/repositories'
-import { getSiteContext } from '../../../../../../../lib/cms/site-context'
+import { campaignRepo } from '@/lib/cms/repositories'
+import { getSiteContext } from '@/lib/cms/site-context'
 import {
   saveCampaign,
   publishCampaign,

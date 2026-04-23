@@ -61,9 +61,9 @@ export function AuthorCard(props: AuthorCardProps) {
 }
 
 function getActivityColor(lastActive: string | null): string {
-  if (!lastActive) return 'bg-gray-500'
+  if (!lastActive) return 'bg-[var(--cms-text-dim)]'
   const diff = Date.now() - new Date(lastActive).getTime()
   if (diff < 5 * 60 * 1000) return 'bg-cms-green shadow-[0_0_4px_var(--cms-green)]'
   if (diff < 7 * 86400000) return 'bg-cms-amber'
-  return 'bg-gray-500'
+  return 'bg-[var(--cms-text-dim)]'
 }

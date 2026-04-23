@@ -1,6 +1,6 @@
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
-import { generateSlots } from '../../../../../lib/content-queue/slots'
+import { generateSlots } from '@/lib/content-queue/slots'
 import Link from 'next/link'
 import { assignBlogToSlot, publishBlogNow, unslotBlogPost } from './actions'
 
@@ -64,7 +64,7 @@ export default async function ContentQueuePage() {
         <section>
           <h2 className="text-lg font-semibold mb-3">Backlog</h2>
           {(backlog ?? []).length === 0 ? (
-            <p className="text-gray-400 text-sm">No items in backlog. Mark posts as &quot;Ready&quot; to add them here.</p>
+            <p className="text-cms-text-dim text-sm">No items in backlog. Mark posts as &quot;Ready&quot; to add them here.</p>
           ) : (
             <ul className="space-y-2">
               {(backlog ?? []).map((post) => {
@@ -78,7 +78,7 @@ export default async function ContentQueuePage() {
                       <Link href={`/cms/blog/${post.id}/edit`} className="font-medium text-orange-600 hover:underline text-sm">
                         {title}
                       </Link>
-                      <span className="ml-2 text-xs text-gray-400">{post.status}</span>
+                      <span className="ml-2 text-xs text-cms-text-dim">{post.status}</span>
                     </div>
                     <div className="flex gap-2">
                       {cadence ? (
@@ -119,7 +119,7 @@ export default async function ContentQueuePage() {
               return (
                 <li key={post.id} className="flex items-center justify-between rounded border p-3">
                   <div>
-                    <span className="text-xs font-mono text-gray-400 mr-2">{post.slot_date}</span>
+                    <span className="text-xs font-mono text-cms-text-dim mr-2">{post.slot_date}</span>
                     <Link href={`/cms/blog/${post.id}/edit`} className="font-medium text-sm">
                       {title}
                     </Link>
@@ -128,19 +128,19 @@ export default async function ContentQueuePage() {
                     'use server'
                     await unslotBlogPost(post.id)
                   }}>
-                    <button className="text-xs text-gray-500 hover:text-red-600">Unslot</button>
+                    <button className="text-xs text-cms-text-dim hover:text-[var(--cms-red,#ef4444)]">Unslot</button>
                   </form>
                 </li>
               )
             })}
             {(nlEditions ?? []).filter(e => e.slot_date).map((e) => (
-              <li key={e.id} className="flex items-center justify-between rounded border border-blue-100 p-3">
+              <li key={e.id} className="flex items-center justify-between rounded border border-cms-border p-3">
                 <div>
-                  <span className="text-xs font-mono text-gray-400 mr-2">{e.slot_date}</span>
-                  <Link href={`/cms/newsletters/${e.id}/edit`} className="font-medium text-sm text-blue-600">
+                  <span className="text-xs font-mono text-cms-text-dim mr-2">{e.slot_date}</span>
+                  <Link href={`/cms/newsletters/${e.id}/edit`} className="font-medium text-sm text-cms-accent">
                     {e.subject}
                   </Link>
-                  <span className="ml-2 text-xs text-blue-400">{e.newsletter_type_id}</span>
+                  <span className="ml-2 text-xs text-cms-accent">{e.newsletter_type_id}</span>
                 </div>
               </li>
             ))}

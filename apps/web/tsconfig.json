@@ -21,11 +21,14 @@
       }
     ],
     "paths": {
-      "@/lib/seo/*": ["./lib/seo/*"],
+      "@/lib/auth/*": ["./lib/auth/*"],
+      "@/lib/campaigns/*": ["./lib/campaigns/*"],
       "@/lib/cms/*": ["./lib/cms/*"],
+      "@/lib/content-queue/*": ["./lib/content-queue/*"],
+      "@/lib/email/*": ["./lib/email/*"],
       "@/lib/home/*": ["./lib/home/*"],
       "@/lib/newsletter/*": ["./lib/newsletter/*"],
-      "@/lib/email/*": ["./lib/email/*"],
+      "@/lib/seo/*": ["./lib/seo/*"],
       "@/lib/supabase/*": ["./lib/supabase/*"],
       "@/test/*": ["./test/*"],
       "@/*": ["./src/*"]
