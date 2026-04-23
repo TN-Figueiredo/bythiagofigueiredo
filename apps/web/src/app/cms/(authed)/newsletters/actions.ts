@@ -4,13 +4,13 @@ import { revalidatePath } from 'next/cache'
 import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
 import type { CookieOptions } from '@supabase/ssr'
-import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
-import { getSiteContext } from '../../../../../lib/cms/site-context'
-import { requireSiteAdminForRow } from '../../../../../lib/cms/auth-guards'
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { getSiteContext } from '@/lib/cms/site-context'
+import { requireSiteAdminForRow } from '@/lib/cms/auth-guards'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
-import { getEmailService } from '../../../../../lib/email/service'
+import { getEmailService } from '@/lib/email/service'
 import { render } from '@react-email/render'
-import { Newsletter } from '../../../../emails/newsletter'
+import { Newsletter } from '@/emails/newsletter'
 
 type ActionResult =
   | { ok: true; editionId?: string }

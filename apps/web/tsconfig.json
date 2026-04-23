@@ -25,6 +25,7 @@
       "@/lib/cms/*": ["./lib/cms/*"],
       "@/lib/home/*": ["./lib/home/*"],
       "@/lib/newsletter/*": ["./lib/newsletter/*"],
+      "@/lib/email/*": ["./lib/email/*"],
       "@/lib/supabase/*": ["./lib/supabase/*"],
       "@/test/*": ["./test/*"],
       "@/*": ["./src/*"]

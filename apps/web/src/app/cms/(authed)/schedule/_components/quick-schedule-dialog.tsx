@@ -9,7 +9,12 @@ interface QuickScheduleDialogProps {
   onSchedule: (item: SchedulableItem, date: string) => void; onClose: () => void
 }
 
-const TYPE_COLOR: Record<string, string> = { post: 'var(--cms-accent, #6366f1)', newsletter: 'var(--cms-green, #22c55e)', campaign: 'var(--cms-amber, #f59e0b)' }
+const SLOT_COLORS = {
+  post: 'var(--cms-accent, #6366f1)',
+  newsletter: 'var(--cms-green, #22c55e)',
+  campaign: 'var(--cms-amber, #f59e0b)',
+} as const
+const TYPE_COLOR: Record<string, string> = { post: SLOT_COLORS.post, newsletter: SLOT_COLORS.newsletter, campaign: SLOT_COLORS.campaign }
 const TYPE_LABEL: Record<string, string> = { post: 'Post', newsletter: 'Newsletter', campaign: 'Campaign' }
 
 function buildCalendarDays(year: number, month: number) {
@@ -39,7 +44,7 @@ export function QuickScheduleDialog({ item, slotDays = [], onSchedule, onClose }
   const typeColor = TYPE_COLOR[item.type] ?? 'var(--cms-text-muted, #71717a)'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'var(--cms-overlay, rgba(0,0,0,0.6))' }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
       <div
         role="dialog"
@@ -86,7 +91,7 @@ export function QuickScheduleDialog({ item, slotDays = [], onSchedule, onClose }
                 <button key={dateStr} onClick={() => !past && setSelectedDate(dateStr)} disabled={past}
                   className="relative flex flex-col items-center justify-center h-8 rounded-md text-xs font-medium transition-colors"
                   style={{ background: isSelected ? 'var(--cms-accent)' : isToday ? 'var(--cms-accent-subtle)' : 'transparent',
-                    color: isSelected ? '#fff' : past ? 'var(--cms-text-dim)' : isToday ? 'var(--cms-accent)' : 'var(--cms-text)',
+                    color: isSelected ? 'var(--cms-text-on-accent, #fff)' : past ? 'var(--cms-text-dim)' : isToday ? 'var(--cms-accent)' : 'var(--cms-text)',
                     cursor: past ? 'default' : 'pointer', opacity: past ? 0.35 : 1 }} aria-label={`Select ${dateStr}`}>
                   {day}
                   {isSlot && !isSelected && (
@@ -107,7 +112,7 @@ export function QuickScheduleDialog({ item, slotDays = [], onSchedule, onClose }
             style={{ borderColor: 'var(--cms-border)', color: 'var(--cms-text-muted)' }}>Cancel</button>
           <button onClick={() => { if (selectedDate) { onSchedule(item, selectedDate); onClose() } }} disabled={!selectedDate}
             className="flex-1 py-2 rounded-[8px] text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ background: selectedDate ? 'var(--cms-accent)' : 'var(--cms-border)', color: '#fff' }}>
+            style={{ background: selectedDate ? 'var(--cms-accent)' : 'var(--cms-border)', color: 'var(--cms-text-on-accent, #fff)' }}>
             {selectedDate ? `Schedule for ${new Date(selectedDate + 'T12:00:00').toLocaleDateString('en', { month: 'short', day: 'numeric' })}` : 'Pick a date'}
           </button>
         </div>

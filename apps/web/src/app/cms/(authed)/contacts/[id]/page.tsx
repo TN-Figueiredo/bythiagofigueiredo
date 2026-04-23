@@ -2,9 +2,10 @@ import { notFound, redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
 import type { CookieOptions } from '@supabase/ssr'
-import { getSupabaseServiceClient } from '../../../../../../lib/supabase/service'
-import { getSiteContext } from '../../../../../../lib/cms/site-context'
-import { captureServerActionError } from '../../../../../lib/sentry-wrap'
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { getSiteContext } from '@/lib/cms/site-context'
+import { captureServerActionError } from '@/lib/sentry-wrap'
+import { StatusBadge } from '@/components/cms/ui'
 
 export const dynamic = 'force-dynamic'
 
@@ -96,63 +97,66 @@ export default async function CmsContactDetailPage({ params }: Props) {
 
   return (
     <main className="p-8 max-w-2xl">
-      <nav className="mb-6 text-sm text-gray-500">
-        <a href="/cms/contacts" className="hover:underline">
+      <nav className="mb-6 text-sm text-cms-text-muted">
+        <a href="/cms/contacts" className="hover:underline hover:text-cms-text">
           ← Contatos
         </a>
       </nav>
 
-      <h1 className="text-2xl font-bold mb-6">Contato de {sub.name as string}</h1>
+      <h1 className="text-2xl font-bold mb-6 text-cms-text">Contato de {sub.name as string}</h1>
 
       <dl className="space-y-4 text-sm mb-8">
         <div>
-          <dt className="font-medium text-gray-600">Nome</dt>
+          <dt className="font-medium text-cms-text-muted">Nome</dt>
           <dd>{sub.name as string}</dd>
         </div>
         <div>
-          <dt className="font-medium text-gray-600">Email</dt>
+          <dt className="font-medium text-cms-text-muted">Email</dt>
           <dd>
             <a
               href={`mailto:${sub.email as string}?subject=Re: seu contato`}
-              className="text-blue-600 hover:underline"
+              className="text-cms-accent hover:underline"
             >
               {sub.email as string}
             </a>
           </dd>
         </div>
         <div>
-          <dt className="font-medium text-gray-600">Mensagem</dt>
-          <dd className="whitespace-pre-wrap bg-gray-50 rounded p-3 mt-1">
+          <dt className="font-medium text-cms-text-muted">Mensagem</dt>
+          <dd className="whitespace-pre-wrap bg-cms-surface-hover rounded-[var(--cms-radius)] border border-cms-border p-3 mt-1 text-cms-text">
             {sub.message as string}
           </dd>
         </div>
         <div>
-          <dt className="font-medium text-gray-600">Recebido em</dt>
+          <dt className="font-medium text-cms-text-muted">Recebido em</dt>
           <dd>{String(sub.submitted_at).replace('T', ' ').slice(0, 19)} UTC</dd>
         </div>
         <div>
-          <dt className="font-medium text-gray-600">Status</dt>
-          <dd>
+          <dt className="font-medium text-cms-text-muted">Status</dt>
+          <dd className="flex items-center gap-2">
             {sub.replied_at ? (
-              <span className="text-green-600">
-                Respondido em {String(sub.replied_at).replace('T', ' ').slice(0, 19)} UTC
-              </span>
+              <>
+                <StatusBadge variant="confirmed" label="Respondido" pill />
+                <span className="text-xs text-cms-text-muted">
+                  {String(sub.replied_at).replace('T', ' ').slice(0, 19)} UTC
+                </span>
+              </>
             ) : (
-              <span className="text-yellow-600">Pendente</span>
+              <StatusBadge variant="pending" label="Pendente" pill />
             )}
           </dd>
         </div>
         <div>
-          <dt className="font-medium text-gray-600">Consentimento de processamento</dt>
+          <dt className="font-medium text-cms-text-muted">Consentimento de processamento</dt>
           <dd>{sub.consent_processing ? 'Sim' : 'Não'}</dd>
         </div>
         <div>
-          <dt className="font-medium text-gray-600">Consentimento marketing</dt>
+          <dt className="font-medium text-cms-text-muted">Consentimento marketing</dt>
           <dd>{sub.consent_marketing ? 'Sim' : 'Não'}</dd>
         </div>
         {sub.ip && (
           <div>
-            <dt className="font-medium text-gray-600">IP</dt>
+            <dt className="font-medium text-cms-text-muted">IP</dt>
             <dd className="font-mono text-xs">{sub.ip as string}</dd>
           </div>
         )}
@@ -161,7 +165,7 @@ export default async function CmsContactDetailPage({ params }: Props) {
       <div className="flex gap-3">
         <a
           href={`mailto:${sub.email as string}?subject=Re: seu contato`}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
+          className="inline-flex items-center justify-center px-4 py-2 bg-cms-accent text-white rounded-[var(--cms-radius)] text-sm font-medium hover:bg-cms-accent-hover transition-all duration-150"
         >
           Responder por email
         </a>
@@ -175,7 +179,7 @@ export default async function CmsContactDetailPage({ params }: Props) {
           >
             <button
               type="submit"
-              className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700"
+              className="inline-flex items-center justify-center px-4 py-2 bg-cms-green-subtle text-cms-green border border-[rgba(34,197,94,.3)] rounded-[var(--cms-radius)] text-sm font-medium hover:bg-[rgba(34,197,94,.15)] transition-all duration-150 cursor-pointer"
             >
               Marcar como respondido
             </button>

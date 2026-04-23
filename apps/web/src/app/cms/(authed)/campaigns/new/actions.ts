@@ -2,8 +2,8 @@
 
 import { cookies } from 'next/headers'
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
-import { campaignRepo } from '../../../../../../lib/cms/repositories'
-import { getSiteContext } from '../../../../../../lib/cms/site-context'
+import { campaignRepo } from '@/lib/cms/repositories'
+import { getSiteContext } from '@/lib/cms/site-context'
 
 export interface CreateCampaignActionInput {
   slug: string

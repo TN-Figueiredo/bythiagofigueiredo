@@ -2,10 +2,10 @@
 
 import { revalidatePath } from 'next/cache'
 import { isSafeUrl } from '@tn-figueiredo/cms'
-import { campaignRepo } from '../../../../../../../lib/cms/repositories'
-import { getSupabaseServiceClient } from '../../../../../../../lib/supabase/service'
-import { requireSiteAdminForRow } from '../../../../../../../lib/cms/auth-guards'
-import { captureServerActionError } from '../../../../../../lib/sentry-wrap'
+import { campaignRepo } from '@/lib/cms/repositories'
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { requireSiteAdminForRow } from '@/lib/cms/auth-guards'
+import { captureServerActionError } from '@/lib/sentry-wrap'
 import { revalidateCampaignSeo } from '@/lib/seo/cache-invalidation'
 
 export type UploadCampaignPdfResult =

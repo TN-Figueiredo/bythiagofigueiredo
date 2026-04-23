@@ -11,8 +11,14 @@ interface BacklogPanelProps {
   onScheduleItem?: (item: BacklogItem) => void; onEditCadence?: () => void
 }
 
-const TYPE_DOT: Record<string, string> = { post: 'var(--cms-accent, #6366f1)', newsletter: 'var(--cms-green, #22c55e)' }
-const STATUS_COLORS: Record<string, string> = { ready: 'var(--cms-accent, #6366f1)', draft: 'var(--cms-amber, #f59e0b)', queued: 'var(--cms-purple, #8b5cf6)' }
+const SLOT_COLORS = {
+  post: 'var(--cms-accent, #6366f1)',
+  newsletter: 'var(--cms-green, #22c55e)',
+  campaign: 'var(--cms-amber, #f59e0b)',
+} as const
+
+const TYPE_DOT: Record<string, string> = { post: SLOT_COLORS.post, newsletter: SLOT_COLORS.newsletter }
+const STATUS_COLORS: Record<string, string> = { ready: SLOT_COLORS.post, draft: SLOT_COLORS.campaign, queued: 'var(--cms-purple, #8b5cf6)' }
 
 export function BacklogPanel({ items, cadence, weekSummary, onScheduleItem, onEditCadence }: BacklogPanelProps) {
   const [draggingId, setDraggingId] = useState<string | null>(null)
@@ -26,7 +32,7 @@ export function BacklogPanel({ items, cadence, weekSummary, onScheduleItem, onEd
           <span className="text-[11px] font-semibold uppercase tracking-wider"
             style={{ color: 'var(--cms-text-dim, #52525b)' }}>Backlog</span>
           <span className="text-[11px] px-1.5 py-0.5 rounded-md"
-            style={{ background: 'var(--cms-accent-subtle, rgba(99,102,241,.12))', color: 'var(--cms-accent, #6366f1)' }}>
+            style={{ background: `var(--cms-accent-subtle, color-mix(in srgb, ${SLOT_COLORS.post} 12%, transparent))`, color: SLOT_COLORS.post }}>
             {items.length} ready</span>
         </div>
         {items.length === 0 ? (

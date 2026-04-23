@@ -3,8 +3,9 @@ import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
 import type { CookieOptions } from '@supabase/ssr'
-import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
-import { getSiteContext } from '../../../../../lib/cms/site-context'
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { getSiteContext } from '@/lib/cms/site-context'
+import { StatusBadge } from '@/components/cms/ui'
 
 export const dynamic = 'force-dynamic'
 
@@ -53,13 +54,13 @@ export default async function CmsContactsPage({ searchParams }: Props) {
 
   return (
     <main className="p-8">
-      <h1 className="text-2xl font-bold mb-6">Contatos recebidos</h1>
+      <h1 className="text-2xl font-bold mb-6 text-cms-text">Contatos recebidos</h1>
 
       {noticeMessage && (
         <div
           role="status"
           aria-live="polite"
-          className="mb-4 rounded-lg px-4 py-3 text-sm bg-green-50 text-green-700"
+          className="mb-4 rounded-[var(--cms-radius)] border border-[rgba(34,197,94,.3)] px-4 py-3 text-sm bg-cms-green-subtle text-cms-green"
         >
           {noticeMessage}
         </div>
@@ -69,52 +70,54 @@ export default async function CmsContactsPage({ searchParams }: Props) {
         <div
           role="alert"
           aria-live="assertive"
-          className="mb-4 rounded-lg px-4 py-3 text-sm bg-red-50 text-red-700"
+          className="mb-4 rounded-[var(--cms-radius)] border border-[rgba(239,68,68,.3)] px-4 py-3 text-sm bg-cms-red-subtle text-cms-red"
         >
           Erro ao processar ação.
         </div>
       )}
 
       {!submissions || submissions.length === 0 ? (
-        <p className="text-gray-500">Nenhum contato recebido ainda.</p>
+        <p className="text-cms-text-dim">Nenhum contato recebido ainda.</p>
       ) : (
-        <table className="w-full text-sm border-collapse">
-          <thead>
-            <tr className="text-left border-b">
-              <th className="py-2 pr-4 font-medium">Nome</th>
-              <th className="py-2 pr-4 font-medium">Email</th>
-              <th className="py-2 pr-4 font-medium">Data</th>
-              <th className="py-2 pr-4 font-medium">Status</th>
-              <th className="py-2 font-medium">Ação</th>
-            </tr>
-          </thead>
-          <tbody>
-            {submissions.map((sub) => (
-              <tr key={sub.id as string} className="border-b hover:bg-gray-50">
-                <td className="py-2 pr-4">{sub.name as string}</td>
-                <td className="py-2 pr-4">{sub.email as string}</td>
-                <td className="py-2 pr-4">
-                  {String(sub.submitted_at).slice(0, 10)}
-                </td>
-                <td className="py-2 pr-4">
-                  {sub.replied_at ? (
-                    <span className="text-green-600">Respondido</span>
-                  ) : (
-                    <span className="text-yellow-600">Pendente</span>
-                  )}
-                </td>
-                <td className="py-2">
-                  <Link
-                    href={`/cms/contacts/${sub.id as string}`}
-                    className="text-blue-600 hover:underline"
-                  >
-                    Ver
-                  </Link>
-                </td>
+        <div className="overflow-hidden rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left border-b border-cms-border">
+                <th className="px-4 py-3 text-[11px] font-medium uppercase tracking-[1.5px] text-cms-text-muted">Nome</th>
+                <th className="px-4 py-3 text-[11px] font-medium uppercase tracking-[1.5px] text-cms-text-muted">Email</th>
+                <th className="px-4 py-3 text-[11px] font-medium uppercase tracking-[1.5px] text-cms-text-muted">Data</th>
+                <th className="px-4 py-3 text-[11px] font-medium uppercase tracking-[1.5px] text-cms-text-muted">Status</th>
+                <th className="px-4 py-3 text-[11px] font-medium uppercase tracking-[1.5px] text-cms-text-muted">Ação</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {submissions.map((sub) => (
+                <tr key={sub.id as string} className="border-b border-cms-border transition-colors hover:bg-cms-surface-hover">
+                  <td className="px-4 py-3 text-sm text-cms-text">{sub.name as string}</td>
+                  <td className="px-4 py-3 text-sm text-cms-text">{sub.email as string}</td>
+                  <td className="px-4 py-3 text-xs text-cms-text-muted">
+                    {String(sub.submitted_at).slice(0, 10)}
+                  </td>
+                  <td className="px-4 py-3">
+                    {sub.replied_at ? (
+                      <StatusBadge variant="confirmed" label="Respondido" pill />
+                    ) : (
+                      <StatusBadge variant="pending" label="Pendente" pill />
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <Link
+                      href={`/cms/contacts/${sub.id as string}`}
+                      className="rounded px-2 py-1 text-xs text-cms-text-muted hover:bg-cms-surface-hover hover:text-cms-text"
+                    >
+                      Ver
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </main>
   )

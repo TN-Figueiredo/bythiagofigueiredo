@@ -11,7 +11,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from '../../../../../components/ui/alert-dialog'
+} from '@/components/ui/alert-dialog'
 
 export type DeleteCampaignActionResult =
   | { ok: true }

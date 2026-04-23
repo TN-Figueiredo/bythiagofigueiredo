@@ -14,10 +14,16 @@ interface WeekViewProps {
   onItemClick: (item: CalendarItem) => void; onSlotClick: (slot: EmptySlot) => void
 }
 
+const SLOT_COLORS = {
+  post: 'var(--cms-accent, #6366f1)',
+  newsletter: 'var(--cms-green, #22c55e)',
+  campaign: 'var(--cms-amber, #f59e0b)',
+} as const
+
 const TYPE_STYLES: Record<string, { bg: string; text: string; border: string }> = {
-  post: { bg: 'rgba(99,102,241,.12)', text: 'var(--cms-accent, #6366f1)', border: 'var(--cms-accent, #6366f1)' },
-  newsletter: { bg: 'rgba(34,197,94,.12)', text: 'var(--cms-green, #22c55e)', border: 'var(--cms-green, #22c55e)' },
-  campaign: { bg: 'rgba(245,158,11,.12)', text: 'var(--cms-amber, #f59e0b)', border: 'var(--cms-amber, #f59e0b)' },
+  post: { bg: `color-mix(in srgb, ${SLOT_COLORS.post} 12%, transparent)`, text: SLOT_COLORS.post, border: SLOT_COLORS.post },
+  newsletter: { bg: `color-mix(in srgb, ${SLOT_COLORS.newsletter} 12%, transparent)`, text: SLOT_COLORS.newsletter, border: SLOT_COLORS.newsletter },
+  campaign: { bg: `color-mix(in srgb, ${SLOT_COLORS.campaign} 12%, transparent)`, text: SLOT_COLORS.campaign, border: SLOT_COLORS.campaign },
 }
 const TYPE_ICONS: Record<string, string> = { post: '\u{1F4DD}', newsletter: '\u{1F4F0}', campaign: '\u{1F4E2}' }
 
@@ -44,7 +50,7 @@ export function WeekView({ startDate, items, emptySlots, onItemClick, onSlotClic
             </div>
             <div className="mt-0.5 mx-auto flex items-center justify-center"
               style={{ width: 30, height: 30, borderRadius: isToday ? '50%' : undefined,
-                background: isToday ? 'var(--cms-accent-subtle, rgba(99,102,241,.12))' : 'transparent',
+                background: isToday ? `var(--cms-accent-subtle, color-mix(in srgb, ${SLOT_COLORS.post} 12%, transparent))` : 'transparent',
                 color: isToday ? 'var(--cms-accent, #6366f1)' : 'var(--cms-text, #e4e4e7)', fontWeight: 700, fontSize: 18 }}>
               {d.getDate()}
             </div>
@@ -64,7 +70,7 @@ export function WeekView({ startDate, items, emptySlots, onItemClick, onSlotClic
             const cellSlots = emptySlots.filter((s) => s.date === dateStr && s.slot === slot)
             return (
               <div key={`${dateStr}-${slot}`} className="border-l border-b p-1 h-20 overflow-hidden"
-                style={{ borderColor: 'var(--cms-border, #2a2d3a)', background: isToday ? 'rgba(99,102,241,.03)' : 'transparent' }}>
+                style={{ borderColor: 'var(--cms-border, #2a2d3a)', background: isToday ? `color-mix(in srgb, ${SLOT_COLORS.post} 3%, transparent)` : 'transparent' }}>
                 {cellItems.map((item) => {
                   const itemStyle = TYPE_STYLES[item.type] ?? TYPE_STYLES['post']!
                   const bg = itemStyle.bg; const text = itemStyle.text; const border = itemStyle.border
@@ -82,7 +88,7 @@ export function WeekView({ startDate, items, emptySlots, onItemClick, onSlotClic
                     className="w-full text-center px-2 py-1 rounded-md text-[10px] mb-0.5 border border-dashed cursor-pointer transition-colors"
                     style={{ borderColor: s.isOverdue ? 'var(--cms-red, #ef4444)' : 'var(--cms-border, #2a2d3a)',
                       color: s.isOverdue ? 'var(--cms-red, #ef4444)' : 'var(--cms-text-dim, #52525b)',
-                      background: s.isOverdue ? 'rgba(239,68,68,.06)' : 'transparent' }}>
+                      background: s.isOverdue ? 'color-mix(in srgb, var(--cms-red, #ef4444) 6%, transparent)' : 'transparent' }}>
                     + Empty {s.type} slot
                   </button>
                 ))}

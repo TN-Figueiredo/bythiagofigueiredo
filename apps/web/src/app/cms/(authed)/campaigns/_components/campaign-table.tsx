@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import type { CampaignListItem } from '@tn-figueiredo/cms'
-import { StatusBadge, Pagination, type StatusVariant } from '@/components/cms/ui'
+import { StatusBadge, Pagination, Sparkline, type StatusVariant } from '@/components/cms/ui'
 
 export interface CampaignRow extends CampaignListItem {
   has_pdf: boolean
@@ -59,22 +59,8 @@ function LocaleBadge({ locale }: { locale: string }) {
   )
 }
 
-function Sparkline({ data, delta }: { data: number[]; delta: number }) {
-  if (!data || data.length === 0) return <span className="text-cms-text-dim text-xs">—</span>
-
-  const max = Math.max(...data, 1)
-  const width = 48
-  const height = 18
-  const points = data
-    .map((v, i) => {
-      const x = (i / (data.length - 1)) * width
-      const y = height - (v / max) * height
-      return `${x},${y}`
-    })
-    .join(' ')
-
-  const lastX = width
-  const lastY = height - ((data[data.length - 1] ?? 0) / max) * height
+function SparklineWithDelta({ data, delta }: { data: number[]; delta: number }) {
+  if (!data || data.length < 2) return <span className="text-cms-text-dim text-xs">—</span>
 
   const deltaColor =
     delta > 0
@@ -86,17 +72,7 @@ function Sparkline({ data, delta }: { data: number[]; delta: number }) {
 
   return (
     <div className="flex items-center gap-1.5">
-      <svg width={width} height={height} aria-hidden="true">
-        <polyline
-          points={points}
-          fill="none"
-          stroke="var(--cms-amber, #f59e0b)"
-          strokeWidth="1.5"
-          strokeLinejoin="round"
-          strokeLinecap="round"
-        />
-        <circle cx={lastX} cy={lastY} r="2.5" fill="var(--cms-amber, #f59e0b)" />
-      </svg>
+      <Sparkline points={data} color="var(--cms-amber, #f59e0b)" width={48} height={18} />
       {delta !== 0 && (
         <span className="text-[11px] font-medium" style={{ color: deltaColor }}>
           {deltaLabel}
@@ -238,7 +214,7 @@ function DesktopRow({
           <span className="text-sm font-medium text-cms-text">
             {campaign.submission_count.toLocaleString()}
           </span>
-          <Sparkline data={campaign.sparkline_data} delta={campaign.submissions_delta} />
+          <SparklineWithDelta data={campaign.sparkline_data} delta={campaign.submissions_delta} />
         </div>
       </td>
       <td className="px-4 py-3 text-xs text-cms-text-muted">
@@ -308,7 +284,7 @@ function MobileCard({
             {campaign.submission_count.toLocaleString()}
           </span>
           <span className="text-[11px] text-cms-text-muted">subs</span>
-          <Sparkline data={campaign.sparkline_data} delta={campaign.submissions_delta} />
+          <SparklineWithDelta data={campaign.sparkline_data} delta={campaign.submissions_delta} />
         </div>
         <div className="flex items-center gap-1.5">
           <Link
