@@ -39,7 +39,7 @@ const SECTIONS: SidebarSection[] = [
     label: 'People',
     items: [
       { icon: '👤', label: 'Authors', href: '/cms/authors', minRole: 'editor' },
-      { icon: '📧', label: 'Subscribers', href: '/cms/subscribers', minRole: 'org_admin' },
+      { icon: '📧', label: 'Subscribers', href: '/cms/newsletters/subscribers', minRole: 'org_admin' },
     ],
   },
   {
@@ -155,10 +155,17 @@ export function CmsSidebar({ siteName, siteInitials, userDisplayName, userRole, 
             {userDisplayName.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
           </div>
           {!isCollapsed && (
-            <div className="text-xs min-w-0">
+            <div className="flex-1 text-xs min-w-0">
               <div className="text-cms-text font-medium truncate">{userDisplayName}</div>
               <div className="text-cms-text-dim text-[10px]">{userRole}</div>
             </div>
+          )}
+          {!isCollapsed && (
+            <form action="/cms/logout" method="POST">
+              <button type="submit" className="text-cms-text-dim hover:text-cms-text text-xs transition-colors" title="Sign out">
+                ↗
+              </button>
+            </form>
           )}
         </div>
       </div>
