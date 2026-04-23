@@ -7,29 +7,24 @@ interface KpiCardProps {
   accent?: 'default' | 'amber' | 'red' | 'green'
 }
 
-function KpiCard({ label, value, sub, accent = 'default' }: KpiCardProps) {
-  const accentColor =
-    accent === 'amber'
-      ? '#f59e0b'
-      : accent === 'red'
-        ? '#ef4444'
-        : accent === 'green'
-          ? '#22c55e'
-          : 'var(--text)'
+const ACCENT_COLORS: Record<string, string> = {
+  amber: 'var(--cms-amber, #f59e0b)',
+  red: 'var(--cms-red, #ef4444)',
+  green: 'var(--cms-green, #22c55e)',
+  default: 'var(--cms-text)',
+}
 
+function KpiCard({ label, value, sub, accent = 'default' }: KpiCardProps) {
   return (
-    <div
-      className="rounded-lg border p-4 flex flex-col gap-1"
-      style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
-    >
-      <span className="text-xs uppercase tracking-wide" style={{ color: 'var(--text-dim)', letterSpacing: '0.08em' }}>
+    <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface p-4 flex flex-col gap-1">
+      <span className="text-xs uppercase tracking-wide text-cms-text-dim" style={{ letterSpacing: '0.08em' }}>
         {label}
       </span>
-      <span className="text-2xl font-bold leading-tight" style={{ color: accentColor }}>
+      <span className="text-2xl font-bold leading-tight" style={{ color: ACCENT_COLORS[accent] }}>
         {value}
       </span>
       {sub && (
-        <span className="text-xs" style={{ color: 'var(--text-dim)' }}>
+        <span className="text-xs text-cms-text-dim">
           {sub}
         </span>
       )}

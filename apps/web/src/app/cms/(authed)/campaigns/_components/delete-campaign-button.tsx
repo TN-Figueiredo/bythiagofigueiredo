@@ -65,7 +65,7 @@ export function DeleteCampaignButton({
 
   if (deleted) {
     return (
-      <span role="status" className="text-sm text-green-600">
+      <span role="status" className="text-sm text-[var(--cms-green,#22c55e)]">
         Excluído
       </span>
     )
@@ -75,7 +75,7 @@ export function DeleteCampaignButton({
     <AlertDialog open={open} onOpenChange={setOpen}>
       <AlertDialogTrigger
         aria-label={`Excluir ${campaignLabel}`}
-        className="inline-flex items-center rounded-md border border-red-600/40 px-2 py-1 text-xs text-red-600 transition-colors hover:bg-red-600/10 cursor-pointer"
+        className="inline-flex items-center rounded-md border border-[rgba(239,68,68,.4)] px-2 py-1 text-xs text-[var(--cms-red,#ef4444)] transition-colors hover:bg-[rgba(239,68,68,.1)] cursor-pointer"
       >
         Excluir
       </AlertDialogTrigger>
@@ -87,7 +87,7 @@ export function DeleteCampaignButton({
           </AlertDialogDescription>
         </AlertDialogHeader>
         {error && (
-          <p role="alert" className="mt-2 text-sm text-red-600">
+          <p role="alert" className="mt-2 text-sm text-[var(--cms-red,#ef4444)]">
             {error}
           </p>
         )}

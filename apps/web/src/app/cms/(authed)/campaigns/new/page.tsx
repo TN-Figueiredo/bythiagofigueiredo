@@ -43,7 +43,7 @@ export default async function NewCampaignPage({ searchParams }: Props) {
         <h1>Nova campanha</h1>
       </header>
       {sp.error && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-[var(--cms-red,#ef4444)]">
           Erro: {sp.error}
         </p>
       )}
