@@ -71,11 +71,29 @@ function campaignStatusColor(status: string): string {
   return 'var(--cms-text-dim, #52525b)'
 }
 
+const CAMPAIGN_KPIS = [
+  { label: 'Total Submissions', value: '2,214' },
+  { label: 'Avg Download Rate', value: '8.6%' },
+  { label: 'Avg per Campaign', value: '554' },
+  { label: 'Active Campaigns', value: '4' },
+]
+
 export function CampaignsTab({ period: _period }: CampaignsTabProps) {
   const sorted = [...CAMPAIGNS].sort((a, b) => b.submissions - a.submissions)
 
   return (
     <div className="space-y-6">
+      {/* KPI row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {CAMPAIGN_KPIS.map((kpi) => (
+          <div key={kpi.label} className="rounded-[10px] p-4 border"
+            style={{ background: 'var(--cms-surface, #1a1d27)', borderColor: 'var(--cms-border, #2a2d3a)' }}>
+            <p className="text-[11px] mb-1" style={{ color: 'var(--cms-text-muted, #71717a)' }}>{kpi.label}</p>
+            <p className="text-2xl font-semibold" style={{ color: 'var(--cms-text, #e4e4e7)' }}>{kpi.value}</p>
+          </div>
+        ))}
+      </div>
+
       {/* Campaign ranked table */}
       <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface overflow-hidden">
         <div className="px-5 py-3 border-b border-cms-border">

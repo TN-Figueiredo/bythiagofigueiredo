@@ -80,39 +80,46 @@ export function OverviewTab({ period }: OverviewTabProps) {
 
   const kpis = [
     {
-      label: 'Page Views',
-      value: '14,823',
-      trend: { direction: 'up' as const, label: '+12% vs prev' },
+      label: 'Emails Delivered',
+      value: '8,201',
+      trend: { direction: 'up' as const, label: '+5.2% vs prior' },
       sparklinePoints: [320, 410, 390, 480, 520, 610, 580],
       color: 'default' as const,
     },
     {
-      label: 'Newsletter Opens',
-      value: '2,104',
-      trend: { direction: 'up' as const, label: '+7% vs prev' },
+      label: 'Open Rate',
+      value: '30.9%',
+      trend: { direction: 'up' as const, label: '+1.4pp vs prior' },
       sparklinePoints: [180, 210, 190, 240, 230, 260, 250],
       color: 'green' as const,
     },
     {
+      label: 'Click Rate',
+      value: '7.3%',
+      trend: { direction: 'up' as const, label: '+0.6pp vs prior' },
+      sparklinePoints: [38, 40, 41, 43, 42, 44, 44],
+      color: 'cyan' as const,
+    },
+    {
       label: 'Campaign Leads',
-      value: '653',
-      trend: { direction: 'down' as const, label: '-3% vs prev' },
-      sparklinePoints: [90, 80, 95, 70, 85, 60, 75],
+      value: '1,896',
+      trend: { direction: 'up' as const, label: '+18% vs prior' },
+      sparklinePoints: [90, 80, 95, 110, 125, 140, 175],
       color: 'amber' as const,
     },
     {
-      label: 'Avg. Open Rate',
-      value: '44%',
-      trend: { direction: 'up' as const, label: '+2pp vs prev' },
-      sparklinePoints: [38, 40, 41, 43, 42, 44, 44],
-      color: 'cyan' as const,
+      label: 'Bounce Rate',
+      value: '2.6%',
+      trend: { direction: 'down' as const, label: '-0.3pp vs prior' },
+      sparklinePoints: [4, 3.5, 3, 2.8, 2.7, 2.6, 2.6],
+      color: 'default' as const,
     },
   ]
 
   return (
     <div className="space-y-6">
       {/* KPI cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         {kpis.map((kpi) => (
           <KpiCard
             key={kpi.label}

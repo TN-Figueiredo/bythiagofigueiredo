@@ -65,9 +65,27 @@ function statusColor(status: string) {
   return 'var(--cms-text-dim, #52525b)'
 }
 
+const NEWSLETTER_KPIS = [
+  { label: 'Editions Sent', value: '12' },
+  { label: 'Avg Delivered', value: '8,025' },
+  { label: 'Avg Open Rate', value: '28.4%' },
+  { label: 'Avg Click Rate', value: '6.9%' },
+]
+
 export function NewslettersTab({ period: _period }: NewslettersTabProps) {
   return (
     <div className="space-y-6">
+      {/* KPI row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {NEWSLETTER_KPIS.map((kpi) => (
+          <div key={kpi.label} className="rounded-[10px] p-4 border"
+            style={{ background: 'var(--cms-surface, #1a1d27)', borderColor: 'var(--cms-border, #2a2d3a)' }}>
+            <p className="text-[11px] mb-1" style={{ color: 'var(--cms-text-muted, #71717a)' }}>{kpi.label}</p>
+            <p className="text-2xl font-semibold" style={{ color: 'var(--cms-text, #e4e4e7)' }}>{kpi.value}</p>
+          </div>
+        ))}
+      </div>
+
       {/* Edition performance table */}
       <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface overflow-hidden">
         <div className="px-5 py-3 border-b border-cms-border">
