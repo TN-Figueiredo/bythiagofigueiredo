@@ -17,7 +17,7 @@ describe('KpiCard', () => {
 
   it('renders sparkline when points provided', () => {
     const { container } = render(<KpiCard label="Test" value={1} sparklinePoints={[1, 3, 2, 5, 4]} />)
-    expect(container.querySelector('svg')).toBeDefined()
-    expect(container.querySelector('polyline')).toBeDefined()
+    expect(container.querySelector('svg')).toBeTruthy()
+    expect(container.querySelector('polyline')).toBeTruthy()
   })
 })
