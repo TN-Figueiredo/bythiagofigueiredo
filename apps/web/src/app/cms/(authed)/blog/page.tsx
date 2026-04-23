@@ -21,9 +21,10 @@ export default async function BlogListPage({ searchParams }: Props) {
     .select('status')
     .eq('site_id', siteId)
 
+  interface StatusRow { status: string }
   const counts: Record<string, number> = {}
-  for (const row of statusData ?? []) {
-    counts[(row as unknown as { status: string }).status] = (counts[(row as unknown as { status: string }).status] ?? 0) + 1
+  for (const row of (statusData ?? []) as StatusRow[]) {
+    counts[row.status] = (counts[row.status] ?? 0) + 1
   }
 
   let query = supabase

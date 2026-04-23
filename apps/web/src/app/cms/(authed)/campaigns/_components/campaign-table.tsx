@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import type { CampaignListItem } from '@tn-figueiredo/cms'
+import { StatusBadge, Pagination, type StatusVariant } from '@/components/cms/ui'
 
 export interface CampaignRow extends CampaignListItem {
   has_pdf: boolean
@@ -16,46 +17,16 @@ interface CampaignTableProps {
   onDelete: (id: string) => Promise<{ ok: boolean; error?: string }>
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, { label: string; cls: string }> = {
-    draft: {
-      label: 'Draft',
-      cls: 'bg-[rgba(245,158,11,.12)] text-[#f59e0b] border-[rgba(245,158,11,.3)]',
-    },
-    published: {
-      label: 'Live',
-      cls: 'bg-[rgba(34,197,94,.12)] text-[#22c55e] border-[rgba(34,197,94,.3)]',
-    },
-    scheduled: {
-      label: 'Scheduled',
-      cls: 'bg-[rgba(6,182,212,.12)] text-[#06b6d4] border-[rgba(6,182,212,.3)]',
-    },
-    archived: {
-      label: 'Archived',
-      cls: 'bg-[rgba(113,113,122,.12)] text-[#71717a] border-[rgba(113,113,122,.3)]',
-    },
-    active: {
-      label: 'Live',
-      cls: 'bg-[rgba(34,197,94,.12)] text-[#22c55e] border-[rgba(34,197,94,.3)]',
-    },
-  }
-  const badge = map[status] ?? {
-    label: status,
-    cls: 'bg-[rgba(113,113,122,.12)] text-[#71717a] border-[rgba(113,113,122,.3)]',
-  }
-  return (
-    <span
-      data-status={status}
-      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${badge.cls}`}
-    >
-      {badge.label}
-    </span>
-  )
-}
-
 function TypeBadge({ hasPdf }: { hasPdf: boolean }) {
   return hasPdf ? (
-    <span className="inline-flex items-center gap-1 rounded-full border border-[rgba(99,102,241,.3)] bg-[rgba(99,102,241,.12)] px-2 py-0.5 text-[11px] font-medium text-[#6366f1]">
+    <span
+      className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium"
+      style={{
+        color: 'var(--cms-accent, #6366f1)',
+        background: 'color-mix(in srgb, var(--cms-accent, #6366f1) 12%, transparent)',
+        borderColor: 'color-mix(in srgb, var(--cms-accent, #6366f1) 30%, transparent)',
+      }}
+    >
       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
         <polyline points="14 2 14 8 20 8" />
@@ -63,7 +34,14 @@ function TypeBadge({ hasPdf }: { hasPdf: boolean }) {
       PDF
     </span>
   ) : (
-    <span className="inline-flex items-center gap-1 rounded-full border border-[rgba(6,182,212,.3)] bg-[rgba(6,182,212,.12)] px-2 py-0.5 text-[11px] font-medium text-[#06b6d4]">
+    <span
+      className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium"
+      style={{
+        color: 'var(--cms-cyan, #06b6d4)',
+        background: 'color-mix(in srgb, var(--cms-cyan, #06b6d4) 12%, transparent)',
+        borderColor: 'color-mix(in srgb, var(--cms-cyan, #06b6d4) 30%, transparent)',
+      }}
+    >
       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
         <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
         <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
@@ -100,10 +78,10 @@ function Sparkline({ data, delta }: { data: number[]; delta: number }) {
 
   const deltaColor =
     delta > 0
-      ? '#22c55e'
+      ? 'var(--cms-green, #22c55e)'
       : delta < 0
-        ? '#ef4444'
-        : '#71717a'
+        ? 'var(--cms-red, #ef4444)'
+        : 'var(--cms-text-dim, #71717a)'
   const deltaLabel = delta > 0 ? `+${delta}` : String(delta)
 
   return (
@@ -112,12 +90,12 @@ function Sparkline({ data, delta }: { data: number[]; delta: number }) {
         <polyline
           points={points}
           fill="none"
-          stroke="#f59e0b"
+          stroke="var(--cms-amber, #f59e0b)"
           strokeWidth="1.5"
           strokeLinejoin="round"
           strokeLinecap="round"
         />
-        <circle cx={lastX} cy={lastY} r="2.5" fill="#f59e0b" />
+        <circle cx={lastX} cy={lastY} r="2.5" fill="var(--cms-amber, #f59e0b)" />
       </svg>
       {delta !== 0 && (
         <span className="text-[11px] font-medium" style={{ color: deltaColor }}>
@@ -130,7 +108,14 @@ function Sparkline({ data, delta }: { data: number[]; delta: number }) {
 
 function NoPdfWarning() {
   return (
-    <span className="inline-flex items-center gap-1 rounded border border-[rgba(245,158,11,.3)] bg-[rgba(245,158,11,.08)] px-1.5 py-0.5 text-[10px] text-[#f59e0b]">
+    <span
+      className="inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px]"
+      style={{
+        color: 'var(--cms-amber, #f59e0b)',
+        background: 'color-mix(in srgb, var(--cms-amber, #f59e0b) 8%, transparent)',
+        borderColor: 'color-mix(in srgb, var(--cms-amber, #f59e0b) 30%, transparent)',
+      }}
+    >
       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
         <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
         <line x1="12" y1="9" x2="12" y2="13" />
@@ -142,74 +127,6 @@ function NoPdfWarning() {
 }
 
 const PAGE_SIZE = 20
-
-function Pagination({
-  total,
-  page,
-  onPage,
-}: {
-  total: number
-  page: number
-  onPage: (p: number) => void
-}) {
-  const pages = Math.ceil(total / PAGE_SIZE)
-  if (pages <= 1) return null
-  return (
-    <nav
-      className="flex items-center justify-between border-t border-cms-border px-4 py-3 text-sm text-cms-text-muted"
-      aria-label="Pagination"
-    >
-      <span>
-        {Math.min((page - 1) * PAGE_SIZE + 1, total)}–{Math.min(page * PAGE_SIZE, total)} of {total}
-      </span>
-      <div className="flex items-center gap-1">
-        <button
-          onClick={() => onPage(page - 1)}
-          disabled={page === 1}
-          className="rounded px-2 py-1 text-xs hover:bg-cms-surface-hover disabled:opacity-30"
-          aria-label="Previous page"
-        >
-          ‹ Prev
-        </button>
-        {Array.from({ length: pages }, (_, i) => i + 1)
-          .filter((p) => p === 1 || p === pages || Math.abs(p - page) <= 1)
-          .reduce<(number | '…')[]>((acc, p, i, arr) => {
-            if (i > 0 && typeof arr[i - 1] === 'number' && (p as number) - (arr[i - 1] as number) > 1) {
-              acc.push('…')
-            }
-            acc.push(p)
-            return acc
-          }, [])
-          .map((p, i) =>
-            p === '…' ? (
-              <span key={`ellipsis-${i}`} className="px-1">…</span>
-            ) : (
-              <button
-                key={p}
-                onClick={() => onPage(p as number)}
-                aria-current={p === page ? 'page' : undefined}
-                className={`min-w-[28px] rounded px-2 py-1 text-xs ${
-                  p === page
-                    ? 'bg-cms-accent text-white'
-                    : 'hover:bg-cms-surface-hover'
-                }`}
-              >
-                {p}
-              </button>
-            ),
-          )}
-        <button
-          onClick={() => onPage(page + 1)}
-          disabled={page === pages}
-          className="rounded px-2 py-1 text-xs hover:bg-cms-surface-hover disabled:opacity-30"
-          aria-label="Next page"
-        >
-          Next ›
-        </button>
-      </div>
-    </nav>
-  )
-}
 
 function DeleteButton({
   campaignId,
@@ -235,13 +152,16 @@ function DeleteButton({
       <button
         onClick={handleDelete}
         disabled={isPending}
-        className="rounded px-2 py-1 text-xs text-[#ef4444] hover:bg-[rgba(239,68,68,.1)] disabled:opacity-40"
+        className="rounded px-2 py-1 text-xs disabled:opacity-40"
+        style={{ color: 'var(--cms-red, #ef4444)' }}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'color-mix(in srgb, var(--cms-red, #ef4444) 10%, transparent)' }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
         aria-label="Delete campaign"
       >
         {isPending ? '…' : 'Delete'}
       </button>
       {error && (
-        <span role="alert" className="text-[10px] text-[#ef4444]">
+        <span role="alert" className="text-[10px]" style={{ color: 'var(--cms-red, #ef4444)' }}>
           {error}
         </span>
       )}
@@ -265,7 +185,13 @@ function DesktopRow({
     >
       <td className="px-4 py-3">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--cms-radius)] bg-[rgba(245,158,11,.1)] text-[#f59e0b]">
+          <div
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--cms-radius)]"
+            style={{
+              background: 'color-mix(in srgb, var(--cms-amber, #f59e0b) 10%, transparent)',
+              color: 'var(--cms-amber, #f59e0b)',
+            }}
+          >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
               <circle cx="12" cy="12" r="10" />
               <line x1="12" y1="8" x2="12" y2="12" />
@@ -284,7 +210,7 @@ function DesktopRow({
                 {campaign.translation.slug}
               </span>
               {campaign.has_pdf && (
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#71717a" strokeWidth="2" aria-label="Has PDF" className="shrink-0">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--cms-text-dim, #71717a)" strokeWidth="2" aria-label="Has PDF" className="shrink-0">
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                   <polyline points="14 2 14 8 20 8" />
                 </svg>
@@ -305,7 +231,7 @@ function DesktopRow({
         </div>
       </td>
       <td className="px-4 py-3">
-        <StatusBadge status={campaign.status} />
+        <StatusBadge variant={campaign.status as StatusVariant} pill />
       </td>
       <td className="px-4 py-3">
         <div className="flex flex-col gap-1">
@@ -367,7 +293,7 @@ function MobileCard({
             {campaign.translation.slug}
           </p>
         </div>
-        <StatusBadge status={campaign.status} />
+        <StatusBadge variant={campaign.status as StatusVariant} pill />
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <TypeBadge hasPdf={campaign.has_pdf} />
@@ -438,7 +364,13 @@ export function CampaignTable({ campaigns, onDelete }: CampaignTableProps) {
           <MobileCard key={c.id} campaign={c} onDelete={onDelete} />
         ))}
       </div>
-      <Pagination total={campaigns.length} page={page} onPage={setPage} />
+      <Pagination
+        currentPage={page}
+        totalPages={Math.ceil(campaigns.length / PAGE_SIZE)}
+        onPageChange={setPage}
+        totalItems={campaigns.length}
+        pageSize={PAGE_SIZE}
+      />
     </div>
   )
 }

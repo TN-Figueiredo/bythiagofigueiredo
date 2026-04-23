@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { StatusBadge, Pagination, type StatusVariant } from '@/components/cms/ui'
 
 export interface EditionRow {
   id: string
@@ -24,51 +25,6 @@ interface EditionsTableProps {
   editions: EditionRow[]
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, { label: string; cls: string; dot?: string }> = {
-    draft: {
-      label: 'Draft',
-      cls: 'bg-cms-amber-subtle text-[var(--cms-amber)] border-[rgba(245,158,11,.3)]',
-    },
-    ready: {
-      label: 'Ready',
-      cls: 'bg-cms-cyan-subtle text-[var(--cms-cyan)] border-[rgba(6,182,212,.3)]',
-    },
-    scheduled: {
-      label: 'Scheduled',
-      cls: 'bg-cms-cyan-subtle text-[var(--cms-cyan)] border-[rgba(6,182,212,.3)]',
-    },
-    sending: {
-      label: 'Sending',
-      cls: 'bg-cms-purple-subtle text-[var(--cms-purple)] border-[rgba(139,92,246,.3)]',
-      dot: 'animate-pulse',
-    },
-    sent: {
-      label: 'Sent',
-      cls: 'bg-cms-green-subtle text-[var(--cms-green)] border-[rgba(34,197,94,.3)]',
-    },
-    failed: {
-      label: 'Failed',
-      cls: 'bg-cms-red-subtle text-[var(--cms-red)] border-[rgba(239,68,68,.3)]',
-    },
-  }
-  const badge = map[status] ?? {
-    label: status,
-    cls: 'bg-[rgba(113,113,122,.12)] text-cms-text-muted border-[rgba(113,113,122,.3)]',
-  }
-  return (
-    <span
-      data-status={status}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium ${badge.cls}`}
-    >
-      {badge.dot && (
-        <span className={`inline-block h-1.5 w-1.5 rounded-full bg-current ${badge.dot}`} />
-      )}
-      {badge.label}
-    </span>
-  )
-}
-
 function TypeDot({ color, name }: { color: string; name: string }) {
   return (
     <div className="flex items-center gap-1.5">
@@ -89,73 +45,6 @@ function OpenRate({ opens, delivered }: { opens: number; delivered: number }) {
 }
 
 const PAGE_SIZE = 20
-
-function Pagination({
-  total,
-  page,
-  onPage,
-}: {
-  total: number
-  page: number
-  onPage: (p: number) => void
-}) {
-  const pages = Math.ceil(total / PAGE_SIZE)
-  if (pages <= 1) return null
-  return (
-    <nav
-      className="flex items-center justify-between border-t border-cms-border px-4 py-3 text-sm text-cms-text-muted"
-      aria-label="Pagination"
-    >
-      <span>
-        {Math.min((page - 1) * PAGE_SIZE + 1, total)}–{Math.min(page * PAGE_SIZE, total)} of{' '}
-        {total}
-      </span>
-      <div className="flex items-center gap-1">
-        <button
-          onClick={() => onPage(page - 1)}
-          disabled={page === 1}
-          className="rounded px-2 py-1 text-xs hover:bg-cms-surface-hover disabled:opacity-30"
-          aria-label="Previous page"
-        >
-          ‹ Prev
-        </button>
-        {Array.from({ length: pages }, (_, i) => i + 1)
-          .filter((p) => p === 1 || p === pages || Math.abs(p - page) <= 1)
-          .reduce<(number | '…')[]>((acc, p, i, arr) => {
-            if (i > 0 && typeof arr[i - 1] === 'number' && (p as number) - (arr[i - 1] as number) > 1) {
-              acc.push('…')
-            }
-            acc.push(p)
-            return acc
-          }, [])
-          .map((p, i) =>
-            p === '…' ? (
-              <span key={`ellipsis-${i}`} className="px-1">…</span>
-            ) : (
-              <button
-                key={p}
-                onClick={() => onPage(p as number)}
-                aria-current={p === page ? 'page' : undefined}
-                className={`min-w-[28px] rounded px-2 py-1 text-xs ${
-                  p === page ? 'bg-cms-accent text-white' : 'hover:bg-cms-surface-hover'
-                }`}
-              >
-                {p}
-              </button>
-            ),
-          )}
-        <button
-          onClick={() => onPage(page + 1)}
-          disabled={page === pages}
-          className="rounded px-2 py-1 text-xs hover:bg-cms-surface-hover disabled:opacity-30"
-          aria-label="Next page"
-        >
-          Next ›
-        </button>
-      </div>
-    </nav>
-  )
-}
 
 function DesktopRow({ edition }: { edition: EditionRow }) {
   const isSending = edition.status === 'sending'
@@ -184,7 +73,7 @@ function DesktopRow({ edition }: { edition: EditionRow }) {
         <TypeDot color={edition.typeColor} name={edition.typeName} />
       </td>
       <td className="px-4 py-3">
-        <StatusBadge status={edition.status} />
+        <StatusBadge variant={edition.status as StatusVariant} pill dot={edition.status === 'sending'} />
       </td>
       <td className="px-4 py-3 text-xs text-cms-text tabular-nums">
         {edition.sendCount > 0 ? edition.sendCount.toLocaleString() : '—'}
@@ -247,7 +136,7 @@ function MobileCard({ edition }: { edition: EditionRow }) {
             <p className="mt-0.5 truncate text-[11px] text-cms-text-dim">{edition.preheader}</p>
           )}
         </div>
-        <StatusBadge status={edition.status} />
+        <StatusBadge variant={edition.status as StatusVariant} pill dot={edition.status === 'sending'} />
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <TypeDot color={edition.typeColor} name={edition.typeName} />
@@ -336,7 +225,13 @@ export function EditionsTable({ editions }: EditionsTableProps) {
           <MobileCard key={e.id} edition={e} />
         ))}
       </div>
-      <Pagination total={editions.length} page={page} onPage={setPage} />
+      <Pagination
+        currentPage={page}
+        totalPages={Math.ceil(editions.length / PAGE_SIZE)}
+        onPageChange={setPage}
+        totalItems={editions.length}
+        pageSize={PAGE_SIZE}
+      />
     </div>
   )
 }

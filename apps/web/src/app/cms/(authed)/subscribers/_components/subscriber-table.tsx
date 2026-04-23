@@ -8,6 +8,7 @@ import {
   type ChangeEvent,
 } from 'react'
 import { EngagementDots, type DotStatus } from './engagement-dots'
+import { StatusBadge, type StatusVariant } from '@/components/cms/ui'
 
 export type SubscriberStatus =
   | 'confirmed'
@@ -52,31 +53,8 @@ const STATUS_LABELS: Record<SubscriberStatus, string> = {
   complained: 'Reclamação',
 }
 
-const STATUS_COLORS: Record<SubscriberStatus, string> = {
-  confirmed: '#22c55e',
-  pending: '#f59e0b',
-  bounced: '#ef4444',
-  unsubscribed: '#6b7280',
-  complained: '#f43f5e',
-}
-
-function StatusBadge({ status }: { status: SubscriberStatus }) {
-  return (
-    <span
-      className="text-xs px-1.5 py-0.5 rounded font-medium"
-      style={{
-        background: STATUS_COLORS[status] + '22',
-        color: STATUS_COLORS[status],
-        border: `1px solid ${STATUS_COLORS[status]}44`,
-      }}
-    >
-      {STATUS_LABELS[status]}
-    </span>
-  )
-}
-
 function TypeBadge({ name, color }: { name: string; color: string | null }) {
-  const c = color ?? '#6b7280'
+  const c = color ?? 'var(--cms-text-dim, #6b7280)'
   return (
     <span
       className="text-xs px-1.5 py-0.5 rounded font-medium"
@@ -101,10 +79,10 @@ function LgpdLockIcon() {
       aria-label="Dados anonimizados (LGPD)"
       role="img"
     >
-      <rect x="1" y="5" width="10" height="7" rx="1.5" fill="#6b7280" />
+      <rect x="1" y="5" width="10" height="7" rx="1.5" fill="var(--cms-text-dim, #6b7280)" />
       <path
         d="M3 5V3.5a3 3 0 016 0V5"
-        stroke="#6b7280"
+        stroke="var(--cms-text-dim, #6b7280)"
         strokeWidth="1.5"
         strokeLinecap="round"
       />
@@ -115,13 +93,13 @@ function LgpdLockIcon() {
 function ConsentIcon({ consent }: { consent: boolean }) {
   return consent ? (
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-label="Tracking consentido" role="img">
-      <circle cx="6" cy="6" r="5" fill="#22c55e22" stroke="#22c55e" strokeWidth="1" />
-      <path d="M3.5 6l2 2 3-3" stroke="#22c55e" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="6" cy="6" r="5" fill="color-mix(in srgb, var(--cms-green, #22c55e) 13%, transparent)" stroke="var(--cms-green, #22c55e)" strokeWidth="1" />
+      <path d="M3.5 6l2 2 3-3" stroke="var(--cms-green, #22c55e)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ) : (
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-label="Sem consentimento de tracking" role="img">
-      <circle cx="6" cy="6" r="5" fill="#6b728022" stroke="#6b7280" strokeWidth="1" />
-      <path d="M4 4l4 4M8 4l-4 4" stroke="#6b7280" strokeWidth="1.2" strokeLinecap="round" />
+      <circle cx="6" cy="6" r="5" fill="color-mix(in srgb, var(--cms-text-dim, #6b7280) 13%, transparent)" stroke="var(--cms-text-dim, #6b7280)" strokeWidth="1" />
+      <path d="M4 4l4 4M8 4l-4 4" stroke="var(--cms-text-dim, #6b7280)" strokeWidth="1.2" strokeLinecap="round" />
     </svg>
   )
 }
@@ -151,7 +129,7 @@ function ActionMenu({
     return (
       <span
         className="text-xs px-2 py-1 rounded cursor-not-allowed"
-        style={{ color: 'var(--text-dim)' }}
+        style={{ color: 'var(--cms-text-dim)' }}
         title="PII anonimizado por LGPD"
       >
         ⋯
@@ -191,7 +169,7 @@ function ActionMenu({
       <button
         onClick={() => setOpen((o) => !o)}
         className="text-xs px-2 py-1 rounded transition-colors"
-        style={{ color: 'var(--text-dim)' }}
+        style={{ color: 'var(--cms-text-dim)' }}
         aria-label="Ações"
         aria-expanded={open}
         aria-haspopup="menu"
@@ -202,7 +180,7 @@ function ActionMenu({
         <div
           className="absolute right-0 top-full mt-1 rounded-lg border shadow-lg z-10 py-1 min-w-[180px]"
           role="menu"
-          style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+          style={{ background: 'var(--cms-surface)', borderColor: 'var(--cms-border)' }}
         >
           {items.map((item) => (
             <button
@@ -216,12 +194,12 @@ function ActionMenu({
               }}
               className="w-full text-left text-xs px-3 py-1.5 transition-colors"
               style={{
-                color: item.danger ? '#ef4444' : 'var(--text)',
+                color: item.danger ? 'var(--cms-red, #ef4444)' : 'var(--cms-text)',
                 background: 'transparent',
               }}
               onMouseEnter={(e) => {
                 ;(e.currentTarget as HTMLButtonElement).style.background =
-                  'var(--surface-hover)'
+                  'var(--cms-surface-hover)'
               }}
               onMouseLeave={(e) => {
                 ;(e.currentTarget as HTMLButtonElement).style.background = 'transparent'
@@ -240,21 +218,21 @@ function MobileCard({ row }: { row: SubscriberRow }) {
   return (
     <div
       className="rounded-lg border p-3 mb-2"
-      style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+      style={{ borderColor: 'var(--cms-border)', background: 'var(--cms-surface)' }}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex-1 min-w-0">
           {row.is_anonymized ? (
             <span
               className="font-mono text-xs italic"
-              style={{ color: 'var(--text-dim)' }}
+              style={{ color: 'var(--cms-text-dim)' }}
             >
               {row.email}
             </span>
           ) : (
             <span
               className="font-mono text-xs truncate block"
-              style={{ color: 'var(--text)' }}
+              style={{ color: 'var(--cms-text)' }}
             >
               {row.email}
             </span>
@@ -262,7 +240,7 @@ function MobileCard({ row }: { row: SubscriberRow }) {
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           {row.is_anonymized && <LgpdLockIcon />}
-          <StatusBadge status={row.status} />
+          <StatusBadge variant={row.status as StatusVariant} pill label={STATUS_LABELS[row.status]} />
         </div>
       </div>
       <div className="flex items-center justify-between">
@@ -280,7 +258,7 @@ function MobileCard({ row }: { row: SubscriberRow }) {
             ariaLabel="Engajamento nos últimos 5 envios"
           />
         </div>
-        <span className="text-xs" style={{ color: 'var(--text-dim)' }}>
+        <span className="text-xs" style={{ color: 'var(--cms-text-dim)' }}>
           {new Date(row.subscribed_at).toLocaleDateString('pt-BR')}
         </span>
       </div>
@@ -356,7 +334,7 @@ export function SubscriberTable({
       {/* Filter bar */}
       <div
         className="rounded-lg border p-3 mb-4 flex flex-wrap gap-2 items-center"
-        style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+        style={{ borderColor: 'var(--cms-border)', background: 'var(--cms-surface)' }}
       >
         <input
           type="search"
@@ -366,9 +344,9 @@ export function SubscriberTable({
           aria-label="Buscar assinante"
           className="flex-1 min-w-[180px] text-sm rounded-md px-3 py-1.5 border outline-none"
           style={{
-            borderColor: 'var(--border)',
-            background: 'var(--surface-hover)',
-            color: 'var(--text)',
+            borderColor: 'var(--cms-border)',
+            background: 'var(--cms-surface-hover)',
+            color: 'var(--cms-text)',
           }}
         />
         <select
@@ -377,9 +355,9 @@ export function SubscriberTable({
           aria-label="Filtrar por newsletter"
           className="text-sm rounded-md px-2 py-1.5 border outline-none"
           style={{
-            borderColor: 'var(--border)',
-            background: 'var(--surface-hover)',
-            color: 'var(--text)',
+            borderColor: 'var(--cms-border)',
+            background: 'var(--cms-surface-hover)',
+            color: 'var(--cms-text)',
           }}
         >
           <option value="">Todas as newsletters</option>
@@ -399,14 +377,14 @@ export function SubscriberTable({
                 style={
                   currentStatus === s
                     ? {
-                        background: 'var(--text)',
-                        color: 'var(--surface)',
-                        borderColor: 'var(--text)',
+                        background: 'var(--cms-text)',
+                        color: 'var(--cms-surface)',
+                        borderColor: 'var(--cms-text)',
                       }
                     : {
                         background: 'transparent',
-                        color: 'var(--text-dim)',
-                        borderColor: 'var(--border)',
+                        color: 'var(--cms-text-dim)',
+                        borderColor: 'var(--cms-border)',
                       }
                 }
                 aria-pressed={currentStatus === s}
@@ -419,7 +397,7 @@ export function SubscriberTable({
         {selectedIds.size > 0 && (
           <span
             className="ml-auto text-xs px-2.5 py-1 rounded-full"
-            style={{ background: 'var(--surface-hover)', color: 'var(--text-dim)' }}
+            style={{ background: 'var(--cms-surface-hover)', color: 'var(--cms-text-dim)' }}
           >
             {selectedIds.size} selecionado{selectedIds.size !== 1 ? 's' : ''}
           </span>
@@ -435,7 +413,7 @@ export function SubscriberTable({
           <thead>
             <tr
               className="text-left text-xs uppercase"
-              style={{ color: 'var(--text-dim)', letterSpacing: '0.06em' }}
+              style={{ color: 'var(--cms-text-dim)', letterSpacing: '0.06em' }}
             >
               <th className="pb-2 pr-3 w-8">
                 <input
@@ -461,7 +439,7 @@ export function SubscriberTable({
                 <td
                   colSpan={8}
                   className="py-12 text-center text-sm"
-                  style={{ color: 'var(--text-dim)' }}
+                  style={{ color: 'var(--cms-text-dim)' }}
                 >
                   Nenhum assinante encontrado.
                 </td>
@@ -471,10 +449,10 @@ export function SubscriberTable({
               <tr
                 key={row.id}
                 className="border-t transition-colors"
-                style={{ borderColor: 'var(--border-subtle)' }}
+                style={{ borderColor: 'var(--cms-border)' }}
                 onMouseEnter={(e) => {
                   ;(e.currentTarget as HTMLTableRowElement).style.background =
-                    'var(--surface-hover)'
+                    'var(--cms-surface-hover)'
                 }}
                 onMouseLeave={(e) => {
                   ;(e.currentTarget as HTMLTableRowElement).style.background = 'transparent'
@@ -494,14 +472,14 @@ export function SubscriberTable({
                   {row.is_anonymized ? (
                     <span
                       className="font-mono text-xs italic truncate block"
-                      style={{ color: 'var(--text-dim)' }}
+                      style={{ color: 'var(--cms-text-dim)' }}
                     >
                       {row.email}
                     </span>
                   ) : (
                     <span
                       className="font-mono text-xs truncate block"
-                      style={{ color: 'var(--text)' }}
+                      style={{ color: 'var(--cms-text)' }}
                     >
                       {row.email}
                     </span>
@@ -514,7 +492,7 @@ export function SubscriberTable({
                   />
                 </td>
                 <td className="py-2.5 pr-4">
-                  <StatusBadge status={row.status} />
+                  <StatusBadge variant={row.status as StatusVariant} pill label={STATUS_LABELS[row.status]} />
                 </td>
                 <td className="py-2.5 pr-4">
                   <div className="flex items-center gap-1.5">
@@ -534,7 +512,7 @@ export function SubscriberTable({
                 </td>
                 <td
                   className="py-2.5 pr-4 text-xs whitespace-nowrap"
-                  style={{ color: 'var(--text-dim)' }}
+                  style={{ color: 'var(--cms-text-dim)' }}
                 >
                   {new Date(row.subscribed_at).toLocaleDateString('pt-BR')}
                 </td>
@@ -552,7 +530,7 @@ export function SubscriberTable({
         {initialRows.length === 0 && (
           <p
             className="text-center py-10 text-sm"
-            style={{ color: 'var(--text-dim)' }}
+            style={{ color: 'var(--cms-text-dim)' }}
           >
             Nenhum assinante encontrado.
           </p>
@@ -566,10 +544,10 @@ export function SubscriberTable({
       {totalPages > 1 && (
         <nav
           className="flex items-center justify-between mt-4 pt-4 border-t text-sm"
-          style={{ borderColor: 'var(--border)' }}
+          style={{ borderColor: 'var(--cms-border)' }}
           aria-label="Paginação"
         >
-          <span className="text-xs" style={{ color: 'var(--text-dim)' }}>
+          <span className="text-xs" style={{ color: 'var(--cms-text-dim)' }}>
             {totalCount === 0
               ? 'Sem resultados'
               : `Mostrando ${startRow}–${endRow} de ${totalCount}`}
@@ -579,7 +557,7 @@ export function SubscriberTable({
               onClick={() => onPageChange(page - 1)}
               disabled={page <= 1}
               className="px-3 py-1.5 rounded border text-xs disabled:opacity-40 transition-colors"
-              style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+              style={{ borderColor: 'var(--cms-border)', color: 'var(--cms-text)' }}
             >
               ← Anterior
             </button>
@@ -601,11 +579,11 @@ export function SubscriberTable({
                   style={
                     pageNum === page
                       ? {
-                          background: 'var(--text)',
-                          color: 'var(--surface)',
-                          borderColor: 'var(--text)',
+                          background: 'var(--cms-text)',
+                          color: 'var(--cms-surface)',
+                          borderColor: 'var(--cms-text)',
                         }
-                      : { borderColor: 'var(--border)', color: 'var(--text)' }
+                      : { borderColor: 'var(--cms-border)', color: 'var(--cms-text)' }
                   }
                   aria-current={pageNum === page ? 'page' : undefined}
                 >
@@ -617,7 +595,7 @@ export function SubscriberTable({
               onClick={() => onPageChange(page + 1)}
               disabled={page >= totalPages}
               className="px-3 py-1.5 rounded border text-xs disabled:opacity-40 transition-colors"
-              style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+              style={{ borderColor: 'var(--cms-border)', color: 'var(--cms-text)' }}
             >
               Próxima →
             </button>

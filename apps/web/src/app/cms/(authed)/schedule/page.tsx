@@ -1,7 +1,7 @@
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { CmsTopbar } from '@/components/cms/cms-topbar'
-import { ScheduleClient } from './_components/schedule-client'
+import { ScheduleClient, type BlogPostRow, type NewsletterEditionRow, type BlogCadenceRow } from './_components/schedule-client'
 
 export default async function SchedulePage() {
   const supabase = getSupabaseServiceClient()
@@ -21,10 +21,10 @@ export default async function SchedulePage() {
     <div>
       <CmsTopbar title="Schedule" />
       <ScheduleClient
-        posts={(postsRes.data ?? []) as any}
-        editions={(editionsRes.data ?? []) as any}
-        cadence={(cadenceRes.data ?? []) as any}
-        backlog={(backlogRes.data ?? []) as any}
+        posts={(postsRes.data ?? []) as BlogPostRow[]}
+        editions={(editionsRes.data ?? []) as NewsletterEditionRow[]}
+        cadence={(cadenceRes.data ?? []) as BlogCadenceRow[]}
+        backlog={(backlogRes.data ?? []) as BlogPostRow[]}
       />
     </div>
   )

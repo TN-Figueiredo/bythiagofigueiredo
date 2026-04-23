@@ -14,12 +14,16 @@ export default async function AuthorsPage() {
     .eq('site_id', siteId)
     .order('display_name')
 
-  const userIds = (authors ?? []).map((a: any) => a.user_id).filter(Boolean)
+  interface AuthorRow { id: string; display_name: string; slug: string | null; bio: string | null; avatar_url: string | null; user_id: string | null }
+  interface MembershipRow { user_id: string; role: string }
+  interface OwnerRow extends Record<string, unknown> { owner_user_id: string | null }
+
+  const userIds = (authors as AuthorRow[] ?? []).map((a) => a.user_id).filter((id): id is string => id !== null)
   const { data: memberships } = userIds.length > 0
     ? await supabase.from('site_memberships').select('user_id, role').eq('site_id', siteId).in('user_id', userIds)
-    : { data: [] }
+    : { data: [] as MembershipRow[] }
   const roleMap: Record<string, string> = {}
-  for (const m of memberships ?? []) roleMap[(m as any).user_id] = (m as any).role
+  for (const m of (memberships ?? []) as MembershipRow[]) roleMap[m.user_id] = m.role
 
   const [postCountsRes, pubCountsRes, campCountsRes] = await Promise.all([
     supabase.from('blog_posts').select('owner_user_id').eq('site_id', siteId).in('owner_user_id', userIds),
@@ -27,27 +31,28 @@ export default async function AuthorsPage() {
     supabase.from('campaigns').select('owner_user_id').eq('site_id', siteId).in('owner_user_id', userIds),
   ])
 
-  function countBy(data: any[] | null, field: string): Record<string, number> {
-    return (data ?? []).reduce((acc: Record<string, number>, row: any) => {
-      acc[row[field]] = (acc[row[field]] ?? 0) + 1
+  function countBy<T extends Record<string, unknown>>(data: T[] | null, field: keyof T): Record<string, number> {
+    return (data ?? []).reduce((acc: Record<string, number>, row) => {
+      const key = String(row[field])
+      acc[key] = (acc[key] ?? 0) + 1
       return acc
     }, {})
   }
-  const postCounts = countBy(postCountsRes.data, 'owner_user_id')
-  const pubCounts = countBy(pubCountsRes.data, 'owner_user_id')
-  const campCounts = countBy(campCountsRes.data, 'owner_user_id')
+  const postCounts = countBy((postCountsRes.data ?? []) as OwnerRow[], 'owner_user_id')
+  const pubCounts = countBy((pubCountsRes.data ?? []) as OwnerRow[], 'owner_user_id')
+  const campCounts = countBy((campCountsRes.data ?? []) as OwnerRow[], 'owner_user_id')
 
-  const authorRows = (authors ?? []).map((a: any) => ({
+  const authorRows = (authors as AuthorRow[] ?? []).map((a) => ({
     id: a.id,
     displayName: a.display_name,
     slug: a.slug ?? a.id.slice(0, 8),
-    role: roleMap[a.user_id] ?? 'editor',
+    role: (a.user_id != null ? roleMap[a.user_id] : undefined) ?? 'editor',
     bio: a.bio,
     avatarUrl: a.avatar_url,
     initials: a.display_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase(),
-    postsCount: postCounts[a.user_id] ?? 0,
-    publishedCount: pubCounts[a.user_id] ?? 0,
-    campaignsCount: campCounts[a.user_id] ?? 0,
+    postsCount: a.user_id != null ? (postCounts[a.user_id] ?? 0) : 0,
+    publishedCount: a.user_id != null ? (pubCounts[a.user_id] ?? 0) : 0,
+    campaignsCount: a.user_id != null ? (campCounts[a.user_id] ?? 0) : 0,
     lastActiveAt: null,
   }))
 

@@ -1,4 +1,4 @@
-import { StatusBadge, formatRelativeTime } from '@/components/cms/ui'
+import { StatusBadge, type StatusVariant, formatRelativeTime } from '@/components/cms/ui'
 
 interface AuthorCardProps {
   id: string
@@ -14,7 +14,7 @@ interface AuthorCardProps {
   lastActiveAt: string | null
 }
 
-const ROLE_VARIANT: Record<string, { variant: string; label: string }> = {
+const ROLE_VARIANT: Record<string, { variant: StatusVariant; label: string }> = {
   super_admin: { variant: 'active', label: 'Super Admin' },
   org_admin: { variant: 'scheduled', label: 'Admin' },
   editor: { variant: 'confirmed', label: 'Editor' },
@@ -38,7 +38,7 @@ export function AuthorCard(props: AuthorCardProps) {
         <div className="flex-1 min-w-0">
           <div className="text-sm font-semibold text-cms-text">{props.displayName}</div>
           <div className="text-[11px] text-cms-text-dim font-mono">@{props.slug}</div>
-          <StatusBadge variant={role.variant as any} label={role.label} className="mt-1" />
+          <StatusBadge variant={role.variant} label={role.label} className="mt-1" />
         </div>
       </div>
 

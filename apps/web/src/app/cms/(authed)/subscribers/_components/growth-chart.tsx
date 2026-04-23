@@ -51,25 +51,24 @@ export function GrowthChart({ data }: GrowthChartProps) {
   return (
     <section
       className="rounded-lg border p-4 mb-6"
-      style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+      style={{ borderColor: 'var(--cms-border)', background: 'var(--cms-surface)' }}
       aria-label="Gráfico de crescimento de assinantes"
     >
       <div className="flex items-center justify-between mb-3">
         <div>
           <h2
             className="text-sm font-semibold"
-            style={{ color: 'var(--text)' }}
+            style={{ color: 'var(--cms-text)' }}
           >
             Crescimento de assinantes
           </h2>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--text-dim)' }}>
-            <span className="text-green-500 font-medium">+{totalGain}</span>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--cms-text-dim)' }}>
+            <span className="font-medium" style={{ color: 'var(--cms-green, #22c55e)' }}>+{totalGain}</span>
             {' · '}
-            <span className="text-red-500 font-medium">-{totalLoss}</span>
+            <span className="font-medium" style={{ color: 'var(--cms-red, #ef4444)' }}>-{totalLoss}</span>
             {' · '}
             <span
-              className={net >= 0 ? 'text-green-500' : 'text-red-500'}
-              style={{ fontWeight: 500 }}
+              style={{ fontWeight: 500, color: net >= 0 ? 'var(--cms-green, #22c55e)' : 'var(--cms-red, #ef4444)' }}
             >
               líquido {net >= 0 ? '+' : ''}{net}
             </span>
@@ -78,7 +77,7 @@ export function GrowthChart({ data }: GrowthChartProps) {
 
         <div
           className="flex gap-1 rounded-md p-0.5"
-          style={{ background: 'var(--surface-hover)' }}
+          style={{ background: 'var(--cms-surface-hover)' }}
           role="group"
           aria-label="Período"
         >
@@ -91,12 +90,12 @@ export function GrowthChart({ data }: GrowthChartProps) {
               style={
                 period === p
                   ? {
-                      background: 'var(--surface)',
-                      color: 'var(--text)',
+                      background: 'var(--cms-surface)',
+                      color: 'var(--cms-text)',
                       fontWeight: 600,
                       boxShadow: '0 1px 2px rgba(0,0,0,0.15)',
                     }
-                  : { color: 'var(--text-dim)' }
+                  : { color: 'var(--cms-text-dim)' }
               }
             >
               {PERIOD_LABELS[p]}
@@ -114,7 +113,7 @@ export function GrowthChart({ data }: GrowthChartProps) {
         {sliced.length === 0 ? (
           <div
             className="flex-1 flex items-center justify-center text-xs"
-            style={{ color: 'var(--text-dim)' }}
+            style={{ color: 'var(--cms-text-dim)' }}
           >
             Sem dados
           </div>
@@ -134,7 +133,7 @@ export function GrowthChart({ data }: GrowthChartProps) {
                   <div
                     style={{
                       height: gainH,
-                      background: '#22c55e',
+                      background: 'var(--cms-green, #22c55e)',
                       width: '100%',
                       borderRadius: '1px 1px 0 0',
                       opacity: isLast ? 1 : 0.8,
@@ -145,7 +144,7 @@ export function GrowthChart({ data }: GrowthChartProps) {
                   <div
                     style={{
                       height: lossH,
-                      background: '#ef4444',
+                      background: 'var(--cms-red, #ef4444)',
                       width: '100%',
                       borderRadius: '0 0 1px 1px',
                       opacity: isLast ? 1 : 0.8,
@@ -156,7 +155,7 @@ export function GrowthChart({ data }: GrowthChartProps) {
                   <div
                     style={{
                       height: 2,
-                      background: 'var(--border)',
+                      background: 'var(--cms-border)',
                       width: '100%',
                     }}
                   />
@@ -169,15 +168,15 @@ export function GrowthChart({ data }: GrowthChartProps) {
 
       {sliced.length > 1 && sliced[0] && sliced[sliced.length - 1] && (
         <div className="flex justify-between mt-1">
-          <span className="text-xs" style={{ color: 'var(--text-dim)' }}>
+          <span className="text-xs" style={{ color: 'var(--cms-text-dim)' }}>
             {formatDate(sliced[0].date)}
           </span>
           {sliced.length > 2 && sliced[Math.floor(sliced.length / 2)] && (
-            <span className="text-xs" style={{ color: 'var(--text-dim)' }}>
+            <span className="text-xs" style={{ color: 'var(--cms-text-dim)' }}>
               {formatDate(sliced[Math.floor(sliced.length / 2)]!.date)}
             </span>
           )}
-          <span className="text-xs" style={{ color: 'var(--text-dim)' }}>
+          <span className="text-xs" style={{ color: 'var(--cms-text-dim)' }}>
             {formatDate(sliced[sliced.length - 1]!.date)}
           </span>
         </div>

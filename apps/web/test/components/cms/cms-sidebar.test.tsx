@@ -6,8 +6,10 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/cms',
 }))
 
+const mockUseSidebar = vi.fn(() => ({ mode: 'expanded' as const, isExpanded: true, toggle: () => {} }))
+
 vi.mock('@/components/cms/sidebar-context', () => ({
-  useSidebar: () => ({ mode: 'expanded' as const, isExpanded: true, toggle: () => {} }),
+  useSidebar: () => mockUseSidebar(),
 }))
 
 describe('CmsSidebar', () => {
@@ -55,5 +57,23 @@ describe('CmsSidebar', () => {
     const { container } = render(<CmsSidebar {...props} />)
     const dashboardLink = container.querySelector('a[href="/cms"]')
     expect(dashboardLink?.className).toContain('text-cms-accent')
+  })
+
+  it('renders badge count next to nav item when badges prop is provided', () => {
+    render(<CmsSidebar {...props} badges={{ '/cms/blog': 5 }} />)
+    expect(screen.getByText('5')).toBeTruthy()
+  })
+
+  it('shows only icons when collapsed mode is active', () => {
+    mockUseSidebar.mockReturnValue({ mode: 'collapsed' as const, isExpanded: false, toggle: () => {} })
+    const { container } = render(<CmsSidebar {...props} />)
+    // Text labels must not be rendered in collapsed mode
+    expect(screen.queryByText('Dashboard')).toBeNull()
+    expect(screen.queryByText('Posts')).toBeNull()
+    // Aside must use the narrow collapsed width
+    const aside = container.querySelector('aside')
+    expect(aside?.className).toContain('w-12')
+    // Restore default for subsequent tests
+    mockUseSidebar.mockReturnValue({ mode: 'expanded' as const, isExpanded: true, toggle: () => {} })
   })
 })

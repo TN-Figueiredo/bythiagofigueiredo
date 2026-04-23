@@ -6,11 +6,11 @@ import { AgendaView } from './agenda-view'
 import { BacklogPanel } from './backlog-panel'
 import { QuickScheduleDialog } from './quick-schedule-dialog'
 
-interface BlogPostRow { id: string; slot_date: string | null; status: string
+export interface BlogPostRow { id: string; slot_date: string | null; status: string
   blog_translations: Array<{ title: string; locale: string; reading_time_min?: number | null }> | null }
-interface NewsletterEditionRow { id: string; subject: string; status: string; scheduled_at: string | null
-  newsletter_types: { name: string } | null }
-interface BlogCadenceRow { id?: string; locale: string; cadence_days: number; preferred_send_time?: string | null; cadence_paused?: boolean | null }
+export interface NewsletterEditionRow { id: string; subject: string; status: string; scheduled_at: string | null
+  newsletter_types: Array<{ name: string }> | { name: string } | null }
+export interface BlogCadenceRow { id?: string; locale: string; cadence_days: number; preferred_send_time?: string | null; cadence_paused?: boolean | null }
 interface ScheduleClientProps { posts: BlogPostRow[]; editions: NewsletterEditionRow[]; cadence: BlogCadenceRow[]; backlog: BlogPostRow[] }
 
 type ViewMode = 'week' | 'agenda'

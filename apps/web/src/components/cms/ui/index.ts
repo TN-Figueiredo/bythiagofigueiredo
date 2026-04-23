@@ -7,3 +7,4 @@ export { ContextMenu, ContextMenuItem, ContextMenuDivider } from './context-menu
 export { ToastProvider, useToast } from './toast'
 export { Sparkline } from './sparkline'
 export { formatRelativeTime } from './format-date'
+export { Pagination, type PaginationProps } from './pagination'
