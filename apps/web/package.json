@@ -23,7 +23,7 @@
     "@tn-figueiredo/admin": "0.6.2",
     "@tn-figueiredo/auth-nextjs": "2.2.0",
     "@tn-figueiredo/cms": "0.2.0",
-    "@tn-figueiredo/cms-ui": "0.1.0",
+    "@tn-figueiredo/cms-ui": "0.1.2",
     "@tn-figueiredo/email": "0.2.0",
     "@tn-figueiredo/lgpd": "0.1.0",
     "@tn-figueiredo/newsletter": "0.1.0",
