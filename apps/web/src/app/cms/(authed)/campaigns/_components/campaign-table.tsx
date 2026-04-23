@@ -1,0 +1,444 @@
+'use client'
+
+import { useState, useTransition } from 'react'
+import Link from 'next/link'
+import type { CampaignListItem } from '@tn-figueiredo/cms'
+
+export interface CampaignRow extends CampaignListItem {
+  has_pdf: boolean
+  submission_count: number
+  sparkline_data: number[]
+  submissions_delta: number
+}
+
+interface CampaignTableProps {
+  campaigns: CampaignRow[]
+  onDelete: (id: string) => Promise<{ ok: boolean; error?: string }>
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, { label: string; cls: string }> = {
+    draft: {
+      label: 'Draft',
+      cls: 'bg-[rgba(245,158,11,.12)] text-[#f59e0b] border-[rgba(245,158,11,.3)]',
+    },
+    published: {
+      label: 'Live',
+      cls: 'bg-[rgba(34,197,94,.12)] text-[#22c55e] border-[rgba(34,197,94,.3)]',
+    },
+    scheduled: {
+      label: 'Scheduled',
+      cls: 'bg-[rgba(6,182,212,.12)] text-[#06b6d4] border-[rgba(6,182,212,.3)]',
+    },
+    archived: {
+      label: 'Archived',
+      cls: 'bg-[rgba(113,113,122,.12)] text-[#71717a] border-[rgba(113,113,122,.3)]',
+    },
+    active: {
+      label: 'Live',
+      cls: 'bg-[rgba(34,197,94,.12)] text-[#22c55e] border-[rgba(34,197,94,.3)]',
+    },
+  }
+  const badge = map[status] ?? {
+    label: status,
+    cls: 'bg-[rgba(113,113,122,.12)] text-[#71717a] border-[rgba(113,113,122,.3)]',
+  }
+  return (
+    <span
+      data-status={status}
+      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${badge.cls}`}
+    >
+      {badge.label}
+    </span>
+  )
+}
+
+function TypeBadge({ hasPdf }: { hasPdf: boolean }) {
+  return hasPdf ? (
+    <span className="inline-flex items-center gap-1 rounded-full border border-[rgba(99,102,241,.3)] bg-[rgba(99,102,241,.12)] px-2 py-0.5 text-[11px] font-medium text-[#6366f1]">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+      </svg>
+      PDF
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-1 rounded-full border border-[rgba(6,182,212,.3)] bg-[rgba(6,182,212,.12)] px-2 py-0.5 text-[11px] font-medium text-[#06b6d4]">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+      </svg>
+      Link
+    </span>
+  )
+}
+
+function LocaleBadge({ locale }: { locale: string }) {
+  return (
+    <span className="rounded border border-cms-border bg-cms-surface-hover px-1.5 py-0.5 font-mono text-[10px] text-cms-text-muted">
+      {locale}
+    </span>
+  )
+}
+
+function Sparkline({ data, delta }: { data: number[]; delta: number }) {
+  if (!data || data.length === 0) return <span className="text-cms-text-dim text-xs">—</span>
+
+  const max = Math.max(...data, 1)
+  const width = 48
+  const height = 18
+  const points = data
+    .map((v, i) => {
+      const x = (i / (data.length - 1)) * width
+      const y = height - (v / max) * height
+      return `${x},${y}`
+    })
+    .join(' ')
+
+  const lastX = width
+  const lastY = height - ((data[data.length - 1] ?? 0) / max) * height
+
+  const deltaColor =
+    delta > 0
+      ? '#22c55e'
+      : delta < 0
+        ? '#ef4444'
+        : '#71717a'
+  const deltaLabel = delta > 0 ? `+${delta}` : String(delta)
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <svg width={width} height={height} aria-hidden="true">
+        <polyline
+          points={points}
+          fill="none"
+          stroke="#f59e0b"
+          strokeWidth="1.5"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+        <circle cx={lastX} cy={lastY} r="2.5" fill="#f59e0b" />
+      </svg>
+      {delta !== 0 && (
+        <span className="text-[11px] font-medium" style={{ color: deltaColor }}>
+          {deltaLabel}
+        </span>
+      )}
+    </div>
+  )
+}
+
+function NoPdfWarning() {
+  return (
+    <span className="inline-flex items-center gap-1 rounded border border-[rgba(245,158,11,.3)] bg-[rgba(245,158,11,.08)] px-1.5 py-0.5 text-[10px] text-[#f59e0b]">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+        <line x1="12" y1="9" x2="12" y2="13" />
+        <line x1="12" y1="17" x2="12.01" y2="17" />
+      </svg>
+      No PDF
+    </span>
+  )
+}
+
+const PAGE_SIZE = 20
+
+function Pagination({
+  total,
+  page,
+  onPage,
+}: {
+  total: number
+  page: number
+  onPage: (p: number) => void
+}) {
+  const pages = Math.ceil(total / PAGE_SIZE)
+  if (pages <= 1) return null
+  return (
+    <nav
+      className="flex items-center justify-between border-t border-cms-border px-4 py-3 text-sm text-cms-text-muted"
+      aria-label="Pagination"
+    >
+      <span>
+        {Math.min((page - 1) * PAGE_SIZE + 1, total)}–{Math.min(page * PAGE_SIZE, total)} of {total}
+      </span>
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => onPage(page - 1)}
+          disabled={page === 1}
+          className="rounded px-2 py-1 text-xs hover:bg-cms-surface-hover disabled:opacity-30"
+          aria-label="Previous page"
+        >
+          ‹ Prev
+        </button>
+        {Array.from({ length: pages }, (_, i) => i + 1)
+          .filter((p) => p === 1 || p === pages || Math.abs(p - page) <= 1)
+          .reduce<(number | '…')[]>((acc, p, i, arr) => {
+            if (i > 0 && typeof arr[i - 1] === 'number' && (p as number) - (arr[i - 1] as number) > 1) {
+              acc.push('…')
+            }
+            acc.push(p)
+            return acc
+          }, [])
+          .map((p, i) =>
+            p === '…' ? (
+              <span key={`ellipsis-${i}`} className="px-1">…</span>
+            ) : (
+              <button
+                key={p}
+                onClick={() => onPage(p as number)}
+                aria-current={p === page ? 'page' : undefined}
+                className={`min-w-[28px] rounded px-2 py-1 text-xs ${
+                  p === page
+                    ? 'bg-cms-accent text-white'
+                    : 'hover:bg-cms-surface-hover'
+                }`}
+              >
+                {p}
+              </button>
+            ),
+          )}
+        <button
+          onClick={() => onPage(page + 1)}
+          disabled={page === pages}
+          className="rounded px-2 py-1 text-xs hover:bg-cms-surface-hover disabled:opacity-30"
+          aria-label="Next page"
+        >
+          Next ›
+        </button>
+      </div>
+    </nav>
+  )
+}
+
+function DeleteButton({
+  campaignId,
+  onDelete,
+}: {
+  campaignId: string
+  onDelete: (id: string) => Promise<{ ok: boolean; error?: string }>
+}) {
+  const [isPending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
+
+  function handleDelete() {
+    if (!confirm('Delete this campaign? This action is permanent.')) return
+    setError(null)
+    startTransition(async () => {
+      const result = await onDelete(campaignId)
+      if (!result.ok) setError(result.error ?? 'Failed to delete')
+    })
+  }
+
+  return (
+    <>
+      <button
+        onClick={handleDelete}
+        disabled={isPending}
+        className="rounded px-2 py-1 text-xs text-[#ef4444] hover:bg-[rgba(239,68,68,.1)] disabled:opacity-40"
+        aria-label="Delete campaign"
+      >
+        {isPending ? '…' : 'Delete'}
+      </button>
+      {error && (
+        <span role="alert" className="text-[10px] text-[#ef4444]">
+          {error}
+        </span>
+      )}
+    </>
+  )
+}
+
+function DesktopRow({
+  campaign,
+  onDelete,
+}: {
+  campaign: CampaignRow
+  onDelete: (id: string) => Promise<{ ok: boolean; error?: string }>
+}) {
+  const isArchived = campaign.status === 'archived'
+  const isDraft = campaign.status === 'draft'
+
+  return (
+    <tr
+      className={`border-b border-cms-border transition-colors hover:bg-cms-surface-hover ${isArchived ? 'opacity-50' : ''}`}
+    >
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--cms-radius)] bg-[rgba(245,158,11,.1)] text-[#f59e0b]">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+          </div>
+          <div className="min-w-0">
+            <Link
+              href={`/cms/campaigns/${campaign.id}/edit`}
+              className="block truncate text-sm font-medium text-cms-text hover:text-cms-accent"
+            >
+              {campaign.translation.meta_title ?? campaign.translation.context_tag ?? campaign.translation.slug}
+            </Link>
+            <div className="mt-0.5 flex items-center gap-1.5">
+              <span className="font-mono text-[10px] text-cms-text-dim">
+                {campaign.translation.slug}
+              </span>
+              {campaign.has_pdf && (
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#71717a" strokeWidth="2" aria-label="Has PDF" className="shrink-0">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                </svg>
+              )}
+              {isDraft && !campaign.has_pdf && <NoPdfWarning />}
+            </div>
+          </div>
+        </div>
+      </td>
+      <td className="px-4 py-3">
+        <TypeBadge hasPdf={campaign.has_pdf} />
+      </td>
+      <td className="px-4 py-3">
+        <div className="flex flex-wrap gap-1">
+          {campaign.available_locales.map((l) => (
+            <LocaleBadge key={l} locale={l} />
+          ))}
+        </div>
+      </td>
+      <td className="px-4 py-3">
+        <StatusBadge status={campaign.status} />
+      </td>
+      <td className="px-4 py-3">
+        <div className="flex flex-col gap-1">
+          <span className="text-sm font-medium text-cms-text">
+            {campaign.submission_count.toLocaleString()}
+          </span>
+          <Sparkline data={campaign.sparkline_data} delta={campaign.submissions_delta} />
+        </div>
+      </td>
+      <td className="px-4 py-3 text-xs text-cms-text-muted">
+        {campaign.published_at
+          ? new Date(campaign.published_at).toLocaleDateString('en', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            })
+          : '—'}
+      </td>
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/cms/campaigns/${campaign.id}/edit`}
+            className="rounded px-2 py-1 text-xs text-cms-text-muted hover:bg-cms-surface-hover hover:text-cms-text"
+          >
+            Edit
+          </Link>
+          {(campaign.status === 'draft' || campaign.status === 'archived') && (
+            <DeleteButton campaignId={campaign.id} onDelete={onDelete} />
+          )}
+        </div>
+      </td>
+    </tr>
+  )
+}
+
+function MobileCard({
+  campaign,
+  onDelete,
+}: {
+  campaign: CampaignRow
+  onDelete: (id: string) => Promise<{ ok: boolean; error?: string }>
+}) {
+  const isArchived = campaign.status === 'archived'
+  const isDraft = campaign.status === 'draft'
+
+  return (
+    <div
+      className={`rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface p-4 ${isArchived ? 'opacity-50' : ''}`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <Link
+            href={`/cms/campaigns/${campaign.id}/edit`}
+            className="block truncate text-sm font-medium text-cms-text hover:text-cms-accent"
+          >
+            {campaign.translation.meta_title ?? campaign.translation.context_tag ?? campaign.translation.slug}
+          </Link>
+          <p className="mt-0.5 font-mono text-[10px] text-cms-text-dim">
+            {campaign.translation.slug}
+          </p>
+        </div>
+        <StatusBadge status={campaign.status} />
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <TypeBadge hasPdf={campaign.has_pdf} />
+        {isDraft && !campaign.has_pdf && <NoPdfWarning />}
+        {campaign.available_locales.map((l) => (
+          <LocaleBadge key={l} locale={l} />
+        ))}
+      </div>
+      <div className="mt-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-cms-text">
+            {campaign.submission_count.toLocaleString()}
+          </span>
+          <span className="text-[11px] text-cms-text-muted">subs</span>
+          <Sparkline data={campaign.sparkline_data} delta={campaign.submissions_delta} />
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Link
+            href={`/cms/campaigns/${campaign.id}/edit`}
+            className="rounded px-2 py-1 text-xs text-cms-text-muted hover:bg-cms-surface-hover"
+          >
+            Edit
+          </Link>
+          {(campaign.status === 'draft' || campaign.status === 'archived') && (
+            <DeleteButton campaignId={campaign.id} onDelete={onDelete} />
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function CampaignTable({ campaigns, onDelete }: CampaignTableProps) {
+  const [page, setPage] = useState(1)
+
+  const paginated = campaigns.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  return (
+    <div
+      className="overflow-hidden rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface"
+      data-testid="campaign-table"
+    >
+      <div className="hidden md:block">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-cms-border text-left">
+              {['Campaign', 'Type', 'Locales', 'Status', 'Submissions', 'Date', 'Actions'].map(
+                (h) => (
+                  <th
+                    key={h}
+                    className="px-4 py-3 text-[11px] font-medium uppercase tracking-[1.5px] text-cms-text-muted"
+                  >
+                    {h}
+                  </th>
+                ),
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {paginated.map((c) => (
+              <DesktopRow key={c.id} campaign={c} onDelete={onDelete} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex flex-col gap-3 p-3 md:hidden">
+        {paginated.map((c) => (
+          <MobileCard key={c.id} campaign={c} onDelete={onDelete} />
+        ))}
+      </div>
+      <Pagination total={campaigns.length} page={page} onPage={setPage} />
+    </div>
+  )
+}

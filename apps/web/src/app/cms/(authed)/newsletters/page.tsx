@@ -1,8 +1,11 @@
-import { NewsletterDashboard } from '@tn-figueiredo/newsletter-admin/client'
 import Link from 'next/link'
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
 import { getSiteContext } from '../../../../../lib/cms/site-context'
-import type { NewsletterTypeInfo, EditionSummary } from '@tn-figueiredo/newsletter-admin'
+import { CmsTopbar } from '@/components/cms/cms-topbar'
+import { CmsButton } from '@/components/cms/ui'
+import { TypeCards } from './_components/type-cards'
+import { EditionsTable } from './_components/editions-table'
+import type { EditionRow } from './_components/editions-table'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,7 +26,9 @@ export default async function NewsletterDashboardPage({
 
   let editionsQuery = supabase
     .from('newsletter_editions')
-    .select('id, subject, status, newsletter_type_id, slot_date, scheduled_at, sent_at, send_count, stats_opens, stats_delivered, created_at')
+    .select(
+      'id, subject, preheader, status, newsletter_type_id, slot_date, scheduled_at, sent_at, send_count, stats_opens, stats_delivered, stats_clicks, created_at'
+    )
     .eq('site_id', ctx.siteId)
     .order('created_at', { ascending: false })
     .limit(50)
@@ -33,36 +38,95 @@ export default async function NewsletterDashboardPage({
 
   const { data: editions } = await editionsQuery
 
-  const mappedTypes: NewsletterTypeInfo[] = (types ?? []).map((t) => ({
-    id: t.id,
-    name: t.name,
-    locale: t.locale,
-    color: t.color,
-    cadence_days: t.cadence_days,
-    last_sent_at: t.last_sent_at,
-    cadence_paused: t.cadence_paused,
-  }))
+  const typeMap = new Map(
+    (types ?? []).map((t) => [t.id, { name: t.name, color: t.color }])
+  )
 
-  const mappedEditions: EditionSummary[] = (editions ?? []).map((e) => ({
-    id: e.id,
-    subject: e.subject,
-    status: e.status,
-    newsletter_type_id: e.newsletter_type_id,
-    slot_date: e.slot_date,
-    scheduled_at: e.scheduled_at,
-    sent_at: e.sent_at,
-    send_count: e.send_count,
-    stats_opens: e.stats_opens,
-    stats_delivered: e.stats_delivered,
-    created_at: e.created_at,
-  }))
+  const mappedTypes = (types ?? []).map((t) => {
+    const typeEditions = (editions ?? []).filter((e) => e.newsletter_type_id === t.id)
+    const sentEditions = typeEditions.filter((e) => e.status === 'sent')
+    const totalOpens = sentEditions.reduce((sum, e) => sum + (e.stats_opens ?? 0), 0)
+    const totalDelivered = sentEditions.reduce((sum, e) => sum + (e.stats_delivered ?? 0), 0)
+    const avgOpenRate = totalDelivered > 0 ? Math.round((totalOpens / totalDelivered) * 100) : 0
+
+    return {
+      id: t.id,
+      name: t.name,
+      color: t.color ?? '#6366f1',
+      subscribers: 0,
+      avgOpenRate,
+      lastSent: t.last_sent_at
+        ? new Date(t.last_sent_at).toLocaleDateString('en', { month: 'short', day: 'numeric' })
+        : null,
+      cadence: t.cadence_days ? `Every ${t.cadence_days}d` : 'Manual',
+      editionCount: typeEditions.length,
+      isPaused: t.cadence_paused ?? false,
+    }
+  })
+
+  const mappedEditions: EditionRow[] = (editions ?? []).map((e) => {
+    const typeInfo = typeMap.get(e.newsletter_type_id)
+    return {
+      id: e.id,
+      subject: e.subject,
+      preheader: e.preheader,
+      status: e.status,
+      typeName: typeInfo?.name ?? 'Unknown',
+      typeColor: typeInfo?.color ?? '#71717a',
+      newsletter_type_id: e.newsletter_type_id,
+      sendCount: e.send_count ?? 0,
+      statsDelivered: e.stats_delivered ?? 0,
+      statsOpens: e.stats_opens ?? 0,
+      statsClicks: e.stats_clicks ?? 0,
+      sentAt: e.sent_at,
+      scheduledAt: e.scheduled_at,
+      createdAt: e.created_at,
+    }
+  })
 
   return (
-    <NewsletterDashboard
-      types={mappedTypes}
-      editions={mappedEditions}
-      filters={params}
-      linkComponent={Link}
-    />
+    <div>
+      <CmsTopbar
+        title="Newsletters"
+        actions={
+          <Link href="/cms/newsletters/new">
+            <CmsButton variant="primary" size="sm">
+              + New Edition
+            </CmsButton>
+          </Link>
+        }
+      />
+      <div className="p-6 lg:p-8 space-y-6">
+        <TypeCards
+          types={mappedTypes}
+          selectedTypeId={params.type ?? null}
+          onSelect={() => {}}
+        />
+
+        <div className="flex items-center gap-1 text-xs">
+          {['all', 'draft', 'ready', 'scheduled', 'sending', 'sent', 'failed'].map((s) => {
+            const isActive = (params.status ?? 'all') === s
+            return (
+              <Link
+                key={s}
+                href={`/cms/newsletters?${new URLSearchParams({
+                  ...(params.type ? { type: params.type } : {}),
+                  ...(s !== 'all' ? { status: s } : {}),
+                }).toString()}`}
+                className={`rounded-full px-3 py-1.5 font-medium capitalize transition-colors ${
+                  isActive
+                    ? 'bg-cms-accent text-white'
+                    : 'text-cms-text-muted hover:bg-cms-surface-hover hover:text-cms-text'
+                }`}
+              >
+                {s}
+              </Link>
+            )
+          })}
+        </div>
+
+        <EditionsTable editions={mappedEditions} />
+      </div>
+    </div>
   )
 }
