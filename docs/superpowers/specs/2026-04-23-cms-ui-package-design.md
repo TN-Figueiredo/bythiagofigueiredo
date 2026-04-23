@@ -42,15 +42,90 @@ Components use Tailwind 4 custom utility classes (`bg-cms-surface`, `text-cms-te
 ### Solution: Pre-compile Tailwind 4 at package build time
 
 1. `src/styles.css` contains:
-   - Design tokens: `[data-area="cms"]` (dark default) + `[data-theme="light"] [data-area="cms"]` overrides
    - `@import "tailwindcss"` directive
+   - `@source` directives pointing to component files
+   - `@theme` block registering `--cms-*` tokens as Tailwind color/spacing values
+   - Design tokens: `[data-area="cms"]` (dark default) + `[data-theme="light"] [data-area="cms"]` overrides
    - Keyframes (`shimmer`, `slideUp`)
 
-2. tsup config runs PostCSS with `@tailwindcss/postcss` during build:
-   - Tailwind 4 scans `src/**/*.tsx` for used classes
-   - Output: `dist/styles.css` with tokens + ALL resolved utility classes (e.g., `.bg-cms-surface { background-color: var(--cms-surface) }`, `.hover\:bg-cms-surface-hover:hover { ... }`, `.md\:hidden { ... }`)
+2. **Two-step build** (CSS is NOT handled by tsup):
+   - **Step 1 — CSS:** `postcss src/styles.css -o dist/styles.css` with `@tailwindcss/postcss` plugin. Tailwind 4 scans `src/**/*.tsx` via `@source` directives, resolves `@theme` values, outputs ALL utility classes used by components.
+   - **Step 2 — JS:** `tsup` compiles TypeScript/JSX to ESM + CJS + .d.ts (does NOT touch CSS).
+   - `package.json` scripts: `"build": "postcss src/styles.css -o dist/styles.css && tsup"`
 
-3. Consumer imports `@tn-figueiredo/cms-ui/styles.css` — done. **No Tailwind setup required.** But if they do use Tailwind, the `--cms-*` vars are available for extension.
+3. Consumer imports `@tn-figueiredo/cms-ui/styles.css` — done. **No Tailwind setup required. No `transpilePackages` needed.** But if they do use Tailwind, the `--cms-*` vars are available for extension.
+
+### `src/styles.css` structure
+
+```css
+@import "tailwindcss";
+
+/* Tell Tailwind 4 which files to scan for class usage */
+@source "./shell/**/*.tsx";
+@source "./ui/**/*.tsx";
+
+/* Register CMS tokens as Tailwind theme values so utilities
+   like bg-cms-surface, text-cms-text etc. are generated */
+@theme {
+  --color-cms-bg: var(--cms-bg);
+  --color-cms-surface: var(--cms-surface);
+  --color-cms-surface-hover: var(--cms-surface-hover);
+  --color-cms-border: var(--cms-border);
+  --color-cms-border-subtle: var(--cms-border-subtle);
+  --color-cms-text: var(--cms-text);
+  --color-cms-text-muted: var(--cms-text-muted);
+  --color-cms-text-dim: var(--cms-text-dim);
+  --color-cms-accent: var(--cms-accent);
+  --color-cms-accent-hover: var(--cms-accent-hover);
+  --color-cms-accent-subtle: var(--cms-accent-subtle);
+  --color-cms-green: var(--cms-green);
+  --color-cms-green-subtle: var(--cms-green-subtle);
+  --color-cms-amber: var(--cms-amber);
+  --color-cms-amber-subtle: var(--cms-amber-subtle);
+  --color-cms-red: var(--cms-red);
+  --color-cms-red-subtle: var(--cms-red-subtle);
+  --color-cms-cyan: var(--cms-cyan);
+  --color-cms-cyan-subtle: var(--cms-cyan-subtle);
+  --color-cms-rose: var(--cms-rose);
+  --color-cms-rose-subtle: var(--cms-rose-subtle);
+  --color-cms-purple: var(--cms-purple);
+  --color-cms-purple-subtle: var(--cms-purple-subtle);
+  --radius-cms: var(--cms-radius);
+}
+
+/* Design tokens — dark theme (default) */
+[data-area="cms"] { /* ... token definitions ... */ }
+
+/* Light theme overrides */
+[data-theme="light"] [data-area="cms"] { /* ... overrides ... */ }
+
+/* Keyframes */
+@keyframes shimmer { /* ... */ }
+@keyframes slideUp { /* ... */ }
+```
+
+### CSS scope and reset
+
+The package does NOT include any CSS reset or normalize. It assumes the consumer already has one (Next.js provides one via `globals.css`). All CMS styles are scoped to `[data-area="cms"]` via CSS custom properties — no global side effects beyond the token definitions and utility classes.
+
+### Standalone primitive usage (without CmsShell)
+
+If a consumer imports only primitives (e.g., `StatusBadge`) without `CmsShell`, the CSS tokens must still be active. Wrap the usage area in an element with `data-area="cms"`:
+
+```tsx
+import '@tn-figueiredo/cms-ui/styles.css'
+import { StatusBadge } from '@tn-figueiredo/cms-ui/client'
+
+function MyWidget() {
+  return (
+    <div data-area="cms">
+      <StatusBadge variant="published" label="Live" pill />
+    </div>
+  )
+}
+```
+
+`CmsShell` sets `data-area="cms"` automatically on its root div.
 
 ### Token override mechanism
 
@@ -221,14 +296,75 @@ React context managing sidebar mode. Listens to window resize. Provides `mode` a
 | `ContextMenu` | `trigger: ReactNode, children: ContextMenuItem[]` | `aria-expanded`, `aria-haspopup`, Escape closes, outside click closes |
 | `ContextMenuItem` | `label, onClick, icon?, disabled?` | Disabled state respected |
 | `ContextMenuDivider` | (none) | `role="separator"` |
-| `ToastProvider` + `useToast()` | `show(message, type?, opts?)` | `role="status"`, `aria-live="polite"`, auto-dismiss (success 3s, error 6s, info 4s), max 3 visible |
+| `ToastProvider` + `useToast()` | `show(message, type?, opts?)` | `role="status"`, `aria-live="polite"`, auto-dismiss by type, max 3 visible |
 | `Sparkline` | `points: number[], color?, width?, height?` | `aria-hidden="true"` (decorative micro-chart) |
 | `Pagination` | `page, totalPages, onPageChange, showSummary?` | `aria-label="Pagination"`, `aria-current="page"` on active |
 | `formatRelativeTime` | `date: Date \| string, locale?: string` | N/A (utility, default locale `'en'`) |
 
-### StatusVariant (21 values)
+### Complete Type Definitions
 
-`'draft' | 'review' | 'pending' | 'pending_review' | 'ready' | 'queued' | 'scheduled' | 'published' | 'sent' | 'sending' | 'failed' | 'archived' | 'confirmed' | 'unsubscribed' | 'bounced' | 'complained' | 'paused' | 'active' | 'inactive' | 'expired' | 'cancelled'`
+```typescript
+// --- StatusBadge ---
+type StatusVariant =
+  | 'draft' | 'review' | 'pending' | 'pending_review' | 'ready'
+  | 'queued' | 'scheduled' | 'published' | 'sent' | 'sending'
+  | 'failed' | 'archived' | 'confirmed' | 'unsubscribed'
+  | 'bounced' | 'complained' | 'paused' | 'active' | 'inactive'
+  | 'expired' | 'cancelled'
+
+interface StatusBadgeProps {
+  variant: StatusVariant
+  label: string
+  pill?: boolean     // rounded-full vs rounded-md
+  dot?: boolean      // colored dot prefix
+}
+
+// --- KpiCard ---
+interface KpiCardProps {
+  label: string
+  value: string | number
+  sub?: string
+  trend?: { value: number; label: string }  // e.g. { value: 12, label: '+12%' }
+  sparklineData?: number[]
+}
+
+// --- CmsButton ---
+interface CmsButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: 'primary' | 'ghost' | 'danger'
+  size?: 'sm' | 'md'
+}
+
+// --- EmptyState ---
+interface EmptyStateHint {
+  icon: string
+  title: string
+  description: string
+}
+interface EmptyStateProps {
+  icon: string
+  title: string
+  description?: string
+  action?: { label: string; onClick: () => void }
+  hints?: EmptyStateHint[]
+}
+
+// --- Toast ---
+type ToastType = 'success' | 'error' | 'info'
+interface ToastOptions {
+  action?: { label: string; onClick: () => void }
+  duration?: number  // override auto-dismiss (ms)
+}
+// Auto-dismiss defaults: success=3000ms, info=4000ms, error=6000ms
+// useToast() returns: { show(message: string, type?: ToastType, opts?: ToastOptions): void }
+
+// --- Pagination ---
+interface PaginationProps {
+  page: number
+  totalPages: number
+  onPageChange: (page: number) => void
+  showSummary?: boolean  // "Page X of Y"
+}
+```
 
 ---
 
@@ -356,6 +492,10 @@ The **UI primitives** (KpiCard, StatusBadge, CmsButton, Sparkline, etc.) do NOT 
 ```
 
 Zero runtime dependencies. No lucide-react, no recharts. Icons are emoji strings (via `icon` prop). Charts are pure SVG.
+
+### Consumer does NOT need `transpilePackages`
+
+The package ships pre-compiled JS (ESM + CJS via tsup) and pre-compiled CSS (via PostCSS/Tailwind 4). The `'use client'` banner is embedded in the `./client` entry. No JSX or TypeScript reaches the consumer — only `.js`, `.cjs`, `.d.ts`, and `.css` files. This matches `@tn-figueiredo/admin@0.6.2` which also does not require `transpilePackages`.
 
 ---
 
