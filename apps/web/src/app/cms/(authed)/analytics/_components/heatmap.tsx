@@ -110,13 +110,18 @@ export function Heatmap({ cells, weeks = 12, label = 'contributions' }: HeatmapP
               </span>
             ))}
           </div>
-          <div className="flex gap-[3px]">
+          <div
+            className="flex gap-[3px]"
+            role="img"
+            aria-label={`Activity heatmap: ${total} ${label} in the last ${weeks} weeks`}
+          >
             {grid.map((col, wi) => (
               <div key={wi} className="flex flex-col gap-[3px]">
                 {col.map((cell) => (
                   <div
                     key={cell.date}
                     title={`${cell.date}: ${cell.count} ${label}`}
+                    aria-label={`${cell.date}: ${cell.count} ${label}`}
                     className="w-[11px] h-[11px] rounded-sm transition-all cursor-default"
                     style={{
                       background: cell.inFuture

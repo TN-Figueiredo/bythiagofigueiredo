@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useSidebar } from './sidebar-context'
@@ -74,12 +75,16 @@ export function CmsSidebar({ siteName, siteInitials, userDisplayName, userRole, 
 
   const isCollapsed = mode === 'collapsed'
 
-  const filteredSections = SECTIONS.map((s) => ({
-    ...s,
-    items: s.items
-      .filter((item) => hasAccess(userRole, item.minRole))
-      .map((item) => ({ ...item, badge: badges?.[item.href] ?? item.badge })),
-  })).filter((s) => s.items.length > 0)
+  const filteredSections = useMemo(
+    () =>
+      SECTIONS.map((s) => ({
+        ...s,
+        items: s.items
+          .filter((item) => hasAccess(userRole, item.minRole))
+          .map((item) => ({ ...item, badge: badges?.[item.href] ?? item.badge })),
+      })).filter((s) => s.items.length > 0),
+    [userRole, badges],
+  )
 
   return (
     <aside
@@ -94,7 +99,7 @@ export function CmsSidebar({ siteName, siteInitials, userDisplayName, userRole, 
       </div>
 
       {/* Nav sections */}
-      <nav className="flex-1 overflow-y-auto py-2">
+      <nav aria-label="CMS Navigation" className="flex-1 overflow-y-auto py-2">
         {filteredSections.map((section) => (
           <div key={section.label} className="py-1">
             {section.label && !isCollapsed && (
@@ -108,6 +113,7 @@ export function CmsSidebar({ siteName, siteInitials, userDisplayName, userRole, 
                 <Link
                   key={item.href}
                   href={item.href}
+                  aria-current={isActive ? 'page' : undefined}
                   className={`relative flex items-center gap-2.5 text-[13px] transition-all duration-150
                     ${isCollapsed ? 'justify-center py-2 mx-1 rounded-md' : 'px-5 py-2'}
                     ${isActive
@@ -165,7 +171,7 @@ export function CmsSidebar({ siteName, siteInitials, userDisplayName, userRole, 
           )}
           {!isCollapsed && (
             <form action="/cms/logout" method="POST">
-              <button type="submit" className="text-cms-text-dim hover:text-cms-text text-xs transition-colors" title="Sign out">
+              <button type="submit" className="text-cms-text-dim hover:text-cms-text text-xs transition-colors" title="Sign out" aria-label="Sign out">
                 ↗
               </button>
             </form>

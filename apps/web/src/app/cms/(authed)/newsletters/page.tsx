@@ -1,6 +1,6 @@
 import Link from 'next/link'
-import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
-import { getSiteContext } from '../../../../../lib/cms/site-context'
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { getSiteContext } from '@/lib/cms/site-context'
 import { CmsTopbar } from '@/components/cms/cms-topbar'
 import { CmsButton } from '@/components/cms/ui'
 import { TypeCards } from './_components/type-cards'

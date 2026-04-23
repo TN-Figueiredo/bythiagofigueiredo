@@ -60,6 +60,13 @@ export function AreaChart({ data, series, height = 180, todayIndex }: AreaChartP
 
   return (
     <div className="relative w-full" style={{ height }}>
+      <span className="sr-only">
+        {series.map((s, si) => {
+          const vals = data.map((d) => d.values[si] ?? 0)
+          const total = vals.reduce((a, b) => a + b, 0)
+          return `${s.name}: ${total} total across ${data.length} data points. `
+        })}
+      </span>
       <svg
         viewBox={`0 0 100 ${height}`}
         preserveAspectRatio="none"

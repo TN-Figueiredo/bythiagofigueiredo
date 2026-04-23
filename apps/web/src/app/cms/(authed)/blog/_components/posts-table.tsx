@@ -34,7 +34,7 @@ export function PostsTable({ posts, total, page, pageSize, currentParams }: Post
   if (posts.length === 0) {
     return (
       <div className="text-center py-16">
-        <div className="text-4xl mb-3 opacity-30">📝</div>
+        <div className="text-4xl mb-3 opacity-30" aria-hidden="true">📝</div>
         <h3 className="text-sm font-semibold text-cms-text mb-1">No posts yet</h3>
         <p className="text-xs text-cms-text-muted mb-4">Write your first blog post. Save as draft, schedule, or publish now.</p>
         <Link href="/cms/blog/new" className="inline-flex px-4 py-2 bg-cms-accent text-white text-sm rounded-[var(--cms-radius)] font-medium">

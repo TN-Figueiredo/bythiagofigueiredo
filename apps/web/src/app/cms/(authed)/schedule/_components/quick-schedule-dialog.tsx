@@ -41,8 +41,13 @@ export function QuickScheduleDialog({ item, slotDays = [], onSchedule, onClose }
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="rounded-[12px] border shadow-2xl w-full max-w-[420px]"
-        style={{ background: 'var(--cms-surface, #1a1d27)', borderColor: 'var(--cms-border, #2a2d3a)' }}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Schedule ${item.title}`}
+        className="rounded-[12px] border shadow-2xl w-full max-w-[420px]"
+        style={{ background: 'var(--cms-surface, #1a1d27)', borderColor: 'var(--cms-border, #2a2d3a)' }}
+      >
         <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'var(--cms-border, #2a2d3a)' }}>
           <p className="text-sm font-semibold" style={{ color: 'var(--cms-text, #e4e4e7)' }}>Schedule Item</p>
           <button onClick={onClose} className="w-6 h-6 flex items-center justify-center rounded hover:opacity-70 text-lg leading-none"
