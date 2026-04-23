@@ -11,6 +11,7 @@ import {
 } from '@tn-figueiredo/admin/site-switcher'
 import { CmsSiteSwitcherSlot } from '../../../components/cms/site-switcher-provider'
 import { CmsShell } from '../../../components/cms/cms-shell'
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
 export default async function Layout({ children }: { children: ReactNode }) {
   const cookieStore = await cookies()
@@ -39,6 +40,17 @@ export default async function Layout({ children }: { children: ReactNode }) {
   const userDisplayName = user.email ?? 'User'
   const userRole = currentSite?.user_role ?? 'reporter'
 
+  const svc = getSupabaseServiceClient()
+  const [draftsRes, subsRes] = await Promise.all([
+    svc.from('blog_posts').select('id', { count: 'exact', head: true })
+      .eq('site_id', currentSiteId).eq('status', 'draft'),
+    svc.from('newsletter_subscriptions').select('id', { count: 'exact', head: true })
+      .eq('site_id', currentSiteId).eq('status', 'confirmed'),
+  ])
+  const badges: Record<string, number> = {}
+  if (draftsRes.count) badges['/cms/blog'] = draftsRes.count
+  if (subsRes.count) badges['/cms/subscribers'] = subsRes.count
+
   return (
     <SiteSwitcherProvider sites={sites} initialSiteId={currentSiteId}>
       <CmsShell
@@ -47,6 +59,7 @@ export default async function Layout({ children }: { children: ReactNode }) {
         userDisplayName={userDisplayName}
         userRole={userRole}
         siteSwitcher={<CmsSiteSwitcherSlot />}
+        badges={badges}
       >
         {children}
       </CmsShell>

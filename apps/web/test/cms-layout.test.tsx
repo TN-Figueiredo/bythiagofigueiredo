@@ -42,6 +42,18 @@ vi.mock('@tn-figueiredo/auth-nextjs', () => ({
   requireArea: vi.fn(async () => undefined),
 }))
 
+vi.mock('@/lib/supabase/service', () => ({
+  getSupabaseServiceClient: vi.fn(() => ({
+    from: vi.fn(() => ({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          eq: vi.fn(async () => ({ count: 0, data: null, error: null })),
+        })),
+      })),
+    })),
+  })),
+}))
+
 import Layout from '../src/app/cms/(authed)/layout'
 
 describe('cms/layout', () => {

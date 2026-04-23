@@ -12,10 +12,11 @@ interface CmsShellProps {
   userDisplayName: string
   userRole: string
   siteSwitcher?: ReactNode
+  badges?: Record<string, string | number>
   children: ReactNode
 }
 
-export function CmsShell({ siteName, siteInitials, userDisplayName, userRole, siteSwitcher, children }: CmsShellProps) {
+export function CmsShell({ siteName, siteInitials, userDisplayName, userRole, siteSwitcher, badges, children }: CmsShellProps) {
   return (
     <SidebarProvider>
       <ToastProvider>
@@ -26,6 +27,7 @@ export function CmsShell({ siteName, siteInitials, userDisplayName, userRole, si
             userDisplayName={userDisplayName}
             userRole={userRole}
             siteSwitcher={siteSwitcher}
+            badges={badges}
           />
           <main className="flex-1 overflow-y-auto pb-14 md:pb-0">{children}</main>
           <CmsBottomNav />

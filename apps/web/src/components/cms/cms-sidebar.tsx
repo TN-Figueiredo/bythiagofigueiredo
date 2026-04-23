@@ -39,7 +39,7 @@ const SECTIONS: SidebarSection[] = [
     label: 'People',
     items: [
       { icon: '👤', label: 'Authors', href: '/cms/authors', minRole: 'editor' },
-      { icon: '📧', label: 'Subscribers', href: '/cms/newsletters/subscribers', minRole: 'org_admin' },
+      { icon: '📧', label: 'Subscribers', href: '/cms/subscribers', minRole: 'org_admin' },
     ],
   },
   {
@@ -58,6 +58,7 @@ interface CmsSidebarProps {
   userDisplayName: string
   userRole: string
   siteSwitcher?: React.ReactNode
+  badges?: Record<string, string | number>
 }
 
 function hasAccess(userRole: string, minRole?: string): boolean {
@@ -65,7 +66,7 @@ function hasAccess(userRole: string, minRole?: string): boolean {
   return (ROLE_RANK[userRole] ?? 0) >= (ROLE_RANK[minRole] ?? 0)
 }
 
-export function CmsSidebar({ siteName, siteInitials, userDisplayName, userRole, siteSwitcher }: CmsSidebarProps) {
+export function CmsSidebar({ siteName, siteInitials, userDisplayName, userRole, siteSwitcher, badges }: CmsSidebarProps) {
   const { mode } = useSidebar()
   const pathname = usePathname()
 
@@ -75,7 +76,9 @@ export function CmsSidebar({ siteName, siteInitials, userDisplayName, userRole, 
 
   const filteredSections = SECTIONS.map((s) => ({
     ...s,
-    items: s.items.filter((item) => hasAccess(userRole, item.minRole)),
+    items: s.items
+      .filter((item) => hasAccess(userRole, item.minRole))
+      .map((item) => ({ ...item, badge: badges?.[item.href] ?? item.badge })),
   })).filter((s) => s.items.length > 0)
 
   return (
