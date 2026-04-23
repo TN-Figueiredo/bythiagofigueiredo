@@ -54,13 +54,14 @@ Add after the existing `[data-theme="light"]` pinboard block (around line 90+):
   --cms-cyan: #06b6d4;
   --cms-cyan-subtle: rgba(6,182,212,.12);
   --cms-rose: #f43f5e;
+  --cms-rose-subtle: rgba(244,63,94,.12);
   --cms-purple: #8b5cf6;
   --cms-purple-subtle: rgba(139,92,246,.12);
   --cms-radius: 8px;
   --cms-sidebar-w: 230px;
 }
 
-[data-area="cms"][data-theme="light"] {
+[data-theme="light"] [data-area="cms"] {
   --cms-bg: #f8f9fb;
   --cms-surface: #ffffff;
   --cms-surface-hover: #f3f4f6;
@@ -76,6 +77,7 @@ Add after the existing `[data-theme="light"]` pinboard block (around line 90+):
   --cms-amber-subtle: rgba(245,158,11,.08);
   --cms-red-subtle: rgba(239,68,68,.08);
   --cms-cyan-subtle: rgba(6,182,212,.08);
+  --cms-rose-subtle: rgba(244,63,94,.08);
   --cms-purple-subtle: rgba(139,92,246,.08);
 }
 ```
@@ -106,6 +108,7 @@ Add inside the existing `@theme inline` block or create a new one:
   --color-cms-cyan: var(--cms-cyan);
   --color-cms-cyan-subtle: var(--cms-cyan-subtle);
   --color-cms-rose: var(--cms-rose);
+  --color-cms-rose-subtle: var(--cms-rose-subtle);
   --color-cms-purple: var(--cms-purple);
   --color-cms-purple-subtle: var(--cms-purple-subtle);
 }
@@ -196,8 +199,8 @@ export function KpiCard({ label, value, trend, trendPositive = 'up', sparklinePo
 // apps/web/src/components/cms/ui/status-badge.tsx
 const VARIANTS = {
   draft: { bg: 'bg-cms-amber-subtle', text: 'text-cms-amber' },
-  review: { bg: 'bg-yellow-500/10', text: 'text-yellow-500' },
-  ready: { bg: 'bg-blue-500/10', text: 'text-blue-500' },
+  review: { bg: 'bg-cms-amber-subtle', text: 'text-cms-amber' },
+  ready: { bg: 'bg-cms-cyan-subtle', text: 'text-cms-cyan' },
   queued: { bg: 'bg-cms-purple-subtle', text: 'text-cms-purple' },
   published: { bg: 'bg-cms-green-subtle', text: 'text-cms-green' },
   live: { bg: 'bg-cms-green-subtle', text: 'text-cms-green' },
@@ -299,6 +302,10 @@ Add shimmer animation to globals.css (inside the existing `@theme` or at the end
 
 .animate-shimmer {
   animation: shimmer 1.5s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-shimmer { animation: none; }
 }
 ```
 
@@ -487,9 +494,38 @@ Add slideUp keyframe to globals.css:
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  @keyframes slideUp {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+}
 ```
 
-- [ ] **Step 8: Create Sparkline standalone component**
+- [ ] **Step 8: Create shared date formatting utility**
+
+```tsx
+// apps/web/src/components/cms/ui/format-date.ts
+export function formatRelativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  if (days < 7) return `${days}d ago`
+  const date = new Date(iso)
+  const now = new Date()
+  if (date.getFullYear() === now.getFullYear()) {
+    return date.toLocaleDateString('en', { month: 'short', day: 'numeric' })
+  }
+  return date.toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+```
+
+- [ ] **Step 9: Create Sparkline standalone component**
 
 ```tsx
 // apps/web/src/components/cms/ui/sparkline.tsx
@@ -522,7 +558,7 @@ export function Sparkline({ points, color = 'var(--cms-green)', width = 48, heig
 }
 ```
 
-- [ ] **Step 9: Create barrel export**
+- [ ] **Step 10: Create barrel export**
 
 ```tsx
 // apps/web/src/components/cms/ui/index.ts
@@ -534,9 +570,10 @@ export { EmptyState } from './empty-state'
 export { ContextMenu, ContextMenuItem, ContextMenuDivider } from './context-menu'
 export { ToastProvider, useToast } from './toast'
 export { Sparkline } from './sparkline'
+export { formatRelativeTime } from './format-date'
 ```
 
-- [ ] **Step 10: Write tests for KpiCard and StatusBadge**
+- [ ] **Step 11: Write tests for KpiCard and StatusBadge**
 
 ```tsx
 // apps/web/test/components/cms/ui/kpi-card.test.tsx
@@ -591,12 +628,12 @@ describe('StatusBadge', () => {
 })
 ```
 
-- [ ] **Step 11: Run tests**
+- [ ] **Step 12: Run tests**
 
 Run: `npm run test:web -- --run test/components/cms/ui/`
 Expected: All tests pass.
 
-- [ ] **Step 12: Commit**
+- [ ] **Step 13: Commit**
 
 ```bash
 git add apps/web/src/components/cms/ui/ apps/web/test/components/cms/ui/ apps/web/src/app/globals.css
@@ -710,7 +747,7 @@ const SECTIONS: SidebarSection[] = [
     label: 'People',
     items: [
       { icon: '👤', label: 'Authors', href: '/cms/authors', minRole: 'editor' },
-      { icon: '📧', label: 'Subscribers', href: '/cms/subscribers', minRole: 'editor' },
+      { icon: '📧', label: 'Subscribers', href: '/cms/subscribers', minRole: 'org_admin' },
     ],
   },
   {
@@ -853,7 +890,7 @@ const TABS = [
   { icon: '📅', label: 'Schedule', href: '/cms/schedule' },
   { icon: '📝', label: 'Posts', href: '/cms/blog' },
   { icon: '📈', label: 'Analytics', href: '/cms/analytics' },
-  { icon: '⋯', label: 'More', href: '/cms/more' },
+  { icon: '📰', label: 'Letters', href: '/cms/newsletters' },
 ] as const
 
 export function CmsBottomNav() {
@@ -995,7 +1032,7 @@ The `data-area="cms"` attribute is set on the shell's root `<div>`, which means 
 
 ```tsx
 // apps/web/test/components/cms/cms-sidebar.test.tsx
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { CmsSidebar } from '@/components/cms/cms-sidebar'
 
@@ -1027,6 +1064,15 @@ describe('CmsSidebar', () => {
     expect(screen.getByText('Subscribers')).toBeDefined()
     expect(screen.getByText('Analytics')).toBeDefined()
     expect(screen.getByText('Schedule')).toBeDefined()
+  })
+
+  it('hides Settings from editor role', () => {
+    render(<CmsSidebar {...props} />)
+    expect(screen.queryByText('Settings')).toBeNull()
+  })
+
+  it('shows Settings for org_admin', () => {
+    render(<CmsSidebar {...props} userRole="org_admin" />)
     expect(screen.getByText('Settings')).toBeDefined()
   })
 
@@ -1070,7 +1116,6 @@ Tasks 4–6 can be implemented in parallel. Each creates/modifies a single scree
 **Files:**
 - Modify: `apps/web/src/app/cms/(authed)/page.tsx`
 - Create: `apps/web/src/app/cms/(authed)/_components/dashboard-kpis.tsx`
-- Create: `apps/web/src/app/cms/(authed)/_components/dashboard-chart.tsx`
 - Create: `apps/web/src/app/cms/(authed)/_components/coming-up.tsx`
 - Create: `apps/web/src/app/cms/(authed)/_components/continue-editing.tsx`
 - Test: `apps/web/test/app/cms/dashboard.test.tsx`
@@ -1182,7 +1227,7 @@ Reads `localStorage` for last-edited post and renders a banner.
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { CmsButton } from '@/components/cms/ui'
+import { CmsButton, formatRelativeTime } from '@/components/cms/ui'
 
 interface LastEdited { id: string; title: string; updatedAt: string }
 
@@ -1198,7 +1243,7 @@ export function ContinueEditing({ siteId }: { siteId: string }) {
 
   if (!item) return null
 
-  const timeAgo = getRelativeTime(item.updatedAt)
+  const timeAgo = formatRelativeTime(item.updatedAt)
 
   return (
     <div className="flex items-center gap-4 p-4 bg-cms-surface border border-cms-border rounded-[var(--cms-radius)]">
@@ -1213,17 +1258,6 @@ export function ContinueEditing({ siteId }: { siteId: string }) {
       </Link>
     </div>
   )
-}
-
-function getRelativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
-  const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `${hrs}h ago`
-  const days = Math.floor(hrs / 24)
-  return `${days}d ago`
 }
 ```
 
@@ -1308,7 +1342,6 @@ git commit -m "feat(cms): redesigned dashboard with KPIs, Coming Up, Continue Ed
 - Modify: `apps/web/src/app/cms/(authed)/blog/page.tsx`
 - Create: `apps/web/src/app/cms/(authed)/blog/_components/posts-table.tsx`
 - Create: `apps/web/src/app/cms/(authed)/blog/_components/posts-filters.tsx`
-- Create: `apps/web/src/app/cms/(authed)/blog/_components/posts-skeleton.tsx`
 - Test: `apps/web/test/app/cms/blog-list.test.tsx`
 
 This task replaces the current minimal post list with the spec's full design: status tabs, locale filter, search, 9-column table, bulk actions, responsive card layout, empty/no-results states. Reference mockup: `02-posts-list-v4.html`, spec section 4.2.
@@ -1322,7 +1355,7 @@ Renders status filter tabs (All/Draft/Review/Ready/Queued/Published/Archived), l
 'use client'
 
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useCallback, useState, useTransition } from 'react'
+import { useCallback, useRef, useState, useTransition } from 'react'
 
 const STATUS_TABS = [
   { value: '', label: 'All' },
@@ -1350,6 +1383,7 @@ export function PostsFilters({ counts }: PostsFiltersProps) {
   const params = useSearchParams()
   const [, startTransition] = useTransition()
   const [search, setSearch] = useState(params.get('q') ?? '')
+  const debounceRef = useRef<NodeJS.Timeout>(null)
 
   const currentStatus = params.get('status') ?? ''
   const currentLocale = params.get('locale') ?? ''
@@ -1383,7 +1417,11 @@ export function PostsFilters({ counts }: PostsFiltersProps) {
         {/* Search */}
         <div className="relative flex-1 max-w-xs">
           <input type="search" value={search}
-            onChange={(e) => { setSearch(e.target.value); updateParam('q', e.target.value) }}
+            onChange={(e) => {
+              setSearch(e.target.value)
+              if (debounceRef.current) clearTimeout(debounceRef.current)
+              debounceRef.current = setTimeout(() => updateParam('q', e.target.value), 300)
+            }}
             placeholder="Search posts..."
             className="w-full px-3 py-2 text-sm bg-cms-bg border border-cms-border rounded-[var(--cms-radius)] text-cms-text placeholder:text-cms-text-dim focus:border-cms-accent focus:outline-none" />
         </div>
@@ -1433,9 +1471,16 @@ interface PostsTableProps {
   total: number
   page: number
   pageSize: number
+  currentParams?: string
 }
 
-export function PostsTable({ posts, total, page, pageSize }: PostsTableProps) {
+function preserveParams(params: string | undefined, newPage: number): string {
+  const sp = new URLSearchParams(params ?? '')
+  sp.set('page', String(newPage))
+  return sp.toString()
+}
+
+export function PostsTable({ posts, total, page, pageSize, currentParams }: PostsTableProps) {
   if (posts.length === 0) {
     return (
       <div className="text-center py-16">
@@ -1516,8 +1561,8 @@ export function PostsTable({ posts, total, page, pageSize }: PostsTableProps) {
         <div className="flex items-center justify-between mt-4 text-xs text-cms-text-muted">
           <span>Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of {total}</span>
           <div className="flex gap-1">
-            {page > 1 && <Link href={`/cms/blog?page=${page - 1}`} className="px-2 py-1 border border-cms-border rounded hover:bg-cms-surface-hover">Prev</Link>}
-            <Link href={`/cms/blog?page=${page + 1}`} className="px-2 py-1 border border-cms-border rounded hover:bg-cms-surface-hover">Next</Link>
+            {page > 1 && <Link href={`/cms/blog?${preserveParams(currentParams, page - 1)}`} className="px-2 py-1 border border-cms-border rounded hover:bg-cms-surface-hover">Prev</Link>}
+            <Link href={`/cms/blog?${preserveParams(currentParams, page + 1)}`} className="px-2 py-1 border border-cms-border rounded hover:bg-cms-surface-hover">Next</Link>
           </div>
         </div>
       )}
@@ -1550,20 +1595,27 @@ export default async function BlogListPage({ searchParams }: Props) {
   const page = Math.max(1, parseInt(params.page ?? '1', 10))
   const pageSize = 20
 
-  // Count by status for filter tabs
-  const { data: countData } = await supabase.rpc('count_posts_by_status', { p_site_id: siteId }).single()
-  const counts: Record<string, number> = countData ?? {}
+  // Count by status (single query, group client-side)
+  const { data: statusData } = await supabase
+    .from('blog_posts')
+    .select('status')
+    .eq('site_id', siteId)
+  
+  const counts: Record<string, number> = {}
+  for (const row of statusData ?? []) {
+    counts[row.status] = (counts[row.status] ?? 0) + 1
+  }
 
   // Build query
   let query = supabase
     .from('blog_posts')
-    .select('id, slug, status, slot_date, updated_at, owner_user_id, blog_translations(title, locale, reading_time_min), authors!blog_posts_owner_user_id_fkey(display_name)')
+    .select('id, slug, status, slot_date, updated_at, owner_user_id, blog_translations(title, locale, reading_time_min), authors!blog_posts_owner_user_id_fkey(display_name)', { count: 'exact' })
     .eq('site_id', siteId)
     .order('updated_at', { ascending: false })
     .range((page - 1) * pageSize, page * pageSize - 1)
 
   if (params.status) query = query.eq('status', params.status)
-  if (params.locale) query = query.contains('blog_translations.locale', params.locale)
+  if (params.locale) query = query.eq('blog_translations.locale', params.locale)
   if (params.q) query = query.ilike('blog_translations.title', `%${params.q}%`)
 
   const { data: posts, count: total } = await query
@@ -1590,7 +1642,7 @@ export default async function BlogListPage({ searchParams }: Props) {
           <PostsFilters counts={counts} />
         </Suspense>
         <div className="bg-cms-surface border border-cms-border rounded-[var(--cms-radius)] overflow-hidden">
-          <PostsTable posts={rows} total={total ?? rows.length} page={page} pageSize={pageSize} />
+          <PostsTable posts={rows} total={total ?? rows.length} page={page} pageSize={pageSize} currentParams={new URLSearchParams(params as Record<string,string>).toString()} />
         </div>
       </div>
     </div>
@@ -1636,7 +1688,6 @@ git commit -m "feat(cms): redesigned Posts List with status tabs, locale filter,
 **Files:**
 - Create: `apps/web/src/app/cms/(authed)/authors/page.tsx`
 - Create: `apps/web/src/app/cms/(authed)/authors/_components/author-card.tsx`
-- Create: `apps/web/src/app/cms/(authed)/authors/_components/author-filters.tsx`
 - Test: `apps/web/test/app/cms/authors.test.tsx`
 
 Reference: spec section 4.6, mockup `06-authors.html`.
@@ -1645,7 +1696,7 @@ Reference: spec section 4.6, mockup `06-authors.html`.
 
 ```tsx
 // apps/web/src/app/cms/(authed)/authors/_components/author-card.tsx
-import { StatusBadge } from '@/components/cms/ui'
+import { StatusBadge, formatRelativeTime } from '@/components/cms/ui'
 
 interface AuthorCardProps {
   id: string
@@ -1701,7 +1752,7 @@ export function AuthorCard(props: AuthorCardProps) {
 
       <div className="flex items-center gap-1.5 mt-3 text-[10px] text-cms-text-dim">
         <span className={`w-2 h-2 rounded-full ${activityColor}`}></span>
-        {props.lastActiveAt ? `Active ${getRelativeTime(props.lastActiveAt)}` : 'Never logged in'}
+        {props.lastActiveAt ? `Active ${formatRelativeTime(props.lastActiveAt)}` : 'Never logged in'}
       </div>
     </div>
   )
@@ -1713,18 +1764,6 @@ function getActivityColor(lastActive: string | null): string {
   if (diff < 5 * 60 * 1000) return 'bg-cms-green shadow-[0_0_4px_var(--cms-green)]'
   if (diff < 7 * 86400000) return 'bg-cms-amber'
   return 'bg-gray-500'
-}
-
-function getRelativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
-  const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `${hrs}h ago`
-  const days = Math.floor(hrs / 24)
-  if (days < 7) return `${days}d ago`
-  return new Date(iso).toLocaleDateString('en', { month: 'short', day: 'numeric' })
 }
 ```
 
@@ -1744,33 +1783,48 @@ export default async function AuthorsPage() {
 
   const { data: authors } = await supabase
     .from('authors')
-    .select('id, display_name, slug, bio, avatar_url, user_id, site_memberships!inner(role)')
+    .select('id, display_name, slug, bio, avatar_url, user_id')
     .eq('site_id', siteId)
     .order('display_name')
 
-  // Count posts/campaigns per author
-  const authorRows = await Promise.all(
-    (authors ?? []).map(async (a: any) => {
-      const [postsRes, pubRes, campsRes] = await Promise.all([
-        supabase.from('blog_posts').select('id', { count: 'exact', head: true }).eq('owner_user_id', a.user_id).eq('site_id', siteId),
-        supabase.from('blog_posts').select('id', { count: 'exact', head: true }).eq('owner_user_id', a.user_id).eq('site_id', siteId).eq('status', 'published'),
-        supabase.from('campaigns').select('id', { count: 'exact', head: true }).eq('owner_user_id', a.user_id).eq('site_id', siteId),
-      ])
-      return {
-        id: a.id,
-        displayName: a.display_name,
-        slug: a.slug ?? a.id.slice(0, 8),
-        role: a.site_memberships?.[0]?.role ?? 'editor',
-        bio: a.bio,
-        avatarUrl: a.avatar_url,
-        initials: a.display_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase(),
-        postsCount: postsRes.count ?? 0,
-        publishedCount: pubRes.count ?? 0,
-        campaignsCount: campsRes.count ?? 0,
-        lastActiveAt: null, // Realtime presence deferred to Sprint 7+
-      }
-    })
-  )
+  // Fetch roles separately (no direct FK from authors to site_memberships)
+  const userIds = (authors ?? []).map((a: any) => a.user_id).filter(Boolean)
+  const { data: memberships } = userIds.length > 0
+    ? await supabase.from('site_memberships').select('user_id, role').eq('site_id', siteId).in('user_id', userIds)
+    : { data: [] }
+  const roleMap: Record<string, string> = {}
+  for (const m of memberships ?? []) roleMap[m.user_id] = m.role
+  
+  const [postCountsRes, pubCountsRes, campCountsRes] = await Promise.all([
+    supabase.from('blog_posts').select('owner_user_id', { count: 'exact' }).eq('site_id', siteId).in('owner_user_id', userIds),
+    supabase.from('blog_posts').select('owner_user_id', { count: 'exact' }).eq('site_id', siteId).eq('status', 'published').in('owner_user_id', userIds),
+    supabase.from('campaigns').select('owner_user_id', { count: 'exact' }).eq('site_id', siteId).in('owner_user_id', userIds),
+  ])
+
+  // Group counts by user_id
+  function countBy(data: any[] | null, field: string): Record<string, number> {
+    return (data ?? []).reduce((acc: Record<string, number>, row: any) => {
+      acc[row[field]] = (acc[row[field]] ?? 0) + 1
+      return acc
+    }, {})
+  }
+  const postCounts = countBy(postCountsRes.data, 'owner_user_id')
+  const pubCounts = countBy(pubCountsRes.data, 'owner_user_id')
+  const campCounts = countBy(campCountsRes.data, 'owner_user_id')
+
+  const authorRows = (authors ?? []).map((a: any) => ({
+    id: a.id,
+    displayName: a.display_name,
+    slug: a.slug ?? a.id.slice(0, 8),
+    role: roleMap[a.user_id] ?? 'editor',
+    bio: a.bio,
+    avatarUrl: a.avatar_url,
+    initials: a.display_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase(),
+    postsCount: postCounts[a.user_id] ?? 0,
+    publishedCount: pubCounts[a.user_id] ?? 0,
+    campaignsCount: campCounts[a.user_id] ?? 0,
+    lastActiveAt: null, // TODO: fetch from auth.users.last_sign_in_at via service-role client
+  }))
 
   if (authorRows.length === 0) {
     return (
@@ -1894,16 +1948,554 @@ export function TypeCards({ types, selectedTypeId, onSelect }: TypeCardsProps) {
 
 - [ ] **Step 2: Create EditionsTable component**
 
-Renders the editions list with status badges, sending state (pulsing dot), and failed state (red tint). Similar structure to PostsTable.
+Renders the editions list with status badges, sending state (pulsing dot + purple tint), and failed state (red tint). Desktop table + mobile cards. Similar structure to CampaignTable.
+
+```tsx
+// apps/web/src/app/cms/(authed)/newsletters/_components/editions-table.tsx
+'use client'
+
+import { useState } from 'react'
+import Link from 'next/link'
+
+// ── Types ──────────────────────────────────────────────────────────────────
+
+export interface EditionRow {
+  id: string
+  subject: string
+  preheader?: string | null
+  status: string
+  typeName: string
+  typeColor: string
+  newsletter_type_id: string
+  sendCount: number
+  statsDelivered: number
+  statsOpens: number
+  statsClicks: number
+  sentAt: string | null
+  scheduledAt: string | null
+  createdAt: string
+}
+
+interface EditionsTableProps {
+  editions: EditionRow[]
+}
+
+// ── Sub-components ─────────────────────────────────────────────────────────
+
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, { label: string; cls: string; dot?: string }> = {
+    draft: {
+      label: 'Draft',
+      cls: 'bg-cms-amber-subtle text-[var(--cms-amber)] border-[rgba(245,158,11,.3)]',
+    },
+    ready: {
+      label: 'Ready',
+      cls: 'bg-cms-cyan-subtle text-[var(--cms-cyan)] border-[rgba(6,182,212,.3)]',
+    },
+    scheduled: {
+      label: 'Scheduled',
+      cls: 'bg-cms-cyan-subtle text-[var(--cms-cyan)] border-[rgba(6,182,212,.3)]',
+    },
+    sending: {
+      label: 'Sending',
+      cls: 'bg-cms-purple-subtle text-[var(--cms-purple)] border-[rgba(139,92,246,.3)]',
+      dot: 'animate-pulse',
+    },
+    sent: {
+      label: 'Sent',
+      cls: 'bg-cms-green-subtle text-[var(--cms-green)] border-[rgba(34,197,94,.3)]',
+    },
+    failed: {
+      label: 'Failed',
+      cls: 'bg-cms-red-subtle text-[var(--cms-red)] border-[rgba(239,68,68,.3)]',
+    },
+  }
+  const badge = map[status] ?? {
+    label: status,
+    cls: 'bg-[rgba(113,113,122,.12)] text-cms-text-muted border-[rgba(113,113,122,.3)]',
+  }
+  return (
+    <span
+      data-status={status}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium ${badge.cls}`}
+    >
+      {badge.dot && (
+        <span className={`inline-block h-1.5 w-1.5 rounded-full bg-current ${badge.dot}`} />
+      )}
+      {badge.label}
+    </span>
+  )
+}
+
+function TypeDot({ color, name }: { color: string; name: string }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span
+        className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
+        style={{ backgroundColor: color }}
+        aria-hidden="true"
+      />
+      <span className="text-xs text-cms-text-muted truncate">{name}</span>
+    </div>
+  )
+}
+
+function OpenRate({ opens, delivered }: { opens: number; delivered: number }) {
+  if (delivered === 0) return <span className="text-xs text-cms-text-dim">—</span>
+  const rate = Math.round((opens / delivered) * 100)
+  return <span className="text-xs font-medium text-[var(--cms-green)]">{rate}%</span>
+}
+
+// ── Pagination ─────────────────────────────────────────────────────────────
+
+const PAGE_SIZE = 20
+
+function Pagination({
+  total,
+  page,
+  onPage,
+}: {
+  total: number
+  page: number
+  onPage: (p: number) => void
+}) {
+  const pages = Math.ceil(total / PAGE_SIZE)
+  if (pages <= 1) return null
+  return (
+    <nav
+      className="flex items-center justify-between border-t border-cms-border px-4 py-3 text-sm text-cms-text-muted"
+      aria-label="Pagination"
+    >
+      <span>
+        {Math.min((page - 1) * PAGE_SIZE + 1, total)}–{Math.min(page * PAGE_SIZE, total)} of{' '}
+        {total}
+      </span>
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => onPage(page - 1)}
+          disabled={page === 1}
+          className="rounded px-2 py-1 text-xs hover:bg-cms-surface-hover disabled:opacity-30"
+          aria-label="Previous page"
+        >
+          ‹ Prev
+        </button>
+        {Array.from({ length: pages }, (_, i) => i + 1)
+          .filter((p) => p === 1 || p === pages || Math.abs(p - page) <= 1)
+          .reduce<(number | '…')[]>((acc, p, i, arr) => {
+            if (i > 0 && typeof arr[i - 1] === 'number' && (p as number) - (arr[i - 1] as number) > 1) {
+              acc.push('…')
+            }
+            acc.push(p)
+            return acc
+          }, [])
+          .map((p, i) =>
+            p === '…' ? (
+              <span key={`ellipsis-${i}`} className="px-1">…</span>
+            ) : (
+              <button
+                key={p}
+                onClick={() => onPage(p as number)}
+                aria-current={p === page ? 'page' : undefined}
+                className={`min-w-[28px] rounded px-2 py-1 text-xs ${
+                  p === page ? 'bg-cms-accent text-white' : 'hover:bg-cms-surface-hover'
+                }`}
+              >
+                {p}
+              </button>
+            ),
+          )}
+        <button
+          onClick={() => onPage(page + 1)}
+          disabled={page === pages}
+          className="rounded px-2 py-1 text-xs hover:bg-cms-surface-hover disabled:opacity-30"
+          aria-label="Next page"
+        >
+          Next ›
+        </button>
+      </div>
+    </nav>
+  )
+}
+
+// ── Desktop row ────────────────────────────────────────────────────────────
+
+function DesktopRow({ edition }: { edition: EditionRow }) {
+  const isSending = edition.status === 'sending'
+  const isFailed = edition.status === 'failed'
+
+  return (
+    <tr
+      className={`border-b border-cms-border transition-colors hover:bg-cms-surface-hover
+        ${isSending ? 'bg-cms-purple-subtle' : ''}
+        ${isFailed ? 'bg-cms-red-subtle' : ''}`}
+    >
+      {/* Subject + preheader */}
+      <td className="px-4 py-3">
+        <div className="min-w-0">
+          <Link
+            href={`/cms/newsletters/${edition.id}/edit`}
+            className="block truncate text-sm font-medium text-cms-text hover:text-cms-accent"
+          >
+            {edition.subject || 'Untitled'}
+          </Link>
+          {edition.preheader && (
+            <p className="mt-0.5 truncate text-[11px] text-cms-text-dim">{edition.preheader}</p>
+          )}
+        </div>
+      </td>
+
+      {/* Type */}
+      <td className="px-4 py-3">
+        <TypeDot color={edition.typeColor} name={edition.typeName} />
+      </td>
+
+      {/* Status */}
+      <td className="px-4 py-3">
+        <StatusBadge status={edition.status} />
+      </td>
+
+      {/* Sent */}
+      <td className="px-4 py-3 text-xs text-cms-text tabular-nums">
+        {edition.sendCount > 0 ? edition.sendCount.toLocaleString() : '—'}
+      </td>
+
+      {/* Open rate */}
+      <td className="px-4 py-3">
+        <OpenRate opens={edition.statsOpens} delivered={edition.statsDelivered} />
+      </td>
+
+      {/* Date */}
+      <td className="px-4 py-3 text-xs text-cms-text-muted">
+        {edition.sentAt
+          ? new Date(edition.sentAt).toLocaleDateString('en', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            })
+          : edition.scheduledAt
+            ? `Sched. ${new Date(edition.scheduledAt).toLocaleDateString('en', { month: 'short', day: 'numeric' })}`
+            : new Date(edition.createdAt).toLocaleDateString('en', { month: 'short', day: 'numeric' })}
+      </td>
+
+      {/* Actions */}
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/cms/newsletters/${edition.id}/edit`}
+            className="rounded px-2 py-1 text-xs text-cms-text-muted hover:bg-cms-surface-hover hover:text-cms-text"
+          >
+            Edit
+          </Link>
+          {edition.status === 'sent' && (
+            <Link
+              href={`/cms/newsletters/${edition.id}/analytics`}
+              className="rounded px-2 py-1 text-xs text-cms-text-muted hover:bg-cms-surface-hover hover:text-cms-text"
+            >
+              Analytics
+            </Link>
+          )}
+        </div>
+      </td>
+    </tr>
+  )
+}
+
+// ── Mobile card ────────────────────────────────────────────────────────────
+
+function MobileCard({ edition }: { edition: EditionRow }) {
+  const isSending = edition.status === 'sending'
+  const isFailed = edition.status === 'failed'
+
+  return (
+    <div
+      className={`rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface p-4
+        ${isSending ? 'border-[var(--cms-purple)] bg-cms-purple-subtle' : ''}
+        ${isFailed ? 'border-[var(--cms-red)] bg-cms-red-subtle' : ''}`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <Link
+            href={`/cms/newsletters/${edition.id}/edit`}
+            className="block truncate text-sm font-medium text-cms-text hover:text-cms-accent"
+          >
+            {edition.subject || 'Untitled'}
+          </Link>
+          {edition.preheader && (
+            <p className="mt-0.5 truncate text-[11px] text-cms-text-dim">{edition.preheader}</p>
+          )}
+        </div>
+        <StatusBadge status={edition.status} />
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <TypeDot color={edition.typeColor} name={edition.typeName} />
+      </div>
+      <div className="mt-3 flex items-center justify-between text-xs text-cms-text-muted">
+        <div className="flex items-center gap-3">
+          {edition.sendCount > 0 && (
+            <span>
+              <span className="font-medium text-cms-text">{edition.sendCount.toLocaleString()}</span>{' '}
+              sent
+            </span>
+          )}
+          {edition.statsDelivered > 0 && (
+            <span>
+              <OpenRate opens={edition.statsOpens} delivered={edition.statsDelivered} /> opens
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Link
+            href={`/cms/newsletters/${edition.id}/edit`}
+            className="rounded px-2 py-1 text-xs hover:bg-cms-surface-hover"
+          >
+            Edit
+          </Link>
+          {edition.status === 'sent' && (
+            <Link
+              href={`/cms/newsletters/${edition.id}/analytics`}
+              className="rounded px-2 py-1 text-xs hover:bg-cms-surface-hover"
+            >
+              Analytics
+            </Link>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Main component ─────────────────────────────────────────────────────────
+
+export function EditionsTable({ editions }: EditionsTableProps) {
+  const [page, setPage] = useState(1)
+
+  const paginated = editions.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  if (editions.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center" data-testid="editions-empty">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="text-cms-text-dim mb-3" aria-hidden="true">
+          <rect x="2" y="4" width="20" height="16" rx="2" />
+          <path d="M22 7l-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+        </svg>
+        <p className="text-sm font-medium text-cms-text">No editions yet</p>
+        <p className="mt-1 text-xs text-cms-text-dim">Create your first newsletter edition</p>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className="overflow-hidden rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface"
+      data-testid="editions-table"
+    >
+      {/* Desktop table — hidden below md */}
+      <div className="hidden md:block">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-cms-border text-left">
+              {['Subject', 'Type', 'Status', 'Sent', 'Opens', 'Date', 'Actions'].map((h) => (
+                <th
+                  key={h}
+                  className="px-4 py-3 text-[11px] font-medium uppercase tracking-[1.5px] text-cms-text-muted"
+                >
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {paginated.map((e) => (
+              <DesktopRow key={e.id} edition={e} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Mobile cards — visible below md */}
+      <div className="flex flex-col gap-3 p-3 md:hidden">
+        {paginated.map((e) => (
+          <MobileCard key={e.id} edition={e} />
+        ))}
+      </div>
+
+      <Pagination total={editions.length} page={page} onPage={setPage} />
+    </div>
+  )
+}
+```
 
 - [ ] **Step 3: Rewrite newsletters/page.tsx**
 
-Integrate TypeCards + EditionsTable. Keep the existing `NewsletterDashboard` from `@tn-figueiredo/newsletter-admin/client` as a fallback, but wrap with the new layout shell (CmsTopbar + design tokens).
+Integrate TypeCards + EditionsTable with server-side data fetching. Query newsletter types and editions from Supabase, map to component shapes. Wrap with CmsTopbar + design tokens.
 
-- [ ] **Step 4: Commit**
+```tsx
+// apps/web/src/app/cms/(authed)/newsletters/page.tsx
+import Link from 'next/link'
+import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
+import { getSiteContext } from '../../../../../lib/cms/site-context'
+import { CmsTopbar } from '@/components/cms/cms-topbar'
+import { CmsButton } from '@/components/cms/ui'
+import { TypeCards } from './_components/type-cards'
+import { EditionsTable } from './_components/editions-table'
+import type { EditionRow } from './_components/editions-table'
+
+export const dynamic = 'force-dynamic'
+
+export default async function NewsletterDashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ type?: string; status?: string }>
+}) {
+  const ctx = await getSiteContext()
+  const params = await searchParams
+  const supabase = getSupabaseServiceClient()
+
+  // Fetch newsletter types with subscriber counts + edition counts
+  const { data: types } = await supabase
+    .from('newsletter_types')
+    .select('id, name, locale, color, cadence_days, last_sent_at, cadence_paused')
+    .eq('active', true)
+    .order('sort_order')
+
+  // Build editions query with optional filters
+  let editionsQuery = supabase
+    .from('newsletter_editions')
+    .select(
+      'id, subject, preheader, status, newsletter_type_id, slot_date, scheduled_at, sent_at, send_count, stats_opens, stats_delivered, stats_clicks, created_at'
+    )
+    .eq('site_id', ctx.siteId)
+    .order('created_at', { ascending: false })
+    .limit(50)
+
+  if (params.type) editionsQuery = editionsQuery.eq('newsletter_type_id', params.type)
+  if (params.status) editionsQuery = editionsQuery.eq('status', params.status)
+
+  const { data: editions } = await editionsQuery
+
+  // Build type → name/color lookup
+  const typeMap = new Map(
+    (types ?? []).map((t) => [t.id, { name: t.name, color: t.color }])
+  )
+
+  // Map types to TypeCards shape
+  const mappedTypes = (types ?? []).map((t) => {
+    const typeEditions = (editions ?? []).filter((e) => e.newsletter_type_id === t.id)
+    const sentEditions = typeEditions.filter((e) => e.status === 'sent')
+    const totalOpens = sentEditions.reduce((sum, e) => sum + (e.stats_opens ?? 0), 0)
+    const totalDelivered = sentEditions.reduce((sum, e) => sum + (e.stats_delivered ?? 0), 0)
+    const avgOpenRate = totalDelivered > 0 ? Math.round((totalOpens / totalDelivered) * 100) : 0
+
+    return {
+      id: t.id,
+      name: t.name,
+      color: t.color ?? '#6366f1',
+      subscribers: 0, // subscriber count requires separate query — deferred
+      avgOpenRate,
+      lastSent: t.last_sent_at
+        ? new Date(t.last_sent_at).toLocaleDateString('en', { month: 'short', day: 'numeric' })
+        : null,
+      cadence: t.cadence_days ? `Every ${t.cadence_days}d` : 'Manual',
+      editionCount: typeEditions.length,
+      isPaused: t.cadence_paused ?? false,
+    }
+  })
+
+  // Map editions to EditionsTable shape
+  const mappedEditions: EditionRow[] = (editions ?? []).map((e) => {
+    const typeInfo = typeMap.get(e.newsletter_type_id)
+    return {
+      id: e.id,
+      subject: e.subject,
+      preheader: e.preheader,
+      status: e.status,
+      typeName: typeInfo?.name ?? 'Unknown',
+      typeColor: typeInfo?.color ?? '#71717a',
+      newsletter_type_id: e.newsletter_type_id,
+      sendCount: e.send_count ?? 0,
+      statsDelivered: e.stats_delivered ?? 0,
+      statsOpens: e.stats_opens ?? 0,
+      statsClicks: e.stats_clicks ?? 0,
+      sentAt: e.sent_at,
+      scheduledAt: e.scheduled_at,
+      createdAt: e.created_at,
+    }
+  })
+
+  return (
+    <div>
+      <CmsTopbar
+        title="Newsletters"
+        actions={
+          <Link href="/cms/newsletters/new">
+            <CmsButton variant="primary" size="sm">
+              + New Edition
+            </CmsButton>
+          </Link>
+        }
+      />
+      <div className="p-6 lg:p-8 space-y-6">
+        {/* Type summary cards */}
+        <TypeCards
+          types={mappedTypes}
+          selectedTypeId={params.type ?? null}
+          onSelect={() => {}}
+        />
+
+        {/* Status filter tabs */}
+        <div className="flex items-center gap-1 text-xs">
+          {['all', 'draft', 'ready', 'scheduled', 'sending', 'sent', 'failed'].map((s) => {
+            const isActive = (params.status ?? 'all') === s
+            return (
+              <Link
+                key={s}
+                href={`/cms/newsletters?${new URLSearchParams({
+                  ...(params.type ? { type: params.type } : {}),
+                  ...(s !== 'all' ? { status: s } : {}),
+                }).toString()}`}
+                className={`rounded-full px-3 py-1.5 font-medium capitalize transition-colors ${
+                  isActive
+                    ? 'bg-cms-accent text-white'
+                    : 'text-cms-text-muted hover:bg-cms-surface-hover hover:text-cms-text'
+                }`}
+              >
+                {s}
+              </Link>
+            )
+          })}
+        </div>
+
+        {/* Editions table */}
+        <EditionsTable editions={mappedEditions} />
+      </div>
+    </div>
+  )
+}
+```
+
+- [ ] **Step 4: Write test**
+
+```tsx
+// apps/web/test/app/cms/newsletters.test.tsx
+import { describe, it, expect } from 'vitest'
+
+describe('CMS Newsletters', () => {
+  it('exports TypeCards component', async () => {
+    const mod = await import('@/app/cms/(authed)/newsletters/_components/type-cards')
+    expect(mod.TypeCards).toBeDefined()
+  })
+
+  it('exports EditionsTable component', async () => {
+    const mod = await import('@/app/cms/(authed)/newsletters/_components/editions-table')
+    expect(mod.EditionsTable).toBeDefined()
+  })
+})
+```
+
+- [ ] **Step 5: Commit**
 
 ```bash
-git add apps/web/src/app/cms/\(authed\)/newsletters/
+git add apps/web/src/app/cms/\(authed\)/newsletters/ apps/web/test/app/cms/newsletters.test.tsx
 git commit -m "feat(cms): redesigned Newsletters with type cards, status filters, editions table"
 ```
 
@@ -1922,18 +2514,939 @@ Reference: spec section 4.5, mockup `05-campaigns-v2.html`.
 
 4 KPI tiles: Active campaigns, Total submissions, PDF downloads/30d, Conversion rate.
 
+**Note:** This component uses inline CSS variable references (`var(--cms-*)`) for styling. During implementation, prefer `bg-cms-surface`, `border-cms-border` etc. Tailwind utilities when available — the CSS vars are equivalent but utilities keep JSX consistent with other CMS components.
+
+```tsx
+// apps/web/src/app/cms/(authed)/campaigns/_components/campaign-kpis.tsx
+import { getSupabaseServiceClient } from '../../../../../../lib/supabase/service'
+import { getSiteContext } from '../../../../../../lib/cms/site-context'
+
+interface KpiTileProps {
+  label: string
+  value: string | number
+  sub?: string
+  color?: 'amber' | 'green' | 'indigo' | 'default'
+}
+
+function KpiTile({ label, value, sub, color = 'default' }: KpiTileProps) {
+  const accentMap = {
+    amber: 'border-t-[var(--amber,#f59e0b)]',
+    green: 'border-t-[var(--green,#22c55e)]',
+    indigo: 'border-t-[var(--accent,#6366f1)]',
+    default: 'border-t-[var(--border,#2a2d3a)]',
+  }
+  return (
+    <div
+      className={`rounded-[var(--radius,8px)] border border-[var(--border,#2a2d3a)] border-t-2 bg-[var(--surface,#1a1d27)] px-4 py-4 ${accentMap[color]}`}
+    >
+      <p className="text-[11px] font-medium uppercase tracking-[1.5px] text-[var(--text-muted,#71717a)]">
+        {label}
+      </p>
+      <p className="mt-1 text-2xl font-semibold leading-none text-[var(--text,#e4e4e7)]">
+        {value}
+      </p>
+      {sub && (
+        <p className="mt-1 text-[11px] text-[var(--text-dim,#52525b)]">{sub}</p>
+      )}
+    </div>
+  )
+}
+
+export async function CampaignKpis() {
+  const ctx = await getSiteContext()
+  const supabase = getSupabaseServiceClient()
+
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+
+  // Active campaigns count (published/scheduled)
+  const { count: activeCount } = await supabase
+    .from('campaigns')
+    .select('id', { count: 'exact', head: true })
+    .eq('site_id', ctx.siteId)
+    .in('status', ['published', 'scheduled'])
+
+  // Total submissions ever
+  const { count: totalSubmissions } = await supabase
+    .from('campaign_submissions')
+    .select('id', { count: 'exact', head: true })
+    .in(
+      'campaign_id',
+      await supabase
+        .from('campaigns')
+        .select('id')
+        .eq('site_id', ctx.siteId)
+        .then((r) => (r.data ?? []).map((c) => c.id)),
+    )
+
+  // PDF downloads in last 30d (submissions with downloaded_at set)
+  const { count: pdfDownloads30d } = await supabase
+    .from('campaign_submissions')
+    .select('id', { count: 'exact', head: true })
+    .gte('downloaded_at', thirtyDaysAgo)
+    .in(
+      'campaign_id',
+      await supabase
+        .from('campaigns')
+        .select('id')
+        .eq('site_id', ctx.siteId)
+        .then((r) => (r.data ?? []).map((c) => c.id)),
+    )
+
+  // Conversion rate: submissions / unique visitors (approximation: sub / total campaigns * 100)
+  // Since we don't have analytics, compute as (total submissions / published campaigns) as a
+  // proxy for submissions per active campaign
+  const conversionRate =
+    (activeCount ?? 0) > 0
+      ? (((totalSubmissions ?? 0) / (activeCount ?? 1)) * 10).toFixed(1)
+      : '—'
+
+  return (
+    <div
+      className="grid grid-cols-2 gap-3 sm:grid-cols-4"
+      data-testid="campaign-kpis"
+    >
+      <KpiTile
+        label="Active campaigns"
+        value={activeCount ?? 0}
+        color="amber"
+      />
+      <KpiTile
+        label="Total submissions"
+        value={totalSubmissions ?? 0}
+        color="green"
+      />
+      <KpiTile
+        label="PDF downloads / 30d"
+        value={pdfDownloads30d ?? 0}
+        color="indigo"
+      />
+      <KpiTile
+        label="Conv. rate"
+        value={conversionRate === '—' ? '—' : `${conversionRate}%`}
+        sub="subs per active campaign × 10"
+      />
+    </div>
+  )
+}
+```
+
 - [ ] **Step 2: Create CampaignTable component**
 
 Table with type badge (PDF/Link), locale badges, status, submissions + sparkline, conversion rate.
+
+```tsx
+// apps/web/src/app/cms/(authed)/campaigns/_components/campaign-table.tsx
+'use client'
+
+import { useState, useTransition } from 'react'
+import Link from 'next/link'
+import type { CampaignListItem } from '@tn-figueiredo/cms'
+
+// ── Types ──────────────────────────────────────────────────────────────────
+
+export interface CampaignRow extends CampaignListItem {
+  /** Whether the campaign has a PDF attached (derived from pdf_storage_path). */
+  has_pdf: boolean
+  /** Submission count for this campaign. */
+  submission_count: number
+  /** Last 7 days of daily submission counts (oldest→newest). */
+  sparkline_data: number[]
+  /** Delta vs 7d prior (can be negative). */
+  submissions_delta: number
+}
+
+interface CampaignTableProps {
+  campaigns: CampaignRow[]
+  onDelete: (id: string) => Promise<{ ok: boolean; error?: string }>
+}
+
+// ── Sub-components ─────────────────────────────────────────────────────────
+
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, { label: string; cls: string }> = {
+    draft: {
+      label: 'Draft',
+      cls: 'bg-[rgba(245,158,11,.12)] text-[#f59e0b] border-[rgba(245,158,11,.3)]',
+    },
+    published: {
+      label: 'Live',
+      cls: 'bg-[rgba(34,197,94,.12)] text-[#22c55e] border-[rgba(34,197,94,.3)]',
+    },
+    scheduled: {
+      label: 'Scheduled',
+      cls: 'bg-[rgba(6,182,212,.12)] text-[#06b6d4] border-[rgba(6,182,212,.3)]',
+    },
+    archived: {
+      label: 'Archived',
+      cls: 'bg-[rgba(113,113,122,.12)] text-[#71717a] border-[rgba(113,113,122,.3)]',
+    },
+    active: {
+      label: 'Live',
+      cls: 'bg-[rgba(34,197,94,.12)] text-[#22c55e] border-[rgba(34,197,94,.3)]',
+    },
+  }
+  const badge = map[status] ?? {
+    label: status,
+    cls: 'bg-[rgba(113,113,122,.12)] text-[#71717a] border-[rgba(113,113,122,.3)]',
+  }
+  return (
+    <span
+      data-status={status}
+      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${badge.cls}`}
+    >
+      {badge.label}
+    </span>
+  )
+}
+
+function TypeBadge({ hasPdf }: { hasPdf: boolean }) {
+  return hasPdf ? (
+    <span className="inline-flex items-center gap-1 rounded-full border border-[rgba(99,102,241,.3)] bg-[rgba(99,102,241,.12)] px-2 py-0.5 text-[11px] font-medium text-[#6366f1]">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+      </svg>
+      PDF
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-1 rounded-full border border-[rgba(6,182,212,.3)] bg-[rgba(6,182,212,.12)] px-2 py-0.5 text-[11px] font-medium text-[#06b6d4]">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+      </svg>
+      Link
+    </span>
+  )
+}
+
+function LocaleBadge({ locale }: { locale: string }) {
+  return (
+    <span className="rounded border border-[var(--border,#2a2d3a)] bg-[var(--surface-hover,#1f2330)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--text-muted,#71717a)]">
+      {locale}
+    </span>
+  )
+}
+
+function Sparkline({ data, delta }: { data: number[]; delta: number }) {
+  if (!data || data.length === 0) return <span className="text-[var(--text-dim,#52525b)] text-xs">—</span>
+
+  const max = Math.max(...data, 1)
+  const width = 48
+  const height = 18
+  const points = data
+    .map((v, i) => {
+      const x = (i / (data.length - 1)) * width
+      const y = height - (v / max) * height
+      return `${x},${y}`
+    })
+    .join(' ')
+
+  const lastX = width
+  const lastY = height - (data[data.length - 1] / max) * height
+
+  const deltaColor =
+    delta > 0
+      ? '#22c55e'
+      : delta < 0
+        ? '#ef4444'
+        : '#71717a'
+  const deltaLabel = delta > 0 ? `+${delta}` : String(delta)
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <svg width={width} height={height} aria-hidden="true">
+        <polyline
+          points={points}
+          fill="none"
+          stroke="#f59e0b"
+          strokeWidth="1.5"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+        <circle cx={lastX} cy={lastY} r="2.5" fill="#f59e0b" />
+      </svg>
+      {delta !== 0 && (
+        <span className="text-[11px] font-medium" style={{ color: deltaColor }}>
+          {deltaLabel}
+        </span>
+      )}
+    </div>
+  )
+}
+
+function NoPdfWarning() {
+  return (
+    <span className="inline-flex items-center gap-1 rounded border border-[rgba(245,158,11,.3)] bg-[rgba(245,158,11,.08)] px-1.5 py-0.5 text-[10px] text-[#f59e0b]">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+        <line x1="12" y1="9" x2="12" y2="13" />
+        <line x1="12" y1="17" x2="12.01" y2="17" />
+      </svg>
+      No PDF
+    </span>
+  )
+}
+
+// ── Pagination ─────────────────────────────────────────────────────────────
+
+const PAGE_SIZE = 20
+
+function Pagination({
+  total,
+  page,
+  onPage,
+}: {
+  total: number
+  page: number
+  onPage: (p: number) => void
+}) {
+  const pages = Math.ceil(total / PAGE_SIZE)
+  if (pages <= 1) return null
+  return (
+    <nav
+      className="flex items-center justify-between border-t border-[var(--border,#2a2d3a)] px-4 py-3 text-sm text-[var(--text-muted,#71717a)]"
+      aria-label="Pagination"
+    >
+      <span>
+        {Math.min((page - 1) * PAGE_SIZE + 1, total)}–{Math.min(page * PAGE_SIZE, total)} of {total}
+      </span>
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => onPage(page - 1)}
+          disabled={page === 1}
+          className="rounded px-2 py-1 text-xs hover:bg-[var(--surface-hover,#1f2330)] disabled:opacity-30"
+          aria-label="Previous page"
+        >
+          ‹ Prev
+        </button>
+        {Array.from({ length: pages }, (_, i) => i + 1)
+          .filter((p) => p === 1 || p === pages || Math.abs(p - page) <= 1)
+          .reduce<(number | '…')[]>((acc, p, i, arr) => {
+            if (i > 0 && typeof arr[i - 1] === 'number' && (p as number) - (arr[i - 1] as number) > 1) {
+              acc.push('…')
+            }
+            acc.push(p)
+            return acc
+          }, [])
+          .map((p, i) =>
+            p === '…' ? (
+              <span key={`ellipsis-${i}`} className="px-1">…</span>
+            ) : (
+              <button
+                key={p}
+                onClick={() => onPage(p as number)}
+                aria-current={p === page ? 'page' : undefined}
+                className={`min-w-[28px] rounded px-2 py-1 text-xs ${
+                  p === page
+                    ? 'bg-[var(--accent,#6366f1)] text-white'
+                    : 'hover:bg-[var(--surface-hover,#1f2330)]'
+                }`}
+              >
+                {p}
+              </button>
+            ),
+          )}
+        <button
+          onClick={() => onPage(page + 1)}
+          disabled={page === pages}
+          className="rounded px-2 py-1 text-xs hover:bg-[var(--surface-hover,#1f2330)] disabled:opacity-30"
+          aria-label="Next page"
+        >
+          Next ›
+        </button>
+      </div>
+    </nav>
+  )
+}
+
+// ── Desktop row ────────────────────────────────────────────────────────────
+
+function DesktopRow({
+  campaign,
+  onDelete,
+}: {
+  campaign: CampaignRow
+  onDelete: (id: string) => Promise<{ ok: boolean; error?: string }>
+}) {
+  const isArchived = campaign.status === 'archived'
+  const isDraft = campaign.status === 'draft'
+
+  return (
+    <tr
+      className={`border-b border-[var(--border,#2a2d3a)] transition-colors hover:bg-[var(--surface-hover,#1f2330)] ${isArchived ? 'opacity-50' : ''}`}
+    >
+      {/* Name + slug */}
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius,8px)] bg-[rgba(245,158,11,.1)] text-[#f59e0b]">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+          </div>
+          <div className="min-w-0">
+            <Link
+              href={`/cms/campaigns/${campaign.id}/edit`}
+              className="block truncate text-sm font-medium text-[var(--text,#e4e4e7)] hover:text-[var(--accent,#6366f1)]"
+            >
+              {campaign.translation.meta_title ?? campaign.translation.context_tag ?? campaign.translation.slug}
+            </Link>
+            <div className="mt-0.5 flex items-center gap-1.5">
+              <span className="font-mono text-[10px] text-[var(--text-dim,#52525b)]">
+                {campaign.translation.slug}
+              </span>
+              {campaign.has_pdf && (
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#71717a" strokeWidth="2" aria-label="Has PDF" className="shrink-0">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                </svg>
+              )}
+              {isDraft && !campaign.has_pdf && <NoPdfWarning />}
+            </div>
+          </div>
+        </div>
+      </td>
+
+      {/* Type */}
+      <td className="px-4 py-3">
+        <TypeBadge hasPdf={campaign.has_pdf} />
+      </td>
+
+      {/* Locales */}
+      <td className="px-4 py-3">
+        <div className="flex flex-wrap gap-1">
+          {campaign.available_locales.map((l) => (
+            <LocaleBadge key={l} locale={l} />
+          ))}
+        </div>
+      </td>
+
+      {/* Status */}
+      <td className="px-4 py-3">
+        <StatusBadge status={campaign.status} />
+      </td>
+
+      {/* Submissions + sparkline */}
+      <td className="px-4 py-3">
+        <div className="flex flex-col gap-1">
+          <span className="text-sm font-medium text-[var(--text,#e4e4e7)]">
+            {campaign.submission_count.toLocaleString()}
+          </span>
+          <Sparkline data={campaign.sparkline_data} delta={campaign.submissions_delta} />
+        </div>
+      </td>
+
+      {/* Date */}
+      <td className="px-4 py-3 text-xs text-[var(--text-muted,#71717a)]">
+        {campaign.published_at
+          ? new Date(campaign.published_at).toLocaleDateString('en', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            })
+          : '—'}
+      </td>
+
+      {/* Actions */}
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/cms/campaigns/${campaign.id}/edit`}
+            className="rounded px-2 py-1 text-xs text-[var(--text-muted,#71717a)] hover:bg-[var(--surface-hover,#1f2330)] hover:text-[var(--text,#e4e4e7)]"
+          >
+            Edit
+          </Link>
+          {(campaign.status === 'draft' || campaign.status === 'archived') && (
+            <DeleteButton campaignId={campaign.id} onDelete={onDelete} />
+          )}
+        </div>
+      </td>
+    </tr>
+  )
+}
+
+// ── Delete button ──────────────────────────────────────────────────────────
+
+function DeleteButton({
+  campaignId,
+  onDelete,
+}: {
+  campaignId: string
+  onDelete: (id: string) => Promise<{ ok: boolean; error?: string }>
+}) {
+  const [isPending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
+
+  function handleDelete() {
+    if (!confirm('Delete this campaign? This action is permanent.')) return
+    setError(null)
+    startTransition(async () => {
+      const result = await onDelete(campaignId)
+      if (!result.ok) setError(result.error ?? 'Failed to delete')
+    })
+  }
+
+  return (
+    <>
+      <button
+        onClick={handleDelete}
+        disabled={isPending}
+        className="rounded px-2 py-1 text-xs text-[#ef4444] hover:bg-[rgba(239,68,68,.1)] disabled:opacity-40"
+        aria-label="Delete campaign"
+      >
+        {isPending ? '…' : 'Delete'}
+      </button>
+      {error && (
+        <span role="alert" className="text-[10px] text-[#ef4444]">
+          {error}
+        </span>
+      )}
+    </>
+  )
+}
+
+// ── Mobile card ────────────────────────────────────────────────────────────
+
+function MobileCard({
+  campaign,
+  onDelete,
+}: {
+  campaign: CampaignRow
+  onDelete: (id: string) => Promise<{ ok: boolean; error?: string }>
+}) {
+  const isArchived = campaign.status === 'archived'
+  const isDraft = campaign.status === 'draft'
+
+  return (
+    <div
+      className={`rounded-[var(--radius,8px)] border border-[var(--border,#2a2d3a)] bg-[var(--surface,#1a1d27)] p-4 ${isArchived ? 'opacity-50' : ''}`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <Link
+            href={`/cms/campaigns/${campaign.id}/edit`}
+            className="block truncate text-sm font-medium text-[var(--text,#e4e4e7)] hover:text-[var(--accent,#6366f1)]"
+          >
+            {campaign.translation.meta_title ?? campaign.translation.context_tag ?? campaign.translation.slug}
+          </Link>
+          <p className="mt-0.5 font-mono text-[10px] text-[var(--text-dim,#52525b)]">
+            {campaign.translation.slug}
+          </p>
+        </div>
+        <StatusBadge status={campaign.status} />
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <TypeBadge hasPdf={campaign.has_pdf} />
+        {isDraft && !campaign.has_pdf && <NoPdfWarning />}
+        {campaign.available_locales.map((l) => (
+          <LocaleBadge key={l} locale={l} />
+        ))}
+      </div>
+      <div className="mt-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-[var(--text,#e4e4e7)]">
+            {campaign.submission_count.toLocaleString()}
+          </span>
+          <span className="text-[11px] text-[var(--text-muted,#71717a)]">subs</span>
+          <Sparkline data={campaign.sparkline_data} delta={campaign.submissions_delta} />
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Link
+            href={`/cms/campaigns/${campaign.id}/edit`}
+            className="rounded px-2 py-1 text-xs text-[var(--text-muted,#71717a)] hover:bg-[var(--surface-hover,#1f2330)]"
+          >
+            Edit
+          </Link>
+          {(campaign.status === 'draft' || campaign.status === 'archived') && (
+            <DeleteButton campaignId={campaign.id} onDelete={onDelete} />
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Main component ─────────────────────────────────────────────────────────
+
+export function CampaignTable({ campaigns, onDelete }: CampaignTableProps) {
+  const [page, setPage] = useState(1)
+
+  const paginated = campaigns.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  return (
+    <div
+      className="overflow-hidden rounded-[var(--radius,8px)] border border-[var(--border,#2a2d3a)] bg-[var(--surface,#1a1d27)]"
+      data-testid="campaign-table"
+    >
+      {/* Desktop table — hidden below md */}
+      <div className="hidden md:block">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-[var(--border,#2a2d3a)] text-left">
+              {['Campaign', 'Type', 'Locales', 'Status', 'Submissions', 'Date', 'Actions'].map(
+                (h) => (
+                  <th
+                    key={h}
+                    className="px-4 py-3 text-[11px] font-medium uppercase tracking-[1.5px] text-[var(--text-muted,#71717a)]"
+                  >
+                    {h}
+                  </th>
+                ),
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {paginated.map((c) => (
+              <DesktopRow key={c.id} campaign={c} onDelete={onDelete} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Mobile cards — visible below md */}
+      <div className="flex flex-col gap-3 p-3 md:hidden">
+        {paginated.map((c) => (
+          <MobileCard key={c.id} campaign={c} onDelete={onDelete} />
+        ))}
+      </div>
+
+      <Pagination total={campaigns.length} page={page} onPage={setPage} />
+    </div>
+  )
+}
+```
 
 - [ ] **Step 3: Rewrite campaigns/page.tsx**
 
 Integrate KPIs + table + CmsTopbar.
 
-- [ ] **Step 4: Commit**
+```tsx
+// apps/web/src/app/cms/(authed)/campaigns/page.tsx
+import { Suspense } from 'react'
+import Link from 'next/link'
+import type { ContentStatus } from '@tn-figueiredo/cms'
+import { campaignRepo } from '../../../../../lib/cms/repositories'
+import { getSiteContext } from '../../../../../lib/cms/site-context'
+import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
+import { deleteCampaign } from './[id]/edit/actions'
+import { CampaignKpis } from './_components/campaign-kpis'
+import { CampaignTable, type CampaignRow } from './_components/campaign-table'
+
+export const dynamic = 'force-dynamic'
+
+interface Props {
+  searchParams: Promise<{ status?: string; locale?: string; search?: string }>
+}
+
+// ── Skeleton ───────────────────────────────────────────────────────────────
+
+function KpisSkeleton() {
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {[...Array(4)].map((_, i) => (
+        <div
+          key={i}
+          className="h-[68px] animate-pulse rounded-[var(--radius,8px)] bg-[var(--surface,#1a1d27)]"
+        />
+      ))}
+    </div>
+  )
+}
+
+function TableSkeleton() {
+  return (
+    <div className="overflow-hidden rounded-[var(--radius,8px)] border border-[var(--border,#2a2d3a)] bg-[var(--surface,#1a1d27)]">
+      <div className="flex gap-3 border-b border-[var(--border,#2a2d3a)] px-4 py-3">
+        <div className="h-9 w-60 animate-pulse rounded-[var(--radius,8px)] bg-[var(--surface-hover,#1f2330)]" />
+        <div className="h-9 w-24 animate-pulse rounded-[var(--radius,8px)] bg-[var(--surface-hover,#1f2330)]" />
+      </div>
+      <div className="border-b border-[var(--border,#2a2d3a)] px-4 py-3">
+        <div className="h-4 w-full animate-pulse rounded bg-[var(--surface-hover,#1f2330)]" />
+      </div>
+      {[...Array(3)].map((_, i) => (
+        <div key={i} className="border-b border-[var(--border,#2a2d3a)] px-4 py-4">
+          <div className="h-10 w-full animate-pulse rounded bg-[var(--surface-hover,#1f2330)]" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Empty state ────────────────────────────────────────────────────────────
+
+function EmptyState() {
+  return (
+    <div className="flex flex-col items-center justify-center rounded-[var(--radius,8px)] border border-[var(--border,#2a2d3a)] bg-[var(--surface,#1a1d27)] px-6 py-16 text-center">
+      <svg
+        width="48"
+        height="48"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        className="mb-4 text-[var(--text-dim,#52525b)]"
+        aria-hidden="true"
+      >
+        <circle cx="12" cy="12" r="10" />
+        <line x1="12" y1="8" x2="12" y2="12" />
+        <line x1="12" y1="16" x2="12.01" y2="16" />
+      </svg>
+      <p className="text-base font-semibold text-[var(--text,#e4e4e7)]">No campaigns yet</p>
+      <p className="mt-1 text-sm text-[var(--text-muted,#71717a)]">
+        Create your first lead-capture campaign.
+      </p>
+      <Link
+        href="/cms/campaigns/new"
+        className="mt-6 inline-flex items-center gap-2 rounded-[var(--radius,8px)] bg-[var(--accent,#6366f1)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--accent-hover,#818cf8)]"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <line x1="12" y1="5" x2="12" y2="19" />
+          <line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
+        Create first campaign
+      </Link>
+    </div>
+  )
+}
+
+// ── Filter bar ─────────────────────────────────────────────────────────────
+
+function FilterBar({
+  status,
+  locale,
+  search,
+}: {
+  status: string
+  locale: string
+  search: string
+}) {
+  return (
+    <form
+      method="get"
+      className="flex flex-wrap items-center gap-3"
+      data-testid="campaign-filters"
+    >
+      <input
+        type="search"
+        name="search"
+        placeholder="Search campaigns…"
+        defaultValue={search}
+        aria-label="title search"
+        className="h-9 w-64 rounded-[var(--radius,8px)] border border-[var(--border,#2a2d3a)] bg-[var(--surface,#1a1d27)] px-3 text-sm text-[var(--text,#e4e4e7)] placeholder-[var(--text-dim,#52525b)] outline-none focus:border-[var(--accent,#6366f1)]"
+      />
+      <select
+        name="status"
+        defaultValue={status}
+        aria-label="status filter"
+        className="h-9 rounded-[var(--radius,8px)] border border-[var(--border,#2a2d3a)] bg-[var(--surface,#1a1d27)] px-3 text-sm text-[var(--text,#e4e4e7)] outline-none focus:border-[var(--accent,#6366f1)]"
+      >
+        <option value="">All statuses</option>
+        <option value="draft">Draft</option>
+        <option value="scheduled">Scheduled</option>
+        <option value="published">Published</option>
+        <option value="archived">Archived</option>
+      </select>
+      <select
+        name="locale"
+        defaultValue={locale}
+        aria-label="locale filter"
+        className="h-9 rounded-[var(--radius,8px)] border border-[var(--border,#2a2d3a)] bg-[var(--surface,#1a1d27)] px-3 text-sm text-[var(--text,#e4e4e7)] outline-none focus:border-[var(--accent,#6366f1)]"
+      >
+        <option value="">All locales</option>
+        <option value="pt-BR">pt-BR</option>
+        <option value="en">en</option>
+      </select>
+      <button
+        type="submit"
+        className="h-9 rounded-[var(--radius,8px)] border border-[var(--border,#2a2d3a)] bg-[var(--surface,#1a1d27)] px-3 text-sm text-[var(--text-muted,#71717a)] hover:bg-[var(--surface-hover,#1f2330)]"
+      >
+        Filter
+      </button>
+    </form>
+  )
+}
+
+// ── Page ───────────────────────────────────────────────────────────────────
+
+async function CampaignsContent({ status, locale, search, siteId, defaultLocale }: {
+  status: string
+  locale: string
+  search: string
+  siteId: string
+  defaultLocale: string
+}) {
+  const supabase = getSupabaseServiceClient()
+
+  const campaigns = await campaignRepo().list({
+    siteId,
+    locale: locale || defaultLocale,
+    status: (status as ContentStatus) || undefined,
+    search: search || undefined,
+    perPage: 200, // fetch all, paginate client-side
+  })
+
+  if (campaigns.length === 0) {
+    return <EmptyState />
+  }
+
+  // Enrich with submission counts + sparkline data
+  const campaignIds = campaigns.map((c) => c.id)
+
+  // Total submission counts per campaign
+  const { data: submissionCounts } = await supabase
+    .from('campaign_submissions')
+    .select('campaign_id')
+    .in('campaign_id', campaignIds)
+
+  const countMap: Record<string, number> = {}
+  for (const row of submissionCounts ?? []) {
+    const cid = row.campaign_id as string
+    countMap[cid] = (countMap[cid] ?? 0) + 1
+  }
+
+  // Sparkline data: last 14 days of daily submissions per campaign
+  const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10)
+
+  const { data: recentSubs } = await supabase
+    .from('campaign_submissions')
+    .select('campaign_id, submitted_at')
+    .in('campaign_id', campaignIds)
+    .gte('submitted_at', fourteenDaysAgo)
+
+  // Build sparkline arrays (7 days) per campaign
+  const today = new Date()
+  const sparklineMap: Record<string, number[]> = {}
+  const deltaMap: Record<string, number> = {}
+
+  for (const id of campaignIds) {
+    const days14 = Array(14).fill(0)
+    for (const row of recentSubs ?? []) {
+      if (row.campaign_id !== id) continue
+      const submittedDate = new Date(row.submitted_at as string)
+      const daysAgo = Math.floor(
+        (today.getTime() - submittedDate.getTime()) / (1000 * 60 * 60 * 24)
+      )
+      if (daysAgo >= 0 && daysAgo < 14) {
+        days14[13 - daysAgo] = (days14[13 - daysAgo] ?? 0) + 1
+      }
+    }
+    const recent7 = days14.slice(7)
+    const prior7 = days14.slice(0, 7)
+    const recent7Total = recent7.reduce((a, b) => a + b, 0)
+    const prior7Total = prior7.reduce((a, b) => a + b, 0)
+    sparklineMap[id] = recent7
+    deltaMap[id] = recent7Total - prior7Total
+  }
+
+  // Fetch pdf_storage_path per campaign (not on CampaignListItem)
+  const { data: pdfData } = await supabase
+    .from('campaigns')
+    .select('id, pdf_storage_path')
+    .in('id', campaignIds)
+
+  const pdfMap: Record<string, boolean> = {}
+  for (const row of pdfData ?? []) {
+    pdfMap[row.id as string] = !!(row.pdf_storage_path as string | null)
+  }
+
+  const rows: CampaignRow[] = campaigns.map((c) => ({
+    ...c,
+    has_pdf: pdfMap[c.id] ?? false,
+    submission_count: countMap[c.id] ?? 0,
+    sparkline_data: sparklineMap[c.id] ?? [],
+    submissions_delta: deltaMap[c.id] ?? 0,
+  }))
+
+  async function handleDelete(id: string): Promise<{ ok: boolean; error?: string }> {
+    'use server'
+    const result = await deleteCampaign(id)
+    if (result.ok) return { ok: true }
+    return { ok: false, error: result.message ?? result.error }
+  }
+
+  return <CampaignTable campaigns={rows} onDelete={handleDelete} />
+}
+
+export default async function CmsCampaignsListPage({ searchParams }: Props) {
+  const sp = await searchParams
+  const ctx = await getSiteContext()
+
+  const status = sp.status ?? ''
+  const locale = sp.locale ?? ''
+  const search = sp.search ?? ''
+
+  return (
+    <div className="flex flex-col gap-6 p-6">
+      {/* Topbar */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-semibold text-[var(--text,#e4e4e7)]">Campaigns</h1>
+          <p className="mt-0.5 text-sm text-[var(--text-muted,#71717a)]">
+            Lead-capture landing pages
+          </p>
+        </div>
+        <Link
+          href="/cms/campaigns/new"
+          data-testid="new-campaign-btn"
+          className="inline-flex items-center gap-2 rounded-[var(--radius,8px)] bg-[var(--accent,#6366f1)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--accent-hover,#818cf8)]"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          New Campaign
+        </Link>
+      </div>
+
+      {/* KPI tiles */}
+      <Suspense fallback={<KpisSkeleton />}>
+        <CampaignKpis />
+      </Suspense>
+
+      {/* Filters */}
+      <FilterBar status={status} locale={locale} search={search} />
+
+      {/* Table */}
+      <Suspense fallback={<TableSkeleton />}>
+        <CampaignsContent
+          status={status}
+          locale={locale}
+          search={search}
+          siteId={ctx.siteId}
+          defaultLocale={ctx.defaultLocale}
+        />
+      </Suspense>
+    </div>
+  )
+}
+```
+
+- [ ] **Step 4: Add tests for CampaignKpis and CampaignTable exports**
+
+```tsx
+// apps/web/test/app/cms/campaigns.test.tsx
+import { describe, it, expect } from 'vitest'
+
+describe('CMS Campaigns', () => {
+  it('exports CampaignKpis component', async () => {
+    const mod = await import('@/app/cms/(authed)/campaigns/_components/campaign-kpis')
+    expect(mod.CampaignKpis).toBeDefined()
+  })
+
+  it('exports CampaignTable component', async () => {
+    const mod = await import('@/app/cms/(authed)/campaigns/_components/campaign-table')
+    expect(mod.CampaignTable).toBeDefined()
+  })
+})
+```
+
+- [ ] **Step 5: Commit**
 
 ```bash
-git add apps/web/src/app/cms/\(authed\)/campaigns/
+git add apps/web/src/app/cms/\(authed\)/campaigns/ apps/web/test/app/cms/campaigns.test.tsx
 git commit -m "feat(cms): redesigned Campaigns with KPI tiles, sparklines, responsive table"
 ```
 
@@ -1944,9 +3457,11 @@ git commit -m "feat(cms): redesigned Campaigns with KPI tiles, sparklines, respo
 **Files:**
 - Create: `apps/web/src/app/cms/(authed)/subscribers/page.tsx`
 - Create: `apps/web/src/app/cms/(authed)/subscribers/_components/subscriber-table.tsx`
+- Create: `apps/web/src/app/cms/(authed)/subscribers/_components/subscriber-table-shell.tsx`
 - Create: `apps/web/src/app/cms/(authed)/subscribers/_components/subscriber-kpis.tsx`
 - Create: `apps/web/src/app/cms/(authed)/subscribers/_components/growth-chart.tsx`
 - Create: `apps/web/src/app/cms/(authed)/subscribers/_components/engagement-dots.tsx`
+- Create: `apps/web/test/app/cms/subscribers.test.tsx`
 
 Reference: spec section 4.7, mockup `07-subscribers.html`.
 
@@ -1956,12 +3471,12 @@ Renders 5 colored dots for last 5 sends (green=opened, cyan=clicked, gray=none, 
 
 ```tsx
 // apps/web/src/app/cms/(authed)/subscribers/_components/engagement-dots.tsx
-type DotStatus = 'opened' | 'clicked' | 'none' | 'bounced' | 'complained'
+export type DotStatus = 'opened' | 'clicked' | 'none' | 'bounced' | 'complained'
 
 const DOT_COLORS: Record<DotStatus, string> = {
   opened: 'bg-cms-green',
   clicked: 'bg-cms-cyan',
-  none: 'bg-gray-500',
+  none: 'bg-cms-text-dim',
   bounced: 'bg-cms-red',
   complained: 'bg-cms-rose',
 }
@@ -1984,16 +3499,1438 @@ export function EngagementDots({ dots, ariaLabel }: EngagementDotsProps) {
 
 - [ ] **Step 2: Create GrowthChart component (CSS bars)**
 
-- [ ] **Step 3: Create SubscriberKpis + SubscriberTable**
+Client component with period toggle (7d/30d/90d/1y). Pure CSS bars (no chart library). Shows gain (green) and loss (red) bars per day, with net summary. Responsive — hidden on mobile per spec.
 
-- [ ] **Step 4: Create subscribers/page.tsx**
+```tsx
+// apps/web/src/app/cms/(authed)/subscribers/_components/growth-chart.tsx
+'use client'
 
-Server component that gates on `is_org_admin || is_super_admin` (spec: PII-heavy page). Fetches from `newsletter_subscriptions` with joins to `newsletter_sends` for engagement data.
+import { useState } from 'react'
 
-- [ ] **Step 5: Commit**
+export interface GrowthDataPoint {
+  date: string
+  gain: number
+  loss: number
+}
+
+interface GrowthChartProps {
+  data: GrowthDataPoint[]
+}
+
+type Period = '7d' | '30d' | '90d' | '1y'
+
+const PERIOD_LABELS: Record<Period, string> = {
+  '7d': '7 dias',
+  '30d': '30 dias',
+  '90d': '90 dias',
+  '1y': '1 ano',
+}
+
+const PERIOD_DAYS: Record<Period, number> = {
+  '7d': 7,
+  '30d': 30,
+  '90d': 90,
+  '1y': 365,
+}
+
+function formatDate(dateStr: string): string {
+  const d = new Date(dateStr)
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
+}
+
+export function GrowthChart({ data }: GrowthChartProps) {
+  const [period, setPeriod] = useState<Period>('30d')
+
+  const days = PERIOD_DAYS[period]
+  const sliced = data.slice(-days)
+
+  const maxValue = Math.max(
+    1,
+    ...sliced.map((d) => Math.max(d.gain, d.loss)),
+  )
+
+  const totalGain = sliced.reduce((s, d) => s + d.gain, 0)
+  const totalLoss = sliced.reduce((s, d) => s + d.loss, 0)
+  const net = totalGain - totalLoss
+
+  return (
+    <section
+      className="rounded-lg border p-4 mb-6"
+      style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+      aria-label="Gráfico de crescimento de assinantes"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <h2
+            className="text-sm font-semibold"
+            style={{ color: 'var(--text)' }}
+          >
+            Crescimento de assinantes
+          </h2>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-dim)' }}>
+            <span className="text-green-500 font-medium">+{totalGain}</span>
+            {' · '}
+            <span className="text-red-500 font-medium">-{totalLoss}</span>
+            {' · '}
+            <span
+              className={net >= 0 ? 'text-green-500' : 'text-red-500'}
+              style={{ fontWeight: 500 }}
+            >
+              líquido {net >= 0 ? '+' : ''}{net}
+            </span>
+          </p>
+        </div>
+
+        {/* Period toggle */}
+        <div
+          className="flex gap-1 rounded-md p-0.5"
+          style={{ background: 'var(--surface-hover)' }}
+          role="group"
+          aria-label="Período"
+        >
+          {(Object.keys(PERIOD_LABELS) as Period[]).map((p) => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              aria-pressed={period === p}
+              className="text-xs px-2.5 py-1 rounded transition-colors"
+              style={
+                period === p
+                  ? {
+                      background: 'var(--surface)',
+                      color: 'var(--text)',
+                      fontWeight: 600,
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.15)',
+                    }
+                  : { color: 'var(--text-dim)' }
+              }
+            >
+              {PERIOD_LABELS[p]}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Bar chart */}
+      <div
+        className="flex items-end gap-px overflow-hidden"
+        style={{ height: 80 }}
+        role="img"
+        aria-label={`Barras de crescimento nos últimos ${PERIOD_LABELS[period]}`}
+      >
+        {sliced.length === 0 ? (
+          <div
+            className="flex-1 flex items-center justify-center text-xs"
+            style={{ color: 'var(--text-dim)' }}
+          >
+            Sem dados
+          </div>
+        ) : (
+          sliced.map((point, i) => {
+            const gainH = maxValue > 0 ? Math.round((point.gain / maxValue) * 76) : 0
+            const lossH = maxValue > 0 ? Math.round((point.loss / maxValue) * 76) : 0
+            const isLast = i === sliced.length - 1
+            return (
+              <div
+                key={point.date}
+                className="flex-1 flex flex-col items-center justify-end gap-px"
+                style={{ minWidth: 2 }}
+                title={`${formatDate(point.date)}: +${point.gain} / -${point.loss}`}
+              >
+                {point.gain > 0 && (
+                  <div
+                    style={{
+                      height: gainH,
+                      background: '#22c55e',
+                      width: '100%',
+                      borderRadius: '1px 1px 0 0',
+                      opacity: isLast ? 1 : 0.8,
+                    }}
+                  />
+                )}
+                {point.loss > 0 && (
+                  <div
+                    style={{
+                      height: lossH,
+                      background: '#ef4444',
+                      width: '100%',
+                      borderRadius: '0 0 1px 1px',
+                      opacity: isLast ? 1 : 0.8,
+                    }}
+                  />
+                )}
+                {point.gain === 0 && point.loss === 0 && (
+                  <div
+                    style={{
+                      height: 2,
+                      background: 'var(--border)',
+                      width: '100%',
+                    }}
+                  />
+                )}
+              </div>
+            )
+          })
+        )}
+      </div>
+
+      {/* X-axis labels — show only first, mid, last */}
+      {sliced.length > 1 && sliced[0] && sliced[sliced.length - 1] && (
+        <div className="flex justify-between mt-1">
+          <span className="text-xs" style={{ color: 'var(--text-dim)' }}>
+            {formatDate(sliced[0].date)}
+          </span>
+          {sliced.length > 2 && sliced[Math.floor(sliced.length / 2)] && (
+            <span className="text-xs" style={{ color: 'var(--text-dim)' }}>
+              {formatDate(sliced[Math.floor(sliced.length / 2)]!.date)}
+            </span>
+          )}
+          <span className="text-xs" style={{ color: 'var(--text-dim)' }}>
+            {formatDate(sliced[sliced.length - 1]!.date)}
+          </span>
+        </div>
+      )}
+    </section>
+  )
+}
+```
+
+- [ ] **Step 3: Create SubscriberKpis component**
+
+Server component that fetches KPI data: total active (confirmed), new in 30d, churn rate (unsubscribed_30d / (active + unsubscribed_30d)), and average open rate from sent editions. Color-coded accent thresholds (green/amber/red).
+
+```tsx
+// apps/web/src/app/cms/(authed)/subscribers/_components/subscriber-kpis.tsx
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
+
+interface KpiCardProps {
+  label: string
+  value: string | number
+  sub?: string
+  accent?: 'default' | 'amber' | 'red' | 'green'
+}
+
+function KpiCard({ label, value, sub, accent = 'default' }: KpiCardProps) {
+  const accentColor =
+    accent === 'amber'
+      ? '#f59e0b'
+      : accent === 'red'
+        ? '#ef4444'
+        : accent === 'green'
+          ? '#22c55e'
+          : 'var(--text)'
+
+  return (
+    <div
+      className="rounded-lg border p-4 flex flex-col gap-1"
+      style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+    >
+      <span className="text-xs uppercase tracking-wide" style={{ color: 'var(--text-dim)', letterSpacing: '0.08em' }}>
+        {label}
+      </span>
+      <span className="text-2xl font-bold leading-tight" style={{ color: accentColor }}>
+        {value}
+      </span>
+      {sub && (
+        <span className="text-xs" style={{ color: 'var(--text-dim)' }}>
+          {sub}
+        </span>
+      )}
+    </div>
+  )
+}
+
+interface SubscriberKpisProps {
+  siteId: string
+}
+
+export async function SubscriberKpis({ siteId }: SubscriberKpisProps) {
+  const supabase = getSupabaseServiceClient()
+
+  const now = new Date()
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
+
+  // Total active (confirmed only)
+  const { count: totalActive } = await supabase
+    .from('newsletter_subscriptions')
+    .select('*', { count: 'exact', head: true })
+    .eq('site_id', siteId)
+    .eq('status', 'confirmed')
+
+  // New in 30d (confirmed subscribed in window)
+  const { count: newLast30d } = await supabase
+    .from('newsletter_subscriptions')
+    .select('*', { count: 'exact', head: true })
+    .eq('site_id', siteId)
+    .eq('status', 'confirmed')
+    .gte('confirmed_at', thirtyDaysAgo)
+
+  // Unsubscribed in 30d (churn numerator)
+  const { count: unsubLast30d } = await supabase
+    .from('newsletter_subscriptions')
+    .select('*', { count: 'exact', head: true })
+    .eq('site_id', siteId)
+    .eq('status', 'unsubscribed')
+    .gte('unsubscribed_at', thirtyDaysAgo)
+
+  // Churn rate = unsubscribed_30d / (total_active + unsubscribed_30d)
+  const churnDenom = (totalActive ?? 0) + (unsubLast30d ?? 0)
+  const churnRate = churnDenom > 0 ? ((unsubLast30d ?? 0) / churnDenom) * 100 : 0
+  const churnPct = churnRate.toFixed(1) + '%'
+  const churnAccent: KpiCardProps['accent'] =
+    churnRate >= 5 ? 'red' : churnRate >= 2 ? 'amber' : 'default'
+
+  // Avg open rate from sent editions in last 30d
+  const { data: editionStats } = await supabase
+    .from('newsletter_editions')
+    .select('stats_opens, stats_delivered')
+    .eq('site_id', siteId)
+    .eq('status', 'sent')
+    .gte('sent_at', thirtyDaysAgo)
+
+  const editions = editionStats ?? []
+  let avgOpenRate = 0
+  if (editions.length > 0) {
+    const totalDelivered = editions.reduce((s, e) => s + (e.stats_delivered ?? 0), 0)
+    const totalOpens = editions.reduce((s, e) => s + (e.stats_opens ?? 0), 0)
+    avgOpenRate = totalDelivered > 0 ? (totalOpens / totalDelivered) * 100 : 0
+  }
+  const openRatePct = avgOpenRate.toFixed(1) + '%'
+  const openAccent: KpiCardProps['accent'] =
+    avgOpenRate >= 30 ? 'green' : avgOpenRate >= 15 ? 'default' : 'amber'
+
+  return (
+    <div
+      className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6"
+      data-testid="subscriber-kpis"
+    >
+      <KpiCard
+        label="Total ativos"
+        value={(totalActive ?? 0).toLocaleString('pt-BR')}
+        sub="confirmados"
+        accent="default"
+      />
+      <KpiCard
+        label="Novos (30d)"
+        value={(newLast30d ?? 0).toLocaleString('pt-BR')}
+        sub="últimos 30 dias"
+        accent="green"
+      />
+      <KpiCard
+        label="Taxa de churn"
+        value={churnPct}
+        sub={churnRate >= 5 ? 'crítico' : churnRate >= 2 ? 'atenção' : 'saudável'}
+        accent={churnAccent}
+      />
+      <KpiCard
+        label="Média de abertura"
+        value={openRatePct}
+        sub={`${editions.length} edições (30d)`}
+        accent={openAccent}
+      />
+    </div>
+  )
+}
+```
+
+- [ ] **Step 4: Create SubscriberTable + SubscriberTableShell components**
+
+`SubscriberTable` is a client component with search (debounced 300ms), status filter chips, newsletter type dropdown, select-all checkbox, engagement dots per row, LGPD anonymized row handling (lock icon, disabled actions), context menu per status, mobile card layout, and smart pagination.
+
+`SubscriberTableShell` is a thin client wrapper that bridges URL search params to `SubscriberTable` props via `useRouter`/`useSearchParams`, resetting to page 1 on filter changes.
+
+```tsx
+// apps/web/src/app/cms/(authed)/subscribers/_components/subscriber-table.tsx
+'use client'
+
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  type ChangeEvent,
+} from 'react'
+import { EngagementDots, type DotStatus } from './engagement-dots'
+
+export type SubscriberStatus =
+  | 'confirmed'
+  | 'pending'
+  | 'bounced'
+  | 'unsubscribed'
+  | 'complained'
+
+export interface SubscriberRow {
+  id: string
+  email: string
+  status: SubscriberStatus
+  newsletter_type_name: string
+  newsletter_type_color: string | null
+  engagement_dots: DotStatus[]
+  tracking_consent: boolean
+  subscribed_at: string
+  confirmed_at: string | null
+  is_anonymized: boolean
+}
+
+interface SubscriberTableProps {
+  initialRows: SubscriberRow[]
+  totalCount: number
+  page: number
+  perPage: number
+  newsletterTypes: { id: string; name: string; color: string | null }[]
+  onPageChange: (page: number) => void
+  onSearch: (query: string) => void
+  onStatusFilter: (status: string) => void
+  onTypeFilter: (typeId: string) => void
+  currentSearch: string
+  currentStatus: string
+  currentType: string
+}
+
+const STATUS_LABELS: Record<SubscriberStatus, string> = {
+  confirmed: 'Confirmado',
+  pending: 'Pendente',
+  bounced: 'Bounce',
+  unsubscribed: 'Cancelado',
+  complained: 'Reclamação',
+}
+
+const STATUS_COLORS: Record<SubscriberStatus, string> = {
+  confirmed: '#22c55e',
+  pending: '#f59e0b',
+  bounced: '#ef4444',
+  unsubscribed: '#6b7280',
+  complained: '#f43f5e',
+}
+
+function StatusBadge({ status }: { status: SubscriberStatus }) {
+  return (
+    <span
+      className="text-xs px-1.5 py-0.5 rounded font-medium"
+      style={{
+        background: STATUS_COLORS[status] + '22',
+        color: STATUS_COLORS[status],
+        border: `1px solid ${STATUS_COLORS[status]}44`,
+      }}
+    >
+      {STATUS_LABELS[status]}
+    </span>
+  )
+}
+
+function TypeBadge({ name, color }: { name: string; color: string | null }) {
+  const c = color ?? '#6b7280'
+  return (
+    <span
+      className="text-xs px-1.5 py-0.5 rounded font-medium"
+      style={{
+        background: c + '22',
+        color: c,
+        border: `1px solid ${c}44`,
+      }}
+    >
+      {name}
+    </span>
+  )
+}
+
+function LgpdLockIcon() {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 12 12"
+      fill="none"
+      aria-label="Dados anonimizados (LGPD)"
+      role="img"
+    >
+      <rect x="1" y="5" width="10" height="7" rx="1.5" fill="#6b7280" />
+      <path
+        d="M3 5V3.5a3 3 0 016 0V5"
+        stroke="#6b7280"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}
+
+function ConsentIcon({ consent }: { consent: boolean }) {
+  return consent ? (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-label="Tracking consentido" role="img">
+      <circle cx="6" cy="6" r="5" fill="#22c55e22" stroke="#22c55e" strokeWidth="1" />
+      <path d="M3.5 6l2 2 3-3" stroke="#22c55e" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ) : (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-label="Sem consentimento de tracking" role="img">
+      <circle cx="6" cy="6" r="5" fill="#6b728022" stroke="#6b7280" strokeWidth="1" />
+      <path d="M4 4l4 4M8 4l-4 4" stroke="#6b7280" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function ActionMenu({
+  row,
+  disabled,
+}: {
+  row: SubscriberRow
+  disabled: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  if (disabled) {
+    return (
+      <span
+        className="text-xs px-2 py-1 rounded cursor-not-allowed"
+        style={{ color: 'var(--text-dim)' }}
+        title="PII anonimizado por LGPD"
+      >
+        ⋯
+      </span>
+    )
+  }
+
+  const items: { label: string; danger?: boolean; action: string }[] = []
+  if (row.status === 'confirmed') {
+    items.push(
+      { label: 'Ver detalhes', action: 'view' },
+      { label: 'Histórico de engajamento', action: 'history' },
+      { label: 'Reenviar boas-vindas', action: 'resend_welcome' },
+      { label: 'Copiar email', action: 'copy' },
+      { label: 'Cancelar assinatura', action: 'unsubscribe', danger: true },
+    )
+  } else if (row.status === 'pending') {
+    items.push(
+      { label: 'Ver detalhes', action: 'view' },
+      { label: 'Reenviar confirmação', action: 'resend_confirm' },
+      { label: 'Copiar email', action: 'copy' },
+      { label: 'Remover expirado', action: 'delete', danger: true },
+    )
+  } else if (row.status === 'bounced') {
+    items.push(
+      { label: 'Ver detalhes', action: 'view' },
+      { label: 'Detalhes do bounce', action: 'bounce_details' },
+      { label: 'Tentar reativar', action: 'retry' },
+      { label: 'Remover', action: 'delete', danger: true },
+    )
+  } else {
+    items.push({ label: 'Ver detalhes', action: 'view' })
+  }
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="text-xs px-2 py-1 rounded transition-colors"
+        style={{ color: 'var(--text-dim)' }}
+        aria-label="Ações"
+        aria-expanded={open}
+        aria-haspopup="menu"
+      >
+        ⋯
+      </button>
+      {open && (
+        <div
+          className="absolute right-0 top-full mt-1 rounded-lg border shadow-lg z-10 py-1 min-w-[180px]"
+          role="menu"
+          style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+        >
+          {items.map((item) => (
+            <button
+              key={item.action}
+              role="menuitem"
+              onClick={() => {
+                setOpen(false)
+                if (item.action === 'copy') {
+                  navigator.clipboard.writeText(row.email).catch(() => {})
+                }
+              }}
+              className="w-full text-left text-xs px-3 py-1.5 transition-colors"
+              style={{
+                color: item.danger ? '#ef4444' : 'var(--text)',
+                background: 'transparent',
+              }}
+              onMouseEnter={(e) => {
+                ;(e.currentTarget as HTMLButtonElement).style.background =
+                  'var(--surface-hover)'
+              }}
+              onMouseLeave={(e) => {
+                ;(e.currentTarget as HTMLButtonElement).style.background = 'transparent'
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MobileCard({ row }: { row: SubscriberRow }) {
+  return (
+    <div
+      className="rounded-lg border p-3 mb-2"
+      style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+    >
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <div className="flex-1 min-w-0">
+          {row.is_anonymized ? (
+            <span
+              className="font-mono text-xs italic"
+              style={{ color: 'var(--text-dim)' }}
+            >
+              {row.email}
+            </span>
+          ) : (
+            <span
+              className="font-mono text-xs truncate block"
+              style={{ color: 'var(--text)' }}
+            >
+              {row.email}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {row.is_anonymized && <LgpdLockIcon />}
+          <StatusBadge status={row.status} />
+        </div>
+      </div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <TypeBadge
+            name={row.newsletter_type_name}
+            color={row.newsletter_type_color}
+          />
+          <EngagementDots
+            dots={
+              row.is_anonymized
+                ? (['none', 'none', 'none', 'none', 'none'] as DotStatus[])
+                : row.engagement_dots
+            }
+            ariaLabel="Engajamento nos últimos 5 envios"
+          />
+        </div>
+        <span className="text-xs" style={{ color: 'var(--text-dim)' }}>
+          {new Date(row.subscribed_at).toLocaleDateString('pt-BR')}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+export function SubscriberTable({
+  initialRows,
+  totalCount,
+  page,
+  perPage,
+  newsletterTypes,
+  onPageChange,
+  onSearch,
+  onStatusFilter,
+  onTypeFilter,
+  currentSearch,
+  currentStatus,
+  currentType,
+}: SubscriberTableProps) {
+  const [searchInput, setSearchInput] = useState(currentSearch)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
+  const totalPages = Math.ceil(totalCount / perPage)
+  const startRow = (page - 1) * perPage + 1
+  const endRow = Math.min(page * perPage, totalCount)
+
+  const handleSearchChange = useCallback(
+    (e: ChangeEvent<HTMLInputElement>) => {
+      const val = e.target.value
+      setSearchInput(val)
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+      debounceRef.current = setTimeout(() => {
+        onSearch(val)
+      }, 300)
+    },
+    [onSearch],
+  )
+
+  // cleanup debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [])
+
+  const allIds = initialRows
+    .filter((r) => !r.is_anonymized)
+    .map((r) => r.id)
+  const allSelected =
+    allIds.length > 0 && allIds.every((id) => selectedIds.has(id))
+
+  function toggleAll() {
+    if (allSelected) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(allIds))
+    }
+  }
+
+  function toggleRow(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  return (
+    <section aria-label="Lista de assinantes">
+      {/* Filter bar */}
+      <div
+        className="rounded-lg border p-3 mb-4 flex flex-wrap gap-2 items-center"
+        style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+      >
+        <input
+          type="search"
+          value={searchInput}
+          onChange={handleSearchChange}
+          placeholder="Buscar por email…"
+          aria-label="Buscar assinante"
+          className="flex-1 min-w-[180px] text-sm rounded-md px-3 py-1.5 border outline-none"
+          style={{
+            borderColor: 'var(--border)',
+            background: 'var(--surface-hover)',
+            color: 'var(--text)',
+          }}
+        />
+
+        <select
+          value={currentType}
+          onChange={(e) => onTypeFilter(e.target.value)}
+          aria-label="Filtrar por newsletter"
+          className="text-sm rounded-md px-2 py-1.5 border outline-none"
+          style={{
+            borderColor: 'var(--border)',
+            background: 'var(--surface-hover)',
+            color: 'var(--text)',
+          }}
+        >
+          <option value="">Todas as newsletters</option>
+          {newsletterTypes.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.name}
+            </option>
+          ))}
+        </select>
+
+        {/* Status chips */}
+        <div className="flex gap-1 flex-wrap">
+          {(['', 'confirmed', 'pending', 'bounced', 'unsubscribed'] as const).map(
+            (s) => (
+              <button
+                key={s}
+                onClick={() => onStatusFilter(s)}
+                className="text-xs px-2.5 py-1 rounded-full border transition-colors"
+                style={
+                  currentStatus === s
+                    ? {
+                        background: 'var(--text)',
+                        color: 'var(--surface)',
+                        borderColor: 'var(--text)',
+                      }
+                    : {
+                        background: 'transparent',
+                        color: 'var(--text-dim)',
+                        borderColor: 'var(--border)',
+                      }
+                }
+                aria-pressed={currentStatus === s}
+              >
+                {s === '' ? 'Todos' : STATUS_LABELS[s as SubscriberStatus]}
+              </button>
+            ),
+          )}
+        </div>
+
+        {selectedIds.size > 0 && (
+          <span
+            className="ml-auto text-xs px-2.5 py-1 rounded-full"
+            style={{ background: 'var(--surface-hover)', color: 'var(--text-dim)' }}
+          >
+            {selectedIds.size} selecionado{selectedIds.size !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden md:block overflow-x-auto">
+        <table
+          className="w-full text-sm border-collapse"
+          data-testid="subscriber-table"
+        >
+          <thead>
+            <tr
+              className="text-left text-xs uppercase"
+              style={{ color: 'var(--text-dim)', letterSpacing: '0.06em' }}
+            >
+              <th className="pb-2 pr-3 w-8">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={toggleAll}
+                  aria-label="Selecionar todos"
+                  className="rounded"
+                />
+              </th>
+              <th className="pb-2 pr-4">Email</th>
+              <th className="pb-2 pr-4">Newsletter</th>
+              <th className="pb-2 pr-4">Status</th>
+              <th className="pb-2 pr-4">Engajamento</th>
+              <th className="pb-2 pr-4 hidden lg:table-cell">Consent</th>
+              <th className="pb-2 pr-4">Inscrito em</th>
+              <th className="pb-2 w-12" />
+            </tr>
+          </thead>
+          <tbody>
+            {initialRows.length === 0 && (
+              <tr>
+                <td
+                  colSpan={8}
+                  className="py-12 text-center text-sm"
+                  style={{ color: 'var(--text-dim)' }}
+                >
+                  Nenhum assinante encontrado.
+                </td>
+              </tr>
+            )}
+            {initialRows.map((row) => (
+              <tr
+                key={row.id}
+                className="border-t transition-colors"
+                style={{ borderColor: 'var(--border-subtle)' }}
+                onMouseEnter={(e) => {
+                  ;(e.currentTarget as HTMLTableRowElement).style.background =
+                    'var(--surface-hover)'
+                }}
+                onMouseLeave={(e) => {
+                  ;(e.currentTarget as HTMLTableRowElement).style.background = 'transparent'
+                }}
+              >
+                {/* Checkbox */}
+                <td className="py-2.5 pr-3">
+                  <input
+                    type="checkbox"
+                    disabled={row.is_anonymized}
+                    checked={selectedIds.has(row.id)}
+                    onChange={() => toggleRow(row.id)}
+                    aria-label={`Selecionar ${row.email}`}
+                    className="rounded disabled:opacity-30"
+                  />
+                </td>
+
+                {/* Email */}
+                <td className="py-2.5 pr-4 max-w-[220px]">
+                  {row.is_anonymized ? (
+                    <span
+                      className="font-mono text-xs italic truncate block"
+                      style={{ color: 'var(--text-dim)' }}
+                    >
+                      {row.email}
+                    </span>
+                  ) : (
+                    <span
+                      className="font-mono text-xs truncate block"
+                      style={{ color: 'var(--text)' }}
+                    >
+                      {row.email}
+                    </span>
+                  )}
+                </td>
+
+                {/* Type */}
+                <td className="py-2.5 pr-4">
+                  <TypeBadge
+                    name={row.newsletter_type_name}
+                    color={row.newsletter_type_color}
+                  />
+                </td>
+
+                {/* Status */}
+                <td className="py-2.5 pr-4">
+                  <StatusBadge status={row.status} />
+                </td>
+
+                {/* Engagement dots */}
+                <td className="py-2.5 pr-4">
+                  <div className="flex items-center gap-1.5">
+                    {row.is_anonymized && <LgpdLockIcon />}
+                    <EngagementDots
+                      dots={
+                        row.is_anonymized
+                          ? (['none', 'none', 'none', 'none', 'none'] as DotStatus[])
+                          : row.engagement_dots
+                      }
+                      ariaLabel="Engajamento nos últimos 5 envios"
+                    />
+                  </div>
+                </td>
+
+                {/* Consent */}
+                <td className="py-2.5 pr-4 hidden lg:table-cell">
+                  <ConsentIcon consent={row.tracking_consent} />
+                </td>
+
+                {/* Date */}
+                <td
+                  className="py-2.5 pr-4 text-xs whitespace-nowrap"
+                  style={{ color: 'var(--text-dim)' }}
+                >
+                  {new Date(row.subscribed_at).toLocaleDateString('pt-BR')}
+                </td>
+
+                {/* Actions */}
+                <td className="py-2.5 text-right">
+                  <ActionMenu row={row} disabled={row.is_anonymized} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Mobile cards */}
+      <div className="md:hidden">
+        {initialRows.length === 0 && (
+          <p
+            className="text-center py-10 text-sm"
+            style={{ color: 'var(--text-dim)' }}
+          >
+            Nenhum assinante encontrado.
+          </p>
+        )}
+        {initialRows.map((row) => (
+          <MobileCard key={row.id} row={row} />
+        ))}
+      </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <nav
+          className="flex items-center justify-between mt-4 pt-4 border-t text-sm"
+          style={{ borderColor: 'var(--border)' }}
+          aria-label="Paginação"
+        >
+          <span className="text-xs" style={{ color: 'var(--text-dim)' }}>
+            {totalCount === 0
+              ? 'Sem resultados'
+              : `Mostrando ${startRow}–${endRow} de ${totalCount}`}
+          </span>
+          <div className="flex gap-1">
+            <button
+              onClick={() => onPageChange(page - 1)}
+              disabled={page <= 1}
+              className="px-3 py-1.5 rounded border text-xs disabled:opacity-40 transition-colors"
+              style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+            >
+              ← Anterior
+            </button>
+            {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+              // Show pages around current
+              const mid = Math.min(Math.max(page, 4), totalPages - 3)
+              const pageNum =
+                totalPages <= 7
+                  ? i + 1
+                  : i === 0
+                    ? 1
+                    : i === 6
+                      ? totalPages
+                      : mid - 3 + i
+              return (
+                <button
+                  key={pageNum}
+                  onClick={() => onPageChange(pageNum)}
+                  className="px-3 py-1.5 rounded border text-xs transition-colors"
+                  style={
+                    pageNum === page
+                      ? {
+                          background: 'var(--text)',
+                          color: 'var(--surface)',
+                          borderColor: 'var(--text)',
+                        }
+                      : { borderColor: 'var(--border)', color: 'var(--text)' }
+                  }
+                  aria-current={pageNum === page ? 'page' : undefined}
+                >
+                  {pageNum}
+                </button>
+              )
+            })}
+            <button
+              onClick={() => onPageChange(page + 1)}
+              disabled={page >= totalPages}
+              className="px-3 py-1.5 rounded border text-xs disabled:opacity-40 transition-colors"
+              style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+            >
+              Próxima →
+            </button>
+          </div>
+        </nav>
+      )}
+    </section>
+  )
+}
+```
+
+```tsx
+// apps/web/src/app/cms/(authed)/subscribers/_components/subscriber-table-shell.tsx
+'use client'
+
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
+import { useCallback } from 'react'
+import { SubscriberTable, type SubscriberRow } from './subscriber-table'
+
+interface SubscriberTableShellProps {
+  initialRows: SubscriberRow[]
+  totalCount: number
+  page: number
+  perPage: number
+  newsletterTypes: { id: string; name: string; color: string | null }[]
+  currentSearch: string
+  currentStatus: string
+  currentType: string
+}
+
+export function SubscriberTableShell({
+  initialRows,
+  totalCount,
+  page,
+  perPage,
+  newsletterTypes,
+  currentSearch,
+  currentStatus,
+  currentType,
+}: SubscriberTableShellProps) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+
+  function buildUrl(updates: Record<string, string>) {
+    const params = new URLSearchParams(searchParams.toString())
+    for (const [key, val] of Object.entries(updates)) {
+      if (val) {
+        params.set(key, val)
+      } else {
+        params.delete(key)
+      }
+    }
+    // Reset to page 1 when filters change (unless explicitly setting page)
+    if (!('page' in updates)) {
+      params.delete('page')
+    }
+    const qs = params.toString()
+    return qs ? `${pathname}?${qs}` : pathname
+  }
+
+  const handlePageChange = useCallback(
+    (newPage: number) => {
+      router.push(buildUrl({ page: String(newPage) }))
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [router, pathname, searchParams],
+  )
+
+  const handleSearch = useCallback(
+    (query: string) => {
+      router.push(buildUrl({ search: query }))
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [router, pathname, searchParams],
+  )
+
+  const handleStatusFilter = useCallback(
+    (status: string) => {
+      router.push(buildUrl({ status }))
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [router, pathname, searchParams],
+  )
+
+  const handleTypeFilter = useCallback(
+    (typeId: string) => {
+      router.push(buildUrl({ type: typeId }))
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [router, pathname, searchParams],
+  )
+
+  return (
+    <SubscriberTable
+      initialRows={initialRows}
+      totalCount={totalCount}
+      page={page}
+      perPage={perPage}
+      newsletterTypes={newsletterTypes}
+      onPageChange={handlePageChange}
+      onSearch={handleSearch}
+      onStatusFilter={handleStatusFilter}
+      onTypeFilter={handleTypeFilter}
+      currentSearch={currentSearch}
+      currentStatus={currentStatus}
+      currentType={currentType}
+    />
+  )
+}
+```
+
+- [ ] **Step 5: Create subscribers/page.tsx**
+
+Server component that gates on `is_org_admin || is_super_admin` (spec: PII-heavy page). Fetches from `newsletter_subscriptions` with joins to `newsletter_sends` for engagement data. Builds 365-day growth chart data, maps engagement dots per subscriber, and delegates to `SubscriberTableShell` for client-side filtering/pagination via URL search params.
+
+```tsx
+// apps/web/src/app/cms/(authed)/subscribers/page.tsx
+import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
+import { createServerClient } from '@supabase/ssr'
+import type { CookieOptions } from '@supabase/ssr'
+import { getSiteContext } from '../../../../../lib/cms/site-context'
+import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
+import { SubscriberKpis } from './_components/subscriber-kpis'
+import { GrowthChart, type GrowthDataPoint } from './_components/growth-chart'
+import { SubscriberTableShell } from './_components/subscriber-table-shell'
+
+export const dynamic = 'force-dynamic'
+
+interface Props {
+  searchParams: Promise<{
+    page?: string
+    search?: string
+    status?: string
+    type?: string
+  }>
+}
+
+export default async function SubscribersPage({ searchParams }: Props) {
+  const params = await searchParams
+  const ctx = await getSiteContext()
+  const cookieStore = await cookies()
+
+  // ── RBAC gate: only org_admin / super_admin may view subscriber PII ─────
+  const userClient = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(
+          list: Array<{ name: string; value: string; options?: CookieOptions }>,
+        ) {
+          for (const { name, value, options } of list)
+            cookieStore.set(name, value, options)
+        },
+      },
+    },
+  )
+
+  const { data: orgRole } = await userClient.rpc('org_role', {
+    p_org_id: ctx.orgId,
+  })
+  const isSuperAdmin =
+    orgRole === 'super_admin' || orgRole === 'org_admin'
+
+  if (!isSuperAdmin) {
+    redirect('/cms?error=insufficient_access')
+  }
+  // ── End RBAC gate ─────────────────────────────────────────────────────────
+
+  const supabase = getSupabaseServiceClient()
+
+  const page = Math.max(1, parseInt(params.page ?? '1', 10))
+  const perPage = 50
+  const offset = (page - 1) * perPage
+  const search = params.search ?? ''
+  const statusFilter = params.status ?? ''
+  const typeFilter = params.type ?? ''
+
+  // ── Fetch newsletter types for filter dropdown ────────────────────────────
+  const { data: typesRaw } = await supabase
+    .from('newsletter_types')
+    .select('id, name, color')
+    .eq('active', true)
+    .order('sort_order')
+
+  const newsletterTypes = (typesRaw ?? []).map((t) => ({
+    id: t.id as string,
+    name: t.name as string,
+    color: t.color as string | null,
+  }))
+
+  const typeMap = new Map(newsletterTypes.map((t) => [t.id, t]))
+
+  // ── Fetch subscribers with pagination ─────────────────────────────────────
+  let query = supabase
+    .from('newsletter_subscriptions')
+    .select(
+      'id, email, status, newsletter_id, subscribed_at, confirmed_at, unsubscribed_at, tracking_consent',
+      { count: 'exact' },
+    )
+    .eq('site_id', ctx.siteId)
+    .order('subscribed_at', { ascending: false })
+    .range(offset, offset + perPage - 1)
+
+  if (search) query = query.ilike('email', `%${search}%`)
+  if (statusFilter) query = query.eq('status', statusFilter)
+  if (typeFilter) query = query.eq('newsletter_id', typeFilter)
+
+  const { data: subsRaw, count: totalCount } = await query
+
+  // ── Fetch last 5 engagement dots per subscriber ───────────────────────────
+  // NOTE: newsletter_sends uses subscriber_email (not a FK to newsletter_subscriptions.id),
+  // so we join by email address instead.
+  const subEmails = (subsRaw ?? []).map((s) => s.email as string).filter(Boolean)
+  let sendsByEmail: Map<
+    string,
+    Array<{ status: string; opened_at: string | null; bounced_at: string | null; bounce_type: string | null }>
+  > = new Map()
+
+  if (subEmails.length > 0) {
+    const { data: sendsRaw } = await supabase
+      .from('newsletter_sends')
+      .select('subscriber_email, status, opened_at, bounced_at, bounce_type, sent_at')
+      .in('subscriber_email', subEmails)
+      .order('sent_at', { ascending: false })
+      .limit(subEmails.length * 5)
+
+    type SendRow = {
+      subscriber_email: string | null
+      status: string | null
+      opened_at: string | null
+      bounced_at: string | null
+      bounce_type: string | null
+    }
+
+    // Group by subscriber email (top 5 per subscriber)
+    for (const send of (sendsRaw ?? []) as SendRow[]) {
+      const email = send.subscriber_email
+      if (!email) continue
+      const arr = sendsByEmail.get(email) ?? []
+      if (arr.length < 5) {
+        arr.push({
+          status: send.status ?? 'none',
+          opened_at: send.opened_at,
+          bounced_at: send.bounced_at,
+          bounce_type: send.bounce_type,
+        })
+        sendsByEmail.set(email, arr)
+      }
+    }
+  }
+
+  // ── Build subscriber rows ─────────────────────────────────────────────────
+  type DotStatus = 'opened' | 'clicked' | 'none' | 'bounced' | 'complained'
+
+  function toDotStatus(send: {
+    status: string
+    opened_at: string | null
+    bounced_at: string | null
+    bounce_type: string | null
+  }): DotStatus {
+    if (send.status === 'complained') return 'complained'
+    if (send.bounced_at) return 'bounced'
+    if (send.status === 'clicked') return 'clicked'
+    if (send.opened_at) return 'opened'
+    return 'none'
+  }
+
+  function isAnonymized(email: string): boolean {
+    return /^[a-f0-9]{8,}\.\.\.@anon$/.test(email)
+  }
+
+  const rows = (subsRaw ?? []).map((s) => {
+    const sends = sendsByEmail.get(s.email as string) ?? []
+    const dots: DotStatus[] = sends.map(toDotStatus)
+    while (dots.length < 5) dots.push('none')
+    const typeInfo = typeMap.get(s.newsletter_id as string)
+    const anonymized = isAnonymized(s.email as string)
+    return {
+      id: s.id as string,
+      email: s.email as string,
+      status: s.status as DotStatus extends never ? never : 'confirmed' | 'pending' | 'bounced' | 'unsubscribed' | 'complained',
+      newsletter_type_name: typeInfo?.name ?? 'Desconhecido',
+      newsletter_type_color: typeInfo?.color ?? null,
+      engagement_dots: dots,
+      tracking_consent: s.tracking_consent as boolean ?? false,
+      subscribed_at: s.subscribed_at as string,
+      confirmed_at: s.confirmed_at as string | null,
+      is_anonymized: anonymized,
+    }
+  })
+
+  // ── Growth chart data (last 365 days, 1 row per day) ─────────────────────
+  const oneYearAgo = new Date(
+    Date.now() - 365 * 24 * 60 * 60 * 1000,
+  ).toISOString()
+
+  const { data: newSubs } = await supabase
+    .from('newsletter_subscriptions')
+    .select('confirmed_at')
+    .eq('site_id', ctx.siteId)
+    .eq('status', 'confirmed')
+    .gte('confirmed_at', oneYearAgo)
+    .not('confirmed_at', 'is', null)
+
+  const { data: churnedSubs } = await supabase
+    .from('newsletter_subscriptions')
+    .select('unsubscribed_at')
+    .eq('site_id', ctx.siteId)
+    .eq('status', 'unsubscribed')
+    .gte('unsubscribed_at', oneYearAgo)
+    .not('unsubscribed_at', 'is', null)
+
+  // Aggregate by date
+  const growthMap = new Map<string, { gain: number; loss: number }>()
+
+  for (const s of newSubs ?? []) {
+    const d = String(s.confirmed_at).slice(0, 10)
+    const entry = growthMap.get(d) ?? { gain: 0, loss: 0 }
+    entry.gain++
+    growthMap.set(d, entry)
+  }
+  for (const s of churnedSubs ?? []) {
+    const d = String(s.unsubscribed_at).slice(0, 10)
+    const entry = growthMap.get(d) ?? { gain: 0, loss: 0 }
+    entry.loss++
+    growthMap.set(d, entry)
+  }
+
+  // Fill last 365 days (even days with no activity)
+  const growthData: GrowthDataPoint[] = []
+  for (let i = 364; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000)
+    const dateStr = d.toISOString().slice(0, 10)
+    const entry = growthMap.get(dateStr) ?? { gain: 0, loss: 0 }
+    growthData.push({ date: dateStr, ...entry })
+  }
+
+  const isEmpty = (totalCount ?? 0) === 0 && !search && !statusFilter && !typeFilter
+
+  return (
+    <main className="p-4 md:p-8 max-w-7xl mx-auto">
+      {/* Topbar */}
+      <header className="flex items-center justify-between mb-6">
+        <div>
+          <h1
+            className="text-xl font-bold"
+            style={{ color: 'var(--text)' }}
+          >
+            Assinantes
+          </h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-dim)' }}>
+            Visibilidade completa e gerenciamento de ciclo de vida
+          </p>
+        </div>
+        <a
+          href="/cms/newsletters"
+          className="text-sm px-3 py-1.5 rounded-lg border transition-colors"
+          style={{ borderColor: 'var(--border)', color: 'var(--text-dim)' }}
+        >
+          ← Newsletters
+        </a>
+      </header>
+
+      {/* KPIs */}
+      <SubscriberKpis siteId={ctx.siteId} />
+
+      {/* Growth chart — hidden on mobile/tablet per spec */}
+      <div className="hidden lg:block">
+        <GrowthChart data={growthData} />
+      </div>
+
+      {/* Empty state */}
+      {isEmpty ? (
+        <div
+          className="rounded-lg border p-12 text-center"
+          style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+          data-testid="subscribers-empty"
+        >
+          <div className="text-4xl mb-3">📭</div>
+          <h2
+            className="text-base font-semibold mb-1"
+            style={{ color: 'var(--text)' }}
+          >
+            Nenhum assinante ainda
+          </h2>
+          <p className="text-sm mb-4" style={{ color: 'var(--text-dim)' }}>
+            Adicione um formulário de newsletter ao seu site para começar a
+            capturar assinantes.
+          </p>
+          <a
+            href="/cms/newsletters"
+            className="inline-block text-sm px-4 py-2 rounded-lg font-medium"
+            style={{ background: 'var(--text)', color: 'var(--surface)' }}
+          >
+            Configurar newsletter
+          </a>
+        </div>
+      ) : (
+        <SubscriberTableShell
+          initialRows={rows as Parameters<typeof SubscriberTableShell>[0]['initialRows']}
+          totalCount={totalCount ?? 0}
+          page={page}
+          perPage={perPage}
+          newsletterTypes={newsletterTypes}
+          currentSearch={search}
+          currentStatus={statusFilter}
+          currentType={typeFilter}
+        />
+      )}
+    </main>
+  )
+}
+```
+
+- [ ] **Step 6: Write test**
+
+```tsx
+// apps/web/test/app/cms/subscribers.test.tsx
+import { describe, it, expect } from 'vitest'
+
+describe('CMS Subscribers', () => {
+  it('exports SubscriberKpis component', async () => {
+    const mod = await import('@/app/cms/(authed)/subscribers/_components/subscriber-kpis')
+    expect(mod.SubscriberKpis).toBeDefined()
+  })
+
+  it('exports SubscriberTable component', async () => {
+    const mod = await import('@/app/cms/(authed)/subscribers/_components/subscriber-table')
+    expect(mod.SubscriberTable).toBeDefined()
+  })
+
+  it('exports GrowthChart component', async () => {
+    const mod = await import('@/app/cms/(authed)/subscribers/_components/growth-chart')
+    expect(mod.GrowthChart).toBeDefined()
+  })
+})
+```
+
+- [ ] **Step 7: Commit**
 
 ```bash
-git add apps/web/src/app/cms/\(authed\)/subscribers/
+git add apps/web/src/app/cms/\(authed\)/subscribers/ apps/web/test/app/cms/subscribers.test.tsx
 git commit -m "feat(cms): new Subscribers page at /cms/subscribers with growth chart, engagement dots, RBAC gate"
 ```
 
@@ -2078,7 +5015,7 @@ interface DonutChartProps {
 }
 
 export function DonutChart({ segments, centerLabel, centerValue, size = 120 }: DonutChartProps) {
-  const total = segments.reduce((sum, s) => sum + s.value, 0)
+  const total = segments.reduce((sum, s) => sum + s.value, 0) || 1
   let cumulative = 0
   const gradientStops = segments.map((s) => {
     const start = (cumulative / total) * 100
@@ -2111,15 +5048,762 @@ export function DonutChart({ segments, centerLabel, centerValue, size = 120 }: D
 }
 ```
 
-- [ ] **Step 3: Create AnalyticsTabs + OverviewTab**
+- [ ] **Step 3: Create AnalyticsTabs component**
 
-Tab navigation (Overview/Newsletters/Campaigns/Content) with period selector. Overview tab composes KpiCards + area chart + donut + funnel + top tables.
+Tab navigation (Overview/Newsletters/Campaigns/Content) with period selector. URL-driven state via `useSearchParams`.
 
-- [ ] **Step 4: Create remaining tabs (Newsletters, Campaigns, Content)**
+```tsx
+// apps/web/src/app/cms/(authed)/analytics/_components/analytics-tabs.tsx
+'use client'
 
-Each tab follows the pattern: KPI row + period selector + type-specific charts/tables.
+import { useRouter, useSearchParams, usePathname } from 'next/navigation'
+import { useCallback } from 'react'
+import { OverviewTab } from './overview-tab'
+import { NewslettersTab } from './newsletters-tab'
+import { CampaignsTab } from './campaigns-tab'
+import { ContentTab } from './content-tab'
 
-- [ ] **Step 5: Create analytics/page.tsx**
+const TABS = ['Overview', 'Newsletters', 'Campaigns', 'Content'] as const
+type Tab = (typeof TABS)[number]
+
+const PERIODS = ['7d', '30d', '90d', '12m'] as const
+type Period = (typeof PERIODS)[number]
+
+const PERIOD_LABELS: Record<Period, string> = {
+  '7d': 'Last 7 days',
+  '30d': 'Last 30 days',
+  '90d': 'Last 90 days',
+  '12m': 'Last 12 months',
+}
+
+export function AnalyticsTabs() {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+
+  const tab = (searchParams.get('tab') as Tab) ?? 'Overview'
+  const period = (searchParams.get('period') as Period) ?? '30d'
+
+  const navigate = useCallback(
+    (newTab?: Tab, newPeriod?: Period) => {
+      const params = new URLSearchParams(searchParams.toString())
+      if (newTab) params.set('tab', newTab)
+      if (newPeriod) params.set('period', newPeriod)
+      router.push(`${pathname}?${params.toString()}`)
+    },
+    [router, pathname, searchParams],
+  )
+
+  return (
+    <div className="space-y-6">
+      {/* Tab nav + period selector */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div
+          className="flex gap-1 p-1 rounded-[8px] w-fit"
+          style={{ background: 'var(--cms-bg, #0f1117)' }}
+        >
+          {TABS.map((t) => (
+            <button
+              key={t}
+              onClick={() => navigate(t)}
+              data-active={t === tab}
+              className="px-3 py-1.5 rounded-[6px] text-sm font-medium transition-colors
+                data-[active=true]:text-[var(--cms-text,#e4e4e7)]
+                hover:text-[var(--cms-text,#e4e4e7)]"
+              style={{
+                color:
+                  t === tab
+                    ? 'var(--cms-text, #e4e4e7)'
+                    : 'var(--cms-text-muted, #71717a)',
+                background:
+                  t === tab
+                    ? 'var(--cms-surface, #1a1d27)'
+                    : 'transparent',
+              }}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span
+            className="text-xs"
+            style={{ color: 'var(--cms-text-dim, #52525b)' }}
+          >
+            {PERIOD_LABELS[period]}
+          </span>
+          <div className="flex gap-1">
+            {PERIODS.map((p) => (
+              <button
+                key={p}
+                onClick={() => navigate(undefined, p)}
+                className="px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors border"
+                style={{
+                  borderColor:
+                    p === period
+                      ? 'var(--cms-accent, #6366f1)'
+                      : 'var(--cms-border, #2a2d3a)',
+                  color:
+                    p === period
+                      ? 'var(--cms-accent, #6366f1)'
+                      : 'var(--cms-text-muted, #71717a)',
+                  background:
+                    p === period
+                      ? 'var(--cms-accent-subtle, rgba(99,102,241,.12))'
+                      : 'transparent',
+                }}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Tab content */}
+      {tab === 'Overview' && <OverviewTab period={period} />}
+      {tab === 'Newsletters' && <NewslettersTab period={period} />}
+      {tab === 'Campaigns' && <CampaignsTab period={period} />}
+      {tab === 'Content' && <ContentTab period={period} />}
+    </div>
+  )
+}
+```
+
+- [ ] **Step 4: Create OverviewTab component**
+
+Overview tab composes KPI cards + area chart + donut + funnel + top tables. Uses static placeholder data (replace with real fetches when wiring).
+
+```tsx
+// apps/web/src/app/cms/(authed)/analytics/_components/overview-tab.tsx
+import { AreaChart } from './area-chart'
+import { DonutChart } from './donut-chart'
+import { DeliveryFunnel } from './delivery-funnel'
+
+interface OverviewTabProps {
+  period: string
+}
+
+// --- Static placeholder data shapes (replace with real fetches when wiring) ---
+
+function buildEngagementSeries(period: string) {
+  const count = period === '7d' ? 7 : period === '30d' ? 30 : period === '90d' ? 90 : 52
+  return Array.from({ length: count }, (_, i) => {
+    const d = new Date()
+    d.setDate(d.getDate() - (count - 1 - i))
+    return {
+      label:
+        count <= 30
+          ? d.toLocaleDateString('en', { month: 'short', day: 'numeric' })
+          : `W${Math.ceil((i + 1) / 7)}`,
+      values: [
+        Math.round(Math.random() * 400 + 100),
+        Math.round(Math.random() * 150 + 20),
+        Math.round(Math.random() * 40),
+      ],
+    }
+  })
+}
+
+const AUDIENCE_SEGMENTS = [
+  { label: 'Main newsletter', value: 1842, color: '#22c55e' },
+  { label: 'Code digest', value: 634, color: '#6366f1' },
+  { label: 'Announcements', value: 298, color: '#f59e0b' },
+]
+
+const FUNNEL_STEPS = [
+  { label: 'Sent', value: 8420, percentage: 100, color: '#6366f1' },
+  { label: 'Delivered', value: 8201, percentage: 97, color: '#22c55e' },
+  { label: 'Opened', value: 2542, percentage: 30, color: '#06b6d4' },
+  { label: 'Clicked', value: 612, percentage: 7, color: '#8b5cf6' },
+  { label: 'Bounced', value: 219, percentage: 3, color: '#ef4444' },
+]
+
+const TOP_POSTS = [
+  { rank: 1, title: 'How I built my second brain in 2026', opens: 1240, clicks: 312 },
+  { rank: 2, title: 'Supabase RLS patterns that scale', opens: 980, clicks: 201 },
+  { rank: 3, title: 'Why I switched from Notion to Obsidian', opens: 876, clicks: 189 },
+  { rank: 4, title: 'TypeScript generics in 10 minutes', opens: 740, clicks: 134 },
+  { rank: 5, title: 'Building a newsletter CMS from scratch', opens: 620, clicks: 97 },
+]
+
+const TOP_CAMPAIGNS = [
+  { rank: 1, title: 'React 19 Deep Dive', submissions: 843, rate: 12.4 },
+  { rank: 2, title: 'Supabase Auth Checklist', submissions: 612, rate: 9.8 },
+  { rank: 3, title: 'TypeScript Handbook 2026', submissions: 441, rate: 7.2 },
+]
+
+const RANK_STYLES: Record<number, string> = {
+  1: '\u{1F947}',
+  2: '\u{1F948}',
+  3: '\u{1F949}',
+}
+
+export function OverviewTab({ period }: OverviewTabProps) {
+  const engagementData = buildEngagementSeries(period)
+  const todayIndex = engagementData.length - 1
+
+  const kpis = [
+    { label: 'Emails Delivered', value: '8,201', trend: '+5.2%', up: true, color: 'var(--cms-text, #e4e4e7)' },
+    { label: 'Open Rate', value: '30.9%', trend: '+1.4pp', up: true, color: 'var(--cms-green, #22c55e)' },
+    { label: 'Click Rate', value: '7.3%', trend: '+0.6pp', up: true, color: 'var(--cms-cyan, #06b6d4)' },
+    { label: 'Campaign Leads', value: '1,896', trend: '+18%', up: true, color: 'var(--cms-text, #e4e4e7)' },
+    { label: 'Bounce Rate', value: '2.6%', trend: '-0.3pp', up: false, color: 'var(--cms-amber, #f59e0b)' },
+  ]
+
+  return (
+    <div className="space-y-6">
+      {/* KPI row */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        {kpis.map((kpi) => (
+          <div key={kpi.label} className="rounded-[10px] p-4 border"
+            style={{ background: 'var(--cms-surface, #1a1d27)', borderColor: 'var(--cms-border, #2a2d3a)' }}>
+            <p className="text-[11px] mb-1" style={{ color: 'var(--cms-text-muted, #71717a)' }}>{kpi.label}</p>
+            <p className="text-2xl font-semibold leading-none" style={{ color: kpi.color }}>{kpi.value}</p>
+            <p className="text-[11px] mt-1.5"
+              style={{ color: kpi.up ? 'var(--cms-green, #22c55e)' : 'var(--cms-amber, #f59e0b)' }}>
+              {kpi.trend} vs prior period
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {/* 2-column chart grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        <div className="lg:col-span-3 rounded-[10px] p-4 border"
+          style={{ background: 'var(--cms-surface, #1a1d27)', borderColor: 'var(--cms-border, #2a2d3a)' }}>
+          <p className="text-sm font-medium mb-4" style={{ color: 'var(--cms-text, #e4e4e7)' }}>Engagement Over Time</p>
+          <AreaChart data={engagementData}
+            series={[{ name: 'Opens', color: '#22c55e' }, { name: 'Clicks', color: '#06b6d4' }, { name: 'Bounces', color: '#ef4444' }]}
+            height={180} todayIndex={todayIndex} />
+        </div>
+        <div className="lg:col-span-2 rounded-[10px] p-4 border"
+          style={{ background: 'var(--cms-surface, #1a1d27)', borderColor: 'var(--cms-border, #2a2d3a)' }}>
+          <p className="text-sm font-medium mb-4" style={{ color: 'var(--cms-text, #e4e4e7)' }}>Audience by Newsletter</p>
+          <DonutChart segments={AUDIENCE_SEGMENTS} centerLabel="subscribers" centerValue="2,774" size={120} />
+        </div>
+      </div>
+
+      {/* Delivery funnel */}
+      <div className="rounded-[10px] p-4 border"
+        style={{ background: 'var(--cms-surface, #1a1d27)', borderColor: 'var(--cms-border, #2a2d3a)' }}>
+        <p className="text-sm font-medium mb-4" style={{ color: 'var(--cms-text, #e4e4e7)' }}>Email Delivery Funnel</p>
+        <DeliveryFunnel steps={FUNNEL_STEPS} />
+      </div>
+
+      {/* Top tables */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="rounded-[10px] p-4 border"
+          style={{ background: 'var(--cms-surface, #1a1d27)', borderColor: 'var(--cms-border, #2a2d3a)' }}>
+          <p className="text-sm font-medium mb-3" style={{ color: 'var(--cms-text, #e4e4e7)' }}>Top Posts by Engagement</p>
+          <table className="w-full text-xs">
+            <thead>
+              <tr style={{ color: 'var(--cms-text-dim, #52525b)' }}>
+                <th className="text-left pb-2 pr-2">#</th>
+                <th className="text-left pb-2 flex-1">Title</th>
+                <th className="text-right pb-2 pl-2">Opens</th>
+                <th className="text-right pb-2 pl-2">Clicks</th>
+              </tr>
+            </thead>
+            <tbody>
+              {TOP_POSTS.map((p) => (
+                <tr key={p.rank} style={{ color: 'var(--cms-text-muted, #71717a)' }}>
+                  <td className="py-1.5 pr-2 text-base">{RANK_STYLES[p.rank] ?? p.rank}</td>
+                  <td className="py-1.5 pr-2 max-w-0 truncate" style={{ color: 'var(--cms-text, #e4e4e7)' }}>{p.title}</td>
+                  <td className="py-1.5 pl-2 text-right tabular-nums">{p.opens.toLocaleString()}</td>
+                  <td className="py-1.5 pl-2 text-right tabular-nums">{p.clicks.toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="rounded-[10px] p-4 border"
+          style={{ background: 'var(--cms-surface, #1a1d27)', borderColor: 'var(--cms-border, #2a2d3a)' }}>
+          <p className="text-sm font-medium mb-3" style={{ color: 'var(--cms-text, #e4e4e7)' }}>Top Campaigns by Submissions</p>
+          <table className="w-full text-xs">
+            <thead>
+              <tr style={{ color: 'var(--cms-text-dim, #52525b)' }}>
+                <th className="text-left pb-2 pr-2">#</th>
+                <th className="text-left pb-2 flex-1">Campaign</th>
+                <th className="text-right pb-2 pl-2">Leads</th>
+                <th className="text-right pb-2 pl-2">Rate</th>
+              </tr>
+            </thead>
+            <tbody>
+              {TOP_CAMPAIGNS.map((c) => (
+                <tr key={c.rank} style={{ color: 'var(--cms-text-muted, #71717a)' }}>
+                  <td className="py-1.5 pr-2 text-base">{RANK_STYLES[c.rank] ?? c.rank}</td>
+                  <td className="py-1.5 pr-2" style={{ color: 'var(--cms-text, #e4e4e7)' }}>{c.title}</td>
+                  <td className="py-1.5 pl-2 text-right tabular-nums">{c.submissions.toLocaleString()}</td>
+                  <td className="py-1.5 pl-2 text-right tabular-nums" style={{ color: 'var(--cms-green, #22c55e)' }}>{c.rate}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+```
+
+- [ ] **Step 5: Create remaining tabs (NewslettersTab, CampaignsTab, ContentTab)**
+
+Each tab follows the pattern: KPI row + type-specific charts/tables with static placeholder data.
+
+**NewslettersTab** -- Edition performance table + top clicked links:
+
+```tsx
+// apps/web/src/app/cms/(authed)/analytics/_components/newsletters-tab.tsx
+interface NewslettersTabProps {
+  period: string
+}
+
+const EDITION_PERFORMANCE = [
+  { subject: 'Building with AI in 2026', sent_at: '2026-04-15', delivered: 8201, opens: 2542, clicks: 612, bounces: 56 },
+  { subject: 'Supabase RLS deep dive', sent_at: '2026-04-08', delivered: 7980, opens: 2180, clicks: 498, bounces: 42 },
+  { subject: 'TypeScript 5.6 what\'s new', sent_at: '2026-04-01', delivered: 8100, opens: 1940, clicks: 420, bounces: 38 },
+  { subject: 'Next.js 15 stable release', sent_at: '2026-03-25', delivered: 7820, opens: 2310, clicks: 590, bounces: 61 },
+]
+
+const TOP_LINKS = [
+  { url: 'https://github.com/TN-Figueiredo/cms', clicks: 312 },
+  { url: 'https://bythiagofigueiredo.com/blog/supabase-rls', clicks: 241 },
+  { url: 'https://bythiagofigueiredo.com/blog/typescript-5', clicks: 189 },
+  { url: 'https://twitter.com/tnFigueiredo', clicks: 134 },
+  { url: 'https://bythiagofigueiredo.com/campaigns/ai-handbook', clicks: 97 },
+]
+
+export function NewslettersTab({ period: _period }: NewslettersTabProps) {
+  const kpis = [
+    { label: 'Editions Sent', value: '12' },
+    { label: 'Avg Delivered', value: '8,025' },
+    { label: 'Avg Open Rate', value: '28.4%' },
+    { label: 'Avg Click Rate', value: '6.9%' },
+  ]
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {kpis.map((kpi) => (
+          <div key={kpi.label} className="rounded-[10px] p-4 border"
+            style={{ background: 'var(--cms-surface, #1a1d27)', borderColor: 'var(--cms-border, #2a2d3a)' }}>
+            <p className="text-[11px] mb-1" style={{ color: 'var(--cms-text-muted, #71717a)' }}>{kpi.label}</p>
+            <p className="text-2xl font-semibold" style={{ color: 'var(--cms-text, #e4e4e7)' }}>{kpi.value}</p>
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 rounded-[10px] p-4 border"
+          style={{ background: 'var(--cms-surface, #1a1d27)', borderColor: 'var(--cms-border, #2a2d3a)' }}>
+          <p className="text-sm font-medium mb-3" style={{ color: 'var(--cms-text, #e4e4e7)' }}>Edition Performance</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr style={{ color: 'var(--cms-text-dim, #52525b)' }}>
+                  <th className="text-left pb-2 pr-3">Subject</th>
+                  <th className="text-left pb-2 pr-3">Sent</th>
+                  <th className="text-right pb-2 pr-3">Delivered</th>
+                  <th className="text-right pb-2 pr-3">Opens</th>
+                  <th className="text-right pb-2 pr-3">Clicks</th>
+                  <th className="text-right pb-2">Bounces</th>
+                </tr>
+              </thead>
+              <tbody>
+                {EDITION_PERFORMANCE.map((e) => (
+                  <tr key={e.subject} className="border-t" style={{ borderColor: 'var(--cms-border-subtle, #22252f)' }}>
+                    <td className="py-2 pr-3 max-w-[180px] truncate" style={{ color: 'var(--cms-text, #e4e4e7)' }}>{e.subject}</td>
+                    <td className="py-2 pr-3 tabular-nums" style={{ color: 'var(--cms-text-dim, #52525b)' }}>{e.sent_at}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums" style={{ color: 'var(--cms-text-muted, #71717a)' }}>{e.delivered.toLocaleString()}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums" style={{ color: 'var(--cms-green, #22c55e)' }}>{e.opens.toLocaleString()}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums" style={{ color: 'var(--cms-cyan, #06b6d4)' }}>{e.clicks.toLocaleString()}</td>
+                    <td className="py-2 text-right tabular-nums" style={{ color: 'var(--cms-red, #ef4444)' }}>{e.bounces.toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div className="rounded-[10px] p-4 border"
+          style={{ background: 'var(--cms-surface, #1a1d27)', borderColor: 'var(--cms-border, #2a2d3a)' }}>
+          <p className="text-sm font-medium mb-3" style={{ color: 'var(--cms-text, #e4e4e7)' }}>Top Clicked Links</p>
+          <div className="space-y-2">
+            {TOP_LINKS.map((link) => (
+              <div key={link.url} className="flex items-center gap-2">
+                <span className="flex-1 text-[11px] font-mono truncate" style={{ color: 'var(--cms-cyan, #06b6d4)' }}>{link.url}</span>
+                <span className="text-[11px] tabular-nums shrink-0" style={{ color: 'var(--cms-text-muted, #71717a)' }}>{link.clicks}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+```
+
+**CampaignsTab** -- Ranked campaign table with locale split:
+
+```tsx
+// apps/web/src/app/cms/(authed)/analytics/_components/campaigns-tab.tsx
+interface CampaignsTabProps {
+  period: string
+}
+
+const CAMPAIGN_ROWS = [
+  { rank: 1, title: 'React 19 Deep Dive', total: 843, rate: '12.4%',
+    locales: [{ flag: '\u{1F1E7}\u{1F1F7}', code: 'pt-BR', pct: 62 }, { flag: '\u{1F1FA}\u{1F1F8}', code: 'en', pct: 38 }] },
+  { rank: 2, title: 'Supabase Auth Checklist', total: 612, rate: '9.8%',
+    locales: [{ flag: '\u{1F1E7}\u{1F1F7}', code: 'pt-BR', pct: 55 }, { flag: '\u{1F1FA}\u{1F1F8}', code: 'en', pct: 45 }] },
+  { rank: 3, title: 'TypeScript Handbook 2026', total: 441, rate: '7.2%',
+    locales: [{ flag: '\u{1F1E7}\u{1F1F7}', code: 'pt-BR', pct: 40 }, { flag: '\u{1F1FA}\u{1F1F8}', code: 'en', pct: 60 }] },
+  { rank: 4, title: 'Next.js 15 Migration Guide', total: 318, rate: '5.1%',
+    locales: [{ flag: '\u{1F1FA}\u{1F1F8}', code: 'en', pct: 72 }, { flag: '\u{1F1E7}\u{1F1F7}', code: 'pt-BR', pct: 28 }] },
+]
+
+export function CampaignsTab({ period: _period }: CampaignsTabProps) {
+  const kpis = [
+    { label: 'Total Submissions', value: '2,214' },
+    { label: 'Avg Download Rate', value: '8.6%' },
+    { label: 'Avg per Campaign', value: '554' },
+    { label: 'Active Campaigns', value: '4' },
+  ]
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {kpis.map((kpi) => (
+          <div key={kpi.label} className="rounded-[10px] p-4 border"
+            style={{ background: 'var(--cms-surface, #1a1d27)', borderColor: 'var(--cms-border, #2a2d3a)' }}>
+            <p className="text-[11px] mb-1" style={{ color: 'var(--cms-text-muted, #71717a)' }}>{kpi.label}</p>
+            <p className="text-2xl font-semibold" style={{ color: 'var(--cms-text, #e4e4e7)' }}>{kpi.value}</p>
+          </div>
+        ))}
+      </div>
+      <div className="rounded-[10px] p-4 border"
+        style={{ background: 'var(--cms-surface, #1a1d27)', borderColor: 'var(--cms-border, #2a2d3a)' }}>
+        <p className="text-sm font-medium mb-3" style={{ color: 'var(--cms-text, #e4e4e7)' }}>Campaign Rankings</p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr style={{ color: 'var(--cms-text-dim, #52525b)' }}>
+                <th className="text-left pb-2 pr-3 w-8">#</th>
+                <th className="text-left pb-2 pr-3">Campaign</th>
+                <th className="text-right pb-2 pr-3">Submissions</th>
+                <th className="text-right pb-2 pr-3">Rate</th>
+                <th className="text-left pb-2">Locale split</th>
+              </tr>
+            </thead>
+            <tbody>
+              {CAMPAIGN_ROWS.map((c) => (
+                <tr key={c.rank} className="border-t" style={{ borderColor: 'var(--cms-border-subtle, #22252f)' }}>
+                  <td className="py-2 pr-3 font-semibold" style={{ color: 'var(--cms-text-dim, #52525b)' }}>{c.rank}</td>
+                  <td className="py-2 pr-3" style={{ color: 'var(--cms-text, #e4e4e7)' }}>{c.title}</td>
+                  <td className="py-2 pr-3 text-right tabular-nums" style={{ color: 'var(--cms-amber, #f59e0b)' }}>{c.total.toLocaleString()}</td>
+                  <td className="py-2 pr-3 text-right tabular-nums" style={{ color: 'var(--cms-green, #22c55e)' }}>{c.rate}</td>
+                  <td className="py-2">
+                    <div className="flex items-center gap-2">
+                      {c.locales.map((l) => (
+                        <span key={l.code} className="text-[11px]" style={{ color: 'var(--cms-text-muted, #71717a)' }}>{l.flag} {l.code} {l.pct}%</span>
+                      ))}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+```
+
+**ContentTab** -- Publishing heatmap + author leaderboard:
+
+```tsx
+// apps/web/src/app/cms/(authed)/analytics/_components/content-tab.tsx
+import { Heatmap } from './heatmap'
+
+interface ContentTabProps {
+  period: string
+}
+
+const AUTHOR_LEADERBOARD = [
+  { rank: 1, name: 'Thiago Figueiredo', posts: 18, avg_reads: 1240, avg_clicks: 312 },
+  { rank: 2, name: 'Guest -- Ana Lima', posts: 4, avg_reads: 820, avg_clicks: 189 },
+  { rank: 3, name: 'Guest -- Bruno Costa', posts: 2, avg_reads: 610, avg_clicks: 134 },
+]
+
+function buildHeatmapCells(): Array<{ date: string; count: number }> {
+  const cells: Array<{ date: string; count: number }> = []
+  const today = new Date()
+  for (let i = 83; i >= 0; i--) {
+    const d = new Date(today)
+    d.setDate(d.getDate() - i)
+    const dayOfWeek = d.getDay()
+    const publishLikely = [1, 3, 5].includes(dayOfWeek)
+    const count = Math.random() < (publishLikely ? 0.4 : 0.1) ? Math.random() < 0.3 ? 2 : 1 : 0
+    cells.push({ date: d.toISOString().split('T')[0]!, count })
+  }
+  return cells
+}
+
+const HEATMAP_CELLS = buildHeatmapCells()
+
+export function ContentTab({ period: _period }: ContentTabProps) {
+  const kpis = [
+    { label: 'Published (30d)', value: '6' },
+    { label: 'In Queue', value: '3' },
+    { label: 'Drafts', value: '11' },
+    { label: 'Avg Time to Publish', value: '4.2d' },
+  ]
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {kpis.map((kpi) => (
+          <div key={kpi.label} className="rounded-[10px] p-4 border"
+            style={{ background: 'var(--cms-surface, #1a1d27)', borderColor: 'var(--cms-border, #2a2d3a)' }}>
+            <p className="text-[11px] mb-1" style={{ color: 'var(--cms-text-muted, #71717a)' }}>{kpi.label}</p>
+            <p className="text-2xl font-semibold" style={{ color: 'var(--cms-text, #e4e4e7)' }}>{kpi.value}</p>
+          </div>
+        ))}
+      </div>
+      <div className="rounded-[10px] p-4 border"
+        style={{ background: 'var(--cms-surface, #1a1d27)', borderColor: 'var(--cms-border, #2a2d3a)' }}>
+        <p className="text-sm font-medium mb-4" style={{ color: 'var(--cms-text, #e4e4e7)' }}>Publishing Activity</p>
+        <Heatmap cells={HEATMAP_CELLS} weeks={12} label="posts published" />
+      </div>
+      <div className="rounded-[10px] p-4 border"
+        style={{ background: 'var(--cms-surface, #1a1d27)', borderColor: 'var(--cms-border, #2a2d3a)' }}>
+        <p className="text-sm font-medium mb-3" style={{ color: 'var(--cms-text, #e4e4e7)' }}>Author Leaderboard</p>
+        <table className="w-full text-xs">
+          <thead>
+            <tr style={{ color: 'var(--cms-text-dim, #52525b)' }}>
+              <th className="text-left pb-2 pr-3 w-8">#</th>
+              <th className="text-left pb-2 pr-3">Author</th>
+              <th className="text-right pb-2 pr-3">Posts</th>
+              <th className="text-right pb-2 pr-3">Avg Reads</th>
+              <th className="text-right pb-2">Avg Clicks</th>
+            </tr>
+          </thead>
+          <tbody>
+            {AUTHOR_LEADERBOARD.map((a) => (
+              <tr key={a.rank} className="border-t" style={{ borderColor: 'var(--cms-border-subtle, #22252f)' }}>
+                <td className="py-2 pr-3 font-semibold" style={{ color: 'var(--cms-text-dim, #52525b)' }}>{a.rank}</td>
+                <td className="py-2 pr-3" style={{ color: 'var(--cms-text, #e4e4e7)' }}>{a.name}</td>
+                <td className="py-2 pr-3 text-right tabular-nums" style={{ color: 'var(--cms-accent, #6366f1)' }}>{a.posts}</td>
+                <td className="py-2 pr-3 text-right tabular-nums" style={{ color: 'var(--cms-text-muted, #71717a)' }}>{a.avg_reads.toLocaleString()}</td>
+                <td className="py-2 text-right tabular-nums" style={{ color: 'var(--cms-cyan, #06b6d4)' }}>{a.avg_clicks.toLocaleString()}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+```
+
+- [ ] **Step 6: Create AreaChart component**
+
+Multi-series SVG area chart with grid lines, today marker, legend, and x-axis labels.
+
+```tsx
+// apps/web/src/app/cms/(authed)/analytics/_components/area-chart.tsx
+'use client'
+
+import { useMemo } from 'react'
+
+interface DataPoint { label: string; values: number[] }
+interface AreaChartSeries { name: string; color: string }
+interface AreaChartProps { data: DataPoint[]; series: AreaChartSeries[]; height?: number; todayIndex?: number }
+
+function normalise(points: number[], max: number, height: number, padding: number): string {
+  if (points.length < 2) return ''
+  const step = 100 / (points.length - 1)
+  const coords = points.map((v, i) => {
+    const x = i * step
+    const y = max > 0 ? padding + (1 - v / max) * (height - padding * 2) : height - padding
+    return `${x.toFixed(2)},${y.toFixed(2)}`
+  })
+  return coords.join(' ')
+}
+
+function buildAreaPath(coordStr: string, height: number): string {
+  if (!coordStr) return ''
+  const firstX = coordStr.split(' ')[0]?.split(',')[0] ?? '0'
+  const lastX = coordStr.split(' ').at(-1)?.split(',')[0] ?? '100'
+  return `M ${firstX},${height} L ${coordStr} L ${lastX},${height} Z`
+}
+
+export function AreaChart({ data, series, height = 180, todayIndex }: AreaChartProps) {
+  const PADDING = 20
+  const GRID_LINES = 4
+
+  const maxVal = useMemo(() => {
+    let max = 0
+    for (const point of data) for (const v of point.values) if (v > max) max = v
+    return max || 1
+  }, [data])
+
+  const seriesCoords = useMemo(
+    () => series.map((_, si) => normalise(data.map((d) => d.values[si] ?? 0), maxVal, height, PADDING)),
+    [data, series, maxVal, height],
+  )
+
+  const gridYValues = Array.from({ length: GRID_LINES + 1 }, (_, i) =>
+    PADDING + (i / GRID_LINES) * (height - PADDING * 2))
+
+  const xLabels = data.length <= 12 ? data : data.filter((_, i) => i % Math.ceil(data.length / 6) === 0)
+
+  return (
+    <div className="relative w-full" style={{ height }}>
+      <svg viewBox={`0 0 100 ${height}`} preserveAspectRatio="none"
+        className="absolute inset-0 w-full h-full" aria-hidden="true">
+        {gridYValues.map((y) => (
+          <line key={y} x1="0" y1={y} x2="100" y2={y} stroke="var(--cms-border, #2a2d3a)" strokeWidth="0.3" />
+        ))}
+        {todayIndex !== undefined && data.length > 1 && (
+          <line x1={((todayIndex / (data.length - 1)) * 100).toFixed(2)} y1={PADDING}
+            x2={((todayIndex / (data.length - 1)) * 100).toFixed(2)} y2={height - PADDING}
+            stroke="var(--cms-accent, #6366f1)" strokeWidth="0.5" strokeDasharray="2 1" />
+        )}
+        {[...series].reverse().map((s, ri) => {
+          const si = series.length - 1 - ri; const coords = seriesCoords[si]
+          if (!coords) return null
+          return <path key={s.name + '-area'} d={buildAreaPath(coords, height)} fill={s.color} opacity={0.15} />
+        })}
+        {series.map((s, si) => {
+          const coords = seriesCoords[si]; if (!coords) return null
+          return <polyline key={s.name + '-line'} points={coords} fill="none" stroke={s.color}
+            strokeWidth="1.2" strokeLinejoin="round" strokeLinecap="round" />
+        })}
+      </svg>
+      <div className="absolute bottom-0 left-0 right-0 flex justify-between px-1" style={{ top: height - PADDING + 2 }}>
+        {xLabels.map((d) => (
+          <span key={d.label} className="text-[9px]" style={{ color: 'var(--cms-text-dim, #52525b)' }}>{d.label}</span>
+        ))}
+      </div>
+      {todayIndex !== undefined && data[todayIndex] && (
+        <div className="absolute text-[9px] font-medium px-1"
+          style={{ left: `${(todayIndex / (data.length - 1)) * 100}%`, top: PADDING - 14, transform: 'translateX(-50%)', color: 'var(--cms-accent, #6366f1)' }}>Today</div>
+      )}
+      <div className="absolute top-0 right-0 flex gap-3">
+        {series.map((s) => (
+          <div key={s.name} className="flex items-center gap-1">
+            <span className="inline-block w-2.5 h-[3px] rounded-full" style={{ background: s.color }} />
+            <span className="text-[10px]" style={{ color: 'var(--cms-text-dim, #52525b)' }}>{s.name}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+```
+
+- [ ] **Step 7: Create Heatmap component**
+
+GitHub-style contribution heatmap with month labels, day labels, and opacity-based coloring.
+
+```tsx
+// apps/web/src/app/cms/(authed)/analytics/_components/heatmap.tsx
+interface HeatmapCell { date: string; count: number }
+interface HeatmapProps { cells: HeatmapCell[]; weeks?: number; label?: string }
+
+const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+function cellOpacity(count: number, max: number): number {
+  if (count === 0 || max === 0) return 0
+  return Math.max(0.15, count / max)
+}
+
+export function Heatmap({ cells, weeks = 12, label = 'contributions' }: HeatmapProps) {
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const startDate = new Date(today); startDate.setDate(startDate.getDate() - (weeks * 7 - 1))
+
+  const cellMap = new Map<string, number>()
+  for (const c of cells) cellMap.set(c.date, c.count)
+
+  const maxCount = cells.reduce((m, c) => Math.max(m, c.count), 1)
+  const total = cells.reduce((sum, c) => sum + c.count, 0)
+
+  const grid: Array<{ date: string; count: number; inFuture: boolean }[]> = []
+  for (let w = 0; w < weeks; w++) {
+    const col: { date: string; count: number; inFuture: boolean }[] = []
+    for (let d = 0; d < 7; d++) {
+      const day = new Date(startDate); day.setDate(day.getDate() + w * 7 + d)
+      const dateStr = day.toISOString().split('T')[0]!
+      col.push({ date: dateStr, count: cellMap.get(dateStr) ?? 0, inFuture: day > today })
+    }
+    grid.push(col)
+  }
+
+  const monthLabels: { weekIndex: number; label: string }[] = []
+  let lastMonth = -1
+  for (let w = 0; w < weeks; w++) {
+    const firstDay = grid[w]?.[0]; if (!firstDay) continue
+    const month = new Date(firstDay.date).getMonth()
+    if (month !== lastMonth) {
+      monthLabels.push({ weekIndex: w, label: new Date(firstDay.date).toLocaleDateString('en', { month: 'short' }) })
+      lastMonth = month
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px]" style={{ color: 'var(--cms-text-muted, #71717a)' }}>
+          {total} {label} in the last {weeks} weeks
+        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px]" style={{ color: 'var(--cms-text-dim, #52525b)' }}>Less</span>
+          {[0, 0.2, 0.4, 0.7, 1].map((op) => (
+            <span key={op} className="w-2.5 h-2.5 rounded-sm"
+              style={{ background: op === 0 ? 'var(--cms-border, #2a2d3a)' : `rgba(34, 197, 94, ${op})` }} />
+          ))}
+          <span className="text-[10px]" style={{ color: 'var(--cms-text-dim, #52525b)' }}>More</span>
+        </div>
+      </div>
+      <div className="flex gap-1 overflow-x-auto pb-1">
+        <div className="flex flex-col gap-[3px] shrink-0 pt-5">
+          {DAY_LABELS.map((dl, i) => (
+            <span key={dl} className="text-[9px] h-[11px] flex items-center"
+              style={{ color: 'var(--cms-text-dim, #52525b)', visibility: i % 2 === 0 ? 'visible' : 'hidden' }}>{dl}</span>
+          ))}
+        </div>
+        <div className="flex flex-col gap-0 min-w-0">
+          <div className="relative h-5 flex">
+            {monthLabels.map((ml) => (
+              <span key={ml.weekIndex + ml.label} className="absolute text-[10px]"
+                style={{ left: `${(ml.weekIndex / weeks) * 100}%`, color: 'var(--cms-text-dim, #52525b)' }}>{ml.label}</span>
+            ))}
+          </div>
+          <div className="flex gap-[3px]">
+            {grid.map((col, wi) => (
+              <div key={wi} className="flex flex-col gap-[3px]">
+                {col.map((cell) => (
+                  <div key={cell.date} title={`${cell.date}: ${cell.count} ${label}`}
+                    className="w-[11px] h-[11px] rounded-sm transition-all cursor-default"
+                    style={{
+                      background: cell.inFuture ? 'transparent' : cell.count === 0
+                        ? 'var(--cms-border, #2a2d3a)' : `rgba(34, 197, 94, ${cellOpacity(cell.count, maxCount)})`,
+                      border: cell.inFuture ? '1px dashed var(--cms-border-subtle, #22252f)' : 'none',
+                    }} />
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+```
+
+- [ ] **Step 8: Create analytics/page.tsx**
 
 ```tsx
 // apps/web/src/app/cms/(authed)/analytics/page.tsx
@@ -2139,10 +5823,29 @@ export default async function AnalyticsPage() {
 }
 ```
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 9: Write analytics tests**
+
+```tsx
+// apps/web/test/app/cms/analytics.test.tsx
+import { describe, it, expect } from 'vitest'
+
+describe('CMS Analytics', () => {
+  it('exports AnalyticsTabs component', async () => {
+    const mod = await import('@/app/cms/(authed)/analytics/_components/analytics-tabs')
+    expect(mod.AnalyticsTabs).toBeDefined()
+  })
+
+  it('exports AreaChart component', async () => {
+    const mod = await import('@/app/cms/(authed)/analytics/_components/area-chart')
+    expect(mod.AreaChart).toBeDefined()
+  })
+})
+```
+
+- [ ] **Step 10: Commit**
 
 ```bash
-git add apps/web/src/app/cms/\(authed\)/analytics/
+git add apps/web/src/app/cms/\(authed\)/analytics/ apps/web/test/app/cms/analytics.test.tsx
 git commit -m "feat(cms): new Analytics page with 4 tabs, funnel, donut chart, heatmap, period selector"
 ```
 
@@ -2153,9 +5856,7 @@ git commit -m "feat(cms): new Analytics page with 4 tabs, funnel, donut chart, h
 **Files:**
 - Create: `apps/web/src/app/cms/(authed)/schedule/page.tsx`
 - Create: `apps/web/src/app/cms/(authed)/schedule/_components/week-view.tsx`
-- Create: `apps/web/src/app/cms/(authed)/schedule/_components/month-view.tsx`
 - Create: `apps/web/src/app/cms/(authed)/schedule/_components/backlog-panel.tsx`
-- Create: `apps/web/src/app/cms/(authed)/schedule/_components/cadence-panel.tsx`
 - Create: `apps/web/src/app/cms/(authed)/schedule/_components/quick-schedule-dialog.tsx`
 - Create: `apps/web/src/app/cms/(authed)/schedule/_components/agenda-view.tsx`
 
@@ -2169,120 +5870,542 @@ CSS grid (8 columns: time label + 7 days), 3 slot rows. Calendar items color-cod
 // apps/web/src/app/cms/(authed)/schedule/_components/week-view.tsx
 'use client'
 
-import { useMemo } from 'react'
+import { Fragment, useMemo } from 'react'
 
 interface CalendarItem {
-  id: string
-  title: string
-  type: 'post' | 'newsletter' | 'campaign'
-  status: string
-  date: string
-  slot: number
-  sendTime?: string
-  subscriberCount?: number
+  id: string; title: string; type: 'post' | 'newsletter' | 'campaign'
+  status: string; date: string; slot: number; sendTime?: string; subscriberCount?: number
 }
 
-interface EmptySlot {
-  date: string
-  slot: number
-  type: 'blog' | 'newsletter'
-  isOverdue: boolean
-}
+interface EmptySlot { date: string; slot: number; type: 'blog' | 'newsletter'; isOverdue: boolean }
 
 interface WeekViewProps {
-  startDate: Date
-  items: CalendarItem[]
-  emptySlots: EmptySlot[]
-  onItemClick: (item: CalendarItem) => void
-  onSlotClick: (slot: EmptySlot) => void
+  startDate: Date; items: CalendarItem[]; emptySlots: EmptySlot[]
+  onItemClick: (item: CalendarItem) => void; onSlotClick: (slot: EmptySlot) => void
 }
 
-const TYPE_STYLES = {
-  post: 'bg-cms-accent-subtle text-cms-accent border-l-cms-accent',
-  newsletter: 'bg-cms-green-subtle text-cms-green border-l-cms-green',
-  campaign: 'bg-cms-amber-subtle text-cms-amber border-l-cms-amber',
-} as const
+const TYPE_STYLES: Record<string, { bg: string; text: string; border: string }> = {
+  post: { bg: 'rgba(99,102,241,.12)', text: 'var(--cms-accent, #6366f1)', border: 'var(--cms-accent, #6366f1)' },
+  newsletter: { bg: 'rgba(34,197,94,.12)', text: 'var(--cms-green, #22c55e)', border: 'var(--cms-green, #22c55e)' },
+  campaign: { bg: 'rgba(245,158,11,.12)', text: 'var(--cms-amber, #f59e0b)', border: 'var(--cms-amber, #f59e0b)' },
+}
+const TYPE_ICONS: Record<string, string> = { post: '\u{1F4DD}', newsletter: '\u{1F4F0}', campaign: '\u{1F4E2}' }
 
 export function WeekView({ startDate, items, emptySlots, onItemClick, onSlotClick }: WeekViewProps) {
   const days = useMemo(() =>
     Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(startDate)
-      d.setDate(d.getDate() + i)
-      return d
+      const d = new Date(startDate); d.setDate(d.getDate() + i); return d
     }), [startDate])
 
-  const today = new Date().toISOString().split('T')[0]
+  const now = new Date()
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 
   return (
-    <div className="grid grid-cols-[60px_repeat(7,1fr)] border border-cms-border rounded-[10px] overflow-hidden bg-cms-surface">
-      {/* Header row */}
-      <div className="border-b border-cms-border" />
+    <div className="grid border rounded-[10px] overflow-hidden"
+      style={{ gridTemplateColumns: '60px repeat(7, 1fr)', background: 'var(--cms-surface, #1a1d27)', borderColor: 'var(--cms-border, #2a2d3a)' }}>
+      <div className="border-b" style={{ borderColor: 'var(--cms-border, #2a2d3a)' }} />
       {days.map((d) => {
-        const dateStr = d.toISOString().split('T')[0]
-        const isToday = dateStr === today
+        const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; const isToday = dateStr === today
         return (
-          <div key={dateStr} className={`p-2 text-center border-b border-cms-border ${isToday ? 'text-cms-accent' : 'text-cms-text-dim'}`}>
-            <div className="text-[11px] uppercase tracking-wide">{d.toLocaleDateString('en', { weekday: 'short' })}</div>
-            <div className={`text-lg font-bold mt-0.5 ${isToday ? 'text-cms-accent bg-cms-accent-subtle w-[30px] h-[30px] rounded-full inline-flex items-center justify-center' : 'text-cms-text'}`}>
+          <div key={dateStr} className="p-2 text-center border-b border-l" style={{ borderColor: 'var(--cms-border, #2a2d3a)' }}>
+            <div className="text-[11px] uppercase tracking-wide"
+              style={{ color: isToday ? 'var(--cms-accent, #6366f1)' : 'var(--cms-text-dim, #52525b)' }}>
+              {d.toLocaleDateString('en', { weekday: 'short' })}
+            </div>
+            <div className="mt-0.5 mx-auto flex items-center justify-center"
+              style={{ width: 30, height: 30, borderRadius: isToday ? '50%' : undefined,
+                background: isToday ? 'var(--cms-accent-subtle, rgba(99,102,241,.12))' : 'transparent',
+                color: isToday ? 'var(--cms-accent, #6366f1)' : 'var(--cms-text, #e4e4e7)', fontWeight: 700, fontSize: 18 }}>
               {d.getDate()}
             </div>
           </div>
         )
       })}
 
-      {/* 3 slot rows */}
-      {[1, 2, 3].map((slot) => (
-        <>
-          <div key={`label-${slot}`} className="px-2 py-1 text-[9px] text-cms-text-dim text-right border-r border-cms-border border-b border-b-cms-border-subtle h-20 flex items-start justify-end">
+      {/* 3 slot rows -- use Fragment with key to avoid React error */}
+      {([1, 2, 3] as const).map((slot) => (
+        <Fragment key={slot}>
+          <div className="px-2 py-1 text-[9px] text-right border-r border-b flex items-start justify-end h-20"
+            style={{ borderColor: 'var(--cms-border, #2a2d3a)', color: 'var(--cms-text-dim, #52525b)' }}>
             Slot {slot}
           </div>
           {days.map((d) => {
-            const dateStr = d.toISOString().split('T')[0]
-            const isToday = dateStr === today
+            const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; const isToday = dateStr === today
             const cellItems = items.filter((it) => it.date === dateStr && it.slot === slot)
             const cellSlots = emptySlots.filter((s) => s.date === dateStr && s.slot === slot)
-
             return (
-              <div key={`${dateStr}-${slot}`} className={`border-r border-r-cms-border-subtle border-b border-b-cms-border-subtle p-1 h-20 ${isToday ? 'bg-[rgba(99,102,241,.03)]' : ''}`}>
-                {cellItems.map((item) => (
-                  <button key={item.id} onClick={() => onItemClick(item)}
-                    className={`w-full text-left px-2 py-1 rounded-md text-[11px] font-medium mb-0.5 border-l-[3px] cursor-pointer hover:brightness-110 transition-all
-                      ${TYPE_STYLES[item.type]} ${item.status === 'draft' ? 'opacity-60' : ''}`}>
-                    {item.type === 'post' ? '📝' : item.type === 'newsletter' ? '📰' : '📢'} {item.title}
-                  </button>
-                ))}
+              <div key={`${dateStr}-${slot}`} className="border-l border-b p-1 h-20 overflow-hidden"
+                style={{ borderColor: 'var(--cms-border, #2a2d3a)', background: isToday ? 'rgba(99,102,241,.03)' : 'transparent' }}>
+                {cellItems.map((item) => {
+                  const itemStyle = TYPE_STYLES[item.type] ?? TYPE_STYLES.post
+                  return (
+                    <button key={item.id} onClick={() => onItemClick(item)}
+                      className="w-full text-left px-2 py-1 rounded-md text-[11px] font-medium mb-0.5 border-l-[3px] cursor-pointer transition-all hover:brightness-110"
+                      style={{ background: itemStyle.bg, color: itemStyle.text, borderLeftColor: itemStyle.border,
+                        opacity: item.status === 'draft' ? 0.6 : 1 }}>
+                      {TYPE_ICONS[item.type]} {item.title}
+                    </button>
+                  )
+                })}
                 {cellSlots.map((s, i) => (
                   <button key={i} onClick={() => onSlotClick(s)}
-                    className={`w-full text-center px-2 py-1 rounded-md text-[10px] mb-0.5 border border-dashed cursor-pointer transition-colors
-                      ${s.isOverdue ? 'border-cms-red text-cms-red bg-cms-red-subtle' : 'border-cms-border text-cms-text-dim hover:border-cms-accent hover:text-cms-accent hover:bg-cms-accent-subtle'}`}>
+                    className="w-full text-center px-2 py-1 rounded-md text-[10px] mb-0.5 border border-dashed cursor-pointer transition-colors"
+                    style={{ borderColor: s.isOverdue ? 'var(--cms-red, #ef4444)' : 'var(--cms-border, #2a2d3a)',
+                      color: s.isOverdue ? 'var(--cms-red, #ef4444)' : 'var(--cms-text-dim, #52525b)',
+                      background: s.isOverdue ? 'rgba(239,68,68,.06)' : 'transparent' }}>
                     + Empty {s.type} slot
                   </button>
                 ))}
               </div>
             )
           })}
-        </>
+        </Fragment>
       ))}
     </div>
   )
 }
 ```
 
-- [ ] **Step 2: Create BacklogPanel + CadencePanel**
+- [ ] **Step 2: Create BacklogPanel component**
 
-Right panel with draggable backlog items, cadence config rows, and "This Week" summary.
+Right panel with draggable backlog items, publishing cadence config rows, and "This Week" summary section.
+
+```tsx
+// apps/web/src/app/cms/(authed)/schedule/_components/backlog-panel.tsx
+'use client'
+
+import { useState } from 'react'
+
+interface BacklogItem { id: string; title: string; type: 'post' | 'newsletter'; status: string; locale?: string }
+interface CadenceRow { label: string; schedule: string; color: string }
+interface WeekSummaryRow { label: string; value: number | string; accent?: string }
+
+interface BacklogPanelProps {
+  items: BacklogItem[]; cadence: CadenceRow[]; weekSummary: WeekSummaryRow[]
+  onScheduleItem?: (item: BacklogItem) => void; onEditCadence?: () => void
+}
+
+const TYPE_DOT: Record<string, string> = { post: 'var(--cms-accent, #6366f1)', newsletter: 'var(--cms-green, #22c55e)' }
+const STATUS_COLORS: Record<string, string> = { ready: 'var(--cms-accent, #6366f1)', draft: 'var(--cms-amber, #f59e0b)', queued: 'var(--cms-purple, #8b5cf6)' }
+
+export function BacklogPanel({ items, cadence, weekSummary, onScheduleItem, onEditCadence }: BacklogPanelProps) {
+  const [draggingId, setDraggingId] = useState<string | null>(null)
+
+  return (
+    <aside className="w-full flex flex-col gap-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 160px)' }}>
+      {/* Backlog section */}
+      <div className="rounded-[10px] border p-3"
+        style={{ background: 'var(--cms-surface, #1a1d27)', borderColor: 'var(--cms-border, #2a2d3a)' }}>
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[11px] font-semibold uppercase tracking-wider"
+            style={{ color: 'var(--cms-text-dim, #52525b)' }}>Backlog</span>
+          <span className="text-[11px] px-1.5 py-0.5 rounded-md"
+            style={{ background: 'var(--cms-accent-subtle, rgba(99,102,241,.12))', color: 'var(--cms-accent, #6366f1)' }}>
+            {items.length} ready</span>
+        </div>
+        {items.length === 0 ? (
+          <p className="text-[11px] text-center py-3" style={{ color: 'var(--cms-text-dim, #52525b)' }}>No items in backlog</p>
+        ) : (
+          <ul className="space-y-1">
+            {items.map((item) => (
+              <li key={item.id} draggable onDragStart={() => setDraggingId(item.id)} onDragEnd={() => setDraggingId(null)}
+                onClick={() => onScheduleItem?.(item)}
+                className="flex items-center gap-2 px-2 py-1.5 rounded-md cursor-grab active:cursor-grabbing transition-colors group"
+                style={{ background: draggingId === item.id ? 'var(--cms-surface-hover, #1f2330)' : 'transparent', opacity: draggingId === item.id ? 0.6 : 1 }}>
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: TYPE_DOT[item.type] ?? 'var(--cms-text-dim)' }} />
+                <span className="flex-1 text-[12px] truncate" style={{ color: 'var(--cms-text, #e4e4e7)' }}>{item.title}</span>
+                <span className="text-[10px] px-1 rounded shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                  style={{ background: STATUS_COLORS[item.status] ? `color-mix(in srgb, ${STATUS_COLORS[item.status]} 15%, transparent)` : 'var(--cms-border)',
+                    color: STATUS_COLORS[item.status] ?? 'var(--cms-text-dim)' }}>{item.status}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* Publishing cadence */}
+      <div className="rounded-[10px] border p-3"
+        style={{ background: 'var(--cms-surface, #1a1d27)', borderColor: 'var(--cms-border, #2a2d3a)' }}>
+        <span className="text-[11px] font-semibold uppercase tracking-wider block mb-2"
+          style={{ color: 'var(--cms-text-dim, #52525b)' }}>Publishing Cadence</span>
+        {cadence.length === 0 ? (
+          <p className="text-[11px] py-2" style={{ color: 'var(--cms-text-dim)' }}>No cadence configured</p>
+        ) : (
+          <ul className="space-y-1.5 mb-3">
+            {cadence.map((row, i) => (
+              <li key={i} className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: row.color }} />
+                <span className="flex-1 text-[11px]" style={{ color: 'var(--cms-text, #e4e4e7)' }}>{row.label}</span>
+                <span className="text-[10px]" style={{ color: 'var(--cms-text-dim, #52525b)' }}>{row.schedule}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <button onClick={onEditCadence}
+          className="w-full text-center text-[11px] py-1 rounded-md border transition-colors hover:text-[var(--cms-accent,#6366f1)] hover:border-[var(--cms-accent,#6366f1)]"
+          style={{ borderColor: 'var(--cms-border, #2a2d3a)', color: 'var(--cms-text-muted, #71717a)' }}>Edit cadence</button>
+      </div>
+
+      {/* This Week summary */}
+      <div className="rounded-[10px] border p-3"
+        style={{ background: 'var(--cms-surface, #1a1d27)', borderColor: 'var(--cms-border, #2a2d3a)' }}>
+        <span className="text-[11px] font-semibold uppercase tracking-wider block mb-2"
+          style={{ color: 'var(--cms-text-dim, #52525b)' }}>This Week</span>
+        <ul className="space-y-1.5">
+          {weekSummary.map((row, i) => (
+            <li key={i} className="flex items-center justify-between">
+              <span className="text-[12px]" style={{ color: 'var(--cms-text-muted, #71717a)' }}>{row.label}</span>
+              <span className="text-[12px] font-medium tabular-nums" style={{ color: row.accent ?? 'var(--cms-text, #e4e4e7)' }}>{row.value}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </aside>
+  )
+}
+```
 
 - [ ] **Step 3: Create QuickScheduleDialog**
 
 Modal with mini-calendar, slot indicators (green dots), "Schedule for [date]" CTA.
 
+```tsx
+// apps/web/src/app/cms/(authed)/schedule/_components/quick-schedule-dialog.tsx
+'use client'
+
+import { useState } from 'react'
+
+interface SchedulableItem { id: string; title: string; type: 'post' | 'newsletter' | 'campaign'; status: string }
+
+interface QuickScheduleDialogProps {
+  item: SchedulableItem | null; slotDays?: string[]
+  onSchedule: (item: SchedulableItem, date: string) => void; onClose: () => void
+}
+
+const TYPE_COLOR: Record<string, string> = { post: 'var(--cms-accent, #6366f1)', newsletter: 'var(--cms-green, #22c55e)', campaign: 'var(--cms-amber, #f59e0b)' }
+const TYPE_LABEL: Record<string, string> = { post: 'Post', newsletter: 'Newsletter', campaign: 'Campaign' }
+
+function buildCalendarDays(year: number, month: number) {
+  const firstDay = new Date(year, month, 1).getDay()
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  return [...Array.from({ length: firstDay }, () => null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)]
+}
+
+const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
+
+export function QuickScheduleDialog({ item, slotDays = [], onSchedule, onClose }: QuickScheduleDialogProps) {
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const todayStr = today.toISOString().split('T')[0]!
+  const [calYear, setCalYear] = useState(today.getFullYear())
+  const [calMonth, setCalMonth] = useState(today.getMonth())
+  const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const slotSet = new Set(slotDays)
+  const calDays = buildCalendarDays(calYear, calMonth)
+
+  function prevMonth() { if (calMonth === 0) { setCalYear((y) => y - 1); setCalMonth(11) } else { setCalMonth((m) => m - 1) } }
+  function nextMonth() { if (calMonth === 11) { setCalYear((y) => y + 1); setCalMonth(0) } else { setCalMonth((m) => m + 1) } }
+  function dayToDateStr(day: number) { return `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}` }
+  function isPast(day: number) { return dayToDateStr(day) < todayStr }
+
+  if (!item) return null
+  const typeColor = TYPE_COLOR[item.type] ?? 'var(--cms-text-muted, #71717a)'
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="rounded-[12px] border shadow-2xl w-full max-w-[420px]"
+        style={{ background: 'var(--cms-surface, #1a1d27)', borderColor: 'var(--cms-border, #2a2d3a)' }}>
+        <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'var(--cms-border, #2a2d3a)' }}>
+          <p className="text-sm font-semibold" style={{ color: 'var(--cms-text, #e4e4e7)' }}>Schedule Item</p>
+          <button onClick={onClose} className="w-6 h-6 flex items-center justify-center rounded hover:opacity-70 text-lg leading-none"
+            style={{ color: 'var(--cms-text-dim, #52525b)' }} aria-label="Close">x</button>
+        </div>
+        <div className="px-4 pt-4 pb-3">
+          <div className="flex items-start gap-3 rounded-[8px] p-3 border"
+            style={{ borderColor: typeColor, background: `color-mix(in srgb, ${typeColor} 8%, transparent)` }}>
+            <div className="w-1 self-stretch rounded-full shrink-0" style={{ background: typeColor }} />
+            <div className="min-w-0">
+              <p className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: typeColor }}>{TYPE_LABEL[item.type]}</p>
+              <p className="text-sm font-medium truncate" style={{ color: 'var(--cms-text, #e4e4e7)' }}>{item.title}</p>
+              <p className="text-[11px] mt-0.5" style={{ color: 'var(--cms-text-muted, #71717a)' }}>Status: {item.status}</p>
+            </div>
+          </div>
+        </div>
+        <div className="px-4 pb-4">
+          <div className="flex items-center justify-between mb-3">
+            <button onClick={prevMonth} className="w-6 h-6 flex items-center justify-center rounded text-sm hover:opacity-70"
+              style={{ color: 'var(--cms-text-muted)' }} aria-label="Previous month">&lsaquo;</button>
+            <span className="text-[13px] font-medium" style={{ color: 'var(--cms-text, #e4e4e7)' }}>{MONTH_NAMES[calMonth]} {calYear}</span>
+            <button onClick={nextMonth} className="w-6 h-6 flex items-center justify-center rounded text-sm hover:opacity-70"
+              style={{ color: 'var(--cms-text-muted)' }} aria-label="Next month">&rsaquo;</button>
+          </div>
+          <div className="grid grid-cols-7 mb-1">
+            {WEEKDAYS.map((wd) => (
+              <div key={wd} className="text-center text-[10px]" style={{ color: 'var(--cms-text-dim, #52525b)' }}>{wd}</div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 gap-y-1">
+            {calDays.map((day, idx) => {
+              if (day === null) return <div key={`blank-${idx}`} />
+              const dateStr = dayToDateStr(day); const past = isPast(day)
+              const isToday = dateStr === todayStr; const isSlot = slotSet.has(dateStr); const isSelected = selectedDate === dateStr
+              return (
+                <button key={dateStr} onClick={() => !past && setSelectedDate(dateStr)} disabled={past}
+                  className="relative flex flex-col items-center justify-center h-8 rounded-md text-xs font-medium transition-colors"
+                  style={{ background: isSelected ? 'var(--cms-accent)' : isToday ? 'var(--cms-accent-subtle)' : 'transparent',
+                    color: isSelected ? '#fff' : past ? 'var(--cms-text-dim)' : isToday ? 'var(--cms-accent)' : 'var(--cms-text)',
+                    cursor: past ? 'default' : 'pointer', opacity: past ? 0.35 : 1 }} aria-label={`Select ${dateStr}`}>
+                  {day}
+                  {isSlot && !isSelected && (
+                    <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full" style={{ background: 'var(--cms-green, #22c55e)' }} />
+                  )}
+                </button>
+              )
+            })}
+          </div>
+          {selectedDate && (
+            <p className="text-[11px] mt-2 text-center"
+              style={{ color: slotSet.has(selectedDate) ? 'var(--cms-green, #22c55e)' : 'var(--cms-text-muted, #71717a)' }}>
+              {slotSet.has(selectedDate) ? 'Slot available on this day' : 'No cadence slot -- scheduling manually'}</p>
+          )}
+        </div>
+        <div className="px-4 pb-4 flex gap-2">
+          <button onClick={onClose} className="flex-1 py-2 rounded-[8px] text-sm border"
+            style={{ borderColor: 'var(--cms-border)', color: 'var(--cms-text-muted)' }}>Cancel</button>
+          <button onClick={() => { if (selectedDate) { onSchedule(item, selectedDate); onClose() } }} disabled={!selectedDate}
+            className="flex-1 py-2 rounded-[8px] text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ background: selectedDate ? 'var(--cms-accent)' : 'var(--cms-border)', color: '#fff' }}>
+            {selectedDate ? `Schedule for ${new Date(selectedDate + 'T12:00:00').toLocaleDateString('en', { month: 'short', day: 'numeric' })}` : 'Pick a date'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+```
+
 - [ ] **Step 4: Create AgendaView (mobile)**
 
 Date-grouped chronological feed for mobile. Each card shows type icon + title + locale + status badge. Empty slots inline as dashed cards.
 
-- [ ] **Step 5: Create schedule/page.tsx**
+```tsx
+// apps/web/src/app/cms/(authed)/schedule/_components/agenda-view.tsx
+interface AgendaItem { id: string; title: string; type: 'post' | 'newsletter' | 'campaign'; status: string; date: string; locale?: string; isOverdue?: boolean }
+interface AgendaEmptySlot { date: string; type: 'blog' | 'newsletter'; isOverdue: boolean }
+interface AgendaViewProps { items: AgendaItem[]; emptySlots: AgendaEmptySlot[]; onItemClick?: (item: AgendaItem) => void; onSlotClick?: (slot: AgendaEmptySlot) => void }
 
-Server component fetching `blog_cadence`, `newsletter_types.cadence_*`, queued posts, scheduled editions. Computes slots via `generateSlots()`. Renders WeekView (desktop/tablet) or AgendaView (mobile).
+const TYPE_ICONS: Record<string, string> = { post: '\u{1F4DD}', newsletter: '\u{1F4F0}', campaign: '\u{1F4E2}' }
+const TYPE_COLORS: Record<string, string> = { post: 'var(--cms-accent, #6366f1)', newsletter: 'var(--cms-green, #22c55e)', campaign: 'var(--cms-amber, #f59e0b)' }
+const STATUS_BADGE: Record<string, { label: string; color: string }> = {
+  draft: { label: 'Draft', color: 'var(--cms-amber, #f59e0b)' }, ready: { label: 'Ready', color: 'var(--cms-accent, #6366f1)' },
+  queued: { label: 'Queued', color: 'var(--cms-purple, #8b5cf6)' }, scheduled: { label: 'Scheduled', color: 'var(--cms-cyan, #06b6d4)' },
+  published: { label: 'Published', color: 'var(--cms-green, #22c55e)' }, sent: { label: 'Sent', color: 'var(--cms-green, #22c55e)' },
+}
+
+function groupByDate(items: AgendaItem[], slots: AgendaEmptySlot[]) {
+  const map = new Map<string, { items: AgendaItem[]; slots: AgendaEmptySlot[] }>()
+  const ensure = (date: string) => { if (!map.has(date)) map.set(date, { items: [], slots: [] }); return map.get(date)! }
+  for (const item of items) ensure(item.date).items.push(item)
+  for (const slot of slots) ensure(slot.date).slots.push(slot)
+  return new Map([...map.entries()].sort(([a], [b]) => a.localeCompare(b)))
+}
+
+function formatDateHeader(dateStr: string): string {
+  const d = new Date(dateStr + 'T12:00:00')
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const target = new Date(dateStr); target.setHours(0, 0, 0, 0)
+  const diffDays = Math.round((target.getTime() - today.getTime()) / 86400000)
+  if (diffDays === 0) return 'Today'; if (diffDays === 1) return 'Tomorrow'; if (diffDays === -1) return 'Yesterday'
+  return d.toLocaleDateString('en', { weekday: 'long', month: 'long', day: 'numeric' })
+}
+
+export function AgendaView({ items, emptySlots, onItemClick, onSlotClick }: AgendaViewProps) {
+  const grouped = groupByDate(items, emptySlots)
+  if (grouped.size === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center" data-testid="agenda-empty">
+        <span className="text-4xl mb-3">\u{1F4C5}</span>
+        <p className="text-sm font-medium mb-1" style={{ color: 'var(--cms-text, #e4e4e7)' }}>No items scheduled</p>
+        <p className="text-[12px]" style={{ color: 'var(--cms-text-dim, #52525b)' }}>Configure your cadence or assign backlog items to dates.</p>
+      </div>
+    )
+  }
+  return (
+    <div className="space-y-6" data-testid="agenda-view">
+      {[...grouped.entries()].map(([date, group]) => (
+        <div key={date}>
+          <div className="flex items-center gap-3 mb-2">
+            <span className="text-[12px] font-semibold uppercase tracking-wide" style={{ color: 'var(--cms-text-muted, #71717a)' }}>{formatDateHeader(date)}</span>
+            <span className="text-[10px]" style={{ color: 'var(--cms-text-dim, #52525b)' }}>{date}</span>
+            <div className="flex-1 h-px" style={{ background: 'var(--cms-border-subtle, #22252f)' }} />
+          </div>
+          <div className="space-y-2">
+            {group.items.map((item) => {
+              const badge = STATUS_BADGE[item.status]; const typeColor = TYPE_COLORS[item.type] ?? 'var(--cms-text-muted)'
+              return (
+                <button key={item.id} onClick={() => onItemClick?.(item)}
+                  className="w-full text-left rounded-[10px] border p-3 flex items-start gap-3 transition-colors group"
+                  style={{ background: 'var(--cms-surface, #1a1d27)', borderColor: item.isOverdue ? 'var(--cms-red, #ef4444)' : 'var(--cms-border, #2a2d3a)' }}>
+                  <span className="text-xl leading-none shrink-0 mt-0.5">{TYPE_ICONS[item.type]}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate" style={{ color: 'var(--cms-text, #e4e4e7)' }}>{item.title}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      {item.locale && <span className="text-[10px] px-1.5 py-0.5 rounded"
+                        style={{ background: `color-mix(in srgb, ${typeColor} 12%, transparent)`, color: typeColor }}>{item.locale}</span>}
+                      {badge && <span className="text-[10px]" style={{ color: badge.color }}>{badge.label}</span>}
+                      {item.isOverdue && <span className="text-[10px] font-medium" style={{ color: 'var(--cms-red, #ef4444)' }}>Overdue</span>}
+                    </div>
+                  </div>
+                  <span className="text-sm opacity-0 group-hover:opacity-100 transition-opacity shrink-0" style={{ color: 'var(--cms-text-dim)' }}>&rsaquo;</span>
+                </button>
+              )
+            })}
+            {group.slots.map((slot, i) => (
+              <button key={i} onClick={() => onSlotClick?.(slot)}
+                className="w-full text-center rounded-[10px] border border-dashed py-3 px-4 text-[12px] transition-colors"
+                style={{ borderColor: slot.isOverdue ? 'var(--cms-red)' : 'var(--cms-border)', color: slot.isOverdue ? 'var(--cms-red)' : 'var(--cms-text-dim)',
+                  background: slot.isOverdue ? 'rgba(239,68,68,.05)' : 'transparent' }}>
+                + Empty {slot.type} slot{slot.isOverdue && ' (overdue)'}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+```
+
+- [ ] **Step 5: Create ScheduleClient wrapper component**
+
+Client component that orchestrates WeekView/AgendaView, BacklogPanel, QuickScheduleDialog, and toolbar (view toggle, week navigation, legend).
+
+```tsx
+// apps/web/src/app/cms/(authed)/schedule/_components/schedule-client.tsx
+'use client'
+
+import { useState, useMemo } from 'react'
+import { WeekView } from './week-view'
+import { AgendaView } from './agenda-view'
+import { BacklogPanel } from './backlog-panel'
+import { QuickScheduleDialog } from './quick-schedule-dialog'
+
+interface BlogPostRow { id: string; slot_date: string | null; status: string
+  blog_translations: Array<{ title: string; locale: string; reading_time_min?: number | null }> | null }
+interface NewsletterEditionRow { id: string; subject: string; status: string; scheduled_at: string | null
+  newsletter_types: { name: string } | null }
+interface BlogCadenceRow { id?: string; locale: string; cadence_days: number; preferred_send_time?: string | null; cadence_paused?: boolean | null }
+interface ScheduleClientProps { posts: BlogPostRow[]; editions: NewsletterEditionRow[]; cadence: BlogCadenceRow[]; backlog: BlogPostRow[] }
+
+type ViewMode = 'week' | 'agenda'
+interface CalendarItem { id: string; title: string; type: 'post' | 'newsletter' | 'campaign'; status: string; date: string; slot: number; sendTime?: string }
+
+function getWeekStart(d: Date) { const s = new Date(d); s.setHours(0,0,0,0); s.setDate(s.getDate() - s.getDay()); return s }
+function isoDate(d: Date) { return d.toISOString().split('T')[0]! }
+
+function buildCalendarItems(posts: BlogPostRow[], editions: NewsletterEditionRow[]): CalendarItem[] {
+  const items: CalendarItem[] = []
+  for (const p of posts) { if (!p.slot_date) continue; const t = p.blog_translations?.[0]
+    items.push({ id: p.id, title: t?.title ?? 'Untitled', type: 'post', status: p.status, date: p.slot_date, slot: 1 }) }
+  let si = 1
+  for (const ed of editions) { const date = ed.scheduled_at?.split('T')[0]; if (!date) continue
+    items.push({ id: ed.id, title: ed.subject ?? 'Newsletter', type: 'newsletter', status: ed.status, date, slot: (si % 3) + 1,
+      sendTime: ed.scheduled_at ? new Date(ed.scheduled_at).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' }) : undefined }); si++ }
+  return items
+}
+
+export function ScheduleClient({ posts, editions, cadence, backlog }: ScheduleClientProps) {
+  const today = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d }, [])
+  const [viewMode, setViewMode] = useState<ViewMode>('week')
+  const [weekStart, setWeekStart] = useState<Date>(() => getWeekStart(today))
+  const [dialogItem, setDialogItem] = useState<{ id: string; title: string; type: 'post' | 'newsletter' | 'campaign'; status: string } | null>(null)
+
+  const weekEnd = useMemo(() => { const d = new Date(weekStart); d.setDate(d.getDate() + 6); return d }, [weekStart])
+  const calendarItems = useMemo(() => buildCalendarItems(posts, editions), [posts, editions])
+  const backlogItems = useMemo(() => backlog.map((p) => ({
+    id: p.id, title: p.blog_translations?.[0]?.title ?? 'Untitled', type: 'post' as const, status: p.status, locale: p.blog_translations?.[0]?.locale })), [backlog])
+  const cadenceRows = useMemo(() => cadence.map((c) => ({
+    label: `Blog ${c.locale}`, schedule: `Every ${c.cadence_days}d${c.preferred_send_time ? ` @ ${c.preferred_send_time}` : ''}`,
+    color: 'var(--cms-accent, #6366f1)' })), [cadence])
+  const weekSummary = useMemo(() => {
+    const weekDates = Array.from({ length: 7 }, (_, i) => { const d = new Date(weekStart); d.setDate(d.getDate() + i); return isoDate(d) })
+    const wi = calendarItems.filter((it) => weekDates.includes(it.date))
+    return [
+      { label: 'Posts scheduled', value: wi.filter((it) => it.type === 'post').length, accent: 'var(--cms-accent)' },
+      { label: 'Newsletters queued', value: wi.filter((it) => it.type === 'newsletter').length, accent: 'var(--cms-green)' },
+      { label: 'Campaigns active', value: 0, accent: 'var(--cms-amber)' },
+      { label: 'Empty slots', value: Math.max(0, 21 - wi.length), accent: 'var(--cms-text-dim)' },
+      { label: 'Overdue', value: wi.filter((it) => it.date < isoDate(today) && it.status !== 'published' && it.status !== 'sent').length, accent: 'var(--cms-text-dim)' },
+    ]
+  }, [calendarItems, weekStart, today])
+  const agendaItems = useMemo(() => calendarItems.map((it) => ({
+    ...it, isOverdue: it.date < isoDate(today) && it.status !== 'published' && it.status !== 'sent' })), [calendarItems, today])
+  const slotDays = useMemo(() => {
+    const days: string[] = []
+    for (let i = 0; i < 28; i++) { const d = new Date(today); d.setDate(d.getDate() + i)
+      if (cadence.some((c) => c.cadence_days <= 7)) days.push(isoDate(d)) }
+    return days
+  }, [cadence, today])
+
+  const weekRangeLabel = `${weekStart.toLocaleDateString('en', { month: 'short', day: 'numeric' })} -- ${weekEnd.toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' })}`
+
+  return (
+    <div className="p-4 lg:p-6">
+      <div className="flex flex-wrap items-center gap-3 mb-5">
+        <div className="flex gap-1 p-1 rounded-[8px]" style={{ background: 'var(--cms-bg, #0f1117)' }}>
+          {(['week', 'agenda'] as ViewMode[]).map((v) => (
+            <button key={v} onClick={() => setViewMode(v)} className="px-3 py-1 rounded-[6px] text-sm font-medium capitalize transition-colors"
+              style={{ background: viewMode === v ? 'var(--cms-surface)' : 'transparent', color: viewMode === v ? 'var(--cms-text)' : 'var(--cms-text-muted)' }}>{v}</button>
+          ))}
+        </div>
+        {viewMode === 'week' && (
+          <div className="flex items-center gap-2">
+            <button onClick={() => { const d = new Date(weekStart); d.setDate(d.getDate() - 7); setWeekStart(d) }}
+              className="w-7 h-7 flex items-center justify-center rounded-md border text-sm"
+              style={{ borderColor: 'var(--cms-border)', color: 'var(--cms-text-muted)' }} aria-label="Previous week">&lsaquo;</button>
+            <span className="text-sm font-medium min-w-[200px] text-center" style={{ color: 'var(--cms-text)' }}>{weekRangeLabel}</span>
+            <button onClick={() => { const d = new Date(weekStart); d.setDate(d.getDate() + 7); setWeekStart(d) }}
+              className="w-7 h-7 flex items-center justify-center rounded-md border text-sm"
+              style={{ borderColor: 'var(--cms-border)', color: 'var(--cms-text-muted)' }} aria-label="Next week">&rsaquo;</button>
+            <button onClick={() => setWeekStart(getWeekStart(today))} className="px-2.5 py-1 text-[11px] rounded-md border"
+              style={{ borderColor: 'var(--cms-border)', color: 'var(--cms-text-muted)' }}>Today</button>
+          </div>
+        )}
+        <div className="flex items-center gap-3 ml-auto">
+          {[{ label: 'Post', color: 'var(--cms-accent)' }, { label: 'Newsletter', color: 'var(--cms-green)' }, { label: 'Campaign', color: 'var(--cms-amber)' }].map((l) => (
+            <div key={l.label} className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full" style={{ background: l.color }} />
+              <span className="text-[11px]" style={{ color: 'var(--cms-text-dim)' }}>{l.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="flex gap-5">
+        <div className="flex-1 min-w-0">
+          {viewMode === 'week' ? (
+            <WeekView startDate={weekStart} items={calendarItems} emptySlots={[]}
+              onItemClick={(item) => setDialogItem({ id: item.id, title: item.title, type: item.type, status: item.status })} onSlotClick={() => {}} />
+          ) : (
+            <AgendaView items={agendaItems} emptySlots={[]}
+              onItemClick={(item) => setDialogItem({ id: item.id, title: item.title, type: item.type, status: item.status })} />
+          )}
+        </div>
+        <div className="hidden md:block w-[260px] shrink-0">
+          <BacklogPanel items={backlogItems} cadence={cadenceRows} weekSummary={weekSummary}
+            onScheduleItem={(item) => setDialogItem(item)} onEditCadence={() => { window.location.href = '/cms/newsletters/settings' }} />
+        </div>
+      </div>
+      {dialogItem && (
+        <QuickScheduleDialog item={dialogItem} slotDays={slotDays}
+          onSchedule={(_item, _date) => { /* TODO: wire to server action */ }} onClose={() => setDialogItem(null)} />
+      )}
+    </div>
+  )
+}
+```
+
+- [ ] **Step 6: Create schedule/page.tsx**
 
 ```tsx
 // apps/web/src/app/cms/(authed)/schedule/page.tsx
@@ -2319,11 +6442,30 @@ export default async function SchedulePage() {
 }
 ```
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Write schedule test**
+
+```tsx
+// apps/web/test/app/cms/schedule.test.tsx
+import { describe, it, expect } from 'vitest'
+
+describe('CMS Schedule', () => {
+  it('exports WeekView component', async () => {
+    const mod = await import('@/app/cms/(authed)/schedule/_components/week-view')
+    expect(mod.WeekView).toBeDefined()
+  })
+
+  it('exports BacklogPanel component', async () => {
+    const mod = await import('@/app/cms/(authed)/schedule/_components/backlog-panel')
+    expect(mod.BacklogPanel).toBeDefined()
+  })
+})
+```
+
+- [ ] **Step 8: Commit**
 
 ```bash
-git add apps/web/src/app/cms/\(authed\)/schedule/
-git commit -m "feat(cms): new Schedule page with week/month/agenda views, backlog, cadence config"
+git add apps/web/src/app/cms/\(authed\)/schedule/ apps/web/test/app/cms/schedule.test.tsx
+git commit -m "feat(cms): new Schedule page with week/agenda views, backlog, cadence config"
 ```
 
 ---
@@ -2354,7 +6496,7 @@ Modify `CmsShell` to accept badge data fetched in the layout (draft count for Po
 - [ ] **Step 3: Commit**
 
 ```bash
-git add -A
+git add apps/web/src/app/cms/\(authed\)/newsletters/subscribers/page.tsx apps/web/src/components/cms/cms-sidebar.tsx apps/web/src/components/cms/cms-shell.tsx
 git commit -m "chore(cms): redirect old routes, wire dynamic sidebar badges"
 ```
 
