@@ -6,50 +6,11 @@ import {
 import { cookies } from 'next/headers'
 import type { ReactNode } from 'react'
 import {
-  AdminShellWithSwitcher,
-  CmsSiteSwitcherSlot,
+  SiteSwitcherProvider,
   type AccessibleSite,
-} from '../../../components/cms/site-switcher-provider'
-
-const CMS_CONFIG = {
-  appName: 'CMS',
-  sections: [
-    {
-      group: 'Content',
-      items: [
-        { label: 'Blog posts', path: '/cms/blog', icon: 'Pencil' },
-        { label: 'Authors', path: '/cms/authors', icon: 'User' },
-      ],
-    },
-    {
-      group: 'Campaigns',
-      items: [
-        { label: 'Landing pages', path: '/cms/campaigns', icon: 'Target' },
-        { label: 'Submissions', path: '/cms/submissions', icon: 'Inbox' },
-      ],
-    },
-    {
-      group: 'Newsletter',
-      items: [
-        { label: 'Editions', path: '/cms/newsletters', icon: 'Mail' },
-        { label: 'Subscribers', path: '/cms/newsletters/subscribers', icon: 'Users' },
-        { label: 'Settings', path: '/cms/newsletters/settings', icon: 'Settings' },
-      ],
-    },
-    {
-      group: 'Queue',
-      items: [
-        { label: 'Content Queue', path: '/cms/content-queue', icon: 'Clock' },
-      ],
-    },
-    {
-      group: 'Contatos',
-      items: [
-        { label: 'Contatos recebidos', path: '/cms/contacts', icon: 'Mail' },
-      ],
-    },
-  ],
-}
+} from '@tn-figueiredo/admin/site-switcher'
+import { CmsSiteSwitcherSlot } from '../../../components/cms/site-switcher-provider'
+import { CmsShell } from '../../../components/cms/cms-shell'
 
 export default async function Layout({ children }: { children: ReactNode }) {
   const cookieStore = await cookies()
@@ -69,30 +30,26 @@ export default async function Layout({ children }: { children: ReactNode }) {
     },
   })
   const user = await requireUser(supabase)
-  // Area gate — redirects to `/?error=insufficient_access` on denial.
-  // RPC-first: `is_staff()` is trusted over JWT app_metadata (stale until refresh).
   await requireArea('cms')
 
-  // Track F3 — resolve accessible sites so the CMS shell can render the
-  // multi-site dropdown. `user_accessible_sites()` returns rows the signed-in
-  // user can view (site_memberships + cascade-up via organization_members).
-  // Swallow RPC errors to an empty array — the switcher renders null for
-  // <2 sites, so a failure degrades to the single-site experience rather
-  // than blocking the entire CMS shell.
   const { data: sitesData } = await supabase.rpc('user_accessible_sites')
   const sites = (sitesData ?? []) as AccessibleSite[]
+  const currentSiteId = sites[0]?.site_id ?? ''
+  const currentSite = sites.find((s) => s.site_id === currentSiteId)
+  const userDisplayName = user.email ?? 'User'
+  const userRole = currentSite?.user_role ?? 'reporter'
 
   return (
-    <AdminShellWithSwitcher
-      sites={sites}
-      userEmail={user.email ?? ''}
-      config={{
-        ...CMS_CONFIG,
-        logoutPath: '/cms/logout',
-        siteSwitcherSlot: <CmsSiteSwitcherSlot />,
-      }}
-    >
-      {children}
-    </AdminShellWithSwitcher>
+    <SiteSwitcherProvider sites={sites} initialSiteId={currentSiteId}>
+      <CmsShell
+        siteName={currentSite?.site_name ?? 'OneCMS'}
+        siteInitials={currentSite?.site_name?.slice(0, 2).toUpperCase() ?? 'CM'}
+        userDisplayName={userDisplayName}
+        userRole={userRole}
+        siteSwitcher={<CmsSiteSwitcherSlot />}
+      >
+        {children}
+      </CmsShell>
+    </SiteSwitcherProvider>
   )
 }

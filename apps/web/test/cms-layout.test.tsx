@@ -10,26 +10,28 @@ vi.mock('next/headers', () => ({
 }))
 
 vi.mock('../src/components/cms/site-switcher-provider', () => ({
-  AdminShellWithSwitcher: ({
-    userEmail,
-    config,
+  CmsSiteSwitcherSlot: () => null,
+}))
+
+vi.mock('../src/components/cms/cms-shell', () => ({
+  CmsShell: ({
+    siteName,
+    userDisplayName,
     children,
   }: {
-    userEmail: string
-    config: { logoutPath?: string }
+    siteName: string
+    userDisplayName: string
     children: React.ReactNode
   }) =>
     React.createElement(
       'div',
-      { 'data-testid': 'admin-shell', 'data-email': userEmail },
-      React.createElement(
-        'form',
-        { action: config.logoutPath, method: 'post' },
-        React.createElement('button', { type: 'submit' }, 'Sair'),
-      ),
+      { 'data-testid': 'cms-shell', 'data-site': siteName, 'data-user': userDisplayName },
       children,
     ),
-  CmsSiteSwitcherSlot: () => null,
+}))
+
+vi.mock('@tn-figueiredo/admin/site-switcher', () => ({
+  SiteSwitcherProvider: ({ children }: { children: React.ReactNode }) => children,
 }))
 
 vi.mock('@tn-figueiredo/auth-nextjs', () => ({
@@ -43,19 +45,16 @@ vi.mock('@tn-figueiredo/auth-nextjs', () => ({
 import Layout from '../src/app/cms/(authed)/layout'
 
 describe('cms/layout', () => {
-  it('renders children wrapped in admin shell', async () => {
+  it('renders children wrapped in CmsShell', async () => {
     const el = await Layout({ children: <div>hello-cms</div> })
-    const { getByText } = render(el)
+    const { getByText, getByTestId } = render(el)
     expect(getByText('hello-cms')).toBeTruthy()
+    expect(getByTestId('cms-shell')).toBeTruthy()
   })
 
-  it('includes POST logout form targeting /cms/logout', async () => {
+  it('passes user email as display name when no metadata', async () => {
     const el = await Layout({ children: <div>hello-cms</div> })
-    const { container, getByRole } = render(el)
-    const form = container.querySelector('form[action="/cms/logout"]')
-    expect(form).toBeTruthy()
-    expect(form?.getAttribute('method')?.toLowerCase()).toBe('post')
-    const button = getByRole('button', { name: /sair/i })
-    expect(button.getAttribute('type')).toBe('submit')
+    const { getByTestId } = render(el)
+    expect(getByTestId('cms-shell').getAttribute('data-user')).toBe('thiago@example.com')
   })
 })
