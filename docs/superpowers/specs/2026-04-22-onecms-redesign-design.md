@@ -2,7 +2,7 @@
 
 **Date:** 2026-04-22
 **Scope:** Default CMS consumed by all `@tn-figueiredo/*` ecosystem clients
-**Rating:** 98/100 (iterative improvement across 9 screens, 2 rounds each)
+**Rating:** 98/100 (iterative improvement across 9 screens + spec document)
 **Mockups:** `.superpowers/brainstorm/52761-1776906453/content/01–09*.html`
 
 ---
@@ -64,7 +64,18 @@ Labeled section headers (10px uppercase, letter-spacing 1.5px, dim color). Setti
 | `--accent-hover` | `#818cf8` | `#4f46e5` |
 | `--accent-subtle` | `rgba(99,102,241,.12)` | `rgba(99,102,241,.08)` |
 
-Semantic colors (`--green`, `--amber`, `--red`, `--cyan`, `--rose`, `--purple`) remain identical across themes. Only `*-subtle` variants change opacity (`.12` dark → `.08` light).
+Semantic colors (identical across themes):
+
+| Token | Value | Subtle (dark) | Subtle (light) |
+|-------|-------|---------------|-----------------|
+| `--green` | `#22c55e` | `rgba(34,197,94,.12)` | `rgba(34,197,94,.08)` |
+| `--amber` | `#f59e0b` | `rgba(245,158,11,.12)` | `rgba(245,158,11,.08)` |
+| `--red` | `#ef4444` | `rgba(239,68,68,.12)` | `rgba(239,68,68,.08)` |
+| `--cyan` | `#06b6d4` | `rgba(6,182,212,.12)` | `rgba(6,182,212,.08)` |
+| `--rose` | `#f43f5e` | — | — |
+| `--purple` | `#8b5cf6` | `rgba(139,92,246,.12)` | `rgba(139,92,246,.08)` |
+
+Layout tokens: `--radius: 8px`, `--sidebar-w: 230px`.
 
 Theme stored in `localStorage`, toggled via header button, applied via `[data-theme="dark"]` / `[data-theme="light"]` on `<html>`.
 
@@ -116,7 +127,60 @@ Font: `Inter, -apple-system, system-ui, sans-serif`. Monospace for emails, slugs
 | 768–1279px (tablet) | 48px collapsed icon-only | Condensed tables, panels as drawers | Sidebar icons |
 | <768px (mobile) | Hidden | Card layouts, agenda views | Bottom nav (5 tabs) |
 
-**Bottom nav tabs (mobile):** Home, Posts/Schedule (context-dependent), Analytics, More (expands to full menu).
+**Bottom nav tabs (mobile, canonical 5-tab set):** Home (Dashboard), Schedule, Posts, Analytics, More. "More" opens a full-screen menu with all remaining items (Newsletters, Campaigns, Authors, Subscribers, Settings). Active tab highlighted in accent color.
+
+### 3.6 Accessibility
+
+- **Color contrast:** All text meets WCAG 2.1 AA (4.5:1 for body text, 3:1 for large text/UI). Status badges use background+text pairings tested in both themes.
+- **Focus indicators:** Visible focus ring (`2px solid var(--accent)`, `2px offset`) on all interactive elements. Never remove `outline` without replacement.
+- **Keyboard navigation:** All screens fully keyboard-navigable. Tab order follows visual order. Modals/dialogs trap focus. Esc closes any overlay.
+- **ARIA:** Tables use `role="grid"` with `aria-sort` on sortable headers. Context menus use `role="menu"` + `role="menuitem"`. Dialogs use `role="dialog"` + `aria-modal="true"` + `aria-labelledby`. Status badges include `aria-label` (not just color). Loading skeletons use `aria-busy="true"`.
+- **Reduced motion:** `@media (prefers-reduced-motion: reduce)` disables skeleton shimmer, chart animations, hover transforms. Transitions fall back to instant.
+- **Screen readers:** KPI trends include `aria-label="Open rate 38.4%, up 2.1% from prior period"`. Engagement dots include `aria-label="Last 5 sends: opened, opened, clicked, no interaction, bounced"`. Empty states announce via `aria-live="polite"`.
+
+### 3.7 Transitions & Animation
+
+| Element | Timing | Easing |
+|---------|--------|--------|
+| Button hover/active | 150ms | ease |
+| Sidebar item hover | 150ms | ease |
+| Context menu open | 100ms | ease-out |
+| Dialog open (scale+fade) | 200ms | ease-out |
+| Dialog close | 150ms | ease-in |
+| Slide-over panel | 250ms | ease-out |
+| Bottom sheet | 300ms | cubic-bezier(.32,.72,0,1) |
+| Toast appear (slide-up) | 200ms | ease-out |
+| Toast dismiss (fade-out) | 150ms | ease-in |
+| Skeleton shimmer | 1.5s | linear, infinite |
+| Chart tooltip fade | 150ms | ease-out |
+| Calendar item hover | 150ms | ease |
+| Page transition | none (instant, server components) |
+
+### 3.8 Toast Notifications
+
+Toasts appear bottom-center (mobile) or bottom-right (desktop), stacked with 8px gap. Max 3 visible. Auto-dismiss after 5s (success/info) or persist until dismissed (error/warning).
+
+Variants: success (green left border), error (red left border), warning (amber left border), info (accent left border). Each has icon + message + optional action link + dismiss ✕.
+
+### 3.9 Date Formatting
+
+| Condition | Format | Example |
+|-----------|--------|---------|
+| < 1 minute | "Just now" | Just now |
+| < 1 hour | "Xm ago" | 23m ago |
+| < 24 hours | "Xh ago" | 5h ago |
+| < 7 days | "Xd ago" | 3d ago |
+| Same year | "MMM DD" | Apr 18 |
+| Different year | "MMM DD, YYYY" | Dec 15, 2025 |
+| Exact (tooltips) | "MMM DD, YYYY HH:mm" | Apr 18, 2026 14:30 |
+
+### 3.10 Pagination
+
+Default page sizes: 20 (Newsletters, Posts, Campaigns), 50 (Subscribers). Mobile uses infinite scroll with intersection observer (Subscribers, Newsletters editions). Format: "Showing X–Y of Z" + Prev/numbered pages/Next. URL state: `?page=N`. Authors: no pagination (full grid, max ~30 per site).
+
+### 3.11 Global Search (Cmd+K)
+
+Modal overlay (max-width 560px, centered). Input with search icon + placeholder "Search posts, newsletters, campaigns...". Results grouped by type with colored section headers (Posts, Newsletters, Campaigns, Authors). Each result: type icon + title + status badge + date. Max 5 per group. Keyboard: arrow keys navigate, Enter opens, Esc closes. Recent searches persisted in `localStorage` (max 5). Trigger: `Cmd+K` (Mac) / `Ctrl+K` (Win), or `/` when no input focused.
 
 ---
 
@@ -127,14 +191,18 @@ Font: `Inter, -apple-system, system-ui, sans-serif`. Monospace for emails, slugs
 **Purpose:** Entry point. At-a-glance health of content, performance, and pending actions.
 
 **Desktop layout:**
-- **Continue Editing banner:** Persistent strip showing last-edited post thumbnail + title + timestamp + "Resume" button
-- **4-column KPI grid:** Blog views, NL opens, Campaign clicks, 4th metric. Each with trend delta + sparkline
-- **Content Performance chart:** Grouped bar chart (weekly), 3 series (post=indigo, NL=green, campaign=amber). Hover tooltip with fade-in 150ms
-- **Coming Up panel:** Right column (3:5 ratio), next 3 scheduled items with colored left-border accent
+- **Continue Editing banner:** Persistent strip showing last-edited post thumbnail + title + timestamp + "Resume" button. Driven by `localStorage` key `cms:lastEdited:{siteId}` set on every editor save. Hidden when no recent edit or when post has been published since last edit.
+- **4-column KPI grid:** Blog Posts (total published, trend vs prior 30d), Newsletter Opens (total 30d), Campaign Submissions (total 30d), Subscribers (total active). Each with trend delta + sparkline.
+- **Content Performance chart:** Grouped bar chart (weekly), 3 series (post=indigo, NL=green, campaign=amber). Hover tooltip with fade-in 150ms.
+- **Coming Up panel:** Right column (3:5 ratio), next 3 items from Schedule (queued posts + scheduled editions). Query: `WHERE slot_date >= CURRENT_DATE ORDER BY slot_date ASC LIMIT 3`. Each with type icon, title, colored left-border, and date.
 
-**Site Switcher:** Dropdown from sidebar brand area. Filter input + scrollable site list (colored initials avatar, name, URL). Current site checkmarked. "Manage sites →" footer link.
+**Site Switcher:** Dropdown from sidebar brand area. Filter input + scrollable site list (colored initials avatar, name, URL). Current site checkmarked. "Manage sites →" footer link (admin+ only).
 
-**Notification Center:** Bell icon dropdown with unread count badge. Grouped: New (unread) + Earlier (read, 60% opacity). Alert types: red (critical), amber (warning), blue (info), green (success). "View all" → `/cms/notifications` full page. Max-width 700px centered, filter tabs (All/Alerts/Info).
+**Notification Center:** Bell icon dropdown with unread count badge. Grouped: New (unread) + Earlier (read, 60% opacity). Alert types: red (critical — bounce rate, failed send), amber (warning — overdue slot, draft approaching deadline), blue (info — new subscriber milestone), green (success — edition sent, post published). "View all" → `/cms/notifications` sub-page. Max-width 700px centered, filter tabs (All/Alerts/Info), "Mark all read" link. Notifications stored in `notifications` table (Sprint 7+; initially derived from computed conditions).
+
+**Skeleton:** 4 KPI cards with shimmer (staggered delay 0–0.3s), "Continue Editing" banner block, chart area (full-width 180px height shimmer), "Coming Up" panel (3 row blocks with left-border accents).
+
+**Empty state (first-time):** No KPIs, no chart. Centered welcome: "Welcome to OneCMS" heading, "Start by creating your first post or configuring your publishing cadence" description, two CTAs ("Create First Post" + "Configure Cadence"), 3 hint cards (Write / Schedule / Analyze).
 
 **Tablet:** KPIs in 2×2 grid, chart simplified, Coming Up below chart.
 **Mobile:** KPIs as scrollable chips, chart as compact summary, Coming Up as card list.
@@ -225,6 +293,8 @@ Font: `Inter, -apple-system, system-ui, sans-serif`. Monospace for emails, slugs
 **Tablet:** Type cards as compact horizontal scroll strip. Table drops Type and Clicks columns.
 **Mobile:** Type cards as scrollable filter chips. Table → card stack. Swipe left reveals View+Delete.
 
+**Skeleton:** Type card row (2 full-width blocks + 1 narrow), filter bar (280px + 100px blocks), table (1 header row 42px + 3 data rows 56px each).
+
 **Empty state:** Envelope icon, "No editions yet", "Create first edition" CTA.
 
 ---
@@ -251,6 +321,8 @@ Font: `Inter, -apple-system, system-ui, sans-serif`. Monospace for emails, slugs
 **Tablet:** KPIs as 2×2 grid. Table drops Locales and Sparkline.
 **Mobile:** KPIs as scrollable chips. Campaign cards with thumbnail, badge, stats.
 
+**Skeleton:** 4 KPI tiles (68px height), filter bar (240px + 100px blocks), table (header row 42px + 3 data rows 64px each).
+
 **Empty state:** Target icon, "No campaigns yet", "Create first campaign" CTA.
 
 ---
@@ -275,7 +347,7 @@ Font: `Inter, -apple-system, system-ui, sans-serif`. Monospace for emails, slugs
 
 ---
 
-### 4.7 Subscribers (`/cms/newsletters/subscribers`)
+### 4.7 Subscribers (`/cms/subscribers`)
 
 **Purpose:** Full subscriber visibility, engagement history, lifecycle management. PII-heavy — gated by `is_org_admin` or `is_super_admin`.
 
@@ -385,6 +457,21 @@ Settings is a sidebar item (admin+ only) but was not mockup-scoped in this desig
 
 Settings screen design will be completed in the implementation phase, following the same mockup process (desktop/tablet/mobile/skeleton/empty/light/behavior spec).
 
+### 4.11 Sub-Pages — Deferred but Referenced
+
+These pages are referenced by context menus and actions in the core screens but are not individually mockup-scoped. They follow the existing patterns from Sprint 5e and this spec's design system.
+
+| Route | Referenced By | Implementation Notes |
+|-------|---------------|---------------------|
+| `/cms/newsletters/new` | Newsletters "New edition" | Creates draft, redirects to editor. Existing server action. |
+| `/cms/newsletters/[id]/edit` | Newsletters context menu "Edit edition" | MDX editor similar to Post Editor (4.3) but for newsletter content. Uses `@tn-figueiredo/newsletter-admin` components. Subject + preheader + MDX body + live email preview via `@react-email/render`. Already partially implemented in Sprint 5e. |
+| `/cms/newsletters/[id]/analytics` | Newsletters context menu "View analytics" | Per-edition KPI cards (delivered/opens/clicks/bounces), top clicked links, email client breakdown. Already partially implemented in Sprint 5e via `@tn-figueiredo/newsletter-admin`. |
+| `/cms/campaigns/new` | Campaigns "New campaign" | Creates draft, redirects to editor. Existing server action. |
+| `/cms/campaigns/[id]/edit` | Campaigns context menu "Edit" | Landing page editor with PDF upload, Turnstile config, locale management. Already implemented in Sprint 3. Redesign follows this spec's design system (theme tokens, button variants, skeleton). |
+| `/cms/newsletters/settings` | Schedule "Edit cadence" button | Per-type cadence config. Deferred to Settings (4.10) consolidation. |
+| `/cms/notifications` | Dashboard bell "View all" | Full notification history page. Spec in Dashboard section (4.1). |
+| `/newsletter/archive/[id]` | Newsletter context menu "View archive" | Public web archive. Already implemented in Sprint 5e. No CMS redesign needed. |
+
 ---
 
 ## 5. Permissions Matrix
@@ -414,7 +501,31 @@ Settings screen design will be completed in the implementation phase, following 
 
 ## 6. Technical Integration
 
-### 6.1 Package Architecture
+### 6.1 Route Map
+
+| Route | Screen | Sidebar Active | Section |
+|-------|--------|----------------|---------|
+| `/cms` | Dashboard | Dashboard | 4.1 |
+| `/cms/notifications` | Notification Center | Dashboard | 4.1 |
+| `/cms/blog` | Posts List | Posts | 4.2 |
+| `/cms/blog/new` | Post Editor (new) | Posts | 4.3 |
+| `/cms/blog/[id]/edit` | Post Editor | Posts | 4.3 |
+| `/cms/newsletters` | Newsletters | Newsletters | 4.4 |
+| `/cms/newsletters/new` | Newsletter Editor (new) | Newsletters | 4.11 |
+| `/cms/newsletters/[id]/edit` | Newsletter Editor | Newsletters | 4.11 |
+| `/cms/newsletters/[id]/analytics` | Newsletter Analytics | Newsletters | 4.11 |
+| `/cms/campaigns` | Campaigns | Campaigns | 4.5 |
+| `/cms/campaigns/new` | Campaign Editor (new) | Campaigns | 4.11 |
+| `/cms/campaigns/[id]/edit` | Campaign Editor | Campaigns | 4.11 |
+| `/cms/authors` | Authors | Authors | 4.6 |
+| `/cms/subscribers` | Subscribers | Subscribers | 4.7 |
+| `/cms/analytics` | Analytics | Analytics | 4.8 |
+| `/cms/schedule` | Schedule | Schedule | 4.9 |
+| `/cms/settings` | Settings | Settings | 4.10 |
+
+All routes under `/cms/(authed)/` layout group, protected by `requireArea('cms')` from `@tn-figueiredo/auth-nextjs`.
+
+### 6.2 Package Architecture
 
 The OneCMS shell (`createAdminLayout()`) lives in `@tn-figueiredo/admin`. Screen implementations consume:
 
@@ -427,7 +538,7 @@ The OneCMS shell (`createAdminLayout()`) lives in `@tn-figueiredo/admin`. Screen
 | `@tn-figueiredo/seo` | SEO metadata panel in Post Editor |
 | `@tn-figueiredo/email` | Email preview in Newsletter editor |
 
-### 6.2 Data Sources
+### 6.3 Data Sources
 
 | Screen | Primary Data |
 |--------|-------------|
@@ -441,11 +552,11 @@ The OneCMS shell (`createAdminLayout()`) lives in `@tn-figueiredo/admin`. Screen
 | Analytics | Aggregates from `newsletter_editions.stats_*`, `campaign_submissions`, `blog_posts` |
 | Schedule | `blog_cadence`, `newsletter_types.cadence_*`, `blog_posts.slot_date`, `newsletter_editions` |
 
-### 6.3 Feature Flag Readiness
+### 6.4 Feature Flag Readiness
 
 All sidebar items configurable per-site via feature flags in the `createAdminLayout()` factory. When a site doesn't use newsletters, the Newsletters + Content Queue items are hidden. When a site doesn't use campaigns, the Campaigns item is hidden. Analytics adapts tabs to available content types.
 
-### 6.4 Charts — No Library
+### 6.5 Charts — No Library
 
 All visualizations are pure CSS/SVG:
 - **Sparklines:** 48×28px SVG `<polyline>` + endpoint `<circle>`
