@@ -1,81 +1,80 @@
+import { Suspense } from 'react'
 import Link from 'next/link'
-import type { ContentStatus } from '@tn-figueiredo/cms'
-import { postRepo } from '../../../../../lib/cms/repositories'
-import { getSiteContext } from '../../../../../lib/cms/site-context'
-import { deletePost } from './[id]/edit/actions'
-import { DeletePostButton } from './_components/delete-post-button'
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { getSiteContext } from '@/lib/cms/site-context'
+import { CmsTopbar } from '@/components/cms/cms-topbar'
+import { CmsButton, SkeletonBlock } from '@/components/cms/ui'
+import { PostsFilters } from './_components/posts-filters'
+import { PostsTable } from './_components/posts-table'
 
-interface Props {
-  searchParams: Promise<{ status?: string; locale?: string; search?: string }>
-}
+interface Props { searchParams: Promise<Record<string, string | undefined>> }
 
-export default async function CmsBlogListPage({ searchParams }: Props) {
-  const sp = await searchParams
-  const ctx = await getSiteContext()
-  const status = (sp.status as ContentStatus | undefined) ?? undefined
-  const locale = sp.locale ?? ctx.defaultLocale
-  const search = sp.search
+export default async function BlogListPage({ searchParams }: Props) {
+  const params = await searchParams
+  const supabase = getSupabaseServiceClient()
+  const { siteId } = await getSiteContext()
+  const page = Math.max(1, parseInt(params.page ?? '1', 10))
+  const pageSize = 20
 
-  const posts = await postRepo().list({
-    siteId: ctx.siteId,
-    locale,
-    status,
-    search,
-    perPage: 50,
+  const { data: statusData } = await supabase
+    .from('blog_posts')
+    .select('status')
+    .eq('site_id', siteId)
+
+  const counts: Record<string, number> = {}
+  for (const row of statusData ?? []) {
+    counts[(row as unknown as { status: string }).status] = (counts[(row as unknown as { status: string }).status] ?? 0) + 1
+  }
+
+  let query = supabase
+    .from('blog_posts')
+    .select('id, slug, status, slot_date, updated_at, owner_user_id, blog_translations(title, locale, reading_time_min), authors!blog_posts_owner_user_id_fkey(display_name)', { count: 'exact' })
+    .eq('site_id', siteId)
+    .order('updated_at', { ascending: false })
+    .range((page - 1) * pageSize, page * pageSize - 1)
+
+  if (params.status) query = query.eq('status', params.status)
+  if (params.locale) query = query.eq('blog_translations.locale', params.locale)
+  if (params.q) query = query.ilike('blog_translations.title', `%${params.q}%`)
+
+  const { data: posts, count: total } = await query
+
+  const rows = (posts ?? []).map((p: unknown) => {
+    const post = p as {
+      id: string
+      slug: string | null
+      status: string | null
+      updated_at: string
+      blog_translations: Array<{ title: string; locale: string; reading_time_min: number | null }> | null
+      authors: { display_name: string } | null
+    }
+    return {
+      id: post.id,
+      title: post.blog_translations?.[0]?.title ?? 'Untitled',
+      slug: post.slug ?? '',
+      status: post.status ?? 'draft',
+      locales: (post.blog_translations ?? []).map((t) => t.locale),
+      authorName: post.authors?.display_name ?? 'Unknown',
+      authorInitials: (post.authors?.display_name ?? 'U').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase(),
+      updatedAt: new Date(post.updated_at).toLocaleDateString('en', { month: 'short', day: 'numeric' }),
+      readingTime: post.blog_translations?.[0]?.reading_time_min ?? 0,
+    }
   })
 
   return (
-    <main>
-      <header>
-        <h1>Blog Posts</h1>
-        <Link href="/cms/blog/new">+ Novo</Link>
-      </header>
-      <form method="get">
-        <select name="status" defaultValue={status ?? ''} aria-label="status filter">
-          <option value="">Todos</option>
-          <option value="draft">Draft</option>
-          <option value="scheduled">Scheduled</option>
-          <option value="published">Published</option>
-          <option value="archived">Archived</option>
-        </select>
-        <select name="locale" defaultValue={locale} aria-label="locale filter">
-          <option value="pt-BR">pt-BR</option>
-          <option value="en">en</option>
-        </select>
-        <input
-          type="search"
-          name="search"
-          placeholder="Buscar..."
-          defaultValue={search ?? ''}
-          aria-label="title search"
-        />
-        <button type="submit">Filtrar</button>
-      </form>
-      {posts.length === 0 ? (
-        <p>Nenhum post encontrado.</p>
-      ) : (
-        <ul>
-          {posts.map((p) => (
-            <li key={p.id}>
-              <Link href={`/cms/blog/${p.id}/edit`}>
-                <span data-status={p.status}>{p.status}</span>
-                <strong>{p.translation.title}</strong>
-                <span>{p.translation.locale}</span>
-                <span>{p.available_locales.join(', ')}</span>
-                {p.published_at && <time>{p.published_at}</time>}
-              </Link>
-              {(p.status === 'draft' || p.status === 'archived') && (
-                <DeletePostButton
-                  postId={p.id}
-                  postTitle={p.translation.title}
-                  onDelete={deletePost}
-                />
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-    </main>
+    <div>
+      <CmsTopbar title="Posts" actions={
+        <Link href="/cms/blog/new"><CmsButton variant="primary" size="sm">+ New Post</CmsButton></Link>
+      } />
+      <div className="p-6 lg:p-8 space-y-4">
+        <Suspense fallback={<SkeletonBlock className="h-20" />}>
+          <PostsFilters counts={counts} />
+        </Suspense>
+        <div className="bg-cms-surface border border-cms-border rounded-[var(--cms-radius)] overflow-hidden">
+          <PostsTable posts={rows} total={total ?? rows.length} page={page} pageSize={pageSize} currentParams={new URLSearchParams(params as Record<string, string>).toString()} />
+        </div>
+      </div>
+    </div>
   )
 }
 
