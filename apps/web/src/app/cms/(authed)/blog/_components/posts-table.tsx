@@ -1,8 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { StatusBadge } from '@/components/cms/ui'
-import type { StatusVariant } from '@/components/cms/ui'
+import { StatusBadge } from '@tn-figueiredo/cms-ui/client'
+import type { StatusVariant } from '@tn-figueiredo/cms-ui/client'
 
 interface PostRow {
   id: string

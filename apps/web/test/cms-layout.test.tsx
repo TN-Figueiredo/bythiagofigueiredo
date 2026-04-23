@@ -13,7 +13,7 @@ vi.mock('../src/components/cms/site-switcher-provider', () => ({
   CmsSiteSwitcherSlot: () => null,
 }))
 
-vi.mock('../src/components/cms/cms-shell', () => ({
+vi.mock('@tn-figueiredo/cms-ui/client', () => ({
   CmsShell: ({
     siteName,
     userDisplayName,

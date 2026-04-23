@@ -1,7 +1,6 @@
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
-import { CmsTopbar } from '@/components/cms/cms-topbar'
-import { EmptyState, CmsButton } from '@/components/cms/ui'
+import { CmsTopbar, EmptyState, CmsButton } from '@tn-figueiredo/cms-ui/client'
 import { AuthorCard } from './_components/author-card'
 
 export default async function AuthorsPage() {

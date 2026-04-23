@@ -1,7 +1,6 @@
 import { Suspense } from 'react'
 import { getSiteContext } from '@/lib/cms/site-context'
-import { CmsTopbar } from '@/components/cms/cms-topbar'
-import { SkeletonBlock } from '@/components/cms/ui'
+import { CmsTopbar, SkeletonBlock } from '@tn-figueiredo/cms-ui/client'
 import { DashboardKpis } from './_components/dashboard-kpis'
 import { ComingUp } from './_components/coming-up'
 import { ContinueEditing } from './_components/continue-editing'

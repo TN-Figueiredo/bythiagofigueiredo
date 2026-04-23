@@ -1,4 +1,4 @@
-import { StatusBadge, type StatusVariant, formatRelativeTime } from '@/components/cms/ui'
+import { StatusBadge, type StatusVariant, formatRelativeTime } from '@tn-figueiredo/cms-ui/client'
 
 interface AuthorCardProps {
   id: string

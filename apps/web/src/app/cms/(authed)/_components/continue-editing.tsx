@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { CmsButton, formatRelativeTime } from '@/components/cms/ui'
+import { CmsButton, formatRelativeTime } from '@tn-figueiredo/cms-ui/client'
 
 interface LastEdited {
   id: string

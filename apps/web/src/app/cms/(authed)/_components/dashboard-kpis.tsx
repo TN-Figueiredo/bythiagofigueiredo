@@ -1,6 +1,6 @@
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
-import { KpiCard } from '@/components/cms/ui'
+import { KpiCard } from '@tn-figueiredo/cms-ui/client'
 
 export async function DashboardKpis() {
   const supabase = getSupabaseServiceClient()

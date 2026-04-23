@@ -1,6 +1,6 @@
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
-import { CmsTopbar } from '@/components/cms/cms-topbar'
+import { CmsTopbar } from '@tn-figueiredo/cms-ui/client'
 import { ScheduleClient, type BlogPostRow, type NewsletterEditionRow, type BlogCadenceRow } from './_components/schedule-client'
 
 export default async function SchedulePage() {

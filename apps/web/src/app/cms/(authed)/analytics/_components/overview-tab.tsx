@@ -1,6 +1,6 @@
 'use client'
 
-import { KpiCard } from '@/components/cms/ui'
+import { KpiCard } from '@tn-figueiredo/cms-ui/client'
 import { AreaChart } from './area-chart'
 import { DonutChart } from './donut-chart'
 import { DeliveryFunnel } from './delivery-funnel'

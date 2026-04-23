@@ -10,7 +10,7 @@ import {
   type AccessibleSite,
 } from '@tn-figueiredo/admin/site-switcher'
 import { CmsSiteSwitcherSlot } from '@/components/cms/site-switcher-provider'
-import { CmsShell } from '@/components/cms/cms-shell'
+import { CmsShell } from '@tn-figueiredo/cms-ui/client'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
 export default async function Layout({ children }: { children: ReactNode }) {

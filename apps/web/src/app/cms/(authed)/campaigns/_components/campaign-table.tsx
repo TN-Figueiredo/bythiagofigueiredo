@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import type { CampaignListItem } from '@tn-figueiredo/cms'
-import { StatusBadge, Pagination, Sparkline, type StatusVariant } from '@/components/cms/ui'
+import { StatusBadge, Pagination, Sparkline, type StatusVariant } from '@tn-figueiredo/cms-ui/client'
 
 export interface CampaignRow extends CampaignListItem {
   has_pdf: boolean

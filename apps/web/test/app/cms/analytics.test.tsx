@@ -6,12 +6,9 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
 }))
 
-vi.mock('@/components/cms/ui', () => ({
+vi.mock('@tn-figueiredo/cms-ui/client', () => ({
   KpiCard: () => null,
   CmsButton: () => null,
-}))
-
-vi.mock('@/components/cms/cms-topbar', () => ({
   CmsTopbar: () => null,
 }))
 

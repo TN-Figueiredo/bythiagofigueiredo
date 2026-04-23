@@ -8,7 +8,7 @@ import {
   type ChangeEvent,
 } from 'react'
 import { EngagementDots, type DotStatus } from './engagement-dots'
-import { StatusBadge, type StatusVariant } from '@/components/cms/ui'
+import { StatusBadge, type StatusVariant } from '@tn-figueiredo/cms-ui/client'
 
 export type SubscriberStatus =
   | 'confirmed'

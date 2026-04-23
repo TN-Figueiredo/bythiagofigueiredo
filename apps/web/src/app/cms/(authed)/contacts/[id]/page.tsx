@@ -5,7 +5,7 @@ import type { CookieOptions } from '@supabase/ssr'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { captureServerActionError } from '@/lib/sentry-wrap'
-import { StatusBadge } from '@/components/cms/ui'
+import { StatusBadge } from '@tn-figueiredo/cms-ui/client'
 
 export const dynamic = 'force-dynamic'
 

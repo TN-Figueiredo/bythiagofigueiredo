@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
-import { StatusBadge, type StatusVariant } from '@/components/cms/ui'
+import { StatusBadge, type StatusVariant } from '@tn-figueiredo/cms-ui/client'
 import { saveEdition, sendTestEmail, scheduleEdition, cancelEdition } from '../../actions'
 
 export const dynamic = 'force-dynamic'
