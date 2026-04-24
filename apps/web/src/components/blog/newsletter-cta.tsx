@@ -45,13 +45,15 @@ export function NewsletterCta({ category, locale, newsletterId }: Props) {
               type="email"
               required
               placeholder="seu@email.com"
+              aria-label="Email"
               className="flex-1 bg-[--pb-bg] border border-[--pb-line] text-pb-ink px-4 py-3.5 rounded-lg text-[15px] outline-none font-sans focus:border-pb-accent"
             />
             <button
               type="submit"
               disabled={pending}
+              aria-busy={pending}
               className="bg-pb-accent border-none px-5 py-3.5 rounded-lg font-jetbrains text-xs font-semibold tracking-wider uppercase cursor-pointer whitespace-nowrap transition-colors hover:opacity-90 disabled:opacity-50"
-              style={{ color: '#14110B' }}
+              style={{ color: 'var(--pb-bg)' }}
             >
               {pending ? '…' : `Assinar ${ctaLabel}`}
             </button>

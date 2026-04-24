@@ -12,7 +12,7 @@ export function CoverImage({ src, alt }: Props) {
     <div className="mb-10">
       <div
         className="bg-[--pb-paper] rounded p-2 relative"
-        style={{ transform: 'rotate(-0.3deg)', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}
+        style={{ transform: 'rotate(-0.3deg)', boxShadow: 'var(--pb-shadow-heavy, 0 8px 32px rgba(0,0,0,0.4))' }}
       >
         <Tape variant="tape" className="top-[-8px] left-[35%]" rotate={-2} />
         <Tape variant="tape2" className="top-[-8px] right-[10%]" rotate={3} />

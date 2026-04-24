@@ -15,9 +15,9 @@ export function AiReaderDrawer({ open, onClose }: Props) {
   return (
     <>
       {open && (
-        <div className="fixed inset-0 z-[94]" onClick={onClose} />
+        <div className="fixed inset-0 z-[94]" role="presentation" onClick={onClose} />
       )}
-      <div className={`ai-reader-drawer ${open ? 'open' : ''}`}>
+      <div className={`ai-reader-drawer ${open ? 'open' : ''}`} role="dialog" aria-label="AI Reader">
         <div className="p-4 border-b border-[--pb-line] flex items-center justify-between">
           <div className="flex gap-0">
             {(['tldr', 'explain', 'chat'] as Tab[]).map((tab) => (
@@ -26,7 +26,7 @@ export function AiReaderDrawer({ open, onClose }: Props) {
                 onClick={() => setActiveTab(tab)}
                 className={`px-3 py-1.5 font-jetbrains text-xs uppercase tracking-wider border-none cursor-pointer transition-colors rounded ${
                   activeTab === tab
-                    ? 'bg-[rgba(255,130,64,0.15)] text-pb-accent'
+                    ? 'bg-pb-accent/15 text-pb-accent'
                     : 'bg-transparent text-pb-muted hover:text-pb-ink'
                 }`}
               >
@@ -36,6 +36,7 @@ export function AiReaderDrawer({ open, onClose }: Props) {
           </div>
           <button
             onClick={onClose}
+            aria-label="Fechar"
             className="text-pb-muted hover:text-pb-ink text-lg bg-transparent border-none cursor-pointer"
           >
             ×

@@ -1,5 +1,27 @@
 @import '@tn-figueiredo/cms-reader/styles';
 
+:root {
+  --blog-grid-left: 200px;
+  --blog-grid-center: 760px;
+  --blog-grid-right: 240px;
+  --blog-grid-gap: 40px;
+  --blog-max-width: 1280px;
+  --blog-nav-height: 56px;
+  --blog-body-font-size: 19px;
+  --blog-shadow-heavy: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --blog-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Z-index scale:
+   89 — mobile FAB
+   90 — time pill, AI reader pill
+   94 — AI reader overlay
+   95 — mobile TOC overlay, AI reader drawer
+   96 — mobile TOC sheet
+   99 — reading progress bar
+   100 — text highlight tooltip
+*/
+
 .reader-pinboard {
   --reader-bg: var(--pb-bg);
   --reader-text: var(--pb-ink);
@@ -37,10 +59,10 @@
 
 .blog-detail-grid {
   display: grid;
-  grid-template-columns: 200px minmax(0, 760px) 240px;
-  gap: 40px;
+  grid-template-columns: var(--blog-grid-left) minmax(0, var(--blog-grid-center)) var(--blog-grid-right);
+  gap: var(--blog-grid-gap);
   justify-content: center;
-  max-width: 1280px;
+  max-width: var(--blog-max-width);
   margin: 0 auto;
   padding: 0 40px;
   align-items: start;
@@ -68,7 +90,7 @@
 
 .reader-article .blog-body {
   font-family: var(--font-source-serif), Georgia, serif;
-  font-size: 19px;
+  font-size: var(--blog-body-font-size);
   line-height: 1.72;
 }
 
@@ -176,8 +198,8 @@
 
 /* Callout box */
 .reader-article .blog-body .callout {
-  border: 1px solid rgba(255, 130, 64, 0.3);
-  background: rgba(255, 130, 64, 0.06);
+  border: 1px solid color-mix(in srgb, var(--pb-accent) 30%, transparent);
+  background: color-mix(in srgb, var(--pb-accent) 8%, transparent);
   border-radius: 8px;
   padding: 16px 20px;
   margin: 24px 0;
@@ -192,7 +214,7 @@
 
 /* Text highlight */
 mark.btf-hl {
-  background: linear-gradient(180deg, transparent 60%, rgba(255, 227, 122, 0.25) 60%);
+  background: linear-gradient(180deg, transparent 60%, color-mix(in srgb, var(--pb-marker) 25%, transparent) 60%);
   color: inherit;
   padding: 0 2px;
 }
@@ -201,7 +223,7 @@ mark.btf-hl {
 
 .blog-progress-bar {
   position: sticky;
-  top: 56px;
+  top: var(--blog-nav-height);
   z-index: 99;
   height: 3px;
   display: flex;
@@ -240,7 +262,7 @@ mark.btf-hl {
 
 .blog-sidebar {
   position: sticky;
-  top: 80px;
+  top: calc(var(--blog-nav-height) + 24px);
   padding-top: 16px;
 }
 

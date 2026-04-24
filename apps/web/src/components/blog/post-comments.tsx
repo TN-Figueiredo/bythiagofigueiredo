@@ -48,7 +48,7 @@ function CommentRow({ comment, nested }: { comment: MockComment; nested?: boolea
     <div className={`flex gap-3 py-3.5 border-b border-[--pb-line] ${nested ? 'ml-[52px]' : ''}`}>
       <div
         className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0"
-        style={{ backgroundColor: comment.avatarColor, color: comment.isAuthorReply ? 'var(--pb-bg)' : '#14110B' }}
+        style={{ backgroundColor: comment.avatarColor, color: comment.isAuthorReply ? 'var(--pb-bg)' : 'var(--pb-bg)' }}
       >
         {comment.authorInitials}
       </div>
@@ -67,8 +67,8 @@ function CommentRow({ comment, nested }: { comment: MockComment; nested?: boolea
         </div>
         <p className="text-sm my-1 leading-relaxed text-pb-ink">{comment.text}</p>
         <div className="flex gap-4 text-xs text-pb-muted">
-          <span>♡ {comment.likes}</span>
-          <span>↩ responder</span>
+          <button aria-label={`Curtir comentario, ${comment.likes} curtidas`} className="bg-transparent border-none p-0 text-xs text-pb-muted cursor-pointer">♡ {comment.likes}</button>
+          <button aria-label="Responder comentario" className="bg-transparent border-none p-0 text-xs text-pb-muted cursor-pointer">↩ responder</button>
         </div>
       </div>
     </div>

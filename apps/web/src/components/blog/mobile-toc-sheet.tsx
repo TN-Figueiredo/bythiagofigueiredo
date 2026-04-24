@@ -24,20 +24,29 @@ export function MobileTocSheet({ open, onClose, sections, keyPoints }: Props) {
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/50 z-[95]" onClick={onClose} />
-      <div className="fixed bottom-0 left-0 right-0 bg-[--pb-paper] rounded-t-2xl z-[96] max-h-[70vh] overflow-y-auto p-6">
+      <div className="fixed inset-0 bg-black/50 z-[95]" role="presentation" onClick={onClose} />
+      <div className="fixed bottom-0 left-0 right-0 bg-[--pb-paper] rounded-t-2xl z-[96] max-h-[70vh] overflow-y-auto p-6" role="dialog" aria-label="Sumario">
         <div className="w-10 h-1 bg-[--pb-line] rounded-full mx-auto mb-4" />
         <div className="blog-sidebar-label mb-3">NESTE TEXTO</div>
         <ul className="list-none mb-6">
           {sections.map((entry) => (
             <li
               key={entry.slug}
+              role="button"
+              tabIndex={0}
               className={`text-sm py-2 cursor-pointer border-l-2 transition-all ${
                 entry.depth === 3 ? 'pl-6' : 'pl-3'
               } ${activeSection === entry.slug ? 'text-pb-ink border-pb-accent font-medium' : 'text-pb-muted border-transparent'}`}
               onClick={() => {
                 document.getElementById(entry.slug)?.scrollIntoView({ behavior: 'smooth' })
                 onClose()
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  document.getElementById(entry.slug)?.scrollIntoView({ behavior: 'smooth' })
+                  onClose()
+                }
               }}
             >
               {entry.text}

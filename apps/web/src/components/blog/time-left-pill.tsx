@@ -11,35 +11,41 @@ type Props = {
 export function TimeLeftPill({ totalMinutes, currentSection }: Props) {
   const { progress, visible, activeSection } = useScrollState()
   const [show, setShow] = useState(false)
+  const [sectionLabel, setSectionLabel] = useState<string | undefined>(currentSection)
 
   const minutesLeft = Math.max(1, Math.round(totalMinutes * (1 - progress)))
-  const sectionLabel = activeSection
-    ? document.getElementById(activeSection)?.textContent?.trim()
-    : currentSection
+
+  useEffect(() => {
+    if (activeSection) {
+      const el = document.getElementById(activeSection)
+      setSectionLabel(el?.textContent?.trim() ?? currentSection)
+    } else {
+      setSectionLabel(currentSection)
+    }
+  }, [activeSection, currentSection])
 
   useEffect(() => {
     if (!visible) { setShow(false); return }
     setShow(true)
-    const timer = setTimeout(() => setShow(false), 3000)
-    return () => clearTimeout(timer)
-  }, [visible, progress])
-
-  useEffect(() => {
     let scrollTimer: ReturnType<typeof setTimeout>
+    const hideTimer = setTimeout(() => setShow(false), 3000)
+
     const handleScroll = () => {
-      if (visible) setShow(true)
+      setShow(true)
       clearTimeout(scrollTimer)
       scrollTimer = setTimeout(() => setShow(false), 3000)
     }
     window.addEventListener('scroll', handleScroll, { passive: true })
+
     return () => {
-      window.removeEventListener('scroll', handleScroll)
+      clearTimeout(hideTimer)
       clearTimeout(scrollTimer)
+      window.removeEventListener('scroll', handleScroll)
     }
-  }, [visible])
+  }, [visible, progress])
 
   return (
-    <div className="blog-time-pill" style={{ opacity: show ? 1 : 0, pointerEvents: show ? 'auto' : 'none' }}>
+    <div className="blog-time-pill" style={{ opacity: show ? 1 : 0, pointerEvents: show ? 'auto' : 'none' }} aria-live="polite">
       <span>{minutesLeft} min</span> restantes
       {sectionLabel && <> · <span className="text-pb-ink font-sans">{sectionLabel}</span></>}
     </div>

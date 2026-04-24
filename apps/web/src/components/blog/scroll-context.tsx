@@ -54,36 +54,42 @@ export function ScrollProvider({ sections, children }: Props) {
 
     elements.forEach((el) => observer.observe(el))
 
+    let ticking = false
     const handleScroll = () => {
-      const scrollTop = window.scrollY
-      const docHeight = document.documentElement.scrollHeight - window.innerHeight
-      const globalProgress = docHeight > 0 ? Math.min(scrollTop / docHeight, 1) : 0
+      if (ticking) return
+      ticking = true
+      requestAnimationFrame(() => {
+        const scrollTop = window.scrollY
+        const docHeight = document.documentElement.scrollHeight - window.innerHeight
+        const globalProgress = docHeight > 0 ? Math.min(scrollTop / docHeight, 1) : 0
 
-      const sectionProgress = new Map<string, number>()
-      for (let i = 0; i < elements.length; i++) {
-        const el = elements[i]!
-        const next = elements[i + 1]
-        const sectionTop = el.offsetTop - 100
-        const sectionBottom = next ? next.offsetTop - 100 : document.documentElement.scrollHeight
-        const sectionHeight = sectionBottom - sectionTop
+        const sectionProgress = new Map<string, number>()
+        for (let i = 0; i < elements.length; i++) {
+          const el = elements[i]!
+          const next = elements[i + 1]
+          const sectionTop = el.offsetTop - 100
+          const sectionBottom = next ? next.offsetTop - 100 : document.documentElement.scrollHeight
+          const sectionHeight = sectionBottom - sectionTop
 
-        if (scrollTop >= sectionBottom) {
-          sectionProgress.set(el.id, 1)
-        } else if (scrollTop > sectionTop) {
-          sectionProgress.set(el.id, (scrollTop - sectionTop) / sectionHeight)
-        } else {
-          sectionProgress.set(el.id, 0)
+          if (scrollTop >= sectionBottom) {
+            sectionProgress.set(el.id, 1)
+          } else if (scrollTop > sectionTop) {
+            sectionProgress.set(el.id, (scrollTop - sectionTop) / sectionHeight)
+          } else {
+            sectionProgress.set(el.id, 0)
+          }
         }
-      }
 
-      const visible = globalProgress > 0.08 && globalProgress < 0.96
+        const visible = globalProgress > 0.08 && globalProgress < 0.96
 
-      setState((prev) => ({
-        ...prev,
-        progress: globalProgress,
-        sectionProgress,
-        visible,
-      }))
+        setState((prev) => ({
+          ...prev,
+          progress: globalProgress,
+          sectionProgress,
+          visible,
+        }))
+        ticking = false
+      })
     }
 
     window.addEventListener('scroll', handleScroll, { passive: true })

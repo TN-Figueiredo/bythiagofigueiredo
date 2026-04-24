@@ -12,6 +12,7 @@ export function ShareButtons({ url, compact }: Props) {
         href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}`}
         target="_blank"
         rel="noopener noreferrer"
+        aria-label="Compartilhar no X"
         className="w-8 h-8 rounded-lg bg-[--pb-paper] border border-[--pb-line] flex items-center justify-center text-xs text-pb-muted hover:border-pb-faint transition-colors"
       >
         X
@@ -20,15 +21,19 @@ export function ShareButtons({ url, compact }: Props) {
         href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`}
         target="_blank"
         rel="noopener noreferrer"
+        aria-label="Compartilhar no LinkedIn"
         className="w-8 h-8 rounded-lg bg-[--pb-paper] border border-[--pb-line] flex items-center justify-center text-xs text-pb-muted hover:border-pb-faint transition-colors"
       >
         in
       </a>
       <button
-        onClick={() => navigator.clipboard.writeText(url)}
+        onClick={() => {
+          try { navigator.clipboard.writeText(url) } catch { /* clipboard API may not be available */ }
+        }}
+        aria-label="Copiar link"
         className="w-8 h-8 rounded-lg bg-[--pb-paper] border border-[--pb-line] flex items-center justify-center text-xs text-pb-muted hover:border-pb-faint transition-colors cursor-pointer"
       >
-        🔗
+        <span role="img" aria-hidden="true">🔗</span>
       </button>
     </div>
   )

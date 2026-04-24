@@ -28,7 +28,7 @@ export function AuthorRow({ author, engagement, locale, url }: Props) {
       <div className="flex items-center gap-4 ml-auto text-[13px] text-pb-muted">
         <span>👁 {formattedViews} leituras</span>
         <span>♡ {engagement.likes}</span>
-        <span>🔖 SALVAR</span>
+        <button aria-label="Salvar artigo" className="bg-transparent border-none p-0 text-[13px] text-pb-muted cursor-pointer">🔖 SALVAR</button>
       </div>
       <ShareButtons url={url} compact />
     </div>
