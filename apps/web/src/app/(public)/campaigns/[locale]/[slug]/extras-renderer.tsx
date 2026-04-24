@@ -1,6 +1,6 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { parseExtras } from '../../../../../lib/campaigns/extras-schema'
+import { parseExtras } from '@/lib/campaigns/extras-schema'
 
 export function ExtrasRenderer({ extras }: { extras: unknown }) {
   const blocks = parseExtras(extras)

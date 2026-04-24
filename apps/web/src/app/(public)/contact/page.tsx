@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 import { headers } from 'next/headers'
 import type { Metadata } from 'next'
-import { ContactForm } from '../../components/contact-form'
+import { ContactForm } from '@/components/contact-form'
 import { submitContact } from './actions'
 import { tryGetSiteContext } from '@/lib/cms/site-context'
 import { getSiteSeoConfig } from '@/lib/seo/config'

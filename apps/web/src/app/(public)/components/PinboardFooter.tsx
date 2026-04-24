@@ -27,6 +27,7 @@ export function PinboardFooter({ locale, t }: Props) {
           <Link href="/contact" className="hover:text-pb-ink transition-colors">{t['footer.contact']}</Link>
           <Link href="/privacy" className="hover:text-pb-ink transition-colors">Privacy</Link>
           <Link href="/terms" className="hover:text-pb-ink transition-colors">Terms</Link>
+          <a href="/feed.xml" className="hover:text-pb-ink transition-colors" title="RSS Feed">RSS</a>
           <a href="https://dev.bythiagofigueiredo.com" target="_blank" rel="noopener" className="hover:text-pb-ink transition-colors opacity-60">Dev ↗</a>
         </nav>
 

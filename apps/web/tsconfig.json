@@ -22,6 +22,7 @@
     ],
     "paths": {
       "@/lib/auth/*": ["./lib/auth/*"],
+      "@/lib/blog/*": ["./lib/blog/*"],
       "@/lib/campaigns/*": ["./lib/campaigns/*"],
       "@/lib/cms/*": ["./lib/cms/*"],
       "@/lib/content-queue/*": ["./lib/content-queue/*"],

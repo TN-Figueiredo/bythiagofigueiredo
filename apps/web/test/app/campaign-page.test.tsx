@@ -60,7 +60,7 @@ vi.mock('../../lib/supabase/service', () => ({
   }),
 }))
 
-import Page from '../../src/app/campaigns/[locale]/[slug]/page'
+import Page from '../../src/app/(public)/campaigns/[locale]/[slug]/page'
 
 describe('Campaign page', () => {
   it('renders main hook markdown as an <h1> element (via react-markdown)', async () => {

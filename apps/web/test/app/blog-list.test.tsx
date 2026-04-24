@@ -2,9 +2,9 @@ import { describe, it, expect, vi } from 'vitest'
 import { render } from '@testing-library/react'
 
 vi.mock('../../lib/cms/site-context', () => ({
-  getSiteContext: () => Promise.resolve({ siteId: 's1', orgId: 'o1', defaultLocale: 'pt-BR' }),
+  getSiteContext: () => Promise.resolve({ siteId: 's1', orgId: 'o1', defaultLocale: 'pt-BR', primaryDomain: 'example.com' }),
   tryGetSiteContext: () =>
-    Promise.resolve({ siteId: 's1', orgId: 'o1', defaultLocale: 'pt-BR' }),
+    Promise.resolve({ siteId: 's1', orgId: 'o1', defaultLocale: 'pt-BR', primaryDomain: 'example.com' }),
 }))
 
 // Sprint 5b PR-C C.4: blog list now resolves SEO config via the SEO factory
@@ -33,22 +33,74 @@ vi.mock('next/headers', () => ({
   cookies: () => Promise.resolve({ get: () => undefined }),
 }))
 
-vi.mock('../../lib/cms/repositories', () => ({
-  postRepo: () => ({
-    list: vi.fn().mockResolvedValue([
-      {
-        id: 'p1',
-        status: 'published',
-        published_at: '2026-01-01',
-        cover_image_url: null,
-        translation: { locale: 'pt-BR', title: 'Hello', slug: 'hello', excerpt: 'Oi', reading_time_min: 2 },
-        available_locales: ['pt-BR'],
-      },
-    ]),
-  }),
+// CategoryFilter is a 'use client' component using useRouter/usePathname/useSearchParams.
+// Stub it to avoid Next.js app router invariant errors in unit tests.
+vi.mock('../../src/app/(public)/blog/[locale]/category-filter', () => ({
+  CategoryFilter: ({ categories, allLabel }: { categories: string[]; allLabel: string }) => (
+    <div data-testid="category-filter">{allLabel} | {categories.join(', ')}</div>
+  ),
 }))
 
-import BlogListPage from '../../src/app/blog/[locale]/page'
+// Mock getSupabaseServiceClient — the blog list page queries Supabase directly
+// (not via postRepo) to include the `category` column for filtering.
+function createSupabaseMock(rows: Record<string, unknown>[] = [], catRows: Record<string, unknown>[] = []) {
+  let callIndex = 0
+  return {
+    getSupabaseServiceClient: () => {
+      callIndex = 0 // reset per call to getSupabaseServiceClient
+      return {
+        from: () => {
+          const currentCall = callIndex++
+          // First call is for categories (unfiltered), second is for posts
+          const isCategories = currentCall === 0
+          const chain: Record<string, unknown> = {
+            select: () => chain,
+            eq: () => chain,
+            lte: () => chain,
+            not: () => chain,
+            ilike: () => chain,
+            order: () => chain,
+            range: () => chain,
+          }
+          // Make the chain thenable so `await` resolves
+          if (isCategories) {
+            chain['then'] = (resolve: (v: unknown) => void) =>
+              resolve({ data: catRows, error: null })
+          } else {
+            chain['then'] = (resolve: (v: unknown) => void) =>
+              resolve({ data: rows, count: rows.length, error: null })
+          }
+          return chain
+        },
+      }
+    },
+  }
+}
+
+vi.mock('../../lib/supabase/service', () =>
+  createSupabaseMock(
+    [
+      {
+        slug: 'hello',
+        locale: 'pt-BR',
+        title: 'Hello',
+        excerpt: 'Oi',
+        reading_time_min: 2,
+        blog_posts: {
+          id: 'p1',
+          published_at: '2026-01-01',
+          cover_image_url: null,
+          category: 'tech',
+          status: 'published',
+          site_id: 's1',
+        },
+      },
+    ],
+    [{ category: 'tech' }],
+  ),
+)
+
+import BlogListPage from '../../src/app/(public)/blog/[locale]/page'
 
 describe('BlogListPage', () => {
   it('renders post titles + reading time', async () => {
@@ -62,12 +114,10 @@ describe('BlogListPage', () => {
   })
 
   it('shows empty state when no posts', async () => {
-    vi.doMock('../../lib/cms/repositories', () => ({
-      postRepo: () => ({ list: vi.fn().mockResolvedValue([]) }),
-    }))
+    vi.doMock('../../lib/supabase/service', () => createSupabaseMock([], []))
     // Force re-import with new mock
     vi.resetModules()
-    const { default: Page } = await import('../../src/app/blog/[locale]/page')
+    const { default: Page } = await import('../../src/app/(public)/blog/[locale]/page')
     const jsx = await Page({ params: Promise.resolve({ locale: 'pt-BR' }), searchParams: Promise.resolve({}) })
     const { container } = render(jsx as never)
     expect(container.textContent).toContain('Nenhum post')

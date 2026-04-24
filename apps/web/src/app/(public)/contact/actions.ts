@@ -10,13 +10,13 @@ import type { IEmailTemplate } from '@tn-figueiredo/email'
 // Record<string, unknown> index signature — cast once here.
 const contactReceived = contactReceivedTemplate as unknown as IEmailTemplate<Record<string, unknown>>
 const contactAdminAlert = contactAdminAlertTemplate as unknown as IEmailTemplate<Record<string, unknown>>
-import { getSupabaseServiceClient } from '../../../lib/supabase/service'
-import { getEmailService } from '../../../lib/email/service'
-import { getEmailSender } from '../../../lib/email/sender'
-import { getSiteContext } from '../../../lib/cms/site-context'
-import { getClientIp, isValidInet } from '../../../lib/request-ip'
-import { verifyTurnstileToken } from '../../../lib/turnstile'
-import { captureServerActionError } from '../../lib/sentry-wrap'
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { getEmailService } from '@/lib/email/service'
+import { getEmailSender } from '@/lib/email/sender'
+import { getSiteContext } from '@/lib/cms/site-context'
+import { getClientIp, isValidInet } from '../../../../lib/request-ip'
+import { verifyTurnstileToken } from '../../../../lib/turnstile'
+import { captureServerActionError } from '@/lib/sentry-wrap'
 import {
   CONTACT_CONSENT_VERSION,
   CONTACT_MARKETING_CONSENT_VERSION,

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { CONSENT_VERSION } from '../../../../../lib/campaigns/consent'
+import { CONSENT_VERSION } from '@/lib/campaigns/consent'
 
 const FORM_STRINGS = {
   'pt-BR': {

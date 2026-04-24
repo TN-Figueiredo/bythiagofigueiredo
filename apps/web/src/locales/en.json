@@ -51,6 +51,30 @@
   "footer.contact": "Contact",
   "footer.tagline": "Ideas built in public.",
   "footer.madeIn": "Made in Brazil",
-  "footer.copyright": "© {year} Thiago Figueiredo"
+  "footer.copyright": "© {year} Thiago Figueiredo",
+
+  "blog.title": "Blog",
+  "blog.empty": "No posts yet.",
+  "blog.readingTime": "{min} min read",
+  "blog.allCategories": "All",
+  "blog.pagination.prev": "Previous",
+  "blog.pagination.next": "Next",
+  "blog.pagination.page": "Page {current} of {total}",
+  "blog.breadcrumb.home": "Home",
+  "blog.breadcrumb.blog": "Blog",
+  "blog.detail.readingTime": "{min} min read",
+  "blog.detail.toc": "Table of Contents",
+  "blog.detail.related": "Related Posts",
+  "blog.detail.prev": "Previous",
+  "blog.detail.next": "Next",
+  "blog.detail.backToBlog": "Back to Blog",
+  "campaigns.breadcrumb.home": "Home",
+  "campaigns.breadcrumb.campaigns": "Campaigns",
+  "newsletter.archive.title": "Newsletter Archive",
+  "newsletter.archive.empty": "No newsletters published yet.",
+  "newsletter.archive.breadcrumb.home": "Home",
+  "newsletter.archive.breadcrumb.archive": "Newsletter Archive",
+  "newsletter.archive.pagination.prev": "Previous",
+  "newsletter.archive.pagination.next": "Next"
 }
   

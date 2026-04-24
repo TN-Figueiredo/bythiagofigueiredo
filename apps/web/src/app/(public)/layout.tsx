@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import type { Metadata } from 'next'
+import { cookies } from 'next/headers'
 import { headers } from 'next/headers'
 import { CookieBanner } from '@/components/lgpd/cookie-banner'
 import { CookieBannerTrigger } from '@/components/lgpd/cookie-banner-trigger'
@@ -14,6 +15,10 @@ import {
 } from '@/lib/seo/jsonld/builders'
 import { composeGraph } from '@/lib/seo/jsonld/graph'
 import { JsonLdScript } from '@/lib/seo/jsonld/render'
+import { PinboardHeader } from './components/PinboardHeader'
+import { PinboardFooter } from './components/PinboardFooter'
+import enStrings from '../../locales/en.json'
+import ptBrStrings from '../../locales/pt-BR.json'
 
 /**
  * Sprint 5b PR-C C.2 — resolve per-site root metadata via the SEO factory
@@ -29,7 +34,14 @@ export async function generateMetadata(): Promise<Metadata> {
   const host = (await headers()).get('host') ?? ctx.primaryDomain ?? ''
   try {
     const config = await getSiteSeoConfig(ctx.siteId, host)
-    return generateRootMetadata(config)
+    const meta = generateRootMetadata(config)
+    return {
+      ...meta,
+      alternates: {
+        ...meta.alternates,
+        types: { 'application/rss+xml': '/feed.xml' },
+      },
+    }
   } catch {
     return {}
   }
@@ -60,6 +72,11 @@ export default async function PublicLayout({ children }: { children: ReactNode }
     ? await getSiteSeoConfig(ctx.siteId, host).catch(() => null)
     : null
 
+  const cookieStore = await cookies()
+  const theme = cookieStore.get('btf_theme')?.value === 'light' ? 'light' : 'dark'
+  const locale = (ctx?.defaultLocale ?? 'en') as 'en' | 'pt-BR'
+  const t = (locale === 'pt-BR' ? ptBrStrings : enStrings) as Record<string, string>
+
   const rootNodes = config
     ? [
         buildWebSiteNode(config),
@@ -74,14 +91,21 @@ export default async function PublicLayout({ children }: { children: ReactNode }
 
   return (
     <CookieBannerProvider>
-      {rootNodes.length > 0 && <JsonLdScript graph={composeGraph(rootNodes)} />}
-      {children}
-      {lgpdBannerEnabled && (
-        <>
-          <CookieBanner />
-          <CookieBannerTrigger />
-        </>
-      )}
+      <div className="min-h-screen" style={{ background: 'var(--pb-bg)', color: 'var(--pb-ink)' }}>
+        <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 bg-pb-accent text-white px-4 py-2 rounded z-50">
+          {locale === 'pt-BR' ? 'Ir para o conteúdo' : 'Skip to content'}
+        </a>
+        <PinboardHeader locale={locale} currentTheme={theme} t={t} />
+        {rootNodes.length > 0 && <JsonLdScript graph={composeGraph(rootNodes)} />}
+        {children}
+        <PinboardFooter locale={locale} t={t} />
+        {lgpdBannerEnabled && (
+          <>
+            <CookieBanner />
+            <CookieBannerTrigger />
+          </>
+        )}
+      </div>
     </CookieBannerProvider>
   )
 }

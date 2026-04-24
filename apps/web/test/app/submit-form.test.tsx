@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
-import { SubmitForm } from '../../src/app/campaigns/[locale]/[slug]/submit-form'
+import { SubmitForm } from '../../src/app/(public)/campaigns/[locale]/[slug]/submit-form'
 
 const fields = [
   { name: 'name', label: 'Nome', type: 'name', required: true },

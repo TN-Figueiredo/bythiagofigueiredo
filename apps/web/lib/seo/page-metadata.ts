@@ -152,6 +152,33 @@ export function generateNoindexMetadata(config: SiteSeoConfig): Metadata {
   }
 }
 
+export function generateNewsletterArchiveMetadata(
+  config: SiteSeoConfig,
+  locale: string,
+): Metadata {
+  const t = locale === 'en'
+    ? { title: 'Newsletter Archive', desc: `Past editions from ${config.siteName}.` }
+    : { title: 'Arquivo de Newsletters', desc: `Edições anteriores de ${config.siteName}.` }
+  return {
+    ...baseMetadata(config),
+    title: t.title,
+    description: t.desc,
+    alternates: { canonical: '/newsletter/archive' },
+    robots: { index: true, follow: true },
+  }
+}
+
+export function generateNewsletterDetailMetadata(
+  config: SiteSeoConfig,
+  subject: string,
+): Metadata {
+  return {
+    ...baseMetadata(config),
+    title: subject,
+    robots: { index: true, follow: true },
+  }
+}
+
 function resolveOgImage(
   config: SiteSeoConfig,
   tx: TranslationInput,

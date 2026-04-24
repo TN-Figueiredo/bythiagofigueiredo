@@ -101,7 +101,7 @@ function buildSupabaseMock() {
 
 // ── Import after mocks ───────────────────────────────────────────────────────
 
-import { submitContact } from '../../src/app/contact/actions'
+import { submitContact } from '../../src/app/(public)/contact/actions'
 import { getSupabaseServiceClient } from '../../lib/supabase/service'
 import { getEmailService } from '../../lib/email/service'
 import { getEmailSender } from '../../lib/email/sender'

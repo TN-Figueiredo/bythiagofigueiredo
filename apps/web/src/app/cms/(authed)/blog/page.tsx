@@ -4,6 +4,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { CmsTopbar, CmsButton, SkeletonBlock } from '@tn-figueiredo/cms-ui/client'
 import { PostsTable } from '@tn-figueiredo/cms-admin/blog/client'
+import type { BlogPostStatus } from '@tn-figueiredo/cms-admin'
 import { PostsFiltersConnected } from './_components/posts-filters-connected'
 
 interface Props { searchParams: Promise<Record<string, string | undefined>> }
@@ -54,7 +55,7 @@ export default async function BlogListPage({ searchParams }: Props) {
       id: post.id,
       title: post.blog_translations?.[0]?.title ?? 'Untitled',
       slug: post.slug ?? '',
-      status: post.status ?? 'draft',
+      status: (post.status ?? 'draft') as BlogPostStatus,
       locales: (post.blog_translations ?? []).map((t) => t.locale),
       authorName: post.authors?.[0]?.display_name ?? 'Unknown',
       authorInitials: (post.authors?.[0]?.display_name ?? 'U').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase(),

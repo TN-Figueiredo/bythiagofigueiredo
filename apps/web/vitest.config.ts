@@ -7,7 +7,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'happy-dom',
-    exclude: ['e2e/**', 'node_modules/**'],
+    exclude: ['e2e/**', 'node_modules/**', '../../.claude/**'],
     environmentMatchGlobs: [
       ['src/app/api/**', 'node'],
       ['src/lib/**', 'node'],
@@ -56,6 +56,9 @@ export default defineConfig({
       // `src/lib/...` paths).
       { find: /^@\/lib\/cms(.*)$/, replacement: path.resolve(__dirname, './lib/cms$1') },
       { find: /^@\/lib\/supabase(.*)$/, replacement: path.resolve(__dirname, './lib/supabase$1') },
+      { find: /^@\/lib\/auth(.*)$/, replacement: path.resolve(__dirname, './lib/auth$1') },
+      { find: /^@\/lib\/blog(.*)$/, replacement: path.resolve(__dirname, './lib/blog$1') },
+      { find: /^@\/lib\/campaigns(.*)$/, replacement: path.resolve(__dirname, './lib/campaigns$1') },
       { find: /^@\/lib\/content-queue(.*)$/, replacement: path.resolve(__dirname, './lib/content-queue$1') },
       { find: /^@\/lib\/home(.*)$/, replacement: path.resolve(__dirname, './lib/home$1') },
       { find: /^@\/lib\/email(.*)$/, replacement: path.resolve(__dirname, './lib/email$1') },

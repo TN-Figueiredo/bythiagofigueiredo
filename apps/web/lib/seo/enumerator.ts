@@ -20,6 +20,8 @@ const STATIC_ROUTE_DEFS: ReadonlyArray<{
   { path: '/privacy', changeFrequency: 'yearly', priority: 0.3 },
   { path: '/terms', changeFrequency: 'yearly', priority: 0.3 },
   { path: '/contact', changeFrequency: 'monthly', priority: 0.5 },
+  { path: '/newsletters', changeFrequency: 'weekly', priority: 0.5 },
+  { path: '/newsletter/archive', changeFrequency: 'weekly', priority: 0.4 },
 ]
 
 export async function enumerateSiteRoutes(

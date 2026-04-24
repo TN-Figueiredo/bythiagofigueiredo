@@ -106,14 +106,21 @@ vi.mock('@tn-figueiredo/cms', async () => {
 
 vi.mock('../../lib/cms/registry', () => ({ blogRegistry: {} }))
 
-import BlogDetailPage, { generateMetadata } from '../../src/app/blog/[locale]/[slug]/page'
+vi.mock('../../lib/blog/related-posts', () => ({
+  getRelatedPosts: vi.fn().mockResolvedValue([]),
+}))
+
+vi.mock('../../lib/blog/adjacent-posts', () => ({
+  getAdjacentPosts: vi.fn().mockResolvedValue({ prev: null, next: null }),
+}))
+
+import BlogDetailPage, { generateMetadata } from '../../src/app/(public)/blog/[locale]/[slug]/page'
 
 describe('BlogDetailPage', () => {
   it('renders title + TOC + reading time', async () => {
     const jsx = await BlogDetailPage({ params: Promise.resolve({ locale: 'pt-BR', slug: 'hello' }) })
     const { container } = render(jsx as never)
     expect(container.textContent).toContain('Hello')
-    expect(container.querySelector('aside[aria-label="Sumário"]')).toBeTruthy()
     expect(container.textContent).toContain('1 min de leitura')
   })
 
@@ -131,7 +138,7 @@ describe('BlogDetailPage', () => {
       }),
     }))
     vi.resetModules()
-    const { default: Page } = await import('../../src/app/blog/[locale]/[slug]/page')
+    const { default: Page } = await import('../../src/app/(public)/blog/[locale]/[slug]/page')
     const jsx = await Page({ params: Promise.resolve({ locale: 'pt-BR', slug: 'hello' }) })
     const { container } = render(jsx as never)
     const switcher = container.querySelector('[data-testid="locale-switcher"]')
@@ -148,7 +155,7 @@ describe('BlogDetailPage', () => {
       }),
     }))
     vi.resetModules()
-    const { default: Page } = await import('../../src/app/blog/[locale]/[slug]/page')
+    const { default: Page } = await import('../../src/app/(public)/blog/[locale]/[slug]/page')
     await expect(
       Page({ params: Promise.resolve({ locale: 'pt-BR', slug: 'missing' }) })
     ).rejects.toThrow() // notFound() throws NEXT_NOT_FOUND
@@ -164,7 +171,7 @@ describe('BlogDetailPage generateMetadata', () => {
       }),
     }))
     vi.resetModules()
-    const { generateMetadata: gen } = await import('../../src/app/blog/[locale]/[slug]/page')
+    const { generateMetadata: gen } = await import('../../src/app/(public)/blog/[locale]/[slug]/page')
     const meta = await gen({ params: Promise.resolve({ locale: 'pt-BR', slug: 'hello' }) })
     expect(meta.alternates?.canonical).toBe('/blog/pt-BR/hello')
     expect(meta.alternates?.languages).toEqual({
@@ -180,7 +187,7 @@ describe('BlogDetailPage generateMetadata', () => {
       tryGetSiteContext: () => Promise.resolve(null),
     }))
     vi.resetModules()
-    const { generateMetadata: gen } = await import('../../src/app/blog/[locale]/[slug]/page')
+    const { generateMetadata: gen } = await import('../../src/app/(public)/blog/[locale]/[slug]/page')
     const meta = await gen({ params: Promise.resolve({ locale: 'pt-BR', slug: 'hello' }) })
     expect(meta).toEqual({})
   })

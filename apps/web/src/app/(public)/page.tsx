@@ -32,10 +32,8 @@ interface HomeProps {
 }
 
 export default async function Home({ searchParams }: HomeProps) {
-  // requireArea redirects here with ?error=insufficient_access when a user
-  // lacks access to the admin/cms area they tried to reach. Render a
-  // dismissible-feel banner (reload clears the URL param) so the user gets
-  // a clear reason instead of a silent bounce.
+  const ctx = await tryGetSiteContext()
+  const locale = (ctx?.defaultLocale ?? 'en') as 'en' | 'pt-BR'
   const sp = await searchParams
   const showInsufficientAccess = sp.error === 'insufficient_access'
   return (
@@ -56,7 +54,7 @@ export default async function Home({ searchParams }: HomeProps) {
           Você não tem acesso a essa área.
         </div>
       )}
-      <PinboardHome locale="en" />
+      <PinboardHome locale={locale} />
     </>
   )
 }

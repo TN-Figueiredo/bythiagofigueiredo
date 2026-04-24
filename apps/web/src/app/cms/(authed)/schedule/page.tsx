@@ -1,6 +1,6 @@
 import { cms } from '@/lib/cms/admin'
 import { CmsTopbar } from '@tn-figueiredo/cms-ui/client'
-import { ScheduleClient } from '@tn-figueiredo/cms-admin/schedule/client'
+import { ScheduleConnected } from './schedule-connected'
 
 export default async function SchedulePage() {
   const data = await cms.contentQueue.getCalendarData()
@@ -8,7 +8,7 @@ export default async function SchedulePage() {
   return (
     <div>
       <CmsTopbar title="Schedule" />
-      <ScheduleClient
+      <ScheduleConnected
         posts={data.posts}
         editions={data.editions}
         cadence={data.cadence}

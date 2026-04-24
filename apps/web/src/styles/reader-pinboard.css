@@ -1,0 +1,29 @@
+@import '@tn-figueiredo/cms-reader/styles';
+
+.reader-pinboard {
+  --reader-bg: var(--pb-bg);
+  --reader-text: var(--pb-ink);
+  --reader-accent: var(--pb-accent);
+  --reader-muted: var(--pb-muted);
+  --reader-border: var(--pb-line);
+  --reader-radius: 8px;
+
+  --reader-toc-active: var(--pb-accent);
+  --reader-toc-text: var(--pb-muted);
+  --reader-toc-bg: var(--pb-paper);
+  --reader-progress-color: var(--pb-accent);
+  --reader-progress-bg: transparent;
+  --reader-progress-height: 3px;
+  --reader-link: var(--pb-accent);
+  --reader-link-hover: var(--pb-accent);
+  --reader-heading-color: var(--pb-ink);
+  --reader-code-bg: var(--pb-paper2);
+  --reader-code-text: var(--pb-ink);
+  --reader-blockquote-border: var(--pb-accent);
+  --reader-share-bg: var(--pb-paper);
+  --reader-share-color: var(--pb-ink);
+  --reader-card-bg: var(--pb-paper);
+  --reader-accent-glow: var(--pb-accent);
+  --reader-back-to-top-bg: var(--pb-accent);
+  --reader-back-to-top-color: #ffffff;
+}

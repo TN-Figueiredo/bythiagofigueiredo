@@ -4,8 +4,8 @@ import { headers } from 'next/headers'
 import type { Metadata } from 'next'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
-import { tryGetSiteContext } from '../../../../../lib/cms/site-context'
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { tryGetSiteContext } from '@/lib/cms/site-context'
 import { SubmitForm } from './submit-form'
 import { ExtrasRenderer } from './extras-renderer'
 import { getSiteSeoConfig, type SiteSeoConfig } from '@/lib/seo/config'
@@ -13,6 +13,9 @@ import { generateCampaignMetadata } from '@/lib/seo/page-metadata'
 import { buildArticleNode, buildBreadcrumbNode } from '@/lib/seo/jsonld/builders'
 import { composeGraph } from '@/lib/seo/jsonld/graph'
 import { JsonLdScript } from '@/lib/seo/jsonld/render'
+import { VisualBreadcrumbs } from '../../../components/visual-breadcrumbs'
+import enStrings from '@/locales/en.json'
+import ptBrStrings from '@/locales/pt-BR.json'
 
 interface PageParams {
   locale: string
@@ -82,6 +85,8 @@ export default async function CampaignPage({ params }: { params: Promise<PagePar
   const tx = campaign.campaign_translations[0]
   if (!tx) notFound()
 
+  const t = (locale === 'pt-BR' ? ptBrStrings : enStrings) as Record<string, string>
+
   // Sprint 5b PR-C C.5 — JSON-LD: Article + Breadcrumb. Reuses buildArticleNode
   // (same shape as BlogPosting with @type swapped) to describe the campaign
   // landing page. Root WebSite + Person/Org nodes come from the public layout.
@@ -92,32 +97,46 @@ export default async function CampaignPage({ params }: { params: Promise<PagePar
     : null
   const graph = buildCampaignGraph(config, campaign, tx, locale, slug)
 
+  const title = (tx.meta_title as string | undefined) ?? slug
+
   return (
     <>
       {graph && <JsonLdScript graph={graph} />}
-      <main>
-        <section aria-label="beforeForm">
-          <Md text={tx.main_hook_md as string} />
-          <Md text={tx.supporting_argument_md as string | null} />
-          <Md text={tx.introductory_block_md as string | null} />
-          <Md text={tx.body_content_md as string | null} />
-        </section>
-
-        <section aria-label="form">
-          <Md text={tx.form_intro_md as string | null} />
-          <SubmitForm
-            slug={slug}
-            locale={locale}
-            formFields={campaign.form_fields}
-            buttonLabel={tx.form_button_label as string}
-            loadingLabel={tx.form_button_loading_label as string}
-            contextTag={tx.context_tag as string}
+      <main id="main-content">
+        <div className="reader-pinboard" style={{ maxWidth: 780, margin: '0 auto', padding: '32px 28px 64px' }}>
+          <VisualBreadcrumbs
+            items={[
+              { label: t['campaigns.breadcrumb.home'] ?? '', href: '/' },
+              { label: t['campaigns.breadcrumb.campaigns'] ?? '', href: `/campaigns/${locale}` },
+              { label: title },
+            ]}
           />
-        </section>
 
-        <section aria-label="afterForm">
-          {tx.extras ? <ExtrasRenderer extras={tx.extras} /> : null}
-        </section>
+          <article lang={locale}>
+            <section aria-label="beforeForm">
+              <Md text={tx.main_hook_md as string} />
+              <Md text={tx.supporting_argument_md as string | null} />
+              <Md text={tx.introductory_block_md as string | null} />
+              <Md text={tx.body_content_md as string | null} />
+            </section>
+
+            <section aria-label="form">
+              <Md text={tx.form_intro_md as string | null} />
+              <SubmitForm
+                slug={slug}
+                locale={locale}
+                formFields={campaign.form_fields}
+                buttonLabel={tx.form_button_label as string}
+                loadingLabel={tx.form_button_loading_label as string}
+                contextTag={tx.context_tag as string}
+              />
+            </section>
+
+            <section aria-label="afterForm">
+              {tx.extras ? <ExtrasRenderer extras={tx.extras} /> : null}
+            </section>
+          </article>
+        </div>
       </main>
     </>
   )

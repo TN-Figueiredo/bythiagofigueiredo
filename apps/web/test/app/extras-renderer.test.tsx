@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { render } from '@testing-library/react'
-import { ExtrasRenderer } from '../../src/app/campaigns/[locale]/[slug]/extras-renderer'
+import { ExtrasRenderer } from '../../src/app/(public)/campaigns/[locale]/[slug]/extras-renderer'
 
 describe('<ExtrasRenderer>', () => {
   it('renders a youtube iframe with embed URL', () => {
