@@ -2,21 +2,39 @@ import { notFound } from 'next/navigation'
 import { headers } from 'next/headers'
 import Link from 'next/link'
 import type { Metadata } from 'next'
-import { compileMdx, MdxRunner } from '@tn-figueiredo/cms'
+import { compileMdx, MdxRunner, extractToc } from '@tn-figueiredo/cms'
 import { getSiteContext, tryGetSiteContext } from '@/lib/cms/site-context'
 import { blogRegistry } from '@/lib/cms/registry'
-import { LocaleSwitcher } from '@/components/locale-switcher'
 import { getSiteSeoConfig, type SiteSeoConfig } from '@/lib/seo/config'
 import { generateBlogPostMetadata } from '@/lib/seo/page-metadata'
 import { JsonLdScript } from '@/lib/seo/jsonld/render'
 import { loadPostWithLocales, toTranslationInputs } from '@/lib/blog/load-post'
 import { buildDetailGraph, parseDateOrNull } from '@/lib/blog/build-detail-graph'
 import { getRelatedPosts } from '@/lib/blog/related-posts'
-import { getAdjacentPosts } from '@/lib/blog/adjacent-posts'
-import { VisualBreadcrumbs } from '../../../components/visual-breadcrumbs'
+import { parseMdxFrontmatter } from '@/lib/seo/frontmatter'
+import {
+  ScrollProvider,
+  PostKeyPoints,
+  PostPullQuote,
+  PostColophon,
+  PostTags,
+  AuthorRow,
+  AuthorCard,
+  SeriesBanner,
+  SeriesNav,
+  CoverImage,
+  PostComments,
+  RelatedPostsGrid,
+  PostFootnotes,
+  NewsletterCta,
+  PostToc,
+  HighlightsSidebar,
+  AUTHOR_THIAGO,
+  MOCK_ENGAGEMENT,
+  MOCK_COMMENTS,
+  type TocEntry,
+} from '@/components/blog'
 import { BlogArticleClient } from './blog-article-client'
-import enStrings from '@/locales/en.json'
-import ptBrStrings from '@/locales/pt-BR.json'
 
 export const revalidate = 3600
 
@@ -24,14 +42,9 @@ interface Props {
   params: Promise<{ locale: string; slug: string }>
 }
 
-function getStrings(locale: string) {
-  return locale === 'pt-BR' ? ptBrStrings : enStrings
-}
-
 export default async function BlogDetailPage({ params }: Props) {
   const { locale, slug } = await params
   const ctx = await getSiteContext()
-  const t = getStrings(locale)
 
   const loaded = await loadPostWithLocales(ctx.siteId, locale, slug)
   if (!loaded) notFound()
@@ -39,100 +52,138 @@ export default async function BlogDetailPage({ params }: Props) {
   const tx = translations.find((tr) => tr.locale === locale)
   if (!tx) notFound()
 
-  // Pre-compiled output from admin save (fast path).
-  // NULL -> runtime compile fallback (slower, used for legacy posts from Sprint 1 seed).
+  const { postExtras } = parseMdxFrontmatter(tx.content_mdx)
+
   let compiledSource = tx.content_compiled
+  let toc: TocEntry[] = []
   if (!compiledSource) {
     const compiled = await compileMdx(tx.content_mdx, blogRegistry)
     compiledSource = compiled.compiledSource
+    toc = (compiled.toc ?? []).map((h) => ({ slug: h.slug, text: h.text, depth: h.depth as 2 | 3 }))
+  } else {
+    const rawToc = extractToc(tx.content_mdx)
+    toc = rawToc.map((h) => ({ slug: h.slug, text: h.text, depth: h.depth as 2 | 3 }))
   }
 
-  const availableLocales = translations.map((tr) => tr.locale)
-  const slugByLocale = new Map(translations.map((tr) => [tr.locale, tr.slug] as const))
   const publishedAt = post.published_at ?? (full ?? post).published_at
 
-  // Parallel fetches: related posts, adjacent posts, SEO config
+  const category = (post as unknown as { category?: string | null }).category ?? null
+
   const host = (await headers()).get('host') ?? ctx.primaryDomain ?? ''
-  const [related, adjacent, config] = await Promise.all([
-    getRelatedPosts(ctx.siteId, locale, post.id, null),
-    publishedAt ? getAdjacentPosts(ctx.siteId, locale, publishedAt) : Promise.resolve({ prev: null, next: null }),
+  const [related, config] = await Promise.all([
+    getRelatedPosts(ctx.siteId, locale, post.id, category),
     getSiteSeoConfig(ctx.siteId, host).catch(() => null),
   ])
 
   const detailGraph = buildDetailGraph(config, full ?? post, tx, translations, locale, slug, extrasByLocale)
 
   const formattedDate = publishedAt
-    ? new Date(publishedAt).toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' })
+    ? new Date(publishedAt).toLocaleDateString(locale === 'pt-BR' ? 'pt-BR' : 'en', { day: '2-digit', month: 'short', year: 'numeric' })
     : null
+
+  const updatedAt = (full ?? post).updated_at
+  const showUpdated = updatedAt && publishedAt && new Date(updatedAt) > new Date(publishedAt)
+  const formattedUpdated = showUpdated
+    ? new Date(updatedAt).toLocaleDateString(locale === 'pt-BR' ? 'pt-BR' : 'en', { day: '2-digit', month: 'short', year: 'numeric' })
+    : null
+
+  const pageUrl = `https://${host}/blog/${locale}/${encodeURIComponent(slug)}`
 
   return (
     <>
       {detailGraph && <JsonLdScript graph={detailGraph} />}
-      <main id="main-content" style={{ maxWidth: 780, margin: '0 auto', padding: '32px 28px 64px' }}>
-        <VisualBreadcrumbs
-          items={[
-            { label: t['blog.breadcrumb.home'], href: '/' },
-            { label: t['blog.breadcrumb.blog'], href: `/blog/${locale}` },
-            { label: tx.title },
-          ]}
-        />
 
-        <article lang={locale}>
-          <header>
-            <LocaleSwitcher
-              available={availableLocales}
-              current={locale}
-              hrefFor={(loc) =>
-                `/blog/${loc}/${encodeURIComponent(slugByLocale.get(loc) ?? slug)}`
-              }
-            />
-            <h1 className="font-fraunces text-3xl md:text-4xl font-bold mt-4 mb-3">{tx.title}</h1>
-            {tx.excerpt && <p className="text-lg text-pb-muted mb-3">{tx.excerpt}</p>}
-            <p className="text-sm text-pb-muted mb-6">
+      <ScrollProvider sections={toc}>
+        {/* Hero — centered, above 3-col grid */}
+        <div className="max-w-[1280px] mx-auto px-10 pt-8">
+          <div className="blog-detail-hero">
+            <Link href={`/blog/${locale}`} className="inline-block text-sm text-pb-accent no-underline mb-6">
+              ← voltar ao arquivo
+            </Link>
+
+            <div className="flex items-center gap-3 mb-4 text-[13px] text-pb-muted flex-wrap">
+              {category && (
+                <span className="border-[1.5px] border-pb-accent text-pb-accent px-2.5 py-0.5 rounded font-jetbrains text-[11px] uppercase tracking-wider font-medium">
+                  {category}
+                </span>
+              )}
               {formattedDate && <time dateTime={publishedAt!}>{formattedDate}</time>}
-              {formattedDate && ' · '}
-              {t['blog.detail.readingTime'].replace('{min}', String(tx.reading_time_min))}
-            </p>
-          </header>
+              <span>·</span>
+              <span>{tx.reading_time_min} min leitura</span>
+              {formattedUpdated && (
+                <>
+                  <span>·</span>
+                  <span>atualizado em {formattedUpdated}</span>
+                </>
+              )}
+            </div>
 
-          <BlogArticleClient>
-            <MdxRunner compiledSource={compiledSource} registry={blogRegistry} />
-          </BlogArticleClient>
-        </article>
+            <SeriesBanner
+              title={postExtras?.series_title}
+              part={postExtras?.series_part}
+              total={postExtras?.series_total}
+            />
 
-        {/* Adjacent post navigation */}
-        {(adjacent.prev || adjacent.next) && (
-          <nav aria-label="Post navigation" className="flex justify-between mt-12 pt-6 border-t border-pb-faint">
-            {adjacent.prev ? (
-              <Link href={`/blog/${locale}/${encodeURIComponent(adjacent.prev.slug)}`} className="hover:text-pb-accent transition-colors">
-                &larr; {t['blog.detail.prev']}: {adjacent.prev.title}
-              </Link>
-            ) : <span />}
-            {adjacent.next ? (
-              <Link href={`/blog/${locale}/${encodeURIComponent(adjacent.next.slug)}`} className="hover:text-pb-accent transition-colors text-right">
-                {t['blog.detail.next']}: {adjacent.next.title} &rarr;
-              </Link>
-            ) : <span />}
-          </nav>
-        )}
+            <h1 className="font-fraunces font-bold text-pb-ink mb-4" style={{ fontSize: 'clamp(36px, 5.5vw, 64px)', lineHeight: 1.08 }}>
+              {tx.title}
+            </h1>
 
-        {/* Related posts */}
-        {related.length > 0 && (
-          <section aria-label={t['blog.detail.related']} className="mt-12 pt-6 border-t border-pb-faint">
-            <h2 className="font-fraunces text-xl font-bold mb-4">{t['blog.detail.related']}</h2>
-            <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {related.map((r) => (
-                <li key={r.id}>
-                  <Link href={`/blog/${locale}/${encodeURIComponent(r.slug)}`} className="block p-4 rounded-lg hover:bg-pb-surface transition-colors">
-                    <h3 className="font-semibold mb-1">{r.title}</h3>
-                    {r.excerpt && <p className="text-sm text-pb-muted line-clamp-2">{r.excerpt}</p>}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-      </main>
+            {tx.excerpt && (
+              <p className="text-lg italic text-pb-muted leading-relaxed mb-6" style={{ fontFamily: 'var(--font-source-serif), Georgia, serif' }}>
+                {tx.excerpt}
+              </p>
+            )}
+
+            <AuthorRow author={AUTHOR_THIAGO} engagement={MOCK_ENGAGEMENT} locale={locale} url={pageUrl} />
+
+            <CoverImage src={post.cover_image_url ?? null} alt={tx.title} />
+          </div>
+        </div>
+
+        {/* 3-Column Grid */}
+        <div className="blog-detail-grid">
+          <PostToc sections={toc} url={pageUrl} />
+
+          <main id="main-content" lang={locale}>
+            <BlogArticleClient
+              sections={toc}
+              readingTimeMin={tx.reading_time_min}
+              slug={slug}
+              locale={locale}
+              keyPoints={postExtras?.key_points}
+            >
+              <MdxRunner compiledSource={compiledSource} registry={blogRegistry} />
+            </BlogArticleClient>
+          </main>
+
+          <aside className="blog-sidebar blog-detail-sidebar">
+            <PostKeyPoints points={postExtras?.key_points} />
+            <PostPullQuote
+              quote={postExtras?.pull_quote}
+              attribution={postExtras?.pull_quote_attribution}
+            />
+            <HighlightsSidebar slug={slug} locale={locale} />
+          </aside>
+        </div>
+
+        {/* Post Footer — centered 760px */}
+        <div className="blog-detail-footer px-10">
+          <AuthorCard author={AUTHOR_THIAGO} locale={locale} />
+          <PostTags tags={postExtras?.tags} locale={locale} />
+          <PostComments comments={MOCK_COMMENTS} />
+          <SeriesNav
+            nextSlug={postExtras?.series_next_slug}
+            nextTitle={postExtras?.series_next_title}
+            nextExcerpt={postExtras?.series_next_excerpt}
+            locale={locale}
+          />
+          <NewsletterCta category={category ?? null} locale={locale} />
+          <PostFootnotes footnotes={[]} />
+          <PostColophon text={postExtras?.colophon} />
+        </div>
+      </ScrollProvider>
+
+      <RelatedPostsGrid posts={related} locale={locale} category={category ?? null} />
     </>
   )
 }

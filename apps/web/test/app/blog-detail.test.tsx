@@ -121,7 +121,7 @@ describe('BlogDetailPage', () => {
     const jsx = await BlogDetailPage({ params: Promise.resolve({ locale: 'pt-BR', slug: 'hello' }) })
     const { container } = render(jsx as never)
     expect(container.textContent).toContain('Hello')
-    expect(container.textContent).toContain('1 min de leitura')
+    expect(container.textContent).toContain('1 min leitura')
   })
 
   it('hides LocaleSwitcher when only one translation exists', async () => {
@@ -130,21 +130,34 @@ describe('BlogDetailPage', () => {
     expect(container.querySelector('[data-testid="locale-switcher"]')).toBeNull()
   })
 
-  it('renders LocaleSwitcher when multiple translations exist', async () => {
-    vi.doMock('../../lib/cms/repositories', () => ({
-      postRepo: () => ({
-        getBySlug: vi.fn().mockResolvedValue(multiLocalePost),
-        getById: vi.fn().mockResolvedValue(multiLocalePost),
-      }),
-    }))
-    vi.resetModules()
-    const { default: Page } = await import('../../src/app/(public)/blog/[locale]/[slug]/page')
-    const jsx = await Page({ params: Promise.resolve({ locale: 'pt-BR', slug: 'hello' }) })
+  it('renders new 3-column layout with author row and TOC label', async () => {
+    const jsx = await BlogDetailPage({ params: Promise.resolve({ locale: 'pt-BR', slug: 'hello' }) })
     const { container } = render(jsx as never)
-    const switcher = container.querySelector('[data-testid="locale-switcher"]')
-    expect(switcher).toBeTruthy()
-    const link = switcher?.querySelector('a')
-    expect(link?.getAttribute('href')).toBe('/blog/en/hello-en')
+    expect(container.textContent).toContain('Thiago Figueiredo')
+    expect(container.textContent).toContain('NESTE TEXTO')
+    expect(container.textContent).toContain('voltar ao arquivo')
+  })
+
+  it('renders author card in footer', async () => {
+    const jsx = await BlogDetailPage({ params: Promise.resolve({ locale: 'pt-BR', slug: 'hello' }) })
+    const { container } = render(jsx as never)
+    expect(container.textContent).toContain('SOBRE QUEM ESCREVEU')
+    expect(container.textContent).toContain('Construo software')
+  })
+
+  it('renders comments section with mock data', async () => {
+    const jsx = await BlogDetailPage({ params: Promise.resolve({ locale: 'pt-BR', slug: 'hello' }) })
+    const { container } = render(jsx as never)
+    expect(container.textContent).toContain('Conversa')
+    expect(container.textContent).toContain('Paula Reis')
+    expect(container.textContent).toContain('RESPOSTA DO AUTOR')
+  })
+
+  it('renders newsletter CTA', async () => {
+    const jsx = await BlogDetailPage({ params: Promise.resolve({ locale: 'pt-BR', slug: 'hello' }) })
+    const { container } = render(jsx as never)
+    expect(container.textContent).toContain('NEWSLETTER')
+    expect(container.querySelector('input[type="email"]')).toBeTruthy()
   })
 
   it('calls notFound when post missing', async () => {
