@@ -1,8 +1,8 @@
 import Link from 'next/link'
 import { cms } from '@/lib/cms/admin'
 import { CmsTopbar, CmsButton } from '@tn-figueiredo/cms-ui/client'
-import { TypeCards } from '@tn-figueiredo/cms-admin/newsletters/client'
 import { EditionsTable } from '@tn-figueiredo/cms-admin/newsletters/client'
+import { TypeCards } from './_components/type-cards'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,7 +37,7 @@ export default async function NewsletterDashboardPage({
         <TypeCards
           types={types}
           selectedTypeId={params.type ?? null}
-          onSelect={() => {}}
+          currentStatus={params.status}
         />
 
         <div className="flex items-center gap-1 text-xs">

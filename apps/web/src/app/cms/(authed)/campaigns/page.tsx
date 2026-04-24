@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
 import type { ContentStatus } from '@tn-figueiredo/cms'
+import type { DeleteResult } from '@tn-figueiredo/cms-admin'
 import { cms } from '@/lib/cms/admin'
 import { deleteCampaign } from './[id]/edit/actions'
 import { CampaignKpis } from './_components/campaign-kpis'
@@ -153,14 +154,19 @@ async function CampaignsContent({
     return <EmptyState />
   }
 
-  async function handleDelete(id: string): Promise<{ ok: boolean; error?: string }> {
+  async function handleDelete(id: string): Promise<DeleteResult> {
     'use server'
     const result = await deleteCampaign(id)
     if (result.ok) return { ok: true }
     const errorResult = result as Record<string, unknown>
+    const rawError = String(errorResult.error ?? '')
+    const error = (rawError === 'already_published' || rawError === 'not_found')
+      ? rawError
+      : 'db_error' as const
     return {
       ok: false,
-      error: String(errorResult.message ?? errorResult.error ?? 'Unknown error'),
+      error,
+      message: String(errorResult.message ?? errorResult.error ?? 'Unknown error'),
     }
   }
 

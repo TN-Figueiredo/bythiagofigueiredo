@@ -1,5 +1,7 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
+
 interface TypeCardData {
   id: string
   name: string
@@ -15,10 +17,19 @@ interface TypeCardData {
 interface TypeCardsProps {
   types: TypeCardData[]
   selectedTypeId: string | null
-  onSelect: (id: string | null) => void
+  currentStatus?: string
 }
 
-export function TypeCards({ types, selectedTypeId, onSelect }: TypeCardsProps) {
+export function TypeCards({ types, selectedTypeId, currentStatus }: TypeCardsProps) {
+  const router = useRouter()
+
+  function onSelect(id: string | null) {
+    const params = new URLSearchParams()
+    if (id) params.set('type', id)
+    if (currentStatus && currentStatus !== 'all') params.set('status', currentStatus)
+    const qs = params.toString()
+    router.push(`/cms/newsletters${qs ? `?${qs}` : ''}`)
+  }
   return (
     <div className="flex gap-3 overflow-x-auto pb-2">
       {types.map((t) => (
