@@ -4,70 +4,17 @@ import { KpiCard } from '@tn-figueiredo/cms-ui/client'
 import { AreaChart } from './area-chart'
 import { DonutChart } from './donut-chart'
 import { DeliveryFunnel } from './delivery-funnel'
+import {
+  buildEngagementSeries,
+  AUDIENCE_SEGMENTS,
+  FUNNEL_STEPS,
+  TOP_POSTS,
+  TOP_CAMPAIGNS,
+} from '../_data/demo-data'
 
 interface OverviewTabProps {
   period: string
 }
-
-function buildEngagementSeries(period: string) {
-  const counts =
-    period === '7d' ? 7 : period === '30d' ? 30 : period === '90d' ? 90 : 12
-  const labels: string[] = []
-  const pageViews: number[] = []
-  const opens: number[] = []
-  const clicks: number[] = []
-
-  for (let i = 0; i < counts; i++) {
-    const d = new Date()
-    d.setDate(d.getDate() - (counts - 1 - i))
-    labels.push(
-      period === '12m'
-        ? d.toLocaleDateString('en', { month: 'short' })
-        : `${d.getMonth() + 1}/${d.getDate()}`,
-    )
-    pageViews.push(Math.floor(400 + Math.random() * 600 + Math.sin(i / 4) * 200))
-    opens.push(Math.floor(100 + Math.random() * 150 + Math.cos(i / 3) * 60))
-    clicks.push(Math.floor(20 + Math.random() * 50 + Math.sin(i / 5) * 20))
-  }
-
-  return {
-    data: labels.map((label, i) => ({
-      label,
-      values: [pageViews[i] ?? 0, opens[i] ?? 0, clicks[i] ?? 0],
-    })),
-    todayIndex: counts - 1,
-  }
-}
-
-const AUDIENCE_SEGMENTS = [
-  { label: 'Direct', value: 342, color: '#6366f1' },
-  { label: 'Organic Search', value: 218, color: '#22c55e' },
-  { label: 'Newsletter', value: 156, color: '#f59e0b' },
-  { label: 'Social', value: 89, color: '#06b6d4' },
-  { label: 'Referral', value: 47, color: '#a855f7' },
-]
-
-const FUNNEL_STEPS = [
-  { label: 'Sent', value: 4820, percentage: 100, color: '#6366f1' },
-  { label: 'Delivered', value: 4731, percentage: 98, color: '#22c55e' },
-  { label: 'Opened', value: 2104, percentage: 44, color: '#f59e0b' },
-  { label: 'Clicked', value: 618, percentage: 13, color: '#06b6d4' },
-  { label: 'Bounced', value: 89, percentage: 2, color: '#ef4444' },
-]
-
-const TOP_POSTS = [
-  { title: 'Building a multi-tenant CMS with Next.js 15', views: 2341, locale: 'en' },
-  { title: 'LGPD compliance deep-dive: the 3-phase model', views: 1876, locale: 'pt-BR' },
-  { title: 'SEO hardening with schema.org JSON-LD', views: 1203, locale: 'en' },
-  { title: 'React 19 actions & progressive enhancement', views: 987, locale: 'en' },
-  { title: 'Newsletter engine: Resend + RFC 8058', views: 754, locale: 'pt-BR' },
-]
-
-const TOP_CAMPAIGNS = [
-  { title: 'Sprint 5 Launch Pack', submissions: 312, convRate: 8.4 },
-  { title: 'Developer Newsletter Q1', submissions: 198, convRate: 6.2 },
-  { title: 'LGPD Compliance Kit', submissions: 143, convRate: 5.1 },
-]
 
 const RANK_STYLES: Record<number, string> = {
   1: '\u{1F947}',

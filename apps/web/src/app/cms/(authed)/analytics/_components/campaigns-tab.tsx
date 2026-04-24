@@ -1,82 +1,16 @@
 'use client'
 
+import { LOCALE_FLAG, CAMPAIGNS, CAMPAIGN_KPIS } from '../_data/demo-data'
+
 interface CampaignsTabProps {
   period: string
 }
-
-const LOCALE_FLAG: Record<string, string> = {
-  'pt-BR': '\u{1F1E7}\u{1F1F7}',
-  en: '\u{1F1FA}\u{1F1F8}',
-}
-
-const CAMPAIGNS = [
-  {
-    title: 'Sprint 5 Launch Pack',
-    status: 'active',
-    submissions: 312,
-    convRate: 8.4,
-    locales: [
-      { locale: 'pt-BR', submissions: 187 },
-      { locale: 'en', submissions: 125 },
-    ],
-    updatedAt: '2026-04-22',
-  },
-  {
-    title: 'Developer Newsletter Q1',
-    status: 'active',
-    submissions: 198,
-    convRate: 6.2,
-    locales: [
-      { locale: 'pt-BR', submissions: 98 },
-      { locale: 'en', submissions: 100 },
-    ],
-    updatedAt: '2026-04-18',
-  },
-  {
-    title: 'LGPD Compliance Kit',
-    status: 'active',
-    submissions: 143,
-    convRate: 5.1,
-    locales: [
-      { locale: 'pt-BR', submissions: 143 },
-    ],
-    updatedAt: '2026-04-15',
-  },
-  {
-    title: 'CMS Architecture Deep-Dive',
-    status: 'draft',
-    submissions: 0,
-    convRate: 0,
-    locales: [
-      { locale: 'en', submissions: 0 },
-    ],
-    updatedAt: '2026-04-20',
-  },
-  {
-    title: 'Newsletter Engine Webinar',
-    status: 'archived',
-    submissions: 87,
-    convRate: 3.9,
-    locales: [
-      { locale: 'pt-BR', submissions: 52 },
-      { locale: 'en', submissions: 35 },
-    ],
-    updatedAt: '2026-03-30',
-  },
-]
 
 function campaignStatusColor(status: string): string {
   if (status === 'active') return 'var(--cms-green, #22c55e)'
   if (status === 'draft') return 'var(--cms-amber, #f59e0b)'
   return 'var(--cms-text-dim, #52525b)'
 }
-
-const CAMPAIGN_KPIS = [
-  { label: 'Total Submissions', value: '2,214' },
-  { label: 'Avg Download Rate', value: '8.6%' },
-  { label: 'Avg per Campaign', value: '554' },
-  { label: 'Active Campaigns', value: '4' },
-]
 
 export function CampaignsTab({ period: _period }: CampaignsTabProps) {
   const sorted = [...CAMPAIGNS].sort((a, b) => b.submissions - a.submissions)
