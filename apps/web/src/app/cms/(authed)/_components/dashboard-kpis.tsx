@@ -2,10 +2,12 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { KpiCard } from '@tn-figueiredo/cms-ui/client'
 
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
+
 export async function DashboardKpis() {
   const supabase = getSupabaseServiceClient()
   const { siteId } = await getSiteContext()
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString()
+  const thirtyDaysAgo = new Date(Date.now() - THIRTY_DAYS_MS).toISOString()
 
   const [postsRes, opensRes, subsRes, subscribersRes] = await Promise.all([
     supabase
@@ -33,7 +35,7 @@ export async function DashboardKpis() {
   ])
 
   const totalOpens = (opensRes.data ?? []).reduce(
-    (sum, e) => sum + ((e as { stats_opens?: number }).stats_opens ?? 0),
+    (sum, e) => sum + (e.stats_opens ?? 0),
     0,
   )
 

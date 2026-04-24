@@ -8,6 +8,15 @@ import { PostsTable } from './_components/posts-table'
 
 interface Props { searchParams: Promise<Record<string, string | undefined>> }
 
+interface BlogPostRow {
+  id: string
+  slug: string | null
+  status: string | null
+  updated_at: string
+  blog_translations: Array<{ title: string; locale: string; reading_time_min: number | null }>
+  authors: Array<{ display_name: string }>
+}
+
 export default async function BlogListPage({ searchParams }: Props) {
   const params = await searchParams
   const supabase = getSupabaseServiceClient()
@@ -20,10 +29,10 @@ export default async function BlogListPage({ searchParams }: Props) {
     .select('status')
     .eq('site_id', siteId)
 
-  interface StatusRow { status: string }
   const counts: Record<string, number> = {}
-  for (const row of (statusData ?? []) as StatusRow[]) {
-    counts[row.status] = (counts[row.status] ?? 0) + 1
+  for (const row of statusData ?? []) {
+    const status = String(row.status ?? 'draft')
+    counts[status] = (counts[status] ?? 0) + 1
   }
 
   let query = supabase
@@ -39,23 +48,16 @@ export default async function BlogListPage({ searchParams }: Props) {
 
   const { data: posts, count: total } = await query
 
-  const rows = (posts ?? []).map((p: unknown) => {
-    const post = p as {
-      id: string
-      slug: string | null
-      status: string | null
-      updated_at: string
-      blog_translations: Array<{ title: string; locale: string; reading_time_min: number | null }> | null
-      authors: { display_name: string } | null
-    }
+  const rows = (posts ?? []).map((p) => {
+    const post = p as BlogPostRow
     return {
       id: post.id,
       title: post.blog_translations?.[0]?.title ?? 'Untitled',
       slug: post.slug ?? '',
       status: post.status ?? 'draft',
       locales: (post.blog_translations ?? []).map((t) => t.locale),
-      authorName: post.authors?.display_name ?? 'Unknown',
-      authorInitials: (post.authors?.display_name ?? 'U').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase(),
+      authorName: post.authors?.[0]?.display_name ?? 'Unknown',
+      authorInitials: (post.authors?.[0]?.display_name ?? 'U').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase(),
       updatedAt: new Date(post.updated_at).toLocaleDateString('en', { month: 'short', day: 'numeric' }),
       readingTime: post.blog_translations?.[0]?.reading_time_min ?? 0,
     }

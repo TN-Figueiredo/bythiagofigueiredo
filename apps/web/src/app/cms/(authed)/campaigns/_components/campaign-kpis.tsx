@@ -1,6 +1,8 @@
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
+
 interface KpiTileProps {
   label: string
   value: string | number
@@ -36,7 +38,7 @@ export async function CampaignKpis() {
   const ctx = await getSiteContext()
   const supabase = getSupabaseServiceClient()
 
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+  const thirtyDaysAgo = new Date(Date.now() - THIRTY_DAYS_MS).toISOString()
 
   const { count: activeCount } = await supabase
     .from('campaigns')

@@ -38,17 +38,17 @@ export async function ComingUp() {
     ...(postsRes.data ?? []).map((p) => {
       const translations = p.blog_translations as Array<{ title: string; locale: string }> | null
       return {
-        id: p.id as string,
+        id: String(p.id),
         title: translations?.[0]?.title ?? 'Untitled',
-        date: (p.slot_date as string | null) ?? '',
+        date: String(p.slot_date ?? ''),
         type: 'post' as const,
         href: `/cms/blog/${p.id}/edit`,
       }
     }),
     ...(editionsRes.data ?? []).map((e) => ({
-      id: e.id as string,
-      title: (e.subject as string | null) ?? 'Untitled',
-      date: ((e.scheduled_at as string | null) ?? '').split('T')[0] ?? '',
+      id: String(e.id),
+      title: String(e.subject ?? 'Untitled'),
+      date: String(e.scheduled_at ?? '').split('T')[0] ?? '',
       type: 'newsletter' as const,
       href: `/cms/newsletters/${e.id}/edit`,
     })),

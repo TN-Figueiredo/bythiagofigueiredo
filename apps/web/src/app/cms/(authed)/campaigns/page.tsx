@@ -172,7 +172,7 @@ async function CampaignsContent({
 
   const countMap: Record<string, number> = {}
   for (const row of submissionCounts ?? []) {
-    const cid = row.campaign_id as string
+    const cid = String(row.campaign_id)
     countMap[cid] = (countMap[cid] ?? 0) + 1
   }
 
@@ -194,7 +194,7 @@ async function CampaignsContent({
     const days14 = Array(14).fill(0) as number[]
     for (const row of recentSubs ?? []) {
       if (row.campaign_id !== id) continue
-      const submittedDate = new Date(row.submitted_at as string)
+      const submittedDate = new Date(String(row.submitted_at))
       const daysAgo = Math.floor(
         (today.getTime() - submittedDate.getTime()) / (1000 * 60 * 60 * 24)
       )
@@ -217,7 +217,7 @@ async function CampaignsContent({
 
   const pdfMap: Record<string, boolean> = {}
   for (const row of pdfData ?? []) {
-    pdfMap[row.id as string] = !!(row.pdf_storage_path as string | null)
+    pdfMap[String(row.id)] = !!row.pdf_storage_path
   }
 
   const rows: CampaignRow[] = campaigns.map((c) => ({
@@ -232,9 +232,10 @@ async function CampaignsContent({
     'use server'
     const result = await deleteCampaign(id)
     if (result.ok) return { ok: true }
+    const errorResult = result as Record<string, unknown>
     return {
       ok: false,
-      error: (result as { message?: string }).message ?? (result as { error?: string }).error,
+      error: String(errorResult.message ?? errorResult.error ?? 'Unknown error'),
     }
   }
 
