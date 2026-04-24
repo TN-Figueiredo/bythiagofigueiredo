@@ -1,12 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-
-type Highlight = {
-  id: string
-  text: string
-  createdAt: string
-}
+import type { Highlight } from './types'
 
 type Props = {
   slug: string

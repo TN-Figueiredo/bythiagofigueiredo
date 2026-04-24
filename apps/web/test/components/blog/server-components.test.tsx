@@ -11,6 +11,8 @@ import { SeriesNav } from '../../../src/components/blog/series-nav'
 import { CoverImage } from '../../../src/components/blog/cover-image'
 import { PostComments } from '../../../src/components/blog/post-comments'
 import { RelatedPostsGrid } from '../../../src/components/blog/related-posts-grid'
+import { PostFootnotes } from '../../../src/components/blog/post-footnotes'
+import { ShareButtons } from '../../../src/components/blog/share-buttons'
 import { AUTHOR_THIAGO, MOCK_ENGAGEMENT, MOCK_COMMENTS } from '../../../src/components/blog/mock-data'
 
 describe('PostKeyPoints', () => {
@@ -186,5 +188,49 @@ describe('RelatedPostsGrid', () => {
   it('returns null when posts is empty', () => {
     const { container } = render(<RelatedPostsGrid posts={[]} locale="pt-BR" category={null} />)
     expect(container.innerHTML).toBe('')
+  })
+})
+
+describe('PostFootnotes', () => {
+  it('renders footnotes with back-links', () => {
+    const footnotes = [
+      { id: '1', content: 'First footnote text' },
+      { id: '2', content: 'Second footnote text' },
+    ]
+    const { container } = render(<PostFootnotes footnotes={footnotes} />)
+    expect(container.textContent).toContain('NOTAS')
+    expect(container.textContent).toContain('First footnote text')
+    expect(container.textContent).toContain('Second footnote text')
+    // Back-links should point to fnref-{id}
+    const backLinks = container.querySelectorAll('a[href^="#fnref-"]')
+    expect(backLinks.length).toBe(2)
+    expect(backLinks[0]!.getAttribute('href')).toBe('#fnref-1')
+    expect(backLinks[1]!.getAttribute('href')).toBe('#fnref-2')
+  })
+
+  it('returns null when footnotes is empty', () => {
+    const { container } = render(<PostFootnotes footnotes={[]} />)
+    expect(container.innerHTML).toBe('')
+  })
+})
+
+describe('ShareButtons', () => {
+  it('renders all 3 buttons with correct aria-labels', () => {
+    const { container } = render(<ShareButtons url="https://example.com/post" />)
+    const xBtn = container.querySelector('[aria-label="Compartilhar no X"]')
+    const linkedInBtn = container.querySelector('[aria-label="Compartilhar no LinkedIn"]')
+    const copyBtn = container.querySelector('[aria-label="Copiar link"]')
+    expect(xBtn).toBeTruthy()
+    expect(linkedInBtn).toBeTruthy()
+    expect(copyBtn).toBeTruthy()
+  })
+
+  it('includes encoded URL in share links', () => {
+    const url = 'https://example.com/post?a=1'
+    const { container } = render(<ShareButtons url={url} />)
+    const xLink = container.querySelector('[aria-label="Compartilhar no X"]') as HTMLAnchorElement
+    expect(xLink.href).toContain(encodeURIComponent(url))
+    const liLink = container.querySelector('[aria-label="Compartilhar no LinkedIn"]') as HTMLAnchorElement
+    expect(liLink.href).toContain(encodeURIComponent(url))
   })
 })

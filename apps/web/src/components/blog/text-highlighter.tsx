@@ -1,17 +1,12 @@
 'use client'
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import type { Highlight } from './types'
 
 type Props = {
   slug: string
   locale?: string
   children: ReactNode
-}
-
-type Highlight = {
-  id: string
-  text: string
-  createdAt: string
 }
 
 const MAX_HIGHLIGHTS = 20

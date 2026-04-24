@@ -34,3 +34,9 @@ export type MockComment = {
   isAuthorReply: boolean
   parentId: string | null
 }
+
+export type Highlight = {
+  id: string
+  text: string
+  createdAt: string
+}

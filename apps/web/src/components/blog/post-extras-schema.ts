@@ -19,6 +19,9 @@ export const PostExtrasSchema = z.object({
     return true
   },
   { message: 'series_part and series_total require series_title' },
+).refine(
+  (d) => !d.series_part || !d.series_total || d.series_part <= d.series_total,
+  { message: 'series_part must be <= series_total' },
 )
 
 export type PostExtras = z.infer<typeof PostExtrasSchema>
