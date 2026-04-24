@@ -1,4 +1,5 @@
 @import '@tn-figueiredo/cms-ui/styles.css';
+@import '@tn-figueiredo/cms-admin/styles.css';
 @import "tailwindcss";
 
 @theme {

@@ -11,7 +11,9 @@ import {
 } from '@tn-figueiredo/admin/site-switcher'
 import { CmsSiteSwitcherSlot } from '@/components/cms/site-switcher-provider'
 import { CmsShell } from '@tn-figueiredo/cms-ui/client'
+import { CmsAdminProvider } from '@tn-figueiredo/cms-admin/client'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import Link from 'next/link'
 
 export default async function Layout({ children }: { children: ReactNode }) {
   const cookieStore = await cookies()
@@ -52,17 +54,19 @@ export default async function Layout({ children }: { children: ReactNode }) {
   if (subsRes.count) badges['/cms/subscribers'] = subsRes.count
 
   return (
-    <SiteSwitcherProvider sites={sites} initialSiteId={currentSiteId}>
-      <CmsShell
-        siteName={currentSite?.site_name ?? 'OneCMS'}
-        siteInitials={currentSite?.site_name?.slice(0, 2).toUpperCase() ?? 'CM'}
-        userDisplayName={userDisplayName}
-        userRole={userRole}
-        siteSwitcher={<CmsSiteSwitcherSlot />}
-        badges={badges}
-      >
-        {children}
-      </CmsShell>
-    </SiteSwitcherProvider>
+    <CmsAdminProvider linkComponent={Link}>
+      <SiteSwitcherProvider sites={sites} initialSiteId={currentSiteId}>
+        <CmsShell
+          siteName={currentSite?.site_name ?? 'OneCMS'}
+          siteInitials={currentSite?.site_name?.slice(0, 2).toUpperCase() ?? 'CM'}
+          userDisplayName={userDisplayName}
+          userRole={userRole}
+          siteSwitcher={<CmsSiteSwitcherSlot />}
+          badges={badges}
+        >
+          {children}
+        </CmsShell>
+      </SiteSwitcherProvider>
+    </CmsAdminProvider>
   )
 }
