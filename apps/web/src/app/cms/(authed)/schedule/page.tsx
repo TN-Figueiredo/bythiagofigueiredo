@@ -1,30 +1,18 @@
-import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { getSiteContext } from '@/lib/cms/site-context'
+import { cms } from '@/lib/cms/admin'
 import { CmsTopbar } from '@tn-figueiredo/cms-ui/client'
-import { ScheduleClient, type BlogPostRow, type NewsletterEditionRow, type BlogCadenceRow } from './_components/schedule-client'
+import { ScheduleClient } from '@tn-figueiredo/cms-admin/schedule/client'
 
 export default async function SchedulePage() {
-  const supabase = getSupabaseServiceClient()
-  const { siteId } = await getSiteContext()
-
-  const [postsRes, editionsRes, cadenceRes, backlogRes] = await Promise.all([
-    supabase.from('blog_posts').select('id, slot_date, status, blog_translations(title, locale)')
-      .eq('site_id', siteId).in('status', ['queued', 'scheduled']).not('slot_date', 'is', null),
-    supabase.from('newsletter_editions').select('id, subject, status, scheduled_at, newsletter_types(name)')
-      .eq('site_id', siteId).in('status', ['scheduled', 'queued']),
-    supabase.from('blog_cadence').select('*').eq('site_id', siteId),
-    supabase.from('blog_posts').select('id, blog_translations(title, locale, reading_time_min)')
-      .eq('site_id', siteId).eq('status', 'ready').is('slot_date', null).order('created_at').limit(10),
-  ])
+  const data = await cms.contentQueue.getCalendarData()
 
   return (
     <div>
       <CmsTopbar title="Schedule" />
       <ScheduleClient
-        posts={(postsRes.data ?? []) as BlogPostRow[]}
-        editions={(editionsRes.data ?? []) as NewsletterEditionRow[]}
-        cadence={(cadenceRes.data ?? []) as BlogCadenceRow[]}
-        backlog={(backlogRes.data ?? []) as BlogPostRow[]}
+        posts={data.posts}
+        editions={data.editions}
+        cadence={data.cadence}
+        backlog={data.backlog}
       />
     </div>
   )

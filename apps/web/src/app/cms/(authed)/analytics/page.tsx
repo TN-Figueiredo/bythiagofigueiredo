@@ -1,5 +1,5 @@
 import { CmsTopbar, CmsButton } from '@tn-figueiredo/cms-ui/client'
-import { AnalyticsTabs } from './_components/analytics-tabs'
+import { AnalyticsTabs } from '@tn-figueiredo/cms-admin/analytics/client'
 
 export default async function AnalyticsPage() {
   return (

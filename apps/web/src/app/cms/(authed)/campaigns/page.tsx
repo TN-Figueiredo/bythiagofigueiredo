@@ -1,12 +1,10 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
 import type { ContentStatus } from '@tn-figueiredo/cms'
-import { campaignRepo } from '@/lib/cms/repositories'
-import { getSiteContext } from '@/lib/cms/site-context'
-import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { cms } from '@/lib/cms/admin'
 import { deleteCampaign } from './[id]/edit/actions'
 import { CampaignKpis } from './_components/campaign-kpis'
-import { CampaignTable, type CampaignRow } from './_components/campaign-table'
+import { CampaignTable } from '@tn-figueiredo/cms-admin/campaigns/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -140,93 +138,20 @@ async function CampaignsContent({
   status,
   locale,
   search,
-  siteId,
-  defaultLocale,
 }: {
   status: string
   locale: string
   search: string
-  siteId: string
-  defaultLocale: string
 }) {
-  const supabase = getSupabaseServiceClient()
-
-  const campaigns = await campaignRepo().list({
-    siteId,
-    locale: locale || defaultLocale,
+  const { campaigns } = await cms.campaigns.list({
     status: (status as ContentStatus) || undefined,
+    locale: locale || undefined,
     search: search || undefined,
-    perPage: 200,
   })
 
   if (campaigns.length === 0) {
     return <EmptyState />
   }
-
-  const campaignIds = campaigns.map((c) => c.id)
-
-  const { data: submissionCounts } = await supabase
-    .from('campaign_submissions')
-    .select('campaign_id')
-    .in('campaign_id', campaignIds)
-
-  const countMap: Record<string, number> = {}
-  for (const row of submissionCounts ?? []) {
-    const cid = String(row.campaign_id)
-    countMap[cid] = (countMap[cid] ?? 0) + 1
-  }
-
-  const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 10)
-
-  const { data: recentSubs } = await supabase
-    .from('campaign_submissions')
-    .select('campaign_id, submitted_at')
-    .in('campaign_id', campaignIds)
-    .gte('submitted_at', fourteenDaysAgo)
-
-  const today = new Date()
-  const sparklineMap: Record<string, number[]> = {}
-  const deltaMap: Record<string, number> = {}
-
-  for (const id of campaignIds) {
-    const days14 = Array(14).fill(0) as number[]
-    for (const row of recentSubs ?? []) {
-      if (row.campaign_id !== id) continue
-      const submittedDate = new Date(String(row.submitted_at))
-      const daysAgo = Math.floor(
-        (today.getTime() - submittedDate.getTime()) / (1000 * 60 * 60 * 24)
-      )
-      if (daysAgo >= 0 && daysAgo < 14) {
-        days14[13 - daysAgo] = (days14[13 - daysAgo] ?? 0) + 1
-      }
-    }
-    const recent7 = days14.slice(7)
-    const prior7 = days14.slice(0, 7)
-    const recent7Total = recent7.reduce((a, b) => a + b, 0)
-    const prior7Total = prior7.reduce((a, b) => a + b, 0)
-    sparklineMap[id] = recent7
-    deltaMap[id] = recent7Total - prior7Total
-  }
-
-  const { data: pdfData } = await supabase
-    .from('campaigns')
-    .select('id, pdf_storage_path')
-    .in('id', campaignIds)
-
-  const pdfMap: Record<string, boolean> = {}
-  for (const row of pdfData ?? []) {
-    pdfMap[String(row.id)] = !!row.pdf_storage_path
-  }
-
-  const rows: CampaignRow[] = campaigns.map((c) => ({
-    ...c,
-    has_pdf: pdfMap[c.id] ?? false,
-    submission_count: countMap[c.id] ?? 0,
-    sparkline_data: sparklineMap[c.id] ?? [],
-    submissions_delta: deltaMap[c.id] ?? 0,
-  }))
 
   async function handleDelete(id: string): Promise<{ ok: boolean; error?: string }> {
     'use server'
@@ -239,12 +164,11 @@ async function CampaignsContent({
     }
   }
 
-  return <CampaignTable campaigns={rows} onDelete={handleDelete} />
+  return <CampaignTable campaigns={campaigns} onDelete={handleDelete} />
 }
 
 export default async function CmsCampaignsListPage({ searchParams }: Props) {
   const sp = await searchParams
-  const ctx = await getSiteContext()
 
   const status = sp.status ?? ''
   const locale = sp.locale ?? ''
@@ -283,8 +207,6 @@ export default async function CmsCampaignsListPage({ searchParams }: Props) {
           status={status}
           locale={locale}
           search={search}
-          siteId={ctx.siteId}
-          defaultLocale={ctx.defaultLocale}
         />
       </Suspense>
     </div>
