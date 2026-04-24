@@ -173,7 +173,7 @@ export async function assignToSlot(
     .eq('id', editionId)
   if (error) return { ok: false, error: error.message }
   revalidatePath('/cms/newsletters')
-  revalidatePath('/cms/content-queue')
+  revalidatePath('/cms/schedule')
   return { ok: true }
 }
 
@@ -190,7 +190,7 @@ export async function unslotEdition(editionId: string): Promise<ActionResult> {
     .eq('id', editionId)
   if (error) return { ok: false, error: error.message }
   revalidatePath('/cms/newsletters')
-  revalidatePath('/cms/content-queue')
+  revalidatePath('/cms/schedule')
   return { ok: true }
 }
 
@@ -209,6 +209,6 @@ export async function updateCadence(
     .eq('id', typeId)
   if (error) return { ok: false, error: error.message }
   revalidatePath('/cms/newsletters/settings')
-  revalidatePath('/cms/content-queue')
+  revalidatePath('/cms/schedule')
   return { ok: true }
 }

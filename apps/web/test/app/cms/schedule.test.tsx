@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest'
 
 describe('CMS Schedule', () => {
-  it('exports WeekView component', async () => {
-    const mod = await import('@/app/cms/(authed)/schedule/_components/week-view')
+  it('exports WeekView component from package', async () => {
+    const mod = await import('@tn-figueiredo/cms-admin/schedule/client')
     expect(mod.WeekView).toBeDefined()
   })
 
-  it('exports BacklogPanel component', async () => {
-    const mod = await import('@/app/cms/(authed)/schedule/_components/backlog-panel')
+  it('exports BacklogPanel component from package', async () => {
+    const mod = await import('@tn-figueiredo/cms-admin/schedule/client')
     expect(mod.BacklogPanel).toBeDefined()
   })
 })

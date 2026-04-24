@@ -3,8 +3,8 @@ import Link from 'next/link'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { CmsTopbar, CmsButton, SkeletonBlock } from '@tn-figueiredo/cms-ui/client'
-import { PostsFilters } from './_components/posts-filters'
-import { PostsTable } from './_components/posts-table'
+import { PostsTable } from '@tn-figueiredo/cms-admin/blog/client'
+import { PostsFiltersConnected } from './_components/posts-filters-connected'
 
 interface Props { searchParams: Promise<Record<string, string | undefined>> }
 
@@ -70,7 +70,7 @@ export default async function BlogListPage({ searchParams }: Props) {
       } />
       <div className="p-6 lg:p-8 space-y-4">
         <Suspense fallback={<SkeletonBlock className="h-20" />}>
-          <PostsFilters counts={counts} />
+          <PostsFiltersConnected counts={counts} />
         </Suspense>
         <div className="bg-cms-surface border border-cms-border rounded-[var(--cms-radius)] overflow-hidden">
           <PostsTable posts={rows} total={total ?? rows.length} page={page} pageSize={pageSize} currentParams={new URLSearchParams(params as Record<string, string>).toString()} />

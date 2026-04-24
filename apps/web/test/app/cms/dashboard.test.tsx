@@ -29,18 +29,18 @@ describe('CMS Dashboard', () => {
     expect(typeof mod.default).toBe('function')
   })
 
-  it('exports DashboardKpis component', async () => {
-    const mod = await import('../../../src/app/cms/(authed)/_components/dashboard-kpis')
+  it('exports DashboardKpis component from package', async () => {
+    const mod = await import('@tn-figueiredo/cms-admin/dashboard/client')
     expect(typeof mod.DashboardKpis).toBe('function')
   })
 
-  it('exports ComingUp component', async () => {
-    const mod = await import('../../../src/app/cms/(authed)/_components/coming-up')
+  it('exports ComingUp component from package', async () => {
+    const mod = await import('@tn-figueiredo/cms-admin/dashboard/client')
     expect(typeof mod.ComingUp).toBe('function')
   })
 
-  it('exports ContinueEditing component', async () => {
-    const mod = await import('../../../src/app/cms/(authed)/_components/continue-editing')
+  it('exports ContinueEditing component from package', async () => {
+    const mod = await import('@tn-figueiredo/cms-admin/dashboard/client')
     expect(typeof mod.ContinueEditing).toBe('function')
   })
 })

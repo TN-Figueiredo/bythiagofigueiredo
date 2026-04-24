@@ -13,13 +13,13 @@ vi.mock('@tn-figueiredo/cms-ui/client', () => ({
 }))
 
 describe('CMS Analytics', () => {
-  it('exports AnalyticsTabs component', async () => {
-    const mod = await import('../../../src/app/cms/(authed)/analytics/_components/analytics-tabs')
+  it('exports AnalyticsTabs component from package', async () => {
+    const mod = await import('@tn-figueiredo/cms-admin/analytics/client')
     expect(mod.AnalyticsTabs).toBeDefined()
   })
 
-  it('exports AreaChart component', async () => {
-    const mod = await import('../../../src/app/cms/(authed)/analytics/_components/area-chart')
+  it('exports AreaChart component from package', async () => {
+    const mod = await import('@tn-figueiredo/cms-admin/analytics/client')
     expect(mod.AreaChart).toBeDefined()
   })
 })
