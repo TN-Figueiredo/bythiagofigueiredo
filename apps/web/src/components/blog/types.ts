@@ -40,3 +40,7 @@ export type Highlight = {
   text: string
   createdAt: string
 }
+
+export function getHighlightStorageKey(slug: string, locale?: string) {
+  return `btf-highlights:${locale ? `${locale}/` : ''}${slug}`
+}

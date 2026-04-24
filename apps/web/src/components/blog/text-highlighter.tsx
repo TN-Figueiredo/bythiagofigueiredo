@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import type { Highlight } from './types'
+import { getHighlightStorageKey, type Highlight } from './types'
 
 type Props = {
   slug: string
@@ -10,10 +10,6 @@ type Props = {
 }
 
 const MAX_HIGHLIGHTS = 20
-
-function getStorageKey(slug: string, locale?: string) {
-  return `btf-highlights:${locale ? `${locale}/` : ''}${slug}`
-}
 
 export function TextHighlighter({ slug, locale, children }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -53,7 +49,7 @@ export function TextHighlighter({ slug, locale, children }: Props) {
 
   const handleHighlight = () => {
     if (!tooltip) return
-    const key = getStorageKey(slug, locale)
+    const key = getHighlightStorageKey(slug, locale)
     let highlights: Highlight[] = []
     try { highlights = JSON.parse(localStorage.getItem(key) ?? '[]') } catch { /* ignore */ }
     if (highlights.length >= MAX_HIGHLIGHTS) return

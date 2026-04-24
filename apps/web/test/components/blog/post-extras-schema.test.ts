@@ -46,6 +46,15 @@ describe('PostExtrasSchema', () => {
     expect(result.success).toBe(false)
   })
 
+  it('rejects series_part greater than series_total', () => {
+    const result = PostExtrasSchema.safeParse({
+      series_title: 'My series',
+      series_part: 5,
+      series_total: 3,
+    })
+    expect(result.success).toBe(false)
+  })
+
   it('accepts partial series (title only, no next)', () => {
     const result = PostExtrasSchema.safeParse({
       series_title: 'My series',

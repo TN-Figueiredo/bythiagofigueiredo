@@ -31,7 +31,7 @@ describe('HighlightsSidebar', () => {
 
   it('renders saved highlights from localStorage', () => {
     const highlights = [
-      { id: 'h1', text: 'Test highlight', startOffset: 0, endOffset: 14, createdAt: new Date().toISOString() },
+      { id: 'h1', text: 'Test highlight', createdAt: new Date().toISOString() },
     ]
     localStorage.setItem('btf-highlights:pt-BR/test-post', JSON.stringify(highlights))
     const { container } = render(<HighlightsSidebar slug="test-post" locale="pt-BR" />)
