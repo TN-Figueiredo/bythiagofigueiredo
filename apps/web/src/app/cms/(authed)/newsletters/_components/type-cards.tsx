@@ -22,7 +22,7 @@ export function TypeCards({ types, selectedTypeId, onSelect }: TypeCardsProps) {
   return (
     <div className="flex gap-3 overflow-x-auto pb-2">
       {types.map((t) => (
-        <button key={t.id} onClick={() => onSelect(selectedTypeId === t.id ? null : t.id)}
+        <button type="button" key={t.id} onClick={() => onSelect(selectedTypeId === t.id ? null : t.id)}
           className={`shrink-0 w-56 bg-cms-surface border rounded-[var(--cms-radius)] p-4 text-left transition-all
             ${selectedTypeId === t.id ? 'border-cms-accent ring-1 ring-cms-accent' : 'border-cms-border hover:border-cms-accent/50'}`}>
           <div className="flex items-center justify-between mb-3">
@@ -39,7 +39,7 @@ export function TypeCards({ types, selectedTypeId, onSelect }: TypeCardsProps) {
           </div>
         </button>
       ))}
-      <button className="shrink-0 w-40 border border-dashed border-cms-border rounded-[var(--cms-radius)] flex items-center justify-center text-sm text-cms-text-dim hover:border-cms-accent hover:text-cms-accent transition-colors">
+      <button type="button" className="shrink-0 w-40 border border-dashed border-cms-border rounded-[var(--cms-radius)] flex items-center justify-center text-sm text-cms-text-dim hover:border-cms-accent hover:text-cms-accent transition-colors">
         + Add type
       </button>
     </div>

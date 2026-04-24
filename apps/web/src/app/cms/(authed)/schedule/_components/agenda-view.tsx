@@ -51,7 +51,7 @@ export function AgendaView({ items, emptySlots, onItemClick, onSlotClick }: Agen
             {group.items.map((item) => {
               const badge = STATUS_BADGE[item.status]; const typeColor = TYPE_COLORS[item.type] ?? 'var(--cms-text-muted)'
               return (
-                <button key={item.id} onClick={() => onItemClick?.(item)}
+                <button type="button" key={item.id} onClick={() => onItemClick?.(item)}
                   className="w-full text-left rounded-[10px] border p-3 flex items-start gap-3 transition-colors group"
                   style={{ background: 'var(--cms-surface, #1a1d27)', borderColor: item.isOverdue ? 'var(--cms-red, #ef4444)' : 'var(--cms-border, #2a2d3a)' }}>
                   <span className="text-xl leading-none shrink-0 mt-0.5">{TYPE_ICONS[item.type]}</span>
@@ -69,7 +69,7 @@ export function AgendaView({ items, emptySlots, onItemClick, onSlotClick }: Agen
               )
             })}
             {group.slots.map((slot, i) => (
-              <button key={i} onClick={() => onSlotClick?.(slot)}
+              <button type="button" key={i} onClick={() => onSlotClick?.(slot)}
                 className="w-full text-center rounded-[10px] border border-dashed py-3 px-4 text-[12px] transition-colors"
                 style={{ borderColor: slot.isOverdue ? 'var(--cms-red)' : 'var(--cms-border)', color: slot.isOverdue ? 'var(--cms-red)' : 'var(--cms-text-dim)',
                   background: slot.isOverdue ? 'rgba(239,68,68,.05)' : 'transparent' }}>

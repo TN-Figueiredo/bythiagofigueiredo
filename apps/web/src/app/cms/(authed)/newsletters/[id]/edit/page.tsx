@@ -45,7 +45,7 @@ export default async function EditEditionPage({
               'use server'
               await sendTestEmail(id)
             }}>
-              <button className="rounded border px-3 py-1.5 text-sm hover:bg-cms-surface-hover">
+              <button type="submit" className="rounded border px-3 py-1.5 text-sm hover:bg-cms-surface-hover">
                 Send Test
               </button>
             </form>
@@ -55,7 +55,7 @@ export default async function EditEditionPage({
               'use server'
               await scheduleEdition(id, new Date(Date.now() + 3600_000).toISOString())
             }}>
-              <button className="rounded bg-orange-600 px-3 py-1.5 text-sm text-white hover:bg-orange-700">
+              <button type="submit" className="rounded bg-orange-600 px-3 py-1.5 text-sm text-white hover:bg-orange-700">
                 Schedule
               </button>
             </form>
@@ -65,7 +65,7 @@ export default async function EditEditionPage({
               'use server'
               await cancelEdition(id)
             }}>
-              <button className="rounded border border-[rgba(239,68,68,.3)] px-3 py-1.5 text-sm text-cms-red hover:bg-[rgba(239,68,68,.05)]">
+              <button type="submit" className="rounded border border-[rgba(239,68,68,.3)] px-3 py-1.5 text-sm text-cms-red hover:bg-[rgba(239,68,68,.05)]">
                 Cancel
               </button>
             </form>

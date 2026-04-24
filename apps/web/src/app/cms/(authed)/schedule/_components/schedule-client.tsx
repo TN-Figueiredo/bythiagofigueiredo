@@ -70,20 +70,20 @@ export function ScheduleClient({ posts, editions, cadence, backlog }: ScheduleCl
       <div className="flex flex-wrap items-center gap-3 mb-5">
         <div className="flex gap-1 p-1 rounded-[8px]" style={{ background: 'var(--cms-bg, #0f1117)' }}>
           {(['week', 'agenda'] as ViewMode[]).map((v) => (
-            <button key={v} onClick={() => setViewMode(v)} className="px-3 py-1 rounded-[6px] text-sm font-medium capitalize transition-colors"
+            <button type="button" key={v} onClick={() => setViewMode(v)} className="px-3 py-1 rounded-[6px] text-sm font-medium capitalize transition-colors"
               style={{ background: viewMode === v ? 'var(--cms-surface)' : 'transparent', color: viewMode === v ? 'var(--cms-text)' : 'var(--cms-text-muted)' }}>{v}</button>
           ))}
         </div>
         {viewMode === 'week' && (
           <div className="flex items-center gap-2">
-            <button onClick={() => { const d = new Date(weekStart); d.setDate(d.getDate() - 7); setWeekStart(d) }}
+            <button type="button" onClick={() => { const d = new Date(weekStart); d.setDate(d.getDate() - 7); setWeekStart(d) }}
               className="w-7 h-7 flex items-center justify-center rounded-md border text-sm"
               style={{ borderColor: 'var(--cms-border)', color: 'var(--cms-text-muted)' }} aria-label="Previous week">&lsaquo;</button>
             <span className="text-sm font-medium min-w-[200px] text-center" style={{ color: 'var(--cms-text)' }}>{weekRangeLabel}</span>
-            <button onClick={() => { const d = new Date(weekStart); d.setDate(d.getDate() + 7); setWeekStart(d) }}
+            <button type="button" onClick={() => { const d = new Date(weekStart); d.setDate(d.getDate() + 7); setWeekStart(d) }}
               className="w-7 h-7 flex items-center justify-center rounded-md border text-sm"
               style={{ borderColor: 'var(--cms-border)', color: 'var(--cms-text-muted)' }} aria-label="Next week">&rsaquo;</button>
-            <button onClick={() => setWeekStart(getWeekStart(today))} className="px-2.5 py-1 text-[11px] rounded-md border"
+            <button type="button" onClick={() => setWeekStart(getWeekStart(today))} className="px-2.5 py-1 text-[11px] rounded-md border"
               style={{ borderColor: 'var(--cms-border)', color: 'var(--cms-text-muted)' }}>Today</button>
           </div>
         )}

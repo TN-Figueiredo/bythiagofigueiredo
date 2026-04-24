@@ -167,6 +167,7 @@ function ActionMenu({
   return (
     <div className="relative" ref={ref}>
       <button
+        type="button"
         onClick={() => setOpen((o) => !o)}
         className="text-xs px-2 py-1 rounded transition-colors"
         style={{ color: 'var(--cms-text-dim)' }}
@@ -184,6 +185,7 @@ function ActionMenu({
         >
           {items.map((item) => (
             <button
+              type="button"
               key={item.action}
               role="menuitem"
               onClick={() => {
@@ -371,6 +373,7 @@ export function SubscriberTable({
           {(['', 'confirmed', 'pending', 'bounced', 'unsubscribed'] as const).map(
             (s) => (
               <button
+                type="button"
                 key={s}
                 onClick={() => onStatusFilter(s)}
                 className="text-xs px-2.5 py-1 rounded-full border transition-colors"
@@ -554,6 +557,7 @@ export function SubscriberTable({
           </span>
           <div className="flex gap-1">
             <button
+              type="button"
               onClick={() => onPageChange(page - 1)}
               disabled={page <= 1}
               className="px-3 py-1.5 rounded border text-xs disabled:opacity-40 transition-colors"
@@ -573,6 +577,7 @@ export function SubscriberTable({
                       : mid - 3 + i
               return (
                 <button
+                  type="button"
                   key={pageNum}
                   onClick={() => onPageChange(pageNum)}
                   className="px-3 py-1.5 rounded border text-xs transition-colors"
@@ -592,6 +597,7 @@ export function SubscriberTable({
               )
             })}
             <button
+              type="button"
               onClick={() => onPageChange(page + 1)}
               disabled={page >= totalPages}
               className="px-3 py-1.5 rounded border text-xs disabled:opacity-40 transition-colors"

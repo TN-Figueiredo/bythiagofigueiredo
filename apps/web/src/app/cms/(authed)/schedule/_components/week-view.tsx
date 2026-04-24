@@ -75,7 +75,7 @@ export function WeekView({ startDate, items, emptySlots, onItemClick, onSlotClic
                   const itemStyle = TYPE_STYLES[item.type] ?? TYPE_STYLES['post']!
                   const bg = itemStyle.bg; const text = itemStyle.text; const border = itemStyle.border
                   return (
-                    <button key={item.id} onClick={() => onItemClick(item)}
+                    <button type="button" key={item.id} onClick={() => onItemClick(item)}
                       className="w-full text-left px-2 py-1 rounded-md text-[11px] font-medium mb-0.5 border-l-[3px] cursor-pointer transition-all hover:brightness-110"
                       style={{ background: bg, color: text, borderLeftColor: border,
                         opacity: item.status === 'draft' ? 0.6 : 1 }}>
@@ -84,7 +84,7 @@ export function WeekView({ startDate, items, emptySlots, onItemClick, onSlotClic
                   )
                 })}
                 {cellSlots.map((s, i) => (
-                  <button key={i} onClick={() => onSlotClick(s)}
+                  <button type="button" key={i} onClick={() => onSlotClick(s)}
                     className="w-full text-center px-2 py-1 rounded-md text-[10px] mb-0.5 border border-dashed cursor-pointer transition-colors"
                     style={{ borderColor: s.isOverdue ? 'var(--cms-red, #ef4444)' : 'var(--cms-border, #2a2d3a)',
                       color: s.isOverdue ? 'var(--cms-red, #ef4444)' : 'var(--cms-text-dim, #52525b)',

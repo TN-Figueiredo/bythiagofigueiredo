@@ -48,6 +48,7 @@ export function AnalyticsTabs() {
         >
           {TABS.map((t) => (
             <button
+              type="button"
               key={t}
               onClick={() => navigate(t)}
               data-active={t === tab}
@@ -80,6 +81,7 @@ export function AnalyticsTabs() {
           <div className="flex gap-1">
             {PERIODS.map((p) => (
               <button
+                type="button"
                 key={p}
                 onClick={() => navigate(undefined, p)}
                 className="px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors border"

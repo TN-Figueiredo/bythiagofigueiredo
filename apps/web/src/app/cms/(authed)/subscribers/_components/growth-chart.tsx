@@ -83,6 +83,7 @@ export function GrowthChart({ data }: GrowthChartProps) {
         >
           {(Object.keys(PERIOD_LABELS) as Period[]).map((p) => (
             <button
+              type="button"
               key={p}
               onClick={() => setPeriod(p)}
               aria-pressed={period === p}

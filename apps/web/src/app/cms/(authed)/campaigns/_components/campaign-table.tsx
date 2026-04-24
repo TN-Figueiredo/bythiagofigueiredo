@@ -126,6 +126,7 @@ function DeleteButton({
   return (
     <>
       <button
+        type="button"
         onClick={handleDelete}
         disabled={isPending}
         className="rounded px-2 py-1 text-xs disabled:opacity-40"

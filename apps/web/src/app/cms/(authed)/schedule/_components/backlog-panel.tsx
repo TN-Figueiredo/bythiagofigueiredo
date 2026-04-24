@@ -73,7 +73,7 @@ export function BacklogPanel({ items, cadence, weekSummary, onScheduleItem, onEd
             ))}
           </ul>
         )}
-        <button onClick={onEditCadence}
+        <button type="button" onClick={onEditCadence}
           className="w-full text-center text-[11px] py-1 rounded-md border transition-colors hover:text-[var(--cms-accent,#6366f1)] hover:border-[var(--cms-accent,#6366f1)]"
           style={{ borderColor: 'var(--cms-border, #2a2d3a)', color: 'var(--cms-text-muted, #71717a)' }}>Edit cadence</button>
       </div>

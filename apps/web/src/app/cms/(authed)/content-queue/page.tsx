@@ -92,14 +92,14 @@ export default async function ContentQueuePage() {
                           }, { today, count: 1 })
                           if (slots[0]) await assignBlogToSlot(post.id, slots[0])
                         }}>
-                          <button className="text-xs text-gray-500 hover:text-blue-600" data-testid="assign-slot-btn">Assign slot</button>
+                          <button type="submit" className="text-xs text-gray-500 hover:text-blue-600" data-testid="assign-slot-btn">Assign slot</button>
                         </form>
                       ) : null}
                       <form action={async () => {
                         'use server'
                         await publishBlogNow(post.id)
                       }}>
-                        <button className="text-xs text-gray-500 hover:text-orange-600" data-testid="publish-now-btn">Publish now</button>
+                        <button type="submit" className="text-xs text-gray-500 hover:text-orange-600" data-testid="publish-now-btn">Publish now</button>
                       </form>
                     </div>
                   </li>
@@ -128,7 +128,7 @@ export default async function ContentQueuePage() {
                     'use server'
                     await unslotBlogPost(post.id)
                   }}>
-                    <button className="text-xs text-cms-text-dim hover:text-[var(--cms-red,#ef4444)]">Unslot</button>
+                    <button type="submit" className="text-xs text-cms-text-dim hover:text-[var(--cms-red,#ef4444)]">Unslot</button>
                   </form>
                 </li>
               )

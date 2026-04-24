@@ -49,7 +49,7 @@ export function PostsFilters({ counts }: PostsFiltersProps) {
           const isActive = currentStatus === tab.value
           const count = tab.value ? (counts[tab.value] ?? 0) : Object.values(counts).reduce((a, b) => a + b, 0)
           return (
-            <button key={tab.value} onClick={() => updateParam('status', tab.value)}
+            <button type="button" key={tab.value} onClick={() => updateParam('status', tab.value)}
               className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors
                 ${isActive ? 'bg-cms-accent-subtle text-cms-accent' : `text-cms-text-muted hover:bg-cms-surface-hover ${STATUS_COLORS[tab.value]}`}`}>
               {tab.label} <span className="opacity-60 ml-1">{count}</span>
@@ -72,7 +72,7 @@ export function PostsFilters({ counts }: PostsFiltersProps) {
 
         <div className="flex border border-cms-border rounded-[var(--cms-radius)] overflow-hidden">
           {LOCALE_OPTIONS.map((loc) => (
-            <button key={loc} onClick={() => updateParam('locale', loc)}
+            <button type="button" key={loc} onClick={() => updateParam('locale', loc)}
               className={`px-3 py-1.5 text-xs font-medium transition-colors
                 ${currentLocale === loc ? 'bg-cms-accent-subtle text-cms-accent' : 'text-cms-text-muted hover:bg-cms-surface-hover'}`}>
               {loc || 'All'}

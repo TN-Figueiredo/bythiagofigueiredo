@@ -55,7 +55,7 @@ export function QuickScheduleDialog({ item, slotDays = [], onSchedule, onClose }
       >
         <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'var(--cms-border, #2a2d3a)' }}>
           <p className="text-sm font-semibold" style={{ color: 'var(--cms-text, #e4e4e7)' }}>Schedule Item</p>
-          <button onClick={onClose} className="w-6 h-6 flex items-center justify-center rounded hover:opacity-70 text-lg leading-none"
+          <button type="button" onClick={onClose} className="w-6 h-6 flex items-center justify-center rounded hover:opacity-70 text-lg leading-none"
             style={{ color: 'var(--cms-text-dim, #52525b)' }} aria-label="Close">x</button>
         </div>
         <div className="px-4 pt-4 pb-3">
@@ -71,10 +71,10 @@ export function QuickScheduleDialog({ item, slotDays = [], onSchedule, onClose }
         </div>
         <div className="px-4 pb-4">
           <div className="flex items-center justify-between mb-3">
-            <button onClick={prevMonth} className="w-6 h-6 flex items-center justify-center rounded text-sm hover:opacity-70"
+            <button type="button" onClick={prevMonth} className="w-6 h-6 flex items-center justify-center rounded text-sm hover:opacity-70"
               style={{ color: 'var(--cms-text-muted)' }} aria-label="Previous month">&lsaquo;</button>
             <span className="text-[13px] font-medium" style={{ color: 'var(--cms-text, #e4e4e7)' }}>{MONTH_NAMES[calMonth]} {calYear}</span>
-            <button onClick={nextMonth} className="w-6 h-6 flex items-center justify-center rounded text-sm hover:opacity-70"
+            <button type="button" onClick={nextMonth} className="w-6 h-6 flex items-center justify-center rounded text-sm hover:opacity-70"
               style={{ color: 'var(--cms-text-muted)' }} aria-label="Next month">&rsaquo;</button>
           </div>
           <div className="grid grid-cols-7 mb-1">
@@ -88,7 +88,7 @@ export function QuickScheduleDialog({ item, slotDays = [], onSchedule, onClose }
               const dateStr = dayToDateStr(day); const past = isPast(day)
               const isToday = dateStr === todayStr; const isSlot = slotSet.has(dateStr); const isSelected = selectedDate === dateStr
               return (
-                <button key={dateStr} onClick={() => !past && setSelectedDate(dateStr)} disabled={past}
+                <button type="button" key={dateStr} onClick={() => !past && setSelectedDate(dateStr)} disabled={past}
                   className="relative flex flex-col items-center justify-center h-8 rounded-md text-xs font-medium transition-colors"
                   style={{ background: isSelected ? 'var(--cms-accent)' : isToday ? 'var(--cms-accent-subtle)' : 'transparent',
                     color: isSelected ? 'var(--cms-text-on-accent, #fff)' : past ? 'var(--cms-text-dim)' : isToday ? 'var(--cms-accent)' : 'var(--cms-text)',
@@ -108,9 +108,9 @@ export function QuickScheduleDialog({ item, slotDays = [], onSchedule, onClose }
           )}
         </div>
         <div className="px-4 pb-4 flex gap-2">
-          <button onClick={onClose} className="flex-1 py-2 rounded-[8px] text-sm border"
+          <button type="button" onClick={onClose} className="flex-1 py-2 rounded-[8px] text-sm border"
             style={{ borderColor: 'var(--cms-border)', color: 'var(--cms-text-muted)' }}>Cancel</button>
-          <button onClick={() => { if (selectedDate) { onSchedule(item, selectedDate); onClose() } }} disabled={!selectedDate}
+          <button type="button" onClick={() => { if (selectedDate) { onSchedule(item, selectedDate); onClose() } }} disabled={!selectedDate}
             className="flex-1 py-2 rounded-[8px] text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ background: selectedDate ? 'var(--cms-accent)' : 'var(--cms-border)', color: 'var(--cms-text-on-accent, #fff)' }}>
             {selectedDate ? `Schedule for ${new Date(selectedDate + 'T12:00:00').toLocaleDateString('en', { month: 'short', day: 'numeric' })}` : 'Pick a date'}
