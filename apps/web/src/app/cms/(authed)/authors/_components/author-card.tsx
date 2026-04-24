@@ -29,7 +29,7 @@ export function AuthorCard(props: AuthorCardProps) {
     <div className="bg-cms-surface border border-cms-border rounded-[var(--cms-radius)] p-4 hover:border-cms-accent transition-colors cursor-pointer">
       <div className="flex items-start gap-3 mb-3">
         {props.avatarUrl ? (
-          <img src={props.avatarUrl} alt="" className="w-14 h-14 rounded-full object-cover" />
+          <img src={props.avatarUrl} alt={props.displayName} className="w-14 h-14 rounded-full object-cover" />
         ) : (
           <div className="w-14 h-14 rounded-full bg-cms-accent flex items-center justify-center text-lg font-semibold text-white">
             {props.initials}

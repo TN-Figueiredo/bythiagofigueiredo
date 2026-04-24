@@ -4,6 +4,8 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { StatusBadge, type StatusVariant } from '@tn-figueiredo/cms-ui/client'
 import { saveEdition, sendTestEmail, scheduleEdition, cancelEdition } from '../../actions'
 
+const ONE_HOUR_MS = 3_600_000
+
 export const dynamic = 'force-dynamic'
 
 export default async function EditEditionPage({
@@ -53,7 +55,7 @@ export default async function EditEditionPage({
           {['draft', 'ready'].includes(edition.status) && (
             <form action={async () => {
               'use server'
-              await scheduleEdition(id, new Date(Date.now() + 3600_000).toISOString())
+              await scheduleEdition(id, new Date(Date.now() + ONE_HOUR_MS).toISOString())
             }}>
               <button type="submit" className="rounded bg-orange-600 px-3 py-1.5 text-sm text-white hover:bg-orange-700">
                 Schedule

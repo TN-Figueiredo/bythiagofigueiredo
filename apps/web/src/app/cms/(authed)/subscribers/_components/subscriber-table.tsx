@@ -194,18 +194,7 @@ function ActionMenu({
                   navigator.clipboard.writeText(row.email).catch(() => {})
                 }
               }}
-              className="w-full text-left text-xs px-3 py-1.5 transition-colors"
-              style={{
-                color: item.danger ? 'var(--cms-red, #ef4444)' : 'var(--cms-text)',
-                background: 'transparent',
-              }}
-              onMouseEnter={(e) => {
-                ;(e.currentTarget as HTMLButtonElement).style.background =
-                  'var(--cms-surface-hover)'
-              }}
-              onMouseLeave={(e) => {
-                ;(e.currentTarget as HTMLButtonElement).style.background = 'transparent'
-              }}
+              className={`w-full text-left text-xs px-3 py-1.5 transition-colors hover:bg-cms-surface-hover ${item.danger ? 'text-cms-red' : 'text-cms-text'}`}
             >
               {item.label}
             </button>
@@ -451,15 +440,7 @@ export function SubscriberTable({
             {initialRows.map((row) => (
               <tr
                 key={row.id}
-                className="border-t transition-colors"
-                style={{ borderColor: 'var(--cms-border)' }}
-                onMouseEnter={(e) => {
-                  ;(e.currentTarget as HTMLTableRowElement).style.background =
-                    'var(--cms-surface-hover)'
-                }}
-                onMouseLeave={(e) => {
-                  ;(e.currentTarget as HTMLTableRowElement).style.background = 'transparent'
-                }}
+                className="border-t border-cms-border transition-colors hover:bg-cms-surface-hover"
               >
                 <td className="py-2.5 pr-3">
                   <input

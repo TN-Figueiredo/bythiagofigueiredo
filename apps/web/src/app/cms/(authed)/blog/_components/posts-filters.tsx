@@ -67,6 +67,7 @@ export function PostsFilters({ counts }: PostsFiltersProps) {
               debounceRef.current = setTimeout(() => updateParam('q', e.target.value), 300)
             }}
             placeholder="Search posts..."
+            aria-label="Search posts"
             className="w-full px-3 py-2 text-sm bg-cms-bg border border-cms-border rounded-[var(--cms-radius)] text-cms-text placeholder:text-cms-text-dim focus:border-cms-accent focus:outline-none" />
         </div>
 

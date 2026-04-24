@@ -47,14 +47,6 @@ export default async function ContentQueuePage() {
     .select('*')
     .eq('site_id', ctx.siteId)
 
-  const { data: nlTypes } = await supabase
-    .from('newsletter_types')
-    .select('id, name, locale, cadence_days, cadence_start_date, cadence_paused, last_sent_at')
-    .eq('active', true)
-
-  // Suppress unused variable warning — nlTypes is fetched for future use
-  void nlTypes
-
   return (
     <div className="space-y-8">
       <h1 className="text-2xl font-bold">Content Queue</h1>

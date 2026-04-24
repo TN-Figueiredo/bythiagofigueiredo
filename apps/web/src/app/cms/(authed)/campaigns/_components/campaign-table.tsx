@@ -129,10 +129,7 @@ function DeleteButton({
         type="button"
         onClick={handleDelete}
         disabled={isPending}
-        className="rounded px-2 py-1 text-xs disabled:opacity-40"
-        style={{ color: 'var(--cms-red, #ef4444)' }}
-        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'color-mix(in srgb, var(--cms-red, #ef4444) 10%, transparent)' }}
-        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
+        className="rounded px-2 py-1 text-xs text-cms-red hover:bg-cms-red/10 disabled:opacity-40"
         aria-label="Delete campaign"
       >
         {isPending ? '…' : 'Delete'}
