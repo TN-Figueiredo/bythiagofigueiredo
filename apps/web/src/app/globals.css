@@ -148,6 +148,7 @@ body {
   --font-fraunces:     var(--font-fraunces-var);
   --font-jetbrains:    var(--font-jetbrains-var);
   --font-caveat:       var(--font-caveat-var);
+  --font-source-serif: var(--font-source-serif-var);
 
   /* CMS design system colors */
   --color-cms-bg:            var(--cms-bg);

@@ -1,11 +1,13 @@
 import matter from 'gray-matter'
 import { SeoExtrasSchema, SeoExtrasValidationError, type SeoExtras } from './jsonld/extras-schema'
+import { PostExtrasSchema, type PostExtras } from '@/components/blog/post-extras-schema'
 
 export { SeoExtrasValidationError } from './jsonld/extras-schema'
 
 export interface ParsedMdx {
   content: string
   seoExtras: SeoExtras | null
+  postExtras: PostExtras | null
   raw: Record<string, unknown>
 }
 
@@ -19,5 +21,7 @@ export function parseMdxFrontmatter(source: string): ParsedMdx {
     }
     seoExtras = parsed.data
   }
-  return { content, seoExtras, raw: data }
+  const postExtrasParsed = PostExtrasSchema.safeParse(data)
+  const postExtras = postExtrasParsed.success ? postExtrasParsed.data : null
+  return { content, seoExtras, postExtras, raw: data }
 }

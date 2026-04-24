@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Inter, Fraunces, JetBrains_Mono, Caveat } from 'next/font/google'
+import { Inter, Fraunces, JetBrains_Mono, Caveat, Source_Serif_4 } from 'next/font/google'
 import { cookies } from 'next/headers'
 import './globals.css'
 import { ThemeScript } from '@/components/ui/theme-toggle'
@@ -25,6 +25,13 @@ const caveat = Caveat({
   subsets: ['latin'],
   variable: '--font-caveat-var',
   display: 'swap',
+})
+const sourceSerif = Source_Serif_4({
+  subsets: ['latin'],
+  variable: '--font-source-serif-var',
+  display: 'swap',
+  style: ['normal', 'italic'],
+  weight: ['400', '600'],
 })
 
 // metadataBase drives resolution of relative URLs in alternates / openGraph /
@@ -55,7 +62,7 @@ export default async function RootLayout({
   return (
     <html
       lang="pt-BR"
-      className={`${theme === 'dark' ? 'dark' : ''} ${inter.variable} ${fraunces.variable} ${jetbrains.variable} ${caveat.variable}`}
+      className={`${theme === 'dark' ? 'dark' : ''} ${inter.variable} ${fraunces.variable} ${jetbrains.variable} ${caveat.variable} ${sourceSerif.variable}`}
       data-theme={theme}
       suppressHydrationWarning
     >
