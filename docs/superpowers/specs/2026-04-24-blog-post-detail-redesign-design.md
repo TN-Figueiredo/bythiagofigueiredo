@@ -14,14 +14,17 @@ A pagina atual e um wrapper minimo: titulo, excerpt, date, MDX body, nav prev/ne
 
 ```
 |  TOC sidebar  |     Article body     |  Key points sidebar  |
-|   ~200-220px  |      ~720-760px      |      ~220-260px      |
-|   sticky@120  |                      |      sticky@120      |
+|    ~200px     |      ~760px          |      ~240px          |
+|   sticky@80   |                      |      sticky@80       |
 ```
 
 - Max container: 1280px, centered
+- Grid gap: 40px
+- Hero section (back link → cover image) centered at max-width 760px ABOVE the 3-col grid
+- 3-col grid starts at the article body
 - 768-960px: sidebars colapsam, artigo ocupa 100%, FABs mobile aparecem
 - Abaixo de 768px: layout mobile (padding 16px, FABs)
-- Artigo body text: Source Serif 4, 19px, line-height 1.7
+- Artigo body text: Source Serif 4, 19px, line-height 1.72
 
 ### Sidebar Esquerda (sticky)
 
@@ -38,7 +41,7 @@ A pagina atual e um wrapper minimo: titulo, excerpt, date, MDX body, nav prev/ne
 ## Secoes da Pagina (ordem top-to-bottom)
 
 ### 1. Reading Progress Bar
-- Posicao: fixed, abaixo do header sticky (~top: 102px)
+- Posicao: sticky, imediatamente abaixo do header (top: 56px)
 - Altura: 3px
 - Segmentada por H2 sections — cada segmento preenche progressivamente
 - Cor: `--pb-accent` (preenchido) / `transparent` (vazio)
@@ -59,7 +62,7 @@ A pagina atual e um wrapper minimo: titulo, excerpt, date, MDX body, nav prev/ne
 ### 4. Post Meta Row
 - Category badge: borda `--pb-accent`, text uppercase, font-mono 11px
 - Date: "24 Abr 2026" formatada por locale
-- Reading time: "9 leitura" (singular/plural)
+- Reading time: "9 min leitura" (singular/plural)
 - Updated date: "atualizado em 26 Abr 2026" (se `updated_at` > `published_at`)
 
 ### 5. Series Banner (condicional)
@@ -90,15 +93,22 @@ A pagina atual e um wrapper minimo: titulo, excerpt, date, MDX body, nav prev/ne
 
 ### 10. Article Body (MDX)
 - Renderizado via `MdxRunner` com `blogRegistry`
-- Body text: Source Serif 4, 19px, line-height 1.7
-- H2: 32px Fraunces, com linked anchor
-- H3: 22px Fraunces, com linked anchor
+- Body text: Source Serif 4, 19px, line-height 1.72
+- H2: 32px Fraunces, com linked anchor (`#` aparece on hover, opacity transition)
+- H3: 22px Fraunces, com linked anchor (`#` aparece on hover, opacity transition)
 - Blockquote: borda esquerda `--pb-accent`, bg `--pb-paper`, italic
-- Code blocks: `--pb-paper2` bg, ShikiCodeBlock com botao "COPIAR"
+- Code blocks: `--pb-paper2` bg, ShikiCodeBlock com botao "COPIAR" + language label (top-left)
 - Links: `--pb-accent`, underline on hover
-- Lists: custom bullet style
-- Images/figures: full-width com caption opcional
-- Callouts: bg diferenciado
+- `<ul>`: custom bullet (6px accent-colored circle at left)
+- `<ol>`: custom counter (JetBrains Mono, accent color, `decimal-leading-zero`)
+- Images/figures: full-width com `<figcaption>` em JetBrains Mono 12px italic `--pb-faint`
+- Callouts: Source Serif 4 italic (NOT Caveat), border `rgba(255,130,64,0.3)`, bg `rgba(255,130,64,0.06)`, icon + text
+- `mark.btf-hl`: gradient underline (transparent 60%, `rgba(255,227,122,0.25)` 60%)
+
+### Post-Footer Wrapper
+- Secoes 11-17 (Author Card ate Colofao) ficam dentro de um wrapper `max-width:760px; margin:0 auto` — centralizadas, mesma largura do artigo
+- Secao 18 (Related Posts) ocupa largura maior (`max-width:1100px`)
+- Secao 19 (Footer Nav) full-width
 
 ### 11. Author Card (end of article)
 - "SOBRE QUEM ESCREVEU" label
@@ -114,12 +124,13 @@ A pagina atual e um wrapper minimo: titulo, excerpt, date, MDX body, nav prev/ne
 - Tags como pills: border `--pb-line`, border-radius 20px, font-mono
 - Dados: hardcoded por agora (sem tags table). Frontmatter: `tags: string[]`.
 
-### 13. Comments (hardcoded)
-- "Conversa · {n} comentarios" heading
-- Textarea com placeholder "Deixe um comentario honesto (sem self-promo)"
-- "Voce precisa entrar com email pra comentar" + botao "PUBLICAR"
-- Lista de comentarios mockados: avatar, nome, "ha X dias", texto, like count, "responder"
-- Respostas aninhadas com badge "RESPOSTA DO AUTOR" (bg: `--pb-accent`)
+### 13. Comments (hardcoded, inline)
+- Posicao: apos Tags, antes de Series Navigation (proximo ao artigo)
+- "Conversa · {n} comentarios" heading (Fraunces 24px + Inter 15px muted para count)
+- Textarea em card `--pb-paper` com placeholder "Deixe um comentario honesto (sem self-promo)"
+- "Voce precisa entrar com email pra comentar" + botao "PUBLICAR" (`--pb-accent` bg, `--pb-bg` text — dark text on accent)
+- Lista de comentarios inline (nao collapsed): avatar, nome, "ha X dias", texto, like count, "responder"
+- Respostas aninhadas (margin-left 52px) com badge "RESPOSTA DO AUTOR" (`--pb-accent` bg, `--pb-bg` text)
 - Tudo hardcoded — sem backend de comentarios.
 
 ### 14. Series Navigation (condicional)
@@ -131,10 +142,11 @@ A pagina atual e um wrapper minimo: titulo, excerpt, date, MDX body, nav prev/ne
 
 ### 15. Newsletter CTA (contextual)
 - "NEWSLETTER" label
-- "Gostou? Recebe os proximos na caixa de entrada."
+- Titulo: "Gostou? Recebe os proximos na caixa de entrada." — Fraunces 28px, max-width 500px (force 2-line wrap)
 - Email input + botao "ASSINAR CADERNO DE {CATEGORIA}"
 - Stats: "{n} leitores · {n}% open rate · cancelar e um clique"
 - Cor do botao/accent: brand color da newsletter type mapeada pela categoria do post (Main=orange, Code=blue, etc.)
+- Visual: tape decoration (top center `--pb-tape` + bottom right `--pb-tape2`), accent bar (4px `--pb-accent` no topo do card)
 - Wired ao sistema de newsletter subscription existente.
 
 ### 16. Footnotes
@@ -147,8 +159,9 @@ A pagina atual e um wrapper minimo: titulo, excerpt, date, MDX body, nav prev/ne
 - Dados: extraidos do MDX content via remark-gfm footnote syntax (`[^1]` inline, `[^1]: texto` no final). Requer `remark-footnotes` ou `remark-gfm` no pipeline `compileMdx`.
 
 ### 17. Colofao
-- "COLOFAO" label
-- Texto italico em `--pb-muted` descrevendo ferramentas usadas
+- "COLOFAO" label (JetBrains Mono 10px) + texto italico em `--pb-muted`
+- Layout: flex row, label min-width 60px + texto
+- Bordas: `border-top: 1px dashed --pb-line` + `border-bottom: 1px dashed --pb-line`, padding 24px vertical
 - Dados: frontmatter `colophon: string`. Se ausente, nao renderiza.
 
 ### 18. Related Posts
