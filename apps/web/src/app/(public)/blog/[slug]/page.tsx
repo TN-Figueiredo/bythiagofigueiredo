@@ -13,6 +13,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { buildDetailGraph, parseDateOrNull } from '@/lib/blog/build-detail-graph'
 import { getRelatedPosts } from '@/lib/blog/related-posts'
 import { parseMdxFrontmatter } from '@/lib/seo/frontmatter'
+import { localePath } from '@/lib/i18n/locale-path'
 import {
   ScrollProvider,
   PostKeyPoints,
@@ -51,11 +52,13 @@ import { BlogArticleClient } from './blog-article-client'
 export const revalidate = 3600
 
 interface Props {
-  params: Promise<{ locale: string; slug: string }>
+  params: Promise<{ slug: string }>
 }
 
 export default async function BlogDetailPage({ params }: Props) {
-  const { locale, slug } = await params
+  const { slug } = await params
+  const h = await headers()
+  const locale = h.get('x-locale') ?? 'en'
   const ctx = await getSiteContext()
 
   const loaded = await loadPostWithLocales(ctx.siteId, locale, slug)
@@ -91,7 +94,7 @@ export default async function BlogDetailPage({ params }: Props) {
     .single()
   const category = postMeta?.category ?? null
 
-  const host = (await headers()).get('host') ?? ctx.primaryDomain ?? ''
+  const host = h.get('host') ?? ctx.primaryDomain ?? ''
   const [related, config] = await Promise.all([
     getRelatedPosts(ctx.siteId, locale, post.id, category),
     getSiteSeoConfig(ctx.siteId, host).catch(() => null),
@@ -109,7 +112,7 @@ export default async function BlogDetailPage({ params }: Props) {
     ? new Date(updatedAt).toLocaleDateString(locale === 'pt-BR' ? 'pt-BR' : 'en', { day: '2-digit', month: 'short', year: 'numeric' })
     : null
 
-  const pageUrl = `https://${host}/blog/${locale}/${encodeURIComponent(slug)}`
+  const pageUrl = `https://${host}${localePath(`/blog/${encodeURIComponent(slug)}`, locale)}`
 
   const adLocale = locale as 'en' | 'pt-BR'
   const adHash = hashSlug(slug)
@@ -138,7 +141,7 @@ export default async function BlogDetailPage({ params }: Props) {
       <ScrollProvider sections={toc}>
         <div className="max-w-[1280px] mx-auto px-7 pt-7">
           <Link
-            href={`/blog/${locale}`}
+            href={localePath('/blog', locale)}
             className="inline-block no-underline mb-6"
             style={{
               fontFamily: 'var(--font-caveat), cursive',
@@ -281,8 +284,10 @@ export default async function BlogDetailPage({ params }: Props) {
   )
 }
 
-export async function generateMetadata({ params }: { params: Promise<{ locale: string; slug: string }> }): Promise<Metadata> {
-  const { locale, slug } = await params
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params
+  const h = await headers()
+  const locale = h.get('x-locale') ?? 'en'
   const ctx = await tryGetSiteContext()
   if (!ctx) return {}
   const loaded = await loadPostWithLocales(ctx.siteId, locale, slug)
@@ -291,7 +296,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   const tx = translations.find((tr) => tr.locale === locale)
   if (!tx) return {}
 
-  const host = (await headers()).get('host') ?? ctx.primaryDomain ?? ''
+  const host = h.get('host') ?? ctx.primaryDomain ?? ''
   let config: SiteSeoConfig
   try {
     config = await getSiteSeoConfig(ctx.siteId, host)
@@ -299,7 +304,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
     return {
       title: tx.title,
       description: tx.excerpt ?? undefined,
-      alternates: { canonical: `/blog/${locale}/${encodeURIComponent(slug)}` },
+      alternates: { canonical: localePath(`/blog/${encodeURIComponent(slug)}`, locale) },
     }
   }
 
@@ -311,7 +316,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
     return {
       title: tx.title,
       description: tx.excerpt ?? undefined,
-      alternates: { canonical: `/blog/${locale}/${encodeURIComponent(slug)}` },
+      alternates: { canonical: localePath(`/blog/${encodeURIComponent(slug)}`, locale) },
     }
   }
   const postInput = {

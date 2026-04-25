@@ -28,6 +28,7 @@
       "@/lib/content-queue/*": ["./lib/content-queue/*"],
       "@/lib/email/*": ["./lib/email/*"],
       "@/lib/home/*": ["./lib/home/*"],
+      "@/lib/i18n/*": ["./lib/i18n/*"],
       "@/lib/newsletter/*": ["./lib/newsletter/*"],
       "@/lib/seo/*": ["./lib/seo/*"],
       "@/lib/supabase/*": ["./lib/supabase/*"],

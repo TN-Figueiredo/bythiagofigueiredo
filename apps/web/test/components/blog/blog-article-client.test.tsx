@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { render } from '@testing-library/react'
-import { BlogArticleClient } from '../../../src/app/(public)/blog/[locale]/[slug]/blog-article-client'
+import { BlogArticleClient } from '../../../src/app/(public)/blog/[slug]/blog-article-client'
 import { ScrollProvider } from '../../../src/components/blog/scroll-context'
 
 const defaultSections = [{ slug: 'intro', text: 'Intro', depth: 2 as const }]

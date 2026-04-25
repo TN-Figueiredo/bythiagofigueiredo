@@ -29,13 +29,13 @@ vi.mock('../../lib/seo/config', () => ({
 }))
 
 vi.mock('next/headers', () => ({
-  headers: () => Promise.resolve(new Map([['host', 'example.com']])),
+  headers: () => Promise.resolve(new Map([['host', 'example.com'], ['x-locale', 'pt-BR']])),
   cookies: () => Promise.resolve({ get: () => undefined }),
 }))
 
 // CategoryFilter is a 'use client' component using useRouter/usePathname/useSearchParams.
 // Stub it to avoid Next.js app router invariant errors in unit tests.
-vi.mock('../../src/app/(public)/blog/[locale]/category-filter', () => ({
+vi.mock('../../src/app/(public)/blog/category-filter', () => ({
   CategoryFilter: ({ categories, allLabel }: { categories: string[]; allLabel: string }) => (
     <div data-testid="category-filter">{allLabel} | {categories.join(', ')}</div>
   ),
@@ -100,12 +100,11 @@ vi.mock('../../lib/supabase/service', () =>
   ),
 )
 
-import BlogListPage from '../../src/app/(public)/blog/[locale]/page'
+import BlogListPage from '../../src/app/(public)/blog/page'
 
 describe('BlogListPage', () => {
   it('renders post titles + reading time', async () => {
     const jsx = await BlogListPage({
-      params: Promise.resolve({ locale: 'pt-BR' }),
       searchParams: Promise.resolve({}),
     })
     const { container } = render(jsx as never)
@@ -117,8 +116,8 @@ describe('BlogListPage', () => {
     vi.doMock('../../lib/supabase/service', () => createSupabaseMock([], []))
     // Force re-import with new mock
     vi.resetModules()
-    const { default: Page } = await import('../../src/app/(public)/blog/[locale]/page')
-    const jsx = await Page({ params: Promise.resolve({ locale: 'pt-BR' }), searchParams: Promise.resolve({}) })
+    const { default: Page } = await import('../../src/app/(public)/blog/page')
+    const jsx = await Page({ searchParams: Promise.resolve({}) })
     const { container } = render(jsx as never)
     expect(container.textContent).toContain('Nenhum post')
   })

@@ -32,7 +32,7 @@ vi.mock('../../lib/seo/config', () => ({
 }))
 
 vi.mock('next/headers', () => ({
-  headers: () => Promise.resolve(new Map([['host', 'example.com']])),
+  headers: () => Promise.resolve(new Map([['host', 'example.com'], ['x-locale', 'pt-BR']])),
   cookies: () => Promise.resolve({ get: () => undefined }),
 }))
 
@@ -123,24 +123,24 @@ vi.mock('../../lib/blog/adjacent-posts', () => ({
   getAdjacentPosts: vi.fn().mockResolvedValue({ prev: null, next: null }),
 }))
 
-import BlogDetailPage, { generateMetadata } from '../../src/app/(public)/blog/[locale]/[slug]/page'
+import BlogDetailPage, { generateMetadata } from '../../src/app/(public)/blog/[slug]/page'
 
 describe('BlogDetailPage', () => {
   it('renders title + TOC + reading time', async () => {
-    const jsx = await BlogDetailPage({ params: Promise.resolve({ locale: 'pt-BR', slug: 'hello' }) })
+    const jsx = await BlogDetailPage({ params: Promise.resolve({ slug: 'hello' }) })
     const { container } = render(jsx as never)
     expect(container.textContent).toContain('Hello')
     expect(container.textContent).toContain('1 min leitura')
   })
 
   it('hides LocaleSwitcher when only one translation exists', async () => {
-    const jsx = await BlogDetailPage({ params: Promise.resolve({ locale: 'pt-BR', slug: 'hello' }) })
+    const jsx = await BlogDetailPage({ params: Promise.resolve({ slug: 'hello' }) })
     const { container } = render(jsx as never)
     expect(container.querySelector('[data-testid="locale-switcher"]')).toBeNull()
   })
 
   it('renders new 3-column layout with author row and TOC label', async () => {
-    const jsx = await BlogDetailPage({ params: Promise.resolve({ locale: 'pt-BR', slug: 'hello' }) })
+    const jsx = await BlogDetailPage({ params: Promise.resolve({ slug: 'hello' }) })
     const { container } = render(jsx as never)
     expect(container.textContent).toContain('Thiago Figueiredo')
     expect(container.textContent).toContain('NESTE TEXTO')
@@ -148,14 +148,14 @@ describe('BlogDetailPage', () => {
   })
 
   it('renders author card in footer', async () => {
-    const jsx = await BlogDetailPage({ params: Promise.resolve({ locale: 'pt-BR', slug: 'hello' }) })
+    const jsx = await BlogDetailPage({ params: Promise.resolve({ slug: 'hello' }) })
     const { container } = render(jsx as never)
     expect(container.textContent).toContain('Sobre quem escreveu')
     expect(container.textContent).toContain('Construo software')
   })
 
   it('renders comments section with mock data', async () => {
-    const jsx = await BlogDetailPage({ params: Promise.resolve({ locale: 'pt-BR', slug: 'hello' }) })
+    const jsx = await BlogDetailPage({ params: Promise.resolve({ slug: 'hello' }) })
     const { container } = render(jsx as never)
     expect(container.textContent).toContain('Conversa')
     expect(container.textContent).toContain('Paula Reis')
@@ -163,7 +163,7 @@ describe('BlogDetailPage', () => {
   })
 
   it('renders newsletter CTA', async () => {
-    const jsx = await BlogDetailPage({ params: Promise.resolve({ locale: 'pt-BR', slug: 'hello' }) })
+    const jsx = await BlogDetailPage({ params: Promise.resolve({ slug: 'hello' }) })
     const { container } = render(jsx as never)
     expect(container.textContent).toContain('Newsletter')
     expect(container.querySelector('input[type="email"]')).toBeTruthy()
@@ -177,9 +177,9 @@ describe('BlogDetailPage', () => {
       }),
     }))
     vi.resetModules()
-    const { default: Page } = await import('../../src/app/(public)/blog/[locale]/[slug]/page')
+    const { default: Page } = await import('../../src/app/(public)/blog/[slug]/page')
     await expect(
-      Page({ params: Promise.resolve({ locale: 'pt-BR', slug: 'missing' }) })
+      Page({ params: Promise.resolve({ slug: 'missing' }) })
     ).rejects.toThrow()
   })
 })
@@ -198,8 +198,8 @@ describe('BlogDetailPage generateMetadata', () => {
       ),
     }))
     vi.resetModules()
-    const { generateMetadata: gen } = await import('../../src/app/(public)/blog/[locale]/[slug]/page')
-    const meta = await gen({ params: Promise.resolve({ locale: 'pt-BR', slug: 'hello' }) })
+    const { generateMetadata: gen } = await import('../../src/app/(public)/blog/[slug]/page')
+    const meta = await gen({ params: Promise.resolve({ slug: 'hello' }) })
     expect(meta.alternates?.canonical).toBe('/blog/pt-BR/hello')
     expect(meta.alternates?.languages).toEqual({
       'pt-BR': '/blog/pt-BR/hello',
@@ -214,8 +214,8 @@ describe('BlogDetailPage generateMetadata', () => {
       tryGetSiteContext: () => Promise.resolve(null),
     }))
     vi.resetModules()
-    const { generateMetadata: gen } = await import('../../src/app/(public)/blog/[locale]/[slug]/page')
-    const meta = await gen({ params: Promise.resolve({ locale: 'pt-BR', slug: 'hello' }) })
+    const { generateMetadata: gen } = await import('../../src/app/(public)/blog/[slug]/page')
+    const meta = await gen({ params: Promise.resolve({ slug: 'hello' }) })
     expect(meta).toEqual({})
   })
 })
