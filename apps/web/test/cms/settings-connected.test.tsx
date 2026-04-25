@@ -65,6 +65,13 @@ const mockBlogCadence = [
   },
 ]
 
+const mockSeoFlags = {
+  jsonLd: true,
+  dynamicOg: true,
+  extendedSchemas: true,
+  aiCrawlersBlocked: false,
+}
+
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                           */
 /* ------------------------------------------------------------------ */
@@ -79,6 +86,8 @@ async function renderSettings(overrides: Record<string, unknown> = {}) {
       newsletterTypes={mockNewsletterTypes}
       blogCadence={mockBlogCadence}
       initialSection="branding"
+      seoFlags={mockSeoFlags}
+      readOnly={false}
       {...overrides}
     />,
   )
@@ -136,7 +145,6 @@ describe('SettingsConnected', () => {
   it('switches to blog cadence section', async () => {
     await renderSettings()
     fireEvent.click(screen.getByRole('button', { name: /blog cadence/i }))
-    /* pt-BR appears in both sidebar (tab number label is just index) and content */
     expect(screen.getAllByText('pt-BR').length).toBeGreaterThan(0)
   })
 
@@ -149,7 +157,6 @@ describe('SettingsConnected', () => {
   it('switches to danger zone section', async () => {
     await renderSettings()
     fireEvent.click(screen.getByRole('button', { name: /danger zone/i }))
-    /* "Danger Zone" appears in both sidebar and heading — use getAllByText */
     expect(screen.getAllByText(/danger zone/i).length).toBeGreaterThanOrEqual(2)
     expect(screen.getByRole('button', { name: /delete site/i })).toBeTruthy()
   })
@@ -187,13 +194,16 @@ describe('SettingsConnected', () => {
 
   /* ---- SEO section ---- */
 
-  it('renders SEO feature flags grid', async () => {
+  it('renders SEO feature flags with actual values', async () => {
     await renderSettings()
     fireEvent.click(screen.getByRole('button', { name: /seo/i }))
     expect(screen.getByText('JSON-LD')).toBeTruthy()
     expect(screen.getByText('Dynamic OG')).toBeTruthy()
     expect(screen.getByText('Extended Schemas')).toBeTruthy()
     expect(screen.getByText('AI Crawlers Blocked')).toBeTruthy()
+    const onBadges = screen.getAllByText('On')
+    expect(onBadges.length).toBe(3)
+    expect(screen.getByText('Off')).toBeTruthy()
   })
 
   it('renders OG precedence chain info', async () => {
@@ -235,7 +245,6 @@ describe('SettingsConnected', () => {
   it('renders supported locales as tags', async () => {
     await renderSettings()
     fireEvent.click(screen.getByRole('button', { name: /localization/i }))
-    /* Both pt-BR and en appear as locale tags in the section */
     expect(screen.getAllByText('pt-BR').length).toBeGreaterThan(0)
     expect(screen.getAllByText('en').length).toBeGreaterThan(0)
   })
@@ -243,9 +252,7 @@ describe('SettingsConnected', () => {
   it('prevents removing default locale', async () => {
     await renderSettings()
     fireEvent.click(screen.getByRole('button', { name: /localization/i }))
-    /* The default locale (pt-BR) should NOT have a remove button */
     expect(screen.queryByLabelText(/remove pt-br/i)).toBeNull()
-    /* The non-default locale (en) should have a remove button */
     expect(screen.getByLabelText(/remove en/i)).toBeTruthy()
   })
 
@@ -302,8 +309,52 @@ describe('SettingsConnected', () => {
         newsletterTypes={[]}
         blogCadence={[]}
         initialSection="seo"
+        seoFlags={mockSeoFlags}
       />,
     )
     expect(screen.getByLabelText(/default og image/i)).toBeTruthy()
+  })
+
+  /* ---- Read-only mode ---- */
+
+  it('shows read-only banner when readOnly=true', async () => {
+    await renderSettings({ readOnly: true })
+    expect(screen.getByText(/read-only access/i)).toBeTruthy()
+  })
+
+  it('hides save button in read-only mode', async () => {
+    await renderSettings({ readOnly: true })
+    expect(screen.queryByRole('button', { name: /save/i })).toBeNull()
+  })
+
+  it('disables inputs in read-only mode', async () => {
+    await renderSettings({ readOnly: true })
+    const input = screen.getByLabelText(/logo url/i) as HTMLInputElement
+    expect(input.disabled).toBe(true)
+  })
+
+  it('hides danger zone tab in read-only mode', async () => {
+    await renderSettings({ readOnly: true })
+    expect(
+      screen.queryByRole('button', { name: /danger zone/i }),
+    ).toBeNull()
+  })
+
+  /* ---- Mobile sidebar ---- */
+
+  it('renders mobile sidebar toggle button', async () => {
+    await renderSettings()
+    expect(
+      screen.getByRole('button', { name: /toggle settings menu/i }),
+    ).toBeTruthy()
+  })
+
+  /* ---- Accessibility ---- */
+
+  it('has aria-label on settings nav', async () => {
+    await renderSettings()
+    expect(
+      screen.getByRole('navigation', { name: /settings sections/i }),
+    ).toBeTruthy()
   })
 })

@@ -7,7 +7,13 @@ vi.mock('next/headers', () => ({
 }))
 
 vi.mock('@tn-figueiredo/cms-ui/client', () => ({
-  CmsTopbar: ({ title }: { title: string }) => <div data-testid="cms-topbar">{title}</div>,
+  CmsTopbar: ({ title }: { title: string }) => (
+    <div data-testid="cms-topbar">{title}</div>
+  ),
+}))
+
+vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
+  requireSiteScope: vi.fn().mockResolvedValue({ ok: true, user: { id: 'u1' } }),
 }))
 
 vi.mock('@/lib/cms/site-context', () => ({
@@ -26,7 +32,14 @@ vi.mock('@/lib/supabase/service', () => ({
       order: vi.fn().mockResolvedValue({
         data:
           table === 'newsletter_types'
-            ? [{ id: 'nt-1', name: 'Weekly', cadence_days: 7, sort_order: 0 }]
+            ? [
+                {
+                  id: 'nt-1',
+                  name: 'Weekly',
+                  cadence_days: 7,
+                  sort_order: 0,
+                },
+              ]
             : table === 'blog_cadence'
               ? [{ locale: 'pt-BR', cadence_days: 7 }]
               : [],
@@ -56,6 +69,7 @@ vi.mock('@/app/cms/(authed)/settings/settings-connected', () => ({
       data-testid="settings-connected"
       data-site-id={(props.site as { id: string })?.id}
       data-section={props.initialSection as string}
+      data-read-only={String(props.readOnly)}
     />
   ),
 }))
@@ -104,5 +118,35 @@ describe('Settings page', () => {
     const jsx = await SettingsPage({ searchParams: Promise.resolve({}) })
     render(jsx)
     expect(screen.getByTestId('cms-topbar').textContent).toBe('Settings')
+  })
+
+  it('passes readOnly=false when user has edit access', async () => {
+    const { default: SettingsPage } = await import(
+      '@/app/cms/(authed)/settings/page'
+    )
+    const jsx = await SettingsPage({ searchParams: Promise.resolve({}) })
+    render(jsx)
+    expect(
+      screen.getByTestId('settings-connected').getAttribute('data-read-only'),
+    ).toBe('false')
+  })
+
+  it('passes readOnly=true when user lacks edit access', async () => {
+    const { requireSiteScope } = await import(
+      '@tn-figueiredo/auth-nextjs/server'
+    )
+    const mockScope = vi.mocked(requireSiteScope)
+    mockScope
+      .mockResolvedValueOnce({ ok: true, user: { id: 'u1' } })
+      .mockResolvedValueOnce({ ok: false, reason: 'insufficient_access' })
+
+    const { default: SettingsPage } = await import(
+      '@/app/cms/(authed)/settings/page'
+    )
+    const jsx = await SettingsPage({ searchParams: Promise.resolve({}) })
+    render(jsx)
+    expect(
+      screen.getByTestId('settings-connected').getAttribute('data-read-only'),
+    ).toBe('true')
   })
 })

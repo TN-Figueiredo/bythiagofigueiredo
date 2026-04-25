@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }))
+vi.mock('next/cache', () => ({
+  revalidatePath: vi.fn(),
+  revalidateTag: vi.fn(),
+}))
 
-// Build a chainable mock that tracks the last table accessed so we can
-// customise behaviour per-table (e.g. `select().eq().single()` for the
-// deleteSite slug lookup vs. `update().eq()` for simple writes).
 const mockEq = vi.fn()
 const mockSingle = vi.fn()
 const mockUpdate = vi.fn()
@@ -13,17 +13,17 @@ const mockDelete = vi.fn()
 const mockUpsert = vi.fn()
 
 function makeChain() {
-  // Every chain method returns itself so `.eq().eq()` etc. works
   const chain: Record<string, ReturnType<typeof vi.fn>> = {}
   chain.eq = vi.fn().mockReturnValue(chain)
-  chain.single = mockSingle.mockResolvedValue({ data: { slug: 'test-site' }, error: null })
+  chain.single = mockSingle.mockResolvedValue({
+    data: { slug: 'test-site' },
+    error: null,
+  })
   chain.select = vi.fn().mockReturnValue(chain)
   chain.update = mockUpdate.mockReturnValue(chain)
   chain.insert = mockInsert.mockReturnValue(chain)
   chain.delete = mockDelete.mockReturnValue(chain)
   chain.upsert = mockUpsert.mockResolvedValue({ error: null })
-  // Fallback: if the chain is awaited directly (e.g. `.eq('id', x)` is the
-  // terminal), resolve with no error.
   chain.then = (resolve: (v: unknown) => void) => resolve({ error: null })
   return chain
 }
@@ -40,6 +40,10 @@ vi.mock('@/lib/cms/site-context', () => ({
     orgId: 'org-1',
     defaultLocale: 'pt-BR',
   }),
+}))
+
+vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
+  requireSiteScope: vi.fn().mockResolvedValue({ ok: true, user: { id: 'u1' } }),
 }))
 
 describe('updateBranding', () => {
@@ -149,6 +153,137 @@ describe('updateSeoDefaults', () => {
   })
 })
 
+describe('updateNewsletterType', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('validates cadence_days range', async () => {
+    const { updateNewsletterType } = await import(
+      '@/app/cms/(authed)/settings/actions'
+    )
+    const result = await updateNewsletterType('nt-1', {
+      cadence_days: 0,
+    })
+    expect(result.ok).toBe(false)
+  })
+
+  it('validates preferred_send_time format', async () => {
+    const { updateNewsletterType } = await import(
+      '@/app/cms/(authed)/settings/actions'
+    )
+    const result = await updateNewsletterType('nt-1', {
+      preferred_send_time: 'noon',
+    })
+    expect(result.ok).toBe(false)
+  })
+
+  it('accepts valid newsletter type update', async () => {
+    const { updateNewsletterType } = await import(
+      '@/app/cms/(authed)/settings/actions'
+    )
+    const result = await updateNewsletterType('nt-1', {
+      cadence_days: 7,
+      preferred_send_time: '08:00',
+      cadence_paused: false,
+    })
+    expect(result.ok).toBe(true)
+  })
+
+  it('accepts null cadence_days', async () => {
+    const { updateNewsletterType } = await import(
+      '@/app/cms/(authed)/settings/actions'
+    )
+    const result = await updateNewsletterType('nt-1', {
+      cadence_days: null,
+    })
+    expect(result.ok).toBe(true)
+  })
+})
+
+describe('createNewsletterType', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('rejects empty name', async () => {
+    const { createNewsletterType } = await import(
+      '@/app/cms/(authed)/settings/actions'
+    )
+    const result = await createNewsletterType({ name: '' })
+    expect(result.ok).toBe(false)
+  })
+
+  it('accepts valid create input', async () => {
+    const { createNewsletterType } = await import(
+      '@/app/cms/(authed)/settings/actions'
+    )
+    const result = await createNewsletterType({
+      name: 'Weekly Digest',
+      sort_order: 0,
+    })
+    expect(result.ok).toBe(true)
+  })
+})
+
+describe('updateBlogCadence', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('validates preferred_send_time format', async () => {
+    const { updateBlogCadence } = await import(
+      '@/app/cms/(authed)/settings/actions'
+    )
+    const result = await updateBlogCadence('pt-BR', {
+      preferred_send_time: 'invalid',
+    })
+    expect(result.ok).toBe(false)
+  })
+
+  it('accepts valid cadence data', async () => {
+    const { updateBlogCadence } = await import(
+      '@/app/cms/(authed)/settings/actions'
+    )
+    const result = await updateBlogCadence('pt-BR', {
+      cadence_days: 7,
+      preferred_send_time: '09:00',
+    })
+    expect(result.ok).toBe(true)
+  })
+})
+
+describe('updateSiteLocales', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('rejects default locale not in supported list', async () => {
+    const { updateSiteLocales } = await import(
+      '@/app/cms/(authed)/settings/actions'
+    )
+    const result = await updateSiteLocales({
+      default_locale: 'ja',
+      supported_locales: ['pt-BR', 'en'],
+    })
+    expect(result.ok).toBe(false)
+  })
+
+  it('rejects empty supported_locales', async () => {
+    const { updateSiteLocales } = await import(
+      '@/app/cms/(authed)/settings/actions'
+    )
+    const result = await updateSiteLocales({
+      default_locale: 'pt-BR',
+      supported_locales: [],
+    })
+    expect(result.ok).toBe(false)
+  })
+
+  it('accepts valid locale config', async () => {
+    const { updateSiteLocales } = await import(
+      '@/app/cms/(authed)/settings/actions'
+    )
+    const result = await updateSiteLocales({
+      default_locale: 'pt-BR',
+      supported_locales: ['pt-BR', 'en'],
+    })
+    expect(result.ok).toBe(true)
+  })
+})
+
 describe('deleteSite', () => {
   beforeEach(() => vi.clearAllMocks())
 
@@ -158,5 +293,42 @@ describe('deleteSite', () => {
     )
     const result = await deleteSite('wrong-slug')
     expect(result.ok).toBe(false)
+  })
+})
+
+describe('RBAC enforcement', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('throws forbidden when requireSiteScope denies access', async () => {
+    const { requireSiteScope } = await import(
+      '@tn-figueiredo/auth-nextjs/server'
+    )
+    vi.mocked(requireSiteScope).mockResolvedValueOnce({
+      ok: false,
+      reason: 'insufficient_access',
+    })
+    const { updateBranding } = await import(
+      '@/app/cms/(authed)/settings/actions'
+    )
+    await expect(
+      updateBranding({
+        logo_url: 'https://ok.com/logo.png',
+        primary_color: '#ff6600',
+      }),
+    ).rejects.toThrow('forbidden')
+  })
+
+  it('throws unauthenticated when no session', async () => {
+    const { requireSiteScope } = await import(
+      '@tn-figueiredo/auth-nextjs/server'
+    )
+    vi.mocked(requireSiteScope).mockResolvedValueOnce({
+      ok: false,
+      reason: 'unauthenticated',
+    })
+    const { disableCms } = await import(
+      '@/app/cms/(authed)/settings/actions'
+    )
+    await expect(disableCms()).rejects.toThrow('unauthenticated')
   })
 })

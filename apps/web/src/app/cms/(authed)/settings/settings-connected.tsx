@@ -58,11 +58,20 @@ interface BlogCadenceData {
   cadence_start_date: string | null
 }
 
+interface SeoFlags {
+  jsonLd: boolean
+  dynamicOg: boolean
+  extendedSchemas: boolean
+  aiCrawlersBlocked: boolean
+}
+
 interface Props {
   site: SiteData
   newsletterTypes: NewsletterTypeData[]
   blogCadence: BlogCadenceData[]
   initialSection: string
+  seoFlags?: SeoFlags
+  readOnly?: boolean
 }
 
 type SectionId =
@@ -122,14 +131,16 @@ function useSaveState(): [SaveState, (s: SaveState) => void] {
 function SaveButton({
   state,
   label = 'Save',
+  disabled = false,
 }: {
   state: SaveState
   label?: string
+  disabled?: boolean
 }) {
   return (
     <button
       type="submit"
-      disabled={state === 'saving'}
+      disabled={state === 'saving' || disabled}
       className="inline-flex items-center gap-2 rounded-md bg-indigo-500 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-400 disabled:opacity-50"
     >
       {state === 'saving' && (
@@ -143,6 +154,14 @@ function SaveButton({
 function FieldError({ message }: { message: string | undefined }) {
   if (!message) return null
   return <p className="mt-1 text-sm text-red-400">{message}</p>
+}
+
+function ReadOnlyBanner() {
+  return (
+    <div className="mb-4 rounded-md border border-amber-800/50 bg-amber-950/30 px-4 py-3 text-sm text-amber-300">
+      You have read-only access to settings. Contact an admin to make changes.
+    </div>
+  )
 }
 
 function inputCls(hasError: boolean) {
@@ -163,11 +182,21 @@ function sectionCls() {
 /*  Section: Branding                                                 */
 /* ------------------------------------------------------------------ */
 
-function BrandingSection({ site }: { site: SiteData }) {
+function BrandingSection({
+  site,
+  readOnly,
+}: {
+  site: SiteData
+  readOnly: boolean
+}) {
   const [logoUrl, setLogoUrl] = useState(site.logo_url ?? '')
-  const [primaryColor, setPrimaryColor] = useState(site.primary_color ?? '#000000')
+  const [primaryColor, setPrimaryColor] = useState(
+    site.primary_color ?? '#000000',
+  )
   const [identityType, setIdentityType] = useState(site.identity_type)
-  const [twitterHandle, setTwitterHandle] = useState(site.twitter_handle ?? '')
+  const [twitterHandle, setTwitterHandle] = useState(
+    site.twitter_handle ?? '',
+  )
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [saveState, setSaveState] = useSaveState()
   const [, startTransition] = useTransition()
@@ -190,6 +219,7 @@ function BrandingSection({ site }: { site: SiteData }) {
   const handleSubmit = useCallback(
     (ev: FormEvent) => {
       ev.preventDefault()
+      if (readOnly) return
       if (!validate()) return
       setSaveState('saving')
       startTransition(async () => {
@@ -211,7 +241,15 @@ function BrandingSection({ site }: { site: SiteData }) {
         setSaveState('success')
       })
     },
-    [logoUrl, primaryColor, identityType, twitterHandle, validate, setSaveState],
+    [
+      logoUrl,
+      primaryColor,
+      identityType,
+      twitterHandle,
+      validate,
+      setSaveState,
+      readOnly,
+    ],
   )
 
   return (
@@ -229,6 +267,7 @@ function BrandingSection({ site }: { site: SiteData }) {
           onChange={(e) => setLogoUrl(e.target.value)}
           placeholder="https://example.com/logo.png"
           className={inputCls(!!errors.logo_url)}
+          disabled={readOnly}
         />
         <FieldError message={errors.logo_url} />
       </div>
@@ -245,6 +284,7 @@ function BrandingSection({ site }: { site: SiteData }) {
             onChange={(e) => setPrimaryColor(e.target.value)}
             placeholder="#6366f1"
             className={inputCls(!!errors.primary_color) + ' flex-1'}
+            disabled={readOnly}
           />
           <span
             className="inline-block h-8 w-8 shrink-0 rounded border border-slate-600"
@@ -263,7 +303,10 @@ function BrandingSection({ site }: { site: SiteData }) {
         <span className={labelCls()}>Identity Type</span>
         <div className="mt-1 flex gap-4">
           {(['person', 'organization'] as const).map((type) => (
-            <label key={type} className="inline-flex items-center gap-2 text-sm text-slate-300">
+            <label
+              key={type}
+              className="inline-flex items-center gap-2 text-sm text-slate-300"
+            >
               <input
                 type="radio"
                 name="identity_type"
@@ -271,6 +314,7 @@ function BrandingSection({ site }: { site: SiteData }) {
                 checked={identityType === type}
                 onChange={() => setIdentityType(type)}
                 className="accent-indigo-500"
+                disabled={readOnly}
               />
               {type.charAt(0).toUpperCase() + type.slice(1)}
             </label>
@@ -293,13 +337,14 @@ function BrandingSection({ site }: { site: SiteData }) {
             onChange={(e) => setTwitterHandle(e.target.value)}
             placeholder="handle"
             className={inputCls(!!errors.twitter_handle) + ' pl-7'}
+            disabled={readOnly}
           />
         </div>
         <FieldError message={errors.twitter_handle} />
       </div>
 
       <FieldError message={errors._form} />
-      <SaveButton state={saveState} />
+      {!readOnly && <SaveButton state={saveState} />}
     </form>
   )
 }
@@ -308,22 +353,31 @@ function BrandingSection({ site }: { site: SiteData }) {
 /*  Section: SEO                                                      */
 /* ------------------------------------------------------------------ */
 
-function SeoSection({ site }: { site: SiteData }) {
+function SeoSection({
+  site,
+  seoFlags,
+  readOnly,
+}: {
+  site: SiteData
+  seoFlags: SeoFlags
+  readOnly: boolean
+}) {
   const [ogImage, setOgImage] = useState(site.seo_default_og_image ?? '')
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [saveState, setSaveState] = useSaveState()
   const [, startTransition] = useTransition()
 
   const featureFlags = [
-    { key: 'JSON-LD', env: 'NEXT_PUBLIC_SEO_JSONLD_ENABLED' },
-    { key: 'Dynamic OG', env: 'NEXT_PUBLIC_SEO_DYNAMIC_OG_ENABLED' },
-    { key: 'Extended Schemas', env: 'NEXT_PUBLIC_SEO_EXTENDED_SCHEMAS_ENABLED' },
-    { key: 'AI Crawlers Blocked', env: 'SEO_AI_CRAWLERS_BLOCKED' },
+    { key: 'JSON-LD', enabled: seoFlags.jsonLd },
+    { key: 'Dynamic OG', enabled: seoFlags.dynamicOg },
+    { key: 'Extended Schemas', enabled: seoFlags.extendedSchemas },
+    { key: 'AI Crawlers Blocked', enabled: seoFlags.aiCrawlersBlocked },
   ]
 
   const handleSubmit = useCallback(
     (ev: FormEvent) => {
       ev.preventDefault()
+      if (readOnly) return
       const e: Record<string, string> = {}
       if (ogImage && !ogImage.startsWith('https://')) {
         e.seo_default_og_image = 'Must start with https://'
@@ -343,7 +397,7 @@ function SeoSection({ site }: { site: SiteData }) {
         setSaveState('success')
       })
     },
-    [ogImage, setSaveState],
+    [ogImage, setSaveState, readOnly],
   )
 
   return (
@@ -361,6 +415,7 @@ function SeoSection({ site }: { site: SiteData }) {
           onChange={(e) => setOgImage(e.target.value)}
           placeholder="https://example.com/og.png"
           className={inputCls(!!errors.seo_default_og_image)}
+          disabled={readOnly}
         />
         <FieldError message={errors.seo_default_og_image} />
       </div>
@@ -369,15 +424,21 @@ function SeoSection({ site }: { site: SiteData }) {
         <h3 className="text-sm font-medium text-slate-300 mb-3">
           Feature Flags (read-only)
         </h3>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {featureFlags.map((flag) => (
             <div
               key={flag.key}
               className="flex items-center justify-between rounded-md border border-slate-600 bg-slate-800 px-3 py-2"
             >
               <span className="text-sm text-slate-300">{flag.key}</span>
-              <span className="rounded-full bg-slate-700 px-2 py-0.5 text-xs text-slate-400">
-                env
+              <span
+                className={`rounded-full px-2 py-0.5 text-xs ${
+                  flag.enabled
+                    ? 'bg-emerald-900/50 text-emerald-400'
+                    : 'bg-slate-700 text-slate-400'
+                }`}
+              >
+                {flag.enabled ? 'On' : 'Off'}
               </span>
             </div>
           ))}
@@ -398,7 +459,7 @@ function SeoSection({ site }: { site: SiteData }) {
       </div>
 
       <FieldError message={errors._form} />
-      <SaveButton state={saveState} />
+      {!readOnly && <SaveButton state={saveState} />}
     </form>
   )
 }
@@ -409,32 +470,67 @@ function SeoSection({ site }: { site: SiteData }) {
 
 function NewslettersSection({
   newsletterTypes,
+  readOnly,
 }: {
   newsletterTypes: NewsletterTypeData[]
+  readOnly: boolean
 }) {
   const [types, setTypes] = useState(newsletterTypes)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [saveState, setSaveState] = useSaveState()
   const [creating, setCreating] = useState(false)
   const [newName, setNewName] = useState('')
+  const [pendingEdits, setPendingEdits] = useState<
+    Record<
+      string,
+      {
+        name?: string
+        cadence_days?: number | null
+        preferred_send_time?: string
+        cadence_paused?: boolean
+        sender_name?: string | null
+        sender_email?: string | null
+        reply_to?: string | null
+        color?: string | null
+        sort_order?: number
+      }
+    >
+  >({})
   const [, startTransition] = useTransition()
 
-  const handleUpdateType = useCallback(
-    (id: string, data: Partial<NewsletterTypeData>) => {
+  const handleFieldChange = useCallback(
+    (id: string, field: keyof NewsletterTypeData, value: string | number | boolean | null) => {
+      setPendingEdits((prev) => ({
+        ...prev,
+        [id]: { ...prev[id], [field]: value },
+      }))
+      setTypes((prev) =>
+        prev.map((t) => (t.id === id ? { ...t, [field]: value } : t)),
+      )
+    },
+    [],
+  )
+
+  const handleSaveType = useCallback(
+    (id: string) => {
+      const edits = pendingEdits[id]
+      if (!edits || Object.keys(edits).length === 0) return
       setSaveState('saving')
       startTransition(async () => {
-        const res = await updateNewsletterType(id, data)
+        const res = await updateNewsletterType(id, edits)
         if (!res.ok) {
           setSaveState('error')
           return
         }
-        setTypes((prev) =>
-          prev.map((t) => (t.id === id ? { ...t, ...data } : t)),
-        )
+        setPendingEdits((prev) => {
+          const next = { ...prev }
+          delete next[id]
+          return next
+        })
         setSaveState('success')
       })
     },
-    [setSaveState],
+    [pendingEdits, setSaveState],
   )
 
   const handleCreate = useCallback(() => {
@@ -456,7 +552,9 @@ function NewslettersSection({
   }, [newName, types.length, setSaveState])
 
   const handleDelete = useCallback(
-    (id: string) => {
+    (id: string, name: string) => {
+      if (!window.confirm(`Delete newsletter type "${name}"? This cannot be undone.`))
+        return
       setSaveState('saving')
       startTransition(async () => {
         const res = await deleteNewsletterType(id)
@@ -475,13 +573,15 @@ function NewslettersSection({
     <div className={sectionCls()}>
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-slate-100">Newsletters</h2>
-        <button
-          type="button"
-          onClick={() => setCreating(true)}
-          className="rounded-md bg-indigo-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-400"
-        >
-          New Type
-        </button>
+        {!readOnly && (
+          <button
+            type="button"
+            onClick={() => setCreating(true)}
+            className="rounded-md bg-indigo-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-400"
+          >
+            New Type
+          </button>
+        )}
       </div>
 
       {creating && (
@@ -573,13 +673,14 @@ function NewslettersSection({
                     id={`nt-cadence-${nt.id}`}
                     value={nt.cadence_days?.toString() ?? ''}
                     onChange={(e) =>
-                      handleUpdateType(nt.id, {
-                        cadence_days: e.target.value
-                          ? Number(e.target.value)
-                          : null,
-                      })
+                      handleFieldChange(
+                        nt.id,
+                        'cadence_days',
+                        e.target.value ? Number(e.target.value) : null,
+                      )
                     }
                     className={inputCls(false)}
+                    disabled={readOnly}
                   >
                     {CADENCE_OPTIONS.map((o) => (
                       <option key={o.value} value={o.value}>
@@ -601,11 +702,14 @@ function NewslettersSection({
                     type="time"
                     value={nt.preferred_send_time ?? '08:00'}
                     onChange={(e) =>
-                      handleUpdateType(nt.id, {
-                        preferred_send_time: e.target.value,
-                      })
+                      handleFieldChange(
+                        nt.id,
+                        'preferred_send_time',
+                        e.target.value,
+                      )
                     }
                     className={inputCls(false)}
+                    disabled={readOnly}
                   />
                 </div>
 
@@ -615,32 +719,50 @@ function NewslettersSection({
                       type="checkbox"
                       checked={nt.cadence_paused}
                       onChange={(e) =>
-                        handleUpdateType(nt.id, {
-                          cadence_paused: e.target.checked,
-                        })
+                        handleFieldChange(
+                          nt.id,
+                          'cadence_paused',
+                          e.target.checked,
+                        )
                       }
                       className="accent-indigo-500"
+                      disabled={readOnly}
                     />
                     Paused
                   </label>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => handleDelete(nt.id)}
-                  className="text-sm text-red-400 hover:text-red-300"
-                >
-                  Delete type
-                </button>
+                {!readOnly && (
+                  <div className="flex items-center justify-between border-t border-slate-700 pt-3">
+                    {pendingEdits[nt.id] != null &&
+                      Object.keys(pendingEdits[nt.id] as object).length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => handleSaveType(nt.id)}
+                          disabled={saveState === 'saving'}
+                          className="inline-flex items-center gap-2 rounded-md bg-indigo-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-400 disabled:opacity-50"
+                        >
+                          {saveState === 'saving' && (
+                            <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                          )}
+                          Save
+                        </button>
+                      )}
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(nt.id, nt.name)}
+                      className="text-sm text-red-400 hover:text-red-300"
+                    >
+                      Delete type
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
         ))}
       </div>
 
-      {saveState === 'saving' && (
-        <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
-      )}
       {saveState === 'success' && (
         <span className="text-sm text-emerald-400">Salvo</span>
       )}
@@ -655,16 +777,49 @@ function NewslettersSection({
 function BlogCadenceSection({
   blogCadence,
   site,
+  readOnly,
 }: {
   blogCadence: BlogCadenceData[]
   site: SiteData
+  readOnly: boolean
 }) {
+  type CadenceEdit = {
+    cadence_days?: number | null
+    preferred_send_time?: string
+    cadence_start_date?: string | null
+  }
   const cadenceMap = new Map(blogCadence.map((c) => [c.locale, c]))
+  const [localState, setLocalState] = useState<Record<string, CadenceEdit>>(
+    () => {
+    const initial: Record<string, CadenceEdit> = {}
+    for (const locale of site.supported_locales) {
+      const c = cadenceMap.get(locale)
+      initial[locale] = {
+        cadence_days: c?.cadence_days ?? null,
+        preferred_send_time: c?.preferred_send_time ?? '08:00',
+      }
+    }
+    return initial
+  })
+  const [dirty, setDirty] = useState<Record<string, boolean>>({})
   const [saveState, setSaveState] = useSaveState()
   const [, startTransition] = useTransition()
 
-  const handleUpdate = useCallback(
-    (locale: string, data: Record<string, unknown>) => {
+  const handleCadenceFieldChange = useCallback(
+    (locale: string, field: keyof CadenceEdit, value: string | number | null) => {
+      setLocalState((prev) => ({
+        ...prev,
+        [locale]: { ...prev[locale], [field]: value },
+      }))
+      setDirty((prev) => ({ ...prev, [locale]: true }))
+    },
+    [],
+  )
+
+  const handleSave = useCallback(
+    (locale: string) => {
+      const data = localState[locale]
+      if (!data) return
       setSaveState('saving')
       startTransition(async () => {
         const res = await updateBlogCadence(locale, data)
@@ -672,10 +827,11 @@ function BlogCadenceSection({
           setSaveState('error')
           return
         }
+        setDirty((prev) => ({ ...prev, [locale]: false }))
         setSaveState('success')
       })
     },
-    [setSaveState],
+    [localState, setSaveState],
   )
 
   return (
@@ -684,15 +840,13 @@ function BlogCadenceSection({
 
       <div className="space-y-4">
         {site.supported_locales.map((locale) => {
-          const cadence = cadenceMap.get(locale)
+          const state = localState[locale] ?? {}
           return (
             <div
               key={locale}
               className="rounded-md border border-slate-600 bg-slate-800 p-4 space-y-3"
             >
-              <h3 className="text-sm font-medium text-slate-200">
-                {locale}
-              </h3>
+              <h3 className="text-sm font-medium text-slate-200">{locale}</h3>
 
               <div>
                 <label
@@ -703,15 +857,16 @@ function BlogCadenceSection({
                 </label>
                 <select
                   id={`cadence-days-${locale}`}
-                  defaultValue={cadence?.cadence_days?.toString() ?? ''}
+                  value={state.cadence_days?.toString() ?? ''}
                   onChange={(e) =>
-                    handleUpdate(locale, {
-                      cadence_days: e.target.value
-                        ? Number(e.target.value)
-                        : null,
-                    })
+                    handleCadenceFieldChange(
+                      locale,
+                      'cadence_days',
+                      e.target.value ? Number(e.target.value) : null,
+                    )
                   }
                   className={inputCls(false)}
+                  disabled={readOnly}
                 >
                   {CADENCE_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>
@@ -731,23 +886,37 @@ function BlogCadenceSection({
                 <input
                   id={`cadence-time-${locale}`}
                   type="time"
-                  defaultValue={cadence?.preferred_send_time ?? '08:00'}
+                  value={state.preferred_send_time ?? '08:00'}
                   onChange={(e) =>
-                    handleUpdate(locale, {
-                      preferred_send_time: e.target.value,
-                    })
+                    handleCadenceFieldChange(
+                      locale,
+                      'preferred_send_time',
+                      e.target.value,
+                    )
                   }
                   className={inputCls(false)}
+                  disabled={readOnly}
                 />
               </div>
+
+              {!readOnly && dirty[locale] && (
+                <button
+                  type="button"
+                  onClick={() => handleSave(locale)}
+                  disabled={saveState === 'saving'}
+                  className="inline-flex items-center gap-2 rounded-md bg-indigo-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-400 disabled:opacity-50"
+                >
+                  {saveState === 'saving' && (
+                    <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  )}
+                  Save
+                </button>
+              )}
             </div>
           )
         })}
       </div>
 
-      {saveState === 'saving' && (
-        <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
-      )}
       {saveState === 'success' && (
         <span className="text-sm text-emerald-400">Salvo</span>
       )}
@@ -759,7 +928,13 @@ function BlogCadenceSection({
 /*  Section: Localization                                             */
 /* ------------------------------------------------------------------ */
 
-function LocalizationSection({ site }: { site: SiteData }) {
+function LocalizationSection({
+  site,
+  readOnly,
+}: {
+  site: SiteData
+  readOnly: boolean
+}) {
   const [defaultLocale, setDefaultLocale] = useState(site.default_locale)
   const [locales, setLocales] = useState(site.supported_locales)
   const [saveState, setSaveState] = useSaveState()
@@ -768,6 +943,7 @@ function LocalizationSection({ site }: { site: SiteData }) {
   const handleSubmit = useCallback(
     (ev: FormEvent) => {
       ev.preventDefault()
+      if (readOnly) return
       setSaveState('saving')
       startTransition(async () => {
         const res = await updateSiteLocales({
@@ -781,7 +957,7 @@ function LocalizationSection({ site }: { site: SiteData }) {
         setSaveState('success')
       })
     },
-    [defaultLocale, locales, setSaveState],
+    [defaultLocale, locales, setSaveState, readOnly],
   )
 
   const addLocale = useCallback(
@@ -814,6 +990,7 @@ function LocalizationSection({ site }: { site: SiteData }) {
           value={defaultLocale}
           onChange={(e) => setDefaultLocale(e.target.value)}
           className={inputCls(false)}
+          disabled={readOnly}
         >
           {locales.map((l) => (
             <option key={l} value={l}>
@@ -832,14 +1009,14 @@ function LocalizationSection({ site }: { site: SiteData }) {
               className="inline-flex items-center gap-1 rounded-full border border-slate-600 bg-slate-700 px-3 py-1 text-sm text-slate-200"
             >
               {l}
-              {l !== defaultLocale && (
+              {l !== defaultLocale && !readOnly && (
                 <button
                   type="button"
                   onClick={() => removeLocale(l)}
                   className="ml-1 text-slate-400 hover:text-red-400"
                   aria-label={`Remove ${l}`}
                 >
-                  x
+                  {'×'}
                 </button>
               )}
             </span>
@@ -847,28 +1024,30 @@ function LocalizationSection({ site }: { site: SiteData }) {
         </div>
       </div>
 
-      <div>
-        <label htmlFor="add-locale" className={labelCls()}>
-          Add Locale
-        </label>
-        <select
-          id="add-locale"
-          value=""
-          onChange={(e) => {
-            if (e.target.value) addLocale(e.target.value)
-          }}
-          className={inputCls(false)}
-        >
-          <option value="">Select...</option>
-          {LOCALE_OPTIONS.filter((l) => !locales.includes(l)).map((l) => (
-            <option key={l} value={l}>
-              {l}
-            </option>
-          ))}
-        </select>
-      </div>
+      {!readOnly && (
+        <div>
+          <label htmlFor="add-locale" className={labelCls()}>
+            Add Locale
+          </label>
+          <select
+            id="add-locale"
+            value=""
+            onChange={(e) => {
+              if (e.target.value) addLocale(e.target.value)
+            }}
+            className={inputCls(false)}
+          >
+            <option value="">Select...</option>
+            {LOCALE_OPTIONS.filter((l) => !locales.includes(l)).map((l) => (
+              <option key={l} value={l}>
+                {l}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
-      <SaveButton state={saveState} />
+      {!readOnly && <SaveButton state={saveState} />}
     </form>
   )
 }
@@ -884,6 +1063,12 @@ function DangerZoneSection({ site }: { site: SiteData }) {
   const [, startTransition] = useTransition()
 
   const handleDisable = useCallback(() => {
+    if (
+      !window.confirm(
+        'Disable the CMS for this site? Content remains but editing will be locked.',
+      )
+    )
+      return
     setDisableState('saving')
     startTransition(async () => {
       const res = await disableCms()
@@ -964,9 +1149,7 @@ function DangerZoneSection({ site }: { site: SiteData }) {
           />
           <button
             type="submit"
-            disabled={
-              confirmSlug !== site.slug || deleteState === 'saving'
-            }
+            disabled={confirmSlug !== site.slug || deleteState === 'saving'}
             className="mt-3 rounded-md bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-500 disabled:opacity-50"
           >
             {deleteState === 'saving' ? 'Deleting...' : 'Delete Site'}
@@ -986,9 +1169,17 @@ export function SettingsConnected({
   newsletterTypes,
   blogCadence,
   initialSection,
+  seoFlags = {
+    jsonLd: true,
+    dynamicOg: true,
+    extendedSchemas: true,
+    aiCrawlersBlocked: false,
+  },
+  readOnly = false,
 }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [activeSection, setActiveSection] = useState<SectionId>(
     (searchParams.get('section') as SectionId) ||
       (initialSection as SectionId) ||
@@ -998,6 +1189,7 @@ export function SettingsConnected({
   const switchSection = useCallback(
     (id: SectionId) => {
       setActiveSection(id)
+      setSidebarOpen(false)
       const params = new URLSearchParams(searchParams.toString())
       params.set('section', id)
       router.replace(`?${params.toString()}`)
@@ -1005,20 +1197,16 @@ export function SettingsConnected({
     [router, searchParams],
   )
 
-  /* Keyboard shortcuts */
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      /* Ignore if user is typing in an input/textarea/select */
       const tag = (e.target as HTMLElement)?.tagName
       const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'
 
-      /* Cmd/Ctrl+S => submit current form */
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault()
         const form = document.querySelector(
           '[data-settings-section="' + activeSection + '"] form',
         ) as HTMLFormElement | null
-        /* If the section itself is a form, use that; otherwise look for nested form */
         const sectionEl = document.querySelector(
           '[data-settings-section="' + activeSection + '"]',
         )
@@ -1031,13 +1219,11 @@ export function SettingsConnected({
         return
       }
 
-      /* Esc => blur current input */
       if (e.key === 'Escape') {
         ;(document.activeElement as HTMLElement)?.blur?.()
         return
       }
 
-      /* 1-6 number keys => switch tab (only when not in an input) */
       if (!isInput && e.key >= '1' && e.key <= '6') {
         const idx = Number(e.key) - 1
         if (SECTIONS[idx]) {
@@ -1049,12 +1235,52 @@ export function SettingsConnected({
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [activeSection, switchSection])
 
+  const visibleSections = readOnly
+    ? SECTIONS.filter((s) => s.id !== 'danger-zone')
+    : SECTIONS
+
   return (
     <div className="flex min-h-[calc(100vh-4rem)] bg-[#0f172a]">
+      {/* Mobile sidebar toggle */}
+      <button
+        type="button"
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+        className="fixed bottom-4 right-4 z-40 rounded-full bg-indigo-500 p-3 text-white shadow-lg md:hidden"
+        aria-label="Toggle settings menu"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          className="h-5 w-5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M4 6h16M4 12h16M4 18h16"
+          />
+        </svg>
+      </button>
+
+      {/* Sidebar overlay (mobile) */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/50 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <nav className="w-56 shrink-0 border-r border-slate-700 bg-slate-900/50 p-4">
+      <nav
+        aria-label="Settings sections"
+        className={`fixed inset-y-0 left-0 z-40 w-56 shrink-0 border-r border-slate-700 bg-slate-900/95 p-4 pt-20 transition-transform md:static md:translate-x-0 md:pt-4 ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
         <ul className="space-y-1">
-          {SECTIONS.map((s, i) => (
+          {visibleSections.map((s, i) => (
             <li key={s.id}>
               <button
                 type="button"
@@ -1078,23 +1304,35 @@ export function SettingsConnected({
       </nav>
 
       {/* Content */}
-      <main className="flex-1 p-6 overflow-y-auto">
+      <main className="flex-1 p-4 overflow-y-auto md:p-6">
         <div
           className="mx-auto max-w-2xl"
           data-settings-section={activeSection}
         >
-          {activeSection === 'branding' && <BrandingSection site={site} />}
-          {activeSection === 'seo' && <SeoSection site={site} />}
+          {readOnly && <ReadOnlyBanner />}
+          {activeSection === 'branding' && (
+            <BrandingSection site={site} readOnly={readOnly} />
+          )}
+          {activeSection === 'seo' && (
+            <SeoSection site={site} seoFlags={seoFlags} readOnly={readOnly} />
+          )}
           {activeSection === 'newsletters' && (
-            <NewslettersSection newsletterTypes={newsletterTypes} />
+            <NewslettersSection
+              newsletterTypes={newsletterTypes}
+              readOnly={readOnly}
+            />
           )}
           {activeSection === 'blog-cadence' && (
-            <BlogCadenceSection blogCadence={blogCadence} site={site} />
+            <BlogCadenceSection
+              blogCadence={blogCadence}
+              site={site}
+              readOnly={readOnly}
+            />
           )}
           {activeSection === 'localization' && (
-            <LocalizationSection site={site} />
+            <LocalizationSection site={site} readOnly={readOnly} />
           )}
-          {activeSection === 'danger-zone' && (
+          {activeSection === 'danger-zone' && !readOnly && (
             <DangerZoneSection site={site} />
           )}
         </div>
