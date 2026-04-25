@@ -9,6 +9,7 @@ import { getSiteSeoConfig, type SiteSeoConfig } from '@/lib/seo/config'
 import { generateBlogPostMetadata } from '@/lib/seo/page-metadata'
 import { JsonLdScript } from '@/lib/seo/jsonld/render'
 import { loadPostWithLocales, toTranslationInputs } from '@/lib/blog/load-post'
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { buildDetailGraph, parseDateOrNull } from '@/lib/blog/build-detail-graph'
 import { getRelatedPosts } from '@/lib/blog/related-posts'
 import { parseMdxFrontmatter } from '@/lib/seo/frontmatter'
@@ -26,13 +27,24 @@ import {
   PostComments,
   RelatedPostsGrid,
   PostFootnotes,
-  NewsletterCta,
   PostToc,
+  BackToTop,
   HighlightsSidebar,
   AUTHOR_THIAGO,
   MOCK_ENGAGEMENT,
   MOCK_COMMENTS,
   type TocEntry,
+  MarginaliaAd,
+  AnchorAd,
+  BookmarkAd,
+  CodaAd,
+  DoormanAd,
+  BowtieAd,
+  hashSlug,
+  pickSponsor,
+  pickHouse,
+  SPONSORS,
+  HOUSE_ADS,
 } from '@/components/blog'
 import { BlogArticleClient } from './blog-article-client'
 
@@ -65,9 +77,19 @@ export default async function BlogDetailPage({ params }: Props) {
     toc = rawToc.map((h) => ({ slug: h.slug, text: h.text, depth: h.depth as 2 | 3 }))
   }
 
+  const footnotes = Array.from(tx.content_mdx.matchAll(/^\[\^(\d+)\]:\s*(.+)$/gm)).map((m) => ({
+    id: m[1]!,
+    content: m[2]!,
+  }))
+
   const publishedAt = post.published_at ?? (full ?? post).published_at
 
-  const category = (post as unknown as { category?: string | null }).category ?? null
+  const { data: postMeta } = await getSupabaseServiceClient()
+    .from('blog_posts')
+    .select('category')
+    .eq('id', post.id)
+    .single()
+  const category = postMeta?.category ?? null
 
   const host = (await headers()).get('host') ?? ctx.primaryDomain ?? ''
   const [related, config] = await Promise.all([
@@ -89,21 +111,63 @@ export default async function BlogDetailPage({ params }: Props) {
 
   const pageUrl = `https://${host}/blog/${locale}/${encodeURIComponent(slug)}`
 
+  const adLocale = locale as 'en' | 'pt-BR'
+  const adHash = hashSlug(slug)
+  const adMarginalia = pickHouse(adHash, 2, HOUSE_ADS)
+  const adAnchor = pickSponsor(adHash, 1, SPONSORS)
+  const adBookmark = pickSponsor(adHash, 2, SPONSORS)
+  const adCoda = pickSponsor(adHash, 0, SPONSORS)
+  const adMidContent = pickSponsor(adHash, 3, SPONSORS)
+  const adBowtie = HOUSE_ADS.find((h) => h.kind === 'newsletter') ?? pickHouse(adHash, 1, HOUSE_ADS)
+  const adDoorman = HOUSE_ADS.find((h) => h.kind === 'post') ?? pickHouse(adHash, 3, HOUSE_ADS)
+
+  const categoryColors: Record<string, string> = {
+    code: '#D65B1F',
+    tech: '#D65B1F',
+    vida: '#8A4A8F',
+    viagem: '#2F6B22',
+    crescimento: '#5B6E2B',
+    negocio: '#B87333',
+  }
+  const catColor = category ? categoryColors[category] ?? 'var(--pb-accent)' : 'var(--pb-accent)'
+
   return (
     <>
       {detailGraph && <JsonLdScript graph={detailGraph} />}
 
       <ScrollProvider sections={toc}>
-        {/* Hero — centered, above 3-col grid */}
-        <div className="max-w-[1280px] mx-auto px-10 pt-8">
-          <div className="blog-detail-hero">
-            <Link href={`/blog/${locale}`} className="inline-block text-sm text-pb-accent no-underline mb-6">
-              ← voltar ao arquivo
-            </Link>
+        <div className="max-w-[1280px] mx-auto px-7 pt-7">
+          <Link
+            href={`/blog/${locale}`}
+            className="inline-block no-underline mb-6"
+            style={{
+              fontFamily: 'var(--font-caveat), cursive',
+              fontSize: 18,
+              color: 'var(--pb-accent)',
+              transform: 'rotate(-1deg)',
+            }}
+          >
+            ← {locale === 'pt-BR' ? 'voltar ao arquivo' : 'back to archive'}
+          </Link>
+        </div>
 
-            <div className="flex items-center gap-3 mb-4 text-[13px] text-pb-muted flex-wrap">
+        <DoormanAd ad={adDoorman} locale={adLocale} />
+
+        <div className="max-w-[1280px] mx-auto px-10">
+          <div className="blog-detail-hero">
+            <div
+              className="flex items-center gap-3.5 mb-6 font-jetbrains flex-wrap"
+              style={{ fontSize: 12, fontWeight: 400, color: '#958a75', lineHeight: 1.4, letterSpacing: '0.72px' }}
+            >
               {category && (
-                <span className="border-[1.5px] border-pb-accent text-pb-accent px-2.5 py-0.5 rounded font-jetbrains text-[11px] uppercase tracking-wider font-medium">
+                <span
+                  className="px-2.5 py-1 text-[11px] uppercase tracking-[0.08em] font-semibold"
+                  style={{
+                    color: catColor,
+                    border: `1px solid ${catColor}`,
+                    background: 'rgba(0,0,0,0.2)',
+                  }}
+                >
                   {category}
                 </span>
               )}
@@ -113,7 +177,7 @@ export default async function BlogDetailPage({ params }: Props) {
               {formattedUpdated && (
                 <>
                   <span>·</span>
-                  <span>atualizado em {formattedUpdated}</span>
+                  <span className="italic">atualizado em {formattedUpdated}</span>
                 </>
               )}
             </div>
@@ -124,7 +188,10 @@ export default async function BlogDetailPage({ params }: Props) {
               total={postExtras?.series_total}
             />
 
-            <h1 className="font-fraunces font-bold text-pb-ink mb-4" style={{ fontSize: 'clamp(36px, 5.5vw, 64px)', lineHeight: 1.08 }}>
+            <h1
+              className="font-fraunces mb-5"
+              style={{ fontSize: 'clamp(36px, 5.5vw, 64px)', fontWeight: 500, color: '#efe6d2', lineHeight: 1.08, letterSpacing: '-1.28px' }}
+            >
               {tx.title}
             </h1>
 
@@ -136,13 +203,22 @@ export default async function BlogDetailPage({ params }: Props) {
 
             <AuthorRow author={AUTHOR_THIAGO} engagement={MOCK_ENGAGEMENT} locale={locale} url={pageUrl} />
 
-            <CoverImage src={post.cover_image_url ?? null} alt={tx.title} />
+            <CoverImage
+              src={post.cover_image_url ?? null}
+              alt={tx.title}
+              heroIllustration={postExtras?.hero_illustration}
+            />
           </div>
         </div>
 
-        {/* 3-Column Grid */}
         <div className="blog-detail-grid">
-          <PostToc sections={toc} url={pageUrl} />
+          <div className="blog-sidebar blog-detail-sidebar">
+            <PostToc sections={toc} url={pageUrl} />
+            <div className="blog-ad-slot">
+              <MarginaliaAd ad={adMarginalia} locale={adLocale} />
+            </div>
+            <BackToTop />
+          </div>
 
           <main id="main-content">
             <article lang={locale}>
@@ -152,9 +228,34 @@ export default async function BlogDetailPage({ params }: Props) {
                 slug={slug}
                 locale={locale}
                 keyPoints={postExtras?.key_points}
+                mobileInlineAd={
+                  <AnchorAd ad={adAnchor} locale={adLocale} />
+                }
+                midContentAd={
+                  <div className="blog-ad-slot">
+                    <BookmarkAd ad={adBookmark} locale={adLocale} />
+                  </div>
+                }
               >
                 <MdxRunner compiledSource={compiledSource} registry={blogRegistry} />
               </BlogArticleClient>
+
+              <div className="blog-detail-footer">
+                <AuthorCard author={AUTHOR_THIAGO} locale={locale} />
+                <PostTags tags={postExtras?.tags} locale={locale} />
+                <SeriesNav
+                  nextSlug={postExtras?.series_next_slug}
+                  nextTitle={postExtras?.series_next_title}
+                  nextExcerpt={postExtras?.series_next_excerpt}
+                  locale={locale}
+                />
+                <BowtieAd ad={adBowtie} locale={adLocale} />
+                <PostFootnotes footnotes={footnotes} />
+                <PostColophon text={postExtras?.colophon} />
+                <div className="blog-ad-slot">
+                  <CodaAd ad={adCoda} locale={adLocale} />
+                </div>
+              </div>
             </article>
           </main>
 
@@ -164,28 +265,18 @@ export default async function BlogDetailPage({ params }: Props) {
               quote={postExtras?.pull_quote}
               attribution={postExtras?.pull_quote_attribution}
             />
+            <div className="blog-ad-slot">
+              <AnchorAd ad={adAnchor} locale={adLocale} />
+            </div>
             <HighlightsSidebar slug={slug} locale={locale} />
           </aside>
-        </div>
-
-        {/* Post Footer — centered 760px */}
-        <div className="blog-detail-footer px-10">
-          <AuthorCard author={AUTHOR_THIAGO} locale={locale} />
-          <PostTags tags={postExtras?.tags} locale={locale} />
-          <PostComments comments={MOCK_COMMENTS} />
-          <SeriesNav
-            nextSlug={postExtras?.series_next_slug}
-            nextTitle={postExtras?.series_next_title}
-            nextExcerpt={postExtras?.series_next_excerpt}
-            locale={locale}
-          />
-          <NewsletterCta category={category ?? null} locale={locale} />
-          <PostFootnotes footnotes={[]} />
-          <PostColophon text={postExtras?.colophon} />
         </div>
       </ScrollProvider>
 
       <RelatedPostsGrid posts={related} locale={locale} category={category ?? null} />
+      <div className="max-w-[920px] mx-auto px-7">
+        <PostComments comments={MOCK_COMMENTS} />
+      </div>
     </>
   )
 }
