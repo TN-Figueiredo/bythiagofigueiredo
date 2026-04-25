@@ -2,16 +2,18 @@
 
 import { useState, useTransition } from 'react'
 
-type Props = { currentTheme: 'dark' | 'light' }
+type Props = {
+  currentTheme: 'dark' | 'light'
+  size?: number
+}
 
-export function ThemeToggle({ currentTheme }: Props) {
-  // useState so the icon updates immediately after click (prop alone is server-rendered, static)
+export function ThemeToggle({ currentTheme, size = 32 }: Props) {
   const [theme, setTheme] = useState<'dark' | 'light'>(currentTheme)
   const [pending, startTransition] = useTransition()
 
   function toggle() {
     const next = theme === 'dark' ? 'light' : 'dark'
-    setTheme(next) // optimistic update — icon flips immediately
+    setTheme(next)
     startTransition(async () => {
       await fetch('/api/theme', {
         method: 'POST',
@@ -28,7 +30,20 @@ export function ThemeToggle({ currentTheme }: Props) {
       onClick={toggle}
       disabled={pending}
       aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-      className="text-pb-muted hover:text-pb-ink transition-colors text-sm font-mono px-2 py-1 rounded"
+      style={{
+        width: size,
+        height: size,
+        border: '1px dashed var(--pb-line)',
+        background: 'transparent',
+        borderRadius: 6,
+        color: 'var(--pb-muted)',
+        cursor: 'pointer',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: size * 0.5,
+        transition: 'color 0.15s ease, border-color 0.15s ease',
+      }}
     >
       {theme === 'dark' ? '☀' : '☾'}
     </button>

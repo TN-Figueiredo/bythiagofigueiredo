@@ -15,7 +15,8 @@ import {
 } from '@/lib/seo/jsonld/builders'
 import { composeGraph } from '@/lib/seo/jsonld/graph'
 import { JsonLdScript } from '@/lib/seo/jsonld/render'
-import { PinboardHeader } from './components/PinboardHeader'
+import { TopStrip } from '@/components/layout/top-strip'
+import { GlobalHeader } from '@/components/layout/global-header'
 import { PinboardFooter } from './components/PinboardFooter'
 import enStrings from '../../locales/en.json'
 import ptBrStrings from '../../locales/pt-BR.json'
@@ -91,11 +92,19 @@ export default async function PublicLayout({ children }: { children: ReactNode }
 
   return (
     <CookieBannerProvider>
-      <div className="min-h-screen" style={{ background: 'var(--pb-bg)', color: 'var(--pb-ink)' }}>
+      <div className="min-h-screen" style={{ background: 'var(--pb-bg)', color: 'var(--pb-ink)', paddingTop: 44 }}>
         <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 bg-pb-accent text-white px-4 py-2 rounded z-50">
           {locale === 'pt-BR' ? 'Ir para o conteúdo' : 'Skip to content'}
         </a>
-        <PinboardHeader locale={locale} currentTheme={theme} t={t} />
+        <TopStrip locale={locale} />
+        <GlobalHeader
+          locale={locale}
+          currentTheme={theme}
+          current="home"
+          variant="full"
+          ctas="home"
+          t={t}
+        />
         {rootNodes.length > 0 && <JsonLdScript graph={composeGraph(rootNodes)} />}
         {children}
         <PinboardFooter locale={locale} t={t} />
