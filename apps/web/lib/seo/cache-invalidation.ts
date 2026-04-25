@@ -10,8 +10,8 @@ export function revalidateBlogPostSeo(
   revalidateTag(`blog:post:${postId}`)
   revalidateTag(`og:blog:${postId}`)
   revalidateTag(`sitemap:${siteId}`)
-  revalidatePath(`/blog/${locale}/${slug}`)
-  revalidatePath(`/blog/${locale}`)
+  revalidatePath(localePath(`/blog/${slug}`, locale))
+  revalidatePath(localePath('/blog', locale))
 }
 
 export function revalidateCampaignSeo(

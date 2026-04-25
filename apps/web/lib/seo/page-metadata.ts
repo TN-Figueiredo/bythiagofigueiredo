@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import type { SiteSeoConfig } from './config'
-import { localePath } from '@/lib/i18n/locale-path'
+import { localePath, hreflangCode } from '@/lib/i18n/locale-path'
 
 type BlogPostInput = Parameters<typeof import('./jsonld/builders').buildBlogPostingNode>[1]
 type TranslationInput = Parameters<typeof import('./jsonld/builders').buildBlogPostingNode>[2][number]
@@ -45,15 +45,15 @@ export function generateRootMetadata(config: SiteSeoConfig): Metadata {
 export function generateBlogIndexMetadata(config: SiteSeoConfig, locale: string): Metadata {
   const languages: Record<string, string> = {}
   for (const loc of config.supportedLocales) {
-    languages[loc] = `${config.contentPaths.blog}/${loc}`
+    languages[hreflangCode(loc)] = localePath(config.contentPaths.blog, loc)
   }
-  languages['x-default'] = `${config.contentPaths.blog}/${config.defaultLocale}`
+  languages['x-default'] = localePath(config.contentPaths.blog, config.defaultLocale)
   return {
     ...baseMetadata(config),
     title: 'Blog',
     description: `Últimos posts de ${config.siteName}.`,
     alternates: {
-      canonical: `${config.contentPaths.blog}/${locale}`,
+      canonical: localePath(config.contentPaths.blog, locale),
       languages,
     },
   }
@@ -68,17 +68,17 @@ export function generateBlogPostMetadata(
   if (!tx) throw new Error('generateBlogPostMetadata: no translation')
   const languages: Record<string, string> = {}
   for (const t of translations) {
-    languages[t.locale] = `${config.contentPaths.blog}/${t.locale}/${encodeURIComponent(t.slug)}`
+    languages[hreflangCode(t.locale)] = localePath(`${config.contentPaths.blog}/${encodeURIComponent(t.slug)}`, t.locale)
   }
   const defaultTx = translations.find((t) => t.locale === config.defaultLocale) ?? tx
-  languages['x-default'] = `${config.contentPaths.blog}/${defaultTx.locale}/${encodeURIComponent(defaultTx.slug)}`
+  languages['x-default'] = localePath(`${config.contentPaths.blog}/${encodeURIComponent(defaultTx.slug)}`, defaultTx.locale)
   const ogImage = resolveOgImage(config, tx, post)
   return {
     ...baseMetadata(config),
     title: tx.title,
     description: tx.excerpt ?? undefined,
     alternates: {
-      canonical: `${config.contentPaths.blog}/${tx.locale}/${encodeURIComponent(tx.slug)}`,
+      canonical: localePath(`${config.contentPaths.blog}/${encodeURIComponent(tx.slug)}`, tx.locale),
       languages,
     },
     openGraph: {

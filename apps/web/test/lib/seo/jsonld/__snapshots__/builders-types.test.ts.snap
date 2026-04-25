@@ -14,7 +14,7 @@ exports[`graph composition snapshots (output drift detection) > blog post @graph
         "query-input": "required name=search_term_string",
         "target": {
           "@type": "EntryPoint",
-          "urlTemplate": "https://example.com/blog/pt-BR?q={search_term_string}",
+          "urlTemplate": "https://example.com/pt/blog?q={search_term_string}",
         },
       },
       "publisher": {
@@ -35,7 +35,7 @@ exports[`graph composition snapshots (output drift detection) > blog post @graph
       "url": "https://example.com",
     },
     {
-      "@id": "https://example.com/blog/en/hello-world-en#blogposting",
+      "@id": "https://example.com/blog/hello-world-en#blogposting",
       "@type": "BlogPosting",
       "author": {
         "@id": "https://example.com/#person",
@@ -47,12 +47,12 @@ exports[`graph composition snapshots (output drift detection) > blog post @graph
       "image": "https://example.com/og/blog/en/hello-world-en",
       "inLanguage": "en",
       "mainEntityOfPage": {
-        "@id": "https://example.com/blog/en/hello-world-en",
+        "@id": "https://example.com/blog/hello-world-en",
       },
       "publisher": {
         "@id": "https://example.com/#person",
       },
-      "url": "https://example.com/blog/en/hello-world-en",
+      "url": "https://example.com/blog/hello-world-en",
     },
     {
       "@type": "BreadcrumbList",
@@ -116,7 +116,7 @@ exports[`graph composition snapshots (output drift detection) > blog post @graph
         "query-input": "required name=search_term_string",
         "target": {
           "@type": "EntryPoint",
-          "urlTemplate": "https://example.com/blog/pt-BR?q={search_term_string}",
+          "urlTemplate": "https://example.com/pt/blog?q={search_term_string}",
         },
       },
       "publisher": {
@@ -137,7 +137,7 @@ exports[`graph composition snapshots (output drift detection) > blog post @graph
       "url": "https://example.com",
     },
     {
-      "@id": "https://example.com/blog/en/hello-world-en#blogposting",
+      "@id": "https://example.com/blog/hello-world-en#blogposting",
       "@type": "BlogPosting",
       "author": {
         "@id": "https://example.com/#person",
@@ -149,12 +149,12 @@ exports[`graph composition snapshots (output drift detection) > blog post @graph
       "image": "https://example.com/og/blog/en/hello-world-en",
       "inLanguage": "en",
       "mainEntityOfPage": {
-        "@id": "https://example.com/blog/en/hello-world-en",
+        "@id": "https://example.com/blog/hello-world-en",
       },
       "publisher": {
         "@id": "https://example.com/#person",
       },
-      "url": "https://example.com/blog/en/hello-world-en",
+      "url": "https://example.com/blog/hello-world-en",
     },
   ],
 }
@@ -174,7 +174,7 @@ exports[`graph composition snapshots (output drift detection) > campaign @graph 
         "query-input": "required name=search_term_string",
         "target": {
           "@type": "EntryPoint",
-          "urlTemplate": "https://example.com/blog/pt-BR?q={search_term_string}",
+          "urlTemplate": "https://example.com/pt/blog?q={search_term_string}",
         },
       },
       "publisher": {
@@ -195,7 +195,7 @@ exports[`graph composition snapshots (output drift detection) > campaign @graph 
       "url": "https://example.com",
     },
     {
-      "@id": "https://example.com/blog/en/hello-world-en#article",
+      "@id": "https://example.com/blog/hello-world-en#article",
       "@type": "Article",
       "author": {
         "@id": "https://example.com/#person",
@@ -207,12 +207,12 @@ exports[`graph composition snapshots (output drift detection) > campaign @graph 
       "image": "https://example.com/og/blog/en/hello-world-en",
       "inLanguage": "en",
       "mainEntityOfPage": {
-        "@id": "https://example.com/blog/en/hello-world-en",
+        "@id": "https://example.com/blog/hello-world-en",
       },
       "publisher": {
         "@id": "https://example.com/#person",
       },
-      "url": "https://example.com/blog/en/hello-world-en",
+      "url": "https://example.com/blog/hello-world-en",
     },
     {
       "@type": "BreadcrumbList",

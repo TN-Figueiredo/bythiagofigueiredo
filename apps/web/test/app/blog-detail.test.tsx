@@ -200,11 +200,11 @@ describe('BlogDetailPage generateMetadata', () => {
     vi.resetModules()
     const { generateMetadata: gen } = await import('../../src/app/(public)/blog/[slug]/page')
     const meta = await gen({ params: Promise.resolve({ slug: 'hello' }) })
-    expect(meta.alternates?.canonical).toBe('/blog/pt-BR/hello')
+    expect(meta.alternates?.canonical).toBe('/pt/blog/hello')
     expect(meta.alternates?.languages).toEqual({
-      'pt-BR': '/blog/pt-BR/hello',
-      en: '/blog/en/hello-en',
-      'x-default': '/blog/pt-BR/hello',
+      pt: '/pt/blog/hello',
+      en: '/blog/hello-en',
+      'x-default': '/pt/blog/hello',
     })
   })
 

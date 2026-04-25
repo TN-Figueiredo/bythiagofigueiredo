@@ -2,6 +2,7 @@ import type { SiteSeoConfig } from '../config'
 import type { PersonProfile, OrgProfile } from '../identity-profiles'
 import type { SeoExtras, FaqEntry, VideoObjectExtra } from './extras-schema'
 import type { JsonLdNode } from './types'
+import { localePath } from '@/lib/i18n/locale-path'
 
 type BlogPostInput = {
   id: string
@@ -57,7 +58,7 @@ export function buildWebSiteNode(config: SiteSeoConfig): JsonLdNode {
       '@type': 'SearchAction',
       target: {
         '@type': 'EntryPoint',
-        urlTemplate: `${config.siteUrl}/blog/${config.defaultLocale}?q={search_term_string}`,
+        urlTemplate: `${config.siteUrl}${localePath('/blog', config.defaultLocale)}?q={search_term_string}`,
       },
       'query-input': 'required name=search_term_string',
     },
@@ -69,7 +70,7 @@ export function buildBlogPostingNode(
 ): JsonLdNode {
   const tx = translations.find((t) => t.title === post.translation.title) ?? translations[0]
   if (!tx) throw new Error('buildBlogPostingNode: no translation provided')
-  const url = `${config.siteUrl}${config.contentPaths.blog}/${tx.locale}/${tx.slug}`
+  const url = `${config.siteUrl}${localePath(`${config.contentPaths.blog}/${tx.slug}`, tx.locale)}`
   const image = resolveOgImageForBlog(config, tx, post)
   return {
     '@type': 'BlogPosting',

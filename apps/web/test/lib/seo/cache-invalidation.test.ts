@@ -17,8 +17,8 @@ describe('cache-invalidation helpers', () => {
     expect(revalidateTag).toHaveBeenCalledWith('blog:post:post-123')
     expect(revalidateTag).toHaveBeenCalledWith('og:blog:post-123')
     expect(revalidateTag).toHaveBeenCalledWith('sitemap:site-1')
-    expect(revalidatePath).toHaveBeenCalledWith('/blog/pt-BR/my-post')
-    expect(revalidatePath).toHaveBeenCalledWith('/blog/pt-BR')
+    expect(revalidatePath).toHaveBeenCalledWith('/pt/blog/my-post')
+    expect(revalidatePath).toHaveBeenCalledWith('/pt/blog')
   })
 
   it('revalidateCampaignSeo invalidates campaign/og/sitemap tags + 1 path', async () => {

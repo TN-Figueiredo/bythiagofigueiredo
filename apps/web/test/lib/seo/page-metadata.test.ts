@@ -21,15 +21,15 @@ describe('page-metadata factories', () => {
   it('blog index has hreflang for supported locales', () => {
     const m = generateBlogIndexMetadata(mockConfig, 'pt-BR')
     const langs = (m.alternates as { languages: Record<string, string> }).languages
-    expect(langs).toMatchObject({ 'pt-BR': '/blog/pt-BR', en: '/blog/en' })
-    expect(langs['x-default']).toBe('/blog/pt-BR')
+    expect(langs).toMatchObject({ pt: '/pt/blog', en: '/blog' })
+    expect(langs['x-default']).toBe('/pt/blog')
   })
 
   it('blog post metadata has per-translation hreflang', () => {
     const m = generateBlogPostMetadata(mockConfig, mockPost, mockTxs)
     const langs = (m.alternates as { languages: Record<string, string> }).languages
-    expect(langs['pt-BR']).toBe('/blog/pt-BR/hello-world')
-    expect(langs['en']).toBe('/blog/en/hello-world-en')
+    expect(langs['pt']).toBe('/pt/blog/hello-world')
+    expect(langs['en']).toBe('/blog/hello-world-en')
     expect((m.openGraph as { type?: string }).type).toBe('article')
   })
 

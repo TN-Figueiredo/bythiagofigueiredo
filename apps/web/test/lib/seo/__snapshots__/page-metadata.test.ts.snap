@@ -15,11 +15,11 @@ exports[`page-metadata factories — snapshots > generateBlogIndexMetadata shape
   "title": "Blog",
   "description": "Últimos posts de Example.",
   "alternates": {
-    "canonical": "/blog/pt-BR",
+    "canonical": "/pt/blog",
     "languages": {
-      "pt-BR": "/blog/pt-BR",
-      "en": "/blog/en",
-      "x-default": "/blog/pt-BR"
+      "pt": "/pt/blog",
+      "en": "/blog",
+      "x-default": "/pt/blog"
     }
   }
 }"
@@ -50,11 +50,11 @@ exports[`page-metadata factories — snapshots > generateBlogPostMetadata shape 
   "title": "Hello World",
   "description": "exc-en",
   "alternates": {
-    "canonical": "/blog/en/hello-world-en",
+    "canonical": "/blog/hello-world-en",
     "languages": {
-      "pt-BR": "/blog/pt-BR/hello-world",
-      "en": "/blog/en/hello-world-en",
-      "x-default": "/blog/pt-BR/hello-world"
+      "pt": "/pt/blog/hello-world",
+      "en": "/blog/hello-world-en",
+      "x-default": "/pt/blog/hello-world"
     }
   }
 }"

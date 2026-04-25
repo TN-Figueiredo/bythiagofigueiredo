@@ -1,6 +1,6 @@
 import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { localePath } from '@/lib/i18n/locale-path'
+import { localePath, hreflangCode } from '@/lib/i18n/locale-path'
 import type { SiteSeoConfig } from './config'
 
 export interface SitemapRouteEntry {
@@ -17,11 +17,12 @@ const STATIC_ROUTE_DEFS: ReadonlyArray<{
   priority: number
 }> = [
   { path: '/', changeFrequency: 'weekly', priority: 1.0 },
-  { path: '/pt-BR', changeFrequency: 'weekly', priority: 1.0 },
+  { path: '/pt', changeFrequency: 'weekly', priority: 1.0 },
   { path: '/privacy', changeFrequency: 'yearly', priority: 0.3 },
   { path: '/terms', changeFrequency: 'yearly', priority: 0.3 },
   { path: '/contact', changeFrequency: 'monthly', priority: 0.5 },
   { path: '/newsletters', changeFrequency: 'weekly', priority: 0.5 },
+  { path: '/pt/newsletters', changeFrequency: 'weekly', priority: 0.5 },
   { path: '/newsletter/archive', changeFrequency: 'weekly', priority: 0.4 },
 ]
 
@@ -75,10 +76,10 @@ export async function enumerateSiteRoutes(
     for (const t of translations) {
       const alternates: Record<string, string> = {}
       for (const alt of translations) {
-        alternates[alt.locale] = `${config.contentPaths.blog}/${alt.locale}/${alt.slug}`
+        alternates[hreflangCode(alt.locale)] = localePath(`${config.contentPaths.blog}/${alt.slug}`, alt.locale)
       }
       postRoutes.push({
-        path: `${config.contentPaths.blog}/${t.locale}/${t.slug}`,
+        path: localePath(`${config.contentPaths.blog}/${t.slug}`, t.locale),
         lastModified: new Date(t.updated_at),
         changeFrequency: 'weekly',
         priority: 0.7,
@@ -130,12 +131,12 @@ export async function enumerateSiteRoutes(
   }))
 
   const blogIndex: SitemapRouteEntry = {
-    path: `${config.contentPaths.blog}/${config.defaultLocale}`,
+    path: localePath(config.contentPaths.blog, config.defaultLocale),
     lastModified: new Date(),
     changeFrequency: 'daily',
     priority: 0.9,
     alternates: Object.fromEntries(
-      config.supportedLocales.map((l) => [l, `${config.contentPaths.blog}/${l}`]),
+      config.supportedLocales.map((l) => [hreflangCode(l), localePath(config.contentPaths.blog, l)]),
     ),
   }
 

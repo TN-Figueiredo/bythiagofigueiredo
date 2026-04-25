@@ -18,9 +18,9 @@ describe.skipIf(skipIfNoLocalDb())('enumerateSiteRoutes (RLS mirror)', () => {
     const config = await getSiteSeoConfig(site.siteId, 'test-site.invalid')
     const routes = await enumerateSiteRoutes(site.siteId, config)
     const paths = routes.map((r) => r.path)
-    expect(paths).toContain('/blog/pt-BR/published-1')
-    expect(paths).not.toContain('/blog/pt-BR/draft-1')
-    expect(paths).not.toContain('/blog/pt-BR/future-1')
+    expect(paths).toContain('/pt/blog/published-1')
+    expect(paths).not.toContain('/pt/blog/draft-1')
+    expect(paths).not.toContain('/pt/blog/future-1')
   })
 
   it('includes static routes for supported locales', async () => {
