@@ -7,10 +7,6 @@ import { SupabaseAdEventRepository } from '../infrastructure/repositories/supaba
 
 const APP_ID = 'bythiagofigueiredo'
 
-const supabase = getServiceClient()
-const adConfigRepo = new SupabaseAdConfigRepository(supabase, APP_ID)
-const adEventRepo = new SupabaseAdEventRepository(supabase)
-
 /**
  * Extracts the user ID from the request.
  * Falls back to 'anonymous' for unauthenticated requests.
@@ -28,32 +24,27 @@ function getUserId(request: FastifyRequest): string {
   }
 }
 
-/**
- * Returns kill switch states for ad delivery.
- * Starter: all switches hardcoded to enabled.
- * TODO(future): fetch from kill_switches table for live control.
- */
-async function getKillSwitches(
-  _userId: string,
-): Promise<Record<AdKillSwitchId, boolean>> {
-  return {
-    kill_ads: true,
-    ads_house_enabled: true,
-    ads_cpa_enabled: true,
-    ads_placeholder_enabled: true,
-  }
-}
-
-/**
- * Returns audience segments for the requesting user.
- * Starter: returns empty array — extend with reading-habit segmentation.
- * TODO(future): query user_segments table or derive from reading habits.
- */
-async function getUserSegments(_userId: string): Promise<string[]> {
-  return []
-}
-
 export async function adsPlugin(fastify: FastifyInstance): Promise<void> {
+  const supabase = getServiceClient()
+  const adConfigRepo = new SupabaseAdConfigRepository(supabase, APP_ID)
+  const adEventRepo = new SupabaseAdEventRepository(supabase)
+
+  const getKillSwitches = async (_userId: string): Promise<Record<AdKillSwitchId, boolean>> => {
+    const ids: AdKillSwitchId[] = ['kill_ads', 'ads_house_enabled', 'ads_cpa_enabled', 'ads_placeholder_enabled']
+    const { data } = await supabase.from('kill_switches').select('id, enabled').in('id', ids)
+    const switchMap = Object.fromEntries((data ?? []).map((r) => [r.id, r.enabled as boolean]))
+    return {
+      kill_ads:                switchMap['kill_ads']                ?? true,
+      ads_house_enabled:       switchMap['ads_house_enabled']       ?? true,
+      ads_cpa_enabled:         switchMap['ads_cpa_enabled']         ?? false,
+      ads_placeholder_enabled: switchMap['ads_placeholder_enabled'] ?? true,
+    }
+  }
+
+  const getUserSegments = async (_userId: string): Promise<string[]> => {
+    return []
+  }
+
   await fastify.register(createAdRoutesPlugin, {
     prefix: '/ads',
     appId: APP_ID,
