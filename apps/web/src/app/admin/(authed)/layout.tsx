@@ -19,6 +19,7 @@ const ADMIN_CONFIG = {
       items: [
         { label: 'Dashboard', path: '/admin', icon: 'LayoutDashboard' },
         { label: 'Users', path: '/admin/users', icon: 'Users' },
+        { label: 'Anúncios', path: '/admin/ads', icon: 'Megaphone' },
         { label: 'Settings', path: '/admin/settings', icon: 'Settings' },
       ],
     },

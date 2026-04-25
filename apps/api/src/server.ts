@@ -4,6 +4,7 @@ import helmet from '@fastify/helmet'
 import { env } from './env.js'
 import { healthPlugin } from './plugins/health.js'
 import { authPlugin } from './plugins/auth.js'
+import { adsPlugin } from './routes/ads.js'
 import { initSentry, isSentryInitialized, Sentry } from './sentry.js'
 
 export async function buildServer(): Promise<FastifyInstance> {
@@ -15,6 +16,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   await app.register(helmet)
   await app.register(healthPlugin)
   await app.register(authPlugin)
+  await app.register(adsPlugin)
 
   // Sprint 4 Epic 9 T67 — forward unhandled errors to Sentry with route tag.
   app.addHook('onError', async (req, _reply, err) => {
