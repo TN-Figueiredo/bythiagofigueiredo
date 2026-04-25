@@ -38,7 +38,7 @@ export function createResendEmailService(): IEmailService {
       variables: V,
       locale?: string,
     ): Promise<EmailResult> {
-      const rendered = await template.render(variables, locale ?? 'pt-BR')
+      const rendered = await template.render(variables, locale ?? 'en')
       return service.send({
         from: sender,
         to,

@@ -30,13 +30,13 @@ export function buildNavItems(
   variant: HeaderVariant,
   t: Record<string, string>,
 ): NavItem[] {
-  const home = locale === 'pt-BR' ? '/pt-BR' : '/'
+  const home = locale === 'pt-BR' ? '/pt' : '/'
   const l = (key: string): string => t[key] ?? key
   const items: NavItem[] = [
     { key: 'home', href: home, label: l('nav.home') },
-    { key: 'writing', href: `/blog/${locale === 'pt-BR' ? 'pt-BR' : 'en'}`, label: l('nav.writing') },
+    { key: 'writing', href: locale === 'pt-BR' ? '/pt/blog' : '/blog', label: l('nav.writing') },
     { key: 'videos', href: YT_CHANNELS[locale].url, label: l('nav.videos'), external: true },
-    { key: 'newsletters', href: locale === 'pt-BR' ? '/pt-BR/newsletters' : '/newsletters', label: l('nav.newsletter') },
+    { key: 'newsletters', href: locale === 'pt-BR' ? '/pt/newsletters' : '/newsletters', label: l('nav.newsletter') },
     { key: 'about', href: '/about', label: l('nav.about') },
   ]
 

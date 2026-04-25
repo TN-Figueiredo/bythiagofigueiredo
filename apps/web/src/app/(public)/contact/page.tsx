@@ -12,14 +12,9 @@ import { JsonLdScript } from '@/lib/seo/jsonld/render'
 
 export const dynamic = 'force-dynamic'
 
-// Sprint 5b PR-C C.5 — add generateMetadata (previously none, page was
-// unindexed/inherited root only). Uses generateContactMetadata(config,
-// locale) so the canonical + OG site name + Twitter handle stay in sync.
-// Locale is hardcoded pt-BR here because the page's ContactForm is also
-// hardcoded pt-BR (see the JSX below). When a real /contact/[locale]
-// split lands, swap to params.locale.
 export async function generateMetadata(): Promise<Metadata> {
-  const locale = 'pt-BR'
+  const h = await headers()
+  const locale = h.get('x-locale') ?? 'en'
   const ctx = await tryGetSiteContext()
   if (!ctx) {
     return {
@@ -62,10 +57,10 @@ export default async function ContactPage({ searchParams }: Props) {
   const noticeMessage = notice != null ? (noticeMessages[notice] ?? null) : null
   const errorMessage = error != null ? (errorMessages[error] ?? null) : null
 
-  // Sprint 5b PR-C C.5 — BreadcrumbList JSON-LD (Home -> Contact). Root
-  // WebSite + Person/Org nodes come from the public layout.
   const ctx = await tryGetSiteContext()
-  const host = (await headers()).get('host') ?? ctx?.primaryDomain ?? ''
+  const h = await headers()
+  const locale = (h.get('x-locale') ?? 'en') as 'en' | 'pt-BR'
+  const host = h.get('host') ?? ctx?.primaryDomain ?? ''
   const config = ctx
     ? await getSiteSeoConfig(ctx.siteId, host).catch(() => null)
     : null
@@ -109,7 +104,7 @@ export default async function ContactPage({ searchParams }: Props) {
 
         {!noticeMessage && (
           <Suspense>
-            <ContactForm locale="pt-BR" submitAction={submitContact} />
+            <ContactForm locale={locale} submitAction={submitContact} />
           </Suspense>
         )}
       </main>

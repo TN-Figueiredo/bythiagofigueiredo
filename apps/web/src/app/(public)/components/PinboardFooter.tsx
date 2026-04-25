@@ -7,7 +7,7 @@ type Props = {
 
 export function PinboardFooter({ locale, t }: Props) {
   const year = new Date().getFullYear()
-  const blogHref = locale === 'pt-BR' ? '/blog/pt-BR' : '/blog/en'
+  const blogHref = locale === 'pt-BR' ? '/pt/blog' : '/blog'
 
   return (
     <footer className="border-t border-[--pb-line] bg-[--pb-bg] mt-8" style={{ padding: '40px 28px' }}>

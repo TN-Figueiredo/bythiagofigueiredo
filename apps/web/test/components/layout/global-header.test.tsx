@@ -47,7 +47,7 @@ describe('GlobalHeader', () => {
     const { container } = render(<GlobalHeader {...defaultProps} />)
     const brandLink = container.querySelector('a[aria-label="by Thiago Figueiredo"]')
     expect(brandLink).toBeTruthy()
-    expect(brandLink!.getAttribute('href')).toBe('/pt-BR')
+    expect(brandLink!.getAttribute('href')).toBe('/pt')
   })
 
   it('shows tagline', () => {

@@ -18,7 +18,7 @@ type Props = {
 }
 
 export function UnifiedFeed({ posts, videos, locale, t, isDark }: Props) {
-  const blogBase = locale === 'pt-BR' ? '/blog/pt-BR' : '/blog/en'
+  const blogBase = locale === 'pt-BR' ? '/pt/blog' : '/blog'
 
   const items: FeedItem[] = [
     ...posts.map((p) => ({ kind: 'post' as const, ...p })),

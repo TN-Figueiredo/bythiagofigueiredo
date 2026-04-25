@@ -7,7 +7,7 @@ import { ThemeToggle } from './theme-toggle'
 import { MobileNavDrawer } from './mobile-nav-drawer'
 
 export function GlobalHeader({ locale, currentTheme, current, variant, ctas, t }: GlobalHeaderProps) {
-  const homeHref = locale === 'pt-BR' ? '/pt-BR' : '/'
+  const homeHref = locale === 'pt-BR' ? '/pt' : '/'
   const items = buildNavItems(locale, variant, t)
 
   return (

@@ -1,6 +1,7 @@
 import { headers } from 'next/headers'
 import { tryGetSiteContext } from '@/lib/cms/site-context'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { localePath } from '@/lib/i18n/locale-path'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -16,6 +17,7 @@ export async function GET(): Promise<Response> {
 
   const h = await headers()
   const host = h.get('host') ?? ctx.primaryDomain ?? 'bythiagofigueiredo.com'
+  const locale = h.get('x-locale') ?? 'en'
   const siteUrl = `https://${host}`
   const supabase = getSupabaseServiceClient()
   const now = new Date().toISOString()
@@ -28,7 +30,7 @@ export async function GET(): Promise<Response> {
     `)
     .eq('blog_posts.site_id', ctx.siteId)
     .eq('blog_posts.status', 'published')
-    .eq('locale', ctx.defaultLocale)
+    .eq('locale', locale)
     .lte('blog_posts.published_at', now)
     .not('blog_posts.published_at', 'is', null)
     .order('published_at', { referencedTable: 'blog_posts', ascending: false })
@@ -37,7 +39,7 @@ export async function GET(): Promise<Response> {
   const items = (posts ?? []).map((row) => {
     const post = (row as Record<string, unknown>)['blog_posts'] as Record<string, unknown>
     const pubDate = new Date(post['published_at'] as string).toUTCString()
-    const link = `${siteUrl}/blog/${row.locale}/${row.slug}`
+    const link = `${siteUrl}${localePath(`/blog/${row.slug}`, row.locale)}`
     return `    <item>
       <title><![CDATA[${escapeXml(row.title)}]]></title>
       <link>${link}</link>
@@ -54,7 +56,7 @@ export async function GET(): Promise<Response> {
     <title>by Thiago Figueiredo</title>
     <link>${siteUrl}</link>
     <description>Build in public. Learn out loud.</description>
-    <language>${ctx.defaultLocale}</language>
+    <language>${locale}</language>
     <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>
     <atom:link href="${siteUrl}/feed.xml" rel="self" type="application/rss+xml" />
 ${items.join('\n')}

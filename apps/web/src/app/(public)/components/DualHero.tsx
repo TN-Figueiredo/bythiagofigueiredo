@@ -19,7 +19,7 @@ type Props = {
 }
 
 export function DualHero({ post, video, locale, t, isDark }: Props) {
-  const blogBase = locale === 'pt-BR' ? '/blog/pt-BR' : '/blog/en'
+  const blogBase = locale === 'pt-BR' ? '/pt/blog' : '/blog'
   const isPt = locale === 'pt-BR'
 
   const paper   = isDark ? '#2A241A' : '#FBF6E8'

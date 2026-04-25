@@ -55,8 +55,8 @@ export function TopStrip({ locale }: Props) {
           </span>
         ) : (
           <Link
-            href="/pt-BR"
-            hrefLang="pt-BR"
+            href="/pt"
+            hrefLang="pt"
             style={{
               color: '#F2EBDB',
               borderRadius: 999,

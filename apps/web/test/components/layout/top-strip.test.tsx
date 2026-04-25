@@ -20,7 +20,7 @@ describe('TopStrip', () => {
     render(<TopStrip locale="en" />)
     const ptLink = screen.getByText('PT').closest('a')
     expect(ptLink).toBeTruthy()
-    expect(ptLink!.getAttribute('href')).toBe('/pt-BR')
+    expect(ptLink!.getAttribute('href')).toBe('/pt')
   })
 
   it('links EN locale correctly when PT is active', () => {

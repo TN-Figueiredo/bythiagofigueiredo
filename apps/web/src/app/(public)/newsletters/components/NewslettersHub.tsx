@@ -308,7 +308,7 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
             })}
           </div>
           <Link
-            href={locale === 'pt-BR' ? '/pt-BR' : '/'}
+            href={locale === 'pt-BR' ? '/pt' : '/'}
             style={{ display: 'inline-block', padding: '12px 26px', background: 'transparent', color: ink, border: `1.5px solid ${line}`, fontFamily: '"JetBrains Mono", monospace', fontSize: 12, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 600, textDecoration: 'none' }}
           >
             {L === 'pt' ? '← voltar pra home' : '← back to home'}
@@ -432,11 +432,11 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
 
       {/* Footer */}
       <footer style={{ borderTop: `1px dashed ${line}`, padding: '28px', textAlign: 'center', color: faint, fontSize: 12, fontFamily: '"JetBrains Mono", monospace', letterSpacing: '0.08em' }}>
-        <Link href={locale === 'pt-BR' ? '/pt-BR' : '/'} style={{ color: accent, textDecoration: 'none' }}>
+        <Link href={locale === 'pt-BR' ? '/pt' : '/'} style={{ color: accent, textDecoration: 'none' }}>
           ← {L === 'pt' ? 'voltar pra home' : 'back to home'}
         </Link>
         <span style={{ margin: '0 14px', opacity: 0.5 }}>·</span>
-        <Link href={locale === 'pt-BR' ? '/blog/pt-BR' : '/blog/en'} style={{ color: muted, textDecoration: 'none' }}>
+        <Link href={locale === 'pt-BR' ? '/pt/blog' : '/blog'} style={{ color: muted, textDecoration: 'none' }}>
           {L === 'pt' ? 'blog' : 'blog'}
         </Link>
       </footer>

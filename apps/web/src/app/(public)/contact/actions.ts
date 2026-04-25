@@ -130,7 +130,7 @@ export async function submitContact(formData: FormData): Promise<ContactResult> 
     name: input.name,
     email: input.email,
     message: input.message,
-    locale: input.locale ?? 'pt-BR',
+    locale: input.locale ?? 'en',
   }).catch(() => {
     /* swallow */
   })
