@@ -13,12 +13,12 @@ import { generateCampaignMetadata } from '@/lib/seo/page-metadata'
 import { buildArticleNode, buildBreadcrumbNode } from '@/lib/seo/jsonld/builders'
 import { composeGraph } from '@/lib/seo/jsonld/graph'
 import { JsonLdScript } from '@/lib/seo/jsonld/render'
-import { VisualBreadcrumbs } from '../../../components/visual-breadcrumbs'
+import { localePath } from '@/lib/i18n/locale-path'
+import { VisualBreadcrumbs } from '../../components/visual-breadcrumbs'
 import enStrings from '@/locales/en.json'
 import ptBrStrings from '@/locales/pt-BR.json'
 
 interface PageParams {
-  locale: string
   slug: string
 }
 
@@ -79,7 +79,9 @@ function parseDateOrNull(s: string | null | undefined): Date | null {
 }
 
 export default async function CampaignPage({ params }: { params: Promise<PageParams> }) {
-  const { locale, slug } = await params
+  const { slug } = await params
+  const h = await headers()
+  const locale = h.get('x-locale') ?? 'en'
   const campaign = await loadCampaign(locale, slug)
   if (!campaign) notFound()
   const tx = campaign.campaign_translations[0]
@@ -91,7 +93,7 @@ export default async function CampaignPage({ params }: { params: Promise<PagePar
   // (same shape as BlogPosting with @type swapped) to describe the campaign
   // landing page. Root WebSite + Person/Org nodes come from the public layout.
   const ctx = await tryGetSiteContext()
-  const host = (await headers()).get('host') ?? ctx?.primaryDomain ?? ''
+  const host = h.get('host') ?? ctx?.primaryDomain ?? ''
   const config = ctx
     ? await getSiteSeoConfig(ctx.siteId, host).catch(() => null)
     : null
@@ -107,7 +109,7 @@ export default async function CampaignPage({ params }: { params: Promise<PagePar
           <VisualBreadcrumbs
             items={[
               { label: t['campaigns.breadcrumb.home'] ?? '', href: '/' },
-              { label: t['campaigns.breadcrumb.campaigns'] ?? '', href: `/campaigns/${locale}` },
+              { label: t['campaigns.breadcrumb.campaigns'] ?? '', href: localePath('/campaigns', locale) },
               { label: title },
             ]}
           />
@@ -153,10 +155,10 @@ function buildCampaignGraph(
   const title = (tx.meta_title as string | undefined) ?? slug
   const crumbs = buildBreadcrumbNode([
     { name: 'Home', url: config.siteUrl },
-    { name: 'Campaigns', url: `${config.siteUrl}/campaigns/${locale}` },
+    { name: 'Campaigns', url: `${config.siteUrl}${localePath('/campaigns', locale)}` },
     {
       name: title,
-      url: `${config.siteUrl}/campaigns/${locale}/${encodeURIComponent(slug)}`,
+      url: `${config.siteUrl}${localePath(`/campaigns/${encodeURIComponent(slug)}`, locale)}`,
     },
   ])
   const updatedAt = parseDateOrNull(campaign.updated_at)
@@ -201,7 +203,9 @@ function buildCampaignGraph(
 // OG type=article, and OG image (explicit og_image_url > dynamic OG
 // endpoint fallback), so the page no longer hardcodes any of that.
 export async function generateMetadata({ params }: { params: Promise<PageParams> }): Promise<Metadata> {
-  const { locale, slug } = await params
+  const { slug } = await params
+  const h = await headers()
+  const locale = h.get('x-locale') ?? 'en'
   const c = await loadCampaign(locale, slug)
   if (!c) return {}
   const tx = c.campaign_translations[0]

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import type { SiteSeoConfig } from './config'
+import { localePath } from '@/lib/i18n/locale-path'
 
 type BlogPostInput = Parameters<typeof import('./jsonld/builders').buildBlogPostingNode>[1]
 type TranslationInput = Parameters<typeof import('./jsonld/builders').buildBlogPostingNode>[2][number]
@@ -98,7 +99,7 @@ export function generateCampaignMetadata(config: SiteSeoConfig, c: CampaignInput
     title: c.meta_title,
     description: c.meta_description,
     alternates: {
-      canonical: `${config.contentPaths.campaigns}/${c.locale}/${encodeURIComponent(c.slug)}`,
+      canonical: localePath(`${config.contentPaths.campaigns}/${encodeURIComponent(c.slug)}`, c.locale),
     },
     openGraph: {
       ...baseMetadata(config).openGraph,

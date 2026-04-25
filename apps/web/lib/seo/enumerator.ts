@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { localePath } from '@/lib/i18n/locale-path'
 import type { SiteSeoConfig } from './config'
 
 export interface SitemapRouteEntry {
@@ -99,10 +100,10 @@ export async function enumerateSiteRoutes(
     for (const t of translations) {
       const alternates: Record<string, string> = {}
       for (const alt of translations) {
-        alternates[alt.locale] = `${config.contentPaths.campaigns}/${alt.locale}/${alt.slug}`
+        alternates[alt.locale] = localePath(`${config.contentPaths.campaigns}/${alt.slug}`, alt.locale)
       }
       campaignRoutes.push({
-        path: `${config.contentPaths.campaigns}/${t.locale}/${t.slug}`,
+        path: localePath(`${config.contentPaths.campaigns}/${t.slug}`, t.locale),
         lastModified: new Date(t.updated_at),
         changeFrequency: 'monthly',
         priority: 0.8,

@@ -83,7 +83,7 @@ exports[`page-metadata factories — snapshots > generateCampaignMetadata shape 
   "title": "Título da campanha",
   "description": "Descrição da campanha",
   "alternates": {
-    "canonical": "/campaigns/pt-BR/c1"
+    "canonical": "/pt/campaigns/c1"
   }
 }"
 `;

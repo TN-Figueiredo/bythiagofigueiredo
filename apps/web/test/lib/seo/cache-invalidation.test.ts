@@ -27,7 +27,7 @@ describe('cache-invalidation helpers', () => {
     expect(revalidateTag).toHaveBeenCalledWith('campaign:camp-9')
     expect(revalidateTag).toHaveBeenCalledWith('og:campaign:camp-9')
     expect(revalidateTag).toHaveBeenCalledWith('sitemap:site-1')
-    expect(revalidatePath).toHaveBeenCalledWith('/campaigns/pt-BR/launch')
+    expect(revalidatePath).toHaveBeenCalledWith('/pt/campaigns/launch')
   })
 
   it('revalidateSiteBranding invalidates seo-config tag', async () => {

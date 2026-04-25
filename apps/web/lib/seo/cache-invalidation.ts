@@ -1,4 +1,5 @@
 import { revalidateTag, revalidatePath } from 'next/cache'
+import { localePath } from '@/lib/i18n/locale-path'
 
 export function revalidateBlogPostSeo(
   siteId: string,
@@ -22,7 +23,7 @@ export function revalidateCampaignSeo(
   revalidateTag(`campaign:${campaignId}`)
   revalidateTag(`og:campaign:${campaignId}`)
   revalidateTag(`sitemap:${siteId}`)
-  revalidatePath(`/campaigns/${locale}/${slug}`)
+  revalidatePath(localePath(`/campaigns/${slug}`, locale))
 }
 
 export function revalidateSiteBranding(): void {

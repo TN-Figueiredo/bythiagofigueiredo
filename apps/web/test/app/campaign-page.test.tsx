@@ -5,7 +5,7 @@ import { render, screen } from '@testing-library/react'
 // SEO config to build Article + Breadcrumb JSON-LD. Stub the out-of-scope
 // dependencies so the unit test keeps asserting rendering behavior only.
 vi.mock('next/headers', () => ({
-  headers: () => Promise.resolve(new Map([['host', 'example.com']])),
+  headers: () => Promise.resolve(new Map([['host', 'example.com'], ['x-locale', 'pt-BR']])),
 }))
 vi.mock('../../lib/cms/site-context', () => ({
   tryGetSiteContext: () => Promise.resolve(null),
@@ -60,11 +60,11 @@ vi.mock('../../lib/supabase/service', () => ({
   }),
 }))
 
-import Page from '../../src/app/(public)/campaigns/[locale]/[slug]/page'
+import Page from '../../src/app/(public)/campaigns/[slug]/page'
 
 describe('Campaign page', () => {
   it('renders main hook markdown as an <h1> element (via react-markdown)', async () => {
-    const jsx = await Page({ params: Promise.resolve({ locale: 'pt-BR', slug: 'oferta' }) })
+    const jsx = await Page({ params: Promise.resolve({ slug: 'oferta' }) })
     render(jsx as never)
     const heading = screen.getByRole('heading', { level: 1, name: /Hello/ })
     expect(heading).toBeTruthy()
