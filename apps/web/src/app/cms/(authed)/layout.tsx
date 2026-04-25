@@ -43,15 +43,18 @@ export default async function Layout({ children }: { children: ReactNode }) {
   const userRole = currentSite?.user_role ?? 'reporter'
 
   const svc = getSupabaseServiceClient()
-  const [draftsRes, subsRes] = await Promise.all([
+  const [draftsRes, subsRes, pendingContactsRes] = await Promise.all([
     svc.from('blog_posts').select('id', { count: 'exact', head: true })
       .eq('site_id', currentSiteId).eq('status', 'draft'),
     svc.from('newsletter_subscriptions').select('id', { count: 'exact', head: true })
       .eq('site_id', currentSiteId).eq('status', 'confirmed'),
+    svc.from('contact_submissions').select('id', { count: 'exact', head: true })
+      .eq('site_id', currentSiteId).is('replied_at', null).is('anonymized_at', null),
   ])
   const badges: Record<string, number> = {}
   if (draftsRes.count) badges['/cms/blog'] = draftsRes.count
   if (subsRes.count) badges['/cms/subscribers'] = subsRes.count
+  if (pendingContactsRes.count) badges['/cms/contacts'] = pendingContactsRes.count
 
   return (
     <CmsAdminProvider linkComponent={Link}>

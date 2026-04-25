@@ -42,17 +42,20 @@ vi.mock('@tn-figueiredo/auth-nextjs', () => ({
   requireArea: vi.fn(async () => undefined),
 }))
 
-vi.mock('@/lib/supabase/service', () => ({
-  getSupabaseServiceClient: vi.fn(() => ({
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          eq: vi.fn(async () => ({ count: 0, data: null, error: null })),
-        })),
+vi.mock('@/lib/supabase/service', () => {
+  const result = { count: 0, data: null, error: null }
+  const chainable: Record<string, unknown> = {}
+  chainable.eq = vi.fn(() => chainable)
+  chainable.is = vi.fn(() => chainable)
+  chainable.then = (resolve: (v: unknown) => void) => resolve(result)
+  return {
+    getSupabaseServiceClient: vi.fn(() => ({
+      from: vi.fn(() => ({
+        select: vi.fn(() => chainable),
       })),
     })),
-  })),
-}))
+  }
+})
 
 import Layout from '../src/app/cms/(authed)/layout'
 
