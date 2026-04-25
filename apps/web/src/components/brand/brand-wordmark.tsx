@@ -22,7 +22,6 @@ export function BrandWordmark({ theme, height = 28, className }: Props) {
       role="img"
       aria-label="by Thiago Figueiredo"
       className={className}
-      style={{ display: 'block' }}
     >
       <g data-testid="brand-text" fontFamily="'Source Serif 4', Georgia, serif" fill={text}>
         <text x="6" y="68.80" fontSize="46.08" fontWeight="300" fontStyle="italic" opacity="0.75">by</text>
