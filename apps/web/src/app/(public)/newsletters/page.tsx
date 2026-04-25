@@ -1,5 +1,6 @@
 import { cookies, headers } from 'next/headers'
 import type { Metadata } from 'next'
+import { localePath } from '@/lib/i18n/locale-path'
 import { NewslettersHub } from './components/NewslettersHub'
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -12,12 +13,10 @@ export async function generateMetadata(): Promise<Metadata> {
       ? 'Quatro newsletters, um email — escolhe o que cabe na sua frequência.'
       : 'Four newsletters, one email — pick what fits your frequency.',
     alternates: {
-      canonical: isPt
-        ? 'https://bythiagofigueiredo.com/pt/newsletters'
-        : 'https://bythiagofigueiredo.com/newsletters',
+      canonical: localePath('/newsletters', locale),
       languages: {
-        en: 'https://bythiagofigueiredo.com/newsletters',
-        pt: 'https://bythiagofigueiredo.com/pt/newsletters',
+        en: '/newsletters',
+        pt: '/pt/newsletters',
       },
     },
   }

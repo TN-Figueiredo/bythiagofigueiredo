@@ -111,8 +111,8 @@ export default async function PublicLayout({ children }: { children: ReactNode }
         <PinboardFooter locale={locale} t={t} />
         {lgpdBannerEnabled && (
           <>
-            <CookieBanner />
-            <CookieBannerTrigger />
+            <CookieBanner localeOverride={locale} />
+            <CookieBannerTrigger localeOverride={locale} />
           </>
         )}
       </div>

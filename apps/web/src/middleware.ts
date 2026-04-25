@@ -29,9 +29,9 @@ import { SupabaseRingContext } from '@tn-figueiredo/cms/ring'
  *
  * Note: `@tn-figueiredo/auth-nextjs` exports `buildAuthRegex` for consumers
  * that use locale-prefixed routing (next-intl, [locale] segments). apps/web
- * is single-locale at the URL level today, so plain regex literals suffice.
- * If locale routing is ever adopted, replace the literals below with
- * `buildAuthRegex({ path: '/admin/login', locales: [...] })` etc.
+ * uses /pt/ prefix routing with middleware strip+rewrite — admin/cms paths
+ * are excluded from locale prefixing (skipLocale), so plain regex literals
+ * suffice for auth route matching.
  */
 
 const env = {

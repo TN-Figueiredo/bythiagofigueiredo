@@ -101,7 +101,7 @@ export async function enumerateSiteRoutes(
     for (const t of translations) {
       const alternates: Record<string, string> = {}
       for (const alt of translations) {
-        alternates[alt.locale] = localePath(`${config.contentPaths.campaigns}/${alt.slug}`, alt.locale)
+        alternates[hreflangCode(alt.locale)] = localePath(`${config.contentPaths.campaigns}/${alt.slug}`, alt.locale)
       }
       campaignRoutes.push({
         path: localePath(`${config.contentPaths.campaigns}/${t.slug}`, t.locale),

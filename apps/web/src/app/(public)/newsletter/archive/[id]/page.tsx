@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { cookies, headers } from 'next/headers'
+import { headers } from 'next/headers'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext, tryGetSiteContext } from '@/lib/cms/site-context'
 import { getSiteSeoConfig } from '@/lib/seo/config'
@@ -64,14 +64,14 @@ export default async function NewsletterArchivePage({
     ? (rawType[0] as { name: string; color: string } | undefined) ?? null
     : (rawType as unknown as { name: string; color: string } | null)
 
-  const cookieStore = await cookies()
-  const locale = cookieStore.get('NEXT_LOCALE')?.value ?? ctx.defaultLocale ?? 'en'
+  const h = await headers()
+  const locale = h.get('x-locale') ?? 'en'
   const t = (locale === 'pt-BR' ? ptBrStrings : enStrings) as Record<string, string>
 
   const sentDate = edition.sent_at ? new Date(edition.sent_at as string) : null
 
   // JSON-LD breadcrumb
-  const host = (await headers()).get('host') ?? ctx.primaryDomain ?? ''
+  const host = h.get('host') ?? ctx.primaryDomain ?? ''
   const config = await getSiteSeoConfig(ctx.siteId, host).catch(() => null)
   const graph = config
     ? composeGraph([
