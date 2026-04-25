@@ -27,7 +27,7 @@ test.describe('Public / Homepage', () => {
   })
 
   test('blog listing carrega artigos', async ({ page }) => {
-    const response = await page.goto('/blog/pt-BR')
+    const response = await page.goto('/pt/blog')
     expect(response?.status()).toBe(200)
     await expect(page.locator('main')).toBeVisible()
     // Either an article list or an empty state — both are acceptable

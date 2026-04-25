@@ -62,7 +62,7 @@ test.describe('CMS / Campanhas', () => {
     await editor.publish()
 
     const publicPage = await page.context().newPage()
-    await publicPage.goto(`/campaigns/pt-BR/test-${testId}-publish-campaign`)
+    await publicPage.goto(`/pt/campaigns/test-${testId}-publish-campaign`)
     await expect(publicPage).not.toHaveURL(/404/)
     await publicPage.close()
 

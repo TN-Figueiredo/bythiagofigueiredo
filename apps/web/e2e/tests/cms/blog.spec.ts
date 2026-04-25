@@ -50,7 +50,7 @@ test.describe('CMS / Blog', () => {
     await new BlogEditorPage(page).publish()
 
     const publicPage = await page.context().newPage()
-    await publicPage.goto(`/blog/pt-BR/test-${testId}-publish`)
+    await publicPage.goto(`/pt/blog/test-${testId}-publish`)
     await expect(publicPage).not.toHaveURL(/404/)
     await publicPage.close()
 
@@ -73,7 +73,7 @@ test.describe('CMS / Blog', () => {
     await new BlogEditorPage(page).unpublish()
 
     const publicPage = await page.context().newPage()
-    const response = await publicPage.goto(`/blog/pt-BR/test-${testId}-unpublish`)
+    const response = await publicPage.goto(`/pt/blog/test-${testId}-unpublish`)
     expect(response?.status()).toBe(404)
     await publicPage.close()
   })
