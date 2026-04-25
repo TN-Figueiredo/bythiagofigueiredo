@@ -3,13 +3,21 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
+const CONTENT_PREFIXES = ['/blog/', '/campaigns/']
+
+function isContentPath(bare: string): boolean {
+  return CONTENT_PREFIXES.some((p) => bare.startsWith(p))
+}
+
 export function TopStrip() {
   const pathname = usePathname()
   const isPt = pathname === '/pt' || pathname.startsWith('/pt/')
 
-  const switchedPath = isPt
-    ? pathname.slice(3) || '/'
-    : `/pt${pathname}`
+  const barePath = isPt ? (pathname.slice(3) || '/') : pathname
+
+  const switchedPath = isContentPath(barePath)
+    ? (isPt ? '/' : '/pt')
+    : (isPt ? barePath : `/pt${pathname}`)
 
   return (
     <div

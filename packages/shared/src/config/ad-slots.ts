@@ -1,59 +1,76 @@
 import type { AdSlotDefinition } from '@tn-figueiredo/ad-engine'
 
-/**
- * bythiagofigueiredo ad slot definitions — the ONLY project-specific ad engine file.
- *
- * Pass to AdEngineAdminProvider as `config.slots`.
- * Each slot key must have a matching kill switch in the kill_switches table
- * and a placeholder row in ad_placeholders.
- */
 export const SITE_AD_SLOTS: readonly AdSlotDefinition[] = [
   {
-    key: 'article_top',
-    label: 'Topo do artigo',
-    desc: 'Banner exibido antes do conteúdo do artigo. Alta visibilidade, visto por 100% dos leitores.',
+    key: 'banner_top',
+    label: 'Banner — Topo',
+    desc: 'Strip full-width acima do artigo. Dismissable, opt-in.',
     badge: 'Alto alcance',
     badgeColor: 'green',
-    defaultLimits: {
-      maxPerSession: 1,
-      maxPerDay: 3,
-      cooldownMs: 60 * 60 * 1000, // 1h
-    },
+    // @ts-expect-error — pending ad-engine@0.3.0
+    zone: 'banner',
+    mobileBehavior: 'keep',
+    acceptedAdTypes: ['house', 'cpa'],
+    defaultLimits: { maxPerSession: 1, maxPerDay: 3, cooldownMs: 3_600_000 },
   },
   {
-    key: 'article_between_paras',
-    label: 'Entre parágrafos',
-    desc: 'Nativo inserido entre parágrafos do artigo. Contextual e de alta intenção.',
+    key: 'rail_left',
+    label: 'Rail esquerdo',
+    desc: 'Sidebar esquerda abaixo do TOC. Apenas house ads.',
     badge: 'Contextual',
     badgeColor: 'blue',
-    defaultLimits: {
-      maxPerSession: 2,
-      maxPerDay: 4,
-      cooldownMs: 30 * 60 * 1000, // 30min
-    },
+    // @ts-expect-error — pending ad-engine@0.3.0
+    zone: 'rail',
+    mobileBehavior: 'hide',
+    acceptedAdTypes: ['house'],
+    defaultLimits: { maxPerSession: 1, maxPerDay: 3, cooldownMs: 3_600_000 },
   },
   {
-    key: 'sidebar_right',
-    label: 'Sidebar direita',
-    desc: 'Slot fixo na coluna lateral. Acompanha a rolagem, alta visibilidade em desktop.',
+    key: 'rail_right',
+    label: 'Rail direito',
+    desc: 'Sidebar direita sticky acima dos key-points.',
     badge: 'Visibilidade',
     badgeColor: 'purple',
-    defaultLimits: {
-      maxPerSession: 3,
-      maxPerDay: 6,
-      cooldownMs: 15 * 60 * 1000, // 15min
-    },
+    // @ts-expect-error — pending ad-engine@0.3.0
+    zone: 'rail',
+    mobileBehavior: 'stack',
+    acceptedAdTypes: ['cpa'],
+    defaultLimits: { maxPerSession: 3, maxPerDay: 6, cooldownMs: 900_000 },
   },
   {
-    key: 'below_fold',
-    label: 'Abaixo da dobra',
-    desc: 'Card exibido ao final do artigo. Ideal para retargeting após consumo completo do conteúdo.',
+    key: 'inline_mid',
+    label: 'Inline — Meio',
+    desc: 'Inserido entre seções do artigo, antes do 2º h2.',
+    badge: 'Contextual',
+    badgeColor: 'blue',
+    // @ts-expect-error — pending ad-engine@0.3.0
+    zone: 'inline',
+    mobileBehavior: 'keep',
+    acceptedAdTypes: ['cpa'],
+    defaultLimits: { maxPerSession: 2, maxPerDay: 4, cooldownMs: 1_800_000 },
+  },
+  {
+    key: 'inline_end',
+    label: 'Inline — Encerramento',
+    desc: 'Dentro do fluxo, zona final do artigo. Form/CTA.',
+    badge: 'Engajamento',
+    badgeColor: 'orange',
+    // @ts-expect-error — pending ad-engine@0.3.0
+    zone: 'inline',
+    mobileBehavior: 'keep',
+    acceptedAdTypes: ['house'],
+    defaultLimits: { maxPerSession: 1, maxPerDay: 2, cooldownMs: 3_600_000 },
+  },
+  {
+    key: 'block_bottom',
+    label: 'Block — Inferior',
+    desc: 'Card standalone após o body do artigo.',
     badge: 'Retargeting',
     badgeColor: 'orange',
-    defaultLimits: {
-      maxPerSession: 1,
-      maxPerDay: 2,
-      cooldownMs: 2 * 60 * 60 * 1000, // 2h
-    },
+    // @ts-expect-error — pending ad-engine@0.3.0
+    zone: 'block',
+    mobileBehavior: 'keep',
+    acceptedAdTypes: ['house', 'cpa'],
+    defaultLimits: { maxPerSession: 1, maxPerDay: 2, cooldownMs: 7_200_000 },
   },
 ] as const

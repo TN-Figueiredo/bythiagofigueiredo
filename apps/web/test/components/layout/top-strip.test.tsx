@@ -17,7 +17,7 @@ describe('TopStrip', () => {
   })
 
   it('marks PT active when pathname starts with /pt', () => {
-    mockPathname = '/pt/blog'
+    mockPathname = '/pt/privacy'
     const { container } = render(<TopStrip />)
     const activeBtn = container.querySelector('[data-active="true"]')
     expect(activeBtn).toBeTruthy()
@@ -25,34 +25,52 @@ describe('TopStrip', () => {
   })
 
   it('marks EN active when pathname has no /pt prefix', () => {
-    mockPathname = '/blog'
+    mockPathname = '/privacy'
     const { container } = render(<TopStrip />)
     const activeBtn = container.querySelector('[data-active="true"]')
     expect(activeBtn).toBeTruthy()
     expect(activeBtn!.textContent).toBe('EN')
   })
 
-  it('PT link preserves current page path', () => {
-    mockPathname = '/blog'
+  it('preserves path for static pages (privacy, contact, etc.)', () => {
+    mockPathname = '/privacy'
     render(<TopStrip />)
     const ptLink = screen.getByText('PT').closest('a')
-    expect(ptLink).toBeTruthy()
-    expect(ptLink!.getAttribute('href')).toBe('/pt/blog')
+    expect(ptLink!.getAttribute('href')).toBe('/pt/privacy')
   })
 
-  it('EN link strips /pt prefix and preserves path', () => {
-    mockPathname = '/pt/blog'
+  it('EN link preserves path for static pages', () => {
+    mockPathname = '/pt/contact'
     render(<TopStrip />)
     const enLink = screen.getByText('EN').closest('a')
-    expect(enLink).toBeTruthy()
-    expect(enLink!.getAttribute('href')).toBe('/blog')
+    expect(enLink!.getAttribute('href')).toBe('/contact')
+  })
+
+  it('falls back to home for content paths (blog posts)', () => {
+    mockPathname = '/blog/my-post'
+    render(<TopStrip />)
+    const ptLink = screen.getByText('PT').closest('a')
+    expect(ptLink!.getAttribute('href')).toBe('/pt')
+  })
+
+  it('falls back to home for PT content paths', () => {
+    mockPathname = '/pt/blog/meu-post'
+    render(<TopStrip />)
+    const enLink = screen.getByText('EN').closest('a')
+    expect(enLink!.getAttribute('href')).toBe('/')
+  })
+
+  it('falls back to home for campaign paths', () => {
+    mockPathname = '/pt/campaigns/minha-campanha'
+    render(<TopStrip />)
+    const enLink = screen.getByText('EN').closest('a')
+    expect(enLink!.getAttribute('href')).toBe('/')
   })
 
   it('EN link goes to / when stripping /pt from root', () => {
     mockPathname = '/pt'
     render(<TopStrip />)
     const enLink = screen.getByText('EN').closest('a')
-    expect(enLink).toBeTruthy()
     expect(enLink!.getAttribute('href')).toBe('/')
   })
 
@@ -60,7 +78,6 @@ describe('TopStrip', () => {
     mockPathname = '/'
     render(<TopStrip />)
     const ptLink = screen.getByText('PT').closest('a')
-    expect(ptLink).toBeTruthy()
     expect(ptLink!.getAttribute('href')).toBe('/pt')
   })
 
