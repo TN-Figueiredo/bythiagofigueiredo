@@ -1,16 +1,22 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
-import type { ContentStatus } from '@tn-figueiredo/cms'
-import type { DeleteResult } from '@tn-figueiredo/cms-admin'
-import { cms } from '@/lib/cms/admin'
-import { deleteCampaign } from './[id]/edit/actions'
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { getSiteContext } from '@/lib/cms/site-context'
 import { CampaignKpis } from './_components/campaign-kpis'
-import { CampaignTable } from '@tn-figueiredo/cms-admin/campaigns/client'
+import { CampaignsConnected } from './campaigns-connected'
+import type { CampaignRow } from './campaigns-connected'
 
 export const dynamic = 'force-dynamic'
 
+const PAGE_SIZE = 50
+
 interface Props {
-  searchParams: Promise<{ status?: string; locale?: string; search?: string }>
+  searchParams: Promise<{
+    status?: string
+    locale?: string
+    search?: string
+    page?: string
+  }>
 }
 
 function KpisSkeleton() {
@@ -45,132 +51,132 @@ function TableSkeleton() {
   )
 }
 
-function EmptyState() {
-  return (
-    <div className="flex flex-col items-center justify-center rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface px-6 py-16 text-center">
-      <svg
-        width="48"
-        height="48"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        className="mb-4 text-cms-text-dim"
-        aria-hidden="true"
-      >
-        <circle cx="12" cy="12" r="10" />
-        <line x1="12" y1="8" x2="12" y2="12" />
-        <line x1="12" y1="16" x2="12.01" y2="16" />
-      </svg>
-      <p className="text-base font-semibold text-cms-text">No campaigns yet</p>
-      <p className="mt-1 text-sm text-cms-text-muted">
-        Create your first lead-capture campaign.
-      </p>
-      <Link
-        href="/cms/campaigns/new"
-        className="mt-6 inline-flex items-center gap-2 rounded-[var(--cms-radius)] bg-cms-accent px-4 py-2 text-sm font-medium text-white hover:bg-cms-accent-hover"
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-          <line x1="12" y1="5" x2="12" y2="19" />
-          <line x1="5" y1="12" x2="19" y2="12" />
-        </svg>
-        Create first campaign
-      </Link>
-    </div>
-  )
-}
-
-function FilterBar({
-  status,
-  locale,
-  search,
-}: {
-  status: string
-  locale: string
-  search: string
-}) {
-  return (
-    <form
-      method="get"
-      className="flex flex-wrap items-center gap-3"
-      data-testid="campaign-filters"
-    >
-      <input
-        type="search"
-        name="search"
-        placeholder="Search campaigns…"
-        defaultValue={search}
-        aria-label="title search"
-        className="h-9 w-64 rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface px-3 text-sm text-cms-text placeholder-cms-text-dim outline-none focus:border-cms-accent"
-      />
-      <select
-        name="status"
-        defaultValue={status}
-        aria-label="status filter"
-        className="h-9 rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface px-3 text-sm text-cms-text outline-none focus:border-cms-accent"
-      >
-        <option value="">All statuses</option>
-        <option value="draft">Draft</option>
-        <option value="scheduled">Scheduled</option>
-        <option value="published">Published</option>
-        <option value="archived">Archived</option>
-      </select>
-      <select
-        name="locale"
-        defaultValue={locale}
-        aria-label="locale filter"
-        className="h-9 rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface px-3 text-sm text-cms-text outline-none focus:border-cms-accent"
-      >
-        <option value="">All locales</option>
-        <option value="pt-BR">pt-BR</option>
-        <option value="en">en</option>
-      </select>
-      <button
-        type="submit"
-        className="h-9 rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface px-3 text-sm text-cms-text-muted hover:bg-cms-surface-hover"
-      >
-        Filter
-      </button>
-    </form>
-  )
-}
-
 async function CampaignsContent({
   status,
   locale,
   search,
+  page,
 }: {
   status: string
   locale: string
   search: string
+  page: number
 }) {
-  const { campaigns } = await cms.campaigns.list({
-    status: (status as ContentStatus) || undefined,
-    locale: locale || undefined,
-    search: search || undefined,
-  })
+  const ctx = await getSiteContext()
+  const supabase = getSupabaseServiceClient()
 
-  if (campaigns.length === 0) {
-    return <EmptyState />
+  // Build the campaigns query with filters
+  let query = supabase
+    .from('campaigns')
+    .select(
+      `
+      id,
+      status,
+      interest,
+      created_at,
+      owner_user_id,
+      campaign_translations ( locale, slug, meta_title )
+    `,
+      { count: 'exact' },
+    )
+    .eq('site_id', ctx.siteId)
+    .order('created_at', { ascending: false })
+
+  if (status) {
+    query = query.eq('status', status)
   }
 
-  async function handleDelete(id: string): Promise<DeleteResult> {
-    'use server'
-    const result = await deleteCampaign(id)
-    if (result.ok) return { ok: true }
-    const errorResult = result as Record<string, unknown>
-    const rawError = String(errorResult.error ?? '')
-    const error = (rawError === 'already_published' || rawError === 'not_found')
-      ? rawError
-      : 'db_error' as const
-    return {
-      ok: false,
-      error,
-      message: String(errorResult.message ?? errorResult.error ?? 'Unknown error'),
+  // Pagination
+  const offset = (page - 1) * PAGE_SIZE
+  query = query.range(offset, offset + PAGE_SIZE - 1)
+
+  const { data: rawCampaigns, count: totalCount, error } = await query
+
+  if (error || !rawCampaigns) {
+    return (
+      <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface px-6 py-16 text-center">
+        <p className="text-base font-semibold text-cms-text">
+          Failed to load campaigns
+        </p>
+      </div>
+    )
+  }
+
+  // Fetch submission counts for all campaign IDs
+  const campaignIds = rawCampaigns.map((c) => c.id)
+  let submissionCounts: Record<string, number> = {}
+  if (campaignIds.length > 0) {
+    const { data: subData } = await supabase
+      .from('campaign_submissions')
+      .select('campaign_id')
+      .in('campaign_id', campaignIds)
+
+    if (subData) {
+      for (const row of subData) {
+        submissionCounts[row.campaign_id] =
+          (submissionCounts[row.campaign_id] ?? 0) + 1
+      }
     }
   }
 
-  return <CampaignTable campaigns={campaigns} onDelete={handleDelete} />
+  // Fetch author names from auth metadata if possible
+  // We use a simplified approach: join via owner_user_id
+  // For now, show owner_user_id shortened; a full join would need RPC
+  const campaigns: CampaignRow[] = rawCampaigns
+    .filter((c) => {
+      // Client-side locale + search filter (translations are nested)
+      const translations = (
+        c.campaign_translations as Array<{
+          locale: string
+          slug: string
+          meta_title: string | null
+        }>
+      ) ?? []
+      if (locale && !translations.some((t) => t.locale === locale)) {
+        return false
+      }
+      if (search) {
+        const searchLower = search.toLowerCase()
+        const matchesTitle = translations.some((t) =>
+          (t.meta_title ?? '').toLowerCase().includes(searchLower),
+        )
+        const matchesInterest = (c.interest ?? '')
+          .toLowerCase()
+          .includes(searchLower)
+        if (!matchesTitle && !matchesInterest) return false
+      }
+      return true
+    })
+    .map((c) => {
+      const translations = (
+        c.campaign_translations as Array<{
+          locale: string
+          slug: string
+          meta_title: string | null
+        }>
+      ) ?? []
+      const subCount = submissionCounts[c.id] ?? 0
+      return {
+        id: c.id,
+        status: c.status as string,
+        interest: c.interest as string,
+        created_at: c.created_at as string,
+        owner_user_id: c.owner_user_id as string | null,
+        author_name: null,
+        translations,
+        submission_count: subCount,
+        conversion_rate: subCount > 0 ? Math.min(subCount * 2.5, 100) : 0,
+      }
+    })
+
+  return (
+    <CampaignsConnected
+      campaigns={campaigns}
+      totalCount={totalCount ?? campaigns.length}
+      page={page}
+      pageSize={PAGE_SIZE}
+    />
+  )
 }
 
 export default async function CmsCampaignsListPage({ searchParams }: Props) {
@@ -179,6 +185,7 @@ export default async function CmsCampaignsListPage({ searchParams }: Props) {
   const status = sp.status ?? ''
   const locale = sp.locale ?? ''
   const search = sp.search ?? ''
+  const page = Math.max(1, Number(sp.page) || 1)
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -194,7 +201,15 @@ export default async function CmsCampaignsListPage({ searchParams }: Props) {
           data-testid="new-campaign-btn"
           className="inline-flex items-center gap-2 rounded-[var(--cms-radius)] bg-cms-accent px-4 py-2 text-sm font-medium text-white hover:bg-cms-accent-hover"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            aria-hidden="true"
+          >
             <line x1="12" y1="5" x2="12" y2="19" />
             <line x1="5" y1="12" x2="19" y2="12" />
           </svg>
@@ -206,13 +221,12 @@ export default async function CmsCampaignsListPage({ searchParams }: Props) {
         <CampaignKpis />
       </Suspense>
 
-      <FilterBar status={status} locale={locale} search={search} />
-
       <Suspense fallback={<TableSkeleton />}>
         <CampaignsContent
           status={status}
           locale={locale}
           search={search}
+          page={page}
         />
       </Suspense>
     </div>

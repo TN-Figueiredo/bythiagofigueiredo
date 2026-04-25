@@ -7,7 +7,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'happy-dom',
-    exclude: ['e2e/**', 'node_modules/**', '../../.claude/**'],
+    exclude: ['e2e/**', 'node_modules/**', '../../.claude/**', '**/.claude/**'],
     environmentMatchGlobs: [
       ['src/app/api/**', 'node'],
       ['src/lib/**', 'node'],

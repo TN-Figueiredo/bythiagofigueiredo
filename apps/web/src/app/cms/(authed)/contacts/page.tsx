@@ -1,124 +1,176 @@
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { cookies } from 'next/headers'
-import { createServerClient } from '@supabase/ssr'
-import type { CookieOptions } from '@supabase/ssr'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
-import { StatusBadge } from '@tn-figueiredo/cms-ui/client'
+import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+import { CmsTopbar } from '@tn-figueiredo/cms-ui/client'
+import { ContactsConnected, type ContactKpis } from './contacts-connected'
 
 export const dynamic = 'force-dynamic'
 
-interface Props {
-  searchParams: Promise<{ notice?: string; error?: string }>
-}
+const PAGE_SIZE = 50
 
-const noticeMessages: Record<string, string> = {
-  marked_replied: 'Contato marcado como respondido.',
+interface Props {
+  searchParams: Promise<{
+    status?: string
+    q?: string
+    page?: string
+  }>
 }
 
 export default async function CmsContactsPage({ searchParams }: Props) {
-  const { notice, error: errorParam } = await searchParams
-  const ctx = await getSiteContext()
+  const params = await searchParams
+  const { siteId } = await getSiteContext()
 
-  // Authz: require at least editor role
-  const cookieStore = await cookies()
-  const userClient = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(c: Array<{ name: string; value: string; options?: CookieOptions }>) {
-          for (const { name, value, options } of c) cookieStore.set(name, value, options)
-        },
-      },
-    },
-  )
-  const { data: canAdmin } = await userClient.rpc('can_admin_site', {
-    p_site_id: ctx.siteId,
-  })
-  if (canAdmin !== true) redirect('/cms')
+  // RBAC: require at least view access
+  const authRes = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
+  if (!authRes.ok) redirect('/cms')
+
+  // Reporters get read-only
+  const editRes = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+  const readOnly = !editRes.ok
 
   const supabase = getSupabaseServiceClient()
-  const { data: submissions } = await supabase
-    .from('contact_submissions')
-    .select('id, name, email, message, submitted_at, replied_at')
-    .eq('site_id', ctx.siteId)
-    .order('submitted_at', { ascending: false })
-    .limit(100)
+  const page = Math.max(1, parseInt(params.page || '1', 10) || 1)
+  const offset = (page - 1) * PAGE_SIZE
 
-  const noticeMessage = notice != null ? (noticeMessages[notice] ?? null) : null
+  // Fetch submissions and KPI data in parallel
+  const [submissionsRes, totalRes, pendingRes, repliedRes, delta30dRes, avgResponseRes] =
+    await Promise.all([
+      // Main submissions query
+      supabase
+        .from('contact_submissions')
+        .select(
+          'id, name, email, message, submitted_at, replied_at, anonymized_at, ip, user_agent, consent_processing, consent_marketing',
+        )
+        .eq('site_id', siteId)
+        .order('submitted_at', { ascending: false })
+        .range(offset, offset + PAGE_SIZE - 1),
+
+      // Total count
+      supabase
+        .from('contact_submissions')
+        .select('id', { count: 'exact', head: true })
+        .eq('site_id', siteId),
+
+      // Pending count + oldest
+      supabase
+        .from('contact_submissions')
+        .select('submitted_at')
+        .eq('site_id', siteId)
+        .is('replied_at', null)
+        .is('anonymized_at', null)
+        .order('submitted_at', { ascending: true })
+        .limit(1),
+
+      // Replied count
+      supabase
+        .from('contact_submissions')
+        .select('id', { count: 'exact', head: true })
+        .eq('site_id', siteId)
+        .not('replied_at', 'is', null),
+
+      // 30-day delta: submissions in last 30 days
+      supabase
+        .from('contact_submissions')
+        .select('id', { count: 'exact', head: true })
+        .eq('site_id', siteId)
+        .gte('submitted_at', new Date(Date.now() - 30 * 86400000).toISOString()),
+
+      // Average response time (submissions with replied_at)
+      supabase
+        .from('contact_submissions')
+        .select('submitted_at, replied_at')
+        .eq('site_id', siteId)
+        .not('replied_at', 'is', null)
+        .is('anonymized_at', null)
+        .order('replied_at', { ascending: false })
+        .limit(100),
+    ])
+
+  const submissions = (submissionsRes.data ?? []).map((s) => ({
+    id: s.id as string,
+    name: s.name as string,
+    email: s.email as string,
+    message: s.message as string,
+    submitted_at: s.submitted_at as string,
+    replied_at: s.replied_at as string | null,
+    anonymized_at: s.anonymized_at as string | null,
+    ip: s.ip as string | null,
+    user_agent: s.user_agent as string | null,
+    consent_processing: s.consent_processing as boolean,
+    consent_marketing: s.consent_marketing as boolean,
+  }))
+
+  const total = totalRes.count ?? 0
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const pendingCount = pendingRes.data?.length
+    ? (await supabase
+        .from('contact_submissions')
+        .select('id', { count: 'exact', head: true })
+        .eq('site_id', siteId)
+        .is('replied_at', null)
+        .is('anonymized_at', null)
+      ).count ?? 0
+    : 0
+  const repliedCount = repliedRes.count ?? 0
+  const totalDelta30d = delta30dRes.count ?? 0
+
+  // Oldest pending days
+  let oldestPendingDays: number | null = null
+  if (pendingRes.data && pendingRes.data.length > 0 && pendingRes.data[0]) {
+    const oldest = new Date(pendingRes.data[0].submitted_at as string)
+    oldestPendingDays = Math.floor((Date.now() - oldest.getTime()) / 86400000)
+  }
+
+  // Reply rate
+  const nonAnonymizedTotal = total - (submissions.filter((s) => s.anonymized_at).length > 0
+    ? (await supabase
+        .from('contact_submissions')
+        .select('id', { count: 'exact', head: true })
+        .eq('site_id', siteId)
+        .not('anonymized_at', 'is', null)
+      ).count ?? 0
+    : 0)
+  const replyRate = nonAnonymizedTotal > 0 ? (repliedCount / nonAnonymizedTotal) * 100 : 0
+
+  // Avg response time
+  let avgResponseHours: number | null = null
+  if (avgResponseRes.data && avgResponseRes.data.length > 0) {
+    const diffs = avgResponseRes.data.map((r) => {
+      const submitted = new Date(r.submitted_at as string).getTime()
+      const replied = new Date(r.replied_at as string).getTime()
+      return (replied - submitted) / 3600000
+    })
+    avgResponseHours = diffs.reduce((a, b) => a + b, 0) / diffs.length
+  }
+
+  const kpis: ContactKpis = {
+    total,
+    totalDelta30d,
+    pending: pendingCount,
+    oldestPendingDays,
+    replied: repliedCount,
+    replyRate,
+    avgResponseHours,
+  }
 
   return (
-    <main className="p-8">
-      <h1 className="text-2xl font-bold mb-6 text-cms-text">Contatos recebidos</h1>
-
-      {noticeMessage && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="mb-4 rounded-[var(--cms-radius)] border border-[rgba(34,197,94,.3)] px-4 py-3 text-sm bg-cms-green-subtle text-cms-green"
-        >
-          {noticeMessage}
-        </div>
-      )}
-
-      {errorParam && (
-        <div
-          role="alert"
-          aria-live="assertive"
-          className="mb-4 rounded-[var(--cms-radius)] border border-[rgba(239,68,68,.3)] px-4 py-3 text-sm bg-cms-red-subtle text-cms-red"
-        >
-          Erro ao processar ação.
-        </div>
-      )}
-
-      {!submissions || submissions.length === 0 ? (
-        <p className="text-cms-text-dim">Nenhum contato recebido ainda.</p>
-      ) : (
-        <div className="overflow-hidden rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left border-b border-cms-border">
-                <th className="px-4 py-3 text-[11px] font-medium uppercase tracking-[1.5px] text-cms-text-muted">Nome</th>
-                <th className="px-4 py-3 text-[11px] font-medium uppercase tracking-[1.5px] text-cms-text-muted">Email</th>
-                <th className="px-4 py-3 text-[11px] font-medium uppercase tracking-[1.5px] text-cms-text-muted">Data</th>
-                <th className="px-4 py-3 text-[11px] font-medium uppercase tracking-[1.5px] text-cms-text-muted">Status</th>
-                <th className="px-4 py-3 text-[11px] font-medium uppercase tracking-[1.5px] text-cms-text-muted">Ação</th>
-              </tr>
-            </thead>
-            <tbody>
-              {submissions.map((sub) => (
-                <tr key={sub.id as string} className="border-b border-cms-border transition-colors hover:bg-cms-surface-hover">
-                  <td className="px-4 py-3 text-sm text-cms-text">{sub.name as string}</td>
-                  <td className="px-4 py-3 text-sm text-cms-text">{sub.email as string}</td>
-                  <td className="px-4 py-3 text-xs text-cms-text-muted">
-                    {String(sub.submitted_at).slice(0, 10)}
-                  </td>
-                  <td className="px-4 py-3">
-                    {sub.replied_at ? (
-                      <StatusBadge variant="confirmed" label="Respondido" pill />
-                    ) : (
-                      <StatusBadge variant="pending" label="Pendente" pill />
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Link
-                      href={`/cms/contacts/${sub.id as string}`}
-                      className="rounded px-2 py-1 text-xs text-cms-text-muted hover:bg-cms-surface-hover hover:text-cms-text"
-                    >
-                      Ver
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </main>
+    <div>
+      <CmsTopbar
+        title="Contacts"
+        actions={
+          <span className="text-xs text-slate-500">
+            {total} total
+          </span>
+        }
+      />
+      <ContactsConnected
+        submissions={submissions}
+        kpis={kpis}
+        readOnly={readOnly}
+        page={page}
+        totalPages={totalPages}
+      />
+    </div>
   )
 }

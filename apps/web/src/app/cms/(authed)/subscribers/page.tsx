@@ -1,12 +1,8 @@
 import { redirect } from 'next/navigation'
-import { cookies } from 'next/headers'
-import { createServerClient } from '@supabase/ssr'
-import type { CookieOptions } from '@supabase/ssr'
-import { getSiteContext } from '@/lib/cms/site-context'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { SubscriberKpis } from './_components/subscriber-kpis'
-import { GrowthChart, type GrowthDataPoint } from './_components/growth-chart'
-import { SubscriberTableShell } from './_components/subscriber-table-shell'
+import { getSiteContext } from '@/lib/cms/site-context'
+import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+import { SubscribersConnected, type SubscriberRow } from './subscribers-connected'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,36 +17,11 @@ interface Props {
 
 export default async function SubscribersPage({ searchParams }: Props) {
   const params = await searchParams
-  const ctx = await getSiteContext()
-  const cookieStore = await cookies()
+  const { siteId } = await getSiteContext()
 
-  // RBAC gate: only org_admin / super_admin may view subscriber PII
-  const userClient = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(
-          list: Array<{ name: string; value: string; options?: CookieOptions }>,
-        ) {
-          for (const { name, value, options } of list)
-            cookieStore.set(name, value, options)
-        },
-      },
-    },
-  )
-
-  // Check org-level role — only org_admin / owner / super_admin may view subscriber PII
-  const { data: role } = await userClient.rpc('org_role', { p_org_id: ctx.orgId })
-  const isAdmin =
-    role === 'org_admin' || role === 'owner' || role === 'admin' || role === 'super_admin'
-
-  if (!isAdmin) {
-    redirect('/cms?error=insufficient_access')
-  }
+  // RBAC: require edit access (org_admin / super_admin)
+  const authRes = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+  if (!authRes.ok) redirect('/cms')
 
   const supabase = getSupabaseServiceClient()
 
@@ -65,7 +36,7 @@ export default async function SubscribersPage({ searchParams }: Props) {
   const { data: typesRaw } = await supabase
     .from('newsletter_types')
     .select('id, name, color')
-    .eq('active', true)
+    .eq('site_id', siteId)
     .order('sort_order')
 
   const newsletterTypes = (typesRaw ?? []).map((t) => ({
@@ -80,212 +51,103 @@ export default async function SubscribersPage({ searchParams }: Props) {
   let query = supabase
     .from('newsletter_subscriptions')
     .select(
-      'id, email, status, newsletter_id, subscribed_at, confirmed_at, unsubscribed_at, tracking_consent',
+      'id, email, status, newsletter_type_id, tracking_consent, created_at, confirmed_at, unsubscribed_at',
       { count: 'exact' },
     )
-    .eq('site_id', ctx.siteId)
-    .order('subscribed_at', { ascending: false })
+    .eq('site_id', siteId)
+    .order('created_at', { ascending: false })
     .range(offset, offset + perPage - 1)
 
   if (search) query = query.ilike('email', `%${search}%`)
   if (statusFilter) query = query.eq('status', statusFilter)
-  if (typeFilter) query = query.eq('newsletter_id', typeFilter)
+  if (typeFilter) query = query.eq('newsletter_type_id', typeFilter)
 
   const { data: subsRaw, count: totalCount } = await query
 
-  // Fetch last 5 engagement dots per subscriber
-  const subEmails = (subsRaw ?? []).map((s) => s.email as string).filter(Boolean)
-  const sendsByEmail: Map<
-    string,
-    Array<{ status: string; opened_at: string | null; bounced_at: string | null; bounce_type: string | null }>
-  > = new Map()
-
-  if (subEmails.length > 0) {
-    const { data: sendsRaw } = await supabase
-      .from('newsletter_sends')
-      .select('subscriber_email, status, opened_at, bounced_at, bounce_type, sent_at')
-      .in('subscriber_email', subEmails)
-      .order('sent_at', { ascending: false })
-      .limit(subEmails.length * 5)
-
-    type SendRow = {
-      subscriber_email: string | null
-      status: string | null
-      opened_at: string | null
-      bounced_at: string | null
-      bounce_type: string | null
-    }
-
-    for (const send of (sendsRaw ?? []) as SendRow[]) {
-      const email = send.subscriber_email
-      if (!email) continue
-      const arr = sendsByEmail.get(email) ?? []
-      if (arr.length < 5) {
-        arr.push({
-          status: send.status ?? 'none',
-          opened_at: send.opened_at,
-          bounced_at: send.bounced_at,
-          bounce_type: send.bounce_type,
-        })
-        sendsByEmail.set(email, arr)
-      }
-    }
-  }
-
   // Build subscriber rows
-  type DotStatus = 'opened' | 'clicked' | 'none' | 'bounced' | 'complained'
-
-  function toDotStatus(send: {
-    status: string
-    opened_at: string | null
-    bounced_at: string | null
-    bounce_type: string | null
-  }): DotStatus {
-    if (send.status === 'complained') return 'complained'
-    if (send.bounced_at) return 'bounced'
-    if (send.status === 'clicked') return 'clicked'
-    if (send.opened_at) return 'opened'
-    return 'none'
-  }
-
-  function isAnonymized(email: string): boolean {
-    return /^[a-f0-9]{8,}\.\.\.@anon$/.test(email)
-  }
-
-  type SubscriberStatus = 'confirmed' | 'pending' | 'bounced' | 'unsubscribed' | 'complained'
-
-  const rows = (subsRaw ?? []).map((s) => {
-    const sends = sendsByEmail.get(s.email as string) ?? []
-    const dots: DotStatus[] = sends.map(toDotStatus)
-    while (dots.length < 5) dots.push('none')
-    const typeInfo = typeMap.get(s.newsletter_id as string)
-    const anonymized = isAnonymized(s.email as string)
+  const rows: SubscriberRow[] = (subsRaw ?? []).map((s) => {
+    const typeInfo = typeMap.get(s.newsletter_type_id as string)
+    const email = s.email as string
+    const anonymized = /^[a-f0-9]{8,}\.\.\.@anon$/.test(email)
     return {
       id: s.id as string,
-      email: s.email as string,
-      status: s.status as SubscriberStatus,
-      newsletter_type_name: typeInfo?.name ?? 'Desconhecido',
+      email,
+      status: s.status as SubscriberRow['status'],
+      newsletter_type_name: typeInfo?.name ?? 'Unknown',
       newsletter_type_color: typeInfo?.color ?? null,
-      engagement_dots: dots,
       tracking_consent: (s.tracking_consent as boolean) ?? false,
-      subscribed_at: s.subscribed_at as string,
+      subscribed_at: (s.created_at as string) ?? '',
       confirmed_at: s.confirmed_at as string | null,
       is_anonymized: anonymized,
     }
   })
 
-  // Growth chart data (last 365 days)
-  const oneYearAgo = new Date(
-    Date.now() - 365 * 24 * 60 * 60 * 1000,
-  ).toISOString()
+  // Compute stats
+  const [confirmedRes, pendingRes, unsubRes, consentRes] = await Promise.all([
+    supabase
+      .from('newsletter_subscriptions')
+      .select('*', { count: 'exact', head: true })
+      .eq('site_id', siteId)
+      .eq('status', 'confirmed'),
+    supabase
+      .from('newsletter_subscriptions')
+      .select('*', { count: 'exact', head: true })
+      .eq('site_id', siteId)
+      .eq('status', 'pending'),
+    supabase
+      .from('newsletter_subscriptions')
+      .select('*', { count: 'exact', head: true })
+      .eq('site_id', siteId)
+      .eq('status', 'unsubscribed'),
+    supabase
+      .from('newsletter_subscriptions')
+      .select('*', { count: 'exact', head: true })
+      .eq('site_id', siteId)
+      .eq('tracking_consent', true),
+  ])
 
-  const { data: newSubs } = await supabase
-    .from('newsletter_subscriptions')
-    .select('confirmed_at')
-    .eq('site_id', ctx.siteId)
-    .eq('status', 'confirmed')
-    .gte('confirmed_at', oneYearAgo)
-    .not('confirmed_at', 'is', null)
+  const totalAll =
+    (confirmedRes.count ?? 0) +
+    (pendingRes.count ?? 0) +
+    (unsubRes.count ?? 0)
+  const trackingConsentedPct =
+    totalAll > 0
+      ? Math.round(((consentRes.count ?? 0) / totalAll) * 100)
+      : 0
 
-  const { data: churnedSubs } = await supabase
-    .from('newsletter_subscriptions')
-    .select('unsubscribed_at')
-    .eq('site_id', ctx.siteId)
-    .eq('status', 'unsubscribed')
-    .gte('unsubscribed_at', oneYearAgo)
-    .not('unsubscribed_at', 'is', null)
-
-  const growthMap = new Map<string, { gain: number; loss: number }>()
-
-  for (const s of newSubs ?? []) {
-    const d = String(s.confirmed_at).slice(0, 10)
-    const entry = growthMap.get(d) ?? { gain: 0, loss: 0 }
-    entry.gain++
-    growthMap.set(d, entry)
+  const stats = {
+    totalConfirmed: confirmedRes.count ?? 0,
+    totalPending: pendingRes.count ?? 0,
+    totalUnsubscribed: unsubRes.count ?? 0,
+    trackingConsentedPct,
   }
-  for (const s of churnedSubs ?? []) {
-    const d = String(s.unsubscribed_at).slice(0, 10)
-    const entry = growthMap.get(d) ?? { gain: 0, loss: 0 }
-    entry.loss++
-    growthMap.set(d, entry)
-  }
-
-  const growthData: GrowthDataPoint[] = []
-  for (let i = 364; i >= 0; i--) {
-    const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000)
-    const dateStr = d.toISOString().slice(0, 10)
-    const entry = growthMap.get(dateStr) ?? { gain: 0, loss: 0 }
-    growthData.push({ date: dateStr, ...entry })
-  }
-
-  const isEmpty = (totalCount ?? 0) === 0 && !search && !statusFilter && !typeFilter
 
   return (
-    <main className="p-4 md:p-8 max-w-7xl mx-auto">
-      <header className="flex items-center justify-between mb-6">
-        <div>
-          <h1
-            className="text-xl font-bold"
-            style={{ color: 'var(--cms-text)' }}
-          >
-            Assinantes
-          </h1>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--cms-text-dim)' }}>
-            Visibilidade completa e gerenciamento de ciclo de vida
-          </p>
-        </div>
-        <a
-          href="/cms/newsletters"
-          className="text-sm px-3 py-1.5 rounded-lg border transition-colors"
-          style={{ borderColor: 'var(--cms-border)', color: 'var(--cms-text-dim)' }}
-        >
-          ← Newsletters
-        </a>
-      </header>
+    <main className="min-h-[calc(100vh-4rem)] bg-[#0f172a] p-4 md:p-6">
+      <div className="mx-auto max-w-6xl">
+        <header className="mb-6 flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-semibold text-slate-100">
+              Subscribers
+            </h1>
+            <p className="text-sm text-slate-400">
+              Manage newsletter subscribers and lifecycle
+            </p>
+          </div>
+        </header>
 
-      <SubscriberKpis siteId={ctx.siteId} />
-
-      <div className="hidden lg:block">
-        <GrowthChart data={growthData} />
-      </div>
-
-      {isEmpty ? (
-        <div
-          className="rounded-lg border p-12 text-center"
-          style={{ borderColor: 'var(--cms-border)', background: 'var(--cms-surface)' }}
-          data-testid="subscribers-empty"
-        >
-          <div className="text-4xl mb-3">📭</div>
-          <h2
-            className="text-base font-semibold mb-1"
-            style={{ color: 'var(--cms-text)' }}
-          >
-            Nenhum assinante ainda
-          </h2>
-          <p className="text-sm mb-4" style={{ color: 'var(--cms-text-dim)' }}>
-            Adicione um formulário de newsletter ao seu site para começar a
-            capturar assinantes.
-          </p>
-          <a
-            href="/cms/newsletters"
-            className="inline-block text-sm px-4 py-2 rounded-lg font-medium"
-            style={{ background: 'var(--cms-text)', color: 'var(--cms-surface)' }}
-          >
-            Configurar newsletter
-          </a>
-        </div>
-      ) : (
-        <SubscriberTableShell
+        <SubscribersConnected
           initialRows={rows}
           totalCount={totalCount ?? 0}
           page={page}
           perPage={perPage}
           newsletterTypes={newsletterTypes}
+          stats={stats}
           currentSearch={search}
           currentStatus={statusFilter}
           currentType={typeFilter}
         />
-      )}
+      </div>
     </main>
   )
 }

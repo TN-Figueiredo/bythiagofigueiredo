@@ -1,0 +1,391 @@
+'use server'
+
+import { z } from 'zod'
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { getSiteContext } from '@/lib/cms/site-context'
+import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+import {
+  periodInputSchema,
+  exportFormatSchema,
+  exportSectionsSchema,
+  type OverviewStats,
+  type NewsletterEditionStat,
+  type CampaignStat,
+  type ContentStat,
+  type PeriodInput,
+  type ExportFormat,
+} from './types'
+
+type ActionResult<T = undefined> = T extends undefined
+  ? { ok: true } | { ok: false; error: string }
+  : { ok: true; data: T } | { ok: false; error: string }
+
+/* ------------------------------------------------------------------ */
+/*  Helpers                                                           */
+/* ------------------------------------------------------------------ */
+
+function zodError(err: z.ZodError): string {
+  return err.issues.map((i) => i.message).join(', ') || 'Validation failed'
+}
+
+async function requireViewAccess(): Promise<{ siteId: string; userId: string }> {
+  const { siteId } = await getSiteContext()
+  const res = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
+  if (!res.ok) {
+    throw new Error(
+      res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden',
+    )
+  }
+  return { siteId, userId: res.user.id }
+}
+
+async function requireEditAccess(): Promise<{ siteId: string; userId: string }> {
+  const { siteId } = await getSiteContext()
+  const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+  if (!res.ok) {
+    throw new Error(
+      res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden',
+    )
+  }
+  return { siteId, userId: res.user.id }
+}
+
+function resolveDateRange(period: PeriodInput): { start: Date; end: Date } {
+  const end = new Date()
+  if (period.type === 'custom') {
+    return { start: new Date(period.start), end: new Date(period.end) }
+  }
+  const days = period.value === '7d' ? 7 : period.value === '30d' ? 30 : 90
+  const start = new Date()
+  start.setDate(start.getDate() - days)
+  return { start, end }
+}
+
+function resolvePrevDateRange(period: PeriodInput): { start: Date; end: Date } | null {
+  if (period.type === 'custom') return null
+  const days = period.value === '7d' ? 7 : period.value === '30d' ? 30 : 90
+  const end = new Date()
+  end.setDate(end.getDate() - days)
+  const start = new Date(end)
+  start.setDate(start.getDate() - days)
+  return { start, end }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Actions                                                           */
+/* ------------------------------------------------------------------ */
+
+export async function fetchOverview(
+  period: PeriodInput,
+  compare: boolean = false,
+): Promise<ActionResult<OverviewStats>> {
+  const parsed = periodInputSchema.safeParse(period)
+  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
+
+  const { siteId } = await requireViewAccess()
+  const supabase = getSupabaseServiceClient()
+  const { start, end } = resolveDateRange(parsed.data)
+
+  const [postsRes, subsRes, editionsRes] = await Promise.all([
+    supabase
+      .from('blog_posts')
+      .select('id', { count: 'exact', head: true })
+      .eq('site_id', siteId)
+      .eq('status', 'published')
+      .gte('published_at', start.toISOString())
+      .lte('published_at', end.toISOString()),
+    supabase
+      .from('newsletter_subscriptions')
+      .select('id', { count: 'exact', head: true })
+      .eq('site_id', siteId)
+      .eq('status', 'confirmed'),
+    supabase
+      .from('newsletter_editions')
+      .select('stats_delivered, stats_opens')
+      .eq('site_id', siteId)
+      .eq('status', 'sent')
+      .gte('sent_at', start.toISOString())
+      .lte('sent_at', end.toISOString()),
+  ])
+
+  const postsPublished = postsRes.count ?? 0
+  const subscribers = subsRes.count ?? 0
+
+  const editions = editionsRes.data ?? []
+  const totalDelivered = editions.reduce((s, e) => s + (e.stats_delivered ?? 0), 0)
+  const totalOpens = editions.reduce((s, e) => s + (e.stats_opens ?? 0), 0)
+  const openRate = totalDelivered > 0 ? Math.round((totalOpens / totalDelivered) * 100) : 0
+
+  let prevPostsPublished: number | null = null
+  let prevTotalViews: number | null = null
+  let prevSubscribers: number | null = null
+  let prevOpenRate: number | null = null
+
+  if (compare) {
+    const prevRange = resolvePrevDateRange(parsed.data)
+    if (prevRange) {
+      const [prevPostsRes, prevEditionsRes] = await Promise.all([
+        supabase
+          .from('blog_posts')
+          .select('id', { count: 'exact', head: true })
+          .eq('site_id', siteId)
+          .eq('status', 'published')
+          .gte('published_at', prevRange.start.toISOString())
+          .lte('published_at', prevRange.end.toISOString()),
+        supabase
+          .from('newsletter_editions')
+          .select('stats_delivered, stats_opens')
+          .eq('site_id', siteId)
+          .eq('status', 'sent')
+          .gte('sent_at', prevRange.start.toISOString())
+          .lte('sent_at', prevRange.end.toISOString()),
+      ])
+      prevPostsPublished = prevPostsRes.count ?? 0
+      prevTotalViews = 0
+      prevSubscribers = 0
+
+      const prevEditions = prevEditionsRes.data ?? []
+      const prevDelivered = prevEditions.reduce((s, e) => s + (e.stats_delivered ?? 0), 0)
+      const prevOpens = prevEditions.reduce((s, e) => s + (e.stats_opens ?? 0), 0)
+      prevOpenRate = prevDelivered > 0 ? Math.round((prevOpens / prevDelivered) * 100) : 0
+    }
+  }
+
+  return {
+    ok: true,
+    data: {
+      postsPublished,
+      totalViews: 0,
+      subscribers,
+      openRate,
+      prevPostsPublished,
+      prevTotalViews,
+      prevSubscribers,
+      prevOpenRate,
+    },
+  }
+}
+
+export async function fetchNewsletterStats(
+  period: PeriodInput,
+): Promise<ActionResult<NewsletterEditionStat[]>> {
+  const parsed = periodInputSchema.safeParse(period)
+  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
+
+  const { siteId } = await requireViewAccess()
+  const supabase = getSupabaseServiceClient()
+  const { start, end } = resolveDateRange(parsed.data)
+
+  const { data, error } = await supabase
+    .from('newsletter_editions')
+    .select('id, subject, sent_at, stats_delivered, stats_opens, stats_clicks, stats_bounces')
+    .eq('site_id', siteId)
+    .gte('created_at', start.toISOString())
+    .lte('created_at', end.toISOString())
+    .order('created_at', { ascending: false })
+    .limit(100)
+
+  if (error) return { ok: false, error: error.message }
+  return { ok: true, data: data ?? [] }
+}
+
+export async function fetchCampaignStats(
+  period: PeriodInput,
+): Promise<ActionResult<CampaignStat[]>> {
+  const parsed = periodInputSchema.safeParse(period)
+  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
+
+  const { siteId } = await requireViewAccess()
+  const supabase = getSupabaseServiceClient()
+  const { start, end } = resolveDateRange(parsed.data)
+
+  const { data: campaigns, error: campErr } = await supabase
+    .from('campaigns')
+    .select('id, status, published_at')
+    .eq('site_id', siteId)
+    .gte('created_at', start.toISOString())
+    .lte('created_at', end.toISOString())
+    .order('created_at', { ascending: false })
+    .limit(100)
+
+  if (campErr) return { ok: false, error: campErr.message }
+
+  const campaignIds = (campaigns ?? []).map((c) => c.id)
+
+  if (campaignIds.length === 0) {
+    return { ok: true, data: [] }
+  }
+
+  const { data: translations } = await supabase
+    .from('campaign_translations')
+    .select('campaign_id, title')
+    .in('campaign_id', campaignIds)
+
+  const { data: submissions } = await supabase
+    .from('contact_submissions')
+    .select('campaign_id', { count: 'exact' })
+    .in('campaign_id', campaignIds)
+
+  const titleMap = new Map<string, string>()
+  for (const t of translations ?? []) {
+    if (!titleMap.has(t.campaign_id)) titleMap.set(t.campaign_id, t.title)
+  }
+
+  const submissionCounts = new Map<string, number>()
+  for (const s of submissions ?? []) {
+    if (s.campaign_id) {
+      submissionCounts.set(s.campaign_id, (submissionCounts.get(s.campaign_id) ?? 0) + 1)
+    }
+  }
+
+  const result: CampaignStat[] = (campaigns ?? []).map((c) => ({
+    id: c.id,
+    title: titleMap.get(c.id) ?? 'Untitled',
+    status: c.status,
+    submissions_count: submissionCounts.get(c.id) ?? 0,
+    published_at: c.published_at,
+  }))
+
+  return { ok: true, data: result }
+}
+
+export async function fetchContentStats(
+  period: PeriodInput,
+): Promise<ActionResult<ContentStat[]>> {
+  const parsed = periodInputSchema.safeParse(period)
+  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
+
+  const { siteId } = await requireViewAccess()
+  const supabase = getSupabaseServiceClient()
+  const { start, end } = resolveDateRange(parsed.data)
+
+  const { data: posts, error: postErr } = await supabase
+    .from('blog_posts')
+    .select('id, status, published_at, owner_user_id')
+    .eq('site_id', siteId)
+    .gte('created_at', start.toISOString())
+    .lte('created_at', end.toISOString())
+    .order('published_at', { ascending: false, nullsFirst: false })
+    .limit(100)
+
+  if (postErr) return { ok: false, error: postErr.message }
+
+  const postIds = (posts ?? []).map((p) => p.id)
+
+  if (postIds.length === 0) {
+    return { ok: true, data: [] }
+  }
+
+  const { data: translations } = await supabase
+    .from('blog_translations')
+    .select('blog_post_id, title, locale')
+    .in('blog_post_id', postIds)
+
+  const titleMap = new Map<string, { title: string; locale: string }>()
+  for (const t of translations ?? []) {
+    if (!titleMap.has(t.blog_post_id)) {
+      titleMap.set(t.blog_post_id, { title: t.title, locale: t.locale })
+    }
+  }
+
+  const result: ContentStat[] = (posts ?? []).map((p) => ({
+    id: p.id,
+    title: titleMap.get(p.id)?.title ?? 'Untitled',
+    locale: titleMap.get(p.id)?.locale ?? 'pt-BR',
+    status: p.status,
+    published_at: p.published_at,
+    owner_user_id: p.owner_user_id,
+  }))
+
+  return { ok: true, data: result }
+}
+
+export async function refreshStats(): Promise<ActionResult> {
+  await requireViewAccess()
+  const supabase = getSupabaseServiceClient()
+  const { error } = await supabase.rpc('refresh_newsletter_stats')
+  if (error) return { ok: false, error: error.message }
+  return { ok: true }
+}
+
+export async function exportReport(
+  format: ExportFormat,
+  sections: string[],
+  period: PeriodInput,
+): Promise<ActionResult<string>> {
+  const formatParsed = exportFormatSchema.safeParse(format)
+  if (!formatParsed.success) return { ok: false, error: zodError(formatParsed.error) }
+
+  const sectionsParsed = exportSectionsSchema.safeParse(sections)
+  if (!sectionsParsed.success) return { ok: false, error: zodError(sectionsParsed.error) }
+
+  const periodParsed = periodInputSchema.safeParse(period)
+  if (!periodParsed.success) return { ok: false, error: zodError(periodParsed.error) }
+
+  // Export requires edit access (editors+ only)
+  await requireEditAccess()
+
+  const data: Record<string, unknown> = {}
+  const validSections = sectionsParsed.data
+
+  if (validSections.includes('overview')) {
+    const r = await fetchOverview(periodParsed.data)
+    if (r.ok) data.overview = r.data
+  }
+  if (validSections.includes('newsletters')) {
+    const r = await fetchNewsletterStats(periodParsed.data)
+    if (r.ok) data.newsletters = r.data
+  }
+  if (validSections.includes('campaigns')) {
+    const r = await fetchCampaignStats(periodParsed.data)
+    if (r.ok) data.campaigns = r.data
+  }
+  if (validSections.includes('content')) {
+    const r = await fetchContentStats(periodParsed.data)
+    if (r.ok) data.content = r.data
+  }
+
+  if (formatParsed.data === 'json') {
+    return { ok: true, data: JSON.stringify(data, null, 2) }
+  }
+
+  // CSV: flatten each section into rows
+  const lines: string[] = []
+  if (data.overview) {
+    const o = data.overview as OverviewStats
+    lines.push('Section,Metric,Value')
+    lines.push(`Overview,Posts Published,${o.postsPublished}`)
+    lines.push(`Overview,Total Views,${o.totalViews}`)
+    lines.push(`Overview,Subscribers,${o.subscribers}`)
+    lines.push(`Overview,Open Rate,${o.openRate}%`)
+  }
+  if (data.newsletters) {
+    lines.push('')
+    lines.push('Edition ID,Subject,Sent At,Delivered,Opens,Clicks,Bounces')
+    for (const e of data.newsletters as NewsletterEditionStat[]) {
+      lines.push(
+        `${e.id},"${(e.subject ?? '').replace(/"/g, '""')}",${e.sent_at ?? ''},${e.stats_delivered},${e.stats_opens},${e.stats_clicks},${e.stats_bounces}`,
+      )
+    }
+  }
+  if (data.campaigns) {
+    lines.push('')
+    lines.push('Campaign ID,Title,Status,Submissions,Published At')
+    for (const c of data.campaigns as CampaignStat[]) {
+      lines.push(
+        `${c.id},"${(c.title ?? '').replace(/"/g, '""')}",${c.status},${c.submissions_count},${c.published_at ?? ''}`,
+      )
+    }
+  }
+  if (data.content) {
+    lines.push('')
+    lines.push('Post ID,Title,Locale,Status,Published At')
+    for (const p of data.content as ContentStat[]) {
+      lines.push(
+        `${p.id},"${(p.title ?? '').replace(/"/g, '""')}",${p.locale},${p.status},${p.published_at ?? ''}`,
+      )
+    }
+  }
+
+  return { ok: true, data: lines.join('\n') }
+}

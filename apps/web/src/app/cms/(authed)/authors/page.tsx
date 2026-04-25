@@ -1,81 +1,90 @@
+import { redirect } from 'next/navigation'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
-import { CmsTopbar, EmptyState, CmsButton } from '@tn-figueiredo/cms-ui/client'
-import { AuthorCard } from './_components/author-card'
+import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+import { CmsTopbar } from '@tn-figueiredo/cms-ui/client'
+import { AuthorsConnected, type AuthorData } from './authors-connected'
+
+interface AuthorRow {
+  id: string
+  display_name: string | null
+  name: string
+  slug: string | null
+  bio: string | null
+  avatar_url: string | null
+  avatar_color: string | null
+  user_id: string | null
+  social_links: Record<string, string> | null
+  sort_order: number | null
+  is_default: boolean | null
+}
 
 export default async function AuthorsPage() {
-  const supabase = getSupabaseServiceClient()
   const { siteId } = await getSiteContext()
+
+  // RBAC: require at least view access; redirect otherwise
+  const authRes = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
+  if (!authRes.ok) redirect('/cms')
+
+  // Check edit access for read-only mode
+  const editRes = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+  const readOnly = !editRes.ok
+
+  const supabase = getSupabaseServiceClient()
 
   const { data: authors } = await supabase
     .from('authors')
-    .select('id, display_name, slug, bio, avatar_url, user_id')
-    .eq('site_id', siteId)
-    .order('display_name')
-
-  interface AuthorRow { id: string; display_name: string; slug: string | null; bio: string | null; avatar_url: string | null; user_id: string | null }
-  interface MembershipRow { user_id: string; role: string }
-  interface OwnerRow extends Record<string, unknown> { owner_user_id: string | null }
-
-  const userIds = (authors as AuthorRow[] ?? []).map((a) => a.user_id).filter((id): id is string => id !== null)
-  const { data: memberships } = userIds.length > 0
-    ? await supabase.from('site_memberships').select('user_id, role').eq('site_id', siteId).in('user_id', userIds)
-    : { data: [] as MembershipRow[] }
-  const roleMap: Record<string, string> = {}
-  for (const m of (memberships ?? []) as MembershipRow[]) roleMap[m.user_id] = m.role
-
-  const [postCountsRes, pubCountsRes, campCountsRes] = await Promise.all([
-    supabase.from('blog_posts').select('owner_user_id').eq('site_id', siteId).in('owner_user_id', userIds),
-    supabase.from('blog_posts').select('owner_user_id').eq('site_id', siteId).eq('status', 'published').in('owner_user_id', userIds),
-    supabase.from('campaigns').select('owner_user_id').eq('site_id', siteId).in('owner_user_id', userIds),
-  ])
-
-  function countBy<T extends Record<string, unknown>>(data: T[] | null, field: keyof T): Record<string, number> {
-    return (data ?? []).reduce((acc: Record<string, number>, row) => {
-      const key = String(row[field])
-      acc[key] = (acc[key] ?? 0) + 1
-      return acc
-    }, {})
-  }
-  const postCounts = countBy((postCountsRes.data ?? []) as OwnerRow[], 'owner_user_id')
-  const pubCounts = countBy((pubCountsRes.data ?? []) as OwnerRow[], 'owner_user_id')
-  const campCounts = countBy((campCountsRes.data ?? []) as OwnerRow[], 'owner_user_id')
-
-  const authorRows = (authors as AuthorRow[] ?? []).map((a) => ({
-    id: a.id,
-    displayName: a.display_name,
-    slug: a.slug ?? a.id.slice(0, 8),
-    role: (a.user_id != null ? roleMap[a.user_id] : undefined) ?? 'editor',
-    bio: a.bio,
-    avatarUrl: a.avatar_url,
-    initials: a.display_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase(),
-    postsCount: a.user_id != null ? (postCounts[a.user_id] ?? 0) : 0,
-    publishedCount: a.user_id != null ? (pubCounts[a.user_id] ?? 0) : 0,
-    campaignsCount: a.user_id != null ? (campCounts[a.user_id] ?? 0) : 0,
-    lastActiveAt: null,
-  }))
-
-  if (authorRows.length === 0) {
-    return (
-      <div>
-        <CmsTopbar title="Authors" />
-        <div className="p-8">
-          <EmptyState icon="👤" title="You're the only author" description="Invite team members from Admin to add more authors." actions={<CmsButton variant="primary" size="sm">Go to Admin → Users</CmsButton>} />
-        </div>
-      </div>
+    .select(
+      'id, display_name, name, slug, bio, avatar_url, avatar_color, user_id, social_links, sort_order, is_default',
     )
+    .eq('site_id', siteId)
+    .order('sort_order')
+
+  // Count posts per author (via author_id FK)
+  const authorIds = ((authors as AuthorRow[] | null) ?? []).map((a) => a.id)
+  const { data: postCountRows } =
+    authorIds.length > 0
+      ? await supabase
+          .from('blog_posts')
+          .select('author_id')
+          .eq('site_id', siteId)
+          .in('author_id', authorIds)
+      : { data: [] as { author_id: string }[] }
+
+  const postCounts: Record<string, number> = {}
+  for (const row of (postCountRows ?? []) as { author_id: string }[]) {
+    postCounts[row.author_id] = (postCounts[row.author_id] ?? 0) + 1
   }
+
+  const authorData: AuthorData[] = ((authors as AuthorRow[] | null) ?? []).map(
+    (a) => {
+      const displayName = a.display_name ?? a.name
+      return {
+        id: a.id,
+        displayName,
+        slug: a.slug ?? a.id.slice(0, 8),
+        bio: a.bio,
+        avatarUrl: a.avatar_url,
+        avatarColor: a.avatar_color,
+        initials: displayName
+          .split(' ')
+          .map((n: string) => n[0])
+          .join('')
+          .slice(0, 2)
+          .toUpperCase(),
+        userId: a.user_id,
+        socialLinks: (a.social_links as Record<string, string>) ?? {},
+        sortOrder: a.sort_order ?? 0,
+        isDefault: a.is_default ?? false,
+        postsCount: postCounts[a.id] ?? 0,
+      }
+    },
+  )
 
   return (
     <div>
       <CmsTopbar title="Authors" />
-      <div className="p-6 lg:p-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {authorRows.map((author) => (
-            <AuthorCard key={author.id} {...author} />
-          ))}
-        </div>
-      </div>
+      <AuthorsConnected authors={authorData} readOnly={readOnly} />
     </div>
   )
 }
