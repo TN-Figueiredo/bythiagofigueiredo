@@ -2,7 +2,7 @@
 
 **Date:** 2026-04-25
 **Status:** Draft
-**Score:** 98/100 (5 sections, each refined to 98+)
+**Score:** 98/100 (5 sections refined individually + cross-section consistency pass)
 
 ## Problem
 
@@ -328,18 +328,27 @@ Single source of truth via shared package:
 ```typescript
 // @tn-figueiredo/ad-engine exports:
 export function resolveSlots(
-  slotKeys: string[],
+  slots: ReadonlyArray<Pick<AdSlotDefinition, 'key' | 'acceptedAdTypes'>>,
   locale: string,
   defaultLocale: string,
   deps: AdResolverDeps
 ): Promise<Record<string, AdCreativeData | null>>
 ```
 
+Receives slot definitions (not bare strings) so it can filter campaigns by `acceptedAdTypes` per slot. Consumer passes slot definitions or a subset:
+
+```typescript
+const creatives = await resolveSlots(
+  SITE_AD_SLOTS.map(s => ({ key: s.key, acceptedAdTypes: s.acceptedAdTypes })),
+  locale, 'pt-BR', deps
+)
+```
+
 Both consumers use the same function with their own repo implementations:
 
 ```
 @tn-figueiredo/ad-engine
-  └─ resolveSlots(slotKeys, locale, defaultLocale, deps)
+  └─ resolveSlots(slots, locale, defaultLocale, deps)
        ↑                                    ↑
    API (Fastify)                       Next.js (SSR)
    SupabaseAdConfigRepo               SupabaseAdConfigRepo
@@ -348,16 +357,26 @@ Both consumers use the same function with their own repo implementations:
 
 ### Batch Query
 
-New method on `IAdConfigRepository`:
+Optional new method on `IAdConfigRepository` (backward-compatible):
 
 ```typescript
 interface IAdConfigRepository {
   getActiveBySlot(slotKey: string, appId: string): Promise<AdConfig[]>
-  getActiveBySlots(slotKeys: string[], appId: string, locale: string): Promise<Map<string, AdConfig[]>>
+  // Optional — if not implemented, resolveSlots() falls back to N sequential calls
+  getActiveBySlots?(slotKeys: string[], appId: string, locale: string): Promise<Map<string, AdConfig[]>>
 }
 ```
 
-Single query with `WHERE slot_key = ANY($1) AND locale = $2`. Blog post SSR makes 1 query for 6 slots.
+When implemented: single query with `WHERE slot_key = ANY($1) AND locale = $2`. Blog post SSR makes 1 query for 6 slots.
+
+When not implemented (TNG): `resolveSlots()` internally calls `getActiveBySlot()` in a loop. Zero changes needed on TNG side — existing repos work via automatic fallback:
+
+```typescript
+// Inside resolveSlots():
+const configs = repo.getActiveBySlots
+  ? await repo.getActiveBySlots(slotKeys, appId, locale)
+  : await sequentialFallback(repo, slotKeys, appId) // N calls
+```
 
 ### Kill Switch Check — Unified
 
@@ -545,11 +564,12 @@ Pre-existing creatives that only have `locale='pt-BR'` (the default) work via th
 | Phase | What | How | Risk |
 |---|---|---|---|
 | **1. Commit logos** | Extract SVGs from `ad-data.ts` → `public/ads/logos/*.svg` | Commit to staging | Zero — new static files, nothing consumes yet |
-| **2. Push migrations** | Migrations 1-3 via `npm run db:push:prod` | Confirm YES | Zero — DB changes but frontend still reads hardcoded |
-| **3. Deploy code** | Single commit: (a) `SITE_AD_SLOTS` updated, (b) `resolveSlots()` in blog post page, (c) components receive `AdCreativeData`, (d) delete `ad-data.ts`/`ad-utils.ts`/old types | Commit + push staging → merge to main | Low — DB has same ads as hardcoded |
-| **4. Verify** | Check 6 slots × 2 locales in browser | Manual | Zero — revert commit if wrong |
+| **2. Publish packages** | `@tn-figueiredo/ad-engine@0.3.0` + `@tn-figueiredo/ad-engine-admin@0.2.0` to GitHub Packages | Build + `npm publish` in each package repo | Zero — published but not consumed yet |
+| **3. Push migrations** | Migrations 1-3 via `npm run db:push:prod` | Confirm YES | Zero — DB changes but frontend still reads hardcoded |
+| **4. Deploy code** | Single commit: (a) pin new package versions in `package.json`, (b) `SITE_AD_SLOTS` updated, (c) `resolveSlots()` in blog post page, (d) components receive `AdCreativeData`, (e) delete `ad-data.ts`/`ad-utils.ts`/old types | Commit + push staging → merge to main | Low — DB has same ads as hardcoded |
+| **5. Verify** | Check 6 slots × 2 locales in browser | Manual | Zero — revert commit if wrong |
 
-Phase 3 is ONE commit. No intermediate state where `ad-data.ts` is deleted but new code doesn't exist.
+Phase 4 is ONE commit. No intermediate state where `ad-data.ts` is deleted but new code doesn't exist.
 
 ### Rollback
 
@@ -722,7 +742,16 @@ Removed: `SponsorAd`, `HouseAd`, `AdProps`, `AdSlotConfig`, `hashSlug`, `pickSpo
 |---|---|---|---|
 | `AdCreativePreviewProps` | type | Yes | Preview components per site |
 | `SlotPreviewFallback` | component | Yes | Admin of any site |
-| Campaign wizard | component | Updated (locale tabs, brandColor picker, logo upload, interaction toggle) | Admin of each site |
+| Campaign wizard | component | Updated (locale tabs, brandColor picker, logo upload, interaction toggle, slot filtering by `acceptedAdTypes`) | Admin of each site |
+
+### Admin Wizard — Slot Filtering by `acceptedAdTypes`
+
+When creating a campaign, the wizard filters available slots:
+- Campaign `type='cpa'` → slots with `acceptedAdTypes` including `'cpa'` are enabled. `rail_left` and `inline_end` (house-only) appear disabled with tooltip "Este slot aceita apenas house ads".
+- Campaign `type='house'` → slots with `acceptedAdTypes` including `'house'` are enabled. `rail_right` and `inline_mid` (cpa-only) appear disabled.
+- Slots accepting both (`banner_top`, `block_bottom`) are always enabled.
+
+Logic lives in `@tn-figueiredo/ad-engine-admin` wizard — reads `acceptedAdTypes` from slot definitions passed via config.
 
 ### `apps/web` bythiagofigueiredo (local, NOT exported)
 
@@ -746,3 +775,7 @@ Updated with new slot keys and fields. Remains the ad slot registry for bythiago
 1. **AI crawler ads** — Should `SEO_AI_CRAWLERS_BLOCKED` also block ad rendering for AI crawlers? Currently separate concerns.
 2. **A/B testing** — Future: multiple creatives per slot per campaign with traffic splitting. Not in this design — add when CPA ads launch.
 3. **Consent gate** — Should CPA ads require analytics consent (LGPD)? House ads are first-party (legitimate interest). CPA tracking may need consent. Defer to `ads_cpa_enabled=false` for now.
+4. **Ads on non-blog pages** — Campaigns, landing pages, privacy/terms. For now, ads only on `/blog/[slug]`. Expand when a second page type needs ad slots.
+5. **Ad blockers** — Do not detect or react. Ads are editorial, not third-party scripts. If user blocks, respect the decision. No anti-adblock.
+6. **`user_app_presence` table** — Created in migration 19 for audience targeting. Relevant for future segmentation by visit frequency. Keep table, don't consume yet.
+7. **Core Web Vitals / SEO** — Ads are SSR-rendered, no JavaScript blocking. Inline ads within `<article>` don't affect LCP. Banner (doorman) above content may impact CLS if animated — use reserved `min-height` to prevent layout shift.
