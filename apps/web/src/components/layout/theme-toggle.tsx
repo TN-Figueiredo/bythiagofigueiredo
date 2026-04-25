@@ -10,6 +10,7 @@ type Props = {
 export function ThemeToggle({ currentTheme, size = 32 }: Props) {
   const [theme, setTheme] = useState<'dark' | 'light'>(currentTheme)
   const [pending, startTransition] = useTransition()
+  const [hovered, setHovered] = useState(false)
 
   function toggle() {
     const next = theme === 'dark' ? 'light' : 'dark'
@@ -29,14 +30,16 @@ export function ThemeToggle({ currentTheme, size = 32 }: Props) {
     <button
       onClick={toggle}
       disabled={pending}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
       style={{
         width: size,
         height: size,
-        border: '1px dashed var(--pb-line)',
+        border: `1px dashed ${hovered ? 'var(--pb-accent)' : 'var(--pb-line)'}`,
         background: 'transparent',
         borderRadius: 6,
-        color: 'var(--pb-muted)',
+        color: hovered ? 'var(--pb-ink)' : 'var(--pb-muted)',
         cursor: 'pointer',
         display: 'inline-flex',
         alignItems: 'center',

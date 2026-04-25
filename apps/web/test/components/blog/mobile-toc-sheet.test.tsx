@@ -21,7 +21,6 @@ describe('MobileTocSheet', () => {
       <MobileTocSheet open={false} onClose={() => {}} sections={sections} />,
       sections,
     )
-    // When closed, MobileTocSheet returns null — only the ScrollProvider wrapper remains
     expect(container.textContent).toBe('')
   })
 
@@ -40,7 +39,7 @@ describe('MobileTocSheet', () => {
       sections,
     )
     expect(container.textContent).toContain('Point A')
-    expect(container.textContent).toContain('PONTOS-CHAVE')
+    expect(container.textContent).toContain('Pontos-chave')
   })
 
   it('has dialog role when open', () => {
@@ -51,12 +50,12 @@ describe('MobileTocSheet', () => {
     expect(container.querySelector('[role="dialog"]')).toBeTruthy()
   })
 
-  it('renders NESTE TEXTO label', () => {
+  it('renders Neste texto label', () => {
     const { container } = renderWithScroll(
       <MobileTocSheet open onClose={() => {}} sections={sections} />,
       sections,
     )
-    expect(container.textContent).toContain('NESTE TEXTO')
+    expect(container.textContent).toContain('Neste texto')
   })
 
   it('has aria-modal="true" when open', () => {

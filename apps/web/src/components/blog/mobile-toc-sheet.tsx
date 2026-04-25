@@ -37,16 +37,23 @@ export function MobileTocSheet({ open, onClose, sections, keyPoints }: Props) {
           <div className="w-10 h-1 bg-[--pb-line] rounded-full" />
           <button onClick={onClose} aria-label="Fechar sumario" className="text-pb-muted hover:text-pb-ink text-lg bg-transparent border-none cursor-pointer p-0">×</button>
         </div>
-        <div className="blog-sidebar-label mb-3">NESTE TEXTO</div>
+        <div className="blog-sidebar-label mb-3">Neste texto</div>
         <ul className="list-none mb-6">
           {sections.map((entry) => (
             <li
               key={entry.slug}
               role="button"
               tabIndex={0}
-              className={`text-sm py-2 cursor-pointer border-l-2 transition-all ${
-                entry.depth === 3 ? 'pl-6' : 'pl-3'
-              } ${activeSection === entry.slug ? 'text-pb-ink border-pb-accent font-medium' : 'text-pb-muted border-transparent'}`}
+              style={{
+                fontSize: 14,
+                padding: '8px 0 8px 12px',
+                cursor: 'pointer',
+                borderLeft: `2px solid ${activeSection === entry.slug ? 'var(--pb-accent)' : 'transparent'}`,
+                color: activeSection === entry.slug ? 'var(--pb-ink)' : 'var(--pb-muted)',
+                fontWeight: activeSection === entry.slug ? 600 : 400,
+                paddingLeft: entry.depth === 3 ? 24 : 12,
+                transition: 'all 0.15s',
+              }}
               onClick={() => {
                 document.getElementById(entry.slug)?.scrollIntoView({ behavior: 'smooth' })
                 onClose()
@@ -65,13 +72,18 @@ export function MobileTocSheet({ open, onClose, sections, keyPoints }: Props) {
         </ul>
         {keyPoints && keyPoints.length > 0 && (
           <>
-            <div className="blog-sidebar-label mb-3">PONTOS-CHAVE</div>
+            <div className="blog-sidebar-label mb-3">Pontos-chave</div>
             {keyPoints.map((point, i) => (
-              <div key={i} className="flex gap-2 items-start mb-2">
+              <div key={i} className="flex gap-2 items-start mb-3">
                 <span className="font-jetbrains text-xs font-bold text-pb-accent min-w-5">
                   {String(i + 1).padStart(2, '0')}
                 </span>
-                <span className="text-sm text-pb-ink">{point}</span>
+                <span
+                  className="text-sm text-pb-ink"
+                  style={{ fontFamily: 'var(--font-source-serif), Georgia, serif' }}
+                >
+                  {point}
+                </span>
               </div>
             ))}
           </>

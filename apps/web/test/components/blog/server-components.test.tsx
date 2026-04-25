@@ -101,7 +101,7 @@ describe('AuthorCard', () => {
     const { container } = render(
       <AuthorCard author={AUTHOR_THIAGO} locale="pt-BR" />,
     )
-    expect(container.textContent).toContain('SOBRE QUEM ESCREVEU')
+    expect(container.textContent).toContain('Sobre quem escreveu')
     expect(container.textContent).toContain('Construo software')
     expect(container.textContent).toContain('YouTube')
     expect(container.textContent).toContain('GitHub')
@@ -153,9 +153,14 @@ describe('CoverImage', () => {
     expect(container.textContent).toContain('bythiagofigueiredo')
   })
 
-  it('returns null when src is null', () => {
+  it('returns null when src is null and no heroIllustration', () => {
     const { container } = render(<CoverImage src={null} alt="Test" />)
     expect(container.innerHTML).toBe('')
+  })
+
+  it('renders hero illustration when heroIllustration is set', () => {
+    const { container } = render(<CoverImage src={null} alt="Test" heroIllustration="constellation" />)
+    expect(container.innerHTML).not.toBe('')
   })
 })
 
@@ -164,8 +169,13 @@ describe('PostComments', () => {
     const { container } = render(<PostComments comments={MOCK_COMMENTS} />)
     expect(container.textContent).toContain('Conversa')
     expect(container.textContent).toContain('Paula Reis')
-    expect(container.textContent).toContain('RESPOSTA DO AUTOR')
+    expect(container.textContent).toContain('resposta do autor')
     expect(container.querySelector('textarea')).toBeTruthy()
+  })
+
+  it('renders as section with id="comments"', () => {
+    const { container } = render(<PostComments comments={MOCK_COMMENTS} />)
+    expect(container.querySelector('section#comments')).toBeTruthy()
   })
 })
 
@@ -201,7 +211,6 @@ describe('PostFootnotes', () => {
     expect(container.textContent).toContain('NOTAS')
     expect(container.textContent).toContain('First footnote text')
     expect(container.textContent).toContain('Second footnote text')
-    // Back-links should point to fnref-{id}
     const backLinks = container.querySelectorAll('a[href^="#fnref-"]')
     expect(backLinks.length).toBe(2)
     expect(backLinks[0]!.getAttribute('href')).toBe('#fnref-1')

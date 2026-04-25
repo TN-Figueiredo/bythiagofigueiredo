@@ -31,7 +31,7 @@ const sourceSerif = Source_Serif_4({
   variable: '--font-source-serif-var',
   display: 'swap',
   style: ['normal', 'italic'],
-  weight: ['400', '600'],
+  weight: ['300', '400', '500', '600'],
 })
 
 // metadataBase drives resolution of relative URLs in alternates / openGraph /

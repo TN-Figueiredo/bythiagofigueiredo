@@ -24,7 +24,6 @@ export function HeaderCTAs({ variant, locale, t }: Props) {
             padding: '7px 12px',
             fontSize: 12,
             fontWeight: 600,
-            borderRadius: 6,
             transform: 'rotate(-1deg)',
             boxShadow: '0 2px 0 rgba(0,0,0,0.1)',
             display: 'inline-flex',
@@ -32,8 +31,8 @@ export function HeaderCTAs({ variant, locale, t }: Props) {
             gap: 6,
           }}
         >
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-            <path d="M6.5 3.5v9l7-4.5z" />
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M8 5v14l11-7z" />
           </svg>
           {channel.flag} {locale === 'pt-BR' ? 'Inscrever' : 'Subscribe'}
         </a>
@@ -46,10 +45,9 @@ export function HeaderCTAs({ variant, locale, t }: Props) {
             padding: '7px 12px',
             fontSize: 12,
             fontWeight: 600,
-            borderRadius: 6,
             transform: 'rotate(1deg)',
-            boxShadow: '0 2px 0 rgba(0,0,0,0.1)',
             display: 'inline-block',
+            boxShadow: '0 2px 0 rgba(0,0,0,0.1)',
           }}
         >
           ✉ Newsletter
@@ -73,7 +71,6 @@ export function HeaderCTAs({ variant, locale, t }: Props) {
             letterSpacing: '0.14em',
             textTransform: 'uppercase',
             fontWeight: 700,
-            borderRadius: 6,
             display: 'inline-block',
           }}
         >
@@ -95,7 +92,6 @@ export function HeaderCTAs({ variant, locale, t }: Props) {
           fontSize: 12,
           fontWeight: 600,
           letterSpacing: '0.04em',
-          borderRadius: 6,
           transform: 'rotate(-1deg)',
           display: 'inline-block',
         }}

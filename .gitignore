@@ -54,3 +54,6 @@ apps/*/.env.local-db
 
 # Claude Code per-project state
 .claude/
+
+# Superpowers brainstorm artifacts
+.superpowers/

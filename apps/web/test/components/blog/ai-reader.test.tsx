@@ -4,9 +4,19 @@ import { AiReaderButton } from '../../../src/components/blog/ai-reader-button'
 import { AiReaderDrawer } from '../../../src/components/blog/ai-reader-drawer'
 
 describe('AiReaderButton', () => {
-  it('renders pill with AI Reader label', () => {
+  it('renders pill with Ler com IA label', () => {
     const { container } = render(<AiReaderButton onClick={() => {}} />)
-    expect(container.textContent).toContain('AI Reader')
+    expect(container.textContent).toContain('Ler com IA')
+  })
+
+  it('returns null when hidden is true', () => {
+    const { container } = render(<AiReaderButton onClick={() => {}} hidden />)
+    expect(container.innerHTML).toBe('')
+  })
+
+  it('renders subtitle text', () => {
+    const { container } = render(<AiReaderButton onClick={() => {}} />)
+    expect(container.textContent).toContain('Resumo, explicacao, conversa')
   })
 })
 
@@ -14,31 +24,35 @@ describe('AiReaderDrawer', () => {
   it('renders tabs when open', () => {
     const { container } = render(<AiReaderDrawer open onClose={() => {}} />)
     expect(container.textContent).toContain('TL;DR')
-    expect(container.textContent).toContain('Explain')
-    expect(container.textContent).toContain('Chat')
+    expect(container.textContent).toContain('Explicar')
+    expect(container.textContent).toContain('Conversar')
   })
 
-  it('shows placeholder content in TL;DR tab', () => {
+  it('shows intro content in TL;DR tab', () => {
     const { container } = render(<AiReaderDrawer open onClose={() => {}} />)
     expect(container.textContent).toContain('resumo')
   })
 
-  it('clicking Explain tab switches content', () => {
+  it('clicking Explicar tab switches content', () => {
     const { container, getByText } = render(<AiReaderDrawer open onClose={() => {}} />)
-    // Initially shows TL;DR content
-    expect(container.textContent).toContain('resumo automatico')
-    // Click the Explain tab
-    fireEvent.click(getByText('Explain'))
-    // Should now show explain content, not TL;DR
-    expect(container.textContent).toContain('Selecione um trecho do artigo para explicar')
-    expect(container.textContent).not.toContain('resumo automatico')
+    expect(container.textContent).toContain('Gerar resumo')
+    fireEvent.click(getByText('Explicar'))
+    expect(container.textContent).toContain('linguagem mais simples')
+    expect(container.textContent).not.toContain('Gerar resumo')
+  })
+
+  it('clicking Conversar tab shows suggestions', () => {
+    const { container, getByText } = render(<AiReaderDrawer open onClose={() => {}} />)
+    fireEvent.click(getByText('Conversar'))
+    expect(container.textContent).toContain('Sugestoes')
+    expect(container.textContent).toContain('Qual e a ideia principal?')
   })
 
   it('has role="dialog" when open', () => {
     const { container } = render(<AiReaderDrawer open onClose={() => {}} />)
     const dialog = container.querySelector('[role="dialog"]')
     expect(dialog).toBeTruthy()
-    expect(dialog!.getAttribute('aria-label')).toBe('Leitor IA')
+    expect(dialog!.getAttribute('aria-label')).toBe('Leitura assistida')
   })
 
   it('close button has aria-label="Fechar"', () => {
@@ -66,5 +80,24 @@ describe('AiReaderDrawer', () => {
     render(<AiReaderDrawer open onClose={onClose} />)
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('renders header with SparkIcon and Leitura assistida', () => {
+    const { container } = render(<AiReaderDrawer open onClose={() => {}} />)
+    expect(container.textContent).toContain('Leitura assistida')
+    expect(container.querySelector('svg')).toBeTruthy()
+  })
+
+  it('renders footer disclaimer', () => {
+    const { container } = render(<AiReaderDrawer open onClose={() => {}} />)
+    expect(container.textContent).toContain('Respostas geradas por IA')
+  })
+
+  it('explain tab shows level selector', () => {
+    const { container, getByText } = render(<AiReaderDrawer open onClose={() => {}} />)
+    fireEvent.click(getByText('Explicar'))
+    expect(container.textContent).toContain('ELI5')
+    expect(container.textContent).toContain('Iniciante')
+    expect(container.textContent).toContain('Intermediario')
   })
 })

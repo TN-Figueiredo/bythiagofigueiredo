@@ -39,9 +39,9 @@ describe('BlogArticleClient', () => {
     expect(fab).toBeTruthy()
   })
 
-  it('renders AI Reader button', () => {
+  it('renders AI Reader button with Ler com IA', () => {
     const { container } = renderWithScroll({})
-    expect(container.textContent).toContain('AI Reader')
+    expect(container.textContent).toContain('Ler com IA')
   })
 
   it('renders TimeLeftPill', () => {

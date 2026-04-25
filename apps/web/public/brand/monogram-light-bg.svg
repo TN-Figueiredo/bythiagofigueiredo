@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60" width="60" height="60" role="img" aria-label="TF monogram">
+  
+  <g font-family="&#39;Source Serif 4&#39;, Georgia, serif" letter-spacing="-4.16">
+    <text x="15" y="46" font-size="52" font-weight="500" fill="#1A140C">T</text>
+    <text x="30" y="46" font-size="52" font-weight="500" font-style="italic" fill="#C14513" opacity="0.95">F</text>
+  </g>
+  <circle cx="50" cy="48" r="1.6" fill="#1A140C"></circle>
+</svg>

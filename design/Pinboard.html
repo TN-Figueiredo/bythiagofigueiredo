@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>bythiagofigueiredo — Pinboard</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Caveat:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background: #14110B;
+  }
+  ::selection { background: #FFE37A; color: #1A140C; }
+  a { -webkit-tap-highlight-color: transparent; }
+  input { font: inherit; }
+
+  /* Top control strip — lang toggle only */
+  .top-strip {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 999;
+    height: 44px;
+    background: rgba(20,18,16,0.94);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    display: flex; align-items: center; justify-content: flex-end;
+    padding: 0 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .lang-pill {
+    color: #F2EBDB;
+    padding: 3px; border-radius: 999px;
+    display: flex; font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    background: rgba(255,255,255,0.06);
+  }
+  .lang-pill button {
+    background: transparent; color: inherit; border: none;
+    padding: 5px 12px; border-radius: 999px; cursor: pointer;
+    font: inherit; letter-spacing: 0.1em; text-transform: uppercase;
+  }
+  .lang-pill button.active { background: #F2EBDB; color: #141210; }
+
+  /* Tweaks panel */
+  .tweaks-panel {
+    position: fixed; bottom: 20px; right: 20px; z-index: 998;
+    background: rgba(20,18,16,0.94); color: #F2EBDB;
+    backdrop-filter: blur(12px); border-radius: 14px;
+    padding: 16px 18px; min-width: 240px;
+    font-family: 'Inter', sans-serif; font-size: 13px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+    display: none;
+  }
+  .tweaks-panel.visible { display: block; }
+  .tweaks-panel { max-height: 70vh; overflow-y: auto; }
+  .tweaks-section-title {
+    font-family: 'JetBrains Mono', monospace; font-size: 9px;
+    letter-spacing: 0.16em; text-transform: uppercase; opacity: 0.45;
+    margin-top: 14px; padding-top: 12px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+  }
+  .tweaks-row.tweak-sub .label { opacity: 0.7; font-size: 12px; padding-left: 8px; }
+  .tweaks-row.tweak-sub { padding: 5px 0; border-top: none !important; }
+  .tweaks-panel .tweaks-title {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.6;
+    margin-bottom: 14px;
+  }
+  .tweaks-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 0;
+  }
+  .tweaks-row + .tweaks-row { border-top: 1px solid rgba(255,255,255,0.08); }
+  .tweaks-row .label { font-size: 13px; opacity: 0.9; }
+  .tweak-seg {
+    display: inline-flex; background: rgba(255,255,255,0.08);
+    border-radius: 999px; padding: 2px; gap: 2px;
+  }
+  .tweak-seg button {
+    background: transparent; color: inherit; border: none;
+    padding: 5px 12px; border-radius: 999px; cursor: pointer;
+    font-family: inherit; font-size: 12px;
+    transition: background 0.15s, color 0.15s;
+  }
+  .tweak-seg button.active { background: #F2EBDB; color: #141210; }
+
+  #root { min-height: 100vh; padding-top: 44px; }
+
+  @media (max-width: 760px) {
+    .tweaks-panel { right: 10px; bottom: 10px; min-width: 200px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Top control strip -->
+<div class="top-strip">
+  <div class="lang-pill">
+    <button data-lang="pt" class="active">PT</button>
+    <button data-lang="en">EN</button>
+  </div>
+</div>
+
+<!-- Tweaks panel -->
+<div class="tweaks-panel" id="tweaks">
+  <div class="tweaks-title">Tweaks</div>
+  <div class="tweaks-row">
+    <span class="label">Theme</span>
+    <div class="tweak-seg" data-tweak="theme">
+      <button data-value="light">Light</button>
+      <button data-value="dark" class="active">Dark</button>
+    </div>
+  </div>
+  <div class="tweaks-row">
+    <span class="label">Language</span>
+    <div class="tweak-seg" data-tweak="lang">
+      <button data-value="pt" class="active">PT</button>
+      <button data-value="en">EN</button>
+    </div>
+  </div>
+
+  <div class="tweaks-section-title">Ads</div>
+
+  <div class="tweaks-row">
+    <span class="label">Show ads</span>
+    <div class="tweak-seg" data-tweak="ads">
+      <button data-value="true" class="active">On</button>
+      <button data-value="false">Off</button>
+    </div>
+  </div>
+  <div class="tweaks-row tweak-sub">
+    <span class="label">Marginalia (rail)</span>
+    <div class="tweak-seg" data-tweak="ads_marginalia">
+      <button data-value="true" class="active">On</button>
+      <button data-value="false">Off</button>
+    </div>
+  </div>
+  <div class="tweaks-row tweak-sub">
+    <span class="label">Anchor (card)</span>
+    <div class="tweak-seg" data-tweak="ads_anchor">
+      <button data-value="true" class="active">On</button>
+      <button data-value="false">Off</button>
+    </div>
+  </div>
+  <div class="tweaks-row tweak-sub">
+    <span class="label">Bookmark (inline)</span>
+    <div class="tweak-seg" data-tweak="ads_bookmark">
+      <button data-value="true" class="active">On</button>
+      <button data-value="false">Off</button>
+    </div>
+  </div>
+  <div class="tweaks-row tweak-sub">
+    <span class="label">Bowtie (newsletter)</span>
+    <div class="tweak-seg" data-tweak="ads_bowtie">
+      <button data-value="true" class="active">On</button>
+      <button data-value="false">Off</button>
+    </div>
+  </div>
+  <div class="tweaks-row tweak-sub">
+    <span class="label">Doorman (banner)</span>
+    <div class="tweak-seg" data-tweak="ads_doorman">
+      <button data-value="true">On</button>
+      <button data-value="false" class="active">Off</button>
+    </div>
+  </div>
+  <div class="tweaks-row" style="border-top: 1px solid rgba(255,255,255,0.08); padding-top: 12px;">
+    <button id="reset-dismissed" style="
+      background: transparent; color: #C7702E; border: 1px solid rgba(199,112,46,0.4);
+      padding: 7px 12px; border-radius: 4px; cursor: pointer;
+      font-family: 'JetBrains Mono', monospace; font-size: 10px;
+      letter-spacing: 0.1em; text-transform: uppercase; width: 100%;
+    ">Reset dismissed ads</button>
+  </div>
+</div>
+
+<div id="root"></div>
+
+<!-- React + Babel -->
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script src="content.js?v=5"></script>
+<script src="ads-content.js"></script>
+<script type="text/babel" src="shared.jsx"></script>
+<script type="text/babel" src="ads.jsx"></script>
+<script type="text/babel" src="pinboard.jsx"></script>
+
+<!-- Tweak defaults -->
+<script>
+  const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+    "lang": "pt",
+    "theme": "dark",
+    "ads": true,
+    "ads_marginalia": true,
+    "ads_anchor": true,
+    "ads_bookmark": true,
+    "ads_bowtie": true,
+    "ads_doorman": false
+  }/*EDITMODE-END*/;
+</script>
+
+<script type="text/babel">
+  function loadState() {
+    try {
+      const saved = JSON.parse(localStorage.getItem("btf_pinboard") || "{}");
+      return { ...TWEAK_DEFAULTS, ...saved };
+    } catch { return { ...TWEAK_DEFAULTS }; }
+  }
+  function saveState(s) {
+    try { localStorage.setItem("btf_pinboard", JSON.stringify(s)); } catch {}
+  }
+
+  const App = () => {
+    const [state, setState] = React.useState(loadState);
+
+    const update = React.useCallback((patch) => {
+      setState(prev => {
+        const next = { ...prev, ...patch };
+        saveState(next);
+        return next;
+      });
+    }, []);
+
+    React.useEffect(() => {
+      document.documentElement.lang = state.lang === "pt" ? "pt-BR" : "en";
+      document.querySelectorAll(".lang-pill button").forEach(b => {
+        b.classList.toggle("active", b.dataset.lang === state.lang);
+      });
+      document.querySelectorAll(".tweak-seg").forEach(seg => {
+        const key = seg.dataset.tweak;
+        seg.querySelectorAll("button").forEach(b => {
+          b.classList.toggle("active", b.dataset.value === String(state[key]));
+        });
+      });
+      document.body.style.background = state.theme === "dark" ? "#14110B" : "#E9E1CE";
+    }, [state]);
+
+    React.useEffect(() => {
+      const onLang = (e) => {
+        const b = e.target.closest(".lang-pill button[data-lang]");
+        if (b) update({ lang: b.dataset.lang });
+      };
+      const onTweak = (e) => {
+        const b = e.target.closest(".tweak-seg button[data-value]");
+        if (!b) return;
+        const seg = b.closest(".tweak-seg");
+        const key = seg.dataset.tweak;
+        let v = b.dataset.value;
+        if (v === "true") v = true;
+        else if (v === "false") v = false;
+        update({ [key]: v });
+      };
+      const onReset = (e) => {
+        const b = e.target.closest("#reset-dismissed");
+        if (!b) return;
+        try { localStorage.removeItem("btf_ads_dismissed"); } catch {}
+        location.reload();
+      };
+      document.addEventListener("click", onLang);
+      document.addEventListener("click", onTweak);
+      document.addEventListener("click", onReset);
+      return () => {
+        document.removeEventListener("click", onLang);
+        document.removeEventListener("click", onTweak);
+        document.removeEventListener("click", onReset);
+      };
+    }, [update]);
+
+    React.useEffect(() => {
+      const panel = document.getElementById("tweaks");
+      const onMsg = (e) => {
+        const d = e.data || {};
+        if (d.type === "__activate_edit_mode") panel.classList.add("visible");
+        else if (d.type === "__deactivate_edit_mode") panel.classList.remove("visible");
+      };
+      window.addEventListener("message", onMsg);
+      try { window.parent.postMessage({ type: "__edit_mode_available" }, "*"); } catch {}
+      return () => window.removeEventListener("message", onMsg);
+    }, []);
+
+    React.useEffect(() => {
+      try {
+        window.parent.postMessage({
+          type: "__edit_mode_set_keys",
+          edits: {
+            lang: state.lang, theme: state.theme,
+            ads: state.ads, ads_marginalia: state.ads_marginalia,
+            ads_anchor: state.ads_anchor, ads_bookmark: state.ads_bookmark,
+            ads_bowtie: state.ads_bowtie, ads_doorman: state.ads_doorman,
+          },
+        }, "*");
+      } catch {}
+    }, [state.lang, state.theme, state.ads, state.ads_marginalia, state.ads_anchor, state.ads_bookmark, state.ads_bowtie, state.ads_doorman]);
+
+    window._lang = state.lang;
+    const t = window.CONTENT.ui[state.lang] || window.CONTENT.ui.pt;
+    const dark = state.theme === "dark";
+
+    const adsConfig = {
+      enabled: state.ads !== false,
+      slots: {
+        marginalia: state.ads_marginalia !== false,
+        anchor: state.ads_anchor !== false,
+        bookmark: state.ads_bookmark !== false,
+        bowtie: state.ads_bowtie !== false,
+        doorman: state.ads_doorman === true,
+      },
+    };
+
+    return <window.Pinboard t={t} dark={dark} content={window.CONTENT} adsConfig={adsConfig} />;
+  };
+
+  ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+
+</body>
+</html>

@@ -11,7 +11,6 @@ const defaultT: Record<string, string> = {
   'nav.newsletter': 'Newsletter',
   'nav.about': 'Sobre',
   'nav.contact': 'Contato',
-  'nav.devSite': 'Site Dev',
   'header.subscribe': 'Inscrever no YouTube',
   'header.newsletter': 'Receber newsletter',
 }
@@ -38,10 +37,10 @@ describe('GlobalHeader', () => {
     expect(header.style.top).toBe('44px')
   })
 
-  it('renders the SVG brand wordmark', () => {
+  it('renders the brand wordmark', () => {
     const { container } = render(<GlobalHeader {...defaultProps} />)
-    const svg = container.querySelector('svg[aria-label="by Thiago Figueiredo"]')
-    expect(svg).toBeTruthy()
+    const brand = container.querySelector('[data-testid="brand-wordmark"]')
+    expect(brand).toBeTruthy()
   })
 
   it('wraps brand in a link to home', () => {
@@ -62,11 +61,11 @@ describe('GlobalHeader', () => {
     expect(nav).toBeTruthy()
   })
 
-  it('renders 7 nav items in full variant', () => {
+  it('renders 6 nav items in full variant', () => {
     render(<GlobalHeader {...defaultProps} />)
     const nav = screen.getByLabelText('Main navigation')
     const links = nav.querySelectorAll('a')
-    expect(links).toHaveLength(7)
+    expect(links).toHaveLength(6)
   })
 
   it('renders 5 nav items in reduced variant', () => {
@@ -96,11 +95,10 @@ describe('GlobalHeader', () => {
     expect(toggles.length).toBeGreaterThanOrEqual(1)
   })
 
-  it('has bottom border set', () => {
+  it('has dashed bottom border', () => {
     const { container } = render(<GlobalHeader {...defaultProps} />)
     const header = container.querySelector('header')!
     const styleAttr = header.getAttribute('style') ?? ''
-    // happy-dom splits shorthand border-bottom into sub-properties
     expect(styleAttr).toContain('border-bottom')
   })
 

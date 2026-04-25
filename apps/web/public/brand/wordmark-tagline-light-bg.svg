@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 588 105" width="588" height="105" role="img" aria-label="by Thiago Figueiredo — escritos · vídeos · cartas">
+  
+  <g font-family="&#39;Source Serif 4&#39;, Georgia, serif" fill="#1A140C">
+    <text x="6" y="68.80" font-size="46.08" font-weight="300" font-style="italic" opacity="0.75">by</text>
+    <text x="62.519999999999996" y="72" font-size="64" font-weight="500" letter-spacing="-0.96">Thiago Figueiredo</text>
+  </g>
+  <g transform="translate(567.80 24.64)">
+    <path d="M 0 -11 C -1.8 -7, -1.8 7, 0 11 C 1.8 7, 1.8 -7, 0 -11 Z" fill="#C14513" transform="translate(0 0) rotate(0) scale(1.2218181818181817)"></path>
+  <path d="M 0 -11 C -1.8 -7, -1.8 7, 0 11 C 1.8 7, 1.8 -7, 0 -11 Z" fill="#C14513" transform="translate(0 0) rotate(60) scale(1.2218181818181817)"></path>
+  <path d="M 0 -11 C -1.8 -7, -1.8 7, 0 11 C 1.8 7, 1.8 -7, 0 -11 Z" fill="#C14513" transform="translate(0 0) rotate(120) scale(1.2218181818181817)"></path>
+  <circle cx="0" cy="0" r="0.990" fill="#C14513"></circle>
+  </g>
+  <text x="6" y="92.48" font-family="&#39;JetBrains Mono&#39;, ui-monospace, monospace" font-size="12.16" letter-spacing="3.0" fill="#1A140C" opacity="0.55">ESCRITOS · VÍDEOS · CARTAS</text>
+</svg>

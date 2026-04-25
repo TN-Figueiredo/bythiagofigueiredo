@@ -1,7 +1,10 @@
-@import '@tn-figueiredo/cms-ui/styles.css';
-@import '@tn-figueiredo/cms-admin/styles.css';
+@import '@tn-figueiredo/cms-ui/styles.css' layer(packages);
+@import '@tn-figueiredo/cms-admin/styles.css' layer(packages);
 @import '../styles/reader-pinboard.css';
 @import "tailwindcss";
+
+@source "../components";
+@source "../../lib";
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
@@ -174,6 +177,13 @@ body {
   --color-cms-rose-subtle:   var(--cms-rose-subtle);
   --color-cms-purple:        var(--cms-purple);
   --color-cms-purple-subtle: var(--cms-purple-subtle);
+}
+
+/* ── Header focus-visible ── */
+header a:focus-visible,
+header button:focus-visible {
+  outline: 2px solid var(--pb-accent);
+  outline-offset: 3px;
 }
 
 @keyframes pb-fade-in {

@@ -43,7 +43,6 @@ export function buildNavItems(
   if (variant === 'full') {
     items.push(
       { key: 'contact', href: '/contact', label: l('nav.contact') },
-      { key: 'devSite', href: 'https://dev.bythiagofigueiredo.com', label: l('nav.devSite'), external: true },
     )
   }
 

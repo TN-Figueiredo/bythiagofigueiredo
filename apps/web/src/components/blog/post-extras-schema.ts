@@ -12,6 +12,7 @@ export const PostExtrasSchema = z.object({
   series_next_title: z.string().optional(),
   series_next_excerpt: z.string().optional(),
   colophon: z.string().optional(),
+  hero_illustration: z.string().optional(),
 }).refine(
   (data) => {
     if (data.series_part !== undefined && !data.series_title) return false

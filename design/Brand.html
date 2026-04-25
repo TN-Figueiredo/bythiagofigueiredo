@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Marca · bythiagofigueiredo</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,300..900;1,8..60,300..900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Inter", system-ui, sans-serif;
+    background: #E9E1CE;
+    color: #1A140C;
+    -webkit-font-smoothing: antialiased;
+    padding: 56px 40px 80px;
+  }
+  h1 {
+    font-family: "Source Serif 4", Georgia, serif;
+    font-weight: 500;
+    font-size: 44px;
+    letter-spacing: -0.02em;
+    margin: 0 0 8px;
+  }
+  .lede {
+    color: #6A5F48;
+    max-width: 640px;
+    margin: 0 0 56px;
+    line-height: 1.55;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: 28px;
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+  .card {
+    background: #FBF6E8;
+    border: 1px solid #CEBFA0;
+    padding: 28px;
+  }
+  .card.dark {
+    background: #14110B;
+    border-color: #2E2718;
+    color: #EFE6D2;
+  }
+  .card .label {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    opacity: 0.6;
+    margin-bottom: 18px;
+  }
+  .card .file {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px;
+    margin-top: 18px;
+    opacity: 0.55;
+  }
+  .stage {
+    min-height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 14px 0;
+  }
+  .stage img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+  }
+  .stage img.small { max-width: 80px; }
+  .swatch-row {
+    display: flex;
+    gap: 12px;
+    margin-top: 28px;
+    flex-wrap: wrap;
+  }
+  .swatch {
+    flex: 1;
+    min-width: 120px;
+    background: #FBF6E8;
+    border: 1px solid #CEBFA0;
+    padding: 18px;
+  }
+  .swatch .chip {
+    width: 100%;
+    height: 64px;
+    margin-bottom: 12px;
+  }
+  .swatch .name {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    opacity: 0.6;
+  }
+  .swatch .hex {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px;
+    margin-top: 4px;
+  }
+  section { max-width: 1280px; margin: 0 auto 64px; }
+  h2 {
+    font-family: "Source Serif 4", Georgia, serif;
+    font-weight: 500;
+    font-size: 24px;
+    margin: 64px 0 24px;
+    border-top: 1px dashed #CEBFA0;
+    padding-top: 24px;
+  }
+</style>
+</head>
+<body>
+<section>
+<h1>Marca — Marginalia</h1>
+<p class="lede">Direção 1 do estudo de logos. Wordmark em Source Serif 4 com asterisco custom de 6 pétalas. Todos os SVGs estão em <code>brand/</code> e podem ser usados em qualquer lugar.</p>
+</section>
+
+<h2 style="max-width: 1280px; margin: 0 auto 24px;">Wordmark</h2>
+<div class="grid">
+  <div class="card">
+    <div class="label">Light bg · #FBF6E8</div>
+    <div class="stage"><img src="brand/wordmark-light-bg.svg?v=2" alt=""></div>
+    <div class="file">brand/wordmark-light-bg.svg</div>
+  </div>
+  <div class="card dark">
+    <div class="label">Dark bg · #14110B</div>
+    <div class="stage"><img src="brand/wordmark-dark-bg.svg?v=2" alt=""></div>
+    <div class="file">brand/wordmark-dark-bg.svg</div>
+  </div>
+  <div class="card">
+    <div class="label">Com tagline · light</div>
+    <div class="stage"><img src="brand/wordmark-tagline-light-bg.svg?v=2" alt=""></div>
+    <div class="file">brand/wordmark-tagline-light-bg.svg</div>
+  </div>
+  <div class="card dark">
+    <div class="label">Com tagline · dark</div>
+    <div class="stage"><img src="brand/wordmark-tagline-dark-bg.svg?v=2" alt=""></div>
+    <div class="file">brand/wordmark-tagline-dark-bg.svg</div>
+  </div>
+</div>
+
+<h2 style="max-width: 1280px; margin: 64px auto 24px;">Símbolo (asterisco)</h2>
+<div class="grid">
+  <div class="card">
+    <div class="label">Deep · light bg</div>
+    <div class="stage"><img class="small" src="brand/symbol-deep.svg" alt=""></div>
+    <div class="file">brand/symbol-deep.svg</div>
+  </div>
+  <div class="card dark">
+    <div class="label">Warm · dark bg</div>
+    <div class="stage"><img class="small" src="brand/symbol-warm.svg" alt=""></div>
+    <div class="file">brand/symbol-warm.svg</div>
+  </div>
+  <div class="card">
+    <div class="label">Favicon 32×32</div>
+    <div class="stage"><img src="brand/favicon.svg" alt="" style="width:32px;height:32px"></div>
+    <div class="file">brand/favicon.svg</div>
+  </div>
+</div>
+
+<h2 style="max-width: 1280px; margin: 64px auto 24px;">Monograma TF</h2>
+<div class="grid">
+  <div class="card">
+    <div class="label">Light bg</div>
+    <div class="stage"><img class="small" src="brand/monogram-light-bg.svg" alt=""></div>
+    <div class="file">brand/monogram-light-bg.svg</div>
+  </div>
+  <div class="card dark">
+    <div class="label">Dark bg</div>
+    <div class="stage"><img class="small" src="brand/monogram-dark-bg.svg" alt=""></div>
+    <div class="file">brand/monogram-dark-bg.svg</div>
+  </div>
+</div>
+
+<h2 style="max-width: 1280px; margin: 64px auto 24px;">Cores</h2>
+<div class="swatch-row" style="max-width: 1280px; margin: 0 auto;">
+  <div class="swatch">
+    <div class="chip" style="background: #1A140C;"></div>
+    <div class="name">Ink (dark)</div>
+    <div class="hex">#1A140C</div>
+  </div>
+  <div class="swatch">
+    <div class="chip" style="background: #EFE6D2;"></div>
+    <div class="name">Ink (light)</div>
+    <div class="hex">#EFE6D2</div>
+  </div>
+  <div class="swatch">
+    <div class="chip" style="background: #FF8240;"></div>
+    <div class="name">Accent (warm)</div>
+    <div class="hex">#FF8240</div>
+  </div>
+  <div class="swatch">
+    <div class="chip" style="background: #C14513;"></div>
+    <div class="name">Accent (deep)</div>
+    <div class="hex">#C14513</div>
+  </div>
+</div>
+
+</body>
+</html>

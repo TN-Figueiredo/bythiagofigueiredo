@@ -24,44 +24,58 @@ export function NewsletterCta({ category, locale, newsletterId }: Props) {
 
   return (
     <div className="blog-nl-cta">
-      <Tape variant="tape" className="top-[-10px] left-[calc(50%-40px)]" rotate={-1.5} />
-      <Tape variant="tape2" className="bottom-[-8px] right-10" rotate={2} />
-      <div className="blog-nl-accent" />
+      <Tape variant="tape" className="top-[-10px] left-[40%]" rotate={3} />
 
-      <div className="blog-sidebar-label mb-3.5">NEWSLETTER</div>
-      <h3 className="font-fraunces text-[28px] font-bold leading-tight mb-5 max-w-[500px]">
+      <div className="blog-sidebar-label mb-2.5" style={{ opacity: 0.7 }}>
+        Newsletter
+      </div>
+      <h3
+        className="font-fraunces font-medium leading-[1.15] mb-4 max-w-[500px]"
+        style={{ fontSize: 26, textWrap: 'balance' }}
+      >
         Gostou? Recebe os proximos na caixa de entrada.
       </h3>
 
       {state.success ? (
-        <p className="text-pb-accent font-jetbrains text-sm py-4">Inscrição recebida! Verifique seu email para confirmar.</p>
+        <p className="text-pb-accent font-jetbrains text-sm py-4">Inscricao recebida! Verifique seu email para confirmar.</p>
       ) : (
-        <form action={dispatch}>
+        <form action={dispatch} className="flex gap-2 flex-wrap">
           {newsletterId && <input type="hidden" name="newsletter_id" value={newsletterId} />}
           <input type="hidden" name="locale" value={locale} />
-          <div className="flex gap-2.5 mb-3">
-            <input
-              name="email"
-              type="email"
-              required
-              placeholder="seu@email.com"
-              aria-label="Email"
-              className="flex-1 bg-[--pb-bg] border border-[--pb-line] text-pb-ink px-4 py-3.5 rounded-lg text-[15px] outline-none font-sans focus:border-pb-accent"
-            />
-            <button
-              type="submit"
-              disabled={pending}
-              aria-busy={pending}
-              className="bg-pb-accent border-none px-5 py-3.5 rounded-lg font-jetbrains text-xs font-semibold tracking-wider uppercase cursor-pointer whitespace-nowrap transition-colors hover:opacity-90 disabled:opacity-50"
-              style={{ color: 'var(--pb-bg)' }}
-            >
-              {pending ? '…' : `Assinar ${ctaLabel}`}
-            </button>
-          </div>
-          {state.error && <p className="text-pb-yt font-jetbrains text-xs mb-2">{state.error}</p>}
+          <input
+            name="email"
+            type="email"
+            required
+            placeholder="seu@email.com"
+            aria-label="Email"
+            className="flex-1 min-w-[200px] text-sm outline-none"
+            style={{
+              padding: '12px 14px',
+              border: '1px solid #1A140C',
+              background: '#FFFCEE',
+              color: '#1A140C',
+              fontFamily: '"Inter", var(--font-sans), sans-serif',
+            }}
+          />
+          <button
+            type="submit"
+            disabled={pending}
+            aria-busy={pending}
+            className="border-none font-jetbrains text-[11px] font-semibold tracking-[0.14em] uppercase cursor-pointer whitespace-nowrap disabled:opacity-50"
+            style={{
+              padding: '12px 20px',
+              background: '#1A140C',
+              color: 'var(--pb-marker)',
+            }}
+          >
+            {pending ? '...' : `Assinar ${ctaLabel}`}
+          </button>
+          {state.error && <p className="text-pb-yt font-jetbrains text-xs w-full">{state.error}</p>}
         </form>
       )}
-      <div className="text-xs text-pb-faint">1.427 leitores · 62% open rate · cancelar e um clique</div>
+      <div className="text-[11px] mt-2.5 font-jetbrains" style={{ opacity: 0.65 }}>
+        1.427 leitores · 62% open rate · cancelar e um clique
+      </div>
     </div>
   )
 }

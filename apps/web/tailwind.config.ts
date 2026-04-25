@@ -8,7 +8,14 @@ const config: Config = {
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
-    extend: {},
+    extend: {
+      fontFamily: {
+        fraunces: ['var(--font-fraunces)', 'serif'],
+        jetbrains: ['var(--font-jetbrains)', 'ui-monospace', 'monospace'],
+        caveat: ['var(--font-caveat)', 'cursive'],
+        'source-serif': ['var(--font-source-serif)', 'Georgia', 'serif'],
+      },
+    },
   },
   plugins: [],
 }

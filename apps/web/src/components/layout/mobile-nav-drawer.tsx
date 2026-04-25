@@ -27,7 +27,7 @@ export function MobileNavDrawer({ locale, currentTheme, current, variant, ctas, 
         <button
           onClick={() => setOpen(true)}
           aria-label="Open menu"
-          aria-expanded={open ? 'true' : 'false'}
+          aria-expanded={open}
           style={{
             width: 28,
             height: 28,
@@ -61,7 +61,7 @@ export function MobileNavDrawer({ locale, currentTheme, current, variant, ctas, 
             overflowY: 'auto',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '14px 28px', paddingTop: 52 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 28px', height: 44, marginTop: 44 }}>
             <button
               onClick={() => setOpen(false)}
               aria-label="Close menu"
@@ -95,7 +95,9 @@ export function MobileNavDrawer({ locale, currentTheme, current, variant, ctas, 
               {items.map((item) => {
                 const isActive = item.key === current
                 const style = {
-                  display: 'block' as const,
+                  display: 'flex' as const,
+                  alignItems: 'center' as const,
+                  gap: 4,
                   padding: '14px 0',
                   paddingLeft: isActive ? 14 : 0,
                   borderLeft: isActive ? '3px solid var(--pb-accent)' : '3px solid transparent',
@@ -115,7 +117,7 @@ export function MobileNavDrawer({ locale, currentTheme, current, variant, ctas, 
                         rel="noopener"
                         style={style}
                       >
-                        {item.label}<span style={{ fontSize: 10, opacity: 0.7, marginLeft: 4 }}>↗</span>
+                        {item.label}<span style={{ fontSize: 10, opacity: 0.7 }}>↗</span>
                       </a>
                     ) : (
                       <Link

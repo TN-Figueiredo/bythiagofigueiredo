@@ -17,7 +17,6 @@ const defaultProps = {
     'nav.newsletter': 'Newsletter',
     'nav.about': 'Sobre',
     'nav.contact': 'Contato',
-    'nav.devSite': 'Site Dev',
     'header.subscribe': 'Inscrever no YouTube',
     'header.newsletter': 'Receber newsletter',
   },

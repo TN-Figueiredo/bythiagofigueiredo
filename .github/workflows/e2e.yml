@@ -1,0 +1,106 @@
+name: E2E Tests
+
+on:
+  pull_request:
+    branches: [staging]
+    paths:
+      - 'apps/web/**'
+      - 'packages/**'
+      - 'supabase/migrations/**'
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Validate required secrets
+        run: |
+          missing=()
+          [ -z "${{ secrets.NPM_TOKEN }}" ] && missing+=("NPM_TOKEN")
+          [ -z "${{ secrets.E2E_ADMIN_PASSWORD }}" ] && missing+=("E2E_ADMIN_PASSWORD")
+          [ -z "${{ secrets.E2E_EDITOR_PASSWORD }}" ] && missing+=("E2E_EDITOR_PASSWORD")
+          [ -z "${{ secrets.E2E_REPORTER_PASSWORD }}" ] && missing+=("E2E_REPORTER_PASSWORD")
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing required secrets: ${missing[*]}"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Start Supabase local
+        run: supabase start
+
+      - name: Apply migrations
+        run: supabase db reset
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+        working-directory: apps/web
+
+      - name: Generate .env.test
+        run: |
+          cat > apps/web/.env.test <<'EOF'
+          PLAYWRIGHT_BASE_URL=http://localhost:3099
+          NEXT_PUBLIC_APP_URL=http://localhost:3099
+          NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRFA0NiK7urfjjDvty2iREzvINDkgovLkgJQTPILR38
+          SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hj04zWl196z2-SBc0
+          HAS_LOCAL_DB=1
+          NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA
+          TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
+          INBUCKET_URL=http://127.0.0.1:54324
+          CRON_SECRET=e2e-test-cron-secret
+          NEXT_PUBLIC_LGPD_BANNER_ENABLED=true
+          NEXT_PUBLIC_ACCOUNT_DELETE_ENABLED=true
+          NEXT_PUBLIC_ACCOUNT_EXPORT_ENABLED=true
+          NEXT_PUBLIC_SEO_JSONLD_ENABLED=true
+          NEXT_PUBLIC_SEO_DYNAMIC_OG_ENABLED=false
+          EOF
+
+      - name: Run E2E suite
+        run: npm run test:e2e
+        working-directory: apps/web
+        env:
+          CI: true
+          HAS_LOCAL_DB: 1
+          PLAYWRIGHT_BASE_URL: http://localhost:3099
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRFA0NiK7urfjjDvty2iREzvINDkgovLkgJQTPILR38
+          SUPABASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hj04zWl196z2-SBc0
+          NEXT_PUBLIC_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
+          TURNSTILE_SECRET_KEY: 1x0000000000000000000000000000000AA
+          INBUCKET_URL: http://127.0.0.1:54324
+          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+          E2E_EDITOR_PASSWORD: ${{ secrets.E2E_EDITOR_PASSWORD }}
+          E2E_REPORTER_PASSWORD: ${{ secrets.E2E_REPORTER_PASSWORD }}
+          NEXT_PUBLIC_APP_URL: http://localhost:3099
+          NEXT_PUBLIC_LGPD_BANNER_ENABLED: true
+          NEXT_PUBLIC_ACCOUNT_DELETE_ENABLED: true
+          NEXT_PUBLIC_ACCOUNT_EXPORT_ENABLED: true
+          NEXT_PUBLIC_SEO_JSONLD_ENABLED: true
+          NEXT_PUBLIC_SEO_DYNAMIC_OG_ENABLED: false
+          CRON_SECRET: e2e-test-cron-secret
+          NODE_ENV: test
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.run_id }}
+          path: apps/web/playwright-report/
+          retention-days: 7

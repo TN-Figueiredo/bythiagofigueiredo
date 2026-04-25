@@ -7,9 +7,6 @@ vi.mock('../../lib/cms/site-context', () => ({
     Promise.resolve({ siteId: 's1', orgId: 'o1', defaultLocale: 'pt-BR' }),
 }))
 
-// Sprint 5b PR-C C.4: page now resolves SEO config via the SEO factory,
-// which talks to Supabase. Stub it with a fixed config so unit tests don't
-// need a live DB. The shape mirrors SiteSeoConfig.
 vi.mock('../../lib/seo/config', () => ({
   getSiteSeoConfig: vi.fn().mockResolvedValue({
     siteId: 's1',
@@ -106,6 +103,18 @@ vi.mock('@tn-figueiredo/cms', async () => {
 
 vi.mock('../../lib/cms/registry', () => ({ blogRegistry: {} }))
 
+vi.mock('../../lib/supabase/service', () => ({
+  getSupabaseServiceClient: () => ({
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          single: () => Promise.resolve({ data: { category: 'vida' }, error: null }),
+        }),
+      }),
+    }),
+  }),
+}))
+
 vi.mock('../../lib/blog/related-posts', () => ({
   getRelatedPosts: vi.fn().mockResolvedValue([]),
 }))
@@ -141,7 +150,7 @@ describe('BlogDetailPage', () => {
   it('renders author card in footer', async () => {
     const jsx = await BlogDetailPage({ params: Promise.resolve({ locale: 'pt-BR', slug: 'hello' }) })
     const { container } = render(jsx as never)
-    expect(container.textContent).toContain('SOBRE QUEM ESCREVEU')
+    expect(container.textContent).toContain('Sobre quem escreveu')
     expect(container.textContent).toContain('Construo software')
   })
 
@@ -150,13 +159,13 @@ describe('BlogDetailPage', () => {
     const { container } = render(jsx as never)
     expect(container.textContent).toContain('Conversa')
     expect(container.textContent).toContain('Paula Reis')
-    expect(container.textContent).toContain('RESPOSTA DO AUTOR')
+    expect(container.textContent).toContain('resposta do autor')
   })
 
   it('renders newsletter CTA', async () => {
     const jsx = await BlogDetailPage({ params: Promise.resolve({ locale: 'pt-BR', slug: 'hello' }) })
     const { container } = render(jsx as never)
-    expect(container.textContent).toContain('NEWSLETTER')
+    expect(container.textContent).toContain('Newsletter')
     expect(container.querySelector('input[type="email"]')).toBeTruthy()
   })
 
@@ -171,7 +180,7 @@ describe('BlogDetailPage', () => {
     const { default: Page } = await import('../../src/app/(public)/blog/[locale]/[slug]/page')
     await expect(
       Page({ params: Promise.resolve({ locale: 'pt-BR', slug: 'missing' }) })
-    ).rejects.toThrow() // notFound() throws NEXT_NOT_FOUND
+    ).rejects.toThrow()
   })
 })
 
@@ -211,6 +220,4 @@ describe('BlogDetailPage generateMetadata', () => {
   })
 })
 
-// Keep a reference so the `generateMetadata` import is not tree-shaken in
-// environments that are strict about unused imports.
 void generateMetadata

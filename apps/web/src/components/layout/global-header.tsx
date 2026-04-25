@@ -32,11 +32,10 @@ export function GlobalHeader({ locale, currentTheme, current, variant, ctas, t }
           flexWrap: 'wrap',
         }}
       >
-        {/* Brand + tagline */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
           <Link href={homeHref} aria-label="by Thiago Figueiredo" className="no-underline">
-            <BrandWordmark theme={currentTheme} height={28} className="hidden md:block" />
-            <BrandWordmark theme={currentTheme} height={22} className="block md:hidden" />
+            <span className="hidden md:inline-block"><BrandWordmark theme={currentTheme} size={22} /></span>
+            <span className="inline-block md:hidden"><BrandWordmark theme={currentTheme} size={18} /></span>
           </Link>
           <span
             className="font-caveat hidden md:inline-block"
@@ -52,11 +51,10 @@ export function GlobalHeader({ locale, currentTheme, current, variant, ctas, t }
           </span>
         </div>
 
-        {/* Desktop nav */}
         <nav
           aria-label="Main navigation"
-          className="hidden md:flex items-center gap-5"
-          style={{ fontSize: 14 }}
+          className="hidden md:flex"
+          style={{ gap: 22, fontSize: 14, alignItems: 'center', flexWrap: 'wrap' }}
         >
           {items.map((item) => {
             const isActive = item.key === current
@@ -67,7 +65,9 @@ export function GlobalHeader({ locale, currentTheme, current, variant, ctas, t }
               paddingBottom: 2,
               textDecoration: 'none' as const,
               transition: 'color 0.15s ease, border-color 0.15s ease',
-              whiteSpace: 'nowrap' as const,
+              display: 'inline-flex' as const,
+              alignItems: 'center' as const,
+              gap: 4,
             }
             if (item.external) {
               return (
@@ -80,7 +80,7 @@ export function GlobalHeader({ locale, currentTheme, current, variant, ctas, t }
                   style={style}
                 >
                   {item.label}
-                  <span style={{ fontSize: 10, opacity: 0.7, marginLeft: 3 }}>↗</span>
+                  <span style={{ fontSize: 10, opacity: 0.7 }}>↗</span>
                 </a>
               )
             }
@@ -97,9 +97,8 @@ export function GlobalHeader({ locale, currentTheme, current, variant, ctas, t }
           })}
         </nav>
 
-        {/* CTAs + ThemeToggle (desktop) + Mobile hamburger */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-          <div className="hidden md:flex items-center gap-3">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <div className="hidden md:flex items-center gap-2">
             <HeaderCTAs variant={ctas} locale={locale} t={t} />
             <ThemeToggle currentTheme={currentTheme} />
           </div>

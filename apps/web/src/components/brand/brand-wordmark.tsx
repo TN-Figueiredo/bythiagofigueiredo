@@ -1,6 +1,6 @@
 type Props = {
   theme: 'dark' | 'light'
-  height?: number
+  size?: number
   className?: string
 }
 
@@ -9,30 +9,73 @@ const FILLS = {
   light: { text: '#1A140C', asterisk: '#C14513' },
 }
 
-export function BrandWordmark({ theme, height = 28, className }: Props) {
-  const { text, asterisk } = FILLS[theme]
-  const aspectRatio = 588 / 80
-  const width = Math.round(height * aspectRatio)
-
+function Asterisk({ color, size }: { color: string; size: number }) {
   return (
     <svg
-      viewBox="0 0 588 80"
-      width={width}
-      height={height}
-      role="img"
-      aria-label="by Thiago Figueiredo"
-      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      style={{ display: 'inline-block', verticalAlign: 'baseline' }}
+      aria-hidden="true"
     >
-      <g data-testid="brand-text" fontFamily="'Source Serif 4', Georgia, serif" fill={text}>
-        <text x="6" y="68.80" fontSize="46.08" fontWeight="300" fontStyle="italic" opacity="0.75">by</text>
-        <text x="62.52" y="72" fontSize="64" fontWeight="500" letterSpacing="-0.96">Thiago Figueiredo</text>
-      </g>
-      <g data-testid="brand-asterisk" transform="translate(567.80 24.64)">
-        <path d="M 0 -11 C -1.8 -7, -1.8 7, 0 11 C 1.8 7, 1.8 -7, 0 -11 Z" fill={asterisk} transform="rotate(0) scale(1.222)" />
-        <path d="M 0 -11 C -1.8 -7, -1.8 7, 0 11 C 1.8 7, 1.8 -7, 0 -11 Z" fill={asterisk} transform="rotate(60) scale(1.222)" />
-        <path d="M 0 -11 C -1.8 -7, -1.8 7, 0 11 C 1.8 7, 1.8 -7, 0 -11 Z" fill={asterisk} transform="rotate(120) scale(1.222)" />
-        <circle cx="0" cy="0" r="0.99" fill={asterisk} />
+      <g fill={color}>
+        {[0, 60, 120].map((deg) => (
+          <path
+            key={deg}
+            d="M 12 1 C 10.2 5, 10.2 19, 12 23 C 13.8 19, 13.8 5, 12 1 Z"
+            transform={`rotate(${deg} 12 12)`}
+          />
+        ))}
+        <circle cx="12" cy="12" r="0.81" />
       </g>
     </svg>
+  )
+}
+
+export function BrandWordmark({ theme, size = 22, className }: Props) {
+  const { text, asterisk } = FILLS[theme]
+
+  return (
+    <span
+      className={`font-source-serif ${className ?? ''}`}
+      data-testid="brand-wordmark"
+      style={{
+        color: text,
+        display: 'inline-flex',
+        alignItems: 'baseline',
+        gap: size * 0.18,
+        lineHeight: 1,
+        letterSpacing: '-0.015em',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      <span
+        data-testid="brand-by"
+        style={{
+          fontSize: size * 0.72,
+          fontWeight: 300,
+          fontStyle: 'italic',
+          opacity: 0.75,
+          marginRight: -size * 0.02,
+          transform: `translateY(-${size * 0.05}px)`,
+          display: 'inline-block',
+        }}
+      >
+        by
+      </span>
+      <span data-testid="brand-name" style={{ fontSize: size, fontWeight: 500 }}>
+        Thiago&nbsp;Figueiredo
+      </span>
+      <span
+        data-testid="brand-asterisk"
+        style={{
+          display: 'inline-block',
+          marginLeft: size * 0.06,
+          transform: `translateY(-${size * 0.22}px)`,
+        }}
+      >
+        <Asterisk color={asterisk} size={size * 0.42} />
+      </span>
+    </span>
   )
 }
