@@ -27,7 +27,7 @@ export async function getSiteContext(): Promise<SiteContext> {
   const h = await headers()
   const siteId = h.get('x-site-id')
   const orgId = h.get('x-org-id')
-  const defaultLocale = h.get('x-default-locale') ?? 'pt-BR'
+  const defaultLocale = h.get('x-default-locale') ?? 'en'
   // Middleware may set an explicit `x-primary-domain` header (Track A
   // follow-up); until then we derive a best-effort value from the request
   // `host` header (strips port for `dev.localhost:3001`).

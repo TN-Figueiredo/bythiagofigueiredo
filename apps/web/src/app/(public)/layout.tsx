@@ -68,14 +68,15 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function PublicLayout({ children }: { children: ReactNode }) {
   const lgpdBannerEnabled = process.env.NEXT_PUBLIC_LGPD_BANNER_ENABLED === 'true'
   const ctx = await tryGetSiteContext()
-  const host = (await headers()).get('host') ?? ctx?.primaryDomain ?? ''
+  const h = await headers()
+  const host = h.get('host') ?? ctx?.primaryDomain ?? ''
   const config = ctx
     ? await getSiteSeoConfig(ctx.siteId, host).catch(() => null)
     : null
 
   const cookieStore = await cookies()
   const theme = cookieStore.get('btf_theme')?.value === 'light' ? 'light' : 'dark'
-  const locale = (ctx?.defaultLocale ?? 'en') as 'en' | 'pt-BR'
+  const locale = (h.get('x-locale') ?? 'en') as 'en' | 'pt-BR'
   const t = (locale === 'pt-BR' ? ptBrStrings : enStrings) as Record<string, string>
 
   const rootNodes = config

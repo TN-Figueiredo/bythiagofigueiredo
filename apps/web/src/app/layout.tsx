@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { Inter, Fraunces, JetBrains_Mono, Caveat, Source_Serif_4 } from 'next/font/google'
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import './globals.css'
 import { ThemeScript } from '@/components/ui/theme-toggle'
 
@@ -59,9 +59,11 @@ export default async function RootLayout({
 }>) {
   const cookieStore = await cookies()
   const theme = cookieStore.get('btf_theme')?.value === 'light' ? 'light' : 'dark'
+  const h = await headers()
+  const lang = h.get('x-locale') === 'pt-BR' ? 'pt-BR' : 'en'
   return (
     <html
-      lang="pt-BR"
+      lang={lang}
       className={`${theme === 'dark' ? 'dark' : ''} ${inter.variable} ${fraunces.variable} ${jetbrains.variable} ${caveat.variable} ${sourceSerif.variable}`}
       data-theme={theme}
       suppressHydrationWarning

@@ -32,8 +32,8 @@ interface HomeProps {
 }
 
 export default async function Home({ searchParams }: HomeProps) {
-  const ctx = await tryGetSiteContext()
-  const locale = (ctx?.defaultLocale ?? 'en') as 'en' | 'pt-BR'
+  const h = await headers()
+  const locale = (h.get('x-locale') ?? 'en') as 'en' | 'pt-BR'
   const sp = await searchParams
   const showInsufficientAccess = sp.error === 'insufficient_access'
   return (
