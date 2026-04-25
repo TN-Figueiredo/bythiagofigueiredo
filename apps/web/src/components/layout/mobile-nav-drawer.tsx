@@ -61,15 +61,16 @@ export function MobileNavDrawer({ locale, currentTheme, current, variant, ctas, 
             overflowY: 'auto',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '14px 28px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '14px 28px', paddingTop: 52 }}>
             <button
               onClick={() => setOpen(false)}
               aria-label="Close menu"
               style={{
-                width: 28,
-                height: 28,
+                width: 36,
+                height: 36,
                 background: 'transparent',
-                border: 'none',
+                border: '1px dashed var(--pb-line)',
+                borderRadius: 6,
                 cursor: 'pointer',
                 color: 'var(--pb-ink)',
                 fontSize: 20,
