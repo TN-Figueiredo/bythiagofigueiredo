@@ -66,7 +66,7 @@ describe('schema-dts type equivalence (compile-time gate)', () => {
   test('BreadcrumbList', () => {
     const n = buildBreadcrumbNode([
       { name: 'Home', url: 'https://example.com/' },
-      { name: 'Blog', url: 'https://example.com/blog/pt-BR' },
+      { name: 'Blog', url: 'https://example.com/pt/blog' },
     ])
     expectTypeOf(n).toMatchTypeOf<BreadcrumbList>()
   })
@@ -95,10 +95,10 @@ describe('graph composition snapshots (output drift detection)', () => {
       buildBlogPostingNode(mockConfig, mockPost, mockTxs),
       buildBreadcrumbNode([
         { name: 'Home', url: 'https://example.com/' },
-        { name: 'Blog', url: 'https://example.com/blog/pt-BR' },
+        { name: 'Blog', url: 'https://example.com/pt/blog' },
         {
           name: mockPost.translation.title,
-          url: `https://example.com/blog/pt-BR/${mockPost.translation.slug}`,
+          url: `https://example.com/pt/blog/${mockPost.translation.slug}`,
         },
       ]),
       buildFaqNode(mockExtras.faq!),
@@ -122,10 +122,10 @@ describe('graph composition snapshots (output drift detection)', () => {
       buildArticleNode(mockConfig, mockPost, mockTxs),
       buildBreadcrumbNode([
         { name: 'Home', url: 'https://example.com/' },
-        { name: 'Campaigns', url: 'https://example.com/campaigns/pt-BR' },
+        { name: 'Campaigns', url: 'https://example.com/pt/campaigns' },
         {
           name: mockPost.translation.title,
-          url: `https://example.com/campaigns/pt-BR/${mockPost.translation.slug}`,
+          url: `https://example.com/pt/campaigns/${mockPost.translation.slug}`,
         },
       ]),
     ])

@@ -41,7 +41,7 @@ describe('builders', () => {
   it('buildBreadcrumbNode emits ordered ListItem array', () => {
     const n = buildBreadcrumbNode([
       { name: 'Home', url: 'https://example.com/' },
-      { name: 'Blog', url: 'https://example.com/blog/pt-BR' },
+      { name: 'Blog', url: 'https://example.com/pt/blog' },
     ])
     expect(n['@type']).toBe('BreadcrumbList')
     expect((n as any).itemListElement).toHaveLength(2)

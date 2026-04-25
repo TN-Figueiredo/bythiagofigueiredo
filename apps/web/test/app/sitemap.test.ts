@@ -49,16 +49,16 @@ describe('app/sitemap.ts', () => {
     vi.doMock('@/lib/seo/config', () => ({
       getSiteSeoConfig: vi.fn().mockResolvedValue({
         siteUrl: 'https://bythiagofigueiredo.com',
-        defaultLocale: 'pt-BR',
+        defaultLocale: 'en',
         supportedLocales: ['pt-BR', 'en'],
       }),
     }))
     vi.doMock('@/lib/seo/enumerator', () => ({
       enumerateSiteRoutes: vi.fn().mockResolvedValue([
         {
-          path: '/blog/pt-BR/x',
+          path: '/pt/blog/x',
           lastModified: new Date('2026-04-15T00:00:00Z'),
-          alternates: { 'pt-BR': '/blog/pt-BR/x', en: '/blog/en/x' },
+          alternates: { pt: '/pt/blog/x', en: '/blog/x' },
           changeFrequency: 'weekly',
           priority: 0.7,
         },
@@ -67,11 +67,11 @@ describe('app/sitemap.ts', () => {
     const { default: sitemap } = await import('@/app/sitemap')
     const result = await sitemap()
     expect(result).toHaveLength(1)
-    expect(result[0]?.url).toBe('https://bythiagofigueiredo.com/blog/pt-BR/x')
+    expect(result[0]?.url).toBe('https://bythiagofigueiredo.com/pt/blog/x')
     expect(result[0]?.alternates?.languages).toMatchObject({
-      'pt-BR': 'https://bythiagofigueiredo.com/blog/pt-BR/x',
-      en: 'https://bythiagofigueiredo.com/blog/en/x',
-      'x-default': 'https://bythiagofigueiredo.com/blog/pt-BR/x',
+      pt: 'https://bythiagofigueiredo.com/pt/blog/x',
+      en: 'https://bythiagofigueiredo.com/blog/x',
+      'x-default': 'https://bythiagofigueiredo.com/blog/x',
     })
     expect(result[0]?.changeFrequency).toBe('weekly')
     expect(result[0]?.priority).toBe(0.7)
@@ -90,7 +90,7 @@ describe('app/sitemap.ts', () => {
     vi.doMock('@/lib/seo/config', () => ({
       getSiteSeoConfig: vi.fn().mockResolvedValue({
         siteUrl: 'https://bythiagofigueiredo.com',
-        defaultLocale: 'pt-BR',
+        defaultLocale: 'en',
         supportedLocales: ['pt-BR', 'en'],
       }),
     }))

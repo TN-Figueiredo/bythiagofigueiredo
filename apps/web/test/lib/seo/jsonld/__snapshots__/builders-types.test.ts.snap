@@ -65,13 +65,13 @@ exports[`graph composition snapshots (output drift detection) > blog post @graph
         },
         {
           "@type": "ListItem",
-          "item": "https://example.com/blog/pt-BR",
+          "item": "https://example.com/pt/blog",
           "name": "Blog",
           "position": 2,
         },
         {
           "@type": "ListItem",
-          "item": "https://example.com/blog/pt-BR/hello-world",
+          "item": "https://example.com/pt/blog/hello-world",
           "name": "Hello World",
           "position": 3,
         },
@@ -225,13 +225,13 @@ exports[`graph composition snapshots (output drift detection) > campaign @graph 
         },
         {
           "@type": "ListItem",
-          "item": "https://example.com/campaigns/pt-BR",
+          "item": "https://example.com/pt/campaigns",
           "name": "Campaigns",
           "position": 2,
         },
         {
           "@type": "ListItem",
-          "item": "https://example.com/campaigns/pt-BR/hello-world",
+          "item": "https://example.com/pt/campaigns/hello-world",
           "name": "Hello World",
           "position": 3,
         },

@@ -26,7 +26,7 @@ import { enumerateSiteRoutes } from '../../../lib/seo/enumerator';
 
 const fakeSite = { id: 'site-uuid', slug: 'bythiagofigueiredo' };
 const fakeConfig = { identityType: 'person' };
-const fakeRoutes = ['/pt-BR', '/en', '/privacy', '/terms'];
+const fakeRoutes = ['/pt', '/', '/privacy', '/terms'];
 
 function req(secret?: string, host = 'bythiagofigueiredo.com') {
   return new Request('http://localhost/api/health/seo', {

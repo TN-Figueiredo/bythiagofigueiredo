@@ -254,7 +254,7 @@ describe('archivePost slug-page regression', () => {
       translations: [{ locale: 'pt-BR', slug: 'hello' }],
     })
     await archivePost('p1')
-    // The helper covers /blog/pt-BR + /blog/pt-BR/hello + tag invalidations.
+    // The helper covers /pt/blog + /pt/blog/hello + tag invalidations.
     expect(revalidateBlogPostSeoMock).toHaveBeenCalledWith('s1', 'p1', 'pt-BR', 'hello')
   })
 })
