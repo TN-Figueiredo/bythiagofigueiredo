@@ -199,8 +199,9 @@ describe('savePost frontmatter parsing', () => {
     expect(updateCall).toBeDefined()
     const patch = updateCall![1] as { translation?: { content_mdx?: string } }
     expect(patch.translation!.content_mdx).toBe(mdx)
-    // No direct seo_extras update when frontmatter absent.
-    expect(seoExtrasUpdateMock).not.toHaveBeenCalled()
+    // blog_posts.locale update fires, but no seo_extras update on blog_translations.
+    expect(fromMock).toHaveBeenCalledWith('blog_posts')
+    expect(fromMock).not.toHaveBeenCalledWith('blog_translations')
   })
 })
 

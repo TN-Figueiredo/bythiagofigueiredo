@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import { cookies } from 'next/headers'
 import { headers } from 'next/headers'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext, tryGetSiteContext } from '@/lib/cms/site-context'
@@ -21,10 +20,12 @@ interface Props {
 export async function generateMetadata(): Promise<Metadata> {
   const ctx = await tryGetSiteContext()
   if (!ctx) return { title: 'Newsletter Archive' }
-  const host = (await headers()).get('host') ?? ctx.primaryDomain ?? ''
+  const h = await headers()
+  const host = h.get('host') ?? ctx.primaryDomain ?? ''
+  const locale = h.get('x-locale') ?? 'en'
   try {
     const config = await getSiteSeoConfig(ctx.siteId, host)
-    return generateNewsletterArchiveMetadata(config, ctx.defaultLocale ?? 'en')
+    return generateNewsletterArchiveMetadata(config, locale)
   } catch {
     return { title: 'Newsletter Archive' }
   }
@@ -35,8 +36,8 @@ export default async function NewsletterArchiveListPage({ searchParams }: Props)
   const ctx = await getSiteContext()
   const supabase = getSupabaseServiceClient()
 
-  const cookieStore = await cookies()
-  const locale = cookieStore.get('NEXT_LOCALE')?.value ?? ctx.defaultLocale ?? 'en'
+  const h = await headers()
+  const locale = h.get('x-locale') ?? 'en'
   const t = (locale === 'pt-BR' ? ptBrStrings : enStrings) as Record<string, string>
 
   const page = Math.max(1, Number.parseInt(sp.page ?? '1', 10))
@@ -45,9 +46,10 @@ export default async function NewsletterArchiveListPage({ searchParams }: Props)
 
   const { data: editions, count } = await supabase
     .from('newsletter_editions')
-    .select('id, subject, sent_at, newsletter_types(name, color)', { count: 'exact' })
+    .select('id, subject, sent_at, newsletter_types!inner(name, color, locale)', { count: 'exact' })
     .eq('site_id', ctx.siteId)
     .eq('status', 'sent')
+    .eq('newsletter_types.locale', locale)
     .order('sent_at', { ascending: false })
     .range(from, to)
 

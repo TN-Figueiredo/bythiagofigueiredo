@@ -99,6 +99,11 @@ export async function savePost(
     }
   }
 
+  {
+    const supabase = getSupabaseServiceClient()
+    await supabase.from('blog_posts').update({ locale }).eq('id', id)
+  }
+
   // Workaround: @tn-figueiredo/cms@0.2.0 `UpdatePostInput.translation` does
   // NOT expose `seo_extras` (only set added by Sprint 5b PR-A migration
   // 20260501000002). Apply the column update via the service-role client

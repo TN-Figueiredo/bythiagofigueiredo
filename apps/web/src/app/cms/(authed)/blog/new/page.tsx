@@ -7,8 +7,14 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
 export const dynamic = 'force-dynamic'
 
-export default async function NewPostPage() {
+export default async function NewPostPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
   const ctx = await getSiteContext()
+  const sp = await searchParams
+  const postLocale = typeof sp?.locale === 'string' ? sp.locale : ctx.defaultLocale
 
   // Resolve current authenticated user via SSR client
   const cookieStore = await cookies()
@@ -43,13 +49,14 @@ export default async function NewPostPage() {
     throw new Error(`No author record linked to user_id=${user.id}. Create one in /cms/authors before posting.`)
   }
 
-  const uniqueSlug = `sem-titulo-${Date.now()}`
+  const isPt = postLocale === 'pt-BR'
+  const uniqueSlug = `${isPt ? 'sem-titulo' : 'untitled'}-${Date.now()}`
   const post = await postRepo().create({
     site_id: ctx.siteId,
     author_id: author.id,
     initial_translation: {
-      locale: ctx.defaultLocale,
-      title: 'Sem título',
+      locale: postLocale,
+      title: isPt ? 'Sem título' : 'Untitled',
       slug: uniqueSlug,
       content_mdx: '',
     },
