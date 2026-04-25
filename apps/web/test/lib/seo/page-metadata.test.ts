@@ -38,6 +38,27 @@ describe('page-metadata factories', () => {
     expect((m.robots as { index?: boolean } | null)?.index).not.toBe(false)
   })
 
+  it('root metadata has hreflang alternates for all supported locales', () => {
+    const m = generateRootMetadata(mockConfig)
+    const langs = (m.alternates as { languages: Record<string, string> }).languages
+    expect(langs).toMatchObject({ en: '/', pt: '/pt/' })
+    expect(langs['x-default']).toBe('/pt/')
+  })
+
+  it('legal metadata has locale-aware canonical + hreflang', () => {
+    const m = generateLegalMetadata(mockConfig, 'privacy', 'pt-BR')
+    const alt = m.alternates as { canonical: string; languages: Record<string, string> }
+    expect(alt.canonical).toBe('/pt/privacy')
+    expect(alt.languages).toMatchObject({ en: '/privacy', pt: '/pt/privacy' })
+  })
+
+  it('contact metadata has locale-aware canonical + hreflang', () => {
+    const m = generateContactMetadata(mockConfig, 'en')
+    const alt = m.alternates as { canonical: string; languages: Record<string, string> }
+    expect(alt.canonical).toBe('/contact')
+    expect(alt.languages).toMatchObject({ en: '/contact', pt: '/pt/contact' })
+  })
+
   it('noindex metadata has robots.index=false', () => {
     const m = generateNoindexMetadata(mockConfig)
     expect((m.robots as { index: boolean; follow: boolean }).index).toBe(false)

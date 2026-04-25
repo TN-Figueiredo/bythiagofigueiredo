@@ -23,7 +23,7 @@ describe.skipIf(skipIfNoLocalDb())('enumerateSiteRoutes (RLS mirror)', () => {
     expect(paths).not.toContain('/pt/blog/future-1')
   })
 
-  it('includes static routes for supported locales', async () => {
+  it('includes static routes for all supported locales with hreflang alternates', async () => {
     const { seedSite } = await import('../../helpers/db-seed')
     const db = getSupabaseServiceClient()
     const site = await seedSite(db, { siteSlug: 'static-test' })
@@ -31,8 +31,13 @@ describe.skipIf(skipIfNoLocalDb())('enumerateSiteRoutes (RLS mirror)', () => {
     const { getSiteSeoConfig } = await import('@/lib/seo/config')
     const config = await getSiteSeoConfig(site.siteId, 'static-test.invalid')
     const routes = await enumerateSiteRoutes(site.siteId, config)
-    expect(routes.map((r) => r.path)).toEqual(
-      expect.arrayContaining(['/', '/privacy', '/terms', '/contact']),
+    const paths = routes.map((r) => r.path)
+    expect(paths).toEqual(
+      expect.arrayContaining(['/', '/pt', '/privacy', '/pt/privacy', '/terms', '/pt/terms', '/contact', '/pt/contact']),
     )
+    const privacyEn = routes.find((r) => r.path === '/privacy')
+    expect(privacyEn?.alternates).toEqual({ en: '/privacy', pt: '/pt/privacy' })
+    const privacyPt = routes.find((r) => r.path === '/pt/privacy')
+    expect(privacyPt?.alternates).toEqual({ en: '/privacy', pt: '/pt/privacy' })
   })
 })
