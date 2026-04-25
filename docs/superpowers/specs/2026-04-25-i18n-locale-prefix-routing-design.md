@@ -2,7 +2,7 @@
 
 **Date:** 2026-04-25
 **Status:** Draft
-**Score:** 98/100
+**Score:** 98/100 (post-audit revision 2)
 
 ## Problem Statement
 
@@ -292,9 +292,15 @@ Unified sitemap with all URLs from both locales. `<xhtml:link>` alternates only 
   <loc>https://bythiagofigueiredo.com/pt/blog/meu-post</loc>
 </url>
 
-<!-- Linked pair: full alternates -->
+<!-- Linked pair: BOTH entries need full alternates (including self-reference) -->
 <url>
   <loc>https://bythiagofigueiredo.com/blog/linked-post</loc>
+  <xhtml:link rel="alternate" hreflang="en" href="https://bythiagofigueiredo.com/blog/linked-post" />
+  <xhtml:link rel="alternate" hreflang="pt" href="https://bythiagofigueiredo.com/pt/blog/post-linkado" />
+  <xhtml:link rel="alternate" hreflang="x-default" href="https://bythiagofigueiredo.com/blog/linked-post" />
+</url>
+<url>
+  <loc>https://bythiagofigueiredo.com/pt/blog/post-linkado</loc>
   <xhtml:link rel="alternate" hreflang="en" href="https://bythiagofigueiredo.com/blog/linked-post" />
   <xhtml:link rel="alternate" hreflang="pt" href="https://bythiagofigueiredo.com/pt/blog/post-linkado" />
   <xhtml:link rel="alternate" hreflang="x-default" href="https://bythiagofigueiredo.com/blog/linked-post" />
@@ -322,13 +328,31 @@ Unified sitemap with all URLs from both locales. `<xhtml:link>` alternates only 
 
 ### `<html lang>` attribute
 
-Set dynamically in the root layout based on `x-locale` header:
+Set dynamically in **both** root layouts:
 
 ```typescript
-// app/(public)/layout.tsx
-const locale = getLocale() // from x-locale header
+// app/layout.tsx (ROOT — currently hardcoded lang="pt-BR")
+// Must read x-locale header and set dynamically:
+const locale = getRequestLocale()
 return <html lang={locale === 'pt-BR' ? 'pt-BR' : 'en'}>
+
+// app/(public)/layout.tsx
+// Same pattern — reads x-locale header for all public pages
 ```
+
+**Critical:** the current `app/layout.tsx` (line 12) has `lang="pt-BR"` hardcoded. This MUST change to dynamic — it's the outermost `<html>` tag that Google reads.
+
+### RSS feed (`/feed.xml`)
+
+An RSS feed already exists at `apps/web/src/app/(public)/feed.xml/route.ts`. Currently it filters posts by `ctx.defaultLocale` and sets `<language>` to that value.
+
+Under the new system:
+- `/feed.xml` → EN feed (filters by locale='en', `<language>en</language>`)
+- `/pt/feed.xml` → PT feed (middleware rewrites to `/feed.xml` with `x-locale: pt-BR`)
+- The feed route reads `x-locale` header instead of `ctx.defaultLocale`
+- Each feed's `<link>` points to the locale-appropriate blog index
+
+This is NOT deferred — the feed exists today and would break if ignored.
 
 ## CMS Workflow Changes
 
@@ -440,24 +464,27 @@ export function generateBlogPostMetadata(
     ? `/blog/${slug}`
     : `/pt/blog/${slug}`
 
-  const languages: Record<string, string> | undefined =
-    linkedPosts && linkedPosts.length > 0
-      ? Object.fromEntries([
-          ...linkedPosts.map(lp => {
-            const hreflang = lp.locale === 'pt-BR' ? 'pt' : lp.locale
-            const lpPath = lp.locale === config.defaultLocale
-              ? `/blog/${lp.slug}`
-              : `/pt/blog/${lp.slug}`
-            return [hreflang, `${config.siteUrl}${lpPath}`]
-          }),
-          ['x-default', `${config.siteUrl}${
-            locale === config.defaultLocale ? path :
-            linkedPosts.find(lp => lp.locale === config.defaultLocale)
-              ? `/blog/${linkedPosts.find(lp => lp.locale === config.defaultLocale)!.slug}`
-              : path
-          }`],
-        ])
-      : undefined
+  // Build hreflang alternates — MUST include self (Google requirement)
+  const allPosts = linkedPosts && linkedPosts.length > 0
+    ? [{ locale, slug, isDefault: locale === config.defaultLocale }, ...linkedPosts.map(lp => ({
+        locale: lp.locale, slug: lp.slug, isDefault: lp.locale === config.defaultLocale,
+      }))]
+    : null
+
+  const languages: Record<string, string> | undefined = allPosts
+    ? Object.fromEntries([
+        ...allPosts.map(p => {
+          const hreflang = p.locale === 'pt-BR' ? 'pt' : p.locale
+          const pPath = p.isDefault ? `/blog/${p.slug}` : `/pt/blog/${p.slug}`
+          return [hreflang, `${config.siteUrl}${pPath}`]
+        }),
+        ['x-default', `${config.siteUrl}${
+          allPosts.find(p => p.isDefault)
+            ? `/blog/${allPosts.find(p => p.isDefault)!.slug}`
+            : path
+        }`],
+      ])
+    : undefined
 
   return {
     ...baseMetadata(config),
@@ -553,31 +580,82 @@ WHERE slug = 'bythiagofigueiredo';
 
 This flips the site default from `pt-BR` to `en`, matching the new unprefixed-EN strategy.
 
+## Fallback & Hardcode Cleanup
+
+### `pt-BR` fallback chain (must change to `en`)
+
+These files have hardcoded `pt-BR` as the fallback locale. All must change to `en` to match the new default:
+
+| File | Line | Current | Change to |
+|------|------|---------|-----------|
+| `apps/web/lib/cms/site-context.ts` | 30 | `h.get('x-default-locale') ?? 'pt-BR'` | `?? 'en'` |
+| `apps/web/lib/seo/config.ts` | 52 | `?? ['pt-BR']` | `?? ['en']` |
+| `apps/web/lib/email/resend.ts` | 41 | fallback `'pt-BR'` | `'en'` |
+| `apps/web/src/app/(public)/contact/actions.ts` | 33 | hardcoded `'pt-BR'` | read from `x-locale` header |
+| `apps/web/src/app/layout.tsx` | 12 | `lang="pt-BR"` | dynamic from `x-locale` header |
+
+### Contact page (currently hardcoded `pt-BR`)
+
+`apps/web/src/app/(public)/contact/page.tsx` (lines 18-23) has a comment: "Locale is hardcoded pt-BR here because the page's ContactForm is also hardcoded pt-BR". Must be refactored to read locale from `x-locale` header and pass to `ContactForm`.
+
+### Email template locale
+
+`apps/web/lib/email/resend.ts` falls back to `pt-BR` for email template rendering. After this change, emails sent from EN context should render in English. The fallback must change to `en`, and the locale should be explicitly passed from the calling context.
+
+### Newsletter archive locale filtering
+
+`apps/web/src/app/(public)/newsletter/archive/page.tsx` currently queries ALL sent editions regardless of locale. Under the new system:
+- `/newsletter/archive` → filter by EN newsletter types
+- `/pt/newsletter/archive` → filter by PT newsletter types
+
+The archive list query must JOIN `newsletter_types` and filter by `newsletter_types.locale` matching the request locale from `x-locale` header.
+
+### 404 page (does not exist)
+
+No custom 404 page currently exists (`not-found.tsx`). Create `apps/web/src/app/not-found.tsx` that reads `x-locale` header and renders locale-appropriate error text.
+
 ## Files Changed (Impact Map)
 
 ### Middleware
 - `apps/web/src/middleware.ts` — locale prefix detection, stripping, header injection, legacy redirects
 
 ### Routing (pages)
-- `apps/web/src/app/(public)/layout.tsx` — read `x-locale`, dynamic `<html lang>`
+- `apps/web/src/app/layout.tsx` — **dynamic `<html lang>`** (currently hardcoded `pt-BR`)
+- `apps/web/src/app/(public)/layout.tsx` — read `x-locale`, pass locale to children
 - `apps/web/src/app/(public)/page.tsx` — read `x-locale` instead of `ctx.defaultLocale`
-- `apps/web/src/app/(public)/pt-BR/page.tsx` — **DELETE** (replaced by middleware rewrite)
-- `apps/web/src/app/(public)/blog/page.tsx` — remove redirect, render index directly
+- `apps/web/src/app/(public)/pt-BR/` — **DELETE** entire directory (page.tsx + newsletters/)
+- `apps/web/src/app/(public)/blog/page.tsx` — remove redirect, render index directly using `x-locale`
 - `apps/web/src/app/(public)/blog/[locale]/` — **DELETE** entire directory
 - `apps/web/src/app/(public)/blog/[slug]/page.tsx` — **NEW** (moved from `[locale]/[slug]`)
 - `apps/web/src/app/(public)/campaigns/[locale]/` — **DELETE** entire directory
 - `apps/web/src/app/(public)/campaigns/[slug]/page.tsx` — **NEW** (moved from `[locale]/[slug]`)
+- `apps/web/src/app/(public)/contact/page.tsx` — read `x-locale` (remove hardcoded `pt-BR`)
+- `apps/web/src/app/(public)/contact/actions.ts` — read locale from header, not hardcoded
+- `apps/web/src/app/(public)/feed.xml/route.ts` — read `x-locale`, filter posts by locale
+- `apps/web/src/app/(public)/newsletter/archive/page.tsx` — filter by newsletter_type locale
+- `apps/web/src/app/(public)/newsletter/archive/[id]/page.tsx` — locale-aware UI
+- `apps/web/src/app/not-found.tsx` — **NEW** locale-aware 404 page
 
-### Components
+### Components (locale-aware URL generation)
 - `apps/web/src/components/layout/top-strip.tsx` — update links to `/pt` ↔ `/`
 - `apps/web/src/components/layout/global-header.tsx` — update `homeHref` logic
 - `apps/web/src/components/layout/header-types.ts` — update `buildNavItems` to use `localePath()`
-- All public `<Link>` components — wrap href with `localePath()`
+- `apps/web/src/app/(public)/components/DualHero.tsx` — replace `blogBase` ternary with `localePath()`
+- `apps/web/src/app/(public)/components/UnifiedFeed.tsx` — replace `blogBase` ternary with `localePath()`
+- `apps/web/src/app/(public)/components/PinboardFooter.tsx` — replace `blogHref` ternary with `localePath()`
+- `apps/web/src/app/(public)/newsletters/components/NewslettersHub.tsx` — replace 3 locale-conditional links with `localePath()`
+- `apps/web/src/components/locale-switcher.tsx` — update `hrefFor` callback pattern for new URL structure
+- `apps/web/src/app/(public)/blog/[locale]/category-filter.tsx` — move to `blog/` dir, uses `usePathname()` (already locale-aware via middleware rewrite)
+
+### Infrastructure
+- `apps/web/lib/cms/site-context.ts` — change fallback from `pt-BR` to `en`
+- `apps/web/lib/email/resend.ts` — change fallback from `pt-BR` to `en`
+- `apps/web/lib/i18n/locale-path.ts` — **NEW** utility: `localePath()` + `LOCALE_PREFIX_MAP`
 
 ### SEO
-- `apps/web/lib/seo/page-metadata.ts` — new path patterns, linked-post-aware hreflang
-- `apps/web/lib/seo/enumerator.ts` — new path patterns, link_group_id-aware alternates
-- `apps/web/lib/seo/config.ts` — may need `defaultLocale` change handling
+- `apps/web/lib/seo/page-metadata.ts` — new path patterns, linked-post-aware hreflang with self-inclusion
+- `apps/web/lib/seo/enumerator.ts` — new path patterns, link_group_id-aware alternates, static routes refactored
+- `apps/web/lib/seo/config.ts` — change defaultLocale fallback from `pt-BR` to `en`
 - `apps/web/src/app/sitemap.ts` — path pattern updates
 - `apps/web/lib/seo/jsonld/builders.ts` — `inLanguage`, `translationOfWork`/`workTranslation`
 
@@ -585,17 +663,43 @@ This flips the site default from `pt-BR` to `en`, matching the new unprefixed-EN
 - `apps/web/src/app/cms/(authed)/blog/new/page.tsx` — locale selector
 - `apps/web/src/app/cms/(authed)/blog/[id]/edit/page.tsx` — linking UI
 - `apps/web/src/app/cms/(authed)/blog/[id]/edit/actions.ts` — `savePost` sets `blog_posts.locale`
+- `apps/web/src/app/cms/(authed)/blog/_components/posts-filters.tsx` — update `LOCALE_OPTIONS`
 - Blog list page — locale filter
 
 ### Database
 - New migration: `locale` + `link_group_id` columns + indexes + backfill
 - Site config update: `default_locale = 'en'`
 
-### Tests
-- Update E2E specs for new URL patterns
-- Update vitest SEO tests for new hreflang logic
-- Add tests for middleware locale detection + legacy redirects
-- Add tests for link_group_id linking/unlinking
+### Tests (18 files affected)
+
+**Unit tests (15 files):**
+- `test/app/sitemap.test.ts` — `/blog/pt-BR/x` → `/pt/blog/x`
+- `test/app/blog-detail.test.tsx` — canonical + alternates path patterns
+- `test/app/cms-blog-actions.test.ts` — `revalidatePath` assertions
+- `test/components/locale-switcher.test.tsx` — `hrefFor` callback patterns
+- `test/components/layout/global-header.test.tsx` — `/pt-BR` → `/pt`
+- `test/components/layout/top-strip.test.tsx` — `/pt-BR` → `/pt`
+- `test/app/og/blog-route.test.ts` — OG route URLs (internal, keep `[locale]`)
+- `test/app/og/campaign-route.test.ts` — OG route URLs (internal, keep `[locale]`)
+- `test/lib/seo/cache-invalidation.test.ts` — `revalidatePath` patterns
+- `test/lib/seo/noindex.test.ts` — path patterns
+- `test/lib/seo/enumerator.test.ts` — sitemap path assertions
+- `test/lib/seo/page-metadata.test.ts` — hreflang alternate URLs
+- `test/api/health/seo.test.ts` — fake route paths
+- `test/lib/seo/jsonld/builders.test.ts` — breadcrumb URLs
+- `test/lib/seo/jsonld/builders-types.test.ts` — breadcrumb URLs
+
+**E2E tests (3 files):**
+- `e2e/tests/public/homepage.spec.ts` — `/blog/pt-BR` → `/pt/blog`
+- `e2e/tests/cms/campaigns.spec.ts` — `/campaigns/pt-BR/...` → `/pt/campaigns/...`
+- `e2e/tests/cms/blog.spec.ts` — `/blog/pt-BR/...` → `/pt/blog/...`
+
+**New tests to add:**
+- Middleware locale detection + prefix stripping
+- Legacy URL 301 redirects
+- `localePath()` utility
+- `link_group_id` linking/unlinking
+- 404 page locale awareness
 
 ## Iteration Log
 
@@ -603,12 +707,13 @@ This flips the site default from `pt-BR` to `en`, matching the new unprefixed-EN
 |------|-------|------------------|
 | 1 | 82 | Basic URL structure + middleware rewrite concept |
 | 2 | 89 | Legacy URL redirects, admin/API exclusion, CMS locale selector, 404 i18n |
-| 3 | 93 | RSS per-locale, no auto-redirect (Google best practice), no cookie-based locale |
+| 3 | 93 | No auto-redirect (Google best practice), no cookie-based locale |
 | 4 | 96 | `<html lang>` dynamic, `og:locale`, uppercase normalization, `link_group_id` unique index, `translationOfWork` JSON-LD |
-| 5 | 98 | hreflang `pt` vs `pt-BR` distinction, backfill safety for PT-only posts, blog index hreflang, feature flag rollback, zero-downtime deployment sequence |
+| 5 | 88 | Audit revealed: root `<html lang>` hardcoded, RSS feed exists (not deferred), hreflang self-reference bug, 6 components with hardcoded URLs missing from impact map, 18 test files not enumerated, no 404 page, fallback chain still `pt-BR` |
+| 6 | 98 | Fixed all audit gaps: root layout dynamic lang, RSS feed locale-aware, hreflang includes self, complete component impact map (DualHero/UnifiedFeed/PinboardFooter/NewslettersHub/LocaleSwitcher/CategoryFilter), 18 test files enumerated, 404 page spec'd, fallback cleanup table, contact page + email template fallback addressed, newsletter archive locale filtering, `localePath()` utility extracted |
 
 ## Open Decisions
 
 1. **Future locales** — adding `/es/`, `/fr/` etc. requires only: DB entry in `supported_locales`, new locale strings JSON, entry in `LOCALE_PREFIX_MAP`. Architecture scales without structural changes.
-2. **RSS feeds** — `/blog/feed.xml` (EN), `/pt/blog/feed.xml` (PT). Implementation deferred to follow-up sprint.
-3. **Search cross-locale** — if search is added, results scoped to current locale with "Also in [language]" section for linked posts. Deferred.
+2. **Search cross-locale** — if search is added, results scoped to current locale with "Also in [language]" section for linked posts. Deferred.
+3. **Newsletter subscriber locale routing** — `newsletter_subscriptions.locale` is captured but not used for filtering sends. Future sprint should route subscribers to locale-matched newsletter types.
