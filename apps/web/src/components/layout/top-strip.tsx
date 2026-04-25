@@ -1,12 +1,15 @@
+'use client'
+
 import Link from 'next/link'
-import type { HeaderLocale } from './header-types'
+import { usePathname } from 'next/navigation'
 
-type Props = {
-  locale: HeaderLocale
-}
+export function TopStrip() {
+  const pathname = usePathname()
+  const isPt = pathname === '/pt' || pathname.startsWith('/pt/')
 
-export function TopStrip({ locale }: Props) {
-  const isPt = locale === 'pt-BR'
+  const switchedPath = isPt
+    ? pathname.slice(3) || '/'
+    : `/pt${pathname}`
 
   return (
     <div
@@ -55,7 +58,7 @@ export function TopStrip({ locale }: Props) {
           </span>
         ) : (
           <Link
-            href="/pt"
+            href={switchedPath}
             hrefLang="pt"
             style={{
               color: '#F2EBDB',
@@ -82,7 +85,7 @@ export function TopStrip({ locale }: Props) {
           </span>
         ) : (
           <Link
-            href="/"
+            href={switchedPath}
             hrefLang="en"
             style={{
               color: '#F2EBDB',

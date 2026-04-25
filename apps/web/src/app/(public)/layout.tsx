@@ -97,7 +97,7 @@ export default async function PublicLayout({ children }: { children: ReactNode }
         <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 bg-pb-accent text-white px-4 py-2 rounded z-50">
           {locale === 'pt-BR' ? 'Ir para o conteúdo' : 'Skip to content'}
         </a>
-        <TopStrip locale={locale} />
+        <TopStrip />
         <GlobalHeader
           locale={locale}
           currentTheme={theme}
