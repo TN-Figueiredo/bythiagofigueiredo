@@ -7,6 +7,7 @@ import { generateNewsletterDetailMetadata } from '@/lib/seo/page-metadata'
 import { buildBreadcrumbNode } from '@/lib/seo/jsonld/builders'
 import { composeGraph } from '@/lib/seo/jsonld/graph'
 import { JsonLdScript } from '@/lib/seo/jsonld/render'
+import { localePath } from '@/lib/i18n/locale-path'
 import type { Metadata } from 'next'
 import { VisualBreadcrumbs } from '../../../components/visual-breadcrumbs'
 import enStrings from '@/locales/en.json'
@@ -77,8 +78,8 @@ export default async function NewsletterArchivePage({
     ? composeGraph([
         buildBreadcrumbNode([
           { name: t['newsletter.archive.breadcrumb.home'] ?? '', url: config.siteUrl },
-          { name: t['newsletter.archive.breadcrumb.archive'] ?? '', url: `${config.siteUrl}/newsletter/archive` },
-          { name: edition.subject as string, url: `${config.siteUrl}/newsletter/archive/${id}` },
+          { name: t['newsletter.archive.breadcrumb.archive'] ?? '', url: `${config.siteUrl}${localePath('/newsletter/archive', locale)}` },
+          { name: edition.subject as string, url: `${config.siteUrl}${localePath(`/newsletter/archive/${id}`, locale)}` },
         ]),
       ])
     : null
@@ -95,7 +96,7 @@ export default async function NewsletterArchivePage({
           <VisualBreadcrumbs
             items={[
               { label: t['newsletter.archive.breadcrumb.home'] ?? '', href: '/' },
-              { label: t['newsletter.archive.breadcrumb.archive'] ?? '', href: '/newsletter/archive' },
+              { label: t['newsletter.archive.breadcrumb.archive'] ?? '', href: localePath('/newsletter/archive', locale) },
               { label: edition.subject as string },
             ]}
           />

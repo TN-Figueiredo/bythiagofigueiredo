@@ -9,6 +9,7 @@ import { generateContactMetadata } from '@/lib/seo/page-metadata'
 import { buildBreadcrumbNode } from '@/lib/seo/jsonld/builders'
 import { composeGraph } from '@/lib/seo/jsonld/graph'
 import { JsonLdScript } from '@/lib/seo/jsonld/render'
+import { localePath } from '@/lib/i18n/locale-path'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,19 +19,19 @@ export async function generateMetadata(): Promise<Metadata> {
   const ctx = await tryGetSiteContext()
   if (!ctx) {
     return {
-      title: 'Fale comigo',
-      alternates: { canonical: '/contact' },
+      title: locale === 'en' ? 'Contact' : 'Fale comigo',
+      alternates: { canonical: localePath('/contact', locale) },
       robots: { index: true, follow: true },
     }
   }
-  const host = (await headers()).get('host') ?? ctx.primaryDomain ?? ''
+  const host = h.get('host') ?? ctx.primaryDomain ?? ''
   try {
     const config = await getSiteSeoConfig(ctx.siteId, host)
     return generateContactMetadata(config, locale)
   } catch {
     return {
-      title: 'Fale comigo',
-      alternates: { canonical: '/contact' },
+      title: locale === 'en' ? 'Contact' : 'Fale comigo',
+      alternates: { canonical: localePath('/contact', locale) },
       robots: { index: true, follow: true },
     }
   }
@@ -68,7 +69,7 @@ export default async function ContactPage({ searchParams }: Props) {
     ? composeGraph([
         buildBreadcrumbNode([
           { name: 'Home', url: config.siteUrl },
-          { name: 'Fale comigo', url: `${config.siteUrl}/contact` },
+          { name: locale === 'en' ? 'Contact' : 'Fale comigo', url: `${config.siteUrl}${localePath('/contact', locale)}` },
         ]),
       ])
     : null

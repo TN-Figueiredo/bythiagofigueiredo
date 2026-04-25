@@ -2,6 +2,7 @@
 
 import { useActionState } from 'react'
 import { subscribeNewsletterInline, type InlineState } from '../actions/newsletter-inline'
+import { localePath } from '@/lib/i18n/locale-path'
 import type { HomeNewsletter } from '@/lib/home/types'
 
 type Props = {
@@ -53,14 +54,14 @@ export function NewsletterInline({ locale, primaryNewsletter, t }: Props) {
 
             <p className="text-pb-faint text-xs">
               {t['newsletter.consent']}{' '}
-              <a href="/privacy" className="underline hover:text-pb-muted">
-                Privacy Policy
+              <a href={localePath('/privacy', locale)} className="underline hover:text-pb-muted">
+                {locale === 'pt-BR' ? 'Política de Privacidade' : 'Privacy Policy'}
               </a>
             </p>
           </form>
         )}
 
-        <a href="/newsletter" className="mt-4 inline-block font-mono text-xs text-pb-accent hover:underline">
+        <a href={localePath('/newsletters', locale)} className="mt-4 inline-block font-mono text-xs text-pb-accent hover:underline">
           {t['newsletter.more']}
         </a>
       </div>

@@ -11,19 +11,17 @@ export interface SitemapRouteEntry {
   alternates: Record<string, string>
 }
 
-const STATIC_ROUTE_DEFS: ReadonlyArray<{
-  path: string
+const STATIC_SINGLE_LOCALE_DEFS: ReadonlyArray<{
+  basePath: string
   changeFrequency: SitemapRouteEntry['changeFrequency']
   priority: number
 }> = [
-  { path: '/', changeFrequency: 'weekly', priority: 1.0 },
-  { path: '/pt', changeFrequency: 'weekly', priority: 1.0 },
-  { path: '/privacy', changeFrequency: 'yearly', priority: 0.3 },
-  { path: '/terms', changeFrequency: 'yearly', priority: 0.3 },
-  { path: '/contact', changeFrequency: 'monthly', priority: 0.5 },
-  { path: '/newsletters', changeFrequency: 'weekly', priority: 0.5 },
-  { path: '/pt/newsletters', changeFrequency: 'weekly', priority: 0.5 },
-  { path: '/newsletter/archive', changeFrequency: 'weekly', priority: 0.4 },
+  { basePath: '/', changeFrequency: 'weekly', priority: 1.0 },
+  { basePath: '/privacy', changeFrequency: 'yearly', priority: 0.3 },
+  { basePath: '/terms', changeFrequency: 'yearly', priority: 0.3 },
+  { basePath: '/contact', changeFrequency: 'monthly', priority: 0.5 },
+  { basePath: '/newsletters', changeFrequency: 'weekly', priority: 0.5 },
+  { basePath: '/newsletter/archive', changeFrequency: 'weekly', priority: 0.4 },
 ]
 
 export async function enumerateSiteRoutes(
@@ -145,11 +143,22 @@ export async function enumerateSiteRoutes(
 }
 
 function buildStaticRoutes(config: SiteSeoConfig): SitemapRouteEntry[] {
-  void config
   const now = new Date()
-  return STATIC_ROUTE_DEFS.map((s) => ({
-    ...s,
-    lastModified: now,
-    alternates: {},
-  }))
+  const routes: SitemapRouteEntry[] = []
+  for (const def of STATIC_SINGLE_LOCALE_DEFS) {
+    const alternates: Record<string, string> = {}
+    for (const loc of config.supportedLocales) {
+      alternates[hreflangCode(loc)] = localePath(def.basePath, loc)
+    }
+    for (const loc of config.supportedLocales) {
+      routes.push({
+        path: localePath(def.basePath, loc),
+        lastModified: now,
+        changeFrequency: def.changeFrequency,
+        priority: def.priority,
+        alternates,
+      })
+    }
+  }
+  return routes
 }

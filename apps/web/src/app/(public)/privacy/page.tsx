@@ -7,6 +7,7 @@ import { generateLegalMetadata } from '@/lib/seo/page-metadata'
 import { buildBreadcrumbNode } from '@/lib/seo/jsonld/builders'
 import { composeGraph } from '@/lib/seo/jsonld/graph'
 import { JsonLdScript } from '@/lib/seo/jsonld/render'
+import { localePath } from '@/lib/i18n/locale-path'
 
 export async function generateMetadata(): Promise<Metadata> {
   const h = await headers()
@@ -15,7 +16,7 @@ export async function generateMetadata(): Promise<Metadata> {
   if (!ctx) {
     return {
       title: locale === 'en' ? 'Privacy Policy' : 'Política de Privacidade',
-      alternates: { canonical: '/privacy' },
+      alternates: { canonical: localePath('/privacy', locale) },
       robots: { index: true, follow: true },
     }
   }
@@ -26,7 +27,7 @@ export async function generateMetadata(): Promise<Metadata> {
   } catch {
     return {
       title: locale === 'en' ? 'Privacy Policy' : 'Política de Privacidade',
-      alternates: { canonical: '/privacy' },
+      alternates: { canonical: localePath('/privacy', locale) },
       robots: { index: true, follow: true },
     }
   }
@@ -53,7 +54,7 @@ export default async function PrivacyPage() {
           { name: 'Home', url: config.siteUrl },
           {
             name: locale === 'en' ? 'Privacy Policy' : 'Política de Privacidade',
-            url: `${config.siteUrl}/privacy`,
+            url: `${config.siteUrl}${localePath('/privacy', locale)}`,
           },
         ]),
       ])

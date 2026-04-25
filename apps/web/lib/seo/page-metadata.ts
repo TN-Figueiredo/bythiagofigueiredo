@@ -32,13 +32,18 @@ function baseMetadata(config: SiteSeoConfig): Metadata {
 }
 
 export function generateRootMetadata(config: SiteSeoConfig): Metadata {
+  const languages: Record<string, string> = {}
+  for (const loc of config.supportedLocales) {
+    languages[hreflangCode(loc)] = localePath('/', loc)
+  }
+  languages['x-default'] = localePath('/', config.defaultLocale)
   return {
     ...baseMetadata(config),
     title: { default: config.siteName, template: `%s — ${config.siteName}` },
     description: config.personIdentity
       ? `Hub de ${config.personIdentity.name}. Build in public, learn out loud.`
       : `${config.siteName} — conteúdo editorial.`,
-    alternates: { canonical: '/' },
+    alternates: { canonical: '/', languages },
   }
 }
 
@@ -123,11 +128,16 @@ export function generateLegalMetadata(
     terms: { 'pt-BR': 'Termos de uso.', en: 'Terms of use.' },
   }
   const loc = (locale === 'en' ? 'en' : 'pt-BR') as 'pt-BR' | 'en'
+  const languages: Record<string, string> = {}
+  for (const l of config.supportedLocales) {
+    languages[hreflangCode(l)] = localePath(`/${type}`, l)
+  }
+  languages['x-default'] = localePath(`/${type}`, config.defaultLocale)
   return {
     ...baseMetadata(config),
     title: titles[type][loc],
     description: descs[type][loc],
-    alternates: { canonical: `/${type}` },
+    alternates: { canonical: localePath(`/${type}`, locale), languages },
     robots: { index: true, follow: true },
   }
 }
@@ -137,11 +147,16 @@ export function generateContactMetadata(config: SiteSeoConfig, locale: string): 
     locale === 'en'
       ? { title: 'Contact', desc: `Get in touch with ${config.siteName}.` }
       : { title: 'Fale comigo', desc: `Entre em contato com ${config.siteName}.` }
+  const languages: Record<string, string> = {}
+  for (const l of config.supportedLocales) {
+    languages[hreflangCode(l)] = localePath('/contact', l)
+  }
+  languages['x-default'] = localePath('/contact', config.defaultLocale)
   return {
     ...baseMetadata(config),
     title: t.title,
     description: t.desc,
-    alternates: { canonical: '/contact' },
+    alternates: { canonical: localePath('/contact', locale), languages },
     robots: { index: true, follow: true },
   }
 }
@@ -160,11 +175,16 @@ export function generateNewsletterArchiveMetadata(
   const t = locale === 'en'
     ? { title: 'Newsletter Archive', desc: `Past editions from ${config.siteName}.` }
     : { title: 'Arquivo de Newsletters', desc: `Edições anteriores de ${config.siteName}.` }
+  const languages: Record<string, string> = {}
+  for (const l of config.supportedLocales) {
+    languages[hreflangCode(l)] = localePath('/newsletter/archive', l)
+  }
+  languages['x-default'] = localePath('/newsletter/archive', config.defaultLocale)
   return {
     ...baseMetadata(config),
     title: t.title,
     description: t.desc,
-    alternates: { canonical: '/newsletter/archive' },
+    alternates: { canonical: localePath('/newsletter/archive', locale), languages },
     robots: { index: true, follow: true },
   }
 }

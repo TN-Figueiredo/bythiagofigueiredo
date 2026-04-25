@@ -4,6 +4,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext, tryGetSiteContext } from '@/lib/cms/site-context'
 import { getSiteSeoConfig } from '@/lib/seo/config'
 import { generateNewsletterArchiveMetadata } from '@/lib/seo/page-metadata'
+import { localePath } from '@/lib/i18n/locale-path'
 import type { Metadata } from 'next'
 import { VisualBreadcrumbs } from '../../components/visual-breadcrumbs'
 import enStrings from '@/locales/en.json'
@@ -85,7 +86,7 @@ export default async function NewsletterArchiveListPage({ searchParams }: Props)
               return (
                 <li key={e.id}>
                   <Link
-                    href={`/newsletter/archive/${e.id}`}
+                    href={localePath(`/newsletter/archive/${e.id}`, locale)}
                     className="block rounded-lg border border-pb-faint p-4 hover:border-pb-accent transition-colors"
                     style={{ borderLeftColor: typeColor ?? '#C14513', borderLeftWidth: 4 }}
                   >
@@ -116,7 +117,7 @@ export default async function NewsletterArchiveListPage({ searchParams }: Props)
           <nav aria-label="Pagination" className="flex items-center justify-between mt-8 font-mono text-sm">
             {page > 1 ? (
               <Link
-                href={`/newsletter/archive?page=${page - 1}`}
+                href={`${localePath('/newsletter/archive', locale)}?page=${page - 1}`}
                 className="text-pb-accent hover:underline"
               >
                 {t['newsletter.archive.pagination.prev']}
@@ -131,7 +132,7 @@ export default async function NewsletterArchiveListPage({ searchParams }: Props)
 
             {page < totalPages ? (
               <Link
-                href={`/newsletter/archive?page=${page + 1}`}
+                href={`${localePath('/newsletter/archive', locale)}?page=${page + 1}`}
                 className="text-pb-accent hover:underline"
               >
                 {t['newsletter.archive.pagination.next']}

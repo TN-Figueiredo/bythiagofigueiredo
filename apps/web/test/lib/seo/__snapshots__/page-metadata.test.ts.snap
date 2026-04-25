@@ -103,7 +103,12 @@ exports[`page-metadata factories — snapshots > generateContactMetadata shape (
   "title": "Fale comigo",
   "description": "Entre em contato com Example.",
   "alternates": {
-    "canonical": "/contact"
+    "canonical": "/pt/contact",
+    "languages": {
+      "pt": "/pt/contact",
+      "en": "/contact",
+      "x-default": "/pt/contact"
+    }
   },
   "robots": {
     "index": true,
@@ -127,7 +132,12 @@ exports[`page-metadata factories — snapshots > generateLegalMetadata shape (pr
   "title": "Política de Privacidade",
   "description": "LGPD — dados, direitos, cookies.",
   "alternates": {
-    "canonical": "/privacy"
+    "canonical": "/pt/privacy",
+    "languages": {
+      "pt": "/pt/privacy",
+      "en": "/privacy",
+      "x-default": "/pt/privacy"
+    }
   },
   "robots": {
     "index": true,
@@ -173,7 +183,12 @@ exports[`page-metadata factories — snapshots > generateRootMetadata shape 1`] 
   },
   "description": "Hub de Thiago Figueiredo. Build in public, learn out loud.",
   "alternates": {
-    "canonical": "/"
+    "canonical": "/",
+    "languages": {
+      "pt": "/pt/",
+      "en": "/",
+      "x-default": "/pt/"
+    }
   }
 }"
 `;

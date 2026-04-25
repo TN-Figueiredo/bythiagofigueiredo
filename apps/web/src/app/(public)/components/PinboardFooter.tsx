@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { localePath } from '@/lib/i18n/locale-path'
 
 type Props = {
   locale: 'en' | 'pt-BR'
@@ -7,7 +8,6 @@ type Props = {
 
 export function PinboardFooter({ locale, t }: Props) {
   const year = new Date().getFullYear()
-  const blogHref = locale === 'pt-BR' ? '/pt/blog' : '/blog'
 
   return (
     <footer className="border-t border-[--pb-line] bg-[--pb-bg] mt-8" style={{ padding: '40px 28px' }}>
@@ -22,11 +22,11 @@ export function PinboardFooter({ locale, t }: Props) {
 
         {/* Links */}
         <nav className="flex flex-wrap gap-x-5 gap-y-2 text-pb-muted text-sm" aria-label="Footer navigation">
-          <Link href={blogHref} className="hover:text-pb-ink transition-colors">{t['footer.blog']}</Link>
-          <Link href="/newsletter" className="hover:text-pb-ink transition-colors">{t['footer.newsletter']}</Link>
-          <Link href="/contact" className="hover:text-pb-ink transition-colors">{t['footer.contact']}</Link>
-          <Link href="/privacy" className="hover:text-pb-ink transition-colors">Privacy</Link>
-          <Link href="/terms" className="hover:text-pb-ink transition-colors">Terms</Link>
+          <Link href={localePath('/blog', locale)} className="hover:text-pb-ink transition-colors">{t['footer.blog']}</Link>
+          <Link href={localePath('/newsletters', locale)} className="hover:text-pb-ink transition-colors">{t['footer.newsletter']}</Link>
+          <Link href={localePath('/contact', locale)} className="hover:text-pb-ink transition-colors">{t['footer.contact']}</Link>
+          <Link href={localePath('/privacy', locale)} className="hover:text-pb-ink transition-colors">{locale === 'pt-BR' ? 'Privacidade' : 'Privacy'}</Link>
+          <Link href={localePath('/terms', locale)} className="hover:text-pb-ink transition-colors">{locale === 'pt-BR' ? 'Termos' : 'Terms'}</Link>
           <a href="/feed.xml" className="hover:text-pb-ink transition-colors" title="RSS Feed">RSS</a>
           <a href="https://dev.bythiagofigueiredo.com" target="_blank" rel="noopener" className="hover:text-pb-ink transition-colors opacity-60">Dev ↗</a>
         </nav>
