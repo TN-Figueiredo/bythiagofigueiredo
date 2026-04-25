@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from 'react'
 import type { TocEntry } from './types'
 
 type ScrollState = {
@@ -34,6 +34,8 @@ export function ScrollProvider({ sections, children }: Props) {
     visible: false,
   })
 
+  const prevProgressRef = useRef<Map<string, number>>(new Map())
+
   useEffect(() => {
     const h2Sections = sections.filter((s) => s.depth === 2)
     const elements = h2Sections
@@ -63,7 +65,7 @@ export function ScrollProvider({ sections, children }: Props) {
         const docHeight = document.documentElement.scrollHeight - window.innerHeight
         const globalProgress = docHeight > 0 ? Math.min(scrollTop / docHeight, 1) : 0
 
-        const sectionProgress = new Map<string, number>()
+        const nextProgress = new Map<string, number>()
         for (let i = 0; i < elements.length; i++) {
           const el = elements[i]!
           const next = elements[i + 1]
@@ -72,22 +74,29 @@ export function ScrollProvider({ sections, children }: Props) {
           const sectionHeight = sectionBottom - sectionTop
 
           if (scrollTop >= sectionBottom) {
-            sectionProgress.set(el.id, 1)
+            nextProgress.set(el.id, 1)
           } else if (scrollTop > sectionTop) {
-            sectionProgress.set(el.id, (scrollTop - sectionTop) / sectionHeight)
+            nextProgress.set(el.id, (scrollTop - sectionTop) / sectionHeight)
           } else {
-            sectionProgress.set(el.id, 0)
+            nextProgress.set(el.id, 0)
           }
         }
 
         const visible = globalProgress > 0.08 && globalProgress < 0.96
 
-        setState((prev) => ({
-          ...prev,
-          progress: globalProgress,
-          sectionProgress,
-          visible,
-        }))
+        let mapChanged = nextProgress.size !== prevProgressRef.current.size
+        if (!mapChanged) {
+          for (const [k, v] of nextProgress) {
+            if (prevProgressRef.current.get(k) !== v) { mapChanged = true; break }
+          }
+        }
+
+        if (mapChanged) prevProgressRef.current = nextProgress
+
+        setState((prev) => {
+          if (prev.progress === globalProgress && prev.visible === visible && !mapChanged) return prev
+          return { ...prev, progress: globalProgress, sectionProgress: mapChanged ? nextProgress : prev.sectionProgress, visible }
+        })
         ticking = false
       })
     }

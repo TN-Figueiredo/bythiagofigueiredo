@@ -144,16 +144,18 @@ export default async function BlogDetailPage({ params }: Props) {
         <div className="blog-detail-grid">
           <PostToc sections={toc} url={pageUrl} />
 
-          <main id="main-content" lang={locale}>
-            <BlogArticleClient
-              sections={toc}
-              readingTimeMin={tx.reading_time_min}
-              slug={slug}
-              locale={locale}
-              keyPoints={postExtras?.key_points}
-            >
-              <MdxRunner compiledSource={compiledSource} registry={blogRegistry} />
-            </BlogArticleClient>
+          <main id="main-content">
+            <article lang={locale}>
+              <BlogArticleClient
+                sections={toc}
+                readingTimeMin={tx.reading_time_min}
+                slug={slug}
+                locale={locale}
+                keyPoints={postExtras?.key_points}
+              >
+                <MdxRunner compiledSource={compiledSource} registry={blogRegistry} />
+              </BlogArticleClient>
+            </article>
           </main>
 
           <aside className="blog-sidebar blog-detail-sidebar">

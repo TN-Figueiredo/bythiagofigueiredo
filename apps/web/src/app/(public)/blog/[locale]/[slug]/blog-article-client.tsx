@@ -51,7 +51,7 @@ export function BlogArticleClient({ children, sections, readingTimeMin, slug, lo
           onClick={() => setMobileTocOpen(true)}
           className="w-11 h-11 rounded-full bg-pb-accent flex items-center justify-center text-white shadow-lg border-none cursor-pointer"
           style={{ color: 'var(--pb-bg)' }}
-          aria-label="Open table of contents"
+          aria-label="Abrir sumario"
         >
           ☰
         </button>

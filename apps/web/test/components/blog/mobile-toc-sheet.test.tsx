@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { render } from '@testing-library/react'
+import { describe, it, expect, vi } from 'vitest'
+import { render, fireEvent } from '@testing-library/react'
 import { MobileTocSheet } from '../../../src/components/blog/mobile-toc-sheet'
 import { ScrollProvider } from '../../../src/components/blog/scroll-context'
 
@@ -57,5 +57,32 @@ describe('MobileTocSheet', () => {
       sections,
     )
     expect(container.textContent).toContain('NESTE TEXTO')
+  })
+
+  it('has aria-modal="true" when open', () => {
+    const { container } = renderWithScroll(
+      <MobileTocSheet open onClose={() => {}} sections={sections} />,
+      sections,
+    )
+    const dialog = container.querySelector('[role="dialog"]')
+    expect(dialog!.getAttribute('aria-modal')).toBe('true')
+  })
+
+  it('calls onClose on Escape key', () => {
+    const onClose = vi.fn()
+    renderWithScroll(
+      <MobileTocSheet open onClose={onClose} sections={sections} />,
+      sections,
+    )
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('has a visible close button', () => {
+    const { container } = renderWithScroll(
+      <MobileTocSheet open onClose={() => {}} sections={sections} />,
+      sections,
+    )
+    expect(container.querySelector('[aria-label="Fechar sumario"]')).toBeTruthy()
   })
 })

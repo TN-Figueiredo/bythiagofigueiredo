@@ -35,7 +35,7 @@ describe('BlogArticleClient', () => {
 
   it('renders mobile TOC FAB button', () => {
     const { container } = renderWithScroll({})
-    const fab = container.querySelector('[aria-label="Open table of contents"]')
+    const fab = container.querySelector('[aria-label="Abrir sumario"]')
     expect(fab).toBeTruthy()
   })
 

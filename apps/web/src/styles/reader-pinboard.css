@@ -8,8 +8,8 @@
   --blog-max-width: 1280px;
   --blog-nav-height: 56px;
   --blog-body-font-size: 19px;
-  --blog-shadow-heavy: 0 8px 32px rgba(0, 0, 0, 0.4);
-  --blog-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --blog-shadow-heavy: 0 8px 32px color-mix(in srgb, var(--pb-ink) 40%, transparent);
+  --blog-shadow-md: 0 4px 12px color-mix(in srgb, var(--pb-ink) 30%, transparent);
 }
 
 /* Z-index scale:
@@ -47,7 +47,7 @@
   --reader-card-bg: var(--pb-paper);
   --reader-accent-glow: var(--pb-accent);
   --reader-back-to-top-bg: var(--pb-accent);
-  --reader-back-to-top-color: #ffffff;
+  --reader-back-to-top-color: var(--pb-bg);
 }
 
 /* ═══ Blog Detail — 3-Column Layout ═══ */
@@ -254,7 +254,7 @@ mark.btf-hl {
   font-size: 12px;
   color: var(--pb-muted);
   z-index: 90;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--blog-shadow-md);
   transition: opacity 0.3s;
 }
 
@@ -309,13 +309,13 @@ mark.btf-hl {
   align-items: center;
   gap: 8px;
   cursor: pointer;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--blog-shadow-heavy);
   z-index: 90;
   transition: all 0.2s;
 }
 .ai-reader-pill:hover {
   border-color: var(--pb-accent);
-  box-shadow: 0 4px 20px rgba(255, 130, 64, 0.2);
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--pb-accent) 20%, transparent);
 }
 
 .ai-reader-drawer {

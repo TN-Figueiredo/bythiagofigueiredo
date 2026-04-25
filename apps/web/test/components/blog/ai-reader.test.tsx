@@ -38,7 +38,7 @@ describe('AiReaderDrawer', () => {
     const { container } = render(<AiReaderDrawer open onClose={() => {}} />)
     const dialog = container.querySelector('[role="dialog"]')
     expect(dialog).toBeTruthy()
-    expect(dialog!.getAttribute('aria-label')).toBe('AI Reader')
+    expect(dialog!.getAttribute('aria-label')).toBe('Leitor IA')
   })
 
   it('close button has aria-label="Fechar"', () => {
@@ -52,6 +52,19 @@ describe('AiReaderDrawer', () => {
     const { container } = render(<AiReaderDrawer open onClose={onClose} />)
     const closeBtn = container.querySelector('[aria-label="Fechar"]')!
     fireEvent.click(closeBtn)
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('has aria-modal="true" when open', () => {
+    const { container } = render(<AiReaderDrawer open onClose={() => {}} />)
+    const dialog = container.querySelector('[role="dialog"]')
+    expect(dialog!.getAttribute('aria-modal')).toBe('true')
+  })
+
+  it('calls onClose on Escape key', () => {
+    const onClose = vi.fn()
+    render(<AiReaderDrawer open onClose={onClose} />)
+    fireEvent.keyDown(document, { key: 'Escape' })
     expect(onClose).toHaveBeenCalledOnce()
   })
 })

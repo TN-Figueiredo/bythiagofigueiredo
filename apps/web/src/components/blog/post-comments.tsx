@@ -48,7 +48,7 @@ function CommentRow({ comment, nested }: { comment: MockComment; nested?: boolea
     <div className={`flex gap-3 py-3.5 border-b border-[--pb-line] ${nested ? 'ml-[52px]' : ''}`}>
       <div
         className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0"
-        style={{ backgroundColor: comment.avatarColor, color: comment.isAuthorReply ? 'var(--pb-bg)' : 'var(--pb-bg)' }}
+        style={{ backgroundColor: comment.avatarColor, color: 'var(--pb-bg)' }}
       >
         {comment.authorInitials}
       </div>

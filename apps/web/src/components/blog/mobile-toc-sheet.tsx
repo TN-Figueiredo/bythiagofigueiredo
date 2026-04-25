@@ -18,6 +18,13 @@ export function MobileTocSheet({ open, onClose, sections, keyPoints }: Props) {
     return () => { document.body.style.overflow = '' }
   }, [open])
 
+  useEffect(() => {
+    if (!open) return
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [open, onClose])
+
   const { activeSection } = useScrollState()
 
   if (!open) return null
@@ -25,8 +32,11 @@ export function MobileTocSheet({ open, onClose, sections, keyPoints }: Props) {
   return (
     <>
       <div className="fixed inset-0 bg-black/50 z-[95]" role="presentation" onClick={onClose} />
-      <div className="fixed bottom-0 left-0 right-0 bg-[--pb-paper] rounded-t-2xl z-[96] max-h-[70vh] overflow-y-auto p-6" role="dialog" aria-label="Sumario">
-        <div className="w-10 h-1 bg-[--pb-line] rounded-full mx-auto mb-4" />
+      <div className="fixed bottom-0 left-0 right-0 bg-[--pb-paper] rounded-t-2xl z-[96] max-h-[70vh] overflow-y-auto p-6" role="dialog" aria-modal="true" aria-label="Sumario">
+        <div className="flex justify-between items-center mb-4">
+          <div className="w-10 h-1 bg-[--pb-line] rounded-full" />
+          <button onClick={onClose} aria-label="Fechar sumario" className="text-pb-muted hover:text-pb-ink text-lg bg-transparent border-none cursor-pointer p-0">×</button>
+        </div>
         <div className="blog-sidebar-label mb-3">NESTE TEXTO</div>
         <ul className="list-none mb-6">
           {sections.map((entry) => (

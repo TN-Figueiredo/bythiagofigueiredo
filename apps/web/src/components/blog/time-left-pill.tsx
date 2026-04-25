@@ -42,7 +42,7 @@ export function TimeLeftPill({ totalMinutes, currentSection }: Props) {
       clearTimeout(scrollTimer)
       window.removeEventListener('scroll', handleScroll)
     }
-  }, [visible, progress])
+  }, [visible])
 
   return (
     <div className="blog-time-pill" style={{ opacity: show ? 1 : 0, pointerEvents: show ? 'auto' : 'none' }} aria-live="polite">

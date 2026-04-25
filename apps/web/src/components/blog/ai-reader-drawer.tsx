@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 type Tab = 'tldr' | 'explain' | 'chat'
 
@@ -12,12 +12,19 @@ type Props = {
 export function AiReaderDrawer({ open, onClose }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('tldr')
 
+  useEffect(() => {
+    if (!open) return
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [open, onClose])
+
   return (
     <>
       {open && (
         <div className="fixed inset-0 z-[94]" role="presentation" onClick={onClose} />
       )}
-      <div className={`ai-reader-drawer ${open ? 'open' : ''}`} role="dialog" aria-label="AI Reader">
+      <div className={`ai-reader-drawer ${open ? 'open' : ''}`} role="dialog" aria-modal="true" aria-label="Leitor IA">
         <div className="p-4 border-b border-[--pb-line] flex items-center justify-between">
           <div className="flex gap-0">
             {(['tldr', 'explain', 'chat'] as Tab[]).map((tab) => (

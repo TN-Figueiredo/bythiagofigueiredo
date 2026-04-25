@@ -177,11 +177,16 @@ describe('BlogDetailPage', () => {
 
 describe('BlogDetailPage generateMetadata', () => {
   it('emits hreflang alternates for all translations + x-default', async () => {
-    vi.doMock('../../lib/cms/repositories', () => ({
-      postRepo: () => ({
-        getBySlug: vi.fn().mockResolvedValue(multiLocalePost),
-        getById: vi.fn().mockResolvedValue(multiLocalePost),
+    vi.doMock('../../lib/blog/load-post', () => ({
+      loadPostWithLocales: vi.fn().mockResolvedValue({
+        post: multiLocalePost,
+        translations: multiLocalePost.translations,
+        full: multiLocalePost,
+        extrasByLocale: new Map(),
       }),
+      toTranslationInputs: vi.fn((_cover: unknown, txs: Array<{ locale: string; slug: string; title: string; excerpt: string | null }>, _extras: unknown) =>
+        txs.map((t) => ({ locale: t.locale, slug: t.slug, title: t.title, excerpt: t.excerpt, cover_image_url: null, seo_extras: null })),
+      ),
     }))
     vi.resetModules()
     const { generateMetadata: gen } = await import('../../src/app/(public)/blog/[locale]/[slug]/page')
