@@ -131,6 +131,54 @@ export async function middleware(
     return NextResponse.rewrite(url)
   }
 
+  // --- i18n: locale prefix detection + legacy redirects ---
+  const skipLocale =
+    pathname.startsWith('/admin') ||
+    pathname.startsWith('/cms') ||
+    pathname.startsWith('/api') ||
+    pathname.startsWith('/auth') ||
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/og/')
+
+  let detectedLocale = 'en'
+  let effectivePathname = pathname
+
+  if (!skipLocale) {
+    // Legacy URL redirects (301) — preserve SEO equity
+    if (pathname === '/pt-BR' || pathname.startsWith('/pt-BR/')) {
+      const rest = pathname.slice(6) // '/pt-BR'.length = 6
+      return NextResponse.redirect(new URL(`/pt${rest}`, request.url), 301)
+    }
+    const legacyContentMatch = pathname.match(/^\/(blog|campaigns)\/(pt-BR|en)(?:\/(.*))?$/)
+    if (legacyContentMatch) {
+      const [, section, locale, slug] = legacyContentMatch
+      if (locale === 'en') {
+        return NextResponse.redirect(
+          new URL(slug ? `/${section}/${slug}` : `/${section}`, request.url),
+          301,
+        )
+      }
+      return NextResponse.redirect(
+        new URL(slug ? `/pt/${section}/${slug}` : `/pt/${section}`, request.url),
+        301,
+      )
+    }
+
+    // Uppercase normalization: /PT/... → 308 → /pt/...
+    if (pathname === '/PT' || pathname.startsWith('/PT/')) {
+      return NextResponse.redirect(
+        new URL(`/pt${pathname.slice(3)}`, request.url),
+        308,
+      )
+    }
+
+    // Active /pt/ prefix detection
+    if (pathname === '/pt' || pathname.startsWith('/pt/')) {
+      detectedLocale = 'pt-BR'
+      effectivePathname = pathname.slice(3) || '/'
+    }
+  }
+
   // Dev hostname override: when running on localhost, resolve the site using
   // NEXT_PUBLIC_DEV_SITE_HOSTNAME instead of 'localhost' (which isn't
   // registered in the DB). Set in .env.local — no-op in production because
@@ -141,10 +189,37 @@ export async function middleware(
       ? process.env.NEXT_PUBLIC_DEV_SITE_HOSTNAME
       : hostname
 
-  // Site resolution runs FIRST (Edge-safe, anon key). Unknown host or
-  // disabled CMS short-circuits BEFORE auth. On success, site headers are
-  // attached to the downstream response and we fall through to auth.
-  const siteRes = await resolveSite(request, resolveHostname, pathname)
+  // Site resolution (Edge-safe, anon key) — use effectivePathname (stripped)
+  const siteRes = await resolveSite(request, resolveHostname, effectivePathname)
+
+  // Inject x-locale header
+  if (!skipLocale) {
+    siteRes.response.headers.set('x-locale', detectedLocale)
+  }
+
+  // If /pt/ prefix was detected, rewrite to stripped path
+  if (detectedLocale !== 'en' && !siteRes.shortCircuit) {
+    const rewriteUrl = request.nextUrl.clone()
+    rewriteUrl.pathname = effectivePathname
+    const res = NextResponse.rewrite(rewriteUrl)
+    // Copy all headers from site resolution
+    siteRes.response.headers.forEach((value, key) => {
+      res.headers.set(key, value)
+    })
+    res.headers.set('x-locale', detectedLocale)
+
+    // Auth gating for rewritten paths
+    if (effectivePathname.startsWith('/admin')) {
+      const authRes = await adminAuth(request)
+      return mergeSiteHeaders(authRes, res)
+    }
+    if (effectivePathname.startsWith('/cms')) {
+      const authRes = await cmsAuth(request)
+      return mergeSiteHeaders(authRes, res)
+    }
+    return res
+  }
+
   if (siteRes.shortCircuit) return siteRes.response
 
   // Auth gating — dispatch to area-specific instance. The site headers are
@@ -220,9 +295,11 @@ function mergeSiteHeaders(
   const siteId = source.headers.get('x-site-id')
   const orgId = source.headers.get('x-org-id')
   const defaultLocale = source.headers.get('x-default-locale')
+  const xLocale = source.headers.get('x-locale')
   if (siteId) target.headers.set('x-site-id', siteId)
   if (orgId) target.headers.set('x-org-id', orgId)
   if (defaultLocale) target.headers.set('x-default-locale', defaultLocale)
+  if (xLocale) target.headers.set('x-locale', xLocale)
   return target
 }
 
