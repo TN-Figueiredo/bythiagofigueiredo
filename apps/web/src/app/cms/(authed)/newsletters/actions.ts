@@ -212,3 +212,36 @@ export async function updateCadence(
   revalidatePath('/cms/schedule')
   return { ok: true }
 }
+
+export async function retryEdition(editionId: string): Promise<ActionResult> {
+  await requireSiteAdminForRow('newsletter_editions', editionId)
+  const supabase = getSupabaseServiceClient()
+
+  // Fetch current edition to check retry eligibility
+  const { data: edition } = await supabase
+    .from('newsletter_editions')
+    .select('id, status, retry_count, max_retries')
+    .eq('id', editionId)
+    .single()
+
+  if (!edition) return { ok: false, error: 'not_found' }
+  if (edition.status !== 'failed') return { ok: false, error: 'edition_not_failed' }
+
+  const retryCount = edition.retry_count ?? 0
+  const maxRetries = edition.max_retries ?? 3
+  if (retryCount >= maxRetries) return { ok: false, error: 'max_retries_exceeded' }
+
+  const { error } = await supabase
+    .from('newsletter_editions')
+    .update({
+      status: 'scheduled',
+      retry_count: retryCount + 1,
+      error_message: null,
+      scheduled_at: new Date().toISOString(),
+    })
+    .eq('id', editionId)
+
+  if (error) return { ok: false, error: error.message }
+  revalidatePath('/cms/newsletters')
+  return { ok: true }
+}
