@@ -11,6 +11,9 @@ import { AD_APP_ID } from '@/lib/ads/config'
 const VALID_CAMPAIGN_STATUSES = ['draft', 'active', 'paused', 'archived'] as const
 type CampaignStatus = typeof VALID_CAMPAIGN_STATUSES[number]
 
+const ALLOWED_MEDIA_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'] as const
+const MAX_MEDIA_SIZE_BYTES = 5 * 1024 * 1024 // 5 MB
+
 type ExtData = CampaignFormData & Record<string, unknown>
 type ExtCreative = Record<string, unknown>
 
@@ -127,6 +130,19 @@ export async function deleteCampaign(id: string): Promise<void> {
 
 export async function uploadMedia(file: File): Promise<{ id: string; url: string }> {
   await requireArea('admin')
+
+  if (!ALLOWED_MEDIA_TYPES.includes(file.type as typeof ALLOWED_MEDIA_TYPES[number])) {
+    throw new Error(
+      `Invalid file type: ${file.type}. Allowed: ${ALLOWED_MEDIA_TYPES.join(', ')}`,
+    )
+  }
+
+  if (file.size > MAX_MEDIA_SIZE_BYTES) {
+    throw new Error(
+      `File too large: ${(file.size / (1024 * 1024)).toFixed(1)}MB. Maximum: 5MB`,
+    )
+  }
+
   const supabase = getSupabaseServiceClient()
 
   const ext = file.name.split('.').pop() ?? 'bin'

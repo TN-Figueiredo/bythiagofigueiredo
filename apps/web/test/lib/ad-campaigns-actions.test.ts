@@ -65,6 +65,10 @@ vi.mock('@/lib/sentry-wrap', () => ({
   captureServerActionError: vi.fn(),
 }))
 
+vi.mock('@/lib/ads/config', () => ({
+  AD_APP_ID: 'bythiagofigueiredo',
+}))
+
 const mockFetchAdCampaignById = vi.fn().mockResolvedValue({ id: 'c-1', name: 'Test' })
 vi.mock('@tn-figueiredo/ad-engine-admin', () => ({
   createAdminQueries: () => ({
@@ -329,6 +333,33 @@ describe('uploadMedia', () => {
       expect.objectContaining({ message: 'insert boom' }),
       expect.objectContaining({ action: 'upload_media_insert' }),
     )
+  })
+
+  it('rejects files with disallowed MIME types', async () => {
+    const { uploadMedia } = await import(actionsPath)
+    const file = new File(['data'], 'doc.pdf', { type: 'application/pdf' })
+    await expect(uploadMedia(file)).rejects.toThrow('Invalid file type')
+  })
+
+  it('rejects files exceeding 5MB', async () => {
+    const { uploadMedia } = await import(actionsPath)
+    // Create a file object with a size > 5MB via Object.defineProperty
+    const file = new File(['x'], 'big.png', { type: 'image/png' })
+    Object.defineProperty(file, 'size', { value: 6 * 1024 * 1024 })
+    await expect(uploadMedia(file)).rejects.toThrow('File too large')
+  })
+
+  it('accepts all allowed MIME types', async () => {
+    const { uploadMedia } = await import(actionsPath)
+    for (const mime of ['image/png', 'image/jpeg', 'image/gif', 'image/webp']) {
+      vi.clearAllMocks()
+      mockResult.data = { id: 'c-1' }
+      mockResult.error = null
+      mockStorageUpload.mockResolvedValue({ data: { path: 'ads/media/test.png' }, error: null })
+      mockStorageGetPublicUrl.mockReturnValue({ data: { publicUrl: 'https://cdn.example.com/ads/media/test.png' } })
+      const file = new File(['data'], `test.${mime.split('/')[1]}`, { type: mime })
+      await expect(uploadMedia(file)).resolves.toBeDefined()
+    }
   })
 })
 
