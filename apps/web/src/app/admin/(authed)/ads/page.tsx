@@ -10,11 +10,13 @@ import {
   fetchAdChartData,
   fetchRecentAdEvents,
   fetchSlotConversion,
+  fetchAdMedia,
 } from '@tn-figueiredo/ad-engine-admin'
 import {
   AdDashboardServer,
   CampaignWizardServer,
   PlaceholderManagerServer,
+  MediaLibraryServer,
 } from '@tn-figueiredo/ad-engine-admin/server'
 import { SITE_AD_SLOTS } from '@app/shared'
 import type { AdSlotDefinition } from '@tn-figueiredo/ad-engine'
@@ -42,6 +44,7 @@ const TABS = [
   { key: 'dashboard', label: 'Dashboard' },
   { key: 'campaigns', label: 'Campanhas' },
   { key: 'placeholders', label: 'Placeholders' },
+  { key: 'media', label: 'Biblioteca' },
 ] as const
 
 interface PageProps {
@@ -55,7 +58,7 @@ export default async function AdsAdminPage({ searchParams }: PageProps) {
   const supabase = getSupabaseAdmin()
   const APP_ID = 'bythiagofigueiredo'
 
-  const [kpisResult, chartResult, eventsResult, conversionResult, configsResult, placeholdersResult] =
+  const [kpisResult, chartResult, eventsResult, conversionResult, configsResult, placeholdersResult, mediaResult] =
     await Promise.allSettled([
       tab === 'dashboard'    ? fetchAdKpis(supabase, APP_ID) : Promise.resolve(null),
       tab === 'dashboard'    ? fetchAdChartData(supabase, APP_ID) : Promise.resolve(null),
@@ -63,6 +66,7 @@ export default async function AdsAdminPage({ searchParams }: PageProps) {
       tab === 'dashboard'    ? fetchSlotConversion(supabase, APP_ID) : Promise.resolve(null),
       tab === 'campaigns'    ? fetchAdConfigs(supabase, APP_ID, { page, pageSize: 20 }) : Promise.resolve(null),
       tab === 'placeholders' ? fetchAdPlaceholders(supabase, APP_ID) : Promise.resolve(null),
+      tab === 'media'        ? fetchAdMedia(supabase, APP_ID) : Promise.resolve(null),
     ])
 
   const kpis         = kpisResult.status === 'fulfilled' ? (kpisResult.value ?? EMPTY_AD_KPIS) : EMPTY_AD_KPIS
@@ -71,6 +75,7 @@ export default async function AdsAdminPage({ searchParams }: PageProps) {
   const slotConversion = conversionResult.status === 'fulfilled' ? (conversionResult.value ?? []) : []
   const configs      = configsResult.status === 'fulfilled' ? configsResult.value : null
   const placeholders = placeholdersResult.status === 'fulfilled' ? (placeholdersResult.value ?? []) : []
+  const media        = mediaResult.status === 'fulfilled' ? (mediaResult.value ?? []) : []
 
   const adminConfig: AdAdminConfig = {
     appId: APP_ID,
@@ -136,6 +141,10 @@ export default async function AdsAdminPage({ searchParams }: PageProps) {
             placeholders={placeholders}
             config={adminConfig}
           />
+        )}
+
+        {tab === 'media' && (
+          <MediaLibraryServer media={media} />
         )}
       </div>
     </AdEngineAdminProvider>

@@ -158,7 +158,7 @@ export async function updatePlaceholder(
 
   const { error } = await supabase
     .from('ad_placeholders')
-    .upsert({ slot_id: slotId, ...update }, { onConflict: 'slot_id' })
+    .upsert({ slot_id: slotId, app_id: 'bythiagofigueiredo', ...update }, { onConflict: 'slot_id' })
 
   if (error) throw new Error(error.message)
   revalidatePath('/admin/ads')
