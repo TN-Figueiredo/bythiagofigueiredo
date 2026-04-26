@@ -65,7 +65,7 @@ export function BookmarkAd({ creative, locale }: AdSlotProps) {
                 background: creative.brandColor,
               }}
             >
-              <img src={creative.logoUrl} alt="" width={32} height={32} />
+              <img src={creative.logoUrl} alt={`${creative.title} logo`} width={32} height={32} />
             </div>
           )}
         </div>

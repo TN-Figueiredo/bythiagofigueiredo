@@ -133,6 +133,14 @@ export async function deleteCampaign(id: string): Promise<void> {
   revalidateTag('ads')
 }
 
+export async function uploadMedia(_file: File): Promise<{ id: string; url: string }> {
+  throw new Error('Not implemented')
+}
+
+export async function deleteMedia(_id: string): Promise<void> {
+  throw new Error('Not implemented')
+}
+
 export async function updatePlaceholder(
   slotId: string,
   data: Partial<PlaceholderFormData>,

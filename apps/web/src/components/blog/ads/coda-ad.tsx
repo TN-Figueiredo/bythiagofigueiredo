@@ -52,7 +52,7 @@ export function CodaAd({ creative, locale }: AdSlotProps) {
               border: '1px solid var(--pb-line)',
             }}
           >
-            <img src={creative.logoUrl} alt="" width={36} height={36} />
+            <img src={creative.logoUrl} alt={`${creative.title} logo`} width={36} height={36} />
           </div>
         )}
 

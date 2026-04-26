@@ -18,11 +18,14 @@ import {
 } from '@tn-figueiredo/ad-engine-admin/server'
 import { SITE_AD_SLOTS } from '@app/shared'
 import type { AdSlotDefinition } from '@tn-figueiredo/ad-engine'
+import Link from 'next/link'
 import {
   createCampaign,
   updateCampaign,
   deleteCampaign,
   updatePlaceholder,
+  uploadMedia,
+  deleteMedia,
 } from './_actions/campaigns'
 
 export const dynamic = 'force-dynamic'
@@ -34,6 +37,12 @@ function getSupabaseAdmin() {
     { auth: { autoRefreshToken: false, persistSession: false } },
   )
 }
+
+const TABS = [
+  { key: 'dashboard', label: 'Dashboard' },
+  { key: 'campaigns', label: 'Campanhas' },
+  { key: 'placeholders', label: 'Placeholders' },
+] as const
 
 interface PageProps {
   searchParams: Promise<{ tab?: string; page?: string }>
@@ -65,7 +74,7 @@ export default async function AdsAdminPage({ searchParams }: PageProps) {
 
   const adminConfig: AdAdminConfig = {
     appId: APP_ID,
-    slots: SITE_AD_SLOTS as unknown as AdSlotDefinition[], // readonly → mutable cast: safe
+    slots: SITE_AD_SLOTS as unknown as AdSlotDefinition[],
     basePath: '/admin/ads',
     locale: 'pt-BR',
     currency: 'BRL',
@@ -76,21 +85,37 @@ export default async function AdsAdminPage({ searchParams }: PageProps) {
     updateCampaign,
     deleteCampaign,
     updatePlaceholder,
-    uploadMedia: async (_file: File) => { throw new Error('Not implemented') },
-    deleteMedia: async (_id: string) => { throw new Error('Not implemented') },
+    uploadMedia,
+    deleteMedia,
   }
 
   return (
     <AdEngineAdminProvider config={adminConfig} actions={actions}>
       <div className="space-y-6 p-6">
         <div>
-          <h1 className="text-2xl font-bold">Anúncios</h1>
+          <h1 className="text-2xl font-bold">Anuncios</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Gerenciamento de campanhas e métricas do ad engine
+            Gerenciamento de campanhas e metricas do ad engine
           </p>
         </div>
 
-        {(tab === 'dashboard' || !tab) && (
+        <nav className="flex gap-1 border-b border-border">
+          {TABS.map(({ key, label }) => (
+            <Link
+              key={key}
+              href={key === 'dashboard' ? '/admin/ads' : `/admin/ads?tab=${key}`}
+              className={`px-4 py-2 text-sm font-medium no-underline transition-colors ${
+                tab === key
+                  ? 'border-b-2 border-primary text-primary'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {label}
+            </Link>
+          ))}
+        </nav>
+
+        {tab === 'dashboard' && (
           <AdDashboardServer
             kpis={kpis}
             recentEvents={recentEvents}

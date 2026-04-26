@@ -111,7 +111,12 @@ export default async function BlogDetailPage({ params }: Props) {
   const pageUrl = `https://${host}${localePath(`/blog/${encodeURIComponent(slug)}`, locale)}`
 
   const adLocale = locale as 'en' | 'pt-BR'
-  const creatives = await loadAdCreatives(adLocale)
+  let creatives: Awaited<ReturnType<typeof loadAdCreatives>> = {}
+  try {
+    creatives = await loadAdCreatives(adLocale)
+  } catch {
+    // Ads must never crash the blog page
+  }
 
   const categoryColors: Record<string, string> = {
     code: '#D65B1F',

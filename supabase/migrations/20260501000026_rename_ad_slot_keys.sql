@@ -50,30 +50,30 @@ VALUES
 ON CONFLICT (slot_id) DO NOTHING;
 
 -- 5. kill_switches (PK = id — same insert/delete pattern)
-INSERT INTO kill_switches (id, enabled, description)
-  SELECT 'ads_slot_banner_top', enabled, description
+INSERT INTO kill_switches (id, enabled, reason)
+  SELECT 'ads_slot_banner_top', enabled, reason
   FROM kill_switches WHERE id = 'ads_slot_article_top'
   ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO kill_switches (id, enabled, description)
-  SELECT 'ads_slot_inline_mid', enabled, description
+INSERT INTO kill_switches (id, enabled, reason)
+  SELECT 'ads_slot_inline_mid', enabled, reason
   FROM kill_switches WHERE id = 'ads_slot_article_between_paras'
   ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO kill_switches (id, enabled, description)
-  SELECT 'ads_slot_rail_right', enabled, description
+INSERT INTO kill_switches (id, enabled, reason)
+  SELECT 'ads_slot_rail_right', enabled, reason
   FROM kill_switches WHERE id = 'ads_slot_sidebar_right'
   ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO kill_switches (id, enabled, description)
-  SELECT 'ads_slot_block_bottom', enabled, description
+INSERT INTO kill_switches (id, enabled, reason)
+  SELECT 'ads_slot_block_bottom', enabled, reason
   FROM kill_switches WHERE id = 'ads_slot_below_fold'
   ON CONFLICT (id) DO NOTHING;
 
 DELETE FROM kill_switches WHERE id IN ('ads_slot_article_top', 'ads_slot_article_between_paras', 'ads_slot_sidebar_right', 'ads_slot_below_fold');
 
 -- Seed new slot kill switches (enabled by default)
-INSERT INTO kill_switches (id, enabled, description)
+INSERT INTO kill_switches (id, enabled, reason)
 VALUES
   ('ads_slot_rail_left', true, 'Kill switch for rail_left ad slot'),
   ('ads_slot_inline_end', true, 'Kill switch for inline_end ad slot')

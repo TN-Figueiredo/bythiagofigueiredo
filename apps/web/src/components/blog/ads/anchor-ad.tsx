@@ -50,7 +50,7 @@ export function AnchorAd({ creative, locale }: AdSlotProps) {
                 background: creative.brandColor,
               }}
             >
-              <img src={creative.logoUrl} alt="" width={28} height={28} />
+              <img src={creative.logoUrl} alt={`${creative.title} logo`} width={28} height={28} />
             </div>
           )}
           <div

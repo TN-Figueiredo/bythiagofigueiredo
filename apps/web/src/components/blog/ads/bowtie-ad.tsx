@@ -93,6 +93,7 @@ export function BowtieAd({ creative, locale }: AdSlotProps) {
           <input
             type="email"
             required
+            aria-label={locale === 'pt-BR' ? 'Seu e-mail' : 'Your email'}
             placeholder={locale === 'pt-BR' ? 'voce@email.com' : 'you@email.com'}
             className="min-w-[200px] flex-1"
             style={{

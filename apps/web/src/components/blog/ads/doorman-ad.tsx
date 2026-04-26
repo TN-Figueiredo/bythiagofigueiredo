@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import type { AdSlotProps } from './types'
 import { useDismissable } from './use-dismissable'
 import { adLabel } from './ad-label'
+import { DismissButton } from './dismiss-button'
 
 export function DoormanAd({ creative, locale }: AdSlotProps) {
   const [dismissed, dismiss] = useDismissable(creative)
@@ -72,18 +73,11 @@ export function DoormanAd({ creative, locale }: AdSlotProps) {
         {creative.ctaText}
       </a>
 
-      <button
+      <DismissButton
         onClick={dismiss}
-        aria-label={locale === 'pt-BR' ? 'Fechar' : 'Close'}
-        className="cursor-pointer border-none bg-transparent p-1 leading-none"
-        style={{
-          color: '#FFF',
-          fontSize: 18,
-          opacity: 0.85,
-        }}
-      >
-        ×
-      </button>
+        label={locale === 'pt-BR' ? 'Fechar' : 'Close'}
+        color="#FFF"
+      />
     </div>
   )
 }
