@@ -16,7 +16,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@tn-figueiredo/ad-engine": "0.2.0",
+    "@tn-figueiredo/ad-engine": "0.3.0",
     "@tn-figueiredo/shared": "0.8.0"
   },
   "devDependencies": {

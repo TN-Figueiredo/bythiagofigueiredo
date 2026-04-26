@@ -1,4 +1,3 @@
-import { createClient } from '@supabase/supabase-js'
 import {
   AdEngineAdminProvider,
   type AdAdminConfig,
@@ -23,6 +22,7 @@ import { InquiriesList, PlaceholderManager } from '@tn-figueiredo/ad-engine-admi
 import { SITE_AD_SLOTS } from '@app/shared'
 import type { AdSlotDefinition } from '@tn-figueiredo/ad-engine'
 import { requireArea } from '@tn-figueiredo/auth-nextjs/server'
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import Link from 'next/link'
 import {
   createCampaign,
@@ -37,14 +37,6 @@ import {
 import { updateInquiryStatus, updateInquiryNotes } from './_actions/inquiries'
 
 export const dynamic = 'force-dynamic'
-
-function getSupabaseAdmin() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } },
-  )
-}
 
 const TABS = [
   { key: 'dashboard', label: 'Dashboard' },
@@ -63,7 +55,7 @@ export default async function AdsAdminPage({ searchParams }: PageProps) {
   const params = await searchParams
   const tab = params.tab ?? 'dashboard'
   const page = Math.max(1, Number(params.page) || 1)
-  const supabase = getSupabaseAdmin()
+  const supabase = getSupabaseServiceClient()
   const APP_ID = 'bythiagofigueiredo'
 
   const [kpisResult, chartResult, eventsResult, conversionResult, perfResult, configsResult, placeholdersResult, mediaResult, inquiriesResult] =

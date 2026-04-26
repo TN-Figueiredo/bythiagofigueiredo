@@ -1,21 +1,13 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@supabase/supabase-js'
 import { requireArea } from '@tn-figueiredo/auth-nextjs/server'
 import { captureServerActionError } from '@/lib/sentry-wrap'
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
 const APP_ID = 'bythiagofigueiredo'
 const VALID_STATUSES = ['pending', 'contacted', 'negotiating', 'converted', 'archived'] as const
 const MAX_NOTES_LENGTH = 5000
-
-function getSupabaseAdmin() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } },
-  )
-}
 
 export async function updateInquiryStatus(id: string, status: string): Promise<void> {
   await requireArea('admin')
@@ -24,7 +16,7 @@ export async function updateInquiryStatus(id: string, status: string): Promise<v
     throw new Error(`Invalid status: ${status}`)
   }
 
-  const supabase = getSupabaseAdmin()
+  const supabase = getSupabaseServiceClient()
 
   const update: Record<string, unknown> = { status }
   if (status === 'contacted') {
@@ -54,7 +46,7 @@ export async function updateInquiryNotes(id: string, notes: string): Promise<voi
     throw new Error(`Notes too long (max ${MAX_NOTES_LENGTH} characters)`)
   }
 
-  const supabase = getSupabaseAdmin()
+  const supabase = getSupabaseServiceClient()
 
   const { error } = await supabase
     .from('ad_inquiries')

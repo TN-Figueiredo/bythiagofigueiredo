@@ -14,8 +14,8 @@ const mockChain = {
 }
 const mockFrom = vi.fn(() => mockChain)
 
-vi.mock('@supabase/supabase-js', () => ({
-  createClient: () => ({ from: mockFrom }),
+vi.mock('@/lib/supabase/service', () => ({
+  getSupabaseServiceClient: () => ({ from: mockFrom }),
 }))
 
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({

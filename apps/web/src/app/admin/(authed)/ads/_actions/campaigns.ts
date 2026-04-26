@@ -1,29 +1,21 @@
 'use server'
 
 import { revalidatePath, revalidateTag } from 'next/cache'
-import { createClient } from '@supabase/supabase-js'
 import type { CampaignFormData, PlaceholderFormData, AdCampaignDetail } from '@tn-figueiredo/ad-engine-admin'
 import { createAdminQueries } from '@tn-figueiredo/ad-engine-admin'
 import { requireArea } from '@tn-figueiredo/auth-nextjs/server'
 import { captureServerActionError } from '@/lib/sentry-wrap'
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
 const APP_ID = 'bythiagofigueiredo'
 const VALID_CAMPAIGN_STATUSES = ['draft', 'active', 'paused', 'archived'] as const
-
-function getSupabaseAdmin() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } },
-  )
-}
 
 type ExtData = CampaignFormData & Record<string, unknown>
 type ExtCreative = Record<string, unknown>
 
 export async function createCampaign(data: CampaignFormData): Promise<void> {
   await requireArea('admin')
-  const supabase = getSupabaseAdmin()
+  const supabase = getSupabaseServiceClient()
   const ext = data as ExtData
 
   const { data: campaign, error } = await supabase
@@ -84,7 +76,7 @@ export async function createCampaign(data: CampaignFormData): Promise<void> {
 
 export async function updateCampaign(id: string, data: CampaignFormData): Promise<void> {
   await requireArea('admin')
-  const supabase = getSupabaseAdmin()
+  const supabase = getSupabaseServiceClient()
   const ext = data as ExtData
 
   const { error } = await supabase
@@ -149,7 +141,7 @@ export async function updateCampaign(id: string, data: CampaignFormData): Promis
 
 export async function deleteCampaign(id: string): Promise<void> {
   await requireArea('admin')
-  const supabase = getSupabaseAdmin()
+  const supabase = getSupabaseServiceClient()
   const { error } = await supabase.from('ad_campaigns').delete().eq('id', id).eq('app_id', APP_ID)
   if (error) {
     captureServerActionError(error, { action: 'delete_campaign', campaign_id: id })
@@ -174,7 +166,7 @@ export async function updateCampaignStatus(id: string, status: string): Promise<
   if (!VALID_CAMPAIGN_STATUSES.includes(status as typeof VALID_CAMPAIGN_STATUSES[number])) {
     throw new Error(`Invalid status: ${status}`)
   }
-  const supabase = getSupabaseAdmin()
+  const supabase = getSupabaseServiceClient()
 
   const { error } = await supabase
     .from('ad_campaigns')
@@ -192,7 +184,7 @@ export async function updateCampaignStatus(id: string, status: string): Promise<
 
 export async function fetchCampaignById(id: string): Promise<AdCampaignDetail | null> {
   await requireArea('admin')
-  const supabase = getSupabaseAdmin()
+  const supabase = getSupabaseServiceClient()
   const queries = createAdminQueries(supabase, APP_ID)
   return queries.fetchAdCampaignById(id)
 }
@@ -202,7 +194,7 @@ export async function updatePlaceholder(
   data: Partial<PlaceholderFormData>,
 ): Promise<void> {
   await requireArea('admin')
-  const supabase = getSupabaseAdmin()
+  const supabase = getSupabaseServiceClient()
 
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() }
   if (data.isEnabled !== undefined)      update.is_enabled       = data.isEnabled
