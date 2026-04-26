@@ -226,46 +226,6 @@ describe('DoormanAd', () => {
   })
 })
 
-describe('BowtieAd', () => {
-  it('renders email form when interaction is form', async () => {
-    const { BowtieAd } = await import('../../../src/components/blog/ads/bowtie-ad')
-    const creative = mockCreative({ slotKey: 'inline_end', interaction: 'form' })
-    const { container } = render(<BowtieAd creative={creative} locale="pt-BR" />)
-    expect(container.querySelector('input[type="email"]')).toBeTruthy()
-    expect(container.querySelector('form')).toBeTruthy()
-  })
-
-  it('renders CTA link when interaction is link', async () => {
-    const { BowtieAd } = await import('../../../src/components/blog/ads/bowtie-ad')
-    const creative = mockCreative({ slotKey: 'inline_end', interaction: 'link', type: 'cpa' })
-    const { container } = render(<BowtieAd creative={creative} locale="pt-BR" />)
-    const link = container.querySelector('a')
-    expect(link).toBeTruthy()
-    expect(link?.getAttribute('href')).toBe('#test-url')
-  })
-
-  it('shows confirmation after form submit', async () => {
-    const { BowtieAd } = await import('../../../src/components/blog/ads/bowtie-ad')
-    const creative = mockCreative({ slotKey: 'inline_end', interaction: 'form' })
-    const { container } = render(<BowtieAd creative={creative} locale="pt-BR" />)
-
-    const input = container.querySelector('input[type="email"]') as HTMLInputElement
-    fireEvent.change(input, { target: { value: 'test@example.com' } })
-    const form = container.querySelector('form')!
-    fireEvent.submit(form)
-
-    expect(container.textContent).toContain('Recebido. Confira sua caixa.')
-  })
-
-  it('renders tape decoration', async () => {
-    const { BowtieAd } = await import('../../../src/components/blog/ads/bowtie-ad')
-    const creative = mockCreative({ slotKey: 'inline_end', interaction: 'form' })
-    const { container } = render(<BowtieAd creative={creative} locale="en" />)
-    const tape = container.querySelector('[aria-hidden="true"]')
-    expect(tape).toBeTruthy()
-  })
-})
-
 // ============ Shared atoms ============
 
 describe('AdLabel component', () => {

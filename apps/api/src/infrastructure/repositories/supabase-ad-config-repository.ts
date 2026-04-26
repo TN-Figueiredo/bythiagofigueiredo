@@ -2,8 +2,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { AdSlotCreative } from '@tn-figueiredo/ad-engine'
 
 const CREATIVE_FIELDS =
-  'id, slot_key, title, body, cta_text, cta_url, image_url, dismiss_seconds, campaign_id, created_at, ' +
-  'campaign:ad_campaigns!inner(id, name, format, priority, status, schedule_start, schedule_end, ' +
+  'id, slot_key, title, body, cta_text, cta_url, image_url, interaction, dismiss_seconds, campaign_id, created_at, ' +
+  'campaign:ad_campaigns!inner(id, name, type, format, logo_url, brand_color, priority, status, schedule_start, schedule_end, ' +
   'target_categories, impressions_target, impressions_delivered, budget_cents, spent_cents, ' +
   'pacing_strategy, variant_group, variant_weight, created_at, updated_at)'
 
@@ -21,6 +21,7 @@ export class SupabaseAdConfigRepository {
       .select(CREATIVE_FIELDS)
       .eq('slot_key', slotId)
       .eq('campaign.status', 'active')
+      .eq('campaign.app_id', this.appId)
       .or(`schedule_start.is.null,schedule_start.lte.${now}`, { referencedTable: 'campaign' })
       .or(`schedule_end.is.null,schedule_end.gte.${now}`, { referencedTable: 'campaign' })
       .order('priority', { referencedTable: 'campaign', ascending: false })
@@ -32,19 +33,20 @@ export class SupabaseAdConfigRepository {
 
 function mapToCreative(row: Record<string, unknown>): AdSlotCreative {
   const campaign = row.campaign as Record<string, unknown>
+  const campaignType = (campaign.type as string) ?? null
   const format = campaign.format as string
   return {
     campaignId: campaign.id as string,
     slotKey: row.slot_key as string,
-    type: format === 'house' ? 'house' : 'cpa',
+    type: campaignType === 'house' || format === 'house' ? 'house' : 'cpa',
     title: (row.title as string) ?? '',
     body: (row.body as string) ?? '',
     ctaText: (row.cta_text as string) ?? '',
     ctaUrl: (row.cta_url as string) ?? '',
     imageUrl: (row.image_url as string) ?? null,
-    logoUrl: null,
-    brandColor: '#000000',
-    interaction: 'link',
+    logoUrl: (campaign.logo_url as string) ?? null,
+    brandColor: (campaign.brand_color as string) ?? '#000000',
+    interaction: ((row.interaction as string) ?? 'link') as 'link' | 'form',
     dismissSeconds: (row.dismiss_seconds as number) ?? 0,
     priority: (campaign.priority as number) ?? 0,
     targetCategories: (campaign.target_categories as string[]) ?? [],

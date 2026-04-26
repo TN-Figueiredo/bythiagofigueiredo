@@ -34,6 +34,7 @@ describe('SupabaseAdConfigRepository', () => {
     expect(client.from).toHaveBeenCalledWith('ad_slot_creatives')
     expect(chain.eq).toHaveBeenCalledWith('slot_key', 'article_top')
     expect(chain.eq).toHaveBeenCalledWith('campaign.status', 'active')
+    expect(chain.eq).toHaveBeenCalledWith('campaign.app_id', 'bythiagofigueiredo')
   })
 
   it('maps DB row to AdSlotCreative with correct field transformations', async () => {
@@ -47,13 +48,17 @@ describe('SupabaseAdConfigRepository', () => {
         cta_text: 'Saiba mais',
         cta_url: 'https://example.com/ads',
         image_url: 'https://img.example.com/ad.png',
+        interaction: 'form',
         dismiss_seconds: 10,
         campaign_id: 'camp-1',
         created_at: '2026-04-25T00:00:00Z',
         campaign: {
           id: 'camp-1',
           name: 'Campanha Teste',
+          type: 'cpa',
           format: 'image',
+          logo_url: 'https://img.example.com/logo.png',
+          brand_color: '#FF5733',
           priority: 50,
           status: 'active',
           schedule_start: null,
@@ -85,6 +90,9 @@ describe('SupabaseAdConfigRepository', () => {
     expect(c.dismissSeconds).toBe(10)
     expect(c.priority).toBe(50)
     expect(c.imageUrl).toBe('https://img.example.com/ad.png')
+    expect(c.logoUrl).toBe('https://img.example.com/logo.png')
+    expect(c.brandColor).toBe('#FF5733')
+    expect(c.interaction).toBe('form')
     expect(c.targetCategories).toEqual(['tech'])
     expect(c.impressionsTarget).toBe(1000)
     expect(c.impressionsDelivered).toBe(200)
@@ -106,11 +114,13 @@ describe('SupabaseAdConfigRepository', () => {
         cta_text: 'Read more',
         cta_url: '/blog',
         image_url: null,
+        interaction: 'link',
         dismiss_seconds: 0,
         campaign_id: 'camp-house',
         created_at: '2026-04-25T00:00:00Z',
         campaign: {
-          id: 'camp-house', name: 'House', format: 'house',
+          id: 'camp-house', name: 'House', type: 'house', format: 'house',
+          logo_url: null, brand_color: null,
           priority: 10, status: 'active',
           schedule_start: null, schedule_end: null,
           target_categories: [], impressions_target: null,

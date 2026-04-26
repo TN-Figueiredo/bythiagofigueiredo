@@ -13,7 +13,7 @@ const nextConfig: NextConfig = {
   // SiteSwitcherProvider, useSiteSwitcher) live under `./site-switcher` with an
   // explicit `'use client'` banner in the published bundle — the consumer no
   // longer needs to add admin to `transpilePackages`.
-  transpilePackages: ['@tn-figueiredo/cms', '@tn-figueiredo/cms-reader', '@tn-figueiredo/newsletter', '@tn-figueiredo/newsletter-admin', '@tn-figueiredo/cms-admin'],
+  transpilePackages: ['@tn-figueiredo/cms', '@tn-figueiredo/cms-reader', '@tn-figueiredo/newsletter', '@tn-figueiredo/newsletter-admin', '@tn-figueiredo/cms-admin', '@tn-figueiredo/ad-components'],
 
   // Sprint 5a Track E — enable .mdx as page/module file extensions so that
   // `import('@/content/legal/privacy.pt-BR.mdx')` works for the /privacy and
