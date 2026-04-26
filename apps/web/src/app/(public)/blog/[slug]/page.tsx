@@ -40,7 +40,6 @@ import {
   BookmarkAd,
   CodaAd,
   DoormanAd,
-  BowtieAd,
 } from '@/components/blog'
 import { loadAdCreatives } from '@/lib/ads/resolve'
 import { BlogArticleClient } from './blog-article-client'
@@ -248,7 +247,6 @@ export default async function BlogDetailPage({ params }: Props) {
                   nextExcerpt={postExtras?.series_next_excerpt}
                   locale={locale}
                 />
-                {creatives.inline_end && <BowtieAd creative={creatives.inline_end} locale={adLocale} />}
                 <PostFootnotes footnotes={footnotes} />
                 <PostColophon text={postExtras?.colophon} />
                 <div className="blog-ad-slot">

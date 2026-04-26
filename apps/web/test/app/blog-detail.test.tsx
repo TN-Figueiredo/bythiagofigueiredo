@@ -182,13 +182,6 @@ describe('BlogDetailPage', () => {
     expect(container.textContent).toContain('resposta do autor')
   })
 
-  it('renders newsletter CTA', async () => {
-    const jsx = await BlogDetailPage({ params: Promise.resolve({ slug: 'hello' }) })
-    const { container } = render(jsx as never)
-    expect(container.textContent).toContain('Newsletter')
-    expect(container.querySelector('input[type="email"]')).toBeTruthy()
-  })
-
   it('calls notFound when post missing', async () => {
     vi.doMock('../../lib/cms/repositories', () => ({
       postRepo: () => ({

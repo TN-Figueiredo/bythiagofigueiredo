@@ -33,7 +33,6 @@ const SLOT_KEYS = [
   'rail_left',
   'rail_right',
   'inline_mid',
-  'inline_end',
   'block_bottom',
 ] as const
 

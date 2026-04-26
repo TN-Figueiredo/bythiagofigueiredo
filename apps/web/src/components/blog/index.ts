@@ -33,7 +33,6 @@ export {
   BookmarkAd,
   CodaAd,
   DoormanAd,
-  BowtieAd,
   AdLabel,
   adLabel,
 } from './ads'
