@@ -81,7 +81,8 @@ export default async function AdsAdminPage({ searchParams }: PageProps) {
   const configs      = configsResult.status === 'fulfilled' ? configsResult.value : null
   const placeholders = placeholdersResult.status === 'fulfilled' ? (placeholdersResult.value ?? []) : []
   const media        = mediaResult.status === 'fulfilled' ? (mediaResult.value ?? []) : []
-  const inquiries    = inquiriesResult.status === 'fulfilled' ? (inquiriesResult.value ?? []) : []
+  const inquiriesData = inquiriesResult.status === 'fulfilled' ? inquiriesResult.value : null
+  const inquiries = inquiriesData?.inquiries ?? []
 
   const adminConfig: AdAdminConfig = {
     appId: APP_ID,

@@ -3,6 +3,8 @@
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { createClient } from '@supabase/supabase-js'
 import type { CampaignFormData, PlaceholderFormData } from '@tn-figueiredo/ad-engine-admin'
+import { requireArea } from '@tn-figueiredo/auth-nextjs/server'
+import { captureServerActionError } from '@/lib/sentry-wrap'
 
 function getSupabaseAdmin() {
   return createClient(
@@ -12,11 +14,11 @@ function getSupabaseAdmin() {
   )
 }
 
-// Extended fields pending ad-engine-admin@0.3.0
 type ExtData = CampaignFormData & Record<string, unknown>
 type ExtCreative = Record<string, unknown>
 
 export async function createCampaign(data: CampaignFormData): Promise<void> {
+  await requireArea('admin')
   const supabase = getSupabaseAdmin()
   const ext = data as ExtData
 
@@ -40,7 +42,10 @@ export async function createCampaign(data: CampaignFormData): Promise<void> {
     .select('id')
     .single()
 
-  if (error) throw new Error(error.message)
+  if (error) {
+    captureServerActionError(error, { action: 'create_campaign' })
+    throw new Error(error.message)
+  }
 
   const creatives = data.creatives ? Object.values(data.creatives) : []
   if (creatives.length > 0) {
@@ -61,7 +66,10 @@ export async function createCampaign(data: CampaignFormData): Promise<void> {
         }
       }),
     )
-    if (ce) throw new Error(ce.message)
+    if (ce) {
+      captureServerActionError(ce, { action: 'create_campaign_creatives', campaign_id: campaign.id as string })
+      throw new Error(ce.message)
+    }
   }
 
   revalidatePath('/admin/ads')
@@ -69,6 +77,7 @@ export async function createCampaign(data: CampaignFormData): Promise<void> {
 }
 
 export async function updateCampaign(id: string, data: CampaignFormData): Promise<void> {
+  await requireArea('admin')
   const supabase = getSupabaseAdmin()
   const ext = data as ExtData
 
@@ -92,7 +101,10 @@ export async function updateCampaign(id: string, data: CampaignFormData): Promis
     })
     .eq('id', id)
 
-  if (error) throw new Error(error.message)
+  if (error) {
+    captureServerActionError(error, { action: 'update_campaign', campaign_id: id })
+    throw new Error(error.message)
+  }
 
   if (data.creatives !== undefined) {
     await supabase.from('ad_slot_creatives').delete().eq('campaign_id', id)
@@ -116,7 +128,10 @@ export async function updateCampaign(id: string, data: CampaignFormData): Promis
           }
         }),
       )
-      if (ce) throw new Error(ce.message)
+      if (ce) {
+        captureServerActionError(ce, { action: 'update_campaign_creatives', campaign_id: id })
+        throw new Error(ce.message)
+      }
     }
   }
 
@@ -125,19 +140,24 @@ export async function updateCampaign(id: string, data: CampaignFormData): Promis
 }
 
 export async function deleteCampaign(id: string): Promise<void> {
+  await requireArea('admin')
   const supabase = getSupabaseAdmin()
-  // Cascade deletes creatives and metrics via FK ON DELETE CASCADE
   const { error } = await supabase.from('ad_campaigns').delete().eq('id', id)
-  if (error) throw new Error(error.message)
+  if (error) {
+    captureServerActionError(error, { action: 'delete_campaign', campaign_id: id })
+    throw new Error(error.message)
+  }
   revalidatePath('/admin/ads')
   revalidateTag('ads')
 }
 
 export async function uploadMedia(_file: File): Promise<{ id: string; url: string }> {
+  await requireArea('admin')
   throw new Error('Not implemented')
 }
 
 export async function deleteMedia(_id: string): Promise<void> {
+  await requireArea('admin')
   throw new Error('Not implemented')
 }
 
@@ -145,6 +165,7 @@ export async function updatePlaceholder(
   slotId: string,
   data: Partial<PlaceholderFormData>,
 ): Promise<void> {
+  await requireArea('admin')
   const supabase = getSupabaseAdmin()
 
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() }
@@ -160,7 +181,10 @@ export async function updatePlaceholder(
     .from('ad_placeholders')
     .upsert({ slot_id: slotId, app_id: 'bythiagofigueiredo', ...update }, { onConflict: 'slot_id' })
 
-  if (error) throw new Error(error.message)
+  if (error) {
+    captureServerActionError(error, { action: 'update_placeholder', slot_id: slotId })
+    throw new Error(error.message)
+  }
   revalidatePath('/admin/ads')
   revalidateTag('ads')
 }

@@ -2,6 +2,11 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@supabase/supabase-js'
+import { requireArea } from '@tn-figueiredo/auth-nextjs/server'
+import { captureServerActionError } from '@/lib/sentry-wrap'
+
+const VALID_STATUSES = ['pending', 'contacted', 'negotiating', 'converted', 'archived'] as const
+const MAX_NOTES_LENGTH = 5000
 
 function getSupabaseAdmin() {
   return createClient(
@@ -12,6 +17,12 @@ function getSupabaseAdmin() {
 }
 
 export async function updateInquiryStatus(id: string, status: string): Promise<void> {
+  await requireArea('admin')
+
+  if (!VALID_STATUSES.includes(status as typeof VALID_STATUSES[number])) {
+    throw new Error(`Invalid status: ${status}`)
+  }
+
   const supabase = getSupabaseAdmin()
 
   const update: Record<string, unknown> = { status }
@@ -27,11 +38,20 @@ export async function updateInquiryStatus(id: string, status: string): Promise<v
     .update(update)
     .eq('id', id)
 
-  if (error) throw new Error(error.message)
+  if (error) {
+    captureServerActionError(error, { action: 'update_inquiry_status', inquiry_id: id })
+    throw new Error(error.message)
+  }
   revalidatePath('/admin/ads')
 }
 
 export async function updateInquiryNotes(id: string, notes: string): Promise<void> {
+  await requireArea('admin')
+
+  if (notes.length > MAX_NOTES_LENGTH) {
+    throw new Error(`Notes too long (max ${MAX_NOTES_LENGTH} characters)`)
+  }
+
   const supabase = getSupabaseAdmin()
 
   const { error } = await supabase
@@ -39,6 +59,9 @@ export async function updateInquiryNotes(id: string, notes: string): Promise<voi
     .update({ admin_notes: notes || null })
     .eq('id', id)
 
-  if (error) throw new Error(error.message)
+  if (error) {
+    captureServerActionError(error, { action: 'update_inquiry_notes', inquiry_id: id })
+    throw new Error(error.message)
+  }
   revalidatePath('/admin/ads')
 }
