@@ -111,7 +111,7 @@ DO $$ BEGIN
   ALTER TABLE public.ad_events
     ADD CONSTRAINT ad_events_ad_id_fkey
       FOREIGN KEY (ad_id) REFERENCES public.ad_campaigns(id) ON DELETE SET NULL;
-EXCEPTION WHEN duplicate_object THEN NULL;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
 END $$;
 
 -- ============================================================
@@ -123,14 +123,14 @@ DO $$ BEGIN
   ALTER TABLE public.ad_slot_creatives
     ADD CONSTRAINT ad_slot_creatives_campaign_slot_locale_unique
       UNIQUE (campaign_id, slot_key, locale);
-EXCEPTION WHEN duplicate_object THEN NULL;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
 END $$;
 
 DO $$ BEGIN
   ALTER TABLE public.ad_slot_creatives
     ADD CONSTRAINT ad_slot_creatives_interaction_check
       CHECK (interaction IN ('link', 'form'));
-EXCEPTION WHEN duplicate_object THEN NULL;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
 END $$;
 
 -- From 20260501100004_ad_inquiries_notes_constraint.sql
@@ -138,7 +138,7 @@ DO $$ BEGIN
   ALTER TABLE public.ad_inquiries
     ADD CONSTRAINT ad_inquiries_admin_notes_length
       CHECK (admin_notes IS NULL OR length(admin_notes) <= 5000);
-EXCEPTION WHEN duplicate_object THEN NULL;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
 END $$;
 
 -- From 20260501100005_ad_engine_org_adsense_columns.sql
@@ -146,14 +146,14 @@ DO $$ BEGIN
   ALTER TABLE public.organizations
     ADD CONSTRAINT organizations_adsense_publisher_id_format
       CHECK (adsense_publisher_id IS NULL OR adsense_publisher_id ~ '^ca-pub-[0-9]+$');
-EXCEPTION WHEN duplicate_object THEN NULL;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
 END $$;
 
 DO $$ BEGIN
   ALTER TABLE public.organizations
     ADD CONSTRAINT organizations_adsense_sync_status_check
       CHECK (adsense_sync_status IN ('ok', 'error', 'pending', 'disconnected'));
-EXCEPTION WHEN duplicate_object THEN NULL;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
 END $$;
 
 -- From 20260501100008_ad_slot_creatives_image_metadata.sql
@@ -164,7 +164,7 @@ DO $$ BEGIN
         (image_width IS NULL AND image_height IS NULL)
         OR (image_width > 0 AND image_height > 0)
       );
-EXCEPTION WHEN duplicate_object THEN NULL;
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
 END $$;
 
 -- ============================================================
