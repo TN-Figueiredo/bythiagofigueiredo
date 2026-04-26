@@ -20,7 +20,6 @@ import {
 } from '@tn-figueiredo/ad-engine-admin/server'
 import { InquiriesList, PlaceholderManager } from '@tn-figueiredo/ad-engine-admin/client'
 import { SITE_AD_SLOTS } from '@app/shared'
-import type { AdSlotDefinition } from '@tn-figueiredo/ad-engine'
 import { requireArea } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import Link from 'next/link'
@@ -84,7 +83,7 @@ export default async function AdsAdminPage({ searchParams }: PageProps) {
 
   const adminConfig: AdAdminConfig = {
     appId: AD_APP_ID,
-    slots: SITE_AD_SLOTS as unknown as AdSlotDefinition[],
+    slots: SITE_AD_SLOTS as unknown as AdAdminConfig['slots'],
     basePath: '/admin/ads',
     locale: 'pt-BR',
     currency: 'BRL',

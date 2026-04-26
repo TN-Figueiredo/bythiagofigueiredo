@@ -125,14 +125,78 @@ export async function deleteCampaign(id: string): Promise<void> {
   revalidateTag('ads')
 }
 
-export async function uploadMedia(_file: File): Promise<{ id: string; url: string }> {
+export async function uploadMedia(file: File): Promise<{ id: string; url: string }> {
   await requireArea('admin')
-  throw new Error('Not implemented')
+  const supabase = getSupabaseServiceClient()
+
+  const ext = file.name.split('.').pop() ?? 'bin'
+  const storagePath = `ads/media/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+
+  const { data: uploadData, error: uploadError } = await supabase.storage
+    .from('media')
+    .upload(storagePath, file, { contentType: file.type, upsert: false })
+
+  if (uploadError) {
+    captureServerActionError(uploadError, { action: 'upload_media' })
+    throw new Error(uploadError.message)
+  }
+
+  const { data: urlData } = supabase.storage.from('media').getPublicUrl(uploadData.path)
+  const publicUrl = urlData.publicUrl
+
+  const { data: row, error: insertError } = await supabase
+    .from('ad_media')
+    .insert({
+      app_id: AD_APP_ID,
+      storage_path: uploadData.path,
+      public_url: publicUrl,
+      mime_type: file.type,
+      file_name: file.name,
+    })
+    .select('id')
+    .single()
+
+  if (insertError) {
+    captureServerActionError(insertError, { action: 'upload_media_insert' })
+    throw new Error(insertError.message)
+  }
+
+  return { id: (row as { id: string }).id, url: publicUrl }
 }
 
-export async function deleteMedia(_id: string): Promise<void> {
+export async function deleteMedia(id: string): Promise<void> {
   await requireArea('admin')
-  throw new Error('Not implemented')
+  const supabase = getSupabaseServiceClient()
+
+  const { data: row, error: fetchError } = await supabase
+    .from('ad_media')
+    .select('storage_path')
+    .eq('id', id)
+    .single()
+
+  if (fetchError) {
+    captureServerActionError(fetchError, { action: 'delete_media_fetch', media_id: id })
+    throw new Error(fetchError.message)
+  }
+
+  const { error: storageError } = await supabase.storage
+    .from('media')
+    .remove([(row as { storage_path: string }).storage_path])
+
+  if (storageError) {
+    captureServerActionError(storageError, { action: 'delete_media_storage', media_id: id })
+    throw new Error(storageError.message)
+  }
+
+  const { error: deleteError } = await supabase
+    .from('ad_media')
+    .delete()
+    .eq('id', id)
+
+  if (deleteError) {
+    captureServerActionError(deleteError, { action: 'delete_media_row', media_id: id })
+    throw new Error(deleteError.message)
+  }
 }
 
 export async function updateCampaignStatus(id: string, status: string): Promise<void> {

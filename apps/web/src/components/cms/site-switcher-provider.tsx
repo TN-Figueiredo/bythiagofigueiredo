@@ -36,7 +36,7 @@ export function CmsSiteSwitcherSlot(): ReactNode {
   const { sites, currentSiteId, setCurrentSiteId } = useSiteSwitcher()
   return (
     <CmsSiteSwitcher
-      sites={sites as AccessibleSite[]}
+      sites={sites as unknown as Parameters<typeof CmsSiteSwitcher>[0]['sites']}
       currentSiteId={currentSiteId}
       onChange={setCurrentSiteId}
     />

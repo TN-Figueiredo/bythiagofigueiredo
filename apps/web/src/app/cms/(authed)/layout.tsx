@@ -36,9 +36,16 @@ export default async function Layout({ children }: { children: ReactNode }) {
   await requireArea('cms')
 
   const { data: sitesData } = await supabase.rpc('user_accessible_sites')
-  const sites = (sitesData ?? []) as AccessibleSite[]
-  const currentSiteId = sites[0]?.site_id ?? ''
-  const currentSite = sites.find((s) => s.site_id === currentSiteId)
+  const rawSites = (sitesData ?? []) as Array<{ site_id: string; site_name: string; site_slug: string; primary_domain: string; user_role: string }>
+  const sites = rawSites.map((s) => ({
+    id: s.site_id,
+    slug: s.site_slug,
+    name: s.site_name,
+    primary_domain: s.primary_domain,
+    logo_url: null,
+  })) as AccessibleSite[]
+  const currentSiteId = rawSites[0]?.site_id ?? ''
+  const currentSite = rawSites.find((s) => s.site_id === currentSiteId)
   const userDisplayName = user.email ?? 'User'
   const userRole = currentSite?.user_role ?? 'reporter'
 

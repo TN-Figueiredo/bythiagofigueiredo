@@ -51,7 +51,13 @@ export default async function Layout({ children }: { children: ReactNode }) {
   // Track F3 — resolve accessible sites for the admin shell. Same contract
   // as /cms/(authed)/layout.tsx; see note there.
   const { data: sitesData } = await supabase.rpc('user_accessible_sites')
-  const sites = (sitesData ?? []) as AccessibleSite[]
+  const sites = (sitesData ?? []).map((s: Record<string, unknown>) => ({
+    id: s.site_id as string,
+    slug: s.site_slug as string,
+    name: s.site_name as string,
+    primary_domain: s.primary_domain as string,
+    logo_url: null,
+  })) as AccessibleSite[]
 
   return (
     <AdminShellWithSwitcher

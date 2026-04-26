@@ -16,21 +16,21 @@ function buildMockClient() {
 beforeEach(() => vi.clearAllMocks())
 
 describe('SupabaseAdEventRepository', () => {
-  it('inserts event including ad_id when provided', async () => {
+  it('inserts event including ad_id when campaignId is provided', async () => {
     const { client, chain } = buildMockClient()
-    const repo = new SupabaseAdEventRepository(client as any)
+    const repo = new SupabaseAdEventRepository(client as any, 'bythiagofigueiredo')
 
     await repo.insert({
-      adId: 'ad-uuid-1',
-      eventType: 'impression',
+      campaignId: 'camp-uuid-1',
+      type: 'impression',
       userHash: 'abc123',
-      appId: 'bythiagofigueiredo',
-      slotId: 'article_top',
+      slotKey: 'article_top',
+      timestamp: Date.now(),
     })
 
     expect(client.from).toHaveBeenCalledWith('ad_events')
     expect(chain.insert).toHaveBeenCalledWith({
-      ad_id: 'ad-uuid-1',
+      ad_id: 'camp-uuid-1',
       event_type: 'impression',
       user_hash: 'abc123',
       app_id: 'bythiagofigueiredo',
@@ -38,16 +38,16 @@ describe('SupabaseAdEventRepository', () => {
     })
   })
 
-  it('omits ad_id field when adId is null', async () => {
+  it('omits ad_id field when campaignId is null', async () => {
     const { client, chain } = buildMockClient()
-    const repo = new SupabaseAdEventRepository(client as any)
+    const repo = new SupabaseAdEventRepository(client as any, 'bythiagofigueiredo')
 
     await repo.insert({
-      adId: null,
-      eventType: 'click',
+      campaignId: null,
+      type: 'click',
       userHash: 'def456',
-      appId: 'bythiagofigueiredo',
-      slotId: 'sidebar_right',
+      slotKey: 'sidebar_right',
+      timestamp: Date.now(),
     })
 
     const arg = chain.insert.mock.calls[0]![0] as Record<string, unknown>
@@ -63,23 +63,23 @@ describe('SupabaseAdEventRepository', () => {
   it('throws when Supabase returns an error', async () => {
     const { client, chain } = buildMockClient()
     chain.insert.mockResolvedValue({ error: { message: 'insert failed' } })
-    const repo = new SupabaseAdEventRepository(client as any)
+    const repo = new SupabaseAdEventRepository(client as any, 'btf')
 
     await expect(
-      repo.insert({ adId: null, eventType: 'dismiss', userHash: 'x', appId: 'btf', slotId: 'below_fold' }),
+      repo.insert({ campaignId: null, type: 'dismiss', userHash: 'x', slotKey: 'below_fold', timestamp: Date.now() }),
     ).rejects.toMatchObject({ message: 'insert failed' })
   })
 
-  it('handles all four event types', async () => {
+  it('handles all three event types', async () => {
     const { client, chain } = buildMockClient()
-    const repo = new SupabaseAdEventRepository(client as any)
+    const repo = new SupabaseAdEventRepository(client as any, 'btf')
 
-    for (const eventType of ['impression', 'click', 'dismiss', 'interest'] as const) {
+    for (const type of ['impression', 'click', 'dismiss'] as const) {
       chain.insert.mockResolvedValue({ error: null })
-      await repo.insert({ adId: null, eventType, userHash: 'u', appId: 'btf', slotId: 'article_top' })
+      await repo.insert({ campaignId: null, type, userHash: 'u', slotKey: 'article_top', timestamp: Date.now() })
       const lastCall = chain.insert.mock.calls.at(-1)
       const arg = lastCall![0] as Record<string, unknown>
-      expect(arg.event_type).toBe(eventType)
+      expect(arg.event_type).toBe(type)
     }
   })
 })

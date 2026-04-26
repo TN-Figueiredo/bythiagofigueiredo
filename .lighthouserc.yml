@@ -23,5 +23,8 @@ ci:
       uses-rel-canonical: error
       hreflang: error
       structured-data: warn
+      cumulative-layout-shift:
+        - error
+        - maxNumericValue: 0.1
   upload:
     target: temporary-public-storage

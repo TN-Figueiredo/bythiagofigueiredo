@@ -90,6 +90,7 @@ async function fetchAdCreatives(locale: string): Promise<SlotMap> {
     )
 
     for (const row of sorted) {
+      if (!(SLOT_KEYS as readonly string[]).includes(row.slot_key)) continue
       if (killedSlots.has(row.slot_key)) continue
       if (!row.campaign || row.campaign.status !== 'active') continue
       if (row.campaign.schedule_start && row.campaign.schedule_start > now) continue
@@ -143,6 +144,44 @@ async function fetchAdCreatives(locale: string): Promise<SlotMap> {
   }
 
   return map
+}
+
+export function mapResolutionToCreativeData(
+  slotKey: string,
+  resolution: {
+    source: string
+    creative?: {
+      campaign_id: string | null
+      type: string
+      interaction: string | null
+      title: string | null
+      body: string | null
+      cta_text: string | null
+      cta_url: string | null
+      image_url: string | null
+      dismiss_seconds: number | null
+      logo_url: string | null
+      brand_color: string | null
+    } | null
+  },
+): AdCreativeData | null {
+  if (resolution.source === 'empty' || !resolution.creative) return null
+  const c = resolution.creative
+  return {
+    campaignId: c.campaign_id,
+    slotKey,
+    type: (c.type as 'house' | 'cpa') ?? 'house',
+    source: resolution.source as 'campaign' | 'placeholder',
+    interaction: (c.interaction as 'link' | 'form') ?? 'link',
+    title: c.title ?? '',
+    body: c.body ?? '',
+    ctaText: c.cta_text ?? '',
+    ctaUrl: c.cta_url ?? '',
+    imageUrl: c.image_url ?? null,
+    logoUrl: c.logo_url ?? null,
+    brandColor: c.brand_color ?? '#6B7280',
+    dismissSeconds: c.dismiss_seconds ?? 0,
+  }
 }
 
 export const loadAdCreatives = unstable_cache(

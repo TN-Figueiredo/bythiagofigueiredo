@@ -228,4 +228,24 @@ describe('loadAdCreatives', () => {
     const result = await load('en')
     expect(result.inline_mid).toBeUndefined()
   })
+
+  it('does not include inline_end slot (removed in 1.0.0)', async () => {
+    setupCalls({
+      creatives: [makeRow('inline_end', makeCampaign())],
+    })
+    const load = await loadFresh()
+    const result = await load('en')
+    expect(result.inline_end).toBeUndefined()
+  })
+
+  it('returns non-empty when master kill switch is enabled', async () => {
+    const campaign = makeCampaign()
+    setupCalls({
+      masterEnabled: true,
+      creatives: [makeRow('banner_top', campaign)],
+    })
+    const load = await loadFresh()
+    const result = await load('en')
+    expect(result.banner_top).toBeDefined()
+  })
 })

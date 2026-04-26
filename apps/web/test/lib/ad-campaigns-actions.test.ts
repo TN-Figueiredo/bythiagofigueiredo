@@ -23,17 +23,33 @@ const mockInsertChain = makeChainable()
 const mockUpdateChain = makeChainable()
 const mockDeleteChain = makeChainable()
 const mockUpsertChain = makeChainable()
+const mockSelectChain = makeChainable()
 
 const mockChain = {
   insert: vi.fn(() => mockInsertChain),
   update: vi.fn(() => mockUpdateChain),
   delete: vi.fn(() => mockDeleteChain),
   upsert: vi.fn(() => mockUpsertChain),
+  select: vi.fn(() => mockSelectChain),
 }
 const mockFrom = vi.fn(() => mockChain)
 
+/* ---------------------------------------------------------------------------
+ * Storage mock
+ * -------------------------------------------------------------------------*/
+const mockStorageUpload = vi.fn()
+const mockStorageRemove = vi.fn()
+const mockStorageGetPublicUrl = vi.fn()
+const mockStorageBucket = {
+  upload: mockStorageUpload,
+  remove: mockStorageRemove,
+  getPublicUrl: mockStorageGetPublicUrl,
+}
+const mockStorageFrom = vi.fn(() => mockStorageBucket)
+const mockStorage = { from: mockStorageFrom }
+
 vi.mock('@/lib/supabase/service', () => ({
-  getSupabaseServiceClient: () => ({ from: mockFrom }),
+  getSupabaseServiceClient: () => ({ from: mockFrom, storage: mockStorage }),
 }))
 
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
@@ -79,6 +95,10 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockResult.data = { id: 'c-1' }
   mockResult.error = null
+  // Default storage happy-path responses
+  mockStorageUpload.mockResolvedValue({ data: { path: 'ads/media/test.png' }, error: null })
+  mockStorageRemove.mockResolvedValue({ data: null, error: null })
+  mockStorageGetPublicUrl.mockReturnValue({ data: { publicUrl: 'https://cdn.example.com/ads/media/test.png' } })
 })
 
 /* ---------------------------------------------------------------------------
@@ -244,5 +264,122 @@ describe('fetchCampaignById', () => {
     const { fetchCampaignById } = await import(actionsPath)
     await fetchCampaignById('c-1')
     expect(requireArea).toHaveBeenCalledWith('admin')
+  })
+})
+
+/* ---------------------------------------------------------------------------
+ * uploadMedia
+ * -------------------------------------------------------------------------*/
+describe('uploadMedia', () => {
+  it('calls requireArea("admin") before uploading', async () => {
+    const { uploadMedia } = await import(actionsPath)
+    const file = new File(['data'], 'test.png', { type: 'image/png' })
+    await uploadMedia(file)
+    expect(requireArea).toHaveBeenCalledWith('admin')
+  })
+
+  it('uploads to storage bucket "media" with correct content type', async () => {
+    const { uploadMedia } = await import(actionsPath)
+    const file = new File(['data'], 'photo.jpg', { type: 'image/jpeg' })
+    await uploadMedia(file)
+    expect(mockStorageFrom).toHaveBeenCalledWith('media')
+    const [path, , opts] = mockStorageUpload.mock.calls[0]
+    expect(path).toMatch(/^ads\/media\/.+\.jpg$/)
+    expect(opts).toMatchObject({ contentType: 'image/jpeg', upsert: false })
+  })
+
+  it('inserts a row into ad_media with app_id, mime_type, file_name', async () => {
+    const { uploadMedia } = await import(actionsPath)
+    const file = new File(['data'], 'banner.png', { type: 'image/png' })
+    await uploadMedia(file)
+    expect(mockFrom).toHaveBeenCalledWith('ad_media')
+    const insertArg = mockChain.insert.mock.calls[0][0]
+    expect(insertArg.app_id).toBe('bythiagofigueiredo')
+    expect(insertArg.mime_type).toBe('image/png')
+    expect(insertArg.file_name).toBe('banner.png')
+    expect(insertArg.public_url).toBe('https://cdn.example.com/ads/media/test.png')
+  })
+
+  it('returns { id, url } from inserted row', async () => {
+    const { uploadMedia } = await import(actionsPath)
+    const file = new File(['data'], 'img.png', { type: 'image/png' })
+    const result = await uploadMedia(file)
+    expect(result.id).toBe('c-1')
+    expect(result.url).toBe('https://cdn.example.com/ads/media/test.png')
+  })
+
+  it('throws and captures Sentry error when storage upload fails', async () => {
+    const { uploadMedia } = await import(actionsPath)
+    mockStorageUpload.mockResolvedValueOnce({ data: null, error: { message: 'storage boom' } })
+    const file = new File(['data'], 'img.png', { type: 'image/png' })
+    await expect(uploadMedia(file)).rejects.toThrow('storage boom')
+    expect(captureServerActionError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'storage boom' }),
+      expect.objectContaining({ action: 'upload_media' }),
+    )
+  })
+
+  it('throws and captures Sentry error when ad_media insert fails', async () => {
+    const { uploadMedia } = await import(actionsPath)
+    mockResult.error = { message: 'insert boom' }
+    mockResult.data = null
+    const file = new File(['data'], 'img.png', { type: 'image/png' })
+    await expect(uploadMedia(file)).rejects.toThrow('insert boom')
+    expect(captureServerActionError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'insert boom' }),
+      expect.objectContaining({ action: 'upload_media_insert' }),
+    )
+  })
+})
+
+/* ---------------------------------------------------------------------------
+ * deleteMedia
+ * -------------------------------------------------------------------------*/
+describe('deleteMedia', () => {
+  it('calls requireArea("admin") before deleting', async () => {
+    const { deleteMedia } = await import(actionsPath)
+    mockResult.data = { storage_path: 'ads/media/test.png' }
+    await deleteMedia('m-1')
+    expect(requireArea).toHaveBeenCalledWith('admin')
+  })
+
+  it('fetches storage_path from ad_media then removes from storage', async () => {
+    const { deleteMedia } = await import(actionsPath)
+    mockResult.data = { storage_path: 'ads/media/abc.png' }
+    await deleteMedia('m-1')
+    expect(mockFrom).toHaveBeenCalledWith('ad_media')
+    expect(mockStorageFrom).toHaveBeenCalledWith('media')
+    expect(mockStorageRemove).toHaveBeenCalledWith(['ads/media/abc.png'])
+  })
+
+  it('deletes the ad_media row after removing from storage', async () => {
+    const { deleteMedia } = await import(actionsPath)
+    mockResult.data = { storage_path: 'ads/media/abc.png' }
+    await deleteMedia('m-1')
+    const deleteCalls = mockFrom.mock.calls.filter((c: unknown[]) => c[0] === 'ad_media')
+    expect(deleteCalls.length).toBeGreaterThanOrEqual(2)
+    expect(mockChain.delete).toHaveBeenCalled()
+  })
+
+  it('throws and captures Sentry error when fetch fails', async () => {
+    const { deleteMedia } = await import(actionsPath)
+    mockResult.error = { message: 'fetch boom' }
+    mockResult.data = null
+    await expect(deleteMedia('m-1')).rejects.toThrow('fetch boom')
+    expect(captureServerActionError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'fetch boom' }),
+      expect.objectContaining({ action: 'delete_media_fetch', media_id: 'm-1' }),
+    )
+  })
+
+  it('throws and captures Sentry error when storage remove fails', async () => {
+    const { deleteMedia } = await import(actionsPath)
+    mockResult.data = { storage_path: 'ads/media/abc.png' }
+    mockStorageRemove.mockResolvedValueOnce({ data: null, error: { message: 'storage remove boom' } })
+    await expect(deleteMedia('m-1')).rejects.toThrow('storage remove boom')
+    expect(captureServerActionError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'storage remove boom' }),
+      expect.objectContaining({ action: 'delete_media_storage', media_id: 'm-1' }),
+    )
   })
 })
