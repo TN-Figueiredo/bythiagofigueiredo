@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { mapResolutionToCreativeData } from '../../src/lib/ads/resolve'
 
 vi.mock('next/cache', () => ({
   unstable_cache: (fn: Function) => fn,
@@ -247,5 +248,120 @@ describe('loadAdCreatives', () => {
     const load = await loadFresh()
     const result = await load('en')
     expect(result.banner_top).toBeDefined()
+  })
+})
+
+describe('mapResolutionToCreativeData', () => {
+  const fullCreative = {
+    campaign_id: 'camp-42',
+    type: 'cpa',
+    interaction: 'form',
+    title: 'Ad Title',
+    body: 'Ad Body',
+    cta_text: 'Click Here',
+    cta_url: 'https://example.com',
+    image_url: 'https://img.example.com/ad.png',
+    dismiss_seconds: 10,
+    logo_url: 'https://img.example.com/logo.svg',
+    brand_color: '#FF5500',
+  }
+
+  it('returns null when resolution.source is "empty"', () => {
+    const result = mapResolutionToCreativeData('banner_top', {
+      source: 'empty',
+      creative: fullCreative,
+    })
+    expect(result).toBeNull()
+  })
+
+  it('returns null when resolution.creative is null', () => {
+    const result = mapResolutionToCreativeData('banner_top', {
+      source: 'campaign',
+      creative: null,
+    })
+    expect(result).toBeNull()
+  })
+
+  it('returns null when resolution.creative is undefined', () => {
+    const result = mapResolutionToCreativeData('banner_top', {
+      source: 'campaign',
+    })
+    expect(result).toBeNull()
+  })
+
+  it('returns correct AdCreativeData shape when creative exists', () => {
+    const result = mapResolutionToCreativeData('rail_left', {
+      source: 'campaign',
+      creative: fullCreative,
+    })
+
+    expect(result).not.toBeNull()
+    expect(result).toEqual({
+      campaignId: 'camp-42',
+      slotKey: 'rail_left',
+      type: 'cpa',
+      source: 'campaign',
+      interaction: 'form',
+      title: 'Ad Title',
+      body: 'Ad Body',
+      ctaText: 'Click Here',
+      ctaUrl: 'https://example.com',
+      imageUrl: 'https://img.example.com/ad.png',
+      logoUrl: 'https://img.example.com/logo.svg',
+      brandColor: '#FF5500',
+      dismissSeconds: 10,
+    })
+  })
+
+  it('maps all fields correctly including slotKey from argument', () => {
+    const result = mapResolutionToCreativeData('inline_mid', {
+      source: 'placeholder',
+      creative: fullCreative,
+    })!
+
+    expect(result.campaignId).toBe('camp-42')
+    expect(result.slotKey).toBe('inline_mid')
+    expect(result.type).toBe('cpa')
+    expect(result.source).toBe('placeholder')
+    expect(result.interaction).toBe('form')
+    expect(result.title).toBe('Ad Title')
+    expect(result.body).toBe('Ad Body')
+    expect(result.ctaText).toBe('Click Here')
+    expect(result.ctaUrl).toBe('https://example.com')
+    expect(result.imageUrl).toBe('https://img.example.com/ad.png')
+    expect(result.logoUrl).toBe('https://img.example.com/logo.svg')
+    expect(result.brandColor).toBe('#FF5500')
+    expect(result.dismissSeconds).toBe(10)
+  })
+
+  it('applies defaults for nullable fields when creative has nulls', () => {
+    const result = mapResolutionToCreativeData('block_bottom', {
+      source: 'campaign',
+      creative: {
+        campaign_id: null,
+        type: 'house',
+        interaction: null,
+        title: null,
+        body: null,
+        cta_text: null,
+        cta_url: null,
+        image_url: null,
+        dismiss_seconds: null,
+        logo_url: null,
+        brand_color: null,
+      },
+    })!
+
+    expect(result.campaignId).toBeNull()
+    expect(result.type).toBe('house')
+    expect(result.interaction).toBe('link')
+    expect(result.title).toBe('')
+    expect(result.body).toBe('')
+    expect(result.ctaText).toBe('')
+    expect(result.ctaUrl).toBe('')
+    expect(result.imageUrl).toBeNull()
+    expect(result.logoUrl).toBeNull()
+    expect(result.brandColor).toBe('#6B7280')
+    expect(result.dismissSeconds).toBe(0)
   })
 })

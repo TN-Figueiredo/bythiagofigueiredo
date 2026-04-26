@@ -108,7 +108,11 @@ export async function updateCampaign(id: string, data: CampaignFormData): Promis
   }
 
   if (data.creatives !== undefined) {
-    await supabase.from('ad_slot_creatives').delete().eq('campaign_id', id)
+    const { error: deleteError } = await supabase.from('ad_slot_creatives').delete().eq('campaign_id', id)
+    if (deleteError) {
+      captureServerActionError(deleteError, { action: 'update_campaign_delete_creatives', campaign_id: id })
+      throw new Error(deleteError.message)
+    }
     await insertCreatives(supabase, id, data.creatives, 'update_campaign_creatives')
   }
 
