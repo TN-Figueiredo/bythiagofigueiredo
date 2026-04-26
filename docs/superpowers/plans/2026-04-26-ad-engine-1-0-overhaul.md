@@ -64,11 +64,12 @@
 
 **`apps/web/` (consumer wiring)**
 - `src/app/(public)/ad-theme.css` — CSS variables mapping
-- `src/lib/ads/consent-adapter.ts` — AdConsentAdapter bridge
-- `src/lib/ads/resolve.ts` — Complete rewrite (waterfall)
+- `src/lib/ads/consent-adapter.ts` — LgpdAdConsentAdapter bridge (LGPD→ad-components)
+- `src/lib/ads/resolve.ts` — Complete rewrite (waterfall) + mapResolutionToCreativeData()
 - `src/lib/ads/flags.ts` — Feature flag constants
 - `src/lib/ads/crypto.ts` — AES-256-GCM encrypt/decrypt
-- `src/app/api/ads/events/route.ts` — Tracking endpoint
+- `src/components/ads/ad-providers.tsx` — AdConsentProvider + conditional AdSenseScript wrapper
+- `src/app/api/ads/events/route.ts` — Tracking endpoint (rate-limited: 50 events/IP/min)
 - `src/app/api/adsense/authorize/route.ts`
 - `src/app/api/adsense/callback/route.ts`
 - `src/app/api/adsense/disconnect/route.ts`
@@ -94,14 +95,34 @@
 - `packages/shared/src/index.ts`
 - `apps/web/package.json`
 - `apps/web/next.config.ts`
-- `apps/web/src/app/(public)/layout.tsx`
+- `apps/web/src/app/(public)/layout.tsx` — AdProviders wrapper + AdSenseScript conditional
+- `apps/web/src/app/(public)/blog/[slug]/page.tsx` — remove BowtieAd, wire AdProvider context
 - `apps/web/src/app/admin/(authed)/ads/page.tsx`
 - `apps/web/src/app/admin/(authed)/ads/_actions/campaigns.ts`
 - `apps/web/src/components/blog/ads/index.ts`
+- `apps/api/package.json` — bump ad-engine@0.2.0→1.0.0, shared@0.8.0→0.9.0
+- `apps/api/src/routes/ads.ts` — remove AdKillSwitchId import
 - `.lighthouserc.yml`
 
 ### Deleted files
 - `apps/web/src/components/blog/ads/bowtie-ad.tsx` (inline_end removed)
+
+### Type mapping: AdSlotCreative → AdCreativeData → AdResolution
+
+Three related types exist across the stack. Understanding their relationship is critical:
+
+| Type | Package | Purpose |
+|------|---------|---------|
+| `AdSlotCreative` | `@tn-figueiredo/ad-engine` | DB row type — full creative data with all columns from `ad_slot_creatives` + joined `ad_campaigns` |
+| `AdResolution` | `@tn-figueiredo/ad-engine` | Waterfall return type from `resolveSlot()`. Contains `source: 'house'|'cpa'|'network'|'template'|'empty'` + optional `creative?: AdSlotCreative` + optional `networkHtml?: string` |
+| `AdCreativeData` | `@tn-figueiredo/ad-components` | Client-side rendering subset — flat object with only the fields ad components need (no DB-specific columns, no join data). Also re-exported from `apps/web/src/components/blog/ads/types.ts` for legacy compatibility |
+
+**Data flow:**
+1. Server: `resolveSlot()` returns `AdResolution` (contains `AdSlotCreative` inside)
+2. Server→Client bridge: `resolve.ts` in apps/web maps `AdResolution` → `AdCreativeData` (dropping DB columns, flattening campaign join)
+3. Client: Ad components receive `AdCreativeData` props
+
+The mapping function lives in `apps/web/src/lib/ads/resolve.ts` (Task 53) as `mapResolutionToCreativeData()`. This keeps the reusable packages decoupled: ad-engine doesn't know about ad-components types, and ad-components doesn't know about DB schemas.
 
 ---
 
@@ -113,7 +134,7 @@
 | 2 | Core Engine: ad-engine@1.0.0 (tnf-ecosystem) | 13–23 | ~12h |
 | 3 | Components: ad-components@0.1.0 NEW (tnf-ecosystem) | 24–37 | ~10h |
 | 4 | Admin: ad-engine-admin@1.0.0 + admin@0.7.0 (tnf-ecosystem) | 38–49 | ~12h |
-| 5 | Consumer Wiring: apps/web + apps/api | 50–62 | ~12h |
+| 5 | Consumer Wiring: apps/web + apps/api | 50–62a | ~14h |
 | 6 | Crons + Polish + E2E | 63–71 | ~6h |
 
 ---
@@ -7731,7 +7752,7 @@ describe('campaignFormSchema — step 3 new fields', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /path/to/tnf-ecosystem && npm run test -w packages/ad-engine-admin -- --reporter=verbose --run src/schemas.test.ts`
+Run: `cd packages/ad-engine-admin && npx vitest run -- --reporter=verbose --run src/schemas.test.ts`
 
 Expected: FAIL — `step3Fields` not exported, new fields not in schema
 
@@ -7809,7 +7830,7 @@ export interface AdAdminConfig {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /path/to/tnf-ecosystem && npm run test -w packages/ad-engine-admin -- --reporter=verbose --run src/schemas.test.ts`
+Run: `cd packages/ad-engine-admin && npx vitest run -- --reporter=verbose --run src/schemas.test.ts`
 
 Expected: PASS — all 10 assertions green
 
@@ -7910,7 +7931,7 @@ describe('fetchAdSlotConfigs', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /path/to/tnf-ecosystem && npm run test -w packages/ad-engine-admin -- --reporter=verbose --run src/queries/fetch-ad-slot-configs.test.ts`
+Run: `cd packages/ad-engine-admin && npx vitest run -- --reporter=verbose --run src/queries/fetch-ad-slot-configs.test.ts`
 
 Expected: FAIL — module not found
 
@@ -7957,7 +7978,7 @@ export async function fetchAdSlotConfigs(
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /path/to/tnf-ecosystem && npm run test -w packages/ad-engine-admin -- --reporter=verbose --run src/queries/fetch-ad-slot-configs.test.ts`
+Run: `cd packages/ad-engine-admin && npx vitest run -- --reporter=verbose --run src/queries/fetch-ad-slot-configs.test.ts`
 
 Expected: PASS — all 6 assertions green
 
@@ -8097,7 +8118,7 @@ describe('fetchDashboardStats', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /path/to/tnf-ecosystem && npm run test -w packages/ad-engine-admin -- --reporter=verbose --run src/queries/fetch-dashboard-stats.test.ts`
+Run: `cd packages/ad-engine-admin && npx vitest run -- --reporter=verbose --run src/queries/fetch-dashboard-stats.test.ts`
 
 Expected: FAIL — module not found
 
@@ -8187,7 +8208,7 @@ export async function fetchDashboardStats(
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /path/to/tnf-ecosystem && npm run test -w packages/ad-engine-admin -- --reporter=verbose --run src/queries/fetch-dashboard-stats.test.ts`
+Run: `cd packages/ad-engine-admin && npx vitest run -- --reporter=verbose --run src/queries/fetch-dashboard-stats.test.ts`
 
 Expected: PASS — all 8 assertions green
 
@@ -8285,7 +8306,7 @@ describe('fetchCategories', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /path/to/tnf-ecosystem && npm run test -w packages/ad-engine-admin -- --reporter=verbose --run src/queries/fetch-categories.test.ts`
+Run: `cd packages/ad-engine-admin && npx vitest run -- --reporter=verbose --run src/queries/fetch-categories.test.ts`
 
 Expected: FAIL — module not found
 
@@ -8313,7 +8334,7 @@ export async function fetchCategories(
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /path/to/tnf-ecosystem && npm run test -w packages/ad-engine-admin -- --reporter=verbose --run src/queries/fetch-categories.test.ts`
+Run: `cd packages/ad-engine-admin && npx vitest run -- --reporter=verbose --run src/queries/fetch-categories.test.ts`
 
 Expected: PASS — all 8 assertions green
 
@@ -8450,7 +8471,7 @@ describe('CampaignWizard', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /path/to/tnf-ecosystem && npm run test -w packages/ad-engine-admin -- --reporter=verbose --run src/client/CampaignWizard.test.tsx`
+Run: `cd packages/ad-engine-admin && npx vitest run -- --reporter=verbose --run src/client/CampaignWizard.test.tsx`
 
 Expected: FAIL — module not found
 
@@ -8738,7 +8759,7 @@ export function CampaignWizard({ initialData, categories, onSave, onCancel }: Ca
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /path/to/tnf-ecosystem && npm run test -w packages/ad-engine-admin -- --reporter=verbose --run src/client/CampaignWizard.test.tsx`
+Run: `cd packages/ad-engine-admin && npx vitest run -- --reporter=verbose --run src/client/CampaignWizard.test.tsx`
 
 Expected: PASS — all 11 assertions green
 
@@ -8831,7 +8852,7 @@ describe('CategoryPicker', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /path/to/tnf-ecosystem && npm run test -w packages/ad-engine-admin -- --reporter=verbose --run src/client/CategoryPicker.test.tsx`
+Run: `cd packages/ad-engine-admin && npx vitest run -- --reporter=verbose --run src/client/CategoryPicker.test.tsx`
 
 Expected: FAIL — module not found
 
@@ -8902,7 +8923,7 @@ export function CategoryPicker({ categories, selected, onChange }: CategoryPicke
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /path/to/tnf-ecosystem && npm run test -w packages/ad-engine-admin -- --reporter=verbose --run src/client/CategoryPicker.test.tsx`
+Run: `cd packages/ad-engine-admin && npx vitest run -- --reporter=verbose --run src/client/CategoryPicker.test.tsx`
 
 Expected: PASS — all 10 assertions green
 
@@ -9033,7 +9054,7 @@ describe('SlotConfigPanel', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /path/to/tnf-ecosystem && npm run test -w packages/ad-engine-admin -- --reporter=verbose --run src/client/SlotConfigPanel.test.tsx`
+Run: `cd packages/ad-engine-admin && npx vitest run -- --reporter=verbose --run src/client/SlotConfigPanel.test.tsx`
 
 Expected: FAIL — module not found
 
@@ -9176,7 +9197,7 @@ export function SlotConfigPanel({ slot, onSave }: SlotConfigPanelProps) {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /path/to/tnf-ecosystem && npm run test -w packages/ad-engine-admin -- --reporter=verbose --run src/client/SlotConfigPanel.test.tsx`
+Run: `cd packages/ad-engine-admin && npx vitest run -- --reporter=verbose --run src/client/SlotConfigPanel.test.tsx`
 
 Expected: PASS — all 13 assertions green
 
@@ -9296,7 +9317,7 @@ describe('SlotPreviewCard', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /path/to/tnf-ecosystem && npm run test -w packages/ad-engine-admin -- --reporter=verbose --run src/client/SlotPreviewCard.test.tsx`
+Run: `cd packages/ad-engine-admin && npx vitest run -- --reporter=verbose --run src/client/SlotPreviewCard.test.tsx`
 
 Expected: FAIL — module not found
 
@@ -9434,7 +9455,7 @@ export function SlotPreviewCard({
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /path/to/tnf-ecosystem && npm run test -w packages/ad-engine-admin -- --reporter=verbose --run src/client/SlotPreviewCard.test.tsx`
+Run: `cd packages/ad-engine-admin && npx vitest run -- --reporter=verbose --run src/client/SlotPreviewCard.test.tsx`
 
 Expected: PASS — all 12 assertions green
 
@@ -9542,7 +9563,7 @@ describe('CampaignPreviewIframe', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /path/to/tnf-ecosystem && npm run test -w packages/ad-engine-admin -- --reporter=verbose --run src/client/CampaignPreviewIframe.test.tsx`
+Run: `cd packages/ad-engine-admin && npx vitest run -- --reporter=verbose --run src/client/CampaignPreviewIframe.test.tsx`
 
 Expected: FAIL — module not found
 
@@ -9668,7 +9689,7 @@ export function CampaignPreviewIframe({ payload, className }: CampaignPreviewIfr
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /path/to/tnf-ecosystem && npm run test -w packages/ad-engine-admin -- --reporter=verbose --run src/client/CampaignPreviewIframe.test.tsx`
+Run: `cd packages/ad-engine-admin && npx vitest run -- --reporter=verbose --run src/client/CampaignPreviewIframe.test.tsx`
 
 Expected: PASS — all 9 assertions green
 
@@ -9787,7 +9808,7 @@ describe('RevenueDashboard', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /path/to/tnf-ecosystem && npm run test -w packages/ad-engine-admin -- --reporter=verbose --run src/server/RevenueDashboard.test.tsx`
+Run: `cd packages/ad-engine-admin && npx vitest run -- --reporter=verbose --run src/server/RevenueDashboard.test.tsx`
 
 Expected: FAIL — module not found
 
@@ -9904,7 +9925,7 @@ export function RevenueDashboard({
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /path/to/tnf-ecosystem && npm run test -w packages/ad-engine-admin -- --reporter=verbose --run src/server/RevenueDashboard.test.tsx`
+Run: `cd packages/ad-engine-admin && npx vitest run -- --reporter=verbose --run src/server/RevenueDashboard.test.tsx`
 
 Expected: PASS — all 11 assertions green
 
@@ -10062,7 +10083,7 @@ describe('AdSenseSettings', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /path/to/tnf-ecosystem && npm run test -w packages/admin -- --reporter=verbose --run src/components/adsense-settings.test.tsx`
+Run: `cd packages/admin && npx vitest run -- --reporter=verbose --run src/components/adsense-settings.test.tsx`
 
 Expected: FAIL — module not found
 
@@ -10226,7 +10247,7 @@ export function AdSenseSettings({
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /path/to/tnf-ecosystem && npm run test -w packages/admin -- --reporter=verbose --run src/components/adsense-settings.test.tsx`
+Run: `cd packages/admin && npx vitest run -- --reporter=verbose --run src/components/adsense-settings.test.tsx`
 
 Expected: PASS — all 16 assertions green
 
@@ -10327,7 +10348,7 @@ describe('admin exports', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /path/to/tnf-ecosystem && npm run test -w packages/ad-engine-admin -- --reporter=verbose --run src/exports.test.ts && npm run test -w packages/admin -- --reporter=verbose --run src/exports.test.ts`
+Run: `cd packages/ad-engine-admin && npx vitest run -- --reporter=verbose --run src/exports.test.ts && npm run test -w packages/admin -- --reporter=verbose --run src/exports.test.ts`
 
 Expected: FAIL — new exports missing from index files
 
@@ -10383,13 +10404,13 @@ export { AdSenseSettings } from './components/adsense-settings'
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /path/to/tnf-ecosystem && npm run test -w packages/ad-engine-admin -- --reporter=verbose --run src/exports.test.ts && npm run test -w packages/admin -- --reporter=verbose --run src/exports.test.ts`
+Run: `cd packages/ad-engine-admin && npx vitest run -- --reporter=verbose --run src/exports.test.ts && npm run test -w packages/admin -- --reporter=verbose --run src/exports.test.ts`
 
 Expected: PASS — all 12 ad-engine-admin + 1 admin assertions green
 
 - [ ] **Step 5: Run full test suite before final commit**
 
-Run: `cd /path/to/tnf-ecosystem && npm run test -w packages/ad-engine-admin -- --reporter=verbose && npm run test -w packages/admin -- --reporter=verbose`
+Run: `cd packages/ad-engine-admin && npx vitest run -- --reporter=verbose && npm run test -w packages/admin -- --reporter=verbose`
 
 Expected: PASS — all tests across both packages green
 
@@ -10456,6 +10477,94 @@ Expected: `0 errors`
 
 ```
 chore(ads): bump ad-engine@1.0.0, ad-engine-admin@1.0.0, add ad-components@0.1.0
+```
+
+---
+
+### Task 50a: Bump ad-engine in apps/api + update routes/ads.ts
+
+**Files:**
+- Modify: `apps/api/package.json`
+- Modify: `apps/api/src/routes/ads.ts`
+- Test: `apps/api/src/__tests__/ad-config-repository.test.ts`
+
+The Fastify API at `apps/api/src/routes/ads.ts` imports `createAdRoutesPlugin` from `@tn-figueiredo/ad-engine/fastify` and `AdKillSwitchId` from `@tn-figueiredo/ad-engine`. The current version is `0.2.0` — must be bumped to `1.0.0`. The `AdKillSwitchId` type was removed in 1.0.0 (kill switches are now string-based per `ad_slot_config`). The hardcoded `APP_ID` stays for now (Fastify API is secondary to the Next.js RSC resolver).
+
+- [ ] **Step 1: Bump version in apps/api/package.json**
+
+Change `@tn-figueiredo/ad-engine` from `"0.2.0"` to `"1.0.0"` and `@tn-figueiredo/shared` from `"0.8.0"` to `"0.9.0"`:
+
+```json
+"@tn-figueiredo/ad-engine": "1.0.0",
+"@tn-figueiredo/shared": "0.9.0",
+```
+
+Run: `cd /Users/figueiredo/Workspace/bythiagofigueiredo && npm install`
+
+- [ ] **Step 2: Update routes/ads.ts for ad-engine@1.0.0 types**
+
+Replace the kill switch typing (the `AdKillSwitchId` type was removed):
+
+```typescript
+// apps/api/src/routes/ads.ts
+import type { FastifyInstance, FastifyRequest } from 'fastify'
+import { createAdRoutesPlugin } from '@tn-figueiredo/ad-engine/fastify'
+import { getServiceClient } from '../lib/supabase.js'
+import { SupabaseAdConfigRepository } from '../infrastructure/repositories/supabase-ad-config-repository.js'
+import { SupabaseAdEventRepository } from '../infrastructure/repositories/supabase-ad-event-repository.js'
+
+const APP_ID = 'bythiagofigueiredo'
+
+function getUserId(request: FastifyRequest): string {
+  const auth = request.headers.authorization
+  if (!auth) return 'anonymous'
+  try {
+    const token = auth.replace(/^Bearer\s+/i, '')
+    const payload = JSON.parse(Buffer.from(token.split('.')[1]!, 'base64url').toString())
+    return (payload.sub as string) ?? 'anonymous'
+  } catch {
+    return 'anonymous'
+  }
+}
+
+export async function adsPlugin(fastify: FastifyInstance): Promise<void> {
+  const supabase = getServiceClient()
+  const adConfigRepo = new SupabaseAdConfigRepository(supabase, APP_ID)
+  const adEventRepo = new SupabaseAdEventRepository(supabase)
+
+  const getKillSwitches = async (): Promise<Record<string, boolean>> => {
+    const { data } = await supabase
+      .from('kill_switches')
+      .select('id, enabled')
+      .like('id', 'ads_%')
+    return Object.fromEntries((data ?? []).map((r) => [r.id, r.enabled as boolean]))
+  }
+
+  const getUserSegments = async (_userId: string): Promise<string[]> => {
+    return []
+  }
+
+  await fastify.register(createAdRoutesPlugin, {
+    prefix: '/ads',
+    appId: APP_ID,
+    adConfigRepo,
+    adEventRepo,
+    getUserId,
+    getKillSwitches,
+    getUserSegments,
+  })
+}
+```
+
+- [ ] **Step 3: Run typecheck + tests**
+
+Run: `cd /Users/figueiredo/Workspace/bythiagofigueiredo && npm run typecheck -w apps/api && npm run test -w apps/api 2>&1 | tail -10`
+Expected: PASS
+
+- [ ] **Step 4: Commit**
+
+```
+chore(api): bump ad-engine@1.0.0 + shared@0.9.0, update kill switch typing in ads route
 ```
 
 ---
@@ -11222,6 +11331,52 @@ async function fetchAdCreatives(locale: string): Promise<SlotMap> {
   return map
 }
 
+/**
+ * Maps an AdResolution (from @tn-figueiredo/ad-engine resolveSlot) to the
+ * AdCreativeData type that blog ad components expect. This is the bridge
+ * between the reusable engine types and the app-specific rendering types.
+ *
+ * See "Type mapping: AdSlotCreative → AdCreativeData → AdResolution" in
+ * the File Structure section for the full data flow.
+ */
+export function mapResolutionToCreativeData(
+  slotKey: string,
+  resolution: {
+    source: string
+    creative?: {
+      campaign_id: string | null
+      type: string
+      interaction: string | null
+      title: string | null
+      body: string | null
+      cta_text: string | null
+      cta_url: string | null
+      image_url: string | null
+      dismiss_seconds: number | null
+      logo_url: string | null
+      brand_color: string | null
+    } | null
+  },
+): AdCreativeData | null {
+  if (resolution.source === 'empty' || !resolution.creative) return null
+  const c = resolution.creative
+  return {
+    campaignId: c.campaign_id,
+    slotKey,
+    type: (c.type as 'house' | 'cpa') ?? 'house',
+    source: resolution.source as 'campaign' | 'placeholder',
+    interaction: (c.interaction as 'link' | 'form') ?? 'link',
+    title: c.title ?? '',
+    body: c.body ?? '',
+    ctaText: c.cta_text ?? '',
+    ctaUrl: c.cta_url ?? '',
+    imageUrl: c.image_url ?? null,
+    logoUrl: c.logo_url ?? null,
+    brandColor: c.brand_color ?? '#6B7280',
+    dismissSeconds: c.dismiss_seconds ?? 0,
+  }
+}
+
 export const loadAdCreatives = unstable_cache(
   fetchAdCreatives,
   ['ad-creatives'],
@@ -11237,7 +11392,7 @@ Expected: PASS — all 11 tests pass
 - [ ] **Step 5: Commit**
 
 ```
-fix(ads): rewrite resolve.ts — fix inverted kill-switch bug, drop inline_end slot
+fix(ads): rewrite resolve.ts — fix inverted kill-switch bug, drop inline_end slot, add mapResolutionToCreativeData bridge
 ```
 
 ---
@@ -11432,6 +11587,51 @@ describe('POST /api/ads/events', () => {
     expect(rows[0].slot_key).toBe('inline_mid')
     expect(rows[0].campaign_id).toBe('camp-99')
   })
+
+  it('returns 429 when rate limit exceeded (>50 events per IP per minute)', async () => {
+    // Fire 51 requests from the same IP — the 51st should be rate-limited.
+    // Each callRoute resets modules, so we need to hit the same module instance.
+    // Instead, test the exported rate limiter behavior directly:
+    const { POST } = await import('../../src/app/api/ads/events/route')
+    const singleEvent = {
+      events: [
+        {
+          type: 'impression' as const,
+          slotKey: 'banner_top',
+          campaignId: null,
+          userHash: 'rate-test',
+          timestamp: Date.now(),
+        },
+      ],
+    }
+
+    // Send 50 requests (should all succeed)
+    for (let i = 0; i < 50; i++) {
+      const req = new Request('http://localhost/api/ads/events', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-forwarded-for': '192.168.1.100',
+        },
+        body: JSON.stringify(singleEvent),
+      })
+      const res = await POST(req)
+      expect(res.status).toBe(204)
+    }
+
+    // 51st request should be rate-limited
+    const req = new Request('http://localhost/api/ads/events', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-forwarded-for': '192.168.1.100',
+      },
+      body: JSON.stringify(singleEvent),
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(429)
+    expect(res.headers.get('Retry-After')).toBe('60')
+  })
 })
 ```
 
@@ -11447,6 +11647,7 @@ Create `apps/web/src/app/api/ads/events/route.ts`:
 ```typescript
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
 
 const EventSchema = z.object({
@@ -11463,7 +11664,46 @@ const EventSchema = z.object({
     .max(50),
 })
 
+// --- Rate limiting: 50 events per IP per minute (spec §5 Tracking) ---
+const RATE_LIMIT_WINDOW_MS = 60_000
+const RATE_LIMIT_MAX = 50
+const ipBuckets = new Map<string, { count: number; resetAt: number }>()
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now()
+  const bucket = ipBuckets.get(ip)
+  if (!bucket || now > bucket.resetAt) {
+    ipBuckets.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS })
+    return false
+  }
+  bucket.count++
+  if (bucket.count > RATE_LIMIT_MAX) return true
+  return false
+}
+
+// Periodic cleanup to prevent unbounded memory growth
+if (typeof setInterval !== 'undefined') {
+  setInterval(() => {
+    const now = Date.now()
+    for (const [ip, bucket] of ipBuckets) {
+      if (now > bucket.resetAt) ipBuckets.delete(ip)
+    }
+  }, 300_000) // every 5 min
+}
+
 export async function POST(request: Request): Promise<Response> {
+  const ip =
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    request.headers.get('x-real-ip') ??
+    'unknown'
+
+  if (isRateLimited(ip)) {
+    return NextResponse.json(
+      { error: 'rate_limited' },
+      { status: 429, headers: { 'Retry-After': '60' } },
+    )
+  }
+
   let parsed: z.infer<typeof EventSchema>
   try {
     parsed = EventSchema.parse(await request.json())
@@ -11482,12 +11722,15 @@ export async function POST(request: Request): Promise<Response> {
     campaign_id: e.campaignId ?? null,
     user_hash: e.userHash,
     occurred_at: new Date(e.timestamp).toISOString(),
+    ip: ip !== 'unknown' ? ip : null,
   }))
 
   const { error } = await supabase.from('ad_events').insert(rows)
   if (error) {
-    // Non-critical: log but don't fail the client request
-    console.error('[ad_events_insert_failed]', error.message)
+    Sentry.captureException(new Error(error.message), {
+      tags: { component: 'ad-tracking' },
+      extra: { eventCount: rows.length, ip },
+    })
   }
 
   return new Response(null, { status: 204 })
@@ -11768,6 +12011,13 @@ export async function updateCampaign(id: string, data: CampaignFormData): Promis
 export async function deleteCampaign(id: string): Promise<void> {
   await requireArea('admin')
   const supabase = getSupabaseServiceClient()
+
+  // Fetch creatives BEFORE deleting so we can invalidate their slot tags
+  const { data: creatives } = await supabase
+    .from('ad_slot_creatives')
+    .select('slot_key')
+    .eq('campaign_id', id)
+
   const { error } = await supabase
     .from('ad_campaigns')
     .delete()
@@ -11778,6 +12028,11 @@ export async function deleteCampaign(id: string): Promise<void> {
     throw new Error(error.message)
   }
   revalidatePath('/admin/ads')
+  // Granular: invalidate each slot that had a creative from this campaign
+  const slotKeys = (creatives ?? []).map((c) => (c as { slot_key: string }).slot_key)
+  for (const key of new Set(slotKeys)) {
+    revalidateTag(`ad:slot:${key}`)
+  }
   revalidateTag('ads')
 }
 
@@ -12411,24 +12666,147 @@ feat(ads): add slot-config server actions — fetchSlotConfigs, updateSlotConfig
 
 **Files:**
 - Modify: `apps/web/src/app/(public)/blog/[slug]/page.tsx`
+- Create: `apps/web/src/lib/ads/consent-adapter.ts`
 - Test: existing `apps/web/test/components/blog/ads.test.tsx` must continue passing
+- Test: `apps/web/test/lib/ads-consent-adapter.test.ts`
 
 - [ ] **Step 1: Write the failing test**
 
-The existing test file covers the local components directly. The regression check for this task is that the blog page no longer references `BowtieAd` (which is removed in Task 59) and still type-checks. No new test is written — use the typecheck gate.
+Create `apps/web/test/lib/ads-consent-adapter.test.ts`:
 
-Run the existing test suite as a baseline before making changes:
+```typescript
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-Run: `cd /Users/figueiredo/Workspace/bythiagofigueiredo && npm run test -w apps/web -- --reporter=verbose test/components/blog/ads.test.tsx 2>&1 | tail -10`
-Expected: PASS (all existing tests pass before modification)
+// Mock the LGPD cookie consent hook
+const mockGetConsentState = vi.fn(() => ({
+  functional: true,
+  analytics: false,
+  marketing: false,
+}))
+
+vi.mock('@/components/lgpd/cookie-banner-context', () => ({
+  useCookieConsent: () => ({
+    getConsentState: mockGetConsentState,
+    subscribe: vi.fn(() => () => {}),
+  }),
+}))
+
+describe('LgpdAdConsentAdapter', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('maps LGPD marketing consent to AdConsentState.marketing', async () => {
+    mockGetConsentState.mockReturnValue({
+      functional: true,
+      analytics: true,
+      marketing: true,
+    })
+    vi.resetModules()
+    const { LgpdAdConsentAdapter } = await import(
+      '../../src/lib/ads/consent-adapter'
+    )
+    const adapter = new LgpdAdConsentAdapter(mockGetConsentState, vi.fn(() => () => {}))
+    const state = adapter.getConsent()
+    expect(state.marketing).toBe(true)
+    expect(state.analytics).toBe(true)
+    expect(state.loaded).toBe(true)
+  })
+
+  it('defaults to marketing=false when LGPD marketing not granted', async () => {
+    mockGetConsentState.mockReturnValue({
+      functional: true,
+      analytics: false,
+      marketing: false,
+    })
+    vi.resetModules()
+    const { LgpdAdConsentAdapter } = await import(
+      '../../src/lib/ads/consent-adapter'
+    )
+    const adapter = new LgpdAdConsentAdapter(mockGetConsentState, vi.fn(() => () => {}))
+    const state = adapter.getConsent()
+    expect(state.marketing).toBe(false)
+    expect(state.loaded).toBe(true)
+  })
+
+  it('subscribe returns an unsubscribe function', async () => {
+    const unsub = vi.fn()
+    const mockSubscribe = vi.fn(() => unsub)
+    vi.resetModules()
+    const { LgpdAdConsentAdapter } = await import(
+      '../../src/lib/ads/consent-adapter'
+    )
+    const adapter = new LgpdAdConsentAdapter(mockGetConsentState, mockSubscribe)
+    const cleanup = adapter.subscribe(() => {})
+    expect(typeof cleanup).toBe('function')
+    cleanup()
+    expect(unsub).toHaveBeenCalled()
+  })
+})
+```
 
 - [ ] **Step 2: Run test to verify it fails**
 
-N/A — existing tests pass. The "failure" condition will be a typecheck error after Step 3 if imports are wrong. Run: `npm run typecheck -w apps/web 2>&1 | tail -5` after Step 3 to verify.
+Run: `cd /Users/figueiredo/Workspace/bythiagofigueiredo && npm run test -w apps/web -- --reporter=verbose test/lib/ads-consent-adapter.test.ts 2>&1 | tail -15`
+Expected: FAIL — module not found
 
 - [ ] **Step 3: Write minimal implementation**
 
-In `apps/web/src/app/(public)/blog/[slug]/page.tsx`, remove the `BowtieAd` import and the `inline_end` render block. The file imports from `@/components/blog` — update the named imports to remove `BowtieAd`:
+Create `apps/web/src/lib/ads/consent-adapter.ts`:
+
+```typescript
+'use client'
+
+import * as Sentry from '@sentry/nextjs'
+import type { AdConsentAdapter, AdConsentState } from '@tn-figueiredo/ad-components'
+
+type ConsentGetter = () => { marketing: boolean; analytics: boolean }
+type ConsentSubscriber = (cb: () => void) => () => void
+
+/**
+ * Bridges the LGPD cookie consent system (from CookieBannerProvider)
+ * to the ad-components AdConsentAdapter interface.
+ *
+ * This adapter is instantiated once per page in a client component wrapper
+ * and passed to AdConsentContext.Provider so all ad components can read
+ * consent state without depending on the LGPD implementation directly.
+ */
+export class LgpdAdConsentAdapter implements AdConsentAdapter {
+  private getConsentState: ConsentGetter
+  private subscribeFn: ConsentSubscriber
+
+  constructor(getConsentState: ConsentGetter, subscribe: ConsentSubscriber) {
+    this.getConsentState = getConsentState
+    this.subscribeFn = subscribe
+  }
+
+  getConsent(): AdConsentState {
+    try {
+      const state = this.getConsentState()
+      return {
+        marketing: state.marketing,
+        analytics: state.analytics,
+        loaded: true,
+      }
+    } catch (err) {
+      Sentry.captureException(err, {
+        tags: { component: 'ad-consent' },
+      })
+      return { marketing: false, analytics: false, loaded: false }
+    }
+  }
+
+  subscribe(callback: (state: AdConsentState) => void): () => void {
+    return this.subscribeFn(() => {
+      callback(this.getConsent())
+    })
+  }
+}
+```
+
+Now update `apps/web/src/app/(public)/blog/[slug]/page.tsx`:
+
+1. Remove the `BowtieAd` import and the `inline_end` render block:
 
 Change the import block from:
 ```typescript
@@ -12455,20 +12833,204 @@ import {
 } from '@/components/blog'
 ```
 
-Remove the `inline_end` render block:
+2. Remove the `inline_end` render block:
 ```typescript
 {creatives.inline_end && <BowtieAd creative={creatives.inline_end} locale={adLocale} />}
 ```
 
+3. Verify the page's `loadAdCreatives` call still works (Task 53 rewrites this to use the new waterfall resolver; this task just removes the dead BowtieAd reference and adds the consent bridge).
+
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /Users/figueiredo/Workspace/bythiagofigueiredo && npm run test -w apps/web -- --reporter=verbose test/components/blog/ads.test.tsx 2>&1 | tail -10`
-Expected: PASS — no regressions (BowtieAd component tests still pass independently since the component file still exists; only the page import is removed here)
+Run: `cd /Users/figueiredo/Workspace/bythiagofigueiredo && npm run test -w apps/web -- --reporter=verbose test/lib/ads-consent-adapter.test.ts test/components/blog/ads.test.tsx 2>&1 | tail -15`
+Expected: PASS — consent adapter tests pass, existing ad tests unbroken
 
 - [ ] **Step 5: Commit**
 
 ```
-refactor(ads): remove BowtieAd import from blog post page — inline_end slot dropped in 1.0.0
+feat(ads): add LgpdAdConsentAdapter bridge + remove BowtieAd from blog post page
+```
+
+---
+
+### Task 58a: Wire AdSenseScript + AdConsentProvider in public layout
+
+**Files:**
+- Modify: `apps/web/src/app/(public)/layout.tsx`
+- Create: `apps/web/src/components/ads/ad-providers.tsx`
+- Test: `apps/web/test/components/ads/ad-providers.test.tsx`
+
+> **Why this task exists:** The spec (§3.4 Code Migration Step 7) requires an `<AdSenseScript>` conditional in the public layout, gated by `AD_GOOGLE_ENABLED` + publisher ID + LGPD `cookie_marketing` consent. The `<AdConsentContext.Provider>` must also wrap the children so all ad components can read consent state.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `apps/web/test/components/ads/ad-providers.test.tsx`:
+
+```tsx
+import { describe, it, expect, vi } from 'vitest'
+import { render } from '@testing-library/react'
+import React from 'react'
+
+vi.mock('@/components/lgpd/cookie-banner-context', () => ({
+  useCookieConsent: () => ({
+    getConsentState: () => ({ functional: true, analytics: false, marketing: false }),
+    subscribe: vi.fn(() => () => {}),
+  }),
+}))
+
+vi.mock('@tn-figueiredo/ad-components', () => ({
+  AdConsentContext: React.createContext(null),
+}))
+
+describe('AdProviders', () => {
+  it('renders children', async () => {
+    const { AdProviders } = await import(
+      '../../../src/components/ads/ad-providers'
+    )
+    const { getByText } = render(
+      <AdProviders googleEnabled={false} publisherId={null}>
+        <div>child</div>
+      </AdProviders>,
+    )
+    expect(getByText('child')).toBeDefined()
+  })
+
+  it('does not render script tag when googleEnabled is false', async () => {
+    const { AdProviders } = await import(
+      '../../../src/components/ads/ad-providers'
+    )
+    const { container } = render(
+      <AdProviders googleEnabled={false} publisherId={null}>
+        <div>child</div>
+      </AdProviders>,
+    )
+    expect(container.querySelector('script')).toBeNull()
+  })
+})
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `cd /Users/figueiredo/Workspace/bythiagofigueiredo && npm run test -w apps/web -- --reporter=verbose test/components/ads/ad-providers.test.tsx 2>&1 | tail -15`
+Expected: FAIL — module not found
+
+- [ ] **Step 3: Write minimal implementation**
+
+Create `apps/web/src/components/ads/ad-providers.tsx`:
+
+```tsx
+'use client'
+
+import type { ReactNode } from 'react'
+import Script from 'next/script'
+import { AdConsentContext } from '@tn-figueiredo/ad-components'
+import { useCookieConsent } from '@/components/lgpd/cookie-banner-context'
+import { LgpdAdConsentAdapter } from '@/lib/ads/consent-adapter'
+import { useMemo } from 'react'
+
+interface AdProvidersProps {
+  children: ReactNode
+  googleEnabled: boolean
+  publisherId: string | null
+}
+
+export function AdProviders({
+  children,
+  googleEnabled,
+  publisherId,
+}: AdProvidersProps) {
+  const { getConsentState, subscribe } = useCookieConsent()
+
+  const adapter = useMemo(
+    () => new LgpdAdConsentAdapter(getConsentState, subscribe),
+    [getConsentState, subscribe],
+  )
+
+  const consent = adapter.getConsent()
+  const showAdSense =
+    googleEnabled && publisherId != null && consent.marketing && consent.loaded
+
+  return (
+    <AdConsentContext.Provider value={adapter}>
+      {showAdSense && (
+        <Script
+          id="adsense-script"
+          src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${publisherId}`}
+          strategy="lazyOnload"
+          crossOrigin="anonymous"
+        />
+      )}
+      {children}
+    </AdConsentContext.Provider>
+  )
+}
+```
+
+Now modify `apps/web/src/app/(public)/layout.tsx` to wrap children with `<AdProviders>`:
+
+After the existing imports, add:
+
+```typescript
+import { AdProviders } from '@/components/ads/ad-providers'
+import { AD_GOOGLE_ENABLED } from '@/lib/ads/flags'
+```
+
+In the JSX, wrap the `{children}` block:
+
+```tsx
+// Before:
+{children}
+
+// After:
+<AdProviders
+  googleEnabled={AD_GOOGLE_ENABLED}
+  publisherId={adsensePublisherId}
+>
+  {children}
+</AdProviders>
+```
+
+The `adsensePublisherId` is fetched server-side from `ad_network_settings`:
+
+```typescript
+// Inside PublicLayout, after the existing DB queries:
+const adsensePublisherId = await getAdsensePublisherId()
+
+// Where getAdsensePublisherId is:
+async function getAdsensePublisherId(): Promise<string | null> {
+  try {
+    const supabase = getSupabaseServiceClient()
+    const { data } = await supabase
+      .from('ad_network_settings')
+      .select('publisher_id')
+      .eq('app_id', 'bythiagofigueiredo')
+      .eq('network', 'adsense')
+      .maybeSingle()
+    return (data as { publisher_id?: string } | null)?.publisher_id ?? null
+  } catch {
+    return null
+  }
+}
+```
+
+Import `getSupabaseServiceClient` if not already imported:
+```typescript
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `cd /Users/figueiredo/Workspace/bythiagofigueiredo && npm run test -w apps/web -- --reporter=verbose test/components/ads/ad-providers.test.tsx 2>&1 | tail -15`
+Expected: PASS — all tests pass
+
+Then run typecheck:
+Run: `cd /Users/figueiredo/Workspace/bythiagofigueiredo && npm run typecheck -w apps/web 2>&1 | tail -5`
+Expected: `0 errors`
+
+- [ ] **Step 5: Commit**
+
+```
+feat(ads): add AdProviders wrapper + AdSenseScript conditional in public layout — consent-gated Google Ads loading
 ```
 
 ---
