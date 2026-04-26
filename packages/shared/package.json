@@ -1,6 +1,6 @@
 {
   "name": "@app/shared",
-  "version": "0.0.1",
+  "version": "0.9.0",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
@@ -13,13 +13,15 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@tn-figueiredo/ad-engine": "0.3.0",
     "@tn-figueiredo/shared": "0.8.0"
   },
   "devDependencies": {
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^2.0.0"
   }
 }

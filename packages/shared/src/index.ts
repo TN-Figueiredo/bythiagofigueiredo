@@ -2,4 +2,4 @@
 export * from '@tn-figueiredo/shared'
 
 export { SITE_AD_SLOTS } from './config/ad-slots.js'
-export type { AdSlotDefinition } from '@tn-figueiredo/ad-engine'
+export type { AdSlotDefinition } from './config/ad-slots.js'
