@@ -6,37 +6,75 @@ import { createAdminQueries } from '@tn-figueiredo/ad-engine-admin'
 import { requireArea } from '@tn-figueiredo/auth-nextjs/server'
 import { captureServerActionError } from '@/lib/sentry-wrap'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { AD_APP_ID } from '@/lib/ads/config'
 
-const APP_ID = 'bythiagofigueiredo'
 const VALID_CAMPAIGN_STATUSES = ['draft', 'active', 'paused', 'archived'] as const
+type CampaignStatus = typeof VALID_CAMPAIGN_STATUSES[number]
 
 type ExtData = CampaignFormData & Record<string, unknown>
 type ExtCreative = Record<string, unknown>
 
+function toCampaignRow(data: CampaignFormData) {
+  const ext = data as ExtData
+  return {
+    name: data.name,
+    advertiser: data.advertiser ?? null,
+    format: data.format,
+    type: (ext.type as string) ?? 'house',
+    audience: data.audience ?? [],
+    limits: data.limits ?? {},
+    priority: data.priority ?? 0,
+    pricing_model: data.pricing?.model ?? 'house_free',
+    pricing_value: data.pricing?.value ?? 0,
+    schedule_start: data.schedule?.start ?? null,
+    schedule_end: data.schedule?.end ?? null,
+    status: data.status ?? 'draft',
+    brand_color: (ext.brandColor as string) ?? '#6B7280',
+    logo_url: (ext.logoUrl as string | null) ?? null,
+  }
+}
+
+function toCreativeRows(campaignId: string, creatives: CampaignFormData['creatives']) {
+  if (!creatives) return []
+  return Object.values(creatives).map((c) => {
+    const ec = c as ExtCreative
+    return {
+      campaign_id: campaignId,
+      slot_key: c.slotKey,
+      title: c.title ?? null,
+      body: c.body ?? null,
+      cta_text: c.ctaText ?? null,
+      cta_url: c.ctaUrl ?? null,
+      image_url: c.imageUrl ?? null,
+      dismiss_seconds: c.dismissSeconds ?? 0,
+      locale: (ec.locale as string) ?? 'pt-BR',
+      interaction: (ec.interaction as string) ?? 'link',
+    }
+  })
+}
+
+async function insertCreatives(
+  supabase: ReturnType<typeof getSupabaseServiceClient>,
+  campaignId: string,
+  creatives: CampaignFormData['creatives'],
+  action: string,
+): Promise<void> {
+  const rows = toCreativeRows(campaignId, creatives)
+  if (rows.length === 0) return
+  const { error } = await supabase.from('ad_slot_creatives').insert(rows)
+  if (error) {
+    captureServerActionError(error, { action, campaign_id: campaignId })
+    throw new Error(error.message)
+  }
+}
+
 export async function createCampaign(data: CampaignFormData): Promise<void> {
   await requireArea('admin')
   const supabase = getSupabaseServiceClient()
-  const ext = data as ExtData
 
   const { data: campaign, error } = await supabase
     .from('ad_campaigns')
-    .insert({
-      app_id: APP_ID,
-      name: data.name,
-      advertiser: data.advertiser ?? null,
-      format: data.format,
-      type: (ext.type as string) ?? 'house',
-      audience: data.audience ?? [],
-      limits: data.limits ?? {},
-      priority: data.priority ?? 0,
-      pricing_model: data.pricing?.model ?? 'house_free',
-      pricing_value: data.pricing?.value ?? 0,
-      schedule_start: data.schedule?.start ?? null,
-      schedule_end: data.schedule?.end ?? null,
-      status: data.status ?? 'draft',
-      brand_color: (ext.brandColor as string) ?? '#6B7280',
-      logo_url: (ext.logoUrl as string | null) ?? null,
-    })
+    .insert({ app_id: AD_APP_ID, ...toCampaignRow(data) })
     .select('id')
     .single()
 
@@ -45,30 +83,7 @@ export async function createCampaign(data: CampaignFormData): Promise<void> {
     throw new Error(error.message)
   }
 
-  const creatives = data.creatives ? Object.values(data.creatives) : []
-  if (creatives.length > 0) {
-    const { error: ce } = await supabase.from('ad_slot_creatives').insert(
-      creatives.map((c) => {
-        const ec = c as ExtCreative
-        return {
-          campaign_id: campaign.id as string,
-          slot_key: c.slotKey,
-          title: c.title ?? null,
-          body: c.body ?? null,
-          cta_text: c.ctaText ?? null,
-          cta_url: c.ctaUrl ?? null,
-          image_url: c.imageUrl ?? null,
-          dismiss_seconds: c.dismissSeconds ?? 0,
-          locale: (ec.locale as string) ?? 'pt-BR',
-          interaction: (ec.interaction as string) ?? 'link',
-        }
-      }),
-    )
-    if (ce) {
-      captureServerActionError(ce, { action: 'create_campaign_creatives', campaign_id: campaign.id as string })
-      throw new Error(ce.message)
-    }
-  }
+  await insertCreatives(supabase, campaign.id as string, data.creatives, 'create_campaign_creatives')
 
   revalidatePath('/admin/ads')
   revalidateTag('ads')
@@ -77,29 +92,12 @@ export async function createCampaign(data: CampaignFormData): Promise<void> {
 export async function updateCampaign(id: string, data: CampaignFormData): Promise<void> {
   await requireArea('admin')
   const supabase = getSupabaseServiceClient()
-  const ext = data as ExtData
 
   const { error } = await supabase
     .from('ad_campaigns')
-    .update({
-      name: data.name,
-      advertiser: data.advertiser ?? null,
-      format: data.format,
-      type: (ext.type as string) ?? 'house',
-      audience: data.audience ?? [],
-      limits: data.limits ?? {},
-      priority: data.priority ?? 0,
-      pricing_model: data.pricing?.model ?? 'house_free',
-      pricing_value: data.pricing?.value ?? 0,
-      schedule_start: data.schedule?.start ?? null,
-      schedule_end: data.schedule?.end ?? null,
-      status: data.status ?? 'draft',
-      brand_color: (ext.brandColor as string) ?? '#6B7280',
-      logo_url: (ext.logoUrl as string | null) ?? null,
-      updated_at: new Date().toISOString(),
-    })
+    .update({ ...toCampaignRow(data), updated_at: new Date().toISOString() })
     .eq('id', id)
-    .eq('app_id', APP_ID)
+    .eq('app_id', AD_APP_ID)
 
   if (error) {
     captureServerActionError(error, { action: 'update_campaign', campaign_id: id })
@@ -108,31 +106,7 @@ export async function updateCampaign(id: string, data: CampaignFormData): Promis
 
   if (data.creatives !== undefined) {
     await supabase.from('ad_slot_creatives').delete().eq('campaign_id', id)
-
-    const creatives = Object.values(data.creatives)
-    if (creatives.length > 0) {
-      const { error: ce } = await supabase.from('ad_slot_creatives').insert(
-        creatives.map((c) => {
-          const ec = c as ExtCreative
-          return {
-            campaign_id: id,
-            slot_key: c.slotKey,
-            title: c.title ?? null,
-            body: c.body ?? null,
-            cta_text: c.ctaText ?? null,
-            cta_url: c.ctaUrl ?? null,
-            image_url: c.imageUrl ?? null,
-            dismiss_seconds: c.dismissSeconds ?? 0,
-            locale: (ec.locale as string) ?? 'pt-BR',
-            interaction: (ec.interaction as string) ?? 'link',
-          }
-        }),
-      )
-      if (ce) {
-        captureServerActionError(ce, { action: 'update_campaign_creatives', campaign_id: id })
-        throw new Error(ce.message)
-      }
-    }
+    await insertCreatives(supabase, id, data.creatives, 'update_campaign_creatives')
   }
 
   revalidatePath('/admin/ads')
@@ -142,7 +116,7 @@ export async function updateCampaign(id: string, data: CampaignFormData): Promis
 export async function deleteCampaign(id: string): Promise<void> {
   await requireArea('admin')
   const supabase = getSupabaseServiceClient()
-  const { error } = await supabase.from('ad_campaigns').delete().eq('id', id).eq('app_id', APP_ID)
+  const { error } = await supabase.from('ad_campaigns').delete().eq('id', id).eq('app_id', AD_APP_ID)
   if (error) {
     captureServerActionError(error, { action: 'delete_campaign', campaign_id: id })
     throw new Error(error.message)
@@ -172,7 +146,7 @@ export async function updateCampaignStatus(id: string, status: string): Promise<
     .from('ad_campaigns')
     .update({ status, updated_at: new Date().toISOString() })
     .eq('id', id)
-    .eq('app_id', APP_ID)
+    .eq('app_id', AD_APP_ID)
 
   if (error) {
     captureServerActionError(error, { action: 'update_campaign_status', campaign_id: id })
@@ -185,7 +159,7 @@ export async function updateCampaignStatus(id: string, status: string): Promise<
 export async function fetchCampaignById(id: string): Promise<AdCampaignDetail | null> {
   await requireArea('admin')
   const supabase = getSupabaseServiceClient()
-  const queries = createAdminQueries(supabase, APP_ID)
+  const queries = createAdminQueries(supabase, AD_APP_ID)
   return queries.fetchAdCampaignById(id)
 }
 
@@ -207,7 +181,7 @@ export async function updatePlaceholder(
 
   const { error } = await supabase
     .from('ad_placeholders')
-    .upsert({ slot_id: slotId, app_id: 'bythiagofigueiredo', ...update }, { onConflict: 'slot_id' })
+    .upsert({ slot_id: slotId, app_id: AD_APP_ID, ...update }, { onConflict: 'slot_id' })
 
   if (error) {
     captureServerActionError(error, { action: 'update_placeholder', slot_id: slotId })

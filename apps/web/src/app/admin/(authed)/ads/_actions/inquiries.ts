@@ -4,8 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { requireArea } from '@tn-figueiredo/auth-nextjs/server'
 import { captureServerActionError } from '@/lib/sentry-wrap'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-
-const APP_ID = 'bythiagofigueiredo'
+import { AD_APP_ID } from '@/lib/ads/config'
 const VALID_STATUSES = ['pending', 'contacted', 'negotiating', 'converted', 'archived'] as const
 const MAX_NOTES_LENGTH = 5000
 
@@ -30,7 +29,7 @@ export async function updateInquiryStatus(id: string, status: string): Promise<v
     .from('ad_inquiries')
     .update(update)
     .eq('id', id)
-    .eq('app_id', APP_ID)
+    .eq('app_id', AD_APP_ID)
 
   if (error) {
     captureServerActionError(error, { action: 'update_inquiry_status', inquiry_id: id })
@@ -52,7 +51,7 @@ export async function updateInquiryNotes(id: string, notes: string): Promise<voi
     .from('ad_inquiries')
     .update({ admin_notes: notes || null })
     .eq('id', id)
-    .eq('app_id', APP_ID)
+    .eq('app_id', AD_APP_ID)
 
   if (error) {
     captureServerActionError(error, { action: 'update_inquiry_notes', inquiry_id: id })

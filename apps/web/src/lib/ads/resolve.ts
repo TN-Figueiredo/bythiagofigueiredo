@@ -53,7 +53,7 @@ async function fetchAdCreatives(locale: string): Promise<SlotMap> {
     .like('id', 'ads_slot_%')
 
   const killedSlots = new Set(
-    (killSlots ?? []).filter((k) => !k.enabled).map((k) => k.id.replace('ads_slot_', '')),
+    (killSlots ?? []).filter((k) => !k.enabled && k.id).map((k) => k.id!.replace('ads_slot_', '')),
   )
 
   const { data: rows } = await supabase
