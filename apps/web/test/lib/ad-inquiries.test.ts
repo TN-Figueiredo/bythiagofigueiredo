@@ -1,9 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const mockUpdateResult = { error: null as { message: string } | null }
-const mockUpdateChain = {
-  eq: vi.fn(() => Promise.resolve(mockUpdateResult)),
+function makeChainable() {
+  const chain: Record<string, unknown> = {
+    eq: vi.fn(() => makeChainable()),
+    then: (resolve: (v: typeof mockUpdateResult) => void) => Promise.resolve(mockUpdateResult).then(resolve),
+  }
+  return chain
 }
+const mockUpdateChain = { eq: vi.fn(() => makeChainable()) }
 const mockChain = {
   update: vi.fn(() => mockUpdateChain),
 }

@@ -7,6 +7,9 @@ import { createAdminQueries } from '@tn-figueiredo/ad-engine-admin'
 import { requireArea } from '@tn-figueiredo/auth-nextjs/server'
 import { captureServerActionError } from '@/lib/sentry-wrap'
 
+const APP_ID = 'bythiagofigueiredo'
+const VALID_CAMPAIGN_STATUSES = ['draft', 'active', 'paused', 'archived'] as const
+
 function getSupabaseAdmin() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -26,9 +29,11 @@ export async function createCampaign(data: CampaignFormData): Promise<void> {
   const { data: campaign, error } = await supabase
     .from('ad_campaigns')
     .insert({
+      app_id: APP_ID,
       name: data.name,
       advertiser: data.advertiser ?? null,
       format: data.format,
+      type: (ext.type as string) ?? 'house',
       audience: data.audience ?? [],
       limits: data.limits ?? {},
       priority: data.priority ?? 0,
@@ -88,6 +93,7 @@ export async function updateCampaign(id: string, data: CampaignFormData): Promis
       name: data.name,
       advertiser: data.advertiser ?? null,
       format: data.format,
+      type: (ext.type as string) ?? 'house',
       audience: data.audience ?? [],
       limits: data.limits ?? {},
       priority: data.priority ?? 0,
@@ -101,6 +107,7 @@ export async function updateCampaign(id: string, data: CampaignFormData): Promis
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)
+    .eq('app_id', APP_ID)
 
   if (error) {
     captureServerActionError(error, { action: 'update_campaign', campaign_id: id })
@@ -143,7 +150,7 @@ export async function updateCampaign(id: string, data: CampaignFormData): Promis
 export async function deleteCampaign(id: string): Promise<void> {
   await requireArea('admin')
   const supabase = getSupabaseAdmin()
-  const { error } = await supabase.from('ad_campaigns').delete().eq('id', id)
+  const { error } = await supabase.from('ad_campaigns').delete().eq('id', id).eq('app_id', APP_ID)
   if (error) {
     captureServerActionError(error, { action: 'delete_campaign', campaign_id: id })
     throw new Error(error.message)
@@ -164,8 +171,10 @@ export async function deleteMedia(_id: string): Promise<void> {
 
 export async function updateCampaignStatus(id: string, status: string): Promise<void> {
   await requireArea('admin')
+  if (!VALID_CAMPAIGN_STATUSES.includes(status as typeof VALID_CAMPAIGN_STATUSES[number])) {
+    throw new Error(`Invalid status: ${status}`)
+  }
   const supabase = getSupabaseAdmin()
-  const APP_ID = 'bythiagofigueiredo'
 
   const { error } = await supabase
     .from('ad_campaigns')
@@ -184,7 +193,6 @@ export async function updateCampaignStatus(id: string, status: string): Promise<
 export async function fetchCampaignById(id: string): Promise<AdCampaignDetail | null> {
   await requireArea('admin')
   const supabase = getSupabaseAdmin()
-  const APP_ID = 'bythiagofigueiredo'
   const queries = createAdminQueries(supabase, APP_ID)
   return queries.fetchAdCampaignById(id)
 }

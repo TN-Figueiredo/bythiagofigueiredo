@@ -22,6 +22,7 @@ import {
 import { InquiriesList, PlaceholderManager } from '@tn-figueiredo/ad-engine-admin/client'
 import { SITE_AD_SLOTS } from '@app/shared'
 import type { AdSlotDefinition } from '@tn-figueiredo/ad-engine'
+import { requireArea } from '@tn-figueiredo/auth-nextjs/server'
 import Link from 'next/link'
 import {
   createCampaign,
@@ -58,6 +59,7 @@ interface PageProps {
 }
 
 export default async function AdsAdminPage({ searchParams }: PageProps) {
+  await requireArea('admin')
   const params = await searchParams
   const tab = params.tab ?? 'dashboard'
   const page = Math.max(1, Number(params.page) || 1)
@@ -106,6 +108,8 @@ export default async function AdsAdminPage({ searchParams }: PageProps) {
     updatePlaceholder,
     uploadMedia,
     deleteMedia,
+    updateInquiryStatus,
+    updateInquiryNotes,
   }
 
   return (
@@ -147,6 +151,8 @@ export default async function AdsAdminPage({ searchParams }: PageProps) {
         {tab === 'campaigns' && (
           <CampaignWizardServer
             campaigns={configs?.configs ?? []}
+            pagination={configs ? { total: configs.total, totalPages: configs.totalPages, currentPage: page } : undefined}
+            deleteCampaignAction={deleteCampaign}
             updateCampaignStatusAction={updateCampaignStatus}
             fetchCampaignByIdAction={fetchCampaignById}
           />
