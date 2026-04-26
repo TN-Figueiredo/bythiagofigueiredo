@@ -165,9 +165,9 @@ cd /Users/figueiredo/Workspace/tnf-ecosystem && npx vitest run packages/ad-engin
 
 Expected: PASS
 
-- [ ] **Step 5: Fix any existing tests broken by new required fields on AdCampaignRow**
+- [ ] **Step 5: Fix existing tests broken by new required fields on AdCampaignRow**
 
-The existing `fetchAdConfigs` test creates mock campaign objects that now need `brand_color`, `logo_url`, `type`, `priority`. Search for all mock `AdCampaignRow` objects in the test file and add the new fields:
+In the existing `fetchAdConfigs` describe block, find the mock campaign objects and add the 4 new fields. For example, the test titled `'returns configs with campaigns mapped to slots'` (or similar) creates mock campaign data. Add to each mock campaign object:
 
 ```typescript
 brand_color: '#6B7280',
@@ -175,6 +175,8 @@ logo_url: null,
 type: 'house',
 priority: 10,
 ```
+
+Do the same for any other mock `AdCampaignRow` objects in the test file (search for `ad_slot_creatives` or `slot_id` to locate them).
 
 - [ ] **Step 6: Run full test suite to verify nothing is broken**
 
@@ -453,15 +455,15 @@ cd /Users/figueiredo/Workspace/tnf-ecosystem && git add packages/ad-engine-admin
 
 ---
 
-### Task 4: Expand fetchAdConfigs SELECT to include new fields
+### Task 4: Verify fetchAdConfigs passes new fields through
 
 **Files:**
-- Modify: `packages/ad-engine-admin/src/queries.ts`
+- Modify: `packages/ad-engine-admin/src/queries.ts` (only if needed)
 - Test: `packages/ad-engine-admin/src/__tests__/queries.test.ts`
 
-- [ ] **Step 1: Write failing test for expanded fetchAdConfigs**
+- [ ] **Step 1: Write test asserting new fields are returned**
 
-Update the existing `fetchAdConfigs` test in `packages/ad-engine-admin/src/__tests__/queries.test.ts` to assert new fields:
+Add to the existing `fetchAdConfigs` describe block in `packages/ad-engine-admin/src/__tests__/queries.test.ts`:
 
 ```typescript
 it('includes brand_color, logo_url, type, priority in returned configs', async () => {
@@ -486,11 +488,6 @@ it('includes brand_color, logo_url, type, priority in returned configs', async (
   }
 
   let callCount = 0
-  const chain = makeChain({
-    data: callCount === 0 ? [mockCampaign] : undefined,
-    count: 1,
-    error: null,
-  })
   const supabase = makeSupabase(() => {
     callCount++
     if (callCount === 1)
@@ -506,27 +503,17 @@ it('includes brand_color, logo_url, type, priority in returned configs', async (
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 2: Run test to check if it passes already**
 
 ```bash
 cd /Users/figueiredo/Workspace/tnf-ecosystem && npx vitest run packages/ad-engine-admin/src/__tests__/queries.test.ts -t "includes brand_color" 2>&1 | tail -20
 ```
 
-Expected: FAIL — new fields not in SELECT, so not returned.
+The `fetchAdConfigs` function uses `*` in its SELECT which returns all columns from `ad_campaigns`. The mapping function spreads the DB row object, so `brand_color`, `logo_url`, `type`, and `priority` are already passed through automatically. **If the test passes, no code change is needed** — the `*` select + spread already handles it. If the mapping explicitly destructures specific fields (check the source), add the new ones to the destructuring.
 
-- [ ] **Step 3: Expand fetchAdConfigs SELECT string**
+- [ ] **Step 3: Fix mapping only if test fails**
 
-In `packages/ad-engine-admin/src/queries.ts`, find the `fetchAdConfigs` function. Update its `.select()` call to include the new columns:
-
-```typescript
-// Before (approximate):
-.select('*, ad_slot_creatives(slot_key)', { count: 'exact' })
-
-// After:
-.select('*, ad_slot_creatives(slot_key)', { count: 'exact' })
-```
-
-The `*` in the select already includes all columns from `ad_campaigns`, so `brand_color`, `logo_url`, `type`, `priority` are already returned by the query. The issue is in the mapping function that constructs `AdCampaignRow` — it must preserve these fields. Find the mapping logic and ensure these fields are passed through:
+If the test fails because the mapping explicitly destructures fields and drops unknown ones, add the new fields to the mapping:
 
 ```typescript
 brand_color: (row as Record<string, unknown>).brand_color as string ?? '#6B7280',
@@ -535,15 +522,9 @@ type: (row as Record<string, unknown>).type as string ?? 'house',
 priority: (row as Record<string, unknown>).priority as number ?? 10,
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+If the test already passes from Step 2, skip this step.
 
-```bash
-cd /Users/figueiredo/Workspace/tnf-ecosystem && npx vitest run packages/ad-engine-admin/src/__tests__/queries.test.ts -t "includes brand_color" 2>&1 | tail -20
-```
-
-Expected: PASS
-
-- [ ] **Step 5: Run full test suite**
+- [ ] **Step 4: Run full test suite**
 
 ```bash
 cd /Users/figueiredo/Workspace/tnf-ecosystem && npx vitest run packages/ad-engine-admin/ 2>&1 | tail -30
@@ -551,10 +532,10 @@ cd /Users/figueiredo/Workspace/tnf-ecosystem && npx vitest run packages/ad-engin
 
 Expected: All tests pass.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/figueiredo/Workspace/tnf-ecosystem && git add packages/ad-engine-admin/src/queries.ts packages/ad-engine-admin/src/__tests__/queries.test.ts && git commit -m "feat(ad-admin): expand fetchAdConfigs to return brand_color, logo_url, type, priority"
+cd /Users/figueiredo/Workspace/tnf-ecosystem && git add packages/ad-engine-admin/src/queries.ts packages/ad-engine-admin/src/__tests__/queries.test.ts && git commit -m "feat(ad-admin): verify fetchAdConfigs returns brand_color, logo_url, type, priority"
 ```
 
 ---
@@ -616,6 +597,12 @@ describe('campaignFormSchema — new fields', () => {
     format: 'native',
     selectedSlots: ['banner_top'],
     audience: ['all'],
+    limits: {
+      impressions: { enabled: false, value: 0 },
+      clicks: { enabled: false, value: 0 },
+      freqCap: { enabled: false, value: 0 },
+      minCtr: { enabled: false, value: 0 },
+    },
     schedule: { start: '2026-01-01' },
     pricing: { model: 'house_free', value: 0 },
     creatives: {
@@ -729,9 +716,31 @@ cd /Users/figueiredo/Workspace/tnf-ecosystem && npx vitest run packages/ad-engin
 
 Expected: PASS
 
-- [ ] **Step 6: Fix any existing tests broken by schema changes**
+- [ ] **Step 6: Fix existing tests broken by schema changes**
 
-The `status` default changed from `'active'` to `'draft'`. The `creatives` field is now optional. Check existing tests in `schemas.test.ts` that rely on the old defaults and update assertions.
+The `status` default changed from `'active'` to `'draft'`. The `creatives` field is now optional. Find existing tests and fix them:
+
+1. **Test asserting `result.status === 'active'` with no explicit status** — The `campaignFormSchema.parse()` call without an explicit `status` now defaults to `'draft'` instead of `'active'`. Change the assertion:
+
+```typescript
+// Before:
+expect(result.status).toBe('active')
+// After:
+expect(result.status).toBe('draft')
+```
+
+2. **Tests that omit `limits` from the validBase object** — The `campaignFormSchema` requires `limits` (via `limitsSchema`). Any existing test that parses without `limits` must add it:
+
+```typescript
+limits: {
+  impressions: { enabled: false, value: 0 },
+  clicks: { enabled: false, value: 0 },
+  freqCap: { enabled: false, value: 0 },
+  minCtr: { enabled: false, value: 0 },
+},
+```
+
+3. **Tests that require `creatives`** — Since `creatives` is now optional, tests that previously required it should still pass. Verify no test relies on creatives being required.
 
 - [ ] **Step 7: Run full test suite**
 
@@ -1033,10 +1042,36 @@ cd /Users/figueiredo/Workspace/tnf-ecosystem && git add packages/ad-engine-admin
 
 **Files:**
 - Modify: `packages/ad-engine-admin/src/index.ts`
+- Test: `packages/ad-engine-admin/src/__tests__/queries.test.ts`
 
-- [ ] **Step 1: Add new exports to index.ts**
+- [ ] **Step 1: Write test for factory extensions**
 
-In `packages/ad-engine-admin/src/index.ts`, add the new type and function exports:
+Add to `packages/ad-engine-admin/src/__tests__/queries.test.ts`:
+
+```typescript
+import { createAdminQueries } from '../index'
+
+describe('createAdminQueries extensions', () => {
+  it('factory exposes fetchAdCampaignById and fetchActiveCampaignsPerSlot', () => {
+    const supabase = makeSupabase(() => makeChain({ data: null, error: null }))
+    const queries = createAdminQueries(supabase, 'app-1')
+    expect(typeof queries.fetchAdCampaignById).toBe('function')
+    expect(typeof queries.fetchActiveCampaignsPerSlot).toBe('function')
+  })
+})
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+```bash
+cd /Users/figueiredo/Workspace/tnf-ecosystem && npx vitest run packages/ad-engine-admin/src/__tests__/queries.test.ts -t "createAdminQueries extensions" 2>&1 | tail -20
+```
+
+Expected: FAIL — factory doesn't expose new methods yet.
+
+- [ ] **Step 3: Add new exports to index.ts**
+
+In `packages/ad-engine-admin/src/index.ts`, add the new type and function exports alongside the existing ones:
 
 ```typescript
 // Add to the queries re-exports:
@@ -1047,21 +1082,38 @@ export { fetchAdCampaignById, fetchActiveCampaignsPerSlot } from './queries'
 export { validateCreativesForActivation } from './schemas'
 ```
 
-- [ ] **Step 2: Expand createAdminQueries factory**
+- [ ] **Step 4: Expand createAdminQueries factory**
 
-In `packages/ad-engine-admin/src/index.ts`, find the `createAdminQueries` function and add two new methods:
+In `packages/ad-engine-admin/src/index.ts`, add the import at the top:
 
 ```typescript
 import { fetchAdCampaignById, fetchActiveCampaignsPerSlot } from './queries'
-
-// Inside createAdminQueries return object:
-fetchAdCampaignById: (campaignId: string) =>
-  fetchAdCampaignById(supabase, appId, campaignId),
-fetchActiveCampaignsPerSlot: () =>
-  fetchActiveCampaignsPerSlot(supabase, appId),
 ```
 
-- [ ] **Step 3: Run full test suite**
+Then find the `createAdminQueries` function's return object and add the two new methods:
+
+```typescript
+export function createAdminQueries(supabase: SupabaseClient, appId: string) {
+  return {
+    // ... existing methods (fetchAdConfigs, fetchAdPlaceholders, etc.) ...
+
+    fetchAdCampaignById: (campaignId: string) =>
+      fetchAdCampaignById(supabase, appId, campaignId),
+    fetchActiveCampaignsPerSlot: () =>
+      fetchActiveCampaignsPerSlot(supabase, appId),
+  }
+}
+```
+
+- [ ] **Step 5: Run test to verify it passes**
+
+```bash
+cd /Users/figueiredo/Workspace/tnf-ecosystem && npx vitest run packages/ad-engine-admin/src/__tests__/queries.test.ts -t "createAdminQueries extensions" 2>&1 | tail -20
+```
+
+Expected: PASS
+
+- [ ] **Step 6: Run full test suite**
 
 ```bash
 cd /Users/figueiredo/Workspace/tnf-ecosystem && npx vitest run packages/ad-engine-admin/ 2>&1 | tail -30
@@ -1069,7 +1121,7 @@ cd /Users/figueiredo/Workspace/tnf-ecosystem && npx vitest run packages/ad-engin
 
 Expected: All tests pass.
 
-- [ ] **Step 4: Build to verify no compile errors**
+- [ ] **Step 7: Build to verify no compile errors**
 
 ```bash
 cd /Users/figueiredo/Workspace/tnf-ecosystem && npx tsup --config packages/ad-engine-admin/tsup.config.ts 2>&1 | tail -20
@@ -1077,10 +1129,10 @@ cd /Users/figueiredo/Workspace/tnf-ecosystem && npx tsup --config packages/ad-en
 
 Expected: Build succeeds with no errors.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-cd /Users/figueiredo/Workspace/tnf-ecosystem && git add packages/ad-engine-admin/src/index.ts && git commit -m "feat(ad-admin): export new types, queries, and validation; extend createAdminQueries factory"
+cd /Users/figueiredo/Workspace/tnf-ecosystem && git add packages/ad-engine-admin/src/index.ts packages/ad-engine-admin/src/__tests__/queries.test.ts && git commit -m "feat(ad-admin): export new types, queries, and validation; extend createAdminQueries factory"
 ```
 
 ---
@@ -1121,11 +1173,11 @@ describe('step2RequiredFields with composite keys', () => {
 cd /Users/figueiredo/Workspace/tnf-ecosystem && npx vitest run packages/ad-engine-admin/src/__tests__/schemas.test.ts -t "step2RequiredFields with composite" 2>&1 | tail -20
 ```
 
-Expected: FAIL — `step2RequiredFields` doesn't accept locale array.
+Expected: FAIL — `step2RequiredFields` doesn't accept locale array (currently it's an arrow function with signature `(slotKeys: string[]) => ...`).
 
 - [ ] **Step 3: Update step2RequiredFields signature**
 
-In `packages/ad-engine-admin/src/schemas.ts`, update `step2RequiredFields`:
+In `packages/ad-engine-admin/src/schemas.ts`, replace the existing arrow function with a named function:
 
 ```typescript
 export function step2RequiredFields(
@@ -1195,7 +1247,35 @@ Create `packages/ad-engine-admin/src/__tests__/campaign-list.test.tsx`:
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { CampaignList } from '../client/CampaignList'
+import { AdEngineAdminProvider } from '../provider'
+import type { AdAdminConfig, AdAdminActions } from '../types'
 import type { AdCampaignRow } from '../queries'
+
+const testConfig: AdAdminConfig = {
+  appId: 'app-1',
+  slots: [
+    { key: 'banner_top', label: 'Banner Topo', desc: '', badge: '', badgeColor: '' },
+  ],
+  basePath: '/admin/ads',
+  supportedLocales: ['pt-BR', 'en'],
+}
+
+const testActions: AdAdminActions = {
+  createCampaign: vi.fn().mockResolvedValue(undefined),
+  updateCampaign: vi.fn().mockResolvedValue(undefined),
+  deleteCampaign: vi.fn().mockResolvedValue(undefined),
+  updatePlaceholder: vi.fn().mockResolvedValue(undefined),
+  uploadMedia: vi.fn().mockResolvedValue({ id: '1', url: '' }),
+  deleteMedia: vi.fn().mockResolvedValue(undefined),
+}
+
+function Wrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <AdEngineAdminProvider config={testConfig} actions={testActions}>
+      {children}
+    </AdEngineAdminProvider>
+  )
+}
 
 function makeCampaign(overrides: Partial<AdCampaignRow> = {}): AdCampaignRow {
   return {
@@ -1235,6 +1315,7 @@ describe('CampaignList', () => {
         pagination={{ total: 2, totalPages: 1, currentPage: 1 }}
         deleteCampaignAction={noop}
       />,
+      { wrapper: Wrapper },
     )
     expect(screen.getByText('Campaign Alpha')).toBeDefined()
     expect(screen.getByText('Campaign Beta')).toBeDefined()
@@ -1247,6 +1328,7 @@ describe('CampaignList', () => {
         pagination={{ total: 0, totalPages: 0, currentPage: 1 }}
         deleteCampaignAction={noop}
       />,
+      { wrapper: Wrapper },
     )
     expect(screen.getByText(/nenhuma campanha/i)).toBeDefined()
   })
@@ -1263,6 +1345,7 @@ describe('CampaignList', () => {
         pagination={{ total: 3, totalPages: 1, currentPage: 1 }}
         deleteCampaignAction={noop}
       />,
+      { wrapper: Wrapper },
     )
     expect(screen.getByText('active')).toBeDefined()
     expect(screen.getByText('paused')).toBeDefined()
@@ -1276,6 +1359,7 @@ describe('CampaignList', () => {
         pagination={{ total: 0, totalPages: 0, currentPage: 1 }}
         deleteCampaignAction={noop}
       />,
+      { wrapper: Wrapper },
     )
     expect(screen.getByRole('button', { name: /nova campanha/i })).toBeDefined()
   })
@@ -1341,6 +1425,8 @@ export function CampaignList({
         setEditingCampaign(detail)
         setModalOpen(true)
       }
+    } catch {
+      // fail silently — row returns to normal state
     } finally {
       setLoadingId(null)
     }
@@ -1510,7 +1596,9 @@ export function CampaignList({
                         className="text-gray-400 hover:text-red-600"
                         title="Excluir campanha"
                       >
-                        🗑
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                          <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clipRule="evenodd" />
+                        </svg>
                       </button>
                     )}
                   </td>
@@ -1589,10 +1677,14 @@ describe('CampaignList — interactions', () => {
         pagination={{ total: 1, totalPages: 1, currentPage: 1 }}
         deleteCampaignAction={noop}
       />,
+      { wrapper: Wrapper },
     )
     const trashBtn = screen.getByTitle('Excluir campanha')
     fireEvent.click(trashBtn)
-    expect(screen.getByText(/Excluir "Delete Me"/)).toBeDefined()
+    // The component uses &ldquo; and &rdquo; which render as “ and ”
+    expect(
+      screen.getByText((content) => content.includes('Excluir') && content.includes('Delete Me')),
+    ).toBeDefined()
     expect(screen.getByText('Cancelar')).toBeDefined()
     expect(screen.getByText('Excluir')).toBeDefined()
   })
@@ -1606,6 +1698,7 @@ describe('CampaignList — interactions', () => {
         pagination={{ total: 1, totalPages: 1, currentPage: 1 }}
         deleteCampaignAction={deleteFn}
       />,
+      { wrapper: Wrapper },
     )
     fireEvent.click(screen.getByTitle('Excluir campanha'))
     fireEvent.click(screen.getByText('Excluir'))
@@ -1620,10 +1713,13 @@ describe('CampaignList — interactions', () => {
         pagination={{ total: 1, totalPages: 1, currentPage: 1 }}
         deleteCampaignAction={noop}
       />,
+      { wrapper: Wrapper },
     )
     fireEvent.click(screen.getByTitle('Excluir campanha'))
     fireEvent.click(screen.getByText('Cancelar'))
-    expect(screen.queryByText(/Excluir "Delete Me"/)).toBeNull()
+    expect(
+      screen.queryByText((content) => content.includes('Excluir') && content.includes('Delete Me')),
+    ).toBeNull()
   })
 
   it('renders clickable status badge for active/paused when toggle action provided', () => {
@@ -1636,6 +1732,7 @@ describe('CampaignList — interactions', () => {
         deleteCampaignAction={noop}
         updateCampaignStatusAction={toggleFn}
       />,
+      { wrapper: Wrapper },
     )
     const badge = screen.getByText('active')
     expect(badge.tagName).toBe('BUTTON')
@@ -1650,6 +1747,7 @@ describe('CampaignList — interactions', () => {
         deleteCampaignAction={noop}
         updateCampaignStatusAction={vi.fn()}
       />,
+      { wrapper: Wrapper },
     )
     const badge = screen.getByText('draft')
     expect(badge.tagName).toBe('SPAN')
@@ -1662,6 +1760,7 @@ describe('CampaignList — interactions', () => {
         pagination={{ total: 40, totalPages: 2, currentPage: 1 }}
         deleteCampaignAction={noop}
       />,
+      { wrapper: Wrapper },
     )
     expect(screen.getByText('1')).toBeDefined()
     expect(screen.getByText('2')).toBeDefined()
@@ -1689,19 +1788,9 @@ cd /Users/figueiredo/Workspace/tnf-ecosystem && git add packages/ad-engine-admin
 
 **Files:**
 - Modify: `packages/ad-engine-admin/src/server/CampaignWizardServer.tsx`
+- Modify: `packages/ad-engine-admin/src/client/index.ts`
 
-- [ ] **Step 1: Write failing test for updated server component**
-
-The existing `dashboard-server.test.tsx` may test this component. Add or update in `packages/ad-engine-admin/src/__tests__/dashboard-server.test.tsx`:
-
-```tsx
-// Test that CampaignWizardServer passes new props through to CampaignList
-// This is a structural test — the server component renders CampaignList with forwarded props
-```
-
-Since CampaignWizardServer is a server component and CampaignList is a client component, the integration is structural. The key test is: does it compile and render without errors? The CampaignList tests already cover the client logic.
-
-- [ ] **Step 2: Rewrite CampaignWizardServer**
+- [ ] **Step 1: Rewrite CampaignWizardServer**
 
 Replace `packages/ad-engine-admin/src/server/CampaignWizardServer.tsx` with:
 
@@ -1747,15 +1836,22 @@ export function CampaignWizardServer({
 }
 ```
 
-- [ ] **Step 3: Add CampaignList to client barrel export**
+- [ ] **Step 2: Add CampaignList and PlaceholderPreviewProps to client barrel export**
 
 In `packages/ad-engine-admin/src/client/index.ts`, add:
 
 ```typescript
 export { CampaignList } from './CampaignList'
+export { PlaceholderManager, type PlaceholderPreviewProps } from './PlaceholderManager'
 ```
 
-- [ ] **Step 4: Run full test suite**
+Also add to `packages/ad-engine-admin/src/index.ts` re-exports if not already there:
+
+```typescript
+export type { PlaceholderPreviewProps } from './client/PlaceholderManager'
+```
+
+- [ ] **Step 3: Run full test suite**
 
 ```bash
 cd /Users/figueiredo/Workspace/tnf-ecosystem && npx vitest run packages/ad-engine-admin/ 2>&1 | tail -30
@@ -1763,7 +1859,7 @@ cd /Users/figueiredo/Workspace/tnf-ecosystem && npx vitest run packages/ad-engin
 
 Expected: All tests pass. Fix any broken dashboard-server tests that reference the old CampaignWizardServer structure.
 
-- [ ] **Step 5: Build to verify**
+- [ ] **Step 4: Build to verify**
 
 ```bash
 cd /Users/figueiredo/Workspace/tnf-ecosystem && npx tsup --config packages/ad-engine-admin/tsup.config.ts 2>&1 | tail -20
@@ -1771,10 +1867,10 @@ cd /Users/figueiredo/Workspace/tnf-ecosystem && npx tsup --config packages/ad-en
 
 Expected: Build succeeds.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/figueiredo/Workspace/tnf-ecosystem && git add packages/ad-engine-admin/src/server/CampaignWizardServer.tsx packages/ad-engine-admin/src/client/index.ts packages/ad-engine-admin/src/client/CampaignList.tsx && git commit -m "feat(ad-admin): CampaignWizardServer delegates to CampaignList, export CampaignList"
+cd /Users/figueiredo/Workspace/tnf-ecosystem && git add packages/ad-engine-admin/src/server/CampaignWizardServer.tsx packages/ad-engine-admin/src/client/index.ts packages/ad-engine-admin/src/client/CampaignList.tsx packages/ad-engine-admin/src/index.ts && git commit -m "feat(ad-admin): CampaignWizardServer delegates to CampaignList, export CampaignList + PlaceholderPreviewProps"
 ```
 
 ---
@@ -1782,19 +1878,22 @@ cd /Users/figueiredo/Workspace/tnf-ecosystem && git add packages/ad-engine-admin
 ## Session 3: CampaignFormModal Multi-Step Wizard
 
 **Files:**
+- Create: `packages/ad-engine-admin/src/client/Step1MetadataForm.tsx`
+- Create: `packages/ad-engine-admin/src/client/Step2CreativeEditor.tsx`
 - Modify: `packages/ad-engine-admin/src/client/CampaignFormModal.tsx`
-- Modify: `packages/ad-engine-admin/src/__tests__/campaign-list.test.tsx` (or new test file)
+- Create: `packages/ad-engine-admin/src/__tests__/campaign-form-modal.test.tsx`
 
 ---
 
-### Task 13: CampaignFormModal — Step 1 Metadata Form with new fields
+### Task 13: Step1MetadataForm sub-component
 
 **Files:**
-- Modify: `packages/ad-engine-admin/src/client/CampaignFormModal.tsx`
+- Create: `packages/ad-engine-admin/src/client/Step1MetadataForm.tsx`
+- Create: `packages/ad-engine-admin/src/__tests__/campaign-form-modal.test.tsx`
 
 - [ ] **Step 1: Write failing tests for Step 1 new fields**
 
-Add test in `packages/ad-engine-admin/src/__tests__/campaign-form-modal.test.tsx` (new file or extend existing):
+Create `packages/ad-engine-admin/src/__tests__/campaign-form-modal.test.tsx`:
 
 ```tsx
 import { describe, it, expect, vi } from 'vitest'
@@ -1802,27 +1901,30 @@ import { render, screen } from '@testing-library/react'
 import { CampaignFormModal } from '../client/CampaignFormModal'
 import { AdEngineAdminProvider } from '../provider'
 import type { AdAdminConfig, AdAdminActions } from '../types'
+import type { AdCampaignDetail } from '../queries'
 
-function renderModal(props?: { campaign?: any }) {
-  const config: AdAdminConfig = {
-    appId: 'app-1',
-    slots: [
-      { key: 'banner_top', label: 'Banner Topo', desc: '', badge: '', badgeColor: '' },
-      { key: 'rail_left', label: 'Rail Esquerda', desc: '', badge: '', badgeColor: '' },
-    ],
-    basePath: '/admin/ads',
-    supportedLocales: ['pt-BR', 'en'],
-  }
-  const actions: AdAdminActions = {
-    createCampaign: vi.fn().mockResolvedValue(undefined),
-    updateCampaign: vi.fn().mockResolvedValue(undefined),
-    deleteCampaign: vi.fn().mockResolvedValue(undefined),
-    updatePlaceholder: vi.fn().mockResolvedValue(undefined),
-    uploadMedia: vi.fn().mockResolvedValue({ id: '1', url: '' }),
-    deleteMedia: vi.fn().mockResolvedValue(undefined),
-  }
+const testConfig: AdAdminConfig = {
+  appId: 'app-1',
+  slots: [
+    { key: 'banner_top', label: 'Banner Topo', desc: '', badge: '', badgeColor: '' },
+    { key: 'rail_left', label: 'Rail Esquerda', desc: '', badge: '', badgeColor: '' },
+  ],
+  basePath: '/admin/ads',
+  supportedLocales: ['pt-BR', 'en'],
+}
+
+const testActions: AdAdminActions = {
+  createCampaign: vi.fn().mockResolvedValue(undefined),
+  updateCampaign: vi.fn().mockResolvedValue(undefined),
+  deleteCampaign: vi.fn().mockResolvedValue(undefined),
+  updatePlaceholder: vi.fn().mockResolvedValue(undefined),
+  uploadMedia: vi.fn().mockResolvedValue({ id: '1', url: '' }),
+  deleteMedia: vi.fn().mockResolvedValue(undefined),
+}
+
+function renderModal(props?: { campaign?: AdCampaignDetail }) {
   return render(
-    <AdEngineAdminProvider config={config} actions={actions}>
+    <AdEngineAdminProvider config={testConfig} actions={testActions}>
       <CampaignFormModal
         open={true}
         onClose={vi.fn()}
@@ -1874,28 +1976,698 @@ cd /Users/figueiredo/Workspace/tnf-ecosystem && npx vitest run packages/ad-engin
 
 Expected: FAIL — current modal doesn't have type/brand color/draft status/priority/step indicator.
 
-- [ ] **Step 3: Rewrite CampaignFormModal as 2-step wizard**
+- [ ] **Step 3: Create Step1MetadataForm sub-component**
 
-Replace `packages/ad-engine-admin/src/client/CampaignFormModal.tsx` with the full wizard implementation. This is a large file (~500 lines). The key structural changes:
+Create `packages/ad-engine-admin/src/client/Step1MetadataForm.tsx` (~150 lines). This component receives all Step 1 state and setters as props and renders the metadata form:
 
 ```tsx
 'use client'
 
-import { useState, useCallback } from 'react'
-import type { AdCampaignRow, AdCampaignDetail, AdSlotCreativeRow } from '../queries'
-import type { SlotCreativeData } from '../schemas'
-import { campaignFormSchema, validateCreativesForActivation } from '../schemas'
-import { AudienceSelector } from './AudienceSelector'
-import { useAdEngineAdmin } from '../provider'
+import type { ReactNode } from 'react'
+import type { AdAdminConfig } from '../types'
 
 const AD_FORMATS = ['image', 'video', 'native', 'house'] as const
 const AD_TYPES = ['house', 'cpa'] as const
 const STATUSES = ['draft', 'active', 'paused', 'archived'] as const
 
+export interface Step1MetadataFormProps {
+  config: AdAdminConfig
+  name: string
+  setName: (v: string) => void
+  advertiser: string
+  setAdvertiser: (v: string) => void
+  format: string
+  setFormat: (v: string) => void
+  type: string
+  setType: (v: string) => void
+  brandColor: string
+  setBrandColor: (v: string) => void
+  logoUrl: string
+  setLogoUrl: (v: string) => void
+  status: string
+  setStatus: (v: string) => void
+  priority: number
+  setPriority: (v: number) => void
+  selectedSlots: string[]
+  setSelectedSlots: (v: string[] | ((prev: string[]) => string[])) => void
+  audience: string[]
+  setAudience: (v: string[]) => void
+  scheduleStart: string
+  setScheduleStart: (v: string) => void
+  scheduleEnd: string
+  setScheduleEnd: (v: string) => void
+  pricingModel: string
+  setPricingModel: (v: string) => void
+  pricingValue: number
+  setPricingValue: (v: number) => void
+  errors: Record<string, string>
+  saving: boolean
+  onClose: () => void
+  onSaveDraft: () => void
+  onGoToStep2: () => void
+  renderAudienceSelector: () => ReactNode
+}
+
+export function Step1MetadataForm({
+  config,
+  name, setName,
+  advertiser, setAdvertiser,
+  format, setFormat,
+  type, setType,
+  brandColor, setBrandColor,
+  logoUrl, setLogoUrl,
+  status, setStatus,
+  priority, setPriority,
+  selectedSlots, setSelectedSlots,
+  scheduleStart, setScheduleStart,
+  scheduleEnd, setScheduleEnd,
+  pricingModel, setPricingModel,
+  pricingValue, setPricingValue,
+  errors,
+  saving,
+  onClose,
+  onSaveDraft,
+  onGoToStep2,
+  renderAudienceSelector,
+}: Step1MetadataFormProps) {
+  return (
+    <div className="space-y-4">
+      {/* Row 1: Name + Advertiser */}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label htmlFor="cf-name" className="block text-sm font-medium">
+            Nome
+          </label>
+          <input
+            id="cf-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="mt-1 w-full rounded border p-2 text-sm"
+          />
+          {errors.name && <p className="text-xs text-red-500">{errors.name}</p>}
+        </div>
+        <div>
+          <label htmlFor="cf-advertiser" className="block text-sm font-medium">
+            Anunciante
+          </label>
+          <input
+            id="cf-advertiser"
+            value={advertiser}
+            onChange={(e) => setAdvertiser(e.target.value)}
+            className="mt-1 w-full rounded border p-2 text-sm"
+          />
+        </div>
+      </div>
+
+      {/* Row 2: Format + Type */}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label htmlFor="cf-format" className="block text-sm font-medium">
+            Formato
+          </label>
+          <select
+            id="cf-format"
+            value={format}
+            onChange={(e) => setFormat(e.target.value)}
+            className="mt-1 w-full rounded border p-2 text-sm"
+          >
+            {AD_FORMATS.map((f) => (
+              <option key={f} value={f}>
+                {f}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="cf-type" className="block text-sm font-medium">
+            Tipo
+          </label>
+          <select
+            id="cf-type"
+            value={type}
+            onChange={(e) => setType(e.target.value)}
+            className="mt-1 w-full rounded border p-2 text-sm"
+          >
+            {AD_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {t === 'house' ? 'Da casa' : 'CPA'}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Row 3: Brand Color + Logo URL */}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label htmlFor="cf-brand-color" className="block text-sm font-medium">
+            Cor da marca
+          </label>
+          <div className="mt-1 flex items-center gap-2">
+            <input
+              type="color"
+              id="cf-brand-color"
+              value={brandColor}
+              onChange={(e) => setBrandColor(e.target.value)}
+              className="h-8 w-8 cursor-pointer rounded border"
+            />
+            <input
+              value={brandColor}
+              onChange={(e) => setBrandColor(e.target.value)}
+              className="w-full rounded border p-2 text-sm font-mono"
+              placeholder="#6B7280"
+            />
+          </div>
+        </div>
+        <div>
+          <label htmlFor="cf-logo-url" className="block text-sm font-medium">
+            Logo URL
+          </label>
+          <input
+            id="cf-logo-url"
+            value={logoUrl}
+            onChange={(e) => setLogoUrl(e.target.value)}
+            className="mt-1 w-full rounded border p-2 text-sm"
+            placeholder="https://..."
+          />
+        </div>
+      </div>
+
+      {/* Row 4: Status + Priority */}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label htmlFor="cf-status" className="block text-sm font-medium">
+            Status
+          </label>
+          <select
+            id="cf-status"
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+            className="mt-1 w-full rounded border p-2 text-sm"
+          >
+            {STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="cf-priority" className="block text-sm font-medium">
+            Prioridade
+          </label>
+          <input
+            id="cf-priority"
+            type="number"
+            min={1}
+            max={100}
+            value={priority}
+            onChange={(e) => setPriority(Number(e.target.value))}
+            className="mt-1 w-full rounded border p-2 text-sm"
+          />
+        </div>
+      </div>
+
+      {/* Row 5: Slot chips */}
+      <div>
+        <span className="block text-sm font-medium">Slots</span>
+        <div className="mt-1 flex flex-wrap gap-2">
+          {config.slots.map((slot) => {
+            const active = selectedSlots.includes(slot.key)
+            return (
+              <button
+                key={slot.key}
+                type="button"
+                onClick={() =>
+                  setSelectedSlots((prev: string[]) =>
+                    active
+                      ? prev.filter((s) => s !== slot.key)
+                      : [...prev, slot.key],
+                  )
+                }
+                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                  active
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {slot.label}
+              </button>
+            )
+          })}
+        </div>
+        {errors.selectedSlots && (
+          <p className="text-xs text-red-500">{errors.selectedSlots}</p>
+        )}
+      </div>
+
+      {/* Row 6: Audience */}
+      <div>
+        <span className="block text-sm font-medium">Audiência</span>
+        {renderAudienceSelector()}
+      </div>
+
+      {/* Row 7: Schedule */}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label htmlFor="cf-start" className="block text-sm font-medium">
+            Início
+          </label>
+          <input
+            id="cf-start"
+            type="date"
+            value={scheduleStart}
+            onChange={(e) => setScheduleStart(e.target.value)}
+            className="mt-1 w-full rounded border p-2 text-sm"
+          />
+        </div>
+        <div>
+          <label htmlFor="cf-end" className="block text-sm font-medium">
+            Fim
+          </label>
+          <input
+            id="cf-end"
+            type="date"
+            value={scheduleEnd}
+            onChange={(e) => setScheduleEnd(e.target.value)}
+            className="mt-1 w-full rounded border p-2 text-sm"
+          />
+        </div>
+      </div>
+
+      {/* Row 8: Pricing */}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label htmlFor="cf-pricing" className="block text-sm font-medium">
+            Modelo de preco
+          </label>
+          <select
+            id="cf-pricing"
+            value={pricingModel}
+            onChange={(e) => setPricingModel(e.target.value)}
+            className="mt-1 w-full rounded border p-2 text-sm"
+          >
+            <option value="cpm">CPM</option>
+            <option value="cpc">CPC</option>
+            <option value="flat">Flat</option>
+            <option value="house_free">Da casa</option>
+          </select>
+        </div>
+        <div>
+          <label htmlFor="cf-price" className="block text-sm font-medium">
+            Valor
+          </label>
+          <input
+            id="cf-price"
+            type="number"
+            min={0}
+            value={pricingValue}
+            onChange={(e) => setPricingValue(Number(e.target.value))}
+            className="mt-1 w-full rounded border p-2 text-sm"
+          />
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="flex justify-end gap-3 border-t pt-4">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded border px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          disabled={saving}
+          onClick={onSaveDraft}
+          className="rounded border px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
+        >
+          Salvar rascunho
+        </button>
+        <button
+          type="button"
+          onClick={onGoToStep2}
+          className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500"
+        >
+          Próximo: Criativos →
+        </button>
+      </div>
+    </div>
+  )
+}
+```
+
+- [ ] **Step 4: Run test — it will still fail because CampaignFormModal hasn't been updated yet**
+
+We will integrate it in Task 15. Proceed to Task 14.
+
+- [ ] **Step 5: Commit sub-component**
+
+```bash
+cd /Users/figueiredo/Workspace/tnf-ecosystem && git add packages/ad-engine-admin/src/client/Step1MetadataForm.tsx packages/ad-engine-admin/src/__tests__/campaign-form-modal.test.tsx && git commit -m "feat(ad-admin): create Step1MetadataForm sub-component + test scaffold"
+```
+
+---
+
+### Task 14: Step2CreativeEditor sub-component
+
+**Files:**
+- Create: `packages/ad-engine-admin/src/client/Step2CreativeEditor.tsx`
+
+- [ ] **Step 1: Create Step2CreativeEditor sub-component**
+
+Create `packages/ad-engine-admin/src/client/Step2CreativeEditor.tsx` (~200 lines). This component receives creative state, locale management, and slot config as props:
+
+```tsx
+'use client'
+
+import type { AdAdminConfig } from '../types'
+import type { SlotCreativeData } from '../schemas'
+
+export interface Step2CreativeEditorProps {
+  config: AdAdminConfig
+  locales: string[]
+  defaultLocale: string
+  activeLocale: string
+  setActiveLocale: (v: string) => void
+  selectedSlots: string[]
+  creatives: Record<string, SlotCreativeData>
+  updateCreative: (key: string, field: keyof SlotCreativeData, value: unknown) => void
+  copyFromDefault: (targetLocale: string) => void
+  brandColor: string
+  errors: Record<string, string>
+  saving: boolean
+  onBack: () => void
+  onSaveDraft: () => void
+  onSaveAndActivate: () => void
+}
+
+export function Step2CreativeEditor({
+  config,
+  locales,
+  defaultLocale,
+  activeLocale,
+  setActiveLocale,
+  selectedSlots,
+  creatives,
+  updateCreative,
+  copyFromDefault,
+  brandColor,
+  errors,
+  saving,
+  onBack,
+  onSaveDraft,
+  onSaveAndActivate,
+}: Step2CreativeEditorProps) {
+  return (
+    <div className="space-y-4">
+      {/* Locale tabs */}
+      <div className="flex gap-1 border-b">
+        {locales.map((locale) => {
+          const slotsWithContent = selectedSlots.filter(
+            (s) => creatives[`${s}:${locale}`]?.title,
+          ).length
+          return (
+            <button
+              key={locale}
+              type="button"
+              onClick={() => setActiveLocale(locale)}
+              className={`px-3 py-2 text-sm font-medium ${
+                activeLocale === locale
+                  ? 'border-b-2 border-indigo-600 text-indigo-600'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {locale}
+              {slotsWithContent > 0 && (
+                <span className="ml-1 text-xs text-green-600">
+                  {slotsWithContent}/{selectedSlots.length}
+                </span>
+              )}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Copy button for non-default locales */}
+      {activeLocale !== defaultLocale && (
+        <button
+          type="button"
+          onClick={() => copyFromDefault(activeLocale)}
+          className="text-xs text-indigo-600 hover:underline"
+        >
+          Copiar de {defaultLocale}
+        </button>
+      )}
+
+      {/* Per-slot creative cards */}
+      {selectedSlots.map((slotKey) => {
+        const key = `${slotKey}:${activeLocale}`
+        const creative = creatives[key]
+        if (!creative) return null
+        const slotDef = config.slots.find((s) => s.key === slotKey)
+        return (
+          <div key={key} className="rounded border p-4">
+            <h4 className="mb-3 text-sm font-semibold">
+              {slotDef?.label ?? slotKey}
+              <span className="ml-2 font-mono text-xs text-gray-400">
+                {slotKey}
+              </span>
+            </h4>
+            {errors[key] && (
+              <p className="mb-2 text-xs text-red-500">{errors[key]}</p>
+            )}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium">Titulo</label>
+                  <input
+                    value={creative.title}
+                    onChange={(e) =>
+                      updateCreative(key, 'title', e.target.value)
+                    }
+                    className="mt-1 w-full rounded border p-2 text-sm"
+                    placeholder="Título do anúncio"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium">Corpo</label>
+                  <textarea
+                    value={creative.body}
+                    onChange={(e) =>
+                      updateCreative(key, 'body', e.target.value)
+                    }
+                    className="mt-1 w-full rounded border p-2 text-sm"
+                    rows={2}
+                    placeholder="Descrição curta"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-medium">
+                      Texto do CTA
+                    </label>
+                    <input
+                      value={creative.ctaText}
+                      onChange={(e) =>
+                        updateCreative(key, 'ctaText', e.target.value)
+                      }
+                      className="mt-1 w-full rounded border p-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium">URL do CTA</label>
+                    <input
+                      value={creative.ctaUrl}
+                      onChange={(e) =>
+                        updateCreative(key, 'ctaUrl', e.target.value)
+                      }
+                      className="mt-1 w-full rounded border p-2 text-sm"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium">Imagem URL</label>
+                  <input
+                    value={creative.imageUrl ?? ''}
+                    onChange={(e) =>
+                      updateCreative(
+                        key,
+                        'imageUrl',
+                        e.target.value || undefined,
+                      )
+                    }
+                    className="mt-1 w-full rounded border p-2 text-sm"
+                    placeholder="https://..."
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-medium">Interação</label>
+                    <div className="mt-1 flex gap-3">
+                      {(['link', 'form'] as const).map((v) => (
+                        <label key={v} className="flex items-center gap-1 text-xs">
+                          <input
+                            type="radio"
+                            name={`interaction-${key}`}
+                            value={v}
+                            checked={creative.interaction === v}
+                            onChange={() =>
+                              updateCreative(key, 'interaction', v)
+                            }
+                          />
+                          {v}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium">
+                      Dismiss (s)
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={30}
+                      value={creative.dismissSeconds}
+                      onChange={(e) =>
+                        updateCreative(
+                          key,
+                          'dismissSeconds',
+                          Number(e.target.value),
+                        )
+                      }
+                      className="mt-1 w-full rounded border p-2 text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Inline preview */}
+              <div className="rounded border bg-gray-50 p-3">
+                <p className="mb-2 text-xs font-medium text-gray-400">
+                  Preview
+                </p>
+                <div
+                  className="rounded border bg-white p-3"
+                  style={{ borderLeftColor: brandColor, borderLeftWidth: 3 }}
+                >
+                  <p className="text-xs font-semibold uppercase text-amber-600">
+                    Da casa
+                  </p>
+                  <p className="mt-1 text-sm font-bold">
+                    {creative.title || 'Título'}
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    {creative.body || 'Descrição'}
+                  </p>
+                  <button
+                    type="button"
+                    className="mt-2 rounded px-3 py-1 text-xs text-white"
+                    style={{ backgroundColor: brandColor }}
+                  >
+                    {creative.ctaText || 'CTA'}
+                  </button>
+                  {creative.ctaUrl && (
+                    <p className="mt-1 truncate font-mono text-[10px] text-gray-400">
+                      {creative.ctaUrl}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })}
+
+      {/* Footer */}
+      <div className="flex justify-between border-t pt-4">
+        <button
+          type="button"
+          onClick={onBack}
+          className="rounded border px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
+        >
+          ← Voltar
+        </button>
+        <div className="flex gap-3">
+          <button
+            type="button"
+            disabled={saving}
+            onClick={onSaveDraft}
+            className="rounded border px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
+          >
+            Salvar rascunho
+          </button>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={onSaveAndActivate}
+            className="rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-500"
+          >
+            Salvar e ativar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+```
+
+- [ ] **Step 2: Commit sub-component**
+
+```bash
+cd /Users/figueiredo/Workspace/tnf-ecosystem && git add packages/ad-engine-admin/src/client/Step2CreativeEditor.tsx && git commit -m "feat(ad-admin): create Step2CreativeEditor sub-component"
+```
+
+---
+
+### Task 15: CampaignFormModal shell + integration
+
+**Files:**
+- Modify: `packages/ad-engine-admin/src/client/CampaignFormModal.tsx`
+
+- [ ] **Step 1: Rewrite CampaignFormModal as 2-step wizard shell**
+
+Replace `packages/ad-engine-admin/src/client/CampaignFormModal.tsx` with the shell that composes `Step1MetadataForm` and `Step2CreativeEditor`:
+
+```tsx
+'use client'
+
+import { useState } from 'react'
+import type { AdCampaignDetail, AdSlotCreativeRow } from '../queries'
+import type { SlotCreativeData } from '../schemas'
+import { campaignFormSchema, validateCreativesForActivation } from '../schemas'
+import { AudienceSelector } from './AudienceSelector'
+import { Step1MetadataForm } from './Step1MetadataForm'
+import { Step2CreativeEditor } from './Step2CreativeEditor'
+import { useAdEngineAdmin } from '../provider'
+
 interface CampaignFormModalProps {
   open: boolean
   onClose: () => void
   campaign?: AdCampaignDetail
+}
+
+function creativesFromRows(
+  rows: AdSlotCreativeRow[],
+): Record<string, SlotCreativeData> {
+  const result: Record<string, SlotCreativeData> = {}
+  for (const row of rows) {
+    const key = `${row.slot_key}:${row.locale}`
+    result[key] = {
+      slotKey: row.slot_key,
+      title: row.title ?? '',
+      body: row.body ?? '',
+      ctaText: row.cta_text ?? 'Saiba mais',
+      ctaUrl: row.cta_url ?? '',
+      imageUrl: row.image_url ?? undefined,
+      dismissSeconds: row.dismiss_seconds,
+      locale: row.locale,
+      interaction: (row.interaction as 'link' | 'form') ?? 'link',
+    }
+  }
+  return result
 }
 
 export function CampaignFormModal({ open, onClose, campaign }: CampaignFormModalProps) {
@@ -1926,7 +2698,7 @@ export function CampaignFormModal({ open, onClose, campaign }: CampaignFormModal
   // Step 2 fields
   const [creatives, setCreatives] = useState<Record<string, SlotCreativeData>>(() => {
     if (campaign?.creatives) {
-      return creativesFromRows(campaign.creatives, locales)
+      return creativesFromRows(campaign.creatives)
     }
     return {}
   })
@@ -1935,53 +2707,6 @@ export function CampaignFormModal({ open, onClose, campaign }: CampaignFormModal
   // UI state
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
-
-  function creativesFromRows(
-    rows: AdSlotCreativeRow[],
-    locs: string[],
-  ): Record<string, SlotCreativeData> {
-    const result: Record<string, SlotCreativeData> = {}
-    for (const row of rows) {
-      const key = `${row.slot_key}:${row.locale}`
-      result[key] = {
-        slotKey: row.slot_key,
-        title: row.title ?? '',
-        body: row.body ?? '',
-        ctaText: row.cta_text ?? 'Saiba mais',
-        ctaUrl: row.cta_url ?? '',
-        imageUrl: row.image_url ?? undefined,
-        dismissSeconds: row.dismiss_seconds,
-        locale: row.locale,
-        interaction: (row.interaction as 'link' | 'form') ?? 'link',
-      }
-    }
-    return result
-  }
-
-  function buildEmptyCreatives(
-    slots: string[],
-    locs: string[],
-  ): Record<string, SlotCreativeData> {
-    const result: Record<string, SlotCreativeData> = {}
-    for (const slot of slots) {
-      for (const locale of locs) {
-        const key = `${slot}:${locale}`
-        if (!result[key]) {
-          result[key] = {
-            slotKey: slot,
-            title: '',
-            body: '',
-            ctaText: 'Saiba mais',
-            ctaUrl: '',
-            dismissSeconds: 5,
-            locale,
-            interaction: 'link',
-          }
-        }
-      }
-    }
-    return result
-  }
 
   function reconcileCreatives() {
     const updated = { ...creatives }
@@ -2108,7 +2833,7 @@ export function CampaignFormModal({ open, onClose, campaign }: CampaignFormModal
       }
 
       onClose()
-    } catch (err) {
+    } catch {
       setErrors({ _form: 'Erro ao salvar campanha' })
     } finally {
       setSaving(false)
@@ -2116,8 +2841,6 @@ export function CampaignFormModal({ open, onClose, campaign }: CampaignFormModal
   }
 
   if (!open) return null
-
-  const slotsForLocale = selectedSlots.map((slot) => `${slot}:${activeLocale}`)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
@@ -2138,501 +2861,51 @@ export function CampaignFormModal({ open, onClose, campaign }: CampaignFormModal
         )}
 
         {step === 1 && (
-          <div className="space-y-4">
-            {/* Row 1: Name + Advertiser */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="cf-name" className="block text-sm font-medium">
-                  Nome
-                </label>
-                <input
-                  id="cf-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="mt-1 w-full rounded border p-2 text-sm"
-                />
-                {errors.name && <p className="text-xs text-red-500">{errors.name}</p>}
-              </div>
-              <div>
-                <label htmlFor="cf-advertiser" className="block text-sm font-medium">
-                  Anunciante
-                </label>
-                <input
-                  id="cf-advertiser"
-                  value={advertiser}
-                  onChange={(e) => setAdvertiser(e.target.value)}
-                  className="mt-1 w-full rounded border p-2 text-sm"
-                />
-              </div>
-            </div>
-
-            {/* Row 2: Format + Type */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="cf-format" className="block text-sm font-medium">
-                  Formato
-                </label>
-                <select
-                  id="cf-format"
-                  value={format}
-                  onChange={(e) => setFormat(e.target.value)}
-                  className="mt-1 w-full rounded border p-2 text-sm"
-                >
-                  {AD_FORMATS.map((f) => (
-                    <option key={f} value={f}>
-                      {f}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label htmlFor="cf-type" className="block text-sm font-medium">
-                  Tipo
-                </label>
-                <select
-                  id="cf-type"
-                  value={type}
-                  onChange={(e) => setType(e.target.value)}
-                  className="mt-1 w-full rounded border p-2 text-sm"
-                >
-                  {AD_TYPES.map((t) => (
-                    <option key={t} value={t}>
-                      {t === 'house' ? 'Da casa' : 'CPA'}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Row 3: Brand Color + Logo URL */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="cf-brand-color" className="block text-sm font-medium">
-                  Cor da marca
-                </label>
-                <div className="mt-1 flex items-center gap-2">
-                  <input
-                    type="color"
-                    id="cf-brand-color"
-                    value={brandColor}
-                    onChange={(e) => setBrandColor(e.target.value)}
-                    className="h-8 w-8 cursor-pointer rounded border"
-                  />
-                  <input
-                    value={brandColor}
-                    onChange={(e) => setBrandColor(e.target.value)}
-                    className="w-full rounded border p-2 text-sm font-mono"
-                    placeholder="#6B7280"
-                  />
-                </div>
-              </div>
-              <div>
-                <label htmlFor="cf-logo-url" className="block text-sm font-medium">
-                  Logo URL
-                </label>
-                <input
-                  id="cf-logo-url"
-                  value={logoUrl}
-                  onChange={(e) => setLogoUrl(e.target.value)}
-                  className="mt-1 w-full rounded border p-2 text-sm"
-                  placeholder="https://..."
-                />
-              </div>
-            </div>
-
-            {/* Row 4: Status + Priority */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="cf-status" className="block text-sm font-medium">
-                  Status
-                </label>
-                <select
-                  id="cf-status"
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value)}
-                  className="mt-1 w-full rounded border p-2 text-sm"
-                >
-                  {STATUSES.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label htmlFor="cf-priority" className="block text-sm font-medium">
-                  Prioridade
-                </label>
-                <input
-                  id="cf-priority"
-                  type="number"
-                  min={1}
-                  max={100}
-                  value={priority}
-                  onChange={(e) => setPriority(Number(e.target.value))}
-                  className="mt-1 w-full rounded border p-2 text-sm"
-                />
-              </div>
-            </div>
-
-            {/* Row 5: Slot chips */}
-            <div>
-              <span className="block text-sm font-medium">Slots</span>
-              <div className="mt-1 flex flex-wrap gap-2">
-                {config.slots.map((slot) => {
-                  const active = selectedSlots.includes(slot.key)
-                  return (
-                    <button
-                      key={slot.key}
-                      type="button"
-                      onClick={() =>
-                        setSelectedSlots((prev) =>
-                          active
-                            ? prev.filter((s) => s !== slot.key)
-                            : [...prev, slot.key],
-                        )
-                      }
-                      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                        active
-                          ? 'bg-indigo-600 text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
-                    >
-                      {slot.label}
-                    </button>
-                  )
-                })}
-              </div>
-              {errors.selectedSlots && (
-                <p className="text-xs text-red-500">{errors.selectedSlots}</p>
-              )}
-            </div>
-
-            {/* Row 6: Audience */}
-            <div>
-              <span className="block text-sm font-medium">Audiência</span>
+          <Step1MetadataForm
+            config={config}
+            name={name} setName={setName}
+            advertiser={advertiser} setAdvertiser={setAdvertiser}
+            format={format} setFormat={setFormat}
+            type={type} setType={setType}
+            brandColor={brandColor} setBrandColor={setBrandColor}
+            logoUrl={logoUrl} setLogoUrl={setLogoUrl}
+            status={status} setStatus={setStatus}
+            priority={priority} setPriority={setPriority}
+            selectedSlots={selectedSlots} setSelectedSlots={setSelectedSlots}
+            audience={audience} setAudience={setAudience}
+            scheduleStart={scheduleStart} setScheduleStart={setScheduleStart}
+            scheduleEnd={scheduleEnd} setScheduleEnd={setScheduleEnd}
+            pricingModel={pricingModel} setPricingModel={setPricingModel}
+            pricingValue={pricingValue} setPricingValue={setPricingValue}
+            errors={errors}
+            saving={saving}
+            onClose={onClose}
+            onSaveDraft={() => handleSave('draft')}
+            onGoToStep2={goToStep2}
+            renderAudienceSelector={() => (
               <AudienceSelector value={audience} onChange={setAudience} />
-            </div>
-
-            {/* Row 7: Schedule */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="cf-start" className="block text-sm font-medium">
-                  Início
-                </label>
-                <input
-                  id="cf-start"
-                  type="date"
-                  value={scheduleStart}
-                  onChange={(e) => setScheduleStart(e.target.value)}
-                  className="mt-1 w-full rounded border p-2 text-sm"
-                />
-              </div>
-              <div>
-                <label htmlFor="cf-end" className="block text-sm font-medium">
-                  Fim
-                </label>
-                <input
-                  id="cf-end"
-                  type="date"
-                  value={scheduleEnd}
-                  onChange={(e) => setScheduleEnd(e.target.value)}
-                  className="mt-1 w-full rounded border p-2 text-sm"
-                />
-              </div>
-            </div>
-
-            {/* Row 8: Pricing */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="cf-pricing" className="block text-sm font-medium">
-                  Modelo de preço
-                </label>
-                <select
-                  id="cf-pricing"
-                  value={pricingModel}
-                  onChange={(e) => setPricingModel(e.target.value)}
-                  className="mt-1 w-full rounded border p-2 text-sm"
-                >
-                  <option value="cpm">CPM</option>
-                  <option value="cpc">CPC</option>
-                  <option value="flat">Flat</option>
-                  <option value="house_free">Da casa</option>
-                </select>
-              </div>
-              <div>
-                <label htmlFor="cf-price" className="block text-sm font-medium">
-                  Valor
-                </label>
-                <input
-                  id="cf-price"
-                  type="number"
-                  min={0}
-                  value={pricingValue}
-                  onChange={(e) => setPricingValue(Number(e.target.value))}
-                  className="mt-1 w-full rounded border p-2 text-sm"
-                />
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="flex justify-end gap-3 border-t pt-4">
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded border px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                disabled={saving}
-                onClick={() => handleSave('draft')}
-                className="rounded border px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
-              >
-                Salvar rascunho
-              </button>
-              <button
-                type="button"
-                onClick={goToStep2}
-                className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500"
-              >
-                Próximo: Criativos →
-              </button>
-            </div>
-          </div>
+            )}
+          />
         )}
 
         {step === 2 && (
-          <div className="space-y-4">
-            {/* Locale tabs */}
-            <div className="flex gap-1 border-b">
-              {locales.map((locale) => {
-                const slotsWithContent = selectedSlots.filter(
-                  (s) => creatives[`${s}:${locale}`]?.title,
-                ).length
-                return (
-                  <button
-                    key={locale}
-                    type="button"
-                    onClick={() => setActiveLocale(locale)}
-                    className={`px-3 py-2 text-sm font-medium ${
-                      activeLocale === locale
-                        ? 'border-b-2 border-indigo-600 text-indigo-600'
-                        : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    {locale}
-                    {slotsWithContent > 0 && (
-                      <span className="ml-1 text-xs text-green-600">
-                        {slotsWithContent}/{selectedSlots.length}
-                      </span>
-                    )}
-                  </button>
-                )
-              })}
-            </div>
-
-            {/* Copy button for non-default locales */}
-            {activeLocale !== defaultLocale && (
-              <button
-                type="button"
-                onClick={() => copyFromDefault(activeLocale)}
-                className="text-xs text-indigo-600 hover:underline"
-              >
-                Copiar de {defaultLocale}
-              </button>
-            )}
-
-            {/* Per-slot creative cards */}
-            {selectedSlots.map((slotKey) => {
-              const key = `${slotKey}:${activeLocale}`
-              const creative = creatives[key]
-              if (!creative) return null
-              const slotDef = config.slots.find((s) => s.key === slotKey)
-              return (
-                <div key={key} className="rounded border p-4">
-                  <h4 className="mb-3 text-sm font-semibold">
-                    {slotDef?.label ?? slotKey}
-                    <span className="ml-2 font-mono text-xs text-gray-400">
-                      {slotKey}
-                    </span>
-                  </h4>
-                  {errors[key] && (
-                    <p className="mb-2 text-xs text-red-500">{errors[key]}</p>
-                  )}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-xs font-medium">Título</label>
-                        <input
-                          value={creative.title}
-                          onChange={(e) =>
-                            updateCreative(key, 'title', e.target.value)
-                          }
-                          className="mt-1 w-full rounded border p-2 text-sm"
-                          placeholder="Título do anúncio"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium">Corpo</label>
-                        <textarea
-                          value={creative.body}
-                          onChange={(e) =>
-                            updateCreative(key, 'body', e.target.value)
-                          }
-                          className="mt-1 w-full rounded border p-2 text-sm"
-                          rows={2}
-                          placeholder="Descrição curta"
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="block text-xs font-medium">
-                            Texto do CTA
-                          </label>
-                          <input
-                            value={creative.ctaText}
-                            onChange={(e) =>
-                              updateCreative(key, 'ctaText', e.target.value)
-                            }
-                            className="mt-1 w-full rounded border p-2 text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium">URL do CTA</label>
-                          <input
-                            value={creative.ctaUrl}
-                            onChange={(e) =>
-                              updateCreative(key, 'ctaUrl', e.target.value)
-                            }
-                            className="mt-1 w-full rounded border p-2 text-sm"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium">Imagem URL</label>
-                        <input
-                          value={creative.imageUrl ?? ''}
-                          onChange={(e) =>
-                            updateCreative(
-                              key,
-                              'imageUrl',
-                              e.target.value || undefined,
-                            )
-                          }
-                          className="mt-1 w-full rounded border p-2 text-sm"
-                          placeholder="https://..."
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="block text-xs font-medium">Interação</label>
-                          <div className="mt-1 flex gap-3">
-                            {(['link', 'form'] as const).map((v) => (
-                              <label key={v} className="flex items-center gap-1 text-xs">
-                                <input
-                                  type="radio"
-                                  name={`interaction-${key}`}
-                                  value={v}
-                                  checked={creative.interaction === v}
-                                  onChange={() =>
-                                    updateCreative(key, 'interaction', v)
-                                  }
-                                />
-                                {v}
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium">
-                            Dismiss (s)
-                          </label>
-                          <input
-                            type="number"
-                            min={0}
-                            max={30}
-                            value={creative.dismissSeconds}
-                            onChange={(e) =>
-                              updateCreative(
-                                key,
-                                'dismissSeconds',
-                                Number(e.target.value),
-                              )
-                            }
-                            className="mt-1 w-full rounded border p-2 text-sm"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Inline preview */}
-                    <div className="rounded border bg-gray-50 p-3">
-                      <p className="mb-2 text-xs font-medium text-gray-400">
-                        Preview
-                      </p>
-                      <div
-                        className="rounded border bg-white p-3"
-                        style={{ borderLeftColor: brandColor, borderLeftWidth: 3 }}
-                      >
-                        <p className="text-xs font-semibold uppercase text-amber-600">
-                          Da casa
-                        </p>
-                        <p className="mt-1 text-sm font-bold">
-                          {creative.title || 'Título'}
-                        </p>
-                        <p className="text-xs text-gray-600">
-                          {creative.body || 'Descrição'}
-                        </p>
-                        <button
-                          type="button"
-                          className="mt-2 rounded px-3 py-1 text-xs text-white"
-                          style={{ backgroundColor: brandColor }}
-                        >
-                          {creative.ctaText || 'CTA'}
-                        </button>
-                        {creative.ctaUrl && (
-                          <p className="mt-1 truncate font-mono text-[10px] text-gray-400">
-                            {creative.ctaUrl}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-
-            {/* Footer */}
-            <div className="flex justify-between border-t pt-4">
-              <button
-                type="button"
-                onClick={() => setStep(1)}
-                className="rounded border px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
-              >
-                ← Voltar
-              </button>
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={() => handleSave('draft')}
-                  className="rounded border px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
-                >
-                  Salvar rascunho
-                </button>
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={() => handleSave('active')}
-                  className="rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-500"
-                >
-                  Salvar e ativar
-                </button>
-              </div>
-            </div>
-          </div>
+          <Step2CreativeEditor
+            config={config}
+            locales={locales}
+            defaultLocale={defaultLocale}
+            activeLocale={activeLocale}
+            setActiveLocale={setActiveLocale}
+            selectedSlots={selectedSlots}
+            creatives={creatives}
+            updateCreative={updateCreative}
+            copyFromDefault={copyFromDefault}
+            brandColor={brandColor}
+            errors={errors}
+            saving={saving}
+            onBack={() => setStep(1)}
+            onSaveDraft={() => handleSave('draft')}
+            onSaveAndActivate={() => handleSave('active')}
+          />
         )}
       </div>
     </div>
@@ -2640,7 +2913,7 @@ export function CampaignFormModal({ open, onClose, campaign }: CampaignFormModal
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [ ] **Step 2: Run tests to verify Step 1 tests pass**
 
 ```bash
 cd /Users/figueiredo/Workspace/tnf-ecosystem && npx vitest run packages/ad-engine-admin/src/__tests__/campaign-form-modal.test.tsx 2>&1 | tail -30
@@ -2648,7 +2921,7 @@ cd /Users/figueiredo/Workspace/tnf-ecosystem && npx vitest run packages/ad-engin
 
 Expected: PASS
 
-- [ ] **Step 5: Run full test suite**
+- [ ] **Step 3: Run full test suite**
 
 ```bash
 cd /Users/figueiredo/Workspace/tnf-ecosystem && npx vitest run packages/ad-engine-admin/ 2>&1 | tail -30
@@ -2656,26 +2929,28 @@ cd /Users/figueiredo/Workspace/tnf-ecosystem && npx vitest run packages/ad-engin
 
 Expected: All tests pass. Fix any broken tests that depended on old CampaignFormModal structure.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-cd /Users/figueiredo/Workspace/tnf-ecosystem && git add packages/ad-engine-admin/src/client/CampaignFormModal.tsx packages/ad-engine-admin/src/__tests__/campaign-form-modal.test.tsx && git commit -m "feat(ad-admin): rewrite CampaignFormModal as 2-step wizard with creative editor"
+cd /Users/figueiredo/Workspace/tnf-ecosystem && git add packages/ad-engine-admin/src/client/CampaignFormModal.tsx packages/ad-engine-admin/src/client/Step1MetadataForm.tsx packages/ad-engine-admin/src/client/Step2CreativeEditor.tsx && git commit -m "feat(ad-admin): rewrite CampaignFormModal as 2-step wizard composing Step1MetadataForm + Step2CreativeEditor"
 ```
 
 ---
 
-### Task 14: CampaignFormModal — Step 2 creative editor tests
+### Task 16: Edit mode + creative initialization tests
 
 **Files:**
 - Modify: `packages/ad-engine-admin/src/__tests__/campaign-form-modal.test.tsx`
 
 - [ ] **Step 1: Add Step 2 tests**
 
+Add to `packages/ad-engine-admin/src/__tests__/campaign-form-modal.test.tsx`:
+
 ```tsx
 import { fireEvent, waitFor } from '@testing-library/react'
 
 describe('CampaignFormModal — Step 2', () => {
-  function goToStep2(container: ReturnType<typeof renderModal>) {
+  function goToStep2() {
     const nameInput = screen.getByLabelText(/nome/i)
     fireEvent.change(nameInput, { target: { value: 'Test Campaign' } })
     // Select a slot
@@ -2686,62 +2961,41 @@ describe('CampaignFormModal — Step 2', () => {
 
   it('shows locale tabs after advancing to step 2', () => {
     renderModal()
-    goToStep2(undefined as any)
+    goToStep2()
     expect(screen.getByText('pt-BR')).toBeDefined()
     expect(screen.getByText('en')).toBeDefined()
   })
 
   it('shows creative card for selected slot', () => {
     renderModal()
-    goToStep2(undefined as any)
+    goToStep2()
     expect(screen.getByText('Banner Topo')).toBeDefined()
     expect(screen.getByPlaceholderText('Título do anúncio')).toBeDefined()
   })
 
   it('shows "Copiar de pt-BR" button on en tab', () => {
     renderModal()
-    goToStep2(undefined as any)
+    goToStep2()
     fireEvent.click(screen.getByText('en'))
     expect(screen.getByText(/copiar de pt-br/i)).toBeDefined()
   })
 
   it('has "Voltar" button that returns to step 1', () => {
     renderModal()
-    goToStep2(undefined as any)
+    goToStep2()
     fireEvent.click(screen.getByText(/voltar/i))
     expect(screen.getByLabelText(/nome/i)).toBeDefined()
   })
 
   it('has "Salvar e ativar" button', () => {
     renderModal()
-    goToStep2(undefined as any)
+    goToStep2()
     expect(screen.getByRole('button', { name: /salvar e ativar/i })).toBeDefined()
   })
 })
 ```
 
-- [ ] **Step 2: Run tests**
-
-```bash
-cd /Users/figueiredo/Workspace/tnf-ecosystem && npx vitest run packages/ad-engine-admin/src/__tests__/campaign-form-modal.test.tsx 2>&1 | tail -30
-```
-
-Expected: PASS
-
-- [ ] **Step 3: Commit**
-
-```bash
-cd /Users/figueiredo/Workspace/tnf-ecosystem && git add packages/ad-engine-admin/src/__tests__/campaign-form-modal.test.tsx && git commit -m "test(ad-admin): add CampaignFormModal Step 2 creative editor tests"
-```
-
----
-
-### Task 15: CampaignFormModal — edit mode with pre-filled creatives
-
-**Files:**
-- Modify: `packages/ad-engine-admin/src/__tests__/campaign-form-modal.test.tsx`
-
-- [ ] **Step 1: Add edit mode tests**
+- [ ] **Step 2: Add edit mode tests**
 
 ```tsx
 describe('CampaignFormModal — edit mode', () => {
@@ -2795,20 +3049,35 @@ describe('CampaignFormModal — edit mode', () => {
     ).toBe('Existing Title')
   })
 })
+
+describe('CampaignFormModal — creative initialization', () => {
+  it('new mode initializes with empty creatives', () => {
+    renderModal()
+    // Select a slot and advance to step 2
+    const nameInput = screen.getByLabelText(/nome/i)
+    fireEvent.change(nameInput, { target: { value: 'New Campaign' } })
+    fireEvent.click(screen.getByText('Banner Topo'))
+    fireEvent.click(screen.getByRole('button', { name: /próximo.*criativo/i }))
+    // Empty creative fields should be shown
+    expect(
+      (screen.getByPlaceholderText('Título do anúncio') as HTMLInputElement).value,
+    ).toBe('')
+  })
+})
 ```
 
-- [ ] **Step 2: Run tests**
+- [ ] **Step 3: Run tests**
 
 ```bash
-cd /Users/figueiredo/Workspace/tnf-ecosystem && npx vitest run packages/ad-engine-admin/src/__tests__/campaign-form-modal.test.tsx -t "edit mode" 2>&1 | tail -20
+cd /Users/figueiredo/Workspace/tnf-ecosystem && npx vitest run packages/ad-engine-admin/src/__tests__/campaign-form-modal.test.tsx 2>&1 | tail -30
 ```
 
 Expected: PASS
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-cd /Users/figueiredo/Workspace/tnf-ecosystem && git add packages/ad-engine-admin/src/__tests__/campaign-form-modal.test.tsx && git commit -m "test(ad-admin): add CampaignFormModal edit mode tests"
+cd /Users/figueiredo/Workspace/tnf-ecosystem && git add packages/ad-engine-admin/src/__tests__/campaign-form-modal.test.tsx && git commit -m "test(ad-admin): add CampaignFormModal Step 2, edit mode, and creative initialization tests"
 ```
 
 ---
@@ -2826,7 +3095,7 @@ cd /Users/figueiredo/Workspace/tnf-ecosystem && git add packages/ad-engine-admin
 
 ---
 
-### Task 16: PlaceholderManager — slot labels from context
+### Task 17: PlaceholderManager — slot labels from context
 
 **Files:**
 - Modify: `packages/ad-engine-admin/src/client/PlaceholderManager.tsx`
@@ -2927,6 +3196,7 @@ Replace `packages/ad-engine-admin/src/client/PlaceholderManager.tsx`:
 ```tsx
 'use client'
 
+import type { ReactNode } from 'react'
 import type { AdPlaceholderRow, ActiveCampaignSummary } from '../queries'
 import { PlaceholderForm } from './PlaceholderForm'
 import { useAdEngineAdmin } from '../provider'
@@ -2934,7 +3204,7 @@ import { useAdEngineAdmin } from '../provider'
 export interface PlaceholderManagerProps {
   placeholders: AdPlaceholderRow[]
   activeCampaigns?: ActiveCampaignSummary[]
-  renderPreview?: (props: PlaceholderPreviewProps) => React.ReactNode
+  renderPreview?: (props: PlaceholderPreviewProps) => ReactNode
 }
 
 export interface PlaceholderPreviewProps {
@@ -3050,7 +3320,7 @@ cd /Users/figueiredo/Workspace/tnf-ecosystem && git add packages/ad-engine-admin
 
 ---
 
-### Task 17: PlaceholderManager — active campaign indicator
+### Task 18: PlaceholderManager — active campaign indicator
 
 **Files:**
 - Modify: `packages/ad-engine-admin/src/__tests__/placeholder-manager.test.tsx`
@@ -3103,7 +3373,7 @@ cd /Users/figueiredo/Workspace/tnf-ecosystem && git add packages/ad-engine-admin
 
 ---
 
-### Task 18: PlaceholderForm — improved preview with "DA CASA" badge and renderPreview slot
+### Task 19: PlaceholderForm — improved preview with "DA CASA" badge and renderPreview slot
 
 **Files:**
 - Modify: `packages/ad-engine-admin/src/client/PlaceholderForm.tsx`
@@ -3146,10 +3416,13 @@ In `packages/ad-engine-admin/src/client/PlaceholderForm.tsx`, update the preview
 Add prop to PlaceholderForm:
 
 ```typescript
+import type { PlaceholderPreviewProps } from './PlaceholderManager'
+import type { ReactNode } from 'react'
+
 interface PlaceholderFormProps {
   slotId: string
   initial?: AdPlaceholderRow
-  renderPreview?: (props: PlaceholderPreviewProps) => React.ReactNode
+  renderPreview?: (props: PlaceholderPreviewProps) => ReactNode
 }
 ```
 
@@ -3235,7 +3508,7 @@ cd /Users/figueiredo/Workspace/tnf-ecosystem && git add packages/ad-engine-admin
 
 ---
 
-### Task 19: Build + version bump to 0.4.0
+### Task 20: Build + version bump to 0.4.0
 
 **Files:**
 - Modify: `packages/ad-engine-admin/package.json`
@@ -3281,17 +3554,18 @@ Expected: Package published successfully as `@tn-figueiredo/ad-engine-admin@0.4.
 
 ---
 
-### Task 20: App wiring — new server actions in bythiagofigueiredo
+### Task 21: App wiring — new server actions in bythiagofigueiredo
 
 **Files:**
 - Modify: `apps/web/src/app/admin/(authed)/ads/_actions/campaigns.ts` (in bythiagofigueiredo)
 
 - [ ] **Step 1: Add updateCampaignStatus server action**
 
-In `/Users/figueiredo/Workspace/bythiagofigueiredo/apps/web/src/app/admin/(authed)/ads/_actions/campaigns.ts`, add:
+In `/Users/figueiredo/Workspace/bythiagofigueiredo/apps/web/src/app/admin/(authed)/ads/_actions/campaigns.ts`, add (the file already has `'use server'` at the top, so do NOT add per-function `'use server'` directives):
 
 ```typescript
 import type { AdCampaignDetail } from '@tn-figueiredo/ad-engine-admin'
+import { createAdminQueries } from '@tn-figueiredo/ad-engine-admin'
 
 const VALID_STATUSES = ['active', 'paused', 'draft', 'archived']
 
@@ -3299,7 +3573,6 @@ export async function updateCampaignStatus(
   id: string,
   status: string,
 ): Promise<void> {
-  'use server'
   await requireArea('admin')
 
   if (!VALID_STATUSES.includes(status)) {
@@ -3324,40 +3597,16 @@ export async function updateCampaignStatus(
 
 - [ ] **Step 2: Add fetchCampaignById server action**
 
+Use the package query function instead of reimplementing the Supabase query:
+
 ```typescript
 export async function fetchCampaignById(
   id: string,
 ): Promise<AdCampaignDetail | null> {
-  'use server'
   await requireArea('admin')
-
   const supabase = getSupabaseAdmin()
-  const { data, error } = await supabase
-    .from('ad_campaigns')
-    .select(
-      '*, ad_slot_creatives(id, slot_key, title, body, cta_text, cta_url, image_url, dismiss_seconds, locale, interaction)',
-    )
-    .eq('id', id)
-    .single()
-
-  if (error || !data) return null
-
-  const { ad_slot_creatives, ...campaign } = data as Record<string, unknown>
-  const creatives = ((ad_slot_creatives ?? []) as AdCampaignDetail['creatives']).sort(
-    (a, b) => {
-      const lc = a.locale.localeCompare(b.locale)
-      return lc !== 0 ? lc : a.slot_key.localeCompare(b.slot_key)
-    },
-  )
-
-  const slots = [...new Set(creatives.map((c) => c.slot_key))]
-
-  return {
-    ...(campaign as unknown as Omit<AdCampaignDetail, 'creatives' | 'slots' | 'slot_id'>),
-    slots,
-    slot_id: slots[0] ?? '',
-    creatives,
-  }
+  const queries = createAdminQueries(supabase, APP_ID)
+  return queries.fetchAdCampaignById(id)
 }
 ```
 
@@ -3369,7 +3618,7 @@ cd /Users/figueiredo/Workspace/bythiagofigueiredo && git add apps/web/src/app/ad
 
 ---
 
-### Task 21: App wiring — update ads page with new config, actions, and data
+### Task 22: App wiring — update ads page with new config, actions, and data
 
 **Files:**
 - Modify: `apps/web/src/app/admin/(authed)/ads/page.tsx` (in bythiagofigueiredo)
@@ -3460,7 +3709,7 @@ cd /Users/figueiredo/Workspace/bythiagofigueiredo && git add apps/web/src/app/ad
 
 ---
 
-### Task 22: Version bump ad-engine-admin in bythiagofigueiredo
+### Task 23: Version bump ad-engine-admin in bythiagofigueiredo
 
 **Files:**
 - Modify: `apps/web/package.json` (in bythiagofigueiredo)
@@ -3506,7 +3755,7 @@ cd /Users/figueiredo/Workspace/bythiagofigueiredo && git add apps/web/package.js
 
 ---
 
-### Task 23: Final verification — dev server smoke test
+### Task 24: Final verification — dev server smoke test
 
 - [ ] **Step 1: Start dev server**
 
@@ -3525,7 +3774,7 @@ Open `http://localhost:3000/admin/ads` in browser and verify:
 5. **Step 2**: Creative preview shows brand color, "DA CASA" badge
 6. **"Nova campanha" button**: Opens modal in create mode (not a broken link)
 7. **Status toggle**: Clicking active badge toggles to paused (and back)
-8. **Delete**: Trash icon → inline confirmation → deletes campaign
+8. **Delete**: Trash icon (SVG) → inline confirmation → deletes campaign
 9. **Placeholders tab**: Shows human-readable slot labels (e.g., "Banner — Topo")
 10. **Placeholders tab**: Active campaign indicator shows for slots with campaigns
 11. **Placeholder preview**: Shows "DA CASA" badge, CTA URL, metadata footer
