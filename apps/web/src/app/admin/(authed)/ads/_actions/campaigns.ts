@@ -2,7 +2,8 @@
 
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { createClient } from '@supabase/supabase-js'
-import type { CampaignFormData, PlaceholderFormData } from '@tn-figueiredo/ad-engine-admin'
+import type { CampaignFormData, PlaceholderFormData, AdCampaignDetail } from '@tn-figueiredo/ad-engine-admin'
+import { createAdminQueries } from '@tn-figueiredo/ad-engine-admin'
 import { requireArea } from '@tn-figueiredo/auth-nextjs/server'
 import { captureServerActionError } from '@/lib/sentry-wrap'
 
@@ -159,6 +160,33 @@ export async function uploadMedia(_file: File): Promise<{ id: string; url: strin
 export async function deleteMedia(_id: string): Promise<void> {
   await requireArea('admin')
   throw new Error('Not implemented')
+}
+
+export async function updateCampaignStatus(id: string, status: string): Promise<void> {
+  await requireArea('admin')
+  const supabase = getSupabaseAdmin()
+  const APP_ID = 'bythiagofigueiredo'
+
+  const { error } = await supabase
+    .from('ad_campaigns')
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .eq('app_id', APP_ID)
+
+  if (error) {
+    captureServerActionError(error, { action: 'update_campaign_status', campaign_id: id })
+    throw new Error(error.message)
+  }
+  revalidatePath('/admin/ads')
+  revalidateTag('ads')
+}
+
+export async function fetchCampaignById(id: string): Promise<AdCampaignDetail | null> {
+  await requireArea('admin')
+  const supabase = getSupabaseAdmin()
+  const APP_ID = 'bythiagofigueiredo'
+  const queries = createAdminQueries(supabase, APP_ID)
+  return queries.fetchAdCampaignById(id)
 }
 
 export async function updatePlaceholder(

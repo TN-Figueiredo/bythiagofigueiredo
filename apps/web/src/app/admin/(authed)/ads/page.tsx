@@ -27,6 +27,8 @@ import {
   createCampaign,
   updateCampaign,
   deleteCampaign,
+  updateCampaignStatus,
+  fetchCampaignById,
   updatePlaceholder,
   uploadMedia,
   deleteMedia,
@@ -92,12 +94,15 @@ export default async function AdsAdminPage({ searchParams }: PageProps) {
     basePath: '/admin/ads',
     locale: 'pt-BR',
     currency: 'BRL',
+    supportedLocales: ['pt-BR', 'en'],
   }
 
   const actions: AdAdminActions = {
     createCampaign,
     updateCampaign,
     deleteCampaign,
+    updateCampaignStatus,
+    fetchCampaignById,
     updatePlaceholder,
     uploadMedia,
     deleteMedia,
@@ -142,7 +147,8 @@ export default async function AdsAdminPage({ searchParams }: PageProps) {
         {tab === 'campaigns' && (
           <CampaignWizardServer
             campaigns={configs?.configs ?? []}
-            config={adminConfig}
+            updateCampaignStatusAction={updateCampaignStatus}
+            fetchCampaignByIdAction={fetchCampaignById}
           />
         )}
 
