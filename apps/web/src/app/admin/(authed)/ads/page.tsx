@@ -29,6 +29,8 @@ import {
   uploadMedia,
   deleteMedia,
 } from './_actions/campaigns'
+import { updateInquiryStatus, updateInquiryNotes } from './_actions/inquiries'
+import { InquiriesList, type AdInquiryRow } from './_components/inquiries-list'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,6 +45,7 @@ function getSupabaseAdmin() {
 const TABS = [
   { key: 'dashboard', label: 'Dashboard' },
   { key: 'campaigns', label: 'Campanhas' },
+  { key: 'inquiries', label: 'Interessados' },
   { key: 'placeholders', label: 'Placeholders' },
   { key: 'media', label: 'Biblioteca' },
 ] as const
@@ -58,7 +61,7 @@ export default async function AdsAdminPage({ searchParams }: PageProps) {
   const supabase = getSupabaseAdmin()
   const APP_ID = 'bythiagofigueiredo'
 
-  const [kpisResult, chartResult, eventsResult, conversionResult, configsResult, placeholdersResult, mediaResult] =
+  const [kpisResult, chartResult, eventsResult, conversionResult, configsResult, placeholdersResult, mediaResult, inquiriesResult] =
     await Promise.allSettled([
       tab === 'dashboard'    ? fetchAdKpis(supabase, APP_ID) : Promise.resolve(null),
       tab === 'dashboard'    ? fetchAdChartData(supabase, APP_ID) : Promise.resolve(null),
@@ -67,6 +70,12 @@ export default async function AdsAdminPage({ searchParams }: PageProps) {
       tab === 'campaigns'    ? fetchAdConfigs(supabase, APP_ID, { page, pageSize: 20 }) : Promise.resolve(null),
       tab === 'placeholders' ? fetchAdPlaceholders(supabase, APP_ID) : Promise.resolve(null),
       tab === 'media'        ? fetchAdMedia(supabase, APP_ID) : Promise.resolve(null),
+      tab === 'inquiries'    ? supabase
+        .from('ad_inquiries')
+        .select('id, name, email, company, website, message, budget, status, admin_notes, submitted_at, contacted_at')
+        .eq('app_id', APP_ID)
+        .order('submitted_at', { ascending: false })
+        .then(({ data }) => data ?? []) : Promise.resolve(null),
     ])
 
   const kpis         = kpisResult.status === 'fulfilled' ? (kpisResult.value ?? EMPTY_AD_KPIS) : EMPTY_AD_KPIS
@@ -76,6 +85,7 @@ export default async function AdsAdminPage({ searchParams }: PageProps) {
   const configs      = configsResult.status === 'fulfilled' ? configsResult.value : null
   const placeholders = placeholdersResult.status === 'fulfilled' ? (placeholdersResult.value ?? []) : []
   const media        = mediaResult.status === 'fulfilled' ? (mediaResult.value ?? []) : []
+  const inquiries    = (inquiriesResult.status === 'fulfilled' ? (inquiriesResult.value ?? []) : []) as AdInquiryRow[]
 
   const adminConfig: AdAdminConfig = {
     appId: APP_ID,
@@ -140,6 +150,14 @@ export default async function AdsAdminPage({ searchParams }: PageProps) {
           <PlaceholderManagerServer
             placeholders={placeholders}
             config={adminConfig}
+          />
+        )}
+
+        {tab === 'inquiries' && (
+          <InquiriesList
+            inquiries={inquiries}
+            updateStatusAction={updateInquiryStatus}
+            updateNotesAction={updateInquiryNotes}
           />
         )}
 

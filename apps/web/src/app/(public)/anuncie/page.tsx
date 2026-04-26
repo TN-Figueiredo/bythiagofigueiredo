@@ -1,12 +1,14 @@
+import { Suspense } from 'react'
 import { headers } from 'next/headers'
 import type { Metadata } from 'next'
-import Link from 'next/link'
 import { tryGetSiteContext } from '@/lib/cms/site-context'
 import { getSiteSeoConfig } from '@/lib/seo/config'
 import { buildBreadcrumbNode } from '@/lib/seo/jsonld/builders'
 import { composeGraph } from '@/lib/seo/jsonld/graph'
 import { JsonLdScript } from '@/lib/seo/jsonld/render'
 import { localePath } from '@/lib/i18n/locale-path'
+import { AdInquiryForm } from '@/components/ad-inquiry-form'
+import { submitAdInquiry } from './actions'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,7 +48,7 @@ const STRINGS = {
     ],
     howTitle: 'Como funciona',
     howSteps: [
-      'Você entra em contato descrevendo seu produto e público-alvo.',
+      'Preencha o formulário abaixo com informações sobre seu produto.',
       'Eu crio o copy e o visual do anúncio — nativo, no tom do blog.',
       'O anúncio roda por período combinado com métricas de impressões e cliques.',
       'Sem intermediários, sem plataforma. Direto e transparente.',
@@ -54,9 +56,7 @@ const STRINGS = {
     pricingTitle: 'Preço',
     pricing:
       'CPM flexível, combinado caso a caso. Projetos open-source e indie têm desconto. Primeiro mês com report completo.',
-    ctaTitle: 'Interessado?',
-    ctaBody: 'Manda uma mensagem com o nome do seu produto e uma frase sobre o público-alvo.',
-    ctaButton: 'Entrar em contato →',
+    formTitle: 'Interessado? Preencha abaixo',
   },
   en: {
     title: 'Advertise here',
@@ -93,7 +93,7 @@ const STRINGS = {
     ],
     howTitle: 'How it works',
     howSteps: [
-      'You reach out describing your product and target audience.',
+      'Fill out the form below with info about your product.',
       'I create the copy and visuals — native, matching the blog tone.',
       'The ad runs for an agreed period with impression and click metrics.',
       'No middlemen, no platform. Direct and transparent.',
@@ -101,9 +101,7 @@ const STRINGS = {
     pricingTitle: 'Pricing',
     pricing:
       'Flexible CPM, agreed case by case. Open-source and indie projects get a discount. First month with full report.',
-    ctaTitle: 'Interested?',
-    ctaBody: 'Send a message with your product name and a sentence about your target audience.',
-    ctaButton: 'Get in touch →',
+    formTitle: 'Interested? Fill out below',
   },
 } as const
 
@@ -158,10 +156,7 @@ export default async function AnunciePage() {
           <h2 className="text-xl font-semibold mb-4">{s.formatsTitle}</h2>
           <div className="grid gap-4 sm:grid-cols-2">
             {s.formats.map((f) => (
-              <div
-                key={f.name}
-                className="rounded-lg border border-border p-4"
-              >
+              <div key={f.name} className="rounded-lg border border-border p-4">
                 <h3 className="font-medium mb-1">{f.name}</h3>
                 <p className="text-sm text-muted-foreground">{f.desc}</p>
               </div>
@@ -183,15 +178,11 @@ export default async function AnunciePage() {
           <p className="text-muted-foreground">{s.pricing}</p>
         </section>
 
-        <section className="rounded-lg border border-border p-6 text-center">
-          <h2 className="text-xl font-semibold mb-2">{s.ctaTitle}</h2>
-          <p className="text-muted-foreground mb-4">{s.ctaBody}</p>
-          <Link
-            href={localePath('/contact', locale)}
-            className="inline-block rounded-md bg-primary px-6 py-2.5 text-sm font-medium text-primary-foreground no-underline hover:opacity-90 transition-opacity"
-          >
-            {s.ctaButton}
-          </Link>
+        <section id="form">
+          <h2 className="text-xl font-semibold mb-4">{s.formTitle}</h2>
+          <Suspense>
+            <AdInquiryForm locale={locale} submitAction={submitAdInquiry} />
+          </Suspense>
         </section>
       </main>
     </>
