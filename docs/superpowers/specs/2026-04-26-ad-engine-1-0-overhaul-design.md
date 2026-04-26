@@ -703,7 +703,7 @@ CREATE TABLE IF NOT EXISTS public.ad_revenue_daily (
   slot_key       TEXT    NOT NULL,
   date           DATE    NOT NULL,
   source         TEXT    NOT NULL
-    CHECK (source IN ('google', 'house', 'cpa')),
+    CHECK (source IN ('adsense', 'house', 'cpa')),
   impressions    INT     NOT NULL DEFAULT 0,
   clicks         INT     NOT NULL DEFAULT 0,
   earnings_cents INT     NOT NULL DEFAULT 0,
@@ -812,9 +812,9 @@ FROM sites s
 CROSS JOIN (VALUES
   ('banner_top',   'Banner -- Topo',          'banner', '16:9',  '728x90',
     true, true, false, true, 'keep', '{house,cpa}'::text[], 1, 3, 3600000),
-  ('rail_left',    'Rail esquerdo',           'rail',   '3:4',   '160x600',
+  ('rail_left',    'Rail esquerdo',           'rail',   '1:4',   '160x600',
     true, false, false, true, 'hide', '{house}'::text[], 1, 3, 3600000),
-  ('rail_right',   'Rail direito',            'rail',   '3:4',   '160x600',
+  ('rail_right',   'Rail direito',            'rail',   '1:4',   '160x600',
     false, true, false, true, 'stack', '{cpa}'::text[], 3, 6, 900000),
   ('inline_mid',   'Inline -- Meio',          'inline', '16:9',  '300x250',
     false, true, false, true, 'keep', '{cpa}'::text[], 2, 4, 1800000),
@@ -1075,6 +1075,63 @@ export function useAdSlot(
 
 O hook NAO condiciona tracking a consent de marketing. Impressions e clicks de house ads sao first-party analytics (interesse legitimo LGPD Art. 7 VIII). CPA ads com tracking de terceiros exigiriam consent -- mas como NAO duplicamos tracking do Google, nao ha problema.
 
+### Frequency Capping (Client-Side)
+
+`ad_slot_config` define tres limites por slot: `max_per_session`, `max_per_day`, `cooldown_ms`. Enforcement e client-side via `localStorage` para persistencia cross-pageview.
+
+```typescript
+interface FrequencyState {
+  impressions: number
+  lastShown: number  // timestamp ms
+}
+
+const FREQ_KEY_PREFIX = 'ad_freq_'
+
+function canShowAd(slotKey: string, config: AdSlotConfig): boolean {
+  const key = `${FREQ_KEY_PREFIX}${slotKey}`
+  const raw = localStorage.getItem(key)
+  if (!raw) return true
+
+  const state: FrequencyState = JSON.parse(raw)
+  const now = Date.now()
+
+  // Cooldown check
+  if (now - state.lastShown < config.cooldown_ms) return false
+
+  // Daily cap — reset if last impression was yesterday
+  const lastDate = new Date(state.lastShown).toDateString()
+  const today = new Date(now).toDateString()
+  if (lastDate !== today) return true  // new day, reset
+
+  // Within same day
+  return state.impressions < config.max_per_day
+}
+
+function recordImpression(slotKey: string): void {
+  const key = `${FREQ_KEY_PREFIX}${slotKey}`
+  const raw = localStorage.getItem(key)
+  const now = Date.now()
+
+  if (!raw) {
+    localStorage.setItem(key, JSON.stringify({ impressions: 1, lastShown: now }))
+    return
+  }
+
+  const state: FrequencyState = JSON.parse(raw)
+  const lastDate = new Date(state.lastShown).toDateString()
+  const today = new Date(now).toDateString()
+
+  localStorage.setItem(key, JSON.stringify({
+    impressions: lastDate === today ? state.impressions + 1 : 1,
+    lastShown: now,
+  }))
+}
+```
+
+`max_per_session` e enforced via `sessionStorage` (contador incrementado no mount, resetado ao fechar tab). Os tres limites sao checados em ordem: cooldown → daily cap → session cap. Se qualquer um falhar, o slot renderiza vazio (nao skeleton — o espaco nao e reservado para ads que excedem frequency cap).
+
+Frequency caps sao per-slot, nao per-campaign. Se um slot atinge o cap, nenhuma campanha aparece naquele slot ate o cooldown expirar.
+
 ---
 
 ## Section 6: Theme System (`@tn-figueiredo/ad-components@0.1.0`)
@@ -1206,6 +1263,23 @@ Animacoes usam `@keyframes` com `prefers-reduced-motion: reduce` media query que
   }
 }
 ```
+
+### Accessibility
+
+Todos os componentes de ad seguem WCAG 2.1 AA:
+
+| Requisito | Implementacao |
+|---|---|
+| Landmark | Wrapper `<aside role="complementary" aria-label="Publicidade">` em cada ad |
+| Label | Badge "PATROCINADO" / "SPONSORED" visivel + `aria-label` no link CTA |
+| Dismiss | Botao `<button aria-label="Fechar anuncio">` com `tabIndex={0}`, ativa via Enter/Space |
+| Focus | Outline visivel em todos os elementos interativos (CTA link, dismiss button) via `focus-visible` |
+| Contrast | Texto sobre `--ad-bg` exige ratio >= 4.5:1. Fallback colors ja atendem. Consumer responsavel por garantir que custom tokens mantenham contraste. |
+| Reduced motion | `prefers-reduced-motion: reduce` desabilita todas as animacoes (slide, fade, pulse) |
+| Screen reader | Skeleton tem `aria-busy="true"` + `aria-label="Carregando anuncio"`. Quando ad carrega, `aria-busy` vira `false`. |
+| Google Ads | `<ins>` element recebe `aria-label="Anuncio do Google"`. Nao controlamos internals do iframe Google. |
+
+Label i18n via `locale` prop — `'pt-BR'` renderiza "PATROCINADO", `'en'` renderiza "SPONSORED".
 
 ### Responsive Behavior
 
@@ -1586,36 +1660,37 @@ Todas as migrations DEVEM ser idempotentes (`IF NOT EXISTS` / `ON CONFLICT DO NO
 **Step 1 --- Renomear kill switches:**
 
 ```sql
--- Idempotente: ON CONFLICT DO NOTHING previne duplicatas
+-- Idempotente: NOT EXISTS previne duplicatas
+-- Nota: kill_switches usa colunas (id TEXT PK, enabled BOOLEAN, reason TEXT)
 UPDATE kill_switches
-SET key = 'ads_slot_banner_top'
-WHERE key = 'ads_slot_article_top'
-  AND NOT EXISTS (SELECT 1 FROM kill_switches WHERE key = 'ads_slot_banner_top');
+SET id = 'ads_slot_banner_top'
+WHERE id = 'ads_slot_article_top'
+  AND NOT EXISTS (SELECT 1 FROM kill_switches WHERE id = 'ads_slot_banner_top');
 
 UPDATE kill_switches
-SET key = 'ads_slot_rail_right'
-WHERE key = 'ads_slot_sidebar_right'
-  AND NOT EXISTS (SELECT 1 FROM kill_switches WHERE key = 'ads_slot_rail_right');
+SET id = 'ads_slot_rail_right'
+WHERE id = 'ads_slot_sidebar_right'
+  AND NOT EXISTS (SELECT 1 FROM kill_switches WHERE id = 'ads_slot_rail_right');
 
 UPDATE kill_switches
-SET key = 'ads_slot_inline_mid'
-WHERE key = 'ads_slot_article_between_paras'
-  AND NOT EXISTS (SELECT 1 FROM kill_switches WHERE key = 'ads_slot_inline_mid');
+SET id = 'ads_slot_inline_mid'
+WHERE id = 'ads_slot_article_between_paras'
+  AND NOT EXISTS (SELECT 1 FROM kill_switches WHERE id = 'ads_slot_inline_mid');
 
 UPDATE kill_switches
-SET key = 'ads_slot_block_bottom'
-WHERE key = 'ads_slot_below_fold'
-  AND NOT EXISTS (SELECT 1 FROM kill_switches WHERE key = 'ads_slot_block_bottom');
+SET id = 'ads_slot_block_bottom'
+WHERE id = 'ads_slot_below_fold'
+  AND NOT EXISTS (SELECT 1 FROM kill_switches WHERE id = 'ads_slot_block_bottom');
 
 -- Novos slots que nao existiam antes
-INSERT INTO kill_switches (key, is_enabled, description)
+INSERT INTO kill_switches (id, enabled, reason)
 VALUES
   ('ads_slot_rail_left', true, 'Rail esquerdo — MarginaliaAd'),
   ('ads_slot_banner_top', true, 'Banner topo — DoormanAd'),
   ('ads_slot_rail_right', true, 'Rail direito — AnchorAd'),
   ('ads_slot_inline_mid', true, 'Inline meio — BookmarkAd'),
   ('ads_slot_block_bottom', true, 'Block inferior — CodaAd')
-ON CONFLICT (key) DO NOTHING;
+ON CONFLICT (id) DO NOTHING;
 ```
 
 **Step 2 --- ADD columns to `ad_campaigns`:**
@@ -1658,30 +1733,61 @@ ALTER TABLE organizations
 **Step 5 --- CREATE TABLE `ad_slot_config`:**
 
 ```sql
+-- Canonical DDL — matches Section 4.2 design
 CREATE TABLE IF NOT EXISTS ad_slot_config (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  site_id uuid NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
-  slot_key text NOT NULL,
-  label text NOT NULL,
-  zone text NOT NULL CHECK (zone IN ('banner', 'rail', 'inline', 'block')),
-  mobile_behavior text NOT NULL DEFAULT 'keep'
-    CHECK (mobile_behavior IN ('hide', 'keep', 'stack')),
-  is_enabled boolean NOT NULL DEFAULT true,
-  accepted_ad_types text[] NOT NULL DEFAULT '{house,cpa}',
-  max_per_session int NOT NULL DEFAULT 1,
-  max_per_day int NOT NULL DEFAULT 3,
-  cooldown_ms int NOT NULL DEFAULT 3600000,
+  site_id              uuid    NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  slot_key             text    NOT NULL,
+
+  -- Waterfall toggles
+  house_enabled        boolean NOT NULL DEFAULT true,
+  cpa_enabled          boolean NOT NULL DEFAULT false,
+  google_enabled       boolean NOT NULL DEFAULT false,
+  template_enabled     boolean NOT NULL DEFAULT true,
+
+  -- Network adapters
   network_adapters_order text[] NOT NULL DEFAULT '{adsense}',
-  network_config jsonb NOT NULL DEFAULT '{}',
-  google_enabled boolean NOT NULL DEFAULT false,
-  sort_order int NOT NULL DEFAULT 0,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (site_id, slot_key)
+  network_config       jsonb   NOT NULL DEFAULT '{}',
+
+  -- Display
+  aspect_ratio         text    NOT NULL DEFAULT '16:9',
+  iab_size             text,
+  mobile_behavior      text    NOT NULL DEFAULT 'keep'
+    CHECK (mobile_behavior IN ('keep', 'hide', 'stack')),
+
+  -- Frequency caps
+  max_per_session      int     NOT NULL DEFAULT 1,
+  max_per_day          int     NOT NULL DEFAULT 3,
+  cooldown_ms          int     NOT NULL DEFAULT 3600000,
+
+  -- Metadata
+  label                text    NOT NULL,
+  zone                 text    NOT NULL
+    CHECK (zone IN ('banner', 'rail', 'inline', 'block')),
+  accepted_types       text[]  NOT NULL DEFAULT '{house,cpa}',
+
+  -- Timestamps
+  created_at           timestamptz NOT NULL DEFAULT now(),
+  updated_at           timestamptz NOT NULL DEFAULT now(),
+
+  PRIMARY KEY (site_id, slot_key)
 );
+
+ALTER TABLE ad_slot_config ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "ad_slot_config_all_service_role"
+  ON ad_slot_config FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "ad_slot_config_select_auth"
+  ON ad_slot_config FOR SELECT TO authenticated USING (true);
+CREATE POLICY "ad_slot_config_select_anon"
+  ON ad_slot_config FOR SELECT TO anon USING (true);
 
 CREATE INDEX IF NOT EXISTS idx_ad_slot_config_site
   ON ad_slot_config (site_id);
+
+DROP TRIGGER IF EXISTS update_ad_slot_config_updated_at ON ad_slot_config;
+CREATE TRIGGER update_ad_slot_config_updated_at
+  BEFORE UPDATE ON ad_slot_config
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 ```
 
 **Step 6 --- CREATE TABLE `ad_revenue_daily`:**
@@ -1711,27 +1817,32 @@ CREATE INDEX IF NOT EXISTS idx_ad_revenue_daily_site_date
 **Step 7 --- SEED `ad_slot_config` para site existente:**
 
 ```sql
--- Assume bythiagofigueiredo site existe. Seed idempotente via ON CONFLICT.
-INSERT INTO ad_slot_config (site_id, slot_key, label, zone, mobile_behavior, accepted_ad_types, max_per_session, max_per_day, cooldown_ms, sort_order)
+-- Seed idempotente — matches Section 4.7 canonical seed.
+-- Reuses same CROSS JOIN VALUES pattern with full column set.
+INSERT INTO ad_slot_config (site_id, slot_key, label, zone, aspect_ratio, iab_size,
+  house_enabled, cpa_enabled, google_enabled, template_enabled,
+  mobile_behavior, accepted_types, max_per_session, max_per_day, cooldown_ms)
 SELECT
   s.id,
-  v.slot_key,
-  v.label,
-  v.zone,
-  v.mobile_behavior,
-  v.accepted_ad_types::text[],
-  v.max_per_session,
-  v.max_per_day,
-  v.cooldown_ms,
-  v.sort_order
+  v.slot_key, v.label, v.zone, v.aspect_ratio, v.iab_size,
+  v.house_enabled, v.cpa_enabled, v.google_enabled, v.template_enabled,
+  v.mobile_behavior, v.accepted_types,
+  v.max_per_session, v.max_per_day, v.cooldown_ms
 FROM sites s
 CROSS JOIN (VALUES
-  ('banner_top',  'Banner --- Topo',       'banner', 'keep',  '{house,cpa}', 1, 3, 3600000,  10),
-  ('rail_left',   'Rail esquerdo',        'rail',   'hide',  '{house}',     1, 3, 3600000,  20),
-  ('inline_mid',  'Inline --- Meio',        'inline', 'keep',  '{cpa}',       2, 4, 1800000,  30),
-  ('rail_right',  'Rail direito',         'rail',   'stack', '{cpa}',       3, 6,  900000,  40),
-  ('block_bottom','Block --- Inferior',     'block',  'keep',  '{house,cpa}', 1, 2, 7200000,  50)
-) AS v(slot_key, label, zone, mobile_behavior, accepted_ad_types, max_per_session, max_per_day, cooldown_ms, sort_order)
+  ('banner_top',   'Banner -- Topo',      'banner', '16:9', '728x90',
+    true, true, false, true, 'keep', '{house,cpa}'::text[], 1, 3, 3600000),
+  ('rail_left',    'Rail esquerdo',       'rail',   '1:4',  '160x600',
+    true, false, false, true, 'hide', '{house}'::text[], 1, 3, 3600000),
+  ('inline_mid',   'Inline -- Meio',      'inline', '6:5',  '300x250',
+    false, true, false, true, 'keep', '{cpa}'::text[], 2, 4, 1800000),
+  ('rail_right',   'Rail direito',        'rail',   '6:5',  '300x250',
+    false, true, false, true, 'stack', '{cpa}'::text[], 3, 6, 900000),
+  ('block_bottom', 'Block -- Inferior',   'block',  '4:1',  '970x250',
+    true, true, false, true, 'keep', '{house,cpa}'::text[], 1, 2, 7200000)
+) AS v(slot_key, label, zone, aspect_ratio, iab_size,
+       house_enabled, cpa_enabled, google_enabled, template_enabled,
+       mobile_behavior, accepted_types, max_per_session, max_per_day, cooldown_ms)
 WHERE s.slug = 'bythiagofigueiredo'
 ON CONFLICT (site_id, slot_key) DO NOTHING;
 ```
@@ -1752,7 +1863,31 @@ DELETE FROM ad_placeholders
 WHERE slot_key = 'inline_end';
 ```
 
-**Step 9 --- Campanhas existentes preservadas:**
+**Step 9 --- ADD `site_id` to `ad_events` + index para aggregation cron:**
+
+```sql
+-- ad_events usa app_id TEXT (site.slug) e slot_id TEXT. Adicionar site_id UUID
+-- para joins eficientes com ad_revenue_daily e sites.
+ALTER TABLE ad_events
+  ADD COLUMN IF NOT EXISTS site_id uuid REFERENCES sites(id) ON DELETE SET NULL;
+
+-- Backfill site_id a partir de app_id (que e o site.slug)
+UPDATE ad_events e
+SET site_id = s.id
+FROM sites s
+WHERE e.app_id = s.slug
+  AND e.site_id IS NULL;
+
+-- Index para o cron de aggregation (query por date range)
+CREATE INDEX IF NOT EXISTS idx_ad_events_created_date
+  ON ad_events (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_ad_events_site_date
+  ON ad_events (site_id, created_at DESC)
+  WHERE site_id IS NOT NULL;
+```
+
+**Step 10 --- Campanhas existentes preservadas:**
 
 Nenhuma campanha existente e deletada. Novos campos em `ad_campaigns` tem defaults seguros:
 - `target_categories = '{}'` --- sem filtro por categoria (exibida em todas)
@@ -1852,11 +1987,11 @@ Checklist ordenado para o consumer (bythiagofigueiredo):
 ### Ordem de Execucao
 
 ```
-1. Rodar migration SQL (Steps 1-8)
+1. Rodar migration SQL (Steps 1-10)
 2. Deploy pacotes (ad-engine@1.0.0, ad-engine-admin@1.0.0, ad-components@0.1.0)
 3. Atualizar package.json + npm install
-4. Aplicar mudancas de codigo (Steps 2-8 do Code Migration)
-5. Rodar npm test — validar que nenhum teste quebrou
+4. Aplicar mudancas de codigo (Steps 1-8 do Code Migration)
+5. Rodar npm test — validar que nenhum teste quebrou (ver Appendix F)
 6. Deploy para staging → validar preview
 7. Deploy para production
 ```
@@ -2198,22 +2333,30 @@ Para ads house e CPA (nao-AdSense), `ad_revenue_daily` e populada pelo event tra
 Cron `/api/cron/ad-revenue-aggregate` (diario, `0 7 * * *`) agrega eventos do dia anterior para `ad_revenue_daily`:
 
 ```sql
+-- Nota: ad_events usa colunas (slot_id TEXT, app_id TEXT, ad_id UUID FK→ad_campaigns).
+-- Migration 1.0 adiciona ad_events.site_id (UUID FK→sites) — ver Step 9 abaixo.
+-- ad_campaigns usa pricing_value NUMERIC + pricing_model TEXT (nao cpc_cents).
 INSERT INTO ad_revenue_daily (site_id, slot_key, date, source, impressions, clicks, earnings_usd_cents)
 SELECT
   e.site_id,
-  e.slot_key,
+  e.slot_id AS slot_key,
   e.created_at::date AS date,
   CASE WHEN c.type = 'house' THEN 'house' ELSE 'cpa' END AS source,
   COUNT(*) FILTER (WHERE e.event_type = 'impression') AS impressions,
   COUNT(*) FILTER (WHERE e.event_type = 'click') AS clicks,
   COALESCE(
-    SUM(CASE WHEN e.event_type = 'click' AND c.type = 'cpa' THEN c.cpc_cents ELSE 0 END),
+    SUM(CASE
+      WHEN e.event_type = 'click' AND c.type = 'cpa' AND c.pricing_model = 'cpc'
+      THEN (c.pricing_value * 100)::int  -- pricing_value em USD → cents
+      ELSE 0
+    END),
     0
   ) AS earnings_usd_cents
 FROM ad_events e
-JOIN ad_campaigns c ON c.id = e.campaign_id
+JOIN ad_campaigns c ON c.id = e.ad_id
 WHERE e.created_at::date = CURRENT_DATE - INTERVAL '1 day'
-GROUP BY e.site_id, e.slot_key, date, source
+  AND e.site_id IS NOT NULL
+GROUP BY e.site_id, e.slot_id, date, source
 ON CONFLICT (site_id, slot_key, date, source) DO UPDATE
 SET impressions = EXCLUDED.impressions,
     clicks = EXCLUDED.clicks,
@@ -2400,7 +2543,7 @@ Fluxo completo de resolucao de slot, combinando server-side (house/CPA) e client
 ```
 resolveSlot(slot, context) -> {
   1. Kill switch check
-     └─ kill_switches WHERE key = 'ads_slot_{slot_key}' AND is_enabled = false
+     └─ kill_switches WHERE id = 'ads_slot_{slot_key}' AND enabled = false
      └─ Se desabilitado → EMPTY (slot nao renderiza)
 
   2. House campaigns (server, priority sorted)
@@ -2660,3 +2803,63 @@ Network ads (AdSense) can fill any slot regardless of accepted type --- the wate
 | `/api/cron/ad-events-aggregate` | `0 3 * * *` (03:00 UTC daily) | Aggregate raw `ad_events` into `ad_revenue_daily` for house/CPA campaigns | `AD_TRACKING_ENABLED` |
 
 Both crons require `Authorization: Bearer ${CRON_SECRET}` (same pattern as existing crons). Each checks its feature flag gate at the top of the handler and returns `200 { skipped: true }` when disabled. The aggregation cron runs before the AdSense sync to ensure house/CPA data is settled before network data arrives, avoiding partial-day conflicts in the daily rollup.
+
+---
+
+## Appendix F: Testing Strategy
+
+Convenção do projeto: `npm test` deve passar antes de qualquer task ser reportada como completa (CLAUDE.md). Testes usam Vitest. DB-gated tests usam `describe.skipIf(skipIfNoLocalDb())`.
+
+### Unit Tests (`@tn-figueiredo/ad-engine`)
+
+| Suite | O que testa | DB? |
+|---|---|---|
+| `resolveSlot()` | Waterfall order (house → CPA → network → template → empty), kill switch bypass, category filtering, schedule filtering | No |
+| `matchesCategory()` | Empty array = all, exact match, no-match, null postCategory | No |
+| `pacingAllows()` | even/front_loaded/asap strategies, edge cases (day 1, last day, over budget) | No |
+| `selectWinner()` | Priority sort, relevance score tiebreak, A/B variant assignment (deterministic murmurhash) | No |
+| `assignVariant()` | Weight distribution, single variant (100%), edge buckets (0, 99) | No |
+| `canShowAd()` | Frequency cap: cooldown, daily reset, session cap | No |
+
+### Unit Tests (`@tn-figueiredo/ad-components`)
+
+| Suite | O que testa | DB? |
+|---|---|---|
+| `useAdSlot()` | IntersectionObserver mock: fires impression after 1s visible, dedup via sessionStorage, click tracking | No |
+| `useAdConsent()` | Adapter subscription, consent change propagation, default state (loaded=false) | No |
+| `AdBanner/Rail/Inline/Block` | Render with creative data, dismiss callback, accessibility (role, aria-label), skeleton state | No |
+| `queueEvent/flushEvents` | Batching (2s), visibilitychange flush, sendBeacon fallback | No |
+| `observeGoogleFill` | MutationObserver mock: fill detected, 3s timeout nofill, cleanup on unmount | No |
+
+### Integration Tests (DB-gated, `apps/web/test/integration/`)
+
+| Suite | O que testa | DB? |
+|---|---|---|
+| `ad_slot_config` CRUD | INSERT/SELECT/UPDATE via service-role, RLS (anon can SELECT, cannot INSERT) | Yes |
+| `ad_revenue_daily` aggregation | UPSERT idempotency, ON CONFLICT update, date range queries | Yes |
+| `ad_campaigns` targeting | GIN index query with `@>` operator, empty array matches all | Yes |
+| Kill switch rename | Migration idempotency, old names → new names, seed of new switches | Yes |
+
+### E2E Tests (Playwright, `apps/web/e2e/`)
+
+| Spec | O que testa |
+|---|---|
+| `ads-render.spec.ts` | House ad renders in blog post, template fallback when no campaign, dismiss persists |
+| `ads-admin.spec.ts` | Campaign wizard: create → preview → save, slot config toggles, dashboard loads without errors |
+| `ads-consent.spec.ts` | Google Ad slot shows skeleton when no consent, shows template after revoke |
+
+### Test Doubles
+
+- **IntersectionObserver**: Mock via `vi.stubGlobal('IntersectionObserver', MockIntersectionObserver)` — simula `isIntersecting: true` após delay configurável.
+- **navigator.sendBeacon**: Mock que captura chamadas para assertions em batch tests.
+- **MutationObserver**: Mock que dispara `addedNodes` on demand para simular Google fill.
+- **Supabase client**: Real client contra DB local para integration tests. Service-role para setup/teardown, anon para RLS assertions.
+
+### Coverage targets
+
+| Package | Target |
+|---|---|
+| `ad-engine` (core logic) | 90%+ line coverage |
+| `ad-components` (hooks + rendering) | 80%+ line coverage |
+| `ad-engine-admin` (RSC components) | 70%+ (admin UI less critical) |
+| Integration tests | Every new table + RLS policy + migration |
