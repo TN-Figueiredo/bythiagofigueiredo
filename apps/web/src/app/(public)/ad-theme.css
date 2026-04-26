@@ -1,0 +1,11 @@
+:root {
+  --ad-bg: var(--pb-paper2);
+  --ad-bg-alt: var(--pb-paper);
+  --ad-text: var(--pb-ink);
+  --ad-text-muted: var(--pb-muted);
+  --ad-accent: var(--pb-accent);
+  --ad-border: var(--pb-line);
+  --ad-font-body: var(--font-inter);
+  --ad-font-heading: var(--font-source-serif);
+  --ad-font-mono: var(--font-jetbrains);
+}

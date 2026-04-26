@@ -20,6 +20,7 @@ import { GlobalHeader } from '@/components/layout/global-header'
 import { PinboardFooter } from './components/PinboardFooter'
 import enStrings from '../../locales/en.json'
 import ptBrStrings from '../../locales/pt-BR.json'
+import './ad-theme.css'
 
 /**
  * Sprint 5b PR-C C.2 — resolve per-site root metadata via the SEO factory
