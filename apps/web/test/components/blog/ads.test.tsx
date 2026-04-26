@@ -1,14 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, fireEvent } from '@testing-library/react'
-import {
-  hashSlug,
-  pickSponsor,
-  pickHouse,
-  computeBookmarkIndex,
-  computeMobileInlineIndex,
-  SPONSORS,
-  HOUSE_ADS,
-} from '../../../src/components/blog/ads'
+import type { AdCreativeData } from '../../../src/components/blog/ads'
 
 // ---------- localStorage mock ----------
 const store: Record<string, string> = {}
@@ -44,116 +36,64 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
-// ============ Utility tests ============
+// ---------- Mock creative factory ----------
 
-describe('hashSlug', () => {
-  it('returns a number', () => {
-    expect(typeof hashSlug('hello')).toBe('number')
+function mockCreative(overrides: Partial<AdCreativeData> = {}): AdCreativeData {
+  return {
+    campaignId: 'test-campaign-1',
+    slotKey: 'rail_left',
+    type: 'house',
+    source: 'campaign',
+    interaction: 'link',
+    title: 'Test Headline',
+    body: 'Test body text for the ad.',
+    ctaText: 'Click here →',
+    ctaUrl: '#test-url',
+    imageUrl: null,
+    logoUrl: '/ads/logos/test.svg',
+    brandColor: '#7B5BF7',
+    dismissSeconds: 0,
+    ...overrides,
+  }
+}
+
+// ============ adLabel helper tests ============
+
+describe('adLabel', () => {
+  it('returns PATROCINADO for cpa pt-BR', async () => {
+    const { adLabel } = await import('../../../src/components/blog/ads/ad-label')
+    expect(adLabel('cpa', 'pt-BR')).toBe('PATROCINADO')
   })
 
-  it('is deterministic', () => {
-    const a = hashSlug('my-blog-post')
-    const b = hashSlug('my-blog-post')
-    expect(a).toBe(b)
+  it('returns SPONSORED for cpa en', async () => {
+    const { adLabel } = await import('../../../src/components/blog/ads/ad-label')
+    expect(adLabel('cpa', 'en')).toBe('SPONSORED')
   })
 
-  it('produces different hashes for different slugs', () => {
-    const a = hashSlug('post-a')
-    const b = hashSlug('post-b')
-    expect(a).not.toBe(b)
+  it('returns DA CASA for house pt-BR', async () => {
+    const { adLabel } = await import('../../../src/components/blog/ads/ad-label')
+    expect(adLabel('house', 'pt-BR')).toBe('DA CASA')
   })
 
-  it('handles empty string', () => {
-    expect(hashSlug('')).toBe(0)
-  })
-})
-
-describe('pickSponsor', () => {
-  it('returns a sponsor from the array', () => {
-    const result = pickSponsor(42, 0, SPONSORS)
-    expect(SPONSORS).toContain(result)
-  })
-
-  it('is deterministic', () => {
-    const a = pickSponsor(123, 1, SPONSORS)
-    const b = pickSponsor(123, 1, SPONSORS)
-    expect(a.id).toBe(b.id)
-  })
-
-  it('different offsets can produce different results', () => {
-    // With 3 sponsors, offsets 0 and 1 (multiplied by 7) should differ
-    const a = pickSponsor(0, 0, SPONSORS)
-    const b = pickSponsor(0, 1, SPONSORS)
-    // They may or may not differ depending on modular arithmetic,
-    // but at least both must be valid sponsors
-    expect(SPONSORS).toContain(a)
-    expect(SPONSORS).toContain(b)
-  })
-})
-
-describe('pickHouse', () => {
-  it('returns a house ad from the array', () => {
-    const result = pickHouse(99, 2, HOUSE_ADS)
-    expect(HOUSE_ADS).toContain(result)
-  })
-})
-
-describe('computeBookmarkIndex', () => {
-  it('places before 2nd h2 when >=2 h2s exist', () => {
-    // 20 blocks, h2 at indices 3 and 10
-    const idx = computeBookmarkIndex(20, [3, 10])
-    expect(idx).toBe(9) // h2Indices[1] - 1
-  })
-
-  it('places before 2nd h2 when 3+ h2s exist', () => {
-    const idx = computeBookmarkIndex(30, [4, 12, 20])
-    expect(idx).toBe(11) // h2Indices[1] - 1
-  })
-
-  it('places ~60% after single h2', () => {
-    // 20 blocks, h2 at index 5
-    // Math.min(18, 5 + floor((20-5)*0.6)) = Math.min(18, 5+9) = 14
-    const idx = computeBookmarkIndex(20, [5])
-    expect(idx).toBe(14)
-  })
-
-  it('places ~55% through body when no h2s', () => {
-    const idx = computeBookmarkIndex(20, [])
-    expect(idx).toBe(11) // floor(20 * 0.55)
-  })
-
-  it('caps single-h2 placement at bodyBlockCount - 2', () => {
-    // 10 blocks, h2 at index 1
-    // Math.min(8, 1 + floor((10-1)*0.6)) = Math.min(8, 1+5) = 6
-    const idx = computeBookmarkIndex(10, [1])
-    expect(idx).toBe(6)
-  })
-})
-
-describe('computeMobileInlineIndex', () => {
-  it('places before last h2 when >=2 h2s exist', () => {
-    const idx = computeMobileInlineIndex(20, [3, 15])
-    expect(idx).toBe(14) // h2Indices[last] - 1
-  })
-
-  it('places at ~70% when fewer than 2 h2s', () => {
-    const idx = computeMobileInlineIndex(20, [5])
-    expect(idx).toBe(14) // floor(20 * 0.7)
-  })
-
-  it('places at ~70% when no h2s', () => {
-    const idx = computeMobileInlineIndex(30, [])
-    expect(idx).toBe(21) // floor(30 * 0.7)
+  it('returns HOUSE for house en', async () => {
+    const { adLabel } = await import('../../../src/components/blog/ads/ad-label')
+    expect(adLabel('house', 'en')).toBe('HOUSE')
   })
 })
 
 // ============ useDismissable hook test ============
 
-import { useDismissable as useDismissableHook } from '../../../src/components/blog/ads/use-dismissable'
+import { useDismissable } from '../../../src/components/blog/ads/use-dismissable'
 
 describe('useDismissable', () => {
-  function TestComponent({ id, onDismiss }: { id: string; onDismiss?: () => void }) {
-    const [dismissed, dismiss] = useDismissableHook(id, onDismiss)
+  function TestComponent({
+    creative,
+    onDismiss,
+  }: {
+    creative: AdCreativeData
+    onDismiss?: () => void
+  }) {
+    const [dismissed, dismiss] = useDismissable(creative, onDismiss)
     return (
       <div>
         <span data-testid="status">{dismissed ? 'dismissed' : 'visible'}</span>
@@ -165,28 +105,40 @@ describe('useDismissable', () => {
   }
 
   it('starts as visible when not previously dismissed', () => {
-    const { getByTestId } = render(<TestComponent id="test-1" />)
+    const { getByTestId } = render(
+      <TestComponent creative={mockCreative()} />,
+    )
     expect(getByTestId('status').textContent).toBe('visible')
   })
 
   it('becomes dismissed on click and persists to localStorage', () => {
     const onDismiss = vi.fn()
+    const creative = mockCreative()
     const { getByTestId } = render(
-      <TestComponent id="test-2" onDismiss={onDismiss} />,
+      <TestComponent creative={creative} onDismiss={onDismiss} />,
     )
 
     fireEvent.click(getByTestId('dismiss'))
     expect(getByTestId('status').textContent).toBe('dismissed')
     expect(onDismiss).toHaveBeenCalledOnce()
 
-    // Verify localStorage was written
     const stored = JSON.parse(store['btf_ads_dismissed'] || '{}')
-    expect(stored['test-2']).toBeDefined()
+    expect(stored['rail_left_test-campaign-1']).toBeDefined()
   })
 
-  it('starts as dismissed when localStorage has the id', () => {
-    store['btf_ads_dismissed'] = JSON.stringify({ 'test-3': Date.now() })
-    const { getByTestId } = render(<TestComponent id="test-3" />)
+  it('uses slotKey_ph for placeholder dismiss key', () => {
+    const creative = mockCreative({ campaignId: null, source: 'placeholder' })
+    const { getByTestId } = render(<TestComponent creative={creative} />)
+
+    fireEvent.click(getByTestId('dismiss'))
+    const stored = JSON.parse(store['btf_ads_dismissed'] || '{}')
+    expect(stored['rail_left_ph']).toBeDefined()
+  })
+
+  it('starts as dismissed when localStorage has the key', () => {
+    const creative = mockCreative({ slotKey: 'banner_top', campaignId: 'abc' })
+    store['btf_ads_dismissed'] = JSON.stringify({ 'banner_top_abc': Date.now() })
+    const { getByTestId } = render(<TestComponent creative={creative} />)
     expect(getByTestId('status').textContent).toBe('dismissed')
   })
 })
@@ -194,216 +146,135 @@ describe('useDismissable', () => {
 // ============ Component render tests ============
 
 describe('MarginaliaAd', () => {
-  it('renders headline and CTA', async () => {
-    const { MarginaliaAd } = await import(
-      '../../../src/components/blog/ads/marginalia-ad'
-    )
-    const { container } = render(
-      <MarginaliaAd ad={HOUSE_ADS[0]} locale="pt-BR" />,
-    )
-    expect(container.textContent).toContain(HOUSE_ADS[0].headline_pt)
-    expect(container.textContent).toContain(HOUSE_ADS[0].cta_pt)
-  })
-
-  it('renders english content for en locale', async () => {
-    const { MarginaliaAd } = await import(
-      '../../../src/components/blog/ads/marginalia-ad'
-    )
-    const { container } = render(
-      <MarginaliaAd ad={HOUSE_ADS[0]} locale="en" />,
-    )
-    expect(container.textContent).toContain(HOUSE_ADS[0].headline_en)
+  it('renders title and CTA', async () => {
+    const { MarginaliaAd } = await import('../../../src/components/blog/ads/marginalia-ad')
+    const creative = mockCreative({ slotKey: 'rail_left' })
+    const { container } = render(<MarginaliaAd creative={creative} locale="pt-BR" />)
+    expect(container.textContent).toContain('Test Headline')
+    expect(container.textContent).toContain('Click here →')
   })
 
   it('returns null when dismissed', async () => {
-    store['btf_ads_dismissed'] = JSON.stringify({ ['m_' + HOUSE_ADS[0].id]: Date.now() })
-    const { MarginaliaAd } = await import(
-      '../../../src/components/blog/ads/marginalia-ad'
-    )
-    const { container } = render(
-      <MarginaliaAd ad={HOUSE_ADS[0]} locale="pt-BR" />,
-    )
+    const creative = mockCreative({ slotKey: 'rail_left', campaignId: 'xyz' })
+    store['btf_ads_dismissed'] = JSON.stringify({ 'rail_left_xyz': Date.now() })
+    const { MarginaliaAd } = await import('../../../src/components/blog/ads/marginalia-ad')
+    const { container } = render(<MarginaliaAd creative={creative} locale="pt-BR" />)
     expect(container.innerHTML).toBe('')
   })
 })
 
 describe('AnchorAd', () => {
-  it('renders brand mark via dangerouslySetInnerHTML', async () => {
-    const { AnchorAd } = await import(
-      '../../../src/components/blog/ads/anchor-ad'
-    )
-    const { container } = render(
-      <AnchorAd ad={SPONSORS[0]} locale="pt-BR" />,
-    )
-    expect(container.querySelector('svg')).toBeTruthy()
-    expect(container.textContent).toContain(SPONSORS[0].brand)
+  it('renders logo img instead of dangerouslySetInnerHTML', async () => {
+    const { AnchorAd } = await import('../../../src/components/blog/ads/anchor-ad')
+    const creative = mockCreative({ slotKey: 'rail_right', type: 'cpa', logoUrl: '/ads/logos/test.svg' })
+    const { container } = render(<AnchorAd creative={creative} locale="pt-BR" />)
+    const img = container.querySelector('img')
+    expect(img).toBeTruthy()
+    expect(img?.getAttribute('src')).toBe('/ads/logos/test.svg')
+    expect(container.querySelector('svg')).toBeNull()
   })
 })
 
 describe('BookmarkAd', () => {
   it('renders tape decoration and cream background', async () => {
-    const { BookmarkAd } = await import(
-      '../../../src/components/blog/ads/bookmark-ad'
-    )
-    const { container } = render(
-      <BookmarkAd ad={SPONSORS[1]} locale="pt-BR" />,
-    )
-    // Tape is aria-hidden
+    const { BookmarkAd } = await import('../../../src/components/blog/ads/bookmark-ad')
+    const creative = mockCreative({ slotKey: 'inline_mid', type: 'cpa' })
+    const { container } = render(<BookmarkAd creative={creative} locale="pt-BR" />)
     const tape = container.querySelector('[aria-hidden="true"]')
     expect(tape).toBeTruthy()
-    expect(container.textContent).toContain(SPONSORS[1].headline_pt)
+    expect(container.textContent).toContain('Test Headline')
   })
 
   it('renders CTA as a link', async () => {
-    const { BookmarkAd } = await import(
-      '../../../src/components/blog/ads/bookmark-ad'
-    )
-    const { container } = render(
-      <BookmarkAd ad={SPONSORS[1]} locale="en" />,
-    )
+    const { BookmarkAd } = await import('../../../src/components/blog/ads/bookmark-ad')
+    const creative = mockCreative({ slotKey: 'inline_mid' })
+    const { container } = render(<BookmarkAd creative={creative} locale="en" />)
     const link = container.querySelector('a')
     expect(link).toBeTruthy()
-    expect(link?.getAttribute('href')).toBe(SPONSORS[1].url)
+    expect(link?.getAttribute('href')).toBe('#test-url')
   })
 })
 
 describe('CodaAd', () => {
-  it('renders grid layout with mark and content', async () => {
-    const { CodaAd } = await import(
-      '../../../src/components/blog/ads/coda-ad'
-    )
-    const { container } = render(
-      <CodaAd ad={SPONSORS[2]} locale="pt-BR" />,
-    )
-    expect(container.querySelector('svg')).toBeTruthy()
-    expect(container.textContent).toContain(SPONSORS[2].headline_pt)
-    expect(container.textContent).toContain(SPONSORS[2].body_pt)
-    // CTA link
+  it('renders logo img and content', async () => {
+    const { CodaAd } = await import('../../../src/components/blog/ads/coda-ad')
+    const creative = mockCreative({ slotKey: 'block_bottom', type: 'cpa' })
+    const { container } = render(<CodaAd creative={creative} locale="pt-BR" />)
+    const img = container.querySelector('img')
+    expect(img).toBeTruthy()
+    expect(container.textContent).toContain('Test Headline')
+    expect(container.textContent).toContain('Test body text')
     const link = container.querySelector('a')
-    expect(link?.getAttribute('href')).toBe(SPONSORS[2].url)
+    expect(link?.getAttribute('href')).toBe('#test-url')
   })
 })
 
 describe('DoormanAd', () => {
-  it('renders banner with headline and CTA', async () => {
-    const { DoormanAd } = await import(
-      '../../../src/components/blog/ads/doorman-ad'
-    )
-    const { container } = render(
-      <DoormanAd ad={SPONSORS[0]} locale="pt-BR" />,
-    )
-    expect(container.textContent).toContain(SPONSORS[0].headline_pt)
-    expect(container.textContent).toContain(SPONSORS[0].brand)
+  it('renders banner with title and CTA', async () => {
+    const { DoormanAd } = await import('../../../src/components/blog/ads/doorman-ad')
+    const creative = mockCreative({ slotKey: 'banner_top' })
+    const { container } = render(<DoormanAd creative={creative} locale="pt-BR" />)
+    expect(container.textContent).toContain('Test Headline')
   })
 
   it('returns null when dismissed', async () => {
-    store['btf_ads_dismissed'] = JSON.stringify({ ['d_' + SPONSORS[0].id]: Date.now() })
-    const { DoormanAd } = await import(
-      '../../../src/components/blog/ads/doorman-ad'
-    )
-    const { container } = render(
-      <DoormanAd ad={SPONSORS[0]} locale="pt-BR" />,
-    )
+    const creative = mockCreative({ slotKey: 'banner_top', campaignId: 'abc' })
+    store['btf_ads_dismissed'] = JSON.stringify({ 'banner_top_abc': Date.now() })
+    const { DoormanAd } = await import('../../../src/components/blog/ads/doorman-ad')
+    const { container } = render(<DoormanAd creative={creative} locale="pt-BR" />)
     expect(container.innerHTML).toBe('')
   })
 })
 
 describe('BowtieAd', () => {
-  it('renders email form for house newsletter ad', async () => {
-    const { BowtieAd } = await import(
-      '../../../src/components/blog/ads/bowtie-ad'
-    )
-    const { container } = render(
-      <BowtieAd ad={HOUSE_ADS[0]} locale="pt-BR" />,
-    )
+  it('renders email form when interaction is form', async () => {
+    const { BowtieAd } = await import('../../../src/components/blog/ads/bowtie-ad')
+    const creative = mockCreative({ slotKey: 'inline_end', interaction: 'form' })
+    const { container } = render(<BowtieAd creative={creative} locale="pt-BR" />)
     expect(container.querySelector('input[type="email"]')).toBeTruthy()
     expect(container.querySelector('form')).toBeTruthy()
   })
 
-  it('renders CTA link for sponsor ad', async () => {
-    const { BowtieAd } = await import(
-      '../../../src/components/blog/ads/bowtie-ad'
-    )
-    const { container } = render(
-      <BowtieAd ad={SPONSORS[0]} locale="pt-BR" />,
-    )
-    // Sponsor label_pt is "PATROCINADO", not "DA CASA", so renders link
+  it('renders CTA link when interaction is link', async () => {
+    const { BowtieAd } = await import('../../../src/components/blog/ads/bowtie-ad')
+    const creative = mockCreative({ slotKey: 'inline_end', interaction: 'link', type: 'cpa' })
+    const { container } = render(<BowtieAd creative={creative} locale="pt-BR" />)
     const link = container.querySelector('a')
     expect(link).toBeTruthy()
-    expect(link?.getAttribute('href')).toBe(SPONSORS[0].url)
+    expect(link?.getAttribute('href')).toBe('#test-url')
   })
 
   it('shows confirmation after form submit', async () => {
-    const { BowtieAd } = await import(
-      '../../../src/components/blog/ads/bowtie-ad'
-    )
-    const { container, getByRole } = render(
-      <BowtieAd ad={HOUSE_ADS[0]} locale="pt-BR" />,
-    )
+    const { BowtieAd } = await import('../../../src/components/blog/ads/bowtie-ad')
+    const creative = mockCreative({ slotKey: 'inline_end', interaction: 'form' })
+    const { container } = render(<BowtieAd creative={creative} locale="pt-BR" />)
 
-    // Fill in email and submit
     const input = container.querySelector('input[type="email"]') as HTMLInputElement
     fireEvent.change(input, { target: { value: 'test@example.com' } })
-    fireEvent.submit(getByRole('button', { name: HOUSE_ADS[0].cta_pt }))
+    const form = container.querySelector('form')!
+    fireEvent.submit(form)
 
     expect(container.textContent).toContain('Recebido. Confira sua caixa.')
   })
 
   it('renders tape decoration', async () => {
-    const { BowtieAd } = await import(
-      '../../../src/components/blog/ads/bowtie-ad'
-    )
-    const { container } = render(
-      <BowtieAd ad={HOUSE_ADS[0]} locale="en" />,
-    )
+    const { BowtieAd } = await import('../../../src/components/blog/ads/bowtie-ad')
+    const creative = mockCreative({ slotKey: 'inline_end', interaction: 'form' })
+    const { container } = render(<BowtieAd creative={creative} locale="en" />)
     const tape = container.querySelector('[aria-hidden="true"]')
     expect(tape).toBeTruthy()
   })
 })
 
-// ============ Ad data integrity tests ============
-
-describe('Ad data', () => {
-  it('sponsors have all required fields', () => {
-    for (const s of SPONSORS) {
-      expect(s.id).toBeTruthy()
-      expect(s.brand).toBeTruthy()
-      expect(s.brandColor).toMatch(/^#/)
-      expect(s.mark).toContain('<svg')
-      expect(s.url).toBeTruthy()
-      expect(s.headline_pt).toBeTruthy()
-      expect(s.headline_en).toBeTruthy()
-      expect(s.body_pt).toBeTruthy()
-      expect(s.body_en).toBeTruthy()
-      expect(s.cta_pt).toBeTruthy()
-      expect(s.cta_en).toBeTruthy()
-    }
-  })
-
-  it('house ads have kind field', () => {
-    for (const h of HOUSE_ADS) {
-      expect(['newsletter', 'video', 'post']).toContain(h.kind)
-    }
-  })
-
-  it('has exactly 3 sponsors and 3 house ads', () => {
-    expect(SPONSORS).toHaveLength(3)
-    expect(HOUSE_ADS).toHaveLength(3)
-  })
-})
-
 // ============ Shared atoms ============
 
-describe('AdLabel', () => {
+describe('AdLabel component', () => {
   it('renders label text and brand dot', async () => {
-    const { AdLabel } = await import(
-      '../../../src/components/blog/ads/ad-label'
-    )
+    const { AdLabel } = await import('../../../src/components/blog/ads/ad-label')
     const { container } = render(
-      <AdLabel ad={SPONSORS[0]} L="pt" />,
+      <AdLabel type="cpa" locale="pt-BR" brandColor="#7B5BF7" />,
     )
     expect(container.textContent).toContain('PATROCINADO')
-    // Brand dot
     const dot = container.querySelector('span.inline-block')
     expect(dot).toBeTruthy()
   })
@@ -411,9 +282,7 @@ describe('AdLabel', () => {
 
 describe('DismissButton', () => {
   it('calls onClick and has aria-label', async () => {
-    const { DismissButton } = await import(
-      '../../../src/components/blog/ads/dismiss-button'
-    )
+    const { DismissButton } = await import('../../../src/components/blog/ads/dismiss-button')
     const onClick = vi.fn()
     const { getByRole } = render(
       <DismissButton onClick={onClick} label="Fechar" />,

@@ -1,27 +1,18 @@
 'use client'
 
 import { useState, type FormEvent } from 'react'
-import type { AdProps, AdLocaleKey } from './types'
+import type { AdSlotProps } from './types'
 import { useDismissable } from './use-dismissable'
+import { adLabel } from './ad-label'
 import { DismissButton } from './dismiss-button'
 
-/**
- * Bowtie — newsletter-style inline card.
- * Brand-color solid background, slightly rotated, tape decoration.
- * House ads with kind='newsletter' get an email form; sponsors get a CTA link.
- */
-export function BowtieAd({ ad, locale, onDismiss }: AdProps) {
-  const [dismissed, dismiss] = useDismissable('bw_' + ad.id, onDismiss)
+export function BowtieAd({ creative, locale }: AdSlotProps) {
+  const [dismissed, dismiss] = useDismissable(creative)
   const [submitted, setSubmitted] = useState(false)
   if (dismissed) return null
 
-  const L: AdLocaleKey = locale === 'pt-BR' ? 'pt' : 'en'
-  const label = L === 'pt' ? ad.label_pt : ad.label_en
-  const headline = L === 'pt' ? ad.headline_pt : ad.headline_en
-  const body = L === 'pt' ? ad.body_pt : ad.body_en
-  const cta = L === 'pt' ? ad.cta_pt : ad.cta_en
-
-  const isHouse = ad.label_pt === 'DA CASA' || ad.label_pt.startsWith('DA CASA')
+  const label = adLabel(creative.type, locale)
+  const isForm = creative.interaction === 'form'
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -33,12 +24,11 @@ export function BowtieAd({ ad, locale, onDismiss }: AdProps) {
       className="relative mt-12"
       style={{
         padding: '32px 32px 28px',
-        background: ad.brandColor,
+        background: creative.brandColor,
         color: '#1A140C',
         transform: 'rotate(-0.25deg)',
       }}
     >
-      {/* Tape decoration */}
       <div
         aria-hidden="true"
         className="absolute"
@@ -53,16 +43,14 @@ export function BowtieAd({ ad, locale, onDismiss }: AdProps) {
         }}
       />
 
-      {/* Dismiss */}
       <div className="absolute right-3 top-3">
         <DismissButton
           onClick={dismiss}
           color="#1A140C"
-          label={L === 'pt' ? 'Fechar' : 'Close'}
+          label={locale === 'pt-BR' ? 'Fechar' : 'Close'}
         />
       </div>
 
-      {/* Label */}
       <div
         className="font-jetbrains mb-2.5 uppercase"
         style={{
@@ -75,7 +63,6 @@ export function BowtieAd({ ad, locale, onDismiss }: AdProps) {
         {label}
       </div>
 
-      {/* Headline */}
       <div
         className="font-fraunces mb-2.5"
         style={{
@@ -86,12 +73,11 @@ export function BowtieAd({ ad, locale, onDismiss }: AdProps) {
           letterSpacing: '-0.012em',
         }}
       >
-        {headline}
+        {creative.title}
       </div>
 
-      {/* Body */}
       <div
-        className="font-source-serif mb-4.5"
+        className="font-source-serif"
         style={{
           fontSize: 14,
           lineHeight: 1.55,
@@ -99,16 +85,15 @@ export function BowtieAd({ ad, locale, onDismiss }: AdProps) {
           marginBottom: 18,
         }}
       >
-        {body}
+        {creative.body}
       </div>
 
-      {/* Form or CTA */}
-      {isHouse && !submitted ? (
+      {isForm && !submitted ? (
         <form onSubmit={handleSubmit} className="flex flex-wrap gap-2">
           <input
             type="email"
             required
-            placeholder={L === 'pt' ? 'voce@email.com' : 'you@email.com'}
+            placeholder={locale === 'pt-BR' ? 'voce@email.com' : 'you@email.com'}
             className="min-w-[200px] flex-1"
             style={{
               padding: '12px 14px',
@@ -125,16 +110,16 @@ export function BowtieAd({ ad, locale, onDismiss }: AdProps) {
             style={{
               padding: '12px 20px',
               background: '#1A140C',
-              color: ad.brandColor,
+              color: creative.brandColor,
               fontSize: 11,
               letterSpacing: '0.14em',
               fontWeight: 600,
             }}
           >
-            {cta}
+            {creative.ctaText}
           </button>
         </form>
-      ) : isHouse && submitted ? (
+      ) : isForm && submitted ? (
         <div
           className="font-source-serif italic"
           style={{
@@ -143,24 +128,24 @@ export function BowtieAd({ ad, locale, onDismiss }: AdProps) {
             fontSize: 14,
           }}
         >
-          {L === 'pt'
+          {locale === 'pt-BR'
             ? 'Recebido. Confira sua caixa.'
             : 'Got it. Check your inbox.'}
         </div>
       ) : (
         <a
-          href={ad.url}
+          href={creative.ctaUrl}
           className="font-jetbrains inline-block uppercase no-underline"
           style={{
             padding: '12px 22px',
             background: '#1A140C',
-            color: ad.brandColor,
+            color: creative.brandColor,
             fontSize: 11,
             letterSpacing: '0.14em',
             fontWeight: 600,
           }}
         >
-          {cta}
+          {creative.ctaText}
         </a>
       )}
     </div>

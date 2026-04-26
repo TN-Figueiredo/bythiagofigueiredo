@@ -34,10 +34,7 @@ export {
   CodaAd,
   DoormanAd,
   BowtieAd,
-  hashSlug,
-  pickSponsor,
-  pickHouse,
-  SPONSORS,
-  HOUSE_ADS,
+  AdLabel,
+  adLabel,
 } from './ads'
-export type { AdProps, SponsorAd, HouseAd } from './ads'
+export type { AdCreativeData, AdSlotProps } from './ads'

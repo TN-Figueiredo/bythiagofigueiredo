@@ -1,20 +1,18 @@
 'use client'
 
-import type { SponsorAd, HouseAd, AdLocaleKey } from './types'
+export function adLabel(type: 'house' | 'cpa', locale: 'en' | 'pt-BR'): string {
+  if (type === 'cpa') return locale === 'pt-BR' ? 'PATROCINADO' : 'SPONSORED'
+  return locale === 'pt-BR' ? 'DA CASA' : 'HOUSE'
+}
 
 type AdLabelProps = {
-  ad: SponsorAd | HouseAd
-  L: AdLocaleKey
+  type: 'house' | 'cpa'
+  locale: 'en' | 'pt-BR'
+  brandColor: string
   color?: string
 }
 
-/**
- * Small label pill with colored dot + text (e.g. "PATROCINADO", "DA CASA").
- * Used across all ad slot components.
- */
-export function AdLabel({ ad, L, color }: AdLabelProps) {
-  const label = L === 'pt' ? ad.label_pt : ad.label_en
-
+export function AdLabel({ type, locale, brandColor, color }: AdLabelProps) {
   return (
     <div
       className="font-jetbrains inline-flex items-center gap-1.5"
@@ -31,10 +29,10 @@ export function AdLabel({ ad, L, color }: AdLabelProps) {
         style={{
           width: 6,
           height: 6,
-          background: ad.brandColor,
+          background: brandColor,
         }}
       />
-      {label}
+      {adLabel(type, locale)}
     </div>
   )
 }

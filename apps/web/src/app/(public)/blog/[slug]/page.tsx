@@ -41,12 +41,8 @@ import {
   CodaAd,
   DoormanAd,
   BowtieAd,
-  hashSlug,
-  pickSponsor,
-  pickHouse,
-  SPONSORS,
-  HOUSE_ADS,
 } from '@/components/blog'
+import { loadAdCreatives } from '@/lib/ads/resolve'
 import { BlogArticleClient } from './blog-article-client'
 
 export const revalidate = 3600
@@ -115,14 +111,7 @@ export default async function BlogDetailPage({ params }: Props) {
   const pageUrl = `https://${host}${localePath(`/blog/${encodeURIComponent(slug)}`, locale)}`
 
   const adLocale = locale as 'en' | 'pt-BR'
-  const adHash = hashSlug(slug)
-  const adMarginalia = pickHouse(adHash, 2, HOUSE_ADS)
-  const adAnchor = pickSponsor(adHash, 1, SPONSORS)
-  const adBookmark = pickSponsor(adHash, 2, SPONSORS)
-  const adCoda = pickSponsor(adHash, 0, SPONSORS)
-  const adMidContent = pickSponsor(adHash, 3, SPONSORS)
-  const adBowtie = HOUSE_ADS.find((h) => h.kind === 'newsletter') ?? pickHouse(adHash, 1, HOUSE_ADS)
-  const adDoorman = HOUSE_ADS.find((h) => h.kind === 'post') ?? pickHouse(adHash, 3, HOUSE_ADS)
+  const creatives = await loadAdCreatives(adLocale)
 
   const categoryColors: Record<string, string> = {
     code: '#D65B1F',
@@ -154,7 +143,7 @@ export default async function BlogDetailPage({ params }: Props) {
           </Link>
         </div>
 
-        <DoormanAd ad={adDoorman} locale={adLocale} />
+        {creatives.banner_top && <DoormanAd creative={creatives.banner_top} locale={adLocale} />}
 
         <div className="max-w-[1280px] mx-auto px-10">
           <div className="blog-detail-hero">
@@ -218,7 +207,7 @@ export default async function BlogDetailPage({ params }: Props) {
           <div className="blog-sidebar blog-detail-sidebar">
             <PostToc sections={toc} url={pageUrl} />
             <div className="blog-ad-slot">
-              <MarginaliaAd ad={adMarginalia} locale={adLocale} />
+              {creatives.rail_left && <MarginaliaAd creative={creatives.rail_left} locale={adLocale} />}
             </div>
             <BackToTop />
           </div>
@@ -232,12 +221,14 @@ export default async function BlogDetailPage({ params }: Props) {
                 locale={locale}
                 keyPoints={postExtras?.key_points}
                 mobileInlineAd={
-                  <AnchorAd ad={adAnchor} locale={adLocale} />
+                  creatives.rail_right ? <AnchorAd creative={creatives.rail_right} locale={adLocale} /> : null
                 }
                 midContentAd={
-                  <div className="blog-ad-slot">
-                    <BookmarkAd ad={adBookmark} locale={adLocale} />
-                  </div>
+                  creatives.inline_mid ? (
+                    <div className="blog-ad-slot">
+                      <BookmarkAd creative={creatives.inline_mid} locale={adLocale} />
+                    </div>
+                  ) : null
                 }
               >
                 <MdxRunner compiledSource={compiledSource} registry={blogRegistry} />
@@ -252,11 +243,11 @@ export default async function BlogDetailPage({ params }: Props) {
                   nextExcerpt={postExtras?.series_next_excerpt}
                   locale={locale}
                 />
-                <BowtieAd ad={adBowtie} locale={adLocale} />
+                {creatives.inline_end && <BowtieAd creative={creatives.inline_end} locale={adLocale} />}
                 <PostFootnotes footnotes={footnotes} />
                 <PostColophon text={postExtras?.colophon} />
                 <div className="blog-ad-slot">
-                  <CodaAd ad={adCoda} locale={adLocale} />
+                  {creatives.block_bottom && <CodaAd creative={creatives.block_bottom} locale={adLocale} />}
                 </div>
               </div>
             </article>
@@ -269,7 +260,7 @@ export default async function BlogDetailPage({ params }: Props) {
               attribution={postExtras?.pull_quote_attribution}
             />
             <div className="blog-ad-slot">
-              <AnchorAd ad={adAnchor} locale={adLocale} />
+              {creatives.rail_right && <AnchorAd creative={creatives.rail_right} locale={adLocale} />}
             </div>
             <HighlightsSidebar slug={slug} locale={locale} />
           </aside>

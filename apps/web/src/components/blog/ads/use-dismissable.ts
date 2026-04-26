@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import type { AdCreativeData } from './types'
 
 const DISMISS_KEY = 'btf_ads_dismissed'
 
@@ -22,21 +23,26 @@ function setDismissed(id: string): void {
   }
 }
 
+function dismissKey(creative: AdCreativeData): string {
+  return `${creative.slotKey}_${creative.campaignId ?? 'ph'}`
+}
+
 /**
  * Hook for dismissable ad slots.
- * Persists dismiss state in localStorage keyed by ad id.
+ * Persists dismiss state in localStorage keyed by slotKey + campaignId.
  */
 export function useDismissable(
-  id: string,
+  creative: AdCreativeData,
   onDismiss?: () => void,
 ): [dismissed: boolean, dismiss: () => void] {
-  const [dismissed, setLocal] = useState(() => Boolean(getDismissed()[id]))
+  const key = dismissKey(creative)
+  const [dismissed, setLocal] = useState(() => Boolean(getDismissed()[key]))
 
   const dismiss = useCallback(() => {
-    setDismissed(id)
+    setDismissed(key)
     setLocal(true)
     if (onDismiss) onDismiss()
-  }, [id, onDismiss])
+  }, [key, onDismiss])
 
   return [dismissed, dismiss]
 }

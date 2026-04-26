@@ -1,6 +1,6 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { createClient } from '@supabase/supabase-js'
 import type { CampaignFormData, PlaceholderFormData } from '@tn-figueiredo/ad-engine-admin'
 
@@ -12,8 +12,13 @@ function getSupabaseAdmin() {
   )
 }
 
+// Extended fields pending ad-engine-admin@0.3.0
+type ExtData = CampaignFormData & Record<string, unknown>
+type ExtCreative = Record<string, unknown>
+
 export async function createCampaign(data: CampaignFormData): Promise<void> {
   const supabase = getSupabaseAdmin()
+  const ext = data as ExtData
 
   const { data: campaign, error } = await supabase
     .from('ad_campaigns')
@@ -29,6 +34,8 @@ export async function createCampaign(data: CampaignFormData): Promise<void> {
       schedule_start: data.schedule?.start ?? null,
       schedule_end: data.schedule?.end ?? null,
       status: data.status ?? 'draft',
+      brand_color: (ext.brandColor as string) ?? '#6B7280',
+      logo_url: (ext.logoUrl as string | null) ?? null,
     })
     .select('id')
     .single()
@@ -38,25 +45,32 @@ export async function createCampaign(data: CampaignFormData): Promise<void> {
   const creatives = data.creatives ? Object.values(data.creatives) : []
   if (creatives.length > 0) {
     const { error: ce } = await supabase.from('ad_slot_creatives').insert(
-      creatives.map((c) => ({
-        campaign_id: campaign.id as string,
-        slot_key: c.slotKey,
-        title: c.title ?? null,
-        body: c.body ?? null,
-        cta_text: c.ctaText ?? null,
-        cta_url: c.ctaUrl ?? null,
-        image_url: c.imageUrl ?? null,
-        dismiss_seconds: c.dismissSeconds ?? 0,
-      })),
+      creatives.map((c) => {
+        const ec = c as ExtCreative
+        return {
+          campaign_id: campaign.id as string,
+          slot_key: c.slotKey,
+          title: c.title ?? null,
+          body: c.body ?? null,
+          cta_text: c.ctaText ?? null,
+          cta_url: c.ctaUrl ?? null,
+          image_url: c.imageUrl ?? null,
+          dismiss_seconds: c.dismissSeconds ?? 0,
+          locale: (ec.locale as string) ?? 'pt-BR',
+          interaction: (ec.interaction as string) ?? 'link',
+        }
+      }),
     )
     if (ce) throw new Error(ce.message)
   }
 
   revalidatePath('/admin/ads')
+  revalidateTag('ads')
 }
 
 export async function updateCampaign(id: string, data: CampaignFormData): Promise<void> {
   const supabase = getSupabaseAdmin()
+  const ext = data as ExtData
 
   const { error } = await supabase
     .from('ad_campaigns')
@@ -72,6 +86,8 @@ export async function updateCampaign(id: string, data: CampaignFormData): Promis
       schedule_start: data.schedule?.start ?? null,
       schedule_end: data.schedule?.end ?? null,
       status: data.status ?? 'draft',
+      brand_color: (ext.brandColor as string) ?? '#6B7280',
+      logo_url: (ext.logoUrl as string | null) ?? null,
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)
@@ -84,22 +100,28 @@ export async function updateCampaign(id: string, data: CampaignFormData): Promis
     const creatives = Object.values(data.creatives)
     if (creatives.length > 0) {
       const { error: ce } = await supabase.from('ad_slot_creatives').insert(
-        creatives.map((c) => ({
-          campaign_id: id,
-          slot_key: c.slotKey,
-          title: c.title ?? null,
-          body: c.body ?? null,
-          cta_text: c.ctaText ?? null,
-          cta_url: c.ctaUrl ?? null,
-          image_url: c.imageUrl ?? null,
-          dismiss_seconds: c.dismissSeconds ?? 0,
-        })),
+        creatives.map((c) => {
+          const ec = c as ExtCreative
+          return {
+            campaign_id: id,
+            slot_key: c.slotKey,
+            title: c.title ?? null,
+            body: c.body ?? null,
+            cta_text: c.ctaText ?? null,
+            cta_url: c.ctaUrl ?? null,
+            image_url: c.imageUrl ?? null,
+            dismiss_seconds: c.dismissSeconds ?? 0,
+            locale: (ec.locale as string) ?? 'pt-BR',
+            interaction: (ec.interaction as string) ?? 'link',
+          }
+        }),
       )
       if (ce) throw new Error(ce.message)
     }
   }
 
   revalidatePath('/admin/ads')
+  revalidateTag('ads')
 }
 
 export async function deleteCampaign(id: string): Promise<void> {
@@ -108,6 +130,7 @@ export async function deleteCampaign(id: string): Promise<void> {
   const { error } = await supabase.from('ad_campaigns').delete().eq('id', id)
   if (error) throw new Error(error.message)
   revalidatePath('/admin/ads')
+  revalidateTag('ads')
 }
 
 export async function updatePlaceholder(
@@ -131,4 +154,5 @@ export async function updatePlaceholder(
 
   if (error) throw new Error(error.message)
   revalidatePath('/admin/ads')
+  revalidateTag('ads')
 }

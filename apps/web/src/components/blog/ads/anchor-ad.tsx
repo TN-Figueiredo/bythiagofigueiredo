@@ -1,23 +1,15 @@
 'use client'
 
-import type { AdProps, AdLocaleKey } from './types'
+import type { AdSlotProps } from './types'
 import { useDismissable } from './use-dismissable'
+import { adLabel } from './ad-label'
 import { DismissButton } from './dismiss-button'
 
-/**
- * Anchor — right rail sponsor ad.
- * Sticky card above key points sidebar. Branded label pill + mark + content.
- */
-export function AnchorAd({ ad, locale, onDismiss }: AdProps) {
-  const [dismissed, dismiss] = useDismissable('a_' + ad.id, onDismiss)
+export function AnchorAd({ creative, locale }: AdSlotProps) {
+  const [dismissed, dismiss] = useDismissable(creative)
   if (dismissed) return null
 
-  const L: AdLocaleKey = locale === 'pt-BR' ? 'pt' : 'en'
-  const label = L === 'pt' ? ad.label_pt : ad.label_en
-  const headline = L === 'pt' ? ad.headline_pt : ad.headline_en
-  const body = L === 'pt' ? ad.body_pt : ad.body_en
-  const cta = L === 'pt' ? ad.cta_pt : ad.cta_en
-  const tagline = L === 'pt' ? ad.tagline_pt : ad.tagline_en
+  const label = adLabel(creative.type, locale)
 
   return (
     <div
@@ -28,7 +20,6 @@ export function AnchorAd({ ad, locale, onDismiss }: AdProps) {
         background: 'var(--pb-paper2)',
       }}
     >
-      {/* Header: branded pill + dismiss */}
       <div className="mb-2.5 flex items-center justify-between">
         <span
           className="font-jetbrains inline-flex items-center gap-1.5"
@@ -37,7 +28,7 @@ export function AnchorAd({ ad, locale, onDismiss }: AdProps) {
             letterSpacing: '0.18em',
             fontWeight: 700,
             color: '#FFFCEE',
-            background: ad.brandColor,
+            background: creative.brandColor,
             padding: '3px 7px',
             borderRadius: 2,
           }}
@@ -47,14 +38,21 @@ export function AnchorAd({ ad, locale, onDismiss }: AdProps) {
         <DismissButton onClick={dismiss} />
       </div>
 
-      {/* Content link */}
-      <a href={ad.url} className="block text-inherit no-underline">
-        {/* Brand mark + tagline */}
+      <a href={creative.ctaUrl} className="block text-inherit no-underline">
         <div className="mb-2.5 flex items-start gap-2.5">
-          <div
-            className="shrink-0"
-            dangerouslySetInnerHTML={{ __html: ad.mark }}
-          />
+          {creative.logoUrl && (
+            <div
+              className="shrink-0 flex items-center justify-center"
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 4,
+                background: creative.brandColor,
+              }}
+            >
+              <img src={creative.logoUrl} alt="" width={28} height={28} />
+            </div>
+          )}
           <div
             className="font-jetbrains"
             style={{
@@ -73,13 +71,11 @@ export function AnchorAd({ ad, locale, onDismiss }: AdProps) {
                 marginBottom: 2,
               }}
             >
-              {ad.brand}
+              {creative.title.split(' ').slice(0, 3).join(' ')}
             </div>
-            {tagline}
           </div>
         </div>
 
-        {/* Headline */}
         <div
           className="font-fraunces mb-2"
           style={{
@@ -91,10 +87,9 @@ export function AnchorAd({ ad, locale, onDismiss }: AdProps) {
             textWrap: 'balance',
           }}
         >
-          {headline}
+          {creative.title}
         </div>
 
-        {/* Body */}
         <div
           className="font-source-serif mb-3"
           style={{
@@ -103,22 +98,21 @@ export function AnchorAd({ ad, locale, onDismiss }: AdProps) {
             lineHeight: 1.5,
           }}
         >
-          {body}
+          {creative.body}
         </div>
 
-        {/* CTA */}
         <div
           className="font-jetbrains"
           style={{
             fontSize: 11,
             letterSpacing: '0.06em',
-            color: ad.brandColor,
+            color: creative.brandColor,
             fontWeight: 600,
             paddingTop: 10,
             borderTop: '1px dashed var(--pb-line)',
           }}
         >
-          {cta}
+          {creative.ctaText}
         </div>
       </a>
     </div>

@@ -123,6 +123,26 @@ vi.mock('../../lib/blog/adjacent-posts', () => ({
   getAdjacentPosts: vi.fn().mockResolvedValue({ prev: null, next: null }),
 }))
 
+vi.mock('../../src/lib/ads/resolve', () => ({
+  loadAdCreatives: vi.fn().mockResolvedValue({
+    inline_end: {
+      campaignId: 'mock-nl',
+      slotKey: 'inline_end',
+      type: 'house',
+      source: 'campaign',
+      interaction: 'form',
+      title: 'Newsletter: Receba o próximo ensaio',
+      body: 'Uma carta a cada 15 dias.',
+      ctaText: 'Assinar →',
+      ctaUrl: '/newsletter',
+      imageUrl: null,
+      logoUrl: null,
+      brandColor: '#7B5BF7',
+      dismissSeconds: 0,
+    },
+  }),
+}))
+
 import BlogDetailPage, { generateMetadata } from '../../src/app/(public)/blog/[slug]/page'
 
 describe('BlogDetailPage', () => {

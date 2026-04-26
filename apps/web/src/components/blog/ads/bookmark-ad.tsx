@@ -1,24 +1,15 @@
 'use client'
 
-import type { AdProps, AdLocaleKey } from './types'
+import type { AdSlotProps } from './types'
 import { useDismissable } from './use-dismissable'
+import { adLabel } from './ad-label'
 import { DismissButton } from './dismiss-button'
 
-/**
- * Bookmark — paper scrap stuck mid-article.
- * Taped, slightly rotated. Editorial / personal feel.
- * Cream background with dark text for contrast in both themes.
- */
-export function BookmarkAd({ ad, locale, onDismiss }: AdProps) {
-  const [dismissed, dismiss] = useDismissable('b_' + ad.id, onDismiss)
+export function BookmarkAd({ creative, locale }: AdSlotProps) {
+  const [dismissed, dismiss] = useDismissable(creative)
   if (dismissed) return null
 
-  const L: AdLocaleKey = locale === 'pt-BR' ? 'pt' : 'en'
-  const label = L === 'pt' ? ad.label_pt : ad.label_en
-  const headline = L === 'pt' ? ad.headline_pt : ad.headline_en
-  const body = L === 'pt' ? ad.body_pt : ad.body_en
-  const cta = L === 'pt' ? ad.cta_pt : ad.cta_en
-  const tagline = L === 'pt' ? ad.tagline_pt : ad.tagline_en
+  const label = adLabel(creative.type, locale)
 
   return (
     <div className="my-11 flex justify-center">
@@ -32,7 +23,6 @@ export function BookmarkAd({ ad, locale, onDismiss }: AdProps) {
           transform: 'rotate(-0.2deg)',
         }}
       >
-        {/* Tape decoration */}
         <div
           aria-hidden="true"
           className="absolute left-1/2"
@@ -46,7 +36,6 @@ export function BookmarkAd({ ad, locale, onDismiss }: AdProps) {
           }}
         />
 
-        {/* Header: branded label pill + dismiss */}
         <div className="mb-3 flex items-center justify-between">
           <span
             className="font-jetbrains inline-flex items-center gap-1.5"
@@ -55,49 +44,32 @@ export function BookmarkAd({ ad, locale, onDismiss }: AdProps) {
               letterSpacing: '0.18em',
               fontWeight: 700,
               color: '#FFFCEE',
-              background: ad.brandColor,
+              background: creative.brandColor,
               padding: '4px 8px',
               borderRadius: 2,
             }}
           >
             {label}
           </span>
-          <DismissButton
-            onClick={dismiss}
-            color="#5A4A3C"
-          />
+          <DismissButton onClick={dismiss} color="#5A4A3C" />
         </div>
 
-        {/* Brand mark + brand line */}
         <div className="mb-3 flex items-center gap-3">
-          <div dangerouslySetInnerHTML={{ __html: ad.mark }} />
-          <div>
+          {creative.logoUrl && (
             <div
-              className="font-fraunces"
+              className="shrink-0 flex items-center justify-center"
               style={{
-                fontSize: 16,
-                fontWeight: 500,
-                color: '#1A140C',
-                lineHeight: 1.1,
-                marginBottom: 2,
+                width: 40,
+                height: 40,
+                borderRadius: 4,
+                background: creative.brandColor,
               }}
             >
-              {ad.brand}
+              <img src={creative.logoUrl} alt="" width={32} height={32} />
             </div>
-            <div
-              className="font-jetbrains"
-              style={{
-                fontSize: 10,
-                letterSpacing: '0.06em',
-                color: '#5A4A3C',
-              }}
-            >
-              {tagline}
-            </div>
-          </div>
+          )}
         </div>
 
-        {/* Headline */}
         <div
           className="font-fraunces mb-2.5"
           style={{
@@ -109,10 +81,9 @@ export function BookmarkAd({ ad, locale, onDismiss }: AdProps) {
             textWrap: 'balance',
           }}
         >
-          {headline}
+          {creative.title}
         </div>
 
-        {/* Body */}
         <div
           className="font-source-serif mb-4"
           style={{
@@ -121,12 +92,11 @@ export function BookmarkAd({ ad, locale, onDismiss }: AdProps) {
             lineHeight: 1.5,
           }}
         >
-          {body}
+          {creative.body}
         </div>
 
-        {/* CTA button */}
         <a
-          href={ad.url}
+          href={creative.ctaUrl}
           className="font-jetbrains inline-block no-underline"
           style={{
             padding: '9px 16px',
@@ -138,7 +108,7 @@ export function BookmarkAd({ ad, locale, onDismiss }: AdProps) {
             fontWeight: 600,
           }}
         >
-          {cta}
+          {creative.ctaText}
         </a>
       </div>
     </div>
