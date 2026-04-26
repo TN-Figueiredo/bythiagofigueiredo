@@ -11,15 +11,15 @@ import {
   fetchRecentAdEvents,
   fetchSlotConversion,
   fetchAdMedia,
+  fetchAdPerformance,
   fetchAdInquiries,
 } from '@tn-figueiredo/ad-engine-admin'
 import {
   AdDashboardServer,
   CampaignWizardServer,
-  PlaceholderManagerServer,
   MediaLibraryServer,
 } from '@tn-figueiredo/ad-engine-admin/server'
-import { InquiriesList } from '@tn-figueiredo/ad-engine-admin/client'
+import { InquiriesList, PlaceholderManager } from '@tn-figueiredo/ad-engine-admin/client'
 import { SITE_AD_SLOTS } from '@app/shared'
 import type { AdSlotDefinition } from '@tn-figueiredo/ad-engine'
 import Link from 'next/link'
@@ -62,26 +62,28 @@ export default async function AdsAdminPage({ searchParams }: PageProps) {
   const supabase = getSupabaseAdmin()
   const APP_ID = 'bythiagofigueiredo'
 
-  const [kpisResult, chartResult, eventsResult, conversionResult, configsResult, placeholdersResult, mediaResult, inquiriesResult] =
+  const [kpisResult, chartResult, eventsResult, conversionResult, perfResult, configsResult, placeholdersResult, mediaResult, inquiriesResult] =
     await Promise.allSettled([
       tab === 'dashboard'    ? fetchAdKpis(supabase, APP_ID) : Promise.resolve(null),
       tab === 'dashboard'    ? fetchAdChartData(supabase, APP_ID) : Promise.resolve(null),
       tab === 'dashboard'    ? fetchRecentAdEvents(supabase, APP_ID) : Promise.resolve(null),
       tab === 'dashboard'    ? fetchSlotConversion(supabase, APP_ID) : Promise.resolve(null),
+      tab === 'dashboard'    ? fetchAdPerformance(supabase, APP_ID) : Promise.resolve(null),
       tab === 'campaigns'    ? fetchAdConfigs(supabase, APP_ID, { page, pageSize: 20 }) : Promise.resolve(null),
       tab === 'placeholders' ? fetchAdPlaceholders(supabase, APP_ID) : Promise.resolve(null),
       tab === 'media'        ? fetchAdMedia(supabase, APP_ID) : Promise.resolve(null),
       tab === 'inquiries'    ? fetchAdInquiries(supabase, APP_ID) : Promise.resolve(null),
     ])
 
-  const kpis         = kpisResult.status === 'fulfilled' ? (kpisResult.value ?? EMPTY_AD_KPIS) : EMPTY_AD_KPIS
-  const chartData    = chartResult.status === 'fulfilled' ? (chartResult.value ?? []) : []
-  const recentEvents = eventsResult.status === 'fulfilled' ? (eventsResult.value ?? []) : []
+  const kpis           = kpisResult.status === 'fulfilled' ? (kpisResult.value ?? EMPTY_AD_KPIS) : EMPTY_AD_KPIS
+  const chartData      = chartResult.status === 'fulfilled' ? (chartResult.value ?? []) : []
+  const recentEvents   = eventsResult.status === 'fulfilled' ? (eventsResult.value ?? []) : []
   const slotConversion = conversionResult.status === 'fulfilled' ? (conversionResult.value ?? []) : []
-  const configs      = configsResult.status === 'fulfilled' ? configsResult.value : null
-  const placeholders = placeholdersResult.status === 'fulfilled' ? (placeholdersResult.value ?? []) : []
-  const media        = mediaResult.status === 'fulfilled' ? (mediaResult.value ?? []) : []
-  const inquiriesData = inquiriesResult.status === 'fulfilled' ? inquiriesResult.value : null
+  const adPerformance  = perfResult.status === 'fulfilled' ? (perfResult.value ?? []) : []
+  const configs        = configsResult.status === 'fulfilled' ? configsResult.value : null
+  const placeholders   = placeholdersResult.status === 'fulfilled' ? (placeholdersResult.value ?? []) : []
+  const media          = mediaResult.status === 'fulfilled' ? (mediaResult.value ?? []) : []
+  const inquiriesData  = inquiriesResult.status === 'fulfilled' ? inquiriesResult.value : null
   const inquiries = inquiriesData?.inquiries ?? []
 
   const adminConfig: AdAdminConfig = {
@@ -133,6 +135,7 @@ export default async function AdsAdminPage({ searchParams }: PageProps) {
             recentEvents={recentEvents}
             chartData={chartData}
             slotConversion={slotConversion}
+            adPerformance={adPerformance}
           />
         )}
 
@@ -144,10 +147,7 @@ export default async function AdsAdminPage({ searchParams }: PageProps) {
         )}
 
         {tab === 'placeholders' && (
-          <PlaceholderManagerServer
-            placeholders={placeholders}
-            config={adminConfig}
-          />
+          <PlaceholderManager placeholders={placeholders} />
         )}
 
         {tab === 'inquiries' && (
