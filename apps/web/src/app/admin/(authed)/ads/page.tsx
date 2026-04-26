@@ -83,7 +83,7 @@ export default async function AdsAdminPage({ searchParams }: PageProps) {
 
   const adminConfig: AdAdminConfig = {
     appId: AD_APP_ID,
-    slots: SITE_AD_SLOTS as unknown as AdAdminConfig['slots'],
+    slots: [...SITE_AD_SLOTS] as AdAdminConfig['slots'],
     basePath: '/admin/ads',
     locale: 'pt-BR',
     currency: 'BRL',

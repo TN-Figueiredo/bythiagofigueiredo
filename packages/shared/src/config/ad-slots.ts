@@ -6,7 +6,7 @@ export interface AdSlotDefinition {
   badgeColor: string
   zone: 'banner' | 'rail' | 'inline' | 'block'
   mobileBehavior: 'keep' | 'hide' | 'stack'
-  acceptedAdTypes: readonly string[]
+  acceptedAdTypes: readonly ('house' | 'cpa')[]
   defaultLimits: {
     maxPerSession: number
     maxPerDay: number
