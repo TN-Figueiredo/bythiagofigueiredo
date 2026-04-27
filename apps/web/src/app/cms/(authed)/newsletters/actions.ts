@@ -745,9 +745,10 @@ export async function uploadNewsletterImage(
   const uuid = crypto.randomUUID()
   const path = `${edition.site_id}/${editionId}/${uuid}.${ext}`
 
+  const buffer = Buffer.from(await file.arrayBuffer())
   const { error } = await supabase.storage
     .from('newsletter-assets')
-    .upload(path, file, { contentType: file.type })
+    .upload(path, buffer, { contentType: file.type })
   if (error) return { ok: false, error: error.message }
 
   const { data: { publicUrl } } = supabase.storage
