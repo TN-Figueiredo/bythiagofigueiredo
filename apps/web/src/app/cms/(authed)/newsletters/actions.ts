@@ -468,13 +468,21 @@ export async function renderEmailPreview(
   if (!edition) return { ok: false, error: 'not_found' }
   if (!edition.content_html) return { ok: false, error: 'no_content' }
 
-  const { data: type } = await supabase
-    .from('newsletter_types')
-    .select('name, color')
-    .eq('id', edition.newsletter_type_id)
-    .single()
+  let typeName = 'Newsletter'
+  let typeColor = '#7c3aed'
 
-  const typeColor = type?.color ?? '#7c3aed'
+  if (edition.newsletter_type_id) {
+    const { data: type } = await supabase
+      .from('newsletter_types')
+      .select('name, color')
+      .eq('id', edition.newsletter_type_id)
+      .single()
+    if (type) {
+      typeName = type.name as string
+      typeColor = (type.color ?? '#7c3aed') as string
+    }
+  }
+
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://bythiagofigueiredo.com'
 
   const { sanitizeForEmail } = await import('@/lib/newsletter/email-sanitizer')
@@ -484,7 +492,7 @@ export async function renderEmailPreview(
     subject: edition.subject,
     preheader: edition.preheader ?? undefined,
     contentHtml: sanitizedHtml,
-    typeName: type?.name ?? 'Newsletter',
+    typeName,
     typeColor,
     unsubscribeUrl: `${appUrl}/newsletter/unsubscribe`,
     archiveUrl: `${appUrl}/newsletter/archive/${editionId}`,

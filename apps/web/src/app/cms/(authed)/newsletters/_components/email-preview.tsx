@@ -16,13 +16,18 @@ export function EmailPreview({ editionId, renderPreview }: EmailPreviewProps) {
   const loadPreview = useCallback(async () => {
     setLoading(true)
     setError(null)
-    const result = await renderPreview(editionId)
-    if (result.ok) {
-      setHtml(result.html)
-    } else {
-      setError(result.error)
+    try {
+      const result = await renderPreview(editionId)
+      if (result.ok) {
+        setHtml(result.html)
+      } else {
+        setError(result.error)
+      }
+    } catch {
+      setError('Failed to render preview')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }, [editionId, renderPreview])
 
   useEffect(() => {
@@ -65,7 +70,12 @@ export function EmailPreview({ editionId, renderPreview }: EmailPreviewProps) {
             <p className="text-sm text-red-600">{error === 'no_content' ? 'No content to preview. Start writing!' : error}</p>
           </div>
         )}
-        {html && !error && (
+        {loading && (
+          <div className="text-center py-8">
+            <p className="text-sm text-gray-500">Rendering preview...</p>
+          </div>
+        )}
+        {html && !error && !loading && (
           <iframe
             srcDoc={html}
             title="Email preview"

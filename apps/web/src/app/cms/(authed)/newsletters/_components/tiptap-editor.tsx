@@ -1,5 +1,6 @@
 'use client'
 
+import './editor-styles.css'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
@@ -57,12 +58,13 @@ export function TipTapEditor({
     ],
     content: content ?? undefined,
     editable,
+    immediatelyRender: false,
     onUpdate: ({ editor: e }) => {
       onChange(e.getJSON(), e.getHTML())
     },
     editorProps: {
       attributes: {
-        class: 'prose prose-sm max-w-none focus:outline-none min-h-[400px] px-6 py-4',
+        class: '',
       },
       transformPastedHTML(html) {
         return html
@@ -124,7 +126,7 @@ export function TipTapEditor({
   const wordCount = charCount?.words() ?? 0
 
   return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden">
+    <div className="newsletter-editor border border-gray-200 rounded-lg overflow-hidden">
       <EditorToolbar
         editor={editor}
         onInsertMergeTag={(tag) => {
