@@ -3,10 +3,91 @@
 -- policies, triggers, constraints, indexes, and FKs that were created
 -- without idempotency in earlier migrations (019–100008).
 --
--- This is a no-op on a fresh DB where all prior migrations ran cleanly.
--- It ensures partial applies or re-runs do not fail with "already exists".
+-- REPAIR BLOCK: migrations 100000–100006 were recorded as applied but
+-- their DDL never committed. Re-apply all missing DDL with IF NOT EXISTS
+-- before the idempotency guards run.
 --
 -- Convention: CLAUDE.md §"Idempotência em migrations de RLS"
+
+-- ============================================================
+-- 0. REPAIR: re-create objects from phantom-applied migrations
+-- ============================================================
+
+-- From 100000: authors columns
+ALTER TABLE public.authors ADD COLUMN IF NOT EXISTS site_id uuid REFERENCES public.sites(id) ON DELETE CASCADE;
+ALTER TABLE public.authors ADD COLUMN IF NOT EXISTS display_name text;
+ALTER TABLE public.authors ADD COLUMN IF NOT EXISTS bio text;
+ALTER TABLE public.authors ADD COLUMN IF NOT EXISTS social_links JSONB DEFAULT '{}';
+ALTER TABLE public.authors ADD COLUMN IF NOT EXISTS avatar_color TEXT;
+ALTER TABLE public.authors ADD COLUMN IF NOT EXISTS sort_order INT DEFAULT 0;
+ALTER TABLE public.authors ADD COLUMN IF NOT EXISTS is_default BOOLEAN DEFAULT false;
+
+-- From 100001: app_id columns + ad_media table
+ALTER TABLE public.ad_campaigns ADD COLUMN IF NOT EXISTS app_id TEXT NOT NULL DEFAULT 'bythiagofigueiredo';
+CREATE INDEX IF NOT EXISTS idx_ad_campaigns_app_id ON public.ad_campaigns(app_id);
+ALTER TABLE public.ad_placeholders ADD COLUMN IF NOT EXISTS app_id TEXT NOT NULL DEFAULT 'bythiagofigueiredo';
+CREATE INDEX IF NOT EXISTS idx_ad_placeholders_app_id ON public.ad_placeholders(app_id);
+ALTER TABLE public.ad_slot_metrics ADD COLUMN IF NOT EXISTS app_id TEXT NOT NULL DEFAULT 'bythiagofigueiredo';
+
+CREATE TABLE IF NOT EXISTS public.ad_media (
+  id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  app_id      TEXT        NOT NULL DEFAULT 'bythiagofigueiredo',
+  url         TEXT,
+  filename    TEXT,
+  size_bytes  INTEGER,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_ad_media_app_id ON public.ad_media(app_id);
+ALTER TABLE public.ad_media ENABLE ROW LEVEL SECURITY;
+
+-- From 100003: ad_inquiries table
+DO $$ BEGIN
+  CREATE TABLE public.ad_inquiries (
+    id                 UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    app_id             TEXT        NOT NULL DEFAULT 'bythiagofigueiredo',
+    name               TEXT        NOT NULL CHECK (length(name) BETWEEN 2 AND 200),
+    email              CITEXT      NOT NULL CHECK (length(email) BETWEEN 5 AND 320),
+    company            TEXT        CHECK (company IS NULL OR length(company) <= 200),
+    website            TEXT        CHECK (website IS NULL OR length(website) <= 500),
+    message            TEXT        NOT NULL CHECK (length(message) BETWEEN 10 AND 5000),
+    budget             TEXT        CHECK (budget IS NULL OR budget IN ('under_500', '500_2000', '2000_5000', 'above_5000', 'not_sure')),
+    preferred_slots    TEXT[]      DEFAULT '{}',
+    status             TEXT        NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'contacted', 'negotiating', 'converted', 'archived')),
+    admin_notes        TEXT,
+    ip                 INET,
+    user_agent         TEXT,
+    consent_processing BOOLEAN     NOT NULL DEFAULT true,
+    consent_version    TEXT        NOT NULL,
+    submitted_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    contacted_at       TIMESTAMPTZ,
+    converted_at       TIMESTAMPTZ
+  );
+EXCEPTION WHEN duplicate_table THEN NULL;
+END $$;
+ALTER TABLE public.ad_inquiries ENABLE ROW LEVEL SECURITY;
+
+-- From 100005: adsense columns on organizations
+ALTER TABLE public.organizations ADD COLUMN IF NOT EXISTS adsense_publisher_id TEXT;
+ALTER TABLE public.organizations ADD COLUMN IF NOT EXISTS adsense_refresh_token_enc TEXT;
+ALTER TABLE public.organizations ADD COLUMN IF NOT EXISTS adsense_connected_at TIMESTAMPTZ;
+ALTER TABLE public.organizations ADD COLUMN IF NOT EXISTS adsense_last_sync_at TIMESTAMPTZ;
+ALTER TABLE public.organizations ADD COLUMN IF NOT EXISTS adsense_sync_status TEXT NOT NULL DEFAULT 'disconnected';
+
+-- From 100015: ad_media column renames (url→public_url, filename→file_name)
+DO $$ BEGIN
+  ALTER TABLE public.ad_media RENAME COLUMN url TO public_url;
+EXCEPTION WHEN undefined_column THEN NULL;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE public.ad_media RENAME COLUMN filename TO file_name;
+EXCEPTION WHEN undefined_column THEN NULL;
+END $$;
+ALTER TABLE public.ad_media ADD COLUMN IF NOT EXISTS storage_path TEXT;
+ALTER TABLE public.ad_media ADD COLUMN IF NOT EXISTS mime_type TEXT;
+ALTER TABLE public.ad_media ADD COLUMN IF NOT EXISTS public_url TEXT;
+ALTER TABLE public.ad_media ADD COLUMN IF NOT EXISTS file_name TEXT;
+
+-- ============================================================
 
 BEGIN;
 
