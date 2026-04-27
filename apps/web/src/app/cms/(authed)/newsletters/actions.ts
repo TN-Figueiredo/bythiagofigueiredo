@@ -543,7 +543,7 @@ export async function createNewsletterType(data: {
 
 export async function updateNewsletterType(
   typeId: string,
-  patch: { name?: string; tagline?: string; color?: string; sortOrder?: number; active?: boolean },
+  patch: { name?: string; tagline?: string; color?: string; sortOrder?: number; active?: boolean; cadence_paused?: boolean },
 ): Promise<ActionResult> {
   const ctx = await getSiteContext()
   const res = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
@@ -556,6 +556,7 @@ export async function updateNewsletterType(
   if (patch.color !== undefined) updateData.color = patch.color
   if (patch.sortOrder !== undefined) updateData.sort_order = patch.sortOrder
   if (patch.active !== undefined) updateData.active = patch.active
+  if (patch.cadence_paused !== undefined) updateData.cadence_paused = patch.cadence_paused
 
   const { error } = await supabase
     .from('newsletter_types')

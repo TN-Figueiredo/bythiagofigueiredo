@@ -23,7 +23,7 @@ interface TypeCardData {
 interface EditionRow {
   id: string
   subject: string
-  status: 'draft' | 'ready' | 'queued' | 'scheduled' | 'sending' | 'sent' | 'failed'
+  status: 'idea' | 'draft' | 'ready' | 'queued' | 'scheduled' | 'sending' | 'sent' | 'failed' | 'cancelled'
   newsletter_type_id: string
   newsletter_type_name?: string
   newsletter_type_color?: string
@@ -74,7 +74,7 @@ interface NewslettersConnectedProps {
 type SortKey = 'subject' | 'type' | 'delivered' | 'opens' | 'clicks' | 'date'
 type SortDir = 'asc' | 'desc'
 
-const STATUS_OPTIONS = ['all', 'draft', 'ready', 'scheduled', 'sending', 'sent', 'failed'] as const
+const STATUS_OPTIONS = ['all', 'idea', 'draft', 'ready', 'scheduled', 'sending', 'sent', 'failed', 'cancelled'] as const
 
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return '--'
@@ -384,6 +384,19 @@ function getMenuItems(
         { label: 'Unslot', action: () => { /* handled by parent */ }, testId: 'unslot' },
       )
       break
+    case 'idea':
+      items.push(
+        { label: 'Convert to Draft', action: () => { window.location.href = `${editHref}?convert=1` }, testId: 'convert' },
+        { label: 'Edit', action: () => { window.location.href = editHref }, testId: 'edit' },
+        { label: 'Delete', action: () => { /* handled by parent */ }, destructive: true, testId: 'delete' },
+      )
+      break
+    case 'cancelled':
+      items.push(
+        { label: 'Revert to Draft', action: () => { /* handled by parent */ }, testId: 'revert' },
+        { label: 'Delete', action: () => { /* handled by parent */ }, destructive: true, testId: 'delete' },
+      )
+      break
   }
   return items
 }
@@ -423,6 +436,7 @@ function SortHeader({
 
 function StatusBadge({ status }: { status: EditionRow['status'] }) {
   const styles: Record<string, string> = {
+    idea: 'bg-[var(--cms-purple,#a855f7)]/20 text-[var(--cms-purple,#a855f7)]',
     draft: 'bg-[var(--cms-text-dim,#64748b)]/20 text-[var(--cms-text-dim,#64748b)]',
     ready: 'bg-cms-accent/20 text-cms-accent',
     queued: 'bg-cms-accent/20 text-cms-accent',
@@ -430,6 +444,7 @@ function StatusBadge({ status }: { status: EditionRow['status'] }) {
     sending: 'bg-[var(--cms-green,#22c55e)]/20 text-[var(--cms-green,#22c55e)]',
     sent: 'bg-[var(--cms-green,#22c55e)]/20 text-[var(--cms-green,#22c55e)]',
     failed: 'bg-[var(--cms-red,#ef4444)]/20 text-[var(--cms-red,#ef4444)]',
+    cancelled: 'bg-[var(--cms-text-dim,#64748b)]/20 text-[var(--cms-text-dim,#64748b)]',
   }
   return (
     <span

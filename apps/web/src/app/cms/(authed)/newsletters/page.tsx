@@ -4,6 +4,7 @@ import { CmsTopbar, CmsButton } from '@tn-figueiredo/cms-ui/client'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { NewslettersConnected } from './newsletters-connected'
+import { NewsletterToastProvider } from './_components/toast-provider'
 
 export const dynamic = 'force-dynamic'
 
@@ -152,7 +153,7 @@ async function fetchEditionsWithMeta(siteId: string, typeId?: string, status?: s
     return {
       id: e.id as string,
       subject: e.subject as string,
-      status: e.status as 'draft' | 'ready' | 'queued' | 'scheduled' | 'sending' | 'sent' | 'failed',
+      status: e.status as 'idea' | 'draft' | 'ready' | 'queued' | 'scheduled' | 'sending' | 'sent' | 'failed' | 'cancelled',
       newsletter_type_id: e.newsletter_type_id as string,
       newsletter_type_name: typeInfo?.name,
       newsletter_type_color: typeInfo?.color,
@@ -193,6 +194,7 @@ export default async function NewsletterDashboardPage({
 
   return (
     <div>
+      <NewsletterToastProvider />
       <CmsTopbar
         title="Newsletters"
         actions={

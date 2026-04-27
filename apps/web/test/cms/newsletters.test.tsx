@@ -258,10 +258,8 @@ describe('NewslettersConnected', () => {
         makeType({ id: 'type-2', name: 'Type B' }),
       ]
       renderConnected({ types })
-      // Type B button should have the accent border (selected)
-      const buttons = document.querySelectorAll('button')
-      const typeBBtn = Array.from(buttons).find((b) => b.textContent?.includes('Type B'))
-      expect(typeBBtn?.className).toContain('border-cms-accent')
+      const typeCard = document.querySelector('[data-testid="type-card-type-2"]')
+      expect(typeCard?.className).toContain('border-cms-accent')
     })
   })
 
