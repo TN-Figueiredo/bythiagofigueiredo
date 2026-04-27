@@ -3,8 +3,10 @@ import { withSentryConfig } from '@sentry/nextjs'
 import createMDX from '@next/mdx'
 
 const nextConfig: NextConfig = {
-  serverActions: {
-    bodySizeLimit: '5mb',
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '5mb',
+    },
   },
   // @tn-figueiredo/cms v0.1.x ships ESM with `import.meta.url` (MDX renderer)
   // and preserved JSX. Next requires `transpilePackages` to parse both.
