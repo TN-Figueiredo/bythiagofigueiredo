@@ -294,7 +294,7 @@ export async function sendNow(editionId: string): Promise<ActionResult> {
 
   const { error } = await supabase
     .from('newsletter_editions')
-    .update({ status: 'sending', scheduled_at: new Date().toISOString() })
+    .update({ status: 'scheduled', scheduled_at: new Date().toISOString() })
     .eq('id', editionId)
   if (error) return { ok: false, error: error.message }
   revalidatePath('/cms/newsletters')
@@ -385,18 +385,27 @@ export async function sendTestEmail(editionId: string): Promise<ActionResult> {
     archiveUrl: `${appUrl}/newsletter/archive/${editionId}`,
   }))
 
-  const emailService = getEmailService()
-  await emailService.send({
-    from: { name: senderName, email: senderEmail },
-    to: toEmail,
-    subject: `[TEST] ${edition.subject}`,
-    html,
-  })
+  try {
+    const emailService = getEmailService()
+    await emailService.send({
+      from: { name: senderName, email: senderEmail },
+      to: toEmail,
+      subject: `[TEST] ${edition.subject}`,
+      html,
+    })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'email_send_failed'
+    return { ok: false, error: message }
+  }
 
-  await supabase
-    .from('newsletter_editions')
-    .update({ test_sent_at: new Date().toISOString() })
-    .eq('id', editionId)
+  try {
+    await supabase
+      .from('newsletter_editions')
+      .update({ test_sent_at: new Date().toISOString() })
+      .eq('id', editionId)
+  } catch {
+    // Non-critical: test email was sent successfully, timestamp update failure is acceptable
+  }
 
   return { ok: true }
 }
@@ -494,6 +503,7 @@ export async function updateCadence(
     .from('newsletter_types')
     .update(patch)
     .eq('id', typeId)
+    .eq('site_id', ctx.siteId)
   if (error) return { ok: false, error: error.message }
   revalidatePath('/cms/newsletters/settings')
   revalidatePath('/cms/schedule')
@@ -582,6 +592,7 @@ export async function deleteNewsletterType(
     .from('newsletter_types')
     .select('id, name')
     .eq('id', typeId)
+    .eq('site_id', ctx.siteId)
     .single()
   if (!type) return { ok: false, error: 'not_found' }
 
@@ -624,6 +635,7 @@ export async function deleteNewsletterType(
     .from('newsletter_types')
     .delete()
     .eq('id', typeId)
+    .eq('site_id', ctx.siteId)
   if (error) return { ok: false, error: error.message }
   revalidatePath('/cms/newsletters')
   return { ok: true }

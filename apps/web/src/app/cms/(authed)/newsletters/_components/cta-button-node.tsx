@@ -108,10 +108,11 @@ export const CTAButtonExtension = Node.create({
 
   renderHTML({ HTMLAttributes }) {
     const { text, url, color, align } = HTMLAttributes
+    const safeUrl = url && !url.match(/^\s*javascript:/i) ? url : '#'
     return [
       'div',
       mergeAttributes({ class: 'cta-wrapper', style: `text-align:${align}` }),
-      ['a', { class: 'cta-button', href: url, style: `background:${color}` }, text],
+      ['a', { class: 'cta-button', href: safeUrl, style: `background:${color}` }, text],
     ]
   },
 

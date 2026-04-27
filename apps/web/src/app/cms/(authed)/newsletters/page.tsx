@@ -107,7 +107,7 @@ async function fetchEditionsWithMeta(siteId: string, typeId?: string, status?: s
       id, subject, status, newsletter_type_id,
       stats_delivered, stats_opens, stats_clicks, stats_bounces,
       total_subscribers, sent_at, scheduled_at, created_at, updated_at,
-      error_message, retry_count, max_retries, source_post_id
+      error_message, retry_count, max_retries, source_blog_post_id
     `)
     .eq('site_id', siteId)
     .order('created_at', { ascending: false })
@@ -169,7 +169,7 @@ async function fetchEditionsWithMeta(siteId: string, typeId?: string, status?: s
       error_message: e.error_message as string | null,
       retry_count: e.retry_count as number | null,
       max_retries: e.max_retries as number | null,
-      source_post_id: e.source_post_id as string | null,
+      source_blog_post_id: e.source_blog_post_id as string | null,
       is_best_performer: bestId === e.id,
     }
   })

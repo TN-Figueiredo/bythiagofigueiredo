@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 
 interface ConvertIdeaModalProps {
   open: boolean
@@ -11,16 +11,56 @@ interface ConvertIdeaModalProps {
   onCancel: () => void
 }
 
+const FOCUSABLE_SELECTOR =
+  'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+
 export function ConvertIdeaModal({ open, ideaTitle, ideaCreatedAt, types, onConfirm, onCancel }: ConvertIdeaModalProps) {
   const [subject, setSubject] = useState(ideaTitle)
   const [selectedTypeId, setSelectedTypeId] = useState(types[0]?.id ?? '')
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const dialog = dialogRef.current
+    if (!dialog) return
+
+    const focusable = dialog.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
+    focusable?.focus()
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        onCancel()
+        return
+      }
+      if (e.key !== 'Tab') return
+      const focusableEls = dialog!.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)
+      const first = focusableEls[0]
+      const last = focusableEls[focusableEls.length - 1]
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault()
+        last?.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault()
+        first?.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [open, onCancel])
 
   if (!open) return null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
-        <h3 className="text-lg font-semibold text-gray-900">Convert Idea to Edition</h3>
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="convert-idea-modal-title"
+        className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl"
+      >
+        <h3 id="convert-idea-modal-title" className="text-lg font-semibold text-gray-900">Convert Idea to Edition</h3>
         <p className="mt-1 text-xs text-gray-400">
           Created {new Date(ideaCreatedAt).toLocaleDateString()}
         </p>

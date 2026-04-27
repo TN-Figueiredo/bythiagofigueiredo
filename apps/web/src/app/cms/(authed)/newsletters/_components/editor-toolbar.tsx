@@ -91,13 +91,13 @@ export function EditorToolbar({ editor, onInsertMergeTag, onInsertCTAButton, onI
 
       {/* Alignment */}
       <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('left').run()} active={editor.isActive({ textAlign: 'left' })} title="Align left">
-        ≡
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="2" width="14" height="2" /><rect x="1" y="7" width="10" height="2" /><rect x="1" y="12" width="14" height="2" /></svg>
       </ToolbarButton>
       <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('center').run()} active={editor.isActive({ textAlign: 'center' })} title="Align center">
-        ≡
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="2" width="14" height="2" /><rect x="3" y="7" width="10" height="2" /><rect x="1" y="12" width="14" height="2" /></svg>
       </ToolbarButton>
       <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('right').run()} active={editor.isActive({ textAlign: 'right' })} title="Align right">
-        ≡
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="2" width="14" height="2" /><rect x="5" y="7" width="10" height="2" /><rect x="1" y="12" width="14" height="2" /></svg>
       </ToolbarButton>
 
       <ToolbarDivider />

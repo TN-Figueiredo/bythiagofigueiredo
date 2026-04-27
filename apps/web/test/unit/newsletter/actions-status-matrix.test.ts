@@ -1,76 +1,329 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-describe('Status transition matrix — allowed/blocked', () => {
-  const EDITABLE_STATUSES = ['idea', 'draft', 'ready', 'scheduled']
-  const LOCKED_STATUSES = ['sending', 'sent', 'failed', 'cancelled']
-  const SCHEDULABLE_STATUSES = ['idea', 'draft', 'ready', 'scheduled']
-  const CANCELLABLE_STATUSES = ['idea', 'draft', 'ready', 'scheduled', 'queued']
-  const SENDABLE_STATUSES = ['idea', 'draft', 'ready', 'scheduled']
-  const REVERTABLE_STATUSES = ['cancelled', 'failed']
-  const TESTABLE_STATUSES = ['idea', 'draft', 'ready']
+// ─── Mock Supabase builder ──────────────────────────────────────────────────
+// A thenable chain mock.  Every method returns `this` so arbitrary
+// `.from().select().eq().single()` chains work.  The chain is also a thenable
+// so `await supabase.from(...).update(...).eq(...)` resolves to `{ data, error }`.
+// `.single()` sets a flag so the resolved shape is `{ data: <row>, error }`.
 
+let mockSupabase: ReturnType<typeof createMockSupabase>
+
+function createMockSupabase(statusToReturn: string, extra: Record<string, unknown> = {}) {
+  const row = { id: 'ed-1', status: statusToReturn, newsletter_type_id: 'type-1', site_id: 'site-1', ...extra }
+
+  // Each `.from()` call creates a fresh chain with its own `useSingle` state
+  // so that a `.single()` on one query does not pollute subsequent queries.
+  function makeChain() {
+    let useSingle = false
+    const chain: Record<string, unknown> = {}
+
+    const handler: ProxyHandler<Record<string, unknown>> = {
+      get(_target, prop: string) {
+        if (prop === 'then') {
+          const result = useSingle
+            ? { data: row, error: null }
+            : { data: [row], error: null, count: 5 }
+          return (resolve?: (v: unknown) => void) => resolve?.(result)
+        }
+        if (prop === 'single' || prop === 'maybeSingle') {
+          return () => {
+            useSingle = true
+            return new Proxy(chain, handler)
+          }
+        }
+        // `.from()` spawns a fresh chain (independent `useSingle`)
+        if (prop === 'from') {
+          return () => makeChain()
+        }
+        // All other methods (select, update, delete, eq, neq, gte, lte,
+        // limit, in, insert, head) stay on the same chain.
+        return (..._args: unknown[]) => new Proxy(chain, handler)
+      },
+    }
+    return new Proxy(chain, handler)
+  }
+
+  const top = makeChain()
+  // `.storage` for delete/upload paths (not tested here, avoids import-time errors)
+  ;(top as Record<string, unknown>).storage = {
+    from: () => ({
+      upload: vi.fn().mockResolvedValue({ error: null }),
+      list: vi.fn().mockResolvedValue({ data: [], error: null }),
+      remove: vi.fn().mockResolvedValue({ error: null }),
+      getPublicUrl: () => ({ data: { publicUrl: 'https://example.com/img.jpg' } }),
+    }),
+  }
+  return top
+}
+
+// ─── Module mocks ───────────────────────────────────────────────────────────
+
+vi.mock('@/lib/supabase/service', () => ({
+  getSupabaseServiceClient: () => mockSupabase,
+}))
+vi.mock('@/lib/cms/site-context', () => ({
+  getSiteContext: () => Promise.resolve({ siteId: 'site-1', orgId: 'org-1' }),
+}))
+vi.mock('@/lib/cms/auth-guards', () => ({
+  requireSiteAdminForRow: () => Promise.resolve(),
+}))
+vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
+  requireSiteScope: () => Promise.resolve({ ok: true }),
+}))
+vi.mock('next/cache', () => ({
+  revalidatePath: vi.fn(),
+}))
+vi.mock('next/headers', () => ({
+  cookies: () =>
+    Promise.resolve({
+      getAll: () => [],
+      set: vi.fn(),
+    }),
+}))
+vi.mock('@supabase/ssr', () => ({
+  createServerClient: () => ({
+    auth: {
+      getUser: () =>
+        Promise.resolve({ data: { user: { id: 'user-1', email: 'test@test.com' } } }),
+    },
+  }),
+}))
+// Prevent actual email rendering / sending
+vi.mock('@react-email/render', () => ({
+  render: vi.fn().mockResolvedValue('<html>test</html>'),
+}))
+vi.mock('@/emails/newsletter', () => ({
+  Newsletter: vi.fn().mockReturnValue(null),
+}))
+vi.mock('@/lib/email/service', () => ({
+  getEmailService: () => ({
+    send: vi.fn().mockResolvedValue({ ok: true }),
+  }),
+}))
+vi.mock('@/lib/newsletter/email-sanitizer', () => ({
+  sanitizeForEmail: vi.fn().mockReturnValue('<p>sanitized</p>'),
+}))
+
+import {
+  saveEdition,
+  scheduleEdition,
+  cancelEdition,
+  sendNow,
+  revertToDraft,
+  sendTestEmail,
+} from '@/app/cms/(authed)/newsletters/actions'
+
+// ─── Tests ──────────────────────────────────────────────────────────────────
+
+describe('Status transition matrix — actual server action behavior', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  // ── saveEdition ─────────────────────────────────────────────────────────
   describe('saveEdition', () => {
-    it.each(EDITABLE_STATUSES)('allows save from %s', (status) => {
-      expect(EDITABLE_STATUSES).toContain(status)
-    })
-    it.each(LOCKED_STATUSES)('blocks save from %s', (status) => {
-      expect(EDITABLE_STATUSES).not.toContain(status)
-    })
+    it.each(['idea', 'draft', 'ready', 'scheduled'])(
+      'succeeds for %s status',
+      async (status) => {
+        mockSupabase = createMockSupabase(status)
+        const result = await saveEdition('ed-1', { subject: 'Updated' })
+        expect(result.ok).toBe(true)
+      },
+    )
+
+    it.each(['sending', 'sent', 'failed', 'cancelled'])(
+      'rejects for %s status',
+      async (status) => {
+        mockSupabase = createMockSupabase(status)
+        const result = await saveEdition('ed-1', { subject: 'Updated' })
+        expect(result.ok).toBe(false)
+        expect(result).toHaveProperty('error', 'edition_locked')
+      },
+    )
   })
 
+  // ── scheduleEdition ─────────────────────────────────────────────────────
   describe('scheduleEdition', () => {
-    it.each(SCHEDULABLE_STATUSES)('allows schedule from %s', (status) => {
-      expect(SCHEDULABLE_STATUSES).toContain(status)
+    const futureDate = new Date(Date.now() + 86_400_000).toISOString()
+
+    it.each(['idea', 'draft', 'ready', 'scheduled'])(
+      'succeeds for %s status',
+      async (status) => {
+        mockSupabase = createMockSupabase(status)
+        const result = await scheduleEdition('ed-1', futureDate)
+        expect(result.ok).toBe(true)
+      },
+    )
+
+    it.each(['sending', 'sent', 'failed', 'cancelled'])(
+      'rejects for %s status',
+      async (status) => {
+        mockSupabase = createMockSupabase(status)
+        const result = await scheduleEdition('ed-1', futureDate)
+        expect(result.ok).toBe(false)
+        expect(result).toHaveProperty('error', 'edition_not_schedulable')
+      },
+    )
+
+    it('rejects an invalid date format', async () => {
+      mockSupabase = createMockSupabase('draft')
+      const result = await scheduleEdition('ed-1', 'not-a-date')
+      expect(result.ok).toBe(false)
+      expect(result).toHaveProperty('error', 'invalid_date_format')
     })
-    it.each(['sending', 'sent', 'failed', 'cancelled'])('blocks schedule from %s', (status) => {
-      expect(SCHEDULABLE_STATUSES).not.toContain(status)
+
+    it('rejects a date in the past', async () => {
+      mockSupabase = createMockSupabase('draft')
+      const result = await scheduleEdition('ed-1', '2020-01-01T00:00:00Z')
+      expect(result.ok).toBe(false)
+      expect(result).toHaveProperty('error', 'schedule_in_past')
     })
   })
 
+  // ── cancelEdition ───────────────────────────────────────────────────────
   describe('cancelEdition', () => {
-    it.each(CANCELLABLE_STATUSES)('allows cancel from %s', (status) => {
-      expect(CANCELLABLE_STATUSES).toContain(status)
-    })
-    it.each(['sending', 'sent', 'failed', 'cancelled'])('blocks cancel from %s', (status) => {
-      expect(CANCELLABLE_STATUSES).not.toContain(status)
-    })
+    it.each(['idea', 'draft', 'ready', 'scheduled', 'queued'])(
+      'succeeds for %s status',
+      async (status) => {
+        mockSupabase = createMockSupabase(status)
+        const result = await cancelEdition('ed-1')
+        expect(result.ok).toBe(true)
+      },
+    )
+
+    it.each(['sending', 'sent', 'failed', 'cancelled'])(
+      'rejects for %s status',
+      async (status) => {
+        mockSupabase = createMockSupabase(status)
+        const result = await cancelEdition('ed-1')
+        expect(result.ok).toBe(false)
+        expect(result).toHaveProperty('error', 'cannot_cancel')
+      },
+    )
   })
 
+  // ── sendNow ─────────────────────────────────────────────────────────────
   describe('sendNow', () => {
-    it.each(SENDABLE_STATUSES)('allows sendNow from %s', (status) => {
-      expect(SENDABLE_STATUSES).toContain(status)
-    })
-    it.each(['sending', 'sent', 'failed', 'cancelled'])('blocks sendNow from %s', (status) => {
-      expect(SENDABLE_STATUSES).not.toContain(status)
+    it.each(['idea', 'draft', 'ready', 'scheduled'])(
+      'succeeds for %s status',
+      async (status) => {
+        mockSupabase = createMockSupabase(status)
+        const result = await sendNow('ed-1')
+        expect(result.ok).toBe(true)
+      },
+    )
+
+    it.each(['sending', 'sent', 'failed', 'cancelled'])(
+      'rejects for %s status',
+      async (status) => {
+        mockSupabase = createMockSupabase(status)
+        const result = await sendNow('ed-1')
+        expect(result.ok).toBe(false)
+        expect(result).toHaveProperty('error', 'cannot_send')
+      },
+    )
+
+    it('rejects when no newsletter type assigned', async () => {
+      mockSupabase = createMockSupabase('draft', { newsletter_type_id: null })
+      const result = await sendNow('ed-1')
+      expect(result.ok).toBe(false)
+      expect(result).toHaveProperty('error', 'no_type_assigned')
     })
   })
 
+  // ── revertToDraft ───────────────────────────────────────────────────────
   describe('revertToDraft', () => {
-    it.each(REVERTABLE_STATUSES)('allows revert from %s', (status) => {
-      expect(REVERTABLE_STATUSES).toContain(status)
-    })
-    it.each(['idea', 'draft', 'ready', 'scheduled', 'sending', 'sent'])('blocks revert from %s', (status) => {
-      expect(REVERTABLE_STATUSES).not.toContain(status)
-    })
+    it.each(['cancelled', 'failed'])(
+      'succeeds for %s status',
+      async (status) => {
+        mockSupabase = createMockSupabase(status)
+        const result = await revertToDraft('ed-1')
+        expect(result.ok).toBe(true)
+      },
+    )
+
+    it.each(['idea', 'draft', 'ready', 'scheduled', 'sending', 'sent'])(
+      'rejects for %s status',
+      async (status) => {
+        mockSupabase = createMockSupabase(status)
+        const result = await revertToDraft('ed-1')
+        expect(result.ok).toBe(false)
+        expect(result).toHaveProperty('error', 'cannot_revert')
+      },
+    )
   })
 
+  // ── sendTestEmail ───────────────────────────────────────────────────────
   describe('sendTestEmail', () => {
-    it.each(TESTABLE_STATUSES)('allows test from %s', (status) => {
-      expect(TESTABLE_STATUSES).toContain(status)
-    })
-    it.each(['scheduled', 'sending', 'sent', 'failed', 'cancelled'])('blocks test from %s', (status) => {
-      expect(TESTABLE_STATUSES).not.toContain(status)
-    })
+    it.each(['idea', 'draft', 'ready'])(
+      'succeeds for %s status',
+      async (status) => {
+        mockSupabase = createMockSupabase(status, {
+          subject: 'Test',
+          content_html: '<p>hi</p>',
+          content_mdx: null,
+          test_sent_at: null,
+        })
+        const result = await sendTestEmail('ed-1')
+        expect(result.ok).toBe(true)
+      },
+    )
+
+    it.each(['scheduled', 'sending', 'sent', 'failed', 'cancelled'])(
+      'rejects for %s status',
+      async (status) => {
+        mockSupabase = createMockSupabase(status, {
+          subject: 'Test',
+          content_html: '<p>hi</p>',
+          content_mdx: null,
+          test_sent_at: null,
+        })
+        const result = await sendTestEmail('ed-1')
+        expect(result.ok).toBe(false)
+        expect(result).toHaveProperty('error', 'edition_not_testable')
+      },
+    )
   })
 
+  // ── sent is terminal ────────────────────────────────────────────────────
   describe('sent is terminal', () => {
-    it('only delete and duplicate work from sent', () => {
-      const sent = 'sent'
-      expect(EDITABLE_STATUSES).not.toContain(sent)
-      expect(SCHEDULABLE_STATUSES).not.toContain(sent)
-      expect(CANCELLABLE_STATUSES).not.toContain(sent)
-      expect(SENDABLE_STATUSES).not.toContain(sent)
-      expect(REVERTABLE_STATUSES).not.toContain(sent)
+    it('save/schedule/cancel/sendNow/revert/test all reject for sent', async () => {
+      const futureDate = new Date(Date.now() + 86_400_000).toISOString()
+
+      mockSupabase = createMockSupabase('sent', {
+        subject: 'X',
+        content_html: '<p>x</p>',
+        content_mdx: null,
+        test_sent_at: null,
+      })
+      const save = await saveEdition('ed-1', { subject: 'X' })
+
+      mockSupabase = createMockSupabase('sent')
+      const schedule = await scheduleEdition('ed-1', futureDate)
+
+      mockSupabase = createMockSupabase('sent')
+      const cancel = await cancelEdition('ed-1')
+
+      mockSupabase = createMockSupabase('sent')
+      const send = await sendNow('ed-1')
+
+      mockSupabase = createMockSupabase('sent')
+      const revert = await revertToDraft('ed-1')
+
+      mockSupabase = createMockSupabase('sent', {
+        subject: 'X',
+        content_html: '<p>x</p>',
+        content_mdx: null,
+        test_sent_at: null,
+      })
+      const test = await sendTestEmail('ed-1')
+
+      expect(save.ok).toBe(false)
+      expect(schedule.ok).toBe(false)
+      expect(cancel.ok).toBe(false)
+      expect(send.ok).toBe(false)
+      expect(revert.ok).toBe(false)
+      expect(test.ok).toBe(false)
     })
   })
 })

@@ -34,7 +34,9 @@ export function sanitizeForEmail(html: string, typeColor: string): string {
   sanitized = sanitized.replace(/<style[\s\S]*?<\/style>/gi, '')
   sanitized = sanitized.replace(/\s+on\w+\s*=\s*"[^"]*"/gi, '')
   sanitized = sanitized.replace(/\s+on\w+\s*=\s*'[^']*'/gi, '')
+  sanitized = sanitized.replace(/\s+on\w+\s*=\s*[^\s>"']+/gi, '')
   sanitized = sanitized.replace(/href\s*=\s*"javascript:[^"]*"/gi, 'href="#"')
+  sanitized = sanitized.replace(/href\s*=\s*["']?\s*javascript:[^"'>\s]*/gi, '')
 
   // 2. Image safety — add alt="" to images missing alt attribute
   sanitized = sanitized.replace(

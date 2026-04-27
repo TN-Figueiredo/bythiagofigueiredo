@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 interface EmailPreviewProps {
   editionId: string
@@ -13,7 +13,7 @@ export function EmailPreview({ editionId, renderPreview }: EmailPreviewProps) {
   const [error, setError] = useState<string | null>(null)
   const [width, setWidth] = useState<'desktop' | 'mobile'>('desktop')
 
-  async function loadPreview() {
+  const loadPreview = useCallback(async () => {
     setLoading(true)
     setError(null)
     const result = await renderPreview(editionId)
@@ -23,11 +23,11 @@ export function EmailPreview({ editionId, renderPreview }: EmailPreviewProps) {
       setError(result.error)
     }
     setLoading(false)
-  }
+  }, [editionId, renderPreview])
 
   useEffect(() => {
     loadPreview()
-  }, [editionId])
+  }, [loadPreview])
 
   return (
     <div className="flex flex-col h-full">

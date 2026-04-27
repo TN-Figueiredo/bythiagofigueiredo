@@ -1,6 +1,6 @@
 'use client'
 
-type SaveState = 'saving' | 'saved' | 'unsaved' | 'error' | 'offline'
+import type { SaveState } from './use-autosave'
 
 const STATE_CONFIG: Record<SaveState, { dot: string; text: string }> = {
   saving: { dot: 'bg-yellow-400 animate-pulse', text: 'Saving...' },

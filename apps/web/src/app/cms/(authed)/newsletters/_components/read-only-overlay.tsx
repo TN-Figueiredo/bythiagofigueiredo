@@ -7,6 +7,7 @@ interface ReadOnlyOverlayProps {
 const STATUS_MESSAGES: Record<string, string> = {
   sending: 'This edition is currently being sent and cannot be edited.',
   sent: 'This edition has been sent. Create a duplicate to make changes.',
+  failed: 'This edition failed to send. Revert to draft to edit.',
   cancelled: 'This edition was cancelled. Revert to draft to edit.',
 }
 

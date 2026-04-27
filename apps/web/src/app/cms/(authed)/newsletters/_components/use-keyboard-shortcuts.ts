@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 interface ShortcutHandlers {
   onNewEdition: () => void
@@ -13,6 +13,9 @@ interface ShortcutHandlers {
 }
 
 export function useDashboardKeyboardShortcuts(handlers: ShortcutHandlers) {
+  const handlersRef = useRef(handlers)
+  handlersRef.current = handlers
+
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
@@ -21,36 +24,36 @@ export function useDashboardKeyboardShortcuts(handlers: ShortcutHandlers) {
       switch (e.key.toLowerCase()) {
         case 'n':
           e.preventDefault()
-          handlers.onNewEdition()
+          handlersRef.current.onNewEdition()
           break
         case 'i':
           e.preventDefault()
-          handlers.onQuickIdea()
+          handlersRef.current.onQuickIdea()
           break
         case '/':
           e.preventDefault()
-          handlers.onFocusSearch()
+          handlersRef.current.onFocusSearch()
           break
         case 'arrowup':
           e.preventDefault()
-          handlers.onNavigateUp()
+          handlersRef.current.onNavigateUp()
           break
         case 'arrowdown':
           e.preventDefault()
-          handlers.onNavigateDown()
+          handlersRef.current.onNavigateDown()
           break
         case 'enter':
           e.preventDefault()
-          handlers.onOpenSelected()
+          handlersRef.current.onOpenSelected()
           break
         case '?':
           e.preventDefault()
-          handlers.onShowHelp()
+          handlersRef.current.onShowHelp()
           break
       }
     }
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [handlers])
+  }, [])
 }

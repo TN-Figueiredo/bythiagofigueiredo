@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-type SaveState = 'saving' | 'saved' | 'unsaved' | 'error' | 'offline'
+export type SaveState = 'saving' | 'saved' | 'unsaved' | 'error' | 'offline'
 
 interface AutosaveOptions {
   editionId: string
@@ -40,7 +40,7 @@ export function useAutosave({
 
   const doSave = useCallback(async (data: Record<string, unknown>) => {
     if (!enabled) return
-    if (!navigator.onLine) {
+    if (typeof window !== 'undefined' && !navigator.onLine) {
       localStorage.setItem(`${LS_PREFIX}${editionId}`, JSON.stringify(data))
       setState('offline')
       return
@@ -54,7 +54,7 @@ export function useAutosave({
       setLastSavedAt(new Date())
       setHasUnsavedChanges(false)
       retryCountRef.current = 0
-      localStorage.removeItem(`${LS_PREFIX}${editionId}`)
+      if (typeof window !== 'undefined') localStorage.removeItem(`${LS_PREFIX}${editionId}`)
     } else {
       if (retryCountRef.current < maxRetries) {
         const delay = RETRY_DELAYS[retryCountRef.current] ?? 8000
@@ -63,7 +63,7 @@ export function useAutosave({
         setState('error')
       } else {
         setState('error')
-        localStorage.setItem(`${LS_PREFIX}${editionId}`, JSON.stringify(data))
+        if (typeof window !== 'undefined') localStorage.setItem(`${LS_PREFIX}${editionId}`, JSON.stringify(data))
       }
     }
   }, [editionId, saveFn, enabled, maxRetries])
@@ -84,6 +84,7 @@ export function useAutosave({
   }, [doSave])
 
   useEffect(() => {
+    if (typeof window === 'undefined') return
     const stored = localStorage.getItem(`${LS_PREFIX}${editionId}`)
     if (stored && enabled) {
       const data = JSON.parse(stored) as Record<string, unknown>
@@ -102,6 +103,12 @@ export function useAutosave({
     window.addEventListener('online', handleOnline)
     return () => window.removeEventListener('online', handleOnline)
   }, [doSave])
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [])
 
   return { state, lastSavedAt, hasUnsavedChanges, scheduleSave, saveNow, setHasUnsavedChanges }
 }

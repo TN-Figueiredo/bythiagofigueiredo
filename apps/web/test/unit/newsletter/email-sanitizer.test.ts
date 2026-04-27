@@ -32,6 +32,19 @@ describe('sanitizeForEmail', () => {
       const result = sanitizeForEmail(html, '#7c3aed')
       expect(result).not.toContain('javascript:')
     })
+
+    it('strips unquoted on* event handlers', () => {
+      const html = '<img src="x.jpg" onerror=alert(1)>'
+      const result = sanitizeForEmail(html, '#7c3aed')
+      expect(result).not.toContain('onerror')
+      expect(result).not.toContain('alert')
+    })
+
+    it('strips javascript: protocol in unquoted href', () => {
+      const html = '<a href=javascript:alert(1)>Click</a>'
+      const result = sanitizeForEmail(html, '#7c3aed')
+      expect(result).not.toContain('javascript:')
+    })
   })
 
   describe('CSS inlining via juice', () => {

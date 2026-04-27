@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 
 const COLOR_PRESETS = [
   '#7c3aed', '#ea580c', '#2563eb', '#16a34a', '#dc2626',
@@ -15,11 +15,45 @@ interface TypeModalProps {
   onCancel: () => void
 }
 
+const FOCUSABLE_SELECTOR =
+  'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+
 export function TypeModal({ open, mode, initial, onSubmit, onCancel }: TypeModalProps) {
   const [name, setName] = useState(initial?.name ?? '')
   const [tagline, setTagline] = useState(initial?.tagline ?? '')
   const [color, setColor] = useState(initial?.color ?? '#7c3aed')
   const [locale, setLocale] = useState(initial?.locale ?? 'pt-BR')
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const dialog = dialogRef.current
+    if (!dialog) return
+
+    const focusable = dialog.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
+    focusable?.focus()
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        onCancel()
+        return
+      }
+      if (e.key !== 'Tab') return
+      const focusableEls = dialog!.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)
+      const first = focusableEls[0]
+      const last = focusableEls[focusableEls.length - 1]
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault()
+        last?.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault()
+        first?.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [open, onCancel])
 
   if (!open) return null
 
@@ -31,8 +65,14 @@ export function TypeModal({ open, mode, initial, onSubmit, onCancel }: TypeModal
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
-        <h3 className="text-lg font-semibold text-gray-900">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="type-modal-title"
+        className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl"
+      >
+        <h3 id="type-modal-title" className="text-lg font-semibold text-gray-900">
           {mode === 'create' ? 'New Newsletter Type' : 'Edit Newsletter Type'}
         </h3>
 
@@ -67,7 +107,7 @@ export function TypeModal({ open, mode, initial, onSubmit, onCancel }: TypeModal
               onChange={(e) => setLocale(e.target.value)}
               className="w-full rounded border px-3 py-2 text-sm"
             >
-              <option value="pt-BR">Português (BR)</option>
+              <option value="pt-BR">Portugues (BR)</option>
               <option value="en">English</option>
             </select>
           </div>

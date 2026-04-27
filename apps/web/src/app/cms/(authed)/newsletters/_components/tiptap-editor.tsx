@@ -121,7 +121,7 @@ export function TipTapEditor({
   })
 
   const charCount = editor?.storage.characterCount
-  const wordCount = charCount ? Math.ceil(charCount.characters() / 5) : 0
+  const wordCount = charCount?.words() ?? 0
 
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden">

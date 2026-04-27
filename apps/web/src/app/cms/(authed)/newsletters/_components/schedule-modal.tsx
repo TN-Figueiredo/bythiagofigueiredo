@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 
 interface ScheduleModalProps {
   open: boolean
@@ -9,25 +9,78 @@ interface ScheduleModalProps {
   onCancel: () => void
 }
 
+const FOCUSABLE_SELECTOR =
+  'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+
 export function ScheduleModal({ open, audienceCount, onConfirm, onCancel }: ScheduleModalProps) {
   const [date, setDate] = useState('')
   const [time, setTime] = useState('09:00')
   const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone)
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const dialog = dialogRef.current
+    if (!dialog) return
+
+    const focusable = dialog.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
+    focusable?.focus()
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        onCancel()
+        return
+      }
+      if (e.key !== 'Tab') return
+      const focusableEls = dialog!.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)
+      const first = focusableEls[0]
+      const last = focusableEls[focusableEls.length - 1]
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault()
+        last?.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault()
+        first?.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [open, onCancel])
 
   if (!open) return null
 
+  function toISOInTimezone(d: string, t: string, tz: string): string {
+    // Treat the user input as a datetime in the selected timezone
+    const naive = new Date(`${d}T${t}:00Z`) // parse as UTC first
+    if (tz === 'UTC') return naive.toISOString()
+    // Compute the offset between UTC and the target timezone
+    const utcStr = naive.toLocaleString('en-US', { timeZone: 'UTC' })
+    const tzStr = naive.toLocaleString('en-US', { timeZone: tz })
+    const offset = new Date(utcStr).getTime() - new Date(tzStr).getTime()
+    return new Date(naive.getTime() + offset).toISOString()
+  }
+
   function handleConfirm() {
     if (!date || !time) return
-    const scheduledAt = new Date(`${date}T${time}`).toISOString()
+    const scheduledAt = toISOInTimezone(date, time, timezone)
     onConfirm(scheduledAt)
   }
 
-  const isPast = date && time ? new Date(`${date}T${time}`).getTime() <= Date.now() : false
+  const isPast = date && time
+    ? new Date(toISOInTimezone(date, time, timezone)).getTime() <= Date.now()
+    : false
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl">
-        <h3 className="text-lg font-semibold text-gray-900">Schedule Edition</h3>
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="schedule-modal-title"
+        className="w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl"
+      >
+        <h3 id="schedule-modal-title" className="text-lg font-semibold text-gray-900">Schedule Edition</h3>
         <p className="mt-1 text-sm text-gray-500">Will be sent to {audienceCount.toLocaleString()} subscribers</p>
 
         <div className="mt-4 space-y-3">

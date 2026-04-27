@@ -3,8 +3,9 @@
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
+import { toast } from 'sonner'
 import { TypeCards } from './_components/type-cards'
-import { retryEdition } from './actions'
+import { retryEdition, duplicateEdition, deleteEdition, cancelEdition, revertToDraft, unslotEdition } from './actions'
 
 /* ─────────── Types ─────────── */
 
@@ -39,7 +40,7 @@ interface EditionRow {
   error_message?: string | null
   retry_count?: number | null
   max_retries?: number | null
-  source_post_id?: string | null
+  source_blog_post_id?: string | null
   is_best_performer?: boolean
 }
 
@@ -242,13 +243,22 @@ function LastNewsletterBanner({ edition }: { edition: LastEditionBanner }) {
 
 /* ─────────── Context Menu ─────────── */
 
-interface ContextMenuProps {
-  edition: EditionRow
+interface EditionActionCallbacks {
   onRetry: (id: string) => void
-  isRetrying: boolean
+  onDuplicate: (id: string) => void
+  onDelete: (id: string) => void
+  onCancel: (id: string) => void
+  onRevert: (id: string) => void
+  onUnslot: (id: string) => void
 }
 
-function ContextMenu({ edition, onRetry, isRetrying }: ContextMenuProps) {
+interface ContextMenuProps {
+  edition: EditionRow
+  callbacks: EditionActionCallbacks
+  isBusy: boolean
+}
+
+function ContextMenu({ edition, callbacks, isBusy }: ContextMenuProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -270,7 +280,7 @@ function ContextMenu({ edition, onRetry, isRetrying }: ContextMenuProps) {
     return () => document.removeEventListener('keydown', handleKey)
   }, [open])
 
-  const items = getMenuItems(edition, onRetry, isRetrying)
+  const items = getMenuItems(edition, callbacks, isBusy)
   if (items.length === 0) return null
 
   return (
@@ -330,8 +340,8 @@ interface MenuItem {
 
 function getMenuItems(
   edition: EditionRow,
-  onRetry: (id: string) => void,
-  isRetrying: boolean,
+  callbacks: EditionActionCallbacks,
+  isBusy: boolean,
 ): MenuItem[] {
   const items: MenuItem[] = []
   const editHref = `/cms/newsletters/${edition.id}/edit`
@@ -343,22 +353,22 @@ function getMenuItems(
       items.push(
         { label: 'Edit', action: () => { window.location.href = editHref }, testId: 'edit' },
         { label: 'Send Test', action: () => { window.location.href = `${editHref}?test=1` }, testId: 'test' },
-        { label: 'Duplicate', action: () => { /* handled by parent */ }, testId: 'duplicate' },
-        { label: 'Delete', action: () => { /* handled by parent */ }, destructive: true, testId: 'delete' },
+        { label: 'Duplicate', action: () => callbacks.onDuplicate(edition.id), disabled: isBusy, testId: 'duplicate' },
+        { label: 'Delete', action: () => callbacks.onDelete(edition.id), destructive: true, disabled: isBusy, testId: 'delete' },
       )
       break
     case 'scheduled':
       items.push(
         { label: 'Edit', action: () => { window.location.href = editHref }, testId: 'edit' },
-        { label: 'Cancel', action: () => { /* handled by parent */ }, testId: 'cancel' },
-        { label: 'Reschedule', action: () => { /* handled by parent */ }, testId: 'reschedule' },
+        { label: 'Cancel', action: () => callbacks.onCancel(edition.id), disabled: isBusy, testId: 'cancel' },
+        { label: 'Reschedule', action: () => { window.location.href = `${editHref}?reschedule=1` }, testId: 'reschedule' },
       )
       break
     case 'sent':
       items.push(
         { label: 'Analytics', action: () => { window.location.href = analyticsHref }, testId: 'analytics' },
-        { label: 'Archive', action: () => { /* handled by parent */ }, testId: 'archive' },
-        { label: 'Duplicate', action: () => { /* handled by parent */ }, testId: 'duplicate' },
+        { label: 'Archive', action: () => { window.location.href = `${editHref}?archive=1` }, testId: 'archive' },
+        { label: 'Duplicate', action: () => callbacks.onDuplicate(edition.id), disabled: isBusy, testId: 'duplicate' },
       )
       break
     case 'failed': {
@@ -366,12 +376,12 @@ function getMenuItems(
       items.push(
         {
           label: `Retry${remaining > 0 ? ` (${remaining} remaining)` : ''}`,
-          action: () => onRetry(edition.id),
-          disabled: isRetrying || remaining <= 0,
+          action: () => callbacks.onRetry(edition.id),
+          disabled: isBusy || remaining <= 0,
           testId: 'retry',
         },
         { label: 'Edit', action: () => { window.location.href = editHref }, testId: 'edit' },
-        { label: 'Delete', action: () => { /* handled by parent */ }, destructive: true, testId: 'delete' },
+        { label: 'Delete', action: () => callbacks.onDelete(edition.id), destructive: true, disabled: isBusy, testId: 'delete' },
       )
       break
     }
@@ -381,20 +391,20 @@ function getMenuItems(
     case 'queued':
       items.push(
         { label: 'Edit', action: () => { window.location.href = editHref }, testId: 'edit' },
-        { label: 'Unslot', action: () => { /* handled by parent */ }, testId: 'unslot' },
+        { label: 'Unslot', action: () => callbacks.onUnslot(edition.id), disabled: isBusy, testId: 'unslot' },
       )
       break
     case 'idea':
       items.push(
         { label: 'Convert to Draft', action: () => { window.location.href = `${editHref}?convert=1` }, testId: 'convert' },
         { label: 'Edit', action: () => { window.location.href = editHref }, testId: 'edit' },
-        { label: 'Delete', action: () => { /* handled by parent */ }, destructive: true, testId: 'delete' },
+        { label: 'Delete', action: () => callbacks.onDelete(edition.id), destructive: true, disabled: isBusy, testId: 'delete' },
       )
       break
     case 'cancelled':
       items.push(
-        { label: 'Revert to Draft', action: () => { /* handled by parent */ }, testId: 'revert' },
-        { label: 'Delete', action: () => { /* handled by parent */ }, destructive: true, testId: 'delete' },
+        { label: 'Revert to Draft', action: () => callbacks.onRevert(edition.id), disabled: isBusy, testId: 'revert' },
+        { label: 'Delete', action: () => callbacks.onDelete(edition.id), destructive: true, disabled: isBusy, testId: 'delete' },
       )
       break
   }
@@ -464,17 +474,17 @@ function StatusBadge({ status }: { status: EditionRow['status'] }) {
 
 function EditionRowComponent({
   row,
-  onRetry,
-  isRetrying,
+  callbacks,
+  isBusy,
 }: {
   row: EditionRow
-  onRetry: (id: string) => void
-  isRetrying: boolean
+  callbacks: EditionActionCallbacks
+  isBusy: boolean
 }) {
   const progress = getSendProgress(row)
   const isFailed = row.status === 'failed'
   const isBest = row.is_best_performer && row.status === 'sent'
-  const hasSourcePost = !!row.source_post_id
+  const hasSourcePost = !!row.source_blog_post_id
 
   return (
     <tr
@@ -568,7 +578,7 @@ function EditionRowComponent({
 
       {/* Actions */}
       <td className="px-2 py-3 text-right">
-        <ContextMenu edition={row} onRetry={onRetry} isRetrying={isRetrying} />
+        <ContextMenu edition={row} callbacks={callbacks} isBusy={isBusy} />
       </td>
     </tr>
   )
@@ -707,7 +717,7 @@ export function NewslettersConnected({
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isPending, startTransition] = useTransition()
-  const [retryingId, setRetryingId] = useState<string | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
 
   // URL-driven state
   const selectedTypeId = searchParams.get('type')
@@ -778,21 +788,150 @@ export function NewslettersConnected({
     [searchParams, router],
   )
 
-  // Retry handler
+  // ─── Edition action callbacks ─────────────────────────────────────────────
+
   const handleRetry = useCallback(
     (editionId: string) => {
-      setRetryingId(editionId)
+      setBusyId(editionId)
       startTransition(async () => {
         try {
-          await retryEdition(editionId)
+          const res = await retryEdition(editionId)
+          if (res.ok) {
+            toast.success('Edition queued for retry')
+          } else {
+            toast.error(res.error)
+          }
           router.refresh()
+        } catch {
+          toast.error('Failed to retry edition')
         } finally {
-          setRetryingId(null)
+          setBusyId(null)
         }
       })
     },
     [router],
   )
+
+  const handleDuplicate = useCallback(
+    (editionId: string) => {
+      setBusyId(editionId)
+      startTransition(async () => {
+        try {
+          const res = await duplicateEdition(editionId)
+          if (res.ok) {
+            toast.success('Edition duplicated')
+          } else {
+            toast.error(res.error)
+          }
+          router.refresh()
+        } catch {
+          toast.error('Failed to duplicate edition')
+        } finally {
+          setBusyId(null)
+        }
+      })
+    },
+    [router],
+  )
+
+  const handleDelete = useCallback(
+    (editionId: string) => {
+      if (!window.confirm('Delete this edition? This action cannot be undone.')) return
+      setBusyId(editionId)
+      startTransition(async () => {
+        try {
+          const res = await deleteEdition(editionId, { confirmed: true })
+          if (res.ok) {
+            toast.success('Edition deleted')
+          } else {
+            toast.error(res.error)
+          }
+          router.refresh()
+        } catch {
+          toast.error('Failed to delete edition')
+        } finally {
+          setBusyId(null)
+        }
+      })
+    },
+    [router],
+  )
+
+  const handleCancel = useCallback(
+    (editionId: string) => {
+      if (!window.confirm('Cancel this scheduled edition?')) return
+      setBusyId(editionId)
+      startTransition(async () => {
+        try {
+          const res = await cancelEdition(editionId)
+          if (res.ok) {
+            toast.success('Edition cancelled')
+          } else {
+            toast.error(res.error)
+          }
+          router.refresh()
+        } catch {
+          toast.error('Failed to cancel edition')
+        } finally {
+          setBusyId(null)
+        }
+      })
+    },
+    [router],
+  )
+
+  const handleRevert = useCallback(
+    (editionId: string) => {
+      setBusyId(editionId)
+      startTransition(async () => {
+        try {
+          const res = await revertToDraft(editionId)
+          if (res.ok) {
+            toast.success('Edition reverted to draft')
+          } else {
+            toast.error(res.error)
+          }
+          router.refresh()
+        } catch {
+          toast.error('Failed to revert edition')
+        } finally {
+          setBusyId(null)
+        }
+      })
+    },
+    [router],
+  )
+
+  const handleUnslot = useCallback(
+    (editionId: string) => {
+      setBusyId(editionId)
+      startTransition(async () => {
+        try {
+          const res = await unslotEdition(editionId)
+          if (res.ok) {
+            toast.success('Edition removed from slot')
+          } else {
+            toast.error(res.error)
+          }
+          router.refresh()
+        } catch {
+          toast.error('Failed to unslot edition')
+        } finally {
+          setBusyId(null)
+        }
+      })
+    },
+    [router],
+  )
+
+  const editionCallbacks: EditionActionCallbacks = {
+    onRetry: handleRetry,
+    onDuplicate: handleDuplicate,
+    onDelete: handleDelete,
+    onCancel: handleCancel,
+    onRevert: handleRevert,
+    onUnslot: handleUnslot,
+  }
 
   // Client-side sort
   const sorted = [...initialEditions].sort((a, b) => {
@@ -941,8 +1080,8 @@ export function NewslettersConnected({
                   <EditionRowComponent
                     key={edition.id}
                     row={edition}
-                    onRetry={handleRetry}
-                    isRetrying={retryingId === edition.id}
+                    callbacks={editionCallbacks}
+                    isBusy={busyId === edition.id}
                   />
                 ))}
               </tbody>

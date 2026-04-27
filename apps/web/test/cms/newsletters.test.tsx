@@ -53,7 +53,7 @@ function makeEdition(overrides: Partial<{
   sent_at: string | null; scheduled_at: string | null;
   created_at: string | null; updated_at: string | null;
   error_message: string | null; retry_count: number | null; max_retries: number | null;
-  source_post_id: string | null; is_best_performer: boolean;
+  source_blog_post_id: string | null; is_best_performer: boolean;
 }> = {}) {
   return {
     id: 'ed-1',
@@ -74,7 +74,7 @@ function makeEdition(overrides: Partial<{
     error_message: null,
     retry_count: 0,
     max_retries: 3,
-    source_post_id: null,
+    source_blog_post_id: null,
     is_best_performer: false,
     ...overrides,
   }
@@ -407,7 +407,7 @@ describe('NewslettersConnected', () => {
       const edition = makeEdition({
         id: 'ed-from-post',
         status: 'draft',
-        source_post_id: 'post-123',
+        source_blog_post_id: 'post-123',
       })
       renderConnected({ editions: [edition] })
       expect(screen.getByTestId('source-post-indicator')).toBeTruthy()
