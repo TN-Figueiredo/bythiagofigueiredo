@@ -5,26 +5,7 @@ import {
 } from '@tn-figueiredo/auth-nextjs'
 import { cookies } from 'next/headers'
 import type { ReactNode } from 'react'
-import {
-  AdminShellWithSwitcher,
-  AdminSiteSwitcherSlot,
-  type AccessibleSite,
-} from '../../../components/cms/site-switcher-provider'
-
-const ADMIN_CONFIG = {
-  appName: 'Admin',
-  sections: [
-    {
-      group: 'System',
-      items: [
-        { label: 'Dashboard', path: '/admin', icon: 'LayoutDashboard' },
-        { label: 'Users', path: '/admin/users', icon: 'Users' },
-        { label: 'Anúncios', path: '/admin/ads', icon: 'Megaphone' },
-        { label: 'Settings', path: '/admin/settings', icon: 'Settings' },
-      ],
-    },
-  ],
-}
+import { AdminShell } from '@/components/admin/admin-shell'
 
 export default async function Layout({ children }: { children: ReactNode }) {
   const cookieStore = await cookies()
@@ -44,32 +25,11 @@ export default async function Layout({ children }: { children: ReactNode }) {
     },
   })
   const user = await requireUser(supabase)
-  // Area gate — redirects to `/?error=insufficient_access` on denial.
-  // RPC-first: `is_admin()` is trusted over JWT app_metadata (stale until refresh).
   await requireArea('admin')
 
-  // Track F3 — resolve accessible sites for the admin shell. Same contract
-  // as /cms/(authed)/layout.tsx; see note there.
-  const { data: sitesData } = await supabase.rpc('user_accessible_sites')
-  const sites = (sitesData ?? []).map((s: Record<string, unknown>) => ({
-    id: s.site_id as string,
-    slug: s.site_slug as string,
-    name: s.site_name as string,
-    primary_domain: s.primary_domain as string,
-    logo_url: null,
-  })) as AccessibleSite[]
-
   return (
-    <AdminShellWithSwitcher
-      sites={sites}
-      userEmail={user.email ?? ''}
-      config={{
-        ...ADMIN_CONFIG,
-        logoutPath: '/admin/logout',
-        siteSwitcherSlot: <AdminSiteSwitcherSlot />,
-      }}
-    >
+    <AdminShell userEmail={user.email ?? ''}>
       {children}
-    </AdminShellWithSwitcher>
+    </AdminShell>
   )
 }

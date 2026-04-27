@@ -11,6 +11,7 @@ vi.mock('next/headers', () => ({
 
 vi.mock('../src/components/cms/site-switcher-provider', () => ({
   CmsSiteSwitcherSlot: () => null,
+  SiteSwitcherProvider: ({ children }: { children: React.ReactNode }) => children,
 }))
 
 vi.mock('@tn-figueiredo/cms-ui/client', () => ({
@@ -28,10 +29,6 @@ vi.mock('@tn-figueiredo/cms-ui/client', () => ({
       { 'data-testid': 'cms-shell', 'data-site': siteName, 'data-user': userDisplayName },
       children,
     ),
-}))
-
-vi.mock('@tn-figueiredo/admin/site-switcher', () => ({
-  SiteSwitcherProvider: ({ children }: { children: React.ReactNode }) => children,
 }))
 
 vi.mock('@tn-figueiredo/auth-nextjs', () => ({

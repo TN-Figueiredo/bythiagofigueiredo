@@ -7,9 +7,10 @@ import { cookies } from 'next/headers'
 import type { ReactNode } from 'react'
 import {
   SiteSwitcherProvider,
+  CmsSiteSwitcherSlot,
   type AccessibleSite,
-} from '@tn-figueiredo/admin/site-switcher'
-import { CmsSiteSwitcherSlot } from '@/components/cms/site-switcher-provider'
+  type RpcAccessibleSite,
+} from '@/components/cms/site-switcher-provider'
 import { CmsShell } from '@tn-figueiredo/cms-ui/client'
 import { CmsAdminProvider } from '@tn-figueiredo/cms-admin/client'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
@@ -36,7 +37,7 @@ export default async function Layout({ children }: { children: ReactNode }) {
   await requireArea('cms')
 
   const { data: sitesData } = await supabase.rpc('user_accessible_sites')
-  const rawSites = (sitesData ?? []) as Array<{ site_id: string; site_name: string; site_slug: string; primary_domain: string; user_role: string }>
+  const rawSites = (sitesData ?? []) as RpcAccessibleSite[]
   const sites = rawSites.map((s) => ({
     id: s.site_id,
     slug: s.site_slug,
@@ -71,7 +72,7 @@ export default async function Layout({ children }: { children: ReactNode }) {
           siteInitials={currentSite?.site_name?.slice(0, 2).toUpperCase() ?? 'CM'}
           userDisplayName={userDisplayName}
           userRole={userRole}
-          siteSwitcher={<CmsSiteSwitcherSlot />}
+          siteSwitcher={<CmsSiteSwitcherSlot sites={rawSites} />}
           badges={badges}
         >
           {children}

@@ -9,10 +9,9 @@ const nextConfig: NextConfig = {
   // The `/ring` subpath (used by middleware) is Edge-safe and does not need
   // transpilation — only the root `.` subpath (server components using
   // compileMdx, PostEditor, etc.) goes through here.
-  // Since `@tn-figueiredo/admin@0.6.2`, the client primitives (SiteSwitcher,
-  // SiteSwitcherProvider, useSiteSwitcher) live under `./site-switcher` with an
-  // explicit `'use client'` banner in the published bundle — the consumer no
-  // longer needs to add admin to `transpilePackages`.
+  // `@tn-figueiredo/admin` client primitives (SiteSwitcherProvider,
+  // useSiteSwitcher) live under `./site-switcher` with `'use client'` banner
+  // — used by CMS layout only, no transpilePackages entry needed.
   transpilePackages: ['@app/shared', '@tn-figueiredo/cms', '@tn-figueiredo/cms-reader', '@tn-figueiredo/newsletter', '@tn-figueiredo/newsletter-admin', '@tn-figueiredo/cms-admin', '@tn-figueiredo/ad-components'],
 
   // Sprint 5a Track E — enable .mdx as page/module file extensions so that
