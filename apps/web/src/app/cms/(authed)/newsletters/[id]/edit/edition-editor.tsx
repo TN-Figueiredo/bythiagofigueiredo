@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import type { JSONContent } from '@tiptap/core'
@@ -69,28 +69,30 @@ export function EditionEditor({ edition, subscriberCount, types }: EditionEditor
     enabled: !isReadOnly,
   })
 
-  function scheduleAutosave() {
-    scheduleSave({
-      subject,
-      preheader: preheader || undefined,
-      content_json: contentJson ?? undefined,
-      content_html: contentHtml || undefined,
-      notes: notes || undefined,
-      segment,
-    })
+  const fieldsRef = useRef({ subject, preheader, contentJson, contentHtml, notes, segment })
+  fieldsRef.current = { subject, preheader, contentJson, contentHtml, notes, segment }
+
+  function getSavePayload(overrides?: Partial<typeof fieldsRef.current>) {
+    const f = { ...fieldsRef.current, ...overrides }
+    return {
+      subject: f.subject,
+      preheader: f.preheader || undefined,
+      content_json: f.contentJson ?? undefined,
+      content_html: f.contentHtml || undefined,
+      notes: f.notes || undefined,
+      segment: f.segment,
+    }
+  }
+
+  function scheduleAutosave(overrides?: Partial<typeof fieldsRef.current>) {
+    if (overrides) Object.assign(fieldsRef.current, overrides)
+    scheduleSave(getSavePayload())
   }
 
   function handleEditorChange(json: JSONContent, html: string) {
     setContentJson(json)
     setContentHtml(html)
-    scheduleSave({
-      subject,
-      preheader: preheader || undefined,
-      content_json: json,
-      content_html: html,
-      notes: notes || undefined,
-      segment,
-    })
+    scheduleAutosave({ contentJson: json, contentHtml: html })
   }
 
   async function handleImageUpload(file: File): Promise<string | null> {
@@ -165,14 +167,7 @@ export function EditionEditor({ edition, subscriberCount, types }: EditionEditor
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault()
-        saveImmediate({
-          subject,
-          preheader: preheader || undefined,
-          content_json: contentJson ?? undefined,
-          content_html: contentHtml || undefined,
-          notes: notes || undefined,
-          segment,
-        })
+        saveImmediate(getSavePayload())
       }
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'p') {
         e.preventDefault()
@@ -181,7 +176,7 @@ export function EditionEditor({ edition, subscriberCount, types }: EditionEditor
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [subject, preheader, contentJson, contentHtml, notes, segment, saveImmediate])
+  }, [saveImmediate])
 
   const typeColor = edition.newsletter_types?.color ?? '#7c3aed'
   const typeName = edition.newsletter_types?.name ?? 'Unassigned'
@@ -228,7 +223,7 @@ export function EditionEditor({ edition, subscriberCount, types }: EditionEditor
           <input
             type="text"
             value={subject}
-            onChange={(e) => { setSubject(e.target.value); scheduleAutosave() }}
+            onChange={(e) => { setSubject(e.target.value); scheduleAutosave({ subject: e.target.value }) }}
             disabled={isReadOnly}
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:ring-1 focus:ring-purple-500 disabled:bg-gray-50"
             placeholder="Newsletter subject line"
@@ -239,7 +234,7 @@ export function EditionEditor({ edition, subscriberCount, types }: EditionEditor
           <input
             type="text"
             value={preheader}
-            onChange={(e) => { setPreheader(e.target.value); scheduleAutosave() }}
+            onChange={(e) => { setPreheader(e.target.value); scheduleAutosave({ preheader: e.target.value }) }}
             disabled={isReadOnly}
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:ring-1 focus:ring-purple-500 disabled:bg-gray-50"
             placeholder="Preview text shown in inbox"
@@ -251,7 +246,7 @@ export function EditionEditor({ edition, subscriberCount, types }: EditionEditor
       <div className="flex items-center gap-4 mb-4">
         <select
           value={segment}
-          onChange={(e) => { setSegment(e.target.value); scheduleAutosave() }}
+          onChange={(e) => { setSegment(e.target.value); scheduleAutosave({ segment: e.target.value }) }}
           disabled={isReadOnly}
           className="rounded border px-2 py-1.5 text-sm"
         >
@@ -282,7 +277,7 @@ export function EditionEditor({ edition, subscriberCount, types }: EditionEditor
         <summary className="text-sm font-medium text-gray-600 cursor-pointer">Internal Notes</summary>
         <textarea
           value={notes}
-          onChange={(e) => { setNotes(e.target.value); scheduleAutosave() }}
+          onChange={(e) => { setNotes(e.target.value); scheduleAutosave({ notes: e.target.value }) }}
           disabled={isReadOnly}
           className="mt-2 w-full rounded border px-3 py-2 text-sm h-20 resize-none"
           placeholder="Internal notes (not included in email)"
