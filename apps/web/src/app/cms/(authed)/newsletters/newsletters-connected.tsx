@@ -5,7 +5,8 @@ import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { TypeCards } from './_components/type-cards'
-import { retryEdition, duplicateEdition, deleteEdition, cancelEdition, revertToDraft, unslotEdition } from './actions'
+import { ConvertIdeaModal } from './_components/convert-idea-modal'
+import { retryEdition, duplicateEdition, deleteEdition, cancelEdition, revertToDraft, unslotEdition, convertIdeaToEdition } from './actions'
 
 /* ─────────── Types ─────────── */
 
@@ -250,6 +251,7 @@ interface EditionActionCallbacks {
   onCancel: (id: string) => void
   onRevert: (id: string) => void
   onUnslot: (id: string) => void
+  onConvert: (edition: EditionRow) => void
 }
 
 interface ContextMenuProps {
@@ -396,7 +398,7 @@ function getMenuItems(
       break
     case 'idea':
       items.push(
-        { label: 'Convert to Draft', action: () => { window.location.href = `${editHref}?convert=1` }, testId: 'convert' },
+        { label: 'Convert to Draft', action: () => callbacks.onConvert(edition), testId: 'convert' },
         { label: 'Edit', action: () => { window.location.href = editHref }, testId: 'edit' },
         { label: 'Delete', action: () => callbacks.onDelete(edition.id), destructive: true, disabled: isBusy, testId: 'delete' },
       )
@@ -718,6 +720,7 @@ export function NewslettersConnected({
   const searchParams = useSearchParams()
   const [isPending, startTransition] = useTransition()
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [convertingEdition, setConvertingEdition] = useState<EditionRow | null>(null)
 
   // URL-driven state
   const selectedTypeId = searchParams.get('type')
@@ -924,6 +927,31 @@ export function NewslettersConnected({
     [router],
   )
 
+  const handleConvertConfirm = useCallback(
+    (typeId: string, subject: string) => {
+      const edition = convertingEdition
+      if (!edition) return
+      setConvertingEdition(null)
+      setBusyId(edition.id)
+      startTransition(async () => {
+        try {
+          const res = await convertIdeaToEdition(edition.id, typeId, subject || undefined)
+          if (res.ok) {
+            toast.success('Idea converted to draft')
+          } else {
+            toast.error(res.error)
+          }
+          router.refresh()
+        } catch {
+          toast.error('Failed to convert idea')
+        } finally {
+          setBusyId(null)
+        }
+      })
+    },
+    [convertingEdition, router],
+  )
+
   const editionCallbacks: EditionActionCallbacks = {
     onRetry: handleRetry,
     onDuplicate: handleDuplicate,
@@ -931,6 +959,7 @@ export function NewslettersConnected({
     onCancel: handleCancel,
     onRevert: handleRevert,
     onUnslot: handleUnslot,
+    onConvert: (edition) => setConvertingEdition(edition),
   }
 
   // Client-side sort
@@ -1101,6 +1130,17 @@ export function NewslettersConnected({
             Processing...
           </div>
         </div>
+      )}
+
+      {convertingEdition && (
+        <ConvertIdeaModal
+          open={!!convertingEdition}
+          ideaTitle={convertingEdition.subject}
+          ideaCreatedAt={convertingEdition.created_at ?? new Date().toISOString()}
+          types={types.map((t) => ({ id: t.id, name: t.name, color: t.color }))}
+          onConfirm={handleConvertConfirm}
+          onCancel={() => setConvertingEdition(null)}
+        />
       )}
     </div>
   )

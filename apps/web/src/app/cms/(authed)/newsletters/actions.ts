@@ -141,6 +141,50 @@ export async function createIdea(
   return { ok: true, editionId: data.id }
 }
 
+export async function convertIdeaToEdition(
+  editionId: string,
+  typeId: string,
+  subject?: string,
+): Promise<ActionResult> {
+  await requireSiteAdminForRow('newsletter_editions', editionId)
+  const ctx = await getSiteContext()
+  const supabase = getSupabaseServiceClient()
+
+  // Verify current status is 'idea'
+  const { data: current } = await supabase
+    .from('newsletter_editions')
+    .select('status')
+    .eq('id', editionId)
+    .single()
+  if (!current || current.status !== 'idea') {
+    return { ok: false, error: 'only_ideas_can_be_converted' }
+  }
+
+  // Verify type belongs to this site
+  const { data: type } = await supabase
+    .from('newsletter_types')
+    .select('id')
+    .eq('id', typeId)
+    .eq('site_id', ctx.siteId)
+    .single()
+  if (!type) return { ok: false, error: 'invalid_type' }
+
+  const updateData: Record<string, unknown> = {
+    status: 'draft',
+    newsletter_type_id: typeId,
+    updated_at: new Date().toISOString(),
+  }
+  if (subject) updateData.subject = subject
+
+  const { error } = await supabase
+    .from('newsletter_editions')
+    .update(updateData)
+    .eq('id', editionId)
+  if (error) return { ok: false, error: error.message }
+  revalidatePath('/cms/newsletters')
+  return { ok: true }
+}
+
 export async function duplicateEdition(editionId: string): Promise<ActionResult> {
   await requireSiteAdminForRow('newsletter_editions', editionId)
   const supabase = getSupabaseServiceClient()
@@ -457,6 +501,18 @@ export async function assignToSlot(
 ): Promise<ActionResult> {
   await requireSiteAdminForRow('newsletter_editions', editionId)
   const supabase = getSupabaseServiceClient()
+
+  const { data: current } = await supabase
+    .from('newsletter_editions')
+    .select('status')
+    .eq('id', editionId)
+    .single()
+
+  const slottableStatuses = ['draft', 'ready']
+  if (!current || !slottableStatuses.includes(current.status)) {
+    return { ok: false, error: 'invalid_status_for_slot' }
+  }
+
   const { error } = await supabase
     .from('newsletter_editions')
     .update({
@@ -474,6 +530,17 @@ export async function assignToSlot(
 export async function unslotEdition(editionId: string): Promise<ActionResult> {
   await requireSiteAdminForRow('newsletter_editions', editionId)
   const supabase = getSupabaseServiceClient()
+
+  const { data: current } = await supabase
+    .from('newsletter_editions')
+    .select('status')
+    .eq('id', editionId)
+    .single()
+
+  if (!current || current.status !== 'queued') {
+    return { ok: false, error: 'not_queued' }
+  }
+
   const { error } = await supabase
     .from('newsletter_editions')
     .update({
@@ -647,9 +714,12 @@ const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp
 const MAX_IMAGE_SIZE = 2 * 1024 * 1024
 
 export async function uploadNewsletterImage(
-  file: File,
-  editionId: string,
+  formData: FormData,
 ): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  const file = formData.get('file') as File | null
+  const editionId = formData.get('editionId') as string | null
+  if (!file || !editionId) return { ok: false, error: 'missing_fields' }
+
   await requireSiteAdminForRow('newsletter_editions', editionId)
 
   if (file.size > MAX_IMAGE_SIZE) return { ok: false, error: 'file_too_large' }

@@ -94,7 +94,10 @@ export function EditionEditor({ edition, subscriberCount, types }: EditionEditor
   }
 
   async function handleImageUpload(file: File): Promise<string | null> {
-    const result = await uploadNewsletterImage(file, edition.id)
+    const fd = new FormData()
+    fd.append('file', file)
+    fd.append('editionId', edition.id)
+    const result = await uploadNewsletterImage(fd)
     if (result.ok) return result.url
     toast.error(`Upload failed: ${result.error}`)
     return null
