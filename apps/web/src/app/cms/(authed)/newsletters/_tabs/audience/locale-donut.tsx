@@ -23,7 +23,7 @@ export function LocaleDonut({ locale }: LocaleDonutProps) {
     <div className="rounded-[10px] border border-gray-800 bg-gray-900 p-4">
       <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Locale Distribution</h3>
       <div className="flex items-center gap-4">
-        <svg width={80} height={80} className="-rotate-90">
+        <svg width={80} height={80} className="-rotate-90" aria-hidden="true">
           <circle cx={40} cy={40} r={radius} fill="none" stroke="#1f2937" strokeWidth={10} />
           {entries.map(([key, count]) => {
             const pct = count / total

@@ -23,10 +23,10 @@ export function SubscriberTable({ rows, total, page }: SubscriberTableProps) {
         <table className="w-full text-left">
           <thead>
             <tr className="border-b border-gray-800">
-              <th className="px-4 py-2 text-[9px] font-semibold uppercase tracking-wider text-gray-500">Subscriber</th>
-              <th className="px-4 py-2 text-[9px] font-semibold uppercase tracking-wider text-gray-500">Types</th>
-              <th className="px-4 py-2 text-[9px] font-semibold uppercase tracking-wider text-gray-500">Engagement</th>
-              <th className="px-4 py-2 text-[9px] font-semibold uppercase tracking-wider text-gray-500">Status</th>
+              <th scope="col" className="px-4 py-2 text-[9px] font-semibold uppercase tracking-wider text-gray-500">Subscriber</th>
+              <th scope="col" className="px-4 py-2 text-[9px] font-semibold uppercase tracking-wider text-gray-500">Types</th>
+              <th scope="col" className="px-4 py-2 text-[9px] font-semibold uppercase tracking-wider text-gray-500">Engagement</th>
+              <th scope="col" className="px-4 py-2 text-[9px] font-semibold uppercase tracking-wider text-gray-500">Status</th>
             </tr>
           </thead>
           <tbody>

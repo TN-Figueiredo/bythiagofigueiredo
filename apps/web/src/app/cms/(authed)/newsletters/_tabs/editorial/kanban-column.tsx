@@ -18,6 +18,7 @@ export function KanbanColumn({ id, title, cards, color }: KanbanColumnProps) {
   return (
     <div
       ref={setNodeRef}
+      aria-label={`${title} column, ${cards.length} items`}
       className={`flex w-[220px] shrink-0 flex-col rounded-lg border bg-gray-950 transition-colors ${
         isOver ? 'border-indigo-500/40 bg-indigo-950/10' : 'border-gray-800'
       }`}

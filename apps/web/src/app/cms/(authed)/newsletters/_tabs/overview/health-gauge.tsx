@@ -24,7 +24,7 @@ export function HealthGauge({ score, dimensions }: HealthGaugeProps) {
       <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Health Score</h3>
       <div className="flex items-center gap-6">
         <div className="relative">
-          <svg width={100} height={100} className="-rotate-90">
+          <svg width={100} height={100} className="-rotate-90" aria-hidden="true">
             <circle cx={50} cy={50} r={radius} fill="none" stroke="#1f2937" strokeWidth={stroke} />
             <circle
               cx={50} cy={50} r={radius} fill="none"

@@ -63,10 +63,10 @@ export function HubClient({ sharedData, defaultTab, children, tabLabels, allType
           >
             <Plus className="h-3.5 w-3.5" /> New Edition
           </Link>
-          <Link href="/cms/newsletters/settings" className="flex h-8 w-8 items-center justify-center rounded-md border border-gray-800 bg-gray-900 text-gray-400 hover:border-gray-700 hover:text-gray-200">
+          <Link href="/cms/newsletters/settings" aria-label="Newsletter settings" className="flex h-8 w-8 items-center justify-center rounded-md border border-gray-800 bg-gray-900 text-gray-400 hover:border-gray-700 hover:text-gray-200">
             <Settings className="h-4 w-4" />
           </Link>
-          <button className="relative flex h-8 w-8 items-center justify-center rounded-md border border-gray-800 bg-gray-900 text-gray-400 hover:border-gray-700 hover:text-gray-200">
+          <button aria-label="Notifications" className="relative flex h-8 w-8 items-center justify-center rounded-md border border-gray-800 bg-gray-900 text-gray-400 hover:border-gray-700 hover:text-gray-200">
             <Bell className="h-4 w-4" />
             {sharedData.tabBadges.automations > 0 && (
               <span className="absolute right-[5px] top-[5px] h-1.5 w-1.5 rounded-full border-[1.5px] border-[#030712] bg-red-500" />
