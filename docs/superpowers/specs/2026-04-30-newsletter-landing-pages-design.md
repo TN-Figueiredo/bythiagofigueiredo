@@ -56,13 +56,29 @@ CHECK (slug !~ '^(archive|subscribe|new|settings|edit|confirm|api|admin)$')
 
 ### 3.4 RLS
 
+Enabling RLS for the first time on this table. Three policies needed — public read (active only) + staff read (all, including inactive for CMS) + staff manage (write ops for future admin UI).
+
 ```sql
 ALTER TABLE newsletter_types ENABLE ROW LEVEL SECURITY;
 
+-- Public: only active types visible (landing pages, subscribe action)
 DROP POLICY IF EXISTS "public_read_active_types" ON newsletter_types;
 CREATE POLICY "public_read_active_types" ON newsletter_types
   FOR SELECT USING (active = true);
+
+-- Staff: read ALL types including inactive (CMS settings, edition editor, reactivation)
+DROP POLICY IF EXISTS "staff_read_all_types" ON newsletter_types;
+CREATE POLICY "staff_read_all_types" ON newsletter_types
+  FOR SELECT USING (is_member_staff());
+
+-- Staff: manage types (insert, update, delete — for future admin UI)
+DROP POLICY IF EXISTS "staff_manage_types" ON newsletter_types;
+CREATE POLICY "staff_manage_types" ON newsletter_types
+  FOR ALL USING (is_member_staff())
+  WITH CHECK (is_member_staff());
 ```
+
+Without the staff policies, enabling RLS would break CMS pages that query `newsletter_types` via authenticated client (e.g., edition type picker, newsletter settings).
 
 ### 3.5 Trigger — reuse existing `tg_set_updated_at()`
 
@@ -100,6 +116,7 @@ apps/web/src/app/(public)/newsletters/[slug]/
 
 | Block | Render | Details |
 |---|---|---|
+| **Wrapper** | Server | `<article lang={type.locale}>` — overrides root layout's `<html lang>` (which reflects visitor locale from middleware). Ensures screen readers use correct pronunciation for the newsletter's language |
 | **Breadcrumb** | Server | Home > Newsletters > {name}. JSON-LD `BreadcrumbList`. Links to `/` and `/newsletters` |
 | **Hero** | Server | `<h1>` = name with accent `color` via CSS custom property. `<p>` = tagline |
 | **Description** | Server | From `description` column. `max-width: 65ch`, larger font |
