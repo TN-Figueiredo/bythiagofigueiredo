@@ -857,3 +857,92 @@ export async function retryEdition(editionId: string): Promise<ActionResult> {
   revalidatePath('/cms/newsletters')
   return { ok: true }
 }
+
+// ─── Newsletter Hub Actions ────────────────────────────────────────────────
+
+export async function moveEdition(
+  editionId: string,
+  newStatus: string,
+): Promise<ActionResult> {
+  await requireSiteAdminForRow('newsletter_editions', editionId)
+  const supabase = getSupabaseServiceClient()
+
+  const validStatuses = ['idea', 'draft', 'ready', 'review', 'scheduled', 'cancelled']
+  if (!validStatuses.includes(newStatus)) {
+    return { ok: false, error: 'invalid_target_status' }
+  }
+
+  const { data: current } = await supabase
+    .from('newsletter_editions')
+    .select('status')
+    .eq('id', editionId)
+    .single()
+  if (!current) return { ok: false, error: 'not_found' }
+
+  const immutableStatuses = ['sending', 'sent']
+  if (immutableStatuses.includes(current.status)) {
+    return { ok: false, error: 'edition_locked' }
+  }
+
+  const patch: Record<string, unknown> = { status: newStatus, updated_at: new Date().toISOString() }
+  if (newStatus === 'review' && current.status !== 'review') {
+    patch.review_entered_at = new Date().toISOString()
+  }
+
+  const { error } = await supabase
+    .from('newsletter_editions')
+    .update(patch)
+    .eq('id', editionId)
+    .eq('status', current.status)
+  if (error) return { ok: false, error: error.message }
+  revalidatePath('/cms/newsletters')
+  return { ok: true }
+}
+
+export async function toggleCadence(
+  typeId: string,
+  paused: boolean,
+): Promise<ActionResult> {
+  const ctx = await getSiteContext()
+  const res = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
+  if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
+
+  const supabase = getSupabaseServiceClient()
+  const { error } = await supabase
+    .from('newsletter_types')
+    .update({ cadence_paused: paused })
+    .eq('id', typeId)
+    .eq('site_id', ctx.siteId)
+  if (error) return { ok: false, error: error.message }
+  revalidatePath('/cms/newsletters')
+  return { ok: true }
+}
+
+export async function updateSendTime(
+  typeId: string,
+  time: string,
+): Promise<ActionResult> {
+  const ctx = await getSiteContext()
+  const res = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
+  if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
+
+  const supabase = getSupabaseServiceClient()
+  const { error } = await supabase
+    .from('newsletter_types')
+    .update({ preferred_send_time: time })
+    .eq('id', typeId)
+    .eq('site_id', ctx.siteId)
+  if (error) return { ok: false, error: error.message }
+  revalidatePath('/cms/newsletters')
+  return { ok: true }
+}
+
+export async function toggleWorkflow(
+  _workflowId: string,
+  _enabled: boolean,
+): Promise<ActionResult> {
+  const ctx = await getSiteContext()
+  const res = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
+  if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
+  return { ok: true }
+}
