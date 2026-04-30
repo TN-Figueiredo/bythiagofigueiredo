@@ -417,12 +417,12 @@ describe('NewslettersConnected', () => {
       const edition = makeEdition({
         id: 'ed-fail',
         status: 'failed',
-        error_message: 'Resend API rate limit',
+        error_message: 'SES API rate limit',
       })
       renderConnected({ editions: [edition] })
       const row = screen.getByTestId('edition-row-ed-fail')
       expect(row.className).toContain('ef4444')
-      expect(screen.getByTestId('error-message').textContent).toContain('Resend API rate limit')
+      expect(screen.getByTestId('error-message').textContent).toContain('SES API rate limit')
     })
   })
 

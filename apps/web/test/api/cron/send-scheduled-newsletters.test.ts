@@ -16,7 +16,7 @@ vi.mock('../../../lib/supabase/service', () => ({
 
 vi.mock('../../../lib/email/service', () => ({
   getEmailService: () => ({
-    send: vi.fn().mockResolvedValue({ messageId: 'msg_1', provider: 'resend' }),
+    send: vi.fn().mockResolvedValue({ messageId: 'msg_1', provider: 'ses' }),
   }),
 }))
 

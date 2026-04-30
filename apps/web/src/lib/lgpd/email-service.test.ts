@@ -11,8 +11,8 @@ vi.mock('@tn-figueiredo/email', () => ({
 import { LgpdEmailService } from './email-service';
 
 function makeEmailService() {
-  const send = vi.fn().mockResolvedValue({ messageId: 'm1', provider: 'resend' });
-  const sendTemplate = vi.fn().mockResolvedValue({ messageId: 'm1', provider: 'resend' });
+  const send = vi.fn().mockResolvedValue({ messageId: 'm1', provider: 'ses' });
+  const sendTemplate = vi.fn().mockResolvedValue({ messageId: 'm1', provider: 'ses' });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return { send, sendTemplate, handleWebhook: vi.fn() } as any;
 }
@@ -75,10 +75,10 @@ describe('LgpdEmailService', () => {
 
   it('propagates errors from underlying send', async () => {
     const inner = makeEmailService();
-    inner.send.mockRejectedValueOnce(new Error('resend 500'));
+    inner.send.mockRejectedValueOnce(new Error('ses 500'));
     const svc = new LgpdEmailService(inner, { sender });
     await expect(
       svc.sendConsentRevocationConfirmation('a@x.com'),
-    ).rejects.toThrow(/resend 500/);
+    ).rejects.toThrow(/ses 500/);
   });
 });

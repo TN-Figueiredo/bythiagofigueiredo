@@ -25,7 +25,7 @@ vi.mock('../../lib/turnstile', () => ({
 }))
 
 const { sendMock } = vi.hoisted(() => ({
-  sendMock: vi.fn().mockResolvedValue({ messageId: 'test-123', provider: 'resend' }),
+  sendMock: vi.fn().mockResolvedValue({ messageId: 'test-123', provider: 'ses' }),
 }))
 vi.mock('../../lib/email/service', () => ({
   getEmailService: () => ({ send: sendMock }),

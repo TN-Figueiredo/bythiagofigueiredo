@@ -168,8 +168,9 @@ describe('createLgpdContainer', () => {
     vi.resetModules();
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://x.supabase.co';
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'svc';
-    process.env.RESEND_API_KEY = 're_test_key';
-    process.env.EMAIL_PROVIDER = 'resend';
+    process.env.AWS_SES_REGION = 'sa-east-1';
+    process.env.AWS_SES_ACCESS_KEY_ID = 'AKIATEST';
+    process.env.AWS_SES_SECRET_ACCESS_KEY = 'secret123';
     process.env.NEXT_PUBLIC_APP_URL = 'https://site.test';
     sendFn.mockReset();
     sendFn.mockResolvedValue();
@@ -279,8 +280,9 @@ describe('accountDeletion.request', () => {
     vi.resetModules();
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://x.supabase.co';
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'svc';
-    process.env.RESEND_API_KEY = 're_test_key';
-    process.env.EMAIL_PROVIDER = 'resend';
+    process.env.AWS_SES_REGION = 'sa-east-1';
+    process.env.AWS_SES_ACCESS_KEY_ID = 'AKIATEST';
+    process.env.AWS_SES_SECRET_ACCESS_KEY = 'secret123';
     process.env.NEXT_PUBLIC_APP_URL = 'https://site.test';
     sendFn.mockReset();
     sendFn.mockResolvedValue();

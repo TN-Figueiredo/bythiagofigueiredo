@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render } from '@testing-library/react'
 
-// Mock PinboardHome and all its transitive deps (resend, supabase, etc.)
+// Mock PinboardHome and all its transitive deps (ses, supabase, etc.)
 vi.mock('../src/app/(public)/components/PinboardHome', () => ({
   PinboardHome: () => null,
 }))
