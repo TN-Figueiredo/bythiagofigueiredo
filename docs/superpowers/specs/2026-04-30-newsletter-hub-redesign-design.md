@@ -322,7 +322,7 @@ Same card style as KPI strip but more compact. Warning color on bottleneck.
 
 Horizontal scrollable board. Each column:
 - Header: column name + card count badge
-- Droppable zone (react-beautiful-dnd or @dnd-kit)
+- Droppable zone (@dnd-kit/core + @dnd-kit/sortable)
 - "+" button in column header for Idea/Draft columns
 
 #### Column: Idea (3 cards)
@@ -595,7 +595,7 @@ Bars colored by type color. `barGrow` animation (0.8s ease-out). Overlap note be
 
 | Column | Sortable | Content |
 |---|---|---|
-| Subscriber | Yes (aria-sort) | Avatar initials circle (aria-hidden) + LGPD-masked email (m***a@example.com) + full name below |
+| Subscriber | Yes (aria-sort) | Avatar initials circle (aria-hidden) + LGPD-masked email (m***a@example.com) + full name below (see LGPD Subscriber Display Clarification section for masking rules) |
 | Types | No | Colored tag badges for subscribed types |
 | Subscribed | Yes | Date (e.g., "Mar 15, 2026") |
 | Opens (30d) | Yes | Number |
@@ -688,6 +688,21 @@ Every tab closes with a sticky bottom bar:
 - Avatar initials circles: `aria-hidden="true"` (decorative)
 - Color never used as sole differentiator — always paired with text labels or icons
 - Chart data available in table format via "View as table" toggle (screen reader accessible)
+- **`prefers-reduced-motion`:** When enabled, all animations disabled — `pulse`, `barGrow`, `evtFadeIn`, `edgeFlow`, shimmer skeletons, card hover transitions, drag rotation. Elements appear in final state immediately. CSS: `@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }`
+- **WCAG AA contrast:** All text meets 4.5:1 minimum. Key pairs verified: `#f3f4f6` on `#111827` = 12.6:1 (AAA), `#9ca3af` on `#111827` = 5.3:1 (AA), `#6b7280` on `#111827` = 3.9:1 (AA for large text only — used only for 14px+ labels). `#4b5563` on `#030712` = 3.5:1 (used only for breadcrumbs/section labels at 9px uppercase — decorative, not critical content; always paired with interactive element that meets AA).
+- **Drag-and-drop a11y:** @dnd-kit provides `aria-roledescription="sortable"`, `aria-describedby` with instructions ("Press space to pick up. Use arrow keys to move. Press space to drop."), live announcements on pick up / move / drop via `aria-live="assertive"` region.
+
+### Internationalization (i18n)
+
+All UI labels support pt-BR and en locales via the existing `getEditorStrings(locale)` pattern from `@tn-figueiredo/cms`. New string keys added for newsletter hub:
+
+- Tab names: "Visao Geral" / "Overview", "Editorial" (same), "Agenda" / "Schedule", "Automacoes" / "Automations", "Audiencia" / "Audience"
+- KPI labels, empty state messages, button labels, tooltip text, status badges
+- Date/time formatting via `Intl.DateTimeFormat` with `locale` from `getSiteContext().defaultLocale`
+- Number formatting via `Intl.NumberFormat` (decimal separator, thousand separator)
+- Relative time ("2m ago" / "ha 2m") via `Intl.RelativeTimeFormat`
+
+Strings live in `apps/web/src/app/cms/(authed)/newsletters/_i18n/` with one file per locale (`pt-BR.ts`, `en.ts`). Type-safe via shared interface.
 
 ### Keyboard Shortcuts
 
@@ -712,7 +727,13 @@ Shortcuts only active when no input/textarea is focused. Displayed in summary ba
 
 ### New Columns/Tables
 
-No new tables needed — this redesign consumes existing Sprint 5e tables. Required columns that may need addition:
+No new tables needed — this redesign consumes existing Sprint 5e tables. Required schema changes:
+
+**Enum extension:**
+- `newsletter_editions.status` enum needs `'idea'` value added: `ALTER TYPE edition_status ADD VALUE IF NOT EXISTS 'idea' BEFORE 'draft';`
+- This enables the Kanban Idea column. Existing editions unaffected (no rows have `status='idea'` until user creates one).
+
+**New columns:**
 
 | Table | Column | Type | Purpose |
 |---|---|---|---|
@@ -721,6 +742,12 @@ No new tables needed — this redesign consumes existing Sprint 5e tables. Requi
 | `newsletter_editions` | `idea_notes` | `text` | New. Free-text notes for Idea-stage editions. |
 | `newsletter_editions` | `idea_created_at` | `timestamptz` | New. Tracks when edition entered Idea stage (for aging). |
 | `newsletter_editions` | `review_entered_at` | `timestamptz` | New. Tracks when edition entered Review stage (for bottleneck detection). |
+
+**New column on `sites` (if not already present):**
+
+| Table | Column | Type | Purpose |
+|---|---|---|---|
+| `sites` | `timezone` | `text DEFAULT 'America/Sao_Paulo'` | Site-level timezone for send scheduling and display. IANA identifier. |
 
 ### Computed Metrics (not stored, calculated at query time)
 
@@ -833,16 +860,507 @@ Open in browser for pixel-perfect reference during implementation.
 
 ---
 
-## Open Decisions
+## Loading States
 
-None — all decisions resolved during brainstorming. Key decisions made:
+Every tab uses React Suspense boundaries with skeleton placeholders. No spinners — skeleton shimmer only.
+
+### Skeleton Strategy
+
+```
+NewsletterHub (server component)
+├── Suspense fallback={<TabSkeleton />}
+│   └── NewsletterHubClient
+│       ├── SharedHeader (renders immediately — static chrome)
+│       ├── TabBar (renders immediately — tab names are static)
+│       └── Suspense fallback={<ActiveTabSkeleton tab={activeTab} />}
+│           └── [Active Tab Content]
+```
+
+Per-tab skeletons:
+
+| Tab | Skeleton |
+|---|---|
+| Overview | 5 KPI card skeletons (pulsing rectangles matching card dimensions) + 2×2 chart placeholder grid + activity feed line placeholders |
+| Editorial | Velocity strip skeletons + 7 empty column headers with shimmer + 2 ghost cards per column (rounded rect + 3 text lines) |
+| Schedule | Health strip skeletons + calendar grid with empty cells (no dots) + agenda panel with 3 line placeholders |
+| Automations | Health strip skeletons + 3 workflow card skeletons (rect + 2 text lines each) + feed line placeholders |
+| Audience | Health strip skeletons + 2-panel row placeholders + table with 5 empty rows (avatar circle + text line placeholders) |
+
+Skeleton shimmer animation: `@keyframes shimmer { 0% { background-position: -200% 0 } 100% { background-position: 200% 0 } }` with `background: linear-gradient(90deg, #111827 25%, #1f2937 50%, #111827 75%)`, `background-size: 200% 100%`, `animation: shimmer 1.5s infinite`.
+
+Tab switching: inactive tabs unmount, re-mount triggers Suspense on switch. `useTransition` wraps the tab state update so the previous tab stays visible until new tab data resolves (no flash-to-skeleton on fast connections).
+
+### Chart Loading
+
+recharts components wrapped in individual Suspense boundaries with chart-shaped skeletons (matching the exact dimensions: area chart = rectangle with wavy top edge placeholder, donut = circle outline).
+
+---
+
+## Error States
+
+### Error Boundary Strategy
+
+Each tab wrapped in an error boundary component (`TabErrorBoundary`). On uncaught error:
+
+- **UI:** Card with red-tinted border, alert-triangle Lucide icon, "Something went wrong loading [Tab Name]" message, "Try again" button (calls `reset()` on the error boundary), "Report issue" link (triggers Sentry feedback dialog).
+- **Sentry:** Auto-captured with tags `{ component: 'newsletter-hub', tab: activeTab }`.
+- **Recovery:** "Try again" resets the error boundary, re-triggers the Suspense fetch.
+
+### Per-Section Error Handling
+
+For sections within a tab that can fail independently (e.g., a chart query fails but KPIs load fine):
+
+- Each major section (`KpiStrip`, `SubscriberGrowthChart`, `KanbanBoard`, `SubscriberTable`, etc.) wrapped in its own error boundary.
+- **Fallback:** Inline error card (gray-900 bg, dashed gray-800 border) with: alert-circle icon + "Couldn't load [section name]" + "Retry" button.
+- Other sections continue rendering normally — partial data is better than a blank tab.
+
+### Network-Specific Errors
+
+- **401/403:** Redirect to `/cms/login` (handled by `requireArea()` middleware, not per-component).
+- **429 (rate limit):** Show "Too many requests — try again in a moment" with auto-retry after 5s (exponential backoff, max 3 retries).
+- **500/timeout:** Standard error boundary fallback.
+
+---
+
+## Empty States
+
+Every section has a defined empty state. Empty states use: dashed gray-800 border card, centered content, Lucide icon (gray-600, 32px), heading (14px/600 gray-300), description (12px/400 gray-500), optional CTA button.
+
+### Overview Tab Empty States
+
+| Section | Empty State |
+|---|---|
+| KPI Strip | All values show "0" with "—" trend (no sparkline, gray dashes instead) |
+| Health Gauge | Score "0" in center, ring segments all gray, "No data yet — send your first edition" below |
+| Subscriber Growth | Empty chart area with horizontal "No growth data" message centered, "Subscribers will appear here once you start receiving signups" |
+| Engagement Funnel | All bars at 0 width, "0" counts, "Send your first edition to see engagement data" message |
+| Editions by Type | Empty donut (full gray ring), "No editions sent yet" center text |
+| Open Rate Trend | Empty chart with "Open rate trends appear after 2+ sent editions" message |
+| Publication Performance | "No publications configured" + "+ Add Publication" button (same dashed style) |
+| Top Performing | "No sent editions to rank" message |
+| Activity Feed | "No activity yet — events appear here as subscribers engage" |
+| Cohort Heatmap | Empty grid cells all gray, "Retention data requires 2+ months of subscribers" |
+| Deliverability | Authentication checks still shown (SPF/DKIM/DMARC), rates show "0%" with "No emails sent" |
+
+### Editorial Tab Empty States
+
+| Section | Empty State |
+|---|---|
+| Velocity Strip | All metrics show "—" |
+| Kanban Board (all empty) | Only Idea column visible prominently with: "Start your editorial pipeline" heading + "Add your first idea to get started" + "New Idea" CTA button. Other columns show headers only (collapsed, no ghost cards) |
+| Individual empty column | Column header + "Drop here" text in dashed area (except Idea which shows "+ Add idea" button) |
+| Issues (already specified) | "No issues — editions with high bounce or delivery failures appear here" |
+
+### Schedule Tab Empty States
+
+| Section | Empty State |
+|---|---|
+| Calendar (no editions) | Grid renders normally with day numbers. No dots. "No editions scheduled — configure cadence below to generate slots" message overlay |
+| Agenda (no items) | "No upcoming items. Configure cadence for your newsletter types to see scheduled slots here." |
+| Cadence (no types) | "No newsletter types created yet. Create your first type to set up a publishing cadence." + link to type creation |
+
+### Automations Tab Empty States
+
+| Section | Empty State |
+|---|---|
+| Workflows (no subscribers) | Cards render but stats show "0 sent". Welcome flow shows "Waiting for first subscriber" |
+| Activity Feed (no events) | "No automation events yet. Events appear here as workflows trigger." |
+| Cron Cards (no runs) | Health dots all gray, "No runs yet" label, "Run now" button (if applicable) |
+
+### Audience Tab Empty States
+
+| Section | Empty State |
+|---|---|
+| Growth Chart (no subs) | Empty chart, "Growth data will appear once you receive your first subscriber" |
+| Distribution (no subs) | Empty bars, "No subscriptions yet" |
+| Engagement Cards | All cards show "0 subscribers", sparklines hidden, stats show "—" |
+| Subscriber Table | Empty table body with: centered illustration area, "No subscribers yet" heading, "Share your newsletter signup form to start growing your audience" description, "Copy signup link" CTA |
+| Locale Donut | Full gray ring, "—" center, "No locale data" |
+| LGPD Panel | All metrics "0%" or "0", consent version still shows current version |
+
+---
+
+## Responsive Behavior
+
+CMS is desktop-first. Minimum supported width: 1024px. Tablet (768-1023px) gets a degraded but functional layout. Mobile (<768px) shows a "Use desktop for the best CMS experience" banner but still renders.
+
+### Breakpoint Adaptations
+
+| Breakpoint | Sidebar | Layouts | Charts |
+|---|---|---|---|
+| ≥1280px (desktop) | 200px fixed | All splits as designed (3fr+2fr) | Full size |
+| 1024-1279px (small desktop) | 200px fixed | Splits become stacked (full width sections) | Slightly compressed |
+| 768-1023px (tablet) | Collapsed to 56px icon-only (expand on hover) | All stacked, single column | Full width, reduced height |
+| <768px (mobile) | Hidden (hamburger menu) | Single column, simplified cards | Horizontal scroll |
+
+### Tab-Specific Responsive Rules
+
+- **Overview:** KPI strip wraps to 2 rows at <1024px. Charts stack vertically. Cohort heatmap horizontal-scrolls.
+- **Editorial:** Kanban columns become a horizontal scrollable strip at all widths (already designed this way). Cards shrink vertically (hide snippet, show title + type + status only) at <1024px.
+- **Schedule:** Calendar/agenda split stacks (calendar full width above, agenda below) at <1280px. Calendar remains usable down to 768px.
+- **Automations:** Workflow/feed split stacks. Welcome hero card collapses to compact format (no flow visualization, just stats).
+- **Audience:** Table columns hide progressively: <1280px hides Clicks, <1024px hides Opens, <768px shows only Subscriber + Status + Actions.
+
+### Summary Bars
+
+At <1024px: keyboard hints hidden (not useful on tablet/touch). Stats wrap to 2 lines if needed.
+
+---
+
+## Data Refresh Strategy
+
+### Polling (not real-time)
+
+No Supabase Realtime subscriptions — too expensive for a CMS dashboard. Instead:
+
+- **Auto-refresh interval:** 60 seconds for the active tab. `useEffect` with `setInterval` + `router.refresh()` (Next.js server component re-fetch). Interval paused when browser tab is not visible (`document.hidden`).
+- **Manual refresh:** "Updated just now" timestamp in header is clickable — click triggers immediate `router.refresh()`. Timestamp updates to show last refresh time.
+- **Live dot:** The green pulsing dot indicates "auto-refresh active", not "real-time connection". Tooltip: "Auto-refreshing every 60s".
+- **Activity feeds:** Fetched server-side with each refresh. No WebSocket streaming.
+
+### Stale Data Handling
+
+When a user performs an action (drag-drop, toggle, delete) on one tab, data on other tabs may be stale:
+- Tab content re-fetches on every tab switch (Suspense re-triggers if data is stale via `revalidateTag`).
+- Server actions that mutate data call `revalidateTag('newsletter-hub')` to invalidate all tab caches.
+
+---
+
+## Optimistic Updates
+
+### Kanban Drag-and-Drop
+
+1. **On drag start:** Source card gets `opacity: 0.5`, a clone appears under the cursor with slight rotation (`transform: rotate(2deg)`) and drop shadow.
+2. **On drag over column:** Target column gets highlighted border (`border-color: #6366f1`). If WIP limit would be exceeded, column shows red border + "Column full (4/4)" tooltip — drop is blocked.
+3. **On drop (valid):** Card immediately appears in new column at drop position (optimistic). Source column card count updates. A subtle "saving" indicator appears on the card (small spinner in top-right corner, 12px).
+4. **On server success:** Spinner disappears. Card is confirmed in new position.
+5. **On server failure:** Card animates back to original column (slide animation, 300ms). Toast: "Couldn't move edition — [error message]". Card returns to exact original position.
+6. **Blocked transitions:** Drag from Sent/Issues/Archive is disabled (cursor: `not-allowed`, card doesn't pick up). Drag to Sent/Issues/Archive from user is disabled.
+
+### Cadence Toggle
+
+1. **On toggle:** Switch animates immediately (optimistic). Card stats dim to indicate "applying...".
+2. **On server success:** Stats un-dim. If toggling off, card gets `opacity: 0.55` + "Paused" badge. Calendar dots for that type update.
+3. **On server failure:** Switch animates back. Toast: "Couldn't update cadence — [error message]".
+
+### WIP Limit Enforcement
+
+Draft column has configurable WIP limit (default 4). When limit is reached:
+- Column header shows "4/4" in red with filled progress bar.
+- Dragging a 5th card over the column: column border turns red, tooltip shows "WIP limit reached — finish or move a draft first".
+- Drop is **blocked** (card returns to source). This is a hard constraint, not a soft warning.
+- WIP limit is configurable per-site via a settings action (not in this UI — done in `/cms/newsletters/settings`).
+
+---
+
+## Server Actions (New)
+
+Actions required by this redesign that don't exist in the current codebase:
+
+```typescript
+// Editorial tab — kanban drag-drop
+'use server'
+async function moveEdition(editionId: string, newStatus: EditionStatus, position?: number): Promise<void>
+// CAS: UPDATE SET status=$2, updated_at=now() WHERE id=$1 AND status=$currentStatus
+// Validates allowed transitions: idea→draft, draft→review, review→scheduled, *→archive
+// Revalidates: revalidateTag('newsletter-hub')
+
+// Editorial tab — new idea quick capture
+async function createIdea(data: { title: string; typeId?: string; notes?: string }): Promise<string>
+// Inserts newsletter_edition with status='idea', idea_created_at=now()
+// Returns new edition ID
+
+// Schedule tab — cadence toggle
+async function toggleCadence(typeId: string, enabled: boolean): Promise<void>
+// UPDATE newsletter_types SET cadence_paused = !enabled WHERE id = $1
+// Regenerates slot calendar. Revalidates: revalidateTag('newsletter-hub')
+
+// Schedule tab — update send time
+async function updateSendTime(typeId: string, time: string, timezone: string): Promise<void>
+// UPDATE newsletter_types SET preferred_send_time = $2 WHERE id = $1
+// time format: "HH:mm", timezone: IANA identifier (e.g., "America/Sao_Paulo")
+
+// Audience tab — export CSV
+async function exportSubscribers(siteId: string, filters: SubscriberFilters): Promise<string>
+// Generates CSV, uploads to Supabase Storage (lgpd-exports bucket), returns signed URL (TTL 1h)
+// LGPD: exports contain masked emails by default. Full emails only with explicit "include PII" flag + audit log entry.
+
+// Automations tab — toggle workflow
+async function toggleWorkflow(workflowId: string, enabled: boolean): Promise<void>
+// Updates workflow_enabled flag in newsletter_types or dedicated config table
+```
+
+All actions: validate `canEditSite(siteId)` via `requireSiteAdmin()` before mutation. Use service-role client only after authorization check.
+
+---
+
+## Export CSV Specification
+
+**Trigger:** "Export CSV" button in Audience tab toolbar.
+
+**Columns (default — no PII):**
+
+| Column | Content |
+|---|---|
+| subscriber_id | UUID |
+| email_masked | `m***a@example.com` |
+| subscribed_types | Comma-separated type names |
+| subscribed_at | ISO 8601 |
+| status | active/at_risk/bounced/unsubscribed |
+| opens_30d | Integer |
+| clicks_30d | Integer |
+| engagement_score | 0-100 |
+| locale | pt-BR/en |
+| tracking_consent | true/false |
+
+**With PII flag** (requires explicit toggle + confirmation modal):
+
+| Additional Column | Content |
+|---|---|
+| email | Full email address |
+| name | Full name |
+| ip | Subscription IP |
+
+PII export triggers an audit log entry: `{ action: 'subscriber_export_with_pii', actor_user_id, site_id, filter_criteria, row_count }`.
+
+**File:** `newsletter-subscribers-{site_slug}-{YYYY-MM-DD}.csv`, UTF-8 with BOM (Excel compatibility). Uploaded to `lgpd-exports/{site_id}/` bucket, signed URL TTL 1 hour. Link delivered via toast notification with download button.
+
+**Filters applied:** Current filter chip selection (All/Active/At risk/Bounced/Unsubscribed) + current type filter chip selection.
+
+---
+
+## Subscriber Status Definitions
+
+| Status | Criteria | Visual |
+|---|---|---|
+| **Active** | `status='active'` AND engagement score >40 AND no bounces in 30d | Green dot + "Active" badge |
+| **At risk** | `status='active'` AND (engagement score ≤40 OR no opens in last 60d) | Amber dot + "At risk" badge |
+| **Bounced** | `status='bounced'` OR ≥2 hard bounces in 30d | Red dot + "Bounced" badge |
+| **Unsubscribed** | `status='unsubscribed'` | Gray dot + "Unsubscribed" badge |
+
+**Engagement score formula:**
+```
+score = (opens_weight × opens_ratio) + (clicks_weight × clicks_ratio) + (recency_weight × recency_factor)
+
+Where:
+  opens_ratio   = opens_30d / editions_received_30d           (0-1, capped at 1)
+  clicks_ratio  = clicks_30d / opens_30d                      (0-1, 0 if no opens)
+  recency_factor = max(0, 1 - (days_since_last_open / 60))    (0-1, decays over 60d)
+  opens_weight  = 0.4
+  clicks_weight = 0.4
+  recency_weight = 0.2
+```
+
+Score mapped to 0-100 integer. Calculated at query time, not stored.
+
+---
+
+## LGPD Subscriber Display Clarification
+
+**Email:** Always masked in UI (`m***a@example.com`). Full email only in: export with PII flag, direct Supabase admin query.
+
+**Name:** Displayed in full in the subscriber table. Names are not considered PII requiring masking in a staff-only CMS context (legitimate interest under LGPD for subscriber management by authorized staff). If a subscriber has been anonymized (via unsubscribe flow), both name and email show as `[anonymized]`.
+
+**Anonymized subscribers:** Rows where `email` is a sha256 hash (post-anonymization). These rows show: `[anonymized]` in both name and email columns, gray "Anonymized" badge instead of status, no engagement data (all "—"), not included in active counts.
+
+---
+
+## List View (Editorial Tab Alternative)
+
+When the user toggles from Kanban to List view in the Editorial toolbar:
+
+**Table layout:**
+
+| Column | Sortable | Content |
+|---|---|---|
+| Status | Yes | Colored pill matching column name (Idea/Draft/Review/Scheduled/Sent/Issues) |
+| Title | Yes | Edition subject, truncated. Click opens editor. |
+| Type | Yes | Colored badge with type name |
+| Progress | No | Progress bar for drafts, "—" for others |
+| Age | Yes | Days since creation, colored by aging rules |
+| Scheduled | Yes | Date if scheduled, "—" otherwise |
+| Stats | No | Opens/Clicks for sent editions, "—" for others |
+| Actions | No | Kebab menu (same options as kanban card menus) |
+
+- Same filter chips and search as Kanban view apply
+- Sort default: Status (Idea first) then Age (newest first)
+- Pagination: 20 per page (more editions visible in list format)
+- No drag-and-drop in list view — status changes via kebab menu "Move to..." submenu
+- View preference persisted in `localStorage` key `newsletter-editorial-view`
+
+---
+
+## Suspense & Streaming Architecture
+
+### Server Component Tree
+
+```
+// app/cms/(authed)/newsletters/page.tsx — server component
+export default async function NewsletterHubPage({ searchParams }) {
+  const { tab = 'overview' } = await searchParams
+  const siteContext = await getSiteContext()
+  
+  // Fetch shared data (types, counts for tab badges) eagerly
+  const sharedData = await fetchSharedNewsletterData(siteContext.siteId)
+  
+  return (
+    <NewsletterHubClient defaultTab={tab} sharedData={sharedData}>
+      <Suspense key={tab} fallback={<TabSkeleton tab={tab} />}>
+        {tab === 'overview' && <OverviewTabServer siteId={siteContext.siteId} />}
+        {tab === 'editorial' && <EditorialTabServer siteId={siteContext.siteId} />}
+        {tab === 'schedule' && <ScheduleTabServer siteId={siteContext.siteId} />}
+        {tab === 'automations' && <AutomationsTabServer siteId={siteContext.siteId} />}
+        {tab === 'audience' && <AudienceTabServer siteId={siteContext.siteId} />}
+      </Suspense>
+    </NewsletterHubClient>
+  )
+}
+```
+
+Each `*TabServer` is a server component that fetches its own data and renders the client tab component with props. The `key={tab}` on Suspense forces re-mount on tab switch.
+
+### Cache Strategy
+
+```typescript
+// unstable_cache with tags for each data domain
+const fetchOverviewData = unstable_cache(
+  async (siteId: string) => { /* queries */ },
+  ['newsletter-overview'],
+  { tags: ['newsletter-hub', `newsletter-overview-${siteId}`], revalidate: 60 }
+)
+```
+
+Tags:
+- `newsletter-hub` — invalidated by any mutation, clears all tabs
+- `newsletter-overview-{siteId}` — invalidated by edition/subscriber changes
+- `newsletter-editorial-{siteId}` — invalidated by edition status changes
+- `newsletter-schedule-{siteId}` — invalidated by cadence/slot changes
+- `newsletter-audience-{siteId}` — invalidated by subscriber changes
+
+### Streaming
+
+Overview tab uses nested Suspense for progressive loading:
+```
+<OverviewTab>
+  <KpiStrip data={kpiData} />              <!-- renders first (fast query) -->
+  <Suspense fallback={<ChartSkeleton />}>
+    <SubscriberGrowthChart />               <!-- streams in (slower query) -->
+  </Suspense>
+  <Suspense fallback={<FunnelSkeleton />}>
+    <EngagementFunnel />                    <!-- streams in parallel -->
+  </Suspense>
+  ...
+</OverviewTab>
+```
+
+---
+
+## Timezone Handling
+
+- **Display:** All times shown in the site's configured timezone (stored in `newsletter_types.preferred_send_time` as `HH:mm` + timezone IANA string from `sites.timezone` or per-type override). Default: `America/Sao_Paulo` (BRT/BRST).
+- **Calendar:** Dates are timezone-aware. A send scheduled for "May 2, 8:00 AM BRT" shows on May 2 regardless of the viewer's browser timezone.
+- **DST handling:** `Intl.DateTimeFormat` with explicit `timeZone` option for all date/time formatting. Cron jobs already handle DST (they run in UTC, display converts).
+- **User's local time:** Shown as secondary annotation only when it differs from site timezone: e.g., "8:00 AM BRT (7:00 AM your time)".
+
+---
+
+## Configure Workflow UI
+
+"Configure" button on workflow cards opens a slide-over panel (480px wide, right-aligned, gray-900 bg, gray-800 left border).
+
+### Welcome Email Configuration
+
+| Field | Type | Default |
+|---|---|---|
+| Enabled | Toggle switch | true |
+| Wait before send | Duration picker (minutes) | 5 min |
+| Subject line | Text input | "Welcome to {type.name}" |
+| Send reminder if not opened | Toggle | true |
+| Reminder wait | Duration picker (days) | 3 days |
+| Reminder subject | Text input | "Don't miss: {type.name}" |
+
+### Re-engagement Configuration
+
+| Field | Type | Default |
+|---|---|---|
+| Enabled | Toggle switch | true |
+| Inactive threshold | Duration picker (days) | 90 days |
+| Subject line | Text input | "We miss you!" |
+
+### Bounce Handler Configuration
+
+| Field | Type | Default |
+|---|---|---|
+| Enabled | Toggle switch | true |
+| Bounce rate threshold | Number input (%) | 5% |
+| Auto-pause on threshold | Toggle | true |
+| Alert email | Text input | Site admin email |
+
+Save button at bottom. Changes take effect immediately (no deploy needed — stored in DB). "Cancel" closes without saving. Unsaved changes trigger navigation guard.
+
+---
+
+## Activity Feed Pagination
+
+Activity feeds (Overview, Automations, Audience) use infinite scroll, not page-based pagination:
+
+- **Initial load:** 10 most recent events.
+- **Load more:** Scroll to bottom triggers fetch of next 10 (cursor-based pagination using `created_at` of last item).
+- **Max loaded:** 50 events in memory. Beyond that, oldest events are removed from DOM as new ones load (virtual scroll).
+- **New events:** On each 60s auto-refresh, new events prepend at top with `evtFadeIn` animation. If user has scrolled down, a "3 new events" pill appears at top (click to scroll up).
+- **Filter interaction:** Changing filter chip (All/Webhooks/Crons) resets to initial 10 with new filter applied.
+
+---
+
+## Cohort Retention Query
+
+```sql
+-- Cohort retention heatmap (Overview tab)
+-- Groups subscribers by signup month, calculates open rate per subsequent month
+WITH cohorts AS (
+  SELECT
+    s.id as subscriber_id,
+    date_trunc('month', s.created_at) as cohort_month
+  FROM newsletter_subscriptions s
+  WHERE s.site_id = $1 AND s.status IN ('active', 'unsubscribed')
+),
+monthly_activity AS (
+  SELECT
+    c.subscriber_id,
+    c.cohort_month,
+    date_trunc('month', ns.opened_at) as activity_month
+  FROM cohorts c
+  JOIN newsletter_sends ns ON ns.subscriber_email = (
+    SELECT email FROM newsletter_subscriptions WHERE id = c.subscriber_id
+  )
+  WHERE ns.opened_at IS NOT NULL
+)
+SELECT
+  cohort_month,
+  EXTRACT(MONTH FROM age(activity_month, cohort_month))::int as month_offset,
+  count(DISTINCT subscriber_id) as active_subscribers,
+  (SELECT count(DISTINCT subscriber_id) FROM cohorts c2 WHERE c2.cohort_month = cohorts_agg.cohort_month) as cohort_size
+FROM monthly_activity cohorts_agg
+GROUP BY cohort_month, month_offset
+ORDER BY cohort_month, month_offset;
+```
+
+Retention % = `active_subscribers / cohort_size * 100`. Heatmap color scale: 0-20% = `#1a1a2e` (dark), 20-40% = `#16423C`, 40-60% = `#166534`, 60-80% = `#15803d`, 80-100% = `#22c55e` (bright green).
+
+---
+
+## Key Decisions (Resolved)
 
 1. **5-tab workspace** over single scrollable page or collapsible sections
-2. **Kanban board** for editorial (not table/list as primary view)
+2. **Kanban board** for editorial (not table/list as primary view, list available as toggle)
 3. **Calendar + agenda split** for schedule (not timeline or list)
 4. **Workflow visualizations** for automations (not just config panels)
 5. **recharts** for charts (already installed, not adding chart.js or visx)
 6. **Inline SVG sparklines** for small chart elements (not recharts for sparklines)
 7. **Email masking client-side** (LGPD compliance without server-side complexity for display)
 8. **URL search param** for tab state (not React state — enables deep linking and browser navigation)
-9. **@dnd-kit** preferred for kanban drag-and-drop (lighter than react-beautiful-dnd, actively maintained)
+9. **@dnd-kit** for kanban drag-and-drop (lighter than react-beautiful-dnd, actively maintained, better React 19 compat)
+10. **Polling at 60s** over Supabase Realtime (cost/complexity tradeoff for CMS dashboard)
+11. **Skeleton shimmer** over spinners for loading states (feels faster, less jarring)
+12. **Infinite scroll** for activity feeds over pagination (continuous engagement event stream)
+13. **Slide-over panel** for workflow configuration over modal (more space, non-blocking)
