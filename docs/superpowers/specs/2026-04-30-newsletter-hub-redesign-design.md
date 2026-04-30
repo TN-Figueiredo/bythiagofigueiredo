@@ -2,7 +2,7 @@
 
 **Date:** 2026-04-30
 **Status:** Approved
-**Score:** 100/100 (all 5 tabs validated via visual mockups)
+**Score:** 100/100
 **Supersedes:** `2026-04-26-newsletter-cms-overhaul-design.md` (dashboard/hub scope only — editor/lifecycle scope from that spec remains valid)
 
 ## Problem
@@ -185,6 +185,51 @@ These colors are used consistently as: left accent borders on cards, dot indicat
 ### Icons
 
 Lucide SVG icons exclusively. All icons use `viewBox="0 0 24 24"`, `stroke="currentColor"`, `fill="none"`, `stroke-width="1.8"`, `stroke-linecap="round"`, `stroke-linejoin="round"`. Standard sizes: 15px sidebar, 14px buttons, 12px inline, 16px header actions. Chart SVGs use their own viewBox dimensions.
+
+**Icon Map (specific Lucide names per UI element):**
+
+| Element | Icon | Context |
+|---|---|---|
+| New Edition button | `Plus` | Header + Quick Actions primary CTA |
+| Settings | `Settings` | Header icon button |
+| Notifications | `Bell` | Header icon button (with red dot) |
+| Search input | `Search` | Editorial toolbar, Audience toolbar |
+| View toggle: Kanban | `LayoutGrid` | Editorial toolbar active |
+| View toggle: List | `List` | Editorial toolbar |
+| Sort dropdown | `ArrowUpDown` | Editorial toolbar |
+| Expand/Collapse | `ChevronDown` / `ChevronUp` | Publication cards, Archive column |
+| Breadcrumb separator | `ChevronRight` | Breadcrumb nav |
+| Drag handle | `GripVertical` | Kanban card (hover-visible) |
+| Kebab menu | `MoreVertical` | Card actions |
+| Calendar nav | `ChevronLeft` / `ChevronRight` | Month navigation arrows |
+| Conflict warning | `AlertTriangle` | Calendar cells, Schedule health |
+| Error boundary | `AlertTriangle` | Tab error fallback |
+| Section error | `AlertCircle` | Per-section error |
+| LGPD badge | `Shield` | Cron cards, consent panel |
+| Export CSV | `Download` | Audience toolbar |
+| Refresh / retry | `RotateCcw` | Error states, manual refresh |
+| Live dot | (no icon — CSS `::before` circle) | Header live indicator |
+| Trend up | `TrendingUp` | KPI positive trend |
+| Trend down | `TrendingDown` | KPI negative trend |
+| Clock/Time | `Clock` | Send window, scheduled times |
+| Send test | `Send` | Review column CTA |
+| Pause | `Pause` | Publication pause action |
+| Play/Resume | `Play` | Publication resume action |
+| Edit | `Pencil` | Publication edit action |
+| Delete | `Trash2` | Kebab menu delete |
+| Duplicate | `Copy` | Kebab menu duplicate |
+| Move to | `ArrowRight` | Kebab menu "Move to..." |
+| Archive | `Archive` | Archive column header |
+| Filter | `Filter` | Filter-related elements |
+| Info/insight | `Lightbulb` | Send window insight callout |
+| Workflow node | `Circle` | Flow visualization nodes |
+| Workflow done | `CheckCircle2` | Flow "Done" terminal |
+| Cron job | `Timer` | System automation cards |
+| Subscriber | `Users` | Audience tab icon in tab bar |
+| Overview | `BarChart3` | Tab bar icon |
+| Editorial | `Kanban` | Tab bar icon |
+| Schedule | `CalendarDays` | Tab bar icon |
+| Automations | `Workflow` | Tab bar icon |
 
 ### Border Radius
 
