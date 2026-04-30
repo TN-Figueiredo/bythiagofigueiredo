@@ -1,6 +1,7 @@
 'use client'
 
 import './editor-styles.css'
+import { useRef, useState, useMemo, useEffect } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
@@ -16,10 +17,13 @@ import type { JSONContent } from '@tiptap/core'
 import { MergeTagExtension } from './merge-tag-node'
 import { CTAButtonExtension } from './cta-button-node'
 import { EditorToolbar } from './editor-toolbar'
+import { EditorBubbleMenu } from './bubble-menu'
+import { createSlashCommandExtension } from './slash-commands'
 
 interface TipTapEditorProps {
   content: JSONContent | null
   onChange: (json: JSONContent, html: string) => void
+  onImageInserted?: () => void
   onImageUpload: (file: File) => Promise<string | null>
   editable?: boolean
   placeholder?: string
@@ -28,10 +32,39 @@ interface TipTapEditorProps {
 export function TipTapEditor({
   content,
   onChange,
+  onImageInserted,
   onImageUpload,
   editable = true,
-  placeholder = 'Start writing your newsletter...',
+  placeholder = 'Start writing your newsletter... Type / for commands',
 }: TipTapEditorProps) {
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const editorRef = useRef<ReturnType<typeof useEditor>>(null)
+  const onImageUploadRef = useRef(onImageUpload)
+  onImageUploadRef.current = onImageUpload
+  const onImageInsertedRef = useRef(onImageInserted)
+  onImageInsertedRef.current = onImageInserted
+
+  const slashCommandExtension = useMemo(
+    () =>
+      createSlashCommandExtension({
+        onImageUpload: () => fileInputRef.current?.click(),
+        onInsertCTAButton: () => {
+          editorRef.current?.chain().focus().insertContent({
+            type: 'ctaButton',
+            attrs: { text: 'Click Here', url: '', color: '#7c3aed', align: 'center' },
+          }).run()
+        },
+        onInsertMergeTag: (tag: string) => {
+          editorRef.current?.chain().focus().insertContent({
+            type: 'mergeTag',
+            attrs: { tag },
+          }).run()
+        },
+      }),
+    [],
+  )
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -55,6 +88,7 @@ export function TipTapEditor({
       CharacterCount,
       MergeTagExtension,
       CTAButtonExtension,
+      slashCommandExtension,
     ],
     content: content ?? undefined,
     editable,
@@ -80,7 +114,7 @@ export function TipTapEditor({
         if (!file || !file.type.startsWith('image/')) return false
 
         event.preventDefault()
-        onImageUpload(file).then((url) => {
+        onImageUploadRef.current(file).then((url) => {
           if (url) {
             const { schema } = view.state
             const imageNode = schema.nodes['image']
@@ -90,6 +124,7 @@ export function TipTapEditor({
             if (pos) {
               const tr = view.state.tr.insert(pos.pos, node)
               view.dispatch(tr)
+              onImageInsertedRef.current?.()
             }
           }
         })
@@ -104,7 +139,7 @@ export function TipTapEditor({
             event.preventDefault()
             const file = item.getAsFile()
             if (!file) return false
-            onImageUpload(file).then((url) => {
+            onImageUploadRef.current(file).then((url) => {
               if (url) {
                 const { schema } = view.state
                 const imageNode = schema.nodes['image']
@@ -112,6 +147,7 @@ export function TipTapEditor({
                 const node = imageNode.create({ src: url })
                 const tr = view.state.tr.replaceSelectionWith(node)
                 view.dispatch(tr)
+                onImageInsertedRef.current?.()
               }
             })
             return true
@@ -122,13 +158,52 @@ export function TipTapEditor({
     },
   })
 
+  editorRef.current = editor
+
+  useEffect(() => {
+    if (!isFullscreen) return
+    function handleEsc(e: KeyboardEvent) {
+      if (e.key === 'Escape') setIsFullscreen(false)
+    }
+    document.addEventListener('keydown', handleEsc)
+    return () => document.removeEventListener('keydown', handleEsc)
+  }, [isFullscreen])
+
+  useEffect(() => {
+    if (isFullscreen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => { document.body.style.overflow = '' }
+  }, [isFullscreen])
+
   const charCount = editor?.storage.characterCount
   const wordCount = charCount?.words() ?? 0
 
   return (
-    <div className="newsletter-editor border border-gray-200 rounded-lg overflow-hidden">
+    <div className={`newsletter-editor border border-[var(--border,#e5e7eb)] rounded-lg overflow-hidden flex flex-col ${
+      isFullscreen ? 'fixed inset-0 z-50 rounded-none border-0' : ''
+    }`}>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/gif,image/webp"
+        className="hidden"
+        onChange={async (e) => {
+          const file = e.target.files?.[0]
+          if (!file || !editor) return
+          const url = await onImageUpload(file)
+          if (url) {
+            editor.chain().focus().setImage({ src: url }).run()
+            onImageInsertedRef.current?.()
+          }
+          e.target.value = ''
+        }}
+      />
       <EditorToolbar
         editor={editor}
+        onImageInserted={onImageInserted}
         onInsertMergeTag={(tag) => {
           editor?.chain().focus().insertContent({
             type: 'mergeTag',
@@ -142,11 +217,19 @@ export function TipTapEditor({
           }).run()
         }}
         onImageUpload={onImageUpload}
+        isFullscreen={isFullscreen}
+        onToggleFullscreen={() => setIsFullscreen(!isFullscreen)}
       />
-      <EditorContent editor={editor} />
-      <div className="border-t border-gray-200 px-4 py-2 text-xs text-gray-400 flex justify-between">
+      <div className="flex-1 overflow-y-auto">
+        {editor && <EditorBubbleMenu editor={editor} />}
+        <EditorContent editor={editor} />
+      </div>
+      <div className="sticky bottom-0 border-t border-[var(--border,#e5e7eb)] px-4 py-2 text-xs text-[var(--text-tertiary,#9ca3af)] flex justify-between bg-[var(--bg-surface,#fff)]">
         <span>{charCount?.characters() ?? 0} characters</span>
-        <span>~{wordCount} words</span>
+        <div className="flex items-center gap-4">
+          <span className="opacity-50">Type / for commands</span>
+          <span>~{wordCount} words</span>
+        </div>
       </div>
     </div>
   )

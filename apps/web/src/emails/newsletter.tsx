@@ -28,7 +28,7 @@ export function Newsletter({
       <Body style={{ backgroundColor: '#f9fafb', fontFamily: 'system-ui, sans-serif' }}>
         <Container style={{ maxWidth: 640, margin: '0 auto', padding: '32px 16px', backgroundColor: '#fff' }}>
           <EmailHeader typeName={typeName} typeColor={typeColor} />
-          <Section dangerouslySetInnerHTML={{ __html: contentHtml }} />
+          <div dangerouslySetInnerHTML={{ __html: contentHtml }} />
           <EmailFooter unsubscribeUrl={unsubscribeUrl} archiveUrl={archiveUrl} />
         </Container>
       </Body>

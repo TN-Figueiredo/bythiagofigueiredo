@@ -169,6 +169,7 @@ describe('createLgpdContainer', () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://x.supabase.co';
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'svc';
     process.env.RESEND_API_KEY = 're_test_key';
+    process.env.EMAIL_PROVIDER = 'resend';
     process.env.NEXT_PUBLIC_APP_URL = 'https://site.test';
     sendFn.mockReset();
     sendFn.mockResolvedValue();
@@ -279,6 +280,7 @@ describe('accountDeletion.request', () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://x.supabase.co';
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'svc';
     process.env.RESEND_API_KEY = 're_test_key';
+    process.env.EMAIL_PROVIDER = 'resend';
     process.env.NEXT_PUBLIC_APP_URL = 'https://site.test';
     sendFn.mockReset();
     sendFn.mockResolvedValue();

@@ -31,11 +31,11 @@ async function requireEditAccess(): Promise<string> {
 
 const exportFiltersSchema = z.object({
   status: z
-    .enum(['confirmed', 'pending', 'unsubscribed', ''])
+    .enum(['confirmed', 'pending_confirmation', 'unsubscribed', ''])
     .optional()
     .default(''),
   search: z.string().max(200).optional().default(''),
-  typeId: z.string().uuid().optional(),
+  typeId: z.string().optional(),
 })
 
 const exportSchema = z.object({
@@ -68,14 +68,14 @@ export async function exportSubscribers(
 
   let query = supabase
     .from('newsletter_subscriptions')
-    .select('id, email, status, newsletter_type_id, tracking_consent, created_at, unsubscribed_at, locale')
+    .select('id, email, status, newsletter_id, tracking_consent, subscribed_at, unsubscribed_at, locale')
     .eq('site_id', siteId)
-    .order('created_at', { ascending: false })
+    .order('subscribed_at', { ascending: false })
 
   const f = parsed.data.filters
   if (f.status) query = query.eq('status', f.status)
   if (f.search) query = query.ilike('email', `%${f.search}%`)
-  if (f.typeId) query = query.eq('newsletter_type_id', f.typeId)
+  if (f.typeId) query = query.eq('newsletter_id', f.typeId)
 
   const { data: rows, error } = await query
   if (error) return { ok: false, error: error.message }
@@ -86,15 +86,15 @@ export async function exportSubscribers(
   )
 
   if (parsed.data.format === 'csv') {
-    const header = 'id,email,status,newsletter_type_id,tracking_consent,created_at,unsubscribed_at,locale'
+    const header = 'id,email,status,newsletter_id,tracking_consent,subscribed_at,unsubscribed_at,locale'
     const csvRows = filtered.map((r) =>
       [
         r.id,
         `"${String(r.email).replace(/"/g, '""')}"`,
         r.status,
-        r.newsletter_type_id ?? '',
+        r.newsletter_id ?? '',
         r.tracking_consent ?? false,
-        r.created_at,
+        r.subscribed_at,
         r.unsubscribed_at ?? '',
         r.locale ?? '',
       ].join(','),

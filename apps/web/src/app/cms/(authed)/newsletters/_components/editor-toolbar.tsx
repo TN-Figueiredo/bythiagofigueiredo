@@ -1,6 +1,32 @@
 'use client'
 
+import { useRef, useState, useEffect } from 'react'
 import type { Editor } from '@tiptap/react'
+import {
+  Undo2,
+  Redo2,
+  Bold,
+  Italic,
+  Underline,
+  Strikethrough,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  List,
+  ListOrdered,
+  Quote,
+  Minus,
+  Link2,
+  Image,
+  RectangleHorizontal,
+  Maximize2,
+  Minimize2,
+  Heading1,
+  Heading2,
+  Heading3,
+  Pilcrow,
+  Tags,
+} from 'lucide-react'
 import { MERGE_TAGS } from './merge-tag-node'
 
 interface EditorToolbarProps {
@@ -8,6 +34,9 @@ interface EditorToolbarProps {
   onInsertMergeTag: (tag: string) => void
   onInsertCTAButton: () => void
   onImageUpload: (file: File) => Promise<string | null>
+  onImageInserted?: () => void
+  isFullscreen?: boolean
+  onToggleFullscreen?: () => void
 }
 
 function ToolbarButton({
@@ -29,9 +58,11 @@ function ToolbarButton({
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className={`px-2 py-1.5 text-sm rounded transition-colors ${
-        active ? 'bg-gray-200 text-gray-900' : 'text-gray-600 hover:bg-gray-100'
-      } disabled:opacity-40 disabled:cursor-not-allowed`}
+      className={`p-1.5 rounded-md transition-colors ${
+        active
+          ? 'bg-purple-500/20 text-purple-400'
+          : 'text-[var(--text-tertiary,#6b7280)] hover:bg-[var(--bg-surface-hover,#f3f4f6)] hover:text-[var(--text,#374151)]'
+      } disabled:opacity-30 disabled:cursor-not-allowed`}
     >
       {children}
     </button>
@@ -39,141 +70,249 @@ function ToolbarButton({
 }
 
 function ToolbarDivider() {
-  return <div className="w-px h-6 bg-gray-200 mx-1" />
+  return <div className="w-px h-5 bg-[var(--border,#e5e7eb)] mx-0.5" />
 }
 
-export function EditorToolbar({ editor, onInsertMergeTag, onInsertCTAButton, onImageUpload }: EditorToolbarProps) {
+function LinkPopover({ editor, onClose }: { editor: Editor; onClose: () => void }) {
+  const [url, setUrl] = useState(editor.getAttributes('link').href ?? '')
+  const popoverRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) onClose()
+    }
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [onClose])
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (url.trim()) {
+      editor.chain().focus().setLink({ href: url.trim() }).run()
+    } else {
+      editor.chain().focus().unsetLink().run()
+    }
+    onClose()
+  }
+
+  return (
+    <div ref={popoverRef} className="absolute top-full left-0 mt-1 z-50 bg-[var(--bg-surface,#fff)] border border-[var(--border,#e5e7eb)] rounded-lg shadow-lg p-2 flex items-center gap-2">
+      <form onSubmit={handleSubmit} className="flex items-center gap-2">
+        <input
+          type="url"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://..."
+          className="w-64 border border-[var(--border,#e5e7eb)] bg-[var(--bg,#fff)] text-[var(--text,#1f2937)] rounded-md px-2.5 py-1.5 text-sm focus:border-purple-400 focus:ring-1 focus:ring-purple-400 outline-none"
+          autoFocus
+        />
+        <button
+          type="submit"
+          className="px-2.5 py-1.5 bg-purple-600 text-white text-xs font-medium rounded-md hover:bg-purple-700"
+        >
+          Apply
+        </button>
+        {editor.isActive('link') && (
+          <button
+            type="button"
+            onClick={() => { editor.chain().focus().unsetLink().run(); onClose() }}
+            className="px-2.5 py-1.5 text-red-400 text-xs font-medium rounded-md hover:bg-red-500/10"
+          >
+            Remove
+          </button>
+        )}
+      </form>
+    </div>
+  )
+}
+
+function MergeTagDropdown({ onSelect }: { onSelect: (tag: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [open])
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <ToolbarButton
+        onClick={() => setOpen(!open)}
+        title="Insert merge tag"
+        active={open}
+      >
+        <Tags size={16} />
+      </ToolbarButton>
+      {open && (
+        <div className="absolute top-full right-0 mt-1 z-50 bg-[var(--bg-surface,#fff)] border border-[var(--border,#e5e7eb)] rounded-lg shadow-lg py-1 min-w-56">
+          <div className="px-3 py-1.5 text-xs font-medium text-[var(--text-tertiary,#9ca3af)] uppercase tracking-wide">Merge Tags</div>
+          {MERGE_TAGS.map((t) => (
+            <button
+              key={t.value}
+              type="button"
+              onClick={() => { onSelect(t.value); setOpen(false) }}
+              className="w-full text-left px-3 py-2 text-sm text-[var(--text,#374151)] hover:bg-purple-500/10 hover:text-purple-400 flex items-center gap-2"
+            >
+              <span className="font-mono text-xs text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">{`{{${t.value}}}`}</span>
+              <span className="text-[var(--text-secondary,#6b7280)] text-xs">{t.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function EditorToolbar({
+  editor,
+  onInsertMergeTag,
+  onInsertCTAButton,
+  onImageUpload,
+  onImageInserted,
+  isFullscreen,
+  onToggleFullscreen,
+}: EditorToolbarProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [showLinkPopover, setShowLinkPopover] = useState(false)
+
   if (!editor) return null
 
   return (
-    <div className="flex flex-wrap items-center gap-0.5 border-b border-gray-200 bg-gray-50 px-3 py-2 rounded-t-lg">
+    <div className="sticky top-0 z-40 flex flex-wrap items-center gap-0.5 border-b border-[var(--border,#e5e7eb)] bg-[var(--bg-surface,#ffffff)]/95 backdrop-blur-sm px-3 py-2 rounded-t-lg">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/gif,image/webp"
+        className="hidden"
+        onChange={async (e) => {
+          const file = e.target.files?.[0]
+          if (!file) return
+          const url = await onImageUpload(file)
+          if (url) {
+            editor.chain().focus().setImage({ src: url }).run()
+            onImageInserted?.()
+          }
+          e.target.value = ''
+        }}
+      />
+
       {/* Undo / Redo */}
-      <ToolbarButton onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} title="Undo">
-        ↩
+      <ToolbarButton onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} title="Undo (⌘Z)">
+        <Undo2 size={16} />
       </ToolbarButton>
-      <ToolbarButton onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} title="Redo">
-        ↪
+      <ToolbarButton onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} title="Redo (⌘⇧Z)">
+        <Redo2 size={16} />
       </ToolbarButton>
 
       <ToolbarDivider />
 
-      {/* Headings */}
+      {/* Block type */}
       <ToolbarButton onClick={() => editor.chain().focus().setParagraph().run()} active={editor.isActive('paragraph')} title="Paragraph">
-        P
+        <Pilcrow size={16} />
       </ToolbarButton>
       <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive('heading', { level: 1 })} title="Heading 1">
-        H1
+        <Heading1 size={16} />
       </ToolbarButton>
       <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 })} title="Heading 2">
-        H2
+        <Heading2 size={16} />
       </ToolbarButton>
       <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={editor.isActive('heading', { level: 3 })} title="Heading 3">
-        H3
+        <Heading3 size={16} />
       </ToolbarButton>
 
       <ToolbarDivider />
 
-      {/* Formatting */}
-      <ToolbarButton onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title="Bold">
-        <strong>B</strong>
+      {/* Inline formatting */}
+      <ToolbarButton onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title="Bold (⌘B)">
+        <Bold size={16} />
       </ToolbarButton>
-      <ToolbarButton onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')} title="Italic">
-        <em>I</em>
+      <ToolbarButton onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')} title="Italic (⌘I)">
+        <Italic size={16} />
       </ToolbarButton>
-      <ToolbarButton onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive('underline')} title="Underline">
-        <u>U</u>
+      <ToolbarButton onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive('underline')} title="Underline (⌘U)">
+        <Underline size={16} />
       </ToolbarButton>
       <ToolbarButton onClick={() => editor.chain().focus().toggleStrike().run()} active={editor.isActive('strike')} title="Strikethrough">
-        <s>S</s>
+        <Strikethrough size={16} />
       </ToolbarButton>
 
       <ToolbarDivider />
 
       {/* Alignment */}
       <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('left').run()} active={editor.isActive({ textAlign: 'left' })} title="Align left">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="2" width="14" height="2" /><rect x="1" y="7" width="10" height="2" /><rect x="1" y="12" width="14" height="2" /></svg>
+        <AlignLeft size={16} />
       </ToolbarButton>
       <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('center').run()} active={editor.isActive({ textAlign: 'center' })} title="Align center">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="2" width="14" height="2" /><rect x="3" y="7" width="10" height="2" /><rect x="1" y="12" width="14" height="2" /></svg>
+        <AlignCenter size={16} />
       </ToolbarButton>
       <ToolbarButton onClick={() => editor.chain().focus().setTextAlign('right').run()} active={editor.isActive({ textAlign: 'right' })} title="Align right">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="2" width="14" height="2" /><rect x="5" y="7" width="10" height="2" /><rect x="1" y="12" width="14" height="2" /></svg>
+        <AlignRight size={16} />
       </ToolbarButton>
 
       <ToolbarDivider />
 
-      {/* Lists */}
+      {/* Lists & blocks */}
       <ToolbarButton onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')} title="Bullet list">
-        •
+        <List size={16} />
       </ToolbarButton>
       <ToolbarButton onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList')} title="Numbered list">
-        1.
+        <ListOrdered size={16} />
       </ToolbarButton>
       <ToolbarButton onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive('blockquote')} title="Blockquote">
-        &quot;
+        <Quote size={16} />
       </ToolbarButton>
       <ToolbarButton onClick={() => editor.chain().focus().setHorizontalRule().run()} title="Divider">
-        —
+        <Minus size={16} />
       </ToolbarButton>
 
       <ToolbarDivider />
 
       {/* Link */}
-      <ToolbarButton
-        onClick={() => {
-          const url = window.prompt('URL:')
-          if (url) editor.chain().focus().setLink({ href: url }).run()
-        }}
-        active={editor.isActive('link')}
-        title="Insert link"
-      >
-        🔗
-      </ToolbarButton>
+      <div className="relative">
+        <ToolbarButton
+          onClick={() => setShowLinkPopover(!showLinkPopover)}
+          active={editor.isActive('link')}
+          title="Insert link (⌘K)"
+        >
+          <Link2 size={16} />
+        </ToolbarButton>
+        {showLinkPopover && (
+          <LinkPopover editor={editor} onClose={() => setShowLinkPopover(false)} />
+        )}
+      </div>
 
       {/* Image */}
-      <ToolbarButton
-        onClick={() => {
-          const input = document.createElement('input')
-          input.type = 'file'
-          input.accept = 'image/jpeg,image/png,image/gif,image/webp'
-          input.onchange = async () => {
-            const file = input.files?.[0]
-            if (!file) return
-            const url = await onImageUpload(file)
-            if (url) {
-              editor.chain().focus().setImage({ src: url }).run()
-            }
-          }
-          input.click()
-        }}
-        title="Insert image"
-      >
-        🖼
+      <ToolbarButton onClick={() => fileInputRef.current?.click()} title="Insert image">
+        <Image size={16} />
       </ToolbarButton>
 
       {/* CTA Button */}
       <ToolbarButton onClick={onInsertCTAButton} title="Insert CTA button">
-        ▣
+        <RectangleHorizontal size={16} />
       </ToolbarButton>
 
-      <ToolbarDivider />
-
       {/* Merge Tags */}
-      <select
-        onChange={(e) => {
-          if (e.target.value) {
-            onInsertMergeTag(e.target.value)
-            e.target.value = ''
-          }
-        }}
-        className="text-xs border rounded px-1.5 py-1 text-gray-600 bg-white"
-        defaultValue=""
-      >
-        <option value="" disabled>Merge tag...</option>
-        {MERGE_TAGS.map((t) => (
-          <option key={t.value} value={t.value}>{t.label}</option>
-        ))}
-      </select>
+      <MergeTagDropdown onSelect={onInsertMergeTag} />
+
+      {/* Spacer + Fullscreen */}
+      <div className="flex-1" />
+      {onToggleFullscreen && (
+        <ToolbarButton onClick={onToggleFullscreen} title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}>
+          {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+        </ToolbarButton>
+      )}
     </div>
   )
 }

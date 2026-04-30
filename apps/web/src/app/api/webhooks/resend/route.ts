@@ -29,7 +29,7 @@ export async function POST(req: Request): Promise<Response> {
   const { data: existing } = await supabase
     .from('webhook_events')
     .select('id')
-    .eq('svix_id', svixId)
+    .eq('idempotency_key', svixId)
     .maybeSingle()
 
   if (existing) return NextResponse.json({ ok: true, dedup: true })
@@ -42,7 +42,7 @@ export async function POST(req: Request): Promise<Response> {
 
   // Record for idempotency (best-effort)
   await supabase.from('webhook_events').insert({
-    svix_id: svixId,
+    idempotency_key: svixId,
     event_type: event.type,
   }).then(() => {}, () => {})
 
@@ -60,7 +60,7 @@ async function processEvent(
   const { data: send } = await supabase
     .from('newsletter_sends')
     .select('id, edition_id, subscriber_email, newsletter_editions(site_id, newsletter_type_id)')
-    .eq('resend_message_id', messageId)
+    .eq('provider_message_id', messageId)
     .maybeSingle()
 
   if (!send) return // Not a newsletter email (transactional), ignore

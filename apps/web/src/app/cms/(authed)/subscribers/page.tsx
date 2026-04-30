@@ -51,22 +51,22 @@ export default async function SubscribersPage({ searchParams }: Props) {
   let query = supabase
     .from('newsletter_subscriptions')
     .select(
-      'id, email, status, newsletter_type_id, tracking_consent, created_at, confirmed_at, unsubscribed_at',
+      'id, email, status, newsletter_id, tracking_consent, subscribed_at, confirmed_at, unsubscribed_at',
       { count: 'exact' },
     )
     .eq('site_id', siteId)
-    .order('created_at', { ascending: false })
+    .order('subscribed_at', { ascending: false })
     .range(offset, offset + perPage - 1)
 
   if (search) query = query.ilike('email', `%${search}%`)
   if (statusFilter) query = query.eq('status', statusFilter)
-  if (typeFilter) query = query.eq('newsletter_type_id', typeFilter)
+  if (typeFilter) query = query.eq('newsletter_id', typeFilter)
 
   const { data: subsRaw, count: totalCount } = await query
 
   // Build subscriber rows
   const rows: SubscriberRow[] = (subsRaw ?? []).map((s) => {
-    const typeInfo = typeMap.get(s.newsletter_type_id as string)
+    const typeInfo = typeMap.get(s.newsletter_id as string)
     const email = s.email as string
     const anonymized = /^[a-f0-9]{8,}\.\.\.@anon$/.test(email)
     return {
@@ -76,7 +76,7 @@ export default async function SubscribersPage({ searchParams }: Props) {
       newsletter_type_name: typeInfo?.name ?? 'Unknown',
       newsletter_type_color: typeInfo?.color ?? null,
       tracking_consent: (s.tracking_consent as boolean) ?? false,
-      subscribed_at: (s.created_at as string) ?? '',
+      subscribed_at: (s.subscribed_at as string) ?? '',
       confirmed_at: s.confirmed_at as string | null,
       is_anonymized: anonymized,
     }
@@ -93,7 +93,7 @@ export default async function SubscribersPage({ searchParams }: Props) {
       .from('newsletter_subscriptions')
       .select('*', { count: 'exact', head: true })
       .eq('site_id', siteId)
-      .eq('status', 'pending'),
+      .eq('status', 'pending_confirmation'),
     supabase
       .from('newsletter_subscriptions')
       .select('*', { count: 'exact', head: true })

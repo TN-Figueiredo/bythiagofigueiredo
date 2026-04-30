@@ -1,28 +1,75 @@
 'use server'
 
+import { cookies } from 'next/headers'
 import {
-  signInWithPassword as signInWithPasswordBase,
   signInWithGoogle as signInWithGoogleBase,
 } from '@tn-figueiredo/auth-nextjs/actions'
-import type {
-  SignInPasswordInput,
-  ActionResult,
-} from '@tn-figueiredo/auth-nextjs/actions'
+import type { ActionResult } from '@tn-figueiredo/auth-nextjs/actions'
 
-/**
- * Thin re-exports that adapt the auth-nextjs server actions to the shapes
- * expected by `<AdminLogin>` from `@tn-figueiredo/admin/login`.
- *
- * The admin component treats `appUrl` + `redirectTo` as optional (the consumer
- * is expected to inject them here), while auth-nextjs requires them. We close
- * over `process.env.NEXT_PUBLIC_APP_URL` at the consumer so admin stays
- * app-agnostic.
- */
+function deriveStorageKey(supabaseUrl: string): string {
+  const projectRef = new URL(supabaseUrl).hostname.split('.')[0]
+  return `sb-${projectRef}-auth-token`
+}
+
+function encodeBase64url(json: unknown): string {
+  const encoded = Buffer.from(JSON.stringify(json), 'utf8').toString('base64url')
+  return 'base64-' + encoded
+}
 
 export async function signInWithPassword(
-  input: SignInPasswordInput,
+  input: { email: string; password: string; turnstileToken?: string | null },
 ): Promise<ActionResult> {
-  return signInWithPasswordBase(input)
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL
+  if (!apiUrl) {
+    return { ok: false, error: 'API URL não configurada.' }
+  }
+
+  let response: Response
+  try {
+    response = await fetch(`${apiUrl}/auth/signin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: input.email, password: input.password }),
+    })
+  } catch {
+    return { ok: false, error: 'Erro de comunicação com o servidor.' }
+  }
+
+  let data: Record<string, unknown>
+  try {
+    data = await response.json() as Record<string, unknown>
+  } catch {
+    return { ok: false, error: 'Resposta inválida do servidor.' }
+  }
+
+  if (!data.success) {
+    const err = typeof data.error === 'string' ? data.error : 'Email ou senha incorretos.'
+    return { ok: false, error: err }
+  }
+
+  const payload = data.data as { user?: { id?: string }; session?: { accessToken?: string; refreshToken?: string } } | undefined
+  const session = payload?.session
+  if (session?.accessToken && session?.refreshToken) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
+    const cookieName = deriveStorageKey(supabaseUrl)
+    const cookieValue = encodeBase64url({
+      access_token: session.accessToken,
+      refresh_token: session.refreshToken,
+      token_type: 'bearer',
+      expires_in: 3600,
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      user: { id: payload?.user?.id ?? '' },
+    })
+    const cookieStore = await cookies()
+    cookieStore.set(cookieName, cookieValue, {
+      path: '/',
+      sameSite: 'lax',
+      httpOnly: false,
+      maxAge: 400 * 24 * 60 * 60,
+    })
+  }
+
+  return { ok: true }
 }
 
 export async function signInWithGoogle(

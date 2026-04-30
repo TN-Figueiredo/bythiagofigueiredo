@@ -21,7 +21,7 @@ import {
 
 export type SubscriberStatus =
   | 'confirmed'
-  | 'pending'
+  | 'pending_confirmation'
   | 'bounced'
   | 'unsubscribed'
   | 'complained'
@@ -68,7 +68,7 @@ type SortDir = 'asc' | 'desc'
 
 const STATUS_LABELS: Record<SubscriberStatus, string> = {
   confirmed: 'Confirmed',
-  pending: 'Pending',
+  pending_confirmation: 'Pending',
   bounced: 'Bounced',
   unsubscribed: 'Unsubscribed',
   complained: 'Complained',
@@ -76,7 +76,7 @@ const STATUS_LABELS: Record<SubscriberStatus, string> = {
 
 const STATUS_COLORS: Record<SubscriberStatus, { bg: string; text: string }> = {
   confirmed: { bg: 'bg-emerald-900/50', text: 'text-emerald-400' },
-  pending: { bg: 'bg-amber-900/50', text: 'text-amber-400' },
+  pending_confirmation: { bg: 'bg-amber-900/50', text: 'text-amber-400' },
   bounced: { bg: 'bg-red-900/50', text: 'text-red-400' },
   unsubscribed: { bg: 'bg-slate-700', text: 'text-slate-400' },
   complained: { bg: 'bg-rose-900/50', text: 'text-rose-400' },
@@ -85,7 +85,7 @@ const STATUS_COLORS: Record<SubscriberStatus, { bg: string; text: string }> = {
 const FILTER_STATUSES: Array<{ value: string; label: string }> = [
   { value: '', label: 'All' },
   { value: 'confirmed', label: 'Confirmed' },
-  { value: 'pending', label: 'Pending' },
+  { value: 'pending_confirmation', label: 'Pending' },
   { value: 'unsubscribed', label: 'Unsubscribed' },
 ]
 
@@ -94,7 +94,7 @@ const FILTER_STATUSES: Array<{ value: string; label: string }> = [
 /* ------------------------------------------------------------------ */
 
 function StatusBadge({ status }: { status: SubscriberStatus }) {
-  const colors = STATUS_COLORS[status] ?? STATUS_COLORS.pending
+  const colors = STATUS_COLORS[status] ?? STATUS_COLORS.pending_confirmation
   return (
     <span
       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${colors.bg} ${colors.text}`}

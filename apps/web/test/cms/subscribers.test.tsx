@@ -62,7 +62,7 @@ const defaultProps = {
     mockRow({
       id: 'sub-2',
       email: 'bob@example.com',
-      status: 'pending' as const,
+      status: 'pending_confirmation' as const,
       tracking_consent: false,
       subscribed_at: '2026-03-15T00:00:00Z',
       confirmed_at: null,
@@ -144,7 +144,7 @@ describe('SubscribersConnected', () => {
     await renderComponent()
     expect(screen.getByTestId('filter-pill-all')).toBeTruthy()
     expect(screen.getByTestId('filter-pill-confirmed')).toBeTruthy()
-    expect(screen.getByTestId('filter-pill-pending')).toBeTruthy()
+    expect(screen.getByTestId('filter-pill-pending_confirmation')).toBeTruthy()
     expect(screen.getByTestId('filter-pill-unsubscribed')).toBeTruthy()
   })
 

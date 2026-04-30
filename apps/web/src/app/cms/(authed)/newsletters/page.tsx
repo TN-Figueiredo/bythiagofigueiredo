@@ -15,12 +15,12 @@ async function fetchKpiData(siteId: string) {
   const thirtyDaysAgo = new Date(Date.now() - THIRTY_DAYS_MS).toISOString()
   const sixtyDaysAgo = new Date(Date.now() - 2 * THIRTY_DAYS_MS).toISOString()
 
-  // Unique active subscribers across all types
+  // Unique active subscribers across all types (confirmed + pending confirmation)
   const { count: uniqueSubscribers } = await supabase
     .from('newsletter_subscriptions')
     .select('*', { count: 'exact', head: true })
     .eq('site_id', siteId)
-    .eq('status', 'confirmed')
+    .in('status', ['confirmed', 'pending_confirmation'])
 
   // Editions sent in last 30d
   const { data: recentEditions } = await supabase
@@ -185,12 +185,29 @@ export default async function NewsletterDashboardPage({
   const params = await searchParams
   const ctx = await getSiteContext()
 
-  const [types, kpis, lastEdition, { editions, total }] = await Promise.all([
+  const [rawTypes, kpis, lastEdition, { editions, total }] = await Promise.all([
     cms.newsletters.listTypes(),
     fetchKpiData(ctx.siteId),
     fetchLastEdition(ctx.siteId),
     fetchEditionsWithMeta(ctx.siteId, params.type, params.status),
   ])
+
+  const supabase = getSupabaseServiceClient()
+  const { data: subCounts } = await supabase
+    .from('newsletter_subscriptions')
+    .select('newsletter_id')
+    .eq('site_id', ctx.siteId)
+    .in('status', ['confirmed', 'pending_confirmation'])
+
+  const countByType = new Map<string, number>()
+  for (const row of subCounts ?? []) {
+    const id = row.newsletter_id as string
+    countByType.set(id, (countByType.get(id) ?? 0) + 1)
+  }
+  const types = rawTypes.map((t) => ({
+    ...t,
+    subscribers: countByType.get(t.id) ?? 0,
+  }))
 
   return (
     <div>

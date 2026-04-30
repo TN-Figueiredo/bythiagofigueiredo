@@ -36,20 +36,20 @@ export function EmailPreview({ editionId, renderPreview }: EmailPreviewProps) {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between border-b px-4 py-2">
-        <h3 className="text-sm font-medium text-gray-700">Email Preview</h3>
+      <div className="flex items-center justify-between border-b border-[var(--border,#e5e7eb)] px-4 py-2">
+        <h3 className="text-sm font-medium text-[var(--text-secondary,#6b7280)]">Email Preview</h3>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setWidth('desktop')}
-            className={`px-2 py-1 text-xs rounded ${width === 'desktop' ? 'bg-gray-200 font-medium' : 'text-gray-500'}`}
+            className={`px-2 py-1 text-xs rounded ${width === 'desktop' ? 'bg-purple-500/20 text-purple-400 font-medium' : 'text-[var(--text-tertiary,#9ca3af)]'}`}
           >
             Desktop
           </button>
           <button
             type="button"
             onClick={() => setWidth('mobile')}
-            className={`px-2 py-1 text-xs rounded ${width === 'mobile' ? 'bg-gray-200 font-medium' : 'text-gray-500'}`}
+            className={`px-2 py-1 text-xs rounded ${width === 'mobile' ? 'bg-purple-500/20 text-purple-400 font-medium' : 'text-[var(--text-tertiary,#9ca3af)]'}`}
           >
             Mobile
           </button>
@@ -57,22 +57,22 @@ export function EmailPreview({ editionId, renderPreview }: EmailPreviewProps) {
             type="button"
             onClick={loadPreview}
             disabled={loading}
-            className="px-2 py-1 text-xs text-blue-600 hover:text-blue-800"
+            className="px-2 py-1 text-xs text-purple-400 hover:text-purple-300"
           >
             {loading ? 'Loading...' : 'Refresh'}
           </button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto bg-gray-100 p-4 flex justify-center">
+      <div className="flex-1 overflow-auto bg-[var(--bg,#f3f4f6)] p-4 flex justify-center">
         {error && (
           <div className="text-center py-8">
-            <p className="text-sm text-red-600">{error === 'no_content' ? 'No content to preview. Start writing!' : error}</p>
+            <p className="text-sm text-red-400">{error === 'no_content' ? 'No content to preview. Start writing!' : error}</p>
           </div>
         )}
         {loading && (
           <div className="text-center py-8">
-            <p className="text-sm text-gray-500">Rendering preview...</p>
+            <p className="text-sm text-[var(--text-tertiary,#9ca3af)]">Rendering preview...</p>
           </div>
         )}
         {html && !error && !loading && (
@@ -90,7 +90,7 @@ export function EmailPreview({ editionId, renderPreview }: EmailPreviewProps) {
           />
         )}
         {!html && !error && !loading && (
-          <p className="text-sm text-gray-500 py-8">Click Refresh to load preview</p>
+          <p className="text-sm text-[var(--text-tertiary,#9ca3af)] py-8">Click Refresh to load preview</p>
         )}
       </div>
     </div>

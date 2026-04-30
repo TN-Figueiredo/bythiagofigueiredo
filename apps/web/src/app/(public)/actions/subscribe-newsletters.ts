@@ -90,25 +90,28 @@ export async function subscribeToNewsletters(
     const confirmUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/newsletter/confirm?token=${rawToken}`
     const isPt = locale === 'pt-BR'
 
-    const domain = process.env.NEWSLETTER_FROM_DOMAIN ?? 'bythiagofigueiredo.com'
-    await getEmailService().send({
-      from: { name: 'Thiago Figueiredo', email: `no-reply@${domain}` },
-      to: email,
-      subject: isPt ? 'Confirme sua inscrição' : 'Confirm your subscription',
-      html: `<!DOCTYPE html><html><body style="font-family:Georgia,serif;max-width:520px;margin:40px auto;color:#161208;line-height:1.6;">
-        <h2 style="font-weight:500;letter-spacing:-0.02em;">${isPt ? 'Quase lá.' : 'Almost there.'}</h2>
-        <p style="color:#6A5F48;font-family:sans-serif;">${isPt
-          ? `Você escolheu ${subscribedIds.length} newsletter${subscribedIds.length > 1 ? 's' : ''}. Confirma clicando no botão abaixo.`
-          : `You picked ${subscribedIds.length} newsletter${subscribedIds.length > 1 ? 's' : ''}. Confirm by clicking below.`
-        }</p>
-        <a href="${confirmUrl}" style="background:#C14513;color:#fff;padding:14px 28px;border-radius:4px;text-decoration:none;display:inline-block;font-family:sans-serif;font-weight:600;font-size:14px;margin-top:8px;">
-          ${isPt ? 'Confirmar inscrição' : 'Confirm subscription'}
-        </a>
-        <p style="margin-top:32px;font-size:13px;color:#9C9178;font-family:sans-serif;">${isPt ? 'Se não foi você, pode ignorar este email.' : "If this wasn't you, you can ignore this email."}</p>
-      </body></html>`,
-    }).catch((err) => {
-      Sentry.captureException(err, { tags: { component: 'newsletter-subscribe', action: 'send-confirmation' } })
-    })
+    try {
+      const domain = process.env.NEWSLETTER_FROM_DOMAIN ?? 'bythiagofigueiredo.com'
+      await getEmailService().send({
+        from: { name: 'Thiago Figueiredo', email: `no-reply@${domain}` },
+        to: email,
+        subject: isPt ? 'Confirme sua inscrição' : 'Confirm your subscription',
+        html: `<!DOCTYPE html><html><body style="font-family:Georgia,serif;max-width:520px;margin:40px auto;color:#161208;line-height:1.6;">
+          <h2 style="font-weight:500;letter-spacing:-0.02em;">${isPt ? 'Quase lá.' : 'Almost there.'}</h2>
+          <p style="color:#6A5F48;font-family:sans-serif;">${isPt
+            ? `Você escolheu ${subscribedIds.length} newsletter${subscribedIds.length > 1 ? 's' : ''}. Confirma clicando no botão abaixo.`
+            : `You picked ${subscribedIds.length} newsletter${subscribedIds.length > 1 ? 's' : ''}. Confirm by clicking below.`
+          }</p>
+          <a href="${confirmUrl}" style="background:#C14513;color:#fff;padding:14px 28px;border-radius:4px;text-decoration:none;display:inline-block;font-family:sans-serif;font-weight:600;font-size:14px;margin-top:8px;">
+            ${isPt ? 'Confirmar inscrição' : 'Confirm subscription'}
+          </a>
+          <p style="margin-top:32px;font-size:13px;color:#9C9178;font-family:sans-serif;">${isPt ? 'Se não foi você, pode ignorar este email.' : "If this wasn't you, you can ignore this email."}</p>
+        </body></html>`,
+      })
+    } catch (emailErr) {
+      console.error('[subscribe-newsletters] Email send failed:', emailErr)
+      Sentry.captureException(emailErr, { tags: { component: 'newsletter-subscribe', action: 'send-confirmation' } })
+    }
 
     return { success: true, subscribedIds }
   } catch (err) {

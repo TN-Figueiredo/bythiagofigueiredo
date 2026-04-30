@@ -196,7 +196,7 @@ export async function sendReply(
     template_name: 'contact-reply',
     to_email: sub.email as string,
     subject: parsed.data.subject,
-    provider: 'resend',
+    provider: process.env.EMAIL_PROVIDER ?? 'ses',
     provider_message_id: null,
     status: 'sent',
     metadata: { submission_id: id },

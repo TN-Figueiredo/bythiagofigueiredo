@@ -77,7 +77,7 @@ export function EditionEditor({ edition, subscriberCount, types }: EditionEditor
     return {
       subject: f.subject,
       preheader: f.preheader || undefined,
-      content_json: f.contentJson ?? undefined,
+      content_json: f.contentJson ? JSON.stringify(f.contentJson) : undefined,
       content_html: f.contentHtml || undefined,
       notes: f.notes || undefined,
       segment: f.segment,
@@ -194,7 +194,7 @@ export function EditionEditor({ edition, subscriberCount, types }: EditionEditor
           >
             {typeName}
           </span>
-          <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700 capitalize">
+          <span className="inline-flex items-center rounded-full bg-[var(--bg-surface-hover,#f3f4f6)] px-2.5 py-0.5 text-xs font-medium text-[var(--text-secondary,#6b7280)] capitalize">
             {edition.status}
           </span>
           <AutosaveIndicator state={saveState} lastSavedAt={lastSavedAt} />
@@ -202,15 +202,15 @@ export function EditionEditor({ edition, subscriberCount, types }: EditionEditor
         <div className="flex items-center gap-2">
           {!isReadOnly && (
             <>
-              <button type="button" onClick={handleSendTest} className="text-xs text-gray-600 hover:text-gray-900 px-2 py-1">
+              <button type="button" onClick={handleSendTest} className="text-xs text-[var(--text-secondary,#6b7280)] hover:text-[var(--text,#111827)] px-2 py-1">
                 Send Test
               </button>
-              <button type="button" onClick={handleDuplicate} className="text-xs text-gray-600 hover:text-gray-900 px-2 py-1">
+              <button type="button" onClick={handleDuplicate} className="text-xs text-[var(--text-secondary,#6b7280)] hover:text-[var(--text,#111827)] px-2 py-1">
                 Duplicate
               </button>
             </>
           )}
-          <button type="button" onClick={() => setShowDeleteModal(true)} className="text-xs text-red-600 hover:text-red-800 px-2 py-1">
+          <button type="button" onClick={() => setShowDeleteModal(true)} className="text-xs text-red-400 hover:text-red-300 px-2 py-1">
             Delete
           </button>
         </div>
@@ -219,24 +219,24 @@ export function EditionEditor({ edition, subscriberCount, types }: EditionEditor
       {/* Metadata */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+          <label className="block text-sm font-medium text-[var(--text-secondary,#6b7280)] mb-1">Subject</label>
           <input
             type="text"
             value={subject}
             onChange={(e) => { setSubject(e.target.value); scheduleAutosave({ subject: e.target.value }) }}
             disabled={isReadOnly}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:ring-1 focus:ring-purple-500 disabled:bg-gray-50"
+            className="w-full rounded-lg border border-[var(--border,#d1d5db)] bg-[var(--bg-surface,#fff)] text-[var(--text,#1f2937)] px-3 py-2 text-sm focus:border-purple-500 focus:ring-1 focus:ring-purple-500 disabled:opacity-50"
             placeholder="Newsletter subject line"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Preheader</label>
+          <label className="block text-sm font-medium text-[var(--text-secondary,#6b7280)] mb-1">Preheader</label>
           <input
             type="text"
             value={preheader}
             onChange={(e) => { setPreheader(e.target.value); scheduleAutosave({ preheader: e.target.value }) }}
             disabled={isReadOnly}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:ring-1 focus:ring-purple-500 disabled:bg-gray-50"
+            className="w-full rounded-lg border border-[var(--border,#d1d5db)] bg-[var(--bg-surface,#fff)] text-[var(--text,#1f2937)] px-3 py-2 text-sm focus:border-purple-500 focus:ring-1 focus:ring-purple-500 disabled:opacity-50"
             placeholder="Preview text shown in inbox"
           />
         </div>
@@ -248,7 +248,7 @@ export function EditionEditor({ edition, subscriberCount, types }: EditionEditor
           value={segment}
           onChange={(e) => { setSegment(e.target.value); scheduleAutosave({ segment: e.target.value }) }}
           disabled={isReadOnly}
-          className="rounded border px-2 py-1.5 text-sm"
+          className="rounded border border-[var(--border,#d1d5db)] bg-[var(--bg-surface,#fff)] text-[var(--text,#1f2937)] px-2 py-1.5 text-sm"
         >
           <option value="all">All subscribers ({subscriberCount})</option>
           <option value="high_engagement">High engagement</option>
@@ -266,6 +266,9 @@ export function EditionEditor({ edition, subscriberCount, types }: EditionEditor
           <TipTapEditor
             content={contentJson}
             onChange={handleEditorChange}
+            onImageInserted={() => {
+              saveImmediate(getSavePayload())
+            }}
             onImageUpload={handleImageUpload}
             editable={!isReadOnly}
           />
@@ -274,26 +277,26 @@ export function EditionEditor({ edition, subscriberCount, types }: EditionEditor
 
       {/* Notes */}
       <details className="mb-6">
-        <summary className="text-sm font-medium text-gray-600 cursor-pointer">Internal Notes</summary>
+        <summary className="text-sm font-medium text-[var(--text-secondary,#6b7280)] cursor-pointer">Internal Notes</summary>
         <textarea
           value={notes}
           onChange={(e) => { setNotes(e.target.value); scheduleAutosave({ notes: e.target.value }) }}
           disabled={isReadOnly}
-          className="mt-2 w-full rounded border px-3 py-2 text-sm h-20 resize-none"
+          className="mt-2 w-full rounded border border-[var(--border,#d1d5db)] bg-[var(--bg-surface,#fff)] text-[var(--text,#1f2937)] px-3 py-2 text-sm h-20 resize-none"
           placeholder="Internal notes (not included in email)"
         />
       </details>
 
       {/* Bottom action bar */}
-      <div className="sticky bottom-0 bg-white border-t border-gray-200 -mx-6 px-6 py-3 flex items-center justify-between">
-        <div className="text-xs text-gray-500">
+      <div className="sticky bottom-0 bg-[var(--bg-surface,#fff)] border-t border-[var(--border,#e5e7eb)] -mx-6 px-6 py-3 flex items-center justify-between">
+        <div className="text-xs text-[var(--text-secondary,#6b7280)]">
           {subscriberCount} subscribers
         </div>
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => setShowPreview((v) => !v)}
-            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="rounded-md border border-[var(--border,#d1d5db)] px-3 py-1.5 text-sm font-medium text-[var(--text-secondary,#6b7280)] hover:bg-[var(--bg-surface-hover,#f9fafb)]"
           >
             {showPreview ? 'Editor' : 'Preview'}
           </button>

@@ -97,7 +97,7 @@ async function sendEdition(
     .from('newsletter_sends')
     .select('id, subscriber_email')
     .eq('edition_id', edition.id)
-    .is('resend_message_id', null)
+    .is('provider_message_id', null)
 
   if (!unsent?.length) {
     await supabase.from('newsletter_editions').update({
@@ -199,6 +199,7 @@ async function sendEdition(
           subject: edition.subject,
           html,
           metadata: {
+            configurationSet: process.env.SES_MARKETING_CONFIG_SET ?? 'bythiago-marketing',
             headers: {
               'List-Unsubscribe': `<mailto:unsubscribe@${fromDomain}?subject=unsubscribe>, <${unsubscribeUrl}>`,
               'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
@@ -208,7 +209,7 @@ async function sendEdition(
         })
 
         await supabase.from('newsletter_sends').update({
-          resend_message_id: result.messageId,
+          provider_message_id: result.messageId,
           status: 'sent',
         }).eq('id', send.id)
 

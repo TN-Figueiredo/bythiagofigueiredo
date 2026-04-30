@@ -16,9 +16,9 @@ export function ReadOnlyOverlay({ status }: ReadOnlyOverlayProps) {
   if (!message) return null
 
   return (
-    <div className="absolute inset-0 z-30 flex items-start justify-center bg-white/80 backdrop-blur-[1px] pt-20">
-      <div className="rounded-lg border border-amber-200 bg-amber-50 px-6 py-4 shadow-sm max-w-md text-center">
-        <p className="text-sm font-medium text-amber-800">{message}</p>
+    <div className="absolute inset-0 z-30 flex items-start justify-center bg-[var(--bg-surface,#fff)]/80 backdrop-blur-[1px] pt-20">
+      <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-6 py-4 shadow-sm max-w-md text-center">
+        <p className="text-sm font-medium text-amber-400">{message}</p>
       </div>
     </div>
   )

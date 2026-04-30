@@ -18,11 +18,11 @@ interface AutosaveIndicatorProps {
 export function AutosaveIndicator({ state, lastSavedAt }: AutosaveIndicatorProps) {
   const config = STATE_CONFIG[state]
   return (
-    <div className="flex items-center gap-1.5 text-xs text-gray-500">
+    <div className="flex items-center gap-1.5 text-xs text-[var(--text-secondary,#6b7280)]">
       <span className={`h-2 w-2 rounded-full ${config.dot}`} />
       <span>{config.text}</span>
       {state === 'saved' && lastSavedAt && (
-        <span className="text-gray-400">
+        <span className="text-[var(--text-tertiary,#9ca3af)]">
           {lastSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </span>
       )}

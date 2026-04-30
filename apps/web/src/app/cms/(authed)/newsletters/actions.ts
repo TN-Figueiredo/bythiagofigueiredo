@@ -41,7 +41,7 @@ export async function saveEdition(
   patch: {
     subject?: string
     preheader?: string
-    content_json?: Record<string, unknown>
+    content_json?: string
     content_html?: string
     content_mdx?: string
     segment?: string
@@ -62,9 +62,14 @@ export async function saveEdition(
     return { ok: false, error: 'edition_locked' }
   }
 
+  const dbPatch: Record<string, unknown> = { ...patch, updated_at: new Date().toISOString() }
+  if (patch.content_json) {
+    dbPatch.content_json = JSON.parse(patch.content_json)
+  }
+
   const { error } = await supabase
     .from('newsletter_editions')
-    .update({ ...patch, updated_at: new Date().toISOString() })
+    .update(dbPatch)
     .eq('id', editionId)
   if (error) return { ok: false, error: error.message }
   revalidatePath('/cms/newsletters')

@@ -23,7 +23,7 @@ function MergeTagNodeView({ node }: ReactNodeViewProps) {
   return (
     <NodeViewWrapper as="span" className="inline">
       <span
-        className="inline-flex items-center rounded bg-purple-100 px-1.5 py-0.5 text-xs font-medium text-purple-700 select-none"
+        className="inline-flex items-center rounded bg-purple-500/20 px-1.5 py-0.5 text-xs font-medium text-purple-400 select-none"
         contentEditable={false}
       >
         {`{{${tag?.label ?? node.attrs.tag}}}`}
