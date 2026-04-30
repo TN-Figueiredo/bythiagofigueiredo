@@ -1349,6 +1349,355 @@ Retention % = `active_subscribers / cohort_size * 100`. Heatmap color scale: 0-2
 
 ---
 
+## TypeScript Interfaces (Key Props)
+
+```typescript
+// Shared data fetched once by server component, passed to all tabs
+interface NewsletterHubSharedData {
+  types: Array<{
+    id: string
+    name: string
+    color: string
+    sort_order: number
+    cadence_paused: boolean
+    subscriber_count: number
+  }>
+  tabBadges: {
+    editorial: number   // active editions (idea + draft + review + scheduled)
+    automations: number // 0 normally, incident count when > 0
+  }
+  siteTimezone: string // IANA identifier
+}
+
+// Tab-specific data interfaces
+interface OverviewTabData {
+  kpis: {
+    totalSubscribers: number
+    subscribersTrend: number // 30d delta
+    editionsSent: number
+    editionsThisMonth: number
+    avgOpenRate: number
+    openRateTrend: number // pp delta
+    avgClickRate: number
+    clickRateTrend: number
+    bounceRate: number
+    bounceTrend: number
+  }
+  sparklines: Record<'subscribers' | 'editions' | 'openRate' | 'clickRate' | 'bounceRate', number[]> // 7 points each
+  healthScore: number // 0-100
+  healthDimensions: Record<'deliverability' | 'engagement' | 'growth' | 'compliance', { score: number; label: string }>
+  subscriberGrowth: Array<{ date: string; count: number }> // 90d
+  funnel: { sent: number; delivered: number; opened: number; clicked: number }
+  editionsByType: Array<{ typeId: string; count: number }>
+  openRateTrend: Array<{ date: string; rates: Record<string, number> }> // per-type
+  publicationPerformance: Array<{
+    typeId: string
+    subscribers: number
+    editionsSent: number
+    openRate: number
+    clickRate: number
+    sparkline: number[] // 6 points
+  }>
+  topEditions: Array<{
+    id: string; subject: string; typeId: string
+    dateSent: string; opens: number; clicks: number
+  }>
+  activityFeed: ActivityEvent[]
+  cohortRetention: Array<{ cohortMonth: string; monthOffset: number; retention: number }>
+  deliverability: {
+    spf: boolean; dkim: boolean; dmarc: boolean
+    bounceRate: number; complaintRate: number
+    provider: string
+  }
+}
+
+interface EditorialTabData {
+  velocity: { throughput: number; avgIdeatoSent: number; movedThisWeek: number; bottleneck: { column: string; avgDays: number } }
+  editions: Array<EditionCard>
+  wipLimit: number
+}
+
+interface EditionCard {
+  id: string
+  subject: string
+  status: 'idea' | 'draft' | 'review' | 'scheduled' | 'sent' | 'failed' | 'cancelled' | 'archived'
+  typeId: string | null
+  typeName: string | null
+  typeColor: string | null
+  createdAt: string
+  ideaCreatedAt: string | null
+  reviewEnteredAt: string | null
+  slotDate: string | null
+  wordCount: number | null
+  readingTimeMin: number | null
+  progressPercent: number | null
+  ideaNotes: string | null
+  snippet: string | null
+  stats: { opens: number; clicks: number; bounceRate: number } | null
+}
+
+interface ScheduleTabData {
+  healthStrip: { fillRate: number; next7Days: number; conflicts: number; avgOpenRate: number; activeTypes: number; totalTypes: number }
+  calendarSlots: Array<{ date: string; editions: Array<{ id: string; subject: string; typeColor: string; status: string }>; emptySlots: Array<{ typeId: string; typeColor: string }> }>
+  cadenceConfigs: Array<{
+    typeId: string; typeName: string; typeColor: string
+    cadence: string; dayOfWeek: string; time: string; nextDate: string
+    paused: boolean; subscribers: number; editionsSent: number; openRate: number
+    conflicts: string[]
+  }>
+  sendWindow: { time: string; timezone: string; bestTimeInsight: string }
+}
+
+interface AutomationsTabData {
+  healthStrip: { workflowsActive: number; cronsHealthy: number; eventsToday: number; successRate: number; lastIncidentDaysAgo: number | null }
+  workflows: Array<{
+    id: string; name: string; type: 'welcome' | 're_engagement' | 'bounce_handler'
+    enabled: boolean; stats: Record<string, number>
+    pipelineCounts?: Record<string, number>
+    incident?: { date: string; description: string }
+  }>
+  cronJobs: Array<{
+    name: string; expression: string; frequency: string
+    lgpd: boolean; lastRuns: Array<{ date: string; success: boolean }>
+  }>
+  activityFeed: ActivityEvent[]
+}
+
+interface AudienceTabData {
+  healthStrip: { uniqueSubscribers: number; totalSubscriptions: number; netGrowth30d: number; churnRate: number; avgOpenRate: number; lgpdConsent: number }
+  growth: Array<{ date: string; newSubs: number; unsubs: number }>
+  distribution: Array<{ typeId: string; count: number; share: number }>
+  engagementByType: Array<{ typeId: string; subscribers: number; openRate: number; clickRate: number; bounceRate: number; sparkline: number[] }>
+  subscribers: { rows: SubscriberRow[]; total: number; page: number }
+  locale: Record<string, number> // locale → count
+  lgpdConsent: { newsletter: number; analytics: number; anonymized: number; version: string }
+  recentActivity: ActivityEvent[]
+}
+
+interface SubscriberRow {
+  id: string
+  emailMasked: string
+  name: string | null
+  initials: string
+  types: Array<{ id: string; name: string; color: string }>
+  subscribedAt: string
+  opens30d: number
+  clicks30d: number
+  engagementScore: number
+  status: 'active' | 'at_risk' | 'bounced' | 'unsubscribed' | 'anonymized'
+}
+
+interface ActivityEvent {
+  id: string
+  type: 'welcome' | 'delivered' | 'opened' | 'clicked' | 'bounced' | 'system'
+  description: string
+  emailMasked?: string
+  timestamp: string
+}
+```
+
+---
+
+## Newsletter Health Score Formula
+
+Composite score (0-100), calculated at query time:
+
+| Dimension | Weight | Score (0-100) | How |
+|---|---|---|---|
+| Deliverability | 25% | SPF+DKIM+DMARC all pass = 60pts base. Bounce rate <2% = +20pts, <5% = +10pts. Complaint rate <0.05% = +20pts, <0.1% = +10pts. | Sum capped at 100 |
+| Engagement | 25% | Avg open rate >50% = 100, >40% = 80, >30% = 60, >20% = 40, else 20. Adjusted by click rate: >10% = +10 bonus (cap 100). | Tiered + bonus |
+| Growth | 25% | Net growth (30d) >0 = 50 base. Growth rate (new/total) >5% = +50, >2% = +30, >0% = +20. Negative growth = max(0, 50 + netGrowth). | Rate-based |
+| Compliance | 25% | LGPD consent >95% = 100, >90% = 80, >80% = 60. Anonymization cron healthy = +0 (no penalty), unhealthy = -20. | Threshold + penalty |
+
+Final: `Math.round(deliverability * 0.25 + engagement * 0.25 + growth * 0.25 + compliance * 0.25)`
+
+Labels: 0-39 = "Critical" (red), 40-59 = "Fair" (amber), 60-79 = "Good" (blue), 80-100 = "Excellent" (green).
+
+---
+
+## Header Actions Behavior
+
+### "New Edition" Button (primary)
+
+Click opens a dropdown with 2 options:
+1. **New Idea** — creates an idea-stage edition (no type required). Inserts via `createIdea()` server action, adds card to Idea column, switches to Editorial tab if not already there. Inline title edit on the new card (auto-focus).
+2. **New Draft** — opens a type picker popover (list of active types with colored dots), then navigates to `/cms/newsletters/new?typeId={id}` (existing editor page from `2026-04-26` spec).
+
+If only 1 type exists, "New Draft" skips the picker and goes directly to the editor.
+
+### Settings Icon
+
+Navigates to `/cms/newsletters/settings` (existing page). No dropdown — direct navigation.
+
+### Notification Bell
+
+Opens a popover (320px wide, max 300px tall, scrollable) showing recent system notifications:
+- Bounce threshold alerts ("Sponsor Spotlight paused — 5.2% bounce rate")
+- Cron failures ("Scheduled Send cron failed at 08:00")
+- Welcome email delivery issues
+- Export ready notifications
+
+Red dot badge: visible when unread count > 0. Count clears when popover opens. Notifications fetched from `webhook_events` table (event_type = 'system_alert'), limited to last 20.
+
+"Mark all read" button at top. "View all" link at bottom goes to a future notifications page (out of scope — link disabled with "Coming soon" tooltip).
+
+---
+
+## Tab Badge Count Definitions
+
+| Tab | Badge | Condition | Color |
+|---|---|---|---|
+| Editorial | Number | Count of editions with `status IN ('idea','draft','review','scheduled')` | indigo (`#6366f1`) |
+| Automations | Number | Count of active incidents (bounce pauses, cron failures in last 24h) | red (`#ef4444`) — only shown when > 0 |
+| Overview | None | — | — |
+| Schedule | None | — | — |
+| Audience | None | — | — |
+
+---
+
+## Quick Actions Cross-Tab Navigation
+
+Overview tab Quick Actions navigate across tabs:
+
+| Button | Action |
+|---|---|
+| **New Edition** | Same as header "New Edition" button (dropdown with Idea/Draft) |
+| **Schedule Next** | Switches to Schedule tab (`?tab=schedule`), scrolls to first empty slot in agenda |
+| **View Subscribers** | Switches to Audience tab (`?tab=audience`), focuses search input |
+| **Full Analytics** | Opens `/cms/newsletters/analytics` (per-edition analytics index — out of scope for this spec, renders as disabled with "Coming soon" tooltip until that page exists) |
+
+---
+
+## Relationship with Existing Pages
+
+| Existing Page | Relationship | Action |
+|---|---|---|
+| `/cms/newsletters/[id]/edit` | Edition editor — opens when clicking any edition card in Editorial kanban or any edition link across tabs | Kept as-is (governed by `2026-04-26` spec) |
+| `/cms/newsletters/[id]/analytics` | Per-edition analytics — linked from Sent column card kebab menu "View analytics" | Kept as-is |
+| `/cms/newsletters/subscribers` | Subscriber list — **replaced by Audience tab**. Old route redirects to `?tab=audience` via `redirect()` in its `page.tsx` | Redirect, then delete old page |
+| `/cms/newsletters/settings` | Settings page — linked from header settings icon | Kept as-is |
+| `/cms/newsletters/new` | New edition page — linked from "New Draft" action | Kept as-is |
+| `/cms/content-queue` | Content queue — **separate page, not replaced**. Schedule tab focuses on newsletter cadence; content-queue handles cross-content-type (blog + newsletter) slot management. No overlap. | Kept as-is |
+
+---
+
+## Drag-and-Drop Undo
+
+After a successful card move in the Kanban board:
+
+- **Toast notification:** "Moved '{subject}' to {column}" with **"Undo"** button (text button, indigo color). Toast auto-dismisses after 5 seconds.
+- **Undo action:** Calls `moveEdition(id, previousStatus, previousPosition)` to revert. Optimistic — card animates back immediately.
+- **Undo window:** Only the most recent move is undoable. Starting a new drag clears the previous undo state.
+- **No undo for:** Delete actions (those have confirmation modals), status changes via kebab menu (intentional, confirmed action).
+
+---
+
+## Subscriber Table Search
+
+- **Debounce:** 300ms debounce on keystroke before triggering search.
+- **Server-side:** Search is server-side (`ILIKE` query) — client doesn't hold all 580 subscribers in memory.
+- **Match fields:** email (masked pattern match — searches the original unmasked email server-side, displays masked in results) AND name. OR match.
+- **Minimum query:** 2 characters minimum before search triggers. Below that, shows full list.
+- **Clear:** X button in search input to clear and reset to unfiltered list.
+- **URL state:** Search query persisted as `?search=` param for shareable links.
+- **Empty results:** "No subscribers matching '{query}'" with suggestion "Try a different search term or clear filters".
+
+---
+
+## Performance Budget
+
+### New Dependencies
+
+| Package | Size (gzip) | Lazy? | Justification |
+|---|---|---|---|
+| `recharts` | ~45KB | Yes (dynamic import per chart) | Already installed. Only loaded on Overview + Audience tabs. |
+| `@dnd-kit/core` | ~12KB | Yes (Editorial tab only) | Lighter than react-beautiful-dnd (~30KB). Only loaded when Editorial tab mounts. |
+| `@dnd-kit/sortable` | ~5KB | Yes (with core) | Sortable presets for kanban. |
+| `@dnd-kit/utilities` | ~2KB | Yes (with core) | CSS utilities for drag transforms. |
+
+**Total new JS:** ~19KB gzip (@dnd-kit). recharts already in bundle.
+
+### Lazy Loading Strategy
+
+```typescript
+// Each tab lazy-loaded via dynamic import
+const OverviewTab = dynamic(() => import('./_tabs/overview-tab'), { 
+  loading: () => <TabSkeleton tab="overview" />,
+  ssr: true // server-rendered, client hydration
+})
+
+// recharts lazy within tabs (not needed during SSR — charts are client-only)
+const SubscriberGrowthChart = dynamic(
+  () => import('./_components/subscriber-growth-chart'),
+  { ssr: false, loading: () => <ChartSkeleton type="area" /> }
+)
+
+// @dnd-kit only in Editorial
+const KanbanBoard = dynamic(
+  () => import('./_components/kanban-board'),
+  { ssr: false, loading: () => <KanbanSkeleton /> }
+)
+```
+
+### Performance Targets
+
+| Metric | Target | Measurement |
+|---|---|---|
+| Initial load (Overview tab) | <2s TTI on 4G | Lighthouse CI |
+| Tab switch | <500ms (perceived, useTransition keeps old tab visible) | Manual QA |
+| Kanban drag latency | <16ms per frame (60fps) | Chrome DevTools |
+| Chart render | <300ms after data arrives | Performance.measure |
+| Subscriber table page change | <200ms (server query) | Network tab |
+
+### Bundle Split
+
+Each tab is a separate chunk. Switching tabs lazy-loads the chunk. Only Overview chunk loads on initial page visit. This keeps initial bundle lean despite the feature richness.
+
+---
+
+## Testing Strategy
+
+### Unit Tests (vitest)
+
+| Component/Module | Test Focus | Count (est.) |
+|---|---|---|
+| `maskEmail()` utility | Edge cases: short emails, no @, unicode, anonymized | 8 |
+| `calculateEngagementScore()` | Formula correctness, edge cases (0 opens, 0 editions, max score) | 10 |
+| `calculateHealthScore()` | Dimension scoring, composite, label thresholds | 8 |
+| `generateSlots()` re-export | Cadence slot generation for Schedule calendar | Already tested in `@tn-figueiredo/newsletter` |
+| `KpiCard` | Renders value, trend, sparkline, inverted bounce | 5 |
+| `TypeFilterChips` | Selection state, "All" reset, colored dots | 4 |
+| `HealthStrip` | Renders N metric cards, handles 0 values, responsive | 3 |
+| `SummaryBar` | Renders stats, keyboard hints, role="status" | 2 |
+| `SubscriberStatusBadge` | All 5 statuses, correct colors | 5 |
+
+### Integration Tests (vitest + DB, gated by `HAS_LOCAL_DB`)
+
+| Test Suite | Coverage |
+|---|---|
+| `moveEdition` server action | Valid transitions, CAS conflict, blocked transitions, revalidation |
+| `createIdea` server action | Insert with/without type, idea_created_at set |
+| `toggleCadence` server action | Pause/unpause, revalidation |
+| `exportSubscribers` server action | Default (masked) export, PII export + audit log, filter application |
+| Audience query with engagement score | Score calculation matches formula, sort correctness |
+| Cohort retention query | Correct pivot, handles 0-subscriber months |
+
+### E2E Tests (Playwright)
+
+| Spec File | Coverage |
+|---|---|
+| `newsletter-hub-tabs.spec.ts` | Tab switching via click + keyboard (1-5), URL param persistence, back/forward |
+| `newsletter-hub-kanban.spec.ts` | Drag card between columns, WIP limit block, undo toast, list view toggle |
+| `newsletter-hub-schedule.spec.ts` | Calendar navigation, cadence toggle, conflict display |
+| `newsletter-hub-audience.spec.ts` | Search debounce, filter chips, export CSV, pagination, sort |
+| `newsletter-hub-empty.spec.ts` | All tabs with zero data — verify empty states render |
+
+### Accessibility Tests (Playwright + AxeBuilder)
+
+Run AxeBuilder on each tab. Existing pattern from Sprint 5c (`e2e/a11y/`). Focus: tab ARIA roles, sortable table, toggle switches, drag-drop announcements.
+
+---
+
 ## Key Decisions (Resolved)
 
 1. **5-tab workspace** over single scrollable page or collapsible sections
