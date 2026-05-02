@@ -78,7 +78,7 @@ export default async function PublicLayout({ children }: { children: ReactNode }
   const cookieStore = await cookies()
   const theme = cookieStore.get('btf_theme')?.value === 'light' ? 'light' : 'dark'
   const locale = (h.get('x-locale') ?? 'en') as 'en' | 'pt-BR'
-  const t = (locale === 'pt-BR' ? ptBrStrings : enStrings) as Record<string, string>
+  const t = (locale === 'pt-BR' ? ptBrStrings : enStrings) as unknown as Record<string, string>
 
   const rootNodes = config
     ? [

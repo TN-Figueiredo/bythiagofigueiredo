@@ -113,7 +113,7 @@ export default async function BlogListPage({ searchParams }: Props) {
 
   const t = (
     locale === 'pt-BR' ? ptBrStrings : enStrings
-  ) as Record<string, string>
+  ) as unknown as Record<string, string>
 
   const { posts, total, allCategories } = await getBlogPosts({
     siteId: ctx.siteId,

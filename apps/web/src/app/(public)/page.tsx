@@ -17,13 +17,13 @@ import { PinboardHome } from './components/PinboardHome'
 // intentionally do NOT mount an additional <JsonLdScript> here.
 export async function generateMetadata(): Promise<Metadata> {
   const ctx = await tryGetSiteContext()
-  if (!ctx) return { title: (en as Record<string, string>)['meta.title'] }
+  if (!ctx) return { title: (en as unknown as Record<string, string>)['meta.title'] }
   const host = (await headers()).get('host') ?? ctx.primaryDomain ?? ''
   try {
     const config = await getSiteSeoConfig(ctx.siteId, host)
     return generateRootMetadata(config)
   } catch {
-    return { title: (en as Record<string, string>)['meta.title'] }
+    return { title: (en as unknown as Record<string, string>)['meta.title'] }
   }
 }
 

@@ -9,8 +9,8 @@ import enStrings from '../../../locales/en.json'
 import ptBrStrings from '../../../locales/pt-BR.json'
 
 const TRANSLATIONS: Record<'en' | 'pt-BR', Record<string, string>> = {
-  en: enStrings as Record<string, string>,
-  'pt-BR': ptBrStrings as Record<string, string>,
+  en: enStrings as unknown as Record<string, string>,
+  'pt-BR': ptBrStrings as unknown as Record<string, string>,
 }
 
 type Props = { locale: 'en' | 'pt-BR' }

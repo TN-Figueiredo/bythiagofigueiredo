@@ -67,7 +67,7 @@ export default async function NewsletterArchivePage({
 
   const h = await headers()
   const locale = h.get('x-locale') ?? 'en'
-  const t = (locale === 'pt-BR' ? ptBrStrings : enStrings) as Record<string, string>
+  const t = (locale === 'pt-BR' ? ptBrStrings : enStrings) as unknown as Record<string, string>
 
   const sentDate = edition.sent_at ? new Date(edition.sent_at as string) : null
 

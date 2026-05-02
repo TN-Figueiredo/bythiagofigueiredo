@@ -1,0 +1,243 @@
+/* newsletter-landing.css — Page-specific styles for /newsletters/[slug] */
+
+/* Accent color resolution (light/dark theme-aware) */
+.nl-landing {
+  --nl-accent: var(--nl-accent-light);
+}
+[data-theme="dark"] .nl-landing {
+  --nl-accent: var(--nl-accent-dark);
+}
+
+/* ── Animations ────────────────────────────── */
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.nl-fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+.nl-pulse {
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+/* ── Reduced motion ────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .nl-landing *,
+  .nl-landing *::before,
+  .nl-landing *::after {
+    animation-duration: 0s !important;
+    transition-duration: 0s !important;
+  }
+}
+
+/* ── Form phase crossfade ──────────────────── */
+
+.nl-form-phase {
+  transition: opacity 0.15s ease;
+}
+
+/* ── Mobile sticky CTA ────────────────────── */
+
+.nl-sticky-cta {
+  transition: transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.nl-sticky-cta[data-visible="false"] {
+  transform: translateY(120%);
+}
+
+.nl-sticky-cta[data-visible="true"] {
+  transform: translateY(0);
+}
+
+/* ── Accent underline (hero) ───────────────── */
+
+.nl-marker-underline {
+  position: relative;
+  display: inline;
+}
+
+.nl-marker-underline::after {
+  content: '';
+  position: absolute;
+  left: -4px;
+  right: -4px;
+  bottom: 2px;
+  height: 0.35em;
+  background: var(--pb-marker);
+  opacity: 0.16;
+  transform: skew(-2deg);
+  z-index: -1;
+  border-radius: 2px;
+}
+
+/* ── Accent underline (form title) ─────────── */
+
+.nl-accent-underline {
+  position: relative;
+  display: inline;
+}
+
+.nl-accent-underline::after {
+  content: '';
+  position: absolute;
+  left: -4px;
+  right: -4px;
+  bottom: 2px;
+  height: 0.35em;
+  background: var(--nl-accent);
+  opacity: 0.85;
+  transform: skew(-2deg);
+  z-index: -1;
+  border-radius: 2px;
+}
+
+/* ── Focus visibility ─────────────────────── */
+
+.nl-landing a:focus-visible,
+.nl-landing button:focus-visible,
+.nl-landing input:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+/* ── Layout: Desktop (>920px) ─────────────── */
+
+.nl-hero-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 56px;
+  align-items: start;
+}
+
+.nl-form-sticky {
+  position: sticky;
+  top: 110px;
+}
+
+.nl-samples-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.nl-final-grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 40px;
+  align-items: center;
+}
+
+.nl-mobile-cta {
+  display: none;
+}
+
+/* ── Layout: Tablet (≤920px) ──────────────── */
+
+@media (max-width: 920px) {
+  .nl-hero-grid {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+
+  .nl-form-sticky {
+    position: static;
+  }
+
+  .nl-final-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Layout: Mobile (≤620px) ──────────────── */
+
+@media (max-width: 620px) {
+  .nl-samples-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .nl-mobile-cta {
+    display: block;
+  }
+
+  .nl-section {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+}
+
+/* ── Stat row ─────────────────────────────── */
+
+.nl-stat-row {
+  display: flex;
+  gap: 16px;
+}
+
+.nl-stat-item + .nl-stat-item {
+  border-left: 1px dashed var(--pb-line);
+  padding-left: 16px;
+}
+
+/* ── Step indicator ───────────────────────── */
+
+.nl-step + .nl-step {
+  border-top: 1px dashed var(--pb-line);
+  padding-top: 12px;
+  margin-top: 12px;
+}
+
+/* ── Error display ────────────────────────── */
+
+.nl-form-error {
+  padding: 10px 12px;
+  background: rgba(193, 69, 19, 0.1);
+  border-left: 3px solid #C14513;
+  font-size: 13px;
+  border-radius: 4px;
+}
+
+/* ── Email display box (pending) ──────────── */
+
+.nl-email-display {
+  border-left: 2px dashed var(--nl-accent);
+  padding: 12px 16px;
+  font-family: var(--font-jetbrains-var), monospace;
+  font-size: 12px;
+  word-break: break-all;
+  border-radius: 4px;
+}
+
+[data-theme="dark"] .nl-email-display {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+[data-theme="light"] .nl-email-display {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+/* ── Skip link ────────────────────────────── */
+
+.nl-skip-link {
+  position: absolute;
+  top: -100%;
+  left: 16px;
+  z-index: 100;
+  padding: 8px 16px;
+  background: var(--pb-ink);
+  color: var(--pb-bg);
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.nl-skip-link:focus-visible {
+  top: 16px;
+}

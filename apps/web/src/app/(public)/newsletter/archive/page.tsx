@@ -39,7 +39,7 @@ export default async function NewsletterArchiveListPage({ searchParams }: Props)
 
   const h = await headers()
   const locale = h.get('x-locale') ?? 'en'
-  const t = (locale === 'pt-BR' ? ptBrStrings : enStrings) as Record<string, string>
+  const t = (locale === 'pt-BR' ? ptBrStrings : enStrings) as unknown as Record<string, string>
 
   const page = Math.max(1, Number.parseInt(sp.page ?? '1', 10))
   const from = (page - 1) * PER_PAGE
