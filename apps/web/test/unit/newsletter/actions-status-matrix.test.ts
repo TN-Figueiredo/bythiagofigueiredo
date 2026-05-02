@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 let mockSupabase: ReturnType<typeof createMockSupabase>
 
 function createMockSupabase(statusToReturn: string, extra: Record<string, unknown> = {}) {
-  const row = { id: 'ed-1', status: statusToReturn, newsletter_type_id: 'type-1', site_id: 'site-1', ...extra }
+  const row = { id: 'ed-1', status: statusToReturn, newsletter_type_id: 'type-1', site_id: 'site-1', active: true, ...extra }
 
   // Each `.from()` call creates a fresh chain with its own `useSingle` state
   // so that a `.single()` on one query does not pollute subsequent queries.
@@ -72,6 +72,7 @@ vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
 }))
 vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
+  revalidateTag: vi.fn(),
 }))
 vi.mock('next/headers', () => ({
   cookies: () =>
@@ -105,6 +106,7 @@ vi.mock('@/lib/newsletter/email-sanitizer', () => ({
 }))
 
 import {
+  createEdition,
   saveEdition,
   scheduleEdition,
   cancelEdition,
@@ -283,6 +285,37 @@ describe('Status transition matrix — actual server action behavior', () => {
         expect(result).toHaveProperty('error', 'edition_not_testable')
       },
     )
+  })
+
+  // ── createEdition — ephemeral payload ──────────────────────────────────
+  describe('createEdition — ephemeral payload', () => {
+    it('creates edition with subject only (no type)', async () => {
+      mockSupabase = createMockSupabase('draft')
+      const result = await createEdition({ subject: 'My Newsletter' })
+      expect(result.ok).toBe(true)
+      expect(result).toHaveProperty('editionId')
+    })
+
+    it('creates edition with full payload', async () => {
+      mockSupabase = createMockSupabase('draft')
+      const result = await createEdition({
+        subject: 'Full Newsletter',
+        preheader: 'A great preheader',
+        newsletter_type_id: 'type-1',
+        content_json: '{"type":"doc","content":[]}',
+        content_html: '<p>Hello</p>',
+        segment: 'all',
+      })
+      expect(result.ok).toBe(true)
+      expect(result).toHaveProperty('editionId')
+    })
+
+    it('rejects empty subject', async () => {
+      mockSupabase = createMockSupabase('draft')
+      const result = await createEdition({ subject: '' })
+      expect(result.ok).toBe(false)
+      expect(result).toHaveProperty('error', 'subject_required')
+    })
   })
 
   // ── sent is terminal ────────────────────────────────────────────────────

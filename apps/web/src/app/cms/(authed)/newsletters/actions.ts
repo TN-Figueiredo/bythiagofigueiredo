@@ -1,6 +1,6 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
 import type { CookieOptions } from '@supabase/ssr'
@@ -11,6 +11,7 @@ import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getEmailService } from '@/lib/email/service'
 import { render } from '@react-email/render'
 import { Newsletter } from '@/emails/newsletter'
+import { revalidateNewsletterTypeSeo } from '@/lib/seo/cache-invalidation'
 
 type ActionResult =
   | { ok: true; editionId?: string }
@@ -72,47 +73,63 @@ export async function saveEdition(
     .update(dbPatch)
     .eq('id', editionId)
   if (error) return { ok: false, error: error.message }
-  revalidatePath('/cms/newsletters')
+  revalidateNewsletterHub()
   return { ok: true }
 }
 
 export async function createEdition(
-  newsletterTypeId: string,
-  subject: string,
+  data: {
+    subject: string
+    preheader?: string
+    content_json?: string
+    content_html?: string
+    newsletter_type_id?: string | null
+    segment?: string
+  },
 ): Promise<ActionResult> {
+  if (!data.subject?.trim()) return { ok: false, error: 'subject_required' }
+
   const ctx = await getSiteContext()
   const res = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
   if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
 
   const supabase = getSupabaseServiceClient()
 
-  const { data: type } = await supabase
-    .from('newsletter_types')
-    .select('id, active')
-    .eq('id', newsletterTypeId)
-    .eq('site_id', ctx.siteId)
-    .single()
+  if (data.newsletter_type_id) {
+    const { data: type } = await supabase
+      .from('newsletter_types')
+      .select('id, active')
+      .eq('id', data.newsletter_type_id)
+      .eq('site_id', ctx.siteId)
+      .single()
 
-  if (!type) return { ok: false, error: 'type_not_found' }
-  if (!type.active) return { ok: false, error: 'type_inactive' }
+    if (!type) return { ok: false, error: 'type_not_found' }
+    if (!type.active) return { ok: false, error: 'type_inactive' }
+  }
 
   const userClient = await getUserClient()
   const { data: { user } } = await userClient.auth.getUser()
 
-  const { data, error } = await supabase
+  const insertPayload: Record<string, unknown> = {
+    site_id: ctx.siteId,
+    newsletter_type_id: data.newsletter_type_id ?? null,
+    subject: data.subject.trim(),
+    status: 'draft',
+    created_by: user?.id,
+  }
+  if (data.preheader) insertPayload.preheader = data.preheader
+  if (data.content_json) insertPayload.content_json = JSON.parse(data.content_json)
+  if (data.content_html) insertPayload.content_html = data.content_html
+  if (data.segment) insertPayload.segment = data.segment
+
+  const { data: row, error } = await supabase
     .from('newsletter_editions')
-    .insert({
-      site_id: ctx.siteId,
-      newsletter_type_id: newsletterTypeId,
-      subject,
-      status: 'draft',
-      created_by: user?.id,
-    })
+    .insert(insertPayload)
     .select('id')
     .single()
   if (error) return { ok: false, error: error.message }
-  revalidatePath('/cms/newsletters')
-  return { ok: true, editionId: data.id }
+  revalidateNewsletterHub()
+  return { ok: true, editionId: row.id }
 }
 
 export async function createIdea(
@@ -142,7 +159,7 @@ export async function createIdea(
     .single()
 
   if (error) return { ok: false, error: error.message }
-  revalidatePath('/cms/newsletters')
+  revalidateNewsletterHub()
   return { ok: true, editionId: data.id }
 }
 
@@ -186,7 +203,7 @@ export async function convertIdeaToEdition(
     .update(updateData)
     .eq('id', editionId)
   if (error) return { ok: false, error: error.message }
-  revalidatePath('/cms/newsletters')
+  revalidateNewsletterHub()
   return { ok: true }
 }
 
@@ -221,7 +238,7 @@ export async function duplicateEdition(editionId: string): Promise<ActionResult>
     .select('id')
     .single()
   if (error) return { ok: false, error: error.message }
-  revalidatePath('/cms/newsletters')
+  revalidateNewsletterHub()
   return { ok: true, editionId: data.id }
 }
 
@@ -283,7 +300,7 @@ export async function scheduleEdition(
     .update({ status: 'scheduled', scheduled_at: scheduledAt })
     .eq('id', editionId)
   if (error) return { ok: false, error: error.message }
-  revalidatePath('/cms/newsletters')
+  revalidateNewsletterHub()
   return { ok: true, ...(conflict ? { conflict } : {}) }
 }
 
@@ -307,7 +324,7 @@ export async function cancelEdition(editionId: string): Promise<ActionResult> {
     .update({ status: 'cancelled', scheduled_at: null })
     .eq('id', editionId)
   if (error) return { ok: false, error: error.message }
-  revalidatePath('/cms/newsletters')
+  revalidateNewsletterHub()
   return { ok: true }
 }
 
@@ -346,7 +363,7 @@ export async function sendNow(editionId: string): Promise<ActionResult> {
     .update({ status: 'scheduled', scheduled_at: new Date().toISOString() })
     .eq('id', editionId)
   if (error) return { ok: false, error: error.message }
-  revalidatePath('/cms/newsletters')
+  revalidateNewsletterHub()
   return { ok: true }
 }
 
@@ -370,7 +387,7 @@ export async function revertToDraft(editionId: string): Promise<ActionResult> {
     .update({ status: 'draft', scheduled_at: null, slot_date: null })
     .eq('id', editionId)
   if (error) return { ok: false, error: error.message }
-  revalidatePath('/cms/newsletters')
+  revalidateNewsletterHub()
   return { ok: true }
 }
 
@@ -535,7 +552,7 @@ export async function assignToSlot(
     })
     .eq('id', editionId)
   if (error) return { ok: false, error: error.message }
-  revalidatePath('/cms/newsletters')
+  revalidateNewsletterHub()
   revalidatePath('/cms/schedule')
   return { ok: true }
 }
@@ -563,7 +580,7 @@ export async function unslotEdition(editionId: string): Promise<ActionResult> {
     })
     .eq('id', editionId)
   if (error) return { ok: false, error: error.message }
-  revalidatePath('/cms/newsletters')
+  revalidateNewsletterHub()
   revalidatePath('/cms/schedule')
   return { ok: true }
 }
@@ -572,7 +589,7 @@ export async function unslotEdition(editionId: string): Promise<ActionResult> {
 
 export async function updateCadence(
   typeId: string,
-  patch: { cadence_days?: number; preferred_send_time?: string; cadence_paused?: boolean },
+  patch: { cadence_days?: number; preferred_send_time?: string; cadence_paused?: boolean; cadence_start_date?: string },
 ): Promise<ActionResult> {
   const ctx = await getSiteContext()
   const res = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
@@ -585,9 +602,39 @@ export async function updateCadence(
     .eq('id', typeId)
     .eq('site_id', ctx.siteId)
   if (error) return { ok: false, error: error.message }
+  revalidateNewsletterHub()
   revalidatePath('/cms/newsletters/settings')
   revalidatePath('/cms/schedule')
   return { ok: true }
+}
+
+function generateSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80)
+}
+
+async function ensureUniqueSlug(supabase: ReturnType<typeof getSupabaseServiceClient>, slug: string): Promise<string> {
+  const { data } = await supabase
+    .from('newsletter_types')
+    .select('slug')
+    .like('slug', `${slug}%`)
+  const taken = new Set((data ?? []).map((r: { slug: string }) => r.slug))
+  if (!taken.has(slug)) return slug
+  for (let i = 2; i < 100; i++) {
+    const candidate = `${slug}-${i}`
+    if (!taken.has(candidate)) return candidate
+  }
+  return `${slug}-${Date.now()}`
+}
+
+function revalidateNewsletterHub() {
+  revalidatePath('/cms/newsletters')
+  revalidateTag('newsletter-hub')
 }
 
 export async function createNewsletterType(data: {
@@ -595,6 +642,12 @@ export async function createNewsletterType(data: {
   locale: string
   color?: string
   tagline?: string
+  slug?: string
+  description?: string
+  badge?: string
+  colorDark?: string
+  ogImageUrl?: string
+  landingPromise?: string[]
   sortOrder?: number
 }): Promise<ActionResult> {
   const ctx = await getSiteContext()
@@ -613,40 +666,88 @@ export async function createNewsletterType(data: {
 
   if (existing) return { ok: false, error: 'name_already_exists' }
 
+  const baseSlug = data.slug?.trim() || generateSlug(data.name)
+  const slug = await ensureUniqueSlug(supabase, baseSlug)
+
+  const landingContent = data.landingPromise?.length
+    ? { promise: data.landingPromise.filter((s) => s.trim()) }
+    : {}
+
   const { data: created, error } = await supabase
     .from('newsletter_types')
     .insert({
       site_id: ctx.siteId,
       name: data.name,
       locale: data.locale,
+      slug,
       color: data.color ?? '#7c3aed',
+      color_dark: data.colorDark ?? null,
       tagline: data.tagline ?? null,
+      description: data.description ?? null,
+      badge: data.badge ?? null,
+      og_image_url: data.ogImageUrl ?? null,
+      landing_content: landingContent,
       sort_order: data.sortOrder ?? 99,
       active: true,
     })
     .select('id')
     .single()
   if (error) return { ok: false, error: error.message }
-  revalidatePath('/cms/newsletters')
+  revalidateNewsletterHub()
+  revalidateNewsletterTypeSeo(ctx.siteId, slug)
   return { ok: true, editionId: created.id }
 }
 
 export async function updateNewsletterType(
   typeId: string,
-  patch: { name?: string; tagline?: string; color?: string; sortOrder?: number; active?: boolean; cadence_paused?: boolean },
+  patch: {
+    name?: string
+    tagline?: string
+    locale?: string
+    color?: string
+    colorDark?: string | null
+    slug?: string
+    description?: string | null
+    badge?: string | null
+    ogImageUrl?: string | null
+    landingPromise?: string[]
+    sortOrder?: number
+    active?: boolean
+    cadence_paused?: boolean
+  },
 ): Promise<ActionResult> {
   const ctx = await getSiteContext()
   const res = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
   if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
 
   const supabase = getSupabaseServiceClient()
+
+  const { data: current } = await supabase
+    .from('newsletter_types')
+    .select('slug')
+    .eq('id', typeId)
+    .eq('site_id', ctx.siteId)
+    .single()
+  if (!current) return { ok: false, error: 'not_found' }
+
   const updateData: Record<string, unknown> = {}
   if (patch.name !== undefined) updateData.name = patch.name
   if (patch.tagline !== undefined) updateData.tagline = patch.tagline
+  if (patch.locale !== undefined) updateData.locale = patch.locale
   if (patch.color !== undefined) updateData.color = patch.color
+  if (patch.colorDark !== undefined) updateData.color_dark = patch.colorDark
+  if (patch.slug !== undefined) updateData.slug = patch.slug
+  if (patch.description !== undefined) updateData.description = patch.description
+  if (patch.badge !== undefined) updateData.badge = patch.badge
+  if (patch.ogImageUrl !== undefined) updateData.og_image_url = patch.ogImageUrl
   if (patch.sortOrder !== undefined) updateData.sort_order = patch.sortOrder
   if (patch.active !== undefined) updateData.active = patch.active
   if (patch.cadence_paused !== undefined) updateData.cadence_paused = patch.cadence_paused
+  if (patch.landingPromise !== undefined) {
+    updateData.landing_content = patch.landingPromise.length
+      ? { promise: patch.landingPromise.filter((s) => s.trim()) }
+      : {}
+  }
 
   const { error } = await supabase
     .from('newsletter_types')
@@ -654,7 +755,12 @@ export async function updateNewsletterType(
     .eq('id', typeId)
     .eq('site_id', ctx.siteId)
   if (error) return { ok: false, error: error.message }
-  revalidatePath('/cms/newsletters')
+
+  const oldSlug = current.slug as string
+  const newSlug = (patch.slug ?? oldSlug) as string
+  if (oldSlug !== newSlug) revalidateNewsletterTypeSeo(ctx.siteId, oldSlug)
+  revalidateNewsletterHub()
+  revalidateNewsletterTypeSeo(ctx.siteId, newSlug)
   return { ok: true }
 }
 
@@ -670,7 +776,7 @@ export async function deleteNewsletterType(
 
   const { data: type } = await supabase
     .from('newsletter_types')
-    .select('id, name')
+    .select('id, name, slug')
     .eq('id', typeId)
     .eq('site_id', ctx.siteId)
     .single()
@@ -711,14 +817,74 @@ export async function deleteNewsletterType(
     .update({ newsletter_id: null })
     .eq('newsletter_id', typeId)
 
+  const typeSlug = type.slug as string
   const { error } = await supabase
     .from('newsletter_types')
     .delete()
     .eq('id', typeId)
     .eq('site_id', ctx.siteId)
   if (error) return { ok: false, error: error.message }
-  revalidatePath('/cms/newsletters')
+  revalidateNewsletterHub()
+  revalidateNewsletterTypeSeo(ctx.siteId, typeSlug)
   return { ok: true }
+}
+
+export async function getNewsletterTypeForEdit(typeId: string): Promise<
+  | { ok: true; type: {
+      id: string; name: string; tagline: string | null; locale: string; slug: string
+      badge: string | null; description: string | null; color: string; colorDark: string | null
+      ogImageUrl: string | null; landingPromise: string[]; cadenceDays: number
+      cadenceStartDate: string | null; cadencePaused: boolean; subscriberCount: number; editionCount: number
+    }}
+  | { ok: false; error: string }
+> {
+  const ctx = await getSiteContext()
+  const res = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
+  if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
+
+  const supabase = getSupabaseServiceClient()
+
+  const { data: type } = await supabase
+    .from('newsletter_types')
+    .select('id, name, tagline, locale, slug, badge, description, color, color_dark, og_image_url, landing_content, cadence_days, cadence_start_date, cadence_paused')
+    .eq('id', typeId)
+    .eq('site_id', ctx.siteId)
+    .single()
+  if (!type) return { ok: false, error: 'not_found' }
+
+  const { count: subscriberCount } = await supabase
+    .from('newsletter_subscriptions')
+    .select('id', { count: 'exact', head: true })
+    .eq('newsletter_id', typeId)
+    .eq('status', 'confirmed')
+
+  const { count: editionCount } = await supabase
+    .from('newsletter_editions')
+    .select('id', { count: 'exact', head: true })
+    .eq('newsletter_type_id', typeId)
+
+  const lc = type.landing_content as { promise?: string[] } | null
+  return {
+    ok: true,
+    type: {
+      id: type.id as string,
+      name: type.name as string,
+      tagline: type.tagline as string | null,
+      locale: type.locale as string,
+      slug: type.slug as string,
+      badge: type.badge as string | null,
+      description: type.description as string | null,
+      color: type.color as string,
+      colorDark: type.color_dark as string | null,
+      ogImageUrl: type.og_image_url as string | null,
+      landingPromise: lc?.promise ?? [],
+      cadenceDays: type.cadence_days as number,
+      cadenceStartDate: type.cadence_start_date as string | null,
+      cadencePaused: !!type.cadence_paused,
+      subscriberCount: subscriberCount ?? 0,
+      editionCount: editionCount ?? 0,
+    },
+  }
 }
 
 // ─── Image Upload ───────────────────────────────────────────────────────────
@@ -754,6 +920,37 @@ export async function uploadNewsletterImage(
   const { error } = await supabase.storage
     .from('newsletter-assets')
     .upload(path, buffer, { contentType: file.type })
+  if (error) return { ok: false, error: error.message }
+
+  const { data: { publicUrl } } = supabase.storage
+    .from('newsletter-assets')
+    .getPublicUrl(path)
+
+  return { ok: true, url: publicUrl }
+}
+
+export async function uploadNewsletterTypeImage(
+  formData: FormData,
+): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  const file = formData.get('file') as File | null
+  if (!file) return { ok: false, error: 'missing_file' }
+
+  const ctx = await getSiteContext()
+  const res = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
+  if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
+
+  if (file.size > MAX_IMAGE_SIZE) return { ok: false, error: 'file_too_large' }
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) return { ok: false, error: 'unsupported_format' }
+
+  const supabase = getSupabaseServiceClient()
+  const ext = file.name.split('.').pop() ?? 'jpg'
+  const uuid = crypto.randomUUID()
+  const path = `${ctx.siteId}/types/${uuid}.${ext}`
+
+  const buffer = Buffer.from(await file.arrayBuffer())
+  const { error } = await supabase.storage
+    .from('newsletter-assets')
+    .upload(path, buffer, { contentType: file.type, upsert: false })
   if (error) return { ok: false, error: error.message }
 
   const { data: { publicUrl } } = supabase.storage
@@ -820,7 +1017,7 @@ export async function deleteEdition(
     await supabase.storage.from('newsletter-assets').remove(paths)
   }
 
-  revalidatePath('/cms/newsletters')
+  revalidateNewsletterHub()
   return { ok: true }
 }
 
@@ -854,11 +1051,38 @@ export async function retryEdition(editionId: string): Promise<ActionResult> {
     .eq('id', editionId)
 
   if (error) return { ok: false, error: error.message }
-  revalidatePath('/cms/newsletters')
+  revalidateNewsletterHub()
   return { ok: true }
 }
 
 // ─── Newsletter Hub Actions ────────────────────────────────────────────────
+
+export async function reassignEditionType(
+  editionId: string,
+  typeId: string | null,
+): Promise<ActionResult> {
+  await requireSiteAdminForRow('newsletter_editions', editionId)
+  const ctx = await getSiteContext()
+  const supabase = getSupabaseServiceClient()
+
+  if (typeId) {
+    const { data: type } = await supabase
+      .from('newsletter_types')
+      .select('id')
+      .eq('id', typeId)
+      .eq('site_id', ctx.siteId)
+      .single()
+    if (!type) return { ok: false, error: 'type_not_found' }
+  }
+
+  const { error } = await supabase
+    .from('newsletter_editions')
+    .update({ newsletter_type_id: typeId, updated_at: new Date().toISOString() })
+    .eq('id', editionId)
+  if (error) return { ok: false, error: error.message }
+  revalidateNewsletterHub()
+  return { ok: true }
+}
 
 export async function moveEdition(
   editionId: string,
@@ -895,7 +1119,7 @@ export async function moveEdition(
     .eq('id', editionId)
     .eq('status', current.status)
   if (error) return { ok: false, error: error.message }
-  revalidatePath('/cms/newsletters')
+  revalidateNewsletterHub()
   return { ok: true }
 }
 
@@ -914,7 +1138,7 @@ export async function toggleCadence(
     .eq('id', typeId)
     .eq('site_id', ctx.siteId)
   if (error) return { ok: false, error: error.message }
-  revalidatePath('/cms/newsletters')
+  revalidateNewsletterHub()
   return { ok: true }
 }
 
@@ -933,7 +1157,7 @@ export async function updateSendTime(
     .eq('id', typeId)
     .eq('site_id', ctx.siteId)
   if (error) return { ok: false, error: error.message }
-  revalidatePath('/cms/newsletters')
+  revalidateNewsletterHub()
   return { ok: true }
 }
 
@@ -944,5 +1168,6 @@ export async function toggleWorkflow(
   const ctx = await getSiteContext()
   const res = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
   if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
+  revalidateTag('newsletter-automations')
   return { ok: true }
 }

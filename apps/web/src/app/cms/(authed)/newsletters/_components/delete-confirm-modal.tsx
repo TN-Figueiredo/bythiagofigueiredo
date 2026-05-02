@@ -51,35 +51,35 @@ export function DeleteConfirmModal({ open, title, description, impactLevel, onCo
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="delete-confirm-title"
-        className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl"
+        className="w-full max-w-md rounded-xl bg-[#111827] border border-[#374151] p-6 shadow-2xl"
       >
-        <h3 id="delete-confirm-title" className="text-lg font-semibold text-gray-900">{title}</h3>
-        <p className="mt-2 text-sm text-gray-600">{description}</p>
+        <h3 id="delete-confirm-title" className="text-lg font-semibold text-[#f3f4f6]">{title}</h3>
+        <p className="mt-2 text-sm text-[#9ca3af]">{description}</p>
 
         {impactLevel === 'high' && (
           <div className="mt-4">
-            <label className="block text-sm font-medium text-red-700 mb-1">
+            <label className="block text-sm font-medium text-[#f87171] mb-1">
               Type DELETE to confirm
             </label>
             <input
               type="text"
               value={confirmText}
               onChange={(e) => setConfirmText(e.target.value)}
-              className="w-full rounded border border-red-300 px-3 py-2 text-sm focus:border-red-500 focus:ring-red-500"
+              className="w-full rounded border border-[#7f1d1d] bg-[#0a0f1a] text-[#d1d5db] px-3 py-2 text-sm focus:border-red-500 focus:ring-red-500"
               placeholder="DELETE"
             />
           </div>
         )}
 
         {impactLevel === 'medium' && (
-          <div className="mt-3 rounded bg-amber-50 border border-amber-200 px-3 py-2">
-            <p className="text-xs text-amber-700">This edition has content or is scheduled. This action cannot be undone.</p>
+          <div className="mt-3 rounded bg-amber-500/10 border border-amber-500/20 px-3 py-2">
+            <p className="text-xs text-[#f59e0b]">This edition has content or is scheduled. This action cannot be undone.</p>
           </div>
         )}
 
@@ -87,7 +87,7 @@ export function DeleteConfirmModal({ open, title, description, impactLevel, onCo
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+            className="rounded-md px-4 py-2 text-sm font-medium text-[#9ca3af] hover:bg-white/5"
           >
             Cancel
           </button>

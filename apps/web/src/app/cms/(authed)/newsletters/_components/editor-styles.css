@@ -1,15 +1,15 @@
 /* TipTap editor content styling — scoped to .ProseMirror inside the newsletter editor */
 
 .newsletter-editor {
-  --editor-bg: var(--bg-surface, #ffffff);
-  --editor-text: var(--text, #1f2937);
-  --editor-text-secondary: var(--text-secondary, #6b7280);
-  --editor-text-tertiary: var(--text-tertiary, #9ca3af);
-  --editor-border: var(--border, #e5e7eb);
-  --editor-surface-hover: var(--bg-surface-hover, #f9fafb);
-  background-color: var(--editor-bg);
-  color: var(--editor-text);
-  max-height: calc(100vh - 320px);
+  --editor-bg: #030712;
+  --editor-text: #d1d5db;
+  --editor-text-secondary: #9ca3af;
+  --editor-text-tertiary: #6b7280;
+  --editor-border: #1f2937;
+  --editor-surface-hover: #111827;
+  background-color: #030712;
+  color: #d1d5db;
+  flex: 1;
   display: flex;
   flex-direction: column;
 }
@@ -17,12 +17,14 @@
 .newsletter-editor .ProseMirror {
   outline: none;
   min-height: 400px;
-  padding: 1.5rem 2rem;
-  max-width: 680px;
+  padding: 24px 64px;
+  max-width: 740px;
+  width: 100%;
   margin: 0 auto;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  font-size: 1rem;
-  color: var(--editor-text);
+  font-size: 15px;
+  line-height: 1.75;
+  color: #d1d5db;
 }
 
 .newsletter-editor .ProseMirror h1 {
@@ -31,25 +33,25 @@
   line-height: 1.2;
   margin-top: 1.5rem;
   margin-bottom: 0.75rem;
-  color: var(--editor-text);
+  color: #f3f4f6;
 }
 
 .newsletter-editor .ProseMirror h2 {
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   font-weight: 600;
   line-height: 1.3;
   margin-top: 1.25rem;
   margin-bottom: 0.5rem;
-  color: var(--editor-text);
+  color: #f3f4f6;
 }
 
 .newsletter-editor .ProseMirror h3 {
-  font-size: 1.25rem;
+  font-size: 1.0625rem;
   font-weight: 600;
   line-height: 1.4;
   margin-top: 1rem;
   margin-bottom: 0.5rem;
-  color: var(--editor-text);
+  color: #f3f4f6;
 }
 
 .newsletter-editor .ProseMirror p {
@@ -96,18 +98,18 @@
 }
 
 .newsletter-editor .ProseMirror blockquote {
-  border-left: 3px solid #7c3aed;
+  border-left: 3px solid #6366f1;
   padding-left: 1rem;
   margin-left: 0;
   margin-top: 0.75rem;
   margin-bottom: 0.75rem;
-  color: var(--editor-text-secondary);
+  color: #9ca3af;
   font-style: italic;
 }
 
 .newsletter-editor .ProseMirror hr {
   border: none;
-  border-top: 1px solid var(--editor-border);
+  border-top: 1px solid #1f2937;
   margin: 1.5rem 0;
 }
 
@@ -120,7 +122,7 @@
 }
 
 .newsletter-editor .ProseMirror img.ProseMirror-selectednode {
-  outline: 2px solid #7c3aed;
+  outline: 2px solid #6366f1;
   outline-offset: 2px;
   border-radius: 0.5rem;
 }
@@ -128,13 +130,13 @@
 .newsletter-editor .ProseMirror img:not([src]),
 .newsletter-editor .ProseMirror img[src=""] {
   min-height: 80px;
-  background: var(--editor-surface-hover);
-  border: 2px dashed var(--editor-border);
+  background: #111827;
+  border: 2px dashed #1f2937;
   border-radius: 0.5rem;
 }
 
 .newsletter-editor .ProseMirror code {
-  background-color: var(--editor-surface-hover);
+  background-color: #111827;
   padding: 0.125rem 0.375rem;
   border-radius: 0.25rem;
   font-size: 0.875em;
@@ -149,7 +151,7 @@
   padding: 1rem;
   overflow-x: auto;
   margin: 0.75rem 0;
-  border: 1px solid var(--editor-border);
+  border: 1px solid #1f2937;
 }
 
 .newsletter-editor .ProseMirror pre code {
@@ -162,27 +164,46 @@
 .newsletter-editor .ProseMirror p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   float: left;
-  color: var(--editor-text-tertiary);
+  color: #4b5563;
   pointer-events: none;
   height: 0;
 }
 
 /* Selection */
 .newsletter-editor .ProseMirror ::selection {
-  background-color: rgba(124, 58, 237, 0.25);
+  background-color: rgba(99, 102, 241, 0.25);
 }
 
 /* Drag cursor */
 .newsletter-editor .ProseMirror .ProseMirror-gapcursor:after {
-  border-top-color: #7c3aed;
+  border-top-color: #6366f1;
 }
 
 /* Fullscreen adjustments */
-.newsletter-editor.fixed {
+.newsletter-editor.fullscreen {
   max-height: none;
 }
 
-.newsletter-editor.fixed .ProseMirror {
+.newsletter-editor.fullscreen .ProseMirror {
   min-height: unset;
   flex: 1;
+}
+
+/* Read-only mode */
+.newsletter-editor.read-only .ProseMirror h1,
+.newsletter-editor.read-only .ProseMirror h2,
+.newsletter-editor.read-only .ProseMirror h3 {
+  color: #9ca3af;
+}
+
+.newsletter-editor.read-only .ProseMirror {
+  color: #6b7280;
+}
+
+.newsletter-editor.read-only .ProseMirror a {
+  color: #818cf8;
+}
+
+.newsletter-editor.read-only .ProseMirror blockquote {
+  border-left-color: #374151;
 }

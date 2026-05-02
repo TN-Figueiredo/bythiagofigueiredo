@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 export type SaveState = 'saving' | 'saved' | 'unsaved' | 'error' | 'offline'
 
 interface AutosaveOptions {
-  editionId: string
+  editionId: string | null
   saveFn: (data: Record<string, unknown>) => Promise<{ ok: boolean; error?: string }>
   debounceMs?: number
   maxRetries?: number
@@ -39,6 +39,7 @@ export function useAutosave({
   const pendingDataRef = useRef<Record<string, unknown> | null>(null)
 
   const doSave = useCallback(async (data: Record<string, unknown>) => {
+    if (!editionId) return
     if (!enabled) return
     if (typeof window !== 'undefined' && !navigator.onLine) {
       localStorage.setItem(`${LS_PREFIX}${editionId}`, JSON.stringify(data))
@@ -70,6 +71,7 @@ export function useAutosave({
 
   const scheduleSave = useCallback((data: Record<string, unknown>) => {
     if (!enabled) return
+    if (!editionId) return
     pendingDataRef.current = data
     setHasUnsavedChanges(true)
     setState('unsaved')
@@ -84,6 +86,7 @@ export function useAutosave({
   }, [doSave])
 
   useEffect(() => {
+    if (!editionId) return
     if (typeof window === 'undefined') return
     const stored = localStorage.getItem(`${LS_PREFIX}${editionId}`)
     if (stored && enabled) {

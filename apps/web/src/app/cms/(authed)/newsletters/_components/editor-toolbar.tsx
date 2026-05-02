@@ -60,8 +60,8 @@ function ToolbarButton({
       title={title}
       className={`p-1.5 rounded-md transition-colors ${
         active
-          ? 'bg-purple-500/20 text-purple-400'
-          : 'text-[var(--text-tertiary,#6b7280)] hover:bg-[var(--bg-surface-hover,#f3f4f6)] hover:text-[var(--text,#374151)]'
+          ? 'bg-indigo-500/15 text-[#818cf8]'
+          : 'text-[#6b7280] hover:bg-[#1f2937] hover:text-[#d1d5db]'
       } disabled:opacity-30 disabled:cursor-not-allowed`}
     >
       {children}
@@ -70,7 +70,7 @@ function ToolbarButton({
 }
 
 function ToolbarDivider() {
-  return <div className="w-px h-5 bg-[var(--border,#e5e7eb)] mx-0.5" />
+  return <div className="w-px h-5 bg-[#1f2937] mx-0.5" />
 }
 
 function LinkPopover({ editor, onClose }: { editor: Editor; onClose: () => void }) {
@@ -103,19 +103,19 @@ function LinkPopover({ editor, onClose }: { editor: Editor; onClose: () => void 
   }
 
   return (
-    <div ref={popoverRef} className="absolute top-full left-0 mt-1 z-50 bg-[var(--bg-surface,#fff)] border border-[var(--border,#e5e7eb)] rounded-lg shadow-lg p-2 flex items-center gap-2">
+    <div ref={popoverRef} className="absolute top-full left-0 mt-1 z-50 bg-[#111827] border border-[#374151] rounded-lg shadow-lg p-2 flex items-center gap-2">
       <form onSubmit={handleSubmit} className="flex items-center gap-2">
         <input
           type="url"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://..."
-          className="w-64 border border-[var(--border,#e5e7eb)] bg-[var(--bg,#fff)] text-[var(--text,#1f2937)] rounded-md px-2.5 py-1.5 text-sm focus:border-purple-400 focus:ring-1 focus:ring-purple-400 outline-none"
+          className="w-64 border border-[#374151] bg-[#0a0f1a] text-[#d1d5db] rounded-md px-2.5 py-1.5 text-sm focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 outline-none"
           autoFocus
         />
         <button
           type="submit"
-          className="px-2.5 py-1.5 bg-purple-600 text-white text-xs font-medium rounded-md hover:bg-purple-700"
+          className="px-2.5 py-1.5 bg-indigo-600 text-white text-xs font-medium rounded-md hover:bg-indigo-700"
         >
           Apply
         </button>
@@ -156,17 +156,17 @@ function MergeTagDropdown({ onSelect }: { onSelect: (tag: string) => void }) {
         <Tags size={16} />
       </ToolbarButton>
       {open && (
-        <div className="absolute top-full right-0 mt-1 z-50 bg-[var(--bg-surface,#fff)] border border-[var(--border,#e5e7eb)] rounded-lg shadow-lg py-1 min-w-56">
-          <div className="px-3 py-1.5 text-xs font-medium text-[var(--text-tertiary,#9ca3af)] uppercase tracking-wide">Merge Tags</div>
+        <div className="absolute top-full right-0 mt-1 z-50 bg-[#111827] border border-[#374151] rounded-lg shadow-lg py-1 min-w-56">
+          <div className="px-3 py-1.5 text-xs font-medium text-[#6b7280] uppercase tracking-wide">Merge Tags</div>
           {MERGE_TAGS.map((t) => (
             <button
               key={t.value}
               type="button"
               onClick={() => { onSelect(t.value); setOpen(false) }}
-              className="w-full text-left px-3 py-2 text-sm text-[var(--text,#374151)] hover:bg-purple-500/10 hover:text-purple-400 flex items-center gap-2"
+              className="w-full text-left px-3 py-2 text-sm text-[#d1d5db] hover:bg-indigo-500/10 hover:text-[#818cf8] flex items-center gap-2"
             >
-              <span className="font-mono text-xs text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">{`{{${t.value}}}`}</span>
-              <span className="text-[var(--text-secondary,#6b7280)] text-xs">{t.label}</span>
+              <span className="font-mono text-xs text-[#a78bfa] bg-purple-500/10 px-1.5 py-0.5 rounded">{`{{${t.value}}}`}</span>
+              <span className="text-[#6b7280] text-xs">{t.label}</span>
             </button>
           ))}
         </div>
@@ -190,7 +190,7 @@ export function EditorToolbar({
   if (!editor) return null
 
   return (
-    <div className="sticky top-0 z-40 flex flex-wrap items-center gap-0.5 border-b border-[var(--border,#e5e7eb)] bg-[var(--bg-surface,#ffffff)]/95 backdrop-blur-sm px-3 py-2 rounded-t-lg">
+    <div className="flex flex-wrap items-center gap-0.5 border border-[#1f2937] rounded-lg bg-[#0a0f1a] px-3 py-2 mx-16 mt-3">
       <input
         ref={fileInputRef}
         type="file"
@@ -306,8 +306,11 @@ export function EditorToolbar({
       {/* Merge Tags */}
       <MergeTagDropdown onSelect={onInsertMergeTag} />
 
-      {/* Spacer + Fullscreen */}
+      {/* Spacer + Word Count + Fullscreen */}
       <div className="flex-1" />
+      <span className="text-[10px] text-[#6b7280] tabular-nums mr-2">
+        {editor.storage.characterCount?.words() ?? 0} words
+      </span>
       {onToggleFullscreen && (
         <ToolbarButton onClick={onToggleFullscreen} title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}>
           {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
