@@ -1,10 +1,10 @@
-import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
 import type { CookieOptions } from '@supabase/ssr'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+import { EditionEditor } from '../[id]/edit/edition-editor'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,18 +19,35 @@ export default async function NewEditionPage({
 
   const params = await searchParams
   const supabase = getSupabaseServiceClient()
+  const typeId = params.type ?? null
 
-  let typeId = params.type
-  if (!typeId) {
-    const { data: types } = await supabase
+  if (typeId) {
+    const { data: type } = await supabase
       .from('newsletter_types')
-      .select('id')
-      .eq('active', true)
-      .order('sort_order')
-      .limit(1)
-    typeId = types?.[0]?.id
+      .select('id, active')
+      .eq('id', typeId)
+      .eq('site_id', ctx.siteId)
+      .single()
+    if (!type || !type.active) throw new Error('Invalid or inactive newsletter type')
   }
-  if (!typeId) throw new Error('No newsletter type available')
+
+  const { data: types } = await supabase
+    .from('newsletter_types')
+    .select('id, name, color')
+    .eq('site_id', ctx.siteId)
+    .eq('active', true)
+    .order('sort_order')
+
+  const defaultTypeId = typeId ?? types?.[0]?.id ?? null
+  let subscriberCount = 0
+  if (defaultTypeId) {
+    const { count } = await supabase
+      .from('newsletter_subscriptions')
+      .select('id', { count: 'exact', head: true })
+      .eq('newsletter_id', defaultTypeId)
+      .eq('status', 'confirmed')
+    subscriberCount = count ?? 0
+  }
 
   const cookieStore = await cookies()
   const userClient = createServerClient(
@@ -47,18 +64,17 @@ export default async function NewEditionPage({
   )
   const { data: { user } } = await userClient.auth.getUser()
 
-  const { data, error } = await supabase
-    .from('newsletter_editions')
-    .insert({
-      site_id: ctx.siteId,
-      newsletter_type_id: typeId,
-      subject: 'Untitled Edition',
-      status: 'draft',
-      created_by: user?.id ?? null,
-    })
-    .select('id')
-    .single()
-
-  if (error) throw new Error(error.message)
-  redirect(`/cms/newsletters/${data.id}/edit`)
+  return (
+    <EditionEditor
+      edition={null}
+      subscriberCount={subscriberCount}
+      types={(types ?? []).map((t) => ({
+        id: t.id as string,
+        name: t.name as string,
+        color: (t.color ?? '#7c3aed') as string,
+      }))}
+      initialTypeId={defaultTypeId}
+      userEmail={user?.email ?? ''}
+    />
+  )
 }
