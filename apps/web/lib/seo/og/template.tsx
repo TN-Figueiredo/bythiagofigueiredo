@@ -93,6 +93,72 @@ export function GenericOgTemplate({
   )
 }
 
+export function NewsletterOgTemplate({
+  name,
+  description,
+  cadenceLabel,
+  accentColor,
+  author,
+  domain,
+}: {
+  name: string
+  description: string | null
+  cadenceLabel: string | null
+  accentColor: string
+  author: string
+  domain: string
+}) {
+  const luminance = relativeLuminance(accentColor)
+  const badgeStyle = luminance > 0.5
+    ? { background: `${accentColor}22`, color: accentColor }
+    : { background: accentColor, color: '#fff' }
+
+  return (
+    <div
+      style={{
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        background: '#fafafa',
+        fontFamily: 'Inter',
+        padding: '50px 60px',
+      }}
+    >
+      <div style={{ width: '100%', height: 6, background: accentColor, borderRadius: 3, marginBottom: 32 }} />
+      <div style={{ fontSize: 16, color: '#888', letterSpacing: '0.1em', textTransform: 'uppercase' as const, marginBottom: 16 }}>
+        NEWSLETTER
+      </div>
+      <h1 style={{ fontSize: name.length > 30 ? 48 : 56, fontWeight: 700, color: '#111', lineHeight: 1.1, maxWidth: 1080, marginBottom: 16 }}>
+        {truncate(name, 60)}
+      </h1>
+      {description && (
+        <p style={{ fontSize: 24, color: '#555', lineHeight: 1.4, maxWidth: 900, marginBottom: 'auto' }}>
+          {truncate(description, 120)}
+        </p>
+      )}
+      {cadenceLabel && (
+        <div style={{ display: 'flex', marginBottom: 24, marginTop: description ? 0 : 'auto' }}>
+          <span style={{ ...badgeStyle, padding: '6px 16px', borderRadius: 6, fontSize: 16, fontWeight: 600 }}>
+            {cadenceLabel}
+          </span>
+        </div>
+      )}
+      <div style={{ borderTop: '1px solid #eee', paddingTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontSize: 18, color: '#888' }}>{author}</span>
+        <span style={{ fontSize: 18, color: '#888' }}>{domain}</span>
+      </div>
+    </div>
+  )
+}
+
+function relativeLuminance(hex: string): number {
+  const r = parseInt(hex.slice(1, 3), 16) / 255
+  const g = parseInt(hex.slice(3, 5), 16) / 255
+  const b = parseInt(hex.slice(5, 7), 16) / 255
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+
 function truncate(s: string, max: number): string {
   return s.length <= max ? s : s.slice(0, max - 1).trimEnd() + '…'
 }

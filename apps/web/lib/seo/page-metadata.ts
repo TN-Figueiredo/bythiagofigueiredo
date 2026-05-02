@@ -200,6 +200,45 @@ export function generateNewsletterDetailMetadata(
   }
 }
 
+export function generateNewsletterLandingMetadata(
+  config: SiteSeoConfig,
+  type: {
+    slug: string
+    name: string
+    description: string | null
+    tagline: string | null
+    locale: string
+    color: string
+    og_image_url: string | null
+  },
+): Metadata {
+  const description = type.description ?? type.tagline ?? `Newsletter — ${config.siteName}`
+  const ogLocale = type.locale === 'pt-BR' ? 'pt_BR' : 'en_US'
+
+  const ogImage = type.og_image_url
+    ?? (process.env.NEXT_PUBLIC_SEO_DYNAMIC_OG_ENABLED !== 'false'
+      ? `${config.siteUrl}/og/newsletter/${type.slug}`
+      : config.defaultOgImageUrl ?? `${config.siteUrl}/og-default.png`)
+
+  return {
+    ...baseMetadata(config),
+    title: `${type.name} — Newsletter`,
+    description,
+    alternates: {
+      canonical: `/newsletters/${type.slug}`,
+    },
+    openGraph: {
+      ...baseMetadata(config).openGraph,
+      title: type.name,
+      description,
+      type: 'website',
+      locale: ogLocale,
+      url: `${config.siteUrl}/newsletters/${type.slug}`,
+      images: [ogImage],
+    },
+  }
+}
+
 function resolveOgImage(
   config: SiteSeoConfig,
   tx: TranslationInput,

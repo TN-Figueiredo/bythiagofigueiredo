@@ -37,6 +37,13 @@ const CATALOG = [
   },
 ] as const
 
+const SLUG_MAP: Record<string, Record<'en' | 'pt', string>> = {
+  main: { en: 'the-bythiago-diary', pt: 'diario-do-bythiago' },
+  trips: { en: 'curves-and-roads', pt: 'curvas-e-estradas' },
+  growth: { en: 'grow-inward', pt: 'crescer-de-dentro' },
+  code: { en: 'code-in-portuguese', pt: 'codigo-em-portugues' },
+}
+
 type NL = typeof CATALOG[number]
 
 interface ThemeTokens {
@@ -144,6 +151,26 @@ const NewsletterCard = memo(function NewsletterCard({ nl, index, L, isChecked, o
             <span>◉ {data.subs}</span>
             <span>▦ {data.issues}</span>
           </div>
+
+          {(() => {
+            const slug = SLUG_MAP[nl.baseId]?.[(L === 'pt' ? 'pt' : 'en') as 'en' | 'pt']
+            return slug ? (
+              <Link
+                href={`/newsletters/${slug}`}
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  fontFamily: 'var(--font-jetbrains-var), monospace',
+                  fontSize: 11,
+                  color,
+                  textDecoration: 'underline',
+                  display: 'block',
+                  marginTop: 8,
+                }}
+              >
+                {L === 'pt' ? 'saiba mais →' : 'learn more →'}
+              </Link>
+            ) : null
+          })()}
         </div>
       </div>
     </div>

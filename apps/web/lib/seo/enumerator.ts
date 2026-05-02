@@ -129,6 +129,22 @@ export async function enumerateSiteRoutes(
     alternates: {},
   }))
 
+  // Newsletter landing pages (active types with slugs)
+  const { data: newsletterTypes } = await supabase
+    .from('newsletter_types')
+    .select('slug, updated_at')
+    .eq('site_id', siteId)
+    .eq('active', true)
+    .not('slug', 'is', null)
+
+  const newsletterLandingRoutes: SitemapRouteEntry[] = (newsletterTypes ?? []).map((t) => ({
+    path: `/newsletters/${t.slug}`,
+    lastModified: t.updated_at ? new Date(t.updated_at) : new Date(),
+    changeFrequency: 'monthly' as const,
+    priority: 0.7,
+    alternates: {},
+  }))
+
   const blogIndex: SitemapRouteEntry = {
     path: localePath(config.contentPaths.blog, config.defaultLocale),
     lastModified: new Date(),
@@ -139,7 +155,7 @@ export async function enumerateSiteRoutes(
     ),
   }
 
-  const all = [...buildStaticRoutes(config), blogIndex, ...postRoutes, ...campaignRoutes, ...archiveRoutes]
+  const all = [...buildStaticRoutes(config), blogIndex, ...postRoutes, ...campaignRoutes, ...archiveRoutes, ...newsletterLandingRoutes]
   return all.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime())
 }
 
