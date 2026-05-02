@@ -47,6 +47,7 @@ export async function saveEdition(
     content_mdx?: string
     segment?: string
     notes?: string
+    newsletter_type_id?: string | null
   },
 ): Promise<ActionResult> {
   await requireSiteAdminForRow('newsletter_editions', editionId)

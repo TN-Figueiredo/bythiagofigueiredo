@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { AlertTriangle } from 'lucide-react'
+import { useModalFocusTrap } from './use-modal-focus-trap'
 
 interface NavigationGuardProps {
   hasUnsavedChanges: boolean
@@ -10,6 +11,7 @@ interface NavigationGuardProps {
 
 export function NavigationGuard({ hasUnsavedChanges, onSave }: NavigationGuardProps) {
   const [showDialog, setShowDialog] = useState(false)
+  const dialogRef = useRef<HTMLDivElement>(null)
   const pendingNavRef = useRef<{ data: unknown; unused: string; url?: string | URL | null; method: 'push' | 'replace' } | null>(null)
   const originalPushRef = useRef<typeof window.history.pushState | null>(null)
   const originalReplaceRef = useRef<typeof window.history.replaceState | null>(null)
@@ -35,6 +37,8 @@ export function NavigationGuard({ hasUnsavedChanges, onSave }: NavigationGuardPr
     setShowDialog(false)
     pendingNavRef.current = null
   }, [])
+
+  useModalFocusTrap(dialogRef, showDialog, handleCancel)
 
   useEffect(() => {
     if (!hasUnsavedChanges) return
@@ -81,7 +85,7 @@ export function NavigationGuard({ hasUnsavedChanges, onSave }: NavigationGuardPr
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60">
-      <div role="dialog" aria-modal="true" className="w-full max-w-sm rounded-xl bg-[#111827] border border-[#374151] p-6 shadow-2xl">
+      <div ref={dialogRef} role="dialog" aria-modal="true" className="w-full max-w-sm rounded-xl bg-[#111827] border border-[#374151] p-6 shadow-2xl">
         <div className="flex items-center gap-2 mb-3">
           <div className="h-8 w-8 rounded-full bg-amber-500/15 flex items-center justify-center">
             <AlertTriangle size={16} className="text-[#f59e0b]" />

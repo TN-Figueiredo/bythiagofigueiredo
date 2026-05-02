@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
+import { useModalFocusTrap } from './use-modal-focus-trap'
 
 interface ScheduleModalProps {
   open: boolean
@@ -9,44 +10,13 @@ interface ScheduleModalProps {
   onCancel: () => void
 }
 
-const FOCUSABLE_SELECTOR =
-  'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-
 export function ScheduleModal({ open, audienceCount, onConfirm, onCancel }: ScheduleModalProps) {
   const [date, setDate] = useState('')
   const [time, setTime] = useState('09:00')
   const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone)
   const dialogRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    if (!open) return
-    const dialog = dialogRef.current
-    if (!dialog) return
-
-    const focusable = dialog.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
-    focusable?.focus()
-
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        onCancel()
-        return
-      }
-      if (e.key !== 'Tab') return
-      const focusableEls = dialog!.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)
-      const first = focusableEls[0]
-      const last = focusableEls[focusableEls.length - 1]
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault()
-        last?.focus()
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault()
-        first?.focus()
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [open, onCancel])
+  useModalFocusTrap(dialogRef, open, onCancel)
 
   if (!open) return null
 

@@ -182,7 +182,7 @@ export function TipTapEditor({
   const wordCount = charCount?.words() ?? 0
 
   return (
-    <div className={`newsletter-editor border border-[var(--border,#e5e7eb)] rounded-lg overflow-hidden flex flex-col ${
+    <div className={`newsletter-editor border border-[#1f2937] rounded-lg overflow-hidden flex flex-col ${
       isFullscreen ? 'fixed inset-0 z-50 rounded-none border-0' : ''
     }`}>
       <input
@@ -224,7 +224,7 @@ export function TipTapEditor({
         {editor && <EditorBubbleMenu editor={editor} />}
         <EditorContent editor={editor} />
       </div>
-      <div className="sticky bottom-0 border-t border-[var(--border,#e5e7eb)] px-4 py-2 text-xs text-[var(--text-tertiary,#9ca3af)] flex justify-between bg-[var(--bg-surface,#fff)]">
+      <div className="sticky bottom-0 border-t border-[#1f2937] px-4 py-2 text-xs text-[#6b7280] flex justify-between bg-[#030712]">
         <span>{charCount?.characters() ?? 0} characters</span>
         <div className="flex items-center gap-4">
           <span className="opacity-50">Type / for commands</span>

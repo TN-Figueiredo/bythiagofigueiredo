@@ -1,12 +1,6 @@
 /* TipTap editor content styling — scoped to .ProseMirror inside the newsletter editor */
 
 .newsletter-editor {
-  --editor-bg: #030712;
-  --editor-text: #d1d5db;
-  --editor-text-secondary: #9ca3af;
-  --editor-text-tertiary: #6b7280;
-  --editor-border: #1f2937;
-  --editor-surface-hover: #111827;
   background-color: #030712;
   color: #d1d5db;
   flex: 1;

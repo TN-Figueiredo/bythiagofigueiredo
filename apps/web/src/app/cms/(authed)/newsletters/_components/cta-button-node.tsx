@@ -14,15 +14,15 @@ function CTAButtonNodeView({ node, updateAttributes }: ReactNodeViewProps) {
   if (editing) {
     return (
       <NodeViewWrapper className="my-4">
-        <div className="border border-[var(--border,#e5e7eb)] rounded-lg p-3 space-y-2 bg-[var(--bg-surface-hover,#f9fafb)]">
+        <div className="border border-[#1f2937] rounded-lg p-3 space-y-2 bg-[#111827]">
           <input
-            className="w-full border border-[var(--border,#e5e7eb)] bg-[var(--bg,#fff)] text-[var(--text,#1f2937)] rounded px-2 py-1 text-sm"
+            className="w-full border border-[#1f2937] bg-[#0a0f1a] text-[#d1d5db] rounded px-2 py-1 text-sm"
             value={text}
             onChange={(e) => updateAttributes({ text: e.target.value })}
             placeholder="Button text"
           />
           <input
-            className="w-full border border-[var(--border,#e5e7eb)] bg-[var(--bg,#fff)] text-[var(--text,#1f2937)] rounded px-2 py-1 text-sm"
+            className="w-full border border-[#1f2937] bg-[#0a0f1a] text-[#d1d5db] rounded px-2 py-1 text-sm"
             value={url}
             onChange={(e) => updateAttributes({ url: e.target.value })}
             placeholder="https://..."
@@ -37,7 +37,7 @@ function CTAButtonNodeView({ node, updateAttributes }: ReactNodeViewProps) {
             <select
               value={align}
               onChange={(e) => updateAttributes({ align: e.target.value })}
-              className="border border-[var(--border,#e5e7eb)] bg-[var(--bg,#fff)] text-[var(--text,#1f2937)] rounded px-2 py-1 text-sm"
+              className="border border-[#1f2937] bg-[#0a0f1a] text-[#d1d5db] rounded px-2 py-1 text-sm"
             >
               <option value="center">Center</option>
               <option value="left">Left</option>

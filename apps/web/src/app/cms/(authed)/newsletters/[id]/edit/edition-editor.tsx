@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import type { JSONContent } from '@tiptap/core'
-import { ArrowLeft, Calendar, Send, Eye, BarChart3, RotateCcw, Command } from 'lucide-react'
+import { ArrowLeft, Calendar, Eye, BarChart3, RotateCcw, Command } from 'lucide-react'
 import { TipTapEditor } from '../../_components/tiptap-editor'
 import { useAutosave } from '../../_components/use-autosave'
 import { AutosaveIndicator } from '../../_components/autosave-indicator'
@@ -113,6 +113,7 @@ export function EditionEditor({
   )
 
   // ── UI state ──────────────────────────────────────────────────────────────
+  const [actionInProgress, setActionInProgress] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [showSendNowModal, setShowSendNowModal] = useState(false)
@@ -230,6 +231,12 @@ export function EditionEditor({
 
   function handleTypeChange(typeId: string | null) {
     setSelectedTypeId(typeId)
+    if (!isEphemeral && editionId) {
+      saveImmediate({
+        ...getSavePayload(),
+        newsletter_type_id: typeId,
+      })
+    }
   }
 
   // ── Subject blur triggers creation ────────────────────────────────────────
@@ -285,37 +292,52 @@ export function EditionEditor({
   }
 
   async function handleDelete(confirmText?: string) {
-    if (!editionId) return
-    const result = await deleteEdition(editionId, { confirmed: true, confirmText })
-    if (result.ok) {
-      toast.success('Deleted')
-      router.push('/cms/newsletters')
-    } else {
-      toast.error(`Delete failed: ${'error' in result ? result.error : 'unknown'}`)
+    if (!editionId || actionInProgress) return
+    setActionInProgress(true)
+    try {
+      const result = await deleteEdition(editionId, { confirmed: true, confirmText })
+      if (result.ok) {
+        toast.success('Deleted')
+        router.push('/cms/newsletters')
+      } else {
+        toast.error(`Delete failed: ${'error' in result ? result.error : 'unknown'}`)
+      }
+    } finally {
+      setActionInProgress(false)
     }
   }
 
   async function handleSchedule(scheduledAt: string) {
-    if (!editionId) return
-    const result = await scheduleEdition(editionId, scheduledAt)
-    if (result.ok) {
-      toast.success(`Scheduled for ${new Date(scheduledAt).toLocaleString()}`)
-      setShowScheduleModal(false)
-      router.refresh()
-    } else {
-      toast.error(`Schedule failed: ${result.error}`)
+    if (!editionId || actionInProgress) return
+    setActionInProgress(true)
+    try {
+      const result = await scheduleEdition(editionId, scheduledAt)
+      if (result.ok) {
+        toast.success(`Scheduled for ${new Date(scheduledAt).toLocaleString()}`)
+        setShowScheduleModal(false)
+        router.refresh()
+      } else {
+        toast.error(`Schedule failed: ${result.error}`)
+      }
+    } finally {
+      setActionInProgress(false)
     }
   }
 
   async function handleSendNow() {
-    if (!editionId) return
-    const result = await sendNow(editionId)
-    if (result.ok) {
-      toast.success('Sending to subscribers...')
-      setShowSendNowModal(false)
-      router.refresh()
-    } else {
-      toast.error(`Send failed: ${result.error}`)
+    if (!editionId || actionInProgress) return
+    setActionInProgress(true)
+    try {
+      const result = await sendNow(editionId)
+      if (result.ok) {
+        toast.success('Sending to subscribers...')
+        setShowSendNowModal(false)
+        router.refresh()
+      } else {
+        toast.error(`Send failed: ${result.error}`)
+      }
+    } finally {
+      setActionInProgress(false)
     }
   }
 
@@ -331,13 +353,18 @@ export function EditionEditor({
   }
 
   async function handleRetry() {
-    if (!editionId) return
-    const result = await retryEdition(editionId)
-    if (result.ok) {
-      toast.success('Retrying send...')
-      router.refresh()
-    } else {
-      toast.error(`Retry failed: ${result.error}`)
+    if (!editionId || actionInProgress) return
+    setActionInProgress(true)
+    try {
+      const result = await retryEdition(editionId)
+      if (result.ok) {
+        toast.success('Retrying send...')
+        router.refresh()
+      } else {
+        toast.error(`Retry failed: ${result.error}`)
+      }
+    } finally {
+      setActionInProgress(false)
     }
   }
 
@@ -387,7 +414,6 @@ export function EditionEditor({
   }, [saveImmediate, isEphemeral, showPreview, router])
 
   // ── Derived values ────────────────────────────────────────────────────────
-  const selectedType = types.find((t) => t.id === selectedTypeId)
   const senderName = edition?.newsletter_types?.sender_name ?? 'Thiago Figueiredo'
   const senderEmail = edition?.newsletter_types?.sender_email ?? 'newsletter@bythiagofigueiredo.com'
 
@@ -490,7 +516,8 @@ export function EditionEditor({
               <button
                 type="button"
                 onClick={() => setShowScheduleModal(true)}
-                className="flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 transition-colors"
+                disabled={actionInProgress}
+                className="flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 transition-colors disabled:opacity-50"
               >
                 <Calendar size={13} />
                 Schedule
@@ -548,10 +575,19 @@ export function EditionEditor({
               <button
                 type="button"
                 onClick={handleRetry}
-                className="flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 transition-colors"
+                disabled={actionInProgress}
+                className="flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 transition-colors disabled:opacity-50"
               >
                 <RotateCcw size={13} />
                 Retry
+              </button>
+              <button
+                type="button"
+                onClick={handleRevertToDraft}
+                disabled={actionInProgress}
+                className="flex items-center gap-1.5 rounded-md border border-[#374151] px-3 py-1.5 text-xs font-medium text-[#d1d5db] hover:bg-[#111827] transition-colors disabled:opacity-50"
+              >
+                Revert to Draft
               </button>
             </>
           )}
@@ -613,6 +649,7 @@ export function EditionEditor({
             onChange={(e) => handleSubjectChange(e.target.value)}
             onBlur={handleSubjectBlur}
             disabled={isReadOnly}
+            aria-label="Edition subject"
             className="w-full bg-transparent text-[26px] font-bold tracking-[-0.5px] text-[#f9fafb] placeholder-[#374151] outline-none border-none disabled:opacity-50"
             placeholder="Edition subject..."
             autoFocus={isEphemeral}
@@ -622,6 +659,7 @@ export function EditionEditor({
             value={preheader}
             onChange={(e) => handlePreheaderChange(e.target.value)}
             disabled={isReadOnly}
+            aria-label="Preview text"
             className="w-full bg-transparent text-sm text-[#6b7280] placeholder-[#374151] outline-none border-none mt-2 disabled:opacity-50"
             placeholder="Preview text shown in inbox..."
           />
