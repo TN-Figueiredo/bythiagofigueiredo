@@ -26,6 +26,7 @@ export interface NewsletterType {
   active: boolean
   site_id: string
   updated_at: string
+  author_id: string | null
 }
 
 export interface NewsletterStats {
@@ -47,7 +48,7 @@ export async function getNewsletterTypeBySlug(
   const { data } = await supabaseAnon
     .from('newsletter_types')
     .select(
-      'id, slug, locale, name, tagline, description, color, color_dark, badge, cadence_days, cadence_label, cadence_start_date, landing_content, og_image_url, active, site_id, updated_at',
+      'id, slug, locale, name, tagline, description, color, color_dark, badge, cadence_days, cadence_label, cadence_start_date, landing_content, og_image_url, active, site_id, updated_at, author_id',
     )
     .eq('slug', slug)
     .eq('active', true)

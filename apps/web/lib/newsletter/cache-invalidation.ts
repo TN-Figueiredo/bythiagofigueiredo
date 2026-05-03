@@ -11,3 +11,7 @@ export function revalidateNewsletterType(
   revalidatePath(`/newsletters/${slug}`)
   revalidatePath('/newsletters')
 }
+
+export function revalidateAuthor(authorId: string): void {
+  revalidateTag(`author:${authorId}`)
+}

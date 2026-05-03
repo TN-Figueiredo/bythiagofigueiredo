@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+import { revalidateAuthor } from '@/lib/newsletter/cache-invalidation'
 
 type ActionResult = { ok: true } | { ok: false; error: string }
 
@@ -123,6 +124,7 @@ export async function updateAuthor(
     .eq('id', id)
     .eq('site_id', siteId)
   if (error) return { ok: false, error: error.message }
+  revalidateAuthor(id)
   revalidatePath('/cms/authors')
   return { ok: true }
 }
@@ -130,6 +132,21 @@ export async function updateAuthor(
 export async function deleteAuthor(id: string): Promise<ActionResult> {
   const siteId = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
+
+  // Check if this is the default author — cannot be deleted
+  const { data: authorRow } = await supabase
+    .from('authors')
+    .select('id, is_default')
+    .eq('id', id)
+    .eq('site_id', siteId)
+    .single()
+
+  if (authorRow?.is_default) {
+    return {
+      ok: false,
+      error: 'Default author cannot be deleted. Remove the default flag first.',
+    }
+  }
 
   // Check for posts assigned to this author
   const { data: posts } = await supabase
@@ -152,6 +169,7 @@ export async function deleteAuthor(id: string): Promise<ActionResult> {
     .eq('id', id)
     .eq('site_id', siteId)
   if (error) return { ok: false, error: error.message }
+  revalidateAuthor(id)
   revalidatePath('/cms/authors')
   return { ok: true }
 }
@@ -175,6 +193,7 @@ export async function setDefaultAuthor(id: string): Promise<ActionResult> {
     .eq('id', id)
     .eq('site_id', siteId)
   if (error) return { ok: false, error: error.message }
+  revalidateAuthor(id)
   revalidatePath('/cms/authors')
   return { ok: true }
 }

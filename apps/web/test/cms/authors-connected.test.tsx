@@ -264,7 +264,7 @@ describe('AuthorsConnected', () => {
 
   it('disables confirm delete when author has posts', async () => {
     await renderAuthors()
-    fireEvent.click(screen.getByTestId('author-card-a1')) // has 5 posts
+    fireEvent.click(screen.getByTestId('author-card-a3')) // has 2 posts, not default
     fireEvent.click(screen.getByTestId('delete-author-btn'))
     const confirmBtn = screen.getByTestId(
       'confirm-delete-btn',
@@ -389,5 +389,52 @@ describe('AuthorsConnected', () => {
     expect(
       screen.getByRole('dialog', { name: /author details/i }),
     ).toBeTruthy()
+  })
+
+  /* ---- Default author completeness warning ---- */
+
+  it('shows completeness warning when default author has no bio', async () => {
+    const authorsNoBio = [
+      { ...mockAuthors[0], bio: null },
+      mockAuthors[1],
+      mockAuthors[2],
+    ]
+    await renderAuthors({ authors: authorsNoBio })
+    expect(screen.getByTestId('default-author-warning')).toBeTruthy()
+    expect(screen.getByText(/missing/i)).toBeTruthy()
+  })
+
+  it('shows completeness warning when default author has no avatar', async () => {
+    const authorsNoAvatar = [
+      { ...mockAuthors[0], avatarUrl: null },
+      mockAuthors[1],
+      mockAuthors[2],
+    ]
+    await renderAuthors({ authors: authorsNoAvatar })
+    expect(screen.getByTestId('default-author-warning')).toBeTruthy()
+  })
+
+  it('does not show completeness warning when default author is complete', async () => {
+    const completeAuthors = [
+      { ...mockAuthors[0], bio: 'A bio', avatarUrl: 'https://example.com/avatar.jpg' },
+      mockAuthors[1],
+      mockAuthors[2],
+    ]
+    await renderAuthors({ authors: completeAuthors })
+    expect(screen.queryByTestId('default-author-warning')).toBeNull()
+  })
+
+  /* ---- Default author delete protection in detail panel ---- */
+
+  it('hides danger zone for default author in detail panel', async () => {
+    await renderAuthors()
+    fireEvent.click(screen.getByTestId('author-card-a1')) // a1 is default
+    expect(screen.queryByText('Danger Zone')).toBeNull()
+  })
+
+  it('shows danger zone for non-default author in detail panel', async () => {
+    await renderAuthors()
+    fireEvent.click(screen.getByTestId('author-card-a2')) // a2 is not default
+    expect(screen.getByText('Danger Zone')).toBeTruthy()
   })
 })
