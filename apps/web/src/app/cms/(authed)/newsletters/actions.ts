@@ -904,6 +904,7 @@ async function ensureUniqueSlug(supabase: ReturnType<typeof getSupabaseServiceCl
 function revalidateNewsletterHub() {
   revalidatePath('/cms/newsletters')
   revalidateTag('newsletter-hub')
+  revalidateTag('newsletter-suggestions')
 }
 
 export async function createNewsletterType(data: {

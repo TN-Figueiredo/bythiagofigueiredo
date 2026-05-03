@@ -27,10 +27,13 @@ import { composeGraph } from '@/lib/seo/jsonld/graph'
 import { JsonLdScript } from '@/lib/seo/jsonld/render'
 import { localePath } from '@/lib/i18n/locale-path'
 import { Paper, Tape } from '@/components/pinboard'
+import { getNewsletterSuggestions } from '@/lib/newsletter/suggestions'
+import { NewsletterDiscoverySection } from './newsletter-suggestions'
+import type { SuggestionStrings } from './newsletter-suggestions'
 import { SubscribeForm } from './subscribe-form'
 import { FaqAccordion } from './faq-accordion'
 import { MobileStickyCTA } from './mobile-sticky-cta'
-import { subscribeToNewsletters } from '@/app/(public)/actions/subscribe-newsletters'
+import { subscribeToNewsletters, getPostSubscribeSuggestions } from '@/app/(public)/actions/subscribe-newsletters'
 
 import './newsletter-landing.css'
 
@@ -102,11 +105,12 @@ export default async function NewsletterLandingPage({ params }: PageProps) {
 
     const siteId = type.site_id
 
-    const [stats, recentEditions, activeCount, config] = await Promise.all([
+    const [stats, recentEditions, activeCount, config, suggestions] = await Promise.all([
       getNewsletterStats(type.id, siteId),
       getRecentEditions(type.id, siteId, 3),
       getActiveTypeCount(siteId),
       getSiteSeoConfig(siteId, host).catch(() => null),
+      getNewsletterSuggestions(slug, locale),
     ])
 
     const accentLight = type.color
@@ -167,6 +171,17 @@ export default async function NewsletterLandingPage({ params }: PageProps) {
       errorAlreadySubscribed: t('newsletter.landing.errorAlreadySubscribed'),
       errorInvalid: t('newsletter.landing.errorInvalid'),
       errorServer: t('newsletter.landing.errorServer'),
+    }
+
+    const suggestionStrings: SuggestionStrings = {
+      moreNewsletters: t('newsletter.landing.moreNewsletters'),
+      anotherNewsletter: t('newsletter.landing.anotherNewsletter'),
+      youMightAlsoLike: t('newsletter.landing.youMightAlsoLike'),
+      addNewsletter: t('newsletter.landing.addNewsletter'),
+      addedNewsletter: t('newsletter.landing.addedNewsletter'),
+      subscribedToAll: t('newsletter.landing.subscribedToAll'),
+      upsellTitle: t('newsletter.landing.upsellTitle'),
+      allNewsletters: t('newsletter.landing.allNewsletters'),
     }
 
     // CSS custom props for accent colors
@@ -498,6 +513,10 @@ export default async function NewsletterLandingPage({ params }: PageProps) {
                     strings={formStrings}
                     privacyHref={privacyHref}
                     onSubscribe={subscribeToNewsletters}
+                    suggestions={suggestions}
+                    suggestionStrings={suggestionStrings}
+                    currentSlug={slug}
+                    onGetFilteredSuggestions={getPostSubscribeSuggestions}
                   />
                 </Paper>
               </div>
@@ -718,6 +737,13 @@ export default async function NewsletterLandingPage({ params }: PageProps) {
               </div>
             </div>
           </section>
+
+          {/* ── Suggestions section (Position A) ─────────────────────── */}
+          <NewsletterDiscoverySection
+            suggestions={suggestions}
+            locale={locale}
+            strings={suggestionStrings}
+          />
 
           {/* ── FAQ section ──────────────────────────────────────────── */}
           {faqItems && faqItems.length > 0 && (

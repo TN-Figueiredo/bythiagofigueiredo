@@ -8,6 +8,8 @@ import { getSupabaseServiceClient } from '../../../../lib/supabase/service'
 import { getSiteContext } from '../../../../lib/cms/site-context'
 import { getEmailService } from '../../../../lib/email/service'
 import { verifyTurnstileToken } from '../../../../lib/turnstile'
+import { getFilteredSuggestionsForSubscriber } from '@/lib/newsletter/suggestions'
+import type { ScoredSuggestion } from '@/lib/newsletter/suggestions'
 
 const CONSENT_VERSION = 'newsletter-v1-2026-04'
 
@@ -117,5 +119,17 @@ export async function subscribeToNewsletters(
   } catch (err) {
     Sentry.captureException(err, { tags: { component: 'newsletter-subscribe', action: 'subscribe' } })
     return { error: locale === 'pt-BR' ? 'Erro interno. Tente novamente.' : 'Internal error. Try again.' }
+  }
+}
+
+export async function getPostSubscribeSuggestions(
+  currentSlug: string,
+  locale: 'en' | 'pt-BR',
+  email: string,
+): Promise<ScoredSuggestion[]> {
+  try {
+    return await getFilteredSuggestionsForSubscriber(currentSlug, locale, email)
+  } catch {
+    return []
   }
 }
