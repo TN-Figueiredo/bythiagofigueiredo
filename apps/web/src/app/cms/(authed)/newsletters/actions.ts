@@ -12,6 +12,8 @@ import { getEmailService } from '@/lib/email/service'
 import { render } from '@react-email/render'
 import { Newsletter } from '@/emails/newsletter'
 import { revalidateNewsletterTypeSeo } from '@/lib/seo/cache-invalidation'
+import { generateCadenceSlots } from '@/lib/newsletter/cadence-slots'
+import type { CadencePattern } from '@/lib/newsletter/cadence-pattern'
 
 type ActionResult =
   | { ok: true; editionId?: string }
@@ -586,6 +588,220 @@ export async function unslotEdition(editionId: string): Promise<ActionResult> {
   return { ok: true }
 }
 
+// ─── Cadence Slot Scheduling ───────────────────────────────────────────────
+
+/**
+ * Compute a UTC ISO timestamp from a date, time, and timezone.
+ * e.g. computeScheduledAt('2026-05-10', '09:00', 'America/Sao_Paulo')
+ */
+function computeScheduledAt(slotDate: string, sendTime: string, timezone: string): string {
+  const naive = new Date(`${slotDate}T${sendTime}:00`)
+  const utcStr = naive.toLocaleString('en-US', { timeZone: 'UTC' })
+  const tzStr = naive.toLocaleString('en-US', { timeZone: timezone })
+  const offset = new Date(utcStr).getTime() - new Date(tzStr).getTime()
+  return new Date(naive.getTime() + offset).toISOString()
+}
+
+/**
+ * CAS scheduling for cadence editions — claims a slot_date on the unique index.
+ * Returns `{ ok: false, error: 'slot_taken' }` if the slot is already occupied.
+ */
+export async function scheduleEditionToSlot(
+  editionId: string,
+  slotDate: string,
+  typeId: string,
+): Promise<ActionResult> {
+  await requireSiteAdminForRow('newsletter_editions', editionId)
+  const supabase = getSupabaseServiceClient()
+
+  // Validate slotDate format
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(slotDate)) {
+    return { ok: false, error: 'invalid_date_format' }
+  }
+
+  // Fetch preferred_send_time and site timezone
+  const { data: typeRow } = await supabase
+    .from('newsletter_types')
+    .select('preferred_send_time, site_id')
+    .eq('id', typeId)
+    .single()
+  if (!typeRow) return { ok: false, error: 'type_not_found' }
+
+  const { data: siteRow } = await supabase
+    .from('sites')
+    .select('timezone')
+    .eq('id', typeRow.site_id)
+    .single()
+
+  const siteTimezone = (siteRow?.timezone as string) ?? 'America/Sao_Paulo'
+  const sendTime = (typeRow.preferred_send_time as string) ?? '09:00'
+  // preferred_send_time is stored as time (HH:MM:SS); extract HH:MM
+  const sendTimeHHMM = sendTime.slice(0, 5)
+
+  const scheduledAt = computeScheduledAt(slotDate, sendTimeHHMM, siteTimezone)
+
+  // CAS update: only if status = 'ready'
+  const { error } = await supabase
+    .from('newsletter_editions')
+    .update({
+      status: 'scheduled',
+      slot_date: slotDate,
+      scheduled_at: scheduledAt,
+      edition_kind: 'cadence',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', editionId)
+    .eq('status', 'ready')
+
+  if (error) {
+    // Unique index violation: slot already taken
+    if (error.code === '23505') {
+      return { ok: false, error: 'slot_taken' }
+    }
+    return { ok: false, error: error.message }
+  }
+
+  revalidateNewsletterHub()
+  revalidatePath('/cms/schedule')
+  return { ok: true }
+}
+
+/**
+ * Schedule as a special edition — free date, no cadence slot claim.
+ */
+export async function scheduleEditionAsSpecial(
+  editionId: string,
+  scheduledAt: string,
+): Promise<ActionResult> {
+  await requireSiteAdminForRow('newsletter_editions', editionId)
+
+  const parsed = new Date(scheduledAt)
+  if (isNaN(parsed.getTime())) {
+    return { ok: false, error: 'invalid_date_format' }
+  }
+  if (parsed.getTime() <= Date.now()) {
+    return { ok: false, error: 'schedule_in_past' }
+  }
+
+  const supabase = getSupabaseServiceClient()
+
+  const { data: rows, error } = await supabase
+    .from('newsletter_editions')
+    .update({
+      status: 'scheduled',
+      scheduled_at: scheduledAt,
+      edition_kind: 'special',
+      slot_date: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', editionId)
+    .eq('status', 'ready')
+    .select('id')
+
+  if (error) return { ok: false, error: error.message }
+  if (!rows || rows.length === 0) return { ok: false, error: 'edition_not_ready' }
+
+  revalidateNewsletterHub()
+  revalidatePath('/cms/schedule')
+  return { ok: true }
+}
+
+export type SlotInfo = {
+  date: string
+  dayOfWeek: string
+  formattedDate: string
+  time: string
+  timezone: string
+}
+
+type AvailableSlotsResult =
+  | { ok: true; slots: SlotInfo[] }
+  | { ok: false; error: string }
+
+/**
+ * Compute the next available cadence slots for a given newsletter type.
+ * Filters out dates that already have an active edition.
+ */
+export async function getAvailableSlots(
+  typeId: string,
+  maxSlots?: number,
+): Promise<AvailableSlotsResult> {
+  const ctx = await getSiteContext()
+  const res = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
+  if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
+
+  const supabase = getSupabaseServiceClient()
+
+  // Fetch type's cadence_pattern, preferred_send_time, and site timezone
+  const { data: typeRow } = await supabase
+    .from('newsletter_types')
+    .select('cadence_pattern, preferred_send_time, site_id')
+    .eq('id', typeId)
+    .eq('site_id', ctx.siteId)
+    .single()
+  if (!typeRow) return { ok: false, error: 'type_not_found' }
+
+  const cadencePattern = typeRow.cadence_pattern as CadencePattern | null
+  if (!cadencePattern) return { ok: false, error: 'no_cadence_pattern' }
+
+  const { data: siteRow } = await supabase
+    .from('sites')
+    .select('timezone')
+    .eq('id', typeRow.site_id)
+    .single()
+
+  const siteTimezone = (siteRow?.timezone as string) ?? 'America/Sao_Paulo'
+  const sendTime = (typeRow.preferred_send_time as string) ?? '09:00'
+  const sendTimeHHMM = sendTime.slice(0, 5)
+
+  // Today's date in ISO format
+  const today = new Date().toISOString().slice(0, 10)
+
+  // Fetch occupied slot dates
+  const { data: occupiedRows } = await supabase
+    .from('newsletter_editions')
+    .select('slot_date')
+    .eq('newsletter_type_id', typeId)
+    .eq('edition_kind', 'cadence')
+    .not('status', 'in', '("cancelled","archived")')
+    .gte('slot_date', today)
+
+  const occupiedDates = new Set((occupiedRows ?? []).map((r) => r.slot_date as string))
+
+  // Generate candidate slots (generate more than needed to account for filtering)
+  const slotsNeeded = maxSlots ?? 20
+  const candidates = generateCadenceSlots(cadencePattern, {
+    from: today,
+    maxSlots: slotsNeeded * 3, // generate extra to filter
+  })
+
+  // Filter out occupied dates
+  const availableDates = candidates.filter((d) => !occupiedDates.has(d)).slice(0, slotsNeeded)
+
+  // Format slots
+  const slots: SlotInfo[] = availableDates.map((date) => ({
+    date,
+    dayOfWeek: formatDayOfWeek(date, ctx.defaultLocale ?? 'pt-BR'),
+    formattedDate: formatSlotDate(date, ctx.defaultLocale ?? 'pt-BR'),
+    time: sendTimeHHMM,
+    timezone: siteTimezone,
+  }))
+
+  return { ok: true, slots }
+}
+
+function formatDayOfWeek(dateStr: string, locale: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const date = new Date(Date.UTC(y!, m! - 1, d!))
+  return date.toLocaleDateString(locale, { weekday: 'long', timeZone: 'UTC' })
+}
+
+function formatSlotDate(dateStr: string, locale: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const date = new Date(Date.UTC(y!, m! - 1, d!))
+  return date.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
+}
+
 // ─── Type & Cadence Management ──────────────────────────────────────────────
 
 export async function updateCadence(
@@ -1088,6 +1304,7 @@ export async function reassignEditionType(
 export async function moveEdition(
   editionId: string,
   newStatus: string,
+  scheduledFor?: string,
 ): Promise<ActionResult> {
   await requireSiteAdminForRow('newsletter_editions', editionId)
   const supabase = getSupabaseServiceClient()
@@ -1114,12 +1331,34 @@ export async function moveEdition(
     patch.review_entered_at = new Date().toISOString()
   }
 
-  const { error } = await supabase
+  if (newStatus === 'scheduled') {
+    if (!scheduledFor) {
+      return { ok: false, error: 'scheduled_for_required' }
+    }
+    const parsed = new Date(scheduledFor)
+    if (isNaN(parsed.getTime())) {
+      return { ok: false, error: 'invalid_date' }
+    }
+    const fiveMinAgo = Date.now() - 5 * 60 * 1000
+    if (parsed.getTime() < fiveMinAgo) {
+      return { ok: false, error: 'date_in_past' }
+    }
+    patch.scheduled_at = scheduledFor
+  }
+
+  if (current.status === 'scheduled' && newStatus !== 'scheduled') {
+    patch.scheduled_at = null
+    patch.slot_date = null
+  }
+
+  const { data: rows, error } = await supabase
     .from('newsletter_editions')
     .update(patch)
     .eq('id', editionId)
     .eq('status', current.status)
+    .select('id')
   if (error) return { ok: false, error: error.message }
+  if (!rows || rows.length === 0) return { ok: false, error: 'conflict' }
   revalidateNewsletterHub()
   return { ok: true }
 }

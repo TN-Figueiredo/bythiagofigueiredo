@@ -89,10 +89,27 @@ export interface EditorialTabData {
   wipLimit: number
 }
 
+export type CadenceSlotState = 'empty_future' | 'filled' | 'sending' | 'sent' | 'failed' | 'missed' | 'cancelled'
+
 export interface ScheduleSlot {
   date: string
-  editions: Array<{ id: string; displayId: string; subject: string; typeName: string | null; typeColor: string; status: string }>
-  emptySlots: Array<{ typeId: string; typeColor: string; typeName: string }>
+  cadenceSlots: Array<{
+    typeId: string
+    typeName: string
+    typeColor: string
+    state: CadenceSlotState
+    editionId?: string
+    editionSubject?: string
+    editionDisplayId?: string
+  }>
+  specialEditions: Array<{
+    id: string
+    displayId: string
+    subject: string
+    typeColor: string
+    typeName: string | null
+    status: string
+  }>
 }
 
 export interface CadenceConfig {
@@ -109,10 +126,12 @@ export interface ReadyEdition {
   subject: string
   typeColor: string | null
   typeName: string | null
+  typeId: string | null
+  editionKind: 'cadence' | 'special'
 }
 
 export interface ScheduleTabData {
-  healthStrip: { fillRate: number; next7Days: number; conflicts: number; avgOpenRate: number; activeTypes: number; totalTypes: number }
+  healthStrip: { fillRate: number; next7Days: number; missed: number; failed: number; activeTypes: number; totalTypes: number }
   calendarSlots: ScheduleSlot[]
   cadenceConfigs: CadenceConfig[]
   sendWindow: { time: string; timezone: string; bestTimeInsight: string }

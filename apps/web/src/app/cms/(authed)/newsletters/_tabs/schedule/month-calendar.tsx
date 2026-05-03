@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import type { ScheduleSlot } from '../../_hub/hub-types'
+import type { ScheduleSlot, CadenceSlotState } from '../../_hub/hub-types'
 
 interface MonthCalendarProps {
   slots: ScheduleSlot[]
@@ -10,7 +10,7 @@ interface MonthCalendarProps {
   onDateClick?: (date: string) => void
 }
 
-function buildMonthGrid(year: number, month: number, slots: ScheduleSlot[]): Array<{ date: string; day: number; inMonth: boolean; editions: ScheduleSlot['editions']; emptySlots: ScheduleSlot['emptySlots'] }> {
+function buildMonthGrid(year: number, month: number, slots: ScheduleSlot[]): Array<{ date: string; day: number; inMonth: boolean; cadenceSlots: ScheduleSlot['cadenceSlots']; specialEditions: ScheduleSlot['specialEditions'] }> {
   const first = new Date(year, month, 1)
   const startOffset = first.getDay()
   const slotMap = new Map(slots.map(s => [s.date, s]))
@@ -23,8 +23,8 @@ function buildMonthGrid(year: number, month: number, slots: ScheduleSlot[]): Arr
       date: dateStr,
       day: d.getDate(),
       inMonth: d.getMonth() === month,
-      editions: slot?.editions ?? [],
-      emptySlots: slot?.emptySlots ?? [],
+      cadenceSlots: slot?.cadenceSlots ?? [],
+      specialEditions: slot?.specialEditions ?? [],
     }
   })
 }
@@ -34,6 +34,53 @@ const WEEKDAYS_PT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
 const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const MONTHS_PT = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+
+function slotStateStyles(state: CadenceSlotState, typeColor: string): { containerClass: string; containerStyle: React.CSSProperties; indicator: string } {
+  switch (state) {
+    case 'missed':
+      return {
+        containerClass: 'rounded border border-red-500/50 bg-red-500/15 px-1 py-0.5',
+        containerStyle: {},
+        indicator: '⚠',
+      }
+    case 'empty_future':
+      return {
+        containerClass: 'rounded border border-dashed px-1 py-0.5',
+        containerStyle: { borderColor: `${typeColor}50` },
+        indicator: '',
+      }
+    case 'filled':
+      return {
+        containerClass: 'rounded px-1 py-0.5',
+        containerStyle: { backgroundColor: `${typeColor}20` },
+        indicator: '',
+      }
+    case 'sending':
+      return {
+        containerClass: 'rounded px-1 py-0.5',
+        containerStyle: { backgroundColor: `${typeColor}20` },
+        indicator: '➤',
+      }
+    case 'sent':
+      return {
+        containerClass: 'rounded border-l-2 border-green-500 px-1 py-0.5',
+        containerStyle: {},
+        indicator: '✓',
+      }
+    case 'failed':
+      return {
+        containerClass: 'rounded bg-red-500/15 px-1 py-0.5',
+        containerStyle: {},
+        indicator: '✗',
+      }
+    case 'cancelled':
+      return {
+        containerClass: 'rounded border border-dashed border-orange-500/50 px-1 py-0.5',
+        containerStyle: {},
+        indicator: '',
+      }
+  }
+}
 
 export function MonthCalendar({ slots, locale = 'en', onDateClick }: MonthCalendarProps) {
   const today = new Date()
@@ -59,15 +106,6 @@ export function MonthCalendar({ slots, locale = 'en', onDateClick }: MonthCalend
   function goToday() {
     setViewYear(today.getFullYear())
     setViewMonth(today.getMonth())
-  }
-
-  const STATUS_COLORS: Record<string, string> = {
-    scheduled: 'bg-indigo-500/80',
-    sending: 'bg-yellow-500/80',
-    sent: 'bg-green-500/80',
-    failed: 'bg-red-500/80',
-    draft: 'bg-gray-600/80',
-    ready: 'bg-cyan-500/80',
   }
 
   return (
@@ -96,8 +134,9 @@ export function MonthCalendar({ slots, locale = 'en', onDateClick }: MonthCalend
           ))}
           {grid.map((cell) => {
             const isToday = cell.date === todayStr
-            const hasEditions = cell.editions.length > 0
-            const hasEmpty = cell.emptySlots.length > 0
+            const hasCadence = cell.cadenceSlots.length > 0
+            const hasSpecial = cell.specialEditions.length > 0
+            const hasContent = hasCadence || hasSpecial
             const isPast = cell.inMonth && cell.date < todayStr
             const isClickable = cell.inMonth && !isPast && !!onDateClick
 
@@ -112,40 +151,67 @@ export function MonthCalendar({ slots, locale = 'en', onDateClick }: MonthCalend
                 }`}>
                   {cell.day}
                 </span>
-                {(hasEditions || hasEmpty) && (() => {
+                {hasContent && (() => {
                   const MAX_VISIBLE = 3
-                  const allItems = cell.editions
-                  const visible = allItems.slice(0, MAX_VISIBLE)
-                  const overflow = allItems.length - MAX_VISIBLE
+                  const totalItems = cell.cadenceSlots.length + cell.specialEditions.length
+                  const visibleCadence = cell.cadenceSlots.slice(0, MAX_VISIBLE)
+                  const remainingSlots = MAX_VISIBLE - visibleCadence.length
+                  const visibleSpecial = cell.specialEditions.slice(0, Math.max(0, remainingSlots))
+                  const overflow = totalItems - (visibleCadence.length + visibleSpecial.length)
                   return (
                     <div className="mt-1.5 flex flex-col gap-0.5">
-                      {visible.map((e) => (
+                      {visibleCadence.map((cs, idx) => {
+                        const { containerClass, containerStyle, indicator } = slotStateStyles(cs.state, cs.typeColor)
+                        const label = cs.state === 'empty_future'
+                          ? cs.typeName
+                          : cs.state === 'missed'
+                            ? (locale === 'pt-BR' ? 'Perdido' : 'Missed')
+                            : cs.editionSubject || cs.typeName
+                        return (
+                          <div
+                            key={`cadence-${idx}`}
+                            className={`flex items-center gap-1 ${containerClass}`}
+                            style={containerStyle}
+                            title={`${cs.typeName} - ${cs.state}${cs.editionSubject ? `: ${cs.editionSubject}` : ''}`}
+                          >
+                            <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: cs.typeColor }} />
+                            {cs.editionDisplayId && cs.state !== 'empty_future' && cs.state !== 'missed' && (
+                              <span className="shrink-0 text-[7px] text-gray-400">{cs.editionDisplayId}</span>
+                            )}
+                            <span className={`truncate text-[8px] font-medium ${
+                              cs.state === 'cancelled' ? 'line-through text-gray-500' :
+                              cs.state === 'missed' ? 'text-red-400' :
+                              cell.inMonth ? 'text-gray-200' : 'text-gray-500'
+                            }`}>
+                              {label}
+                            </span>
+                            {indicator && (
+                              <span className={`ml-auto shrink-0 text-[8px] ${
+                                cs.state === 'missed' || cs.state === 'failed' ? 'text-red-400' :
+                                cs.state === 'sent' ? 'text-green-400' : 'text-yellow-400'
+                              }`}>
+                                {indicator}
+                              </span>
+                            )}
+                          </div>
+                        )
+                      })}
+                      {visibleSpecial.map((se) => (
                         <div
-                          key={e.id}
+                          key={`special-${se.id}`}
                           className="flex items-center gap-1 rounded px-1 py-0.5"
-                          style={{ backgroundColor: `${e.typeColor}20` }}
-                          title={`${e.displayId} ${e.subject}${e.typeName ? ` • ${e.typeName}` : ''}`}
+                          style={{ backgroundColor: `${se.typeColor}20` }}
+                          title={`${se.typeName ?? 'Special'}: ${se.subject}`}
                         >
-                          <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: e.typeColor }} />
-                          <span className="shrink-0 text-[7px] text-gray-400">{e.displayId}</span>
-                          <span className={`truncate text-[8px] font-medium ${cell.inMonth ? 'text-gray-200' : 'text-gray-500'}`}>{e.subject || '(untitled)'}</span>
-                          <span className={`ml-auto h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_COLORS[e.status] ?? 'bg-gray-600'}`} title={e.status} />
+                          <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: se.typeColor }} />
+                          <span className={`truncate text-[8px] font-medium ${cell.inMonth ? 'text-gray-200' : 'text-gray-500'}`}>
+                            {'★'} {se.subject || '(untitled)'}
+                          </span>
                         </div>
                       ))}
                       {overflow > 0 && (
                         <span className="px-1 text-[8px] font-medium text-gray-400">+{overflow} more</span>
                       )}
-                      {cell.emptySlots.map((e, i) => (
-                        <div
-                          key={`empty-${i}`}
-                          className="flex items-center gap-1 rounded border border-dashed px-1 py-0.5"
-                          style={{ borderColor: `${e.typeColor}50` }}
-                          title={e.typeName}
-                        >
-                          <span className="h-1.5 w-1.5 shrink-0 rounded-full border border-dashed" style={{ borderColor: e.typeColor }} />
-                          <span className="truncate text-[8px] text-gray-500">{e.typeName}</span>
-                        </div>
-                      ))}
                     </div>
                   )
                 })()}
@@ -157,7 +223,7 @@ export function MonthCalendar({ slots, locale = 'en', onDateClick }: MonthCalend
                 ? 'border-gray-800/30 bg-gray-950/40'
                 : isToday
                   ? 'border-indigo-500/40 bg-indigo-950/20'
-                  : hasEditions
+                  : hasContent
                     ? 'border-gray-700/60 bg-gray-800/20 hover:border-gray-600'
                     : 'border-gray-800/50 hover:border-gray-700'
             }`

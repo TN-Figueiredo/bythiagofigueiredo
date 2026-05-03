@@ -91,7 +91,7 @@ export function CadenceCard({ config, onTogglePause, strings }: CadenceCardProps
         </div>
         {config.conflicts.length > 0 && (
           <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[8px] font-medium text-amber-400">
-            {config.conflicts.length} {s?.conflicts?.toLowerCase() ?? 'conflict'}{config.conflicts.length > 1 ? 's' : ''}
+            {config.conflicts.length} {'conflict'}{config.conflicts.length > 1 ? 's' : ''}
           </span>
         )}
         <button

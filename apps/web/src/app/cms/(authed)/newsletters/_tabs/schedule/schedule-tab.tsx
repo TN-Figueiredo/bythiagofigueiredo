@@ -155,7 +155,8 @@ export function ScheduleTab({ data, typeFilter, strings, locale = 'en' }: Schedu
           metrics={[
             { label: strings?.schedule.fillRate ?? 'Fill Rate', value: `${data.healthStrip.fillRate.toFixed(0)}%` },
             { label: strings?.schedule.next7Days ?? 'Next 7 Days', value: data.healthStrip.next7Days },
-            { label: strings?.schedule.conflicts ?? 'Conflicts', value: data.healthStrip.conflicts, color: data.healthStrip.conflicts > 0 ? '#ef4444' : undefined },
+            { label: strings?.schedule.missed ?? 'Missed', value: data.healthStrip.missed, color: data.healthStrip.missed > 0 ? '#ef4444' : undefined },
+            { label: strings?.schedule.failed ?? 'Failed', value: data.healthStrip.failed, color: data.healthStrip.failed > 0 ? '#ef4444' : undefined },
             { label: strings?.schedule.activeTypes ?? 'Active Types', value: `${data.healthStrip.activeTypes}/${data.healthStrip.totalTypes}` },
           ]}
         />

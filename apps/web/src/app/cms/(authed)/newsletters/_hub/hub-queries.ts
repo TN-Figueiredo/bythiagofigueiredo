@@ -1,5 +1,7 @@
 import { unstable_cache } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { generateCadenceSlots } from '@/lib/newsletter/cadence-slots'
+import type { CadencePattern } from '@/lib/newsletter/cadence-pattern'
 import type {
   NewsletterHubSharedData,
   OverviewTabData,
@@ -379,16 +381,16 @@ export const fetchScheduleData = unstable_cache(
   async (siteId: string): Promise<ScheduleTabData> => {
     const supabase = getSupabaseServiceClient()
 
-    const [{ data: scheduled }, { data: typeRows }, { data: subCounts }, { data: sentEditions }, { data: readyRows }] = await Promise.all([
+    const [{ data: calendarEditions }, { data: typeRows }, { data: subCounts }, { data: sentEditions }, { data: readyRows }] = await Promise.all([
       supabase
         .from('newsletter_editions')
-        .select('id, subject, status, newsletter_type_id, scheduled_at, slot_date, created_at')
+        .select('id, subject, status, newsletter_type_id, scheduled_at, slot_date, created_at, edition_kind')
         .eq('site_id', siteId)
-        .in('status', ['scheduled', 'queued', 'ready'])
+        .in('status', ['scheduled', 'queued', 'ready', 'sending', 'sent', 'failed', 'cancelled'])
         .order('created_at'),
       supabase
         .from('newsletter_types')
-        .select('id, name, color, cadence_days, cadence_paused, preferred_send_time, cadence_start_date, last_sent_at')
+        .select('id, name, color, cadence_days, cadence_pattern, cadence_paused, preferred_send_time, cadence_start_date, last_sent_at')
         .eq('site_id', siteId),
       supabase
         .from('newsletter_subscriptions')
@@ -402,51 +404,153 @@ export const fetchScheduleData = unstable_cache(
         .eq('status', 'sent'),
       supabase
         .from('newsletter_editions')
-        .select('id, subject, newsletter_type_id, created_at')
+        .select('id, subject, newsletter_type_id, created_at, edition_kind')
         .eq('site_id', siteId)
         .eq('status', 'ready')
         .order('created_at'),
     ])
 
-    const typeMap = new Map<string, { name: string; color: string }>()
-    for (const t of typeRows ?? []) typeMap.set(t.id as string, { name: t.name as string, color: (t.color ?? '#6366f1') as string })
-
-    const sortedScheduled = [...(scheduled ?? [])].sort(
-      (a, b) => new Date(a.created_at as string).getTime() - new Date(b.created_at as string).getTime(),
-    )
-    const editionDisplayIdMap = new Map<string, string>()
-    for (let i = 0; i < sortedScheduled.length; i++) {
-      editionDisplayIdMap.set(sortedScheduled[i]!.id as string, `#${String(i + 1).padStart(3, '0')}`)
+    const typeMap = new Map<string, { name: string; color: string; cadencePattern: CadencePattern | null; paused: boolean }>()
+    for (const t of typeRows ?? []) {
+      typeMap.set(t.id as string, {
+        name: t.name as string,
+        color: (t.color ?? '#6366f1') as string,
+        cadencePattern: (t.cadence_pattern as CadencePattern | null) ?? null,
+        paused: !!t.cadence_paused,
+      })
     }
 
+    // Build edition lookup by slot_date + type for fast matching
+    const editionBySlotAndType = new Map<string, { id: string; subject: string; status: string; displayId: string; editionKind: string }>()
+    const sortedEditions = [...(calendarEditions ?? [])].sort(
+      (a, b) => new Date(a.created_at as string).getTime() - new Date(b.created_at as string).getTime(),
+    )
+    for (let i = 0; i < sortedEditions.length; i++) {
+      const e = sortedEditions[i]!
+      const slotDate = (e.slot_date as string) ?? (e.scheduled_at as string)?.slice(0, 10) ?? null
+      const typeId = e.newsletter_type_id as string
+      if (slotDate && typeId) {
+        const key = `${slotDate}:${typeId}`
+        if (!editionBySlotAndType.has(key)) {
+          editionBySlotAndType.set(key, {
+            id: e.id as string,
+            subject: (e.subject as string) ?? '',
+            status: e.status as string,
+            displayId: `#${String(i + 1).padStart(3, '0')}`,
+            editionKind: ((e as Record<string, unknown>).edition_kind as string) ?? 'cadence',
+          })
+        }
+      }
+    }
+
+    // Calendar date range
     const today = new Date()
+    const todayStr = today.toISOString().slice(0, 10)
     const firstDay = new Date(today.getFullYear(), today.getMonth(), 1)
     const startOffset = firstDay.getDay()
+    const calendarStart = new Date(today.getFullYear(), today.getMonth(), 1 - startOffset)
+    const calendarStartStr = calendarStart.toISOString().slice(0, 10)
+    const calendarEnd = new Date(calendarStart.getTime() + 41 * 86_400_000)
+    const calendarEndStr = calendarEnd.toISOString().slice(0, 10)
+
+    // Generate cadence slots for each type with a cadence_pattern
+    const cadenceSlotsByDate = new Map<string, Array<{ typeId: string; typeName: string; typeColor: string }>>()
+    for (const t of typeRows ?? []) {
+      const pattern = t.cadence_pattern as CadencePattern | null
+      if (!pattern || t.cadence_paused) continue
+      const typeId = t.id as string
+      const typeInfo = typeMap.get(typeId)!
+      const slots = generateCadenceSlots(pattern, { from: calendarStartStr, maxSlots: 100 })
+      for (const slotDate of slots) {
+        if (slotDate > calendarEndStr) break
+        const existing = cadenceSlotsByDate.get(slotDate)
+        const entry = { typeId, typeName: typeInfo.name, typeColor: typeInfo.color }
+        if (existing) existing.push(entry)
+        else cadenceSlotsByDate.set(slotDate, [entry])
+      }
+    }
+
+    // Build calendar slots with cadence state computation
+    let missedCount = 0
+    let failedCount = 0
     const calendarSlots = Array.from({ length: 42 }).map((_, i) => {
       const date = new Date(today.getFullYear(), today.getMonth(), 1 - startOffset + i)
       const dateStr = date.toISOString().slice(0, 10)
-      const dayEditions = (scheduled ?? [])
+
+      // Cadence slots for this date
+      const cadenceEntries = cadenceSlotsByDate.get(dateStr) ?? []
+      const cadenceSlots = cadenceEntries.map((entry) => {
+        const key = `${dateStr}:${entry.typeId}`
+        const edition = editionBySlotAndType.get(key)
+
+        let state: import('./hub-types').CadenceSlotState
+        if (edition) {
+          switch (edition.status) {
+            case 'scheduled':
+            case 'queued':
+            case 'ready':
+              state = 'filled'
+              break
+            case 'sending':
+              state = 'sending'
+              break
+            case 'sent':
+              state = 'sent'
+              break
+            case 'failed':
+              state = 'failed'
+              failedCount++
+              break
+            case 'cancelled':
+              state = 'cancelled'
+              break
+            default:
+              state = 'filled'
+          }
+        } else if (dateStr < todayStr) {
+          state = 'missed'
+          missedCount++
+        } else {
+          state = 'empty_future'
+        }
+
+        return {
+          typeId: entry.typeId,
+          typeName: entry.typeName,
+          typeColor: entry.typeColor,
+          state,
+          editionId: edition?.id,
+          editionSubject: edition?.subject,
+          editionDisplayId: edition?.displayId,
+        }
+      })
+
+      // Special editions: editions with edition_kind='special' on this date
+      const specialEditions = (calendarEditions ?? [])
         .filter((e) => {
-          const d = (e.scheduled_at as string)?.slice(0, 10) ?? (e.slot_date as string)
+          const kind = ((e as Record<string, unknown>).edition_kind as string) ?? 'cadence'
+          if (kind !== 'special') return false
+          const d = (e.slot_date as string) ?? (e.scheduled_at as string)?.slice(0, 10)
           return d === dateStr
         })
-        .map((e) => {
+        .map((e, idx) => {
           const info = typeMap.get(e.newsletter_type_id as string)
           return {
             id: e.id as string,
-            displayId: editionDisplayIdMap.get(e.id as string) ?? '#000',
+            displayId: `#S${String(idx + 1).padStart(2, '0')}`,
             subject: (e.subject as string) ?? '',
-            typeName: info?.name ?? null,
             typeColor: info?.color ?? '#6366f1',
+            typeName: info?.name ?? null,
             status: e.status as string,
           }
         })
-      return { date: dateStr, editions: dayEditions, emptySlots: [] }
+
+      return { date: dateStr, cadenceSlots, specialEditions }
     })
 
-    const next7Days = (scheduled ?? []).filter((e) => {
-      const d = new Date((e.scheduled_at as string) ?? (e.slot_date as string) ?? '')
-      return d >= today && d <= new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)
+    const next7Days = (calendarEditions ?? []).filter((e) => {
+      const d = (e.scheduled_at as string)?.slice(0, 10) ?? (e.slot_date as string) ?? ''
+      return d >= todayStr && d <= new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
     }).length
 
     const subCountByType = new Map<string, number>()
@@ -491,12 +595,19 @@ export const fetchScheduleData = unstable_cache(
       }
     })
 
-    const activeTypeCount = (typeRows ?? []).filter((t) => !t.cadence_paused && t.cadence_days).length
-    const totalSlotsThisMonth = activeTypeCount > 0 ? Math.round(30 / Math.max(1, Math.min(...(typeRows ?? []).filter((t) => !t.cadence_paused && t.cadence_days).map((t) => (t.cadence_days as number) ?? 30))) * activeTypeCount) : 0
-    const filledSlots = (scheduled ?? []).length
-    const fillRate = totalSlotsThisMonth > 0 ? Math.min(100, (filledSlots / totalSlotsThisMonth) * 100) : 0
-
-    const avgOpenRate = cadenceConfigs.reduce((s, c) => s + c.openRate, 0) / Math.max(1, cadenceConfigs.length)
+    // Fill rate: ratio of filled cadence slots (any state except empty_future/missed) to total cadence slots in the month
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10)
+    const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10)
+    let totalMonthSlots = 0
+    let filledMonthSlots = 0
+    for (const slot of calendarSlots) {
+      if (slot.date < monthStart || slot.date > monthEnd) continue
+      for (const cs of slot.cadenceSlots) {
+        totalMonthSlots++
+        if (cs.state !== 'empty_future' && cs.state !== 'missed') filledMonthSlots++
+      }
+    }
+    const fillRate = totalMonthSlots > 0 ? Math.min(100, (filledMonthSlots / totalMonthSlots) * 100) : 0
 
     const readyEditions = (readyRows ?? []).map((e, idx) => {
       const info = e.newsletter_type_id ? typeMap.get(e.newsletter_type_id as string) : null
@@ -506,6 +617,8 @@ export const fetchScheduleData = unstable_cache(
         subject: (e.subject as string) ?? '',
         typeColor: info?.color ?? null,
         typeName: info?.name ?? null,
+        typeId: (e.newsletter_type_id as string) ?? null,
+        editionKind: (((e as Record<string, unknown>).edition_kind as 'cadence' | 'special') ?? 'cadence'),
       }
     })
 
@@ -513,8 +626,8 @@ export const fetchScheduleData = unstable_cache(
       healthStrip: {
         fillRate,
         next7Days,
-        conflicts: 0,
-        avgOpenRate,
+        missed: missedCount,
+        failed: failedCount,
         activeTypes: (typeRows ?? []).filter((t) => !t.cadence_paused).length,
         totalTypes: (typeRows ?? []).length,
       },
