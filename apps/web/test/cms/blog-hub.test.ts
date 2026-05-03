@@ -174,4 +174,107 @@ describe('formatRelativeDate', () => {
     const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
     expect(formatRelativeDate(twoDaysAgo)).toBe('2d')
   })
+
+  it('returns exactly 1 day for 24h ago', () => {
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    expect(formatRelativeDate(oneDayAgo)).toBe('1d')
+  })
+
+  it('returns months for 30+ days', () => {
+    const thirtyOneDaysAgo = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000).toISOString()
+    expect(formatRelativeDate(thirtyOneDaysAgo)).toBe('1mo')
+  })
+
+  it('returns multiple months for 90+ days', () => {
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
+    expect(formatRelativeDate(ninetyDaysAgo)).toBe('3mo')
+  })
+
+  it('returns "now" for future dates (negative diff treated as < 1 min)', () => {
+    const future = new Date(Date.now() + 60_000).toISOString()
+    // Math.floor of negative diff / 60000 = negative, which is < 1
+    expect(formatRelativeDate(future)).toBe('now')
+  })
+
+  it('returns exactly 59m at the boundary before 1h', () => {
+    const fiftyNineMinAgo = new Date(Date.now() - 59 * 60 * 1000).toISOString()
+    expect(formatRelativeDate(fiftyNineMinAgo)).toBe('59m')
+  })
+
+  it('returns 1h at exactly 60 minutes', () => {
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+    expect(formatRelativeDate(oneHourAgo)).toBe('1h')
+  })
+
+  it('returns 23h at the boundary before 1d', () => {
+    const twentyThreeHoursAgo = new Date(Date.now() - 23 * 60 * 60 * 1000).toISOString()
+    expect(formatRelativeDate(twentyThreeHoursAgo)).toBe('23h')
+  })
+
+  it('returns 29d at the boundary before 1mo', () => {
+    const twentyNineDaysAgo = new Date(Date.now() - 29 * 24 * 60 * 60 * 1000).toISOString()
+    expect(formatRelativeDate(twentyNineDaysAgo)).toBe('29d')
+  })
+})
+
+describe('getValidTargets edge cases', () => {
+  it('returns targets for every defined status', () => {
+    const statuses = ['idea', 'draft', 'pending_review', 'ready', 'queued', 'scheduled', 'published', 'archived']
+    for (const status of statuses) {
+      const targets = getValidTargets(status)
+      expect(targets.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('returns empty array for undefined status', () => {
+    expect(getValidTargets('nonexistent')).toEqual([])
+    expect(getValidTargets('')).toEqual([])
+  })
+
+  it('published can ONLY go to archived (single target)', () => {
+    const targets = getValidTargets('published')
+    expect(targets).toEqual(['archived'])
+    expect(targets.length).toBe(1)
+  })
+
+  it('ready has the most targets (5)', () => {
+    const targets = getValidTargets('ready')
+    expect(targets.length).toBe(5)
+    expect(targets).toContain('draft')
+    expect(targets).toContain('scheduled')
+    expect(targets).toContain('queued')
+    expect(targets).toContain('published')
+    expect(targets).toContain('archived')
+  })
+
+  it('archived targets do NOT include published or scheduled', () => {
+    const targets = getValidTargets('archived')
+    expect(targets).not.toContain('published')
+    expect(targets).not.toContain('scheduled')
+    expect(targets).not.toContain('queued')
+  })
+
+  it('idea has exactly 2 targets (draft, archived)', () => {
+    expect(getValidTargets('idea')).toEqual(['draft', 'archived'])
+  })
+})
+
+describe('computeDisplayId edge cases', () => {
+  it('zero pads to 3 digits for numbers under 1000', () => {
+    expect(computeDisplayId(0)).toBe('#BP-000')
+    expect(computeDisplayId(1)).toBe('#BP-001')
+    expect(computeDisplayId(10)).toBe('#BP-010')
+    expect(computeDisplayId(100)).toBe('#BP-100')
+    expect(computeDisplayId(999)).toBe('#BP-999')
+  })
+
+  it('does not pad numbers >= 1000', () => {
+    expect(computeDisplayId(1000)).toBe('#BP-1000')
+    expect(computeDisplayId(9999)).toBe('#BP-9999')
+    expect(computeDisplayId(12345)).toBe('#BP-12345')
+  })
+
+  it('handles large numbers (100000+)', () => {
+    expect(computeDisplayId(100000)).toBe('#BP-100000')
+  })
 })

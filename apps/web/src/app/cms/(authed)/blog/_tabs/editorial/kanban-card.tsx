@@ -116,6 +116,61 @@ export function KanbanCard({
     }
   }, [card.id, onDelete])
 
+  // Focus first menu item when context menu opens
+  useEffect(() => {
+    if (!contextMenu) return
+    // Use requestAnimationFrame to ensure DOM is rendered
+    const raf = requestAnimationFrame(() => {
+      const firstBtn = contextMenuRef.current?.querySelector<HTMLButtonElement>('button[role="menuitem"]')
+      firstBtn?.focus()
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [contextMenu])
+
+  // Keyboard navigation for context menu
+  const handleContextMenuKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    const menu = contextMenuRef.current
+    if (!menu) return
+
+    const items = Array.from(menu.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]'))
+    if (items.length === 0) return
+
+    const currentIndex = items.indexOf(document.activeElement as HTMLButtonElement)
+
+    switch (e.key) {
+      case 'ArrowDown': {
+        e.preventDefault()
+        const nextIdx = currentIndex < items.length - 1 ? currentIndex + 1 : 0
+        items[nextIdx]?.focus()
+        break
+      }
+      case 'ArrowUp': {
+        e.preventDefault()
+        const prevIdx = currentIndex > 0 ? currentIndex - 1 : items.length - 1
+        items[prevIdx]?.focus()
+        break
+      }
+      case 'Home': {
+        e.preventDefault()
+        items[0]?.focus()
+        break
+      }
+      case 'End': {
+        e.preventDefault()
+        items[items.length - 1]?.focus()
+        break
+      }
+      case 'Enter':
+      case ' ': {
+        e.preventDefault()
+        if (document.activeElement instanceof HTMLButtonElement && items.includes(document.activeElement)) {
+          document.activeElement.click()
+        }
+        break
+      }
+    }
+  }, [])
+
   // Close context menu on outside click / Escape / scroll
   useEffect(() => {
     if (!contextMenu) return
@@ -343,10 +398,13 @@ export function KanbanCard({
       {contextMenu && (
         <div
           ref={contextMenuRef}
+          role="menu"
+          onKeyDown={handleContextMenuKeyDown}
           className="fixed z-[100] min-w-[160px] rounded-lg border border-gray-700 bg-gray-900 py-1 shadow-2xl"
           style={{ top: contextMenu.y, left: contextMenu.x }}
         >
           <button
+            role="menuitem"
             onClick={() => {
               setContextMenu(null)
               handleClick()
@@ -366,6 +424,7 @@ export function KanbanCard({
               {validTargets.map((status) => (
                 <button
                   key={status}
+                  role="menuitem"
                   onClick={() => handleContextMove(status)}
                   className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-gray-300 hover:bg-gray-800"
                 >
@@ -379,6 +438,7 @@ export function KanbanCard({
           <div className="my-1 border-t border-gray-800" />
 
           <button
+            role="menuitem"
             onClick={() => {
               setContextMenu(null)
               setTagDropdownOpen(true)
@@ -391,6 +451,7 @@ export function KanbanCard({
 
           <div className="relative" ref={localeDropdownRef}>
             <button
+              role="menuitem"
               onClick={() => setLocaleDropdownOpen((v) => !v)}
               disabled={missingLocales.length === 0}
               className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] hover:bg-gray-800 ${
@@ -416,6 +477,7 @@ export function KanbanCard({
           </div>
 
           <button
+            role="menuitem"
             onClick={handleDuplicate}
             className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-gray-300 hover:bg-gray-800"
           >
@@ -427,6 +489,7 @@ export function KanbanCard({
             <>
               <div className="my-1 border-t border-gray-800" />
               <button
+                role="menuitem"
                 onClick={handleDelete}
                 className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-red-400 hover:bg-red-950/30"
               >

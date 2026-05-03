@@ -108,6 +108,40 @@ export const fetchOverviewData = unstable_cache(
     }).length
     const totalPostsTrend = prevCreated > 0 ? Math.round(((recentCreated - prevCreated) / prevCreated) * 100) : 0
 
+    // publishedTrend: week-over-week change in posts published
+    const recentPublished = published.filter((p) => p.published_at && now - new Date(p.published_at).getTime() < 7 * day).length
+    const prevPublished = published.filter((p) => {
+      if (!p.published_at) return false
+      const age = now - new Date(p.published_at).getTime()
+      return age >= 7 * day && age < 14 * day
+    }).length
+    const publishedTrend = prevPublished > 0 ? Math.round(((recentPublished - prevPublished) / prevPublished) * 100) : 0
+
+    // avgReadingTimeTrend: avg reading time of posts published this week vs last week
+    const recentPublishedPosts = published.filter((p) => p.published_at && now - new Date(p.published_at).getTime() < 7 * day)
+    const prevPublishedPosts = published.filter((p) => {
+      if (!p.published_at) return false
+      const age = now - new Date(p.published_at).getTime()
+      return age >= 7 * day && age < 14 * day
+    })
+    const recentRT = recentPublishedPosts
+      .flatMap((p) => ((p as { blog_translations: Array<{ reading_time_min: number | null }> }).blog_translations ?? []).map((t) => t.reading_time_min))
+      .filter((rt): rt is number => rt !== null && rt > 0)
+    const prevRT = prevPublishedPosts
+      .flatMap((p) => ((p as { blog_translations: Array<{ reading_time_min: number | null }> }).blog_translations ?? []).map((t) => t.reading_time_min))
+      .filter((rt): rt is number => rt !== null && rt > 0)
+    const recentAvgRT = recentRT.length > 0 ? recentRT.reduce((a, b) => a + b, 0) / recentRT.length : 0
+    const prevAvgRT = prevRT.length > 0 ? prevRT.reduce((a, b) => a + b, 0) / prevRT.length : 0
+    const avgReadingTimeTrend = prevAvgRT > 0 ? Math.round(((recentAvgRT - prevAvgRT) / prevAvgRT) * 100) : 0
+
+    // draftBacklogTrend: week-over-week change in new drafts created
+    const recentDrafts = backlog.filter((p) => now - new Date(p.created_at as string).getTime() < 7 * day).length
+    const prevDrafts = backlog.filter((p) => {
+      const age = now - new Date(p.created_at as string).getTime()
+      return age >= 7 * day && age < 14 * day
+    }).length
+    const draftBacklogTrend = prevDrafts > 0 ? Math.round(((recentDrafts - prevDrafts) / prevDrafts) * 100) : 0
+
     const tagBreakdown = tags.map((t) => ({
       tagId: t.id as string,
       tagName: t.name as string,
@@ -150,22 +184,69 @@ export const fetchOverviewData = unstable_cache(
       )
     }
 
+    // Sparklines: 8 weekly data points (oldest to newest)
+    const totalPostsSparkline: number[] = []
+    const publishedSparkline: number[] = []
+    const avgReadingTimeSparkline: number[] = []
+    const draftBacklogSparkline: number[] = []
+
+    for (let w = 7; w >= 0; w--) {
+      const weekEnd = now - w * 7 * day
+
+      // Cumulative posts created up to this week boundary
+      totalPostsSparkline.push(
+        posts.filter((p) => new Date(p.created_at as string).getTime() <= weekEnd).length,
+      )
+
+      // Cumulative published posts up to this week boundary
+      const pubsUpTo = published.filter((p) => p.published_at && new Date(p.published_at).getTime() <= weekEnd)
+      publishedSparkline.push(pubsUpTo.length)
+
+      // Avg reading time of posts published in this week window
+      const weekStart = now - (w + 1) * 7 * day
+      const weekPubs = published.filter((p) => {
+        if (!p.published_at) return false
+        const t = new Date(p.published_at).getTime()
+        return t >= weekStart && t < weekEnd
+      })
+      const weekRTs = weekPubs
+        .flatMap((p) => ((p as { blog_translations: Array<{ reading_time_min: number | null }> }).blog_translations ?? []).map((t) => t.reading_time_min))
+        .filter((rt): rt is number => rt !== null && rt > 0)
+      avgReadingTimeSparkline.push(
+        weekRTs.length > 0 ? Math.round((weekRTs.reduce((a, b) => a + b, 0) / weekRTs.length) * 10) / 10 : 0,
+      )
+
+      // Cumulative backlog (drafts/ideas/pending_review created up to this week boundary, not yet published by then)
+      draftBacklogSparkline.push(
+        posts.filter((p) => {
+          const created = new Date(p.created_at as string).getTime()
+          if (created > weekEnd) return false
+          if (!['idea', 'draft', 'pending_review'].includes(p.status as string)) {
+            // Post is published/scheduled now — was it still a draft at weekEnd?
+            const pubTime = p.published_at ? new Date(p.published_at).getTime() : null
+            if (pubTime && pubTime <= weekEnd) return false
+          }
+          return true
+        }).length,
+      )
+    }
+
     return {
       kpis: {
         totalPosts,
         totalPostsTrend,
         published: published.length,
-        publishedTrend: 0,
+        publishedTrend,
         avgReadingTime,
-        avgReadingTimeTrend: 0,
+        avgReadingTimeTrend,
         draftBacklog: backlog.length,
-        draftBacklogTrend: 0,
+        draftBacklogTrend,
       },
       sparklines: {
-        totalPosts: [totalPosts],
-        published: [published.length],
-        avgReadingTime: [avgReadingTime],
-        draftBacklog: [backlog.length],
+        totalPosts: totalPostsSparkline,
+        published: publishedSparkline,
+        avgReadingTime: avgReadingTimeSparkline,
+        draftBacklog: draftBacklogSparkline,
       },
       tagBreakdown,
       recentPublications: recentPubs,
