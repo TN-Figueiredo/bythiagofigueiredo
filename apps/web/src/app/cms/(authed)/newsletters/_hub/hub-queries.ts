@@ -22,7 +22,7 @@ export const fetchSharedData = unstable_cache(
 
     const [{ data: site }, { data: types }, { data: subCounts }] = await Promise.all([
       supabase.from('sites').select('name, timezone').eq('id', siteId).single(),
-      supabase.from('newsletter_types').select('id, name, color, sort_order, cadence_paused, badge').eq('site_id', siteId).order('sort_order'),
+      supabase.from('newsletter_types').select('id, name, color, sort_order, cadence_paused, badge, cadence_pattern').eq('site_id', siteId).order('sort_order'),
       supabase.from('newsletter_subscriptions').select('newsletter_id').eq('site_id', siteId).in('status', ['confirmed', 'pending_confirmation']),
     ])
 
@@ -46,6 +46,34 @@ export const fetchSharedData = unstable_cache(
       .eq('cadence_paused', true)
       .gte('last_sent_at', oneDayAgo)
 
+    // Compute missed cadence slots (last 30 days) for schedule tab badge
+    let scheduleMissed = 0
+    const todayStr = new Date().toISOString().slice(0, 10)
+    const thirtyDaysAgo = new Date(Date.now() - THIRTY_DAYS_MS).toISOString().slice(0, 10)
+    const typesWithCadence = (types ?? []).filter((t) => t.cadence_pattern && !t.cadence_paused)
+    if (typesWithCadence.length > 0) {
+      const { data: filledEditions } = await supabase
+        .from('newsletter_editions')
+        .select('newsletter_type_id, slot_date')
+        .eq('site_id', siteId)
+        .eq('edition_kind', 'cadence')
+        .not('slot_date', 'is', null)
+        .gte('slot_date', thirtyDaysAgo)
+        .lt('slot_date', todayStr)
+        .not('status', 'in', '("cancelled","archived")')
+
+      const filledSlots = new Set((filledEditions ?? []).map((e) => `${e.newsletter_type_id}:${e.slot_date}`))
+
+      for (const t of typesWithCadence) {
+        const pattern = t.cadence_pattern as CadencePattern
+        const slots = generateCadenceSlots(pattern, { from: thirtyDaysAgo, maxSlots: 60 })
+        for (const slot of slots) {
+          if (slot >= todayStr) break
+          if (!filledSlots.has(`${t.id}:${slot}`)) scheduleMissed++
+        }
+      }
+    }
+
     return {
       types: (types ?? []).map((t) => ({
         id: t.id as string,
@@ -56,7 +84,7 @@ export const fetchSharedData = unstable_cache(
         badge: (t.badge as string | null) ?? null,
         subscriberCount: countByType.get(t.id as string) ?? 0,
       })),
-      tabBadges: { editorial: editorialBadge ?? 0, automations: autoIncidents ?? 0 },
+      tabBadges: { editorial: editorialBadge ?? 0, automations: autoIncidents ?? 0, schedule: scheduleMissed },
       siteTimezone: (site?.timezone as string) ?? 'America/Sao_Paulo',
       siteName: (site?.name as string) ?? 'Site',
       defaultLocale,

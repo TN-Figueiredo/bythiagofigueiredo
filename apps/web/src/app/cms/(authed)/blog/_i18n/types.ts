@@ -13,7 +13,7 @@ export interface BlogHubStrings {
     untitled: string; open: string; moreActions: string; moveTo: string; duplicate: string; delete: string
     deleted: string; deleteFailed: string; confirmDelete: string
     quickAddPlaceholder: string; ideaCreated: string; ideaFailed: string
-    scheduledHint: string
+    scheduledHint: string; readyFirst: string
     viewAllPublished: string; archived: string; showArchived: string; hideArchived: string
   }
   deletePost: {

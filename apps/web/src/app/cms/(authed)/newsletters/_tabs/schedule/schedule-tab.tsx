@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useCallback, useTransition } from 'react'
 import type { ScheduleTabData, ReadyEdition } from '../../_hub/hub-types'
 import { HealthStrip } from '../../_shared/health-strip'
 import { MonthCalendar } from './month-calendar'
@@ -8,10 +8,11 @@ import { CadenceCard } from './cadence-card'
 import { SummaryBar } from '../../_shared/summary-bar'
 import { SectionErrorBoundary } from '../../_shared/section-error-boundary'
 import { EmptyState } from '../../_shared/empty-state'
+import { SlotPickerModal, type CadenceSlotOption } from '../../_components/slot-picker-modal'
 import { ScheduleModal } from '../../_components/schedule-modal'
 import { CalendarDays } from 'lucide-react'
 import type { NewsletterHubStrings } from '../../_i18n/types'
-import { toggleCadence, scheduleEdition } from '../../actions'
+import { toggleCadence, getAvailableSlots, scheduleEditionToSlot, scheduleEditionAsSpecial } from '../../actions'
 
 interface ScheduleTabProps {
   data: ScheduleTabData
@@ -26,9 +27,20 @@ interface PickerState {
   anchorRect: { top: number; left: number } | null
 }
 
-interface ScheduleTarget {
+interface SlotPickerLocalState {
   editionId: string
-  date: string
+  displayId: string
+  subject: string
+  typeId: string
+  typeName: string
+  patternDescription: string
+  slots: CadenceSlotOption[]
+  hasMore: boolean
+  loading: boolean
+}
+
+interface SpecialScheduleState {
+  editionId: string
 }
 
 function EditionPicker({
@@ -87,8 +99,14 @@ function EditionPicker({
 export function ScheduleTab({ data, typeFilter, strings, locale = 'en' }: ScheduleTabProps) {
   const [, startTransition] = useTransition()
   const [pickerState, setPickerState] = useState<PickerState>({ open: false, date: '', anchorRect: null })
-  const [scheduleTarget, setScheduleTarget] = useState<ScheduleTarget | null>(null)
-  const [toast, setToast] = useState<string | null>(null)
+  const [slotPickerState, setSlotPickerState] = useState<SlotPickerLocalState | null>(null)
+  const [specialScheduleState, setSpecialScheduleState] = useState<SpecialScheduleState | null>(null)
+  const [toastMsg, setToastMsg] = useState<string | null>(null)
+
+  const showToast = useCallback((msg: string) => {
+    setToastMsg(msg)
+    setTimeout(() => setToastMsg(null), 3000)
+  }, [])
 
   const handleTogglePause = (typeId: string, paused: boolean) => {
     startTransition(async () => {
@@ -98,8 +116,7 @@ export function ScheduleTab({ data, typeFilter, strings, locale = 'en' }: Schedu
 
   const handleDateClick = (date: string) => {
     if (!data.readyEditions || data.readyEditions.length === 0) {
-      setToast(strings?.schedule.noReadyEditions ?? 'No ready editions to schedule')
-      setTimeout(() => setToast(null), 3000)
+      showToast(strings?.schedule.noReadyEditions ?? 'No ready editions to schedule')
       return
     }
     // Position popover near the center of the viewport
@@ -110,29 +127,133 @@ export function ScheduleTab({ data, typeFilter, strings, locale = 'en' }: Schedu
     })
   }
 
-  const handleEditionSelect = (editionId: string) => {
+  const handleEditionSelect = useCallback(async (editionId: string) => {
+    const selectedDate = pickerState.date
     setPickerState({ open: false, date: '', anchorRect: null })
-    setScheduleTarget({ editionId, date: pickerState.date })
-  }
 
-  const handleScheduleConfirm = (scheduledAt: string) => {
-    if (!scheduleTarget) return
-    const { editionId } = scheduleTarget
-    setScheduleTarget(null)
-    startTransition(async () => {
-      const result = await scheduleEdition(editionId, scheduledAt)
-      if (result.ok) {
-        setToast(strings?.schedule.saved ?? 'Scheduled')
-      } else {
-        setToast(result.error ?? strings?.schedule.updateFailed ?? 'Failed to schedule')
-      }
-      setTimeout(() => setToast(null), 3000)
+    const edition = data.readyEditions.find((e) => e.id === editionId)
+    if (!edition) return
+
+    const typeId = edition.typeId
+    if (!typeId) {
+      // No type — go straight to special schedule
+      setSpecialScheduleState({ editionId })
+      return
+    }
+
+    // Check if this type has a cadence pattern (determined by cadenceConfigs data)
+    const cadenceConfig = data.cadenceConfigs.find((c) => c.typeId === typeId)
+    const hasCadence = cadenceConfig && cadenceConfig.cadence !== 'No cadence'
+
+    if (!hasCadence) {
+      // No cadence pattern — use ScheduleModal directly
+      setSpecialScheduleState({ editionId })
+      return
+    }
+
+    // Has cadence — fetch available slots and open SlotPickerModal
+    setSlotPickerState({
+      editionId: edition.id,
+      displayId: edition.displayId,
+      subject: edition.subject,
+      typeId,
+      typeName: edition.typeName ?? '',
+      patternDescription: cadenceConfig.cadence,
+      slots: [],
+      hasMore: false,
+      loading: true,
     })
-  }
 
-  const handleScheduleCancel = () => {
-    setScheduleTarget(null)
-  }
+    const result = await getAvailableSlots(typeId)
+    if (!result.ok) {
+      // Fallback to special schedule
+      setSlotPickerState(null)
+      setSpecialScheduleState({ editionId })
+      return
+    }
+
+    setSlotPickerState((prev) => prev ? {
+      ...prev,
+      slots: result.slots,
+      hasMore: result.slots.length >= 20,
+      loading: false,
+    } : prev)
+  }, [pickerState.date, data.readyEditions, data.cadenceConfigs])
+
+  // ─── SlotPickerModal callbacks ──────────────────────────────────────────────
+
+  const handleSlotConfirm = useCallback(async (date: string) => {
+    if (!slotPickerState) return
+    const { editionId, typeId } = slotPickerState
+    setSlotPickerState(null)
+
+    startTransition(async () => {
+      const result = await scheduleEditionToSlot(editionId, date, typeId)
+      if (result.ok) {
+        showToast(strings?.schedule.saved ?? 'Scheduled')
+      } else if (result.error === 'slot_taken') {
+        showToast('Slot already taken — try another')
+        // Re-open the slot picker with refreshed slots
+        const edition = data.readyEditions.find((e) => e.id === editionId)
+        if (edition) handleEditionSelect(editionId)
+      } else {
+        showToast(result.error ?? strings?.schedule.updateFailed ?? 'Failed to schedule')
+      }
+    })
+  }, [slotPickerState, data.readyEditions, handleEditionSelect, showToast, startTransition, strings])
+
+  const handleSlotLoadMore = useCallback(async () => {
+    if (!slotPickerState) return
+    const { typeId, slots } = slotPickerState
+
+    setSlotPickerState((prev) => prev ? { ...prev, loading: true } : prev)
+
+    const result = await getAvailableSlots(typeId, slots.length + 10)
+    if (result.ok) {
+      setSlotPickerState((prev) => prev ? {
+        ...prev,
+        slots: result.slots,
+        hasMore: result.slots.length >= slots.length + 10,
+        loading: false,
+      } : prev)
+    } else {
+      setSlotPickerState((prev) => prev ? { ...prev, loading: false } : prev)
+    }
+  }, [slotPickerState])
+
+  const handleSwitchToSpecial = useCallback(() => {
+    if (!slotPickerState) return
+    const { editionId } = slotPickerState
+    setSlotPickerState(null)
+    setSpecialScheduleState({ editionId })
+  }, [slotPickerState])
+
+  const handleSlotPickerCancel = useCallback(() => {
+    setSlotPickerState(null)
+  }, [])
+
+  // ─── ScheduleModal (special) callbacks ──────────────────────────────────────
+
+  const handleSpecialScheduleConfirm = useCallback((scheduledAt: string) => {
+    if (!specialScheduleState) return
+    const { editionId } = specialScheduleState
+    setSpecialScheduleState(null)
+
+    startTransition(async () => {
+      const result = await scheduleEditionAsSpecial(editionId, scheduledAt)
+      if (result.ok) {
+        showToast(strings?.schedule.saved ?? 'Scheduled')
+      } else {
+        showToast(result.error ?? strings?.schedule.updateFailed ?? 'Failed to schedule')
+      }
+    })
+  }, [specialScheduleState, showToast, startTransition, strings])
+
+  const handleSpecialScheduleCancel = useCallback(() => {
+    setSpecialScheduleState(null)
+  }, [])
+
+  // ─── Render ─────────────────────────────────────────────────────────────────
 
   const filteredConfigs = typeFilter
     ? data.cadenceConfigs.filter((c) => c.typeId === typeFilter)
@@ -197,16 +318,30 @@ export function ScheduleTab({ data, typeFilter, strings, locale = 'en' }: Schedu
         />
       )}
 
-      <ScheduleModal
-        open={!!scheduleTarget}
-        audienceCount={0}
-        onConfirm={handleScheduleConfirm}
-        onCancel={handleScheduleCancel}
+      <SlotPickerModal
+        open={!!slotPickerState && !slotPickerState.loading}
+        editionDisplayId={slotPickerState?.displayId ?? ''}
+        typeName={slotPickerState?.typeName ?? ''}
+        patternDescription={slotPickerState?.patternDescription ?? ''}
+        availableSlots={slotPickerState?.slots ?? []}
+        hasMore={slotPickerState?.hasMore ?? false}
+        onLoadMore={handleSlotLoadMore}
+        onConfirmSlot={handleSlotConfirm}
+        onSwitchToSpecial={handleSwitchToSpecial}
+        onCancel={handleSlotPickerCancel}
+        allSlotsFull={slotPickerState ? slotPickerState.slots.length === 0 && !slotPickerState.loading : false}
       />
 
-      {toast && (
+      <ScheduleModal
+        open={!!specialScheduleState}
+        audienceCount={0}
+        onConfirm={handleSpecialScheduleConfirm}
+        onCancel={handleSpecialScheduleCancel}
+      />
+
+      {toastMsg && (
         <div className="fixed bottom-6 right-6 z-50 rounded-lg border border-gray-700 bg-gray-900 px-4 py-2 text-sm text-gray-200 shadow-lg">
-          {toast}
+          {toastMsg}
         </div>
       )}
     </div>

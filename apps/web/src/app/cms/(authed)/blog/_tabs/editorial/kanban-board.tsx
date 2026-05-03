@@ -166,7 +166,7 @@ export function KanbanBoard({
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
-      const { active } = event
+      const { active, over } = event
       setActiveId(null)
 
       const postId = active.id as string
@@ -177,26 +177,42 @@ export function KanbanBoard({
       setLocalPosts(null)
       localPostsRef.current = null
 
-      if (!post || !originalPost) return
+      if (!originalPost) return
 
-      const newCol = mapStatusToColumn(post.status)
       const origCol = mapStatusToColumn(originalPost.status)
-      if (newCol === origCol) return
 
-      // When dropping into 'scheduled', open the schedule modal instead of moving immediately
+      // Determine target column: prefer the drag-over state, fall back to event.over
+      let newCol: string | null = null
+      if (post) {
+        const col = mapStatusToColumn(post.status)
+        if (col !== origCol) newCol = col
+      }
+      if (!newCol && over) {
+        const resolved = resolveColumn(over.id as string, optimisticPosts)
+        if (resolved && resolved !== origCol) newCol = resolved
+      }
+
+      if (!newCol) return
+
+      // When dropping into 'scheduled', only allow from 'ready' column
       if (newCol === 'scheduled') {
-        setPendingSchedule({ postId, postTitle: post.title || 'Untitled' })
+        if (origCol !== 'ready') {
+          toast.error(strings?.editorial.readyFirst ?? 'Move to Ready first')
+          return
+        }
+        setPendingSchedule({ postId, postTitle: post?.title || originalPost.title || 'Untitled' })
         return
       }
 
-      const finalOrder = currentLocal!
+      const targetStatus = newCol as PostCard['status']
+      const finalOrder = currentLocal ?? optimisticPosts
 
       startTransition(async () => {
         setOptimistic(() =>
-          finalOrder.map((p) => (p.id === postId ? { ...p, status: post.status } : p)),
+          finalOrder.map((p) => (p.id === postId ? { ...p, status: targetStatus } : p)),
         )
         try {
-          await onMovePost?.(postId, post.status)
+          await onMovePost?.(postId, targetStatus)
           toast.success(strings?.common.moved ?? 'Moved')
         } catch {
           toast.error(strings?.common.couldntMove ?? "Couldn't move")

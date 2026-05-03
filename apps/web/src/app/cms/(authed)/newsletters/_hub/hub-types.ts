@@ -15,6 +15,7 @@ export interface NewsletterHubSharedData {
   tabBadges: {
     editorial: number
     automations: number
+    schedule: number
   }
   siteTimezone: string
   siteName: string

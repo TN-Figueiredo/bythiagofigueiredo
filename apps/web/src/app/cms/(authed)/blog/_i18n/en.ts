@@ -15,7 +15,7 @@ export const en: BlogHubStrings = {
     untitled: 'Untitled', open: 'Open', moreActions: 'More actions', moveTo: 'Move to', duplicate: 'Duplicate', delete: 'Delete',
     deleted: 'Deleted', deleteFailed: "Couldn't delete", confirmDelete: 'Are you sure you want to delete this post?',
     quickAddPlaceholder: 'Quick idea…', ideaCreated: 'Idea created', ideaFailed: "Couldn't create idea",
-    scheduledHint: 'Only ready posts',
+    scheduledHint: 'Only ready posts', readyFirst: 'Move to Ready first',
     viewAllPublished: 'View all published', archived: 'Archived', showArchived: 'Show archived', hideArchived: 'Hide archived',
   },
   deletePost: {

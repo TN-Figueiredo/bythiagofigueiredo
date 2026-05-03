@@ -114,6 +114,7 @@ export function ScheduleModal({ isOpen, postTitle, defaultDate, onConfirm, onCan
                 setDate(e.target.value)
                 setError(null)
               }}
+              style={{ colorScheme: 'dark' }}
               className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-[13px] text-gray-200 focus:border-indigo-500 focus:outline-none"
             />
           </div>
@@ -128,6 +129,7 @@ export function ScheduleModal({ isOpen, postTitle, defaultDate, onConfirm, onCan
               type="time"
               value={time}
               onChange={(e) => setTime(e.target.value)}
+              style={{ colorScheme: 'dark' }}
               className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-[13px] text-gray-200 focus:border-indigo-500 focus:outline-none"
             />
           </div>

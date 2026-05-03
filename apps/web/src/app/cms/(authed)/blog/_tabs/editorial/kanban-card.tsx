@@ -9,6 +9,17 @@ import type { PostCard, BlogTag } from '../../_hub/hub-types'
 import type { BlogHubStrings } from '../../_i18n/types'
 import { formatRelativeDate, getValidTargets } from '../../_hub/hub-utils'
 
+const LOCALE_COLORS: Record<string, string> = {
+  'pt-BR': 'bg-emerald-900/60 text-emerald-400',
+  'en': 'bg-sky-900/60 text-sky-400',
+  'pt': 'bg-amber-900/60 text-amber-400',
+}
+const DEFAULT_LOCALE_COLOR = 'bg-gray-800 text-gray-500'
+
+function localeColorClass(locale: string): string {
+  return LOCALE_COLORS[locale] ?? DEFAULT_LOCALE_COLOR
+}
+
 interface KanbanCardProps {
   card: PostCard
   strings?: BlogHubStrings
@@ -373,7 +384,7 @@ export function KanbanCard({
             {card.locales.map((loc) => (
               <span
                 key={loc}
-                className="rounded bg-gray-800 px-1 py-0.5 text-[8px] uppercase font-medium text-gray-500"
+                className={`rounded px-1 py-0.5 text-[8px] uppercase font-medium ${localeColorClass(loc)}`}
               >
                 {loc}
               </span>
@@ -532,7 +543,7 @@ export function KanbanCardOverlay({ card }: { card: PostCard }) {
       </p>
       <div className="mt-2 flex gap-1.5 text-[9px] text-gray-600">
         {card.locales.map((loc) => (
-          <span key={loc} className="rounded bg-gray-800 px-1 py-0.5 text-[8px] uppercase font-medium text-gray-500">
+          <span key={loc} className={`rounded px-1 py-0.5 text-[8px] uppercase font-medium ${localeColorClass(loc)}`}>
             {loc}
           </span>
         ))}

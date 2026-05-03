@@ -1411,3 +1411,30 @@ export async function toggleWorkflow(
   revalidateTag('newsletter-automations')
   return { ok: true }
 }
+
+export async function updateCadencePattern(
+  typeId: string,
+  pattern: CadencePattern,
+  sendTime: string,
+): Promise<ActionResult> {
+  const ctx = await getSiteContext()
+  const res = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
+  if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
+
+  // Validate pattern generates at least 1 slot in the next 365 days
+  const today = new Date().toISOString().slice(0, 10)
+  const slots = generateCadenceSlots(pattern, { from: today, maxSlots: 1 })
+  if (slots.length === 0) return { ok: false, error: 'no_slots_generated' }
+
+  const supabase = getSupabaseServiceClient()
+  const { error } = await supabase
+    .from('newsletter_types')
+    .update({ cadence_pattern: pattern as unknown as Record<string, unknown>, preferred_send_time: sendTime })
+    .eq('id', typeId)
+    .eq('site_id', ctx.siteId)
+
+  if (error) return { ok: false, error: error.message }
+  revalidateTag('newsletter-hub')
+  revalidateTag('newsletter-schedule')
+  return { ok: true }
+}

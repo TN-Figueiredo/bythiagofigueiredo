@@ -11,15 +11,16 @@ interface KanbanColumnProps {
   title: string
   cards: EditionCard[]
   color?: string
+  hint?: string
   strings?: NewsletterHubStrings
   types?: NewsletterType[]
   onReassignType?: (editionId: string, typeId: string | null) => void
-  onMoveToStatus?: (editionId: string, newStatus: string) => Promise<void>
+  onMoveToStatus?: (editionId: string, newStatus: string) => void | Promise<void>
   onDelete?: (editionId: string) => Promise<void>
   activeId?: string | null
 }
 
-export function KanbanColumn({ id, title, cards, color, strings, types, onReassignType, onMoveToStatus, onDelete, activeId }: KanbanColumnProps) {
+export function KanbanColumn({ id, title, cards, color, hint, strings, types, onReassignType, onMoveToStatus, onDelete, activeId }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id })
   const isDraggingInto = isOver && activeId && !cards.some((c) => c.id === activeId)
 
@@ -35,16 +36,19 @@ export function KanbanColumn({ id, title, cards, color, strings, types, onReassi
             : 'border-gray-800'
       }`}
     >
-      <div className={`flex items-center gap-2 border-b px-3 py-2 transition-colors ${
+      <div className={`border-b px-3 py-2 transition-colors ${
         isDraggingInto ? 'border-indigo-500/30' : 'border-gray-800'
       }`}>
-        {color && <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />}
-        <span className={`text-[10px] font-semibold uppercase tracking-wider transition-colors ${
-          isDraggingInto ? 'text-indigo-400' : 'text-gray-400'
-        }`}>{title}</span>
-        <span className="ml-auto rounded-full bg-gray-800 px-1.5 py-0.5 text-[8px] font-bold tabular-nums text-gray-500">
-          {cards.length}
-        </span>
+        <div className="flex items-center gap-2">
+          {color && <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />}
+          <span className={`text-[10px] font-semibold uppercase tracking-wider transition-colors ${
+            isDraggingInto ? 'text-indigo-400' : 'text-gray-400'
+          }`}>{title}</span>
+          <span className="ml-auto rounded-full bg-gray-800 px-1.5 py-0.5 text-[8px] font-bold tabular-nums text-gray-500">
+            {cards.length}
+          </span>
+        </div>
+        {hint && <p className="mt-0.5 text-[9px] text-gray-600">{hint}</p>}
       </div>
       <SortableContext items={cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
         <div className="flex min-h-[120px] flex-1 flex-col gap-2 overflow-y-auto p-2" style={{ maxHeight: 'calc(100vh - 320px)' }}>

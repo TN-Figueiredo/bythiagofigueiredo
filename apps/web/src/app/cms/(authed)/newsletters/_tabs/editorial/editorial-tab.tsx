@@ -54,9 +54,9 @@ export function EditorialTab({ data, typeFilter, strings, types }: EditorialTabP
     ? typeFiltered.filter((e) => e.subject.toLowerCase().includes(deferredQuery.toLowerCase()))
     : typeFiltered
 
-  const handleMoveEdition = async (editionId: string, newStatus: string) => {
+  const handleMoveEdition = async (editionId: string, newStatus: string, scheduledFor?: string) => {
     startTransition(async () => {
-      await moveEdition(editionId, newStatus)
+      await moveEdition(editionId, newStatus, scheduledFor)
     })
   }
 

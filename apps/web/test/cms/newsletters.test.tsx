@@ -34,7 +34,7 @@ const sharedData = {
     { id: 'type-1', name: 'Weekly Digest', color: '#ea580c', sortOrder: 0, cadencePaused: false, badge: 'MAIN', subscriberCount: 120 },
     { id: 'type-2', name: 'Product Updates', color: '#22c55e', sortOrder: 1, cadencePaused: false, badge: null, subscriberCount: 50 },
   ],
-  tabBadges: { editorial: 3, automations: 1 },
+  tabBadges: { editorial: 3, automations: 1, schedule: 0 },
   siteTimezone: 'America/Sao_Paulo',
   siteName: 'Test Site',
   defaultLocale: 'en',

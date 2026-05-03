@@ -1,11 +1,11 @@
 import { notFound } from 'next/navigation'
-import { PostEditor } from '@tn-figueiredo/cms'
 import { postRepo } from '@/lib/cms/repositories'
 import { blogRegistry } from '@/lib/cms/registry'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { computeDisplayId } from '../../_hub/hub-utils'
-import { savePost, publishPost, unpublishPost, archivePost, compilePreview, uploadAsset } from './actions'
+import { publishPost, unpublishPost, archivePost } from './actions'
+import { EditPostClient } from './edit-post-client'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,30 +46,27 @@ export default async function EditPostPage({ params }: Props) {
   const displayId = computeDisplayId(countResult.count ?? 1)
 
   return (
-    <main>
-      <header>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <span style={{ fontFamily: 'monospace', fontSize: '0.75rem', color: '#6b7280' }}>{displayId}</span>
-          {tag && (
-            <span style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              padding: '0.125rem 0.5rem',
-              borderRadius: '9999px',
-              fontSize: '0.75rem',
-              fontWeight: 500,
+    <div className="flex flex-col gap-4 px-4 py-4 md:px-7">
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="font-mono text-xs text-gray-500">{displayId}</span>
+        {tag && (
+          <span
+            className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
+            style={{
               backgroundColor: tag.color + '22',
               color: tag.color,
               border: `1px solid ${tag.color}44`,
-            }}>
-              {tag.name}
-            </span>
-          )}
-          <h1 style={{ margin: 0 }}>Editando: {tx.title}</h1>
-        </div>
-      </header>
-      <PostEditor
+            }}
+          >
+            {tag.name}
+          </span>
+        )}
+        <h1 className="text-base font-semibold text-gray-200">Editando: {tx.title}</h1>
+      </div>
+
+      <EditPostClient
         postId={id}
+        locale={tx.locale}
         initialContent={tx.content_mdx}
         initialTitle={tx.title}
         initialSlug={tx.slug}
@@ -78,44 +75,30 @@ export default async function EditPostPage({ params }: Props) {
         initialMetaDescription={tx.meta_description}
         initialOgImageUrl={tx.og_image_url}
         initialCoverImageUrl={post.cover_image_url}
-        locale={tx.locale}
         componentNames={Object.keys(blogRegistry)}
-        onSave={async (input) => {
-          const result = await savePost(id, tx.locale, input)
-          // Adapter: Sprint 5b PR-C added `invalid_seo_extras` to savePost's
-          // result union, but @tn-figueiredo/cms@0.2.0's PostEditor SaveResult
-          // type doesn't know about it. Project it onto the editor's existing
-          // `validation_failed` shape so the error surfaces under the content
-          // field (the frontmatter lives in the MDX body).
-          if (!result.ok && result.error === 'invalid_seo_extras') {
-            return {
-              ok: false,
-              error: 'validation_failed',
-              fields: {
-                content_mdx: result.details[0]?.message ?? 'invalid seo_extras frontmatter',
-              },
-            }
-          }
-          return result
-        }}
-        onPreview={async (source) => compilePreview(source)}
-        onUpload={async (file) => uploadAsset(file, id)}
       />
-      <div>
+
+      <div className="flex items-center gap-2 border-t border-gray-800 pt-4">
         {post.status !== 'published' && (
           <form action={async () => { 'use server'; await publishPost(id) }}>
-            <button type="submit">Publicar</button>
+            <button type="submit" className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500">
+              Publicar
+            </button>
           </form>
         )}
         {post.status === 'published' && (
           <form action={async () => { 'use server'; await unpublishPost(id) }}>
-            <button type="submit">Despublicar</button>
+            <button type="submit" className="rounded-lg border border-gray-700 bg-gray-800 px-4 py-2 text-xs font-semibold text-gray-300 hover:bg-gray-700">
+              Despublicar
+            </button>
           </form>
         )}
         <form action={async () => { 'use server'; await archivePost(id) }}>
-          <button type="submit">Arquivar</button>
+          <button type="submit" className="rounded-lg border border-gray-700 bg-gray-800 px-4 py-2 text-xs font-semibold text-gray-400 hover:bg-gray-700 hover:text-gray-200">
+            Arquivar
+          </button>
         </form>
       </div>
-    </main>
+    </div>
   )
 }

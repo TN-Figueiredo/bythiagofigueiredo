@@ -133,7 +133,7 @@ export function HubClient({ sharedData, defaultTab, children, tabLabels, allType
         {TABS.map((tab) => {
           const Icon = tab.icon
           const isActive = activeTab === tab.id
-          const badge = tab.id === 'editorial' ? sharedData.tabBadges.editorial : tab.id === 'automations' ? sharedData.tabBadges.automations : 0
+          const badge = tab.id === 'editorial' ? sharedData.tabBadges.editorial : tab.id === 'automations' ? sharedData.tabBadges.automations : tab.id === 'schedule' ? sharedData.tabBadges.schedule : 0
           return (
             <button
               key={tab.id}
@@ -149,7 +149,7 @@ export function HubClient({ sharedData, defaultTab, children, tabLabels, allType
               {tabLabels[tab.id]}
               {badge > 0 && (
                 <span className={`ml-1 rounded-full px-1.5 py-0.5 text-[8px] font-semibold ${
-                  tab.id === 'automations' ? 'bg-red-500/20 text-red-400' : 'bg-indigo-500/20 text-indigo-400'
+                  tab.id === 'automations' || tab.id === 'schedule' ? 'bg-red-500/20 text-red-400' : 'bg-indigo-500/20 text-indigo-400'
                 }`}>
                   {badge}
                 </span>

@@ -34,7 +34,7 @@ interface KanbanCardProps {
   strings?: NewsletterHubStrings
   types?: NewsletterType[]
   onReassignType?: (editionId: string, typeId: string | null) => void
-  onMoveToStatus?: (editionId: string, newStatus: string) => void
+  onMoveToStatus?: (editionId: string, newStatus: string) => void | Promise<void>
   onDeleteEdition?: (editionId: string) => void
 }
 
