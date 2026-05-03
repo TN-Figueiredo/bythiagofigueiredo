@@ -2,7 +2,10 @@
  * Newsletter cross-promotion: locale filtering, relevance scoring, and cached suggestion query.
  */
 
-// ── Types ───────────────────────���──────────────────────────────��─────────────
+import { unstable_cache } from 'next/cache'
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
+
+// ── Types ────────────────────────────────────────────────────────────────────
 
 export interface SuggestionCandidate {
   id: string
@@ -106,4 +109,119 @@ export function rankSuggestions(
     }))
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
+}
+
+// ── Allowed locales for filter ───────────────────────────────────────────────
+
+function getAllowedLocales(visitorLocale: string): string[] {
+  if (visitorLocale === 'pt-BR') return ['pt-BR', 'en']
+  return [visitorLocale]
+}
+
+// ── Cached suggestion fetcher ────────────────────────────────────────────────
+
+export const getNewsletterSuggestions = unstable_cache(
+  async (
+    currentSlug: string,
+    locale: string,
+  ): Promise<ScoredSuggestion[]> => {
+    const supabase = getSupabaseServiceClient()
+    const allowedLocales = getAllowedLocales(locale)
+
+    // Fetch all active types except the current one, filtered by locale
+    const { data: types } = await supabase
+      .from('newsletter_types')
+      .select('id, slug, name, tagline, cadence_label, cadence_days, cadence_start_date, color, color_dark, locale, created_at')
+      .eq('active', true)
+      .neq('slug', currentSlug)
+      .in('locale', allowedLocales)
+
+    if (!types || types.length === 0) return []
+
+    const typeIds = types.map((t) => t.id as string)
+
+    // Fetch subscriber counts (confirmed only) and last sent edition in parallel
+    const [subCountsResult, editionsResult] = await Promise.all([
+      supabase
+        .from('newsletter_subscriptions')
+        .select('newsletter_id')
+        .in('newsletter_id', typeIds)
+        .eq('status', 'confirmed'),
+      supabase
+        .from('newsletter_editions')
+        .select('newsletter_type_id, sent_at')
+        .in('newsletter_type_id', typeIds)
+        .eq('status', 'sent')
+        .order('sent_at', { ascending: false }),
+    ])
+
+    // Count subscribers per type
+    const subCounts = new Map<string, number>()
+    for (const row of subCountsResult.data ?? []) {
+      const id = row.newsletter_id as string
+      subCounts.set(id, (subCounts.get(id) ?? 0) + 1)
+    }
+
+    // Get latest sent_at per type
+    const lastSentMap = new Map<string, string>()
+    for (const row of editionsResult.data ?? []) {
+      const tid = row.newsletter_type_id as string
+      if (!lastSentMap.has(tid)) {
+        lastSentMap.set(tid, row.sent_at as string)
+      }
+    }
+
+    // Build candidates
+    const candidates: SuggestionCandidate[] = types.map((t) => ({
+      id: t.id as string,
+      slug: t.slug as string,
+      name: t.name as string,
+      tagline: (t.tagline as string | null) ?? null,
+      cadence_label: (t.cadence_label as string | null) ?? null,
+      cadence_days: (t.cadence_days as number) ?? 0,
+      cadence_start_date: (t.cadence_start_date as string | null) ?? null,
+      color: (t.color as string) ?? '#C14513',
+      color_dark: (t.color_dark as string | null) ?? null,
+      locale: t.locale as 'en' | 'pt-BR',
+      created_at: t.created_at as string,
+      subscriber_count: subCounts.get(t.id as string) ?? 0,
+      last_sent_at: lastSentMap.get(t.id as string) ?? null,
+    }))
+
+    return rankSuggestions(candidates, 3)
+  },
+  ['newsletter-suggestions'],
+  { tags: ['newsletter-suggestions'], revalidate: 3600 },
+)
+
+// ── Post-subscribe filtering ─────────────────────────────────────────────────
+
+/**
+ * Fetches suggestions excluding types the subscriber is already subscribed to.
+ * Called client-side via server action after successful subscribe.
+ */
+export async function getFilteredSuggestionsForSubscriber(
+  currentSlug: string,
+  locale: string,
+  subscriberEmail: string,
+): Promise<ScoredSuggestion[]> {
+  const supabase = getSupabaseServiceClient()
+
+  // Get all suggestions first
+  const suggestions = await getNewsletterSuggestions(currentSlug, locale)
+
+  if (suggestions.length === 0) return []
+
+  // Query subscriber's existing subscriptions
+  const { data: existingSubs } = await supabase
+    .from('newsletter_subscriptions')
+    .select('newsletter_id')
+    .eq('email', subscriberEmail)
+    .in('status', ['confirmed', 'pending_confirmation'])
+
+  const subscribedIds = new Set(
+    (existingSubs ?? []).map((s) => s.newsletter_id as string),
+  )
+
+  return suggestions.filter((s) => !subscribedIds.has(s.id))
 }
