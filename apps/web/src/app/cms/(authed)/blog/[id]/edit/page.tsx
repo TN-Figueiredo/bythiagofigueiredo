@@ -3,6 +3,8 @@ import { PostEditor } from '@tn-figueiredo/cms'
 import { postRepo } from '@/lib/cms/repositories'
 import { blogRegistry } from '@/lib/cms/registry'
 import { getSiteContext } from '@/lib/cms/site-context'
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { computeDisplayId } from '../../_hub/hub-utils'
 import { savePost, publishPost, unpublishPost, archivePost, compilePreview, uploadAsset } from './actions'
 
 export const dynamic = 'force-dynamic'
@@ -24,10 +26,47 @@ export default async function EditPostPage({ params }: Props) {
   const tx = post.translations[0]
   if (!tx) notFound()
 
+  // Query tag info and compute displayId from post rank by creation date
+  const supabase = getSupabaseServiceClient()
+  const [tagResult, countResult] = await Promise.all([
+    supabase
+      .from('blog_posts')
+      .select('tag_id, blog_tags(name, color)')
+      .eq('id', id)
+      .maybeSingle(),
+    supabase
+      .from('blog_posts')
+      .select('id', { count: 'exact', head: true })
+      .eq('site_id', ctx.siteId)
+      .lte('created_at', post.created_at),
+  ])
+
+  const tagRow = tagResult.data as { tag_id: string | null; blog_tags: { name: string; color: string } | null } | null
+  const tag = tagRow?.blog_tags ?? null
+  const displayId = computeDisplayId(countResult.count ?? 1)
+
   return (
     <main>
       <header>
-        <h1>Editando: {tx.title}</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <span style={{ fontFamily: 'monospace', fontSize: '0.75rem', color: '#6b7280' }}>{displayId}</span>
+          {tag && (
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              padding: '0.125rem 0.5rem',
+              borderRadius: '9999px',
+              fontSize: '0.75rem',
+              fontWeight: 500,
+              backgroundColor: tag.color + '22',
+              color: tag.color,
+              border: `1px solid ${tag.color}44`,
+            }}>
+              {tag.name}
+            </span>
+          )}
+          <h1 style={{ margin: 0 }}>Editando: {tx.title}</h1>
+        </div>
       </header>
       <PostEditor
         postId={id}
