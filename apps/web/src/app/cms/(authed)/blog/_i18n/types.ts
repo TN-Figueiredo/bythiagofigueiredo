@@ -1,7 +1,7 @@
 export interface BlogHubStrings {
   tabs: { overview: string; editorial: string; schedule: string; analytics: string }
   kpi: { totalPosts: string; published: string; avgReadingTime: string; draftBacklog: string }
-  actions: { newPost: string; newIdea: string; viewAll: string; configure: string }
+  actions: { newPost: string; newIdea: string }
   empty: { noData: string; noPosts: string; startWriting: string; addIdea: string; configCadence: string }
   overview: { tagBreakdown: string; recentPublications: string; velocityTrend: string; untagged: string; readingTime: string; publishedAgo: string }
   editorial: {
@@ -10,10 +10,21 @@ export interface BlogHubStrings {
     idea: string; draft: string; ready: string; scheduled: string; published: string
     review: string; queued: string
     none: string; noTag: string; changeTag: string; addLocale: string; reassigned: string
-    untitled: string; open: string; moveTo: string; duplicate: string; delete: string
+    untitled: string; open: string; moreActions: string; moveTo: string; duplicate: string; delete: string
     deleted: string; deleteFailed: string; confirmDelete: string
     quickAddPlaceholder: string; ideaCreated: string; ideaFailed: string
-    viewAllPublished: string; archived: string; showArchived: string; hideArchived: string; restore: string
+    viewAllPublished: string; archived: string; showArchived: string; hideArchived: string
+  }
+  deletePost: {
+    triggerLabel: string; triggerAriaLabel: string
+    dialogTitle: string; dialogDescription: string
+    cancel: string; confirm: string; confirming: string
+    successStatus: string
+    errorAlreadyPublished: string; errorNotFound: string; errorDb: string; errorUnknown: string
+  }
+  filters: {
+    all: string; draft: string; review: string; ready: string; queued: string; published: string; archived: string
+    searchPlaceholder: string; searchAriaLabel: string
   }
   schedule: {
     fillRate: string; next7Days: string; avgReadingTime: string; activeLocales: string

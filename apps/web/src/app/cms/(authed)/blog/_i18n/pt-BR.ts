@@ -3,7 +3,7 @@ import type { BlogHubStrings } from './types'
 export const ptBR: BlogHubStrings = {
   tabs: { overview: 'Visão Geral', editorial: 'Editorial', schedule: 'Agenda', analytics: 'Analytics' },
   kpi: { totalPosts: 'Total de Posts', published: 'Publicados', avgReadingTime: 'Tempo Médio', draftBacklog: 'Rascunhos' },
-  actions: { newPost: 'Novo Post', newIdea: 'Nova Ideia', viewAll: 'Ver todos', configure: 'Configurar' },
+  actions: { newPost: 'Novo Post', newIdea: 'Nova Ideia' },
   empty: { noData: 'Sem dados ainda', noPosts: 'Nenhum post ainda', startWriting: 'Comece a escrever seu primeiro post', addIdea: 'Adicione sua primeira ideia', configCadence: 'Configure sua cadência de publicação' },
   overview: { tagBreakdown: 'Posts por Tag', recentPublications: 'Publicações Recentes', velocityTrend: 'Velocidade de Publicação', untagged: 'Sem tag', readingTime: 'min leitura', publishedAgo: 'atrás' },
   editorial: {
@@ -12,10 +12,23 @@ export const ptBR: BlogHubStrings = {
     idea: 'Ideia', draft: 'Rascunho', ready: 'Pronto', scheduled: 'Agendado', published: 'Publicado',
     review: 'Revisão', queued: 'Na fila',
     none: 'Nenhum', noTag: 'Sem tag', changeTag: 'Mudar tag', addLocale: 'Adicionar idioma', reassigned: 'Tag alterada',
-    untitled: 'Sem título', open: 'Abrir', moveTo: 'Mover para', duplicate: 'Duplicar', delete: 'Excluir',
+    untitled: 'Sem título', open: 'Abrir', moreActions: 'Mais ações', moveTo: 'Mover para', duplicate: 'Duplicar', delete: 'Excluir',
     deleted: 'Excluído', deleteFailed: 'Não foi possível excluir', confirmDelete: 'Tem certeza que deseja excluir este post?',
     quickAddPlaceholder: 'Ideia rápida…', ideaCreated: 'Ideia criada', ideaFailed: 'Não foi possível criar',
-    viewAllPublished: 'Ver todos os publicados', archived: 'Arquivados', showArchived: 'Mostrar arquivados', hideArchived: 'Ocultar arquivados', restore: 'Restaurar',
+    viewAllPublished: 'Ver todos os publicados', archived: 'Arquivados', showArchived: 'Mostrar arquivados', hideArchived: 'Ocultar arquivados',
+  },
+  deletePost: {
+    triggerLabel: 'Excluir', triggerAriaLabel: 'Excluir {title}',
+    dialogTitle: 'Excluir post?', dialogDescription: "Esta ação é permanente. '{title}' será removido.",
+    cancel: 'Cancelar', confirm: 'Confirmar exclusão', confirming: 'Excluindo…',
+    successStatus: 'Excluído',
+    errorAlreadyPublished: 'Este post foi publicado e não pode mais ser excluído. Recarregue a lista.',
+    errorNotFound: 'Post não encontrado (pode já ter sido excluído).',
+    errorDb: 'Falha no banco ao excluir.', errorUnknown: 'Falha ao excluir',
+  },
+  filters: {
+    all: 'Todos', draft: 'Rascunho', review: 'Revisão', ready: 'Pronto', queued: 'Na fila', published: 'Publicado', archived: 'Arquivado',
+    searchPlaceholder: 'Buscar posts...', searchAriaLabel: 'Buscar posts',
   },
   schedule: {
     fillRate: 'Preenchimento', next7Days: 'Próx. 7 Dias', avgReadingTime: 'Tempo Médio', activeLocales: 'Idiomas Ativos',

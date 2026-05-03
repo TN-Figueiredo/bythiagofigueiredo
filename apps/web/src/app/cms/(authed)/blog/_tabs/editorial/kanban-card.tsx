@@ -181,7 +181,7 @@ export function KanbanCard({
         aria-busy={isLoading}
         onClick={handleClick}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && !isLoading) handleClick()
+          if ((e.key === 'Enter' || e.key === ' ') && !isLoading) { e.preventDefault(); handleClick() }
         }}
         onContextMenu={(e) => {
           e.preventDefault()
@@ -224,7 +224,7 @@ export function KanbanCard({
                   e.stopPropagation()
                   setContextMenu({ x: e.clientX, y: e.clientY })
                 }}
-                aria-label="More actions"
+                aria-label={s?.moreActions ?? 'More actions'}
                 className="rounded p-0.5 text-gray-500 hover:bg-gray-800 hover:text-gray-300"
               >
                 <MoreVertical className="h-3 w-3" />

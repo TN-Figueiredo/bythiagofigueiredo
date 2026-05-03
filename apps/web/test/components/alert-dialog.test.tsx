@@ -12,6 +12,9 @@ import {
   AlertDialogTrigger,
 } from '../../src/components/ui/alert-dialog'
 import { DeletePostButton } from '../../src/app/cms/(authed)/blog/_components/delete-post-button'
+import { ptBR } from '../../src/app/cms/(authed)/blog/_i18n/pt-BR'
+
+const deleteStrings = ptBR.deletePost
 
 function Harness({ onConfirm }: { onConfirm?: () => void }) {
   return (
@@ -68,6 +71,7 @@ describe('DeletePostButton', () => {
         postId="p1"
         postTitle="Meu Post"
         onDelete={vi.fn().mockResolvedValue({ ok: true })}
+        strings={deleteStrings}
       />,
     )
     fireEvent.click(screen.getByRole('button', { name: /Excluir Meu Post/i }))
@@ -79,7 +83,7 @@ describe('DeletePostButton', () => {
 
   it('calls onDelete and shows success state on confirm', async () => {
     const onDelete = vi.fn().mockResolvedValue({ ok: true })
-    render(<DeletePostButton postId="p1" postTitle="Meu Post" onDelete={onDelete} />)
+    render(<DeletePostButton postId="p1" postTitle="Meu Post" onDelete={onDelete} strings={deleteStrings} />)
     fireEvent.click(screen.getByRole('button', { name: /Excluir Meu Post/i }))
     await waitFor(() => screen.getByText('Confirmar exclusão'))
     fireEvent.click(screen.getByText('Confirmar exclusão'))
@@ -91,7 +95,7 @@ describe('DeletePostButton', () => {
 
   it('shows error message when onDelete throws', async () => {
     const onDelete = vi.fn().mockRejectedValue(new Error('boom'))
-    render(<DeletePostButton postId="p1" postTitle="Meu Post" onDelete={onDelete} />)
+    render(<DeletePostButton postId="p1" postTitle="Meu Post" onDelete={onDelete} strings={deleteStrings} />)
     fireEvent.click(screen.getByRole('button', { name: /Excluir Meu Post/i }))
     await waitFor(() => screen.getByText('Confirmar exclusão'))
     fireEvent.click(screen.getByText('Confirmar exclusão'))
@@ -102,7 +106,7 @@ describe('DeletePostButton', () => {
 
   it('does not render trigger when already deleted (after successful delete)', async () => {
     const onDelete = vi.fn().mockResolvedValue({ ok: true })
-    render(<DeletePostButton postId="p1" postTitle="Meu Post" onDelete={onDelete} />)
+    render(<DeletePostButton postId="p1" postTitle="Meu Post" onDelete={onDelete} strings={deleteStrings} />)
     fireEvent.click(screen.getByRole('button', { name: /Excluir Meu Post/i }))
     await waitFor(() => screen.getByText('Confirmar exclusão'))
     fireEvent.click(screen.getByText('Confirmar exclusão'))

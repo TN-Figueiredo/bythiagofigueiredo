@@ -3,7 +3,7 @@ import type { BlogHubStrings } from './types'
 export const en: BlogHubStrings = {
   tabs: { overview: 'Overview', editorial: 'Editorial', schedule: 'Schedule', analytics: 'Analytics' },
   kpi: { totalPosts: 'Total Posts', published: 'Published', avgReadingTime: 'Avg Reading Time', draftBacklog: 'Draft Backlog' },
-  actions: { newPost: 'New Post', newIdea: 'New Idea', viewAll: 'View all', configure: 'Configure' },
+  actions: { newPost: 'New Post', newIdea: 'New Idea' },
   empty: { noData: 'No data yet', noPosts: 'No posts yet', startWriting: 'Start writing your first post', addIdea: 'Add your first idea', configCadence: 'Configure your publishing cadence' },
   overview: { tagBreakdown: 'Posts by Tag', recentPublications: 'Recent Publications', velocityTrend: 'Publishing Velocity', untagged: 'Untagged', readingTime: 'min read', publishedAgo: 'ago' },
   editorial: {
@@ -12,10 +12,23 @@ export const en: BlogHubStrings = {
     idea: 'Idea', draft: 'Draft', ready: 'Ready', scheduled: 'Scheduled', published: 'Published',
     review: 'Review', queued: 'Queued',
     none: 'None', noTag: 'No tag', changeTag: 'Change tag', addLocale: 'Add locale', reassigned: 'Tag changed',
-    untitled: 'Untitled', open: 'Open', moveTo: 'Move to', duplicate: 'Duplicate', delete: 'Delete',
+    untitled: 'Untitled', open: 'Open', moreActions: 'More actions', moveTo: 'Move to', duplicate: 'Duplicate', delete: 'Delete',
     deleted: 'Deleted', deleteFailed: "Couldn't delete", confirmDelete: 'Are you sure you want to delete this post?',
     quickAddPlaceholder: 'Quick idea…', ideaCreated: 'Idea created', ideaFailed: "Couldn't create idea",
-    viewAllPublished: 'View all published', archived: 'Archived', showArchived: 'Show archived', hideArchived: 'Hide archived', restore: 'Restore',
+    viewAllPublished: 'View all published', archived: 'Archived', showArchived: 'Show archived', hideArchived: 'Hide archived',
+  },
+  deletePost: {
+    triggerLabel: 'Delete', triggerAriaLabel: 'Delete {title}',
+    dialogTitle: 'Delete post?', dialogDescription: "This action is permanent. '{title}' will be removed.",
+    cancel: 'Cancel', confirm: 'Confirm deletion', confirming: 'Deleting…',
+    successStatus: 'Deleted',
+    errorAlreadyPublished: 'This post has been published and can no longer be deleted. Reload the list.',
+    errorNotFound: 'Post not found (may have already been deleted).',
+    errorDb: 'Database error while deleting.', errorUnknown: 'Failed to delete',
+  },
+  filters: {
+    all: 'All', draft: 'Draft', review: 'Review', ready: 'Ready', queued: 'Queued', published: 'Published', archived: 'Archived',
+    searchPlaceholder: 'Search posts...', searchAriaLabel: 'Search posts',
   },
   schedule: {
     fillRate: 'Fill Rate', next7Days: 'Next 7 Days', avgReadingTime: 'Avg Reading Time', activeLocales: 'Active Locales',
