@@ -1,6 +1,6 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { compileMdx, uploadContentAsset, isSafeUrl, type CompiledMdx } from '@tn-figueiredo/cms'
 import { postRepo } from '@/lib/cms/repositories'
 import { blogRegistry } from '@/lib/cms/registry'
@@ -20,6 +20,7 @@ export interface SavePostActionInput {
   meta_description?: string | null
   og_image_url?: string | null
   cover_image_url?: string | null
+  tag_id?: string | null
 }
 
 export type SavePostActionResult =
@@ -101,7 +102,9 @@ export async function savePost(
 
   {
     const supabase = getSupabaseServiceClient()
-    await supabase.from('blog_posts').update({ locale }).eq('id', id)
+    const postPatch: Record<string, unknown> = { locale }
+    if (input.tag_id !== undefined) postPatch.tag_id = input.tag_id
+    await supabase.from('blog_posts').update(postPatch).eq('id', id)
   }
 
   // Workaround: @tn-figueiredo/cms@0.2.0 `UpdatePostInput.translation` does
@@ -134,6 +137,7 @@ export async function savePost(
   }
 
   revalidateBlogPostSeo(siteId, id, locale, input.slug)
+  revalidateTag('blog-hub')
   return { ok: true, postId: id }
 }
 
