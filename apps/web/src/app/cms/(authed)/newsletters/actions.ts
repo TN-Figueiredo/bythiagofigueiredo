@@ -595,11 +595,34 @@ export async function unslotEdition(editionId: string): Promise<ActionResult> {
  * e.g. computeScheduledAt('2026-05-10', '09:00', 'America/Sao_Paulo')
  */
 function computeScheduledAt(slotDate: string, sendTime: string, timezone: string): string {
-  const naive = new Date(`${slotDate}T${sendTime}:00`)
-  const utcStr = naive.toLocaleString('en-US', { timeZone: 'UTC' })
-  const tzStr = naive.toLocaleString('en-US', { timeZone: timezone })
-  const offset = new Date(utcStr).getTime() - new Date(tzStr).getTime()
-  return new Date(naive.getTime() + offset).toISOString()
+  const dateTimeStr = `${slotDate}T${sendTime}:00`
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  })
+  // Compute UTC offset for this wall-clock time in the target timezone
+  // by using a known UTC reference and comparing the formatted output
+  const utcMs = Date.UTC(
+    parseInt(slotDate.slice(0, 4)),
+    parseInt(slotDate.slice(5, 7)) - 1,
+    parseInt(slotDate.slice(8, 10)),
+    parseInt(sendTime.slice(0, 2)),
+    parseInt(sendTime.slice(3, 5)),
+  )
+  // Format this UTC timestamp in the target timezone to see how it shifts
+  const parts = formatter.formatToParts(new Date(utcMs))
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '0'
+  const tzYear = parseInt(get('year'))
+  const tzMonth = parseInt(get('month')) - 1
+  const tzDay = parseInt(get('day'))
+  const tzHour = parseInt(get('hour'))
+  const tzMin = parseInt(get('minute'))
+  const tzRendered = Date.UTC(tzYear, tzMonth, tzDay, tzHour, tzMin)
+  const offsetMs = tzRendered - utcMs
+  // The desired wall-clock time in timezone = utcMs - offsetMs
+  return new Date(utcMs - offsetMs).toISOString()
 }
 
 /**
@@ -640,7 +663,7 @@ export async function scheduleEditionToSlot(
 
   const scheduledAt = computeScheduledAt(slotDate, sendTimeHHMM, siteTimezone)
 
-  // CAS update: only if status = 'ready'
+  // CAS update: only if status = 'ready' AND edition belongs to this type
   const { error } = await supabase
     .from('newsletter_editions')
     .update({
@@ -648,6 +671,7 @@ export async function scheduleEditionToSlot(
       slot_date: slotDate,
       scheduled_at: scheduledAt,
       edition_kind: 'cadence',
+      newsletter_type_id: typeId,
       updated_at: new Date().toISOString(),
     })
     .eq('id', editionId)
@@ -768,15 +792,31 @@ export async function getAvailableSlots(
 
   const occupiedDates = new Set((occupiedRows ?? []).map((r) => r.slot_date as string))
 
-  // Generate candidate slots (generate more than needed to account for filtering)
+  // Generate candidate slots iteratively to guarantee we find enough available ones
   const slotsNeeded = maxSlots ?? 20
-  const candidates = generateCadenceSlots(cadencePattern, {
-    from: today,
-    maxSlots: slotsNeeded * 3, // generate extra to filter
-  })
+  const availableDates: string[] = []
+  let generateBatch = slotsNeeded * 3
+  let fromDate = today
 
-  // Filter out occupied dates
-  const availableDates = candidates.filter((d) => !occupiedDates.has(d)).slice(0, slotsNeeded)
+  while (availableDates.length < slotsNeeded && generateBatch <= 500) {
+    const candidates = generateCadenceSlots(cadencePattern, {
+      from: fromDate,
+      maxSlots: generateBatch,
+    })
+    if (candidates.length === 0) break
+    for (const d of candidates) {
+      if (!occupiedDates.has(d) && !availableDates.includes(d)) {
+        availableDates.push(d)
+        if (availableDates.length >= slotsNeeded) break
+      }
+    }
+    if (availableDates.length >= slotsNeeded) break
+    // Advance past last candidate and try more
+    const lastCandidate = candidates[candidates.length - 1]!
+    const nextDay = new Date(new Date(lastCandidate + 'T00:00:00Z').getTime() + 86_400_000).toISOString().slice(0, 10)
+    fromDate = nextDay
+    generateBatch = slotsNeeded * 2
+  }
 
   // Format slots
   const slots: SlotInfo[] = availableDates.map((date) => ({

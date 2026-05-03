@@ -115,7 +115,7 @@ export interface ScheduleSlot {
 
 export interface CadenceConfig {
   typeId: string; typeName: string; typeColor: string
-  cadence: string; cadenceDays: number; dayOfWeek: string; time: string; nextDate: string
+  cadence: string; hasPattern: boolean; cadenceDays: number; dayOfWeek: string; time: string; nextDate: string
   cadenceStartDate: string | null
   paused: boolean; subscribers: number; editionsSent: number; openRate: number
   conflicts: string[]

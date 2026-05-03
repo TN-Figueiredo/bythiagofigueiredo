@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useModalFocusTrap } from './use-modal-focus-trap'
 
 export interface CadenceSlotOption {
@@ -51,6 +51,10 @@ export function SlotPickerModal({
 }: SlotPickerModalProps) {
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (open) setSelectedDate(null)
+  }, [open])
 
   useModalFocusTrap(dialogRef, open, onCancel)
 

@@ -58,6 +58,7 @@ interface CadencePatternFormProps {
   currentPattern: CadencePattern | null
   preferredSendTime: string
   siteTimezone: string
+  locale?: 'en' | 'pt-BR'
   onSave: (pattern: CadencePattern, sendTime: string) => Promise<{ ok: boolean; error?: string }>
   strings?: NewsletterHubStrings
 }
@@ -74,6 +75,7 @@ export function CadencePatternForm({
   currentPattern,
   preferredSendTime,
   siteTimezone: _siteTimezone,
+  locale = 'en',
   onSave,
   strings,
 }: CadencePatternFormProps) {
@@ -109,11 +111,11 @@ export function CadencePatternForm({
 
   const patternDescription = useMemo(() => {
     try {
-      return describePattern(pattern, 'en')
+      return describePattern(pattern, locale)
     } catch {
       return ''
     }
-  }, [pattern])
+  }, [pattern, locale])
 
   // ─── Save ─────────────────────────────────────────────────────────────────
 

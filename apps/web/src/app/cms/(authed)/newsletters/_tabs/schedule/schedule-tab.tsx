@@ -143,7 +143,7 @@ export function ScheduleTab({ data, typeFilter, strings, locale = 'en' }: Schedu
 
     // Check if this type has a cadence pattern (determined by cadenceConfigs data)
     const cadenceConfig = data.cadenceConfigs.find((c) => c.typeId === typeId)
-    const hasCadence = cadenceConfig && cadenceConfig.cadence !== 'No cadence'
+    const hasCadence = cadenceConfig?.hasPattern
 
     if (!hasCadence) {
       // No cadence pattern — use ScheduleModal directly

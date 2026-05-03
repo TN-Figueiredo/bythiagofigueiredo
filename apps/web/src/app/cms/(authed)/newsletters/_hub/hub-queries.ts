@@ -1,6 +1,6 @@
 import { unstable_cache } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { generateCadenceSlots } from '@/lib/newsletter/cadence-slots'
+import { generateCadenceSlots, describePattern } from '@/lib/newsletter/cadence-slots'
 import type { CadencePattern } from '@/lib/newsletter/cadence-pattern'
 import type {
   NewsletterHubSharedData,
@@ -603,17 +603,25 @@ export const fetchScheduleData = unstable_cache(
       const dSum = delivSumByType.get(tid) ?? 0
       const oSum = openSumByType.get(tid) ?? 0
       const startDate = (t.cadence_start_date as string | null) ?? null
+      const pattern = t.cadence_pattern as CadencePattern | null
+      const cadenceDescription = pattern
+        ? describePattern(pattern, 'en')
+        : t.cadence_days ? `Every ${t.cadence_days} days` : 'No cadence'
+      const nextSlots = pattern && !t.cadence_paused
+        ? generateCadenceSlots(pattern, { from: todayStr, maxSlots: 1 })
+        : []
       const dayIdx = startDate ? new Date(startDate + 'T00:00:00').getUTCDay() : null
       const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
       return {
         typeId: tid,
         typeName: t.name as string,
         typeColor: (t.color ?? '#6366f1') as string,
-        cadence: t.cadence_days ? `Every ${t.cadence_days} days` : 'No cadence',
+        cadence: cadenceDescription,
+        hasPattern: !!pattern,
         cadenceDays: (t.cadence_days as number) ?? 7,
         dayOfWeek: dayIdx !== null ? dayNames[dayIdx]! : '',
         time: (t.preferred_send_time as string) ?? '08:00',
-        nextDate: '',
+        nextDate: nextSlots[0] ?? '',
         cadenceStartDate: startDate,
         paused: !!t.cadence_paused,
         subscribers: subCountByType.get(tid) ?? 0,
