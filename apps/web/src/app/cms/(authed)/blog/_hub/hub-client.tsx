@@ -243,6 +243,7 @@ export function HubClient({
         open={drawerOpen}
         mode={drawerMode}
         tagId={drawerTagId}
+        tags={sharedData.tags}
         onClose={handleCloseDrawer}
         locale={locale}
         strings={drawerStrings}
