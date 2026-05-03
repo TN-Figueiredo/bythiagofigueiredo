@@ -812,7 +812,7 @@ export async function getAvailableSlots(
   // Fetch occupied editions for this type's slots
   const { data: occupiedRows } = await supabase
     .from('newsletter_editions')
-    .select('id, slot_date, subject, display_id')
+    .select('id, slot_date, subject')
     .eq('newsletter_type_id', typeId)
     .eq('edition_kind', 'cadence')
     .not('status', 'in', '("cancelled","archived")')
@@ -822,7 +822,7 @@ export async function getAvailableSlots(
   for (const r of occupiedRows ?? []) {
     occupiedMap.set(r.slot_date as string, {
       id: r.id as string,
-      displayId: (r.display_id as string) ?? '',
+      displayId: `#${(r.id as string).slice(0, 4).toUpperCase()}`,
       subject: (r.subject as string) ?? '',
     })
   }
@@ -836,6 +836,8 @@ export async function getAvailableSlots(
 
   const locale = (ctx.defaultLocale ?? 'pt-BR') as 'en' | 'pt-BR'
 
+  const tzAbbr = formatTimezoneAbbr(siteTimezone)
+
   const slots: SlotInfo[] = candidates.map((date) => {
     const occupied = occupiedMap.get(date)
     return {
@@ -843,7 +845,7 @@ export async function getAvailableSlots(
       dayOfWeek: formatDayOfWeek(date, locale),
       formattedDate: formatSlotDate(date, locale),
       time: sendTimeHHMM,
-      timezone: siteTimezone,
+      timezone: tzAbbr,
       occupied: !!occupied,
       occupiedEdition: occupied ?? undefined,
     }
@@ -862,6 +864,15 @@ function formatSlotDate(dateStr: string, locale: string): string {
   const [y, m, d] = dateStr.split('-').map(Number)
   const date = new Date(Date.UTC(y!, m! - 1, d!))
   return date.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
+}
+
+function formatTimezoneAbbr(timezone: string): string {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: timezone, timeZoneName: 'short' }).formatToParts(new Date())
+    return parts.find((p) => p.type === 'timeZoneName')?.value ?? timezone
+  } catch {
+    return timezone
+  }
 }
 
 // ─── Type & Cadence Management ──────────────────────────────────────────────

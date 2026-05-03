@@ -114,6 +114,7 @@ import {
   revertToDraft,
   sendTestEmail,
   moveEdition,
+  swapSlotEdition,
 } from '@/app/cms/(authed)/newsletters/actions'
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
@@ -387,6 +388,59 @@ describe('Status transition matrix — actual server action behavior', () => {
       mockSupabase = createMockSupabase('idea', { newsletter_type_id: null })
       const result = await moveEdition('ed-1', 'draft')
       expect(result.ok).toBe(true)
+    })
+  })
+
+  // ── swapSlotEdition ────────────────────────────────────────────────────
+  describe('swapSlotEdition', () => {
+    it('rejects invalid date format', async () => {
+      mockSupabase = createMockSupabase('ready')
+      const result = await swapSlotEdition('ed-new', 'bad-date', 'type-1')
+      expect(result.ok).toBe(false)
+      expect(result).toHaveProperty('error', 'invalid_date_format')
+    })
+
+    it('rejects when slot is not occupied', async () => {
+      mockSupabase = createMockSupabase('ready')
+      // .single() returns null when no row matches
+      const original = createMockSupabase
+      mockSupabase = (() => {
+        const row = { id: 'ed-new', status: 'ready', newsletter_type_id: 'type-1', site_id: 'site-1', active: true }
+        function makeChain(returnNull = false) {
+          let useSingle = false
+          const handler: ProxyHandler<Record<string, unknown>> = {
+            get(_target, prop: string) {
+              if (prop === 'then') {
+                if (useSingle && returnNull) return (resolve?: (v: unknown) => void) => resolve?.({ data: null, error: null })
+                const result = useSingle ? { data: row, error: null } : { data: [row], error: null }
+                return (resolve?: (v: unknown) => void) => resolve?.(result)
+              }
+              if (prop === 'single' || prop === 'maybeSingle') return () => { useSingle = true; return new Proxy({}, handler) }
+              return () => new Proxy({}, handler)
+            },
+          }
+          return new Proxy({}, handler)
+        }
+        let callCount = 0
+        return { from: () => { callCount++; return makeChain(callCount === 1) } }
+      })() as typeof mockSupabase
+      const result = await swapSlotEdition('ed-new', '2026-06-01', 'type-1')
+      expect(result.ok).toBe(false)
+      expect(result).toHaveProperty('error', 'slot_not_occupied')
+    })
+
+    it('rejects when occupant is sending', async () => {
+      mockSupabase = createMockSupabase('sending')
+      const result = await swapSlotEdition('ed-new', '2026-06-01', 'type-1')
+      expect(result.ok).toBe(false)
+      expect(result).toHaveProperty('error', 'occupant_locked')
+    })
+
+    it('rejects when occupant is sent', async () => {
+      mockSupabase = createMockSupabase('sent')
+      const result = await swapSlotEdition('ed-new', '2026-06-01', 'type-1')
+      expect(result.ok).toBe(false)
+      expect(result).toHaveProperty('error', 'occupant_locked')
     })
   })
 })
