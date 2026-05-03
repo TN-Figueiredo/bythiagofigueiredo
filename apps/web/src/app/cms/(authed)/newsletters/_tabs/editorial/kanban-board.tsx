@@ -43,6 +43,7 @@ interface SlotPickerState {
   subject: string
   typeId: string
   typeName: string
+  patternDescription: string
   slots: CadenceSlotOption[]
   hasMore: boolean
   loading: boolean
@@ -108,6 +109,7 @@ export function KanbanBoard({ editions, onMoveEdition, onDeleteEdition, strings,
       subject: edition.subject,
       typeId,
       typeName,
+      patternDescription: '',
       slots: [],
       hasMore: false,
       loading: true,
@@ -127,6 +129,7 @@ export function KanbanBoard({ editions, onMoveEdition, onDeleteEdition, strings,
       subject: edition.subject,
       typeId,
       typeName,
+      patternDescription: result.patternDescription,
       slots: result.slots,
       hasMore: result.slots.length >= 20,
       loading: false,
@@ -392,7 +395,7 @@ export function KanbanBoard({ editions, onMoveEdition, onDeleteEdition, strings,
         open={!!slotPickerState && !slotPickerState.loading}
         editionDisplayId={slotPickerState?.displayId ?? ''}
         typeName={slotPickerState?.typeName ?? ''}
-        patternDescription=""
+        patternDescription={slotPickerState?.patternDescription ?? ''}
         availableSlots={slotPickerState?.slots ?? []}
         hasMore={slotPickerState?.hasMore ?? false}
         onLoadMore={handleSlotLoadMore}

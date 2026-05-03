@@ -12,7 +12,7 @@ import { getEmailService } from '@/lib/email/service'
 import { render } from '@react-email/render'
 import { Newsletter } from '@/emails/newsletter'
 import { revalidateNewsletterTypeSeo } from '@/lib/seo/cache-invalidation'
-import { generateCadenceSlots } from '@/lib/newsletter/cadence-slots'
+import { generateCadenceSlots, describePattern, computeScheduledAt } from '@/lib/newsletter/cadence-slots'
 import type { CadencePattern } from '@/lib/newsletter/cadence-pattern'
 
 type ActionResult =
@@ -591,41 +591,6 @@ export async function unslotEdition(editionId: string): Promise<ActionResult> {
 // ─── Cadence Slot Scheduling ───────────────────────────────────────────────
 
 /**
- * Compute a UTC ISO timestamp from a date, time, and timezone.
- * e.g. computeScheduledAt('2026-05-10', '09:00', 'America/Sao_Paulo')
- */
-function computeScheduledAt(slotDate: string, sendTime: string, timezone: string): string {
-  const dateTimeStr = `${slotDate}T${sendTime}:00`
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone,
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-    hour12: false,
-  })
-  // Compute UTC offset for this wall-clock time in the target timezone
-  // by using a known UTC reference and comparing the formatted output
-  const utcMs = Date.UTC(
-    parseInt(slotDate.slice(0, 4)),
-    parseInt(slotDate.slice(5, 7)) - 1,
-    parseInt(slotDate.slice(8, 10)),
-    parseInt(sendTime.slice(0, 2)),
-    parseInt(sendTime.slice(3, 5)),
-  )
-  // Format this UTC timestamp in the target timezone to see how it shifts
-  const parts = formatter.formatToParts(new Date(utcMs))
-  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '0'
-  const tzYear = parseInt(get('year'))
-  const tzMonth = parseInt(get('month')) - 1
-  const tzDay = parseInt(get('day'))
-  const tzHour = parseInt(get('hour'))
-  const tzMin = parseInt(get('minute'))
-  const tzRendered = Date.UTC(tzYear, tzMonth, tzDay, tzHour, tzMin)
-  const offsetMs = tzRendered - utcMs
-  // The desired wall-clock time in timezone = utcMs - offsetMs
-  return new Date(utcMs - offsetMs).toISOString()
-}
-
-/**
  * CAS scheduling for cadence editions — claims a slot_date on the unique index.
  * Returns `{ ok: false, error: 'slot_taken' }` if the slot is already occupied.
  */
@@ -739,7 +704,7 @@ export type SlotInfo = {
 }
 
 type AvailableSlotsResult =
-  | { ok: true; slots: SlotInfo[] }
+  | { ok: true; slots: SlotInfo[]; patternDescription: string }
   | { ok: false; error: string }
 
 /**
@@ -827,7 +792,8 @@ export async function getAvailableSlots(
     timezone: siteTimezone,
   }))
 
-  return { ok: true, slots }
+  const locale = (ctx.defaultLocale ?? 'pt-BR') as 'en' | 'pt-BR'
+  return { ok: true, slots, patternDescription: describePattern(cadencePattern, locale) }
 }
 
 function formatDayOfWeek(dateStr: string, locale: string): string {

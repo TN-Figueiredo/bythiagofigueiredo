@@ -404,3 +404,33 @@ export function describePattern(
     }
   }
 }
+
+/**
+ * Convert a wall-clock date + time in a given timezone to a UTC ISO string.
+ * E.g. computeScheduledAt('2026-05-10', '09:00', 'America/Sao_Paulo') → UTC ISO
+ */
+export function computeScheduledAt(slotDate: string, sendTime: string, timezone: string): string {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  })
+  const utcMs = Date.UTC(
+    parseInt(slotDate.slice(0, 4)),
+    parseInt(slotDate.slice(5, 7)) - 1,
+    parseInt(slotDate.slice(8, 10)),
+    parseInt(sendTime.slice(0, 2)),
+    parseInt(sendTime.slice(3, 5)),
+  )
+  const parts = formatter.formatToParts(new Date(utcMs))
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '0'
+  const tzYear = parseInt(get('year'))
+  const tzMonth = parseInt(get('month')) - 1
+  const tzDay = parseInt(get('day'))
+  const tzHour = parseInt(get('hour'))
+  const tzMin = parseInt(get('minute'))
+  const tzRendered = Date.UTC(tzYear, tzMonth, tzDay, tzHour, tzMin)
+  const offsetMs = tzRendered - utcMs
+  return new Date(utcMs - offsetMs).toISOString()
+}

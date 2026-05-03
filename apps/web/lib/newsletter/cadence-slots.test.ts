@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { generateCadenceSlots, getNextSlot, isSlotDate, describePattern } from './cadence-slots'
+import { generateCadenceSlots, getNextSlot, isSlotDate, describePattern, computeScheduledAt } from './cadence-slots'
 import type { CadencePattern, Weekday } from './cadence-pattern'
 
 // Helper: parse ISO date string to a Date for weekday assertions
@@ -678,5 +678,42 @@ describe('describePattern', () => {
         describePattern({ type: 'quarterly_day', day: 15, months: [1, 4, 7, 10] }, 'pt-BR'),
       ).toBe('Trimestral no dia 15 (Jan, Abr, Jul, Out)')
     })
+  })
+})
+
+describe('computeScheduledAt', () => {
+  it('converts Sao Paulo morning to UTC (UTC-3)', () => {
+    const result = computeScheduledAt('2026-05-10', '09:00', 'America/Sao_Paulo')
+    expect(result).toBe('2026-05-10T12:00:00.000Z')
+  })
+
+  it('converts UTC timezone (offset 0)', () => {
+    const result = computeScheduledAt('2026-06-15', '14:30', 'UTC')
+    expect(result).toBe('2026-06-15T14:30:00.000Z')
+  })
+
+  it('handles US Eastern during DST (UTC-4)', () => {
+    const result = computeScheduledAt('2026-07-01', '08:00', 'America/New_York')
+    expect(result).toBe('2026-07-01T12:00:00.000Z')
+  })
+
+  it('handles US Eastern during standard time (UTC-5)', () => {
+    const result = computeScheduledAt('2026-01-15', '08:00', 'America/New_York')
+    expect(result).toBe('2026-01-15T13:00:00.000Z')
+  })
+
+  it('handles positive offset (Asia/Tokyo UTC+9)', () => {
+    const result = computeScheduledAt('2026-03-20', '18:00', 'Asia/Tokyo')
+    expect(result).toBe('2026-03-20T09:00:00.000Z')
+  })
+
+  it('handles midnight correctly', () => {
+    const result = computeScheduledAt('2026-05-10', '00:00', 'America/Sao_Paulo')
+    expect(result).toBe('2026-05-10T03:00:00.000Z')
+  })
+
+  it('handles end of day', () => {
+    const result = computeScheduledAt('2026-05-10', '23:30', 'America/Sao_Paulo')
+    expect(result).toBe('2026-05-11T02:30:00.000Z')
   })
 })
