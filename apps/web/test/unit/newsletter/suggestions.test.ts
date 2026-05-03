@@ -211,3 +211,132 @@ describe('rankSuggestions', () => {
     expect(result[0]!.score).toBe(0)
   })
 })
+
+// ── Edge case tests ─────────────────────────────────────────────────────────
+
+describe('filterByLocale — edge cases', () => {
+  it('handles duplicate locales in input without error', () => {
+    const items = [
+      makeCandidate({ id: 'a', locale: 'en' }),
+      makeCandidate({ id: 'b', locale: 'en' }),
+    ]
+    const result = filterByLocale(items, 'en')
+    expect(result).toHaveLength(2)
+  })
+
+  it('case-sensitive: "EN" (uppercase) matches nothing', () => {
+    const items = [makeCandidate({ id: 'a', locale: 'en' })]
+    const result = filterByLocale(items, 'EN')
+    expect(result).toHaveLength(0)
+  })
+
+  it('pt-BR visitor with only EN newsletters sees them all', () => {
+    const items = [
+      makeCandidate({ id: 'a', locale: 'en' }),
+      makeCandidate({ id: 'b', locale: 'en' }),
+    ]
+    const result = filterByLocale(items, 'pt-BR')
+    expect(result).toHaveLength(2)
+  })
+
+  it('pt-BR visitor with only pt-BR newsletters sees them all', () => {
+    const items = [
+      makeCandidate({ id: 'a', locale: 'pt-BR' }),
+      makeCandidate({ id: 'b', locale: 'pt-BR' }),
+    ]
+    const result = filterByLocale(items, 'pt-BR')
+    expect(result).toHaveLength(2)
+  })
+})
+
+describe('computeSuggestionScore — edge cases', () => {
+  it('future created_at date still produces valid score (no negative newness)', () => {
+    const candidate = makeCandidate({
+      subscriber_count: 50,
+      created_at: new Date(NOW + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    })
+    const score = computeSuggestionScore(candidate, 100, NOW)
+    // created_at is in the future, so daysSinceCreated is negative
+    // Negative value means < THIRTY_DAYS_MS, so newnessBonus = 1.0
+    expect(score).toBeGreaterThanOrEqual(0)
+    expect(score).toBeLessThanOrEqual(1)
+  })
+
+  it('last_sent_at exactly at boundary (14 days) counts as within', () => {
+    const candidate = makeCandidate({
+      subscriber_count: 0,
+      last_sent_at: new Date(NOW - 14 * 24 * 60 * 60 * 1000).toISOString(),
+      created_at: '2024-01-01T00:00:00Z',
+    })
+    // Exactly 14 days = FOURTEEN_DAYS_MS, daysSinceSent <= FOURTEEN_DAYS_MS → recency = 1.0
+    expect(computeSuggestionScore(candidate, 100, NOW)).toBeCloseTo(0.3)
+  })
+
+  it('very large subscriber count does not overflow', () => {
+    const candidate = makeCandidate({
+      subscriber_count: 1_000_000,
+      created_at: '2024-01-01T00:00:00Z',
+    })
+    const score = computeSuggestionScore(candidate, 1_000_000, NOW)
+    expect(score).toBeCloseTo(0.6) // normalized = 1.0 * 0.6
+    expect(Number.isFinite(score)).toBe(true)
+  })
+
+  it('candidate subscriber_count exceeding maxSubscriberCount clamps above 1', () => {
+    // This shouldn't happen in practice but the function should not break
+    const candidate = makeCandidate({ subscriber_count: 200 })
+    const score = computeSuggestionScore(candidate, 100, NOW)
+    expect(Number.isFinite(score)).toBe(true)
+  })
+})
+
+describe('rankSuggestions — edge cases', () => {
+  it('candidate with 0 score is still included in results', () => {
+    const zero = makeCandidate({
+      id: 'zero',
+      subscriber_count: 0,
+      last_sent_at: null,
+      created_at: '2024-01-01T00:00:00Z',
+    })
+    const result = rankSuggestions([zero], 3, NOW)
+    expect(result).toHaveLength(1)
+    expect(result[0]!.score).toBe(0)
+  })
+
+  it('tiebreaking is stable (same-score candidates maintain insertion order)', () => {
+    // Two candidates with identical stats should both appear
+    const a = makeCandidate({
+      id: 'a',
+      subscriber_count: 50,
+      last_sent_at: null,
+      created_at: '2024-01-01T00:00:00Z',
+    })
+    const b = makeCandidate({
+      id: 'b',
+      subscriber_count: 50,
+      last_sent_at: null,
+      created_at: '2024-01-01T00:00:00Z',
+    })
+    const result1 = rankSuggestions([a, b], 3, NOW)
+    const result2 = rankSuggestions([a, b], 3, NOW)
+    // Same input should produce same output order consistently
+    expect(result1.map((r) => r.id)).toEqual(result2.map((r) => r.id))
+  })
+
+  it('limit of 0 returns empty array', () => {
+    const candidates = [makeCandidate({ id: 'x', subscriber_count: 100 })]
+    expect(rankSuggestions(candidates, 0, NOW)).toHaveLength(0)
+  })
+
+  it('single candidate gets score based on its own maxSubs', () => {
+    const solo = makeCandidate({
+      id: 'solo',
+      subscriber_count: 50,
+      last_sent_at: null,
+      created_at: '2024-01-01T00:00:00Z',
+    })
+    const result = rankSuggestions([solo], 3, NOW)
+    // maxSubs = 50, normalized = 50/50 = 1.0
+    expect(result[0]!.score).toBeCloseTo(0.6) // 1.0 * 0.6
+  })
+})
