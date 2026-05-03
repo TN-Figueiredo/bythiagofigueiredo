@@ -75,7 +75,7 @@ export interface EditorialTabData {
 
 export interface ScheduleSlot {
   date: string
-  posts: Array<{ id: string; title: string; tagColor: string | null; status: string; locale: string }>
+  posts: Array<{ id: string; displayId: string; title: string; tagName: string | null; tagColor: string | null; status: string; locale: string }>
   emptySlots: Array<{ locale: string }>
 }
 
@@ -90,8 +90,11 @@ export interface BlogCadenceConfig {
 
 export interface ReadyPost {
   id: string
+  displayId: string
   title: string
+  tagName: string | null
   tagColor: string | null
+  locales: string[]
 }
 
 export interface ScheduleTabData {

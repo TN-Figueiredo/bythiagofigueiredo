@@ -357,7 +357,7 @@ export const fetchScheduleData = unstable_cache(
     const [postsResult, cadenceResult, siteResult, readyPostsResult] = await Promise.all([
       supabase
         .from('blog_posts')
-        .select('id, status, tag_id, published_at, scheduled_for, slot_date, blog_translations(locale, title, reading_time_min), blog_tags(color)')
+        .select('id, status, tag_id, published_at, scheduled_for, slot_date, created_at, blog_translations(locale, title, reading_time_min), blog_tags(name, color)')
         .eq('site_id', siteId)
         .in('status', ['scheduled', 'queued', 'published', 'ready']),
       supabase
@@ -371,9 +371,10 @@ export const fetchScheduleData = unstable_cache(
         .single(),
       supabase
         .from('blog_posts')
-        .select('id, blog_translations(title), blog_tags(color)')
+        .select('id, created_at, blog_translations(title, locale), blog_tags(name, color)')
         .eq('site_id', siteId)
-        .eq('status', 'ready'),
+        .eq('status', 'ready')
+        .order('created_at'),
     ])
 
     const posts = postsResult.data ?? []
@@ -404,7 +405,15 @@ export const fetchScheduleData = unstable_cache(
 
     type PostWithRelations = typeof posts[number] & {
       blog_translations: Array<{ locale: string; title: string; reading_time_min: number | null }>
-      blog_tags: { color: string } | null
+      blog_tags: { name: string; color: string } | null
+    }
+
+    const sortedPosts = [...(posts as unknown as PostWithRelations[])].sort(
+      (a, b) => new Date(a.created_at as string).getTime() - new Date(b.created_at as string).getTime(),
+    )
+    const postDisplayIdMap = new Map<string, string>()
+    for (let i = 0; i < sortedPosts.length; i++) {
+      postDisplayIdMap.set(sortedPosts[i]!.id as string, computeDisplayId(i + 1))
     }
 
     for (const p of posts as unknown as PostWithRelations[]) {
@@ -419,7 +428,9 @@ export const fetchScheduleData = unstable_cache(
           const txs = p.blog_translations ?? []
           slot.posts.push({
             id: p.id as string,
+            displayId: postDisplayIdMap.get(p.id as string) ?? '#BP-000',
             title: txs[0]?.title ?? 'Untitled',
+            tagName: p.blog_tags?.name ?? null,
             tagColor: p.blog_tags?.color ?? null,
             status: p.status as string,
             locale: txs[0]?.locale ?? 'en',
@@ -471,16 +482,20 @@ export const fetchScheduleData = unstable_cache(
 
     type ReadyPostRaw = {
       id: string
-      blog_translations: Array<{ title: string }>
-      blog_tags: { color: string } | null
+      created_at: string
+      blog_translations: Array<{ title: string; locale: string }>
+      blog_tags: { name: string; color: string } | null
     }
-    const readyPosts: ReadyPost[] = (readyPostsResult.data ?? []).map((p) => {
+    const readyPosts: ReadyPost[] = (readyPostsResult.data ?? []).map((p, idx) => {
       const row = p as unknown as ReadyPostRaw
       const txs = row.blog_translations ?? []
       return {
         id: row.id,
+        displayId: computeDisplayId(idx + 1),
         title: txs[0]?.title ?? 'Untitled',
+        tagName: row.blog_tags?.name ?? null,
         tagColor: row.blog_tags?.color ?? null,
+        locales: txs.map((t) => t.locale),
       }
     })
 

@@ -185,12 +185,13 @@ export function MonthCalendar({ slots, locale = 'en', onDateClick }: MonthCalend
                         key={`${p.id}-${p.locale}`}
                         className="flex items-center gap-1 rounded px-1 py-0.5"
                         style={{ backgroundColor: p.tagColor ? `${p.tagColor}20` : '#37415120' }}
-                        title={p.title}
+                        title={`${p.displayId} ${p.title} [${p.locale}]${p.tagName ? ` • ${p.tagName}` : ''}`}
                       >
                         <span
                           className="h-1.5 w-1.5 shrink-0 rounded-full"
                           style={{ backgroundColor: p.tagColor ?? '#6b7280' }}
                         />
+                        <span className="shrink-0 text-[7px] text-gray-400">{p.displayId}</span>
                         <span
                           className={`truncate text-[8px] font-medium ${
                             cell.inMonth ? 'text-gray-200' : 'text-gray-500'
@@ -198,10 +199,13 @@ export function MonthCalendar({ slots, locale = 'en', onDateClick }: MonthCalend
                         >
                           {p.title || '(untitled)'}
                         </span>
-                        <span
-                          className={`ml-auto h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_COLORS[p.status] ?? 'bg-gray-600'}`}
-                          title={p.status}
-                        />
+                        <span className="ml-auto flex shrink-0 items-center gap-0.5">
+                          <span className="rounded bg-gray-800/60 px-0.5 text-[7px] uppercase text-gray-400">{p.locale}</span>
+                          <span
+                            className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_COLORS[p.status] ?? 'bg-gray-600'}`}
+                            title={p.status}
+                          />
+                        </span>
                       </div>
                     ))}
                     {cell.posts.length > 3 && (

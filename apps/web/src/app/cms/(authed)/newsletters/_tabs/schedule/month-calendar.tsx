@@ -7,6 +7,7 @@ import type { ScheduleSlot } from '../../_hub/hub-types'
 interface MonthCalendarProps {
   slots: ScheduleSlot[]
   locale?: 'en' | 'pt-BR'
+  onDateClick?: (date: string) => void
 }
 
 function buildMonthGrid(year: number, month: number, slots: ScheduleSlot[]): Array<{ date: string; day: number; inMonth: boolean; editions: ScheduleSlot['editions']; emptySlots: ScheduleSlot['emptySlots'] }> {
@@ -34,7 +35,7 @@ const WEEKDAYS_PT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const MONTHS_PT = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
 
-export function MonthCalendar({ slots, locale = 'en' }: MonthCalendarProps) {
+export function MonthCalendar({ slots, locale = 'en', onDateClick }: MonthCalendarProps) {
   const today = new Date()
   const todayStr = today.toISOString().slice(0, 10)
   const [viewYear, setViewYear] = useState(today.getFullYear())
@@ -97,19 +98,11 @@ export function MonthCalendar({ slots, locale = 'en' }: MonthCalendarProps) {
             const isToday = cell.date === todayStr
             const hasEditions = cell.editions.length > 0
             const hasEmpty = cell.emptySlots.length > 0
-            return (
-              <div
-                key={cell.date}
-                className={`flex min-h-[80px] flex-col rounded-lg border p-2 transition-colors ${
-                  !cell.inMonth
-                    ? 'border-gray-800/30 bg-gray-950/40'
-                    : isToday
-                      ? 'border-indigo-500/40 bg-indigo-950/20'
-                      : hasEditions
-                        ? 'border-gray-700/60 bg-gray-800/20 hover:border-gray-600'
-                        : 'border-gray-800/50 hover:border-gray-700'
-                }`}
-              >
+            const isPast = cell.inMonth && cell.date < todayStr
+            const isClickable = cell.inMonth && !isPast && !!onDateClick
+
+            const cellContent = (
+              <>
                 <span className={`text-[11px] tabular-nums leading-none ${
                   !cell.inMonth
                     ? 'font-medium text-gray-700'
@@ -131,9 +124,10 @@ export function MonthCalendar({ slots, locale = 'en' }: MonthCalendarProps) {
                           key={e.id}
                           className="flex items-center gap-1 rounded px-1 py-0.5"
                           style={{ backgroundColor: `${e.typeColor}20` }}
-                          title={e.subject}
+                          title={`${e.displayId} ${e.subject}${e.typeName ? ` • ${e.typeName}` : ''}`}
                         >
                           <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: e.typeColor }} />
+                          <span className="shrink-0 text-[7px] text-gray-400">{e.displayId}</span>
                           <span className={`truncate text-[8px] font-medium ${cell.inMonth ? 'text-gray-200' : 'text-gray-500'}`}>{e.subject || '(untitled)'}</span>
                           <span className={`ml-auto h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_COLORS[e.status] ?? 'bg-gray-600'}`} title={e.status} />
                         </div>
@@ -155,6 +149,39 @@ export function MonthCalendar({ slots, locale = 'en' }: MonthCalendarProps) {
                     </div>
                   )
                 })()}
+              </>
+            )
+
+            const baseClasses = `flex min-h-[80px] flex-col rounded-lg border p-2 transition-colors ${
+              !cell.inMonth
+                ? 'border-gray-800/30 bg-gray-950/40'
+                : isToday
+                  ? 'border-indigo-500/40 bg-indigo-950/20'
+                  : hasEditions
+                    ? 'border-gray-700/60 bg-gray-800/20 hover:border-gray-600'
+                    : 'border-gray-800/50 hover:border-gray-700'
+            }`
+
+            if (isClickable) {
+              return (
+                <button
+                  key={cell.date}
+                  type="button"
+                  onClick={() => onDateClick(cell.date)}
+                  className={`${baseClasses} cursor-pointer text-left hover:ring-1 hover:ring-indigo-500/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500`}
+                  aria-label={`Schedule on ${cell.date}`}
+                >
+                  {cellContent}
+                </button>
+              )
+            }
+
+            return (
+              <div
+                key={cell.date}
+                className={`${baseClasses}${isPast ? ' opacity-60' : ''}`}
+              >
+                {cellContent}
               </div>
             )
           })}

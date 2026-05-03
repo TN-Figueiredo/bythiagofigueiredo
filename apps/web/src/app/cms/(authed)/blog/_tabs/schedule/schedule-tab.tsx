@@ -66,7 +66,18 @@ function PostPicker({
                 className="h-2 w-2 shrink-0 rounded-full"
                 style={{ backgroundColor: post.tagColor ?? '#6b7280' }}
               />
+              <span className="shrink-0 font-mono text-[9px] text-gray-500">{post.displayId}</span>
               <span className="truncate">{post.title}</span>
+              <span className="ml-auto flex shrink-0 items-center gap-1">
+                {post.tagName && (
+                  <span className="rounded px-1 py-0.5 text-[9px]" style={{ backgroundColor: (post.tagColor ?? '#6b7280') + '22', color: post.tagColor ?? '#6b7280' }}>
+                    {post.tagName}
+                  </span>
+                )}
+                {post.locales.map((loc) => (
+                  <span key={loc} className="rounded bg-gray-800 px-1 py-0.5 text-[9px] uppercase text-gray-400">{loc}</span>
+                ))}
+              </span>
             </button>
           ))}
         </div>

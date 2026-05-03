@@ -91,7 +91,7 @@ export interface EditorialTabData {
 
 export interface ScheduleSlot {
   date: string
-  editions: Array<{ id: string; subject: string; typeColor: string; status: string }>
+  editions: Array<{ id: string; displayId: string; subject: string; typeName: string | null; typeColor: string; status: string }>
   emptySlots: Array<{ typeId: string; typeColor: string; typeName: string }>
 }
 
@@ -103,11 +103,20 @@ export interface CadenceConfig {
   conflicts: string[]
 }
 
+export interface ReadyEdition {
+  id: string
+  displayId: string
+  subject: string
+  typeColor: string | null
+  typeName: string | null
+}
+
 export interface ScheduleTabData {
   healthStrip: { fillRate: number; next7Days: number; conflicts: number; avgOpenRate: number; activeTypes: number; totalTypes: number }
   calendarSlots: ScheduleSlot[]
   cadenceConfigs: CadenceConfig[]
   sendWindow: { time: string; timezone: string; bestTimeInsight: string }
+  readyEditions: ReadyEdition[]
 }
 
 export interface WorkflowData {

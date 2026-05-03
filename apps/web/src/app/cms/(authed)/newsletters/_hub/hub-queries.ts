@@ -379,13 +379,13 @@ export const fetchScheduleData = unstable_cache(
   async (siteId: string): Promise<ScheduleTabData> => {
     const supabase = getSupabaseServiceClient()
 
-    const [{ data: scheduled }, { data: typeRows }, { data: subCounts }, { data: sentEditions }] = await Promise.all([
+    const [{ data: scheduled }, { data: typeRows }, { data: subCounts }, { data: sentEditions }, { data: readyRows }] = await Promise.all([
       supabase
         .from('newsletter_editions')
-        .select('id, subject, status, newsletter_type_id, scheduled_at, slot_date')
+        .select('id, subject, status, newsletter_type_id, scheduled_at, slot_date, created_at')
         .eq('site_id', siteId)
         .in('status', ['scheduled', 'queued', 'ready'])
-        .order('scheduled_at'),
+        .order('created_at'),
       supabase
         .from('newsletter_types')
         .select('id, name, color, cadence_days, cadence_paused, preferred_send_time, cadence_start_date, last_sent_at')
@@ -400,10 +400,24 @@ export const fetchScheduleData = unstable_cache(
         .select('newsletter_type_id, stats_delivered, stats_opens')
         .eq('site_id', siteId)
         .eq('status', 'sent'),
+      supabase
+        .from('newsletter_editions')
+        .select('id, subject, newsletter_type_id, created_at')
+        .eq('site_id', siteId)
+        .eq('status', 'ready')
+        .order('created_at'),
     ])
 
     const typeMap = new Map<string, { name: string; color: string }>()
     for (const t of typeRows ?? []) typeMap.set(t.id as string, { name: t.name as string, color: (t.color ?? '#6366f1') as string })
+
+    const sortedScheduled = [...(scheduled ?? [])].sort(
+      (a, b) => new Date(a.created_at as string).getTime() - new Date(b.created_at as string).getTime(),
+    )
+    const editionDisplayIdMap = new Map<string, string>()
+    for (let i = 0; i < sortedScheduled.length; i++) {
+      editionDisplayIdMap.set(sortedScheduled[i]!.id as string, `#${String(i + 1).padStart(3, '0')}`)
+    }
 
     const today = new Date()
     const firstDay = new Date(today.getFullYear(), today.getMonth(), 1)
@@ -418,7 +432,14 @@ export const fetchScheduleData = unstable_cache(
         })
         .map((e) => {
           const info = typeMap.get(e.newsletter_type_id as string)
-          return { id: e.id as string, subject: (e.subject as string) ?? '', typeColor: info?.color ?? '#6366f1', status: e.status as string }
+          return {
+            id: e.id as string,
+            displayId: editionDisplayIdMap.get(e.id as string) ?? '#000',
+            subject: (e.subject as string) ?? '',
+            typeName: info?.name ?? null,
+            typeColor: info?.color ?? '#6366f1',
+            status: e.status as string,
+          }
         })
       return { date: dateStr, editions: dayEditions, emptySlots: [] }
     })
@@ -477,6 +498,17 @@ export const fetchScheduleData = unstable_cache(
 
     const avgOpenRate = cadenceConfigs.reduce((s, c) => s + c.openRate, 0) / Math.max(1, cadenceConfigs.length)
 
+    const readyEditions = (readyRows ?? []).map((e, idx) => {
+      const info = e.newsletter_type_id ? typeMap.get(e.newsletter_type_id as string) : null
+      return {
+        id: e.id as string,
+        displayId: `#${String(idx + 1).padStart(3, '0')}`,
+        subject: (e.subject as string) ?? '',
+        typeColor: info?.color ?? null,
+        typeName: info?.name ?? null,
+      }
+    })
+
     return {
       healthStrip: {
         fillRate,
@@ -489,6 +521,7 @@ export const fetchScheduleData = unstable_cache(
       calendarSlots,
       cadenceConfigs,
       sendWindow: { time: '08:00', timezone: 'America/Sao_Paulo', bestTimeInsight: 'Based on subscriber timezone distribution' },
+      readyEditions,
     }
   },
   ['newsletter-schedule'],

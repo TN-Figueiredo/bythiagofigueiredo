@@ -1,0 +1,230 @@
+'use client'
+
+import { useCallback, useRef, useState } from 'react'
+import { useModalFocusTrap } from './use-modal-focus-trap'
+
+export interface CadenceSlotOption {
+  date: string          // YYYY-MM-DD
+  dayOfWeek: string     // e.g. "dom", "seg" or "Sun", "Mon"
+  formattedDate: string // e.g. "1 Jun 2026"
+  time: string          // e.g. "08:00"
+  timezone: string      // e.g. "BRT"
+}
+
+interface SlotPickerModalProps {
+  open: boolean
+  editionDisplayId: string    // e.g. "#004"
+  typeName: string            // e.g. "Tech Newsletter"
+  patternDescription: string  // e.g. "Mensal, dia 1"
+  availableSlots: CadenceSlotOption[]
+  hasMore: boolean
+  onLoadMore: () => void
+  onConfirmSlot: (date: string) => void
+  onSwitchToSpecial: () => void
+  onCancel: () => void
+  allSlotsFull?: boolean
+  strings?: {
+    title?: string
+    selectSlot?: string
+    showMore?: string
+    allSlotsFull?: string
+    scheduleAsSpecial?: string
+    or?: string
+    confirm?: string
+    cancel?: string
+  }
+}
+
+export function SlotPickerModal({
+  open,
+  editionDisplayId,
+  typeName,
+  patternDescription,
+  availableSlots,
+  hasMore,
+  onLoadMore,
+  onConfirmSlot,
+  onSwitchToSpecial,
+  onCancel,
+  allSlotsFull = false,
+  strings = {},
+}: SlotPickerModalProps) {
+  const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  useModalFocusTrap(dialogRef, open, onCancel)
+
+  const handleConfirm = useCallback(() => {
+    if (!selectedDate) return
+    onConfirmSlot(selectedDate)
+  }, [selectedDate, onConfirmSlot])
+
+  const handleOverlayClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (e.target === e.currentTarget) onCancel()
+    },
+    [onCancel],
+  )
+
+  if (!open) return null
+
+  const titleId = 'slot-picker-modal-title'
+
+  const t = {
+    title: strings.title ?? `Agendar edição ${editionDisplayId}`,
+    selectSlot: strings.selectSlot ?? 'Selecione um slot disponível',
+    showMore: strings.showMore ?? 'Ver mais',
+    allSlotsFull: strings.allSlotsFull ?? 'Todos os slots desta cadência estão ocupados.',
+    scheduleAsSpecial: strings.scheduleAsSpecial ?? 'Agendar como edição especial →',
+    or: strings.or ?? 'ou',
+    confirm: strings.confirm ?? 'Confirmar',
+    cancel: strings.cancel ?? 'Cancelar',
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+      onClick={handleOverlayClick}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="w-full max-w-sm rounded-xl border border-gray-700 bg-gray-900 p-5 shadow-xl"
+      >
+        {/* Header */}
+        <h3
+          id={titleId}
+          className="text-[15px] font-semibold text-gray-200"
+        >
+          {t.title}
+        </h3>
+        <p className="mt-0.5 text-[12px] text-gray-400">
+          {typeName}
+          <span className="mx-1.5 text-gray-600">·</span>
+          {patternDescription}
+        </p>
+
+        {/* Body */}
+        <div className="mt-4">
+          {allSlotsFull ? (
+            <p className="rounded-lg border border-gray-700 bg-gray-800/50 px-3 py-3 text-[13px] text-gray-400">
+              {t.allSlotsFull}
+            </p>
+          ) : (
+            <>
+              <p className="mb-2 text-[11px] font-medium text-gray-400">{t.selectSlot}</p>
+              <div
+                role="radiogroup"
+                aria-labelledby={titleId}
+                className="space-y-1"
+              >
+                {availableSlots.map((slot) => {
+                  const isSelected = selectedDate === slot.date
+                  return (
+                    <label
+                      key={slot.date}
+                      className={[
+                        'flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors',
+                        isSelected
+                          ? 'border-indigo-500 bg-indigo-500/10'
+                          : 'border-gray-700 bg-gray-800/50 hover:border-gray-600 hover:bg-gray-800',
+                      ].join(' ')}
+                    >
+                      {/* Hidden native radio for a11y */}
+                      <input
+                        type="radio"
+                        name="cadence-slot"
+                        value={slot.date}
+                        checked={isSelected}
+                        onChange={() => setSelectedDate(slot.date)}
+                        className="sr-only"
+                      />
+
+                      {/* Custom radio circle */}
+                      <span
+                        aria-hidden="true"
+                        className={[
+                          'flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors',
+                          isSelected
+                            ? 'border-indigo-500 bg-indigo-500'
+                            : 'border-gray-600 bg-transparent',
+                        ].join(' ')}
+                      >
+                        {isSelected && (
+                          <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                        )}
+                      </span>
+
+                      {/* Slot details */}
+                      <span className="flex flex-1 items-center justify-between gap-2 min-w-0">
+                        <span
+                          className={[
+                            'text-[13px] font-medium truncate',
+                            isSelected ? 'text-indigo-300' : 'text-gray-200',
+                          ].join(' ')}
+                        >
+                          {slot.formattedDate}
+                        </span>
+                        <span className="flex shrink-0 items-center gap-1.5 text-[12px] text-gray-400">
+                          <span className="capitalize">{slot.dayOfWeek}</span>
+                          <span className="text-gray-600">·</span>
+                          <span>{slot.time}</span>
+                          <span className="text-gray-500">{slot.timezone}</span>
+                        </span>
+                      </span>
+                    </label>
+                  )
+                })}
+              </div>
+
+              {hasMore && (
+                <button
+                  type="button"
+                  onClick={onLoadMore}
+                  className="mt-2 text-[13px] font-medium text-indigo-400 hover:text-indigo-300"
+                >
+                  {t.showMore}
+                </button>
+              )}
+            </>
+          )}
+
+          {/* Divider + escape hatch */}
+          <div className="mt-4 flex items-center gap-2">
+            <span className="h-px flex-1 bg-gray-700" aria-hidden="true" />
+            <span className="text-[11px] text-gray-500">{t.or}</span>
+            <span className="h-px flex-1 bg-gray-700" aria-hidden="true" />
+          </div>
+          <button
+            type="button"
+            onClick={onSwitchToSpecial}
+            className="mt-2 w-full text-center text-[12px] text-gray-400 hover:text-gray-200"
+          >
+            {t.scheduleAsSpecial}
+          </button>
+        </div>
+
+        {/* Footer */}
+        <div className="mt-5 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-lg px-3 py-1.5 text-[13px] text-gray-400 hover:bg-gray-800 hover:text-gray-200"
+          >
+            {t.cancel}
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={!selectedDate}
+            className="rounded-lg bg-indigo-500 px-4 py-1.5 text-[13px] font-medium text-white hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {t.confirm}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
