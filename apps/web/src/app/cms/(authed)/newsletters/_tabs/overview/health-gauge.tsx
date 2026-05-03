@@ -1,8 +1,11 @@
 'use client'
 
+import type { NewsletterHubStrings } from '../../_i18n/types'
+
 interface HealthGaugeProps {
   score: number
   dimensions: Record<string, { score: number; label: string }>
+  strings?: NewsletterHubStrings
 }
 
 function getColor(score: number): string {
@@ -12,7 +15,7 @@ function getColor(score: number): string {
   return '#ef4444'
 }
 
-export function HealthGauge({ score, dimensions }: HealthGaugeProps) {
+export function HealthGauge({ score, dimensions, strings }: HealthGaugeProps) {
   const radius = 40
   const stroke = 8
   const circumference = 2 * Math.PI * radius
@@ -21,7 +24,7 @@ export function HealthGauge({ score, dimensions }: HealthGaugeProps) {
 
   return (
     <div className="rounded-[10px] border border-gray-800 bg-gray-900 p-4">
-      <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Health Score</h3>
+      <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500">{strings?.overview.healthScore ?? 'Health Score'}</h3>
       <div className="flex items-center gap-6">
         <div className="relative">
           <svg width={100} height={100} className="-rotate-90" aria-hidden="true">

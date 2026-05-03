@@ -1,15 +1,18 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
-import { TypeModal } from './type-modal'
-import { createNewsletterType, updateNewsletterType, deleteNewsletterType } from '../actions'
+import { TypeDrawer } from './type-drawer'
+import { updateNewsletterType, deleteNewsletterType } from '../actions'
+import type { NewsletterHubStrings } from '../_i18n/types'
 
 interface TypeCardData {
   id: string
   name: string
   color: string
+  tagline: string
+  locale: string
   subscribers: number
   avgOpenRate: number
   lastSent: string | null
@@ -22,14 +25,29 @@ interface TypeCardsProps {
   types: TypeCardData[]
   selectedTypeId?: string | null
   currentStatus?: string
+  locale: 'en' | 'pt-BR'
+  drawerStrings: NewsletterHubStrings['typeDrawer']
 }
 
-export function TypeCards({ types, selectedTypeId, currentStatus }: TypeCardsProps) {
+export function TypeCards({ types, selectedTypeId, currentStatus, locale, drawerStrings }: TypeCardsProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [showTypeModal, setShowTypeModal] = useState(false)
-  const [editingType, setEditingType] = useState<TypeCardData | null>(null)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [drawerMode, setDrawerMode] = useState<'create' | 'edit'>('create')
+  const [editingTypeId, setEditingTypeId] = useState<string | null>(null)
   const [contextMenuId, setContextMenuId] = useState<string | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!contextMenuId) return
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setContextMenuId(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [contextMenuId])
 
   function handleTypeClick(typeId: string) {
     const sp = new URLSearchParams(searchParams.toString())
@@ -40,29 +58,6 @@ export function TypeCards({ types, selectedTypeId, currentStatus }: TypeCardsPro
     }
     sp.delete('page')
     router.push(`/cms/newsletters?${sp.toString()}`)
-  }
-
-  async function handleCreate(data: { name: string; tagline: string; color: string; locale: string }) {
-    const result = await createNewsletterType(data)
-    if (result.ok) {
-      toast.success(`"${data.name}" created`)
-      setShowTypeModal(false)
-      router.refresh()
-    } else {
-      toast.error(`Failed: ${result.error}`)
-    }
-  }
-
-  async function handleUpdate(data: { name: string; tagline: string; color: string; locale: string }) {
-    if (!editingType) return
-    const result = await updateNewsletterType(editingType.id, data)
-    if (result.ok) {
-      toast.success('Type updated')
-      setEditingType(null)
-      router.refresh()
-    } else {
-      toast.error(`Failed: ${result.error}`)
-    }
   }
 
   async function handleTogglePause(type: TypeCardData) {
@@ -76,6 +71,29 @@ export function TypeCards({ types, selectedTypeId, currentStatus }: TypeCardsPro
   }
 
   async function handleDelete(type: TypeCardData) {
+    const probe = await deleteNewsletterType(type.id)
+    if (probe.ok) {
+      toast.success(`"${type.name}" deleted`)
+      router.refresh()
+      return
+    }
+    if (!('subscriberCount' in probe)) {
+      toast.error(`Failed: ${probe.error}`)
+      return
+    }
+
+    const hasDeps = (probe.subscriberCount ?? 0) > 0 || (probe.editionCount ?? 0) > 0
+    const msg = hasDeps
+      ? `Delete "${type.name}"? This has ${probe.subscriberCount} subscribers and ${probe.editionCount} editions. Type the name to confirm:`
+      : `Delete "${type.name}"? This action cannot be undone.`
+
+    const input = hasDeps ? window.prompt(msg) : (window.confirm(msg) ? type.name : null)
+    if (input === null) return
+    if (hasDeps && input !== type.name) {
+      toast.error('Name does not match')
+      return
+    }
+
     const result = await deleteNewsletterType(type.id, { confirmed: true, confirmText: type.name })
     if (result.ok) {
       toast.success(`"${type.name}" deleted`)
@@ -87,11 +105,11 @@ export function TypeCards({ types, selectedTypeId, currentStatus }: TypeCardsPro
 
   function formatDate(iso: string | null): string {
     if (!iso) return 'Never'
-    return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3" data-testid="type-cards">
+    <div ref={containerRef} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3" data-testid="type-cards">
       {types.map((type) => (
         <div
           key={type.id}
@@ -135,7 +153,7 @@ export function TypeCards({ types, selectedTypeId, currentStatus }: TypeCardsPro
             >
               <button
                 type="button"
-                onClick={() => { setEditingType(type); setContextMenuId(null) }}
+                onClick={() => { setDrawerMode('edit'); setEditingTypeId(type.id); setDrawerOpen(true); setContextMenuId(null) }}
                 className="w-full text-left px-3 py-1.5 text-sm text-cms-text hover:bg-cms-surface-hover"
               >
                 Edit
@@ -161,34 +179,21 @@ export function TypeCards({ types, selectedTypeId, currentStatus }: TypeCardsPro
 
       <button
         type="button"
-        onClick={() => setShowTypeModal(true)}
+        onClick={() => { setDrawerMode('create'); setEditingTypeId(null); setDrawerOpen(true) }}
         className="rounded-[var(--cms-radius)] border-2 border-dashed border-cms-border p-4 flex items-center justify-center hover:border-cms-accent hover:bg-cms-accent/5 transition-colors min-h-[100px]"
         data-testid="add-type-btn"
       >
         <span className="text-sm font-medium text-cms-text-muted">+ Add type</span>
       </button>
 
-      <TypeModal
-        open={showTypeModal}
-        mode="create"
-        onSubmit={handleCreate}
-        onCancel={() => setShowTypeModal(false)}
+      <TypeDrawer
+        open={drawerOpen}
+        mode={drawerMode}
+        typeId={editingTypeId}
+        onClose={() => setDrawerOpen(false)}
+        locale={locale}
+        strings={drawerStrings}
       />
-
-      {editingType && (
-        <TypeModal
-          open={!!editingType}
-          mode="edit"
-          initial={{
-            name: editingType.name,
-            tagline: '',
-            color: editingType.color,
-            locale: 'pt-BR',
-          }}
-          onSubmit={handleUpdate}
-          onCancel={() => setEditingType(null)}
-        />
-      )}
     </div>
   )
 }

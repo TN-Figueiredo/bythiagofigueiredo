@@ -25,6 +25,15 @@ export default async function EditEditionPage({
 
   if (!edition || edition.site_id !== ctx.siteId) return notFound()
 
+  // Compute display ID: rank among all editions for this site ordered by created_at ASC
+  const { count: positionCount } = await supabase
+    .from('newsletter_editions')
+    .select('id', { count: 'exact', head: true })
+    .eq('site_id', ctx.siteId)
+    .lte('created_at', edition.created_at)
+
+  const displayId = `#${String(positionCount ?? 1).padStart(3, '0')}`
+
   const { count: subscriberCount } = await supabase
     .from('newsletter_subscriptions')
     .select('id', { count: 'exact', head: true })
@@ -55,6 +64,7 @@ export default async function EditEditionPage({
 
   return (
     <EditionEditor
+      displayId={displayId}
       edition={{
         id: edition.id,
         subject: edition.subject,

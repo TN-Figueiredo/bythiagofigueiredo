@@ -2,12 +2,14 @@
 
 import { Shield } from 'lucide-react'
 import type { CronJobData } from '../../_hub/hub-types'
+import type { NewsletterHubStrings } from '../../_i18n/types'
 
 interface CronCardProps {
   cron: CronJobData
+  strings?: NewsletterHubStrings
 }
 
-export function CronCard({ cron }: CronCardProps) {
+export function CronCard({ cron, strings }: CronCardProps) {
   return (
     <div className="flex items-center gap-3 rounded-lg border border-gray-800 bg-gray-900 px-4 py-3">
       <div className="min-w-0 flex-1">
@@ -25,7 +27,7 @@ export function CronCard({ cron }: CronCardProps) {
             title={`${r.date}: ${r.success ? 'OK' : 'Failed'}`}
           />
         ))}
-        {cron.lastRuns.length === 0 && <span className="text-[9px] text-gray-600">No runs</span>}
+        {cron.lastRuns.length === 0 && <span className="text-[9px] text-gray-600">{strings?.automations.noRuns ?? 'No runs'}</span>}
       </div>
     </div>
   )

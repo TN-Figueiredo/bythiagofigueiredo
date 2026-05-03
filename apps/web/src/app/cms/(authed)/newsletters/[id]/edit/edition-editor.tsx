@@ -58,6 +58,7 @@ interface EditionData {
 }
 
 interface EditionEditorProps {
+  displayId?: string | null
   edition: EditionData | null
   subscriberCount: number
   types: Array<{ id: string; name: string; color: string }>
@@ -85,6 +86,7 @@ const STATUS_PILL: Record<string, string> = {
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export function EditionEditor({
+  displayId,
   edition,
   subscriberCount,
   types,
@@ -480,13 +482,22 @@ export function EditionEditor({
         {/* Left side */}
         <div className="flex items-center gap-3 min-w-0">
           <Link
-            href="/cms/newsletters"
+            href="/cms/newsletters?tab=editorial"
+            onClick={(e) => {
+              e.preventDefault()
+              router.back()
+            }}
             className="flex items-center gap-1.5 text-xs text-[#9ca3af] hover:text-[#d1d5db] transition-colors shrink-0"
           >
             <ArrowLeft size={14} />
             Hub
           </Link>
           <div className="w-px h-5 bg-[#1f2937] shrink-0" />
+          {displayId && (
+            <span className="rounded bg-[#1f2937] px-2 py-0.5 text-[10px] font-bold tabular-nums tracking-wide text-[#9ca3af] shrink-0">
+              {displayId}
+            </span>
+          )}
           <TypeSelector
             types={types}
             selectedTypeId={selectedTypeId}

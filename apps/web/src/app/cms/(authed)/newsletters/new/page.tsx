@@ -66,6 +66,7 @@ export default async function NewEditionPage({
 
   return (
     <EditionEditor
+      displayId={null}
       edition={null}
       subscriberCount={subscriberCount}
       types={(types ?? []).map((t) => ({

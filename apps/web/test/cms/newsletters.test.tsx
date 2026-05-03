@@ -2,15 +2,21 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import type { ReactNode } from 'react'
 
+vi.mock('../../src/app/cms/(authed)/newsletters/_components/type-drawer', () => ({
+  TypeDrawer: () => null,
+}))
+
 /* ─── Mocks ─── */
 
 const routerPush = vi.fn()
+const routerReplace = vi.fn()
 const routerRefresh = vi.fn()
 let searchParamsMap = new URLSearchParams()
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: routerPush, refresh: routerRefresh }),
+  useRouter: () => ({ push: routerPush, replace: routerReplace, refresh: routerRefresh }),
   useSearchParams: () => searchParamsMap,
+  usePathname: () => '/cms/newsletters',
 }))
 
 vi.mock('next/link', () => ({
@@ -25,10 +31,13 @@ import { HubClient } from '../../src/app/cms/(authed)/newsletters/_hub/hub-clien
 
 const sharedData = {
   types: [
-    { id: 'type-1', name: 'Weekly Digest', color: '#ea580c', subscriberCount: 120 },
-    { id: 'type-2', name: 'Product Updates', color: '#22c55e', subscriberCount: 50 },
+    { id: 'type-1', name: 'Weekly Digest', color: '#ea580c', sortOrder: 0, cadencePaused: false, badge: 'MAIN', subscriberCount: 120 },
+    { id: 'type-2', name: 'Product Updates', color: '#22c55e', sortOrder: 1, cadencePaused: false, badge: null, subscriberCount: 50 },
   ],
   tabBadges: { editorial: 3, automations: 1 },
+  siteTimezone: 'America/Sao_Paulo',
+  siteName: 'Test Site',
+  defaultLocale: 'en',
 }
 
 const tabLabels = {
@@ -47,6 +56,78 @@ function renderHub(params: URLSearchParams = new URLSearchParams()) {
       defaultTab="overview"
       tabLabels={tabLabels}
       allTypesLabel="All"
+      editLabel="Edit"
+      locale="en"
+      drawerStrings={{
+        createTitle: 'New Newsletter Type',
+        editTitle: 'Edit Newsletter Type',
+        sectionEssentials: 'Essentials',
+        sectionLanding: 'Landing Page Content',
+        sectionAppearance: 'Appearance',
+        sectionSchedule: 'Schedule',
+        nameLabel: 'Name',
+        namePlaceholder: '',
+        taglineLabel: 'Tagline',
+        taglinePlaceholder: '',
+        localeLabel: 'Language',
+        slugLabel: 'Slug',
+        slugPreview: '',
+        slugWarning: '',
+        badgeLabel: 'Badge',
+        badgePlaceholder: '',
+        badgeHint: '',
+        descriptionLabel: 'Description',
+        descriptionPlaceholder: '',
+        promiseLabel: 'What you get',
+        promiseAdd: 'Add item',
+        promiseMax: 'Maximum 10 items',
+        promiseItemPlaceholder: '',
+        colorLabel: 'Accent Color',
+        colorDarkLabel: 'Accent Color (Dark)',
+        colorDarkHint: '',
+        ogImageLabel: 'OG Image URL',
+        ogImagePlaceholder: '',
+        uploadImage: 'Upload image',
+        uploadDragDrop: 'or drag & drop',
+        uploadFormats: '',
+        uploadUploading: 'Uploading…',
+        uploadOr: 'or',
+        uploadMaxError: '',
+        uploadFormatError: '',
+        clearColor: 'Clear',
+        removeImage: 'Remove image',
+        statusActive: 'Active',
+        statusPaused: 'Paused',
+        moveUp: 'Move up',
+        moveDown: 'Move down',
+        removeItem: 'Remove item',
+        close: 'Close',
+        valRequired: 'Required',
+        valMinChars: '',
+        valMaxChars: '',
+        valInvalidFormat: '',
+        valReservedSlug: 'Reserved slug',
+        valInvalidHex: '',
+        valHttpsRequired: 'Must start with https://',
+        valSlugInUse: '',
+        typeNotFound: '',
+        unknownError: '',
+        typeNameToConfirm: '',
+        scheduleLink: 'Edit in Schedule tab',
+        dangerZone: 'Danger Zone',
+        deleteButton: 'Delete Newsletter Type',
+        deleteConfirmEmpty: '',
+        deleteConfirmDeps: '',
+        deleteNameMismatch: '',
+        createButton: 'Create',
+        saveButton: 'Save Changes',
+        creating: 'Creating...',
+        saving: 'Saving...',
+        cancel: 'Cancel',
+        toastCreated: '"{name}" created',
+        toastSaved: 'Changes saved',
+        toastDeleted: '"{name}" deleted',
+      }}
     >
       <div data-testid="tab-content">Content</div>
     </HubClient>,
@@ -84,12 +165,20 @@ describe('Newsletter Hub', () => {
       expect(editorialTab?.getAttribute('aria-selected')).toBe('true')
     })
 
-    it('navigates on tab click', () => {
+    it('navigates on tab click via replace (preserves back-button)', () => {
       renderHub()
       const tabs = screen.getAllByRole('tab')
       const scheduleTab = tabs.find((t) => t.textContent?.includes('Schedule'))!
       fireEvent.click(scheduleTab)
-      expect(routerPush).toHaveBeenCalledWith('/cms/newsletters?tab=schedule', { scroll: false })
+      expect(routerReplace).toHaveBeenCalledWith(expect.stringContaining('tab=schedule'), { scroll: false })
+    })
+
+    it('omits tab param when switching to default overview tab', () => {
+      renderHub(new URLSearchParams('tab=editorial'))
+      const tabs = screen.getAllByRole('tab')
+      const overviewTab = tabs.find((t) => t.textContent?.includes('Overview'))!
+      fireEvent.click(overviewTab)
+      expect(routerReplace).toHaveBeenCalledWith('/cms/newsletters', { scroll: false })
     })
 
     it('shows editorial badge count', () => {
@@ -113,15 +202,12 @@ describe('Newsletter Hub', () => {
       expect(screen.getByText('Newsletters')).toBeTruthy()
     })
 
-    it('renders New Edition link', () => {
+    it('renders New Edition button', () => {
       renderHub()
-      const link = screen.getByText('New Edition').closest('a')
-      expect(link?.getAttribute('href')).toBe('/cms/newsletters/new')
-    })
-
-    it('renders settings link with aria-label', () => {
-      renderHub()
-      expect(screen.getByLabelText('Newsletter settings')).toBeTruthy()
+      const button = screen.getByText('New Edition').closest('button')
+      expect(button).toBeTruthy()
+      fireEvent.click(button!)
+      expect(routerPush).toHaveBeenCalledWith('/cms/newsletters/new')
     })
 
     it('renders notifications button with aria-label', () => {

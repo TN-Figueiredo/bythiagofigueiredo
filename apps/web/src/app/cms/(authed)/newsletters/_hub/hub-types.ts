@@ -6,6 +6,7 @@ export interface NewsletterType {
   color: string
   sortOrder: number
   cadencePaused: boolean
+  badge: string | null
   subscriberCount: number
 }
 
@@ -55,22 +56,26 @@ export interface OverviewTabData {
   }>
   topEditions: Array<{ id: string; subject: string; typeId: string; typeName: string; typeColor: string; dateSent: string; opens: number; clicks: number }>
   activityFeed: ActivityEvent[]
-  cohortRetention: Array<{ cohortMonth: string; monthOffset: number; retention: number; cohortSize: number }>
   deliverability: { spf: boolean; dkim: boolean; dmarc: boolean; bounceRate: number; complaintRate: number; provider: string }
 }
 
 export interface EditionCard {
   id: string
+  displayId: string
   subject: string
+  preheader: string | null
   status: 'idea' | 'draft' | 'ready' | 'review' | 'scheduled' | 'sending' | 'sent' | 'failed' | 'cancelled' | 'archived'
   typeId: string | null
   typeName: string | null
   typeColor: string | null
   createdAt: string
+  sentAt: string | null
   ideaCreatedAt: string | null
   reviewEnteredAt: string | null
   slotDate: string | null
   wordCount: number | null
+  charCount: number | null
+  imageCount: number | null
   readingTimeMin: number | null
   progressPercent: number | null
   ideaNotes: string | null
@@ -92,7 +97,8 @@ export interface ScheduleSlot {
 
 export interface CadenceConfig {
   typeId: string; typeName: string; typeColor: string
-  cadence: string; dayOfWeek: string; time: string; nextDate: string
+  cadence: string; cadenceDays: number; dayOfWeek: string; time: string; nextDate: string
+  cadenceStartDate: string | null
   paused: boolean; subscribers: number; editionsSent: number; openRate: number
   conflicts: string[]
 }
@@ -137,7 +143,7 @@ export interface SubscriberRow {
 }
 
 export interface AudienceTabData {
-  healthStrip: { uniqueSubscribers: number; totalSubscriptions: number; netGrowth30d: number; churnRate: number; avgOpenRate: number; lgpdConsent: number }
+  healthStrip: { uniqueSubscribers: number; confirmedSubscribers: number; pendingSubscribers: number; totalSubscriptions: number; netGrowth30d: number; churnRate: number; avgOpenRate: number; lgpdConsent: number }
   growth: Array<{ date: string; newSubs: number; unsubs: number }>
   distribution: Array<{ typeId: string; typeName: string; typeColor: string; count: number; share: number }>
   engagementByType: Array<{ typeId: string; typeName: string; typeColor: string; subscribers: number; openRate: number; clickRate: number; bounceRate: number; sparkline: number[]; paused: boolean }>

@@ -2,20 +2,23 @@
 
 import { ToggleLeft, ToggleRight } from 'lucide-react'
 import type { WorkflowData } from '../../_hub/hub-types'
+import type { NewsletterHubStrings } from '../../_i18n/types'
 
 interface WorkflowCardProps {
   workflow: WorkflowData
   onToggle?: (id: string, enabled: boolean) => void
+  strings?: NewsletterHubStrings
 }
 
-export function WorkflowCard({ workflow, onToggle }: WorkflowCardProps) {
+export function WorkflowCard({ workflow, onToggle, strings }: WorkflowCardProps) {
+  const s = strings?.automations
   return (
     <div className="rounded-[10px] border border-gray-800 bg-gray-900 p-4">
       <div className="flex items-center justify-between">
         <div>
           <h4 className="text-[11px] font-semibold text-gray-200">{workflow.name}</h4>
           <span className={`text-[9px] ${workflow.enabled ? 'text-green-400' : 'text-gray-500'}`}>
-            {workflow.enabled ? 'Active' : 'Disabled'}
+            {workflow.enabled ? (s?.active ?? 'Active') : (s?.disabled ?? 'Disabled')}
           </span>
         </div>
         <button

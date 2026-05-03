@@ -21,9 +21,13 @@ export class SectionErrorBoundary extends Component<Props, State> {
     return { hasError: true }
   }
 
-  componentDidCatch(error: Error, _info: ErrorInfo): void {
+  componentDidCatch(error: Error, info: ErrorInfo): void {
     if (typeof window !== 'undefined' && 'Sentry' in window) {
-      (window as Record<string, unknown>).Sentry
+      const sentry = (window as Record<string, { captureException?: (e: Error, ctx?: unknown) => void }>).Sentry
+      sentry?.captureException?.(error, {
+        tags: { component: 'newsletter-hub', section: this.props.sectionName ?? 'unknown' },
+        extra: { componentStack: info.componentStack },
+      })
     }
     console.error(`[${this.props.sectionName ?? 'Section'}]`, error)
   }
