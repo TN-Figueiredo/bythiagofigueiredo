@@ -41,6 +41,7 @@ create table public.blog_tags (
   name        text not null,
   slug        text not null,
   color       text not null default '#6366f1',
+  color_dark  text,
   badge       text,
   sort_order  int not null default 0,
   created_at  timestamptz not null default now(),
@@ -48,8 +49,15 @@ create table public.blog_tags (
 
   constraint blog_tags_site_name_unique unique (site_id, name),
   constraint blog_tags_site_slug_unique unique (site_id, slug),
-  constraint blog_tags_color_hex check (color ~ '^#[0-9a-fA-F]{6}$')
+  constraint blog_tags_color_hex check (color ~ '^#[0-9a-fA-F]{6}$'),
+  constraint blog_tags_color_dark_hex check (color_dark is null or color_dark ~ '^#[0-9a-fA-F]{6}$')
 );
+
+-- updated_at trigger (same pattern as blog_posts)
+drop trigger if exists blog_tags_set_updated_at on public.blog_tags;
+create trigger blog_tags_set_updated_at
+  before update on public.blog_tags
+  for each row execute function public.tg_set_updated_at();
 
 -- RLS: staff read/write, public read (for public blog pages)
 alter table public.blog_tags enable row level security;
@@ -89,19 +97,23 @@ Migration 1 creates the table, adds the column, and backfills from existing `cat
 
 ```sql
 -- Backfill: create tags from existing category values
+with distinct_cats as (
+  select distinct site_id, category
+  from public.blog_posts
+  where category is not null
+)
 insert into public.blog_tags (site_id, name, slug, color, sort_order)
-select distinct
-  bp.site_id,
-  bp.category,
-  lower(replace(bp.category, ' ', '-')),
-  case bp.category
+select
+  site_id,
+  category,
+  lower(replace(category, ' ', '-')),
+  case category
     when 'Tech' then '#6366f1'
     when 'Vida' then '#22c55e'
     else '#9ca3af'
   end,
-  row_number() over (partition by bp.site_id order by bp.category)
-from public.blog_posts bp
-where bp.category is not null
+  row_number() over (partition by site_id order by category)
+from distinct_cats
 on conflict (site_id, name) do nothing;
 
 -- Wire tag_id from category name
@@ -226,7 +238,7 @@ Two filter chip rows below the tab bar:
 1. **Tag chips** — `[All] [Tech] [Vida] [+]` with edit pencil on hover (same UX as newsletter TypeFilterChips). URL param: `?tag=<tag_id>`.
 2. **Locale chips** — `[All] [PT-BR] [EN]` derived from `sites.supported_locales`. URL param: `?locale=<locale>`.
 
-Both filters compose: `?tab=editorial&tag=abc&locale=pt-BR` shows only PT-BR posts tagged "abc" in the kanban.
+Both filters compose: `?tab=editorial&tag=abc&locale=pt-BR` shows only posts tagged "abc" that have a PT-BR translation. Posts without a translation in the filtered locale are hidden from the kanban (they still exist — switch to "All" locale to see them).
 
 ### Header actions
 
@@ -413,11 +425,11 @@ Placeholder until Blog Analytics Engine spec is designed and implemented. Will i
 
 | Action | Signature | Description |
 |---|---|---|
-| `createPost` | `(input: { title?: string; locale: string; tagId?: string; status?: 'idea' \| 'draft' }) → ActionResult` | Creates blog_posts + blog_translations row. Serves both quick-add (title + status='idea') and "New Post" button (status='draft'). |
-| `movePost` | `(postId: string, newStatus: string) → ActionResult` | CAS transition validated against `BLOG_TRANSITIONS`. Updates `published_at` when moving to published, clears when moving away. |
+| `createPost` | `(input: { title?: string; locale: string; tagId?: string; status?: 'idea' \| 'draft' }) → ActionResult` | Creates blog_posts + blog_translations row. Resolves `author_id` from current user's `authors` row (same pattern as existing `new/page.tsx`). Serves both quick-add (title + status='idea') and "New Post" button (status='draft'). |
+| `movePost` | `(postId: string, newStatus: string) → ActionResult` | Reads current status, validates against `BLOG_TRANSITIONS`, then CAS update: `UPDATE blog_posts SET status=$new WHERE id=$id AND status=$current`. Updates `published_at=now()` when moving to published, clears it when moving away from published. |
 | `deleteHubPost` | `(postId: string) → ActionResult` | Only for idea/draft/archived. Published posts must be archived first. Lightweight version for kanban context menu (editor-level `deletePost` in `[id]/edit/actions.ts` remains separate). |
 | `reassignTag` | `(postId: string, tagId: string \| null) → ActionResult` | Update `blog_posts.tag_id`. |
-| `addLocale` | `(postId: string, locale: string) → ActionResult` | Insert new `blog_translations` row for post. |
+| `addLocale` | `(postId: string, locale: string) → ActionResult` | Insert new `blog_translations` row with empty title (locale-appropriate "Untitled"/"Sem titulo"), empty content, and auto-generated slug. Redirects to editor for that locale. |
 | `duplicatePost` | `(postId: string) → ActionResult` | Deep copy post + all translations as new idea. |
 
 ### 9.2 Tag CRUD (NEW in `actions.ts`)
@@ -428,7 +440,8 @@ Placeholder until Blog Analytics Engine spec is designed and implemented. Will i
 | `updateTag` | `(tagId: string, patch: Partial<Tag>) → ActionResult` | Update blog_tags row. |
 | `deleteTag` | `(tagId: string) → ActionResult` | ON DELETE RESTRICT — returns error with post count if posts exist. |
 | `reorderTags` | `(tagIds: string[]) → ActionResult` | Batch update sort_order. |
-| `getTagPostCount` | `(tagId: string) → number` | Count posts with this tag (for delete confirmation). |
+
+Note: tag post counts for delete confirmation are included in `BlogTag.postCount` (fetched via `fetchBlogSharedData`), so no separate query action is needed.
 
 ### 9.3 Cadence (NEW in `actions.ts`)
 
@@ -489,7 +502,11 @@ Tags: `blog-hub`, `blog-hub-overview`
 
 ### 10.3 `fetchEditorialData(siteId, tagId?, locale?)`
 
-Returns `EditorialTabData` with velocity metrics + all post cards (joined with blog_translations for locale badges + reading time).
+Returns `EditorialTabData` with velocity metrics + post cards. Query includes:
+- All non-published posts (idea, draft, pending_review, ready, queued, scheduled)
+- Up to 15 most recent published posts (ordered by `published_at DESC`)
+- All archived posts (for collapsible archived section)
+- Each card joined with `blog_translations` for locale list + title (resolution: filterLocale → defaultLocale → first) + reading_time_min
 
 Tags: `blog-hub`, `blog-hub-editorial`
 
@@ -530,10 +547,11 @@ Tags: `blog-hub`, `blog-hub-schedule`
 ### 11.4 Publish modal
 
 When user clicks "Publish" in the editor:
-- Modal shows all existing translations with checkboxes (all checked by default)
+- Modal shows a summary of all existing translations (read-only list showing locale + title, so the author knows what will go live)
 - Displays scheduled date if `scheduled_for` is set
 - "Publish Now" or "Schedule" options
-- Publishing sets `status='published'` and `published_at=now()` on the `blog_posts` row (shared across all translations)
+- Publishing sets `status='published'` and `published_at=now()` on the `blog_posts` row — this publishes ALL translations at once (status is shared, not per-translation)
+- To publish a single locale, the author must use separate posts (one per locale) — the hub design supports this since each post is independent
 
 ---
 
@@ -629,6 +647,7 @@ export interface BlogTag {
   name: string
   slug: string
   color: string
+  colorDark: string | null
   badge: string | null
   sortOrder: number
   postCount: number
@@ -646,7 +665,7 @@ export interface BlogHubSharedData {
 export interface PostCard {
   id: string
   displayId: string
-  title: string
+  title: string  // resolved: filterLocale translation → defaultLocale → first available
   status: 'idea' | 'draft' | 'pending_review' | 'ready' | 'queued' | 'scheduled' | 'published' | 'archived'
   tagId: string | null
   tagName: string | null
@@ -743,8 +762,13 @@ export default async function BlogHubPage({ searchParams }: Props) {
       sharedData={sharedData}
       defaultTab={tab}
       tabLabels={strings.tabs}
+      allTagsLabel={strings.common.allTags}
+      allLocalesLabel={strings.common.allLocales}
+      editLabel={strings.common.edit}
       locale={uiLocale}
-      // ... other props
+      drawerStrings={strings.tagDrawer}
+      commonStrings={strings.common}
+      actionStrings={strings.actions}
     >
       <Suspense fallback={<TabSkeleton />}>
         {tab === 'overview' && <OverviewTab siteId={siteId} tagId={tagId} locale={filterLocale} strings={strings} />}
@@ -829,6 +853,8 @@ DB-gated (`skipIfNoLocalDb()`):
 - `deleteTag` with posts: returns RESTRICT error
 - Tag backfill: existing categories correctly migrated
 - Cadence slot generation: `generateSlots()` with blog_cadence data
+- `blog_tags.updated_at` trigger fires on update
+- `createPost` resolves `author_id` from authenticated user
 
 ### E2E tests (Playwright, future)
 
