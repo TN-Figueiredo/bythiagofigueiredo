@@ -48,9 +48,9 @@ export function EditorialTab({ data, strings, tagId, locale, supportedLocales }:
     return qs ? `/cms/blog/new?${qs}` : '/cms/blog/new'
   }, [tagId, locale])
 
-  const handleMovePost = async (postId: string, newStatus: string) => {
+  const handleMovePost = async (postId: string, newStatus: string, scheduledFor?: string) => {
     startTransition(async () => {
-      const result = await movePost(postId, newStatus)
+      const result = await movePost(postId, newStatus, scheduledFor)
       if (!result.ok) {
         toast.error(strings?.common.couldntMove ?? "Couldn't move")
       }

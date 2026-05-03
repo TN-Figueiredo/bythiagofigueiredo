@@ -15,6 +15,7 @@ export const ptBR: BlogHubStrings = {
     untitled: 'Sem título', open: 'Abrir', moreActions: 'Mais ações', moveTo: 'Mover para', duplicate: 'Duplicar', delete: 'Excluir',
     deleted: 'Excluído', deleteFailed: 'Não foi possível excluir', confirmDelete: 'Tem certeza que deseja excluir este post?',
     quickAddPlaceholder: 'Ideia rápida…', ideaCreated: 'Ideia criada', ideaFailed: 'Não foi possível criar',
+    scheduledHint: 'Apenas posts prontos',
     viewAllPublished: 'Ver todos os publicados', archived: 'Arquivados', showArchived: 'Mostrar arquivados', hideArchived: 'Ocultar arquivados',
   },
   deletePost: {
@@ -40,6 +41,12 @@ export const ptBR: BlogHubStrings = {
   },
   analytics: { comingSoon: 'Analytics em Breve', comingSoonDescription: 'Analytics de blog com rastreamento de visualizações, métricas de engajamento e fontes de referência estarão disponíveis em uma atualização futura.' },
   common: { allTags: 'Todas', allLocales: 'Todos', updatedJustNow: 'Atualizado agora', showMore: 'Ver mais', moved: 'Movido', couldntMove: 'Não foi possível mover', edit: 'Editar', posts: 'Posts' },
+  scheduleModal: {
+    title: 'Agendar Post', scheduling: 'Agendando:',
+    dateLabel: 'Data', timeLabel: 'Horário',
+    cancel: 'Cancelar', confirm: 'Agendar',
+    dateRequired: 'Data obrigatória', datePast: 'A data deve ser futura',
+  },
   tagDrawer: {
     createTitle: 'Nova Tag', editTitle: 'Editar Tag',
     sectionEssentials: 'Essenciais', sectionAppearance: 'Aparência',

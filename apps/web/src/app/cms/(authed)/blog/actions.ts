@@ -405,6 +405,7 @@ export async function createPost(input: {
 export async function movePost(
   postId: string,
   newStatus: string,
+  scheduledFor?: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const { siteId } = await getSiteContext()
   await requireEditScope(siteId)
@@ -428,6 +429,15 @@ export async function movePost(
     patch.published_at = new Date().toISOString()
   } else if (current.status === 'published') {
     patch.published_at = null
+  }
+  if (newStatus === 'scheduled') {
+    if (!scheduledFor) return { ok: false, error: 'scheduled_for_required' }
+    const scheduledDate = new Date(scheduledFor)
+    if (isNaN(scheduledDate.getTime())) return { ok: false, error: 'invalid_date' }
+    if (scheduledDate.getTime() < Date.now() - 5 * 60 * 1000) return { ok: false, error: 'date_in_past' }
+    patch.scheduled_for = scheduledFor
+  } else if (current.status === 'scheduled') {
+    patch.scheduled_for = null
   }
 
   // CAS: only update if status hasn't changed since we read it

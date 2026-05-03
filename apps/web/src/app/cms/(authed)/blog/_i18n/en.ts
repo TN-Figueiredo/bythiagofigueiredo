@@ -15,6 +15,7 @@ export const en: BlogHubStrings = {
     untitled: 'Untitled', open: 'Open', moreActions: 'More actions', moveTo: 'Move to', duplicate: 'Duplicate', delete: 'Delete',
     deleted: 'Deleted', deleteFailed: "Couldn't delete", confirmDelete: 'Are you sure you want to delete this post?',
     quickAddPlaceholder: 'Quick idea…', ideaCreated: 'Idea created', ideaFailed: "Couldn't create idea",
+    scheduledHint: 'Only ready posts',
     viewAllPublished: 'View all published', archived: 'Archived', showArchived: 'Show archived', hideArchived: 'Hide archived',
   },
   deletePost: {
@@ -40,6 +41,12 @@ export const en: BlogHubStrings = {
   },
   analytics: { comingSoon: 'Analytics Coming Soon', comingSoonDescription: 'Blog analytics with view tracking, engagement metrics, and referral sources will be available in a future update.' },
   common: { allTags: 'All', allLocales: 'All', updatedJustNow: 'Updated just now', showMore: 'Show more', moved: 'Moved', couldntMove: "Couldn't move", edit: 'Edit', posts: 'Posts' },
+  scheduleModal: {
+    title: 'Schedule Post', scheduling: 'Scheduling:',
+    dateLabel: 'Date', timeLabel: 'Time',
+    cancel: 'Cancel', confirm: 'Schedule',
+    dateRequired: 'Date is required', datePast: 'Date must be in the future',
+  },
   tagDrawer: {
     createTitle: 'New Tag', editTitle: 'Edit Tag',
     sectionEssentials: 'Essentials', sectionAppearance: 'Appearance',

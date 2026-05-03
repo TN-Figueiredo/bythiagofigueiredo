@@ -14,7 +14,7 @@ interface KanbanCardProps {
   strings?: BlogHubStrings
   tags?: BlogTag[]
   supportedLocales?: string[]
-  onMoveToStatus?: (postId: string, newStatus: string) => Promise<void>
+  onMoveToStatus?: (postId: string, newStatus: string, scheduledFor?: string) => Promise<void>
   onDelete?: (postId: string) => Promise<void>
   onReassignTag?: (postId: string, tagId: string | null) => Promise<void>
   onAddLocale?: (postId: string, locale: string) => Promise<void>

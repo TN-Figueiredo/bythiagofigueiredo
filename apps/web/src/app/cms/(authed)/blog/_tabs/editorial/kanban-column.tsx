@@ -19,7 +19,7 @@ interface KanbanColumnProps {
   tags?: BlogTag[]
   supportedLocales?: string[]
   activeId?: string | null
-  onMoveToStatus?: (postId: string, newStatus: string) => Promise<void>
+  onMoveToStatus?: (postId: string, newStatus: string, scheduledFor?: string) => Promise<void>
   onDelete?: (postId: string) => Promise<void>
   onReassignTag?: (postId: string, tagId: string | null) => Promise<void>
   onAddLocale?: (postId: string, locale: string) => Promise<void>
@@ -79,6 +79,13 @@ export function KanbanColumn({
           {cards.length}
         </span>
       </div>
+
+      {/* Scheduled column hint */}
+      {id === 'scheduled' && (
+        <div className="px-3 py-1 text-[8px] text-gray-600 border-b border-gray-800/50">
+          {strings?.editorial.scheduledHint ?? 'Only ready posts'}
+        </div>
+      )}
 
       {/* Card list */}
       <SortableContext items={cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>

@@ -13,6 +13,7 @@ export interface BlogHubStrings {
     untitled: string; open: string; moreActions: string; moveTo: string; duplicate: string; delete: string
     deleted: string; deleteFailed: string; confirmDelete: string
     quickAddPlaceholder: string; ideaCreated: string; ideaFailed: string
+    scheduledHint: string
     viewAllPublished: string; archived: string; showArchived: string; hideArchived: string
   }
   deletePost: {
@@ -36,6 +37,12 @@ export interface BlogHubStrings {
   }
   analytics: { comingSoon: string; comingSoonDescription: string }
   common: { allTags: string; allLocales: string; updatedJustNow: string; showMore: string; moved: string; couldntMove: string; edit: string; posts: string }
+  scheduleModal: {
+    title: string; scheduling: string
+    dateLabel: string; timeLabel: string
+    cancel: string; confirm: string
+    dateRequired: string; datePast: string
+  }
   tagDrawer: {
     createTitle: string; editTitle: string
     sectionEssentials: string; sectionAppearance: string

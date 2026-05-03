@@ -5,7 +5,7 @@ export const BLOG_TRANSITIONS: Record<string, string[]> = {
   draft:          ['idea', 'ready', 'pending_review', 'archived'],
   pending_review: ['draft', 'ready', 'archived'],
   ready:          ['draft', 'scheduled', 'queued', 'published', 'archived'],
-  queued:         ['ready', 'scheduled', 'archived'],
+  queued:         ['ready', 'archived'],
   scheduled:      ['ready', 'draft', 'archived'],
   published:      ['archived'],
   archived:       ['idea', 'draft'],

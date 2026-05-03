@@ -48,7 +48,7 @@ function resolveColumn(id: string, posts: PostCard[]): string | null {
 
 interface KanbanBoardProps {
   posts: PostCard[]
-  onMovePost?: (postId: string, newStatus: string) => Promise<void>
+  onMovePost?: (postId: string, newStatus: string, scheduledFor?: string) => Promise<void>
   onDeletePost?: (postId: string) => Promise<void>
   onReassignTag?: (postId: string, tagId: string | null) => Promise<void>
   onAddLocale?: (postId: string, locale: string) => Promise<void>

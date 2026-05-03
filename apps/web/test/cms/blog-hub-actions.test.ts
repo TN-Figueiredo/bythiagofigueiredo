@@ -941,3 +941,131 @@ describe('updateBlogCadence', () => {
     await expect(updateBlogCadence('en', { cadence_days: 7 })).rejects.toThrow(/forbidden/)
   })
 })
+
+// ─── movePost scheduling flow ──────────────────────────────────────────────
+
+describe('movePost scheduling flow', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('ready → scheduled with valid scheduledFor succeeds', async () => {
+    const futureDate = new Date(Date.now() + 60 * 60 * 1000).toISOString() // 1h from now
+    resetMockState({
+      perTableSeq: {
+        blog_posts: [
+          { rows: [{ id: 'p1', status: 'ready', site_id: 'site-1', blog_translations: [{ locale: 'pt-BR', slug: 'post' }] }] },
+          { rows: [{ id: 'p1' }] }, // CAS update succeeds
+        ],
+      },
+    })
+    const result = await movePost('p1', 'scheduled', futureDate)
+    expect(result).toEqual({ ok: true })
+    const updateCall = callLog.find((c) => c.method === 'update')
+    const patch = updateCall!.args[0] as Record<string, unknown>
+    expect(patch.status).toBe('scheduled')
+    expect(patch.scheduled_for).toBe(futureDate)
+  })
+
+  it('ready → scheduled without scheduledFor returns error', async () => {
+    resetMockState({
+      perTable: {
+        blog_posts: [{ id: 'p1', status: 'ready', site_id: 'site-1', blog_translations: [{ locale: 'pt-BR', slug: 'post' }] }],
+      },
+    })
+    const result = await movePost('p1', 'scheduled')
+    expect(result).toEqual({ ok: false, error: 'scheduled_for_required' })
+  })
+
+  it('ready → scheduled with invalid date string returns error', async () => {
+    resetMockState({
+      perTable: {
+        blog_posts: [{ id: 'p1', status: 'ready', site_id: 'site-1', blog_translations: [{ locale: 'pt-BR', slug: 'post' }] }],
+      },
+    })
+    const result = await movePost('p1', 'scheduled', 'not-a-date')
+    expect(result).toEqual({ ok: false, error: 'invalid_date' })
+  })
+
+  it('ready → scheduled with past date returns error', async () => {
+    resetMockState({
+      perTable: {
+        blog_posts: [{ id: 'p1', status: 'ready', site_id: 'site-1', blog_translations: [{ locale: 'pt-BR', slug: 'post' }] }],
+      },
+    })
+    const pastDate = new Date(Date.now() - 10 * 60 * 1000).toISOString() // 10min ago
+    const result = await movePost('p1', 'scheduled', pastDate)
+    expect(result).toEqual({ ok: false, error: 'date_in_past' })
+  })
+
+  it('ready → scheduled with near-future date (within 5min tolerance) succeeds', async () => {
+    // 3min in the past is within the 5min tolerance window
+    const nearPastDate = new Date(Date.now() - 3 * 60 * 1000).toISOString()
+    resetMockState({
+      perTableSeq: {
+        blog_posts: [
+          { rows: [{ id: 'p1', status: 'ready', site_id: 'site-1', blog_translations: [{ locale: 'pt-BR', slug: 'post' }] }] },
+          { rows: [{ id: 'p1' }] }, // CAS update succeeds
+        ],
+      },
+    })
+    const result = await movePost('p1', 'scheduled', nearPastDate)
+    expect(result).toEqual({ ok: true })
+  })
+
+  it('scheduled → ready clears scheduled_for', async () => {
+    resetMockState({
+      perTableSeq: {
+        blog_posts: [
+          { rows: [{ id: 'p1', status: 'scheduled', site_id: 'site-1', blog_translations: [{ locale: 'pt-BR', slug: 'post' }] }] },
+          { rows: [{ id: 'p1' }] }, // CAS update succeeds
+        ],
+      },
+    })
+    const result = await movePost('p1', 'ready')
+    expect(result).toEqual({ ok: true })
+    const updateCall = callLog.find((c) => c.method === 'update')
+    const patch = updateCall!.args[0] as Record<string, unknown>
+    expect(patch.status).toBe('ready')
+    expect(patch.scheduled_for).toBeNull()
+  })
+
+  it('scheduled → draft clears scheduled_for', async () => {
+    resetMockState({
+      perTableSeq: {
+        blog_posts: [
+          { rows: [{ id: 'p1', status: 'scheduled', site_id: 'site-1', blog_translations: [{ locale: 'pt-BR', slug: 'post' }] }] },
+          { rows: [{ id: 'p1' }] }, // CAS update succeeds
+        ],
+      },
+    })
+    const result = await movePost('p1', 'draft')
+    expect(result).toEqual({ ok: true })
+    const updateCall = callLog.find((c) => c.method === 'update')
+    const patch = updateCall!.args[0] as Record<string, unknown>
+    expect(patch.status).toBe('draft')
+    expect(patch.scheduled_for).toBeNull()
+  })
+
+  it('draft → scheduled blocked by transition rules', async () => {
+    resetMockState({
+      perTable: {
+        blog_posts: [{ id: 'p1', status: 'draft', site_id: 'site-1', blog_translations: [{ locale: 'pt-BR', slug: 'post' }] }],
+      },
+    })
+    const futureDate = new Date(Date.now() + 60 * 60 * 1000).toISOString()
+    const result = await movePost('p1', 'scheduled', futureDate)
+    expect(result).toEqual({ ok: false, error: 'invalid_transition' })
+  })
+
+  it('idea → scheduled blocked by transition rules', async () => {
+    resetMockState({
+      perTable: {
+        blog_posts: [{ id: 'p1', status: 'idea', site_id: 'site-1', blog_translations: [{ locale: 'pt-BR', slug: 'post' }] }],
+      },
+    })
+    const futureDate = new Date(Date.now() + 60 * 60 * 1000).toISOString()
+    const result = await movePost('p1', 'scheduled', futureDate)
+    expect(result).toEqual({ ok: false, error: 'invalid_transition' })
+  })
+})
