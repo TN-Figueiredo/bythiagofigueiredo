@@ -56,6 +56,7 @@ interface KanbanBoardProps {
   onQuickAdd?: (title: string) => Promise<void>
   strings?: BlogHubStrings
   tags?: BlogTag[]
+  supportedLocales?: string[]
 }
 
 export function KanbanBoard({
@@ -68,6 +69,7 @@ export function KanbanBoard({
   onQuickAdd,
   strings,
   tags,
+  supportedLocales,
 }: KanbanBoardProps) {
   const dndId = useId()
   const sensors = useSensors(
@@ -224,6 +226,7 @@ export function KanbanBoard({
               cards={cards}
               strings={strings}
               tags={tags}
+              supportedLocales={supportedLocales}
               activeId={activeId}
               onMoveToStatus={onMovePost}
               onDelete={onDeletePost}

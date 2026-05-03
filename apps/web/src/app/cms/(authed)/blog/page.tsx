@@ -20,7 +20,7 @@ interface Props {
 }
 
 async function TabContent({
-  tab, siteId, tagId, locale, strings, uiLocale,
+  tab, siteId, tagId, locale, strings, uiLocale, supportedLocales,
 }: {
   tab: BlogTabId
   siteId: string
@@ -28,6 +28,7 @@ async function TabContent({
   locale: string | null
   strings: BlogHubStrings
   uiLocale: 'en' | 'pt-BR'
+  supportedLocales: string[]
 }) {
   switch (tab) {
     case 'overview': {
@@ -36,7 +37,7 @@ async function TabContent({
     }
     case 'editorial': {
       const data = await fetchEditorialData(siteId, tagId, locale)
-      return <EditorialTab data={data} strings={strings} siteId={siteId} tagId={tagId} locale={locale} />
+      return <EditorialTab data={data} strings={strings} siteId={siteId} tagId={tagId} locale={locale} supportedLocales={supportedLocales} />
     }
     case 'schedule': {
       const data = await fetchScheduleData(siteId, tagId, locale)
@@ -85,6 +86,7 @@ export default async function BlogHubPage({ searchParams }: Props) {
           locale={filterLocale}
           strings={strings}
           uiLocale={uiLocale}
+          supportedLocales={sharedData.supportedLocales}
         />
       </Suspense>
     </HubClient>

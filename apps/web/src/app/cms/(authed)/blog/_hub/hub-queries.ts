@@ -180,34 +180,44 @@ export const fetchEditorialData = unstable_cache(
   async (siteId: string, tagId?: string | null, locale?: string | null): Promise<EditorialTabData> => {
     const supabase = getSupabaseServiceClient()
 
-    let query = supabase
+    const { data: rawPosts } = await supabase
       .from('blog_posts')
       .select('id, status, tag_id, published_at, scheduled_for, slot_date, created_at, updated_at, blog_translations(locale, title, slug, reading_time_min, content_mdx), blog_tags(id, name, color)')
       .eq('site_id', siteId)
-      .order('created_at', { ascending: false })
-    if (tagId) query = query.eq('tag_id', tagId)
+      .order('created_at', { ascending: true })
 
-    const { data: rawPosts } = await query
+    const allPosts = rawPosts ?? []
 
-    let posts = rawPosts ?? []
-    if (locale) {
-      posts = posts.filter((p: Record<string, unknown>) => {
-        const txs = (p as { blog_translations: Array<{ locale: string }> }).blog_translations ?? []
-        return txs.some((t) => t.locale === locale)
-      })
-    }
-
-    type RawPost = typeof posts[number] & {
+    type RawPost = typeof allPosts[number] & {
       blog_translations: Array<{ locale: string; title: string; slug: string; reading_time_min: number | null; content_mdx: string }>
       blog_tags: { id: string; name: string; color: string } | null
     }
 
-    const cards: PostCard[] = (posts as unknown as RawPost[]).map((p, i) => {
+    // Assign stable displayIds from the full unfiltered set (creation order)
+    const displayIdMap = new Map<string, string>()
+    for (let i = 0; i < allPosts.length; i++) {
+      displayIdMap.set(allPosts[i]!.id as string, computeDisplayId(i + 1))
+    }
+
+    // Apply tag + locale filters after displayId assignment
+    let filtered = allPosts as unknown as RawPost[]
+    if (tagId) filtered = filtered.filter((p) => p.tag_id === tagId)
+    if (locale) {
+      filtered = filtered.filter((p) => {
+        const txs = p.blog_translations ?? []
+        return txs.some((t) => t.locale === locale)
+      })
+    }
+
+    // Reverse to show newest first
+    filtered = [...filtered].reverse()
+
+    const cards: PostCard[] = filtered.map((p) => {
       const txs = p.blog_translations ?? []
       const preferredTx = (locale ? txs.find((t) => t.locale === locale) : null) ?? txs[0]
       return {
         id: p.id as string,
-        displayId: computeDisplayId(posts.length - i),
+        displayId: displayIdMap.get(p.id as string) ?? computeDisplayId(0),
         title: preferredTx?.title ?? 'Untitled',
         status: p.status as PostCard['status'],
         tagId: p.tag_id as string | null,

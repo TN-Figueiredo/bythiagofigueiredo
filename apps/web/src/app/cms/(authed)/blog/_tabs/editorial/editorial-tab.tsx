@@ -18,9 +18,10 @@ interface EditorialTabProps {
   siteId?: string
   tagId?: string | null
   locale?: string | null
+  supportedLocales?: string[]
 }
 
-export function EditorialTab({ data, strings, tagId, locale }: EditorialTabProps) {
+export function EditorialTab({ data, strings, tagId, locale, supportedLocales }: EditorialTabProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const deferredQuery = useDeferredValue(searchQuery)
   const [, startTransition] = useTransition()
@@ -151,6 +152,7 @@ export function EditorialTab({ data, strings, tagId, locale }: EditorialTabProps
           onDuplicate={handleDuplicate}
           onQuickAdd={handleQuickAdd}
           strings={strings}
+          supportedLocales={supportedLocales}
         />
       </SectionErrorBoundary>
     </div>

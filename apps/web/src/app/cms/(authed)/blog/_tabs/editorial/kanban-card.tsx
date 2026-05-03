@@ -13,6 +13,7 @@ interface KanbanCardProps {
   card: PostCard
   strings?: BlogHubStrings
   tags?: BlogTag[]
+  supportedLocales?: string[]
   onMoveToStatus?: (postId: string, newStatus: string) => Promise<void>
   onDelete?: (postId: string) => Promise<void>
   onReassignTag?: (postId: string, tagId: string | null) => Promise<void>
@@ -24,6 +25,7 @@ export function KanbanCard({
   card,
   strings,
   tags,
+  supportedLocales,
   onMoveToStatus,
   onDelete,
   onReassignTag,
@@ -36,10 +38,12 @@ export function KanbanCard({
   })
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false)
+  const [localeDropdownOpen, setLocaleDropdownOpen] = useState(false)
   const [navigating, setNavigating] = useState(false)
   const [, startTransition] = useTransition()
   const contextMenuRef = useRef<HTMLDivElement>(null)
   const tagDropdownRef = useRef<HTMLDivElement>(null)
+  const localeDropdownRef = useRef<HTMLDivElement>(null)
 
   const style = {
     transform: CSS.Translate.toString(transform),
@@ -78,6 +82,21 @@ export function KanbanCard({
     },
     [card.id, onReassignTag],
   )
+
+  const handleLocaleSelect = useCallback(
+    (loc: string) => {
+      setLocaleDropdownOpen(false)
+      setContextMenu(null)
+      if (onAddLocale) {
+        startTransition(async () => {
+          await onAddLocale(card.id, loc)
+        })
+      }
+    },
+    [card.id, onAddLocale],
+  )
+
+  const missingLocales = supportedLocales?.filter((l) => !card.locales.includes(l)) ?? []
 
   const handleDuplicate = useCallback(() => {
     setContextMenu(null)
@@ -130,6 +149,18 @@ export function KanbanCard({
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [tagDropdownOpen])
+
+  // Close locale dropdown on outside click
+  useEffect(() => {
+    if (!localeDropdownOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (localeDropdownRef.current && !localeDropdownRef.current.contains(e.target as Node)) {
+        setLocaleDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [localeDropdownOpen])
 
   const validTargets = getValidTargets(card.status)
   const canDelete =
@@ -358,17 +389,31 @@ export function KanbanCard({
             {s?.changeTag ?? 'Change tag'}
           </button>
 
-          <button
-            onClick={() => {
-              setContextMenu(null)
-              // Add locale: could show a submenu; for now trigger with a simple stub
-              // This is handled via the parent's onAddLocale prop
-            }}
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-gray-300 hover:bg-gray-800"
-          >
-            <Globe className="h-3 w-3" />
-            {s?.addLocale ?? 'Add locale'}
-          </button>
+          <div className="relative" ref={localeDropdownRef}>
+            <button
+              onClick={() => setLocaleDropdownOpen((v) => !v)}
+              disabled={missingLocales.length === 0}
+              className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] hover:bg-gray-800 ${
+                missingLocales.length === 0 ? 'text-gray-600 cursor-not-allowed' : 'text-gray-300'
+              }`}
+            >
+              <Globe className="h-3 w-3" />
+              {s?.addLocale ?? 'Add locale'}
+            </button>
+            {localeDropdownOpen && missingLocales.length > 0 && (
+              <div className="absolute left-full top-0 z-50 ml-1 w-28 rounded-md border border-gray-700 bg-gray-900 py-1 shadow-xl">
+                {missingLocales.map((loc) => (
+                  <button
+                    key={loc}
+                    onClick={() => handleLocaleSelect(loc)}
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[10px] text-gray-300 hover:bg-gray-800"
+                  >
+                    <span className="uppercase font-medium">{loc}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           <button
             onClick={handleDuplicate}

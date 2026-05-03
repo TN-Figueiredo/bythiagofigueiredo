@@ -17,6 +17,7 @@ interface KanbanColumnProps {
   cards: PostCard[]
   strings?: BlogHubStrings
   tags?: BlogTag[]
+  supportedLocales?: string[]
   activeId?: string | null
   onMoveToStatus?: (postId: string, newStatus: string) => Promise<void>
   onDelete?: (postId: string) => Promise<void>
@@ -33,6 +34,7 @@ export function KanbanColumn({
   cards,
   strings,
   tags,
+  supportedLocales,
   activeId,
   onMoveToStatus,
   onDelete,
@@ -90,6 +92,7 @@ export function KanbanColumn({
               card={card}
               strings={strings}
               tags={tags}
+              supportedLocales={supportedLocales}
               onMoveToStatus={onMoveToStatus}
               onDelete={onDelete}
               onReassignTag={onReassignTag}

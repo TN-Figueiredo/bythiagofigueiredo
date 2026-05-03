@@ -431,14 +431,16 @@ export async function movePost(
   }
 
   // CAS: only update if status hasn't changed since we read it
-  const { error: updateError } = await supabase
+  const { data: updated, error: updateError } = await supabase
     .from('blog_posts')
     .update(patch)
     .eq('id', postId)
     .eq('site_id', siteId)
     .eq('status', current.status)
+    .select('id')
 
   if (updateError) return { ok: false, error: updateError.message }
+  if (!updated || updated.length === 0) return { ok: false, error: 'conflict' }
 
   const translations = (current as { id: string; status: string; site_id: string; blog_translations: Array<{ locale: string; slug: string }> }).blog_translations ?? []
   for (const tx of translations) {
@@ -472,14 +474,16 @@ export async function deleteHubPost(
   }
 
   // CAS: only delete if status is still deletable
-  const { error: deleteError } = await supabase
+  const { data: deleted, error: deleteError } = await supabase
     .from('blog_posts')
     .delete()
     .eq('id', postId)
     .eq('site_id', siteId)
     .in('status', deletableStatuses)
+    .select('id')
 
   if (deleteError) return { ok: false, error: deleteError.message }
+  if (!deleted || deleted.length === 0) return { ok: false, error: 'conflict' }
 
   const translations = (post as { id: string; status: string; site_id: string; blog_translations: Array<{ locale: string; slug: string }> }).blog_translations ?? []
   for (const tx of translations) {
