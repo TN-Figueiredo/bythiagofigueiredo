@@ -14,7 +14,7 @@ import { KanbanColumn } from './kanban-column'
 import { KanbanCardOverlay } from './kanban-card'
 import { SlotPickerModal, type CadenceSlotOption } from '../../_components/slot-picker-modal'
 import { ScheduleModal } from '../../_components/schedule-modal'
-import { getAvailableSlots, scheduleEditionToSlot, scheduleEditionAsSpecial } from '../../actions'
+import { getAvailableSlots, scheduleEditionToSlot, scheduleEditionAsSpecial, swapSlotEdition } from '../../actions'
 
 const COLUMN_DEFS = [
   { id: 'idea', key: 'idea' as const, color: '#9ca3af' },
@@ -131,12 +131,12 @@ export function KanbanBoard({ editions, onMoveEdition, onDeleteEdition, strings,
       typeName,
       patternDescription: result.patternDescription,
       slots: result.slots,
-      hasMore: result.slots.length >= 20,
+      hasMore: result.slots.length >= 6,
       loading: false,
     })
   }, [])
 
-  const handleSlotConfirm = useCallback(async (date: string) => {
+  const handleSlotConfirm = useCallback(async (date: string, isSwap: boolean) => {
     if (!slotPickerState) return
     const { editionId, typeId } = slotPickerState
     setSlotPickerState(null)
@@ -145,12 +145,13 @@ export function KanbanBoard({ editions, onMoveEdition, onDeleteEdition, strings,
       setOptimistic((prev) =>
         prev.map((e) => (e.id === editionId ? { ...e, status: 'scheduled' as const } : e)),
       )
-      const result = await scheduleEditionToSlot(editionId, date, typeId)
+      const result = isSwap
+        ? await swapSlotEdition(editionId, date, typeId)
+        : await scheduleEditionToSlot(editionId, date, typeId)
       if (result.ok) {
         toast.success(strings?.common.moved ?? 'Scheduled')
       } else if (result.error === 'slot_taken') {
         toast.error('Slot already taken — refreshing...')
-        // Re-open with fresh slots
         const edition = editions.find((e) => e.id === editionId)
         if (edition) openSlotPicker(edition)
       } else {
@@ -162,15 +163,16 @@ export function KanbanBoard({ editions, onMoveEdition, onDeleteEdition, strings,
   const handleSlotLoadMore = useCallback(async () => {
     if (!slotPickerState) return
     const { typeId, slots } = slotPickerState
+    const nextCount = slots.length + 6
 
     setSlotPickerState((prev) => prev ? { ...prev, loading: true } : prev)
 
-    const result = await getAvailableSlots(typeId, slots.length + 10)
+    const result = await getAvailableSlots(typeId, nextCount)
     if (result.ok) {
       setSlotPickerState((prev) => prev ? {
         ...prev,
         slots: result.slots,
-        hasMore: result.slots.length >= slots.length + 10,
+        hasMore: result.slots.length >= nextCount,
         loading: false,
       } : prev)
     } else {
@@ -300,6 +302,12 @@ export function KanbanBoard({ editions, onMoveEdition, onDeleteEdition, strings,
 
     if (!targetColumn) return
 
+    // Gate: type required for ready/scheduled
+    if ((targetColumn === 'ready' || targetColumn === 'scheduled') && !originalEdition.typeId) {
+      toast.error(strings?.editorial.noType ?? 'Assign a type first')
+      return
+    }
+
     // Intercept drops to 'scheduled' — only from 'ready', show slot picker
     if (targetColumn === 'scheduled') {
       if (originalEdition.status !== 'ready') {
@@ -332,8 +340,14 @@ export function KanbanBoard({ editions, onMoveEdition, onDeleteEdition, strings,
   }, [])
 
   const handleMoveToStatus = useCallback(async (editionId: string, newStatus: string) => {
+    const edition = optimisticEditions.find((e) => e.id === editionId)
+
+    if ((newStatus === 'ready' || newStatus === 'scheduled') && edition && !edition.typeId) {
+      toast.error(strings?.editorial.noType ?? 'Assign a type first')
+      return
+    }
+
     if (newStatus === 'scheduled') {
-      const edition = optimisticEditions.find((e) => e.id === editionId)
       if (edition && edition.status !== 'ready') {
         toast.error('Move to Ready first')
         return

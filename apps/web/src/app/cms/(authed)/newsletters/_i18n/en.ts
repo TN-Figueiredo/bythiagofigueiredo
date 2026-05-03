@@ -21,10 +21,13 @@ export const en: NewsletterHubStrings = {
     scheduleAsSpecial: 'Schedule as special edition',
     or: 'or',
     confirm: 'Confirm',
+    confirmSwap: 'Swap',
     cancel: 'Cancel',
     slotTaken: 'This slot was just taken. Please select another.',
     specialEdition: 'Special edition',
     cadenceEdition: 'Cadence edition',
+    occupied: 'Occupied',
+    swap: 'Swap — current edition returns to Ready',
   },
   cadenceConfig: {
     patternType: 'Cadence type',

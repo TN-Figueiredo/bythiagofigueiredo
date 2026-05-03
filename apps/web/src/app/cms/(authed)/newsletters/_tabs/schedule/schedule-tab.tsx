@@ -12,7 +12,7 @@ import { SlotPickerModal, type CadenceSlotOption } from '../../_components/slot-
 import { ScheduleModal } from '../../_components/schedule-modal'
 import { CalendarDays } from 'lucide-react'
 import type { NewsletterHubStrings } from '../../_i18n/types'
-import { toggleCadence, getAvailableSlots, scheduleEditionToSlot, scheduleEditionAsSpecial } from '../../actions'
+import { toggleCadence, getAvailableSlots, scheduleEditionToSlot, scheduleEditionAsSpecial, swapSlotEdition } from '../../actions'
 
 interface ScheduleTabProps {
   data: ScheduleTabData
@@ -175,25 +175,26 @@ export function ScheduleTab({ data, typeFilter, strings, locale = 'en' }: Schedu
     setSlotPickerState((prev) => prev ? {
       ...prev,
       slots: result.slots,
-      hasMore: result.slots.length >= 20,
+      hasMore: result.slots.length >= 6,
       loading: false,
     } : prev)
   }, [pickerState.date, data.readyEditions, data.cadenceConfigs])
 
   // ─── SlotPickerModal callbacks ──────────────────────────────────────────────
 
-  const handleSlotConfirm = useCallback(async (date: string) => {
+  const handleSlotConfirm = useCallback(async (date: string, isSwap: boolean) => {
     if (!slotPickerState) return
     const { editionId, typeId } = slotPickerState
     setSlotPickerState(null)
 
     startTransition(async () => {
-      const result = await scheduleEditionToSlot(editionId, date, typeId)
+      const result = isSwap
+        ? await swapSlotEdition(editionId, date, typeId)
+        : await scheduleEditionToSlot(editionId, date, typeId)
       if (result.ok) {
         showToast(strings?.schedule.saved ?? 'Scheduled')
       } else if (result.error === 'slot_taken') {
         showToast('Slot already taken — try another')
-        // Re-open the slot picker with refreshed slots
         const edition = data.readyEditions.find((e) => e.id === editionId)
         if (edition) handleEditionSelect(editionId)
       } else {
@@ -205,15 +206,16 @@ export function ScheduleTab({ data, typeFilter, strings, locale = 'en' }: Schedu
   const handleSlotLoadMore = useCallback(async () => {
     if (!slotPickerState) return
     const { typeId, slots } = slotPickerState
+    const nextCount = slots.length + 6
 
     setSlotPickerState((prev) => prev ? { ...prev, loading: true } : prev)
 
-    const result = await getAvailableSlots(typeId, slots.length + 10)
+    const result = await getAvailableSlots(typeId, nextCount)
     if (result.ok) {
       setSlotPickerState((prev) => prev ? {
         ...prev,
         slots: result.slots,
-        hasMore: result.slots.length >= slots.length + 10,
+        hasMore: result.slots.length >= nextCount,
         loading: false,
       } : prev)
     } else {

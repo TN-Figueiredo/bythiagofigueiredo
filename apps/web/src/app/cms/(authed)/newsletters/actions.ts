@@ -656,6 +656,69 @@ export async function scheduleEditionToSlot(
 }
 
 /**
+ * Swap: new edition takes an occupied slot, old edition returns to Ready.
+ * Atomic: clears old edition's slot, then CAS-schedules new edition.
+ */
+export async function swapSlotEdition(
+  newEditionId: string,
+  slotDate: string,
+  typeId: string,
+): Promise<ActionResult> {
+  await requireSiteAdminForRow('newsletter_editions', newEditionId)
+  const supabase = getSupabaseServiceClient()
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(slotDate)) {
+    return { ok: false, error: 'invalid_date_format' }
+  }
+
+  // Find the current occupant of this slot
+  const { data: occupant } = await supabase
+    .from('newsletter_editions')
+    .select('id, status')
+    .eq('newsletter_type_id', typeId)
+    .eq('edition_kind', 'cadence')
+    .eq('slot_date', slotDate)
+    .not('status', 'in', '("cancelled","archived")')
+    .single()
+
+  if (!occupant) {
+    return { ok: false, error: 'slot_not_occupied' }
+  }
+
+  if (['sending', 'sent'].includes(occupant.status)) {
+    return { ok: false, error: 'occupant_locked' }
+  }
+
+  // Move the old edition back to ready
+  const { error: clearErr } = await supabase
+    .from('newsletter_editions')
+    .update({
+      status: 'ready',
+      slot_date: null,
+      scheduled_at: null,
+      edition_kind: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', occupant.id)
+
+  if (clearErr) return { ok: false, error: clearErr.message }
+
+  // Now schedule the new edition to the freed slot (includes revalidation)
+  const result = await scheduleEditionToSlot(newEditionId, slotDate, typeId)
+  if (!result.ok && result.error === 'slot_taken') {
+    // Race condition — restore the old edition (best-effort)
+    await supabase
+      .from('newsletter_editions')
+      .update({ status: 'scheduled', slot_date: slotDate, edition_kind: 'cadence', updated_at: new Date().toISOString() })
+      .eq('id', occupant.id)
+    revalidateNewsletterHub()
+    return { ok: false, error: 'slot_taken' }
+  }
+
+  return result
+}
+
+/**
  * Schedule as a special edition — free date, no cadence slot claim.
  */
 export async function scheduleEditionAsSpecial(
@@ -701,6 +764,8 @@ export type SlotInfo = {
   formattedDate: string
   time: string
   timezone: string
+  occupied: boolean
+  occupiedEdition?: { id: string; displayId: string; subject: string }
 }
 
 type AvailableSlotsResult =
@@ -708,8 +773,8 @@ type AvailableSlotsResult =
   | { ok: false; error: string }
 
 /**
- * Compute the next available cadence slots for a given newsletter type.
- * Filters out dates that already have an active edition.
+ * Compute the next cadence slots for a given newsletter type.
+ * Returns both empty and occupied slots (with edition info for occupied ones).
  */
 export async function getAvailableSlots(
   typeId: string,
@@ -721,7 +786,6 @@ export async function getAvailableSlots(
 
   const supabase = getSupabaseServiceClient()
 
-  // Fetch type's cadence_pattern, preferred_send_time, and site timezone
   const { data: typeRow } = await supabase
     .from('newsletter_types')
     .select('cadence_pattern, preferred_send_time, site_id')
@@ -743,56 +807,48 @@ export async function getAvailableSlots(
   const sendTime = (typeRow.preferred_send_time as string) ?? '09:00'
   const sendTimeHHMM = sendTime.slice(0, 5)
 
-  // Today's date in ISO format
   const today = new Date().toISOString().slice(0, 10)
 
-  // Fetch occupied slot dates
+  // Fetch occupied editions for this type's slots
   const { data: occupiedRows } = await supabase
     .from('newsletter_editions')
-    .select('slot_date')
+    .select('id, slot_date, subject, display_id')
     .eq('newsletter_type_id', typeId)
     .eq('edition_kind', 'cadence')
     .not('status', 'in', '("cancelled","archived")')
     .gte('slot_date', today)
 
-  const occupiedDates = new Set((occupiedRows ?? []).map((r) => r.slot_date as string))
-
-  // Generate candidate slots iteratively to guarantee we find enough available ones
-  const slotsNeeded = maxSlots ?? 20
-  const availableDates: string[] = []
-  let generateBatch = slotsNeeded * 3
-  let fromDate = today
-
-  while (availableDates.length < slotsNeeded && generateBatch <= 500) {
-    const candidates = generateCadenceSlots(cadencePattern, {
-      from: fromDate,
-      maxSlots: generateBatch,
+  const occupiedMap = new Map<string, { id: string; displayId: string; subject: string }>()
+  for (const r of occupiedRows ?? []) {
+    occupiedMap.set(r.slot_date as string, {
+      id: r.id as string,
+      displayId: (r.display_id as string) ?? '',
+      subject: (r.subject as string) ?? '',
     })
-    if (candidates.length === 0) break
-    for (const d of candidates) {
-      if (!occupiedDates.has(d) && !availableDates.includes(d)) {
-        availableDates.push(d)
-        if (availableDates.length >= slotsNeeded) break
-      }
-    }
-    if (availableDates.length >= slotsNeeded) break
-    // Advance past last candidate and try more
-    const lastCandidate = candidates[candidates.length - 1]!
-    const nextDay = new Date(new Date(lastCandidate + 'T00:00:00Z').getTime() + 86_400_000).toISOString().slice(0, 10)
-    fromDate = nextDay
-    generateBatch = slotsNeeded * 2
   }
 
-  // Format slots
-  const slots: SlotInfo[] = availableDates.map((date) => ({
-    date,
-    dayOfWeek: formatDayOfWeek(date, ctx.defaultLocale ?? 'pt-BR'),
-    formattedDate: formatSlotDate(date, ctx.defaultLocale ?? 'pt-BR'),
-    time: sendTimeHHMM,
-    timezone: siteTimezone,
-  }))
+  // Generate candidate slot dates (both empty and occupied)
+  const slotsNeeded = maxSlots ?? 6
+  const candidates = generateCadenceSlots(cadencePattern, {
+    from: today,
+    maxSlots: slotsNeeded,
+  })
 
   const locale = (ctx.defaultLocale ?? 'pt-BR') as 'en' | 'pt-BR'
+
+  const slots: SlotInfo[] = candidates.map((date) => {
+    const occupied = occupiedMap.get(date)
+    return {
+      date,
+      dayOfWeek: formatDayOfWeek(date, locale),
+      formattedDate: formatSlotDate(date, locale),
+      time: sendTimeHHMM,
+      timezone: siteTimezone,
+      occupied: !!occupied,
+      occupiedEdition: occupied ?? undefined,
+    }
+  })
+
   return { ok: true, slots, patternDescription: describePattern(cadencePattern, locale) }
 }
 
@@ -1322,7 +1378,7 @@ export async function moveEdition(
 
   const { data: current } = await supabase
     .from('newsletter_editions')
-    .select('status')
+    .select('status, newsletter_type_id')
     .eq('id', editionId)
     .single()
   if (!current) return { ok: false, error: 'not_found' }
@@ -1330,6 +1386,10 @@ export async function moveEdition(
   const immutableStatuses = ['sending', 'sent']
   if (immutableStatuses.includes(current.status)) {
     return { ok: false, error: 'edition_locked' }
+  }
+
+  if ((newStatus === 'ready' || newStatus === 'scheduled') && !current.newsletter_type_id) {
+    return { ok: false, error: 'type_required' }
   }
 
   const patch: Record<string, unknown> = { status: newStatus, updated_at: new Date().toISOString() }

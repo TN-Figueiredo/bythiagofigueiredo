@@ -414,7 +414,7 @@ export async function movePost(
 
   const { data: current, error: fetchError } = await supabase
     .from('blog_posts')
-    .select('id, status, site_id, blog_translations(locale, slug)')
+    .select('id, status, site_id, tag_id, blog_translations(locale, slug)')
     .eq('id', postId)
     .eq('site_id', siteId)
     .single()
@@ -422,6 +422,10 @@ export async function movePost(
   if (fetchError || !current) return { ok: false, error: 'not_found' }
   if (!isValidTransition(current.status as string, newStatus)) {
     return { ok: false, error: 'invalid_transition' }
+  }
+
+  if ((newStatus === 'ready' || newStatus === 'scheduled') && !current.tag_id) {
+    return { ok: false, error: 'tag_required' }
   }
 
   const patch: Record<string, unknown> = { status: newStatus }

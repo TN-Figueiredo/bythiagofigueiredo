@@ -113,6 +113,7 @@ import {
   sendNow,
   revertToDraft,
   sendTestEmail,
+  moveEdition,
 } from '@/app/cms/(authed)/newsletters/actions'
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
@@ -357,6 +358,35 @@ describe('Status transition matrix — actual server action behavior', () => {
       expect(send.ok).toBe(false)
       expect(revert.ok).toBe(false)
       expect(test.ok).toBe(false)
+    })
+  })
+
+  // ── moveEdition type gate ────────────────────────────────────────────────
+  describe('moveEdition type gate', () => {
+    it('rejects move to ready without newsletter_type_id', async () => {
+      mockSupabase = createMockSupabase('draft', { newsletter_type_id: null })
+      const result = await moveEdition('ed-1', 'ready')
+      expect(result.ok).toBe(false)
+      expect(result).toHaveProperty('error', 'type_required')
+    })
+
+    it('rejects move to scheduled without newsletter_type_id', async () => {
+      mockSupabase = createMockSupabase('draft', { newsletter_type_id: null })
+      const result = await moveEdition('ed-1', 'scheduled', new Date(Date.now() + 86_400_000).toISOString())
+      expect(result.ok).toBe(false)
+      expect(result).toHaveProperty('error', 'type_required')
+    })
+
+    it('allows move to ready with newsletter_type_id', async () => {
+      mockSupabase = createMockSupabase('draft')
+      const result = await moveEdition('ed-1', 'ready')
+      expect(result.ok).toBe(true)
+    })
+
+    it('allows move to draft without newsletter_type_id', async () => {
+      mockSupabase = createMockSupabase('idea', { newsletter_type_id: null })
+      const result = await moveEdition('ed-1', 'draft')
+      expect(result.ok).toBe(true)
     })
   })
 })

@@ -21,10 +21,13 @@ export const ptBR: NewsletterHubStrings = {
     scheduleAsSpecial: 'Agendar como edição especial',
     or: 'ou',
     confirm: 'Confirmar',
+    confirmSwap: 'Trocar',
     cancel: 'Cancelar',
     slotTaken: 'Este slot acabou de ser ocupado. Selecione outro.',
     specialEdition: 'Edição especial',
     cadenceEdition: 'Edição de cadência',
+    occupied: 'Ocupado',
+    swap: 'Substituir — edição atual volta para Pronto',
   },
   cadenceConfig: {
     patternType: 'Tipo de cadência',

@@ -19,10 +19,13 @@ export interface NewsletterHubStrings {
     scheduleAsSpecial: string
     or: string
     confirm: string
+    confirmSwap: string
     cancel: string
     slotTaken: string
     specialEdition: string
     cadenceEdition: string
+    occupied: string
+    swap: string
   }
   cadenceConfig: {
     patternType: string

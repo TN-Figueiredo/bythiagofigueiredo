@@ -9,6 +9,8 @@ export interface CadenceSlotOption {
   formattedDate: string // e.g. "1 Jun 2026"
   time: string          // e.g. "08:00"
   timezone: string      // e.g. "BRT"
+  occupied: boolean
+  occupiedEdition?: { id: string; displayId: string; subject: string }
 }
 
 interface SlotPickerModalProps {
@@ -19,7 +21,7 @@ interface SlotPickerModalProps {
   availableSlots: CadenceSlotOption[]
   hasMore: boolean
   onLoadMore: () => void
-  onConfirmSlot: (date: string) => void
+  onConfirmSlot: (date: string, isSwap: boolean) => void
   onSwitchToSpecial: () => void
   onCancel: () => void
   allSlotsFull?: boolean
@@ -31,7 +33,10 @@ interface SlotPickerModalProps {
     scheduleAsSpecial?: string
     or?: string
     confirm?: string
+    confirmSwap?: string
     cancel?: string
+    occupied?: string
+    swap?: string
   }
 }
 
@@ -58,10 +63,13 @@ export function SlotPickerModal({
 
   useModalFocusTrap(dialogRef, open, onCancel)
 
+  const selectedSlot = selectedDate ? availableSlots.find((s) => s.date === selectedDate) : null
+  const isSwap = !!selectedSlot?.occupied
+
   const handleConfirm = useCallback(() => {
     if (!selectedDate) return
-    onConfirmSlot(selectedDate)
-  }, [selectedDate, onConfirmSlot])
+    onConfirmSlot(selectedDate, isSwap)
+  }, [selectedDate, isSwap, onConfirmSlot])
 
   const handleOverlayClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -76,14 +84,19 @@ export function SlotPickerModal({
 
   const t = {
     title: strings.title ?? `Agendar edição ${editionDisplayId}`,
-    selectSlot: strings.selectSlot ?? 'Selecione um slot disponível',
+    selectSlot: strings.selectSlot ?? 'Selecione um slot:',
     showMore: strings.showMore ?? 'Ver mais',
     allSlotsFull: strings.allSlotsFull ?? 'Todos os slots desta cadência estão ocupados.',
     scheduleAsSpecial: strings.scheduleAsSpecial ?? 'Agendar como edição especial →',
     or: strings.or ?? 'ou',
     confirm: strings.confirm ?? 'Confirmar',
+    confirmSwap: strings.confirmSwap ?? 'Trocar',
     cancel: strings.cancel ?? 'Cancelar',
+    occupied: strings.occupied ?? 'Ocupado',
+    swap: strings.swap ?? 'Substituir — edição atual volta para Pronto',
   }
+
+  const allOccupied = availableSlots.length > 0 && availableSlots.every((s) => s.occupied)
 
   return (
     <div
@@ -112,7 +125,7 @@ export function SlotPickerModal({
 
         {/* Body */}
         <div className="mt-4">
-          {allSlotsFull ? (
+          {allSlotsFull || (availableSlots.length === 0) ? (
             <p className="rounded-lg border border-gray-700 bg-gray-800/50 px-3 py-3 text-[13px] text-gray-400">
               {t.allSlotsFull}
             </p>
@@ -122,7 +135,7 @@ export function SlotPickerModal({
               <div
                 role="radiogroup"
                 aria-labelledby={titleId}
-                className="space-y-1"
+                className="space-y-1 max-h-[320px] overflow-y-auto"
               >
                 {availableSlots.map((slot) => {
                   const isSelected = selectedDate === slot.date
@@ -132,11 +145,14 @@ export function SlotPickerModal({
                       className={[
                         'flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors',
                         isSelected
-                          ? 'border-indigo-500 bg-indigo-500/10'
-                          : 'border-gray-700 bg-gray-800/50 hover:border-gray-600 hover:bg-gray-800',
+                          ? slot.occupied
+                            ? 'border-amber-500 bg-amber-500/10'
+                            : 'border-indigo-500 bg-indigo-500/10'
+                          : slot.occupied
+                            ? 'border-gray-700 bg-gray-800/30 hover:border-amber-600/50 hover:bg-gray-800'
+                            : 'border-gray-700 bg-gray-800/50 hover:border-gray-600 hover:bg-gray-800',
                       ].join(' ')}
                     >
-                      {/* Hidden native radio for a11y */}
                       <input
                         type="radio"
                         name="cadence-slot"
@@ -146,13 +162,12 @@ export function SlotPickerModal({
                         className="sr-only"
                       />
 
-                      {/* Custom radio circle */}
                       <span
                         aria-hidden="true"
                         className={[
                           'flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors',
                           isSelected
-                            ? 'border-indigo-500 bg-indigo-500'
+                            ? slot.occupied ? 'border-amber-500 bg-amber-500' : 'border-indigo-500 bg-indigo-500'
                             : 'border-gray-600 bg-transparent',
                         ].join(' ')}
                       >
@@ -161,27 +176,46 @@ export function SlotPickerModal({
                         )}
                       </span>
 
-                      {/* Slot details */}
                       <span className="flex flex-1 items-center justify-between gap-2 min-w-0">
-                        <span
-                          className={[
-                            'text-[13px] font-medium truncate',
-                            isSelected ? 'text-indigo-300' : 'text-gray-200',
-                          ].join(' ')}
-                        >
-                          {slot.formattedDate}
+                        <span className="flex flex-col min-w-0">
+                          <span
+                            className={[
+                              'text-[13px] font-medium truncate',
+                              isSelected
+                                ? slot.occupied ? 'text-amber-300' : 'text-indigo-300'
+                                : 'text-gray-200',
+                            ].join(' ')}
+                          >
+                            {slot.formattedDate}
+                          </span>
+                          {slot.occupied && slot.occupiedEdition && (
+                            <span className="text-[11px] text-gray-500 truncate">
+                              {slot.occupiedEdition.displayId} — {slot.occupiedEdition.subject || 'Sem título'}
+                            </span>
+                          )}
                         </span>
                         <span className="flex shrink-0 items-center gap-1.5 text-[12px] text-gray-400">
+                          {slot.occupied && (
+                            <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
+                              {t.occupied}
+                            </span>
+                          )}
                           <span className="capitalize">{slot.dayOfWeek}</span>
                           <span className="text-gray-600">·</span>
                           <span>{slot.time}</span>
-                          <span className="text-gray-500">{slot.timezone}</span>
                         </span>
                       </span>
                     </label>
                   )
                 })}
               </div>
+
+              {/* Swap hint when occupied slot selected */}
+              {isSwap && (
+                <p className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-400">
+                  {t.swap}
+                </p>
+              )}
 
               {hasMore && (
                 <button
@@ -223,9 +257,14 @@ export function SlotPickerModal({
             type="button"
             onClick={handleConfirm}
             disabled={!selectedDate}
-            className="rounded-lg bg-indigo-500 px-4 py-1.5 text-[13px] font-medium text-white hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-50"
+            className={[
+              'rounded-lg px-4 py-1.5 text-[13px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-50',
+              isSwap
+                ? 'bg-amber-600 hover:bg-amber-500'
+                : 'bg-indigo-500 hover:bg-indigo-400',
+            ].join(' ')}
           >
-            {t.confirm}
+            {isSwap ? t.confirmSwap : t.confirm}
           </button>
         </div>
       </div>

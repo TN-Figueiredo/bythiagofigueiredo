@@ -194,6 +194,12 @@ export function KanbanBoard({
 
       if (!newCol) return
 
+      // Gate: tag required for ready/scheduled
+      if ((newCol === 'ready' || newCol === 'scheduled') && !originalPost.tagId) {
+        toast.error(strings?.editorial.noTag ?? 'Assign a tag first')
+        return
+      }
+
       // When dropping into 'scheduled', only allow from 'ready' column
       if (newCol === 'scheduled') {
         if (origCol !== 'ready') {
@@ -248,13 +254,19 @@ export function KanbanBoard({
 
   // Intercept 'scheduled' moves from context menu to open the modal instead
   const handleMoveToStatus = useCallback(async (postId: string, newStatus: string) => {
+    const card = working.find((p) => p.id === postId)
+
+    if ((newStatus === 'ready' || newStatus === 'scheduled') && card && !card.tagId) {
+      toast.error(strings?.editorial.noTag ?? 'Assign a tag first')
+      return
+    }
+
     if (newStatus === 'scheduled') {
-      const card = working.find((p) => p.id === postId)
       setPendingSchedule({ postId, postTitle: card?.title ?? 'Untitled' })
       return
     }
     await onMovePost?.(postId, newStatus)
-  }, [onMovePost, working])
+  }, [onMovePost, working, strings])
 
   return (
     <>

@@ -452,7 +452,7 @@ describe('movePost', () => {
     vi.clearAllMocks()
     resetMockState({
       perTable: {
-        blog_posts: [{ id: 'p1', status: 'draft', site_id: 'site-1', blog_translations: [{ locale: 'pt-BR', slug: 'hello' }] }],
+        blog_posts: [{ id: 'p1', status: 'draft', site_id: 'site-1', tag_id: 'tag-1', blog_translations: [{ locale: 'pt-BR', slug: 'hello' }] }],
       },
     })
   })
@@ -460,6 +460,16 @@ describe('movePost', () => {
   it('succeeds for valid transition draft → ready', async () => {
     const result = await movePost('p1', 'ready')
     expect(result).toEqual({ ok: true })
+  })
+
+  it('rejects draft → ready without tag_id', async () => {
+    resetMockState({
+      perTable: {
+        blog_posts: [{ id: 'p1', status: 'draft', site_id: 'site-1', tag_id: null, blog_translations: [{ locale: 'pt-BR', slug: 'hello' }] }],
+      },
+    })
+    const result = await movePost('p1', 'ready')
+    expect(result).toEqual({ ok: false, error: 'tag_required' })
   })
 
   it('succeeds for valid transition idea → draft', async () => {
@@ -542,12 +552,10 @@ describe('movePost', () => {
   })
 
   it('returns conflict when CAS update matches zero rows (status race)', async () => {
-    // First from('blog_posts') call: select returns the post with status=draft
-    // Second from('blog_posts') call: update returns empty array (someone else moved it)
     resetMockState({
       perTableSeq: {
         blog_posts: [
-          { rows: [{ id: 'p1', status: 'draft', site_id: 'site-1', blog_translations: [{ locale: 'pt-BR', slug: 'hello' }] }] },
+          { rows: [{ id: 'p1', status: 'draft', site_id: 'site-1', tag_id: 'tag-1', blog_translations: [{ locale: 'pt-BR', slug: 'hello' }] }] },
           { rows: [] }, // CAS update returns no rows → conflict
         ],
       },
@@ -559,7 +567,7 @@ describe('movePost', () => {
   it('revalidates SEO cache on success', async () => {
     resetMockState({
       perTable: {
-        blog_posts: [{ id: 'p1', status: 'draft', site_id: 'site-1', blog_translations: [{ locale: 'pt-BR', slug: 'hello' }] }],
+        blog_posts: [{ id: 'p1', status: 'draft', site_id: 'site-1', tag_id: 'tag-1', blog_translations: [{ locale: 'pt-BR', slug: 'hello' }] }],
       },
     })
     await movePost('p1', 'ready')
@@ -954,7 +962,7 @@ describe('movePost scheduling flow', () => {
     resetMockState({
       perTableSeq: {
         blog_posts: [
-          { rows: [{ id: 'p1', status: 'ready', site_id: 'site-1', blog_translations: [{ locale: 'pt-BR', slug: 'post' }] }] },
+          { rows: [{ id: 'p1', status: 'ready', site_id: 'site-1', tag_id: 'tag-1', blog_translations: [{ locale: 'pt-BR', slug: 'post' }] }] },
           { rows: [{ id: 'p1' }] }, // CAS update succeeds
         ],
       },
@@ -970,7 +978,7 @@ describe('movePost scheduling flow', () => {
   it('ready → scheduled without scheduledFor returns error', async () => {
     resetMockState({
       perTable: {
-        blog_posts: [{ id: 'p1', status: 'ready', site_id: 'site-1', blog_translations: [{ locale: 'pt-BR', slug: 'post' }] }],
+        blog_posts: [{ id: 'p1', status: 'ready', site_id: 'site-1', tag_id: 'tag-1', blog_translations: [{ locale: 'pt-BR', slug: 'post' }] }],
       },
     })
     const result = await movePost('p1', 'scheduled')
@@ -980,7 +988,7 @@ describe('movePost scheduling flow', () => {
   it('ready → scheduled with invalid date string returns error', async () => {
     resetMockState({
       perTable: {
-        blog_posts: [{ id: 'p1', status: 'ready', site_id: 'site-1', blog_translations: [{ locale: 'pt-BR', slug: 'post' }] }],
+        blog_posts: [{ id: 'p1', status: 'ready', site_id: 'site-1', tag_id: 'tag-1', blog_translations: [{ locale: 'pt-BR', slug: 'post' }] }],
       },
     })
     const result = await movePost('p1', 'scheduled', 'not-a-date')
@@ -990,7 +998,7 @@ describe('movePost scheduling flow', () => {
   it('ready → scheduled with past date returns error', async () => {
     resetMockState({
       perTable: {
-        blog_posts: [{ id: 'p1', status: 'ready', site_id: 'site-1', blog_translations: [{ locale: 'pt-BR', slug: 'post' }] }],
+        blog_posts: [{ id: 'p1', status: 'ready', site_id: 'site-1', tag_id: 'tag-1', blog_translations: [{ locale: 'pt-BR', slug: 'post' }] }],
       },
     })
     const pastDate = new Date(Date.now() - 10 * 60 * 1000).toISOString() // 10min ago
@@ -999,12 +1007,11 @@ describe('movePost scheduling flow', () => {
   })
 
   it('ready → scheduled with near-future date (within 5min tolerance) succeeds', async () => {
-    // 3min in the past is within the 5min tolerance window
     const nearPastDate = new Date(Date.now() - 3 * 60 * 1000).toISOString()
     resetMockState({
       perTableSeq: {
         blog_posts: [
-          { rows: [{ id: 'p1', status: 'ready', site_id: 'site-1', blog_translations: [{ locale: 'pt-BR', slug: 'post' }] }] },
+          { rows: [{ id: 'p1', status: 'ready', site_id: 'site-1', tag_id: 'tag-1', blog_translations: [{ locale: 'pt-BR', slug: 'post' }] }] },
           { rows: [{ id: 'p1' }] }, // CAS update succeeds
         ],
       },
@@ -1017,7 +1024,7 @@ describe('movePost scheduling flow', () => {
     resetMockState({
       perTableSeq: {
         blog_posts: [
-          { rows: [{ id: 'p1', status: 'scheduled', site_id: 'site-1', blog_translations: [{ locale: 'pt-BR', slug: 'post' }] }] },
+          { rows: [{ id: 'p1', status: 'scheduled', site_id: 'site-1', tag_id: 'tag-1', blog_translations: [{ locale: 'pt-BR', slug: 'post' }] }] },
           { rows: [{ id: 'p1' }] }, // CAS update succeeds
         ],
       },
