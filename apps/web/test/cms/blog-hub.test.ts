@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isValidTransition, getValidTargets, computeDisplayId, mapStatusToColumn, BLOG_TRANSITIONS } from '../../src/app/cms/(authed)/blog/_hub/hub-utils'
+import { isValidTransition, getValidTargets, computeDisplayId, mapStatusToColumn, formatRelativeDate, BLOG_TRANSITIONS } from '../../src/app/cms/(authed)/blog/_hub/hub-utils'
 import type { PostCard } from '../../src/app/cms/(authed)/blog/_hub/hub-types'
 
 describe('blog-hub utils', () => {
@@ -87,5 +87,91 @@ describe('blog-hub utils', () => {
     it('maps archived to archived', () => {
       expect(mapStatusToColumn('archived')).toBe('archived')
     })
+  })
+})
+
+describe('blog-hub action status matrix', () => {
+  const validMoves: Array<[string, string]> = [
+    ['idea', 'draft'],
+    ['idea', 'archived'],
+    ['draft', 'idea'],
+    ['draft', 'ready'],
+    ['draft', 'pending_review'],
+    ['draft', 'archived'],
+    ['pending_review', 'draft'],
+    ['pending_review', 'ready'],
+    ['pending_review', 'archived'],
+    ['ready', 'draft'],
+    ['ready', 'scheduled'],
+    ['ready', 'queued'],
+    ['ready', 'published'],
+    ['ready', 'archived'],
+    ['queued', 'ready'],
+    ['queued', 'scheduled'],
+    ['queued', 'archived'],
+    ['scheduled', 'ready'],
+    ['scheduled', 'draft'],
+    ['scheduled', 'archived'],
+    ['published', 'archived'],
+    ['archived', 'idea'],
+    ['archived', 'draft'],
+  ]
+
+  const invalidMoves: Array<[string, string]> = [
+    ['idea', 'published'],
+    ['idea', 'scheduled'],
+    ['draft', 'published'],
+    ['draft', 'scheduled'],
+    ['published', 'draft'],
+    ['published', 'idea'],
+    ['archived', 'published'],
+    ['archived', 'scheduled'],
+  ]
+
+  it.each(validMoves)('%s → %s should be valid', (from, to) => {
+    expect(isValidTransition(from, to)).toBe(true)
+  })
+
+  it.each(invalidMoves)('%s → %s should be invalid', (from, to) => {
+    expect(isValidTransition(from, to)).toBe(false)
+  })
+})
+
+describe('mapStatusToColumn exhaustive', () => {
+  it('maps all 8 statuses correctly', () => {
+    const expected: Record<string, string> = {
+      idea: 'idea',
+      draft: 'draft',
+      pending_review: 'draft',
+      ready: 'ready',
+      queued: 'ready',
+      scheduled: 'scheduled',
+      published: 'published',
+      archived: 'archived',
+    }
+    for (const [status, column] of Object.entries(expected)) {
+      expect(mapStatusToColumn(status as any)).toBe(column)
+    }
+  })
+})
+
+describe('formatRelativeDate', () => {
+  it('returns "now" for dates within last minute', () => {
+    expect(formatRelativeDate(new Date().toISOString())).toBe('now')
+  })
+
+  it('returns minutes for recent dates', () => {
+    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+    expect(formatRelativeDate(fiveMinAgo)).toBe('5m')
+  })
+
+  it('returns hours for dates within a day', () => {
+    const threeHoursAgo = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString()
+    expect(formatRelativeDate(threeHoursAgo)).toBe('3h')
+  })
+
+  it('returns days for dates within a month', () => {
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
+    expect(formatRelativeDate(twoDaysAgo)).toBe('2d')
   })
 })
