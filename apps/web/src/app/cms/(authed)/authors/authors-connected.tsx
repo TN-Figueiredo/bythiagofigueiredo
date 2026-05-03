@@ -421,46 +421,48 @@ function DetailPanel({
               </button>
             )}
 
-            {/* Danger zone */}
-            <div className="rounded-md border border-red-900/50 bg-red-950/20 p-4">
-              <h3 className="text-sm font-medium text-red-400">Danger Zone</h3>
-              {!confirmDelete ? (
-                <button
-                  type="button"
-                  onClick={() => setConfirmDelete(true)}
-                  className="mt-2 text-sm text-red-400 hover:text-red-300"
-                  data-testid="delete-author-btn"
-                >
-                  Delete Author
-                </button>
-              ) : (
-                <div className="mt-2 space-y-2">
-                  <p className="text-xs text-slate-400">
-                    {author.postsCount > 0
-                      ? 'This author has assigned posts. Reassign them first.'
-                      : 'This action cannot be undone.'}
-                  </p>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => onDelete(author.id)}
-                      disabled={author.postsCount > 0}
-                      className="rounded-md bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-500 disabled:opacity-50"
-                      data-testid="confirm-delete-btn"
-                    >
-                      Confirm Delete
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setConfirmDelete(false)}
-                      className="rounded-md border border-slate-600 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-800"
-                    >
-                      Cancel
-                    </button>
+            {/* Danger zone — hidden for default authors */}
+            {!author.isDefault && (
+              <div className="rounded-md border border-red-900/50 bg-red-950/20 p-4">
+                <h3 className="text-sm font-medium text-red-400">Danger Zone</h3>
+                {!confirmDelete ? (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDelete(true)}
+                    className="mt-2 text-sm text-red-400 hover:text-red-300"
+                    data-testid="delete-author-btn"
+                  >
+                    Delete Author
+                  </button>
+                ) : (
+                  <div className="mt-2 space-y-2">
+                    <p className="text-xs text-slate-400">
+                      {author.postsCount > 0
+                        ? 'This author has assigned posts. Reassign them first.'
+                        : 'This action cannot be undone.'}
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => onDelete(author.id)}
+                        disabled={author.postsCount > 0}
+                        className="rounded-md bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-500 disabled:opacity-50"
+                        data-testid="confirm-delete-btn"
+                      >
+                        Confirm Delete
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDelete(false)}
+                        className="rounded-md border border-slate-600 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-800"
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -602,6 +604,14 @@ export function AuthorsConnected({ authors, readOnly = false }: Props) {
     virtual: authors.filter((a) => a.userId === null).length,
   }
 
+  const defaultAuthor = authors.find((a) => a.isDefault)
+  const defaultIncomplete = defaultAuthor
+    ? !defaultAuthor.bio || !defaultAuthor.avatarUrl
+    : false
+  const missingFields: string[] = []
+  if (defaultAuthor && !defaultAuthor.avatarUrl) missingFields.push('avatar')
+  if (defaultAuthor && !defaultAuthor.bio) missingFields.push('bio')
+
   const filtered = authors.filter((a) => {
     if (filter === 'linked') return a.userId !== null
     if (filter === 'virtual') return a.userId === null
@@ -663,6 +673,28 @@ export function AuthorsConnected({ authors, readOnly = false }: Props) {
           </button>
         )}
       </div>
+
+      {/* Default author completeness warning */}
+      {defaultIncomplete && (
+        <div
+          data-testid="default-author-warning"
+          className="mb-6 rounded-lg border border-amber-700/50 bg-amber-950/30 p-4"
+        >
+          <div className="flex items-start gap-3">
+            <svg className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <div>
+              <p className="text-sm font-medium text-amber-300">
+                Default author is missing {missingFields.join(' and ')}
+              </p>
+              <p className="mt-1 text-xs text-slate-400">
+                This may affect how your newsletters appear publicly.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create form */}
       {showCreate && (

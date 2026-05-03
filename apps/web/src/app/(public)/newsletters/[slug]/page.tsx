@@ -11,6 +11,7 @@ import {
   getRecentEditions,
   getActiveTypeCount,
 } from '@/lib/newsletter/queries'
+import { getAuthorByIdTagged } from '@/lib/newsletter/author-queries'
 import {
   formatSubscriberCount,
   formatDaysAgo,
@@ -113,8 +114,26 @@ export default async function NewsletterLandingPage({ params }: PageProps) {
     const accentTextColor = resolveAccentTextColor(accentLight)
     const cadenceLabel = deriveCadenceLabel(type.cadence_label, type.cadence_days, locale, type.cadence_start_date)
     const subscriberCountStr = formatSubscriberCount(stats.subscriberCount)
+    // Dynamic author resolution with 3-tier fallback
     const profile = IDENTITY_PROFILES['bythiagofigueiredo']
-    const authorName = profile?.name ?? 'Thiago Figueiredo'
+    const author = type.author_id
+      ? await getAuthorByIdTagged(type.author_id)
+      : null
+
+    const authorData = author?.bio
+      ? {
+          name: author.display_name ?? author.name,
+          bio: author.bio,
+          avatarUrl: author.avatar_url ?? '/identity/thiago.jpg',
+          socialLinks: author.social_links ?? {},
+        }
+      : {
+          name: profile?.name ?? 'Thiago Figueiredo',
+          bio: t('newsletter.landing.authorBio'),
+          avatarUrl: '/identity/thiago.jpg',
+          socialLinks: {},
+        }
+
     const privacyHref = localePath('/privacy', locale)
 
     const formStrings = {
@@ -625,8 +644,8 @@ export default async function NewsletterLandingPage({ params }: PageProps) {
               {/* Author photo */}
               <div style={{ flexShrink: 0 }}>
                 <Image
-                  src="/identity/thiago.jpg"
-                  alt={authorName}
+                  src={authorData.avatarUrl}
+                  alt={authorData.name}
                   width={80}
                   height={80}
                   style={{
@@ -648,7 +667,7 @@ export default async function NewsletterLandingPage({ params }: PageProps) {
                     marginBottom: 4,
                   }}
                 >
-                  {authorName}
+                  {authorData.name}
                 </div>
                 <div
                   style={{
@@ -670,7 +689,7 @@ export default async function NewsletterLandingPage({ params }: PageProps) {
                     maxWidth: 520,
                   }}
                 >
-                  {t('newsletter.landing.authorBio')}
+                  {authorData.bio}
                 </p>
                 <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
                   <Link

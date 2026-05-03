@@ -5,6 +5,10 @@ vi.mock('next/cache', () => ({
   revalidateTag: vi.fn(),
 }))
 
+vi.mock('@/lib/newsletter/cache-invalidation', () => ({
+  revalidateAuthor: vi.fn(),
+}))
+
 const mockEq = vi.fn()
 const mockSingle = vi.fn()
 const mockUpdate = vi.fn()
@@ -216,6 +220,11 @@ describe('deleteAuthor', () => {
   beforeEach(() => vi.clearAllMocks())
 
   it('returns ok when no posts assigned', async () => {
+    // mockSingle resolves the is_default check — not default
+    mockSingle.mockResolvedValueOnce({
+      data: { id: 'author-1', is_default: false },
+      error: null,
+    })
     const { deleteAuthor } = await import(
       '@/app/cms/(authed)/authors/actions'
     )
@@ -224,6 +233,11 @@ describe('deleteAuthor', () => {
   })
 
   it('returns error when author has posts', async () => {
+    // mockSingle resolves the is_default check — not default
+    mockSingle.mockResolvedValueOnce({
+      data: { id: 'author-1', is_default: false },
+      error: null,
+    })
     // Override limit to return posts
     mockLimit.mockResolvedValueOnce({
       data: [{ id: 'post-1' }],
@@ -236,6 +250,22 @@ describe('deleteAuthor', () => {
     expect(result.ok).toBe(false)
     expect((result as { ok: false; error: string }).error).toMatch(
       /reassign/i,
+    )
+  })
+
+  it('rejects deleting default author', async () => {
+    // mockSingle resolves the `.select('id, is_default').eq(...).single()` call
+    mockSingle.mockResolvedValueOnce({
+      data: { id: 'author-1', is_default: true },
+      error: null,
+    })
+    const { deleteAuthor } = await import(
+      '@/app/cms/(authed)/authors/actions'
+    )
+    const result = await deleteAuthor('author-1')
+    expect(result.ok).toBe(false)
+    expect((result as { ok: false; error: string }).error).toMatch(
+      /default author/i,
     )
   })
 })
