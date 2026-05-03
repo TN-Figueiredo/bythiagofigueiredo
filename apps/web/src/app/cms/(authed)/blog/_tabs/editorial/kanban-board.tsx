@@ -20,6 +20,7 @@ import type { BlogHubStrings } from '../../_i18n/types'
 import { mapStatusToColumn } from '../../_hub/hub-utils'
 import { KanbanColumn } from './kanban-column'
 import { KanbanCardOverlay } from './kanban-card'
+import { ScheduleModal } from './schedule-modal'
 
 const COLUMN_DEFS = [
   { id: 'idea', key: 'idea' as const, color: '#9ca3af' },
@@ -81,6 +82,7 @@ export function KanbanBoard({
   const [activeId, setActiveId] = useState<string | null>(null)
   const [localPosts, setLocalPosts] = useState<PostCard[] | null>(null)
   const localPostsRef = useRef<PostCard[] | null>(null)
+  const [pendingSchedule, setPendingSchedule] = useState<{ postId: string; postTitle: string } | null>(null)
 
   const working = localPosts ?? optimisticPosts
   const activeCard = activeId ? working.find((p) => p.id === activeId) ?? null : null
@@ -181,6 +183,12 @@ export function KanbanBoard({
       const origCol = mapStatusToColumn(originalPost.status)
       if (newCol === origCol) return
 
+      // When dropping into 'scheduled', open the schedule modal instead of moving immediately
+      if (newCol === 'scheduled') {
+        setPendingSchedule({ postId, postTitle: post.title || 'Untitled' })
+        return
+      }
+
       const finalOrder = currentLocal!
 
       startTransition(async () => {
@@ -204,7 +212,36 @@ export function KanbanBoard({
     localPostsRef.current = null
   }, [])
 
+  const handleScheduleConfirm = useCallback((scheduledFor: string) => {
+    if (!pendingSchedule) return
+    const { postId } = pendingSchedule
+    setPendingSchedule(null)
+    startTransition(async () => {
+      try {
+        await onMovePost?.(postId, 'scheduled', scheduledFor)
+        toast.success(strings?.common.moved ?? 'Moved')
+      } catch {
+        toast.error(strings?.common.couldntMove ?? "Couldn't move")
+      }
+    })
+  }, [pendingSchedule, onMovePost, strings, startTransition])
+
+  const handleScheduleCancel = useCallback(() => {
+    setPendingSchedule(null)
+  }, [])
+
+  // Intercept 'scheduled' moves from context menu to open the modal instead
+  const handleMoveToStatus = useCallback(async (postId: string, newStatus: string) => {
+    if (newStatus === 'scheduled') {
+      const card = working.find((p) => p.id === postId)
+      setPendingSchedule({ postId, postTitle: card?.title ?? 'Untitled' })
+      return
+    }
+    await onMovePost?.(postId, newStatus)
+  }, [onMovePost, working])
+
   return (
+    <>
     <DndContext
       id={dndId}
       sensors={sensors}
@@ -228,7 +265,7 @@ export function KanbanBoard({
               tags={tags}
               supportedLocales={supportedLocales}
               activeId={activeId}
-              onMoveToStatus={onMovePost}
+              onMoveToStatus={handleMoveToStatus}
               onDelete={onDeletePost}
               onReassignTag={onReassignTag}
               onAddLocale={onAddLocale}
@@ -242,5 +279,13 @@ export function KanbanBoard({
         {activeCard ? <KanbanCardOverlay card={activeCard} /> : null}
       </DragOverlay>
     </DndContext>
+    <ScheduleModal
+      isOpen={!!pendingSchedule}
+      postTitle={pendingSchedule?.postTitle ?? ''}
+      onConfirm={handleScheduleConfirm}
+      onCancel={handleScheduleCancel}
+      strings={strings}
+    />
+    </>
   )
 }
