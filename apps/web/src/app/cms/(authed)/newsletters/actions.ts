@@ -657,7 +657,8 @@ export async function scheduleEditionToSlot(
 
 /**
  * Swap: new edition takes an occupied slot, old edition returns to Ready.
- * Atomic: clears old edition's slot, then CAS-schedules new edition.
+ * Calls a PostgreSQL RPC that executes both updates in a single transaction
+ * with FOR UPDATE locks to prevent races.
  */
 export async function swapSlotEdition(
   newEditionId: string,
@@ -665,57 +666,27 @@ export async function swapSlotEdition(
   typeId: string,
 ): Promise<ActionResult> {
   await requireSiteAdminForRow('newsletter_editions', newEditionId)
-  const supabase = getSupabaseServiceClient()
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(slotDate)) {
     return { ok: false, error: 'invalid_date_format' }
   }
 
-  // Find the current occupant of this slot
-  const { data: occupant } = await supabase
-    .from('newsletter_editions')
-    .select('id, status')
-    .eq('newsletter_type_id', typeId)
-    .eq('edition_kind', 'cadence')
-    .eq('slot_date', slotDate)
-    .not('status', 'in', '("cancelled","archived")')
-    .single()
+  const supabase = getSupabaseServiceClient()
 
-  if (!occupant) {
-    return { ok: false, error: 'slot_not_occupied' }
-  }
+  const { data, error } = await supabase.rpc('swap_slot_edition', {
+    p_new_edition_id: newEditionId,
+    p_slot_date: slotDate,
+    p_type_id: typeId,
+  })
 
-  if (['sending', 'sent'].includes(occupant.status)) {
-    return { ok: false, error: 'occupant_locked' }
-  }
+  if (error) return { ok: false, error: error.message }
 
-  // Move the old edition back to ready
-  const { error: clearErr } = await supabase
-    .from('newsletter_editions')
-    .update({
-      status: 'ready',
-      slot_date: null,
-      scheduled_at: null,
-      edition_kind: null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', occupant.id)
+  const result = data as { ok: boolean; error?: string }
+  if (!result.ok) return { ok: false, error: result.error ?? 'swap_failed' }
 
-  if (clearErr) return { ok: false, error: clearErr.message }
-
-  // Now schedule the new edition to the freed slot (includes revalidation)
-  const result = await scheduleEditionToSlot(newEditionId, slotDate, typeId)
-  if (!result.ok && result.error === 'slot_taken') {
-    // Race condition — restore the old edition (best-effort)
-    await supabase
-      .from('newsletter_editions')
-      .update({ status: 'scheduled', slot_date: slotDate, edition_kind: 'cadence', updated_at: new Date().toISOString() })
-      .eq('id', occupant.id)
-    revalidateNewsletterHub()
-    return { ok: false, error: 'slot_taken' }
-  }
-
-  return result
+  revalidateNewsletterHub()
+  revalidatePath('/cms/schedule')
+  return { ok: true }
 }
 
 /**
@@ -809,22 +780,30 @@ export async function getAvailableSlots(
 
   const today = new Date().toISOString().slice(0, 10)
 
-  // Fetch occupied editions for this type's slots
-  const { data: occupiedRows } = await supabase
+  // Fetch occupied editions for this type's slots (with sequential numbering)
+  const { data: allEditions } = await supabase
     .from('newsletter_editions')
-    .select('id, slot_date, subject')
+    .select('id, slot_date, subject, edition_kind, status, created_at')
     .eq('newsletter_type_id', typeId)
-    .eq('edition_kind', 'cadence')
     .not('status', 'in', '("cancelled","archived")')
-    .gte('slot_date', today)
+    .order('created_at', { ascending: true })
+
+  // Build sequential displayId map (same logic as hub-queries)
+  const editionIndex = new Map<string, number>()
+  for (let i = 0; i < (allEditions ?? []).length; i++) {
+    editionIndex.set(allEditions![i]!.id as string, i + 1)
+  }
 
   const occupiedMap = new Map<string, { id: string; displayId: string; subject: string }>()
-  for (const r of occupiedRows ?? []) {
-    occupiedMap.set(r.slot_date as string, {
-      id: r.id as string,
-      displayId: `#${(r.id as string).slice(0, 4).toUpperCase()}`,
-      subject: (r.subject as string) ?? '',
-    })
+  for (const r of allEditions ?? []) {
+    if (r.edition_kind === 'cadence' && r.slot_date && r.slot_date >= today) {
+      const idx = editionIndex.get(r.id as string) ?? 0
+      occupiedMap.set(r.slot_date as string, {
+        id: r.id as string,
+        displayId: `#${String(idx).padStart(3, '0')}`,
+        subject: (r.subject as string) ?? '',
+      })
+    }
   }
 
   // Generate candidate slot dates (both empty and occupied)

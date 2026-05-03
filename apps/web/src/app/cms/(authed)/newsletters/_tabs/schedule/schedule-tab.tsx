@@ -321,7 +321,8 @@ export function ScheduleTab({ data, typeFilter, strings, locale = 'en' }: Schedu
       )}
 
       <SlotPickerModal
-        open={!!slotPickerState && !slotPickerState.loading}
+        open={!!slotPickerState}
+        loading={slotPickerState?.loading ?? false}
         editionDisplayId={slotPickerState?.displayId ?? ''}
         typeName={slotPickerState?.typeName ?? ''}
         patternDescription={slotPickerState?.patternDescription ?? ''}

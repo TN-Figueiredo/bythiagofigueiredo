@@ -400,47 +400,48 @@ describe('Status transition matrix — actual server action behavior', () => {
       expect(result).toHaveProperty('error', 'invalid_date_format')
     })
 
-    it('rejects when slot is not occupied', async () => {
-      mockSupabase = createMockSupabase('ready')
-      // .single() returns null when no row matches
-      const original = createMockSupabase
-      mockSupabase = (() => {
-        const row = { id: 'ed-new', status: 'ready', newsletter_type_id: 'type-1', site_id: 'site-1', active: true }
-        function makeChain(returnNull = false) {
-          let useSingle = false
-          const handler: ProxyHandler<Record<string, unknown>> = {
-            get(_target, prop: string) {
-              if (prop === 'then') {
-                if (useSingle && returnNull) return (resolve?: (v: unknown) => void) => resolve?.({ data: null, error: null })
-                const result = useSingle ? { data: row, error: null } : { data: [row], error: null }
-                return (resolve?: (v: unknown) => void) => resolve?.(result)
-              }
-              if (prop === 'single' || prop === 'maybeSingle') return () => { useSingle = true; return new Proxy({}, handler) }
-              return () => new Proxy({}, handler)
-            },
-          }
-          return new Proxy({}, handler)
-        }
-        let callCount = 0
-        return { from: () => { callCount++; return makeChain(callCount === 1) } }
-      })() as typeof mockSupabase
+    it('returns error from RPC when slot is not occupied', async () => {
+      // Mock rpc to return the RPC's error payload
+      const base = createMockSupabase('ready')
+      mockSupabase = {
+        ...base,
+        rpc: () => Promise.resolve({ data: { ok: false, error: 'slot_not_occupied' }, error: null }),
+      } as typeof mockSupabase
       const result = await swapSlotEdition('ed-new', '2026-06-01', 'type-1')
       expect(result.ok).toBe(false)
       expect(result).toHaveProperty('error', 'slot_not_occupied')
     })
 
-    it('rejects when occupant is sending', async () => {
-      mockSupabase = createMockSupabase('sending')
+    it('returns error from RPC when occupant is locked', async () => {
+      const base = createMockSupabase('ready')
+      mockSupabase = {
+        ...base,
+        rpc: () => Promise.resolve({ data: { ok: false, error: 'occupant_locked' }, error: null }),
+      } as typeof mockSupabase
       const result = await swapSlotEdition('ed-new', '2026-06-01', 'type-1')
       expect(result.ok).toBe(false)
       expect(result).toHaveProperty('error', 'occupant_locked')
     })
 
-    it('rejects when occupant is sent', async () => {
-      mockSupabase = createMockSupabase('sent')
+    it('succeeds when RPC returns ok', async () => {
+      const base = createMockSupabase('ready')
+      mockSupabase = {
+        ...base,
+        rpc: () => Promise.resolve({ data: { ok: true, displaced_edition_id: 'ed-old' }, error: null }),
+      } as typeof mockSupabase
+      const result = await swapSlotEdition('ed-new', '2026-06-01', 'type-1')
+      expect(result.ok).toBe(true)
+    })
+
+    it('returns error when RPC itself errors', async () => {
+      const base = createMockSupabase('ready')
+      mockSupabase = {
+        ...base,
+        rpc: () => Promise.resolve({ data: null, error: { message: 'db_error', code: '42000' } }),
+      } as typeof mockSupabase
       const result = await swapSlotEdition('ed-new', '2026-06-01', 'type-1')
       expect(result.ok).toBe(false)
-      expect(result).toHaveProperty('error', 'occupant_locked')
+      expect(result).toHaveProperty('error', 'db_error')
     })
   })
 })

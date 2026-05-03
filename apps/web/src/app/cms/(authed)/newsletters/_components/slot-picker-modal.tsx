@@ -24,6 +24,7 @@ interface SlotPickerModalProps {
   onConfirmSlot: (date: string, isSwap: boolean) => void
   onSwitchToSpecial: () => void
   onCancel: () => void
+  loading?: boolean
   allSlotsFull?: boolean
   strings?: {
     title?: string
@@ -51,6 +52,7 @@ export function SlotPickerModal({
   onConfirmSlot,
   onSwitchToSpecial,
   onCancel,
+  loading = false,
   allSlotsFull = false,
   strings = {},
 }: SlotPickerModalProps) {
@@ -125,7 +127,16 @@ export function SlotPickerModal({
 
         {/* Body */}
         <div className="mt-4">
-          {allSlotsFull || (availableSlots.length === 0) ? (
+          {loading ? (
+            <div className="space-y-2" aria-busy="true">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 rounded-lg border border-gray-700 bg-gray-800/30 px-3 py-3">
+                  <span className="h-4 w-4 rounded-full bg-gray-700 animate-pulse" />
+                  <span className="h-4 flex-1 rounded bg-gray-700 animate-pulse" />
+                </div>
+              ))}
+            </div>
+          ) : allSlotsFull || (availableSlots.length === 0) ? (
             <p className="rounded-lg border border-gray-700 bg-gray-800/50 px-3 py-3 text-[13px] text-gray-400">
               {t.allSlotsFull}
             </p>

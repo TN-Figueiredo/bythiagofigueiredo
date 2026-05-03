@@ -406,7 +406,8 @@ export function KanbanBoard({ editions, onMoveEdition, onDeleteEdition, strings,
       </DndContext>
 
       <SlotPickerModal
-        open={!!slotPickerState && !slotPickerState.loading}
+        open={!!slotPickerState}
+        loading={slotPickerState?.loading ?? false}
         editionDisplayId={slotPickerState?.displayId ?? ''}
         typeName={slotPickerState?.typeName ?? ''}
         patternDescription={slotPickerState?.patternDescription ?? ''}
