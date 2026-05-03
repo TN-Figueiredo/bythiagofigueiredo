@@ -55,5 +55,6 @@ export const en: BlogHubStrings = {
     dangerZone: 'Danger Zone', deleteButton: 'Delete tag', deleteConfirmDeps: 'This tag has {count} posts. Reassign them to another tag first.', deleteNameMismatch: 'Name does not match',
     createButton: 'Create tag', saveButton: 'Save changes', creating: 'Creating…', saving: 'Saving…', cancel: 'Cancel',
     toastCreated: 'Tag created', toastSaved: 'Tag saved', toastDeleted: 'Tag deleted',
+    saveFailed: 'Save failed',
   },
 }

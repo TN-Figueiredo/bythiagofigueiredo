@@ -259,6 +259,7 @@ export const fetchEditorialData = unstable_cache(
         throughput,
         avgIdeaToPublished: avgDays,
         movedThisWeek,
+        // Intentionally null — computing real bottleneck requires historical column-duration data not yet tracked
         bottleneck: null,
       },
       posts: cards,
@@ -354,8 +355,8 @@ export const fetchScheduleData = unstable_cache(
             slot.emptySlots.push({ locale: config.locale })
           }
         }
-      } catch {
-        // generateSlots may throw on invalid config — skip
+      } catch (err) {
+        console.error('[blog-hub] generateSlots failed:', err)
       }
     }
 

@@ -51,5 +51,6 @@ export interface BlogHubStrings {
     dangerZone: string; deleteButton: string; deleteConfirmDeps: string; deleteNameMismatch: string
     createButton: string; saveButton: string; creating: string; saving: string; cancel: string
     toastCreated: string; toastSaved: string; toastDeleted: string
+    saveFailed: string
   }
 }

@@ -187,7 +187,8 @@ export function TagDrawer({ open, mode, tagId, tags = [], onClose, strings }: Ta
           if (result.error.includes('slug') || result.error.includes('unique') || result.error === 'name_already_exists') {
             setErrors({ slug: strings.valSlugInUse })
           } else {
-            toast.error(result.error)
+            console.error('[tag-drawer]', result.error)
+            toast.error(strings.saveFailed ?? 'Save failed')
           }
         }
       } else if (editTag) {
@@ -197,7 +198,8 @@ export function TagDrawer({ open, mode, tagId, tags = [], onClose, strings }: Ta
           handleClose()
           router.refresh()
         } else {
-          toast.error('error' in result ? result.error : strings.unknownError)
+          console.error('[tag-drawer]', 'error' in result ? result.error : 'unknown')
+          toast.error(strings.saveFailed ?? 'Save failed')
         }
       }
     })
@@ -237,7 +239,8 @@ export function TagDrawer({ open, mode, tagId, tags = [], onClose, strings }: Ta
           handleClose()
           router.refresh()
         } else {
-          toast.error('error' in result ? result.error : strings.unknownError)
+          console.error('[tag-drawer]', 'error' in result ? result.error : 'unknown')
+          toast.error(strings.saveFailed ?? 'Save failed')
         }
       })
     }

@@ -55,5 +55,6 @@ export const ptBR: BlogHubStrings = {
     dangerZone: 'Zona de Perigo', deleteButton: 'Excluir tag', deleteConfirmDeps: 'Esta tag possui {count} posts. Reatribua-os a outra tag primeiro.', deleteNameMismatch: 'Nome não confere',
     createButton: 'Criar tag', saveButton: 'Salvar alterações', creating: 'Criando…', saving: 'Salvando…', cancel: 'Cancelar',
     toastCreated: 'Tag criada', toastSaved: 'Tag salva', toastDeleted: 'Tag excluída',
+    saveFailed: 'Falha ao salvar',
   },
 }
