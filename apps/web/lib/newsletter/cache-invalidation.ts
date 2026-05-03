@@ -8,6 +8,11 @@ export function revalidateNewsletterType(
   revalidateTag(`og:newsletter:${slug}`)
   revalidateTag(`sitemap:${siteId}`)
   revalidateTag('newsletter:types:count')
+  revalidateTag('newsletter-suggestions')
   revalidatePath(`/newsletters/${slug}`)
   revalidatePath('/newsletters')
+}
+
+export function revalidateNewsletterSuggestions(): void {
+  revalidateTag('newsletter-suggestions')
 }

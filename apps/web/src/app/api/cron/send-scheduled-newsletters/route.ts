@@ -1,3 +1,4 @@
+import { revalidateTag } from 'next/cache'
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
 import { withCronLock, newRunId } from '../../../../../lib/logger'
 import { getEmailService } from '../../../../../lib/email/service'
@@ -44,6 +45,10 @@ export async function POST(req: Request): Promise<Response> {
           tags: { component: 'cron', job: JOB, editionId: edition.id },
         })
       }
+    }
+
+    if (totalSent > 0) {
+      revalidateTag('newsletter-suggestions')
     }
 
     return { status: 'ok' as const, sent: totalSent, editions: editions.length }

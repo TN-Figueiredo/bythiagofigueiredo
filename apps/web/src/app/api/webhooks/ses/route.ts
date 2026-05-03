@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createVerify } from 'crypto'
+import { revalidateTag } from 'next/cache'
 import { SesWebhookProcessor } from '@tn-figueiredo/email/webhooks'
 import type { NormalizedWebhookEvent } from '@tn-figueiredo/email/webhooks'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
@@ -116,6 +117,14 @@ export async function POST(req: Request): Promise<Response> {
         tags: { component: 'webhook', provider: 'ses' },
       })
     }
+  }
+
+  // Invalidate suggestion cache when subscriber counts change (bounces/complaints)
+  const hasSubscriberChange = events.some(
+    (e) => e.type === 'bounced' || e.type === 'complained',
+  )
+  if (hasSubscriberChange) {
+    revalidateTag('newsletter-suggestions')
   }
 
   await supabase
