@@ -241,3 +241,206 @@
 .nl-skip-link:focus-visible {
   top: 16px;
 }
+
+/* ── Suggestion grid ─────────────────────── */
+
+.nl-suggestion-grid {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.nl-suggestion-grid > * {
+  flex: 1 1 240px;
+  max-width: 320px;
+}
+
+@media (max-width: 720px) {
+  .nl-suggestion-grid > * {
+    flex: 1 1 200px;
+  }
+}
+
+@media (max-width: 480px) {
+  .nl-suggestion-grid {
+    flex-direction: column;
+  }
+  .nl-suggestion-grid > * {
+    max-width: 100%;
+  }
+}
+
+/* ── Suggestion mini card ────────────────── */
+
+.nl-suggestion-card {
+  display: flex;
+  text-decoration: none;
+  border: 1px solid var(--pb-line);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--pb-paper, var(--pb-bg));
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.nl-suggestion-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.nl-suggestion-card-accent {
+  width: 3px;
+  flex-shrink: 0;
+  background: var(--card-accent, var(--nl-accent));
+}
+
+.nl-suggestion-card-body {
+  padding: 12px 14px;
+  min-width: 0;
+  flex: 1;
+}
+
+.nl-suggestion-card-name {
+  font-family: var(--font-fraunces-var), serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--card-accent, var(--nl-accent));
+  margin-bottom: 4px;
+  line-height: 1.2;
+}
+
+.nl-suggestion-card-tagline {
+  font-family: Inter, sans-serif;
+  font-size: 13px;
+  color: var(--pb-muted);
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 8px;
+}
+
+.nl-suggestion-card-meta {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.nl-suggestion-card-cadence {
+  font-family: var(--font-jetbrains-var), monospace;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--pb-faint);
+}
+
+.nl-suggestion-card-subs {
+  font-family: var(--font-jetbrains-var), monospace;
+  font-size: 10px;
+  color: var(--pb-faint);
+}
+
+/* ── Upsell section (Position C) ─────────── */
+
+.nl-upsell-section {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px dashed var(--pb-line);
+  animation: fadeIn 0.3s ease;
+}
+
+.nl-upsell-title {
+  font-family: var(--font-fraunces-var), serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--pb-ink);
+  margin: 0 0 12px;
+}
+
+/* ── Upsell add button ───────────────────── */
+
+.nl-upsell-card {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--pb-line);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--pb-paper, var(--pb-bg));
+  margin-bottom: 10px;
+}
+
+.nl-upsell-card-accent {
+  width: 3px;
+  flex-shrink: 0;
+  background: var(--card-accent, var(--nl-accent));
+  align-self: stretch;
+}
+
+.nl-upsell-card-body {
+  padding: 10px 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.nl-upsell-card-name {
+  font-family: var(--font-fraunces-var), serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--card-accent, var(--nl-accent));
+  line-height: 1.2;
+}
+
+.nl-upsell-card-tagline {
+  font-family: Inter, sans-serif;
+  font-size: 12px;
+  color: var(--pb-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nl-add-btn {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  margin-right: 12px;
+  border: 1px dashed var(--pb-line);
+  border-radius: 4px;
+  background: transparent;
+  font-family: var(--font-jetbrains-var), monospace;
+  font-size: 12px;
+  color: var(--pb-muted);
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.nl-add-btn:hover:not(:disabled) {
+  border-color: var(--card-accent, var(--nl-accent));
+  color: var(--card-accent, var(--nl-accent));
+}
+
+.nl-add-btn:disabled {
+  border-style: solid;
+  background: var(--card-accent, var(--nl-accent));
+  border-color: var(--card-accent, var(--nl-accent));
+  color: #fff;
+  cursor: default;
+}
+
+.nl-add-btn-loading {
+  opacity: 0.6;
+}
+
+/* ── Subscribed to all message ───────────── */
+
+.nl-subscribed-all {
+  font-family: var(--font-jetbrains-var), monospace;
+  font-size: 13px;
+  color: var(--pb-muted);
+  text-align: center;
+  padding: 12px 0;
+}
+
+.nl-subscribed-all a {
+  color: var(--nl-accent);
+  text-decoration: none;
+}
