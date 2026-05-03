@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useCallback, useMemo, memo } from 'react'
+import { useState, useTransition, useCallback, useMemo, useRef, useEffect, memo } from 'react'
 import Link from 'next/link'
 import { subscribeToNewsletters } from '../../actions/subscribe-newsletters'
 
@@ -12,7 +12,7 @@ const CATALOG = [
     colorDark: '#FF8240',
     colorLight: '#C14513',
     en: { name: 'The bythiago diary', tagline: 'the week in review — blog + channel + what I\'ve been thinking.', cadence: 'weekly, Fridays', badge: 'main', sample: 'week 17 · CMS + a bug that cost me three hours', subs: '1,240 subscribers', issues: '34 issues' },
-    pt: { name: 'Diário do bythiago', tagline: 'o resumo da semana — blog + canal + o que andei pensando.', cadence: '1× por semana, sextas', badge: 'principal', sample: 'semana 17 · CMS + um bug que me custou três horas', subs: '1.240 inscritos', issues: '34 edições' },
+    pt: { name: 'Diário do bythiago', tagline: 'o resumo da semana — blog + canal + o que andei pensando.', cadence: '1x por semana, sextas', badge: 'principal', sample: 'semana 17 · CMS + um bug que me custou três horas', subs: '1.240 inscritos', issues: '34 edições' },
   },
   {
     baseId: 'trips',
@@ -37,6 +37,13 @@ const CATALOG = [
   },
 ] as const
 
+const SLUG_MAP: Record<string, Record<'en' | 'pt', string>> = {
+  main: { en: 'the-bythiago-diary', pt: 'diario-do-bythiago' },
+  trips: { en: 'curves-and-roads', pt: 'curvas-e-estradas' },
+  growth: { en: 'grow-inward', pt: 'crescer-de-dentro' },
+  code: { en: 'code-in-portuguese', pt: 'codigo-em-portugues' },
+}
+
 type NL = typeof CATALOG[number]
 
 interface ThemeTokens {
@@ -45,11 +52,89 @@ interface ThemeTokens {
   faint: string; line: string; tape: string; tape2: string; shadow: string
 }
 
-const rot  = (i: number) => ((i * 37) % 7 - 3) * 0.5
-const lift = (i: number) => ((i * 53) % 5 - 2) * 2
+// ── Pinboard personality per card ────────────────────────────────────────────
+const PINBOARD = [
+  { rot: -0.8, lift: -2 },
+  { rot: 0.6, lift: 1 },
+  { rot: -0.5, lift: 3 },
+  { rot: 0.4, lift: -1 },
+]
+
 const nlColor = (nl: NL, dark: boolean) => dark ? nl.colorDark : nl.colorLight
 
-// ── Card (module-level + memo) ──────────────────────────────────────────────
+// ── i18n strings ─────────────────────────────────────────────────────────────
+const STRINGS = {
+  en: {
+    breadcrumb: '/ newsletters',
+    notebooks: 'notebooks',
+    headline: 'Pick what you want to get',
+    subhead: "I write across several fronts and don't want to spam you with stuff you didn't ask for. They're separate newsletters, each with its own rhythm. Check as many as you like.",
+    selectAll: 'select all',
+    allSelected: 'all selected',
+    clear: 'clear',
+    fourOptions: 'four options, no drama',
+    latestIssue: 'latest issue',
+    learnMore: 'learn more',
+    added: 'ADDED',
+    add: 'add',
+    pickedN: (n: number) => `you picked **${n}** newsletter${n === 1 ? '' : 's'}`,
+    pickedAll: (n: number) => `you picked **all ${n}** newsletters`,
+    pickAtLeastOne: 'pick at least one',
+    yourEmail: 'your email',
+    subscribe: 'subscribe',
+    ps: <>No ads, no hidden sponsorships, no &ldquo;URGENT&rdquo; triggers. One email when it&apos;s ready, about what&apos;s happening. <a style={{ textDecoration: 'underline' }}>unsubscribe is always in the footer</a>.</>,
+    backHome: 'back to home',
+    blog: 'blog',
+    thanks: 'thanks!',
+    subscribedTo: (n: number) => <>Subscribed to <span>{n}</span> newsletter{n > 1 ? 's' : ''}.</>,
+    confirmSent: (email: string) => `We sent a confirmation email to ${email} — click the link and you're set.`,
+    subscribed: 'subscribed!',
+    suggestHeadline: "You're on the diary. Want a few more things?",
+    suggestSubhead: (email: string) => `We'll use the same ${email}. Check what interests you, or skip — no drama.`,
+    subscribeSelected: 'subscribe to selected',
+    skipMainOnly: 'skip, main only',
+    announcementAdded: (name: string, count: number, total: number) => `${name} added. ${count} of ${total} selected.`,
+    announcementRemoved: (name: string, count: number, total: number) => `${name} removed. ${count} of ${total} selected.`,
+    counterOf: (n: number, total: number) => `${n} of ${total} selected`,
+    counterAll: (total: number) => `all ${total} selected`,
+  },
+  pt: {
+    breadcrumb: '/ newsletters',
+    notebooks: 'cadernos',
+    headline: 'Escolhe o que você quer receber',
+    subhead: 'Eu escrevo em várias frentes e não quero te encher de coisa que você não pediu. São newsletters separadas, cada uma com sua frequência. Marca quantas quiser.',
+    selectAll: 'marcar todas',
+    allSelected: 'todas selecionadas',
+    clear: 'desmarcar',
+    fourOptions: 'quatro opções, sem drama',
+    latestIssue: 'última edição',
+    learnMore: 'saiba mais',
+    added: 'ADICIONADA',
+    add: 'adicionar',
+    pickedN: (n: number) => `você escolheu **${n}** newsletter${n === 1 ? '' : 's'}`,
+    pickedAll: (n: number) => `você escolheu **todas ${n}** newsletters`,
+    pickAtLeastOne: 'marca pelo menos uma',
+    yourEmail: 'seu email',
+    subscribe: 'inscrever',
+    ps: <>Sem anúncios, sem parceria escondida, sem gatilho de &ldquo;URGENTE&rdquo;. É um email por quando der, sobre o que tá rolando. <a style={{ textDecoration: 'underline' }}>descadastro sempre no rodapé</a>.</>,
+    backHome: 'voltar pra home',
+    blog: 'blog',
+    thanks: 'valeu!',
+    subscribedTo: (n: number) => <>Inscreveu em <span>{n}</span> newsletter{n > 1 ? 's' : ''}.</>,
+    confirmSent: (email: string) => `Mandamos um email de confirmação pra ${email} — clica no link e tá pronto.`,
+    subscribed: 'inscrito!',
+    suggestHeadline: 'Já está no diário. Quer receber mais alguma coisa?',
+    suggestSubhead: (email: string) => `Usamos o mesmo ${email}. Marca o que te interessa, ou pula — sem drama.`,
+    subscribeSelected: 'inscrever nas selecionadas',
+    skipMainOnly: 'pular, só a principal',
+    announcementAdded: (name: string, count: number, total: number) => `${name} adicionada. ${count} de ${total} selecionadas.`,
+    announcementRemoved: (name: string, count: number, total: number) => `${name} removida. ${count} de ${total} selecionadas.`,
+    counterOf: (n: number, total: number) => `${n} de ${total} selecionadas`,
+    counterAll: (total: number) => `todas ${total} selecionadas`,
+  },
+} as const
+
+// ── Card component ───────────────────────────────────────────────────────────
 interface CardProps {
   nl: NL
   index: number
@@ -57,14 +142,66 @@ interface CardProps {
   isChecked: boolean
   onToggle: (id: string) => void
   theme: ThemeTokens
+  strings: typeof STRINGS['en'] | typeof STRINGS['pt']
+  entranceDelay: number
 }
 
-const NewsletterCard = memo(function NewsletterCard({ nl, index, L, isChecked, onToggle, theme }: CardProps) {
-  const { dark, paper, paper2, faint, ink, muted, line, tape, tape2, shadow } = theme
+const NewsletterCard = memo(function NewsletterCard({
+  nl, index, L, isChecked, onToggle, theme, strings, entranceDelay,
+}: CardProps) {
+  const { dark, paper, paper2, ink, muted, faint, line, tape, tape2, shadow } = theme
   const color = nlColor(nl, dark)
   const data = nl[L]
+  const pin = PINBOARD[index] ?? { rot: 0, lift: 0 }
+  const [pulsing, setPulsing] = useState(false)
+  const [entered, setEntered] = useState(false)
+
+  useEffect(() => {
+    const timer = setTimeout(() => setEntered(true), entranceDelay)
+    return () => clearTimeout(timer)
+  }, [entranceDelay])
+
+  const handleToggle = useCallback(() => {
+    setPulsing(true)
+    setTimeout(() => setPulsing(false), 400)
+    onToggle(nl.baseId)
+  }, [nl.baseId, onToggle])
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      handleToggle()
+    }
+  }, [handleToggle])
+
+  // Opacity levels for deselected state
+  const titleOpacity = isChecked ? 1 : 0.55
+  const taglineOpacity = isChecked ? 1 : 0.45
+  const sampleOpacity = isChecked ? 1 : 0.30
+  const statsOpacity = isChecked ? 1 : 0.25
+
+  const glowShadow = isChecked
+    ? `0 0 30px ${color}33, ${shadow}`
+    : shadow
+
+  const borderColor = isChecked
+    ? 'rgba(255,255,255,0.06)'
+    : 'rgba(255,255,255,0.03)'
+
+  const barWidth = isChecked ? 6 : 3
+  const barOpacity = isChecked ? 1 : 0.3
+
   return (
-    <div style={{ position: 'relative', paddingTop: 20 }}>
+    <div
+      style={{
+        position: 'relative',
+        paddingTop: 20,
+        opacity: entered ? 1 : 0,
+        transform: entered ? 'translateY(0)' : 'translateY(16px)',
+        transition: 'opacity 0.5s ease, transform 0.5s ease',
+      }}
+    >
+      {/* Tape decoration */}
       <div
         aria-hidden="true"
         style={{
@@ -79,71 +216,218 @@ const NewsletterCard = memo(function NewsletterCard({ nl, index, L, isChecked, o
           boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.18)',
         }}
       />
+
+      {/* Card body */}
       <div
-        role="button"
+        role="checkbox"
+        aria-checked={isChecked}
+        aria-label={`${data.name} — ${data.cadence}`}
         tabIndex={0}
-        onClick={() => onToggle(nl.baseId)}
-        onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && onToggle(nl.baseId)}
+        onClick={handleToggle}
+        onKeyDown={handleKeyDown}
         style={{
           position: 'relative', zIndex: 1,
-          background: index % 3 === 1 ? paper2 : paper,
-          transform: `rotate(${rot(index)}deg) translateY(${lift(index)}px)`,
-          boxShadow: shadow,
-          outline: isChecked ? `2px solid ${color}` : 'none',
-          outlineOffset: 4,
-          transition: 'outline 0.18s, box-shadow 0.18s',
+          background: index % 2 === 1 ? paper2 : paper,
+          transform: `rotate(${pin.rot}deg) translateY(${pin.lift}px)`,
+          boxShadow: pulsing ? `0 0 0 4px ${color}66, ${glowShadow}` : glowShadow,
+          border: `1.5px solid ${borderColor}`,
+          transition: 'transform 0.28s cubic-bezier(.4,0,.2,1), box-shadow 0.28s cubic-bezier(.4,0,.2,1), border-color 0.25s ease',
           cursor: 'pointer',
+          outline: 'none',
+        }}
+        onMouseEnter={(e) => {
+          const el = e.currentTarget
+          el.style.transform = `rotate(${pin.rot}deg) translateY(${pin.lift - 3}px)`
+          el.style.boxShadow = isChecked
+            ? `0 0 40px ${color}44, 0 4px 0 rgba(0,0,0,0.5), 0 16px 32px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,255,255,0.04)`
+            : `0 0 20px ${color}22, 0 3px 0 rgba(0,0,0,0.5), 0 14px 28px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(255,255,255,0.03)`
+        }}
+        onMouseLeave={(e) => {
+          const el = e.currentTarget
+          el.style.transform = `rotate(${pin.rot}deg) translateY(${pin.lift}px)`
+          el.style.boxShadow = glowShadow
+        }}
+        onFocus={(e) => {
+          e.currentTarget.style.outline = '2px solid #FF8240'
+          e.currentTarget.style.outlineOffset = '4px'
+        }}
+        onBlur={(e) => {
+          e.currentTarget.style.outline = 'none'
+          e.currentTarget.style.outlineOffset = '0'
         }}
       >
-        <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: 6, background: color }} />
+        {/* Left accent bar */}
+        <div style={{
+          position: 'absolute', top: 0, bottom: 0, left: 0,
+          width: barWidth,
+          background: color,
+          opacity: barOpacity,
+          transition: 'width 0.25s ease, opacity 0.25s ease',
+        }} />
+
+        {/* Badge */}
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            top: -1,
+            right: 16,
+            zIndex: 2,
+            transition: 'transform 0.25s ease, opacity 0.25s ease',
+          }}
+        >
+          {isChecked ? (
+            <span style={{
+              display: 'inline-block',
+              padding: '4px 10px',
+              background: color,
+              color: '#FFF',
+              fontFamily: '"JetBrains Mono", monospace',
+              fontSize: 9,
+              letterSpacing: '0.14em',
+              textTransform: 'uppercase',
+              fontWeight: 700,
+            }}>
+              {'✓'} {strings.added}
+            </span>
+          ) : (
+            <span style={{
+              display: 'inline-block',
+              padding: '4px 10px',
+              border: '1.5px dashed #7A7060',
+              color: '#7A7060',
+              fontFamily: '"JetBrains Mono", monospace',
+              fontSize: 10,
+              letterSpacing: '0.10em',
+              fontWeight: 600,
+              transition: 'all 0.25s ease',
+            }}>
+              + {strings.add}
+            </span>
+          )}
+        </div>
 
         <div style={{ padding: '22px 24px 22px 32px' }}>
+          {/* Cadence line + type badge */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-            <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color, fontWeight: 700 }}>
+            <span style={{
+              fontFamily: '"JetBrains Mono", monospace',
+              fontSize: 10,
+              letterSpacing: '0.18em',
+              textTransform: 'uppercase',
+              color,
+              fontWeight: 700,
+              opacity: isChecked ? 1 : 0.6,
+              transition: 'opacity 0.25s ease',
+            }}>
               {String(index + 1).padStart(2, '0')} · {data.cadence}
             </span>
-            {'badge' in data && data.badge && (
-              <span style={{ padding: '2px 8px', background: color, color: '#FFF', fontFamily: '"JetBrains Mono", monospace', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700, transform: 'rotate(-1deg)', display: 'inline-block' }}>
+            {data.badge && (
+              <span style={{
+                padding: '2px 8px',
+                background: color,
+                color: '#FFF',
+                fontFamily: '"JetBrains Mono", monospace',
+                fontSize: 9,
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                fontWeight: 700,
+                transform: 'rotate(-1deg)',
+                display: 'inline-block',
+              }}>
                 {data.badge}
               </span>
             )}
-            <div
-              aria-checked={isChecked}
-              role="checkbox"
-              style={{
-                marginLeft: 'auto', flexShrink: 0,
-                width: 26, height: 26,
-                border: `2px solid ${isChecked ? color : line}`,
-                background: isChecked ? color : 'transparent',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                transition: 'all 0.15s',
-              }}
-            >
-              {isChecked && <span style={{ color: '#FFF', fontSize: 15, fontWeight: 700, lineHeight: 1 }}>✓</span>}
-            </div>
           </div>
 
-          <h3 style={{ fontFamily: '"Fraunces", serif', fontSize: 26, lineHeight: 1.1, margin: '0 0 10px', fontWeight: 500, letterSpacing: '-0.02em', color: ink }}>
+          {/* Title */}
+          <h3 style={{
+            fontFamily: '"Fraunces", serif',
+            fontSize: 26,
+            lineHeight: 1.1,
+            margin: '0 0 10px',
+            fontWeight: 500,
+            letterSpacing: '-0.02em',
+            color: ink,
+            opacity: titleOpacity,
+            transition: 'opacity 0.25s ease',
+          }}>
             {data.name}
           </h3>
 
-          <p style={{ fontSize: 14, color: muted, lineHeight: 1.55, margin: '0 0 14px' }}>
+          {/* Tagline */}
+          <p style={{
+            fontSize: 14,
+            color: muted,
+            lineHeight: 1.55,
+            margin: '0 0 14px',
+            opacity: taglineOpacity,
+            transition: 'opacity 0.25s ease',
+          }}>
             {data.tagline}
           </p>
 
-          <div style={{ padding: '10px 12px', background: dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderLeft: `2px solid ${color}`, marginBottom: 14 }}>
-            <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: faint, marginBottom: 4 }}>
-              {L === 'pt' ? 'última edição' : 'latest issue'}
+          {/* Sample box */}
+          <div style={{
+            padding: '10px 12px',
+            background: dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+            borderLeft: `2px solid ${color}`,
+            marginBottom: 14,
+            opacity: sampleOpacity,
+            transition: 'opacity 0.25s ease',
+          }}>
+            <div style={{
+              fontFamily: '"JetBrains Mono", monospace',
+              fontSize: 9,
+              letterSpacing: '0.14em',
+              textTransform: 'uppercase',
+              color: faint,
+              marginBottom: 4,
+            }}>
+              {strings.latestIssue}
             </div>
             <div style={{ fontSize: 13, color: ink, lineHeight: 1.4, fontStyle: 'italic' }}>
               &ldquo;{data.sample}&rdquo;
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: 16, fontFamily: '"JetBrains Mono", monospace', fontSize: 11, color: faint, letterSpacing: '0.04em' }}>
-            <span>◉ {data.subs}</span>
-            <span>▦ {data.issues}</span>
+          {/* Stats */}
+          <div style={{
+            display: 'flex',
+            gap: 16,
+            fontFamily: '"JetBrains Mono", monospace',
+            fontSize: 11,
+            color: faint,
+            letterSpacing: '0.04em',
+            opacity: statsOpacity,
+            transition: 'opacity 0.25s ease',
+          }}>
+            <span>{'◉'} {data.subs}</span>
+            <span>{'▦'} {data.issues}</span>
           </div>
+
+          {/* Learn more link */}
+          {(() => {
+            const slug = SLUG_MAP[nl.baseId]?.[(L === 'pt' ? 'pt' : 'en') as 'en' | 'pt']
+            return slug ? (
+              <Link
+                href={`/newsletters/${slug}`}
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  fontFamily: 'var(--font-jetbrains-var), monospace',
+                  fontSize: 11,
+                  color,
+                  textDecoration: 'underline',
+                  display: 'block',
+                  marginTop: 8,
+                  opacity: isChecked ? 1 : 0.4,
+                  transition: 'opacity 0.25s ease',
+                }}
+              >
+                {strings.learnMore} {'→'}
+              </Link>
+            ) : null
+          })()}
         </div>
       </div>
     </div>
@@ -159,6 +443,7 @@ interface Props {
 export function NewslettersHub({ locale, currentTheme }: Props) {
   const dark = currentTheme === 'dark'
   const L = locale === 'pt-BR' ? 'pt' : 'en'
+  const strings = STRINGS[L]
 
   const bg     = dark ? '#14110B' : '#E9E1CE'
   const accent = dark ? '#FF8240' : '#C14513'
@@ -181,18 +466,51 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
   const { ink, muted, faint, line } = theme
 
   // State
-  const [checked, setChecked] = useState<Set<string>>(() => new Set(['main']))
+  const [checked, setChecked] = useState<Set<string>>(() => new Set(CATALOG.map(n => n.baseId)))
   const [email, setEmail] = useState('')
   const [phase, setPhase] = useState<'pick' | 'sent' | 'suggest'>('pick')
   const [sentTo, setSentTo] = useState<string[]>([])
   const [serverError, setServerError] = useState<string | null>(null)
   const [submitting, startTransition] = useTransition()
+  const [announcement, setAnnouncement] = useState('')
+  const liveRef = useRef<HTMLDivElement>(null)
 
-  const toggle = useCallback((id: string) =>
-    setChecked(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n }), [])
+  const isValidEmail = email.includes('@') && email.includes('.')
+
+  const toggle = useCallback((id: string) => {
+    setChecked(prev => {
+      const next = new Set(prev)
+      const wasChecked = next.has(id)
+      wasChecked ? next.delete(id) : next.add(id)
+
+      // Build announcement
+      const nl = CATALOG.find(n => n.baseId === id)
+      if (nl) {
+        const name = nl[L].name
+        const count = next.size
+        if (wasChecked) {
+          setAnnouncement(strings.announcementRemoved(name, count, CATALOG.length))
+        } else {
+          setAnnouncement(strings.announcementAdded(name, count, CATALOG.length))
+        }
+      }
+
+      return next
+    })
+  }, [L, strings])
+
+  const selectAll = useCallback(() => {
+    setChecked(new Set(CATALOG.map(n => n.baseId)))
+    setAnnouncement(strings.counterAll(CATALOG.length))
+  }, [strings])
+
+  const clearAll = useCallback(() => {
+    setChecked(new Set())
+    setAnnouncement(strings.pickAtLeastOne)
+  }, [strings])
 
   const doSubscribe = useCallback((ids: string[]) => {
-    if (!email.includes('@') || ids.length === 0) return
+    if (!isValidEmail || ids.length === 0) return
     setServerError(null)
     const dbIds = ids.map(baseId => `${baseId}-${L === 'pt' ? 'pt' : 'en'}`)
     startTransition(async () => {
@@ -202,7 +520,7 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
       const onlyMain = ids.length === 1 && ids[0] === 'main'
       setPhase(onlyMain ? 'suggest' : 'sent')
     })
-  }, [email, L, locale])
+  }, [email, isValidEmail, L, locale])
 
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault()
@@ -213,7 +531,10 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
     () => Array.from(checked).map(id => CATALOG.find(n => n.baseId === id)).filter(Boolean) as NL[],
     [checked],
   )
-  const canSubmit = checked.size > 0 && email.includes('@')
+  const canSubmit = checked.size > 0 && isValidEmail
+
+  const allSelected = checked.size === CATALOG.length
+  const noneSelected = checked.size === 0
 
   // ── Success screen ────────────────────────────────────────────────────────
   if (phase === 'sent') {
@@ -221,17 +542,13 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
       <div style={{ background: bg, color: ink, minHeight: '100vh', fontFamily: '"Inter", sans-serif' }}>
         <section style={{ maxWidth: 720, margin: '0 auto', padding: '96px 28px' }}>
           <div style={{ fontFamily: '"Caveat", cursive', fontSize: 60, color: accent, lineHeight: 1, marginBottom: 16, transform: 'rotate(-2deg)', display: 'inline-block' }}>
-            {L === 'pt' ? 'valeu!' : 'thanks!'}
+            {strings.thanks}
           </div>
           <h1 style={{ fontFamily: '"Fraunces", serif', fontSize: 42, margin: '0 0 20px', fontWeight: 500, letterSpacing: '-0.02em', color: ink }}>
-            {L === 'pt'
-              ? <>{`Inscreveu em `}<span style={{ color: accent }}>{sentTo.length}</span>{` newsletter${sentTo.length > 1 ? 's' : ''}.`}</>
-              : <>{`Subscribed to `}<span style={{ color: accent }}>{sentTo.length}</span>{` newsletter${sentTo.length > 1 ? 's' : ''}.`}</>}
+            {strings.subscribedTo(sentTo.length)}
           </h1>
           <p style={{ fontSize: 16, color: muted, lineHeight: 1.6, marginBottom: 32 }}>
-            {L === 'pt'
-              ? `Mandamos um email de confirmação pra ${email} — clica no link e tá pronto.`
-              : `We sent a confirmation email to ${email} — click the link and you're set.`}
+            {strings.confirmSent(email)}
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 40 }}>
             {sentTo.map(baseId => {
@@ -240,7 +557,7 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
               const color = nlColor(nl, dark)
               return (
                 <div key={baseId} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderLeft: `3px solid ${color}`, background: dark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }}>
-                  <span style={{ color, fontWeight: 700 }}>✓</span>
+                  <span style={{ color, fontWeight: 700 }}>{'✓'}</span>
                   <span style={{ fontFamily: '"Fraunces", serif', fontSize: 17, fontWeight: 500, color: ink }}>{nl[L].name}</span>
                   <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, color: faint, letterSpacing: '0.06em', marginLeft: 'auto' }}>{nl[L].cadence}</span>
                 </div>
@@ -251,35 +568,41 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
             href={locale === 'pt-BR' ? '/pt' : '/'}
             style={{ display: 'inline-block', padding: '12px 26px', background: 'transparent', color: ink, border: `1.5px solid ${line}`, fontFamily: '"JetBrains Mono", monospace', fontSize: 12, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 600, textDecoration: 'none' }}
           >
-            {L === 'pt' ? '← voltar pra home' : '← back to home'}
+            {'←'} {strings.backHome}
           </Link>
         </section>
       </div>
     )
   }
 
-  // ── Suggest screen (subscribed only main → show others) ───────────────────
+  // ── Suggest screen (subscribed only main -> show others) ───────────────────
   if (phase === 'suggest') {
     const others = CATALOG.filter(n => !sentTo.includes(n.baseId))
     return (
       <div style={{ background: bg, color: ink, minHeight: '100vh', fontFamily: '"Inter", sans-serif' }}>
         <section style={{ maxWidth: 960, margin: '0 auto', padding: '72px 28px 48px' }}>
           <div style={{ fontFamily: '"Caveat", cursive', fontSize: 48, color: accent, lineHeight: 1, marginBottom: 12, transform: 'rotate(-2deg)', display: 'inline-block' }}>
-            {L === 'pt' ? 'inscrito!' : 'subscribed!'}
+            {strings.subscribed}
           </div>
           <h1 style={{ fontFamily: '"Fraunces", serif', fontSize: 36, margin: '0 0 12px', fontWeight: 500, letterSpacing: '-0.02em', color: ink }}>
-            {L === 'pt'
-              ? 'Já está no diário. Quer receber mais alguma coisa?'
-              : "You're on the diary. Want a few more things?"}
+            {strings.suggestHeadline}
           </h1>
           <p style={{ fontSize: 15, color: muted, lineHeight: 1.6, marginBottom: 36 }}>
-            {L === 'pt'
-              ? `Usamos o mesmo ${email}. Marca o que te interessa, ou pula — sem drama.`
-              : `We'll use the same ${email}. Check what interests you, or skip — no drama.`}
+            {strings.suggestSubhead(email)}
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 28, rowGap: 48, marginBottom: 36 }}>
             {others.map((nl, i) => (
-              <NewsletterCard key={nl.baseId} nl={nl} index={i + 2} L={L} isChecked={checked.has(nl.baseId)} onToggle={toggle} theme={theme} />
+              <NewsletterCard
+                key={nl.baseId}
+                nl={nl}
+                index={i + 2}
+                L={L}
+                isChecked={checked.has(nl.baseId)}
+                onToggle={toggle}
+                theme={theme}
+                strings={strings}
+                entranceDelay={i * 80}
+              />
             ))}
           </div>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
@@ -292,7 +615,7 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
                   onClick={() => { if (extra.length > 0) doSubscribe(extra) }}
                   style={{ padding: '12px 22px', background: off ? (dark ? '#3A2E1F' : '#D8C9A7') : accent, color: off ? faint : '#FFF', border: 'none', fontFamily: '"JetBrains Mono", monospace', fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700, cursor: off ? 'not-allowed' : 'pointer' }}
                 >
-                  {submitting ? '…' : `✉ ${L === 'pt' ? 'inscrever nas selecionadas' : 'subscribe to selected'}`}
+                  {submitting ? '…' : `✉ ${strings.subscribeSelected}`}
                 </button>
               )
             })()}
@@ -300,7 +623,7 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
               onClick={() => setPhase('sent')}
               style={{ padding: '12px 22px', background: 'transparent', color: muted, border: `1.5px solid ${line}`, fontFamily: '"JetBrains Mono", monospace', fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 600, cursor: 'pointer' }}
             >
-              {L === 'pt' ? 'pular, só a principal' : 'skip, main only'}
+              {strings.skipMainOnly}
             </button>
           </div>
           {serverError && (
@@ -317,52 +640,144 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
   return (
     <div style={{ background: bg, color: ink, minHeight: '100vh', fontFamily: '"Inter", sans-serif' }}>
 
+      {/* aria-live region for announcements */}
+      <div
+        ref={liveRef}
+        aria-live="polite"
+        aria-atomic="true"
+        style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap' }}
+      >
+        {announcement}
+      </div>
+
       {/* Hero */}
-      <section style={{ maxWidth: 1200, margin: '0 auto', padding: '52px 28px 32px' }}>
+      <section style={{ maxWidth: 960, margin: '0 auto', padding: '52px 28px 32px' }}>
         <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', color: accent, marginBottom: 10 }}>
-          / {L === 'pt' ? 'newsletters' : 'newsletters'} · {CATALOG.length} {L === 'pt' ? 'cadernos' : 'notebooks'}
+          {strings.breadcrumb} · {CATALOG.length} {strings.notebooks}
         </div>
         <h1 style={{
           fontFamily: '"Fraunces", serif', fontSize: 'clamp(40px, 6vw, 68px)',
           margin: 0, fontWeight: 500, letterSpacing: '-0.03em', lineHeight: 1.0,
           position: 'relative', display: 'inline-block', color: ink,
         }}>
-          {L === 'pt' ? 'Escolhe o que você quer receber' : 'Pick what you want to get'}
+          {strings.headline}
           <span style={{ position: 'absolute', bottom: 4, left: -6, right: -6, height: 18, background: '#FFE37A', zIndex: -1, opacity: 0.7, transform: 'skew(-2deg)' }} />
         </h1>
         <p style={{ fontSize: 16, color: muted, marginTop: 18, maxWidth: 680, lineHeight: 1.65 }}>
-          {L === 'pt'
-            ? 'Eu escrevo em várias frentes e não quero te encher de coisa que você não pediu. São newsletters separadas, cada uma com sua frequência. Marca quantas quiser.'
-            : "I write across several fronts and don't want to spam you with stuff you didn't ask for. They're separate newsletters, each with its own rhythm. Check as many as you like."}
+          {strings.subhead}
         </p>
 
         {/* Quick controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 24, flexWrap: 'wrap' }}>
+          {allSelected ? (
+            <span
+              role="status"
+              style={{
+                padding: '7px 14px',
+                background: 'rgba(255,130,64,0.08)',
+                color: '#FF824080',
+                border: '1px solid rgba(255,130,64,0.15)',
+                fontFamily: '"JetBrains Mono", monospace',
+                fontSize: 11,
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                fontWeight: 600,
+              }}
+            >
+              {'✓'} {strings.allSelected}
+            </span>
+          ) : (
+            <button
+              onClick={selectAll}
+              aria-label={strings.selectAll}
+              style={{
+                padding: '7px 14px',
+                background: 'rgba(255,130,64,0.14)',
+                color: '#FF8240',
+                border: '1px solid rgba(255,130,64,0.28)',
+                fontFamily: '"JetBrains Mono", monospace',
+                fontSize: 11,
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              {'✓'} {strings.selectAll}
+            </button>
+          )}
           <button
-            onClick={() => setChecked(new Set(CATALOG.map(n => n.baseId)))}
-            style={{ padding: '6px 14px', background: 'transparent', color: ink, border: `1px dashed ${line}`, fontFamily: '"JetBrains Mono", monospace', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, cursor: 'pointer' }}
+            onClick={clearAll}
+            aria-label={strings.clear}
+            aria-disabled={noneSelected}
+            style={{
+              padding: '7px 14px',
+              background: noneSelected ? 'transparent' : 'rgba(255,255,255,0.04)',
+              color: noneSelected ? `${faint}80` : '#958A75',
+              border: `1px solid ${noneSelected ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.08)'}`,
+              fontFamily: '"JetBrains Mono", monospace',
+              fontSize: 11,
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              fontWeight: 600,
+              cursor: noneSelected ? 'default' : 'pointer',
+              pointerEvents: noneSelected ? 'none' : 'auto',
+            }}
           >
-            ✓ {L === 'pt' ? 'marcar todas' : 'check all'}
+            {'✕'} {strings.clear}
           </button>
-          <button
-            onClick={() => setChecked(new Set())}
-            style={{ padding: '6px 14px', background: 'transparent', color: faint, border: `1px dashed ${line}`, fontFamily: '"JetBrains Mono", monospace', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, cursor: 'pointer' }}
-          >
-            ✕ {L === 'pt' ? 'desmarcar' : 'clear'}
-          </button>
+
+          {/* Hero counter */}
+          <span style={{
+            fontFamily: '"JetBrains Mono", monospace',
+            fontSize: 11,
+            color: faint,
+            letterSpacing: '0.06em',
+            marginLeft: 8,
+          }}>
+            {allSelected
+              ? strings.counterAll(CATALOG.length)
+              : strings.counterOf(checked.size, CATALOG.length)}
+          </span>
+
           <span style={{ fontFamily: '"Caveat", cursive', fontSize: 18, color: accent, transform: 'rotate(-1deg)', marginLeft: 'auto' }}>
-            ↓ {L === 'pt' ? 'quatro opções, sem drama' : 'four options, no drama'}
+            {'↓'} {strings.fourOptions}
           </span>
         </div>
       </section>
 
-      {/* Newsletter grid */}
-      <section style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 28px 24px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 28, rowGap: 52 }}>
+      {/* Newsletter grid -- 2x2 */}
+      <section style={{ maxWidth: 960, margin: '0 auto', padding: '24px 28px 24px' }}>
+        <div className="nl-hub-grid" style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(2, 1fr)',
+          gap: '28px',
+          rowGap: '44px',
+        }}>
           {CATALOG.map((nl, i) => (
-            <NewsletterCard key={nl.baseId} nl={nl} index={i} L={L} isChecked={checked.has(nl.baseId)} onToggle={toggle} theme={theme} />
+            <NewsletterCard
+              key={nl.baseId}
+              nl={nl}
+              index={i}
+              L={L}
+              isChecked={checked.has(nl.baseId)}
+              onToggle={toggle}
+              theme={theme}
+              strings={strings}
+              entranceDelay={i * 80}
+            />
           ))}
         </div>
+        {/* Responsive: @media query via style tag for 1-col below 720px */}
+        <style>{`
+          @media (max-width: 720px) {
+            .nl-hub-grid {
+              grid-template-columns: 1fr !important;
+              gap: 20px !important;
+              row-gap: 20px !important;
+            }
+          }
+        `}</style>
       </section>
 
       {/* p.s. note */}
@@ -371,15 +786,13 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
           <div style={{ fontFamily: '"Caveat", cursive', fontSize: 28, color: muted, lineHeight: 1, transform: 'rotate(-2deg)' }}>p.s.</div>
           <div style={{ flex: 1, minWidth: 240 }}>
             <p style={{ fontSize: 14, color: muted, lineHeight: 1.65, margin: 0 }}>
-              {L === 'pt'
-                ? <>Sem anúncios, sem parceria escondida, sem gatilho de &ldquo;URGENTE&rdquo;. É um email por quando der, sobre o que tá rolando.{' '}<a href="#" style={{ color: accent, textDecoration: 'underline' }}>descadastro sempre no rodapé</a>.</>
-                : <>No ads, no hidden sponsorships, no &ldquo;URGENT&rdquo; triggers. One email when it&apos;s ready, about what&apos;s happening.{' '}<a href="#" style={{ color: accent, textDecoration: 'underline' }}>unsubscribe is always in the footer</a>.</>}
+              {strings.ps}
             </p>
           </div>
         </div>
       </section>
 
-      {/* Sticky subscribe bar (inlined — not a child component, so input keeps focus) */}
+      {/* Sticky subscribe bar */}
       <div style={{
         position: 'sticky', bottom: 0, left: 0, right: 0, zIndex: 10,
         background: dark ? 'rgba(20,17,11,0.97)' : 'rgba(233,225,206,0.97)',
@@ -388,25 +801,73 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
         WebkitBackdropFilter: 'blur(10px)',
         padding: '18px 28px',
       }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+        <div style={{ maxWidth: 960, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
           <div style={{ flex: '1 1 260px' }}>
-            <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: faint, marginBottom: 6 }}>
-              {checked.size > 0 ? (
-                <>{L === 'pt' ? 'você escolheu' : 'you picked'}{' '}
-                  <span style={{ color: accent, fontWeight: 700 }}>{checked.size}</span>{' '}
-                  {checked.size === 1 ? 'newsletter' : 'newsletters'}</>
-              ) : (
-                <>{L === 'pt' ? 'marca pelo menos uma' : 'pick at least one'}</>
-              )}
+            <div style={{
+              fontFamily: '"JetBrains Mono", monospace',
+              fontSize: 11,
+              letterSpacing: '0.14em',
+              textTransform: 'uppercase',
+              color: noneSelected ? '#C14513' : faint,
+              marginBottom: 6,
+              fontWeight: noneSelected ? 700 : 400,
+            }}>
+              {noneSelected
+                ? strings.pickAtLeastOne
+                : (() => {
+                    const raw = allSelected ? strings.pickedAll(checked.size) : strings.pickedN(checked.size)
+                    // Render markdown **bold** as a styled span
+                    const parts = raw.split(/\*\*(.+?)\*\*/)
+                    return parts.map((part, i) =>
+                      i % 2 === 1
+                        ? <span key={i} style={{ color: accent, fontWeight: 700 }}>{part}</span>
+                        : part
+                    )
+                  })()
+              }
             </div>
             {selectedList.length > 0 && (
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <div role="list" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {selectedList.map(nl => {
                   const color = nlColor(nl, dark)
                   return (
-                    <span key={nl.baseId} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', border: `1.5px solid ${color}`, color, fontFamily: '"JetBrains Mono", monospace', fontSize: 11, letterSpacing: '0.04em' }}>
-                      {nl[L].name}
-                      <button onClick={() => toggle(nl.baseId)} style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, fontSize: 13, lineHeight: 1 }}>×</button>
+                    <span
+                      key={nl.baseId}
+                      role="listitem"
+                      aria-label={`Remove ${nl[L].name}`}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 5,
+                        padding: '3px 9px',
+                        border: `1.5px solid ${color}`,
+                        color,
+                        fontFamily: '"JetBrains Mono", monospace',
+                        fontSize: 11,
+                        letterSpacing: '0.04em',
+                        maxWidth: 180,
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {nl[L].name}
+                      </span>
+                      <button
+                        onClick={() => toggle(nl.baseId)}
+                        aria-label={`Remove ${nl[L].name}`}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'inherit',
+                          cursor: 'pointer',
+                          padding: 0,
+                          fontSize: 13,
+                          lineHeight: 1,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {'×'}
+                      </button>
                     </span>
                   )
                 })}
@@ -419,14 +880,17 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
-              placeholder={L === 'pt' ? 'seu email' : 'your email'}
+              placeholder={strings.yourEmail}
               required
+              autoComplete="email"
               style={{
                 flex: 1, padding: '12px 14px',
-                border: `1.5px solid ${serverError ? '#E53E3E' : line}`,
+                border: `1.5px solid ${serverError ? '#E53E3E' : isValidEmail ? '#5FA87D' : line}`,
+                boxShadow: isValidEmail ? '0 0 8px rgba(95,168,125,0.2)' : 'none',
                 background: dark ? 'rgba(0,0,0,0.3)' : '#FFF',
                 color: ink, fontFamily: '"JetBrains Mono", monospace', fontSize: 13,
                 outline: 'none',
+                transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
               }}
             />
             <button
@@ -441,10 +905,12 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
                 letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700,
                 cursor: !canSubmit || submitting ? 'not-allowed' : 'pointer',
                 whiteSpace: 'nowrap',
-                transition: 'background 0.15s',
+                transition: 'background 0.15s, box-shadow 0.3s',
+                boxShadow: canSubmit && !submitting ? `0 0 16px ${accent}44` : 'none',
+                animation: canSubmit && !submitting ? 'glowPulse 2s ease-in-out infinite' : 'none',
               }}
             >
-              {submitting ? '…' : `✉ ${L === 'pt' ? 'inscrever' : 'subscribe'}`}
+              {submitting ? '…' : `✉ ${strings.subscribe}`}
             </button>
           </form>
 
@@ -456,14 +922,22 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
         </div>
       </div>
 
+      {/* Glow pulse animation */}
+      <style>{`
+        @keyframes glowPulse {
+          0%, 100% { box-shadow: 0 0 16px ${accent}44; }
+          50% { box-shadow: 0 0 28px ${accent}66; }
+        }
+      `}</style>
+
       {/* Footer */}
       <footer style={{ borderTop: `1px dashed ${line}`, padding: '28px', textAlign: 'center', color: faint, fontSize: 12, fontFamily: '"JetBrains Mono", monospace', letterSpacing: '0.08em' }}>
         <Link href={locale === 'pt-BR' ? '/pt' : '/'} style={{ color: accent, textDecoration: 'none' }}>
-          ← {L === 'pt' ? 'voltar pra home' : 'back to home'}
+          {'←'} {strings.backHome}
         </Link>
-        <span style={{ margin: '0 14px', opacity: 0.5 }}>·</span>
+        <span style={{ margin: '0 14px', opacity: 0.5 }}>{'·'}</span>
         <Link href={locale === 'pt-BR' ? '/pt/blog' : '/blog'} style={{ color: muted, textDecoration: 'none' }}>
-          {L === 'pt' ? 'blog' : 'blog'}
+          {strings.blog}
         </Link>
       </footer>
     </div>
