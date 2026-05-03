@@ -209,8 +209,8 @@ export function HubClient({
         })}
       </div>
 
-      {/* Filter rows */}
-      <div className="flex flex-col gap-1.5 px-4 pt-3 md:px-7">
+      {/* Filters */}
+      <div className="flex items-center gap-3 px-4 pt-3 md:px-7">
         <TagFilterChips
           tags={sharedData.tags}
           selectedTagId={selectedTagId}

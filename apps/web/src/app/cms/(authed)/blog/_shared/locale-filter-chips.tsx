@@ -9,34 +9,18 @@ interface LocaleFilterChipsProps {
 
 export function LocaleFilterChips({ locales, selectedLocale, onSelect, allLabel }: LocaleFilterChipsProps) {
   return (
-    <div className="flex gap-1.5" role="radiogroup" aria-label="Locale filter">
-      <button
-        role="radio"
-        aria-checked={selectedLocale === null}
-        onClick={() => onSelect(null)}
-        className={`rounded-full px-3 py-1 text-[10px] font-medium transition-colors ${
-          selectedLocale === null
-            ? 'bg-gray-700 text-gray-100'
-            : 'bg-gray-900 text-gray-500 hover:text-gray-300'
-        }`}
-      >
-        {allLabel}
-      </button>
+    <select
+      value={selectedLocale ?? ''}
+      onChange={(e) => onSelect(e.target.value || null)}
+      aria-label="Locale filter"
+      className="h-[26px] rounded-md border border-gray-800 bg-gray-900 px-2 text-[11px] font-medium uppercase text-gray-300 outline-none transition-colors hover:border-gray-700 focus-visible:border-indigo-500 focus-visible:ring-1 focus-visible:ring-indigo-500"
+    >
+      <option value="">{allLabel}</option>
       {locales.map((locale) => (
-        <button
-          key={locale}
-          role="radio"
-          aria-checked={selectedLocale === locale}
-          onClick={() => onSelect(locale)}
-          className={`rounded-full px-3 py-1 text-[10px] font-medium uppercase transition-colors ${
-            selectedLocale === locale
-              ? 'bg-gray-700 text-gray-100'
-              : 'bg-gray-900 text-gray-500 hover:text-gray-300'
-          }`}
-        >
+        <option key={locale} value={locale}>
           {locale}
-        </button>
+        </option>
       ))}
-    </div>
+    </select>
   )
 }

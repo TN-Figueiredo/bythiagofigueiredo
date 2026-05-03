@@ -132,7 +132,7 @@ export function MonthCalendar({ slots, locale = 'en' }: MonthCalendarProps) {
       </div>
 
       <div className="p-3">
-        <div className="grid grid-cols-7 gap-1">
+        <div className="grid grid-cols-7 gap-1" role="grid" aria-label={`${months[viewMonth]} ${viewYear}`}>
           {weekdays.map((d) => (
             <div
               key={d}
