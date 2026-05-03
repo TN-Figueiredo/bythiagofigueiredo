@@ -409,7 +409,12 @@ export const fetchScheduleData = unstable_cache(
   async (siteId: string): Promise<ScheduleTabData> => {
     const supabase = getSupabaseServiceClient()
 
-    const [{ data: calendarEditions }, { data: typeRows }, { data: subCounts }, { data: sentEditions }, { data: readyRows }] = await Promise.all([
+    const [{ data: siteRow }, { data: calendarEditions }, { data: typeRows }, { data: subCounts }, { data: sentEditions }, { data: readyRows }] = await Promise.all([
+      supabase
+        .from('sites')
+        .select('timezone')
+        .eq('id', siteId)
+        .single(),
       supabase
         .from('newsletter_editions')
         .select('id, subject, status, newsletter_type_id, scheduled_at, slot_date, created_at, edition_kind')
@@ -437,6 +442,8 @@ export const fetchScheduleData = unstable_cache(
         .eq('status', 'ready')
         .order('created_at'),
     ])
+
+    const siteTimezone = (siteRow?.timezone as string) ?? 'America/Sao_Paulo'
 
     const typeMap = new Map<string, { name: string; color: string; cadencePattern: CadencePattern | null; paused: boolean }>()
     for (const t of typeRows ?? []) {
@@ -669,7 +676,11 @@ export const fetchScheduleData = unstable_cache(
       },
       calendarSlots,
       cadenceConfigs,
-      sendWindow: { time: '08:00', timezone: 'America/Sao_Paulo', bestTimeInsight: 'Based on subscriber timezone distribution' },
+      sendWindow: {
+        time: ((typeRows ?? []).find((t) => t.preferred_send_time)?.preferred_send_time as string)?.slice(0, 5) ?? '08:00',
+        timezone: siteTimezone,
+        bestTimeInsight: 'Based on subscriber timezone distribution',
+      },
       readyEditions,
     }
   },
