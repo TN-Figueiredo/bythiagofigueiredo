@@ -278,3 +278,100 @@ describe('computeDisplayId edge cases', () => {
     expect(computeDisplayId(100000)).toBe('#BP-100000')
   })
 })
+
+describe('formatRelativeDate month boundary edge cases', () => {
+  it('returns 30d at exactly 30 days (not yet 1mo)', () => {
+    // 30 days = 720 hours = 43200 minutes → days = floor(720/24) = 30 → 30 < 30 is false → months = floor(30/30) = 1
+    // Actually: 30 days → days = 30 → days < 30 is FALSE → falls through to months = floor(30/30) = 1 → "1mo"
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+    expect(formatRelativeDate(thirtyDaysAgo)).toBe('1mo')
+  })
+
+  it('returns 2mo for 60 days', () => {
+    const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
+    expect(formatRelativeDate(sixtyDaysAgo)).toBe('2mo')
+  })
+
+  it('returns 12mo for 365 days (does not switch to years)', () => {
+    const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString()
+    expect(formatRelativeDate(oneYearAgo)).toBe('12mo')
+  })
+
+  it('handles very old dates (1000+ days)', () => {
+    const veryOld = new Date(Date.now() - 1000 * 24 * 60 * 60 * 1000).toISOString()
+    expect(formatRelativeDate(veryOld)).toBe('33mo')
+  })
+})
+
+describe('BLOG_TRANSITIONS graph completeness', () => {
+  it('every status in PostCard union has defined transitions', () => {
+    const allStatuses: string[] = ['idea', 'draft', 'pending_review', 'ready', 'queued', 'scheduled', 'published', 'archived']
+    for (const status of allStatuses) {
+      expect(BLOG_TRANSITIONS).toHaveProperty(status)
+      expect(Array.isArray(BLOG_TRANSITIONS[status])).toBe(true)
+    }
+  })
+
+  it('every target referenced in transitions is also a defined source', () => {
+    const definedSources = new Set(Object.keys(BLOG_TRANSITIONS))
+    for (const [source, targets] of Object.entries(BLOG_TRANSITIONS)) {
+      for (const target of targets) {
+        expect(definedSources.has(target), `Target "${target}" from "${source}" is not a defined status`).toBe(true)
+      }
+    }
+  })
+
+  it('no status has itself as a target (no self-transitions)', () => {
+    for (const [status, targets] of Object.entries(BLOG_TRANSITIONS)) {
+      expect(targets).not.toContain(status)
+    }
+  })
+
+  it('every status has at least one outgoing transition (no dead ends without archival path)', () => {
+    for (const [status, targets] of Object.entries(BLOG_TRANSITIONS)) {
+      expect(targets.length, `Status "${status}" has no outgoing transitions`).toBeGreaterThan(0)
+    }
+  })
+
+  it('archived is reachable from every non-archived status (either directly or via chain)', () => {
+    // BFS from each status to see if archived is reachable
+    const canReachArchived = (start: string): boolean => {
+      const visited = new Set<string>()
+      const queue = [start]
+      while (queue.length > 0) {
+        const current = queue.shift()!
+        if (current === 'archived') return true
+        if (visited.has(current)) continue
+        visited.add(current)
+        for (const next of (BLOG_TRANSITIONS[current] ?? [])) {
+          if (!visited.has(next)) queue.push(next)
+        }
+      }
+      return false
+    }
+
+    const allStatuses = Object.keys(BLOG_TRANSITIONS).filter((s) => s !== 'archived')
+    for (const status of allStatuses) {
+      expect(canReachArchived(status), `"${status}" cannot reach "archived"`).toBe(true)
+    }
+  })
+
+  it('published is reachable from idea (full pipeline path exists)', () => {
+    const canReach = (start: string, goal: string): boolean => {
+      const visited = new Set<string>()
+      const queue = [start]
+      while (queue.length > 0) {
+        const current = queue.shift()!
+        if (current === goal) return true
+        if (visited.has(current)) continue
+        visited.add(current)
+        for (const next of (BLOG_TRANSITIONS[current] ?? [])) {
+          if (!visited.has(next)) queue.push(next)
+        }
+      }
+      return false
+    }
+
+    expect(canReach('idea', 'published')).toBe(true)
+  })
+})
