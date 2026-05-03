@@ -6,6 +6,7 @@ import type { BlogHubStrings } from '../../_i18n/types'
 interface ScheduleModalProps {
   isOpen: boolean
   postTitle: string
+  defaultDate?: string
   onConfirm: (scheduledFor: string) => void
   onCancel: () => void
   strings?: BlogHubStrings
@@ -21,7 +22,7 @@ function getToday(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
-export function ScheduleModal({ isOpen, postTitle, onConfirm, onCancel, strings }: ScheduleModalProps) {
+export function ScheduleModal({ isOpen, postTitle, defaultDate, onConfirm, onCancel, strings }: ScheduleModalProps) {
   const [date, setDate] = useState(getTomorrow)
   const [time, setTime] = useState('09:00')
   const [error, setError] = useState<string | null>(null)
@@ -33,13 +34,13 @@ export function ScheduleModal({ isOpen, postTitle, onConfirm, onCancel, strings 
   // Reset state when opened
   useEffect(() => {
     if (isOpen) {
-      setDate(getTomorrow())
+      setDate(defaultDate ?? getTomorrow())
       setTime('09:00')
       setError(null)
       // Auto-focus date input
       setTimeout(() => dateRef.current?.focus(), 0)
     }
-  }, [isOpen])
+  }, [isOpen, defaultDate])
 
   // Escape key handler
   useEffect(() => {

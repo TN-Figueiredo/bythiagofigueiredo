@@ -34,6 +34,7 @@ export interface BlogHubStrings {
     saved: string; cadenceRangeError: string; timeFormatError: string; updateFailed: string
     daysUnit: string; editCadence: string
     slotDate: string; scheduledFor: string; publishedOn: string
+    selectPost: string; noReadyPosts: string; pickTime: string
   }
   analytics: { comingSoon: string; comingSoonDescription: string }
   common: { allTags: string; allLocales: string; updatedJustNow: string; showMore: string; moved: string; couldntMove: string; edit: string; posts: string }

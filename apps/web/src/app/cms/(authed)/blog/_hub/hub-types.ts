@@ -88,6 +88,12 @@ export interface BlogCadenceConfig {
   lastPublishedAt: string | null
 }
 
+export interface ReadyPost {
+  id: string
+  title: string
+  tagColor: string | null
+}
+
 export interface ScheduleTabData {
   healthStrip: {
     fillRate: number
@@ -98,4 +104,5 @@ export interface ScheduleTabData {
   }
   calendarSlots: ScheduleSlot[]
   cadenceConfigs: BlogCadenceConfig[]
+  readyPosts: ReadyPost[]
 }

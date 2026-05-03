@@ -8,6 +8,7 @@ interface MonthCalendarProps {
   slots: ScheduleSlot[]
   locale?: 'en' | 'pt-BR'
   strings?: { slotDate?: string; scheduledFor?: string; publishedOn?: string }
+  onDateClick?: (date: string) => void
 }
 
 function buildMonthGrid(
@@ -61,7 +62,7 @@ const STATUS_COLORS: Record<string, string> = {
   pending_review: 'bg-orange-500/80',
 }
 
-export function MonthCalendar({ slots, locale = 'en' }: MonthCalendarProps) {
+export function MonthCalendar({ slots, locale = 'en', onDateClick }: MonthCalendarProps) {
   const today = new Date()
   const todayStr = today.toISOString().slice(0, 10)
   const [viewYear, setViewYear] = useState(today.getFullYear())
@@ -145,18 +146,26 @@ export function MonthCalendar({ slots, locale = 'en' }: MonthCalendarProps) {
             const isToday = cell.date === todayStr
             const hasPosts = cell.posts.length > 0
             const hasEmpty = cell.emptySlots.length > 0
+            const isPast = !isToday && cell.date < todayStr
+            const isClickable = onDateClick && cell.inMonth && !isPast
             return (
               <div
                 key={cell.date}
+                role={isClickable ? 'button' : undefined}
+                tabIndex={isClickable ? 0 : undefined}
+                onClick={isClickable ? () => onDateClick(cell.date) : undefined}
+                onKeyDown={isClickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onDateClick(cell.date) } } : undefined}
                 className={`flex min-h-[80px] flex-col rounded-lg border p-2 transition-colors ${
                   !cell.inMonth
                     ? 'border-gray-800/30 bg-gray-950/40'
-                    : isToday
-                      ? 'border-indigo-500/40 bg-indigo-950/20'
-                      : hasPosts
-                        ? 'border-gray-700/60 bg-gray-800/20 hover:border-gray-600'
-                        : 'border-gray-800/50 hover:border-gray-700'
-                }`}
+                    : isPast
+                      ? 'border-gray-800/30 bg-gray-900/40 opacity-50'
+                      : isToday
+                        ? 'border-indigo-500/40 bg-indigo-950/20'
+                        : hasPosts
+                          ? 'border-gray-700/60 bg-gray-800/20 hover:border-gray-600'
+                          : 'border-gray-800/50 hover:border-gray-700'
+                } ${isClickable ? 'cursor-pointer hover:ring-1 hover:ring-indigo-500/40' : ''}`}
               >
                 <span
                   className={`text-[11px] tabular-nums leading-none ${

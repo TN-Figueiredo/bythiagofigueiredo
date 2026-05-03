@@ -38,6 +38,7 @@ export const ptBR: BlogHubStrings = {
     saved: 'Salvo', cadenceRangeError: 'Deve ser 1–365 dias', timeFormatError: 'Use formato HH:MM', updateFailed: 'Falha ao atualizar',
     daysUnit: 'dias', editCadence: 'Editar',
     slotDate: 'Slot', scheduledFor: 'Agendado', publishedOn: 'Publicado',
+    selectPost: 'Selecione um post para agendar', noReadyPosts: 'Nenhum post pronto para agendar', pickTime: 'Escolha um horário',
   },
   analytics: { comingSoon: 'Analytics em Breve', comingSoonDescription: 'Analytics de blog com rastreamento de visualizações, métricas de engajamento e fontes de referência estarão disponíveis em uma atualização futura.' },
   common: { allTags: 'Todas', allLocales: 'Todos', updatedJustNow: 'Atualizado agora', showMore: 'Ver mais', moved: 'Movido', couldntMove: 'Não foi possível mover', edit: 'Editar', posts: 'Posts' },

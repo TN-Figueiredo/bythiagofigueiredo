@@ -1,6 +1,6 @@
 import { unstable_cache } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import type { BlogHubSharedData, BlogTag, PostCard, OverviewTabData, EditorialTabData, ScheduleTabData, ScheduleSlot, BlogCadenceConfig } from './hub-types'
+import type { BlogHubSharedData, BlogTag, PostCard, OverviewTabData, EditorialTabData, ScheduleTabData, ScheduleSlot, BlogCadenceConfig, ReadyPost } from './hub-types'
 import { computeDisplayId } from './hub-utils'
 import { generateSlots } from '@tn-figueiredo/newsletter'
 
@@ -354,7 +354,7 @@ export const fetchScheduleData = unstable_cache(
   async (siteId: string, _tagId?: string | null, _locale?: string | null): Promise<ScheduleTabData> => {
     const supabase = getSupabaseServiceClient()
 
-    const [postsResult, cadenceResult, siteResult] = await Promise.all([
+    const [postsResult, cadenceResult, siteResult, readyPostsResult] = await Promise.all([
       supabase
         .from('blog_posts')
         .select('id, status, tag_id, published_at, scheduled_for, slot_date, blog_translations(locale, title, reading_time_min), blog_tags(color)')
@@ -369,6 +369,11 @@ export const fetchScheduleData = unstable_cache(
         .select('supported_locales')
         .eq('id', siteId)
         .single(),
+      supabase
+        .from('blog_posts')
+        .select('id, blog_translations(title), blog_tags(color)')
+        .eq('site_id', siteId)
+        .eq('status', 'ready'),
     ])
 
     const posts = postsResult.data ?? []
@@ -464,6 +469,21 @@ export const fetchScheduleData = unstable_cache(
       ? Math.round((readingTimes.reduce((a, b) => a + b, 0) / readingTimes.length) * 10) / 10
       : 0
 
+    type ReadyPostRaw = {
+      id: string
+      blog_translations: Array<{ title: string }>
+      blog_tags: { color: string } | null
+    }
+    const readyPosts: ReadyPost[] = (readyPostsResult.data ?? []).map((p) => {
+      const row = p as unknown as ReadyPostRaw
+      const txs = row.blog_translations ?? []
+      return {
+        id: row.id,
+        title: txs[0]?.title ?? 'Untitled',
+        tagColor: row.blog_tags?.color ?? null,
+      }
+    })
+
     return {
       healthStrip: {
         fillRate,
@@ -474,6 +494,7 @@ export const fetchScheduleData = unstable_cache(
       },
       calendarSlots,
       cadenceConfigs,
+      readyPosts,
     }
   },
   ['blog-schedule'],
