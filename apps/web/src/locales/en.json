@@ -83,6 +83,8 @@
   "newsletter.landing.subsLabel": "subscribers",
   "newsletter.landing.issuesLabel": "issues",
   "newsletter.landing.sentLabel": "sent",
+  "newsletter.landing.cadenceLabel": "cadence",
+  "newsletter.landing.skipToForm": "Skip to subscribe form",
   "newsletter.landing.daysAgo.today": "today",
   "newsletter.landing.daysAgo.yesterday": "yesterday",
   "newsletter.landing.daysAgo.n": "{n} days ago",

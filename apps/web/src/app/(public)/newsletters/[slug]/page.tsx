@@ -19,9 +19,13 @@ import {
 } from '@/lib/newsletter/format'
 import { IDENTITY_PROFILES } from '@/lib/seo/identity-profiles'
 import { resolveSiteByHost } from '@/lib/seo/host'
+import { getSiteSeoConfig } from '@/lib/seo/config'
+import { generateNewsletterLandingMetadata } from '@/lib/seo/page-metadata'
+import { buildBreadcrumbNode, buildFaqNode } from '@/lib/seo/jsonld/builders'
+import { composeGraph } from '@/lib/seo/jsonld/graph'
+import { JsonLdScript } from '@/lib/seo/jsonld/render'
 import { localePath } from '@/lib/i18n/locale-path'
-import { Paper } from '@/components/pinboard'
-import { Tape } from '@/components/pinboard'
+import { Paper, Tape } from '@/components/pinboard'
 import { SubscribeForm } from './subscribe-form'
 import { FaqAccordion } from './faq-accordion'
 import { MobileStickyCTA } from './mobile-sticky-cta'
@@ -33,6 +37,7 @@ import enStrings from '@/locales/en.json'
 import ptBrStrings from '@/locales/pt-BR.json'
 
 export const dynamicParams = true
+export const revalidate = 3600
 
 interface PageProps {
   params: Promise<{ slug: string }>
@@ -62,34 +67,17 @@ export async function generateStaticParams(): Promise<{ slug: string }[]> {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params
   const h = await headers()
-  const locale = (h.get('x-locale') ?? 'en') as 'en' | 'pt-BR'
+  const host = h.get('host') ?? ''
 
   try {
     const type = await getNewsletterTypeBySlug(slug)
     if (!type) return { title: 'Newsletter' }
 
-    const title = `${type.name} — Newsletter by Thiago Figueiredo`
-    const description = type.tagline ?? type.description ?? undefined
+    const site = await resolveSiteByHost(host.split(':')[0] ?? '')
+    if (!site) return { title: type.name }
 
-    return {
-      title,
-      description,
-      openGraph: {
-        title,
-        description,
-        images: type.og_image_url ? [{ url: type.og_image_url }] : [],
-        type: 'website',
-      },
-      twitter: {
-        card: 'summary_large_image',
-        title,
-        description,
-        images: type.og_image_url ? [type.og_image_url] : [],
-      },
-      alternates: {
-        canonical: localePath(`/newsletters/${slug}`, locale),
-      },
-    }
+    const config = await getSiteSeoConfig(site.id, host)
+    return generateNewsletterLandingMetadata(config, type)
   } catch {
     return { title: 'Newsletter' }
   }
@@ -108,25 +96,22 @@ export default async function NewsletterLandingPage({ params }: PageProps) {
   const faqItems = dict['newsletter.landing.faq'] as Array<{ q: string; a: string }>
 
   try {
-    // Resolve site for active type count
-    const site = await resolveSiteByHost(host)
-
-    // Fetch newsletter type once; use its id + site_id for dependent queries
     const type = await getNewsletterTypeBySlug(slug)
     if (!type) notFound()
 
     const siteId = type.site_id
 
-    const [stats, recentEditions, activeCount] = await Promise.all([
+    const [stats, recentEditions, activeCount, config] = await Promise.all([
       getNewsletterStats(type.id, siteId),
       getRecentEditions(type.id, siteId, 3),
-      site ? getActiveTypeCount(siteId) : Promise.resolve(0),
+      getActiveTypeCount(siteId),
+      getSiteSeoConfig(siteId, host).catch(() => null),
     ])
 
     const accentLight = type.color
     const accentDark = type.color_dark ?? type.color
     const accentTextColor = resolveAccentTextColor(accentLight)
-    const cadenceLabel = deriveCadenceLabel(type.cadence_label, type.cadence_days, locale)
+    const cadenceLabel = deriveCadenceLabel(type.cadence_label, type.cadence_days, locale, type.cadence_start_date)
     const subscriberCountStr = formatSubscriberCount(stats.subscriberCount)
     const profile = IDENTITY_PROFILES['bythiagofigueiredo']
     const authorName = profile?.name ?? 'Thiago Figueiredo'
@@ -169,19 +154,35 @@ export default async function NewsletterLandingPage({ params }: PageProps) {
     const accentVars = {
       '--nl-accent-light': accentLight,
       '--nl-accent-dark': accentDark,
+      '--nl-accent-text': accentTextColor,
     } as React.CSSProperties
+
+    // JSON-LD structured data
+    const jsonLdNodes = config
+      ? [
+          buildBreadcrumbNode([
+            { name: t('newsletter.landing.crumbHome'), url: config.siteUrl },
+            { name: t('newsletter.landing.crumbHub'), url: `${config.siteUrl}/newsletters` },
+            { name: type.name, url: `${config.siteUrl}/newsletters/${slug}` },
+          ]),
+          ...(faqItems?.length ? [buildFaqNode(faqItems)] : []),
+        ]
+      : null
 
     return (
       <div
         className="nl-landing"
+        lang={locale}
         style={{
           ...accentVars,
           minHeight: '100vh',
         }}
       >
+        {jsonLdNodes && <JsonLdScript graph={composeGraph(jsonLdNodes)} />}
+
         {/* Skip link */}
         <a href="#form-hero" className="nl-skip-link">
-          {t('newsletter.landing.submit')}
+          {t('newsletter.landing.skipToForm')}
         </a>
 
         <main style={{ maxWidth: 980, margin: '0 auto', padding: '24px 28px 80px' }}>
@@ -375,7 +376,7 @@ export default async function NewsletterLandingPage({ params }: PageProps) {
                         letterSpacing: '0.06em',
                       }}
                     >
-                      {t('newsletter.landing.sentLabel')}
+                      {t('newsletter.landing.cadenceLabel')}
                     </div>
                   </div>
                 )}
@@ -477,14 +478,7 @@ export default async function NewsletterLandingPage({ params }: PageProps) {
                     newsletterName={type.name}
                     strings={formStrings}
                     privacyHref={privacyHref}
-                    onSubscribe={(email, ids, loc, token) =>
-                    subscribeToNewsletters(
-                      email,
-                      ids,
-                      (loc === 'pt-BR' ? 'pt-BR' : 'en') as 'en' | 'pt-BR',
-                      token,
-                    )
-                  }
+                    onSubscribe={subscribeToNewsletters}
                   />
                 </Paper>
               </div>
@@ -708,16 +702,13 @@ export default async function NewsletterLandingPage({ params }: PageProps) {
 
           {/* ── FAQ section ──────────────────────────────────────────── */}
           {faqItems && faqItems.length > 0 && (
-            <section
-              className="nl-section"
-              style={{ marginBottom: 72 }}
-              aria-labelledby="section-faq"
-            >
+            <div className="nl-section" style={{ marginBottom: 72 }}>
               <FaqAccordion
                 items={faqItems}
                 sectionTitle={t('newsletter.landing.sectionFaq')}
+                sectionId="section-faq"
               />
-            </section>
+            </div>
           )}
 
           {/* ── Final CTA section ─────────────────────────────────────── */}
@@ -882,7 +873,6 @@ export default async function NewsletterLandingPage({ params }: PageProps) {
         {/* Mobile sticky CTA — client island */}
         <MobileStickyCTA
           formId="form-hero"
-          phase="idle"
           label={t('newsletter.landing.submit')}
           accentColor={accentLight}
           accentTextColor={accentTextColor}

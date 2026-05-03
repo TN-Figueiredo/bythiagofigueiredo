@@ -10,10 +10,11 @@ interface FaqItem {
 interface FaqAccordionProps {
   items: FaqItem[]
   sectionTitle: string
+  sectionId?: string
 }
 
-export function FaqAccordion({ items, sectionTitle }: FaqAccordionProps) {
-  const [openIndex, setOpenIndex] = useState(0)
+export function FaqAccordion({ items, sectionTitle, sectionId }: FaqAccordionProps) {
+  const [openIndex, setOpenIndex] = useState(-1)
   const baseId = useId()
 
   const toggle = useCallback(
@@ -32,8 +33,9 @@ export function FaqAccordion({ items, sectionTitle }: FaqAccordionProps) {
   )
 
   return (
-    <section style={{ maxWidth: 880, margin: '0 auto' }}>
+    <section aria-labelledby={sectionId} style={{ maxWidth: 880, margin: '0 auto' }}>
       <h2
+        id={sectionId}
         style={{
           fontFamily: 'var(--font-fraunces-var), serif',
           fontSize: 28,

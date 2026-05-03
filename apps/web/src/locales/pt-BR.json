@@ -83,6 +83,8 @@
   "newsletter.landing.subsLabel": "inscritos",
   "newsletter.landing.issuesLabel": "edições",
   "newsletter.landing.sentLabel": "enviada",
+  "newsletter.landing.cadenceLabel": "cadência",
+  "newsletter.landing.skipToForm": "Ir para o formulário",
   "newsletter.landing.daysAgo.today": "hoje",
   "newsletter.landing.daysAgo.yesterday": "ontem",
   "newsletter.landing.daysAgo.n": "há {n} dias",

@@ -26,6 +26,15 @@ export function revalidateCampaignSeo(
   revalidatePath(localePath(`/campaigns/${slug}`, locale))
 }
 
+export function revalidateNewsletterTypeSeo(
+  siteId: string,
+  slug: string,
+): void {
+  revalidateTag(`sitemap:${siteId}`)
+  revalidateTag('newsletter:types:count')
+  revalidatePath(`/newsletters/${slug}`)
+}
+
 export function revalidateSiteBranding(): void {
   revalidateTag('seo-config')
 }

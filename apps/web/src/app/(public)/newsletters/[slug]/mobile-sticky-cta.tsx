@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from 'react'
 
 interface MobileStickyCTAProps {
   formId: string
-  phase: 'idle' | 'loading' | 'pending' | 'confirmed' | 'error'
   label: string
   accentColor: string
   accentTextColor: string
@@ -12,35 +11,51 @@ interface MobileStickyCTAProps {
 
 export function MobileStickyCTA({
   formId,
-  phase,
   label,
   accentColor,
   accentTextColor,
 }: MobileStickyCTAProps) {
   const [visible, setVisible] = useState(false)
+  const [formPhase, setFormPhase] = useState<string>('idle')
 
   useEffect(() => {
     const formEl = document.getElementById(formId)
     if (!formEl) return
-    const observer = new IntersectionObserver(
+
+    setFormPhase(formEl.getAttribute('data-phase') ?? 'idle')
+
+    const mo = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        if (m.attributeName === 'data-phase') {
+          setFormPhase(formEl.getAttribute('data-phase') ?? 'idle')
+        }
+      }
+    })
+    mo.observe(formEl, { attributes: true, attributeFilter: ['data-phase'] })
+
+    const io = new IntersectionObserver(
       (entries) => {
         const entry = entries[0]
-        if (entry) setVisible(!entry.isIntersecting && phase === 'idle')
+        if (entry) setVisible(!entry.isIntersecting)
       },
       { threshold: 0 },
     )
-    observer.observe(formEl)
-    return () => observer.disconnect()
-  }, [formId, phase])
+    io.observe(formEl)
 
-  const scrollToForm = useCallback(() => {
+    return () => {
+      mo.disconnect()
+      io.disconnect()
+    }
+  }, [formId])
+
+  if (formPhase !== 'idle') return null
+
+  const scrollToForm = () => {
     const formEl = document.getElementById(formId)
     formEl?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     const emailInput = formEl?.querySelector('input[type="email"]') as HTMLInputElement | null
     setTimeout(() => emailInput?.focus(), 500)
-  }, [formId])
-
-  if (phase !== 'idle') return null
+  }
 
   return (
     <div

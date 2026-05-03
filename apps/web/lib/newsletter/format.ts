@@ -28,11 +28,41 @@ const CADENCE_MAP: Record<number, { en: string; 'pt-BR': string }> = {
   30: { en: 'Monthly', 'pt-BR': 'Mensal' },
 }
 
+const DAY_NAMES: Record<string, { en: string; 'pt-BR': string }> = {
+  '0': { en: 'Sundays', 'pt-BR': 'domingos' },
+  '1': { en: 'Mondays', 'pt-BR': 'segundas' },
+  '2': { en: 'Tuesdays', 'pt-BR': 'terças' },
+  '3': { en: 'Wednesdays', 'pt-BR': 'quartas' },
+  '4': { en: 'Thursdays', 'pt-BR': 'quintas' },
+  '5': { en: 'Fridays', 'pt-BR': 'sextas' },
+  '6': { en: 'Saturdays', 'pt-BR': 'sábados' },
+}
+
 export function deriveCadenceLabel(
   cadenceLabel: string | null,
   cadenceDays: number,
   locale: 'en' | 'pt-BR',
+  cadenceStartDate?: string | null,
 ): string | null {
   if (cadenceLabel) return cadenceLabel
-  return CADENCE_MAP[cadenceDays]?.[locale] ?? null
+
+  const base = CADENCE_MAP[cadenceDays]?.[locale]
+  if (!base) {
+    if (cadenceDays > 0) {
+      return locale === 'pt-BR' ? `a cada ${cadenceDays} dias` : `every ${cadenceDays} days`
+    }
+    return null
+  }
+
+  if (cadenceStartDate) {
+    const dayOfWeek = new Date(cadenceStartDate + 'T12:00:00Z').getUTCDay()
+    const dayName = DAY_NAMES[String(dayOfWeek)]?.[locale]
+    if (dayName) {
+      return locale === 'pt-BR'
+        ? `${base.toLowerCase()}, ${dayName}`
+        : `${base}, ${dayName}`
+    }
+  }
+
+  return base
 }

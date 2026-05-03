@@ -72,8 +72,30 @@ describe('deriveCadenceLabel', () => {
     expect(deriveCadenceLabel(null, 30, 'pt-BR')).toBe('Mensal')
   })
 
-  it('returns null for unknown cadence_days without label', () => {
-    expect(deriveCadenceLabel(null, 3, 'en')).toBeNull()
-    expect(deriveCadenceLabel(null, 45, 'pt-BR')).toBeNull()
+  it('appends day of week when cadence_start_date is provided', () => {
+    // 2026-05-01 is a Friday (day 5)
+    expect(deriveCadenceLabel(null, 7, 'en', '2026-05-01')).toBe('Weekly, Fridays')
+    expect(deriveCadenceLabel(null, 7, 'pt-BR', '2026-05-01')).toBe('semanal, sextas')
+    // 2026-05-03 is a Sunday (day 0)
+    expect(deriveCadenceLabel(null, 14, 'en', '2026-05-03')).toBe('Bi-weekly, Sundays')
+    expect(deriveCadenceLabel(null, 14, 'pt-BR', '2026-05-03')).toBe('quinzenal, domingos')
+  })
+
+  it('does not append day for non-standard cadence_days even with start date', () => {
+    expect(deriveCadenceLabel(null, 3, 'en', '2026-05-01')).toBe('every 3 days')
+    expect(deriveCadenceLabel(null, 45, 'pt-BR', '2026-05-01')).toBe('a cada 45 dias')
+  })
+
+  it('falls back to generic "every N days" for unknown cadence_days', () => {
+    expect(deriveCadenceLabel(null, 3, 'en')).toBe('every 3 days')
+    expect(deriveCadenceLabel(null, 45, 'pt-BR')).toBe('a cada 45 dias')
+  })
+
+  it('returns null for 0 cadence_days without label', () => {
+    expect(deriveCadenceLabel(null, 0, 'en')).toBeNull()
+  })
+
+  it('ignores cadence_start_date when label exists', () => {
+    expect(deriveCadenceLabel('custom', 7, 'en', '2026-05-01')).toBe('custom')
   })
 })

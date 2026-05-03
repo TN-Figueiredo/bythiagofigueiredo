@@ -152,10 +152,14 @@ export function NewsletterOgTemplate({
   )
 }
 
+function toLinear(v: number): number {
+  return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)
+}
+
 function relativeLuminance(hex: string): number {
-  const r = parseInt(hex.slice(1, 3), 16) / 255
-  const g = parseInt(hex.slice(3, 5), 16) / 255
-  const b = parseInt(hex.slice(5, 7), 16) / 255
+  const r = toLinear(parseInt(hex.slice(1, 3), 16) / 255)
+  const g = toLinear(parseInt(hex.slice(3, 5), 16) / 255)
+  const b = toLinear(parseInt(hex.slice(5, 7), 16) / 255)
   return 0.2126 * r + 0.7152 * g + 0.0722 * b
 }
 

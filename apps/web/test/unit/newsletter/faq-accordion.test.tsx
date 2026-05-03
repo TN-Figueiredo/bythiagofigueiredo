@@ -16,11 +16,12 @@ describe('FaqAccordion', () => {
     expect(screen.getByText('Can I unsubscribe?')).toBeDefined()
   })
 
-  it('first item is open by default', () => {
+  it('all items are collapsed by default', () => {
     render(<FaqAccordion items={items} sectionTitle="Questions" />)
     const buttons = screen.getAllByRole('button')
-    expect(buttons[0].getAttribute('aria-expanded')).toBe('true')
+    expect(buttons[0].getAttribute('aria-expanded')).toBe('false')
     expect(buttons[1].getAttribute('aria-expanded')).toBe('false')
+    expect(buttons[2].getAttribute('aria-expanded')).toBe('false')
   })
 
   it('toggles item on click', () => {

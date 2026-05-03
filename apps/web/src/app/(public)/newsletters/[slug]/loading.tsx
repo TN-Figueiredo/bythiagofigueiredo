@@ -1,14 +1,20 @@
+import './newsletter-landing.css'
+
 export default function NewsletterLandingLoading() {
   const shimmer =
     'animate-pulse rounded-md bg-gradient-to-r from-[var(--pb-paper)] via-[var(--pb-paper2)] to-[var(--pb-paper)]'
 
   return (
-    <div aria-busy="true" aria-label="Loading newsletter" style={{ padding: '24px 28px' }}>
+    <div
+      aria-busy="true"
+      aria-label="Loading newsletter"
+      style={{ maxWidth: 980, margin: '0 auto', padding: '24px 28px' }}
+    >
       {/* Breadcrumb shimmer */}
       <div className={shimmer} style={{ width: 200, height: 14, marginBottom: 40 }} />
 
-      {/* Hero grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 56, marginBottom: 48 }}>
+      {/* Hero grid — uses nl-hero-grid for responsive breakpoints */}
+      <div className="nl-hero-grid" style={{ marginBottom: 48 }}>
         {/* Left: content */}
         <div>
           <div className={shimmer} style={{ width: 80, height: 20, marginBottom: 16, borderRadius: 4 }} />

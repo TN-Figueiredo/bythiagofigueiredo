@@ -20,6 +20,7 @@ export interface NewsletterType {
   badge: string | null
   cadence_days: number
   cadence_label: string | null
+  cadence_start_date: string | null
   landing_content: { promise?: string[] } | null
   og_image_url: string | null
   active: boolean
@@ -46,9 +47,10 @@ export async function getNewsletterTypeBySlug(
   const { data } = await supabaseAnon
     .from('newsletter_types')
     .select(
-      'id, slug, locale, name, tagline, description, color, color_dark, badge, cadence_days, cadence_label, landing_content, og_image_url, active, site_id, updated_at',
+      'id, slug, locale, name, tagline, description, color, color_dark, badge, cadence_days, cadence_label, cadence_start_date, landing_content, og_image_url, active, site_id, updated_at',
     )
     .eq('slug', slug)
+    .eq('active', true)
     .single()
 
   return data as NewsletterType | null
@@ -69,7 +71,7 @@ export async function getNewsletterStats(
       .eq('status', 'confirmed'),
     supabase
       .from('newsletter_editions')
-      .select('sent_at')
+      .select('sent_at', { count: 'exact' })
       .eq('newsletter_type_id', typeId)
       .eq('site_id', siteId)
       .eq('status', 'sent')
@@ -78,14 +80,7 @@ export async function getNewsletterStats(
   ])
 
   const subscriberCount = subs.count ?? 0
-  const editionsCountRes = await supabase
-    .from('newsletter_editions')
-    .select('id', { count: 'exact', head: true })
-    .eq('newsletter_type_id', typeId)
-    .eq('site_id', siteId)
-    .eq('status', 'sent')
-
-  const editionsCount = editionsCountRes.count ?? 0
+  const editionsCount = editions.count ?? 0
   const lastSentAt = editions.data?.[0]?.sent_at
   const daysSinceLastEdition = lastSentAt
     ? Math.floor((Date.now() - new Date(lastSentAt).getTime()) / 86400000)

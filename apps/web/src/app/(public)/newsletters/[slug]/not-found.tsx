@@ -3,6 +3,9 @@ import { headers } from 'next/headers'
 import { getActiveTypesForNotFound } from '@/lib/newsletter/queries'
 import { resolveSiteByHost } from '@/lib/seo/host'
 
+import enStrings from '@/locales/en.json'
+import ptBrStrings from '@/locales/pt-BR.json'
+
 export default async function NewsletterNotFound() {
   const h = await headers()
   const host = (h.get('host') ?? '').split(':')[0] ?? ''
@@ -10,7 +13,8 @@ export default async function NewsletterNotFound() {
   const site = await resolveSiteByHost(host)
   const types = site ? await getActiveTypesForNotFound(site.id) : []
 
-  const isPt = locale === 'pt-BR'
+  const dict = (locale === 'pt-BR' ? ptBrStrings : enStrings) as unknown as Record<string, string>
+  const t = (key: string) => dict[key] ?? key
 
   return (
     <div
@@ -33,7 +37,7 @@ export default async function NewsletterNotFound() {
           marginBottom: 16,
         }}
       >
-        {isPt ? 'epa.' : 'huh.'}
+        {t('newsletter.landing.notFoundExclamation')}
       </p>
 
       <h1
@@ -45,7 +49,7 @@ export default async function NewsletterNotFound() {
           marginBottom: 12,
         }}
       >
-        {isPt ? 'Essa newsletter não existe.' : "That newsletter doesn't exist."}
+        {t('newsletter.landing.notFoundTitle')}
       </h1>
 
       <p
@@ -56,9 +60,7 @@ export default async function NewsletterNotFound() {
           maxWidth: 480,
         }}
       >
-        {isPt
-          ? 'Talvez o link tenha quebrado. Aqui estão as que existem agora:'
-          : 'Maybe the link broke. Here are the ones that exist now:'}
+        {t('newsletter.landing.notFoundBody')}
       </p>
 
       {types.length > 0 ? (
@@ -72,14 +74,14 @@ export default async function NewsletterNotFound() {
             marginBottom: 32,
           }}
         >
-          {types.map((t) => (
+          {types.map((nl) => (
             <Link
-              key={t.slug}
-              href={`/newsletters/${t.slug}`}
+              key={nl.slug}
+              href={`/newsletters/${nl.slug}`}
               style={{
                 display: 'block',
                 padding: '16px 20px',
-                borderLeft: `4px solid ${t.color}`,
+                borderLeft: `4px solid ${nl.color}`,
                 background: 'var(--pb-paper)',
                 borderRadius: 6,
                 textDecoration: 'none',
@@ -95,10 +97,10 @@ export default async function NewsletterNotFound() {
                   marginBottom: 4,
                 }}
               >
-                {t.name}
+                {nl.name}
               </div>
-              {t.tagline && (
-                <div style={{ fontSize: 13, color: 'var(--pb-muted)' }}>{t.tagline}</div>
+              {nl.tagline && (
+                <div style={{ fontSize: 13, color: 'var(--pb-muted)' }}>{nl.tagline}</div>
               )}
             </Link>
           ))}
@@ -113,7 +115,7 @@ export default async function NewsletterNotFound() {
             textDecoration: 'underline',
           }}
         >
-          {isPt ? 'Ir pra home' : 'Go to homepage'}
+          {t('newsletter.landing.goHome')}
         </Link>
       )}
     </div>

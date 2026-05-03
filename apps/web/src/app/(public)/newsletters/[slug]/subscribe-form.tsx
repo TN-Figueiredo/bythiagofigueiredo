@@ -54,7 +54,7 @@ export interface SubscribeFormProps {
   onSubscribe: (
     email: string,
     ids: string[],
-    locale: string,
+    locale: 'en' | 'pt-BR',
     token?: string,
   ) => Promise<{ success?: boolean; error?: string; subscribedIds?: string[] }>
 }
@@ -121,14 +121,6 @@ export function SubscribeForm({
     }
   }
 
-  function handleChangeEmail() {
-    setEmail('')
-    setConsent(false)
-    setPhase('idle')
-    setResent(false)
-    setErrorMsg('')
-  }
-
   function handleReset() {
     setEmail('')
     setConsent(false)
@@ -147,7 +139,7 @@ export function SubscribeForm({
 
   if (phase === 'confirmed') {
     return (
-      <div id="form-hero" className="nl-form-phase nl-fade-in" style={accentStyle}>
+      <div id="form-hero" data-phase="confirmed" className="nl-form-phase nl-fade-in" style={accentStyle} aria-live="polite">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {/* Steps — all done */}
           <div>
@@ -227,7 +219,7 @@ export function SubscribeForm({
     const bodyText = strings.pendingBody.replace('{email}', email)
 
     return (
-      <div id="form-hero" className="nl-form-phase nl-fade-in" style={accentStyle}>
+      <div id="form-hero" data-phase="pending" className="nl-form-phase nl-fade-in" style={accentStyle} aria-live="polite">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <h2
             ref={pendingHeadingRef}
@@ -314,7 +306,7 @@ export function SubscribeForm({
 
             <button
               type="button"
-              onClick={handleChangeEmail}
+              onClick={handleReset}
               style={{
                 background: 'transparent',
                 border: 'none',
@@ -339,7 +331,7 @@ export function SubscribeForm({
   const isLoading = phase === 'loading'
 
   return (
-    <div id="form-hero" className="nl-form-phase" style={accentStyle}>
+    <div id="form-hero" data-phase={phase} className="nl-form-phase" style={accentStyle} aria-live="polite">
       <form onSubmit={handleSubmit} noValidate>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {/* Form header */}
