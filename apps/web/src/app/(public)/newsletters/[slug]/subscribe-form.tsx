@@ -1,6 +1,9 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import Link from 'next/link'
+import type { ScoredSuggestion } from '@/lib/newsletter/suggestions'
+import type { SuggestionStrings } from './newsletter-suggestions'
 
 export interface SubscribeFormStrings {
   stepLabel: string
@@ -57,6 +60,14 @@ export interface SubscribeFormProps {
     locale: 'en' | 'pt-BR',
     token?: string,
   ) => Promise<{ success?: boolean; error?: string; subscribedIds?: string[] }>
+  suggestions?: ScoredSuggestion[]
+  suggestionStrings?: SuggestionStrings
+  currentSlug?: string
+  onGetFilteredSuggestions?: (
+    currentSlug: string,
+    locale: 'en' | 'pt-BR',
+    email: string,
+  ) => Promise<ScoredSuggestion[]>
 }
 
 export function SubscribeForm({
@@ -67,17 +78,39 @@ export function SubscribeForm({
   strings,
   privacyHref,
   onSubscribe,
+  suggestions,
+  suggestionStrings,
+  currentSlug,
+  onGetFilteredSuggestions,
 }: SubscribeFormProps) {
   const [phase, setPhase] = useState<Phase>('idle')
   const [email, setEmail] = useState('')
   const [consent, setConsent] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
   const [resent, setResent] = useState(false)
+  const [addedIds, setAddedIds] = useState<Set<string>>(new Set())
+  const [addingId, setAddingId] = useState<string | null>(null)
+  const [filteredSuggestions, setFilteredSuggestions] = useState<ScoredSuggestion[] | null>(null)
 
   const pendingHeadingRef = useRef<HTMLHeadingElement>(null)
   const errorRef = useRef<HTMLDivElement>(null)
 
   const canSubmit = email.includes('@') && consent && phase !== 'loading'
+
+  async function handleAddSuggestion(typeId: string) {
+    if (!email || addedIds.has(typeId) || addingId) return
+    setAddingId(typeId)
+    try {
+      const result = await onSubscribe(email, [typeId], locale)
+      if (result.success || result.subscribedIds?.includes(typeId)) {
+        setAddedIds((prev) => new Set([...prev, typeId]))
+      }
+    } catch {
+      // silently ignore — user already subscribed to primary
+    } finally {
+      setAddingId(null)
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -91,6 +124,15 @@ export function SubscribeForm({
 
       if (result.success) {
         setPhase('pending')
+        // Fetch suggestions filtered by subscriber's existing subscriptions
+        if (suggestions && suggestions.length > 0 && onGetFilteredSuggestions && currentSlug) {
+          onGetFilteredSuggestions(currentSlug, locale, email).then((filtered) => {
+            setFilteredSuggestions(filtered)
+          }).catch(() => {
+            // Fall back to unfiltered suggestions
+            setFilteredSuggestions(suggestions ?? [])
+          })
+        }
         // Focus the pending heading for screen readers
         requestAnimationFrame(() => {
           pendingHeadingRef.current?.focus()
@@ -208,6 +250,17 @@ export function SubscribeForm({
           >
             {strings.successAgain}
           </button>
+
+          {(filteredSuggestions ?? suggestions) && (filteredSuggestions ?? suggestions)!.length > 0 && suggestionStrings && (
+            <UpsellSection
+              suggestions={filteredSuggestions ?? suggestions ?? []}
+              suggestionStrings={suggestionStrings}
+              locale={locale}
+              addedIds={addedIds}
+              addingId={addingId}
+              onAdd={handleAddSuggestion}
+            />
+          )}
         </div>
       </div>
     )
@@ -321,6 +374,17 @@ export function SubscribeForm({
               {strings.pendingChangeEmail}
             </button>
           </div>
+
+          {(filteredSuggestions ?? suggestions) && (filteredSuggestions ?? suggestions)!.length > 0 && suggestionStrings && (
+            <UpsellSection
+              suggestions={filteredSuggestions ?? suggestions ?? []}
+              suggestionStrings={suggestionStrings}
+              locale={locale}
+              addedIds={addedIds}
+              addingId={addingId}
+              onAdd={handleAddSuggestion}
+            />
+          )}
         </div>
       </div>
     )
@@ -493,6 +557,81 @@ export function SubscribeForm({
           </div>
         </div>
       </form>
+    </div>
+  )
+}
+
+// ── Internal: upsell section after subscribe success ─────────────────────────
+
+interface UpsellSectionProps {
+  suggestions: ScoredSuggestion[]
+  suggestionStrings: SuggestionStrings
+  locale: 'en' | 'pt-BR'
+  addedIds: Set<string>
+  addingId: string | null
+  onAdd: (typeId: string) => void
+}
+
+function UpsellSection({
+  suggestions,
+  suggestionStrings: ss,
+  locale: _locale,
+  addedIds: aids,
+  addingId: aidg,
+  onAdd,
+}: UpsellSectionProps) {
+  const available = suggestions.filter((s) => !aids.has(s.id))
+
+  if (suggestions.length === 0) return null
+
+  // All suggestions have been added
+  if (available.length === 0) {
+    return (
+      <div className="nl-upsell-section">
+        <p className="nl-subscribed-all">
+          {ss.subscribedToAll}{' '}
+          <Link href="/newsletters">
+            {ss.allNewsletters}
+          </Link>
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="nl-upsell-section">
+      <h3 className="nl-upsell-title">{ss.upsellTitle}</h3>
+      {available.map((s) => {
+        const isAdding = aidg === s.id
+        const isAdded = aids.has(s.id)
+        return (
+          <div
+            key={s.id}
+            className="nl-upsell-card"
+            style={{ '--card-accent': s.color } as React.CSSProperties}
+          >
+            <div className="nl-upsell-card-accent" />
+            <div className="nl-upsell-card-body">
+              <div className="nl-upsell-card-name">{s.name}</div>
+              {s.tagline && (
+                <div className="nl-upsell-card-tagline">{s.tagline}</div>
+              )}
+            </div>
+            <button
+              type="button"
+              className={`nl-add-btn ${isAdding ? 'nl-add-btn-loading' : ''}`}
+              disabled={isAdded || isAdding}
+              onClick={() => onAdd(s.id)}
+            >
+              {isAdded
+                ? ss.addedNewsletter
+                : isAdding
+                  ? '...'
+                  : ss.addNewsletter}
+            </button>
+          </div>
+        )
+      })}
     </div>
   )
 }
