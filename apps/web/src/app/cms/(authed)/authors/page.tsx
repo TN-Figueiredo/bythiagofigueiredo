@@ -17,6 +17,18 @@ interface AuthorRow {
   social_links: Record<string, string> | null
   sort_order: number | null
   is_default: boolean | null
+  headline: string | null
+  subtitle: string | null
+  about_md: string | null
+  about_compiled: string | null
+  about_photo_url: string | null
+  photo_caption: string | null
+  photo_location: string | null
+  about_cta_links: {
+    kicker: string
+    signature: string
+    links: Array<{ type: 'internal' | 'social'; key: string; label: string }>
+  } | null
 }
 
 export default async function AuthorsPage() {
@@ -35,7 +47,7 @@ export default async function AuthorsPage() {
   const { data: authors } = await supabase
     .from('authors')
     .select(
-      'id, display_name, name, slug, bio, avatar_url, avatar_color, user_id, social_links, sort_order, is_default',
+      'id, display_name, name, slug, bio, avatar_url, avatar_color, user_id, social_links, sort_order, is_default, headline, subtitle, about_md, about_compiled, about_photo_url, photo_caption, photo_location, about_cta_links',
     )
     .eq('site_id', siteId)
     .order('sort_order')
@@ -77,6 +89,14 @@ export default async function AuthorsPage() {
         sortOrder: a.sort_order ?? 0,
         isDefault: a.is_default ?? false,
         postsCount: postCounts[a.id] ?? 0,
+        headline: a.headline,
+        subtitle: a.subtitle,
+        aboutMd: a.about_md,
+        aboutCompiled: a.about_compiled,
+        aboutPhotoUrl: a.about_photo_url,
+        photoCaption: a.photo_caption,
+        photoLocation: a.photo_location,
+        aboutCtaLinks: a.about_cta_links as AuthorData['aboutCtaLinks'],
       }
     },
   )
