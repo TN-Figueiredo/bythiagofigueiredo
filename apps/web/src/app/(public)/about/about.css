@@ -1,0 +1,265 @@
+.about-page {
+  min-height: calc(100vh - 44px);
+  background:
+    radial-gradient(circle at 12% 18%, color-mix(in srgb, var(--pb-accent) 4%, transparent), transparent 45%),
+    radial-gradient(circle at 88% 78%, color-mix(in srgb, white 1.2%, transparent), transparent 50%);
+}
+
+/* Kicker */
+.about-kicker {
+  font-family: var(--font-jetbrains);
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  color: var(--pb-accent);
+  margin-bottom: 16px;
+}
+
+/* Headline */
+.about-headline {
+  font-family: var(--font-fraunces);
+  font-size: clamp(56px, 10vw, 132px);
+  line-height: 0.92;
+  letter-spacing: -0.04em;
+  font-weight: 500;
+  text-wrap: balance;
+  color: var(--pb-ink);
+}
+
+.about-marker {
+  position: relative;
+  display: inline-block;
+}
+
+.about-marker-text {
+  position: relative;
+  z-index: 1;
+}
+
+.about-marker-bg {
+  position: absolute;
+  bottom: 0.10em;
+  left: -0.06em;
+  right: -0.06em;
+  height: 0.26em;
+  background: #FFE37A;
+  opacity: 0.78;
+  transform: skew(-3deg) rotate(-0.6deg);
+  z-index: 0;
+}
+
+[data-theme="light"] .about-marker-bg {
+  opacity: 0.90;
+}
+
+/* Main grid */
+.about-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 56px;
+  align-items: start;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 16px 28px 48px;
+}
+
+/* Polaroid */
+.about-polaroid {
+  position: relative;
+  padding-top: 18px;
+  flex: 0 0 auto;
+}
+
+.about-polaroid-frame {
+  width: 320px;
+  padding: 14px 14px 18px;
+  transform: rotate(-2.4deg);
+  position: relative;
+}
+
+[data-theme="dark"] .about-polaroid-frame {
+  background: #F2EBDB;
+  box-shadow: 0 3px 0 rgba(0,0,0,0.6), 0 18px 36px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(255,255,255,0.08);
+}
+
+[data-theme="light"] .about-polaroid-frame {
+  background: #FFFEF8;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.05), 0 14px 28px rgba(70,50,20,0.22), inset 0 0 0 1px rgba(0,0,0,0.04);
+}
+
+.about-polaroid-photo {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  display: block;
+}
+
+.about-polaroid-caption {
+  font-family: var(--font-caveat);
+  font-size: 22px;
+  color: #1A1410;
+  margin-top: 12px;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.about-polaroid-location {
+  font-family: var(--font-jetbrains);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  color: #9C8E70;
+  text-align: center;
+  margin-top: 6px;
+  text-transform: uppercase;
+}
+
+/* Tape */
+.about-tape {
+  position: absolute;
+  height: 18px;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.18);
+}
+
+.about-tape-yellow { background: var(--pb-tape); }
+.about-tape-blue   { background: var(--pb-tape2); }
+
+/* Content column */
+.about-content {
+  padding-top: 8px;
+  max-width: 620px;
+}
+
+.about-tagline {
+  font-family: var(--font-fraunces);
+  font-style: italic;
+  font-size: 22px;
+  line-height: 1.4;
+  margin: 0 0 28px;
+  text-wrap: pretty;
+}
+
+[data-theme="dark"] .about-tagline { color: #958A75; }
+[data-theme="light"] .about-tagline { color: #6A5F48; }
+
+.about-chapters {
+  font-family: var(--font-fraunces);
+  font-size: 19px;
+  line-height: 1.6;
+  color: var(--pb-ink);
+}
+
+.about-chapters p {
+  margin: 0 0 18px;
+  text-wrap: pretty;
+}
+
+.about-chapters p:last-child { margin-bottom: 0; }
+
+/* CTA block */
+.about-cta {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 32px 28px 40px;
+}
+
+.about-cta-paper {
+  padding: 28px 32px 24px;
+  position: relative;
+  transform: rotate(-0.3deg);
+}
+
+.about-cta-kicker {
+  font-family: var(--font-jetbrains);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--pb-accent);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.about-cta-line {
+  flex: 1;
+  min-width: 40px;
+  height: 1px;
+}
+
+[data-theme="dark"] .about-cta-line { border-top: 1px dashed #2E2718; }
+[data-theme="light"] .about-cta-line { border-top: 1px dashed #CEBFA0; }
+
+.about-chips {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.about-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  text-decoration: none;
+  color: inherit;
+  background: transparent;
+  transition: transform 120ms ease, border-color 120ms ease;
+}
+
+[data-theme="dark"] .about-chip { border: 1px dashed #2E2718; }
+[data-theme="light"] .about-chip { border: 1px dashed #CEBFA0; }
+
+.about-chip:hover {
+  transform: translateY(-1px);
+  border-color: var(--pb-accent) !important;
+}
+
+.about-chip:hover .about-chip-label {
+  color: var(--pb-accent) !important;
+}
+
+.about-chip-num {
+  font-family: var(--font-jetbrains);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+[data-theme="dark"] .about-chip-num { color: #6B634F; }
+[data-theme="light"] .about-chip-num { color: #9C9178; }
+
+.about-chip-label {
+  font-family: var(--font-fraunces);
+  font-size: 16px;
+  color: var(--pb-ink);
+  letter-spacing: -0.005em;
+  transition: color 120ms ease;
+}
+
+.about-chip-arrow {
+  color: var(--pb-accent);
+  font-size: 14px;
+}
+
+.about-signoff {
+  font-family: var(--font-caveat);
+  font-size: 22px;
+  color: var(--pb-accent);
+  white-space: nowrap;
+}
+
+/* Responsive */
+@media (max-width: 760px) {
+  .about-grid {
+    grid-template-columns: 1fr;
+    gap: 32px;
+    justify-items: center;
+  }
+  .about-polaroid { display: flex; justify-content: center; }
+  .about-content { max-width: 100%; }
+  .about-chips { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 480px) {
+  .about-chips { grid-template-columns: 1fr; }
+  .about-polaroid-frame { width: 260px; }
+  .about-grid { padding: 16px 20px 32px; }
+  .about-cta { padding: 24px 20px 32px; }
+}
