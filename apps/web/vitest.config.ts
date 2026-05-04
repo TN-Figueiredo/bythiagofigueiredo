@@ -64,6 +64,7 @@ export default defineConfig({
       { find: /^@\/lib\/email(.*)$/, replacement: path.resolve(__dirname, './lib/email$1') },
       { find: /^@\/lib\/newsletter(.*)$/, replacement: path.resolve(__dirname, './lib/newsletter$1') },
       { find: /^@\/lib\/about(.*)$/, replacement: path.resolve(__dirname, './lib/about$1') },
+      { find: /^@\/lib\/tracking(.*)$/, replacement: path.resolve(__dirname, './lib/tracking$1') },
       { find: /^@\/lib\/i18n(.*)$/, replacement: path.resolve(__dirname, './lib/i18n$1') },
       // Allow tests to import other test helpers via `@/test/...` (used by
       // enumerator integration test).

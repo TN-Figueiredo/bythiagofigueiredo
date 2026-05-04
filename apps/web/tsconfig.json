@@ -33,6 +33,7 @@
       "@/lib/newsletter/*": ["./lib/newsletter/*"],
       "@/lib/seo/*": ["./lib/seo/*"],
       "@/lib/supabase/*": ["./lib/supabase/*"],
+      "@/lib/tracking/*": ["./lib/tracking/*"],
       "@/test/*": ["./test/*"],
       "@/*": ["./src/*"]
     }
