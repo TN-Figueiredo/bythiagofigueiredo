@@ -452,24 +452,30 @@ export async function fetchContentAnalytics(
 
   if (error) return { ok: false, error: error.message }
 
-  // Aggregate per resource_id
+  // Aggregate per resource_id — weight avg_read_depth and avg_time_sec by views
   const byPost = new Map<string, {
     views: number; uniqueViews: number; readsComplete: number
-    totalDepth: number; totalTime: number; depthCount: number; timeCount: number
+    weightedDepth: number; depthWeight: number; weightedTime: number; timeWeight: number
     direct: number; google: number; newsletter: number; social: number; other: number
   }>()
 
   for (const row of topPosts ?? []) {
     const existing = byPost.get(row.resource_id) ?? {
       views: 0, uniqueViews: 0, readsComplete: 0,
-      totalDepth: 0, totalTime: 0, depthCount: 0, timeCount: 0,
+      weightedDepth: 0, depthWeight: 0, weightedTime: 0, timeWeight: 0,
       direct: 0, google: 0, newsletter: 0, social: 0, other: 0,
     }
     existing.views += row.views
     existing.uniqueViews += row.unique_views
     existing.readsComplete += row.reads_complete
-    if (row.avg_read_depth > 0) { existing.totalDepth += row.avg_read_depth; existing.depthCount++ }
-    if (row.avg_time_sec > 0) { existing.totalTime += row.avg_time_sec; existing.timeCount++ }
+    if (row.avg_read_depth > 0) {
+      existing.weightedDepth += row.avg_read_depth * row.views
+      existing.depthWeight += row.views
+    }
+    if (row.avg_time_sec > 0) {
+      existing.weightedTime += row.avg_time_sec * row.views
+      existing.timeWeight += row.views
+    }
     existing.direct += row.referrer_direct
     existing.google += row.referrer_google
     existing.newsletter += row.referrer_newsletter
@@ -503,8 +509,8 @@ export async function fetchContentAnalytics(
       views: stats.views,
       uniqueViews: stats.uniqueViews,
       readsComplete: stats.readsComplete,
-      avgDepth: stats.depthCount > 0 ? Math.round(stats.totalDepth / stats.depthCount) : 0,
-      avgTime: stats.timeCount > 0 ? Math.round(stats.totalTime / stats.timeCount) : 0,
+      avgDepth: stats.depthWeight > 0 ? Math.round(stats.weightedDepth / stats.depthWeight) : 0,
+      avgTime: stats.timeWeight > 0 ? Math.round(stats.weightedTime / stats.timeWeight) : 0,
       referrers: {
         direct: stats.direct,
         google: stats.google,
@@ -516,12 +522,13 @@ export async function fetchContentAnalytics(
     .sort((a, b) => b.views - a.views)
     .slice(0, 20)
 
+  const totalViews2 = posts.reduce((s, p) => s + p.views, 0)
   const totals = {
-    views: posts.reduce((s, p) => s + p.views, 0),
+    views: totalViews2,
     uniqueViews: posts.reduce((s, p) => s + p.uniqueViews, 0),
     readsComplete: posts.reduce((s, p) => s + p.readsComplete, 0),
-    avgDepth: posts.length > 0 ? Math.round(posts.reduce((s, p) => s + p.avgDepth, 0) / posts.length) : 0,
-    avgTime: posts.length > 0 ? Math.round(posts.reduce((s, p) => s + p.avgTime, 0) / posts.length) : 0,
+    avgDepth: totalViews2 > 0 ? Math.round(posts.reduce((s, p) => s + p.avgDepth * p.views, 0) / totalViews2) : 0,
+    avgTime: totalViews2 > 0 ? Math.round(posts.reduce((s, p) => s + p.avgTime * p.views, 0) / totalViews2) : 0,
   }
 
   return { ok: true, data: { posts, totals } }

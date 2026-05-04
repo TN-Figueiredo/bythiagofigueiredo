@@ -2,7 +2,7 @@
 
 import { useState, useEffect, type ReactNode } from 'react'
 import { ReadProgressStore } from '@/lib/tracking/read-progress-store'
-import { READ_INDICATORS_ENABLED } from '@/lib/tracking/config'
+import { READ_INDICATORS_ENABLED, READ_COMPLETE_THRESHOLD } from '@/lib/tracking/config'
 
 type Props = {
   postId: string
@@ -20,7 +20,7 @@ export function ReadableCard({ postId, children, dimTitle = true }: Props) {
     if (p) setDepth(p.depth)
   }, [postId])
 
-  const isRead = depth >= 95
+  const isRead = depth >= READ_COMPLETE_THRESHOLD
   const hasProgress = depth > 0
 
   return (
