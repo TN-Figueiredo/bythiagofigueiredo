@@ -5,7 +5,8 @@ import { revalidatePath } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
-import { revalidateAuthor } from '@/lib/newsletter/cache-invalidation'
+import { revalidateAuthor, revalidateAbout } from '@/lib/newsletter/cache-invalidation'
+import { compileMdx, defaultComponents } from '@tn-figueiredo/cms'
 
 type ActionResult = { ok: true } | { ok: false; error: string }
 
@@ -60,7 +61,26 @@ const updateAuthorSchema = z.object({
     .regex(/^#[0-9A-Fa-f]{6}$/)
     .nullable()
     .optional(),
+  avatar_url: z.string().nullable().optional(),
   sort_order: z.number().int().min(0).optional(),
+})
+
+const aboutSchema = z.object({
+  headline:      z.string().max(200).optional(),
+  subtitle:      z.string().max(500).optional(),
+  aboutMd:       z.string().max(50000).optional(),
+  photoCaption:  z.string().max(200).optional(),
+  photoLocation: z.string().max(100).optional(),
+  aboutCtaLinks: z.object({
+    kicker:    z.string().max(100),
+    signature: z.string().max(200),
+    links: z.array(z.object({
+      type:  z.enum(['internal', 'social']),
+      key:   z.string(),
+      label: z.string().max(50),
+    })).max(10),
+  }).optional().nullable(),
+  socialLinks: z.record(z.string().url().or(z.literal(''))).optional(),
 })
 
 /* ------------------------------------------------------------------ */
@@ -104,6 +124,7 @@ export async function updateAuthor(
     bio?: string | null
     social_links?: Record<string, string>
     avatar_color?: string | null
+    avatar_url?: string | null
     sort_order?: number
   },
 ): Promise<ActionResult> {
@@ -178,6 +199,14 @@ export async function setDefaultAuthor(id: string): Promise<ActionResult> {
   const siteId = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
 
+  // Fetch old default author ID so we can invalidate its cache after the swap
+  const { data: oldDefault } = await supabase
+    .from('authors')
+    .select('id')
+    .eq('site_id', siteId)
+    .eq('is_default', true)
+    .single()
+
   // Clear existing default
   const { error: clearError } = await supabase
     .from('authors')
@@ -193,6 +222,11 @@ export async function setDefaultAuthor(id: string): Promise<ActionResult> {
     .eq('id', id)
     .eq('site_id', siteId)
   if (error) return { ok: false, error: error.message }
+
+  // Invalidate caches for both old and new default authors
+  if (oldDefault && oldDefault.id !== id) {
+    revalidateAuthor(oldDefault.id)
+  }
   revalidateAuthor(id)
   revalidatePath('/cms/authors')
   return { ok: true }
@@ -214,4 +248,135 @@ export async function reorderAuthors(
   }
   revalidatePath('/cms/authors')
   return { ok: true }
+}
+
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const MAX_AVATAR_SIZE = 2 * 1024 * 1024
+
+export async function uploadAuthorAvatar(
+  authorId: string,
+  formData: FormData,
+): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  const siteId = await requireEditAccess()
+  const supabase = getSupabaseServiceClient()
+
+  const file = formData.get('file')
+  if (!(file instanceof File)) return { ok: false, error: 'No file provided' }
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type))
+    return { ok: false, error: 'Only JPEG, PNG, and WebP are allowed' }
+  if (file.size > MAX_AVATAR_SIZE)
+    return { ok: false, error: 'File must be under 2 MB' }
+
+  const ext = file.name.split('.').pop() ?? 'jpg'
+  const path = `${authorId}/avatar.${ext}`
+
+  const { error: uploadError } = await supabase.storage
+    .from('author-avatars')
+    .upload(path, file, { upsert: true, contentType: file.type })
+  if (uploadError) return { ok: false, error: uploadError.message }
+
+  const { data: urlData } = supabase.storage
+    .from('author-avatars')
+    .getPublicUrl(path)
+
+  const avatarUrl = `${urlData.publicUrl}?v=${Date.now()}`
+
+  const { error: updateError } = await supabase
+    .from('authors')
+    .update({ avatar_url: avatarUrl })
+    .eq('id', authorId)
+    .eq('site_id', siteId)
+  if (updateError) return { ok: false, error: updateError.message }
+
+  revalidateAuthor(authorId)
+  revalidatePath('/cms/authors')
+  return { ok: true, url: avatarUrl }
+}
+
+export async function updateAuthorAbout(
+  authorId: string,
+  input: z.input<typeof aboutSchema>,
+): Promise<{ ok: boolean; error?: string }> {
+  const siteId = await requireEditAccess()
+
+  const parsed = aboutSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: 'validation_failed' }
+
+  const data = parsed.data
+  const updates: Record<string, unknown> = {}
+
+  if (data.headline !== undefined) updates.headline = data.headline || null
+  if (data.subtitle !== undefined) updates.subtitle = data.subtitle || null
+  if (data.photoCaption !== undefined) updates.photo_caption = data.photoCaption || null
+  if (data.photoLocation !== undefined) updates.photo_location = data.photoLocation || null
+  if (data.aboutCtaLinks !== undefined) updates.about_cta_links = data.aboutCtaLinks
+  if (data.socialLinks !== undefined) {
+    const cleaned: Record<string, string> = {}
+    for (const [k, v] of Object.entries(data.socialLinks)) {
+      if (v) cleaned[k] = v
+    }
+    updates.social_links = Object.keys(cleaned).length > 0 ? cleaned : null
+  }
+
+  if (data.aboutMd !== undefined) {
+    updates.about_md = data.aboutMd || null
+    if (data.aboutMd) {
+      try {
+        const compiled = await compileMdx(data.aboutMd, defaultComponents)
+        updates.about_compiled = compiled.compiledSource
+      } catch {
+        return { ok: false, error: 'compile_failed' }
+      }
+    } else {
+      updates.about_compiled = null
+    }
+  }
+
+  const sb = getSupabaseServiceClient()
+  const { error } = await sb
+    .from('authors')
+    .update(updates)
+    .eq('id', authorId)
+
+  if (error) return { ok: false, error: error.message }
+
+  revalidateAuthor(authorId)
+  revalidateAbout(siteId)
+  revalidatePath('/about')
+
+  return { ok: true }
+}
+
+export async function uploadAuthorAboutPhoto(
+  authorId: string,
+  formData: FormData,
+): Promise<{ ok: boolean; url?: string; error?: string }> {
+  const siteId = await requireEditAccess()
+
+  const file = formData.get('file') as File | null
+  if (!file) return { ok: false, error: 'no_file' }
+
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) return { ok: false, error: 'invalid_type' }
+  if (file.size > MAX_AVATAR_SIZE) return { ok: false, error: 'too_large' }
+
+  const ext = file.type.split('/')[1] === 'jpeg' ? 'jpg' : file.type.split('/')[1]
+  const path = `${authorId}/about.${ext}`
+
+  const sb = getSupabaseServiceClient()
+  const { error: uploadError } = await sb.storage
+    .from('author-avatars')
+    .upload(path, file, { upsert: true, contentType: file.type })
+
+  if (uploadError) return { ok: false, error: uploadError.message }
+
+  const { data: urlData } = sb.storage.from('author-avatars').getPublicUrl(path)
+  const url = `${urlData.publicUrl}?v=${Date.now()}`
+
+  await sb.from('authors').update({ about_photo_url: url }).eq('id', authorId)
+
+  revalidateAuthor(authorId)
+  revalidateAbout(siteId)
+  revalidatePath('/about')
+
+  return { ok: true, url }
 }
