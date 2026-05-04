@@ -10,22 +10,36 @@ vi.mock('@/lib/newsletter/cache-invalidation', () => ({
   revalidateAbout: vi.fn(),
 }))
 
-const mockEq = vi.fn()
-const mockUpdate = vi.fn()
-
-function makeChain() {
-  const chain: Record<string, ReturnType<typeof vi.fn>> = {}
-  chain.eq = mockEq.mockReturnValue(chain)
-  chain.select = vi.fn().mockReturnValue(chain)
-  chain.single = vi.fn().mockResolvedValue({ data: { slug: 'test-site' }, error: null })
-  chain.update = mockUpdate.mockReturnValue(chain)
-  chain.then = (resolve: (v: unknown) => void) => resolve({ error: null })
-  return chain
-}
+const mockUpsert = vi.fn()
 
 vi.mock('@/lib/supabase/service', () => ({
   getSupabaseServiceClient: vi.fn(() => ({
-    from: vi.fn(() => makeChain()),
+    from: vi.fn((table: string) => {
+      if (table === 'sites') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { supported_locales: ['pt-BR', 'en'] },
+                error: null,
+              }),
+            }),
+          }),
+        }
+      }
+      if (table === 'author_about_translations') {
+        return {
+          upsert: mockUpsert.mockResolvedValue({ error: null }),
+        }
+      }
+      const chain: Record<string, any> = {}
+      chain.eq = vi.fn().mockReturnValue(chain)
+      chain.select = vi.fn().mockReturnValue(chain)
+      chain.single = vi.fn().mockResolvedValue({ data: null, error: null })
+      chain.update = vi.fn().mockReturnValue(chain)
+      chain.then = (resolve: (v: unknown) => void) => resolve({ error: null })
+      return chain
+    }),
   })),
 }))
 
@@ -50,13 +64,13 @@ vi.mock('@tn-figueiredo/cms', () => ({
   defaultComponents: {},
 }))
 
-import { updateAuthorAbout } from '@/app/cms/(authed)/authors/actions'
+import { updateAuthorAbout } from '../../src/app/cms/(authed)/authors/actions'
 
 describe('updateAuthorAbout', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('saves about fields and returns ok', async () => {
-    const result = await updateAuthorAbout('author-1', {
+  it('saves about fields with locale via upsert and returns ok', async () => {
+    const result = await updateAuthorAbout('author-1', 'pt-BR', {
       headline: 'eu sou |Thiago.',
       subtitle: '37 anos',
       aboutMd: '# Hello',
@@ -65,11 +79,11 @@ describe('updateAuthorAbout', () => {
     })
 
     expect(result.ok).toBe(true)
-    expect(mockUpdate).toHaveBeenCalled()
+    expect(mockUpsert).toHaveBeenCalled()
   })
 
   it('rejects headline exceeding max length', async () => {
-    const result = await updateAuthorAbout('author-1', {
+    const result = await updateAuthorAbout('author-1', 'pt-BR', {
       headline: 'x'.repeat(201),
     })
 
@@ -80,18 +94,10 @@ describe('updateAuthorAbout', () => {
   it('compiles MDX when aboutMd is provided', async () => {
     const { compileMdx } = await import('@tn-figueiredo/cms')
 
-    await updateAuthorAbout('author-1', {
+    await updateAuthorAbout('author-1', 'pt-BR', {
       aboutMd: '# New content',
     })
 
     expect(compileMdx).toHaveBeenCalledWith('# New content', {})
-  })
-
-  it('cleans empty social links', async () => {
-    const result = await updateAuthorAbout('author-1', {
-      socialLinks: { x: 'https://x.com/test', instagram: '' },
-    })
-
-    expect(result.ok).toBe(true)
   })
 })

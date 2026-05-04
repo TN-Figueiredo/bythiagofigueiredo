@@ -80,7 +80,6 @@ const aboutSchema = z.object({
       label: z.string().max(50),
     })).max(10),
   }).optional().nullable(),
-  socialLinks: z.record(z.string().url().or(z.literal(''))).optional(),
 })
 
 /* ------------------------------------------------------------------ */
@@ -229,6 +228,7 @@ export async function setDefaultAuthor(id: string): Promise<ActionResult> {
   }
   revalidateAuthor(id)
   revalidatePath('/cms/authors')
+  revalidateAbout(siteId)
   return { ok: true }
 }
 
@@ -295,6 +295,7 @@ export async function uploadAuthorAvatar(
 
 export async function updateAuthorAbout(
   authorId: string,
+  locale: string,
   input: z.input<typeof aboutSchema>,
 ): Promise<{ ok: boolean; error?: string }> {
   const siteId = await requireEditAccess()
@@ -302,21 +303,30 @@ export async function updateAuthorAbout(
   const parsed = aboutSchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: 'validation_failed' }
 
+  // Validate locale against site's supported_locales
+  const sb = getSupabaseServiceClient()
+  const { data: siteRow } = await sb
+    .from('sites')
+    .select('supported_locales')
+    .eq('id', siteId)
+    .single()
+
+  const supportedLocales = (siteRow as unknown as { supported_locales: string[] } | null)?.supported_locales ?? []
+  if (!supportedLocales.includes(locale)) {
+    return { ok: false, error: 'unsupported_locale' }
+  }
+
   const data = parsed.data
-  const updates: Record<string, unknown> = {}
+  const updates: Record<string, unknown> = {
+    author_id: authorId,
+    locale,
+  }
 
   if (data.headline !== undefined) updates.headline = data.headline || null
   if (data.subtitle !== undefined) updates.subtitle = data.subtitle || null
   if (data.photoCaption !== undefined) updates.photo_caption = data.photoCaption || null
   if (data.photoLocation !== undefined) updates.photo_location = data.photoLocation || null
   if (data.aboutCtaLinks !== undefined) updates.about_cta_links = data.aboutCtaLinks
-  if (data.socialLinks !== undefined) {
-    const cleaned: Record<string, string> = {}
-    for (const [k, v] of Object.entries(data.socialLinks)) {
-      if (v) cleaned[k] = v
-    }
-    updates.social_links = Object.keys(cleaned).length > 0 ? cleaned : null
-  }
 
   if (data.aboutMd !== undefined) {
     updates.about_md = data.aboutMd || null
@@ -332,12 +342,9 @@ export async function updateAuthorAbout(
     }
   }
 
-  const sb = getSupabaseServiceClient()
   const { error } = await sb
-    .from('authors')
-    .update(updates)
-    .eq('id', authorId)
-    .eq('site_id', siteId)
+    .from('author_about_translations')
+    .upsert(updates, { onConflict: 'author_id,locale' })
 
   if (error) return { ok: false, error: error.message }
 
@@ -346,6 +353,51 @@ export async function updateAuthorAbout(
   revalidatePath('/about')
 
   return { ok: true }
+}
+
+export async function getAuthorAboutTranslations(
+  authorId: string,
+): Promise<Record<string, {
+  headline: string | null
+  subtitle: string | null
+  aboutMd: string | null
+  photoCaption: string | null
+  photoLocation: string | null
+  aboutCtaLinks: {
+    kicker: string
+    signature: string
+    links: Array<{ type: 'internal' | 'social'; key: string; label: string }>
+  } | null
+} | null>> {
+  await requireEditAccess()
+  const sb = getSupabaseServiceClient()
+
+  const { data } = await sb
+    .from('author_about_translations')
+    .select('locale, headline, subtitle, about_md, photo_caption, photo_location, about_cta_links')
+    .eq('author_id', authorId)
+
+  const result: Record<string, unknown> = {}
+  for (const row of (data ?? []) as unknown as Array<{
+    locale: string
+    headline: string | null
+    subtitle: string | null
+    about_md: string | null
+    photo_caption: string | null
+    photo_location: string | null
+    about_cta_links: unknown
+  }>) {
+    result[row.locale] = {
+      headline: row.headline,
+      subtitle: row.subtitle,
+      aboutMd: row.about_md,
+      photoCaption: row.photo_caption,
+      photoLocation: row.photo_location,
+      aboutCtaLinks: row.about_cta_links,
+    }
+  }
+
+  return result as Record<string, any>
 }
 
 export async function uploadAuthorAboutPhoto(

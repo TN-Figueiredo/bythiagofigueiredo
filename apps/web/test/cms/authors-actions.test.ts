@@ -7,6 +7,7 @@ vi.mock('next/cache', () => ({
 
 vi.mock('@/lib/newsletter/cache-invalidation', () => ({
   revalidateAuthor: vi.fn(),
+  revalidateAbout: vi.fn(),
 }))
 
 const mockEq = vi.fn()
@@ -278,6 +279,11 @@ describe('setDefaultAuthor', () => {
   beforeEach(() => vi.clearAllMocks())
 
   it('clears existing default and sets new one', async () => {
+    // First .single() call fetches the old default author
+    mockSingle.mockResolvedValueOnce({
+      data: { id: 'old-default' },
+      error: null,
+    })
     const { setDefaultAuthor } = await import(
       '@/app/cms/(authed)/authors/actions'
     )
@@ -285,6 +291,39 @@ describe('setDefaultAuthor', () => {
     expect(result.ok).toBe(true)
     // update called at least twice: clear old default + set new default
     expect(mockUpdate.mock.calls.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('revalidates both old and new default author caches', async () => {
+    const { revalidateAuthor } = await import(
+      '@/lib/newsletter/cache-invalidation'
+    )
+    mockSingle.mockResolvedValueOnce({
+      data: { id: 'old-default' },
+      error: null,
+    })
+    const { setDefaultAuthor } = await import(
+      '@/app/cms/(authed)/authors/actions'
+    )
+    await setDefaultAuthor('new-default')
+    expect(revalidateAuthor).toHaveBeenCalledWith('old-default')
+    expect(revalidateAuthor).toHaveBeenCalledWith('new-default')
+  })
+
+  it('does not revalidate old default when same author', async () => {
+    const { revalidateAuthor } = await import(
+      '@/lib/newsletter/cache-invalidation'
+    )
+    mockSingle.mockResolvedValueOnce({
+      data: { id: 'same-author' },
+      error: null,
+    })
+    const { setDefaultAuthor } = await import(
+      '@/app/cms/(authed)/authors/actions'
+    )
+    await setDefaultAuthor('same-author')
+    // Should only be called once (for the new default, which is the same)
+    expect(revalidateAuthor).toHaveBeenCalledTimes(1)
+    expect(revalidateAuthor).toHaveBeenCalledWith('same-author')
   })
 })
 
