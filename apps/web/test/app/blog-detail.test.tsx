@@ -103,6 +103,10 @@ vi.mock('@tn-figueiredo/cms', async () => {
 
 vi.mock('../../lib/cms/registry', () => ({ blogRegistry: {} }))
 
+vi.mock('@/lib/tracking/use-content-tracking', () => ({
+  useContentTracking: () => {},
+}))
+
 vi.mock('../../lib/supabase/service', () => ({
   getSupabaseServiceClient: () => ({
     from: () => ({

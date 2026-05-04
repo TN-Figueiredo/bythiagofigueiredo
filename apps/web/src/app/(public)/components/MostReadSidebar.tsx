@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { PaperCard } from './PaperCard'
 import { Tape } from './Tape'
+import { ReadableCard } from '@/components/blog/readable-card'
 import type { HomePost } from '../../../../lib/home/types'
 
 type Props = {
@@ -12,7 +13,6 @@ type Props = {
 export function MostReadSidebar({ posts, locale, t }: Props) {
   if (posts.length === 0) return null
   const blogBase = locale === 'pt-BR' ? '/pt/blog' : '/blog'
-  const isPt = locale === 'pt-BR'
 
   return (
     <div style={{ position: 'relative', paddingTop: 12 }}>
@@ -23,7 +23,7 @@ export function MostReadSidebar({ posts, locale, t }: Props) {
             ★ {t['home.mostRead.title']}
           </span>
           <p className="font-caveat" style={{ fontSize: 24, color: 'var(--pb-ink)', marginTop: 4, transform: 'rotate(-0.8deg)', display: 'inline-block' }}>
-            {isPt ? 'mais lidos do mês' : 'top reads this month'}
+            {t['home.mostRead.subtitle']}
           </p>
         </div>
 
@@ -39,16 +39,18 @@ export function MostReadSidebar({ posts, locale, t }: Props) {
               <span className="font-caveat shrink-0" style={{ fontSize: 30, color: 'var(--pb-accent)', lineHeight: 0.9, minWidth: 24 }}>
                 {i + 1}.
               </span>
-              <Link href={`${blogBase}/${post.slug}`} className="group" style={{ textDecoration: 'none', color: 'inherit' }}>
-                {post.tagName && (
-                  <span className="font-mono" style={{ fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, color: post.tagColor ?? 'var(--pb-accent)' }}>
-                    {post.tagName}
-                  </span>
-                )}
-                <h3 className="font-fraunces" style={{ fontSize: 15, lineHeight: 1.25, marginTop: 3, fontWeight: 500, letterSpacing: '-0.005em', color: 'var(--pb-ink)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', margin: '2px 0 0' }}>
-                  {post.title}
-                </h3>
-              </Link>
+              <ReadableCard postId={post.id} dimTitle={false}>
+                <Link href={`${blogBase}/${post.slug}`} className="group" style={{ textDecoration: 'none', color: 'inherit' }}>
+                  {post.tagName && (
+                    <span className="font-mono" style={{ fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, color: post.tagColor ?? 'var(--pb-accent)' }}>
+                      {post.tagName}
+                    </span>
+                  )}
+                  <h3 className="font-fraunces" style={{ fontSize: 15, lineHeight: 1.25, marginTop: 3, fontWeight: 500, letterSpacing: '-0.005em', color: 'var(--pb-ink)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', margin: '2px 0 0' }}>
+                    {post.title}
+                  </h3>
+                </Link>
+              </ReadableCard>
             </li>
           ))}
         </ol>

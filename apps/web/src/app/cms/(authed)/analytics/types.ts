@@ -41,7 +41,7 @@ export interface ContentStat {
 export const periodSchema = z.enum(['7d', '30d', '90d', 'custom'])
 
 export const periodInputSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('preset'), value: z.enum(['7d', '30d', '90d']) }),
+  z.object({ type: z.literal('preset'), value: z.enum(['7d', '30d', '90d', 'all']) }),
   z.object({ type: z.literal('custom'), start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }),
 ])
 

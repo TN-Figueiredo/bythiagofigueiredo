@@ -16,7 +16,7 @@ export async function getRelatedPosts(
   locale: string,
   postId: string,
   category: string | null,
-  limit = 3,
+  limit = 6,
 ): Promise<RelatedPost[]> {
   const supabase = getSupabaseServiceClient()
   const now = new Date().toISOString()

@@ -20,6 +20,18 @@ type ActionResult<T = undefined> = T extends undefined
   ? { ok: true } | { ok: false; error: string }
   : { ok: true; data: T } | { ok: false; error: string }
 
+export type ContentAnalyticsData = {
+  posts: Array<{
+    id: string; title: string; slug: string
+    views: number; uniqueViews: number; readsComplete: number
+    avgDepth: number; avgTime: number
+    referrers: { direct: number; google: number; newsletter: number; social: number; other: number }
+  }>
+  totals: {
+    views: number; uniqueViews: number; readsComplete: number; avgDepth: number; avgTime: number
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                           */
 /* ------------------------------------------------------------------ */
@@ -55,6 +67,9 @@ function resolveDateRange(period: PeriodInput): { start: Date; end: Date } {
   if (period.type === 'custom') {
     return { start: new Date(period.start), end: new Date(period.end) }
   }
+  if (period.value === 'all') {
+    return { start: new Date('2020-01-01'), end }
+  }
   const days = period.value === '7d' ? 7 : period.value === '30d' ? 30 : 90
   const start = new Date()
   start.setDate(start.getDate() - days)
@@ -63,6 +78,7 @@ function resolveDateRange(period: PeriodInput): { start: Date; end: Date } {
 
 function resolvePrevDateRange(period: PeriodInput): { start: Date; end: Date } | null {
   if (period.type === 'custom') return null
+  if (period.value === 'all') return null
   const days = period.value === '7d' ? 7 : period.value === '30d' ? 30 : 90
   const end = new Date()
   end.setDate(end.getDate() - days)
@@ -116,6 +132,16 @@ export async function fetchOverview(
   const totalOpens = editions.reduce((s, e) => s + (e.stats_opens ?? 0), 0)
   const openRate = totalDelivered > 0 ? Math.round((totalOpens / totalDelivered) * 100) : 0
 
+  const { data: viewRows } = await supabase
+    .from('blog_posts')
+    .select('view_count')
+    .eq('site_id', siteId)
+    .eq('status', 'published')
+
+  const totalViews = (viewRows ?? []).reduce(
+    (sum: number, row: { view_count: number }) => sum + (row.view_count ?? 0), 0
+  )
+
   let prevPostsPublished: number | null = null
   let prevTotalViews: number | null = null
   let prevSubscribers: number | null = null
@@ -155,7 +181,7 @@ export async function fetchOverview(
     ok: true,
     data: {
       postsPublished,
-      totalViews: 0,
+      totalViews,
       subscribers,
       openRate,
       prevPostsPublished,
@@ -388,4 +414,100 @@ export async function exportReport(
   }
 
   return { ok: true, data: lines.join('\n') }
+}
+
+export async function fetchContentAnalytics(
+  period: PeriodInput,
+): Promise<ActionResult<ContentAnalyticsData>> {
+  const parsed = periodInputSchema.safeParse(period)
+  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
+
+  const { siteId } = await requireViewAccess()
+  const supabase = getSupabaseServiceClient()
+  const { start, end } = resolveDateRange(parsed.data)
+
+  // Top posts by views in period
+  const { data: topPosts, error } = await supabase
+    .from('content_metrics')
+    .select('resource_id, views, unique_views, reads_complete, avg_read_depth, avg_time_sec, referrer_direct, referrer_google, referrer_newsletter, referrer_social, referrer_other')
+    .eq('site_id', siteId)
+    .eq('resource_type', 'blog')
+    .gte('date', start.toISOString().split('T')[0])
+    .lte('date', end.toISOString().split('T')[0])
+
+  if (error) return { ok: false, error: error.message }
+
+  // Aggregate per resource_id
+  const byPost = new Map<string, {
+    views: number; uniqueViews: number; readsComplete: number
+    totalDepth: number; totalTime: number; depthCount: number; timeCount: number
+    direct: number; google: number; newsletter: number; social: number; other: number
+  }>()
+
+  for (const row of topPosts ?? []) {
+    const existing = byPost.get(row.resource_id) ?? {
+      views: 0, uniqueViews: 0, readsComplete: 0,
+      totalDepth: 0, totalTime: 0, depthCount: 0, timeCount: 0,
+      direct: 0, google: 0, newsletter: 0, social: 0, other: 0,
+    }
+    existing.views += row.views
+    existing.uniqueViews += row.unique_views
+    existing.readsComplete += row.reads_complete
+    if (row.avg_read_depth > 0) { existing.totalDepth += row.avg_read_depth; existing.depthCount++ }
+    if (row.avg_time_sec > 0) { existing.totalTime += row.avg_time_sec; existing.timeCount++ }
+    existing.direct += row.referrer_direct
+    existing.google += row.referrer_google
+    existing.newsletter += row.referrer_newsletter
+    existing.social += row.referrer_social
+    existing.other += row.referrer_other
+    byPost.set(row.resource_id, existing)
+  }
+
+  // Get post titles
+  const postIds = Array.from(byPost.keys())
+  const { data: postTitles } = postIds.length > 0
+    ? await supabase
+        .from('blog_translations')
+        .select('blog_posts!inner(id), title, slug')
+        .in('blog_posts.id', postIds)
+        .limit(50)
+    : { data: [] }
+
+  const titleMap = new Map<string, { title: string; slug: string }>()
+  for (const row of postTitles ?? []) {
+    const bp = row['blog_posts'] as unknown as { id: string } | { id: string }[]
+    const postId = Array.isArray(bp) ? bp[0]?.id : bp?.id
+    if (postId) titleMap.set(postId, { title: row.title as string, slug: row.slug as string })
+  }
+
+  const posts = Array.from(byPost.entries())
+    .map(([id, stats]) => ({
+      id,
+      title: titleMap.get(id)?.title ?? 'Unknown',
+      slug: titleMap.get(id)?.slug ?? '',
+      views: stats.views,
+      uniqueViews: stats.uniqueViews,
+      readsComplete: stats.readsComplete,
+      avgDepth: stats.depthCount > 0 ? Math.round(stats.totalDepth / stats.depthCount) : 0,
+      avgTime: stats.timeCount > 0 ? Math.round(stats.totalTime / stats.timeCount) : 0,
+      referrers: {
+        direct: stats.direct,
+        google: stats.google,
+        newsletter: stats.newsletter,
+        social: stats.social,
+        other: stats.other,
+      },
+    }))
+    .sort((a, b) => b.views - a.views)
+    .slice(0, 20)
+
+  const totals = {
+    views: posts.reduce((s, p) => s + p.views, 0),
+    uniqueViews: posts.reduce((s, p) => s + p.uniqueViews, 0),
+    readsComplete: posts.reduce((s, p) => s + p.readsComplete, 0),
+    avgDepth: posts.length > 0 ? Math.round(posts.reduce((s, p) => s + p.avgDepth, 0) / posts.length) : 0,
+    avgTime: posts.length > 0 ? Math.round(posts.reduce((s, p) => s + p.avgTime, 0) / posts.length) : 0,
+  }
+
+  return { ok: true, data: { posts, totals } }
 }

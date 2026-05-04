@@ -40,7 +40,14 @@ export const en: BlogHubStrings = {
     slotDate: 'Slot', scheduledFor: 'Scheduled', publishedOn: 'Published',
     selectPost: 'Select a post to schedule', noReadyPosts: 'No ready posts to schedule', pickTime: 'Pick a time',
   },
-  analytics: { comingSoon: 'Analytics Coming Soon', comingSoonDescription: 'Blog analytics with view tracking, engagement metrics, and referral sources will be available in a future update.' },
+  analytics: {
+    comingSoon: 'Analytics Coming Soon', comingSoonDescription: 'Blog analytics with view tracking, engagement metrics, and referral sources will be available in a future update.',
+    totalViews: 'Total Views', uniqueViews: 'Unique Views', readsComplete: 'Reads Complete', avgDepth: 'Avg Depth', avgTime: 'Avg Time (s)',
+    topPosts: 'Top Posts', noData: 'No analytics data for this period.',
+    period7d: '7 days', period30d: '30 days', period90d: '90 days', periodAll: 'All time',
+    title: 'Title', views: 'Views', unique: 'Unique', reads: 'Reads', depth: 'Depth', time: 'Time', referrers: 'Referrers',
+    direct: 'Direct', google: 'Google', newsletter: 'Newsletter', social: 'Social', other: 'Other',
+  },
   common: { allTags: 'All', allLocales: 'All', updatedJustNow: 'Updated just now', showMore: 'Show more', moved: 'Moved', couldntMove: "Couldn't move", edit: 'Edit', posts: 'Posts' },
   scheduleModal: {
     title: 'Schedule Post', scheduling: 'Scheduling:',
@@ -64,5 +71,12 @@ export const en: BlogHubStrings = {
     createButton: 'Create tag', saveButton: 'Save changes', creating: 'Creating…', saving: 'Saving…', cancel: 'Cancel',
     toastCreated: 'Tag created', toastSaved: 'Tag saved', toastDeleted: 'Tag deleted',
     saveFailed: 'Save failed',
+    sectionNewsletter: 'Link to Newsletter',
+    newsletterSelectPlaceholder: 'Select newsletter...',
+    newsletterNone: 'No link',
+    newsletterColorSync: 'Colors sync automatically',
+    newsletterUnlink: 'Unlink',
+    newsletterLinkFailed: 'Failed to load newsletters',
+    newsletterLoading: 'Loading...',
   },
 }

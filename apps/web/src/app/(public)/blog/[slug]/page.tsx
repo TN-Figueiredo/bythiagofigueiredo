@@ -223,6 +223,8 @@ export default async function BlogDetailPage({ params }: Props) {
                 readingTimeMin={tx.reading_time_min}
                 slug={slug}
                 locale={locale}
+                siteId={ctx.siteId}
+                postId={post.id}
                 keyPoints={postExtras?.key_points}
                 mobileInlineAd={
                   creatives.rail_right ? <AnchorAd creative={creatives.rail_right} locale={adLocale} /> : null

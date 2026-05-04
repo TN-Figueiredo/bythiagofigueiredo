@@ -1,6 +1,11 @@
+'use client'
+
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import type { RelatedPost } from '@/lib/blog/related-posts'
 import { Tape } from '@/app/(public)/components/Tape'
+import { ReadableCard } from './readable-card'
+import { ReadProgressStore } from '@/lib/tracking/read-progress-store'
 
 type Props = {
   posts: RelatedPost[]
@@ -34,7 +39,16 @@ function tapeRotation(index: number) {
 }
 
 export function RelatedPostsGrid({ posts, locale, category }: Props) {
-  if (posts.length === 0) return null
+  const [visiblePosts, setVisiblePosts] = useState<RelatedPost[]>(posts.slice(0, 3))
+
+  useEffect(() => {
+    const store = new ReadProgressStore()
+    const unread = posts.filter(p => !store.isRead(p.id))
+    const read = posts.filter(p => store.isRead(p.id))
+    setVisiblePosts([...unread, ...read].slice(0, 3))
+  }, [posts])
+
+  if (visiblePosts.length === 0) return null
 
   const catColor = category ? categoryColors[category] ?? 'var(--pb-accent)' : 'var(--pb-accent)'
 
@@ -111,19 +125,21 @@ export function RelatedPostsGrid({ posts, locale, category }: Props) {
         style={{
           display: 'grid',
           gridTemplateColumns:
-            posts.length === 1
+            visiblePosts.length === 1
               ? '1fr'
-              : posts.length === 2
+              : visiblePosts.length === 2
                 ? 'repeat(2, 1fr)'
                 : 'repeat(3, 1fr)',
           gap: 40,
           rowGap: 48,
-          maxWidth: posts.length === 1 ? 400 : posts.length === 2 ? 840 : undefined,
-          margin: posts.length < 3 ? '0 auto' : undefined,
+          maxWidth: visiblePosts.length === 1 ? 400 : visiblePosts.length === 2 ? 840 : undefined,
+          margin: visiblePosts.length < 3 ? '0 auto' : undefined,
         }}
       >
-        {posts.map((post, i) => (
-          <WritingCard key={post.id} post={post} locale={locale} index={i} />
+        {visiblePosts.map((post, i) => (
+          <ReadableCard key={post.id} postId={post.id}>
+            <WritingCard post={post} locale={locale} index={i} />
+          </ReadableCard>
         ))}
       </div>
     </section>

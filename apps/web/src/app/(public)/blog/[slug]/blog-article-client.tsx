@@ -11,6 +11,7 @@ import {
   MobileTocSheet,
   type TocEntry,
 } from '@/components/blog'
+import { useContentTracking } from '@/lib/tracking/use-content-tracking'
 
 type Props = {
   children: ReactNode
@@ -18,13 +19,22 @@ type Props = {
   readingTimeMin: number
   slug: string
   locale: string
+  siteId: string
+  postId: string
   keyPoints?: string[]
   bookmarkAd?: ReactNode
   mobileInlineAd?: ReactNode
   midContentAd?: ReactNode
 }
 
-export function BlogArticleClient({ children, sections, readingTimeMin, slug, locale, keyPoints, bookmarkAd, mobileInlineAd, midContentAd }: Props) {
+export function BlogArticleClient({ children, sections, readingTimeMin, slug, locale, siteId, postId, keyPoints, bookmarkAd, mobileInlineAd, midContentAd }: Props) {
+  useContentTracking({
+    siteId,
+    resourceType: 'blog',
+    resourceId: postId,
+    locale,
+    isPreview: typeof window !== 'undefined' && (window.location.pathname.includes('/cms/') || new URLSearchParams(window.location.search).has('preview')),
+  })
   const [aiDrawerOpen, setAiDrawerOpen] = useState(false)
   const [mobileTocOpen, setMobileTocOpen] = useState(false)
   const bodyRef = useRef<HTMLDivElement>(null)

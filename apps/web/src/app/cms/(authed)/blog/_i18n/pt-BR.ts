@@ -40,7 +40,14 @@ export const ptBR: BlogHubStrings = {
     slotDate: 'Slot', scheduledFor: 'Agendado', publishedOn: 'Publicado',
     selectPost: 'Selecione um post para agendar', noReadyPosts: 'Nenhum post pronto para agendar', pickTime: 'Escolha um horário',
   },
-  analytics: { comingSoon: 'Analytics em Breve', comingSoonDescription: 'Analytics de blog com rastreamento de visualizações, métricas de engajamento e fontes de referência estarão disponíveis em uma atualização futura.' },
+  analytics: {
+    comingSoon: 'Analytics em Breve', comingSoonDescription: 'Analytics de blog com rastreamento de visualizações, métricas de engajamento e fontes de referência estarão disponíveis em uma atualização futura.',
+    totalViews: 'Visualizações', uniqueViews: 'Únicos', readsComplete: 'Leituras Completas', avgDepth: 'Prof. Média', avgTime: 'Tempo Médio (s)',
+    topPosts: 'Top Posts', noData: 'Sem dados de analytics para este período.',
+    period7d: '7 dias', period30d: '30 dias', period90d: '90 dias', periodAll: 'Todo o período',
+    title: 'Título', views: 'Views', unique: 'Únicos', reads: 'Leituras', depth: 'Prof.', time: 'Tempo', referrers: 'Referrers',
+    direct: 'Direto', google: 'Google', newsletter: 'Newsletter', social: 'Social', other: 'Outros',
+  },
   common: { allTags: 'Todas', allLocales: 'Todos', updatedJustNow: 'Atualizado agora', showMore: 'Ver mais', moved: 'Movido', couldntMove: 'Não foi possível mover', edit: 'Editar', posts: 'Posts' },
   scheduleModal: {
     title: 'Agendar Post', scheduling: 'Agendando:',
@@ -64,5 +71,12 @@ export const ptBR: BlogHubStrings = {
     createButton: 'Criar tag', saveButton: 'Salvar alterações', creating: 'Criando…', saving: 'Salvando…', cancel: 'Cancelar',
     toastCreated: 'Tag criada', toastSaved: 'Tag salva', toastDeleted: 'Tag excluída',
     saveFailed: 'Falha ao salvar',
+    sectionNewsletter: 'Vincular a Newsletter',
+    newsletterSelectPlaceholder: 'Selecionar newsletter...',
+    newsletterNone: 'Sem vínculo',
+    newsletterColorSync: 'Cores sincronizam automaticamente',
+    newsletterUnlink: 'Desvincular',
+    newsletterLinkFailed: 'Falha ao carregar newsletters',
+    newsletterLoading: 'Carregando...',
   },
 }

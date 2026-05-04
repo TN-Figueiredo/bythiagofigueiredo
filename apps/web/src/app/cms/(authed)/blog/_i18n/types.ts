@@ -36,7 +36,14 @@ export interface BlogHubStrings {
     slotDate: string; scheduledFor: string; publishedOn: string
     selectPost: string; noReadyPosts: string; pickTime: string
   }
-  analytics: { comingSoon: string; comingSoonDescription: string }
+  analytics: {
+    comingSoon: string; comingSoonDescription: string
+    totalViews: string; uniqueViews: string; readsComplete: string
+    avgDepth: string; avgTime: string; topPosts: string; noData: string
+    period7d: string; period30d: string; period90d: string; periodAll: string
+    title: string; views: string; unique: string; reads: string; depth: string; time: string; referrers: string
+    direct: string; google: string; newsletter: string; social: string; other: string
+  }
   common: { allTags: string; allLocales: string; updatedJustNow: string; showMore: string; moved: string; couldntMove: string; edit: string; posts: string }
   scheduleModal: {
     title: string; scheduling: string
@@ -60,5 +67,12 @@ export interface BlogHubStrings {
     createButton: string; saveButton: string; creating: string; saving: string; cancel: string
     toastCreated: string; toastSaved: string; toastDeleted: string
     saveFailed: string
+    sectionNewsletter: string
+    newsletterSelectPlaceholder: string
+    newsletterNone: string
+    newsletterColorSync: string
+    newsletterUnlink: string
+    newsletterLinkFailed: string
+    newsletterLoading: string
   }
 }

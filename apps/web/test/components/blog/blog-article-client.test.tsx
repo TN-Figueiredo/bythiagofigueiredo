@@ -1,5 +1,10 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render } from '@testing-library/react'
+
+vi.mock('@/lib/tracking/use-content-tracking', () => ({
+  useContentTracking: () => {},
+}))
+
 import { BlogArticleClient } from '../../../src/app/(public)/blog/[slug]/blog-article-client'
 import { ScrollProvider } from '../../../src/components/blog/scroll-context'
 
@@ -11,6 +16,8 @@ function renderWithScroll(props: Partial<Parameters<typeof BlogArticleClient>[0]
     readingTimeMin: 5,
     slug: 'test-post',
     locale: 'pt-BR',
+    siteId: 'site-1',
+    postId: 'post-1',
     ...props,
   }
   return render(
