@@ -20,3 +20,7 @@ export function revalidateAuthor(authorId: string): void {
 export function revalidateNewsletterSuggestions(): void {
   revalidateTag('newsletter-suggestions')
 }
+
+export function revalidateAbout(siteId: string): void {
+  revalidateTag(`about:${siteId}`)
+}
