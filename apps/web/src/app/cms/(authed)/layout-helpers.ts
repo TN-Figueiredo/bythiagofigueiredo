@@ -21,7 +21,7 @@ export const SIDEBAR_SECTIONS: SidebarSection[] = [
     label: 'CONTENT',
     items: [
       { label: 'Posts', href: '/cms/blog', badgeKey: '/cms/blog' },
-      { label: 'Newsletters', href: '/cms/newsletters' },
+      { label: 'Newsletters', href: '/cms/newsletters', badgeKey: '/cms/newsletters' },
       { label: 'Campaigns', href: '/cms/campaigns' },
     ],
   },
