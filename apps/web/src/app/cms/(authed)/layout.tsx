@@ -14,6 +14,7 @@ import {
 import { CmsShell } from '@tn-figueiredo/cms-ui/client'
 import { CmsAdminProvider } from '@tn-figueiredo/cms-admin/client'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { getSiteContext } from '@/lib/cms/site-context'
 import { fetchSidebarBadges } from '@/lib/cms/sidebar-badges'
 import { SidebarBadges } from '@/components/cms/sidebar-badges'
 import Link from 'next/link'
@@ -52,11 +53,12 @@ export default async function Layout({ children }: { children: ReactNode }) {
   const userDisplayName = user.email ?? 'User'
   const userRole = currentSite?.user_role ?? 'reporter'
 
+  const { siteId: middlewareSiteId } = await getSiteContext()
   const svc = getSupabaseServiceClient()
   const [badgeData, pendingContactsRes] = await Promise.all([
-    fetchSidebarBadges(currentSiteId),
+    fetchSidebarBadges(middlewareSiteId),
     svc.from('contact_submissions').select('id', { count: 'exact', head: true })
-      .eq('site_id', currentSiteId).is('replied_at', null).is('anonymized_at', null),
+      .eq('site_id', middlewareSiteId).is('replied_at', null).is('anonymized_at', null),
   ])
   const badges: Record<string, number> = {}
   if (pendingContactsRes.count) badges['/cms/contacts'] = pendingContactsRes.count

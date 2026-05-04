@@ -244,6 +244,7 @@ export function HubClient({
         mode={drawerMode}
         tagId={drawerTagId}
         tags={sharedData.tags}
+        usedColors={sharedData.tags.map((t) => ({ color: t.color, entityName: t.name }))}
         onClose={handleCloseDrawer}
         locale={locale}
         strings={drawerStrings}

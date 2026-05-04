@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
-import { useAutosave } from '@/app/cms/(authed)/newsletters/_components/use-autosave'
+import { useAutosave } from '@/app/cms/(authed)/_shared/editor/use-autosave'
 
 const LS_KEY = 'newsletter-draft-ed-1'
 

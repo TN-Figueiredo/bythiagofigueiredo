@@ -6,154 +6,136 @@
 @source "../components";
 @source "../../lib";
 
+/* ══════════════════════════════════════════════════════════════
+   CANONICAL TOKENS — single source of truth
+   ══════════════════════════════════════════════════════════════ */
+
 @theme {
+  /* ─── Brand palette (orange scale) ─── */
+  --color-brand-50:  #FFF4ED;
+  --color-brand-100: #FFE4D0;
+  --color-brand-200: #FFC49E;
+  --color-brand-300: #FFA06C;
+  --color-brand-400: #FF8240;
+  --color-brand-500: #E0651E;
+  --color-brand-600: #B84D14;
+  --color-brand-700: #8F3A0F;
+  --color-brand-800: #6B2C0C;
+  --color-brand-900: #4A1E08;
+
+  /* ─── Backward compat: primary-* aliases → brand-* ─── */
+  --color-primary-50:  #FFF4ED;
+  --color-primary-100: #FFE4D0;
+  --color-primary-200: #FFC49E;
+  --color-primary-300: #FFA06C;
+  --color-primary-400: #FF8240;
+  --color-primary-500: #E0651E;
+  --color-primary-600: #B84D14;
+  --color-primary-700: #8F3A0F;
+  --color-primary-800: #6B2C0C;
+  --color-primary-900: #4A1E08;
+
+  /* ─── YouTube / Marker (constant across themes) ─── */
+  --color-yt:     #FF3333;
+  --color-marker: #FFE37A;
+
+  /* ─── Font families ─── */
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 
-  --color-primary-50: #eff6ff;
-  --color-primary-100: #dbeafe;
-  --color-primary-200: #bfdbfe;
-  --color-primary-300: #93c5fd;
-  --color-primary-400: #60a5fa;
-  --color-primary-500: #3b82f6;
-  --color-primary-600: #2563eb;
-  --color-primary-700: #1d4ed8;
-  --color-primary-800: #1e40af;
-  --color-primary-900: #1e3a8a;
+  /* ─── Typography scale ─── */
+  --font-size-4xs: 9px;
+  --font-size-4xs--line-height: 12px;
+  --font-size-3xs: 10px;
+  --font-size-3xs--line-height: 14px;
+  --font-size-2xs: 11px;
+  --font-size-2xs--line-height: 15px;
+  --font-size-xs: 12px;
+  --font-size-xs--line-height: 16px;
+  --font-size-sm: 13px;
+  --font-size-sm--line-height: 18px;
+  --font-size-base: 14px;
+  --font-size-base--line-height: 20px;
+  --font-size-md: 17px;
+  --font-size-md--line-height: 26px;
+  --font-size-body: 19px;
+  --font-size-body--line-height: 32px;
+  --font-size-lg: 22px;
+  --font-size-lg--line-height: 28px;
+  --font-size-xl: clamp(1.5rem, 2vw + 0.5rem, 2rem);
+  --font-size-xl--line-height: 1.15;
+  --font-size-display: clamp(2.25rem, 4vw + 1rem, 4rem);
+  --font-size-display--line-height: 1.1;
 
-  --color-accent-400: #818cf8;
-  --color-accent-500: #6366f1;
-  --color-accent-600: #4f46e5;
+  /* ─── Letter spacing ─── */
+  --letter-spacing-tighter: -0.03em;
+  --letter-spacing-tight: -0.015em;
+  --letter-spacing-normal: 0em;
+  --letter-spacing-wide: 0.04em;
+  --letter-spacing-wider: 0.08em;
+  --letter-spacing-widest: 0.14em;
+  --letter-spacing-ultra: 0.18em;
+
+  /* ─── Border radius ─── */
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-DEFAULT: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+  --radius-full: 9999px;
+
+  /* ─── Z-index scale ─── */
+  --z-index-fab: 89;
+  --z-index-pill: 90;
+  --z-index-overlay: 94;
+  --z-index-drawer: 95;
+  --z-index-sheet: 96;
+  --z-index-progress: 99;
+  --z-index-tooltip: 100;
+  --z-index-popover: 200;
+
+  /* ─── Animations ─── */
+  --animate-fade-in: fade-in 0.3s ease both;
+  --animate-fade-in-up: fade-in-up 0.5s ease both;
+  --animate-fade-in-up-1: fade-in-up 0.5s ease 0.07s both;
+  --animate-fade-in-up-2: fade-in-up 0.5s ease 0.14s both;
+  --animate-fade-in-up-3: fade-in-up 0.5s ease 0.21s both;
+  --animate-fade-in-up-4: fade-in-up 0.5s ease 0.28s both;
+  --animate-shimmer: shimmer 1.5s ease-in-out infinite;
+  --animate-slide-in: slide-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-pulse-subtle: pulse-subtle 2s ease-in-out infinite;
 }
 
-/* ── Light & Dark tokens ── */
-
-:root {
-  --bg: #fafbfc;
-  --bg-surface: #ffffff;
-  --bg-surface-hover: #f8fafc;
-  --text: #0f172a;
-  --text-secondary: #475569;
-  --text-tertiary: #94a3b8;
-  --border: #e2e8f0;
-  --border-light: #f1f5f9;
-  --shadow: rgba(15, 23, 42, 0.04);
-  --shadow-md: rgba(15, 23, 42, 0.08);
-  --shadow-lg: rgba(15, 23, 42, 0.12);
-  --ring: rgba(37, 99, 235, 0.3);
-}
-
-.dark {
-  --bg: #0b1120;
-  --bg-surface: #131c2e;
-  --bg-surface-hover: #1a2540;
-  --text: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --text-tertiary: #64748b;
-  --border: #1e293b;
-  --border-light: #1a2332;
-  --shadow: rgba(0, 0, 0, 0.2);
-  --shadow-md: rgba(0, 0, 0, 0.3);
-  --shadow-lg: rgba(0, 0, 0, 0.4);
-  --ring: rgba(99, 102, 241, 0.4);
-}
-
-/* ── Base ── */
-
-html {
-  scroll-behavior: smooth;
-  /* Prevents warm-brown overscroll flash on pinboard pages. --pb-bg is always
-     defined for both themes; non-pinboard pages override via their own bg. */
-  background-color: var(--pb-bg);
-}
-
-body {
-  background-color: var(--bg);
-  color: var(--text);
-  font-family: var(--font-sans);
-  transition: background-color 0.3s, color 0.3s;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-/* ── Scroll-driven fade-in ── */
-
-@supports (animation-timeline: view()) {
-  .animate-on-scroll {
-    animation: fadeInUp linear both;
-    animation-timeline: view();
-    animation-range: entry 0% entry 30%;
-  }
-}
-
-@supports not (animation-timeline: view()) {
-  .animate-on-scroll {
-    animation: fadeInUp 0.6s ease-out both;
-  }
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(24px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* ── Pinboard palette ─────────────────────────────────────── */
-:root,
-[data-theme="dark"] {
-  --pb-bg:     #14110B;
-  --pb-paper:  #2A241A;
-  --pb-paper2: #312A1E;
-  --pb-ink:    #EFE6D2;
-  --pb-muted:  #958A75;
-  --pb-faint:  #6B634F;
-  --pb-line:   #2E2718;
-  --pb-accent: #FF8240;
-  --pb-yt:     #FF3333;
-  --pb-marker: #FFE37A;
-  --pb-tape:   rgba(255, 226, 140, 0.42);
-  --pb-tape2:  rgba(209, 224, 255, 0.36);
-  --pb-tapeR:  rgba(255, 120, 120, 0.40);
-}
-
-[data-theme="light"] {
-  --pb-bg:     #E9E1CE;
-  --pb-paper:  #FBF6E8;
-  --pb-paper2: #F5EDD6;
-  --pb-ink:    #161208;
-  --pb-muted:  #6A5F48;
-  --pb-faint:  #9C9178;
-  --pb-line:   #CEBFA0;
-  --pb-accent: #C14513;
-  --pb-yt:     #FF3333;
-  --pb-marker: #FFE37A;
-  --pb-tape:   rgba(255, 226, 140, 0.75);
-  --pb-tape2:  rgba(200, 220, 255, 0.70);
-  --pb-tapeR:  rgba(255, 150, 150, 0.70);
-}
-
+/* ─── Dynamic bridges: CSS vars → Tailwind classes ─── */
 @theme inline {
-  --color-pb-bg:     var(--pb-bg);
-  --color-pb-paper:  var(--pb-paper);
-  --color-pb-paper2: var(--pb-paper2);
-  --color-pb-ink:    var(--pb-ink);
-  --color-pb-muted:  var(--pb-muted);
-  --color-pb-faint:  var(--pb-faint);
-  --color-pb-line:   var(--pb-line);
-  --color-pb-accent: var(--pb-accent);
-  --color-pb-yt:     var(--pb-yt);
-  --color-pb-marker: var(--pb-marker);
-
+  /* Font vars from Next.js Google Fonts (set on <html>) */
   --font-fraunces:     var(--font-fraunces-var);
   --font-jetbrains:    var(--font-jetbrains-var);
   --font-caveat:       var(--font-caveat-var);
   --font-source-serif: var(--font-source-serif-var);
 
-  /* CMS design system colors */
+  /* Pinboard palette (switches via data-theme) */
+  --color-pb-bg:          var(--pb-bg);
+  --color-pb-paper:       var(--pb-paper);
+  --color-pb-paper2:      var(--pb-paper2);
+  --color-pb-ink:         var(--pb-ink);
+  --color-pb-muted:       var(--pb-muted);
+  --color-pb-faint:       var(--pb-faint);
+  --color-pb-line:        var(--pb-line);
+  --color-pb-accent:      var(--pb-accent);
+  --color-pb-accent-deep: var(--pb-accent-deep);
+  --color-pb-yt:          var(--pb-yt);
+  --color-pb-marker:      var(--pb-marker);
+  --color-pb-code-bg:     var(--pb-code-bg);
+
+  /* Shadows (switch via data-theme) */
+  --shadow-sm:      var(--pb-shadow-sm);
+  --shadow-card:    var(--pb-shadow-card);
+  --shadow-md:      var(--pb-shadow-md);
+  --shadow-lg:      var(--pb-shadow-lg);
+  --shadow-hover:   var(--pb-shadow-hover);
+  --shadow-popover: var(--pb-shadow-popover);
+
+  /* CMS design system colors (from @tn-figueiredo/cms-ui) */
   --color-cms-bg:            var(--cms-bg);
   --color-cms-surface:       var(--cms-surface);
   --color-cms-surface-hover: var(--cms-surface-hover);
@@ -179,36 +161,201 @@ body {
   --color-cms-purple-subtle: var(--cms-purple-subtle);
 }
 
-/* ── Header focus-visible ── */
-header a:focus-visible,
-header button:focus-visible {
+/* ══════════════════════════════════════════════════════════════
+   PINBOARD PALETTE — dark/light via data-theme + THEME PROVIDER
+   ══════════════════════════════════════════════════════════════ */
+
+:root,
+[data-theme="dark"] {
+  /* Pinboard — Brand Guide v6 dark */
+  --pb-bg:          #1A1714;
+  --pb-paper:       #221E1A;
+  --pb-paper2:      #2A251F;
+  --pb-ink:         #F5EFE6;
+  --pb-muted:       #958A75;
+  --pb-faint:       #6B634F;
+  --pb-line:        #332D25;
+  --pb-accent:      #FF8240;
+  --pb-accent-deep: #E0651E;
+  --pb-yt:          #FF3333;
+  --pb-marker:      #FFE37A;
+  --pb-tape:        rgba(255, 226, 140, 0.42);
+  --pb-tape2:       rgba(209, 224, 255, 0.36);
+  --pb-tapeR:       rgba(255, 120, 120, 0.40);
+  --pb-code-bg:     #141210;
+  --pb-channel-card-bg: #1A1410;
+  --pb-ink-on-accent: #1A140C;
+  --pb-tape-warm:     rgba(255, 180, 120, 0.85);
+
+  /* Shadows — dark */
+  --pb-shadow-sm:      0 1px 2px rgba(0,0,0,0.3);
+  --pb-shadow-card:    0 2px 0 rgba(0,0,0,0.5), 0 12px 24px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.03);
+  --pb-card-shadow:    var(--pb-shadow-card);
+  --pb-shadow-md:      0 4px 12px rgba(0,0,0,0.4);
+  --pb-shadow-lg:      0 8px 32px rgba(0,0,0,0.5);
+  --pb-shadow-hover:   0 2px 0 rgba(0,0,0,0.6), 0 20px 40px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,255,255,0.05);
+  --pb-shadow-popover: 0 12px 40px rgba(0,0,0,0.28);
+
+  /* Theme provider for cms-ui */
+  --theme-accent:            #FF8240;
+  --theme-accent-hover:      #FF9A60;
+  --theme-accent-subtle:     rgba(255, 130, 64, 0.12);
+  --theme-cms-bg:            #1A1714;
+  --theme-cms-surface:       #221E1A;
+  --theme-cms-surface-hover: #2A251F;
+  --theme-cms-border:        #332D25;
+  --theme-cms-border-subtle: #2A251F;
+  --theme-cms-text:          #F5EFE6;
+  --theme-cms-text-muted:    #958A75;
+  --theme-cms-text-dim:      #6B634F;
+  --theme-radius:            2px;
+  --theme-shadow-popover:    0 12px 40px rgba(0,0,0,0.28);
+  --theme-success:           #22c55e;
+  --theme-warning:           #f59e0b;
+  --theme-danger:            #ef4444;
+  --theme-info:              #06b6d4;
+  --theme-rose:              #f43f5e;
+  --theme-purple:            #8b5cf6;
+
+  /* Backward compat aliases for components using old generic vars */
+  --bg:               var(--pb-bg);
+  --bg-surface:       var(--pb-paper);
+  --bg-surface-hover: var(--pb-paper2);
+  --bg-subtle:        var(--pb-paper2);
+  --text:             var(--pb-ink);
+  --text-secondary:   var(--pb-muted);
+  --text-tertiary:    var(--pb-faint);
+  --border:           var(--pb-line);
+  --border-light:     var(--pb-line);
+  --ring:             rgba(255, 130, 64, 0.3);
+  --accent:           var(--pb-accent);
+}
+
+[data-theme="light"] {
+  /* Pinboard — Brand Guide v6 light */
+  --pb-bg:          #F7F1E8;
+  --pb-paper:       #FBF6EC;
+  --pb-paper2:      #F5EDD6;
+  --pb-ink:         #1F1B17;
+  --pb-muted:       #6A5F48;
+  --pb-faint:       #9C9178;
+  --pb-line:        #CEBFA0;
+  --pb-accent:      #E0651E;
+  --pb-accent-deep: #C14513;
+  --pb-yt:          #FF3333;
+  --pb-marker:      #FFE37A;
+  --pb-tape:        rgba(255, 226, 140, 0.75);
+  --pb-tape2:       rgba(200, 220, 255, 0.70);
+  --pb-tapeR:       rgba(255, 150, 150, 0.70);
+  --pb-code-bg:     #EDE5D2;
+  --pb-channel-card-bg: #FFF3EC;
+  --pb-ink-on-accent: #1A140C;
+  --pb-tape-warm:     rgba(255, 180, 120, 0.85);
+
+  /* Shadows — light (warm tones) */
+  --pb-shadow-sm:      0 1px 2px rgba(70,50,20,0.08);
+  --pb-shadow-card:    0 1px 0 rgba(0,0,0,0.04), 0 8px 20px rgba(70,50,20,0.16), inset 0 0 0 1px rgba(0,0,0,0.03);
+  --pb-card-shadow:    var(--pb-shadow-card);
+  --pb-shadow-md:      0 4px 12px rgba(70,50,20,0.12);
+  --pb-shadow-lg:      0 8px 32px rgba(70,50,20,0.18);
+  --pb-shadow-hover:   0 1px 0 rgba(0,0,0,0.06), 0 16px 36px rgba(70,50,20,0.24), inset 0 0 0 1px rgba(0,0,0,0.04);
+  --pb-shadow-popover: 0 12px 40px rgba(70,50,20,0.20);
+
+  /* Theme provider for cms-ui — light */
+  --theme-accent-hover:      #C14513;
+  --theme-accent-subtle:     rgba(224, 101, 30, 0.10);
+  --theme-cms-bg:            #F7F1E8;
+  --theme-cms-surface:       #FBF6EC;
+  --theme-cms-surface-hover: #F5EDD6;
+  --theme-cms-border:        #CEBFA0;
+  --theme-cms-border-subtle: #DDD4BE;
+  --theme-cms-text:          #1F1B17;
+  --theme-cms-text-muted:    #6A5F48;
+  --theme-cms-text-dim:      #9C9178;
+  --theme-shadow-popover:    0 12px 40px rgba(70,50,20,0.20);
+
+  /* Backward compat aliases — light overrides */
+  --ring: rgba(224, 101, 30, 0.3);
+}
+
+/* ─── Print palette ─── */
+@media print {
+  :root, [data-theme="dark"], [data-theme="light"] {
+    --pb-bg:          #ffffff;
+    --pb-paper:       #ffffff;
+    --pb-paper2:      #f5f5f5;
+    --pb-ink:         #1a1a1a;
+    --pb-muted:       #666666;
+    --pb-faint:       #999999;
+    --pb-line:        #cccccc;
+    --pb-accent:      #1a1a1a;
+    --pb-accent-deep: #1a1a1a;
+    --pb-marker:      #FFD666;
+    --pb-code-bg:     #f5f5f5;
+    --pb-shadow-sm:      none;
+    --pb-shadow-card:    none;
+    --pb-shadow-md:      none;
+    --pb-shadow-lg:      none;
+    --pb-shadow-hover:   none;
+    --pb-shadow-popover: none;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   BASE STYLES
+   ══════════════════════════════════════════════════════════════ */
+
+html {
+  scroll-behavior: smooth;
+  background-color: var(--pb-bg);
+}
+
+body {
+  background-color: var(--pb-bg);
+  color: var(--pb-ink);
+  font-family: var(--font-sans);
+  transition: background-color 0.3s, color 0.3s;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Focus-visible (all interactive elements) ─── */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
   outline: 2px solid var(--pb-accent);
   outline-offset: 3px;
 }
 
-@keyframes pb-fade-in {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
+/* ─── Scroll-driven fade-in ─── */
+@supports (animation-timeline: view()) {
+  .animate-on-scroll {
+    animation: fade-in-up linear both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 30%;
+  }
 }
-.pb-fade-in { animation: pb-fade-in 0.4s ease both; }
 
-/* Staggered section entrance */
-@keyframes pb-section-in {
-  from { opacity: 0; transform: translateY(20px); }
-  to   { opacity: 1; transform: translateY(0); }
+@supports not (animation-timeline: view()) {
+  .animate-on-scroll {
+    animation: fade-in-up 0.6s ease-out both;
+  }
 }
-.pb-section {
-  animation: pb-section-in 0.5s ease both;
-}
+
+/* ─── Staggered section entrance ─── */
+.pb-fade-in { animation: fade-in 0.4s ease both; }
+.pb-section { animation: fade-in-up 0.5s ease both; }
 .pb-section:nth-child(2) { animation-delay: 0.07s; }
 .pb-section:nth-child(3) { animation-delay: 0.14s; }
 .pb-section:nth-child(4) { animation-delay: 0.21s; }
 .pb-section:nth-child(5) { animation-delay: 0.28s; }
 
-/* Semantic marker for paper cards — no visual effect, preserves reduced-motion target */
+/* Semantic marker for paper cards — no visual effect */
 .pb-rotate {}
 
-/* DualHero card hover lifts — !important needed to override inline transform/box-shadow */
+/* ─── DualHero card hover ─── */
 .dh-card {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
@@ -220,14 +367,59 @@ header button:focus-visible {
 }
 [data-theme="dark"] .dh-card:hover,
 :root .dh-card:hover {
-  box-shadow: 0 2px 0 rgba(0,0,0,0.6), 0 20px 40px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,255,255,0.05) !important;
+  box-shadow: var(--pb-shadow-hover) !important;
 }
 [data-theme="light"] .dh-card:hover {
-  box-shadow: 0 1px 0 rgba(0,0,0,0.06), 0 16px 36px rgba(70,50,20,0.24), inset 0 0 0 1px rgba(0,0,0,0.04) !important;
+  box-shadow: var(--pb-shadow-hover) !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .pb-tape   { display: none !important; }
   .pb-section { animation: none !important; }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   KEYFRAMES (centralized)
+   ══════════════════════════════════════════════════════════════ */
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes slide-in {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 0.3; }
+  50%      { opacity: 1; }
+}
+
+/* ── Pinboard home section utilities ── */
+@media (min-width: 1024px) {
+  .pb-mostread-layout {
+    grid-template-columns: 1fr 2fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pb-section [style*="transform"] {
+    transform: none !important;
+  }
+  .pb-tape {
+    display: none !important;
+  }
 }
 

@@ -9,6 +9,9 @@ export type HomePost = {
   readingTimeMin: number
   coverImageUrl: string | null
   isFeatured: boolean
+  tagName: string | null
+  tagColor: string | null
+  tagColorDark: string | null
 }
 
 export type HomeChannel = {
@@ -34,9 +37,19 @@ export type HomeVideo = {
 
 export type HomeNewsletter = {
   id: string
+  slug: string
   name: string
   tagline: string | null
   cadence: string | null
   color: string
   locale: string
+}
+
+export type HomeTag = {
+  id: string
+  name: string
+  slug: string
+  color: string
+  colorDark: string | null
+  postCount: number
 }

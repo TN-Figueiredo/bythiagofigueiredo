@@ -66,16 +66,16 @@ export function computeSuggestionScore(
   maxSubscriberCount: number,
   now: number = Date.now(),
 ): number {
-  // Normalized subscriber count (0-1)
+  // Normalized subscriber count (0-1, clamped)
   const normalizedSubs =
     maxSubscriberCount > 0
-      ? candidate.subscriber_count / maxSubscriberCount
+      ? Math.min(1, candidate.subscriber_count / maxSubscriberCount)
       : 0
 
   // Recency bonus based on last edition sent
   let recencyBonus = 0
   if (candidate.last_sent_at) {
-    const daysSinceSent = now - new Date(candidate.last_sent_at).getTime()
+    const daysSinceSent = Math.max(0, now - new Date(candidate.last_sent_at).getTime())
     if (daysSinceSent <= FOURTEEN_DAYS_MS) recencyBonus = 1.0
     else if (daysSinceSent <= THIRTY_DAYS_MS) recencyBonus = 0.7
     else if (daysSinceSent <= NINETY_DAYS_MS) recencyBonus = 0.3
@@ -83,7 +83,7 @@ export function computeSuggestionScore(
 
   // Newness bonus based on newsletter type creation date
   let newnessBonus = 0
-  const daysSinceCreated = now - new Date(candidate.created_at).getTime()
+  const daysSinceCreated = Math.max(0, now - new Date(candidate.created_at).getTime())
   if (daysSinceCreated <= THIRTY_DAYS_MS) newnessBonus = 1.0
   else if (daysSinceCreated <= SIXTY_DAYS_MS) newnessBonus = 0.5
 
@@ -140,27 +140,33 @@ export const getNewsletterSuggestions = unstable_cache(
 
     const typeIds = types.map((t) => t.id as string)
 
-    // Fetch subscriber counts (confirmed only) and last sent edition in parallel
-    const [subCountsResult, editionsResult] = await Promise.all([
-      supabase
+    // Fetch subscriber counts via count query per type (avoids 1000-row limit)
+    // and last sent edition in parallel
+    const subCountPromises = typeIds.map(async (tid) => {
+      const { count } = await supabase
         .from('newsletter_subscriptions')
-        .select('newsletter_id')
-        .in('newsletter_id', typeIds)
-        .eq('status', 'confirmed'),
-      supabase
-        .from('newsletter_editions')
-        .select('newsletter_type_id, sent_at')
-        .in('newsletter_type_id', typeIds)
-        .eq('status', 'sent')
-        .order('sent_at', { ascending: false }),
+        .select('*', { count: 'exact', head: true })
+        .eq('newsletter_id', tid)
+        .eq('status', 'confirmed')
+      return [tid, count ?? 0] as const
+    })
+
+    // Editions: only need the most recent per type; limit generously to cover worst case
+    const editionsPromise = supabase
+      .from('newsletter_editions')
+      .select('newsletter_type_id, sent_at')
+      .in('newsletter_type_id', typeIds)
+      .eq('status', 'sent')
+      .order('sent_at', { ascending: false })
+      .limit(typeIds.length * 10)
+
+    const [subCountEntries, editionsResult] = await Promise.all([
+      Promise.all(subCountPromises),
+      editionsPromise,
     ])
 
-    // Count subscribers per type
-    const subCounts = new Map<string, number>()
-    for (const row of subCountsResult.data ?? []) {
-      const id = row.newsletter_id as string
-      subCounts.set(id, (subCounts.get(id) ?? 0) + 1)
-    }
+    // Build subscriber count map
+    const subCounts = new Map<string, number>(subCountEntries)
 
     // Get latest sent_at per type
     const lastSentMap = new Map<string, string>()

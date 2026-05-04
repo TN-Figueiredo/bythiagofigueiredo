@@ -3,6 +3,21 @@ import { withSentryConfig } from '@sentry/nextjs'
 import createMDX from '@next/mdx'
 
 const nextConfig: NextConfig = {
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '*.supabase.co',
+        pathname: '/storage/v1/object/public/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.supabase.in',
+        pathname: '/storage/v1/object/public/**',
+      },
+    ],
+  },
+  serverExternalPackages: ['@aws-sdk/client-sesv2'],
   experimental: {
     serverActions: {
       bodySizeLimit: '5mb',

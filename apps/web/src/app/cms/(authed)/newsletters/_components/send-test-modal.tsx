@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Mail } from 'lucide-react'
-import { useModalFocusTrap } from './use-modal-focus-trap'
+import { useModalFocusTrap } from '../../_shared/editor/use-modal-focus-trap'
 
 interface SendTestModalProps {
   open: boolean

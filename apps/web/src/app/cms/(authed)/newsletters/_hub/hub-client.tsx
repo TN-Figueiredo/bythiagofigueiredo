@@ -30,9 +30,10 @@ interface HubClientProps {
   drawerStrings: NewsletterHubStrings['typeDrawer']
   commonStrings?: NewsletterHubStrings['common']
   actionStrings?: NewsletterHubStrings['actions']
+  siteId?: string
 }
 
-export function HubClient({ sharedData, defaultTab, children, tabLabels, allTypesLabel, editLabel, locale, drawerStrings, commonStrings, actionStrings }: HubClientProps) {
+export function HubClient({ sharedData, defaultTab, children, tabLabels, allTypesLabel, editLabel, locale, drawerStrings, commonStrings, actionStrings, siteId }: HubClientProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -182,6 +183,7 @@ export function HubClient({ sharedData, defaultTab, children, tabLabels, allType
         locale={locale}
         strings={drawerStrings}
         existingBadges={existingBadges}
+        siteId={siteId}
       />
     </div>
   )

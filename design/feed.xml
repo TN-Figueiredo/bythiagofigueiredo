@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:dc="http://purl.org/dc/elements/1.1/">
+<channel>
+  <title>bythiagofigueiredo</title>
+  <link>https://bythiagofigueiredo.com</link>
+  <atom:link href="https://bythiagofigueiredo.com/feed.xml" rel="self" type="application/rss+xml"/>
+  <description>Posts, vídeos e ensaios de Thiago Figueiredo. Bilingue (PT/EN), publicado de Belo Horizonte.</description>
+  <language>pt-BR</language>
+  <copyright>© 2026 Thiago Figueiredo</copyright>
+  <managingEditor>tf@bythiagofigueiredo.com (Thiago Figueiredo)</managingEditor>
+  <webMaster>tf@bythiagofigueiredo.com (Thiago Figueiredo)</webMaster>
+  <lastBuildDate>Sun, 26 Apr 2026 12:00:00 -0300</lastBuildDate>
+  <generator>handmade</generator>
+  <ttl>1440</ttl>
+
+  <item>
+    <title>Por que existe bythiagofigueiredo — e o que ele não é</title>
+    <link>https://bythiagofigueiredo.com/posts/manifesto-bythiagofigueiredo</link>
+    <guid isPermaLink="true">https://bythiagofigueiredo.com/posts/manifesto-bythiagofigueiredo</guid>
+    <pubDate>Fri, 24 Apr 2026 09:00:00 -0300</pubDate>
+    <dc:creator>Thiago Figueiredo</dc:creator>
+    <category>Ensaios</category>
+    <description><![CDATA[Um manifesto honesto sobre o porquê desse lugar existir, o que você vai encontrar aqui, e as três coisas que eu prometi a mim mesmo nunca fazer.]]></description>
+  </item>
+
+  <item>
+    <title>Seis apps, um caderno — por que parei de separar produto de conteúdo</title>
+    <link>https://bythiagofigueiredo.com/posts/seis-apps-um-caderno</link>
+    <guid isPermaLink="true">https://bythiagofigueiredo.com/posts/seis-apps-um-caderno</guid>
+    <pubDate>Fri, 17 Apr 2026 09:00:00 -0300</pubDate>
+    <dc:creator>Thiago Figueiredo</dc:creator>
+    <category>Ensaios</category>
+    <description><![CDATA[Passei dois anos tratando blog e produto como coisas diferentes. Aqui está o que sobrou depois que joguei fora essa separação.]]></description>
+  </item>
+
+  <item>
+    <title>Um CMS para governar todos — arquitetura de publicação cross-site</title>
+    <link>https://bythiagofigueiredo.com/posts/um-cms-para-governar</link>
+    <guid isPermaLink="true">https://bythiagofigueiredo.com/posts/um-cms-para-governar</guid>
+    <pubDate>Mon, 14 Apr 2026 09:00:00 -0300</pubDate>
+    <dc:creator>Thiago Figueiredo</dc:creator>
+    <category>Código</category>
+    <description><![CDATA[A arquitetura por trás de publicar o mesmo post em seis sites diferentes sem copy-paste. Supabase, uma junction table, e uma caixa de checkbox que mudou meu fluxo.]]></description>
+  </item>
+</channel>
+</rss>

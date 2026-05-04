@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { MERGE_TAGS, MergeTagExtension } from '@/app/cms/(authed)/newsletters/_components/merge-tag-node'
+import { MERGE_TAGS, MergeTagExtension } from '@/app/cms/(authed)/_shared/editor/merge-tag-node'
 
 describe('MergeTag extension', () => {
   it('exports exactly 7 available merge tags', () => {

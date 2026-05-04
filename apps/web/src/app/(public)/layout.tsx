@@ -102,7 +102,6 @@ export default async function PublicLayout({ children }: { children: ReactNode }
         <GlobalHeader
           locale={locale}
           currentTheme={theme}
-          current="home"
           variant="full"
           ctas="home"
           t={t}

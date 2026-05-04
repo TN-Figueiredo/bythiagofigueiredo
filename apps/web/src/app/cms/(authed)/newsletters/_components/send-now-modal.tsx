@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef } from 'react'
-import { useModalFocusTrap } from './use-modal-focus-trap'
+import { useModalFocusTrap } from '../../_shared/editor/use-modal-focus-trap'
 
 interface SendNowModalProps {
   open: boolean

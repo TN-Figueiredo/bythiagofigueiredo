@@ -2,11 +2,12 @@ import Link from 'next/link'
 import { BrandWordmark } from '@/components/brand/brand-wordmark'
 import type { GlobalHeaderProps } from './header-types'
 import { buildNavItems } from './header-types'
+import { DesktopNav } from './desktop-nav'
 import { HeaderCTAs } from './header-ctas'
 import { ThemeToggle } from './theme-toggle'
 import { MobileNavDrawer } from './mobile-nav-drawer'
 
-export function GlobalHeader({ locale, currentTheme, current, variant, ctas, t }: GlobalHeaderProps) {
+export function GlobalHeader({ locale, currentTheme, variant, ctas, t }: GlobalHeaderProps) {
   const homeHref = locale === 'pt-BR' ? '/pt' : '/'
   const items = buildNavItems(locale, variant, t)
 
@@ -21,10 +22,12 @@ export function GlobalHeader({ locale, currentTheme, current, variant, ctas, t }
       }}
     >
       <div
+        className="px-[18px] md:px-7"
         style={{
           maxWidth: 1280,
           margin: '0 auto',
-          padding: '14px 28px',
+          paddingTop: 14,
+          paddingBottom: 14,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -51,51 +54,7 @@ export function GlobalHeader({ locale, currentTheme, current, variant, ctas, t }
           </span>
         </div>
 
-        <nav
-          aria-label="Main navigation"
-          className="hidden md:flex"
-          style={{ gap: 22, fontSize: 14, alignItems: 'center', flexWrap: 'wrap' }}
-        >
-          {items.map((item) => {
-            const isActive = item.key === current
-            const style = {
-              color: isActive ? 'var(--pb-ink)' : 'var(--pb-muted)',
-              fontWeight: isActive ? 600 : 400,
-              borderBottom: isActive ? '2px solid var(--pb-accent)' : '2px solid transparent',
-              paddingBottom: 2,
-              textDecoration: 'none' as const,
-              transition: 'color 0.15s ease, border-color 0.15s ease',
-              display: 'inline-flex' as const,
-              alignItems: 'center' as const,
-              gap: 4,
-            }
-            if (item.external) {
-              return (
-                <a
-                  key={item.key}
-                  href={item.href}
-                  target="_blank"
-                  rel="noopener"
-                  data-active={isActive ? 'true' : undefined}
-                  style={style}
-                >
-                  {item.label}
-                  <span style={{ fontSize: 10, opacity: 0.7 }}>↗</span>
-                </a>
-              )
-            }
-            return (
-              <Link
-                key={item.key}
-                href={item.href}
-                data-active={isActive ? 'true' : undefined}
-                style={style}
-              >
-                {item.label}
-              </Link>
-            )
-          })}
-        </nav>
+        <DesktopNav items={items} />
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <div className="hidden md:flex items-center gap-2">
@@ -105,7 +64,6 @@ export function GlobalHeader({ locale, currentTheme, current, variant, ctas, t }
           <MobileNavDrawer
             locale={locale}
             currentTheme={currentTheme}
-            current={current}
             variant={variant}
             ctas={ctas}
             t={t}

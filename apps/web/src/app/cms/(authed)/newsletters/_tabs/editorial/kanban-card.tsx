@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useRouter } from 'next/navigation'
-import { Loader2, Pencil, MoreVertical, Trash2, ArrowRight } from 'lucide-react'
+import { Loader2, Pencil, MoreVertical, Trash2, ArrowRight, Sparkles } from 'lucide-react'
 import type { EditionCard, NewsletterType } from '../../_hub/hub-types'
 import type { NewsletterHubStrings } from '../../_i18n/types'
 import { formatRelativeDate } from '../../_hub/hub-utils'
@@ -29,8 +29,13 @@ const STATUS_LABELS: Record<string, string> = {
   cancelled: 'Cancelled',
 }
 
+function isOptimisticCard(card: EditionCard): boolean {
+  return card.id.startsWith('optimistic-')
+}
+
 interface KanbanCardProps {
   card: EditionCard
+  confirmed?: boolean
   strings?: NewsletterHubStrings
   types?: NewsletterType[]
   onReassignType?: (editionId: string, typeId: string | null) => void
@@ -38,9 +43,10 @@ interface KanbanCardProps {
   onDeleteEdition?: (editionId: string) => void
 }
 
-export function KanbanCard({ card, strings, types, onReassignType, onMoveToStatus, onDeleteEdition }: KanbanCardProps) {
+export function KanbanCard({ card, confirmed: confirmedProp, strings, types, onReassignType, onMoveToStatus, onDeleteEdition }: KanbanCardProps) {
   const router = useRouter()
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id })
+  const isOptimistic = isOptimisticCard(card)
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id, disabled: isOptimistic })
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [navigating, setNavigating] = useState(false)
   const [reassigning, startReassign] = useTransition()
@@ -53,10 +59,11 @@ export function KanbanCard({ card, strings, types, onReassignType, onMoveToStatu
     transition,
   }
 
+  const confirmed = confirmedProp ?? false
   const isLoading = navigating || reassigning
 
   const handleClick = () => {
-    if (dropdownOpen || isLoading) return
+    if (dropdownOpen || isLoading || isOptimistic) return
     setNavigating(true)
     router.push(`/cms/newsletters/${card.id}/edit`)
   }
@@ -133,14 +140,18 @@ export function KanbanCard({ card, strings, types, onReassignType, onMoveToStatu
         onContextMenu={(e) => {
           e.preventDefault()
           e.stopPropagation()
-          setContextMenu({ x: e.clientX, y: e.clientY })
+          if (!isOptimistic) setContextMenu({ x: e.clientX, y: e.clientY })
         }}
-        className={`group relative rounded-lg border p-3 transition-colors ${
-          isDragging
-            ? 'border-indigo-500/30 bg-indigo-950/20 opacity-40'
-            : isLoading
-              ? 'border-indigo-500/40 bg-indigo-950/10 pointer-events-none'
-              : 'border-gray-800 bg-gray-900 hover:border-gray-700 cursor-pointer hover:bg-gray-800/50'
+        className={`group relative rounded-lg border p-3 transition-all duration-300 ${
+          isOptimistic
+            ? 'animate-fade-in border-indigo-500/60 bg-indigo-950/20 ring-1 ring-indigo-500/20'
+            : confirmed
+              ? 'border-emerald-500/60 bg-emerald-950/10 ring-1 ring-emerald-500/20'
+              : isDragging
+                ? 'border-indigo-500/30 bg-indigo-950/20 opacity-40'
+                : isLoading
+                  ? 'border-indigo-500/40 bg-indigo-950/10 pointer-events-none'
+                  : 'cursor-pointer border-gray-800 bg-gray-900 hover:border-gray-700 hover:bg-gray-800/50'
         }`}
       >
         {isLoading && (
@@ -150,9 +161,16 @@ export function KanbanCard({ card, strings, types, onReassignType, onMoveToStatu
         )}
 
         <div className="mb-1.5 flex items-center justify-between">
-          <span className="rounded bg-gray-800 px-1.5 py-0.5 text-[8px] font-bold tabular-nums tracking-wide text-gray-400">
-            {card.displayId}
-          </span>
+          {isOptimistic ? (
+            <span className="flex items-center gap-1 rounded bg-indigo-500/20 px-1.5 py-0.5 text-[8px] font-bold tracking-wide text-indigo-400">
+              <Sparkles className="h-2.5 w-2.5" />
+              NEW
+            </span>
+          ) : (
+            <span className="rounded bg-gray-800 px-1.5 py-0.5 text-[8px] font-bold tabular-nums tracking-wide text-gray-400">
+              {card.displayId}
+            </span>
+          )}
           <div className="flex items-center gap-1">
             <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
               <button

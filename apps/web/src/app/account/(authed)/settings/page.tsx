@@ -6,7 +6,7 @@ import { cookies } from 'next/headers'
 import Link from 'next/link'
 
 export const metadata = {
-  title: 'Minha conta | bythiagofigueiredo',
+  title: 'Minha conta',
   robots: { index: false, follow: false },
 }
 

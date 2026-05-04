@@ -5,7 +5,7 @@ import { CtaChip } from './CtaChip'
 const INTERNAL_ROUTES: Record<string, string> = {
   blog: '/blog',
   newsletters: '/newsletters',
-  videos: '/videos',
+  youtube: '/youtube',
 }
 
 interface CtaLink {
@@ -33,8 +33,6 @@ export function CtaBlock({ kicker, signature, links, socialLinks }: CtaBlockProp
     })
     .filter(Boolean) as Array<CtaLink & { href: string; external: boolean }>
 
-  if (resolvedLinks.length === 0) return null
-
   return (
     <section className="about-cta">
       <div style={{ position: 'relative', paddingTop: 18 }}>
@@ -42,26 +40,32 @@ export function CtaBlock({ kicker, signature, links, socialLinks }: CtaBlockProp
           <Tape className="top-[-9px] left-[26%]" rotate={-3} />
           <Tape variant="tape2" className="top-[-9px] right-[30%]" rotate={2.5} />
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
-            <span className="about-cta-kicker">◉ {kicker}</span>
-            <span className="about-cta-line" />
-          </div>
+          {kicker && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
+              <span className="about-cta-kicker">◉ {kicker}</span>
+              <span className="about-cta-line" />
+            </div>
+          )}
 
-          <div className="about-chips">
-            {resolvedLinks.map((link, i) => (
-              <CtaChip
-                key={link.key}
-                number={String(i + 1).padStart(2, '0')}
-                label={link.label}
-                href={link.href}
-                external={link.external}
-              />
-            ))}
-          </div>
+          {resolvedLinks.length > 0 && (
+            <div className="about-chips">
+              {resolvedLinks.map((link, i) => (
+                <CtaChip
+                  key={link.key}
+                  number={String(i + 1).padStart(2, '0')}
+                  label={link.label}
+                  href={link.href}
+                  external={link.external}
+                />
+              ))}
+            </div>
+          )}
 
-          <div style={{ marginTop: 22 }}>
-            <span className="about-signoff">{signature}</span>
-          </div>
+          {signature && (
+            <div style={{ marginTop: 22 }}>
+              <span className="about-signoff">{signature}</span>
+            </div>
+          )}
         </Paper>
       </div>
     </section>

@@ -1,13 +1,12 @@
 export type HeaderLocale = 'en' | 'pt-BR'
 export type HeaderTheme = 'dark' | 'light'
-export type HeaderCurrent = 'home' | 'writing' | 'videos' | 'newsletters' | 'about' | 'contact'
+export type HeaderCurrent = 'home' | 'blog' | 'youtube' | 'newsletters' | 'about' | 'contact'
 export type HeaderVariant = 'full' | 'reduced'
 export type HeaderCtaVariant = 'home' | 'archive' | 'post'
 
 export type GlobalHeaderProps = {
   locale: HeaderLocale
   currentTheme: HeaderTheme
-  current: HeaderCurrent
   variant: HeaderVariant
   ctas: HeaderCtaVariant
   t: Record<string, string>
@@ -34,9 +33,9 @@ export function buildNavItems(
   const l = (key: string): string => t[key] ?? key
   const items: NavItem[] = [
     { key: 'home', href: home, label: l('nav.home') },
-    { key: 'writing', href: locale === 'pt-BR' ? '/pt/blog' : '/blog', label: l('nav.writing') },
-    { key: 'videos', href: YT_CHANNELS[locale].url, label: l('nav.videos'), external: true },
-    { key: 'newsletters', href: locale === 'pt-BR' ? '/pt/newsletters' : '/newsletters', label: l('nav.newsletter') },
+    { key: 'blog', href: locale === 'pt-BR' ? '/pt/blog' : '/blog', label: l('nav.blog') },
+    { key: 'youtube', href: YT_CHANNELS[locale].url, label: l('nav.youtube'), external: true },
+    { key: 'newsletters', href: locale === 'pt-BR' ? '/pt/newsletters' : '/newsletters', label: l('nav.newsletters') },
     { key: 'about', href: '/about', label: l('nav.about') },
   ]
 

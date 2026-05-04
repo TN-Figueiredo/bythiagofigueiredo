@@ -25,10 +25,10 @@ describe('locale keys — nav rename', () => {
 
 describe('locale keys — section strings', () => {
   const requiredKeys = [
-    'home.stats.subscribers', 'home.stats.posts', 'home.stats.videos',
+    'home.stats.subscribers', 'home.stats.posts', 'home.stats.youtube',
     'home.blog.title', 'home.blog.subtitle', 'home.blog.viewAll',
     'home.blog.emptyTitle', 'home.blog.emptyBody',
-    'home.videos.title', 'home.videos.subtitle', 'home.videos.viewAll', 'home.videos.subscribe',
+    'home.youtube.title', 'home.youtube.subtitle', 'home.youtube.viewAll', 'home.youtube.subscribe',
     'home.mostRead.title', 'home.mostRead.subtitle', 'home.tags.title',
     'home.subscribe.headline', 'home.subscribe.subheadline',
     'home.subscribe.nlKicker', 'home.subscribe.nlTitle', 'home.subscribe.nlSubtitle',

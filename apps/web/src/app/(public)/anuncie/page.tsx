@@ -15,7 +15,7 @@ export const dynamic = 'force-dynamic'
 const STRINGS = {
   'pt-BR': {
     title: 'Anuncie aqui',
-    metaTitle: 'Anuncie aqui — bythiagofigueiredo',
+    metaTitle: 'Anuncie aqui',
     metaDescription:
       'Anuncie seu produto, serviço ou projeto para uma audiência qualificada de desenvolvedores e criadores.',
     intro:
@@ -60,7 +60,7 @@ const STRINGS = {
   },
   en: {
     title: 'Advertise here',
-    metaTitle: 'Advertise here — bythiagofigueiredo',
+    metaTitle: 'Advertise here',
     metaDescription:
       'Advertise your product, service, or project to a qualified audience of developers and creators.',
     intro:

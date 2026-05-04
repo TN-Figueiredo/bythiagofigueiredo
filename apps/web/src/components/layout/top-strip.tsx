@@ -21,6 +21,7 @@ export function TopStrip() {
 
   return (
     <div
+      className="top-strip-bar"
       style={{
         position: 'fixed',
         top: 0,
@@ -28,10 +29,10 @@ export function TopStrip() {
         right: 0,
         zIndex: 999,
         height: 44,
-        background: 'rgba(20,18,16,0.94)',
+        background: 'color-mix(in srgb, var(--pb-bg) 94%, transparent)',
         backdropFilter: 'blur(14px)',
         WebkitBackdropFilter: 'blur(14px)',
-        borderBottom: '1px solid rgba(255,255,255,0.06)',
+        borderBottom: '1px solid var(--pb-line)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'flex-end',
@@ -43,7 +44,7 @@ export function TopStrip() {
         className="font-jetbrains"
         style={{
           display: 'flex',
-          background: 'rgba(255,255,255,0.06)',
+          background: 'color-mix(in srgb, var(--pb-ink) 8%, transparent)',
           borderRadius: 999,
           padding: 3,
           fontSize: 11,
@@ -55,8 +56,8 @@ export function TopStrip() {
           <span
             data-active="true"
             style={{
-              background: '#F2EBDB',
-              color: '#141210',
+              background: 'var(--pb-ink)',
+              color: 'var(--pb-bg)',
               borderRadius: 999,
               padding: '4px 10px',
               fontWeight: 600,
@@ -69,10 +70,11 @@ export function TopStrip() {
             href={switchedPath}
             hrefLang="pt"
             style={{
-              color: '#F2EBDB',
+              color: 'var(--pb-ink)',
               borderRadius: 999,
               padding: '4px 10px',
               textDecoration: 'none',
+              opacity: 0.6,
             }}
           >
             PT
@@ -82,8 +84,8 @@ export function TopStrip() {
           <span
             data-active="true"
             style={{
-              background: '#F2EBDB',
-              color: '#141210',
+              background: 'var(--pb-ink)',
+              color: 'var(--pb-bg)',
               borderRadius: 999,
               padding: '4px 10px',
               fontWeight: 600,
@@ -96,10 +98,11 @@ export function TopStrip() {
             href={switchedPath}
             hrefLang="en"
             style={{
-              color: '#F2EBDB',
+              color: 'var(--pb-ink)',
               borderRadius: 999,
               padding: '4px 10px',
               textDecoration: 'none',
+              opacity: 0.6,
             }}
           >
             EN

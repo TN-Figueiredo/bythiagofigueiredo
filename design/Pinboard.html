@@ -92,6 +92,46 @@
 
   #root { min-height: 100vh; padding-top: 44px; }
 
+  /* Responsive guards: collapse common multi-column grids on mobile.
+     Targets inline grids by exact computed grid-template-columns hashes.
+     Cheaper than rewriting every JSX site-wide. */
+  @media (max-width: 760px) {
+    /* Generic 2-3-col grids inside main content collapse to 1-2 */
+    [style*="grid-template-columns: 1fr 1fr"]:not(.keep-2col),
+    [style*="grid-template-columns: 1fr 2fr"],
+    [style*="grid-template-columns: 2fr 1fr"] {
+      grid-template-columns: 1fr !important;
+    }
+    [style*="grid-template-columns: repeat(3, 1fr)"] {
+      grid-template-columns: repeat(2, 1fr) !important;
+    }
+    [style*="grid-template-columns: repeat(4, 1fr)"],
+    [style*="grid-template-columns: repeat(5, 1fr)"],
+    [style*="grid-template-columns: repeat(6, 1fr)"],
+    [style*="grid-template-columns: repeat(7, 1fr)"] {
+      grid-template-columns: repeat(2, 1fr) !important;
+    }
+    /* Tighten section padding on narrow screens */
+    section[style*="padding: 56px 28px"],
+    section[style*="padding: 64px 28px"],
+    section[style*="padding: 80px 28px"],
+    section[style*="padding: 88px 28px"] {
+      padding-left: 18px !important;
+      padding-right: 18px !important;
+    }
+    /* Reduce paper rotation that becomes painful in narrow viewports */
+    .tweaks-panel { right: 8px !important; bottom: 8px !important; min-width: 0 !important; max-width: calc(100vw - 16px); }
+  }
+  @media (max-width: 480px) {
+    [style*="grid-template-columns: repeat(3, 1fr)"],
+    [style*="grid-template-columns: repeat(4, 1fr)"],
+    [style*="grid-template-columns: repeat(5, 1fr)"],
+    [style*="grid-template-columns: repeat(6, 1fr)"],
+    [style*="grid-template-columns: repeat(7, 1fr)"] {
+      grid-template-columns: 1fr !important;
+    }
+  }
+
   @media (max-width: 760px) {
     .tweaks-panel { right: 10px; bottom: 10px; min-width: 200px; }
   }
@@ -195,14 +235,15 @@
 <!-- Tweak defaults -->
 <script>
   const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
-    "lang": "pt",
+    "lang": "en",
     "theme": "dark",
     "ads": true,
     "ads_marginalia": true,
     "ads_anchor": true,
     "ads_bookmark": true,
     "ads_bowtie": true,
-    "ads_doorman": false
+    "ads_doorman": true,
+    "ads_coda": true
   }/*EDITMODE-END*/;
 </script>
 

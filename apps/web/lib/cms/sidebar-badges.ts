@@ -44,80 +44,83 @@ export function computeUrgencyBadge(slots: UrgencySlot[]): UrgencyBadge | null {
   return { count: validSlots.length, color, slots: validSlots }
 }
 
-export const fetchSidebarBadges = unstable_cache(
-  async (siteId: string): Promise<SidebarBadgeData> => {
-    const supabase = getSupabaseServiceClient()
-    const todayStr = new Date().toISOString().slice(0, 10)
-    const todayMs = new Date(todayStr + 'T00:00:00Z').getTime()
+async function fetchSidebarBadgesInner(siteId: string): Promise<SidebarBadgeData> {
+  const supabase = getSupabaseServiceClient()
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const todayMs = new Date(todayStr + 'T00:00:00Z').getTime()
 
-    const [postsRes, editionsWipRes, typesRes, filledEditionsRes] = await Promise.all([
-      supabase
-        .from('blog_posts')
-        .select('id', { count: 'exact', head: true })
-        .eq('site_id', siteId)
-        .in('status', ['draft', 'ready']),
-      supabase
-        .from('newsletter_editions')
-        .select('status', { count: 'exact' })
-        .eq('site_id', siteId)
-        .in('status', ['draft', 'ready']),
-      supabase
-        .from('newsletter_types')
-        .select('id, name, color, cadence_pattern, cadence_paused')
-        .eq('site_id', siteId)
-        .eq('active', true),
-      supabase
-        .from('newsletter_editions')
-        .select('newsletter_type_id, slot_date')
-        .eq('site_id', siteId)
-        .in('status', ['ready', 'scheduled', 'queued', 'sending', 'sent'])
-        .not('slot_date', 'is', null)
-        .gte('slot_date', todayStr),
-    ])
+  const [postsRes, editionsWipRes, typesRes, filledEditionsRes] = await Promise.all([
+    supabase
+      .from('blog_posts')
+      .select('id', { count: 'exact', head: true })
+      .eq('site_id', siteId)
+      .in('status', ['draft', 'ready']),
+    supabase
+      .from('newsletter_editions')
+      .select('status', { count: 'exact' })
+      .eq('site_id', siteId)
+      .in('status', ['draft', 'ready']),
+    supabase
+      .from('newsletter_types')
+      .select('id, name, color, cadence_pattern, cadence_paused')
+      .eq('site_id', siteId)
+      .eq('active', true),
+    supabase
+      .from('newsletter_editions')
+      .select('newsletter_type_id, slot_date')
+      .eq('site_id', siteId)
+      .in('status', ['ready', 'scheduled', 'queued', 'sending', 'sent'])
+      .not('slot_date', 'is', null)
+      .gte('slot_date', todayStr),
+  ])
 
-    const postsWip = postsRes.count ?? 0
-    const wipRows = editionsWipRes.data ?? []
-    const wipDraft = wipRows.filter((r) => r.status === 'draft').length
-    const wipReady = wipRows.filter((r) => r.status === 'ready').length
-    const newsletterWip = editionsWipRes.count ?? 0
+  const postsWip = postsRes.count ?? 0
 
-    const fifteenDaysStr = new Date(todayMs + 15 * 86_400_000).toISOString().slice(0, 10)
-    const filledSlots = new Set(
-      (filledEditionsRes.data ?? []).map((e) => `${e.newsletter_type_id}:${e.slot_date}`),
-    )
+  const wipRows = editionsWipRes.data ?? []
+  const wipDraft = wipRows.filter((r) => r.status === 'draft').length
+  const wipReady = wipRows.filter((r) => r.status === 'ready').length
+  const newsletterWip = editionsWipRes.count ?? 0
 
-    const urgencySlots: UrgencySlot[] = []
-    for (const t of typesRes.data ?? []) {
-      if (t.cadence_paused || !t.cadence_pattern) continue
-      const pattern = t.cadence_pattern as CadencePattern
-      const slots = generateCadenceSlots(pattern, { from: todayStr, maxSlots: 30 })
-      for (const slotDate of slots) {
-        if (slotDate > fifteenDaysStr) break
-        const key = `${t.id}:${slotDate}`
-        if (!filledSlots.has(key)) {
-          const daysUntil = Math.round(
-            (new Date(slotDate + 'T00:00:00Z').getTime() - todayMs) / 86_400_000,
-          )
-          urgencySlots.push({
-            typeName: t.name as string,
-            typeColor: (t.color as string) ?? '#6366f1',
-            slotDate,
-            daysUntil,
-          })
-        }
+  const fifteenDaysStr = new Date(todayMs + 15 * 86_400_000).toISOString().slice(0, 10)
+  const filledSlots = new Set(
+    (filledEditionsRes.data ?? []).map((e) => `${e.newsletter_type_id}:${e.slot_date}`),
+  )
+
+  const urgencySlots: UrgencySlot[] = []
+  for (const t of typesRes.data ?? []) {
+    if (t.cadence_paused || !t.cadence_pattern) continue
+    const pattern = t.cadence_pattern as CadencePattern
+    const slots = generateCadenceSlots(pattern, { from: todayStr, maxSlots: 30 })
+    for (const slotDate of slots) {
+      if (slotDate > fifteenDaysStr) break
+      const key = `${t.id}:${slotDate}`
+      if (!filledSlots.has(key)) {
+        const daysUntil = Math.round(
+          (new Date(slotDate + 'T00:00:00Z').getTime() - todayMs) / 86_400_000,
+        )
+        urgencySlots.push({
+          typeName: t.name as string,
+          typeColor: (t.color as string) ?? '#6366f1',
+          slotDate,
+          daysUntil,
+        })
       }
     }
+  }
 
-    return {
-      posts: { wip: postsWip },
-      newsletters: {
-        wip: newsletterWip,
-        wipDraft,
-        wipReady,
-        urgency: computeUrgencyBadge(urgencySlots),
-      },
-    }
-  },
+  return {
+    posts: { wip: postsWip },
+    newsletters: {
+      wip: newsletterWip,
+      wipDraft,
+      wipReady,
+      urgency: computeUrgencyBadge(urgencySlots),
+    },
+  }
+}
+
+export const fetchSidebarBadges = unstable_cache(
+  fetchSidebarBadgesInner,
   ['sidebar-badges'],
   { tags: ['sidebar-badges'], revalidate: 60 },
 )

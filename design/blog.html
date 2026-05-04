@@ -68,7 +68,15 @@
     padding: 8px 0;
   }
   .tweaks-row + .tweaks-row { border-top: 1px solid rgba(255,255,255,0.08); }
+  .tweaks-row.tweak-sub { padding-left: 12px; }
+  .tweaks-row.tweak-sub .label { opacity: 0.7; font-size: 12px; }
   .tweaks-row .label { font-size: 13px; opacity: 0.9; }
+  .tweaks-section-title {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    letter-spacing: 0.16em; text-transform: uppercase; opacity: 0.5;
+    margin: 14px 0 4px; padding-top: 12px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+  }
   .tweak-seg {
     display: inline-flex; background: rgba(255,255,255,0.08);
     border-radius: 999px; padding: 2px; gap: 2px;
@@ -82,6 +90,42 @@
   .tweak-seg button.active { background: #F2EBDB; color: #141210; }
 
   #root { min-height: 100vh; padding-top: 44px; }
+
+  /* Responsive guards: collapse multi-column grids on mobile */
+  @media (max-width: 760px) {
+    [style*="grid-template-columns: 1fr 1fr"]:not(.keep-2col),
+    [style*="grid-template-columns: 1fr 2fr"],
+    [style*="grid-template-columns: 2fr 1fr"],
+    [style*="grid-template-columns: 1fr 3fr"],
+    [style*="grid-template-columns: 3fr 1fr"] {
+      grid-template-columns: 1fr !important;
+    }
+    [style*="grid-template-columns: repeat(3, 1fr)"] {
+      grid-template-columns: repeat(2, 1fr) !important;
+    }
+    [style*="grid-template-columns: repeat(4, 1fr)"],
+    [style*="grid-template-columns: repeat(5, 1fr)"],
+    [style*="grid-template-columns: repeat(6, 1fr)"],
+    [style*="grid-template-columns: repeat(7, 1fr)"] {
+      grid-template-columns: repeat(2, 1fr) !important;
+    }
+    section[style*="padding: 56px 28px"],
+    section[style*="padding: 64px 28px"],
+    section[style*="padding: 80px 28px"],
+    section[style*="padding: 88px 28px"] {
+      padding-left: 18px !important;
+      padding-right: 18px !important;
+    }
+  }
+  @media (max-width: 480px) {
+    [style*="grid-template-columns: repeat(3, 1fr)"],
+    [style*="grid-template-columns: repeat(4, 1fr)"],
+    [style*="grid-template-columns: repeat(5, 1fr)"],
+    [style*="grid-template-columns: repeat(6, 1fr)"],
+    [style*="grid-template-columns: repeat(7, 1fr)"] {
+      grid-template-columns: 1fr !important;
+    }
+  }
 
   @media (max-width: 760px) {
     .tweaks-panel { right: 10px; bottom: 10px; min-width: 200px; }
@@ -115,6 +159,59 @@
       <button data-value="en">EN</button>
     </div>
   </div>
+
+  <div class="tweaks-section-title">Ads</div>
+
+  <div class="tweaks-row">
+    <span class="label">Show ads</span>
+    <div class="tweak-seg" data-tweak="ads">
+      <button data-value="true" class="active">On</button>
+      <button data-value="false">Off</button>
+    </div>
+  </div>
+  <div class="tweaks-row tweak-sub">
+    <span class="label">Doorman (banner)</span>
+    <div class="tweak-seg" data-tweak="ads_doorman">
+      <button data-value="true">On</button>
+      <button data-value="false" class="active">Off</button>
+    </div>
+  </div>
+  <div class="tweaks-row tweak-sub">
+    <span class="label">Anchor (row)</span>
+    <div class="tweak-seg" data-tweak="ads_anchor">
+      <button data-value="true" class="active">On</button>
+      <button data-value="false">Off</button>
+    </div>
+  </div>
+  <div class="tweaks-row tweak-sub">
+    <span class="label">Bookmark (in-grid)</span>
+    <div class="tweak-seg" data-tweak="ads_bookmark">
+      <button data-value="true" class="active">On</button>
+      <button data-value="false">Off</button>
+    </div>
+  </div>
+  <div class="tweaks-row tweak-sub">
+    <span class="label">Marginalia (note)</span>
+    <div class="tweak-seg" data-tweak="ads_marginalia">
+      <button data-value="true" class="active">On</button>
+      <button data-value="false">Off</button>
+    </div>
+  </div>
+  <div class="tweaks-row tweak-sub">
+    <span class="label">Bowtie (newsletter)</span>
+    <div class="tweak-seg" data-tweak="ads_bowtie">
+      <button data-value="true" class="active">On</button>
+      <button data-value="false">Off</button>
+    </div>
+  </div>
+  <div class="tweaks-row" style="border-top: 1px solid rgba(255,255,255,0.08); padding-top: 12px;">
+    <button id="reset-dismissed" style="
+      background: transparent; color: #C7702E; border: 1px solid rgba(199,112,46,0.4);
+      padding: 7px 12px; border-radius: 4px; cursor: pointer;
+      font-family: 'JetBrains Mono', monospace; font-size: 10px;
+      letter-spacing: 0.1em; text-transform: uppercase; width: 100%;
+    ">Reset dismissed ads</button>
+  </div>
 </div>
 
 <div id="root"></div>
@@ -125,14 +222,22 @@
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 
 <script src="content.js?v=5"></script>
+<script src="ads-content.js"></script>
 <script type="text/babel" src="shared.jsx"></script>
+<script type="text/babel" src="ads.jsx"></script>
 <script type="text/babel" src="blog.jsx"></script>
 
 <!-- Tweak defaults -->
 <script>
   const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
     "lang": "pt",
-    "theme": "dark"
+    "theme": "dark",
+    "ads": true,
+    "ads_marginalia": true,
+    "ads_anchor": true,
+    "ads_bookmark": true,
+    "ads_bowtie": true,
+    "ads_doorman": false
   }/*EDITMODE-END*/;
 </script>
 
@@ -182,13 +287,24 @@
         if (!b) return;
         const seg = b.closest(".tweak-seg");
         const key = seg.dataset.tweak;
-        update({ [key]: b.dataset.value });
+        let v = b.dataset.value;
+        if (v === "true") v = true;
+        else if (v === "false") v = false;
+        update({ [key]: v });
+      };
+      const onReset = (e) => {
+        const b = e.target.closest("#reset-dismissed");
+        if (!b) return;
+        try { localStorage.removeItem("btf_ads_dismissed"); } catch {}
+        location.reload();
       };
       document.addEventListener("click", onLang);
       document.addEventListener("click", onTweak);
+      document.addEventListener("click", onReset);
       return () => {
         document.removeEventListener("click", onLang);
         document.removeEventListener("click", onTweak);
+        document.removeEventListener("click", onReset);
       };
     }, [update]);
 
@@ -208,16 +324,32 @@
       try {
         window.parent.postMessage({
           type: "__edit_mode_set_keys",
-          edits: { lang: state.lang, theme: state.theme },
+          edits: {
+            lang: state.lang, theme: state.theme,
+            ads: state.ads, ads_marginalia: state.ads_marginalia,
+            ads_anchor: state.ads_anchor, ads_bookmark: state.ads_bookmark,
+            ads_bowtie: state.ads_bowtie, ads_doorman: state.ads_doorman,
+          },
         }, "*");
       } catch {}
-    }, [state.lang, state.theme]);
+    }, [state.lang, state.theme, state.ads, state.ads_marginalia, state.ads_anchor, state.ads_bookmark, state.ads_bowtie, state.ads_doorman]);
 
     window._lang = state.lang;
     const t = window.CONTENT.ui[state.lang] || window.CONTENT.ui.pt;
     const dark = state.theme === "dark";
 
-    return <window.BlogArchive t={t} dark={dark} content={window.CONTENT} />;
+    const adsConfig = {
+      enabled: state.ads !== false,
+      slots: {
+        marginalia: state.ads_marginalia !== false,
+        anchor: state.ads_anchor !== false,
+        bookmark: state.ads_bookmark !== false,
+        bowtie: state.ads_bowtie !== false,
+        doorman: state.ads_doorman === true,
+      },
+    };
+
+    return <window.BlogArchive t={t} dark={dark} content={window.CONTENT} adsConfig={adsConfig} />;
   };
 
   ReactDOM.createRoot(document.getElementById("root")).render(<App/>);

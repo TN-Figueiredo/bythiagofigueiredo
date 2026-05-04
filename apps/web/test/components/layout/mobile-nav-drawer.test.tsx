@@ -12,9 +12,9 @@ const defaultProps = {
   ctas: 'home' as const,
   t: {
     'nav.home': 'Início',
-    'nav.writing': 'Escritos',
-    'nav.videos': 'Vídeos',
-    'nav.newsletter': 'Newsletter',
+    'nav.blog': 'Escritos',
+    'nav.youtube': 'YouTube',
+    'nav.newsletters': 'Newsletters',
     'nav.about': 'Sobre',
     'nav.contact': 'Contato',
     'header.subscribe': 'Inscrever no YouTube',

@@ -1,4 +1,3 @@
-import Image from 'next/image'
 import Link from 'next/link'
 import { headers } from 'next/headers'
 import { notFound } from 'next/navigation'
@@ -33,6 +32,7 @@ import type { SuggestionStrings } from './newsletter-suggestions'
 import { SubscribeForm } from './subscribe-form'
 import { FaqAccordion } from './faq-accordion'
 import { MobileStickyCTA } from './mobile-sticky-cta'
+import { AuthorAvatar } from './author-avatar'
 import { subscribeToNewsletters, getPostSubscribeSuggestions } from '@/app/(public)/actions/subscribe-newsletters'
 
 import './newsletter-landing.css'
@@ -128,13 +128,13 @@ export default async function NewsletterLandingPage({ params }: PageProps) {
       ? {
           name: author.display_name ?? author.name,
           bio: author.bio,
-          avatarUrl: author.avatar_url ?? '/identity/thiago.jpg',
+          avatarUrl: author.avatar_url ?? null,
           socialLinks: author.social_links ?? {},
         }
       : {
           name: profile?.name ?? 'Thiago Figueiredo',
           bio: t('newsletter.landing.authorBio'),
-          avatarUrl: '/identity/thiago.jpg',
+          avatarUrl: null as string | null,
           socialLinks: {},
         }
 
@@ -662,17 +662,7 @@ export default async function NewsletterLandingPage({ params }: PageProps) {
             >
               {/* Author photo */}
               <div style={{ flexShrink: 0 }}>
-                <Image
-                  src={authorData.avatarUrl}
-                  alt={authorData.name}
-                  width={80}
-                  height={80}
-                  style={{
-                    borderRadius: '50%',
-                    objectFit: 'cover',
-                    border: '2px solid var(--pb-line)',
-                  }}
-                />
+                <AuthorAvatar src={authorData.avatarUrl} name={authorData.name} />
               </div>
 
               {/* Author info */}

@@ -3,8 +3,8 @@ import { render } from '@testing-library/react'
 import { VideoGrid } from '../../../src/app/(public)/components/VideoGrid'
 
 const mockT: Record<string, string> = {
-  'home.videos.title': 'Latest videos', 'home.videos.subtitle': 'the 3 most recent',
-  'home.videos.viewAll': 'see all →', 'home.videos.subscribe': '▶ subscribe on yt',
+  'home.youtube.title': 'YouTube', 'home.youtube.subtitle': 'the 3 most recent',
+  'home.youtube.viewAll': 'see all on YouTube →', 'home.youtube.subscribe': '▶ subscribe on yt',
 }
 const makeVideo = (i: number) => ({
   id: `v${i}`, locale: 'en' as const, title: `Video ${i}`,

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useDeferredValue, useTransition } from 'react'
+import { toast } from 'sonner'
 import type { EditorialTabData, NewsletterType } from '../../_hub/hub-types'
 import { VelocityStrip } from './velocity-strip'
 import { KanbanBoard } from './kanban-board'
@@ -10,7 +11,7 @@ import { SectionErrorBoundary } from '../../_shared/section-error-boundary'
 import { Kanban, Plus, AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
 import type { NewsletterHubStrings } from '../../_i18n/types'
-import { moveEdition, reassignEditionType } from '../../actions'
+import { moveEdition, reassignEditionType, createIdea } from '../../actions'
 
 const SENT_RETENTION_DAYS = 14
 
@@ -66,6 +67,16 @@ export function EditorialTab({ data, typeFilter, strings, types }: EditorialTabP
     })
   }
 
+  const handleQuickAdd = async (title: string): Promise<string | null> => {
+    const result = await createIdea(title, undefined, typeFilter ?? undefined)
+    if (result.ok) {
+      toast.success(strings?.editorial.ideaCreated ?? 'Idea created')
+      return result.editionId ?? null
+    }
+    toast.error(strings?.editorial.ideaFailed ?? "Couldn't create idea")
+    throw new Error('creation failed')
+  }
+
   const newEditionHref = typeFilter
     ? `/cms/newsletters/new?type=${typeFilter}`
     : '/cms/newsletters/new'
@@ -117,7 +128,7 @@ export function EditorialTab({ data, typeFilter, strings, types }: EditorialTabP
       </div>
 
       <SectionErrorBoundary sectionName="Kanban board">
-        <KanbanBoard editions={filtered} onMoveEdition={handleMoveEdition} strings={strings} types={types} onReassignType={handleReassignType} />
+        <KanbanBoard editions={filtered} onMoveEdition={handleMoveEdition} onQuickAdd={handleQuickAdd} strings={strings} types={types} onReassignType={handleReassignType} />
       </SectionErrorBoundary>
 
       <SummaryBar

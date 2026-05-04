@@ -5,7 +5,7 @@
   --ad-text-muted: var(--pb-muted);
   --ad-accent: var(--pb-accent);
   --ad-border: var(--pb-line);
-  --ad-font-body: var(--font-inter);
-  --ad-font-heading: var(--font-source-serif);
+  --ad-font-body: var(--font-source-serif);
+  --ad-font-heading: var(--font-fraunces);
   --ad-font-mono: var(--font-jetbrains);
 }

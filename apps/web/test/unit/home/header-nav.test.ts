@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { buildNavItems, type HeaderCurrent } from '../../../src/components/layout/header-types'
 
 const mockT: Record<string, string> = {
-  'nav.home': 'Home', 'nav.blog': 'Blog', 'nav.videos': 'Videos',
-  'nav.newsletter': 'Newsletter', 'nav.about': 'About', 'nav.contact': 'Contact',
+  'nav.home': 'Home', 'nav.blog': 'Blog', 'nav.youtube': 'YouTube',
+  'nav.newsletters': 'Newsletters', 'nav.about': 'About', 'nav.contact': 'Contact',
 }
 
 describe('buildNavItems', () => {

@@ -10,7 +10,7 @@ import type { ConsentRecord } from '@/components/lgpd/consent-revocation-panel'
 import type { LgpdRequestView } from '@/components/lgpd/lgpd-request-status'
 
 export const metadata = {
-  title: 'Privacidade | bythiagofigueiredo',
+  title: 'Privacidade',
   robots: { index: false, follow: false },
 }
 

@@ -9,14 +9,12 @@ import {
   deleteNewsletterType,
   getNewsletterTypeForEdit,
   uploadNewsletterTypeImage,
+  getUnlinkedTags,
 } from '../actions'
 import { deriveCadenceLabel } from '@/lib/newsletter/format'
 import type { NewsletterHubStrings } from '../_i18n/types'
-
-const COLOR_PRESETS = [
-  '#7c3aed', '#ea580c', '#2563eb', '#16a34a', '#dc2626',
-  '#ca8a04', '#0891b2', '#db2777',
-]
+import { COLOR_PALETTE } from '../../_shared/color-palette'
+import type { UsedColor } from '../../_shared/color-palette'
 
 const FOCUSABLE = 'input, select, textarea, button:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
@@ -57,6 +55,15 @@ export interface TypeDrawerData {
   cadencePaused: boolean
   subscriberCount: number
   editionCount: number
+  linkedTag: { id: string; name: string; color: string | null } | null
+}
+
+interface UnlinkedTag {
+  id: string
+  name: string
+  slug: string
+  color: string | null
+  colorDark: string | null
 }
 
 interface PromiseItem { key: number; value: string }
@@ -69,9 +76,11 @@ interface TypeDrawerProps {
   locale: 'en' | 'pt-BR'
   strings: NewsletterHubStrings['typeDrawer']
   existingBadges?: string[]
+  siteId?: string
+  usedColors?: UsedColor[]
 }
 
-export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, existingBadges = [] }: TypeDrawerProps) {
+export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, existingBadges = [], siteId, usedColors = [] }: TypeDrawerProps) {
   const router = useRouter()
   const titleId = useId()
   const fid = useId()
@@ -96,6 +105,11 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
   const [color, setColor] = useState('#7c3aed')
   const [colorDark, setColorDark] = useState('')
   const [ogImageUrl, setOgImageUrl] = useState('')
+
+  const [linkedTagId, setLinkedTagId] = useState<string | null>(null)
+  const [initialLinkedTagId, setInitialLinkedTagId] = useState<string | null>(null)
+  const [availableTags, setAvailableTags] = useState<UnlinkedTag[]>([])
+  const [tagsLoading, setTagsLoading] = useState(false)
 
   const [editData, setEditData] = useState<TypeDrawerData | null>(null)
   const [deleteConfirmStep, setDeleteConfirmStep] = useState<null | 'confirm' | 'name-check'>(null)
@@ -128,6 +142,9 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
             setColor(t.color)
             setColorDark(t.colorDark ?? '')
             setOgImageUrl(t.ogImageUrl ?? '')
+            const tagLinkId = t.linkedTag?.id ?? null
+            setLinkedTagId(tagLinkId)
+            setInitialLinkedTagId(tagLinkId)
           } else {
             toast.error(strings.typeNotFound)
             onCloseRef.current()
@@ -147,9 +164,19 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
         setColor('#7c3aed')
         setColorDark('')
         setOgImageUrl('')
+        setLinkedTagId(null)
+        setInitialLinkedTagId(null)
+      }
+      // Fetch available tags for linking
+      if (siteId) {
+        setTagsLoading(true)
+        getUnlinkedTags(siteId, mode === 'edit' && typeId ? typeId : undefined)
+          .then((tags) => setAvailableTags(tags))
+          .catch(() => setAvailableTags([]))
+          .finally(() => setTagsLoading(false))
       }
     }
-  }, [open, mode, typeId, locale])
+  }, [open, mode, typeId, locale, siteId])
 
   const handleClose = useCallback(() => {
     setVisible(false)
@@ -266,6 +293,7 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
       badge: badge.trim() || undefined,
       ogImageUrl: ogImageUrl.trim() || undefined,
       landingPromise: cleanPromise.length > 0 ? cleanPromise : undefined,
+      linkedTagId: linkedTagId ?? undefined,
     }
 
     startTransition(async () => {
@@ -283,6 +311,7 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
           }
         }
       } else if (editData) {
+        const tagLinkChanged = linkedTagId !== initialLinkedTagId
         const result = await updateNewsletterType(editData.id, {
           ...payload,
           colorDark: colorDark || null,
@@ -290,6 +319,7 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
           badge: badge.trim() || null,
           ogImageUrl: ogImageUrl.trim() || null,
           landingPromise: cleanPromise,
+          ...(tagLinkChanged ? { linkedTagId } : {}),
         })
         if (result.ok) {
           toast.success(strings.toastSaved)
@@ -533,17 +563,29 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
                   <div>
                     <label htmlFor={`${fid}-color`} className="block text-sm font-medium text-gray-400 mb-1">{strings.colorLabel}</label>
                     <div className="flex flex-wrap gap-2 mb-2">
-                      {COLOR_PRESETS.map((c) => (
-                        <button
-                          key={c}
-                          type="button"
-                          onClick={() => setColor(c)}
-                          className={`h-7 w-7 rounded-full border-2 transition-transform ${color === c ? 'border-white scale-110' : 'border-transparent'}`}
-                          style={{ backgroundColor: c }}
-                          aria-label={`Select color ${c}`}
-                          aria-pressed={color === c}
-                        />
-                      ))}
+                      {COLOR_PALETTE.map((preset) => {
+                        const isSelected = color.toLowerCase() === preset.light.toLowerCase()
+                        const owner = usedColors.find((u) => u.color.toLowerCase() === preset.light.toLowerCase())
+                        const isSelf = mode === 'edit' && editData?.color.toLowerCase() === preset.light.toLowerCase()
+                        const isTaken = !!owner && !isSelf
+                        return (
+                          <div key={preset.light} className="relative group">
+                            <button
+                              type="button"
+                              onClick={() => { setColor(preset.light); setColorDark(preset.dark) }}
+                              className={`h-7 w-7 rounded-full border-2 transition-transform ${isSelected ? 'border-white scale-110' : isTaken ? 'border-transparent opacity-40' : 'border-transparent'}`}
+                              style={{ backgroundColor: preset.light }}
+                              aria-label={`${preset.label}${isTaken ? ` (${owner.entityName})` : ''}`}
+                              aria-pressed={isSelected}
+                            />
+                            {isTaken && (
+                              <div className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-gray-800 px-2 py-0.5 text-[10px] text-gray-300 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-10">
+                                {owner.entityName}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
                       <input
                         type="color"
                         value={color}
@@ -678,6 +720,55 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
                   </div>
                 </div>
               </section>
+
+              {/* Section: Link to Tag */}
+              {siteId && (
+                <section data-testid="drawer-link-tag-section">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">{strings.sectionLinkTag}</h3>
+                  {tagsLoading ? (
+                    <p className="text-xs text-gray-600">{strings.linkTagLoading}</p>
+                  ) : linkedTagId ? (
+                    <div className="rounded-lg border border-gray-800 p-3 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="inline-block h-3 w-3 rounded-full shrink-0"
+                          style={{ backgroundColor: availableTags.find((t) => t.id === linkedTagId)?.color ?? editData?.linkedTag?.color ?? '#6b7280' }}
+                        />
+                        <span className="text-sm text-gray-200 font-medium">
+                          {availableTags.find((t) => t.id === linkedTagId)?.name ?? editData?.linkedTag?.name ?? '—'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-gray-600">{strings.linkTagSyncHint}</p>
+                      <button
+                        type="button"
+                        onClick={() => setLinkedTagId(null)}
+                        className="text-xs text-red-400 hover:text-red-300"
+                        data-testid="drawer-unlink-tag"
+                      >
+                        {strings.linkTagUnlink}
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      <label htmlFor={`${fid}-tag`} className="block text-sm font-medium text-gray-400 mb-1">{strings.linkTagLabel}</label>
+                      <select
+                        id={`${fid}-tag`}
+                        value=""
+                        onChange={(e) => { if (e.target.value) setLinkedTagId(e.target.value) }}
+                        className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-100 focus:border-indigo-500 focus:outline-none"
+                        data-testid="drawer-link-tag-select"
+                      >
+                        <option value="">{strings.linkTagNone}</option>
+                        {availableTags.map((tag) => (
+                          <option key={tag.id} value={tag.id}>
+                            {tag.color ? `● ` : ''}{tag.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </section>
+              )}
 
               {/* Section 4: Schedule (edit mode only) */}
               {mode === 'edit' && editData && (

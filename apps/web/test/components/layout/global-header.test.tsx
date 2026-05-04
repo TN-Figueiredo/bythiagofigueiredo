@@ -7,8 +7,8 @@ vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response())))
 const defaultT: Record<string, string> = {
   'nav.home': 'Início',
   'nav.writing': 'Escritos',
-  'nav.videos': 'Vídeos',
-  'nav.newsletter': 'Newsletter',
+  'nav.youtube': 'YouTube',
+  'nav.newsletters': 'Newsletters',
   'nav.about': 'Sobre',
   'nav.contact': 'Contato',
   'header.subscribe': 'Inscrever no YouTube',

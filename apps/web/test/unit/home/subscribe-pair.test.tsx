@@ -29,9 +29,9 @@ describe('SubscribePair', () => {
     expect(getByText('On the channel')).toBeDefined()
   })
 
-  it('renders only YT card when no newsletter', () => {
-    const { getByText, queryByText } = render(<SubscribePair newsletter={null} locale="en" t={mockT} />)
-    expect(queryByText('Field Notes')).toBeNull()
+  it('renders both cards even when newsletter is null (uses translation strings)', () => {
+    const { getByText } = render(<SubscribePair newsletter={null} locale="en" t={mockT} />)
+    expect(getByText('Field Notes')).toBeDefined()
     expect(getByText('On the channel')).toBeDefined()
   })
 

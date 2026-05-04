@@ -24,7 +24,7 @@ export function BlogGrid({ posts, locale, t, isDark }: Props) {
     posts.length === 2 ? 'md:grid-cols-2' : ''
 
   return (
-    <section id="blog" aria-labelledby="blog-heading" style={{ maxWidth: 1280, margin: '0 auto', padding: '64px 28px 40px', scrollMarginTop: 110 }}>
+    <section id="blog" aria-labelledby="blog-heading" className="px-[18px] md:px-7" style={{ maxWidth: 1280, margin: '0 auto', paddingTop: 64, paddingBottom: 40, scrollMarginTop: 110 }}>
       <SectionHeader
         number="02"
         label="blog"
@@ -48,7 +48,7 @@ export function BlogGrid({ posts, locale, t, isDark }: Props) {
         </PaperCard>
       ) : (
         <>
-          <div className={`grid grid-cols-1 md:grid-cols-2 ${gridCols}`} style={{ gap: 40, rowGap: 56 }}>
+          <div className={`grid grid-cols-1 md:grid-cols-2 ${gridCols} gap-7 md:gap-10`} style={{ rowGap: 48 }}>
             {posts.map((post, i) => (
               <div key={post.id} style={{ position: 'relative', paddingTop: 16 }}>
                 <ReadableCard postId={post.id}>

@@ -278,3 +278,96 @@ describe('NewslettersHub — light theme', () => {
     expect(cards[0]!.getAttribute('aria-checked')).toBe('false')
   })
 })
+
+describe('NewslettersHub — announcements', () => {
+  it('announces added message with name and count', () => {
+    renderHub()
+    const cards = screen.getAllByRole('checkbox')
+    // Deselect first, then re-select to get "added" announcement
+    fireEvent.click(cards[0]!)
+    fireEvent.click(cards[0]!)
+    const liveRegion = document.querySelector('[aria-live="polite"]')
+    expect(liveRegion?.textContent).toContain('added')
+    expect(liveRegion?.textContent).toContain('4 of 4')
+  })
+
+  it('announces removed message with name and count', () => {
+    renderHub()
+    const cards = screen.getAllByRole('checkbox')
+    fireEvent.click(cards[0]!)
+    const liveRegion = document.querySelector('[aria-live="polite"]')
+    expect(liveRegion?.textContent).toContain('removed')
+    expect(liveRegion?.textContent).toContain('The bythiago diary')
+  })
+
+  it('keyboard Space toggle produces announcement', () => {
+    renderHub()
+    const cards = screen.getAllByRole('checkbox')
+    fireEvent.keyDown(cards[1]!, { key: ' ' })
+    const liveRegion = document.querySelector('[aria-live="polite"]')
+    expect(liveRegion?.textContent).toContain('removed')
+    expect(liveRegion?.textContent).toContain('3 of 4')
+  })
+
+  it('pill remove button triggers announcement', () => {
+    renderHub()
+    const pillContainer = screen.getByRole('list')
+    const pills = within(pillContainer).getAllByRole('listitem')
+    const removeBtn = within(pills[1]!).getByRole('button')
+    fireEvent.click(removeBtn)
+    const liveRegion = document.querySelector('[aria-live="polite"]')
+    expect(liveRegion?.textContent).toContain('removed')
+    expect(liveRegion?.textContent).toContain('3 of 4')
+  })
+})
+
+describe('NewslettersHub — subscribe form', () => {
+  it('subscribe button enabled when email valid and cards selected', () => {
+    renderHub()
+    const emailInput = document.querySelector('input[type="email"]') as HTMLInputElement
+    fireEvent.change(emailInput, { target: { value: 'test@example.com' } })
+    const submitBtn = screen.getByRole('button', { name: /subscribe/i })
+    expect((submitBtn as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('subscribe button disabled with invalid email even when cards selected', () => {
+    renderHub()
+    const emailInput = document.querySelector('input[type="email"]') as HTMLInputElement
+    fireEvent.change(emailInput, { target: { value: 'notanemail' } })
+    const submitBtn = screen.getByRole('button', { name: /subscribe/i })
+    expect((submitBtn as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('pills container is absent when no cards selected', () => {
+    renderHub()
+    const clearBtn = screen.getByRole('button', { name: /clear/i })
+    fireEvent.click(clearBtn)
+    expect(screen.queryByRole('list')).toBeNull()
+  })
+})
+
+describe('NewslettersHub — deselected card badge', () => {
+  it('deselected card shows "+ add" badge text (not ADDED)', () => {
+    renderHub()
+    const cards = screen.getAllByRole('checkbox')
+    fireEvent.click(cards[0]!)
+    // The card should show "+ add" not "ADDED"
+    const card = cards[0]!
+    expect(within(card).queryByText(/ADDED/)).toBeNull()
+    expect(within(card).getByText((content) => content.includes('add') && !content.includes('ADDED'))).toBeTruthy()
+  })
+})
+
+describe('NewslettersHub — learn more links', () => {
+  it('each card has a learn more link', () => {
+    renderHub()
+    const links = screen.getAllByText(/learn more/i)
+    expect(links).toHaveLength(4)
+  })
+
+  it('learn more links have correct href for locale', () => {
+    renderHub({ locale: 'pt-BR' })
+    const links = screen.getAllByText(/saiba mais/i)
+    expect(links[0]!.closest('a')?.getAttribute('href')).toContain('/newsletters/')
+  })
+})

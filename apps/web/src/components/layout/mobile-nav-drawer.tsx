@@ -1,24 +1,56 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
-import type { HeaderLocale, HeaderTheme, HeaderCurrent, HeaderVariant, HeaderCtaVariant } from './header-types'
+import type { HeaderLocale, HeaderTheme, HeaderVariant, HeaderCtaVariant } from './header-types'
 import { buildNavItems } from './header-types'
+import { useActiveNav } from './use-active-nav'
 import { HeaderCTAs } from './header-ctas'
 import { ThemeToggle } from './theme-toggle'
 
 type Props = {
   locale: HeaderLocale
   currentTheme: HeaderTheme
-  current: HeaderCurrent
   variant: HeaderVariant
   ctas: HeaderCtaVariant
   t: Record<string, string>
 }
 
-export function MobileNavDrawer({ locale, currentTheme, current, variant, ctas, t }: Props) {
+export function MobileNavDrawer({ locale, currentTheme, variant, ctas, t }: Props) {
   const [open, setOpen] = useState(false)
+  const current = useActiveNav()
   const items = buildNavItems(locale, variant, t)
+
+  const drawerRef = useRef<HTMLDivElement>(null)
+
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Escape') { setOpen(false); return }
+    if (e.key !== 'Tab' || !drawerRef.current) return
+    const focusable = drawerRef.current.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled])',
+    )
+    if (focusable.length === 0) return
+    const first = focusable[0]!
+    const last = focusable[focusable.length - 1]!
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault()
+      first.focus()
+    }
+  }, [])
+
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = 'hidden'
+      document.addEventListener('keydown', handleKeyDown)
+      return () => {
+        document.body.style.overflow = ''
+        document.removeEventListener('keydown', handleKeyDown)
+      }
+    }
+  }, [open, handleKeyDown])
 
   return (
     <>
@@ -50,6 +82,10 @@ export function MobileNavDrawer({ locale, currentTheme, current, variant, ctas, 
 
       {open && (
         <div
+          ref={drawerRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Navigation menu"
           style={{
             position: 'fixed',
             top: 0,
@@ -108,7 +144,7 @@ export function MobileNavDrawer({ locale, currentTheme, current, variant, ctas, 
                   transition: 'color 0.15s ease',
                 }
                 return (
-                  <div key={item.key} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <div key={item.key} style={{ borderBottom: '1px solid var(--pb-line)', opacity: 0.15 }}>
                     {item.external ? (
                       <a
                         href={item.href}

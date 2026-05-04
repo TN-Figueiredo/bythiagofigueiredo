@@ -13,7 +13,7 @@ exports[`page-metadata factories — snapshots > generateBlogIndexMetadata shape
     "card": "summary_large_image"
   },
   "title": "Blog",
-  "description": "Últimos posts de Example.",
+  "description": "Artigos sobre engenharia de software, produto e carreira por Example.",
   "alternates": {
     "canonical": "/pt/blog",
     "languages": {
@@ -181,7 +181,7 @@ exports[`page-metadata factories — snapshots > generateRootMetadata shape 1`] 
     "default": "Example",
     "template": "%s — Example"
   },
-  "description": "Hub de Thiago Figueiredo. Build in public, learn out loud.",
+  "description": "Blog, newsletters e projetos de Thiago Figueiredo. Engenharia de software, produto e construção em público.",
   "alternates": {
     "canonical": "/",
     "languages": {

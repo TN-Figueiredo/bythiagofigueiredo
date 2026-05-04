@@ -250,14 +250,16 @@ describe('filterByLocale — edge cases', () => {
 })
 
 describe('computeSuggestionScore — edge cases', () => {
-  it('future created_at date still produces valid score (no negative newness)', () => {
+  it('future created_at date clamps to 0 elapsed — still gets full newness bonus', () => {
     const candidate = makeCandidate({
       subscriber_count: 50,
       created_at: new Date(NOW + 30 * 24 * 60 * 60 * 1000).toISOString(),
     })
     const score = computeSuggestionScore(candidate, 100, NOW)
-    // created_at is in the future, so daysSinceCreated is negative
-    // Negative value means < THIRTY_DAYS_MS, so newnessBonus = 1.0
+    // created_at is in the future, daysSinceCreated clamped to 0
+    // 0 <= THIRTY_DAYS_MS, so newnessBonus = 1.0
+    // normalizedSubs = 50/100 = 0.5 * 0.6 = 0.3, newness = 1.0 * 0.1 = 0.1
+    expect(score).toBeCloseTo(0.4)
     expect(score).toBeGreaterThanOrEqual(0)
     expect(score).toBeLessThanOrEqual(1)
   })

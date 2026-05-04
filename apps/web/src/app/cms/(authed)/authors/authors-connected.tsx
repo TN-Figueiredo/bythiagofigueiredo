@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useTransition, useRef, type FormEvent } from 'react'
+import { useState, useCallback, useEffect, useTransition, useRef, type FormEvent } from 'react'
 import {
   createAuthor,
   updateAuthor,
@@ -287,11 +287,11 @@ function DetailPanel({
     setTranslationsLoaded(true)
   }, [author.id, translationsLoaded])
 
-  const prevActiveTab = useRef(activeTab)
-  if (activeTab === 'about' && prevActiveTab.current !== 'about') {
-    loadTranslations()
-  }
-  prevActiveTab.current = activeTab
+  useEffect(() => {
+    if (activeTab === 'about') {
+      loadTranslations()
+    }
+  }, [activeTab, loadTranslations])
 
   const [headline, setHeadline] = useState('')
   const [subtitle, setSubtitle] = useState('')

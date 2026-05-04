@@ -59,6 +59,7 @@ vi.mock('lucide-react', () => ({
   Tag: () => React.createElement('span', null, 'TagIcon'),
   Globe: () => React.createElement('span', null, 'Globe'),
   Copy: () => React.createElement('span', null, 'Copy'),
+  Sparkles: () => React.createElement('span', null, 'Sparkles'),
 }))
 
 /* ------------------------------------------------------------------ */

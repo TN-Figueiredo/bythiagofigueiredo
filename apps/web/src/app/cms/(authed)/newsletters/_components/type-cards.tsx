@@ -27,9 +27,10 @@ interface TypeCardsProps {
   currentStatus?: string
   locale: 'en' | 'pt-BR'
   drawerStrings: NewsletterHubStrings['typeDrawer']
+  siteId?: string
 }
 
-export function TypeCards({ types, selectedTypeId, currentStatus, locale, drawerStrings }: TypeCardsProps) {
+export function TypeCards({ types, selectedTypeId, currentStatus, locale, drawerStrings, siteId }: TypeCardsProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -193,6 +194,8 @@ export function TypeCards({ types, selectedTypeId, currentStatus, locale, drawer
         onClose={() => setDrawerOpen(false)}
         locale={locale}
         strings={drawerStrings}
+        siteId={siteId}
+        usedColors={types.map((t) => ({ color: t.color, entityName: t.name }))}
       />
     </div>
   )

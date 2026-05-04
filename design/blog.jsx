@@ -3,7 +3,7 @@
  * Pattern mirrors pinboard: makePinboardTheme(dark) + makePinboardKit(theme).
  */
 
-const BlogArchive = ({ t, dark, content }) => {
+const BlogArchive = ({ t, dark, content, adsConfig }) => {
   const C = content;
   const posts = C.posts;
   const cats = C.categories;
@@ -14,6 +14,23 @@ const BlogArchive = ({ t, dark, content }) => {
   const kit = window.makePinboardKit(theme);
   const { PageHeader, WritingCard } = kit;
   const { bg, ink, muted, faint, line, accent, marker, hand, paper } = theme;
+
+  // ---- Ad selection (mirrors pinboard.jsx) ----
+  const adsCfg = adsConfig || { enabled: true, slots: { marginalia: true, anchor: true, bookmark: true, bowtie: true, doorman: false } };
+  const adsEnabled = adsCfg.enabled && window.AdsContent;
+  const adSlot = adsCfg.slots || {};
+  const sponsorList = adsEnabled ? Object.values(window.AdsContent.sponsors) : [];
+  const houseList = adsEnabled ? Object.values(window.AdsContent.houseAds) : [];
+  // Rotate daily so archive feels fresh on revisits — offset +2 so we don't show the
+  // exact same picks as the home page on the same day.
+  const adH = Math.floor(Date.now() / (1000 * 60 * 60 * 24)) + 2;
+  const pickSponsor = (i = 0) => sponsorList.length ? sponsorList[Math.abs(adH + i) % sponsorList.length] : null;
+  const pickHouse = (i = 0) => houseList.length ? houseList[Math.abs(adH + i) % houseList.length] : null;
+  const adDoorman    = adsEnabled && adSlot.doorman    ? pickHouse(0)   : null;
+  const adAnchor     = adsEnabled && adSlot.anchor     ? pickSponsor(0) : null;
+  const adBookmark   = adsEnabled && adSlot.bookmark   ? pickSponsor(1) : null;
+  const adMarginalia = adsEnabled && adSlot.marginalia ? pickHouse(1)   : null;
+  const adBowtie     = adsEnabled && adSlot.bowtie     ? (window.AdsContent && window.AdsContent.houseAds.newsletter) || pickHouse(2) : null;
 
   // ---------- URL-param–synced state ----------
   const readParams = () => {
@@ -99,6 +116,9 @@ const BlogArchive = ({ t, dark, content }) => {
 
   return (
     <div id="top" style={{ background: bg, color: ink, minHeight: "100vh", fontFamily: '"Inter", sans-serif' }}>
+
+      {/* Doorman ad — dismissable banner above the header (off by default) */}
+      {adDoorman && <window.Doorman ad={adDoorman} L={L} theme={theme}/>}
 
       <PageHeader nav={nav} current="writing" ctas={
         <a href="newsletters.html" style={{
@@ -251,6 +271,15 @@ const BlogArchive = ({ t, dark, content }) => {
         </div>
       </section>
 
+      {/* HorizontalAnchor sponsor — full-width row between filters and results.
+          Acts as a quiet section break — it separates "what you searched"
+          from "what we found" without competing with the cards. */}
+      {adAnchor && (
+        <section style={{ maxWidth: 1280, margin: "0 auto 28px", padding: "0 28px" }}>
+          <window.HorizontalAnchor ad={adAnchor} L={L} theme={theme}/>
+        </section>
+      )}
+
       {/* Results */}
       <section style={{ maxWidth: 1280, margin: "0 auto", padding: "0 28px 96px" }}>
 
@@ -296,12 +325,44 @@ const BlogArchive = ({ t, dark, content }) => {
           </div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 40, rowGap: 56 }}>
-            {filtered.map((p, i) => (
-              <WritingCard key={p.slug} post={p} t={t} index={i} hrefBase="post.html?slug="/>
-            ))}
+            {filtered.map((p, i) => {
+              // Inject the Bookmark sponsor scrap inline at position 6 (start of row 3)
+              // so it occupies one card cell. Falls back to end of grid for short lists.
+              const bookmarkAt = filtered.length >= 7 ? 6 : Math.max(0, filtered.length - 1);
+              const showBookmarkBefore = adBookmark && i === bookmarkAt;
+              return (
+                <React.Fragment key={p.slug}>
+                  {showBookmarkBefore && (
+                    <div style={{
+                      gridColumn: "span 1",
+                      display: "flex", alignItems: "stretch",
+                    }}>
+                      <window.Bookmark ad={adBookmark} L={L} theme={theme}/>
+                    </div>
+                  )}
+                  <WritingCard post={p} t={t} index={i} hrefBase="post.html?slug="/>
+                </React.Fragment>
+              );
+            })}
           </div>
         )}
       </section>
+
+      {/* Marginalia (house, paper variant) — quiet note above the bowtie/footer.
+          Sits at the same width as the page chrome so it reads as marginalia
+          to the whole archive, not to a single result. */}
+      {adMarginalia && (
+        <section style={{ maxWidth: 720, margin: "0 auto", padding: "8px 28px 0" }}>
+          <window.Marginalia ad={adMarginalia} L={L} theme={theme} variant="paper"/>
+        </section>
+      )}
+
+      {/* Bowtie — house newsletter card before the footer */}
+      {adBowtie && (
+        <section style={{ maxWidth: 920, margin: "0 auto", padding: "40px 28px 0" }}>
+          <window.Bowtie ad={adBowtie} L={L} theme={theme}/>
+        </section>
+      )}
 
       {/* Footer strip */}
       <footer style={{ borderTop: `1px dashed ${line}`, padding: "28px", textAlign: "center", color: faint, fontSize: 12, fontFamily: '"JetBrains Mono", monospace', letterSpacing: "0.08em" }}>

@@ -3,38 +3,33 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useSidebar } from '@tn-figueiredo/cms-ui/client'
+import { computeUrgencyColor } from '@/lib/cms/sidebar-badges'
 import type { SidebarBadgeData, UrgencySlot, UrgencyColor } from '@/lib/cms/sidebar-badges'
 
-const COLOR_CLASSES: Record<UrgencyColor | 'yellow', { bg: string; text: string }> = {
+const COLOR_CLASSES: Record<UrgencyColor, { bg: string; text: string }> = {
   yellow: { bg: 'bg-yellow-500/15', text: 'text-yellow-400' },
   orange: { bg: 'bg-orange-500/15', text: 'text-orange-400' },
   red:    { bg: 'bg-red-500/15',    text: 'text-red-400' },
 }
 
-const DOT_COLORS: Record<UrgencyColor | 'yellow', string> = {
+const DOT_COLORS: Record<UrgencyColor, string> = {
   yellow: 'bg-yellow-400',
   orange: 'bg-orange-400',
   red:    'bg-red-400',
 }
 
-function formatCount(n: number): string {
+export function formatCount(n: number): string {
   return n > 99 ? '99+' : String(n)
 }
 
-function formatSlotDate(iso: string): string {
+export function formatSlotDate(iso: string): string {
   const d = new Date(iso + 'T00:00:00Z')
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
 }
 
-function computeSlotColor(daysUntil: number): UrgencyColor {
-  if (daysUntil <= 4) return 'red'
-  if (daysUntil <= 9) return 'orange'
-  return 'yellow'
-}
-
 interface PillProps {
   count: number
-  color: UrgencyColor | 'yellow'
+  color: UrgencyColor
   ariaLabel: string
   tooltipContent?: React.ReactNode
 }
@@ -46,13 +41,17 @@ function Pill({ count, color, ariaLabel, tooltipContent }: PillProps) {
   return (
     <span
       className={`relative text-[11px] px-1.5 py-px rounded-full font-medium ${bg} ${text} cursor-default`}
+      role="status"
       aria-label={ariaLabel}
+      tabIndex={0}
       onMouseEnter={() => setShowTooltip(true)}
       onMouseLeave={() => setShowTooltip(false)}
+      onFocus={() => setShowTooltip(true)}
+      onBlur={() => setShowTooltip(false)}
     >
       {formatCount(count)}
       {showTooltip && tooltipContent && (
-        <span className="absolute top-full right-0 mt-2 z-50 pointer-events-none">
+        <span role="tooltip" className="absolute top-full right-0 mt-2 z-50 pointer-events-none">
           <span className="block bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 shadow-xl min-w-[180px]">
             {tooltipContent}
           </span>
@@ -96,7 +95,7 @@ function UrgencyTooltip({ slots }: { slots: UrgencySlot[] }) {
         <span key={i} className="flex items-center gap-2 text-[12px] text-slate-200">
           <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: s.typeColor }} />
           <span className="flex-1 truncate">{s.typeName}</span>
-          <span className={`text-[11px] ${COLOR_CLASSES[computeSlotColor(s.daysUntil)].text}`}>
+          <span className={`text-[11px] ${COLOR_CLASSES[computeUrgencyColor(s.daysUntil) ?? 'yellow'].text}`}>
             {formatSlotDate(s.slotDate)}
           </span>
         </span>
@@ -105,7 +104,7 @@ function UrgencyTooltip({ slots }: { slots: UrgencySlot[] }) {
   )
 }
 
-function CollapsedDot({ href, color }: { href: string; color: UrgencyColor | 'yellow' }) {
+function CollapsedDot({ href, color }: { href: string; color: UrgencyColor }) {
   const [target, setTarget] = useState<Element | null>(null)
 
   useEffect(() => {

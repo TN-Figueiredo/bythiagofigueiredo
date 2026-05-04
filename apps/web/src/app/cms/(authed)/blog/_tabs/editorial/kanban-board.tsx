@@ -49,6 +49,7 @@ function resolveColumn(id: string, posts: PostCard[]): string | null {
 
 interface KanbanBoardProps {
   posts: PostCard[]
+  confirmedIds?: Set<string>
   onMovePost?: (postId: string, newStatus: string, scheduledFor?: string) => Promise<void>
   onDeletePost?: (postId: string) => Promise<void>
   onReassignTag?: (postId: string, tagId: string | null) => Promise<void>
@@ -62,6 +63,7 @@ interface KanbanBoardProps {
 
 export function KanbanBoard({
   posts,
+  confirmedIds,
   onMovePost,
   onDeletePost,
   onReassignTag,
@@ -289,6 +291,7 @@ export function KanbanBoard({
               title={strings?.editorial[col.key] ?? FALLBACK_TITLES[col.key] ?? col.key}
               color={col.color}
               cards={cards}
+              confirmedIds={confirmedIds}
               strings={strings}
               tags={tags}
               supportedLocales={supportedLocales}

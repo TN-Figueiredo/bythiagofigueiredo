@@ -25,9 +25,9 @@ describe('ad-theme.css', () => {
     expect(css).toContain('--ad-accent: var(--pb-accent)')
   })
 
-  it('maps --ad-font-body to --font-inter', () => {
+  it('maps --ad-font-body to --font-source-serif', () => {
     css = readFileSync(CSS_PATH, 'utf-8')
-    expect(css).toContain('--ad-font-body: var(--font-inter)')
+    expect(css).toContain('--ad-font-body: var(--font-source-serif)')
   })
 
   it('has all 8 required custom properties', () => {

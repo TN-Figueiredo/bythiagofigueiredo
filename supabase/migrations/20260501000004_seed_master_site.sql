@@ -35,7 +35,7 @@ begin
   )
   values (
     v_org_id,
-    'ByThiagoFigueiredo',
+    'Thiago Figueiredo',
     'bythiagofigueiredo',
     array['bythiagofigueiredo.com', 'www.bythiagofigueiredo.com'],
     'bythiagofigueiredo.com',

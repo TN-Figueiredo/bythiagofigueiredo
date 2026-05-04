@@ -16,6 +16,16 @@ vi.mock('@/app/cms/(authed)/authors/actions', () => ({
   deleteAuthor: vi.fn().mockResolvedValue({ ok: true }),
   setDefaultAuthor: vi.fn().mockResolvedValue({ ok: true }),
   reorderAuthors: vi.fn().mockResolvedValue({ ok: true }),
+  uploadAuthorAvatar: vi.fn().mockResolvedValue({ ok: true, url: 'https://example.com/cropped.webp' }),
+}))
+
+vi.mock('@/app/cms/(authed)/authors/avatar-crop-modal', () => ({
+  AvatarCropModal: ({ onConfirm, onCancel }: { file: File; onConfirm: (b: Blob) => void; onCancel: () => void }) => (
+    <div data-testid="avatar-crop-modal">
+      <button data-testid="crop-confirm" onClick={() => onConfirm(new Blob(['img'], { type: 'image/webp' }))}>Save</button>
+      <button data-testid="crop-cancel" onClick={onCancel}>Cancel</button>
+    </div>
+  ),
 }))
 
 /* ------------------------------------------------------------------ */
@@ -436,5 +446,42 @@ describe('AuthorsConnected', () => {
     await renderAuthors()
     fireEvent.click(screen.getByTestId('author-card-a2')) // a2 is not default
     expect(screen.getByText('Danger Zone')).toBeTruthy()
+  })
+
+  /* ---- Avatar crop flow ---- */
+
+  it('opens crop modal when file is selected', async () => {
+    await renderAuthors()
+    fireEvent.click(screen.getByTestId('author-card-a1'))
+    const input = screen.getByTestId('avatar-file-input') as HTMLInputElement
+    const file = new File(['pixels'], 'photo.jpg', { type: 'image/jpeg' })
+    fireEvent.change(input, { target: { files: [file] } })
+    expect(screen.getByTestId('avatar-crop-modal')).toBeTruthy()
+  })
+
+  it('closes crop modal on cancel without uploading', async () => {
+    await renderAuthors()
+    fireEvent.click(screen.getByTestId('author-card-a1'))
+    const input = screen.getByTestId('avatar-file-input') as HTMLInputElement
+    const file = new File(['pixels'], 'photo.jpg', { type: 'image/jpeg' })
+    fireEvent.change(input, { target: { files: [file] } })
+    fireEvent.click(screen.getByTestId('crop-cancel'))
+    expect(screen.queryByTestId('avatar-crop-modal')).toBeNull()
+  })
+
+  it('uploads cropped image on confirm', async () => {
+    const { uploadAuthorAvatar } = await import(
+      '@/app/cms/(authed)/authors/actions'
+    )
+    await renderAuthors()
+    fireEvent.click(screen.getByTestId('author-card-a1'))
+    const input = screen.getByTestId('avatar-file-input') as HTMLInputElement
+    const file = new File(['pixels'], 'photo.jpg', { type: 'image/jpeg' })
+    fireEvent.change(input, { target: { files: [file] } })
+    fireEvent.click(screen.getByTestId('crop-confirm'))
+    expect(screen.queryByTestId('avatar-crop-modal')).toBeNull()
+    await vi.waitFor(() => {
+      expect(uploadAuthorAvatar).toHaveBeenCalledWith('a1', expect.any(FormData))
+    })
   })
 })

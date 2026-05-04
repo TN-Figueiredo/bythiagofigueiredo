@@ -18,9 +18,10 @@ export function HeaderCTAs({ variant, locale, t }: Props) {
           target="_blank"
           rel="noopener noreferrer"
           aria-label={t['header.subscribe']}
-          className="font-jetbrains text-white no-underline"
+          className="font-jetbrains no-underline"
           style={{
-            background: '#FF3333',
+            background: 'var(--pb-yt)',
+            color: '#FFF',
             padding: '7px 12px',
             fontSize: 12,
             fontWeight: 600,
@@ -40,8 +41,8 @@ export function HeaderCTAs({ variant, locale, t }: Props) {
           href="/newsletters"
           className="font-jetbrains no-underline"
           style={{
-            background: '#FFE37A',
-            color: '#1A140C',
+            background: 'var(--pb-marker)',
+            color: 'var(--pb-ink-on-accent)',
             padding: '7px 12px',
             fontSize: 12,
             fontWeight: 600,
@@ -86,8 +87,8 @@ export function HeaderCTAs({ variant, locale, t }: Props) {
         href="/newsletters"
         className="font-jetbrains no-underline"
         style={{
-          background: '#FFE37A',
-          color: '#1A140C',
+          background: 'var(--pb-marker)',
+          color: 'var(--pb-ink-on-accent)',
           padding: '7px 12px',
           fontSize: 12,
           fontWeight: 600,

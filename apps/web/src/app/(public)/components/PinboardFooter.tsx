@@ -10,7 +10,7 @@ export function PinboardFooter({ locale, t }: Props) {
   const year = new Date().getFullYear()
 
   return (
-    <footer className="border-t border-[--pb-line] bg-[--pb-bg] mt-8" style={{ padding: '40px 28px' }}>
+    <footer className="border-t border-[--pb-line] bg-[--pb-bg] mt-8 px-[18px] md:px-7 py-10">
       <div style={{ maxWidth: 1280, margin: '0 auto' }} className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         {/* Brand + tagline */}
         <div>
@@ -23,7 +23,7 @@ export function PinboardFooter({ locale, t }: Props) {
         {/* Links */}
         <nav className="flex flex-wrap gap-x-5 gap-y-2 text-pb-muted text-sm" aria-label="Footer navigation">
           <Link href={localePath('/blog', locale)} className="hover:text-pb-ink transition-colors">{t['footer.blog']}</Link>
-          <Link href={localePath('/newsletters', locale)} className="hover:text-pb-ink transition-colors">{t['footer.newsletter']}</Link>
+          <Link href={localePath('/newsletters', locale)} className="hover:text-pb-ink transition-colors">{t['footer.newsletters']}</Link>
           <Link href={localePath('/contact', locale)} className="hover:text-pb-ink transition-colors">{t['footer.contact']}</Link>
           <Link href={localePath('/privacy', locale)} className="hover:text-pb-ink transition-colors">{locale === 'pt-BR' ? 'Privacidade' : 'Privacy'}</Link>
           <Link href={localePath('/terms', locale)} className="hover:text-pb-ink transition-colors">{locale === 'pt-BR' ? 'Termos' : 'Terms'}</Link>

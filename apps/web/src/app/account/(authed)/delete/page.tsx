@@ -6,7 +6,7 @@ import { cookies } from 'next/headers'
 import { AccountDeleteWizard } from '@/components/lgpd/account-delete-wizard'
 
 export const metadata = {
-  title: 'Excluir conta | bythiagofigueiredo',
+  title: 'Excluir conta',
   robots: { index: false, follow: false },
 }
 

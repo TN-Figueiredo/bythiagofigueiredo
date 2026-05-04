@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OG image · bythiagofigueiredo</title>
+<meta name="robots" content="noindex">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Caveat:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #14110B; font-family: 'Inter', system-ui, sans-serif; }
+
+  .gallery { padding: 32px; }
+  .gallery h1 {
+    font-family: 'Fraunces', serif; color: #F2EBDB; font-weight: 500;
+    font-size: 24px; letter-spacing: -0.01em; margin: 0 0 4px;
+  }
+  .gallery p { color: #958A75; font-size: 13px; margin: 0 0 24px; max-width: 640px; line-height: 1.5; }
+  .gallery .controls {
+    display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px;
+  }
+  .gallery .controls input, .gallery .controls select {
+    background: rgba(255,255,255,0.05); border: 1px dashed #2E2718;
+    color: #F2EBDB; padding: 8px 12px; font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; min-width: 200px;
+  }
+  .gallery .row { display: flex; flex-direction: column; gap: 32px; align-items: flex-start; }
+  .gallery .label {
+    color: #958A75; font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  /* OG card — 1200x630, scaled-down preview */
+  .og {
+    width: 1200px; height: 630px;
+    transform-origin: top left;
+    transform: scale(0.66);
+    margin-bottom: -214px;       /* compensate scaled height collapse */
+    position: relative; overflow: hidden;
+    font-family: 'Inter', system-ui, sans-serif;
+    background: #14110B;
+    color: #EFE6D2;
+  }
+  .og .bg-grain {
+    position: absolute; inset: 0;
+    background-image:
+      radial-gradient(circle at 15% 20%, rgba(255,255,255,0.03), transparent 40%),
+      radial-gradient(circle at 85% 70%, rgba(255,130,64,0.06), transparent 40%);
+  }
+
+  /* Variant: HOME */
+  .og.home .layout {
+    position: relative; height: 100%;
+    display: grid; grid-template-rows: auto 1fr auto;
+    padding: 64px 80px;
+  }
+  .og .header {
+    display: flex; align-items: center; gap: 14px;
+    font-family: 'Fraunces', serif; font-style: italic;
+    font-size: 22px; color: #F2EBDB; letter-spacing: -0.005em;
+  }
+  .og .header .ast {
+    font-size: 22px; color: #FF8240;
+  }
+  .og .footer {
+    display: flex; align-items: baseline; justify-content: space-between;
+    font-family: 'JetBrains Mono', monospace; font-size: 13px;
+    color: #958A75; letter-spacing: 0.12em; text-transform: uppercase;
+  }
+  .og .footer .accent { color: #FF8240; }
+  .og .title-block {
+    align-self: center;
+  }
+  .og .eyebrow {
+    font-family: 'JetBrains Mono', monospace; font-size: 13px;
+    color: #FF8240; letter-spacing: 0.22em; text-transform: uppercase;
+    margin-bottom: 18px;
+  }
+  .og .title {
+    font-family: 'Fraunces', serif; font-weight: 500;
+    font-size: 96px; line-height: 0.96; letter-spacing: -0.035em;
+    margin: 0; color: #F2EBDB;
+  }
+  .og .title em {
+    font-style: italic; color: #F2EBDB;
+  }
+  .og .marker {
+    background: #FFE37A; color: #14110B;
+    padding: 0 6px; transform: skew(-2deg);
+    display: inline-block; font-style: normal;
+  }
+  .og .subtitle {
+    font-family: 'Fraunces', serif; font-style: italic;
+    font-size: 28px; color: #958A75; line-height: 1.4;
+    margin-top: 22px; max-width: 800px;
+  }
+
+  /* Variant: POST */
+  .og.post .layout {
+    position: relative; height: 100%;
+    display: grid; grid-template-columns: 1fr 460px;
+    padding: 64px 80px; gap: 60px;
+  }
+  .og.post .left { display: grid; grid-template-rows: auto 1fr auto; }
+  .og.post .right {
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .og.post .meta {
+    display: flex; align-items: center; gap: 12px;
+    font-family: 'JetBrains Mono', monospace; font-size: 13px;
+    letter-spacing: 0.16em; text-transform: uppercase;
+    color: #FF8240;
+  }
+  .og.post .meta .dot { color: #6B634F; }
+  .og.post .ptitle {
+    align-self: center;
+    font-family: 'Fraunces', serif; font-weight: 500;
+    font-size: 56px; line-height: 1.05; letter-spacing: -0.025em;
+    color: #F2EBDB; max-width: 100%;
+  }
+  .og.post .author {
+    display: flex; align-items: center; gap: 12px;
+    font-family: 'Fraunces', serif; font-style: italic;
+    font-size: 18px; color: #958A75;
+  }
+  .og.post .avatar {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: #2A241A; display: flex; align-items: center; justify-content: center;
+    border: 2px solid #FF8240;
+    font-family: 'Fraunces', serif; font-weight: 600; color: #FF8240; font-size: 18px;
+    font-style: normal;
+  }
+
+  /* Decorative paper card on the right (for post variant) */
+  .og.post .paper {
+    width: 380px; height: 380px;
+    background: #2A241A;
+    transform: rotate(-2deg);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,255,255,0.04);
+    position: relative;
+    padding: 36px;
+    display: flex; flex-direction: column; justify-content: space-between;
+  }
+  .og.post .paper .tape {
+    position: absolute; top: -10px; left: 30%;
+    width: 90px; height: 22px;
+    background: rgba(255, 226, 140, 0.55);
+    transform: rotate(-3deg);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.2);
+  }
+  .og.post .paper .glyph {
+    font-family: 'Fraunces', serif;
+    font-size: 200px; line-height: 0.8;
+    color: #FF8240; opacity: 0.85;
+    align-self: flex-end; font-style: italic;
+  }
+  .og.post .paper .stamp {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    letter-spacing: 0.22em; text-transform: uppercase;
+    color: #6B634F;
+  }
+  .og.post .paper .stamp strong { color: #F2EBDB; font-weight: 500; }
+</style>
+</head>
+<body>
+
+<div class="gallery">
+  <h1>OG image gallery</h1>
+  <p>Cada card é renderizado em <code style="color:#FF8240;">1200×630</code> (escala 66% no preview). Use screenshot da área .og para exportar PNG.</p>
+
+  <div class="row">
+    <div>
+      <div class="label">01 · Home / hub</div>
+      <div class="og home" id="og-home">
+        <div class="bg-grain"></div>
+        <div class="layout">
+          <div class="header">
+            <span class="ast">✻</span>
+            <span>by Thiago Figueiredo</span>
+          </div>
+          <div class="title-block">
+            <div class="eyebrow">Personal hub · 2026</div>
+            <h2 class="title">
+              <span class="marker">by</span><em>thiago</em><br/>
+              figueiredo
+            </h2>
+            <div class="subtitle">Posts, vídeos e ensaios — de Belo Horizonte, em dois idiomas, sem algoritmo.</div>
+          </div>
+          <div class="footer">
+            <span>bythiagofigueiredo.com</span>
+            <span><span class="accent">▶</span> Canal · Newsletter · Blog</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="label">02 · Post (manifesto)</div>
+      <div class="og post" id="og-post">
+        <div class="bg-grain"></div>
+        <div class="layout">
+          <div class="left">
+            <div class="meta">
+              <span>§ ENSAIO</span>
+              <span class="dot">·</span>
+              <span style="color:#958A75;">9 min · 24 abr 2026</span>
+            </div>
+            <h2 class="ptitle">
+              Por que existe <em style="font-style:italic;">bythiagofigueiredo</em> — e o que ele não é
+            </h2>
+            <div class="author">
+              <span class="avatar">tf</span>
+              <span>Thiago Figueiredo · bythiagofigueiredo.com</span>
+            </div>
+          </div>
+          <div class="right">
+            <div class="paper">
+              <div class="tape"></div>
+              <div class="stamp">§ 01 · ensaio</div>
+              <div class="glyph">§</div>
+              <div class="stamp"><strong>tf ❦</strong> &nbsp; thiago figueiredo</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="label">03 · Post (código)</div>
+      <div class="og post" id="og-post-2">
+        <div class="bg-grain"></div>
+        <div class="layout">
+          <div class="left">
+            <div class="meta">
+              <span style="color:#D65B1F;">§ CÓDIGO</span>
+              <span class="dot">·</span>
+              <span style="color:#958A75;">6 min · 14 abr 2026</span>
+            </div>
+            <h2 class="ptitle">
+              Um CMS para governar todos — arquitetura de publicação <em style="font-style:italic;">cross-site</em>
+            </h2>
+            <div class="author">
+              <span class="avatar">tf</span>
+              <span>Thiago Figueiredo · bythiagofigueiredo.com</span>
+            </div>
+          </div>
+          <div class="right">
+            <div class="paper" style="background:#1F2A1A; transform:rotate(2deg);">
+              <div class="tape" style="background: rgba(120, 200, 140, 0.4);"></div>
+              <div class="stamp">{ } &nbsp; supabase + nextjs</div>
+              <div class="glyph" style="color:#7BC890; font-family:'JetBrains Mono',monospace; font-size:120px; line-height:1;">
+                {<br/>&nbsp;&nbsp;tf<br/>}
+              </div>
+              <div class="stamp"><strong>tf ❦</strong> &nbsp; thiago figueiredo</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

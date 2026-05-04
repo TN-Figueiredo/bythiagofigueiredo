@@ -5,11 +5,13 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import type { EditionCard, NewsletterType } from '../../_hub/hub-types'
 import type { NewsletterHubStrings } from '../../_i18n/types'
 import { KanbanCard } from './kanban-card'
+import { QuickAddInput } from '../../../_shared/editor/quick-add-input'
 
 interface KanbanColumnProps {
   id: string
   title: string
   cards: EditionCard[]
+  confirmedIds?: Set<string>
   color?: string
   hint?: string
   strings?: NewsletterHubStrings
@@ -17,10 +19,11 @@ interface KanbanColumnProps {
   onReassignType?: (editionId: string, typeId: string | null) => void
   onMoveToStatus?: (editionId: string, newStatus: string) => void | Promise<void>
   onDelete?: (editionId: string) => Promise<void>
+  onQuickAdd?: (title: string) => Promise<void>
   activeId?: string | null
 }
 
-export function KanbanColumn({ id, title, cards, color, hint, strings, types, onReassignType, onMoveToStatus, onDelete, activeId }: KanbanColumnProps) {
+export function KanbanColumn({ id, title, cards, confirmedIds, color, hint, strings, types, onReassignType, onMoveToStatus, onDelete, onQuickAdd, activeId }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id })
   const isDraggingInto = isOver && activeId && !cards.some((c) => c.id === activeId)
 
@@ -53,7 +56,7 @@ export function KanbanColumn({ id, title, cards, color, hint, strings, types, on
       <SortableContext items={cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
         <div className="flex min-h-[120px] flex-1 flex-col gap-2 overflow-y-auto p-2" style={{ maxHeight: 'calc(100vh - 320px)' }}>
           {cards.map((card) => (
-            <KanbanCard key={card.id} card={card} strings={strings} types={types} onReassignType={onReassignType} onMoveToStatus={onMoveToStatus} onDeleteEdition={onDelete} />
+            <KanbanCard key={card.id} card={card} confirmed={confirmedIds?.has(card.id)} strings={strings} types={types} onReassignType={onReassignType} onMoveToStatus={onMoveToStatus} onDeleteEdition={onDelete} />
           ))}
           {isDraggingInto && cards.length === 0 && (
             <div className="flex h-16 items-center justify-center rounded-lg border border-dashed border-indigo-500/30 text-[10px] text-indigo-400/60">
@@ -62,6 +65,16 @@ export function KanbanColumn({ id, title, cards, color, hint, strings, types, on
           )}
         </div>
       </SortableContext>
+
+      {/* Quick-add input (only for idea column) */}
+      {id === 'idea' && onQuickAdd && (
+        <div className="border-t border-gray-800 p-2">
+          <QuickAddInput
+            placeholder={strings?.editorial.quickAddPlaceholder ?? 'Quick idea…'}
+            onAdd={onQuickAdd}
+          />
+        </div>
+      )}
     </div>
   )
 }

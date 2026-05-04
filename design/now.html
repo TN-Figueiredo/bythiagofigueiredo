@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Now — bythiagofigueiredo</title>
+<meta name="description" content="O que Thiago Figueiredo está fazendo agora — atualizado mensalmente.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Caveat:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+    background: #14110B;
+  }
+  ::selection { background: #FFE37A; color: #1A140C; }
+  a { -webkit-tap-highlight-color: transparent; }
+  a:focus-visible { outline: 2px solid #FF8240; outline-offset: 3px; border-radius: 2px; }
+  .skip { position: absolute; left: -999px; top: 0; z-index: 9999; background: #FF8240; color: #FFF; padding: 10px 16px; font-family: 'JetBrains Mono', monospace; font-size: 12px; text-decoration: none; letter-spacing: 0.1em; text-transform: uppercase; }
+  .skip:focus { left: 8px; top: 8px; }
+
+  .top-strip { position: fixed; top: 0; left: 0; right: 0; z-index: 999; height: 44px; background: rgba(20,18,16,0.94); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .top-strip .left { display: flex; align-items: center; gap: 14px; color: #F2EBDB; }
+  .top-strip .left a { color: inherit; text-decoration: none; opacity: 0.65; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; }
+  .top-strip .left a:hover { opacity: 1; }
+  .top-strip .left .brand { font-family: 'Fraunces', serif; font-style: italic; font-size: 14px; opacity: 1; letter-spacing: -0.005em; text-transform: none; }
+  .top-strip .left .sep { opacity: 0.3; }
+  .top-strip .right { display: flex; align-items: center; gap: 8px; }
+  .pill { color: #F2EBDB; padding: 3px; border-radius: 999px; display: flex; font-family: 'JetBrains Mono', monospace; font-size: 11px; background: rgba(255,255,255,0.06); }
+  .pill button { background: transparent; color: inherit; border: none; padding: 5px 12px; border-radius: 999px; cursor: pointer; font: inherit; letter-spacing: 0.1em; text-transform: uppercase; }
+  .pill button.active { background: #F2EBDB; color: #141210; }
+  body[data-theme="light"] .top-strip { background: rgba(233,225,206,0.94); border-bottom-color: rgba(0,0,0,0.06); }
+  body[data-theme="light"] .top-strip .left { color: #161208; }
+  body[data-theme="light"] .pill { background: rgba(0,0,0,0.06); color: #161208; }
+  body[data-theme="light"] .pill button.active { background: #161208; color: #E9E1CE; }
+
+  #root { min-height: 100vh; padding-top: 44px; }
+
+  @media (max-width: 600px) {
+    .top-strip .left .sep, .top-strip .left a:not(.brand) { display: none; }
+  }
+</style>
+</head>
+<body data-theme="dark">
+
+<a href="#main" class="skip">Skip to content</a>
+
+<div class="top-strip">
+  <div class="left">
+    <a href="index.html" class="brand">bythiagofigueiredo</a>
+    <span class="sep">·</span>
+    <a href="Pinboard.html">Home</a>
+    <a href="blog.html">Blog</a>
+    <a href="videos.html">Videos</a>
+    <a href="about.html">About</a>
+    <a href="now.html" data-current>Now</a>
+  </div>
+  <div class="right">
+    <div class="pill" id="theme-pill">
+      <button data-theme="light">Light</button>
+      <button data-theme="dark" class="active">Dark</button>
+    </div>
+    <div class="pill" id="lang-pill">
+      <button data-lang="pt" class="active">PT</button>
+      <button data-lang="en">EN</button>
+    </div>
+  </div>
+</div>
+
+<main id="root"></main>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script src="page-data.js"></script>
+<script type="text/babel" src="static-page.jsx"></script>
+
+<script>
+  const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+    "theme": "dark",
+    "lang": "pt"
+  }/*EDITMODE-END*/;
+</script>
+
+<script type="text/babel">
+  const PAGE_KIND = "now";
+
+  function loadState() {
+    try { const saved = JSON.parse(localStorage.getItem("btf_static") || "{}"); return { ...TWEAK_DEFAULTS, ...saved }; }
+    catch { return { ...TWEAK_DEFAULTS }; }
+  }
+  function saveState(s) { try { localStorage.setItem("btf_static", JSON.stringify(s)); } catch {} }
+
+  const App = () => {
+    const [state, setState] = React.useState(loadState);
+    const update = React.useCallback(p => setState(prev => { const n = { ...prev, ...p }; saveState(n); return n; }), []);
+    React.useEffect(() => {
+      document.body.dataset.theme = state.theme;
+      document.documentElement.lang = state.lang === "pt" ? "pt-BR" : "en";
+      document.querySelectorAll("#theme-pill button").forEach(b => b.classList.toggle("active", b.dataset.theme === state.theme));
+      document.querySelectorAll("#lang-pill button").forEach(b => b.classList.toggle("active", b.dataset.lang === state.lang));
+    }, [state]);
+    React.useEffect(() => {
+      const onClick = (e) => {
+        const t = e.target.closest("#theme-pill button[data-theme]");
+        if (t) return update({ theme: t.dataset.theme });
+        const l = e.target.closest("#lang-pill button[data-lang]");
+        if (l) return update({ lang: l.dataset.lang });
+      };
+      document.addEventListener("click", onClick);
+      return () => document.removeEventListener("click", onClick);
+    }, [update]);
+    return <window.StaticPage kind={PAGE_KIND} dark={state.theme === "dark"} L={state.lang}/>;
+  };
+
+  ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+
+</body>
+</html>

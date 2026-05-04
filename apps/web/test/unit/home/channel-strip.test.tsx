@@ -7,6 +7,14 @@ const mockT: Record<string, string> = {
   'channels.subscribe': 'Subscribe',
   'channels.primary': 'Main',
   'channels.subscribersSuffix': 'subscribers',
+  'home.channels.headline': 'two channels, two languages',
+  'home.channels.subline': 'SUBSCRIBE TO ONE OR BOTH',
+  'home.channels.subscribe': 'Subscribe →',
+  'home.channels.noSpam': 'free, no spam — cancel anytime',
+  'home.channels.channelPtBr': 'PT-BR Channel',
+  'home.channels.channelEn': 'EN Channel',
+  'home.channels.thisLocale': 'this locale',
+  'home.channels.youtubeSchedule': 'new every Thursday',
 }
 
 describe('ChannelStrip', () => {

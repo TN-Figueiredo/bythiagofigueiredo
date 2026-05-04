@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useCallback, useMemo, useRef, useEffect, memo } from 'react'
+import { useState, useTransition, useCallback, useMemo, useEffect, memo } from 'react'
 import Link from 'next/link'
 import { subscribeToNewsletters } from '../../actions/subscribe-newsletters'
 
@@ -149,12 +149,13 @@ interface CardProps {
 const NewsletterCard = memo(function NewsletterCard({
   nl, index, L, isChecked, onToggle, theme, strings, entranceDelay,
 }: CardProps) {
-  const { dark, paper, paper2, ink, muted, faint, line, tape, tape2, shadow } = theme
+  const { dark, paper, paper2, ink, muted, faint, tape, tape2, shadow } = theme
   const color = nlColor(nl, dark)
   const data = nl[L]
   const pin = PINBOARD[index] ?? { rot: 0, lift: 0 }
   const [pulsing, setPulsing] = useState(false)
   const [entered, setEntered] = useState(false)
+  const [hovered, setHovered] = useState(false)
 
   useEffect(() => {
     const timer = setTimeout(() => setEntered(true), entranceDelay)
@@ -174,11 +175,12 @@ const NewsletterCard = memo(function NewsletterCard({
     }
   }, [handleToggle])
 
-  // Opacity levels for deselected state
-  const titleOpacity = isChecked ? 1 : 0.55
-  const taglineOpacity = isChecked ? 1 : 0.45
-  const sampleOpacity = isChecked ? 1 : 0.30
-  const statsOpacity = isChecked ? 1 : 0.25
+  // Opacity levels — deselected cards warm on hover per spec 3.2
+  const titleOpacity = isChecked ? 1 : hovered ? 0.72 : 0.55
+  const taglineOpacity = isChecked ? 1 : hovered ? 0.55 : 0.45
+  const sampleOpacity = isChecked ? 1 : hovered ? 0.40 : 0.30
+  const statsOpacity = isChecked ? 1 : hovered ? 0.35 : 0.25
+  const barOpacityHover = isChecked ? 1 : hovered ? 0.5 : 0.3
 
   const glowShadow = isChecked
     ? `0 0 30px ${color}33, ${shadow}`
@@ -189,7 +191,6 @@ const NewsletterCard = memo(function NewsletterCard({
     : 'rgba(255,255,255,0.03)'
 
   const barWidth = isChecked ? 6 : 3
-  const barOpacity = isChecked ? 1 : 0.3
 
   return (
     <div
@@ -236,6 +237,7 @@ const NewsletterCard = memo(function NewsletterCard({
           outline: 'none',
         }}
         onMouseEnter={(e) => {
+          setHovered(true)
           const el = e.currentTarget
           el.style.transform = `rotate(${pin.rot}deg) translateY(${pin.lift - 3}px)`
           el.style.boxShadow = isChecked
@@ -243,25 +245,19 @@ const NewsletterCard = memo(function NewsletterCard({
             : `0 0 20px ${color}22, 0 3px 0 rgba(0,0,0,0.5), 0 14px 28px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(255,255,255,0.03)`
         }}
         onMouseLeave={(e) => {
+          setHovered(false)
           const el = e.currentTarget
           el.style.transform = `rotate(${pin.rot}deg) translateY(${pin.lift}px)`
           el.style.boxShadow = glowShadow
         }}
-        onFocus={(e) => {
-          e.currentTarget.style.outline = '2px solid #FF8240'
-          e.currentTarget.style.outlineOffset = '4px'
-        }}
-        onBlur={(e) => {
-          e.currentTarget.style.outline = 'none'
-          e.currentTarget.style.outlineOffset = '0'
-        }}
+        className="nl-card"
       >
         {/* Left accent bar */}
         <div style={{
           position: 'absolute', top: 0, bottom: 0, left: 0,
           width: barWidth,
           background: color,
-          opacity: barOpacity,
+          opacity: barOpacityHover,
           transition: 'width 0.25s ease, opacity 0.25s ease',
         }} />
 
@@ -294,12 +290,14 @@ const NewsletterCard = memo(function NewsletterCard({
             <span style={{
               display: 'inline-block',
               padding: '4px 10px',
-              border: '1.5px dashed #7A7060',
-              color: '#7A7060',
+              border: `1.5px dashed ${hovered ? color : '#7A7060'}`,
+              color: hovered ? color : '#7A7060',
+              background: hovered ? `${color}14` : 'transparent',
               fontFamily: '"JetBrains Mono", monospace',
               fontSize: 10,
               letterSpacing: '0.10em',
               fontWeight: 600,
+              transform: hovered ? 'scale(1.04)' : 'scale(1)',
               transition: 'all 0.25s ease',
             }}>
               + {strings.add}
@@ -408,7 +406,7 @@ const NewsletterCard = memo(function NewsletterCard({
 
           {/* Learn more link */}
           {(() => {
-            const slug = SLUG_MAP[nl.baseId]?.[(L === 'pt' ? 'pt' : 'en') as 'en' | 'pt']
+            const slug = SLUG_MAP[nl.baseId]?.[L]
             return slug ? (
               <Link
                 href={`/newsletters/${slug}`}
@@ -473,7 +471,6 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
   const [serverError, setServerError] = useState<string | null>(null)
   const [submitting, startTransition] = useTransition()
   const [announcement, setAnnouncement] = useState('')
-  const liveRef = useRef<HTMLDivElement>(null)
 
   const isValidEmail = email.includes('@') && email.includes('.')
 
@@ -528,7 +525,7 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
   }, [checked, doSubscribe])
 
   const selectedList = useMemo(
-    () => Array.from(checked).map(id => CATALOG.find(n => n.baseId === id)).filter(Boolean) as NL[],
+    () => Array.from(checked).map(id => CATALOG.find(n => n.baseId === id)).filter((nl): nl is NL => nl !== undefined),
     [checked],
   )
   const canSubmit = checked.size > 0 && isValidEmail
@@ -642,7 +639,6 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
 
       {/* aria-live region for announcements */}
       <div
-        ref={liveRef}
         aria-live="polite"
         aria-atomic="true"
         style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap' }}
@@ -707,7 +703,7 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
             </button>
           )}
           <button
-            onClick={clearAll}
+            onClick={noneSelected ? undefined : clearAll}
             aria-label={strings.clear}
             aria-disabled={noneSelected}
             style={{
@@ -721,7 +717,6 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
               textTransform: 'uppercase',
               fontWeight: 600,
               cursor: noneSelected ? 'default' : 'pointer',
-              pointerEvents: noneSelected ? 'none' : 'auto',
             }}
           >
             {'✕'} {strings.clear}
@@ -776,6 +771,13 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
               gap: 20px !important;
               row-gap: 20px !important;
             }
+          }
+          .nl-card:focus-visible {
+            outline: 2px solid #FF8240;
+            outline-offset: 4px;
+          }
+          .nl-card:focus:not(:focus-visible) {
+            outline: none;
           }
         `}</style>
       </section>

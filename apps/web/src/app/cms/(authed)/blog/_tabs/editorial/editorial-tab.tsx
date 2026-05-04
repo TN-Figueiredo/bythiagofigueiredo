@@ -1,10 +1,10 @@
 'use client'
 
-import { useDeferredValue, useMemo, useState, useTransition } from 'react'
+import { useCallback, useDeferredValue, useMemo, useState, useTransition } from 'react'
 import { Kanban, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import type { EditorialTabData } from '../../_hub/hub-types'
+import type { EditorialTabData, PostCard } from '../../_hub/hub-types'
 import type { BlogHubStrings } from '../../_i18n/types'
 import { VelocityStrip } from './velocity-strip'
 import { KanbanBoard } from './kanban-board'
@@ -25,10 +25,17 @@ export function EditorialTab({ data, strings, tagId, locale, supportedLocales }:
   const [searchQuery, setSearchQuery] = useState('')
   const deferredQuery = useDeferredValue(searchQuery)
   const [, startTransition] = useTransition()
+  const [optimisticIdeas, setOptimisticIdeas] = useState<PostCard[]>([])
+  const [confirmedIds, setConfirmedIds] = useState<Set<string>>(new Set())
+
+  // Merge server posts with optimistic ideas (filter out any that the server already returned)
+  const serverIds = new Set(data.posts.map((p) => p.id))
+  const pendingIdeas = optimisticIdeas.filter((o) => !serverIds.has(o.id))
+  const allPosts = [...pendingIdeas, ...data.posts]
 
   const tagFiltered = tagId
-    ? data.posts.filter((p) => p.tagId === tagId)
-    : data.posts
+    ? allPosts.filter((p) => p.tagId === tagId)
+    : allPosts
 
   const localeFiltered = locale
     ? tagFiltered.filter((p) => p.locales.includes(locale))
@@ -92,19 +99,62 @@ export function EditorialTab({ data, strings, tagId, locale, supportedLocales }:
     })
   }
 
-  const handleQuickAdd = async (title: string) => {
-    const result = await createPost({
+  const handleQuickAdd = useCallback(async (title: string) => {
+    const tempId = `optimistic-${crypto.randomUUID()}`
+    const now = new Date().toISOString()
+    const optimisticCard: PostCard = {
+      id: tempId,
+      displayId: 'NEW',
       title,
-      locale: locale ?? 'en',
-      tagId: tagId ?? null,
       status: 'idea',
-    })
-    if (result.ok) {
-      toast.success(strings?.editorial.ideaCreated ?? 'Idea created')
-    } else {
+      tagId: tagId ?? null,
+      tagName: null,
+      tagColor: null,
+      locales: [locale ?? 'en'],
+      readingTimeMin: null,
+      createdAt: now,
+      updatedAt: now,
+      publishedAt: null,
+      scheduledFor: null,
+      slotDate: null,
+      snippet: null,
+    }
+
+    // Insert optimistic card immediately
+    setOptimisticIdeas((prev) => [optimisticCard, ...prev])
+
+    try {
+      const result = await createPost({
+        title,
+        locale: locale ?? 'en',
+        tagId: tagId ?? null,
+        status: 'idea',
+      })
+
+      if (result.ok) {
+        // Remove the optimistic card (server revalidation will bring the real one)
+        setOptimisticIdeas((prev) => prev.filter((c) => c.id !== tempId))
+        // Mark the real postId as recently confirmed for the green flash
+        setConfirmedIds((prev) => new Set(prev).add(result.postId))
+        setTimeout(() => {
+          setConfirmedIds((prev) => {
+            const next = new Set(prev)
+            next.delete(result.postId)
+            return next
+          })
+        }, 1500)
+        toast.success(strings?.editorial.ideaCreated ?? 'Idea created')
+      } else {
+        // Remove optimistic card on server error
+        setOptimisticIdeas((prev) => prev.filter((c) => c.id !== tempId))
+        toast.error(strings?.editorial.ideaFailed ?? "Couldn't create idea")
+      }
+    } catch {
+      // Remove optimistic card on network/unexpected error
+      setOptimisticIdeas((prev) => prev.filter((c) => c.id !== tempId))
       toast.error(strings?.editorial.ideaFailed ?? "Couldn't create idea")
     }
-  }
+  }, [locale, tagId, strings])
 
   if (data.posts.length === 0) {
     return (
@@ -145,6 +195,7 @@ export function EditorialTab({ data, strings, tagId, locale, supportedLocales }:
       <SectionErrorBoundary sectionName="Kanban board">
         <KanbanBoard
           posts={filtered}
+          confirmedIds={confirmedIds}
           onMovePost={handleMovePost}
           onDeletePost={handleDeletePost}
           onReassignTag={handleReassignTag}

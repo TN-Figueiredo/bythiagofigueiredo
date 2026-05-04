@@ -854,6 +854,43 @@ function formatTimezoneAbbr(timezone: string): string {
   }
 }
 
+// ─── Tag Linking ───────────────────────────────────────────────────────────
+
+export async function getUnlinkedTags(
+  siteId: string,
+  currentTypeId?: string,
+): Promise<{ id: string; name: string; slug: string; color: string | null; colorDark: string | null }[]> {
+  const ctx = await getSiteContext()
+  const res = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
+  if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
+
+  const supabase = getSupabaseServiceClient()
+
+  let query = supabase
+    .from('blog_tags')
+    .select('id, name, slug, color, color_dark')
+    .eq('site_id', siteId)
+    .order('sort_order', { ascending: true })
+    .order('name', { ascending: true })
+
+  if (currentTypeId) {
+    query = query.or(`linked_newsletter_type_id.is.null,linked_newsletter_type_id.eq.${currentTypeId}`)
+  } else {
+    query = query.is('linked_newsletter_type_id', null)
+  }
+
+  const { data, error } = await query
+  if (error || !data) return []
+
+  return data.map((t) => ({
+    id: t.id as string,
+    name: t.name as string,
+    slug: t.slug as string,
+    color: t.color as string | null,
+    colorDark: t.color_dark as string | null,
+  }))
+}
+
 // ─── Type & Cadence Management ──────────────────────────────────────────────
 
 export async function updateCadence(
@@ -920,6 +957,7 @@ export async function createNewsletterType(data: {
   ogImageUrl?: string
   landingPromise?: string[]
   sortOrder?: number
+  linkedTagId?: string
 }): Promise<ActionResult> {
   const ctx = await getSiteContext()
   const res = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
@@ -937,6 +975,17 @@ export async function createNewsletterType(data: {
 
   if (existing) return { ok: false, error: 'name_already_exists' }
 
+  // Validate linked tag if provided
+  if (data.linkedTagId) {
+    const { data: tag } = await supabase
+      .from('blog_tags')
+      .select('id, linked_newsletter_type_id, site_id')
+      .eq('id', data.linkedTagId)
+      .single()
+    if (!tag || tag.site_id !== ctx.siteId) return { ok: false, error: 'tag_not_found' }
+    if (tag.linked_newsletter_type_id) return { ok: false, error: 'tag_already_linked' }
+  }
+
   const baseSlug = data.slug?.trim() || generateSlug(data.name)
   const slug = await ensureUniqueSlug(supabase, baseSlug)
 
@@ -944,28 +993,35 @@ export async function createNewsletterType(data: {
     ? { promise: data.landingPromise.filter((s) => s.trim()) }
     : {}
 
+  const insertPayload: Record<string, unknown> = {
+    site_id: ctx.siteId,
+    name: data.name,
+    locale: data.locale,
+    slug,
+    color: data.color ?? '#7c3aed',
+    color_dark: data.colorDark ?? null,
+    tagline: data.tagline ?? null,
+    description: data.description ?? null,
+    badge: data.badge ?? null,
+    og_image_url: data.ogImageUrl ?? null,
+    landing_content: landingContent,
+    sort_order: data.sortOrder ?? 99,
+    active: true,
+  }
+  if (data.linkedTagId) insertPayload.linked_tag_id = data.linkedTagId
+
   const { data: created, error } = await supabase
     .from('newsletter_types')
-    .insert({
-      site_id: ctx.siteId,
-      name: data.name,
-      locale: data.locale,
-      slug,
-      color: data.color ?? '#7c3aed',
-      color_dark: data.colorDark ?? null,
-      tagline: data.tagline ?? null,
-      description: data.description ?? null,
-      badge: data.badge ?? null,
-      og_image_url: data.ogImageUrl ?? null,
-      landing_content: landingContent,
-      sort_order: data.sortOrder ?? 99,
-      active: true,
-    })
+    .insert(insertPayload)
     .select('id')
     .single()
   if (error) return { ok: false, error: error.message }
   revalidateNewsletterHub()
   revalidateNewsletterTypeSeo(ctx.siteId, slug)
+  if (data.linkedTagId) {
+    revalidateTag('home-tags')
+    revalidateTag('home-posts')
+  }
   return { ok: true, editionId: created.id }
 }
 
@@ -985,6 +1041,7 @@ export async function updateNewsletterType(
     sortOrder?: number
     active?: boolean
     cadence_paused?: boolean
+    linkedTagId?: string | null
   },
 ): Promise<ActionResult> {
   const ctx = await getSiteContext()
@@ -995,11 +1052,25 @@ export async function updateNewsletterType(
 
   const { data: current } = await supabase
     .from('newsletter_types')
-    .select('slug')
+    .select('slug, linked_tag_id')
     .eq('id', typeId)
     .eq('site_id', ctx.siteId)
     .single()
   if (!current) return { ok: false, error: 'not_found' }
+
+  // Validate linked tag if a new link is being set (string value)
+  const linkChanged = patch.linkedTagId !== undefined
+  if (linkChanged && typeof patch.linkedTagId === 'string') {
+    const { data: tag } = await supabase
+      .from('blog_tags')
+      .select('id, linked_newsletter_type_id, site_id')
+      .eq('id', patch.linkedTagId)
+      .single()
+    if (!tag || tag.site_id !== ctx.siteId) return { ok: false, error: 'tag_not_found' }
+    if (tag.linked_newsletter_type_id && tag.linked_newsletter_type_id !== typeId) {
+      return { ok: false, error: 'tag_already_linked' }
+    }
+  }
 
   const updateData: Record<string, unknown> = {}
   if (patch.name !== undefined) updateData.name = patch.name
@@ -1019,6 +1090,7 @@ export async function updateNewsletterType(
       ? { promise: patch.landingPromise.filter((s) => s.trim()) }
       : {}
   }
+  if (linkChanged) updateData.linked_tag_id = patch.linkedTagId
 
   const { error } = await supabase
     .from('newsletter_types')
@@ -1032,6 +1104,10 @@ export async function updateNewsletterType(
   if (oldSlug !== newSlug) revalidateNewsletterTypeSeo(ctx.siteId, oldSlug)
   revalidateNewsletterHub()
   revalidateNewsletterTypeSeo(ctx.siteId, newSlug)
+  if (linkChanged) {
+    revalidateTag('home-tags')
+    revalidateTag('home-posts')
+  }
   return { ok: true }
 }
 
@@ -1106,6 +1182,7 @@ export async function getNewsletterTypeForEdit(typeId: string): Promise<
       badge: string | null; description: string | null; color: string; colorDark: string | null
       ogImageUrl: string | null; landingPromise: string[]; cadenceDays: number
       cadenceStartDate: string | null; cadencePaused: boolean; subscriberCount: number; editionCount: number
+      linkedTag: { id: string; name: string; color: string | null } | null
     }}
   | { ok: false; error: string }
 > {
@@ -1117,11 +1194,22 @@ export async function getNewsletterTypeForEdit(typeId: string): Promise<
 
   const { data: type } = await supabase
     .from('newsletter_types')
-    .select('id, name, tagline, locale, slug, badge, description, color, color_dark, og_image_url, landing_content, cadence_days, cadence_start_date, cadence_paused')
+    .select('id, name, tagline, locale, slug, badge, description, color, color_dark, og_image_url, landing_content, cadence_days, cadence_start_date, cadence_paused, linked_tag_id')
     .eq('id', typeId)
     .eq('site_id', ctx.siteId)
     .single()
   if (!type) return { ok: false, error: 'not_found' }
+
+  // Fetch linked tag info if linked
+  let linkedTag: { id: string; name: string; color: string | null } | null = null
+  if (type.linked_tag_id) {
+    const { data: tag } = await supabase
+      .from('blog_tags')
+      .select('id, name, color')
+      .eq('id', type.linked_tag_id as string)
+      .single()
+    if (tag) linkedTag = { id: tag.id as string, name: tag.name as string, color: tag.color as string | null }
+  }
 
   const { count: subscriberCount } = await supabase
     .from('newsletter_subscriptions')
@@ -1154,6 +1242,7 @@ export async function getNewsletterTypeForEdit(typeId: string): Promise<
       cadencePaused: !!type.cadence_paused,
       subscriberCount: subscriberCount ?? 0,
       editionCount: editionCount ?? 0,
+      linkedTag,
     },
   }
 }

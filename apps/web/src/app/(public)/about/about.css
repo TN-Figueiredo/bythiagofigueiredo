@@ -229,21 +229,22 @@
   white-space: nowrap;
 }
 
-/* Responsive */
-@media (max-width: 760px) {
+/* Responsive — aligned with Tailwind breakpoints */
+@media (max-width: 767px) {
   .about-grid {
     grid-template-columns: 1fr;
     gap: 32px;
     justify-items: center;
+    padding-left: 18px;
+    padding-right: 18px;
   }
   .about-polaroid { display: flex; justify-content: center; }
   .about-content { max-width: 100%; }
   .about-chips { grid-template-columns: repeat(2, 1fr); }
+  .about-cta { padding-left: 18px; padding-right: 18px; }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 639px) {
   .about-chips { grid-template-columns: 1fr; }
   .about-polaroid-frame { width: 260px; }
-  .about-grid { padding: 16px 20px 32px; }
-  .about-cta { padding: 24px 20px 32px; }
 }

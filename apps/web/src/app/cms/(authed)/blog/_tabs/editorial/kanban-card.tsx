@@ -4,10 +4,14 @@ import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useRouter } from 'next/navigation'
-import { Loader2, Pencil, MoreVertical, Trash2, ArrowRight, Tag, Globe, Copy } from 'lucide-react'
+import { Loader2, Pencil, MoreVertical, Trash2, ArrowRight, Tag, Globe, Copy, Sparkles } from 'lucide-react'
 import type { PostCard, BlogTag } from '../../_hub/hub-types'
 import type { BlogHubStrings } from '../../_i18n/types'
 import { formatRelativeDate, getValidTargets } from '../../_hub/hub-utils'
+
+function isOptimisticCard(card: PostCard): boolean {
+  return card.id.startsWith('optimistic-')
+}
 
 const LOCALE_COLORS: Record<string, string> = {
   'pt-BR': 'bg-emerald-900/60 text-emerald-400',
@@ -22,6 +26,7 @@ function localeColorClass(locale: string): string {
 
 interface KanbanCardProps {
   card: PostCard
+  confirmed?: boolean
   strings?: BlogHubStrings
   tags?: BlogTag[]
   supportedLocales?: string[]
@@ -34,6 +39,7 @@ interface KanbanCardProps {
 
 export function KanbanCard({
   card,
+  confirmed: confirmedProp,
   strings,
   tags,
   supportedLocales,
@@ -44,8 +50,10 @@ export function KanbanCard({
   onDuplicate,
 }: KanbanCardProps) {
   const router = useRouter()
+  const isOptimistic = isOptimisticCard(card)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: card.id,
+    disabled: isOptimistic,
   })
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false)
@@ -56,6 +64,8 @@ export function KanbanCard({
   const tagDropdownRef = useRef<HTMLDivElement>(null)
   const localeDropdownRef = useRef<HTMLDivElement>(null)
 
+  const confirmed = confirmedProp ?? false
+
   const style = {
     transform: CSS.Translate.toString(transform),
     transition,
@@ -64,7 +74,7 @@ export function KanbanCard({
   const isLoading = navigating
 
   const handleClick = () => {
-    if (contextMenu || tagDropdownOpen || isLoading) return
+    if (contextMenu || tagDropdownOpen || isLoading || isOptimistic) return
     setNavigating(true)
     router.push(`/cms/blog/${card.id}/edit`)
   }
@@ -252,14 +262,18 @@ export function KanbanCard({
         onContextMenu={(e) => {
           e.preventDefault()
           e.stopPropagation()
-          setContextMenu({ x: e.clientX, y: e.clientY })
+          if (!isOptimistic) setContextMenu({ x: e.clientX, y: e.clientY })
         }}
-        className={`group relative rounded-lg border p-3 transition-colors ${
-          isDragging
-            ? 'border-indigo-500/30 bg-indigo-950/20 opacity-40'
-            : isLoading
-              ? 'pointer-events-none border-indigo-500/40 bg-indigo-950/10'
-              : 'cursor-pointer border-gray-800 bg-gray-900 hover:border-gray-700 hover:bg-gray-800/50'
+        className={`group relative rounded-lg border p-3 transition-all duration-300 ${
+          isOptimistic
+            ? 'animate-fade-in border-indigo-500/60 bg-indigo-950/20 ring-1 ring-indigo-500/20'
+            : confirmed
+              ? 'border-emerald-500/60 bg-emerald-950/10 ring-1 ring-emerald-500/20'
+              : isDragging
+                ? 'border-indigo-500/30 bg-indigo-950/20 opacity-40'
+                : isLoading
+                  ? 'pointer-events-none border-indigo-500/40 bg-indigo-950/10'
+                  : 'cursor-pointer border-gray-800 bg-gray-900 hover:border-gray-700 hover:bg-gray-800/50'
         }`}
       >
         {isLoading && (
@@ -270,9 +284,16 @@ export function KanbanCard({
 
         {/* Header row */}
         <div className="mb-1.5 flex items-center justify-between">
-          <span className="rounded bg-gray-800 px-1.5 py-0.5 text-[8px] font-bold tabular-nums tracking-wide text-gray-400">
-            {card.displayId}
-          </span>
+          {isOptimistic ? (
+            <span className="flex items-center gap-1 rounded bg-indigo-500/20 px-1.5 py-0.5 text-[8px] font-bold tracking-wide text-indigo-400">
+              <Sparkles className="h-2.5 w-2.5" />
+              NEW
+            </span>
+          ) : (
+            <span className="rounded bg-gray-800 px-1.5 py-0.5 text-[8px] font-bold tabular-nums tracking-wide text-gray-400">
+              {card.displayId}
+            </span>
+          )}
           <div className="flex items-center gap-1">
             <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
               <button

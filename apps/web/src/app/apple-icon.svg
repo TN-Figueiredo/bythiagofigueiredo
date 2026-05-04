@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60" width="60" height="60" role="img" aria-label="Marginalia symbol">
-  
-  <path d="M 0 -11 C -1.8 -7, -1.8 7, 0 11 C 1.8 7, 1.8 -7, 0 -11 Z" fill="#FF8240" transform="translate(30 30) rotate(0) scale(2)"></path>
-  <path d="M 0 -11 C -1.8 -7, -1.8 7, 0 11 C 1.8 7, 1.8 -7, 0 -11 Z" fill="#FF8240" transform="translate(30 30) rotate(60) scale(2)"></path>
-  <path d="M 0 -11 C -1.8 -7, -1.8 7, 0 11 C 1.8 7, 1.8 -7, 0 -11 Z" fill="#FF8240" transform="translate(30 30) rotate(120) scale(2)"></path>
-  <circle cx="30" cy="30" r="1.620" fill="#FF8240"></circle>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" width="180" height="180" role="img" aria-label="TF monogram">
+  <rect width="180" height="180" rx="40" fill="#1A1714"/>
+  <g font-family="'Source Serif 4', Georgia, serif" letter-spacing="-8">
+    <text x="22" y="130" font-size="130" font-weight="500" fill="#F5EFE6">T</text>
+    <text x="80" y="130" font-size="130" font-weight="500" font-style="italic" fill="#FF8240" opacity="0.95">F</text>
+  </g>
+  <circle cx="152" cy="132" r="4.5" fill="#F5EFE6"/>
 </svg>

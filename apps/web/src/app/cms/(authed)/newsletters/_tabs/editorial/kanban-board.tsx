@@ -57,12 +57,13 @@ interface KanbanBoardProps {
   editions: EditionCard[]
   onMoveEdition?: (editionId: string, newStatus: string, scheduledFor?: string) => Promise<void>
   onDeleteEdition?: (editionId: string) => Promise<void>
+  onQuickAdd?: (title: string) => Promise<string | null>
   strings?: NewsletterHubStrings
   types?: NewsletterType[]
   onReassignType?: (editionId: string, typeId: string | null) => void
 }
 
-export function KanbanBoard({ editions, onMoveEdition, onDeleteEdition, strings, types, onReassignType }: KanbanBoardProps) {
+export function KanbanBoard({ editions, onMoveEdition, onDeleteEdition, onQuickAdd, strings, types, onReassignType }: KanbanBoardProps) {
   const dndId = useId()
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -75,19 +76,27 @@ export function KanbanBoard({ editions, onMoveEdition, onDeleteEdition, strings,
   const localEditionsRef = useRef<EditionCard[] | null>(null)
   const [slotPickerState, setSlotPickerState] = useState<SlotPickerState | null>(null)
   const [specialScheduleState, setSpecialScheduleState] = useState<SpecialScheduleState | null>(null)
+  const [optimisticIdeas, setOptimisticIdeas] = useState<EditionCard[]>([])
+  const [confirmedIds, setConfirmedIds] = useState<Set<string>>(new Set())
 
   const working = localEditions ?? optimisticEditions
   const activeCard = activeId ? working.find((e) => e.id === activeId) ?? null : null
 
+  const allEditions = useMemo(() => {
+    const serverIds = new Set(working.map((e) => e.id))
+    const pending = optimisticIdeas.filter((o) => !serverIds.has(o.id))
+    return [...pending, ...working]
+  }, [working, optimisticIdeas])
+
   const columnCards = useMemo(() => {
     const map = new Map<string, EditionCard[]>()
     for (const col of COLUMN_DEFS) map.set(col.id, [])
-    for (const e of working) {
+    for (const e of allEditions) {
       const arr = map.get(e.status)
       if (arr) arr.push(e)
     }
     return map
-  }, [working])
+  }, [allEditions])
 
   // ─── Slot Picker Logic ──────────────────────────────────────────────────────
 
@@ -214,6 +223,55 @@ export function KanbanBoard({ editions, onMoveEdition, onDeleteEdition, strings,
   const handleSpecialScheduleCancel = useCallback(() => {
     setSpecialScheduleState(null)
   }, [])
+
+  // ─── Quick-add handler ──────────────────────────────────────────────────────
+
+  const handleQuickAdd = useCallback(async (title: string) => {
+    const tempId = `optimistic-${crypto.randomUUID()}`
+    const now = new Date().toISOString()
+    const optimisticCard: EditionCard = {
+      id: tempId,
+      displayId: 'NEW',
+      subject: title,
+      preheader: null,
+      status: 'idea' as const,
+      typeId: null,
+      typeName: null,
+      typeColor: null,
+      createdAt: now,
+      sentAt: null,
+      ideaCreatedAt: now,
+      reviewEnteredAt: null,
+      slotDate: null,
+      wordCount: null,
+      charCount: null,
+      imageCount: null,
+      readingTimeMin: null,
+      progressPercent: null,
+      ideaNotes: null,
+      snippet: null,
+      stats: null,
+    }
+
+    setOptimisticIdeas((prev) => [optimisticCard, ...prev])
+
+    try {
+      const realId = await onQuickAdd?.(title)
+      setOptimisticIdeas((prev) => prev.filter((c) => c.id !== tempId))
+      if (realId) {
+        setConfirmedIds((prev) => new Set(prev).add(realId))
+        setTimeout(() => {
+          setConfirmedIds((prev) => {
+            const next = new Set(prev)
+            next.delete(realId)
+            return next
+          })
+        }, 1500)
+      }
+    } catch {
+      setOptimisticIdeas((prev) => prev.filter((c) => c.id !== tempId))
+    }
+  }, [onQuickAdd])
 
   // ─── DnD Handlers ──────────────────────────────────────────────────────────
 
@@ -390,11 +448,13 @@ export function KanbanBoard({ editions, onMoveEdition, onDeleteEdition, strings,
                 color={col.color}
                 hint={col.id === 'scheduled' ? 'Only ready editions' : undefined}
                 cards={cards}
+                confirmedIds={confirmedIds}
                 strings={strings}
                 types={types}
                 onReassignType={onReassignType}
                 onMoveToStatus={handleMoveToStatus}
                 onDelete={onDeleteEdition}
+                onQuickAdd={col.id === 'idea' ? handleQuickAdd : undefined}
                 activeId={activeId}
               />
             )

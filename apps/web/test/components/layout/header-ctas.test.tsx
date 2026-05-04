@@ -32,7 +32,7 @@ describe('HeaderCTAs', () => {
     it('Newsletter button has marker yellow background', () => {
       render(<HeaderCTAs variant="home" locale="en" t={en} />)
       const nlBtn = screen.getByText(/Newsletter/).closest('a')
-      expect(nlBtn!.style.background).toBe('#FFE37A')
+      expect(nlBtn!.style.background).toBe('var(--pb-marker)')
     })
   })
 

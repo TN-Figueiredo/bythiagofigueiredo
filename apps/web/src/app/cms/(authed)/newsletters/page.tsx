@@ -49,6 +49,7 @@ export default async function NewsletterHubPage({
         drawerStrings={strings.typeDrawer}
         commonStrings={strings.common}
         actionStrings={strings.actions}
+        siteId={ctx.siteId}
       >
         <Suspense key={`${tab}-${typeFilter}`} fallback={<TabSkeleton tab={tab} />}>
           <TabContent tab={tab} siteId={ctx.siteId} typeFilter={typeFilter} locale={locale} types={sharedData.types} />

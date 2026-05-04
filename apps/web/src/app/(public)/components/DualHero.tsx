@@ -15,26 +15,11 @@ type Props = {
   video: HomeVideo | null
   locale: 'en' | 'pt-BR'
   t: Record<string, string>
-  isDark: boolean
 }
 
-export function DualHero({ post, video, locale, t, isDark }: Props) {
+export function DualHero({ post, video, locale, t }: Props) {
   const blogBase = locale === 'pt-BR' ? '/pt/blog' : '/blog'
   const isPt = locale === 'pt-BR'
-
-  const paper   = isDark ? '#2A241A' : '#FBF6E8'
-  const ink     = isDark ? '#EFE6D2' : '#161208'
-  const muted   = isDark ? '#958A75' : '#6A5F48'
-  const line    = isDark ? '#2E2718' : '#CEBFA0'
-  const accent  = isDark ? '#FF8240' : '#C14513'
-  const cat     = isDark ? '#5B9BD5' : '#1E4D7A'
-  const yt      = '#FF3333'
-  const tape1   = isDark ? 'rgba(255,226,140,0.42)' : 'rgba(255,226,140,0.75)'
-  const tape2   = isDark ? 'rgba(209,224,255,0.36)' : 'rgba(200,220,255,0.7)'
-  const tapeR   = isDark ? 'rgba(255,120,120,0.40)' : 'rgba(255,150,150,0.7)'
-  const shadow  = isDark
-    ? '0 2px 0 rgba(0,0,0,0.5), 0 12px 24px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.03)'
-    : '0 1px 0 rgba(0,0,0,0.04), 0 8px 20px rgba(70,50,20,0.16), inset 0 0 0 1px rgba(0,0,0,0.03)'
 
   const now = new Date()
   const weekNum = getWeekNumber(now)
@@ -51,38 +36,44 @@ export function DualHero({ post, video, locale, t, isDark }: Props) {
   const hasContent = post || video
   if (!hasContent) return null
 
+  const cols = post && video ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1 max-w-2xl mx-auto'
+
   return (
-    <section style={{ maxWidth: 1280, margin: '0 auto', padding: '56px 28px 40px' }}>
+    <section className="px-[18px] md:px-7" style={{ maxWidth: 1280, margin: '0 auto', paddingTop: 56, paddingBottom: 24 }}>
+      <h2 id="hero-heading" className="sr-only">
+        {isPt ? 'Destaque da semana' : "This week's picks"}
+      </h2>
+
       {/* Section header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 36 }}>
-        <div style={{ fontFamily: '"Caveat", cursive', color: accent, fontSize: 30, transform: 'rotate(-1.5deg)', display: 'inline-block', whiteSpace: 'nowrap' }}>
-          ★ {isPt ? 'o destaque da semana' : "this week's highlight"}
+      <div aria-labelledby="hero-heading" style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 36 }}>
+        <div className="font-caveat" style={{ color: 'var(--pb-accent)', fontSize: 30, transform: 'rotate(-1.5deg)', display: 'inline-block', whiteSpace: 'nowrap' }}>
+          ★ {isPt ? 'o destaque da semana' : "this week's picks"}
         </div>
-        <div style={{ flex: 1, height: 1, background: line }} />
-        <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, color: muted, letterSpacing: '0.14em', whiteSpace: 'nowrap' }}>
+        <div style={{ flex: 1, height: 1, background: 'var(--pb-line)' }} />
+        <span className="font-mono" style={{ fontSize: 11, color: 'var(--pb-muted)', letterSpacing: '0.14em', whiteSpace: 'nowrap' }}>
           {isPt ? 'SEM' : 'WK'} {weekNum} · {year}
         </span>
       </div>
 
       {/* Two-column grid — stacks on mobile */}
-      <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: 40 }}>
+      <div className={`grid ${cols} gap-7 md:gap-10`}>
 
         {/* ── Post card ── */}
         {post && (
-          <div style={{ position: 'relative', paddingTop: 20 }}>
+          <div style={{ position: 'relative', paddingTop: 20, paddingBottom: 28 }}>
             <div
               className="dh-card"
-              style={{ background: paper, position: 'relative', transform: 'rotate(-0.8deg)', boxShadow: shadow }}
+              style={{ background: 'var(--pb-paper)', position: 'relative', transform: 'rotate(-0.8deg)', boxShadow: 'var(--pb-shadow-card)' }}
             >
               {/* Tapes — sticking over the top edge */}
-              <div aria-hidden="true" style={{ position: 'absolute', width: 80, height: 18, background: tape1, boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.2)', top: -10, left: '18%', transform: 'rotate(-4deg)' }} />
-              <div aria-hidden="true" style={{ position: 'absolute', width: 80, height: 18, background: tape2, boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.2)', top: -10, right: '18%', transform: 'rotate(5deg)' }} />
+              <div aria-hidden="true" style={{ position: 'absolute', width: 80, height: 18, background: 'var(--pb-tape)', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.2)', top: -10, left: '18%', transform: 'rotate(-4deg)' }} />
+              <div aria-hidden="true" style={{ position: 'absolute', width: 80, height: 18, background: 'var(--pb-tape2)', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.2)', top: -10, right: '18%', transform: 'rotate(5deg)' }} />
 
               <Link href={`${blogBase}/${post.slug}`} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
                 {/* Cover */}
-                <div style={{ position: 'relative', overflow: 'hidden', background: coverGradient(post.category, isDark), aspectRatio: '16 / 9' }}>
+                <div style={{ position: 'relative', overflow: 'hidden', background: coverGradient(post.tagName ?? post.category, false, post.tagColor), aspectRatio: '16 / 9' }}>
                   <div style={{ position: 'absolute', top: 8, left: 8 }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px', background: ink, color: isDark ? '#14110B' : '#FBF6E8', fontFamily: '"JetBrains Mono", monospace', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600 }}>
+                    <span className="font-mono" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px', background: 'var(--pb-ink)', color: 'var(--pb-paper)', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600 }}>
                       ▤ {isPt ? 'texto' : 'post'}
                     </span>
                   </div>
@@ -90,88 +81,86 @@ export function DualHero({ post, video, locale, t, isDark }: Props) {
                 {/* Body */}
                 <div style={{ padding: '22px 26px 26px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
-                    {post.category && (
-                      <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: cat, fontWeight: 500 }}>
-                        {post.category}
+                    {(post.tagName ?? post.category) && (
+                      <span className="font-mono" style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: post.tagColor ?? 'var(--pb-accent)', fontWeight: 500 }}>
+                        {post.tagName ?? post.category}
                       </span>
                     )}
                     {postDate && (
-                      <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, color: muted, letterSpacing: '0.1em' }}>
+                      <span className="font-mono" style={{ fontSize: 10, color: 'var(--pb-muted)', letterSpacing: '0.1em' }}>
                         {postDate} · {post.readingTimeMin} min
                       </span>
                     )}
                   </div>
-                  <h2 style={{ fontFamily: '"Fraunces", serif', fontSize: 'clamp(22px, 2.6vw, 34px)', lineHeight: 1.08, letterSpacing: '-0.02em', margin: 0, fontWeight: 500, color: ink }}>
+                  <h3 className="font-fraunces" style={{ fontSize: 'clamp(24px, 2.8vw, 34px)', lineHeight: 1.08, letterSpacing: '-0.02em', margin: 0, fontWeight: 500, color: 'var(--pb-ink)' }}>
                     {post.title}
-                  </h2>
+                  </h3>
                   {post.excerpt && (
-                    <p style={{ fontSize: 14.5, color: muted, lineHeight: 1.55, marginTop: 12, marginBottom: 0, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                    <p style={{ fontSize: 14.5, color: 'var(--pb-muted)', lineHeight: 1.55, marginTop: 12, marginBottom: 0, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                       {post.excerpt}
                     </p>
                   )}
-                  <div style={{ marginTop: 16, fontFamily: '"Caveat", cursive', color: accent, fontSize: 20, transform: 'rotate(-2deg)', display: 'inline-block' }}>
-                    {t['hero.post.mustRead'] ?? (isPt ? '← leitura obrigatória' : '← must-read')}
-                  </div>
                 </div>
               </Link>
+            </div>
+            <div className="font-caveat hidden md:block" style={{ position: 'absolute', bottom: -22, left: 32, color: 'var(--pb-accent)', fontSize: 20, transform: 'rotate(-2deg)' }}>
+              {t['hero.post.mustRead'] ?? (isPt ? '← leitura obrigatória' : '← must-read')}
             </div>
           </div>
         )}
 
         {/* ── Video card ── */}
         {video && (
-          <div style={{ position: 'relative', paddingTop: 20 }}>
+          <div style={{ position: 'relative', paddingTop: 20, paddingBottom: 28 }}>
             <div
               className="dh-card dh-card-video"
-              style={{ background: paper, position: 'relative', transform: 'rotate(0.8deg)', boxShadow: shadow }}
+              style={{ background: 'var(--pb-paper)', position: 'relative', transform: 'rotate(0.8deg)', boxShadow: 'var(--pb-shadow-card)' }}
             >
-              <div aria-hidden="true" style={{ position: 'absolute', width: 80, height: 18, background: tapeR, boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.2)', top: -10, left: '22%', transform: 'rotate(4deg)' }} />
-              <div aria-hidden="true" style={{ position: 'absolute', width: 80, height: 18, background: tape1, boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.2)', top: -10, right: '15%', transform: 'rotate(-3deg)' }} />
+              <div aria-hidden="true" style={{ position: 'absolute', width: 80, height: 18, background: 'var(--pb-tapeR)', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.2)', top: -10, left: '22%', transform: 'rotate(4deg)' }} />
+              <div aria-hidden="true" style={{ position: 'absolute', width: 80, height: 18, background: 'var(--pb-tape)', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.2)', top: -10, right: '15%', transform: 'rotate(-3deg)' }} />
 
               <a href={video.youtubeUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
                 {/* Thumbnail */}
                 <div style={{ position: 'relative', aspectRatio: '16 / 9', overflow: 'hidden', background: 'linear-gradient(135deg, #51201F 0%, #142229 100%)' }}>
                   <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(transparent 40%, rgba(0,0,0,0.55))' }} />
                   <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <div style={{ width: 68, height: 48, background: yt, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(255,51,51,0.4)' }}>
+                    <div style={{ width: 68, height: 48, background: 'var(--pb-yt)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(255,51,51,0.4)' }}>
                       <svg width="22" height="22" viewBox="0 0 24 24" fill="#FFF"><path d="M8 5v14l11-7z" /></svg>
                     </div>
                   </div>
-                  <div style={{ position: 'absolute', top: 8, left: 8, background: yt, color: '#FFF', fontFamily: '"JetBrains Mono", monospace', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700, padding: '3px 7px' }}>
+                  <div className="font-mono" style={{ position: 'absolute', top: 8, left: 8, background: 'var(--pb-yt)', color: '#FFF', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700, padding: '3px 7px' }}>
                     ▶ YouTube
                   </div>
-                  <div style={{ position: 'absolute', bottom: 8, right: 8, background: 'rgba(0,0,0,0.85)', color: '#FFF', fontFamily: '"JetBrains Mono", monospace', fontSize: 11, padding: '2px 7px' }}>
+                  <div className="font-mono" style={{ position: 'absolute', bottom: 8, right: 8, background: 'rgba(0,0,0,0.85)', color: '#FFF', fontSize: 11, padding: '2px 7px' }}>
                     {video.duration}
                   </div>
                 </div>
                 {/* Body */}
                 <div style={{ padding: '22px 26px 26px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
-                    <span style={{ padding: '2px 8px', background: yt, color: '#FFF', fontFamily: '"JetBrains Mono", monospace', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600 }}>
+                    <span className="font-mono" style={{ padding: '2px 8px', background: 'var(--pb-yt)', color: '#FFF', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600 }}>
                       {video.series}
                     </span>
-                    <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, color: muted, letterSpacing: '0.1em' }}>
+                    <span className="font-mono" style={{ fontSize: 10, color: 'var(--pb-muted)', letterSpacing: '0.1em' }}>
                       {video.viewCount !== '—' ? `${video.viewCount} · ` : ''}{videoDate}
                     </span>
                   </div>
-                  <h2 style={{ fontFamily: '"Fraunces", serif', fontSize: 'clamp(22px, 2.6vw, 34px)', lineHeight: 1.08, letterSpacing: '-0.02em', margin: 0, fontWeight: 500, color: ink }}>
+                  <h3 className="font-fraunces" style={{ fontSize: 'clamp(24px, 2.8vw, 34px)', lineHeight: 1.08, letterSpacing: '-0.02em', margin: 0, fontWeight: 500, color: 'var(--pb-ink)' }}>
                     {video.title}
-                  </h2>
-                  <p style={{ fontSize: 14.5, color: muted, lineHeight: 1.55, marginTop: 12, marginBottom: 0, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                  </h3>
+                  <p style={{ fontSize: 14.5, color: 'var(--pb-muted)', lineHeight: 1.55, marginTop: 12, marginBottom: 0, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                     {video.description}
                   </p>
-                  <div style={{ marginTop: 16, fontFamily: '"Caveat", cursive', color: accent, fontSize: 20, transform: 'rotate(2deg)', display: 'inline-block' }}>
-                    {t['hero.video.fresh'] ?? (isPt ? 'novo no canal →' : 'fresh on the channel →')}
-                  </div>
                 </div>
               </a>
+            </div>
+            <div className="font-caveat hidden md:block" style={{ position: 'absolute', bottom: -22, right: 32, color: 'var(--pb-accent)', fontSize: 20, transform: 'rotate(2deg)' }}>
+              {t['hero.video.fresh'] ?? (isPt ? 'novo no canal →' : 'fresh on the channel →')}
             </div>
           </div>
         )}
       </div>
 
-      {/* Breathing room */}
-      <div style={{ height: 16 }} />
     </section>
   )
 }

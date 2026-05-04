@@ -8,7 +8,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const locale = h.get('x-locale') ?? 'en'
   const isPt = locale === 'pt-BR'
   return {
-    title: 'Newsletters — by Thiago Figueiredo',
+    title: 'Newsletters',
     description: isPt
       ? 'Quatro newsletters, um email — escolhe o que cabe na sua frequência.'
       : 'Four newsletters, one email — pick what fits your frequency.',

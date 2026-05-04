@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Newsletter — bythiagofigueiredo</title>
+<style id="v3-tier-styles">
+  /* Tier stamp on body corner — moved to bottom-left to avoid header collision */
+  .tier-stamp {
+    position: fixed; left: 16px; bottom: 16px; z-index: 990;
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    letter-spacing: 0.18em; text-transform: uppercase; font-weight: 700;
+    padding: 7px 12px;
+    border: 1.5px solid currentColor;
+    transform: rotate(-2deg);
+    pointer-events: none;
+    background: rgba(20,18,16,0.85);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+    transition: opacity 0.3s, transform 0.3s;
+  }
+  .tier-stamp.guest { color: #B8A878; }
+  .tier-stamp.subscriber { color: #FF8B58; }
+  .tier-stamp.collaborator {
+    color: #E8B843;
+    background: rgba(20,18,16,0.92);
+    box-shadow: 0 4px 16px rgba(184,149,48,0.25), 0 0 0 1px rgba(184,149,48,0.4);
+  }
+  body.lt .tier-stamp { background: rgba(245,238,222,0.9); }
+  body.lt .tier-stamp.guest { color: #6E5F40; }
+  body.lt .tier-stamp.subscriber { color: #C14513; }
+  body.lt .tier-stamp.collaborator { color: #8E7020; box-shadow: 0 4px 16px rgba(184,149,48,0.3), 0 0 0 1px rgba(184,149,48,0.5); }
+
+  /* Hide on small */
+  @media (max-width: 600px) {
+    .tier-stamp { display: none; }
+  }
+
+  /* Wax seal animation */
+  @keyframes sealWobble {
+    0%, 100% { transform: rotate(-4deg); }
+    50% { transform: rotate(-2deg); }
+  }
+  @keyframes sealGlint {
+    0%, 100% { opacity: 0.8; }
+    50% { opacity: 1; }
+  }
+  /* Smooth tier transition */
+  .v3-fade { animation: v3FadeIn 0.4s ease-out; }
+  @keyframes v3FadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Archive scroll-handoff: flash a highlight when #archive is the hash target.
+     Three-second pulse so the user lands and immediately sees the section breathe. */
+  #archive { transition: background 0.3s; }
+  #archive.archive-flash::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    box-shadow: inset 0 0 0 2px currentColor;
+    color: var(--accent-color, #C14513);
+    opacity: 0; animation: archiveFlash 1.6s ease-out forwards;
+    z-index: 5;
+  }
+  #archive { position: relative; }
+  @keyframes archiveFlash {
+    0% { opacity: 0; }
+    25% { opacity: 0.55; }
+    100% { opacity: 0; }
+  }
+
+  /* Respect reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    .v3-fade, .tier-stamp { animation: none !important; transition: none !important; }
+    [style*="sealWobble"] { animation: none !important; }
+    #archive.archive-flash::before { animation: none !important; opacity: 0 !important; }
+  }
+
+  /* Improved focus visibility for keyboard users */
+  a:focus-visible, button:focus-visible, input:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+</style>
+<meta name="description" content="Inscreva-se em uma das newsletters do Thiago Figueiredo. Sem spam, sem promoção, descadastro fácil.">
+
+<!-- Open Graph -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="Newsletter — bythiagofigueiredo">
+<meta property="og:description" content="Sem spam, sem parceria escondida, sem 'URGENTE' no assunto.">
+<meta property="og:url" content="https://bythiagofigueiredo.com/newsletter">
+<meta property="og:image" content="og-image.html">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Caveat:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background: #14110B;
+  }
+  ::selection { background: #FFE37A; color: #1A140C; }
+  a { -webkit-tap-highlight-color: transparent; }
+  input, button { font: inherit; }
+
+  /* Top control strip */
+  .top-strip {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 999;
+    height: 44px;
+    background: rgba(20,18,16,0.94);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .top-strip .url-pill {
+    color: rgba(255,255,255,0.55);
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    letter-spacing: 0.04em;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .top-strip .url-pill .scheme { opacity: 0.4; }
+  .top-strip .url-pill .slug { color: #FFE37A; }
+
+  .lang-pill {
+    color: #F2EBDB;
+    padding: 3px; border-radius: 999px;
+    display: flex; font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    background: rgba(255,255,255,0.06);
+  }
+  .lang-pill button {
+    background: transparent; color: inherit; border: none;
+    padding: 5px 12px; border-radius: 999px; cursor: pointer;
+    font: inherit; letter-spacing: 0.1em; text-transform: uppercase;
+  }
+  .lang-pill button.active { background: #F2EBDB; color: #141210; }
+
+  /* Tweaks panel */
+  .tweaks-panel {
+    position: fixed; bottom: 20px; right: 20px; z-index: 998;
+    background: rgba(20,18,16,0.94); color: #F2EBDB;
+    backdrop-filter: blur(12px); border-radius: 14px;
+    padding: 16px 18px; min-width: 280px;
+    font-family: 'Inter', sans-serif; font-size: 13px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+    display: none;
+  }
+  .tweaks-panel.visible { display: block; }
+  .tweaks-panel .tweaks-title {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.6;
+    margin-bottom: 14px;
+  }
+  .tweaks-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 0; gap: 12px;
+  }
+  .tweaks-row + .tweaks-row { border-top: 1px solid rgba(255,255,255,0.08); }
+  .tweaks-row .label { font-size: 13px; opacity: 0.9; }
+  .tweak-seg {
+    display: inline-flex; background: rgba(255,255,255,0.08);
+    border-radius: 999px; padding: 2px; gap: 2px; flex-wrap: wrap;
+  }
+  .tweak-seg button {
+    background: transparent; color: inherit; border: none;
+    padding: 5px 10px; border-radius: 999px; cursor: pointer;
+    font-family: inherit; font-size: 11px;
+    transition: background 0.15s, color 0.15s;
+  }
+  .tweak-seg button.active { background: #F2EBDB; color: #141210; }
+  .tweak-seg.tweak-slug button.active {
+    background: var(--nl-color, #F2EBDB); color: #FFF;
+  }
+
+  #root { min-height: 100vh; padding-top: 44px; }
+
+  /* Responsive guards */
+  @media (max-width: 920px) {
+    [style*="grid-template-columns: 1.4fr 1fr"],
+    [style*="grid-template-columns: 1.5fr 1fr"],
+    [style*="grid-template-columns: 1fr 1fr"]:not(.keep-2col) {
+      grid-template-columns: 1fr !important;
+    }
+    [style*="grid-template-columns: repeat(3, 1fr)"] {
+      grid-template-columns: repeat(2, 1fr) !important;
+    }
+    [style*="position: sticky"] {
+      position: static !important;
+    }
+  }
+  @media (max-width: 620px) {
+    [style*="grid-template-columns: repeat(3, 1fr)"],
+    [style*="grid-template-columns: repeat(2, 1fr)"] {
+      grid-template-columns: 1fr !important;
+    }
+    section[style*="padding: 32px 28px 48px"],
+    section[style*="padding: 56px 28px"],
+    section[style*="padding: 64px 28px"],
+    section[style*="padding: 32px 28px 0"],
+    section[style*="padding: 64px 28px 32px"],
+    section[style*="padding: 32px 28px 48px"] {
+      padding-left: 18px !important;
+      padding-right: 18px !important;
+    }
+    h1[style*="font-size: 72px"] { font-size: 48px !important; }
+    h1[style*="fontSize: 72"] { font-size: 48px !important; }
+    .top-strip .url-pill .scheme { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Top control strip with URL pill -->
+<div class="top-strip">
+  <div class="url-pill">
+    <span class="scheme">bythiagofigueiredo.com/newsletters/</span>
+    <span class="slug" id="url-slug">diario-do-bythiago</span>
+  </div>
+  <div class="lang-pill">
+    <button data-lang="pt" class="active">PT</button>
+    <button data-lang="en">EN</button>
+  </div>
+</div>
+
+<!-- Tweaks panel -->
+<div class="tweaks-panel" id="tweaks">
+  <div class="tweaks-title">Tweaks</div>
+  <div class="tweaks-row">
+    <span class="label">Newsletter</span>
+    <div class="tweak-seg tweak-slug" data-tweak="slug">
+      <button data-value="main" class="active">Diário</button>
+      <button data-value="trips">Curvas</button>
+      <button data-value="growth">Crescer</button>
+      <button data-value="code">Código</button>
+    </div>
+  </div>
+  <div class="tweaks-row">
+    <span class="label">Tier (demo)</span>
+    <div class="tweak-seg" data-tweak="tier">
+      <button data-value="guest" class="active">Visitante</button>
+      <button data-value="subscriber">Inscrito</button>
+      <button data-value="collaborator">Colab</button>
+    </div>
+  </div>
+  <div class="tweaks-row">
+    <span class="label">Theme</span>
+    <div class="tweak-seg" data-tweak="theme">
+      <button data-value="light">Light</button>
+      <button data-value="dark" class="active">Dark</button>
+    </div>
+  </div>
+  <div class="tweaks-row">
+    <span class="label">Language</span>
+    <div class="tweak-seg" data-tweak="lang">
+      <button data-value="pt" class="active">PT</button>
+      <button data-value="en">EN</button>
+    </div>
+  </div>
+</div>
+
+<div id="root"></div>
+
+<!-- React + Babel -->
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script src="content.js?v=6"></script>
+<script type="text/babel" src="shared.jsx"></script>
+<script type="text/babel" src="newsletter-landing-v3.jsx"></script>
+
+<!-- Tweak defaults -->
+<script>
+  const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+    "lang": "pt",
+    "theme": "dark",
+    "slug": "code",
+    "tier": "guest"
+  }/*EDITMODE-END*/;
+</script>
+
+<script type="text/babel">
+  function loadState() {
+    try {
+      const saved = JSON.parse(localStorage.getItem("btf_nlland") || "{}");
+      const url = new URLSearchParams(location.search);
+      const querySlug = url.get("slug");
+      const merged = { ...TWEAK_DEFAULTS, ...saved };
+      // If URL has ?slug=…, find which newsletter id matches and use it.
+      if (querySlug && window.CONTENT) {
+        const found = window.CONTENT.newsletters.find(
+          n => n.slug_pt === querySlug || n.slug_en === querySlug
+        );
+        if (found) merged.slug = found.id;
+      }
+      return merged;
+    } catch { return { ...TWEAK_DEFAULTS }; }
+  }
+  function saveState(s) {
+    try { localStorage.setItem("btf_nlland", JSON.stringify(s)); } catch {}
+  }
+
+  const App = () => {
+    const [state, setState] = React.useState(loadState);
+
+    const update = React.useCallback((patch) => {
+      setState(prev => {
+        const next = { ...prev, ...patch };
+        saveState(next);
+        return next;
+      });
+    }, []);
+
+    // resolve newsletter type by id
+    const type = window.CONTENT.newsletters.find(n => n.id === state.slug)
+      || window.CONTENT.newsletters[0];
+    const slug = type[`slug_${state.lang}`];
+    const dark = state.theme === "dark";
+    const accent = dark ? type.color_dark : type.color;
+
+    React.useEffect(() => {
+      // sync html lang + url pill + tweak buttons + body bg
+      document.documentElement.lang = state.lang === "pt" ? "pt-BR" : "en";
+      const slugEl = document.getElementById("url-slug");
+      if (slugEl) slugEl.textContent = slug;
+      slugEl.style.color = accent;
+
+      // accent custom-prop drives the active-button color in the slug seg
+      document.documentElement.style.setProperty("--nl-color", accent);
+
+      document.querySelectorAll(".lang-pill button").forEach(b => {
+        b.classList.toggle("active", b.dataset.lang === state.lang);
+      });
+      document.querySelectorAll(".tweak-seg").forEach(seg => {
+        const key = seg.dataset.tweak;
+        seg.querySelectorAll("button").forEach(b => {
+          b.classList.toggle("active", b.dataset.value === String(state[key]));
+        });
+      });
+      document.body.style.background = dark ? "#14110B" : "#E9E1CE";
+
+      // also sync browser URL so deep-links work
+      const url = new URL(location.href);
+      url.searchParams.set("slug", slug);
+      history.replaceState(null, "", url.toString());
+
+      // page title
+      document.title = `${type[`name_${state.lang}`]} — ${state.lang === "pt" ? "Newsletter" : "Newsletter"} — bythiagofigueiredo`;
+    }, [state, slug, accent, dark, type]);
+
+    React.useEffect(() => {
+      const onLang = (e) => {
+        const b = e.target.closest(".lang-pill button[data-lang]");
+        if (b) update({ lang: b.dataset.lang });
+      };
+      const onTweak = (e) => {
+        const b = e.target.closest(".tweak-seg button[data-value]");
+        if (!b) return;
+        const seg = b.closest(".tweak-seg");
+        const key = seg.dataset.tweak;
+        update({ [key]: b.dataset.value });
+      };
+      document.addEventListener("click", onLang);
+      document.addEventListener("click", onTweak);
+      return () => {
+        document.removeEventListener("click", onLang);
+        document.removeEventListener("click", onTweak);
+      };
+    }, [update]);
+
+    React.useEffect(() => {
+      const panel = document.getElementById("tweaks");
+      const onMsg = (e) => {
+        const d = e.data || {};
+        if (d.type === "__activate_edit_mode") panel.classList.add("visible");
+        else if (d.type === "__deactivate_edit_mode") panel.classList.remove("visible");
+      };
+      window.addEventListener("message", onMsg);
+      try { window.parent.postMessage({ type: "__edit_mode_available" }, "*"); } catch {}
+      return () => window.removeEventListener("message", onMsg);
+    }, []);
+
+    React.useEffect(() => {
+      try {
+        window.parent.postMessage({
+          type: "__edit_mode_set_keys",
+          edits: { lang: state.lang, theme: state.theme, slug: state.slug, tier: state.tier },
+        }, "*");
+      } catch {}
+    }, [state.lang, state.theme, state.slug, state.tier]);
+
+    window._lang = state.lang;
+    const t = window.CONTENT.ui[state.lang] || window.CONTENT.ui.pt;
+
+    return (
+      <window.NewsletterLanding
+        t={t}
+        dark={dark}
+        content={window.CONTENT}
+        slug={slug}
+        tier={state.tier || "guest"}
+      />
+    );
+  };
+
+  ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+
+</body>
+</html>

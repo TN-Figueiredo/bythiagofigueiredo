@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useModalFocusTrap } from './use-modal-focus-trap'
+import { useModalFocusTrap } from '../../_shared/editor/use-modal-focus-trap'
 
 export interface CadenceSlotOption {
   date: string          // YYYY-MM-DD

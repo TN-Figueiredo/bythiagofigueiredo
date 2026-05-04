@@ -1,0 +1,136 @@
+<!--
+  Print stylesheet for post pages — included via <link media="print">.
+  Strips chrome, fixes article width, sets up serif body type.
+-->
+
+@page {
+  margin: 18mm 16mm 22mm;
+  size: A4;
+}
+
+@media print {
+  /* Hide navigation, controls, ads, sidebars */
+  .top-strip,
+  .tweaks-panel,
+  header[class*="page-header"],
+  [data-print="hide"],
+  .ad-slot,
+  .reading-progress,
+  .toc-rail,
+  .keypoints-rail,
+  .ai-reader,
+  .back-to-top,
+  .share-bar,
+  .reactions,
+  .comments,
+  footer {
+    display: none !important;
+  }
+
+  body {
+    background: #FFFFFF !important;
+    color: #14110B !important;
+    font-family: "Fraunces", Georgia, serif !important;
+    font-size: 11pt !important;
+    line-height: 1.55 !important;
+    padding-top: 0 !important;
+  }
+
+  #root {
+    padding-top: 0 !important;
+  }
+
+  /* Single-column reset for any grid that was holding TOC + body + sidebar */
+  [style*="grid-template-columns"] {
+    display: block !important;
+  }
+
+  /* Article body */
+  article, main {
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  h1, h2, h3, h4 {
+    color: #14110B !important;
+    page-break-after: avoid;
+  }
+
+  h1 {
+    font-size: 28pt !important;
+    line-height: 1.05 !important;
+    margin-top: 0 !important;
+    margin-bottom: 12pt !important;
+  }
+
+  h2 {
+    font-size: 16pt !important;
+    margin-top: 18pt !important;
+    margin-bottom: 8pt !important;
+  }
+
+  h3 {
+    font-size: 13pt !important;
+  }
+
+  p, li {
+    orphans: 3;
+    widows: 3;
+    color: #14110B !important;
+  }
+
+  a {
+    color: #14110B !important;
+    text-decoration: underline;
+  }
+
+  /* Show URL after external links — useful for printed reading */
+  a[href^="http"]:after {
+    content: " (" attr(href) ")";
+    font-size: 9pt;
+    color: #6A5F48;
+    font-style: italic;
+  }
+
+  /* Code blocks */
+  pre, code {
+    background: #F5F0E4 !important;
+    color: #14110B !important;
+    border: 0.5pt solid #CEBFA0 !important;
+    page-break-inside: avoid;
+  }
+
+  pre { padding: 8pt !important; }
+
+  /* Hero images: keep but constrain */
+  img {
+    max-width: 100% !important;
+    height: auto !important;
+    page-break-inside: avoid;
+  }
+
+  /* Hide decorative paper rotations */
+  [style*="rotate"] {
+    transform: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Footnotes are emphasized */
+  .footnote, sup {
+    font-size: 9pt !important;
+  }
+
+  /* End-mark reminder */
+  article:after {
+    content: "tf ❦ bythiagofigueiredo.com";
+    display: block;
+    margin-top: 18pt;
+    font-style: italic;
+    font-size: 10pt;
+    color: #6A5F48;
+    text-align: center;
+    border-top: 0.5pt solid #CEBFA0;
+    padding-top: 8pt;
+  }
+}

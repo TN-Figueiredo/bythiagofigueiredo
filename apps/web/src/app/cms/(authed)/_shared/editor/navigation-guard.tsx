@@ -63,8 +63,12 @@ export function NavigationGuard({ hasUnsavedChanges, onSave }: NavigationGuardPr
       const targetPath = typeof url === 'string'
         ? new URL(url, window.location.origin).pathname
         : url?.pathname
-      if (targetPath && targetPath.includes('/cms/newsletters/') && targetPath.includes('/edit')) {
-        return origReplace(data, unused, url)
+      if (targetPath && targetPath.includes('/edit')) {
+        const isEditorRedirect =
+          (targetPath.includes('/cms/newsletters/') || targetPath.includes('/cms/blog/'))
+        if (isEditorRedirect) {
+          return origReplace(data, unused, url)
+        }
       }
       pendingNavRef.current = { data, unused, url, method: 'replace' }
       setShowDialog(true)

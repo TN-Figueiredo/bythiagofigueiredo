@@ -58,11 +58,20 @@ vi.mock('@tn-figueiredo/auth-nextjs', () => ({
   requireArea: vi.fn(async () => undefined),
 }))
 
+vi.mock('@/lib/cms/site-context', () => ({
+  getSiteContext: vi.fn(async () => ({
+    siteId: 'site-1',
+    orgId: 'org-1',
+    defaultLocale: 'pt-BR',
+  })),
+}))
+
 vi.mock('@/lib/supabase/service', () => {
   const result = { count: 0, data: null, error: null }
   const chainable: Record<string, unknown> = {}
   chainable.eq = vi.fn(() => chainable)
   chainable.is = vi.fn(() => chainable)
+  chainable.in = vi.fn(() => chainable)
   chainable.then = (resolve: (v: unknown) => void) => resolve(result)
   return {
     getSupabaseServiceClient: vi.fn(() => ({

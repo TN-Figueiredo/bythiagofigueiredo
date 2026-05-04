@@ -2,10 +2,10 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { fireEvent } from '@testing-library/react'
 import { ContextualBanner } from '@/app/cms/(authed)/newsletters/_components/contextual-banner'
-import { MoreMenu } from '@/app/cms/(authed)/newsletters/_components/more-menu'
+import { MoreMenu } from '@/app/cms/(authed)/_shared/editor/more-menu'
 import { TypeSelector } from '@/app/cms/(authed)/newsletters/_components/type-selector'
 import { StatsStrip } from '@/app/cms/(authed)/newsletters/_components/stats-strip'
-import { AutosaveIndicator } from '@/app/cms/(authed)/newsletters/_components/autosave-indicator'
+import { AutosaveIndicator } from '@/app/cms/(authed)/_shared/editor/autosave-indicator'
 
 describe('ContextualBanner', () => {
   it('renders ephemeral hint for null status', () => {

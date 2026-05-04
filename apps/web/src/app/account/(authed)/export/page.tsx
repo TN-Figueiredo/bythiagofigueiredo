@@ -5,7 +5,7 @@ import { cookies } from 'next/headers'
 import { AccountExportButton } from '@/components/lgpd/account-export-button'
 
 export const metadata = {
-  title: 'Exportar dados | bythiagofigueiredo',
+  title: 'Exportar dados',
   robots: { index: false, follow: false },
 }
 

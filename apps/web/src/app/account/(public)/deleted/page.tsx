@@ -3,7 +3,7 @@
 import Link from 'next/link'
 
 export const metadata = {
-  title: 'Conta excluída | bythiagofigueiredo',
+  title: 'Conta excluída',
   robots: { index: false, follow: false },
 }
 

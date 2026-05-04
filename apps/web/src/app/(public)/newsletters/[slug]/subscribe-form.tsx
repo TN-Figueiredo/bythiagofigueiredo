@@ -580,28 +580,14 @@ function UpsellSection({
   addingId: aidg,
   onAdd,
 }: UpsellSectionProps) {
-  const available = suggestions.filter((s) => !aids.has(s.id))
-
   if (suggestions.length === 0) return null
 
-  // All suggestions have been added
-  if (available.length === 0) {
-    return (
-      <div className="nl-upsell-section">
-        <p className="nl-subscribed-all">
-          {ss.subscribedToAll}{' '}
-          <Link href="/newsletters">
-            {ss.allNewsletters}
-          </Link>
-        </p>
-      </div>
-    )
-  }
+  const allAdded = suggestions.every((s) => aids.has(s.id))
 
   return (
     <div className="nl-upsell-section">
       <h3 className="nl-upsell-title">{ss.upsellTitle}</h3>
-      {available.map((s) => {
+      {suggestions.map((s) => {
         const isAdding = aidg === s.id
         const isAdded = aids.has(s.id)
         return (
@@ -632,6 +618,14 @@ function UpsellSection({
           </div>
         )
       })}
+      {allAdded && (
+        <p className="nl-subscribed-all">
+          {ss.subscribedToAll}{' '}
+          <Link href="/newsletters">
+            {ss.allNewsletters}
+          </Link>
+        </p>
+      )}
     </div>
   )
 }

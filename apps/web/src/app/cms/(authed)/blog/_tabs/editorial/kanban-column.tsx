@@ -6,7 +6,7 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import type { PostCard, BlogTag } from '../../_hub/hub-types'
 import type { BlogHubStrings } from '../../_i18n/types'
 import { KanbanCard } from './kanban-card'
-import { QuickAddInput } from './quick-add-input'
+import { QuickAddInput } from '../../../_shared/editor/quick-add-input'
 
 const PUBLISHED_FOOTER_THRESHOLD = 15
 
@@ -15,6 +15,7 @@ interface KanbanColumnProps {
   title: string
   color?: string
   cards: PostCard[]
+  confirmedIds?: Set<string>
   strings?: BlogHubStrings
   tags?: BlogTag[]
   supportedLocales?: string[]
@@ -32,6 +33,7 @@ export function KanbanColumn({
   title,
   color,
   cards,
+  confirmedIds,
   strings,
   tags,
   supportedLocales,
@@ -97,6 +99,7 @@ export function KanbanColumn({
             <KanbanCard
               key={card.id}
               card={card}
+              confirmed={confirmedIds?.has(card.id)}
               strings={strings}
               tags={tags}
               supportedLocales={supportedLocales}
