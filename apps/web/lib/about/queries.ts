@@ -48,8 +48,10 @@ async function fetchAboutData(siteId: string): Promise<AboutData | null> {
   return row
 }
 
-export const getAboutData = unstable_cache(
-  fetchAboutData,
-  ['about'],
-  { tags: ['about'], revalidate: 300 },
-)
+export function getAboutData(siteId: string): Promise<AboutData | null> {
+  return unstable_cache(
+    fetchAboutData,
+    [`about:${siteId}`],
+    { tags: [`about:${siteId}`], revalidate: 300 },
+  )(siteId)
+}

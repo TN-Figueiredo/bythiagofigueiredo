@@ -1236,6 +1236,7 @@ export function AuthorsConnected({ authors, readOnly = false }: Props) {
       {/* Detail panel */}
       {selectedAuthor && (
         <DetailPanel
+          key={selectedAuthor.id}
           author={selectedAuthor}
           onClose={() => setSelectedId(null)}
           onUpdate={handleUpdate}

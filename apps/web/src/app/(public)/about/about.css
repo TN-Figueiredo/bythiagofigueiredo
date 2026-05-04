@@ -112,16 +112,6 @@
   text-transform: uppercase;
 }
 
-/* Tape */
-.about-tape {
-  position: absolute;
-  height: 18px;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.18);
-}
-
-.about-tape-yellow { background: var(--pb-tape); }
-.about-tape-blue   { background: var(--pb-tape2); }
-
 /* Content column */
 .about-content {
   padding-top: 8px;
@@ -159,12 +149,6 @@
   max-width: 1080px;
   margin: 0 auto;
   padding: 32px 28px 40px;
-}
-
-.about-cta-paper {
-  padding: 28px 32px 24px;
-  position: relative;
-  transform: rotate(-0.3deg);
 }
 
 .about-cta-kicker {

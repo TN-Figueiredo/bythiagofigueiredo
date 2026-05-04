@@ -11,7 +11,7 @@ export function CtaChip({ number, label, href, external }: CtaChipProps) {
       className="about-chip"
       href={href}
       target={external ? '_blank' : undefined}
-      rel={external ? 'noopener' : undefined}
+      rel={external ? 'noopener noreferrer' : undefined}
     >
       <span className="about-chip-num">{number}</span>
       <span className="about-chip-label">{label}</span>

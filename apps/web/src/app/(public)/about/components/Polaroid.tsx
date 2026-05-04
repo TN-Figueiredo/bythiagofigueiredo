@@ -1,4 +1,5 @@
 import Image from 'next/image'
+import { Tape } from '@/app/(public)/components/Tape'
 
 interface PolaroidProps {
   photoUrl: string
@@ -11,14 +12,8 @@ export function Polaroid({ photoUrl, caption, location, displayName }: PolaroidP
   return (
     <div className="about-polaroid">
       <div className="about-polaroid-frame">
-        <div
-          className="about-tape about-tape-yellow"
-          style={{ width: 78, top: -10, left: 30, transform: 'rotate(-5deg)' }}
-        />
-        <div
-          className="about-tape about-tape-blue"
-          style={{ width: 64, top: -10, right: 24, transform: 'rotate(4deg)' }}
-        />
+        <Tape className="top-[-10px] left-[30px]" rotate={-5} />
+        <Tape variant="tape2" className="top-[-10px] right-[24px]" rotate={4} />
         <Image
           src={photoUrl}
           alt={displayName}

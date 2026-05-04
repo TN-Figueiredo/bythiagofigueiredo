@@ -15,7 +15,7 @@ export function AboutHero({ headline }: AboutHeroProps) {
         {highlighted && (
           <span className="about-marker">
             <span className="about-marker-text">{highlighted}</span>
-            <span className="about-marker-bg" />
+            <span className="about-marker-bg" aria-hidden="true" />
           </span>
         )}
       </h1>

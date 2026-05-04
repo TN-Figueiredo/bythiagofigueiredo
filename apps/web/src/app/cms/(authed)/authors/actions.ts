@@ -337,6 +337,7 @@ export async function updateAuthorAbout(
     .from('authors')
     .update(updates)
     .eq('id', authorId)
+    .eq('site_id', siteId)
 
   if (error) return { ok: false, error: error.message }
 
@@ -372,7 +373,7 @@ export async function uploadAuthorAboutPhoto(
   const { data: urlData } = sb.storage.from('author-avatars').getPublicUrl(path)
   const url = `${urlData.publicUrl}?v=${Date.now()}`
 
-  await sb.from('authors').update({ about_photo_url: url }).eq('id', authorId)
+  await sb.from('authors').update({ about_photo_url: url }).eq('id', authorId).eq('site_id', siteId)
 
   revalidateAuthor(authorId)
   revalidateAbout(siteId)
