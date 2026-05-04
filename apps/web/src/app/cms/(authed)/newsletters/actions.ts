@@ -905,6 +905,7 @@ function revalidateNewsletterHub() {
   revalidatePath('/cms/newsletters')
   revalidateTag('newsletter-hub')
   revalidateTag('newsletter-suggestions')
+  revalidateTag('sidebar-badges')
 }
 
 export async function createNewsletterType(data: {
