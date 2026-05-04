@@ -25,8 +25,8 @@ const LOCALE_STRINGS: Record<string, Record<string, unknown>> = {
 }
 
 function t(locale: string, key: string): string {
-  const strings = LOCALE_STRINGS[locale] ?? LOCALE_STRINGS['en']
-  return (strings[key] as string) ?? key
+  const strings = LOCALE_STRINGS[locale] ?? LOCALE_STRINGS['en']!
+  return (strings![key] as string) ?? key
 }
 
 export async function generateMetadata(): Promise<Metadata> {

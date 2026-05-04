@@ -265,7 +265,7 @@ export function generateAboutMetadata(
   if (availableLocales.length > 0) {
     const defaultLoc = availableLocales.includes(config.defaultLocale)
       ? config.defaultLocale
-      : availableLocales[0]
+      : availableLocales[0]!
     languages['x-default'] = localePath('/about', defaultLoc)
   }
 
