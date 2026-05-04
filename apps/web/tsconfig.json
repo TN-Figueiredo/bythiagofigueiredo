@@ -21,6 +21,7 @@
       }
     ],
     "paths": {
+      "@/lib/about/*": ["./lib/about/*"],
       "@/lib/auth/*": ["./lib/auth/*"],
       "@/lib/blog/*": ["./lib/blog/*"],
       "@/lib/campaigns/*": ["./lib/campaigns/*"],
