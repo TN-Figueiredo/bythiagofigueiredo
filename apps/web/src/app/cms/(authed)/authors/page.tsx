@@ -17,18 +17,7 @@ interface AuthorRow {
   social_links: Record<string, string> | null
   sort_order: number | null
   is_default: boolean | null
-  headline: string | null
-  subtitle: string | null
-  about_md: string | null
-  about_compiled: string | null
   about_photo_url: string | null
-  photo_caption: string | null
-  photo_location: string | null
-  about_cta_links: {
-    kicker: string
-    signature: string
-    links: Array<{ type: 'internal' | 'social'; key: string; label: string }>
-  } | null
 }
 
 export default async function AuthorsPage() {
@@ -47,7 +36,7 @@ export default async function AuthorsPage() {
   const { data: authors } = await supabase
     .from('authors')
     .select(
-      'id, display_name, name, slug, bio, avatar_url, avatar_color, user_id, social_links, sort_order, is_default, headline, subtitle, about_md, about_compiled, about_photo_url, photo_caption, photo_location, about_cta_links',
+      'id, display_name, name, slug, bio, avatar_url, avatar_color, user_id, social_links, sort_order, is_default, about_photo_url',
     )
     .eq('site_id', siteId)
     .order('sort_order')
@@ -67,6 +56,13 @@ export default async function AuthorsPage() {
   for (const row of (postCountRows ?? []) as { author_id: string }[]) {
     postCounts[row.author_id] = (postCounts[row.author_id] ?? 0) + 1
   }
+
+  const { data: siteRow } = await supabase
+    .from('sites')
+    .select('supported_locales')
+    .eq('id', siteId)
+    .single()
+  const supportedLocales: string[] = (siteRow as unknown as { supported_locales: string[] } | null)?.supported_locales ?? ['pt-BR']
 
   const authorData: AuthorData[] = ((authors as AuthorRow[] | null) ?? []).map(
     (a) => {
@@ -89,14 +85,7 @@ export default async function AuthorsPage() {
         sortOrder: a.sort_order ?? 0,
         isDefault: a.is_default ?? false,
         postsCount: postCounts[a.id] ?? 0,
-        headline: a.headline,
-        subtitle: a.subtitle,
-        aboutMd: a.about_md,
-        aboutCompiled: a.about_compiled,
         aboutPhotoUrl: a.about_photo_url,
-        photoCaption: a.photo_caption,
-        photoLocation: a.photo_location,
-        aboutCtaLinks: a.about_cta_links as AuthorData['aboutCtaLinks'],
       }
     },
   )
@@ -104,7 +93,7 @@ export default async function AuthorsPage() {
   return (
     <div>
       <CmsTopbar title="Authors" />
-      <AuthorsConnected authors={authorData} readOnly={readOnly} />
+      <AuthorsConnected authors={authorData} readOnly={readOnly} supportedLocales={supportedLocales} />
     </div>
   )
 }

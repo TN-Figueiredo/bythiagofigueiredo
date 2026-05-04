@@ -1,15 +1,16 @@
 interface AboutHeroProps {
   headline: string
+  kicker?: string
 }
 
-export function AboutHero({ headline }: AboutHeroProps) {
+export function AboutHero({ headline, kicker = 'OLÁ' }: AboutHeroProps) {
   const parts = headline.split('|')
   const before = parts[0] ?? ''
   const highlighted = parts.slice(1).join('|')
 
   return (
     <section style={{ maxWidth: 1080, margin: '0 auto', padding: '72px 28px 24px' }}>
-      <div className="about-kicker">§ OLÁ</div>
+      <div className="about-kicker">§ {kicker}</div>
       <h1 className="about-headline">
         <span>{before}</span>
         {highlighted && (

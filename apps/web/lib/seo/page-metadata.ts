@@ -249,10 +249,25 @@ export function generateAboutMetadata(
   config: SiteSeoConfig,
   subtitle: string | null,
   aboutPhotoUrl: string | null,
+  locale: string,
+  availableLocales: string[],
 ): Metadata {
-  const title = `About — ${config.siteName}`
+  const title = locale === 'pt-BR'
+    ? `Sobre — ${config.siteName}`
+    : `About — ${config.siteName}`
   const description = subtitle ?? `About ${config.siteName}`
   const ogImage = aboutPhotoUrl ?? config.defaultOgImageUrl ?? `${config.siteUrl}/og-default.png`
+
+  const languages: Record<string, string> = {}
+  for (const loc of availableLocales) {
+    languages[hreflangCode(loc)] = localePath('/about', loc)
+  }
+  if (availableLocales.length > 0) {
+    const defaultLoc = availableLocales.includes(config.defaultLocale)
+      ? config.defaultLocale
+      : availableLocales[0]
+    languages['x-default'] = localePath('/about', defaultLoc)
+  }
 
   return {
     ...baseMetadata(config),
@@ -263,10 +278,11 @@ export function generateAboutMetadata(
       title,
       description,
       images: [{ url: ogImage }],
-      url: `${config.siteUrl}/about`,
+      url: `${config.siteUrl}${localePath('/about', locale)}`,
     },
     alternates: {
-      canonical: `${config.siteUrl}/about`,
+      canonical: localePath('/about', locale),
+      languages,
     },
   }
 }

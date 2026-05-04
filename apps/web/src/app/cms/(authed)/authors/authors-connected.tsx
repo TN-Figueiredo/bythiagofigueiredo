@@ -9,6 +9,7 @@ import {
   uploadAuthorAvatar,
   updateAuthorAbout,
   uploadAuthorAboutPhoto,
+  getAuthorAboutTranslations,
 } from './actions'
 import { AvatarCropModal } from './avatar-crop-modal'
 
@@ -29,11 +30,13 @@ export interface AuthorData {
   sortOrder: number
   isDefault: boolean
   postsCount: number
+  aboutPhotoUrl: string | null
+}
+
+interface AboutTranslation {
   headline: string | null
   subtitle: string | null
   aboutMd: string | null
-  aboutCompiled: string | null
-  aboutPhotoUrl: string | null
   photoCaption: string | null
   photoLocation: string | null
   aboutCtaLinks: {
@@ -46,6 +49,7 @@ export interface AuthorData {
 interface Props {
   authors: AuthorData[]
   readOnly?: boolean
+  supportedLocales?: string[]
 }
 
 type FilterType = 'all' | 'linked' | 'virtual'
@@ -239,6 +243,7 @@ function DetailPanel({
   onDelete,
   onSetDefault,
   readOnly,
+  supportedLocales,
 }: {
   author: AuthorData
   onClose: () => void
@@ -254,6 +259,7 @@ function DetailPanel({
   onDelete: (id: string) => void
   onSetDefault: (id: string) => void
   readOnly: boolean
+  supportedLocales: string[]
 }) {
   const [editName, setEditName] = useState(author.displayName)
   const [editBio, setEditBio] = useState(author.bio ?? '')
@@ -270,11 +276,28 @@ function DetailPanel({
 
   const [activeTab, setActiveTab] = useState<'profile' | 'about'>('profile')
 
-  const [headline, setHeadline] = useState(author.headline ?? '')
-  const [subtitle, setSubtitle] = useState(author.subtitle ?? '')
-  const [aboutMd, setAboutMd] = useState(author.aboutMd ?? '')
-  const [photoCaption, setPhotoCaption] = useState(author.photoCaption ?? '')
-  const [photoLocation, setPhotoLocation] = useState(author.photoLocation ?? '')
+  const [aboutLocale, setAboutLocale] = useState(supportedLocales[0] ?? 'pt-BR')
+  const [translations, setTranslations] = useState<Record<string, AboutTranslation | null>>({})
+  const [translationsLoaded, setTranslationsLoaded] = useState(false)
+
+  const loadTranslations = useCallback(async () => {
+    if (translationsLoaded) return
+    const data = await getAuthorAboutTranslations(author.id)
+    setTranslations(data as Record<string, AboutTranslation | null>)
+    setTranslationsLoaded(true)
+  }, [author.id, translationsLoaded])
+
+  const prevActiveTab = useRef(activeTab)
+  if (activeTab === 'about' && prevActiveTab.current !== 'about') {
+    loadTranslations()
+  }
+  prevActiveTab.current = activeTab
+
+  const [headline, setHeadline] = useState('')
+  const [subtitle, setSubtitle] = useState('')
+  const [aboutMd, setAboutMd] = useState('')
+  const [photoCaption, setPhotoCaption] = useState('')
+  const [photoLocation, setPhotoLocation] = useState('')
   const [aboutPhotoUrl, setAboutPhotoUrl] = useState(author.aboutPhotoUrl ?? '')
   const [aboutPhotoUploading, setAboutPhotoUploading] = useState(false)
   const aboutFileRef = useRef<HTMLInputElement>(null)
@@ -282,12 +305,42 @@ function DetailPanel({
   const [socialInstagram, setSocialInstagram] = useState(author.socialLinks?.instagram ?? '')
   const [socialYoutube, setSocialYoutube] = useState(author.socialLinks?.youtube ?? '')
   const [socialLinkedin, setSocialLinkedin] = useState(author.socialLinks?.linkedin ?? '')
-  const [ctaKicker, setCtaKicker] = useState(author.aboutCtaLinks?.kicker ?? 'Vem junto')
-  const [ctaSignature, setCtaSignature] = useState(author.aboutCtaLinks?.signature ?? '')
-  const [ctaLinks, setCtaLinks] = useState<Array<{ type: 'internal' | 'social'; key: string; label: string }>>(
-    author.aboutCtaLinks?.links ?? [],
-  )
+  const [ctaKicker, setCtaKicker] = useState('')
+  const [ctaSignature, setCtaSignature] = useState('')
+  const [ctaLinks, setCtaLinks] = useState<Array<{ type: 'internal' | 'social'; key: string; label: string }>>([])
   const [aboutSaveState, setAboutSaveState] = useState<SaveState>('idle')
+
+  const lastSyncedLocale = useRef<string | null>(null)
+  if (translationsLoaded && lastSyncedLocale.current !== aboutLocale) {
+    const tx = translations[aboutLocale]
+    setHeadline(tx?.headline ?? '')
+    setSubtitle(tx?.subtitle ?? '')
+    setAboutMd(tx?.aboutMd ?? '')
+    setPhotoCaption(tx?.photoCaption ?? '')
+    setPhotoLocation(tx?.photoLocation ?? '')
+    setCtaKicker(tx?.aboutCtaLinks?.kicker ?? '')
+    setCtaSignature(tx?.aboutCtaLinks?.signature ?? '')
+    setCtaLinks(tx?.aboutCtaLinks?.links ?? [])
+    lastSyncedLocale.current = aboutLocale
+  }
+
+  const handleLocaleSwitch = useCallback((newLocale: string) => {
+    const tx = translations[aboutLocale]
+    const isDirty =
+      headline !== (tx?.headline ?? '') ||
+      subtitle !== (tx?.subtitle ?? '') ||
+      aboutMd !== (tx?.aboutMd ?? '') ||
+      photoCaption !== (tx?.photoCaption ?? '') ||
+      photoLocation !== (tx?.photoLocation ?? '')
+
+    if (isDirty) {
+      const confirmed = window.confirm('You have unsaved changes. Switch locale and lose changes?')
+      if (!confirmed) return
+    }
+
+    lastSyncedLocale.current = null
+    setAboutLocale(newLocale)
+  }, [aboutLocale, translations, headline, subtitle, aboutMd, photoCaption, photoLocation])
 
   const bgColor = author.avatarColor ?? '#6366f1'
   const displayAvatar = avatarPreview ?? author.avatarUrl
@@ -349,29 +402,40 @@ function DetailPanel({
   const handleAboutSave = useCallback(async () => {
     if (readOnly) return
     setAboutSaveState('saving')
-    const result = await updateAuthorAbout(author.id, {
+    const result = await updateAuthorAbout(author.id, aboutLocale, {
       headline: headline || undefined,
       subtitle: subtitle || undefined,
       aboutMd: aboutMd || undefined,
       photoCaption: photoCaption || undefined,
       photoLocation: photoLocation || undefined,
-      socialLinks: {
-        x: socialX,
-        instagram: socialInstagram,
-        youtube: socialYoutube,
-        linkedin: socialLinkedin,
-      },
-      aboutCtaLinks: ctaLinks.length > 0 ? {
+      aboutCtaLinks: (ctaKicker || ctaSignature || ctaLinks.length > 0) ? {
         kicker: ctaKicker,
         signature: ctaSignature,
         links: ctaLinks,
       } : null,
     })
+    if (result.ok) {
+      setTranslations((prev) => ({
+        ...prev,
+        [aboutLocale]: {
+          headline: headline || null,
+          subtitle: subtitle || null,
+          aboutMd: aboutMd || null,
+          photoCaption: photoCaption || null,
+          photoLocation: photoLocation || null,
+          aboutCtaLinks: (ctaKicker || ctaSignature || ctaLinks.length > 0) ? {
+            kicker: ctaKicker,
+            signature: ctaSignature,
+            links: ctaLinks,
+          } : null,
+        },
+      }))
+      lastSyncedLocale.current = aboutLocale
+    }
     setAboutSaveState(result.ok ? 'success' : 'error')
     setTimeout(() => setAboutSaveState('idle'), 2000)
   }, [
-    author.id, readOnly, headline, subtitle, aboutMd, photoCaption, photoLocation,
-    socialX, socialInstagram, socialYoutube, socialLinkedin,
+    author.id, readOnly, aboutLocale, headline, subtitle, aboutMd, photoCaption, photoLocation,
     ctaKicker, ctaSignature, ctaLinks,
   ])
 
@@ -710,6 +774,35 @@ function DetailPanel({
 
         {activeTab === 'about' && (
           <div className="space-y-6">
+            {/* Locale tabs */}
+            {supportedLocales.length > 1 && (
+              <div className="flex gap-0 border-b border-slate-700">
+                {supportedLocales.map((loc) => {
+                  const hasContent = translations[loc] != null
+                  return (
+                    <button
+                      key={loc}
+                      type="button"
+                      onClick={() => handleLocaleSwitch(loc)}
+                      className={`px-3 py-2 text-sm font-medium transition-colors ${
+                        aboutLocale === loc
+                          ? 'border-b-2 border-indigo-500 text-slate-100'
+                          : hasContent
+                            ? 'text-slate-400 hover:text-slate-300'
+                            : 'text-slate-600 hover:text-slate-400'
+                      }`}
+                    >
+                      {loc}{!hasContent && ' (empty)'}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
+            {!translationsLoaded && activeTab === 'about' && (
+              <div className="py-4 text-center text-sm text-slate-500">Loading translations...</div>
+            )}
+
             {/* Headline & Subtitle */}
             <div className="space-y-3">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">Headline & Subtitle</h3>
@@ -1095,7 +1188,7 @@ function CreateAuthorForm({
 /*  Main component                                                    */
 /* ------------------------------------------------------------------ */
 
-export function AuthorsConnected({ authors, readOnly = false }: Props) {
+export function AuthorsConnected({ authors, readOnly = false, supportedLocales = ['pt-BR'] }: Props) {
   const [filter, setFilter] = useState<FilterType>('all')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
@@ -1243,6 +1336,7 @@ export function AuthorsConnected({ authors, readOnly = false }: Props) {
           onDelete={handleDelete}
           onSetDefault={handleSetDefault}
           readOnly={readOnly}
+          supportedLocales={supportedLocales}
         />
       )}
     </div>
