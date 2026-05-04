@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isBot } from '../../../lib/tracking/bot-patterns'
+import { isBot, BOT_NAMES } from '../../../lib/tracking/bot-patterns'
 
 describe('isBot', () => {
   it('detects Googlebot', () => {
@@ -14,10 +14,28 @@ describe('isBot', () => {
   it('detects ClaudeBot', () => {
     expect(isBot('ClaudeBot/1.0')).toBe(true)
   })
+  it('detects Amazonbot', () => {
+    expect(isBot('Mozilla/5.0 (compatible; Amazonbot/0.1)')).toBe(true)
+  })
+  it('detects facebookexternalhit', () => {
+    expect(isBot('facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)')).toBe(true)
+  })
+  it('detects Twitterbot', () => {
+    expect(isBot('Twitterbot/1.0')).toBe(true)
+  })
   it('allows normal Chrome UA', () => {
     expect(isBot('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/125.0')).toBe(false)
   })
   it('allows null UA', () => {
     expect(isBot(null)).toBe(false)
+  })
+  it('uses word boundaries — does not false-positive on substrings', () => {
+    expect(isBot('MyGooglebotSpoofTool/1.0')).toBe(false)
+  })
+  it('exports BOT_NAMES list for SQL sync verification', () => {
+    expect(BOT_NAMES.length).toBeGreaterThanOrEqual(14)
+    expect(BOT_NAMES).toContain('Amazonbot')
+    expect(BOT_NAMES).toContain('facebookexternalhit')
+    expect(BOT_NAMES).toContain('Twitterbot')
   })
 })

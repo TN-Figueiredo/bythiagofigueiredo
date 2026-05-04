@@ -40,6 +40,12 @@ function zodError(err: z.ZodError): string {
   return err.issues.map((i) => i.message).join(', ') || 'Validation failed'
 }
 
+function csvSafe(value: string): string {
+  let v = (value ?? '').replace(/"/g, '""')
+  if (/^[=+\-@\t\r]/.test(v)) v = "'" + v
+  return `"${v}"`
+}
+
 async function requireViewAccess(): Promise<{ siteId: string; userId: string }> {
   const { siteId } = await getSiteContext()
   const res = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
@@ -133,13 +139,14 @@ export async function fetchOverview(
   const openRate = totalDelivered > 0 ? Math.round((totalOpens / totalDelivered) * 100) : 0
 
   const { data: viewRows } = await supabase
-    .from('blog_posts')
-    .select('view_count')
+    .from('content_metrics')
+    .select('views')
     .eq('site_id', siteId)
-    .eq('status', 'published')
+    .gte('date', start.toISOString().split('T')[0])
+    .lte('date', end.toISOString().split('T')[0])
 
   const totalViews = (viewRows ?? []).reduce(
-    (sum: number, row: { view_count: number }) => sum + (row.view_count ?? 0), 0
+    (sum: number, row: { views: number }) => sum + (row.views ?? 0), 0
   )
 
   let prevPostsPublished: number | null = null
@@ -150,7 +157,7 @@ export async function fetchOverview(
   if (compare) {
     const prevRange = resolvePrevDateRange(parsed.data)
     if (prevRange) {
-      const [prevPostsRes, prevEditionsRes] = await Promise.all([
+      const [prevPostsRes, prevViewsRes, prevEditionsRes] = await Promise.all([
         supabase
           .from('blog_posts')
           .select('id', { count: 'exact', head: true })
@@ -158,6 +165,12 @@ export async function fetchOverview(
           .eq('status', 'published')
           .gte('published_at', prevRange.start.toISOString())
           .lte('published_at', prevRange.end.toISOString()),
+        supabase
+          .from('content_metrics')
+          .select('views')
+          .eq('site_id', siteId)
+          .gte('date', prevRange.start.toISOString().split('T')[0])
+          .lte('date', prevRange.end.toISOString().split('T')[0]),
         supabase
           .from('newsletter_editions')
           .select('stats_delivered, stats_opens')
@@ -167,7 +180,9 @@ export async function fetchOverview(
           .lte('sent_at', prevRange.end.toISOString()),
       ])
       prevPostsPublished = prevPostsRes.count ?? 0
-      prevTotalViews = 0
+      prevTotalViews = (prevViewsRes.data ?? []).reduce(
+        (sum: number, row: { views: number }) => sum + (row.views ?? 0), 0
+      )
       prevSubscribers = 0
 
       const prevEditions = prevEditionsRes.data ?? []
@@ -390,7 +405,7 @@ export async function exportReport(
     lines.push('Edition ID,Subject,Sent At,Delivered,Opens,Clicks,Bounces')
     for (const e of data.newsletters as NewsletterEditionStat[]) {
       lines.push(
-        `${e.id},"${(e.subject ?? '').replace(/"/g, '""')}",${e.sent_at ?? ''},${e.stats_delivered},${e.stats_opens},${e.stats_clicks},${e.stats_bounces}`,
+        `${e.id},${csvSafe(e.subject ?? '')},${e.sent_at ?? ''},${e.stats_delivered},${e.stats_opens},${e.stats_clicks},${e.stats_bounces}`,
       )
     }
   }
@@ -399,7 +414,7 @@ export async function exportReport(
     lines.push('Campaign ID,Title,Status,Submissions,Published At')
     for (const c of data.campaigns as CampaignStat[]) {
       lines.push(
-        `${c.id},"${(c.title ?? '').replace(/"/g, '""')}",${c.status},${c.submissions_count},${c.published_at ?? ''}`,
+        `${c.id},${csvSafe(c.title ?? '')},${c.status},${c.submissions_count},${c.published_at ?? ''}`,
       )
     }
   }
@@ -408,7 +423,7 @@ export async function exportReport(
     lines.push('Post ID,Title,Locale,Status,Published At')
     for (const p of data.content as ContentStat[]) {
       lines.push(
-        `${p.id},"${(p.title ?? '').replace(/"/g, '""')}",${p.locale},${p.status},${p.published_at ?? ''}`,
+        `${p.id},${csvSafe(p.title ?? '')},${p.locale},${p.status},${p.published_at ?? ''}`,
       )
     }
   }

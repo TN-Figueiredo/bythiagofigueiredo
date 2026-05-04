@@ -86,6 +86,16 @@ describe('POST /api/track/content', () => {
     delete process.env.CONTENT_TRACKING_ENABLED
   })
 
+  it('truncates user_agent exceeding MAX_USER_AGENT_LENGTH', async () => {
+    const longUa = 'X'.repeat(1000)
+    await callRoute(
+      { events: [{ ...validEvent, hasConsent: true }] },
+      { 'user-agent': longUa },
+    )
+    const rows = mockInsert.mock.calls[0][0] as Record<string, unknown>[]
+    expect((rows[0].user_agent as string).length).toBe(512)
+  })
+
   it('returns 429 when rate limit exceeded', async () => {
     vi.resetModules()
     const { POST } = await import('../../../src/app/api/track/content/route')

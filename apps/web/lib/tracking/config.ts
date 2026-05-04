@@ -6,9 +6,12 @@ export const READ_INDICATORS_ENABLED =
 
 export const VIEW_DELAY_MS = 3_000
 export const READ_COMPLETE_THRESHOLD = 95
+export const DEPTH_THRESHOLDS = [25, 50, 75, 100] as const
 export const DEDUP_WINDOW_MS = 30 * 60_000
 export const COLD_START_THRESHOLD = 10
 export const CLEANUP_MAX_AGE_DAYS = 365
 
 export const RATE_LIMIT_WINDOW_MS = 60_000
 export const RATE_LIMIT_MAX = 30
+
+export const MAX_USER_AGENT_LENGTH = 512

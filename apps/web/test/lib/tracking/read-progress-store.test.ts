@@ -60,6 +60,13 @@ describe('ReadProgressStore', () => {
     expect(store.isRead('post-1')).toBe(false)
   })
 
+  it('isRead supports custom threshold parameter', () => {
+    const store = new ReadProgressStore()
+    store.setProgress('post-1', 80)
+    expect(store.isRead('post-1', 80)).toBe(true)
+    expect(store.isRead('post-1', 90)).toBe(false)
+  })
+
   it('cleanup removes entries older than maxAgeDays', () => {
     const store = new ReadProgressStore()
     store.setProgress('recent', 100)

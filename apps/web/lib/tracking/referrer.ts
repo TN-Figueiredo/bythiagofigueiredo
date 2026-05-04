@@ -13,7 +13,7 @@ export function classifyReferrer(
   try {
     const host = new URL(referrer).hostname
     if (SEARCH_RE.test(host)) return 'google'
-    if (host.includes(NEWSLETTER_DOMAIN)) return 'newsletter'
+    if (host === NEWSLETTER_DOMAIN || host.endsWith('.' + NEWSLETTER_DOMAIN)) return 'newsletter'
     if (SOCIAL_RE.test(host)) return 'social'
   } catch {
     // malformed referrer URL

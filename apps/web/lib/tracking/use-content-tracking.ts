@@ -9,6 +9,7 @@ import type { TrackingConfig, TrackingEvent } from './events'
 import {
   VIEW_DELAY_MS,
   READ_COMPLETE_THRESHOLD,
+  DEPTH_THRESHOLDS,
   DEDUP_WINDOW_MS,
   CLEANUP_MAX_AGE_DAYS,
   READ_INDICATORS_ENABLED,
@@ -34,9 +35,13 @@ function sendEvents(events: TrackingEvent[]): void {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ events }),
       keepalive: true,
-    }).catch(() => {})
+    }).catch((err) => {
+      if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+        console.warn('[tracking] sendEvents failed:', err)
+      }
+    })
   } catch {
-    // silent
+    // synchronous failure — fetch not available
   }
 }
 
@@ -54,7 +59,7 @@ function beaconEvents(events: TrackingEvent[]): void {
       }).catch(() => {})
     }
   } catch {
-    // silent
+    // synchronous failure — beacon/fetch not available
   }
 }
 
@@ -128,8 +133,7 @@ export function useContentTracking(config: TrackingConfig): void {
 
     const store = storeRef.current
     if (store) {
-      const thresholds = [25, 50, 75, 100]
-      for (const t of thresholds) {
+      for (const t of DEPTH_THRESHOLDS) {
         if (depthPercent >= t) {
           store.setProgress(config.resourceId, t)
         }

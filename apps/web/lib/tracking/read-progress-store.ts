@@ -42,9 +42,9 @@ export class ReadProgressStore {
     this.write(data)
   }
 
-  isRead(resourceId: string): boolean {
+  isRead(resourceId: string, threshold = 95): boolean {
     const p = this.getProgress(resourceId)
-    return p !== null && p.depth >= 95
+    return p !== null && p.depth >= threshold
   }
 
   getAllRead(): Map<string, ReadProgress> {

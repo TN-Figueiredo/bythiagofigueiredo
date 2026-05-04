@@ -41,4 +41,10 @@ describe('classifyReferrer', () => {
   it('handles malformed URLs gracefully', () => {
     expect(classifyReferrer('not-a-url', '')).toBe('other')
   })
+  it('does not match newsletter for spoofed subdomain', () => {
+    expect(classifyReferrer('https://bythiagofigueiredo.com.evil.com/phish', '')).toBe('other')
+  })
+  it('matches newsletter for legitimate subdomain', () => {
+    expect(classifyReferrer('https://mail.bythiagofigueiredo.com/archive/1', '')).toBe('newsletter')
+  })
 })

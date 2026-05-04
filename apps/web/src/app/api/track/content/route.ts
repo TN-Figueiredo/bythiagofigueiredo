@@ -6,6 +6,7 @@ import {
   CONTENT_TRACKING_ENABLED,
   RATE_LIMIT_WINDOW_MS,
   RATE_LIMIT_MAX,
+  MAX_USER_AGENT_LENGTH,
 } from '@/lib/tracking/config'
 
 const ipBuckets = new Map<string, { count: number; resetAt: number }>()
@@ -54,7 +55,10 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: 'invalid_body' }, { status: 400 })
   }
 
-  const userAgent = request.headers.get('user-agent')
+  const rawUa = request.headers.get('user-agent')
+  const userAgent = rawUa && rawUa.length > MAX_USER_AGENT_LENGTH
+    ? rawUa.slice(0, MAX_USER_AGENT_LENGTH)
+    : rawUa
   const supabase = getSupabaseServiceClient()
 
   const rows = parsed.events.map((e) => ({
