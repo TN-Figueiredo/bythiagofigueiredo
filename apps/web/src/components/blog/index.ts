@@ -23,7 +23,7 @@ export { MobileTocSheet } from './mobile-toc-sheet'
 export { HeroIllustration } from './hero-illustration'
 export { ScrollProvider, useScrollState } from './scroll-context'
 export { PostExtrasSchema, type PostExtras } from './post-extras-schema'
-export { AUTHOR_THIAGO, MOCK_ENGAGEMENT, MOCK_COMMENTS } from './mock-data'
+export { AUTHOR_THIAGO, MOCK_COMMENTS } from './mock-data'
 export type { TocEntry, AuthorData, EngagementStats, MockComment, Highlight } from './types'
 
 // Ad system

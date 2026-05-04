@@ -1,4 +1,4 @@
-import type { AuthorData, MockComment, EngagementStats } from './types'
+import type { AuthorData, MockComment } from './types'
 
 export const AUTHOR_THIAGO: AuthorData = {
   name: 'Thiago Figueiredo',
@@ -12,12 +12,6 @@ export const AUTHOR_THIAGO: AuthorData = {
     { label: 'X', href: 'https://x.com/tnFigueiredo' },
     { label: 'RSS', href: '/rss.xml' },
   ],
-}
-
-export const MOCK_ENGAGEMENT: EngagementStats = {
-  views: 2460,
-  likes: 319,
-  bookmarked: false,
 }
 
 export const MOCK_COMMENTS: MockComment[] = [

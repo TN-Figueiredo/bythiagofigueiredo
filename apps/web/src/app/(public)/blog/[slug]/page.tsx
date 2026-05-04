@@ -32,7 +32,6 @@ import {
   BackToTop,
   HighlightsSidebar,
   AUTHOR_THIAGO,
-  MOCK_ENGAGEMENT,
   MOCK_COMMENTS,
   type TocEntry,
   MarginaliaAd,
@@ -84,7 +83,7 @@ export default async function BlogDetailPage({ params }: Props) {
 
   const { data: postMeta } = await getSupabaseServiceClient()
     .from('blog_posts')
-    .select('category')
+    .select('category, view_count')
     .eq('id', post.id)
     .single()
   const category = postMeta?.category ?? null
@@ -197,7 +196,7 @@ export default async function BlogDetailPage({ params }: Props) {
               </p>
             )}
 
-            <AuthorRow author={AUTHOR_THIAGO} engagement={MOCK_ENGAGEMENT} locale={locale} url={pageUrl} />
+            <AuthorRow author={AUTHOR_THIAGO} engagement={{ views: postMeta?.view_count ?? 0, likes: 0, bookmarked: false }} locale={locale} url={pageUrl} />
 
             <CoverImage
               src={post.cover_image_url ?? null}

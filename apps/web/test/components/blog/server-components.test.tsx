@@ -13,7 +13,7 @@ import { PostComments } from '../../../src/components/blog/post-comments'
 import { RelatedPostsGrid } from '../../../src/components/blog/related-posts-grid'
 import { PostFootnotes } from '../../../src/components/blog/post-footnotes'
 import { ShareButtons } from '../../../src/components/blog/share-buttons'
-import { AUTHOR_THIAGO, MOCK_ENGAGEMENT, MOCK_COMMENTS } from '../../../src/components/blog/mock-data'
+import { AUTHOR_THIAGO, MOCK_COMMENTS } from '../../../src/components/blog/mock-data'
 
 describe('PostKeyPoints', () => {
   it('renders numbered key points', () => {
@@ -81,7 +81,7 @@ describe('PostTags', () => {
 describe('AuthorRow', () => {
   it('renders author name and role', () => {
     const { container } = render(
-      <AuthorRow author={AUTHOR_THIAGO} engagement={MOCK_ENGAGEMENT} locale="pt-BR" url="https://example.com/post" />,
+      <AuthorRow author={AUTHOR_THIAGO} engagement={{ views: 2460, likes: 319, bookmarked: false }} locale="pt-BR" url="https://example.com/post" />,
     )
     expect(container.textContent).toContain('Thiago Figueiredo')
     expect(container.textContent).toContain('Dev indie')
@@ -89,7 +89,7 @@ describe('AuthorRow', () => {
 
   it('renders engagement stats', () => {
     const { container } = render(
-      <AuthorRow author={AUTHOR_THIAGO} engagement={MOCK_ENGAGEMENT} locale="pt-BR" url="https://example.com/post" />,
+      <AuthorRow author={AUTHOR_THIAGO} engagement={{ views: 2460, likes: 319, bookmarked: false }} locale="pt-BR" url="https://example.com/post" />,
     )
     expect(container.textContent).toContain('2.460')
     expect(container.textContent).toContain('319')
