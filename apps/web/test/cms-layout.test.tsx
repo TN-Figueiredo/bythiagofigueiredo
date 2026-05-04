@@ -9,9 +9,28 @@ vi.mock('next/headers', () => ({
   headers: async () => ({ get: () => null }),
 }))
 
-vi.mock('../src/components/cms/site-switcher-provider', () => ({
+vi.mock('next/link', () => ({
+  default: ({ children }: { children: React.ReactNode }) => children,
+}))
+
+vi.mock('@/components/cms/site-switcher-provider', () => ({
   CmsSiteSwitcherSlot: () => null,
   SiteSwitcherProvider: ({ children }: { children: React.ReactNode }) => children,
+}))
+
+vi.mock('@/lib/cms/sidebar-badges', () => ({
+  fetchSidebarBadges: vi.fn(async () => ({
+    posts: { wip: 0 },
+    newsletters: { wip: 0, wipDraft: 0, wipReady: 0, urgency: null },
+  })),
+}))
+
+vi.mock('@/components/cms/sidebar-badges', () => ({
+  SidebarBadges: () => null,
+}))
+
+vi.mock('@tn-figueiredo/cms-admin/client', () => ({
+  CmsAdminProvider: ({ children }: { children: React.ReactNode }) => children,
 }))
 
 vi.mock('@tn-figueiredo/cms-ui/client', () => ({
