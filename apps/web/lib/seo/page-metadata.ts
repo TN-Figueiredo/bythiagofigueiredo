@@ -37,12 +37,15 @@ export function generateRootMetadata(config: SiteSeoConfig): Metadata {
     languages[hreflangCode(loc)] = localePath('/', loc)
   }
   languages['x-default'] = localePath('/', config.defaultLocale)
+  const desc = config.personIdentity
+    ? config.defaultLocale === 'pt-BR'
+      ? `Blog, newsletters e projetos de ${config.personIdentity.name}. Engenharia de software, produto e construção em público.`
+      : `Blog, newsletters and projects by ${config.personIdentity.name}. Software engineering, product and building in public.`
+    : `${config.siteName} — editorial hub.`
   return {
     ...baseMetadata(config),
     title: { default: config.siteName, template: `%s — ${config.siteName}` },
-    description: config.personIdentity
-      ? `Hub de ${config.personIdentity.name}. Build in public, learn out loud.`
-      : `${config.siteName} — conteúdo editorial.`,
+    description: desc,
     alternates: { canonical: '/', languages },
   }
 }
@@ -53,10 +56,13 @@ export function generateBlogIndexMetadata(config: SiteSeoConfig, locale: string)
     languages[hreflangCode(loc)] = localePath(config.contentPaths.blog, loc)
   }
   languages['x-default'] = localePath(config.contentPaths.blog, config.defaultLocale)
+  const desc = locale === 'pt-BR'
+    ? `Artigos sobre engenharia de software, produto e carreira por ${config.siteName}.`
+    : `Articles on software engineering, product and career by ${config.siteName}.`
   return {
     ...baseMetadata(config),
     title: 'Blog',
-    description: `Últimos posts de ${config.siteName}.`,
+    description: desc,
     alternates: {
       canonical: localePath(config.contentPaths.blog, locale),
       languages,
@@ -235,6 +241,32 @@ export function generateNewsletterLandingMetadata(
       locale: ogLocale,
       url: `${config.siteUrl}/newsletters/${type.slug}`,
       images: [ogImage],
+    },
+  }
+}
+
+export function generateAboutMetadata(
+  config: SiteSeoConfig,
+  subtitle: string | null,
+  aboutPhotoUrl: string | null,
+): Metadata {
+  const title = `About — ${config.siteName}`
+  const description = subtitle ?? `About ${config.siteName}`
+  const ogImage = aboutPhotoUrl ?? config.defaultOgImageUrl ?? `${config.siteUrl}/og-default.png`
+
+  return {
+    ...baseMetadata(config),
+    title,
+    description,
+    openGraph: {
+      ...baseMetadata(config).openGraph,
+      title,
+      description,
+      images: [{ url: ogImage }],
+      url: `${config.siteUrl}/about`,
+    },
+    alternates: {
+      canonical: `${config.siteUrl}/about`,
     },
   }
 }
