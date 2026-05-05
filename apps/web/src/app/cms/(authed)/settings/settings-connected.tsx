@@ -20,6 +20,9 @@ import {
   disableCms,
   deleteSite,
   updateYouTubeChannelSettings,
+  lookupYouTubeChannel,
+  addYouTubeChannel,
+  removeYouTubeChannel,
 } from './actions'
 
 /* ------------------------------------------------------------------ */
@@ -1183,7 +1186,7 @@ function DangerZoneSection({ site }: { site: SiteData }) {
 /* ------------------------------------------------------------------ */
 
 function YouTubeSection({
-  channels,
+  channels: initialChannels,
   readOnly,
 }: {
   channels: YouTubeChannelData[]
@@ -1191,21 +1194,30 @@ function YouTubeSection({
 }) {
   const [saveState, setSaveState] = useSaveState()
   const [, startTransition] = useTransition()
+  const [channels, setChannels] = useState(initialChannels)
+  const canAdd = channels.length < 2
 
-  if (channels.length === 0) {
-    return (
-      <div className={sectionCls()}>
-        <h2 className="text-lg font-semibold text-slate-200">YouTube Channels</h2>
-        <p className="text-sm text-slate-400">
-          No YouTube channels configured. Add channels via the database to enable sync settings.
-        </p>
-      </div>
-    )
+  const handleRemove = (channelId: string) => {
+    if (!confirm('Remove this channel and all its synced videos?')) return
+    startTransition(async () => {
+      const res = await removeYouTubeChannel({ channelId })
+      if (res.ok) setChannels(prev => prev.filter(c => c.id !== channelId))
+      else alert(res.error)
+    })
+  }
+
+  const handleAdded = (ch: YouTubeChannelData) => {
+    setChannels(prev => [...prev, ch])
   }
 
   return (
     <div className="space-y-6">
-      <h2 className="text-lg font-semibold text-slate-200">YouTube Sync Settings</h2>
+      <h2 className="text-lg font-semibold text-slate-200">YouTube Channels</h2>
+
+      {channels.length === 0 && (
+        <p className="text-sm text-slate-400">No YouTube channels configured yet.</p>
+      )}
+
       {channels.map((channel) => (
         <YouTubeChannelCard
           key={channel.id}
@@ -1214,8 +1226,146 @@ function YouTubeSection({
           saveState={saveState}
           setSaveState={setSaveState}
           startTransition={startTransition}
+          onRemove={() => handleRemove(channel.id)}
         />
       ))}
+
+      {canAdd && !readOnly && (
+        <AddChannelForm
+          existingLocales={channels.map(c => c.locale)}
+          onAdded={handleAdded}
+        />
+      )}
+    </div>
+  )
+}
+
+function AddChannelForm({
+  existingLocales,
+  onAdded,
+}: {
+  existingLocales: string[]
+  onAdded: (ch: YouTubeChannelData) => void
+}) {
+  const [handle, setHandle] = useState('')
+  const [locale, setLocale] = useState<'pt' | 'en'>(
+    existingLocales.includes('pt') ? 'en' : 'pt',
+  )
+  const [looking, setLooking] = useState(false)
+  const [adding, setAdding] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [preview, setPreview] = useState<{
+    channelId: string; name: string; handle: string; description: string | null
+    uploadsPlaylistId: string; subscriberCount: number; videoCount: number
+    thumbnailUrl: string | null; bannerUrl: string | null; customUrl: string | null
+  } | null>(null)
+
+  const availableLocales = (['pt', 'en'] as const).filter(l => !existingLocales.includes(l))
+
+  const handleLookup = async () => {
+    if (!handle.trim()) return
+    setError(null)
+    setPreview(null)
+    setLooking(true)
+    const res = await lookupYouTubeChannel({ handleOrUrl: handle.trim() })
+    setLooking(false)
+    if (!res.ok) { setError(res.error); return }
+    setPreview(res.channel)
+  }
+
+  const handleAdd = async () => {
+    if (!preview) return
+    setAdding(true)
+    setError(null)
+    const res = await addYouTubeChannel({
+      channelId: preview.channelId,
+      locale,
+      handle: preview.handle,
+      name: preview.name,
+      description: preview.description,
+      uploadsPlaylistId: preview.uploadsPlaylistId,
+      subscriberCount: preview.subscriberCount,
+      videoCount: preview.videoCount,
+      thumbnailUrl: preview.thumbnailUrl,
+      bannerUrl: preview.bannerUrl,
+      customUrl: preview.customUrl,
+    })
+    setAdding(false)
+    if (!res.ok) { setError(res.error); return }
+    onAdded({
+      id: crypto.randomUUID(),
+      name: preview.name,
+      handle: preview.handle,
+      locale,
+      sync_enabled: true,
+      sync_schedules: [],
+    })
+    setHandle('')
+    setPreview(null)
+  }
+
+  return (
+    <div className={sectionCls()}>
+      <h3 className="text-sm font-medium text-slate-300">Add Channel</h3>
+
+      <div className="flex items-end gap-2">
+        <div className="flex-1 space-y-1">
+          <label className={labelCls()}>Handle or URL</label>
+          <input
+            type="text"
+            value={handle}
+            onChange={e => { setHandle(e.target.value); setPreview(null); setError(null) }}
+            placeholder="@channel or youtube.com/@channel"
+            className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-600"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className={labelCls()}>Locale</label>
+          <select
+            value={locale}
+            onChange={e => setLocale(e.target.value as 'pt' | 'en')}
+            className="rounded border border-slate-600 bg-slate-800 px-2 py-1.5 text-sm text-slate-200"
+          >
+            {availableLocales.map(l => (
+              <option key={l} value={l}>{l === 'pt' ? '🇧🇷 PT-BR' : '🌎 EN'}</option>
+            ))}
+          </select>
+        </div>
+        <button
+          type="button"
+          onClick={handleLookup}
+          disabled={looking || !handle.trim()}
+          className="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+        >
+          {looking ? 'Looking up…' : 'Lookup'}
+        </button>
+      </div>
+
+      {error && <p className="text-sm text-red-400">{error}</p>}
+
+      {preview && (
+        <div className="mt-3 rounded border border-slate-600 bg-slate-800/50 p-3">
+          <div className="flex items-center gap-3">
+            {preview.thumbnailUrl && (
+              <img src={preview.thumbnailUrl} alt="" className="h-10 w-10 rounded-full" />
+            )}
+            <div>
+              <p className="text-sm font-medium text-slate-200">{preview.name}</p>
+              <p className="text-xs text-slate-400">
+                @{preview.handle} · {preview.subscriberCount.toLocaleString()} subs · {preview.videoCount} videos
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleAdd}
+            disabled={adding}
+            className="mt-3 rounded bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-500 disabled:opacity-50"
+          >
+            {adding ? 'Adding…' : `Add as ${locale === 'pt' ? '🇧🇷 PT-BR' : '🌎 EN'} channel`}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -1226,12 +1376,14 @@ function YouTubeChannelCard({
   saveState,
   setSaveState,
   startTransition,
+  onRemove,
 }: {
   channel: YouTubeChannelData
   readOnly: boolean
   saveState: SaveState
   setSaveState: (s: SaveState) => void
   startTransition: (fn: () => void) => void
+  onRemove?: () => void
 }) {
   const [syncEnabled, setSyncEnabled] = useState(channel.sync_enabled)
   const [schedules, setSchedules] = useState(channel.sync_schedules ?? [])
@@ -1279,16 +1431,27 @@ function YouTubeChannelCard({
           <h3 className="text-base font-medium text-slate-200">{channel.name}</h3>
           <span className="text-xs text-slate-500">@{channel.handle}</span>
         </div>
-        <label className="flex items-center gap-2 text-sm text-slate-300">
-          <input
-            type="checkbox"
-            checked={syncEnabled}
-            onChange={(e) => setSyncEnabled(e.target.checked)}
-            disabled={readOnly}
-            className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-indigo-500"
-          />
-          Sync enabled
-        </label>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 text-sm text-slate-300">
+            <input
+              type="checkbox"
+              checked={syncEnabled}
+              onChange={(e) => setSyncEnabled(e.target.checked)}
+              disabled={readOnly}
+              className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-indigo-500"
+            />
+            Sync enabled
+          </label>
+          {onRemove && !readOnly && (
+            <button
+              type="button"
+              onClick={onRemove}
+              className="text-xs text-red-400 hover:text-red-300"
+            >
+              Remove
+            </button>
+          )}
+        </div>
       </div>
 
       {syncEnabled && (
