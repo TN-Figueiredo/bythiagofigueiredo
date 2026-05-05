@@ -19,6 +19,7 @@ import {
   updateSiteLocales,
   disableCms,
   deleteSite,
+  updateYouTubeChannelSettings,
 } from './actions'
 
 /* ------------------------------------------------------------------ */
@@ -65,10 +66,25 @@ interface SeoFlags {
   aiCrawlersBlocked: boolean
 }
 
+interface YouTubeChannelData {
+  id: string
+  name: string
+  handle: string
+  locale: string
+  sync_enabled: boolean
+  sync_schedules: Array<{
+    day: string
+    hour: number
+    tz: string
+    label: string
+  }> | null
+}
+
 interface Props {
   site: SiteData
   newsletterTypes: NewsletterTypeData[]
   blogCadence: BlogCadenceData[]
+  youtubeChannels?: YouTubeChannelData[]
   initialSection: string
   seoFlags?: SeoFlags
   readOnly?: boolean
@@ -79,6 +95,7 @@ type SectionId =
   | 'seo'
   | 'newsletters'
   | 'blog-cadence'
+  | 'youtube'
   | 'localization'
   | 'danger-zone'
 
@@ -89,6 +106,7 @@ const SECTIONS: { id: SectionId; label: string }[] = [
   { id: 'seo', label: 'SEO' },
   { id: 'newsletters', label: 'Newsletters' },
   { id: 'blog-cadence', label: 'Blog Cadence' },
+  { id: 'youtube', label: 'YouTube' },
   { id: 'localization', label: 'Localization' },
   { id: 'danger-zone', label: 'Danger Zone' },
 ]
@@ -1161,6 +1179,187 @@ function DangerZoneSection({ site }: { site: SiteData }) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Section: YouTube                                                  */
+/* ------------------------------------------------------------------ */
+
+function YouTubeSection({
+  channels,
+  readOnly,
+}: {
+  channels: YouTubeChannelData[]
+  readOnly: boolean
+}) {
+  const [saveState, setSaveState] = useSaveState()
+  const [, startTransition] = useTransition()
+
+  if (channels.length === 0) {
+    return (
+      <div className={sectionCls()}>
+        <h2 className="text-lg font-semibold text-slate-200">YouTube Channels</h2>
+        <p className="text-sm text-slate-400">
+          No YouTube channels configured. Add channels via the database to enable sync settings.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-lg font-semibold text-slate-200">YouTube Sync Settings</h2>
+      {channels.map((channel) => (
+        <YouTubeChannelCard
+          key={channel.id}
+          channel={channel}
+          readOnly={readOnly}
+          saveState={saveState}
+          setSaveState={setSaveState}
+          startTransition={startTransition}
+        />
+      ))}
+    </div>
+  )
+}
+
+function YouTubeChannelCard({
+  channel,
+  readOnly,
+  saveState,
+  setSaveState,
+  startTransition,
+}: {
+  channel: YouTubeChannelData
+  readOnly: boolean
+  saveState: SaveState
+  setSaveState: (s: SaveState) => void
+  startTransition: (fn: () => void) => void
+}) {
+  const [syncEnabled, setSyncEnabled] = useState(channel.sync_enabled)
+  const [schedules, setSchedules] = useState(channel.sync_schedules ?? [])
+
+  const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const
+
+  const handleSave = (e: FormEvent) => {
+    e.preventDefault()
+    if (readOnly) return
+    setSaveState('saving')
+    startTransition(async () => {
+      const res = await updateYouTubeChannelSettings({
+        channel_id: channel.id,
+        sync_enabled: syncEnabled,
+        sync_schedules: schedules.map(s => ({
+          day: s.day as typeof DAYS[number],
+          hour: s.hour,
+          tz: s.tz,
+          label: s.label,
+        })),
+      })
+      setSaveState(res.ok ? 'success' : 'error')
+    })
+  }
+
+  const addSchedule = () => {
+    setSchedules([...schedules, { day: 'monday', hour: 10, tz: 'America/Sao_Paulo', label: '' }])
+  }
+
+  const removeSchedule = (index: number) => {
+    setSchedules(schedules.filter((_, i) => i !== index))
+  }
+
+  const updateSchedule = (index: number, field: string, value: string | number) => {
+    setSchedules(schedules.map((s, i) => i === index ? { ...s, [field]: value } : s))
+  }
+
+  const flag = channel.locale === 'pt' ? '🇧🇷' : '🇺🇸'
+
+  return (
+    <form onSubmit={handleSave} className={sectionCls()}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-lg">{flag}</span>
+          <h3 className="text-base font-medium text-slate-200">{channel.name}</h3>
+          <span className="text-xs text-slate-500">@{channel.handle}</span>
+        </div>
+        <label className="flex items-center gap-2 text-sm text-slate-300">
+          <input
+            type="checkbox"
+            checked={syncEnabled}
+            onChange={(e) => setSyncEnabled(e.target.checked)}
+            disabled={readOnly}
+            className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-indigo-500"
+          />
+          Sync enabled
+        </label>
+      </div>
+
+      {syncEnabled && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <label className={labelCls()}>Posting Schedule</label>
+            <button
+              type="button"
+              onClick={addSchedule}
+              disabled={readOnly}
+              className="text-xs text-indigo-400 hover:text-indigo-300 disabled:opacity-50"
+            >
+              + Add window
+            </button>
+          </div>
+
+          {schedules.length === 0 && (
+            <p className="text-xs text-slate-500">No posting windows configured. The catchall cron (daily 07:00) will still sync.</p>
+          )}
+
+          {schedules.map((s, i) => (
+            <div key={i} className="flex items-center gap-2 rounded border border-slate-700 bg-slate-800/50 p-2">
+              <select
+                value={s.day}
+                onChange={(e) => updateSchedule(i, 'day', e.target.value)}
+                disabled={readOnly}
+                className="rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-200"
+              >
+                {DAYS.map(d => <option key={d} value={d}>{d.charAt(0).toUpperCase() + d.slice(1)}</option>)}
+              </select>
+              <input
+                type="number"
+                min={0}
+                max={23}
+                value={s.hour}
+                onChange={(e) => updateSchedule(i, 'hour', parseInt(e.target.value) || 0)}
+                disabled={readOnly}
+                className="w-14 rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-200"
+              />
+              <span className="text-xs text-slate-500">h</span>
+              <input
+                type="text"
+                value={s.label}
+                onChange={(e) => updateSchedule(i, 'label', e.target.value)}
+                disabled={readOnly}
+                placeholder="Label"
+                className="flex-1 rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-200 placeholder:text-slate-600"
+              />
+              <button
+                type="button"
+                onClick={() => removeSchedule(i)}
+                disabled={readOnly}
+                className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!readOnly && (
+        <div className="flex justify-end pt-2">
+          <SaveButton state={saveState} />
+        </div>
+      )}
+    </form>
+  )
+}
+
+/* ------------------------------------------------------------------ */
 /*  Main component                                                    */
 /* ------------------------------------------------------------------ */
 
@@ -1168,6 +1367,7 @@ export function SettingsConnected({
   site,
   newsletterTypes,
   blogCadence,
+  youtubeChannels,
   initialSection,
   seoFlags = {
     jsonLd: true,
@@ -1328,6 +1528,9 @@ export function SettingsConnected({
               site={site}
               readOnly={readOnly}
             />
+          )}
+          {activeSection === 'youtube' && (
+            <YouTubeSection channels={youtubeChannels ?? []} readOnly={readOnly} />
           )}
           {activeSection === 'localization' && (
             <LocalizationSection site={site} readOnly={readOnly} />
