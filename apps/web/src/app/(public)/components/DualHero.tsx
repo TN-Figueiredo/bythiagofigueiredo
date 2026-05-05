@@ -144,7 +144,7 @@ export function DualHero({ post, video, locale, t }: Props) {
                       </span>
                     )}
                     <span className="font-mono" style={{ fontSize: 10, color: 'var(--pb-muted)', letterSpacing: '0.1em' }}>
-                      {video.viewCount > 0 ? `${video.viewCount} · ` : ''}{videoDate}
+                      {Number(video.viewCount) > 0 ? `${video.viewCount} · ` : ''}{videoDate}
                     </span>
                   </div>
                   <h3 className="font-fraunces" style={{ fontSize: 'clamp(24px, 2.8vw, 34px)', lineHeight: 1.08, letterSpacing: '-0.02em', margin: 0, fontWeight: 500, color: 'var(--pb-ink)' }}>
