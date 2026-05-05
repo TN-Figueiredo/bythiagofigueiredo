@@ -126,6 +126,43 @@ export function YouTubePageClient({ data, locale, ads }: Props) {
 
   const adLocale = L === 'pt' ? 'pt-BR' as const : 'en' as const
 
+  if (videos.length === 0) {
+    return (
+      <main style={{ background: theme.bg, color: theme.ink, minHeight: '100vh' }} data-testid="youtube-page-client">
+        <YouTubeChannelStrip locale={L} theme={theme} channels={channels} />
+        <section style={{ textAlign: 'center', padding: '100px 28px 80px', maxWidth: 560, margin: '0 auto' }}>
+          <div style={{ width: 68, height: 48, background: 'rgba(255,45,32,0.25)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="rgba(255,45,32,0.6)"><path d="M8 5v14l11-7z" /></svg>
+          </div>
+          <h1 style={{ ...theme.hand, fontSize: 32, color: theme.accent, margin: '0 0 12px' }}>
+            {L === 'pt' ? 'Vídeos chegando em breve' : 'Videos coming soon'}
+          </h1>
+          <p style={{ fontSize: 16, color: theme.muted, lineHeight: 1.6, margin: '0 0 24px' }}>
+            {L === 'pt'
+              ? 'O canal está quase no ar. Inscreva-se para ser notificado quando o primeiro vídeo sair.'
+              : 'The channel is almost live. Subscribe to get notified when the first video drops.'}
+          </p>
+          {channels.length > 0 && (
+            <a
+              href={channels[0]!.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                background: theme.yt, color: '#FFF', padding: '12px 24px',
+                fontSize: 14, fontWeight: 600, textDecoration: 'none', borderRadius: 6,
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+              {L === 'pt' ? 'Inscrever no canal' : 'Subscribe on YouTube'}
+            </a>
+          )}
+        </section>
+        <YouTubeSubscribe locale={L} theme={theme} channels={channels} />
+      </main>
+    )
+  }
+
   return (
     <main style={{ background: theme.bg, color: theme.ink, minHeight: '100vh' }} data-testid="youtube-page-client">
       {ads?.doorman && <DoormanAd creative={ads.doorman} locale={adLocale} />}

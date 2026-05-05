@@ -1,7 +1,8 @@
 'use client'
 
 import { useTransition } from 'react'
-import { updateVideo, approveCategory, rejectCategory } from './actions'
+import { useState } from 'react'
+import { updateVideo, approveCategory, rejectCategory, pinWeeklyPick, unpinWeeklyPick } from './actions'
 
 interface CategoryBadgeProps {
   videoId: string
@@ -126,6 +127,76 @@ export function HiddenToggle({ videoId, isHidden }: HiddenToggleProps) {
         }`}
       />
     </button>
+  )
+}
+
+interface PinButtonProps {
+  videoId: string
+  channelId: string
+  pinnedUntil: string | null
+}
+
+export function PinButton({ videoId, channelId, pinnedUntil }: PinButtonProps) {
+  const [isPending, startTransition] = useTransition()
+  const [showPicker, setShowPicker] = useState(false)
+  const isPinned = !!pinnedUntil && new Date(pinnedUntil) > new Date()
+
+  const handlePin = (days: number) => {
+    startTransition(async () => {
+      await pinWeeklyPick({ videoId, channelId, durationDays: days })
+      setShowPicker(false)
+    })
+  }
+
+  const handleUnpin = () => {
+    startTransition(async () => {
+      await unpinWeeklyPick({ channelId })
+    })
+  }
+
+  if (isPinned) {
+    const until = new Date(pinnedUntil!).toLocaleDateString('en', { month: 'short', day: 'numeric' })
+    return (
+      <div className="flex items-center gap-1">
+        <span className="text-xs text-amber-400" title={`Pinned until ${until}`}>★ {until}</span>
+        <button
+          type="button"
+          disabled={isPending}
+          onClick={handleUnpin}
+          className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50"
+        >
+          Unpin
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        disabled={isPending}
+        onClick={() => setShowPicker(!showPicker)}
+        className="text-xs text-cms-text-dim hover:text-cms-text disabled:opacity-50"
+        title="Pin as weekly pick"
+      >
+        ☆ Pin
+      </button>
+      {showPicker && (
+        <div className="absolute right-0 top-6 z-10 rounded border border-cms-border bg-cms-surface p-2 shadow-lg">
+          {[7, 15, 30].map(d => (
+            <button
+              key={d}
+              type="button"
+              onClick={() => handlePin(d)}
+              className="block w-full rounded px-3 py-1 text-left text-xs text-cms-text hover:bg-cms-surface-hover"
+            >
+              {d} days
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 

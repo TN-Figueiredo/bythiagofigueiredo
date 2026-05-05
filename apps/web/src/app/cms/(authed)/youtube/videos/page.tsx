@@ -18,7 +18,7 @@ export default async function YouTubeVideosPage() {
     supabase
       .from('youtube_videos')
       .select(
-        'id, youtube_video_id, title, title_translation, published_at, thumbnail_url, view_count, like_count, duration, is_featured, is_hidden, category_id, auto_suggested_category_id, channel_id, youtube_channels!inner(locale, handle, name)',
+        'id, youtube_video_id, title, title_translation, published_at, thumbnail_url, view_count, like_count, duration, is_featured, is_hidden, category_id, auto_suggested_category_id, channel_id, pinned_until, youtube_channels!inner(locale, handle, name)',
       )
       .eq('site_id', siteId)
       .order('published_at', { ascending: false }),
@@ -73,9 +73,11 @@ export default async function YouTubeVideosPage() {
       categoryColor: catInfo ? catInfo.color : null,
       suggestedCategoryId: (v.auto_suggested_category_id as string | null) ?? null,
       suggestedCategoryName: suggestedInfo ? suggestedInfo.namePt : null,
+      channelId: (v.channel_id as string) ?? '',
       channelLocale: (channel?.locale as 'pt' | 'en') ?? 'pt',
       channelHandle: (channel?.handle as string) ?? '',
       channelName: (channel?.name as string) ?? '',
+      pinnedUntil: (v.pinned_until as string | null) ?? null,
     }
   })
 

@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useTransition } from 'react'
 import Image from 'next/image'
-import { CategoryBadge, FeaturedToggle, HiddenToggle, SyncButton } from './video-row-actions'
+import { CategoryBadge, FeaturedToggle, HiddenToggle, PinButton, SyncButton } from './video-row-actions'
 import { triggerSync } from './actions'
 
 export interface VideoRow {
@@ -22,9 +22,11 @@ export interface VideoRow {
   categoryColor: string | null
   suggestedCategoryId: string | null
   suggestedCategoryName: string | null
+  channelId: string
   channelLocale: 'pt' | 'en'
   channelHandle: string
   channelName: string
+  pinnedUntil: string | null
 }
 
 export interface ChannelOption {
@@ -188,6 +190,7 @@ export function VideosConnected({ videos, channels, categories }: Props) {
                 <th className="px-3 py-2.5 w-[160px]">Category</th>
                 <th className="px-3 py-2.5 w-[60px] text-center">Featured</th>
                 <th className="px-3 py-2.5 w-[60px] text-center">Hidden</th>
+                <th className="px-3 py-2.5 w-[80px] text-center">Pick</th>
                 <th className="px-3 py-2.5 w-[90px]">Published</th>
                 <th className="px-3 py-2.5 w-[80px] text-right">Views</th>
               </tr>
@@ -284,6 +287,13 @@ export function VideosConnected({ videos, channels, categories }: Props) {
                   <td className="px-3 py-2 text-center">
                     <div className="flex justify-center">
                       <HiddenToggle videoId={video.id} isHidden={video.isHidden} />
+                    </div>
+                  </td>
+
+                  {/* Weekly pick pin */}
+                  <td className="px-3 py-2 text-center">
+                    <div className="flex justify-center">
+                      <PinButton videoId={video.id} channelId={video.channelId} pinnedUntil={video.pinnedUntil} />
                     </div>
                   </td>
 
