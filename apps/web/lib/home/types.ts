@@ -32,7 +32,7 @@ export type HomeVideo = {
   description: string
   thumbnailUrl: string | null
   duration: string
-  viewCount: string | number
+  viewCount: number
   publishedAt: string
   categoryName: string | null
   categoryColor: string | null

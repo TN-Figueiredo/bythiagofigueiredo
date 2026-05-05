@@ -55,9 +55,11 @@ export function VideoGrid({ videos, locale, t }: Props) {
                   </div>
                   <div style={{ paddingTop: 14, paddingLeft: 4, paddingRight: 4 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                      <span className="font-mono" style={{ padding: '2px 7px', background: 'var(--pb-yt)', color: '#FFF', fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600 }}>
-                        {video.series}
-                      </span>
+                      {video.categoryName && (
+                        <span className="font-mono" style={{ padding: '2px 7px', background: 'var(--pb-yt)', color: '#FFF', fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600 }}>
+                          {video.categoryName}
+                        </span>
+                      )}
                       <span className="font-mono" style={{ fontSize: 10, color: 'var(--pb-faint)', letterSpacing: '0.08em' }}>
                         {new Date(video.publishedAt).toLocaleDateString(locale, { day: 'numeric', month: 'short' })}
                       </span>
@@ -69,7 +71,7 @@ export function VideoGrid({ videos, locale, t }: Props) {
                       {video.description}
                     </p>
                     <p className="font-mono" style={{ fontSize: 11, color: 'var(--pb-faint)', letterSpacing: '0.06em', margin: 0 }}>
-                      {video.duration}{video.viewCount !== '—' ? ` · ${video.viewCount}` : ''}
+                      {video.duration}{video.viewCount > 0 ? ` · ${video.viewCount}` : ''}
                     </p>
                   </div>
                 </a>
