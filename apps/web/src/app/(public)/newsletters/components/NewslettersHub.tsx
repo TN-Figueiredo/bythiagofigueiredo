@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useCallback, useMemo, useEffect, memo } from 'react'
 import Link from 'next/link'
+import { localePath } from '@/lib/i18n/locale-path'
 import { subscribeToNewsletters } from '../../actions/subscribe-newsletters'
 
 // ── Static catalog (matches DB seeds in 20260501000009) ──────────────────────
@@ -75,8 +76,8 @@ const STRINGS = {
     fourOptions: 'four options, no drama',
     latestIssue: 'latest issue',
     learnMore: 'learn more',
-    added: 'ADDED',
-    add: 'add',
+    added: 'SELECTED',
+    add: 'select',
     pickedN: (n: number) => `you picked **${n}** newsletter${n === 1 ? '' : 's'}`,
     pickedAll: (n: number) => `you picked **all ${n}** newsletters`,
     pickAtLeastOne: 'pick at least one',
@@ -93,8 +94,8 @@ const STRINGS = {
     suggestSubhead: (email: string) => `We'll use the same ${email}. Check what interests you, or skip — no drama.`,
     subscribeSelected: 'subscribe to selected',
     skipMainOnly: 'skip, main only',
-    announcementAdded: (name: string, count: number, total: number) => `${name} added. ${count} of ${total} selected.`,
-    announcementRemoved: (name: string, count: number, total: number) => `${name} removed. ${count} of ${total} selected.`,
+    announcementAdded: (name: string, count: number, total: number) => `${name} selected. ${count} of ${total} selected.`,
+    announcementRemoved: (name: string, count: number, total: number) => `${name} deselected. ${count} of ${total} selected.`,
     counterOf: (n: number, total: number) => `${n} of ${total} selected`,
     counterAll: (total: number) => `all ${total} selected`,
   },
@@ -109,8 +110,8 @@ const STRINGS = {
     fourOptions: 'quatro opções, sem drama',
     latestIssue: 'última edição',
     learnMore: 'saiba mais',
-    added: 'ADICIONADA',
-    add: 'adicionar',
+    added: 'SELECIONADA',
+    add: 'selecionar',
     pickedN: (n: number) => `você escolheu **${n}** newsletter${n === 1 ? '' : 's'}`,
     pickedAll: (n: number) => `você escolheu **todas ${n}** newsletters`,
     pickAtLeastOne: 'marca pelo menos uma',
@@ -127,8 +128,8 @@ const STRINGS = {
     suggestSubhead: (email: string) => `Usamos o mesmo ${email}. Marca o que te interessa, ou pula — sem drama.`,
     subscribeSelected: 'inscrever nas selecionadas',
     skipMainOnly: 'pular, só a principal',
-    announcementAdded: (name: string, count: number, total: number) => `${name} adicionada. ${count} de ${total} selecionadas.`,
-    announcementRemoved: (name: string, count: number, total: number) => `${name} removida. ${count} de ${total} selecionadas.`,
+    announcementAdded: (name: string, count: number, total: number) => `${name} selecionada. ${count} de ${total} selecionadas.`,
+    announcementRemoved: (name: string, count: number, total: number) => `${name} desmarcada. ${count} de ${total} selecionadas.`,
     counterOf: (n: number, total: number) => `${n} de ${total} selecionadas`,
     counterAll: (total: number) => `todas ${total} selecionadas`,
   },
@@ -139,6 +140,7 @@ interface CardProps {
   nl: NL
   index: number
   L: 'en' | 'pt'
+  locale: 'en' | 'pt-BR'
   isChecked: boolean
   onToggle: (id: string) => void
   theme: ThemeTokens
@@ -147,7 +149,7 @@ interface CardProps {
 }
 
 const NewsletterCard = memo(function NewsletterCard({
-  nl, index, L, isChecked, onToggle, theme, strings, entranceDelay,
+  nl, index, L, locale, isChecked, onToggle, theme, strings, entranceDelay,
 }: CardProps) {
   const { dark, paper, paper2, ink, muted, faint, tape, tape2, shadow } = theme
   const color = nlColor(nl, dark)
@@ -409,7 +411,7 @@ const NewsletterCard = memo(function NewsletterCard({
             const slug = SLUG_MAP[nl.baseId]?.[L]
             return slug ? (
               <Link
-                href={`/newsletters/${slug}`}
+                href={localePath(`/newsletters/${slug}`, locale)}
                 onClick={(e) => e.stopPropagation()}
                 style={{
                   fontFamily: 'var(--font-jetbrains-var), monospace',
@@ -562,7 +564,7 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
             })}
           </div>
           <Link
-            href={locale === 'pt-BR' ? '/pt' : '/'}
+            href={localePath('/', locale)}
             style={{ display: 'inline-block', padding: '12px 26px', background: 'transparent', color: ink, border: `1.5px solid ${line}`, fontFamily: '"JetBrains Mono", monospace', fontSize: 12, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 600, textDecoration: 'none' }}
           >
             {'←'} {strings.backHome}
@@ -594,6 +596,7 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
                 nl={nl}
                 index={i + 2}
                 L={L}
+                locale={locale}
                 isChecked={checked.has(nl.baseId)}
                 onToggle={toggle}
                 theme={theme}
@@ -755,6 +758,7 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
               nl={nl}
               index={i}
               L={L}
+              locale={locale}
               isChecked={checked.has(nl.baseId)}
               onToggle={toggle}
               theme={theme}
@@ -877,18 +881,20 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
             )}
           </div>
 
-          <form onSubmit={handleSubmit} style={{ display: 'flex', gap: 8, flex: '1 1 360px', maxWidth: 540 }}>
+          <form onSubmit={handleSubmit} className={!noneSelected ? (isValidEmail ? 'nl-form-glow nl-form-valid' : 'nl-form-glow') : ''} style={{ display: 'flex', gap: 8, flex: '1 1 360px', maxWidth: 540, position: 'relative' }}>
             <input
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
               placeholder={strings.yourEmail}
               required
+              autoFocus
               autoComplete="email"
+              className={!noneSelected ? (isValidEmail ? 'nl-input-glow nl-input-valid' : 'nl-input-glow') : ''}
               style={{
                 flex: 1, padding: '12px 14px',
                 border: `1.5px solid ${serverError ? '#E53E3E' : isValidEmail ? '#5FA87D' : line}`,
-                boxShadow: isValidEmail ? '0 0 8px rgba(95,168,125,0.2)' : 'none',
+                boxShadow: 'none',
                 background: dark ? 'rgba(0,0,0,0.3)' : '#FFF',
                 color: ink, fontFamily: '"JetBrains Mono", monospace', fontSize: 13,
                 outline: 'none',
@@ -924,21 +930,81 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
         </div>
       </div>
 
-      {/* Glow pulse animation */}
+      {/* Glow pulse + marching ants animations */}
       <style>{`
         @keyframes glowPulse {
           0%, 100% { box-shadow: 0 0 16px ${accent}44; }
           50% { box-shadow: 0 0 28px ${accent}66; }
         }
+        .nl-input-glow {
+          border-color: ${accent}66 !important;
+        }
+        .nl-input-valid {
+          border-color: #5FA87D !important;
+        }
+        .nl-form-glow::before {
+          content: '';
+          position: absolute;
+          inset: -3px;
+          z-index: 0;
+          pointer-events: none;
+          background:
+            linear-gradient(90deg, ${accent} 50%, transparent 50%) top    / 12px 1.5px repeat-x,
+            linear-gradient(0deg,  ${accent} 50%, transparent 50%) right  / 1.5px 12px repeat-y,
+            linear-gradient(90deg, ${accent} 50%, transparent 50%) bottom / 12px 1.5px repeat-x,
+            linear-gradient(0deg,  ${accent} 50%, transparent 50%) left   / 1.5px 12px repeat-y;
+          animation: marchAnts 4s linear infinite;
+          opacity: 0.6;
+          filter: drop-shadow(0 0 6px ${accent}88);
+        }
+        .nl-form-valid::before {
+          background:
+            linear-gradient(90deg, #5FA87D 50%, transparent 50%) top    / 12px 1.5px repeat-x,
+            linear-gradient(0deg,  #5FA87D 50%, transparent 50%) right  / 1.5px 12px repeat-y,
+            linear-gradient(90deg, #5FA87D 50%, transparent 50%) bottom / 12px 1.5px repeat-x,
+            linear-gradient(0deg,  #5FA87D 50%, transparent 50%) left   / 1.5px 12px repeat-y;
+          filter: drop-shadow(0 0 6px rgba(95,168,125,0.6));
+        }
+        .nl-form-glow::after {
+          content: '';
+          position: absolute;
+          inset: -8px;
+          z-index: -1;
+          pointer-events: none;
+          border-radius: 3px;
+          box-shadow: 0 0 18px ${accent}33, 0 0 40px ${accent}1a, 0 0 60px ${accent}0d;
+          animation: formGlow 2s ease-in-out infinite;
+        }
+        .nl-form-valid::after {
+          box-shadow: 0 0 18px rgba(95,168,125,0.2), 0 0 40px rgba(95,168,125,0.1), 0 0 60px rgba(95,168,125,0.05);
+          animation: formGlowValid 2s ease-in-out infinite;
+        }
+        @keyframes marchAnts {
+          to {
+            background-position:
+              12px 0,
+              100% 12px,
+              -12px 100%,
+              0 -12px;
+          }
+        }
+        @keyframes formGlow {
+          0%, 100% { box-shadow: 0 0 18px ${accent}33, 0 0 40px ${accent}1a, 0 0 60px ${accent}0d; }
+          50% { box-shadow: 0 0 30px ${accent}55, 0 0 56px ${accent}33, 0 0 80px ${accent}1a; }
+        }
+        @keyframes formGlowValid {
+          0%, 100% { box-shadow: 0 0 18px rgba(95,168,125,0.2), 0 0 40px rgba(95,168,125,0.1), 0 0 60px rgba(95,168,125,0.05); }
+          50% { box-shadow: 0 0 30px rgba(95,168,125,0.35), 0 0 56px rgba(95,168,125,0.2), 0 0 80px rgba(95,168,125,0.1); }
+        }
       `}</style>
 
       {/* Footer */}
       <footer style={{ borderTop: `1px dashed ${line}`, padding: '28px', textAlign: 'center', color: faint, fontSize: 12, fontFamily: '"JetBrains Mono", monospace', letterSpacing: '0.08em' }}>
-        <Link href={locale === 'pt-BR' ? '/pt' : '/'} style={{ color: accent, textDecoration: 'none' }}>
+        <Link href={localePath('/', locale)} style={{ color: accent, textDecoration: 'none' }}>
           {'←'} {strings.backHome}
         </Link>
         <span style={{ margin: '0 14px', opacity: 0.5 }}>{'·'}</span>
-        <Link href={locale === 'pt-BR' ? '/pt/blog' : '/blog'} style={{ color: muted, textDecoration: 'none' }}>
+        <Link href={localePath('/blog', locale)} style={{ color: muted, textDecoration: 'none' }}>
           {strings.blog}
         </Link>
       </footer>

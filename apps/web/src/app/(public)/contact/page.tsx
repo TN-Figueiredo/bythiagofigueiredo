@@ -68,8 +68,8 @@ export default async function ContactPage({ searchParams }: Props) {
   const breadcrumbGraph = config
     ? composeGraph([
         buildBreadcrumbNode([
-          { name: 'Home', url: config.siteUrl },
-          { name: locale === 'en' ? 'Contact' : 'Fale comigo', url: `${config.siteUrl}${localePath('/contact', locale)}` },
+          { name: locale === 'pt-BR' ? 'Início' : 'Home', url: config.siteUrl },
+          { name: locale === 'en' ? 'Contact' : 'Contato', url: `${config.siteUrl}${localePath('/contact', locale)}` },
         ]),
       ])
     : null
@@ -78,9 +78,13 @@ export default async function ContactPage({ searchParams }: Props) {
     <>
       {breadcrumbGraph && <JsonLdScript graph={breadcrumbGraph} />}
       <main className="max-w-xl mx-auto px-4 py-16">
-        <h1 className="text-3xl font-bold mb-2">Fale comigo</h1>
+        <h1 className="text-3xl font-bold mb-2">
+          {locale === 'pt-BR' ? 'Fale comigo' : 'Get in touch'}
+        </h1>
         <p className="text-gray-600 mb-8">
-          Quer conversar sobre um projeto, parceria ou só trocar uma ideia? Manda mensagem!
+          {locale === 'pt-BR'
+            ? 'Quer conversar sobre um projeto, parceria ou só trocar uma ideia? Manda mensagem!'
+            : 'Want to chat about a project, partnership or just exchange ideas? Send a message!'}
         </p>
 
         {noticeMessage && (

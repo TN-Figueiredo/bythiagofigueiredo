@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import type { ReactNode } from 'react'
+import { localePath } from '@/lib/i18n/locale-path'
 
 export interface LegalShellProps {
   /**
@@ -72,7 +73,7 @@ export function LegalShell({ locale, lastUpdated, children }: LegalShellProps) {
       <header className="border-b border-slate-200">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4">
           <Link
-            href="/"
+            href={localePath('/', locale)}
             data-testid="legal-shell-home-link"
             className="text-sm font-medium text-slate-700 hover:text-slate-900"
           >
@@ -125,12 +126,12 @@ export function LegalShell({ locale, lastUpdated, children }: LegalShellProps) {
             <p className="font-semibold text-slate-900">{t.related}</p>
             <ul className="mt-2 space-y-1">
               <li>
-                <Link href="/privacy" className="hover:text-slate-900">
+                <Link href={localePath('/privacy', locale)} className="hover:text-slate-900">
                   {t.privacy}
                 </Link>
               </li>
               <li>
-                <Link href="/terms" className="hover:text-slate-900">
+                <Link href={localePath('/terms', locale)} className="hover:text-slate-900">
                   {t.terms}
                 </Link>
               </li>
@@ -148,7 +149,7 @@ export function LegalShell({ locale, lastUpdated, children }: LegalShellProps) {
             </time>
           </span>
           <span>
-            <Link href="/" className="hover:text-slate-900">
+            <Link href={localePath('/', locale)} className="hover:text-slate-900">
               bythiagofigueiredo.com
             </Link>
           </span>

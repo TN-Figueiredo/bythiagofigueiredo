@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { localePath } from '@/lib/i18n/locale-path'
 
 type Props = { tags: string[] | undefined; locale: string }
 
@@ -11,7 +12,7 @@ export function PostTags({ tags, locale }: Props) {
         {tags.map((tag) => (
           <Link
             key={tag}
-            href={`/blog/${locale}?tag=${encodeURIComponent(tag)}`}
+            href={localePath(`/blog?tag=${encodeURIComponent(tag)}`, locale)}
             className="inline-block border border-[--pb-line] rounded-full px-3.5 py-1 font-jetbrains text-xs text-pb-muted hover:border-pb-faint transition-colors"
           >
             #{tag}

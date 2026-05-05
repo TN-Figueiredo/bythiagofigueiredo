@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react'
 import Link from 'next/link'
+import { localePath } from '@/lib/i18n/locale-path'
 import type { ScoredSuggestion } from '@/lib/newsletter/suggestions'
 import type { SuggestionStrings } from './newsletter-suggestions'
 
@@ -575,7 +576,7 @@ interface UpsellSectionProps {
 function UpsellSection({
   suggestions,
   suggestionStrings: ss,
-  locale: _locale,
+  locale,
   addedIds: aids,
   addingId: aidg,
   onAdd,
@@ -621,7 +622,7 @@ function UpsellSection({
       {allAdded && (
         <p className="nl-subscribed-all">
           {ss.subscribedToAll}{' '}
-          <Link href="/newsletters">
+          <Link href={localePath('/newsletters', locale)}>
             {ss.allNewsletters}
           </Link>
         </p>

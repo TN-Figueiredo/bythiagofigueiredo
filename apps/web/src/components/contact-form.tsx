@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { localePath } from '@/lib/i18n/locale-path'
 
 export type ContactResult =
   | { status: 'ok' }
@@ -139,7 +140,7 @@ export function ContactForm({ locale = 'pt-BR', submitAction }: Props) {
       const result = await submitAction(data)
       switch (result.status) {
         case 'ok':
-          router.push('/contact?notice=contact_received')
+          router.push(`${localePath('/contact', locale)}?notice=contact_received`)
           return
         case 'rate_limited':
           setError(s.rateLimited)

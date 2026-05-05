@@ -77,7 +77,8 @@ export async function subscribeNewsletterInline(
   }
 
   // Send confirmation email (non-fatal)
-  const confirmUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/newsletter/confirm?token=${rawToken}`
+  const localePrefix = locale === 'pt-BR' ? '/pt' : ''
+  const confirmUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}${localePrefix}/newsletter/confirm?token=${rawToken}`
   const isPt = locale === 'pt-BR'
   const domain = process.env.NEWSLETTER_FROM_DOMAIN ?? 'bythiagofigueiredo.com'
   await getEmailService().send({

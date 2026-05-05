@@ -1,5 +1,6 @@
 import type { HeaderLocale, HeaderCtaVariant } from './header-types'
 import { YT_CHANNELS } from './header-types'
+import { localePath } from '@/lib/i18n/locale-path'
 
 type Props = {
   variant: HeaderCtaVariant
@@ -38,7 +39,7 @@ export function HeaderCTAs({ variant, locale, t }: Props) {
           {channel.flag} {locale === 'pt-BR' ? 'Inscrever' : 'Subscribe'}
         </a>
         <a
-          href="/newsletters"
+          href={localePath('/newsletters', locale)}
           className="font-jetbrains no-underline"
           style={{
             background: 'var(--pb-marker)',
@@ -61,7 +62,7 @@ export function HeaderCTAs({ variant, locale, t }: Props) {
     return (
       <div className="shrink-0">
         <a
-          href="/newsletters"
+          href={localePath('/newsletters', locale)}
           className="font-jetbrains no-underline"
           style={{
             background: 'var(--pb-accent)',
@@ -84,7 +85,7 @@ export function HeaderCTAs({ variant, locale, t }: Props) {
   return (
     <div className="shrink-0">
       <a
-        href="/newsletters"
+        href={localePath('/newsletters', locale)}
         className="font-jetbrains no-underline"
         style={{
           background: 'var(--pb-marker)',

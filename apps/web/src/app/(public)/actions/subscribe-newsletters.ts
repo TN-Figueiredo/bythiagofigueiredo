@@ -89,7 +89,8 @@ export async function subscribeToNewsletters(
       return { error: locale === 'pt-BR' ? 'Erro interno. Tente novamente.' : 'Internal error. Try again.' }
     }
 
-    const confirmUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/newsletter/confirm?token=${rawToken}`
+    const localePrefix = locale === 'pt-BR' ? '/pt' : ''
+    const confirmUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}${localePrefix}/newsletter/confirm?token=${rawToken}`
     const isPt = locale === 'pt-BR'
 
     try {

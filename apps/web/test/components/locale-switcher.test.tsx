@@ -32,7 +32,7 @@ describe('LocaleSwitcher', () => {
     expect(links[0]!.getAttribute('href')).toBe('/blog/en/hello')
     expect(links[0]!.getAttribute('hreflang')).toBe('en')
     const current = container.querySelector('[aria-current="true"]')
-    expect(current?.textContent).toBe('pt-BR')
+    expect(current?.textContent).toBe('Português')
   })
 
   it('uses the hrefFor mapper for each locale', () => {

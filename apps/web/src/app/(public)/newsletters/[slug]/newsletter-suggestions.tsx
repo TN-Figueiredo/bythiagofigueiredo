@@ -2,6 +2,7 @@ import Link from 'next/link'
 import type { ScoredSuggestion } from '@/lib/newsletter/suggestions'
 import { deriveCadenceLabel } from '@/lib/newsletter/format'
 import { formatSubscriberCount } from '@/lib/newsletter/format'
+import { localePath } from '@/lib/i18n/locale-path'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -34,7 +35,7 @@ export function SuggestionMiniCard({ suggestion, locale }: MiniCardProps) {
 
   return (
     <Link
-      href={`/newsletters/${suggestion.slug}`}
+      href={localePath(`/newsletters/${suggestion.slug}`, locale)}
       className="nl-suggestion-card"
       style={{
         '--card-accent': suggestion.color,

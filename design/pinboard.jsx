@@ -446,7 +446,7 @@ const Pinboard = ({ t, dark, content, tweaks, adsConfig }) => {
               {L === "pt" ? "live-coding, setup, bugs — os 3 mais recentes" : "live-coding, setup, bugs — latest 3"}
             </div>
           </div>
-          <a href="videos.html" style={{ ...hand, fontSize: 22, color: yt, textDecoration: "none", transform: "rotate(-1deg)", display: "inline-block" }}>
+          <a href="youtube.html" style={{ ...hand, fontSize: 22, color: yt, textDecoration: "none", transform: "rotate(-1deg)", display: "inline-block" }}>
             {L === "pt" ? "ver todos os vídeos →" : "see all videos →"}
           </a>
         </div>
@@ -456,7 +456,7 @@ const Pinboard = ({ t, dark, content, tweaks, adsConfig }) => {
             <div key={v.id} style={{ position: "relative", paddingTop: 16 }}>
               <Paper tint={paper} pad="12px 12px 18px" rotation={rot(i + 11)} y={lift(i + 11)}>
                 <Tape color={tapeR} style={{ top: -9, left: "40%", transform: `rotate(${(i * 7) % 10 - 5}deg)` }}/>
-                <a href={`videos.html#${v.id}`} style={{ textDecoration: "none", color: "inherit", display: "block" }}>
+                <a href={`youtube.html#${v.id}`} style={{ textDecoration: "none", color: "inherit", display: "block" }}>
                   <VideoThumb v={v} aspect="4/3"/>
                   <div style={{ paddingTop: 14, paddingLeft: 4, paddingRight: 4 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>

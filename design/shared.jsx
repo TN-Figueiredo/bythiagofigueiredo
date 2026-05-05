@@ -408,7 +408,7 @@ Object.assign(window, {
     return [
       { key: "home", href: "Pinboard.html", label: t.nav.home },
       { key: "writing", href: "blog.html", label: t.nav.writing },
-      { key: "videos", href: "videos.html", label: t.nav.videos },
+      { key: "videos", href: "youtube.html", label: t.nav.videos },
       { key: "newsletters", href: "newsletters.html", label: t.nav.newsletter },
       { key: "about", href: "#about", label: t.nav.about },
       sites.contact && {

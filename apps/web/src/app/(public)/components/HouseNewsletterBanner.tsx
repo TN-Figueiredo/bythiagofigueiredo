@@ -1,3 +1,4 @@
+import { localePath } from '@/lib/i18n/locale-path'
 import type { HomeNewsletter } from '../../../../lib/home/types'
 
 type Props = {
@@ -66,7 +67,7 @@ export function HouseNewsletterBanner({ newsletter, locale, subscriberCount, t }
         </p>
 
         <a
-          href={`/newsletters/${slug}`}
+          href={localePath(`/newsletters/${slug}`, locale)}
           className="font-mono inline-block"
           style={{
             fontSize: 12,

@@ -7,9 +7,6 @@ vi.mock('../../lib/cms/site-context', () => ({
     Promise.resolve({ siteId: 's1', orgId: 'o1', defaultLocale: 'pt-BR', primaryDomain: 'example.com' }),
 }))
 
-// Sprint 5b PR-C C.4: blog list now resolves SEO config via the SEO factory
-// to emit BreadcrumbList JSON-LD + factory-driven generateMetadata. Stub the
-// config getter so unit tests don't need a live DB.
 vi.mock('../../lib/seo/config', () => ({
   getSiteSeoConfig: vi.fn().mockResolvedValue({
     siteId: 's1',
@@ -33,92 +30,84 @@ vi.mock('next/headers', () => ({
   cookies: () => Promise.resolve({ get: () => undefined }),
 }))
 
-// CategoryFilter is a 'use client' component using useRouter/usePathname/useSearchParams.
+// BlogArchiveClient is a 'use client' component using useRouter/useSearchParams.
 // Stub it to avoid Next.js app router invariant errors in unit tests.
-vi.mock('../../src/app/(public)/blog/category-filter', () => ({
-  CategoryFilter: ({ categories, allLabel }: { categories: string[]; allLabel: string }) => (
-    <div data-testid="category-filter">{allLabel} | {categories.join(', ')}</div>
+vi.mock('../../src/app/(public)/blog/blog-archive-client', () => ({
+  BlogArchiveClient: ({ posts, categories, tags, locale }: {
+    posts: Array<{ id: string; title: string; readingTime: number }>
+    categories: Array<{ key: string; label: string; count: number }>
+    tags: Array<{ tag: string; count: number }>
+    locale: string
+  }) => (
+    <div data-testid="blog-archive-client">
+      <span data-testid="locale">{locale}</span>
+      <span data-testid="post-count">{posts.length}</span>
+      {posts.map((p) => (
+        <div key={p.id} data-testid={`post-${p.id}`}>
+          {p.title} — {p.readingTime} min
+        </div>
+      ))}
+      {categories.map((c) => (
+        <span key={c.key} data-testid={`cat-${c.key}`}>{c.label} ({c.count})</span>
+      ))}
+      {tags.map((t) => (
+        <span key={t.tag} data-testid={`tag-${t.tag}`}>{t.tag} ({t.count})</span>
+      ))}
+    </div>
   ),
 }))
 
-// Mock getSupabaseServiceClient — the blog list page queries Supabase directly
-// (not via postRepo) to include the `category` column for filtering.
-function createSupabaseMock(rows: Record<string, unknown>[] = [], catRows: Record<string, unknown>[] = []) {
-  let callIndex = 0
-  return {
-    getSupabaseServiceClient: () => {
-      callIndex = 0 // reset per call to getSupabaseServiceClient
-      return {
-        from: () => {
-          const currentCall = callIndex++
-          // First call is for categories (unfiltered), second is for posts
-          const isCategories = currentCall === 0
-          const chain: Record<string, unknown> = {
-            select: () => chain,
-            eq: () => chain,
-            lte: () => chain,
-            not: () => chain,
-            ilike: () => chain,
-            order: () => chain,
-            range: () => chain,
-          }
-          // Make the chain thenable so `await` resolves
-          if (isCategories) {
-            chain['then'] = (resolve: (v: unknown) => void) =>
-              resolve({ data: catRows, error: null })
-          } else {
-            chain['then'] = (resolve: (v: unknown) => void) =>
-              resolve({ data: rows, count: rows.length, error: null })
-          }
-          return chain
-        },
-      }
+// Mock getSupabaseServiceClient — the blog page queries blog_translations with
+// a join on blog_posts + blog_tags.
+const mockRows = vi.fn<() => Record<string, unknown>[]>().mockReturnValue([
+  {
+    slug: 'hello',
+    title: 'Hello',
+    excerpt: 'Oi',
+    reading_time_min: 2,
+    cover_image_url: null,
+    blog_posts: {
+      id: 'p1',
+      published_at: '2026-01-01T00:00:00Z',
+      category: 'code',
+      tag_id: 't1',
+      blog_tags: { name: 'nextjs', color: '#000000', color_dark: '#333333' },
     },
-  }
-}
+  },
+])
 
-vi.mock('../../lib/supabase/service', () =>
-  createSupabaseMock(
-    [
-      {
-        slug: 'hello',
-        locale: 'pt-BR',
-        title: 'Hello',
-        excerpt: 'Oi',
-        reading_time_min: 2,
-        blog_posts: {
-          id: 'p1',
-          published_at: '2026-01-01',
-          cover_image_url: null,
-          category: 'tech',
-          status: 'published',
-          site_id: 's1',
-        },
-      },
-    ],
-    [{ category: 'tech' }],
-  ),
-)
+vi.mock('../../lib/supabase/service', () => ({
+  getSupabaseServiceClient: () => ({
+    from: () => {
+      const chain: Record<string, unknown> = {
+        select: () => chain,
+        eq: () => chain,
+        lte: () => chain,
+        not: () => chain,
+        order: () => chain,
+      }
+      chain['then'] = (resolve: (v: unknown) => void) =>
+        resolve({ data: mockRows(), error: null })
+      return chain
+    },
+  }),
+}))
 
-import BlogListPage from '../../src/app/(public)/blog/page'
+import BlogPage from '../../src/app/(public)/blog/page'
 
-describe('BlogListPage', () => {
-  it('renders post titles + reading time', async () => {
-    const jsx = await BlogListPage({
-      searchParams: Promise.resolve({}),
-    })
+describe('BlogPage', () => {
+  it('renders post titles + reading time via BlogArchiveClient', async () => {
+    const jsx = await BlogPage()
     const { container } = render(jsx as never)
     expect(container.textContent).toContain('Hello')
     expect(container.textContent).toContain('2 min')
   })
 
-  it('shows empty state when no posts', async () => {
-    vi.doMock('../../lib/supabase/service', () => createSupabaseMock([], []))
-    // Force re-import with new mock
-    vi.resetModules()
-    const { default: Page } = await import('../../src/app/(public)/blog/page')
-    const jsx = await Page({ searchParams: Promise.resolve({}) })
+  it('falls back to mock data when DB returns empty', async () => {
+    mockRows.mockReturnValue([])
+    const jsx = await BlogPage()
     const { container } = render(jsx as never)
-    expect(container.textContent).toContain('Nenhum post')
+    // Should render mock posts (18 items from MOCK_POSTS)
+    expect(container.textContent).toContain('Manifesto')
   })
 })

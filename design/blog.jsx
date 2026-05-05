@@ -95,7 +95,7 @@ const BlogArchive = ({ t, dark, content, adsConfig }) => {
   const nav = [
     { key: "home", href: "Pinboard.html", label: t.nav.home },
     { key: "writing", href: "blog.html", label: t.nav.writing },
-    { key: "videos", href: "videos.html", label: t.nav.videos },
+    { key: "videos", href: "youtube.html", label: t.nav.videos },
     { key: "newsletters", href: "newsletters.html", label: t.nav.newsletter },
     { key: "about", href: "#", label: t.nav.about },
     { key: "contact", href: sites.contact.url, label: sites.contact["label_" + L] },
@@ -368,7 +368,7 @@ const BlogArchive = ({ t, dark, content, adsConfig }) => {
       <footer style={{ borderTop: `1px dashed ${line}`, padding: "28px", textAlign: "center", color: faint, fontSize: 12, fontFamily: '"JetBrains Mono", monospace', letterSpacing: "0.08em" }}>
         <a href="Pinboard.html" style={{ color: accent, textDecoration: "none" }}>← {L === "pt" ? "voltar pra home" : "back to home"}</a>
         <span style={{ margin: "0 16px", opacity: 0.5 }}>·</span>
-        <a href="videos.html" style={{ color: muted, textDecoration: "none" }}>{L === "pt" ? "vídeos →" : "videos →"}</a>
+        <a href="youtube.html" style={{ color: muted, textDecoration: "none" }}>{L === "pt" ? "vídeos →" : "videos →"}</a>
       </footer>
     </div>
   );

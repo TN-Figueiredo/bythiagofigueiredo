@@ -20,7 +20,7 @@ const NewsletterLanding = ({ t, dark, content, slug }) => {
   const nav = [
     { key: "home", href: "Pinboard.html", label: t.nav.home },
     { key: "writing", href: "blog.html", label: t.nav.writing },
-    { key: "videos", href: "videos.html", label: t.nav.videos },
+    { key: "videos", href: "youtube.html", label: t.nav.videos },
     { key: "newsletters", href: "newsletters.html", label: t.nav.newsletter },
     { key: "about", href: "about.html", label: t.nav.about },
     { key: "contact", href: sites.contact.url, label: sites.contact["label_" + L] },

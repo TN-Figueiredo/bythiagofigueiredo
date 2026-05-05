@@ -59,18 +59,18 @@ describe('NewslettersHub — card selection', () => {
     expect(cards[0]!.getAttribute('aria-checked')).toBe('true')
   })
 
-  it('selected card shows ADDED badge', () => {
+  it('selected card shows SELECTED badge', () => {
     renderHub()
     const cards = screen.getAllByRole('checkbox')
     // First card is selected by default
-    expect(within(cards[0]!).getByText(/ADDED/i)).toBeTruthy()
+    expect(within(cards[0]!).getByText(/SELECTED/i)).toBeTruthy()
   })
 
-  it('deselected card shows + add badge', () => {
+  it('deselected card shows + select badge', () => {
     renderHub()
     const cards = screen.getAllByRole('checkbox')
     fireEvent.click(cards[0]!)
-    expect(within(cards[0]!).getByText(/add/i)).toBeTruthy()
+    expect(within(cards[0]!).getByText(/select/i)).toBeTruthy()
   })
 })
 
@@ -280,23 +280,23 @@ describe('NewslettersHub — light theme', () => {
 })
 
 describe('NewslettersHub — announcements', () => {
-  it('announces added message with name and count', () => {
+  it('announces selected message with name and count', () => {
     renderHub()
     const cards = screen.getAllByRole('checkbox')
-    // Deselect first, then re-select to get "added" announcement
+    // Deselect first, then re-select to get "selected" announcement
     fireEvent.click(cards[0]!)
     fireEvent.click(cards[0]!)
     const liveRegion = document.querySelector('[aria-live="polite"]')
-    expect(liveRegion?.textContent).toContain('added')
+    expect(liveRegion?.textContent).toContain('selected')
     expect(liveRegion?.textContent).toContain('4 of 4')
   })
 
-  it('announces removed message with name and count', () => {
+  it('announces deselected message with name and count', () => {
     renderHub()
     const cards = screen.getAllByRole('checkbox')
     fireEvent.click(cards[0]!)
     const liveRegion = document.querySelector('[aria-live="polite"]')
-    expect(liveRegion?.textContent).toContain('removed')
+    expect(liveRegion?.textContent).toContain('deselected')
     expect(liveRegion?.textContent).toContain('The bythiago diary')
   })
 
@@ -305,7 +305,7 @@ describe('NewslettersHub — announcements', () => {
     const cards = screen.getAllByRole('checkbox')
     fireEvent.keyDown(cards[1]!, { key: ' ' })
     const liveRegion = document.querySelector('[aria-live="polite"]')
-    expect(liveRegion?.textContent).toContain('removed')
+    expect(liveRegion?.textContent).toContain('deselected')
     expect(liveRegion?.textContent).toContain('3 of 4')
   })
 
@@ -316,7 +316,7 @@ describe('NewslettersHub — announcements', () => {
     const removeBtn = within(pills[1]!).getByRole('button')
     fireEvent.click(removeBtn)
     const liveRegion = document.querySelector('[aria-live="polite"]')
-    expect(liveRegion?.textContent).toContain('removed')
+    expect(liveRegion?.textContent).toContain('deselected')
     expect(liveRegion?.textContent).toContain('3 of 4')
   })
 })
@@ -347,14 +347,14 @@ describe('NewslettersHub — subscribe form', () => {
 })
 
 describe('NewslettersHub — deselected card badge', () => {
-  it('deselected card shows "+ add" badge text (not ADDED)', () => {
+  it('deselected card shows "+ select" badge text (not SELECTED)', () => {
     renderHub()
     const cards = screen.getAllByRole('checkbox')
     fireEvent.click(cards[0]!)
-    // The card should show "+ add" not "ADDED"
+    // The card should show "+ select" not "SELECTED"
     const card = cards[0]!
-    expect(within(card).queryByText(/ADDED/)).toBeNull()
-    expect(within(card).getByText((content) => content.includes('add') && !content.includes('ADDED'))).toBeTruthy()
+    expect(within(card).queryByText(/SELECTED/)).toBeNull()
+    expect(within(card).getByText((content) => content.includes('select') && !content.includes('SELECTED'))).toBeTruthy()
   })
 })
 

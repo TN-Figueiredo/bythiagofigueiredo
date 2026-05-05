@@ -180,7 +180,8 @@ export async function subscribeToNewsletter(formData: FormData): Promise<Subscri
 async function sendConfirmEmail({
   email, rawToken, locale,
 }: { email: string; rawToken: string; locale: string }) {
-  const confirmUrl = `${process.env.NEXT_PUBLIC_APP_URL}/newsletter/confirm?token=${rawToken}`
+  const localePrefix = locale === 'pt-BR' ? '/pt' : ''
+  const confirmUrl = `${process.env.NEXT_PUBLIC_APP_URL}${localePrefix}/newsletter/confirm?token=${rawToken}`
   try {
     const domain = process.env.NEWSLETTER_FROM_DOMAIN ?? 'bythiagofigueiredo.com'
     await getEmailService().send({

@@ -53,7 +53,7 @@ const NewslettersHub = ({ t, dark, content }) => {
   const nav = [
     { key: "home", href: "Pinboard.html", label: t.nav.home },
     { key: "writing", href: "blog.html", label: t.nav.writing },
-    { key: "videos", href: "videos.html", label: t.nav.videos },
+    { key: "videos", href: "youtube.html", label: t.nav.videos },
     { key: "newsletters", href: "newsletters.html", label: t.nav.newsletter },
     { key: "about", href: "#", label: t.nav.about },
     { key: "contact", href: sites.contact.url, label: sites.contact["label_" + L] },
@@ -470,7 +470,7 @@ const NewslettersHub = ({ t, dark, content }) => {
         <span style={{ margin: "0 16px", opacity: 0.5 }}>·</span>
         <a href="blog.html" style={{ color: muted, textDecoration: "none" }}>{L === "pt" ? "blog" : "blog"}</a>
         <span style={{ margin: "0 10px", opacity: 0.5 }}>·</span>
-        <a href="videos.html" style={{ color: muted, textDecoration: "none" }}>{L === "pt" ? "vídeos" : "videos"}</a>
+        <a href="youtube.html" style={{ color: muted, textDecoration: "none" }}>{L === "pt" ? "vídeos" : "videos"}</a>
       </footer>
     </div>
   );

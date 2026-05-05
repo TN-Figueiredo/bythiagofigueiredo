@@ -50,7 +50,7 @@ export default async function TermsPage() {
   const breadcrumbGraph = config
     ? composeGraph([
         buildBreadcrumbNode([
-          { name: 'Home', url: config.siteUrl },
+          { name: locale === 'pt-BR' ? 'Início' : 'Home', url: config.siteUrl },
           {
             name: locale === 'en' ? 'Terms of Use' : 'Termos de Uso',
             url: `${config.siteUrl}${localePath('/terms', locale)}`,
