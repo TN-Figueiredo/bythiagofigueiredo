@@ -1,254 +1,232 @@
-# YouTube CMS Channel Management — Implementation Plan
+# YouTube CMS Channel Management Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Wire YouTube channel registration, home page DB queries, conditional rendering, and per-locale weekly pick into the CMS and public site.
+**Goal:** Elevate YouTube to a top-level CMS sidebar item with its own hub layout (Dashboard + Videos + Categories + Comments tabs), make schedule labels configurable per channel, and wire the pin-duration dropdown UX into the Videos tab.
 
-**Architecture:** 3 parallel tracks — (1) CMS channel registration UI with YouTube API lookup, (2) replace hardcoded home page data with DB queries + conditional rendering, (3) per-locale weekly pick with `pinned_until` column and CMS picker UI. Tracks share types/queries but can be developed concurrently after shared foundations (Tasks 1-3) land.
+**Architecture:** Custom `sections` prop on `CmsShell` adds YouTube to the sidebar. A new `youtube/layout.tsx` client component provides shared tab bar across all YouTube sub-pages. A new `youtube/page.tsx` server component renders the dashboard with per-channel cards. Schedule labels are auto-derived from `sync_schedules` via a pure function with manual override via new DB column.
 
-**Tech Stack:** Next.js 15, React 19, TypeScript 5, Supabase (PostgreSQL 17), YouTube Data API v3, Zod, Vitest, Tailwind 4.
-
----
-
-## File Map
-
-### New files
-| File | Purpose |
-|---|---|
-| `supabase/migrations/20260505000002_youtube_pinned_until.sql` | Add `pinned_until` column + partial unique index |
-
-### Modified files — Track 1 (CMS Registration)
-| File | Changes |
-|---|---|
-| `apps/web/src/lib/youtube/api-client.ts` | Add `lookupChannelByHandle()` + `ChannelLookupResult` type |
-| `apps/web/src/app/cms/(authed)/settings/actions.ts` | Add `lookupYouTubeChannel`, `addYouTubeChannel`, `removeYouTubeChannel` server actions |
-| `apps/web/src/app/cms/(authed)/settings/page.tsx` | Expand youtube_channels SELECT to include extra columns |
-| `apps/web/src/app/cms/(authed)/settings/settings-connected.tsx` | Rewrite `YouTubeSection` with add form, preview card, remove confirmation |
-
-### Modified files — Track 2 (Home Page Wiring)
-| File | Changes |
-|---|---|
-| `apps/web/lib/home/types.ts` | Update `HomeVideo` + `HomeChannel` types to match DB schema |
-| `apps/web/lib/home/queries.ts` | Add `getHomeChannels`, `getHomeVideos`, `getWeeklyPick`, `getVideoCount` |
-| `apps/web/src/app/(public)/components/PinboardHome.tsx` | Replace `SAMPLE_VIDEOS` import with DB queries, pass channels + hasVideos to children |
-| `apps/web/src/app/(public)/components/DualHero.tsx` | Accept `channels`/`hasVideos`/`isPinned`, add "coming soon" placeholder |
-| `apps/web/src/app/(public)/components/ChannelStrip.tsx` | Accept `channels` prop, remove `YOUTUBE_CHANNELS` import, conditional 0/1/2 |
-| `apps/web/src/app/(public)/components/VideoGrid.tsx` | Accept `channels` prop, remove `YOUTUBE_CHANNELS` import, add "coming soon" teaser |
-| `apps/web/src/app/(public)/components/SubscribePair.tsx` | Accept `channels` prop, remove `YOUTUBE_CHANNELS` import, conditional rendering |
-| `apps/web/src/app/(public)/components/StatsStrip.tsx` | No changes (already handles `videoCount=0`) |
-| `apps/web/src/components/layout/header-types.ts` | Remove hardcoded `YT_CHANNELS`, accept channels from layout |
-| `apps/web/src/components/layout/header-ctas.tsx` | Accept optional `channelUrl` prop, hide Subscribe button when null |
-| `apps/web/src/components/layout/global-header.tsx` | Accept `channelUrl` prop, pass to CTAs |
-| `apps/web/src/app/(public)/layout.tsx` | Fetch channels from DB, pass to header |
-| `apps/web/src/app/locales/en.json` | Add i18n keys for "coming soon" and 1-channel adaptive text |
-| `apps/web/src/app/locales/pt-BR.json` | Same i18n keys in Portuguese |
-
-### Modified files — Track 3 (Weekly Pick)
-| File | Changes |
-|---|---|
-| `apps/web/src/app/cms/(authed)/youtube/videos/actions.ts` | Add `pinWeeklyPick`, `unpinWeeklyPick` server actions |
-| `apps/web/src/app/cms/(authed)/youtube/videos/videos-connected.tsx` | Add pick banners UI at top of page + picker dialog |
-| `apps/web/src/app/cms/(authed)/youtube/videos/page.tsx` | Fetch pinned video data for pick banners |
-| `apps/web/src/app/(public)/youtube/page.tsx` | Add 0-channel redirect + 0-video "coming soon" state |
-
-### Deleted files
-| File | Reason |
-|---|---|
-| `apps/web/lib/home/videos-data.ts` | Hardcoded data fully replaced by DB queries |
-
-### Test files
-| File | Purpose |
-|---|---|
-| `apps/web/test/youtube/api-client.test.ts` | Unit tests for `lookupChannelByHandle` input parsing |
-| `apps/web/test/youtube/home-queries.test.ts` | Unit tests for locale mapping + query builders |
-| `apps/web/test/integration/youtube-weekly-pick.test.ts` | DB-gated integration tests for pin/unpin/expiry |
+**Tech Stack:** Next.js 15, React 19, TypeScript 5, Tailwind 4, Supabase (PostgreSQL), Vitest
 
 ---
 
-## Task 1: Migration — `pinned_until` column
+### Task 1: Schedule Label — Migration + Pure Function + Tests
 
 **Files:**
-- Create: `supabase/migrations/20260505000002_youtube_pinned_until.sql`
+- Create: `supabase/migrations/20260505000004_youtube_schedule_label.sql`
+- Create: `apps/web/src/lib/youtube/schedule-label.ts`
+- Create: `apps/web/test/youtube/schedule-label.test.ts`
 
-- [ ] **Step 1: Create migration file**
+- [ ] **Step 1: Write the failing tests for `deriveScheduleLabel`**
 
-```sql
--- Weekly pick: pinned_until replaces is_featured for home page locale-specific picks
-ALTER TABLE youtube_videos ADD COLUMN IF NOT EXISTS pinned_until timestamptz;
-
--- Only 1 pinned video per channel (= per locale, since UNIQUE(site_id, locale) on channels)
-DROP INDEX IF EXISTS youtube_videos_pinned_per_channel;
-CREATE UNIQUE INDEX youtube_videos_pinned_per_channel
-  ON youtube_videos(channel_id) WHERE pinned_until > now();
-
-DROP INDEX IF EXISTS idx_youtube_videos_pinned;
-CREATE INDEX idx_youtube_videos_pinned
-  ON youtube_videos(site_id, pinned_until DESC) WHERE pinned_until IS NOT NULL;
-```
-
-- [ ] **Step 2: Validate locally**
-
-Run: `npm run db:start && npm run db:reset`
-Expected: Migration applies cleanly, no errors.
-
-- [ ] **Step 3: Push to prod**
-
-Run: `npm run db:push:prod`
-Expected: Prompts YES, applies 1 migration.
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add supabase/migrations/20260505000002_youtube_pinned_until.sql
-git commit -m "feat(youtube): add pinned_until column for weekly pick per locale"
-```
-
----
-
-## Task 2: API Client — `lookupChannelByHandle`
-
-**Files:**
-- Modify: `apps/web/src/lib/youtube/api-client.ts`
-- Create: `apps/web/test/youtube/api-client-lookup.test.ts`
-
-- [ ] **Step 1: Write failing tests for input parsing**
-
-Create `apps/web/test/youtube/api-client-lookup.test.ts`:
+Create `apps/web/test/youtube/schedule-label.test.ts`:
 
 ```typescript
 import { describe, it, expect } from 'vitest'
-import { parseHandleInput } from '../../src/lib/youtube/api-client'
+import { deriveScheduleLabel } from '@/lib/youtube/schedule-label'
 
-describe('parseHandleInput', () => {
-  it('extracts handle from full URL', () => {
-    expect(parseHandleInput('https://www.youtube.com/@tnFigueiredoTV')).toBe('@tnFigueiredoTV')
+describe('deriveScheduleLabel', () => {
+  it('returns null for empty schedules', () => {
+    expect(deriveScheduleLabel([], 'en')).toBeNull()
+    expect(deriveScheduleLabel([], 'pt-BR')).toBeNull()
   })
 
-  it('extracts handle from URL without www', () => {
-    expect(parseHandleInput('https://youtube.com/@byThiagoFigueiredo')).toBe('@byThiagoFigueiredo')
+  it('handles single day in EN', () => {
+    const schedules = [{ day: 'thursday', hour: 10, tz: 'America/Sao_Paulo', label: '' }]
+    expect(deriveScheduleLabel(schedules, 'en')).toBe('new every Thursday')
   })
 
-  it('extracts channel ID from /channel/ URL', () => {
-    expect(parseHandleInput('https://www.youtube.com/channel/UCxyz123')).toBe('UCxyz123')
+  it('handles single day in PT-BR', () => {
+    const schedules = [{ day: 'thursday', hour: 10, tz: 'America/Sao_Paulo', label: '' }]
+    expect(deriveScheduleLabel(schedules, 'pt-BR')).toBe('novidade toda quinta')
   })
 
-  it('passes through handle with @', () => {
-    expect(parseHandleInput('@tnFigueiredoTV')).toBe('@tnFigueiredoTV')
+  it('handles monday', () => {
+    const schedules = [{ day: 'monday', hour: 8, tz: 'UTC', label: '' }]
+    expect(deriveScheduleLabel(schedules, 'en')).toBe('new every Monday')
+    expect(deriveScheduleLabel(schedules, 'pt-BR')).toBe('novidade toda segunda')
   })
 
-  it('prepends @ to bare handle', () => {
-    expect(parseHandleInput('tnFigueiredoTV')).toBe('@tnFigueiredoTV')
+  it('handles two days with & separator', () => {
+    const schedules = [
+      { day: 'tuesday', hour: 10, tz: 'UTC', label: '' },
+      { day: 'friday', hour: 10, tz: 'UTC', label: '' },
+    ]
+    expect(deriveScheduleLabel(schedules, 'en')).toBe('new Tue & Fri')
+    expect(deriveScheduleLabel(schedules, 'pt-BR')).toBe('novidade terça e sexta')
   })
 
-  it('trims whitespace', () => {
-    expect(parseHandleInput('  @handle  ')).toBe('@handle')
+  it('handles three days with comma + &', () => {
+    const schedules = [
+      { day: 'monday', hour: 10, tz: 'UTC', label: '' },
+      { day: 'wednesday', hour: 10, tz: 'UTC', label: '' },
+      { day: 'friday', hour: 10, tz: 'UTC', label: '' },
+    ]
+    expect(deriveScheduleLabel(schedules, 'en')).toBe('new Mon, Wed & Fri')
+    expect(deriveScheduleLabel(schedules, 'pt-BR')).toBe('novidade seg, qua e sex')
   })
 
-  it('handles youtube.com/c/ custom URL', () => {
-    expect(parseHandleInput('https://youtube.com/c/mychannel')).toBe('@mychannel')
+  it('deduplicates same-day entries', () => {
+    const schedules = [
+      { day: 'thursday', hour: 10, tz: 'UTC', label: '' },
+      { day: 'thursday', hour: 14, tz: 'UTC', label: '' },
+    ]
+    expect(deriveScheduleLabel(schedules, 'en')).toBe('new every Thursday')
   })
+
+  it('returns null for unknown day values', () => {
+    const schedules = [{ day: 'funday', hour: 10, tz: 'UTC', label: '' }]
+    expect(deriveScheduleLabel(schedules, 'en')).toBeNull()
+  })
+
+  it('handles all seven days', () => {
+    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+    const schedules = days.map(d => ({ day: d, hour: 10, tz: 'UTC', label: '' }))
+    const result = deriveScheduleLabel(schedules, 'en')
+    expect(result).toContain('Mon')
+    expect(result).toContain('Sun')
+  })
+})
+
+describe('resolveScheduleLabel', () => {
+  // We'll import this once implemented
 })
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `npm run test:web -- --run test/youtube/api-client-lookup.test.ts`
-Expected: FAIL — `parseHandleInput` is not exported.
+Run: `cd apps/web && npx vitest run test/youtube/schedule-label.test.ts`
+Expected: FAIL — module not found
 
-- [ ] **Step 3: Implement `parseHandleInput` and `lookupChannelByHandle`**
+- [ ] **Step 3: Write the `deriveScheduleLabel` implementation**
 
-Add to `apps/web/src/lib/youtube/api-client.ts` (after the existing `fetchChannelStats` function):
+Create `apps/web/src/lib/youtube/schedule-label.ts`:
 
 ```typescript
-export interface ChannelLookupResult {
-  channelId: string
-  handle: string
-  name: string
-  description: string | null
-  uploadsPlaylistId: string
-  subscriberCount: number
-  videoCount: number
-  thumbnailUrl: string | null
-  bannerUrl: string | null
-  customUrl: string | null
+type ScheduleEntry = { day: string; hour: number; tz: string; label: string }
+
+const DAY_NAMES_EN: Record<string, { full: string; short: string }> = {
+  monday: { full: 'Monday', short: 'Mon' },
+  tuesday: { full: 'Tuesday', short: 'Tue' },
+  wednesday: { full: 'Wednesday', short: 'Wed' },
+  thursday: { full: 'Thursday', short: 'Thu' },
+  friday: { full: 'Friday', short: 'Fri' },
+  saturday: { full: 'Saturday', short: 'Sat' },
+  sunday: { full: 'Sunday', short: 'Sun' },
 }
 
-export function parseHandleInput(raw: string): string {
-  const input = raw.trim()
-  const channelMatch = input.match(/youtube\.com\/channel\/(UC[a-zA-Z0-9_-]+)/)
-  if (channelMatch) return channelMatch[1]
-  const handleMatch = input.match(/youtube\.com\/@([a-zA-Z0-9_.-]+)/)
-  if (handleMatch) return `@${handleMatch[1]}`
-  const customMatch = input.match(/youtube\.com\/c\/([a-zA-Z0-9_.-]+)/)
-  if (customMatch) return `@${customMatch[1]}`
-  if (input.startsWith('@')) return input
-  return `@${input}`
+const DAY_NAMES_PT: Record<string, { full: string; short: string }> = {
+  monday: { full: 'segunda', short: 'seg' },
+  tuesday: { full: 'terça', short: 'terça' },
+  wednesday: { full: 'quarta', short: 'qua' },
+  thursday: { full: 'quinta', short: 'quinta' },
+  friday: { full: 'sexta', short: 'sexta' },
+  saturday: { full: 'sábado', short: 'sáb' },
+  sunday: { full: 'domingo', short: 'dom' },
 }
 
-export async function lookupChannelByHandle(
-  handleOrUrl: string,
-  apiKey: string,
-): Promise<ChannelLookupResult | null> {
-  const parsed = parseHandleInput(handleOrUrl)
-  const isChannelId = parsed.startsWith('UC')
+const DAY_ORDER = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 
-  const param = isChannelId ? `id=${parsed}` : `forHandle=${parsed}`
-  const url = `${BASE}/channels?part=snippet,statistics,contentDetails&${param}&key=${apiKey}`
-  const data = (await ytFetch(url)) as {
-    items?: Array<{
-      id: string
-      snippet: {
-        title: string
-        description: string
-        customUrl?: string
-        thumbnails: { medium?: { url: string } }
-      }
-      statistics: { subscriberCount?: string; videoCount?: string }
-      contentDetails: { relatedPlaylists: { uploads: string } }
-      brandingSettings?: { image?: { bannerExternalUrl?: string } }
-    }>
+export function deriveScheduleLabel(
+  schedules: ScheduleEntry[],
+  locale: 'pt-BR' | 'en',
+): string | null {
+  const uniqueDays = [...new Set(schedules.map(s => s.day.toLowerCase()))]
+    .filter(d => DAY_ORDER.includes(d))
+    .sort((a, b) => DAY_ORDER.indexOf(a) - DAY_ORDER.indexOf(b))
+
+  if (uniqueDays.length === 0) return null
+
+  const names = locale === 'pt-BR' ? DAY_NAMES_PT : DAY_NAMES_EN
+  const prefix = locale === 'pt-BR' ? 'novidade' : 'new'
+  const conjunction = locale === 'pt-BR' ? 'e' : '&'
+
+  if (uniqueDays.length === 1) {
+    const full = names[uniqueDays[0]!]!.full
+    const every = locale === 'pt-BR' ? 'toda' : 'every'
+    return `${prefix} ${every} ${full}`
   }
 
-  const item = data.items?.[0]
-  if (!item) return null
+  const labels = uniqueDays.map(d => names[d]!.short)
+  const last = labels.pop()!
+  return `${prefix} ${labels.join(', ')} ${conjunction} ${last}`
+}
 
-  return {
-    channelId: item.id,
-    handle: item.snippet.customUrl ?? parsed,
-    name: item.snippet.title,
-    description: item.snippet.description || null,
-    uploadsPlaylistId: item.contentDetails.relatedPlaylists.uploads,
-    subscriberCount: parseInt(item.statistics.subscriberCount ?? '0', 10),
-    videoCount: parseInt(item.statistics.videoCount ?? '0', 10),
-    thumbnailUrl: item.snippet.thumbnails.medium?.url ?? null,
-    bannerUrl: item.brandingSettings?.image?.bannerExternalUrl ?? null,
-    customUrl: item.snippet.customUrl ?? null,
-  }
+export function resolveScheduleLabel(
+  scheduleLabel: string | null,
+  syncSchedules: ScheduleEntry[] | null,
+  locale: 'pt-BR' | 'en',
+): string | null {
+  if (scheduleLabel && scheduleLabel.trim()) return scheduleLabel.trim()
+  if (!syncSchedules || syncSchedules.length === 0) return null
+  return deriveScheduleLabel(syncSchedules, locale)
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [ ] **Step 4: Add `resolveScheduleLabel` tests to the test file**
 
-Run: `npm run test:web -- --run test/youtube/api-client-lookup.test.ts`
-Expected: All 7 tests PASS.
+Append to `apps/web/test/youtube/schedule-label.test.ts`:
 
-- [ ] **Step 5: Commit**
+```typescript
+import { resolveScheduleLabel } from '@/lib/youtube/schedule-label'
+
+describe('resolveScheduleLabel', () => {
+  it('returns manual override when set', () => {
+    const schedules = [{ day: 'thursday', hour: 10, tz: 'UTC', label: '' }]
+    expect(resolveScheduleLabel('custom text', schedules, 'en')).toBe('custom text')
+  })
+
+  it('trims whitespace-only override to null and falls through', () => {
+    expect(resolveScheduleLabel('   ', null, 'en')).toBeNull()
+  })
+
+  it('auto-derives when no override', () => {
+    const schedules = [{ day: 'thursday', hour: 10, tz: 'UTC', label: '' }]
+    expect(resolveScheduleLabel(null, schedules, 'en')).toBe('new every Thursday')
+  })
+
+  it('returns null when both are empty', () => {
+    expect(resolveScheduleLabel(null, [], 'en')).toBeNull()
+    expect(resolveScheduleLabel(null, null, 'pt-BR')).toBeNull()
+  })
+})
+```
+
+- [ ] **Step 5: Run tests to verify they pass**
+
+Run: `cd apps/web && npx vitest run test/youtube/schedule-label.test.ts`
+Expected: ALL PASS
+
+- [ ] **Step 6: Create the migration**
+
+Create `supabase/migrations/20260505000004_youtube_schedule_label.sql`:
+
+```sql
+ALTER TABLE youtube_channels ADD COLUMN IF NOT EXISTS schedule_label text;
+COMMENT ON COLUMN youtube_channels.schedule_label IS
+  'Manual override for schedule text on public site. NULL = auto-derive from sync_schedules.';
+```
+
+- [ ] **Step 7: Commit**
 
 ```bash
-git add apps/web/src/lib/youtube/api-client.ts apps/web/test/youtube/api-client-lookup.test.ts
-git commit -m "feat(youtube): add lookupChannelByHandle API client + parseHandleInput"
+git add apps/web/src/lib/youtube/schedule-label.ts apps/web/test/youtube/schedule-label.test.ts supabase/migrations/20260505000004_youtube_schedule_label.sql
+git commit -m "feat(youtube): add schedule label migration + deriveScheduleLabel pure function"
 ```
 
 ---
 
-## Task 3: Update shared types
+### Task 2: Wire Schedule Label to Home Page + Public Components
 
 **Files:**
 - Modify: `apps/web/lib/home/types.ts`
+- Modify: `apps/web/lib/home/queries.ts`
+- Modify: `apps/web/src/app/(public)/components/ChannelStrip.tsx`
+- Modify: `apps/web/src/app/(public)/components/SubscribePair.tsx`
 
-- [ ] **Step 1: Update `HomeChannel` and `HomeVideo` types**
+- [ ] **Step 1: Add `scheduleLabel` to `HomeChannel` type**
 
-In `apps/web/lib/home/types.ts`, replace the existing `HomeChannel` and `HomeVideo` types:
+In `apps/web/lib/home/types.ts`, modify `HomeChannel`:
 
 ```typescript
 export type HomeChannel = {
@@ -260,1145 +238,111 @@ export type HomeChannel = {
   name: string
   subscriberCount: number
   thumbnailUrl: string | null
-}
-
-export type HomeVideo = {
-  id: string
-  locale: 'en' | 'pt-BR'
-  title: string
-  description: string
-  thumbnailUrl: string | null
-  duration: string
-  viewCount: number
-  publishedAt: string
-  categoryName: string | null
-  categoryColor: string | null
-  youtubeUrl: string
-  channelHandle: string
-  youtubeVideoId: string
-  isPinned: boolean
+  scheduleLabel: string | null
 }
 ```
 
-- [ ] **Step 2: Run typecheck to find all breakages**
+- [ ] **Step 2: Update `getHomeChannels` query to include schedule label**
 
-Run: `npx tsc --noEmit -p apps/web/tsconfig.json 2>&1 | head -50`
-Expected: Type errors in files importing `HomeVideo`/`HomeChannel`. This is expected — those files will be updated in subsequent tasks.
+In `apps/web/lib/home/queries.ts`, modify the `getHomeChannels` function. Change the SELECT to include `schedule_label, sync_schedules` and import + call `resolveScheduleLabel`:
 
-- [ ] **Step 3: Commit**
-
-```bash
-git add apps/web/lib/home/types.ts
-git commit -m "feat(youtube): update HomeChannel/HomeVideo types for DB wiring"
-```
-
----
-
-## Task 4: Home page queries
-
-**Files:**
-- Modify: `apps/web/lib/home/queries.ts`
-
-**Depends on:** Task 3 (types)
-
-- [ ] **Step 1: Add locale mapping constants and YouTube query functions**
-
-Add these imports and functions to `apps/web/lib/home/queries.ts` (at the end of the file, after `getSubscriberCount`):
-
+At the top of the file, add import:
 ```typescript
-import { unstable_cache } from 'next/cache'
-import type { HomeChannel, HomeVideo } from './types'
-
-const DB_LOCALE_MAP: Record<string, 'pt' | 'en'> = { 'pt-BR': 'pt', 'en': 'en' }
-const HOME_LOCALE_MAP: Record<string, 'en' | 'pt-BR'> = { 'pt': 'pt-BR', 'en': 'en' }
-const LOCALE_FLAG: Record<string, string> = { 'pt': '🇧🇷', 'en': '🌎' }
-
-export const getHomeChannels = unstable_cache(
-  async (siteId: string): Promise<HomeChannel[]> => {
-    const db = getSupabaseServiceClient()
-    const { data, error } = await db
-      .from('youtube_channels')
-      .select('id, locale, handle, name, subscriber_count, thumbnail_url, custom_url')
-      .eq('site_id', siteId)
-      .order('locale')
-
-    if (error || !data) return []
-    return data.map((c) => {
-      const homeLocale = HOME_LOCALE_MAP[c.locale as string] ?? 'en'
-      return {
-        id: c.id as string,
-        locale: homeLocale,
-        handle: c.handle as string,
-        url: `https://www.youtube.com/${c.handle as string}`,
-        flag: LOCALE_FLAG[c.locale as string] ?? '🌎',
-        name: c.name as string,
-        subscriberCount: (c.subscriber_count as number) ?? 0,
-        thumbnailUrl: (c.thumbnail_url as string) ?? null,
-      }
-    })
-  },
-  ['home-channels'],
-  { revalidate: 3600, tags: ['youtube'] },
-)
-
-export const getHomeVideos = unstable_cache(
-  async (siteId: string, locale: string, limit = 3): Promise<HomeVideo[]> => {
-    const dbLocale = DB_LOCALE_MAP[locale] ?? locale
-    const db = getSupabaseServiceClient()
-    const { data, error } = await db
-      .from('youtube_videos')
-      .select(`
-        id, youtube_video_id, title, description, thumbnail_url, duration,
-        view_count, published_at, is_hidden,
-        youtube_channels!inner(locale, handle),
-        youtube_categories(slug, name_pt, name_en, color)
-      `)
-      .eq('site_id', siteId)
-      .eq('youtube_channels.locale', dbLocale)
-      .eq('is_hidden', false)
-      .order('published_at', { ascending: false })
-      .limit(limit)
-
-    if (error || !data) return []
-    return (data as Record<string, unknown>[]).map((row) => {
-      const ch = row['youtube_channels'] as { locale: string; handle: string }
-      const cat = row['youtube_categories'] as { slug: string; name_pt: string; name_en: string; color: string } | null
-      const homeLocale = HOME_LOCALE_MAP[ch.locale] ?? 'en'
-      const catName = cat ? (ch.locale === 'pt' ? cat.name_pt : cat.name_en) : null
-      return {
-        id: row['id'] as string,
-        locale: homeLocale,
-        title: row['title'] as string,
-        description: (row['description'] as string) ?? '',
-        thumbnailUrl: (row['thumbnail_url'] as string) ?? null,
-        duration: row['duration'] as string,
-        viewCount: row['view_count'] as number,
-        publishedAt: row['published_at'] as string,
-        categoryName: catName,
-        categoryColor: cat?.color ?? null,
-        youtubeUrl: `https://www.youtube.com/watch?v=${row['youtube_video_id'] as string}`,
-        channelHandle: ch.handle,
-        youtubeVideoId: row['youtube_video_id'] as string,
-        isPinned: false,
-      }
-    })
-  },
-  ['home-videos'],
-  { revalidate: 3600, tags: ['youtube'] },
-)
-
-export const getWeeklyPick = unstable_cache(
-  async (siteId: string, locale: string): Promise<HomeVideo | null> => {
-    const dbLocale = DB_LOCALE_MAP[locale] ?? locale
-    const db = getSupabaseServiceClient()
-
-    const selectCols = `
-      id, youtube_video_id, title, description, thumbnail_url, duration,
-      view_count, published_at, pinned_until,
-      youtube_channels!inner(locale, handle),
-      youtube_categories(slug, name_pt, name_en, color)
-    `
-
-    // Try pinned first
-    const { data: pinned } = await db
-      .from('youtube_videos')
-      .select(selectCols)
-      .eq('site_id', siteId)
-      .eq('youtube_channels.locale', dbLocale)
-      .eq('is_hidden', false)
-      .gt('pinned_until', new Date().toISOString())
-      .order('pinned_until', { ascending: false })
-      .limit(1)
-
-    const row = (pinned as Record<string, unknown>[] | null)?.[0]
-
-    // Fallback: latest by published_at
-    const source = row ?? await (async () => {
-      const { data } = await db
-        .from('youtube_videos')
-        .select(selectCols)
-        .eq('site_id', siteId)
-        .eq('youtube_channels.locale', dbLocale)
-        .eq('is_hidden', false)
-        .order('published_at', { ascending: false })
-        .limit(1)
-      return (data as Record<string, unknown>[] | null)?.[0] ?? null
-    })()
-
-    if (!source) return null
-
-    const ch = source['youtube_channels'] as { locale: string; handle: string }
-    const cat = source['youtube_categories'] as { slug: string; name_pt: string; name_en: string; color: string } | null
-    const homeLocale = HOME_LOCALE_MAP[ch.locale] ?? 'en'
-    const catName = cat ? (ch.locale === 'pt' ? cat.name_pt : cat.name_en) : null
-    const pinnedUntil = source['pinned_until'] as string | null
-    const isPinned = !!pinnedUntil && new Date(pinnedUntil) > new Date()
-
-    return {
-      id: source['id'] as string,
-      locale: homeLocale,
-      title: source['title'] as string,
-      description: (source['description'] as string) ?? '',
-      thumbnailUrl: (source['thumbnail_url'] as string) ?? null,
-      duration: source['duration'] as string,
-      viewCount: source['view_count'] as number,
-      publishedAt: source['published_at'] as string,
-      categoryName: catName,
-      categoryColor: cat?.color ?? null,
-      youtubeUrl: `https://www.youtube.com/watch?v=${source['youtube_video_id'] as string}`,
-      channelHandle: ch.handle,
-      youtubeVideoId: source['youtube_video_id'] as string,
-      isPinned,
-    }
-  },
-  ['weekly-pick'],
-  { revalidate: 3600, tags: ['youtube'] },
-)
-
-export const getVideoCount = unstable_cache(
-  async (siteId: string, locale: string): Promise<number> => {
-    const dbLocale = DB_LOCALE_MAP[locale] ?? locale
-    const db = getSupabaseServiceClient()
-    const { count, error } = await db
-      .from('youtube_videos')
-      .select('id, youtube_channels!inner(locale)', { count: 'exact', head: true })
-      .eq('site_id', siteId)
-      .eq('youtube_channels.locale', dbLocale)
-      .eq('is_hidden', false)
-
-    if (error) return 0
-    return count ?? 0
-  },
-  ['video-count'],
-  { revalidate: 3600, tags: ['youtube'] },
-)
+import { resolveScheduleLabel } from '@/lib/youtube/schedule-label'
 ```
 
-Note: `unstable_cache` is already imported in the file's existing imports from `next/cache` — check if it's there; if not, add it alongside the existing imports.
-
-- [ ] **Step 2: Run typecheck**
-
-Run: `npx tsc --noEmit -p apps/web/tsconfig.json 2>&1 | grep "queries.ts"`
-Expected: No errors in queries.ts (component type errors from Task 3 are expected elsewhere).
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add apps/web/lib/home/queries.ts
-git commit -m "feat(youtube): add home page YouTube queries with unstable_cache"
-```
-
----
-
-## Task 5: Add i18n keys
-
-**Files:**
-- Modify: `apps/web/src/app/locales/en.json`
-- Modify: `apps/web/src/app/locales/pt-BR.json`
-
-- [ ] **Step 1: Add YouTube conditional/coming-soon keys to en.json**
-
-Add these keys to `apps/web/src/app/locales/en.json` (in the `home.channels` section, after existing keys):
-
-```json
-"home.channels.headlineSingle": "one channel, one vision",
-"home.channels.sublineSingle": "SUBSCRIBE",
-"home.youtube.comingSoon": "first video coming soon",
-"home.youtube.comingSoonSub": "Subscribe to the channel to get notified when it drops.",
-"home.subscribe.ytSubtitle2": "Live-coding, setup tours, bug retrospectives. A new video every Thursday, sometimes two.",
-"home.subscribe.subscribersSuffix": "subscribers",
-"home.subscribe.scheduleNote": "next Thursday: new videos on both channels"
-```
-
-- [ ] **Step 2: Add same keys to pt-BR.json**
-
-```json
-"home.channels.headlineSingle": "um canal, uma visão",
-"home.channels.sublineSingle": "INSCREVA-SE",
-"home.youtube.comingSoon": "primeiro vídeo em breve",
-"home.youtube.comingSoonSub": "Inscreva-se no canal para ser notificado quando sair.",
-"home.subscribe.ytSubtitle2": "Live-coding, tours de setup, retrospectivas de bug. Um vídeo novo toda quinta, às vezes dois.",
-"home.subscribe.subscribersSuffix": "inscritos",
-"home.subscribe.scheduleNote": "quinta que vem: vídeos novos nos dois canais"
-```
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add apps/web/src/app/locales/en.json apps/web/src/app/locales/pt-BR.json
-git commit -m "feat(youtube): add i18n keys for conditional rendering and coming-soon states"
-```
-
----
-
-## Task 6: Wire PinboardHome to DB queries
-
-**Files:**
-- Modify: `apps/web/src/app/(public)/components/PinboardHome.tsx`
-
-**Depends on:** Tasks 3, 4
-
-- [ ] **Step 1: Replace hardcoded imports with DB queries**
-
-In `PinboardHome.tsx`:
-
-1. Remove line 23: `import { SAMPLE_VIDEOS } from '../../../../lib/home/videos-data'`
-
-2. Add import: `import { getHomeChannels, getHomeVideos, getWeeklyPick, getVideoCount } from '../../../../lib/home/queries'`
-
-3. Add import: `import { getSiteContext } from '../../../../lib/cms/site-context'`
-
-4. Inside the `PinboardHome` function, after the existing `Promise.all` block (line 39-48), add a second parallel fetch:
-
+In the `getHomeChannels` function, change:
 ```typescript
-const { siteId } = await getSiteContext()
-const dbLocale = locale === 'pt-BR' ? 'pt' : 'en'
-
-const [channels, weeklyPick, localeVideos, videoCount] = await Promise.all([
-  getHomeChannels(siteId),
-  getWeeklyPick(siteId, locale),
-  getHomeVideos(siteId, locale, 3),
-  getVideoCount(siteId, locale),
-])
-
-const hasChannels = channels.length > 0
-const hasVideos = videoCount > 0
+.select('id, locale, handle, name, subscriber_count, thumbnail_url')
 ```
-
-5. Remove the old lines 50-51 and 63:
+to:
 ```typescript
-// DELETE these lines:
-// const localeVideos = SAMPLE_VIDEOS.filter(v => v.locale === locale)
-// const featuredVideo = localeVideos[0] ?? null
-// const videoCount = localeVideos.length
+.select('id, locale, handle, name, subscriber_count, thumbnail_url, schedule_label, sync_schedules')
 ```
 
-6. Update the JSX to pass new props:
-
-Replace the DualHero call:
+And in the return mapping, add `scheduleLabel`:
 ```typescript
-<DualHero post={featuredPost} video={weeklyPick} channels={channels} hasVideos={hasVideos} locale={locale} t={t} />
-```
-
-Replace the ChannelStrip call:
-```typescript
-<ChannelStrip newsletter={primaryNewsletter} channels={channels} locale={locale} t={t} />
-```
-
-Wrap the first BookmarkPlaceholder + VideoGrid in a conditional:
-```typescript
-{hasChannels && (
-  <>
-    <BookmarkPlaceholder locale={locale} t={t} />
-    <div className="pb-section">
-      <VideoGrid videos={localeVideos} channels={channels} hasVideos={hasVideos} locale={locale} t={t} />
-    </div>
-    <BookmarkPlaceholder locale={locale} t={t} />
-  </>
-)}
-{!hasChannels && (
-  <BookmarkPlaceholder locale={locale} t={t} />
-)}
-```
-
-Replace the SubscribePair call:
-```typescript
-<SubscribePair newsletter={primaryNewsletter} channels={channels} locale={locale} t={t} />
-```
-
-- [ ] **Step 2: Commit (will have type errors until component props are updated — that's OK)**
-
-```bash
-git add apps/web/src/app/\(public\)/components/PinboardHome.tsx
-git commit -m "feat(youtube): wire PinboardHome to DB queries, pass channels to children"
-```
-
----
-
-## Task 7: Update DualHero for conditional rendering
-
-**Files:**
-- Modify: `apps/web/src/app/(public)/components/DualHero.tsx`
-
-**Depends on:** Task 6
-
-- [ ] **Step 1: Update Props type and add coming-soon card**
-
-Replace the entire `DualHero.tsx` content. Key changes:
-- Add `channels` and `hasVideos` to Props
-- Keep existing post card unchanged
-- Add "coming soon" placeholder card when `channels.length > 0 && !hasVideos`
-- Add `★ PINNED` badge when `video?.isPinned`
-
-Update the Props type (line 13-18):
-```typescript
-type Props = {
-  post: HomePost | null
-  video: HomeVideo | null
-  channels: HomeChannel[]
-  hasVideos: boolean
-  locale: 'en' | 'pt-BR'
-  t: Record<string, string>
+return {
+  id: c.id as string,
+  locale: homeLocale,
+  handle: c.handle as string,
+  url: `https://www.youtube.com/${c.handle as string}`,
+  flag: LOCALE_FLAG[c.locale as string] ?? '🌎',
+  name: c.name as string,
+  subscriberCount: (c.subscriber_count as number) ?? 0,
+  thumbnailUrl: (c.thumbnail_url as string) ?? null,
+  scheduleLabel: resolveScheduleLabel(
+    c.schedule_label as string | null,
+    c.sync_schedules as Array<{ day: string; hour: number; tz: string; label: string }> | null,
+    homeLocale,
+  ),
 }
 ```
 
-Add `HomeChannel` to the import from types:
+- [ ] **Step 3: Update `ChannelStrip.tsx` to use `channel.scheduleLabel`**
+
+In `apps/web/src/app/(public)/components/ChannelStrip.tsx`, replace line 144:
 ```typescript
-import type { HomePost, HomeVideo, HomeChannel } from '../../../../lib/home/types'
+{t['home.channels.youtubeSchedule']}
+```
+with:
+```typescript
+{ch.scheduleLabel}
 ```
 
-Update function signature:
+And wrap in a conditional so it only renders when non-null:
 ```typescript
-export function DualHero({ post, video, channels, hasVideos, locale, t }: Props) {
-```
-
-Add `hasChannels` constant after existing constants:
-```typescript
-const hasChannels = channels.length > 0
-const showVideo = hasChannels && hasVideos && video
-const showComingSoon = hasChannels && !hasVideos
-const hasContent = post || showVideo || showComingSoon
-```
-
-Update the `cols` calculation:
-```typescript
-const cols = post && (showVideo || showComingSoon) ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1 max-w-2xl mx-auto'
-```
-
-Replace the `{video && (` block (lines 113-161) with:
-
-```typescript
-{/* ── Video card ── */}
-{showVideo && video && (
-  <div style={{ position: 'relative', paddingTop: 20, paddingBottom: 28 }}>
-    <div
-      className="dh-card dh-card-video"
-      style={{ background: 'var(--pb-paper)', position: 'relative', transform: 'rotate(0.8deg)', boxShadow: 'var(--pb-shadow-card)' }}
-    >
-      <div aria-hidden="true" style={{ position: 'absolute', width: 80, height: 18, background: 'var(--pb-tapeR)', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.2)', top: -10, left: '22%', transform: 'rotate(4deg)' }} />
-      <div aria-hidden="true" style={{ position: 'absolute', width: 80, height: 18, background: 'var(--pb-tape)', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.2)', top: -10, right: '15%', transform: 'rotate(-3deg)' }} />
-
-      {video.isPinned && (
-        <div className="font-mono" style={{ position: 'absolute', top: 8, right: 8, zIndex: 2, background: 'var(--pb-accent)', color: '#FFF', fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, padding: '3px 8px' }}>
-          ★ PINNED
-        </div>
-      )}
-
-      <a href={video.youtubeUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
-        <div style={{ position: 'relative', aspectRatio: '16 / 9', overflow: 'hidden', background: video.thumbnailUrl ? undefined : 'linear-gradient(135deg, #51201F 0%, #142229 100%)' }}>
-          {video.thumbnailUrl && (
-            <img src={video.thumbnailUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          )}
-          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(transparent 40%, rgba(0,0,0,0.55))' }} />
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ width: 68, height: 48, background: 'var(--pb-yt)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(255,51,51,0.4)' }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="#FFF"><path d="M8 5v14l11-7z" /></svg>
-            </div>
-          </div>
-          <div className="font-mono" style={{ position: 'absolute', top: 8, left: 8, background: 'var(--pb-yt)', color: '#FFF', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700, padding: '3px 7px' }}>
-            ▶ YouTube
-          </div>
-          <div className="font-mono" style={{ position: 'absolute', bottom: 8, right: 8, background: 'rgba(0,0,0,0.85)', color: '#FFF', fontSize: 11, padding: '2px 7px' }}>
-            {video.duration}
-          </div>
-        </div>
-        <div style={{ padding: '22px 26px 26px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
-            {video.categoryName && (
-              <span className="font-mono" style={{ padding: '2px 8px', background: video.categoryColor ?? 'var(--pb-yt)', color: '#FFF', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600 }}>
-                {video.categoryName}
-              </span>
-            )}
-            <span className="font-mono" style={{ fontSize: 10, color: 'var(--pb-muted)', letterSpacing: '0.1em' }}>
-              {video.viewCount > 0 ? `${video.viewCount.toLocaleString()} · ` : ''}{videoDate}
-            </span>
-          </div>
-          <h3 className="font-fraunces" style={{ fontSize: 'clamp(24px, 2.8vw, 34px)', lineHeight: 1.08, letterSpacing: '-0.02em', margin: 0, fontWeight: 500, color: 'var(--pb-ink)' }}>
-            {video.title}
-          </h3>
-          <p style={{ fontSize: 14.5, color: 'var(--pb-muted)', lineHeight: 1.55, marginTop: 12, marginBottom: 0, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-            {video.description}
-          </p>
-        </div>
-      </a>
-    </div>
-    <div className="font-caveat hidden md:block" style={{ position: 'absolute', bottom: -22, right: 32, color: 'var(--pb-accent)', fontSize: 20, transform: 'rotate(2deg)' }}>
-      {t['hero.video.fresh'] ?? (isPt ? 'novo no canal →' : 'fresh on the channel →')}
-    </div>
-  </div>
-)}
-
-{/* ── Coming soon placeholder ── */}
-{showComingSoon && (
-  <div style={{ position: 'relative', paddingTop: 20, paddingBottom: 28 }}>
-    <div
-      className="dh-card"
-      style={{ background: 'var(--pb-paper)', position: 'relative', transform: 'rotate(0.8deg)', boxShadow: 'var(--pb-shadow-card)', opacity: 0.85 }}
-    >
-      <div aria-hidden="true" style={{ position: 'absolute', width: 80, height: 18, background: 'var(--pb-tapeR)', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.2)', top: -10, left: '22%', transform: 'rotate(4deg)' }} />
-
-      <div style={{ aspectRatio: '16 / 9', background: 'linear-gradient(135deg, #1a1714 0%, #2a2218 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ width: 56, height: 40, background: 'rgba(255,45,32,0.25)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 8px' }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="rgba(255,45,32,0.6)"><path d="M8 5v14l11-7z" /></svg>
-          </div>
-          <div className="font-caveat" style={{ fontSize: 14, color: 'rgba(242,235,219,0.5)', transform: 'rotate(-1deg)' }}>
-            {t['home.youtube.comingSoon']}
-          </div>
-        </div>
-        <div className="font-mono" style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(255,45,32,0.3)', color: 'rgba(255,255,255,0.6)', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700, padding: '3px 7px' }}>
-          ▶ YouTube
-        </div>
-      </div>
-      <div style={{ padding: '22px 26px 26px' }}>
-        <div className="font-caveat" style={{ fontSize: 16, color: 'var(--pb-accent)', transform: 'rotate(-0.5deg)' }}>
-          {isPt ? 'Primeiro vídeo saindo do forno' : 'First video dropping soon'}
-        </div>
-        <p style={{ fontSize: 12, color: 'var(--pb-muted)', marginTop: 4 }}>
-          {t['home.youtube.comingSoonSub']}
-        </p>
-        {channels[0] && (
-          <a
-            href={channels[0].url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-mono"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 8, background: 'var(--pb-yt)', color: '#FFF', padding: '6px 14px', fontSize: 11, fontWeight: 600, textDecoration: 'none' }}
-          >
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
-            {t['home.youtube.subscribe']}
-          </a>
-        )}
-      </div>
-    </div>
+{ch.scheduleLabel && (
+  <div style={{ fontSize: 12, color: 'var(--pb-faint)', marginTop: 2, fontStyle: 'italic' }}>
+    {ch.scheduleLabel}
   </div>
 )}
 ```
 
-- [ ] **Step 2: Commit**
+Remove the old unconditional `<div>` that was on line 143-145.
 
-```bash
-git add apps/web/src/app/\(public\)/components/DualHero.tsx
-git commit -m "feat(youtube): DualHero conditional rendering + coming-soon placeholder + PINNED badge"
-```
+- [ ] **Step 4: Update `SubscribePair.tsx` to use per-channel schedule labels**
 
----
-
-## Task 8: Update ChannelStrip for dynamic channels
-
-**Files:**
-- Modify: `apps/web/src/app/(public)/components/ChannelStrip.tsx`
-
-**Depends on:** Task 3
-
-- [ ] **Step 1: Replace hardcoded import with channels prop**
-
-In `ChannelStrip.tsx`:
-
-1. Remove line 3: `import { YOUTUBE_CHANNELS } from '@/lib/home/videos-data'`
-
-2. Add `HomeChannel` to the import from types:
+In `apps/web/src/app/(public)/components/SubscribePair.tsx`, replace line 114-116:
 ```typescript
-import type { HomeNewsletter, HomeChannel } from '@/lib/home/types'
-```
-
-3. Update Props type:
-```typescript
-type Props = {
-  newsletter?: HomeNewsletter | null
-  channels: HomeChannel[]
-  locale: 'en' | 'pt-BR'
-  t: Record<string, string>
-}
-```
-
-4. Update the function signature and body:
-```typescript
-export function ChannelStrip({ newsletter, channels, locale, t }: Props) {
-  if (channels.length === 0) return null
-
-  const primary = channels.find(c => c.locale === locale) ?? channels[0]
-  const secondary = channels.find(c => c.locale !== primary.locale)
-  const allChannels = secondary ? [primary, secondary] : [primary]
-  const hasNl = !!newsletter
-  const isSingle = allChannels.length === 1
-```
-
-5. Update the headline to be adaptive:
-```typescript
-<div className="font-caveat" style={{ color: 'var(--pb-yt)', fontSize: 26, transform: 'rotate(-1.5deg)', display: 'inline-block', whiteSpace: 'nowrap' }}>
-  ▶ {isSingle ? t['home.channels.headlineSingle'] : t['home.channels.headline']}
-</div>
-```
-
-6. Update the subline:
-```typescript
-<span className="font-mono uppercase" style={{ fontSize: 11, color: 'var(--pb-muted)', letterSpacing: '0.14em', whiteSpace: 'nowrap' }}>
-  {isSingle ? t['home.channels.sublineSingle'] : t['home.channels.subline']}
-</span>
-```
-
-7. Replace `channels` references in the map with `allChannels`:
-Change `{channels.map((ch, idx) => (` to `{allChannels.map((ch, idx) => (`
-
-8. In the `ChannelCard` function, update the subscriber count display (line 136-138):
-```typescript
-<div style={{ fontSize: 12, color: 'var(--pb-muted)', marginTop: 2 }}>
-  {ch.subscriberCount > 0 ? `${ch.subscriberCount.toLocaleString()} ` : '— '}
-  {t['channels.subscribersSuffix']}
-</div>
-```
-
-Update the ChannelCard prop type to accept HomeChannel:
-```typescript
-function ChannelCard({ ch, idx, locale, t }: {
-  ch: HomeChannel
-  idx: number
-  locale: string
-  t: Record<string, string>
-})
-```
-
-- [ ] **Step 2: Commit**
-
-```bash
-git add apps/web/src/app/\(public\)/components/ChannelStrip.tsx
-git commit -m "feat(youtube): ChannelStrip accepts dynamic channels, adaptive 1/2 headline"
-```
-
----
-
-## Task 9: Update VideoGrid for conditional rendering
-
-**Files:**
-- Modify: `apps/web/src/app/(public)/components/VideoGrid.tsx`
-
-**Depends on:** Task 3
-
-- [ ] **Step 1: Replace hardcoded import, add coming-soon teaser**
-
-In `VideoGrid.tsx`:
-
-1. Remove line 4: `import { YOUTUBE_CHANNELS } from '../../../../lib/home/videos-data'`
-
-2. Add import:
-```typescript
-import type { HomeVideo, HomeChannel } from '../../../../lib/home/types'
-```
-
-3. Update Props:
-```typescript
-type Props = {
-  videos: HomeVideo[]
-  channels: HomeChannel[]
-  hasVideos: boolean
-  locale: 'en' | 'pt-BR'
-  t: Record<string, string>
-}
-```
-
-4. Update function:
-```typescript
-export function VideoGrid({ videos, channels, hasVideos, locale, t }: Props) {
-  if (channels.length === 0) return null
-
-  const isPt = locale === 'pt-BR'
-  const localeChannel = channels.find(c => c.locale === locale) ?? channels[0]
-  const channelUrl = localeChannel.url
-```
-
-5. Replace the early return (`if (videos.length === 0) return null`) with a coming-soon teaser. After the `SectionHeader` and `<h2>` inside the section, add:
-
-```typescript
-{!hasVideos ? (
-  <div style={{ textAlign: 'center', padding: '32px 20px', border: '1px dashed rgba(255,45,32,0.2)', borderRadius: 6 }}>
-    <div style={{ width: 64, height: 44, background: 'rgba(255,45,32,0.15)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="rgba(255,45,32,0.5)"><path d="M8 5v14l11-7z" /></svg>
-    </div>
-    <div className="font-caveat" style={{ fontSize: 20, color: 'var(--pb-accent)', marginBottom: 6, transform: 'rotate(-1deg)' }}>
-      {t['home.youtube.comingSoon']}
-    </div>
-    <p style={{ fontSize: 13, color: 'var(--pb-faint)', marginBottom: 14 }}>
-      {t['home.youtube.comingSoonSub']}
-    </p>
-    <a
-      href={channelUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="font-mono uppercase"
-      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--pb-yt)', color: '#FFF', padding: '10px 22px', fontSize: 11, letterSpacing: '0.14em', fontWeight: 600, textDecoration: 'none' }}
-    >
-      ▶ {t['home.youtube.subscribe']}
-    </a>
-  </div>
-) : (
-  // existing grid + button code here
-)}
-```
-
-6. Update view count display in video cards (line 72):
-```typescript
-{video.duration}{video.viewCount > 0 ? ` · ${video.viewCount.toLocaleString()}` : ''}
-```
-
-7. Replace `video.series` with `video.categoryName ?? t['feed.type.video']` (lines 59).
-
-8. Replace `video.youtubeUrl` with the correct URL (already correct from queries).
-
-- [ ] **Step 2: Commit**
-
-```bash
-git add apps/web/src/app/\(public\)/components/VideoGrid.tsx
-git commit -m "feat(youtube): VideoGrid dynamic channels + coming-soon teaser"
-```
-
----
-
-## Task 10: Update SubscribePair for dynamic channels
-
-**Files:**
-- Modify: `apps/web/src/app/(public)/components/SubscribePair.tsx`
-
-**Depends on:** Task 3
-
-- [ ] **Step 1: Replace hardcoded import and strings**
-
-In `SubscribePair.tsx`:
-
-1. Remove line 3: `import { YOUTUBE_CHANNELS } from '../../../../lib/home/videos-data'`
-
-2. Add import:
-```typescript
-import type { HomeNewsletter, HomeChannel } from '../../../../lib/home/types'
-```
-
-3. Update Props:
-```typescript
-type Props = {
-  newsletter: HomeNewsletter | null
-  channels: HomeChannel[]
-  locale: 'en' | 'pt-BR'
-  t: Record<string, string>
-}
-```
-
-4. Update function:
-```typescript
-export function SubscribePair({ newsletter, channels, locale, t }: Props) {
-  const isPt = locale === 'pt-BR'
-  const primary = channels.find(c => c.locale === locale)
-  const secondary = channels.find(c => c.locale !== locale)
-  const allChannels = [primary, secondary].filter(Boolean) as HomeChannel[]
-```
-
-5. If `allChannels.length === 0`, hide the YouTube card entirely — render only the newsletter card at full width:
-```typescript
-const gridCols = allChannels.length === 0 ? 'grid-cols-1 max-w-2xl mx-auto' : 'grid-cols-1 md:grid-cols-2'
-```
-
-6. Wrap the YouTube PaperCard (lines 67-116) in a conditional:
-```typescript
-{allChannels.length > 0 && (
-  <div style={{ position: 'relative', paddingTop: 18 }}>
-    {/* ... existing YouTube PaperCard ... */}
-  </div>
-)}
-```
-
-7. Replace the hardcoded description (lines 78-80):
-```typescript
-<p style={{ fontSize: 15, color: 'var(--pb-muted)', marginTop: 14, lineHeight: 1.55 }}>
-  {t['home.subscribe.ytSubtitle2'] ?? t['home.subscribe.ytSubtitle']}
+<p className="font-caveat" style={{ fontSize: 16, color: 'var(--pb-yt)', marginTop: 12, transform: 'rotate(1deg)', display: 'block' }}>
+  {allChannels.length >= 2 ? t['home.subscribe.scheduleNote'] : t['home.channels.youtubeSchedule']}
 </p>
 ```
-
-8. Update the channels map to use `allChannels`:
+with:
 ```typescript
-{allChannels.map((ch) => (
+{allChannels.some(ch => ch.scheduleLabel) && (
+  <p className="font-caveat" style={{ fontSize: 16, color: 'var(--pb-yt)', marginTop: 12, transform: 'rotate(1deg)', display: 'block' }}>
+    {allChannels.length >= 2
+      ? allChannels.map(ch => ch.scheduleLabel).filter(Boolean).join(' · ')
+      : allChannels[0]?.scheduleLabel}
+  </p>
+)}
 ```
 
-9. Replace hardcoded subscriber text (line 95):
-```typescript
-{ch.subscriberCount > 0 ? `${ch.subscriberCount.toLocaleString()} ` : '— '}
-{t['home.subscribe.subscribersSuffix']} · {ch.locale === 'pt-BR' ? t['home.channels.channelPtBr'] : t['home.channels.channelEn']}
-```
+- [ ] **Step 5: Run tests**
 
-10. Replace hardcoded subscribe button text (line 105):
-```typescript
-{t['channels.subscribe']}
-```
+Run: `npm run test:web`
+Expected: ALL PASS
 
-11. Replace hardcoded footer text (line 112):
-```typescript
-{allChannels.length >= 2 ? t['home.subscribe.scheduleNote'] : t['home.channels.youtubeSchedule']}
-```
-
-- [ ] **Step 2: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add apps/web/src/app/\(public\)/components/SubscribePair.tsx
-git commit -m "feat(youtube): SubscribePair dynamic channels, conditional rendering, i18n"
+git add apps/web/lib/home/types.ts apps/web/lib/home/queries.ts apps/web/src/app/'(public)'/components/ChannelStrip.tsx apps/web/src/app/'(public)'/components/SubscribePair.tsx
+git commit -m "feat(youtube): wire schedule label to home page channels + public components"
 ```
 
 ---
 
-## Task 11: Update header/nav for conditional YouTube
-
-**Files:**
-- Modify: `apps/web/src/components/layout/header-types.ts`
-- Modify: `apps/web/src/components/layout/header-ctas.tsx`
-- Modify: `apps/web/src/components/layout/global-header.tsx`
-- Modify: `apps/web/src/app/(public)/layout.tsx`
-
-**Depends on:** Task 4
-
-- [ ] **Step 1: Update header-types.ts**
-
-In `apps/web/src/components/layout/header-types.ts`:
-
-Remove the `YT_CHANNELS` constant (lines 24-27).
-
-Update `GlobalHeaderProps` to include optional `channelUrl`:
-```typescript
-export type GlobalHeaderProps = {
-  locale: HeaderLocale
-  currentTheme: HeaderTheme
-  variant: HeaderVariant
-  ctas: HeaderCtaVariant
-  t: Record<string, string>
-  channelUrl?: string | null
-}
-```
-
-Update `buildNavItems` to accept an optional `hasChannels` parameter and conditionally include the YouTube nav item:
-```typescript
-export function buildNavItems(
-  locale: HeaderLocale,
-  variant: HeaderVariant,
-  t: Record<string, string>,
-  hasChannels = true,
-): NavItem[] {
-  const l = (key: string): string => t[key] ?? key
-  const items: NavItem[] = [
-    { key: 'home', href: localePath('/', locale), label: l('nav.home') },
-    { key: 'blog', href: localePath('/blog', locale), label: l('nav.blog') },
-  ]
-
-  if (hasChannels) {
-    items.push({ key: 'youtube', href: localePath('/youtube', locale), label: l('nav.youtube') })
-  }
-
-  items.push(
-    { key: 'newsletters', href: localePath('/newsletters', locale), label: l('nav.newsletters') },
-    { key: 'about', href: localePath('/about', locale), label: l('nav.about') },
-  )
-
-  if (variant === 'full') {
-    items.push({ key: 'contact', href: localePath('/contact', locale), label: l('nav.contact') })
-  }
-
-  return items
-}
-```
-
-- [ ] **Step 2: Update header-ctas.tsx**
-
-In `apps/web/src/components/layout/header-ctas.tsx`:
-
-Remove the import of `YT_CHANNELS`:
-```typescript
-// DELETE: import { YT_CHANNELS } from './header-types'
-```
-
-Update Props to accept `channelUrl`:
-```typescript
-type Props = {
-  variant: HeaderCtaVariant
-  locale: HeaderLocale
-  t: Record<string, string>
-  channelUrl?: string | null
-}
-```
-
-Update the function:
-```typescript
-export function HeaderCTAs({ variant, locale, t, channelUrl }: Props) {
-```
-
-In the `variant === 'home'` block, wrap the Subscribe button in a conditional:
-```typescript
-if (variant === 'home') {
-  return (
-    <div className="flex items-center gap-2 shrink-0">
-      {channelUrl && (
-        <a
-          href={channelUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label={t['header.subscribe']}
-          className="font-jetbrains no-underline"
-          style={{
-            background: 'var(--pb-yt)',
-            color: '#FFF',
-            padding: '7px 12px',
-            fontSize: 12,
-            fontWeight: 600,
-            transform: 'rotate(-1deg)',
-            boxShadow: '0 2px 0 rgba(0,0,0,0.1)',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-          }}
-        >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M8 5v14l11-7z" />
-          </svg>
-          {locale === 'pt-BR' ? 'Inscrever' : 'Subscribe'}
-        </a>
-      )}
-      <a
-        href={localePath('/newsletters', locale)}
-        className="font-jetbrains no-underline"
-        style={{
-          background: 'var(--pb-marker)',
-          color: 'var(--pb-ink-on-accent)',
-          padding: '7px 12px',
-          fontSize: 12,
-          fontWeight: 600,
-          transform: 'rotate(1deg)',
-          display: 'inline-block',
-          boxShadow: '0 2px 0 rgba(0,0,0,0.1)',
-        }}
-      >
-        ✉ Newsletter
-      </a>
-    </div>
-  )
-}
-```
-
-- [ ] **Step 3: Update global-header.tsx to pass channelUrl**
-
-Read `global-header.tsx` first to understand its structure, then pass `channelUrl` through to HeaderCTAs and `hasChannels` to nav items. The `GlobalHeader` component receives `GlobalHeaderProps` which now includes `channelUrl`.
-
-- [ ] **Step 4: Update public layout.tsx to fetch channels**
-
-In `apps/web/src/app/(public)/layout.tsx`, add the channel fetch and compute the locale-matching channel URL:
-
-```typescript
-import { getHomeChannels } from '../../lib/home/queries'
-
-// Inside the function, after getting ctx/locale:
-const channels = ctx ? await getHomeChannels(ctx.siteId) : []
-const localeChannel = channels.find(c => c.locale === locale) ?? channels[0]
-const channelUrl = localeChannel?.url ?? null
-const hasChannels = channels.length > 0
-```
-
-Pass `channelUrl` to `GlobalHeader`:
-```typescript
-<GlobalHeader
-  locale={locale}
-  currentTheme={theme}
-  variant="full"
-  ctas="home"
-  t={t}
-  channelUrl={channelUrl}
-/>
-```
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add apps/web/src/components/layout/header-types.ts apps/web/src/components/layout/header-ctas.tsx apps/web/src/components/layout/global-header.tsx apps/web/src/app/\(public\)/layout.tsx
-git commit -m "feat(youtube): conditional header Subscribe button + YouTube nav link"
-```
-
----
-
-## Task 12: CMS server actions for channel registration
-
-**Files:**
-- Modify: `apps/web/src/app/cms/(authed)/settings/actions.ts`
-
-**Depends on:** Task 2
-
-- [ ] **Step 1: Add Zod schemas and server actions**
-
-Add to `apps/web/src/app/cms/(authed)/settings/actions.ts`:
-
-```typescript
-import { lookupChannelByHandle, type ChannelLookupResult } from '@/lib/youtube/api-client'
-
-type LookupResult = { ok: true; channel: ChannelLookupResult } | { ok: false; error: string }
-
-const handleInputSchema = z.object({
-  handleOrUrl: z.string().min(1, 'Handle or URL is required').max(200),
-})
-
-export async function lookupYouTubeChannel(input: z.infer<typeof handleInputSchema>): Promise<LookupResult> {
-  const parsed = handleInputSchema.safeParse(input)
-  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  await requireEditAccess()
-
-  const apiKey = process.env.YOUTUBE_API_KEY
-  if (!apiKey) return { ok: false, error: 'YouTube API key not configured' }
-
-  try {
-    const channel = await lookupChannelByHandle(parsed.data.handleOrUrl, apiKey)
-    if (!channel) return { ok: false, error: 'Channel not found. Check the handle and try again.' }
-    return { ok: true, channel }
-  } catch (e) {
-    if (e instanceof Error && e.message === 'quotaExceeded') {
-      return { ok: false, error: 'YouTube API limit reached. Try again later.' }
-    }
-    return { ok: false, error: 'Failed to look up channel. Please try again.' }
-  }
-}
-
-const addChannelSchema = z.object({
-  channelId: z.string().min(1),
-  locale: z.enum(['pt', 'en']),
-  handle: z.string().min(1),
-  name: z.string().min(1),
-  description: z.string().nullable(),
-  uploadsPlaylistId: z.string().min(1),
-  subscriberCount: z.number().int().min(0),
-  videoCount: z.number().int().min(0),
-  thumbnailUrl: z.string().nullable(),
-  bannerUrl: z.string().nullable(),
-  customUrl: z.string().nullable(),
-})
-
-export async function addYouTubeChannel(input: z.infer<typeof addChannelSchema>): Promise<ActionResult> {
-  const parsed = addChannelSchema.safeParse(input)
-  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  const siteId = await requireEditAccess()
-  const supabase = getSupabaseServiceClient()
-
-  // Check locale not taken
-  const { data: existing } = await supabase
-    .from('youtube_channels')
-    .select('id, name')
-    .eq('site_id', siteId)
-    .eq('locale', parsed.data.locale)
-    .limit(1)
-  if (existing && existing.length > 0) {
-    return { ok: false, error: `Locale ${parsed.data.locale} is already assigned to "${(existing[0] as { name: string }).name}".` }
-  }
-
-  // Check channel not already registered
-  const { data: dup } = await supabase
-    .from('youtube_channels')
-    .select('id, locale')
-    .eq('site_id', siteId)
-    .eq('channel_id', parsed.data.channelId)
-    .limit(1)
-  if (dup && dup.length > 0) {
-    return { ok: false, error: `This channel is already registered as ${(dup[0] as { locale: string }).locale}.` }
-  }
-
-  const { error } = await supabase.from('youtube_channels').insert({
-    site_id: siteId,
-    channel_id: parsed.data.channelId,
-    locale: parsed.data.locale,
-    handle: parsed.data.handle,
-    name: parsed.data.name,
-    description: parsed.data.description,
-    uploads_playlist_id: parsed.data.uploadsPlaylistId,
-    subscriber_count: parsed.data.subscriberCount,
-    video_count: parsed.data.videoCount,
-    thumbnail_url: parsed.data.thumbnailUrl,
-    banner_url: parsed.data.bannerUrl,
-    custom_url: parsed.data.customUrl,
-    sync_enabled: true,
-    sync_schedules: [],
-  })
-
-  if (error) return { ok: false, error: error.message }
-
-  // Trigger first sync in background
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret) {
-    fetch(`${baseUrl}/api/cron/sync-youtube?mode=manual`, {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${cronSecret}` },
-    }).catch(() => {})
-  }
-
-  revalidateTag('youtube')
-  revalidatePath('/cms/settings')
-  revalidatePath('/')
-  return { ok: true }
-}
-
-const removeChannelSchema = z.object({
-  channelId: z.string().uuid(),
-})
-
-export async function removeYouTubeChannel(input: z.infer<typeof removeChannelSchema>): Promise<ActionResult> {
-  const parsed = removeChannelSchema.safeParse(input)
-  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  const siteId = await requireEditAccess()
-  const supabase = getSupabaseServiceClient()
-
-  // Delete videos first (cascade to comments), then sync log, then channel
-  const { data: channel } = await supabase
-    .from('youtube_channels')
-    .select('id')
-    .eq('id', parsed.data.channelId)
-    .eq('site_id', siteId)
-    .single()
-
-  if (!channel) return { ok: false, error: 'Channel not found' }
-
-  await supabase.from('youtube_curated_comments')
-    .delete()
-    .in('video_id', supabase.from('youtube_videos').select('id').eq('channel_id', channel.id))
-
-  await supabase.from('youtube_videos').delete().eq('channel_id', channel.id)
-  await supabase.from('youtube_sync_log').delete().eq('channel_id', channel.id)
-
-  const { error } = await supabase.from('youtube_channels').delete().eq('id', channel.id).eq('site_id', siteId)
-  if (error) return { ok: false, error: error.message }
-
-  revalidateTag('youtube')
-  revalidatePath('/cms/settings')
-  revalidatePath('/')
-  return { ok: true }
-}
-```
-
-- [ ] **Step 2: Commit**
-
-```bash
-git add apps/web/src/app/cms/\(authed\)/settings/actions.ts
-git commit -m "feat(youtube): add lookupYouTubeChannel, addYouTubeChannel, removeYouTubeChannel server actions"
-```
-
----
-
-## Task 13: CMS YouTube channel registration UI
+### Task 3: Schedule Label Settings UI + Action
 
 **Files:**
 - Modify: `apps/web/src/app/cms/(authed)/settings/settings-connected.tsx`
-- Modify: `apps/web/src/app/cms/(authed)/settings/page.tsx`
+- Modify: `apps/web/src/app/cms/(authed)/settings/actions.ts`
 
-**Depends on:** Task 12
+- [ ] **Step 1: Add `schedule_label` to `YouTubeChannelData` interface**
 
-- [ ] **Step 1: Update page.tsx to fetch more channel data**
-
-In `apps/web/src/app/cms/(authed)/settings/page.tsx`, update the YouTube channels query (currently line 35-37) to select more columns:
-
-```typescript
-supabase.from('youtube_channels')
-  .select('id, name, handle, locale, channel_id, subscriber_count, video_count, thumbnail_url, sync_enabled, sync_schedules, last_synced_at')
-  .eq('site_id', siteId)
-  .order('locale')
-```
-
-Update the `YouTubeChannelData` interface in `settings-connected.tsx` to match:
+In `apps/web/src/app/cms/(authed)/settings/settings-connected.tsx`, modify the `YouTubeChannelData` interface (around line 73):
 
 ```typescript
 interface YouTubeChannelData {
@@ -1406,9 +350,6 @@ interface YouTubeChannelData {
   name: string
   handle: string
   locale: string
-  channel_id: string
-  subscriber_count: number
-  video_count: number
   thumbnail_url: string | null
   sync_enabled: boolean
   sync_schedules: Array<{
@@ -1417,532 +358,1074 @@ interface YouTubeChannelData {
     tz: string
     label: string
   }> | null
-  last_synced_at: string | null
+  schedule_label: string | null
 }
 ```
 
-- [ ] **Step 2: Rewrite YouTubeSection with add form**
+- [ ] **Step 2: Add schedule label input to `YouTubeChannelCard`**
 
-Replace the `YouTubeSection` component (lines 1185-1221 in `settings-connected.tsx`) with a version that includes the add-channel form. The component should:
+In `apps/web/src/app/cms/(authed)/settings/settings-connected.tsx`, inside the `YouTubeChannelCard` component (around line 1370), add state for `scheduleLabel`:
 
-1. Show existing channel cards (reuse `YouTubeChannelCard`)
-2. Show "Add Channel" form below existing cards:
-   - Text input for handle/URL
-   - "Look Up" button that calls `lookupYouTubeChannel`
-   - Loading spinner during lookup
-   - Error message on failure
-   - Preview card on success (avatar placeholder, name, subscriber count, video count)
-   - Locale radio buttons (pt-BR / en, disabled if taken)
-   - "Add Channel" button that calls `addYouTubeChannel`
-   - Success toast + auto-sync status
-3. Disable form when 2 channels exist ("2/2 locales used")
-4. Add remove button to each channel card with confirmation dialog
-
-This is the most UI-heavy task. The component should follow the existing CMS styling patterns (dark theme: `bg-cms-surface`, `text-cms-text`, `border-cms-border`, etc.).
-
-Add a "Remove" button to `YouTubeChannelCard` at the bottom of the card:
-
+After `const [schedules, setSchedules] = useState(channel.sync_schedules ?? [])` (line 1382), add:
 ```typescript
-<button
-  type="button"
-  onClick={() => setShowRemoveConfirm(true)}
-  className="text-red-400 hover:text-red-300 text-xs mt-4"
->
-  Remove channel
-</button>
+const [scheduleLabel, setScheduleLabel] = useState(channel.schedule_label ?? '')
 ```
 
-With a confirmation dialog:
+Add import at the top of the file (after other imports):
 ```typescript
-{showRemoveConfirm && (
-  <div className="mt-3 p-3 border border-red-500/30 rounded bg-red-950/20">
-    <p className="text-sm text-red-300 mb-2">
-      Remove {channel.name}? This will delete all synced videos and comments.
-    </p>
-    <div className="flex gap-2">
-      <button onClick={handleRemove} disabled={isPending} className="px-3 py-1.5 bg-red-600 text-white text-xs rounded">
-        {isPending ? 'Removing...' : 'Confirm Remove'}
-      </button>
-      <button onClick={() => setShowRemoveConfirm(false)} className="px-3 py-1.5 bg-cms-surface-hover text-cms-text-secondary text-xs rounded">
-        Cancel
-      </button>
+import { deriveScheduleLabel } from '@/lib/youtube/schedule-label'
+```
+
+In the `handleSave` function (line 1386-1403), modify the `updateYouTubeChannelSettings` call to include schedule_label:
+```typescript
+const res = await updateYouTubeChannelSettings({
+  channel_id: channel.id,
+  sync_enabled: syncEnabled,
+  sync_schedules: schedules.map(s => ({
+    day: s.day as typeof DAYS[number],
+    hour: s.hour,
+    tz: s.tz,
+    label: s.label,
+  })),
+  schedule_label: scheduleLabel.trim() || null,
+})
+```
+
+After the schedule entries section (after the `{schedules.map(...)` block, before the save button), add:
+```typescript
+<div className="space-y-1">
+  <label className={labelCls()}>Schedule Label (public site)</label>
+  <input
+    type="text"
+    value={scheduleLabel}
+    onChange={(e) => setScheduleLabel(e.target.value)}
+    disabled={readOnly}
+    placeholder={deriveScheduleLabel(schedules, channel.locale === 'pt' ? 'pt-BR' : 'en') ?? 'Auto-derived from schedules'}
+    className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-500"
+  />
+  <p className="text-xs text-slate-500">Leave empty to auto-derive from posting schedule. Set to override.</p>
+</div>
+```
+
+- [ ] **Step 3: Update the `syncScheduleSchema` in settings actions to include `schedule_label`**
+
+In `apps/web/src/app/cms/(authed)/settings/actions.ts`, modify the `syncScheduleSchema` (around line 269):
+
+```typescript
+const syncScheduleSchema = z.object({
+  channel_id: z.string().uuid(),
+  sync_enabled: z.boolean(),
+  sync_schedules: z.array(z.object({
+    day: z.enum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']),
+    hour: z.number().int().min(0).max(23),
+    tz: z.string(),
+    label: z.string(),
+  })),
+  schedule_label: z.string().nullable().optional(),
+})
+```
+
+And in the `updateYouTubeChannelSettings` function body (around line 286-292), add `schedule_label` to the update:
+```typescript
+const { error } = await supabase.from('youtube_channels')
+  .update({
+    sync_enabled: parsed.data.sync_enabled,
+    sync_schedules: parsed.data.sync_schedules,
+    schedule_label: parsed.data.schedule_label ?? null,
+    updated_at: new Date().toISOString(),
+  })
+  .eq('id', parsed.data.channel_id).eq('site_id', siteId)
+```
+
+- [ ] **Step 4: Update the settings page server component to include `schedule_label` in the query**
+
+In `apps/web/src/app/cms/(authed)/settings/page.tsx`, find the youtube_channels query and add `schedule_label` to the SELECT. Locate the line like:
+```typescript
+.select('id, name, handle, locale, thumbnail_url, sync_enabled, sync_schedules')
+```
+Change to:
+```typescript
+.select('id, name, handle, locale, thumbnail_url, sync_enabled, sync_schedules, schedule_label')
+```
+
+And in the mapping that builds `YouTubeChannelData[]`, add `schedule_label`:
+```typescript
+schedule_label: (ch.schedule_label as string | null) ?? null,
+```
+
+- [ ] **Step 5: Also update `onAdded` callback in `AddChannelForm`**
+
+In `settings-connected.tsx`, find the `onAdded` callback (around line 1291-1299) that constructs the new `YouTubeChannelData` after adding a channel. Add `schedule_label: null` to the object:
+```typescript
+onAdded({
+  id: res.id,
+  name: preview.name,
+  handle: preview.handle,
+  locale,
+  thumbnail_url: preview.thumbnailUrl,
+  sync_enabled: true,
+  sync_schedules: [],
+  schedule_label: null,
+})
+```
+
+- [ ] **Step 6: Run tests**
+
+Run: `npm run test:web`
+Expected: ALL PASS
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add apps/web/src/app/cms/'(authed)'/settings/settings-connected.tsx apps/web/src/app/cms/'(authed)'/settings/actions.ts apps/web/src/app/cms/'(authed)'/settings/page.tsx
+git commit -m "feat(youtube): add schedule label settings UI + action"
+```
+
+---
+
+### Task 4: YouTube Hub Layout (Shared Tab Bar)
+
+**Files:**
+- Create: `apps/web/src/app/cms/(authed)/youtube/layout.tsx`
+
+- [ ] **Step 1: Create the shared YouTube layout**
+
+Create `apps/web/src/app/cms/(authed)/youtube/layout.tsx`:
+
+```typescript
+'use client'
+
+import { usePathname } from 'next/navigation'
+import Link from 'next/link'
+import type { ReactNode } from 'react'
+
+const TABS = [
+  { label: 'Dashboard', href: '/cms/youtube' },
+  { label: 'Videos', href: '/cms/youtube/videos' },
+  { label: 'Categories', href: '/cms/youtube/categories' },
+  { label: 'Comments', href: '/cms/youtube/comments' },
+] as const
+
+export default function YouTubeLayout({ children }: { children: ReactNode }) {
+  const pathname = usePathname()
+
+  const activeTab = TABS.find(t => {
+    if (t.href === '/cms/youtube') return pathname === '/cms/youtube'
+    return pathname.startsWith(t.href)
+  })?.href ?? '/cms/youtube'
+
+  return (
+    <div className="flex flex-col gap-0">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-cms-border px-6 py-4">
+        <h1 className="text-lg font-semibold text-cms-text">YouTube</h1>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/cms/settings?section=youtube"
+            className="text-sm text-cms-text-muted hover:text-cms-text"
+          >
+            Manage Channels
+          </Link>
+        </div>
+      </div>
+
+      {/* Tab bar */}
+      <nav className="flex gap-0 border-b border-cms-border px-6" aria-label="YouTube sections">
+        {TABS.map(tab => {
+          const isActive = tab.href === activeTab
+          return (
+            <Link
+              key={tab.href}
+              href={tab.href}
+              className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+                isActive
+                  ? 'border-b-2 border-cms-accent text-cms-accent'
+                  : 'text-cms-text-muted hover:text-cms-text'
+              }`}
+              aria-current={isActive ? 'page' : undefined}
+            >
+              {tab.label}
+            </Link>
+          )
+        })}
+      </nav>
+
+      {/* Content */}
+      <div className="p-6">
+        {children}
+      </div>
     </div>
-  </div>
-)}
+  )
+}
+```
+
+- [ ] **Step 2: Remove duplicate padding from existing pages**
+
+The existing `videos/page.tsx` wraps content in `<div className="flex flex-col gap-6 p-6">`. Since the layout now provides `p-6`, change it to `<div className="flex flex-col gap-6">` (remove the `p-6`).
+
+Similarly check `categories/page.tsx` and `comments/page.tsx` for duplicate padding and remove it.
+
+- [ ] **Step 3: Run tests**
+
+Run: `npm run test:web`
+Expected: ALL PASS
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add apps/web/src/app/cms/'(authed)'/youtube/layout.tsx apps/web/src/app/cms/'(authed)'/youtube/videos/page.tsx apps/web/src/app/cms/'(authed)'/youtube/categories/page.tsx apps/web/src/app/cms/'(authed)'/youtube/comments/page.tsx
+git commit -m "feat(youtube): add shared hub layout with tab bar"
+```
+
+---
+
+### Task 5: Sidebar Elevation (Add YouTube to CMS Sidebar)
+
+**Files:**
+- Modify: `apps/web/src/app/cms/(authed)/layout.tsx`
+
+- [ ] **Step 1: Import `DEFAULT_SECTIONS` and add YouTube item**
+
+In `apps/web/src/app/cms/(authed)/layout.tsx`, add import at top:
+```typescript
+import { DEFAULT_SECTIONS } from '@tn-figueiredo/cms-ui/client'
+import type { SidebarSection } from '@tn-figueiredo/cms-ui'
+```
+
+Before the component function, build the custom sections:
+```typescript
+const CMS_SECTIONS: SidebarSection[] = DEFAULT_SECTIONS.map(section => {
+  if (section.label === 'Content') {
+    return {
+      ...section,
+      items: [
+        ...section.items,
+        { icon: '🎬', label: 'YouTube', href: '/cms/youtube', minRole: 'editor' as const },
+      ],
+    }
+  }
+  return section
+})
+```
+
+Then pass `sections={CMS_SECTIONS}` to `<CmsShell>`:
+```typescript
+<CmsShell
+  siteName={currentSite?.site_name ?? 'OneCMS'}
+  siteInitials={currentSite?.site_name?.slice(0, 2).toUpperCase() ?? 'CM'}
+  userDisplayName={userDisplayName}
+  userRole={userRole}
+  siteSwitcher={<CmsSiteSwitcherSlot sites={rawSites} />}
+  badges={badges}
+  sections={CMS_SECTIONS}
+>
+```
+
+- [ ] **Step 2: Add YouTube badge query**
+
+In the `Promise.all` that fetches badge data (around line 58-62), add a third query:
+
+```typescript
+const [badgeData, pendingContactsRes, ytPendingRes] = await Promise.all([
+  fetchSidebarBadges(middlewareSiteId),
+  svc.from('contact_submissions').select('id', { count: 'exact', head: true })
+    .eq('site_id', middlewareSiteId).is('replied_at', null).is('anonymized_at', null),
+  svc.from('youtube_videos').select('id', { count: 'exact', head: true })
+    .eq('site_id', middlewareSiteId)
+    .not('auto_suggested_category_id', 'is', null)
+    .is('category_id', null),
+])
+```
+
+And add to the badges object:
+```typescript
+const badges: Record<string, number> = {}
+if (pendingContactsRes.count) badges['/cms/contacts'] = pendingContactsRes.count
+if (ytPendingRes.count) badges['/cms/youtube'] = ytPendingRes.count
 ```
 
 - [ ] **Step 3: Run tests**
 
 Run: `npm run test:web`
-Expected: All tests pass.
+Expected: ALL PASS
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add apps/web/src/app/cms/\(authed\)/settings/settings-connected.tsx apps/web/src/app/cms/\(authed\)/settings/page.tsx
-git commit -m "feat(youtube): CMS channel registration UI with lookup, preview, locale selector, remove"
+git add apps/web/src/app/cms/'(authed)'/layout.tsx
+git commit -m "feat(youtube): elevate YouTube to CMS sidebar with badge"
 ```
 
 ---
 
-## Task 14: Weekly pick server actions
+### Task 6: Dashboard Page
 
 **Files:**
-- Modify: `apps/web/src/app/cms/(authed)/youtube/videos/actions.ts`
+- Create: `apps/web/src/app/cms/(authed)/youtube/page.tsx`
+- Create: `apps/web/src/app/cms/(authed)/youtube/dashboard-connected.tsx`
 
-**Depends on:** Task 1
+- [ ] **Step 1: Create the dashboard server component**
 
-- [ ] **Step 1: Add pin/unpin actions**
-
-Add to `apps/web/src/app/cms/(authed)/youtube/videos/actions.ts`:
-
-```typescript
-const pinSchema = z.object({
-  videoId: z.string().uuid(),
-  channelId: z.string().uuid(),
-  durationDays: z.number().int().min(1).max(30),
-})
-
-export async function pinWeeklyPick(input: z.infer<typeof pinSchema>): Promise<ActionResult> {
-  const parsed = pinSchema.safeParse(input)
-  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  const siteId = await requireEditAccess()
-  const supabase = getSupabaseServiceClient()
-
-  // Clear existing pin for this channel
-  await supabase
-    .from('youtube_videos')
-    .update({ pinned_until: null, updated_at: new Date().toISOString() })
-    .eq('channel_id', parsed.data.channelId)
-    .eq('site_id', siteId)
-    .gt('pinned_until', new Date().toISOString())
-
-  // Set new pin
-  const pinnedUntil = new Date()
-  pinnedUntil.setDate(pinnedUntil.getDate() + parsed.data.durationDays)
-
-  const { error } = await supabase
-    .from('youtube_videos')
-    .update({ pinned_until: pinnedUntil.toISOString(), updated_at: new Date().toISOString() })
-    .eq('id', parsed.data.videoId)
-    .eq('channel_id', parsed.data.channelId)
-    .eq('site_id', siteId)
-
-  if (error) return { ok: false, error: error.message }
-
-  revalidateTag('youtube')
-  revalidatePath('/')
-  return { ok: true }
-}
-
-const unpinSchema = z.object({
-  channelId: z.string().uuid(),
-})
-
-export async function unpinWeeklyPick(input: z.infer<typeof unpinSchema>): Promise<ActionResult> {
-  const parsed = unpinSchema.safeParse(input)
-  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  const siteId = await requireEditAccess()
-  const supabase = getSupabaseServiceClient()
-
-  const { error } = await supabase
-    .from('youtube_videos')
-    .update({ pinned_until: null, updated_at: new Date().toISOString() })
-    .eq('channel_id', parsed.data.channelId)
-    .eq('site_id', siteId)
-    .gt('pinned_until', new Date().toISOString())
-
-  if (error) return { ok: false, error: error.message }
-
-  revalidateTag('youtube')
-  revalidatePath('/')
-  return { ok: true }
-}
-```
-
-Add the `ActionResult` type if not already imported — check the file's existing imports. The existing file already defines it locally:
-```typescript
-type ActionResult = { ok: true } | { ok: false; error: string }
-```
-
-Also add `zodError` helper if not already present:
-```typescript
-function zodError(err: z.ZodError): string {
-  return err.issues.map((i) => i.message).join(', ') || 'Validation failed'
-}
-```
-
-- [ ] **Step 2: Commit**
-
-```bash
-git add apps/web/src/app/cms/\(authed\)/youtube/videos/actions.ts
-git commit -m "feat(youtube): add pinWeeklyPick and unpinWeeklyPick server actions"
-```
-
----
-
-## Task 15: Weekly pick CMS UI (pick banners + picker dialog)
-
-**Files:**
-- Modify: `apps/web/src/app/cms/(authed)/youtube/videos/videos-connected.tsx`
-- Modify: `apps/web/src/app/cms/(authed)/youtube/videos/page.tsx`
-
-**Depends on:** Task 14
-
-- [ ] **Step 1: Update page.tsx to pass pinned video data**
-
-In `apps/web/src/app/cms/(authed)/youtube/videos/page.tsx`, add a query for current pinned videos per channel to pass to the connected component. After the existing data fetches, add:
-
-```typescript
-// Fetch current pins (one per channel at most)
-const { data: pins } = await supabase
-  .from('youtube_videos')
-  .select('id, title, channel_id, pinned_until, youtube_channels!inner(locale)')
-  .eq('site_id', siteId)
-  .gt('pinned_until', new Date().toISOString())
-```
-
-Pass `pins` as a new prop to the connected component.
-
-- [ ] **Step 2: Add pick banners to videos-connected.tsx**
-
-At the top of the page (before filters), add a 2-column grid showing the current pick state per locale. Each banner shows:
-
-- **Pinned state**: colored border, video title truncated, "PINNED {days}d" badge, expiry date, "Change" and "Unpin" buttons
-- **Default state**: dashed border, "Latest: {title}", "DEFAULT" badge, "Pin" button
-- **No channel state**: hidden
-
-The "Change"/"Pin" button opens a picker dialog (modal).
-
-- [ ] **Step 3: Build picker dialog component**
-
-Add a `PickerDialog` component inside `videos-connected.tsx` (or as a sibling file). The dialog:
-
-1. Opens as a modal overlay
-2. Header: "Pin {flag} {LOCALE} Weekly Pick"
-3. Search input filtering videos by title
-4. Scrollable list of videos for the selected locale (sorted by published_at desc)
-5. Each row: thumbnail (64×36px), title, duration, date, views
-6. Selected video highlighted with checkmark
-7. Bottom bar: duration selector (7d/15d/30d toggle), "Pin until {date}" button
-8. Calls `pinWeeklyPick` on confirm
-
-- [ ] **Step 4: Run tests**
-
-Run: `npm run test:web`
-Expected: All tests pass.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add apps/web/src/app/cms/\(authed\)/youtube/videos/videos-connected.tsx apps/web/src/app/cms/\(authed\)/youtube/videos/page.tsx
-git commit -m "feat(youtube): weekly pick CMS UI with per-locale banners and searchable picker dialog"
-```
-
----
-
-## Task 16: /youtube page zero-video state
-
-**Files:**
-- Modify: `apps/web/src/app/(public)/youtube/page.tsx`
-
-**Depends on:** Task 4
-
-- [ ] **Step 1: Add 0-channel redirect and 0-video coming-soon state**
-
-In `apps/web/src/app/(public)/youtube/page.tsx`, after fetching `data` from `getYouTubePageData`:
+Create `apps/web/src/app/cms/(authed)/youtube/page.tsx`:
 
 ```typescript
 import { redirect } from 'next/navigation'
+import { getSiteContext } from '@/lib/cms/site-context'
+import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { DashboardConnected, type ChannelDashboard, type PinnedVideo } from './dashboard-connected'
 
-// After data fetch:
-if (data.channels.length === 0) {
-  redirect('/')
-}
+export const dynamic = 'force-dynamic'
 
-if (data.totalVideoCount === 0) {
-  // Render coming-soon page
+export default async function YouTubeDashboardPage() {
+  const { siteId } = await getSiteContext()
+
+  const authRes = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
+  if (!authRes.ok) redirect('/cms')
+
+  const supabase = getSupabaseServiceClient()
+
+  const [channelsRes, uncategorizedRes, recentSyncRes, pinnedRes] = await Promise.all([
+    supabase.from('youtube_channels')
+      .select('id, locale, handle, name, subscriber_count, video_count, thumbnail_url, last_synced_at, sync_schedules, schedule_label')
+      .eq('site_id', siteId)
+      .order('locale'),
+    supabase.from('youtube_videos')
+      .select('id', { count: 'exact', head: true })
+      .eq('site_id', siteId)
+      .not('auto_suggested_category_id', 'is', null)
+      .is('category_id', null),
+    supabase.from('youtube_sync_log')
+      .select('channel_id, status, videos_found, videos_inserted, created_at')
+      .eq('site_id', siteId)
+      .order('created_at', { ascending: false })
+      .limit(6),
+    supabase.from('youtube_videos')
+      .select('id, title, thumbnail_url, view_count, like_count, pinned_until, channel_id')
+      .eq('site_id', siteId)
+      .gt('pinned_until', new Date().toISOString()),
+  ])
+
+  const rawChannels = channelsRes.data ?? []
+  const rawPinned = pinnedRes.data ?? []
+  const rawSyncs = recentSyncRes.data ?? []
+
+  const pinnedMap = new Map<string, PinnedVideo>()
+  for (const p of rawPinned) {
+    pinnedMap.set(p.channel_id as string, {
+      id: p.id as string,
+      title: p.title as string,
+      thumbnailUrl: (p.thumbnail_url as string | null) ?? null,
+      viewCount: (p.view_count as number) ?? 0,
+      likeCount: (p.like_count as number) ?? 0,
+      pinnedUntil: p.pinned_until as string,
+    })
+  }
+
+  const channels: ChannelDashboard[] = rawChannels.map(ch => {
+    const lastSync = rawSyncs.find(s => s.channel_id === ch.id)
+    return {
+      id: ch.id as string,
+      locale: ch.locale as 'pt' | 'en',
+      handle: ch.handle as string,
+      name: ch.name as string,
+      subscriberCount: (ch.subscriber_count as number) ?? 0,
+      videoCount: (ch.video_count as number) ?? 0,
+      thumbnailUrl: (ch.thumbnail_url as string | null) ?? null,
+      lastSyncedAt: (ch.last_synced_at as string | null) ?? null,
+      lastSyncStatus: (lastSync?.status as string | null) ?? null,
+      pinnedVideo: pinnedMap.get(ch.id as string) ?? null,
+    }
+  })
+
   return (
-    <>
-      <JsonLdScript graph={graph} />
-      <section style={{ textAlign: 'center', padding: '80px 20px', maxWidth: 640, margin: '0 auto' }}>
-        <div className="font-mono" style={{ fontSize: 10, color: '#FF2D20', textTransform: 'uppercase', letterSpacing: '0.14em', marginBottom: 12 }}>
-          § 01 · the channel
-        </div>
-        <h1 className="font-fraunces" style={{ fontSize: 36, fontWeight: 500, margin: '0 0 8px', letterSpacing: '-0.02em', color: 'var(--pb-ink)' }}>
-          YouTube
-        </h1>
-        <p style={{ fontSize: 14, color: 'var(--pb-faint)', margin: '0 0 28px' }}>
-          live-coding, setup, bugs
-        </p>
-        <div style={{ border: '1px dashed rgba(255,45,32,0.2)', borderRadius: 8, padding: '40px 20px' }}>
-          <div style={{ width: 72, height: 50, background: 'rgba(255,45,32,0.15)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="rgba(255,45,32,0.5)"><path d="M8 5v14l11-7z" /></svg>
-          </div>
-          <div className="font-caveat" style={{ fontSize: 24, color: 'var(--pb-accent)', marginBottom: 8, transform: 'rotate(-1deg)' }}>
-            {locale === 'pt' ? 'primeiro vídeo em breve' : 'first video coming soon'}
-          </div>
-          <p style={{ fontSize: 13, color: 'var(--pb-faint)', margin: '0 0 20px' }}>
-            {locale === 'pt' ? 'Inscreva-se no canal para ser notificado.' : 'Subscribe to the channel to get notified when it drops.'}
-          </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 360, margin: '0 auto' }}>
-            {data.channels.map((ch) => (
-              <a
-                key={ch.id}
-                href={ch.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ border: '2px solid #FF2D20', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(255,45,32,0.04)', textDecoration: 'none', color: 'inherit' }}
-              >
-                <div style={{ width: 30, height: 30, borderRadius: '50%', background: '#FF2D20', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="#FFF"><path d="M8 5v14l11-7z" /></svg>
-                </div>
-                <div style={{ flex: 1, textAlign: 'left' }}>
-                  <div style={{ fontSize: 13, fontWeight: 500 }}>{ch.locale === 'pt' ? '🇧🇷' : '🌎'} {ch.name}</div>
-                </div>
-                <span style={{ background: '#FF2D20', color: 'white', padding: '6px 12px', fontSize: 11, fontWeight: 600 }}>
-                  {locale === 'pt' ? 'Inscrever' : 'Subscribe'}
-                </span>
-              </a>
-            ))}
-          </div>
-        </div>
-      </section>
-    </>
+    <DashboardConnected
+      channels={channels}
+      uncategorizedCount={uncategorizedRes.count ?? 0}
+    />
   )
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [ ] **Step 2: Create the dashboard client component**
 
-```bash
-git add apps/web/src/app/\(public\)/youtube/page.tsx
-git commit -m "feat(youtube): /youtube page 0-channel redirect + 0-video coming-soon state"
+Create `apps/web/src/app/cms/(authed)/youtube/dashboard-connected.tsx`:
+
+```typescript
+'use client'
+
+import { useTransition } from 'react'
+import Image from 'next/image'
+import Link from 'next/link'
+import { triggerSync } from './videos/actions'
+import { unpinWeeklyPick } from './videos/actions'
+import { useState } from 'react'
+
+export interface PinnedVideo {
+  id: string
+  title: string
+  thumbnailUrl: string | null
+  viewCount: number
+  likeCount: number
+  pinnedUntil: string
+}
+
+export interface ChannelDashboard {
+  id: string
+  locale: 'pt' | 'en'
+  handle: string
+  name: string
+  subscriberCount: number
+  videoCount: number
+  thumbnailUrl: string | null
+  lastSyncedAt: string | null
+  lastSyncStatus: string | null
+  pinnedVideo: PinnedVideo | null
+}
+
+interface Props {
+  channels: ChannelDashboard[]
+  uncategorizedCount: number
+}
+
+function formatCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
+  return String(n)
+}
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diff / 60_000)
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  return `${days}d ago`
+}
+
+type PinState = 'active' | 'expiring' | 'none'
+
+function getPinState(pinnedVideo: PinnedVideo | null): PinState {
+  if (!pinnedVideo) return 'none'
+  const until = new Date(pinnedVideo.pinnedUntil)
+  const now = new Date()
+  if (until <= now) return 'none'
+  const daysLeft = Math.ceil((until.getTime() - now.getTime()) / 86_400_000)
+  if (daysLeft <= 2) return 'expiring'
+  return 'active'
+}
+
+function daysLeft(pinnedUntil: string): number {
+  return Math.ceil((new Date(pinnedUntil).getTime() - Date.now()) / 86_400_000)
+}
+
+function ChannelCard({ channel }: { channel: ChannelDashboard }) {
+  const [isPending, startTransition] = useTransition()
+  const [showUnpinConfirm, setShowUnpinConfirm] = useState(false)
+  const flag = channel.locale === 'pt' ? '🇧🇷' : '🇺🇸'
+  const pinState = getPinState(channel.pinnedVideo)
+  const neverSynced = !channel.lastSyncedAt
+
+  const handleSync = () => {
+    startTransition(async () => {
+      await triggerSync(channel.id)
+    })
+  }
+
+  const handleUnpin = () => {
+    startTransition(async () => {
+      await unpinWeeklyPick({ channelId: channel.id })
+      setShowUnpinConfirm(false)
+    })
+  }
+
+  const pinAccent = pinState === 'active'
+    ? 'border-l-emerald-500'
+    : pinState === 'expiring'
+      ? 'border-l-amber-500'
+      : 'border-l-slate-600'
+
+  return (
+    <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-cms-border px-4 py-3">
+        <div className="flex items-center gap-3">
+          {channel.thumbnailUrl ? (
+            <Image src={channel.thumbnailUrl} alt="" width={36} height={36} className="rounded-full" unoptimized />
+          ) : (
+            <span className="text-xl">{flag}</span>
+          )}
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm">{flag}</span>
+              <span className="text-sm font-semibold text-cms-text">{channel.name}</span>
+            </div>
+            <span className="text-xs text-cms-text-dim">{channel.handle}</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <span className={`h-2 w-2 rounded-full ${neverSynced ? 'bg-amber-400' : 'bg-emerald-400'}`} />
+            <span className={`text-xs ${neverSynced ? 'text-amber-400' : 'text-cms-text-dim'}`}>
+              {neverSynced ? 'Never' : timeAgo(channel.lastSyncedAt!)}
+            </span>
+          </div>
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={handleSync}
+            className={`rounded px-2.5 py-1 text-xs font-medium disabled:opacity-50 ${
+              neverSynced
+                ? 'bg-cms-accent text-white'
+                : 'border border-cms-border text-cms-text-muted hover:bg-cms-surface-hover'
+            }`}
+          >
+            {isPending ? '⟳ …' : neverSynced ? '⟳ First Sync' : '⟳ Sync'}
+          </button>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="flex gap-6 border-b border-cms-border px-4 py-2.5">
+        <div className="text-xs text-cms-text-muted">
+          <span className="font-semibold text-cms-text">{channel.videoCount}</span> videos
+        </div>
+        <div className="text-xs text-cms-text-muted">
+          <span className="font-semibold text-cms-text">{formatCount(channel.subscriberCount)}</span> subscribers
+        </div>
+      </div>
+
+      {/* Weekly Pick */}
+      <div className={`border-l-[3px] ${pinAccent} px-4 py-3`}>
+        <div className="mb-2 flex items-center justify-between">
+          <span className={`text-[10px] font-bold uppercase tracking-wider ${
+            pinState === 'active' ? 'text-amber-400'
+              : pinState === 'expiring' ? 'text-amber-500'
+                : 'text-cms-text-dim'
+          }`}>
+            ★ Weekly Pick
+          </span>
+          {channel.pinnedVideo && pinState !== 'none' && (
+            <span className={`text-xs ${
+              pinState === 'expiring' ? 'font-medium text-amber-500' : 'text-cms-text-dim'
+            }`}>
+              {pinState === 'expiring'
+                ? `⚠ Expires ${daysLeft(channel.pinnedVideo.pinnedUntil) <= 1 ? 'tomorrow' : `in ${daysLeft(channel.pinnedVideo.pinnedUntil)} days`}`
+                : `until ${new Date(channel.pinnedVideo.pinnedUntil).toLocaleDateString('en', { month: 'short', day: 'numeric' })} (${daysLeft(channel.pinnedVideo.pinnedUntil)}d left)`
+              }
+            </span>
+          )}
+        </div>
+
+        {channel.pinnedVideo && pinState !== 'none' ? (
+          <>
+            <div className="flex items-center gap-3">
+              {channel.pinnedVideo.thumbnailUrl && (
+                <Image
+                  src={channel.pinnedVideo.thumbnailUrl}
+                  alt=""
+                  width={72}
+                  height={40}
+                  className="rounded object-cover"
+                  unoptimized
+                />
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="line-clamp-1 text-sm font-medium text-cms-text">{channel.pinnedVideo.title}</p>
+                <p className="text-xs text-cms-text-dim">
+                  {formatCount(channel.pinnedVideo.viewCount)} views · {formatCount(channel.pinnedVideo.likeCount)} likes
+                </p>
+              </div>
+            </div>
+            <div className="mt-2 flex items-center gap-2 border-t border-cms-border pt-2">
+              <Link
+                href={`/cms/youtube/videos?channel=${channel.id}`}
+                className="text-xs font-medium text-cms-accent hover:underline"
+              >
+                Change pick →
+              </Link>
+              <span className="text-cms-text-dim">|</span>
+              <button
+                type="button"
+                onClick={() => setShowUnpinConfirm(true)}
+                className="text-xs text-red-400 hover:text-red-300"
+              >
+                Unpin
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className="py-2 text-center">
+            <p className="mb-2 text-sm text-cms-text-dim">No video pinned this week</p>
+            <Link
+              href={`/cms/youtube/videos?channel=${channel.id}`}
+              className="inline-flex items-center gap-1 rounded bg-cms-accent/10 px-3 py-1.5 text-xs font-medium text-cms-accent hover:bg-cms-accent/20"
+            >
+              ☆ Choose Weekly Pick →
+            </Link>
+          </div>
+        )}
+      </div>
+
+      {/* Unpin confirmation dialog */}
+      {showUnpinConfirm && (
+        <div className="border-t border-cms-border px-4 py-3">
+          <p className="mb-1 text-sm font-medium text-cms-text">Remove weekly pick?</p>
+          <p className="mb-3 text-xs text-cms-text-muted">
+            The home page will fall back to showing the latest video for this channel.
+          </p>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setShowUnpinConfirm(false)}
+              className="rounded border border-cms-border px-3 py-1 text-xs text-cms-text-muted hover:bg-cms-surface-hover"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={handleUnpin}
+              className="rounded bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-500 disabled:opacity-50"
+            >
+              Unpin
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function DashboardConnected({ channels, uncategorizedCount }: Props) {
+  if (channels.length === 0) {
+    return (
+      <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface px-6 py-16 text-center">
+        <p className="text-lg font-medium text-cms-text">No YouTube channels configured</p>
+        <p className="mt-2 text-sm text-cms-text-muted">
+          Add channels in{' '}
+          <Link href="/cms/settings?section=youtube" className="text-cms-accent hover:underline">
+            Settings → YouTube
+          </Link>
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      {/* Summary bar */}
+      {uncategorizedCount > 0 && (
+        <div className="flex items-center gap-2 rounded-[var(--cms-radius)] border border-amber-900/40 bg-amber-900/10 px-4 py-2.5">
+          <span className="text-sm text-amber-400">
+            {uncategorizedCount} video{uncategorizedCount !== 1 ? 's' : ''} with pending category suggestions
+          </span>
+          <Link
+            href="/cms/youtube/videos"
+            className="ml-auto text-xs font-medium text-cms-accent hover:underline"
+          >
+            Review →
+          </Link>
+        </div>
+      )}
+
+      {/* Channel cards */}
+      <div className="grid gap-6 md:grid-cols-2">
+        {channels.map(ch => (
+          <ChannelCard key={ch.id} channel={ch} />
+        ))}
+      </div>
+    </div>
+  )
+}
 ```
 
----
+- [ ] **Step 3: Run tests**
 
-## Task 17: Delete hardcoded data + final cleanup
-
-**Files:**
-- Delete: `apps/web/lib/home/videos-data.ts`
-
-**Depends on:** Tasks 6-11 (all components updated)
-
-- [ ] **Step 1: Delete videos-data.ts**
-
-```bash
-rm apps/web/lib/home/videos-data.ts
-```
-
-- [ ] **Step 2: Run typecheck to verify no remaining imports**
-
-Run: `npx tsc --noEmit -p apps/web/tsconfig.json`
-Expected: Clean — no errors. If any file still imports from `videos-data`, fix the import.
-
-- [ ] **Step 3: Run all tests**
-
-Run: `npm test`
-Expected: All tests pass (api + web).
+Run: `npm run test:web`
+Expected: ALL PASS
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add -A
-git commit -m "chore(youtube): delete hardcoded SAMPLE_VIDEOS and YOUTUBE_CHANNELS"
+git add apps/web/src/app/cms/'(authed)'/youtube/page.tsx apps/web/src/app/cms/'(authed)'/youtube/dashboard-connected.tsx
+git commit -m "feat(youtube): add dashboard page with per-channel cards"
 ```
 
 ---
 
-## Task 18: Integration tests for weekly pick
+### Task 7: Enhanced Pin Duration Dropdown UX
 
 **Files:**
-- Create: `apps/web/test/integration/youtube-weekly-pick.test.ts`
+- Modify: `apps/web/src/app/cms/(authed)/youtube/videos/video-row-actions.tsx`
+- Modify: `apps/web/src/app/cms/(authed)/youtube/videos/actions.ts`
 
-**Depends on:** Tasks 1, 4, 14
+- [ ] **Step 1: Update `pinSchema` max from 30 to 90**
 
-- [ ] **Step 1: Write DB-gated integration tests**
-
-Create `apps/web/test/integration/youtube-weekly-pick.test.ts`:
+In `apps/web/src/app/cms/(authed)/youtube/videos/actions.ts`, change line 113:
 
 ```typescript
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { createClient } from '@supabase/supabase-js'
+durationDays: z.number().int().min(1).max(90),
+```
 
-describe.skipIf(skipIfNoLocalDb())('YouTube weekly pick', () => {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+- [ ] **Step 2: Add `is_hidden` check to `pinWeeklyPick` action**
+
+In the same file, in the `pinWeeklyPick` function (around line 122-131), update the video validation query to also check `is_hidden`:
+
+```typescript
+const { data: video } = await supabase
+  .from('youtube_videos')
+  .select('id')
+  .eq('id', parsed.data.videoId)
+  .eq('channel_id', parsed.data.channelId)
+  .eq('site_id', siteId)
+  .eq('is_hidden', false)
+  .single()
+
+if (!video) return { ok: false, error: 'Video not found or is hidden' }
+```
+
+- [ ] **Step 3: Replace `PinButton` with enhanced `PinDropdown`**
+
+In `apps/web/src/app/cms/(authed)/youtube/videos/video-row-actions.tsx`, replace the entire `PinButton` component (lines 137-205) with:
+
+```typescript
+interface PinButtonProps {
+  videoId: string
+  channelId: string
+  pinnedUntil: string | null
+  hasExistingPin: boolean
+}
+
+export function PinButton({ videoId, channelId, pinnedUntil, hasExistingPin }: PinButtonProps) {
+  const [isPending, startTransition] = useTransition()
+  const [showDropdown, setShowDropdown] = useState(false)
+  const [customDays, setCustomDays] = useState('')
+  const isPinned = !!pinnedUntil && new Date(pinnedUntil) > new Date()
+
+  const handlePin = (days: number) => {
+    if (days < 1 || days > 90) return
+    startTransition(async () => {
+      await pinWeeklyPick({ videoId, channelId, durationDays: days })
+      setShowDropdown(false)
+      setCustomDays('')
+    })
+  }
+
+  const handleUnpin = () => {
+    startTransition(async () => {
+      await unpinWeeklyPick({ channelId })
+    })
+  }
+
+  if (isPinned) {
+    const until = new Date(pinnedUntil!).toLocaleDateString('en', { month: 'short', day: 'numeric' })
+    const days = Math.ceil((new Date(pinnedUntil!).getTime() - Date.now()) / 86_400_000)
+    return (
+      <div className="flex flex-col items-center gap-1">
+        <span className="inline-flex items-center rounded-full bg-amber-900/30 px-2 py-0.5 text-xs font-semibold text-amber-400">
+          ★ Pinned until {until}
+        </span>
+        <button
+          type="button"
+          disabled={isPending}
+          onClick={handleUnpin}
+          className="text-[10px] text-red-400 hover:text-red-300 disabled:opacity-50"
+        >
+          Unpin
+        </button>
+      </div>
+    )
+  }
+
+  const presets = [7, 15, 30] as const
+
+  function untilDate(days: number): string {
+    const d = new Date(Date.now() + days * 86_400_000)
+    return d.toLocaleDateString('en', { month: 'short', day: 'numeric' })
+  }
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        disabled={isPending}
+        onClick={() => setShowDropdown(!showDropdown)}
+        className="text-xs text-cms-text-dim hover:text-cms-text disabled:opacity-50"
+        title="Pin as weekly pick"
+      >
+        ☆ Pin
+      </button>
+      {hasExistingPin && !isPinned && (
+        <span className="block text-[9px] italic text-cms-text-dim">replaces current</span>
+      )}
+      {showDropdown && (
+        <div className="absolute right-0 top-6 z-10 min-w-[200px] rounded-lg border border-cms-border bg-cms-surface p-1 shadow-lg">
+          <div className="px-2.5 py-1 text-[9px] font-semibold uppercase tracking-wider text-cms-text-dim">
+            Pin Duration
+          </div>
+          {presets.map(d => (
+            <button
+              key={d}
+              type="button"
+              disabled={isPending}
+              onClick={() => handlePin(d)}
+              className="flex w-full items-center justify-between rounded px-2.5 py-1.5 text-xs text-cms-text hover:bg-cms-surface-hover disabled:opacity-50"
+            >
+              <span>{d} days</span>
+              <span className="text-cms-text-dim">until {untilDate(d)}</span>
+            </button>
+          ))}
+          <div className="mt-1 flex items-center gap-1.5 border-t border-cms-border px-2.5 pt-2 pb-1">
+            <span className="text-[10px] text-cms-text-dim">Custom:</span>
+            <input
+              type="number"
+              min={1}
+              max={90}
+              value={customDays}
+              onChange={e => setCustomDays(e.target.value)}
+              placeholder="days"
+              className="w-14 rounded border border-cms-border bg-cms-surface px-1.5 py-0.5 text-[10px] text-cms-text"
+            />
+            <button
+              type="button"
+              disabled={isPending || !customDays || Number(customDays) < 1 || Number(customDays) > 90}
+              onClick={() => handlePin(Number(customDays))}
+              className="rounded bg-cms-accent px-2 py-0.5 text-[10px] font-medium text-white disabled:opacity-50"
+            >
+              Pin
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   )
+}
+```
 
-  let siteId: string
-  let channelId: string
-  let videoIds: string[]
+- [ ] **Step 4: Update `PinButton` usage in `videos-connected.tsx` to pass `hasExistingPin`**
 
-  beforeAll(async () => {
-    // Seed site
-    const { data: site } = await supabase
-      .from('sites')
-      .select('id')
-      .limit(1)
-      .single()
-    siteId = site!.id
+In `apps/web/src/app/cms/(authed)/youtube/videos/videos-connected.tsx`, the `PinButton` usage (around line 296-298) needs to compute `hasExistingPin`. 
 
-    // Seed channel
-    const { data: ch } = await supabase
-      .from('youtube_channels')
-      .insert({
-        site_id: siteId,
-        channel_id: 'UCtest123',
-        locale: 'en',
-        handle: '@testchannel',
-        name: 'Test Channel',
-        uploads_playlist_id: 'UUtest123',
-      })
-      .select('id')
-      .single()
-    channelId = ch!.id
-
-    // Seed 3 videos
-    const videos = []
-    for (let i = 0; i < 3; i++) {
-      const { data: v } = await supabase
-        .from('youtube_videos')
-        .insert({
-          site_id: siteId,
-          channel_id: channelId,
-          youtube_video_id: `test-vid-${i}`,
-          title: `Test Video ${i}`,
-          published_at: new Date(Date.now() - i * 86400000).toISOString(),
-          duration: '10:00',
-          duration_seconds: 600,
-        })
-        .select('id')
-        .single()
-      videos.push(v!.id)
+Before the table rendering, compute a set of channel IDs that have active pins:
+```typescript
+const channelsWithPins = useMemo(() => {
+  const set = new Set<string>()
+  for (const v of videos) {
+    if (v.pinnedUntil && new Date(v.pinnedUntil) > new Date()) {
+      set.add(v.channelId)
     }
-    videoIds = videos
+  }
+  return set
+}, [videos])
+```
+
+Then update the `PinButton` call:
+```typescript
+<PinButton
+  videoId={video.id}
+  channelId={video.channelId}
+  pinnedUntil={video.pinnedUntil}
+  hasExistingPin={channelsWithPins.has(video.channelId)}
+/>
+```
+
+- [ ] **Step 5: Add gold left border to pinned video rows**
+
+In `videos-connected.tsx`, modify the `<tr>` element to have a gold left border when pinned:
+```typescript
+<tr
+  key={video.id}
+  className={`border-b border-cms-border last:border-0 hover:bg-cms-surface-hover ${
+    video.pinnedUntil && new Date(video.pinnedUntil) > new Date()
+      ? 'border-l-[3px] border-l-amber-500'
+      : ''
+  }`}
+>
+```
+
+- [ ] **Step 6: Update existing pin action tests**
+
+In `apps/web/test/youtube/pin-actions.test.ts`, update the test for valid pin to use 90 as max:
+
+Add a test case:
+```typescript
+it('accepts duration up to 90 days', async () => {
+  mockSingle.mockResolvedValue({ data: { id: 'v1' }, error: null })
+  mockRpc.mockResolvedValue({ data: null, error: null })
+  const result = await pinWeeklyPick({
+    videoId: '11111111-1111-1111-1111-111111111111',
+    channelId: '22222222-2222-2222-2222-222222222222',
+    durationDays: 90,
+  })
+  expect(result.ok).toBe(true)
+})
+
+it('rejects duration > 90', async () => {
+  const result = await pinWeeklyPick({
+    videoId: '11111111-1111-1111-1111-111111111111',
+    channelId: '22222222-2222-2222-2222-222222222222',
+    durationDays: 91,
+  })
+  expect(result.ok).toBe(false)
+})
+```
+
+- [ ] **Step 7: Run tests**
+
+Run: `npm run test:web`
+Expected: ALL PASS
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add apps/web/src/app/cms/'(authed)'/youtube/videos/video-row-actions.tsx apps/web/src/app/cms/'(authed)'/youtube/videos/videos-connected.tsx apps/web/src/app/cms/'(authed)'/youtube/videos/actions.ts apps/web/test/youtube/pin-actions.test.ts
+git commit -m "feat(youtube): enhanced pin dropdown with 7/15/30/custom presets + max 90 days"
+```
+
+---
+
+### Task 8: Dashboard Tests
+
+**Files:**
+- Create: `apps/web/test/youtube/dashboard.test.ts`
+
+- [ ] **Step 1: Write dashboard state computation tests**
+
+Create `apps/web/test/youtube/dashboard.test.ts`:
+
+```typescript
+import { describe, it, expect, vi } from 'vitest'
+
+describe('Dashboard pin state', () => {
+  function getPinState(pinnedUntil: string | null): 'active' | 'expiring' | 'none' {
+    if (!pinnedUntil) return 'none'
+    const until = new Date(pinnedUntil)
+    const now = new Date()
+    if (until <= now) return 'none'
+    const daysLeft = Math.ceil((until.getTime() - now.getTime()) / 86_400_000)
+    if (daysLeft <= 2) return 'expiring'
+    return 'active'
+  }
+
+  it('returns "none" when no pin', () => {
+    expect(getPinState(null)).toBe('none')
   })
 
-  afterAll(async () => {
-    await supabase.from('youtube_videos').delete().eq('channel_id', channelId)
-    await supabase.from('youtube_channels').delete().eq('id', channelId)
+  it('returns "none" when pin is expired', () => {
+    const yesterday = new Date(Date.now() - 86_400_000).toISOString()
+    expect(getPinState(yesterday)).toBe('none')
   })
 
-  it('pinning a video sets pinned_until', async () => {
-    const pinnedUntil = new Date(Date.now() + 7 * 86400000).toISOString()
-    await supabase
-      .from('youtube_videos')
-      .update({ pinned_until: pinnedUntil })
-      .eq('id', videoIds[1])
-
-    const { data } = await supabase
-      .from('youtube_videos')
-      .select('pinned_until')
-      .eq('id', videoIds[1])
-      .single()
-
-    expect(data!.pinned_until).toBeTruthy()
-    expect(new Date(data!.pinned_until as string).getTime()).toBeGreaterThan(Date.now())
+  it('returns "active" when >2 days left', () => {
+    const future = new Date(Date.now() + 5 * 86_400_000).toISOString()
+    expect(getPinState(future)).toBe('active')
   })
 
-  it('partial unique index allows only 1 pin per channel', async () => {
-    const pinnedUntil = new Date(Date.now() + 7 * 86400000).toISOString()
-
-    // Pin video 0
-    await supabase
-      .from('youtube_videos')
-      .update({ pinned_until: pinnedUntil })
-      .eq('id', videoIds[0])
-
-    // Pin video 2 (should fail due to unique index if video 0 still pinned)
-    const { error } = await supabase
-      .from('youtube_videos')
-      .update({ pinned_until: pinnedUntil })
-      .eq('id', videoIds[2])
-
-    expect(error).toBeTruthy()
-
-    // Cleanup: unpin video 0
-    await supabase
-      .from('youtube_videos')
-      .update({ pinned_until: null })
-      .eq('id', videoIds[0])
+  it('returns "expiring" when ≤2 days left', () => {
+    const soon = new Date(Date.now() + 1.5 * 86_400_000).toISOString()
+    expect(getPinState(soon)).toBe('expiring')
   })
 
-  it('clearing pin before setting new one works', async () => {
-    const pinnedUntil = new Date(Date.now() + 7 * 86400000).toISOString()
+  it('returns "expiring" when exactly 2 days left', () => {
+    const twoDays = new Date(Date.now() + 2 * 86_400_000).toISOString()
+    expect(getPinState(twoDays)).toBe('expiring')
+  })
+})
 
-    // Pin video 0
-    await supabase
-      .from('youtube_videos')
-      .update({ pinned_until: pinnedUntil })
-      .eq('id', videoIds[0])
+describe('Dashboard formatCount', () => {
+  function formatCount(n: number): string {
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
+    return String(n)
+  }
 
-    // Clear all pins for channel
-    await supabase
-      .from('youtube_videos')
-      .update({ pinned_until: null })
-      .eq('channel_id', channelId)
-      .gt('pinned_until', new Date().toISOString())
+  it('formats numbers below 1000 as-is', () => {
+    expect(formatCount(0)).toBe('0')
+    expect(formatCount(999)).toBe('999')
+  })
 
-    // Now pin video 2
-    const { error } = await supabase
-      .from('youtube_videos')
-      .update({ pinned_until: pinnedUntil })
-      .eq('id', videoIds[2])
+  it('formats thousands with K suffix', () => {
+    expect(formatCount(1000)).toBe('1.0K')
+    expect(formatCount(15_200)).toBe('15.2K')
+  })
 
-    expect(error).toBeNull()
+  it('formats millions with M suffix', () => {
+    expect(formatCount(1_000_000)).toBe('1.0M')
+    expect(formatCount(2_500_000)).toBe('2.5M')
+  })
+})
 
-    // Cleanup
-    await supabase
-      .from('youtube_videos')
-      .update({ pinned_until: null })
-      .eq('id', videoIds[2])
+describe('Dashboard timeAgo', () => {
+  function timeAgo(iso: string): string {
+    const diff = Date.now() - new Date(iso).getTime()
+    const mins = Math.floor(diff / 60_000)
+    if (mins < 60) return `${mins}m ago`
+    const hours = Math.floor(mins / 60)
+    if (hours < 24) return `${hours}h ago`
+    const days = Math.floor(hours / 24)
+    return `${days}d ago`
+  }
+
+  it('formats minutes', () => {
+    const fiveMinAgo = new Date(Date.now() - 5 * 60_000).toISOString()
+    expect(timeAgo(fiveMinAgo)).toBe('5m ago')
+  })
+
+  it('formats hours', () => {
+    const twoHoursAgo = new Date(Date.now() - 2 * 3_600_000).toISOString()
+    expect(timeAgo(twoHoursAgo)).toBe('2h ago')
+  })
+
+  it('formats days', () => {
+    const threeDaysAgo = new Date(Date.now() - 3 * 86_400_000).toISOString()
+    expect(timeAgo(threeDaysAgo)).toBe('3d ago')
   })
 })
 ```
 
-- [ ] **Step 2: Run tests**
+- [ ] **Step 2: Run tests to verify they pass**
 
-Run: `npm run test:web -- --run test/integration/youtube-weekly-pick.test.ts`
-Expected: Tests PASS (if `HAS_LOCAL_DB=1` and Supabase local running) or SKIP (if no local DB).
+Run: `cd apps/web && npx vitest run test/youtube/dashboard.test.ts`
+Expected: ALL PASS
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add apps/web/test/integration/youtube-weekly-pick.test.ts
-git commit -m "test(youtube): DB-gated integration tests for weekly pick pin/unpin"
+git add apps/web/test/youtube/dashboard.test.ts
+git commit -m "test(youtube): add dashboard state computation tests"
 ```
 
 ---
 
-## Task 19: Final verification
+### Task 9: Final Integration — Run Full Test Suite
 
-- [ ] **Step 1: Run full test suite**
+**Files:** None (verification only)
+
+- [ ] **Step 1: Run the full test suite**
 
 Run: `npm test`
-Expected: All tests pass (api + web).
+Expected: ALL PASS (both api and web)
 
 - [ ] **Step 2: Run typecheck**
 
-Run: `npx tsc --noEmit -p apps/web/tsconfig.json`
-Expected: Clean, no errors.
+Run: `cd apps/web && npx tsc --noEmit`
+Expected: No errors
 
-- [ ] **Step 3: Start dev server and verify visually**
+- [ ] **Step 3: Verify the dev server starts and YouTube pages render**
 
-Run: `npm run dev -w apps/web`
+Run: `cd apps/web && npm run dev`
+Navigate to:
+- `/cms/youtube` — Dashboard should render
+- `/cms/youtube/videos` — Videos tab should be active
+- `/cms/youtube/categories` — Categories tab should be active
+- `/cms/youtube/comments` — Comments tab should be active
+- Sidebar should show YouTube under Content section
 
-Verify in browser:
-1. **Home page** — YouTube sections should show "coming soon" teasers (if no channels in DB) or hide entirely (if no channels at all)
-2. **CMS Settings > YouTube** — Add channel form should be visible
-3. **CMS YouTube > Videos** — Pick banners should appear at top
-4. **/youtube** — Should redirect to `/` if no channels, or show coming-soon if channels but no videos
-
-- [ ] **Step 4: Final commit if any fixes needed**
+- [ ] **Step 4: Final commit if any fixes were needed**
 
 ```bash
 git add -A
-git commit -m "fix(youtube): final adjustments from visual verification"
+git commit -m "fix(youtube): final integration fixes"
 ```
