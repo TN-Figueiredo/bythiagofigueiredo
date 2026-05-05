@@ -23,6 +23,7 @@ export type HomeChannel = {
   name: string
   subscriberCount: number
   thumbnailUrl: string | null
+  scheduleLabel: string | null
 }
 
 export type HomeVideo = {

@@ -111,9 +111,13 @@ export function SubscribePair({ newsletter, channels, locale, t }: Props) {
                   ))}
                 </div>
 
-                <p className="font-caveat" style={{ fontSize: 16, color: 'var(--pb-yt)', marginTop: 12, transform: 'rotate(1deg)', display: 'block' }}>
-                  {allChannels.length >= 2 ? t['home.subscribe.scheduleNote'] : t['home.channels.youtubeSchedule']}
-                </p>
+                {allChannels.some(ch => ch.scheduleLabel) && (
+                  <p className="font-caveat" style={{ fontSize: 16, color: 'var(--pb-yt)', marginTop: 12, transform: 'rotate(1deg)', display: 'block' }}>
+                    {allChannels.length >= 2
+                      ? allChannels.map(ch => ch.scheduleLabel).filter(Boolean).join(' · ')
+                      : allChannels[0]?.scheduleLabel}
+                  </p>
+                )}
               </div>
             </PaperCard>
           </div>

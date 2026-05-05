@@ -140,9 +140,11 @@ function ChannelCard({ ch, idx, locale, t }: {
               {ch.subscriberCount > 0 ? `${ch.subscriberCount.toLocaleString()} ` : '— '}
               {t['channels.subscribersSuffix']}
             </div>
-            <div style={{ fontSize: 12, color: 'var(--pb-faint)', marginTop: 2, fontStyle: 'italic' }}>
-              {t['home.channels.youtubeSchedule']}
-            </div>
+            {ch.scheduleLabel && (
+              <div style={{ fontSize: 12, color: 'var(--pb-faint)', marginTop: 2, fontStyle: 'italic' }}>
+                {ch.scheduleLabel}
+              </div>
+            )}
           </div>
           <a
             href={ch.url}

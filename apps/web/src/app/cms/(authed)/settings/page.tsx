@@ -33,7 +33,7 @@ export default async function SettingsPage({ searchParams }: Props) {
       .eq('site_id', siteId)
       .order('locale'),
     supabase.from('youtube_channels')
-      .select('id, name, handle, locale, sync_enabled, sync_schedules')
+      .select('id, name, handle, locale, sync_enabled, sync_schedules, schedule_label')
       .eq('site_id', siteId),
   ])
 
