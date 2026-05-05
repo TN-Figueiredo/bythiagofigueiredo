@@ -62,10 +62,30 @@ describe('HeaderCTAs', () => {
       expect(screen.getByText('Subscribe')).toBeTruthy()
     })
 
-    it('links to /newsletters', () => {
+    it('links to /newsletters for en locale', () => {
       render(<HeaderCTAs variant="post" locale="en" t={en} />)
       const link = screen.getByText('Subscribe').closest('a')
       expect(link!.getAttribute('href')).toBe('/newsletters')
+    })
+
+    it('links to /pt/newsletters for pt-BR locale', () => {
+      render(<HeaderCTAs variant="post" locale="pt-BR" t={ptBR} />)
+      const link = screen.getByText('Assinar').closest('a')
+      expect(link!.getAttribute('href')).toBe('/pt/newsletters')
+    })
+  })
+
+  describe('locale-aware links', () => {
+    it('home variant newsletter link uses locale prefix for pt-BR', () => {
+      render(<HeaderCTAs variant="home" locale="pt-BR" t={ptBR} />)
+      const nlBtn = screen.getByText(/Newsletter/).closest('a')
+      expect(nlBtn!.getAttribute('href')).toBe('/pt/newsletters')
+    })
+
+    it('archive variant newsletter link uses locale prefix for pt-BR', () => {
+      const { container } = render(<HeaderCTAs variant="archive" locale="pt-BR" t={ptBR} />)
+      const btn = container.querySelector('a')
+      expect(btn!.getAttribute('href')).toBe('/pt/newsletters')
     })
   })
 })

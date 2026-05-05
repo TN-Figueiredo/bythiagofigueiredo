@@ -1,4 +1,5 @@
 import type { SiteSeoConfig } from '@/lib/seo/config'
+import { localePath } from '@/lib/i18n/locale-path'
 import {
   buildBlogPostingNode,
   buildBreadcrumbNode,
@@ -46,11 +47,11 @@ export function buildDetailGraph(
   if (!config) return null
   const txInputs = toTranslationInputs(post.cover_image_url, translations, extrasByLocale)
   const crumbs = buildBreadcrumbNode([
-    { name: 'Home', url: config.siteUrl },
-    { name: 'Blog', url: `${config.siteUrl}/blog/${locale}` },
+    { name: locale === 'pt-BR' ? 'Início' : 'Home', url: config.siteUrl },
+    { name: 'Blog', url: `${config.siteUrl}${localePath('/blog', locale)}` },
     {
       name: tx.title,
-      url: `${config.siteUrl}/blog/${locale}/${encodeURIComponent(slug)}`,
+      url: `${config.siteUrl}${localePath(`/blog/${encodeURIComponent(slug)}`, locale)}`,
     },
   ])
   // Audit R2: seo_extras now populated via loadSeoExtrasByLocale direct query.

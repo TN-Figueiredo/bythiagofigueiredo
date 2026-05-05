@@ -82,11 +82,14 @@ describe('GlobalHeader', () => {
     expect(activeLink!.textContent).toBe('Início')
   })
 
-  it('shows arrow on external links', () => {
+  it('youtube nav link is internal (no external arrow)', () => {
     render(<GlobalHeader {...defaultProps} />)
     const nav = screen.getByLabelText('Main navigation')
-    const allText = nav.textContent ?? ''
-    expect(allText).toContain('↗')
+    const youtubeLink = Array.from(nav.querySelectorAll('a')).find(a =>
+      a.textContent?.includes('YouTube'),
+    )
+    expect(youtubeLink).toBeTruthy()
+    expect(youtubeLink!.getAttribute('target')).not.toBe('_blank')
   })
 
   it('renders theme toggle', () => {

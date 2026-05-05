@@ -20,7 +20,7 @@ export default async function SettingsPage({ searchParams }: Props) {
   const readOnly = !editRes.ok
 
   const supabase = getSupabaseServiceClient()
-  const [siteRes, typesRes, cadenceRes] = await Promise.all([
+  const [siteRes, typesRes, cadenceRes, ytChannelsRes] = await Promise.all([
     supabase.from('sites').select('*').eq('id', siteId).single(),
     supabase
       .from('newsletter_types')
@@ -32,6 +32,9 @@ export default async function SettingsPage({ searchParams }: Props) {
       .select('*')
       .eq('site_id', siteId)
       .order('locale'),
+    supabase.from('youtube_channels')
+      .select('id, name, handle, locale, sync_enabled, sync_schedules')
+      .eq('site_id', siteId),
   ])
 
   const seoFlags = {
@@ -49,6 +52,7 @@ export default async function SettingsPage({ searchParams }: Props) {
         site={siteRes.data}
         newsletterTypes={typesRes.data ?? []}
         blogCadence={cadenceRes.data ?? []}
+        youtubeChannels={ytChannelsRes.data ?? []}
         initialSection={params.section ?? 'branding'}
         seoFlags={seoFlags}
         readOnly={readOnly}

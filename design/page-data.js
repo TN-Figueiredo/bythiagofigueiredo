@@ -148,7 +148,7 @@ window.PAGE_DATA = {
       links: [
         { label: "← Home (Pinboard)", href: "Pinboard.html" },
         { label: "Arquivo do blog",   href: "blog.html" },
-        { label: "Vídeos",            href: "videos.html" },
+        { label: "Vídeos",            href: "youtube.html" },
         { label: "Newsletters",       href: "newsletters.html" },
         { label: "Sobre",             href: "about.html" },
         { label: "Now (o que faço)",  href: "now.html" },
@@ -163,7 +163,7 @@ window.PAGE_DATA = {
       links: [
         { label: "← Home (Pinboard)", href: "Pinboard.html" },
         { label: "Blog archive",      href: "blog.html" },
-        { label: "Videos",            href: "videos.html" },
+        { label: "Videos",            href: "youtube.html" },
         { label: "Newsletters",       href: "newsletters.html" },
         { label: "About",             href: "about.html" },
         { label: "Now (what I'm up to)", href: "now.html" },

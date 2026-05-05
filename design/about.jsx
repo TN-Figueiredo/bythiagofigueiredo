@@ -206,7 +206,7 @@ const About = ({ tweaks, setTweak, dark, L }) => {
                 display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10,
               }}>
                 <Chip kicker="01" label={L === "pt" ? "blog" : "blog"} href="blog.html"/>
-                <Chip kicker="02" label={L === "pt" ? "vídeos" : "videos"} href="videos.html"/>
+                <Chip kicker="02" label={L === "pt" ? "vídeos" : "videos"} href="youtube.html"/>
                 <Chip kicker="03" label={L === "pt" ? "newsletters" : "newsletters"} href="newsletters.html"/>
                 <Chip kicker="04" label={L === "pt" ? "instagram" : "instagram"} href={copy.instagram} external/>
               </div>
@@ -236,7 +236,7 @@ const About = ({ tweaks, setTweak, dark, L }) => {
         <div style={{ ...mono, fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: faint, marginTop: 12 }}>
           <a href="Pinboard.html" style={{ color: "inherit", textDecoration: "none", marginRight: 14 }}>home</a>
           <a href="blog.html"     style={{ color: "inherit", textDecoration: "none", marginRight: 14 }}>blog</a>
-          <a href="videos.html"   style={{ color: "inherit", textDecoration: "none", marginRight: 14 }}>vídeos</a>
+          <a href="youtube.html"   style={{ color: "inherit", textDecoration: "none", marginRight: 14 }}>vídeos</a>
           <a href="now.html"      style={{ color: "inherit", textDecoration: "none" }}>now</a>
         </div>
       </footer>

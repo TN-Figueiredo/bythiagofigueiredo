@@ -8,11 +8,11 @@ const LOCK_KEY = 'cron:adsense-sync'
 
 function adUnitToSlotKey(adUnitCode: string): string {
   const mapping: Record<string, string> = {
-    banner_top: 'banner_top',
-    rail_left: 'rail_left',
-    rail_right: 'rail_right',
-    inline_mid: 'inline_mid',
-    block_bottom: 'block_bottom',
+    banner_top: 'post:top:banner',
+    rail_left: 'post:rail:anchor-left',
+    rail_right: 'post:rail:anchor',
+    inline_mid: 'post:body:bookmark',
+    block_bottom: 'post:footer:coda',
   }
   for (const [key, slotKey] of Object.entries(mapping)) {
     if (adUnitCode.includes(key)) return slotKey

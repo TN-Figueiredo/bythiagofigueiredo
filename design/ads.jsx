@@ -614,7 +614,9 @@ const Doorman = ({ ad, L, theme }) => {
 
 // ---------- 6. Bowtie (newsletter-style inline card) ----------
 // House ad inline form with built-in submit. Ties off the article.
-const Bowtie = ({ ad, L, theme }) => {
+// variant: "default" — full-bleed brand color (loud, used between body and footer)
+//          "quiet"   — paper-tinted, low-key (when stacked near another loud CTA)
+const Bowtie = ({ ad, L, theme, variant = "default" }) => {
   const [dismissed, dismiss] = useDismissable("bw_" + ad.id);
   const [submitted, setSubmitted] = React.useState(false);
   if (dismissed) return null;
@@ -625,32 +627,52 @@ const Bowtie = ({ ad, L, theme }) => {
   };
 
   const isHouse = ad.label_pt === "DA CASA";
+  const quiet = variant === "quiet";
+
+  // Quiet variant: paper background, ink text, accent only on CTA + tape
+  const paperBg = theme && theme.dark ? "#2A241A" : "#FBF6E8";
+  const inkColor = theme && theme.dark ? "#F2EBDB" : "#1A140C";
+  const mutedColor = theme && theme.dark ? "rgba(242,235,219,0.7)" : "rgba(26,20,12,0.7)";
+  const accent = (theme && theme.accent) || "#C7702E";
+
+  const wrapBg    = quiet ? paperBg : ad.brandColor;
+  const wrapText  = quiet ? inkColor : "#1A140C";
+  const muteText  = quiet ? mutedColor : "rgba(26,20,12,0.85)";
+  const tapeFill  = quiet ? (theme && theme.tape) || "rgba(199,112,46,0.45)" : "rgba(255,180,120,0.85)";
+  const ctaBg     = quiet ? accent : "#1A140C";
+  const ctaInk    = quiet ? "#FFFFFF" : ad.brandColor;
+  const inputBg   = quiet ? (theme && theme.dark ? "rgba(255,255,255,0.06)" : "#FFFCEE") : "#FFFCEE";
+  const inputBorder = quiet ? (theme && theme.line) || "rgba(0,0,0,0.18)" : "#1A140C";
 
   return (
     <div style={{
-      marginTop: 48, padding: "32px 32px 28px",
-      background: ad.brandColor, color: "#1A140C",
+      marginTop: quiet ? 0 : 48,
+      padding: "32px 32px 28px",
+      background: wrapBg, color: wrapText,
       position: "relative",
       transform: "rotate(-0.25deg)",
+      border: quiet ? `1px dashed ${(theme && theme.line) || "rgba(0,0,0,0.18)"}` : "none",
     }}>
       {/* Tape decoration */}
       <div style={{
         position: "absolute", top: -10, left: "40%",
         transform: "rotate(3deg)",
         width: 80, height: 18,
-        background: "rgba(255,180,120,0.85)",
+        background: tapeFill,
         boxShadow: "0 2px 4px rgba(0,0,0,0.08)",
       }}/>
 
       <div style={{ position: "absolute", top: 12, right: 12 }}>
-        <DismissButton onClick={dismiss} theme={{ muted: "#1A140C" }} label={L === "pt" ? "Fechar" : "Close"}/>
+        <DismissButton onClick={dismiss} theme={{ muted: wrapText }} label={L === "pt" ? "Fechar" : "Close"}/>
       </div>
 
       <div style={{
         fontFamily: '"JetBrains Mono", monospace',
         fontSize: 10, letterSpacing: "0.16em",
         textTransform: "uppercase", fontWeight: 600,
-        opacity: 0.7, marginBottom: 10,
+        opacity: quiet ? 0.55 : 0.7,
+        marginBottom: 10,
+        color: quiet ? accent : wrapText,
       }}>
         {ad["label_" + L]}
       </div>
@@ -665,7 +687,9 @@ const Bowtie = ({ ad, L, theme }) => {
       </div>
       <div style={{
         fontFamily: '"Source Serif 4", Georgia, serif',
-        fontSize: 14, lineHeight: 1.55, marginBottom: 18, opacity: 0.85,
+        fontSize: 14, lineHeight: 1.55, marginBottom: 18,
+        opacity: quiet ? 1 : 0.85,
+        color: muteText,
       }}>
         {ad["body_" + L]}
       </div>
@@ -676,12 +700,12 @@ const Bowtie = ({ ad, L, theme }) => {
             style={{
               flex: 1, minWidth: 200,
               padding: "12px 14px", fontSize: 14,
-              border: "1px solid #1A140C", background: "#FFFCEE",
-              color: "#1A140C", fontFamily: '"Inter", sans-serif',
+              border: `1px solid ${inputBorder}`, background: inputBg,
+              color: wrapText, fontFamily: '"Inter", sans-serif',
             }}
           />
           <button type="submit" style={{
-            padding: "12px 20px", background: "#1A140C", color: ad.brandColor,
+            padding: "12px 20px", background: ctaBg, color: ctaInk,
             border: "none", fontFamily: '"JetBrains Mono", monospace',
             fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase",
             fontWeight: 600, cursor: "pointer",
@@ -692,7 +716,7 @@ const Bowtie = ({ ad, L, theme }) => {
       ) : isHouse && submitted ? (
         <div style={{
           padding: "12px 16px",
-          background: "rgba(26,20,12,0.08)",
+          background: quiet ? "rgba(199,112,46,0.1)" : "rgba(26,20,12,0.08)",
           fontFamily: '"Source Serif 4", Georgia, serif',
           fontSize: 14, fontStyle: "italic",
         }}>
@@ -702,7 +726,7 @@ const Bowtie = ({ ad, L, theme }) => {
         <a href={ad.url} style={{
           display: "inline-block",
           padding: "12px 22px",
-          background: "#1A140C", color: ad.brandColor,
+          background: ctaBg, color: ctaInk,
           textDecoration: "none",
           fontFamily: '"JetBrains Mono", monospace',
           fontSize: 11, letterSpacing: "0.14em",

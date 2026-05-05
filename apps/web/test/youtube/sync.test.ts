@@ -1,0 +1,292 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import type { YouTubeChannelRow } from '@/lib/youtube/types'
+
+vi.mock('@/lib/youtube/api-client', () => ({
+  fetchRecentVideoIds: vi.fn(),
+  fetchVideoDetails: vi.fn(),
+  fetchChannelStats: vi.fn(),
+  YouTubeQuotaError: class YouTubeQuotaError extends Error {
+    constructor() { super('quotaExceeded') }
+  },
+}))
+
+vi.mock('@/lib/youtube/auto-categorize', () => ({
+  autoCategorize: vi.fn(() => null),
+}))
+
+import { syncChannel } from '@/lib/youtube/sync'
+import { fetchRecentVideoIds, fetchVideoDetails, fetchChannelStats } from '@/lib/youtube/api-client'
+import { autoCategorize } from '@/lib/youtube/auto-categorize'
+
+const mockFetchRecent = vi.mocked(fetchRecentVideoIds)
+const mockFetchDetails = vi.mocked(fetchVideoDetails)
+const mockFetchStats = vi.mocked(fetchChannelStats)
+const mockAutoCategorize = vi.mocked(autoCategorize)
+
+function makeChannel(overrides: Partial<YouTubeChannelRow> = {}): YouTubeChannelRow {
+  return {
+    id: 'ch-1',
+    site_id: 'site-1',
+    channel_id: 'UC_xyz',
+    locale: 'pt',
+    handle: '@canal',
+    name: 'Meu Canal',
+    description: null,
+    uploads_playlist_id: 'UU_xyz',
+    subscriber_count: 1000,
+    video_count: 50,
+    thumbnail_url: null,
+    banner_url: null,
+    custom_url: null,
+    sync_enabled: true,
+    sync_schedules: [],
+    last_synced_at: null,
+    created_at: '',
+    updated_at: '',
+    ...overrides,
+  }
+}
+
+function mockSupabase() {
+  const insertFn = vi.fn().mockReturnValue({ data: null, error: null })
+  const upsertFn = vi.fn().mockReturnValue({ data: null, error: null })
+  const updateFn = vi.fn()
+  const selectFn = vi.fn()
+
+  const supabase = {
+    from: vi.fn((table: string) => {
+      if (table === 'youtube_videos') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              in: vi.fn().mockResolvedValue({ data: [], error: null }),
+              gte: vi.fn().mockResolvedValue({ data: [], error: null }),
+            }),
+          }),
+          upsert: upsertFn,
+          update: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+            }),
+          }),
+        }
+      }
+      if (table === 'youtube_categories') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              order: vi.fn().mockResolvedValue({ data: [], error: null }),
+            }),
+          }),
+        }
+      }
+      if (table === 'youtube_channels') {
+        return {
+          update: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }),
+        }
+      }
+      return { insert: insertFn, select: selectFn }
+    }),
+  }
+
+  return { supabase: supabase as unknown as Parameters<typeof syncChannel>[0], upsertFn }
+}
+
+describe('syncChannel', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('returns early with 0 inserts when no new videos found', async () => {
+    const { supabase } = mockSupabase()
+    const channel = makeChannel()
+
+    mockFetchRecent.mockResolvedValue(['vid-1', 'vid-2'])
+    // Simulate both already exist
+    supabase.from = vi.fn((table: string) => {
+      if (table === 'youtube_videos') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              in: vi.fn().mockResolvedValue({
+                data: [{ youtube_video_id: 'vid-1' }, { youtube_video_id: 'vid-2' }],
+                error: null,
+              }),
+            }),
+          }),
+        }
+      }
+      return { select: vi.fn() }
+    }) as typeof supabase.from
+
+    const result = await syncChannel(supabase, channel, 'key', 'catchall')
+
+    expect(result.videosFound).toBe(2)
+    expect(result.videosInserted).toBe(0)
+    expect(result.quotaUsed).toBe(1)
+    expect(mockFetchDetails).not.toHaveBeenCalled()
+  })
+
+  it('inserts new videos and updates channel stats', async () => {
+    const { supabase, upsertFn } = mockSupabase()
+    const channel = makeChannel()
+
+    mockFetchRecent.mockResolvedValue(['vid-new'])
+    mockFetchDetails.mockResolvedValue([{
+      youtubeVideoId: 'vid-new',
+      title: 'New Video',
+      description: 'desc',
+      publishedAt: '2026-05-01T00:00:00Z',
+      tags: ['dev'],
+      thumbnailUrl: 'https://img.youtube.com/vi/vid-new/mqdefault.jpg',
+      thumbnailHqUrl: 'https://img.youtube.com/vi/vid-new/hqdefault.jpg',
+      duration: '12:30',
+      durationSeconds: 750,
+      viewCount: 100,
+      likeCount: 10,
+      commentCount: 5,
+    }])
+    mockFetchStats.mockResolvedValue({ subscriberCount: 1200, videoCount: 51 })
+
+    const result = await syncChannel(supabase, channel, 'key', 'catchall')
+
+    expect(result.videosFound).toBe(1)
+    expect(result.videosInserted).toBe(1)
+    expect(result.quotaUsed).toBe(3)
+    expect(upsertFn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        youtube_video_id: 'vid-new',
+        title: 'New Video',
+        site_id: 'site-1',
+        channel_id: 'ch-1',
+      }),
+      { onConflict: 'site_id,youtube_video_id' },
+    )
+  })
+
+  it('auto-categorizes with auto_approve populating category_id', async () => {
+    const { supabase, upsertFn } = mockSupabase()
+    const channel = makeChannel()
+
+    mockFetchRecent.mockResolvedValue(['vid-cat'])
+    mockFetchDetails.mockResolvedValue([{
+      youtubeVideoId: 'vid-cat',
+      title: 'Build in Public',
+      description: '',
+      publishedAt: '2026-05-01T00:00:00Z',
+      tags: [],
+      thumbnailUrl: null,
+      thumbnailHqUrl: null,
+      duration: '5:00',
+      durationSeconds: 300,
+      viewCount: 50,
+      likeCount: 5,
+      commentCount: 1,
+    }])
+    mockFetchStats.mockResolvedValue({ subscriberCount: 100, videoCount: 10 })
+    mockAutoCategorize.mockReturnValue({ categoryId: 'cat-bip', autoApprove: true })
+
+    await syncChannel(supabase, channel, 'key', 'catchall')
+
+    expect(upsertFn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        auto_suggested_category_id: 'cat-bip',
+        category_id: 'cat-bip',
+      }),
+      expect.anything(),
+    )
+  })
+
+  it('auto-categorize without auto_approve only sets suggestion', async () => {
+    const { supabase, upsertFn } = mockSupabase()
+    const channel = makeChannel()
+
+    mockFetchRecent.mockResolvedValue(['vid-suggest'])
+    mockFetchDetails.mockResolvedValue([{
+      youtubeVideoId: 'vid-suggest',
+      title: 'Debug Session',
+      description: '',
+      publishedAt: '2026-05-01T00:00:00Z',
+      tags: [],
+      thumbnailUrl: null,
+      thumbnailHqUrl: null,
+      duration: '10:00',
+      durationSeconds: 600,
+      viewCount: 30,
+      likeCount: 3,
+      commentCount: 0,
+    }])
+    mockFetchStats.mockResolvedValue({ subscriberCount: 100, videoCount: 10 })
+    mockAutoCategorize.mockReturnValue({ categoryId: 'cat-debug', autoApprove: false })
+
+    await syncChannel(supabase, channel, 'key', 'catchall')
+
+    expect(upsertFn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        auto_suggested_category_id: 'cat-debug',
+        category_id: null,
+      }),
+      expect.anything(),
+    )
+  })
+
+  it('metrics mode refreshes view/like/comment counts', async () => {
+    const updateEq = vi.fn().mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+    })
+    const updateFn = vi.fn().mockReturnValue({ eq: updateEq })
+
+    const supabase = {
+      from: vi.fn((table: string) => {
+        if (table === 'youtube_videos') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                gte: vi.fn().mockResolvedValue({
+                  data: [{ youtube_video_id: 'vid-1' }, { youtube_video_id: 'vid-2' }],
+                  error: null,
+                }),
+              }),
+            }),
+            update: updateFn,
+          }
+        }
+        return {}
+      }),
+    } as unknown as Parameters<typeof syncChannel>[0]
+
+    mockFetchDetails.mockResolvedValue([
+      { youtubeVideoId: 'vid-1', title: '', description: '', publishedAt: '', tags: [], thumbnailUrl: null, thumbnailHqUrl: null, duration: '', durationSeconds: 0, viewCount: 500, likeCount: 50, commentCount: 10 },
+      { youtubeVideoId: 'vid-2', title: '', description: '', publishedAt: '', tags: [], thumbnailUrl: null, thumbnailHqUrl: null, duration: '', durationSeconds: 0, viewCount: 200, likeCount: 20, commentCount: 5 },
+    ])
+
+    const result = await syncChannel(supabase, makeChannel(), 'key', 'metrics')
+
+    expect(result.videosUpdated).toBe(2)
+    expect(result.quotaUsed).toBe(1)
+    expect(updateFn).toHaveBeenCalledTimes(2)
+    expect(updateFn).toHaveBeenCalledWith(
+      expect.objectContaining({ view_count: 500, like_count: 50, comment_count: 10 }),
+    )
+  })
+
+  it('metrics mode returns early when no recent videos', async () => {
+    const supabase = {
+      from: vi.fn(() => ({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            gte: vi.fn().mockResolvedValue({ data: [], error: null }),
+          }),
+        }),
+      })),
+    } as unknown as Parameters<typeof syncChannel>[0]
+
+    const result = await syncChannel(supabase, makeChannel(), 'key', 'metrics')
+
+    expect(result.videosUpdated).toBe(0)
+    expect(result.quotaUsed).toBe(0)
+    expect(mockFetchDetails).not.toHaveBeenCalled()
+  })
+})

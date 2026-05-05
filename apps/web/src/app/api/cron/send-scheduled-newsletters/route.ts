@@ -73,7 +73,7 @@ async function sendEdition(
 
   const { data: subscribers } = await supabase
     .from('newsletter_subscriptions')
-    .select('email')
+    .select('email, locale')
     .eq('newsletter_id', edition.newsletter_type_id)
     .eq('site_id', edition.site_id)
     .eq('status', 'confirmed')
@@ -85,6 +85,11 @@ async function sendEdition(
       send_count: 0,
     }).eq('id', edition.id)
     return 0
+  }
+
+  const subscriberLocaleMap = new Map<string, string | null>()
+  for (const s of subscribers) {
+    subscriberLocaleMap.set(s.email, s.locale ?? null)
   }
 
   const sendRows = subscribers.map((s) => ({
@@ -186,7 +191,9 @@ async function sendEdition(
       try {
         const unsubToken = tokenMap.get(send.subscriber_email) ?? ''
         const unsubscribeUrl = `${appUrl}/api/newsletters/unsubscribe?token=${unsubToken}`
-        const archiveUrl = `${appUrl}/newsletter/archive/${edition.id}`
+        const subscriberLocale = subscriberLocaleMap.get(send.subscriber_email) ?? null
+        const localePrefix = subscriberLocale === 'pt-BR' ? '/pt' : ''
+        const archiveUrl = `${appUrl}${localePrefix}/newsletter/archive/${edition.id}`
 
         const html = await render(Newsletter({
           subject: edition.subject,

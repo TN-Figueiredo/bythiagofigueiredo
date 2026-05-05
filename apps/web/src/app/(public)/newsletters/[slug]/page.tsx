@@ -196,8 +196,8 @@ export default async function NewsletterLandingPage({ params }: PageProps) {
       ? [
           buildBreadcrumbNode([
             { name: t('newsletter.landing.crumbHome'), url: config.siteUrl },
-            { name: t('newsletter.landing.crumbHub'), url: `${config.siteUrl}/newsletters` },
-            { name: type.name, url: `${config.siteUrl}/newsletters/${slug}` },
+            { name: t('newsletter.landing.crumbHub'), url: `${config.siteUrl}${localePath('/newsletters', locale)}` },
+            { name: type.name, url: `${config.siteUrl}${localePath(`/newsletters/${slug}`, locale)}` },
           ]),
           ...(faqItems?.length ? [buildFaqNode(faqItems)] : []),
         ]
@@ -559,7 +559,7 @@ export default async function NewsletterLandingPage({ params }: PageProps) {
                       />
                       <Paper rotation={rotation} translateY={lift}>
                         <Link
-                          href={`/newsletter/archive/${edition.id}`}
+                          href={localePath(`/newsletter/archive/${edition.id}`, locale)}
                           style={{ textDecoration: 'none', display: 'block' }}
                         >
                           <div

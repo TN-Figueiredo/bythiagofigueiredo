@@ -5,7 +5,19 @@ exports[`page-metadata factories — snapshots > generateBlogIndexMetadata shape
   "metadataBase": "https://example.com/",
   "openGraph": {
     "siteName": "Example",
-    "locale": "pt_BR"
+    "locale": "pt_BR",
+    "type": "website",
+    "url": "https://example.com/pt/blog",
+    "title": "Blog — Example",
+    "description": "Artigos sobre engenharia de software, produto e carreira por Example.",
+    "images": [
+      {
+        "url": "https://example.com/og-default.png",
+        "width": 1200,
+        "height": 630,
+        "alt": "Blog — Example"
+      }
+    ]
   },
   "twitter": {
     "site": "@tnFigueiredo",
@@ -32,13 +44,17 @@ exports[`page-metadata factories — snapshots > generateBlogPostMetadata shape 
     "siteName": "Example",
     "locale": "pt_BR",
     "type": "article",
+    "title": "Hello World",
+    "description": "exc-en",
+    "url": "https://example.com/blog/hello-world-en",
     "publishedTime": "2026-04-14T00:00:00.000Z",
     "modifiedTime": "2026-04-15T00:00:00.000Z",
     "images": [
       {
         "url": "https://example.com/og/blog/en/hello-world-en",
         "width": 1200,
-        "height": 630
+        "height": 630,
+        "alt": "Hello World"
       }
     ]
   },
@@ -67,11 +83,15 @@ exports[`page-metadata factories — snapshots > generateCampaignMetadata shape 
     "siteName": "Example",
     "locale": "pt_BR",
     "type": "article",
+    "title": "Título da campanha",
+    "description": "Descrição da campanha",
+    "url": "https://example.com/pt/campaigns/c1",
     "images": [
       {
         "url": "https://example.com/og/c1.png",
         "width": 1200,
-        "height": 630
+        "height": 630,
+        "alt": "Título da campanha"
       }
     ]
   },
@@ -83,7 +103,12 @@ exports[`page-metadata factories — snapshots > generateCampaignMetadata shape 
   "title": "Título da campanha",
   "description": "Descrição da campanha",
   "alternates": {
-    "canonical": "/pt/campaigns/c1"
+    "canonical": "/pt/campaigns/c1",
+    "languages": {
+      "pt": "/pt/campaigns/c1",
+      "en": "/campaigns/c1",
+      "x-default": "/pt/campaigns/c1"
+    }
   }
 }"
 `;
@@ -93,7 +118,19 @@ exports[`page-metadata factories — snapshots > generateContactMetadata shape (
   "metadataBase": "https://example.com/",
   "openGraph": {
     "siteName": "Example",
-    "locale": "pt_BR"
+    "locale": "pt_BR",
+    "type": "website",
+    "url": "https://example.com/pt/contact",
+    "title": "Fale comigo — Example",
+    "description": "Entre em contato com Example.",
+    "images": [
+      {
+        "url": "https://example.com/og-default.png",
+        "width": 1200,
+        "height": 630,
+        "alt": "Fale comigo"
+      }
+    ]
   },
   "twitter": {
     "site": "@tnFigueiredo",
@@ -122,7 +159,19 @@ exports[`page-metadata factories — snapshots > generateLegalMetadata shape (pr
   "metadataBase": "https://example.com/",
   "openGraph": {
     "siteName": "Example",
-    "locale": "pt_BR"
+    "locale": "pt_BR",
+    "type": "website",
+    "url": "https://example.com/pt/privacy",
+    "title": "Política de Privacidade — Example",
+    "description": "LGPD — dados, direitos, cookies.",
+    "images": [
+      {
+        "url": "https://example.com/og-default.png",
+        "width": 1200,
+        "height": 630,
+        "alt": "Política de Privacidade"
+      }
+    ]
   },
   "twitter": {
     "site": "@tnFigueiredo",
@@ -170,7 +219,19 @@ exports[`page-metadata factories — snapshots > generateRootMetadata shape 1`] 
   "metadataBase": "https://example.com/",
   "openGraph": {
     "siteName": "Example",
-    "locale": "pt_BR"
+    "locale": "pt_BR",
+    "type": "website",
+    "url": "https://example.com",
+    "title": "Example",
+    "description": "Blog, newsletters e projetos de Thiago Figueiredo. Engenharia de software, produto e construção em público.",
+    "images": [
+      {
+        "url": "https://example.com/og-default.png",
+        "width": 1200,
+        "height": 630,
+        "alt": "Example"
+      }
+    ]
   },
   "twitter": {
     "site": "@tnFigueiredo",

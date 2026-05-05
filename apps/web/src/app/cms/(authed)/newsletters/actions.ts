@@ -421,13 +421,15 @@ export async function sendTestEmail(editionId: string): Promise<ActionResult> {
 
   const { data: type } = await supabase
     .from('newsletter_types')
-    .select('name, sender_name, sender_email, color')
+    .select('name, sender_name, sender_email, color, locale')
     .eq('id', edition.newsletter_type_id)
     .single()
 
   const senderName = type?.sender_name ?? 'Thiago Figueiredo'
   const senderEmail = type?.sender_email ?? 'newsletter@bythiagofigueiredo.com'
   const typeColor = type?.color ?? '#ea580c'
+  const locale = (type?.locale as string) ?? 'en'
+  const localePrefix = locale === 'pt-BR' ? '/pt' : ''
 
   const userClient = await getUserClient()
   const { data: { user } } = await userClient.auth.getUser()
@@ -451,7 +453,7 @@ export async function sendTestEmail(editionId: string): Promise<ActionResult> {
     typeName: type?.name ?? 'Newsletter',
     typeColor,
     unsubscribeUrl: `${appUrl}/newsletter/unsubscribe`,
-    archiveUrl: `${appUrl}/newsletter/archive/${editionId}`,
+    archiveUrl: `${appUrl}${localePrefix}/newsletter/archive/${editionId}`,
   }))
 
   try {
@@ -496,18 +498,22 @@ export async function renderEmailPreview(
   let typeName = 'Newsletter'
   let typeColor = '#7c3aed'
 
+  let locale = 'en'
+
   if (edition.newsletter_type_id) {
     const { data: type } = await supabase
       .from('newsletter_types')
-      .select('name, color')
+      .select('name, color, locale')
       .eq('id', edition.newsletter_type_id)
       .single()
     if (type) {
       typeName = type.name as string
       typeColor = (type.color ?? '#7c3aed') as string
+      locale = (type.locale as string) ?? 'en'
     }
   }
 
+  const localePrefix = locale === 'pt-BR' ? '/pt' : ''
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://bythiagofigueiredo.com'
 
   const { sanitizeForEmail } = await import('@/lib/newsletter/email-sanitizer')
@@ -520,7 +526,7 @@ export async function renderEmailPreview(
     typeName,
     typeColor,
     unsubscribeUrl: `${appUrl}/newsletter/unsubscribe`,
-    archiveUrl: `${appUrl}/newsletter/archive/${editionId}`,
+    archiveUrl: `${appUrl}${localePrefix}/newsletter/archive/${editionId}`,
   }))
 
   return { ok: true, html }

@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { BrandWordmark } from '@/components/brand/brand-wordmark'
+import { localePath } from '@/lib/i18n/locale-path'
 import type { GlobalHeaderProps } from './header-types'
 import { buildNavItems } from './header-types'
 import { DesktopNav } from './desktop-nav'
@@ -8,7 +9,7 @@ import { ThemeToggle } from './theme-toggle'
 import { MobileNavDrawer } from './mobile-nav-drawer'
 
 export function GlobalHeader({ locale, currentTheme, variant, ctas, t }: GlobalHeaderProps) {
-  const homeHref = locale === 'pt-BR' ? '/pt' : '/'
+  const homeHref = localePath('/', locale)
   const items = buildNavItems(locale, variant, t)
 
   return (

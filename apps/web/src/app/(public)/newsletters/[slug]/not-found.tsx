@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { headers } from 'next/headers'
 import { getActiveTypesForNotFound } from '@/lib/newsletter/queries'
 import { resolveSiteByHost } from '@/lib/seo/host'
+import { localePath } from '@/lib/i18n/locale-path'
 
 import enStrings from '@/locales/en.json'
 import ptBrStrings from '@/locales/pt-BR.json'
@@ -77,7 +78,7 @@ export default async function NewsletterNotFound() {
           {types.map((nl) => (
             <Link
               key={nl.slug}
-              href={`/newsletters/${nl.slug}`}
+              href={localePath(`/newsletters/${nl.slug}`, locale)}
               style={{
                 display: 'block',
                 padding: '16px 20px',
@@ -107,7 +108,7 @@ export default async function NewsletterNotFound() {
         </div>
       ) : (
         <Link
-          href="/"
+          href={localePath('/', locale)}
           style={{
             fontFamily: 'var(--font-jetbrains-var), monospace',
             fontSize: 14,

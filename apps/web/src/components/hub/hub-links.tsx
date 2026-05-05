@@ -1,4 +1,5 @@
 import { Youtube, BookOpen, Mail, Code2, ArrowUpRight } from 'lucide-react'
+import { localePath } from '@/lib/i18n/locale-path'
 
 type HubLink = {
   icon: typeof Youtube
@@ -9,44 +10,51 @@ type HubLink = {
   featured?: boolean
 }
 
-const links: HubLink[] = [
-  {
-    icon: Youtube,
-    title: 'YouTube · English',
-    subtitle: '@bythiagofigueiredo — building in public',
-    href: 'https://www.youtube.com/@bythiagofigueiredo',
-    external: true,
-    featured: true,
-  },
-  {
-    icon: Youtube,
-    title: 'YouTube · Português',
-    subtitle: '@thiagonfigueiredo — bastidores em PT-BR',
-    href: 'https://www.youtube.com/@thiagonfigueiredo',
-    external: true,
-    featured: true,
-  },
-  {
-    icon: BookOpen,
-    title: 'Blog',
-    subtitle: 'Notas, tutoriais e ensaios',
-    href: '/blog',
-  },
-  {
-    icon: Mail,
-    title: 'Newsletter',
-    subtitle: 'Updates semanais direto na tua caixa',
-    href: '/newsletter',
-  },
-  {
-    icon: Code2,
-    title: 'Portfolio Dev',
-    subtitle: 'Trajetória técnica, experiências e projetos',
-    href: '/dev',
-  },
-]
+interface HubLinksProps {
+  locale?: string
+}
 
-export function HubLinks() {
+function getLinks(locale: string): HubLink[] {
+  return [
+    {
+      icon: Youtube,
+      title: 'YouTube · English',
+      subtitle: '@bythiagofigueiredo — building in public',
+      href: 'https://www.youtube.com/@bythiagofigueiredo',
+      external: true,
+      featured: true,
+    },
+    {
+      icon: Youtube,
+      title: 'YouTube · Português',
+      subtitle: '@thiagonfigueiredo — bastidores em PT-BR',
+      href: 'https://www.youtube.com/@thiagonfigueiredo',
+      external: true,
+      featured: true,
+    },
+    {
+      icon: BookOpen,
+      title: 'Blog',
+      subtitle: 'Notas, tutoriais e ensaios',
+      href: localePath('/blog', locale),
+    },
+    {
+      icon: Mail,
+      title: 'Newsletter',
+      subtitle: 'Updates semanais direto na tua caixa',
+      href: localePath('/newsletter', locale),
+    },
+    {
+      icon: Code2,
+      title: 'Portfolio Dev',
+      subtitle: 'Trajetória técnica, experiências e projetos',
+      href: localePath('/dev', locale),
+    },
+  ]
+}
+
+export function HubLinks({ locale = 'en' }: HubLinksProps) {
+  const links = getLinks(locale)
   return (
     <section className="px-6 pb-12">
       <div className="mx-auto max-w-2xl space-y-3">

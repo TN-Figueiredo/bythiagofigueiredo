@@ -13,6 +13,7 @@
 // State + persistence live in <CookieBannerProvider />; this component is the UI surface.
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { localePath } from '@/lib/i18n/locale-path'
 import { useCookieConsent } from './cookie-banner-context'
 
 type Locale = 'pt-BR' | 'en'
@@ -186,7 +187,7 @@ export function CookieBanner({ localeOverride }: CookieBannerProps = {}) {
           </h2>
           <p className="text-sm text-[var(--text-secondary)]">{t.description}</p>
           <a
-            href="/privacy"
+            href={localePath('/privacy', locale)}
             className="text-sm text-[var(--accent)] underline underline-offset-2 hover:no-underline"
           >
             {t.privacyLinkLabel}

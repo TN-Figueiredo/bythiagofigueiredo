@@ -1,3 +1,5 @@
+import { localePath } from '@/lib/i18n/locale-path'
+
 export type HeaderLocale = 'en' | 'pt-BR'
 export type HeaderTheme = 'dark' | 'light'
 export type HeaderCurrent = 'home' | 'blog' | 'youtube' | 'newsletters' | 'about' | 'contact'
@@ -29,19 +31,18 @@ export function buildNavItems(
   variant: HeaderVariant,
   t: Record<string, string>,
 ): NavItem[] {
-  const home = locale === 'pt-BR' ? '/pt' : '/'
   const l = (key: string): string => t[key] ?? key
   const items: NavItem[] = [
-    { key: 'home', href: home, label: l('nav.home') },
-    { key: 'blog', href: locale === 'pt-BR' ? '/pt/blog' : '/blog', label: l('nav.blog') },
-    { key: 'youtube', href: YT_CHANNELS[locale].url, label: l('nav.youtube'), external: true },
-    { key: 'newsletters', href: locale === 'pt-BR' ? '/pt/newsletters' : '/newsletters', label: l('nav.newsletters') },
-    { key: 'about', href: '/about', label: l('nav.about') },
+    { key: 'home', href: localePath('/', locale), label: l('nav.home') },
+    { key: 'blog', href: localePath('/blog', locale), label: l('nav.blog') },
+    { key: 'youtube', href: localePath('/youtube', locale), label: l('nav.youtube') },
+    { key: 'newsletters', href: localePath('/newsletters', locale), label: l('nav.newsletters') },
+    { key: 'about', href: localePath('/about', locale), label: l('nav.about') },
   ]
 
   if (variant === 'full') {
     items.push(
-      { key: 'contact', href: '/contact', label: l('nav.contact') },
+      { key: 'contact', href: localePath('/contact', locale), label: l('nav.contact') },
     )
   }
 

@@ -1,5 +1,6 @@
 import { Paper } from '@/components/pinboard/paper'
 import { Tape } from '@/app/(public)/components/Tape'
+import { localePath } from '@/lib/i18n/locale-path'
 import { CtaChip } from './CtaChip'
 
 const INTERNAL_ROUTES: Record<string, string> = {
@@ -15,18 +16,19 @@ interface CtaLink {
 }
 
 interface CtaBlockProps {
+  locale: string
   kicker: string
   signature: string
   links: CtaLink[]
   socialLinks: Record<string, string> | null
 }
 
-export function CtaBlock({ kicker, signature, links, socialLinks }: CtaBlockProps) {
+export function CtaBlock({ locale, kicker, signature, links, socialLinks }: CtaBlockProps) {
   const resolvedLinks = links
     .map((link) => {
       if (link.type === 'internal') {
-        const href = INTERNAL_ROUTES[link.key]
-        return href ? { ...link, href, external: false } : null
+        const basePath = INTERNAL_ROUTES[link.key]
+        return basePath ? { ...link, href: localePath(basePath, locale), external: false } : null
       }
       const href = socialLinks?.[link.key]
       return href ? { ...link, href, external: true } : null

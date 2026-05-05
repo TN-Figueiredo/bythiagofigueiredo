@@ -42,11 +42,20 @@ export function generateRootMetadata(config: SiteSeoConfig): Metadata {
       ? `Blog, newsletters e projetos de ${config.personIdentity.name}. Engenharia de software, produto e construção em público.`
       : `Blog, newsletters and projects by ${config.personIdentity.name}. Software engineering, product and building in public.`
     : `${config.siteName} — editorial hub.`
+  const ogImage = config.defaultOgImageUrl ?? `${config.siteUrl}/og-default.png`
   return {
     ...baseMetadata(config),
     title: { default: config.siteName, template: `%s — ${config.siteName}` },
     description: desc,
     alternates: { canonical: '/', languages },
+    openGraph: {
+      ...baseMetadata(config).openGraph,
+      type: 'website',
+      url: config.siteUrl,
+      title: config.siteName,
+      description: desc,
+      images: [{ url: ogImage, width: 1200, height: 630, alt: config.siteName }],
+    },
   }
 }
 
@@ -59,6 +68,7 @@ export function generateBlogIndexMetadata(config: SiteSeoConfig, locale: string)
   const desc = locale === 'pt-BR'
     ? `Artigos sobre engenharia de software, produto e carreira por ${config.siteName}.`
     : `Articles on software engineering, product and career by ${config.siteName}.`
+  const ogImage = config.defaultOgImageUrl ?? `${config.siteUrl}/og-default.png`
   return {
     ...baseMetadata(config),
     title: 'Blog',
@@ -66,6 +76,14 @@ export function generateBlogIndexMetadata(config: SiteSeoConfig, locale: string)
     alternates: {
       canonical: localePath(config.contentPaths.blog, locale),
       languages,
+    },
+    openGraph: {
+      ...baseMetadata(config).openGraph,
+      type: 'website',
+      url: `${config.siteUrl}${localePath(config.contentPaths.blog, locale)}`,
+      title: `Blog — ${config.siteName}`,
+      description: desc,
+      images: [{ url: ogImage, width: 1200, height: 630, alt: `Blog — ${config.siteName}` }],
     },
   }
 }
@@ -95,9 +113,12 @@ export function generateBlogPostMetadata(
     openGraph: {
       ...baseMetadata(config).openGraph,
       type: 'article',
+      title: tx.title,
+      description: tx.excerpt ?? undefined,
+      url: `${config.siteUrl}${localePath(`${config.contentPaths.blog}/${encodeURIComponent(tx.slug)}`, tx.locale)}`,
       publishedTime: post.published_at.toISOString(),
       modifiedTime: post.updated_at.toISOString(),
-      images: [{ url: ogImage, width: 1200, height: 630 }],
+      images: [{ url: ogImage, width: 1200, height: 630, alt: tx.title }],
     },
   }
 }
@@ -105,17 +126,26 @@ export function generateBlogPostMetadata(
 export function generateCampaignMetadata(config: SiteSeoConfig, c: CampaignInput): Metadata {
   const ogImage =
     c.og_image_url ?? `${config.siteUrl}/og/campaigns/${c.locale}/${encodeURIComponent(c.slug)}`
+  const languages: Record<string, string> = {}
+  for (const loc of config.supportedLocales) {
+    languages[hreflangCode(loc)] = localePath(`${config.contentPaths.campaigns}/${encodeURIComponent(c.slug)}`, loc)
+  }
+  languages['x-default'] = localePath(`${config.contentPaths.campaigns}/${encodeURIComponent(c.slug)}`, config.defaultLocale)
   return {
     ...baseMetadata(config),
     title: c.meta_title,
     description: c.meta_description,
     alternates: {
       canonical: localePath(`${config.contentPaths.campaigns}/${encodeURIComponent(c.slug)}`, c.locale),
+      languages,
     },
     openGraph: {
       ...baseMetadata(config).openGraph,
       type: 'article',
-      images: [{ url: ogImage, width: 1200, height: 630 }],
+      title: c.meta_title,
+      description: c.meta_description,
+      url: `${config.siteUrl}${localePath(`${config.contentPaths.campaigns}/${encodeURIComponent(c.slug)}`, c.locale)}`,
+      images: [{ url: ogImage, width: 1200, height: 630, alt: c.meta_title }],
     },
   }
 }
@@ -139,11 +169,20 @@ export function generateLegalMetadata(
     languages[hreflangCode(l)] = localePath(`/${type}`, l)
   }
   languages['x-default'] = localePath(`/${type}`, config.defaultLocale)
+  const ogImage = config.defaultOgImageUrl ?? `${config.siteUrl}/og-default.png`
   return {
     ...baseMetadata(config),
     title: titles[type][loc],
     description: descs[type][loc],
     alternates: { canonical: localePath(`/${type}`, locale), languages },
+    openGraph: {
+      ...baseMetadata(config).openGraph,
+      type: 'website',
+      url: `${config.siteUrl}${localePath(`/${type}`, locale)}`,
+      title: `${titles[type][loc]} — ${config.siteName}`,
+      description: descs[type][loc],
+      images: [{ url: ogImage, width: 1200, height: 630, alt: titles[type][loc] }],
+    },
     robots: { index: true, follow: true },
   }
 }
@@ -158,11 +197,20 @@ export function generateContactMetadata(config: SiteSeoConfig, locale: string): 
     languages[hreflangCode(l)] = localePath('/contact', l)
   }
   languages['x-default'] = localePath('/contact', config.defaultLocale)
+  const ogImage = config.defaultOgImageUrl ?? `${config.siteUrl}/og-default.png`
   return {
     ...baseMetadata(config),
     title: t.title,
     description: t.desc,
     alternates: { canonical: localePath('/contact', locale), languages },
+    openGraph: {
+      ...baseMetadata(config).openGraph,
+      type: 'website',
+      url: `${config.siteUrl}${localePath('/contact', locale)}`,
+      title: `${t.title} — ${config.siteName}`,
+      description: t.desc,
+      images: [{ url: ogImage, width: 1200, height: 630, alt: t.title }],
+    },
     robots: { index: true, follow: true },
   }
 }
@@ -186,11 +234,20 @@ export function generateNewsletterArchiveMetadata(
     languages[hreflangCode(l)] = localePath('/newsletter/archive', l)
   }
   languages['x-default'] = localePath('/newsletter/archive', config.defaultLocale)
+  const ogImage = config.defaultOgImageUrl ?? `${config.siteUrl}/og-default.png`
   return {
     ...baseMetadata(config),
     title: t.title,
     description: t.desc,
     alternates: { canonical: localePath('/newsletter/archive', locale), languages },
+    openGraph: {
+      ...baseMetadata(config).openGraph,
+      type: 'website',
+      url: `${config.siteUrl}${localePath('/newsletter/archive', locale)}`,
+      title: `${t.title} — ${config.siteName}`,
+      description: t.desc,
+      images: [{ url: ogImage, width: 1200, height: 630, alt: t.title }],
+    },
     robots: { index: true, follow: true },
   }
 }
@@ -198,10 +255,32 @@ export function generateNewsletterArchiveMetadata(
 export function generateNewsletterDetailMetadata(
   config: SiteSeoConfig,
   subject: string,
+  editionId?: string,
+  locale?: string,
 ): Metadata {
+  const loc = locale ?? config.defaultLocale
+  const ogImage = config.defaultOgImageUrl ?? `${config.siteUrl}/og-default.png`
+  const canonical = editionId ? localePath(`/newsletter/archive/${editionId}`, loc) : undefined
+  const languages: Record<string, string> = {}
+  if (editionId) {
+    for (const l of config.supportedLocales) {
+      languages[hreflangCode(l)] = localePath(`/newsletter/archive/${editionId}`, l)
+    }
+    languages['x-default'] = localePath(`/newsletter/archive/${editionId}`, config.defaultLocale)
+  }
   return {
     ...baseMetadata(config),
     title: subject,
+    description: subject,
+    ...(canonical ? { alternates: { canonical, ...(editionId ? { languages } : {}) } } : {}),
+    openGraph: {
+      ...baseMetadata(config).openGraph,
+      type: 'article',
+      title: subject,
+      description: subject,
+      ...(canonical ? { url: `${config.siteUrl}${canonical}` } : {}),
+      images: [{ url: ogImage, width: 1200, height: 630, alt: subject }],
+    },
     robots: { index: true, follow: true },
   }
 }
@@ -226,12 +305,18 @@ export function generateNewsletterLandingMetadata(
       ? `${config.siteUrl}/og/newsletter/${type.slug}`
       : config.defaultOgImageUrl ?? `${config.siteUrl}/og-default.png`)
 
+  const languages: Record<string, string> = {}
+  for (const loc of config.supportedLocales) {
+    languages[hreflangCode(loc)] = localePath(`/newsletters/${type.slug}`, loc)
+  }
+  languages['x-default'] = localePath(`/newsletters/${type.slug}`, config.defaultLocale)
   return {
     ...baseMetadata(config),
     title: `${type.name} — Newsletter`,
     description,
     alternates: {
-      canonical: `/newsletters/${type.slug}`,
+      canonical: localePath(`/newsletters/${type.slug}`, type.locale),
+      languages,
     },
     openGraph: {
       ...baseMetadata(config).openGraph,
@@ -239,8 +324,8 @@ export function generateNewsletterLandingMetadata(
       description,
       type: 'website',
       locale: ogLocale,
-      url: `${config.siteUrl}/newsletters/${type.slug}`,
-      images: [ogImage],
+      url: `${config.siteUrl}${localePath(`/newsletters/${type.slug}`, type.locale)}`,
+      images: [{ url: ogImage, width: 1200, height: 630, alt: type.name }],
     },
   }
 }
@@ -275,14 +360,50 @@ export function generateAboutMetadata(
     description,
     openGraph: {
       ...baseMetadata(config).openGraph,
+      type: 'profile',
       title,
       description,
-      images: [{ url: ogImage }],
+      images: [{ url: ogImage, width: 1200, height: 630, alt: title }],
       url: `${config.siteUrl}${localePath('/about', locale)}`,
     },
     alternates: {
       canonical: localePath('/about', locale),
       languages,
+    },
+  }
+}
+
+export function generateYoutubeMetadata(
+  config: SiteSeoConfig,
+  locale: string,
+): Metadata {
+  const isEn = locale === 'en'
+  const title = isEn ? 'Videos' : 'Vídeos'
+  const description = isEn
+    ? 'Live-coding, dev setup, career insights — two YouTube channels, one head.'
+    : 'Live-coding, dev setup, carreira — dois canais no YouTube, uma cabeça.'
+
+  return {
+    title: `${title} — ${config.siteName}`,
+    description,
+    alternates: {
+      canonical: `${config.siteUrl}/youtube`,
+      languages: {
+        'pt-BR': `${config.siteUrl}/youtube`,
+        en: `${config.siteUrl}/youtube`,
+      },
+    },
+    openGraph: {
+      title: `${title} — ${config.siteName}`,
+      description,
+      url: `${config.siteUrl}/youtube`,
+      siteName: config.siteName,
+      type: 'website',
+      images: [{ url: config.defaultOgImageUrl ?? `${config.siteUrl}/og-default.png` }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      site: config.twitterHandle ? `@${config.twitterHandle}` : undefined,
     },
   }
 }

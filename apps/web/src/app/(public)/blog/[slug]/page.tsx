@@ -146,7 +146,7 @@ export default async function BlogDetailPage({ params }: Props) {
           </Link>
         </div>
 
-        {creatives.banner_top && <DoormanAd creative={creatives.banner_top} locale={adLocale} />}
+        {creatives['post:top:banner'] && <DoormanAd creative={creatives['post:top:banner']} locale={adLocale} />}
 
         <div className="max-w-[1280px] mx-auto px-10">
           <div className="blog-detail-hero">
@@ -210,7 +210,7 @@ export default async function BlogDetailPage({ params }: Props) {
           <div className="blog-sidebar blog-detail-sidebar">
             <PostToc sections={toc} url={pageUrl} />
             <div className="blog-ad-slot">
-              {creatives.rail_left && <MarginaliaAd creative={creatives.rail_left} locale={adLocale} />}
+              {creatives['post:rail:anchor-left'] && <MarginaliaAd creative={creatives['post:rail:anchor-left']} locale={adLocale} />}
             </div>
             <BackToTop />
           </div>
@@ -226,12 +226,12 @@ export default async function BlogDetailPage({ params }: Props) {
                 postId={post.id}
                 keyPoints={postExtras?.key_points}
                 mobileInlineAd={
-                  creatives.rail_right ? <AnchorAd creative={creatives.rail_right} locale={adLocale} /> : null
+                  creatives['post:rail:anchor'] ? <AnchorAd creative={creatives['post:rail:anchor']} locale={adLocale} /> : null
                 }
                 midContentAd={
-                  creatives.inline_mid ? (
+                  creatives['post:body:bookmark'] ? (
                     <div className="blog-ad-slot">
-                      <BookmarkAd creative={creatives.inline_mid} locale={adLocale} />
+                      <BookmarkAd creative={creatives['post:body:bookmark']} locale={adLocale} />
                     </div>
                   ) : null
                 }
@@ -251,7 +251,7 @@ export default async function BlogDetailPage({ params }: Props) {
                 <PostFootnotes footnotes={footnotes} />
                 <PostColophon text={postExtras?.colophon} />
                 <div className="blog-ad-slot">
-                  {creatives.block_bottom && <CodaAd creative={creatives.block_bottom} locale={adLocale} />}
+                  {creatives['post:footer:coda'] && <CodaAd creative={creatives['post:footer:coda']} locale={adLocale} />}
                 </div>
               </div>
             </article>
@@ -264,7 +264,7 @@ export default async function BlogDetailPage({ params }: Props) {
               attribution={postExtras?.pull_quote_attribution}
             />
             <div className="blog-ad-slot">
-              {creatives.rail_right && <AnchorAd creative={creatives.rail_right} locale={adLocale} />}
+              {creatives['post:rail:anchor'] && <AnchorAd creative={creatives['post:rail:anchor']} locale={adLocale} />}
             </div>
             <HighlightsSidebar slug={slug} locale={locale} />
           </aside>

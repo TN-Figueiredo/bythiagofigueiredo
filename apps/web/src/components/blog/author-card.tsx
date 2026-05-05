@@ -1,3 +1,4 @@
+import { localePath } from '@/lib/i18n/locale-path'
 import type { AuthorData } from './types'
 
 type Props = {
@@ -52,7 +53,7 @@ export function AuthorCard({ author, locale }: Props) {
           ))}
         </div>
         <a
-          href={`/blog/${locale}`}
+          href={localePath('/blog', locale)}
           className="font-caveat text-base text-pb-accent no-underline"
         >
           <em>mais textos de {author.name.split(' ')[0]}</em> →

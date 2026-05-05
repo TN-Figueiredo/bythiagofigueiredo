@@ -109,11 +109,35 @@ export async function generateMetadata(): Promise<Metadata> {
   const h = await headers()
   const locale = (h.get('x-locale') ?? 'en') as 'en' | 'pt-BR'
   const s = STRINGS[locale] ?? STRINGS.en
+
+  const ctx = await tryGetSiteContext()
+  const host = h.get('host') ?? ctx?.primaryDomain ?? ''
+  const config = ctx
+    ? await getSiteSeoConfig(ctx.siteId, host).catch(() => null)
+    : null
+
+  const siteUrl = config?.siteUrl ?? `https://${host}`
+  const url = `${siteUrl}${localePath('/anuncie', locale)}`
+  const ogImage = config?.defaultOgImageUrl ?? `${siteUrl}/og-default.png`
+
   return {
     title: s.metaTitle,
     description: s.metaDescription,
     alternates: { canonical: localePath('/anuncie', locale) },
     robots: { index: true, follow: true },
+    openGraph: {
+      type: 'website',
+      siteName: config?.siteName ?? 'By Thiago Figueiredo',
+      url,
+      title: s.metaTitle,
+      description: s.metaDescription,
+      images: [{ url: ogImage, width: 1200, height: 630, alt: s.metaTitle }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      site: '@tnFigueiredo',
+      creator: '@tnFigueiredo',
+    },
   }
 }
 
@@ -130,7 +154,7 @@ export default async function AnunciePage() {
   const breadcrumbGraph = config
     ? composeGraph([
         buildBreadcrumbNode([
-          { name: 'Home', url: config.siteUrl },
+          { name: locale === 'pt-BR' ? 'Início' : 'Home', url: config.siteUrl },
           { name: s.title, url: `${config.siteUrl}${localePath('/anuncie', locale)}` },
         ]),
       ])

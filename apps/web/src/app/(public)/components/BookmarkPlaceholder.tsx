@@ -1,3 +1,5 @@
+import { localePath } from '@/lib/i18n/locale-path'
+
 type Props = {
   locale: 'en' | 'pt-BR'
   t: Record<string, string>
@@ -53,7 +55,7 @@ export function BookmarkPlaceholder({ locale, t }: Props) {
           </p>
 
           <a
-            href={`/${isPt ? 'anuncie' : 'advertise'}`}
+            href={localePath('/anuncie', locale)}
             className="font-mono inline-block"
             style={{
               fontSize: 11,

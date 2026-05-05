@@ -35,7 +35,8 @@ export async function generateMetadata({
   const host = (await headers()).get('host') ?? ctx.primaryDomain ?? ''
   try {
     const config = await getSiteSeoConfig(ctx.siteId, host)
-    return generateNewsletterDetailMetadata(config, data.subject)
+    const locale = (await headers()).get('x-locale') ?? 'en'
+    return generateNewsletterDetailMetadata(config, data.subject, id, locale)
   } catch {
     return { title: data.subject }
   }
@@ -95,7 +96,7 @@ export default async function NewsletterArchivePage({
         >
           <VisualBreadcrumbs
             items={[
-              { label: t['newsletter.archive.breadcrumb.home'] ?? '', href: '/' },
+              { label: t['newsletter.archive.breadcrumb.home'] ?? '', href: localePath('/', locale) },
               { label: t['newsletter.archive.breadcrumb.archive'] ?? '', href: localePath('/newsletter/archive', locale) },
               { label: edition.subject as string },
             ]}

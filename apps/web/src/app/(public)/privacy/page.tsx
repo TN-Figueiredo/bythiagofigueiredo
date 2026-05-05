@@ -51,7 +51,7 @@ export default async function PrivacyPage() {
   const breadcrumbGraph = config
     ? composeGraph([
         buildBreadcrumbNode([
-          { name: 'Home', url: config.siteUrl },
+          { name: locale === 'pt-BR' ? 'Início' : 'Home', url: config.siteUrl },
           {
             name: locale === 'en' ? 'Privacy Policy' : 'Política de Privacidade',
             url: `${config.siteUrl}${localePath('/privacy', locale)}`,

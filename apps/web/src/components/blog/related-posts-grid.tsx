@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { localePath } from '@/lib/i18n/locale-path'
 import type { RelatedPost } from '@/lib/blog/related-posts'
 import { Tape } from '@/app/(public)/components/Tape'
 import { ReadableCard } from './readable-card'
@@ -95,7 +96,7 @@ export function RelatedPostsGrid({ posts, locale, category }: Props) {
             Mais na mesma categoria ·{' '}
             {category && (
               <Link
-                href={`/blog/${locale}?category=${encodeURIComponent(category)}`}
+                href={localePath(`/blog?category=${encodeURIComponent(category)}`, locale)}
                 className="no-underline"
                 style={{ color: catColor, fontWeight: 600 }}
               >
@@ -106,7 +107,7 @@ export function RelatedPostsGrid({ posts, locale, category }: Props) {
         </div>
         {category && (
           <Link
-            href={`/blog/${locale}?category=${encodeURIComponent(category)}`}
+            href={localePath(`/blog?category=${encodeURIComponent(category)}`, locale)}
             className="font-caveat no-underline"
             style={{
               fontSize: 20,
@@ -171,7 +172,7 @@ function WritingCard({ post, locale, index }: { post: RelatedPost; locale: strin
         />
 
         <Link
-          href={`/blog/${locale}/${encodeURIComponent(post.slug)}`}
+          href={localePath(`/blog/${encodeURIComponent(post.slug)}`, locale)}
           className="no-underline block"
           style={{ color: 'inherit' }}
         >

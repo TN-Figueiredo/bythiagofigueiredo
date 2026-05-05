@@ -4,6 +4,9 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext, tryGetSiteContext } from '@/lib/cms/site-context'
 import { getSiteSeoConfig } from '@/lib/seo/config'
 import { generateNewsletterArchiveMetadata } from '@/lib/seo/page-metadata'
+import { buildBreadcrumbNode } from '@/lib/seo/jsonld/builders'
+import { composeGraph } from '@/lib/seo/jsonld/graph'
+import { JsonLdScript } from '@/lib/seo/jsonld/render'
 import { localePath } from '@/lib/i18n/locale-path'
 import type { Metadata } from 'next'
 import { VisualBreadcrumbs } from '../../components/visual-breadcrumbs'
@@ -39,7 +42,18 @@ export default async function NewsletterArchiveListPage({ searchParams }: Props)
 
   const h = await headers()
   const locale = h.get('x-locale') ?? 'en'
+  const host = h.get('host') ?? ctx.primaryDomain ?? ''
   const t = (locale === 'pt-BR' ? ptBrStrings : enStrings) as unknown as Record<string, string>
+
+  const config = await getSiteSeoConfig(ctx.siteId, host).catch(() => null)
+  const breadcrumbGraph = config
+    ? composeGraph([
+        buildBreadcrumbNode([
+          { name: locale === 'pt-BR' ? 'Início' : 'Home', url: config.siteUrl },
+          { name: t['newsletter.archive.breadcrumb.archive'] ?? 'Newsletter Archive', url: `${config.siteUrl}${localePath('/newsletter/archive', locale)}` },
+        ]),
+      ])
+    : null
 
   const page = Math.max(1, Number.parseInt(sp.page ?? '1', 10))
   const from = (page - 1) * PER_PAGE
@@ -57,11 +71,13 @@ export default async function NewsletterArchiveListPage({ searchParams }: Props)
   const totalPages = Math.ceil((count ?? 0) / PER_PAGE)
 
   return (
-    <main id="main-content">
+    <>
+      {breadcrumbGraph && <JsonLdScript graph={breadcrumbGraph} />}
+      <main id="main-content">
       <div className="reader-pinboard" style={{ maxWidth: 780, margin: '0 auto', padding: '32px 28px 64px' }}>
         <VisualBreadcrumbs
           items={[
-            { label: t['newsletter.archive.breadcrumb.home'] ?? '', href: '/' },
+            { label: t['newsletter.archive.breadcrumb.home'] ?? '', href: localePath('/', locale) },
             { label: t['newsletter.archive.breadcrumb.archive'] ?? '' },
           ]}
         />
@@ -144,5 +160,6 @@ export default async function NewsletterArchiveListPage({ searchParams }: Props)
         )}
       </div>
     </main>
+    </>
   )
 }

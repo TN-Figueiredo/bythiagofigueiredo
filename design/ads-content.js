@@ -125,7 +125,7 @@ window.AdsContent = (function () {
       body_en: "Short videos about what I'm building. This week: how the CMS manages multiple sites with one post.",
       cta_pt: "Ver no YouTube →",
       cta_en: "Watch on YouTube →",
-      url: "videos.html",
+      url: "youtube.html",
       tagline_pt: "Vídeos · semanal",
       tagline_en: "Videos · weekly",
       mark: `<svg viewBox="0 0 40 40" width="36" height="36">

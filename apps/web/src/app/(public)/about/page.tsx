@@ -9,7 +9,6 @@ import { composeGraph } from '@/lib/seo/jsonld/graph'
 import { JsonLdScript } from '@/lib/seo/jsonld/render'
 import { tryGetSiteContext } from '@/lib/cms/site-context'
 import { localePath } from '@/lib/i18n/locale-path'
-import { LocaleSwitcher } from '@/components/locale-switcher'
 import { AboutHero } from './components/AboutHero'
 import { Polaroid } from './components/Polaroid'
 import { AboutContent } from './components/AboutContent'
@@ -55,7 +54,7 @@ export default async function AboutPage() {
   const config = await getSiteSeoConfig(ctx.siteId, host)
 
   const breadcrumb = buildBreadcrumbNode([
-    { name: 'Home', url: config.siteUrl },
+    { name: about.locale === 'pt-BR' ? 'Início' : 'Home', url: config.siteUrl },
     { name: t(about.locale, 'about.breadcrumb'), url: `${config.siteUrl}${localePath('/about', about.locale)}` },
   ])
   const graph = composeGraph([breadcrumb])
@@ -66,16 +65,6 @@ export default async function AboutPage() {
 
       {about.headline && (
         <AboutHero headline={about.headline} kicker={t(about.locale, 'about.kicker')} />
-      )}
-
-      {about.availableLocales.length > 1 && (
-        <div style={{ maxWidth: 1080, margin: '0 auto', padding: '0 28px' }}>
-          <LocaleSwitcher
-            available={about.availableLocales}
-            current={about.locale}
-            hrefFor={(loc) => localePath('/about', loc)}
-          />
-        </div>
       )}
 
       <section className="about-grid">
@@ -97,6 +86,7 @@ export default async function AboutPage() {
 
       {about.about_cta_links ? (
         <CtaBlock
+          locale={about.locale}
           kicker={about.about_cta_links.kicker}
           signature={about.about_cta_links.signature}
           links={about.about_cta_links.links}

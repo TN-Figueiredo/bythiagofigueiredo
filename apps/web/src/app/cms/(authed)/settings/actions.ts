@@ -263,6 +263,37 @@ export async function disableCms(): Promise<ActionResult> {
   return { ok: true }
 }
 
+const syncScheduleSchema = z.object({
+  channel_id: z.string().uuid(),
+  sync_enabled: z.boolean(),
+  sync_schedules: z.array(z.object({
+    day: z.enum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']),
+    hour: z.number().int().min(0).max(23),
+    tz: z.string(),
+    label: z.string(),
+  })),
+})
+
+export async function updateYouTubeChannelSettings(input: z.infer<typeof syncScheduleSchema>): Promise<ActionResult> {
+  const parsed = syncScheduleSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
+  const siteId = await requireEditAccess()
+  const supabase = getSupabaseServiceClient()
+
+  const { error } = await supabase.from('youtube_channels')
+    .update({
+      sync_enabled: parsed.data.sync_enabled,
+      sync_schedules: parsed.data.sync_schedules,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', parsed.data.channel_id).eq('site_id', siteId)
+
+  if (error) return { ok: false, error: error.message }
+  revalidateTag('youtube')
+  revalidatePath('/cms/settings')
+  return { ok: true }
+}
+
 export async function deleteSite(confirmSlug: string): Promise<ActionResult> {
   const siteId = await requireEditAccess()
   const supabase = getSupabaseServiceClient()

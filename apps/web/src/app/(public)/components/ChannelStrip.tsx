@@ -1,6 +1,7 @@
 import { PaperCard } from './PaperCard'
 import { Tape } from './Tape'
 import { YOUTUBE_CHANNELS } from '@/lib/home/videos-data'
+import { localePath } from '@/lib/i18n/locale-path'
 import type { HomeNewsletter } from '@/lib/home/types'
 
 type Props = {
@@ -47,7 +48,7 @@ export function ChannelStrip({ newsletter, locale, t }: Props) {
                 </p>
               )}
               <a
-                href={`/newsletters/${newsletter!.slug}`}
+                href={localePath(`/newsletters/${newsletter!.slug}`, locale)}
                 className="font-mono inline-block"
                 style={{
                   fontSize: 12,

@@ -262,6 +262,9 @@ export async function updatePlaceholder(
   if (data.ctaUrl !== undefined)         update.cta_url          = data.ctaUrl
   if (data.imageUrl !== undefined)       update.image_url        = data.imageUrl
   if (data.dismissAfterMs !== undefined) update.dismiss_after_ms = data.dismissAfterMs
+  const extData = data as Record<string, unknown>
+  if (extData.brandColor !== undefined)    update.brand_color     = extData.brandColor
+  if (extData.logoUrl !== undefined)       update.logo_url        = extData.logoUrl
 
   const { error } = await supabase
     .from('ad_placeholders')

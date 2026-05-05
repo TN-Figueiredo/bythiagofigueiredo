@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { localePath } from '@/lib/i18n/locale-path'
 
 type Props = {
   nextSlug?: string
@@ -26,7 +27,7 @@ export function SeriesNav({ nextSlug, nextTitle, nextExcerpt, locale }: Props) {
       </div>
       <div className="font-fraunces mb-2" style={{ fontSize: 22, fontWeight: 500 }}>
         <Link
-          href={`/blog/${locale}/${encodeURIComponent(nextSlug)}`}
+          href={localePath(`/blog/${encodeURIComponent(nextSlug)}`, locale)}
           className="no-underline"
           style={{ color: '#efe6d2' }}
         >

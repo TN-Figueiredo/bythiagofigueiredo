@@ -15,11 +15,11 @@ import { AD_APP_ID } from './config'
 type SlotMap = Partial<Record<string, AdCreativeData>>
 
 const SLOT_KEYS = [
-  'banner_top',
-  'rail_left',
-  'rail_right',
-  'inline_mid',
-  'block_bottom',
+  'post:top:banner',
+  'post:rail:anchor-left',
+  'post:rail:anchor',
+  'post:body:bookmark',
+  'post:footer:coda',
 ] as const
 
 interface SlotConfigRow {
@@ -101,8 +101,10 @@ function toAdPlaceholder(ph: {
   cta_url: string | null
   image_url: string | null
   is_enabled: boolean
+  brand_color: string | null
+  logo_url: string | null
 }): AdPlaceholder {
-  return {
+  const base: AdPlaceholder = {
     slotId: ph.slot_id,
     headline: ph.headline ?? '',
     body: ph.body ?? '',
@@ -111,6 +113,10 @@ function toAdPlaceholder(ph: {
     imageUrl: ph.image_url ?? null,
     isEnabled: ph.is_enabled,
   }
+  return Object.assign(base, {
+    brandColor: ph.brand_color ?? '#6B7280',
+    logoUrl: ph.logo_url ?? null,
+  })
 }
 
 function buildSlotConfig(
@@ -187,7 +193,7 @@ async function fetchAdCreatives(locale: string): Promise<SlotMap> {
       .eq('site_id', siteId),
     supabase
       .from('kill_switches')
-      .select('id, enabled')
+      .select('id, enabled, reason')
       .like('id', 'ads_slot_%'),
     supabase
       .from('ad_slot_creatives')
@@ -223,7 +229,7 @@ async function fetchAdCreatives(locale: string): Promise<SlotMap> {
       .eq('locale', locale),
     supabase
       .from('ad_placeholders')
-      .select('slot_id, headline, body, cta_text, cta_url, image_url, is_enabled')
+      .select('slot_id, headline, body, cta_text, cta_url, image_url, is_enabled, brand_color, logo_url')
       .eq('is_enabled', true),
   ])
 
@@ -234,8 +240,8 @@ async function fetchAdCreatives(locale: string): Promise<SlotMap> {
 
   const killedSlots = new Set(
     (killSlotsResult.data ?? [])
-      .filter((k) => !k.enabled && k.id)
-      .map((k) => k.id!.replace('ads_slot_', '')),
+      .filter((k) => !k.enabled && k.reason)
+      .map((k) => k.reason as string),
   )
 
   const allCreatives = (creativesResult.data ?? []) as unknown as CreativeRow[]
@@ -326,8 +332,8 @@ export function mapResolutionToCreativeData(
       ctaText: ph.ctaText,
       ctaUrl: ph.ctaUrl,
       imageUrl: ph.imageUrl,
-      logoUrl: null,
-      brandColor: '#6B7280',
+      logoUrl: (ph as unknown as Record<string, unknown>).logoUrl as string | null ?? null,
+      brandColor: (ph as unknown as Record<string, unknown>).brandColor as string ?? '#6B7280',
       dismissSeconds: 0,
     }
   }

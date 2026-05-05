@@ -108,7 +108,7 @@ export default async function CampaignPage({ params }: { params: Promise<PagePar
         <div className="reader-pinboard" style={{ maxWidth: 780, margin: '0 auto', padding: '32px 28px 64px' }}>
           <VisualBreadcrumbs
             items={[
-              { label: t['campaigns.breadcrumb.home'] ?? '', href: '/' },
+              { label: t['campaigns.breadcrumb.home'] ?? '', href: localePath('/', locale) },
               { label: t['campaigns.breadcrumb.campaigns'] ?? '', href: localePath('/campaigns', locale) },
               { label: title },
             ]}
@@ -154,8 +154,8 @@ function buildCampaignGraph(
   if (!config) return null
   const title = (tx.meta_title as string | undefined) ?? slug
   const crumbs = buildBreadcrumbNode([
-    { name: 'Home', url: config.siteUrl },
-    { name: 'Campaigns', url: `${config.siteUrl}${localePath('/campaigns', locale)}` },
+    { name: locale === 'pt-BR' ? 'Início' : 'Home', url: config.siteUrl },
+    { name: locale === 'pt-BR' ? 'Campanhas' : 'Campaigns', url: `${config.siteUrl}${localePath('/campaigns', locale)}` },
     {
       name: title,
       url: `${config.siteUrl}${localePath(`/campaigns/${encodeURIComponent(slug)}`, locale)}`,
