@@ -30,7 +30,7 @@ vi.mock('@tn-figueiredo/ad-engine', async (importOriginal) => {
 
 function makeDummySlot(): AdSlotDefinition {
   return {
-    key: 'banner_top',
+    key: 'post:top:banner',
     label: 'Banner',
     desc: '',
     badge: '',
@@ -47,7 +47,7 @@ function makeDummySlot(): AdSlotDefinition {
 function makeCreative(overrides: Partial<AdSlotCreative> = {}): AdSlotCreative {
   return {
     campaignId: 'camp-1',
-    slotKey: 'banner_top',
+    slotKey: 'post:top:banner',
     type: 'house',
     title: 'Title',
     body: 'Body',
@@ -147,7 +147,7 @@ describe('loadAdCreatives', () => {
     masterEnabled?: boolean
     siteId?: string | null
     slotConfigs?: Record<string, unknown>[]
-    killSlots?: { id: string; enabled: boolean }[]
+    killSlots?: { id: string; enabled: boolean; reason?: string }[]
     creatives?: ReturnType<typeof makeCampaignRow>[]
     placeholders?: Record<string, unknown>[]
   }) {
@@ -242,14 +242,14 @@ describe('loadAdCreatives', () => {
   it('maps campaign creative from resolveSlot result', async () => {
     const creative = makeCreative({
       campaignId: 'camp-1',
-      slotKey: 'banner_top',
+      slotKey: 'post:top:banner',
       type: 'cpa',
       brandColor: '#FF0000',
       logoUrl: '/logo.svg',
       interaction: 'form',
     })
     setupCalls({
-      creatives: [makeCampaignRow('banner_top', {
+      creatives: [makeCampaignRow('post:top:banner', {
         campaign: {
           id: 'camp-1',
           type: 'cpa',
@@ -264,8 +264,8 @@ describe('loadAdCreatives', () => {
       })],
     })
     resolveSlotMock.mockImplementation((config: { key: string }) => {
-      if (config.key === 'banner_top') {
-        return makeCampaignResolution('banner_top', creative)
+      if (config.key === 'post:top:banner') {
+        return makeCampaignResolution('post:top:banner', creative)
       }
       return makeEmptyResolution(config.key)
     })
@@ -273,18 +273,18 @@ describe('loadAdCreatives', () => {
     const load = await loadFresh()
     const result = await load('en')
 
-    expect(result.banner_top).toBeDefined()
-    expect(result.banner_top!.campaignId).toBe('camp-1')
-    expect(result.banner_top!.type).toBe('cpa')
-    expect(result.banner_top!.source).toBe('campaign')
-    expect(result.banner_top!.interaction).toBe('form')
-    expect(result.banner_top!.brandColor).toBe('#FF0000')
-    expect(result.banner_top!.logoUrl).toBe('/logo.svg')
+    expect(result['post:top:banner']).toBeDefined()
+    expect(result['post:top:banner']!.campaignId).toBe('camp-1')
+    expect(result['post:top:banner']!.type).toBe('cpa')
+    expect(result['post:top:banner']!.source).toBe('campaign')
+    expect(result['post:top:banner']!.interaction).toBe('form')
+    expect(result['post:top:banner']!.brandColor).toBe('#FF0000')
+    expect(result['post:top:banner']!.logoUrl).toBe('/logo.svg')
   })
 
   it('maps placeholder from resolveSlot result', async () => {
     const placeholder: AdPlaceholder = {
-      slotId: 'inline_mid',
+      slotId: 'post:body:bookmark',
       headline: 'PH Title',
       body: 'PH Body',
       ctaText: 'Go',
@@ -294,12 +294,12 @@ describe('loadAdCreatives', () => {
     }
     setupCalls({
       placeholders: [
-        { slot_id: 'inline_mid', headline: 'PH Title', body: 'PH Body', cta_text: 'Go', cta_url: '/ph', image_url: null, is_enabled: true },
+        { slot_id: 'post:body:bookmark', headline: 'PH Title', body: 'PH Body', cta_text: 'Go', cta_url: '/ph', image_url: null, is_enabled: true },
       ],
     })
     resolveSlotMock.mockImplementation((config: { key: string }) => {
-      if (config.key === 'inline_mid') {
-        return makePlaceholderResolution('inline_mid', placeholder)
+      if (config.key === 'post:body:bookmark') {
+        return makePlaceholderResolution('post:body:bookmark', placeholder)
       }
       return makeEmptyResolution(config.key)
     })
@@ -307,15 +307,15 @@ describe('loadAdCreatives', () => {
     const load = await loadFresh()
     const result = await load('en')
 
-    expect(result.inline_mid).toBeDefined()
-    expect(result.inline_mid!.source).toBe('placeholder')
-    expect(result.inline_mid!.campaignId).toBeNull()
-    expect(result.inline_mid!.title).toBe('PH Title')
+    expect(result['post:body:bookmark']).toBeDefined()
+    expect(result['post:body:bookmark']!.source).toBe('placeholder')
+    expect(result['post:body:bookmark']!.campaignId).toBeNull()
+    expect(result['post:body:bookmark']!.title).toBe('PH Title')
   })
 
   it('passes killed=true to resolveSlot for killed slots', async () => {
     setupCalls({
-      killSlots: [{ id: 'ads_slot_banner_top', enabled: false }],
+      killSlots: [{ id: 'ads_slot_post_top_banner', enabled: false, reason: 'post:top:banner' }],
     })
     resolveSlotMock.mockReturnValue({ source: 'empty', slot: makeDummySlot(), cached: false })
 
@@ -323,7 +323,7 @@ describe('loadAdCreatives', () => {
     await load('en')
 
     const bannerCall = resolveSlotMock.mock.calls.find(
-      (args: unknown[]) => (args[0] as { key: string }).key === 'banner_top',
+      (args: unknown[]) => (args[0] as { key: string }).key === 'post:top:banner',
     )
     expect(bannerCall).toBeDefined()
     expect((bannerCall![0] as { killed: boolean }).killed).toBe(true)
@@ -336,15 +336,15 @@ describe('loadAdCreatives', () => {
     const load = await loadFresh()
     const result = await load('en')
 
-    expect(result.banner_top).toBeUndefined()
-    expect(result.rail_left).toBeUndefined()
-    expect(result.inline_mid).toBeUndefined()
+    expect(result['post:top:banner']).toBeUndefined()
+    expect(result['post:rail:anchor-left']).toBeUndefined()
+    expect(result['post:body:bookmark']).toBeUndefined()
   })
 
   it('uses slot config from DB when available', async () => {
     setupCalls({
       slotConfigs: [{
-        slot_key: 'banner_top',
+        slot_key: 'post:top:banner',
         house_enabled: false,
         cpa_enabled: true,
         google_enabled: true,
@@ -362,7 +362,7 @@ describe('loadAdCreatives', () => {
     await load('en')
 
     const bannerCall = resolveSlotMock.mock.calls.find(
-      (args: unknown[]) => (args[0] as { key: string }).key === 'banner_top',
+      (args: unknown[]) => (args[0] as { key: string }).key === 'post:top:banner',
     )
     expect(bannerCall).toBeDefined()
     const config = bannerCall![0] as {
@@ -387,7 +387,7 @@ describe('loadAdCreatives', () => {
     await load('en')
 
     const bannerCall = resolveSlotMock.mock.calls.find(
-      (args: unknown[]) => (args[0] as { key: string }).key === 'banner_top',
+      (args: unknown[]) => (args[0] as { key: string }).key === 'post:top:banner',
     )
     expect(bannerCall).toBeDefined()
     const config = bannerCall![0] as {
@@ -510,6 +510,32 @@ describe('mapResolutionToCreativeData', () => {
     expect(result.logoUrl).toBeNull()
     expect(result.brandColor).toBe('#6B7280')
     expect(result.dismissSeconds).toBe(0)
+  })
+
+  it('returns null for empty resolution', () => {
+    const resolution: AdResolution = { source: 'empty', reason: 'killed' }
+    expect(mapResolutionToCreativeData('post:top:banner', resolution)).toBeNull()
+  })
+
+  it('passes brandColor and logoUrl from placeholder', () => {
+    const resolution: AdResolution = {
+      source: 'placeholder',
+      placeholder: {
+        slotId: 'post:top:banner',
+        headline: 'Test',
+        body: 'Body',
+        ctaText: 'CTA',
+        ctaUrl: '/test',
+        imageUrl: null,
+        isEnabled: true,
+        brandColor: '#f97316',
+        logoUrl: 'https://example.com/logo.png',
+      },
+    }
+    const result = mapResolutionToCreativeData('post:top:banner', resolution)
+    expect(result).not.toBeNull()
+    expect(result!.brandColor).toBe('#f97316')
+    expect(result!.logoUrl).toBe('https://example.com/logo.png')
   })
 
   it('prefers creative over placeholder when both present', () => {

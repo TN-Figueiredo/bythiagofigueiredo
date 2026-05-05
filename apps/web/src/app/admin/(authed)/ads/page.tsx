@@ -5,7 +5,6 @@ import {
   EMPTY_AD_KPIS,
   fetchAdKpis,
   fetchAdConfigs,
-  fetchAdPlaceholders,
   fetchAdChartData,
   fetchRecentAdEvents,
   fetchSlotConversion,
@@ -18,7 +17,8 @@ import {
   CampaignWizardServer,
   MediaLibraryServer,
 } from '@tn-figueiredo/ad-engine-admin/server'
-import { InquiriesList, PlaceholderManager } from '@tn-figueiredo/ad-engine-admin/client'
+import { InquiriesList } from '@tn-figueiredo/ad-engine-admin/client'
+import { PlaceholderAccordion } from './_components/placeholder-accordion'
 import { SITE_AD_SLOTS } from '@app/shared'
 import { requireArea } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
@@ -57,7 +57,7 @@ export default async function AdsAdminPage({ searchParams }: PageProps) {
   const page = Math.max(1, Number(params.page) || 1)
   const supabase = getSupabaseServiceClient()
 
-  const [kpisResult, chartResult, eventsResult, conversionResult, perfResult, configsResult, placeholdersResult, mediaResult, inquiriesResult] =
+  const [kpisResult, chartResult, eventsResult, conversionResult, perfResult, configsResult, placeholdersResult, mediaResult, inquiriesResult, slotConfigsResult] =
     await Promise.allSettled([
       tab === 'dashboard'    ? fetchAdKpis(supabase, AD_APP_ID) : Promise.resolve(null),
       tab === 'dashboard'    ? fetchAdChartData(supabase, AD_APP_ID) : Promise.resolve(null),
@@ -65,9 +65,10 @@ export default async function AdsAdminPage({ searchParams }: PageProps) {
       tab === 'dashboard'    ? fetchSlotConversion(supabase, AD_APP_ID) : Promise.resolve(null),
       tab === 'dashboard'    ? fetchAdPerformance(supabase, AD_APP_ID) : Promise.resolve(null),
       tab === 'campaigns'    ? fetchAdConfigs(supabase, AD_APP_ID, { page, pageSize: 20 }) : Promise.resolve(null),
-      tab === 'placeholders' ? fetchAdPlaceholders(supabase, AD_APP_ID) : Promise.resolve(null),
+      tab === 'placeholders' ? supabase.from('ad_placeholders').select('slot_id, is_enabled, headline, body, cta_text, cta_url, image_url, brand_color, logo_url, dismiss_after_ms, updated_at').eq('app_id', AD_APP_ID).then(r => r.data ?? []) : Promise.resolve(null),
       tab === 'media'        ? fetchAdMedia(supabase, AD_APP_ID) : Promise.resolve(null),
       tab === 'inquiries'    ? fetchAdInquiries(supabase, AD_APP_ID) : Promise.resolve(null),
+      tab === 'placeholders' ? supabase.from('ad_slot_config').select('slot_key, zone, iab_size, mobile_behavior, accepted_types, label').then(r => r.data ?? []) : Promise.resolve(null),
     ])
 
   const kpis           = kpisResult.status === 'fulfilled' ? (kpisResult.value ?? EMPTY_AD_KPIS) : EMPTY_AD_KPIS
@@ -80,6 +81,7 @@ export default async function AdsAdminPage({ searchParams }: PageProps) {
   const media          = mediaResult.status === 'fulfilled' ? (mediaResult.value ?? []) : []
   const inquiriesData  = inquiriesResult.status === 'fulfilled' ? inquiriesResult.value : null
   const inquiries = inquiriesData?.inquiries ?? []
+  const slotConfigs = slotConfigsResult.status === 'fulfilled' ? (slotConfigsResult.value ?? []) : []
 
   const adminConfig: AdAdminConfig = {
     appId: AD_APP_ID,
@@ -150,7 +152,11 @@ export default async function AdsAdminPage({ searchParams }: PageProps) {
         )}
 
         {tab === 'placeholders' && (
-          <PlaceholderManager placeholders={placeholders} />
+          <PlaceholderAccordion
+            placeholders={placeholders}
+            slotConfigs={slotConfigs}
+            onSave={updatePlaceholder}
+          />
         )}
 
         {tab === 'inquiries' && (
