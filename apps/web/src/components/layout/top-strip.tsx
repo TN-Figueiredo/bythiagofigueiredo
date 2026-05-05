@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 const CONTENT_PREFIXES = ['/blog/', '/campaigns/']
@@ -17,7 +16,7 @@ export function TopStrip() {
 
   const switchedPath = isContentPath(barePath)
     ? (isPt ? '/' : '/pt')
-    : (isPt ? barePath : `/pt${pathname}`)
+    : (isPt ? barePath : (pathname === '/' ? '/pt' : `/pt${pathname}`))
 
   return (
     <div
@@ -66,7 +65,7 @@ export function TopStrip() {
             PT
           </span>
         ) : (
-          <Link
+          <a
             href={switchedPath}
             hrefLang="pt"
             style={{
@@ -78,7 +77,7 @@ export function TopStrip() {
             }}
           >
             PT
-          </Link>
+          </a>
         )}
         {!isPt ? (
           <span
@@ -94,7 +93,7 @@ export function TopStrip() {
             EN
           </span>
         ) : (
-          <Link
+          <a
             href={switchedPath}
             hrefLang="en"
             style={{
@@ -106,7 +105,7 @@ export function TopStrip() {
             }}
           >
             EN
-          </Link>
+          </a>
         )}
       </div>
     </div>
