@@ -429,7 +429,7 @@ describe('mapResolutionToCreativeData', () => {
   })
 
   it('returns null when resolution.source is "empty"', () => {
-    const result = mapResolutionToCreativeData('banner_top', makeEmptyResolution('banner_top'))
+    const result = mapResolutionToCreativeData('post:top:banner', makeEmptyResolution('post:top:banner'))
     expect(result).toBeNull()
   })
 
@@ -439,18 +439,18 @@ describe('mapResolutionToCreativeData', () => {
       slot: makeDummySlot(),
       cached: false,
     }
-    const result = mapResolutionToCreativeData('banner_top', resolution)
+    const result = mapResolutionToCreativeData('post:top:banner', resolution)
     expect(result).toBeNull()
   })
 
   it('returns correct AdCreativeData shape from campaign creative', () => {
-    const resolution = makeCampaignResolution('rail_left', fullCreative)
-    const result = mapResolutionToCreativeData('rail_left', resolution)
+    const resolution = makeCampaignResolution('post:rail:anchor-left', fullCreative)
+    const result = mapResolutionToCreativeData('post:rail:anchor-left', resolution)
 
     expect(result).not.toBeNull()
     expect(result).toEqual({
       campaignId: 'camp-42',
-      slotKey: 'rail_left',
+      slotKey: 'post:rail:anchor-left',
       type: 'cpa',
       source: 'campaign',
       interaction: 'form',
@@ -466,11 +466,11 @@ describe('mapResolutionToCreativeData', () => {
   })
 
   it('maps all fields correctly including slotKey from argument', () => {
-    const resolution = makeCampaignResolution('inline_mid', fullCreative)
-    const result = mapResolutionToCreativeData('inline_mid', resolution)!
+    const resolution = makeCampaignResolution('post:body:bookmark', fullCreative)
+    const result = mapResolutionToCreativeData('post:body:bookmark', resolution)!
 
     expect(result.campaignId).toBe('camp-42')
-    expect(result.slotKey).toBe('inline_mid')
+    expect(result.slotKey).toBe('post:body:bookmark')
     expect(result.type).toBe('cpa')
     expect(result.source).toBe('campaign')
     expect(result.interaction).toBe('form')
@@ -486,7 +486,7 @@ describe('mapResolutionToCreativeData', () => {
 
   it('returns placeholder-sourced creative data', () => {
     const placeholder: AdPlaceholder = {
-      slotId: 'block_bottom',
+      slotId: 'post:footer:coda',
       headline: 'PH Headline',
       body: 'PH Body',
       ctaText: 'PH CTA',
@@ -494,11 +494,11 @@ describe('mapResolutionToCreativeData', () => {
       imageUrl: null,
       isEnabled: true,
     }
-    const resolution = makePlaceholderResolution('block_bottom', placeholder)
-    const result = mapResolutionToCreativeData('block_bottom', resolution)!
+    const resolution = makePlaceholderResolution('post:footer:coda', placeholder)
+    const result = mapResolutionToCreativeData('post:footer:coda', resolution)!
 
     expect(result.campaignId).toBeNull()
-    expect(result.slotKey).toBe('block_bottom')
+    expect(result.slotKey).toBe('post:footer:coda')
     expect(result.type).toBe('house')
     expect(result.source).toBe('placeholder')
     expect(result.interaction).toBe('link')
@@ -543,7 +543,7 @@ describe('mapResolutionToCreativeData', () => {
       source: 'house',
       creative: fullCreative,
       placeholder: {
-        slotId: 'banner_top',
+        slotId: 'post:top:banner',
         headline: 'PH',
         body: 'PH',
         ctaText: 'PH',
@@ -554,7 +554,7 @@ describe('mapResolutionToCreativeData', () => {
       slot: makeDummySlot(),
       cached: false,
     }
-    const result = mapResolutionToCreativeData('banner_top', resolution)!
+    const result = mapResolutionToCreativeData('post:top:banner', resolution)!
     expect(result.source).toBe('campaign')
     expect(result.campaignId).toBe('camp-42')
   })

@@ -27,11 +27,6 @@ const theme = {
   tape: '#E8C44A',
 }
 
-function getFormatFromKey(key: string): string {
-  const parts = key.split(':')
-  return parts[2] ?? 'unknown'
-}
-
 function DoormanPreview({ data }: { data: PreviewData }) {
   return (
     <div style={{ background: data.brandColor, color: '#FFF', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>

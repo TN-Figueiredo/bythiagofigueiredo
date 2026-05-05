@@ -125,11 +125,9 @@ export function PlaceholderAccordion({ placeholders, slotConfigs, onSave }: Plac
           <div key={area.key} className="overflow-hidden rounded-lg border border-border">
             <button
               type="button"
-              role="button"
               aria-expanded={isExpanded}
               onClick={() => toggleArea(area.key)}
               className="flex w-full items-center justify-between bg-muted/50 px-4 py-3 text-left transition-colors hover:bg-muted"
-              tabIndex={0}
             >
               <div className="flex items-center gap-3">
                 <span className="text-sm font-semibold">{area.label}</span>
@@ -152,7 +150,6 @@ export function PlaceholderAccordion({ placeholders, slotConfigs, onSave }: Plac
               <div role="region" aria-label={`${area.label} slots`} className="divide-y divide-border">
                 {slots.map((slot) => {
                   const ph = placeholderMap.get(slot.key)
-                  const cfg = configMap.get(slot.key)
                   const isSlotExpanded = expandedSlots.has(slot.key)
                   const isEnabled = ph?.is_enabled ?? false
 
@@ -160,11 +157,9 @@ export function PlaceholderAccordion({ placeholders, slotConfigs, onSave }: Plac
                     <div key={slot.key}>
                       <button
                         type="button"
-                        role="button"
                         aria-expanded={isSlotExpanded}
                         onClick={() => toggleSlot(slot.key)}
                         className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm transition-colors hover:bg-muted/30"
-                        tabIndex={0}
                       >
                         <span className={`h-2 w-2 rounded-full ${isEnabled ? 'bg-green-500' : 'bg-gray-400'}`} />
                         <span className="min-w-[200px] font-mono text-xs">{slot.key}</span>
