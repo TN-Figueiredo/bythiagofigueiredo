@@ -33,6 +33,7 @@ export function YouTubeArchiveCard({ video, index, locale, theme, fmtNum }: Arch
           href={`https://www.youtube.com/watch?v=${video.youtubeVideoId}`}
           target="_blank"
           rel="noopener noreferrer"
+          aria-label={video.title}
           style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
         >
           <div style={{ position: 'relative' }}>
@@ -47,7 +48,7 @@ export function YouTubeArchiveCard({ video, index, locale, theme, fmtNum }: Arch
             <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
               {video.categoryName && (
                 <span style={{
-                  padding: '2px 7px', background: yt, color: '#FFF',
+                  padding: '2px 7px', background: video.categoryColor ?? yt, color: '#FFF',
                   fontFamily: '"JetBrains Mono", monospace', fontSize: 9.5,
                   letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700,
                 }}>

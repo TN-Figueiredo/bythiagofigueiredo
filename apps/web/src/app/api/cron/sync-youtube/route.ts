@@ -48,14 +48,14 @@ export async function GET(req: NextRequest) {
         continue
       }
 
-      const logEntry = {
+      const { data: logRow } = await supabase.from('youtube_sync_log').insert({
         site_id: channel.site_id,
         channel_id: channel.id,
         mode,
-        status: 'started' as const,
-      }
+        status: 'started',
+      }).select('id').single()
 
-      await supabase.from('youtube_sync_log').insert(logEntry)
+      const logId = logRow?.id
 
       try {
         const result = await syncChannel(supabase, channel, apiKey, mode)
@@ -63,31 +63,33 @@ export async function GET(req: NextRequest) {
         totalUpdated += result.videosUpdated
         totalQuota += result.quotaUsed
 
-        await supabase.from('youtube_sync_log').insert({
-          ...logEntry,
-          status: 'completed',
-          videos_found: result.videosFound,
-          videos_inserted: result.videosInserted,
-          videos_updated: result.videosUpdated,
-          quota_used: result.quotaUsed,
-          completed_at: new Date().toISOString(),
-        })
+        if (logId) {
+          await supabase.from('youtube_sync_log').update({
+            status: 'completed',
+            videos_found: result.videosFound,
+            videos_inserted: result.videosInserted,
+            videos_updated: result.videosUpdated,
+            quota_used: result.quotaUsed,
+            completed_at: new Date().toISOString(),
+          }).eq('id', logId)
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
+        const errorMsg = err instanceof YouTubeQuotaError ? 'quotaExceeded' : message
+
+        if (logId) {
+          await supabase.from('youtube_sync_log').update({
+            status: 'failed',
+            error_message: errorMsg,
+            completed_at: new Date().toISOString(),
+          }).eq('id', logId)
+        }
 
         if (err instanceof YouTubeQuotaError) {
-          await supabase.from('youtube_sync_log').insert({
-            ...logEntry, status: 'failed', error_message: 'quotaExceeded',
-            completed_at: new Date().toISOString(),
-          })
           return { status: 'error' as const, error: 'quotaExceeded', quota_used: totalQuota }
         }
 
         Sentry.captureException(err, { tags: { component: 'sync-youtube', mode } })
-        await supabase.from('youtube_sync_log').insert({
-          ...logEntry, status: 'failed', error_message: message,
-          completed_at: new Date().toISOString(),
-        })
       }
     }
 

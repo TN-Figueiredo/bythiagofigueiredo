@@ -41,6 +41,7 @@ export const getYouTubePageData = unstable_cache(
 
     const videos: YouTubeVideoView[] = (videosRes.data ?? []).map((row: YouTubeVideoRow & { youtube_channels: { locale: string; handle: string } }) => {
       const cat = row.category_id ? categoryMap.get(row.category_id) : null
+      const locale = row.youtube_channels.locale as 'pt' | 'en'
       return {
         id: row.id,
         youtubeVideoId: row.youtube_video_id,
@@ -57,10 +58,10 @@ export const getYouTubePageData = unstable_cache(
         viewCount: row.view_count,
         likeCount: row.like_count,
         commentCount: row.comment_count,
-        locale: row.youtube_channels.locale as 'pt' | 'en',
+        locale,
         channelHandle: row.youtube_channels.handle,
         categorySlug: cat?.slug ?? null,
-        categoryName: null,
+        categoryName: cat ? (locale === 'pt' ? cat.name_pt : cat.name_en) : null,
         categoryColor: cat?.color ?? null,
         isFeatured: row.is_featured,
       }

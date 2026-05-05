@@ -489,6 +489,7 @@ CMS reutilizável publicado em `@tn-figueiredo/cms` (extração pra repo própri
 - `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, `NEWSLETTER_FROM_DOMAIN` (Sprint 1b — Brevo removed)
 - `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` (Sprint 1b)
 - `CAMPAIGN_PDF_SIGNED_URL_TTL` (opcional, default 86400 = 24h — TTL em segundos dos signed URLs de PDFs de campanha)
+- `YOUTUBE_API_KEY` — YouTube Data API v3 key for video sync cron (`/api/cron/sync-youtube`). Required in Production; optional in Development (empty → sync returns 500).
 - Sprint 2: nenhuma env var nova — multi-ring scoping resolve via middleware + `sites.domains` array no DB
 
 ### API (`apps/api/.env.local`)

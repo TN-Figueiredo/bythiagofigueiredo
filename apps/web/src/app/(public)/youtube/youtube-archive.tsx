@@ -102,6 +102,7 @@ export function YouTubeArchive({
               value={filters.q}
               onChange={(e) => update({ q: e.target.value })}
               placeholder={L === 'pt' ? 'buscar título, tag, série…' : 'search title, tag, series…'}
+              aria-label={L === 'pt' ? 'Buscar vídeos' : 'Search videos'}
               style={{
                 width: '100%', padding: '12px 14px 12px 36px',
                 border: `1.5px solid ${line}`, background: 'transparent', color: ink,
@@ -112,7 +113,7 @@ export function YouTubeArchive({
           </div>
 
           {/* Channel toggle */}
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div role="group" aria-label={L === 'pt' ? 'Filtro de canal' : 'Channel filter'} style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{
               fontFamily: '"JetBrains Mono", monospace', fontSize: 10,
               letterSpacing: '0.16em', textTransform: 'uppercase', color: faint, marginRight: 4,
@@ -129,6 +130,7 @@ export function YouTubeArchive({
                 <button
                   key={k}
                   onClick={() => update({ ch: k })}
+                  aria-pressed={active}
                   style={{
                     padding: '5px 10px', fontSize: 10,
                     background: active ? ink : 'transparent',
@@ -165,7 +167,7 @@ export function YouTubeArchive({
         </div>
 
         {/* Series chips row */}
-        <div style={{
+        <div role="group" aria-label={L === 'pt' ? 'Filtro de série' : 'Series filter'} style={{
           display: 'flex', gap: 8, flexWrap: 'wrap',
           marginBottom: 14, alignItems: 'center',
         }}>
@@ -182,6 +184,7 @@ export function YouTubeArchive({
               <button
                 key={key}
                 onClick={() => update({ cat: key })}
+                aria-pressed={active}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 6,
                   padding: '7px 13px',
@@ -209,7 +212,7 @@ export function YouTubeArchive({
         </div>
 
         {/* Tags row */}
-        <div style={{
+        <div role="group" aria-label={L === 'pt' ? 'Filtro de tags' : 'Tag filter'} style={{
           display: 'flex', gap: 6, flexWrap: 'wrap',
           marginBottom: 30, paddingBottom: 26,
           borderBottom: `1px dashed ${line}`, alignItems: 'center',
@@ -226,6 +229,7 @@ export function YouTubeArchive({
               <button
                 key={tag}
                 onClick={() => update({ tag: active ? '' : tag })}
+                aria-pressed={active}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 5,
                   padding: '4px 9px',
@@ -295,7 +299,7 @@ export function YouTubeArchive({
             {/* Video grid */}
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
               gap: 32,
               rowGap: 48,
             }}>
