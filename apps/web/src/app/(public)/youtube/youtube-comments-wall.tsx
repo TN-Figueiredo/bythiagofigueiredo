@@ -2,23 +2,7 @@
 
 import type { YouTubeCuratedCommentView } from './youtube-types'
 import { Paper, Tape } from '@/components/pinboard'
-
-interface Theme {
-  bg: string
-  ink: string
-  muted: string
-  faint: string
-  line: string
-  accent: string
-  marker: string
-  yt: string
-  paper: string
-  paper2: string
-  tape: string
-  tape2: string
-  tapeR: string
-  hand: { fontFamily: string; fontWeight: number }
-}
+import { type Theme, FlagBadge } from './youtube-atoms'
 
 interface Props {
   locale: 'pt' | 'en'
@@ -27,27 +11,6 @@ interface Props {
 }
 
 /* ── Atoms ── */
-
-function FlagBadge({ locale, size = 'md', ink }: { locale: 'pt' | 'en'; size?: 'sm' | 'md'; ink: string }) {
-  const colors = locale === 'pt'
-    ? { bg: 'rgba(0,156,59,0.18)', border: 'rgba(0,156,59,0.5)', flag: '\u{1F1E7}\u{1F1F7}' }
-    : { bg: 'rgba(0,82,165,0.18)', border: 'rgba(0,82,165,0.55)', flag: '\u{1F1FA}\u{1F1F8}' }
-  const fontSize = size === 'sm' ? 9 : 10
-  const flagSize = size === 'sm' ? 11 : 12
-  return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 4,
-      padding: size === 'sm' ? '1px 6px' : '2px 7px',
-      background: colors.bg,
-      border: `1px solid ${colors.border}`,
-      fontFamily: '"JetBrains Mono", monospace', fontSize,
-      letterSpacing: '0.1em', color: ink, fontWeight: 600,
-    }}>
-      <span style={{ fontSize: flagSize, lineHeight: 1 }}>{colors.flag}</span>
-      {locale.toUpperCase()}
-    </span>
-  )
-}
 
 function formatRelativeTime(iso: string | null, locale: 'pt' | 'en'): string {
   if (!iso) return ''

@@ -1,21 +1,6 @@
 'use client'
 
-interface Theme {
-  bg: string
-  ink: string
-  muted: string
-  faint: string
-  line: string
-  accent: string
-  marker: string
-  yt: string
-  paper: string
-  paper2: string
-  tape: string
-  tape2: string
-  tapeR: string
-  hand: { fontFamily: string; fontWeight: number }
-}
+import { type Theme } from './youtube-atoms'
 
 interface Props {
   locale: 'pt' | 'en'
