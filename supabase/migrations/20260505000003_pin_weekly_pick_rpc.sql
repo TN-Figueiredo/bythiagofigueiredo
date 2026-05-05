@@ -13,13 +13,14 @@ security definer
 set search_path = public
 as $$
 begin
-  -- Clear any existing pin for this channel+site (atomic)
+  -- Clear any existing pin for this channel+site (including expired)
+  -- so the UNIQUE partial index (WHERE pinned_until IS NOT NULL) stays satisfied.
   update youtube_videos
      set pinned_until = null,
          updated_at = now()
    where channel_id = p_channel_id
      and site_id = p_site_id
-     and pinned_until > now();
+     and pinned_until is not null;
 
   -- Set new pin
   update youtube_videos
@@ -46,6 +47,6 @@ begin
          updated_at = now()
    where channel_id = p_channel_id
      and site_id = p_site_id
-     and pinned_until > now();
+     and pinned_until is not null;
 end;
 $$;
