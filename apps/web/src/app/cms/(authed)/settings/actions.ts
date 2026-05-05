@@ -331,6 +331,7 @@ export async function lookupYouTubeChannel(input: z.infer<typeof handleInputSche
     if (e instanceof Error && e.message === 'quotaExceeded') {
       return { ok: false, error: 'YouTube API limit reached. Try again later.' }
     }
+    console.error('[youtube] channel lookup failed:', e instanceof Error ? e.message : e)
     return { ok: false, error: 'Failed to look up channel. Please try again.' }
   }
 }
@@ -344,8 +345,8 @@ const addChannelSchema = z.object({
   uploadsPlaylistId: z.string().min(1),
   subscriberCount: z.number().int().min(0),
   videoCount: z.number().int().min(0),
-  thumbnailUrl: z.string().nullable(),
-  bannerUrl: z.string().nullable(),
+  thumbnailUrl: z.string().url().nullable(),
+  bannerUrl: z.string().url().nullable(),
   customUrl: z.string().nullable(),
 })
 
@@ -363,7 +364,7 @@ export async function addYouTubeChannel(input: z.infer<typeof addChannelSchema>)
     .eq('locale', parsed.data.locale)
     .limit(1)
   if (existing && existing.length > 0) {
-    return { ok: false, error: `Locale ${parsed.data.locale} is already assigned to "${(existing[0] as { name: string }).name}".` }
+    return { ok: false, error: `Locale ${parsed.data.locale} is already assigned to "${existing[0]!.name}".` }
   }
 
   // Check channel not already registered
@@ -374,7 +375,7 @@ export async function addYouTubeChannel(input: z.infer<typeof addChannelSchema>)
     .eq('channel_id', parsed.data.channelId)
     .limit(1)
   if (dup && dup.length > 0) {
-    return { ok: false, error: `This channel is already registered as ${(dup[0] as { locale: string }).locale}.` }
+    return { ok: false, error: `This channel is already registered as ${dup[0]!.locale}.` }
   }
 
   const { error } = await supabase.from('youtube_channels').insert({
@@ -403,7 +404,9 @@ export async function addYouTubeChannel(input: z.infer<typeof addChannelSchema>)
     fetch(`${baseUrl}/api/cron/sync-youtube?mode=manual`, {
       method: 'GET',
       headers: { Authorization: `Bearer ${cronSecret}` },
-    }).catch(() => {})
+    }).catch((err) => {
+      console.warn('[youtube] background sync trigger failed:', err instanceof Error ? err.message : err)
+    })
   }
 
   revalidateTag('youtube')
@@ -432,19 +435,21 @@ export async function removeYouTubeChannel(input: z.infer<typeof removeChannelSc
   if (!channel) return { ok: false, error: 'Channel not found' }
 
   // Delete in order: comments → videos → sync log → channel
-  // (youtube_videos.channel_id FK has no ON DELETE CASCADE)
   const { data: videoIds } = await supabase
     .from('youtube_videos')
     .select('id')
     .eq('channel_id', channel.id)
 
   if (videoIds && videoIds.length > 0) {
-    const ids = videoIds.map(v => (v as { id: string }).id)
-    await supabase.from('youtube_curated_comments').delete().in('video_id', ids)
-    await supabase.from('youtube_videos').delete().eq('channel_id', channel.id)
+    const ids = videoIds.map(v => v.id as string)
+    const { error: commentsErr } = await supabase.from('youtube_curated_comments').delete().in('video_id', ids)
+    if (commentsErr) return { ok: false, error: `Failed to delete comments: ${commentsErr.message}` }
+    const { error: videosErr } = await supabase.from('youtube_videos').delete().eq('channel_id', channel.id)
+    if (videosErr) return { ok: false, error: `Failed to delete videos: ${videosErr.message}` }
   }
 
-  await supabase.from('youtube_sync_log').delete().eq('channel_id', channel.id)
+  const { error: logErr } = await supabase.from('youtube_sync_log').delete().eq('channel_id', channel.id)
+  if (logErr) return { ok: false, error: `Failed to delete sync logs: ${logErr.message}` }
 
   const { error } = await supabase.from('youtube_channels').delete().eq('id', channel.id).eq('site_id', siteId)
   if (error) return { ok: false, error: error.message }

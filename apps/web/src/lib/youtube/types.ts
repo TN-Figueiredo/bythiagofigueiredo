@@ -64,6 +64,7 @@ export interface YouTubeVideoRow {
   auto_suggested_category_id: string | null
   is_featured: boolean
   is_hidden: boolean
+  pinned_until: string | null
   cms_notes: string | null
   created_at: string
   updated_at: string
@@ -125,6 +126,7 @@ export interface YouTubeVideoView {
   categoryName: string | null
   categoryColor: string | null
   isFeatured: boolean
+  isPinned: boolean
 }
 
 export interface YouTubeChannelView {

@@ -64,6 +64,7 @@ export const getYouTubePageData = unstable_cache(
         categoryName: cat ? (locale === 'pt' ? cat.name_pt : cat.name_en) : null,
         categoryColor: cat?.color ?? null,
         isFeatured: row.is_featured,
+        isPinned: !!row.pinned_until && new Date(row.pinned_until) > new Date(),
       }
     })
 

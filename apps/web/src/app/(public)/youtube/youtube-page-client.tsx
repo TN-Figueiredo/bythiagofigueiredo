@@ -64,7 +64,7 @@ export function YouTubePageClient({ data, locale, ads }: Props) {
   const latestEN = sortedAll.find(v => v.locale === 'en')
   const enOlder = sortedAll.filter(v => v.locale === 'en' && v.id !== latestEN?.id).slice(0, 2)
 
-  const featurePick = sortedAll.find(v => v.isFeatured) ?? sortedAll[0] ?? null
+  const featurePick = sortedAll.find(v => v.isPinned) ?? sortedAll.find(v => v.isFeatured) ?? sortedAll[0] ?? null
   const featureSidekicks = sortedAll.filter(v => v.id !== featurePick?.id).slice(0, 3)
 
   // Filtering

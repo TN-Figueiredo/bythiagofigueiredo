@@ -25,14 +25,15 @@ const UpdateVideoSchema = z.object({
 export async function updateVideo(
   input: z.infer<typeof UpdateVideoSchema>,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const parsed = UpdateVideoSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: parsed.error.issues.map(i => i.message).join(', ') }
   const siteId = await requireEditAccess()
-  const parsed = UpdateVideoSchema.parse(input)
   const supabase = getSupabaseServiceClient()
 
   const { error } = await supabase
     .from('youtube_videos')
-    .update({ ...parsed, updated_at: new Date().toISOString() })
-    .eq('id', parsed.id)
+    .update({ ...parsed.data, updated_at: new Date().toISOString() })
+    .eq('id', parsed.data.id)
     .eq('site_id', siteId)
 
   if (error) return { ok: false as const, error: error.message }
@@ -119,22 +120,22 @@ export async function pinWeeklyPick(
   const siteId = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
 
-  await supabase
+  const { data: video } = await supabase
     .from('youtube_videos')
-    .update({ pinned_until: null, updated_at: new Date().toISOString() })
-    .eq('channel_id', parsed.data.channelId)
-    .eq('site_id', siteId)
-    .gt('pinned_until', new Date().toISOString())
-
-  const pinnedUntil = new Date()
-  pinnedUntil.setDate(pinnedUntil.getDate() + parsed.data.durationDays)
-
-  const { error } = await supabase
-    .from('youtube_videos')
-    .update({ pinned_until: pinnedUntil.toISOString(), updated_at: new Date().toISOString() })
+    .select('id')
     .eq('id', parsed.data.videoId)
     .eq('channel_id', parsed.data.channelId)
     .eq('site_id', siteId)
+    .single()
+
+  if (!video) return { ok: false, error: 'Video not found in this channel' }
+
+  const { error } = await supabase.rpc('pin_weekly_pick', {
+    p_video_id: parsed.data.videoId,
+    p_channel_id: parsed.data.channelId,
+    p_site_id: siteId,
+    p_duration_days: parsed.data.durationDays,
+  })
 
   if (error) return { ok: false, error: error.message }
   revalidateTag('youtube')
@@ -153,12 +154,10 @@ export async function unpinWeeklyPick(
   const siteId = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
 
-  const { error } = await supabase
-    .from('youtube_videos')
-    .update({ pinned_until: null, updated_at: new Date().toISOString() })
-    .eq('channel_id', parsed.data.channelId)
-    .eq('site_id', siteId)
-    .gt('pinned_until', new Date().toISOString())
+  const { error } = await supabase.rpc('unpin_weekly_pick', {
+    p_channel_id: parsed.data.channelId,
+    p_site_id: siteId,
+  })
 
   if (error) return { ok: false, error: error.message }
   revalidateTag('youtube')

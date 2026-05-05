@@ -170,6 +170,7 @@ export function VideosConnected({ videos, channels, categories }: Props) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search videos…"
+            aria-label="Search videos"
             className="w-full rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface py-1.5 pl-8 pr-3 text-sm text-cms-text placeholder:text-cms-text-dim focus:outline-none focus:ring-2 focus:ring-cms-accent"
           />
         </div>

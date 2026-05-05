@@ -85,11 +85,13 @@ export function FeaturedToggle({ videoId, isFeatured }: FeaturedToggleProps) {
       onClick={() =>
         startTransition(async () => { await updateVideo({ id: videoId, is_featured: !isFeatured }) })
       }
+      role="switch"
+      aria-checked={isFeatured}
       title={isFeatured ? 'Remove from featured' : 'Mark as featured'}
       className={`flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 ${
         isFeatured ? 'bg-cms-accent' : 'bg-cms-surface-hover'
       }`}
-      aria-label={isFeatured ? 'Featured (click to remove)' : 'Not featured (click to feature)'}
+      aria-label="Featured"
     >
       <span
         className={`h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${
@@ -115,11 +117,13 @@ export function HiddenToggle({ videoId, isHidden }: HiddenToggleProps) {
       onClick={() =>
         startTransition(async () => { await updateVideo({ id: videoId, is_hidden: !isHidden }) })
       }
+      role="switch"
+      aria-checked={isHidden}
       title={isHidden ? 'Unhide video' : 'Hide video from public page'}
       className={`flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 ${
         isHidden ? 'bg-amber-600' : 'bg-cms-surface-hover'
       }`}
-      aria-label={isHidden ? 'Hidden (click to show)' : 'Visible (click to hide)'}
+      aria-label="Hidden"
     >
       <span
         className={`h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${

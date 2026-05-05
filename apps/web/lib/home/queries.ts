@@ -282,7 +282,7 @@ export const getHomeVideos = unstable_cache(
       .from('youtube_videos')
       .select(`
         id, youtube_video_id, title, description, thumbnail_url, duration,
-        view_count, published_at, is_hidden,
+        view_count, published_at, is_hidden, pinned_until,
         youtube_channels!inner(locale, handle),
         youtube_categories(slug, name_pt, name_en, color)
       `)
@@ -312,7 +312,7 @@ export const getHomeVideos = unstable_cache(
         youtubeUrl: `https://www.youtube.com/watch?v=${row['youtube_video_id'] as string}`,
         channelHandle: ch.handle,
         youtubeVideoId: row['youtube_video_id'] as string,
-        isPinned: false,
+        isPinned: !!row['pinned_until'] && new Date(row['pinned_until'] as string) > new Date(),
       }
     })
   },
