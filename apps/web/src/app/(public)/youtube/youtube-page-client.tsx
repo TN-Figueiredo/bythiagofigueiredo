@@ -127,7 +127,7 @@ export function YouTubePageClient({ data, locale, ads }: Props) {
   const adLocale = L === 'pt' ? 'pt-BR' as const : 'en' as const
 
   return (
-    <div style={{ background: theme.bg, color: theme.ink, minHeight: '100vh' }} data-testid="youtube-page-client">
+    <main style={{ background: theme.bg, color: theme.ink, minHeight: '100vh' }} data-testid="youtube-page-client">
       {ads?.doorman && <DoormanAd creative={ads.doorman} locale={adLocale} />}
       <YouTubeHero
         locale={L} theme={theme}
@@ -175,6 +175,6 @@ export function YouTubePageClient({ data, locale, ads }: Props) {
       />
       <BowtieAd locale={adLocale} />
       <YouTubeSubscribe locale={L} theme={theme} channels={channels}/>
-    </div>
+    </main>
   )
 }
