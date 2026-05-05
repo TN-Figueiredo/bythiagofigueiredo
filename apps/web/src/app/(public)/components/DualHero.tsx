@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { coverGradient } from '../../../../lib/home/cover-image'
-import type { HomePost, HomeVideo } from '../../../../lib/home/types'
+import type { HomePost, HomeVideo, HomeChannel } from '../../../../lib/home/types'
 
 function getWeekNumber(date: Date): number {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
@@ -13,11 +13,13 @@ function getWeekNumber(date: Date): number {
 type Props = {
   post: HomePost | null
   video: HomeVideo | null
+  channels: HomeChannel[]
+  hasVideos: boolean
   locale: 'en' | 'pt-BR'
   t: Record<string, string>
 }
 
-export function DualHero({ post, video, locale, t }: Props) {
+export function DualHero({ post, video, channels, hasVideos, locale, t }: Props) {
   const blogBase = locale === 'pt-BR' ? '/pt/blog' : '/blog'
   const isPt = locale === 'pt-BR'
 
@@ -33,10 +35,13 @@ export function DualHero({ post, video, locale, t }: Props) {
     ? new Date(video.publishedAt).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })
     : null
 
-  const hasContent = post || video
+  const hasChannels = channels.length > 0
+  const showVideo = hasChannels && hasVideos && video
+  const showComingSoon = hasChannels && !hasVideos
+  const hasContent = post || showVideo || showComingSoon
   if (!hasContent) return null
 
-  const cols = post && video ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1 max-w-2xl mx-auto'
+  const cols = post && (showVideo || showComingSoon) ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1 max-w-2xl mx-auto'
 
   return (
     <section className="px-[18px] md:px-7" style={{ maxWidth: 1280, margin: '0 auto', paddingTop: 56, paddingBottom: 24 }}>
@@ -110,7 +115,7 @@ export function DualHero({ post, video, locale, t }: Props) {
         )}
 
         {/* ── Video card ── */}
-        {video && (
+        {showVideo && video && (
           <div style={{ position: 'relative', paddingTop: 20, paddingBottom: 28 }}>
             <div
               className="dh-card dh-card-video"
@@ -119,9 +124,17 @@ export function DualHero({ post, video, locale, t }: Props) {
               <div aria-hidden="true" style={{ position: 'absolute', width: 80, height: 18, background: 'var(--pb-tapeR)', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.2)', top: -10, left: '22%', transform: 'rotate(4deg)' }} />
               <div aria-hidden="true" style={{ position: 'absolute', width: 80, height: 18, background: 'var(--pb-tape)', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.2)', top: -10, right: '15%', transform: 'rotate(-3deg)' }} />
 
+              {video.isPinned && (
+                <div className="font-mono" style={{ position: 'absolute', top: 8, right: 8, zIndex: 2, background: 'var(--pb-accent)', color: '#FFF', fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, padding: '3px 8px' }}>
+                  ★ PINNED
+                </div>
+              )}
+
               <a href={video.youtubeUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
-                {/* Thumbnail */}
-                <div style={{ position: 'relative', aspectRatio: '16 / 9', overflow: 'hidden', background: 'linear-gradient(135deg, #51201F 0%, #142229 100%)' }}>
+                <div style={{ position: 'relative', aspectRatio: '16 / 9', overflow: 'hidden', background: video.thumbnailUrl ? undefined : 'linear-gradient(135deg, #51201F 0%, #142229 100%)' }}>
+                  {video.thumbnailUrl && (
+                    <img src={video.thumbnailUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  )}
                   <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(transparent 40%, rgba(0,0,0,0.55))' }} />
                   <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <div style={{ width: 68, height: 48, background: 'var(--pb-yt)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(255,51,51,0.4)' }}>
@@ -135,16 +148,15 @@ export function DualHero({ post, video, locale, t }: Props) {
                     {video.duration}
                   </div>
                 </div>
-                {/* Body */}
                 <div style={{ padding: '22px 26px 26px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
                     {video.categoryName && (
-                      <span className="font-mono" style={{ padding: '2px 8px', background: 'var(--pb-yt)', color: '#FFF', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600 }}>
+                      <span className="font-mono" style={{ padding: '2px 8px', background: video.categoryColor ?? 'var(--pb-yt)', color: '#FFF', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600 }}>
                         {video.categoryName}
                       </span>
                     )}
                     <span className="font-mono" style={{ fontSize: 10, color: 'var(--pb-muted)', letterSpacing: '0.1em' }}>
-                      {Number(video.viewCount) > 0 ? `${video.viewCount} · ` : ''}{videoDate}
+                      {video.viewCount > 0 ? `${video.viewCount.toLocaleString()} · ` : ''}{videoDate}
                     </span>
                   </div>
                   <h3 className="font-fraunces" style={{ fontSize: 'clamp(24px, 2.8vw, 34px)', lineHeight: 1.08, letterSpacing: '-0.02em', margin: 0, fontWeight: 500, color: 'var(--pb-ink)' }}>
@@ -158,6 +170,52 @@ export function DualHero({ post, video, locale, t }: Props) {
             </div>
             <div className="font-caveat hidden md:block" style={{ position: 'absolute', bottom: -22, right: 32, color: 'var(--pb-accent)', fontSize: 20, transform: 'rotate(2deg)' }}>
               {t['hero.video.fresh'] ?? (isPt ? 'novo no canal →' : 'fresh on the channel →')}
+            </div>
+          </div>
+        )}
+
+        {/* ── Coming soon placeholder ── */}
+        {showComingSoon && (
+          <div style={{ position: 'relative', paddingTop: 20, paddingBottom: 28 }}>
+            <div
+              className="dh-card"
+              style={{ background: 'var(--pb-paper)', position: 'relative', transform: 'rotate(0.8deg)', boxShadow: 'var(--pb-shadow-card)', opacity: 0.85 }}
+            >
+              <div aria-hidden="true" style={{ position: 'absolute', width: 80, height: 18, background: 'var(--pb-tapeR)', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.2)', top: -10, left: '22%', transform: 'rotate(4deg)' }} />
+
+              <div style={{ aspectRatio: '16 / 9', background: 'linear-gradient(135deg, #1a1714 0%, #2a2218 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ width: 56, height: 40, background: 'rgba(255,45,32,0.25)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 8px' }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="rgba(255,45,32,0.6)"><path d="M8 5v14l11-7z" /></svg>
+                  </div>
+                  <div className="font-caveat" style={{ fontSize: 14, color: 'rgba(242,235,219,0.5)', transform: 'rotate(-1deg)' }}>
+                    {t['home.youtube.comingSoon']}
+                  </div>
+                </div>
+                <div className="font-mono" style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(255,45,32,0.3)', color: 'rgba(255,255,255,0.6)', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700, padding: '3px 7px' }}>
+                  ▶ YouTube
+                </div>
+              </div>
+              <div style={{ padding: '22px 26px 26px' }}>
+                <div className="font-caveat" style={{ fontSize: 16, color: 'var(--pb-accent)', transform: 'rotate(-0.5deg)' }}>
+                  {isPt ? 'Primeiro vídeo saindo do forno' : 'First video dropping soon'}
+                </div>
+                <p style={{ fontSize: 12, color: 'var(--pb-muted)', marginTop: 4 }}>
+                  {t['home.youtube.comingSoonSub']}
+                </p>
+                {channels[0] && (
+                  <a
+                    href={channels[0].url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 8, background: 'var(--pb-yt)', color: '#FFF', padding: '6px 14px', fontSize: 11, fontWeight: 600, textDecoration: 'none' }}
+                  >
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+                    {t['home.youtube.subscribe']}
+                  </a>
+                )}
+              </div>
             </div>
           </div>
         )}

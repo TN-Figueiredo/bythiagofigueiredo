@@ -104,3 +104,63 @@ export async function triggerSync(
   revalidateTag('youtube')
   return { ok: true as const }
 }
+
+const pinSchema = z.object({
+  videoId: z.string().uuid(),
+  channelId: z.string().uuid(),
+  durationDays: z.number().int().min(1).max(30),
+})
+
+export async function pinWeeklyPick(
+  input: z.infer<typeof pinSchema>,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const parsed = pinSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: parsed.error.issues.map(i => i.message).join(', ') }
+  const siteId = await requireEditAccess()
+  const supabase = getSupabaseServiceClient()
+
+  await supabase
+    .from('youtube_videos')
+    .update({ pinned_until: null, updated_at: new Date().toISOString() })
+    .eq('channel_id', parsed.data.channelId)
+    .eq('site_id', siteId)
+    .gt('pinned_until', new Date().toISOString())
+
+  const pinnedUntil = new Date()
+  pinnedUntil.setDate(pinnedUntil.getDate() + parsed.data.durationDays)
+
+  const { error } = await supabase
+    .from('youtube_videos')
+    .update({ pinned_until: pinnedUntil.toISOString(), updated_at: new Date().toISOString() })
+    .eq('id', parsed.data.videoId)
+    .eq('channel_id', parsed.data.channelId)
+    .eq('site_id', siteId)
+
+  if (error) return { ok: false, error: error.message }
+  revalidateTag('youtube')
+  return { ok: true }
+}
+
+const unpinSchema = z.object({
+  channelId: z.string().uuid(),
+})
+
+export async function unpinWeeklyPick(
+  input: z.infer<typeof unpinSchema>,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const parsed = unpinSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: parsed.error.issues.map(i => i.message).join(', ') }
+  const siteId = await requireEditAccess()
+  const supabase = getSupabaseServiceClient()
+
+  const { error } = await supabase
+    .from('youtube_videos')
+    .update({ pinned_until: null, updated_at: new Date().toISOString() })
+    .eq('channel_id', parsed.data.channelId)
+    .eq('site_id', siteId)
+    .gt('pinned_until', new Date().toISOString())
+
+  if (error) return { ok: false, error: error.message }
+  revalidateTag('youtube')
+  return { ok: true }
+}

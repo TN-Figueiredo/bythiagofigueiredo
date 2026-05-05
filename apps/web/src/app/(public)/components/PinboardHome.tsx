@@ -19,8 +19,12 @@ import {
   getMostReadPosts,
   getPostCount,
   getSubscriberCount,
+  getHomeChannels,
+  getWeeklyPick,
+  getHomeVideos,
+  getVideoCount,
 } from '../../../../lib/home/queries'
-import { SAMPLE_VIDEOS } from '../../../../lib/home/videos-data'
+import { getSiteContext } from '../../../../lib/cms/site-context'
 import enStrings from '../../../locales/en.json'
 import ptBrStrings from '../../../locales/pt-BR.json'
 
@@ -36,7 +40,9 @@ export async function PinboardHome({ locale }: Props) {
   const isDark = cookieStore.get('btf_theme')?.value !== 'light'
   const t = TRANSLATIONS[locale]
 
-  const [featuredPost, latestPosts, newsletters, topTags, mostReadPosts, postCount, subscriberCount] =
+  const { siteId } = await getSiteContext()
+
+  const [featuredPost, latestPosts, newsletters, topTags, mostReadPosts, postCount, subscriberCount, channels, weeklyPick, localeVideos, videoCount] =
     await Promise.all([
       getFeaturedPost(locale),
       getLatestPosts(locale, 9),
@@ -45,10 +51,14 @@ export async function PinboardHome({ locale }: Props) {
       getMostReadPosts(locale, 5),
       getPostCount(locale),
       getSubscriberCount(),
+      getHomeChannels(siteId),
+      getWeeklyPick(siteId, locale),
+      getHomeVideos(siteId, locale, 3),
+      getVideoCount(siteId, locale),
     ])
 
-  const localeVideos = SAMPLE_VIDEOS.filter(v => v.locale === locale)
-  const featuredVideo = localeVideos[0] ?? null
+  const hasChannels = channels.length > 0
+  const hasVideos = videoCount > 0
   const primaryNewsletter = newsletters[0] ?? null
   const blogPosts = latestPosts.slice(0, 6)
 
@@ -59,8 +69,6 @@ export async function PinboardHome({ locale }: Props) {
     }))
   )
   const nonEmptyTagGroups = tagGroups.filter(g => g.posts.length > 0)
-
-  const videoCount = localeVideos.length
 
   const showMostReadSection = mostReadPosts.length > 0 || nonEmptyTagGroups.length > 0
 
@@ -77,12 +85,12 @@ export async function PinboardHome({ locale }: Props) {
 
       {/* §1 — Dual Hero */}
       <div className="pb-section">
-        <DualHero post={featuredPost} video={featuredVideo} locale={locale} t={t} />
+        <DualHero post={featuredPost} video={weeklyPick} channels={channels} hasVideos={hasVideos} locale={locale} t={t} />
       </div>
 
       {/* §2 — Channel Strip: two channels, two languages */}
       <div className="pb-section">
-        <ChannelStrip newsletter={primaryNewsletter} locale={locale} t={t} />
+        <ChannelStrip newsletter={primaryNewsletter} channels={channels} locale={locale} t={t} />
       </div>
 
       {/* §3 — Blog Grid */}
@@ -91,14 +99,16 @@ export async function PinboardHome({ locale }: Props) {
       </div>
 
       {/* Ad — Bookmark placeholder between blog & video */}
-      <BookmarkPlaceholder locale={locale} t={t} />
+      {hasChannels && <BookmarkPlaceholder locale={locale} t={t} />}
 
       {/* §4 — Video Grid */}
-      <div className="pb-section">
-        <VideoGrid videos={localeVideos.slice(0, 3)} locale={locale} t={t} />
-      </div>
+      {hasChannels && (
+        <div className="pb-section">
+          <VideoGrid videos={localeVideos} channels={channels} hasVideos={hasVideos} locale={locale} t={t} />
+        </div>
+      )}
 
-      {/* Ad — Bookmark placeholder between video & discover */}
+      {/* Ad — Bookmark placeholder */}
       <BookmarkPlaceholder locale={locale} t={t} />
 
       {/* §5 — Most Read + Tag Grid (side-by-side) */}
@@ -130,7 +140,7 @@ export async function PinboardHome({ locale }: Props) {
 
       {/* §6 — Newsletter + YouTube: "Pick your channel" (last) */}
       <div className="pb-section">
-        <SubscribePair newsletter={primaryNewsletter} locale={locale} t={t} />
+        <SubscribePair newsletter={primaryNewsletter} channels={channels} locale={locale} t={t} />
       </div>
     </main>
   )

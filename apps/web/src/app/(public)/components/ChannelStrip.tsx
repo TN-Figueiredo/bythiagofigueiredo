@@ -1,35 +1,38 @@
 import { PaperCard } from './PaperCard'
 import { Tape } from './Tape'
-import { YOUTUBE_CHANNELS } from '@/lib/home/videos-data'
 import { localePath } from '@/lib/i18n/locale-path'
-import type { HomeNewsletter } from '@/lib/home/types'
+import type { HomeNewsletter, HomeChannel } from '@/lib/home/types'
 
 type Props = {
   newsletter?: HomeNewsletter | null
+  channels: HomeChannel[]
   locale: 'en' | 'pt-BR'
   t: Record<string, string>
 }
 
-export function ChannelStrip({ newsletter, locale, t }: Props) {
-  const primary = YOUTUBE_CHANNELS[locale]
-  const secondary = YOUTUBE_CHANNELS[locale === 'en' ? 'pt-BR' : 'en']
-  const channels = [primary, secondary]
+export function ChannelStrip({ newsletter, channels, locale, t }: Props) {
+  if (channels.length === 0) return null
+
+  const primary = channels.find(c => c.locale === locale) ?? channels[0]!
+  const secondary = channels.find(c => c.locale !== primary.locale)
+  const allChannels = secondary ? [primary, secondary] : [primary]
   const hasNl = !!newsletter
+  const isSingle = allChannels.length === 1
 
   return (
     <section aria-labelledby="channels-heading" className="px-[18px] md:px-7" style={{ maxWidth: 1280, margin: '0 auto', paddingTop: 56, paddingBottom: 24 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginBottom: 24 }}>
         <div className="font-caveat" style={{ color: 'var(--pb-yt)', fontSize: 26, transform: 'rotate(-1.5deg)', display: 'inline-block', whiteSpace: 'nowrap' }}>
-          ▶ {t['home.channels.headline']}
+          ▶ {isSingle ? t['home.channels.headlineSingle'] : t['home.channels.headline']}
         </div>
         <div style={{ flex: 1, height: 1, background: 'var(--pb-line)' }} />
         <span className="font-mono uppercase" style={{ fontSize: 11, color: 'var(--pb-muted)', letterSpacing: '0.14em', whiteSpace: 'nowrap' }}>
-          {t['home.channels.subline']}
+          {isSingle ? t['home.channels.sublineSingle'] : t['home.channels.subline']}
         </span>
       </div>
       <h2 id="channels-heading" className="sr-only">{t['channels.title']}</h2>
 
-      <div className={`grid grid-cols-1 ${hasNl ? 'lg:grid-cols-2' : 'md:grid-cols-2'}`} style={{ gap: 28 }}>
+      <div className={`grid grid-cols-1 ${hasNl ? 'lg:grid-cols-2' : isSingle ? '' : 'md:grid-cols-2'}`} style={{ gap: 28 }}>
         {/* Newsletter card (left side) */}
         {hasNl && (
           <div style={{ position: 'relative', paddingTop: 14 }}>
@@ -75,12 +78,12 @@ export function ChannelStrip({ newsletter, locale, t }: Props) {
         <div className={hasNl ? '' : 'contents'}>
           {hasNl ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {channels.map((ch, idx) => (
+              {allChannels.map((ch, idx) => (
                 <ChannelCard key={ch.locale} ch={ch} idx={idx} locale={locale} t={t} />
               ))}
             </div>
           ) : (
-            channels.map((ch, idx) => (
+            allChannels.map((ch, idx) => (
               <ChannelCard key={ch.locale} ch={ch} idx={idx} locale={locale} t={t} />
             ))
           )}
@@ -91,7 +94,7 @@ export function ChannelStrip({ newsletter, locale, t }: Props) {
 }
 
 function ChannelCard({ ch, idx, locale, t }: {
-  ch: { locale: string; handle: string; url: string; flag: string; name: string }
+  ch: HomeChannel
   idx: number
   locale: string
   t: Record<string, string>
@@ -134,7 +137,8 @@ function ChannelCard({ ch, idx, locale, t }: {
               {ch.name}
             </div>
             <div style={{ fontSize: 12, color: 'var(--pb-muted)', marginTop: 2 }}>
-              — {t['channels.subscribersSuffix']}
+              {ch.subscriberCount > 0 ? `${ch.subscriberCount.toLocaleString()} ` : '— '}
+              {t['channels.subscribersSuffix']}
             </div>
             <div style={{ fontSize: 12, color: 'var(--pb-faint)', marginTop: 2, fontStyle: 'italic' }}>
               {t['home.channels.youtubeSchedule']}

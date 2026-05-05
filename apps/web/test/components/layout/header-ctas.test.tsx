@@ -7,30 +7,26 @@ const en = { 'header.subscribe': 'Subscribe on YouTube', 'header.newsletter': 'G
 
 describe('HeaderCTAs', () => {
   describe('home variant', () => {
-    it('renders YouTube and Newsletter buttons', () => {
-      render(<HeaderCTAs variant="home" locale="pt-BR" t={ptBR} />)
+    it('renders YouTube and Newsletter buttons when channelUrl provided', () => {
+      render(<HeaderCTAs variant="home" locale="pt-BR" t={ptBR} channelUrl="https://youtube.com/@test" />)
       expect(screen.getByText(/Inscrever/)).toBeTruthy()
       expect(screen.getByText(/Newsletter/)).toBeTruthy()
     })
 
-    it('shows 🇧🇷 flag for pt-BR locale', () => {
-      render(<HeaderCTAs variant="home" locale="pt-BR" t={ptBR} />)
-      expect(screen.getByText(/🇧🇷/)).toBeTruthy()
-    })
-
-    it('shows 🇺🇸 flag for en locale', () => {
+    it('renders only Newsletter button when no channelUrl', () => {
       render(<HeaderCTAs variant="home" locale="en" t={en} />)
-      expect(screen.getByText(/🇺🇸/)).toBeTruthy()
+      expect(screen.getByText(/Newsletter/)).toBeTruthy()
+      expect(screen.queryByText(/Subscribe/)).toBeNull()
     })
 
-    it('YouTube button links to correct channel', () => {
-      render(<HeaderCTAs variant="home" locale="pt-BR" t={ptBR} />)
+    it('YouTube button links to channelUrl', () => {
+      render(<HeaderCTAs variant="home" locale="pt-BR" t={ptBR} channelUrl="https://youtube.com/@myChannel" />)
       const ytLink = screen.getByLabelText('Inscrever no YouTube')
-      expect(ytLink.getAttribute('href')).toContain('bythiagofigueiredo')
+      expect(ytLink.getAttribute('href')).toBe('https://youtube.com/@myChannel')
     })
 
     it('Newsletter button has marker yellow background', () => {
-      render(<HeaderCTAs variant="home" locale="en" t={en} />)
+      render(<HeaderCTAs variant="home" locale="en" t={en} channelUrl="https://youtube.com/@test" />)
       const nlBtn = screen.getByText(/Newsletter/).closest('a')
       expect(nlBtn!.style.background).toBe('var(--pb-marker)')
     })
@@ -77,7 +73,7 @@ describe('HeaderCTAs', () => {
 
   describe('locale-aware links', () => {
     it('home variant newsletter link uses locale prefix for pt-BR', () => {
-      render(<HeaderCTAs variant="home" locale="pt-BR" t={ptBR} />)
+      render(<HeaderCTAs variant="home" locale="pt-BR" t={ptBR} channelUrl="https://youtube.com/@test" />)
       const nlBtn = screen.getByText(/Newsletter/).closest('a')
       expect(nlBtn!.getAttribute('href')).toBe('/pt/newsletters')
     })

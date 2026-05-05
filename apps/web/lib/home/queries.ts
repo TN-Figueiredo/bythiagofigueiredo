@@ -1,7 +1,8 @@
-import type { HomeNewsletter, HomePost, HomeTag } from './types'
+import type { HomeChannel, HomeNewsletter, HomePost, HomeTag, HomeVideo } from './types'
 import { getSupabaseServiceClient } from '../supabase/service'
 import { getSiteContext } from '../cms/site-context'
 import { COLD_START_THRESHOLD } from '../tracking/config'
+import { unstable_cache } from 'next/cache'
 
 function mapRowToHomePost(row: Record<string, unknown>): HomePost {
   const post = row['blog_posts'] as Record<string, unknown>
@@ -238,3 +239,167 @@ export async function getSubscriberCount(): Promise<number> {
   if (error) return 0
   return count ?? 0
 }
+
+// ── YouTube home queries ──
+
+const DB_LOCALE_MAP: Record<string, 'pt' | 'en'> = { 'pt-BR': 'pt', en: 'en' }
+const HOME_LOCALE_MAP: Record<string, 'en' | 'pt-BR'> = { pt: 'pt-BR', en: 'en' }
+const LOCALE_FLAG: Record<string, string> = { pt: '🇧🇷', en: '🌎' }
+
+export const getHomeChannels = unstable_cache(
+  async (siteId: string): Promise<HomeChannel[]> => {
+    const db = getSupabaseServiceClient()
+    const { data, error } = await db
+      .from('youtube_channels')
+      .select('id, locale, handle, name, subscriber_count, thumbnail_url')
+      .eq('site_id', siteId)
+      .order('locale')
+
+    if (error || !data) return []
+    return data.map((c) => {
+      const homeLocale = HOME_LOCALE_MAP[c.locale as string] ?? 'en'
+      return {
+        id: c.id as string,
+        locale: homeLocale,
+        handle: c.handle as string,
+        url: `https://www.youtube.com/${c.handle as string}`,
+        flag: LOCALE_FLAG[c.locale as string] ?? '🌎',
+        name: c.name as string,
+        subscriberCount: (c.subscriber_count as number) ?? 0,
+        thumbnailUrl: (c.thumbnail_url as string) ?? null,
+      }
+    })
+  },
+  ['home-channels'],
+  { revalidate: 3600, tags: ['youtube'] },
+)
+
+export const getHomeVideos = unstable_cache(
+  async (siteId: string, locale: string, limit = 3): Promise<HomeVideo[]> => {
+    const dbLocale = DB_LOCALE_MAP[locale] ?? locale
+    const db = getSupabaseServiceClient()
+    const { data, error } = await db
+      .from('youtube_videos')
+      .select(`
+        id, youtube_video_id, title, description, thumbnail_url, duration,
+        view_count, published_at, is_hidden,
+        youtube_channels!inner(locale, handle),
+        youtube_categories(slug, name_pt, name_en, color)
+      `)
+      .eq('site_id', siteId)
+      .eq('youtube_channels.locale', dbLocale)
+      .eq('is_hidden', false)
+      .order('published_at', { ascending: false })
+      .limit(limit)
+
+    if (error || !data) return []
+    return (data as Record<string, unknown>[]).map((row) => {
+      const ch = row['youtube_channels'] as { locale: string; handle: string }
+      const cat = row['youtube_categories'] as { slug: string; name_pt: string; name_en: string; color: string } | null
+      const homeLocale = HOME_LOCALE_MAP[ch.locale] ?? 'en'
+      const catName = cat ? (ch.locale === 'pt' ? cat.name_pt : cat.name_en) : null
+      return {
+        id: row['id'] as string,
+        locale: homeLocale,
+        title: row['title'] as string,
+        description: (row['description'] as string) ?? '',
+        thumbnailUrl: (row['thumbnail_url'] as string) ?? null,
+        duration: row['duration'] as string,
+        viewCount: row['view_count'] as number,
+        publishedAt: row['published_at'] as string,
+        categoryName: catName,
+        categoryColor: cat?.color ?? null,
+        youtubeUrl: `https://www.youtube.com/watch?v=${row['youtube_video_id'] as string}`,
+        channelHandle: ch.handle,
+        youtubeVideoId: row['youtube_video_id'] as string,
+        isPinned: false,
+      }
+    })
+  },
+  ['home-videos'],
+  { revalidate: 3600, tags: ['youtube'] },
+)
+
+export const getWeeklyPick = unstable_cache(
+  async (siteId: string, locale: string): Promise<HomeVideo | null> => {
+    const dbLocale = DB_LOCALE_MAP[locale] ?? locale
+    const db = getSupabaseServiceClient()
+
+    const selectCols = `
+      id, youtube_video_id, title, description, thumbnail_url, duration,
+      view_count, published_at, pinned_until,
+      youtube_channels!inner(locale, handle),
+      youtube_categories(slug, name_pt, name_en, color)
+    `
+
+    const { data: pinned } = await db
+      .from('youtube_videos')
+      .select(selectCols)
+      .eq('site_id', siteId)
+      .eq('youtube_channels.locale', dbLocale)
+      .eq('is_hidden', false)
+      .gt('pinned_until', new Date().toISOString())
+      .order('pinned_until', { ascending: false })
+      .limit(1)
+
+    const row = (pinned as Record<string, unknown>[] | null)?.[0]
+
+    const source = row ?? await (async () => {
+      const { data } = await db
+        .from('youtube_videos')
+        .select(selectCols)
+        .eq('site_id', siteId)
+        .eq('youtube_channels.locale', dbLocale)
+        .eq('is_hidden', false)
+        .order('published_at', { ascending: false })
+        .limit(1)
+      return (data as Record<string, unknown>[] | null)?.[0] ?? null
+    })()
+
+    if (!source) return null
+
+    const ch = source['youtube_channels'] as { locale: string; handle: string }
+    const cat = source['youtube_categories'] as { slug: string; name_pt: string; name_en: string; color: string } | null
+    const homeLocale = HOME_LOCALE_MAP[ch.locale] ?? 'en'
+    const catName = cat ? (ch.locale === 'pt' ? cat.name_pt : cat.name_en) : null
+    const pinnedUntil = source['pinned_until'] as string | null
+    const isPinned = !!pinnedUntil && new Date(pinnedUntil) > new Date()
+
+    return {
+      id: source['id'] as string,
+      locale: homeLocale,
+      title: source['title'] as string,
+      description: (source['description'] as string) ?? '',
+      thumbnailUrl: (source['thumbnail_url'] as string) ?? null,
+      duration: source['duration'] as string,
+      viewCount: source['view_count'] as number,
+      publishedAt: source['published_at'] as string,
+      categoryName: catName,
+      categoryColor: cat?.color ?? null,
+      youtubeUrl: `https://www.youtube.com/watch?v=${source['youtube_video_id'] as string}`,
+      channelHandle: ch.handle,
+      youtubeVideoId: source['youtube_video_id'] as string,
+      isPinned,
+    }
+  },
+  ['weekly-pick'],
+  { revalidate: 3600, tags: ['youtube'] },
+)
+
+export const getVideoCount = unstable_cache(
+  async (siteId: string, locale: string): Promise<number> => {
+    const dbLocale = DB_LOCALE_MAP[locale] ?? locale
+    const db = getSupabaseServiceClient()
+    const { count, error } = await db
+      .from('youtube_videos')
+      .select('id, youtube_channels!inner(locale)', { count: 'exact', head: true })
+      .eq('site_id', siteId)
+      .eq('youtube_channels.locale', dbLocale)
+      .eq('is_hidden', false)
+
+    if (error) return 0
+    return count ?? 0
+  },
+  ['video-count'],
+  { revalidate: 3600, tags: ['youtube'] },
+)

@@ -8,7 +8,7 @@ import { HeaderCTAs } from './header-ctas'
 import { ThemeToggle } from './theme-toggle'
 import { MobileNavDrawer } from './mobile-nav-drawer'
 
-export function GlobalHeader({ locale, currentTheme, variant, ctas, t }: GlobalHeaderProps) {
+export function GlobalHeader({ locale, currentTheme, variant, ctas, t, channelUrl }: GlobalHeaderProps) {
   const homeHref = localePath('/', locale)
   const items = buildNavItems(locale, variant, t)
 
@@ -59,7 +59,7 @@ export function GlobalHeader({ locale, currentTheme, variant, ctas, t }: GlobalH
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <div className="hidden md:flex items-center gap-2">
-            <HeaderCTAs variant={ctas} locale={locale} t={t} />
+            <HeaderCTAs variant={ctas} locale={locale} t={t} channelUrl={channelUrl} />
             <ThemeToggle currentTheme={currentTheme} />
           </div>
           <MobileNavDrawer
@@ -68,6 +68,7 @@ export function GlobalHeader({ locale, currentTheme, variant, ctas, t }: GlobalH
             variant={variant}
             ctas={ctas}
             t={t}
+            channelUrl={channelUrl}
           />
         </div>
       </div>

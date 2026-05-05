@@ -5,8 +5,10 @@ import { revalidatePath, revalidateTag } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+import { lookupChannelByHandle, type ChannelLookupResult } from '@/lib/youtube/api-client'
 
 type ActionResult = { ok: true } | { ok: false; error: string }
+type LookupResult = { ok: true; channel: ChannelLookupResult } | { ok: false; error: string }
 
 function zodError(err: z.ZodError): string {
   return err.issues.map((i) => i.message).join(', ') || 'Validation failed'
@@ -306,5 +308,149 @@ export async function deleteSite(confirmSlug: string): Promise<ActionResult> {
     return { ok: false, error: 'Slug confirmation does not match' }
   const { error } = await supabase.from('sites').delete().eq('id', siteId)
   if (error) return { ok: false, error: error.message }
+  return { ok: true }
+}
+
+const handleInputSchema = z.object({
+  handleOrUrl: z.string().min(1, 'Handle or URL is required').max(200),
+})
+
+export async function lookupYouTubeChannel(input: z.infer<typeof handleInputSchema>): Promise<LookupResult> {
+  const parsed = handleInputSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
+  await requireEditAccess()
+
+  const apiKey = process.env.YOUTUBE_API_KEY
+  if (!apiKey) return { ok: false, error: 'YouTube API key not configured' }
+
+  try {
+    const channel = await lookupChannelByHandle(parsed.data.handleOrUrl, apiKey)
+    if (!channel) return { ok: false, error: 'Channel not found. Check the handle and try again.' }
+    return { ok: true, channel }
+  } catch (e) {
+    if (e instanceof Error && e.message === 'quotaExceeded') {
+      return { ok: false, error: 'YouTube API limit reached. Try again later.' }
+    }
+    return { ok: false, error: 'Failed to look up channel. Please try again.' }
+  }
+}
+
+const addChannelSchema = z.object({
+  channelId: z.string().min(1),
+  locale: z.enum(['pt', 'en']),
+  handle: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string().nullable(),
+  uploadsPlaylistId: z.string().min(1),
+  subscriberCount: z.number().int().min(0),
+  videoCount: z.number().int().min(0),
+  thumbnailUrl: z.string().nullable(),
+  bannerUrl: z.string().nullable(),
+  customUrl: z.string().nullable(),
+})
+
+export async function addYouTubeChannel(input: z.infer<typeof addChannelSchema>): Promise<ActionResult> {
+  const parsed = addChannelSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
+  const siteId = await requireEditAccess()
+  const supabase = getSupabaseServiceClient()
+
+  // Check locale not taken
+  const { data: existing } = await supabase
+    .from('youtube_channels')
+    .select('id, name')
+    .eq('site_id', siteId)
+    .eq('locale', parsed.data.locale)
+    .limit(1)
+  if (existing && existing.length > 0) {
+    return { ok: false, error: `Locale ${parsed.data.locale} is already assigned to "${(existing[0] as { name: string }).name}".` }
+  }
+
+  // Check channel not already registered
+  const { data: dup } = await supabase
+    .from('youtube_channels')
+    .select('id, locale')
+    .eq('site_id', siteId)
+    .eq('channel_id', parsed.data.channelId)
+    .limit(1)
+  if (dup && dup.length > 0) {
+    return { ok: false, error: `This channel is already registered as ${(dup[0] as { locale: string }).locale}.` }
+  }
+
+  const { error } = await supabase.from('youtube_channels').insert({
+    site_id: siteId,
+    channel_id: parsed.data.channelId,
+    locale: parsed.data.locale,
+    handle: parsed.data.handle,
+    name: parsed.data.name,
+    description: parsed.data.description,
+    uploads_playlist_id: parsed.data.uploadsPlaylistId,
+    subscriber_count: parsed.data.subscriberCount,
+    video_count: parsed.data.videoCount,
+    thumbnail_url: parsed.data.thumbnailUrl,
+    banner_url: parsed.data.bannerUrl,
+    custom_url: parsed.data.customUrl,
+    sync_enabled: true,
+    sync_schedules: [],
+  })
+
+  if (error) return { ok: false, error: error.message }
+
+  // Trigger first sync in background
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  const cronSecret = process.env.CRON_SECRET
+  if (cronSecret) {
+    fetch(`${baseUrl}/api/cron/sync-youtube?mode=manual`, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${cronSecret}` },
+    }).catch(() => {})
+  }
+
+  revalidateTag('youtube')
+  revalidatePath('/cms/settings')
+  revalidatePath('/')
+  return { ok: true }
+}
+
+const removeChannelSchema = z.object({
+  channelId: z.string().uuid(),
+})
+
+export async function removeYouTubeChannel(input: z.infer<typeof removeChannelSchema>): Promise<ActionResult> {
+  const parsed = removeChannelSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
+  const siteId = await requireEditAccess()
+  const supabase = getSupabaseServiceClient()
+
+  const { data: channel } = await supabase
+    .from('youtube_channels')
+    .select('id')
+    .eq('id', parsed.data.channelId)
+    .eq('site_id', siteId)
+    .single()
+
+  if (!channel) return { ok: false, error: 'Channel not found' }
+
+  // Delete in order: comments → videos → sync log → channel
+  // (youtube_videos.channel_id FK has no ON DELETE CASCADE)
+  const { data: videoIds } = await supabase
+    .from('youtube_videos')
+    .select('id')
+    .eq('channel_id', channel.id)
+
+  if (videoIds && videoIds.length > 0) {
+    const ids = videoIds.map(v => (v as { id: string }).id)
+    await supabase.from('youtube_curated_comments').delete().in('video_id', ids)
+    await supabase.from('youtube_videos').delete().eq('channel_id', channel.id)
+  }
+
+  await supabase.from('youtube_sync_log').delete().eq('channel_id', channel.id)
+
+  const { error } = await supabase.from('youtube_channels').delete().eq('id', channel.id).eq('site_id', siteId)
+  if (error) return { ok: false, error: error.message }
+
+  revalidateTag('youtube')
+  revalidatePath('/cms/settings')
+  revalidatePath('/')
   return { ok: true }
 }

@@ -14,9 +14,10 @@ type Props = {
   variant: HeaderVariant
   ctas: HeaderCtaVariant
   t: Record<string, string>
+  channelUrl?: string | null
 }
 
-export function MobileNavDrawer({ locale, currentTheme, variant, ctas, t }: Props) {
+export function MobileNavDrawer({ locale, currentTheme, variant, ctas, t, channelUrl }: Props) {
   const [open, setOpen] = useState(false)
   const current = useActiveNav()
   const items = buildNavItems(locale, variant, t)
@@ -171,7 +172,7 @@ export function MobileNavDrawer({ locale, currentTheme, variant, ctas, t }: Prop
             </nav>
 
             <div style={{ borderTop: '1px dashed var(--pb-line)', marginTop: 16, paddingTop: 16 }}>
-              <HeaderCTAs variant={ctas} locale={locale} t={t} />
+              <HeaderCTAs variant={ctas} locale={locale} t={t} channelUrl={channelUrl} />
             </div>
           </div>
         </div>

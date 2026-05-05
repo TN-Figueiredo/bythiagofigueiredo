@@ -12,6 +12,7 @@ export type GlobalHeaderProps = {
   variant: HeaderVariant
   ctas: HeaderCtaVariant
   t: Record<string, string>
+  channelUrl?: string | null
 }
 
 export type NavItem = {
@@ -19,11 +20,6 @@ export type NavItem = {
   href: string
   label: string
   external?: boolean
-}
-
-export const YT_CHANNELS: Record<HeaderLocale, { url: string; flag: string }> = {
-  'pt-BR': { url: 'https://youtube.com/@bythiagofigueiredo', flag: '🇧🇷' },
-  en: { url: 'https://youtube.com/@thiagofigueiredo', flag: '🇺🇸' },
 }
 
 export function buildNavItems(

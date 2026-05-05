@@ -17,6 +17,7 @@ import { composeGraph } from '@/lib/seo/jsonld/graph'
 import { JsonLdScript } from '@/lib/seo/jsonld/render'
 import { TopStrip } from '@/components/layout/top-strip'
 import { GlobalHeader } from '@/components/layout/global-header'
+import { getHomeChannels } from '@/lib/home/queries'
 import { PinboardFooter } from './components/PinboardFooter'
 import enStrings from '../../locales/en.json'
 import ptBrStrings from '../../locales/pt-BR.json'
@@ -80,6 +81,10 @@ export default async function PublicLayout({ children }: { children: ReactNode }
   const locale = (h.get('x-locale') ?? 'en') as 'en' | 'pt-BR'
   const t = (locale === 'pt-BR' ? ptBrStrings : enStrings) as unknown as Record<string, string>
 
+  const channels = ctx ? await getHomeChannels(ctx.siteId) : []
+  const localeChannel = channels.find(c => c.locale === locale) ?? channels[0] ?? null
+  const channelUrl = localeChannel?.url ?? null
+
   const rootNodes = config
     ? [
         buildWebSiteNode(config),
@@ -105,6 +110,7 @@ export default async function PublicLayout({ children }: { children: ReactNode }
           variant="full"
           ctas="home"
           t={t}
+          channelUrl={channelUrl}
         />
         {rootNodes.length > 0 && <JsonLdScript graph={composeGraph(rootNodes)} />}
         {children}
