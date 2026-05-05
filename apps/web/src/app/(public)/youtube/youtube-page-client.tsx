@@ -5,12 +5,10 @@ import type { YouTubePageData, YouTubeVideoView } from './youtube-types'
 import { YouTubeHero } from './youtube-hero'
 import { YouTubeChannelStrip } from './youtube-channel-strip'
 import { YouTubeStatsStrip } from './youtube-stats-strip'
-
-// These will be created in Tasks 12-13:
-// import { YouTubeFeatureBlock } from './youtube-feature-block'
-// import { YouTubeCommentsWall } from './youtube-comments-wall'
-// import { YouTubeArchive } from './youtube-archive'
-// import { YouTubeSubscribe } from './youtube-subscribe'
+import { YouTubeFeatureBlock } from './youtube-feature-block'
+import { YouTubeCommentsWall } from './youtube-comments-wall'
+import { YouTubeSubscribe } from './youtube-subscribe'
+// Task 13: import { YouTubeArchive } from './youtube-archive'
 
 interface Props {
   data: YouTubePageData
@@ -84,6 +82,13 @@ export function YouTubePageClient({ data, locale }: Props) {
     if (n >= 1000) return (n / 1000).toFixed(n >= 10000 ? 0 : 1).replace('.', L === 'pt' ? ',' : '.') + 'k'
     return String(n)
   }
+  const goToArchive = (patch: Partial<typeof filters>) => {
+    update(patch)
+    setTimeout(() => {
+      document.getElementById('archive')?.scrollIntoView({ behavior: 'smooth' })
+    }, 50)
+  }
+
   const hoursTotal = (data.totalDurationSeconds / 3600).toFixed(1).replace('.', L === 'pt' ? ',' : '.')
 
   // Tag stats
@@ -127,7 +132,17 @@ export function YouTubePageClient({ data, locale }: Props) {
         mostWatchedViews={sortedAll.length > 0 ? sortedAll.reduce((max, v) => v.viewCount > max.viewCount ? v : max).viewCount : 0}
         fmtNum={fmtNum}
       />
-      {/* Tasks 12-14 will add: FeatureBlock, CommentsWall, Archive, Subscribe, Ads */}
+      <YouTubeFeatureBlock
+        locale={L} theme={theme}
+        featurePick={featurePick}
+        featureSidekicks={featureSidekicks}
+        categories={categories}
+        fmtNum={fmtNum}
+        onCategoryClick={(slug) => goToArchive({ cat: slug })}
+      />
+      <YouTubeCommentsWall locale={L} theme={theme} comments={comments}/>
+      {/* Task 13: <YouTubeArchive ... /> */}
+      <YouTubeSubscribe locale={L} theme={theme} channels={channels}/>
     </div>
   )
 }
