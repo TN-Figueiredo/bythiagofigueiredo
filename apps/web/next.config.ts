@@ -75,7 +75,7 @@ const nextConfig: NextConfig = {
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://i.ytimg.com https://yt3.ggpht.com",
       "font-src 'self' data:",
-      "connect-src 'self' https://*.supabase.co https://*.supabase.in https://o*.ingest.sentry.io",
+      "connect-src 'self' https://*.supabase.co https://*.supabase.in https://*.ingest.sentry.io",
       "frame-src https://challenges.cloudflare.com https://www.youtube.com",
       "frame-ancestors 'none'",
       "form-action 'self'",

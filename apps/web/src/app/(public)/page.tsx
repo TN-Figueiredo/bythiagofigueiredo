@@ -18,10 +18,12 @@ import { PinboardHome } from './components/PinboardHome'
 export async function generateMetadata(): Promise<Metadata> {
   const ctx = await tryGetSiteContext()
   if (!ctx) return { title: (en as unknown as Record<string, string>)['meta.title'] }
-  const host = (await headers()).get('host') ?? ctx.primaryDomain ?? ''
+  const h = await headers()
+  const host = h.get('host') ?? ctx.primaryDomain ?? ''
+  const locale = h.get('x-locale') ?? 'en'
   try {
     const config = await getSiteSeoConfig(ctx.siteId, host)
-    return generateRootMetadata(config)
+    return generateRootMetadata(config, locale)
   } catch {
     return { title: (en as unknown as Record<string, string>)['meta.title'] }
   }

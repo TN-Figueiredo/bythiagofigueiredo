@@ -22,7 +22,7 @@ describe('HeaderCTAs', () => {
     it('YouTube button links to channelUrl', () => {
       render(<HeaderCTAs variant="home" locale="pt-BR" t={ptBR} channelUrl="https://youtube.com/@myChannel" />)
       const ytLink = screen.getByLabelText('Inscrever no YouTube')
-      expect(ytLink.getAttribute('href')).toBe('https://youtube.com/@myChannel')
+      expect(ytLink.getAttribute('href')).toBe('https://youtube.com/@myChannel?sub_confirmation=1')
     })
 
     it('Newsletter button has marker yellow background', () => {

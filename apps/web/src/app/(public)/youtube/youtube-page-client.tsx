@@ -144,7 +144,7 @@ export function YouTubePageClient({ data, locale, ads }: Props) {
           </p>
           {channels.length > 0 && (
             <a
-              href={channels[0]!.url}
+              href={`${channels[0]!.url}?sub_confirmation=1`}
               target="_blank"
               rel="noopener noreferrer"
               style={{

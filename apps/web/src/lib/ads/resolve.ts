@@ -321,6 +321,7 @@ export function mapResolutionToCreativeData(
   // Template/placeholder-sourced
   if (resolution.placeholder) {
     const ph = resolution.placeholder
+    if (!ph.headline && !ph.body) return null
     return {
       campaignId: null,
       slotKey,

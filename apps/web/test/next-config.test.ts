@@ -9,7 +9,7 @@ describe('next.config security headers', () => {
     const csp = root.headers.find((h: any) => h.key === 'Content-Security-Policy');
     expect(csp.value).toContain('*.supabase.co');
     expect(csp.value).not.toContain('api.brevo.com'); // Brevo fully removed in Sprint 5e
-    expect(csp.value).toContain('o*.ingest.sentry.io');
+    expect(csp.value).toContain('*.ingest.sentry.io');
     expect(csp.value).toContain("frame-ancestors 'none'");
   });
 });

@@ -31,14 +31,15 @@ function baseMetadata(config: SiteSeoConfig): Metadata {
   }
 }
 
-export function generateRootMetadata(config: SiteSeoConfig): Metadata {
+export function generateRootMetadata(config: SiteSeoConfig, locale?: string): Metadata {
   const languages: Record<string, string> = {}
   for (const loc of config.supportedLocales) {
     languages[hreflangCode(loc)] = localePath('/', loc)
   }
   languages['x-default'] = localePath('/', config.defaultLocale)
+  const effectiveLocale = locale ?? config.defaultLocale
   const desc = config.personIdentity
-    ? config.defaultLocale === 'pt-BR'
+    ? effectiveLocale === 'pt-BR'
       ? `Blog, newsletters e projetos de ${config.personIdentity.name}. Engenharia de software, produto e construção em público.`
       : `Blog, newsletters and projects by ${config.personIdentity.name}. Software engineering, product and building in public.`
     : `${config.siteName} — editorial hub.`
@@ -54,6 +55,7 @@ export function generateRootMetadata(config: SiteSeoConfig): Metadata {
       url: config.siteUrl,
       title: config.siteName,
       description: desc,
+      locale: effectiveLocale.replace('-', '_'),
       images: [{ url: ogImage, width: 1200, height: 630, alt: config.siteName }],
     },
   }
@@ -341,7 +343,7 @@ export function generateAboutMetadata(
     ? `Sobre — ${config.siteName}`
     : `About — ${config.siteName}`
   const description = subtitle ?? `About ${config.siteName}`
-  const ogImage = aboutPhotoUrl ?? config.defaultOgImageUrl ?? `${config.siteUrl}/og-default.png`
+  const ogImage = config.defaultOgImageUrl ?? `${config.siteUrl}/og-default.png`
 
   const languages: Record<string, string> = {}
   for (const loc of availableLocales) {

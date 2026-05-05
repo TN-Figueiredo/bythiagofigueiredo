@@ -45,7 +45,7 @@ export function VideoGrid({ videos, channels, hasVideos, locale, t }: Props) {
             {t['home.youtube.comingSoonSub']}
           </p>
           <a
-            href={channelUrl}
+            href={`${channelUrl}?sub_confirmation=1`}
             target="_blank"
             rel="noopener noreferrer"
             className="font-mono inline-flex items-center gap-1.5"
@@ -130,7 +130,7 @@ export function VideoGrid({ videos, channels, hasVideos, locale, t }: Props) {
         </div>
 
         <div style={{ marginTop: 48, textAlign: 'center' }}>
-          <a href={channelUrl} target="_blank" rel="noopener noreferrer" className="font-mono uppercase inline-block" style={{ fontSize: 12, letterSpacing: '0.16em', background: 'var(--pb-yt)', color: '#FFF', padding: '12px 26px', fontWeight: 600, textDecoration: 'none', border: '1.5px solid var(--pb-yt)' }}>
+          <a href={`${channelUrl}?sub_confirmation=1`} target="_blank" rel="noopener noreferrer" className="font-mono uppercase inline-block" style={{ fontSize: 12, letterSpacing: '0.16em', background: 'var(--pb-yt)', color: '#FFF', padding: '12px 26px', fontWeight: 600, textDecoration: 'none', border: '1.5px solid var(--pb-yt)' }}>
             ▶ {isPt ? 'inscreve no canal' : 'subscribe on yt'}
           </a>
         </div>

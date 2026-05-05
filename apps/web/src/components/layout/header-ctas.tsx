@@ -14,7 +14,7 @@ export function HeaderCTAs({ variant, locale, t, channelUrl }: Props) {
       <div className="flex items-center gap-2 shrink-0">
         {channelUrl && (
           <a
-            href={channelUrl}
+            href={`${channelUrl}?sub_confirmation=1`}
             target="_blank"
             rel="noopener noreferrer"
             aria-label={t['header.subscribe']}
