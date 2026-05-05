@@ -8,7 +8,7 @@ import { YouTubeStatsStrip } from './youtube-stats-strip'
 import { YouTubeFeatureBlock } from './youtube-feature-block'
 import { YouTubeCommentsWall } from './youtube-comments-wall'
 import { YouTubeSubscribe } from './youtube-subscribe'
-// Task 13: import { YouTubeArchive } from './youtube-archive'
+import { YouTubeArchive } from './youtube-archive'
 
 interface Props {
   data: YouTubePageData
@@ -141,7 +141,17 @@ export function YouTubePageClient({ data, locale }: Props) {
         onCategoryClick={(slug) => goToArchive({ cat: slug })}
       />
       <YouTubeCommentsWall locale={L} theme={theme} comments={comments}/>
-      {/* Task 13: <YouTubeArchive ... /> */}
+      <YouTubeArchive
+        locale={L} theme={theme}
+        filters={filters} update={update} reset={reset}
+        filtered={filtered} visible={visible}
+        hasFilters={hasFilters}
+        page={page} setPage={setPage}
+        categories={categories}
+        allTags={allTags}
+        totalVideoCount={data.totalVideoCount}
+        fmtNum={fmtNum}
+      />
       <YouTubeSubscribe locale={L} theme={theme} channels={channels}/>
     </div>
   )

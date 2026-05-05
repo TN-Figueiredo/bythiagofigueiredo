@@ -122,7 +122,7 @@ function HeroPT({ locale, theme, latestPT, latestEN, enOlder, fmtNum }: Props) {
             letterSpacing: '0.2em', textTransform: 'uppercase',
             color: yt, marginBottom: 12,
           }}>
-            {'$'} 01 {'·'} {L === 'pt' ? 'esta semana, em dois canais' : 'this week, on two channels'}
+            § 01 · {L === 'pt' ? 'esta semana, em dois canais' : 'this week, on two channels'}
           </div>
 
           <h1 style={{
@@ -290,7 +290,7 @@ function HeroEN({ locale, theme, latestPT, latestEN, enOlder, fmtNum }: Props) {
         letterSpacing: '0.2em', textTransform: 'uppercase',
         color: yt, marginBottom: 12,
       }}>
-        {'$'} 01 {'·'} {L === 'pt' ? 'último vídeo' : 'latest video'}
+        § 01 · {L === 'pt' ? 'último vídeo' : 'latest video'}
       </div>
 
       <h1 style={{
