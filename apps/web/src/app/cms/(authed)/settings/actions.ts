@@ -274,6 +274,7 @@ const syncScheduleSchema = z.object({
     tz: z.string(),
     label: z.string(),
   })),
+  schedule_label: z.string().nullable().optional(),
 })
 
 export async function updateYouTubeChannelSettings(input: z.infer<typeof syncScheduleSchema>): Promise<ActionResult> {
@@ -286,6 +287,7 @@ export async function updateYouTubeChannelSettings(input: z.infer<typeof syncSch
     .update({
       sync_enabled: parsed.data.sync_enabled,
       sync_schedules: parsed.data.sync_schedules,
+      schedule_label: parsed.data.schedule_label ?? null,
       updated_at: new Date().toISOString(),
     })
     .eq('id', parsed.data.channel_id).eq('site_id', siteId)

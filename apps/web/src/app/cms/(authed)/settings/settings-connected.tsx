@@ -8,6 +8,7 @@ import {
   type FormEvent,
 } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { deriveScheduleLabel } from '@/lib/youtube/schedule-label'
 import {
   updateBranding,
   updateIdentity,
@@ -81,6 +82,7 @@ interface YouTubeChannelData {
     tz: string
     label: string
   }> | null
+  schedule_label: string | null
 }
 
 interface Props {
@@ -1299,6 +1301,7 @@ function AddChannelForm({
       locale,
       sync_enabled: true,
       sync_schedules: [],
+      schedule_label: null,
     })
     setHandle('')
     setPreview(null)
@@ -1387,6 +1390,7 @@ function YouTubeChannelCard({
 }) {
   const [syncEnabled, setSyncEnabled] = useState(channel.sync_enabled)
   const [schedules, setSchedules] = useState(channel.sync_schedules ?? [])
+  const [scheduleLabel, setScheduleLabel] = useState(channel.schedule_label ?? '')
 
   const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const
 
@@ -1404,6 +1408,7 @@ function YouTubeChannelCard({
           tz: s.tz,
           label: s.label,
         })),
+        schedule_label: scheduleLabel.trim() || null,
       })
       setSaveState(res.ok ? 'success' : 'error')
     })
@@ -1510,6 +1515,19 @@ function YouTubeChannelCard({
               </button>
             </div>
           ))}
+
+          <div className="space-y-1">
+            <label className={labelCls()}>Schedule Label (public site)</label>
+            <input
+              type="text"
+              value={scheduleLabel}
+              onChange={(e) => setScheduleLabel(e.target.value)}
+              disabled={readOnly}
+              placeholder={deriveScheduleLabel(schedules, channel.locale === 'pt' ? 'pt-BR' : 'en') ?? 'Auto-derived from schedules'}
+              className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-500"
+            />
+            <p className="text-xs text-slate-500">Leave empty to auto-derive from posting schedule. Set to override.</p>
+          </div>
         </div>
       )}
 
