@@ -138,17 +138,21 @@ interface PinButtonProps {
   videoId: string
   channelId: string
   pinnedUntil: string | null
+  hasExistingPin: boolean
 }
 
-export function PinButton({ videoId, channelId, pinnedUntil }: PinButtonProps) {
+export function PinButton({ videoId, channelId, pinnedUntil, hasExistingPin }: PinButtonProps) {
   const [isPending, startTransition] = useTransition()
-  const [showPicker, setShowPicker] = useState(false)
+  const [showDropdown, setShowDropdown] = useState(false)
+  const [customDays, setCustomDays] = useState('')
   const isPinned = !!pinnedUntil && new Date(pinnedUntil) > new Date()
 
   const handlePin = (days: number) => {
+    if (days < 1 || days > 90) return
     startTransition(async () => {
       await pinWeeklyPick({ videoId, channelId, durationDays: days })
-      setShowPicker(false)
+      setShowDropdown(false)
+      setCustomDays('')
     })
   }
 
@@ -161,13 +165,15 @@ export function PinButton({ videoId, channelId, pinnedUntil }: PinButtonProps) {
   if (isPinned) {
     const until = new Date(pinnedUntil!).toLocaleDateString('en', { month: 'short', day: 'numeric' })
     return (
-      <div className="flex items-center gap-1">
-        <span className="text-xs text-amber-400" title={`Pinned until ${until}`}>★ {until}</span>
+      <div className="flex flex-col items-center gap-1">
+        <span className="inline-flex items-center rounded-full bg-amber-900/30 px-2 py-0.5 text-xs font-semibold text-amber-400">
+          ★ Pinned until {until}
+        </span>
         <button
           type="button"
           disabled={isPending}
           onClick={handleUnpin}
-          className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50"
+          className="text-[10px] text-red-400 hover:text-red-300 disabled:opacity-50"
         >
           Unpin
         </button>
@@ -175,29 +181,64 @@ export function PinButton({ videoId, channelId, pinnedUntil }: PinButtonProps) {
     )
   }
 
+  const presets = [7, 15, 30] as const
+
+  function untilDate(days: number): string {
+    const d = new Date(Date.now() + days * 86_400_000)
+    return d.toLocaleDateString('en', { month: 'short', day: 'numeric' })
+  }
+
   return (
     <div className="relative">
       <button
         type="button"
         disabled={isPending}
-        onClick={() => setShowPicker(!showPicker)}
+        onClick={() => setShowDropdown(!showDropdown)}
         className="text-xs text-cms-text-dim hover:text-cms-text disabled:opacity-50"
         title="Pin as weekly pick"
       >
         ☆ Pin
       </button>
-      {showPicker && (
-        <div className="absolute right-0 top-6 z-10 rounded border border-cms-border bg-cms-surface p-2 shadow-lg">
-          {[7, 15, 30].map(d => (
+      {hasExistingPin && !isPinned && (
+        <span className="block text-[9px] italic text-cms-text-dim">replaces current</span>
+      )}
+      {showDropdown && (
+        <div className="absolute right-0 top-6 z-10 min-w-[200px] rounded-lg border border-cms-border bg-cms-surface p-1 shadow-lg">
+          <div className="px-2.5 py-1 text-[9px] font-semibold uppercase tracking-wider text-cms-text-dim">
+            Pin Duration
+          </div>
+          {presets.map(d => (
             <button
               key={d}
               type="button"
+              disabled={isPending}
               onClick={() => handlePin(d)}
-              className="block w-full rounded px-3 py-1 text-left text-xs text-cms-text hover:bg-cms-surface-hover"
+              className="flex w-full items-center justify-between rounded px-2.5 py-1.5 text-xs text-cms-text hover:bg-cms-surface-hover disabled:opacity-50"
             >
-              {d} days
+              <span>{d} days</span>
+              <span className="text-cms-text-dim">until {untilDate(d)}</span>
             </button>
           ))}
+          <div className="mt-1 flex items-center gap-1.5 border-t border-cms-border px-2.5 pt-2 pb-1">
+            <span className="text-[10px] text-cms-text-dim">Custom:</span>
+            <input
+              type="number"
+              min={1}
+              max={90}
+              value={customDays}
+              onChange={e => setCustomDays(e.target.value)}
+              placeholder="days"
+              className="w-14 rounded border border-cms-border bg-cms-surface px-1.5 py-0.5 text-[10px] text-cms-text"
+            />
+            <button
+              type="button"
+              disabled={isPending || !customDays || Number(customDays) < 1 || Number(customDays) > 90}
+              onClick={() => handlePin(Number(customDays))}
+              className="rounded bg-cms-accent px-2 py-0.5 text-[10px] font-medium text-white disabled:opacity-50"
+            >
+              Pin
+            </button>
+          </div>
         </div>
       )}
     </div>

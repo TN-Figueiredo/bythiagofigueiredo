@@ -109,7 +109,7 @@ export async function triggerSync(
 const pinSchema = z.object({
   videoId: z.string().uuid(),
   channelId: z.string().uuid(),
-  durationDays: z.number().int().min(1).max(30),
+  durationDays: z.number().int().min(1).max(90),
 })
 
 export async function pinWeeklyPick(
@@ -126,9 +126,10 @@ export async function pinWeeklyPick(
     .eq('id', parsed.data.videoId)
     .eq('channel_id', parsed.data.channelId)
     .eq('site_id', siteId)
+    .eq('is_hidden', false)
     .single()
 
-  if (!video) return { ok: false, error: 'Video not found in this channel' }
+  if (!video) return { ok: false, error: 'Video not found or is hidden' }
 
   const { error } = await supabase.rpc('pin_weekly_pick', {
     p_video_id: parsed.data.videoId,

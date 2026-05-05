@@ -95,6 +95,16 @@ export function VideosConnected({ videos, channels, categories }: Props) {
     (v) => v.suggestedCategoryId && !v.categoryId,
   ).length
 
+  const channelsWithPins = useMemo(() => {
+    const set = new Set<string>()
+    for (const v of videos) {
+      if (v.pinnedUntil && new Date(v.pinnedUntil) > new Date()) {
+        set.add(v.channelId)
+      }
+    }
+    return set
+  }, [videos])
+
   return (
     <div className="flex flex-col gap-4">
       {/* ── Header ── */}
@@ -200,7 +210,11 @@ export function VideosConnected({ videos, channels, categories }: Props) {
               {filtered.map((video) => (
                 <tr
                   key={video.id}
-                  className="border-b border-cms-border last:border-0 hover:bg-cms-surface-hover"
+                  className={`border-b border-cms-border last:border-0 hover:bg-cms-surface-hover ${
+                    video.pinnedUntil && new Date(video.pinnedUntil) > new Date()
+                      ? 'border-l-[3px] border-l-amber-500'
+                      : ''
+                  }`}
                 >
                   {/* Thumbnail */}
                   <td className="px-3 py-2">
@@ -294,7 +308,12 @@ export function VideosConnected({ videos, channels, categories }: Props) {
                   {/* Weekly pick pin */}
                   <td className="px-3 py-2 text-center">
                     <div className="flex justify-center">
-                      <PinButton videoId={video.id} channelId={video.channelId} pinnedUntil={video.pinnedUntil} />
+                      <PinButton
+                        videoId={video.id}
+                        channelId={video.channelId}
+                        pinnedUntil={video.pinnedUntil}
+                        hasExistingPin={channelsWithPins.has(video.channelId)}
+                      />
                     </div>
                   </td>
 
