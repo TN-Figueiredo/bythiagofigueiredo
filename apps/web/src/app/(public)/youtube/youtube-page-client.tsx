@@ -9,15 +9,23 @@ import { YouTubeFeatureBlock } from './youtube-feature-block'
 import { YouTubeCommentsWall } from './youtube-comments-wall'
 import { YouTubeSubscribe } from './youtube-subscribe'
 import { YouTubeArchive } from './youtube-archive'
+import type { AdCreativeData } from '@/components/blog/ads'
+import { DoormanAd, BookmarkAd, MarginaliaAd } from '@/components/blog/ads'
+import { BowtieAd } from '@/app/(public)/blog/blog-ad-slots'
 
 interface Props {
   data: YouTubePageData
   locale: 'pt' | 'en'
+  ads?: {
+    doorman?: AdCreativeData | null
+    bookmark?: AdCreativeData | null
+    marginalia?: AdCreativeData | null
+  }
 }
 
 const PAGE_SIZE = 6
 
-export function YouTubePageClient({ data, locale }: Props) {
+export function YouTubePageClient({ data, locale, ads }: Props) {
   const { videos, channels, categories, comments } = data
   const L = locale
 
@@ -116,8 +124,11 @@ export function YouTubePageClient({ data, locale }: Props) {
     hand: { fontFamily: '"Caveat", cursive', fontWeight: 600 } as const,
   }
 
+  const adLocale = L === 'pt' ? 'pt-BR' as const : 'en' as const
+
   return (
     <div style={{ background: theme.bg, color: theme.ink, minHeight: '100vh' }} data-testid="youtube-page-client">
+      {ads?.doorman && <DoormanAd creative={ads.doorman} locale={adLocale} />}
       <YouTubeHero
         locale={L} theme={theme}
         latestPT={latestPT ?? null} latestEN={latestEN ?? null}
@@ -140,7 +151,17 @@ export function YouTubePageClient({ data, locale }: Props) {
         fmtNum={fmtNum}
         onCategoryClick={(slug) => goToArchive({ cat: slug })}
       />
+      {ads?.bookmark && (
+        <div style={{ maxWidth: 760, margin: '60px auto 0', padding: '0 28px' }}>
+          <BookmarkAd creative={ads.bookmark} locale={adLocale} />
+        </div>
+      )}
       <YouTubeCommentsWall locale={L} theme={theme} comments={comments}/>
+      {ads?.marginalia && (
+        <section style={{ maxWidth: 720, margin: '70px auto 0', padding: '0 28px' }}>
+          <MarginaliaAd creative={ads.marginalia} locale={adLocale} />
+        </section>
+      )}
       <YouTubeArchive
         locale={L} theme={theme}
         filters={filters} update={update} reset={reset}
@@ -152,6 +173,7 @@ export function YouTubePageClient({ data, locale }: Props) {
         totalVideoCount={data.totalVideoCount}
         fmtNum={fmtNum}
       />
+      <BowtieAd locale={adLocale} />
       <YouTubeSubscribe locale={L} theme={theme} channels={channels}/>
     </div>
   )
