@@ -23,6 +23,7 @@ const STATIC_SINGLE_LOCALE_DEFS: ReadonlyArray<{
   { basePath: '/anuncie', changeFrequency: 'monthly', priority: 0.5 },
   { basePath: '/newsletters', changeFrequency: 'weekly', priority: 0.5 },
   { basePath: '/about', changeFrequency: 'monthly', priority: 0.6 },
+  { basePath: '/youtube', changeFrequency: 'weekly', priority: 0.7 },
   { basePath: '/newsletter/archive', changeFrequency: 'weekly', priority: 0.4 },
 ]
 
