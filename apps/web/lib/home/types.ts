@@ -15,11 +15,14 @@ export type HomePost = {
 }
 
 export type HomeChannel = {
+  id: string
   locale: 'en' | 'pt-BR'
   handle: string
   url: string
   flag: string
   name: string
+  subscriberCount: number
+  thumbnailUrl: string | null
 }
 
 export type HomeVideo = {
@@ -29,10 +32,14 @@ export type HomeVideo = {
   description: string
   thumbnailUrl: string | null
   duration: string
-  viewCount: string
+  viewCount: string | number
   publishedAt: string
-  series: string
+  categoryName: string | null
+  categoryColor: string | null
   youtubeUrl: string
+  channelHandle: string
+  youtubeVideoId: string
+  isPinned: boolean
 }
 
 export type HomeNewsletter = {

@@ -105,3 +105,69 @@ export async function fetchChannelStats(
     videoCount: parseInt(stats?.videoCount ?? '0', 10),
   }
 }
+
+export interface ChannelLookupResult {
+  channelId: string
+  handle: string
+  name: string
+  description: string | null
+  uploadsPlaylistId: string
+  subscriberCount: number
+  videoCount: number
+  thumbnailUrl: string | null
+  bannerUrl: string | null
+  customUrl: string | null
+}
+
+export function parseHandleInput(raw: string): string {
+  const input = raw.trim()
+  const channelMatch = input.match(/youtube\.com\/channel\/(UC[a-zA-Z0-9_-]+)/)
+  if (channelMatch?.[1]) return channelMatch[1]
+  const handleMatch = input.match(/youtube\.com\/@([a-zA-Z0-9_.-]+)/)
+  if (handleMatch?.[1]) return `@${handleMatch[1]}`
+  const customMatch = input.match(/youtube\.com\/c\/([a-zA-Z0-9_.-]+)/)
+  if (customMatch?.[1]) return `@${customMatch[1]}`
+  if (input.startsWith('@')) return input
+  return `@${input}`
+}
+
+export async function lookupChannelByHandle(
+  handleOrUrl: string,
+  apiKey: string,
+): Promise<ChannelLookupResult | null> {
+  const parsed = parseHandleInput(handleOrUrl)
+  const isChannelId = parsed.startsWith('UC')
+
+  const param = isChannelId ? `id=${parsed}` : `forHandle=${parsed}`
+  const url = `${BASE}/channels?part=snippet,statistics,contentDetails&${param}&key=${apiKey}`
+  const data = (await ytFetch(url)) as {
+    items?: Array<{
+      id: string
+      snippet: {
+        title: string
+        description: string
+        customUrl?: string
+        thumbnails: { medium?: { url: string } }
+      }
+      statistics: { subscriberCount?: string; videoCount?: string }
+      contentDetails: { relatedPlaylists: { uploads: string } }
+      brandingSettings?: { image?: { bannerExternalUrl?: string } }
+    }>
+  }
+
+  const item = data.items?.[0]
+  if (!item) return null
+
+  return {
+    channelId: item.id,
+    handle: item.snippet.customUrl ?? parsed,
+    name: item.snippet.title,
+    description: item.snippet.description || null,
+    uploadsPlaylistId: item.contentDetails.relatedPlaylists.uploads,
+    subscriberCount: parseInt(item.statistics.subscriberCount ?? '0', 10),
+    videoCount: parseInt(item.statistics.videoCount ?? '0', 10),
+    thumbnailUrl: item.snippet.thumbnails.medium?.url ?? null,
+    bannerUrl: item.brandingSettings?.image?.bannerExternalUrl ?? null,
+    customUrl: item.snippet.customUrl ?? null,
+  }
+}

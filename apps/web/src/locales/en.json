@@ -201,6 +201,15 @@
   "newsletter.landing.notFoundBody": "Maybe the link broke. Here are the ones that exist now:",
   "newsletter.landing.goHome": "Go to homepage",
   "about.kicker": "HELLO",
-  "about.breadcrumb": "About"
+  "about.breadcrumb": "About",
+
+  "home.channels.headlineSingle": "one channel, one vision",
+  "home.channels.sublineSingle": "SUBSCRIBE",
+  "home.youtube.comingSoon": "first video coming soon",
+  "home.youtube.comingSoonSub": "Subscribe to the channel to get notified when it drops.",
+  "home.youtube.subscribe": "Subscribe on YouTube",
+  "home.subscribe.ytSubtitle2": "Live-coding, setup tours, bug retrospectives. A new video every Thursday, sometimes two.",
+  "home.subscribe.subscribersSuffix": "subscribers",
+  "home.subscribe.scheduleNote": "next Thursday: new videos on both channels"
 }
   
