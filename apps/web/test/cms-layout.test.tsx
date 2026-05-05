@@ -33,6 +33,12 @@ vi.mock('@tn-figueiredo/cms-admin/client', () => ({
   CmsAdminProvider: ({ children }: { children: React.ReactNode }) => children,
 }))
 
+vi.mock('@tn-figueiredo/cms-ui', () => ({
+  DEFAULT_SECTIONS: [
+    { label: 'Content', items: [{ icon: '📝', label: 'Posts', href: '/cms/blog', minRole: 'editor' }] },
+  ],
+}))
+
 vi.mock('@tn-figueiredo/cms-ui/client', () => ({
   CmsShell: ({
     siteName,
@@ -72,6 +78,7 @@ vi.mock('@/lib/supabase/service', () => {
   chainable.eq = vi.fn(() => chainable)
   chainable.is = vi.fn(() => chainable)
   chainable.in = vi.fn(() => chainable)
+  chainable.not = vi.fn(() => chainable)
   chainable.then = (resolve: (v: unknown) => void) => resolve(result)
   return {
     getSupabaseServiceClient: vi.fn(() => ({

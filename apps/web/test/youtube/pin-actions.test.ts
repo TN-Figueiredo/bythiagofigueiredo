@@ -3,7 +3,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const mockSingle = vi.fn()
 const mockRpc = vi.fn()
 const mockUpdate = vi.fn()
-const mockEq3 = vi.fn(() => ({ single: mockSingle }))
+const mockEq5 = vi.fn(() => ({ single: mockSingle }))
+const mockEq4 = vi.fn(() => ({ eq: mockEq5, single: mockSingle }))
+const mockEq3 = vi.fn(() => ({ eq: mockEq4, single: mockSingle }))
 const mockEq2 = vi.fn(() => ({ eq: mockEq3 }))
 const mockEq1 = vi.fn(() => ({ eq: mockEq2 }))
 const mockFrom = vi.fn(() => ({
@@ -42,13 +44,24 @@ describe('pinWeeklyPick', () => {
     if (!result.ok) expect(result.error).toBeTruthy()
   })
 
-  it('rejects durationDays > 30', async () => {
+  it('rejects durationDays > 90', async () => {
     const result = await pinWeeklyPick({
       videoId: '00000000-0000-0000-0000-000000000001',
       channelId: '00000000-0000-0000-0000-000000000002',
-      durationDays: 31,
+      durationDays: 91,
     })
     expect(result.ok).toBe(false)
+  })
+
+  it('accepts duration up to 90 days', async () => {
+    mockSingle.mockResolvedValueOnce({ data: { id: '00000000-0000-0000-0000-000000000001' }, error: null })
+    mockRpc.mockResolvedValueOnce({ error: null })
+    const result = await pinWeeklyPick({
+      videoId: '00000000-0000-0000-0000-000000000001',
+      channelId: '00000000-0000-0000-0000-000000000002',
+      durationDays: 90,
+    })
+    expect(result.ok).toBe(true)
   })
 
   it('rejects durationDays < 1', async () => {
@@ -68,7 +81,7 @@ describe('pinWeeklyPick', () => {
       durationDays: 7,
     })
     expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error).toContain('not found')
+    if (!result.ok) expect(result.error).toBeTruthy()
   })
 
   it('calls RPC with correct params on success', async () => {

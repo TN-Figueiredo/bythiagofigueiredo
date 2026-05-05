@@ -12,12 +12,26 @@ import {
   type RpcAccessibleSite,
 } from '@/components/cms/site-switcher-provider'
 import { CmsShell } from '@tn-figueiredo/cms-ui/client'
+import { DEFAULT_SECTIONS, type SidebarSection } from '@tn-figueiredo/cms-ui'
 import { CmsAdminProvider } from '@tn-figueiredo/cms-admin/client'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { fetchSidebarBadges } from '@/lib/cms/sidebar-badges'
 import { SidebarBadges } from '@/components/cms/sidebar-badges'
 import Link from 'next/link'
+
+const CMS_SECTIONS: SidebarSection[] = DEFAULT_SECTIONS.map(section => {
+  if (section.label === 'Content') {
+    return {
+      ...section,
+      items: [
+        ...section.items,
+        { icon: '🎬', label: 'YouTube', href: '/cms/youtube', minRole: 'editor' as const },
+      ],
+    }
+  }
+  return section
+})
 
 export default async function Layout({ children }: { children: ReactNode }) {
   const cookieStore = await cookies()
@@ -55,13 +69,18 @@ export default async function Layout({ children }: { children: ReactNode }) {
 
   const { siteId: middlewareSiteId } = await getSiteContext()
   const svc = getSupabaseServiceClient()
-  const [badgeData, pendingContactsRes] = await Promise.all([
+  const [badgeData, pendingContactsRes, ytPendingRes] = await Promise.all([
     fetchSidebarBadges(middlewareSiteId),
     svc.from('contact_submissions').select('id', { count: 'exact', head: true })
       .eq('site_id', middlewareSiteId).is('replied_at', null).is('anonymized_at', null),
+    svc.from('youtube_videos').select('id', { count: 'exact', head: true })
+      .eq('site_id', middlewareSiteId)
+      .not('auto_suggested_category_id', 'is', null)
+      .is('category_id', null),
   ])
   const badges: Record<string, number> = {}
   if (pendingContactsRes.count) badges['/cms/contacts'] = pendingContactsRes.count
+  if (ytPendingRes.count) badges['/cms/youtube'] = ytPendingRes.count
 
   return (
     <CmsAdminProvider linkComponent={Link}>
@@ -72,6 +91,7 @@ export default async function Layout({ children }: { children: ReactNode }) {
           userDisplayName={userDisplayName}
           userRole={userRole}
           siteSwitcher={<CmsSiteSwitcherSlot sites={rawSites} />}
+          sections={CMS_SECTIONS}
           badges={badges}
         >
           <SidebarBadges data={badgeData} />

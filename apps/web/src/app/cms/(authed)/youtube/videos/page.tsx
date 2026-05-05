@@ -96,7 +96,7 @@ export default async function YouTubeVideosPage() {
   }))
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6">
       <VideosConnected videos={videos} channels={channels} categories={categories} />
     </div>
   )
