@@ -285,21 +285,23 @@ Reference: `design/youtube.jsx` (source of truth)
 
 ### Sections (in render order)
 
+Header and footer are global layout components (`app/(public)/layout.tsx`) — this page renders only the content between them. No changes to header or footer layout/styling.
+
+**One nav data change required:** `apps/web/src/components/layout/header-types.ts` currently points "Vídeos" to external YouTube URLs (`external: true`). Change to `href: '/youtube'` with `external: false` (internal route).
+
 | # | Section | Kicker | Description |
 |---|---------|--------|-------------|
 | 0 | Doorman Ad | — | Banner above header (OFF by default) |
-| 1 | Header | — | Site header with "▶ INSCREVER" CTA |
-| 2 | Hero | § 01 | **Locale-adaptive**: PT = 1.35fr/1fr split (both channels), EN = full-width (EN only) |
-| 3 | Channel Strip | — | Two-channel duplex cards with hover |
-| 4 | Stats Strip | — | 4 metrics: videos, hours, comments, most-watched |
-| 5 | Feature Block | § 02 | Editorial pick (1.3fr/1fr) + 3 sidekicks + series chips. Pick = video with `is_featured=true` (most recent if multiple), fallback = most recent video overall |
-| 6 | Bookmark Ad | — | Sponsor ad (between Feature and Comments) |
-| 7 | Comments Wall | § 03 | Curated comments (1fr/2fr, 2×2 grid, locale-filtered) |
-| 8 | Marginalia Ad | — | House ad (after Comments) |
-| 9 | Archive | § 04 | Filter bar + 3-column paged grid |
-| 10 | Bowtie Ad | — | Quiet variant newsletter CTA (after Archive) |
-| 11 | Subscribe | — | Duplex subscribe block (both channels) |
-| 12 | Footer | — | Navigation links |
+| 1 | Hero | § 01 | **Locale-adaptive**: PT = 1.35fr/1fr split (both channels), EN = full-width (EN only) |
+| 2 | Channel Strip | — | Two-channel duplex cards with hover |
+| 3 | Stats Strip | — | 4 metrics: videos, hours, comments, most-watched |
+| 4 | Feature Block | § 02 | Editorial pick (1.3fr/1fr) + 3 sidekicks + series chips. Pick = video with `is_featured=true` (most recent if multiple), fallback = most recent video overall |
+| 5 | Bookmark Ad | — | Sponsor ad (between Feature and Comments) |
+| 6 | Comments Wall | § 03 | Curated comments (1fr/2fr, 2×2 grid, locale-filtered) |
+| 7 | Marginalia Ad | — | House ad (after Comments) |
+| 8 | Archive | § 04 | Filter bar + 3-column paged grid |
+| 9 | Bowtie Ad | — | Quiet variant newsletter CTA (after Archive) |
+| 10 | Subscribe | — | Duplex subscribe block (both channels) |
 
 ### Hero — Locale-Adaptive Layout
 
