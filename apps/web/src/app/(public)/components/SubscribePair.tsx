@@ -99,7 +99,7 @@ export function SubscribePair({ newsletter, channels, locale, t }: Props) {
                         </p>
                       </div>
                       <a
-                        href={ch.url}
+                        href={ch.url + '?sub_confirmation=1'}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="font-mono shrink-0"

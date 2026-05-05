@@ -1,4 +1,4 @@
-type ScheduleEntry = { day: string; hour: number; tz: string; label: string }
+export type ScheduleInput = { day: string }
 
 const DAY_NAMES_EN: Record<string, { full: string; short: string }> = {
   monday: { full: 'Monday', short: 'Mon' },
@@ -10,20 +10,20 @@ const DAY_NAMES_EN: Record<string, { full: string; short: string }> = {
   sunday: { full: 'Sunday', short: 'Sun' },
 }
 
-const DAY_NAMES_PT: Record<string, { full: string; short: string }> = {
-  monday: { full: 'segunda', short: 'seg' },
-  tuesday: { full: 'terça', short: 'terça' },
-  wednesday: { full: 'quarta', short: 'qua' },
-  thursday: { full: 'quinta', short: 'quinta' },
-  friday: { full: 'sexta', short: 'sex' },
-  saturday: { full: 'sábado', short: 'sáb' },
-  sunday: { full: 'domingo', short: 'dom' },
+const DAY_NAMES_PT: Record<string, { full: string; short: string; masculine: boolean }> = {
+  monday: { full: 'segunda', short: 'seg', masculine: false },
+  tuesday: { full: 'terça', short: 'ter', masculine: false },
+  wednesday: { full: 'quarta', short: 'qua', masculine: false },
+  thursday: { full: 'quinta', short: 'qui', masculine: false },
+  friday: { full: 'sexta', short: 'sex', masculine: false },
+  saturday: { full: 'sábado', short: 'sáb', masculine: true },
+  sunday: { full: 'domingo', short: 'dom', masculine: true },
 }
 
 const DAY_ORDER = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 
 export function deriveScheduleLabel(
-  schedules: ScheduleEntry[],
+  schedules: ScheduleInput[],
   locale: 'pt-BR' | 'en',
 ): string | null {
   const uniqueDays = [...new Set(schedules.map(s => s.day.toLowerCase()))]
@@ -32,26 +32,34 @@ export function deriveScheduleLabel(
 
   if (uniqueDays.length === 0) return null
 
-  const names = locale === 'pt-BR' ? DAY_NAMES_PT : DAY_NAMES_EN
   const prefix = locale === 'pt-BR' ? 'novidade' : 'new'
   const conjunction = locale === 'pt-BR' ? 'e' : '&'
 
-  if (uniqueDays.length === 1) {
-    const full = names[uniqueDays[0]!]!.full
-    const every = locale === 'pt-BR' ? 'toda' : 'every'
-    return `${prefix} ${every} ${full}`
+  if (locale === 'pt-BR') {
+    const names = DAY_NAMES_PT
+    if (uniqueDays.length === 1) {
+      const entry = names[uniqueDays[0]!]!
+      const every = entry.masculine ? 'todo' : 'toda'
+      return `${prefix} ${every} ${entry.full}`
+    }
+    const useFull = uniqueDays.length === 2
+    const labels = uniqueDays.map(d => (useFull ? names[d]!.full : names[d]!.short))
+    const last = labels.pop()!
+    return `${prefix} ${labels.join(', ')} ${conjunction} ${last}`
   }
 
-  // PT-BR with exactly 2 days reads more naturally with full names (e.g. "terça e sexta")
-  const useFull = locale === 'pt-BR' && uniqueDays.length === 2
-  const labels = uniqueDays.map(d => (useFull ? names[d]!.full : names[d]!.short))
+  const names = DAY_NAMES_EN
+  if (uniqueDays.length === 1) {
+    return `${prefix} every ${names[uniqueDays[0]!]!.full}`
+  }
+  const labels = uniqueDays.map(d => names[d]!.short)
   const last = labels.pop()!
   return `${prefix} ${labels.join(', ')} ${conjunction} ${last}`
 }
 
 export function resolveScheduleLabel(
   scheduleLabel: string | null,
-  syncSchedules: ScheduleEntry[] | null,
+  syncSchedules: ScheduleInput[] | null,
   locale: 'pt-BR' | 'en',
 ): string | null {
   if (scheduleLabel && scheduleLabel.trim()) return scheduleLabel.trim()

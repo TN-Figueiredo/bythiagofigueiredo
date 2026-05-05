@@ -290,7 +290,7 @@ export const getHomeVideos = unstable_cache(
         id, youtube_video_id, title, description, thumbnail_url, duration,
         view_count, published_at, is_hidden, pinned_until,
         youtube_channels!inner(locale, handle),
-        youtube_categories(slug, name_pt, name_en, color)
+        youtube_categories!category_id(slug, name_pt, name_en, color)
       `)
       .eq('site_id', siteId)
       .eq('youtube_channels.locale', dbLocale)
@@ -330,15 +330,14 @@ export const getWeeklyPick = unstable_cache(
   async (siteId: string, locale: string): Promise<HomeVideo | null> => {
     const dbLocale = DB_LOCALE_MAP[locale] ?? locale
     const db = getSupabaseServiceClient()
-
     const selectCols = `
       id, youtube_video_id, title, description, thumbnail_url, duration,
       view_count, published_at, pinned_until,
       youtube_channels!inner(locale, handle),
-      youtube_categories(slug, name_pt, name_en, color)
+      youtube_categories!category_id(slug, name_pt, name_en, color)
     `
 
-    const { data: pinned } = await db
+    const { data: pinned, error: pinnedErr } = await db
       .from('youtube_videos')
       .select(selectCols)
       .eq('site_id', siteId)

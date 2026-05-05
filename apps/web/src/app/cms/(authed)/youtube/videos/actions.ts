@@ -90,14 +90,18 @@ export async function rejectCategory(
 }
 
 export async function triggerSync(
-  _channelId?: string,
+  channelId?: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   await requireEditAccess()
   const cron = process.env.CRON_SECRET
   if (!cron) return { ok: false as const, error: 'CRON_SECRET not set' }
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-  const res = await fetch(`${baseUrl}/api/cron/sync-youtube?mode=manual`, {
+  const url = new URL('/api/cron/sync-youtube', baseUrl)
+  url.searchParams.set('mode', 'manual')
+  if (channelId) url.searchParams.set('channelId', channelId)
+
+  const res = await fetch(url, {
     headers: { Authorization: `Bearer ${cron}` },
   })
 

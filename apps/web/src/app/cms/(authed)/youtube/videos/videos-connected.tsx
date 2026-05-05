@@ -110,7 +110,7 @@ export function VideosConnected({ videos, channels, categories }: Props) {
       {/* ── Header ── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold text-cms-text">YouTube Videos</h1>
+          <h2 className="text-lg font-semibold text-cms-text">YouTube Videos</h2>
           <p className="mt-0.5 text-sm text-cms-text-muted">
             {filtered.length} of {videos.length} videos
             {pendingSuggestions > 0 && (
@@ -212,7 +212,7 @@ export function VideosConnected({ videos, channels, categories }: Props) {
                   key={video.id}
                   className={`border-b border-cms-border last:border-0 hover:bg-cms-surface-hover ${
                     video.pinnedUntil && new Date(video.pinnedUntil) > new Date()
-                      ? 'border-l-[3px] border-l-amber-500'
+                      ? 'shadow-[inset_3px_0_0_0_#f59e0b]'
                       : ''
                   }`}
                 >
@@ -232,7 +232,6 @@ export function VideosConnected({ videos, channels, categories }: Props) {
                           width={80}
                           height={45}
                           className="object-cover"
-                          unoptimized
                         />
                       </a>
                     ) : (

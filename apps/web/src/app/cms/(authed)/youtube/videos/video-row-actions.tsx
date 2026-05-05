@@ -1,7 +1,6 @@
 'use client'
 
-import { useTransition } from 'react'
-import { useState } from 'react'
+import { useTransition, useState, useRef, useEffect, useCallback } from 'react'
 import { updateVideo, approveCategory, rejectCategory, pinWeeklyPick, unpinWeeklyPick } from './actions'
 
 interface CategoryBadgeProps {
@@ -144,21 +143,45 @@ interface PinButtonProps {
 export function PinButton({ videoId, channelId, pinnedUntil, hasExistingPin }: PinButtonProps) {
   const [isPending, startTransition] = useTransition()
   const [showDropdown, setShowDropdown] = useState(false)
+  const [showUnpinConfirm, setShowUnpinConfirm] = useState(false)
   const [customDays, setCustomDays] = useState('')
+  const dropdownRef = useRef<HTMLDivElement>(null)
   const isPinned = !!pinnedUntil && new Date(pinnedUntil) > new Date()
 
+  const closeDropdown = useCallback(() => {
+    setShowDropdown(false)
+    setCustomDays('')
+  }, [])
+
+  useEffect(() => {
+    if (!showDropdown) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) closeDropdown()
+    }
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeDropdown()
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [showDropdown, closeDropdown])
+
   const handlePin = (days: number) => {
-    if (days < 1 || days > 90) return
+    const d = Math.floor(days)
+    if (d < 1 || d > 90) return
     startTransition(async () => {
-      await pinWeeklyPick({ videoId, channelId, durationDays: days })
-      setShowDropdown(false)
-      setCustomDays('')
+      await pinWeeklyPick({ videoId, channelId, durationDays: d })
+      closeDropdown()
     })
   }
 
   const handleUnpin = () => {
     startTransition(async () => {
       await unpinWeeklyPick({ channelId })
+      setShowUnpinConfirm(false)
     })
   }
 
@@ -169,14 +192,35 @@ export function PinButton({ videoId, channelId, pinnedUntil, hasExistingPin }: P
         <span className="inline-flex items-center rounded-full bg-amber-900/30 px-2 py-0.5 text-xs font-semibold text-amber-400">
           ★ Pinned until {until}
         </span>
-        <button
-          type="button"
-          disabled={isPending}
-          onClick={handleUnpin}
-          className="text-[10px] text-red-400 hover:text-red-300 disabled:opacity-50"
-        >
-          Unpin
-        </button>
+        {showUnpinConfirm ? (
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] text-cms-text-muted">Remove pin?</span>
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={handleUnpin}
+              className="text-[10px] font-medium text-red-400 hover:text-red-300 disabled:opacity-50"
+            >
+              Confirm
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowUnpinConfirm(false)}
+              className="text-[10px] text-cms-text-dim hover:text-cms-text"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={() => setShowUnpinConfirm(true)}
+            className="text-[10px] text-red-400 hover:text-red-300 disabled:opacity-50"
+          >
+            Unpin
+          </button>
+        )}
       </div>
     )
   }
@@ -189,7 +233,7 @@ export function PinButton({ videoId, channelId, pinnedUntil, hasExistingPin }: P
   }
 
   return (
-    <div className="relative">
+    <div className="relative" ref={dropdownRef}>
       <button
         type="button"
         disabled={isPending}
@@ -197,13 +241,13 @@ export function PinButton({ videoId, channelId, pinnedUntil, hasExistingPin }: P
         className="text-xs text-cms-text-dim hover:text-cms-text disabled:opacity-50"
         title="Pin as weekly pick"
       >
-        ☆ Pin
+        ☆ Pin as Weekly Pick
       </button>
       {hasExistingPin && !isPinned && (
         <span className="block text-[9px] italic text-cms-text-dim">replaces current</span>
       )}
       {showDropdown && (
-        <div className="absolute right-0 top-6 z-10 min-w-[200px] rounded-lg border border-cms-border bg-cms-surface p-1 shadow-lg">
+        <div className="absolute right-0 top-6 z-10 min-w-[220px] rounded-lg border border-cms-border bg-cms-surface p-1 shadow-lg">
           <div className="px-2.5 py-1 text-[9px] font-semibold uppercase tracking-wider text-cms-text-dim">
             Pin Duration
           </div>
@@ -225,6 +269,7 @@ export function PinButton({ videoId, channelId, pinnedUntil, hasExistingPin }: P
               type="number"
               min={1}
               max={90}
+              step={1}
               value={customDays}
               onChange={e => setCustomDays(e.target.value)}
               placeholder="days"
@@ -232,7 +277,7 @@ export function PinButton({ videoId, channelId, pinnedUntil, hasExistingPin }: P
             />
             <button
               type="button"
-              disabled={isPending || !customDays || Number(customDays) < 1 || Number(customDays) > 90}
+              disabled={isPending || !customDays || Number(customDays) < 1 || Number(customDays) > 90 || !Number.isInteger(Number(customDays))}
               onClick={() => handlePin(Number(customDays))}
               className="rounded bg-cms-accent px-2 py-0.5 text-[10px] font-medium text-white disabled:opacity-50"
             >

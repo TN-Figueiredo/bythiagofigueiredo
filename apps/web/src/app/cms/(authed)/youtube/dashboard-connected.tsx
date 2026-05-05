@@ -1,9 +1,8 @@
 'use client'
 
 import { useTransition, useState } from 'react'
-import Image from 'next/image'
 import Link from 'next/link'
-import { triggerSync, unpinWeeklyPick } from './videos/actions'
+import { triggerSync, unpinWeeklyPick, pinWeeklyPick } from './videos/actions'
 
 export interface PinnedVideo {
   id: string
@@ -12,6 +11,14 @@ export interface PinnedVideo {
   viewCount: number
   likeCount: number
   pinnedUntil: string
+}
+
+export interface LastSyncInfo {
+  status: string
+  videosFound: number
+  videosInserted: number
+  videosUpdated: number
+  at: string
 }
 
 export interface ChannelDashboard {
@@ -25,6 +32,13 @@ export interface ChannelDashboard {
   lastSyncedAt: string | null
   lastSyncStatus: string | null
   pinnedVideo: PinnedVideo | null
+  totalViews: number
+  totalLikes: number
+  featuredCount: number
+  hiddenCount: number
+  latestVideoAt: string | null
+  lastSync: LastSyncInfo | null
+  scheduleLabel: string | null
 }
 
 interface Props {
@@ -32,13 +46,13 @@ interface Props {
   uncategorizedCount: number
 }
 
-function formatCount(n: number): string {
+export function formatCount(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
   return String(n)
 }
 
-function timeAgo(iso: string): string {
+export function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
   const mins = Math.floor(diff / 60_000)
   if (mins < 60) return `${mins}m ago`
@@ -48,20 +62,44 @@ function timeAgo(iso: string): string {
   return `${days}d ago`
 }
 
-type PinState = 'active' | 'expiring' | 'none'
+export type PinState = 'active' | 'expiring' | 'expired' | 'none'
 
-function getPinState(pinnedVideo: PinnedVideo | null): PinState {
+export function getPinState(pinnedVideo: PinnedVideo | null): PinState {
   if (!pinnedVideo) return 'none'
   const until = new Date(pinnedVideo.pinnedUntil)
   const now = new Date()
-  if (until <= now) return 'none'
-  const daysLeft = Math.ceil((until.getTime() - now.getTime()) / 86_400_000)
-  if (daysLeft <= 2) return 'expiring'
+  if (until <= now) return 'expired'
+  const daysRemaining = Math.ceil((until.getTime() - now.getTime()) / 86_400_000)
+  if (daysRemaining <= 2) return 'expiring'
   return 'active'
 }
 
-function daysLeft(pinnedUntil: string): number {
+export function daysLeft(pinnedUntil: string): number {
   return Math.ceil((new Date(pinnedUntil).getTime() - Date.now()) / 86_400_000)
+}
+
+function SyncStatusBadge({ channel }: { channel: ChannelDashboard }) {
+  if (!channel.lastSync) {
+    return (
+      <span className="text-xs text-cms-text-dim">No sync data</span>
+    )
+  }
+  const { status, videosFound, videosInserted, videosUpdated } = channel.lastSync
+  if (status === 'failed') {
+    return <span className="text-xs text-red-400">Last sync failed</span>
+  }
+  if (status === 'completed') {
+    const parts: string[] = []
+    if (videosInserted > 0) parts.push(`${videosInserted} new`)
+    if (videosUpdated > 0) parts.push(`${videosUpdated} updated`)
+    const detail = parts.length > 0 ? parts.join(', ') : 'no changes'
+    return (
+      <span className="text-xs text-cms-text-dim">
+        Last sync: {videosFound} checked, {detail}
+      </span>
+    )
+  }
+  return <span className="text-xs text-amber-400">Syncing…</span>
 }
 
 function ChannelCard({ channel }: { channel: ChannelDashboard }) {
@@ -88,7 +126,9 @@ function ChannelCard({ channel }: { channel: ChannelDashboard }) {
     ? 'border-l-emerald-500'
     : pinState === 'expiring'
       ? 'border-l-amber-500'
-      : 'border-l-slate-600'
+      : pinState === 'expired'
+        ? 'border-l-red-500'
+        : 'border-l-slate-600'
 
   return (
     <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface">
@@ -96,9 +136,9 @@ function ChannelCard({ channel }: { channel: ChannelDashboard }) {
       <div className="flex items-center justify-between border-b border-cms-border px-4 py-3">
         <div className="flex items-center gap-3">
           {channel.thumbnailUrl ? (
-            <Image src={channel.thumbnailUrl} alt="" width={36} height={36} className="rounded-full" unoptimized />
+            <img src={channel.thumbnailUrl} alt="" width={48} height={48} referrerPolicy="no-referrer" className="h-12 w-12 rounded-full object-cover" />
           ) : (
-            <span className="text-xl">{flag}</span>
+            <span className="text-2xl">{flag}</span>
           )}
           <div>
             <div className="flex items-center gap-2">
@@ -131,13 +171,46 @@ function ChannelCard({ channel }: { channel: ChannelDashboard }) {
       </div>
 
       {/* Stats */}
-      <div className="flex gap-6 border-b border-cms-border px-4 py-2.5">
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 border-b border-cms-border px-4 py-3">
         <div className="text-xs text-cms-text-muted">
           <span className="font-semibold text-cms-text">{channel.videoCount}</span> videos
         </div>
         <div className="text-xs text-cms-text-muted">
           <span className="font-semibold text-cms-text">{formatCount(channel.subscriberCount)}</span> subscribers
         </div>
+        <div className="text-xs text-cms-text-muted">
+          <span className="font-semibold text-cms-text">{formatCount(channel.totalViews)}</span> total views
+        </div>
+        <div className="text-xs text-cms-text-muted">
+          <span className="font-semibold text-cms-text">{formatCount(channel.totalLikes)}</span> total likes
+        </div>
+        {(channel.featuredCount > 0 || channel.hiddenCount > 0) && (
+          <>
+            {channel.featuredCount > 0 && (
+              <div className="text-xs text-cms-text-muted">
+                <span className="font-semibold text-amber-400">★ {channel.featuredCount}</span> featured
+              </div>
+            )}
+            {channel.hiddenCount > 0 && (
+              <div className="text-xs text-cms-text-muted">
+                <span className="font-semibold text-cms-text-dim">{channel.hiddenCount}</span> hidden
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Sync + Schedule info */}
+      <div className="flex items-center justify-between border-b border-cms-border px-4 py-2">
+        <SyncStatusBadge channel={channel} />
+        {channel.scheduleLabel && (
+          <span className="text-xs text-cms-text-dim">{channel.scheduleLabel}</span>
+        )}
+        {channel.latestVideoAt && (
+          <span className="text-xs text-cms-text-dim" title={channel.latestVideoAt}>
+            Latest: {timeAgo(channel.latestVideoAt)}
+          </span>
+        )}
       </div>
 
       {/* Weekly Pick */}
@@ -146,11 +219,12 @@ function ChannelCard({ channel }: { channel: ChannelDashboard }) {
           <span className={`text-[10px] font-bold uppercase tracking-wider ${
             pinState === 'active' ? 'text-amber-400'
               : pinState === 'expiring' ? 'text-amber-500'
-                : 'text-cms-text-dim'
+                : pinState === 'expired' ? 'text-red-400'
+                  : 'text-cms-text-dim'
           }`}>
             ★ Weekly Pick
           </span>
-          {channel.pinnedVideo && pinState !== 'none' && (
+          {channel.pinnedVideo && (pinState === 'active' || pinState === 'expiring') && (
             <span className={`text-xs ${
               pinState === 'expiring' ? 'font-medium text-amber-500' : 'text-cms-text-dim'
             }`}>
@@ -162,17 +236,17 @@ function ChannelCard({ channel }: { channel: ChannelDashboard }) {
           )}
         </div>
 
-        {channel.pinnedVideo && pinState !== 'none' ? (
+        {channel.pinnedVideo && (pinState === 'active' || pinState === 'expiring') ? (
           <>
             <div className="flex items-center gap-3">
               {channel.pinnedVideo.thumbnailUrl && (
-                <Image
+                <img
                   src={channel.pinnedVideo.thumbnailUrl}
                   alt=""
                   width={72}
                   height={40}
+                  referrerPolicy="no-referrer"
                   className="rounded object-cover"
-                  unoptimized
                 />
               )}
               <div className="min-w-0 flex-1">
@@ -183,6 +257,21 @@ function ChannelCard({ channel }: { channel: ChannelDashboard }) {
               </div>
             </div>
             <div className="mt-2 flex items-center gap-2 border-t border-cms-border pt-2">
+              {pinState === 'expiring' && (
+                <>
+                  <button
+                    type="button"
+                    disabled={isPending}
+                    onClick={() => startTransition(async () => {
+                      await pinWeeklyPick({ videoId: channel.pinnedVideo!.id, channelId: channel.id, durationDays: 7 })
+                    })}
+                    className="text-xs font-medium text-emerald-400 hover:underline disabled:opacity-50"
+                  >
+                    Extend 7d →
+                  </button>
+                  <span className="text-cms-text-dim">|</span>
+                </>
+              )}
               <Link
                 href={`/cms/youtube/videos?channel=${channel.id}`}
                 className="text-xs font-medium text-cms-accent hover:underline"
@@ -199,6 +288,16 @@ function ChannelCard({ channel }: { channel: ChannelDashboard }) {
               </button>
             </div>
           </>
+        ) : pinState === 'expired' ? (
+          <div className="py-2 text-center">
+            <p className="mb-2 text-sm text-red-400">Pin expired — home page shows latest video as fallback</p>
+            <Link
+              href={`/cms/youtube/videos?channel=${channel.id}`}
+              className="inline-flex items-center gap-1 rounded bg-cms-accent/10 px-3 py-1.5 text-xs font-medium text-cms-accent hover:bg-cms-accent/20"
+            >
+              ☆ Choose New Pick →
+            </Link>
+          </div>
         ) : (
           <div className="py-2 text-center">
             <p className="mb-2 text-sm text-cms-text-dim">No video pinned this week</p>

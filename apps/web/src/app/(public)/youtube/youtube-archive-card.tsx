@@ -4,6 +4,7 @@ import type { CSSProperties } from 'react'
 import type { YouTubeVideoView } from './youtube-types'
 import { Paper, Tape, rot, lift } from '@/components/pinboard'
 import { type Theme, FlagBadge, VideoThumbnail, formatDate } from './youtube-atoms'
+import { VideoLightbox } from '../components/VideoLightbox'
 
 interface ArchiveCardProps {
   video: YouTubeVideoView
@@ -29,13 +30,7 @@ export function YouTubeArchiveCard({ video, index, locale, theme, fmtNum }: Arch
           color={tapeR}
           style={{ top: -9, left: '40%', transform: `rotate(${tapeRotation}deg)` }}
         />
-        <a
-          href={`https://www.youtube.com/watch?v=${video.youtubeVideoId}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label={video.title}
-          style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
-        >
+        <VideoLightbox youtubeVideoId={video.youtubeVideoId}>
           <div style={{ position: 'relative' }}>
             <VideoThumbnail video={video} lazy={true}/>
             <div style={{ position: 'absolute', top: 8, right: 8 }}>
@@ -106,7 +101,7 @@ export function YouTubeArchiveCard({ video, index, locale, theme, fmtNum }: Arch
               </div>
             )}
           </div>
-        </a>
+        </VideoLightbox>
       </Paper>
     </div>
   )

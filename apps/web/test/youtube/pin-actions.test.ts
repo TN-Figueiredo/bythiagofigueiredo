@@ -84,6 +84,28 @@ describe('pinWeeklyPick', () => {
     if (!result.ok) expect(result.error).toBeTruthy()
   })
 
+  it('returns error when video is hidden (is_hidden filter excludes it)', async () => {
+    mockSingle.mockResolvedValueOnce({ data: null, error: null })
+    const result = await pinWeeklyPick({
+      videoId: '00000000-0000-0000-0000-000000000001',
+      channelId: '00000000-0000-0000-0000-000000000002',
+      durationDays: 7,
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error).toBe('Video not found or is hidden')
+  })
+
+  it('accepts duration of 1 day (lower boundary)', async () => {
+    mockSingle.mockResolvedValueOnce({ data: { id: '00000000-0000-0000-0000-000000000001' }, error: null })
+    mockRpc.mockResolvedValueOnce({ error: null })
+    const result = await pinWeeklyPick({
+      videoId: '00000000-0000-0000-0000-000000000001',
+      channelId: '00000000-0000-0000-0000-000000000002',
+      durationDays: 1,
+    })
+    expect(result.ok).toBe(true)
+  })
+
   it('calls RPC with correct params on success', async () => {
     mockSingle.mockResolvedValueOnce({ data: { id: '00000000-0000-0000-0000-000000000001' }, error: null })
     mockRpc.mockResolvedValueOnce({ error: null })

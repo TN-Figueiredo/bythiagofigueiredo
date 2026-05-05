@@ -321,7 +321,7 @@ export function CommentsConnected({ comments, videos }: Props) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-cms-text">Curated Comments</h1>
+          <h2 className="text-lg font-semibold text-cms-text">Curated Comments</h2>
           <p className="mt-0.5 text-sm text-cms-text-muted">
             {comments.length} {comments.length === 1 ? 'comment' : 'comments'}
           </p>

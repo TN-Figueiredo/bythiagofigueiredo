@@ -147,7 +147,7 @@ function ChannelCard({ ch, idx, locale, t }: {
             )}
           </div>
           <a
-            href={ch.url}
+            href={ch.url + '?sub_confirmation=1'}
             target="_blank"
             rel="noopener noreferrer"
             aria-label={`${t['channels.subscribe']} ${ch.name}`}

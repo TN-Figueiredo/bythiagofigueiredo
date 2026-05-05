@@ -307,7 +307,7 @@ export function CategoriesConnected({ categories }: Props) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-cms-text">Categories</h1>
+          <h2 className="text-lg font-semibold text-cms-text">Categories</h2>
           <p className="mt-0.5 text-sm text-cms-text-muted">
             {categories.length} {categories.length === 1 ? 'category' : 'categories'}
           </p>

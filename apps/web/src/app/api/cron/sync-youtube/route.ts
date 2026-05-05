@@ -21,6 +21,8 @@ export async function GET(req: NextRequest) {
     return Response.json({ error: 'invalid mode' }, { status: 400 })
   }
 
+  const channelId = req.nextUrl.searchParams.get('channelId')
+
   const apiKey = process.env.YOUTUBE_API_KEY
   if (!apiKey) {
     return Response.json({ error: 'YOUTUBE_API_KEY not set' }, { status: 500 })
@@ -30,10 +32,16 @@ export async function GET(req: NextRequest) {
   const runId = newRunId()
 
   return withCronLock(supabase, `sync-youtube-${mode}`, runId, 'sync-youtube', async () => {
-    const { data: channels } = await supabase
+    let query = supabase
       .from('youtube_channels')
       .select('*')
       .eq('sync_enabled', true)
+
+    if (channelId) {
+      query = query.eq('id', channelId)
+    }
+
+    const { data: channels } = await query
 
     if (!channels || channels.length === 0) {
       return { status: 'ok' as const, message: 'no channels configured' }

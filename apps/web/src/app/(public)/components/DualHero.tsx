@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { coverGradient } from '../../../../lib/home/cover-image'
+import { VideoLightbox } from './VideoLightbox'
 import type { HomePost, HomeVideo, HomeChannel } from '../../../../lib/home/types'
 
 function getWeekNumber(date: Date): number {
@@ -130,10 +131,10 @@ export function DualHero({ post, video, channels, hasVideos, locale, t }: Props)
                 </div>
               )}
 
-              <a href={video.youtubeUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+              <VideoLightbox youtubeVideoId={video.youtubeVideoId}>
                 <div style={{ position: 'relative', aspectRatio: '16 / 9', overflow: 'hidden', background: video.thumbnailUrl ? undefined : 'linear-gradient(135deg, #51201F 0%, #142229 100%)' }}>
                   {video.thumbnailUrl && (
-                    <img src={video.thumbnailUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <img src={video.thumbnailUrl} alt="" referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   )}
                   <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(transparent 40%, rgba(0,0,0,0.55))' }} />
                   <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -166,7 +167,7 @@ export function DualHero({ post, video, channels, hasVideos, locale, t }: Props)
                     {video.description}
                   </p>
                 </div>
-              </a>
+              </VideoLightbox>
             </div>
             <div className="font-caveat hidden md:block" style={{ position: 'absolute', bottom: -22, right: 32, color: 'var(--pb-accent)', fontSize: 20, transform: 'rotate(2deg)' }}>
               {t['hero.video.fresh'] ?? (isPt ? 'novo no canal →' : 'fresh on the channel →')}

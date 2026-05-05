@@ -1,8 +1,10 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
+import { useTransition } from 'react'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
+import { triggerSync } from './videos/actions'
 
 const TABS = [
   { label: 'Dashboard', href: '/cms/youtube' },
@@ -13,11 +15,18 @@ const TABS = [
 
 export default function YouTubeLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname()
+  const [isSyncing, startTransition] = useTransition()
 
   const activeTab = TABS.find(t => {
     if (t.href === '/cms/youtube') return pathname === '/cms/youtube'
     return pathname.startsWith(t.href)
   })?.href ?? '/cms/youtube'
+
+  const handleSyncAll = () => {
+    startTransition(async () => {
+      await triggerSync()
+    })
+  }
 
   return (
     <div className="flex flex-col gap-0">
@@ -25,6 +34,14 @@ export default function YouTubeLayout({ children }: { children: ReactNode }) {
       <div className="flex items-center justify-between border-b border-cms-border px-6 py-4">
         <h1 className="text-lg font-semibold text-cms-text">YouTube</h1>
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            disabled={isSyncing}
+            onClick={handleSyncAll}
+            className="rounded border border-cms-border px-3 py-1.5 text-sm font-medium text-cms-text-muted hover:bg-cms-surface-hover disabled:opacity-50"
+          >
+            {isSyncing ? '⟳ Syncing…' : '⟳ Sync All'}
+          </button>
           <Link
             href="/cms/settings?section=youtube"
             className="text-sm text-cms-text-muted hover:text-cms-text"

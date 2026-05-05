@@ -14,6 +14,7 @@ export interface YouTubeChannelRow {
   custom_url: string | null
   sync_enabled: boolean
   sync_schedules: SyncScheduleEntry[]
+  schedule_label: string | null
   last_synced_at: string | null
   created_at: string
   updated_at: string

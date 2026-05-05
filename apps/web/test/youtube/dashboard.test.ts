@@ -1,48 +1,43 @@
 import { describe, it, expect } from 'vitest'
+import { getPinState, formatCount, timeAgo, daysLeft } from '@/app/cms/(authed)/youtube/dashboard-connected'
+import type { PinnedVideo } from '@/app/cms/(authed)/youtube/dashboard-connected'
 
-describe('Dashboard pin state', () => {
-  function getPinState(pinnedUntil: string | null): 'active' | 'expiring' | 'none' {
-    if (!pinnedUntil) return 'none'
-    const until = new Date(pinnedUntil)
-    const now = new Date()
-    if (until <= now) return 'none'
-    const daysLeft = Math.ceil((until.getTime() - now.getTime()) / 86_400_000)
-    if (daysLeft <= 2) return 'expiring'
-    return 'active'
-  }
+function makePinned(pinnedUntil: string): PinnedVideo {
+  return { id: '1', title: 'Test', thumbnailUrl: null, viewCount: 0, likeCount: 0, pinnedUntil }
+}
 
+describe('getPinState', () => {
   it('returns "none" when no pin', () => {
     expect(getPinState(null)).toBe('none')
   })
 
-  it('returns "none" when pin is expired', () => {
+  it('returns "expired" when pin is in the past', () => {
     const yesterday = new Date(Date.now() - 86_400_000).toISOString()
-    expect(getPinState(yesterday)).toBe('none')
+    expect(getPinState(makePinned(yesterday))).toBe('expired')
   })
 
   it('returns "active" when >2 days left', () => {
     const future = new Date(Date.now() + 5 * 86_400_000).toISOString()
-    expect(getPinState(future)).toBe('active')
+    expect(getPinState(makePinned(future))).toBe('active')
   })
 
   it('returns "expiring" when ≤2 days left', () => {
     const soon = new Date(Date.now() + 1.5 * 86_400_000).toISOString()
-    expect(getPinState(soon)).toBe('expiring')
+    expect(getPinState(makePinned(soon))).toBe('expiring')
   })
 
   it('returns "expiring" when exactly 2 days left', () => {
     const twoDays = new Date(Date.now() + 2 * 86_400_000).toISOString()
-    expect(getPinState(twoDays)).toBe('expiring')
+    expect(getPinState(makePinned(twoDays))).toBe('expiring')
+  })
+
+  it('returns "expired" when pinnedUntil is exactly now', () => {
+    const now = new Date().toISOString()
+    expect(getPinState(makePinned(now))).toBe('expired')
   })
 })
 
-describe('Dashboard formatCount', () => {
-  function formatCount(n: number): string {
-    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
-    return String(n)
-  }
-
+describe('formatCount', () => {
   it('formats numbers below 1000 as-is', () => {
     expect(formatCount(0)).toBe('0')
     expect(formatCount(999)).toBe('999')
@@ -59,17 +54,7 @@ describe('Dashboard formatCount', () => {
   })
 })
 
-describe('Dashboard timeAgo', () => {
-  function timeAgo(iso: string): string {
-    const diff = Date.now() - new Date(iso).getTime()
-    const mins = Math.floor(diff / 60_000)
-    if (mins < 60) return `${mins}m ago`
-    const hours = Math.floor(mins / 60)
-    if (hours < 24) return `${hours}h ago`
-    const days = Math.floor(hours / 24)
-    return `${days}d ago`
-  }
-
+describe('timeAgo', () => {
   it('formats minutes', () => {
     const fiveMinAgo = new Date(Date.now() - 5 * 60_000).toISOString()
     expect(timeAgo(fiveMinAgo)).toBe('5m ago')
@@ -83,5 +68,17 @@ describe('Dashboard timeAgo', () => {
   it('formats days', () => {
     const threeDaysAgo = new Date(Date.now() - 3 * 86_400_000).toISOString()
     expect(timeAgo(threeDaysAgo)).toBe('3d ago')
+  })
+})
+
+describe('daysLeft', () => {
+  it('returns positive days for future dates', () => {
+    const future = new Date(Date.now() + 5 * 86_400_000).toISOString()
+    expect(daysLeft(future)).toBe(5)
+  })
+
+  it('returns 0 or negative for past dates', () => {
+    const past = new Date(Date.now() - 86_400_000).toISOString()
+    expect(daysLeft(past)).toBeLessThanOrEqual(0)
   })
 })
