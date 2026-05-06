@@ -284,6 +284,35 @@ describe('updateSiteLocales', () => {
   })
 })
 
+describe('updateSiteTimezone', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('accepts a valid IANA timezone', async () => {
+    const { updateSiteTimezone } = await import(
+      '@/app/cms/(authed)/settings/actions'
+    )
+    const result = await updateSiteTimezone({ timezone: 'America/Sao_Paulo' })
+    expect(result.ok).toBe(true)
+  })
+
+  it('rejects empty timezone string', async () => {
+    const { updateSiteTimezone } = await import(
+      '@/app/cms/(authed)/settings/actions'
+    )
+    const result = await updateSiteTimezone({ timezone: '' })
+    expect(result.ok).toBe(false)
+  })
+
+  it('rejects invalid IANA timezone', async () => {
+    const { updateSiteTimezone } = await import(
+      '@/app/cms/(authed)/settings/actions'
+    )
+    const result = await updateSiteTimezone({ timezone: 'Not/A_Real_Zone' })
+    expect(result.ok).toBe(false)
+    expect(result.ok === false && result.error).toBe('Invalid IANA timezone')
+  })
+})
+
 describe('deleteSite', () => {
   beforeEach(() => vi.clearAllMocks())
 

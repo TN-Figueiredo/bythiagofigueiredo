@@ -18,6 +18,7 @@ import {
   deleteNewsletterType,
   updateBlogCadence,
   updateSiteLocales,
+  updateSiteTimezone,
   disableCms,
   deleteSite,
   updateYouTubeChannelSettings,
@@ -25,6 +26,8 @@ import {
   addYouTubeChannel,
   removeYouTubeChannel,
 } from './actions'
+import { TimezonePicker } from './_components/timezone-picker'
+import { DualClockCards } from './_components/dual-clock-cards'
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                             */
@@ -41,6 +44,7 @@ interface SiteData {
   default_locale: string
   cms_enabled: boolean
   slug: string
+  timezone: string
 }
 
 interface NewsletterTypeData {
@@ -951,6 +955,70 @@ function BlogCadenceSection({
 /*  Section: Localization                                             */
 /* ------------------------------------------------------------------ */
 
+function TimezoneSection({
+  site,
+  readOnly,
+}: {
+  site: SiteData
+  readOnly: boolean
+}) {
+  const [timezone, setTimezone] = useState(site.timezone)
+  const [saveState, setSaveState] = useSaveState()
+  const [, startTransition] = useTransition()
+  const dirty = timezone !== site.timezone
+
+  const handleSave = useCallback(() => {
+    if (readOnly || !dirty) return
+    setSaveState('saving')
+    startTransition(async () => {
+      const res = await updateSiteTimezone({ timezone })
+      if (!res.ok) {
+        setSaveState('error')
+        return
+      }
+      setSaveState('success')
+    })
+  }, [timezone, dirty, setSaveState, readOnly])
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <label className={labelCls()}>Site Timezone</label>
+        <TimezonePicker
+          value={timezone}
+          onChange={setTimezone}
+          disabled={readOnly}
+        />
+      </div>
+
+      <DualClockCards siteTimezone={timezone} />
+
+      <p className="text-xs leading-relaxed text-slate-500">
+        All scheduled content (posts, newsletters, YouTube sync) anchors to the
+        site timezone. Dates in the CMS show site time first, with your local
+        time alongside.
+      </p>
+
+      {!readOnly && dirty && (
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saveState === 'saving'}
+          className="inline-flex items-center gap-2 rounded-md bg-indigo-500 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-400 disabled:opacity-50"
+        >
+          {saveState === 'saving' && (
+            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+          )}
+          {saveState === 'success' ? 'Saved' : 'Save Timezone'}
+        </button>
+      )}
+      {saveState === 'success' && !dirty && (
+        <span className="text-sm text-emerald-400">Saved</span>
+      )}
+    </div>
+  )
+}
+
 function LocalizationSection({
   site,
   readOnly,
@@ -1001,77 +1069,84 @@ function LocalizationSection({
   )
 
   return (
-    <form onSubmit={handleSubmit} className={sectionCls()}>
-      <h2 className="text-lg font-semibold text-slate-100">Localization</h2>
-
-      <div>
-        <label htmlFor="default-locale" className={labelCls()}>
-          Default Locale
-        </label>
-        <select
-          id="default-locale"
-          value={defaultLocale}
-          onChange={(e) => setDefaultLocale(e.target.value)}
-          className={inputCls(false)}
-          disabled={readOnly}
-        >
-          {locales.map((l) => (
-            <option key={l} value={l}>
-              {l}
-            </option>
-          ))}
-        </select>
+    <div className="space-y-6">
+      <div className={sectionCls()}>
+        <h2 className="text-lg font-semibold text-slate-100">Timezone</h2>
+        <TimezoneSection site={site} readOnly={readOnly} />
       </div>
 
-      <div>
-        <span className={labelCls()}>Supported Locales</span>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {locales.map((l) => (
-            <span
-              key={l}
-              className="inline-flex items-center gap-1 rounded-full border border-slate-600 bg-slate-700 px-3 py-1 text-sm text-slate-200"
-            >
-              {l}
-              {l !== defaultLocale && !readOnly && (
-                <button
-                  type="button"
-                  onClick={() => removeLocale(l)}
-                  className="ml-1 text-slate-400 hover:text-red-400"
-                  aria-label={`Remove ${l}`}
-                >
-                  {'×'}
-                </button>
-              )}
-            </span>
-          ))}
-        </div>
-      </div>
+      <form onSubmit={handleSubmit} className={sectionCls()}>
+        <h2 className="text-lg font-semibold text-slate-100">Localization</h2>
 
-      {!readOnly && (
         <div>
-          <label htmlFor="add-locale" className={labelCls()}>
-            Add Locale
+          <label htmlFor="default-locale" className={labelCls()}>
+            Default Locale
           </label>
           <select
-            id="add-locale"
-            value=""
-            onChange={(e) => {
-              if (e.target.value) addLocale(e.target.value)
-            }}
+            id="default-locale"
+            value={defaultLocale}
+            onChange={(e) => setDefaultLocale(e.target.value)}
             className={inputCls(false)}
+            disabled={readOnly}
           >
-            <option value="">Select...</option>
-            {LOCALE_OPTIONS.filter((l) => !locales.includes(l)).map((l) => (
+            {locales.map((l) => (
               <option key={l} value={l}>
                 {l}
               </option>
             ))}
           </select>
         </div>
-      )}
 
-      {!readOnly && <SaveButton state={saveState} />}
-    </form>
+        <div>
+          <span className={labelCls()}>Supported Locales</span>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {locales.map((l) => (
+              <span
+                key={l}
+                className="inline-flex items-center gap-1 rounded-full border border-slate-600 bg-slate-700 px-3 py-1 text-sm text-slate-200"
+              >
+                {l}
+                {l !== defaultLocale && !readOnly && (
+                  <button
+                    type="button"
+                    onClick={() => removeLocale(l)}
+                    className="ml-1 text-slate-400 hover:text-red-400"
+                    aria-label={`Remove ${l}`}
+                  >
+                    {'×'}
+                  </button>
+                )}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {!readOnly && (
+          <div>
+            <label htmlFor="add-locale" className={labelCls()}>
+              Add Locale
+            </label>
+            <select
+              id="add-locale"
+              value=""
+              onChange={(e) => {
+                if (e.target.value) addLocale(e.target.value)
+              }}
+              className={inputCls(false)}
+            >
+              <option value="">Select...</option>
+              {LOCALE_OPTIONS.filter((l) => !locales.includes(l)).map((l) => (
+                <option key={l} value={l}>
+                  {l}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {!readOnly && <SaveButton state={saveState} />}
+      </form>
+    </div>
   )
 }
 

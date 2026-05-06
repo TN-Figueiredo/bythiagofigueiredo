@@ -298,6 +298,31 @@ export async function updateYouTubeChannelSettings(input: z.infer<typeof syncSch
   return { ok: true }
 }
 
+const timezoneSchema = z.object({
+  timezone: z.string().min(1).max(100),
+})
+
+export async function updateSiteTimezone(input: {
+  timezone: string
+}): Promise<ActionResult> {
+  const parsed = timezoneSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
+  const validTimezones = Intl.supportedValuesOf('timeZone')
+  if (!validTimezones.includes(parsed.data.timezone)) {
+    return { ok: false, error: 'Invalid IANA timezone' }
+  }
+  const siteId = await requireEditAccess()
+  const supabase = getSupabaseServiceClient()
+  const { error } = await supabase
+    .from('sites')
+    .update({ timezone: parsed.data.timezone, updated_at: new Date().toISOString() })
+    .eq('id', siteId)
+  if (error) return { ok: false, error: error.message }
+  revalidateTag('seo-config')
+  revalidatePath('/cms/settings')
+  return { ok: true }
+}
+
 export async function deleteSite(confirmSlug: string): Promise<ActionResult> {
   const siteId = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
