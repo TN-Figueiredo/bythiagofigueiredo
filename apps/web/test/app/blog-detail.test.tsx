@@ -175,15 +175,7 @@ describe('BlogDetailPage', () => {
     const jsx = await BlogDetailPage({ params: Promise.resolve({ slug: 'hello' }) })
     const { container } = render(jsx as never)
     expect(container.textContent).toContain('Sobre quem escreveu')
-    expect(container.textContent).toContain('Construo software')
-  })
-
-  it('renders comments section with mock data', async () => {
-    const jsx = await BlogDetailPage({ params: Promise.resolve({ slug: 'hello' }) })
-    const { container } = render(jsx as never)
-    expect(container.textContent).toContain('Conversa')
-    expect(container.textContent).toContain('Paula Reis')
-    expect(container.textContent).toContain('resposta do autor')
+    expect(container.textContent).toContain('Thiago Figueiredo')
   })
 
   it('calls notFound when post missing', async () => {

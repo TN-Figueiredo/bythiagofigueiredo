@@ -1,7 +1,18 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import type { MockAdCreative } from './blog-mock-data'
+
+export interface MockAdCreative {
+  id: string
+  label: string
+  brand: string
+  brandColor: string
+  headline: string
+  body: string
+  cta: string
+  url: string
+  tagline: string
+}
 
 // ---------------------------------------------------------------------------
 // Theme tokens (dark mode hardcoded)

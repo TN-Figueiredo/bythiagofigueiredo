@@ -9,11 +9,21 @@ import { AuthorCard } from '../../../src/components/blog/author-card'
 import { SeriesBanner } from '../../../src/components/blog/series-banner'
 import { SeriesNav } from '../../../src/components/blog/series-nav'
 import { CoverImage } from '../../../src/components/blog/cover-image'
-import { PostComments } from '../../../src/components/blog/post-comments'
 import { RelatedPostsGrid } from '../../../src/components/blog/related-posts-grid'
 import { PostFootnotes } from '../../../src/components/blog/post-footnotes'
 import { ShareButtons } from '../../../src/components/blog/share-buttons'
-import { AUTHOR_THIAGO, MOCK_COMMENTS } from '../../../src/components/blog/mock-data'
+
+const testAuthor = {
+  name: 'Thiago Figueiredo',
+  role: 'Dev indie, BH',
+  avatarUrl: null,
+  initials: 'TF',
+  bio: 'Construo software ha seis anos. Desde 2024, so pra mim mesmo: seis apps no forno, um canal no YouTube, um blog que virou o centro de tudo. Aqui voce me acha escrevendo uma vez por semana, filmando uma vez por semana, e quebrando coisa em producao com a frequencia que Deus achar justa.',
+  links: [
+    { label: 'YouTube', href: 'https://www.youtube.com/@bythiagofigueiredo' },
+    { label: 'GitHub', href: 'https://github.com/tn-figueiredo' },
+  ],
+}
 
 describe('PostKeyPoints', () => {
   it('renders numbered key points', () => {
@@ -81,7 +91,7 @@ describe('PostTags', () => {
 describe('AuthorRow', () => {
   it('renders author name and role', () => {
     const { container } = render(
-      <AuthorRow author={AUTHOR_THIAGO} engagement={{ views: 2460, likes: 319, bookmarked: false }} locale="pt-BR" url="https://example.com/post" />,
+      <AuthorRow author={testAuthor} engagement={{ views: 2460, likes: 319, bookmarked: false }} locale="pt-BR" url="https://example.com/post" />,
     )
     expect(container.textContent).toContain('Thiago Figueiredo')
     expect(container.textContent).toContain('Dev indie')
@@ -89,7 +99,7 @@ describe('AuthorRow', () => {
 
   it('renders engagement stats', () => {
     const { container } = render(
-      <AuthorRow author={AUTHOR_THIAGO} engagement={{ views: 2460, likes: 319, bookmarked: false }} locale="pt-BR" url="https://example.com/post" />,
+      <AuthorRow author={testAuthor} engagement={{ views: 2460, likes: 319, bookmarked: false }} locale="pt-BR" url="https://example.com/post" />,
     )
     expect(container.textContent).toContain('2.460')
     expect(container.textContent).toContain('319')
@@ -99,7 +109,7 @@ describe('AuthorRow', () => {
 describe('AuthorCard', () => {
   it('renders full author card with bio', () => {
     const { container } = render(
-      <AuthorCard author={AUTHOR_THIAGO} locale="pt-BR" />,
+      <AuthorCard author={testAuthor} locale="pt-BR" />,
     )
     expect(container.textContent).toContain('Sobre quem escreveu')
     expect(container.textContent).toContain('Construo software')
@@ -161,21 +171,6 @@ describe('CoverImage', () => {
   it('renders hero illustration when heroIllustration is set', () => {
     const { container } = render(<CoverImage src={null} alt="Test" heroIllustration="constellation" />)
     expect(container.innerHTML).not.toBe('')
-  })
-})
-
-describe('PostComments', () => {
-  it('renders comments with form', () => {
-    const { container } = render(<PostComments comments={MOCK_COMMENTS} />)
-    expect(container.textContent).toContain('Conversa')
-    expect(container.textContent).toContain('Paula Reis')
-    expect(container.textContent).toContain('resposta do autor')
-    expect(container.querySelector('textarea')).toBeTruthy()
-  })
-
-  it('renders as section with id="comments"', () => {
-    const { container } = render(<PostComments comments={MOCK_COMMENTS} />)
-    expect(container.querySelector('section#comments')).toBeTruthy()
   })
 })
 

@@ -10,8 +10,7 @@ import { composeGraph } from '@/lib/seo/jsonld/graph'
 import { JsonLdScript } from '@/lib/seo/jsonld/render'
 import { localePath } from '@/lib/i18n/locale-path'
 import { BlogArchiveClient } from './blog-archive-client'
-import { MOCK_POSTS } from './blog-mock-data'
-import type { ArchivePost } from './blog-mock-data'
+import type { ArchivePost } from './blog-archive-client'
 
 export const revalidate = 3600
 
@@ -179,17 +178,6 @@ function deriveTags(posts: ArchivePost[]): Array<{ tag: string; count: number }>
 }
 
 // ---------------------------------------------------------------------------
-// Mock categories derived from MOCK_CATEGORIES constant
-// ---------------------------------------------------------------------------
-function getMockCategories(): Array<{ key: string; label: string; color: string; count: number }> {
-  return deriveCategories(MOCK_POSTS)
-}
-
-function getMockTags(): Array<{ tag: string; count: number }> {
-  return deriveTags(MOCK_POSTS)
-}
-
-// ---------------------------------------------------------------------------
 // Page component
 // ---------------------------------------------------------------------------
 export default async function BlogPage() {
@@ -204,13 +192,13 @@ export default async function BlogPage() {
   if (ctx) {
     const dbRows = await fetchAllPosts(ctx.siteId, locale)
     const dbPosts = dbRows.map(toArchivePost)
-    posts = dbPosts.length > 0 ? dbPosts : MOCK_POSTS
-    categories = dbPosts.length > 0 ? deriveCategories(dbPosts) : getMockCategories()
-    tags = dbPosts.length > 0 ? deriveTags(dbPosts) : getMockTags()
+    posts = dbPosts
+    categories = deriveCategories(dbPosts)
+    tags = deriveTags(dbPosts)
   } else {
-    posts = MOCK_POSTS
-    categories = getMockCategories()
-    tags = getMockTags()
+    posts = []
+    categories = []
+    tags = []
   }
 
   // JSON-LD breadcrumb: Home > Blog

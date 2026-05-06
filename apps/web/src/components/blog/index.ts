@@ -7,7 +7,6 @@ export { AuthorCard } from './author-card'
 export { SeriesBanner } from './series-banner'
 export { SeriesNav } from './series-nav'
 export { CoverImage } from './cover-image'
-export { PostComments } from './post-comments'
 export { RelatedPostsGrid } from './related-posts-grid'
 export { ShareButtons } from './share-buttons'
 export { ReadingProgressBar } from './reading-progress'
@@ -22,9 +21,7 @@ export { AiReaderDrawer } from './ai-reader-drawer'
 export { MobileTocSheet } from './mobile-toc-sheet'
 export { HeroIllustration } from './hero-illustration'
 export { ScrollProvider, useScrollState } from './scroll-context'
-export { PostExtrasSchema, type PostExtras } from './post-extras-schema'
-export { AUTHOR_THIAGO, MOCK_COMMENTS } from './mock-data'
-export type { TocEntry, AuthorData, EngagementStats, MockComment, Highlight } from './types'
+export type { TocEntry, AuthorData, EngagementStats, Highlight } from './types'
 
 // Ad system
 export {

@@ -5,7 +5,7 @@ import { coverGradient } from '@/lib/home/cover-image'
 import { localePath } from '@/lib/i18n/locale-path'
 import { ReadableCard } from '@/components/blog/readable-card'
 import { PostPattern } from './post-pattern'
-import type { ArchivePost } from './blog-mock-data'
+import type { ArchivePost } from './blog-archive-client'
 
 interface WritingCardProps {
   post: ArchivePost

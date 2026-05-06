@@ -25,21 +25,28 @@ import {
   SeriesBanner,
   SeriesNav,
   CoverImage,
-  PostComments,
   RelatedPostsGrid,
   PostFootnotes,
   PostToc,
   BackToTop,
   HighlightsSidebar,
-  AUTHOR_THIAGO,
-  MOCK_COMMENTS,
   type TocEntry,
   MarginaliaAd,
   AnchorAd,
   BookmarkAd,
   CodaAd,
   DoormanAd,
+  type AuthorData,
 } from '@/components/blog'
+
+const authorFallback: AuthorData = {
+  name: 'Thiago Figueiredo',
+  role: 'Eng. & Writer',
+  avatarUrl: null,
+  initials: 'TF',
+  bio: '',
+  links: [],
+}
 import { loadAdCreatives } from '@/lib/ads/resolve'
 import { BlogArticleClient } from './blog-article-client'
 
@@ -196,7 +203,7 @@ export default async function BlogDetailPage({ params }: Props) {
               </p>
             )}
 
-            <AuthorRow author={AUTHOR_THIAGO} engagement={{ views: postMeta?.view_count ?? 0, likes: 0, bookmarked: false }} locale={locale} url={pageUrl} />
+            <AuthorRow author={authorFallback} engagement={{ views: postMeta?.view_count ?? 0, likes: 0, bookmarked: false }} locale={locale} url={pageUrl} />
 
             <CoverImage
               src={post.cover_image_url ?? null}
@@ -240,7 +247,7 @@ export default async function BlogDetailPage({ params }: Props) {
               </BlogArticleClient>
 
               <div className="blog-detail-footer">
-                <AuthorCard author={AUTHOR_THIAGO} locale={locale} />
+                <AuthorCard author={authorFallback} locale={locale} />
                 <PostTags tags={postExtras?.tags} locale={locale} />
                 <SeriesNav
                   nextSlug={postExtras?.series_next_slug}
@@ -272,9 +279,6 @@ export default async function BlogDetailPage({ params }: Props) {
       </ScrollProvider>
 
       <RelatedPostsGrid posts={related} locale={locale} category={category ?? null} />
-      <div className="max-w-[920px] mx-auto px-7">
-        <PostComments comments={MOCK_COMMENTS} />
-      </div>
     </>
   )
 }

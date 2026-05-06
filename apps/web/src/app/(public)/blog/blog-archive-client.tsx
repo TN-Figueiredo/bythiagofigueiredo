@@ -5,17 +5,29 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { ReadProgressStore } from '@/lib/tracking/read-progress-store'
 import { BlogFilterBar } from './blog-filter-bar'
 import { WritingCard } from './writing-card'
-import {
-  getDailyAdCreative,
-  getAdPositions,
-  BookmarkAd,
-  MarginaliaAd,
-  BowtieAd,
-} from './blog-ad-slots'
-import { HorizontalAnchor } from './horizontal-anchor'
-import { MOCK_SPONSORS, MOCK_HOUSE_ADS } from './blog-mock-data'
-import type { ArchivePost, MockAdCreative } from './blog-mock-data'
-import type { AdCreativeData } from '@/components/blog/ads/types'
+import type { PatternName } from './post-pattern'
+
+// ---------------------------------------------------------------------------
+// ArchivePost interface (source of truth — re-exported for consumers)
+// ---------------------------------------------------------------------------
+export interface ArchivePost {
+  id: string
+  slug: string
+  title: string
+  excerpt: string
+  category: string
+  categoryColor: string
+  categoryColorDark?: string
+  categoryLabel: string
+  date: string
+  isoDate: string
+  readingTime: number
+  tags: string[]
+  coverUrl: string | null
+  patternName: PatternName
+  previousPostId?: string | null
+  continuesInNext?: boolean
+}
 
 // ---------------------------------------------------------------------------
 // Props
@@ -48,27 +60,8 @@ type Filters = { cat: string; tag: string; q: string; sort: string }
 const DEFAULT_FILTERS: Filters = { cat: '', tag: '', q: '', sort: 'recent' }
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Session helpers
 // ---------------------------------------------------------------------------
-function mockToAdCreative(mock: MockAdCreative): AdCreativeData {
-  const isHouse = mock.label.includes('CASA') || mock.label.includes('HOUSE')
-  return {
-    campaignId: null,
-    slotKey: 'archive:break:anchor',
-    type: isHouse ? 'house' : 'cpa',
-    source: 'placeholder',
-    interaction: 'link',
-    title: mock.headline,
-    body: mock.body,
-    ctaText: mock.cta,
-    ctaUrl: mock.url,
-    imageUrl: null,
-    logoUrl: null,
-    brandColor: mock.brandColor,
-    dismissSeconds: 0,
-  }
-}
-
 function readSessionFilters(): Filters | null {
   try {
     const raw = sessionStorage.getItem(SESSION_KEY)
@@ -208,31 +201,11 @@ export function BlogArchiveClient({ posts, categories, tags, locale }: BlogArchi
   const visiblePosts = filtered.slice(0, page * BATCH)
   const remaining = filtered.length - visiblePosts.length
   const allShown = remaining <= 0
+  const previousBatchEnd = (page - 1) * BATCH
 
   const handleLoadMore = useCallback(() => {
     setPage((p) => p + 1)
   }, [])
-
-  // --- Ad logic ---
-  const adPositions = getAdPositions(visiblePosts.length)
-  const anchorCreative = getDailyAdCreative(MOCK_SPONSORS, 0)
-  const anchorAdData = mockToAdCreative(anchorCreative)
-  const marginaliaCreative = getDailyAdCreative(MOCK_HOUSE_ADS, 1)
-  const previousBatchEnd = (page - 1) * BATCH
-
-  // --- Build grid items (posts + bookmark ads interspersed) ---
-  const gridItems: Array<{ type: 'post'; post: ArchivePost; idx: number } | { type: 'ad'; slotIndex: number }> = []
-  let adPosSet = new Set(adPositions)
-  let postIdx = 0
-
-  for (let i = 0; postIdx < visiblePosts.length; i++) {
-    if (adPosSet.has(i)) {
-      gridItems.push({ type: 'ad', slotIndex: i })
-    } else {
-      gridItems.push({ type: 'post', post: visiblePosts[postIdx]!, idx: postIdx })
-      postIdx++
-    }
-  }
 
   return (
     <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 28px 80px' }}>
@@ -320,11 +293,6 @@ export function BlogArchiveClient({ posts, categories, tags, locale }: BlogArchi
         locale={locale}
       />
 
-      {/* Horizontal Anchor Ad */}
-      <div style={{ margin: '28px 0 36px' }}>
-        <HorizontalAnchor creative={anchorAdData} locale={locale} dark />
-      </div>
-
       {/* Grid or Empty State */}
       {filtered.length === 0 ? (
         <div
@@ -379,23 +347,14 @@ export function BlogArchiveClient({ posts, categories, tags, locale }: BlogArchi
         <>
           {/* Post Grid */}
           <div id="blog-grid" className="blog-grid">
-            {gridItems.map((item, i) => {
-              if (item.type === 'ad') {
-                const creative = getDailyAdCreative(MOCK_SPONSORS, item.slotIndex)
-                return (
-                  <div key={`ad-${item.slotIndex}`}>
-                    <BookmarkAd creative={creative} index={item.slotIndex} locale={locale} />
-                  </div>
-                )
-              }
-
-              const isNewBatch = item.idx >= previousBatchEnd && page > 1
-              const isFirstNew = item.idx === previousBatchEnd && page > 1
-              const animDelay = isNewBatch ? (item.idx - previousBatchEnd) * 50 : 0
+            {visiblePosts.map((post, idx) => {
+              const isNewBatch = idx >= previousBatchEnd && page > 1
+              const isFirstNew = idx === previousBatchEnd && page > 1
+              const animDelay = isNewBatch ? (idx - previousBatchEnd) * 50 : 0
 
               return (
                 <div
-                  key={item.post.id}
+                  key={post.id}
                   ref={isFirstNew ? firstNewCardRef : undefined}
                   tabIndex={isFirstNew ? -1 : undefined}
                   style={{
@@ -406,7 +365,7 @@ export function BlogArchiveClient({ posts, categories, tags, locale }: BlogArchi
                       : 'none',
                   }}
                 >
-                  <WritingCard post={item.post} index={item.idx} locale={locale} />
+                  <WritingCard post={post} index={idx} locale={locale} />
                 </div>
               )
             })}
@@ -455,12 +414,6 @@ export function BlogArchiveClient({ posts, categories, tags, locale }: BlogArchi
           </div>
         </>
       )}
-
-      {/* Footer Ads */}
-      <div style={{ marginTop: 56, display: 'flex', flexDirection: 'column', gap: 32 }}>
-        <MarginaliaAd creative={marginaliaCreative} locale={locale} />
-        <BowtieAd locale={locale} />
-      </div>
     </div>
   )
 }

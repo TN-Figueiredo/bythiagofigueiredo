@@ -103,11 +103,11 @@ describe('BlogPage', () => {
     expect(container.textContent).toContain('2 min')
   })
 
-  it('falls back to mock data when DB returns empty', async () => {
+  it('renders empty grid when DB returns no posts', async () => {
     mockRows.mockReturnValue([])
     const jsx = await BlogPage()
     const { container } = render(jsx as never)
-    // Should render mock posts (18 items from MOCK_POSTS)
-    expect(container.textContent).toContain('Manifesto')
+    // post-count should be 0 when DB returns nothing
+    expect(container.querySelector('[data-testid="post-count"]')?.textContent).toBe('0')
   })
 })
