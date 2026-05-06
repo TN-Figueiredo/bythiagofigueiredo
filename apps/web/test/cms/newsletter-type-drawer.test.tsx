@@ -168,6 +168,14 @@ const strings = {
   linkTagSyncHint: 'Colors sync automatically',
   linkTagUnlink: 'Unlink',
   linkTagLoading: 'Loading tags...',
+  unsavedTitle: 'Unsaved changes',
+  unsavedMessage: 'You have unsaved changes. Discard?',
+  keepEditing: 'Keep editing',
+  discardClose: 'Discard & close',
+  slugAutoLabel: 'auto',
+  ogDefaultLabel: 'Using site default',
+  ogDefaultBadge: 'default',
+  ogOverrideHint: 'Overrides the site default OG image',
 }
 
 function getInputValue(testId: string): string {
@@ -457,5 +465,130 @@ describe('TypeDrawer', () => {
     fireEvent.change(screen.getByTestId('drawer-delete-name-input'), { target: { value: 'Wrong' } })
     const confirmBtn = screen.getByTestId('drawer-delete-confirm-btn') as HTMLButtonElement
     expect(confirmBtn.disabled).toBe(true)
+  })
+})
+
+/* ─── Slug auto-sync ─── */
+
+describe('TypeDrawer — slug auto-sync', () => {
+  const onClose = vi.fn()
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockCreate.mockResolvedValue({ ok: true })
+    mockUpdate.mockResolvedValue({ ok: true })
+  })
+
+  it('auto-syncs slug when name changes in create mode', () => {
+    render(<TypeDrawer open mode="create" onClose={onClose} locale="en" strings={strings} />)
+    const nameInput = screen.getByTestId('drawer-name')
+    fireEvent.change(nameInput, { target: { value: 'My Newsletter' } })
+    expect(getInputValue('drawer-slug')).toBe('my-newsletter')
+  })
+
+  it('auto-syncs slug when name changes in edit mode', async () => {
+    render(<TypeDrawer open mode="edit" typeId="test-1" onClose={onClose} locale="en" strings={strings} />)
+    await vi.waitFor(() => {
+      expect(getInputValue('drawer-name')).toBe('Test Type')
+    })
+    // In edit mode, slugTouched is reset to false on load, so name change should auto-sync
+    const nameInput = screen.getByTestId('drawer-name')
+    fireEvent.change(nameInput, { target: { value: 'Updated Name' } })
+    expect(getInputValue('drawer-slug')).toBe('updated-name')
+  })
+
+  it('stops auto-syncing slug after manual edit', () => {
+    render(<TypeDrawer open mode="create" onClose={onClose} locale="en" strings={strings} />)
+    // Manually edit slug first
+    const slugInput = screen.getByTestId('drawer-slug')
+    fireEvent.change(slugInput, { target: { value: 'my-custom-slug' } })
+    // Then change name — slug should NOT update
+    const nameInput = screen.getByTestId('drawer-name')
+    fireEvent.change(nameInput, { target: { value: 'Something Else' } })
+    expect(getInputValue('drawer-slug')).toBe('my-custom-slug')
+  })
+
+  it('shows "auto" badge when slug is auto-syncing', () => {
+    render(<TypeDrawer open mode="create" onClose={onClose} locale="en" strings={strings} />)
+    expect(screen.getByText('auto')).toBeTruthy()
+  })
+})
+
+/* ─── Unsaved changes guard ─── */
+
+describe('TypeDrawer — unsaved changes guard', () => {
+  const onClose = vi.fn()
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockCreate.mockResolvedValue({ ok: true })
+  })
+
+  it('closes without dialog when form is clean', async () => {
+    render(<TypeDrawer open mode="create" onClose={onClose} locale="en" strings={strings} />)
+    // Wait for initial snapshot to be captured via requestAnimationFrame
+    await act(async () => { await new Promise(r => setTimeout(r, 50)) })
+    const closeBtn = screen.getByLabelText(strings.close)
+    fireEvent.click(closeBtn)
+    // Wait for close animation (200ms)
+    await act(async () => { await new Promise(r => setTimeout(r, 250)) })
+    expect(onClose).toHaveBeenCalled()
+    expect(screen.queryByText(strings.unsavedTitle ?? 'Unsaved changes')).toBeNull()
+  })
+
+  it('shows discard dialog when form is dirty and close is clicked', async () => {
+    render(<TypeDrawer open mode="create" onClose={onClose} locale="en" strings={strings} />)
+    // Wait for initial snapshot
+    await act(async () => { await new Promise(r => setTimeout(r, 50)) })
+    // Make the form dirty by changing name
+    fireEvent.change(screen.getByTestId('drawer-name'), { target: { value: 'Dirty Change' } })
+    // Click the close button
+    const closeBtn = screen.getByLabelText(strings.close)
+    fireEvent.click(closeBtn)
+    expect(screen.getByText(strings.unsavedTitle ?? 'Unsaved changes')).toBeTruthy()
+  })
+
+  it('discard confirm closes the drawer', async () => {
+    render(<TypeDrawer open mode="create" onClose={onClose} locale="en" strings={strings} />)
+    // Wait for initial snapshot
+    await act(async () => { await new Promise(r => setTimeout(r, 50)) })
+    // Make the form dirty
+    fireEvent.change(screen.getByTestId('drawer-name'), { target: { value: 'Dirty Change' } })
+    // Click close to show dialog
+    const closeBtn = screen.getByLabelText(strings.close)
+    fireEvent.click(closeBtn)
+    expect(screen.getByText(strings.unsavedTitle ?? 'Unsaved changes')).toBeTruthy()
+    // Click discard confirm
+    const discardBtn = screen.getByTestId('drawer-discard-confirm')
+    fireEvent.click(discardBtn)
+    // Wait for close animation
+    await act(async () => { await new Promise(r => setTimeout(r, 250)) })
+    expect(onClose).toHaveBeenCalled()
+  })
+})
+
+/* ─── OG image default ─── */
+
+describe('TypeDrawer — OG image default', () => {
+  const onClose = vi.fn()
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('shows default OG image when no custom image is set', () => {
+    render(
+      <TypeDrawer
+        open
+        mode="create"
+        onClose={onClose}
+        locale="en"
+        strings={strings}
+        defaultOgImage="https://example.com/og.png"
+      />
+    )
+    const img = screen.getByAltText('Default OG') as HTMLImageElement
+    expect(img).toBeTruthy()
+    expect(img.src).toBe('https://example.com/og.png')
   })
 })
