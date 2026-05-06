@@ -131,6 +131,7 @@ import {
   deleteUtmPreset,
   saveQrTemplate,
   deleteQrTemplate,
+  validateDestinationUrl,
 } from '../../src/app/cms/(authed)/links/actions'
 
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
@@ -645,10 +646,16 @@ describe('settings actions', () => {
     resetMockState()
   })
 
-  it('saveLinkSettings returns settings_storage_pending', async () => {
+  it('saveLinkSettings upserts successfully', async () => {
+    const result = await saveLinkSettings({ default_redirect_type: 301 })
+    expect(result.ok).toBe(true)
+  })
+
+  it('saveLinkSettings returns error on DB failure', async () => {
+    perTableError['link_settings'] = { message: 'upsert_failed' }
     const result = await saveLinkSettings({})
     expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error).toBe('settings_storage_pending')
+    if (!result.ok) expect(result.error).toBe('upsert_failed')
   })
 
   it('saveUtmPreset returns error on empty name', async () => {
@@ -656,10 +663,11 @@ describe('settings actions', () => {
     expect(result.ok).toBe(false)
   })
 
-  it('saveUtmPreset returns settings_storage_pending for valid input', async () => {
+  it('saveUtmPreset inserts and returns id', async () => {
+    perTableRows['link_utm_presets'] = [{ id: 'preset-1' }]
     const result = await saveUtmPreset({ name: 'preset-1', utm_source: 's', utm_medium: 'm', utm_campaign: 'c' })
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error).toBe('settings_storage_pending')
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.id).toBe('preset-1')
   })
 
   it('deleteUtmPreset returns error on empty id', async () => {
@@ -667,10 +675,9 @@ describe('settings actions', () => {
     expect(result.ok).toBe(false)
   })
 
-  it('deleteUtmPreset returns settings_storage_pending', async () => {
+  it('deleteUtmPreset succeeds with valid id', async () => {
     const result = await deleteUtmPreset('preset-1')
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error).toBe('settings_storage_pending')
+    expect(result.ok).toBe(true)
   })
 
   it('saveQrTemplate returns error on empty name', async () => {
@@ -678,10 +685,11 @@ describe('settings actions', () => {
     expect(result.ok).toBe(false)
   })
 
-  it('saveQrTemplate returns settings_storage_pending', async () => {
+  it('saveQrTemplate inserts and returns id', async () => {
+    perTableRows['link_qr_templates'] = [{ id: 'tmpl-1' }]
     const result = await saveQrTemplate({ name: 'tmpl', config: { color: '#000' } })
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error).toBe('settings_storage_pending')
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.id).toBe('tmpl-1')
   })
 
   it('deleteQrTemplate returns error on empty id', async () => {
@@ -689,10 +697,24 @@ describe('settings actions', () => {
     expect(result.ok).toBe(false)
   })
 
-  it('deleteQrTemplate returns settings_storage_pending', async () => {
+  it('deleteQrTemplate succeeds with valid id', async () => {
     const result = await deleteQrTemplate('tmpl-1')
+    expect(result.ok).toBe(true)
+  })
+})
+
+// ─── validateDestinationUrl ──────────────────────────────────────────────────
+
+describe('validateDestinationUrl', () => {
+  beforeEach(() => {
+    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true })
+    resetMockState()
+  })
+
+  it('rejects invalid URL', async () => {
+    const result = await validateDestinationUrl('not-a-url')
     expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error).toBe('settings_storage_pending')
+    if (!result.ok) expect(result.error).toBe('invalid_url')
   })
 })
 

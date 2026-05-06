@@ -753,16 +753,63 @@ export async function generateQr(
   return { ok: true, qrUrl: publicUrl }
 }
 
+export async function validateDestinationUrl(
+  url: string,
+): Promise<ActionResult<{ status: number; finalUrl: string; durationMs: number }>> {
+  try {
+    new URL(url)
+  } catch {
+    return { ok: false, error: 'invalid_url' }
+  }
+
+  const { siteId } = await getSiteContext()
+  await requireEditScope(siteId)
+
+  try {
+    const start = Date.now()
+    const res = await fetch(url, {
+      method: 'HEAD',
+      redirect: 'follow',
+      signal: AbortSignal.timeout(10_000),
+    })
+    const durationMs = Date.now() - start
+    return { ok: true, status: res.status, finalUrl: res.url, durationMs }
+  } catch {
+    return { ok: false, error: 'unreachable' }
+  }
+}
+
 // ─── Settings Actions ───────────────────────────────────────────────────────
 
 export async function saveLinkSettings(input: {
   default_redirect_type?: number
   default_utm_source?: string
+  default_code_length?: number
+  auto_qr?: boolean
+  bot_filtering?: boolean
 }): Promise<ActionResult> {
-  void input
   const { siteId } = await getSiteContext()
   await requireEditScope(siteId)
-  return { ok: false, error: 'settings_storage_pending' }
+
+  const supabase = getSupabaseServiceClient()
+  const { error } = await supabase
+    .from('link_settings')
+    .upsert(
+      {
+        site_id: siteId,
+        default_redirect_type: input.default_redirect_type ?? 302,
+        default_code_length: input.default_code_length ?? 6,
+        auto_qr: input.auto_qr ?? false,
+        bot_filtering: input.bot_filtering ?? true,
+        config: { default_utm_source: input.default_utm_source },
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'site_id' },
+    )
+
+  if (error) return { ok: false, error: error.message }
+  revalidateTag('links-settings')
+  return { ok: true }
 }
 
 export async function saveUtmPreset(input: {
@@ -770,33 +817,83 @@ export async function saveUtmPreset(input: {
   utm_source: string
   utm_medium: string
   utm_campaign: string
-}): Promise<ActionResult> {
+}): Promise<ActionResult<{ id: string }>> {
   if (!input.name) return { ok: false, error: 'name_required' }
   const { siteId } = await getSiteContext()
   await requireEditScope(siteId)
-  return { ok: false, error: 'settings_storage_pending' }
+
+  const supabase = getSupabaseServiceClient()
+  const { data, error } = await supabase
+    .from('link_utm_presets')
+    .insert({
+      site_id: siteId,
+      name: input.name,
+      utm_source: input.utm_source || null,
+      utm_medium: input.utm_medium || null,
+      utm_campaign: input.utm_campaign || null,
+    })
+    .select('id')
+    .single()
+
+  if (error) return { ok: false, error: error.message }
+  revalidateTag('links-settings')
+  return { ok: true, id: data.id }
 }
 
 export async function deleteUtmPreset(id: string): Promise<ActionResult> {
   if (!id) return { ok: false, error: 'id_required' }
   const { siteId } = await getSiteContext()
   await requireEditScope(siteId)
-  return { ok: false, error: 'settings_storage_pending' }
+
+  const supabase = getSupabaseServiceClient()
+  const { error } = await supabase
+    .from('link_utm_presets')
+    .delete()
+    .eq('id', id)
+    .eq('site_id', siteId)
+
+  if (error) return { ok: false, error: error.message }
+  revalidateTag('links-settings')
+  return { ok: true }
 }
 
 export async function saveQrTemplate(input: {
   name: string
   config: Record<string, unknown>
-}): Promise<ActionResult> {
+}): Promise<ActionResult<{ id: string }>> {
   if (!input.name) return { ok: false, error: 'name_required' }
   const { siteId } = await getSiteContext()
   await requireEditScope(siteId)
-  return { ok: false, error: 'settings_storage_pending' }
+
+  const supabase = getSupabaseServiceClient()
+  const { data, error } = await supabase
+    .from('link_qr_templates')
+    .insert({
+      site_id: siteId,
+      name: input.name,
+      config: input.config,
+    })
+    .select('id')
+    .single()
+
+  if (error) return { ok: false, error: error.message }
+  revalidateTag('links-settings')
+  return { ok: true, id: data.id }
 }
 
 export async function deleteQrTemplate(id: string): Promise<ActionResult> {
   if (!id) return { ok: false, error: 'id_required' }
   const { siteId } = await getSiteContext()
   await requireEditScope(siteId)
-  return { ok: false, error: 'settings_storage_pending' }
+
+  const supabase = getSupabaseServiceClient()
+  const { error } = await supabase
+    .from('link_qr_templates')
+    .delete()
+    .eq('id', id)
+    .eq('site_id', siteId)
+
+  if (error) return { ok: false, error: error.message }
+  revalidateTag('links-settings')
+  return { ok: true }
 }

@@ -412,6 +412,86 @@ Local code replaced with `@tn-figueiredo/*` package imports:
 - CMS pages: analytics, subscribers, settings → wired to `@tn-figueiredo/newsletter-admin/client` components
 - Brevo sync cron removed, all Brevo references purged from tests
 
+## Links Engine (Sprint 5f) — `@tn-figueiredo/links@0.1.0` + go.{domain} URL shortener
+
+Sprint 5f implements the full link tracker / URL shortener with click analytics, CMS dashboard, QR codes, and AI insights.
+
+### Architecture
+
+- **Package `@tn-figueiredo/links@0.1.0`** (`packages/links/`) — core logic: `LinkService`, `ClickRecorder`, `RedirectResolver`, `CodeGenerator`, `BotFilter`, `UtmParser`. Exports: `.` (main), `./analytics`, `./qr`.
+- **Package `@tn-figueiredo/links-admin@0.1.0`** (`packages/links-admin/`) — CMS components: `LinksDashboard`, `LinkForm`, `LinkList`, `LinkDetailPanel`, `AnalyticsOverview`, `AnalyticsCharts`, `ClickMap`, `QrComposer`, `AiInsightsPanel`, `LivePulseIndicator`, `AlertRulesEditor`. Hooks: `useClickStream`, `useLinkForm`, `useAnalyticsFilters`. Dual entry: `.` (types) + `./client` (client components with `'use client'` banner).
+- **App wiring** — `apps/web/src/lib/links/` (resolver, click-recorder, insights), `apps/web/src/app/go/` (redirect routes), `apps/web/src/app/cms/(authed)/links/` (CMS pages + server actions), `apps/web/src/app/api/links/` (pulse/stream endpoints), `apps/web/src/app/api/cron/links-*` (6 cron routes).
+
+### Subdomain routing — go.{domain}
+
+Middleware (`apps/web/src/middleware.ts`) detects `go.` prefix on hostname, strips it, resolves base domain → site via `SupabaseRingContext.getSiteByDomain()`, extracts short code from path, rewrites to `/go/${code}`. Sets `x-site-id` + `x-short-domain` headers. DNS: CNAME `go.bythiagofigueiredo.com` → `cname.vercel-dns.com`.
+
+### Redirect handler (`/go/[code]/route.ts`)
+
+Flow: resolve link → check active/deleted/expired/click-limit → password interstitial if `password_hash` → fire-and-forget click recording → append UTM params → `NextResponse.redirect(destination, redirect_type)`. Sentry captures on all error paths.
+
+### Click recording
+
+Daily-rotating visitor ID: `SHA-256(ip|userAgent|YYYY-MM-DD)` — non-PII, NOT anonymized. Dedup via `link_clicks` query on visitor_id + link_id + same day. Insert into partitioned `link_clicks` table. Fire RPC `increment_link_clicks(link_id, is_unique)` to bump counters. Geo from Cloudflare headers (`cf-ipcountry`, `cf-connecting-ip`).
+
+### Schema (14 migrations: `20260506000001`–`20260506000014`)
+
+| Table | Purpose |
+|---|---|
+| `tracked_links` | Link metadata: code, destination, UTMs, QR config, redirect_type, password_hash, click_limit, expires_at |
+| `link_clicks` (partitioned) | High-volume click events: visitor_id, device, browser, geo, referrer, UTMs, conversions |
+| `link_daily_metrics` | Pre-aggregated daily stats: clicks, unique_visitors, conversions, device/browser/referrer breakdowns, hourly distribution |
+| `link_annotations` | User notes on links (FK → tracked_links CASCADE) |
+| `link_goals` | Conversion goal definitions (FK → tracked_links CASCADE) |
+| `link_alerts` | Threshold-based alert rules with cooldown (FK → tracked_links CASCADE) |
+| `link_aggregation_watermark` | Singleton tracking last aggregation timestamp |
+| `link_settings` | Per-site config: default_redirect_type, code_length, auto_qr, bot_filtering |
+| `link_utm_presets` | Saved UTM combinations per site |
+| `link_qr_templates` | Saved QR styling configs per site |
+
+### Cron jobs (6)
+
+| Cron | Schedule | Purpose |
+|---|---|---|
+| `/api/cron/links-aggregate-metrics` | `0 * * * *` | Roll up link_clicks → link_daily_metrics (watermark-based) |
+| `/api/cron/links-anonymize-clicks` | `0 3 * * *` | 90-day IP/user_agent anonymization (keeps visitor_id) |
+| `/api/cron/links-check-expiry` | `0 */4 * * *` | Deactivate expired links |
+| `/api/cron/links-partition-maintenance` | `0 2 1 * *` | Create next month's click partition |
+| `/api/cron/links-check-alerts` | `0 */6 * * *` | Evaluate alert conditions with 24h cooldown |
+| Newsletter link rewrite | on-send | Rewrite `<a href>` to go.{domain} tracked URLs (gated by `LINKS_NEWSLETTER_REWRITE_ENABLED`) |
+
+### CMS pages
+
+| Route | Purpose |
+|---|---|
+| `/cms/links` | Dashboard: link list with search/filter/sort, bulk actions |
+| `/cms/links/new` | Create link form |
+| `/cms/links/[id]` | Link detail: analytics, annotations, goals, alerts |
+| `/cms/links/[id]/edit` | Edit link settings |
+| `/cms/links/[id]/analytics` | Deep analytics: charts, click map, device breakdown |
+| `/cms/links/[id]/qr` | QR composer with style options |
+| `/cms/links/settings` | Site-wide defaults, UTM presets, QR templates |
+
+### Server actions (20+)
+
+All in `apps/web/src/app/cms/(authed)/links/actions.ts`. Each: Zod validation, `requireSiteScope(area:'cms', siteId, mode:'edit')`, service-role client, `revalidateTag`/`revalidatePath` on mutation. Key actions: `createLink`, `updateLink`, `deleteLink`, `duplicateLink`, `toggleLinkActive`, `bulkDeleteLinks`, `bulkToggleLinks`, `checkCodeAvailability`, `validateDestinationUrl` (HEAD probe with timing), `generateQr` (SVG → Storage upload), `getAiInsights` (7d vs prior 7d trend detection), `saveLinkSettings`, `saveUtmPreset`, `saveQrTemplate`, `createAnnotation`, `createGoal`, `createAlert`, `saveAlertRule`, `toggleAlert`.
+
+### Feature flags (7)
+
+| Flag | Default | Purpose |
+|---|---|---|
+| `NEXT_PUBLIC_LINKS_ENABLED` | `true` | Master switch: CMS sidebar entry + all /cms/links pages |
+| `LINKS_SHORT_DOMAIN` | empty | Short domain for newsletter URL rewriting |
+| `LINKS_NEWSLETTER_REWRITE_ENABLED` | `false` | Rewrite newsletter links to go.{domain} URLs |
+| `LINKS_AI_INSIGHTS_ENABLED` | `true` | AI trend detection in link analytics |
+| `LINKS_LIVE_PULSE_ENABLED` | `true` | Real-time click SSE endpoint |
+| `LINKS_REVENUE_TRACKING_ENABLED` | `false` | Conversion/revenue fields in click events |
+| `LINKS_GEO_PROVIDER` | `cloudflare` | Geo resolution: `cloudflare` (CF headers) or `stub` (dev) |
+
+### Sentry tag conventions
+
+All exceptions tagged `links: 'true'` + `component`: `'redirect'`, `'click-recorder'`, `'aggregate-metrics'`, `'anonymize-clicks'`, `'check-expiry'`, `'partition-maintenance'`, `'check-alerts'`, `'insights'`.
+
 ## Multi-ring (CMS conglomerate) — Sprint 4.75 RBAC v3
 
 Conglomerado multi-site com 4 papéis derivados. `bythiagofigueiredo.com` é o master ring.
@@ -490,6 +570,8 @@ CMS reutilizável publicado em `@tn-figueiredo/cms` (extração pra repo própri
 - `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` (Sprint 1b)
 - `CAMPAIGN_PDF_SIGNED_URL_TTL` (opcional, default 86400 = 24h — TTL em segundos dos signed URLs de PDFs de campanha)
 - `YOUTUBE_API_KEY` — YouTube Data API v3 key for video sync cron (`/api/cron/sync-youtube`). Required in Production; optional in Development (empty → sync returns 500).
+- `NEXT_PUBLIC_LINKS_ENABLED` — master switch for Links Engine CMS sidebar + pages (Sprint 5f). Default `true`.
+- `LINKS_SHORT_DOMAIN`, `LINKS_NEWSLETTER_REWRITE_ENABLED`, `LINKS_AI_INSIGHTS_ENABLED`, `LINKS_LIVE_PULSE_ENABLED`, `LINKS_REVENUE_TRACKING_ENABLED`, `LINKS_GEO_PROVIDER` — Links feature flags (see Links Engine section above).
 - Sprint 2: nenhuma env var nova — multi-ring scoping resolve via middleware + `sites.domains` array no DB
 
 ### API (`apps/api/.env.local`)
@@ -520,6 +602,7 @@ CMS reutilizável publicado em `@tn-figueiredo/cms` (extração pra repo própri
 - **Sprint 5b** ✅ done (2026-04-17) — SEO hardening: 5 PRs merged A→B→C→D→E (#32-#36) + deploy PR #37 staging→main. 4 migrations, 16 `lib/seo/` modules (config/page-metadata/jsonld/og/enumerator/cache-invalidation/frontmatter/identity-profiles/etc), `app/sitemap.ts` + `app/robots.ts` + 3 OG routes (Node runtime, direct-host lookup per Next #58436), 7 archetypes wired com `<JsonLdScript>` @graph via schema-dts (WebSite + Person + BlogPosting/Article/Breadcrumb/FAQ/HowTo/Video), 11 server actions com cache-invalidation tags + archivePost bug fix, admin site actions (branding/identity/defaults), Lighthouse CI (SEO ≥95, perf ≥80 mobile), `scripts/seo-smoke.sh`, `/api/health/seo` CRON endpoint, `docs/runbooks/seo-incident.md` (6 scenarios + 8 known-limitations) + `sprint-5b-post-deploy.md` (12-step). 5 env-var feature flags (`NEXT_PUBLIC_SEO_*` + `SEO_SITEMAP_KILLED` + `SEO_AI_CRAWLERS_BLOCKED=true`; DB-driven refactor em Sprint 8.5 pós-pre-study). Twitter handle `tnFigueiredo`; supported_locales `{pt-BR,en}`. Prod verified 2026-04-17: sitemap/robots/home/privacy/health green. Follow-ups: Figma-export og-default.png, real identity/thiago.jpg photo, pyftsubset Inter font (415KB→35KB), debug enumerator blogIndex missing, investigate OG dynamic 302 fallback via Sentry. Spec: `docs/superpowers/specs/2026-04-16-sprint-5b-seo-hardening-design.md` (98/100). Plan: `docs/superpowers/plans/2026-04-16-sprint-5b-seo-hardening.md` (72 tasks, 7796 linhas).
 - **Sprint 5c** ✅ done (2026-04-20) — Playwright E2E suite: 77 tests across 13 spec files, 6 POMs, 5 fixture modules (global-setup/teardown, auth.setup, seed-helpers, index), CI workflow (`e2e.yml` with `supabase/setup-cli` + secrets validation). Quality audit 75→98/100: 18 fixes. Testid audit: 20/20 present. A11y: AxeBuilder on 5/5 areas. 777 vitest tests passing.
 - **Sprint 5e** ✅ done (2026-04-22) — Newsletter CMS Engine: Brevo fully removed, Resend as sole email provider, 5 new tables (newsletter_editions/sends/click_events/webhook_events/blog_cadence), content queue model, React Email templates, 8 CMS pages (dashboard/editor/analytics/subscribers/settings/content-queue/web-archive), batch send cron with CAS + crash recovery + bounce auto-pause, RFC 8058 one-click unsubscribe, Svix webhook verification, LGPD tracking anonymization cron, webhook purge cron. 3 migrations, 750 tests, 20 commits. Package extraction: `@tn-figueiredo/email@0.2.0`, `@tn-figueiredo/newsletter@0.1.0`, `@tn-figueiredo/newsletter-admin@0.1.0` published. App wired to consume packages. Spec: `docs/superpowers/specs/2026-04-20-newsletter-cms-engine-design.md`. Plan: `docs/superpowers/plans/2026-04-20-newsletter-cms-engine.md`.
+- **Sprint 5f** ✅ done (2026-05-06) — Links Tracker (URL shortener + click analytics): 14 migrations (`tracked_links`, `link_clicks` partitioned, `link_daily_metrics`, `link_annotations`, `link_goals`, `link_alerts`, `link_settings`, `link_utm_presets`, `link_qr_templates`, `link_aggregation_watermark`, RPCs, FKs, storage bucket), `@tn-figueiredo/links@0.1.0` + `@tn-figueiredo/links-admin@0.1.0` packages, go.{domain} subdomain routing in middleware, redirect handler `/go/[code]/route.ts` with UTM append + bot filtering + password interstitial + click-limit/expiry guards, 6 cron jobs (aggregate-metrics, anonymize-clicks, check-expiry, partition-maintenance, check-alerts, newsletter link rewrite), CMS dashboard + CRUD + analytics + QR composer + AI insights + live pulse SSE + alert rules, 20+ server actions, Sentry integration across all cron/redirect routes. 2713 web tests, feature-flagged via `NEXT_PUBLIC_LINKS_ENABLED`. Spec: `docs/superpowers/specs/2026-05-05-links-tracker-design.md`. Plan: `docs/superpowers/plans/2026-05-05-links-tracker.md`.
 - **Sprint 5d** ☐ — Vercel deploy hardening (build perf, edge config).
 - **Sprint 6** ☐ — Burnout & MVP Launch (30h)
 - Roadmap source of truth: [docs/roadmap/README.md](docs/roadmap/README.md)
@@ -553,7 +636,7 @@ Versões exatas (sem `^`) — pre-commit hook valida pinning.
 
 Packages instalados (conforme `package.json`):
 - api: `auth@1.3.0`, `auth-fastify@1.1.0`, `auth-supabase@1.1.0`, `audit@0.1.0`, `lgpd@0.1.0`, `shared@0.8.0`
-- web: `admin@0.3.0`, `auth-nextjs@2.0.0`, `cms@0.1.0-dev (workspace)`, `email@0.2.0`, `newsletter@0.1.0`, `newsletter-admin@0.1.0`, `notifications@0.1.0`, `seo@0.1.0`, `shared@0.8.0`
+- web: `admin@0.3.0`, `auth-nextjs@2.0.0`, `cms@0.1.0-dev (workspace)`, `email@0.2.0`, `links@0.1.0-dev (workspace)`, `links-admin@0.1.0-dev (workspace)`, `newsletter@0.1.0`, `newsletter-admin@0.1.0`, `notifications@0.1.0`, `seo@0.1.0`, `shared@0.8.0`
 
 Upgrade: editar `package.json` + `npm install` → CI valida pinning.
 
