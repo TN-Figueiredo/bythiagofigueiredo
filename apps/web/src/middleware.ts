@@ -138,6 +138,11 @@ export async function middleware(
   if (isGoSubdomain) {
     const baseDomain = hostname.slice(3) // strip "go." prefix
     const code = pathname === '/' ? '' : pathname.slice(1) // strip leading /
+
+    if (!code) {
+      return NextResponse.redirect(`https://${baseDomain}`, 302)
+    }
+
     const ring = getRingContext()
     try {
       const site = await ring.getSiteByDomain(baseDomain)
@@ -149,7 +154,7 @@ export async function middleware(
         return res
       }
       const rewriteUrl = request.nextUrl.clone()
-      rewriteUrl.pathname = code ? `/go/${code}` : '/go'
+      rewriteUrl.pathname = `/go/${code}`
       const res = NextResponse.rewrite(rewriteUrl)
       res.headers.set('x-site-id', site.id)
       res.headers.set('x-short-domain', host)
