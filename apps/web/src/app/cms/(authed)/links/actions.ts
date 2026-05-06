@@ -3,6 +3,7 @@
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { z } from 'zod'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { generateQrSvg } from '@tn-figueiredo/links/qr'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 
@@ -732,7 +733,13 @@ export async function generateQr(
     return { ok: false, error: 'invalid_color_format' }
   }
 
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><rect fill="${bg}" width="${size}" height="${size}"/><text x="50%" y="50%" fill="${fg}" text-anchor="middle" dominant-baseline="central" font-size="10">${shortUrl}</text></svg>`
+  const { svg } = await generateQrSvg({
+    url: shortUrl,
+    size,
+    darkColor: fg,
+    lightColor: bg,
+    errorCorrection: 'M',
+  })
 
   const path = `${siteId}/qr/${id}.svg`
   const { error: uploadError } = await supabase.storage

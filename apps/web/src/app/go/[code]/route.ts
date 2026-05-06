@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
 import { resolveLink } from '@/lib/links/resolver'
-import { recordClick, isBot } from '@/lib/links/click-recorder'
+import { recordClick } from '@/lib/links/click-recorder'
 
 export const runtime = 'nodejs'
 
