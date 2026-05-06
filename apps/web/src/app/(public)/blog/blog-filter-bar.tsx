@@ -114,6 +114,7 @@ export function BlogFilterBar({
             placeholder={isPt ? 'buscar por título, tag, slug…' : 'search by title, tag, slug…'}
             value={filters.q}
             onChange={(e) => onFilterChange({ q: e.target.value })}
+            data-search-input
             style={{
               ...mono,
               fontSize: 13,

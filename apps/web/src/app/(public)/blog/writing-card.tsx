@@ -5,6 +5,7 @@ import { coverGradient } from '@/lib/home/cover-image'
 import { localePath } from '@/lib/i18n/locale-path'
 import { ReadableCard } from '@/components/blog/readable-card'
 import { PostPattern } from './post-pattern'
+import { highlightText } from './search-highlight'
 import type { ArchivePost } from './blog-archive-client'
 
 interface WritingCardProps {
@@ -12,6 +13,8 @@ interface WritingCardProps {
   index: number
   dark?: boolean
   locale?: 'en' | 'pt-BR'
+  searchQuery?: string
+  isActive?: boolean
 }
 
 const theme = {
@@ -27,19 +30,22 @@ const theme = {
   tapeR: '#C44B3D',
 }
 
-function getTapeColor(index: number): string {
+function getTapeColor(index: number, categoryColor?: string): string {
+  if (categoryColor) {
+    return categoryColor
+  }
   const mod = index % 3
   if (mod === 0) return theme.tape
   if (mod === 1) return theme.tape2
   return theme.tapeR
 }
 
-export function WritingCard({ post, index, dark = true, locale = 'en' }: WritingCardProps) {
+export function WritingCard({ post, index, dark = true, locale = 'en', searchQuery, isActive }: WritingCardProps) {
   const rotation = ((index * 37) % 7 - 3) * 0.5
   const lift = ((index * 53) % 5 - 2) * 2
   const tapeRotation = (index * 11) % 12 - 6
   const tint = index % 3 === 1 ? theme.paper2 : theme.paper
-  const tapeColor = getTapeColor(index)
+  const tapeColor = getTapeColor(index, post.categoryColor)
   const tapeSide = index % 2 === 0 ? 'left' : 'right'
 
   const paperShadow = dark
@@ -58,13 +64,15 @@ export function WritingCard({ post, index, dark = true, locale = 'en' }: Writing
     <div style={{ position: 'relative', paddingTop: 16 }}>
       <ReadableCard postId={post.id}>
         <div
-          className="writing-card-paper"
+          className="writing-card-paper paper-card-lift"
           style={{
             background: tint,
             padding: 0,
             position: 'relative',
             transform: `rotate(${rotation}deg) translateY(${lift}px)`,
-            boxShadow: paperShadow,
+            boxShadow: isActive
+              ? `0 0 0 2px #FF8240, ${paperShadow}`
+              : paperShadow,
             transition: 'transform 0.2s ease, box-shadow 0.2s ease',
           }}
           onMouseEnter={(e) => {
@@ -73,7 +81,9 @@ export function WritingCard({ post, index, dark = true, locale = 'en' }: Writing
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.transform = `rotate(${rotation}deg) translateY(${lift}px)`
-            e.currentTarget.style.boxShadow = paperShadow
+            e.currentTarget.style.boxShadow = isActive
+              ? `0 0 0 2px #FF8240, ${paperShadow}`
+              : paperShadow
           }}
         >
           {/* Tape decoration */}
@@ -144,6 +154,30 @@ export function WritingCard({ post, index, dark = true, locale = 'en' }: Writing
               >
                 &#9636; TEXTO
               </div>
+
+              {/* Series badge */}
+              {post.previousPostId && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 8,
+                    right: 8,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    padding: '3px 7px',
+                    background: '#FFE37A',
+                    color: '#1A140C',
+                    fontFamily: '"JetBrains Mono", ui-monospace, monospace',
+                    fontSize: 9,
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase',
+                    fontWeight: 700,
+                  }}
+                >
+                  série
+                </div>
+              )}
             </div>
 
             {/* Content area */}
@@ -194,7 +228,7 @@ export function WritingCard({ post, index, dark = true, locale = 'en' }: Writing
                   color: theme.ink,
                 }}
               >
-                {post.title}
+                {searchQuery ? highlightText(post.title, searchQuery) : post.title}
               </h3>
 
               {/* Reading time */}

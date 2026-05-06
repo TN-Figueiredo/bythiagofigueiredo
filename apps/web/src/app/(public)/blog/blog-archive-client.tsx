@@ -5,6 +5,12 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { ReadProgressStore } from '@/lib/tracking/read-progress-store'
 import { BlogFilterBar } from './blog-filter-bar'
 import { WritingCard } from './writing-card'
+import { ReadingStatsCard } from './reading-stats-card'
+import { ArchiveListView } from './archive-list-view'
+import { useKeyboardNav } from './keyboard-nav'
+import { useStaggerReveal } from './stagger-reveal'
+import { ptBR } from '@/components/blog/_i18n/pt-BR'
+import { en } from '@/components/blog/_i18n/en'
 import type { PatternName } from './post-pattern'
 
 // ---------------------------------------------------------------------------
@@ -87,6 +93,7 @@ export function BlogArchiveClient({ posts, categories, tags, locale }: BlogArchi
   const searchParams = useSearchParams()
   const router = useRouter()
   const isPt = locale === 'pt-BR'
+  const t = isPt ? ptBR : en
 
   // --- Initialize filters from URL or sessionStorage ---
   const [filters, setFilters] = useState<Filters>(() => {
@@ -107,9 +114,15 @@ export function BlogArchiveClient({ posts, categories, tags, locale }: BlogArchi
   })
 
   const [page, setPage] = useState(1)
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
+    try {
+      return (sessionStorage.getItem('btf_blog_view') as 'grid' | 'list') || 'grid'
+    } catch { return 'grid' }
+  })
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const firstNewCardRef = useRef<HTMLDivElement | null>(null)
   const prevPageRef = useRef(1)
+  const gridRef = useRef<HTMLDivElement>(null)
 
   // --- URL sync (debounced) ---
   useEffect(() => {
@@ -133,6 +146,11 @@ export function BlogArchiveClient({ posts, categories, tags, locale }: BlogArchi
   useEffect(() => {
     writeSessionFilters(filters)
   }, [filters])
+
+  // --- View mode persistence ---
+  useEffect(() => {
+    try { sessionStorage.setItem('btf_blog_view', viewMode) } catch {}
+  }, [viewMode])
 
   // --- Focus after load more ---
   useEffect(() => {
@@ -197,6 +215,12 @@ export function BlogArchiveClient({ posts, categories, tags, locale }: BlogArchi
 
   const hasFilters = !!(filters.cat || filters.tag || filters.q || filters.sort !== 'recent')
 
+  // --- Keyboard nav ---
+  const { activeIndex } = useKeyboardNav(filtered.length)
+
+  // --- Stagger reveal ---
+  useStaggerReveal(gridRef)
+
   // --- Pagination ---
   const visiblePosts = filtered.slice(0, page * BATCH)
   const remaining = filtered.length - visiblePosts.length
@@ -248,6 +272,13 @@ export function BlogArchiveClient({ posts, categories, tags, locale }: BlogArchi
             transform: none !important;
           }
         }
+        .paper-card-lift {
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .paper-card-lift:hover {
+          transform: rotate(0deg) translateY(-6px) scale(1.02) !important;
+          box-shadow: 0 4px 0 rgba(0,0,0,0.5), 0 18px 36px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,255,255,0.05) !important;
+        }
       `}</style>
 
       {/* Page Header */}
@@ -278,6 +309,48 @@ export function BlogArchiveClient({ posts, categories, tags, locale }: BlogArchi
             ? 'Textos sobre código, produto, carreira e o que mais der vontade.'
             : 'Writing about code, product, career, and whatever else comes to mind.'}
         </p>
+
+        {/* Reading progress stats */}
+        <ReadingStatsCard
+          posts={posts.map(p => ({ id: p.id, readingTime: p.readingTime }))}
+          t={t}
+        />
+
+        {/* View toggle */}
+        <div style={{ display: 'flex', gap: 4, marginTop: 12 }}>
+          <button
+            onClick={() => setViewMode('grid')}
+            style={{
+              fontFamily: '"JetBrains Mono", monospace',
+              fontSize: 11,
+              padding: '5px 10px',
+              border: viewMode === 'grid' ? 'none' : '1.5px solid #2E2718',
+              borderRadius: 3,
+              background: viewMode === 'grid' ? '#EFE6D2' : 'transparent',
+              color: viewMode === 'grid' ? '#161208' : '#958A75',
+              cursor: 'pointer',
+              fontWeight: viewMode === 'grid' ? 600 : 400,
+            }}
+          >
+            {t.grid}
+          </button>
+          <button
+            onClick={() => setViewMode('list')}
+            style={{
+              fontFamily: '"JetBrains Mono", monospace',
+              fontSize: 11,
+              padding: '5px 10px',
+              border: viewMode === 'list' ? 'none' : '1.5px solid #2E2718',
+              borderRadius: 3,
+              background: viewMode === 'list' ? '#EFE6D2' : 'transparent',
+              color: viewMode === 'list' ? '#161208' : '#958A75',
+              cursor: 'pointer',
+              fontWeight: viewMode === 'list' ? 600 : 400,
+            }}
+          >
+            {t.list}
+          </button>
+        </div>
       </header>
 
       {/* Filter Bar */}
@@ -293,7 +366,7 @@ export function BlogArchiveClient({ posts, categories, tags, locale }: BlogArchi
         locale={locale}
       />
 
-      {/* Grid or Empty State */}
+      {/* Grid, List, or Empty State */}
       {filtered.length === 0 ? (
         <div
           style={{
@@ -345,31 +418,49 @@ export function BlogArchiveClient({ posts, categories, tags, locale }: BlogArchi
         </div>
       ) : (
         <>
-          {/* Post Grid */}
-          <div id="blog-grid" className="blog-grid">
-            {visiblePosts.map((post, idx) => {
-              const isNewBatch = idx >= previousBatchEnd && page > 1
-              const isFirstNew = idx === previousBatchEnd && page > 1
-              const animDelay = isNewBatch ? (idx - previousBatchEnd) * 50 : 0
+          {/* Post Grid or List */}
+          {viewMode === 'grid' ? (
+            <div ref={gridRef} id="blog-grid" className="blog-grid">
+              {visiblePosts.map((post, idx) => {
+                const isNewBatch = idx >= previousBatchEnd && page > 1
+                const isFirstNew = idx === previousBatchEnd && page > 1
+                const animDelay = isNewBatch ? (idx - previousBatchEnd) * 50 : 0
 
-              return (
-                <div
-                  key={post.id}
-                  ref={isFirstNew ? firstNewCardRef : undefined}
-                  tabIndex={isFirstNew ? -1 : undefined}
-                  style={{
-                    opacity: isNewBatch ? 0 : 1,
-                    transform: isNewBatch ? 'translateY(12px)' : 'none',
-                    animation: isNewBatch
-                      ? `fadeSlideIn 300ms ${animDelay}ms forwards`
-                      : 'none',
-                  }}
-                >
-                  <WritingCard post={post} index={idx} locale={locale} />
-                </div>
-              )
-            })}
-          </div>
+                return (
+                  <div
+                    key={post.id}
+                    ref={isFirstNew ? firstNewCardRef : undefined}
+                    tabIndex={isFirstNew ? -1 : undefined}
+                    data-stagger={idx % 6}
+                    data-card-index={idx}
+                    style={{
+                      opacity: isNewBatch ? 0 : 1,
+                      transform: isNewBatch ? 'translateY(12px)' : 'none',
+                      animation: isNewBatch
+                        ? `fadeSlideIn 300ms ${animDelay}ms forwards`
+                        : 'none',
+                    }}
+                  >
+                    <WritingCard
+                      post={post}
+                      index={idx}
+                      locale={locale}
+                      searchQuery={filters.q}
+                      isActive={activeIndex === idx}
+                    />
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <ArchiveListView
+              posts={visiblePosts}
+              locale={locale}
+              query={filters.q}
+              t={t}
+              activeIndex={activeIndex}
+            />
+          )}
 
           {/* Load More / End Message */}
           <div
