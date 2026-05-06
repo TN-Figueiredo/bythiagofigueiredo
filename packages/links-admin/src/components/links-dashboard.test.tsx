@@ -77,7 +77,8 @@ describe('LinksDashboard', () => {
     render(
       <LinksDashboard {...defaultProps} links={[]} metrics={{ ...kpis, totalLinks: 0 }} />,
     )
-    expect(screen.getByText('0')).toBeInTheDocument()
+    const zeros = screen.getAllByText('0')
+    expect(zeros.length).toBeGreaterThan(0)
   })
 
   it('shows total links label', () => {

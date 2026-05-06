@@ -250,6 +250,23 @@ export async function compilePreview(source: string): Promise<CompiledMdx> {
   return compileMdx(source, blogRegistry)
 }
 
+export async function saveCoverImage(
+  postId: string,
+  url: string | null,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireSiteAdminForRow('blog_posts', postId)
+  if (url !== null && !isSafeUrl(url)) {
+    return { ok: false, error: 'invalid_url' }
+  }
+  const supabase = getSupabaseServiceClient()
+  const { error } = await supabase
+    .from('blog_posts')
+    .update({ cover_image_url: url })
+    .eq('id', postId)
+  if (error) return { ok: false, error: error.message }
+  return { ok: true }
+}
+
 export async function uploadAsset(file: File, postId: string): Promise<{ url: string }> {
   await requireSiteAdminForRow('blog_posts', postId)
   const ctx = await getSiteContext()

@@ -78,6 +78,12 @@ export interface AlertRule {
   active: boolean
 }
 
+export interface DashboardActivity {
+  dailyClicks: Array<{ date: string; clicks: number; unique: number }>
+  hourlyHeatmap: number[][] // 7 rows (Mon=0..Sun=6) x 24 cols (hours)
+  sourceBreakdown: Array<{ source: string; clicks: number }>
+}
+
 export interface QrConfig {
   foregroundColor: string
   backgroundColor: string

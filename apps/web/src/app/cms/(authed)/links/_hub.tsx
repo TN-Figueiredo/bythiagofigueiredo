@@ -3,16 +3,17 @@
 import { useRouter } from 'next/navigation'
 import { useTransition } from 'react'
 import { LinksDashboard } from '@tn-figueiredo/links-admin/client'
-import type { DashboardKpis, LinkSummary } from '@tn-figueiredo/links-admin'
+import type { DashboardKpis, DashboardActivity, LinkSummary } from '@tn-figueiredo/links-admin'
 import { deleteLink, toggleLinkActive } from './actions'
 
 interface LinksHubProps {
   metrics: DashboardKpis
+  activity: DashboardActivity
   links: unknown[]
   siteId: string
 }
 
-export function LinksHub({ metrics, links, siteId: _siteId }: LinksHubProps) {
+export function LinksHub({ metrics, activity, links, siteId: _siteId }: LinksHubProps) {
   const router = useRouter()
   const [, startTransition] = useTransition()
 
@@ -38,6 +39,7 @@ export function LinksHub({ metrics, links, siteId: _siteId }: LinksHubProps) {
     <LinksDashboard
       links={typedLinks}
       metrics={metrics}
+      activity={activity}
       onCreateLink={() => router.push('/cms/links/new')}
       onSelectLink={(id) => router.push(`/cms/links/${id}`)}
       onEditLink={(id) => router.push(`/cms/links/${id}/edit`)}

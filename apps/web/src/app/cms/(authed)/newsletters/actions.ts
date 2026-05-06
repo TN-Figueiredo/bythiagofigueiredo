@@ -1157,17 +1157,17 @@ export async function deleteNewsletterType(
     return { ok: false, error: 'confirm_text_mismatch', subscriberCount: subs, editionCount: editions }
   }
 
-  if (editions > 0) {
-    await supabase
-      .from('newsletter_editions')
-      .update({ newsletter_type_id: null, status: 'idea' })
-      .eq('newsletter_type_id', typeId)
-      .in('status', ['draft', 'ready', 'idea'])
-  }
+  // Delete all dependent rows — both columns are NOT NULL with ON DELETE RESTRICT
+  // newsletter_sends + newsletter_click_events cascade from editions automatically
+  await supabase
+    .from('newsletter_editions')
+    .delete()
+    .eq('newsletter_type_id', typeId)
 
+  // Delete ALL subscriptions (not just confirmed — pending/unsubscribed also hold FK)
   await supabase
     .from('newsletter_subscriptions')
-    .update({ newsletter_id: null })
+    .delete()
     .eq('newsletter_id', typeId)
 
   const typeSlug = type.slug as string

@@ -26,7 +26,7 @@ import { StructuredFields } from '../_shared/structured-fields'
 import { HashtagInput } from '../_shared/hashtag-input'
 import { SeriesFields } from '../_shared/series-fields'
 import { createPost, deleteHubPost, duplicatePost } from '../actions'
-import { savePost, compilePreview, uploadAsset, searchPosts } from '../[id]/edit/actions'
+import { savePost, saveCoverImage, compilePreview, uploadAsset, searchPosts } from '../[id]/edit/actions'
 import type { SavePostActionInput } from '../[id]/edit/actions'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -706,9 +706,8 @@ export function PostEditionEditor({
       const result = await uploadAsset(file, currentPostId)
       setCoverImageUrl(result.url)
       fieldsRef.current.coverImageUrl = result.url
+      await saveCoverImage(currentPostId, result.url)
       toast.success('Cover uploaded', { id: toastId })
-      saveImmediate({ ...getSavePayload(), cover_image_url: result.url })
-      router.replace(`/cms/blog/${currentPostId}/edit`)
     } catch {
       toast.error('Upload failed', { id: toastId })
     }
@@ -717,8 +716,8 @@ export function PostEditionEditor({
   function handleCoverRemove() {
     setCoverImageUrl(null)
     fieldsRef.current.coverImageUrl = null
-    if (!isEphemeral) {
-      saveImmediate({ ...getSavePayload(), cover_image_url: undefined })
+    if (postId) {
+      saveCoverImage(postId, null)
     }
   }
 

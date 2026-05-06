@@ -2,6 +2,7 @@
 export type {
   LinkSummary,
   DashboardKpis,
+  DashboardActivity,
   DateRange,
   AnalyticsMetrics,
   DeviceData,
