@@ -1,6 +1,9 @@
 'use client'
 
 import { type CSSProperties, useRef } from 'react'
+import { ptBR } from '@/components/blog/_i18n/pt-BR'
+import { en } from '@/components/blog/_i18n/en'
+import type { BlogStrings } from '@/components/blog/_i18n/types'
 
 interface BlogFilterBarProps {
   categories: Array<{ key: string; label: string; color: string; count: number }>
@@ -22,19 +25,14 @@ const tokens = (dark: boolean) => ({
   accent: dark ? '#FF8240' : '#C14513',
 })
 
-const SORT_OPTIONS_PT = [
-  { key: 'recent', label: 'Mais recentes' },
-  { key: 'longest', label: 'Mais longos' },
-  { key: 'shortest', label: 'Mais curtos' },
-  { key: 'unread', label: 'Não lidos' },
-] as const
-
-const SORT_OPTIONS_EN = [
-  { key: 'recent', label: 'Most recent' },
-  { key: 'longest', label: 'Longest' },
-  { key: 'shortest', label: 'Shortest' },
-  { key: 'unread', label: 'Unread' },
-] as const
+function getSortOptions(t: BlogStrings) {
+  return [
+    { key: 'recent', label: t.recent },
+    { key: 'longest', label: t.longest },
+    { key: 'shortest', label: t.shortest },
+    { key: 'unread', label: t.unread },
+  ] as const
+}
 
 const MAX_TAGS_SHOWN = 20
 
@@ -51,8 +49,8 @@ export function BlogFilterBar({
 }: BlogFilterBarProps) {
   const dark = true
   const c = tokens(dark)
-  const isPt = locale === 'pt-BR'
-  const sortOptions = isPt ? SORT_OPTIONS_PT : SORT_OPTIONS_EN
+  const t = locale === 'pt-BR' ? ptBR : en
+  const sortOptions = getSortOptions(t)
   const searchRef = useRef<HTMLInputElement>(null)
 
   const mono: CSSProperties = { fontFamily: '"JetBrains Mono", monospace' }
@@ -110,8 +108,8 @@ export function BlogFilterBar({
             ref={searchRef}
             type="text"
             role="searchbox"
-            aria-label={isPt ? 'Buscar posts' : 'Search posts'}
-            placeholder={isPt ? 'buscar por título, tag, slug…' : 'search by title, tag, slug…'}
+            aria-label={t.searchPlaceholder}
+            placeholder={t.searchPlaceholder}
             value={filters.q}
             onChange={(e) => onFilterChange({ q: e.target.value })}
             data-search-input
@@ -133,7 +131,7 @@ export function BlogFilterBar({
                 onFilterChange({ q: '' })
                 searchRef.current?.focus()
               }}
-              aria-label={isPt ? 'Limpar busca' : 'Clear search'}
+              aria-label={t.clearFilters}
               style={{
                 position: 'absolute',
                 right: 8,
@@ -154,7 +152,7 @@ export function BlogFilterBar({
 
         {/* Sort Buttons */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-          <span style={labelStyle}>{isPt ? 'ordenar:' : 'sort:'}</span>
+          <span style={labelStyle}>{t.sort.toLowerCase()}:</span>
           {sortOptions.map((opt) => {
             const active = filters.sort === opt.key
             return (
@@ -198,7 +196,7 @@ export function BlogFilterBar({
               flexShrink: 0,
             }}
           >
-            ✕ {isPt ? 'limpar tudo' : 'clear all'}
+            ✕ {t.clearAll}
           </button>
         )}
       </div>
@@ -213,11 +211,10 @@ export function BlogFilterBar({
           overflowX: 'auto',
         }}
       >
-        <span style={labelStyle}>{isPt ? 'categoria:' : 'category:'}</span>
+        <span style={labelStyle}>{t.categories.toLowerCase()}:</span>
 
-        {/* "Tudo" / "All" chip */}
         <CategoryChip
-          label={isPt ? 'TUDO' : 'ALL'}
+          label={t.allPosts.toUpperCase()}
           count={totalCount}
           active={!filters.cat}
           color={c.accent}
@@ -252,7 +249,7 @@ export function BlogFilterBar({
           overflowX: 'auto',
         }}
       >
-        <span style={labelStyle}>{isPt ? 'tags:' : 'tags:'}</span>
+        <span style={labelStyle}>{t.tags.toLowerCase()}:</span>
 
         {tags.slice(0, MAX_TAGS_SHOWN).map((t) => {
           const active = filters.tag === t.tag
@@ -303,11 +300,11 @@ export function BlogFilterBar({
       >
         <div aria-live="polite" style={{ ...mono, fontSize: 12, color: c.muted }}>
           <span style={{ fontWeight: 700, color: c.ink }}>{filteredCount}</span>{' '}
-          {isPt ? 'resultados' : 'results'}
+          {t.results}
           {hasFilters && (
             <span style={{ opacity: 0.7 }}>
               {' · '}
-              {isPt ? 'filtrando' : 'filtering'}
+              {t.filtering}
               {filters.cat && ` · ${filters.cat}`}
               {filters.tag && ` · #${filters.tag}`}
               {filters.q && ` · "${filters.q}"`}
@@ -325,7 +322,7 @@ export function BlogFilterBar({
               display: 'inline-block',
             }}
           >
-            ↓ {isPt ? 'começa por aqui' : 'start here'}
+            ↓ {t.startHere}
           </span>
         )}
       </div>

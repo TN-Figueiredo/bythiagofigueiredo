@@ -207,7 +207,7 @@ export default async function BlogDetailPage({ params }: Props) {
               transform: 'rotate(-1deg)',
             }}
           >
-            ← {locale === 'pt-BR' ? 'voltar ao arquivo' : 'back to archive'}
+            ← {t.backToArchive}
           </Link>
         </div>
 
@@ -233,11 +233,11 @@ export default async function BlogDetailPage({ params }: Props) {
               )}
               {formattedDate && <time dateTime={publishedAt!}>{formattedDate}</time>}
               <span>·</span>
-              <span>{tx.reading_time_min} min leitura</span>
+              <span>{tx.reading_time_min} {t.minRead}</span>
               {formattedUpdated && (
                 <>
                   <span>·</span>
-                  <span className="italic">atualizado em {formattedUpdated}</span>
+                  <span className="italic">{t.updatedAt} {formattedUpdated}</span>
                 </>
               )}
             </div>

@@ -6,6 +6,8 @@ import { localePath } from '@/lib/i18n/locale-path'
 import { ReadableCard } from '@/components/blog/readable-card'
 import { PostPattern } from './post-pattern'
 import { highlightText } from './search-highlight'
+import { ptBR } from '@/components/blog/_i18n/pt-BR'
+import { en } from '@/components/blog/_i18n/en'
 import type { ArchivePost } from './blog-archive-client'
 
 interface WritingCardProps {
@@ -41,6 +43,7 @@ function getTapeColor(index: number, categoryColor?: string): string {
 }
 
 export function WritingCard({ post, index, dark = true, locale = 'en', searchQuery, isActive }: WritingCardProps) {
+  const t = locale === 'pt-BR' ? ptBR : en
   const rotation = ((index * 37) % 7 - 3) * 0.5
   const lift = ((index * 53) % 5 - 2) * 2
   const tapeRotation = (index * 11) % 12 - 6
@@ -152,7 +155,7 @@ export function WritingCard({ post, index, dark = true, locale = 'en', searchQue
                   fontWeight: 600,
                 }}
               >
-                &#9636; TEXTO
+                &#9636; {t.textBadge}
               </div>
 
               {/* Series badge */}
@@ -175,7 +178,7 @@ export function WritingCard({ post, index, dark = true, locale = 'en', searchQue
                     fontWeight: 700,
                   }}
                 >
-                  série
+                  {t.series}
                 </div>
               )}
             </div>
@@ -240,7 +243,7 @@ export function WritingCard({ post, index, dark = true, locale = 'en', searchQue
                   letterSpacing: '0.04em',
                 }}
               >
-                {post.readingTime} min de leitura
+                {post.readingTime} {t.minuteReadLabel}
               </div>
 
               {/* Tags */}

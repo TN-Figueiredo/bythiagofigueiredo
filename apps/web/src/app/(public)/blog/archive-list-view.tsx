@@ -47,13 +47,13 @@ export function ArchiveListView({ posts, locale, query, t, activeIndex }: Archiv
             <span className="flex-1" style={{ fontFamily: '"Fraunces", serif', fontSize: 16, color: '#EFE6D2' }}>
               {highlightText(post.title, query)}
               {post.previousPostId && (
-                <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, marginLeft: 8, color: '#FFE37A' }}>série</span>
+                <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, marginLeft: 8, color: '#FFE37A' }}>{t.series}</span>
               )}
             </span>
             <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, width: 48, textAlign: 'right', color: '#6B634F' }}>{post.readingTime} {t.minuteRead}</span>
             <span style={{ width: 36, textAlign: 'center', fontSize: 10 }}>
               {isRead && <span style={{ color: '#8eda8e' }}>✓</span>}
-              {inProgress && <span style={{ fontFamily: '"JetBrains Mono", monospace', color: '#ccc' }}>{Math.round(progress!.depth)}%</span>}
+              {inProgress && <span style={{ fontFamily: '"JetBrains Mono", monospace', color: '#ccc' }}>{Math.round(progress?.depth ?? 0)}%</span>}
               {!isRead && !inProgress && <span style={{ color: '#6B634F' }}>—</span>}
             </span>
           </Link>

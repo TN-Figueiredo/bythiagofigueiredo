@@ -75,13 +75,19 @@ export function SeriesFields(props: SeriesFieldsProps) {
               onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
               placeholder="Buscar por título..."
               className="w-full bg-transparent border border-dashed border-neutral-700 rounded-lg px-3 py-2 text-sm text-neutral-200 outline-none focus:border-indigo-500"
+              role="combobox"
+              aria-expanded={showDropdown && results.length > 0}
+              aria-autocomplete="list"
+              aria-controls="series-post-listbox"
+              aria-label="Buscar post anterior"
             />
             {showDropdown && results.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 border border-neutral-700 rounded bg-neutral-900 max-h-40 overflow-y-auto z-10">
+              <div id="series-post-listbox" role="listbox" className="absolute top-full left-0 right-0 mt-1 border border-neutral-700 rounded bg-neutral-900 max-h-40 overflow-y-auto z-10">
                 {results.map(post => (
                   <button
                     key={post.id}
                     type="button"
+                    role="option"
                     onMouseDown={() => selectPost(post)}
                     className="w-full text-left px-3 py-1.5 text-xs text-neutral-200 hover:bg-neutral-800"
                   >
@@ -94,8 +100,9 @@ export function SeriesFields(props: SeriesFieldsProps) {
         )}
       </div>
 
-      <label className="flex items-center gap-2 cursor-pointer">
+      <label htmlFor="continues-in-next" className="flex items-center gap-2 cursor-pointer">
         <input
+          id="continues-in-next"
           type="checkbox"
           checked={props.continuesInNext}
           onChange={(e) => props.onContinuesChange(e.target.checked)}

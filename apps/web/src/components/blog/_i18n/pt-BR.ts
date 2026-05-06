@@ -41,4 +41,15 @@ export const ptBR: BlogStrings = {
   backToHome: 'voltar pra home',
   videos: 'vídeos',
   rss: 'RSS',
+  blogSubtitle: 'Textos sobre código, produto, carreira e o que mais der vontade.',
+  noPostsDetail: 'Nenhum post encontrado com esses filtros.',
+  loadMoreDetail: (count: number, remaining: number) =>
+    `Ver mais ${count} de ${remaining} restantes`,
+  endOfPosts: 'Isso é tudo! ↑',
+  textBadge: 'TEXTO',
+  minuteReadLabel: 'min de leitura',
+  backToArchive: 'voltar ao arquivo',
+  updatedAt: 'atualizado em',
+  progressLabel: (read: number, total: number, pct: number) =>
+    `${read} de ${total} · ${pct}%`,
 }

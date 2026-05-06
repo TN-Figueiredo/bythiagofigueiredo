@@ -165,7 +165,7 @@ describe('BlogDetailPage', () => {
     const jsx = await BlogDetailPage({ params: Promise.resolve({ slug: 'hello' }) })
     const { container } = render(jsx as never)
     expect(container.textContent).toContain('Hello')
-    expect(container.textContent).toContain('1 min leitura')
+    expect(container.textContent).toContain('1 min lidos')
   })
 
   it('hides LocaleSwitcher when only one translation exists', async () => {

@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS post_hashtags (
   PRIMARY KEY (post_id, hashtag_id)
 );
 
+CREATE INDEX IF NOT EXISTS hashtags_slug_idx ON hashtags(slug);
 CREATE INDEX IF NOT EXISTS post_hashtags_hashtag_idx ON post_hashtags(hashtag_id);
 
 -- RLS

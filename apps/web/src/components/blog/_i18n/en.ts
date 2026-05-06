@@ -41,4 +41,15 @@ export const en: BlogStrings = {
   backToHome: 'back to home',
   videos: 'videos',
   rss: 'RSS',
+  blogSubtitle: 'Writing about code, product, career, and whatever else comes to mind.',
+  noPostsDetail: 'No posts found with these filters.',
+  loadMoreDetail: (count: number, remaining: number) =>
+    `Load ${count} more of ${remaining} remaining`,
+  endOfPosts: "That's all! ↑",
+  textBadge: 'TEXT',
+  minuteReadLabel: 'min read',
+  backToArchive: 'back to archive',
+  updatedAt: 'updated on',
+  progressLabel: (read: number, total: number, pct: number) =>
+    `${read} of ${total} · ${pct}%`,
 }

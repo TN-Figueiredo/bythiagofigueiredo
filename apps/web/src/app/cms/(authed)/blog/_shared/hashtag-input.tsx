@@ -105,14 +105,20 @@ export function HashtagInput({ siteId, selected, onChange }: HashtagInputProps) 
           onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
           placeholder={selected.length === 0 ? '#tag' : ''}
           className="flex-1 min-w-[80px] bg-transparent text-xs text-neutral-200 outline-none font-mono"
+          role="combobox"
+          aria-expanded={showDropdown && (suggestions.length > 0 || (!!query.trim() && !loading))}
+          aria-autocomplete="list"
+          aria-controls="hashtag-listbox"
+          aria-label="Buscar marcadores"
         />
       </div>
       {showDropdown && (suggestions.length > 0 || (query.trim() && !loading)) && (
-        <div className="mt-1 border border-neutral-700 rounded bg-neutral-900 max-h-40 overflow-y-auto">
+        <div id="hashtag-listbox" role="listbox" className="mt-1 border border-neutral-700 rounded bg-neutral-900 max-h-40 overflow-y-auto">
           {suggestions.map(h => (
             <button
               key={h.id}
               type="button"
+              role="option"
               onMouseDown={() => addHashtag(h)}
               className="w-full text-left px-3 py-1.5 text-xs font-mono text-neutral-200 hover:bg-neutral-800"
             >
@@ -122,6 +128,7 @@ export function HashtagInput({ siteId, selected, onChange }: HashtagInputProps) 
           {query.trim() && suggestions.every(s => s.name.toLowerCase() !== query.trim().toLowerCase()) && (
             <button
               type="button"
+              role="option"
               onMouseDown={createAndAdd}
               className="w-full text-left px-3 py-1.5 text-xs font-mono text-indigo-400 hover:bg-neutral-800"
             >

@@ -92,8 +92,7 @@ function writeSessionFilters(f: Filters): void {
 export function BlogArchiveClient({ posts, categories, tags, locale }: BlogArchiveClientProps) {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const isPt = locale === 'pt-BR'
-  const t = isPt ? ptBR : en
+  const t = locale === 'pt-BR' ? ptBR : en
 
   // --- Initialize filters from URL or sessionStorage ---
   const [filters, setFilters] = useState<Filters>(() => {
@@ -305,9 +304,7 @@ export function BlogArchiveClient({ posts, categories, tags, locale }: BlogArchi
             lineHeight: 1.5,
           }}
         >
-          {isPt
-            ? 'Textos sobre código, produto, carreira e o que mais der vontade.'
-            : 'Writing about code, product, career, and whatever else comes to mind.'}
+          {t.blogSubtitle}
         </p>
 
         {/* Reading progress stats */}
@@ -407,7 +404,7 @@ export function BlogArchiveClient({ posts, categories, tags, locale }: BlogArchi
               color: theme.muted,
             }}
           >
-            {isPt ? 'nada por aqui.' : 'nothing here.'}
+            {t.noResults}
           </span>
           <span
             style={{
@@ -416,9 +413,7 @@ export function BlogArchiveClient({ posts, categories, tags, locale }: BlogArchi
               color: theme.faint,
             }}
           >
-            {isPt
-              ? 'Nenhum post encontrado com esses filtros.'
-              : 'No posts found with these filters.'}
+            {t.noPostsDetail}
           </span>
           <button
             onClick={handleReset}
@@ -435,14 +430,14 @@ export function BlogArchiveClient({ posts, categories, tags, locale }: BlogArchi
               fontWeight: 500,
             }}
           >
-            {isPt ? 'limpar filtros' : 'clear filters'}
+            {t.clearFilters}
           </button>
         </div>
       ) : (
         <>
           {/* Post Grid or List */}
           {viewMode === 'grid' ? (
-            <div ref={gridRef} id="blog-grid" className="blog-grid">
+            <div ref={gridRef} id="blog-grid" className="blog-grid" data-blog-grid>
               {visiblePosts.map((post, idx) => {
                 const isNewBatch = idx >= previousBatchEnd && page > 1
                 const isFirstNew = idx === previousBatchEnd && page > 1
@@ -509,9 +504,7 @@ export function BlogArchiveClient({ posts, categories, tags, locale }: BlogArchi
                   transition: 'border-color 0.15s',
                 }}
               >
-                {isPt
-                  ? `Ver mais ${Math.min(BATCH, remaining)} de ${remaining} restantes`
-                  : `Load ${Math.min(BATCH, remaining)} more of ${remaining} remaining`}
+                {t.loadMoreDetail(Math.min(BATCH, remaining), remaining)}
               </button>
             ) : (
               <span
@@ -521,7 +514,7 @@ export function BlogArchiveClient({ posts, categories, tags, locale }: BlogArchi
                   color: theme.accent,
                 }}
               >
-                {isPt ? 'Isso é tudo! ↑' : "That's all! ↑"}
+                {t.endOfPosts}
               </span>
             )}
           </div>

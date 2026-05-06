@@ -39,4 +39,13 @@ export interface BlogStrings {
   backToHome: string
   videos: string
   rss: string
+  blogSubtitle: string
+  noPostsDetail: string
+  loadMoreDetail: (count: number, remaining: number) => string
+  endOfPosts: string
+  textBadge: string
+  minuteReadLabel: string
+  backToArchive: string
+  updatedAt: string
+  progressLabel: (read: number, total: number, pct: number) => string
 }

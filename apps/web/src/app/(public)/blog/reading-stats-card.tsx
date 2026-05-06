@@ -39,7 +39,7 @@ export function ReadingStatsCard({ posts, t }: ReadingStatsCardProps) {
   const pct = total > 0 ? Math.round((stats.read / total) * 100) : 0
 
   return (
-    <div style={{ background: '#262117', border: '1px solid #2E2718', padding: '14px 18px', marginTop: 8 }}>
+    <div aria-label={t.yourProgress} style={{ background: '#262117', border: '1px solid #2E2718', padding: '14px 18px', marginTop: 8 }}>
       <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#6B634F', marginBottom: 10 }}>
         {t.yourProgress}
       </div>
@@ -60,10 +60,10 @@ export function ReadingStatsCard({ posts, t }: ReadingStatsCardProps) {
         </div>
       </div>
       <div style={{ marginTop: 10, height: 3, background: '#2E2718', borderRadius: 2 }}>
-        <div style={{ width: `${pct}%`, height: '100%', background: '#8eda8e', borderRadius: 2 }} />
+        <div role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={t.progressLabel(stats.read, total, pct)} style={{ width: `${pct}%`, height: '100%', background: '#8eda8e', borderRadius: 2 }} />
       </div>
       <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 9, color: '#6B634F', marginTop: 4, letterSpacing: '0.06em' }}>
-        {stats.read} de {total} · {pct}%
+        {t.progressLabel(stats.read, total, pct)}
       </div>
     </div>
   )
