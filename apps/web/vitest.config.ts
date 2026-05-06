@@ -66,6 +66,7 @@ export default defineConfig({
       { find: /^@\/lib\/about(.*)$/, replacement: path.resolve(__dirname, './lib/about$1') },
       { find: /^@\/lib\/tracking(.*)$/, replacement: path.resolve(__dirname, './lib/tracking$1') },
       { find: /^@\/lib\/i18n(.*)$/, replacement: path.resolve(__dirname, './lib/i18n$1') },
+      { find: /^@\/lib\/links(.*)$/, replacement: path.resolve(__dirname, './src/lib/links$1') },
       // Allow tests to import other test helpers via `@/test/...` (used by
       // enumerator integration test).
       { find: /^@\/test(.*)$/, replacement: path.resolve(__dirname, './test$1') },
