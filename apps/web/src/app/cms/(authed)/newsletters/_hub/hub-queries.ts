@@ -22,7 +22,7 @@ export const fetchSharedData = unstable_cache(
 
     const [{ data: site }, { data: types }, { data: subCounts }] = await Promise.all([
       supabase.from('sites').select('name, timezone').eq('id', siteId).single(),
-      supabase.from('newsletter_types').select('id, name, color, sort_order, cadence_paused, badge, cadence_pattern').eq('site_id', siteId).order('sort_order'),
+      supabase.from('newsletter_types').select('id, name, color, sort_order, cadence_paused, badge, cadence_pattern, last_sent_at').eq('site_id', siteId).eq('active', true).order('sort_order'),
       supabase.from('newsletter_subscriptions').select('newsletter_id').eq('site_id', siteId).in('status', ['confirmed', 'pending_confirmation']),
     ])
 
@@ -50,7 +50,7 @@ export const fetchSharedData = unstable_cache(
     let scheduleMissed = 0
     const todayStr = new Date().toISOString().slice(0, 10)
     const thirtyDaysAgo = new Date(Date.now() - THIRTY_DAYS_MS).toISOString().slice(0, 10)
-    const typesWithCadence = (types ?? []).filter((t) => t.cadence_pattern && !t.cadence_paused)
+    const typesWithCadence = (types ?? []).filter((t) => t.cadence_pattern && !t.cadence_paused && t.last_sent_at)
     if (typesWithCadence.length > 0) {
       const { data: filledEditions } = await supabase
         .from('newsletter_editions')
@@ -112,7 +112,7 @@ export const fetchOverviewData = unstable_cache(
       supabase.from('newsletter_subscriptions').select('*', { count: 'exact', head: true }).eq('site_id', siteId).in('status', ['confirmed', 'pending_confirmation']),
       supabase.from('newsletter_editions').select('id, subject, newsletter_type_id, stats_delivered, stats_opens, stats_clicks, stats_bounces, stats_complaints, sent_at').eq('site_id', siteId).eq('status', 'sent').gte('sent_at', thirtyDaysAgo).order('sent_at'),
       supabase.from('newsletter_editions').select('stats_delivered, stats_opens, stats_clicks, stats_bounces').eq('site_id', siteId).eq('status', 'sent').gte('sent_at', sixtyDaysAgo).lt('sent_at', thirtyDaysAgo),
-      supabase.from('newsletter_types').select('id, name, color, cadence_paused').eq('site_id', siteId),
+      supabase.from('newsletter_types').select('id, name, color, cadence_paused').eq('site_id', siteId).eq('active', true),
       supabase.from('newsletter_subscriptions').select('created_at').eq('site_id', siteId).in('status', ['confirmed', 'pending_confirmation']).gte('created_at', thirtyDaysAgo).order('created_at'),
       supabase.from('newsletter_subscriptions').select('newsletter_id').eq('site_id', siteId).in('status', ['confirmed', 'pending_confirmation']),
       supabase.from('consents').select('category').eq('site_id', siteId).is('revoked_at', null),
@@ -345,6 +345,7 @@ export const fetchEditorialData = unstable_cache(
       .from('newsletter_types')
       .select('id, name, color')
       .eq('site_id', siteId)
+      .eq('active', true)
 
     const typeMap = new Map<string, { name: string; color: string }>()
     for (const t of typeRows ?? []) typeMap.set(t.id as string, { name: t.name as string, color: (t.color ?? '#6366f1') as string })
@@ -424,7 +425,8 @@ export const fetchScheduleData = unstable_cache(
       supabase
         .from('newsletter_types')
         .select('id, name, color, cadence_days, cadence_pattern, cadence_paused, preferred_send_time, cadence_start_date, last_sent_at')
-        .eq('site_id', siteId),
+        .eq('site_id', siteId)
+        .eq('active', true),
       supabase
         .from('newsletter_subscriptions')
         .select('newsletter_id')
@@ -489,6 +491,7 @@ export const fetchScheduleData = unstable_cache(
     const calendarEndStr = calendarEnd.toISOString().slice(0, 10)
 
     // Generate cadence slots for each type with a cadence_pattern
+    const typesWithFirstSend = new Set((typeRows ?? []).filter((t) => t.last_sent_at).map((t) => t.id as string))
     const cadenceSlotsByDate = new Map<string, Array<{ typeId: string; typeName: string; typeColor: string }>>()
     for (const t of typeRows ?? []) {
       const pattern = t.cadence_pattern as CadencePattern | null
@@ -542,9 +545,11 @@ export const fetchScheduleData = unstable_cache(
             default:
               state = 'filled'
           }
-        } else if (dateStr < todayStr) {
+        } else if (dateStr < todayStr && typesWithFirstSend.has(entry.typeId)) {
           state = 'missed'
           missedCount++
+        } else if (dateStr < todayStr) {
+          state = 'empty_future'
         } else {
           state = 'empty_future'
         }
@@ -696,6 +701,7 @@ export const fetchAutomationsData = unstable_cache(
       .from('newsletter_types')
       .select('id, name, cadence_paused, last_sent_at')
       .eq('site_id', siteId)
+      .eq('active', true)
 
     const { data: cronRuns } = await supabase
       .from('cron_runs')
@@ -802,7 +808,7 @@ export const fetchAudienceData = unstable_cache(
       supabase.from('newsletter_subscriptions').select('*', { count: 'exact', head: true }).eq('site_id', siteId),
       supabase.from('newsletter_subscriptions').select('created_at').eq('site_id', siteId).eq('status', 'confirmed').gte('created_at', thirtyDaysAgo).order('created_at'),
       supabase.from('newsletter_subscriptions').select('unsubscribed_at').eq('site_id', siteId).eq('status', 'unsubscribed').gte('unsubscribed_at', thirtyDaysAgo),
-      supabase.from('newsletter_types').select('id, name, color, cadence_paused').eq('site_id', siteId),
+      supabase.from('newsletter_types').select('id, name, color, cadence_paused').eq('site_id', siteId).eq('active', true),
       supabase.from('newsletter_subscriptions').select('id, email, status, newsletter_id, created_at, locale', { count: 'exact' }).eq('site_id', siteId).order('created_at', { ascending: false }).range((page - 1) * pageSize, page * pageSize - 1),
       supabase.from('consents').select('category').eq('site_id', siteId).is('revoked_at', null),
       supabase.from('newsletter_subscriptions').select('newsletter_id').eq('site_id', siteId).in('status', ['confirmed', 'pending_confirmation']),
