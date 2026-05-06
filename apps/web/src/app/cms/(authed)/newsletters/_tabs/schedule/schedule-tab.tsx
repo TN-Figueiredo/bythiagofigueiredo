@@ -98,7 +98,7 @@ function EditionPicker({
 }
 
 export function ScheduleTab({ data, typeFilter, strings, locale = 'en' }: ScheduleTabProps) {
-  const [_isPending, startTransition] = useTransition()
+  const [, startTransition] = useTransition()
   const [pickerState, setPickerState] = useState<PickerState>({ open: false, date: '', anchorRect: null })
   const [slotPickerState, setSlotPickerState] = useState<SlotPickerLocalState | null>(null)
   const [specialScheduleState, setSpecialScheduleState] = useState<SpecialScheduleState | null>(null)

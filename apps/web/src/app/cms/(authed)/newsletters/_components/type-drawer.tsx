@@ -113,6 +113,7 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
   const [tagsLoading, setTagsLoading] = useState(false)
 
   const [showDiscardDialog, setShowDiscardDialog] = useState(false)
+  const [snapshotPending, setSnapshotPending] = useState(false)
   const pendingCloseAction = useRef<(() => void) | null>(null)
   const initialSnapshotRef = useRef<string | null>(null)
 
@@ -128,6 +129,14 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
       color, colorDark, ogImageUrl, linkedTagId,
     })
   }
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (snapshotPending) {
+      initialSnapshotRef.current = currentSnapshot()
+      setSnapshotPending(false)
+    }
+  }, [snapshotPending])
 
   const isDirty = initialSnapshotRef.current !== null
     && currentSnapshot() !== initialSnapshotRef.current
@@ -161,9 +170,7 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
             const tagLinkId = t.linkedTag?.id ?? null
             setLinkedTagId(tagLinkId)
             setInitialLinkedTagId(tagLinkId)
-            requestAnimationFrame(() => {
-              initialSnapshotRef.current = currentSnapshot()
-            })
+            setSnapshotPending(true)
           } else {
             toast.error(strings.typeNotFound)
             onCloseRef.current()

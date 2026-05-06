@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useTransition } from 'react'
+import { useState, useMemo, useTransition, useId } from 'react'
 import { toast } from 'sonner'
 import { generateCadenceSlots, describePattern } from '@/lib/newsletter/cadence-slots'
 import type { CadencePattern, Weekday } from '@/lib/newsletter/cadence-pattern'
@@ -10,8 +10,9 @@ import { normalizeTime } from '@/lib/newsletter/format'
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const WEEKDAYS: Weekday[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
-const WEEKDAY_LABELS: Record<Weekday, string> = {
-  mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun',
+const WEEKDAY_LABELS: Record<string, Record<Weekday, string>> = {
+  en: { mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun' },
+  'pt-BR': { mon: 'Seg', tue: 'Ter', wed: 'Qua', thu: 'Qui', fri: 'Sex', sat: 'Sáb', sun: 'Dom' },
 }
 
 const MONTH_OPTIONS: Array<{ value: number; label: string }> = [
@@ -81,6 +82,7 @@ export function CadencePatternForm({
   strings,
 }: CadencePatternFormProps) {
   const cc = strings?.cadenceConfig
+  const fid = useId()
 
   const initialType: PatternType = currentPattern?.type ?? 'weekly'
   const [patternType, setPatternType] = useState<PatternType>(initialType)
@@ -142,8 +144,9 @@ export function CadencePatternForm({
 
       {/* Pattern type selector */}
       <div>
-        <label className={labelCls}>{cc?.patternType ?? 'Cadence type'}</label>
+        <label htmlFor={`${fid}-pattern`} className={labelCls}>{cc?.patternType ?? 'Cadence type'}</label>
         <select
+          id={`${fid}-pattern`}
           value={patternType}
           onChange={(e) => handleTypeChange(e.target.value as PatternType)}
           className={`${inputCls} w-full`}
@@ -161,12 +164,14 @@ export function CadencePatternForm({
         pattern={pattern}
         onChange={setPattern}
         cc={cc}
+        locale={locale}
       />
 
       {/* Send time */}
       <div>
-        <label className={labelCls}>{cc?.sendTime ?? 'Send time'}</label>
+        <label htmlFor={`${fid}-time`} className={labelCls}>{cc?.sendTime ?? 'Send time'}</label>
         <input
+          id={`${fid}-time`}
           type="time"
           value={sendTime}
           onChange={(e) => setSendTime(e.target.value)}
@@ -176,7 +181,7 @@ export function CadencePatternForm({
       </div>
 
       {/* Preview */}
-      <div>
+      <div aria-label={cc?.nextDates ?? 'Next dates'}>
         <p className={labelCls}>{cc?.nextDates ?? 'Next dates:'}</p>
         {!isValid ? (
           <p className="text-[11px] text-red-400">
@@ -236,9 +241,11 @@ interface PatternInputsProps {
   pattern: CadencePattern
   onChange: (p: CadencePattern) => void
   cc: NewsletterHubStrings['cadenceConfig'] | undefined
+  locale: 'en' | 'pt-BR'
 }
 
-function PatternInputs({ pattern, onChange, cc }: PatternInputsProps) {
+function PatternInputs({ pattern, onChange, cc, locale }: PatternInputsProps) {
+  const wdLabels = WEEKDAY_LABELS[locale] ?? WEEKDAY_LABELS['en']!
   switch (pattern.type) {
     case 'daily':
     case 'daily_weekdays':
@@ -275,7 +282,7 @@ function PatternInputs({ pattern, onChange, cc }: PatternInputsProps) {
                       }
                     }}
                   />
-                  {WEEKDAY_LABELS[wd]}
+                  {wdLabels[wd]}
                 </label>
               )
             })}
@@ -293,7 +300,7 @@ function PatternInputs({ pattern, onChange, cc }: PatternInputsProps) {
             className={inputCls}
           >
             {WEEKDAYS.map((wd) => (
-              <option key={wd} value={wd}>{WEEKDAY_LABELS[wd]}</option>
+              <option key={wd} value={wd}>{wdLabels[wd]}</option>
             ))}
           </select>
         </div>
@@ -361,7 +368,7 @@ function PatternInputs({ pattern, onChange, cc }: PatternInputsProps) {
               className={inputCls}
             >
               {WEEKDAYS.map((wd) => (
-                <option key={wd} value={wd}>{WEEKDAY_LABELS[wd]}</option>
+                <option key={wd} value={wd}>{wdLabels[wd]}</option>
               ))}
             </select>
           </div>
@@ -378,7 +385,7 @@ function PatternInputs({ pattern, onChange, cc }: PatternInputsProps) {
             className={inputCls}
           >
             {WEEKDAYS.map((wd) => (
-              <option key={wd} value={wd}>{WEEKDAY_LABELS[wd]}</option>
+              <option key={wd} value={wd}>{wdLabels[wd]}</option>
             ))}
           </select>
         </div>

@@ -15,7 +15,7 @@ const WEEKDAY_MAP: Record<string, Weekday> = {
   Sunday: 'sun', Monday: 'mon', Tuesday: 'tue', Wednesday: 'wed', Thursday: 'thu', Friday: 'fri', Saturday: 'sat',
 }
 
-function legacyToPattern(config: CadenceConfig): CadencePattern {
+export function legacyToPattern(config: CadenceConfig): CadencePattern {
   const weekday = config.dayOfWeek ? WEEKDAY_MAP[config.dayOfWeek] ?? 'mon' : 'mon'
   if (config.cadenceDays === 7 && config.dayOfWeek)
     return { type: 'weekly', days: [weekday] }
@@ -113,5 +113,3 @@ export function CadenceCard({ config, siteTimezone, locale, onTogglePause, strin
     </div>
   )
 }
-
-export { legacyToPattern }

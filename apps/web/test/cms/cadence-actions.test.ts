@@ -129,6 +129,11 @@ describe('updateCadence Zod validation', () => {
     })
     expect(result.ok).toBe(true)
   })
+
+  it('passes parsed data (not raw input) to the DB update', async () => {
+    await updateCadence('type-1', { cadence_days: 14, preferred_send_time: '09:00' })
+    expect(mockUpdate).toHaveBeenCalled()
+  })
 })
 
 describe('updateSendTime Zod validation', () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import React from 'react'
 
 /* ------------------------------------------------------------------ */
@@ -233,6 +233,14 @@ describe('ScheduleTab', () => {
     expect(sendWindowEl).toBeTruthy()
     expect(sendWindowEl.textContent).toContain('08:00')
     expect(sendWindowEl.textContent).toContain('America/Sao_Paulo')
+  })
+
+  it('renders summary bar with edition/type counts', () => {
+    const data = makeScheduleTabData()
+    render(<ScheduleTab data={data} strings={en} />)
+
+    expect(screen.getAllByText(/editions/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Active Types/).length).toBeGreaterThan(0)
   })
 
   it('does not render custom toast div (uses sonner)', () => {

@@ -620,7 +620,9 @@ export const fetchScheduleData = unstable_cache(
       const pattern = t.cadence_pattern as CadencePattern | null
       const cadenceDescription = pattern
         ? describePattern(pattern, locale)
-        : t.cadence_days ? `Every ${t.cadence_days} days` : 'No cadence'
+        : t.cadence_days
+          ? (locale === 'pt-BR' ? `A cada ${t.cadence_days} dias` : `Every ${t.cadence_days} days`)
+          : (locale === 'pt-BR' ? 'Sem cadência' : 'No cadence')
       const nextSlots = pattern && !t.cadence_paused
         ? generateCadenceSlots(pattern, { from: todayStr, maxSlots: 1 })
         : []
