@@ -20,6 +20,7 @@ export interface NewsletterHubSharedData {
   siteTimezone: string
   siteName: string
   defaultLocale: string
+  seoDefaultOgImage: string | null
 }
 
 export interface ActivityEvent {
@@ -117,6 +118,7 @@ export interface CadenceConfig {
   typeId: string; typeName: string; typeColor: string
   cadence: string; hasPattern: boolean; cadenceDays: number; dayOfWeek: string; time: string; nextDate: string
   cadenceStartDate: string | null
+  cadencePattern: import('@/lib/newsletter/cadence-pattern').CadencePattern | null
   paused: boolean; subscribers: number; editionsSent: number; openRate: number
   conflicts: string[]
 }

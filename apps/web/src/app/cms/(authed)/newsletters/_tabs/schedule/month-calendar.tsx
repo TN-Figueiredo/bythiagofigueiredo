@@ -91,7 +91,9 @@ export function MonthCalendar({ slots, locale = 'en', onDateClick }: MonthCalend
   const weekdays = locale === 'pt-BR' ? WEEKDAYS_PT : WEEKDAYS_EN
   const months = locale === 'pt-BR' ? MONTHS_PT : MONTHS_EN
 
-  const grid = useMemo(() => buildMonthGrid(viewYear, viewMonth, slots), [viewYear, viewMonth, slots])
+  const slotsKey = JSON.stringify(slots)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const grid = useMemo(() => buildMonthGrid(viewYear, viewMonth, slots), [viewYear, viewMonth, slotsKey])
 
   function prevMonth() {
     if (viewMonth === 0) { setViewYear(viewYear - 1); setViewMonth(11) }

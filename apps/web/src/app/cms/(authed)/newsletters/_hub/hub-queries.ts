@@ -2,6 +2,7 @@ import { unstable_cache } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { generateCadenceSlots, describePattern } from '@/lib/newsletter/cadence-slots'
 import type { CadencePattern } from '@/lib/newsletter/cadence-pattern'
+import { normalizeTime } from '@/lib/newsletter/format'
 import type {
   NewsletterHubSharedData,
   OverviewTabData,
@@ -21,7 +22,7 @@ export const fetchSharedData = unstable_cache(
     const supabase = getSupabaseServiceClient()
 
     const [{ data: site }, { data: types }, { data: subCounts }] = await Promise.all([
-      supabase.from('sites').select('name, timezone').eq('id', siteId).single(),
+      supabase.from('sites').select('name, timezone, seo_default_og_image').eq('id', siteId).single(),
       supabase.from('newsletter_types').select('id, name, color, sort_order, cadence_paused, badge, cadence_pattern, last_sent_at').eq('site_id', siteId).eq('active', true).order('sort_order'),
       supabase.from('newsletter_subscriptions').select('newsletter_id').eq('site_id', siteId).in('status', ['confirmed', 'pending_confirmation']),
     ])
@@ -88,6 +89,7 @@ export const fetchSharedData = unstable_cache(
       siteTimezone: (site?.timezone as string) ?? 'America/Sao_Paulo',
       siteName: (site?.name as string) ?? 'Site',
       defaultLocale,
+      seoDefaultOgImage: (site?.seo_default_og_image as string | null) ?? null,
     }
   },
   ['newsletter-shared'],
@@ -407,7 +409,7 @@ export const fetchEditorialData = unstable_cache(
 )
 
 export const fetchScheduleData = unstable_cache(
-  async (siteId: string): Promise<ScheduleTabData> => {
+  async (siteId: string, locale: 'en' | 'pt-BR' = 'en'): Promise<ScheduleTabData> => {
     const supabase = getSupabaseServiceClient()
 
     const [{ data: siteRow }, { data: calendarEditions }, { data: typeRows }, { data: subCounts }, { data: sentEditions }, { data: readyRows }] = await Promise.all([
@@ -617,7 +619,7 @@ export const fetchScheduleData = unstable_cache(
       const startDate = (t.cadence_start_date as string | null) ?? null
       const pattern = t.cadence_pattern as CadencePattern | null
       const cadenceDescription = pattern
-        ? describePattern(pattern, 'en')
+        ? describePattern(pattern, locale)
         : t.cadence_days ? `Every ${t.cadence_days} days` : 'No cadence'
       const nextSlots = pattern && !t.cadence_paused
         ? generateCadenceSlots(pattern, { from: todayStr, maxSlots: 1 })
@@ -632,9 +634,10 @@ export const fetchScheduleData = unstable_cache(
         hasPattern: !!pattern,
         cadenceDays: (t.cadence_days as number) ?? 7,
         dayOfWeek: dayIdx !== null ? dayNames[dayIdx]! : '',
-        time: (t.preferred_send_time as string) ?? '08:00',
+        time: normalizeTime(t.preferred_send_time as string),
         nextDate: nextSlots[0] ?? '',
         cadenceStartDate: startDate,
+        cadencePattern: pattern,
         paused: !!t.cadence_paused,
         subscribers: subCountByType.get(tid) ?? 0,
         editionsSent: edCountByType.get(tid) ?? 0,
@@ -682,7 +685,7 @@ export const fetchScheduleData = unstable_cache(
       calendarSlots,
       cadenceConfigs,
       sendWindow: {
-        time: ((typeRows ?? []).find((t) => t.preferred_send_time)?.preferred_send_time as string)?.slice(0, 5) ?? '08:00',
+        time: normalizeTime((typeRows ?? []).find((t) => t.preferred_send_time)?.preferred_send_time as string),
         timezone: siteTimezone,
         bestTimeInsight: 'Based on subscriber timezone distribution',
       },
