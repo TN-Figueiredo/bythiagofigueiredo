@@ -40,6 +40,7 @@ export default async function NewPostPage({
       defaultLocale={ctx.defaultLocale}
       tags={tags}
       supportedLocales={supportedLocales}
+      siteId={ctx.siteId}
     />
   )
 }

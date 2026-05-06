@@ -22,8 +22,11 @@ import { AutosaveIndicator } from '../../_shared/editor/autosave-indicator'
 import { NavigationGuard } from '../../_shared/editor/navigation-guard'
 import { DeleteConfirmModal } from '../../_shared/editor/delete-confirm-modal'
 import { MoreMenu } from '../../_shared/editor/more-menu'
+import { StructuredFields } from '../_shared/structured-fields'
+import { HashtagInput } from '../_shared/hashtag-input'
+import { SeriesFields } from '../_shared/series-fields'
 import { createPost, deleteHubPost, duplicatePost } from '../actions'
-import { savePost, compilePreview, uploadAsset } from '../[id]/edit/actions'
+import { savePost, compilePreview, uploadAsset, searchPosts } from '../[id]/edit/actions'
 import type { SavePostActionInput } from '../[id]/edit/actions'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -34,6 +37,7 @@ interface PostEditionEditorProps {
   defaultLocale: string
   tags: Array<{ id: string; name: string; color: string }>
   supportedLocales: string[]
+  siteId: string
 }
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -413,6 +417,7 @@ export function PostEditionEditor({
   defaultLocale,
   tags,
   supportedLocales,
+  siteId,
 }: PostEditionEditorProps) {
   const router = useRouter()
 
@@ -433,6 +438,14 @@ export function PostEditionEditor({
   const [metaTitle, setMetaTitle] = useState('')
   const [metaDescription, setMetaDescription] = useState('')
   const [ogImageUrl, setOgImageUrl] = useState('')
+  // Blog overhaul: structured + series + hashtags
+  const [keyPoints, setKeyPoints] = useState<string[]>([])
+  const [pullQuote, setPullQuote] = useState('')
+  const [notes, setNotes] = useState<string[]>([])
+  const [colophon, setColophon] = useState('')
+  const [previousPostId, setPreviousPostId] = useState<string | null>(null)
+  const [continuesInNext, setContinuesInNext] = useState(false)
+  const [hashtags, setHashtags] = useState<Array<{ id: string; name: string; slug: string }>>([])
 
   // ── UI state ──────────────────────────────────────────────────────────────
   const [showPreview, setShowPreview] = useState(false)
@@ -444,11 +457,15 @@ export function PostEditionEditor({
     title, slug, excerpt, contentJson, contentHtml,
     coverImageUrl, metaTitle, metaDescription, ogImageUrl,
     selectedTagId,
+    keyPoints, pullQuote, notes, colophon,
+    previousPostId, continuesInNext, hashtags,
   })
   fieldsRef.current = {
     title, slug, excerpt, contentJson, contentHtml,
     coverImageUrl, metaTitle, metaDescription, ogImageUrl,
     selectedTagId,
+    keyPoints, pullQuote, notes, colophon,
+    previousPostId, continuesInNext, hashtags,
   }
 
   // ── Autosave ──────────────────────────────────────────────────────────────
@@ -464,6 +481,16 @@ export function PostEditionEditor({
       og_image_url: (data.og_image_url as string) || null,
       cover_image_url: (data.cover_image_url as string) || null,
       tag_id: (data.tag_id as string) || null,
+      // Blog overhaul fields
+      content_json: (data.content_json as Record<string, unknown> | null) ?? null,
+      content_html: (data.content_html as string) || null,
+      key_points: (data.key_points as string[]) ?? [],
+      pull_quote: (data.pull_quote as string) || null,
+      notes: (data.notes as string[]) ?? [],
+      colophon: (data.colophon as string) || null,
+      previous_post_id: (data.previous_post_id as string) || null,
+      continues_in_next: (data.continues_in_next as boolean) ?? false,
+      hashtag_ids: (data.hashtag_ids as string[]) ?? [],
     }
     return savePost(postId, locale, input)
   }, [postId, locale])
@@ -494,6 +521,16 @@ export function PostEditionEditor({
       og_image_url: f.ogImageUrl || undefined,
       cover_image_url: f.coverImageUrl || undefined,
       tag_id: f.selectedTagId || undefined,
+      // Blog overhaul fields
+      content_json: f.contentJson as Record<string, unknown> | null,
+      content_html: f.contentHtml || null,
+      key_points: f.keyPoints.filter(Boolean),
+      pull_quote: f.pullQuote || null,
+      notes: f.notes.filter(Boolean),
+      colophon: f.colophon || null,
+      previous_post_id: f.previousPostId,
+      continues_in_next: f.continuesInNext,
+      hashtag_ids: f.hashtags.map(h => h.id),
     }
   }
 
@@ -910,6 +947,37 @@ export function PostEditionEditor({
               placeholder="Start writing your post... Type / for commands"
             />
           </div>
+
+          {/* Structured metadata + series + hashtags */}
+          {!isEphemeral && (
+            <>
+              <StructuredFields
+                keyPoints={keyPoints}
+                onKeyPointsChange={v => { setKeyPoints(v); scheduleAutosave() }}
+                pullQuote={pullQuote}
+                onPullQuoteChange={v => { setPullQuote(v); scheduleAutosave() }}
+                notes={notes}
+                onNotesChange={v => { setNotes(v); scheduleAutosave() }}
+                colophon={colophon}
+                onColophonChange={v => { setColophon(v); scheduleAutosave() }}
+              />
+              <HashtagInput
+                siteId={siteId}
+                selected={hashtags}
+                onChange={v => { setHashtags(v); scheduleAutosave() }}
+              />
+              <SeriesFields
+                siteId={siteId}
+                locale={locale}
+                currentPostId={postId}
+                previousPostId={previousPostId}
+                onPreviousPostChange={v => { setPreviousPostId(v); scheduleAutosave() }}
+                continuesInNext={continuesInNext}
+                onContinuesChange={v => { setContinuesInNext(v); scheduleAutosave() }}
+                searchPostsFn={searchPosts}
+              />
+            </>
+          )}
 
           {/* SEO Search Preview */}
           <SeoSearchPreview

@@ -26,9 +26,9 @@ export default async function EditPostPage({ params }: Props) {
   const tx = post.translations[0]
   if (!tx) notFound()
 
-  // Query tag info and compute displayId from post rank by creation date
+  // Query tag info, displayId, and blog overhaul structured columns
   const supabase = getSupabaseServiceClient()
-  const [tagResult, countResult] = await Promise.all([
+  const [tagResult, countResult, hashtagResult, txExtraResult, postExtraResult] = await Promise.all([
     supabase
       .from('blog_posts')
       .select('tag_id, blog_tags(name, color)')
@@ -39,11 +39,33 @@ export default async function EditPostPage({ params }: Props) {
       .select('id', { count: 'exact', head: true })
       .eq('site_id', ctx.siteId)
       .lte('created_at', post.created_at),
+    supabase
+      .from('post_hashtags')
+      .select('hashtags(id, name, slug)')
+      .eq('post_id', id),
+    supabase
+      .from('blog_translations')
+      .select('key_points, pull_quote, notes, colophon')
+      .eq('post_id', id)
+      .eq('locale', tx.locale)
+      .maybeSingle(),
+    supabase
+      .from('blog_posts')
+      .select('previous_post_id, continues_in_next')
+      .eq('id', id)
+      .maybeSingle(),
   ])
 
   const tagRow = tagResult.data as { tag_id: string | null; blog_tags: { name: string; color: string } | null } | null
   const tag = tagRow?.blog_tags ?? null
   const displayId = computeDisplayId(countResult.count ?? 1)
+
+  const postHashtags = ((hashtagResult.data ?? []) as unknown as Array<{ hashtags: { id: string; name: string; slug: string } | null }>)
+    .map(r => r.hashtags)
+    .filter((h): h is { id: string; name: string; slug: string } => h !== null)
+
+  const txExtra = txExtraResult.data ?? {}
+  const postExtra = postExtraResult.data ?? {}
 
   return (
     <div className="flex flex-col gap-4 px-4 py-4 md:px-7">
@@ -67,6 +89,7 @@ export default async function EditPostPage({ params }: Props) {
       <EditPostClient
         postId={id}
         locale={tx.locale}
+        siteId={ctx.siteId}
         initialContent={tx.content_mdx}
         initialTitle={tx.title}
         initialSlug={tx.slug}
@@ -76,6 +99,13 @@ export default async function EditPostPage({ params }: Props) {
         initialOgImageUrl={tx.og_image_url}
         initialCoverImageUrl={post.cover_image_url}
         componentNames={Object.keys(blogRegistry)}
+        initialKeyPoints={(txExtra as { key_points?: string[] }).key_points ?? []}
+        initialPullQuote={(txExtra as { pull_quote?: string | null }).pull_quote ?? ''}
+        initialNotes={(txExtra as { notes?: string[] }).notes ?? []}
+        initialColophon={(txExtra as { colophon?: string | null }).colophon ?? ''}
+        initialPreviousPostId={(postExtra as { previous_post_id?: string | null }).previous_post_id ?? null}
+        initialContinuesInNext={(postExtra as { continues_in_next?: boolean }).continues_in_next ?? false}
+        initialHashtags={postHashtags}
       />
 
       <div className="flex items-center gap-2 border-t border-gray-800 pt-4">
