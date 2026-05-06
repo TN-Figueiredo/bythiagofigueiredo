@@ -30,6 +30,7 @@ describe('LinkList', () => {
     onSelect: vi.fn(),
     onToggleActive: vi.fn(),
     onDelete: vi.fn(),
+    onEdit: vi.fn(),
     selectedId: null as string | null,
   }
 
@@ -42,8 +43,8 @@ describe('LinkList', () => {
 
   it('displays link code for each row', () => {
     render(<LinkList {...defaultProps} />)
-    expect(screen.getByText('code0')).toBeInTheDocument()
-    expect(screen.getByText('code4')).toBeInTheDocument()
+    expect(screen.getByText(/code0/)).toBeInTheDocument()
+    expect(screen.getByText(/code4/)).toBeInTheDocument()
   })
 
   it('truncates long destination URLs', () => {
@@ -90,14 +91,14 @@ describe('LinkList', () => {
   it('highlights selected row', () => {
     render(<LinkList {...defaultProps} selectedId="link-1" />)
     const row = screen.getByText('Link 1').closest('tr')
-    expect(row?.className).toContain('bg-blue')
+    expect(row?.className).toContain('bg-indigo')
   })
 
   it('calls onToggleActive with link id', async () => {
     const user = userEvent.setup()
     const onToggleActive = vi.fn()
     render(<LinkList {...defaultProps} onToggleActive={onToggleActive} />)
-    const toggleButtons = screen.getAllByRole('button', { name: /toggle/i })
+    const toggleButtons = screen.getAllByTitle(/pause|activate/i)
     await user.click(toggleButtons[0])
     expect(onToggleActive).toHaveBeenCalledWith('link-0')
   })
@@ -106,36 +107,33 @@ describe('LinkList', () => {
     const user = userEvent.setup()
     const onDelete = vi.fn()
     render(<LinkList {...defaultProps} onDelete={onDelete} />)
-    const deleteButtons = screen.getAllByRole('button', { name: /delete/i })
+    const deleteButtons = screen.getAllByTitle(/delete/i)
     await user.click(deleteButtons[0])
     expect(onDelete).toHaveBeenCalledWith('link-0')
   })
 
-  it('filters links by search term', async () => {
+  it('calls onEdit with link id', async () => {
     const user = userEvent.setup()
-    render(<LinkList {...defaultProps} />)
-    const searchInput = screen.getByPlaceholderText(/search/i)
-    await user.type(searchInput, 'Link 3')
-    expect(screen.getByText('Link 3')).toBeInTheDocument()
-    expect(screen.queryByText('Link 0')).not.toBeInTheDocument()
+    const onEdit = vi.fn()
+    render(<LinkList {...defaultProps} onEdit={onEdit} />)
+    const editButtons = screen.getAllByTitle(/edit/i)
+    await user.click(editButtons[0])
+    expect(onEdit).toHaveBeenCalledWith('link-0')
   })
 
-  it('renders empty state when no links match', async () => {
-    const user = userEvent.setup()
-    render(<LinkList {...defaultProps} />)
-    const searchInput = screen.getByPlaceholderText(/search/i)
-    await user.type(searchInput, 'nonexistent')
+  it('renders empty state when no links', () => {
+    render(<LinkList {...defaultProps} links={[]} />)
     expect(screen.getByText(/no links found/i)).toBeInTheDocument()
   })
 
   it('renders copy URL button for each row', () => {
     render(<LinkList {...defaultProps} />)
-    const copyButtons = screen.getAllByRole('button', { name: /copy/i })
+    const copyButtons = screen.getAllByTitle(/copy/i)
     expect(copyButtons.length).toBe(5)
   })
 
   it('shows click count in each row', () => {
     render(<LinkList {...defaultProps} />)
-    expect(screen.getByText('200')).toBeInTheDocument() // Link 4: 4 * 50
+    expect(screen.getByText('200')).toBeInTheDocument()
   })
 })

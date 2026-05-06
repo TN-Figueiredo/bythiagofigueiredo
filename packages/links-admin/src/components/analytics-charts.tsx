@@ -22,14 +22,14 @@ function HorizontalBarChart({
     <div className="space-y-1.5">
       {displayed.map((item) => (
         <div key={item.name} className="flex items-center gap-2 text-sm">
-          <span className="w-24 truncate text-gray-700">{item.name}</span>
+          <span className="w-24 truncate text-foreground">{item.name}</span>
           <div className="flex-1">
             <div
               className="h-4 rounded bg-blue-400"
               style={{ width: `${(item.count / max) * 100}%` }}
             />
           </div>
-          <span className="w-10 text-right tabular-nums text-gray-500">{item.count}</span>
+          <span className="w-10 text-right tabular-nums text-muted-foreground">{item.count}</span>
         </div>
       ))}
     </div>
@@ -38,7 +38,7 @@ function HorizontalBarChart({
 
 function DonutChart({ items }: { items: Array<{ name: string; count: number }> }) {
   const total = items.reduce((sum, i) => sum + i.count, 0)
-  if (total === 0) return <p className="text-sm text-gray-400">No data</p>
+  if (total === 0) return <p className="text-sm text-muted-foreground">No data</p>
 
   const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
   let cumulative = 0
@@ -75,7 +75,7 @@ function DonutChart({ items }: { items: Array<{ name: string; count: number }> }
               style={{ backgroundColor: colors[idx % colors.length] }}
             />
             <span>{item.name}</span>
-            <span className="text-gray-400">({item.count})</span>
+            <span className="text-muted-foreground">({item.count})</span>
           </div>
         ))}
       </div>
@@ -84,7 +84,7 @@ function DonutChart({ items }: { items: Array<{ name: string; count: number }> }
 }
 
 function HourlyHeatmap({ matrix }: { matrix: number[][] }) {
-  if (matrix.length === 0) return <p className="text-sm text-gray-400">No data</p>
+  if (matrix.length === 0) return <p className="text-sm text-muted-foreground">No data</p>
   const allValues = matrix.flat()
   const max = Math.max(...allValues, 1)
   const cellSize = 14
@@ -125,26 +125,26 @@ export function AnalyticsCharts({
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
       {/* Device Donut */}
-      <div className="rounded-lg border border-gray-200 bg-white p-4">
-        <h3 className="mb-3 text-sm font-semibold text-gray-700">Device</h3>
+      <div className="rounded-lg border bg-card p-4">
+        <h3 className="mb-3 text-sm font-semibold text-foreground">Device</h3>
         <DonutChart items={deviceData.device} />
       </div>
 
       {/* Browser Bar */}
-      <div className="rounded-lg border border-gray-200 bg-white p-4">
-        <h3 className="mb-3 text-sm font-semibold text-gray-700">Browser</h3>
+      <div className="rounded-lg border bg-card p-4">
+        <h3 className="mb-3 text-sm font-semibold text-foreground">Browser</h3>
         <HorizontalBarChart items={deviceData.browser} />
       </div>
 
       {/* OS Bar */}
-      <div className="rounded-lg border border-gray-200 bg-white p-4">
-        <h3 className="mb-3 text-sm font-semibold text-gray-700">Operating System</h3>
+      <div className="rounded-lg border bg-card p-4">
+        <h3 className="mb-3 text-sm font-semibold text-foreground">Operating System</h3>
         <HorizontalBarChart items={deviceData.os} />
       </div>
 
       {/* Referrer Bar */}
-      <div className="rounded-lg border border-gray-200 bg-white p-4">
-        <h3 className="mb-3 text-sm font-semibold text-gray-700">Referrer</h3>
+      <div className="rounded-lg border bg-card p-4">
+        <h3 className="mb-3 text-sm font-semibold text-foreground">Referrer</h3>
         <HorizontalBarChart
           items={referrerData.items.map((r) => ({ name: r.domain, count: r.count }))}
           maxDisplay={10}
@@ -152,8 +152,8 @@ export function AnalyticsCharts({
       </div>
 
       {/* Country Bar */}
-      <div className="rounded-lg border border-gray-200 bg-white p-4">
-        <h3 className="mb-3 text-sm font-semibold text-gray-700">Countries</h3>
+      <div className="rounded-lg border bg-card p-4">
+        <h3 className="mb-3 text-sm font-semibold text-foreground">Countries</h3>
         <HorizontalBarChart
           items={geoData.map((g) => ({ name: g.country, count: g.count }))}
           maxDisplay={10}
@@ -161,8 +161,8 @@ export function AnalyticsCharts({
       </div>
 
       {/* Hourly Heatmap */}
-      <div className="rounded-lg border border-gray-200 bg-white p-4">
-        <h3 className="mb-3 text-sm font-semibold text-gray-700">Hourly Heatmap</h3>
+      <div className="rounded-lg border bg-card p-4">
+        <h3 className="mb-3 text-sm font-semibold text-foreground">Hourly Heatmap</h3>
         <HourlyHeatmap matrix={hourlyData.matrix} />
       </div>
     </div>

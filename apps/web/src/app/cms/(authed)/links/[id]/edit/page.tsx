@@ -32,6 +32,7 @@ export default async function EditLinkPage({ params }: Props) {
   return (
     <EditLinkForm
       linkId={id}
+      siteId={siteId}
       initial={{
         destination_url: (link.destination_url as string) ?? '',
         title: (link.title as string) ?? '',

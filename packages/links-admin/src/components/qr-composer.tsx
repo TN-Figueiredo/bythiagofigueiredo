@@ -46,14 +46,14 @@ export function QrComposer({ link, onGenerate, onDownload }: QrComposerProps) {
 
   return (
     <div className="space-y-6" data-testid="qr-composer-panel">
-      <h3 className="text-lg font-semibold text-gray-900">QR Code Configuration</h3>
+      <h3 className="text-lg font-semibold text-foreground">QR Code Configuration</h3>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {/* Configuration */}
         <div className="space-y-4">
           {/* Foreground Color */}
           <div>
-            <label htmlFor="qr-fg-color" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="qr-fg-color" className="block text-sm font-medium text-foreground">
               Foreground Color
             </label>
             <input
@@ -63,13 +63,13 @@ export function QrComposer({ link, onGenerate, onDownload }: QrComposerProps) {
               onChange={(e) =>
                 setConfig((prev) => ({ ...prev, foregroundColor: e.target.value }))
               }
-              className="mt-1 h-10 w-full cursor-pointer rounded border border-gray-300"
+              className="mt-1 h-10 w-full cursor-pointer rounded border border"
             />
           </div>
 
           {/* Background Color */}
           <div>
-            <label htmlFor="qr-bg-color" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="qr-bg-color" className="block text-sm font-medium text-foreground">
               Background Color
             </label>
             <input
@@ -79,13 +79,13 @@ export function QrComposer({ link, onGenerate, onDownload }: QrComposerProps) {
               onChange={(e) =>
                 setConfig((prev) => ({ ...prev, backgroundColor: e.target.value }))
               }
-              className="mt-1 h-10 w-full cursor-pointer rounded border border-gray-300"
+              className="mt-1 h-10 w-full cursor-pointer rounded border border"
             />
           </div>
 
           {/* Error Correction Level */}
           <div>
-            <label htmlFor="qr-ecl" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="qr-ecl" className="block text-sm font-medium text-foreground">
               Error Correction Level
             </label>
             <select
@@ -97,7 +97,7 @@ export function QrComposer({ link, onGenerate, onDownload }: QrComposerProps) {
                   errorCorrectionLevel: e.target.value as QrConfig['errorCorrectionLevel'],
                 }))
               }
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              className="mt-1 block w-full rounded-md border border px-3 py-2 text-sm"
             >
               <option value="L">L (7% recovery)</option>
               <option value="M">M (15% recovery)</option>
@@ -108,7 +108,7 @@ export function QrComposer({ link, onGenerate, onDownload }: QrComposerProps) {
 
           {/* Size */}
           <div>
-            <label htmlFor="qr-size" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="qr-size" className="block text-sm font-medium text-foreground">
               Size (px)
             </label>
             <input
@@ -120,13 +120,13 @@ export function QrComposer({ link, onGenerate, onDownload }: QrComposerProps) {
               onChange={(e) =>
                 setConfig((prev) => ({ ...prev, size: Number(e.target.value) }))
               }
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              className="mt-1 block w-full rounded-md border border px-3 py-2 text-sm"
             />
           </div>
 
           {/* Format */}
           <div>
-            <label htmlFor="qr-format" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="qr-format" className="block text-sm font-medium text-foreground">
               Format
             </label>
             <select
@@ -135,7 +135,7 @@ export function QrComposer({ link, onGenerate, onDownload }: QrComposerProps) {
               onChange={(e) =>
                 setConfig((prev) => ({ ...prev, format: e.target.value as 'svg' | 'png' }))
               }
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              className="mt-1 block w-full rounded-md border border px-3 py-2 text-sm"
             >
               <option value="svg">SVG</option>
               <option value="png">PNG</option>
@@ -144,19 +144,19 @@ export function QrComposer({ link, onGenerate, onDownload }: QrComposerProps) {
 
           {/* Logo Upload */}
           <div>
-            <p className="text-sm font-medium text-gray-700">Logo (center overlay)</p>
+            <p className="text-sm font-medium text-foreground">Logo (center overlay)</p>
             <input
               type="file"
               accept="image/*"
               onChange={handleLogoUpload}
-              className="mt-1 block w-full text-sm text-gray-500"
+              className="mt-1 block w-full text-sm text-muted-foreground"
             />
-            {config.logoDataUrl && <p className="mt-1 text-xs text-green-600">Logo loaded</p>}
+            {config.logoDataUrl && <p className="mt-1 text-xs text-green-600 dark:text-green-400">Logo loaded</p>}
           </div>
         </div>
 
         {/* Preview */}
-        <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-200 p-4">
+        <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border p-4">
           <div
             data-testid="qr-preview"
             className="flex h-48 w-48 items-center justify-center"
@@ -165,10 +165,10 @@ export function QrComposer({ link, onGenerate, onDownload }: QrComposerProps) {
             {svgPreview ? (
               <div dangerouslySetInnerHTML={{ __html: svgPreview }} />
             ) : (
-              <p className="text-sm text-gray-400">Preview will appear here</p>
+              <p className="text-sm text-muted-foreground">Preview will appear here</p>
             )}
           </div>
-          <p className="mt-2 text-xs text-gray-500">/go/{link.code}</p>
+          <p className="mt-2 text-xs text-muted-foreground">/go/{link.code}</p>
         </div>
       </div>
 
@@ -178,7 +178,7 @@ export function QrComposer({ link, onGenerate, onDownload }: QrComposerProps) {
           type="button"
           onClick={handleGenerate}
           disabled={isGenerating}
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
           {isGenerating ? 'Generating...' : 'Generate QR'}
         </button>
@@ -186,7 +186,7 @@ export function QrComposer({ link, onGenerate, onDownload }: QrComposerProps) {
           <button
             type="button"
             onClick={() => onDownload(config)}
-            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="rounded-md border border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted"
           >
             Download
           </button>

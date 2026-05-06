@@ -13,9 +13,9 @@ function formatNumber(n: number): string {
 
 function KpiCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4">
-      <p className="text-sm text-gray-500">{label}</p>
-      <p className="mt-1 text-2xl font-bold text-gray-900">{value}</p>
+    <div className="rounded-lg border border p-4 bg-card">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className="mt-1 text-2xl font-bold text-foreground">{value}</p>
     </div>
   )
 }
@@ -106,7 +106,7 @@ export function AnalyticsOverview({
             type="button"
             aria-label={label}
             onClick={() => handlePreset(days)}
-            className="rounded-md border border-gray-300 px-3 py-1 text-sm hover:bg-gray-50"
+            className="rounded-md border px-3 py-1 text-sm hover:bg-muted"
           >
             {label}
           </button>

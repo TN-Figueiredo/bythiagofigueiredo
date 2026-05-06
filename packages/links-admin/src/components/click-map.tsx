@@ -73,7 +73,7 @@ export function ClickMap({ geoData }: ClickMapProps) {
       {/* Tooltip */}
       {tooltip && (
         <div
-          className="pointer-events-none absolute rounded bg-gray-900 px-2 py-1 text-xs text-white shadow-lg"
+          className="pointer-events-none absolute rounded bg-foreground px-2 py-1 text-xs text-background shadow-lg"
           style={{
             left: `${(tooltip.x / 800) * 100}%`,
             top: `${(tooltip.y / 420) * 100}%`,
@@ -85,13 +85,13 @@ export function ClickMap({ geoData }: ClickMapProps) {
       )}
 
       {/* Legend */}
-      <div className="mt-2 flex items-center justify-center gap-2 text-xs text-gray-500">
+      <div className="mt-2 flex items-center justify-center gap-2 text-xs text-muted-foreground">
         <span>0</span>
         <div className="flex h-2 w-24 overflow-hidden rounded">
-          <div className="flex-1 bg-blue-100" />
+          <div className="flex-1 bg-primary/10" />
           <div className="flex-1 bg-blue-300" />
           <div className="flex-1 bg-blue-500" />
-          <div className="flex-1 bg-blue-700" />
+          <div className="flex-1 bg-primary/90" />
         </div>
         <span>{maxCount}</span>
       </div>

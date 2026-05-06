@@ -62,12 +62,12 @@ describe('LinkDetailPanel', () => {
 
   it('shows total clicks metric', () => {
     render(<LinkDetailPanel {...defaultProps} />)
-    expect(screen.getByText('1,500')).toBeInTheDocument()
+    expect(screen.getByText('1.5k')).toBeInTheDocument()
   })
 
   it('shows unique visitors metric', () => {
     render(<LinkDetailPanel {...defaultProps} />)
-    expect(screen.getByText('1,200')).toBeInTheDocument()
+    expect(screen.getByText('1.2k')).toBeInTheDocument()
   })
 
   it('shows top country', () => {

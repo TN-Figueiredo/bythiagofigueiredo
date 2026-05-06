@@ -1,13 +1,13 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useState, useTransition } from 'react'
+import { LinkForm } from '@tn-figueiredo/links-admin/client'
+import type { LinkFormData } from '@tn-figueiredo/links-admin/client'
 import { handleUpdate } from './actions'
-
-const SOURCE_TYPES = ['manual', 'campaign', 'newsletter', 'blog', 'social', 'print'] as const
 
 interface EditLinkFormProps {
   linkId: string
+  siteId: string
   initial: {
     destination_url: string
     title: string
@@ -24,185 +24,61 @@ interface EditLinkFormProps {
   }
 }
 
-export function EditLinkForm({ linkId, initial }: EditLinkFormProps) {
+export function EditLinkForm({ linkId, siteId, initial }: EditLinkFormProps) {
   const router = useRouter()
-  const [isPending, startTransition] = useTransition()
-  const [error, setError] = useState<string | null>(null)
 
-  const [destination, setDestination] = useState(initial.destination_url)
-  const [title, setTitle] = useState(initial.title)
-  const [slug, setSlug] = useState(initial.slug)
-  const [sourceType, setSourceType] = useState(initial.source_type)
-  const [utmSource, setUtmSource] = useState(initial.utm_source)
-  const [utmMedium, setUtmMedium] = useState(initial.utm_medium)
-  const [utmCampaign, setUtmCampaign] = useState(initial.utm_campaign)
-  const [utmTerm, setUtmTerm] = useState(initial.utm_term)
-  const [utmContent, setUtmContent] = useState(initial.utm_content)
-  const [expiresAt, setExpiresAt] = useState(initial.expires_at)
-  const [showUtm, setShowUtm] = useState(
-    !!(initial.utm_source || initial.utm_medium || initial.utm_campaign),
-  )
+  const linkData: LinkFormData & { id: string } = {
+    id: linkId,
+    destination_url: initial.destination_url,
+    title: initial.title,
+    slug: initial.slug,
+    source_type: initial.source_type as LinkFormData['source_type'],
+    redirect_type: initial.redirect_type as 301 | 302,
+    active: true,
+    tags: initial.tags,
+    utm_source: initial.utm_source,
+    utm_medium: initial.utm_medium,
+    utm_campaign: initial.utm_campaign,
+    utm_term: initial.utm_term,
+    utm_content: initial.utm_content,
+    expires_at: initial.expires_at,
+    click_limit: null,
+    password: '',
+  }
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setError(null)
-
-    if (!destination) {
-      setError('Destination URL is required')
-      return
-    }
-
-    startTransition(async () => {
-      const result = await handleUpdate(linkId, {
-        destination_url: destination,
-        title: title || undefined,
-        slug: slug || null,
-        source_type: sourceType as 'manual' | 'campaign' | 'newsletter' | 'blog' | 'social' | 'print',
-        utm_source: utmSource || undefined,
-        utm_medium: utmMedium || undefined,
-        utm_campaign: utmCampaign || undefined,
-        utm_term: utmTerm || undefined,
-        utm_content: utmContent || undefined,
-        expires_at: expiresAt || null,
-      })
-      if (!result.ok) {
-        setError(result.error)
-        return
-      }
-      router.push(`/cms/links/${linkId}`)
+  async function handleSubmit(data: LinkFormData): Promise<{ ok: boolean; error?: string }> {
+    const result = await handleUpdate(linkId, {
+      destination_url: data.destination_url,
+      title: data.title || undefined,
+      slug: data.slug || null,
+      source_type: data.source_type,
+      utm_source: data.utm_source || undefined,
+      utm_medium: data.utm_medium || undefined,
+      utm_campaign: data.utm_campaign || undefined,
+      utm_term: data.utm_term || undefined,
+      utm_content: data.utm_content || undefined,
+      tags: data.tags.length > 0 ? data.tags : undefined,
+      expires_at: data.expires_at || null,
     })
+    if (!result.ok) return { ok: false, error: result.error }
+    router.push(`/cms/links/${linkId}`)
+    return { ok: true }
   }
 
   return (
     <div className="mx-auto max-w-2xl">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold">Edit Link</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className="text-lg font-bold text-foreground">Edit Link</h1>
+        <p className="mt-1 text-xs text-muted-foreground">
           Update link settings and tracking parameters.
         </p>
       </div>
-
-      {error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
-          {error}
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="space-y-2">
-          <label htmlFor="destination" className="text-sm font-medium">
-            Destination URL <span className="text-red-500">*</span>
-          </label>
-          <input
-            id="destination"
-            type="url"
-            value={destination}
-            onChange={(e) => setDestination(e.target.value)}
-            className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            required
-          />
-        </div>
-
-        <div className="space-y-2">
-          <label htmlFor="title" className="text-sm font-medium">Title</label>
-          <input
-            id="title"
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <label htmlFor="slug" className="text-sm font-medium">Slug</label>
-            <input
-              id="slug"
-              type="text"
-              value={slug}
-              onChange={(e) => setSlug(e.target.value)}
-              className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-          </div>
-          <div className="space-y-2">
-            <label htmlFor="source" className="text-sm font-medium">Source</label>
-            <select
-              id="source"
-              value={sourceType}
-              onChange={(e) => setSourceType(e.target.value)}
-              className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              {SOURCE_TYPES.map((t) => (
-                <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <label htmlFor="expires" className="text-sm font-medium">Expires At</label>
-          <input
-            id="expires"
-            type="datetime-local"
-            value={expiresAt}
-            onChange={(e) => setExpiresAt(e.target.value)}
-            className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-        </div>
-
-        <div>
-          <button
-            type="button"
-            onClick={() => setShowUtm(!showUtm)}
-            className="text-sm text-blue-600 hover:text-blue-500 dark:text-blue-400"
-          >
-            {showUtm ? '− Hide UTM Parameters' : '+ UTM Parameters'}
-          </button>
-
-          {showUtm && (
-            <div className="mt-3 grid gap-3 sm:grid-cols-3">
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Source</label>
-                <input value={utmSource} onChange={(e) => setUtmSource(e.target.value)} className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Medium</label>
-                <input value={utmMedium} onChange={(e) => setUtmMedium(e.target.value)} className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Campaign</label>
-                <input value={utmCampaign} onChange={(e) => setUtmCampaign(e.target.value)} className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Term</label>
-                <input value={utmTerm} onChange={(e) => setUtmTerm(e.target.value)} className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Content</label>
-                <input value={utmContent} onChange={(e) => setUtmContent(e.target.value)} className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center justify-end gap-3 border-t pt-4">
-          <button
-            type="button"
-            onClick={() => router.push(`/cms/links/${linkId}`)}
-            className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-muted transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={isPending}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
-          >
-            {isPending ? 'Saving…' : 'Save Changes'}
-          </button>
-        </div>
-      </form>
+      <LinkForm
+        link={linkData}
+        siteId={siteId}
+        onSubmit={handleSubmit}
+        onCancel={() => router.push(`/cms/links/${linkId}`)}
+      />
     </div>
   )
 }

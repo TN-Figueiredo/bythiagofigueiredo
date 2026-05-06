@@ -38,19 +38,21 @@ describe('LinksDashboard', () => {
     onCreateLink: vi.fn(),
     onDeleteLink: vi.fn(),
     onToggleActive: vi.fn(),
+    onSelectLink: vi.fn(),
+    onEditLink: vi.fn(),
   }
 
   it('renders stats cards with KPI data', () => {
     render(<LinksDashboard {...defaultProps} />)
     expect(screen.getByText('10')).toBeInTheDocument()
-    expect(screen.getByText('5,000')).toBeInTheDocument()
+    expect(screen.getByText('5k')).toBeInTheDocument()
     expect(screen.getByText('8')).toBeInTheDocument()
   })
 
   it('renders top performer card', () => {
     render(<LinksDashboard {...defaultProps} />)
     expect(screen.getByText(/best1/)).toBeInTheDocument()
-    expect(screen.getByText('2,000')).toBeInTheDocument()
+    expect(screen.getByText('2k')).toBeInTheDocument()
   })
 
   it('renders link list with all links', () => {
@@ -80,7 +82,8 @@ describe('LinksDashboard', () => {
 
   it('shows total links label', () => {
     render(<LinksDashboard {...defaultProps} />)
-    expect(screen.getByText(/total links/i)).toBeInTheDocument()
+    const matches = screen.getAllByText(/total links/i)
+    expect(matches.length).toBeGreaterThan(0)
   })
 
   it('shows total clicks label', () => {

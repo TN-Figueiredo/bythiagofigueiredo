@@ -38,7 +38,7 @@ describe('LinkForm', () => {
     render(<LinkForm {...defaultProps} link={link} />)
     expect(screen.getByLabelText(/destination url/i)).toHaveValue('https://existing.com')
     expect(screen.getByLabelText(/title/i)).toHaveValue('Existing Link')
-    expect(screen.getByRole('button', { name: /save/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /save changes/i })).toBeInTheDocument()
   })
 
   it('shows validation error for empty destination URL on submit', async () => {
@@ -83,16 +83,17 @@ describe('LinkForm', () => {
     expect(defaultProps.onCancel).toHaveBeenCalled()
   })
 
-  it('renders source type select with all options', () => {
+  it('renders source type pill buttons', () => {
     render(<LinkForm {...defaultProps} />)
-    const select = screen.getByLabelText(/source type/i)
-    expect(select).toBeInTheDocument()
+    expect(screen.getByText('Manual')).toBeInTheDocument()
+    expect(screen.getByText('Campaign')).toBeInTheDocument()
+    expect(screen.getByText('Newsletter')).toBeInTheDocument()
   })
 
-  it('renders redirect type radio buttons', () => {
+  it('renders redirect type card buttons', () => {
     render(<LinkForm {...defaultProps} />)
-    expect(screen.getByLabelText(/301/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/302/i)).toBeInTheDocument()
+    expect(screen.getByText('301')).toBeInTheDocument()
+    expect(screen.getByText('302')).toBeInTheDocument()
   })
 
   it('renders UTM fields section', () => {
