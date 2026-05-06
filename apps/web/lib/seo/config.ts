@@ -55,7 +55,9 @@ async function assembleConfig(siteId: string, host: string): Promise<SiteSeoConf
     primaryColor: (row.primary_color as string | null) ?? '#0F172A',
     logoUrl: (row.logo_url as string | null) ?? null,
     twitterHandle: (row.twitter_handle as string | null) ?? null,
-    defaultOgImageUrl: (row.seo_default_og_image as string | null) ?? null,
+    defaultOgImageUrl:
+      (row.seo_default_og_image as string | null) ??
+      `https://${bareDomain}/og-default.png?v=2`,
     contentPaths: { blog: '/blog', campaigns: '/campaigns' },
     personIdentity: profile?.type === 'person' ? profile : null,
     orgIdentity: profile?.type === 'organization' ? profile : null,
