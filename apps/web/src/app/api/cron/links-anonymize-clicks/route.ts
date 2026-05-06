@@ -5,7 +5,7 @@ export const runtime = 'nodejs'
 
 const JOB = 'links-anonymize-clicks'
 const LOCK_KEY = 'cron:links-anonymize-clicks'
-export const RETENTION_DAYS = 90
+const RETENTION_DAYS = 90
 const BATCH_SIZE = 10_000
 
 export async function POST(req: Request): Promise<Response> {

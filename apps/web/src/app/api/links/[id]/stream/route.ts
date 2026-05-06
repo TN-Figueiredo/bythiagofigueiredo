@@ -70,7 +70,8 @@ export async function GET(
               const msg = `data: ${JSON.stringify(click)}\n\n`
               controller.enqueue(encoder.encode(msg))
             }
-            lastSeenAt = clicks[clicks.length - 1].clicked_at
+            const lastClick = clicks[clicks.length - 1]
+            if (lastClick) lastSeenAt = lastClick.clicked_at
           }
         } catch {
           // Non-fatal polling error -- skip this tick

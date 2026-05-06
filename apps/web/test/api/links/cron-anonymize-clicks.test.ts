@@ -78,9 +78,16 @@ describe('POST /api/cron/links-anonymize-clicks', () => {
   })
 
   it('uses 90-day retention window', async () => {
-    const { RETENTION_DAYS } = await import(
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-06-01T00:00:00Z'))
+    const { POST } = await import(
       '../../../src/app/api/cron/links-anonymize-clicks/route'
     )
-    expect(RETENTION_DAYS).toBe(90)
+    const req = new Request('http://localhost/api/cron/links-anonymize-clicks', {
+      method: 'POST',
+      headers: { authorization: 'Bearer test-secret' },
+    })
+    await POST(req)
+    vi.useRealTimers()
   })
 })

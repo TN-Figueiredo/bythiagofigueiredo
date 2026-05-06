@@ -48,7 +48,7 @@ describe('POST /api/cron/links-partition-maintenance', () => {
 
   it('computes next month correctly for partition name', async () => {
     const { getNextMonthRange } = await import(
-      '../../../src/app/api/cron/links-partition-maintenance/route'
+      '../../../src/lib/links/partition-utils'
     )
     // Calling in May 2026 should produce June 2026 range
     const result = getNextMonthRange(new Date('2026-05-15'))
@@ -60,7 +60,7 @@ describe('POST /api/cron/links-partition-maintenance', () => {
 
   it('handles December -> January year rollover', async () => {
     const { getNextMonthRange } = await import(
-      '../../../src/app/api/cron/links-partition-maintenance/route'
+      '../../../src/lib/links/partition-utils'
     )
     const result = getNextMonthRange(new Date('2026-12-01'))
     expect(result.year).toBe(2027)

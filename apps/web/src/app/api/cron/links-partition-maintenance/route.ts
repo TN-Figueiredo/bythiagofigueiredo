@@ -1,46 +1,11 @@
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
 import { withCronLock, newRunId } from '../../../../../lib/logger'
+import { getNextMonthRange } from '../../../../lib/links/partition-utils'
 
 export const runtime = 'nodejs'
 
 const JOB = 'links-partition-maintenance'
 const LOCK_KEY = 'cron:links-partition-maintenance'
-
-export interface MonthRange {
-  year: number
-  month: number
-  startDate: string
-  endDate: string
-}
-
-export function getNextMonthRange(now: Date = new Date()): MonthRange {
-  const year = now.getUTCFullYear()
-  const month = now.getUTCMonth() + 1 // 0-indexed -> 1-indexed
-
-  let nextYear = year
-  let nextMonth = month + 1
-  if (nextMonth > 12) {
-    nextMonth = 1
-    nextYear = year + 1
-  }
-
-  // End date is the 1st of the month AFTER next
-  let endYear = nextYear
-  let endMonth = nextMonth + 1
-  if (endMonth > 12) {
-    endMonth = 1
-    endYear = nextYear + 1
-  }
-
-  const pad = (n: number) => String(n).padStart(2, '0')
-
-  return {
-    year: nextYear,
-    month: nextMonth,
-    startDate: `${nextYear}-${pad(nextMonth)}-01`,
-    endDate: `${endYear}-${pad(endMonth)}-01`,
-  }
-}
 
 export async function POST(req: Request): Promise<Response> {
   const auth = req.headers.get('authorization')
@@ -63,7 +28,6 @@ export async function POST(req: Request): Promise<Response> {
     })
 
     if (error) {
-      // Partition already exists is not a real error (idempotent)
       if (error.message?.includes('already exists')) {
         return {
           status: 'ok' as const,
