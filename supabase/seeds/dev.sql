@@ -2,50 +2,14 @@
 -- Creates a local super_admin user with a known password and fixed UUIDs.
 -- Running this against prod would reset/overwrite real auth data.
 
--- Idempotence: truncate all dev application tables in child-to-parent FK order
--- so this seed can be re-run cleanly. Sprint 1b tables (campaigns /
--- campaign_translations / campaign_submissions / cron_runs), Sprint 2
--- tables (organization_members / sites / organizations), Sprint 4.75 tables
--- (site_memberships / audit_log) and Sprint 5a tables (consents) are listed.
--- Future sprints: add new tables child-to-parent here.
---
--- auth.users is NOT truncated — a user-level seed cannot truncate the auth
--- schema, so it is handled via `on conflict (id) do update` below.
---
--- `restrict` (not `cascade`) is deliberate: if a future table grows an FK into
--- one of these and is not added here, the truncate will fail loudly with an FK
--- error instead of silently leaving stale rows behind and making the seed
--- non-idempotent.
---
--- On-conflict contract below:
---   * auth.users uses `on conflict (id) do update` — guarantees the row exists
---     after the statement.
---   * public.authors uses `on conflict (slug) do update ... returning id` —
---     guarantees `v_author_id` is populated.
---   If either is ever switched to `on conflict do nothing`, `returning id` may
---   yield no row and `v_author_id` can end up NULL; in that case a fallback
---   `select id into v_author_id from public.authors where slug = 'thiago'`
---   must be re-introduced after the authors insert.
+-- Idempotence: truncate core tables with CASCADE so the seed can be re-run
+-- cleanly regardless of how many child tables exist (Sprint 5e/5f added many).
+-- auth.users is NOT truncated — handled via `on conflict (id) do update` below.
 truncate table
-  public.sent_emails,
-  public.unsubscribe_tokens,
-  public.newsletter_subscriptions,
-  public.contact_submissions,
-  public.invitations,
-  public.campaign_submissions,
-  public.campaign_translations,
-  public.campaigns,
-  public.cron_runs,
-  public.blog_translations,
-  public.blog_posts,
-  public.authors,
-  public.audit_log,
-  public.consents,
-  public.site_memberships,
-  public.organization_members,
+  public.organizations,
   public.sites,
-  public.organizations
-restrict;
+  public.authors
+cascade;
 
 do $$
 declare
@@ -110,9 +74,9 @@ begin
 
   -- After truncate this insert always succeeds; `on conflict` kept as a cheap
   -- defensive guard in case another author insert is added above this one later.
-  insert into public.authors (user_id, name, slug, bio_md)
-  values (v_user_id, 'Thiago Figueiredo', 'thiago', 'Builder. Writer.')
-  on conflict (slug) do update set user_id = excluded.user_id
+  insert into public.authors (user_id, name, slug, bio_md, site_id)
+  values (v_user_id, 'Thiago Figueiredo', 'thiago', 'Builder. Writer.', v_site_id)
+  on conflict (site_id, slug) do update set user_id = excluded.user_id
   returning id into v_author_id;
 
   insert into public.blog_posts (author_id, status, published_at, site_id)
@@ -191,7 +155,7 @@ begin
     'Check your inbox (and spam).',
     'Download the playbook'
   )
-  on conflict do nothing;
+  on conflict (campaign_id, locale) do nothing;
 
   -- Draft campaign
   insert into campaigns (id, interest, status, form_fields, site_id)
@@ -211,7 +175,7 @@ begin
     'Prévia', 'Obrigado!', 'Você já está!',
     'Em breve.', 'Em breve.',
     'Fique de olho.', 'Baixar'
-  ) on conflict do nothing;
+  ) on conflict (campaign_id, locale) do nothing;
 
   -- Submissions
   insert into campaign_submissions
@@ -223,5 +187,5 @@ begin
      'pt-BR', true, 'v1-2026-04'),
     ('11111111-1111-1111-1111-111111111111', 'carol@example.com', 'Carol',
      'en', true, 'v1-2026-04')
-  on conflict do nothing;
+  on conflict (id) do nothing;
 end $$;

@@ -129,7 +129,7 @@ jobs:
           extra_args: --debug --only-verified
 
   check-migration-applied:
-    name: SEO Migration Pre-Check
+    name: Schema Sanity Check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

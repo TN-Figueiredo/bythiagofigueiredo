@@ -7,14 +7,14 @@ describe('CAMPAIGN_INTERESTS matches SQL check constraint vocabulary', () => {
   it('TS const and migration file agree', () => {
     const path = resolve(
       __dirname,
-      '../../../../supabase/migrations/20260414000019_campaign_interest_check.sql'
+      '../../../../supabase/migrations/20260507000001_schema.sql'
     )
     const sql = readFileSync(path, 'utf8')
-    const m = sql.match(/interest in \(([^)]+)\)/i)
+    const m = sql.match(/campaigns_interest_vocab.*?ARRAY\[([^\]]+)\]/i)
     expect(m).not.toBeNull()
     const sqlValues = m![1]!
       .split(',')
-      .map((s) => s.trim().replace(/^'|'$/g, ''))
+      .map((s) => s.trim().replace(/^'|'::[^,\]]+/g, ''))
       .sort()
     const tsValues = [...CAMPAIGN_INTERESTS].sort()
     expect(tsValues).toEqual(sqlValues)

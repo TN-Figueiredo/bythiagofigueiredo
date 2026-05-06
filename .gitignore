@@ -57,3 +57,4 @@ apps/*/.env.local-db
 
 # Superpowers brainstorm artifacts
 .superpowers/
+supabase/backup_*_pre_squash.sql
