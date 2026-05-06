@@ -1,4 +1,5 @@
 import { unstable_cache } from 'next/cache'
+import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -30,12 +31,16 @@ async function loadMetrics(linkId: string): Promise<AggregatedMetrics> {
   const supabase = getSupabaseServiceClient()
   const cutoff = new Date(Date.now() - 30 * 86400 * 1000).toISOString().slice(0, 10)
 
-  const { data: rows } = await supabase
+  const { data: rows, error: metricsErr } = await supabase
     .from('link_daily_metrics')
     .select('date, clicks, unique_visitors, mobile_clicks, desktop_clicks, countries, hourly_clicks')
     .eq('link_id', linkId)
     .gte('date', cutoff)
     .order('date', { ascending: true })
+
+  if (metricsErr) {
+    Sentry.captureException(metricsErr, { tags: { links: 'true', component: 'insights' } })
+  }
 
   const metrics = (rows ?? []) as DailyMetricRow[]
 

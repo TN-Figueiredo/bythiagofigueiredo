@@ -409,7 +409,10 @@ describe('createPost', () => {
   })
 
   it('returns error when post insert fails', async () => {
-    resetMockState({ perTableErr: { blog_posts: { message: 'insert-fail' } } })
+    resetMockState({
+      perTable: { authors: [{ id: 'author-1' }] },
+      perTableErr: { blog_posts: { message: 'insert-fail' } },
+    })
     const result = await createPost({ locale: 'en' })
     expect(result).toEqual({ ok: false, error: 'insert-fail' })
   })
@@ -429,19 +432,16 @@ describe('createPost', () => {
     expect(deleteCalls.length).toBe(1)
   })
 
-  it('handles null author (user without author row)', async () => {
+  it('returns error when no author exists for site', async () => {
     resetMockState({
       perTable: {
-        authors: [], // No author found — maybeSingle returns null
+        authors: [],
         blog_posts: [{ id: 'post-new' }],
         blog_translations: [],
       },
     })
     const result = await createPost({ locale: 'en' })
-    expect(result.ok).toBe(true)
-    const postInsert = callLog.find((c) => c.method === 'insert' && c.table === 'blog_posts')
-    const postData = postInsert!.args[0] as Record<string, unknown>
-    expect(postData.author_id).toBeNull()
+    expect(result).toEqual({ ok: false, error: 'no author found for this site' })
   })
 })
 

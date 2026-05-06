@@ -215,6 +215,17 @@ function createSuggestionConfig(callbacks: {
 }): Omit<SuggestionOptions<CommandItem>, 'editor'> {
   return {
     char: '/',
+    command: ({
+      editor,
+      range,
+      props,
+    }: {
+      editor: Editor
+      range: Range
+      props: CommandItem
+    }) => {
+      props.command({ editor, range })
+    },
     items: ({ query }: { query: string }) => {
       const commands = getSlashCommands(callbacks)
       if (!query) return commands

@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
 import { withCronLock, newRunId } from '../../../../../lib/logger'
 import { getNextMonthRange } from '../../../../lib/links/partition-utils'
@@ -35,6 +36,7 @@ export async function POST(req: Request): Promise<Response> {
           already_exists: true,
         }
       }
+      Sentry.captureException(error, { tags: { links: 'true', component: 'cron-partition' } })
       return { status: 'error' as const, error: error.message }
     }
 

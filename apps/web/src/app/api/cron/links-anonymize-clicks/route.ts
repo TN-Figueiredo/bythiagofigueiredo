@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
 import { withCronLock, newRunId } from '../../../../../lib/logger'
 
@@ -36,6 +37,7 @@ export async function POST(req: Request): Promise<Response> {
       .limit(BATCH_SIZE)
 
     if (error) {
+      Sentry.captureException(error, { tags: { links: 'true', component: 'cron-anonymize' } })
       return { status: 'error' as const, error: error.message }
     }
 

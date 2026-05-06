@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '../../../lib/supabase/service'
 import { resolveGeo } from './geo'
 
@@ -56,7 +57,7 @@ export async function recordClick(input: RecordClickInput): Promise<RecordClickR
 
   // Dedup check: same visitor_id + link_id within 30s
   const cutoff = new Date(Date.now() - DEDUP_WINDOW_MS).toISOString()
-  const { data: existing } = await supabase
+  const { data: existing, error: dedupErr } = await supabase
     .from('link_clicks')
     .select('id')
     .eq('link_id', linkId)
@@ -64,12 +65,16 @@ export async function recordClick(input: RecordClickInput): Promise<RecordClickR
     .gte('clicked_at', cutoff)
     .maybeSingle()
 
+  if (dedupErr) {
+    Sentry.captureException(dedupErr, { tags: { links: 'true', component: 'click-recorder' } })
+  }
+
   if (existing) {
     return { deduplicated: true, isBot: bot }
   }
 
   // Insert click record
-  await supabase.from('link_clicks').insert({
+  const { error: insertErr } = await supabase.from('link_clicks').insert({
     link_id: linkId,
     site_id: siteId,
     visitor_id: visitorId,
@@ -85,11 +90,19 @@ export async function recordClick(input: RecordClickInput): Promise<RecordClickR
     clicked_at: new Date().toISOString(),
   })
 
+  if (insertErr) {
+    Sentry.captureException(insertErr, { tags: { links: 'true', component: 'click-recorder' } })
+  }
+
   // Update link counters (best-effort, non-blocking in caller)
-  await supabase.rpc('increment_link_clicks', {
+  const { error: rpcErr } = await supabase.rpc('increment_link_clicks', {
     p_link_id: linkId,
     p_is_unique: true,
   })
+
+  if (rpcErr) {
+    Sentry.captureException(rpcErr, { tags: { links: 'true', component: 'click-recorder' } })
+  }
 
   return { deduplicated: false, isBot: bot }
 }

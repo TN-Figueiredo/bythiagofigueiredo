@@ -508,13 +508,25 @@ export async function createPost(input: {
 
   const supabase = getSupabaseServiceClient()
 
-  // Resolve author row for current user
-  const { data: author } = await supabase
+  // Resolve author: try linked user first, then site default
+  let { data: author } = await supabase
     .from('authors')
     .select('id')
     .eq('user_id', user.id)
     .eq('site_id', siteId)
     .maybeSingle()
+
+  if (!author) {
+    const { data: defaultAuthor } = await supabase
+      .from('authors')
+      .select('id')
+      .eq('site_id', siteId)
+      .eq('is_default', true)
+      .maybeSingle()
+    author = defaultAuthor
+  }
+
+  if (!author) return { ok: false, error: 'no author found for this site' }
 
   const isPt = input.locale === 'pt-BR'
   const defaultTitle = isPt ? 'Sem título' : 'Untitled'
@@ -528,7 +540,7 @@ export async function createPost(input: {
       locale: input.locale,
       status: input.status ?? 'idea',
       tag_id: input.tagId ?? null,
-      author_id: author?.id ?? null,
+      author_id: author.id,
       owner_user_id: user.id,
     })
     .select('id')

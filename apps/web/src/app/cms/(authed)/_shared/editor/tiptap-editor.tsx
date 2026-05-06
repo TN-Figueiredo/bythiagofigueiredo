@@ -21,7 +21,7 @@ import { EditorBubbleMenu } from './bubble-menu'
 import { createSlashCommandExtension } from './slash-commands'
 
 interface TipTapEditorProps {
-  content: JSONContent | null
+  content: JSONContent | string | null
   onChange: (json: JSONContent, html: string) => void
   onImageInserted?: () => void
   onImageUpload: (file: File) => Promise<string | null>

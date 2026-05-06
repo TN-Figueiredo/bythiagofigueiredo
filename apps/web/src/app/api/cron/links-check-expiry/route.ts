@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
 import { withCronLock, newRunId } from '../../../../../lib/logger'
 import { invalidateLink, invalidateList } from '@/lib/links/cache'
@@ -28,6 +29,7 @@ export async function GET(req: Request): Promise<Response> {
       .not('expires_at', 'is', null)
 
     if (selErr) {
+      Sentry.captureException(selErr, { tags: { links: 'true', component: 'cron-expiry' } })
       return { status: 'error' as const, error: selErr.message }
     }
 
@@ -43,6 +45,7 @@ export async function GET(req: Request): Promise<Response> {
       .in('id', ids)
 
     if (updErr) {
+      Sentry.captureException(updErr, { tags: { links: 'true', component: 'cron-expiry' } })
       return { status: 'error' as const, error: updErr.message }
     }
 

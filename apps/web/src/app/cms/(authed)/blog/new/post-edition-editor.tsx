@@ -38,6 +38,26 @@ interface PostEditionEditorProps {
   tags: Array<{ id: string; name: string; color: string }>
   supportedLocales: string[]
   siteId: string
+  // Edit mode — pass these to open an existing post
+  existingPostId?: string
+  initialTitle?: string
+  initialSlug?: string
+  initialExcerpt?: string
+  initialContent?: string
+  initialContentJson?: Record<string, unknown> | null
+  initialContentHtml?: string | null
+  initialCoverImageUrl?: string | null
+  initialMetaTitle?: string
+  initialMetaDescription?: string
+  initialOgImageUrl?: string
+  initialKeyPoints?: string[]
+  initialPullQuote?: string
+  initialNotes?: string[]
+  initialColophon?: string
+  initialPreviousPostId?: string | null
+  initialContinuesInNext?: boolean
+  initialHashtags?: Array<{ id: string; name: string; slug: string }>
+  componentNames?: string[]
 }
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -418,34 +438,55 @@ export function PostEditionEditor({
   tags,
   supportedLocales,
   siteId,
+  existingPostId,
+  initialTitle: initTitle,
+  initialSlug: initSlug,
+  initialExcerpt: initExcerpt,
+  initialContent: initContent,
+  initialContentJson: initContentJson,
+  initialContentHtml: initContentHtml,
+  initialCoverImageUrl: initCover,
+  initialMetaTitle: initMetaTitle,
+  initialMetaDescription: initMetaDesc,
+  initialOgImageUrl: initOgImage,
+  initialKeyPoints: initKeyPoints,
+  initialPullQuote: initPullQuote,
+  initialNotes: initNotes,
+  initialColophon: initColophon,
+  initialPreviousPostId: initPrevPostId,
+  initialContinuesInNext: initContinues,
+  initialHashtags: initHashtags,
 }: PostEditionEditorProps) {
   const router = useRouter()
+  const isEditMode = !!existingPostId
 
   // ── Ephemeral / isDirty pattern ───────────────────────────────────────────
-  const [postId, setPostId] = useState<string | null>(null)
+  const [postId, setPostId] = useState<string | null>(existingPostId ?? null)
   const isEphemeral = postId === null
-  const isCreatingRef = useRef(false)
+  const creationPromiseRef = useRef<Promise<string | null> | null>(null)
 
   // ── Field state ───────────────────────────────────────────────────────────
-  const [title, setTitle] = useState('')
-  const [slug, setSlug] = useState('')
-  const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
-  const [excerpt, setExcerpt] = useState('')
-  const [contentJson, setContentJson] = useState<JSONContent | null>(null)
-  const [contentHtml, setContentHtml] = useState('')
-  const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null)
+  const [title, setTitle] = useState(initTitle ?? '')
+  const [slug, setSlug] = useState(initSlug ?? '')
+  const [slugManuallyEdited, setSlugManuallyEdited] = useState(isEditMode)
+  const [excerpt, setExcerpt] = useState(initExcerpt ?? '')
+  const [contentJson, setContentJson] = useState<JSONContent | string | null>(
+    (initContentJson as JSONContent) ?? initContentHtml ?? null,
+  )
+  const [contentHtml, setContentHtml] = useState(initContentHtml ?? initContent ?? '')
+  const [coverImageUrl, setCoverImageUrl] = useState<string | null>(initCover ?? null)
   const [selectedTagId, setSelectedTagId] = useState<string | null>(initialTagId ?? null)
-  const [metaTitle, setMetaTitle] = useState('')
-  const [metaDescription, setMetaDescription] = useState('')
-  const [ogImageUrl, setOgImageUrl] = useState('')
+  const [metaTitle, setMetaTitle] = useState(initMetaTitle ?? '')
+  const [metaDescription, setMetaDescription] = useState(initMetaDesc ?? '')
+  const [ogImageUrl, setOgImageUrl] = useState(initOgImage ?? '')
   // Blog overhaul: structured + series + hashtags
-  const [keyPoints, setKeyPoints] = useState<string[]>([])
-  const [pullQuote, setPullQuote] = useState('')
-  const [notes, setNotes] = useState<string[]>([])
-  const [colophon, setColophon] = useState('')
-  const [previousPostId, setPreviousPostId] = useState<string | null>(null)
-  const [continuesInNext, setContinuesInNext] = useState(false)
-  const [hashtags, setHashtags] = useState<Array<{ id: string; name: string; slug: string }>>([])
+  const [keyPoints, setKeyPoints] = useState<string[]>(initKeyPoints ?? [])
+  const [pullQuote, setPullQuote] = useState(initPullQuote ?? '')
+  const [notes, setNotes] = useState<string[]>(initNotes ?? [])
+  const [colophon, setColophon] = useState(initColophon ?? '')
+  const [previousPostId, setPreviousPostId] = useState<string | null>(initPrevPostId ?? null)
+  const [continuesInNext, setContinuesInNext] = useState(initContinues ?? false)
+  const [hashtags, setHashtags] = useState<Array<{ id: string; name: string; slug: string }>>(initHashtags ?? [])
 
   // ── UI state ──────────────────────────────────────────────────────────────
   const [showPreview, setShowPreview] = useState(false)
@@ -540,10 +581,10 @@ export function PostEditionEditor({
 
   // ── Ephemeral creation ────────────────────────────────────────────────────
   const handleFirstCreate = useCallback(async () => {
-    if (!isEphemeral || isCreatingRef.current) return
+    if (!isEphemeral) return
     const created = await ensurePostCreated()
-    if (!created) {
-      toast.error('Failed to create post')
+    if (created) {
+      router.replace(`/cms/blog/${created}/edit`)
     }
   }, [isEphemeral])
 
@@ -630,29 +671,35 @@ export function PostEditionEditor({
   // ── Ensure post exists (shared by cover + inline image upload) ─────────
   async function ensurePostCreated(): Promise<string | null> {
     if (postId) return postId
-    if (isCreatingRef.current) return null
-    isCreatingRef.current = true
-    const result = await createPost({
-      title: fieldsRef.current.title.trim() || undefined,
-      locale,
-      tagId: fieldsRef.current.selectedTagId,
-      status: 'draft',
-    })
-    if (!result.ok) {
-      toast.error('Failed to create post')
-      isCreatingRef.current = false
-      return null
-    }
-    setPostId(result.postId)
-    setHasUnsavedChanges(false)
-    router.replace(`/cms/blog/${result.postId}/edit`)
-    return result.postId
+    if (creationPromiseRef.current) return creationPromiseRef.current
+
+    creationPromiseRef.current = (async () => {
+      const result = await createPost({
+        title: fieldsRef.current.title.trim() || undefined,
+        locale,
+        tagId: fieldsRef.current.selectedTagId,
+        status: 'draft',
+      })
+      if (!result.ok) {
+        toast.error('Failed to create post')
+        creationPromiseRef.current = null
+        return null
+      }
+      setPostId(result.postId)
+      setHasUnsavedChanges(false)
+      return result.postId
+    })()
+
+    return creationPromiseRef.current
   }
 
   // ── Cover image upload ────────────────────────────────────────────────────
   async function handleCoverUpload(file: File) {
     const currentPostId = await ensurePostCreated()
-    if (!currentPostId) return
+    if (!currentPostId) {
+      toast.error('Cannot upload: post creation failed')
+      return
+    }
 
     const toastId = toast.loading('Uploading cover image...')
     try {
@@ -661,6 +708,7 @@ export function PostEditionEditor({
       fieldsRef.current.coverImageUrl = result.url
       toast.success('Cover uploaded', { id: toastId })
       saveImmediate({ ...getSavePayload(), cover_image_url: result.url })
+      router.replace(`/cms/blog/${currentPostId}/edit`)
     } catch {
       toast.error('Upload failed', { id: toastId })
     }
@@ -949,35 +997,31 @@ export function PostEditionEditor({
           </div>
 
           {/* Structured metadata + series + hashtags */}
-          {!isEphemeral && (
-            <>
-              <StructuredFields
-                keyPoints={keyPoints}
-                onKeyPointsChange={v => { setKeyPoints(v); scheduleAutosave() }}
-                pullQuote={pullQuote}
-                onPullQuoteChange={v => { setPullQuote(v); scheduleAutosave() }}
-                notes={notes}
-                onNotesChange={v => { setNotes(v); scheduleAutosave() }}
-                colophon={colophon}
-                onColophonChange={v => { setColophon(v); scheduleAutosave() }}
-              />
-              <HashtagInput
-                siteId={siteId}
-                selected={hashtags}
-                onChange={v => { setHashtags(v); scheduleAutosave() }}
-              />
-              <SeriesFields
-                siteId={siteId}
-                locale={locale}
-                currentPostId={postId}
-                previousPostId={previousPostId}
-                onPreviousPostChange={v => { setPreviousPostId(v); scheduleAutosave() }}
-                continuesInNext={continuesInNext}
-                onContinuesChange={v => { setContinuesInNext(v); scheduleAutosave() }}
-                searchPostsFn={searchPosts}
-              />
-            </>
-          )}
+          <StructuredFields
+            keyPoints={keyPoints}
+            onKeyPointsChange={v => { setKeyPoints(v); if (postId) scheduleAutosave() }}
+            pullQuote={pullQuote}
+            onPullQuoteChange={v => { setPullQuote(v); if (postId) scheduleAutosave() }}
+            notes={notes}
+            onNotesChange={v => { setNotes(v); if (postId) scheduleAutosave() }}
+            colophon={colophon}
+            onColophonChange={v => { setColophon(v); if (postId) scheduleAutosave() }}
+          />
+          <HashtagInput
+            siteId={siteId}
+            selected={hashtags}
+            onChange={v => { setHashtags(v); if (postId) scheduleAutosave() }}
+          />
+          <SeriesFields
+            siteId={siteId}
+            locale={locale}
+            currentPostId={postId}
+            previousPostId={previousPostId}
+            onPreviousPostChange={v => { setPreviousPostId(v); if (postId) scheduleAutosave() }}
+            continuesInNext={continuesInNext}
+            onContinuesChange={v => { setContinuesInNext(v); if (postId) scheduleAutosave() }}
+            searchPostsFn={searchPosts}
+          />
 
           {/* SEO Search Preview */}
           <SeoSearchPreview

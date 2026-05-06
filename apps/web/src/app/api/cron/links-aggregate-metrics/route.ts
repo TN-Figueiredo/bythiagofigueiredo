@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
 import { withCronLock, newRunId } from '../../../../../lib/logger'
 
@@ -35,6 +36,7 @@ export async function GET(req: Request): Promise<Response> {
       .order('clicked_at', { ascending: true })
 
     if (clicksErr) {
+      Sentry.captureException(clicksErr, { tags: { links: 'true', component: 'cron-aggregate' } })
       return {
         status: 'error' as const,
         error: clicksErr.message,
@@ -144,6 +146,7 @@ export async function GET(req: Request): Promise<Response> {
       .upsert(rows, { onConflict: 'link_id,date' })
 
     if (upsertErr) {
+      Sentry.captureException(upsertErr, { tags: { links: 'true', component: 'cron-aggregate' } })
       return { status: 'error' as const, error: upsertErr.message }
     }
 
