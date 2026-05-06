@@ -70,7 +70,8 @@ export function HashtagInput({ siteId, selected, onChange }: HashtagInputProps) 
       }
     }
     if (e.key === 'Backspace' && !query && selected.length > 0) {
-      removeHashtag(selected[selected.length - 1].id)
+      const last = selected[selected.length - 1]
+      if (last) removeHashtag(last.id)
     }
   }, [query, suggestions, selected, addHashtag, createAndAdd, removeHashtag])
 
