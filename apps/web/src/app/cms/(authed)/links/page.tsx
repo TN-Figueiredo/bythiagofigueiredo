@@ -13,8 +13,6 @@ interface Props {
 }
 
 export default async function LinksDashboardPage({ searchParams }: Props) {
-  if (process.env.NEXT_PUBLIC_LINKS_ENABLED !== 'true') redirect('/cms')
-
   const params = await searchParams
   const { siteId } = await getSiteContext()
 

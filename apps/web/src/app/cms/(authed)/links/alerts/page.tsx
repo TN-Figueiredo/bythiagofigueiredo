@@ -9,8 +9,6 @@ import { saveAlertRule, deleteAlertRule } from '../actions'
 export const dynamic = 'force-dynamic'
 
 export default async function AlertRulesPage() {
-  if (process.env.NEXT_PUBLIC_LINKS_ENABLED !== 'true') redirect('/cms')
-
   const { siteId } = await getSiteContext()
 
   const authRes = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })

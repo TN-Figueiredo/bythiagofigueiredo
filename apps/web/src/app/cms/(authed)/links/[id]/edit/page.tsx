@@ -13,8 +13,6 @@ interface Props {
 }
 
 export default async function EditLinkPage({ params }: Props) {
-  if (process.env.NEXT_PUBLIC_LINKS_ENABLED !== 'true') redirect('/cms')
-
   const { id } = await params
   const { siteId } = await getSiteContext()
 

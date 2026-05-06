@@ -44,7 +44,7 @@ describe('ClickRecorder', () => {
     const ip = '192.168.1.1'
     const ua = 'Mozilla/5.0'
     const date = '2026-05-05'
-    const expected = createHash('sha256').update(`${ip}${ua}${date}`).digest('hex')
+    const expected = createHash('sha256').update(`${ip}|${ua}|${date}`).digest('hex')
     expect(generateVisitorId(ip, ua, date)).toBe(expected)
   })
 

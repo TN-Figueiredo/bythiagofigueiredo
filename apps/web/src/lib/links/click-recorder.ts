@@ -14,7 +14,7 @@ const BOT_PATTERNS = [
 const DEDUP_WINDOW_MS = 30_000 // 30 seconds
 
 export function generateVisitorId(ip: string, ua: string, dateStr: string): string {
-  return createHash('sha256').update(`${ip}${ua}${dateStr}`).digest('hex')
+  return createHash('sha256').update(`${ip}|${ua}|${dateStr}`).digest('hex')
 }
 
 export function extractReferrerDomain(referrer: string | null | undefined): string | null {

@@ -21,18 +21,19 @@ export async function GET(
     return NextResponse.json({ error: 'not_found' }, { status: 404 })
   }
 
-  // Expired link
-  if (link.status === 'expired' || (link.expires_at && new Date(link.expires_at) < new Date())) {
+  if (!link.active || link.deleted_at) {
     return new Response('Gone — this link has expired.', { status: 410 })
   }
 
-  // Click limit reached
-  if (link.max_clicks && link.total_clicks >= link.max_clicks) {
+  if (link.expires_at && new Date(link.expires_at) < new Date()) {
+    return new Response('Gone — this link has expired.', { status: 410 })
+  }
+
+  if (link.click_limit && link.total_clicks >= link.click_limit) {
     return new Response('Gone — this link has reached its click limit.', { status: 410 })
   }
 
-  // Password protected — redirect to interstitial
-  if (link.is_password_protected) {
+  if (link.password_hash != null) {
     return NextResponse.redirect(new URL(`/go/${code}/unlock`, request.url), 302)
   }
 
@@ -62,7 +63,12 @@ export async function GET(
     // Best-effort — never block the redirect
   })
 
-  // Redirect
-  const status = link.redirect_type === 302 ? 302 : 301
-  return NextResponse.redirect(link.destination_url, status)
+  const destination = new URL(link.destination_url)
+  if (link.utm_source) destination.searchParams.set('utm_source', link.utm_source)
+  if (link.utm_medium) destination.searchParams.set('utm_medium', link.utm_medium)
+  if (link.utm_campaign) destination.searchParams.set('utm_campaign', link.utm_campaign)
+  if (link.utm_term) destination.searchParams.set('utm_term', link.utm_term)
+  if (link.utm_content) destination.searchParams.set('utm_content', link.utm_content)
+
+  return NextResponse.redirect(destination.toString(), link.redirect_type)
 }

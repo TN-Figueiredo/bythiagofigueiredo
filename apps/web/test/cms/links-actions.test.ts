@@ -645,9 +645,10 @@ describe('settings actions', () => {
     resetMockState()
   })
 
-  it('saveLinkSettings returns ok', async () => {
+  it('saveLinkSettings returns settings_storage_pending', async () => {
     const result = await saveLinkSettings({})
-    expect(result.ok).toBe(true)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error).toBe('settings_storage_pending')
   })
 
   it('saveUtmPreset returns error on empty name', async () => {
@@ -655,9 +656,10 @@ describe('settings actions', () => {
     expect(result.ok).toBe(false)
   })
 
-  it('saveUtmPreset returns ok for valid input', async () => {
+  it('saveUtmPreset returns settings_storage_pending for valid input', async () => {
     const result = await saveUtmPreset({ name: 'preset-1', utm_source: 's', utm_medium: 'm', utm_campaign: 'c' })
-    expect(result.ok).toBe(true)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error).toBe('settings_storage_pending')
   })
 
   it('deleteUtmPreset returns error on empty id', async () => {
@@ -665,9 +667,10 @@ describe('settings actions', () => {
     expect(result.ok).toBe(false)
   })
 
-  it('deleteUtmPreset returns ok', async () => {
+  it('deleteUtmPreset returns settings_storage_pending', async () => {
     const result = await deleteUtmPreset('preset-1')
-    expect(result.ok).toBe(true)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error).toBe('settings_storage_pending')
   })
 
   it('saveQrTemplate returns error on empty name', async () => {
@@ -675,9 +678,10 @@ describe('settings actions', () => {
     expect(result.ok).toBe(false)
   })
 
-  it('saveQrTemplate returns ok', async () => {
+  it('saveQrTemplate returns settings_storage_pending', async () => {
     const result = await saveQrTemplate({ name: 'tmpl', config: { color: '#000' } })
-    expect(result.ok).toBe(true)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error).toBe('settings_storage_pending')
   })
 
   it('deleteQrTemplate returns error on empty id', async () => {
@@ -685,9 +689,10 @@ describe('settings actions', () => {
     expect(result.ok).toBe(false)
   })
 
-  it('deleteQrTemplate returns ok', async () => {
+  it('deleteQrTemplate returns settings_storage_pending', async () => {
     const result = await deleteQrTemplate('tmpl-1')
-    expect(result.ok).toBe(true)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error).toBe('settings_storage_pending')
   })
 })
 

@@ -727,7 +727,11 @@ export async function generateQr(
   const fg = config.foreground ?? '#000000'
   const bg = config.background ?? '#FFFFFF'
 
-  // Placeholder SVG -- real implementation delegates to @tn-figueiredo/links qrSvg()
+  const HEX_COLOR = /^#[0-9A-Fa-f]{6}$/
+  if (!HEX_COLOR.test(fg) || !HEX_COLOR.test(bg)) {
+    return { ok: false, error: 'invalid_color_format' }
+  }
+
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><rect fill="${bg}" width="${size}" height="${size}"/><text x="50%" y="50%" fill="${fg}" text-anchor="middle" dominant-baseline="central" font-size="10">${shortUrl}</text></svg>`
 
   const path = `${siteId}/qr/${id}.svg`
@@ -755,11 +759,10 @@ export async function saveLinkSettings(input: {
   default_redirect_type?: number
   default_utm_source?: string
 }): Promise<ActionResult> {
+  void input
   const { siteId } = await getSiteContext()
   await requireEditScope(siteId)
-  // Settings stored per-site -- placeholder for future implementation
-  void input
-  return { ok: true }
+  return { ok: false, error: 'settings_storage_pending' }
 }
 
 export async function saveUtmPreset(input: {
@@ -771,15 +774,14 @@ export async function saveUtmPreset(input: {
   if (!input.name) return { ok: false, error: 'name_required' }
   const { siteId } = await getSiteContext()
   await requireEditScope(siteId)
-  void siteId
-  return { ok: true }
+  return { ok: false, error: 'settings_storage_pending' }
 }
 
 export async function deleteUtmPreset(id: string): Promise<ActionResult> {
   if (!id) return { ok: false, error: 'id_required' }
   const { siteId } = await getSiteContext()
   await requireEditScope(siteId)
-  return { ok: true }
+  return { ok: false, error: 'settings_storage_pending' }
 }
 
 export async function saveQrTemplate(input: {
@@ -789,12 +791,12 @@ export async function saveQrTemplate(input: {
   if (!input.name) return { ok: false, error: 'name_required' }
   const { siteId } = await getSiteContext()
   await requireEditScope(siteId)
-  return { ok: true }
+  return { ok: false, error: 'settings_storage_pending' }
 }
 
 export async function deleteQrTemplate(id: string): Promise<ActionResult> {
   if (!id) return { ok: false, error: 'id_required' }
   const { siteId } = await getSiteContext()
   await requireEditScope(siteId)
-  return { ok: true }
+  return { ok: false, error: 'settings_storage_pending' }
 }

@@ -13,8 +13,6 @@ interface Props {
 }
 
 export default async function QrComposerPage({ params }: Props) {
-  if (process.env.NEXT_PUBLIC_LINKS_ENABLED !== 'true') redirect('/cms')
-
   const { id } = await params
   const { siteId } = await getSiteContext()
 
@@ -61,11 +59,13 @@ export default async function QrComposerPage({ params }: Props) {
     if (!result.ok) {
       return { svgContent: '' }
     }
-    // Return the generated SVG content placeholder
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://bythiagofigueiredo.com'
     const shortUrl = `${appUrl}/go/${linkSummary.code}`
+    const HEX_COLOR = /^#[0-9A-Fa-f]{6}$/
+    const safeBg = HEX_COLOR.test(config.backgroundColor ?? '') ? config.backgroundColor : '#FFFFFF'
+    const safeFg = HEX_COLOR.test(config.foregroundColor ?? '') ? config.foregroundColor : '#000000'
     return {
-      svgContent: `<svg xmlns="http://www.w3.org/2000/svg" width="${config.size}" height="${config.size}"><rect fill="${config.backgroundColor}" width="100%" height="100%"/><text x="50%" y="50%" fill="${config.foregroundColor}" text-anchor="middle" font-size="10">${shortUrl}</text></svg>`,
+      svgContent: `<svg xmlns="http://www.w3.org/2000/svg" width="${config.size}" height="${config.size}"><rect fill="${safeBg}" width="100%" height="100%"/><text x="50%" y="50%" fill="${safeFg}" text-anchor="middle" font-size="10">${shortUrl}</text></svg>`,
     }
   }
 

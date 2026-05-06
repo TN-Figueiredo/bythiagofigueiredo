@@ -27,8 +27,6 @@ interface Props {
 }
 
 export default async function LinkAnalyticsPage({ params, searchParams }: Props) {
-  if (process.env.NEXT_PUBLIC_LINKS_ENABLED !== 'true') redirect('/cms')
-
   const { id } = await params
   const sp = await searchParams
   const { siteId } = await getSiteContext()

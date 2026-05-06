@@ -10,8 +10,6 @@ export const dynamic = 'force-dynamic'
 export default async function NewLinkPage() {
   const { siteId } = await getSiteContext()
 
-  if (process.env.NEXT_PUBLIC_LINKS_ENABLED !== 'true') redirect('/cms')
-
   const authRes = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
   if (!authRes.ok) redirect('/cms')
 

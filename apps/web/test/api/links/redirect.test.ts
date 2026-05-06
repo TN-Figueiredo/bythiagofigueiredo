@@ -3,14 +3,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const mockLink = {
   id: 'link-1',
   site_id: 'site-1',
-  short_code: 'abc',
+  code: 'abc',
   destination_url: 'https://example.com/page',
   redirect_type: 301,
-  status: 'active',
-  is_password_protected: false,
-  max_clicks: null,
+  active: true,
+  deleted_at: null,
+  password_hash: null,
+  click_limit: null,
   total_clicks: 5,
   expires_at: null,
+  utm_source: null,
+  utm_medium: null,
+  utm_campaign: null,
+  utm_term: null,
+  utm_content: null,
 }
 
 const mockResolve = vi.fn()
@@ -76,8 +82,8 @@ describe('GET /go/[code]', () => {
   it('returns 410 when link is expired', async () => {
     mockResolve.mockResolvedValue({
       ...mockLink,
-      status: 'expired',
-      expires_at: '2025-01-01T00:00:00Z',
+      active: false,
+      deleted_at: null,
     })
     const { GET } = await import('../../../src/app/go/[code]/route')
     const req = new Request('http://go.example.com/abc', {
@@ -90,7 +96,7 @@ describe('GET /go/[code]', () => {
   it('returns 410 when click limit reached', async () => {
     mockResolve.mockResolvedValue({
       ...mockLink,
-      max_clicks: 5,
+      click_limit: 5,
       total_clicks: 5,
     })
     const { GET } = await import('../../../src/app/go/[code]/route')
@@ -102,7 +108,7 @@ describe('GET /go/[code]', () => {
   })
 
   it('redirects to interstitial when password protected', async () => {
-    mockResolve.mockResolvedValue({ ...mockLink, is_password_protected: true })
+    mockResolve.mockResolvedValue({ ...mockLink, password_hash: '$2b$10$somehash' })
     const { GET } = await import('../../../src/app/go/[code]/route')
     const req = new Request('http://go.example.com/abc', {
       headers: { 'x-site-id': 'site-1' },
