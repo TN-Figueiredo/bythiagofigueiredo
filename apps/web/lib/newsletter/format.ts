@@ -66,3 +66,9 @@ export function deriveCadenceLabel(
 
   return base
 }
+
+export function normalizeTime(t: string | null | undefined): string {
+  if (!t) return '09:00'
+  const m = t.match(/^(\d{2}:\d{2})/)
+  return m?.[1] ?? '09:00'
+}

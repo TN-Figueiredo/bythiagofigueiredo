@@ -1,5 +1,6 @@
 'use server'
 
+import { z } from 'zod'
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
@@ -899,6 +900,13 @@ export async function getUnlinkedTags(
 
 // ─── Type & Cadence Management ──────────────────────────────────────────────
 
+const UpdateCadencePatch = z.object({
+  cadence_days: z.number().int().min(1).max(365).optional(),
+  preferred_send_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/).optional(),
+  cadence_paused: z.boolean().optional(),
+  cadence_start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+})
+
 export async function updateCadence(
   typeId: string,
   patch: { cadence_days?: number; preferred_send_time?: string; cadence_paused?: boolean; cadence_start_date?: string },
@@ -907,10 +915,13 @@ export async function updateCadence(
   const res = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
   if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
 
+  const parsed = UpdateCadencePatch.safeParse(patch)
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+
   const supabase = getSupabaseServiceClient()
   const { error } = await supabase
     .from('newsletter_types')
-    .update(patch)
+    .update(parsed.data)
     .eq('id', typeId)
     .eq('site_id', ctx.siteId)
   if (error) return { ok: false, error: error.message }
@@ -1543,6 +1554,8 @@ export async function updateSendTime(
   const res = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
   if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
 
+  if (!/^\d{2}:\d{2}(:\d{2})?$/.test(time)) return { ok: false, error: 'Invalid time format' }
+
   const supabase = getSupabaseServiceClient()
   const { error } = await supabase
     .from('newsletter_types')
@@ -1573,6 +1586,8 @@ export async function updateCadencePattern(
   const ctx = await getSiteContext()
   const res = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
   if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
+
+  if (!/^\d{2}:\d{2}(:\d{2})?$/.test(sendTime)) return { ok: false, error: 'Invalid time format' }
 
   // Validate pattern generates at least 1 slot in the next 365 days
   const today = new Date().toISOString().slice(0, 10)
