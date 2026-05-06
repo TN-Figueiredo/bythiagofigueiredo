@@ -148,7 +148,7 @@ async function processEvent(
   const { data: send } = await supabase
     .from('newsletter_sends')
     .select(
-      'id, edition_id, subscriber_email, newsletter_editions(site_id, newsletter_type_id)',
+      'id, edition_id, subscriber_email, link_rewrite_enabled, newsletter_editions(site_id, newsletter_type_id)',
     )
     .eq('provider_message_id', event.messageId)
     .maybeSingle()
@@ -210,16 +210,59 @@ async function processEvent(
           clicked_at: event.timestamp,
         })
         .eq('id', send.id)
-      await supabase.from('newsletter_click_events').insert({
-        send_id: send.id,
-        url: event.metadata?.url ?? '',
-        ...(trackPii
-          ? {
-              ip: event.metadata?.ip ?? null,
-              user_agent: event.metadata?.userAgent ?? null,
-            }
-          : {}),
-      })
+
+      const clickedUrl = event.metadata?.url ?? ''
+
+      if ((send as Record<string, unknown>).link_rewrite_enabled) {
+        // Unified path: find the tracked_link by its destination URL
+        // (SES follows redirects before firing the event, so the URL is
+        // the original destination, not the short URL).
+        const { data: trackedLink } = await supabase
+          .from('tracked_links' as never)
+          .select('id')
+          .eq('site_id', siteId ?? '')
+          .eq('destination_url', clickedUrl)
+          .maybeSingle()
+
+        if (trackedLink) {
+          await supabase.from('link_clicks' as never).insert({
+            link_id: (trackedLink as { id: string }).id,
+            source_type: 'newsletter',
+            source_id: send.edition_id,
+            ...(trackPii
+              ? {
+                  ip: event.metadata?.ip ?? null,
+                  user_agent: event.metadata?.userAgent ?? null,
+                }
+              : {}),
+            clicked_at: event.timestamp,
+          })
+        } else {
+          // Fallback: tracked_link row missing — write to legacy table.
+          await supabase.from('newsletter_click_events').insert({
+            send_id: send.id,
+            url: clickedUrl,
+            ...(trackPii
+              ? {
+                  ip: event.metadata?.ip ?? null,
+                  user_agent: event.metadata?.userAgent ?? null,
+                }
+              : {}),
+          })
+        }
+      } else {
+        // Legacy path: pre-unification send — write to newsletter_click_events.
+        await supabase.from('newsletter_click_events').insert({
+          send_id: send.id,
+          url: clickedUrl,
+          ...(trackPii
+            ? {
+                ip: event.metadata?.ip ?? null,
+                user_agent: event.metadata?.userAgent ?? null,
+              }
+            : {}),
+        })
+      }
       break
     }
 
