@@ -314,6 +314,8 @@ async function resolveSite(
     res.headers.set('x-site-id', site.id)
     res.headers.set('x-org-id', site.org_id)
     res.headers.set('x-default-locale', site.default_locale)
+    const siteTimezone = (site as { timezone?: string }).timezone ?? 'America/Sao_Paulo'
+    res.headers.set('x-site-timezone', siteTimezone)
     return { shortCircuit: false, response: res }
   } catch (err) {
     Sentry.captureException(err)
@@ -332,10 +334,12 @@ function mergeSiteHeaders(
   const orgId = source.headers.get('x-org-id')
   const defaultLocale = source.headers.get('x-default-locale')
   const xLocale = source.headers.get('x-locale')
+  const siteTimezone = source.headers.get('x-site-timezone')
   if (siteId) target.headers.set('x-site-id', siteId)
   if (orgId) target.headers.set('x-org-id', orgId)
   if (defaultLocale) target.headers.set('x-default-locale', defaultLocale)
   if (xLocale) target.headers.set('x-locale', xLocale)
+  if (siteTimezone) target.headers.set('x-site-timezone', siteTimezone)
   return target
 }
 

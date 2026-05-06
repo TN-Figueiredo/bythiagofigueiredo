@@ -22,6 +22,7 @@ vi.mock('@tn-figueiredo/cms/ring', () => {
             slug: 'bythiagofigueiredo',
             created_at: '',
             updated_at: '',
+            timezone: 'America/Sao_Paulo',
           })
         }
         return Promise.resolve(null)
@@ -41,7 +42,7 @@ vi.mock('@tn-figueiredo/auth-nextjs/middleware', () => ({
 beforeEach(() => { vi.clearAllMocks() })
 
 describe('middleware site resolution', () => {
-  it('sets x-site-id, x-org-id, x-default-locale headers for a known host', async () => {
+  it('sets x-site-id, x-org-id, x-default-locale, x-site-timezone headers for a known host', async () => {
     const { default: middleware } = await import('../src/middleware')
     const req = new NextRequest(
       new Request('http://bythiagofigueiredo.com/blog', { headers: { host: 'bythiagofigueiredo.com' } }),
@@ -50,6 +51,7 @@ describe('middleware site resolution', () => {
     expect(res.headers.get('x-site-id')).toBe('site-1')
     expect(res.headers.get('x-org-id')).toBe('org-1')
     expect(res.headers.get('x-default-locale')).toBe('pt-BR')
+    expect(res.headers.get('x-site-timezone')).toBe('America/Sao_Paulo')
   })
 
   it('does NOT set site headers for an unknown host', async () => {
@@ -59,6 +61,7 @@ describe('middleware site resolution', () => {
     )
     const res = await middleware(req)
     expect(res.headers.get('x-site-id')).toBeNull()
+    expect(res.headers.get('x-site-timezone')).toBeNull()
   })
 
   it('resolves hostname stripping port (dev: localhost:3001)', async () => {

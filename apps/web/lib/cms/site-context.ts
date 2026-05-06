@@ -15,6 +15,7 @@ export interface SiteContext {
    * the domain without a second DB round-trip.
    */
   primaryDomain?: string
+  timezone: string
 }
 
 /**
@@ -28,6 +29,7 @@ export async function getSiteContext(): Promise<SiteContext> {
   const siteId = h.get('x-site-id')
   const orgId = h.get('x-org-id')
   const defaultLocale = h.get('x-default-locale') ?? 'en'
+  const timezone = h.get('x-site-timezone') ?? 'America/Sao_Paulo'
   // Middleware may set an explicit `x-primary-domain` header (Track A
   // follow-up); until then we derive a best-effort value from the request
   // `host` header (strips port for `dev.localhost:3001`).
@@ -40,7 +42,7 @@ export async function getSiteContext(): Promise<SiteContext> {
       'Site context not set — middleware should have resolved it. Hostname may not match any site.',
     )
   }
-  return { siteId, orgId, defaultLocale, primaryDomain }
+  return { siteId, orgId, defaultLocale, primaryDomain, timezone }
 }
 
 /**
