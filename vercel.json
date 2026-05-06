@@ -1,4 +1,0 @@
-{
-  "installCommand": "npm ci --legacy-peer-deps",
-  "buildCommand": "npm run build -w packages/shared && npm run build -w packages/links && npm run build -w packages/links-admin && npm run build -w apps/web"
-}
