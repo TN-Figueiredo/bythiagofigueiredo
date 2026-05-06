@@ -40,7 +40,7 @@ const nextConfig: NextConfig = {
   // `@tn-figueiredo/admin` client primitives (SiteSwitcherProvider,
   // useSiteSwitcher) live under `./site-switcher` with `'use client'` banner
   // — used by CMS layout only, no transpilePackages entry needed.
-  transpilePackages: ['@app/shared', '@tn-figueiredo/cms', '@tn-figueiredo/cms-reader', '@tn-figueiredo/newsletter', '@tn-figueiredo/newsletter-admin', '@tn-figueiredo/cms-admin', '@tn-figueiredo/ad-components'],
+  transpilePackages: ['@app/shared', '@tn-figueiredo/cms', '@tn-figueiredo/cms-reader', '@tn-figueiredo/newsletter', '@tn-figueiredo/newsletter-admin', '@tn-figueiredo/cms-admin', '@tn-figueiredo/ad-components', '@tn-figueiredo/links-admin'],
 
   // Sprint 5a Track E — enable .mdx as page/module file extensions so that
   // `import('@/content/legal/privacy.pt-BR.mdx')` works for the /privacy and

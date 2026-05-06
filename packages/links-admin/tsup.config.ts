@@ -11,11 +11,11 @@ export default defineConfig([
     entry: { client: 'src/client.ts' },
     format: ['esm'],
     dts: true,
-    splitting: true,
-    treeshake: true,
+    splitting: false,
+    treeshake: false,
     external: ['react', 'react-dom'],
     banner: {
-      js: "'use client'",
+      js: '"use client";',
     },
   },
 ])

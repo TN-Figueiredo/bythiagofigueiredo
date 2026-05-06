@@ -1,5 +1,3 @@
-'use client'
-
 // Components
 export { LinksDashboard } from './components/links-dashboard'
 export { LinkForm } from './components/link-form'
@@ -17,6 +15,9 @@ export { AlertRulesEditor } from './components/alert-rules-editor'
 export { useClickStream } from './hooks/use-click-stream'
 export { useLinkForm } from './hooks/use-link-form'
 export { useAnalyticsFilters } from './hooks/use-analytics-filters'
+
+// Hook data types
+export type { LinkFormData } from './hooks/use-link-form'
 
 // Component prop types
 export type { LinksDashboardProps } from './components/links-dashboard'

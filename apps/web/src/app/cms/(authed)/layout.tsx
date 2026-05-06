@@ -12,26 +12,15 @@ import {
   type RpcAccessibleSite,
 } from '@/components/cms/site-switcher-provider'
 import { CmsShell } from '@tn-figueiredo/cms-ui/client'
-import { DEFAULT_SECTIONS, type SidebarSection } from '@tn-figueiredo/cms-ui'
 import { CmsAdminProvider } from '@tn-figueiredo/cms-admin/client'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { fetchSidebarBadges } from '@/lib/cms/sidebar-badges'
 import { SidebarBadges } from '@/components/cms/sidebar-badges'
+import { buildCmsSections } from './_shared/cms-sections'
 import Link from 'next/link'
 
-const CMS_SECTIONS: SidebarSection[] = DEFAULT_SECTIONS.map(section => {
-  if (section.label === 'Content') {
-    return {
-      ...section,
-      items: [
-        ...section.items,
-        { icon: '🎬', label: 'YouTube', href: '/cms/youtube', minRole: 'editor' as const },
-      ],
-    }
-  }
-  return section
-})
+const CMS_SECTIONS = buildCmsSections()
 
 export default async function Layout({ children }: { children: ReactNode }) {
   const cookieStore = await cookies()
