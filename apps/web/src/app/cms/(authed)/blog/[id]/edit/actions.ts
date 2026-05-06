@@ -21,6 +21,16 @@ export interface SavePostActionInput {
   og_image_url?: string | null
   cover_image_url?: string | null
   tag_id?: string | null
+  // Blog overhaul: structured content + series
+  content_json?: Record<string, unknown> | null
+  content_html?: string | null
+  colophon?: string | null
+  notes?: string[] | null
+  pull_quote?: string | null
+  key_points?: string[] | null
+  previous_post_id?: string | null
+  continues_in_next?: boolean
+  hashtag_ids?: string[]
 }
 
 export type SavePostActionResult =
@@ -104,6 +114,8 @@ export async function savePost(
     const supabase = getSupabaseServiceClient()
     const postPatch: Record<string, unknown> = { locale }
     if (input.tag_id !== undefined) postPatch.tag_id = input.tag_id
+    if (input.previous_post_id !== undefined) postPatch.previous_post_id = input.previous_post_id || null
+    if (input.continues_in_next !== undefined) postPatch.continues_in_next = input.continues_in_next
     await supabase.from('blog_posts').update(postPatch).eq('id', id)
   }
 
@@ -133,6 +145,40 @@ export async function savePost(
         error: 'db_error',
         message: e instanceof Error ? e.message : String(e),
       }
+    }
+  }
+
+  // Blog overhaul: persist structured metadata columns
+  {
+    const txPatch: Record<string, unknown> = {}
+    if (input.content_json !== undefined) txPatch.content_json = input.content_json
+    if (input.content_html !== undefined) txPatch.content_html = input.content_html
+    if (input.colophon !== undefined) txPatch.colophon = input.colophon || null
+    if (input.notes !== undefined) txPatch.notes = input.notes && input.notes.length > 0 ? input.notes : null
+    if (input.pull_quote !== undefined) txPatch.pull_quote = input.pull_quote || null
+    if (input.key_points !== undefined) txPatch.key_points = input.key_points && input.key_points.length > 0 ? input.key_points : null
+
+    if (Object.keys(txPatch).length > 0) {
+      const supabase = getSupabaseServiceClient()
+      await supabase
+        .from('blog_translations')
+        .update(txPatch)
+        .eq('post_id', id)
+        .eq('locale', locale)
+    }
+  }
+
+  // Blog overhaul: sync hashtags
+  if (input.hashtag_ids !== undefined) {
+    const supabase = getSupabaseServiceClient()
+    await supabase.from('post_hashtags').delete().eq('post_id', id)
+
+    if (input.hashtag_ids.length > 0) {
+      const rows = input.hashtag_ids.map(hid => ({
+        post_id: id,
+        hashtag_id: hid,
+      }))
+      await supabase.from('post_hashtags').insert(rows)
     }
   }
 
@@ -215,4 +261,31 @@ export async function uploadAsset(file: File, postId: string): Promise<{ url: st
     filename: file.name,
   })
   return { url: result.signedUrl }
+}
+
+export async function searchPosts(
+  siteId: string,
+  locale: string,
+  query: string,
+  excludeId: string | null,
+): Promise<Array<{ id: string; title: string; slug: string }>> {
+  const db = getSupabaseServiceClient()
+  let q = db
+    .from('blog_translations')
+    .select('post_id, title, slug, blog_posts!inner(id, site_id)')
+    .eq('locale', locale)
+    .eq('blog_posts.site_id', siteId)
+    .ilike('title', `%${query}%`)
+    .limit(10)
+
+  if (excludeId) {
+    q = q.neq('post_id', excludeId)
+  }
+
+  const { data } = await q
+  return ((data ?? []) as unknown as Array<{ post_id: string; title: string; slug: string }>).map(row => ({
+    id: row.post_id,
+    title: row.title,
+    slug: row.slug,
+  }))
 }
