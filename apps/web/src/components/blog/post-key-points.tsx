@@ -1,10 +1,12 @@
-type Props = { points: string[] | undefined }
+import type { BlogStrings } from './_i18n/types'
 
-export function PostKeyPoints({ points }: Props) {
+type Props = { points: string[] | undefined; t: BlogStrings }
+
+export function PostKeyPoints({ points, t }: Props) {
   if (!points || points.length === 0) return null
   return (
     <div>
-      <div className="blog-sidebar-label">Pontos-chave</div>
+      <div className="blog-sidebar-label">{t.keyPoints}</div>
       <ol className="list-none">
         {points.map((point, i) => (
           <li key={i} className="flex gap-2.5 items-start mb-3">

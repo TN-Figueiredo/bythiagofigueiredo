@@ -1,6 +1,7 @@
 export { PostKeyPoints } from './post-key-points'
 export { PostPullQuote } from './post-pull-quote'
 export { PostColophon } from './post-colophon'
+export { PostNotes } from './post-notes'
 export { PostTags } from './post-tags'
 export { AuthorRow } from './author-row'
 export { AuthorCard } from './author-card'

@@ -1,43 +1,57 @@
 import Link from 'next/link'
 import { localePath } from '@/lib/i18n/locale-path'
+import type { BlogStrings } from './_i18n/types'
 
 type Props = {
-  nextSlug?: string
-  nextTitle?: string
-  nextExcerpt?: string
+  previousPost: { title: string; slug: string; locale: string } | null
+  nextPost: { title: string; slug: string; locale: string; excerpt?: string } | null
+  continuesInNext: boolean
+  t: BlogStrings
   locale: string
 }
 
-export function SeriesNav({ nextSlug, nextTitle, nextExcerpt, locale }: Props) {
-  if (!nextSlug || !nextTitle) return null
+export function SeriesNav({ previousPost, nextPost, continuesInNext, t, locale: _locale }: Props) {
+  if (!previousPost && !nextPost && !continuesInNext) return null
   return (
-    <div
-      className="my-8"
-      style={{
-        background: '#1e1a14',
-        borderLeft: '3px solid var(--pb-accent)',
-        padding: '24px 28px',
-      }}
-    >
-      <div
-        className="font-jetbrains uppercase mb-3"
-        style={{ fontSize: 10, letterSpacing: '0.14em', color: '#958a75' }}
-      >
-        CONTINUA NA PROXIMA PARTE
-      </div>
-      <div className="font-fraunces mb-2" style={{ fontSize: 22, fontWeight: 500 }}>
-        <Link
-          href={localePath(`/blog/${encodeURIComponent(nextSlug)}`, locale)}
-          className="no-underline"
-          style={{ color: '#efe6d2' }}
-        >
-          {nextTitle} →
-        </Link>
-      </div>
-      {nextExcerpt && (
-        <p className="text-sm leading-relaxed mt-2" style={{ color: '#958a75' }}>
-          {nextExcerpt}
-        </p>
+    <div className="my-8 space-y-4">
+      {previousPost && (
+        <div style={{ background: '#1e1a14', borderLeft: '3px solid var(--pb-accent)', padding: '16px 20px' }}>
+          <div className="font-jetbrains uppercase mb-2" style={{ fontSize: 10, letterSpacing: '0.14em', color: '#958a75' }}>
+            {t.previousPost.toUpperCase()}
+          </div>
+          <Link
+            href={localePath(`/blog/${encodeURIComponent(previousPost.slug)}`, previousPost.locale)}
+            className="no-underline font-fraunces"
+            style={{ fontSize: 18, fontWeight: 500, color: '#efe6d2' }}
+          >
+            ← {previousPost.title}
+          </Link>
+        </div>
+      )}
+      {(nextPost || continuesInNext) && (
+        <div style={{ background: '#1e1a14', borderLeft: '3px solid var(--pb-accent)', padding: '24px 28px' }}>
+          <div className="font-jetbrains uppercase mb-3" style={{ fontSize: 10, letterSpacing: '0.14em', color: '#958a75' }}>
+            {t.continuesNext.toUpperCase()}
+          </div>
+          {nextPost && (
+            <>
+              <div className="font-fraunces mb-2" style={{ fontSize: 22, fontWeight: 500 }}>
+                <Link
+                  href={localePath(`/blog/${encodeURIComponent(nextPost.slug)}`, nextPost.locale)}
+                  className="no-underline"
+                  style={{ color: '#efe6d2' }}
+                >
+                  {nextPost.title} →
+                </Link>
+              </div>
+              {nextPost.excerpt && (
+                <p className="text-sm leading-relaxed mt-2" style={{ color: '#958a75' }}>
+                  {nextPost.excerpt}
+                </p>
+              )}
+            </>
+          )}
+        </div>
       )}
     </div>
   )

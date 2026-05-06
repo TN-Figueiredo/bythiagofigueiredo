@@ -1,12 +1,14 @@
 import { localePath } from '@/lib/i18n/locale-path'
 import type { AuthorData } from './types'
+import type { BlogStrings } from './_i18n/types'
 
 type Props = {
   author: AuthorData
   locale: string
+  t?: BlogStrings
 }
 
-export function AuthorCard({ author, locale }: Props) {
+export function AuthorCard({ author, locale, t: _t }: Props) {
   return (
     <div className="relative my-12" style={{ background: '#1e1a14', padding: '32px 28px 24px' }}>
       <div

@@ -14,11 +14,14 @@ import { buildDetailGraph, parseDateOrNull } from '@/lib/blog/build-detail-graph
 import { getRelatedPosts } from '@/lib/blog/related-posts'
 import { parseMdxFrontmatter } from '@/lib/seo/frontmatter'
 import { localePath } from '@/lib/i18n/locale-path'
+import { ptBR } from '@/components/blog/_i18n/pt-BR'
+import { en } from '@/components/blog/_i18n/en'
 import {
   ScrollProvider,
   PostKeyPoints,
   PostPullQuote,
   PostColophon,
+  PostNotes,
   PostTags,
   AuthorRow,
   AuthorCard,
@@ -69,6 +72,7 @@ export default async function BlogDetailPage({ params }: Props) {
   if (!tx) notFound()
 
   const { postExtras } = parseMdxFrontmatter(tx.content_mdx)
+  const t = locale === 'pt-BR' ? ptBR : en
 
   let compiledSource = tx.content_compiled
   let toc: TocEntry[] = []
@@ -88,12 +92,66 @@ export default async function BlogDetailPage({ params }: Props) {
 
   const publishedAt = post.published_at ?? (full ?? post).published_at
 
-  const { data: postMeta } = await getSupabaseServiceClient()
+  const supabase = getSupabaseServiceClient()
+
+  const { data: postMeta } = await supabase
     .from('blog_posts')
     .select('category, view_count')
     .eq('id', post.id)
     .single()
   const category = postMeta?.category ?? null
+
+  const [txStructured, hashtagResult, prevPostResult] = await Promise.all([
+    supabase
+      .from('blog_translations')
+      .select('key_points, pull_quote, notes, colophon, content_html')
+      .eq('post_id', post.id)
+      .eq('locale', locale)
+      .maybeSingle(),
+    supabase
+      .from('post_hashtags')
+      .select('hashtags(id, name, slug)')
+      .eq('post_id', post.id),
+    supabase
+      .from('blog_posts')
+      .select('previous_post_id, continues_in_next')
+      .eq('id', post.id)
+      .maybeSingle(),
+  ])
+
+  const txExtra = txStructured.data ?? {}
+  const postHashtags = (hashtagResult.data ?? []).map((r: { hashtags: unknown }) => r.hashtags).filter(Boolean) as Array<{ id: string; name: string; slug: string }>
+  const postSeries = prevPostResult.data ?? { previous_post_id: null, continues_in_next: false }
+
+  // Fetch previous post title/slug for series chain
+  let previousPost: { title: string; slug: string; locale: string } | null = null
+  if (postSeries.previous_post_id) {
+    const { data: prevTx } = await supabase
+      .from('blog_translations')
+      .select('title, slug')
+      .eq('post_id', postSeries.previous_post_id)
+      .eq('locale', locale)
+      .maybeSingle()
+    if (prevTx) previousPost = { ...prevTx, locale }
+  }
+
+  // Fetch next post (any post that points back to this one)
+  let nextPost: { title: string; slug: string; locale: string; excerpt?: string } | null = null
+  const { data: nextData } = await supabase
+    .from('blog_posts')
+    .select('id')
+    .eq('previous_post_id', post.id)
+    .limit(1)
+    .maybeSingle()
+  if (nextData) {
+    const { data: nextTx } = await supabase
+      .from('blog_translations')
+      .select('title, slug, excerpt')
+      .eq('post_id', nextData.id)
+      .eq('locale', locale)
+      .maybeSingle()
+    if (nextTx) nextPost = { ...nextTx, locale, excerpt: nextTx.excerpt ?? undefined }
+  }
 
   const host = h.get('host') ?? ctx.primaryDomain ?? ''
   const [related, config] = await Promise.all([
@@ -184,11 +242,7 @@ export default async function BlogDetailPage({ params }: Props) {
               )}
             </div>
 
-            <SeriesBanner
-              title={postExtras?.series_title}
-              part={postExtras?.series_part}
-              total={postExtras?.series_total}
-            />
+            <SeriesBanner previousPost={previousPost} t={t} />
 
             <h1
               className="font-fraunces mb-5"
@@ -231,7 +285,7 @@ export default async function BlogDetailPage({ params }: Props) {
                 locale={locale}
                 siteId={ctx.siteId}
                 postId={post.id}
-                keyPoints={postExtras?.key_points}
+                keyPoints={(txExtra as { key_points?: string[] }).key_points ?? undefined}
                 mobileInlineAd={
                   creatives['post:rail:anchor'] ? <AnchorAd creative={creatives['post:rail:anchor']} locale={adLocale} /> : null
                 }
@@ -248,15 +302,17 @@ export default async function BlogDetailPage({ params }: Props) {
 
               <div className="blog-detail-footer">
                 <AuthorCard author={authorFallback} locale={locale} />
-                <PostTags tags={postExtras?.tags} locale={locale} />
+                <PostTags hashtags={postHashtags} locale={locale} t={t} />
                 <SeriesNav
-                  nextSlug={postExtras?.series_next_slug}
-                  nextTitle={postExtras?.series_next_title}
-                  nextExcerpt={postExtras?.series_next_excerpt}
+                  previousPost={previousPost}
+                  nextPost={nextPost}
+                  continuesInNext={postSeries.continues_in_next ?? false}
+                  t={t}
                   locale={locale}
                 />
                 <PostFootnotes footnotes={footnotes} />
-                <PostColophon text={postExtras?.colophon} />
+                <PostNotes notes={(txExtra as { notes?: string[] }).notes ?? []} t={t} />
+                <PostColophon text={(txExtra as { colophon?: string }).colophon ?? undefined} t={t} />
                 <div className="blog-ad-slot">
                   {creatives['post:footer:coda'] && <CodaAd creative={creatives['post:footer:coda']} locale={adLocale} />}
                 </div>
@@ -265,9 +321,9 @@ export default async function BlogDetailPage({ params }: Props) {
           </main>
 
           <aside className="blog-sidebar blog-detail-sidebar">
-            <PostKeyPoints points={postExtras?.key_points} />
+            <PostKeyPoints points={(txExtra as { key_points?: string[] }).key_points ?? []} t={t} />
             <PostPullQuote
-              quote={postExtras?.pull_quote}
+              quote={(txExtra as { pull_quote?: string }).pull_quote ?? undefined}
               attribution={postExtras?.pull_quote_attribution}
             />
             <div className="blog-ad-slot">

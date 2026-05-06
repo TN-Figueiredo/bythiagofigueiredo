@@ -1,11 +1,14 @@
+import Link from 'next/link'
+import { localePath } from '@/lib/i18n/locale-path'
+import type { BlogStrings } from './_i18n/types'
+
 type Props = {
-  title: string | undefined
-  part?: number
-  total?: number
+  previousPost: { title: string; slug: string; locale: string } | null
+  t: BlogStrings
 }
 
-export function SeriesBanner({ title, part, total }: Props) {
-  if (!title) return null
+export function SeriesBanner({ previousPost, t }: Props) {
+  if (!previousPost) return null
   return (
     <div
       className="px-4 py-3 mb-6"
@@ -23,19 +26,21 @@ export function SeriesBanner({ title, part, total }: Props) {
           color: '#958a75',
         }}
       >
-        PARTE DA SERIE {part && total ? `· ${part} DE ${total}` : ''}
+        {t.partOfSeries.toUpperCase()}
       </div>
-      <div
+      <Link
+        href={localePath(`/blog/${encodeURIComponent(previousPost.slug)}`, previousPost.locale)}
+        className="no-underline"
         style={{
           fontFamily: 'var(--font-fraunces), serif',
           fontSize: 17,
           fontWeight: 500,
-          color: '#efe6d2',
+          color: 'var(--pb-accent)',
           lineHeight: 1.4,
         }}
       >
-        {title}
-      </div>
+        ← {previousPost.title}
+      </Link>
     </div>
   )
 }

@@ -107,17 +107,28 @@ vi.mock('@/lib/tracking/use-content-tracking', () => ({
   useContentTracking: () => {},
 }))
 
-vi.mock('../../lib/supabase/service', () => ({
-  getSupabaseServiceClient: () => ({
-    from: () => ({
-      select: () => ({
-        eq: () => ({
-          single: () => Promise.resolve({ data: { category: 'vida' }, error: null }),
-        }),
+vi.mock('../../lib/supabase/service', () => {
+  const makeChain = (resolvedData: unknown = null): unknown => {
+    const chain: Record<string, unknown> = {}
+    chain.eq = () => makeChain(resolvedData)
+    chain.single = () => Promise.resolve({ data: resolvedData, error: null })
+    chain.maybeSingle = () => Promise.resolve({ data: resolvedData, error: null })
+    chain.limit = () => makeChain(resolvedData)
+    return chain
+  }
+
+  return {
+    getSupabaseServiceClient: () => ({
+      from: (table: string) => ({
+        select: () => makeChain(
+          table === 'blog_posts'
+            ? { category: 'vida', view_count: 0, previous_post_id: null, continues_in_next: false }
+            : null
+        ),
       }),
     }),
-  }),
-}))
+  }
+})
 
 vi.mock('../../lib/blog/related-posts', () => ({
   getRelatedPosts: vi.fn().mockResolvedValue([]),

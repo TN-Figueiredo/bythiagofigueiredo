@@ -3,6 +3,7 @@ import { render } from '@testing-library/react'
 import { PostKeyPoints } from '../../../src/components/blog/post-key-points'
 import { PostPullQuote } from '../../../src/components/blog/post-pull-quote'
 import { PostColophon } from '../../../src/components/blog/post-colophon'
+import { PostNotes } from '../../../src/components/blog/post-notes'
 import { PostTags } from '../../../src/components/blog/post-tags'
 import { AuthorRow } from '../../../src/components/blog/author-row'
 import { AuthorCard } from '../../../src/components/blog/author-card'
@@ -12,6 +13,8 @@ import { CoverImage } from '../../../src/components/blog/cover-image'
 import { RelatedPostsGrid } from '../../../src/components/blog/related-posts-grid'
 import { PostFootnotes } from '../../../src/components/blog/post-footnotes'
 import { ShareButtons } from '../../../src/components/blog/share-buttons'
+import { ptBR } from '../../../src/components/blog/_i18n/pt-BR'
+import { en } from '../../../src/components/blog/_i18n/en'
 
 const testAuthor = {
   name: 'Thiago Figueiredo',
@@ -27,20 +30,30 @@ const testAuthor = {
 
 describe('PostKeyPoints', () => {
   it('renders numbered key points', () => {
-    const { container } = render(<PostKeyPoints points={['Point A', 'Point B']} />)
+    const { container } = render(<PostKeyPoints points={['Point A', 'Point B']} t={ptBR} />)
     expect(container.textContent).toContain('01')
     expect(container.textContent).toContain('Point A')
     expect(container.textContent).toContain('02')
     expect(container.textContent).toContain('Point B')
   })
 
+  it('uses i18n label', () => {
+    const { container } = render(<PostKeyPoints points={['Point A']} t={ptBR} />)
+    expect(container.textContent).toContain('Pontos-chave')
+  })
+
+  it('uses en i18n label', () => {
+    const { container } = render(<PostKeyPoints points={['Point A']} t={en} />)
+    expect(container.textContent).toContain('Key Points')
+  })
+
   it('returns null when points is undefined', () => {
-    const { container } = render(<PostKeyPoints points={undefined} />)
+    const { container } = render(<PostKeyPoints points={undefined} t={ptBR} />)
     expect(container.innerHTML).toBe('')
   })
 
   it('returns null when points is empty', () => {
-    const { container } = render(<PostKeyPoints points={[]} />)
+    const { container } = render(<PostKeyPoints points={[]} t={ptBR} />)
     expect(container.innerHTML).toBe('')
   })
 })
@@ -62,28 +75,63 @@ describe('PostPullQuote', () => {
 
 describe('PostColophon', () => {
   it('renders colophon text', () => {
-    const { container } = render(<PostColophon text="Written in iA Writer" />)
+    const { container } = render(<PostColophon text="Written in iA Writer" t={ptBR} />)
     expect(container.textContent).toContain('Written in iA Writer')
-    expect(container.textContent).toContain('COLOFAO')
+    expect(container.textContent).toContain('COLOFÃO')
+  })
+
+  it('uses en i18n label', () => {
+    const { container } = render(<PostColophon text="Written in iA Writer" t={en} />)
+    expect(container.textContent).toContain('COLOPHON')
   })
 
   it('returns null when text is undefined', () => {
-    const { container } = render(<PostColophon text={undefined} />)
+    const { container } = render(<PostColophon text={undefined} t={ptBR} />)
+    expect(container.innerHTML).toBe('')
+  })
+})
+
+describe('PostNotes', () => {
+  it('renders numbered notes', () => {
+    const { container } = render(<PostNotes notes={['First note', 'Second note']} t={ptBR} />)
+    expect(container.textContent).toContain('1')
+    expect(container.textContent).toContain('First note')
+    expect(container.textContent).toContain('2')
+    expect(container.textContent).toContain('Second note')
+  })
+
+  it('uses i18n label', () => {
+    const { container } = render(<PostNotes notes={['Note']} t={ptBR} />)
+    expect(container.textContent).toContain('Notas')
+  })
+
+  it('returns null when notes is empty', () => {
+    const { container } = render(<PostNotes notes={[]} t={ptBR} />)
     expect(container.innerHTML).toBe('')
   })
 })
 
 describe('PostTags', () => {
+  const hashtags = [
+    { id: '1', name: 'meta', slug: 'meta' },
+    { id: '2', name: 'manifesto', slug: 'manifesto' },
+  ]
+
   it('renders tag pills', () => {
     const { getByText } = render(
-      <PostTags tags={['meta', 'manifesto']} locale="pt-BR" />,
+      <PostTags hashtags={hashtags} locale="pt-BR" t={ptBR} />,
     )
     expect(getByText('#meta')).toBeTruthy()
     expect(getByText('#manifesto')).toBeTruthy()
   })
 
-  it('returns null when tags is undefined', () => {
-    const { container } = render(<PostTags tags={undefined} locale="pt-BR" />)
+  it('uses i18n label', () => {
+    const { container } = render(<PostTags hashtags={hashtags} locale="pt-BR" t={ptBR} />)
+    expect(container.textContent).toContain('Tags')
+  })
+
+  it('returns null when hashtags is empty', () => {
+    const { container } = render(<PostTags hashtags={[]} locale="pt-BR" t={ptBR} />)
     expect(container.innerHTML).toBe('')
   })
 })
@@ -119,17 +167,29 @@ describe('AuthorCard', () => {
 })
 
 describe('SeriesBanner', () => {
-  it('renders series title and part info', () => {
+  it('renders previous post link', () => {
     const { container } = render(
-      <SeriesBanner title="Building in public" part={1} total={3} />,
+      <SeriesBanner
+        previousPost={{ title: 'Building in public', slug: 'building-in-public', locale: 'pt-BR' }}
+        t={ptBR}
+      />,
     )
-    expect(container.textContent).toContain('PARTE DA SERIE')
-    expect(container.textContent).toContain('1 DE 3')
+    expect(container.textContent).toContain('PARTE DA SÉRIE')
     expect(container.textContent).toContain('Building in public')
   })
 
-  it('returns null when title is undefined', () => {
-    const { container } = render(<SeriesBanner title={undefined} />)
+  it('uses en i18n label', () => {
+    const { container } = render(
+      <SeriesBanner
+        previousPost={{ title: 'First Part', slug: 'first-part', locale: 'en' }}
+        t={en}
+      />,
+    )
+    expect(container.textContent).toContain('PART OF SERIES')
+  })
+
+  it('returns null when previousPost is null', () => {
+    const { container } = render(<SeriesBanner previousPost={null} t={ptBR} />)
     expect(container.innerHTML).toBe('')
   })
 })
@@ -138,18 +198,48 @@ describe('SeriesNav', () => {
   it('renders next post in series', () => {
     const { container } = render(
       <SeriesNav
-        nextSlug="cms-for-all"
-        nextTitle="A CMS to rule them all"
-        nextExcerpt="The architecture behind cross-site publishing..."
+        previousPost={null}
+        nextPost={{ title: 'A CMS to rule them all', slug: 'cms-for-all', locale: 'pt-BR', excerpt: 'The architecture behind cross-site publishing...' }}
+        continuesInNext={false}
+        t={ptBR}
         locale="pt-BR"
       />,
     )
-    expect(container.textContent).toContain('CONTINUA NA PROXIMA PARTE')
+    expect(container.textContent).toContain('CONTINUA NA PRÓXIMA PARTE')
     expect(container.textContent).toContain('A CMS to rule them all')
   })
 
-  it('returns null when nextSlug is undefined', () => {
-    const { container } = render(<SeriesNav locale="pt-BR" />)
+  it('renders previous post link', () => {
+    const { container } = render(
+      <SeriesNav
+        previousPost={{ title: 'Part One', slug: 'part-one', locale: 'pt-BR' }}
+        nextPost={null}
+        continuesInNext={false}
+        t={ptBR}
+        locale="pt-BR"
+      />,
+    )
+    expect(container.textContent).toContain('POST ANTERIOR')
+    expect(container.textContent).toContain('Part One')
+  })
+
+  it('renders continuesInNext without nextPost', () => {
+    const { container } = render(
+      <SeriesNav
+        previousPost={null}
+        nextPost={null}
+        continuesInNext={true}
+        t={en}
+        locale="en"
+      />,
+    )
+    expect(container.textContent).toContain('CONTINUES IN NEXT PART')
+  })
+
+  it('returns null when nothing to show', () => {
+    const { container } = render(
+      <SeriesNav previousPost={null} nextPost={null} continuesInNext={false} t={ptBR} locale="pt-BR" />,
+    )
     expect(container.innerHTML).toBe('')
   })
 })
