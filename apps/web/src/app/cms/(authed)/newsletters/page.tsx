@@ -71,7 +71,7 @@ async function TabContent({ tab, siteId, typeFilter, locale, types }: { tab: Tab
       return <EditorialTab data={data} typeFilter={typeFilter} strings={strings} types={types} />
     }
     case 'schedule': {
-      const data = await fetchScheduleData(siteId)
+      const data = await fetchScheduleData(siteId, locale)
       return <ScheduleTab data={data} typeFilter={typeFilter} strings={strings} locale={locale as 'en' | 'pt-BR'} />
     }
     case 'automations': {

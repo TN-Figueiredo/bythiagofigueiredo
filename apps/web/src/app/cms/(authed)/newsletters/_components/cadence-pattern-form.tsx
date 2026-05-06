@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { generateCadenceSlots, describePattern } from '@/lib/newsletter/cadence-slots'
 import type { CadencePattern, Weekday } from '@/lib/newsletter/cadence-pattern'
 import type { NewsletterHubStrings } from '../_i18n/types'
+import { normalizeTime } from '@/lib/newsletter/format'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -74,7 +75,7 @@ const labelCls = 'block text-[11px] font-medium text-gray-400 mb-1'
 export function CadencePatternForm({
   currentPattern,
   preferredSendTime,
-  siteTimezone: _siteTimezone,
+  siteTimezone,
   locale = 'en',
   onSave,
   strings,
@@ -86,7 +87,7 @@ export function CadencePatternForm({
   const [pattern, setPattern] = useState<CadencePattern>(
     currentPattern ?? defaultPatternForType(initialType),
   )
-  const [sendTime, setSendTime] = useState(preferredSendTime || '09:00')
+  const [sendTime, setSendTime] = useState(normalizeTime(preferredSendTime))
   const [isPending, startTransition] = useTransition()
 
   // Sync pattern whenever type changes (reset to defaults)
@@ -182,12 +183,15 @@ export function CadencePatternForm({
             {cc?.noSlotsIn365 ?? 'This pattern generates no slots in the next 365 days'}
           </p>
         ) : (
-          <p className="text-[12px] text-gray-300">
-            {patternDescription && (
-              <span className="text-gray-500 mr-2">{patternDescription} —</span>
-            )}
-            {previewDates.join(', ')}
-          </p>
+          <div>
+            <p className="text-[12px] text-gray-300">
+              {patternDescription && (
+                <span className="text-gray-500 mr-2">{patternDescription} —</span>
+              )}
+              {previewDates.join(', ')}
+            </p>
+            <p className="text-[10px] text-gray-600 mt-0.5">{sendTime} {siteTimezone}</p>
+          </div>
         )}
       </div>
 
@@ -345,7 +349,7 @@ function PatternInputs({ pattern, onChange, cc }: PatternInputsProps) {
               className={inputCls}
             >
               {([1, 2, 3, 4] as const).map((w) => (
-                <option key={w} value={w}>{w === 1 ? '1st' : w === 2 ? '2nd' : w === 3 ? '3rd' : '4th'}</option>
+                <option key={w} value={w}>{cc?.ordinals?.[w - 1] ?? `${w}th`}</option>
               ))}
             </select>
           </div>

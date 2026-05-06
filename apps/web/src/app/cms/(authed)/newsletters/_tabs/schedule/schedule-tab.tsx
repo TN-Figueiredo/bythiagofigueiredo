@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useTransition } from 'react'
+import { toast } from 'sonner'
 import type { ScheduleTabData, ReadyEdition } from '../../_hub/hub-types'
 import { HealthStrip } from '../../_shared/health-strip'
 import { MonthCalendar } from './month-calendar'
@@ -97,17 +98,10 @@ function EditionPicker({
 }
 
 export function ScheduleTab({ data, typeFilter, strings, locale = 'en' }: ScheduleTabProps) {
-  const [, startTransition] = useTransition()
+  const [_isPending, startTransition] = useTransition()
   const [pickerState, setPickerState] = useState<PickerState>({ open: false, date: '', anchorRect: null })
   const [slotPickerState, setSlotPickerState] = useState<SlotPickerLocalState | null>(null)
   const [specialScheduleState, setSpecialScheduleState] = useState<SpecialScheduleState | null>(null)
-  const [toastMsg, setToastMsg] = useState<string | null>(null)
-
-  const showToast = useCallback((msg: string) => {
-    setToastMsg(msg)
-    setTimeout(() => setToastMsg(null), 3000)
-  }, [])
-
   const handleTogglePause = (typeId: string, paused: boolean) => {
     startTransition(async () => {
       await toggleCadence(typeId, paused)
@@ -116,7 +110,7 @@ export function ScheduleTab({ data, typeFilter, strings, locale = 'en' }: Schedu
 
   const handleDateClick = (date: string) => {
     if (!data.readyEditions || data.readyEditions.length === 0) {
-      showToast(strings?.schedule.noReadyEditions ?? 'No ready editions to schedule')
+      toast.info(strings?.schedule.noReadyEditions ?? 'No ready editions to schedule')
       return
     }
     // Position popover near the center of the viewport
@@ -128,7 +122,6 @@ export function ScheduleTab({ data, typeFilter, strings, locale = 'en' }: Schedu
   }
 
   const handleEditionSelect = useCallback(async (editionId: string) => {
-    const selectedDate = pickerState.date
     setPickerState({ open: false, date: '', anchorRect: null })
 
     const edition = data.readyEditions.find((e) => e.id === editionId)
@@ -192,16 +185,16 @@ export function ScheduleTab({ data, typeFilter, strings, locale = 'en' }: Schedu
         ? await swapSlotEdition(editionId, date, typeId)
         : await scheduleEditionToSlot(editionId, date, typeId)
       if (result.ok) {
-        showToast(strings?.schedule.saved ?? 'Scheduled')
+        toast.success(strings?.schedule.saved ?? 'Scheduled')
       } else if (result.error === 'slot_taken') {
-        showToast('Slot already taken — try another')
+        toast.error('Slot already taken — try another')
         const edition = data.readyEditions.find((e) => e.id === editionId)
         if (edition) handleEditionSelect(editionId)
       } else {
-        showToast(result.error ?? strings?.schedule.updateFailed ?? 'Failed to schedule')
+        toast.error(result.error ?? strings?.schedule.updateFailed ?? 'Failed to schedule')
       }
     })
-  }, [slotPickerState, data.readyEditions, handleEditionSelect, showToast, startTransition, strings])
+  }, [slotPickerState, data.readyEditions, handleEditionSelect, startTransition, strings])
 
   const handleSlotLoadMore = useCallback(async () => {
     if (!slotPickerState) return
@@ -244,12 +237,12 @@ export function ScheduleTab({ data, typeFilter, strings, locale = 'en' }: Schedu
     startTransition(async () => {
       const result = await scheduleEditionAsSpecial(editionId, scheduledAt)
       if (result.ok) {
-        showToast(strings?.schedule.saved ?? 'Scheduled')
+        toast.success(strings?.schedule.saved ?? 'Scheduled')
       } else {
-        showToast(result.error ?? strings?.schedule.updateFailed ?? 'Failed to schedule')
+        toast.error(result.error ?? strings?.schedule.updateFailed ?? 'Failed to schedule')
       }
     })
-  }, [specialScheduleState, showToast, startTransition, strings])
+  }, [specialScheduleState, startTransition, strings])
 
   const handleSpecialScheduleCancel = useCallback(() => {
     setSpecialScheduleState(null)
@@ -293,7 +286,7 @@ export function ScheduleTab({ data, typeFilter, strings, locale = 'en' }: Schedu
         <div className="space-y-3">
           <h3 className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">{strings?.schedule.cadenceConfig ?? 'Cadence Config'}</h3>
           {filteredConfigs.map((c) => (
-            <CadenceCard key={c.typeId} config={c} onTogglePause={handleTogglePause} strings={strings} />
+            <CadenceCard key={c.typeId} config={c} siteTimezone={data.sendWindow.timezone} locale={locale} onTogglePause={handleTogglePause} strings={strings} />
           ))}
         </div>
         <div className="space-y-3">
@@ -342,11 +335,6 @@ export function ScheduleTab({ data, typeFilter, strings, locale = 'en' }: Schedu
         onCancel={handleSpecialScheduleCancel}
       />
 
-      {toastMsg && (
-        <div className="fixed bottom-6 right-6 z-50 rounded-lg border border-gray-700 bg-gray-900 px-4 py-2 text-sm text-gray-200 shadow-lg">
-          {toastMsg}
-        </div>
-      )}
     </div>
   )
 }

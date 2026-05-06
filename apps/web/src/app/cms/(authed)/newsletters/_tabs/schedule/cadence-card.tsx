@@ -1,76 +1,53 @@
 'use client'
 
-import { useState, useTransition, useRef, useEffect } from 'react'
+import { useState } from 'react'
 import { Pause, Play, ChevronDown, ChevronUp } from 'lucide-react'
-import { toast } from 'sonner'
+import { describePattern } from '@/lib/newsletter/cadence-slots'
+import { normalizeTime } from '@/lib/newsletter/format'
+import type { CadencePattern, Weekday } from '@/lib/newsletter/cadence-pattern'
 import type { CadenceConfig } from '../../_hub/hub-types'
 import type { NewsletterHubStrings } from '../../_i18n/types'
-import { updateCadence } from '../../actions'
+import { CadencePatternForm } from '../../_components/cadence-pattern-form'
+import { updateCadencePattern } from '../../actions'
 
-const DAY_KEYS = ['daySun', 'dayMon', 'dayTue', 'dayWed', 'dayThu', 'dayFri', 'daySat'] as const
-
-function getNextDateForDay(dayIndex: number): string {
-  const now = new Date()
-  const current = now.getUTCDay()
-  const diff = (dayIndex - current + 7) % 7 || 7
-  const next = new Date(now)
-  next.setDate(now.getDate() + diff)
-  return next.toISOString().slice(0, 10)
+const WEEKDAY_MAP: Record<string, Weekday> = {
+  Sun: 'sun', Mon: 'mon', Tue: 'tue', Wed: 'wed', Thu: 'thu', Fri: 'fri', Sat: 'sat',
+  Sunday: 'sun', Monday: 'mon', Tuesday: 'tue', Wednesday: 'wed', Thursday: 'thu', Friday: 'fri', Saturday: 'sat',
 }
 
-function getDayIndexFromDate(dateStr: string | null): number {
-  if (!dateStr) return 1
-  return new Date(dateStr + 'T00:00:00').getUTCDay()
+function legacyToPattern(config: CadenceConfig): CadencePattern {
+  const weekday = config.dayOfWeek ? WEEKDAY_MAP[config.dayOfWeek] ?? 'mon' : 'mon'
+  if (config.cadenceDays === 7 && config.dayOfWeek)
+    return { type: 'weekly', days: [weekday] }
+  if (config.cadenceDays === 14 && config.dayOfWeek)
+    return { type: 'biweekly', day: weekday }
+  return { type: 'every_n_days', interval: config.cadenceDays || 7 }
 }
 
 interface CadenceCardProps {
   config: CadenceConfig
+  siteTimezone: string
+  locale: 'en' | 'pt-BR'
   onTogglePause?: (typeId: string, paused: boolean) => void
   strings?: NewsletterHubStrings
 }
 
-export function CadenceCard({ config, onTogglePause, strings }: CadenceCardProps) {
+export function CadenceCard({ config, siteTimezone, locale, onTogglePause, strings }: CadenceCardProps) {
   const s = strings?.schedule
   const [expanded, setExpanded] = useState(false)
-  const [cadenceDays, setCadenceDays] = useState(String(config.cadenceDays ?? 7))
-  const [sendTime, setSendTime] = useState(config.time || '09:00')
-  const [startDayIdx, setStartDayIdx] = useState(getDayIndexFromDate(config.cadenceStartDate))
-  const [isPending, startTransition] = useTransition()
-  const formRef = useRef<HTMLFormElement>(null)
 
-  useEffect(() => {
-    setCadenceDays(String(config.cadenceDays ?? 7))
-    setSendTime(config.time || '09:00')
-    setStartDayIdx(getDayIndexFromDate(config.cadenceStartDate))
-  }, [config.cadenceDays, config.time, config.cadenceStartDate])
+  const effectivePattern = config.cadencePattern ?? legacyToPattern(config)
+  const time = normalizeTime(config.time)
 
-  function dayLabel(key: typeof DAY_KEYS[number]): string {
-    return s?.[key] ?? key.replace('day', '')
+  let summaryText: string
+  try {
+    summaryText = describePattern(effectivePattern, locale)
+  } catch {
+    summaryText = config.cadence
   }
 
-  function handleSave() {
-    const days = parseInt(cadenceDays, 10)
-    if (isNaN(days) || days < 1 || days > 365) {
-      toast.error(s?.cadenceRangeError ?? 'Cadence must be 1–365 days')
-      return
-    }
-    if (!/^\d{2}:\d{2}$/.test(sendTime)) {
-      toast.error(s?.timeFormatError ?? 'Invalid time format')
-      return
-    }
-    startTransition(async () => {
-      const result = await updateCadence(config.typeId, {
-        cadence_days: days,
-        preferred_send_time: sendTime,
-        cadence_start_date: getNextDateForDay(startDayIdx),
-      })
-      if (result.ok) {
-        toast.success(s?.saved ?? 'Saved')
-        setExpanded(false)
-      } else {
-        toast.error('error' in result ? result.error : (s?.updateFailed ?? 'Failed'))
-      }
-    })
+  async function handlePatternSave(pattern: CadencePattern, sendTime: string) {
+    return updateCadencePattern(config.typeId, pattern, sendTime)
   }
 
   return (
@@ -80,9 +57,7 @@ export function CadenceCard({ config, onTogglePause, strings }: CadenceCardProps
         <div className="min-w-0 flex-1">
           <div className="text-[11px] font-medium text-gray-200">{config.typeName}</div>
           <div className="text-[9px] text-gray-500">
-            {config.cadenceDays} {s?.daysUnit ?? 'days'}
-            {config.dayOfWeek && <> · {config.dayOfWeek}</>}
-            {' · '}{config.time}
+            {summaryText} · {time}
           </div>
         </div>
         <div className="text-right shrink-0">
@@ -91,7 +66,7 @@ export function CadenceCard({ config, onTogglePause, strings }: CadenceCardProps
         </div>
         {config.conflicts.length > 0 && (
           <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[8px] font-medium text-amber-400">
-            {config.conflicts.length} {'conflict'}{config.conflicts.length > 1 ? 's' : ''}
+            {config.conflicts.length} {config.conflicts.length > 1 ? (s?.conflicts ?? 'conflicts') : (s?.conflict ?? 'conflict')}
           </span>
         )}
         <button
@@ -115,79 +90,28 @@ export function CadenceCard({ config, onTogglePause, strings }: CadenceCardProps
       </div>
 
       {expanded && (
-        <form
-          ref={formRef}
-          onSubmit={(e) => { e.preventDefault(); handleSave() }}
-          className="border-t border-gray-800 px-4 py-3 space-y-3"
-          data-testid={`cadence-form-${config.typeId}`}
-        >
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="block text-[10px] font-medium text-gray-500 mb-1">
-                {s?.cadenceConfig ?? 'Cadence'} ({s?.daysUnit ?? 'days'})
-              </label>
-              <input
-                type="number"
-                min={1}
-                max={365}
-                value={cadenceDays}
-                onChange={(e) => setCadenceDays(e.target.value)}
-                className="w-full rounded-md border border-gray-700 bg-gray-950 px-2.5 py-1.5 text-xs text-gray-100 tabular-nums focus:border-indigo-500 focus:outline-none"
-                data-testid={`cadence-days-${config.typeId}`}
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-medium text-gray-500 mb-1">
-                {s?.startDay ?? 'Start Day'}
-              </label>
-              <select
-                value={startDayIdx}
-                onChange={(e) => setStartDayIdx(Number(e.target.value))}
-                className="w-full rounded-md border border-gray-700 bg-gray-950 px-2.5 py-1.5 text-xs text-gray-100 focus:border-indigo-500 focus:outline-none"
-                data-testid={`cadence-day-${config.typeId}`}
-              >
-                {DAY_KEYS.map((key, i) => (
-                  <option key={i} value={i}>{dayLabel(key)}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-[10px] font-medium text-gray-500 mb-1">
-                {s?.sendWindow ?? 'Send Time'}
-              </label>
-              <input
-                type="time"
-                value={sendTime}
-                onChange={(e) => setSendTime(e.target.value)}
-                className="w-full rounded-md border border-gray-700 bg-gray-950 px-2.5 py-1.5 text-xs text-gray-100 focus:border-indigo-500 focus:outline-none"
-                data-testid={`cadence-time-${config.typeId}`}
-              />
-            </div>
-          </div>
-          <div className="flex justify-end gap-2">
+        <div className="border-t border-gray-800 px-4 py-3" data-testid={`cadence-form-${config.typeId}`}>
+          <CadencePatternForm
+            currentPattern={effectivePattern}
+            preferredSendTime={time}
+            siteTimezone={siteTimezone}
+            locale={locale}
+            onSave={handlePatternSave}
+            strings={strings}
+          />
+          <div className="flex justify-start mt-2">
             <button
               type="button"
-              onClick={() => {
-                setCadenceDays(String(config.cadenceDays ?? 7))
-                setSendTime(config.time || '09:00')
-                setStartDayIdx(getDayIndexFromDate(config.cadenceStartDate))
-                setExpanded(false)
-              }}
+              onClick={() => setExpanded(false)}
               className="rounded-md px-3 py-1.5 text-[10px] font-medium text-gray-400 hover:bg-gray-800"
             >
-              {s?.cancelEdit ?? 'Cancel'}
-            </button>
-            <button
-              type="submit"
-              disabled={isPending}
-              className="rounded-md bg-indigo-500 px-3 py-1.5 text-[10px] font-medium text-white hover:bg-indigo-600 disabled:opacity-50"
-              data-testid={`cadence-save-${config.typeId}`}
-            >
-              {isPending ? '...' : (s?.save ?? 'Save')}
+              {s?.collapse ?? 'Collapse'}
             </button>
           </div>
-        </form>
+        </div>
       )}
     </div>
   )
 }
+
+export { legacyToPattern }
