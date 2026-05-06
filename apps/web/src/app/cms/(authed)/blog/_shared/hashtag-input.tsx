@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { searchHashtags, createHashtag } from '../[id]/edit/hashtag-actions'
+import { getCmsEditorLabels } from './labels'
 
 interface Hashtag {
   id: string
@@ -16,6 +17,7 @@ interface HashtagInputProps {
 }
 
 export function HashtagInput({ siteId, selected, onChange }: HashtagInputProps) {
+  const l = getCmsEditorLabels()
   const [query, setQuery] = useState('')
   const [suggestions, setSuggestions] = useState<Hashtag[]>([])
   const [loading, setLoading] = useState(false)
@@ -78,7 +80,7 @@ export function HashtagInput({ siteId, selected, onChange }: HashtagInputProps) 
   return (
     <div className="mb-6">
       <label className="font-mono text-[10px] tracking-widest uppercase text-neutral-400 font-semibold block mb-2">
-        Marcadores
+        {l.hashtags}
       </label>
       <div className="flex flex-wrap gap-1.5 p-2 border border-neutral-700 rounded-lg min-h-[40px] focus-within:border-indigo-500 transition-colors">
         {selected.map(h => (
@@ -103,13 +105,13 @@ export function HashtagInput({ siteId, selected, onChange }: HashtagInputProps) 
           onKeyDown={handleKeyDown}
           onFocus={() => setShowDropdown(true)}
           onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
-          placeholder={selected.length === 0 ? '#tag' : ''}
+          placeholder={selected.length === 0 ? l.hashtagPlaceholder : ''}
           className="flex-1 min-w-[80px] bg-transparent text-xs text-neutral-200 outline-none font-mono"
           role="combobox"
           aria-expanded={showDropdown && (suggestions.length > 0 || (!!query.trim() && !loading))}
           aria-autocomplete="list"
           aria-controls="hashtag-listbox"
-          aria-label="Buscar marcadores"
+          aria-label={l.searchHashtags}
         />
       </div>
       {showDropdown && (suggestions.length > 0 || (query.trim() && !loading)) && (
@@ -132,7 +134,7 @@ export function HashtagInput({ siteId, selected, onChange }: HashtagInputProps) 
               onMouseDown={createAndAdd}
               className="w-full text-left px-3 py-1.5 text-xs font-mono text-indigo-400 hover:bg-neutral-800"
             >
-              + Criar &quot;#{query.trim()}&quot;
+              {l.createNew(query.trim())}
             </button>
           )}
         </div>

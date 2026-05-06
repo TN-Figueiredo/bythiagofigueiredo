@@ -7,6 +7,9 @@ import type { RelatedPost } from '@/lib/blog/related-posts'
 import { Tape } from '@/app/(public)/components/Tape'
 import { ReadableCard } from './readable-card'
 import { ReadProgressStore } from '@/lib/tracking/read-progress-store'
+import { ptBR } from '@/components/blog/_i18n/pt-BR'
+import { en } from '@/components/blog/_i18n/en'
+import type { BlogStrings } from '@/components/blog/_i18n/types'
 
 type Props = {
   posts: RelatedPost[]
@@ -40,6 +43,7 @@ function tapeRotation(index: number) {
 }
 
 export function RelatedPostsGrid({ posts, locale, category }: Props) {
+  const t: BlogStrings = locale === 'pt-BR' ? ptBR : en
   const [visiblePosts, setVisiblePosts] = useState<RelatedPost[]>(posts.slice(0, 3))
 
   useEffect(() => {
@@ -83,7 +87,7 @@ export function RelatedPostsGrid({ posts, locale, category }: Props) {
               letterSpacing: '-0.015em',
             }}
           >
-            Textos relacionados
+            {t.relatedPosts}
           </h2>
           <div
             className="font-jetbrains"
@@ -93,7 +97,7 @@ export function RelatedPostsGrid({ posts, locale, category }: Props) {
               letterSpacing: '0.04em',
             }}
           >
-            Mais na mesma categoria ·{' '}
+            {t.moreSameCategory} ·{' '}
             {category && (
               <Link
                 href={localePath(`/blog?category=${encodeURIComponent(category)}`, locale)}
@@ -116,7 +120,7 @@ export function RelatedPostsGrid({ posts, locale, category }: Props) {
               display: 'inline-block',
             }}
           >
-            <em>Ver categoria</em> →
+            <em>{t.viewCategory}</em> →
           </Link>
         )}
       </div>
@@ -139,7 +143,7 @@ export function RelatedPostsGrid({ posts, locale, category }: Props) {
       >
         {visiblePosts.map((post, i) => (
           <ReadableCard key={post.id} postId={post.id}>
-            <WritingCard post={post} locale={locale} index={i} />
+            <WritingCard post={post} locale={locale} index={i} t={t} />
           </ReadableCard>
         ))}
       </div>
@@ -147,7 +151,7 @@ export function RelatedPostsGrid({ posts, locale, category }: Props) {
   )
 }
 
-function WritingCard({ post, locale, index }: { post: RelatedPost; locale: string; index: number }) {
+function WritingCard({ post, locale, index, t }: { post: RelatedPost; locale: string; index: number; t: BlogStrings }) {
   const rot = paperRotation(index)
   const lift = paperLift(index)
   const tint = paperTint(index)
@@ -202,7 +206,7 @@ function WritingCard({ post, locale, index }: { post: RelatedPost; locale: strin
                 fontWeight: 600,
               }}
             >
-              ▤ texto
+              ▤ {t.textBadge}
             </div>
           </div>
 
@@ -265,7 +269,7 @@ function WritingCard({ post, locale, index }: { post: RelatedPost; locale: strin
                 letterSpacing: '0.04em',
               }}
             >
-              {post.readingTimeMin} min · leitura
+              {post.readingTimeMin} {t.minuteReadLabel}
             </div>
 
             {post.category && (

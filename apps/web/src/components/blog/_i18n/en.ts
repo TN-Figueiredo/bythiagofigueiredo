@@ -46,6 +46,9 @@ export const en: BlogStrings = {
   loadMoreDetail: (count: number, remaining: number) =>
     `Load ${count} more of ${remaining} remaining`,
   endOfPosts: "That's all! ↑",
+  relatedPosts: 'Related posts',
+  moreSameCategory: 'More in same category',
+  viewCategory: 'View category',
   textBadge: 'TEXT',
   minuteReadLabel: 'min read',
   backToArchive: 'back to archive',

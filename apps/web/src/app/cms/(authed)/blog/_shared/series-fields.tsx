@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { getCmsEditorLabels } from './labels'
 
 interface PostOption {
   id: string
@@ -20,6 +21,7 @@ interface SeriesFieldsProps {
 }
 
 export function SeriesFields(props: SeriesFieldsProps) {
+  const l = getCmsEditorLabels()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<PostOption[]>([])
   const [selectedTitle, setSelectedTitle] = useState<string | null>(null)
@@ -53,7 +55,7 @@ export function SeriesFields(props: SeriesFieldsProps) {
     <div className="mt-6 pt-6 border-t border-neutral-800">
       <div className="mb-4">
         <label className="font-mono text-[10px] tracking-widest uppercase text-neutral-400 font-semibold block mb-2">
-          Post anterior
+          {l.previousPost}
         </label>
         {props.previousPostId && selectedTitle ? (
           <div className="flex items-center gap-2 border border-neutral-700 rounded-lg px-3 py-2">
@@ -73,13 +75,13 @@ export function SeriesFields(props: SeriesFieldsProps) {
               onChange={(e) => { setQuery(e.target.value); setShowDropdown(true) }}
               onFocus={() => setShowDropdown(true)}
               onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
-              placeholder="Buscar por título..."
+              placeholder={l.searchByTitle}
               className="w-full bg-transparent border border-dashed border-neutral-700 rounded-lg px-3 py-2 text-sm text-neutral-200 outline-none focus:border-indigo-500"
               role="combobox"
               aria-expanded={showDropdown && results.length > 0}
               aria-autocomplete="list"
               aria-controls="series-post-listbox"
-              aria-label="Buscar post anterior"
+              aria-label={l.searchPreviousPost}
             />
             {showDropdown && results.length > 0 && (
               <div id="series-post-listbox" role="listbox" className="absolute top-full left-0 right-0 mt-1 border border-neutral-700 rounded bg-neutral-900 max-h-40 overflow-y-auto z-10">
@@ -108,7 +110,7 @@ export function SeriesFields(props: SeriesFieldsProps) {
           onChange={(e) => props.onContinuesChange(e.target.checked)}
           className="accent-indigo-500"
         />
-        <span className="text-sm text-neutral-200">Continua na próxima parte</span>
+        <span className="text-sm text-neutral-200">{l.continuesInNext}</span>
       </label>
     </div>
   )

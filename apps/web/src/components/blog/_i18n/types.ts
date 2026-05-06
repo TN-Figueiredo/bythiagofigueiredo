@@ -43,6 +43,9 @@ export interface BlogStrings {
   noPostsDetail: string
   loadMoreDetail: (count: number, remaining: number) => string
   endOfPosts: string
+  relatedPosts: string
+  moreSameCategory: string
+  viewCategory: string
   textBadge: string
   minuteReadLabel: string
   backToArchive: string

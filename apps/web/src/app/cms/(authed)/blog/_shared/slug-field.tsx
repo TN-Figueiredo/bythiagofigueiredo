@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { getCmsEditorLabels } from './labels'
 
 export function generateSlug(title: string): string {
   return title
@@ -20,6 +21,7 @@ interface SlugFieldProps {
 }
 
 export function SlugField({ value, onChange, siteUrl, locale }: SlugFieldProps) {
+  const l = getCmsEditorLabels()
   const [editing, setEditing] = useState(false)
   const charCount = value.length
   const prefix = locale === 'en' ? '/blog/' : '/pt/blog/'
@@ -41,7 +43,7 @@ export function SlugField({ value, onChange, siteUrl, locale }: SlugFieldProps) 
       <div className="flex justify-between">
         <span className="font-mono text-[10px] text-neutral-500">🔗 {permalink}</span>
         <span className={`font-mono text-[10px] ${charCount > 80 ? 'text-red-400' : 'text-green-500'}`}>
-          {charCount} caracteres
+          {charCount} {l.characters}
         </span>
       </div>
     </div>

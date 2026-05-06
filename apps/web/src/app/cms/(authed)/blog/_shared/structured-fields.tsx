@@ -1,5 +1,7 @@
 'use client'
 
+import { getCmsEditorLabels } from './labels'
+
 interface StructuredFieldsProps {
   keyPoints: string[]
   onKeyPointsChange: (points: string[]) => void
@@ -17,12 +19,16 @@ function OrderedListField({
   items,
   onChange,
   indexColor = '#818cf8',
+  addEmptyLabel,
+  addItemLabel,
 }: {
   label: string
   hint?: string
   items: string[]
   onChange: (items: string[]) => void
   indexColor?: string
+  addEmptyLabel: string
+  addItemLabel: string
 }) {
   const addItem = () => onChange([...items, ''])
   const removeItem = (i: number) => onChange(items.filter((_, idx) => idx !== i))
@@ -44,7 +50,7 @@ function OrderedListField({
           onClick={addItem}
           className="w-full border border-dashed border-neutral-700 rounded-lg py-3 text-xs text-neutral-400 hover:border-indigo-500 transition-colors"
         >
-          + Adicionar
+          {addEmptyLabel}
         </button>
       ) : (
         <div className="space-y-2">
@@ -75,7 +81,7 @@ function OrderedListField({
             onClick={addItem}
             className="text-xs text-neutral-400 hover:text-indigo-400 transition-colors"
           >
-            + Adicionar item
+            {addItemLabel}
           </button>
         </div>
       )}
@@ -84,39 +90,44 @@ function OrderedListField({
 }
 
 export function StructuredFields(props: StructuredFieldsProps) {
+  const l = getCmsEditorLabels()
   return (
     <div className="mt-8 pt-8 border-t border-neutral-800">
       <OrderedListField
-        label="Pontos-chave"
+        label={l.keyPoints}
         items={props.keyPoints}
         onChange={props.onKeyPointsChange}
         indexColor="#818cf8"
+        addEmptyLabel={l.addEmpty}
+        addItemLabel={l.addItem}
       />
 
       <div className="mb-6">
         <label className="font-mono text-[10px] tracking-widest uppercase text-neutral-400 font-semibold block mb-2">
-          Citação
+          {l.pullQuote}
         </label>
         <input
           value={props.pullQuote}
           onChange={(e) => props.onPullQuoteChange(e.target.value)}
-          placeholder="Uma frase marcante do post..."
+          placeholder={l.pullQuotePlaceholder}
           className="w-full bg-transparent border border-neutral-700 rounded px-3 py-2 text-sm text-neutral-200 italic outline-none focus:border-indigo-500"
         />
       </div>
 
       <OrderedListField
-        label="Notas"
+        label={l.notes}
         items={props.notes}
         onChange={props.onNotesChange}
         indexColor="#FFE37A"
+        addEmptyLabel={l.addEmpty}
+        addItemLabel={l.addItem}
       />
 
       <div className="mb-6">
         <label className="font-mono text-[10px] tracking-widest uppercase text-neutral-400 font-semibold block mb-2">
-          Colofão
+          {l.colophon}
           <span className="ml-2 normal-case tracking-normal font-normal text-neutral-500">
-            ferramentas, processo, créditos
+            {l.colophonHint}
           </span>
         </label>
         <input

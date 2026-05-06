@@ -12,9 +12,7 @@ BEGIN
 END;
 $$;
 
--- Attach to every partition via the parent table.
--- Partitioned tables require the trigger on the parent; PostgreSQL propagates it
--- to existing + future partitions automatically (PG 13+).
+-- Attach to tracked_links (regular table, not partitioned).
 DROP TRIGGER IF EXISTS trg_tracked_links_updated_at ON tracked_links;
 CREATE TRIGGER trg_tracked_links_updated_at
   BEFORE UPDATE ON tracked_links

@@ -46,6 +46,9 @@ export const ptBR: BlogStrings = {
   loadMoreDetail: (count: number, remaining: number) =>
     `Ver mais ${count} de ${remaining} restantes`,
   endOfPosts: 'Isso é tudo! ↑',
+  relatedPosts: 'Textos relacionados',
+  moreSameCategory: 'Mais na mesma categoria',
+  viewCategory: 'Ver categoria',
   textBadge: 'TEXTO',
   minuteReadLabel: 'min de leitura',
   backToArchive: 'voltar ao arquivo',

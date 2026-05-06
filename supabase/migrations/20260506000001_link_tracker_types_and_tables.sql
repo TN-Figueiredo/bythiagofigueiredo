@@ -12,8 +12,10 @@ EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
 -- ─── tracked_links ───
+-- NOT partitioned: metadata table (one row per link), low volume.
+-- Only link_clicks is partitioned (high-volume click events).
 CREATE TABLE IF NOT EXISTS tracked_links (
-  id                  uuid            NOT NULL DEFAULT gen_random_uuid(),
+  id                  uuid            PRIMARY KEY DEFAULT gen_random_uuid(),
   site_id             uuid            NOT NULL REFERENCES sites(id),
   code                text            NOT NULL,
   slug                text,
@@ -44,19 +46,11 @@ CREATE TABLE IF NOT EXISTS tracked_links (
   created_by          uuid            REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at          timestamptz     NOT NULL DEFAULT now(),
   updated_at          timestamptz     NOT NULL DEFAULT now(),
-  PRIMARY KEY (id, created_at),
   UNIQUE (site_id, code),
   UNIQUE (site_id, slug)
-) PARTITION BY RANGE (created_at);
+);
 
 ALTER TABLE tracked_links ENABLE ROW LEVEL SECURITY;
-
--- Unique index on just id — required so that FKs from other tables
--- (e.g. newsletter_sends.link_id) can reference tracked_links(id)
--- without including the partition key. PostgreSQL partitioned tables
--- require the partition key in the PK, but a separate UNIQUE index on
--- id alone is allowed and satisfies FK references.
-CREATE UNIQUE INDEX IF NOT EXISTS tracked_links_id_unique ON tracked_links (id);
 
 -- ─── link_clicks ───
 CREATE TABLE IF NOT EXISTS link_clicks (
