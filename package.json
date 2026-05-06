@@ -32,7 +32,8 @@
     "node": ">= 18.0.0"
   },
   "optionalDependencies": {
-    "@rollup/rollup-linux-x64-gnu": "4.60.1"
+    "@rollup/rollup-linux-x64-gnu": "4.60.1",
+    "lightningcss-linux-x64-gnu": "1.32.0"
   },
   "devDependencies": {
     "husky": "^9.1.7",
