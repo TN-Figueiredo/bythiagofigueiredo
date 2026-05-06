@@ -7,11 +7,21 @@
  */
 
 import type { IncomingMessage, ServerResponse } from 'http'
-import server from '../src/index'
+import buildServer from '../src/index'
+
+let app: Awaited<ReturnType<typeof buildServer>> | null = null
+
+async function getApp() {
+  if (!app) {
+    app = await buildServer()
+    await app.ready()
+  }
+  return app
+}
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   try {
-    await server.ready()
+    const server = await getApp()
     server.server.emit('request', req, res)
   } catch (err) {
     console.error('Serverless handler error:', err)
