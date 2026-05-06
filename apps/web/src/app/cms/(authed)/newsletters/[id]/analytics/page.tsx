@@ -4,6 +4,7 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { parseUserAgent } from '@/lib/newsletter/stats'
 import { EditionAnalytics } from '@tn-figueiredo/newsletter-admin/client'
 import type { AnalyticsData } from '@tn-figueiredo/newsletter-admin'
+import { getNewsletterClickRows } from '@/lib/links/newsletter-compat'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,27 +36,20 @@ export default async function EditionAnalyticsPage({
     if (refreshed) Object.assign(edition, refreshed)
   }
 
-  // Two-step: get send IDs for this edition, then fetch clicks
-  const { data: sendIds } = await supabase
+  // Fetch send IDs for this edition.
+  const { data: sendRows } = await supabase
     .from('newsletter_sends')
     .select('id')
     .eq('edition_id', id)
 
-  const { data: clicks } = sendIds?.length
-    ? await supabase
-        .from('newsletter_click_events')
-        .select('url')
-        .in('send_id', sendIds.map((s) => s.id))
-    : { data: [] as { url: string }[] }
+  const sendIds = (sendRows ?? []).map((s) => s.id as string)
 
-  const clickMap = new Map<string, number>()
-  for (const c of clicks ?? []) {
-    clickMap.set(c.url, (clickMap.get(c.url) ?? 0) + 1)
-  }
-  const topLinks = [...clickMap.entries()]
-    .sort((a, b) => b[1] - a[1])
+  // Query click rows via the compat helper — reads from the unified view when
+  // LINKS_NEWSLETTER_REWRITE_ENABLED=true, otherwise legacy table.
+  const clickRows = await getNewsletterClickRows({ supabase, sendIds })
+  const topLinks = clickRows
+    .sort((a, b) => b.count - a.count)
     .slice(0, 10)
-    .map(([url, count]) => ({ url, count }))
 
   const { data: opens } = await supabase
     .from('newsletter_sends')

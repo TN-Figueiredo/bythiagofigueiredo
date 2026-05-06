@@ -5,6 +5,7 @@ import { getEmailService } from '../../../../../lib/email/service'
 import { render } from '@react-email/render'
 import { Newsletter } from '../../../../emails/newsletter'
 import * as Sentry from '@sentry/nextjs'
+import { rewriteLinksForTracking, rewriteLinksUnified } from '../../../../../lib/newsletter/link-tracking'
 
 const JOB = 'send-scheduled-newsletters'
 const LOCK_KEY = 'cron:send-newsletters'
@@ -133,6 +134,23 @@ async function sendEdition(
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://bythiagofigueiredo.com'
   const fromDomain = process.env.NEWSLETTER_FROM_DOMAIN ?? 'bythiagofigueiredo.com'
 
+  // Feature flag: unified link rewriting via tracked_links + go.{domain}
+  const rewriteEnabled = process.env.LINKS_NEWSLETTER_REWRITE_ENABLED === 'true'
+
+  // Resolve short_domain for this site when the flag is on.
+  let shortDomain: string | null = null
+  if (rewriteEnabled) {
+    shortDomain = process.env.LINKS_SHORT_DOMAIN ?? null
+    // If the short domain is not configured, fall back to legacy tracker.
+  }
+
+  // Derive a campaign slug from the edition subject (best effort, url-safe).
+  const campaignSlug = edition.subject
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 60)
+
   const { createHash } = await import('crypto')
 
   // For crash recovery: read existing tokens so we reuse them instead of generating orphans
@@ -195,7 +213,8 @@ async function sendEdition(
         const localePrefix = subscriberLocale === 'pt-BR' ? '/pt' : ''
         const archiveUrl = `${appUrl}${localePrefix}/newsletter/archive/${edition.id}`
 
-        const html = await render(Newsletter({
+        // Render the React Email template to HTML.
+        let html = await render(Newsletter({
           subject: edition.subject,
           preheader: edition.preheader ?? undefined,
           contentHtml: edition.content_html ?? `<p>${edition.content_mdx ?? edition.subject}</p>`,
@@ -204,6 +223,23 @@ async function sendEdition(
           unsubscribeUrl,
           archiveUrl,
         }))
+
+        // Apply link rewriting BEFORE sending.
+        if (rewriteEnabled && shortDomain) {
+          // Unified path: tracked_links table + go.{domain} short URL
+          const rewriteResult = await rewriteLinksUnified({
+            html,
+            supabase,
+            siteId: edition.site_id,
+            editionId: edition.id,
+            shortDomain,
+            campaignSlug,
+          })
+          html = rewriteResult.html
+        } else {
+          // Legacy path: inline base64-encoded click-tracking URL
+          html = rewriteLinksForTracking(html, send.id, appUrl)
+        }
 
         const result = await emailService.send({
           from: { name: senderName, email: senderEmail },
@@ -223,7 +259,9 @@ async function sendEdition(
         await supabase.from('newsletter_sends').update({
           provider_message_id: result.messageId,
           status: 'sent',
-        }).eq('id', send.id)
+          // Record which pipeline was used — the webhook handler reads this.
+          link_rewrite_enabled: rewriteEnabled && shortDomain !== null,
+        } as Record<string, unknown>).eq('id', send.id)
 
         sentCount++
         await sleep(THROTTLE_MS)

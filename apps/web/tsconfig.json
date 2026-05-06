@@ -34,6 +34,7 @@
       "@/lib/seo/*": ["./lib/seo/*"],
       "@/lib/supabase/*": ["./lib/supabase/*"],
       "@/lib/tracking/*": ["./lib/tracking/*"],
+      "@/lib/links/*": ["./src/lib/links/*"],
       "@/test/*": ["./test/*"],
       "@/*": ["./src/*"]
     }
