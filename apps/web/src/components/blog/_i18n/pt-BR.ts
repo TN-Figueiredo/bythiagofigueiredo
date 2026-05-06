@@ -40,4 +40,5 @@ export const ptBR: BlogStrings = {
   clearAll: 'limpar tudo',
   backToHome: 'voltar pra home',
   videos: 'vídeos',
+  rss: 'RSS',
 }

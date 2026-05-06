@@ -316,8 +316,8 @@ export function BlogArchiveClient({ posts, categories, tags, locale }: BlogArchi
           t={t}
         />
 
-        {/* View toggle */}
-        <div style={{ display: 'flex', gap: 4, marginTop: 12 }}>
+        {/* View toggle + RSS */}
+        <div style={{ display: 'flex', gap: 4, marginTop: 12, alignItems: 'center' }}>
           <button
             onClick={() => setViewMode('grid')}
             style={{
@@ -350,6 +350,28 @@ export function BlogArchiveClient({ posts, categories, tags, locale }: BlogArchi
           >
             {t.list}
           </button>
+          <span style={{ flex: 1 }} />
+          <a
+            href="/feed.xml"
+            target="_blank"
+            rel="noopener noreferrer"
+            title={t.rss}
+            style={{
+              fontFamily: '"JetBrains Mono", monospace',
+              fontSize: 11,
+              padding: '5px 10px',
+              border: '1.5px solid #2E2718',
+              borderRadius: 3,
+              background: 'transparent',
+              color: '#958A75',
+              textDecoration: 'none',
+              fontWeight: 400,
+              letterSpacing: '0.04em',
+              transition: 'color 0.15s, border-color 0.15s',
+            }}
+          >
+            {t.rss}
+          </a>
         </div>
       </header>
 

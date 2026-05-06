@@ -38,4 +38,5 @@ export interface BlogStrings {
   clearAll: string
   backToHome: string
   videos: string
+  rss: string
 }

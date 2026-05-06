@@ -40,4 +40,5 @@ export const en: BlogStrings = {
   clearAll: 'clear all',
   backToHome: 'back to home',
   videos: 'videos',
+  rss: 'RSS',
 }
