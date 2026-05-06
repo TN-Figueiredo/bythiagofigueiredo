@@ -33,11 +33,22 @@ export function parseDuration(iso: string): { text: string; seconds: number } {
 export async function fetchRecentVideoIds(
   playlistId: string,
   apiKey: string,
-  maxResults = 10,
 ): Promise<string[]> {
-  const url = `${BASE}/playlistItems?part=contentDetails&playlistId=${playlistId}&maxResults=${maxResults}&key=${apiKey}`
-  const data = (await ytFetch(url)) as { items?: { contentDetails: { videoId: string } }[] }
-  return (data.items ?? []).map((item) => item.contentDetails.videoId)
+  const ids: string[] = []
+  let pageToken: string | undefined
+  do {
+    const tokenParam = pageToken ? `&pageToken=${pageToken}` : ''
+    const url = `${BASE}/playlistItems?part=contentDetails&playlistId=${playlistId}&maxResults=50${tokenParam}&key=${apiKey}`
+    const data = (await ytFetch(url)) as {
+      items?: { contentDetails: { videoId: string } }[]
+      nextPageToken?: string
+    }
+    for (const item of data.items ?? []) {
+      ids.push(item.contentDetails.videoId)
+    }
+    pageToken = data.nextPageToken
+  } while (pageToken)
+  return ids
 }
 
 export interface ParsedVideo {
@@ -60,35 +71,40 @@ export async function fetchVideoDetails(
   apiKey: string,
 ): Promise<ParsedVideo[]> {
   if (videoIds.length === 0) return []
-  const ids = videoIds.join(',')
-  const url = `${BASE}/videos?part=snippet,contentDetails,statistics&id=${ids}&key=${apiKey}`
-  const data = (await ytFetch(url)) as { items?: Array<{
-    id: string
-    snippet: {
-      title: string; description: string; publishedAt: string; tags?: string[]
-      thumbnails: { medium?: { url: string }; high?: { url: string } }
-    }
-    contentDetails: { duration: string }
-    statistics: { viewCount?: string; likeCount?: string; commentCount?: string }
-  }> }
+  const results: ParsedVideo[] = []
+  for (let i = 0; i < videoIds.length; i += 50) {
+    const batch = videoIds.slice(i, i + 50)
+    const ids = batch.join(',')
+    const url = `${BASE}/videos?part=snippet,contentDetails,statistics&id=${ids}&key=${apiKey}`
+    const data = (await ytFetch(url)) as { items?: Array<{
+      id: string
+      snippet: {
+        title: string; description: string; publishedAt: string; tags?: string[]
+        thumbnails: { medium?: { url: string }; high?: { url: string } }
+      }
+      contentDetails: { duration: string }
+      statistics: { viewCount?: string; likeCount?: string; commentCount?: string }
+    }> }
 
-  return (data.items ?? []).map((item) => {
-    const { text, seconds } = parseDuration(item.contentDetails.duration)
-    return {
-      youtubeVideoId: item.id,
-      title: item.snippet.title,
-      description: item.snippet.description,
-      publishedAt: item.snippet.publishedAt,
-      tags: item.snippet.tags ?? [],
-      thumbnailUrl: item.snippet.thumbnails.medium?.url ?? null,
-      thumbnailHqUrl: item.snippet.thumbnails.high?.url ?? null,
-      duration: text,
-      durationSeconds: seconds,
-      viewCount: parseInt(item.statistics.viewCount ?? '0', 10),
-      likeCount: parseInt(item.statistics.likeCount ?? '0', 10),
-      commentCount: parseInt(item.statistics.commentCount ?? '0', 10),
+    for (const item of data.items ?? []) {
+      const { text, seconds } = parseDuration(item.contentDetails.duration)
+      results.push({
+        youtubeVideoId: item.id,
+        title: item.snippet.title,
+        description: item.snippet.description,
+        publishedAt: item.snippet.publishedAt,
+        tags: item.snippet.tags ?? [],
+        thumbnailUrl: item.snippet.thumbnails.medium?.url ?? null,
+        thumbnailHqUrl: item.snippet.thumbnails.high?.url ?? null,
+        duration: text,
+        durationSeconds: seconds,
+        viewCount: parseInt(item.statistics.viewCount ?? '0', 10),
+        likeCount: parseInt(item.statistics.likeCount ?? '0', 10),
+        commentCount: parseInt(item.statistics.commentCount ?? '0', 10),
+      })
     }
-  })
+  }
+  return results
 }
 
 export async function fetchChannelStats(

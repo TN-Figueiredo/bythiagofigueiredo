@@ -1194,7 +1194,6 @@ function YouTubeSection({
   channels: YouTubeChannelData[]
   readOnly: boolean
 }) {
-  const [saveState, setSaveState] = useSaveState()
   const [, startTransition] = useTransition()
   const [channels, setChannels] = useState(initialChannels)
   const canAdd = channels.length < 2
@@ -1225,9 +1224,6 @@ function YouTubeSection({
           key={channel.id}
           channel={channel}
           readOnly={readOnly}
-          saveState={saveState}
-          setSaveState={setSaveState}
-          startTransition={startTransition}
           onRemove={() => handleRemove(channel.id)}
         />
       ))}
@@ -1355,7 +1351,7 @@ function AddChannelForm({
             <div>
               <p className="text-sm font-medium text-slate-200">{preview.name}</p>
               <p className="text-xs text-slate-400">
-                @{preview.handle} · {preview.subscriberCount.toLocaleString()} subs · {preview.videoCount} videos
+                {preview.handle} · {preview.subscriberCount.toLocaleString()} subs · {preview.videoCount} videos
               </p>
             </div>
           </div>
@@ -1376,18 +1372,14 @@ function AddChannelForm({
 function YouTubeChannelCard({
   channel,
   readOnly,
-  saveState,
-  setSaveState,
-  startTransition,
   onRemove,
 }: {
   channel: YouTubeChannelData
   readOnly: boolean
-  saveState: SaveState
-  setSaveState: (s: SaveState) => void
-  startTransition: (fn: () => void) => void
   onRemove?: () => void
 }) {
+  const [saveState, setSaveState] = useSaveState()
+  const [, startTransition] = useTransition()
   const [syncEnabled, setSyncEnabled] = useState(channel.sync_enabled)
   const [schedules, setSchedules] = useState(channel.sync_schedules ?? [])
   const [scheduleLabel, setScheduleLabel] = useState(channel.schedule_label ?? '')
@@ -1434,7 +1426,7 @@ function YouTubeChannelCard({
         <div className="flex items-center gap-2">
           <span className="text-lg">{flag}</span>
           <h3 className="text-base font-medium text-slate-200">{channel.name}</h3>
-          <span className="text-xs text-slate-500">@{channel.handle}</span>
+          <span className="text-xs text-slate-500">{channel.handle}</span>
         </div>
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-2 text-sm text-slate-300">

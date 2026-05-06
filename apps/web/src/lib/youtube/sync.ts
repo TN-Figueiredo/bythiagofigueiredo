@@ -23,7 +23,7 @@ export async function syncChannel(
   }
 
   const videoIds = await fetchRecentVideoIds(channel.uploads_playlist_id, apiKey)
-  result.quotaUsed += 1
+  result.quotaUsed += Math.ceil(videoIds.length / 50) || 1
 
   const { data: existing } = await supabase
     .from('youtube_videos')
@@ -38,7 +38,7 @@ export async function syncChannel(
   if (newIds.length === 0) return result
 
   const details = await fetchVideoDetails(newIds, apiKey)
-  result.quotaUsed += 1
+  result.quotaUsed += Math.ceil(newIds.length / 50) || 1
 
   const { data: categories } = await supabase
     .from('youtube_categories')
