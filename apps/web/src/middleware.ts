@@ -131,6 +131,37 @@ export async function middleware(
     return NextResponse.rewrite(url)
   }
 
+  // --- go.* short-link subdomain ---
+  // When host starts with "go.", resolve the base domain to a site,
+  // extract code from pathname, rewrite to /go/${code} internal route.
+  const isGoSubdomain = hostname.startsWith('go.')
+  if (isGoSubdomain) {
+    const baseDomain = hostname.slice(3) // strip "go." prefix
+    const code = pathname === '/' ? '' : pathname.slice(1) // strip leading /
+    const ring = getRingContext()
+    try {
+      const site = await ring.getSiteByDomain(baseDomain)
+      if (!site) {
+        const rewriteUrl = request.nextUrl.clone()
+        rewriteUrl.pathname = '/go/not-found'
+        const res = NextResponse.rewrite(rewriteUrl)
+        res.headers.set('x-short-domain', host)
+        return res
+      }
+      const rewriteUrl = request.nextUrl.clone()
+      rewriteUrl.pathname = code ? `/go/${code}` : '/go'
+      const res = NextResponse.rewrite(rewriteUrl)
+      res.headers.set('x-site-id', site.id)
+      res.headers.set('x-short-domain', host)
+      return res
+    } catch (err) {
+      Sentry.captureException(err)
+      const rewriteUrl = request.nextUrl.clone()
+      rewriteUrl.pathname = '/go/not-found'
+      return NextResponse.rewrite(rewriteUrl)
+    }
+  }
+
   // --- i18n: locale prefix detection + legacy redirects ---
   const skipLocale =
     pathname.startsWith('/admin') ||

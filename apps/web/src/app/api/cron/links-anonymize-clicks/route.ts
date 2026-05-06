@@ -1,0 +1,44 @@
+import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
+import { withCronLock, newRunId } from '../../../../../lib/logger'
+
+export const runtime = 'nodejs'
+
+const JOB = 'links-anonymize-clicks'
+const LOCK_KEY = 'cron:links-anonymize-clicks'
+export const RETENTION_DAYS = 90
+const BATCH_SIZE = 10_000
+
+export async function POST(req: Request): Promise<Response> {
+  const auth = req.headers.get('authorization')
+  const secret = process.env.CRON_SECRET
+  if (!secret || auth !== `Bearer ${secret}`) {
+    return Response.json({ error: 'unauthorized' }, { status: 401 })
+  }
+
+  const supabase = getSupabaseServiceClient()
+  const runId = newRunId()
+
+  return withCronLock(supabase, LOCK_KEY, runId, JOB, async () => {
+    const cutoff = new Date(
+      Date.now() - RETENTION_DAYS * 86_400_000,
+    ).toISOString()
+
+    const { count, error } = await supabase
+      .from('link_clicks')
+      .update({
+        ip: null,
+        user_agent: null,
+        city: null,
+        referrer_url: null,
+      })
+      .lt('clicked_at', cutoff)
+      .not('ip', 'is', null)
+      .limit(BATCH_SIZE)
+
+    if (error) {
+      return { status: 'error' as const, error: error.message }
+    }
+
+    return { status: 'ok' as const, anonymized: count ?? 0 }
+  })
+}
