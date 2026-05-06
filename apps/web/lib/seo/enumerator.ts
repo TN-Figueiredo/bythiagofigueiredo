@@ -24,6 +24,7 @@ const STATIC_SINGLE_LOCALE_DEFS: ReadonlyArray<{
   { basePath: '/newsletters', changeFrequency: 'weekly', priority: 0.5 },
   { basePath: '/about', changeFrequency: 'monthly', priority: 0.6 },
   { basePath: '/youtube', changeFrequency: 'weekly', priority: 0.7 },
+  { basePath: '/blog', changeFrequency: 'daily', priority: 0.9 },
   { basePath: '/newsletter/archive', changeFrequency: 'weekly', priority: 0.4 },
 ]
 
@@ -147,17 +148,7 @@ export async function enumerateSiteRoutes(
     alternates: {},
   }))
 
-  const blogIndex: SitemapRouteEntry = {
-    path: localePath(config.contentPaths.blog, config.defaultLocale),
-    lastModified: new Date(),
-    changeFrequency: 'daily',
-    priority: 0.9,
-    alternates: Object.fromEntries(
-      config.supportedLocales.map((l) => [hreflangCode(l), localePath(config.contentPaths.blog, l)]),
-    ),
-  }
-
-  const all = [...buildStaticRoutes(config), blogIndex, ...postRoutes, ...campaignRoutes, ...archiveRoutes, ...newsletterLandingRoutes]
+  const all = [...buildStaticRoutes(config), ...postRoutes, ...campaignRoutes, ...archiveRoutes, ...newsletterLandingRoutes]
   return all.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime())
 }
 
