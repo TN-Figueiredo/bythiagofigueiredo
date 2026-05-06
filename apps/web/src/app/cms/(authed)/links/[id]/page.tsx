@@ -2,9 +2,7 @@ import { notFound, redirect } from 'next/navigation'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { LinkDetailPanel, LivePulseIndicator } from '@tn-figueiredo/links-admin/client'
-import type { LinkSummary, AnalyticsMetrics } from '@tn-figueiredo/links-admin'
-import { toggleLinkActive, deleteLink } from '../actions'
+import { LinkDetail } from './_detail'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +19,6 @@ export default async function LinkDetailPage({ params }: Props) {
 
   const supabase = getSupabaseServiceClient()
 
-  // Fetch link detail
   const { data: link, error } = await supabase
     .from('tracked_links')
     .select('*')
@@ -47,12 +44,8 @@ export default async function LinkDetailPage({ params }: Props) {
     unique: (m.unique_visitors as number) ?? 0,
   }))
 
-  // Compute analytics KPIs from recent metrics
-  const periodClicks = dailyClicks.reduce((s, m) => s + m.clicks, 0)
-  const periodUnique = dailyClicks.reduce((s, m) => s + m.unique, 0)
-
   // Top country from aggregated daily metrics
-  const { data: topCountryRows } = await supabase
+  const { data: countryRows } = await supabase
     .from('link_daily_metrics')
     .select('countries')
     .eq('link_id', id)
@@ -60,7 +53,7 @@ export default async function LinkDetailPage({ params }: Props) {
     .limit(30)
 
   const countryAgg = new Map<string, number>()
-  for (const row of topCountryRows ?? []) {
+  for (const row of countryRows ?? []) {
     const countries = row.countries as Record<string, number> | null
     if (countries) {
       for (const [c, n] of Object.entries(countries)) {
@@ -77,79 +70,31 @@ export default async function LinkDetailPage({ params }: Props) {
     }
   }
 
-  const linkSummary: LinkSummary = {
-    id: link.id as string,
-    code: link.code as string,
-    slug: (link.slug as string) ?? null,
-    title: (link.title as string) ?? null,
-    destination_url: link.destination_url as string,
-    source_type: link.source_type as string,
-    tags: (link.tags as string[]) ?? [],
-    active: link.active as boolean,
-    redirect_type: (link.redirect_type as number) ?? 302,
-    expires_at: (link.expires_at as string) ?? null,
-    total_clicks: (link.total_clicks as number) ?? 0,
-    unique_visitors: (link.unique_visitors as number) ?? 0,
-    last_clicked_at: (link.last_clicked_at as string) ?? null,
-    created_at: link.created_at as string,
-    updated_at: link.updated_at as string,
-  }
-
-  const metrics: AnalyticsMetrics = {
-    totalClicks: periodClicks,
-    uniqueVisitors: periodUnique,
-    conversionRate: null,
-    topCountry,
-    dailyClicks,
-  }
-
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://bythiagofigueiredo.com'
   const pulseEnabled = process.env.LINKS_LIVE_PULSE_ENABLED !== 'false'
-  const streamUrl = `${appUrl}/api/links/${id}/pulse`
-
-  async function handleToggleActive(linkId: string) {
-    'use server'
-    await toggleLinkActive(linkId)
-  }
-
-  async function handleDelete(linkId: string) {
-    'use server'
-    await deleteLink(linkId)
-    redirect('/cms/links')
-  }
-
-  async function handleEdit(linkId: string) {
-    'use server'
-    redirect(`/cms/links/${linkId}/edit`)
-  }
-
-  async function handleCopyUrl(_linkId: string) {
-    'use server'
-    // Copy handled client-side — this is just a required prop placeholder
-  }
-
-  async function handleGenerateQr(linkId: string) {
-    'use server'
-    redirect(`/cms/links/${linkId}/qr`)
-  }
-
-  async function handleClose() {
-    'use server'
-    redirect('/cms/links')
-  }
 
   return (
     <div className="flex flex-col gap-6 px-4 py-4 md:px-7">
-      {pulseEnabled && (
-        <LivePulseIndicator linkId={id} streamUrl={streamUrl} />
-      )}
-      <LinkDetailPanel
-        link={linkSummary}
-        metrics={metrics}
-        onEdit={handleEdit}
-        onCopyUrl={handleCopyUrl}
-        onGenerateQr={handleGenerateQr}
-        onClose={handleClose}
+      <LinkDetail
+        link={{
+          id: link.id as string,
+          code: link.code as string,
+          slug: (link.slug as string) ?? null,
+          title: (link.title as string) ?? null,
+          destination_url: link.destination_url as string,
+          source_type: (link.source_type as string) ?? 'manual',
+          tags: (link.tags as string[]) ?? [],
+          active: link.active as boolean,
+          redirect_type: (link.redirect_type as number) ?? 302,
+          expires_at: (link.expires_at as string) ?? null,
+          total_clicks: (link.total_clicks as number) ?? 0,
+          unique_visitors: (link.unique_visitors as number) ?? 0,
+          last_clicked_at: (link.last_clicked_at as string) ?? null,
+          created_at: link.created_at as string,
+        }}
+        dailyClicks={dailyClicks}
+        topCountry={topCountry}
+        pulseEnabled={pulseEnabled}
+        linkId={id}
       />
     </div>
   )
