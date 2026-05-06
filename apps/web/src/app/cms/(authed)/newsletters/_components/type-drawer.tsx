@@ -78,9 +78,10 @@ interface TypeDrawerProps {
   existingBadges?: string[]
   siteId?: string
   usedColors?: UsedColor[]
+  defaultOgImage?: string | null
 }
 
-export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, existingBadges = [], siteId, usedColors = [] }: TypeDrawerProps) {
+export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, existingBadges = [], siteId, usedColors = [], defaultOgImage }: TypeDrawerProps) {
   const router = useRouter()
   const titleId = useId()
   const fid = useId()
@@ -98,7 +99,7 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
   const [tagline, setTagline] = useState('')
   const [drawerLocale, setDrawerLocale] = useState<string>(locale)
   const [slug, setSlug] = useState('')
-  const [slugManual, setSlugManual] = useState(false)
+  const [slugTouched, setSlugTouched] = useState(false)
   const [badge, setBadge] = useState('')
   const [description, setDescription] = useState('')
   const [promiseItems, setPromiseItems] = useState<PromiseItem[]>([])
@@ -111,10 +112,25 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
   const [availableTags, setAvailableTags] = useState<UnlinkedTag[]>([])
   const [tagsLoading, setTagsLoading] = useState(false)
 
+  const [showDiscardDialog, setShowDiscardDialog] = useState(false)
+  const pendingCloseAction = useRef<(() => void) | null>(null)
+  const initialSnapshotRef = useRef<string | null>(null)
+
   const [editData, setEditData] = useState<TypeDrawerData | null>(null)
   const [deleteConfirmStep, setDeleteConfirmStep] = useState<null | 'confirm' | 'name-check'>(null)
   const [deleteInfo, setDeleteInfo] = useState<{ subscriberCount: number; editionCount: number } | null>(null)
   const [deleteNameInput, setDeleteNameInput] = useState('')
+
+  function currentSnapshot(): string {
+    return JSON.stringify({
+      name, tagline, drawerLocale, slug, badge, description,
+      promiseValues: promiseItems.map(i => i.value),
+      color, colorDark, ogImageUrl, linkedTagId,
+    })
+  }
+
+  const isDirty = initialSnapshotRef.current !== null
+    && currentSnapshot() !== initialSnapshotRef.current
 
   useEffect(() => { onCloseRef.current = onClose })
 
@@ -135,7 +151,7 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
             setTagline(t.tagline ?? '')
             setDrawerLocale(t.locale)
             setSlug(t.slug)
-            setSlugManual(true)
+            setSlugTouched(false)
             setBadge(t.badge ?? '')
             setDescription(t.description ?? '')
             setPromiseItems(t.landingPromise.map(v => ({ key: nextPromiseKey.current++, value: v })))
@@ -145,6 +161,9 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
             const tagLinkId = t.linkedTag?.id ?? null
             setLinkedTagId(tagLinkId)
             setInitialLinkedTagId(tagLinkId)
+            requestAnimationFrame(() => {
+              initialSnapshotRef.current = currentSnapshot()
+            })
           } else {
             toast.error(strings.typeNotFound)
             onCloseRef.current()
@@ -157,7 +176,7 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
         setTagline('')
         setDrawerLocale(locale)
         setSlug('')
-        setSlugManual(false)
+        setSlugTouched(false)
         setBadge('')
         setDescription('')
         setPromiseItems([])
@@ -166,6 +185,9 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
         setOgImageUrl('')
         setLinkedTagId(null)
         setInitialLinkedTagId(null)
+        requestAnimationFrame(() => {
+          initialSnapshotRef.current = currentSnapshot()
+        })
       }
       // Fetch available tags for linking
       if (siteId) {
@@ -182,6 +204,24 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
     setVisible(false)
     setTimeout(() => onCloseRef.current(), 200)
   }, [])
+
+  function guardedClose(afterClose?: () => void) {
+    if (isDirty) {
+      pendingCloseAction.current = afterClose ?? null
+      setShowDiscardDialog(true)
+    } else {
+      handleClose()
+      afterClose?.()
+    }
+  }
+
+  function confirmDiscard() {
+    setShowDiscardDialog(false)
+    initialSnapshotRef.current = null
+    handleClose()
+    pendingCloseAction.current?.()
+    pendingCloseAction.current = null
+  }
 
   useEffect(() => {
     if (!visible) return
@@ -200,7 +240,7 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
     })
 
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') { handleClose(); return }
+      if (e.key === 'Escape') { guardedClose(); return }
       if (e.key !== 'Tab') return
       const els = panel!.querySelectorAll<HTMLElement>(FOCUSABLE)
       if (!els.length) return
@@ -212,16 +252,17 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [visible, handleClose])
+  }, [visible, handleClose, isDirty])
 
-  function handleNameBlur() {
-    if (mode === 'create' && !slugManual && name.trim()) {
-      setSlug(generateSlug(name))
+  function handleNameChange(val: string) {
+    setName(val)
+    if (!slugTouched && val.trim()) {
+      setSlug(generateSlug(val))
     }
   }
 
   function handleSlugChange(val: string) {
-    setSlugManual(true)
+    setSlugTouched(true)
     setSlug(val.toLowerCase().replace(/[^a-z0-9-]/g, ''))
   }
 
@@ -377,7 +418,7 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
       className={`fixed inset-0 z-50 transition-opacity duration-200 ${visible && open ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
       data-testid="type-drawer-backdrop"
     >
-      <div className="absolute inset-0 bg-black/40" onClick={handleClose} />
+      <div className="absolute inset-0 bg-black/40" onClick={() => guardedClose()} />
       <div
         ref={panelRef}
         role="dialog"
@@ -390,7 +431,7 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
           <h2 id={titleId} className="text-base font-semibold text-gray-100">
             {mode === 'create' ? strings.createTitle : strings.editTitle}
           </h2>
-          <button type="button" onClick={handleClose} className="text-gray-500 hover:text-gray-300 text-xl leading-none" aria-label={strings.close}>
+          <button type="button" onClick={() => guardedClose()} className="text-gray-500 hover:text-gray-300 text-xl leading-none" aria-label={strings.close}>
             &#x2715;
           </button>
         </div>
@@ -412,8 +453,7 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
                       id={`${fid}-name`}
                       type="text"
                       value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      onBlur={handleNameBlur}
+                      onChange={(e) => handleNameChange(e.target.value)}
                       placeholder={strings.namePlaceholder}
                       maxLength={100}
                       className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-100 placeholder:text-gray-600 focus:border-indigo-500 focus:outline-none"
@@ -456,7 +496,10 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
                   </div>
 
                   <div>
-                    <label htmlFor={`${fid}-slug`} className="block text-sm font-medium text-gray-400 mb-1">{strings.slugLabel}</label>
+                    <label htmlFor={`${fid}-slug`} className="block text-sm font-medium text-gray-400 mb-1">
+                      {strings.slugLabel}
+                      {!slugTouched && <span className="ml-1.5 rounded bg-indigo-500/20 px-1.5 py-0.5 text-[9px] text-indigo-400">{strings.slugAutoLabel ?? 'auto'}</span>}
+                    </label>
                     <input
                       id={`${fid}-slug`}
                       type="text"
@@ -643,6 +686,20 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
 
                   <div>
                     <label htmlFor={`${fid}-og`} className="block text-sm font-medium text-gray-400 mb-1">{strings.ogImageLabel}</label>
+                    {!ogImageUrl && (
+                      <div className="mb-2 relative rounded-lg border border-gray-800 overflow-hidden">
+                        <img
+                          src={defaultOgImage || '/og-default.png'}
+                          alt="Default OG"
+                          className="h-28 w-full object-cover opacity-60"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                        />
+                        <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent px-3 py-2">
+                          <span className="text-[10px] text-gray-300">{strings.ogDefaultLabel ?? 'Using site default'}</span>
+                          <span className="ml-1.5 rounded bg-gray-700 px-1.5 py-0.5 text-[9px] text-gray-400">{strings.ogDefaultBadge ?? 'default'}</span>
+                        </div>
+                      </div>
+                    )}
                     {ogImageUrl && /^https:\/\/.+/.test(ogImageUrl) && (
                       <div className="mb-2 relative group rounded-lg border border-gray-800 overflow-hidden">
                         <img
@@ -716,6 +773,9 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
                         data-testid="drawer-og-image"
                       />
                     </div>
+                    {ogImageUrl && (
+                      <p className="text-[11px] text-gray-500 mt-1">{strings.ogOverrideHint ?? 'Overrides the site default OG image'}</p>
+                    )}
                     {errors.ogImageUrl && <p id={`${fid}-og-err`} className="text-xs text-red-400 mt-1" role="alert">{errors.ogImageUrl}</p>}
                   </div>
                 </div>
@@ -761,7 +821,7 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
                         <option value="">{strings.linkTagNone}</option>
                         {availableTags.map((tag) => (
                           <option key={tag.id} value={tag.id}>
-                            {tag.color ? `● ` : ''}{tag.name}
+                            {tag.color ? '● ' : ''}{tag.name}
                           </option>
                         ))}
                       </select>
@@ -789,7 +849,7 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
                     </div>
                     <button
                       type="button"
-                      onClick={() => { handleClose(); router.push('/cms/newsletters?tab=schedule') }}
+                      onClick={() => guardedClose(() => router.push('/cms/newsletters?tab=schedule'))}
                       className="text-xs text-indigo-400 hover:underline"
                     >
                       {strings.scheduleLink} &rarr;
@@ -861,7 +921,7 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
             <div className="border-t border-gray-800 px-6 py-4 flex justify-end gap-3">
               <button
                 type="button"
-                onClick={handleClose}
+                onClick={() => guardedClose()}
                 className="rounded-lg px-4 py-2 text-sm font-medium text-gray-400 hover:bg-gray-800"
               >
                 {strings.cancel}
@@ -880,6 +940,31 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
               </button>
             </div>
           </form>
+        )}
+        {showDiscardDialog && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50">
+            <div className="mx-6 w-full max-w-sm rounded-xl border border-gray-700 bg-[#0a0a12] p-6 shadow-2xl">
+              <h3 className="text-sm font-semibold text-gray-100">{strings.unsavedTitle ?? 'Unsaved changes'}</h3>
+              <p className="mt-2 text-sm text-gray-400">{strings.unsavedMessage ?? 'You have unsaved changes. Discard?'}</p>
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowDiscardDialog(false)}
+                  className="rounded-lg px-4 py-2 text-sm font-medium text-gray-400 hover:bg-gray-800"
+                >
+                  {strings.keepEditing ?? 'Keep editing'}
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmDiscard}
+                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+                  data-testid="drawer-discard-confirm"
+                >
+                  {strings.discardClose ?? 'Discard & close'}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

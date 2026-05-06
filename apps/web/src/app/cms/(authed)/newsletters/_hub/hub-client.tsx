@@ -184,6 +184,7 @@ export function HubClient({ sharedData, defaultTab, children, tabLabels, allType
         strings={drawerStrings}
         existingBadges={existingBadges}
         siteId={siteId}
+        defaultOgImage={sharedData.seoDefaultOgImage}
       />
     </div>
   )
