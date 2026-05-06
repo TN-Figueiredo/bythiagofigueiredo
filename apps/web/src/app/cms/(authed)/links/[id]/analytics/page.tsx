@@ -187,8 +187,9 @@ export default async function LinkAnalyticsPage({ params, searchParams }: Props)
     to: new Date(dateTo),
   }
 
-  function handleDateRangeChange(_range: DateRange) {
-    // Handled by search params on the client side
+  async function handleDateRangeChange(_range: DateRange) {
+    'use server'
+    // Date range changes handled via search params on client side
   }
 
   return (

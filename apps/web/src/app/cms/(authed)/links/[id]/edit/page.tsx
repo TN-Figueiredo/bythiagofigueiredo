@@ -52,7 +52,8 @@ export default async function EditLinkPage({ params }: Props) {
     redirect(`/cms/links/${id}`)
   }
 
-  function handleCancel() {
+  async function handleCancel() {
+    'use server'
     redirect(`/cms/links/${id}`)
   }
 

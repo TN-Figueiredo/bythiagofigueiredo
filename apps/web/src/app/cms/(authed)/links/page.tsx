@@ -2,9 +2,9 @@ import { redirect } from 'next/navigation'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { LinksDashboard } from '@tn-figueiredo/links-admin/client'
-import type { LinkSummary, DashboardKpis } from '@tn-figueiredo/links-admin'
-import { getLinks, createLink, deleteLink, toggleLinkActive } from './actions'
+import type { DashboardKpis } from '@tn-figueiredo/links-admin'
+import { getLinks } from './actions'
+import { LinksHub } from './_hub'
 
 export const dynamic = 'force-dynamic'
 
@@ -72,47 +72,7 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
     active: activeFilter,
   })
 
-  const rawLinks = linksResult.ok ? linksResult.links : []
-  const links: LinkSummary[] = (rawLinks as Record<string, unknown>[]).map((l) => ({
-    id: l.id as string,
-    code: l.code as string,
-    slug: (l.slug as string) ?? null,
-    title: (l.title as string) ?? null,
-    destination_url: l.destination_url as string,
-    source_type: l.source_type as string,
-    tags: (l.tags as string[]) ?? [],
-    active: l.active as boolean,
-    redirect_type: (l.redirect_type as number) ?? 302,
-    expires_at: (l.expires_at as string) ?? null,
-    total_clicks: (l.total_clicks as number) ?? 0,
-    unique_visitors: (l.unique_visitors as number) ?? 0,
-    last_clicked_at: (l.last_clicked_at as string) ?? null,
-    created_at: l.created_at as string,
-    updated_at: l.updated_at as string,
-  }))
+  const links = linksResult.ok ? linksResult.links : []
 
-  async function handleCreateLink() {
-    'use server'
-    redirect('/cms/links/new')
-  }
-
-  async function handleDeleteLink(id: string) {
-    'use server'
-    await deleteLink(id)
-  }
-
-  async function handleToggleActive(id: string) {
-    'use server'
-    await toggleLinkActive(id)
-  }
-
-  return (
-    <LinksDashboard
-      metrics={metrics}
-      links={links}
-      onCreateLink={handleCreateLink}
-      onDeleteLink={handleDeleteLink}
-      onToggleActive={handleToggleActive}
-    />
-  )
+  return <LinksHub metrics={metrics} links={links} siteId={siteId} />
 }

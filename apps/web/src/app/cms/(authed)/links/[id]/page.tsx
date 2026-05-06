@@ -118,19 +118,23 @@ export default async function LinkDetailPage({ params }: Props) {
     redirect('/cms/links')
   }
 
-  function handleEdit(linkId: string) {
+  async function handleEdit(linkId: string) {
+    'use server'
     redirect(`/cms/links/${linkId}/edit`)
   }
 
-  function handleCopyUrl(_linkId: string) {
-    // Client-side only -- handled by the component
+  async function handleCopyUrl(_linkId: string) {
+    'use server'
+    // Copy handled client-side — this is just a required prop placeholder
   }
 
-  function handleGenerateQr(linkId: string) {
+  async function handleGenerateQr(linkId: string) {
+    'use server'
     redirect(`/cms/links/${linkId}/qr`)
   }
 
-  function handleClose() {
+  async function handleClose() {
+    'use server'
     redirect('/cms/links')
   }
 

@@ -69,8 +69,9 @@ export default async function QrComposerPage({ params }: Props) {
     }
   }
 
-  function handleDownload(_config: QrConfig) {
-    // Handled client-side
+  async function handleDownload(_config: QrConfig) {
+    'use server'
+    // Download handled client-side
   }
 
   return (

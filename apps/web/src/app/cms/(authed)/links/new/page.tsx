@@ -35,7 +35,8 @@ export default async function NewLinkPage() {
     redirect(`/cms/links/${result.linkId}`)
   }
 
-  function handleCancel() {
+  async function handleCancel() {
+    'use server'
     redirect('/cms/links')
   }
 
