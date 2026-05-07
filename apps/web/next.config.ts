@@ -23,9 +23,13 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'yt3.ggpht.com',
       },
+      {
+        protocol: 'https',
+        hostname: '*.public.blob.vercel-storage.com',
+      },
     ],
   },
-  serverExternalPackages: ['@aws-sdk/client-sesv2'],
+  serverExternalPackages: ['@aws-sdk/client-sesv2', 'sharp'],
   experimental: {
     serverActions: {
       bodySizeLimit: '5mb',
@@ -73,9 +77,9 @@ const nextConfig: NextConfig = {
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://i.ytimg.com https://yt3.ggpht.com",
+      "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://i.ytimg.com https://yt3.ggpht.com https://*.public.blob.vercel-storage.com",
       "font-src 'self' data:",
-      "connect-src 'self' https://*.supabase.co https://*.supabase.in https://*.ingest.sentry.io",
+      "connect-src 'self' https://*.supabase.co https://*.supabase.in https://*.ingest.sentry.io https://*.public.blob.vercel-storage.com",
       "frame-src https://challenges.cloudflare.com https://www.youtube.com",
       "frame-ancestors 'none'",
       "form-action 'self'",
