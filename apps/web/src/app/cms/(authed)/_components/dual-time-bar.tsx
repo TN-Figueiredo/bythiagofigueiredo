@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo } from 'react'
 import {
   formatSiteDateTime,
   getTimezoneOffsetHours,
@@ -12,7 +13,9 @@ interface DualTimeBarProps {
 
 export function DualTimeBar({ date, siteTimezone }: DualTimeBarProps) {
   const d = typeof date === 'string' ? new Date(date) : date
-  const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const localTz = useMemo(() => {
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone } catch { return 'UTC' }
+  }, [])
   const fmt = formatSiteDateTime(d, siteTimezone, { mode: 'time-only' })
   const offset = getTimezoneOffsetHours(siteTimezone, localTz, d)
 
@@ -26,6 +29,8 @@ export function DualTimeBar({ date, siteTimezone }: DualTimeBarProps) {
     )
   }
 
+  // offset = site wall clock − local wall clock
+  // positive → site is ahead of local, negative → site is behind local
   const absOffset = Math.abs(offset)
   const direction = offset > 0 ? 'ahead' : 'behind'
   const label =
@@ -33,12 +38,18 @@ export function DualTimeBar({ date, siteTimezone }: DualTimeBarProps) {
       ? `${absOffset}h ${direction}`
       : `${absOffset.toFixed(1)}h ${direction}`
 
+  const crossDayLabel = fmt.crossDay
+    ? offset < 0 ? '−1d' : '+1d'
+    : null
+
   return (
     <div className="flex items-center gap-2 rounded-lg border border-slate-700/50 bg-slate-800/50 px-3 py-2">
       <span className="shrink-0 text-sm" aria-hidden="true">
         🌐
       </span>
-      <span className="text-xs font-medium text-slate-200">{fmt.primary}</span>
+      <span className="text-xs font-medium text-slate-200">
+        {fmt.primary} {fmt.tzAbbr}
+      </span>
 
       <div className="relative flex flex-1 items-center">
         <div className="w-full border-t border-dashed border-slate-600" />
@@ -51,10 +62,10 @@ export function DualTimeBar({ date, siteTimezone }: DualTimeBarProps) {
         🖥
       </span>
       <span className="text-xs text-slate-500">
-        {fmt.local}
-        {fmt.crossDay && (
+        {fmt.local} {fmt.localTzAbbr}
+        {crossDayLabel && (
           <span className="ml-1 text-[10px] font-medium text-amber-500">
-            +1d
+            {crossDayLabel}
           </span>
         )}
       </span>

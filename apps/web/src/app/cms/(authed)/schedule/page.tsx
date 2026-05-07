@@ -36,7 +36,7 @@ export interface ScheduleEdition {
 /* ------------------------------------------------------------------ */
 
 async function ScheduleData() {
-  const { siteId } = await getSiteContext()
+  const { siteId, timezone: siteTimezone } = await getSiteContext()
 
   const authRes = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
   if (!authRes.ok) redirect('/cms')
@@ -45,13 +45,6 @@ async function ScheduleData() {
   const readOnly = !editRes.ok
 
   const supabase = getSupabaseServiceClient()
-
-  const { data: siteRow } = await supabase
-    .from('sites')
-    .select('timezone')
-    .eq('id', siteId)
-    .single()
-  const siteTimezone = (siteRow?.timezone as string) ?? 'America/Sao_Paulo'
 
   const thirtyDaysFromNow = new Date()
   thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30)

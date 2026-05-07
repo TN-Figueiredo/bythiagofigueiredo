@@ -1,6 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  getTimezoneAbbr,
+  todayInSiteTz,
+  tomorrowInSiteTz,
+  toISOInTimezone,
+  formatSchedulePreview,
+} from '@/lib/cms/format-site-datetime'
 import { useModalFocusTrap } from '../../_shared/editor/use-modal-focus-trap'
 
 interface ScheduleModalProps {
@@ -11,55 +18,23 @@ interface ScheduleModalProps {
   onCancel: () => void
 }
 
-function getTzAbbr(tz: string): string {
-  const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'short' }).formatToParts(new Date())
-  return parts.find(p => p.type === 'timeZoneName')?.value ?? tz
-}
-
-function todayInTz(tz: string): string {
-  return new Date().toLocaleDateString('sv-SE', { timeZone: tz })
-}
-
-function tomorrowInTz(tz: string): string {
-  const d = new Date()
-  d.setDate(d.getDate() + 1)
-  return d.toLocaleDateString('sv-SE', { timeZone: tz })
-}
-
-function toISOInTimezone(d: string, t: string, tz: string): string | null {
-  if (!d || !t) return null
-  const naive = new Date(`${d}T${t}:00Z`)
-  if (isNaN(naive.getTime())) return null
-  if (tz === 'UTC') return naive.toISOString()
-  const utcStr = naive.toLocaleString('en-US', { timeZone: 'UTC' })
-  const tzStr = naive.toLocaleString('en-US', { timeZone: tz })
-  const offset = new Date(utcStr).getTime() - new Date(tzStr).getTime()
-  return new Date(naive.getTime() + offset).toISOString()
-}
-
-function formatInTz(date: Date, tz: string): { dateStr: string; timeStr: string; tzAbbr: string; dateKey: string } {
-  const dateStr = date.toLocaleDateString('en-US', { timeZone: tz, month: 'short', day: 'numeric', year: 'numeric' })
-  const timeStr = date.toLocaleTimeString('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false })
-  const tzAbbr = getTzAbbr(tz)
-  const dateKey = date.toLocaleDateString('sv-SE', { timeZone: tz })
-  return { dateStr, timeStr, tzAbbr, dateKey }
-}
-
 export function ScheduleModal({ open, audienceCount, siteTimezone, onConfirm, onCancel }: ScheduleModalProps) {
-  const [date, setDate] = useState(() => tomorrowInTz(siteTimezone))
+  const [date, setDate] = useState(() => tomorrowInSiteTz(siteTimezone))
   const [time, setTime] = useState('09:00')
   const [error, setError] = useState<string | null>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
   const dateRef = useRef<HTMLInputElement>(null)
 
-  const siteAbbr = useMemo(() => getTzAbbr(siteTimezone), [siteTimezone])
-  const localTz = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, [])
+  const siteAbbr = useMemo(() => getTimezoneAbbr(siteTimezone), [siteTimezone])
+  const localTz = useMemo(() => {
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone } catch { return 'UTC' }
+  }, [])
 
   useModalFocusTrap(dialogRef, open, onCancel)
 
   useEffect(() => {
     if (open) {
-      setDate(tomorrowInTz(siteTimezone))
+      setDate(tomorrowInSiteTz(siteTimezone))
       setTime('09:00')
       setError(null)
       setTimeout(() => dateRef.current?.focus(), 0)
@@ -75,7 +50,7 @@ export function ScheduleModal({ open, audienceCount, siteTimezone, onConfirm, on
       setError('Date is required')
       return
     }
-    if (date < todayInTz(siteTimezone)) {
+    if (date < todayInSiteTz(siteTimezone)) {
       setError('Date must be in the future')
       return
     }
@@ -96,8 +71,8 @@ export function ScheduleModal({ open, audienceCount, siteTimezone, onConfirm, on
     const iso = toISOInTimezone(date, time, siteTimezone)
     if (!iso) return null
     const d = new Date(iso)
-    const site = formatInTz(d, siteTimezone)
-    const local = formatInTz(d, localTz)
+    const site = formatSchedulePreview(d, siteTimezone)
+    const local = formatSchedulePreview(d, localTz)
     const crossDay = site.dateKey !== local.dateKey
     return { site, local, crossDay }
   }, [date, time, siteTimezone, localTz])
@@ -134,7 +109,7 @@ export function ScheduleModal({ open, audienceCount, siteTimezone, onConfirm, on
               id="sched-date"
               type="date"
               value={date}
-              min={todayInTz(siteTimezone)}
+              min={todayInSiteTz(siteTimezone)}
               onClick={handleDateClick}
               onChange={(e) => { setDate(e.target.value); setError(null) }}
               style={{ colorScheme: 'dark' }}

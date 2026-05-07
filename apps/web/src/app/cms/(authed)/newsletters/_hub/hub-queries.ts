@@ -629,7 +629,7 @@ export const fetchScheduleData = unstable_cache(
       const nextSlots = pattern && !t.cadence_paused
         ? generateCadenceSlots(pattern, { from: todayStr, maxSlots: 1 })
         : []
-      const dayIdx = startDate ? new Date(startDate + 'T00:00:00').getUTCDay() : null
+      const dayIdx = startDate ? new Date(startDate + 'T00:00:00').getDay() : null
       const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
       return {
         typeId: tid,

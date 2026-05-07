@@ -1,5 +1,6 @@
 import { unstable_cache } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { toDateStringInTz } from '@/lib/cms/format-site-datetime'
 import type { BlogHubSharedData, BlogTag, PostCard, OverviewTabData, EditorialTabData, ScheduleTabData, ScheduleSlot, BlogCadenceConfig, ReadyPost } from './hub-types'
 import { computeDisplayId } from './hub-utils'
 import { generateSlots } from '@tn-figueiredo/newsletter'
@@ -366,7 +367,7 @@ export const fetchScheduleData = unstable_cache(
         .eq('site_id', siteId),
       supabase
         .from('sites')
-        .select('supported_locales')
+        .select('supported_locales, timezone')
         .eq('id', siteId)
         .single(),
       supabase
@@ -380,6 +381,7 @@ export const fetchScheduleData = unstable_cache(
     const posts = postsResult.data ?? []
     const cadences = cadenceResult.data ?? []
     const supportedLocales: string[] = (siteResult.data?.supported_locales as string[]) ?? ['pt-BR', 'en']
+    const siteTimezone: string = (siteResult.data?.timezone as string) ?? 'America/Sao_Paulo'
 
     const cadenceConfigs: BlogCadenceConfig[] = supportedLocales.map((loc) => {
       const c = cadences.find((cd) => cd.locale === loc)
@@ -394,12 +396,14 @@ export const fetchScheduleData = unstable_cache(
     })
 
     const now = new Date()
-    const calendarStart = new Date(now.getFullYear(), now.getMonth(), 1)
-    const calendarEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+    const todayStr = toDateStringInTz(now, siteTimezone)
+    const [curY, curM] = todayStr.split('-').map(Number) as [number, number, number]
+    const calendarStart = new Date(curY, curM - 1, 1)
+    const calendarEnd = new Date(curY, curM, 0)
 
     const slotsMap = new Map<string, ScheduleSlot>()
     for (let d = new Date(calendarStart); d <= calendarEnd; d.setDate(d.getDate() + 1)) {
-      const key = d.toISOString().split('T')[0]!
+      const key = d.toLocaleDateString('sv-SE')
       slotsMap.set(key, { date: key, posts: [], emptySlots: [] })
     }
 
@@ -419,8 +423,8 @@ export const fetchScheduleData = unstable_cache(
     for (const p of posts as unknown as PostWithRelations[]) {
       const dates: string[] = []
       if (p.slot_date) dates.push(p.slot_date as string)
-      if (p.scheduled_for) dates.push(new Date(p.scheduled_for as string).toISOString().split('T')[0]!)
-      if (p.published_at) dates.push(new Date(p.published_at as string).toISOString().split('T')[0]!)
+      if (p.scheduled_for) dates.push(toDateStringInTz(new Date(p.scheduled_for as string), siteTimezone))
+      if (p.published_at) dates.push(toDateStringInTz(new Date(p.published_at as string), siteTimezone))
 
       for (const dateStr of dates) {
         const slot = slotsMap.get(dateStr)
@@ -444,7 +448,7 @@ export const fetchScheduleData = unstable_cache(
       try {
         const slots = generateSlots(
           { cadenceDays: config.cadenceDays, startDate: config.cadenceStartDate, lastSentAt: config.lastPublishedAt, paused: false },
-          { today: calendarStart.toISOString().split('T')[0]!, count: 31 },
+          { today: calendarStart.toLocaleDateString('sv-SE'), count: 31 },
         )
         for (const s of slots) {
           const slot = slotsMap.get(s)

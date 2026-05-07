@@ -1,7 +1,9 @@
 'use client'
 
+import { useMemo } from 'react'
 import {
   formatSiteDateTime,
+  getTimezoneOffsetHours,
   type FormatSiteDateTimeOpts,
 } from '@/lib/cms/format-site-datetime'
 
@@ -23,7 +25,17 @@ export function DualTimeDisplay({
     includeLocal: showLocal,
   })
 
+  const localTz = useMemo(() => {
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone } catch { return 'UTC' }
+  }, [])
+
   const isoStr = typeof date === 'string' ? date : date.toISOString()
+  const d = typeof date === 'string' ? new Date(date) : date
+  const offset = getTimezoneOffsetHours(siteTimezone, localTz, d)
+
+  const crossDayLabel = fmt.crossDay
+    ? offset < 0 ? '−1d' : '+1d'
+    : null
 
   return (
     <time
@@ -38,9 +50,9 @@ export function DualTimeDisplay({
       {showLocal && fmt.local && (
         <>
           <span className="text-slate-600">·</span>
-          <span className="text-slate-500">{fmt.local}</span>
-          {fmt.crossDay && (
-            <span className="text-[10px] font-medium text-amber-500">+1d</span>
+          <span className="text-slate-500">{fmt.local} {fmt.localTzAbbr}</span>
+          {crossDayLabel && (
+            <span className="text-[10px] font-medium text-amber-500">{crossDayLabel}</span>
           )}
         </>
       )}

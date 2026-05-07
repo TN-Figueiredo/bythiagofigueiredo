@@ -17,6 +17,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { fetchSidebarBadges } from '@/lib/cms/sidebar-badges'
 import { SidebarBadges } from '@/components/cms/sidebar-badges'
+import { SiteTimezoneProvider } from '@/lib/cms/site-timezone-context'
 import { buildCmsSections } from './_shared/cms-sections'
 import Link from 'next/link'
 
@@ -56,10 +57,10 @@ export default async function Layout({ children }: { children: ReactNode }) {
   const userDisplayName = user.email ?? 'User'
   const userRole = currentSite?.user_role ?? 'reporter'
 
-  const { siteId: middlewareSiteId } = await getSiteContext()
+  const { siteId: middlewareSiteId, timezone: siteTimezone } = await getSiteContext()
   const svc = getSupabaseServiceClient()
   const [badgeData, pendingContactsRes, ytPendingRes] = await Promise.all([
-    fetchSidebarBadges(middlewareSiteId),
+    fetchSidebarBadges(middlewareSiteId, siteTimezone),
     svc.from('contact_submissions').select('id', { count: 'exact', head: true })
       .eq('site_id', middlewareSiteId).is('replied_at', null).is('anonymized_at', null),
     svc.from('youtube_videos').select('id', { count: 'exact', head: true })
@@ -73,20 +74,22 @@ export default async function Layout({ children }: { children: ReactNode }) {
 
   return (
     <CmsAdminProvider linkComponent={Link}>
-      <SiteSwitcherProvider sites={sites} initialSiteId={currentSiteId}>
-        <CmsShell
-          siteName={currentSite?.site_name ?? 'OneCMS'}
-          siteInitials={currentSite?.site_name?.slice(0, 2).toUpperCase() ?? 'CM'}
-          userDisplayName={userDisplayName}
-          userRole={userRole}
-          siteSwitcher={<CmsSiteSwitcherSlot sites={rawSites} />}
-          sections={CMS_SECTIONS}
-          badges={badges}
-        >
-          <SidebarBadges data={badgeData} />
-          {children}
-        </CmsShell>
-      </SiteSwitcherProvider>
+      <SiteTimezoneProvider value={siteTimezone}>
+        <SiteSwitcherProvider sites={sites} initialSiteId={currentSiteId}>
+          <CmsShell
+            siteName={currentSite?.site_name ?? 'OneCMS'}
+            siteInitials={currentSite?.site_name?.slice(0, 2).toUpperCase() ?? 'CM'}
+            userDisplayName={userDisplayName}
+            userRole={userRole}
+            siteSwitcher={<CmsSiteSwitcherSlot sites={rawSites} />}
+            sections={CMS_SECTIONS}
+            badges={badges}
+          >
+            <SidebarBadges data={badgeData} />
+            {children}
+          </CmsShell>
+        </SiteSwitcherProvider>
+      </SiteTimezoneProvider>
     </CmsAdminProvider>
   )
 }

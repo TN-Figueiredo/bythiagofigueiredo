@@ -8,6 +8,7 @@ import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getEmailService } from '@/lib/email/service'
 import { getEmailSender } from '@/lib/email/sender'
 import { captureServerActionError } from '@/lib/sentry-wrap'
+import { todayInSiteTz } from '@/lib/cms/format-site-datetime'
 
 type ActionResult = { ok: true } | { ok: false; error: string }
 type ExportResult =
@@ -18,15 +19,15 @@ function zodError(err: z.ZodError): string {
   return err.issues.map((i) => i.message).join(', ') || 'Validation failed'
 }
 
-async function requireEditAccess(): Promise<string> {
-  const { siteId } = await getSiteContext()
+async function requireEditAccess(): Promise<{ siteId: string; timezone: string }> {
+  const { siteId, timezone } = await getSiteContext()
   const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
   if (!res.ok) {
     throw new Error(
       res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden',
     )
   }
-  return siteId
+  return { siteId, timezone }
 }
 
 /* ------------------------------------------------------------------ */
@@ -35,7 +36,7 @@ async function requireEditAccess(): Promise<string> {
 
 export async function markReplied(id: string): Promise<ActionResult> {
   if (!id) return { ok: false, error: 'Missing submission id' }
-  const siteId = await requireEditAccess()
+  const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
   const { error } = await supabase
     .from('contact_submissions')
@@ -59,7 +60,7 @@ export async function markReplied(id: string): Promise<ActionResult> {
 
 export async function undoMarkReplied(id: string): Promise<ActionResult> {
   if (!id) return { ok: false, error: 'Missing submission id' }
-  const siteId = await requireEditAccess()
+  const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
   const { error } = await supabase
     .from('contact_submissions')
@@ -83,7 +84,7 @@ export async function undoMarkReplied(id: string): Promise<ActionResult> {
 
 export async function anonymizeSubmission(id: string): Promise<ActionResult> {
   if (!id) return { ok: false, error: 'Missing submission id' }
-  const siteId = await requireEditAccess()
+  const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
   const { error } = await supabase.rpc('anonymize_contact_submission', {
     p_id: id,
@@ -106,7 +107,7 @@ export async function anonymizeSubmission(id: string): Promise<ActionResult> {
 
 export async function bulkAnonymize(ids: string[]): Promise<ActionResult> {
   if (!ids.length) return { ok: false, error: 'No submissions selected' }
-  const siteId = await requireEditAccess()
+  const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
   const errors: string[] = []
   for (const id of ids) {
@@ -146,7 +147,7 @@ export async function sendReply(
   const parsed = sendReplySchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
 
-  const siteId = await requireEditAccess()
+  const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
 
   // Fetch submission to get recipient email
@@ -222,7 +223,7 @@ export async function exportContacts(
   const parsed = exportSchema.safeParse({ period, status })
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
 
-  const siteId = await requireEditAccess()
+  const { siteId, timezone } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
 
   let query = supabase
@@ -283,6 +284,6 @@ export async function exportContacts(
   })
 
   const csv = [header, ...csvRows].join('\n')
-  const date = new Date().toISOString().slice(0, 10)
+  const date = todayInSiteTz(timezone)
   return { ok: true, csv, filename: `contacts-${date}.csv` }
 }

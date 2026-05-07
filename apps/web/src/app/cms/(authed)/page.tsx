@@ -439,13 +439,13 @@ async function fetchDashboardData(siteId: string): Promise<DashboardData> {
 /* ------------------------------------------------------------------ */
 
 export default async function CmsDashboardPage() {
-  const { siteId } = await getSiteContext()
+  const { siteId, timezone } = await getSiteContext()
   const data = await fetchDashboardData(siteId)
 
   return (
     <div>
       <CmsTopbar title="Dashboard" />
-      <DashboardConnected data={data} />
+      <DashboardConnected data={data} siteTimezone={timezone} />
     </div>
   )
 }

@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+import { toDateStringInTz } from '@/lib/cms/format-site-datetime'
 import {
   periodInputSchema,
   exportFormatSchema,
@@ -46,26 +47,26 @@ function csvSafe(value: string): string {
   return `"${v}"`
 }
 
-async function requireViewAccess(): Promise<{ siteId: string; userId: string }> {
-  const { siteId } = await getSiteContext()
+async function requireViewAccess(): Promise<{ siteId: string; userId: string; timezone: string }> {
+  const { siteId, timezone } = await getSiteContext()
   const res = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
   if (!res.ok) {
     throw new Error(
       res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden',
     )
   }
-  return { siteId, userId: res.user.id }
+  return { siteId, userId: res.user.id, timezone }
 }
 
-async function requireEditAccess(): Promise<{ siteId: string; userId: string }> {
-  const { siteId } = await getSiteContext()
+async function requireEditAccess(): Promise<{ siteId: string; userId: string; timezone: string }> {
+  const { siteId, timezone } = await getSiteContext()
   const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
   if (!res.ok) {
     throw new Error(
       res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden',
     )
   }
-  return { siteId, userId: res.user.id }
+  return { siteId, userId: res.user.id, timezone }
 }
 
 function resolveDateRange(period: PeriodInput): { start: Date; end: Date } {
@@ -104,7 +105,7 @@ export async function fetchOverview(
   const parsed = periodInputSchema.safeParse(period)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
 
-  const { siteId } = await requireViewAccess()
+  const { siteId, timezone } = await requireViewAccess()
   const supabase = getSupabaseServiceClient()
   const { start, end } = resolveDateRange(parsed.data)
 
@@ -142,8 +143,8 @@ export async function fetchOverview(
     .from('content_metrics')
     .select('views')
     .eq('site_id', siteId)
-    .gte('date', start.toISOString().split('T')[0])
-    .lte('date', end.toISOString().split('T')[0])
+    .gte('date', toDateStringInTz(start, timezone))
+    .lte('date', toDateStringInTz(end, timezone))
 
   const totalViews = (viewRows ?? []).reduce(
     (sum: number, row: { views: number }) => sum + (row.views ?? 0), 0
@@ -169,8 +170,8 @@ export async function fetchOverview(
           .from('content_metrics')
           .select('views')
           .eq('site_id', siteId)
-          .gte('date', prevRange.start.toISOString().split('T')[0])
-          .lte('date', prevRange.end.toISOString().split('T')[0]),
+          .gte('date', toDateStringInTz(prevRange.start, timezone))
+          .lte('date', toDateStringInTz(prevRange.end, timezone)),
         supabase
           .from('newsletter_editions')
           .select('stats_delivered, stats_opens')
@@ -437,7 +438,7 @@ export async function fetchContentAnalytics(
   const parsed = periodInputSchema.safeParse(period)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
 
-  const { siteId } = await requireViewAccess()
+  const { siteId, timezone } = await requireViewAccess()
   const supabase = getSupabaseServiceClient()
   const { start, end } = resolveDateRange(parsed.data)
 
@@ -447,8 +448,8 @@ export async function fetchContentAnalytics(
     .select('resource_id, views, unique_views, reads_complete, avg_read_depth, avg_time_sec, referrer_direct, referrer_google, referrer_newsletter, referrer_social, referrer_other')
     .eq('site_id', siteId)
     .eq('resource_type', 'blog')
-    .gte('date', start.toISOString().split('T')[0])
-    .lte('date', end.toISOString().split('T')[0])
+    .gte('date', toDateStringInTz(start, timezone))
+    .lte('date', toDateStringInTz(end, timezone))
 
   if (error) return { ok: false, error: error.message }
 

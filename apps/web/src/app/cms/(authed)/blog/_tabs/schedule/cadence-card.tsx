@@ -3,33 +3,36 @@
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { Pause, Play, ChevronDown, ChevronUp } from 'lucide-react'
 import { toast } from 'sonner'
+import { todayInSiteTz } from '@/lib/cms/format-site-datetime'
 import type { BlogCadenceConfig } from '../../_hub/hub-types'
 import type { BlogHubStrings } from '../../_i18n/types'
 import { updateBlogCadence } from '../../actions'
 
-function getNextDateForDay(dayIndex: number): string {
-  const now = new Date()
-  const current = now.getUTCDay()
+function getNextDateForDay(dayIndex: number, siteTimezone: string): string {
+  const todayStr = todayInSiteTz(siteTimezone)
+  const [y, m, d] = todayStr.split('-').map(Number) as [number, number, number]
+  const siteToday = new Date(y, m - 1, d)
+  const current = siteToday.getDay()
   const diff = (dayIndex - current + 7) % 7 || 7
-  const next = new Date(now)
-  next.setDate(now.getDate() + diff)
-  return next.toISOString().slice(0, 10)
+  siteToday.setDate(siteToday.getDate() + diff)
+  return siteToday.toLocaleDateString('sv-SE')
 }
 
 function getDayIndexFromDate(dateStr: string | null): number {
   if (!dateStr) return 1
-  return new Date(dateStr + 'T00:00:00').getUTCDay()
+  return new Date(dateStr + 'T00:00:00').getDay()
 }
 
 const DAY_KEYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const
 
 interface CadenceCardProps {
   config: BlogCadenceConfig
+  siteTimezone?: string
   onTogglePause?: (locale: string, paused: boolean) => void
   strings?: BlogHubStrings
 }
 
-export function CadenceCard({ config, onTogglePause, strings }: CadenceCardProps) {
+export function CadenceCard({ config, siteTimezone = 'America/Sao_Paulo', onTogglePause, strings }: CadenceCardProps) {
   const s = strings?.schedule
   const [expanded, setExpanded] = useState(false)
   const [cadenceDays, setCadenceDays] = useState(String(config.cadenceDays ?? 7))
@@ -58,7 +61,7 @@ export function CadenceCard({ config, onTogglePause, strings }: CadenceCardProps
       const result = await updateBlogCadence(config.locale, {
         cadence_days: days,
         preferred_send_time: sendTime,
-        cadence_start_date: getNextDateForDay(startDayIdx),
+        cadence_start_date: getNextDateForDay(startDayIdx, siteTimezone),
       })
       if (result.ok) {
         toast.success(s?.saved ?? 'Saved')

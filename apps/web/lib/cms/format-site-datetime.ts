@@ -26,10 +26,6 @@ export function todayInSiteTz(siteTimezone: string): string {
   return new Date().toLocaleDateString('sv-SE', { timeZone: siteTimezone })
 }
 
-function getDateInTz(date: Date, timezone: string): string {
-  return date.toLocaleDateString('sv-SE', { timeZone: timezone })
-}
-
 function formatTimeParts(
   date: Date,
   timezone: string,
@@ -123,8 +119,8 @@ export function formatSiteDateTime(
   const tzAbbr = getTimezoneAbbr(siteTimezone, d)
   const localTzAbbr = getTimezoneAbbr(localTimezone, d)
 
-  const siteDate = getDateInTz(d, siteTimezone)
-  const localDate = getDateInTz(d, localTimezone)
+  const siteDate = toDateStringInTz(d, siteTimezone)
+  const localDate = toDateStringInTz(d, localTimezone)
   const crossDay = includeLocal && siteDate !== localDate
 
   const siteTime = formatTimeParts(d, siteTimezone, includeSeconds)
@@ -135,20 +131,20 @@ export function formatSiteDateTime(
 
   switch (mode) {
     case 'time-only':
-      primary = `${siteTime} ${tzAbbr}`
-      local = includeLocal ? `${localTime} ${localTzAbbr}` : ''
+      primary = siteTime
+      local = includeLocal ? localTime : ''
       break
     case 'short':
-      primary = `${formatDateShort(d, siteTimezone)} at ${siteTime} ${tzAbbr}`
+      primary = `${formatDateShort(d, siteTimezone)} at ${siteTime}`
       local = includeLocal
-        ? `${formatDateShort(d, localTimezone)} at ${localTime} ${localTzAbbr}`
+        ? `${formatDateShort(d, localTimezone)} at ${localTime}`
         : ''
       break
     case 'full':
     default:
-      primary = `${formatDateFull(d, siteTimezone)} at ${siteTime} ${tzAbbr}`
+      primary = `${formatDateFull(d, siteTimezone)} at ${siteTime}`
       local = includeLocal
-        ? `${formatDateFull(d, localTimezone)} at ${localTime} ${localTzAbbr}`
+        ? `${formatDateFull(d, localTimezone)} at ${localTime}`
         : ''
       break
   }
@@ -190,4 +186,34 @@ export function getTimezoneOffsetHours(
 
 export function toDateStringInTz(d: Date, siteTimezone: string): string {
   return d.toLocaleDateString('sv-SE', { timeZone: siteTimezone })
+}
+
+export function tomorrowInSiteTz(siteTimezone: string): string {
+  const now = new Date()
+  const todayStr = todayInSiteTz(siteTimezone)
+  const todayMs = new Date(`${todayStr}T12:00:00Z`).getTime()
+  const tomorrowMs = todayMs + 86_400_000
+  return new Date(tomorrowMs).toLocaleDateString('sv-SE', { timeZone: 'UTC' })
+}
+
+export function toISOInTimezone(dateStr: string, timeStr: string, tz: string): string | null {
+  if (!dateStr || !timeStr) return null
+  const naive = new Date(`${dateStr}T${timeStr}:00Z`)
+  if (isNaN(naive.getTime())) return null
+  if (tz === 'UTC') return naive.toISOString()
+  const utcStr = naive.toLocaleString('en-US', { timeZone: 'UTC' })
+  const tzStr = naive.toLocaleString('en-US', { timeZone: tz })
+  const offset = new Date(utcStr).getTime() - new Date(tzStr).getTime()
+  return new Date(naive.getTime() + offset).toISOString()
+}
+
+export function formatSchedulePreview(
+  date: Date,
+  tz: string,
+): { dateStr: string; timeStr: string; tzAbbr: string; dateKey: string } {
+  const dateStr = date.toLocaleDateString('en-US', { timeZone: tz, month: 'short', day: 'numeric', year: 'numeric' })
+  const timeStr = date.toLocaleTimeString('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false })
+  const tzAbbr = getTimezoneAbbr(tz, date)
+  const dateKey = toDateStringInTz(date, tz)
+  return { dateStr, timeStr, tzAbbr, dateKey }
 }

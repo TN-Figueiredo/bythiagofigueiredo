@@ -280,7 +280,7 @@ export function ScheduleTab({ data, typeFilter, strings, locale = 'en', siteTime
       </SectionErrorBoundary>
 
       <SectionErrorBoundary sectionName="Calendar">
-        <MonthCalendar slots={data.calendarSlots} locale={locale} onDateClick={handleDateClick} />
+        <MonthCalendar slots={data.calendarSlots} locale={locale} siteTimezone={siteTimezone} onDateClick={handleDateClick} />
       </SectionErrorBoundary>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

@@ -2,6 +2,7 @@ import { unstable_cache } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { generateCadenceSlots } from '@/lib/newsletter/cadence-slots'
 import type { CadencePattern } from '@/lib/newsletter/cadence-pattern'
+import { todayInSiteTz, toDateStringInTz } from '@/lib/cms/format-site-datetime'
 
 export interface UrgencySlot {
   typeName: string
@@ -44,9 +45,9 @@ export function computeUrgencyBadge(slots: UrgencySlot[]): UrgencyBadge | null {
   return { count: validSlots.length, color, slots: validSlots }
 }
 
-async function fetchSidebarBadgesInner(siteId: string): Promise<SidebarBadgeData> {
+async function fetchSidebarBadgesInner(siteId: string, siteTimezone: string): Promise<SidebarBadgeData> {
   const supabase = getSupabaseServiceClient()
-  const todayStr = new Date().toISOString().slice(0, 10)
+  const todayStr = todayInSiteTz(siteTimezone)
   const todayMs = new Date(todayStr + 'T00:00:00Z').getTime()
 
   const [postsRes, editionsWipRes, typesRes, filledEditionsRes] = await Promise.all([
@@ -81,7 +82,7 @@ async function fetchSidebarBadgesInner(siteId: string): Promise<SidebarBadgeData
   const wipReady = wipRows.filter((r) => r.status === 'ready').length
   const newsletterWip = editionsWipRes.count ?? 0
 
-  const fifteenDaysStr = new Date(todayMs + 15 * 86_400_000).toISOString().slice(0, 10)
+  const fifteenDaysStr = toDateStringInTz(new Date(todayMs + 15 * 86_400_000), siteTimezone)
   const filledSlots = new Set(
     (filledEditionsRes.data ?? []).map((e) => `${e.newsletter_type_id}:${e.slot_date}`),
   )

@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { toDateStringInTz } from '@/lib/cms/format-site-datetime'
 import { LinkDetail } from './_detail'
 
 export const dynamic = 'force-dynamic'
@@ -12,7 +13,7 @@ interface Props {
 
 export default async function LinkDetailPage({ params }: Props) {
   const { id } = await params
-  const { siteId } = await getSiteContext()
+  const { siteId, timezone } = await getSiteContext()
 
   const authRes = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
   if (!authRes.ok) redirect('/cms')
@@ -30,7 +31,7 @@ export default async function LinkDetailPage({ params }: Props) {
   if (link.deleted_at) notFound()
 
   // Fetch recent daily metrics (last 30 days)
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10)
+  const thirtyDaysAgo = toDateStringInTz(new Date(Date.now() - 30 * 86_400_000), timezone)
   const { data: recentMetrics } = await supabase
     .from('link_daily_metrics')
     .select('date, clicks, unique_visitors')

@@ -3,6 +3,7 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import type { DashboardKpis, DashboardActivity } from '@tn-figueiredo/links-admin'
+import { toDateStringInTz } from '@/lib/cms/format-site-datetime'
 import { getLinks } from './actions'
 import { LinksHub } from './_hub'
 
@@ -14,7 +15,7 @@ interface Props {
 
 export default async function LinksDashboardPage({ searchParams }: Props) {
   const params = await searchParams
-  const { siteId } = await getSiteContext()
+  const { siteId, timezone } = await getSiteContext()
 
   const authRes = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
   if (!authRes.ok) redirect('/cms')
@@ -23,7 +24,7 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
 
   const sevenDaysAgo = new Date()
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-  const sevenDaysAgoStr = sevenDaysAgo.toISOString().slice(0, 10)
+  const sevenDaysAgoStr = toDateStringInTz(sevenDaysAgo, timezone)
 
   const [totalRes, activeRes, clicksRes, dailyRes, sourceRes] = await Promise.all([
     supabase

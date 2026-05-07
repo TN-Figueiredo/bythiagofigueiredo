@@ -2,11 +2,13 @@
 
 import { useState, useMemo } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { todayInSiteTz } from '@/lib/cms/format-site-datetime'
 import type { ScheduleSlot } from '../../_hub/hub-types'
 
 interface MonthCalendarProps {
   slots: ScheduleSlot[]
   locale?: 'en' | 'pt-BR'
+  siteTimezone?: string
   strings?: { slotDate?: string; scheduledFor?: string; publishedOn?: string }
   onDateClick?: (date: string) => void
 }
@@ -28,7 +30,7 @@ function buildMonthGrid(
 
   return Array.from({ length: 42 }).map((_, i) => {
     const d = new Date(year, month, 1 - startOffset + i)
-    const dateStr = d.toISOString().slice(0, 10)
+    const dateStr = d.toLocaleDateString('sv-SE')
     const slot = slotMap.get(dateStr)
     return {
       date: dateStr,
@@ -62,11 +64,11 @@ const STATUS_COLORS: Record<string, string> = {
   pending_review: 'bg-orange-500/80',
 }
 
-export function MonthCalendar({ slots, locale = 'en', onDateClick }: MonthCalendarProps) {
-  const today = new Date()
-  const todayStr = today.toISOString().slice(0, 10)
-  const [viewYear, setViewYear] = useState(today.getFullYear())
-  const [viewMonth, setViewMonth] = useState(today.getMonth())
+export function MonthCalendar({ slots, locale = 'en', siteTimezone = 'America/Sao_Paulo', onDateClick }: MonthCalendarProps) {
+  const todayStr = todayInSiteTz(siteTimezone)
+  const [todayY, todayM] = todayStr.split('-').map(Number) as [number, number, number]
+  const [viewYear, setViewYear] = useState(todayY)
+  const [viewMonth, setViewMonth] = useState(todayM - 1)
 
   const weekdays = locale === 'pt-BR' ? WEEKDAYS_PT : WEEKDAYS_EN
   const months = locale === 'pt-BR' ? MONTHS_PT : MONTHS_EN
@@ -95,8 +97,8 @@ export function MonthCalendar({ slots, locale = 'en', onDateClick }: MonthCalend
   }
 
   function goToday() {
-    setViewYear(today.getFullYear())
-    setViewMonth(today.getMonth())
+    setViewYear(todayY)
+    setViewMonth(todayM - 1)
   }
 
   return (
@@ -114,7 +116,7 @@ export function MonthCalendar({ slots, locale = 'en', onDateClick }: MonthCalend
           <h3 className="text-sm font-semibold text-gray-100">
             {months[viewMonth]} {viewYear}
           </h3>
-          {(viewYear !== today.getFullYear() || viewMonth !== today.getMonth()) && (
+          {(viewYear !== todayY || viewMonth !== todayM - 1) && (
             <button
               onClick={goToday}
               className="rounded-md px-2 py-0.5 text-[9px] font-medium text-indigo-400 hover:bg-indigo-500/10"

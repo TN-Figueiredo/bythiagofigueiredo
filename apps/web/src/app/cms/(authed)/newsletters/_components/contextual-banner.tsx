@@ -37,12 +37,12 @@ export function ContextualBanner({ status, scheduledAt, sendProgress, errorMessa
           <Clock size={14} className="text-[#c084fc] shrink-0" />
           <span className="text-xs text-[#d1d5db]">
             Scheduled for{' '}
-            <strong>{fmt.primary}</strong>
+            <strong>{fmt.primary} {fmt.tzAbbr}</strong>
           </span>
           {fmt.local && (
             <>
               <span className="text-[#4b5563]">&middot;</span>
-              <span className="text-xs text-[#6b7280]">{fmt.local}</span>
+              <span className="text-xs text-[#6b7280]">{fmt.local} {fmt.localTzAbbr}</span>
               {fmt.crossDay && (
                 <span className="text-[10px] font-medium text-amber-500">+1d</span>
               )}

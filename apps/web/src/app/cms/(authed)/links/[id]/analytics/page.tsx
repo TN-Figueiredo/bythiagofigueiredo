@@ -17,6 +17,7 @@ import type {
   Insight,
   DateRange,
 } from '@tn-figueiredo/links-admin'
+import { toDateStringInTz } from '@/lib/cms/format-site-datetime'
 import { getAiInsights } from '../../actions'
 
 export const dynamic = 'force-dynamic'
@@ -29,7 +30,7 @@ interface Props {
 export default async function LinkAnalyticsPage({ params, searchParams }: Props) {
   const { id } = await params
   const sp = await searchParams
-  const { siteId } = await getSiteContext()
+  const { siteId, timezone } = await getSiteContext()
 
   const authRes = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
   if (!authRes.ok) redirect('/cms')
@@ -50,8 +51,8 @@ export default async function LinkAnalyticsPage({ params, searchParams }: Props)
   const period = sp.period ?? '30d'
   const daysMap: Record<string, number> = { '7d': 7, '30d': 30, '90d': 90, '365d': 365 }
   const days = daysMap[period] ?? 30
-  const dateFrom = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10)
-  const dateTo = new Date().toISOString().slice(0, 10)
+  const dateFrom = toDateStringInTz(new Date(Date.now() - days * 86_400_000), timezone)
+  const dateTo = toDateStringInTz(new Date(), timezone)
 
   // Parallel fetches
   const [metricsRes, clickEventsRes, insightsResult] = await Promise.all([

@@ -183,6 +183,7 @@ export function ScheduleTab({ data, strings, locale = 'en', siteTimezone = 'Amer
         <MonthCalendar
           slots={data.calendarSlots}
           locale={locale}
+          siteTimezone={siteTimezone}
           onDateClick={handleDateClick}
         />
       </SectionErrorBoundary>
@@ -195,6 +196,7 @@ export function ScheduleTab({ data, strings, locale = 'en', siteTimezone = 'Amer
           <CadenceCard
             key={config.locale}
             config={config}
+            siteTimezone={siteTimezone}
             onTogglePause={handleTogglePause}
             strings={strings}
           />
