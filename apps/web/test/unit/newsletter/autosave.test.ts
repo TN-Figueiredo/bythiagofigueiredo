@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { useAutosave } from '@/app/cms/(authed)/_shared/editor/use-autosave'
 
-const LS_KEY = 'newsletter-draft-ed-1'
+const LS_KEY = 'editor-draft-ed-1'
 
 // happy-dom's localStorage may be incomplete; provide a minimal shim
 const store = new Map<string, string>()
@@ -29,7 +29,7 @@ describe('useAutosave hook', () => {
 
   function setup(
     saveFn = vi.fn().mockResolvedValue({ ok: true }),
-    opts: Partial<{ debounceMs: number; maxRetries: number; enabled: boolean }> = {},
+    opts: Partial<{ debounceMs: number; maxRetries: number; enabled: boolean; mode: 'auto' | 'manual' | 'guarded'; getPayload: () => Record<string, unknown> }> = {},
   ) {
     const result = renderHook(() =>
       useAutosave({
@@ -38,6 +38,8 @@ describe('useAutosave hook', () => {
         debounceMs: opts.debounceMs ?? 3000,
         maxRetries: opts.maxRetries ?? 3,
         enabled: opts.enabled ?? true,
+        mode: opts.mode,
+        getPayload: opts.getPayload,
       }),
     )
     return { ...result, saveFn }
@@ -266,5 +268,122 @@ describe('useAutosave hook', () => {
       vi.advanceTimersByTime(5000)
     })
     expect(saveFn).not.toHaveBeenCalled()
+  })
+
+  // ── Manual mode: scheduleSave does not fire ───────────────────────────────
+  it('manual mode: scheduleSave marks dirty but does not fire', async () => {
+    const saveFn = vi.fn().mockResolvedValue({ ok: true })
+    const { result } = setup(saveFn, { mode: 'manual' })
+
+    act(() => {
+      result.current.scheduleSave({ subject: 'Manual' })
+    })
+    expect(result.current.state).toBe('unsaved')
+    expect(result.current.hasUnsavedChanges).toBe(true)
+
+    await act(async () => {
+      vi.advanceTimersByTime(10000)
+    })
+    expect(saveFn).not.toHaveBeenCalled()
+  })
+
+  // ── Manual mode: saveNow fires immediately ────────────────────────────────
+  it('manual mode: saveNow fires immediately', async () => {
+    const saveFn = vi.fn().mockResolvedValue({ ok: true })
+    const { result } = setup(saveFn, { mode: 'manual' })
+
+    act(() => {
+      result.current.scheduleSave({ subject: 'Dirty' })
+    })
+
+    await act(async () => {
+      result.current.saveNow({ subject: 'Now' })
+    })
+    expect(saveFn).toHaveBeenCalledTimes(1)
+    expect(saveFn).toHaveBeenCalledWith({ subject: 'Now' })
+    expect(result.current.state).toBe('saved')
+  })
+
+  // ── Guarded mode: saveNow sets needsConfirmation ──────────────────────────
+  it('guarded mode: saveNow sets needsConfirmation instead of firing', async () => {
+    const saveFn = vi.fn().mockResolvedValue({ ok: true })
+    const { result } = setup(saveFn, { mode: 'guarded' })
+
+    act(() => {
+      result.current.saveNow({ subject: 'Guarded' })
+    })
+    expect(saveFn).not.toHaveBeenCalled()
+    expect(result.current.needsConfirmation).toBe(true)
+  })
+
+  // ── Guarded mode: confirmSave fires with fresh payload ────────────────────
+  it('guarded mode: confirmSave fires using getPayload', async () => {
+    const saveFn = vi.fn().mockResolvedValue({ ok: true })
+    const getPayload = vi.fn().mockReturnValue({ subject: 'Fresh' })
+    const { result } = setup(saveFn, { mode: 'guarded', getPayload })
+
+    act(() => {
+      result.current.saveNow({ subject: 'Stale' })
+    })
+    expect(result.current.needsConfirmation).toBe(true)
+
+    await act(async () => {
+      result.current.confirmSave()
+    })
+    expect(getPayload).toHaveBeenCalled()
+    expect(saveFn).toHaveBeenCalledWith({ subject: 'Fresh' })
+    expect(result.current.needsConfirmation).toBe(false)
+    expect(result.current.state).toBe('saved')
+  })
+
+  // ── Guarded mode: cancelSave resets confirmation ──────────────────────────
+  it('guarded mode: cancelSave clears needsConfirmation', () => {
+    const saveFn = vi.fn().mockResolvedValue({ ok: true })
+    const { result } = setup(saveFn, { mode: 'guarded' })
+
+    act(() => {
+      result.current.saveNow({ subject: 'X' })
+    })
+    expect(result.current.needsConfirmation).toBe(true)
+
+    act(() => {
+      result.current.cancelSave()
+    })
+    expect(result.current.needsConfirmation).toBe(false)
+    expect(result.current.hasUnsavedChanges).toBe(true)
+  })
+
+  // ── forceSave bypasses guarded mode ───────────────────────────────────────
+  it('forceSave bypasses guarded mode and fires immediately', async () => {
+    const saveFn = vi.fn().mockResolvedValue({ ok: true })
+    const { result } = setup(saveFn, { mode: 'guarded' })
+
+    await act(async () => {
+      await result.current.forceSave({ subject: 'Force' })
+    })
+    expect(saveFn).toHaveBeenCalledWith({ subject: 'Force' })
+    expect(result.current.needsConfirmation).toBe(false)
+  })
+
+  // ── Manual mode: online recovery only marks dirty ─────────────────────────
+  it('manual mode: localStorage recovery marks dirty but does not auto-save', () => {
+    localStorage.setItem('editor-draft-ed-1', JSON.stringify({ subject: 'Recovered' }))
+    const saveFn = vi.fn().mockResolvedValue({ ok: true })
+    const { result } = setup(saveFn, { mode: 'manual' })
+
+    expect(result.current.hasUnsavedChanges).toBe(true)
+    expect(result.current.state).toBe('unsaved')
+    expect(saveFn).not.toHaveBeenCalled()
+  })
+
+  // ── mode exposes current mode ─────────────────────────────────────────────
+  it('exposes current mode in return value', () => {
+    const { result } = setup(vi.fn().mockResolvedValue({ ok: true }), { mode: 'manual' })
+    expect(result.current.mode).toBe('manual')
+  })
+
+  it('defaults mode to auto', () => {
+    const { result } = setup()
+    expect(result.current.mode).toBe('auto')
   })
 })
