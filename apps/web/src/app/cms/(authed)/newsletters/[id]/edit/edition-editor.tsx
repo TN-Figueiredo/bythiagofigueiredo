@@ -150,7 +150,7 @@ export function EditionEditor({
     return saveEdition(editionId, data as Parameters<typeof saveEdition>[1])
   }, [editionId])
 
-  const { state: saveState, lastSavedAt, hasUnsavedChanges, scheduleSave, saveNow: saveImmediate, forceSave, setHasUnsavedChanges, mode: currentSaveMode } = useAutosave({
+  const { state: saveState, lastSavedAt, hasUnsavedChanges, scheduleSave, saveNow: saveImmediate, setHasUnsavedChanges, mode: currentSaveMode } = useAutosave({
     editionId,
     saveFn,
     enabled: !isReadOnly && !isEphemeral,

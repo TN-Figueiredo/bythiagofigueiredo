@@ -386,4 +386,60 @@ describe('useAutosave hook', () => {
     const { result } = setup()
     expect(result.current.mode).toBe('auto')
   })
+
+  // ── Corrupted localStorage handled gracefully ─────────────────────────────
+  it('removes corrupted localStorage entry on mount', () => {
+    localStorage.setItem(LS_KEY, 'not valid json{{{')
+    const { result } = setup()
+    expect(result.current.hasUnsavedChanges).toBe(false)
+    expect(result.current.state).toBe('saved')
+    expect(localStorage.getItem(LS_KEY)).toBeNull()
+  })
+
+  // ── Mode transition: auto→manual cancels debounce ─────────────────────────
+  it('auto→manual transition cancels pending debounce', async () => {
+    const saveFn = vi.fn().mockResolvedValue({ ok: true })
+    const { result, rerender } = renderHook(
+      ({ mode }) => useAutosave({ editionId: 'ed-1', saveFn, debounceMs: 3000, enabled: true, mode }),
+      { initialProps: { mode: 'auto' as const } },
+    )
+
+    act(() => { result.current.scheduleSave({ subject: 'Auto' }) })
+    rerender({ mode: 'manual' })
+
+    await act(async () => { vi.advanceTimersByTime(5000) })
+    expect(saveFn).not.toHaveBeenCalled()
+  })
+
+  // ── Mode transition: manual→auto with dirty data schedules save ───────────
+  it('manual→auto transition with dirty data schedules save', async () => {
+    const saveFn = vi.fn().mockResolvedValue({ ok: true })
+    const { result, rerender } = renderHook(
+      ({ mode }) => useAutosave({ editionId: 'ed-1', saveFn, debounceMs: 3000, enabled: true, mode }),
+      { initialProps: { mode: 'manual' as const } },
+    )
+
+    act(() => { result.current.scheduleSave({ subject: 'Dirty' }) })
+    expect(saveFn).not.toHaveBeenCalled()
+
+    rerender({ mode: 'auto' })
+
+    await act(async () => { vi.advanceTimersByTime(3000) })
+    expect(saveFn).toHaveBeenCalledTimes(1)
+  })
+
+  // ── Mode transition: guarded→manual clears needsConfirmation ──────────────
+  it('guarded→manual transition clears needsConfirmation', () => {
+    const saveFn = vi.fn().mockResolvedValue({ ok: true })
+    const { result, rerender } = renderHook(
+      ({ mode }) => useAutosave({ editionId: 'ed-1', saveFn, debounceMs: 3000, enabled: true, mode }),
+      { initialProps: { mode: 'guarded' as const } },
+    )
+
+    act(() => { result.current.saveNow({ subject: 'Guarded' }) })
+    expect(result.current.needsConfirmation).toBe(true)
+
+    rerender({ mode: 'manual' })
+    expect(result.current.needsConfirmation).toBe(false)
+  })
 })

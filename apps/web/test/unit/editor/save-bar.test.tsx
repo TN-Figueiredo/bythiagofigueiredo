@@ -18,14 +18,16 @@ describe('SaveBar', () => {
     expect(screen.getByRole('button', { name: /save/i })).toBeDefined()
   })
 
-  it('does not render in auto mode', () => {
-    const { container } = render(<SaveBar {...defaults} mode="auto" />)
-    expect(container.innerHTML).toBe('')
+  it('does not render bar content in auto mode', () => {
+    render(<SaveBar {...defaults} mode="auto" />)
+    expect(screen.queryByText('Unsaved changes')).toBeNull()
+    expect(screen.getByRole('status')).toBeDefined()
   })
 
-  it('does not render when no unsaved changes and not saving', () => {
-    const { container } = render(<SaveBar {...defaults} hasUnsavedChanges={false} state="saved" />)
-    expect(container.innerHTML).toBe('')
+  it('does not render bar content when no unsaved changes and not saving', () => {
+    render(<SaveBar {...defaults} hasUnsavedChanges={false} state="saved" />)
+    expect(screen.queryByText('Unsaved changes')).toBeNull()
+    expect(screen.getByRole('status')).toBeDefined()
   })
 
   it('shows "Update live post" for published status', () => {
@@ -59,5 +61,40 @@ describe('SaveBar', () => {
   it('has accessible role', () => {
     render(<SaveBar {...defaults} />)
     expect(screen.getByRole('status')).toBeDefined()
+  })
+
+  it('Cmd+S triggers onSave in manual mode', () => {
+    const onSave = vi.fn()
+    render(<SaveBar {...defaults} onSave={onSave} />)
+    fireEvent.keyDown(window, { key: 's', metaKey: true })
+    expect(onSave).toHaveBeenCalledTimes(1)
+  })
+
+  it('Ctrl+S triggers onSave in manual mode', () => {
+    const onSave = vi.fn()
+    render(<SaveBar {...defaults} onSave={onSave} />)
+    fireEvent.keyDown(window, { key: 's', ctrlKey: true })
+    expect(onSave).toHaveBeenCalledTimes(1)
+  })
+
+  it('Cmd+S triggers onRetry in error state', () => {
+    const onRetry = vi.fn()
+    render(<SaveBar {...defaults} state="error" onRetry={onRetry} />)
+    fireEvent.keyDown(window, { key: 's', metaKey: true })
+    expect(onRetry).toHaveBeenCalledTimes(1)
+  })
+
+  it('Cmd+S does not fire while saving', () => {
+    const onSave = vi.fn()
+    render(<SaveBar {...defaults} state="saving" onSave={onSave} />)
+    fireEvent.keyDown(window, { key: 's', metaKey: true })
+    expect(onSave).not.toHaveBeenCalled()
+  })
+
+  it('does not register keyboard shortcut in auto mode', () => {
+    const onSave = vi.fn()
+    render(<SaveBar {...defaults} mode="auto" onSave={onSave} />)
+    fireEvent.keyDown(window, { key: 's', metaKey: true })
+    expect(onSave).not.toHaveBeenCalled()
   })
 })

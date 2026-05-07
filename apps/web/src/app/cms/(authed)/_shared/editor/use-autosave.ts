@@ -152,10 +152,14 @@ export function useAutosave({
     if (typeof window === 'undefined') return
     const stored = localStorage.getItem(`${LS_PREFIX}${editionId}`)
     if (stored && enabled) {
-      const data = JSON.parse(stored) as Record<string, unknown>
-      pendingDataRef.current = data
-      setHasUnsavedChanges(true)
-      setState('unsaved')
+      try {
+        const data = JSON.parse(stored) as Record<string, unknown>
+        pendingDataRef.current = data
+        setHasUnsavedChanges(true)
+        setState('unsaved')
+      } catch {
+        localStorage.removeItem(`${LS_PREFIX}${editionId}`)
+      }
     }
   }, [editionId, enabled])
 

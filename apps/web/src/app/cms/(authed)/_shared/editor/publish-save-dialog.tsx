@@ -18,12 +18,12 @@ export function PublishSaveDialog({ open, onConfirm, onCancel }: PublishSaveDial
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60">
-      <div ref={dialogRef} role="dialog" aria-modal="true" className="w-full max-w-sm rounded-xl bg-[#111827] border border-[#374151] p-6 shadow-2xl">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="publish-save-title" className="w-full max-w-sm rounded-xl bg-[#111827] border border-[#374151] p-6 shadow-2xl">
         <div className="flex items-center gap-2 mb-3">
           <div className="h-8 w-8 rounded-full bg-amber-500/15 flex items-center justify-center">
             <AlertTriangle size={16} className="text-[#f59e0b]" />
           </div>
-          <h3 className="text-base font-semibold text-[#f3f4f6]">Update published post?</h3>
+          <h3 id="publish-save-title" className="text-base font-semibold text-[#f3f4f6]">Update published post?</h3>
         </div>
         <p className="text-sm text-[#9ca3af] mb-6">
           This post is live. Saving will update the published version immediately.
