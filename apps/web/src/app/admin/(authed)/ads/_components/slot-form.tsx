@@ -43,6 +43,7 @@ export function SlotForm({ slotKey, initial, onSave, onChange, siteId }: SlotFor
   const [isPending, startTransition] = useTransition()
   const [saved, setSaved] = useState(false)
   const adGallery = useMediaGallery()
+  const logoGallery = useMediaGallery()
 
   function update(patch: Partial<SlotFormData>) {
     const next = { ...form, ...patch }
@@ -145,13 +146,24 @@ export function SlotForm({ slotKey, initial, onSave, onChange, siteId }: SlotFor
 
         {showLogo && (
           <Field label="URL do logo">
-            <input
-              type="text"
-              value={form.logoUrl}
-              onChange={(e) => update({ logoUrl: e.target.value })}
-              className={inputClass}
-              placeholder="https://..."
-            />
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={form.logoUrl}
+                onChange={(e) => update({ logoUrl: e.target.value })}
+                className={inputClass + ' flex-1'}
+                placeholder="https://..."
+              />
+              {galleryEnabled && siteId && (
+                <button
+                  type="button"
+                  onClick={() => logoGallery.openGallery({ folder: 'ads', cropPreset: CROP_PRESETS.free })}
+                  className="shrink-0 rounded-md border border-border px-2.5 py-2 text-xs text-muted-foreground hover:bg-accent"
+                >
+                  Galeria
+                </button>
+              )}
+            </div>
           </Field>
         )}
       </div>
@@ -206,15 +218,26 @@ export function SlotForm({ slotKey, initial, onSave, onChange, siteId }: SlotFor
         )}
       </div>
       {galleryEnabled && siteId && (
-        <MediaGalleryModal
-          {...adGallery.galleryProps}
-          onSelect={(asset) => {
-            update({ imageUrl: asset.url })
-            adGallery.closeGallery()
-          }}
-          locale="pt-BR"
-          siteId={siteId}
-        />
+        <>
+          <MediaGalleryModal
+            {...adGallery.galleryProps}
+            onSelect={(asset) => {
+              update({ imageUrl: asset.url })
+              adGallery.closeGallery()
+            }}
+            locale="pt-BR"
+            siteId={siteId}
+          />
+          <MediaGalleryModal
+            {...logoGallery.galleryProps}
+            onSelect={(asset) => {
+              update({ logoUrl: asset.url })
+              logoGallery.closeGallery()
+            }}
+            locale="pt-BR"
+            siteId={siteId}
+          />
+        </>
       )}
     </div>
   )

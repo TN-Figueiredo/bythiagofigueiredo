@@ -35,6 +35,7 @@ import {
 } from 'lucide-react'
 import { MERGE_TAGS } from './merge-tag-node'
 import { PROVIDER_META, type EmbedProvider } from './social-embed-node'
+import { ImagePlus } from 'lucide-react'
 
 interface EditorToolbarProps {
   editor: Editor | null
@@ -45,6 +46,7 @@ interface EditorToolbarProps {
   onImageInserted?: () => void
   isFullscreen?: boolean
   onToggleFullscreen?: () => void
+  onOpenGallery?: () => void
 }
 
 const EMBED_ICONS: Record<EmbedProvider, React.ReactNode> = {
@@ -203,6 +205,7 @@ export function EditorToolbar({
   onImageInserted,
   isFullscreen,
   onToggleFullscreen,
+  onOpenGallery,
 }: EditorToolbarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [showLinkPopover, setShowLinkPopover] = useState(false)
@@ -317,6 +320,13 @@ export function EditorToolbar({
       <ToolbarButton onClick={() => fileInputRef.current?.click()} title="Insert image">
         <Image size={16} />
       </ToolbarButton>
+
+      {/* Image from Gallery */}
+      {onOpenGallery && (
+        <ToolbarButton onClick={onOpenGallery} title="Image from gallery">
+          <ImagePlus size={16} />
+        </ToolbarButton>
+      )}
 
       {/* CTA Button */}
       <ToolbarButton onClick={onInsertCTAButton} title="Insert CTA button">

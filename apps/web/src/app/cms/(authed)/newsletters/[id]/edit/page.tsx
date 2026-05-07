@@ -93,6 +93,8 @@ export default async function EditEditionPage({
         color: (t.color ?? '#7c3aed') as string,
       }))}
       userEmail={user?.email ?? ''}
+      siteId={ctx.siteId}
+      locale={(ctx.defaultLocale ?? 'pt-BR') as 'en' | 'pt-BR'}
     />
   )
 }

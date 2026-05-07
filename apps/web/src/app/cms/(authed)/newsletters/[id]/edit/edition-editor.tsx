@@ -7,6 +7,9 @@ import { toast } from 'sonner'
 import type { JSONContent } from '@tiptap/core'
 import { ArrowLeft, Calendar, Eye, BarChart3, RotateCcw, Command } from 'lucide-react'
 import { TipTapEditor } from '../../../_shared/editor/tiptap-editor'
+import { useMediaGallery } from '../../../_shared/media/use-media-gallery'
+import { MediaGalleryModal } from '../../../_shared/media/media-gallery-modal'
+import { CROP_PRESETS } from '../../../_shared/media/types'
 import { useAutosave } from '../../../_shared/editor/use-autosave'
 import { AutosaveIndicator } from '../../../_shared/editor/autosave-indicator'
 import { NavigationGuard } from '../../../_shared/editor/navigation-guard'
@@ -65,9 +68,13 @@ interface EditionEditorProps {
   initialTypeId?: string | null
   userEmail?: string
   siteTimezone?: string
+  siteId?: string
+  locale?: 'en' | 'pt-BR'
 }
 
 // ─── Constants ──────────────────────────────────────────────────────────────
+
+const galleryEnabled = process.env.NEXT_PUBLIC_MEDIA_GALLERY_ENABLED === 'true'
 
 const LOCKED_STATUSES = ['sending', 'sent', 'failed', 'cancelled']
 
@@ -94,6 +101,8 @@ export function EditionEditor({
   initialTypeId,
   userEmail = '',
   siteTimezone = 'America/Sao_Paulo',
+  siteId,
+  locale = 'pt-BR',
 }: EditionEditorProps) {
   const router = useRouter()
 
@@ -123,6 +132,11 @@ export function EditionEditor({
   const [showSendNowModal, setShowSendNowModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [showSendTestModal, setShowSendTestModal] = useState(false)
+
+  // ── Media gallery (inline images) ────────────────────────────────────────
+  const inlineGallery = useMediaGallery()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tiptapEditorRef = useRef<any>(null)
 
   // ── Refs ───────────────────────────────────────────────────────────────────
   const fieldsRef = useRef({ subject, preheader, contentJson, contentHtml, notes, segment })
@@ -704,6 +718,8 @@ export function EditionEditor({
             }}
             onImageUpload={handleImageUpload}
             editable={!isReadOnly}
+            onOpenGallery={galleryEnabled && siteId ? () => inlineGallery.openGallery({ folder: 'newsletters', cropPreset: CROP_PRESETS.free }) : undefined}
+            editorInstanceRef={tiptapEditorRef}
           />
         </div>
 
@@ -787,6 +803,19 @@ export function EditionEditor({
         onConfirm={handleSendTest}
         onCancel={() => setShowSendTestModal(false)}
       />
+      {galleryEnabled && siteId && (
+        <MediaGalleryModal
+          {...inlineGallery.galleryProps}
+          onSelect={(asset) => {
+            if (tiptapEditorRef.current) {
+              tiptapEditorRef.current.chain().focus().setImage({ src: asset.url, alt: asset.alt }).run()
+            }
+            inlineGallery.closeGallery()
+          }}
+          locale={locale}
+          siteId={siteId}
+        />
+      )}
     </div>
   )
 }

@@ -1,8 +1,8 @@
 'use client'
 
 import './editor-styles.css'
-import { useRef, useState, useMemo, useEffect } from 'react'
-import { useEditor, EditorContent } from '@tiptap/react'
+import { useRef, useState, useMemo, useEffect, type MutableRefObject } from 'react'
+import { useEditor, EditorContent, type Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import Link from '@tiptap/extension-link'
@@ -28,6 +28,9 @@ interface TipTapEditorProps {
   onImageUpload: (file: File) => Promise<string | null>
   editable?: boolean
   placeholder?: string
+  onOpenGallery?: () => void
+  /** Exposes the TipTap editor instance to the parent (e.g. for gallery image insertion). */
+  editorInstanceRef?: MutableRefObject<Editor | null>
 }
 
 export function TipTapEditor({
@@ -37,6 +40,8 @@ export function TipTapEditor({
   onImageUpload,
   editable = true,
   placeholder = 'Start writing your newsletter... Type / for commands',
+  onOpenGallery,
+  editorInstanceRef,
 }: TipTapEditorProps) {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -185,6 +190,7 @@ export function TipTapEditor({
   })
 
   editorRef.current = editor
+  if (editorInstanceRef) editorInstanceRef.current = editor
 
   useEffect(() => {
     if (!isFullscreen) return
@@ -251,6 +257,7 @@ export function TipTapEditor({
         onImageUpload={onImageUpload}
         isFullscreen={isFullscreen}
         onToggleFullscreen={() => setIsFullscreen(!isFullscreen)}
+        onOpenGallery={onOpenGallery}
       />
       <div className="flex-1 overflow-y-auto">
         {editor && <EditorBubbleMenu editor={editor} />}

@@ -5,7 +5,9 @@ import type { CookieOptions } from '@supabase/ssr'
 import { getSiteContext } from '../../../../../lib/cms/site-context'
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
 import { requireOrgAdmin } from '../_lib/require-org-admin'
-import { updateSiteBranding, updateSiteCmsEnabled, updateSiteIdentity } from './actions'
+import { updateSiteBranding, updateSiteCmsEnabled, updateSiteIdentity, updateSiteSeoDefaults } from './actions'
+import { GalleryUrlField } from './gallery-url-field'
+import { CROP_PRESETS } from '../../../cms/(authed)/_shared/media/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,6 +20,7 @@ interface SiteSettingsRow {
   cms_enabled: boolean | null
   twitter_handle: string | null
   identity_type: string | null
+  seo_default_og_image: string | null
 }
 
 interface Props {
@@ -55,7 +58,7 @@ export default async function AdminSitesPage({ searchParams }: Props) {
   const supabase = getSupabaseServiceClient()
   const { data: site } = await supabase
     .from('sites')
-    .select('id, name, primary_domain, logo_url, primary_color, cms_enabled, twitter_handle, identity_type')
+    .select('id, name, primary_domain, logo_url, primary_color, cms_enabled, twitter_handle, identity_type, seo_default_og_image')
     .eq('id', ctx.siteId)
     .single<SiteSettingsRow>()
 
@@ -98,6 +101,14 @@ export default async function AdminSitesPage({ searchParams }: Props) {
 
     if (!identityResult.ok) {
       redirect('/admin/sites?notice=save_failed')
+    }
+
+    const defaultOgImage = String(formData.get('seo_default_og_image') ?? '') || null
+    if (defaultOgImage !== site.seo_default_og_image) {
+      const seoResult = await updateSiteSeoDefaults({ siteId: ctx.siteId, defaultOgImage })
+      if (!seoResult.ok) {
+        redirect('/admin/sites?notice=save_failed')
+      }
     }
 
     const cmsResult = await updateSiteCmsEnabled({ siteId: ctx.siteId, cmsEnabled })
@@ -143,19 +154,29 @@ export default async function AdminSitesPage({ searchParams }: Props) {
           </p>
         </div>
 
-        <div>
-          <label htmlFor="logo_url" className="block text-sm font-medium text-gray-700 mb-1">
-            Logo URL
-          </label>
-          <input
-            id="logo_url"
-            name="logo_url"
-            type="url"
-            defaultValue={site.logo_url ?? ''}
-            placeholder="https://..."
-            className="w-full border rounded px-3 py-2 text-sm"
-          />
-        </div>
+        <GalleryUrlField
+          id="logo_url"
+          name="logo_url"
+          label="Logo URL"
+          defaultValue={site.logo_url ?? ''}
+          placeholder="https://..."
+          folder="branding"
+          cropPreset={CROP_PRESETS['site-logo']}
+          siteId={site.id}
+          locale="pt-BR"
+        />
+
+        <GalleryUrlField
+          id="seo_default_og_image"
+          name="seo_default_og_image"
+          label="Default OG Image URL"
+          defaultValue={site.seo_default_og_image ?? ''}
+          placeholder="https://..."
+          folder="og"
+          cropPreset={CROP_PRESETS['og-image']}
+          siteId={site.id}
+          locale="pt-BR"
+        />
 
         <div>
           <label htmlFor="primary_color" className="block text-sm font-medium text-gray-700 mb-1">
