@@ -10,6 +10,7 @@ import { TipTapEditor } from '../../../_shared/editor/tiptap-editor'
 import { useMediaGallery } from '../../../_shared/media/use-media-gallery'
 import { MediaGalleryModal } from '../../../_shared/media/media-gallery-modal'
 import { CROP_PRESETS } from '../../../_shared/media/types'
+import { trackMediaUsageAction } from '../../../media/actions'
 import { useAutosave } from '../../../_shared/editor/use-autosave'
 import { AutosaveIndicator } from '../../../_shared/editor/autosave-indicator'
 import { NavigationGuard } from '../../../_shared/editor/navigation-guard'
@@ -811,6 +812,9 @@ export function EditionEditor({
               tiptapEditorRef.current.chain().focus().setImage({ src: asset.url, alt: asset.alt }).run()
             }
             inlineGallery.closeGallery()
+            if (editionId) {
+              trackMediaUsageAction(asset.id, 'newsletter_edition', editionId, 'content_inline').catch(() => {})
+            }
           }}
           locale={locale}
           siteId={siteId}

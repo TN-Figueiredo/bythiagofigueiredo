@@ -64,6 +64,7 @@ const updateAuthorSchema = z.object({
     .nullable()
     .optional(),
   avatar_url: z.string().nullable().optional(),
+  about_photo_url: z.string().nullable().optional(),
   sort_order: z.number().int().min(0).optional(),
 })
 

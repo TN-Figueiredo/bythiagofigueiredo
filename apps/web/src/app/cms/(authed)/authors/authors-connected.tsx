@@ -379,6 +379,7 @@ function DetailPanel({
       setCropFile(null)
       if (cropImageUrl) URL.revokeObjectURL(cropImageUrl)
       setCropImageUrl(null)
+      if (avatarPreview?.startsWith('blob:')) URL.revokeObjectURL(avatarPreview)
       setAvatarPreview(URL.createObjectURL(blob))
       setAvatarUploading(true)
       const fd = new FormData()
@@ -1111,8 +1112,12 @@ function DetailPanel({
           <MediaGalleryModal
             {...avatarGallery.galleryProps}
             onSelect={(asset) => {
+              if (avatarPreview?.startsWith('blob:')) URL.revokeObjectURL(avatarPreview)
               setAvatarPreview(asset.url)
               avatarGallery.closeGallery()
+              startTransition(async () => {
+                await updateAuthor(author.id, { avatar_url: asset.url })
+              })
             }}
             locale={locale}
             siteId={siteId}
@@ -1122,6 +1127,9 @@ function DetailPanel({
             onSelect={(asset) => {
               setAboutPhotoUrl(asset.url)
               aboutGallery.closeGallery()
+              startTransition(async () => {
+                await updateAuthor(author.id, { about_photo_url: asset.url })
+              })
             }}
             locale={locale}
             siteId={siteId}
