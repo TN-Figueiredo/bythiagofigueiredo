@@ -18,9 +18,9 @@
 
 | File | Responsibility |
 |------|---------------|
-| `supabase/migrations/20260507190000_instagram_feed.sql` | DB schema: 4 tables + indexes + RLS |
+| `supabase/migrations/20260507190000_instagram_feed.sql` | DB schema: 4 tables + indexes + RLS + updated_at triggers + public view |
 | `apps/web/src/lib/instagram/types.ts` | Row types, view types, SyncMode |
-| `apps/web/src/lib/instagram/api-client.ts` | Instagram Graph API fetch + token refresh |
+| `apps/web/src/lib/instagram/api-client.ts` | Instagram Graph API fetch + profile discovery + token refresh |
 | `apps/web/src/lib/instagram/sync.ts` | Sync service: fetch posts, upsert, cache media |
 | `apps/web/src/lib/instagram/slots.ts` | Slot resolution algorithm (pinned + auto-fill) |
 | `apps/web/src/lib/instagram/queries.ts` | Public data queries with `unstable_cache` |
@@ -158,10 +158,12 @@ CREATE INDEX idx_instagram_sync_log_recent
 
 ALTER TABLE public.instagram_accounts ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS instagram_accounts_public_read ON public.instagram_accounts;
-CREATE POLICY instagram_accounts_public_read
-  ON public.instagram_accounts FOR SELECT
-  USING (public.site_visible(site_id));
+-- Staff-only read (access_token must never leak to public).
+-- Public queries use the instagram_accounts_public view instead.
+DROP POLICY IF EXISTS instagram_accounts_staff_read ON public.instagram_accounts;
+CREATE POLICY instagram_accounts_staff_read
+  ON public.instagram_accounts FOR SELECT TO authenticated
+  USING (public.can_edit_site(site_id));
 
 DROP POLICY IF EXISTS instagram_accounts_staff_write ON public.instagram_accounts;
 CREATE POLICY instagram_accounts_staff_write
@@ -231,6 +233,30 @@ DROP POLICY IF EXISTS instagram_sync_log_staff_read ON public.instagram_sync_log
 CREATE POLICY instagram_sync_log_staff_read
   ON public.instagram_sync_log FOR SELECT TO authenticated
   USING (public.can_edit_site(site_id));
+
+-- ── Triggers (auto-update updated_at) ─────────────────────────────
+
+CREATE TRIGGER set_instagram_accounts_updated_at
+  BEFORE UPDATE ON public.instagram_accounts
+  FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
+
+CREATE TRIGGER set_instagram_posts_updated_at
+  BEFORE UPDATE ON public.instagram_posts
+  FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
+
+CREATE TRIGGER set_instagram_feed_slots_updated_at
+  BEFORE UPDATE ON public.instagram_feed_slots
+  FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
+
+-- ── Public view (hides access_token from public reads) ────────────
+
+CREATE OR REPLACE VIEW public.instagram_accounts_public AS
+SELECT
+  id, site_id, locale, handle, ig_user_id,
+  sync_enabled, display_slots, layout_type,
+  last_synced_at, token_expires_at,
+  created_at, updated_at
+FROM public.instagram_accounts;
 ```
 
 - [ ] **Step 2: Verify migration syntax**
@@ -245,7 +271,8 @@ git add supabase/migrations/20260507190000_instagram_feed.sql
 git commit -m "feat(instagram): add database migration for feed integration
 
 Four tables: instagram_accounts, instagram_posts, instagram_feed_slots,
-instagram_sync_log. RLS policies mirror YouTube pattern."
+instagram_sync_log. RLS policies (staff-only for accounts), updated_at
+triggers, and instagram_accounts_public view."
 ```
 
 ---
@@ -269,6 +296,7 @@ import type {
   InstagramPostView,
   ResolvedSlot,
   InstagramSyncMode,
+  InstagramAccountPublic,
 } from '@/lib/instagram/types'
 
 describe('Instagram types', () => {
@@ -451,6 +479,23 @@ export interface InstagramAccountView {
   tokenExpiresAt: string | null
 }
 
+// Subset of InstagramAccountRow exposed via instagram_accounts_public view
+// (no access_token column — safe for public queries)
+export interface InstagramAccountPublic {
+  id: string
+  site_id: string
+  locale: 'pt' | 'en'
+  handle: string
+  ig_user_id: string | null
+  sync_enabled: boolean
+  display_slots: number
+  layout_type: 'grid' | 'scatter'
+  last_synced_at: string | null
+  token_expires_at: string | null
+  created_at: string
+  updated_at: string
+}
+
 export type InstagramSyncMode = 'daily' | 'manual' | 'token_refresh'
 
 export interface SyncResult {
@@ -522,6 +567,7 @@ vi.stubGlobal('fetch', mockFetch)
 
 import {
   fetchInstagramMedia,
+  fetchInstagramProfile,
   refreshAccessToken,
   InstagramApiError,
 } from '@/lib/instagram/api-client'
@@ -597,6 +643,35 @@ describe('fetchInstagramMedia', () => {
     mockFetch.mockRejectedValueOnce(new Error('Network error'))
 
     await expect(fetchInstagramMedia('user-123', 'tok')).rejects.toThrow()
+  })
+})
+
+describe('fetchInstagramProfile', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('returns ig user id and username', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: '17841400123456', username: 'testuser' }),
+    })
+
+    const result = await fetchInstagramProfile('tok-abc')
+    expect(result.id).toBe('17841400123456')
+    expect(result.username).toBe('testuser')
+  })
+
+  it('throws on invalid token', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      json: async () => ({
+        error: { message: 'Invalid token', type: 'OAuthException', code: 190 },
+      }),
+    })
+
+    await expect(fetchInstagramProfile('bad-tok')).rejects.toThrow(InstagramApiError)
   })
 })
 
@@ -690,6 +765,8 @@ async function handleApiResponse<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>
 }
 
+const MAX_PAGES = 5
+
 export async function fetchInstagramMedia(
   igUserId: string,
   accessToken: string,
@@ -698,8 +775,9 @@ export async function fetchInstagramMedia(
   const all: InstagramMediaItem[] = []
   let url: string | null =
     `${GRAPH_API_BASE}/${igUserId}/media?fields=${MEDIA_FIELDS}&access_token=${accessToken}&limit=${Math.min(limit, 50)}`
+  let pages = 0
 
-  while (url && all.length < limit) {
+  while (url && all.length < limit && pages < MAX_PAGES) {
     const data = await handleApiResponse<{
       data: InstagramMediaItem[]
       paging?: { next?: string }
@@ -707,9 +785,17 @@ export async function fetchInstagramMedia(
 
     all.push(...data.data)
     url = data.paging?.next ?? null
+    pages++
   }
 
   return all.slice(0, limit)
+}
+
+export async function fetchInstagramProfile(
+  accessToken: string,
+): Promise<{ id: string; username: string }> {
+  const url = `${GRAPH_API_BASE}/me?fields=id,username&access_token=${accessToken}`
+  return handleApiResponse<{ id: string; username: string }>(await fetch(url))
 }
 
 export async function refreshAccessToken(
@@ -732,7 +818,7 @@ export async function refreshAccessToken(
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `cd apps/web && npx vitest run test/instagram/api-client.test.ts`
-Expected: PASS — all 6 tests pass
+Expected: PASS — all 8 tests pass
 
 - [ ] **Step 5: Commit**
 
@@ -740,7 +826,8 @@ Expected: PASS — all 6 tests pass
 git add apps/web/src/lib/instagram/api-client.ts apps/web/test/instagram/api-client.test.ts
 git commit -m "feat(instagram): add API client for Instagram Graph API
 
-fetchInstagramMedia with pagination, refreshAccessToken,
+fetchInstagramMedia with pagination (MAX_PAGES=5 cap),
+fetchInstagramProfile for /me discovery, refreshAccessToken,
 InstagramApiError error class."
 ```
 
@@ -1005,11 +1092,12 @@ export async function syncInstagramAccount(
           const imgRes = await fetch(urlToCache)
           if (imgRes.ok) {
             const buffer = Buffer.from(await imgRes.arrayBuffer())
-            const ext = item.media_type === 'VIDEO' ? 'jpg' : 'jpg'
+            const contentType = imgRes.headers.get('content-type') ?? 'image/jpeg'
+            const ext = contentType.includes('png') ? 'png' : contentType.includes('webp') ? 'webp' : 'jpg'
             const blobResult = await put(
               `instagram/${account.id}/${item.id}.${ext}`,
               buffer,
-              { access: 'public', addRandomSuffix: false, contentType: 'image/jpeg' },
+              { access: 'public', addRandomSuffix: false, contentType },
             )
             cachedImageUrl = blobResult.url
             result.mediaCached++
@@ -1283,6 +1371,19 @@ export function resolveSlots(
     }
   }
 
+  // Fill remaining positions beyond defined slots (when count > slots.length)
+  let nextPosition = sortedSlots.length > 0
+    ? Math.max(...sortedSlots.map(s => s.position)) + 1
+    : resolved.length + 1
+
+  while (resolved.length < count && poolIdx < latestPool.length) {
+    resolved.push({
+      position: nextPosition++,
+      post: toPostView(latestPool[poolIdx++]),
+      pinned: false,
+    })
+  }
+
   return resolved
 }
 ```
@@ -1319,27 +1420,28 @@ fewer posts than slots, count override."
 import { unstable_cache } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { resolveSlots } from './slots'
-import type { InstagramAccountRow, InstagramPostRow, InstagramFeedSlotRow, ResolvedSlot } from './types'
+import type { InstagramAccountPublic, InstagramPostRow, InstagramFeedSlotRow, ResolvedSlot } from './types'
 
 export const getInstagramFeedData = unstable_cache(
   async (
     siteId: string,
     locale: string,
     count?: number,
-  ): Promise<{ account: InstagramAccountRow | null; slots: ResolvedSlot[] }> => {
+  ): Promise<{ account: InstagramAccountPublic | null; slots: ResolvedSlot[] }> => {
     const supabase = getSupabaseServiceClient()
     const dbLocale = locale === 'pt-BR' ? 'pt' : locale
 
+    // Use the public view — no access_token column exposed
     const { data: account } = await supabase
-      .from('instagram_accounts')
-      .select('id, site_id, locale, handle, ig_user_id, sync_enabled, display_slots, layout_type, last_synced_at, created_at, updated_at')
+      .from('instagram_accounts_public')
+      .select('*')
       .eq('site_id', siteId)
       .eq('locale', dbLocale)
       .single()
 
     if (!account) return { account: null, slots: [] }
 
-    const effectiveCount = count ?? (account as InstagramAccountRow).display_slots
+    const effectiveCount = count ?? (account as InstagramAccountPublic).display_slots
 
     const [postsRes, slotsRes] = await Promise.all([
       supabase
@@ -1360,7 +1462,7 @@ export const getInstagramFeedData = unstable_cache(
     const resolved = resolveSlots(feedSlots, posts, effectiveCount)
 
     return {
-      account: account as unknown as InstagramAccountRow,
+      account: account as InstagramAccountPublic,
       slots: resolved,
     }
   },
@@ -2050,12 +2152,24 @@ export async function setInstagramToken(input: {
   await requireEditAccess()
   const supabase = getSupabaseServiceClient()
 
+  // Auto-discover ig_user_id via /me endpoint
+  let igUserId: string | null = null
+  try {
+    const { fetchInstagramProfile } = await import('@/lib/instagram/api-client')
+    const profile = await fetchInstagramProfile(parsed.data.accessToken)
+    igUserId = profile.id
+  } catch {
+    return { ok: false, error: 'Invalid token — could not fetch Instagram profile' }
+  }
+
+  // ~60 days is approximate; the weekly token-refresh cron will track actual expiry
   const expiresAt = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString()
 
   const { error } = await supabase
     .from('instagram_accounts')
     .update({
       access_token: parsed.data.accessToken,
+      ig_user_id: igUserId,
       token_expires_at: expiresAt,
       updated_at: new Date().toISOString(),
     })
@@ -2461,6 +2575,12 @@ Add `instagramAccounts` to the destructured props in `SettingsConnected`.
 
 - [ ] **Step 3: Implement InstagramSection component**
 
+Add the following import at the top of the file (with the other imports):
+
+```typescript
+import { SlotManager } from '@/components/instagram/slot-manager'
+```
+
 Add above the main `SettingsConnected` export:
 
 ```tsx
@@ -2591,8 +2711,6 @@ function InstagramAccountCard({
       await updateInstagramSlots({ accountId: account.id, slots: currentSlots })
     })
   }
-
-  const { SlotManager } = require('@/components/instagram/slot-manager')
 
   return (
     <div className="space-y-4">
@@ -2857,27 +2975,40 @@ drag-to-reorder slot manager, sync history. Mirrors YouTube pattern."
 **Files:**
 - Modify: `apps/web/src/app/cms/(authed)/settings/page.tsx` (the server page that loads data for `SettingsConnected`)
 
-- [ ] **Step 1: Find the settings page.tsx**
+- [ ] **Step 1: Add Instagram data fetching to `apps/web/src/app/cms/(authed)/settings/page.tsx`**
 
-Run: `find apps/web/src/app/cms -name "page.tsx" -path "*settings*" | head -3`
-
-- [ ] **Step 2: Add Instagram data fetching**
-
-In the settings page server component, add Instagram account data fetching alongside the existing YouTube channel fetch. Query `instagram_accounts` with:
+Add the Instagram accounts query to the existing `Promise.all` block (after `ytChannelsRes`):
 
 ```typescript
-const { data: instagramAccounts } = await supabase
-  .from('instagram_accounts')
-  .select('id, locale, handle, sync_enabled, display_slots, layout_type, last_synced_at, token_expires_at')
-  .eq('site_id', siteId)
-  .order('locale')
+const [siteRes, typesRes, cadenceRes, ytChannelsRes, igAccountsRes] = await Promise.all([
+  supabase.from('sites').select('*').eq('id', siteId).single(),
+  supabase
+    .from('newsletter_types')
+    .select('*')
+    .eq('site_id', siteId)
+    .order('sort_order'),
+  supabase
+    .from('blog_cadence')
+    .select('*')
+    .eq('site_id', siteId)
+    .order('locale'),
+  supabase.from('youtube_channels')
+    .select('id, name, handle, locale, sync_enabled, sync_schedules, schedule_label')
+    .eq('site_id', siteId),
+  supabase.from('instagram_accounts')
+    .select('id, locale, handle, sync_enabled, display_slots, layout_type, last_synced_at, token_expires_at')
+    .eq('site_id', siteId)
+    .order('locale'),
+])
 ```
 
-For each account, also fetch posts, slots, and recent sync logs:
+- [ ] **Step 2: Fetch per-account data (posts, slots, sync logs)**
+
+After the `Promise.all`, add:
 
 ```typescript
 const instagramData = await Promise.all(
-  (instagramAccounts ?? []).map(async (acc) => {
+  (igAccountsRes.data ?? []).map(async (acc) => {
     const [postsRes, slotsRes, logsRes] = await Promise.all([
       supabase.from('instagram_posts')
         .select('id, cached_image_url, caption')
@@ -2913,7 +3044,22 @@ const instagramData = await Promise.all(
 )
 ```
 
-Pass `instagramAccounts={instagramData}` to `<SettingsConnected />`.
+- [ ] **Step 3: Pass `instagramAccounts` to SettingsConnected**
+
+Update the JSX to include the new prop:
+
+```tsx
+<SettingsConnected
+  site={siteRes.data}
+  newsletterTypes={typesRes.data ?? []}
+  blogCadence={cadenceRes.data ?? []}
+  youtubeChannels={ytChannelsRes.data ?? []}
+  instagramAccounts={instagramData}
+  initialSection={params.section ?? 'branding'}
+  seoFlags={seoFlags}
+  readOnly={readOnly}
+/>
+```
 
 - [ ] **Step 3: Verify compiles and page loads**
 
@@ -2979,9 +3125,9 @@ export function PolaroidCard({ post, index, pinned, className = '' }: PolaroidCa
       target="_blank"
       rel="noopener noreferrer"
       className={`group relative block ${className}`}
-      style={{ transform: `rotate(${rotation}deg)` }}
     >
-      <div className="relative bg-[#faf8f4] p-2 pb-8 shadow-md transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-lg dark:bg-[#2a2824]">
+      {/* Rotation on inner div so it doesn't conflict with float animation on outer wrapper */}
+      <div className="relative bg-[#faf8f4] p-2 pb-8 shadow-md transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-lg dark:bg-[#2a2824]" style={{ transform: `rotate(${rotation}deg)` }}>
         {/* Grain texture */}
         <div className="pointer-events-none absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'n\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23n)\'/%3E%3C/svg%3E")' }} />
 
@@ -3009,7 +3155,7 @@ export function PolaroidCard({ post, index, pinned, className = '' }: PolaroidCa
         {/* Caption */}
         <div className="mt-2 px-0.5">
           {post.caption && (
-            <p className="line-clamp-2 font-['Caveat',cursive] text-sm leading-tight text-slate-700 dark:text-slate-300">
+            <p className="line-clamp-2 text-sm leading-tight text-slate-700 dark:text-slate-300" style={{ fontFamily: 'var(--font-caveat-var), cursive' }}>
               {post.caption}
             </p>
           )}
@@ -3078,12 +3224,20 @@ describe('InstagramFeed', () => {
     mockGetData.mockResolvedValueOnce({
       account: {
         id: 'acc-1', site_id: 'site-1', locale: 'pt', handle: '@test',
-        ig_user_id: null, access_token: null, token_expires_at: null,
-        sync_enabled: true, display_slots: 6, layout_type: 'grid',
-        last_synced_at: null, created_at: '', updated_at: '',
+        ig_user_id: null, sync_enabled: true, display_slots: 6,
+        layout_type: 'grid', last_synced_at: null, token_expires_at: null,
+        created_at: '', updated_at: '',
       },
       slots: [],
     })
+
+    const { InstagramFeed } = await import('@/components/instagram/instagram-feed')
+    const result = await InstagramFeed({})
+    expect(result).toBeNull()
+  })
+
+  it('returns null on error instead of crashing', async () => {
+    mockGetData.mockRejectedValueOnce(new Error('DB connection failed'))
 
     const { InstagramFeed } = await import('@/components/instagram/instagram-feed')
     const result = await InstagramFeed({})
@@ -3104,7 +3258,7 @@ Expected: FAIL — module not found
 import { getSiteContext } from '@/lib/cms/site-context'
 import { getInstagramFeedData } from '@/lib/instagram/queries'
 import { PolaroidCard } from './polaroid-card'
-import type { ResolvedSlot, InstagramAccountRow } from '@/lib/instagram/types'
+import type { ResolvedSlot, InstagramAccountPublic } from '@/lib/instagram/types'
 
 interface InstagramFeedProps {
   accountId?: string
@@ -3114,11 +3268,32 @@ interface InstagramFeedProps {
   className?: string
 }
 
+const INSTAGRAM_STRINGS = {
+  pt: {
+    subtitle: 'últimos cliques',
+    title: 'do iPhone, sem filtro',
+    autoUpdated: 'atualizado automaticamente',
+    follow: 'Siga no Instagram',
+  },
+  en: {
+    subtitle: 'latest shots',
+    title: 'from the iPhone, no filter',
+    autoUpdated: 'auto-updated',
+    follow: 'Follow on Instagram',
+  },
+} as const
+
 const SCATTER_POSITIONS: Record<number, { top: string; left: string }[]> = {
   3: [
     { top: '5%', left: '5%' },
     { top: '10%', left: '38%' },
     { top: '0%', left: '68%' },
+  ],
+  4: [
+    { top: '0%', left: '2%' },
+    { top: '15%', left: '26%' },
+    { top: '5%', left: '50%' },
+    { top: '12%', left: '74%' },
   ],
   5: [
     { top: '0%', left: '2%' },
@@ -3135,6 +3310,37 @@ const SCATTER_POSITIONS: Record<number, { top: string; left: string }[]> = {
     { top: '5%', left: '68%' },
     { top: '10%', left: '84%' },
   ],
+  8: [
+    { top: '0%', left: '0%' },
+    { top: '10%', left: '13%' },
+    { top: '2%', left: '26%' },
+    { top: '14%', left: '38%' },
+    { top: '4%', left: '50%' },
+    { top: '12%', left: '62%' },
+    { top: '0%', left: '74%' },
+    { top: '8%', left: '86%' },
+  ],
+  12: [
+    { top: '0%', left: '0%' },
+    { top: '8%', left: '9%' },
+    { top: '2%', left: '18%' },
+    { top: '12%', left: '27%' },
+    { top: '4%', left: '36%' },
+    { top: '10%', left: '45%' },
+    { top: '0%', left: '54%' },
+    { top: '14%', left: '63%' },
+    { top: '6%', left: '72%' },
+    { top: '10%', left: '81%' },
+    { top: '2%', left: '88%' },
+    { top: '8%', left: '94%' },
+  ],
+}
+
+function generateScatterPositions(count: number): { top: string; left: string }[] {
+  return Array.from({ length: count }, (_, i) => ({
+    top: `${(i * 7 + 3) % 20}%`,
+    left: `${(i / count) * 85}%`,
+  }))
 }
 
 function getGridCols(count: number): string {
@@ -3152,93 +3358,99 @@ export async function InstagramFeed({
   locale,
   className = '',
 }: InstagramFeedProps) {
-  const { siteId, defaultLocale } = await getSiteContext()
-  const effectiveLocale = locale ?? defaultLocale ?? 'pt-BR'
+  try {
+    const { siteId, defaultLocale } = await getSiteContext()
+    const effectiveLocale = locale ?? defaultLocale ?? 'pt-BR'
 
-  const { account, slots } = await getInstagramFeedData(siteId, effectiveLocale, count)
+    const { account, slots } = await getInstagramFeedData(siteId, effectiveLocale, count)
 
-  if (!account || slots.length === 0) return null
+    if (!account || slots.length === 0) return null
 
-  const effectiveLayout = layout ?? (account as InstagramAccountRow).layout_type
-  const handle = (account as InstagramAccountRow).handle
+    const effectiveLayout = layout ?? (account as InstagramAccountPublic).layout_type
+    const handle = (account as InstagramAccountPublic).handle
+    const lang = effectiveLocale.startsWith('en') ? 'en' : 'pt'
+    const strings = INSTAGRAM_STRINGS[lang]
 
-  return (
-    <section className={`${className}`}>
-      {/* Section Header */}
-      <div className="mb-6 text-center">
-        <p className="font-['Caveat',cursive] text-lg text-indigo-400 dark:text-indigo-300" style={{ transform: 'rotate(-2deg)' }}>
-          últimos cliques
-        </p>
-        <h2 className="font-['Fraunces',serif] text-2xl font-semibold text-slate-800 dark:text-slate-100">
-          do iPhone, sem filtro
-        </h2>
-        <p className="mt-1 font-mono text-xs text-slate-500">
-          {handle} · atualizado automaticamente
-        </p>
-      </div>
-
-      {/* Grid layout */}
-      {effectiveLayout === 'grid' && (
-        <div className={`grid gap-4 ${getGridCols(slots.length)} max-md:grid-cols-2`}>
-          {slots.map((slot, i) => (
-            <div
-              key={slot.post.id}
-              className="transition-transform"
-              style={{ transform: `translateY(${i % 2 === 0 ? 14 : -4}px)` }}
-            >
-              <PolaroidCard post={slot.post} index={i} pinned={slot.pinned} />
-            </div>
-          ))}
+    return (
+      <section className={`${className}`}>
+        {/* Section Header */}
+        <div className="mb-6 text-center">
+          <p className="text-lg text-indigo-400 dark:text-indigo-300" style={{ fontFamily: 'var(--font-caveat-var), cursive', transform: 'rotate(-2deg)' }}>
+            {strings.subtitle}
+          </p>
+          <h2 className="text-2xl font-semibold text-slate-800 dark:text-slate-100" style={{ fontFamily: 'var(--font-fraunces-var), serif' }}>
+            {strings.title}
+          </h2>
+          <p className="mt-1 font-mono text-xs text-slate-500">
+            {handle} · {strings.autoUpdated}
+          </p>
         </div>
-      )}
 
-      {/* Scatter layout (desktop only) */}
-      {effectiveLayout === 'scatter' && (
-        <>
-          {/* Desktop scatter */}
-          <div className="relative hidden min-h-[500px] md:block">
-            {slots.map((slot, i) => {
-              const positions = SCATTER_POSITIONS[slots.length] ?? SCATTER_POSITIONS[6] ?? []
-              const pos = positions[i % positions.length] ?? { top: '0%', left: `${(i / slots.length) * 80}%` }
-              return (
-                <div
-                  key={slot.post.id}
-                  className="absolute w-[180px]"
-                  style={{ top: pos.top, left: pos.left, animation: `float ${3 + (i % 3)}s ease-in-out ${i * 0.5}s infinite` }}
-                >
-                  <PolaroidCard post={slot.post} index={i} pinned={slot.pinned} />
-                </div>
-              )
-            })}
-          </div>
-
-          {/* Mobile fallback: staggered 2-col grid */}
-          <div className="grid grid-cols-2 gap-3 md:hidden">
+        {/* Grid layout */}
+        {effectiveLayout === 'grid' && (
+          <div className={`grid gap-4 ${getGridCols(slots.length)} max-md:grid-cols-2`}>
             {slots.map((slot, i) => (
               <div
                 key={slot.post.id}
+                className="transition-transform"
                 style={{ transform: `translateY(${i % 2 === 0 ? 14 : -4}px)` }}
               >
                 <PolaroidCard post={slot.post} index={i} pinned={slot.pinned} />
               </div>
             ))}
           </div>
-        </>
-      )}
+        )}
 
-      {/* Follow button */}
-      <div className="mt-8 text-center">
-        <a
-          href={`https://instagram.com/${handle.replace('@', '')}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-block rounded bg-slate-900 px-6 py-2.5 font-mono text-xs font-medium uppercase tracking-wider text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
-        >
-          Siga no Instagram
-        </a>
-      </div>
-    </section>
-  )
+        {/* Scatter layout (desktop only) */}
+        {effectiveLayout === 'scatter' && (
+          <>
+            {/* Desktop scatter — float animation on outer wrapper, rotation stays on inner PolaroidCard */}
+            <div className="relative hidden min-h-[500px] md:block">
+              {slots.map((slot, i) => {
+                const positions = SCATTER_POSITIONS[slots.length] ?? generateScatterPositions(slots.length)
+                const pos = positions[i % positions.length]
+                return (
+                  <div
+                    key={slot.post.id}
+                    className="absolute w-[180px]"
+                    style={{ top: pos.top, left: pos.left, animation: `float ${3 + (i % 3)}s ease-in-out ${i * 0.5}s infinite` }}
+                  >
+                    <PolaroidCard post={slot.post} index={i} pinned={slot.pinned} />
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Mobile fallback: staggered 2-col grid */}
+            <div className="grid grid-cols-2 gap-3 md:hidden">
+              {slots.map((slot, i) => (
+                <div
+                  key={slot.post.id}
+                  style={{ transform: `translateY(${i % 2 === 0 ? 14 : -4}px)` }}
+                >
+                  <PolaroidCard post={slot.post} index={i} pinned={slot.pinned} />
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* Follow button */}
+        <div className="mt-8 text-center">
+          <a
+            href={`https://instagram.com/${handle.replace('@', '')}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block rounded bg-slate-900 px-6 py-2.5 font-mono text-xs font-medium uppercase tracking-wider text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+          >
+            {strings.follow}
+          </a>
+        </div>
+      </section>
+    )
+  } catch {
+    return null
+  }
 }
 ```
 
@@ -3303,15 +3515,11 @@ Scatter layout with 5 posts on the homepage."
 ## Task 18: Add Float Animation CSS
 
 **Files:**
-- The global CSS file where Tailwind is configured (likely `apps/web/src/app/globals.css` or similar)
+- Modify: `apps/web/src/app/globals.css`
 
-- [ ] **Step 1: Find global CSS file**
+- [ ] **Step 1: Add float keyframe animation**
 
-Run: `find apps/web/src -name "globals.css" -o -name "global.css" | head -3`
-
-- [ ] **Step 2: Add float keyframe animation**
-
-Append to the global CSS file:
+Append to `apps/web/src/app/globals.css`:
 
 ```css
 @keyframes float {
