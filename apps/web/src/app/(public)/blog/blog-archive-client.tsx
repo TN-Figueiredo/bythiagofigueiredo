@@ -25,6 +25,7 @@ export interface ArchivePost {
   categoryColor: string
   categoryColorDark?: string
   categoryLabel: string
+  tagBadge: string | null
   date: string
   isoDate: string
   readingTime: number

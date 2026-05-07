@@ -86,7 +86,8 @@ type DbRow = {
     tag_id: string | null
     previous_post_id: string | null
     continues_in_next: boolean
-    blog_tags: { name: string; color: string; color_dark: string | null; name_translations: Record<string, string> | null } | null
+    cover_image_url: string | null
+    blog_tags: { name: string; badge: string | null; color: string; color_dark: string | null; name_translations: Record<string, string> | null } | null
     post_hashtags: Array<{ hashtags: { name: string; slug: string } | null }> | null
   }
 }
@@ -102,8 +103,8 @@ async function fetchAllPosts(siteId: string, locale: string): Promise<DbRow[]> {
     .from('blog_translations')
     .select(`
       slug, title, excerpt, reading_time_min, cover_image_url,
-      blog_posts!inner(id, published_at, category, tag_id, previous_post_id, continues_in_next,
-        blog_tags(name, color, color_dark, name_translations),
+      blog_posts!inner(id, published_at, category, tag_id, previous_post_id, continues_in_next, cover_image_url,
+        blog_tags(name, badge, color, color_dark, name_translations),
         post_hashtags(hashtags(name, slug))
       )
     `)
@@ -132,20 +133,22 @@ function toArchivePost(row: DbRow, locale: string): ArchivePost {
   const hashtags = (post.post_hashtags ?? [])
     .map(ph => ph.hashtags?.name)
     .filter(Boolean) as string[]
+  const useTagAsCategory = !post.category && post.blog_tags
   return {
     id: post.id,
     slug: row.slug,
     title: row.title,
     excerpt: row.excerpt || '',
-    category: post.category || 'essay',
-    categoryColor: getCategoryColor(post.category, false),
-    categoryColorDark: getCategoryColor(post.category, true),
-    categoryLabel: getCategoryLabel(post.category),
+    category: post.category || (post.blog_tags?.name.toLowerCase() ?? 'essay'),
+    categoryColor: useTagAsCategory ? (post.blog_tags!.color) : getCategoryColor(post.category, false),
+    categoryColorDark: useTagAsCategory ? (post.blog_tags!.color_dark ?? post.blog_tags!.color) : getCategoryColor(post.category, true),
+    categoryLabel: useTagAsCategory ? (tagName ?? post.blog_tags!.name) : getCategoryLabel(post.category),
     date: formatDate(post.published_at),
     isoDate: post.published_at?.split('T')[0] || '',
     readingTime: row.reading_time_min || 5,
     tags: hashtags.length > 0 ? hashtags : (tagName ? [tagName] : []),
-    coverUrl: row.cover_image_url || null,
+    tagBadge: post.blog_tags?.badge ?? null,
+    coverUrl: row.cover_image_url || post.cover_image_url || null,
     patternName: getPattern(post.id),
     previousPostId: post.previous_post_id ?? null,
     continuesInNext: post.continues_in_next ?? false,

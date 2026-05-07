@@ -77,10 +77,13 @@ export function DualHero({ post, video, channels, hasVideos, locale, t }: Props)
 
               <Link href={`${blogBase}/${post.slug}`} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
                 {/* Cover */}
-                <div style={{ position: 'relative', overflow: 'hidden', background: coverGradient(post.tagName ?? post.category, false, post.tagColor), aspectRatio: '16 / 9' }}>
+                <div style={{ position: 'relative', overflow: 'hidden', background: post.coverImageUrl ? undefined : coverGradient(post.tagName ?? post.category, false, post.tagColor), aspectRatio: '16 / 9' }}>
+                  {post.coverImageUrl && (
+                    <img src={post.coverImageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                  )}
                   <div style={{ position: 'absolute', top: 8, left: 8 }}>
                     <span className="font-mono" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px', background: 'var(--pb-ink)', color: 'var(--pb-paper)', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600 }}>
-                      ▤ {isPt ? 'texto' : 'post'}
+                      ▤ {post.tagBadge ?? (isPt ? 'texto' : 'post')}
                     </span>
                   </div>
                 </div>

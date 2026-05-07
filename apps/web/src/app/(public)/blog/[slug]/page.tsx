@@ -42,14 +42,43 @@ import {
   type AuthorData,
 } from '@/components/blog'
 
-const authorFallback: AuthorData = {
-  name: 'Thiago Figueiredo',
-  role: 'Eng. & Writer',
-  avatarUrl: null,
-  initials: 'TF',
-  bio: '',
-  links: [],
+async function fetchPostAuthor(siteId: string, authorId: string | null, locale: string): Promise<AuthorData> {
+  const sb = getSupabaseServiceClient()
+  const fallback: AuthorData = { name: 'Author', role: '', avatarUrl: null, initials: '?', bio: '', links: [] }
+
+  const query = authorId
+    ? sb.from('authors').select('id, display_name, avatar_url, bio, social_links').eq('id', authorId).single()
+    : sb.from('authors').select('id, display_name, avatar_url, bio, social_links').eq('site_id', siteId).eq('is_default', true).single()
+
+  const { data: author } = await query
+  if (!author) return fallback
+
+  const { data: txRows } = await sb
+    .from('author_about_translations')
+    .select('locale, subtitle, bio')
+    .eq('author_id', author.id as string)
+
+  const tx = (txRows ?? []).find((t: { locale: string }) => t.locale === locale) ?? (txRows ?? [])[0]
+
+  const name = (author.display_name as string) ?? 'Author'
+  const parts = name.split(' ')
+  const initials = parts.length >= 2 ? `${parts[0]![0]}${parts[parts.length - 1]![0]}` : name.slice(0, 2)
+
+  const socialLinks = (author.social_links as Record<string, string>) ?? {}
+  const links = Object.entries(socialLinks)
+    .filter(([, v]) => !!v)
+    .map(([k, v]) => ({ label: k.charAt(0).toUpperCase() + k.slice(1), href: v }))
+
+  return {
+    name,
+    role: (tx as { subtitle?: string } | undefined)?.subtitle ?? (author.bio as string) ?? '',
+    avatarUrl: (author.avatar_url as string) ?? null,
+    initials: initials.toUpperCase(),
+    bio: (tx as { bio?: string } | undefined)?.bio ?? (author.bio as string) ?? '',
+    links,
+  }
 }
+
 import { loadAdCreatives } from '@/lib/ads/resolve'
 import { BlogArticleClient } from './blog-article-client'
 
@@ -96,7 +125,7 @@ export default async function BlogDetailPage({ params }: Props) {
 
   const { data: postMeta } = await supabase
     .from('blog_posts')
-    .select('category, view_count')
+    .select('category, view_count, author_id')
     .eq('id', post.id)
     .single()
   const category = postMeta?.category ?? null
@@ -154,9 +183,10 @@ export default async function BlogDetailPage({ params }: Props) {
   }
 
   const host = h.get('host') ?? ctx.primaryDomain ?? ''
-  const [related, config] = await Promise.all([
+  const [related, config, authorData] = await Promise.all([
     getRelatedPosts(ctx.siteId, locale, post.id, category),
     getSiteSeoConfig(ctx.siteId, host).catch(() => null),
+    fetchPostAuthor(ctx.siteId, (postMeta?.author_id as string) ?? null, locale),
   ])
 
   const detailGraph = buildDetailGraph(config, full ?? post, tx, translations, locale, slug, extrasByLocale)
@@ -257,7 +287,7 @@ export default async function BlogDetailPage({ params }: Props) {
               </p>
             )}
 
-            <AuthorRow author={authorFallback} engagement={{ views: postMeta?.view_count ?? 0, likes: 0, bookmarked: false }} locale={locale} url={pageUrl} />
+            <AuthorRow author={authorData} engagement={{ views: postMeta?.view_count ?? 0, likes: 0, bookmarked: false }} locale={locale} url={pageUrl} />
 
             <CoverImage
               src={post.cover_image_url ?? null}
@@ -301,7 +331,7 @@ export default async function BlogDetailPage({ params }: Props) {
               </BlogArticleClient>
 
               <div className="blog-detail-footer">
-                <AuthorCard author={authorFallback} locale={locale} />
+                <AuthorCard author={authorData} locale={locale} />
                 <PostTags hashtags={postHashtags} locale={locale} t={t} />
                 <SeriesNav
                   previousPost={previousPost}

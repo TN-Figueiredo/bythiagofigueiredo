@@ -17,9 +17,10 @@ function mapRowToHomePost(row: Record<string, unknown>): HomePost {
     publishedAt: post['published_at'] as string,
     category: post['category'] as string | null,
     readingTimeMin: row['reading_time_min'] as number,
-    coverImageUrl: row['cover_image_url'] as string | null,
+    coverImageUrl: (row['cover_image_url'] as string | null) ?? (post['cover_image_url'] as string | null),
     isFeatured: post['is_featured'] as boolean,
     tagName: (tag?.['name'] as string) ?? null,
+    tagBadge: (tag?.['badge'] as string) ?? null,
     tagColor: (tag?.['color'] as string) ?? null,
     tagColorDark: (tag?.['color_dark'] as string | null) ?? null,
   }
@@ -31,8 +32,8 @@ export async function getFeaturedPost(locale: string): Promise<HomePost | null> 
 
   const selectCols = `
     slug, locale, title, excerpt, reading_time_min, cover_image_url,
-    blog_posts!inner(id, published_at, category, is_featured, status,
-      blog_tags(name, color, color_dark)
+    blog_posts!inner(id, published_at, category, is_featured, status, cover_image_url,
+      blog_tags(name, badge, color, color_dark)
     )
   `
 
@@ -71,8 +72,8 @@ export async function getLatestPosts(locale: string, limit = 8): Promise<HomePos
     .from('blog_translations')
     .select(`
       slug, locale, title, excerpt, reading_time_min, cover_image_url,
-      blog_posts!inner(id, published_at, category, is_featured, status,
-        blog_tags(name, color, color_dark)
+      blog_posts!inner(id, published_at, category, is_featured, status, cover_image_url,
+        blog_tags(name, badge, color, color_dark)
       )
     `)
     .eq('locale', locale)
@@ -147,8 +148,8 @@ export async function getPostsByTag(locale: string, tagId: string, limit = 2): P
     .from('blog_translations')
     .select(`
       slug, locale, title, excerpt, reading_time_min, cover_image_url,
-      blog_posts!inner(id, published_at, category, is_featured, status, tag_id,
-        blog_tags(name, color, color_dark)
+      blog_posts!inner(id, published_at, category, is_featured, status, tag_id, cover_image_url,
+        blog_tags(name, badge, color, color_dark)
       )
     `)
     .eq('locale', locale)
@@ -198,8 +199,8 @@ export async function getMostReadPosts(locale: string, limit = 5): Promise<HomeP
     .from('blog_translations')
     .select(`
       slug, locale, title, excerpt, reading_time_min, cover_image_url,
-      blog_posts!inner(id, published_at, category, is_featured, status, view_count,
-        blog_tags(name, color, color_dark)
+      blog_posts!inner(id, published_at, category, is_featured, status, view_count, cover_image_url,
+        blog_tags(name, badge, color, color_dark)
       )
     `)
     .eq('locale', locale)

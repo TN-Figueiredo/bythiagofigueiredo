@@ -39,6 +39,7 @@ export interface AuthorData {
 interface AboutTranslation {
   headline: string | null
   subtitle: string | null
+  bio: string | null
   aboutMd: string | null
   photoCaption: string | null
   photoLocation: string | null
@@ -274,6 +275,8 @@ function DetailPanel({
 }) {
   const [editName, setEditName] = useState(author.displayName)
   const [editBio, setEditBio] = useState(author.bio ?? '')
+  const [localeBios, setLocaleBios] = useState<Record<string, string>>({})
+  const [localeBiosLoaded, setLocaleBiosLoaded] = useState(false)
   const [editColor, setEditColor] = useState(
     author.avatarColor ?? '#6366f1',
   )
@@ -296,17 +299,24 @@ function DetailPanel({
     if (translationsLoaded) return
     const data = await getAuthorAboutTranslations(author.id)
     setTranslations(data as Record<string, AboutTranslation | null>)
+    const bios: Record<string, string> = {}
+    for (const [loc, tx] of Object.entries(data)) {
+      if (tx?.bio) bios[loc] = tx.bio
+    }
+    setLocaleBios(bios)
+    setLocaleBiosLoaded(true)
     setTranslationsLoaded(true)
   }, [author.id, translationsLoaded])
 
   useEffect(() => {
-    if (activeTab === 'about') {
+    if (activeTab === 'about' || !localeBiosLoaded) {
       loadTranslations()
     }
-  }, [activeTab, loadTranslations])
+  }, [activeTab, loadTranslations, localeBiosLoaded])
 
   const [headline, setHeadline] = useState('')
   const [subtitle, setSubtitle] = useState('')
+  const [aboutBio, setAboutBio] = useState('')
   const [aboutMd, setAboutMd] = useState('')
   const [photoCaption, setPhotoCaption] = useState('')
   const [photoLocation, setPhotoLocation] = useState('')
@@ -329,6 +339,7 @@ function DetailPanel({
     const tx = translations[aboutLocale]
     setHeadline(tx?.headline ?? '')
     setSubtitle(tx?.subtitle ?? '')
+    setAboutBio(tx?.bio ?? '')
     setAboutMd(tx?.aboutMd ?? '')
     setPhotoCaption(tx?.photoCaption ?? '')
     setPhotoLocation(tx?.photoLocation ?? '')
@@ -343,6 +354,7 @@ function DetailPanel({
     const isDirty =
       headline !== (tx?.headline ?? '') ||
       subtitle !== (tx?.subtitle ?? '') ||
+      aboutBio !== (tx?.bio ?? '') ||
       aboutMd !== (tx?.aboutMd ?? '') ||
       photoCaption !== (tx?.photoCaption ?? '') ||
       photoLocation !== (tx?.photoLocation ?? '')
@@ -354,7 +366,7 @@ function DetailPanel({
 
     lastSyncedLocale.current = null
     setAboutLocale(newLocale)
-  }, [aboutLocale, translations, headline, subtitle, aboutMd, photoCaption, photoLocation])
+  }, [aboutLocale, translations, headline, subtitle, aboutBio, aboutMd, photoCaption, photoLocation])
 
   const bgColor = author.avatarColor ?? '#6366f1'
   const displayAvatar = avatarPreview ?? author.avatarUrl
@@ -425,6 +437,7 @@ function DetailPanel({
     const result = await updateAuthorAbout(author.id, aboutLocale, {
       headline: headline || undefined,
       subtitle: subtitle || undefined,
+      bio: aboutBio || undefined,
       aboutMd: aboutMd || undefined,
       photoCaption: photoCaption || undefined,
       photoLocation: photoLocation || undefined,
@@ -440,6 +453,7 @@ function DetailPanel({
         [aboutLocale]: {
           headline: headline || null,
           subtitle: subtitle || null,
+          bio: aboutBio || null,
           aboutMd: aboutMd || null,
           photoCaption: photoCaption || null,
           photoLocation: photoLocation || null,
@@ -455,7 +469,7 @@ function DetailPanel({
     setAboutSaveState(result.ok ? 'success' : 'error')
     setTimeout(() => setAboutSaveState('idle'), 2000)
   }, [
-    author.id, readOnly, aboutLocale, headline, subtitle, aboutMd, photoCaption, photoLocation,
+    author.id, readOnly, aboutLocale, headline, subtitle, aboutBio, aboutMd, photoCaption, photoLocation,
     ctaKicker, ctaSignature, ctaLinks,
   ])
 
@@ -484,11 +498,24 @@ function DetailPanel({
           bio: editBio || null,
           avatar_color: editColor,
         })
+        for (const loc of supportedLocales) {
+          const bioVal = localeBios[loc]
+          if (bioVal !== undefined) {
+            await updateAuthorAbout(author.id, loc, { bio: bioVal || undefined })
+          }
+        }
+        setTranslations((prev) => {
+          const next = { ...prev }
+          for (const loc of supportedLocales) {
+            next[loc] = { ...(next[loc] ?? { headline: null, subtitle: null, bio: null, aboutMd: null, photoCaption: null, photoLocation: null, aboutCtaLinks: null }), bio: localeBios[loc] || null }
+          }
+          return next
+        })
         setSaveState('success')
         setTimeout(() => setSaveState('idle'), 2000)
       })
     },
-    [author.id, editName, editBio, editColor, onUpdate, readOnly],
+    [author.id, editName, editBio, editColor, onUpdate, readOnly, supportedLocales, localeBios],
   )
 
   const socialEntries = Object.entries(author.socialLinks).filter(
@@ -658,17 +685,24 @@ function DetailPanel({
               </div>
 
               <div>
-                <label htmlFor="detail-bio" className={labelCls()}>
-                  Bio
-                </label>
-                <textarea
-                  id="detail-bio"
-                  value={editBio}
-                  onChange={(e) => setEditBio(e.target.value)}
-                  rows={3}
-                  className={inputCls(false) + ' resize-none'}
-                  disabled={readOnly}
-                />
+                <label className={labelCls()}>Bio</label>
+                {supportedLocales.map((loc) => (
+                  <div key={loc} className="mt-2">
+                    <span className="mb-1 block text-xs font-medium text-slate-500 uppercase">{loc}</span>
+                    {!localeBiosLoaded ? (
+                      <div className={inputCls(false) + ' h-[52px] animate-pulse !bg-slate-700/50'} />
+                    ) : (
+                      <textarea
+                        value={localeBios[loc] ?? ''}
+                        onChange={(e) => setLocaleBios((prev) => ({ ...prev, [loc]: e.target.value }))}
+                        rows={2}
+                        className={inputCls(false) + ' resize-none'}
+                        placeholder={loc === 'pt-BR' ? 'Bio curta para cards de autor...' : 'Short bio for author cards...'}
+                        disabled={readOnly}
+                      />
+                    )}
+                  </div>
+                ))}
               </div>
 
               <div>
@@ -863,6 +897,19 @@ function DetailPanel({
                   className={inputCls(false)}
                   disabled={readOnly}
                 />
+              </div>
+              <div>
+                <label htmlFor="about-bio" className={labelCls()}>Short Bio</label>
+                <textarea
+                  id="about-bio"
+                  value={aboutBio}
+                  onChange={(e) => setAboutBio(e.target.value)}
+                  rows={3}
+                  className={inputCls(false) + ' resize-y'}
+                  placeholder="1-2 sentences for author cards on blog posts..."
+                  disabled={readOnly}
+                />
+                <p className="mt-1 text-xs text-slate-500">Shown on blog post author cards. Keep it short.</p>
               </div>
             </div>
 

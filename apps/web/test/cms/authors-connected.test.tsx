@@ -17,6 +17,8 @@ vi.mock('@/app/cms/(authed)/authors/actions', () => ({
   setDefaultAuthor: vi.fn().mockResolvedValue({ ok: true }),
   reorderAuthors: vi.fn().mockResolvedValue({ ok: true }),
   uploadAuthorAvatar: vi.fn().mockResolvedValue({ ok: true, url: 'https://example.com/cropped.webp' }),
+  getAuthorAboutTranslations: vi.fn().mockResolvedValue({}),
+  updateAuthorAbout: vi.fn().mockResolvedValue({ ok: true }),
 }))
 
 vi.mock('@/app/cms/(authed)/_shared/media/media-crop-editor', () => ({
@@ -231,7 +233,7 @@ describe('AuthorsConnected', () => {
     await renderAuthors()
     fireEvent.click(screen.getByTestId('author-card-a1'))
     expect(screen.getByLabelText('Display Name')).toBeTruthy()
-    expect(screen.getByLabelText('Bio')).toBeTruthy()
+    expect(screen.getByText('Bio')).toBeTruthy()
     expect(screen.getByLabelText('Avatar Color')).toBeTruthy()
   })
 

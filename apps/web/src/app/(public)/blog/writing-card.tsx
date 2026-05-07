@@ -155,7 +155,7 @@ export function WritingCard({ post, index, dark = true, locale = 'en', searchQue
                   fontWeight: 600,
                 }}
               >
-                &#9636; {t.textBadge}
+                &#9636; {post.tagBadge ?? t.textBadge}
               </div>
 
               {/* Series badge */}

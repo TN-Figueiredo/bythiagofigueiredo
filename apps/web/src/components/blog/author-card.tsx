@@ -16,7 +16,7 @@ export function AuthorCard({ author, locale, t: _t }: Props) {
         style={{ width: 80, height: 8, background: 'var(--pb-accent)', opacity: 0.7 }}
       />
 
-      <div className="blog-sidebar-label mb-5">Sobre quem escreveu</div>
+      <div className="blog-sidebar-label mb-5">{locale === 'pt-BR' ? 'Sobre quem escreveu' : 'About the author'}</div>
 
       <div className="flex gap-4 items-center mb-4">
         <div
@@ -58,7 +58,7 @@ export function AuthorCard({ author, locale, t: _t }: Props) {
           href={localePath('/blog', locale)}
           className="font-caveat text-base text-pb-accent no-underline"
         >
-          <em>mais textos de {author.name.split(' ')[0]}</em> →
+          <em>{locale === 'pt-BR' ? `mais textos de ${author.name.split(' ')[0]}` : `more from ${author.name.split(' ')[0]}`}</em> →
         </a>
       </div>
     </div>

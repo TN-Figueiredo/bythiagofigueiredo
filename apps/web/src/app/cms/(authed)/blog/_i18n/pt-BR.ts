@@ -50,7 +50,7 @@ export const ptBR: BlogHubStrings = {
     title: 'Título', views: 'Views', unique: 'Únicos', reads: 'Leituras', depth: 'Prof.', time: 'Tempo', referrers: 'Referrers',
     direct: 'Direto', google: 'Google', newsletter: 'Newsletter', social: 'Social', other: 'Outros',
   },
-  common: { allTags: 'Todas', allLocales: 'Todos', updatedJustNow: 'Atualizado agora', showMore: 'Ver mais', moved: 'Movido', couldntMove: 'Não foi possível mover', edit: 'Editar', posts: 'Posts' },
+  common: { allTags: 'Todas', allLocales: 'Todos', updatedJustNow: 'Atualizado agora', showMore: 'Ver mais', moved: 'Movido', couldntMove: 'Não foi possível mover', edit: 'Editar', posts: 'Posts', undo: 'Desfazer' },
   scheduleModal: {
     title: 'Agendar Post', scheduling: 'Agendando:',
     dateLabel: 'Data', timeLabel: 'Horário',

@@ -10,6 +10,7 @@ export type HomePost = {
   coverImageUrl: string | null
   isFeatured: boolean
   tagName: string | null
+  tagBadge: string | null
   tagColor: string | null
   tagColorDark: string | null
 }

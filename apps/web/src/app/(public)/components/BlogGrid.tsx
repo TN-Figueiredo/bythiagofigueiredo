@@ -56,9 +56,12 @@ export function BlogGrid({ posts, locale, t, isDark }: Props) {
                     <Tape variant={tapeVariants[i % 3]} className="-top-2 left-4" rotate={-7 + (i % 5)} />
                     <Link href={`${blogBase}/${post.slug}`} className="block group" style={{ textDecoration: 'none', color: 'inherit' }}>
                       <div style={{ background: post.coverImageUrl ? undefined : coverGradient(post.tagName ?? post.category, isDark, post.tagColor), aspectRatio: '16 / 10', position: 'relative', overflow: 'hidden' }}>
+                        {post.coverImageUrl && (
+                          <img src={post.coverImageUrl} alt="" loading={i > 2 ? 'lazy' : 'eager'} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                        )}
                         <div style={{ position: 'absolute', top: 8, left: 8 }}>
                           <span className="font-mono" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px', background: 'var(--pb-ink)', color: 'var(--pb-paper)', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600 }}>
-                            ▤ {isPt ? 'texto' : 'post'}
+                            ▤ {post.tagBadge ?? (isPt ? 'texto' : 'post')}
                           </span>
                         </div>
                       </div>

@@ -46,7 +46,7 @@ export interface BlogHubStrings {
     title: string; views: string; unique: string; reads: string; depth: string; time: string; referrers: string
     direct: string; google: string; newsletter: string; social: string; other: string
   }
-  common: { allTags: string; allLocales: string; updatedJustNow: string; showMore: string; moved: string; couldntMove: string; edit: string; posts: string }
+  common: { allTags: string; allLocales: string; updatedJustNow: string; showMore: string; moved: string; couldntMove: string; edit: string; posts: string; undo: string }
   scheduleModal: {
     title: string; scheduling: string
     dateLabel: string; timeLabel: string

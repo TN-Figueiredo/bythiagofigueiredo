@@ -71,6 +71,7 @@ const updateAuthorSchema = z.object({
 const aboutSchema = z.object({
   headline:      z.string().max(200).optional(),
   subtitle:      z.string().max(500).optional(),
+  bio:           z.string().max(500).optional(),
   aboutMd:       z.string().max(50000).optional(),
   photoCaption:  z.string().max(200).optional(),
   photoLocation: z.string().max(100).optional(),
@@ -355,6 +356,7 @@ export async function updateAuthorAbout(
 
   if (data.headline !== undefined) updates.headline = data.headline || null
   if (data.subtitle !== undefined) updates.subtitle = data.subtitle || null
+  if (data.bio !== undefined) updates.bio = data.bio || null
   if (data.photoCaption !== undefined) updates.photo_caption = data.photoCaption || null
   if (data.photoLocation !== undefined) updates.photo_location = data.photoLocation || null
   if (data.aboutCtaLinks !== undefined) updates.about_cta_links = data.aboutCtaLinks
@@ -391,6 +393,7 @@ export async function getAuthorAboutTranslations(
 ): Promise<Record<string, {
   headline: string | null
   subtitle: string | null
+  bio: string | null
   aboutMd: string | null
   photoCaption: string | null
   photoLocation: string | null
@@ -405,7 +408,7 @@ export async function getAuthorAboutTranslations(
 
   const { data } = await sb
     .from('author_about_translations')
-    .select('locale, headline, subtitle, about_md, photo_caption, photo_location, about_cta_links')
+    .select('locale, headline, subtitle, bio, about_md, photo_caption, photo_location, about_cta_links')
     .eq('author_id', authorId)
 
   const result: Record<string, unknown> = {}
@@ -413,6 +416,7 @@ export async function getAuthorAboutTranslations(
     locale: string
     headline: string | null
     subtitle: string | null
+    bio: string | null
     about_md: string | null
     photo_caption: string | null
     photo_location: string | null
@@ -421,6 +425,7 @@ export async function getAuthorAboutTranslations(
     result[row.locale] = {
       headline: row.headline,
       subtitle: row.subtitle,
+      bio: row.bio,
       aboutMd: row.about_md,
       photoCaption: row.photo_caption,
       photoLocation: row.photo_location,

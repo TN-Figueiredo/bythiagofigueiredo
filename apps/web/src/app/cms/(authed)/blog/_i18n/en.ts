@@ -50,7 +50,7 @@ export const en: BlogHubStrings = {
     title: 'Title', views: 'Views', unique: 'Unique', reads: 'Reads', depth: 'Depth', time: 'Time', referrers: 'Referrers',
     direct: 'Direct', google: 'Google', newsletter: 'Newsletter', social: 'Social', other: 'Other',
   },
-  common: { allTags: 'All', allLocales: 'All', updatedJustNow: 'Updated just now', showMore: 'Show more', moved: 'Moved', couldntMove: "Couldn't move", edit: 'Edit', posts: 'Posts' },
+  common: { allTags: 'All', allLocales: 'All', updatedJustNow: 'Updated just now', showMore: 'Show more', moved: 'Moved', couldntMove: "Couldn't move", edit: 'Edit', posts: 'Posts', undo: 'Undo' },
   scheduleModal: {
     title: 'Schedule Post', scheduling: 'Scheduling:',
     dateLabel: 'Date', timeLabel: 'Time',

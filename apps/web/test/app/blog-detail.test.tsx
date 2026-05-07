@@ -114,6 +114,8 @@ vi.mock('../../lib/supabase/service', () => {
     chain.single = () => Promise.resolve({ data: resolvedData, error: null })
     chain.maybeSingle = () => Promise.resolve({ data: resolvedData, error: null })
     chain.limit = () => makeChain(resolvedData)
+    chain.order = () => makeChain(resolvedData)
+    chain.then = (resolve: (v: unknown) => void) => Promise.resolve({ data: resolvedData, error: null }).then(resolve)
     return chain
   }
 
@@ -122,8 +124,12 @@ vi.mock('../../lib/supabase/service', () => {
       from: (table: string) => ({
         select: () => makeChain(
           table === 'blog_posts'
-            ? { category: 'vida', view_count: 0, previous_post_id: null, continues_in_next: false }
-            : null
+            ? { category: 'vida', view_count: 0, author_id: 'a1', previous_post_id: null, continues_in_next: false }
+            : table === 'authors'
+              ? { id: 'a1', display_name: 'Thiago Figueiredo', avatar_url: null, bio: 'Eng. & Writer', social_links: null }
+              : table === 'author_about_translations'
+                ? [{ locale: 'pt-BR', subtitle: '37 anos, brasileiro', bio: 'Construo software há seis anos.' }]
+                : null
         ),
       }),
     }),

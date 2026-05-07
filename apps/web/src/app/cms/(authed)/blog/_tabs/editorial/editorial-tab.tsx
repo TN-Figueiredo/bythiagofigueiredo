@@ -3,6 +3,7 @@
 import { useCallback, useDeferredValue, useMemo, useState, useTransition } from 'react'
 import { Kanban, Plus } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import type { EditorialTabData, PostCard, BlogTag } from '../../_hub/hub-types'
 import type { BlogHubStrings } from '../../_i18n/types'
@@ -25,6 +26,7 @@ interface EditorialTabProps {
 }
 
 export function EditorialTab({ data, strings, tagId, locale, supportedLocales, siteTimezone = 'America/Sao_Paulo', tags, defaultLocale }: EditorialTabProps) {
+  const router = useRouter()
   const [searchQuery, setSearchQuery] = useState('')
   const deferredQuery = useDeferredValue(searchQuery)
   const [, startTransition] = useTransition()
@@ -59,9 +61,29 @@ export function EditorialTab({ data, strings, tagId, locale, supportedLocales, s
   }, [tagId, locale])
 
   const handleMovePost = async (postId: string, newStatus: string, scheduledFor?: string) => {
+    const previousStatus = allPosts.find((p) => p.id === postId)?.status
     startTransition(async () => {
       const result = await movePost(postId, newStatus, scheduledFor)
-      if (!result.ok) {
+      if (result.ok) {
+        router.refresh()
+        toast.success(strings?.common.moved ?? 'Moved', {
+          action: previousStatus
+            ? {
+                label: strings?.common.undo ?? 'Undo',
+                onClick: () => {
+                  startTransition(async () => {
+                    const revert = await movePost(postId, previousStatus)
+                    if (revert.ok) {
+                      router.refresh()
+                    } else {
+                      toast.error(strings?.common.couldntMove ?? "Couldn't move")
+                    }
+                  })
+                },
+              }
+            : undefined,
+        })
+      } else {
         toast.error(strings?.common.couldntMove ?? "Couldn't move")
       }
     })
