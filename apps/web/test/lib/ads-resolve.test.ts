@@ -282,6 +282,42 @@ describe('loadAdCreatives', () => {
     expect(result['post:top:banner']!.logoUrl).toBe('/logo.svg')
   })
 
+  it('prefixes internal ctaUrl with locale for pt-BR', async () => {
+    const creative = makeCreative({ ctaUrl: '/newsletter' })
+    setupCalls({
+      creatives: [makeCampaignRow('post:top:banner')],
+    })
+    resolveSlotMock.mockImplementation((config: { key: string }) => {
+      if (config.key === 'post:top:banner') {
+        return makeCampaignResolution('post:top:banner', creative)
+      }
+      return makeEmptyResolution(config.key)
+    })
+
+    const load = await loadFresh()
+    const result = await load('pt-BR')
+
+    expect(result['post:top:banner']!.ctaUrl).toBe('/pt/newsletter')
+  })
+
+  it('does not prefix external ctaUrl', async () => {
+    const creative = makeCreative({ ctaUrl: 'https://example.com/page' })
+    setupCalls({
+      creatives: [makeCampaignRow('post:top:banner')],
+    })
+    resolveSlotMock.mockImplementation((config: { key: string }) => {
+      if (config.key === 'post:top:banner') {
+        return makeCampaignResolution('post:top:banner', creative)
+      }
+      return makeEmptyResolution(config.key)
+    })
+
+    const load = await loadFresh()
+    const result = await load('pt-BR')
+
+    expect(result['post:top:banner']!.ctaUrl).toBe('https://example.com/page')
+  })
+
   it('maps placeholder from resolveSlot result', async () => {
     const placeholder: AdPlaceholder = {
       slotId: 'post:body:bookmark',

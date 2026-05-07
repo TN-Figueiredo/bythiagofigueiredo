@@ -11,6 +11,7 @@ import {
 import { SITE_AD_SLOTS } from '@app/shared'
 import type { AdCreativeData } from '@/components/blog/ads'
 import { AD_APP_ID } from './config'
+import { localePath } from '@/lib/i18n/locale-path'
 
 type SlotMap = Partial<Record<string, AdCreativeData>>
 
@@ -285,6 +286,9 @@ async function fetchAdCreatives(locale: string): Promise<SlotMap> {
     const resolution = resolveSlot(config, context, getCampaigns, getPlaceholder)
     const creative = mapResolutionToCreativeData(slotKey, resolution)
     if (creative) {
+      if (creative.ctaUrl.startsWith('/')) {
+        creative.ctaUrl = localePath(creative.ctaUrl, locale)
+      }
       map[slotKey] = creative
     }
   }
