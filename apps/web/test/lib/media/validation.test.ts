@@ -114,7 +114,7 @@ describe('sanitizeFilename', () => {
     expect(result).toMatch(/\.webp$/)
   })
   it('preserves extension', () => {
-    expect(sanitizeFilename('test.file.NAME.svg')).toBe('test.file.name.svg')
+    expect(sanitizeFilename('test.file.NAME.svg')).toBe('testfilename.svg')
   })
   it('handles no extension', () => {
     expect(sanitizeFilename('noext')).toBe('noext')

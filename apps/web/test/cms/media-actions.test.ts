@@ -95,7 +95,7 @@ describe('media server actions', () => {
       mockListMediaAssets.mockResolvedValue({
         assets: [
           {
-            id: 'a-1',
+            id: '00000000-0000-4000-a000-000000000001',
             site_id: 'site-1',
             blob_url: 'https://blob.vercel-storage.com/test.jpg',
             blob_pathname: 'site-1/blog/abc.jpg',
@@ -133,7 +133,7 @@ describe('media server actions', () => {
   describe('getMediaAssetAction', () => {
     it('returns a single asset with usage count', async () => {
       mockGetMediaAsset.mockResolvedValue({
-        id: 'a-1',
+        id: '00000000-0000-4000-a000-000000000001',
         site_id: 'site-1',
         blob_url: 'https://blob.vercel-storage.com/test.jpg',
         blob_pathname: 'site-1/blog/abc.jpg',
@@ -153,11 +153,11 @@ describe('media server actions', () => {
       })
       mockGetAssetUsageCount.mockResolvedValue(3)
 
-      const result = await getMediaAssetAction('a-1')
+      const result = await getMediaAssetAction('00000000-0000-4000-a000-000000000001')
 
       expect(result.ok).toBe(true)
       if (result.ok) {
-        expect(result.asset.id).toBe('a-1')
+        expect(result.asset.id).toBe('00000000-0000-4000-a000-000000000001')
         expect(result.usageCount).toBe(3)
       }
     })
@@ -165,7 +165,7 @@ describe('media server actions', () => {
     it('returns error when asset not found', async () => {
       mockGetMediaAsset.mockResolvedValue(null)
 
-      const result = await getMediaAssetAction('missing')
+      const result = await getMediaAssetAction('00000000-0000-4000-a000-000000000099')
       expect(result.ok).toBe(false)
     })
   })
@@ -175,7 +175,7 @@ describe('media server actions', () => {
       mockUploadMediaAsset.mockResolvedValue({
         ok: true,
         asset: {
-          id: 'a-1',
+          id: '00000000-0000-4000-a000-000000000001',
           siteId: 'site-1',
           blobUrl: 'https://blob.vercel-storage.com/test.jpg',
           blobPathname: 'site-1/blog/abc.jpg',
@@ -221,7 +221,7 @@ describe('media server actions', () => {
 
   describe('updateMediaAssetAction', () => {
     it('updates alt text and tags', async () => {
-      const result = await updateMediaAssetAction('a-1', {
+      const result = await updateMediaAssetAction('00000000-0000-4000-a000-000000000001', {
         altText: 'Updated alt',
         tags: ['hero'],
       })
@@ -231,7 +231,7 @@ describe('media server actions', () => {
     })
 
     it('rejects invalid folder value', async () => {
-      const result = await updateMediaAssetAction('a-1', {
+      const result = await updateMediaAssetAction('00000000-0000-4000-a000-000000000001', {
         folder: 'INVALID' as 'blog',
       })
 
@@ -243,7 +243,7 @@ describe('media server actions', () => {
     it('sets deleted_at and warns about usages', async () => {
       mockGetAssetUsageCount.mockResolvedValue(2)
 
-      const result = await softDeleteMediaAssetAction('a-1')
+      const result = await softDeleteMediaAssetAction('00000000-0000-4000-a000-000000000001')
 
       expect(result.ok).toBe(true)
       if (result.ok) {
@@ -263,7 +263,7 @@ describe('media server actions', () => {
 
   describe('restoreMediaAssetAction', () => {
     it('clears deleted_at', async () => {
-      const result = await restoreMediaAssetAction('a-1')
+      const result = await restoreMediaAssetAction('00000000-0000-4000-a000-000000000001')
       expect(result.ok).toBe(true)
     })
   })
@@ -289,17 +289,17 @@ describe('media server actions', () => {
   describe('trackMediaUsageAction', () => {
     it('delegates to trackMediaUsage module', async () => {
       const result = await trackMediaUsageAction(
-        'a-1',
+        '00000000-0000-4000-a000-000000000001',
         'blog_post',
-        'bp-1',
+        '00000000-0000-4000-a000-000000000002',
         'cover_image_url',
       )
 
       expect(result.ok).toBe(true)
       expect(mockTrackMediaUsage).toHaveBeenCalledWith(
-        'a-1',
+        '00000000-0000-4000-a000-000000000001',
         'blog_post',
-        'bp-1',
+        '00000000-0000-4000-a000-000000000002',
         'cover_image_url',
       )
     })
@@ -308,17 +308,17 @@ describe('media server actions', () => {
   describe('removeMediaUsageAction', () => {
     it('delegates to removeMediaUsage module', async () => {
       const result = await removeMediaUsageAction(
-        'a-1',
+        '00000000-0000-4000-a000-000000000001',
         'blog_post',
-        'bp-1',
+        '00000000-0000-4000-a000-000000000002',
         'cover_image_url',
       )
 
       expect(result.ok).toBe(true)
       expect(mockRemoveMediaUsage).toHaveBeenCalledWith(
-        'a-1',
+        '00000000-0000-4000-a000-000000000001',
         'blog_post',
-        'bp-1',
+        '00000000-0000-4000-a000-000000000002',
         'cover_image_url',
       )
     })

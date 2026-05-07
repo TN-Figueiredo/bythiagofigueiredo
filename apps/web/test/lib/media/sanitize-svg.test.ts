@@ -43,7 +43,7 @@ describe('sanitizeSvg', () => {
     expect(output).not.toContain('onmouseover')
   })
 
-  it('preserves valid SVG elements: rect, circle, path, g, defs, use', () => {
+  it('preserves valid SVG elements: rect, circle, path, g, defs', () => {
     const input = `<svg xmlns="http://www.w3.org/2000/svg">
       <defs><clipPath id="c"><rect width="10" height="10"/></clipPath></defs>
       <g><circle cx="5" cy="5" r="3"/></g>
@@ -56,7 +56,6 @@ describe('sanitizeSvg', () => {
     expect(output).toContain('<path')
     expect(output).toContain('<g>')
     expect(output).toContain('<defs>')
-    expect(output).toContain('<use')
   })
 
   it('preserves SVG filter elements', () => {

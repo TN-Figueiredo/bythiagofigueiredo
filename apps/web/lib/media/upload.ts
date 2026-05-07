@@ -102,24 +102,21 @@ export async function uploadMediaAsset(
 
   const { data: row, error: insertError } = await supabase
     .from('media_assets')
-    .upsert(
-      {
-        site_id: siteId,
-        blob_url: blobResult.url,
-        blob_pathname: blobResult.pathname,
-        filename,
-        alt_text: altText ?? null,
-        width: processed.width,
-        height: processed.height,
-        mime_type: mimeType,
-        file_size: processed.buffer.length,
-        content_hash: contentHash,
-        folder,
-        tags: tags ?? [],
-        uploaded_by: uploadedBy,
-      },
-      { onConflict: 'site_id,content_hash', ignoreDuplicates: false },
-    )
+    .insert({
+      site_id: siteId,
+      blob_url: blobResult.url,
+      blob_pathname: blobResult.pathname,
+      filename,
+      alt_text: altText ?? null,
+      width: processed.width,
+      height: processed.height,
+      mime_type: mimeType,
+      file_size: processed.buffer.length,
+      content_hash: contentHash,
+      folder,
+      tags: tags ?? [],
+      uploaded_by: uploadedBy,
+    })
     .select('*')
     .single()
 

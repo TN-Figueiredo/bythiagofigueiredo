@@ -34,7 +34,8 @@ export async function listMediaAssets(opts: ListMediaOptions): Promise<ListMedia
     query = query.eq('folder', opts.folder)
   }
   if (opts.search) {
-    query = query.ilike('filename', `%${opts.search}%`)
+    const escaped = opts.search.replace(/[%_\\]/g, '\\$&')
+    query = query.ilike('filename', `%${escaped}%`)
   }
   if (opts.tags?.length) {
     query = query.contains('tags', opts.tags)

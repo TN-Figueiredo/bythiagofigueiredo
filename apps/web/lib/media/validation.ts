@@ -21,9 +21,9 @@ export function validateMimeType(
 export function validateFileSize(
   size: number,
   folder: MediaFolder,
-): ValidationOk | ValidationFail<'file_too_large'> {
+): ValidationOk | ValidationFail<'file_too_large' | 'empty_file'> {
   if (size <= 0) {
-    return { ok: false, code: 'file_too_large', error: 'File is empty' }
+    return { ok: false, code: 'empty_file' as const, error: 'File is empty' }
   }
   const limit = FOLDER_LIMITS[folder].maxSizeBytes
   if (size > limit) {
@@ -77,9 +77,11 @@ export function sanitizeFilename(name: string): string {
   stem = stem
     .toLowerCase()
     .replace(/[_\s]+/g, '-')
-    .replace(/[^a-z0-9\-\.]/g, '')
+    .replace(/[^a-z0-9\-]/g, '')
     .replace(/-{2,}/g, '-')
     .replace(/^-+|-+$/g, '')
+
+  if (!stem) stem = 'untitled'
 
   const maxStemLength = MAX_FILENAME_LENGTH - ext.length
   if (stem.length > maxStemLength) {

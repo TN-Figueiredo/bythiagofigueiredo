@@ -29,11 +29,13 @@ export async function processImage(
   }
 
   if (mimeType === 'image/gif') {
-    const meta = await sharp(buffer).metadata()
+    const { data, info } = await sharp(buffer, { animated: true })
+      .gif()
+      .toBuffer({ resolveWithObject: true })
     return {
-      buffer,
-      width: meta.width ?? null,
-      height: meta.height ?? null,
+      buffer: data,
+      width: info.width ?? null,
+      height: info.height ?? null,
       mimeType,
     }
   }

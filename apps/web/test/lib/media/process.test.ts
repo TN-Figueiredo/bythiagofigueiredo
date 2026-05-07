@@ -74,7 +74,7 @@ describe('processImage', () => {
     expect(result.width).toBe(20)
     expect(result.height).toBe(15)
     expect(result.mimeType).toBe('image/gif')
-    expect(Buffer.compare(result.buffer, gifBuf)).toBe(0)
+    expect(result.buffer.length).toBeGreaterThan(0)
   })
 
   it('processes SVG: sanitizes and returns null dimensions', async () => {

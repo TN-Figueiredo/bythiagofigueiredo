@@ -130,6 +130,7 @@ export async function getMediaAssetAction(
   assetId: string,
 ): Promise<ActionResult<{ asset: MediaAsset; usageCount: number }>> {
   try {
+    if (!z.string().uuid().safeParse(assetId).success) return { ok: false, error: 'invalid_id' }
     const { siteId } = await requireViewScope()
     const row = await getMediaAsset(assetId, siteId)
     if (!row) return { ok: false, error: 'not_found' }
@@ -157,9 +158,11 @@ export async function uploadMediaAction(
 
     const file = formData.get('file')
     if (!(file instanceof File)) return { ok: false, error: 'no_file' }
+    if (file.size > 10_485_760) return { ok: false, error: 'file_too_large' }
 
     const folder = (formData.get('folder') as string) || 'general'
     const altText = (formData.get('altText') as string) || undefined
+    if (altText && altText.length > 500) return { ok: false, error: 'alt_text_too_long' }
     const tagsRaw = formData.get('tags') as string | null
     const tags = tagsRaw
       ? tagsRaw
@@ -203,6 +206,7 @@ export async function updateMediaAssetAction(
   input: z.input<typeof UpdateAssetSchema>,
 ): Promise<ActionResult> {
   try {
+    if (!z.string().uuid().safeParse(assetId).success) return { ok: false, error: 'invalid_id' }
     const { siteId } = await requireEditScope()
     const parsed = UpdateAssetSchema.safeParse(input)
     if (!parsed.success) return { ok: false, error: 'validation_failed' }
@@ -242,6 +246,7 @@ export async function softDeleteMediaAssetAction(
   assetId: string,
 ): Promise<ActionResult<{ usageWarning: number }>> {
   try {
+    if (!z.string().uuid().safeParse(assetId).success) return { ok: false, error: 'invalid_id' }
     const { siteId } = await requireEditScope()
 
     const usageCount = await getAssetUsageCount(assetId)
@@ -273,21 +278,21 @@ export async function bulkDeleteMediaAssetsAction(
   assetIds: string[],
 ): Promise<ActionResult<{ deletedCount: number }>> {
   try {
-    if (assetIds.length > 50) return { ok: false, error: 'max_50_per_call' }
-    if (assetIds.length === 0) return { ok: false, error: 'empty_list' }
+    const idsParsed = z.array(z.string().uuid()).min(1).max(50).safeParse(assetIds)
+    if (!idsParsed.success) return { ok: false, error: 'invalid_ids' }
 
     const { siteId } = await requireEditScope()
     const supabase = getSupabaseServiceClient()
 
     const { error, count } = await supabase
       .from('media_assets')
-      .update({ deleted_at: new Date().toISOString() })
+      .update({ deleted_at: new Date().toISOString() }, { count: 'exact' })
       .eq('site_id', siteId)
-      .in('id', assetIds)
+      .in('id', idsParsed.data)
     if (error) return { ok: false, error: error.message }
 
     revalidateMedia(siteId)
-    return { ok: true, deletedCount: count ?? assetIds.length }
+    return { ok: true, deletedCount: count ?? 0 }
   } catch (err) {
     Sentry.captureException(err, {
       tags: { media: 'true', component: 'media-gallery' },
@@ -305,6 +310,7 @@ export async function restoreMediaAssetAction(
   assetId: string,
 ): Promise<ActionResult> {
   try {
+    if (!z.string().uuid().safeParse(assetId).success) return { ok: false, error: 'invalid_id' }
     const { siteId } = await requireEditScope()
     const supabase = getSupabaseServiceClient()
 
@@ -357,6 +363,8 @@ export async function trackMediaUsageAction(
   fieldName: string,
 ): Promise<ActionResult> {
   try {
+    if (!z.string().uuid().safeParse(assetId).success || !z.string().uuid().safeParse(resourceId).success)
+      return { ok: false, error: 'invalid_id' }
     await requireEditScope()
 
     const rtParsed = z.enum(UsageResourceTypes).safeParse(resourceType)
@@ -385,6 +393,8 @@ export async function removeMediaUsageAction(
   fieldName: string,
 ): Promise<ActionResult> {
   try {
+    if (!z.string().uuid().safeParse(assetId).success || !z.string().uuid().safeParse(resourceId).success)
+      return { ok: false, error: 'invalid_id' }
     await requireEditScope()
 
     const rtParsed = z.enum(UsageResourceTypes).safeParse(resourceType)

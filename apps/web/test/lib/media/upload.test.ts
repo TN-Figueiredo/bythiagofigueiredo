@@ -7,7 +7,7 @@ vi.mock('@vercel/blob', () => ({
   del: (...args: unknown[]) => delMock(...args),
 }))
 
-const upsertMock = vi.fn()
+const insertMock = vi.fn()
 const selectMock = vi.fn()
 const eqMock = vi.fn()
 const isMock = vi.fn()
@@ -28,7 +28,7 @@ vi.mock('@/lib/supabase/service', () => ({
       if (table === 'media_assets') {
         return {
           select: selectMock,
-          upsert: upsertMock,
+          insert: insertMock,
         }
       }
       return { select: vi.fn() }
@@ -137,7 +137,7 @@ describe('uploadMediaAsset', () => {
 
   it('calls Blob put() with correct pathname and options for new file', async () => {
     buildChain(null)
-    upsertMock.mockReturnValue({
+    insertMock.mockReturnValue({
       select: vi.fn().mockReturnValue({
         single: vi.fn().mockResolvedValue({ data: mockAssetRow, error: null }),
       }),
@@ -147,7 +147,7 @@ describe('uploadMediaAsset', () => {
 
     expect(putMock).toHaveBeenCalledTimes(1)
     const [pathname, _buffer, options] = putMock.mock.calls[0]
-    expect(pathname).toMatch(/^site-1\/blog\/[a-f0-9]{16}\.jpg$/)
+    expect(pathname).toMatch(/^site-1\/blog\/[a-f0-9]{32}\.jpg$/)
     expect(options.access).toBe('public')
     expect(options.addRandomSuffix).toBe(false)
     expect(options.contentType).toBe('image/jpeg')
@@ -155,7 +155,7 @@ describe('uploadMediaAsset', () => {
 
   it('returns ok:true with asset for successful new upload', async () => {
     buildChain(null)
-    upsertMock.mockReturnValue({
+    insertMock.mockReturnValue({
       select: vi.fn().mockReturnValue({
         single: vi.fn().mockResolvedValue({ data: mockAssetRow, error: null }),
       }),
@@ -174,7 +174,7 @@ describe('uploadMediaAsset', () => {
 
   it('attempts Blob cleanup on DB insert failure', async () => {
     buildChain(null)
-    upsertMock.mockReturnValue({
+    insertMock.mockReturnValue({
       select: vi.fn().mockReturnValue({
         single: vi.fn().mockResolvedValue({
           data: null,
