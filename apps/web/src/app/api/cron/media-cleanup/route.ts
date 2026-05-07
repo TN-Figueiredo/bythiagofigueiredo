@@ -23,15 +23,8 @@ export async function POST(req: Request): Promise<Response> {
     let softDeleted = 0
     let hardDeleted = 0
 
-    const cutoff = new Date()
-    cutoff.setDate(cutoff.getDate() - SOFT_DELETE_GRACE_DAYS)
-
-    const { data: orphans, error: orphanErr } = await supabase
-      .from('media_assets')
-      .select('id')
-      .is('deleted_at', null)
-      .lt('created_at', cutoff.toISOString())
-      .not('id', 'in', `(select asset_id from media_asset_usage)`)
+    const { data: orphanIds, error: orphanErr } = await supabase
+      .rpc('find_orphan_media_assets', { p_grace_days: SOFT_DELETE_GRACE_DAYS })
 
     if (orphanErr) {
       Sentry.captureException(orphanErr, {
@@ -40,8 +33,8 @@ export async function POST(req: Request): Promise<Response> {
       return { status: 'error' as const, error: orphanErr.message }
     }
 
-    if (orphans && orphans.length > 0) {
-      const ids = orphans.map((r: { id: string }) => r.id)
+    const ids = (orphanIds ?? []) as string[]
+    if (ids.length > 0) {
       const { error: updateErr } = await supabase
         .from('media_assets')
         .update({ deleted_at: new Date().toISOString() })
