@@ -203,27 +203,6 @@
 }
 
 /* Social embed blocks */
-.newsletter-editor .ProseMirror .social-embed {
-  margin: 1rem 0;
-  border-radius: 0.5rem;
-  overflow: hidden;
-}
-
-.newsletter-editor .ProseMirror .social-embed iframe {
-  display: block;
-  border-radius: 0.5rem;
-}
-
-.newsletter-editor .ProseMirror .social-embed__link {
-  display: block;
-  padding: 0.75rem 1rem;
-  background: #111827;
-  color: #818cf8;
-  font-size: 0.875rem;
-  word-break: break-all;
-}
-
-/* Social embed blocks (serialized HTML + NodeView) */
 .newsletter-editor .ProseMirror .social-embed,
 .social-embed {
   margin: 1rem 0;

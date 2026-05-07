@@ -10,6 +10,7 @@ import {
   getEmbedSrc,
   PROVIDER_META,
   escapeHtmlAttr,
+  GIST_SRC_RE,
 } from '../../src/app/cms/(authed)/_shared/editor/social-embed-node'
 
 describe('detectProvider', () => {
@@ -350,5 +351,37 @@ describe('escapeHtmlAttr', () => {
 
   it('passes through safe strings unchanged', () => {
     expect(escapeHtmlAttr('https://gist.github.com/user/abc123.js')).toBe('https://gist.github.com/user/abc123.js')
+  })
+})
+
+describe('GIST_SRC_RE', () => {
+  it('matches valid gist .js URLs', () => {
+    expect(GIST_SRC_RE.test('https://gist.github.com/octocat/abc123def456.js')).toBe(true)
+  })
+
+  it('rejects URLs without .js suffix', () => {
+    expect(GIST_SRC_RE.test('https://gist.github.com/octocat/abc123')).toBe(false)
+  })
+
+  it('rejects non-hex gist ids', () => {
+    expect(GIST_SRC_RE.test('https://gist.github.com/user/GHIJ.js')).toBe(false)
+  })
+
+  it('rejects javascript: protocol', () => {
+    expect(GIST_SRC_RE.test('javascript:alert(1)//gist.github.com/u/abc.js')).toBe(false)
+  })
+
+  it('rejects XSS in path segments', () => {
+    expect(GIST_SRC_RE.test('https://gist.github.com/"><script>/abc.js')).toBe(false)
+  })
+})
+
+describe('extractInstagramCode — /tv/ support', () => {
+  it('extracts shortcode from /tv/ URL', () => {
+    expect(extractInstagramCode('https://www.instagram.com/tv/CxYz123_Ab/')).toBe('CxYz123_Ab')
+  })
+
+  it('detects provider for /tv/ URL', () => {
+    expect(detectProvider('https://instagram.com/tv/ABC123/')).toBe('instagram')
   })
 })
