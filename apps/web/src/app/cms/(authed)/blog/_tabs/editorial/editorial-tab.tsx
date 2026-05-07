@@ -4,13 +4,13 @@ import { useCallback, useDeferredValue, useMemo, useState, useTransition } from 
 import { Kanban, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import type { EditorialTabData, PostCard } from '../../_hub/hub-types'
+import type { EditorialTabData, PostCard, BlogTag } from '../../_hub/hub-types'
 import type { BlogHubStrings } from '../../_i18n/types'
 import { VelocityStrip } from './velocity-strip'
 import { KanbanBoard } from './kanban-board'
 import { EmptyState } from '../../_shared/empty-state'
 import { SectionErrorBoundary } from '../../_shared/section-error-boundary'
-import { movePost, deleteHubPost, reassignTag, addLocale, duplicatePost, createPost } from '../../actions'
+import { movePost, deleteHubPost, reassignTag, addLocale, removeTranslationLocale, duplicatePost, createPost, createTag } from '../../actions'
 
 interface EditorialTabProps {
   data: EditorialTabData
@@ -20,9 +20,11 @@ interface EditorialTabProps {
   locale?: string | null
   supportedLocales?: string[]
   siteTimezone?: string
+  tags?: BlogTag[]
+  defaultLocale?: string
 }
 
-export function EditorialTab({ data, strings, tagId, locale, supportedLocales, siteTimezone = 'America/Sao_Paulo' }: EditorialTabProps) {
+export function EditorialTab({ data, strings, tagId, locale, supportedLocales, siteTimezone = 'America/Sao_Paulo', tags, defaultLocale }: EditorialTabProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const deferredQuery = useDeferredValue(searchQuery)
   const [, startTransition] = useTransition()
@@ -94,9 +96,38 @@ export function EditorialTab({ data, strings, tagId, locale, supportedLocales, s
     })
   }
 
+  const handleRemoveLocale = async (postId: string, loc: string) => {
+    startTransition(async () => {
+      const result = await removeTranslationLocale(postId, loc)
+      if (result.ok) {
+        toast.success(strings?.editorial.localeRemoved ?? 'Locale removed')
+      } else if (result.error === 'last_locale') {
+        toast.error(strings?.editorial.lastLocale ?? 'Cannot remove the only locale')
+      } else {
+        toast.error(strings?.common.couldntMove ?? "Couldn't update")
+      }
+    })
+  }
+
   const handleDuplicate = async (postId: string) => {
     startTransition(async () => {
       await duplicatePost(postId)
+    })
+  }
+
+  const handleCreateAndAssignTag = async (postId: string, tagName: string) => {
+    const tagResult = await createTag({ name: tagName })
+    if (!tagResult.ok) {
+      toast.error(tagResult.error === 'name_already_exists' ? 'Tag already exists' : 'Failed to create tag')
+      return
+    }
+    startTransition(async () => {
+      const result = await reassignTag(postId, tagResult.tagId)
+      if (result.ok) {
+        toast.success(`Tag "${tagName}" created and assigned`)
+      } else {
+        toast.error(strings?.common.couldntMove ?? "Couldn't assign tag")
+      }
     })
   }
 
@@ -111,6 +142,7 @@ export function EditorialTab({ data, strings, tagId, locale, supportedLocales, s
       tagId: tagId ?? null,
       tagName: null,
       tagColor: null,
+      tagNameTranslations: null,
       locales: [locale ?? 'en'],
       readingTimeMin: null,
       createdAt: now,
@@ -201,11 +233,15 @@ export function EditorialTab({ data, strings, tagId, locale, supportedLocales, s
           onDeletePost={handleDeletePost}
           onReassignTag={handleReassignTag}
           onAddLocale={handleAddLocale}
+          onRemoveLocale={handleRemoveLocale}
           onDuplicate={handleDuplicate}
+          onCreateAndAssignTag={handleCreateAndAssignTag}
           onQuickAdd={handleQuickAdd}
           strings={strings}
+          tags={tags}
           supportedLocales={supportedLocales}
           siteTimezone={siteTimezone}
+          defaultLocale={defaultLocale}
         />
       </SectionErrorBoundary>
     </div>

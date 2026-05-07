@@ -18,12 +18,13 @@ export default async function EditPostPage({ params }: Props) {
   if (post.site_id !== ctx.siteId) notFound()
   const tx = post.translations[0]
   if (!tx) notFound()
+  const existingLocales = post.translations.map(t => t.locale)
 
   const supabase = getSupabaseServiceClient()
   const [tagsResult, siteResult, hashtagResult, txExtraResult, postExtraResult] = await Promise.all([
     supabase
       .from('blog_tags')
-      .select('id, name, color')
+      .select('id, name, color, name_translations')
       .eq('site_id', ctx.siteId)
       .order('sort_order'),
     supabase
@@ -43,12 +44,17 @@ export default async function EditPostPage({ params }: Props) {
       .maybeSingle(),
     supabase
       .from('blog_posts')
-      .select('previous_post_id, continues_in_next')
+      .select('previous_post_id, continues_in_next, status, tag_id')
       .eq('id', id)
       .maybeSingle(),
   ])
 
-  const tags = (tagsResult.data ?? []) as Array<{ id: string; name: string; color: string }>
+  const tags = (tagsResult.data ?? []).map((t: { id: string; name: string; color: string; name_translations?: Record<string, string> | null }) => ({
+    id: t.id,
+    name: t.name,
+    color: t.color,
+    nameTranslations: t.name_translations ?? null,
+  }))
   const supportedLocales = (siteResult.data?.supported_locales as string[] | null) ?? [ctx.defaultLocale]
 
   const postHashtags = ((hashtagResult.data ?? []) as unknown as Array<{ hashtags: { id: string; name: string; slug: string } | null }>)
@@ -58,12 +64,10 @@ export default async function EditPostPage({ params }: Props) {
   const txExtra = txExtraResult.data ?? {}
   const postExtra = postExtraResult.data ?? {}
 
-  const tagRow = post as unknown as { tag_id?: string | null }
-
   return (
     <PostEditionEditor
       locale={tx.locale}
-      tagId={tagRow.tag_id}
+      tagId={(postExtra as { tag_id?: string | null }).tag_id ?? null}
       defaultLocale={ctx.defaultLocale}
       tags={tags}
       supportedLocales={supportedLocales}
@@ -86,6 +90,8 @@ export default async function EditPostPage({ params }: Props) {
       initialPreviousPostId={(postExtra as { previous_post_id?: string | null }).previous_post_id ?? null}
       initialContinuesInNext={(postExtra as { continues_in_next?: boolean }).continues_in_next ?? false}
       initialHashtags={postHashtags}
+      initialStatus={(postExtra as { status?: string }).status ?? 'draft'}
+      existingLocales={existingLocales}
     />
   )
 }

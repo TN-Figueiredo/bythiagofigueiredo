@@ -260,6 +260,7 @@ export async function createTag(input: {
   badge?: string | null
   sortOrder?: number
   linkedNewsletterTypeId?: string
+  nameTranslations?: Record<string, string>
 }): Promise<{ ok: true; tagId: string } | { ok: false; error: string }> {
   if (!input.name.trim()) return { ok: false, error: 'name_required' }
 
@@ -293,6 +294,16 @@ export async function createTag(input: {
     insertData.linked_newsletter_type_id = input.linkedNewsletterTypeId
   }
 
+  // Sanitize name_translations: strip empty values, trim
+  if (input.nameTranslations) {
+    const cleaned: Record<string, string> = {}
+    for (const [locale, value] of Object.entries(input.nameTranslations)) {
+      const trimmed = value?.trim()
+      if (trimmed) cleaned[locale] = trimmed
+    }
+    insertData.name_translations = cleaned
+  }
+
   const { data, error } = await supabase
     .from('blog_tags')
     .insert(insertData)
@@ -317,6 +328,7 @@ export async function updateTag(
     badge?: string | null
     sortOrder?: number
     linkedNewsletterTypeId?: string | null
+    nameTranslations?: Record<string, string>
   },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const { siteId } = await getSiteContext()
@@ -346,6 +358,14 @@ export async function updateTag(
   if (patch.sortOrder !== undefined) updateData.sort_order = patch.sortOrder
   if (patch.linkedNewsletterTypeId !== undefined) {
     updateData.linked_newsletter_type_id = patch.linkedNewsletterTypeId
+  }
+  if (patch.nameTranslations !== undefined) {
+    const cleaned: Record<string, string> = {}
+    for (const [locale, value] of Object.entries(patch.nameTranslations)) {
+      const trimmed = value?.trim()
+      if (trimmed) cleaned[locale] = trimmed
+    }
+    updateData.name_translations = cleaned
   }
   updateData.updated_at = new Date().toISOString()
 
@@ -590,10 +610,6 @@ export async function movePost(
     return { ok: false, error: 'invalid_transition' }
   }
 
-  if ((newStatus === 'ready' || newStatus === 'scheduled') && !current.tag_id) {
-    return { ok: false, error: 'tag_required' }
-  }
-
   const patch: Record<string, unknown> = { status: newStatus }
   if (newStatus === 'published') {
     patch.published_at = new Date().toISOString()
@@ -723,7 +739,16 @@ export async function addLocale(
     .maybeSingle()
 
   const baseTitle = (existing?.title as string | null) ?? 'Untitled'
-  const slug = `${generateTagSlug(baseTitle)}-${locale}-${Date.now()}`
+  const baseSlug = generateTagSlug(baseTitle)
+
+  const { data: slugConflict } = await supabase
+    .from('blog_translations')
+    .select('id')
+    .eq('locale', locale)
+    .eq('slug', baseSlug)
+    .maybeSingle()
+
+  const slug = slugConflict ? `${baseSlug}-${Date.now().toString(36)}` : baseSlug
 
   const { error } = await supabase
     .from('blog_translations')
@@ -738,6 +763,100 @@ export async function addLocale(
   if (error) {
     if (error.code === '23505') return { ok: false, error: 'locale_exists' }
     return { ok: false, error: error.message }
+  }
+
+  revalidateBlogHub(siteId)
+  return { ok: true }
+}
+
+export async function changeTranslationLocale(
+  postId: string,
+  fromLocale: string,
+  toLocale: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { siteId } = await getSiteContext()
+  await requireEditScope(siteId)
+
+  const supabase = getSupabaseServiceClient()
+
+  const { data: existing } = await supabase
+    .from('blog_translations')
+    .select('id')
+    .eq('post_id', postId)
+    .eq('locale', toLocale)
+    .maybeSingle()
+
+  if (existing) return { ok: false, error: 'locale_exists' }
+
+  const { error: txError } = await supabase
+    .from('blog_translations')
+    .update({ locale: toLocale })
+    .eq('post_id', postId)
+    .eq('locale', fromLocale)
+
+  if (txError) return { ok: false, error: txError.message }
+
+  const { data: post } = await supabase
+    .from('blog_posts')
+    .select('locale')
+    .eq('id', postId)
+    .eq('site_id', siteId)
+    .single()
+
+  if (post && post.locale === fromLocale) {
+    await supabase
+      .from('blog_posts')
+      .update({ locale: toLocale })
+      .eq('id', postId)
+      .eq('site_id', siteId)
+  }
+
+  revalidateBlogHub(siteId)
+  return { ok: true }
+}
+
+export async function removeTranslationLocale(
+  postId: string,
+  locale: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { siteId } = await getSiteContext()
+  await requireEditScope(siteId)
+
+  const supabase = getSupabaseServiceClient()
+
+  const { data: translations } = await supabase
+    .from('blog_translations')
+    .select('locale')
+    .eq('post_id', postId)
+
+  if (!translations || translations.length <= 1) {
+    return { ok: false, error: 'last_locale' }
+  }
+
+  const { error } = await supabase
+    .from('blog_translations')
+    .delete()
+    .eq('post_id', postId)
+    .eq('locale', locale)
+
+  if (error) return { ok: false, error: error.message }
+
+  const { data: post } = await supabase
+    .from('blog_posts')
+    .select('locale')
+    .eq('id', postId)
+    .eq('site_id', siteId)
+    .single()
+
+  if (post && post.locale === locale) {
+    const remaining = translations.filter(t => t.locale !== locale)
+    if (remaining[0]) {
+      await supabase
+        .from('blog_posts')
+        .update({ locale: remaining[0].locale as string })
+        .eq('id', postId)
+        .eq('site_id', siteId)
+    }
   }
 
   revalidateBlogHub(siteId)

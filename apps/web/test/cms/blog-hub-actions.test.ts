@@ -462,14 +462,14 @@ describe('movePost', () => {
     expect(result).toEqual({ ok: true })
   })
 
-  it('rejects draft → ready without tag_id', async () => {
+  it('allows draft → ready without tag_id', async () => {
     resetMockState({
       perTable: {
         blog_posts: [{ id: 'p1', status: 'draft', site_id: 'site-1', tag_id: null, blog_translations: [{ locale: 'pt-BR', slug: 'hello' }] }],
       },
     })
     const result = await movePost('p1', 'ready')
-    expect(result).toEqual({ ok: false, error: 'tag_required' })
+    expect(result).toEqual({ ok: true })
   })
 
   it('succeeds for valid transition idea → draft', async () => {

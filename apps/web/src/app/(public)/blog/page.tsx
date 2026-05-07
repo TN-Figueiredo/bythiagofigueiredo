@@ -9,6 +9,7 @@ import { buildBreadcrumbNode } from '@/lib/seo/jsonld/builders'
 import { composeGraph } from '@/lib/seo/jsonld/graph'
 import { JsonLdScript } from '@/lib/seo/jsonld/render'
 import { localePath } from '@/lib/i18n/locale-path'
+import { resolveTagName } from '@/app/cms/(authed)/blog/_hub/tag-locale'
 import { BlogArchiveClient } from './blog-archive-client'
 import type { ArchivePost } from './blog-archive-client'
 
@@ -85,7 +86,7 @@ type DbRow = {
     tag_id: string | null
     previous_post_id: string | null
     continues_in_next: boolean
-    blog_tags: { name: string; color: string; color_dark: string | null } | null
+    blog_tags: { name: string; color: string; color_dark: string | null; name_translations: Record<string, string> | null } | null
     post_hashtags: Array<{ hashtags: { name: string; slug: string } | null }> | null
   }
 }
@@ -102,7 +103,7 @@ async function fetchAllPosts(siteId: string, locale: string): Promise<DbRow[]> {
     .select(`
       slug, title, excerpt, reading_time_min, cover_image_url,
       blog_posts!inner(id, published_at, category, tag_id, previous_post_id, continues_in_next,
-        blog_tags(name, color, color_dark),
+        blog_tags(name, color, color_dark, name_translations),
         post_hashtags(hashtags(name, slug))
       )
     `)
@@ -123,9 +124,11 @@ async function fetchAllPosts(siteId: string, locale: string): Promise<DbRow[]> {
 // ---------------------------------------------------------------------------
 // Transform DB row to ArchivePost
 // ---------------------------------------------------------------------------
-function toArchivePost(row: DbRow): ArchivePost {
+function toArchivePost(row: DbRow, locale: string): ArchivePost {
   const post = row.blog_posts
-  const tagName = post.blog_tags?.name ?? null
+  const tagName = post.blog_tags
+    ? resolveTagName({ name: post.blog_tags.name, nameTranslations: post.blog_tags.name_translations }, locale)
+    : null
   const hashtags = (post.post_hashtags ?? [])
     .map(ph => ph.hashtags?.name)
     .filter(Boolean) as string[]
@@ -200,7 +203,7 @@ export default async function BlogPage() {
 
   if (ctx) {
     const dbRows = await fetchAllPosts(ctx.siteId, locale)
-    const dbPosts = dbRows.map(toArchivePost)
+    const dbPosts = dbRows.map((row) => toArchivePost(row, locale))
     posts = dbPosts
     categories = deriveCategories(dbPosts)
     tags = deriveTags(dbPosts)

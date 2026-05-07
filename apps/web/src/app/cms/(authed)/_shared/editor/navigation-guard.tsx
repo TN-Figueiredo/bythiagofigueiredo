@@ -54,12 +54,10 @@ export function NavigationGuard({ hasUnsavedChanges, onSave }: NavigationGuardPr
 
     function guardedPushState(data: unknown, unused: string, url?: string | URL | null) {
       pendingNavRef.current = { data, unused, url, method: 'push' }
-      setShowDialog(true)
+      queueMicrotask(() => setShowDialog(true))
     }
 
     function guardedReplaceState(data: unknown, unused: string, url?: string | URL | null) {
-      // Allow router.replace() calls that update the URL within the editor
-      // (e.g., ephemeral→draft transition from /new to /[id]/edit)
       const targetPath = typeof url === 'string'
         ? new URL(url, window.location.origin).pathname
         : url?.pathname
@@ -71,7 +69,7 @@ export function NavigationGuard({ hasUnsavedChanges, onSave }: NavigationGuardPr
         }
       }
       pendingNavRef.current = { data, unused, url, method: 'replace' }
-      setShowDialog(true)
+      queueMicrotask(() => setShowDialog(true))
     }
 
     window.history.pushState = guardedPushState as typeof window.history.pushState

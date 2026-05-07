@@ -31,6 +31,22 @@ function normalizeHex(val: string): string {
   return val
 }
 
+const LOCALE_FLAGS: Record<string, string> = {
+  'pt-BR': '\u{1F1E7}\u{1F1F7}',
+  en: '\u{1F1FA}\u{1F1F8}',
+  es: '\u{1F1EA}\u{1F1F8}',
+  fr: '\u{1F1EB}\u{1F1F7}',
+  de: '\u{1F1E9}\u{1F1EA}',
+}
+
+const LOCALE_LABELS: Record<string, string> = {
+  'pt-BR': 'PT-BR',
+  en: 'EN',
+  es: 'ES',
+  fr: 'FR',
+  de: 'DE',
+}
+
 interface TagDrawerProps {
   open: boolean
   mode: 'create' | 'edit'
@@ -40,9 +56,11 @@ interface TagDrawerProps {
   onClose: () => void
   locale: 'en' | 'pt-BR'
   strings: BlogHubStrings['tagDrawer']
+  supportedLocales: string[]
+  defaultLocale: string
 }
 
-export function TagDrawer({ open, mode, tagId, tags = [], usedColors = [], onClose, strings }: TagDrawerProps) {
+export function TagDrawer({ open, mode, tagId, tags = [], usedColors = [], onClose, strings, supportedLocales, defaultLocale }: TagDrawerProps) {
   const router = useRouter()
   const titleId = useId()
   const fid = useId()
@@ -58,6 +76,9 @@ export function TagDrawer({ open, mode, tagId, tags = [], usedColors = [], onClo
   const [badge, setBadge] = useState('')
   const [color, setColor] = useState('#7c3aed')
   const [colorDark, setColorDark] = useState('')
+
+  const [nameTranslations, setNameTranslations] = useState<Record<string, string>>({})
+  const secondaryLocales = supportedLocales.filter((loc) => loc !== defaultLocale)
 
   const [editTag, setEditTag] = useState<BlogTag | null>(null)
   const [deleteConfirmStep, setDeleteConfirmStep] = useState<null | 'confirm' | 'name-check'>(null)
@@ -91,6 +112,7 @@ export function TagDrawer({ open, mode, tagId, tags = [], usedColors = [], onClo
           setBadge(found.badge ?? '')
           setColor(found.color)
           setColorDark(found.colorDark ?? '')
+          setNameTranslations(found.nameTranslations ?? {})
         } else {
           setName('')
           setSlug('')
@@ -98,6 +120,7 @@ export function TagDrawer({ open, mode, tagId, tags = [], usedColors = [], onClo
           setBadge('')
           setColor('#7c3aed')
           setColorDark('')
+          setNameTranslations({})
         }
         // Fetch newsletter link state + unlinked types
         setNlLoading(true)
@@ -120,6 +143,7 @@ export function TagDrawer({ open, mode, tagId, tags = [], usedColors = [], onClo
         setBadge('')
         setColor('#7c3aed')
         setColorDark('')
+        setNameTranslations({})
         // Fetch unlinked types for create mode
         setNlLoading(true)
         fetchUnlinkedNewsletterTypes()
@@ -201,6 +225,7 @@ export function TagDrawer({ open, mode, tagId, tags = [], usedColors = [], onClo
       color,
       colorDark: colorDark || null,
       badge: badge.trim() || null,
+      nameTranslations,
     }
 
     startTransition(async () => {
@@ -313,7 +338,9 @@ export function TagDrawer({ open, mode, tagId, tags = [], usedColors = [], onClo
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">{strings.sectionEssentials}</h3>
                 <div className="space-y-3">
                   <div>
-                    <label htmlFor={`${fid}-name`} className="block text-sm font-medium text-gray-400 mb-1">{strings.nameLabel}</label>
+                    <label htmlFor={`${fid}-name`} className="block text-sm font-medium text-gray-400 mb-1">
+                      {strings.nameLabel} ({LOCALE_FLAGS[defaultLocale] ?? ''} {LOCALE_LABELS[defaultLocale] ?? defaultLocale})
+                    </label>
                     <input
                       id={`${fid}-name`}
                       type="text"
@@ -331,6 +358,24 @@ export function TagDrawer({ open, mode, tagId, tags = [], usedColors = [], onClo
                     />
                     {errors.name && <p id={`${fid}-name-err`} className="text-xs text-red-400 mt-1" role="alert">{errors.name}</p>}
                   </div>
+
+                  {secondaryLocales.length > 0 && secondaryLocales.map((loc) => (
+                    <div key={loc}>
+                      <label htmlFor={`${fid}-name-${loc}`} className="block text-sm font-medium text-gray-400 mb-1">
+                        {strings.nameLabel} ({LOCALE_FLAGS[loc] ?? ''} {LOCALE_LABELS[loc] ?? loc})
+                      </label>
+                      <input
+                        id={`${fid}-name-${loc}`}
+                        type="text"
+                        value={nameTranslations[loc] ?? ''}
+                        onChange={(e) => setNameTranslations((prev) => ({ ...prev, [loc]: e.target.value }))}
+                        placeholder={`${strings.translationPlaceholder ?? `${loc} translation (optional)`}`}
+                        maxLength={100}
+                        className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-100 placeholder:text-gray-600 focus:border-indigo-500 focus:outline-none"
+                        data-testid={`drawer-name-${loc}`}
+                      />
+                    </div>
+                  ))}
 
                   <div>
                     <label htmlFor={`${fid}-slug`} className="block text-sm font-medium text-gray-400 mb-1">{strings.slugLabel}</label>

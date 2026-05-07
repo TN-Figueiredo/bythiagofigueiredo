@@ -4,10 +4,11 @@ import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useRouter } from 'next/navigation'
-import { Loader2, Pencil, MoreVertical, Trash2, ArrowRight, Tag, Globe, Copy, Sparkles } from 'lucide-react'
+import { Loader2, Pencil, MoreVertical, Trash2, ArrowRight, Tag, Globe, Copy, Sparkles, Minus, Plus } from 'lucide-react'
 import type { PostCard, BlogTag } from '../../_hub/hub-types'
 import type { BlogHubStrings } from '../../_i18n/types'
-import { formatRelativeDate, getValidTargets } from '../../_hub/hub-utils'
+import { formatRelativeDate, getKanbanMoveTargets } from '../../_hub/hub-utils'
+import { formatTagNameCms } from '../../_hub/tag-locale'
 
 function isOptimisticCard(card: PostCard): boolean {
   return card.id.startsWith('optimistic-')
@@ -19,6 +20,22 @@ const LOCALE_COLORS: Record<string, string> = {
   'pt': 'bg-amber-900/60 text-amber-400',
 }
 const DEFAULT_LOCALE_COLOR = 'bg-gray-800 text-gray-500'
+
+const LOCALE_FLAGS: Record<string, string> = {
+  'pt-BR': '\u{1F1E7}\u{1F1F7}',
+  en: '\u{1F1FA}\u{1F1F8}',
+  es: '\u{1F1EA}\u{1F1F8}',
+  fr: '\u{1F1EB}\u{1F1F7}',
+  de: '\u{1F1E9}\u{1F1EA}',
+}
+
+const LOCALE_LABELS: Record<string, string> = {
+  'pt-BR': 'PT-BR',
+  en: 'EN',
+  es: 'ES',
+  fr: 'FR',
+  de: 'DE',
+}
 
 function localeColorClass(locale: string): string {
   return LOCALE_COLORS[locale] ?? DEFAULT_LOCALE_COLOR
@@ -34,7 +51,10 @@ interface KanbanCardProps {
   onDelete?: (postId: string) => Promise<void>
   onReassignTag?: (postId: string, tagId: string | null) => Promise<void>
   onAddLocale?: (postId: string, locale: string) => Promise<void>
+  onRemoveLocale?: (postId: string, locale: string) => Promise<void>
   onDuplicate?: (postId: string) => Promise<void>
+  onCreateAndAssignTag?: (postId: string, tagName: string) => Promise<void>
+  defaultLocale?: string
 }
 
 export function KanbanCard({
@@ -47,7 +67,10 @@ export function KanbanCard({
   onDelete,
   onReassignTag,
   onAddLocale,
+  onRemoveLocale,
   onDuplicate,
+  onCreateAndAssignTag,
+  defaultLocale,
 }: KanbanCardProps) {
   const router = useRouter()
   const isOptimistic = isOptimisticCard(card)
@@ -57,12 +80,16 @@ export function KanbanCard({
   })
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false)
+  const [newTagName, setNewTagName] = useState('')
+  const [creatingTag, setCreatingTag] = useState(false)
   const [localeDropdownOpen, setLocaleDropdownOpen] = useState(false)
+  const [removeLocaleDropdownOpen, setRemoveLocaleDropdownOpen] = useState(false)
   const [navigating, setNavigating] = useState(false)
   const [, startTransition] = useTransition()
   const contextMenuRef = useRef<HTMLDivElement>(null)
   const tagDropdownRef = useRef<HTMLDivElement>(null)
   const localeDropdownRef = useRef<HTMLDivElement>(null)
+  const removeLocaleDropdownRef = useRef<HTMLDivElement>(null)
 
   const confirmed = confirmedProp ?? false
 
@@ -104,6 +131,17 @@ export function KanbanCard({
     [card.id, onReassignTag],
   )
 
+  const handleCreateAndAssignTag = useCallback(async () => {
+    const name = newTagName.trim()
+    if (!name || !onCreateAndAssignTag || creatingTag) return
+    setCreatingTag(true)
+    await onCreateAndAssignTag(card.id, name)
+    setCreatingTag(false)
+    setNewTagName('')
+    setTagDropdownOpen(false)
+    setContextMenu(null)
+  }, [card.id, newTagName, onCreateAndAssignTag, creatingTag])
+
   const handleLocaleSelect = useCallback(
     (loc: string) => {
       setLocaleDropdownOpen(false)
@@ -117,7 +155,21 @@ export function KanbanCard({
     [card.id, onAddLocale],
   )
 
+  const handleRemoveLocaleSelect = useCallback(
+    (loc: string) => {
+      setRemoveLocaleDropdownOpen(false)
+      setContextMenu(null)
+      if (onRemoveLocale) {
+        startTransition(async () => {
+          await onRemoveLocale(card.id, loc)
+        })
+      }
+    },
+    [card.id, onRemoveLocale],
+  )
+
   const missingLocales = supportedLocales?.filter((l) => !card.locales.includes(l)) ?? []
+  const canRemoveLocale = card.locales.length > 1
 
   const handleDuplicate = useCallback(() => {
     setContextMenu(null)
@@ -238,7 +290,19 @@ export function KanbanCard({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [localeDropdownOpen])
 
-  const validTargets = getValidTargets(card.status)
+  // Close remove-locale dropdown on outside click
+  useEffect(() => {
+    if (!removeLocaleDropdownOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (removeLocaleDropdownRef.current && !removeLocaleDropdownRef.current.contains(e.target as Node)) {
+        setRemoveLocaleDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [removeLocaleDropdownOpen])
+
+  const validTargets = getKanbanMoveTargets(card.status)
   const canDelete =
     card.status === 'idea' || card.status === 'draft' || card.status === 'archived'
 
@@ -283,18 +347,18 @@ export function KanbanCard({
         )}
 
         {/* Header row */}
-        <div className="mb-1.5 flex items-center justify-between">
+        <div className="mb-1.5 flex items-center justify-between gap-1">
           {isOptimistic ? (
-            <span className="flex items-center gap-1 rounded bg-indigo-500/20 px-1.5 py-0.5 text-[8px] font-bold tracking-wide text-indigo-400">
+            <span className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded bg-indigo-500/20 px-1.5 py-0.5 text-[8px] font-bold tracking-wide text-indigo-400">
               <Sparkles className="h-2.5 w-2.5" />
               NEW
             </span>
           ) : (
-            <span className="rounded bg-gray-800 px-1.5 py-0.5 text-[8px] font-bold tabular-nums tracking-wide text-gray-400">
+            <span className="shrink-0 whitespace-nowrap rounded bg-gray-800 px-1.5 py-0.5 text-[8px] font-bold tabular-nums tracking-wide text-gray-400">
               {card.displayId}
             </span>
           )}
-          <div className="flex items-center gap-1">
+          <div className="flex min-w-0 items-center gap-1">
             <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
               <button
                 onClick={(e) => {
@@ -326,7 +390,7 @@ export function KanbanCard({
                 }}
                 aria-label={s?.changeTag ?? 'Change tag'}
                 aria-expanded={tagDropdownOpen}
-                className="flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[8px] font-medium transition-colors hover:ring-1 hover:ring-gray-600"
+                className="flex max-w-[110px] items-center gap-1 rounded-full px-1.5 py-0.5 text-[8px] font-medium transition-colors hover:ring-1 hover:ring-gray-600"
                 style={
                   card.tagColor
                     ? {
@@ -338,14 +402,16 @@ export function KanbanCard({
               >
                 {card.tagColor && (
                   <span
-                    className="h-1.5 w-1.5 rounded-full"
+                    className="h-1.5 w-1.5 shrink-0 rounded-full"
                     style={{ backgroundColor: card.tagColor }}
                   />
                 )}
-                {card.tagName ?? (s?.noTag ?? 'No tag')}
+                <span className="truncate">
+                  {card.tagName ? formatTagNameCms({ name: card.tagName, nameTranslations: card.tagNameTranslations }) : (s?.noTag ?? 'No tag')}
+                </span>
               </button>
               {tagDropdownOpen && (
-                <div className="absolute right-0 top-full z-50 mt-1 w-36 rounded-md border border-gray-700 bg-gray-900 py-1 shadow-xl">
+                <div className="absolute right-0 top-full z-50 mt-1 w-44 rounded-md border border-gray-700 bg-gray-900 py-1 shadow-xl">
                   <button
                     onClick={() => handleTagSelect(null)}
                     className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[10px] hover:bg-gray-800 ${
@@ -366,9 +432,40 @@ export function KanbanCard({
                         className="h-2 w-2 shrink-0 rounded-full"
                         style={{ backgroundColor: t.color }}
                       />
-                      {t.name}
+                      {formatTagNameCms({ name: t.name, nameTranslations: t.nameTranslations })}
                     </button>
                   ))}
+                  {onCreateAndAssignTag && (
+                    <>
+                      <div className="my-1 h-px bg-gray-800" />
+                      <div className="px-2 py-1">
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="text"
+                            value={newTagName}
+                            onChange={(e) => setNewTagName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') { e.preventDefault(); handleCreateAndAssignTag() }
+                              e.stopPropagation()
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            placeholder={defaultLocale ? `${LOCALE_FLAGS[defaultLocale] ?? ''} ${LOCALE_LABELS[defaultLocale] ?? defaultLocale} name...` : 'New tag...'}
+                            disabled={creatingTag}
+                            className="flex-1 min-w-0 bg-gray-950 border border-gray-700 rounded px-1.5 py-1 text-[10px] text-gray-300 placeholder-gray-600 outline-none focus:border-indigo-500 disabled:opacity-50"
+                          />
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleCreateAndAssignTag() }}
+                            disabled={!newTagName.trim() || creatingTag}
+                            className="rounded bg-indigo-600 p-1 text-white hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                          >
+                            <Plus className="h-3 w-3" />
+                          </button>
+                        </div>
+                        <p className="text-[8px] text-gray-600 mt-0.5 px-0.5">{strings?.editorial.addTranslationsLater ?? 'Add translations in tag settings'}</p>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -453,17 +550,21 @@ export function KanbanCard({
               <p className="px-3 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-gray-600">
                 {s?.moveTo ?? 'Move to'}
               </p>
-              {validTargets.map((status) => (
-                <button
-                  key={status}
-                  role="menuitem"
-                  onClick={() => handleContextMove(status)}
-                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-gray-300 hover:bg-gray-800"
-                >
-                  <ArrowRight className="h-3 w-3" />
-                  {strings?.editorial[status as keyof typeof strings.editorial] ?? status}
-                </button>
-              ))}
+              {validTargets.map((status) => {
+                const actionKey = `moveTo${status.charAt(0).toUpperCase()}${status.slice(1)}`
+                const actionLabel = (strings?.editorial as Record<string, string> | undefined)?.[actionKey] ?? status
+                return (
+                  <button
+                    key={status}
+                    role="menuitem"
+                    onClick={() => handleContextMove(status)}
+                    className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] hover:bg-gray-800 ${status === 'published' ? 'font-medium text-emerald-400' : 'text-gray-300'}`}
+                  >
+                    <ArrowRight className="h-3 w-3" />
+                    {actionLabel as string}
+                  </button>
+                )
+              })}
             </>
           )}
 
@@ -508,6 +609,32 @@ export function KanbanCard({
             )}
           </div>
 
+          {canRemoveLocale && (
+            <div className="relative" ref={removeLocaleDropdownRef}>
+              <button
+                role="menuitem"
+                onClick={() => setRemoveLocaleDropdownOpen((v) => !v)}
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-gray-300 hover:bg-gray-800"
+              >
+                <Minus className="h-3 w-3" />
+                {s?.removeLocale ?? 'Remove locale'}
+              </button>
+              {removeLocaleDropdownOpen && (
+                <div className="absolute left-full top-0 z-50 ml-1 w-28 rounded-md border border-gray-700 bg-gray-900 py-1 shadow-xl">
+                  {card.locales.map((loc) => (
+                    <button
+                      key={loc}
+                      onClick={() => handleRemoveLocaleSelect(loc)}
+                      className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[10px] text-red-400 hover:bg-gray-800"
+                    >
+                      <span className="uppercase font-medium">{loc}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <button
             role="menuitem"
             onClick={handleDuplicate}
@@ -539,13 +666,13 @@ export function KanbanCard({
 export function KanbanCardOverlay({ card }: { card: PostCard }) {
   return (
     <div className="w-[220px] rotate-2 rounded-lg border border-indigo-500/50 bg-gray-900 p-3 shadow-2xl shadow-indigo-500/10">
-      <div className="mb-1.5 flex items-center justify-between">
-        <span className="rounded bg-gray-800 px-1.5 py-0.5 text-[8px] font-bold tabular-nums tracking-wide text-gray-400">
+      <div className="mb-1.5 flex items-center justify-between gap-1">
+        <span className="shrink-0 whitespace-nowrap rounded bg-gray-800 px-1.5 py-0.5 text-[8px] font-bold tabular-nums tracking-wide text-gray-400">
           {card.displayId}
         </span>
         {card.tagName && (
           <span
-            className="flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[8px] font-medium"
+            className="flex max-w-[110px] items-center gap-1 rounded-full px-1.5 py-0.5 text-[8px] font-medium"
             style={
               card.tagColor
                 ? { backgroundColor: `${card.tagColor}20`, color: card.tagColor }
@@ -553,9 +680,9 @@ export function KanbanCardOverlay({ card }: { card: PostCard }) {
             }
           >
             {card.tagColor && (
-              <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: card.tagColor }} />
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: card.tagColor }} />
             )}
-            {card.tagName}
+            <span className="truncate">{formatTagNameCms({ name: card.tagName, nameTranslations: card.tagNameTranslations })}</span>
           </span>
         )}
       </div>

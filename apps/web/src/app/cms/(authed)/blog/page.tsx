@@ -37,8 +37,11 @@ async function TabContent({
       return <OverviewTab data={data} strings={strings} />
     }
     case 'editorial': {
-      const data = await fetchEditorialData(siteId, tagId, locale)
-      return <EditorialTab data={data} strings={strings} siteId={siteId} tagId={tagId} locale={locale} supportedLocales={supportedLocales} siteTimezone={siteTimezone} />
+      const [data, shared] = await Promise.all([
+        fetchEditorialData(siteId, tagId, locale),
+        fetchBlogSharedData(siteId),
+      ])
+      return <EditorialTab data={data} strings={strings} siteId={siteId} tagId={tagId} locale={locale} supportedLocales={supportedLocales} siteTimezone={siteTimezone} tags={shared.tags} defaultLocale={shared.defaultLocale} />
     }
     case 'schedule': {
       const data = await fetchScheduleData(siteId, tagId, locale)

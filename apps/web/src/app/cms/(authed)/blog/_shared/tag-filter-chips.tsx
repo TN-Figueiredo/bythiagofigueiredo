@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { BlogTag } from '../_hub/hub-types'
+import { formatTagNameCms } from '../_hub/tag-locale'
 
 interface TagFilterChipsProps {
   tags: BlogTag[]
@@ -81,7 +82,7 @@ export function TagFilterChips({ tags, selectedTagId, onSelect, onAdd, onEdit, a
             }`}
             style={selectedTagId === t.id ? { backgroundColor: t.color } : undefined}
           >
-            {t.name}
+            {formatTagNameCms({ name: t.name, nameTranslations: t.nameTranslations })}
             {t.postCount > 0 && (
               <span className="ml-1 opacity-60">{t.postCount}</span>
             )}

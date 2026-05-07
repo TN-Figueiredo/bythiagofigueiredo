@@ -75,10 +75,27 @@ export function HashtagInput({ siteId, selected, onChange }: HashtagInputProps) 
 
   const processBatch = useCallback(async (text: string) => {
     const parts = text.split(/[,\s]+/).map(p => p.trim().replace(/^#+/, '')).filter(Boolean)
+    const existingSlugs = new Set(selected.map(h => h.slug))
+    const newHashtags: Hashtag[] = []
     for (const part of parts) {
-      await createAndAdd(part)
+      const slug = part
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '')
+      if (existingSlugs.has(slug)) continue
+      existingSlugs.add(slug)
+      const result = await createHashtag(siteId, part)
+      if (result.ok) newHashtags.push(result.hashtag)
     }
-  }, [createAndAdd])
+    if (newHashtags.length > 0) {
+      onChange([...selected, ...newHashtags])
+    }
+    setQuery('')
+    setSuggestions([])
+    inputRef.current?.focus()
+  }, [selected, onChange, siteId])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ',') {

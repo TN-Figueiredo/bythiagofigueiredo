@@ -60,6 +60,7 @@ vi.mock('lucide-react', () => ({
   Globe: () => React.createElement('span', null, 'Globe'),
   Copy: () => React.createElement('span', null, 'Copy'),
   Sparkles: () => React.createElement('span', null, 'Sparkles'),
+  Minus: () => React.createElement('span', null, 'Minus'),
 }))
 
 /* ------------------------------------------------------------------ */
@@ -152,10 +153,10 @@ describe('KanbanCard', () => {
     const el = screen.getByRole('button', { name: /#BP-001/ })
     fireEvent.contextMenu(el)
 
-    // draft -> idea, ready, pending_review, archived
+    // draft -> idea, ready, archived (pending_review/queued are sub-states, filtered from kanban)
     expect(screen.getByText('idea')).toBeTruthy()
     expect(screen.getByText('ready')).toBeTruthy()
-    expect(screen.getByText('pending_review')).toBeTruthy()
+    expect(screen.queryByText('pending_review')).toBeNull()
     expect(screen.getByText('archived')).toBeTruthy()
   })
 

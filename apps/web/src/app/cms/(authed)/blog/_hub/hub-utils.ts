@@ -19,6 +19,12 @@ export function getValidTargets(status: string): string[] {
   return BLOG_TRANSITIONS[status] ?? []
 }
 
+const KANBAN_COLUMN_STATUSES = new Set<string>(['idea', 'draft', 'ready', 'scheduled', 'published', 'archived'])
+
+export function getKanbanMoveTargets(status: string): string[] {
+  return (BLOG_TRANSITIONS[status] ?? []).filter(s => KANBAN_COLUMN_STATUSES.has(s))
+}
+
 export function computeDisplayId(rowNumber: number): string {
   const padded = rowNumber < 1000 ? String(rowNumber).padStart(3, '0') : String(rowNumber)
   return `#BP-${padded}`

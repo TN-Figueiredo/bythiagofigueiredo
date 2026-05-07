@@ -9,12 +9,14 @@ export interface BlogHubStrings {
     searchPosts: string
     idea: string; draft: string; ready: string; scheduled: string; published: string
     review: string; queued: string
-    none: string; noTag: string; changeTag: string; addLocale: string; reassigned: string
+    none: string; noTag: string; changeTag: string; addLocale: string; removeLocale: string; changeLocale: string; reassigned: string; localeChanged: string; localeRemoved: string; lastLocale: string
     untitled: string; open: string; moreActions: string; moveTo: string; duplicate: string; delete: string
     deleted: string; deleteFailed: string; confirmDelete: string
     quickAddPlaceholder: string; ideaCreated: string; ideaFailed: string
     scheduledHint: string; readyFirst: string
     viewAllPublished: string; archived: string; showArchived: string; hideArchived: string
+    addTranslationsLater: string
+    moveToIdea: string; moveToDraft: string; moveToReady: string; moveToScheduled: string; moveToPublished: string; moveToArchived: string
   }
   deletePost: {
     triggerLabel: string; triggerAriaLabel: string
@@ -74,5 +76,6 @@ export interface BlogHubStrings {
     newsletterUnlink: string
     newsletterLinkFailed: string
     newsletterLoading: string
+    translationPlaceholder: string
   }
 }

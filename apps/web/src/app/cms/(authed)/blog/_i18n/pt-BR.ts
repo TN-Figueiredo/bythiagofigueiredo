@@ -11,12 +11,14 @@ export const ptBR: BlogHubStrings = {
     searchPosts: 'Buscar posts…',
     idea: 'Ideia', draft: 'Rascunho', ready: 'Pronto', scheduled: 'Agendado', published: 'Publicado',
     review: 'Revisão', queued: 'Na fila',
-    none: 'Nenhum', noTag: 'Sem tag', changeTag: 'Mudar tag', addLocale: 'Adicionar idioma', reassigned: 'Tag alterada',
+    none: 'Nenhum', noTag: 'Sem tag', changeTag: 'Mudar tag', addLocale: 'Adicionar idioma', removeLocale: 'Remover idioma', changeLocale: 'Mudar idioma', reassigned: 'Tag alterada', localeChanged: 'Idioma alterado', localeRemoved: 'Idioma removido', lastLocale: 'Não é possível remover o único idioma',
     untitled: 'Sem título', open: 'Abrir', moreActions: 'Mais ações', moveTo: 'Mover para', duplicate: 'Duplicar', delete: 'Excluir',
     deleted: 'Excluído', deleteFailed: 'Não foi possível excluir', confirmDelete: 'Tem certeza que deseja excluir este post?',
     quickAddPlaceholder: 'Ideia rápida…', ideaCreated: 'Ideia criada', ideaFailed: 'Não foi possível criar',
     scheduledHint: 'Apenas posts prontos', readyFirst: 'Mova para Pronto antes',
     viewAllPublished: 'Ver todos os publicados', archived: 'Arquivados', showArchived: 'Mostrar arquivados', hideArchived: 'Ocultar arquivados',
+    addTranslationsLater: 'Adicione traduções nas config. da tag',
+    moveToIdea: 'Voltar p/ ideia', moveToDraft: 'Voltar p/ rascunho', moveToReady: 'Marcar pronto', moveToScheduled: 'Agendar…', moveToPublished: 'Publicar agora', moveToArchived: 'Arquivar',
   },
   deletePost: {
     triggerLabel: 'Excluir', triggerAriaLabel: 'Excluir {title}',
@@ -78,5 +80,6 @@ export const ptBR: BlogHubStrings = {
     newsletterUnlink: 'Desvincular',
     newsletterLinkFailed: 'Falha ao carregar newsletters',
     newsletterLoading: 'Carregando...',
+    translationPlaceholder: 'Tradução (opcional)',
   },
 }

@@ -24,8 +24,11 @@ interface KanbanColumnProps {
   onDelete?: (postId: string) => Promise<void>
   onReassignTag?: (postId: string, tagId: string | null) => Promise<void>
   onAddLocale?: (postId: string, locale: string) => Promise<void>
+  onRemoveLocale?: (postId: string, locale: string) => Promise<void>
   onDuplicate?: (postId: string) => Promise<void>
+  onCreateAndAssignTag?: (postId: string, tagName: string) => Promise<void>
   onQuickAdd?: (title: string) => Promise<void>
+  defaultLocale?: string
 }
 
 export function KanbanColumn({
@@ -42,8 +45,11 @@ export function KanbanColumn({
   onDelete,
   onReassignTag,
   onAddLocale,
+  onRemoveLocale,
   onDuplicate,
+  onCreateAndAssignTag,
   onQuickAdd,
+  defaultLocale,
 }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id })
   const isDraggingInto = isOver && activeId && !cards.some((c) => c.id === activeId)
@@ -107,7 +113,10 @@ export function KanbanColumn({
               onDelete={onDelete}
               onReassignTag={onReassignTag}
               onAddLocale={onAddLocale}
+              onRemoveLocale={onRemoveLocale}
               onDuplicate={onDuplicate}
+              onCreateAndAssignTag={onCreateAndAssignTag}
+              defaultLocale={defaultLocale}
             />
           ))}
           {isDraggingInto && cards.length === 0 && (

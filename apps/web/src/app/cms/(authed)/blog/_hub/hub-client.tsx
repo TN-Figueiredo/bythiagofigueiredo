@@ -248,6 +248,8 @@ export function HubClient({
         onClose={handleCloseDrawer}
         locale={locale}
         strings={drawerStrings}
+        supportedLocales={sharedData.supportedLocales}
+        defaultLocale={sharedData.defaultLocale}
       />
     </div>
   )

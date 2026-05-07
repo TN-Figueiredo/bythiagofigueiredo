@@ -15,6 +15,11 @@ import {
   ChevronDown,
   Search,
   Globe,
+  Rocket,
+  Clock,
+  CheckCircle2,
+  Archive,
+  CircleDot,
 } from 'lucide-react'
 import type { Editor } from '@tiptap/core'
 import { TipTapEditor } from '../../_shared/editor/tiptap-editor'
@@ -29,9 +34,12 @@ import { CROP_PRESETS } from '../../_shared/media/types'
 import { StructuredFields } from '../_shared/structured-fields'
 import { HashtagInput } from '../_shared/hashtag-input'
 import { SeriesFields } from '../_shared/series-fields'
-import { createPost, deleteHubPost, duplicatePost } from '../actions'
+import { createPost, deleteHubPost, duplicatePost, changeTranslationLocale, removeTranslationLocale, movePost, createTag } from '../actions'
 import { savePost, saveCoverImage, uploadAsset, searchPosts } from '../[id]/edit/actions'
 import type { SavePostActionInput } from '../[id]/edit/actions'
+import { getValidTargets } from '../_hub/hub-utils'
+import { ScheduleModal } from '../_tabs/editorial/schedule-modal'
+import { formatTagNameCms } from '../_hub/tag-locale'
 
 const galleryEnabled = process.env.NEXT_PUBLIC_MEDIA_GALLERY_ENABLED === 'true'
 
@@ -41,7 +49,7 @@ interface PostEditionEditorProps {
   locale: string
   tagId?: string | null
   defaultLocale: string
-  tags: Array<{ id: string; name: string; color: string }>
+  tags: Array<{ id: string; name: string; color: string; nameTranslations?: Record<string, string> | null }>
   supportedLocales: string[]
   siteId: string
   // Edit mode — pass these to open an existing post
@@ -63,6 +71,8 @@ interface PostEditionEditorProps {
   initialPreviousPostId?: string | null
   initialContinuesInNext?: boolean
   initialHashtags?: Array<{ id: string; name: string; slug: string }>
+  initialStatus?: string
+  existingLocales?: string[]
   componentNames?: string[]
 }
 
@@ -84,6 +94,34 @@ const LOCALE_LABELS: Record<string, string> = {
   de: 'DE',
 }
 
+const STATUS_STYLES: Record<string, { bg: string; text: string }> = {
+  idea: { bg: 'rgba(156,163,175,0.15)', text: '#9ca3af' },
+  draft: { bg: 'rgba(99,102,241,0.15)', text: '#818cf8' },
+  pending_review: { bg: 'rgba(234,179,8,0.15)', text: '#eab308' },
+  ready: { bg: 'rgba(6,182,212,0.15)', text: '#06b6d4' },
+  scheduled: { bg: 'rgba(139,92,246,0.15)', text: '#8b5cf6' },
+  published: { bg: 'rgba(34,197,94,0.15)', text: '#22c55e' },
+  archived: { bg: 'rgba(107,114,128,0.15)', text: '#6b7280' },
+}
+
+const STATUS_ICONS: Record<string, React.ReactNode> = {
+  idea: <CircleDot size={13} />,
+  draft: <CircleDot size={13} />,
+  ready: <CheckCircle2 size={13} />,
+  scheduled: <Clock size={13} />,
+  published: <Rocket size={13} />,
+  archived: <Archive size={13} />,
+}
+
+const MOVE_ACTION_LABELS: Record<string, string> = {
+  idea: 'Back to idea',
+  draft: 'Back to draft',
+  ready: 'Mark ready',
+  scheduled: 'Schedule…',
+  published: 'Publish now',
+  archived: 'Archive',
+}
+
 function slugify(text: string): string {
   return text
     .toLowerCase()
@@ -100,13 +138,20 @@ function TagSelector({
   tags,
   selectedTagId,
   onChange,
+  onCreateTag,
+  defaultLocale,
 }: {
-  tags: Array<{ id: string; name: string; color: string }>
+  tags: Array<{ id: string; name: string; color: string; nameTranslations?: Record<string, string> | null }>
   selectedTagId: string | null
   onChange: (tagId: string | null) => void
+  onCreateTag?: (name: string) => Promise<{ id: string; name: string; color: string; nameTranslations?: Record<string, string> | null } | null>
+  defaultLocale?: string
 }) {
   const [open, setOpen] = useState(false)
+  const [newTagName, setNewTagName] = useState('')
+  const [creating, setCreating] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const selected = tags.find((t) => t.id === selectedTagId)
 
   useEffect(() => {
@@ -125,7 +170,18 @@ function TagSelector({
     }
   }, [open])
 
-  if (tags.length === 0) return null
+  async function handleCreateTag() {
+    const name = newTagName.trim()
+    if (!name || !onCreateTag || creating) return
+    setCreating(true)
+    const result = await onCreateTag(name)
+    setCreating(false)
+    if (result) {
+      onChange(result.id)
+      setNewTagName('')
+      setOpen(false)
+    }
+  }
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -144,7 +200,7 @@ function TagSelector({
             style={{ background: selected.color }}
           />
         )}
-        {selected?.name ?? 'No tag'}
+        {selected ? formatTagNameCms({ name: selected.name, nameTranslations: selected.nameTranslations }) : 'No tag'}
         <ChevronDown size={10} />
       </button>
       {open && (
@@ -168,10 +224,41 @@ function TagSelector({
                 className="h-2 w-2 rounded-full shrink-0"
                 style={{ background: t.color }}
               />
-              {t.name}
+              {formatTagNameCms({ name: t.name, nameTranslations: t.nameTranslations })}
               {t.id === selectedTagId && <span className="ml-auto text-[#818cf8]">&#10003;</span>}
             </button>
           ))}
+          {onCreateTag && (
+            <>
+              <div className="h-px bg-[#1f2937] my-1" />
+              <div className="px-2 py-1.5">
+                <div className="flex items-center gap-1.5">
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={newTagName}
+                    onChange={(e) => setNewTagName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { e.preventDefault(); handleCreateTag() }
+                      e.stopPropagation()
+                    }}
+                    placeholder={defaultLocale ? `${LOCALE_FLAGS[defaultLocale] ?? ''} ${LOCALE_LABELS[defaultLocale] ?? defaultLocale} name...` : 'New tag...'}
+                    disabled={creating}
+                    className="flex-1 bg-[#030712] border border-[#374151] rounded-md px-2 py-1 text-[11px] text-[#d1d5db] placeholder-[#4b5563] outline-none focus:border-indigo-500 disabled:opacity-50"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleCreateTag}
+                    disabled={!newTagName.trim() || creating}
+                    className="rounded-md bg-indigo-600 px-2 py-1 text-[10px] font-medium text-white hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                  >
+                    {creating ? '...' : '+'}
+                  </button>
+                </div>
+                <p className="text-[9px] text-[#4b5563] mt-1 px-0.5">Add translations in tag settings</p>
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -421,6 +508,8 @@ export function PostEditionEditor({
   initialPreviousPostId: initPrevPostId,
   initialContinuesInNext: initContinues,
   initialHashtags: initHashtags,
+  initialStatus: initStatus,
+  existingLocales: initExistingLocales,
 }: PostEditionEditorProps) {
   const router = useRouter()
   const isEditMode = !!existingPostId
@@ -441,6 +530,7 @@ export function PostEditionEditor({
   const [contentHtml, setContentHtml] = useState(initContentHtml ?? initContent ?? '')
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(initCover ?? null)
   const [selectedTagId, setSelectedTagId] = useState<string | null>(initialTagId ?? null)
+  const [localTags, setLocalTags] = useState<Array<{ id: string; name: string; color: string; nameTranslations?: Record<string, string> | null }>>([])
   const [metaTitle, setMetaTitle] = useState(initMetaTitle ?? '')
   const [metaDescription, setMetaDescription] = useState(initMetaDesc ?? '')
   const [ogImageUrl, setOgImageUrl] = useState(initOgImage ?? '')
@@ -452,6 +542,12 @@ export function PostEditionEditor({
   const [previousPostId, setPreviousPostId] = useState<string | null>(initPrevPostId ?? null)
   const [continuesInNext, setContinuesInNext] = useState(initContinues ?? false)
   const [hashtags, setHashtags] = useState<Array<{ id: string; name: string; slug: string }>>(initHashtags ?? [])
+
+  // ── Status state ──────────────────────────────────────────────────────────
+  const [currentStatus, setCurrentStatus] = useState(initStatus ?? 'draft')
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false)
+  const [showScheduleModal, setShowScheduleModal] = useState(false)
+  const statusDropdownRef = useRef<HTMLDivElement>(null)
 
   // ── UI state ──────────────────────────────────────────────────────────────
   const [showPreview, setShowPreview] = useState(false)
@@ -614,6 +710,18 @@ export function PostEditionEditor({
     }
   }
 
+  async function handleCreateTagInline(name: string): Promise<{ id: string; name: string; color: string; nameTranslations?: Record<string, string> | null } | null> {
+    const result = await createTag({ name })
+    if (!result.ok) {
+      toast.error(result.error === 'name_already_exists' ? 'Tag already exists' : 'Failed to create tag')
+      return null
+    }
+    const newTag = { id: result.tagId, name: name.trim(), color: '#6366f1', nameTranslations: null }
+    setLocalTags(prev => [...prev, newTag])
+    toast.success(`Tag "${name.trim()}" created`)
+    return newTag
+  }
+
   function handleMetaTitleChange(value: string) {
     setMetaTitle(value)
     if (!isEphemeral) {
@@ -759,6 +867,94 @@ export function PostEditionEditor({
     }
   }
 
+  async function handleChangeLocale(toLocale: string) {
+    if (!postId) return
+    const result = await changeTranslationLocale(postId, locale, toLocale)
+    if (result.ok) {
+      toast.success('Locale changed')
+      router.push(`/cms/blog/${postId}/edit`)
+    } else {
+      toast.error(result.error === 'locale_exists' ? 'Locale already exists' : 'Failed to change locale')
+    }
+  }
+
+  async function handleRemoveLocale() {
+    if (!postId) return
+    const result = await removeTranslationLocale(postId, locale)
+    if (result.ok) {
+      toast.success('Locale removed')
+      router.push(`/cms/blog/${postId}/edit`)
+    } else {
+      toast.error(result.error === 'last_locale' ? 'Cannot remove the only locale' : 'Failed to remove locale')
+    }
+  }
+
+  const allExistingLocales = initExistingLocales ?? [locale]
+  const changeLocaleTargets = supportedLocales.filter(l => l !== locale && !allExistingLocales.includes(l))
+  const canRemoveLocale = allExistingLocales.length > 1
+
+  // ── Status transitions ───────────────────────────────────────────────────
+  const EDITOR_STATUS_TARGETS = new Set(['draft', 'idea', 'ready', 'scheduled', 'published', 'archived'])
+  const statusTargets = getValidTargets(currentStatus).filter(s => EDITOR_STATUS_TARGETS.has(s))
+
+  async function handleStatusChange(newStatus: string) {
+    if (!postId) return
+    setShowStatusDropdown(false)
+
+    if (newStatus === 'scheduled') {
+      setShowScheduleModal(true)
+      return
+    }
+
+    if (hasUnsavedChanges) {
+      await saveImmediate(getSavePayload())
+    }
+
+    const result = await movePost(postId, newStatus)
+    if (result.ok) {
+      setCurrentStatus(newStatus)
+      toast.success(newStatus === 'published' ? 'Published!' : `Moved to ${newStatus}`)
+      if (newStatus === 'published') {
+        router.push('/cms/blog')
+      }
+    } else {
+      toast.error(result.error === 'invalid_transition' ? 'Invalid transition' : `Failed: ${result.error}`)
+    }
+  }
+
+  async function handleScheduleConfirm(scheduledFor: string) {
+    if (!postId) return
+    setShowScheduleModal(false)
+
+    if (hasUnsavedChanges) {
+      await saveImmediate(getSavePayload())
+    }
+
+    const result = await movePost(postId, 'scheduled', scheduledFor)
+    if (result.ok) {
+      setCurrentStatus('scheduled')
+      toast.success('Scheduled!')
+    } else {
+      toast.error(`Failed: ${result.error}`)
+    }
+  }
+
+  useEffect(() => {
+    if (!showStatusDropdown) return
+    function handleClickOutside(e: MouseEvent) {
+      if (statusDropdownRef.current && !statusDropdownRef.current.contains(e.target as Node)) setShowStatusDropdown(false)
+    }
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === 'Escape') { e.stopPropagation(); setShowStatusDropdown(false) }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [showStatusDropdown])
+
   // ── NavigationGuard save callback ─────────────────────────────────────────
   const handleGuardSave = useCallback(async () => {
     if (postId) {
@@ -799,9 +995,17 @@ export function PostEditionEditor({
     : 0
   const readingTimeMin = Math.max(1, Math.ceil(wordCount / 200))
 
+  const allTags = useMemo(
+    () => {
+      const ids = new Set(tags.map(t => t.id))
+      return [...tags, ...localTags.filter(t => !ids.has(t.id))]
+    },
+    [tags, localTags],
+  )
+
   const selectedTag = useMemo(
-    () => tags.find((t) => t.id === selectedTagId),
-    [tags, selectedTagId],
+    () => allTags.find((t) => t.id === selectedTagId),
+    [allTags, selectedTagId],
   )
 
   // ── Auto-grow textarea helper ─────────────────────────────────────────────
@@ -845,21 +1049,51 @@ export function PostEditionEditor({
           <LocalePill locale={locale} />
 
           <TagSelector
-            tags={tags}
+            tags={allTags}
             selectedTagId={selectedTagId}
             onChange={handleTagChange}
+            onCreateTag={handleCreateTagInline}
+            defaultLocale={defaultLocale}
           />
 
           {/* Status pill */}
-          <span
-            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium capitalize shrink-0 ${
-              isEphemeral
-                ? 'bg-[#374151] text-[#d1d5db] animate-pulse'
-                : 'bg-[#374151] text-[#d1d5db]'
-            }`}
-          >
-            {isEphemeral ? 'new' : 'draft'}
-          </span>
+          {isEphemeral ? (
+            <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-[#374151] text-[#d1d5db] animate-pulse shrink-0">
+              new
+            </span>
+          ) : (
+            <div className="relative" ref={statusDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setShowStatusDropdown(!showStatusDropdown)}
+                className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-medium capitalize shrink-0 transition-colors hover:bg-white/10"
+                style={{
+                  background: STATUS_STYLES[currentStatus]?.bg ?? 'rgba(55,65,81,1)',
+                  color: STATUS_STYLES[currentStatus]?.text ?? '#d1d5db',
+                }}
+              >
+                {currentStatus.replace('_', ' ')}
+                <ChevronDown size={10} />
+              </button>
+              {showStatusDropdown && statusTargets.length > 0 && (
+                <div className="absolute top-full left-0 mt-1 z-50 bg-[#111827] border border-[#374151] rounded-lg shadow-lg py-1 min-w-44">
+                  {statusTargets.map((target) => (
+                    <button
+                      key={target}
+                      type="button"
+                      onClick={() => handleStatusChange(target)}
+                      className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/5 transition-colors text-left ${target === 'published' ? 'font-medium text-emerald-400' : 'text-[#d1d5db]'}`}
+                    >
+                      <span style={{ color: STATUS_STYLES[target]?.text ?? '#9ca3af' }}>
+                        {STATUS_ICONS[target] ?? <CircleDot size={13} />}
+                      </span>
+                      {MOVE_ACTION_LABELS[target] ?? target.replace('_', ' ')}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {!isEphemeral && (
             <AutosaveIndicator state={saveState} lastSavedAt={lastSavedAt} />
@@ -891,9 +1125,13 @@ export function PostEditionEditor({
           {/* MoreMenu */}
           {!isEphemeral ? (
             <MoreMenu
-              status="draft"
+              status={currentStatus}
               onDuplicate={handleDuplicate}
               onDelete={() => setShowDeleteModal(true)}
+              changeLocaleTargets={changeLocaleTargets}
+              onChangeLocale={handleChangeLocale}
+              canRemoveLocale={canRemoveLocale}
+              onRemoveLocale={handleRemoveLocale}
             />
           ) : (
             <MoreMenu
@@ -1037,7 +1275,7 @@ export function PostEditionEditor({
                   className="h-1.5 w-1.5 rounded-full"
                   style={{ background: selectedTag.color }}
                 />
-                {selectedTag.name}
+                {formatTagNameCms({ name: selectedTag.name, nameTranslations: selectedTag.nameTranslations })}
               </span>
             </>
           )}
@@ -1076,6 +1314,15 @@ export function PostEditionEditor({
         impactLevel={contentHtml ? 'medium' : 'low'}
         onConfirm={handleDelete}
         onCancel={() => setShowDeleteModal(false)}
+      />
+
+      {/* ── Schedule modal ──────────────────────────────────────────────── */}
+      <ScheduleModal
+        isOpen={showScheduleModal}
+        postTitle={title || 'Untitled'}
+        siteTimezone="America/Sao_Paulo"
+        onConfirm={handleScheduleConfirm}
+        onCancel={() => setShowScheduleModal(false)}
       />
 
       {/* ── Media gallery modals ──────────────────────────────────────────── */}

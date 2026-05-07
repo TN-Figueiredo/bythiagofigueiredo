@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { MoreVertical, Mail, Copy, Send, Trash2, ExternalLink } from 'lucide-react'
+import { MoreVertical, Mail, Copy, Send, Trash2, ExternalLink, Globe, Minus } from 'lucide-react'
 
 interface MoreMenuProps {
   status: string
@@ -10,9 +10,13 @@ interface MoreMenuProps {
   onSendNow?: () => void
   onDelete?: () => void
   webArchiveUrl?: string | null
+  changeLocaleTargets?: string[]
+  onChangeLocale?: (toLocale: string) => void
+  canRemoveLocale?: boolean
+  onRemoveLocale?: () => void
 }
 
-export function MoreMenu({ status, onSendTest, onDuplicate, onSendNow, onDelete, webArchiveUrl }: MoreMenuProps) {
+export function MoreMenu({ status, onSendTest, onDuplicate, onSendNow, onDelete, webArchiveUrl, changeLocaleTargets, onChangeLocale, canRemoveLocale, onRemoveLocale }: MoreMenuProps) {
   const [open, setOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -48,6 +52,15 @@ export function MoreMenu({ status, onSendTest, onDuplicate, onSendNow, onDelete,
     // draft, scheduled, ephemeral
     if (onSendTest) items.push({ label: 'Send Test Email', icon: <Mail size={14} />, onClick: onSendTest })
     if (onDuplicate) items.push({ label: 'Duplicate', icon: <Copy size={14} />, onClick: onDuplicate })
+    if (changeLocaleTargets && changeLocaleTargets.length > 0 && onChangeLocale) {
+      items.push('separator')
+      for (const loc of changeLocaleTargets) {
+        items.push({ label: `Change to ${loc.toUpperCase()}`, icon: <Globe size={14} />, onClick: () => onChangeLocale(loc) })
+      }
+    }
+    if (canRemoveLocale && onRemoveLocale) {
+      items.push({ label: 'Remove this locale', icon: <Minus size={14} />, onClick: onRemoveLocale, className: 'text-[#f59e0b]' })
+    }
     items.push('separator')
     if (onSendNow) items.push({
       label: status === 'scheduled' ? 'Send Now (skip schedule)...' : 'Send Now...',

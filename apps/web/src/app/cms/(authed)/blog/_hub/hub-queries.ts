@@ -12,7 +12,7 @@ export const fetchBlogSharedData = unstable_cache(
     const [tagsResult, siteResult, badgeResult] = await Promise.all([
       supabase
         .from('blog_tags')
-        .select('id, name, slug, color, color_dark, badge, sort_order')
+        .select('id, name, slug, color, color_dark, badge, sort_order, name_translations')
         .eq('site_id', siteId)
         .order('sort_order'),
       supabase
@@ -46,6 +46,7 @@ export const fetchBlogSharedData = unstable_cache(
       color: t.color as string,
       colorDark: (t.color_dark as string | null) ?? null,
       badge: (t.badge as string | null) ?? null,
+      nameTranslations: (t.name_translations as Record<string, string> | null) ?? null,
       sortOrder: (t.sort_order as number) ?? 0,
       postCount: tagCountMap.get(t.id as string) ?? 0,
     }))
@@ -76,7 +77,7 @@ export const fetchOverviewData = unstable_cache(
 
     const [postsResult, tagsResult] = await Promise.all([
       postsQuery,
-      supabase.from('blog_tags').select('id, name, color').eq('site_id', siteId),
+      supabase.from('blog_tags').select('id, name, color, name_translations').eq('site_id', siteId),
     ])
 
     let posts = postsResult.data ?? []
@@ -147,11 +148,12 @@ export const fetchOverviewData = unstable_cache(
       tagId: t.id as string,
       tagName: t.name as string,
       tagColor: t.color as string,
+      tagNameTranslations: (t.name_translations as Record<string, string> | null) ?? null,
       count: posts.filter((p) => p.tag_id === t.id).length,
     }))
     const untaggedCount = posts.filter((p) => !p.tag_id).length
     if (untaggedCount > 0) {
-      tagBreakdown.push({ tagId: null as unknown as string, tagName: 'Untagged', tagColor: '#6b7280', count: untaggedCount })
+      tagBreakdown.push({ tagId: null as unknown as string, tagName: 'Untagged', tagColor: '#6b7280', tagNameTranslations: null, count: untaggedCount })
     }
     tagBreakdown.sort((a, b) => b.count - a.count)
 
@@ -167,6 +169,7 @@ export const fetchOverviewData = unstable_cache(
           title: txs[0]?.title ?? 'Untitled',
           tagName: (tag?.name as string) ?? null,
           tagColor: (tag?.color as string) ?? null,
+          tagNameTranslations: (tag?.name_translations as Record<string, string> | null) ?? null,
           locales: txs.map((t) => t.locale),
           publishedAt: p.published_at!,
           readingTimeMin: txs[0]?.reading_time_min ?? null,
@@ -264,7 +267,7 @@ export const fetchEditorialData = unstable_cache(
 
     const { data: rawPosts } = await supabase
       .from('blog_posts')
-      .select('id, status, tag_id, published_at, scheduled_for, slot_date, created_at, updated_at, blog_translations(locale, title, slug, reading_time_min, content_mdx), blog_tags(id, name, color)')
+      .select('id, status, tag_id, published_at, scheduled_for, slot_date, created_at, updated_at, blog_translations(locale, title, slug, reading_time_min, content_mdx), blog_tags(id, name, color, name_translations)')
       .eq('site_id', siteId)
       .order('created_at', { ascending: true })
 
@@ -272,7 +275,7 @@ export const fetchEditorialData = unstable_cache(
 
     type RawPost = typeof allPosts[number] & {
       blog_translations: Array<{ locale: string; title: string; slug: string; reading_time_min: number | null; content_mdx: string }>
-      blog_tags: { id: string; name: string; color: string } | null
+      blog_tags: { id: string; name: string; color: string; name_translations: Record<string, string> | null } | null
     }
 
     // Assign stable displayIds from the full unfiltered set (creation order)
@@ -305,6 +308,7 @@ export const fetchEditorialData = unstable_cache(
         tagId: p.tag_id as string | null,
         tagName: p.blog_tags?.name ?? null,
         tagColor: p.blog_tags?.color ?? null,
+        tagNameTranslations: (p.blog_tags?.name_translations as Record<string, string> | null) ?? null,
         locales: txs.map((t) => t.locale),
         readingTimeMin: preferredTx?.reading_time_min ?? null,
         createdAt: p.created_at as string,
@@ -358,7 +362,7 @@ export const fetchScheduleData = unstable_cache(
     const [postsResult, cadenceResult, siteResult, readyPostsResult] = await Promise.all([
       supabase
         .from('blog_posts')
-        .select('id, status, tag_id, published_at, scheduled_for, slot_date, created_at, blog_translations(locale, title, reading_time_min), blog_tags(name, color)')
+        .select('id, status, tag_id, published_at, scheduled_for, slot_date, created_at, blog_translations(locale, title, reading_time_min), blog_tags(name, color, name_translations)')
         .eq('site_id', siteId)
         .in('status', ['scheduled', 'queued', 'published', 'ready']),
       supabase
@@ -372,7 +376,7 @@ export const fetchScheduleData = unstable_cache(
         .single(),
       supabase
         .from('blog_posts')
-        .select('id, created_at, blog_translations(title, locale), blog_tags(name, color)')
+        .select('id, created_at, blog_translations(title, locale), blog_tags(name, color, name_translations)')
         .eq('site_id', siteId)
         .eq('status', 'ready')
         .order('created_at'),
@@ -409,7 +413,7 @@ export const fetchScheduleData = unstable_cache(
 
     type PostWithRelations = typeof posts[number] & {
       blog_translations: Array<{ locale: string; title: string; reading_time_min: number | null }>
-      blog_tags: { name: string; color: string } | null
+      blog_tags: { name: string; color: string; name_translations: Record<string, string> | null } | null
     }
 
     const sortedPosts = [...(posts as unknown as PostWithRelations[])].sort(
@@ -436,6 +440,7 @@ export const fetchScheduleData = unstable_cache(
             title: txs[0]?.title ?? 'Untitled',
             tagName: p.blog_tags?.name ?? null,
             tagColor: p.blog_tags?.color ?? null,
+            tagNameTranslations: (p.blog_tags?.name_translations as Record<string, string> | null) ?? null,
             status: p.status as string,
             locale: txs[0]?.locale ?? 'en',
           })
@@ -488,7 +493,7 @@ export const fetchScheduleData = unstable_cache(
       id: string
       created_at: string
       blog_translations: Array<{ title: string; locale: string }>
-      blog_tags: { name: string; color: string } | null
+      blog_tags: { name: string; color: string; name_translations: Record<string, string> | null } | null
     }
     const readyPosts: ReadyPost[] = (readyPostsResult.data ?? []).map((p, idx) => {
       const row = p as unknown as ReadyPostRaw
@@ -499,6 +504,7 @@ export const fetchScheduleData = unstable_cache(
         title: txs[0]?.title ?? 'Untitled',
         tagName: row.blog_tags?.name ?? null,
         tagColor: row.blog_tags?.color ?? null,
+        tagNameTranslations: (row.blog_tags?.name_translations as Record<string, string> | null) ?? null,
         locales: txs.map((t) => t.locale),
       }
     })

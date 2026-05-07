@@ -20,7 +20,7 @@ export default async function NewPostPage({
   const [tagsResult, siteResult] = await Promise.all([
     supabase
       .from('blog_tags')
-      .select('id, name, color')
+      .select('id, name, color, name_translations')
       .eq('site_id', ctx.siteId)
       .order('sort_order', { ascending: true }),
     supabase
@@ -30,7 +30,12 @@ export default async function NewPostPage({
       .single(),
   ])
 
-  const tags = (tagsResult.data ?? []) as Array<{ id: string; name: string; color: string }>
+  const tags = (tagsResult.data ?? []).map((t: { id: string; name: string; color: string; name_translations?: Record<string, string> | null }) => ({
+    id: t.id,
+    name: t.name,
+    color: t.color,
+    nameTranslations: t.name_translations ?? null,
+  }))
   const supportedLocales = (siteResult.data?.supported_locales as string[] | null) ?? [ctx.defaultLocale]
 
   return (

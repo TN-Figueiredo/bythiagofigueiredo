@@ -7,6 +7,7 @@ export interface BlogTag {
   color: string
   colorDark: string | null
   badge: string | null
+  nameTranslations: Record<string, string> | null
   sortOrder: number
   postCount: number
 }
@@ -28,6 +29,7 @@ export interface PostCard {
   tagId: string | null
   tagName: string | null
   tagColor: string | null
+  tagNameTranslations: Record<string, string> | null
   locales: string[]
   readingTimeMin: number | null
   createdAt: string
@@ -50,12 +52,13 @@ export interface OverviewTabData {
     draftBacklogTrend: number
   }
   sparklines: Record<'totalPosts' | 'published' | 'avgReadingTime' | 'draftBacklog', number[]>
-  tagBreakdown: Array<{ tagId: string | null; tagName: string; tagColor: string; count: number }>
+  tagBreakdown: Array<{ tagId: string | null; tagName: string; tagColor: string; tagNameTranslations: Record<string, string> | null; count: number }>
   recentPublications: Array<{
     id: string
     title: string
     tagName: string | null
     tagColor: string | null
+    tagNameTranslations: Record<string, string> | null
     locales: string[]
     publishedAt: string
     readingTimeMin: number | null
@@ -75,7 +78,7 @@ export interface EditorialTabData {
 
 export interface ScheduleSlot {
   date: string
-  posts: Array<{ id: string; displayId: string; title: string; tagName: string | null; tagColor: string | null; status: string; locale: string }>
+  posts: Array<{ id: string; displayId: string; title: string; tagName: string | null; tagColor: string | null; tagNameTranslations: Record<string, string> | null; status: string; locale: string }>
   emptySlots: Array<{ locale: string }>
 }
 
@@ -94,6 +97,7 @@ export interface ReadyPost {
   title: string
   tagName: string | null
   tagColor: string | null
+  tagNameTranslations: Record<string, string> | null
   locales: string[]
 }
 

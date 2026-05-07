@@ -11,12 +11,14 @@ export const en: BlogHubStrings = {
     searchPosts: 'Search posts…',
     idea: 'Idea', draft: 'Draft', ready: 'Ready', scheduled: 'Scheduled', published: 'Published',
     review: 'Review', queued: 'Queued',
-    none: 'None', noTag: 'No tag', changeTag: 'Change tag', addLocale: 'Add locale', reassigned: 'Tag changed',
+    none: 'None', noTag: 'No tag', changeTag: 'Change tag', addLocale: 'Add locale', removeLocale: 'Remove locale', changeLocale: 'Change locale', reassigned: 'Tag changed', localeChanged: 'Locale changed', localeRemoved: 'Locale removed', lastLocale: 'Cannot remove the only locale',
     untitled: 'Untitled', open: 'Open', moreActions: 'More actions', moveTo: 'Move to', duplicate: 'Duplicate', delete: 'Delete',
     deleted: 'Deleted', deleteFailed: "Couldn't delete", confirmDelete: 'Are you sure you want to delete this post?',
     quickAddPlaceholder: 'Quick idea…', ideaCreated: 'Idea created', ideaFailed: "Couldn't create idea",
     scheduledHint: 'Only ready posts', readyFirst: 'Move to Ready first',
     viewAllPublished: 'View all published', archived: 'Archived', showArchived: 'Show archived', hideArchived: 'Hide archived',
+    addTranslationsLater: 'Add translations in tag settings',
+    moveToIdea: 'Back to idea', moveToDraft: 'Back to draft', moveToReady: 'Mark ready', moveToScheduled: 'Schedule…', moveToPublished: 'Publish now', moveToArchived: 'Archive',
   },
   deletePost: {
     triggerLabel: 'Delete', triggerAriaLabel: 'Delete {title}',
@@ -78,5 +80,6 @@ export const en: BlogHubStrings = {
     newsletterUnlink: 'Unlink',
     newsletterLinkFailed: 'Failed to load newsletters',
     newsletterLoading: 'Loading...',
+    translationPlaceholder: 'Translation (optional)',
   },
 }

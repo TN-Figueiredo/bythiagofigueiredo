@@ -54,12 +54,15 @@ interface KanbanBoardProps {
   onDeletePost?: (postId: string) => Promise<void>
   onReassignTag?: (postId: string, tagId: string | null) => Promise<void>
   onAddLocale?: (postId: string, locale: string) => Promise<void>
+  onRemoveLocale?: (postId: string, locale: string) => Promise<void>
   onDuplicate?: (postId: string) => Promise<void>
+  onCreateAndAssignTag?: (postId: string, tagName: string) => Promise<void>
   onQuickAdd?: (title: string) => Promise<void>
   strings?: BlogHubStrings
   tags?: BlogTag[]
   supportedLocales?: string[]
   siteTimezone?: string
+  defaultLocale?: string
 }
 
 export function KanbanBoard({
@@ -69,12 +72,15 @@ export function KanbanBoard({
   onDeletePost,
   onReassignTag,
   onAddLocale,
+  onRemoveLocale,
   onDuplicate,
+  onCreateAndAssignTag,
   onQuickAdd,
   strings,
   tags,
   supportedLocales,
   siteTimezone = 'America/Sao_Paulo',
+  defaultLocale,
 }: KanbanBoardProps) {
   const dndId = useId()
   const sensors = useSensors(
@@ -198,12 +204,6 @@ export function KanbanBoard({
 
       if (!newCol) return
 
-      // Gate: tag required for ready/scheduled
-      if ((newCol === 'ready' || newCol === 'scheduled') && !originalPost.tagId) {
-        toast.error(strings?.editorial.noTag ?? 'Assign a tag first')
-        return
-      }
-
       // When dropping into 'scheduled', only allow from 'ready' column
       if (newCol === 'scheduled') {
         if (origCol !== 'ready') {
@@ -260,11 +260,6 @@ export function KanbanBoard({
   const handleMoveToStatus = useCallback(async (postId: string, newStatus: string) => {
     const card = working.find((p) => p.id === postId)
 
-    if ((newStatus === 'ready' || newStatus === 'scheduled') && card && !card.tagId) {
-      toast.error(strings?.editorial.noTag ?? 'Assign a tag first')
-      return
-    }
-
     if (newStatus === 'scheduled') {
       setPendingSchedule({ postId, postTitle: card?.title ?? 'Untitled' })
       return
@@ -302,8 +297,11 @@ export function KanbanBoard({
               onDelete={onDeletePost}
               onReassignTag={onReassignTag}
               onAddLocale={onAddLocale}
+              onRemoveLocale={onRemoveLocale}
               onDuplicate={onDuplicate}
+              onCreateAndAssignTag={onCreateAndAssignTag}
               onQuickAdd={col.id === 'idea' ? onQuickAdd : undefined}
+              defaultLocale={defaultLocale}
             />
           )
         })}
