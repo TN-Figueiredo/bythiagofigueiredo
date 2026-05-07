@@ -28,6 +28,7 @@ import {
 } from './actions'
 import { TimezonePicker } from './_components/timezone-picker'
 import { DualClockCards } from './_components/dual-clock-cards'
+import { SlotManager } from '@/components/instagram/slot-manager'
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                             */
@@ -86,11 +87,26 @@ interface YouTubeChannelData {
   schedule_label: string | null
 }
 
+interface InstagramAccountData {
+  id: string
+  locale: 'pt' | 'en'
+  handle: string
+  sync_enabled: boolean
+  display_slots: number
+  layout_type: 'grid' | 'scatter'
+  last_synced_at: string | null
+  token_expires_at: string | null
+  posts: { id: string; cached_image_url: string | null; caption: string | null }[]
+  sync_logs: { mode: string; status: string; posts_found: number; posts_inserted: number; posts_updated: number; created_at: string; error_message: string | null }[]
+  slots: { id: string; position: number; post_id: string | null; thumbnail_url: string | null; caption: string | null }[]
+}
+
 interface Props {
   site: SiteData
   newsletterTypes: NewsletterTypeData[]
   blogCadence: BlogCadenceData[]
   youtubeChannels?: YouTubeChannelData[]
+  instagramAccounts?: InstagramAccountData[]
   initialSection: string
   seoFlags?: SeoFlags
   readOnly?: boolean
@@ -102,6 +118,7 @@ type SectionId =
   | 'newsletters'
   | 'blog-cadence'
   | 'youtube'
+  | 'instagram'
   | 'localization'
   | 'danger-zone'
 
@@ -113,6 +130,7 @@ const SECTIONS: { id: SectionId; label: string }[] = [
   { id: 'newsletters', label: 'Newsletters' },
   { id: 'blog-cadence', label: 'Blog Cadence' },
   { id: 'youtube', label: 'YouTube' },
+  { id: 'instagram', label: 'Instagram' },
   { id: 'localization', label: 'Localization' },
   { id: 'danger-zone', label: 'Danger Zone' },
 ]

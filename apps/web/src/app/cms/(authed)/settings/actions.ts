@@ -486,3 +486,182 @@ export async function removeYouTubeChannel(input: z.infer<typeof removeChannelSc
   revalidatePath('/')
   return { ok: true }
 }
+
+// ── Instagram ──────────────────────────────────────────────────────
+
+const instagramAccountSchema = z.object({
+  handle: z.string().min(1).max(50),
+  locale: z.enum(['pt', 'en']),
+})
+
+const instagramSettingsSchema = z.object({
+  accountId: z.string().uuid(),
+  sync_enabled: z.boolean().optional(),
+  display_slots: z.number().int().min(1).max(12).optional(),
+  layout_type: z.enum(['grid', 'scatter']).optional(),
+})
+
+const instagramTokenSchema = z.object({
+  accountId: z.string().uuid(),
+  accessToken: z.string().min(1),
+})
+
+const instagramSlotSchema = z.object({
+  accountId: z.string().uuid(),
+  slots: z.array(z.object({
+    position: z.number().int().min(1).max(12),
+    postId: z.string().uuid().nullable(),
+  })),
+})
+
+export async function addInstagramAccount(input: {
+  handle: string
+  locale: string
+}): Promise<ActionResult> {
+  const parsed = instagramAccountSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
+  const siteId = await requireEditAccess()
+  const supabase = getSupabaseServiceClient()
+
+  const { error } = await supabase
+    .from('instagram_accounts')
+    .insert({
+      site_id: siteId,
+      handle: parsed.data.handle,
+      locale: parsed.data.locale,
+    })
+    .select('id')
+    .single()
+
+  if (error) return { ok: false, error: error.message }
+  revalidatePath('/cms/settings')
+  return { ok: true }
+}
+
+export async function removeInstagramAccount(input: {
+  accountId: string
+}): Promise<ActionResult> {
+  const parsed = z.object({ accountId: z.string().uuid() }).safeParse(input)
+  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
+  await requireEditAccess()
+  const supabase = getSupabaseServiceClient()
+
+  const { error } = await supabase
+    .from('instagram_accounts')
+    .delete()
+    .eq('id', parsed.data.accountId)
+
+  if (error) return { ok: false, error: error.message }
+  revalidatePath('/cms/settings')
+  revalidateTag('instagram-feed')
+  return { ok: true }
+}
+
+export async function updateInstagramSettings(input: {
+  accountId: string
+  sync_enabled?: boolean
+  display_slots?: number
+  layout_type?: 'grid' | 'scatter'
+}): Promise<ActionResult> {
+  const parsed = instagramSettingsSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
+  await requireEditAccess()
+  const supabase = getSupabaseServiceClient()
+  const { accountId, ...updates } = parsed.data
+
+  const { error } = await supabase
+    .from('instagram_accounts')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', accountId)
+
+  if (error) return { ok: false, error: error.message }
+  revalidatePath('/cms/settings')
+  revalidateTag('instagram-feed')
+  return { ok: true }
+}
+
+export async function setInstagramToken(input: {
+  accountId: string
+  accessToken: string
+}): Promise<ActionResult> {
+  const parsed = instagramTokenSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
+  await requireEditAccess()
+  const supabase = getSupabaseServiceClient()
+
+  let igUserId: string | null = null
+  try {
+    const { fetchInstagramProfile } = await import('@/lib/instagram/api-client')
+    const profile = await fetchInstagramProfile(parsed.data.accessToken)
+    igUserId = profile.id
+  } catch {
+    return { ok: false, error: 'Invalid token — could not fetch Instagram profile' }
+  }
+
+  const expiresAt = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString()
+
+  const { error } = await supabase
+    .from('instagram_accounts')
+    .update({
+      access_token: parsed.data.accessToken,
+      ig_user_id: igUserId,
+      token_expires_at: expiresAt,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', parsed.data.accountId)
+
+  if (error) return { ok: false, error: error.message }
+  revalidatePath('/cms/settings')
+  return { ok: true }
+}
+
+export async function triggerInstagramSync(input: {
+  accountId: string
+}): Promise<ActionResult> {
+  const parsed = z.object({ accountId: z.string().uuid() }).safeParse(input)
+  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
+  await requireEditAccess()
+
+  const cronSecret = process.env.CRON_SECRET
+  if (!cronSecret) return { ok: false, error: 'CRON_SECRET not configured' }
+
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+    const res = await fetch(
+      `${baseUrl}/api/cron/instagram-sync?mode=manual&accountId=${parsed.data.accountId}`,
+      { headers: { authorization: `Bearer ${cronSecret}` } },
+    )
+    if (!res.ok) return { ok: false, error: `Sync failed: ${res.status}` }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Sync request failed' }
+  }
+
+  revalidatePath('/cms/settings')
+  return { ok: true }
+}
+
+export async function updateInstagramSlots(input: {
+  accountId: string
+  slots: { position: number; postId: string | null }[]
+}): Promise<ActionResult> {
+  const parsed = instagramSlotSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
+  await requireEditAccess()
+  const supabase = getSupabaseServiceClient()
+
+  const rows = parsed.data.slots.map((s) => ({
+    account_id: parsed.data.accountId,
+    position: s.position,
+    post_id: s.postId,
+    updated_at: new Date().toISOString(),
+  }))
+
+  const { error } = await supabase
+    .from('instagram_feed_slots')
+    .upsert(rows, { onConflict: 'account_id,position' })
+
+  if (error) return { ok: false, error: error.message }
+  revalidateTag('instagram-feed')
+  revalidatePath('/cms/settings')
+  return { ok: true }
+}

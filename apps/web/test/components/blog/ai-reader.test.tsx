@@ -4,19 +4,14 @@ import { AiReaderButton } from '../../../src/components/blog/ai-reader-button'
 import { AiReaderDrawer } from '../../../src/components/blog/ai-reader-drawer'
 
 describe('AiReaderButton', () => {
-  it('renders pill with Ler com IA label', () => {
+  it('returns null (feature hidden)', () => {
     const { container } = render(<AiReaderButton onClick={() => {}} />)
-    expect(container.textContent).toContain('Ler com IA')
+    expect(container.innerHTML).toBe('')
   })
 
   it('returns null when hidden is true', () => {
     const { container } = render(<AiReaderButton onClick={() => {}} hidden />)
     expect(container.innerHTML).toBe('')
-  })
-
-  it('renders subtitle text', () => {
-    const { container } = render(<AiReaderButton onClick={() => {}} />)
-    expect(container.textContent).toContain('Resumo, explicacao, conversa')
   })
 })
 

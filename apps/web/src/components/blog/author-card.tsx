@@ -19,15 +19,23 @@ export function AuthorCard({ author, locale, t: _t }: Props) {
       <div className="blog-sidebar-label mb-5">{locale === 'pt-BR' ? 'Sobre quem escreveu' : 'About the author'}</div>
 
       <div className="flex gap-4 items-center mb-4">
-        <div
-          className="w-14 h-14 rounded-full flex items-center justify-center font-fraunces font-semibold text-lg shrink-0"
-          style={{
-            background: 'linear-gradient(135deg, var(--pb-accent), var(--pb-marker))',
-            color: 'var(--pb-ink-on-accent)',
-          }}
-        >
-          {author.initials}
-        </div>
+        {author.avatarUrl ? (
+          <img
+            src={author.avatarUrl}
+            alt={author.name}
+            className="w-14 h-14 rounded-full object-cover shrink-0"
+          />
+        ) : (
+          <div
+            className="w-14 h-14 rounded-full flex items-center justify-center font-fraunces font-semibold text-lg shrink-0"
+            style={{
+              background: 'linear-gradient(135deg, var(--pb-accent), var(--pb-marker))',
+              color: 'var(--pb-ink-on-accent)',
+            }}
+          >
+            {author.initials}
+          </div>
+        )}
         <div>
           <div className="font-fraunces text-xl" style={{ fontWeight: 500, color: 'var(--pb-ink)' }}>
             {author.name}

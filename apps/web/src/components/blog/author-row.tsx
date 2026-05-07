@@ -44,17 +44,26 @@ export function AuthorRow({ author, engagement, locale, url }: Props) {
 
   return (
     <div className="flex items-center gap-4 mb-8 flex-wrap">
-      <div
-        className="w-10 h-10 rounded-full flex items-center justify-center font-fraunces font-semibold text-sm shrink-0"
-        style={{
-          background: 'linear-gradient(135deg, var(--pb-accent), var(--pb-marker))',
-          color: 'var(--pb-ink-on-accent)',
-          border: '2px solid var(--pb-paper)',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
-        }}
-      >
-        {author.initials}
-      </div>
+      {author.avatarUrl ? (
+        <img
+          src={author.avatarUrl}
+          alt={author.name}
+          className="w-10 h-10 rounded-full object-cover shrink-0"
+          style={{ border: '2px solid var(--pb-paper)', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }}
+        />
+      ) : (
+        <div
+          className="w-10 h-10 rounded-full flex items-center justify-center font-fraunces font-semibold text-sm shrink-0"
+          style={{
+            background: 'linear-gradient(135deg, var(--pb-accent), var(--pb-marker))',
+            color: 'var(--pb-ink-on-accent)',
+            border: '2px solid var(--pb-paper)',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+          }}
+        >
+          {author.initials}
+        </div>
+      )}
       <div>
         <div className="text-sm text-pb-ink">
           por <span className="underline underline-offset-2">{author.name}</span>

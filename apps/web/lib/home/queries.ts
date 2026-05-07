@@ -1,4 +1,4 @@
-import type { HomeChannel, HomeNewsletter, HomePost, HomeTag, HomeVideo } from './types'
+import type { HomeChannel, HomeInstagramPost, HomeNewsletter, HomePost, HomeTag, HomeVideo } from './types'
 import { getSupabaseServiceClient } from '../supabase/service'
 import { getSiteContext } from '../cms/site-context'
 import { COLD_START_THRESHOLD } from '../tracking/config'
@@ -408,4 +408,22 @@ export const getVideoCount = unstable_cache(
   },
   ['video-count'],
   { revalidate: 3600, tags: ['youtube'] },
+)
+
+export const getInstagramPosts = unstable_cache(
+  async (siteId: string, locale: string, limit = 6): Promise<HomeInstagramPost[]> => {
+    const { getInstagramFeedData } = await import('@/lib/instagram/queries')
+    const { slots } = await getInstagramFeedData(siteId, locale, limit)
+    return slots.map((s) => ({
+      id: s.post.id,
+      cachedImageUrl: s.post.cachedImageUrl,
+      caption: s.post.caption,
+      permalink: s.post.permalink,
+      likeCount: s.post.likeCount,
+      igTimestamp: s.post.igTimestamp,
+      pinned: s.pinned,
+    }))
+  },
+  ['home-instagram-posts'],
+  { revalidate: 3600, tags: ['instagram-feed'] },
 )

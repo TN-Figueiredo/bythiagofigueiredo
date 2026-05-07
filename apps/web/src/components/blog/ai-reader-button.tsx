@@ -13,8 +13,10 @@ function SparkIcon({ size = 18, color = 'currentColor' }: { size?: number; color
 
 export { SparkIcon }
 
-export function AiReaderButton({ onClick, hidden }: Props) {
-  if (hidden) return null
+export function AiReaderButton({ onClick: _onClick, hidden: _hidden }: Props) {
+  return null
+  /* hidden until ready
+  if (_hidden) return null
   return (
     <button
       onClick={onClick}
@@ -39,4 +41,5 @@ export function AiReaderButton({ onClick, hidden }: Props) {
       </span>
     </button>
   )
+  */
 }

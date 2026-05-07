@@ -9,6 +9,7 @@ export function useActiveNav(): HeaderCurrent {
 
   if (bare === '/') return 'home'
   if (bare.startsWith('/blog')) return 'blog'
+  if (bare.startsWith('/youtube')) return 'youtube'
   if (bare.startsWith('/newsletters')) return 'newsletters'
   if (bare.startsWith('/about')) return 'about'
   if (bare.startsWith('/contact')) return 'contact'

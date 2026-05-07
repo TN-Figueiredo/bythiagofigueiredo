@@ -193,6 +193,9 @@ CREATE TABLE IF NOT EXISTS public.instagram_sync_log (
   CONSTRAINT instagram_sync_log_status_check
     CHECK (status IN ('started', 'completed', 'failed'))
 );
+
+CREATE INDEX idx_instagram_sync_log_recent
+  ON public.instagram_sync_log (site_id, created_at DESC);
 ```
 
 ### RLS Policies
@@ -547,7 +550,7 @@ This replaces the static mock data currently in the Pinboard design.
 
 ## Cron Jobs
 
-### POST /api/cron/instagram-sync
+### GET /api/cron/instagram-sync
 
 **File:** `apps/web/src/app/api/cron/instagram-sync/route.ts`
 
@@ -568,7 +571,7 @@ export async function GET(req: NextRequest) {
 
 **Manual trigger:** Same endpoint with `?mode=manual` query param. Called from the "Sync Now" button in CMS settings.
 
-### POST /api/cron/instagram-token-refresh
+### GET /api/cron/instagram-token-refresh
 
 **File:** `apps/web/src/app/api/cron/instagram-token-refresh/route.ts`
 
@@ -597,14 +600,18 @@ export async function GET(req: NextRequest) {
 
 ## Environment Variables
 
+**No new environment variables required for MVP.**
+
+- Tokens are stored per-account in the `instagram_accounts` table, not as env vars.
+- The Instagram Graph API `refresh_access_token` endpoint only requires the existing access token — no App Secret needed.
+- `INSTAGRAM_APP_ID` / `INSTAGRAM_APP_SECRET` — only needed if implementing OAuth flow later (out of scope for MVP).
+
+**If OAuth flow is added later**, add:
+
 | Variable | Where | Purpose |
 |----------|-------|---------|
-| `INSTAGRAM_APP_SECRET` | Vercel (secret) | Meta App Secret for token refresh endpoint |
-
-**Not needed:**
-- `INSTAGRAM_APP_ID` — only needed if implementing OAuth flow. For MVP, token is pasted manually.
-- Per-account tokens — stored in DB, not env vars.
-- `INSTAGRAM_ACCESS_TOKEN` — tokens are per-account in the `instagram_accounts` table.
+| `INSTAGRAM_APP_ID` | Vercel (public) | Meta App ID for OAuth redirect |
+| `INSTAGRAM_APP_SECRET` | Vercel (secret) | Meta App Secret for code → token exchange |
 
 ---
 

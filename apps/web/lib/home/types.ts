@@ -62,3 +62,13 @@ export type HomeTag = {
   colorDark: string | null
   postCount: number
 }
+
+export interface HomeInstagramPost {
+  id: string
+  cachedImageUrl: string | null
+  caption: string | null
+  permalink: string
+  likeCount: number
+  igTimestamp: string
+  pinned: boolean
+}

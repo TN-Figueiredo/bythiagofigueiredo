@@ -13,6 +13,7 @@ import { CROP_PRESETS } from '../../../_shared/media/types'
 import { trackMediaUsageAction } from '../../../media/actions'
 import { useAutosave } from '../../../_shared/editor/use-autosave'
 import { AutosaveIndicator } from '../../../_shared/editor/autosave-indicator'
+import { SaveBar } from '../../../_shared/editor/save-bar'
 import { NavigationGuard } from '../../../_shared/editor/navigation-guard'
 import { ReadOnlyOverlay } from '../../../_shared/editor/read-only-overlay'
 import { DeleteConfirmModal } from '../../../_shared/editor/delete-confirm-modal'
@@ -75,7 +76,8 @@ interface EditionEditorProps {
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
-const LOCKED_STATUSES = ['sending', 'sent', 'failed', 'cancelled']
+const LOCKED_STATUSES = new Set(['sending', 'sent', 'failed', 'cancelled'])
+const AUTO_SAVE_STATUSES = new Set(['draft', 'idea'])
 
 const STATUS_PILL: Record<string, string> = {
   draft: 'bg-[#374151] text-[#d1d5db]',
@@ -111,7 +113,8 @@ export function EditionEditor({
   const isCreatingRef = useRef(false)
 
   const status = edition?.status ?? 'draft'
-  const isReadOnly = LOCKED_STATUSES.includes(status)
+  const isReadOnly = LOCKED_STATUSES.has(status)
+  const saveMode = AUTO_SAVE_STATUSES.has(status) ? 'auto' as const : 'manual' as const
 
   // ── Field state ───────────────────────────────────────────────────────────
   const [subject, setSubject] = useState(edition?.subject ?? '')
@@ -147,10 +150,12 @@ export function EditionEditor({
     return saveEdition(editionId, data as Parameters<typeof saveEdition>[1])
   }, [editionId])
 
-  const { state: saveState, lastSavedAt, hasUnsavedChanges, scheduleSave, saveNow: saveImmediate, setHasUnsavedChanges } = useAutosave({
+  const { state: saveState, lastSavedAt, hasUnsavedChanges, scheduleSave, saveNow: saveImmediate, forceSave, setHasUnsavedChanges, mode: currentSaveMode } = useAutosave({
     editionId,
     saveFn,
     enabled: !isReadOnly && !isEphemeral,
+    mode: saveMode,
+    getPayload: () => getSavePayload(),
   })
 
   // ── Payload builder ───────────────────────────────────────────────────────
@@ -523,7 +528,7 @@ export function EditionEditor({
             {isEphemeral ? 'new' : status}
           </span>
           {!isEphemeral && (
-            <AutosaveIndicator state={saveState} lastSavedAt={lastSavedAt} />
+            <AutosaveIndicator state={saveState} lastSavedAt={lastSavedAt} mode={currentSaveMode} />
           )}
         </div>
 
@@ -769,6 +774,15 @@ export function EditionEditor({
           </span>
         </div>
       </div>
+
+      <SaveBar
+        state={saveState}
+        hasUnsavedChanges={hasUnsavedChanges}
+        mode={currentSaveMode}
+        status={status}
+        onSave={() => saveImmediate(getSavePayload())}
+        onRetry={() => saveImmediate(getSavePayload())}
+      />
 
       {/* ── Modals ─────────────────────────────────────────────────────────── */}
       <ScheduleModal

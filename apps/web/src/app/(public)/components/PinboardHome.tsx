@@ -7,6 +7,7 @@ import { VideoGrid } from './VideoGrid'
 import { MostReadSidebar } from './MostReadSidebar'
 import { TagCategoryGrid } from './TagCategoryGrid'
 import { SubscribePair } from './SubscribePair'
+import { InstagramFeed } from '@/components/instagram/instagram-feed'
 import { HouseNewsletterBanner } from './HouseNewsletterBanner'
 import { BookmarkPlaceholder } from './BookmarkPlaceholder'
 import { MarginaliaPlaceholder } from './MarginaliaPlaceholder'
@@ -110,6 +111,9 @@ export async function PinboardHome({ locale }: Props) {
 
       {/* Ad — Bookmark placeholder */}
       <BookmarkPlaceholder locale={locale} t={t} />
+
+      {/* Instagram Feed */}
+      <InstagramFeed layout="scatter" count={5} className="px-4 py-12" />
 
       {/* §5 — Most Read + Tag Grid (side-by-side) */}
       {showMostReadSection && (
