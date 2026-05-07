@@ -201,3 +201,58 @@
 .newsletter-editor.read-only .ProseMirror blockquote {
   border-left-color: #374151;
 }
+
+/* Social embed blocks */
+.newsletter-editor .ProseMirror .social-embed {
+  margin: 1rem 0;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.newsletter-editor .ProseMirror .social-embed iframe {
+  display: block;
+  border-radius: 0.5rem;
+}
+
+.newsletter-editor .ProseMirror .social-embed__link {
+  display: block;
+  padding: 0.75rem 1rem;
+  background: #111827;
+  color: #818cf8;
+  font-size: 0.875rem;
+  word-break: break-all;
+}
+
+/* Social embed blocks (serialized HTML + NodeView) */
+.newsletter-editor .ProseMirror .social-embed,
+.social-embed {
+  margin: 1rem 0;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  border: 1px solid #1f2937;
+  background: #0a0f1a;
+}
+
+.newsletter-editor .ProseMirror .social-embed iframe,
+.social-embed iframe {
+  display: block;
+  width: 100%;
+  border: 0;
+}
+
+.newsletter-editor .ProseMirror .social-embed a,
+.social-embed a {
+  display: block;
+  padding: 1rem;
+  color: #a78bfa;
+  text-decoration: underline;
+  text-decoration-color: rgba(167, 139, 250, 0.3);
+  font-size: 0.875rem;
+  word-break: break-all;
+}
+
+.newsletter-editor .ProseMirror .social-embed a:hover,
+.social-embed a:hover {
+  color: #c4b5fd;
+  text-decoration-color: rgba(196, 181, 253, 0.6);
+}

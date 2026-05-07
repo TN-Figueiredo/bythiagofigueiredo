@@ -1,6 +1,7 @@
 'use client'
 
 import { Extension, type Editor, type Range } from '@tiptap/core'
+import type { EmbedProvider } from './social-embed-node'
 import { ReactRenderer } from '@tiptap/react'
 import Suggestion, { type SuggestionOptions, type SuggestionProps } from '@tiptap/suggestion'
 import tippy, { type Instance as TippyInstance } from 'tippy.js'
@@ -23,6 +24,12 @@ import {
   RectangleHorizontal,
   Tags,
   Code,
+  Youtube,
+  Twitter,
+  Instagram,
+  Github,
+  Code2,
+  Braces,
 } from 'lucide-react'
 
 interface CommandItem {
@@ -36,6 +43,7 @@ function getSlashCommands(callbacks: {
   onImageUpload: () => void
   onInsertCTAButton: () => void
   onInsertMergeTag: (tag: string) => void
+  onInsertSocialEmbed: (provider: EmbedProvider, url: string) => void
 }): CommandItem[] {
   return [
     {
@@ -129,6 +137,60 @@ function getSlashCommands(callbacks: {
         callbacks.onInsertMergeTag('subscriber.name')
       },
     },
+    {
+      title: 'YouTube',
+      description: 'Embed a YouTube video',
+      icon: <Youtube size={18} />,
+      command: ({ editor, range }) => {
+        editor.chain().focus().deleteRange(range).run()
+        callbacks.onInsertSocialEmbed('youtube', '')
+      },
+    },
+    {
+      title: 'Twitter / X',
+      description: 'Embed a tweet',
+      icon: <Twitter size={18} />,
+      command: ({ editor, range }) => {
+        editor.chain().focus().deleteRange(range).run()
+        callbacks.onInsertSocialEmbed('twitter', '')
+      },
+    },
+    {
+      title: 'Instagram',
+      description: 'Embed an Instagram post',
+      icon: <Instagram size={18} />,
+      command: ({ editor, range }) => {
+        editor.chain().focus().deleteRange(range).run()
+        callbacks.onInsertSocialEmbed('instagram', '')
+      },
+    },
+    {
+      title: 'CodeSandbox',
+      description: 'Embed a CodeSandbox',
+      icon: <Code2 size={18} />,
+      command: ({ editor, range }) => {
+        editor.chain().focus().deleteRange(range).run()
+        callbacks.onInsertSocialEmbed('codesandbox', '')
+      },
+    },
+    {
+      title: 'CodePen',
+      description: 'Embed a CodePen',
+      icon: <Braces size={18} />,
+      command: ({ editor, range }) => {
+        editor.chain().focus().deleteRange(range).run()
+        callbacks.onInsertSocialEmbed('codepen', '')
+      },
+    },
+    {
+      title: 'GitHub Gist',
+      description: 'Embed a GitHub Gist',
+      icon: <Github size={18} />,
+      command: ({ editor, range }) => {
+        editor.chain().focus().deleteRange(range).run()
+        callbacks.onInsertSocialEmbed('github', '')
+      },
+    },
   ]
 }
 
@@ -212,6 +274,7 @@ function createSuggestionConfig(callbacks: {
   onImageUpload: () => void
   onInsertCTAButton: () => void
   onInsertMergeTag: (tag: string) => void
+  onInsertSocialEmbed: (provider: EmbedProvider, url: string) => void
 }): Omit<SuggestionOptions<CommandItem>, 'editor'> {
   return {
     char: '/',
@@ -288,6 +351,7 @@ export function createSlashCommandExtension(callbacks: {
   onImageUpload: () => void
   onInsertCTAButton: () => void
   onInsertMergeTag: (tag: string) => void
+  onInsertSocialEmbed: (provider: EmbedProvider, url: string) => void
 }) {
   return Extension.create({
     name: 'slashCommand',

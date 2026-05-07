@@ -46,7 +46,7 @@ export function CoverImage({ src, alt, heroIllustration, dark, accent }: Props) 
           src={src!}
           alt={alt}
           width={760}
-          height={380}
+          height={507}
           className="w-full rounded-sm object-cover"
           style={{ filter: 'brightness(0.92)' }}
           priority

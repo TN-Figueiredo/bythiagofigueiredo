@@ -26,7 +26,7 @@ import { StructuredFields } from '../_shared/structured-fields'
 import { HashtagInput } from '../_shared/hashtag-input'
 import { SeriesFields } from '../_shared/series-fields'
 import { createPost, deleteHubPost, duplicatePost } from '../actions'
-import { savePost, saveCoverImage, compilePreview, uploadAsset, searchPosts } from '../[id]/edit/actions'
+import { savePost, saveCoverImage, uploadAsset, searchPosts } from '../[id]/edit/actions'
 import type { SavePostActionInput } from '../[id]/edit/actions'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -330,7 +330,7 @@ function CoverImageSection({
         <img
           src={coverUrl}
           alt="Cover"
-          className="w-full h-48 object-cover"
+          className="w-full max-h-[400px] object-cover"
         />
         {!disabled && (
           <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
@@ -738,20 +738,14 @@ export function PostEditionEditor({
   }
 
   // ── Preview ───────────────────────────────────────────────────────────────
-  async function handleTogglePreview() {
+  function handleTogglePreview() {
     if (showPreview) {
       setShowPreview(false)
       return
     }
     if (isEphemeral) return
-    try {
-      const html = fieldsRef.current.contentHtml || ''
-      const compiled = await compilePreview(html)
-      setPreviewHtml(compiled.compiledSource)
-      setShowPreview(true)
-    } catch {
-      toast.error('Failed to compile preview')
-    }
+    setPreviewHtml(fieldsRef.current.contentHtml || '')
+    setShowPreview(true)
   }
 
   // ── Actions ───────────────────────────────────────────────────────────────

@@ -26,18 +26,37 @@ import {
   Heading3,
   Pilcrow,
   Tags,
+  Youtube,
+  Twitter,
+  Instagram,
+  Github,
+  Code2,
+  Braces,
 } from 'lucide-react'
 import { MERGE_TAGS } from './merge-tag-node'
+import { PROVIDER_META, type EmbedProvider } from './social-embed-node'
 
 interface EditorToolbarProps {
   editor: Editor | null
   onInsertMergeTag: (tag: string) => void
   onInsertCTAButton: () => void
+  onInsertSocialEmbed: (provider: EmbedProvider, url: string) => void
   onImageUpload: (file: File) => Promise<string | null>
   onImageInserted?: () => void
   isFullscreen?: boolean
   onToggleFullscreen?: () => void
 }
+
+const EMBED_ICONS: Record<EmbedProvider, React.ReactNode> = {
+  youtube: <Youtube size={16} />,
+  twitter: <Twitter size={16} />,
+  instagram: <Instagram size={16} />,
+  codesandbox: <Code2 size={16} />,
+  codepen: <Braces size={16} />,
+  github: <Github size={16} />,
+}
+
+const EMBED_ORDER: EmbedProvider[] = ['youtube', 'twitter', 'instagram', 'codesandbox', 'codepen', 'github']
 
 function ToolbarButton({
   onClick,
@@ -179,6 +198,7 @@ export function EditorToolbar({
   editor,
   onInsertMergeTag,
   onInsertCTAButton,
+  onInsertSocialEmbed,
   onImageUpload,
   onImageInserted,
   isFullscreen,
@@ -302,6 +322,19 @@ export function EditorToolbar({
       <ToolbarButton onClick={onInsertCTAButton} title="Insert CTA button">
         <RectangleHorizontal size={16} />
       </ToolbarButton>
+
+      <ToolbarDivider />
+
+      {/* Social embeds */}
+      {EMBED_ORDER.map((provider) => (
+        <ToolbarButton
+          key={provider}
+          onClick={() => onInsertSocialEmbed(provider, '')}
+          title={`Embed ${PROVIDER_META[provider].label}`}
+        >
+          {EMBED_ICONS[provider]}
+        </ToolbarButton>
+      ))}
 
       {/* Merge Tags */}
       <MergeTagDropdown onSelect={onInsertMergeTag} />

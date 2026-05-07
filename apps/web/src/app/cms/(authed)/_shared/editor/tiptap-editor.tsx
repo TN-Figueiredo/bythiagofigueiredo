@@ -16,6 +16,7 @@ import CharacterCount from '@tiptap/extension-character-count'
 import type { JSONContent } from '@tiptap/core'
 import { MergeTagExtension } from './merge-tag-node'
 import { CTAButtonExtension } from './cta-button-node'
+import { SocialEmbedExtension, detectProvider, type EmbedProvider } from './social-embed-node'
 import { EditorToolbar } from './editor-toolbar'
 import { EditorBubbleMenu } from './bubble-menu'
 import { createSlashCommandExtension } from './slash-commands'
@@ -45,6 +46,13 @@ export function TipTapEditor({
   const onImageInsertedRef = useRef(onImageInserted)
   onImageInsertedRef.current = onImageInserted
 
+  const insertEmbed = (provider: EmbedProvider, url: string) => {
+    editorRef.current?.chain().focus().insertContent({
+      type: 'socialEmbed',
+      attrs: { provider, url },
+    }).run()
+  }
+
   const slashCommandExtension = useMemo(
     () =>
       createSlashCommandExtension({
@@ -61,6 +69,7 @@ export function TipTapEditor({
             attrs: { tag },
           }).run()
         },
+        onInsertSocialEmbed: insertEmbed,
       }),
     [],
   )
@@ -88,6 +97,7 @@ export function TipTapEditor({
       CharacterCount,
       MergeTagExtension,
       CTAButtonExtension,
+      SocialEmbedExtension,
       slashCommandExtension,
     ],
     content: content ?? undefined,
@@ -133,6 +143,22 @@ export function TipTapEditor({
       handlePaste(view, event) {
         const items = event.clipboardData?.items
         if (!items) return false
+
+        const text = event.clipboardData?.getData('text/plain')?.trim()
+        if (text) {
+          const provider = detectProvider(text)
+          if (provider) {
+            event.preventDefault()
+            const { schema } = view.state
+            const embedNode = schema.nodes['socialEmbed']
+            if (embedNode) {
+              const node = embedNode.create({ provider, url: text })
+              const tr = view.state.tr.replaceSelectionWith(node)
+              view.dispatch(tr)
+            }
+            return true
+          }
+        }
 
         for (const item of Array.from(items)) {
           if (item.type.startsWith('image/')) {
@@ -214,6 +240,12 @@ export function TipTapEditor({
           editor?.chain().focus().insertContent({
             type: 'ctaButton',
             attrs: { text: 'Click Here', url: '', color: '#7c3aed', align: 'center' },
+          }).run()
+        }}
+        onInsertSocialEmbed={(provider, url) => {
+          editor?.chain().focus().insertContent({
+            type: 'socialEmbed',
+            attrs: { provider, url },
           }).run()
         }}
         onImageUpload={onImageUpload}
