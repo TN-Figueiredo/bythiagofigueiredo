@@ -1,6 +1,11 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useMediaGallery } from '@/app/cms/(authed)/_shared/media/use-media-gallery'
+import { MediaGalleryModal } from '@/app/cms/(authed)/_shared/media/media-gallery-modal'
+import { CROP_PRESETS } from '@/app/cms/(authed)/_shared/media/types'
+
+const galleryEnabled = process.env.NEXT_PUBLIC_MEDIA_GALLERY_ENABLED === 'true'
 
 interface SlotFormData {
   isEnabled: boolean
@@ -19,6 +24,7 @@ interface SlotFormProps {
   initial: SlotFormData
   onSave: (slotId: string, data: Partial<SlotFormData>) => Promise<void>
   onChange: (data: SlotFormData) => void
+  siteId?: string
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -32,10 +38,11 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 const inputClass = 'w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary'
 
-export function SlotForm({ slotKey, initial, onSave, onChange }: SlotFormProps) {
+export function SlotForm({ slotKey, initial, onSave, onChange, siteId }: SlotFormProps) {
   const [form, setForm] = useState<SlotFormData>(initial)
   const [isPending, startTransition] = useTransition()
   const [saved, setSaved] = useState(false)
+  const adGallery = useMediaGallery()
 
   function update(patch: Partial<SlotFormData>) {
     const next = { ...form, ...patch }
@@ -151,13 +158,24 @@ export function SlotForm({ slotKey, initial, onSave, onChange }: SlotFormProps) 
 
       {showImage && (
         <Field label="URL da imagem">
-          <input
-            type="text"
-            value={form.imageUrl}
-            onChange={(e) => update({ imageUrl: e.target.value })}
-            className={inputClass}
-            placeholder="https://..."
-          />
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={form.imageUrl}
+              onChange={(e) => update({ imageUrl: e.target.value })}
+              className={inputClass + ' flex-1'}
+              placeholder="https://..."
+            />
+            {galleryEnabled && siteId && (
+              <button
+                type="button"
+                onClick={() => adGallery.openGallery({ folder: 'ads', cropPreset: CROP_PRESETS.free })}
+                className="shrink-0 rounded-md border border-border px-2.5 py-2 text-xs text-muted-foreground hover:bg-accent"
+              >
+                Galeria
+              </button>
+            )}
+          </div>
         </Field>
       )}
 
@@ -187,6 +205,17 @@ export function SlotForm({ slotKey, initial, onSave, onChange }: SlotFormProps) 
           <span className="text-xs text-green-600">Salvo com sucesso</span>
         )}
       </div>
+      {galleryEnabled && siteId && (
+        <MediaGalleryModal
+          {...adGallery.galleryProps}
+          onSelect={(asset) => {
+            update({ imageUrl: asset.url })
+            adGallery.closeGallery()
+          }}
+          locale="pt-BR"
+          siteId={siteId}
+        />
+      )}
     </div>
   )
 }

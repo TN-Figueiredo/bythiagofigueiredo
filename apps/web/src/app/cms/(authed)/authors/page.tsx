@@ -93,7 +93,7 @@ export default async function AuthorsPage() {
   return (
     <div>
       <CmsTopbar title="Authors" />
-      <AuthorsConnected authors={authorData} readOnly={readOnly} supportedLocales={supportedLocales} />
+      <AuthorsConnected authors={authorData} readOnly={readOnly} supportedLocales={supportedLocales} siteId={siteId} />
     </div>
   )
 }

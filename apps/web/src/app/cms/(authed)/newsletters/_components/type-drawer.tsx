@@ -15,6 +15,11 @@ import { deriveCadenceLabel } from '@/lib/newsletter/format'
 import type { NewsletterHubStrings } from '../_i18n/types'
 import { COLOR_PALETTE } from '../../_shared/color-palette'
 import type { UsedColor } from '../../_shared/color-palette'
+import { useMediaGallery } from '../../_shared/media/use-media-gallery'
+import { MediaGalleryModal } from '../../_shared/media/media-gallery-modal'
+import { CROP_PRESETS } from '../../_shared/media/types'
+
+const galleryEnabled = process.env.NEXT_PUBLIC_MEDIA_GALLERY_ENABLED === 'true'
 
 const FOCUSABLE = 'input, select, textarea, button:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
@@ -121,6 +126,7 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
   const [deleteConfirmStep, setDeleteConfirmStep] = useState<null | 'confirm' | 'name-check'>(null)
   const [deleteInfo, setDeleteInfo] = useState<{ subscriberCount: number; editionCount: number } | null>(null)
   const [deleteNameInput, setDeleteNameInput] = useState('')
+  const ogGallery = useMediaGallery()
 
   function currentSnapshot(): string {
     return JSON.stringify({
@@ -779,6 +785,15 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
                         aria-describedby={errors.ogImageUrl ? `${fid}-og-err` : undefined}
                         data-testid="drawer-og-image"
                       />
+                      {galleryEnabled && siteId && (
+                        <button
+                          type="button"
+                          onClick={() => ogGallery.openGallery({ folder: 'og', cropPreset: CROP_PRESETS['og-image'] })}
+                          className="shrink-0 rounded-lg border border-gray-700 px-2.5 py-1.5 text-[10px] text-gray-400 hover:bg-gray-800 hover:text-gray-200"
+                        >
+                          {locale === 'pt-BR' ? 'Galeria' : 'Gallery'}
+                        </button>
+                      )}
                     </div>
                     {ogImageUrl && (
                       <p className="text-[11px] text-gray-500 mt-1">{strings.ogOverrideHint ?? 'Overrides the site default OG image'}</p>
@@ -974,6 +989,17 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
           </div>
         )}
       </div>
+      {galleryEnabled && siteId && (
+        <MediaGalleryModal
+          {...ogGallery.galleryProps}
+          onSelect={(asset) => {
+            setOgImageUrl(asset.url)
+            ogGallery.closeGallery()
+          }}
+          locale={locale}
+          siteId={siteId}
+        />
+      )}
     </div>
   )
 }

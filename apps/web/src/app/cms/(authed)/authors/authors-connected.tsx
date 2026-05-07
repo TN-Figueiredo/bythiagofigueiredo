@@ -11,7 +11,10 @@ import {
   uploadAuthorAboutPhoto,
   getAuthorAboutTranslations,
 } from './actions'
-import { AvatarCropModal } from './avatar-crop-modal'
+import { useMediaGallery } from '../_shared/media/use-media-gallery'
+import { MediaGalleryModal } from '../_shared/media/media-gallery-modal'
+import { CROP_PRESETS } from '../_shared/media/types'
+import { MediaCropEditor } from '../_shared/media/media-crop-editor'
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                             */
@@ -50,6 +53,8 @@ interface Props {
   authors: AuthorData[]
   readOnly?: boolean
   supportedLocales?: string[]
+  siteId: string
+  locale?: 'en' | 'pt-BR'
 }
 
 type FilterType = 'all' | 'linked' | 'virtual'
@@ -236,6 +241,8 @@ function AuthorCard({
   )
 }
 
+const galleryEnabled = process.env.NEXT_PUBLIC_MEDIA_GALLERY_ENABLED === 'true'
+
 function DetailPanel({
   author,
   onClose,
@@ -244,6 +251,8 @@ function DetailPanel({
   onSetDefault,
   readOnly,
   supportedLocales,
+  siteId,
+  locale,
 }: {
   author: AuthorData
   onClose: () => void
@@ -260,6 +269,8 @@ function DetailPanel({
   onSetDefault: (id: string) => void
   readOnly: boolean
   supportedLocales: string[]
+  siteId: string
+  locale: 'en' | 'pt-BR'
 }) {
   const [editName, setEditName] = useState(author.displayName)
   const [editBio, setEditBio] = useState(author.bio ?? '')
@@ -271,6 +282,7 @@ function DetailPanel({
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [avatarUploading, setAvatarUploading] = useState(false)
   const [cropFile, setCropFile] = useState<File | null>(null)
+  const [cropImageUrl, setCropImageUrl] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [, startTransition] = useTransition()
 
@@ -301,6 +313,8 @@ function DetailPanel({
   const [aboutPhotoUrl, setAboutPhotoUrl] = useState(author.aboutPhotoUrl ?? '')
   const [aboutPhotoUploading, setAboutPhotoUploading] = useState(false)
   const aboutFileRef = useRef<HTMLInputElement>(null)
+  const avatarGallery = useMediaGallery()
+  const aboutGallery = useMediaGallery()
   const [socialX, setSocialX] = useState(author.socialLinks?.x ?? '')
   const [socialInstagram, setSocialInstagram] = useState(author.socialLinks?.instagram ?? '')
   const [socialYoutube, setSocialYoutube] = useState(author.socialLinks?.youtube ?? '')
@@ -354,14 +368,17 @@ function DetailPanel({
       const file = ev.target.files?.[0]
       if (!file) return
       setCropFile(file)
+      setCropImageUrl(URL.createObjectURL(file))
       ev.target.value = ''
     },
     [],
   )
 
   const handleCropConfirm = useCallback(
-    async (blob: Blob) => {
+    async (blob: Blob, _dims: { width: number; height: number }) => {
       setCropFile(null)
+      if (cropImageUrl) URL.revokeObjectURL(cropImageUrl)
+      setCropImageUrl(null)
       setAvatarPreview(URL.createObjectURL(blob))
       setAvatarUploading(true)
       const fd = new FormData()
@@ -380,7 +397,9 @@ function DetailPanel({
 
   const handleCropCancel = useCallback(() => {
     setCropFile(null)
-  }, [])
+    if (cropImageUrl) URL.revokeObjectURL(cropImageUrl)
+    setCropImageUrl(null)
+  }, [cropImageUrl])
 
   const handleAboutPhotoSelect = useCallback(
     async (ev: React.ChangeEvent<HTMLInputElement>) => {
@@ -556,11 +575,13 @@ function DetailPanel({
             className="hidden"
             data-testid="avatar-file-input"
           />
-          {cropFile && (
-            <AvatarCropModal
-              file={cropFile}
+          {cropImageUrl && (
+            <MediaCropEditor
+              imageUrl={cropImageUrl}
+              preset={CROP_PRESETS.avatar}
               onConfirm={handleCropConfirm}
               onCancel={handleCropCancel}
+              locale={locale}
             />
           )}
           <div>
@@ -569,13 +590,24 @@ function DetailPanel({
             </div>
             <div className="text-sm text-slate-500">@{author.slug}</div>
             {!readOnly && (
-              <button
-                type="button"
-                onClick={handleAvatarClick}
-                className="mt-0.5 text-xs text-indigo-400 hover:text-indigo-300"
-              >
-                {displayAvatar ? 'Change photo' : 'Upload photo'}
-              </button>
+              <div className="mt-0.5 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleAvatarClick}
+                  className="text-xs text-indigo-400 hover:text-indigo-300"
+                >
+                  {displayAvatar ? 'Change photo' : 'Upload photo'}
+                </button>
+                {galleryEnabled && (
+                  <button
+                    type="button"
+                    onClick={() => avatarGallery.openGallery({ folder: 'authors', cropPreset: CROP_PRESETS.avatar })}
+                    className="text-xs text-slate-400 hover:text-slate-200"
+                  >
+                    {locale === 'pt-BR' ? 'Galeria' : 'Gallery'}
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -849,14 +881,25 @@ function DetailPanel({
                   </div>
                 )}
                 <div className="space-y-2">
-                  <button
-                    type="button"
-                    onClick={() => aboutFileRef.current?.click()}
-                    disabled={readOnly || aboutPhotoUploading}
-                    className="rounded-md border border-slate-600 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-800 disabled:opacity-50"
-                  >
-                    {aboutPhotoUploading ? 'Uploading...' : aboutPhotoUrl ? 'Change photo' : 'Upload photo'}
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => aboutFileRef.current?.click()}
+                      disabled={readOnly || aboutPhotoUploading}
+                      className="rounded-md border border-slate-600 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-800 disabled:opacity-50"
+                    >
+                      {aboutPhotoUploading ? 'Uploading...' : aboutPhotoUrl ? 'Change photo' : 'Upload photo'}
+                    </button>
+                    {galleryEnabled && !readOnly && (
+                      <button
+                        type="button"
+                        onClick={() => aboutGallery.openGallery({ folder: 'authors', cropPreset: CROP_PRESETS.free })}
+                        className="rounded-md border border-slate-600 px-3 py-1.5 text-sm text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+                      >
+                        {locale === 'pt-BR' ? 'Galeria' : 'Gallery'}
+                      </button>
+                    )}
+                  </div>
                   <input
                     ref={aboutFileRef}
                     type="file"
@@ -1062,6 +1105,29 @@ function DetailPanel({
           </div>
         )}
       </div>
+
+      {galleryEnabled && (
+        <>
+          <MediaGalleryModal
+            {...avatarGallery.galleryProps}
+            onSelect={(asset) => {
+              setAvatarPreview(asset.url)
+              avatarGallery.closeGallery()
+            }}
+            locale={locale}
+            siteId={siteId}
+          />
+          <MediaGalleryModal
+            {...aboutGallery.galleryProps}
+            onSelect={(asset) => {
+              setAboutPhotoUrl(asset.url)
+              aboutGallery.closeGallery()
+            }}
+            locale={locale}
+            siteId={siteId}
+          />
+        </>
+      )}
     </>
   )
 }
@@ -1188,7 +1254,7 @@ function CreateAuthorForm({
 /*  Main component                                                    */
 /* ------------------------------------------------------------------ */
 
-export function AuthorsConnected({ authors, readOnly = false, supportedLocales = ['pt-BR'] }: Props) {
+export function AuthorsConnected({ authors, readOnly = false, supportedLocales = ['pt-BR'], siteId, locale = 'pt-BR' }: Props) {
   const [filter, setFilter] = useState<FilterType>('all')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
@@ -1337,6 +1403,8 @@ export function AuthorsConnected({ authors, readOnly = false, supportedLocales =
           onSetDefault={handleSetDefault}
           readOnly={readOnly}
           supportedLocales={supportedLocales}
+          siteId={siteId}
+          locale={locale}
         />
       )}
     </div>

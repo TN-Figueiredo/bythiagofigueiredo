@@ -19,14 +19,17 @@ vi.mock('@/app/cms/(authed)/authors/actions', () => ({
   uploadAuthorAvatar: vi.fn().mockResolvedValue({ ok: true, url: 'https://example.com/cropped.webp' }),
 }))
 
-vi.mock('@/app/cms/(authed)/authors/avatar-crop-modal', () => ({
-  AvatarCropModal: ({ onConfirm, onCancel }: { file: File; onConfirm: (b: Blob) => void; onCancel: () => void }) => (
+vi.mock('@/app/cms/(authed)/_shared/media/media-crop-editor', () => ({
+  MediaCropEditor: ({ onConfirm, onCancel }: { imageUrl: string; onConfirm: (b: Blob, dims: { width: number; height: number }) => void; onCancel: () => void }) => (
     <div data-testid="avatar-crop-modal">
-      <button data-testid="crop-confirm" onClick={() => onConfirm(new Blob(['img'], { type: 'image/webp' }))}>Save</button>
+      <button data-testid="crop-confirm" onClick={() => onConfirm(new Blob(['img'], { type: 'image/webp' }), { width: 256, height: 256 })}>Save</button>
       <button data-testid="crop-cancel" onClick={onCancel}>Cancel</button>
     </div>
   ),
 }))
+
+globalThis.URL.createObjectURL = vi.fn(() => 'blob:mock-url')
+globalThis.URL.revokeObjectURL = vi.fn()
 
 /* ------------------------------------------------------------------ */
 /*  Fixtures                                                          */
