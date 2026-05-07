@@ -107,6 +107,11 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
     if (error) {
       throw new Error(`lgpd_phase1_cleanup RPC failed: ${error.message}`);
     }
+
+    await this.supabase
+      .from('media_assets')
+      .update({ uploaded_by: null })
+      .eq('uploaded_by', userId);
   }
 
   // ------------------------------------------------------------------
@@ -173,6 +178,7 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
       auditEntries,
       lgpdRequests,
       consents,
+      mediaAssets,
     ] = await Promise.all([
       this.supabase.auth.admin.getUserById(userId),
       this.queryRows('blog_posts', 'owner_user_id', userId),
@@ -186,6 +192,7 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
       this.queryRows('audit_log', 'actor_user_id', userId),
       this.queryRows('lgpd_requests', 'user_id', userId),
       this.queryRows('consents', 'user_id', userId),
+      this.queryRows('media_assets', 'uploaded_by', userId),
     ]);
 
     if (userRes.error) {
@@ -226,6 +233,7 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
       audit_log_as_actor: auditEntries,
       lgpd_requests: lgpdRequests,
       consents,
+      media_assets_uploaded: mediaAssets,
     };
   }
 
