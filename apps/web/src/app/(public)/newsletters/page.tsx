@@ -6,6 +6,7 @@ import { getSiteSeoConfig } from '@/lib/seo/config'
 import { buildBreadcrumbNode } from '@/lib/seo/jsonld/builders'
 import { composeGraph } from '@/lib/seo/jsonld/graph'
 import { JsonLdScript } from '@/lib/seo/jsonld/render'
+import { getActiveNewsletterTypesForHub } from '@/lib/newsletter/queries'
 import { NewslettersHub } from './components/NewslettersHub'
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -13,8 +14,8 @@ export async function generateMetadata(): Promise<Metadata> {
   const locale = h.get('x-locale') ?? 'en'
   const isPt = locale === 'pt-BR'
   const description = isPt
-    ? 'Quatro newsletters, um email — escolhe o que cabe na sua frequência.'
-    : 'Four newsletters, one email — pick what fits your frequency.'
+    ? 'Newsletters do Thiago Figueiredo — escolhe o que cabe na sua frequência.'
+    : 'Thiago Figueiredo\'s newsletters — pick what fits your frequency.'
   const ctx = await tryGetSiteContext()
   const host = h.get('host') ?? ctx?.primaryDomain ?? ''
   const config = ctx ? await getSiteSeoConfig(ctx.siteId, host).catch(() => null) : null
@@ -64,10 +65,14 @@ export default async function NewslettersPage() {
       ])
     : null
 
+  const types = ctx
+    ? await getActiveNewsletterTypesForHub(ctx.siteId, locale)
+    : []
+
   return (
     <>
       {breadcrumbGraph && <JsonLdScript graph={breadcrumbGraph} />}
-      <NewslettersHub locale={locale} currentTheme={currentTheme} />
+      <NewslettersHub locale={locale} currentTheme={currentTheme} types={types} />
     </>
   )
 }

@@ -59,6 +59,7 @@ interface KanbanBoardProps {
   strings?: BlogHubStrings
   tags?: BlogTag[]
   supportedLocales?: string[]
+  siteTimezone?: string
 }
 
 export function KanbanBoard({
@@ -73,6 +74,7 @@ export function KanbanBoard({
   strings,
   tags,
   supportedLocales,
+  siteTimezone = 'America/Sao_Paulo',
 }: KanbanBoardProps) {
   const dndId = useId()
   const sensors = useSensors(
@@ -313,6 +315,7 @@ export function KanbanBoard({
     <ScheduleModal
       isOpen={!!pendingSchedule}
       postTitle={pendingSchedule?.postTitle ?? ''}
+      siteTimezone={siteTimezone}
       onConfirm={handleScheduleConfirm}
       onCancel={handleScheduleCancel}
       strings={strings}

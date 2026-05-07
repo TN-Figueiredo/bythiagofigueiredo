@@ -8,6 +8,7 @@ interface DateDetailPopoverProps {
   date: string
   slot: ScheduleSlot | undefined
   locale: 'en' | 'pt-BR'
+  siteTimezone: string
   strings?: NewsletterHubStrings
   onSchedule: () => void
   onClose: () => void
@@ -42,12 +43,12 @@ function formatDateHeading(dateStr: string, locale: 'en' | 'pt-BR'): string {
   return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`
 }
 
-export function DateDetailPopover({ date, slot, locale, strings, onSchedule, onClose }: DateDetailPopoverProps) {
+export function DateDetailPopover({ date, slot, locale, siteTimezone, strings, onSchedule, onClose }: DateDetailPopoverProps) {
   const cadenceSlots = slot?.cadenceSlots ?? []
   const specialEditions = slot?.specialEditions ?? []
   const totalItems = cadenceSlots.length + specialEditions.length
   const hasEmptySlots = cadenceSlots.some(cs => cs.state === 'empty_future')
-  const today = new Date().toISOString().slice(0, 10)
+  const today = new Date().toLocaleDateString('sv-SE', { timeZone: siteTimezone })
   const isPast = date < today
 
   return (

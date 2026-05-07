@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
+import { todayInSiteTz, toDateStringInTz } from '@/lib/cms/format-site-datetime'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { CmsTopbar } from '@tn-figueiredo/cms-ui/client'
 import { ScheduleConnected } from './schedule-connected'
@@ -45,10 +46,17 @@ async function ScheduleData() {
 
   const supabase = getSupabaseServiceClient()
 
+  const { data: siteRow } = await supabase
+    .from('sites')
+    .select('timezone')
+    .eq('id', siteId)
+    .single()
+  const siteTimezone = (siteRow?.timezone as string) ?? 'America/Sao_Paulo'
+
   const thirtyDaysFromNow = new Date()
   thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30)
-  const cutoff = thirtyDaysFromNow.toISOString().split('T')[0]!
-  const today = new Date().toISOString().split('T')[0]!
+  const cutoff = toDateStringInTz(thirtyDaysFromNow, siteTimezone)
+  const today = todayInSiteTz(siteTimezone)
 
   const [
     scheduledPostsRes,
@@ -174,6 +182,7 @@ async function ScheduleData() {
       backlogEditions={backlogEditions}
       today={today}
       readOnly={readOnly}
+      siteTimezone={siteTimezone}
     />
   )
 }

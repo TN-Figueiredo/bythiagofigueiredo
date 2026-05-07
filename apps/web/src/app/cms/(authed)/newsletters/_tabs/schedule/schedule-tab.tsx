@@ -20,6 +20,7 @@ interface ScheduleTabProps {
   typeFilter?: string | null
   strings?: NewsletterHubStrings
   locale?: 'en' | 'pt-BR'
+  siteTimezone?: string
 }
 
 interface PickerState {
@@ -97,7 +98,7 @@ function EditionPicker({
   )
 }
 
-export function ScheduleTab({ data, typeFilter, strings, locale = 'en' }: ScheduleTabProps) {
+export function ScheduleTab({ data, typeFilter, strings, locale = 'en', siteTimezone = 'America/Sao_Paulo' }: ScheduleTabProps) {
   const [, startTransition] = useTransition()
   const [pickerState, setPickerState] = useState<PickerState>({ open: false, date: '', anchorRect: null })
   const [slotPickerState, setSlotPickerState] = useState<SlotPickerLocalState | null>(null)
@@ -331,6 +332,7 @@ export function ScheduleTab({ data, typeFilter, strings, locale = 'en' }: Schedu
       <ScheduleModal
         open={!!specialScheduleState}
         audienceCount={0}
+        siteTimezone={siteTimezone}
         onConfirm={handleSpecialScheduleConfirm}
         onCancel={handleSpecialScheduleCancel}
       />

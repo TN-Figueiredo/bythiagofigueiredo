@@ -468,7 +468,7 @@ export function PostEditionEditor({
   // ── Field state ───────────────────────────────────────────────────────────
   const [title, setTitle] = useState(initTitle ?? '')
   const [slug, setSlug] = useState(initSlug ?? '')
-  const [slugManuallyEdited, setSlugManuallyEdited] = useState(isEditMode)
+  const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
   const [excerpt, setExcerpt] = useState(initExcerpt ?? '')
   const [contentJson, setContentJson] = useState<JSONContent | string | null>(
     (initContentJson as JSONContent) ?? initContentHtml ?? null,

@@ -20,7 +20,7 @@ interface Props {
 }
 
 async function TabContent({
-  tab, siteId, tagId, locale, strings, uiLocale, supportedLocales,
+  tab, siteId, tagId, locale, strings, uiLocale, supportedLocales, siteTimezone,
 }: {
   tab: BlogTabId
   siteId: string
@@ -29,6 +29,7 @@ async function TabContent({
   strings: BlogHubStrings
   uiLocale: 'en' | 'pt-BR'
   supportedLocales: string[]
+  siteTimezone: string
 }) {
   switch (tab) {
     case 'overview': {
@@ -37,11 +38,11 @@ async function TabContent({
     }
     case 'editorial': {
       const data = await fetchEditorialData(siteId, tagId, locale)
-      return <EditorialTab data={data} strings={strings} siteId={siteId} tagId={tagId} locale={locale} supportedLocales={supportedLocales} />
+      return <EditorialTab data={data} strings={strings} siteId={siteId} tagId={tagId} locale={locale} supportedLocales={supportedLocales} siteTimezone={siteTimezone} />
     }
     case 'schedule': {
       const data = await fetchScheduleData(siteId, tagId, locale)
-      return <ScheduleTab data={data} strings={strings} locale={uiLocale} />
+      return <ScheduleTab data={data} strings={strings} locale={uiLocale} siteTimezone={siteTimezone} />
     }
     case 'analytics':
       return <AnalyticsTab strings={strings} />
@@ -87,6 +88,7 @@ export default async function BlogHubPage({ searchParams }: Props) {
           strings={strings}
           uiLocale={uiLocale}
           supportedLocales={sharedData.supportedLocales}
+          siteTimezone={sharedData.siteTimezone}
         />
       </Suspense>
     </HubClient>

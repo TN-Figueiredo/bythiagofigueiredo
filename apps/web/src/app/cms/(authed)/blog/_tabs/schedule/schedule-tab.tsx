@@ -17,6 +17,7 @@ interface ScheduleTabProps {
   data: ScheduleTabData
   strings?: BlogHubStrings
   locale?: 'en' | 'pt-BR'
+  siteTimezone?: string
 }
 
 function PostPicker({
@@ -86,7 +87,7 @@ function PostPicker({
   )
 }
 
-export function ScheduleTab({ data, strings, locale = 'en' }: ScheduleTabProps) {
+export function ScheduleTab({ data, strings, locale = 'en', siteTimezone = 'America/Sao_Paulo' }: ScheduleTabProps) {
   const s = strings?.schedule
   const [, startTransition] = useTransition()
 
@@ -217,6 +218,7 @@ export function ScheduleTab({ data, strings, locale = 'en' }: ScheduleTabProps) 
         isOpen={!!scheduleTarget}
         postTitle={scheduleTarget?.post.title ?? ''}
         defaultDate={scheduleTarget?.date}
+        siteTimezone={siteTimezone}
         onConfirm={handleScheduleConfirm}
         onCancel={() => setScheduleTarget(null)}
         strings={strings}

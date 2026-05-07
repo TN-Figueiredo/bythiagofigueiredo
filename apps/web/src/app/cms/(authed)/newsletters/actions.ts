@@ -14,6 +14,7 @@ import { render } from '@react-email/render'
 import { Newsletter } from '@/emails/newsletter'
 import { revalidateNewsletterTypeSeo } from '@/lib/seo/cache-invalidation'
 import { generateCadenceSlots, describePattern, computeScheduledAt } from '@/lib/newsletter/cadence-slots'
+import { todayInSiteTz } from '@/lib/cms/format-site-datetime'
 import type { CadencePattern } from '@/lib/newsletter/cadence-pattern'
 
 type ActionResult =
@@ -785,7 +786,7 @@ export async function getAvailableSlots(
   const sendTime = (typeRow.preferred_send_time as string) ?? '09:00'
   const sendTimeHHMM = sendTime.slice(0, 5)
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = todayInSiteTz(siteTimezone)
 
   // Fetch occupied editions for this type's slots (with sequential numbering)
   const { data: allEditions } = await supabase
@@ -1590,7 +1591,7 @@ export async function updateCadencePattern(
   if (!/^\d{2}:\d{2}(:\d{2})?$/.test(sendTime)) return { ok: false, error: 'Invalid time format' }
 
   // Validate pattern generates at least 1 slot in the next 365 days
-  const today = new Date().toISOString().slice(0, 10)
+  const today = todayInSiteTz(ctx.timezone)
   const slots = generateCadenceSlots(pattern, { from: today, maxSlots: 1 })
   if (slots.length === 0) return { ok: false, error: 'no_slots_generated' }
 

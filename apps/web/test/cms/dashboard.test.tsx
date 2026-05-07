@@ -88,8 +88,11 @@ function makeEmptyData(): DashboardData {
 
 function makePopulatedData(): DashboardData {
   const today = new Date()
-  const todayStr = today.toISOString()
-  const tomorrowStr = new Date(today.getTime() + 86400000).toISOString()
+  const siteToday = today.toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' })
+  const todayStr = `${siteToday}T12:00:00Z`
+  const tomorrowDate = new Date(today.getTime() + 86400000)
+  const siteTomorrow = tomorrowDate.toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' })
+  const tomorrowStr = `${siteTomorrow}T12:00:00Z`
 
   return {
     kpis: {

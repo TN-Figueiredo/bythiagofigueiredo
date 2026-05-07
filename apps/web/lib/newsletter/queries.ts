@@ -122,6 +122,69 @@ export const getActiveTypeCount = unstable_cache(
   { tags: ['newsletter:types:count'], revalidate: 3600 },
 )
 
+export interface HubNewsletterType {
+  id: string
+  slug: string
+  name: string
+  tagline: string | null
+  color: string
+  colorDark: string | null
+  badge: string | null
+  cadenceLabel: string | null
+  subscriberCount: number
+  editionsCount: number
+  latestEditionSubject: string | null
+  locale: string
+}
+
+export const getActiveNewsletterTypesForHub = unstable_cache(
+  async (siteId: string, locale: string): Promise<HubNewsletterType[]> => {
+    const supabase = getSupabaseServiceClient()
+
+    let query = supabase
+      .from('newsletter_types')
+      .select('id, slug, name, tagline, color, color_dark, badge, cadence_label, sort_order, locale')
+      .eq('site_id', siteId)
+      .eq('active', true)
+      .order('sort_order')
+
+    if (locale !== 'pt-BR') {
+      query = query.eq('locale', locale)
+    }
+
+    const { data: types } = await query
+
+    if (!types?.length) return []
+
+    const results = await Promise.all(
+      types.map(async (t) => {
+        const [stats, latestEdition] = await Promise.all([
+          getNewsletterStats(t.id, siteId),
+          getRecentEditions(t.id, siteId, 1),
+        ])
+        return {
+          id: t.id,
+          slug: t.slug,
+          name: t.name,
+          tagline: t.tagline,
+          color: t.color,
+          colorDark: t.color_dark,
+          badge: t.badge,
+          cadenceLabel: t.cadence_label,
+          subscriberCount: stats.subscriberCount,
+          editionsCount: stats.editionsCount,
+          latestEditionSubject: latestEdition[0]?.subject ?? null,
+          locale: t.locale,
+        }
+      }),
+    )
+
+    return results
+  },
+  ['newsletter-hub-types'],
+  { tags: ['newsletter:types:hub'], revalidate: 300 },
+)
+
 export async function getActiveTypesForNotFound(
   siteId: string,
 ): Promise<

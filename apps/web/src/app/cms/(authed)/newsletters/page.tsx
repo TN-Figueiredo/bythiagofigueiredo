@@ -52,14 +52,14 @@ export default async function NewsletterHubPage({
         siteId={ctx.siteId}
       >
         <Suspense key={`${tab}-${typeFilter}`} fallback={<TabSkeleton tab={tab} />}>
-          <TabContent tab={tab} siteId={ctx.siteId} typeFilter={typeFilter} locale={locale} types={sharedData.types} />
+          <TabContent tab={tab} siteId={ctx.siteId} typeFilter={typeFilter} locale={locale} types={sharedData.types} siteTimezone={sharedData.siteTimezone} />
         </Suspense>
       </HubClient>
     </>
   )
 }
 
-async function TabContent({ tab, siteId, typeFilter, locale, types }: { tab: TabId; siteId: string; typeFilter: string | null; locale: 'pt-BR' | 'en'; types: NewsletterType[] }) {
+async function TabContent({ tab, siteId, typeFilter, locale, types, siteTimezone }: { tab: TabId; siteId: string; typeFilter: string | null; locale: 'pt-BR' | 'en'; types: NewsletterType[]; siteTimezone: string }) {
   const strings = locale === 'pt-BR' ? ptBR : en
   switch (tab) {
     case 'overview': {
@@ -68,11 +68,11 @@ async function TabContent({ tab, siteId, typeFilter, locale, types }: { tab: Tab
     }
     case 'editorial': {
       const data = await fetchEditorialData(siteId)
-      return <EditorialTab data={data} typeFilter={typeFilter} strings={strings} types={types} />
+      return <EditorialTab data={data} typeFilter={typeFilter} strings={strings} types={types} siteTimezone={siteTimezone} />
     }
     case 'schedule': {
       const data = await fetchScheduleData(siteId, locale)
-      return <ScheduleTab data={data} typeFilter={typeFilter} strings={strings} locale={locale as 'en' | 'pt-BR'} />
+      return <ScheduleTab data={data} typeFilter={typeFilter} strings={strings} locale={locale as 'en' | 'pt-BR'} siteTimezone={siteTimezone} />
     }
     case 'automations': {
       const data = await fetchAutomationsData(siteId)

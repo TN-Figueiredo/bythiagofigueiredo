@@ -20,9 +20,10 @@ interface EditorialTabProps {
   typeFilter?: string | null
   strings?: NewsletterHubStrings
   types?: NewsletterType[]
+  siteTimezone?: string
 }
 
-export function EditorialTab({ data, typeFilter, strings, types }: EditorialTabProps) {
+export function EditorialTab({ data, typeFilter, strings, types, siteTimezone = 'America/Sao_Paulo' }: EditorialTabProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const deferredQuery = useDeferredValue(searchQuery)
   const [, startTransition] = useTransition()
@@ -128,7 +129,7 @@ export function EditorialTab({ data, typeFilter, strings, types }: EditorialTabP
       </div>
 
       <SectionErrorBoundary sectionName="Kanban board">
-        <KanbanBoard editions={filtered} onMoveEdition={handleMoveEdition} onQuickAdd={handleQuickAdd} strings={strings} types={types} onReassignType={handleReassignType} />
+        <KanbanBoard editions={filtered} onMoveEdition={handleMoveEdition} onQuickAdd={handleQuickAdd} strings={strings} types={types} onReassignType={handleReassignType} siteTimezone={siteTimezone} />
       </SectionErrorBoundary>
 
       <SummaryBar

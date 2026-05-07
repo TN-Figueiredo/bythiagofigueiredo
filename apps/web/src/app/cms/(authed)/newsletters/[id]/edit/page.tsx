@@ -40,12 +40,11 @@ export default async function EditEditionPage({
     .eq('newsletter_id', edition.newsletter_type_id)
     .eq('status', 'confirmed')
 
-  const { data: types } = await supabase
-    .from('newsletter_types')
-    .select('id, name, color')
-    .eq('site_id', ctx.siteId)
-    .eq('active', true)
-    .order('sort_order')
+  const [{ data: types }, { data: siteRow }] = await Promise.all([
+    supabase.from('newsletter_types').select('id, name, color').eq('site_id', ctx.siteId).eq('active', true).order('sort_order'),
+    supabase.from('sites').select('timezone').eq('id', ctx.siteId).single(),
+  ])
+  const siteTimezone = (siteRow?.timezone as string) ?? 'America/Sao_Paulo'
 
   const cookieStore = await cookies()
   const userClient = createServerClient(
@@ -65,6 +64,7 @@ export default async function EditEditionPage({
   return (
     <EditionEditor
       displayId={displayId}
+      siteTimezone={siteTimezone}
       edition={{
         id: edition.id,
         subject: edition.subject,

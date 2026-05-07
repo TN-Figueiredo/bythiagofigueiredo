@@ -41,6 +41,7 @@ interface Props {
   backlogEditions: ScheduleEdition[]
   today: string
   readOnly?: boolean
+  siteTimezone: string
 }
 
 /* ------------------------------------------------------------------ */
@@ -65,8 +66,8 @@ const TYPE_COLORS = {
 /*  Helpers                                                           */
 /* ------------------------------------------------------------------ */
 
-function toDateString(d: Date): string {
-  return d.toISOString().split('T')[0]!
+function toDateString(d: Date, siteTimezone: string): string {
+  return d.toLocaleDateString('sv-SE', { timeZone: siteTimezone })
 }
 
 function addDays(d: Date, n: number): Date {
@@ -292,6 +293,7 @@ function WeekView({
   onPublish,
   onDayCellClick,
   readOnly,
+  siteTimezone,
 }: {
   items: Map<string, ScheduleItemBase[]>
   weekStart: Date
@@ -300,13 +302,14 @@ function WeekView({
   onPublish: (item: ScheduleItemBase) => void
   onDayCellClick: (dateStr: string) => void
   readOnly: boolean
+  siteTimezone: string
 }) {
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
 
   return (
     <div className="grid grid-cols-7 gap-px rounded-lg border border-slate-700 bg-slate-700" data-testid="week-view">
       {days.map((day) => {
-        const dateStr = toDateString(day)
+        const dateStr = toDateString(day, siteTimezone)
         const dayItems = items.get(dateStr) ?? []
         const isToday = dateStr === today
 
@@ -442,6 +445,7 @@ function MonthView({
   onPublish,
   onDayCellClick,
   readOnly,
+  siteTimezone,
 }: {
   items: Map<string, ScheduleItemBase[]>
   currentMonth: Date
@@ -450,6 +454,7 @@ function MonthView({
   onPublish: (item: ScheduleItemBase) => void
   onDayCellClick: (dateStr: string) => void
   readOnly: boolean
+  siteTimezone: string
 }) {
   const monthStart = startOfMonth(currentMonth)
   const monthEnd = endOfMonth(currentMonth)
@@ -475,7 +480,7 @@ function MonthView({
       {/* Day grid */}
       <div className="grid grid-cols-7 gap-px rounded-lg border border-slate-700 bg-slate-700">
         {days.map((day) => {
-          const dateStr = toDateString(day)
+          const dateStr = toDateString(day, siteTimezone)
           const dayItems = items.get(dateStr) ?? []
           const isToday = dateStr === today
           const isCurrentMonth =
@@ -666,6 +671,7 @@ export function ScheduleConnected({
   backlogEditions,
   today,
   readOnly = false,
+  siteTimezone,
 }: Props) {
   const [view, setView] = useState<ViewMode>('week')
   const [anchorDate, setAnchorDate] = useState(() => new Date(today + 'T00:00:00'))
@@ -1084,6 +1090,7 @@ export function ScheduleConnected({
             onPublish={handlePublish}
             onDayCellClick={handleDayCellClick}
             readOnly={readOnly}
+            siteTimezone={siteTimezone}
           />
         )}
         {view === 'agenda' && (
@@ -1104,6 +1111,7 @@ export function ScheduleConnected({
             onPublish={handlePublish}
             onDayCellClick={handleDayCellClick}
             readOnly={readOnly}
+            siteTimezone={siteTimezone}
           />
         )}
       </main>

@@ -1,12 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, within } from '@testing-library/react'
+import type { HubNewsletterType } from '../../../lib/newsletter/queries'
 
-// Mock the server action
 vi.mock('../../../src/app/(public)/actions/subscribe-newsletters', () => ({
-  subscribeToNewsletters: vi.fn().mockResolvedValue({ success: true, subscribedIds: ['main-en'] }),
+  subscribeToNewsletters: vi.fn().mockResolvedValue({ success: true, subscribedIds: ['nl-1'] }),
 }))
 
-// Mock next/link
 vi.mock('next/link', () => ({
   default: ({ children, href, ...props }: { children: React.ReactNode; href: string; [k: string]: unknown }) => (
     <a href={href} {...props}>{children}</a>
@@ -15,11 +14,28 @@ vi.mock('next/link', () => ({
 
 import { NewslettersHub } from '../../../src/app/(public)/newsletters/components/NewslettersHub'
 
-function renderHub(props?: Partial<{ locale: 'en' | 'pt-BR'; currentTheme: 'dark' | 'light' }>) {
+const MOCK_TYPES_EN: HubNewsletterType[] = [
+  { id: 'nl-1', slug: 'the-bythiago-diary', name: 'The bythiago diary', tagline: 'the week in review', color: '#C14513', colorDark: '#FF8240', badge: 'main', cadenceLabel: 'weekly, Fridays', subscriberCount: 1240, editionsCount: 34, latestEditionSubject: 'week 17', locale: 'en' },
+  { id: 'nl-2', slug: 'curves-and-roads', name: 'Curves & roads', tagline: 'motorcycle trips', color: '#2C6E49', colorDark: '#5FA87D', badge: 'new', cadenceLabel: 'whenever I hit the road', subscriberCount: 182, editionsCount: 4, latestEditionSubject: 'serra da canastra', locale: 'en' },
+  { id: 'nl-3', slug: 'grow-inward', name: 'Grow inward', tagline: 'habits, books', color: '#6B4A91', colorDark: '#A983D6', badge: null, cadenceLabel: 'every 2 weeks, Sundays', subscriberCount: 408, editionsCount: 11, latestEditionSubject: 'productivity', locale: 'en' },
+  { id: 'nl-4', slug: 'code-in-portuguese', name: 'Code in Portuguese', tagline: 'stack decisions', color: '#1F5F8B', colorDark: '#5FA8E0', badge: null, cadenceLabel: 'monthly, last Thursday', subscriberCount: 620, editionsCount: 8, latestEditionSubject: 'postgres', locale: 'en' },
+]
+
+const MOCK_TYPES_PT: HubNewsletterType[] = [
+  { id: 'nl-1-pt', slug: 'diario-do-bythiago', name: 'Diário do bythiago', tagline: 'o resumo da semana', color: '#C14513', colorDark: '#FF8240', badge: 'principal', cadenceLabel: '1x por semana, sextas', subscriberCount: 1240, editionsCount: 34, latestEditionSubject: 'semana 17', locale: 'pt-BR' },
+  { id: 'nl-2-pt', slug: 'curvas-e-estradas', name: 'Curvas & estradas', tagline: 'relatos de moto', color: '#2C6E49', colorDark: '#5FA87D', badge: 'novo', cadenceLabel: 'quando eu pegar estrada', subscriberCount: 182, editionsCount: 4, latestEditionSubject: 'serra da canastra', locale: 'pt-BR' },
+  { id: 'nl-3-pt', slug: 'crescer-de-dentro', name: 'Crescer de dentro', tagline: 'hábitos, leituras', color: '#6B4A91', colorDark: '#A983D6', badge: null, cadenceLabel: 'a cada 2 semanas, domingos', subscriberCount: 408, editionsCount: 11, latestEditionSubject: 'produtividade', locale: 'pt-BR' },
+  { id: 'nl-4-pt', slug: 'codigo-em-portugues', name: 'Código em português', tagline: 'decisões de stack', color: '#1F5F8B', colorDark: '#5FA8E0', badge: null, cadenceLabel: 'mensal, última quinta', subscriberCount: 620, editionsCount: 8, latestEditionSubject: 'postgres', locale: 'pt-BR' },
+]
+
+function renderHub(props?: Partial<{ locale: 'en' | 'pt-BR'; currentTheme: 'dark' | 'light'; types: HubNewsletterType[] }>) {
+  const locale = props?.locale ?? 'en'
+  const types = props?.types ?? (locale === 'pt-BR' ? MOCK_TYPES_PT : MOCK_TYPES_EN)
   return render(
     <NewslettersHub
-      locale={props?.locale ?? 'en'}
+      locale={locale}
       currentTheme={props?.currentTheme ?? 'dark'}
+      types={types}
     />,
   )
 }
@@ -51,10 +67,8 @@ describe('NewslettersHub — card selection', () => {
   it('clicking a deselected card selects it', () => {
     renderHub()
     const cards = screen.getAllByRole('checkbox')
-    // Deselect first
     fireEvent.click(cards[0]!)
     expect(cards[0]!.getAttribute('aria-checked')).toBe('false')
-    // Re-select
     fireEvent.click(cards[0]!)
     expect(cards[0]!.getAttribute('aria-checked')).toBe('true')
   })
@@ -62,7 +76,6 @@ describe('NewslettersHub — card selection', () => {
   it('selected card shows SELECTED badge', () => {
     renderHub()
     const cards = screen.getAllByRole('checkbox')
-    // First card is selected by default
     expect(within(cards[0]!).getByText(/SELECTED/i)).toBeTruthy()
   })
 
@@ -78,7 +91,6 @@ describe('NewslettersHub — accessibility', () => {
   it('each card has aria-label with name and cadence', () => {
     renderHub()
     const cards = screen.getAllByRole('checkbox')
-    // First card: "The bythiago diary"
     expect(cards[0]!.getAttribute('aria-label')).toContain('The bythiago diary')
     expect(cards[0]!.getAttribute('aria-label')).toContain('weekly, Fridays')
   })
@@ -143,7 +155,6 @@ describe('NewslettersHub — controls', () => {
 
   it('Select All shows "all selected" state when all checked', () => {
     renderHub()
-    // All are already selected
     expect(screen.getByText(/all selected/i)).toBeTruthy()
   })
 
@@ -159,10 +170,8 @@ describe('NewslettersHub — controls', () => {
 
   it('clicking Select All selects all cards', () => {
     renderHub()
-    // First clear all
     const clearBtn = screen.getByRole('button', { name: /clear/i })
     fireEvent.click(clearBtn)
-    // Then select all
     const selectAllBtn = screen.getByRole('button', { name: /select all/i })
     fireEvent.click(selectAllBtn)
     const cards = screen.getAllByRole('checkbox')
@@ -175,7 +184,6 @@ describe('NewslettersHub — controls', () => {
     renderHub()
     const clearBtn = screen.getByRole('button', { name: /clear/i })
     fireEvent.click(clearBtn)
-    // Now clear should be disabled
     expect(clearBtn.getAttribute('aria-disabled')).toBe('true')
   })
 })
@@ -192,10 +200,8 @@ describe('NewslettersHub — sticky bar', () => {
     renderHub()
     const pillContainer = screen.getByRole('list')
     const pills = within(pillContainer).getAllByRole('listitem')
-    // Click the remove button on the first pill
     const removeBtn = within(pills[0]!).getByRole('button')
     fireEvent.click(removeBtn)
-    // Card should now be deselected
     const cards = screen.getAllByRole('checkbox')
     expect(cards[0]!.getAttribute('aria-checked')).toBe('false')
   })
@@ -232,10 +238,8 @@ describe('NewslettersHub — i18n (pt-BR)', () => {
 
   it('renders Portuguese controls', () => {
     renderHub({ locale: 'pt-BR' })
-    // "all selected" state shows as status span, desmarcar as button
     expect(screen.getByText(/todas selecionadas/i)).toBeTruthy()
     expect(screen.getByRole('button', { name: /desmarcar/i })).toBeTruthy()
-    // Deselect one to reveal "marcar todas" button
     const cards = screen.getAllByRole('checkbox')
     fireEvent.click(cards[0]!)
     expect(screen.getByRole('button', { name: /marcar todas/i })).toBeTruthy()
@@ -283,7 +287,6 @@ describe('NewslettersHub — announcements', () => {
   it('announces selected message with name and count', () => {
     renderHub()
     const cards = screen.getAllByRole('checkbox')
-    // Deselect first, then re-select to get "selected" announcement
     fireEvent.click(cards[0]!)
     fireEvent.click(cards[0]!)
     const liveRegion = document.querySelector('[aria-live="polite"]')
@@ -351,7 +354,6 @@ describe('NewslettersHub — deselected card badge', () => {
     renderHub()
     const cards = screen.getAllByRole('checkbox')
     fireEvent.click(cards[0]!)
-    // The card should show "+ select" not "SELECTED"
     const card = cards[0]!
     expect(within(card).queryByText(/SELECTED/)).toBeNull()
     expect(within(card).getByText((content) => content.includes('select') && !content.includes('SELECTED'))).toBeTruthy()
@@ -369,5 +371,52 @@ describe('NewslettersHub — learn more links', () => {
     renderHub({ locale: 'pt-BR' })
     const links = screen.getAllByText(/saiba mais/i)
     expect(links[0]!.closest('a')?.getAttribute('href')).toContain('/newsletters/')
+  })
+})
+
+describe('NewslettersHub — empty state', () => {
+  it('shows empty message when no types', () => {
+    renderHub({ types: [] })
+    expect(screen.getByText(/no newsletters available/i)).toBeTruthy()
+  })
+
+  it('shows back home link in empty state', () => {
+    renderHub({ types: [] })
+    expect(screen.getByText(/back to home/i)).toBeTruthy()
+  })
+})
+
+describe('NewslettersHub — single newsletter', () => {
+  it('renders single card without select all/clear controls', () => {
+    const single = [MOCK_TYPES_EN[0]!]
+    renderHub({ types: single })
+    const cards = screen.getAllByRole('checkbox')
+    expect(cards).toHaveLength(1)
+    expect(screen.queryByRole('button', { name: /select all/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /clear/i })).toBeNull()
+  })
+
+  it('single newsletter is selected by default', () => {
+    const single = [MOCK_TYPES_EN[0]!]
+    renderHub({ types: single })
+    const card = screen.getByRole('checkbox')
+    expect(card.getAttribute('aria-checked')).toBe('true')
+  })
+})
+
+describe('NewslettersHub — dynamic stats', () => {
+  it('shows formatted subscriber count', () => {
+    renderHub()
+    expect(screen.getByText(/1,240 subscribers/)).toBeTruthy()
+  })
+
+  it('shows formatted editions count', () => {
+    renderHub()
+    expect(screen.getByText(/34 issues/)).toBeTruthy()
+  })
+
+  it('shows latest edition subject in sample box', () => {
+    renderHub()
+    expect(screen.getByText(/week 17/)).toBeTruthy()
   })
 })

@@ -19,9 +19,10 @@ interface EditorialTabProps {
   tagId?: string | null
   locale?: string | null
   supportedLocales?: string[]
+  siteTimezone?: string
 }
 
-export function EditorialTab({ data, strings, tagId, locale, supportedLocales }: EditorialTabProps) {
+export function EditorialTab({ data, strings, tagId, locale, supportedLocales, siteTimezone = 'America/Sao_Paulo' }: EditorialTabProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const deferredQuery = useDeferredValue(searchQuery)
   const [, startTransition] = useTransition()
@@ -204,6 +205,7 @@ export function EditorialTab({ data, strings, tagId, locale, supportedLocales }:
           onQuickAdd={handleQuickAdd}
           strings={strings}
           supportedLocales={supportedLocales}
+          siteTimezone={siteTimezone}
         />
       </SectionErrorBoundary>
     </div>

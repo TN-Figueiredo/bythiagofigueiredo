@@ -2,6 +2,7 @@ import { unstable_cache } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { generateCadenceSlots, describePattern } from '@/lib/newsletter/cadence-slots'
 import type { CadencePattern } from '@/lib/newsletter/cadence-pattern'
+import { todayInSiteTz, toDateStringInTz } from '@/lib/cms/format-site-datetime'
 import { normalizeTime } from '@/lib/newsletter/format'
 import type {
   NewsletterHubSharedData,
@@ -48,9 +49,10 @@ export const fetchSharedData = unstable_cache(
       .gte('last_sent_at', oneDayAgo)
 
     // Compute missed cadence slots (last 30 days) for schedule tab badge
+    const siteTimezone = (site?.timezone as string) ?? 'America/Sao_Paulo'
     let scheduleMissed = 0
-    const todayStr = new Date().toISOString().slice(0, 10)
-    const thirtyDaysAgo = new Date(Date.now() - THIRTY_DAYS_MS).toISOString().slice(0, 10)
+    const todayStr = todayInSiteTz(siteTimezone)
+    const thirtyDaysAgo = toDateStringInTz(new Date(Date.now() - THIRTY_DAYS_MS), siteTimezone)
     const typesWithCadence = (types ?? []).filter((t) => t.cadence_pattern && !t.cadence_paused && t.last_sent_at)
     if (typesWithCadence.length > 0) {
       const { data: filledEditions } = await supabase
@@ -86,7 +88,7 @@ export const fetchSharedData = unstable_cache(
         subscriberCount: countByType.get(t.id as string) ?? 0,
       })),
       tabBadges: { editorial: editorialBadge ?? 0, automations: autoIncidents ?? 0, schedule: scheduleMissed },
-      siteTimezone: (site?.timezone as string) ?? 'America/Sao_Paulo',
+      siteTimezone,
       siteName: (site?.name as string) ?? 'Site',
       defaultLocale,
       seoDefaultOgImage: (site?.seo_default_og_image as string | null) ?? null,
@@ -482,15 +484,16 @@ export const fetchScheduleData = unstable_cache(
       }
     }
 
-    // Calendar date range
-    const today = new Date()
-    const todayStr = today.toISOString().slice(0, 10)
-    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1)
+    // Calendar date range — use site timezone so "today" matches the site's wall clock
+    const todayStr = todayInSiteTz(siteTimezone)
+    const [tY, tM, tD] = todayStr.split('-').map(Number) as [number, number, number]
+    const todayDate = new Date(tY, tM - 1, tD)
+    const firstDay = new Date(tY, tM - 1, 1)
     const startOffset = firstDay.getDay()
-    const calendarStart = new Date(today.getFullYear(), today.getMonth(), 1 - startOffset)
-    const calendarStartStr = calendarStart.toISOString().slice(0, 10)
+    const calendarStart = new Date(tY, tM - 1, 1 - startOffset)
+    const calendarStartStr = toDateStringInTz(calendarStart, siteTimezone)
     const calendarEnd = new Date(calendarStart.getTime() + 41 * 86_400_000)
-    const calendarEndStr = calendarEnd.toISOString().slice(0, 10)
+    const calendarEndStr = toDateStringInTz(calendarEnd, siteTimezone)
 
     // Generate cadence slots for each type with a cadence_pattern
     const typesWithFirstSend = new Set((typeRows ?? []).filter((t) => t.last_sent_at).map((t) => t.id as string))
@@ -514,8 +517,8 @@ export const fetchScheduleData = unstable_cache(
     let missedCount = 0
     let failedCount = 0
     const calendarSlots = Array.from({ length: 42 }).map((_, i) => {
-      const date = new Date(today.getFullYear(), today.getMonth(), 1 - startOffset + i)
-      const dateStr = date.toISOString().slice(0, 10)
+      const date = new Date(tY, tM - 1, 1 - startOffset + i)
+      const dateStr = toDateStringInTz(date, siteTimezone)
 
       // Cadence slots for this date
       const cadenceEntries = cadenceSlotsByDate.get(dateStr) ?? []
@@ -592,7 +595,7 @@ export const fetchScheduleData = unstable_cache(
 
     const next7Days = (calendarEditions ?? []).filter((e) => {
       const d = (e.scheduled_at as string)?.slice(0, 10) ?? (e.slot_date as string) ?? ''
-      return d >= todayStr && d <= new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+      return d >= todayStr && d <= toDateStringInTz(new Date(todayDate.getTime() + 7 * 24 * 60 * 60 * 1000), siteTimezone)
     }).length
 
     const subCountByType = new Map<string, number>()
@@ -649,8 +652,8 @@ export const fetchScheduleData = unstable_cache(
     })
 
     // Fill rate: ratio of filled cadence slots (any state except empty_future/missed) to total cadence slots in the month
-    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10)
-    const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10)
+    const monthStart = new Date(tY, tM - 1, 1).toLocaleDateString('sv-SE', { timeZone: siteTimezone })
+    const monthEnd = new Date(tY, tM, 0).toLocaleDateString('sv-SE', { timeZone: siteTimezone })
     let totalMonthSlots = 0
     let filledMonthSlots = 0
     for (const slot of calendarSlots) {
@@ -702,17 +705,11 @@ export const fetchAutomationsData = unstable_cache(
   async (siteId: string): Promise<AutomationsTabData> => {
     const supabase = getSupabaseServiceClient()
 
-    const { data: typeRows } = await supabase
-      .from('newsletter_types')
-      .select('id, name, cadence_paused, last_sent_at')
-      .eq('site_id', siteId)
-      .eq('active', true)
-
-    const { data: cronRuns } = await supabase
-      .from('cron_runs')
-      .select('job_name, started_at, status')
-      .order('started_at', { ascending: false })
-      .limit(50)
+    const [{ data: siteRow }, { data: typeRows }, { data: cronRuns }] = await Promise.all([
+      supabase.from('sites').select('timezone').eq('id', siteId).single(),
+      supabase.from('newsletter_types').select('id, name, cadence_paused, last_sent_at').eq('site_id', siteId).eq('active', true),
+      supabase.from('cron_runs').select('job_name, started_at, status').order('started_at', { ascending: false }).limit(50),
+    ])
 
     const cronMap = new Map<string, Array<{ date: string; success: boolean }>>()
     for (const r of cronRuns ?? []) {
@@ -729,7 +726,8 @@ export const fetchAutomationsData = unstable_cache(
     ].map((c) => ({ ...c, lastRuns: (cronMap.get(c.name) ?? []).slice(0, 5) }))
 
     const allCronsHealthy = cronJobs.every((c) => c.lastRuns.length === 0 || c.lastRuns[0]?.success)
-    const todayStart = new Date().toISOString().slice(0, 10)
+    const autoSiteTimezone = (siteRow?.timezone as string) ?? 'America/Sao_Paulo'
+    const todayStart = todayInSiteTz(autoSiteTimezone)
     const eventsToday = (cronRuns ?? []).filter((r) => (r.started_at as string).startsWith(todayStart)).length
     const successRate = (cronRuns ?? []).length > 0 ? ((cronRuns ?? []).filter((r) => r.status === 'ok').length / (cronRuns ?? []).length) * 100 : 100
 

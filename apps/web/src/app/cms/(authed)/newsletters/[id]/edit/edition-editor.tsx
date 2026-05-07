@@ -64,6 +64,7 @@ interface EditionEditorProps {
   types: Array<{ id: string; name: string; color: string }>
   initialTypeId?: string | null
   userEmail?: string
+  siteTimezone?: string
 }
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -92,6 +93,7 @@ export function EditionEditor({
   types,
   initialTypeId,
   userEmail = '',
+  siteTimezone = 'America/Sao_Paulo',
 }: EditionEditorProps) {
   const router = useRouter()
 
@@ -757,6 +759,7 @@ export function EditionEditor({
       <ScheduleModal
         open={showScheduleModal}
         audienceCount={subscriberCount}
+        siteTimezone={siteTimezone}
         onConfirm={handleSchedule}
         onCancel={() => setShowScheduleModal(false)}
       />

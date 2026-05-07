@@ -61,9 +61,10 @@ interface KanbanBoardProps {
   strings?: NewsletterHubStrings
   types?: NewsletterType[]
   onReassignType?: (editionId: string, typeId: string | null) => void
+  siteTimezone?: string
 }
 
-export function KanbanBoard({ editions, onMoveEdition, onDeleteEdition, onQuickAdd, strings, types, onReassignType }: KanbanBoardProps) {
+export function KanbanBoard({ editions, onMoveEdition, onDeleteEdition, onQuickAdd, strings, types, onReassignType, siteTimezone = 'America/Sao_Paulo' }: KanbanBoardProps) {
   const dndId = useId()
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -483,6 +484,7 @@ export function KanbanBoard({ editions, onMoveEdition, onDeleteEdition, onQuickA
       <ScheduleModal
         open={!!specialScheduleState}
         audienceCount={0}
+        siteTimezone={siteTimezone}
         onConfirm={handleSpecialScheduleConfirm}
         onCancel={handleSpecialScheduleCancel}
       />

@@ -134,7 +134,7 @@ export default async function NewsletterLandingPage({ params }: PageProps) {
       : {
           name: profile?.name ?? 'Thiago Figueiredo',
           bio: t('newsletter.landing.authorBio'),
-          avatarUrl: null as string | null,
+          avatarUrl: (profile && 'imageUrl' in profile ? profile.imageUrl : null) as string | null,
           socialLinks: {},
         }
 

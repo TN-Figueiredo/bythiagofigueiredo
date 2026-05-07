@@ -101,7 +101,7 @@ export function CadencePatternForm({
   // ─── Preview computation ───────────────────────────────────────────────────
 
   const { previewDates, isValid } = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10)
+    const today = new Date().toLocaleDateString('sv-SE', { timeZone: siteTimezone })
     try {
       const slots365 = generateCadenceSlots(pattern, { from: today, maxSlots: 1 })
       if (slots365.length === 0) return { previewDates: [], isValid: false }
@@ -110,7 +110,7 @@ export function CadencePatternForm({
     } catch {
       return { previewDates: [], isValid: false }
     }
-  }, [pattern])
+  }, [pattern, siteTimezone])
 
   const patternDescription = useMemo(() => {
     try {

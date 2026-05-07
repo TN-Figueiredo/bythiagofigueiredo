@@ -3,6 +3,8 @@
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { KpiCard, formatRelativeTime } from '@tn-figueiredo/cms-ui/client'
+import { DualTimeDisplay } from './dual-time-display'
+import { todayInSiteTz } from '@/lib/cms/format-site-datetime'
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                             */
@@ -73,6 +75,7 @@ export interface DashboardData {
 
 interface Props {
   data: DashboardData
+  siteTimezone?: string
 }
 
 /* ------------------------------------------------------------------ */
@@ -92,10 +95,12 @@ function deltaDirection(
   return value > 0 ? 'up' : 'down'
 }
 
-function groupByDay(items: ComingUpItem[]): { label: string; items: ComingUpItem[] }[] {
-  const now = new Date()
-  const today = now.toISOString().slice(0, 10)
-  const tomorrow = new Date(now.getTime() + 86400000).toISOString().slice(0, 10)
+function groupByDay(items: ComingUpItem[], siteTimezone?: string): { label: string; items: ComingUpItem[] }[] {
+  const tz = siteTimezone ?? 'America/Sao_Paulo'
+  const today = todayInSiteTz(tz)
+  const tomorrowDate = new Date()
+  tomorrowDate.setDate(tomorrowDate.getDate() + 1)
+  const tomorrow = tomorrowDate.toLocaleDateString('sv-SE', { timeZone: tz })
 
   const groups = new Map<string, ComingUpItem[]>()
   for (const item of items) {
@@ -109,9 +114,9 @@ function groupByDay(items: ComingUpItem[]): { label: string; items: ComingUpItem
     .map(([day, dayItems]) => ({
       label:
         day === today
-          ? 'Today'
+          ? 'Today (site time)'
           : day === tomorrow
-            ? 'Tomorrow'
+            ? 'Tomorrow (site time)'
             : new Date(day + 'T12:00:00').toLocaleDateString('en-US', {
                 weekday: 'short',
                 month: 'short',
@@ -252,8 +257,8 @@ function NewsletterBanner({
   )
 }
 
-function ComingUpSection({ items }: { items: ComingUpItem[] }) {
-  const groups = useMemo(() => groupByDay(items), [items])
+function ComingUpSection({ items, siteTimezone }: { items: ComingUpItem[]; siteTimezone?: string }) {
+  const groups = useMemo(() => groupByDay(items, siteTimezone), [items, siteTimezone])
 
   if (items.length === 0) {
     return (
@@ -282,7 +287,14 @@ function ComingUpSection({ items }: { items: ComingUpItem[] }) {
                   >
                     {typeIcon(item.type)}
                   </span>
-                  <span className="truncate">{item.title}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate">{item.title}</span>
+                    {siteTimezone && item.date && (
+                      <span className="mt-0.5 block">
+                        <DualTimeDisplay date={item.date} siteTimezone={siteTimezone} mode="time-only" />
+                      </span>
+                    )}
+                  </span>
                 </Link>
               </li>
             ))}
@@ -492,7 +504,7 @@ function OnboardingCards() {
 /*  Main                                                              */
 /* ------------------------------------------------------------------ */
 
-export function DashboardConnected({ data }: Props) {
+export function DashboardConnected({ data, siteTimezone }: Props) {
   const {
     kpis,
     lastNewsletter,
@@ -529,7 +541,7 @@ export function DashboardConnected({ data }: Props) {
               <h3 className="mb-4 text-sm font-semibold text-slate-200">
                 Coming Up
               </h3>
-              <ComingUpSection items={comingUp} />
+              <ComingUpSection items={comingUp} siteTimezone={siteTimezone} />
             </div>
 
             <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-5">

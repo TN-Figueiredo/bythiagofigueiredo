@@ -157,3 +157,37 @@ export function formatSiteDateTime(
 
   return { primary, local, crossDay, tooltip, tzAbbr, localTzAbbr }
 }
+
+export function getTimezoneOffsetHours(
+  tz1: string,
+  tz2: string,
+  date?: Date,
+): number {
+  const d = date ?? new Date()
+  const fmt = (tz: string) => {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).formatToParts(d)
+    const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '0'
+    return Date.UTC(
+      parseInt(get('year')),
+      parseInt(get('month')) - 1,
+      parseInt(get('day')),
+      parseInt(get('hour')),
+      parseInt(get('minute')),
+      parseInt(get('second')),
+    )
+  }
+  return (fmt(tz1) - fmt(tz2)) / 3_600_000
+}
+
+export function toDateStringInTz(d: Date, siteTimezone: string): string {
+  return d.toLocaleDateString('sv-SE', { timeZone: siteTimezone })
+}

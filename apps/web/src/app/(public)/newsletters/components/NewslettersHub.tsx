@@ -4,48 +4,7 @@ import { useState, useTransition, useCallback, useMemo, useEffect, memo } from '
 import Link from 'next/link'
 import { localePath } from '@/lib/i18n/locale-path'
 import { subscribeToNewsletters } from '../../actions/subscribe-newsletters'
-
-// ── Static catalog (matches DB seeds in 20260501000009) ──────────────────────
-const CATALOG = [
-  {
-    baseId: 'main',
-    primary: true,
-    colorDark: '#FF8240',
-    colorLight: '#C14513',
-    en: { name: 'The bythiago diary', tagline: 'the week in review — blog + channel + what I\'ve been thinking.', cadence: 'weekly, Fridays', badge: 'main', sample: 'week 17 · CMS + a bug that cost me three hours', subs: '1,240 subscribers', issues: '34 issues' },
-    pt: { name: 'Diário do bythiago', tagline: 'o resumo da semana — blog + canal + o que andei pensando.', cadence: '1x por semana, sextas', badge: 'principal', sample: 'semana 17 · CMS + um bug que me custou três horas', subs: '1.240 inscritos', issues: '34 edições' },
-  },
-  {
-    baseId: 'trips',
-    colorDark: '#5FA87D',
-    colorLight: '#2C6E49',
-    en: { name: 'Curves & roads', tagline: 'motorcycle trips, maps, roadside food.', cadence: 'whenever I hit the road', badge: 'new', sample: 'serra da canastra · 3 days, two tanks, one storm', subs: '182 subscribers', issues: '4 issues' },
-    pt: { name: 'Curvas & estradas', tagline: 'relatos de moto, mapas, comida de beira de estrada.', cadence: 'quando eu pegar estrada', badge: 'novo', sample: 'serra da canastra · 3 dias, dois tanques, uma chuva', subs: '182 inscritos', issues: '4 edições' },
-  },
-  {
-    baseId: 'growth',
-    colorDark: '#A983D6',
-    colorLight: '#6B4A91',
-    en: { name: 'Grow inward', tagline: 'habits, books, what\'s kept me from losing it.', cadence: 'every 2 weeks, Sundays', badge: undefined, sample: 'what changed when I stopped measuring productivity', subs: '408 subscribers', issues: '11 issues' },
-    pt: { name: 'Crescer de dentro', tagline: 'hábitos, leituras, o que me ajudou a não surtar.', cadence: 'a cada 2 semanas, domingos', badge: undefined, sample: 'o que mudou quando parei de medir produtividade', subs: '408 inscritos', issues: '11 edições' },
-  },
-  {
-    baseId: 'code',
-    colorDark: '#5FA8E0',
-    colorLight: '#1F5F8B',
-    en: { name: 'Code in Portuguese', tagline: 'stack decisions, real bugs, no hype.', cadence: 'monthly, last Thursday', badge: undefined, sample: 'why I went back to Postgres (and stopped trying to be clever)', subs: '620 subscribers', issues: '8 issues' },
-    pt: { name: 'Código em português', tagline: 'decisões de stack, bugs reais, sem hype.', cadence: 'mensal, última quinta', badge: undefined, sample: 'por que voltei pro Postgres (e parei de tentar ser inteligente)', subs: '620 inscritos', issues: '8 edições' },
-  },
-] as const
-
-const SLUG_MAP: Record<string, Record<'en' | 'pt', string>> = {
-  main: { en: 'the-bythiago-diary', pt: 'diario-do-bythiago' },
-  trips: { en: 'curves-and-roads', pt: 'curvas-e-estradas' },
-  growth: { en: 'grow-inward', pt: 'crescer-de-dentro' },
-  code: { en: 'code-in-portuguese', pt: 'codigo-em-portugues' },
-}
-
-type NL = typeof CATALOG[number]
+import type { HubNewsletterType } from '@/lib/newsletter/queries'
 
 interface ThemeTokens {
   dark: boolean
@@ -53,7 +12,6 @@ interface ThemeTokens {
   faint: string; line: string; tape: string; tape2: string; shadow: string
 }
 
-// ── Pinboard personality per card ────────────────────────────────────────────
 const PINBOARD = [
   { rot: -0.8, lift: -2 },
   { rot: 0.6, lift: 1 },
@@ -61,7 +19,19 @@ const PINBOARD = [
   { rot: 0.4, lift: -1 },
 ]
 
-const nlColor = (nl: NL, dark: boolean) => dark ? nl.colorDark : nl.colorLight
+const nlColor = (nl: HubNewsletterType, dark: boolean) =>
+  dark ? (nl.colorDark ?? nl.color) : nl.color
+
+function formatStat(count: number, L: 'en' | 'pt', type: 'subscribers' | 'editions'): string {
+  const formatted = L === 'pt'
+    ? count.toLocaleString('pt-BR')
+    : count.toLocaleString('en-US')
+  const labels = {
+    subscribers: { en: count === 1 ? 'subscriber' : 'subscribers', pt: count === 1 ? 'inscrito' : 'inscritos' },
+    editions: { en: count === 1 ? 'issue' : 'issues', pt: count === 1 ? 'edição' : 'edições' },
+  }
+  return `${formatted} ${labels[type][L]}`
+}
 
 // ── i18n strings ─────────────────────────────────────────────────────────────
 const STRINGS = {
@@ -70,10 +40,11 @@ const STRINGS = {
     notebooks: 'notebooks',
     headline: 'Pick what you want to get',
     subhead: "I write across several fronts and don't want to spam you with stuff you didn't ask for. They're separate newsletters, each with its own rhythm. Check as many as you like.",
+    subheadSingle: "One newsletter, no spam. Just what I've been working on, when it's ready.",
     selectAll: 'select all',
     allSelected: 'all selected',
     clear: 'clear',
-    fourOptions: 'four options, no drama',
+    optionsNote: (n: number) => `${n} option${n === 1 ? '' : 's'}, no drama`,
     latestIssue: 'latest issue',
     learnMore: 'learn more',
     added: 'SELECTED',
@@ -90,24 +61,26 @@ const STRINGS = {
     subscribedTo: (n: number) => <>Subscribed to <span>{n}</span> newsletter{n > 1 ? 's' : ''}.</>,
     confirmSent: (email: string) => `We sent a confirmation email to ${email} — click the link and you're set.`,
     subscribed: 'subscribed!',
-    suggestHeadline: "You're on the diary. Want a few more things?",
+    suggestHeadline: 'Want a few more things?',
     suggestSubhead: (email: string) => `We'll use the same ${email}. Check what interests you, or skip — no drama.`,
     subscribeSelected: 'subscribe to selected',
-    skipMainOnly: 'skip, main only',
+    skipDone: 'skip, I\'m good',
     announcementAdded: (name: string, count: number, total: number) => `${name} selected. ${count} of ${total} selected.`,
     announcementRemoved: (name: string, count: number, total: number) => `${name} deselected. ${count} of ${total} selected.`,
     counterOf: (n: number, total: number) => `${n} of ${total} selected`,
     counterAll: (total: number) => `all ${total} selected`,
+    empty: 'No newsletters available right now. Check back soon!',
   },
   pt: {
     breadcrumb: '/ newsletters',
     notebooks: 'cadernos',
     headline: 'Escolhe o que você quer receber',
     subhead: 'Eu escrevo em várias frentes e não quero te encher de coisa que você não pediu. São newsletters separadas, cada uma com sua frequência. Marca quantas quiser.',
+    subheadSingle: 'Uma newsletter, sem spam. Só o que andei trabalhando, quando estiver pronto.',
     selectAll: 'marcar todas',
     allSelected: 'todas selecionadas',
     clear: 'desmarcar',
-    fourOptions: 'quatro opções, sem drama',
+    optionsNote: (n: number) => `${n} ${n === 1 ? 'opção' : 'opções'}, sem drama`,
     latestIssue: 'última edição',
     learnMore: 'saiba mais',
     added: 'SELECIONADA',
@@ -124,20 +97,21 @@ const STRINGS = {
     subscribedTo: (n: number) => <>Inscreveu em <span>{n}</span> newsletter{n > 1 ? 's' : ''}.</>,
     confirmSent: (email: string) => `Mandamos um email de confirmação pra ${email} — clica no link e tá pronto.`,
     subscribed: 'inscrito!',
-    suggestHeadline: 'Já está no diário. Quer receber mais alguma coisa?',
+    suggestHeadline: 'Quer receber mais alguma coisa?',
     suggestSubhead: (email: string) => `Usamos o mesmo ${email}. Marca o que te interessa, ou pula — sem drama.`,
     subscribeSelected: 'inscrever nas selecionadas',
-    skipMainOnly: 'pular, só a principal',
+    skipDone: 'pular, tá bom',
     announcementAdded: (name: string, count: number, total: number) => `${name} selecionada. ${count} de ${total} selecionadas.`,
     announcementRemoved: (name: string, count: number, total: number) => `${name} desmarcada. ${count} de ${total} selecionadas.`,
     counterOf: (n: number, total: number) => `${n} de ${total} selecionadas`,
     counterAll: (total: number) => `todas ${total} selecionadas`,
+    empty: 'Nenhuma newsletter disponível no momento. Volte em breve!',
   },
 } as const
 
 // ── Card component ───────────────────────────────────────────────────────────
 interface CardProps {
-  nl: NL
+  nl: HubNewsletterType
   index: number
   L: 'en' | 'pt'
   locale: 'en' | 'pt-BR'
@@ -153,8 +127,7 @@ const NewsletterCard = memo(function NewsletterCard({
 }: CardProps) {
   const { dark, paper, paper2, ink, muted, faint, tape, tape2, shadow } = theme
   const color = nlColor(nl, dark)
-  const data = nl[L]
-  const pin = PINBOARD[index] ?? { rot: 0, lift: 0 }
+  const pin = PINBOARD[index % PINBOARD.length]!
   const [pulsing, setPulsing] = useState(false)
   const [entered, setEntered] = useState(false)
   const [hovered, setHovered] = useState(false)
@@ -167,8 +140,8 @@ const NewsletterCard = memo(function NewsletterCard({
   const handleToggle = useCallback(() => {
     setPulsing(true)
     setTimeout(() => setPulsing(false), 400)
-    onToggle(nl.baseId)
-  }, [nl.baseId, onToggle])
+    onToggle(nl.id)
+  }, [nl.id, onToggle])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -177,7 +150,6 @@ const NewsletterCard = memo(function NewsletterCard({
     }
   }, [handleToggle])
 
-  // Opacity levels — deselected cards warm on hover per spec 3.2
   const titleOpacity = isChecked ? 1 : hovered ? 0.72 : 0.55
   const taglineOpacity = isChecked ? 1 : hovered ? 0.55 : 0.45
   const sampleOpacity = isChecked ? 1 : hovered ? 0.40 : 0.30
@@ -224,7 +196,7 @@ const NewsletterCard = memo(function NewsletterCard({
       <div
         role="checkbox"
         aria-checked={isChecked}
-        aria-label={`${data.name} — ${data.cadence}`}
+        aria-label={`${nl.name}${nl.cadenceLabel ? ` — ${nl.cadenceLabel}` : ''}`}
         tabIndex={0}
         onClick={handleToggle}
         onKeyDown={handleKeyDown}
@@ -310,19 +282,21 @@ const NewsletterCard = memo(function NewsletterCard({
         <div style={{ padding: '22px 24px 22px 32px' }}>
           {/* Cadence line + type badge */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-            <span style={{
-              fontFamily: '"JetBrains Mono", monospace',
-              fontSize: 10,
-              letterSpacing: '0.18em',
-              textTransform: 'uppercase',
-              color,
-              fontWeight: 700,
-              opacity: isChecked ? 1 : 0.6,
-              transition: 'opacity 0.25s ease',
-            }}>
-              {String(index + 1).padStart(2, '0')} · {data.cadence}
-            </span>
-            {data.badge && (
+            {nl.cadenceLabel && (
+              <span style={{
+                fontFamily: '"JetBrains Mono", monospace',
+                fontSize: 10,
+                letterSpacing: '0.18em',
+                textTransform: 'uppercase',
+                color,
+                fontWeight: 700,
+                opacity: isChecked ? 1 : 0.6,
+                transition: 'opacity 0.25s ease',
+              }}>
+                {String(index + 1).padStart(2, '0')} · {nl.cadenceLabel}
+              </span>
+            )}
+            {nl.badge && (
               <span style={{
                 padding: '2px 8px',
                 background: color,
@@ -335,7 +309,7 @@ const NewsletterCard = memo(function NewsletterCard({
                 transform: 'rotate(-1deg)',
                 display: 'inline-block',
               }}>
-                {data.badge}
+                {nl.badge}
               </span>
             )}
           </div>
@@ -352,44 +326,48 @@ const NewsletterCard = memo(function NewsletterCard({
             opacity: titleOpacity,
             transition: 'opacity 0.25s ease',
           }}>
-            {data.name}
+            {nl.name}
           </h3>
 
           {/* Tagline */}
-          <p style={{
-            fontSize: 14,
-            color: muted,
-            lineHeight: 1.55,
-            margin: '0 0 14px',
-            opacity: taglineOpacity,
-            transition: 'opacity 0.25s ease',
-          }}>
-            {data.tagline}
-          </p>
+          {nl.tagline && (
+            <p style={{
+              fontSize: 14,
+              color: muted,
+              lineHeight: 1.55,
+              margin: '0 0 14px',
+              opacity: taglineOpacity,
+              transition: 'opacity 0.25s ease',
+            }}>
+              {nl.tagline}
+            </p>
+          )}
 
           {/* Sample box */}
-          <div style={{
-            padding: '10px 12px',
-            background: dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
-            borderLeft: `2px solid ${color}`,
-            marginBottom: 14,
-            opacity: sampleOpacity,
-            transition: 'opacity 0.25s ease',
-          }}>
+          {nl.latestEditionSubject && (
             <div style={{
-              fontFamily: '"JetBrains Mono", monospace',
-              fontSize: 9,
-              letterSpacing: '0.14em',
-              textTransform: 'uppercase',
-              color: faint,
-              marginBottom: 4,
+              padding: '10px 12px',
+              background: dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+              borderLeft: `2px solid ${color}`,
+              marginBottom: 14,
+              opacity: sampleOpacity,
+              transition: 'opacity 0.25s ease',
             }}>
-              {strings.latestIssue}
+              <div style={{
+                fontFamily: '"JetBrains Mono", monospace',
+                fontSize: 9,
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                color: faint,
+                marginBottom: 4,
+              }}>
+                {strings.latestIssue}
+              </div>
+              <div style={{ fontSize: 13, color: ink, lineHeight: 1.4, fontStyle: 'italic' }}>
+                &ldquo;{nl.latestEditionSubject}&rdquo;
+              </div>
             </div>
-            <div style={{ fontSize: 13, color: ink, lineHeight: 1.4, fontStyle: 'italic' }}>
-              &ldquo;{data.sample}&rdquo;
-            </div>
-          </div>
+          )}
 
           {/* Stats */}
           <div style={{
@@ -402,32 +380,29 @@ const NewsletterCard = memo(function NewsletterCard({
             opacity: statsOpacity,
             transition: 'opacity 0.25s ease',
           }}>
-            <span>{'◉'} {data.subs}</span>
-            <span>{'▦'} {data.issues}</span>
+            <span>{'◉'} {formatStat(nl.subscriberCount, L, 'subscribers')}</span>
+            <span>{'▦'} {formatStat(nl.editionsCount, L, 'editions')}</span>
           </div>
 
           {/* Learn more link */}
-          {(() => {
-            const slug = SLUG_MAP[nl.baseId]?.[L]
-            return slug ? (
-              <Link
-                href={localePath(`/newsletters/${slug}`, locale)}
-                onClick={(e) => e.stopPropagation()}
-                style={{
-                  fontFamily: 'var(--font-jetbrains-var), monospace',
-                  fontSize: 11,
-                  color,
-                  textDecoration: 'underline',
-                  display: 'block',
-                  marginTop: 8,
-                  opacity: isChecked ? 1 : 0.4,
-                  transition: 'opacity 0.25s ease',
-                }}
-              >
-                {strings.learnMore} {'→'}
-              </Link>
-            ) : null
-          })()}
+          <Link
+            href={localePath(`/newsletters/${nl.slug}`, locale)}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              fontFamily: 'var(--font-jetbrains-var), monospace',
+              fontSize: 11,
+              color,
+              textDecoration: 'underline',
+              display: 'inline-block',
+              marginTop: 8,
+              padding: '8px 12px',
+              margin: '8px -12px 0',
+              opacity: isChecked ? 1 : 0.4,
+              transition: 'opacity 0.25s ease',
+            }}
+          >
+            {strings.learnMore} {'→'}
+          </Link>
         </div>
       </div>
     </div>
@@ -438,9 +413,10 @@ const NewsletterCard = memo(function NewsletterCard({
 interface Props {
   locale: 'en' | 'pt-BR'
   currentTheme: 'dark' | 'light'
+  types: HubNewsletterType[]
 }
 
-export function NewslettersHub({ locale, currentTheme }: Props) {
+export function NewslettersHub({ locale, currentTheme, types }: Props) {
   const dark = currentTheme === 'dark'
   const L = locale === 'pt-BR' ? 'pt' : 'en'
   const strings = STRINGS[L]
@@ -466,7 +442,7 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
   const { ink, muted, faint, line } = theme
 
   // State
-  const [checked, setChecked] = useState<Set<string>>(() => new Set(CATALOG.map(n => n.baseId)))
+  const [checked, setChecked] = useState<Set<string>>(() => new Set(types.map(n => n.id)))
   const [email, setEmail] = useState('')
   const [phase, setPhase] = useState<'pick' | 'sent' | 'suggest'>('pick')
   const [sentTo, setSentTo] = useState<string[]>([])
@@ -482,26 +458,25 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
       const wasChecked = next.has(id)
       wasChecked ? next.delete(id) : next.add(id)
 
-      // Build announcement
-      const nl = CATALOG.find(n => n.baseId === id)
+      const nl = types.find(n => n.id === id)
       if (nl) {
-        const name = nl[L].name
+        const name = nl.name
         const count = next.size
         if (wasChecked) {
-          setAnnouncement(strings.announcementRemoved(name, count, CATALOG.length))
+          setAnnouncement(strings.announcementRemoved(name, count, types.length))
         } else {
-          setAnnouncement(strings.announcementAdded(name, count, CATALOG.length))
+          setAnnouncement(strings.announcementAdded(name, count, types.length))
         }
       }
 
       return next
     })
-  }, [L, strings])
+  }, [types, strings])
 
   const selectAll = useCallback(() => {
-    setChecked(new Set(CATALOG.map(n => n.baseId)))
-    setAnnouncement(strings.counterAll(CATALOG.length))
-  }, [strings])
+    setChecked(new Set(types.map(n => n.id)))
+    setAnnouncement(strings.counterAll(types.length))
+  }, [types, strings])
 
   const clearAll = useCallback(() => {
     setChecked(new Set())
@@ -511,15 +486,14 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
   const doSubscribe = useCallback((ids: string[]) => {
     if (!isValidEmail || ids.length === 0) return
     setServerError(null)
-    const dbIds = ids.map(baseId => `${baseId}-${L === 'pt' ? 'pt' : 'en'}`)
     startTransition(async () => {
-      const result = await subscribeToNewsletters(email, dbIds, locale)
+      const result = await subscribeToNewsletters(email, ids, locale)
       if (result.error) { setServerError(result.error); return }
       setSentTo(prev => [...new Set([...prev, ...ids])])
-      const onlyMain = ids.length === 1 && ids[0] === 'main'
-      setPhase(onlyMain ? 'suggest' : 'sent')
+      const hasMore = ids.length < types.length
+      setPhase(hasMore ? 'suggest' : 'sent')
     })
-  }, [email, isValidEmail, L, locale])
+  }, [email, isValidEmail, locale, types.length])
 
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault()
@@ -527,13 +501,35 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
   }, [checked, doSubscribe])
 
   const selectedList = useMemo(
-    () => Array.from(checked).map(id => CATALOG.find(n => n.baseId === id)).filter((nl): nl is NL => nl !== undefined),
-    [checked],
+    () => Array.from(checked).map(id => types.find(n => n.id === id)).filter((nl): nl is HubNewsletterType => nl !== undefined),
+    [checked, types],
   )
   const canSubmit = checked.size > 0 && isValidEmail
 
-  const allSelected = checked.size === CATALOG.length
+  const allSelected = checked.size === types.length
   const noneSelected = checked.size === 0
+
+  // ── Empty state ──────────────────────────────────────────────────────────
+  if (types.length === 0) {
+    return (
+      <div style={{ background: bg, color: ink, minHeight: '100vh', fontFamily: '"Inter", sans-serif' }}>
+        <section style={{ maxWidth: 720, margin: '0 auto', padding: '96px 28px', textAlign: 'center' }}>
+          <h1 style={{ fontFamily: '"Fraunces", serif', fontSize: 42, margin: '0 0 20px', fontWeight: 500, letterSpacing: '-0.02em', color: ink }}>
+            Newsletters
+          </h1>
+          <p style={{ fontSize: 16, color: muted, lineHeight: 1.6 }}>
+            {strings.empty}
+          </p>
+          <Link
+            href={localePath('/', locale)}
+            style={{ display: 'inline-block', marginTop: 32, padding: '12px 26px', background: 'transparent', color: ink, border: `1.5px solid ${line}`, fontFamily: '"JetBrains Mono", monospace', fontSize: 12, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 600, textDecoration: 'none' }}
+          >
+            {'←'} {strings.backHome}
+          </Link>
+        </section>
+      </div>
+    )
+  }
 
   // ── Success screen ────────────────────────────────────────────────────────
   if (phase === 'sent') {
@@ -550,15 +546,17 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
             {strings.confirmSent(email)}
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 40 }}>
-            {sentTo.map(baseId => {
-              const nl = CATALOG.find(n => n.baseId === baseId)
+            {sentTo.map(id => {
+              const nl = types.find(n => n.id === id)
               if (!nl) return null
               const color = nlColor(nl, dark)
               return (
-                <div key={baseId} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderLeft: `3px solid ${color}`, background: dark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }}>
+                <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderLeft: `3px solid ${color}`, background: dark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }}>
                   <span style={{ color, fontWeight: 700 }}>{'✓'}</span>
-                  <span style={{ fontFamily: '"Fraunces", serif', fontSize: 17, fontWeight: 500, color: ink }}>{nl[L].name}</span>
-                  <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, color: faint, letterSpacing: '0.06em', marginLeft: 'auto' }}>{nl[L].cadence}</span>
+                  <span style={{ fontFamily: '"Fraunces", serif', fontSize: 17, fontWeight: 500, color: ink }}>{nl.name}</span>
+                  {nl.cadenceLabel && (
+                    <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, color: faint, letterSpacing: '0.06em', marginLeft: 'auto' }}>{nl.cadenceLabel}</span>
+                  )}
                 </div>
               )
             })}
@@ -574,9 +572,13 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
     )
   }
 
-  // ── Suggest screen (subscribed only main -> show others) ───────────────────
+  // ── Suggest screen (subscribed to some -> show others) ────────────────────
   if (phase === 'suggest') {
-    const others = CATALOG.filter(n => !sentTo.includes(n.baseId))
+    const others = types.filter(n => !sentTo.includes(n.id))
+    if (others.length === 0) {
+      setPhase('sent')
+      return null
+    }
     return (
       <div style={{ background: bg, color: ink, minHeight: '100vh', fontFamily: '"Inter", sans-serif' }}>
         <section style={{ maxWidth: 960, margin: '0 auto', padding: '72px 28px 48px' }}>
@@ -592,12 +594,12 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 28, rowGap: 48, marginBottom: 36 }}>
             {others.map((nl, i) => (
               <NewsletterCard
-                key={nl.baseId}
+                key={nl.id}
                 nl={nl}
                 index={i + 2}
                 L={L}
                 locale={locale}
-                isChecked={checked.has(nl.baseId)}
+                isChecked={checked.has(nl.id)}
                 onToggle={toggle}
                 theme={theme}
                 strings={strings}
@@ -623,7 +625,7 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
               onClick={() => setPhase('sent')}
               style={{ padding: '12px 22px', background: 'transparent', color: muted, border: `1.5px solid ${line}`, fontFamily: '"JetBrains Mono", monospace', fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 600, cursor: 'pointer' }}
             >
-              {strings.skipMainOnly}
+              {strings.skipDone}
             </button>
           </div>
           {serverError && (
@@ -635,6 +637,9 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
       </div>
     )
   }
+
+  const isSingle = types.length === 1
+  const gridCols = types.length === 1 ? '1fr' : types.length === 3 ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)'
 
   // ── Pick phase (default) ──────────────────────────────────────────────────
   return (
@@ -652,7 +657,7 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
       {/* Hero */}
       <section style={{ maxWidth: 960, margin: '0 auto', padding: '52px 28px 32px' }}>
         <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', color: accent, marginBottom: 10 }}>
-          {strings.breadcrumb} · {CATALOG.length} {strings.notebooks}
+          {strings.breadcrumb} · {types.length} {strings.notebooks}
         </div>
         <h1 style={{
           fontFamily: '"Fraunces", serif', fontSize: 'clamp(40px, 6vw, 68px)',
@@ -663,103 +668,106 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
           <span style={{ position: 'absolute', bottom: 4, left: -6, right: -6, height: 18, background: '#FFE37A', zIndex: -1, opacity: 0.7, transform: 'skew(-2deg)' }} />
         </h1>
         <p style={{ fontSize: 16, color: muted, marginTop: 18, maxWidth: 680, lineHeight: 1.65 }}>
-          {strings.subhead}
+          {isSingle ? strings.subheadSingle : strings.subhead}
         </p>
 
-        {/* Quick controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 24, flexWrap: 'wrap' }}>
-          {allSelected ? (
-            <span
-              role="status"
-              style={{
-                padding: '7px 14px',
-                background: 'rgba(255,130,64,0.08)',
-                color: '#FF824080',
-                border: '1px solid rgba(255,130,64,0.15)',
-                fontFamily: '"JetBrains Mono", monospace',
-                fontSize: 11,
-                letterSpacing: '0.12em',
-                textTransform: 'uppercase',
-                fontWeight: 600,
-              }}
-            >
-              {'✓'} {strings.allSelected}
-            </span>
-          ) : (
+        {/* Quick controls — only show select all/clear when multiple */}
+        {!isSingle && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 24, flexWrap: 'wrap' }}>
+            {allSelected ? (
+              <span
+                role="status"
+                style={{
+                  padding: '7px 14px',
+                  background: 'rgba(255,130,64,0.08)',
+                  color: '#FF824080',
+                  border: '1px solid rgba(255,130,64,0.15)',
+                  fontFamily: '"JetBrains Mono", monospace',
+                  fontSize: 11,
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                  fontWeight: 600,
+                }}
+              >
+                {'✓'} {strings.allSelected}
+              </span>
+            ) : (
+              <button
+                onClick={selectAll}
+                aria-label={strings.selectAll}
+                style={{
+                  padding: '7px 14px',
+                  background: 'rgba(255,130,64,0.14)',
+                  color: '#FF8240',
+                  border: '1px solid rgba(255,130,64,0.28)',
+                  fontFamily: '"JetBrains Mono", monospace',
+                  fontSize: 11,
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                {'✓'} {strings.selectAll}
+              </button>
+            )}
             <button
-              onClick={selectAll}
-              aria-label={strings.selectAll}
+              onClick={noneSelected ? undefined : clearAll}
+              aria-label={strings.clear}
+              aria-disabled={noneSelected}
               style={{
                 padding: '7px 14px',
-                background: 'rgba(255,130,64,0.14)',
-                color: '#FF8240',
-                border: '1px solid rgba(255,130,64,0.28)',
+                background: noneSelected ? 'transparent' : 'rgba(255,255,255,0.04)',
+                color: noneSelected ? `${faint}80` : '#958A75',
+                border: `1px solid ${noneSelected ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.08)'}`,
                 fontFamily: '"JetBrains Mono", monospace',
                 fontSize: 11,
                 letterSpacing: '0.12em',
                 textTransform: 'uppercase',
                 fontWeight: 600,
-                cursor: 'pointer',
+                cursor: noneSelected ? 'default' : 'pointer',
               }}
             >
-              {'✓'} {strings.selectAll}
+              {'✕'} {strings.clear}
             </button>
-          )}
-          <button
-            onClick={noneSelected ? undefined : clearAll}
-            aria-label={strings.clear}
-            aria-disabled={noneSelected}
-            style={{
-              padding: '7px 14px',
-              background: noneSelected ? 'transparent' : 'rgba(255,255,255,0.04)',
-              color: noneSelected ? `${faint}80` : '#958A75',
-              border: `1px solid ${noneSelected ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.08)'}`,
+
+            {/* Hero counter */}
+            <span style={{
               fontFamily: '"JetBrains Mono", monospace',
               fontSize: 11,
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-              fontWeight: 600,
-              cursor: noneSelected ? 'default' : 'pointer',
-            }}
-          >
-            {'✕'} {strings.clear}
-          </button>
+              color: faint,
+              letterSpacing: '0.06em',
+              marginLeft: 8,
+            }}>
+              {allSelected
+                ? strings.counterAll(types.length)
+                : strings.counterOf(checked.size, types.length)}
+            </span>
 
-          {/* Hero counter */}
-          <span style={{
-            fontFamily: '"JetBrains Mono", monospace',
-            fontSize: 11,
-            color: faint,
-            letterSpacing: '0.06em',
-            marginLeft: 8,
-          }}>
-            {allSelected
-              ? strings.counterAll(CATALOG.length)
-              : strings.counterOf(checked.size, CATALOG.length)}
-          </span>
-
-          <span style={{ fontFamily: '"Caveat", cursive', fontSize: 18, color: accent, transform: 'rotate(-1deg)', marginLeft: 'auto' }}>
-            {'↓'} {strings.fourOptions}
-          </span>
-        </div>
+            <span style={{ fontFamily: '"Caveat", cursive', fontSize: 18, color: accent, transform: 'rotate(-1deg)', marginLeft: 'auto' }}>
+              {'↓'} {strings.optionsNote(types.length)}
+            </span>
+          </div>
+        )}
       </section>
 
-      {/* Newsletter grid -- 2x2 */}
+      {/* Newsletter grid */}
       <section style={{ maxWidth: 960, margin: '0 auto', padding: '24px 28px 24px' }}>
         <div className="nl-hub-grid" style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(2, 1fr)',
+          gridTemplateColumns: gridCols,
           gap: '28px',
           rowGap: '44px',
+          ...(isSingle ? { maxWidth: 480 } : {}),
         }}>
-          {CATALOG.map((nl, i) => (
+          {types.map((nl, i) => (
             <NewsletterCard
-              key={nl.baseId}
+              key={nl.id}
               nl={nl}
               index={i}
               L={L}
               locale={locale}
-              isChecked={checked.has(nl.baseId)}
+              isChecked={checked.has(nl.id)}
               onToggle={toggle}
               theme={theme}
               strings={strings}
@@ -767,7 +775,6 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
             />
           ))}
         </div>
-        {/* Responsive: @media query via style tag for 1-col below 720px */}
         <style>{`
           @media (max-width: 720px) {
             .nl-hub-grid {
@@ -822,7 +829,6 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
                 ? strings.pickAtLeastOne
                 : (() => {
                     const raw = allSelected ? strings.pickedAll(checked.size) : strings.pickedN(checked.size)
-                    // Render markdown **bold** as a styled span
                     const parts = raw.split(/\*\*(.+?)\*\*/)
                     return parts.map((part, i) =>
                       i % 2 === 1
@@ -838,9 +844,9 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
                   const color = nlColor(nl, dark)
                   return (
                     <span
-                      key={nl.baseId}
+                      key={nl.id}
                       role="listitem"
-                      aria-label={`Remove ${nl[L].name}`}
+                      aria-label={`Remove ${nl.name}`}
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
@@ -856,11 +862,11 @@ export function NewslettersHub({ locale, currentTheme }: Props) {
                       }}
                     >
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {nl[L].name}
+                        {nl.name}
                       </span>
                       <button
-                        onClick={() => toggle(nl.baseId)}
-                        aria-label={`Remove ${nl[L].name}`}
+                        onClick={() => toggle(nl.id)}
+                        aria-label={`Remove ${nl.name}`}
                         style={{
                           background: 'transparent',
                           border: 'none',
