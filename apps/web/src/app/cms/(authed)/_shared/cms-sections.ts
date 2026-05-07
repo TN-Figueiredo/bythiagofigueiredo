@@ -8,6 +8,15 @@ export function buildCmsSections(): SidebarSection[] {
         { icon: '🎬', label: 'YouTube', href: '/cms/youtube', minRole: 'editor' as const },
       ]
 
+      if (process.env.NEXT_PUBLIC_MEDIA_GALLERY_ENABLED === 'true') {
+        items.push({
+          icon: '🖼️',
+          label: 'Media',
+          href: '/cms/media',
+          minRole: 'editor' as const,
+        })
+      }
+
       if (process.env.NEXT_PUBLIC_LINKS_ENABLED === 'true') {
         items.push({
           icon: '🔗',

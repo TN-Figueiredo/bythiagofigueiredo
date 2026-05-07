@@ -14,6 +14,8 @@ import { render } from '@react-email/render'
 import { Newsletter } from '@/emails/newsletter'
 import { revalidateNewsletterTypeSeo } from '@/lib/seo/cache-invalidation'
 import { generateCadenceSlots, describePattern, computeScheduledAt } from '@/lib/newsletter/cadence-slots'
+import { uploadMediaAsset } from '@/lib/media/upload'
+import { trackMediaUsage } from '@/lib/media/track-usage'
 import { todayInSiteTz } from '@/lib/cms/format-site-datetime'
 import type { CadencePattern } from '@/lib/newsletter/cadence-pattern'
 
@@ -1279,9 +1281,6 @@ export async function uploadNewsletterImage(
 
   await requireSiteAdminForRow('newsletter_editions', editionId)
 
-  if (file.size > MAX_IMAGE_SIZE) return { ok: false, error: 'file_too_large' }
-  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) return { ok: false, error: 'unsupported_format' }
-
   const supabase = getSupabaseServiceClient()
   const { data: edition } = await supabase
     .from('newsletter_editions')
@@ -1289,6 +1288,26 @@ export async function uploadNewsletterImage(
     .eq('id', editionId)
     .single()
   if (!edition) return { ok: false, error: 'not_found' }
+
+  const useBlobUpload = process.env.MEDIA_BLOB_UPLOAD_ENABLED === 'true'
+  if (useBlobUpload) {
+    const ctx = await getSiteContext()
+    const authRes = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
+    const result = await uploadMediaAsset({
+      file,
+      filename: file.name,
+      folder: 'newsletters',
+      siteId: edition.site_id,
+      uploadedBy: authRes.ok ? authRes.user.id : 'system',
+      tags: [`edition:${editionId}`],
+    })
+    if (!result.ok) return { ok: false, error: result.error }
+    await trackMediaUsage(result.asset.id, 'newsletter_edition', editionId, 'inline_image')
+    return { ok: true, url: result.asset.blobUrl }
+  }
+
+  if (file.size > MAX_IMAGE_SIZE) return { ok: false, error: 'file_too_large' }
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) return { ok: false, error: 'unsupported_format' }
 
   const ext = file.name.split('.').pop() ?? 'jpg'
   const uuid = crypto.randomUUID()
@@ -1316,6 +1335,20 @@ export async function uploadNewsletterTypeImage(
   const ctx = await getSiteContext()
   const res = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
   if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
+
+  const useBlobUpload = process.env.MEDIA_BLOB_UPLOAD_ENABLED === 'true'
+  if (useBlobUpload) {
+    const result = await uploadMediaAsset({
+      file,
+      filename: file.name,
+      folder: 'og',
+      siteId: ctx.siteId,
+      uploadedBy: res.user.id,
+      tags: ['newsletter-type-og'],
+    })
+    if (!result.ok) return { ok: false, error: result.error }
+    return { ok: true, url: result.asset.blobUrl }
+  }
 
   if (file.size > MAX_IMAGE_SIZE) return { ok: false, error: 'file_too_large' }
   if (!ALLOWED_IMAGE_TYPES.includes(file.type)) return { ok: false, error: 'unsupported_format' }

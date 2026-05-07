@@ -9,6 +9,8 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { requireSiteAdminForRow } from '@/lib/cms/auth-guards'
 import { revalidateBlogPostSeo } from '@/lib/seo/cache-invalidation'
 import { parseMdxFrontmatter, SeoExtrasValidationError } from '@/lib/seo/frontmatter'
+import { uploadMediaAsset } from '@/lib/media/upload'
+import { trackMediaUsage } from '@/lib/media/track-usage'
 import type { ZodIssue } from 'zod'
 
 export interface SavePostActionInput {
@@ -255,7 +257,7 @@ export async function saveCoverImage(
   url: string | null,
 ): Promise<{ ok: boolean; error?: string }> {
   await requireSiteAdminForRow('blog_posts', postId)
-  if (url !== null && !isSafeUrl(url)) {
+  if (url !== null && !isSafeUrl(url) && !url.startsWith('https://')) {
     return { ok: false, error: 'invalid_url' }
   }
   const supabase = getSupabaseServiceClient()
@@ -270,6 +272,23 @@ export async function saveCoverImage(
 export async function uploadAsset(file: File, postId: string): Promise<{ url: string }> {
   await requireSiteAdminForRow('blog_posts', postId)
   const ctx = await getSiteContext()
+
+  const useBlobUpload = process.env.MEDIA_BLOB_UPLOAD_ENABLED === 'true'
+  if (useBlobUpload) {
+    const result = await uploadMediaAsset({
+      file,
+      filename: file.name,
+      folder: 'blog',
+      siteId: ctx.siteId,
+      uploadedBy: 'system',
+      tags: [`post:${postId}`],
+    })
+    if (!result.ok) throw new Error(result.error)
+
+    await trackMediaUsage(result.asset.id, 'blog_post', postId, 'inline_image')
+    return { url: result.asset.blobUrl }
+  }
+
   const result = await uploadContentAsset(getSupabaseServiceClient(), {
     siteId: ctx.siteId,
     contentType: 'blog',

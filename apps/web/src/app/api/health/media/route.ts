@@ -40,7 +40,6 @@ export async function GET(req: NextRequest): Promise<Response> {
     return Response.json({
       ok: true,
       siteId: ctx.siteId,
-      siteSlug: ctx.siteSlug,
       totalAssets,
       orphanCount,
       softDeletedCount,

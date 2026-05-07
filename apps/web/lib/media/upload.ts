@@ -147,16 +147,14 @@ export async function uploadMediaAssets(
   inputs: UploadMediaInput[],
   concurrency = 3,
 ): Promise<UploadResult[]> {
-  const results: UploadResult[] = new Array(inputs.length)
+  const results: UploadResult[] = []
 
   for (let i = 0; i < inputs.length; i += concurrency) {
     const chunk = inputs.slice(i, i + concurrency)
     const chunkResults = await Promise.all(
       chunk.map((input) => uploadMediaAsset(input)),
     )
-    for (let j = 0; j < chunkResults.length; j++) {
-      results[i + j] = chunkResults[j]
-    }
+    results.push(...chunkResults)
   }
 
   return results

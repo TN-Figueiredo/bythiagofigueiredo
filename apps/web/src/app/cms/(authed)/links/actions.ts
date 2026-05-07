@@ -6,6 +6,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { generateQrSvg } from '@tn-figueiredo/links/qr'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+import { uploadMediaAsset } from '@/lib/media/upload'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -740,6 +741,27 @@ export async function generateQr(
     lightColor: bg,
     errorCorrection: 'M',
   })
+
+  const useBlobUpload = process.env.MEDIA_BLOB_UPLOAD_ENABLED === 'true'
+  if (useBlobUpload) {
+    const svgFile = new File([svg], `qr-${link.code}.svg`, { type: 'image/svg+xml' })
+    const result = await uploadMediaAsset({
+      file: svgFile,
+      filename: `qr-${link.code}.svg`,
+      folder: 'links',
+      siteId,
+      uploadedBy: 'system',
+      tags: ['qr', `link:${id}`],
+    })
+    if (!result.ok) return { ok: false, error: result.error }
+    await supabase
+      .from('tracked_links')
+      .update({ qr_storage_path: result.asset.blobPathname, has_qr: true, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('site_id', siteId)
+    revalidateTag(`link:${id}`)
+    return { ok: true, qrUrl: result.asset.blobUrl }
+  }
 
   const path = `${siteId}/qr/${id}.svg`
   const { error: uploadError } = await supabase.storage

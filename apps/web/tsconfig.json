@@ -35,6 +35,7 @@
       "@/lib/supabase/*": ["./lib/supabase/*"],
       "@/lib/tracking/*": ["./lib/tracking/*"],
       "@/lib/links/*": ["./src/lib/links/*"],
+      "@/lib/media/*": ["./lib/media/*"],
       "@/test/*": ["./test/*"],
       "@/*": ["./src/*"]
     }

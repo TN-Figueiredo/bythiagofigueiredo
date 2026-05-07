@@ -5,7 +5,7 @@ import Image from 'next/image'
 import { listMediaAssetsAction } from '../../media/actions'
 import type { CropPreset, MediaAssetResult } from './types'
 import { getMediaGalleryStrings } from './_i18n/types'
-import type { MediaAsset } from '@/lib/media/types'
+import type { MediaAsset, MediaFolder } from '@/lib/media/types'
 
 interface LibraryTabProps {
   onSelect: (asset: MediaAssetResult) => void
@@ -36,14 +36,14 @@ export function MediaLibraryTab({ onSelect, folder, cropPreset, locale }: Librar
 
   const [search, setSearch] = useState('')
   const [folderFilter, setFolderFilter] = useState(folder ?? '')
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const fetchAssets = useCallback(
     async (cursor?: string) => {
       setLoading(true)
       try {
         const result = await listMediaAssetsAction({
-          folder: (folderFilter || undefined) as Parameters<typeof listMediaAssetsAction>[0]['folder'],
+          folder: (folderFilter || undefined) as MediaFolder | undefined,
           search: search || undefined,
           cursor,
           limit: 24,

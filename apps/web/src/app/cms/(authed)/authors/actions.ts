@@ -7,6 +7,8 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { revalidateAuthor, revalidateAbout } from '@/lib/newsletter/cache-invalidation'
 import { compileMdx, defaultComponents } from '@tn-figueiredo/cms'
+import { uploadMediaAsset } from '@/lib/media/upload'
+import { trackMediaUsage } from '@/lib/media/track-usage'
 
 type ActionResult = { ok: true } | { ok: false; error: string }
 
@@ -258,15 +260,43 @@ export async function uploadAuthorAvatar(
   formData: FormData,
 ): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
   const siteId = await requireEditAccess()
-  const supabase = getSupabaseServiceClient()
 
   const file = formData.get('file')
   if (!(file instanceof File)) return { ok: false, error: 'No file provided' }
+
+  const useBlobUpload = process.env.MEDIA_BLOB_UPLOAD_ENABLED === 'true'
+  if (useBlobUpload) {
+    const authRes = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+    const result = await uploadMediaAsset({
+      file,
+      filename: file.name,
+      folder: 'authors',
+      siteId,
+      uploadedBy: authRes.ok ? authRes.user.id : 'system',
+      tags: ['avatar', `author:${authorId}`],
+    })
+    if (!result.ok) return { ok: false, error: result.error }
+
+    const supabase = getSupabaseServiceClient()
+    const { error: updateError } = await supabase
+      .from('authors')
+      .update({ avatar_url: result.asset.blobUrl })
+      .eq('id', authorId)
+      .eq('site_id', siteId)
+    if (updateError) return { ok: false, error: updateError.message }
+
+    await trackMediaUsage(result.asset.id, 'author', authorId, 'avatar_url')
+    revalidateAuthor(authorId)
+    revalidatePath('/cms/authors')
+    return { ok: true, url: result.asset.blobUrl }
+  }
+
   if (!ALLOWED_IMAGE_TYPES.includes(file.type))
     return { ok: false, error: 'Only JPEG, PNG, and WebP are allowed' }
   if (file.size > MAX_AVATAR_SIZE)
     return { ok: false, error: 'File must be under 2 MB' }
 
+  const supabase = getSupabaseServiceClient()
   const ext = file.name.split('.').pop() ?? 'jpg'
   const path = `${authorId}/avatar.${ext}`
 
@@ -278,7 +308,6 @@ export async function uploadAuthorAvatar(
   const { data: urlData } = supabase.storage
     .from('author-avatars')
     .getPublicUrl(path)
-
   const avatarUrl = `${urlData.publicUrl}?v=${Date.now()}`
 
   const { error: updateError } = await supabase
@@ -408,6 +437,29 @@ export async function uploadAuthorAboutPhoto(
 
   const file = formData.get('file') as File | null
   if (!file) return { ok: false, error: 'no_file' }
+
+  const useBlobUpload = process.env.MEDIA_BLOB_UPLOAD_ENABLED === 'true'
+  if (useBlobUpload) {
+    const authRes = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+    const result = await uploadMediaAsset({
+      file,
+      filename: file.name,
+      folder: 'authors',
+      siteId,
+      uploadedBy: authRes.ok ? authRes.user.id : 'system',
+      tags: ['about-photo', `author:${authorId}`],
+    })
+    if (!result.ok) return { ok: false, error: result.error }
+
+    const sb = getSupabaseServiceClient()
+    await sb.from('authors').update({ about_photo_url: result.asset.blobUrl }).eq('id', authorId).eq('site_id', siteId)
+
+    await trackMediaUsage(result.asset.id, 'author', authorId, 'about_photo_url')
+    revalidateAuthor(authorId)
+    revalidateAbout(siteId)
+    revalidatePath('/about')
+    return { ok: true, url: result.asset.blobUrl }
+  }
 
   if (!ALLOWED_IMAGE_TYPES.includes(file.type)) return { ok: false, error: 'invalid_type' }
   if (file.size > MAX_AVATAR_SIZE) return { ok: false, error: 'too_large' }

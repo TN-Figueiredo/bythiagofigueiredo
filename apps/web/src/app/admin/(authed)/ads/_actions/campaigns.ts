@@ -7,6 +7,8 @@ import { requireArea } from '@tn-figueiredo/auth-nextjs/server'
 import { captureServerActionError } from '@/lib/sentry-wrap'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { AD_APP_ID } from '@/lib/ads/config'
+import { uploadMediaAsset } from '@/lib/media/upload'
+import { trackMediaUsage } from '@/lib/media/track-usage'
 
 const VALID_CAMPAIGN_STATUSES = ['draft', 'active', 'paused', 'archived'] as const
 type CampaignStatus = typeof VALID_CAMPAIGN_STATUSES[number]
@@ -134,6 +136,36 @@ export async function deleteCampaign(id: string): Promise<void> {
 
 export async function uploadMedia(file: File): Promise<{ id: string; url: string }> {
   await requireArea('admin')
+
+  const useBlobUpload = process.env.MEDIA_BLOB_UPLOAD_ENABLED === 'true'
+  if (useBlobUpload) {
+    const result = await uploadMediaAsset({
+      file,
+      filename: file.name,
+      folder: 'ads',
+      siteId: AD_APP_ID,
+      uploadedBy: 'admin',
+      tags: ['ad-creative'],
+    })
+    if (!result.ok) throw new Error(result.error)
+
+    const supabase = getSupabaseServiceClient()
+    const { data: row, error: insertError } = await supabase
+      .from('ad_media')
+      .insert({
+        app_id: AD_APP_ID,
+        storage_path: result.asset.blobPathname,
+        public_url: result.asset.blobUrl,
+        mime_type: result.asset.mimeType,
+        file_name: result.asset.filename,
+      })
+      .select('id')
+      .single()
+    if (insertError) throw new Error(insertError.message)
+
+    await trackMediaUsage(result.asset.id, 'ad_campaign', (row as { id: string }).id, 'media_url')
+    return { id: (row as { id: string }).id, url: result.asset.blobUrl }
+  }
 
   if (!ALLOWED_MEDIA_TYPES.includes(file.type as typeof ALLOWED_MEDIA_TYPES[number])) {
     throw new Error(
