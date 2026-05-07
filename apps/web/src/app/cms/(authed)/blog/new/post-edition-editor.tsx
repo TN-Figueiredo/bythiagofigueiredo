@@ -16,18 +16,24 @@ import {
   Search,
   Globe,
 } from 'lucide-react'
+import type { Editor } from '@tiptap/core'
 import { TipTapEditor } from '../../_shared/editor/tiptap-editor'
 import { useAutosave } from '../../_shared/editor/use-autosave'
 import { AutosaveIndicator } from '../../_shared/editor/autosave-indicator'
 import { NavigationGuard } from '../../_shared/editor/navigation-guard'
 import { DeleteConfirmModal } from '../../_shared/editor/delete-confirm-modal'
 import { MoreMenu } from '../../_shared/editor/more-menu'
+import { useMediaGallery } from '../../_shared/media/use-media-gallery'
+import { MediaGalleryModal } from '../../_shared/media/media-gallery-modal'
+import { CROP_PRESETS } from '../../_shared/media/types'
 import { StructuredFields } from '../_shared/structured-fields'
 import { HashtagInput } from '../_shared/hashtag-input'
 import { SeriesFields } from '../_shared/series-fields'
 import { createPost, deleteHubPost, duplicatePost } from '../actions'
 import { savePost, saveCoverImage, uploadAsset, searchPosts } from '../[id]/edit/actions'
 import type { SavePostActionInput } from '../[id]/edit/actions'
+
+const galleryEnabled = process.env.NEXT_PUBLIC_MEDIA_GALLERY_ENABLED === 'true'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -304,11 +310,13 @@ function CoverImageSection({
   coverUrl,
   onUpload,
   onRemove,
+  onOpenGallery,
   disabled,
 }: {
   coverUrl: string | null
   onUpload: (file: File) => void
   onRemove: () => void
+  onOpenGallery?: () => void
   disabled: boolean
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -342,6 +350,16 @@ function CoverImageSection({
               <RefreshCw size={13} />
               Replace
             </button>
+            {onOpenGallery && (
+              <button
+                type="button"
+                onClick={onOpenGallery}
+                className="flex items-center gap-1.5 rounded-md bg-white/15 backdrop-blur-sm px-3 py-1.5 text-xs font-medium text-white hover:bg-white/25 transition-colors"
+              >
+                <ImagePlus size={13} />
+                Gallery
+              </button>
+            )}
             <button
               type="button"
               onClick={onRemove}
@@ -372,15 +390,34 @@ function CoverImageSection({
       onDragOver={(e) => { e.preventDefault(); if (!disabled) setIsDragOver(true) }}
       onDragLeave={() => setIsDragOver(false)}
       onDrop={handleDrop}
-      onClick={() => !disabled && fileInputRef.current?.click()}
-      className={`rounded-lg border-2 border-dashed transition-colors cursor-pointer flex flex-col items-center justify-center h-36 gap-2 ${
+      className={`rounded-lg border-2 border-dashed transition-colors flex flex-col items-center justify-center h-36 gap-2 ${
         isDragOver
           ? 'border-indigo-500/60 bg-indigo-500/5'
           : 'border-[#1f2937] hover:border-[#374151] bg-transparent'
       } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
     >
       <ImagePlus size={24} className="text-[#4b5563]" />
-      <span className="text-xs text-[#4b5563]">Drop cover image or click to upload</span>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => !disabled && fileInputRef.current?.click()}
+          className="text-xs text-[#6b7280] hover:text-[#9ca3af] transition-colors cursor-pointer"
+        >
+          Upload cover image
+        </button>
+        {onOpenGallery && (
+          <>
+            <span className="text-[#374151] text-xs">|</span>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onOpenGallery() }}
+              className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer"
+            >
+              Select from gallery
+            </button>
+          </>
+        )}
+      </div>
       <input
         ref={fileInputRef}
         type="file"
@@ -492,6 +529,11 @@ export function PostEditionEditor({
   const [showPreview, setShowPreview] = useState(false)
   const [previewHtml, setPreviewHtml] = useState('')
   const [showDeleteModal, setShowDeleteModal] = useState(false)
+
+  // ── Media gallery ────────────────────────────────────────────────────────
+  const coverGallery = useMediaGallery()
+  const inlineGallery = useMediaGallery()
+  const editorInstanceRef = useRef<Editor | null>(null)
 
   // ── Refs ───────────────────────────────────────────────────────────────────
   const fieldsRef = useRef({
@@ -721,6 +763,24 @@ export function PostEditionEditor({
     }
   }
 
+  function handleCoverFromGallery(asset: { url: string }) {
+    setCoverImageUrl(asset.url)
+    fieldsRef.current.coverImageUrl = asset.url
+    coverGallery.closeGallery()
+    if (postId) {
+      saveCoverImage(postId, asset.url)
+    }
+  }
+
+  function handleInlineImageFromGallery(asset: { url: string; alt: string }) {
+    const editor = editorInstanceRef.current
+    if (editor) {
+      editor.chain().focus().setImage({ src: asset.url, alt: asset.alt }).run()
+      if (!isEphemeral) saveImmediate(getSavePayload())
+    }
+    inlineGallery.closeGallery()
+  }
+
   // ── Image upload for TipTap ───────────────────────────────────────────────
   async function handleImageUpload(file: File): Promise<string | null> {
     const currentPostId = await ensurePostCreated()
@@ -924,6 +984,7 @@ export function PostEditionEditor({
             coverUrl={coverImageUrl}
             onUpload={handleCoverUpload}
             onRemove={handleCoverRemove}
+            onOpenGallery={galleryEnabled ? () => coverGallery.openGallery({ folder: 'blog', cropPreset: CROP_PRESETS['blog-cover'] }) : undefined}
             disabled={false}
           />
 
@@ -984,6 +1045,8 @@ export function PostEditionEditor({
                 if (!isEphemeral) saveImmediate(getSavePayload())
               }}
               onImageUpload={handleImageUpload}
+              onOpenGallery={galleryEnabled ? () => inlineGallery.openGallery({ folder: 'blog', cropPreset: CROP_PRESETS.free }) : undefined}
+              editorInstanceRef={editorInstanceRef}
               editable
               placeholder="Start writing your post... Type / for commands"
             />
@@ -1087,6 +1150,24 @@ export function PostEditionEditor({
         onConfirm={handleDelete}
         onCancel={() => setShowDeleteModal(false)}
       />
+
+      {/* ── Media gallery modals ──────────────────────────────────────────── */}
+      {galleryEnabled && (
+        <>
+          <MediaGalleryModal
+            {...coverGallery.galleryProps}
+            onSelect={handleCoverFromGallery}
+            locale={locale as 'en' | 'pt-BR'}
+            siteId={siteId}
+          />
+          <MediaGalleryModal
+            {...inlineGallery.galleryProps}
+            onSelect={handleInlineImageFromGallery}
+            locale={locale as 'en' | 'pt-BR'}
+            siteId={siteId}
+          />
+        </>
+      )}
     </div>
   )
 }
