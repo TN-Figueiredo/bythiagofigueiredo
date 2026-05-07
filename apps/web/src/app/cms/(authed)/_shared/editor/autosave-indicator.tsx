@@ -1,10 +1,11 @@
 'use client'
 
-import type { SaveState } from './use-autosave'
+import type { SaveState, SaveMode } from './use-autosave'
 
 interface AutosaveIndicatorProps {
   state: SaveState
   lastSavedAt: Date | null
+  mode?: SaveMode
   onRetry?: () => void
 }
 
@@ -16,8 +17,22 @@ const STATE_CONFIG: Record<SaveState, { dotClass: string; textColor: string; lab
   offline: { dotClass: 'bg-[#f97316]', textColor: 'text-[#f97316]', label: 'Offline — saved locally' },
 }
 
-export function AutosaveIndicator({ state, lastSavedAt, onRetry }: AutosaveIndicatorProps) {
+function getLabel(state: SaveState, mode: SaveMode, lastSavedAt: Date | null): string {
+  if (state === 'saving' || state === 'error' || state === 'offline') return STATE_CONFIG[state].label
+  if (state === 'saved') {
+    const time = lastSavedAt?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    return time ? `Saved ${time}` : 'Saved'
+  }
+  if (mode !== 'auto') return 'Unsaved changes'
+  return 'Unsaved'
+}
+
+export function AutosaveIndicator({ state, lastSavedAt, mode = 'auto', onRetry }: AutosaveIndicatorProps) {
   const config = STATE_CONFIG[state]
+  const displayLabel = (mode !== 'auto' && state === 'saved' && !lastSavedAt)
+    ? 'Manual save'
+    : getLabel(state, mode, lastSavedAt)
+
   return (
     <div className={`flex items-center gap-1.5 text-[10px] ${config.textColor}`}>
       <span className={`h-[5px] w-[5px] rounded-full ${config.dotClass}`} />
@@ -26,12 +41,7 @@ export function AutosaveIndicator({ state, lastSavedAt, onRetry }: AutosaveIndic
           Save failed — retry
         </button>
       ) : (
-        <span>
-          {config.label}
-          {state === 'saved' && lastSavedAt && (
-            <> {lastSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</>
-          )}
-        </span>
+        <span>{displayLabel}</span>
       )}
     </div>
   )
