@@ -41,8 +41,6 @@ import { getValidTargets } from '../_hub/hub-utils'
 import { ScheduleModal } from '../_tabs/editorial/schedule-modal'
 import { formatTagNameCms } from '../_hub/tag-locale'
 
-const galleryEnabled = process.env.NEXT_PUBLIC_MEDIA_GALLERY_ENABLED === 'true'
-
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 interface PostEditionEditorProps {
@@ -1210,7 +1208,7 @@ export function PostEditionEditor({
                 if (!isEphemeral) saveImmediate(getSavePayload())
               }}
               onImageUpload={handleImageUpload}
-              onOpenGallery={galleryEnabled ? () => inlineGallery.openGallery({ folder: 'blog', cropPreset: CROP_PRESETS.free }) : undefined}
+              onOpenGallery={() => inlineGallery.openGallery({ folder: 'blog', cropPreset: CROP_PRESETS.free })}
               editorInstanceRef={editorInstanceRef}
               editable
               placeholder="Start writing your post... Type / for commands"
@@ -1326,22 +1324,18 @@ export function PostEditionEditor({
       />
 
       {/* ── Media gallery modals ──────────────────────────────────────────── */}
-      {galleryEnabled && (
-        <>
-          <MediaGalleryModal
-            {...coverGallery.galleryProps}
-            onSelect={handleCoverFromGallery}
-            locale={locale as 'en' | 'pt-BR'}
-            siteId={siteId}
-          />
-          <MediaGalleryModal
-            {...inlineGallery.galleryProps}
-            onSelect={handleInlineImageFromGallery}
-            locale={locale as 'en' | 'pt-BR'}
-            siteId={siteId}
-          />
-        </>
-      )}
+      <MediaGalleryModal
+        {...coverGallery.galleryProps}
+        onSelect={handleCoverFromGallery}
+        locale={locale as 'en' | 'pt-BR'}
+        siteId={siteId}
+      />
+      <MediaGalleryModal
+        {...inlineGallery.galleryProps}
+        onSelect={handleInlineImageFromGallery}
+        locale={locale as 'en' | 'pt-BR'}
+        siteId={siteId}
+      />
     </div>
   )
 }

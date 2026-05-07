@@ -1,5 +1,5 @@
 // Sprint 5a Track D — D13: /account/export page.
-// Feature-flagged by NEXT_PUBLIC_ACCOUNT_EXPORT_ENABLED.
+// LGPD compliance is legally required — always enabled.
 import { createServerClient, requireUser } from '@tn-figueiredo/auth-nextjs'
 import { cookies } from 'next/headers'
 import { AccountExportButton } from '@/components/lgpd/account-export-button'
@@ -27,7 +27,6 @@ export default async function AccountExportPage() {
     },
   })
   await requireUser(supabase)
-  const enabled = process.env.NEXT_PUBLIC_ACCOUNT_EXPORT_ENABLED === 'true'
 
   return (
     <section className="flex flex-col gap-4">
@@ -38,7 +37,7 @@ export default async function AccountExportPage() {
           Limite de uma exportação a cada 30 dias (LGPD Art. 18 V).
         </p>
       </header>
-      <AccountExportButton enabled={enabled} />
+      <AccountExportButton />
     </section>
   )
 }

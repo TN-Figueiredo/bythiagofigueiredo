@@ -12,8 +12,6 @@ import { MediaGalleryModal } from '../../../_shared/media/media-gallery-modal'
 import { CROP_PRESETS } from '../../../_shared/media/types'
 import './editor-theme.css'
 
-const galleryEnabled = process.env.NEXT_PUBLIC_MEDIA_GALLERY_ENABLED === 'true'
-
 interface EditPostClientProps {
   postId: string
   locale: string
@@ -79,17 +77,15 @@ export function EditPostClient({
 
   return (
     <>
-      {galleryEnabled && (
-        <div className="max-w-[780px] mx-auto px-6 mb-2 flex justify-end">
-          <button
-            type="button"
-            onClick={() => coverGallery.openGallery({ folder: 'blog', cropPreset: CROP_PRESETS['blog-cover'] })}
-            className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs text-slate-400 hover:bg-slate-800 hover:text-slate-200"
-          >
-            {locale === 'pt-BR' ? 'Capa da galeria' : 'Cover from gallery'}
-          </button>
-        </div>
-      )}
+      <div className="max-w-[780px] mx-auto px-6 mb-2 flex justify-end">
+        <button
+          type="button"
+          onClick={() => coverGallery.openGallery({ folder: 'blog', cropPreset: CROP_PRESETS['blog-cover'] })}
+          className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+        >
+          {locale === 'pt-BR' ? 'Capa da galeria' : 'Cover from gallery'}
+        </button>
+      </div>
       <PostEditor
         postId={postId}
         initialContent={initialContent}
@@ -154,17 +150,15 @@ export function EditPostClient({
           searchPostsFn={searchPosts}
         />
       </div>
-      {galleryEnabled && (
-        <MediaGalleryModal
-          {...coverGallery.galleryProps}
-          onSelect={(asset) => {
-            setCoverFromGallery(asset.url)
-            coverGallery.closeGallery()
-          }}
-          locale={locale as 'en' | 'pt-BR'}
-          siteId={siteId}
-        />
-      )}
+      <MediaGalleryModal
+        {...coverGallery.galleryProps}
+        onSelect={(asset) => {
+          setCoverFromGallery(asset.url)
+          coverGallery.closeGallery()
+        }}
+        locale={locale as 'en' | 'pt-BR'}
+        siteId={siteId}
+      />
     </>
   )
 }

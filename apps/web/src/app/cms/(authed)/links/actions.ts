@@ -653,10 +653,6 @@ export async function getAiInsights(
 ): Promise<ActionResult<{ insights: unknown[] }>> {
   if (!id) return { ok: false, error: 'id_required' }
 
-  if (process.env.LINKS_AI_INSIGHTS_ENABLED === 'false') {
-    return { ok: false, error: 'feature_disabled' }
-  }
-
   const { siteId } = await getSiteContext()
   await requireEditScope(siteId)
 
@@ -742,44 +738,23 @@ export async function generateQr(
     errorCorrection: 'M',
   })
 
-  const useBlobUpload = process.env.MEDIA_BLOB_UPLOAD_ENABLED === 'true'
-  if (useBlobUpload) {
-    const svgFile = new File([svg], `qr-${link.code}.svg`, { type: 'image/svg+xml' })
-    const result = await uploadMediaAsset({
-      file: svgFile,
-      filename: `qr-${link.code}.svg`,
-      folder: 'links',
-      siteId,
-      uploadedBy: 'system',
-      tags: ['qr', `link:${id}`],
-    })
-    if (!result.ok) return { ok: false, error: result.error }
-    await supabase
-      .from('tracked_links')
-      .update({ qr_storage_path: result.asset.blobPathname, has_qr: true, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .eq('site_id', siteId)
-    revalidateTag(`link:${id}`)
-    return { ok: true, qrUrl: result.asset.blobUrl }
-  }
-
-  const path = `${siteId}/qr/${id}.svg`
-  const { error: uploadError } = await supabase.storage
-    .from('link-assets')
-    .upload(path, Buffer.from(svg), { contentType: 'image/svg+xml', upsert: true })
-
-  if (uploadError) return { ok: false, error: uploadError.message }
-
-  const { data: { publicUrl } } = supabase.storage.from('link-assets').getPublicUrl(path)
-
+  const svgFile = new File([svg], `qr-${link.code}.svg`, { type: 'image/svg+xml' })
+  const result = await uploadMediaAsset({
+    file: svgFile,
+    filename: `qr-${link.code}.svg`,
+    folder: 'links',
+    siteId,
+    uploadedBy: 'system',
+    tags: ['qr', `link:${id}`],
+  })
+  if (!result.ok) return { ok: false, error: result.error }
   await supabase
     .from('tracked_links')
-    .update({ qr_storage_path: path, has_qr: true, updated_at: new Date().toISOString() })
+    .update({ qr_storage_path: result.asset.blobPathname, has_qr: true, updated_at: new Date().toISOString() })
     .eq('id', id)
     .eq('site_id', siteId)
-
   revalidateTag(`link:${id}`)
-  return { ok: true, qrUrl: publicUrl }
+  return { ok: true, qrUrl: result.asset.blobUrl }
 }
 
 export async function validateDestinationUrl(

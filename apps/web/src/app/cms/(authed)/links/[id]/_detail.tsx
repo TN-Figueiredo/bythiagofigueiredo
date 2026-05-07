@@ -49,7 +49,6 @@ interface Props {
   link: LinkData
   dailyClicks: DailyClick[]
   topCountry: string | null
-  pulseEnabled: boolean
   linkId: string
 }
 

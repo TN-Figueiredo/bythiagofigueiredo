@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath, revalidateTag } from 'next/cache'
-import { compileMdx, uploadContentAsset, isSafeUrl, type CompiledMdx } from '@tn-figueiredo/cms'
+import { compileMdx, isSafeUrl, type CompiledMdx } from '@tn-figueiredo/cms'
 import { postRepo } from '@/lib/cms/repositories'
 import { blogRegistry } from '@/lib/cms/registry'
 import { getSiteContext } from '@/lib/cms/site-context'
@@ -273,30 +273,18 @@ export async function uploadAsset(file: File, postId: string): Promise<{ url: st
   await requireSiteAdminForRow('blog_posts', postId)
   const ctx = await getSiteContext()
 
-  const useBlobUpload = process.env.MEDIA_BLOB_UPLOAD_ENABLED === 'true'
-  if (useBlobUpload) {
-    const result = await uploadMediaAsset({
-      file,
-      filename: file.name,
-      folder: 'blog',
-      siteId: ctx.siteId,
-      uploadedBy: 'system',
-      tags: [`post:${postId}`],
-    })
-    if (!result.ok) throw new Error(result.error)
-
-    await trackMediaUsage(result.asset.id, 'blog_post', postId, 'inline_image')
-    return { url: result.asset.blobUrl }
-  }
-
-  const result = await uploadContentAsset(getSupabaseServiceClient(), {
-    siteId: ctx.siteId,
-    contentType: 'blog',
-    contentId: postId,
+  const result = await uploadMediaAsset({
     file,
     filename: file.name,
+    folder: 'blog',
+    siteId: ctx.siteId,
+    uploadedBy: 'system',
+    tags: [`post:${postId}`],
   })
-  return { url: result.signedUrl }
+  if (!result.ok) throw new Error(result.error)
+
+  await trackMediaUsage(result.asset.id, 'blog_post', postId, 'inline_image')
+  return { url: result.asset.blobUrl }
 }
 
 export async function searchPosts(

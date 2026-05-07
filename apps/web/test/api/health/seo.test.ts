@@ -87,8 +87,7 @@ describe('GET /api/health/seo', () => {
     expect(typeof body.seoConfigCachedMs).toBe('number');
     expect(typeof body.sitemapBuildMs).toBe('number');
     expect(body.flags).toBeDefined();
-    expect(typeof body.flags.jsonLd).toBe('boolean');
-    expect(typeof body.flags.sitemapKilled).toBe('boolean');
+    expect(typeof body.flags.aiCrawlersBlocked).toBe('boolean');
   });
 
   it('calls resolveSiteByHost once per request', async () => {

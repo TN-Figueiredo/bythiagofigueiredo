@@ -1,16 +1,9 @@
-import { NextResponse } from 'next/server'
-
 export const runtime = 'edge'
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const liveEnabled = process.env.LINKS_LIVE_PULSE_ENABLED !== 'false'
-  if (!liveEnabled) {
-    return NextResponse.json({ error: 'feature_disabled' }, { status: 404 })
-  }
-
   const { id } = await params
 
   const encoder = new TextEncoder()

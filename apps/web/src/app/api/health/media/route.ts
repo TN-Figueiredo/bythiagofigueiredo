@@ -43,11 +43,6 @@ export async function GET(req: NextRequest): Promise<Response> {
       totalAssets,
       orphanCount,
       softDeletedCount,
-      flags: {
-        galleryEnabled: process.env.NEXT_PUBLIC_MEDIA_GALLERY_ENABLED === 'true',
-        blobUploadEnabled: process.env.MEDIA_BLOB_UPLOAD_ENABLED === 'true',
-        migrationEnabled: process.env.MEDIA_MIGRATION_ENABLED === 'true',
-      },
     })
   } catch {
     return Response.json({ ok: false, error: 'Site resolution failed' }, { status: 503 })

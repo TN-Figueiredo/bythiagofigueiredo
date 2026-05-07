@@ -51,7 +51,6 @@ describe('GET /api/health/media', () => {
     expect(body).toHaveProperty('totalAssets')
     expect(body).toHaveProperty('orphanCount')
     expect(body).toHaveProperty('softDeletedCount')
-    expect(body).toHaveProperty('flags')
   })
 
   it('returns 503 when site resolution fails', async () => {

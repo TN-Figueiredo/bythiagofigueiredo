@@ -1,6 +1,6 @@
 // Sprint 5a Track D — D12: /account/delete page.
-// Wraps <AccountDeleteWizard /> with the authed user's email + the
-// feature-flag gate (NEXT_PUBLIC_ACCOUNT_DELETE_ENABLED).
+// Wraps <AccountDeleteWizard /> with the authed user's email.
+// LGPD compliance is legally required — always enabled.
 import { createServerClient, requireUser } from '@tn-figueiredo/auth-nextjs'
 import { cookies } from 'next/headers'
 import { AccountDeleteWizard } from '@/components/lgpd/account-delete-wizard'
@@ -28,7 +28,6 @@ export default async function AccountDeletePage() {
     },
   })
   const user = await requireUser(supabase)
-  const enabled = process.env.NEXT_PUBLIC_ACCOUNT_DELETE_ENABLED === 'true'
 
   return (
     <section className="flex flex-col gap-4">
@@ -39,7 +38,7 @@ export default async function AccountDeletePage() {
           período.
         </p>
       </header>
-      <AccountDeleteWizard userEmail={user.email} enabled={enabled} />
+      <AccountDeleteWizard userEmail={user.email} />
     </section>
   )
 }

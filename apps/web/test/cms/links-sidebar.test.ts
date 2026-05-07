@@ -20,7 +20,6 @@ vi.mock('@tn-figueiredo/cms-ui', () => ({
 describe('buildCmsSections', () => {
   beforeEach(() => {
     vi.resetModules()
-    delete process.env.NEXT_PUBLIC_LINKS_ENABLED
   })
 
   it('adds YouTube item to Content section', async () => {
@@ -35,18 +34,7 @@ describe('buildCmsSections', () => {
     expect(yt!.href).toBe('/cms/youtube')
   })
 
-  it('does NOT add Links item when NEXT_PUBLIC_LINKS_ENABLED is not set', async () => {
-    const { buildCmsSections } = await import(
-      '../../src/app/cms/(authed)/_shared/cms-sections'
-    )
-    const sections = buildCmsSections()
-    const contentSection = sections.find((s) => s.label === 'Content')
-    const linksItem = contentSection!.items.find((i) => i.label === 'Links')
-    expect(linksItem).toBeUndefined()
-  })
-
-  it('adds Links item when NEXT_PUBLIC_LINKS_ENABLED=true', async () => {
-    process.env.NEXT_PUBLIC_LINKS_ENABLED = 'true'
+  it('always includes Links item in Content section', async () => {
     const { buildCmsSections } = await import(
       '../../src/app/cms/(authed)/_shared/cms-sections'
     )
@@ -58,19 +46,7 @@ describe('buildCmsSections', () => {
     expect(linksItem!.minRole).toBe('editor')
   })
 
-  it('does NOT add Links item when NEXT_PUBLIC_LINKS_ENABLED=false', async () => {
-    process.env.NEXT_PUBLIC_LINKS_ENABLED = 'false'
-    const { buildCmsSections } = await import(
-      '../../src/app/cms/(authed)/_shared/cms-sections'
-    )
-    const sections = buildCmsSections()
-    const contentSection = sections.find((s) => s.label === 'Content')
-    const linksItem = contentSection!.items.find((i) => i.label === 'Links')
-    expect(linksItem).toBeUndefined()
-  })
-
   it('does not modify non-Content sections', async () => {
-    process.env.NEXT_PUBLIC_LINKS_ENABLED = 'true'
     const { buildCmsSections } = await import(
       '../../src/app/cms/(authed)/_shared/cms-sections'
     )
@@ -82,7 +58,6 @@ describe('buildCmsSections', () => {
   })
 
   it('preserves original Content items', async () => {
-    process.env.NEXT_PUBLIC_LINKS_ENABLED = 'true'
     const { buildCmsSections } = await import(
       '../../src/app/cms/(authed)/_shared/cms-sections'
     )

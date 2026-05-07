@@ -71,8 +71,6 @@ export default async function LinkDetailPage({ params }: Props) {
     }
   }
 
-  const pulseEnabled = process.env.LINKS_LIVE_PULSE_ENABLED !== 'false'
-
   return (
     <div className="flex flex-col gap-6 px-4 py-4 md:px-7">
       <LinkDetail
@@ -94,7 +92,6 @@ export default async function LinkDetailPage({ params }: Props) {
         }}
         dailyClicks={dailyClicks}
         topCountry={topCountry}
-        pulseEnabled={pulseEnabled}
         linkId={id}
       />
     </div>

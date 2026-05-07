@@ -19,8 +19,6 @@ import { useMediaGallery } from '../../_shared/media/use-media-gallery'
 import { MediaGalleryModal } from '../../_shared/media/media-gallery-modal'
 import { CROP_PRESETS } from '../../_shared/media/types'
 
-const galleryEnabled = process.env.NEXT_PUBLIC_MEDIA_GALLERY_ENABLED === 'true'
-
 const FOCUSABLE = 'input, select, textarea, button:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
 const RESERVED_SLUGS = new Set([
@@ -785,7 +783,7 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
                         aria-describedby={errors.ogImageUrl ? `${fid}-og-err` : undefined}
                         data-testid="drawer-og-image"
                       />
-                      {galleryEnabled && siteId && (
+                      {siteId && (
                         <button
                           type="button"
                           onClick={() => ogGallery.openGallery({ folder: 'og', cropPreset: CROP_PRESETS['og-image'] })}
@@ -989,7 +987,7 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
           </div>
         )}
       </div>
-      {galleryEnabled && siteId && (
+      {siteId && (
         <MediaGalleryModal
           {...ogGallery.galleryProps}
           onSelect={(asset) => {

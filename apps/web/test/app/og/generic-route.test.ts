@@ -12,16 +12,6 @@ describe('GET /og/[type]', () => {
   beforeEach(() => vi.resetModules())
   afterEach(() => vi.unstubAllEnvs())
 
-  it('returns 302 fallback when flag disabled', async () => {
-    vi.stubEnv('NEXT_PUBLIC_SEO_DYNAMIC_OG_ENABLED', 'false')
-    const { GET } = await import('@/app/og/[type]/route')
-    const req = new NextRequest('https://example.com/og/root', {
-      headers: { host: 'example.com' },
-    })
-    const res = await GET(req, { params: Promise.resolve({ type: 'root' }) })
-    expect(res.status).toBe(302)
-  })
-
   it('returns 302 fallback for unknown type', async () => {
     const { GET } = await import('@/app/og/[type]/route')
     const req = new NextRequest('https://example.com/og/hax', {

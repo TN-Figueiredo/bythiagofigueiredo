@@ -93,13 +93,14 @@ const inputClass =
   'mt-1.5 block w-full rounded-lg border border-border bg-card px-3 py-2 text-[11px] text-foreground placeholder:text-muted-foreground/50 focus:border-indigo-500/50 focus:outline-none focus:ring-1 focus:ring-indigo-500/30 transition-colors'
 
 export function LinkForm({ link, onSubmit, onCancel, siteId: _siteId }: LinkFormProps) {
-  const { form, errors, isSubmitting, setField, handleSubmit, addTag, removeTag } = useLinkForm(
+  const { form, errors, isSubmitting, setField, handleSubmit, addTag, addTags, removeTag } = useLinkForm(
     link ?? undefined,
   )
   const [showUtm, setShowUtm] = useState(
     !!(form.utm_source || form.utm_medium || form.utm_campaign),
   )
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [tagInput, setTagInput] = useState('')
 
   const isEditMode = !!link
 
@@ -235,16 +236,34 @@ export function LinkForm({ link, onSubmit, onCancel, siteId: _siteId }: LinkForm
             <input
               id="tag-input"
               type="text"
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
               className="min-w-[100px] flex-1 bg-transparent text-[11px] text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
-              placeholder={form.tags.length === 0 ? 'Add tags (press Enter)' : 'Add more…'}
+              placeholder={form.tags.length === 0 ? 'Add tags (comma or space to separate)' : 'Add more…'}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') {
+                if (e.key === 'Enter' || e.key === ',') {
                   e.preventDefault()
-                  const val = e.currentTarget.value.trim()
-                  if (val) {
-                    addTag(val)
-                    e.currentTarget.value = ''
-                  }
+                  const parts = tagInput.split(/[,\s]+/).map(p => p.trim().replace(/^#+/, '')).filter(Boolean)
+                  if (parts.length > 0) addTags(parts)
+                  setTagInput('')
+                }
+                if (e.key === ' ' && tagInput.trim()) {
+                  e.preventDefault()
+                  const parts = tagInput.split(/[,\s]+/).map(p => p.trim().replace(/^#+/, '')).filter(Boolean)
+                  if (parts.length > 0) addTags(parts)
+                  setTagInput('')
+                }
+                if (e.key === 'Backspace' && !tagInput && form.tags.length > 0) {
+                  removeTag(form.tags[form.tags.length - 1])
+                }
+              }}
+              onPaste={(e) => {
+                const pasted = e.clipboardData.getData('text')
+                if (pasted.includes(',') || pasted.includes(' ') || pasted.includes('\n')) {
+                  e.preventDefault()
+                  const parts = pasted.split(/[,\s\n]+/).map(p => p.trim().replace(/^#+/, '')).filter(Boolean)
+                  if (parts.length > 0) addTags(parts)
+                  setTagInput('')
                 }
               }}
             />

@@ -30,11 +30,7 @@ function makeReq(opts: { auth?: string | null; host?: string } = {}): NextReques
 describe('GET /api/health/seo', () => {
   beforeEach(() => {
     process.env.CRON_SECRET = 'test-cron-secret'
-    delete process.env.NEXT_PUBLIC_SEO_JSONLD_ENABLED
-    delete process.env.NEXT_PUBLIC_SEO_DYNAMIC_OG_ENABLED
-    delete process.env.NEXT_PUBLIC_SEO_EXTENDED_SCHEMAS_ENABLED
     delete process.env.SEO_AI_CRAWLERS_BLOCKED
-    delete process.env.SEO_SITEMAP_KILLED
     vi.clearAllMocks()
   })
   afterEach(() => {
@@ -105,18 +101,12 @@ describe('GET /api/health/seo', () => {
     expect(typeof body.seoConfigCachedMs).toBe('number')
     expect(typeof body.sitemapBuildMs).toBe('number')
     expect(body.flags).toMatchObject({
-      jsonLd: expect.any(Boolean),
-      dynamicOg: expect.any(Boolean),
-      extendedSchemas: expect.any(Boolean),
       aiCrawlersBlocked: expect.any(Boolean),
-      sitemapKilled: expect.any(Boolean),
     })
   })
 
   it('flags reflect env var state', async () => {
-    process.env.NEXT_PUBLIC_SEO_JSONLD_ENABLED = 'false'
     process.env.SEO_AI_CRAWLERS_BLOCKED = 'true'
-    process.env.SEO_SITEMAP_KILLED = 'true'
     vi.mocked(resolveSiteByHost).mockResolvedValue({
       id: 's',
       slug: 'bythiagofigueiredo',
@@ -141,8 +131,6 @@ describe('GET /api/health/seo', () => {
 
     const res = await GET(makeReq())
     const body = await res.json()
-    expect(body.flags.jsonLd).toBe(false)
     expect(body.flags.aiCrawlersBlocked).toBe(true)
-    expect(body.flags.sitemapKilled).toBe(true)
   })
 })

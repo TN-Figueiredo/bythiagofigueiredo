@@ -1269,9 +1269,6 @@ export async function getNewsletterTypeForEdit(typeId: string): Promise<
 
 // ─── Image Upload ───────────────────────────────────────────────────────────
 
-const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
-const MAX_IMAGE_SIZE = 2 * 1024 * 1024
-
 export async function uploadNewsletterImage(
   formData: FormData,
 ): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
@@ -1289,41 +1286,19 @@ export async function uploadNewsletterImage(
     .single()
   if (!edition) return { ok: false, error: 'not_found' }
 
-  const useBlobUpload = process.env.MEDIA_BLOB_UPLOAD_ENABLED === 'true'
-  if (useBlobUpload) {
-    const ctx = await getSiteContext()
-    const authRes = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
-    const result = await uploadMediaAsset({
-      file,
-      filename: file.name,
-      folder: 'newsletters',
-      siteId: edition.site_id,
-      uploadedBy: authRes.ok ? authRes.user.id : 'system',
-      tags: [`edition:${editionId}`],
-    })
-    if (!result.ok) return { ok: false, error: result.error }
-    await trackMediaUsage(result.asset.id, 'newsletter_edition', editionId, 'inline_image')
-    return { ok: true, url: result.asset.blobUrl }
-  }
-
-  if (file.size > MAX_IMAGE_SIZE) return { ok: false, error: 'file_too_large' }
-  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) return { ok: false, error: 'unsupported_format' }
-
-  const ext = file.name.split('.').pop() ?? 'jpg'
-  const uuid = crypto.randomUUID()
-  const path = `${edition.site_id}/${editionId}/${uuid}.${ext}`
-
-  const buffer = Buffer.from(await file.arrayBuffer())
-  const { error } = await supabase.storage
-    .from('newsletter-assets')
-    .upload(path, buffer, { contentType: file.type })
-  if (error) return { ok: false, error: error.message }
-
-  const { data: { publicUrl } } = supabase.storage
-    .from('newsletter-assets')
-    .getPublicUrl(path)
-
-  return { ok: true, url: publicUrl }
+  const ctx = await getSiteContext()
+  const authRes = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
+  const result = await uploadMediaAsset({
+    file,
+    filename: file.name,
+    folder: 'newsletters',
+    siteId: edition.site_id,
+    uploadedBy: authRes.ok ? authRes.user.id : 'system',
+    tags: [`edition:${editionId}`],
+  })
+  if (!result.ok) return { ok: false, error: result.error }
+  await trackMediaUsage(result.asset.id, 'newsletter_edition', editionId, 'inline_image')
+  return { ok: true, url: result.asset.blobUrl }
 }
 
 export async function uploadNewsletterTypeImage(
@@ -1336,39 +1311,16 @@ export async function uploadNewsletterTypeImage(
   const res = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
   if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
 
-  const useBlobUpload = process.env.MEDIA_BLOB_UPLOAD_ENABLED === 'true'
-  if (useBlobUpload) {
-    const result = await uploadMediaAsset({
-      file,
-      filename: file.name,
-      folder: 'og',
-      siteId: ctx.siteId,
-      uploadedBy: res.user.id,
-      tags: ['newsletter-type-og'],
-    })
-    if (!result.ok) return { ok: false, error: result.error }
-    return { ok: true, url: result.asset.blobUrl }
-  }
-
-  if (file.size > MAX_IMAGE_SIZE) return { ok: false, error: 'file_too_large' }
-  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) return { ok: false, error: 'unsupported_format' }
-
-  const supabase = getSupabaseServiceClient()
-  const ext = file.name.split('.').pop() ?? 'jpg'
-  const uuid = crypto.randomUUID()
-  const path = `${ctx.siteId}/types/${uuid}.${ext}`
-
-  const buffer = Buffer.from(await file.arrayBuffer())
-  const { error } = await supabase.storage
-    .from('newsletter-assets')
-    .upload(path, buffer, { contentType: file.type, upsert: false })
-  if (error) return { ok: false, error: error.message }
-
-  const { data: { publicUrl } } = supabase.storage
-    .from('newsletter-assets')
-    .getPublicUrl(path)
-
-  return { ok: true, url: publicUrl }
+  const result = await uploadMediaAsset({
+    file,
+    filename: file.name,
+    folder: 'og',
+    siteId: ctx.siteId,
+    uploadedBy: res.user.id,
+    tags: ['newsletter-type-og'],
+  })
+  if (!result.ok) return { ok: false, error: result.error }
+  return { ok: true, url: result.asset.blobUrl }
 }
 
 // ─── Delete ─────────────────────────────────────────────────────────────────

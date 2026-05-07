@@ -5,8 +5,6 @@ import { useMediaGallery } from '@/app/cms/(authed)/_shared/media/use-media-gall
 import { MediaGalleryModal } from '@/app/cms/(authed)/_shared/media/media-gallery-modal'
 import { CROP_PRESETS } from '@/app/cms/(authed)/_shared/media/types'
 
-const galleryEnabled = process.env.NEXT_PUBLIC_MEDIA_GALLERY_ENABLED === 'true'
-
 interface SlotFormData {
   isEnabled: boolean
   headline: string
@@ -154,7 +152,7 @@ export function SlotForm({ slotKey, initial, onSave, onChange, siteId }: SlotFor
                 className={inputClass + ' flex-1'}
                 placeholder="https://..."
               />
-              {galleryEnabled && siteId && (
+              {siteId && (
                 <button
                   type="button"
                   onClick={() => logoGallery.openGallery({ folder: 'ads', cropPreset: CROP_PRESETS.free })}
@@ -178,7 +176,7 @@ export function SlotForm({ slotKey, initial, onSave, onChange, siteId }: SlotFor
               className={inputClass + ' flex-1'}
               placeholder="https://..."
             />
-            {galleryEnabled && siteId && (
+            {siteId && (
               <button
                 type="button"
                 onClick={() => adGallery.openGallery({ folder: 'ads', cropPreset: CROP_PRESETS.free })}
@@ -217,7 +215,7 @@ export function SlotForm({ slotKey, initial, onSave, onChange, siteId }: SlotFor
           <span className="text-xs text-green-600">Salvo com sucesso</span>
         )}
       </div>
-      {galleryEnabled && siteId && (
+      {siteId && (
         <>
           <MediaGalleryModal
             {...adGallery.galleryProps}

@@ -107,17 +107,17 @@ Workspace em `packages/cms/`, consumido via `"@tn-figueiredo/cms": "*"` + `trans
 - **Links:** `go.{domain}` subdomain routing via middleware rewrite to `/go/${code}`. Daily-rotating visitor ID `SHA-256(ip|ua|date)`. Partitioned `link_clicks` table. Watermark-based hourly aggregation.
 - **Media:** Vercel Blob storage (`@vercel/blob`). SHA-256 dedup. EXIF strip (LGPD). 7-day orphan grace → 30-day hard delete. SVG sanitization via DOMPurify. `<MediaGalleryDialog>` reusable picker wired into blog/author/newsletter/campaign editors.
 
-### All feature flags
+### Remaining operational flags (boolean feature flags removed 2026-05-07)
 
-LGPD: `NEXT_PUBLIC_LGPD_BANNER_ENABLED`, `NEXT_PUBLIC_ACCOUNT_DELETE_ENABLED`, `NEXT_PUBLIC_ACCOUNT_EXPORT_ENABLED`, `LGPD_CRON_SWEEP_ENABLED`
-SEO: `NEXT_PUBLIC_SEO_JSONLD_ENABLED`, `NEXT_PUBLIC_SEO_DYNAMIC_OG_ENABLED`, `NEXT_PUBLIC_SEO_EXTENDED_SCHEMAS_ENABLED`, `SEO_AI_CRAWLERS_BLOCKED`, `SEO_SITEMAP_KILLED`
-Links: `NEXT_PUBLIC_LINKS_ENABLED`, `LINKS_SHORT_DOMAIN`, `LINKS_NEWSLETTER_REWRITE_ENABLED`, `LINKS_AI_INSIGHTS_ENABLED`, `LINKS_LIVE_PULSE_ENABLED`, `LINKS_REVENUE_TRACKING_ENABLED`, `LINKS_GEO_PROVIDER`
-Media: `NEXT_PUBLIC_MEDIA_GALLERY_ENABLED`, `MEDIA_BLOB_UPLOAD_ENABLED`, `MEDIA_MIGRATION_ENABLED`
+LGPD: `LGPD_CRON_SWEEP_ENABLED` (safety valve — irreversible data deletion cron)
+SEO: `SEO_AI_CRAWLERS_BLOCKED` (controls robots.txt AI crawler rules)
+Links: `LINKS_SHORT_DOMAIN` (string), `LINKS_GEO_PROVIDER` (string — default `cloudflare`)
+Ads: `AD_GOOGLE_ENABLED`, `AD_TRACKING_ENABLED`, `AD_REVENUE_SYNC_ENABLED` (require external Google setup)
 
 ## Environment Variables
 
 ### Web (`apps/web/.env.local`)
-`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN`, `CRON_SECRET`, `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, `NEWSLETTER_FROM_DOMAIN`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, `CAMPAIGN_PDF_SIGNED_URL_TTL`, `YOUTUBE_API_KEY`, `BLOB_READ_WRITE_TOKEN` + feature flags above.
+`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN`, `CRON_SECRET`, `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, `NEWSLETTER_FROM_DOMAIN`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, `CAMPAIGN_PDF_SIGNED_URL_TTL`, `YOUTUBE_API_KEY`, `BLOB_READ_WRITE_TOKEN` + operational flags above.
 
 Sentry: `NEXT_PUBLIC_SENTRY_DSN` required em prod/preview, optional em dev (empty → no-op). `SENTRY_ORG/PROJECT/AUTH_TOKEN` build-only (source map upload).
 

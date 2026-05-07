@@ -13,8 +13,6 @@ import { trackMediaUsage } from '@/lib/media/track-usage'
 const VALID_CAMPAIGN_STATUSES = ['draft', 'active', 'paused', 'archived'] as const
 type CampaignStatus = typeof VALID_CAMPAIGN_STATUSES[number]
 
-const ALLOWED_MEDIA_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'] as const
-const MAX_MEDIA_SIZE_BYTES = 5 * 1024 * 1024 // 5 MB
 
 type ExtData = CampaignFormData & Record<string, unknown>
 type ExtCreative = Record<string, unknown>
@@ -137,83 +135,32 @@ export async function deleteCampaign(id: string): Promise<void> {
 export async function uploadMedia(file: File): Promise<{ id: string; url: string }> {
   await requireArea('admin')
 
-  const useBlobUpload = process.env.MEDIA_BLOB_UPLOAD_ENABLED === 'true'
-  if (useBlobUpload) {
-    const result = await uploadMediaAsset({
-      file,
-      filename: file.name,
-      folder: 'ads',
-      siteId: AD_APP_ID,
-      uploadedBy: 'admin',
-      tags: ['ad-creative'],
-    })
-    if (!result.ok) throw new Error(result.error)
-
-    const supabase = getSupabaseServiceClient()
-    const { data: row, error: insertError } = await supabase
-      .from('ad_media')
-      .insert({
-        app_id: AD_APP_ID,
-        storage_path: result.asset.blobPathname,
-        public_url: result.asset.blobUrl,
-        mime_type: result.asset.mimeType,
-        file_name: result.asset.filename,
-      })
-      .select('id')
-      .single()
-    if (insertError) throw new Error(insertError.message)
-
-    await trackMediaUsage(result.asset.id, 'ad_campaign', (row as { id: string }).id, 'media_url')
-    return { id: (row as { id: string }).id, url: result.asset.blobUrl }
-  }
-
-  if (!ALLOWED_MEDIA_TYPES.includes(file.type as typeof ALLOWED_MEDIA_TYPES[number])) {
-    throw new Error(
-      `Invalid file type: ${file.type}. Allowed: ${ALLOWED_MEDIA_TYPES.join(', ')}`,
-    )
-  }
-
-  if (file.size > MAX_MEDIA_SIZE_BYTES) {
-    throw new Error(
-      `File too large: ${(file.size / (1024 * 1024)).toFixed(1)}MB. Maximum: 5MB`,
-    )
-  }
+  const result = await uploadMediaAsset({
+    file,
+    filename: file.name,
+    folder: 'ads',
+    siteId: AD_APP_ID,
+    uploadedBy: 'admin',
+    tags: ['ad-creative'],
+  })
+  if (!result.ok) throw new Error(result.error)
 
   const supabase = getSupabaseServiceClient()
-
-  const ext = file.name.split('.').pop() ?? 'bin'
-  const storagePath = `ads/media/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
-
-  const { data: uploadData, error: uploadError } = await supabase.storage
-    .from('media')
-    .upload(storagePath, file, { contentType: file.type, upsert: false })
-
-  if (uploadError) {
-    captureServerActionError(uploadError, { action: 'upload_media' })
-    throw new Error(uploadError.message)
-  }
-
-  const { data: urlData } = supabase.storage.from('media').getPublicUrl(uploadData.path)
-  const publicUrl = urlData.publicUrl
-
   const { data: row, error: insertError } = await supabase
     .from('ad_media')
     .insert({
       app_id: AD_APP_ID,
-      storage_path: uploadData.path,
-      public_url: publicUrl,
-      mime_type: file.type,
-      file_name: file.name,
+      storage_path: result.asset.blobPathname,
+      public_url: result.asset.blobUrl,
+      mime_type: result.asset.mimeType,
+      file_name: result.asset.filename,
     })
     .select('id')
     .single()
+  if (insertError) throw new Error(insertError.message)
 
-  if (insertError) {
-    captureServerActionError(insertError, { action: 'upload_media_insert' })
-    throw new Error(insertError.message)
-  }
-
-  return { id: (row as { id: string }).id, url: publicUrl }
+  await trackMediaUsage(result.asset.id, 'ad_campaign', (row as { id: string }).id, 'media_url')
+  return { id: (row as { id: string }).id, url: result.asset.blobUrl }
 }
 
 export async function deleteMedia(id: string): Promise<void> {

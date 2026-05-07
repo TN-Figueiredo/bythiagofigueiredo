@@ -66,9 +66,6 @@ const mockBlogCadence = [
 ]
 
 const mockSeoFlags = {
-  jsonLd: true,
-  dynamicOg: true,
-  extendedSchemas: true,
   aiCrawlersBlocked: false,
 }
 
@@ -197,12 +194,7 @@ describe('SettingsConnected', () => {
   it('renders SEO feature flags with actual values', async () => {
     await renderSettings()
     fireEvent.click(screen.getByRole('button', { name: /seo/i }))
-    expect(screen.getByText('JSON-LD')).toBeTruthy()
-    expect(screen.getByText('Dynamic OG')).toBeTruthy()
-    expect(screen.getByText('Extended Schemas')).toBeTruthy()
     expect(screen.getByText('AI Crawlers Blocked')).toBeTruthy()
-    const onBadges = screen.getAllByText('On')
-    expect(onBadges.length).toBe(3)
     expect(screen.getByText('Off')).toBeTruthy()
   })
 

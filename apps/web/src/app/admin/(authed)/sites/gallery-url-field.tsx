@@ -5,8 +5,6 @@ import { useMediaGallery } from '../../../cms/(authed)/_shared/media/use-media-g
 import { MediaGalleryModal } from '../../../cms/(authed)/_shared/media/media-gallery-modal'
 import type { CropPreset } from '../../../cms/(authed)/_shared/media/types'
 
-const galleryEnabled = process.env.NEXT_PUBLIC_MEDIA_GALLERY_ENABLED === 'true'
-
 interface GalleryUrlFieldProps {
   id: string
   name: string
@@ -48,27 +46,23 @@ export function GalleryUrlField({
           placeholder={placeholder}
           className="flex-1 border rounded px-3 py-2 text-sm"
         />
-        {galleryEnabled && (
-          <button
-            type="button"
-            onClick={() => gallery.openGallery({ folder, cropPreset })}
-            className="shrink-0 rounded border border-gray-300 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
-          >
-            {locale === 'pt-BR' ? 'Galeria' : 'Gallery'}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => gallery.openGallery({ folder, cropPreset })}
+          className="shrink-0 rounded border border-gray-300 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
+        >
+          {locale === 'pt-BR' ? 'Galeria' : 'Gallery'}
+        </button>
       </div>
-      {galleryEnabled && (
-        <MediaGalleryModal
-          {...gallery.galleryProps}
-          onSelect={(asset) => {
-            setValue(asset.url)
-            gallery.closeGallery()
-          }}
-          locale={locale}
-          siteId={siteId}
-        />
-      )}
+      <MediaGalleryModal
+        {...gallery.galleryProps}
+        onSelect={(asset) => {
+          setValue(asset.url)
+          gallery.closeGallery()
+        }}
+        locale={locale}
+        siteId={siteId}
+      />
     </div>
   )
 }

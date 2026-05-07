@@ -3,17 +3,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 describe('links pulse SSE route', () => {
   beforeEach(() => {
     vi.resetModules()
-    delete process.env.LINKS_LIVE_PULSE_ENABLED
-  })
-
-  it('returns 404 when LINKS_LIVE_PULSE_ENABLED=false', async () => {
-    process.env.LINKS_LIVE_PULSE_ENABLED = 'false'
-    const { GET } = await import('../../src/app/api/links/[id]/pulse/route')
-    const req = new Request('http://localhost/api/links/abc/pulse')
-    const res = await GET(req, { params: Promise.resolve({ id: 'abc' }) })
-    expect(res.status).toBe(404)
-    const body = await res.json()
-    expect(body.error).toBe('feature_disabled')
   })
 
   it('returns SSE stream when enabled (default)', async () => {

@@ -38,10 +38,6 @@ export default async function SettingsPage({ searchParams }: Props) {
   ])
 
   const seoFlags = {
-    jsonLd: process.env.NEXT_PUBLIC_SEO_JSONLD_ENABLED !== 'false',
-    dynamicOg: process.env.NEXT_PUBLIC_SEO_DYNAMIC_OG_ENABLED !== 'false',
-    extendedSchemas:
-      process.env.NEXT_PUBLIC_SEO_EXTENDED_SCHEMAS_ENABLED !== 'false',
     aiCrawlersBlocked: process.env.SEO_AI_CRAWLERS_BLOCKED === 'true',
   }
 

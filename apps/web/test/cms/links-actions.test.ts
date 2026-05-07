@@ -105,6 +105,23 @@ vi.mock('next/cache', () => ({
   revalidateTag: vi.fn(),
 }))
 
+vi.mock('@/lib/media/upload', () => ({
+  uploadMediaAsset: vi.fn().mockResolvedValue({
+    ok: true,
+    asset: {
+      id: 'media-1',
+      blobUrl: 'https://cdn/qr.svg',
+      blobPathname: 'links/qr-abc123.svg',
+      mimeType: 'image/svg+xml',
+      filename: 'qr-abc123.svg',
+    },
+  }),
+}))
+
+vi.mock('@/lib/media/track-usage', () => ({
+  trackMediaUsage: vi.fn().mockResolvedValue(undefined),
+}))
+
 // ─── Imports (after mocks) ────────────────────────────────────────────────────
 
 import {

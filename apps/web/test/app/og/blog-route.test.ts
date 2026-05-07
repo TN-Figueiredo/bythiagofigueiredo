@@ -5,7 +5,6 @@ import { NextRequest } from 'next/server'
  * Sprint 5b PR-B Phase 3 — `/og/blog/[locale]/[slug]` Node-runtime OG route.
  *
  * Contract:
- *   - Flag `NEXT_PUBLIC_SEO_DYNAMIC_OG_ENABLED=false` → 302 to /og-default.png
  *   - Unknown host (resolveSiteByHost null) → 302 fallback
  *   - Post not found → 302 fallback
  *   - Happy path → calls renderBlogOgImage with title/author/locale/brand/logo
@@ -14,19 +13,6 @@ import { NextRequest } from 'next/server'
 describe('GET /og/blog/[locale]/[slug]', () => {
   beforeEach(() => vi.resetModules())
   afterEach(() => vi.unstubAllEnvs())
-
-  it('returns 302 fallback when flag disabled', async () => {
-    vi.stubEnv('NEXT_PUBLIC_SEO_DYNAMIC_OG_ENABLED', 'false')
-    const { GET } = await import('@/app/og/blog/[locale]/[slug]/route')
-    const req = new NextRequest('https://example.com/og/blog/pt-BR/slug', {
-      headers: { host: 'example.com' },
-    })
-    const res = await GET(req, {
-      params: Promise.resolve({ locale: 'pt-BR', slug: 'slug' }),
-    })
-    expect(res.status).toBe(302)
-    expect(res.headers.get('location')).toBe('/og-default.png')
-  })
 
   it('returns 302 fallback when site not resolved', async () => {
     vi.doMock('@/lib/seo/host', () => ({

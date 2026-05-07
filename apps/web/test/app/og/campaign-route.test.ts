@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
 /**
@@ -10,20 +10,6 @@ import { NextRequest } from 'next/server'
  */
 describe('GET /og/campaigns/[locale]/[slug]', () => {
   beforeEach(() => vi.resetModules())
-  afterEach(() => vi.unstubAllEnvs())
-
-  it('returns 302 fallback when flag disabled', async () => {
-    vi.stubEnv('NEXT_PUBLIC_SEO_DYNAMIC_OG_ENABLED', 'false')
-    const { GET } = await import('@/app/og/campaigns/[locale]/[slug]/route')
-    const req = new NextRequest('https://example.com/og/campaigns/pt-BR/launch', {
-      headers: { host: 'example.com' },
-    })
-    const res = await GET(req, {
-      params: Promise.resolve({ locale: 'pt-BR', slug: 'launch' }),
-    })
-    expect(res.status).toBe(302)
-    expect(res.headers.get('location')).toBe('/og-default.png')
-  })
 
   it('returns 302 fallback when site not resolved', async () => {
     vi.doMock('@/lib/seo/host', () => ({

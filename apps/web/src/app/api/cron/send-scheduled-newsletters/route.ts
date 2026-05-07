@@ -134,15 +134,7 @@ async function sendEdition(
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://bythiagofigueiredo.com'
   const fromDomain = process.env.NEWSLETTER_FROM_DOMAIN ?? 'bythiagofigueiredo.com'
 
-  // Feature flag: unified link rewriting via tracked_links + go.{domain}
-  const rewriteEnabled = process.env.LINKS_NEWSLETTER_REWRITE_ENABLED === 'true'
-
-  // Resolve short_domain for this site when the flag is on.
-  let shortDomain: string | null = null
-  if (rewriteEnabled) {
-    shortDomain = process.env.LINKS_SHORT_DOMAIN ?? null
-    // If the short domain is not configured, fall back to legacy tracker.
-  }
+  const shortDomain: string | null = process.env.LINKS_SHORT_DOMAIN ?? null
 
   // Derive a campaign slug from the edition subject (best effort, url-safe).
   const campaignSlug = edition.subject
@@ -225,8 +217,7 @@ async function sendEdition(
         }))
 
         // Apply link rewriting BEFORE sending.
-        if (rewriteEnabled && shortDomain) {
-          // Unified path: tracked_links table + go.{domain} short URL
+        if (shortDomain) {
           const rewriteResult = await rewriteLinksUnified({
             html,
             supabase,
@@ -260,7 +251,7 @@ async function sendEdition(
           provider_message_id: result.messageId,
           status: 'sent',
           // Record which pipeline was used — the webhook handler reads this.
-          link_rewrite_enabled: rewriteEnabled && shortDomain !== null,
+          link_rewrite_enabled: shortDomain !== null,
         } as Record<string, unknown>).eq('id', send.id)
 
         sentCount++

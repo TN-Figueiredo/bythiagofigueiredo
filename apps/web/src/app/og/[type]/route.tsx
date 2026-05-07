@@ -25,9 +25,6 @@ export async function GET(
   req: NextRequest,
   ctx: { params: Promise<{ type: string }> },
 ): Promise<Response> {
-  if (process.env.NEXT_PUBLIC_SEO_DYNAMIC_OG_ENABLED === 'false') {
-    return notFoundOgFallback()
-  }
   const { type } = await ctx.params
   if (!ALLOWED_TYPES.has(type)) return notFoundOgFallback()
   try {

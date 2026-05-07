@@ -108,9 +108,22 @@ export function useLinkForm(initialData?: LinkFormData) {
   }, [initial])
 
   const addTag = useCallback((tag: string) => {
+    const cleaned = tag.trim().replace(/^#+/, '')
+    if (!cleaned) return
     setForm((prev) => {
-      if (prev.tags.includes(tag)) return prev
-      return { ...prev, tags: [...prev.tags, tag] }
+      if (prev.tags.includes(cleaned)) return prev
+      return { ...prev, tags: [...prev.tags, cleaned] }
+    })
+  }, [])
+
+  const addTags = useCallback((rawTags: string[]) => {
+    setForm((prev) => {
+      const existing = new Set(prev.tags)
+      const cleaned = rawTags
+        .map(t => t.trim().replace(/^#+/, ''))
+        .filter(t => t.length > 0 && !existing.has(t))
+      if (cleaned.length === 0) return prev
+      return { ...prev, tags: [...prev.tags, ...cleaned] }
     })
   }, [])
 
@@ -130,6 +143,7 @@ export function useLinkForm(initialData?: LinkFormData) {
     handleSubmit,
     reset,
     addTag,
+    addTags,
     removeTag,
   }
 }

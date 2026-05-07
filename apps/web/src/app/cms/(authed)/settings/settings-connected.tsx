@@ -68,9 +68,6 @@ interface BlogCadenceData {
 }
 
 interface SeoFlags {
-  jsonLd: boolean
-  dynamicOg: boolean
-  extendedSchemas: boolean
   aiCrawlersBlocked: boolean
 }
 
@@ -395,9 +392,6 @@ function SeoSection({
   const [, startTransition] = useTransition()
 
   const featureFlags = [
-    { key: 'JSON-LD', enabled: seoFlags.jsonLd },
-    { key: 'Dynamic OG', enabled: seoFlags.dynamicOg },
-    { key: 'Extended Schemas', enabled: seoFlags.extendedSchemas },
     { key: 'AI Crawlers Blocked', enabled: seoFlags.aiCrawlersBlocked },
   ]
 
@@ -1618,9 +1612,6 @@ export function SettingsConnected({
   youtubeChannels,
   initialSection,
   seoFlags = {
-    jsonLd: true,
-    dynamicOg: true,
-    extendedSchemas: true,
     aiCrawlersBlocked: false,
   },
   readOnly = false,

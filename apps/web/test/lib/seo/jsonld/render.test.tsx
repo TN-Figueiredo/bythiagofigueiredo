@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { renderToString } from 'react-dom/server'
 import { JsonLdScript } from '@/lib/seo/jsonld/render'
 
@@ -16,12 +16,4 @@ describe('JsonLdScript', () => {
     expect(html).toContain('\\u003c/script')
   })
 
-  it('returns null when flag disabled', () => {
-    vi.stubEnv('NEXT_PUBLIC_SEO_JSONLD_ENABLED', 'false')
-    const html = renderToString(
-      <JsonLdScript graph={{ '@context': 'https://schema.org', '@graph': [] }} />
-    )
-    expect(html).toBe('')
-    vi.unstubAllEnvs()
-  })
 })

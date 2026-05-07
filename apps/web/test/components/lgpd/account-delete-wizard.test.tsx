@@ -74,8 +74,4 @@ describe('AccountDeleteWizard', () => {
     })
   })
 
-  it('renders disabled stub when NEXT_PUBLIC_ACCOUNT_DELETE_ENABLED is not true', () => {
-    render(<AccountDeleteWizard userEmail="u@example.com" enabled={false} />)
-    expect(screen.getByText(/temporariamente desabilitad/i)).toBeTruthy()
-  })
 })

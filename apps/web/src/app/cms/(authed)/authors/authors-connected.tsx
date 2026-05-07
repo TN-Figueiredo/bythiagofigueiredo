@@ -242,8 +242,6 @@ function AuthorCard({
   )
 }
 
-const galleryEnabled = process.env.NEXT_PUBLIC_MEDIA_GALLERY_ENABLED === 'true'
-
 function DetailPanel({
   author,
   onClose,
@@ -626,15 +624,13 @@ function DetailPanel({
                 >
                   {displayAvatar ? 'Change photo' : 'Upload photo'}
                 </button>
-                {galleryEnabled && (
-                  <button
-                    type="button"
-                    onClick={() => avatarGallery.openGallery({ folder: 'authors', cropPreset: CROP_PRESETS.avatar })}
-                    className="text-xs text-slate-400 hover:text-slate-200"
-                  >
-                    {locale === 'pt-BR' ? 'Galeria' : 'Gallery'}
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => avatarGallery.openGallery({ folder: 'authors', cropPreset: CROP_PRESETS.avatar })}
+                  className="text-xs text-slate-400 hover:text-slate-200"
+                >
+                  {locale === 'pt-BR' ? 'Galeria' : 'Gallery'}
+                </button>
               </div>
             )}
           </div>
@@ -938,7 +934,7 @@ function DetailPanel({
                     >
                       {aboutPhotoUploading ? 'Uploading...' : aboutPhotoUrl ? 'Change photo' : 'Upload photo'}
                     </button>
-                    {galleryEnabled && !readOnly && (
+                    {!readOnly && (
                       <button
                         type="button"
                         onClick={() => aboutGallery.openGallery({ folder: 'authors', cropPreset: CROP_PRESETS.free })}
@@ -1154,35 +1150,31 @@ function DetailPanel({
         )}
       </div>
 
-      {galleryEnabled && (
-        <>
-          <MediaGalleryModal
-            {...avatarGallery.galleryProps}
-            onSelect={(asset) => {
-              if (avatarPreview?.startsWith('blob:')) URL.revokeObjectURL(avatarPreview)
-              setAvatarPreview(asset.url)
-              avatarGallery.closeGallery()
-              startTransition(async () => {
-                await updateAuthor(author.id, { avatar_url: asset.url })
-              })
-            }}
-            locale={locale}
-            siteId={siteId}
-          />
-          <MediaGalleryModal
-            {...aboutGallery.galleryProps}
-            onSelect={(asset) => {
-              setAboutPhotoUrl(asset.url)
-              aboutGallery.closeGallery()
-              startTransition(async () => {
-                await updateAuthor(author.id, { about_photo_url: asset.url })
-              })
-            }}
-            locale={locale}
-            siteId={siteId}
-          />
-        </>
-      )}
+      <MediaGalleryModal
+        {...avatarGallery.galleryProps}
+        onSelect={(asset) => {
+          if (avatarPreview?.startsWith('blob:')) URL.revokeObjectURL(avatarPreview)
+          setAvatarPreview(asset.url)
+          avatarGallery.closeGallery()
+          startTransition(async () => {
+            await updateAuthor(author.id, { avatar_url: asset.url })
+          })
+        }}
+        locale={locale}
+        siteId={siteId}
+      />
+      <MediaGalleryModal
+        {...aboutGallery.galleryProps}
+        onSelect={(asset) => {
+          setAboutPhotoUrl(asset.url)
+          aboutGallery.closeGallery()
+          startTransition(async () => {
+            await updateAuthor(author.id, { about_photo_url: asset.url })
+          })
+        }}
+        locale={locale}
+        siteId={siteId}
+      />
     </>
   )
 }

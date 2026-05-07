@@ -69,6 +69,17 @@ vi.mock('@/lib/ads/config', () => ({
   AD_APP_ID: 'bythiagofigueiredo',
 }))
 
+const mockUploadMediaAsset = vi.fn()
+const mockTrackMediaUsage = vi.fn()
+
+vi.mock('@/lib/media/upload', () => ({
+  uploadMediaAsset: (...args: unknown[]) => mockUploadMediaAsset(...args),
+}))
+
+vi.mock('@/lib/media/track-usage', () => ({
+  trackMediaUsage: (...args: unknown[]) => mockTrackMediaUsage(...args),
+}))
+
 const mockFetchAdCampaignById = vi.fn().mockResolvedValue({ id: 'c-1', name: 'Test' })
 vi.mock('@tn-figueiredo/ad-engine-admin', () => ({
   createAdminQueries: () => ({
@@ -103,6 +114,18 @@ beforeEach(() => {
   mockStorageUpload.mockResolvedValue({ data: { path: 'ads/media/test.png' }, error: null })
   mockStorageRemove.mockResolvedValue({ data: null, error: null })
   mockStorageGetPublicUrl.mockReturnValue({ data: { publicUrl: 'https://cdn.example.com/ads/media/test.png' } })
+  // Default media upload happy-path
+  mockUploadMediaAsset.mockResolvedValue({
+    ok: true,
+    asset: {
+      id: 'media-1',
+      blobUrl: 'https://cdn.example.com/ads/media/test.png',
+      blobPathname: 'ads/media/test.png',
+      mimeType: 'image/png',
+      filename: 'test.png',
+    },
+  })
+  mockTrackMediaUsage.mockResolvedValue(undefined)
 })
 
 /* ---------------------------------------------------------------------------
@@ -282,14 +305,13 @@ describe('uploadMedia', () => {
     expect(requireArea).toHaveBeenCalledWith('admin')
   })
 
-  it('uploads to storage bucket "media" with correct content type', async () => {
+  it('calls uploadMediaAsset with correct params', async () => {
     const { uploadMedia } = await import(actionsPath)
     const file = new File(['data'], 'photo.jpg', { type: 'image/jpeg' })
     await uploadMedia(file)
-    expect(mockStorageFrom).toHaveBeenCalledWith('media')
-    const [path, , opts] = mockStorageUpload.mock.calls[0]
-    expect(path).toMatch(/^ads\/media\/.+\.jpg$/)
-    expect(opts).toMatchObject({ contentType: 'image/jpeg', upsert: false })
+    expect(mockUploadMediaAsset).toHaveBeenCalledWith(
+      expect.objectContaining({ file, filename: 'photo.jpg', folder: 'ads', siteId: 'bythiagofigueiredo' }),
+    )
   })
 
   it('inserts a row into ad_media with app_id, mime_type, file_name', async () => {
@@ -300,7 +322,7 @@ describe('uploadMedia', () => {
     const insertArg = mockChain.insert.mock.calls[0][0]
     expect(insertArg.app_id).toBe('bythiagofigueiredo')
     expect(insertArg.mime_type).toBe('image/png')
-    expect(insertArg.file_name).toBe('banner.png')
+    expect(insertArg.file_name).toBe('test.png')
     expect(insertArg.public_url).toBe('https://cdn.example.com/ads/media/test.png')
   })
 
@@ -312,51 +334,52 @@ describe('uploadMedia', () => {
     expect(result.url).toBe('https://cdn.example.com/ads/media/test.png')
   })
 
-  it('throws and captures Sentry error when storage upload fails', async () => {
+  it('throws when uploadMediaAsset fails', async () => {
     const { uploadMedia } = await import(actionsPath)
-    mockStorageUpload.mockResolvedValueOnce({ data: null, error: { message: 'storage boom' } })
+    mockUploadMediaAsset.mockResolvedValueOnce({ ok: false, code: 'processing_failed', error: 'Upload failed' })
     const file = new File(['data'], 'img.png', { type: 'image/png' })
-    await expect(uploadMedia(file)).rejects.toThrow('storage boom')
-    expect(captureServerActionError).toHaveBeenCalledWith(
-      expect.objectContaining({ message: 'storage boom' }),
-      expect.objectContaining({ action: 'upload_media' }),
-    )
+    await expect(uploadMedia(file)).rejects.toThrow('Upload failed')
   })
 
-  it('throws and captures Sentry error when ad_media insert fails', async () => {
+  it('throws when ad_media insert fails', async () => {
     const { uploadMedia } = await import(actionsPath)
     mockResult.error = { message: 'insert boom' }
     mockResult.data = null
     const file = new File(['data'], 'img.png', { type: 'image/png' })
     await expect(uploadMedia(file)).rejects.toThrow('insert boom')
-    expect(captureServerActionError).toHaveBeenCalledWith(
-      expect.objectContaining({ message: 'insert boom' }),
-      expect.objectContaining({ action: 'upload_media_insert' }),
-    )
   })
 
-  it('rejects files with disallowed MIME types', async () => {
+  it('rejects files when uploadMediaAsset reports unsupported format', async () => {
     const { uploadMedia } = await import(actionsPath)
+    mockUploadMediaAsset.mockResolvedValueOnce({ ok: false, code: 'unsupported_format', error: 'Unsupported format "application/pdf"' })
     const file = new File(['data'], 'doc.pdf', { type: 'application/pdf' })
-    await expect(uploadMedia(file)).rejects.toThrow('Invalid file type')
+    await expect(uploadMedia(file)).rejects.toThrow('Unsupported format')
   })
 
-  it('rejects files exceeding 5MB', async () => {
+  it('rejects files when uploadMediaAsset reports file too large', async () => {
     const { uploadMedia } = await import(actionsPath)
-    // Create a file object with a size > 5MB via Object.defineProperty
+    mockUploadMediaAsset.mockResolvedValueOnce({ ok: false, code: 'file_too_large', error: 'File size exceeds limit' })
     const file = new File(['x'], 'big.png', { type: 'image/png' })
-    Object.defineProperty(file, 'size', { value: 6 * 1024 * 1024 })
-    await expect(uploadMedia(file)).rejects.toThrow('File too large')
+    await expect(uploadMedia(file)).rejects.toThrow('File size exceeds limit')
   })
 
-  it('accepts all allowed MIME types', async () => {
+  it('succeeds for all common image MIME types', async () => {
     const { uploadMedia } = await import(actionsPath)
     for (const mime of ['image/png', 'image/jpeg', 'image/gif', 'image/webp']) {
       vi.clearAllMocks()
       mockResult.data = { id: 'c-1' }
       mockResult.error = null
-      mockStorageUpload.mockResolvedValue({ data: { path: 'ads/media/test.png' }, error: null })
-      mockStorageGetPublicUrl.mockReturnValue({ data: { publicUrl: 'https://cdn.example.com/ads/media/test.png' } })
+      mockUploadMediaAsset.mockResolvedValue({
+        ok: true,
+        asset: {
+          id: 'media-1',
+          blobUrl: 'https://cdn.example.com/ads/media/test.png',
+          blobPathname: 'ads/media/test.png',
+          mimeType: mime,
+          filename: `test.${mime.split('/')[1]}`,
+        },
+      })
+      mockTrackMediaUsage.mockResolvedValue(undefined)
       const file = new File(['data'], `test.${mime.split('/')[1]}`, { type: mime })
       await expect(uploadMedia(file)).resolves.toBeDefined()
     }

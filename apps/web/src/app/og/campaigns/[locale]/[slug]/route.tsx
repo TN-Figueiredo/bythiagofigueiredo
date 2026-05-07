@@ -19,9 +19,6 @@ export async function GET(
   req: NextRequest,
   ctx: { params: Promise<{ locale: string; slug: string }> },
 ): Promise<Response> {
-  if (process.env.NEXT_PUBLIC_SEO_DYNAMIC_OG_ENABLED === 'false') {
-    return notFoundOgFallback()
-  }
   const { locale, slug } = await ctx.params
   try {
     const host = (req.headers.get('host') ?? '').split(':')[0] ?? ''

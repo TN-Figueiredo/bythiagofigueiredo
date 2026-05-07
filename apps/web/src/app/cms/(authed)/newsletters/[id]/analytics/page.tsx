@@ -44,8 +44,6 @@ export default async function EditionAnalyticsPage({
 
   const sendIds = (sendRows ?? []).map((s) => s.id as string)
 
-  // Query click rows via the compat helper — reads from the unified view when
-  // LINKS_NEWSLETTER_REWRITE_ENABLED=true, otherwise legacy table.
   const clickRows = await getNewsletterClickRows({ supabase, sendIds })
   const topLinks = clickRows
     .sort((a, b) => b.count - a.count)

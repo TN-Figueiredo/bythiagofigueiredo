@@ -75,8 +75,6 @@ interface EditionEditorProps {
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
-const galleryEnabled = process.env.NEXT_PUBLIC_MEDIA_GALLERY_ENABLED === 'true'
-
 const LOCKED_STATUSES = ['sending', 'sent', 'failed', 'cancelled']
 
 const STATUS_PILL: Record<string, string> = {
@@ -719,7 +717,7 @@ export function EditionEditor({
             }}
             onImageUpload={handleImageUpload}
             editable={!isReadOnly}
-            onOpenGallery={galleryEnabled && siteId ? () => inlineGallery.openGallery({ folder: 'newsletters', cropPreset: CROP_PRESETS.free }) : undefined}
+            onOpenGallery={siteId ? () => inlineGallery.openGallery({ folder: 'newsletters', cropPreset: CROP_PRESETS.free }) : undefined}
             editorInstanceRef={tiptapEditorRef}
           />
         </div>
@@ -804,7 +802,7 @@ export function EditionEditor({
         onConfirm={handleSendTest}
         onCancel={() => setShowSendTestModal(false)}
       />
-      {galleryEnabled && siteId && (
+      {siteId && (
         <MediaGalleryModal
           {...inlineGallery.galleryProps}
           onSelect={(asset) => {
