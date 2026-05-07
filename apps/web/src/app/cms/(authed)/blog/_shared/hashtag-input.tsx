@@ -49,33 +49,67 @@ export function HashtagInput({ siteId, selected, onChange }: HashtagInputProps) 
     inputRef.current?.focus()
   }, [selected, onChange])
 
-  const createAndAdd = useCallback(async () => {
-    const name = query.trim().replace(/^#/, '')
+  const createAndAdd = useCallback(async (raw?: string) => {
+    const name = (raw ?? query).trim().replace(/^#+/, '')
     if (!name) return
+    const existingSlugs = new Set(selected.map(h => h.slug))
+    const slug = name
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+    if (existingSlugs.has(slug)) {
+      if (!raw) { setQuery(''); setSuggestions([]) }
+      return
+    }
     const result = await createHashtag(siteId, name)
     if (result.ok) {
       addHashtag(result.hashtag)
     }
-  }, [query, siteId, addHashtag])
+  }, [query, siteId, addHashtag, selected])
 
   const removeHashtag = useCallback((id: string) => {
     onChange(selected.filter(h => h.id !== id))
   }, [selected, onChange])
 
+  const processBatch = useCallback(async (text: string) => {
+    const parts = text.split(/[,\s]+/).map(p => p.trim().replace(/^#+/, '')).filter(Boolean)
+    for (const part of parts) {
+      await createAndAdd(part)
+    }
+  }, [createAndAdd])
+
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' || e.key === ',') {
       e.preventDefault()
-      if (suggestions.length > 0 && suggestions[0]) {
+      if (e.key === 'Enter' && suggestions.length > 0 && suggestions[0]) {
         addHashtag(suggestions[0])
       } else if (query.trim()) {
-        createAndAdd()
+        processBatch(query)
+        setQuery('')
+        setSuggestions([])
       }
+    }
+    if (e.key === ' ' && query.trim()) {
+      e.preventDefault()
+      processBatch(query)
+      setQuery('')
+      setSuggestions([])
     }
     if (e.key === 'Backspace' && !query && selected.length > 0) {
       const last = selected[selected.length - 1]
       if (last) removeHashtag(last.id)
     }
-  }, [query, suggestions, selected, addHashtag, createAndAdd, removeHashtag])
+  }, [query, suggestions, selected, addHashtag, processBatch, removeHashtag])
+
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const pasted = e.clipboardData.getData('text')
+    if (pasted.includes(',') || pasted.includes(' ') || pasted.includes('\n')) {
+      e.preventDefault()
+      processBatch(pasted)
+    }
+  }, [processBatch])
 
   return (
     <div className="mb-6">
@@ -103,6 +137,7 @@ export function HashtagInput({ siteId, selected, onChange }: HashtagInputProps) 
           value={query}
           onChange={(e) => { setQuery(e.target.value); setShowDropdown(true) }}
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
           onFocus={() => setShowDropdown(true)}
           onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
           placeholder={selected.length === 0 ? l.hashtagPlaceholder : ''}
@@ -127,14 +162,14 @@ export function HashtagInput({ siteId, selected, onChange }: HashtagInputProps) 
               #{h.name}
             </button>
           ))}
-          {query.trim() && suggestions.every(s => s.name.toLowerCase() !== query.trim().toLowerCase()) && (
+          {query.trim() && suggestions.every(s => s.name.toLowerCase() !== query.trim().replace(/^#+/, '').toLowerCase()) && (
             <button
               type="button"
               role="option"
-              onMouseDown={createAndAdd}
+              onMouseDown={() => createAndAdd()}
               className="w-full text-left px-3 py-1.5 text-xs font-mono text-indigo-400 hover:bg-neutral-800"
             >
-              {l.createNew(query.trim())}
+              {l.createNew(query.trim().replace(/^#+/, ''))}
             </button>
           )}
         </div>
