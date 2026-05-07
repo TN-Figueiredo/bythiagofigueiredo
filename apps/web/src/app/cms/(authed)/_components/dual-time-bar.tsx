@@ -30,9 +30,9 @@ export function DualTimeBar({ date, siteTimezone }: DualTimeBarProps) {
   }
 
   // offset = site wall clock − local wall clock
-  // positive → site is ahead of local, negative → site is behind local
+  // negative → local is ahead of site; positive → local is behind site
   const absOffset = Math.abs(offset)
-  const direction = offset > 0 ? 'ahead' : 'behind'
+  const direction = offset < 0 ? 'ahead' : 'behind'
   const label =
     absOffset === Math.floor(absOffset)
       ? `${absOffset}h ${direction}`

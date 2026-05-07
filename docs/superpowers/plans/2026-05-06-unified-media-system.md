@@ -34,7 +34,7 @@
 | `apps/web/src/app/cms/(authed)/_shared/media/media-library-tab.tsx` | Create | Browse grid tab with search/filter/pagination |
 | `apps/web/src/app/cms/(authed)/_shared/media/media-crop-editor.tsx` | Create | Generic crop component (replaces AvatarCropModal) |
 | `apps/web/src/app/cms/(authed)/_shared/media/use-media-gallery.ts` | Create | Gallery hook for open/close + selection state |
-| `apps/web/src/app/cms/(authed)/_shared/media/media-gallery-i18n.ts` | Create | i18n strings (32 keys, pt-BR + en) |
+| `apps/web/src/app/cms/(authed)/_shared/media/_i18n/{types,en,pt-BR}.ts` | Create | i18n strings (3-file convention: types + en + pt-BR) |
 | `apps/web/src/app/cms/(authed)/_shared/media/types.ts` | Create | Gallery types + 6 crop presets |
 | `apps/web/src/app/api/cron/media-cleanup/route.ts` | Create | Orphan cleanup cron (Sunday 03:00 UTC) |
 | `apps/web/src/app/api/health/media/route.ts` | Create | Health endpoint |
@@ -736,6 +736,9 @@ Expected: PASS — all 6 tests green.
 git add apps/web/test/fixtures/media/create-fixtures.ts apps/web/test/fixtures/media/fixtures.test.ts
 git commit -m "test(media): add test fixture helpers for images, SVG, and oversized buffers"
 ```
+
+---
+
 ### Task 6: Validation module
 
 **Files:**
@@ -1892,14 +1895,14 @@ import {
   sanitizeFilename,
 } from './validation'
 import { processImage } from './process'
-import { computeContentHash, checkDedup, mimeToExt, buildBlobPathname } from './hash'
+import { computeContentHash, checkDedup, buildBlobPathname } from './hash'
 import type {
   UploadMediaInput,
   UploadResult,
   UploadErrorCode,
   MediaAssetRow,
 } from './types'
-import { toMediaAsset } from './types'
+import { toMediaAsset, mimeToExt } from './types'
 
 function detectMimeType(file: File | Buffer, filename: string): string {
   if (file instanceof File) return file.type
@@ -1992,24 +1995,31 @@ export async function uploadMediaAsset(
     return fail('blob_upload_failed', 'Failed to upload to storage')
   }
 
-  // Step 9: DB insert with ON CONFLICT for concurrent-upload safety
+  // Step 9: DB upsert with ON CONFLICT for concurrent-upload safety
+  // Supabase .insert() does NOT support ON CONFLICT — use .upsert() with
+  // onConflict targeting the partial unique index (site_id, content_hash).
+  // If two uploads race past the dedup check (Step 7), the second upsert
+  // harmlessly touches updated_at and returns the existing row.
   const { data: row, error: insertError } = await supabase
     .from('media_assets')
-    .insert({
-      site_id: siteId,
-      blob_url: blobResult.url,
-      blob_pathname: blobResult.pathname,
-      filename,
-      alt_text: altText ?? null,
-      width: processed.width,
-      height: processed.height,
-      mime_type: mimeType,
-      file_size: processed.buffer.length,
-      content_hash: contentHash,
-      folder,
-      tags: tags ?? [],
-      uploaded_by: uploadedBy,
-    })
+    .upsert(
+      {
+        site_id: siteId,
+        blob_url: blobResult.url,
+        blob_pathname: blobResult.pathname,
+        filename,
+        alt_text: altText ?? null,
+        width: processed.width,
+        height: processed.height,
+        mime_type: mimeType,
+        file_size: processed.buffer.length,
+        content_hash: contentHash,
+        folder,
+        tags: tags ?? [],
+        uploaded_by: uploadedBy,
+      },
+      { onConflict: 'site_id,content_hash', ignoreDuplicates: false },
+    )
     .select('*')
     .single()
 
@@ -2083,6 +2093,9 @@ Expected: PASS — all media tests green (validation: 21, process: 5, sanitize-s
 git add apps/web/lib/media/upload.ts apps/web/test/lib/media/upload.test.ts apps/web/vitest.config.ts
 git commit -m "feat(media): add central upload pipeline — 7-step validate→EXIF→hash→dedup→Blob→DB + batch upload"
 ```
+
+---
+
 ### Task 11: Media queries module
 
 **Files:**
@@ -2748,6 +2761,7 @@ Expected: FAIL — module `@/app/cms/(authed)/media/actions` not found
 
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { z } from 'zod'
+import * as Sentry from '@sentry/nextjs'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
@@ -2835,6 +2849,7 @@ export async function listMediaAssetsAction(
       nextCursor: result.nextCursor,
     }
   } catch (err) {
+    Sentry.captureException(err, { tags: { media: 'true', component: 'media-gallery' } })
     return { ok: false, error: err instanceof Error ? err.message : 'unknown_error' }
   }
 }
@@ -2852,6 +2867,7 @@ export async function getMediaAssetAction(
     const usageCount = await getAssetUsageCount(assetId)
     return { ok: true, asset: toMediaAsset(row), usageCount }
   } catch (err) {
+    Sentry.captureException(err, { tags: { media: 'true', component: 'media-gallery' } })
     return { ok: false, error: err instanceof Error ? err.message : 'unknown_error' }
   }
 }
@@ -2890,6 +2906,7 @@ export async function uploadMediaAction(
     revalidateMedia(siteId, result.asset.id)
     return { ok: true, asset: result.asset, deduplicated: result.deduplicated }
   } catch (err) {
+    Sentry.captureException(err, { tags: { media: 'true', component: 'media-gallery' } })
     return { ok: false, error: err instanceof Error ? err.message : 'unknown_error' }
   }
 }
@@ -2923,6 +2940,7 @@ export async function updateMediaAssetAction(
     revalidateMedia(siteId, assetId)
     return { ok: true }
   } catch (err) {
+    Sentry.captureException(err, { tags: { media: 'true', component: 'media-gallery' } })
     return { ok: false, error: err instanceof Error ? err.message : 'unknown_error' }
   }
 }
@@ -2948,6 +2966,7 @@ export async function softDeleteMediaAssetAction(
     revalidateMedia(siteId, assetId)
     return { ok: true, usageWarning: usageCount }
   } catch (err) {
+    Sentry.captureException(err, { tags: { media: 'true', component: 'media-gallery' } })
     return { ok: false, error: err instanceof Error ? err.message : 'unknown_error' }
   }
 }
@@ -2974,6 +2993,7 @@ export async function bulkDeleteMediaAssetsAction(
     revalidateMedia(siteId)
     return { ok: true, deletedCount: count ?? assetIds.length }
   } catch (err) {
+    Sentry.captureException(err, { tags: { media: 'true', component: 'media-gallery' } })
     return { ok: false, error: err instanceof Error ? err.message : 'unknown_error' }
   }
 }
@@ -2997,6 +3017,7 @@ export async function restoreMediaAssetAction(
     revalidateMedia(siteId, assetId)
     return { ok: true }
   } catch (err) {
+    Sentry.captureException(err, { tags: { media: 'true', component: 'media-gallery' } })
     return { ok: false, error: err instanceof Error ? err.message : 'unknown_error' }
   }
 }
@@ -3011,6 +3032,7 @@ export async function getMediaStatsAction(): Promise<
     const stats = await getMediaStats(siteId)
     return { ok: true, stats }
   } catch (err) {
+    Sentry.captureException(err, { tags: { media: 'true', component: 'media-gallery' } })
     return { ok: false, error: err instanceof Error ? err.message : 'unknown_error' }
   }
 }
@@ -3032,6 +3054,7 @@ export async function trackMediaUsageAction(
     await trackMediaUsage(assetId, rtParsed.data, resourceId, fieldName)
     return { ok: true }
   } catch (err) {
+    Sentry.captureException(err, { tags: { media: 'true', component: 'media-gallery' } })
     return { ok: false, error: err instanceof Error ? err.message : 'unknown_error' }
   }
 }
@@ -3053,6 +3076,7 @@ export async function removeMediaUsageAction(
     await removeMediaUsage(assetId, rtParsed.data, resourceId, fieldName)
     return { ok: true }
   } catch (err) {
+    Sentry.captureException(err, { tags: { media: 'true', component: 'media-gallery' } })
     return { ok: false, error: err instanceof Error ? err.message : 'unknown_error' }
   }
 }
@@ -3630,11 +3654,18 @@ git add apps/web/src/app/cms/(authed)/authors/actions.ts \
        apps/web/src/app/cms/(authed)/links/actions.ts
 git commit -m "feat(media): gate 8 upload functions behind MEDIA_BLOB_UPLOAD_ENABLED feature flag"
 ```
+
+---
+
 ### Task 15: Gallery i18n + shared types + crop presets
+
+> **Convention:** This task follows the codebase `_i18n/` directory pattern (see `newsletters/_i18n/`, `blog/_i18n/`): `types.ts` for the interface, `en.ts` and `pt-BR.ts` for locale objects. The getter function lives in `types.ts` since media gallery components are self-contained client widgets that resolve locale internally.
 
 **Files:**
 - Create: `apps/web/src/app/cms/(authed)/_shared/media/types.ts`
-- Create: `apps/web/src/app/cms/(authed)/_shared/media/media-gallery-i18n.ts`
+- Create: `apps/web/src/app/cms/(authed)/_shared/media/_i18n/types.ts`
+- Create: `apps/web/src/app/cms/(authed)/_shared/media/_i18n/en.ts`
+- Create: `apps/web/src/app/cms/(authed)/_shared/media/_i18n/pt-BR.ts`
 
 - [ ] **Step 1: Create shared types file**
 
@@ -3689,10 +3720,10 @@ export interface MediaGalleryModalProps {
 }
 ```
 
-- [ ] **Step 2: Create i18n file**
+- [ ] **Step 2: Create i18n types file**
 
 ```typescript
-// apps/web/src/app/cms/(authed)/_shared/media/media-gallery-i18n.ts
+// apps/web/src/app/cms/(authed)/_shared/media/_i18n/types.ts
 export interface MediaGalleryStrings {
   modal: { title: string; close: string }
   tabs: { upload: string; library: string }
@@ -3715,7 +3746,21 @@ export interface MediaGalleryStrings {
   dimensions: { tooSmall: string }
 }
 
-const en: MediaGalleryStrings = {
+import { en } from './en'
+import { ptBR } from './pt-BR'
+
+export function getMediaGalleryStrings(locale: 'en' | 'pt-BR'): MediaGalleryStrings {
+  return locale === 'pt-BR' ? ptBR : en
+}
+```
+
+- [ ] **Step 3: Create English strings file**
+
+```typescript
+// apps/web/src/app/cms/(authed)/_shared/media/_i18n/en.ts
+import type { MediaGalleryStrings } from './types'
+
+export const en: MediaGalleryStrings = {
   modal: { title: 'Media Gallery', close: 'Close' },
   tabs: { upload: 'Upload', library: 'Library' },
   upload: {
@@ -3751,8 +3796,15 @@ const en: MediaGalleryStrings = {
   },
   dimensions: { tooSmall: 'Image is too small for this context' },
 }
+```
 
-const ptBR: MediaGalleryStrings = {
+- [ ] **Step 4: Create Portuguese strings file**
+
+```typescript
+// apps/web/src/app/cms/(authed)/_shared/media/_i18n/pt-BR.ts
+import type { MediaGalleryStrings } from './types'
+
+export const ptBR: MediaGalleryStrings = {
   modal: { title: 'Galeria de Mídia', close: 'Fechar' },
   tabs: { upload: 'Upload', library: 'Biblioteca' },
   upload: {
@@ -3788,22 +3840,18 @@ const ptBR: MediaGalleryStrings = {
   },
   dimensions: { tooSmall: 'Imagem muito pequena para este contexto' },
 }
-
-export function getMediaGalleryStrings(locale: 'en' | 'pt-BR'): MediaGalleryStrings {
-  return locale === 'pt-BR' ? ptBR : en
-}
 ```
 
-- [ ] **Step 3: Run typecheck**
+- [ ] **Step 5: Run typecheck**
 
 Run: `cd apps/web && npx tsc --noEmit`
 Expected: PASS — no type errors
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add apps/web/src/app/cms/\(authed\)/_shared/media/types.ts apps/web/src/app/cms/\(authed\)/_shared/media/media-gallery-i18n.ts
-git commit -m "feat(media): gallery i18n strings + shared types + crop presets"
+git add apps/web/src/app/cms/\(authed\)/_shared/media/types.ts apps/web/src/app/cms/\(authed\)/_shared/media/_i18n/
+git commit -m "feat(media): gallery i18n (3-file _i18n/ convention) + shared types + crop presets"
 ```
 
 ---
@@ -3914,7 +3962,7 @@ import { useState, useRef, useCallback } from 'react'
 import ReactCrop, { type Crop, type PixelCrop } from 'react-image-crop'
 import 'react-image-crop/dist/ReactCrop.css'
 import type { CropPreset } from './types'
-import { getMediaGalleryStrings } from './media-gallery-i18n'
+import { getMediaGalleryStrings } from './_i18n/types'
 
 interface MediaCropEditorProps {
   imageUrl: string
@@ -4289,7 +4337,7 @@ import { useModalFocusTrap } from '../editor/use-modal-focus-trap'
 import { MediaUploadTab } from './media-upload-tab'
 import { MediaLibraryTab } from './media-library-tab'
 import type { MediaGalleryModalProps, MediaAssetResult } from './types'
-import { getMediaGalleryStrings } from './media-gallery-i18n'
+import { getMediaGalleryStrings } from './_i18n/types'
 
 type Tab = 'upload' | 'library'
 
@@ -4398,7 +4446,7 @@ import { useState, useRef, useCallback } from 'react'
 import { uploadMediaAction } from '../../media/actions'
 import { MediaCropEditor } from './media-crop-editor'
 import type { CropPreset, MediaAssetResult } from './types'
-import { getMediaGalleryStrings } from './media-gallery-i18n'
+import { getMediaGalleryStrings } from './_i18n/types'
 import type { MediaFolder } from '@/lib/media/types'
 
 const ACCEPTED_TYPES = 'image/jpeg,image/png,image/webp,image/gif,image/svg+xml'
@@ -4828,7 +4876,7 @@ import Image from 'next/image'
 import { listMediaAssets } from '../../media/actions'
 import type { CropPreset, MediaAssetResult } from './types'
 import type { MediaFolder } from '@/lib/media/types'
-import { getMediaGalleryStrings } from './media-gallery-i18n'
+import { getMediaGalleryStrings } from './_i18n/types'
 
 interface LibraryAsset {
   id: string
@@ -5121,6 +5169,8 @@ git commit -m "feat(media): useMediaGallery convenience hook"
 ---
 
 ### Task 20: Migrate 8 upload functions to central pipeline
+
+> **Sequence note:** Task 14 added feature-flag gates (`MEDIA_BLOB_UPLOAD_ENABLED`) so both old Supabase and new Blob paths coexist (Phase 1 dual-write — safe rollback). Task 20 **removes the old Supabase code entirely**, making Blob the only path. Execute Task 20 **after Phase 2 backfill** (Task 26) has been verified and the 2-week soak period passes. Until then, Task 14's feature-flag code is the deployed state.
 
 **Files:**
 - Modify: `apps/web/src/app/cms/(authed)/authors/actions.ts`
@@ -5524,15 +5574,40 @@ Adds usage tracking via trackMediaUsage() for orphan detection."
 - Delete: `apps/web/src/app/cms/(authed)/authors/avatar-crop-modal.tsx`
 
 > **Note:** This task wires the `MediaGalleryModal` + `useMediaGallery` hook (Task 19) into each of the 10 editor surfaces defined in spec §5.4. Each surface gets a "Browse media" button that opens the gallery with the correct `cropPreset` and `folder`. The `AvatarCropModal` (207 lines, hardcoded 400×400 circle, English-only) is retired — replaced by the generic `MediaCropEditor`.
+>
+> **Feature flag gate:** All gallery buttons MUST be wrapped in `process.env.NEXT_PUBLIC_MEDIA_GALLERY_ENABLED === 'true'` check. When false, the existing upload UI works unchanged. This allows gallery UI rollout independently of the Blob storage migration.
+>
+> **`next/image sizes` prop (spec §10):** When the selected asset URL is rendered in public-facing `<Image>`, use context-appropriate `sizes`:
+> | Context | `sizes` prop |
+> |---------|-------------|
+> | Blog cover | `(max-width: 768px) 100vw, 1200px` |
+> | Gallery thumbnails | `150px` (already set in Task 18) |
+> | Author avatar | `80px` |
+> | OG images | N/A (static 1200×630, no srcSet) |
+> | Other | `100vw` (safe default) |
+>
+> Verify existing public display components use these values; add them if missing when wiring the gallery `onSelect`.
+
+- [ ] **Step 0: Read each target file before editing**
+
+Before wiring each surface, read the actual component file to find:
+- The exact component name and export
+- The existing upload handler function name
+- The state variable for the image URL
+- The JSX location where the gallery button should go
+
+This prevents using placeholder handler names. Each step below shows the pattern; adapt to the actual names found in each file.
 
 - [ ] **Step 1: Wire gallery into author avatar upload (surface #1)**
 
-In the author edit component, import the gallery hook and modal, then add a "Browse media" button alongside the existing file input:
+In the author edit component, import the gallery hook and modal, then add a "Browse media" button alongside the existing file input. Gate behind feature flag:
 
 ```typescript
 import { useMediaGallery } from '../_shared/media/use-media-gallery'
 import { MediaGalleryModal } from '../_shared/media/media-gallery-modal'
 import { CROP_PRESETS } from '../_shared/media/types'
+
+const galleryEnabled = process.env.NEXT_PUBLIC_MEDIA_GALLERY_ENABLED === 'true'
 
 // Inside the component:
 const gallery = useMediaGallery()
@@ -5764,7 +5839,12 @@ Expected: PASS with 0 errors
 - [ ] **Step 13: Commit**
 
 ```bash
-git add -A apps/web/src/app/cms/ apps/web/src/app/admin/
+git add apps/web/src/app/cms/\(authed\)/authors/ \
+       apps/web/src/app/cms/\(authed\)/blog/ \
+       apps/web/src/app/cms/\(authed\)/_shared/editor/ \
+       apps/web/src/app/cms/\(authed\)/newsletters/ \
+       apps/web/src/app/admin/\(authed\)/sites/ \
+       apps/web/src/app/admin/\(authed\)/ads/
 git commit -m "feat(media): wire gallery into 10 integration surfaces, retire AvatarCropModal
 
 Connects MediaGalleryModal + useMediaGallery hook to all editor
@@ -6838,6 +6918,8 @@ git commit -m "feat(media): backfill migration script (14 table/columns + MDX co
 ---
 
 ### Task 27: Test fixtures + final integration test suite
+
+> **Playwright E2E (spec §15):** The spec calls for Playwright E2E tests covering upload flow, library browse + select, and cover image via gallery. These are intentionally deferred to a follow-up task after the feature is functional and visually verified — matching the Sprint 5c pattern where E2E specs were written as a separate sprint after all unit tests passed. The 28 tasks below produce ~60+ Vitest tests covering all library code, server actions, and cron routes.
 
 **Files:**
 - Create: `apps/web/test/fixtures/media/create-fixtures.ts`
