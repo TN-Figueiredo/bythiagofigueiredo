@@ -95,6 +95,7 @@ function getGridCols(count: number): string {
 }
 
 export async function InstagramFeed({
+  accountId,
   layout,
   count,
   locale,

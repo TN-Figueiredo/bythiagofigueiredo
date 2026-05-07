@@ -1,45 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-vi.mock('@/lib/supabase/service', () => ({
-  getSupabaseServiceClient: vi.fn(),
-}))
-
-vi.mock('@/lib/cms/site-context', () => ({
-  getSiteContext: vi.fn().mockResolvedValue({ siteId: 'site-1' }),
-}))
-
-vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
-  requireSiteScope: vi.fn().mockResolvedValue({ ok: true }),
-}))
-
-vi.mock('next/cache', () => ({
-  revalidatePath: vi.fn(),
-  revalidateTag: vi.fn(),
-}))
-
-vi.mock('@/lib/instagram/api-client', () => ({
-  fetchInstagramProfile: vi.fn().mockResolvedValue({ id: 'ig-123', username: 'testuser' }),
-}))
+vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
+vi.mock('@/lib/cms/site-context', () => ({ getSiteContext: vi.fn().mockResolvedValue({ siteId: 'site-1' }) }))
+vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: vi.fn().mockResolvedValue({ ok: true }) }))
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }))
 
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-
 const mockGetClient = vi.mocked(getSupabaseServiceClient)
 
 describe('Instagram server actions', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+  beforeEach(() => { vi.clearAllMocks() })
 
   it('addInstagramAccount inserts row with handle and locale', async () => {
     const insertFn = vi.fn().mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        single: vi.fn().mockResolvedValue({ data: { id: 'acc-1' }, error: null }),
-      }),
+      select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: { id: 'acc-1' }, error: null }) }),
     })
-    mockGetClient.mockReturnValue({
-      from: vi.fn().mockReturnValue({ insert: insertFn }),
-    } as never)
-
+    mockGetClient.mockReturnValue({ from: vi.fn().mockReturnValue({ insert: insertFn }) } as never)
     const { addInstagramAccount } = await import('@/app/cms/(authed)/settings/actions')
     const result = await addInstagramAccount({ handle: '@test', locale: 'pt' })
     expect(result.ok).toBe(true)
@@ -54,25 +30,11 @@ describe('Instagram server actions', () => {
 
   it('updateInstagramSlots updates positions in batch', async () => {
     const upsertFn = vi.fn().mockReturnValue({ error: null })
-    const deleteFn = vi.fn().mockReturnValue({
-      eq: vi.fn().mockReturnValue({
-        gt: vi.fn().mockResolvedValue({ error: null }),
-      }),
-    })
-    mockGetClient.mockReturnValue({
-      from: vi.fn().mockReturnValue({
-        upsert: upsertFn,
-        delete: deleteFn,
-      }),
-    } as never)
-
+    mockGetClient.mockReturnValue({ from: vi.fn().mockReturnValue({ upsert: upsertFn }) } as never)
     const { updateInstagramSlots } = await import('@/app/cms/(authed)/settings/actions')
     const result = await updateInstagramSlots({
-      accountId: crypto.randomUUID(),
-      slots: [
-        { position: 1, postId: crypto.randomUUID() },
-        { position: 2, postId: null },
-      ],
+      accountId: '00000000-0000-0000-0000-000000000001',
+      slots: [{ position: 1, postId: '00000000-0000-0000-0000-000000000010' }, { position: 2, postId: null }],
     })
     expect(result.ok).toBe(true)
   })
