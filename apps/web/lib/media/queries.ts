@@ -25,6 +25,7 @@ export async function listMediaAssets(opts: ListMediaOptions): Promise<ListMedia
     .select('*')
     .eq('site_id', opts.siteId)
     .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
     .limit(limit + 1)
 
   if (!opts.includeDeleted) {
@@ -41,7 +42,14 @@ export async function listMediaAssets(opts: ListMediaOptions): Promise<ListMedia
     query = query.contains('tags', opts.tags)
   }
   if (opts.cursor) {
-    query = query.lt('created_at', opts.cursor)
+    const pipeIdx = opts.cursor.indexOf('|')
+    if (pipeIdx > 0) {
+      const ts = opts.cursor.slice(0, pipeIdx)
+      const id = opts.cursor.slice(pipeIdx + 1)
+      query = query.or(`created_at.lt.${ts},and(created_at.eq.${ts},id.lt.${id})`)
+    } else {
+      query = query.lt('created_at', opts.cursor)
+    }
   }
 
   const { data, error } = await query
@@ -50,7 +58,8 @@ export async function listMediaAssets(opts: ListMediaOptions): Promise<ListMedia
   const rows = (data ?? []) as MediaAssetRow[]
   const hasMore = rows.length > limit
   const assets = hasMore ? rows.slice(0, limit) : rows
-  const nextCursor = hasMore ? assets[assets.length - 1]?.created_at ?? null : null
+  const last = hasMore ? assets[assets.length - 1] : null
+  const nextCursor = last ? `${last.created_at}|${last.id}` : null
 
   return { assets, nextCursor }
 }
