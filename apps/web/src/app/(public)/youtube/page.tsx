@@ -7,6 +7,10 @@ import { composeGraph } from '@/lib/seo/jsonld/graph'
 import { JsonLdScript } from '@/lib/seo/jsonld/render'
 import { tryGetSiteContext } from '@/lib/cms/site-context'
 import { getYouTubePageData } from '@/lib/youtube/queries'
+import { getPageContent } from '@/lib/content/fetch'
+import type { YouTubeStrings } from '@/lib/content/types'
+import { YOUTUBE_EN } from '@/lib/content/defaults/youtube-en'
+import { YOUTUBE_PT } from '@/lib/content/defaults/youtube-pt'
 import { YouTubePageClient } from './youtube-page-client'
 
 export const revalidate = 3600
@@ -17,7 +21,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const h = await headers()
   const host = h.get('host') ?? ''
   const config = await getSiteSeoConfig(ctx.siteId, host)
-  const locale = ctx.defaultLocale === 'pt-BR' ? 'pt' : 'en'
+  const locale = (h.get('x-locale') ?? 'en') === 'pt-BR' ? 'pt' : 'en'
   return generateYoutubeMetadata(config, locale)
 }
 
@@ -28,8 +32,14 @@ export default async function YouTubePage() {
   const host = h.get('host') ?? ''
   const config = await getSiteSeoConfig(ctx.siteId, host)
   const data = await getYouTubePageData(ctx.siteId)
-  const locale = ctx.defaultLocale === 'pt-BR' ? 'pt' : 'en'
+  const rawLocale = (h.get('x-locale') ?? 'en') as string
+  const locale = rawLocale === 'pt-BR' ? 'pt' : 'en'
   const isEn = locale === 'en'
+
+  const strings = await getPageContent<YouTubeStrings>(
+    ctx.siteId, 'youtube', rawLocale === 'pt-BR' ? 'pt-BR' : 'en',
+    { en: YOUTUBE_EN, pt: YOUTUBE_PT },
+  )
 
   // JSON-LD: BreadcrumbList + VideoObject nodes
   const breadcrumb = buildBreadcrumbNode([
@@ -59,7 +69,7 @@ export default async function YouTubePage() {
   return (
     <>
       <JsonLdScript graph={graph} />
-      <YouTubePageClient data={data} locale={locale} />
+      <YouTubePageClient data={data} locale={locale} strings={strings} />
     </>
   )
 }

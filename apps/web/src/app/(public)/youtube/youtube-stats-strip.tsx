@@ -1,10 +1,11 @@
 'use client'
 
 import { type Theme } from './youtube-atoms'
+import type { YouTubeStrings } from '@/lib/content/types'
 
 interface Props {
-  locale: 'pt' | 'en'
   theme: Theme
+  strings: YouTubeStrings
   videoCount: number
   hoursTotal: string
   totalComments: number
@@ -12,15 +13,14 @@ interface Props {
   fmtNum: (n: number) => string
 }
 
-export function YouTubeStatsStrip({ locale, theme, videoCount, hoursTotal, totalComments, mostWatchedViews, fmtNum }: Props) {
+export function YouTubeStatsStrip({ theme, strings, videoCount, hoursTotal, totalComments, mostWatchedViews, fmtNum }: Props) {
   const { ink, faint, line } = theme
-  const L = locale
 
   const stats = [
-    { label: L === 'pt' ? 'vídeos publicados' : 'videos published', value: String(videoCount) },
-    { label: L === 'pt' ? 'horas de conteúdo' : 'hours of content', value: hoursTotal + ' h' },
-    { label: L === 'pt' ? 'comentários respondidos' : 'comments answered', value: fmtNum(totalComments) },
-    { label: L === 'pt' ? 'mais assistido' : 'most watched', value: fmtNum(mostWatchedViews) },
+    { label: strings.stats_videos_published, value: String(videoCount) },
+    { label: strings.stats_hours_of_content, value: hoursTotal + ' h' },
+    { label: strings.stats_comments_answered, value: fmtNum(totalComments) },
+    { label: strings.stats_most_watched, value: fmtNum(mostWatchedViews) },
   ]
 
   return (

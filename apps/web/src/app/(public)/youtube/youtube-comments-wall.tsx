@@ -1,6 +1,8 @@
 'use client'
 
 import type { YouTubeCuratedCommentView } from './youtube-types'
+import type { YouTubeStrings } from '@/lib/content/types'
+import { t } from '@/lib/content/template'
 import { Paper, Tape } from '@/components/pinboard'
 import { type Theme, FlagBadge } from './youtube-atoms'
 
@@ -8,43 +10,41 @@ interface Props {
   locale: 'pt' | 'en'
   theme: Theme
   comments: YouTubeCuratedCommentView[]
+  strings: YouTubeStrings
 }
 
 /* ── Atoms ── */
 
-function formatRelativeTime(iso: string | null, locale: 'pt' | 'en'): string {
+function formatRelativeTime(iso: string | null, strings: YouTubeStrings): string {
   if (!iso) return ''
   const d = new Date(iso)
   const now = new Date()
   const days = Math.floor((now.getTime() - d.getTime()) / 86400000)
-  if (days < 1) return locale === 'pt' ? 'hoje' : 'today'
-  if (days < 7) return locale === 'pt' ? `${days}d atrás` : `${days}d ago`
-  if (days < 30) {
-    const w = Math.floor(days / 7)
-    return locale === 'pt' ? `${w}sem atrás` : `${w}w ago`
-  }
-  if (days < 365) {
-    const m = Math.floor(days / 30)
-    return locale === 'pt' ? `${m}m atrás` : `${m}mo ago`
-  }
-  const y = Math.floor(days / 365)
-  return locale === 'pt' ? `${y}a atrás` : `${y}y ago`
+  if (days < 1) return strings.comments_relative_today
+  if (days < 7) return t(strings.comments_relative_days, { n: days })
+  const weeks = Math.floor(days / 7)
+  if (weeks < 5) return t(strings.comments_relative_weeks, { n: weeks })
+  const months = Math.floor(days / 30)
+  if (months < 12) return t(strings.comments_relative_months, { n: months })
+  const years = Math.floor(days / 365)
+  return t(strings.comments_relative_years, { n: years })
 }
 
-function fmtNum(n: number): string {
-  if (n >= 1000) return (n / 1000).toFixed(n >= 10000 ? 0 : 1) + 'k'
+function fmtNum(n: number, locale: 'pt' | 'en'): string {
+  if (n >= 1000) return (n / 1000).toFixed(n >= 10000 ? 0 : 1).replace('.', locale === 'pt' ? ',' : '.') + 'k'
   return String(n)
 }
 
 /* ── Comment Card ── */
 
 function CommentCard({
-  comment, index, locale, theme,
+  comment, index, locale, theme, strings,
 }: {
   comment: YouTubeCuratedCommentView
   index: number
   locale: 'pt' | 'en'
   theme: Theme
+  strings: YouTubeStrings
 }) {
   const { ink, muted, faint, line, yt, paper, paper2, tape, tape2, tapeR } = theme
   const L = locale
@@ -107,7 +107,7 @@ function CommentCard({
                 marginTop: 2, letterSpacing: '0.06em',
                 display: 'flex', gap: 6, alignItems: 'center',
               }}>
-                {formatRelativeTime(comment.publishedAt, L)}
+                {formatRelativeTime(comment.publishedAt, strings)}
                 {' · '}
                 <FlagBadge locale={comment.channelLocale} size="sm" ink={ink}/>
               </div>
@@ -150,7 +150,7 @@ function CommentCard({
               fontFamily: '"JetBrains Mono", monospace', fontSize: 10,
               color: yt, fontWeight: 600, marginLeft: 10, whiteSpace: 'nowrap',
             }}>
-              {'♥'} {fmtNum(comment.likeCount)}
+              {'♥'} {fmtNum(comment.likeCount, L)}
             </span>
           </a>
         </div>
@@ -161,7 +161,7 @@ function CommentCard({
 
 /* ── Comments Wall ── */
 
-export function YouTubeCommentsWall({ locale, theme, comments }: Props) {
+export function YouTubeCommentsWall({ locale, theme, comments, strings }: Props) {
   const { ink, muted, yt, hand } = theme
   const L = locale
 
@@ -183,7 +183,7 @@ export function YouTubeCommentsWall({ locale, theme, comments }: Props) {
             letterSpacing: '0.2em', textTransform: 'uppercase',
             color: yt, marginBottom: 12,
           }}>
-            {'§ 03 · '}{L === 'pt' ? 'o que disseram' : 'what people said'}
+            {'§ 03 · '}{strings.comments_section_label}
           </div>
 
           <h2 style={{
@@ -191,7 +191,7 @@ export function YouTubeCommentsWall({ locale, theme, comments }: Props) {
             letterSpacing: '-0.022em', textWrap: 'balance' as React.CSSProperties['textWrap'],
             color: ink, lineHeight: 1.1,
           }}>
-            {L === 'pt' ? 'Recortes que me fizeram parar e reler' : 'Clippings that made me stop and re-read'}
+            {strings.comments_headline}
           </h2>
 
           <p style={{
@@ -199,23 +199,21 @@ export function YouTubeCommentsWall({ locale, theme, comments }: Props) {
             fontFamily: '"Source Serif 4", Georgia, serif',
             maxWidth: 360, margin: 0, lineHeight: 1.55,
           }}>
-            {L === 'pt'
-              ? 'Selecionados à mão. Não é automático — eu leio cada um.'
-              : 'Hand-picked. Not automated — I read every single one.'}
+            {strings.comments_description}
           </p>
 
           <div style={{
             ...hand, fontSize: 22, color: yt,
             transform: 'rotate(-3deg)', marginTop: 32, display: 'inline-block',
           }}>
-            {L === 'pt' ? '→ chega de scroll' : '→ enough scrolling'}
+            {'→ '}{strings.comments_scroll_annotation}
           </div>
         </div>
 
         {/* Right: 2x2 grid of comment cards */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22, alignItems: 'start' }}>
           {top.map((c, i) => (
-            <CommentCard key={c.id} comment={c} index={i} locale={L} theme={theme}/>
+            <CommentCard key={c.id} comment={c} index={i} locale={L} theme={theme} strings={strings}/>
           ))}
         </div>
       </div>

@@ -5,16 +5,18 @@ import type { YouTubeVideoView } from './youtube-types'
 import { Paper, Tape, rot, lift } from '@/components/pinboard'
 import { type Theme, FlagBadge, VideoThumbnail, formatDate } from './youtube-atoms'
 import { VideoLightbox } from '../components/VideoLightbox'
+import type { YouTubeStrings } from '@/lib/content/types'
 
 interface ArchiveCardProps {
   video: YouTubeVideoView
   index: number
   locale: 'pt' | 'en'
   theme: Theme
+  strings: YouTubeStrings
   fmtNum: (n: number) => string
 }
 
-export function YouTubeArchiveCard({ video, index, locale, theme, fmtNum }: ArchiveCardProps) {
+export function YouTubeArchiveCard({ video, index, locale, theme, strings, fmtNum }: ArchiveCardProps) {
   const { ink, muted, faint, yt, paper, tapeR } = theme
   const tapeRotation = (index * 7) % 10 - 5
 
@@ -83,7 +85,7 @@ export function YouTubeArchiveCard({ video, index, locale, theme, fmtNum }: Arch
             }}>
               <span>{video.duration}</span>
               <span>·</span>
-              <span>{fmtNum(video.viewCount)} views</span>
+              <span>{fmtNum(video.viewCount)} {strings.card_views}</span>
             </div>
 
             {/* Tags */}

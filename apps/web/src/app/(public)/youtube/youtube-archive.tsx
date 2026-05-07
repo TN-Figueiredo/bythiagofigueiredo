@@ -3,12 +3,14 @@
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { YouTubeVideoView, YouTubeCategoryView } from './youtube-types'
+import type { YouTubeStrings } from '@/lib/content/types'
 import { YouTubeArchiveCard } from './youtube-archive-card'
 import { type Theme } from './youtube-atoms'
 
 interface YouTubeArchiveProps {
   locale: 'pt' | 'en'
   theme: Theme
+  strings: YouTubeStrings
   filters: { cat: string; ch: string; tag: string; q: string }
   update: (patch: Partial<{ cat: string; ch: string; tag: string; q: string }>) => void
   reset: () => void
@@ -26,6 +28,7 @@ interface YouTubeArchiveProps {
 export function YouTubeArchive({
   locale,
   theme,
+  strings,
   filters,
   update,
   reset,
@@ -49,7 +52,7 @@ export function YouTubeArchive({
 
   // Series chip list: "★ Latest" virtual + categories
   const seriesChips = [
-    { key: 'latest', label: L === 'pt' ? 'Latest' : 'Latest', count: totalVideoCount },
+    { key: 'latest', label: strings.archive_latest, count: totalVideoCount },
     ...categories.map(c => ({
       key: c.slug,
       label: L === 'pt' ? c.namePt : c.nameEn,
@@ -70,7 +73,7 @@ export function YouTubeArchive({
           letterSpacing: '0.2em', textTransform: 'uppercase',
           color: accent, marginBottom: 12,
         }}>
-          {'§ 04 · '}{L === 'pt' ? 'arquivo' : 'archive'}
+          {'§ 04 · '}{strings.archive_section_label}
         </div>
 
         {/* Section title */}
@@ -78,7 +81,7 @@ export function YouTubeArchive({
           fontFamily: '"Fraunces", serif', fontSize: 40, margin: '0 0 28px', fontWeight: 500,
           letterSpacing: '-0.022em', lineHeight: 1.05,
         }}>
-          {L === 'pt' ? 'Tudo que tá no canal' : 'Everything on the channel'}
+          {strings.archive_headline}
           <span style={{
             fontFamily: '"JetBrains Mono", monospace', fontSize: 18,
             color: faint, marginLeft: 14, fontWeight: 400, letterSpacing: '0.04em',
@@ -101,8 +104,8 @@ export function YouTubeArchive({
               type="text"
               value={filters.q}
               onChange={(e) => update({ q: e.target.value })}
-              placeholder={L === 'pt' ? 'buscar título, tag, série…' : 'search title, tag, series…'}
-              aria-label={L === 'pt' ? 'Buscar vídeos' : 'Search videos'}
+              placeholder={strings.archive_search_placeholder}
+              aria-label={strings.archive_search_aria}
               style={{
                 width: '100%', padding: '12px 14px 12px 36px',
                 border: `1.5px solid ${line}`, background: 'transparent', color: ink,
@@ -113,15 +116,15 @@ export function YouTubeArchive({
           </div>
 
           {/* Channel toggle */}
-          <div role="group" aria-label={L === 'pt' ? 'Filtro de canal' : 'Channel filter'} style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div role="group" aria-label={strings.archive_channel_aria} style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{
               fontFamily: '"JetBrains Mono", monospace', fontSize: 10,
               letterSpacing: '0.16em', textTransform: 'uppercase', color: faint, marginRight: 4,
             }}>
-              {L === 'pt' ? 'canal:' : 'channel:'}
+              {strings.archive_channel_label}
             </span>
             {[
-              { k: 'all', l: L === 'pt' ? 'Ambos' : 'Both', flag: '🌐' },
+              { k: 'all', l: strings.archive_channel_both, flag: '🌐' },
               { k: 'pt', l: 'PT', flag: '🇧🇷' },
               { k: 'en', l: 'EN', flag: '🇺🇸' },
             ].map(({ k, l, flag }) => {
@@ -161,13 +164,13 @@ export function YouTubeArchive({
                 fontWeight: 600, cursor: 'pointer',
               }}
             >
-              ✕ {L === 'pt' ? 'limpar tudo' : 'clear all'}
+              ✕ {strings.archive_clear_all}
             </button>
           )}
         </div>
 
         {/* Series chips row */}
-        <div role="group" aria-label={L === 'pt' ? 'Filtro de série' : 'Series filter'} style={{
+        <div role="group" aria-label={strings.archive_series_aria} style={{
           display: 'flex', gap: 8, flexWrap: 'wrap',
           marginBottom: 14, alignItems: 'center',
         }}>
@@ -175,7 +178,7 @@ export function YouTubeArchive({
             fontFamily: '"JetBrains Mono", monospace', fontSize: 10,
             letterSpacing: '0.16em', textTransform: 'uppercase', color: faint, marginRight: 4,
           }}>
-            {L === 'pt' ? 'série:' : 'series:'}
+            {strings.archive_series_label}
           </span>
           {seriesChips.map(({ key, label, count }) => {
             const active = filters.cat === key
@@ -212,7 +215,7 @@ export function YouTubeArchive({
         </div>
 
         {/* Tags row */}
-        <div role="group" aria-label={L === 'pt' ? 'Filtro de tags' : 'Tag filter'} style={{
+        <div role="group" aria-label={strings.archive_tags_aria} style={{
           display: 'flex', gap: 6, flexWrap: 'wrap',
           marginBottom: 30, paddingBottom: 26,
           borderBottom: `1px dashed ${line}`, alignItems: 'center',
@@ -221,7 +224,7 @@ export function YouTubeArchive({
             fontFamily: '"JetBrains Mono", monospace', fontSize: 10,
             letterSpacing: '0.16em', textTransform: 'uppercase', color: faint, marginRight: 4,
           }}>
-            tags:
+            {strings.archive_tags_label}
           </span>
           {allTags.map(({ tag, n }) => {
             const active = filters.tag === tag
@@ -262,17 +265,17 @@ export function YouTubeArchive({
             <span style={{ color: ink, fontWeight: 600 }}>{filtered.length}</span>
             {' '}
             {filtered.length === 1
-              ? (L === 'pt' ? 'vídeo' : 'video')
-              : (L === 'pt' ? 'vídeos' : 'videos')}
+              ? strings.archive_video_singular
+              : strings.archive_video_plural}
             {hasFilters && (
               <span style={{ color: faint, marginLeft: 8 }}>
-                · {L === 'pt' ? 'filtrado' : 'filtered'}
+                · {strings.archive_filtered}
               </span>
             )}
           </div>
           {!hasFilters && (
             <div style={{ ...hand, fontSize: 17, color: yt, transform: 'rotate(-1deg)' }}>
-              ↓ {L === 'pt' ? 'do mais novo pro mais antigo' : 'newest first'}
+              ↓ {strings.archive_newest_first}
             </div>
           )}
         </div>
@@ -281,7 +284,7 @@ export function YouTubeArchive({
         {filtered.length === 0 ? (
           <div style={{ padding: '80px 0', textAlign: 'center' }}>
             <div style={{ ...hand, fontSize: 32, color: muted, marginBottom: 12 }}>
-              {L === 'pt' ? 'nenhum vídeo.' : 'no videos.'}
+              {strings.archive_no_videos}
             </div>
             <button
               onClick={reset}
@@ -291,7 +294,7 @@ export function YouTubeArchive({
                 letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 600, cursor: 'pointer',
               }}
             >
-              {L === 'pt' ? 'limpar filtros' : 'clear filters'}
+              {strings.archive_clear_filters}
             </button>
           </div>
         ) : (
@@ -310,6 +313,7 @@ export function YouTubeArchive({
                   index={i}
                   locale={L}
                   theme={theme}
+                  strings={strings}
                   fmtNum={fmtNum}
                 />
               ))}
@@ -333,7 +337,7 @@ export function YouTubeArchive({
                     transition: 'background 0.15s, color 0.15s',
                   }}
                 >
-                  ▼ {L === 'pt' ? 'carregar mais' : 'load more'} ({filtered.length - visible.length})
+                  ▼ {strings.archive_load_more} ({filtered.length - visible.length})
                 </button>
               </div>
             )}

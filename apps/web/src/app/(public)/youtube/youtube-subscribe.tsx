@@ -3,16 +3,18 @@
 import { useState } from 'react'
 import type { YouTubeChannelView } from './youtube-types'
 import { type Theme } from './youtube-atoms'
+import type { YouTubeStrings } from '@/lib/content/types'
 
 interface Props {
   locale: 'pt' | 'en'
   theme: Theme
   channels: YouTubeChannelView[]
+  strings: YouTubeStrings
 }
 
 /* ── Channel subscribe card with hover ── */
 
-function ChannelSubscribeCard({ channel, locale, theme }: { channel: YouTubeChannelView; locale: 'pt' | 'en'; theme: Theme }) {
+function ChannelSubscribeCard({ channel, locale, theme, strings }: { channel: YouTubeChannelView; locale: 'pt' | 'en'; theme: Theme; strings: YouTubeStrings }) {
   const { ink, muted, yt, paper, line } = theme
   const L = locale
   const [hovered, setHovered] = useState(false)
@@ -24,7 +26,7 @@ function ChannelSubscribeCard({ channel, locale, theme }: { channel: YouTubeChan
     return String(n)
   }
 
-  const subsLabel = L === 'pt' ? 'inscritos' : 'subs'
+  const subsLabel = strings.subscribe_subs
 
   return (
     <a
@@ -62,7 +64,7 @@ function ChannelSubscribeCard({ channel, locale, theme }: { channel: YouTubeChan
         fontFamily: '"JetBrains Mono", monospace', fontSize: 10,
         letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700,
       }}>
-        {'▶'} {L === 'pt' ? 'inscrever' : 'subscribe'}
+        {'▶'} {strings.subscribe_button}
       </span>
     </a>
   )
@@ -70,9 +72,8 @@ function ChannelSubscribeCard({ channel, locale, theme }: { channel: YouTubeChan
 
 /* ── Subscribe section ── */
 
-export function YouTubeSubscribe({ locale, theme, channels }: Props) {
+export function YouTubeSubscribe({ locale, theme, channels, strings }: Props) {
   const { muted, yt } = theme
-  const L = locale
 
   return (
     <section style={{ maxWidth: 1280, margin: '0 auto', padding: '92px 28px 40px' }}>
@@ -91,7 +92,7 @@ export function YouTubeSubscribe({ locale, theme, channels }: Props) {
           fontFamily: '"JetBrains Mono", monospace', fontSize: 10,
           letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700,
         }}>
-          {'▶'} {L === 'pt' ? 'se inscreva' : 'subscribe'}
+          {'▶'} {strings.subscribe_floating_label}
         </span>
 
         {/* Heading */}
@@ -101,7 +102,7 @@ export function YouTubeSubscribe({ locale, theme, channels }: Props) {
           textWrap: 'balance' as React.CSSProperties['textWrap'],
           lineHeight: 1.05,
         }}>
-          {L === 'pt' ? 'Assistir é grátis. Voltar é o difícil.' : 'Watching is free. Coming back is the hard part.'}
+          {strings.subscribe_headline}
         </h2>
 
         {/* Description */}
@@ -110,9 +111,7 @@ export function YouTubeSubscribe({ locale, theme, channels }: Props) {
           margin: '0 auto 32px',
           fontFamily: '"Source Serif 4", Georgia, serif', lineHeight: 1.55,
         }}>
-          {L === 'pt'
-            ? 'Inscreva-se nos dois — o feed do YouTube cuida do resto. PT é onde eu falo de carreira e setup; EN é onde eu codifico em público.'
-            : 'Subscribe to both — the YouTube feed takes care of the rest. PT covers career and setup; EN is live-coding.'}
+          {strings.subscribe_description}
         </p>
 
         {/* Channel cards grid */}
@@ -121,7 +120,7 @@ export function YouTubeSubscribe({ locale, theme, channels }: Props) {
           className="keep-2col"
         >
           {channels.map(c => (
-            <ChannelSubscribeCard key={c.id} channel={c} locale={locale} theme={theme}/>
+            <ChannelSubscribeCard key={c.id} channel={c} locale={locale} theme={theme} strings={strings}/>
           ))}
         </div>
       </div>

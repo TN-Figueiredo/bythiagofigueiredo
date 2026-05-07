@@ -5,10 +5,12 @@ import type { YouTubeVideoView, YouTubeCategoryView } from './youtube-types'
 import { Paper, Tape } from '@/components/pinboard'
 import { type Theme, FlagBadge, VideoThumbnail, formatDate } from './youtube-atoms'
 import { VideoLightbox } from '../components/VideoLightbox'
+import type { YouTubeStrings } from '@/lib/content/types'
 
 interface Props {
   locale: 'pt' | 'en'
   theme: Theme
+  strings: YouTubeStrings
   featurePick: YouTubeVideoView | null
   featureSidekicks: YouTubeVideoView[]
   categories: YouTubeCategoryView[]
@@ -109,7 +111,7 @@ function SidekickCard({ video, locale, theme }: { video: YouTubeVideoView; local
 
 /* ── Feature Block ── */
 
-export function YouTubeFeatureBlock({ locale, theme, featurePick, featureSidekicks, categories, fmtNum, onCategoryClick }: Props) {
+export function YouTubeFeatureBlock({ locale, theme, strings, featurePick, featureSidekicks, categories, fmtNum, onCategoryClick }: Props) {
   const { ink, muted, faint, line, accent, yt, paper, tape2, hand } = theme
   const L = locale
 
@@ -123,7 +125,7 @@ export function YouTubeFeatureBlock({ locale, theme, featurePick, featureSidekic
         letterSpacing: '0.2em', textTransform: 'uppercase',
         color: accent, marginBottom: 12,
       }}>
-        {'§ 02 · '}{L === 'pt' ? 'esta semana, em destaque' : "this week's pick"}
+        {'§ 02 · '}{strings.feature_section_label}
       </div>
 
       {/* Heading + hand annotation */}
@@ -135,13 +137,13 @@ export function YouTubeFeatureBlock({ locale, theme, featurePick, featureSidekic
           fontFamily: '"Fraunces", serif', fontSize: 40, margin: 0, fontWeight: 500,
           letterSpacing: '-0.022em', textWrap: 'balance' as CSSProperties['textWrap'],
         }}>
-          {L === 'pt' ? 'O que vale a pena reservar 20 minutos' : "What's worth setting aside 20 minutes for"}
+          {strings.feature_headline}
         </h2>
         <span style={{
           ...hand, fontSize: 18, color: yt,
           transform: 'rotate(-1.5deg)', display: 'inline-block',
         }}>
-          {L === 'pt' ? '↓ minha escolha' : '↓ my pick'}
+          {'↓ '}{strings.feature_my_pick}
         </span>
       </div>
 
@@ -201,7 +203,7 @@ export function YouTubeFeatureBlock({ locale, theme, featurePick, featureSidekic
             textTransform: 'uppercase', color: faint, paddingBottom: 8,
             borderBottom: `1px dashed ${line}`,
           }}>
-            {L === 'pt' ? 'também rolaram' : 'also dropped'}
+            {strings.feature_also_dropped}
           </div>
 
           {featureSidekicks.map(v => (
@@ -215,7 +217,7 @@ export function YouTubeFeatureBlock({ locale, theme, featurePick, featureSidekic
                 fontFamily: '"JetBrains Mono", monospace', fontSize: 9.5, letterSpacing: '0.18em',
                 textTransform: 'uppercase', color: faint, marginBottom: 10,
               }}>
-                {L === 'pt' ? 'ir direto pra uma série' : 'jump to a series'}
+                {strings.feature_jump_to_series}
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {categories.map(c => (

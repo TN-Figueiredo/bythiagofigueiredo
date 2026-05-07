@@ -27,6 +27,7 @@ const PostPage = ({ t, dark, content, adsConfig }) => {
 
   // ---- Resolve which post ----
   const slug = React.useMemo(() => {
+    if (typeof window !== "undefined" && window.__FORCE_SLUG__) return window.__FORCE_SLUG__;
     const params = new URLSearchParams(window.location.search);
     return params.get("slug") || "manifesto-bythiagofigueiredo";
   }, []);
@@ -45,10 +46,30 @@ const PostPage = ({ t, dark, content, adsConfig }) => {
         lines.push("\n## " + strip(b["text_" + L] || b.text));
       } else if (b.type === "p" || b.type === "quote" || b.type === "callout") {
         lines.push(strip(b.text));
-      } else if (b.type === "list" && b.items) {
+      } else if ((b.type === "list" || b.type === "bulletList") && b.items) {
         b.items.forEach((it) => lines.push("- " + strip(it)));
+      } else if (b.type === "orderedList" && b.items) {
+        b.items.forEach((it, i) => lines.push((i + 1) + ". " + strip(it)));
       } else if (b.type === "code" && b.text) {
         lines.push("```\n" + b.text + "\n```");
+      } else if (b.type === "h1") {
+        lines.push("\n# " + strip(b["text_" + L] || b.text));
+      } else if (b.type === "image") {
+        if (b.caption) lines.push("[image: " + strip(b.caption) + "]");
+      } else if (b.type === "embed") {
+        lines.push("[" + (b.provider || "embed") + ": " + (b.url || "") + "]");
+      } else if (b.type === "cta") {
+        lines.push("→ " + strip(b.label || ""));
+      } else if (b.type === "table") {
+        if (b.headers) lines.push(b.headers.map(strip).join(" | "));
+        (b.rows || []).forEach((r) => lines.push(r.map(strip).join(" | ")));
+      } else if (b.type === "toggle") {
+        lines.push("▸ " + strip(b["title_" + L] || b.title));
+        if (b.text) lines.push("  " + strip(b.text));
+      } else if (b.type === "columns") {
+        (b.cols || []).forEach((c) => lines.push(strip(c)));
+      } else if (b.type === "divider" || b.type === "hr") {
+        lines.push("---");
       }
     });
     return lines.join("\n");
@@ -1629,14 +1650,29 @@ const ShareRow = ({ post, pt, theme, copied, onCopy, vertical }) => {
 // ---------- Block renderer ----------
 
 const Block = ({ block, L, theme }) => {
-  const { ink, muted, accent, paper, paper2, line } = theme;
+  const { ink, muted, accent, paper, paper2, line, hand } = theme;
 
   if (block.type === "p") {
+    const align = block.align || "left";
     return (
       <p
-        style={{ margin: "0 0 1.2em", color: ink, textWrap: "pretty" }}
+        style={{ margin: "0 0 1.2em", color: ink, textWrap: "pretty", textAlign: align }}
         dangerouslySetInnerHTML={{ __html: block.text }} />);
 
+
+  }
+
+  if (block.type === "h1") {
+    return (
+      <h1 id={block.id} style={{
+        fontFamily: '"Fraunces", serif',
+        fontSize: 40, fontWeight: 500, lineHeight: 1.1,
+        color: ink, margin: "2.4em 0 0.6em",
+        letterSpacing: "-0.02em", scrollMarginTop: 100,
+        textAlign: block.align || "left"
+      }}>
+        {block["text_" + L] || block.text}
+      </h1>);
 
   }
 
@@ -1646,7 +1682,8 @@ const Block = ({ block, L, theme }) => {
         fontFamily: '"Fraunces", serif',
         fontSize: 32, fontWeight: 500, lineHeight: 1.15,
         color: ink, margin: "2.2em 0 0.6em",
-        letterSpacing: "-0.015em", scrollMarginTop: 100
+        letterSpacing: "-0.015em", scrollMarginTop: 100,
+        textAlign: block.align || "left"
       }}>
         {block["text_" + L] || block.text}
       </h2>);
@@ -1659,7 +1696,8 @@ const Block = ({ block, L, theme }) => {
         fontFamily: '"Fraunces", serif',
         fontSize: 22, fontWeight: 500, lineHeight: 1.2,
         color: ink, margin: "1.8em 0 0.4em",
-        letterSpacing: "-0.01em", scrollMarginTop: 100
+        letterSpacing: "-0.01em", scrollMarginTop: 100,
+        textAlign: block.align || "left"
       }}>
         {block["text_" + L] || block.text}
       </h3>);
@@ -1679,11 +1717,20 @@ const Block = ({ block, L, theme }) => {
         fontWeight: 400
       }}>
         "{block.text}"
+        {block.cite &&
+        <footer style={{
+          marginTop: 10, fontStyle: "normal", fontSize: 12,
+          fontFamily: '"JetBrains Mono", monospace',
+          letterSpacing: "0.06em", color: theme.muted, textTransform: "uppercase"
+        }}>
+            — {block.cite}
+          </footer>
+        }
       </blockquote>);
 
   }
 
-  if (block.type === "list") {
+  if (block.type === "list" || block.type === "bulletList") {
     return (
       <ul style={{
         margin: "0 0 1.4em", paddingLeft: 22, color: ink,
@@ -1705,6 +1752,29 @@ const Block = ({ block, L, theme }) => {
 
   }
 
+  if (block.type === "orderedList") {
+    return (
+      <ol style={{
+        margin: "0 0 1.4em", paddingLeft: 22, color: ink,
+        listStyle: "none", counterReset: "ol-c"
+      }}>
+        {block.items.map((it, i) =>
+        <li key={i} style={{
+          position: "relative", marginBottom: "0.7em",
+          paddingLeft: 6, lineHeight: 1.65,
+          counterIncrement: "ol-c"
+        }}
+        dangerouslySetInnerHTML={{
+          __html:
+          `<span style="position:absolute;left:-26px;top:2px;color:${accent};font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;letter-spacing:0.04em">${String(i + 1).padStart(2, "0")}</span>` +
+          it
+        }} />
+
+        )}
+      </ol>);
+
+  }
+
   if (block.type === "code") {
     return <CodeBlock block={block} theme={theme} />;
   }
@@ -1713,13 +1783,12 @@ const Block = ({ block, L, theme }) => {
     return (
       <div style={{
         margin: "1.8em 0",
-
         background: paper2,
         borderTop: `2px solid ${accent}`,
         borderBottom: `2px solid ${accent}`,
         fontFamily: '"Source Serif 4", serif',
         fontSize: 17, color: ink, lineHeight: 1.55,
-        fontStyle: "italic", padding: "0px 22px 18px"
+        fontStyle: "italic", padding: "18px 22px"
       }}>
         ⚡ {block.text}
       </div>);
@@ -1747,8 +1816,773 @@ const Block = ({ block, L, theme }) => {
 
   }
 
+  // ---------- New CMS block types ----------
+
+  // Uploaded image — supports alt + caption + alignment + lightbox
+  if (block.type === "image") {
+    const align = block.align || "center";
+    const w = align === "center" ? "100%" : "60%";
+    const float = align === "left" ? "left" : align === "right" ? "right" : "none";
+    const margin = align === "center" ?
+    "1.8em 0" :
+    align === "left" ? "0.4em 1.6em 1em 0" : "0.4em 0 1em 1.6em";
+    const [zoom, setZoom] = React.useState(false);
+    const allowZoom = block.zoom !== false && block.src;
+    return (
+      <>
+        <figure style={{
+          margin, width: w, float: align === "center" ? "none" : float,
+          clear: align === "center" ? "both" : "none"
+        }}>
+          <img
+            src={block.src}
+            alt={block.alt || block.caption || ""}
+            loading="lazy"
+            onClick={allowZoom ? () => setZoom(true) : undefined}
+            style={{
+              display: "block", width: "100%", height: "auto",
+              border: `1px solid ${line}`,
+              boxShadow: "0 1px 0 rgba(0,0,0,0.04), 0 8px 18px rgba(0,0,0,0.08)",
+              cursor: allowZoom ? "zoom-in" : "default",
+              transition: "transform 0.15s ease"
+            }}
+            onMouseEnter={allowZoom ? (e) => e.currentTarget.style.transform = "scale(1.005)" : undefined}
+            onMouseLeave={allowZoom ? (e) => e.currentTarget.style.transform = "scale(1)" : undefined} />
+          
+          {block.caption &&
+          <figcaption style={{
+            fontFamily: '"Source Serif 4", serif',
+            fontSize: 13, color: muted, fontStyle: "italic",
+            textAlign: align === "center" ? "center" : "left", marginTop: 10,
+            textWrap: "pretty"
+          }}>
+              {block.caption}
+            </figcaption>
+          }
+        </figure>
+        {zoom &&
+        <div
+          onClick={() => setZoom(false)}
+          style={{
+            position: "fixed", inset: 0, zIndex: 9999,
+            background: "rgba(20, 16, 10, 0.94)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            padding: 40, cursor: "zoom-out"
+          }}>
+            
+            <img src={block.src} alt={block.alt || ""} style={{
+            maxWidth: "100%", maxHeight: "100%", objectFit: "contain",
+            boxShadow: "0 30px 80px rgba(0,0,0,0.5)"
+          }} />
+            <button onClick={(e) => {e.stopPropagation();setZoom(false);}} aria-label="Close" style={{
+            position: "absolute", top: 20, right: 20,
+            width: 40, height: 40, borderRadius: "50%",
+            background: "rgba(255,255,255,0.1)", color: "#fff",
+            border: "1px solid rgba(255,255,255,0.2)",
+            cursor: "pointer", fontSize: 20, lineHeight: 1
+          }}>×</button>
+          </div>
+        }
+      </>);
+
+  }
+
+  // Divider — handwritten flourish, not a flat line
+  if (block.type === "divider" || block.type === "hr") {
+    return (
+      <div style={{
+        margin: "2.2em 0",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        gap: 14, color: muted
+      }}>
+        <span style={{ flex: 1, borderTop: `1px dashed ${line}` }} />
+        <span style={{
+          ...hand, fontSize: 22, color: accent,
+          transform: "rotate(-3deg)", letterSpacing: "0.4em"
+        }}>
+          ✦
+        </span>
+        <span style={{ flex: 1, borderTop: `1px dashed ${line}` }} />
+      </div>);
+
+  }
+
+  // CTA Button — styled like the marker tape, deliberately stands out
+  if (block.type === "cta") {
+    const align = block.align || "center";
+    return (
+      <div style={{
+        margin: "1.8em 0",
+        display: "flex",
+        justifyContent: align === "left" ? "flex-start" : align === "right" ? "flex-end" : "center"
+      }}>
+        <a
+          href={block.href || "#"}
+          target={block.external ? "_blank" : undefined}
+          rel={block.external ? "noopener" : undefined}
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 10,
+            padding: "13px 22px",
+            background: theme.marker, color: "#1A140C",
+            fontFamily: '"JetBrains Mono", monospace',
+            fontSize: 13, letterSpacing: "0.08em",
+            fontWeight: 600, textTransform: "uppercase",
+            textDecoration: "none",
+            transform: "rotate(-0.6deg)",
+            boxShadow: "0 1px 0 rgba(0,0,0,0.06), 0 6px 14px rgba(0,0,0,0.08)",
+            transition: "transform 0.15s"
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.transform = "rotate(-0.6deg) translateY(-1px)"}
+          onMouseLeave={(e) => e.currentTarget.style.transform = "rotate(-0.6deg)"}>
+          
+          {block.label || "Read more"}
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden>
+            <path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </a>
+      </div>);
+
+  }
+
+  // Table
+  if (block.type === "table") {
+    const headers = block.headers || [];
+    const rows = block.rows || [];
+    return (
+      <div style={{ margin: "1.8em 0", overflowX: "auto", border: `1px solid ${line}` }}>
+        <table style={{
+          width: "100%", borderCollapse: "collapse",
+          fontFamily: '"Source Serif 4", Georgia, serif', fontSize: 14, color: ink
+        }}>
+          {headers.length > 0 &&
+          <thead>
+              <tr style={{ background: theme.dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)" }}>
+                {headers.map((h, i) =>
+              <th key={i} style={{
+                textAlign: "left", padding: "10px 14px",
+                fontFamily: '"JetBrains Mono", monospace',
+                fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase",
+                color: muted, fontWeight: 600,
+                borderBottom: `1px solid ${line}`
+              }} dangerouslySetInnerHTML={{ __html: h }} />
+              )}
+              </tr>
+            </thead>
+          }
+          <tbody>
+            {rows.map((r, ri) =>
+            <tr key={ri} style={{ borderBottom: ri < rows.length - 1 ? `1px solid ${line}` : "none" }}>
+                {r.map((c, ci) =>
+              <td key={ci} style={{ padding: "10px 14px", lineHeight: 1.5 }} dangerouslySetInnerHTML={{ __html: c }} />
+              )}
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>);
+
+  }
+
+  // Toggle / details
+  if (block.type === "toggle") {
+    return (
+      <details style={{
+        margin: "1.4em 0", padding: "12px 16px",
+        border: `1px solid ${line}`, background: paper2,
+        borderRadius: 4
+      }}>
+        <summary style={{
+          cursor: "pointer", listStyle: "none",
+          fontFamily: '"JetBrains Mono", monospace', fontSize: 12,
+          letterSpacing: "0.06em", textTransform: "uppercase",
+          color: ink, fontWeight: 600,
+          display: "flex", alignItems: "center", gap: 10
+        }}>
+          <span style={{ color: accent, fontSize: 14 }}>▸</span>
+          {block["title_" + L] || block.title}
+        </summary>
+        <div style={{
+          marginTop: 12, paddingTop: 12,
+          borderTop: `1px dashed ${line}`,
+          fontFamily: '"Source Serif 4", Georgia, serif',
+          fontSize: 15, lineHeight: 1.6, color: ink, textWrap: "pretty"
+        }} dangerouslySetInnerHTML={{ __html: block.text || "" }} />
+      </details>);
+
+  }
+
+  // Columns (2 or 3 col layout)
+  if (block.type === "columns") {
+    const cols = block.cols || [];
+    return (
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: `repeat(${cols.length}, 1fr)`,
+        gap: 24, margin: "1.8em 0"
+      }}>
+        {cols.map((c, i) =>
+        <div key={i} style={{
+          fontFamily: '"Source Serif 4", Georgia, serif',
+          fontSize: 15, lineHeight: 1.6, color: ink, textWrap: "pretty"
+        }} dangerouslySetInnerHTML={{ __html: c }} />
+        )}
+      </div>);
+
+  }
+
+  // Social / code embeds
+  if (block.type === "embed") {
+    return <EmbedBlock block={block} L={L} theme={theme} />;
+  }
+
   return null;
 };
+
+// ---------- Embed block ----------
+
+const PROVIDER_META = {
+  youtube: { label: "YouTube", color: "#FF0033" },
+  vimeo: { label: "Vimeo", color: "#1AB7EA" },
+  loom: { label: "Loom", color: "#625DF5" },
+  spotify: { label: "Spotify", color: "#1DB954" },
+  soundcloud: { label: "SoundCloud", color: "#FF5500" },
+  twitter: { label: "X / Twitter", color: "#1d9bf0" },
+  instagram: { label: "Instagram", color: "#E1306C" },
+  codesandbox: { label: "CodeSandbox", color: "#151515" },
+  codepen: { label: "CodePen", color: "#0EBEFF" },
+  github: { label: "GitHub", color: "#6e40c9" },
+  figma: { label: "Figma", color: "#F24E1E" },
+  pdf: { label: "PDF", color: "#E63946" }
+};
+
+const EmbedFrame = ({ children, provider, theme, label, url, ratio }) => {
+  const meta = PROVIDER_META[provider] || { label: provider, color: theme.accent };
+  return (
+    <div style={{
+      margin: "1.8em 0",
+      border: `1px solid ${theme.line}`,
+      background: theme.paper,
+      position: "relative"
+    }}>
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "8px 12px", gap: 12,
+        borderBottom: `1px solid ${theme.line}`,
+        background: theme.dark ? "rgba(0,0,0,0.25)" : "rgba(0,0,0,0.03)"
+      }}>
+        <div style={{
+          display: "flex", alignItems: "center", gap: 8, minWidth: 0,
+          fontFamily: '"JetBrains Mono", monospace',
+          fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase",
+          color: theme.muted, fontWeight: 600,
+          overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis"
+        }}>
+          <span style={{
+            width: 8, height: 8, borderRadius: "50%", background: meta.color,
+            display: "inline-block", flexShrink: 0
+          }} />
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{label || meta.label}</span>
+        </div>
+        {url &&
+        <a href={url} target="_blank" rel="noopener" style={{
+          fontFamily: '"JetBrains Mono", monospace',
+          fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase",
+          color: theme.muted, textDecoration: "none",
+          display: "inline-flex", alignItems: "center", gap: 4,
+          fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0
+        }}>
+            open ↗
+          </a>
+        }
+      </div>
+      <div style={{ position: "relative", aspectRatio: ratio || undefined }}>
+        {children}
+      </div>
+    </div>);
+
+};
+
+// Parse helpers
+const parseYouTubeId = (url) => {
+  if (!url) return null;
+  const m = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([\w-]{11})/);
+  return m ? m[1] : null;
+};
+const parseTweetId = (url) => {
+  if (!url) return null;
+  const m = url.match(/status\/(\d+)/);
+  return m ? m[1] : null;
+};
+const parseInstagramShortcode = (url) => {
+  if (!url) return null;
+  const m = url.match(/instagram\.com\/(?:p|reel|tv)\/([\w-]+)/);
+  return m ? m[1] : null;
+};
+const parseGitHubRepo = (url) => {
+  if (!url) return null;
+  // user profile: github.com/owner (no slash after) or github.com/owner/
+  const repoMatch = url.match(/github\.com\/([\w.-]+)\/([\w.-]+?)(?:[/?#]|$)/);
+  if (repoMatch) return { kind: "repo", owner: repoMatch[1], repo: repoMatch[2] };
+  const userMatch = url.match(/github\.com\/([\w.-]+)\/?$/);
+  if (userMatch) return { kind: "user", owner: userMatch[1] };
+  return null;
+};
+const parseCodeSandboxId = (url) => {
+  if (!url) return null;
+  const m = url.match(/codesandbox\.io\/(?:s|p\/sandbox|embed)\/([\w-]+)/);
+  return m ? m[1] : null;
+};
+const parseCodePen = (url) => {
+  if (!url) return null;
+  const m = url.match(/codepen\.io\/([\w-]+)\/(?:pen|embed)\/([\w-]+)/);
+  return m ? { user: m[1], id: m[2] } : null;
+};
+
+const EmbedBlock = ({ block, L, theme }) => {
+  const provider = block.provider;
+  const url = block.url || "";
+
+  // YouTube
+  if (provider === "youtube") {
+    const id = block.videoId || parseYouTubeId(url);
+    if (!id) return <EmbedPlaceholder provider={provider} url={url} theme={theme} />;
+    return (
+      <EmbedFrame provider="youtube" theme={theme} url={url} ratio="16 / 9" label={block.title}>
+        <iframe
+          src={`https://www.youtube.com/embed/${id}`}
+          title={block.title || "YouTube video"}
+          loading="lazy"
+          allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          style={{
+            position: "absolute", inset: 0, width: "100%", height: "100%",
+            border: 0, display: "block"
+          }} />
+        
+      </EmbedFrame>);
+
+  }
+
+  // Vimeo
+  if (provider === "vimeo") {
+    const m = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
+    const id = block.videoId || m && m[1];
+    if (!id) return <EmbedPlaceholder provider={provider} url={url} theme={theme} />;
+    return (
+      <EmbedFrame provider="vimeo" theme={theme} url={url} ratio="16 / 9" label={block.title}>
+        <iframe src={`https://player.vimeo.com/video/${id}`} loading="lazy" allow="autoplay; fullscreen; picture-in-picture" allowFullScreen style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: 0 }} title={block.title || "Vimeo"} />
+      </EmbedFrame>);
+
+  }
+
+  // Loom
+  if (provider === "loom") {
+    const m = url.match(/loom\.com\/(?:share|embed)\/([a-f0-9]+)/);
+    const id = block.videoId || m && m[1];
+    if (!id) return <EmbedPlaceholder provider={provider} url={url} theme={theme} />;
+    return (
+      <EmbedFrame provider="loom" theme={theme} url={url} ratio="16 / 9" label={block.title}>
+        <iframe src={`https://www.loom.com/embed/${id}`} loading="lazy" allowFullScreen style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: 0 }} title={block.title || "Loom"} />
+      </EmbedFrame>);
+
+  }
+
+  // Spotify
+  if (provider === "spotify") {
+    const m = url.match(/spotify\.com\/(track|episode|playlist|album|show)\/([a-zA-Z0-9]+)/);
+    if (!m) return <EmbedPlaceholder provider={provider} url={url} theme={theme} />;
+    return (
+      <EmbedFrame provider="spotify" theme={theme} url={url} label={block.title || m[1]}>
+        <iframe src={`https://open.spotify.com/embed/${m[1]}/${m[2]}`} loading="lazy" allow="encrypted-media" style={{ width: "100%", height: m[1] === "track" ? 152 : 232, border: 0, display: "block" }} title={block.title || "Spotify"} />
+      </EmbedFrame>);
+
+  }
+
+  // SoundCloud
+  if (provider === "soundcloud") {
+    if (!url) return <EmbedPlaceholder provider={provider} url={url} theme={theme} />;
+    return (
+      <EmbedFrame provider="soundcloud" theme={theme} url={url} label={block.title}>
+        <iframe src={`https://w.soundcloud.com/player/?url=${encodeURIComponent(url)}&color=%23ff5500&auto_play=false&hide_related=true&show_comments=false&show_user=true&show_reposts=false&show_teaser=false`} loading="lazy" style={{ width: "100%", height: 166, border: 0, display: "block" }} title={block.title || "SoundCloud"} />
+      </EmbedFrame>);
+
+  }
+
+  // Figma
+  if (provider === "figma") {
+    if (!url) return <EmbedPlaceholder provider={provider} url={url} theme={theme} />;
+    return (
+      <EmbedFrame provider="figma" theme={theme} url={url} ratio="16 / 10" label={block.title}>
+        <iframe src={`https://www.figma.com/embed?embed_host=share&url=${encodeURIComponent(url)}`} loading="lazy" allowFullScreen style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: 0 }} title={block.title || "Figma"} />
+      </EmbedFrame>);
+
+  }
+
+  // PDF
+  if (provider === "pdf") {
+    if (!url) return <EmbedPlaceholder provider={provider} url={url} theme={theme} />;
+    return (
+      <EmbedFrame provider="pdf" theme={theme} url={url} ratio="4 / 5" label={block.title || "document.pdf"}>
+        <iframe src={url} loading="lazy" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: 0, background: theme.dark ? "#1a1a1a" : "#fff" }} title={block.title || "PDF"} />
+      </EmbedFrame>);
+
+  }
+
+  // Twitter / X — render as a quote card (avoids loading platform widget JS)
+  if (provider === "twitter") {
+    const handle = block.handle || (url.match(/(?:twitter|x)\.com\/([\w_]+)/) || [])[1] || "user";
+    const author = block.author || handle;
+    const replies = block.replies || []; // [{author?, handle?, text, date?}]
+    const renderTweetBody = (item, idx) =>
+    <div key={idx} style={{
+      padding: idx === 0 ? "20px 22px" : "16px 22px",
+      borderTop: idx === 0 ? "none" : `1px solid ${theme.line}`,
+      position: "relative"
+    }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+          <div style={{
+          width: idx === 0 ? 40 : 32,
+          height: idx === 0 ? 40 : 32,
+          borderRadius: "50%", flexShrink: 0,
+          background: idx === 0 ?
+          `linear-gradient(135deg, ${theme.accent}, ${theme.marker})` :
+          theme.paper2,
+          border: idx === 0 ? "none" : `1px solid ${theme.line}`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontFamily: '"Fraunces", serif',
+          fontSize: idx === 0 ? 16 : 13, fontWeight: 600,
+          color: idx === 0 ? "#1A140C" : theme.ink, lineHeight: 1
+        }}>
+            {((item.author || item.handle || "X")[0] || "X").toUpperCase()}
+          </div>
+          <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+            <div style={{ fontSize: idx === 0 ? 14 : 13, fontWeight: 600, color: theme.ink, lineHeight: 1.25 }}>
+              {item.author || item.handle || handle}
+              {idx > 0 && item.handle === handle &&
+            <span style={{
+              marginLeft: 8, fontSize: 10, fontFamily: '"JetBrains Mono", monospace',
+              letterSpacing: "0.06em", color: theme.accent, fontWeight: 500,
+              padding: "1px 6px", border: `1px solid ${theme.accent}`, borderRadius: 2
+            }}>OP</span>
+            }
+            </div>
+            <div style={{
+            fontSize: 11, color: theme.muted, lineHeight: 1.25,
+            fontFamily: '"JetBrains Mono", monospace', letterSpacing: "0.04em"
+          }}>
+              @{item.handle || handle}
+            </div>
+          </div>
+          {idx === 0 &&
+        <svg viewBox="0 0 24 24" width="20" height="20" style={{ marginLeft: "auto", color: theme.muted }} fill="currentColor" aria-hidden>
+              <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+            </svg>
+        }
+        </div>
+        <div style={{
+        fontFamily: '"Source Serif 4", Georgia, serif',
+        fontSize: idx === 0 ? 16 : 14, lineHeight: 1.55, color: theme.ink, textWrap: "pretty"
+      }} dangerouslySetInnerHTML={{ __html: item.text || "<em style='color:" + theme.muted + "'>(post sem texto pré-carregado)</em>" }} />
+        {item.date &&
+      <div style={{
+        marginTop: 12, paddingTop: 10,
+        borderTop: idx === 0 ? `1px solid ${theme.line}` : "none",
+        fontSize: 11, color: theme.muted,
+        fontFamily: '"JetBrains Mono", monospace', letterSpacing: "0.06em"
+      }}>
+            {item.date}
+          </div>
+      }
+      </div>;
+
+    const root = { author, handle, text: block.text, date: block.date };
+    return (
+      <EmbedFrame provider="twitter" theme={theme} url={url} label={"@" + handle + (replies.length ? ` · thread (${replies.length + 1})` : "")}>
+        {renderTweetBody(root, 0)}
+        {replies.map((r, i) => renderTweetBody(r, i + 1))}
+      </EmbedFrame>);
+
+  }
+
+  // Instagram — render as a styled card with image placeholder + caption
+  if (provider === "instagram") {
+    const handle = block.handle || (url.match(/instagram\.com\/([\w._-]+)/) || [])[1] || "user";
+    return (
+      <EmbedFrame provider="instagram" theme={theme} url={url} label={"@" + handle}>
+        <div>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 10,
+            padding: "10px 14px",
+            borderBottom: `1px solid ${theme.line}`
+          }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: "50%",
+              background: "linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888)",
+              padding: 2
+            }}>
+              <div style={{
+                width: "100%", height: "100%", borderRadius: "50%",
+                background: theme.paper,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontFamily: '"Fraunces", serif', fontSize: 12, fontWeight: 600, color: theme.ink
+              }}>
+                {(handle[0] || "i").toUpperCase()}
+              </div>
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: theme.ink }}>
+              {handle}
+            </div>
+          </div>
+          {block.src ?
+          <img src={block.src} alt={block.caption || ""} loading="lazy" style={{
+            display: "block", width: "100%", height: "auto",
+            background: theme.paper2
+          }} /> :
+
+          <div style={{
+            aspectRatio: "1 / 1",
+            ...window.postImg(block.img || { h: 320, h2: 30, pattern: "halftone" }, { dark: theme.dark })
+          }} />
+          }
+          <div style={{ padding: "12px 14px 14px" }}>
+            <div style={{ display: "flex", gap: 14, marginBottom: 10, color: theme.ink }}>
+              {/* Heart, comment, share icons */}
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                <path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.65A4 4 0 0 1 19 11c0 5.5-7 10-7 10z" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                <path d="M22 2 11 13M22 2l-7 20-4-9-9-4z" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+            {block.likes &&
+            <div style={{
+              fontSize: 12, fontWeight: 600, color: theme.ink,
+              fontFamily: '"JetBrains Mono", monospace', letterSpacing: "0.04em",
+              marginBottom: 8
+            }}>
+                {block.likes} {L === "pt" ? "curtidas" : "likes"}
+              </div>
+            }
+            {block.caption &&
+            <div style={{
+              fontFamily: '"Source Serif 4", Georgia, serif',
+              fontSize: 14, lineHeight: 1.5, color: theme.ink, textWrap: "pretty"
+            }}>
+                <span style={{ fontWeight: 600 }}>{handle}</span>{" "}
+                <span dangerouslySetInnerHTML={{ __html: block.caption }} />
+              </div>
+            }
+          </div>
+        </div>
+      </EmbedFrame>);
+
+  }
+
+  // CodeSandbox iframe
+  if (provider === "codesandbox") {
+    const id = block.sandboxId || parseCodeSandboxId(url);
+    if (!id) return <EmbedPlaceholder provider={provider} url={url} theme={theme} />;
+    const params = new URLSearchParams({
+      view: block.view || "split",
+      hidenavigation: "1",
+      theme: theme.dark ? "dark" : "light",
+      fontsize: "13"
+    });
+    return (
+      <EmbedFrame provider="codesandbox" theme={theme} url={url} ratio="16 / 10" label={block.title}>
+        <iframe
+          src={`https://codesandbox.io/embed/${id}?${params.toString()}`}
+          title={block.title || "CodeSandbox"}
+          loading="lazy"
+          allow="accelerometer; clipboard-write; encrypted-media; geolocation; gyroscope"
+          sandbox="allow-forms allow-modals allow-popups allow-same-origin allow-scripts"
+          style={{
+            position: "absolute", inset: 0, width: "100%", height: "100%",
+            border: 0, display: "block"
+          }} />
+        
+      </EmbedFrame>);
+
+  }
+
+  // CodePen iframe
+  if (provider === "codepen") {
+    const parsed = block.pen || parseCodePen(url);
+    if (!parsed) return <EmbedPlaceholder provider={provider} url={url} theme={theme} />;
+    const view = block.view || "result";
+    const themeId = theme.dark ? "dark" : "default";
+    return (
+      <EmbedFrame provider="codepen" theme={theme} url={url} ratio="16 / 10" label={block.title}>
+        <iframe
+          src={`https://codepen.io/${parsed.user}/embed/${parsed.id}?default-tab=${view}&theme-id=${themeId}`}
+          title={block.title || "CodePen"}
+          loading="lazy"
+          allowFullScreen
+          style={{
+            position: "absolute", inset: 0, width: "100%", height: "100%",
+            border: 0, display: "block"
+          }} />
+        
+      </EmbedFrame>);
+
+  }
+
+  // GitHub — repo card or user profile, no iframe
+  if (provider === "github") {
+    const parsed = block.repo || parseGitHubRepo(url);
+    if (!parsed) return <EmbedPlaceholder provider={provider} url={url} theme={theme} />;
+
+    // ----- User profile card -----
+    if (parsed.kind === "user") {
+      const owner = parsed.owner;
+      const avatar = block.avatar || `https://github.com/${owner}.png?size=120`;
+      return (
+        <EmbedFrame provider="github" theme={theme} url={url} label={"@" + owner}>
+          <div style={{ padding: "20px 22px", display: "flex", gap: 18, alignItems: "flex-start" }}>
+            <img
+              src={avatar}
+              alt={owner}
+              loading="lazy"
+              onError={(e) => { e.currentTarget.style.display = "none"; }}
+              style={{
+                width: 64, height: 64, flexShrink: 0,
+                borderRadius: "50%", border: `1px solid ${theme.line}`,
+                background: theme.paper2
+              }} />
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                {block.name &&
+                <span style={{
+                  fontFamily: '"Fraunces", serif', fontSize: 17, fontWeight: 600,
+                  color: theme.ink, lineHeight: 1.2
+                }}>{block.name}</span>
+                }
+                <a href={url} target="_blank" rel="noopener" style={{
+                  fontFamily: '"JetBrains Mono", monospace',
+                  fontSize: 13, color: block.name ? theme.muted : theme.ink,
+                  fontWeight: block.name ? 400 : 600,
+                  textDecoration: "none"
+                }}>@{owner}</a>
+              </div>
+              {block.bio &&
+              <div style={{
+                fontFamily: '"Source Serif 4", Georgia, serif',
+                fontSize: 14, lineHeight: 1.5, color: theme.ink,
+                textWrap: "pretty", marginBottom: 12
+              }}>{block.bio}</div>
+              }
+              <div style={{
+                display: "flex", gap: 14, flexWrap: "wrap",
+                fontFamily: '"JetBrains Mono", monospace',
+                fontSize: 11, letterSpacing: "0.06em", color: theme.muted
+              }}>
+                {block.followers != null &&
+                <span><b style={{ color: theme.ink, fontWeight: 600 }}>{block.followers.toLocaleString()}</b> followers</span>
+                }
+                {block.following != null &&
+                <span><b style={{ color: theme.ink, fontWeight: 600 }}>{block.following.toLocaleString()}</b> following</span>
+                }
+                {block.repos != null &&
+                <span><b style={{ color: theme.ink, fontWeight: 600 }}>{block.repos.toLocaleString()}</b> repos</span>
+                }
+                {block.location &&
+                <span>📍 {block.location}</span>
+                }
+                {block.company &&
+                <span>{block.company}</span>
+                }
+              </div>
+            </div>
+          </div>
+        </EmbedFrame>);
+    }
+
+    // ----- Repo card (existing) -----
+    return (
+      <EmbedFrame provider="github" theme={theme} url={url} label={`${parsed.owner}/${parsed.repo}`}>
+        <div style={{ padding: "18px 20px" }}>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 10, marginBottom: 10
+          }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" style={{ color: theme.ink }} aria-hidden>
+              <path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.32-1.27-1.67-1.27-1.67-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.76 2.69 1.25 3.34.96.1-.74.4-1.25.72-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.18-3.08-.12-.29-.51-1.46.11-3.04 0 0 .96-.31 3.15 1.18a10.97 10.97 0 0 1 5.74 0c2.18-1.49 3.14-1.18 3.14-1.18.63 1.58.23 2.75.12 3.04.74.81 1.18 1.83 1.18 3.08 0 4.42-2.69 5.39-5.26 5.68.42.36.78 1.07.78 2.16v3.21c0 .31.21.68.8.56 4.56-1.52 7.85-5.83 7.85-10.91C23.5 5.65 18.35.5 12 .5z" />
+            </svg>
+            <a href={url} target="_blank" rel="noopener" style={{
+              fontFamily: '"JetBrains Mono", monospace',
+              fontSize: 15, color: theme.ink, fontWeight: 600,
+              textDecoration: "none"
+            }}>
+              <span style={{ color: theme.muted, fontWeight: 400 }}>{parsed.owner}/</span>
+              <span>{parsed.repo}</span>
+            </a>
+          </div>
+          {block.description &&
+          <div style={{
+            fontFamily: '"Source Serif 4", Georgia, serif',
+            fontSize: 14, lineHeight: 1.5, color: theme.ink, textWrap: "pretty",
+            marginBottom: 14
+          }}>
+              {block.description}
+            </div>
+          }
+          <div style={{
+            display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap",
+            fontFamily: '"JetBrains Mono", monospace',
+            fontSize: 11, letterSpacing: "0.06em", color: theme.muted
+          }}>
+            {block.language &&
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <span style={{
+                width: 10, height: 10, borderRadius: "50%",
+                background: block.languageColor || theme.accent
+              }} />
+                {block.language}
+              </span>
+            }
+            {block.stars != null &&
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z" />
+                </svg>
+                {block.stars.toLocaleString()}
+              </span>
+            }
+            {block.forks != null &&
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                  <circle cx="6" cy="6" r="2" />
+                  <circle cx="6" cy="18" r="2" />
+                  <circle cx="18" cy="8" r="2" />
+                  <path d="M6 8v6M6 14a6 6 0 0 0 6-6h6" strokeLinecap="round" />
+                </svg>
+                {block.forks.toLocaleString()}
+              </span>
+            }
+            {block.license &&
+            <span>{block.license}</span>
+            }
+          </div>
+        </div>
+      </EmbedFrame>);
+
+  }
+
+  return <EmbedPlaceholder provider={provider} url={url} theme={theme} />;
+};
+
+const EmbedPlaceholder = ({ provider, url, theme }) =>
+<div style={{
+  margin: "1.8em 0", padding: "20px",
+  border: `1px dashed ${theme.line}`, background: theme.paper2,
+  fontFamily: '"JetBrains Mono", monospace', fontSize: 12,
+  color: theme.muted, textAlign: "center",
+  letterSpacing: "0.06em"
+}}>
+    [{provider} embed — invalid url] {url && <a href={url} style={{ color: theme.accent }}>{url}</a>}
+  </div>;
 
 // ---------- Styles ----------
 

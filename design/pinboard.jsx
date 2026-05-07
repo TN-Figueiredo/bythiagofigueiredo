@@ -13,6 +13,8 @@ const Pinboard = ({ t, dark, content, tweaks, adsConfig }) => {
   const cats = C.categories;
   const channels = C.channels;
   const sites = C.sites;
+  const instaFeed = C.instagramFeed;
+  const showInsta = (tweaks && tweaks.insta !== false) && instaFeed && instaFeed.posts && instaFeed.posts.length > 0;
   const L = window._lang;
   // Primary channel matches current locale; other channel shown alongside
   const primaryCh  = channels.find(c => c.locale === L) || channels[0];
@@ -739,6 +741,110 @@ const Pinboard = ({ t, dark, content, tweaks, adsConfig }) => {
           </div>
         </div>
       </section>
+
+      {/* INSTAGRAM — últimos cliques (polaroid scatter) */}
+      {showInsta && instaFeed && (
+        <section style={{ maxWidth: 1280, margin: "0 auto", padding: "72px 28px 48px", borderTop: `1px dashed ${line}`, marginTop: 32 }}>
+          {/* Header */}
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 36, flexWrap: "wrap", gap: 16 }}>
+            <div>
+              <div style={{ ...hand, fontSize: 26, color: accent, transform: "rotate(-1.5deg)", display: "inline-block" }}>
+                {L === "pt" ? "últimos cliques" : "latest shots"}
+              </div>
+              <h2 style={{
+                fontFamily: '"Fraunces", serif', fontSize: 38, fontWeight: 700,
+                margin: "2px 0 0", lineHeight: 1.0, letterSpacing: "-0.01em",
+              }}>
+                {L === "pt" ? "do iPhone, sem filtro" : "from the iPhone, no filter"}
+              </h2>
+              <div style={{
+                fontFamily: '"JetBrains Mono", monospace', fontSize: 11,
+                letterSpacing: "0.14em", textTransform: "uppercase",
+                color: muted, marginTop: 8,
+              }}>
+                @{instaFeed.handle} · {L === "pt" ? "atualizado automaticamente" : "auto-synced"}
+              </div>
+            </div>
+            <a href={instaFeed.url} target="_blank" rel="noopener" style={{
+              display: "inline-flex", alignItems: "center", gap: 10,
+              padding: "12px 18px", background: ink, color: bg,
+              fontFamily: '"JetBrains Mono", monospace', fontSize: 12, fontWeight: 600,
+              letterSpacing: "0.1em", textTransform: "uppercase",
+              textDecoration: "none",
+            }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="2" y="2" width="20" height="20" rx="5"/>
+                <circle cx="12" cy="12" r="4"/>
+                <circle cx="17.5" cy="6.5" r="1" fill="currentColor"/>
+              </svg>
+              {L === "pt" ? "Siga no Instagram" : "Follow on Instagram"}
+            </a>
+          </div>
+
+          {/* Polaroid scatter — 5 photos on a relative canvas */}
+          <div style={{ position: "relative", height: 460, maxWidth: 1080, margin: "0 auto" }}>
+            {instaFeed.posts.slice(0, 5).map((p, i) => {
+              // Hand-tuned positions for natural scatter
+              const layout = [
+                { left: "2%",  top:   8, rot: -4.5, z: 2, size: 220 },
+                { left: "20%", top:  90, rot:  2.8, z: 4, size: 230 },
+                { left: "39%", top:   0, rot: -1.2, z: 5, size: 240 },
+                { left: "58%", top: 100, rot:  3.6, z: 3, size: 220 },
+                { left: "76%", top:  20, rot: -2.4, z: 2, size: 225 },
+              ][i];
+              const cap = p["caption_" + L] || p.caption_pt;
+              const tapeColor = i % 3 === 0 ? tape : (i % 3 === 1 ? tape2 : tapeR);
+              return (
+                <a key={p.id} href={p.url} target="_blank" rel="noopener" style={{
+                  position: "absolute", left: layout.left, top: layout.top,
+                  width: layout.size, transform: `rotate(${layout.rot}deg)`,
+                  zIndex: layout.z, textDecoration: "none", color: "inherit",
+                  transition: "transform 0.2s ease, z-index 0s",
+                }}
+                  onMouseEnter={(e) => { e.currentTarget.style.transform = `rotate(${layout.rot * 0.3}deg) scale(1.04)`; e.currentTarget.style.zIndex = 10; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.transform = `rotate(${layout.rot}deg)`; e.currentTarget.style.zIndex = layout.z; }}
+                >
+                  <div style={{
+                    background: paper, padding: "10px 10px 14px",
+                    boxShadow: dark
+                      ? "0 12px 28px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.4)"
+                      : "0 14px 32px rgba(20,17,11,0.18), 0 2px 6px rgba(20,17,11,0.12)",
+                    position: "relative",
+                  }}>
+                    <Tape color={tapeColor} style={{ top: -10, left: "30%", transform: `rotate(${(i * 13) % 14 - 7}deg)`, width: 70 }}/>
+                    <div style={{
+                      width: "100%", aspectRatio: "1 / 1",
+                      background: `url(${p.src}) center/cover, ${dark ? "#1A140E" : "#E5DCC4"}`,
+                      filter: dark ? "brightness(0.92)" : "none",
+                    }}/>
+                    <div style={{
+                      ...hand, fontSize: 17, color: ink,
+                      marginTop: 8, lineHeight: 1.15, minHeight: 22,
+                    }}>
+                      {cap}
+                    </div>
+                    <div style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      marginTop: 4, fontFamily: '"JetBrains Mono", monospace',
+                      fontSize: 9.5, color: muted, letterSpacing: "0.08em",
+                    }}>
+                      <span>{new Date(p.date).toLocaleDateString(L === "pt" ? "pt-BR" : "en-US", { day: "2-digit", month: "short" }).toUpperCase()}</span>
+                      <span>♥ {p.likes}</span>
+                    </div>
+                  </div>
+                </a>
+              );
+            })}
+          </div>
+
+          {/* Margin note */}
+          <div style={{ textAlign: "center", marginTop: 28 }}>
+            <span style={{ ...hand, fontSize: 17, color: muted, transform: "rotate(-0.5deg)", display: "inline-block" }}>
+              {L === "pt" ? "p.s. setup chega em breve →" : "p.s. setup page coming soon →"}
+            </span>
+          </div>
+        </section>
+      )}
 
       {/* Footer */}
       <footer style={{ borderTop: `1px dashed ${line}`, padding: "32px 28px", textAlign: "center" }}>

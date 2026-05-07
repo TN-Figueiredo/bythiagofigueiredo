@@ -1,0 +1,73 @@
+import type { YouTubeStrings } from '../types'
+
+export const YOUTUBE_PT: YouTubeStrings = {
+  hero_pt_section_label: 'esta semana, em dois canais',
+  hero_pt_headline: 'Dois canais, uma cabeça',
+  hero_pt_description: 'Um canal em português, um em inglês — saídos da mesma mesa. PT é onde eu falo de carreira, setup, retrospectivas. EN é onde eu codifico em público.',
+  hero_pt_also_on: 'também rolou no @thiagofigueiredo',
+  hero_pt_previously: 'anteriores em inglês',
+
+  hero_en_section_label: 'último vídeo',
+  hero_en_headline_line1: 'Live-coding,',
+  hero_en_headline_line2: 'em inglês.',
+  hero_en_description: '@thiagofigueiredo — onde eu codifico em público, em inglês. Tem um canal-irmão em português, lá em cima.',
+  hero_en_previously: 'anteriores',
+
+  stats_videos_published: 'vídeos publicados',
+  stats_hours_of_content: 'horas de conteúdo',
+  stats_comments_answered: 'comentários respondidos',
+  stats_most_watched: 'mais assistido',
+
+  feature_section_label: 'esta semana, em destaque',
+  feature_headline: 'O que vale a pena reservar 20 minutos',
+  feature_my_pick: 'minha escolha',
+  feature_also_dropped: 'também rolaram',
+  feature_jump_to_series: 'ir direto pra uma série',
+
+  comments_section_label: 'o que disseram',
+  comments_headline: 'Recortes que me fizeram parar e reler',
+  comments_description: 'Selecionados à mão. Não é automático — eu leio cada um.',
+  comments_scroll_annotation: 'chega de scroll',
+  comments_relative_today: 'hoje',
+  comments_relative_days: '{n}d atrás',
+  comments_relative_weeks: '{n}sem atrás',
+  comments_relative_months: '{n}m atrás',
+  comments_relative_years: '{n}a atrás',
+
+  archive_section_label: 'arquivo',
+  archive_headline: 'Tudo que tá no canal',
+  archive_search_placeholder: 'buscar título, tag, série…',
+  archive_search_aria: 'Buscar vídeos',
+  archive_channel_label: 'canal:',
+  archive_channel_aria: 'Filtro de canal',
+  archive_channel_both: 'Ambos',
+  archive_clear_all: 'limpar tudo',
+  archive_series_label: 'série:',
+  archive_series_aria: 'Filtro de série',
+  archive_tags_label: 'tags:',
+  archive_tags_aria: 'Filtro de tags',
+  archive_video_singular: 'vídeo',
+  archive_video_plural: 'vídeos',
+  archive_filtered: 'filtrado',
+  archive_newest_first: 'do mais novo pro mais antigo',
+  archive_no_videos: 'nenhum vídeo.',
+  archive_clear_filters: 'limpar filtros',
+  archive_load_more: 'carregar mais',
+  archive_latest: 'Recentes',
+
+  card_views: 'visualizações',
+
+  channel_subs: 'inscritos',
+  channel_videos: 'vídeos',
+  channel_open: 'abrir',
+
+  subscribe_floating_label: 'se inscreva',
+  subscribe_headline: 'Assistir é grátis. Voltar é o difícil.',
+  subscribe_description: 'Inscreva-se nos dois — o feed do YouTube cuida do resto. PT é onde eu falo de carreira e setup; EN é onde eu codifico em público.',
+  subscribe_subs: 'inscritos',
+  subscribe_button: 'inscrever',
+
+  empty_headline: 'Vídeos chegando em breve',
+  empty_description: 'O canal está quase no ar. Inscreva-se para ser notificado quando o primeiro vídeo sair.',
+  empty_subscribe_button: 'Inscrever no canal',
+}

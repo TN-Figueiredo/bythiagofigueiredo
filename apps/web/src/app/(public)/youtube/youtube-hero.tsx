@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from 'react'
 import type { YouTubeVideoView } from './youtube-types'
+import type { YouTubeStrings } from '@/lib/content/types'
 import { Paper, Tape } from '@/components/pinboard'
 import { type Theme, FlagBadge, VideoThumbnail, formatDate } from './youtube-atoms'
 import { VideoLightbox } from '../components/VideoLightbox'
@@ -13,6 +14,7 @@ interface Props {
   latestEN: YouTubeVideoView | null
   enOlder: YouTubeVideoView[]
   fmtNum: (n: number) => string
+  strings: YouTubeStrings
 }
 
 function Stat({ icon, value, muted, yt }: { icon: string; value: string; muted: string; yt: string }) {
@@ -28,9 +30,8 @@ function Stat({ icon, value, muted, yt }: { icon: string; value: string; muted: 
   )
 }
 
-function HeroPT({ locale, theme, latestPT, latestEN, enOlder, fmtNum }: Props) {
+function HeroPT({ locale, theme, latestPT, latestEN, enOlder, fmtNum, strings }: Props) {
   const { ink, muted, faint, line, marker, yt, paper, paper2, tape, tapeR, hand } = theme
-  const L = locale
 
   return (
     <section style={{ maxWidth: 1280, margin: '0 auto', padding: '56px 28px 28px' }}>
@@ -42,7 +43,7 @@ function HeroPT({ locale, theme, latestPT, latestEN, enOlder, fmtNum }: Props) {
             letterSpacing: '0.2em', textTransform: 'uppercase',
             color: yt, marginBottom: 12,
           }}>
-            § 01 · {L === 'pt' ? 'esta semana, em dois canais' : 'this week, on two channels'}
+            § 01 · {strings.hero_pt_section_label}
           </div>
 
           <h1 style={{
@@ -52,10 +53,8 @@ function HeroPT({ locale, theme, latestPT, latestEN, enOlder, fmtNum }: Props) {
             textWrap: 'balance' as CSSProperties['textWrap'], color: ink,
             isolation: 'isolate',
           }}>
-            Dois canais,
-            <br/>
-            <span style={{ position: 'relative', display: 'inline-block', isolation: 'isolate' }}>
-              uma cabe{'c'}a
+            <span style={{ position: 'relative', display: 'inline', isolation: 'isolate' }}>
+              {strings.hero_pt_headline}
               <span aria-hidden="true" style={{
                 position: 'absolute', bottom: 4, left: -6, right: -6, height: 18,
                 background: marker, zIndex: -1, opacity: 0.7, transform: 'skew(-2deg)',
@@ -67,9 +66,7 @@ function HeroPT({ locale, theme, latestPT, latestEN, enOlder, fmtNum }: Props) {
           </h1>
 
           <p style={{ fontSize: 17, color: muted, marginTop: 22, maxWidth: 540, lineHeight: 1.55, fontFamily: '"Source Serif 4", Georgia, serif' }}>
-            {L === 'pt'
-              ? 'Um canal em português, um em inglês — saídos da mesma mesa. PT é onde eu falo de carreira, setup, retrospectivas. EN é onde eu codifico em público.'
-              : 'One channel in Portuguese, one in English — from the same desk. PT is where I talk about career, setup, retrospectives. EN is where I code in public.'}
+            {strings.hero_pt_description}
           </p>
 
           {/* Latest PT -- wide card with title + meta */}
@@ -84,7 +81,7 @@ function HeroPT({ locale, theme, latestPT, latestEN, enOlder, fmtNum }: Props) {
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
                         <FlagBadge locale="pt" size="sm" ink={ink}/>
                         <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, color: faint, letterSpacing: '0.06em' }}>
-                          {formatDate(latestPT.publishedAt, L)}
+                          {formatDate(latestPT.publishedAt, locale)}
                         </span>
                       </div>
                       <h2 style={{
@@ -117,7 +114,7 @@ function HeroPT({ locale, theme, latestPT, latestEN, enOlder, fmtNum }: Props) {
             letterSpacing: '0.18em', textTransform: 'uppercase', color: faint,
           }}>
             <FlagBadge locale="en" size="sm" ink={ink}/>
-            <span>{L === 'pt' ? 'também rolou no @thiagofigueiredo' : 'also on @thiagofigueiredo'}</span>
+            <span>{strings.hero_pt_also_on}</span>
           </div>
 
           {latestEN && (
@@ -128,7 +125,7 @@ function HeroPT({ locale, theme, latestPT, latestEN, enOlder, fmtNum }: Props) {
                   <VideoThumbnail video={latestEN} aspect="16/9"/>
                   <div style={{ padding: '14px 18px 16px' }}>
                     <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, color: faint, marginBottom: 6, letterSpacing: '0.06em' }}>
-                      {formatDate(latestEN.publishedAt, L)} {'·'} {fmtNum(latestEN.viewCount)} views
+                      {formatDate(latestEN.publishedAt, locale)} {'·'} {fmtNum(latestEN.viewCount)} {strings.card_views}
                     </div>
                     <h3 style={{
                       fontFamily: '"Fraunces", serif', fontSize: 17, margin: '2px 0 6px', fontWeight: 500,
@@ -153,7 +150,7 @@ function HeroPT({ locale, theme, latestPT, latestEN, enOlder, fmtNum }: Props) {
                 fontFamily: '"JetBrains Mono", monospace', fontSize: 9.5,
                 letterSpacing: '0.2em', textTransform: 'uppercase', color: faint, marginBottom: 12,
               }}>
-                {L === 'pt' ? 'anteriores em inglês' : 'previously in English'}
+                {strings.hero_pt_previously}
               </div>
               {enOlder.map((v, i) => (
                 <VideoLightbox key={v.id} youtubeVideoId={v.youtubeVideoId}>
@@ -170,7 +167,7 @@ function HeroPT({ locale, theme, latestPT, latestEN, enOlder, fmtNum }: Props) {
                         {v.title}
                       </div>
                       <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 9.5, color: faint, marginTop: 4, letterSpacing: '0.06em' }}>
-                        {formatDate(v.publishedAt, L)} {'·'} {v.duration}
+                        {formatDate(v.publishedAt, locale)} {'·'} {v.duration}
                       </div>
                     </div>
                     <span style={{ color: yt, fontSize: 14, alignSelf: 'center' }}>{'▶'}</span>
@@ -185,9 +182,8 @@ function HeroPT({ locale, theme, latestPT, latestEN, enOlder, fmtNum }: Props) {
   )
 }
 
-function HeroEN({ locale, theme, latestPT, latestEN, enOlder, fmtNum }: Props) {
+function HeroEN({ locale, theme, latestPT, latestEN, enOlder, fmtNum, strings }: Props) {
   const { ink, muted, faint, line, marker, yt, paper2, tapeR, hand } = theme
-  const L = locale
 
   return (
     <section style={{ maxWidth: 1280, margin: '0 auto', padding: '56px 28px 28px' }}>
@@ -196,7 +192,7 @@ function HeroEN({ locale, theme, latestPT, latestEN, enOlder, fmtNum }: Props) {
         letterSpacing: '0.2em', textTransform: 'uppercase',
         color: yt, marginBottom: 12,
       }}>
-        § 01 · {L === 'pt' ? 'último vídeo' : 'latest video'}
+        § 01 · {strings.hero_en_section_label}
       </div>
 
       <h1 style={{
@@ -206,10 +202,10 @@ function HeroEN({ locale, theme, latestPT, latestEN, enOlder, fmtNum }: Props) {
         textWrap: 'balance' as CSSProperties['textWrap'], position: 'relative',
         isolation: 'isolate',
       }}>
-        Live-coding,
+        {strings.hero_en_headline_line1}
         <br/>
         <span style={{ position: 'relative', display: 'inline-block', isolation: 'isolate' }}>
-          {L === 'pt' ? 'em inglês.' : 'in English.'}
+          {strings.hero_en_headline_line2}
           <span aria-hidden="true" style={{
             position: 'absolute', bottom: 4, left: -6, right: -6, height: 18,
             background: marker, zIndex: -1, opacity: 0.7, transform: 'skew(-2deg)',
@@ -218,9 +214,7 @@ function HeroEN({ locale, theme, latestPT, latestEN, enOlder, fmtNum }: Props) {
       </h1>
 
       <p style={{ fontSize: 17, color: muted, marginTop: 12, maxWidth: 720, lineHeight: 1.55, fontFamily: '"Source Serif 4", Georgia, serif' }}>
-        {L === 'pt'
-          ? '@thiagofigueiredo — onde eu codifico em público, em inglês. Tem um canal-irmão em português, lá em cima.'
-          : '@thiagofigueiredo — where I code in public, in English. There\'s a sister channel in Portuguese, linked above.'}
+        {strings.hero_en_description}
       </p>
 
       {latestEN && (
@@ -234,7 +228,7 @@ function HeroEN({ locale, theme, latestPT, latestEN, enOlder, fmtNum }: Props) {
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
                     <FlagBadge locale="en" size="sm" ink={ink}/>
                     <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, color: faint }}>
-                      {formatDate(latestEN.publishedAt, L)}
+                      {formatDate(latestEN.publishedAt, locale)}
                     </span>
                   </div>
                   <h2 style={{
@@ -263,7 +257,7 @@ function HeroEN({ locale, theme, latestPT, latestEN, enOlder, fmtNum }: Props) {
               letterSpacing: '0.18em', textTransform: 'uppercase', color: faint,
               paddingBottom: 8, borderBottom: `1px dashed ${line}`,
             }}>
-              {L === 'pt' ? 'anteriores' : 'previously'}
+              {strings.hero_en_previously}
             </div>
             {enOlder.map((v) => (
               <VideoLightbox key={v.id} youtubeVideoId={v.youtubeVideoId}>
@@ -296,7 +290,7 @@ function HeroEN({ locale, theme, latestPT, latestEN, enOlder, fmtNum }: Props) {
                   </div>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 9.5, color: faint, letterSpacing: '0.08em', marginBottom: 4 }}>
-                      {formatDate(v.publishedAt, L)} {'·'} {fmtNum(v.viewCount)} views
+                      {formatDate(v.publishedAt, locale)} {'·'} {fmtNum(v.viewCount)} {strings.card_views}
                     </div>
                     <div style={{
                       fontFamily: '"Fraunces", serif', fontSize: 14.5, lineHeight: 1.2, color: ink, fontWeight: 500, letterSpacing: '-0.005em',

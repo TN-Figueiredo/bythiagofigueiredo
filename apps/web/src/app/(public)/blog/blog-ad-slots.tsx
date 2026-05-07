@@ -473,108 +473,114 @@ export function BowtieAd({ locale }: BowtieAdProps) {
         position: 'relative',
       }}
     >
-      {/* Dismiss */}
-      <div style={{ position: 'absolute', top: 12, right: 12 }}>
-        <DismissButton
-          onClick={dismiss}
-          label={locale === 'pt-BR' ? 'Fechar' : 'Close'}
-        />
-      </div>
-
-      {/* Title (cursive hand-drawn feel) */}
-      <div
-        style={{
-          fontFamily: '"Caveat", cursive',
-          fontSize: 28,
-          fontWeight: 600,
-          color: theme.ink,
-          lineHeight: 1.15,
-          marginBottom: 8,
-          textWrap: 'balance',
-        }}
-      >
-        {locale === 'pt-BR'
-          ? 'Receba o próximo ensaio antes de virar público'
-          : 'Get the next essay before it goes public'}
-      </div>
-
-      {/* Subtitle */}
-      <div
-        style={{
-          fontFamily: '"Source Serif 4", Georgia, serif',
-          fontSize: 14,
-          color: theme.muted,
-          lineHeight: 1.5,
-          marginBottom: 20,
-          maxWidth: 520,
-        }}
-      >
-        {locale === 'pt-BR'
-          ? 'Uma vez por semana, direto no email. Sem spam, sem algoritmo — só texto que vale a pena ler.'
-          : 'Once a week, straight to your inbox. No spam, no algorithm — just writing worth reading.'}
-      </div>
-
-      {/* Form or success */}
-      {!sent ? (
-        <form
-          onSubmit={handleSubmit}
-          style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}
-        >
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder={locale === 'pt-BR' ? 'voce@email.com' : 'you@email.com'}
-            style={{
-              flex: 1,
-              minWidth: 200,
-              padding: '12px 14px',
-              fontSize: 14,
-              border: `1px solid ${theme.faint}`,
-              background: theme.bg,
-              color: theme.ink,
-              fontFamily: '"Inter", sans-serif',
-              outline: 'none',
-            }}
+      <div style={{ maxWidth: 620, margin: '0 auto', position: 'relative' }}>
+        {/* Dismiss */}
+        <div style={{ position: 'absolute', top: -8, right: -8 }}>
+          <DismissButton
+            onClick={dismiss}
+            label={locale === 'pt-BR' ? 'Fechar' : 'Close'}
           />
-          <button
-            type="submit"
-            style={{
-              padding: '12px 20px',
-              background: theme.accent,
-              color: theme.bg,
-              border: 'none',
-              fontFamily: '"JetBrains Mono", monospace',
-              fontSize: 11,
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-              fontWeight: 600,
-              cursor: 'pointer',
-              transition: 'opacity 0.15s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.opacity = '0.85'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.opacity = '1'
-            }}
-          >
-            {locale === 'pt-BR' ? 'Assinar' : 'Subscribe'}
-          </button>
-        </form>
-      ) : (
+        </div>
+
+        {/* Title (cursive hand-drawn feel) */}
         <div
           style={{
             fontFamily: '"Caveat", cursive',
-            fontSize: 20,
-            color: theme.accent,
-            padding: '10px 0',
+            fontSize: 28,
+            fontWeight: 600,
+            color: theme.ink,
+            lineHeight: 1.15,
+            marginBottom: 8,
+            textWrap: 'balance',
+            textAlign: 'center',
           }}
         >
-          {locale === 'pt-BR' ? 'Recebido. Confira sua caixa.' : 'Got it. Check your inbox.'}
+          {locale === 'pt-BR'
+            ? 'Receba o próximo ensaio antes de virar público'
+            : 'Get the next essay before it goes public'}
         </div>
-      )}
+
+        {/* Subtitle */}
+        <div
+          style={{
+            fontFamily: '"Source Serif 4", Georgia, serif',
+            fontSize: 14,
+            color: theme.muted,
+            lineHeight: 1.5,
+            marginBottom: 20,
+            maxWidth: 520,
+            margin: '0 auto 20px',
+            textAlign: 'center',
+          }}
+        >
+          {locale === 'pt-BR'
+            ? 'Uma vez por semana, direto no email. Sem spam, sem algoritmo — só texto que vale a pena ler.'
+            : 'Once a week, straight to your inbox. No spam, no algorithm — just writing worth reading.'}
+        </div>
+
+        {/* Form or success */}
+        {!sent ? (
+          <form
+            onSubmit={handleSubmit}
+            style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}
+          >
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder={locale === 'pt-BR' ? 'voce@email.com' : 'you@email.com'}
+              style={{
+                flex: 1,
+                minWidth: 200,
+                padding: '12px 14px',
+                fontSize: 14,
+                border: `1px solid ${theme.faint}`,
+                background: theme.bg,
+                color: theme.ink,
+                fontFamily: '"Inter", sans-serif',
+                outline: 'none',
+              }}
+            />
+            <button
+              type="submit"
+              style={{
+                padding: '12px 20px',
+                background: theme.accent,
+                color: theme.bg,
+                border: 'none',
+                fontFamily: '"JetBrains Mono", monospace',
+                fontSize: 11,
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'opacity 0.15s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.opacity = '0.85'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.opacity = '1'
+              }}
+            >
+              {locale === 'pt-BR' ? 'Assinar' : 'Subscribe'}
+            </button>
+          </form>
+        ) : (
+          <div
+            style={{
+              fontFamily: '"Caveat", cursive',
+              fontSize: 20,
+              color: theme.accent,
+              padding: '10px 0',
+              textAlign: 'center',
+            }}
+          >
+            {locale === 'pt-BR' ? 'Recebido. Confira sua caixa.' : 'Got it. Check your inbox.'}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>bythiagofigueiredo — Pinboard</title>
+<title>CMS — Todos os blocos · bythiagofigueiredo</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Caveat:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Source+Serif+4:ital,opsz,wght@0,8..60,300..900;1,8..60,300..900&family=Caveat:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 
 <style>
   * { box-sizing: border-box; }
@@ -58,7 +58,9 @@
     display: none;
   }
   .tweaks-panel.visible { display: block; }
-  .tweaks-panel { max-height: 70vh; overflow-y: auto; }
+  .tweaks-panel {
+    max-height: 70vh; overflow-y: auto;
+  }
   .tweaks-section-title {
     font-family: 'JetBrains Mono', monospace; font-size: 9px;
     letter-spacing: 0.16em; text-transform: uppercase; opacity: 0.45;
@@ -92,14 +94,13 @@
 
   #root { min-height: 100vh; padding-top: 44px; }
 
-  /* Responsive guards: collapse common multi-column grids on mobile.
-     Targets inline grids by exact computed grid-template-columns hashes.
-     Cheaper than rewriting every JSX site-wide. */
+  /* Responsive guards: collapse multi-column grids on mobile */
   @media (max-width: 760px) {
-    /* Generic 2-3-col grids inside main content collapse to 1-2 */
     [style*="grid-template-columns: 1fr 1fr"]:not(.keep-2col),
     [style*="grid-template-columns: 1fr 2fr"],
-    [style*="grid-template-columns: 2fr 1fr"] {
+    [style*="grid-template-columns: 2fr 1fr"],
+    [style*="grid-template-columns: 1fr 3fr"],
+    [style*="grid-template-columns: 3fr 1fr"] {
       grid-template-columns: 1fr !important;
     }
     [style*="grid-template-columns: repeat(3, 1fr)"] {
@@ -111,7 +112,6 @@
     [style*="grid-template-columns: repeat(7, 1fr)"] {
       grid-template-columns: repeat(2, 1fr) !important;
     }
-    /* Tighten section padding on narrow screens */
     section[style*="padding: 56px 28px"],
     section[style*="padding: 64px 28px"],
     section[style*="padding: 80px 28px"],
@@ -119,8 +119,6 @@
       padding-left: 18px !important;
       padding-right: 18px !important;
     }
-    /* Reduce paper rotation that becomes painful in narrow viewports */
-    .tweaks-panel { right: 8px !important; bottom: 8px !important; min-width: 0 !important; max-width: calc(100vw - 16px); }
   }
   @media (max-width: 480px) {
     [style*="grid-template-columns: repeat(3, 1fr)"],
@@ -135,7 +133,157 @@
   @media (max-width: 760px) {
     .tweaks-panel { right: 10px; bottom: 10px; min-width: 200px; }
   }
+
+  /* Post page: collapse sidebars below 960px */
+  @media (max-width: 960px) {
+    .post-layout {
+      grid-template-columns: minmax(0, 720px) !important;
+      gap: 32px !important;
+    }
+    .post-layout > aside { display: none !important; }
+  }
+
+  /* Mobile-only inline ad — surfaces when rails collapse */
+  .mobile-only-ad { display: none; }
+  @media (max-width: 960px) {
+    .mobile-only-ad {
+      display: block;
+      margin: 36px 0;
+    }
+  }
+
+  /* Footnote superscripts inside article */
+  sup.fn {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62em;
+    padding: 0 4px;
+    margin: 0 1px;
+    cursor: pointer;
+    color: #C7702E;
+    background: rgba(199,112,46,0.08);
+    border-radius: 2px;
+    vertical-align: super;
+    line-height: 1;
+    transition: background 0.15s;
+  }
+  sup.fn:hover { background: rgba(199,112,46,0.2); }
+
+  /* User highlights */
+  mark.btf-hl {
+    background: linear-gradient(180deg, transparent 62%, rgba(255, 214, 102, 0.55) 62%, rgba(255, 214, 102, 0.55) 96%, transparent 96%);
+    color: inherit;
+    padding: 0 1px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  mark.btf-hl:hover {
+    background: linear-gradient(180deg, rgba(255, 214, 102, 0.2) 0%, rgba(255, 214, 102, 0.7) 60%, rgba(255, 214, 102, 0.7) 100%);
+  }
+
+  @keyframes btfFadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes btfSlideIn {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+  }
+  @keyframes btfPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* AI drawer scrollbar */
+  .ai-drawer::-webkit-scrollbar { width: 6px; }
+  .ai-drawer::-webkit-scrollbar-track { background: transparent; }
+  .ai-drawer::-webkit-scrollbar-thumb {
+    background: rgba(199,112,46,0.3); border-radius: 3px;
+  }
+
+  /* Post layout — responsive 3-col */
+  .post-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .post-layout > aside { display: none; }
+  @media (min-width: 1080px) {
+    .post-layout {
+      grid-template-columns: 200px minmax(0, 720px) 220px !important;
+    }
+    .post-layout > aside { display: block; }
+  }
+  @media (min-width: 1440px) {
+    .post-layout {
+      grid-template-columns: 220px minmax(0, 760px) 260px !important;
+    }
+  }
+
+  /* Smooth scroll for anchor nav */
+  html { scroll-behavior: smooth; }
+
+  /* Accessible focus rings */
+  *:focus { outline: none; }
+  *:focus-visible {
+    outline: 2px solid #C7702E;
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+  button:focus-visible, a:focus-visible {
+    outline: 2px solid #C7702E;
+    outline-offset: 3px;
+  }
+
+  /* Selection styling */
+  ::selection {
+    background: rgba(255, 214, 102, 0.6);
+    color: inherit;
+  }
+
+  /* Print styles — clean PDF-friendly layout */
+  @media print {
+    @page { margin: 1.5cm; }
+    body { background: #fff !important; color: #000 !important; }
+    /* Hide interactive chrome */
+    header, nav, footer,
+    [data-sel-toolbar],
+    .ai-drawer,
+    aside,
+    button { display: none !important; }
+    /* Hide floating elements */
+    [style*="position: fixed"],
+    [style*="position:sticky"],
+    [style*="position: sticky"] { display: none !important; position: static !important; }
+    /* Expand article to full width */
+    article, section, main { max-width: 100% !important; }
+    /* Reveal footnotes */
+    sup.fn {
+      background: transparent !important;
+      color: #000 !important;
+    }
+    sup.fn::after {
+      content: attr(data-fn);
+      font-size: 0.7em;
+    }
+    /* Show link URLs */
+    a[href^="http"]::after {
+      content: " (" attr(href) ")";
+      font-size: 0.85em;
+      color: #666;
+      font-family: monospace;
+    }
+    /* Strip rotations, transforms */
+    [style*="rotate"], [style*="transform"] {
+      transform: none !important;
+    }
+    /* Paper: strip the tape + rotations */
+    .paper-scrap { transform: none !important; box-shadow: none !important; border: 1px solid #ccc !important; }
+    /* Always-on black text */
+    h1, h2, h3, h4, p, li, blockquote { color: #000 !important; }
+  }
 </style>
+
+<!-- Print stylesheet — strips chrome, formats body for A4 -->
+<link rel="stylesheet" href="print.css" media="print">
 </head>
 <body>
 
@@ -165,16 +313,6 @@
     </div>
   </div>
 
-  <div class="tweaks-section-title">Sections</div>
-
-  <div class="tweaks-row">
-    <span class="label">Instagram feed</span>
-    <div class="tweak-seg" data-tweak="insta">
-      <button data-value="true" class="active">On</button>
-      <button data-value="false">Off</button>
-    </div>
-  </div>
-
   <div class="tweaks-section-title">Ads</div>
 
   <div class="tweaks-row">
@@ -187,29 +325,36 @@
   <div class="tweaks-row tweak-sub">
     <span class="label">Marginalia (rail)</span>
     <div class="tweak-seg" data-tweak="ads_marginalia">
-      <button data-value="true" class="active">On</button>
-      <button data-value="false">Off</button>
+      <button data-value="true">On</button>
+      <button data-value="false" class="active">Off</button>
     </div>
   </div>
   <div class="tweaks-row tweak-sub">
-    <span class="label">Anchor (card)</span>
+    <span class="label">Anchor (sidebar)</span>
     <div class="tweak-seg" data-tweak="ads_anchor">
-      <button data-value="true" class="active">On</button>
-      <button data-value="false">Off</button>
+      <button data-value="true">On</button>
+      <button data-value="false" class="active">Off</button>
     </div>
   </div>
   <div class="tweaks-row tweak-sub">
     <span class="label">Bookmark (inline)</span>
     <div class="tweak-seg" data-tweak="ads_bookmark">
-      <button data-value="true" class="active">On</button>
-      <button data-value="false">Off</button>
+      <button data-value="true">On</button>
+      <button data-value="false" class="active">Off</button>
+    </div>
+  </div>
+  <div class="tweaks-row tweak-sub">
+    <span class="label">Coda (after body)</span>
+    <div class="tweak-seg" data-tweak="ads_coda">
+      <button data-value="true">On</button>
+      <button data-value="false" class="active">Off</button>
     </div>
   </div>
   <div class="tweaks-row tweak-sub">
     <span class="label">Bowtie (newsletter)</span>
     <div class="tweak-seg" data-tweak="ads_bowtie">
-      <button data-value="true" class="active">On</button>
-      <button data-value="false">Off</button>
+      <button data-value="true">On</button>
+      <button data-value="false" class="active">Off</button>
     </div>
   </div>
   <div class="tweaks-row tweak-sub">
@@ -230,6 +375,7 @@
 </div>
 
 <div id="root"></div>
+<script>window.__FORCE_SLUG__ = "showcase-cms-blocos";</script>
 
 <!-- React + Babel -->
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
@@ -239,34 +385,35 @@
 <script src="content.js?v=5"></script>
 <script src="ads-content.js"></script>
 <script type="text/babel" src="shared.jsx"></script>
+<script type="text/babel" src="hero-illustrations.jsx"></script>
+<script type="text/babel" src="ai-reader.jsx"></script>
 <script type="text/babel" src="ads.jsx"></script>
-<script type="text/babel" src="pinboard.jsx"></script>
+<script type="text/babel" src="post.jsx"></script>
 
 <!-- Tweak defaults -->
 <script>
   const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
-    "lang": "en",
+    "lang": "pt",
     "theme": "dark",
     "ads": true,
     "ads_marginalia": true,
     "ads_anchor": true,
     "ads_bookmark": true,
-    "ads_bowtie": true,
-    "ads_doorman": true,
     "ads_coda": true,
-    "insta": true
+    "ads_doorman": true,
+    "ads_bowtie": true
   }/*EDITMODE-END*/;
 </script>
 
 <script type="text/babel">
   function loadState() {
     try {
-      const saved = JSON.parse(localStorage.getItem("btf_pinboard") || "{}");
+      const saved = JSON.parse(localStorage.getItem("btf_cms_showcase") || "{}");
       return { ...TWEAK_DEFAULTS, ...saved };
     } catch { return { ...TWEAK_DEFAULTS }; }
   }
   function saveState(s) {
-    try { localStorage.setItem("btf_pinboard", JSON.stringify(s)); } catch {}
+    try { localStorage.setItem("btf_cms_showcase", JSON.stringify(s)); } catch {}
   }
 
   const App = () => {
@@ -345,12 +492,12 @@
             lang: state.lang, theme: state.theme,
             ads: state.ads, ads_marginalia: state.ads_marginalia,
             ads_anchor: state.ads_anchor, ads_bookmark: state.ads_bookmark,
-            ads_bowtie: state.ads_bowtie, ads_doorman: state.ads_doorman,
-            insta: state.insta,
+            ads_coda: state.ads_coda, ads_doorman: state.ads_doorman,
+            ads_bowtie: state.ads_bowtie,
           },
         }, "*");
       } catch {}
-    }, [state.lang, state.theme, state.ads, state.ads_marginalia, state.ads_anchor, state.ads_bookmark, state.ads_bowtie, state.ads_doorman, state.insta]);
+    }, [state.lang, state.theme, state.ads, state.ads_marginalia, state.ads_anchor, state.ads_bookmark, state.ads_coda, state.ads_doorman, state.ads_bowtie]);
 
     window._lang = state.lang;
     const t = window.CONTENT.ui[state.lang] || window.CONTENT.ui.pt;
@@ -362,12 +509,13 @@
         marginalia: state.ads_marginalia !== false,
         anchor: state.ads_anchor !== false,
         bookmark: state.ads_bookmark !== false,
+        coda: state.ads_coda !== false,
         bowtie: state.ads_bowtie !== false,
         doorman: state.ads_doorman === true,
       },
     };
 
-    return <window.Pinboard t={t} dark={dark} content={window.CONTENT} adsConfig={adsConfig} tweaks={{ insta: state.insta !== false }} />;
+    return <window.PostPage t={t} dark={dark} content={window.CONTENT} adsConfig={adsConfig} />;
   };
 
   ReactDOM.createRoot(document.getElementById("root")).render(<App/>);

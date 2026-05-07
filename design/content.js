@@ -18,6 +18,18 @@ window.CONTENT = {
   // 14 posts, most recent first, with category refs
   posts: [
     {
+      slug: "showcase-cms-blocos",
+      cat: "code",
+      date_pt: "06 Mai 2026", date_en: "May 06, 2026", iso: "2026-05-06",
+      read: "7",
+      tags: ["cms", "design", "componentes", "showcase"], feat: false,
+      img: { h: 260, h2: 40, pattern: "grid" },
+      title_pt: "Todos os blocos do CMS, em um lugar só",
+      title_en: "Every CMS block, in one place",
+      excerpt_pt: "Um post de referência rendering cada tipo de bloco que o editor produz: títulos, listas, imagens, CTAs, e embeds de YouTube, X, Instagram, GitHub, CodePen e CodeSandbox.",
+      excerpt_en: "A reference post rendering every block type the editor outputs: headings, lists, images, CTAs, and YouTube, X, Instagram, GitHub, CodePen and CodeSandbox embeds.",
+    },
+    {
       slug: "manifesto-bythiagofigueiredo",
       cat: "essay",
       date_pt: "24 Abr 2026", date_en: "Apr 24, 2026", iso: "2026-04-24",
@@ -605,9 +617,312 @@ window.CONTENT = {
     ],
   },
 
+  // Instagram feed (auto-synced via API in production; mock data here)
+  // Source: instagram.com/bythiagofigueiredo · all shots on iPhone for now
+  instagramFeed: {
+    handle: "bythiagofigueiredo",
+    url: "https://instagram.com/bythiagofigueiredo",
+    posts: [
+      {
+        id: "ig1",
+        src: "https://images.unsplash.com/photo-1518770660439-4636190af475?w=600&q=80",
+        caption_pt: "setup novo, mesma cadeira velha",
+        caption_en: "new setup, same old chair",
+        date: "2026-05-04",
+        likes: 312,
+        url: "https://instagram.com/p/abc1",
+      },
+      {
+        id: "ig2",
+        src: "https://images.unsplash.com/photo-1499951360447-b19be8fe80f5?w=600&q=80",
+        caption_pt: "café da manhã de quarta",
+        caption_en: "wednesday breakfast",
+        date: "2026-05-01",
+        likes: 187,
+        url: "https://instagram.com/p/abc2",
+      },
+      {
+        id: "ig3",
+        src: "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=600&q=80",
+        caption_pt: "fim de tarde, BH",
+        caption_en: "late afternoon, BH",
+        date: "2026-04-28",
+        likes: 421,
+        url: "https://instagram.com/p/abc3",
+      },
+      {
+        id: "ig4",
+        src: "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=600&q=80",
+        caption_pt: "trilha de domingo",
+        caption_en: "sunday hike",
+        date: "2026-04-26",
+        likes: 256,
+        url: "https://instagram.com/p/abc4",
+      },
+      {
+        id: "ig5",
+        src: "https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=600&q=80",
+        caption_pt: "estrada pra Tiradentes",
+        caption_en: "road to Tiradentes",
+        date: "2026-04-22",
+        likes: 198,
+        url: "https://instagram.com/p/abc5",
+      },
+    ],
+  },
+
   // Rich post body content — keyed by slug. Each entry is an array of blocks.
   // Block types: h2, h3, p, quote, list, code, figure, callout, note
   postBodies: {
+    "showcase-cms-blocos": {
+      pt: [
+        { type: "p", text: "Este post é uma referência viva. Cada bloco que nosso editor produz aparece aqui pelo menos uma vez, na ordem em que você normalmente escreveria — do título ao embed final. Use ele como espelho quando estiver pensando em layout." },
+        { type: "callout", text: "Tudo que você vê abaixo sai do mesmo CMS — Tiptap no editor, JSON no banco, este renderer aqui no front." },
+
+        { type: "h2", id: "tipografia", text_pt: "Tipografia e blocos de texto", text_en: "Typography and text blocks" },
+        { type: "p", text: "O <b>parágrafo</b> é a unidade base. Suporta <i>itálico</i>, <b>negrito</b>, <u>sublinhado</u>, <s>tachado</s>, <code>código inline</code> e <a href=\"#\">links</a> — tudo o que o toolbar do editor expõe." },
+        { type: "p", align: "center", text: "Parágrafos também aceitam alinhamento. Este aqui está centralizado." },
+        { type: "p", align: "right", text: "E este à direita — útil para legendas curtas ou assinaturas." },
+
+        { type: "h3", id: "h3-exemplo", text_pt: "Subtítulo H3 — para sub-seções", text_en: "H3 subhead — for sub-sections" },
+        { type: "p", text: "H1 é raro num post (o título da página já é H1). H2 marca seções. H3 é para nuances dentro de uma seção." },
+
+        { type: "h2", id: "listas", text_pt: "Listas", text_en: "Lists" },
+        { type: "p", text: "Lista com marcador — usa setas no lugar de bullets para combinar com o resto do design system:" },
+        { type: "bulletList", items: [
+          "Primeiro item — pode conter <b>negrito</b> e <a href=\"#\">links</a>.",
+          "Segundo item, mais curto.",
+          "Terceiro, com <code>código inline</code> dentro."
+        ]},
+        { type: "p", text: "Lista numerada — números monoespaçados na margem, no estilo do caderno:" },
+        { type: "orderedList", items: [
+          "Abrir o editor.",
+          "Escrever o post bilíngue.",
+          "Escolher destinos no checkbox de publicação.",
+          "Clicar em publicar uma única vez."
+        ]},
+
+        { type: "h2", id: "citacao", text_pt: "Citação e divisor", text_en: "Quote and divider" },
+        { type: "quote", text: "A melhor interface é a que desaparece quando você está escrevendo, e aparece quando você precisa de uma decisão.", cite: "Caderno de campo, semana 12" },
+        { type: "divider" },
+
+        { type: "h2", id: "imagem", text_pt: "Imagens", text_en: "Images" },
+        { type: "p", text: "Imagens enviadas pelo editor renderizam com borda fina, sombra suave e legenda opcional em itálico:" },
+        { type: "image",
+          src: "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=1200&q=80",
+          alt: "Mesa com notebook, caderno aberto e xícara de café",
+          caption: "A mesa em que isso tudo é escrito. O caderno fica sempre aberto.",
+          align: "center"
+        },
+
+        { type: "h2", id: "codigo", text_pt: "Bloco de código", text_en: "Code block" },
+        { type: "p", text: "Blocos de código têm rótulo de linguagem no topo e botão de copiar — útil para snippets que o leitor vai usar." },
+        { type: "code", lang: "tsx", text: "// Editor → JSON → este renderer\nimport { Block } from './post'\n\nexport function render(blocks) {\n  return blocks.map((b, i) => <Block key={i} block={b} />)\n}" },
+
+        { type: "h2", id: "cta", text_pt: "Botão de CTA", text_en: "CTA button" },
+        { type: "p", text: "Quando o post tem um destino claro — assinar, baixar, conferir o repo — usamos um botão de CTA dentro do corpo. Ele segue a estética de fita marcadora:" },
+        { type: "cta", label: "Assinar a newsletter", href: "newsletters.html", align: "center" },
+
+        { type: "h2", id: "embeds", text_pt: "Embeds sociais e de código", text_en: "Social and code embeds" },
+        { type: "p", text: "Cada provedor tem um cabeçalho identificando a fonte e um link para abrir no original. A renderização é nativa — sem widgets de terceiros poluindo a página." },
+
+        { type: "h3", id: "yt", text_pt: "YouTube", text_en: "YouTube" },
+        { type: "embed", provider: "youtube", url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", title: "Vídeo de demonstração" },
+
+        { type: "h3", id: "tw", text_pt: "X / Twitter", text_en: "X / Twitter" },
+        { type: "embed", provider: "twitter",
+          url: "https://x.com/bythiago/status/1234567890",
+          handle: "bythiago", author: "Thiago Figueiredo",
+          text: "Levei três meses pra entender que <b>publicar uma vez em seis lugares</b> é mais valioso que escrever seis posts diferentes. O CMS é a infraestrutura que tornou isso possível.",
+          date: "26 Abr 2026 · 09:14",
+          replies: [
+            { author: "Marina C.", handle: "marina_dev",
+              text: "E o trabalho de adaptar tom por canal? Ou o post é o mesmo em todo lugar?",
+              date: "26 Abr · 09:31" },
+            { author: "Thiago Figueiredo", handle: "bythiago",
+              text: "O CMS guarda <i>variantes por destino</i> — mesmo conteúdo, headline e CTA diferentes. O custo marginal de uma variante é ~2 minutos.",
+              date: "26 Abr · 09:38" },
+            { author: "João P.", handle: "jp_codes",
+              text: "Open source quando? 🙏", date: "26 Abr · 10:02" }
+          ]
+        },
+
+        { type: "h3", id: "ig", text_pt: "Instagram", text_en: "Instagram" },
+        { type: "embed", provider: "instagram",
+          url: "https://www.instagram.com/p/CzExAmPlE/",
+          handle: "bythiagofigueiredo",
+          src: "https://images.unsplash.com/photo-1499951360447-b19be8fe80f5?w=900&q=80",
+          caption: "Setup da semana — mais marca-texto que código.",
+          likes: "1.2k"
+        },
+
+        { type: "h3", id: "gh", text_pt: "GitHub — repo", text_en: "GitHub — repo" },
+        { type: "embed", provider: "github",
+          url: "https://github.com/bythiago/bythiagofigueiredo",
+          description: "Source do hub bilíngue — Next.js, Supabase e um CMS feito em casa que publica em seis sites a partir do mesmo post.",
+          language: "TypeScript", languageColor: "#3178c6",
+          stars: 412, forks: 38, license: "MIT"
+        },
+
+        { type: "h3", id: "gh-user", text_pt: "GitHub — user profile", text_en: "GitHub — user profile" },
+        { type: "embed", provider: "github",
+          url: "https://github.com/bythiago",
+          name: "Thiago Figueiredo",
+          bio: "Escrevo sobre infraestrutura editorial e a vida pós-Notion. Construo o que falta pra escrever.",
+          followers: 2814, following: 142, repos: 47,
+          location: "São Paulo, BR", company: "@independent"
+        },
+
+        { type: "h3", id: "cp", text_pt: "CodePen", text_en: "CodePen" },
+        { type: "embed", provider: "codepen", url: "https://codepen.io/chriscoyier/pen/aOPMxq", title: "Demo CSS", view: "result" },
+
+        { type: "h3", id: "cs", text_pt: "CodeSandbox", text_en: "CodeSandbox" },
+        { type: "embed", provider: "codesandbox", url: "https://codesandbox.io/s/new", title: "Sandbox React", view: "split" },
+
+        { type: "h3", id: "vimeo", text_pt: "Vimeo", text_en: "Vimeo" },
+        { type: "embed", provider: "vimeo", url: "https://vimeo.com/76979871", title: "The Mountain" },
+
+        { type: "h3", id: "loom", text_pt: "Loom", text_en: "Loom" },
+        { type: "embed", provider: "loom", url: "https://www.loom.com/share/e883f6855f314ddd9a72b27e54b7474b", title: "Walkthrough" },
+
+        { type: "h3", id: "spotify", text_pt: "Spotify", text_en: "Spotify" },
+        { type: "embed", provider: "spotify", url: "https://open.spotify.com/episode/3ZrxFJSfm1EmAUEgZ3jOhI", title: "Episódio do podcast" },
+
+        { type: "h3", id: "figma", text_pt: "Figma", text_en: "Figma" },
+        { type: "embed", provider: "figma", url: "https://www.figma.com/file/abc/Sample", title: "Wireframe" },
+
+        { type: "h3", id: "pdf", text_pt: "PDF", text_en: "PDF" },
+        { type: "embed", provider: "pdf", url: "https://www.africau.edu/images/default/sample.pdf", title: "spec.pdf" },
+
+        { type: "h2", id: "tabela", text_pt: "Tabelas", text_en: "Tables" },
+        { type: "p", text: "Útil para comparações, schemas ou dados estruturados. Cabeçalho fica monoespaçado em caps; linhas alternam só com border, sem zebra:" },
+        { type: "table",
+          headers: ["Bloco", "Quando usar", "Exemplo"],
+          rows: [
+            ["<code>quote</code>", "Citação editorial, 1-2 frases", "Frases que merecem peso"],
+            ["<code>callout</code>", "Aviso ou nota lateral", "Tom de aside"],
+            ["<code>toggle</code>", "Conteúdo opcional, secundário", "FAQ, detalhes técnicos"],
+            ["<code>cta</code>", "Conversão direta", "Assinar, baixar, abrir repo"]
+          ]
+        },
+
+        { type: "h2", id: "toggle", text_pt: "Toggle / Accordion", text_en: "Toggle / Accordion" },
+        { type: "p", text: "Para conteúdo opcional que não merece roubar o fluxo principal — FAQ, nuances técnicas, contexto histórico:" },
+        { type: "toggle",
+          title_pt: "Por que não usar widgets oficiais nos embeds?",
+          title_en: "Why not use official widgets for embeds?",
+          text: "Widgets de Twitter, Instagram e companhia carregam JS, fontes e tracking — três coisas que travam a página e quebram a estética. Renderizar um card próprio mantém o controle total: tipografia consistente, sem CLS, sem cookies de terceiros. Se o leitor quiser o original, o link <code>open ↗</code> está sempre lá."
+        },
+        { type: "toggle",
+          title_pt: "Os embeds funcionam offline?",
+          title_en: "Do embeds work offline?",
+          text: "Twitter/X, Instagram e GitHub são totalmente renderizados no servidor — funcionam sem rede. YouTube, Vimeo, Loom, Spotify, Figma, CodePen, CodeSandbox e PDF dependem de iframes externos: precisam de internet, mas têm fallback gracioso (placeholder com link)."
+        },
+
+        { type: "h2", id: "colunas", text_pt: "Colunas", text_en: "Columns" },
+        { type: "p", text: "Quando duas ideias paralelas merecem peso igual lado a lado — comparações, antes/depois, prós/contras:" },
+        { type: "columns",
+          cols: [
+            "<b>Antes.</b> Cada destino tinha seu próprio post. Eu copiava e colava entre seis sites, mudava o tom de voz, esquecia de atualizar metadados em pelo menos dois deles. Levava um dia inteiro pra publicar uma coisa.",
+            "<b>Depois.</b> Escrevo uma vez, marco os destinos no checkbox, clico em <mark>publicar</mark>. O CMS cuida do resto — adapta o conteúdo por destino, gera os feeds, atualiza os metadados. Vinte minutos."
+          ]
+        },
+
+        { type: "h2", id: "highlight", text_pt: "Marcador (highlight)", text_en: "Highlighter" },
+        { type: "p", text: "Para destacar palavras dentro do parágrafo sem virar uma citação inteira — funciona como marca-texto físico: <mark>frases curtas que merecem destacar</mark>. É inline, parte da tag <code>&lt;mark&gt;</code>, e segue a cor de marca do tema." },
+
+        { type: "divider" },
+        { type: "p", text: "Este post existe pra dois propósitos: testar visualmente cada componente quando mudamos o design, e servir de espelho quando estou pensando em qual bloco usar pra contar uma história nova." }
+      ],
+      en: [
+        { type: "p", text: "This post is a living reference. Every block our editor produces appears here at least once, in the order you'd normally write it — from the heading down to the final embed. Use it as a mirror when you're thinking about layout." },
+        { type: "callout", text: "Everything you see below comes out of the same CMS — Tiptap in the editor, JSON in the database, this renderer here on the front." },
+
+        { type: "h2", id: "tipografia", text_pt: "Tipografia e blocos de texto", text_en: "Typography and text blocks" },
+        { type: "p", text: "The <b>paragraph</b> is the base unit. It supports <i>italic</i>, <b>bold</b>, <u>underline</u>, <s>strike</s>, <code>inline code</code> and <a href=\"#\">links</a> — everything the editor toolbar exposes." },
+        { type: "p", align: "center", text: "Paragraphs can also be aligned. This one is centered." },
+        { type: "p", align: "right", text: "And this one is right-aligned — useful for short captions or sign-offs." },
+
+        { type: "h3", id: "h3-exemplo", text_pt: "Subtítulo H3 — para sub-seções", text_en: "H3 subhead — for sub-sections" },
+        { type: "p", text: "H1 is rare in a post (the page title is already H1). H2 marks sections. H3 is for nuance inside a section." },
+
+        { type: "h2", id: "listas", text_pt: "Listas", text_en: "Lists" },
+        { type: "p", text: "Bullet list — uses arrows instead of bullets to match the rest of the design system:" },
+        { type: "bulletList", items: [
+          "First item — can contain <b>bold</b> and <a href=\"#\">links</a>.",
+          "Second, shorter item.",
+          "Third, with <code>inline code</code> in it."
+        ]},
+        { type: "p", text: "Numbered list — monospace numerals in the margin, in the notebook style:" },
+        { type: "orderedList", items: [
+          "Open the editor.",
+          "Write the bilingual post.",
+          "Pick destinations in the publish checkbox.",
+          "Click publish exactly once."
+        ]},
+
+        { type: "h2", id: "citacao", text_pt: "Citação e divisor", text_en: "Quote and divider" },
+        { type: "quote", text: "The best interface is the one that disappears when you're writing and shows up when you need a decision.", cite: "Field notes, week 12" },
+        { type: "divider" },
+
+        { type: "h2", id: "imagem", text_pt: "Imagens", text_en: "Images" },
+        { type: "p", text: "Images uploaded from the editor render with a thin border, soft shadow and an optional italic caption:" },
+        { type: "image",
+          src: "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=1200&q=80",
+          alt: "Desk with laptop, open notebook, and a coffee cup",
+          caption: "The desk all of this is written on. The notebook is always open.",
+          align: "center"
+        },
+
+        { type: "h2", id: "codigo", text_pt: "Bloco de código", text_en: "Code block" },
+        { type: "p", text: "Code blocks get a language label up top and a copy button — useful for snippets the reader will actually use." },
+        { type: "code", lang: "tsx", text: "// Editor → JSON → this renderer\nimport { Block } from './post'\n\nexport function render(blocks) {\n  return blocks.map((b, i) => <Block key={i} block={b} />)\n}" },
+
+        { type: "h2", id: "cta", text_pt: "Botão de CTA", text_en: "CTA button" },
+        { type: "p", text: "When the post has a clear destination — subscribe, download, check the repo — we use a CTA button inside the body. It follows the marker-tape aesthetic:" },
+        { type: "cta", label: "Subscribe to the newsletter", href: "newsletters.html", align: "center" },
+
+        { type: "h2", id: "embeds", text_pt: "Embeds sociais e de código", text_en: "Social and code embeds" },
+        { type: "p", text: "Each provider gets a header identifying the source and a link to open the original. Rendering is native — no third-party widgets cluttering the page." },
+
+        { type: "h3", id: "yt", text_pt: "YouTube", text_en: "YouTube" },
+        { type: "embed", provider: "youtube", url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", title: "Demo video" },
+
+        { type: "h3", id: "tw", text_pt: "X / Twitter", text_en: "X / Twitter" },
+        { type: "embed", provider: "twitter",
+          url: "https://x.com/bythiago/status/1234567890",
+          handle: "bythiago", author: "Thiago Figueiredo",
+          text: "Took me three months to realize that <b>publishing once to six places</b> is more valuable than writing six different posts. The CMS is the infrastructure that made it possible.",
+          date: "Apr 26, 2026 · 09:14"
+        },
+
+        { type: "h3", id: "ig", text_pt: "Instagram", text_en: "Instagram" },
+        { type: "embed", provider: "instagram",
+          url: "https://www.instagram.com/p/CzExAmPlE/",
+          handle: "bythiagofigueiredo",
+          src: "https://images.unsplash.com/photo-1499951360447-b19be8fe80f5?w=900&q=80",
+          caption: "Setup of the week — more highlighter than code.",
+          likes: "1.2k"
+        },
+
+        { type: "h3", id: "gh", text_pt: "GitHub", text_en: "GitHub" },
+        { type: "embed", provider: "github",
+          url: "https://github.com/bythiago/bythiagofigueiredo",
+          description: "Source for the bilingual hub — Next.js, Supabase and a homemade CMS that publishes to six sites from the same post.",
+          language: "TypeScript", languageColor: "#3178c6",
+          stars: 412, forks: 38, license: "MIT"
+        },
+
+        { type: "h3", id: "cp", text_pt: "CodePen", text_en: "CodePen" },
+        { type: "embed", provider: "codepen", url: "https://codepen.io/chriscoyier/pen/aOPMxq", title: "CSS demo", view: "result" },
+
+        { type: "h3", id: "cs", text_pt: "CodeSandbox", text_en: "CodeSandbox" },
+        { type: "embed", provider: "codesandbox", url: "https://codesandbox.io/s/new", title: "React sandbox", view: "split" },
+
+        { type: "divider" },
+        { type: "p", text: "This post exists for two reasons: to visually test each component when we change the design, and to mirror the choices when I'm picking which block to use to tell a new story." }
+      ],
+    },
     "manifesto-bythiagofigueiredo": {
       footnotes: {
         pt: [

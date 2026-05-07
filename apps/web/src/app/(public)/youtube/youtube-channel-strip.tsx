@@ -3,14 +3,16 @@
 import { useState } from 'react'
 import type { YouTubeChannelView } from './youtube-types'
 import { type Theme } from './youtube-atoms'
+import type { YouTubeStrings } from '@/lib/content/types'
 
 interface Props {
   locale: 'pt' | 'en'
   theme: Theme
+  strings: YouTubeStrings
   channels: YouTubeChannelView[]
 }
 
-function ChannelCard({ channel, locale, theme }: { channel: YouTubeChannelView; locale: 'pt' | 'en'; theme: Theme }) {
+function ChannelCard({ channel, locale, theme, strings }: { channel: YouTubeChannelView; locale: 'pt' | 'en'; theme: Theme; strings: YouTubeStrings }) {
   const { ink, muted, yt, line, paper } = theme
   const [hovered, setHovered] = useState(false)
   const L = locale
@@ -26,8 +28,8 @@ function ChannelCard({ channel, locale, theme }: { channel: YouTubeChannelView; 
     return String(n)
   }
 
-  const subsLabel = L === 'pt' ? 'inscritos' : 'subs'
-  const videosLabel = L === 'pt' ? 'vídeos' : 'videos'
+  const subsLabel = strings.channel_subs
+  const videosLabel = strings.channel_videos
 
   return (
     <a
@@ -66,18 +68,18 @@ function ChannelCard({ channel, locale, theme }: { channel: YouTubeChannelView; 
         fontFamily: '"JetBrains Mono", monospace', fontSize: 9.5,
         letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700, whiteSpace: 'nowrap',
       }}>
-        {'▶'} {L === 'pt' ? 'abrir' : 'open'}
+        {'▶'} {strings.channel_open}
       </span>
     </a>
   )
 }
 
-export function YouTubeChannelStrip({ locale, theme, channels }: Props) {
+export function YouTubeChannelStrip({ locale, theme, strings, channels }: Props) {
   return (
     <section style={{ maxWidth: 1280, margin: '0 auto', padding: '8px 28px 0' }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
         {channels.map(c => (
-          <ChannelCard key={c.id} channel={c} locale={locale} theme={theme}/>
+          <ChannelCard key={c.id} channel={c} locale={locale} theme={theme} strings={strings}/>
         ))}
       </div>
     </section>

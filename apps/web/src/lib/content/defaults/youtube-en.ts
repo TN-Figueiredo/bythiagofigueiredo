@@ -1,0 +1,73 @@
+import type { YouTubeStrings } from '../types'
+
+export const YOUTUBE_EN: YouTubeStrings = {
+  hero_pt_section_label: 'this week, on two channels',
+  hero_pt_headline: 'Two channels, one head',
+  hero_pt_description: 'One channel in Portuguese, one in English — from the same desk. PT is where I talk about career, setup, retrospectives. EN is where I code in public.',
+  hero_pt_also_on: 'also on @thiagofigueiredo',
+  hero_pt_previously: 'previously in English',
+
+  hero_en_section_label: 'latest video',
+  hero_en_headline_line1: 'Live-coding,',
+  hero_en_headline_line2: 'in English.',
+  hero_en_description: '@thiagofigueiredo — where I code in public, in English. There\'s a sister channel in Portuguese, linked above.',
+  hero_en_previously: 'previously',
+
+  stats_videos_published: 'videos published',
+  stats_hours_of_content: 'hours of content',
+  stats_comments_answered: 'comments answered',
+  stats_most_watched: 'most watched',
+
+  feature_section_label: 'this week\'s pick',
+  feature_headline: 'What\'s worth setting aside 20 minutes for',
+  feature_my_pick: 'my pick',
+  feature_also_dropped: 'also dropped',
+  feature_jump_to_series: 'jump to a series',
+
+  comments_section_label: 'what people said',
+  comments_headline: 'Clippings that made me stop and re-read',
+  comments_description: 'Hand-picked. Not automated — I read every single one.',
+  comments_scroll_annotation: 'enough scrolling',
+  comments_relative_today: 'today',
+  comments_relative_days: '{n}d ago',
+  comments_relative_weeks: '{n}w ago',
+  comments_relative_months: '{n}mo ago',
+  comments_relative_years: '{n}y ago',
+
+  archive_section_label: 'archive',
+  archive_headline: 'Everything on the channel',
+  archive_search_placeholder: 'search title, tag, series…',
+  archive_search_aria: 'Search videos',
+  archive_channel_label: 'channel:',
+  archive_channel_aria: 'Channel filter',
+  archive_channel_both: 'Both',
+  archive_clear_all: 'clear all',
+  archive_series_label: 'series:',
+  archive_series_aria: 'Series filter',
+  archive_tags_label: 'tags:',
+  archive_tags_aria: 'Tag filter',
+  archive_video_singular: 'video',
+  archive_video_plural: 'videos',
+  archive_filtered: 'filtered',
+  archive_newest_first: 'newest first',
+  archive_no_videos: 'no videos.',
+  archive_clear_filters: 'clear filters',
+  archive_load_more: 'load more',
+  archive_latest: 'Latest',
+
+  card_views: 'views',
+
+  channel_subs: 'subs',
+  channel_videos: 'videos',
+  channel_open: 'open',
+
+  subscribe_floating_label: 'subscribe',
+  subscribe_headline: 'Watching is free. Coming back is the hard part.',
+  subscribe_description: 'Subscribe to both — the YouTube feed takes care of the rest. PT covers career and setup; EN is live-coding.',
+  subscribe_subs: 'subs',
+  subscribe_button: 'subscribe',
+
+  empty_headline: 'Videos coming soon',
+  empty_description: 'The channel is almost live. Subscribe to get notified when the first video drops.',
+  empty_subscribe_button: 'Subscribe on YouTube',
+}

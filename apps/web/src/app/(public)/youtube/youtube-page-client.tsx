@@ -9,6 +9,7 @@ import { YouTubeFeatureBlock } from './youtube-feature-block'
 import { YouTubeCommentsWall } from './youtube-comments-wall'
 import { YouTubeSubscribe } from './youtube-subscribe'
 import { YouTubeArchive } from './youtube-archive'
+import type { YouTubeStrings } from '@/lib/content/types'
 import type { AdCreativeData } from '@/components/blog/ads'
 import { DoormanAd, BookmarkAd, MarginaliaAd } from '@/components/blog/ads'
 import { BowtieAd } from '@/app/(public)/blog/blog-ad-slots'
@@ -16,6 +17,7 @@ import { BowtieAd } from '@/app/(public)/blog/blog-ad-slots'
 interface Props {
   data: YouTubePageData
   locale: 'pt' | 'en'
+  strings: YouTubeStrings
   ads?: {
     doorman?: AdCreativeData | null
     bookmark?: AdCreativeData | null
@@ -25,7 +27,7 @@ interface Props {
 
 const PAGE_SIZE = 6
 
-export function YouTubePageClient({ data, locale, ads }: Props) {
+export function YouTubePageClient({ data, locale, strings, ads }: Props) {
   const { videos, channels, categories, comments } = data
   const L = locale
 
@@ -129,18 +131,16 @@ export function YouTubePageClient({ data, locale, ads }: Props) {
   if (videos.length === 0) {
     return (
       <main style={{ background: theme.bg, color: theme.ink, minHeight: '100vh' }} data-testid="youtube-page-client">
-        <YouTubeChannelStrip locale={L} theme={theme} channels={channels} />
+        <YouTubeChannelStrip locale={L} theme={theme} channels={channels} strings={strings} />
         <section style={{ textAlign: 'center', padding: '100px 28px 80px', maxWidth: 560, margin: '0 auto' }}>
           <div style={{ width: 68, height: 48, background: 'rgba(255,45,32,0.25)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="rgba(255,45,32,0.6)"><path d="M8 5v14l11-7z" /></svg>
           </div>
           <h1 style={{ ...theme.hand, fontSize: 32, color: theme.accent, margin: '0 0 12px' }}>
-            {L === 'pt' ? 'Vídeos chegando em breve' : 'Videos coming soon'}
+            {strings.empty_headline}
           </h1>
           <p style={{ fontSize: 16, color: theme.muted, lineHeight: 1.6, margin: '0 0 24px' }}>
-            {L === 'pt'
-              ? 'O canal está quase no ar. Inscreva-se para ser notificado quando o primeiro vídeo sair.'
-              : 'The channel is almost live. Subscribe to get notified when the first video drops.'}
+            {strings.empty_description}
           </p>
           {channels.length > 0 && (
             <a
@@ -154,11 +154,11 @@ export function YouTubePageClient({ data, locale, ads }: Props) {
               }}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
-              {L === 'pt' ? 'Inscrever no canal' : 'Subscribe on YouTube'}
+              {strings.empty_subscribe_button}
             </a>
           )}
         </section>
-        <YouTubeSubscribe locale={L} theme={theme} channels={channels} />
+        <YouTubeSubscribe locale={L} theme={theme} channels={channels} strings={strings} />
       </main>
     )
   }
@@ -170,15 +170,17 @@ export function YouTubePageClient({ data, locale, ads }: Props) {
         locale={L} theme={theme}
         latestPT={latestPT ?? null} latestEN={latestEN ?? null}
         enOlder={enOlder} fmtNum={fmtNum}
+        strings={strings}
       />
-      <YouTubeChannelStrip locale={L} theme={theme} channels={channels} />
+      <YouTubeChannelStrip locale={L} theme={theme} channels={channels} strings={strings} />
       <YouTubeStatsStrip
-        locale={L} theme={theme}
+        theme={theme}
         videoCount={data.totalVideoCount}
         hoursTotal={hoursTotal}
         totalComments={videos.reduce((acc, v) => acc + v.commentCount, 0)}
         mostWatchedViews={sortedAll.length > 0 ? sortedAll.reduce((max, v) => v.viewCount > max.viewCount ? v : max).viewCount : 0}
         fmtNum={fmtNum}
+        strings={strings}
       />
       <YouTubeFeatureBlock
         locale={L} theme={theme}
@@ -187,13 +189,14 @@ export function YouTubePageClient({ data, locale, ads }: Props) {
         categories={categories}
         fmtNum={fmtNum}
         onCategoryClick={(slug) => goToArchive({ cat: slug })}
+        strings={strings}
       />
       {ads?.bookmark && (
         <div style={{ maxWidth: 760, margin: '60px auto 0', padding: '0 28px' }}>
           <BookmarkAd creative={ads.bookmark} locale={adLocale} />
         </div>
       )}
-      <YouTubeCommentsWall locale={L} theme={theme} comments={comments}/>
+      <YouTubeCommentsWall locale={L} theme={theme} comments={comments} strings={strings} />
       {ads?.marginalia && (
         <section style={{ maxWidth: 720, margin: '70px auto 0', padding: '0 28px' }}>
           <MarginaliaAd creative={ads.marginalia} locale={adLocale} />
@@ -209,9 +212,10 @@ export function YouTubePageClient({ data, locale, ads }: Props) {
         allTags={allTags}
         totalVideoCount={data.totalVideoCount}
         fmtNum={fmtNum}
+        strings={strings}
       />
       <BowtieAd locale={adLocale} />
-      <YouTubeSubscribe locale={L} theme={theme} channels={channels}/>
+      <YouTubeSubscribe locale={L} theme={theme} channels={channels} strings={strings} />
     </main>
   )
 }
