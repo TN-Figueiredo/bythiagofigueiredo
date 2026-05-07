@@ -127,6 +127,7 @@ export async function updateAuthor(
     social_links?: Record<string, string>
     avatar_color?: string | null
     avatar_url?: string | null
+    about_photo_url?: string | null
     sort_order?: number
   },
 ): Promise<ActionResult> {

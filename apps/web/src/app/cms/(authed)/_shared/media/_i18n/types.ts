@@ -12,7 +12,7 @@ export interface MediaGalleryStrings {
     searchPlaceholder: string
     folderAll: string; folderAuthors: string; folderBlog: string
     folderNewsletters: string; folderBranding: string; folderOg: string
-    folderAds: string; folderGeneral: string
+    folderAds: string; folderLinks: string; folderGeneral: string
     loadMore: string; noResults: string; emptyLibrary: string
   }
   crop: { cropTitle: string; cropConfirm: string; cropCancel: string }

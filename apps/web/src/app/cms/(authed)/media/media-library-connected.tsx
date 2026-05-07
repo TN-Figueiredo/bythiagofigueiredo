@@ -23,6 +23,7 @@ const FOLDER_FILTERS: Array<{ value: string; labelKey: keyof ReturnType<typeof g
   { value: 'branding', labelKey: 'folderBranding' },
   { value: 'og', labelKey: 'folderOg' },
   { value: 'ads', labelKey: 'folderAds' },
+  { value: 'links', labelKey: 'folderLinks' },
   { value: 'general', labelKey: 'folderGeneral' },
 ]
 
@@ -38,6 +39,7 @@ export function MediaLibraryConnected({ locale, siteId }: Props) {
   const [folderFilter, setFolderFilter] = useState('')
   const [stats, setStats] = useState<{ total: number; totalSize: number } | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -75,7 +77,7 @@ export function MediaLibraryConnected({ locale, siteId }: Props) {
   useEffect(() => {
     getMediaStatsAction().then((res) => {
       if (res.ok) setStats({ total: res.stats.totalCount, totalSize: res.stats.totalSizeBytes })
-    })
+    }).catch(() => {})
   }, [])
 
   const selectedAsset = assets.find((a) => a.id === selectedId)
@@ -87,23 +89,24 @@ export function MediaLibraryConnected({ locale, siteId }: Props) {
     fetchAssets()
     getMediaStatsAction().then((res) => {
       if (res.ok) setStats({ total: res.stats.totalCount, totalSize: res.stats.totalSizeBytes })
-    })
+    }).catch(() => {})
   }
 
-  const handleDelete = async () => {
-    if (!selectedAsset) return
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirmId) return
     setDeleting(true)
     try {
-      const result = await softDeleteMediaAssetAction(selectedAsset.id)
+      const result = await softDeleteMediaAssetAction(deleteConfirmId)
       if (result.ok) {
-        setAssets((prev) => prev.filter((a) => a.id !== selectedAsset.id))
+        setAssets((prev) => prev.filter((a) => a.id !== deleteConfirmId))
         setSelectedId(null)
         getMediaStatsAction().then((res) => {
           if (res.ok) setStats({ total: res.stats.totalCount, totalSize: res.stats.totalSizeBytes })
-        })
+        }).catch(() => {})
       }
     } finally {
       setDeleting(false)
+      setDeleteConfirmId(null)
     }
   }
 
@@ -252,17 +255,41 @@ export function MediaLibraryConnected({ locale, siteId }: Props) {
                   >
                     {locale === 'pt-BR' ? 'Abrir' : 'Open'}
                   </a>
-                  <button
-                    type="button"
-                    onClick={handleDelete}
-                    disabled={deleting}
-                    className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50"
-                    data-testid="media-delete-btn"
-                  >
-                    {deleting
-                      ? (locale === 'pt-BR' ? 'Excluindo...' : 'Deleting...')
-                      : (locale === 'pt-BR' ? 'Excluir' : 'Delete')}
-                  </button>
+                  {deleteConfirmId === selectedAsset.id ? (
+                    <>
+                      <span className="text-xs text-red-400">
+                        {locale === 'pt-BR' ? 'Confirmar exclusão?' : 'Confirm delete?'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleDeleteConfirm}
+                        disabled={deleting}
+                        className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50"
+                        data-testid="media-delete-confirm"
+                      >
+                        {deleting
+                          ? (locale === 'pt-BR' ? 'Excluindo...' : 'Deleting...')
+                          : (locale === 'pt-BR' ? 'Sim' : 'Yes')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeleteConfirmId(null)}
+                        className="rounded-md border border-[#374151] px-3 py-1.5 text-sm text-[#9ca3af] hover:bg-white/5"
+                        data-testid="media-delete-cancel"
+                      >
+                        {locale === 'pt-BR' ? 'Não' : 'No'}
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setDeleteConfirmId(selectedAsset.id)}
+                      className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500"
+                      data-testid="media-delete-btn"
+                    >
+                      {locale === 'pt-BR' ? 'Excluir' : 'Delete'}
+                    </button>
+                  )}
                 </div>
               </div>
             )}

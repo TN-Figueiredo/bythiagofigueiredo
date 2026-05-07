@@ -54,6 +54,14 @@ export function MediaCropEditor({ imageUrl, preset, locale, onConfirm, onCancel 
           })()
         : { unit: '%' as const, x: 10, y: 10, width: 80, height: 80 }
       setCrop(cropPercent)
+      const pixelCrop: PixelCrop = {
+        unit: 'px',
+        x: (cropPercent.x / 100) * w,
+        y: (cropPercent.y / 100) * h,
+        width: (cropPercent.width / 100) * w,
+        height: (cropPercent.height / 100) * h,
+      }
+      setCompletedCrop(pixelCrop)
     },
     [preset.aspect],
   )

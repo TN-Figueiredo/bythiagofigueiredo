@@ -23,7 +23,7 @@ export const ptBR: MediaGalleryStrings = {
     searchPlaceholder: 'Buscar por nome ou tag…',
     folderAll: 'Todas', folderAuthors: 'Autores', folderBlog: 'Blog',
     folderNewsletters: 'Newsletters', folderBranding: 'Marca', folderOg: 'Imagens OG',
-    folderAds: 'Anúncios', folderGeneral: 'Geral',
+    folderAds: 'Anúncios', folderLinks: 'Links', folderGeneral: 'Geral',
     loadMore: 'Carregar mais',
     noResults: 'Nenhuma imagem encontrada.',
     emptyLibrary: 'Nenhuma imagem enviada ainda.',

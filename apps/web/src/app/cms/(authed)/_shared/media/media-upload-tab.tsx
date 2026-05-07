@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { uploadMediaAction } from '../../media/actions'
 import { MediaCropEditor } from './media-crop-editor'
 import type { CropPreset, MediaAssetResult } from './types'
@@ -17,6 +17,7 @@ const FOLDER_OPTIONS: Array<{ value: MediaFolder; labelKey: keyof ReturnType<typ
   { value: 'branding', labelKey: 'folderBranding' },
   { value: 'og', labelKey: 'folderOg' },
   { value: 'ads', labelKey: 'folderAds' },
+  { value: 'links', labelKey: 'folderLinks' },
 ]
 
 interface UploadTabProps {
@@ -34,8 +35,22 @@ export function MediaUploadTab({ onSelect, folder, cropPreset, locale }: UploadT
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [croppedBlob, setCroppedBlob] = useState<Blob | null>(null)
+  const [croppedPreviewUrl, setCroppedPreviewUrl] = useState<string | null>(null)
   const [croppedDims, setCroppedDims] = useState<{ width: number; height: number } | null>(null)
   const [showCrop, setShowCrop] = useState(false)
+
+  useEffect(() => {
+    return () => { if (previewUrl) URL.revokeObjectURL(previewUrl) }
+  }, [previewUrl])
+
+  useEffect(() => {
+    if (croppedBlob) {
+      const url = URL.createObjectURL(croppedBlob)
+      setCroppedPreviewUrl(url)
+      return () => URL.revokeObjectURL(url)
+    }
+    setCroppedPreviewUrl(null)
+  }, [croppedBlob])
 
   const [altText, setAltText] = useState('')
   const [selectedFolder, setSelectedFolder] = useState<MediaFolder>((folder as MediaFolder) ?? 'general')
@@ -54,8 +69,8 @@ export function MediaUploadTab({ onSelect, folder, cropPreset, locale }: UploadT
       setCroppedBlob(null)
       setCroppedDims(null)
       setUploadError(null)
-      const url = URL.createObjectURL(file)
-      setPreviewUrl(url)
+      if (previewUrl) URL.revokeObjectURL(previewUrl)
+      setPreviewUrl(URL.createObjectURL(file))
 
       if (cropPreset && file.type !== 'image/svg+xml' && file.type !== 'image/gif') {
         setShowCrop(true)
@@ -63,7 +78,7 @@ export function MediaUploadTab({ onSelect, folder, cropPreset, locale }: UploadT
         setShowCrop(false)
       }
     },
-    [cropPreset],
+    [cropPreset, previewUrl],
   )
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -222,7 +237,7 @@ export function MediaUploadTab({ onSelect, folder, cropPreset, locale }: UploadT
         <div className="flex justify-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={croppedBlob ? URL.createObjectURL(croppedBlob) : previewUrl}
+            src={croppedPreviewUrl ?? previewUrl}
             alt=""
             className="max-h-48 rounded-lg border border-[#374151]"
           />

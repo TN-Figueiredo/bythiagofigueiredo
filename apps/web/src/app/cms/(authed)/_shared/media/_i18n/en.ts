@@ -23,7 +23,7 @@ export const en: MediaGalleryStrings = {
     searchPlaceholder: 'Search by filename or tag…',
     folderAll: 'All', folderAuthors: 'Authors', folderBlog: 'Blog',
     folderNewsletters: 'Newsletters', folderBranding: 'Branding', folderOg: 'OG Images',
-    folderAds: 'Ads', folderGeneral: 'General',
+    folderAds: 'Ads', folderLinks: 'Links', folderGeneral: 'General',
     loadMore: 'Load more',
     noResults: 'No images match your search.',
     emptyLibrary: 'No images uploaded yet.',

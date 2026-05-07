@@ -32,10 +32,10 @@ import {
   Github,
   Code2,
   Braces,
+  ImagePlus,
 } from 'lucide-react'
 import { MERGE_TAGS } from './merge-tag-node'
 import { PROVIDER_META, type EmbedProvider } from './social-embed-node'
-import { ImagePlus } from 'lucide-react'
 
 interface EditorToolbarProps {
   editor: Editor | null

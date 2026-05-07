@@ -23,6 +23,7 @@ const FOLDER_FILTERS: Array<{ value: string; labelKey: keyof ReturnType<typeof g
   { value: 'branding', labelKey: 'folderBranding' },
   { value: 'og', labelKey: 'folderOg' },
   { value: 'ads', labelKey: 'folderAds' },
+  { value: 'links', labelKey: 'folderLinks' },
   { value: 'general', labelKey: 'folderGeneral' },
 ]
 
