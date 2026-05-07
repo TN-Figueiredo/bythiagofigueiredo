@@ -66,7 +66,16 @@ export function EditPostClient({
   const [continuesInNext, setContinuesInNext] = useState(initialContinuesInNext)
   const [hashtags, setHashtags] = useState(initialHashtags)
   const coverGallery = useMediaGallery()
-  const [coverUrl, setCoverUrl] = useState(initialCoverImageUrl)
+
+  const setCoverFromGallery = (url: string) => {
+    const input = document.querySelector<HTMLInputElement>('[data-testid="cover-image-field"] input')
+    if (input) {
+      const nativeSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      nativeSetter?.call(input, url)
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      input.dispatchEvent(new Event('change', { bubbles: true }))
+    }
+  }
 
   return (
     <>
@@ -149,7 +158,7 @@ export function EditPostClient({
         <MediaGalleryModal
           {...coverGallery.galleryProps}
           onSelect={(asset) => {
-            setCoverUrl(asset.url)
+            setCoverFromGallery(asset.url)
             coverGallery.closeGallery()
           }}
           locale={locale as 'en' | 'pt-BR'}
