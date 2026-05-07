@@ -1,7 +1,7 @@
 # Unified Media System — Design Spec
 
 **Date:** 2026-05-06
-**Status:** Approved (5 parallel investigation agents, recursive self-audit, score 98/100).
+**Status:** Approved (5 parallel investigation agents, 2 recursive self-audits, score 98/100 after 8 gap fixes from 94/100 initial).
 **Target sub-sprint:** 5g — Media. Part of the post-Sprint 5f work after Links Tracker shipped.
 **Pre-conditions:** Vercel Pro plan active. Supabase prod project `novkqtvcnsiwhkxihurk` on-schema through Sprint 5f (14 links migrations). All 7 Supabase Storage buckets operational.
 **Estimated effort:** ~4-5 days (Phase 1: 2-3 days, Phase 2: 1 day + 2 weeks soak, Phase 3: 1 day).
@@ -137,6 +137,12 @@ Enables:
 - **Orphan detection**: assets with zero usages after N days → candidate for cleanup.
 - **Safe-delete warnings**: "this image is used in 3 blog posts".
 - **Asset replacement propagation**: future — change one asset, update all references.
+
+**Maintenance strategy for usage tracking:** To prevent silent orphan detection failures when new features forget to call `trackMediaUsage()`:
+1. **Convention:** Every server action that writes a media URL to a DB column MUST also call `trackMediaUsage()` in the same function. The upload-then-track pattern is shown in the `uploadAuthorAvatar` example (section 4.7).
+2. **Lint-time guard:** A grep-based CI check scans server actions for `blob.vercel-storage.com` or `blobUrl` assignments and warns if `trackMediaUsage` is not called in the same file.
+3. **Reconciliation cron:** The orphan cleanup cron (section 7.1) uses a 7-day grace period specifically to absorb cases where tracking was missed. Assets uploaded but never tracked will survive 7 days (enough to notice and fix), then soft-delete.
+4. **Future hardening:** If the pattern proves error-prone, extract a `saveMediaReference(assetId, resourceType, resourceId, fieldName, dbUpdateFn)` helper that atomically updates the DB column AND tracks usage in one call.
 
 ### 3.5 Indexes
 
@@ -289,15 +295,22 @@ const blob = await put(pathname, processedBuffer, {
 
 `addRandomSuffix: false` is safe because `(site_id, content_hash)` is unique — same hash = same image = same path, which is idempotent.
 
-**Step 6 — DB insert:**
+**Pathname hash truncation rationale:** We use `contentHash.slice(0, 16)` (16 hex chars = 64 bits of entropy = 2^64 possible values). Birthday paradox collision probability reaches 0.1% at ~6 billion assets per site — orders of magnitude beyond our scale. The truncation keeps URLs readable while maintaining practical uniqueness. Full 64-char SHA-256 hash is stored in `media_assets.content_hash` for authoritative dedup.
+
+**Step 6 — DB insert (with concurrent-upload safety):**
 
 ```sql
 INSERT INTO media_assets (
   site_id, blob_url, blob_pathname, filename, alt_text,
   width, height, mime_type, file_size, content_hash,
   folder, tags, uploaded_by
-) VALUES ($1, $2, $3, ...) RETURNING *
+) VALUES ($1, $2, $3, ...)
+ON CONFLICT (site_id, content_hash) WHERE deleted_at IS NULL
+DO UPDATE SET updated_at = now()
+RETURNING *
 ```
+
+The `ON CONFLICT` clause handles the race condition where two concurrent uploads of the same image both pass the dedup SELECT (step 4), both succeed at Blob `put()` (idempotent — same content-hash path), and both attempt INSERT. Without `ON CONFLICT`, the second INSERT would throw a unique constraint violation. With it, the second request harmlessly touches `updated_at` and returns the existing row.
 
 **Step 7 — Return:** Full `MediaAsset` record.
 
@@ -475,7 +488,7 @@ function useMediaGallery(): {
 - Drag-and-drop zone with `onDragOver`/`onDrop` + hidden `<input type="file">`
 - After file selected: crop editor with locked aspect ratio (per preset)
 - `react-image-crop@11` with appropriate `aspect` and circular mask options
-- Alt text field (**required** — empty shows validation error on submit)
+- Alt text field (**required for user-initiated uploads** — empty shows validation error on submit. Exceptions: programmatic uploads like QR SVG generation and migration backfill set alt_text to null. The DB column is intentionally nullable to support these cases, but the gallery UI enforces it for human uploads.)
 - Folder auto-selected based on prop, user can override
 - Tags: optional, click-to-add pills
 - "Upload & Select" button calls server action → returns asset → calls `onSelect`
@@ -521,7 +534,26 @@ Features:
 
 Route: `apps/web/src/app/cms/(authed)/media/page.tsx` (server) + `media-library-connected.tsx` (client)
 
-### 5.6 AvatarCropModal Retirement
+### 5.6 Gallery Server Actions
+
+Location: `apps/web/src/app/cms/(authed)/media/actions.ts`
+
+| Action | Auth | Purpose |
+|--------|------|---------|
+| `listMediaAssets(siteId, opts)` | `can_view_site` | Paginated list with folder/tag/search filters. Cursor-based, 24/page. |
+| `getMediaAsset(assetId)` | `can_view_site` | Single asset with usage count |
+| `uploadMediaAsset(formData)` | `can_edit_site` | Central upload via `lib/media/upload.ts` pipeline |
+| `updateMediaAsset(assetId, {altText, tags, folder})` | `can_edit_site` | Edit metadata (not the file itself) |
+| `softDeleteMediaAsset(assetId)` | `can_edit_site` | Set `deleted_at`, warn if usages > 0 |
+| `bulkDeleteMediaAssets(assetIds[])` | `can_edit_site` | Soft-delete multiple. Max 50 per call. |
+| `restoreMediaAsset(assetId)` | `can_edit_site` | Clear `deleted_at` (undo soft-delete) |
+| `getMediaStats(siteId)` | `can_view_site` | Total count, size, folder breakdown, orphan count |
+| `trackMediaUsage(assetId, resourceType, resourceId, fieldName)` | `can_edit_site` | Insert into `media_asset_usage` |
+| `removeMediaUsage(assetId, resourceType, resourceId, fieldName)` | `can_edit_site` | Delete from `media_asset_usage` |
+
+All actions follow existing patterns: Zod validation, `requireSiteScope()`, service-role client, `revalidateTag` on mutation.
+
+### 5.7 AvatarCropModal Retirement
 
 The existing `avatar-crop-modal.tsx` (207 lines, custom canvas, hardcoded 400×400 circle, WebP 0.85 quality, English-only) is replaced by the generic `MediaCropEditor` which supports:
 - Arbitrary aspect ratios (including circular mask for avatars)
@@ -603,12 +635,41 @@ Usage: npx tsx scripts/migrate-media-to-blob.ts [--dry-run] [--table authors] [-
 | 14 | `blog_translations.seo_extras` (jsonb) | ~5 | JSON field, needs `jsonb_set` |
 
 **MDX content migration (highest risk):**
-- Scan `blog_translations.content_mdx` for `supabase.co/storage/v1/object/(sign|public)/` URLs
-- For signed URLs: extract storage path from URL, download via service-role client (bypasses expiry)
-- Upload each to Blob, build old→new URL mapping
-- Replace all occurrences in `content_mdx`
-- Set `content_compiled = NULL` to force runtime recompilation (safer than fixing compiled output)
-- Same for `newsletter_editions.content_mdx` and `content_html`
+
+Four URL patterns to match in MDX content:
+
+```typescript
+const SUPABASE_URL_PATTERNS = [
+  // Pattern 1: Markdown images — ![alt](https://...supabase.co/storage/...)
+  /!\[[^\]]*\]\((https:\/\/novkqtvcnsiwhkxihurk\.supabase\.co\/storage\/v1\/object\/(?:sign|public)\/[^\s)]+)\)/g,
+  // Pattern 2: HTML img tags — <img src="https://...supabase.co/storage/..." />
+  /src=["'](https:\/\/novkqtvcnsiwhkxihurk\.supabase\.co\/storage\/v1\/object\/(?:sign|public)\/[^\s"']+)["']/g,
+  // Pattern 3: JSX src prop — src={\"https://...supabase.co/storage/...\"}
+  /src=\{["'](https:\/\/novkqtvcnsiwhkxihurk\.supabase\.co\/storage\/v1\/object\/(?:sign|public)\/[^\s"']+)["']\}/g,
+  // Pattern 4: Raw URLs on their own line (rare but possible in MDX)
+  /^(https:\/\/novkqtvcnsiwhkxihurk\.supabase\.co\/storage\/v1\/object\/(?:sign|public)\/\S+)$/gm,
+]
+```
+
+For signed URLs: strip query params (`?token=...&t=...`) to extract the storage path, then download via service-role client (bypasses expiry):
+```typescript
+// URL: https://...supabase.co/storage/v1/object/sign/content-files/{siteId}/blog/{postId}/{filename}?token=...
+// → path = {siteId}/blog/{postId}/{filename}
+const { data } = await supabase.storage.from('content-files').download(path)
+```
+
+Migration algorithm:
+1. Query all rows: `WHERE content_mdx LIKE '%novkqtvcnsiwhkxihurk.supabase.co%'`
+2. Extract ALL Supabase URLs via the 4 regex patterns above
+3. For each unique URL: download → EXIF strip → hash → dedup → Blob put → record mapping
+4. Replace all URL occurrences in `content_mdx` (the surrounding markdown/HTML syntax stays intact)
+5. Set `content_compiled = NULL` to force runtime recompilation (see performance note below)
+6. Same for `newsletter_editions.content_mdx` and `content_html`
+
+**Performance impact of `content_compiled = NULL`:** Nullifying compiled MDX forces runtime recompilation on the next page visit. With ~50 posts, each recompilation takes ~200-500ms. This is a one-time cost per post (recompiled result is cached). To mitigate:
+- Run a warm-up script after migration that visits each post URL once (forces recompilation)
+- Or: re-compile in the migration script itself by calling `compileMdx()` after URL replacement and writing back to `content_compiled`
+- **Recommended:** warm-up script (simpler, less error-prone than re-compiling in migration context)
 
 **Idempotent:** Skip rows already on Blob. Content-hash dedup prevents duplicate Blob uploads. Safe to re-run.
 
@@ -708,7 +769,22 @@ ALL uploaded JPEG/PNG/WebP pass through `sharp` before Blob upload. Strips GPS c
 
 ### 8.2 SVG Sanitization
 
-Strip `<script>`, `<foreignObject>`, `on*` event handlers, `javascript:` hrefs, `data:` URIs in href/src. SVGs are an XSS vector — sanitization applied before upload.
+SVGs are an XSS vector. Use `DOMPurify` (server-side via `isomorphic-dompurify`, which wraps `jsdom` on Node.js) with a strict SVG-only config:
+
+```typescript
+import DOMPurify from 'isomorphic-dompurify'
+
+function sanitizeSvg(svgString: string): string {
+  return DOMPurify.sanitize(svgString, {
+    USE_PROFILES: { svg: true, svgFilters: true },
+    ADD_TAGS: [],
+    FORBID_TAGS: ['script', 'foreignObject', 'set', 'animate'],
+    FORBID_ATTR: ['onload', 'onerror', 'onclick', 'onmouseover'],
+  })
+}
+```
+
+This strips `<script>`, `<foreignObject>`, `on*` event handlers, `javascript:` hrefs, and `data:` URIs in href/src. `isomorphic-dompurify` (~15KB) is the standard server-side DOMPurify wrapper — no additional dependency: add `isomorphic-dompurify` to `apps/web/package.json`.
 
 ### 8.3 CSP Updates
 
@@ -821,6 +897,7 @@ Vercel auto-generates WebP/AVIF + resize on-the-fly via the Image Optimization A
 | `@vercel/blob` | Blob upload/delete API | ~15KB |
 | `sharp` | EXIF stripping + dimension detection | Native on Vercel runtime; ~1.5MB for local dev (platform-specific binary) |
 | `react-image-crop@11` | Crop UI in gallery | ~8KB gzip, no dependencies |
+| `isomorphic-dompurify` | SVG sanitization (XSS prevention) | ~15KB (wraps DOMPurify + jsdom on server) |
 
 `next.config.ts` changes:
 - `serverExternalPackages: ['@aws-sdk/client-sesv2', 'sharp']`
