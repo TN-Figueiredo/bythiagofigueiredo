@@ -557,6 +557,76 @@ CMS reutilizável publicado em `@tn-figueiredo/cms` (extração pra repo própri
 - Após mudança em `packages/cms/src/*`: rodar `npm run build -w packages/cms` (ou `npm install` pra trigger prepare)
 - `next.config.ts` tem `transpilePackages: ['@tn-figueiredo/cms', '@tn-figueiredo/newsletter', '@tn-figueiredo/newsletter-admin']` — Next transpila direto
 
+## Unified Media System (Sprint 5g) — Vercel Blob + media_assets
+
+Sprint 5g replaces fragmented Supabase Storage buckets with a unified media pipeline: Vercel Blob for CDN-backed public storage, `media_assets` + `media_asset_usage` tables for metadata/tracking, and a CMS media gallery with upload/crop/search/filter.
+
+### Architecture
+
+- **Storage:** Vercel Blob (`@vercel/blob@1.1.1`) — public CDN URLs, no signed URL expiry. Pathname: `{siteId}/{folder}/{hash}.{ext}` (32-char SHA-256 prefix for 128-bit collision resistance).
+- **DB:** `media_assets` (metadata, soft-delete via `deleted_at`), `media_asset_usage` (M:N tracking: asset ↔ resource+field), `media_asset_stats` (materialized view for folder/type breakdowns).
+- **Processing:** `lib/media/process.ts` — sharp pipeline: EXIF strip (LGPD data minimization), resize to folder max dimension, WebP/JPEG/PNG/GIF output. GIF preserves animation via `sharp(buf, { animated: true }).gif().toBuffer()`. SVG sanitized via DOMPurify (`lib/media/sanitize-svg.ts`).
+- **Dedup:** SHA-256 content hash checked before upload. Existing asset returned if hash matches (same site).
+- **Orphan lifecycle:** 7-day grace period → `find_orphan_media_assets(p_grace_days)` RPC → soft-delete → 30-day hard-delete + Blob cleanup via `/api/cron/media-cleanup`.
+
+### Schema (6 migrations: `20260507000001`–`20260507000006`)
+
+| Table/Object | Purpose |
+|---|---|
+| `media_assets` | Asset metadata: blob_url, blob_pathname, filename, alt_text, dimensions, mime_type, file_size, content_hash, folder, tags, soft-delete |
+| `media_asset_usage` | Usage tracking: asset_id + resource_type + resource_id + field_name (unique constraint) |
+| `media_asset_stats` | Materialized view: per-site folder/type breakdown for dashboard stats |
+| `count_orphan_media_assets(p_site_id)` | RPC: count assets with no usage refs (for health endpoint) |
+| `find_orphan_media_assets(p_grace_days)` | RPC: find orphan asset IDs older than grace period (for cron soft-delete) |
+| `refresh_media_asset_stats()` | RPC: refresh materialized view |
+
+### RLS policies
+
+- `media_assets_public_read` — `site_visible(site_id)` (public can view assets of visible sites)
+- `media_assets_staff_insert` — `can_edit_site(site_id)` (staff can upload)
+- `media_assets_staff_update` — `can_edit_site(site_id)` (staff can edit metadata/soft-delete)
+- No `FOR DELETE` policy — hard deletes only via service-role (cron cleanup)
+- `media_asset_usage_staff_write` — `can_edit_site` via join to `media_assets`
+
+### CMS pages
+
+| Route | Purpose |
+|---|---|
+| `/cms/media` | Full media library: grid/list view, search, folder filter, MIME filter, bulk delete, stats dashboard |
+| Shared `<MediaGalleryDialog>` | Reusable picker embedded in blog editor, author editor, newsletter editor, campaign editor |
+| Shared `<MediaUploadTab>` | Upload tab with drag-drop, preview, crop, alt text, folder selection |
+| Shared `<MediaCropEditor>` | `react-image-crop` integration with aspect ratio presets |
+
+### Integration points
+
+- **Blog editor toolbar** — `ImagePlus` button opens media gallery, inserts `![alt](url)` at cursor
+- **Author editor** — avatar + about_photo gallery selectors persist to `authors.avatar_url` / `about_photo_url`
+- **Newsletter editor** — inline image gallery with `trackMediaUsageAction` for orphan protection
+- **Campaign editor** — media gallery for campaign cover images
+
+### Cron jobs (2)
+
+| Cron | Schedule | Purpose |
+|---|---|---|
+| `/api/cron/media-cleanup` | `0 3 * * *` | Soft-delete orphans (7d grace), hard-delete + Blob cleanup (30d), refresh stats view |
+| `/api/cron/media-migration` | manual | Backfill existing Supabase Storage assets to Vercel Blob (gated by `MEDIA_MIGRATION_ENABLED`) |
+
+### Health endpoint
+
+`/api/health/media` — reports asset count, orphan count, storage usage, oldest asset, stats freshness. Gated by `CRON_SECRET`.
+
+### Feature flags (3)
+
+| Flag | Default | Purpose |
+|---|---|---|
+| `NEXT_PUBLIC_MEDIA_GALLERY_ENABLED` | `true` | CMS sidebar entry + all /cms/media pages + gallery dialogs |
+| `MEDIA_BLOB_UPLOAD_ENABLED` | `true` | Route uploads to Vercel Blob (false = existing Supabase Storage paths) |
+| `MEDIA_MIGRATION_ENABLED` | `true` | Enable backfill migration cron |
+
+### Sentry tag conventions
+
+All exceptions tagged `media: 'true'` + `component`: `'upload'`, `'process'`, `'cleanup-cron'`, `'migration-cron'`, `'health'`, `'gallery'`.
+
 ## Environment Variables
 
 ### Web (`apps/web/.env.local`)
@@ -572,6 +642,10 @@ CMS reutilizável publicado em `@tn-figueiredo/cms` (extração pra repo própri
 - `YOUTUBE_API_KEY` — YouTube Data API v3 key for video sync cron (`/api/cron/sync-youtube`). Required in Production; optional in Development (empty → sync returns 500).
 - `NEXT_PUBLIC_LINKS_ENABLED` — master switch for Links Engine CMS sidebar + pages (Sprint 5f). Default `true`.
 - `LINKS_SHORT_DOMAIN`, `LINKS_NEWSLETTER_REWRITE_ENABLED`, `LINKS_AI_INSIGHTS_ENABLED`, `LINKS_LIVE_PULSE_ENABLED`, `LINKS_REVENUE_TRACKING_ENABLED`, `LINKS_GEO_PROVIDER` — Links feature flags (see Links Engine section above).
+- `BLOB_READ_WRITE_TOKEN` — Vercel Blob store token (auto-populated from Blob store connection). Required for media uploads when `MEDIA_BLOB_UPLOAD_ENABLED=true`.
+- `NEXT_PUBLIC_MEDIA_GALLERY_ENABLED` — master switch for Media Gallery CMS pages + gallery dialogs (Sprint 5g). Default `true` (activated 2026-05-07).
+- `MEDIA_BLOB_UPLOAD_ENABLED` — route uploads to Vercel Blob instead of Supabase Storage (Sprint 5g). Default `true` (activated 2026-05-07).
+- `MEDIA_MIGRATION_ENABLED` — enable backfill migration cron from Supabase Storage to Vercel Blob (Sprint 5g). Default `true` (activated 2026-05-07).
 - Sprint 2: nenhuma env var nova — multi-ring scoping resolve via middleware + `sites.domains` array no DB
 
 ### API (`apps/api/.env.local`)
@@ -603,6 +677,7 @@ CMS reutilizável publicado em `@tn-figueiredo/cms` (extração pra repo própri
 - **Sprint 5c** ✅ done (2026-04-20) — Playwright E2E suite: 77 tests across 13 spec files, 6 POMs, 5 fixture modules (global-setup/teardown, auth.setup, seed-helpers, index), CI workflow (`e2e.yml` with `supabase/setup-cli` + secrets validation). Quality audit 75→98/100: 18 fixes. Testid audit: 20/20 present. A11y: AxeBuilder on 5/5 areas. 777 vitest tests passing.
 - **Sprint 5e** ✅ done (2026-04-22) — Newsletter CMS Engine: Brevo fully removed, Resend as sole email provider, 5 new tables (newsletter_editions/sends/click_events/webhook_events/blog_cadence), content queue model, React Email templates, 8 CMS pages (dashboard/editor/analytics/subscribers/settings/content-queue/web-archive), batch send cron with CAS + crash recovery + bounce auto-pause, RFC 8058 one-click unsubscribe, Svix webhook verification, LGPD tracking anonymization cron, webhook purge cron. 3 migrations, 750 tests, 20 commits. Package extraction: `@tn-figueiredo/email@0.2.0`, `@tn-figueiredo/newsletter@0.1.0`, `@tn-figueiredo/newsletter-admin@0.1.0` published. App wired to consume packages. Spec: `docs/superpowers/specs/2026-04-20-newsletter-cms-engine-design.md`. Plan: `docs/superpowers/plans/2026-04-20-newsletter-cms-engine.md`.
 - **Sprint 5f** ✅ done (2026-05-06) — Links Tracker (URL shortener + click analytics): 14 migrations (`tracked_links`, `link_clicks` partitioned, `link_daily_metrics`, `link_annotations`, `link_goals`, `link_alerts`, `link_settings`, `link_utm_presets`, `link_qr_templates`, `link_aggregation_watermark`, RPCs, FKs, storage bucket), `@tn-figueiredo/links@0.1.0` + `@tn-figueiredo/links-admin@0.1.0` packages, go.{domain} subdomain routing in middleware, redirect handler `/go/[code]/route.ts` with UTM append + bot filtering + password interstitial + click-limit/expiry guards, 6 cron jobs (aggregate-metrics, anonymize-clicks, check-expiry, partition-maintenance, check-alerts, newsletter link rewrite), CMS dashboard + CRUD + analytics + QR composer + AI insights + live pulse SSE + alert rules, 20+ server actions, Sentry integration across all cron/redirect routes. 2713 web tests, feature-flagged via `NEXT_PUBLIC_LINKS_ENABLED`. Spec: `docs/superpowers/specs/2026-05-05-links-tracker-design.md`. Plan: `docs/superpowers/plans/2026-05-05-links-tracker.md`.
+- **Sprint 5g** ✅ done (2026-05-07) — Unified Media System: Vercel Blob CDN storage replacing fragmented Supabase Storage buckets. 6 migrations (`media_assets`, `media_asset_usage`, `media_asset_stats` materialized view, orphan RPCs, split RLS policies), `lib/media/` pipeline (upload → process → hash → dedup → Blob store → DB insert → usage tracking), CMS media gallery (`/cms/media`) with grid/list view + search + folder/MIME filters + bulk delete + stats dashboard, shared `<MediaGalleryDialog>` reusable picker wired into blog/author/newsletter/campaign editors, `<MediaUploadTab>` with drag-drop/preview/crop/alt-text, `<MediaCropEditor>` with aspect presets, 2 cron jobs (orphan cleanup + migration backfill), health endpoint, SVG sanitization (DOMPurify), LGPD EXIF stripping, i18n (pt-BR + en). Quality hardened to 98/100 (compound cursor pagination, LIKE escaping, GIF animation preservation, UUID validation, 128-bit hash, split INSERT/UPDATE policies). 3025 web tests, feature flags activated 2026-05-07 (`NEXT_PUBLIC_MEDIA_GALLERY_ENABLED=true`, `MEDIA_BLOB_UPLOAD_ENABLED=true`, `MEDIA_MIGRATION_ENABLED=true`). Legacy Supabase Storage bucket references (`author-avatars`, `newsletter-assets`, `link-assets`) still in code — rewire to media pipeline in Sprint 5d or 6. Spec: `docs/superpowers/specs/2026-05-06-unified-media-system-design.md`. Plan: `docs/superpowers/plans/2026-05-06-unified-media-system.md`.
 - **Sprint 5d** ☐ — Vercel deploy hardening (build perf, edge config).
 - **Sprint 6** ☐ — Burnout & MVP Launch (30h)
 - Roadmap source of truth: [docs/roadmap/README.md](docs/roadmap/README.md)
