@@ -130,14 +130,14 @@ describe('mimeToExt', () => {
 describe('buildBlobPathname', () => {
   it('constructs pathname with truncated hash', () => {
     const hash = 'abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789'
-    expect(buildBlobPathname('site-1', 'blog', hash, 'jpg')).toBe('site-1/blog/abcdef0123456789.jpg')
+    expect(buildBlobPathname('site-1', 'blog', hash, 'jpg')).toBe('site-1/blog/abcdef0123456789abcdef0123456789.jpg')
   })
-  it('uses first 16 chars of hash', () => {
-    const hash = '1234567890abcdef' + '0'.repeat(48)
-    expect(buildBlobPathname('s1', 'authors', hash, 'png')).toBe('s1/authors/1234567890abcdef.png')
+  it('uses first 32 chars of hash', () => {
+    const hash = '1234567890abcdef1234567890abcdef' + '0'.repeat(32)
+    expect(buildBlobPathname('s1', 'authors', hash, 'png')).toBe('s1/authors/1234567890abcdef1234567890abcdef.png')
   })
   it('includes folder in path', () => {
     const hash = 'f'.repeat(64)
-    expect(buildBlobPathname('s1', 'newsletters', hash, 'webp')).toBe('s1/newsletters/ffffffffffffffff.webp')
+    expect(buildBlobPathname('s1', 'newsletters', hash, 'webp')).toBe('s1/newsletters/ffffffffffffffffffffffffffffffff.webp')
   })
 })

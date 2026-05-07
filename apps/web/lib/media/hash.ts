@@ -30,5 +30,5 @@ export function buildBlobPathname(
   contentHash: string,
   ext: string,
 ): string {
-  return `${siteId}/${folder}/${contentHash.slice(0, 16)}.${ext}`
+  return `${siteId}/${folder}/${contentHash.slice(0, 32)}.${ext}`
 }
