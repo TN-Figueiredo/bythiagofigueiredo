@@ -308,30 +308,15 @@ function SeoSearchPreview({
 
 function CoverImageSection({
   coverUrl,
-  onUpload,
   onRemove,
   onOpenGallery,
   disabled,
 }: {
   coverUrl: string | null
-  onUpload: (file: File) => void
   onRemove: () => void
-  onOpenGallery?: () => void
+  onOpenGallery: () => void
   disabled: boolean
 }) {
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const [isDragOver, setIsDragOver] = useState(false)
-
-  function handleDrop(e: React.DragEvent) {
-    e.preventDefault()
-    setIsDragOver(false)
-    if (disabled) return
-    const file = e.dataTransfer.files[0]
-    if (file && file.type.startsWith('image/')) {
-      onUpload(file)
-    }
-  }
-
   if (coverUrl) {
     return (
       <div className="relative group rounded-lg overflow-hidden">
@@ -344,22 +329,12 @@ function CoverImageSection({
           <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
             <button
               type="button"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={onOpenGallery}
               className="flex items-center gap-1.5 rounded-md bg-white/15 backdrop-blur-sm px-3 py-1.5 text-xs font-medium text-white hover:bg-white/25 transition-colors"
             >
               <RefreshCw size={13} />
               Replace
             </button>
-            {onOpenGallery && (
-              <button
-                type="button"
-                onClick={onOpenGallery}
-                className="flex items-center gap-1.5 rounded-md bg-white/15 backdrop-blur-sm px-3 py-1.5 text-xs font-medium text-white hover:bg-white/25 transition-colors"
-              >
-                <ImagePlus size={13} />
-                Gallery
-              </button>
-            )}
             <button
               type="button"
               onClick={onRemove}
@@ -370,66 +345,19 @@ function CoverImageSection({
             </button>
           </div>
         )}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/jpeg,image/png,image/gif,image/webp"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0]
-            if (file) onUpload(file)
-            e.target.value = ''
-          }}
-        />
       </div>
     )
   }
 
   return (
-    <div
-      onDragOver={(e) => { e.preventDefault(); if (!disabled) setIsDragOver(true) }}
-      onDragLeave={() => setIsDragOver(false)}
-      onDrop={handleDrop}
-      className={`rounded-lg border-2 border-dashed transition-colors flex flex-col items-center justify-center h-36 gap-2 ${
-        isDragOver
-          ? 'border-indigo-500/60 bg-indigo-500/5'
-          : 'border-[#1f2937] hover:border-[#374151] bg-transparent'
-      } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+    <button
+      type="button"
+      onClick={() => !disabled && onOpenGallery()}
+      className={`w-full rounded-lg border-2 border-dashed transition-colors cursor-pointer flex flex-col items-center justify-center h-36 gap-2 border-[#1f2937] hover:border-[#374151] bg-transparent ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
     >
       <ImagePlus size={24} className="text-[#4b5563]" />
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => !disabled && fileInputRef.current?.click()}
-          className="text-xs text-[#6b7280] hover:text-[#9ca3af] transition-colors cursor-pointer"
-        >
-          Upload cover image
-        </button>
-        {onOpenGallery && (
-          <>
-            <span className="text-[#374151] text-xs">|</span>
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onOpenGallery() }}
-              className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer"
-            >
-              Select from gallery
-            </button>
-          </>
-        )}
-      </div>
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/jpeg,image/png,image/gif,image/webp"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0]
-          if (file) onUpload(file)
-          e.target.value = ''
-        }}
-      />
-    </div>
+      <span className="text-xs text-[#6b7280]">Select cover image</span>
+    </button>
   )
 }
 
@@ -982,9 +910,8 @@ export function PostEditionEditor({
           {/* Cover image */}
           <CoverImageSection
             coverUrl={coverImageUrl}
-            onUpload={handleCoverUpload}
             onRemove={handleCoverRemove}
-            onOpenGallery={galleryEnabled ? () => coverGallery.openGallery({ folder: 'blog', cropPreset: CROP_PRESETS['blog-cover'] }) : undefined}
+            onOpenGallery={() => coverGallery.openGallery({ folder: 'blog', cropPreset: CROP_PRESETS['blog-cover'] })}
             disabled={false}
           />
 
