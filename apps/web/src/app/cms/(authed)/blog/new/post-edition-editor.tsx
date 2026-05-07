@@ -25,6 +25,8 @@ import type { Editor } from '@tiptap/core'
 import { TipTapEditor } from '../../_shared/editor/tiptap-editor'
 import { useAutosave } from '../../_shared/editor/use-autosave'
 import { AutosaveIndicator } from '../../_shared/editor/autosave-indicator'
+import { SaveBar } from '../../_shared/editor/save-bar'
+import { PublishSaveDialog } from '../../_shared/editor/publish-save-dialog'
 import { NavigationGuard } from '../../_shared/editor/navigation-guard'
 import { DeleteConfirmModal } from '../../_shared/editor/delete-confirm-modal'
 import { MoreMenu } from '../../_shared/editor/more-menu'
@@ -119,6 +121,8 @@ const MOVE_ACTION_LABELS: Record<string, string> = {
   published: 'Publish now',
   archived: 'Archive',
 }
+
+const AUTO_SAVE_STATUSES = new Set(['idea', 'draft'])
 
 function slugify(text: string): string {
   return text
@@ -600,17 +604,27 @@ export function PostEditionEditor({
     return savePost(postId, locale, input)
   }, [postId, locale])
 
+  const saveMode = AUTO_SAVE_STATUSES.has(currentStatus)
+    ? 'auto' as const
+    : currentStatus === 'published' ? 'guarded' as const : 'manual' as const
+
   const {
     state: saveState,
     lastSavedAt,
     hasUnsavedChanges,
     scheduleSave,
     saveNow: saveImmediate,
+    forceSave,
     setHasUnsavedChanges,
+    needsConfirmation,
+    confirmSave,
+    cancelSave,
   } = useAutosave({
     editionId: postId,
     saveFn,
     enabled: !isEphemeral,
+    mode: saveMode,
+    getPayload: getSavePayload,
   })
 
   // ── Payload builder ───────────────────────────────────────────────────────
@@ -704,7 +718,11 @@ export function PostEditionEditor({
     setSelectedTagId(tagId)
     fieldsRef.current.selectedTagId = tagId
     if (!isEphemeral && postId) {
-      saveImmediate({ ...getSavePayload(), tag_id: tagId || undefined })
+      if (saveMode === 'auto') {
+        saveImmediate({ ...getSavePayload(), tag_id: tagId || undefined })
+      } else {
+        scheduleAutosave()
+      }
     }
   }
 
@@ -810,7 +828,13 @@ export function PostEditionEditor({
     const editor = editorInstanceRef.current
     if (editor) {
       editor.chain().focus().setImage({ src: asset.url, alt: asset.alt }).run()
-      if (!isEphemeral) saveImmediate(getSavePayload())
+      if (!isEphemeral) {
+        if (saveMode === 'auto') {
+          saveImmediate(getSavePayload())
+        } else {
+          scheduleAutosave()
+        }
+      }
     }
     inlineGallery.closeGallery()
   }
@@ -905,7 +929,7 @@ export function PostEditionEditor({
     }
 
     if (hasUnsavedChanges) {
-      await saveImmediate(getSavePayload())
+      await forceSave(getSavePayload())
     }
 
     const result = await movePost(postId, newStatus)
@@ -925,7 +949,7 @@ export function PostEditionEditor({
     setShowScheduleModal(false)
 
     if (hasUnsavedChanges) {
-      await saveImmediate(getSavePayload())
+      await forceSave(getSavePayload())
     }
 
     const result = await movePost(postId, 'scheduled', scheduledFor)
@@ -956,9 +980,9 @@ export function PostEditionEditor({
   // ── NavigationGuard save callback ─────────────────────────────────────────
   const handleGuardSave = useCallback(async () => {
     if (postId) {
-      saveImmediate(getSavePayload())
+      await forceSave(getSavePayload())
     }
-  }, [postId, saveImmediate])
+  }, [postId, forceSave])
 
   // ── Keyboard shortcuts ────────────────────────────────────────────────────
   useEffect(() => {
@@ -1094,7 +1118,7 @@ export function PostEditionEditor({
           )}
 
           {!isEphemeral && (
-            <AutosaveIndicator state={saveState} lastSavedAt={lastSavedAt} />
+            <AutosaveIndicator state={saveState} lastSavedAt={lastSavedAt} mode={saveMode} />
           )}
         </div>
 
@@ -1205,7 +1229,13 @@ export function PostEditionEditor({
               content={contentJson}
               onChange={handleEditorChange}
               onImageInserted={() => {
-                if (!isEphemeral) saveImmediate(getSavePayload())
+                if (!isEphemeral) {
+                  if (saveMode === 'auto') {
+                    saveImmediate(getSavePayload())
+                  } else {
+                    scheduleAutosave()
+                  }
+                }
               }}
               onImageUpload={handleImageUpload}
               onOpenGallery={() => inlineGallery.openGallery({ folder: 'blog', cropPreset: CROP_PRESETS.free })}
@@ -1303,6 +1333,21 @@ export function PostEditionEditor({
           </span>
         </div>
       </div>
+
+      <SaveBar
+        state={saveState}
+        hasUnsavedChanges={hasUnsavedChanges}
+        mode={saveMode}
+        status={currentStatus}
+        onSave={() => saveImmediate(getSavePayload())}
+        onRetry={() => saveImmediate(getSavePayload())}
+      />
+
+      <PublishSaveDialog
+        open={needsConfirmation}
+        onConfirm={confirmSave}
+        onCancel={cancelSave}
+      />
 
       {/* ── Modals ─────────────────────────────────────────────────────────── */}
       <DeleteConfirmModal
