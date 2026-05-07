@@ -232,7 +232,7 @@ export default async function BlogPage() {
   }
 
   return (
-    <main style={{ background: '#1E1A12', minHeight: '100vh', paddingTop: 48, paddingBottom: 80 }}>
+    <main style={{ background: 'var(--pb-bg)', minHeight: '100vh', paddingTop: 48, paddingBottom: 80 }}>
       {graph && <JsonLdScript graph={graph} />}
       <Suspense>
         <BlogArchiveClient

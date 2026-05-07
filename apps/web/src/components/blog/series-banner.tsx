@@ -13,7 +13,7 @@ export function SeriesBanner({ previousPost, t }: Props) {
     <div
       className="px-4 py-3 mb-6"
       style={{
-        background: 'var(--pb-paper2)',
+        background: 'var(--pb-paper)',
         borderLeft: '3px solid var(--pb-accent)',
       }}
     >
@@ -23,7 +23,7 @@ export function SeriesBanner({ previousPost, t }: Props) {
           fontFamily: 'var(--font-jetbrains), monospace',
           fontSize: 10,
           letterSpacing: '0.14em',
-          color: '#958a75',
+          color: 'var(--pb-muted)',
         }}
       >
         {t.partOfSeries.toUpperCase()}

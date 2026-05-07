@@ -39,30 +39,30 @@ export function ReadingStatsCard({ posts, t }: ReadingStatsCardProps) {
   const pct = total > 0 ? Math.round((stats.read / total) * 100) : 0
 
   return (
-    <div aria-label={t.yourProgress} style={{ background: '#262117', border: '1px solid #2E2718', padding: '14px 18px', marginTop: 8 }}>
-      <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#6B634F', marginBottom: 10 }}>
+    <div aria-label={t.yourProgress} style={{ background: 'var(--pb-paper)', border: '1px solid var(--pb-line)', padding: '14px 18px', marginTop: 8 }}>
+      <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--pb-faint)', marginBottom: 10 }}>
         {t.yourProgress}
       </div>
       <div style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontFamily: '"Fraunces", serif', fontSize: 28, color: '#8eda8e', fontWeight: 500 }}>{stats.read}</div>
-          <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 9, color: '#6B634F', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{t.read}</div>
+          <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 9, color: 'var(--pb-faint)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{t.read}</div>
         </div>
-        <div style={{ width: 1, height: 32, background: '#2E2718' }} />
+        <div style={{ width: 1, height: 32, background: 'var(--pb-line)' }} />
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontFamily: '"Fraunces", serif', fontSize: 28, color: '#FFE37A', fontWeight: 500 }}>{stats.inProgress}</div>
-          <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 9, color: '#6B634F', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{t.inProgress}</div>
+          <div style={{ fontFamily: '"Fraunces", serif', fontSize: 28, color: 'var(--pb-marker)', fontWeight: 500 }}>{stats.inProgress}</div>
+          <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 9, color: 'var(--pb-faint)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{t.inProgress}</div>
         </div>
-        <div style={{ width: 1, height: 32, background: '#2E2718' }} />
+        <div style={{ width: 1, height: 32, background: 'var(--pb-line)' }} />
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontFamily: '"Fraunces", serif', fontSize: 28, color: '#958A75', fontWeight: 500 }}>~{stats.totalMin}</div>
-          <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 9, color: '#6B634F', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{t.minRead}</div>
+          <div style={{ fontFamily: '"Fraunces", serif', fontSize: 28, color: 'var(--pb-muted)', fontWeight: 500 }}>~{stats.totalMin}</div>
+          <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 9, color: 'var(--pb-faint)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{t.minRead}</div>
         </div>
       </div>
-      <div style={{ marginTop: 10, height: 3, background: '#2E2718', borderRadius: 2 }}>
+      <div style={{ marginTop: 10, height: 3, background: 'var(--pb-line)', borderRadius: 2 }}>
         <div role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={t.progressLabel(stats.read, total, pct)} style={{ width: `${pct}%`, height: '100%', background: '#8eda8e', borderRadius: 2 }} />
       </div>
-      <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 9, color: '#6B634F', marginTop: 4, letterSpacing: '0.06em' }}>
+      <div style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 9, color: 'var(--pb-faint)', marginTop: 4, letterSpacing: '0.06em' }}>
         {t.progressLabel(stats.read, total, pct)}
       </div>
     </div>

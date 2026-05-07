@@ -170,10 +170,10 @@
   /* Pinboard — Brand Guide v6 dark */
   --pb-bg:          #1A1714;
   --pb-paper:       #221E1A;
-  --pb-paper2:      #2A251F;
+  --pb-paper2:      #272219;
   --pb-ink:         #F5EFE6;
   --pb-muted:       #958A75;
-  --pb-faint:       #6B634F;
+  --pb-faint:       #928871;
   --pb-line:        #332D25;
   --pb-accent:      #FF8240;
   --pb-accent-deep: #E0651E;
@@ -202,12 +202,12 @@
   --theme-accent-subtle:     rgba(255, 130, 64, 0.12);
   --theme-cms-bg:            #1A1714;
   --theme-cms-surface:       #221E1A;
-  --theme-cms-surface-hover: #2A251F;
+  --theme-cms-surface-hover: #272219;
   --theme-cms-border:        #332D25;
   --theme-cms-border-subtle: #2A251F;
   --theme-cms-text:          #F5EFE6;
   --theme-cms-text-muted:    #958A75;
-  --theme-cms-text-dim:      #6B634F;
+  --theme-cms-text-dim:      #928871;
   --theme-radius:            2px;
   --theme-shadow-popover:    0 12px 40px rgba(0,0,0,0.28);
   --theme-success:           #22c55e;
@@ -238,10 +238,10 @@
   --pb-paper2:      #F5EDD6;
   --pb-ink:         #1F1B17;
   --pb-muted:       #6A5F48;
-  --pb-faint:       #9C9178;
+  --pb-faint:       #756A51;
   --pb-line:        #CEBFA0;
-  --pb-accent:      #E0651E;
-  --pb-accent-deep: #C14513;
+  --pb-accent:      #B94210;
+  --pb-accent-deep: #9A360D;
   --pb-yt:          #FF3333;
   --pb-marker:      #FFE37A;
   --pb-tape:        rgba(255, 226, 140, 0.75);
@@ -262,8 +262,8 @@
   --pb-shadow-popover: 0 12px 40px rgba(70,50,20,0.20);
 
   /* Theme provider for cms-ui — light */
-  --theme-accent-hover:      #C14513;
-  --theme-accent-subtle:     rgba(224, 101, 30, 0.10);
+  --theme-accent-hover:      #9A360D;
+  --theme-accent-subtle:     rgba(185, 66, 16, 0.10);
   --theme-cms-bg:            #F7F1E8;
   --theme-cms-surface:       #FBF6EC;
   --theme-cms-surface-hover: #F5EDD6;
@@ -271,11 +271,11 @@
   --theme-cms-border-subtle: #DDD4BE;
   --theme-cms-text:          #1F1B17;
   --theme-cms-text-muted:    #6A5F48;
-  --theme-cms-text-dim:      #9C9178;
+  --theme-cms-text-dim:      #756A51;
   --theme-shadow-popover:    0 12px 40px rgba(70,50,20,0.20);
 
   /* Backward compat aliases — light overrides */
-  --ring: rgba(224, 101, 30, 0.3);
+  --ring: rgba(185, 66, 16, 0.3);
 }
 
 /* ─── Print palette ─── */

@@ -36,25 +36,25 @@ export function ArchiveListView({ posts, locale, query, t, activeIndex }: Archiv
             data-card-index={i}
             className="flex items-center gap-4 py-3 no-underline"
             style={{
-              borderBottom: '1px solid #2E2718',
+              borderBottom: '1px solid var(--pb-line)',
               color: 'inherit',
-              outline: activeIndex === i ? '2px solid #FF8240' : 'none',
+              outline: activeIndex === i ? '2px solid var(--pb-accent)' : 'none',
               outlineOffset: 2,
             }}
           >
-            <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, width: 80, flexShrink: 0, color: '#6B634F' }}>{post.date}</span>
+            <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, width: 80, flexShrink: 0, color: 'var(--pb-faint)' }}>{post.date}</span>
             <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, width: 64, flexShrink: 0, letterSpacing: '0.08em', textTransform: 'uppercase', color: post.categoryColor }}>{post.category}</span>
-            <span className="flex-1" style={{ fontFamily: '"Fraunces", serif', fontSize: 16, color: '#EFE6D2' }}>
+            <span className="flex-1" style={{ fontFamily: '"Fraunces", serif', fontSize: 16, color: 'var(--pb-ink)' }}>
               {highlightText(post.title, query)}
               {post.previousPostId && (
-                <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, marginLeft: 8, color: '#FFE37A' }}>{t.series}</span>
+                <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, marginLeft: 8, color: 'var(--pb-marker)' }}>{t.series}</span>
               )}
             </span>
-            <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, width: 48, textAlign: 'right', color: '#6B634F' }}>{post.readingTime} {t.minuteRead}</span>
+            <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, width: 48, textAlign: 'right', color: 'var(--pb-faint)' }}>{post.readingTime} {t.minuteRead}</span>
             <span style={{ width: 36, textAlign: 'center', fontSize: 10 }}>
               {isRead && <span style={{ color: '#8eda8e' }}>✓</span>}
-              {inProgress && <span style={{ fontFamily: '"JetBrains Mono", monospace', color: '#ccc' }}>{Math.round(progress?.depth ?? 0)}%</span>}
-              {!isRead && !inProgress && <span style={{ color: '#6B634F' }}>—</span>}
+              {inProgress && <span style={{ fontFamily: '"JetBrains Mono", monospace', color: 'var(--pb-muted)' }}>{Math.round(progress?.depth ?? 0)}%</span>}
+              {!isRead && !inProgress && <span style={{ color: 'var(--pb-faint)' }}>—</span>}
             </span>
           </Link>
         )

@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import { PaperCard } from './PaperCard'
 import { Tape } from './Tape'
 import { SectionHeader } from './SectionHeader'
@@ -85,9 +86,9 @@ export function VideoGrid({ videos, channels, hasVideos, locale, t }: Props) {
               <PaperCard index={i + 11} variant="paper" style={{ padding: '12px 12px 18px' }}>
                 <Tape variant="tapeR" className="-top-2 left-5" rotate={-6 + (i % 4)} />
                 <VideoLightbox youtubeVideoId={video.youtubeVideoId}>
-                  <div style={{ position: 'relative', aspectRatio: '4 / 3', overflow: 'hidden', background: video.thumbnailUrl ? undefined : 'linear-gradient(135deg, #51201F 0%, #142229 100%)' }}>
+                  <div style={{ position: 'relative', aspectRatio: '4 / 3', overflow: 'hidden', background: video.thumbnailUrl ? undefined : 'linear-gradient(135deg, color-mix(in srgb, var(--pb-yt) 20%, var(--pb-bg)), var(--pb-bg))' }}>
                     {video.thumbnailUrl && (
-                      <img src={video.thumbnailUrl} alt="" referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <Image src={video.thumbnailUrl} alt={video.title} fill sizes="(max-width: 768px) 100vw, 33vw" style={{ objectFit: 'cover' }} referrerPolicy="no-referrer" loading="lazy" />
                     )}
                     <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(transparent 40%, rgba(0,0,0,0.55))' }} />
                     <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

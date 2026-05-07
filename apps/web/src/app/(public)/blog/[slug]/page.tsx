@@ -247,7 +247,7 @@ export default async function BlogDetailPage({ params }: Props) {
           <div className="blog-detail-hero">
             <div
               className="flex items-center gap-3.5 mb-6 font-jetbrains flex-wrap"
-              style={{ fontSize: 12, fontWeight: 400, color: '#958a75', lineHeight: 1.4, letterSpacing: '0.72px' }}
+              style={{ fontSize: 12, fontWeight: 400, color: 'var(--pb-muted)', lineHeight: 1.4, letterSpacing: '0.72px' }}
             >
               {category && (
                 <span
@@ -255,7 +255,7 @@ export default async function BlogDetailPage({ params }: Props) {
                   style={{
                     color: catColor,
                     border: `1px solid ${catColor}`,
-                    background: 'rgba(0,0,0,0.2)',
+                    background: 'color-mix(in srgb, var(--pb-bg) 80%, transparent)',
                   }}
                 >
                   {category}
@@ -276,7 +276,7 @@ export default async function BlogDetailPage({ params }: Props) {
 
             <h1
               className="font-fraunces mb-5"
-              style={{ fontSize: 'clamp(36px, 5.5vw, 64px)', fontWeight: 500, color: '#efe6d2', lineHeight: 1.08, letterSpacing: '-1.28px' }}
+              style={{ fontSize: 'clamp(36px, 5.5vw, 64px)', fontWeight: 500, color: 'var(--pb-ink)', lineHeight: 1.08, letterSpacing: '-1.28px' }}
             >
               {tx.title}
             </h1>

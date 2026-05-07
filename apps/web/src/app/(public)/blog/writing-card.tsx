@@ -20,13 +20,13 @@ interface WritingCardProps {
 }
 
 const theme = {
-  paper: '#262117',
-  paper2: '#2B261C',
-  ink: '#EFE6D2',
-  muted: '#958A75',
-  faint: '#6B634F',
-  line: '#2E2718',
-  accent: '#FF8240',
+  paper: 'var(--pb-paper)',
+  paper2: 'var(--pb-paper2)',
+  ink: 'var(--pb-ink)',
+  muted: 'var(--pb-muted)',
+  faint: 'var(--pb-faint)',
+  line: 'var(--pb-line)',
+  accent: 'var(--pb-accent)',
   tape: '#E8C44A',
   tape2: '#5B8FB8',
   tapeR: '#C44B3D',
@@ -51,13 +51,8 @@ export function WritingCard({ post, index, dark = true, locale = 'en', searchQue
   const tapeColor = getTapeColor(index, post.categoryColor)
   const tapeSide = index % 2 === 0 ? 'left' : 'right'
 
-  const paperShadow = dark
-    ? '0 2px 0 rgba(0,0,0,0.5), 0 12px 24px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.03)'
-    : '0 1px 0 rgba(0,0,0,0.04), 0 8px 20px rgba(70,50,20,0.16), inset 0 0 0 1px rgba(0,0,0,0.03)'
-
-  const hoverShadow = dark
-    ? '0 4px 0 rgba(0,0,0,0.5), 0 18px 36px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,255,255,0.05)'
-    : '0 2px 0 rgba(0,0,0,0.05), 0 14px 32px rgba(70,50,20,0.22), inset 0 0 0 1px rgba(0,0,0,0.04)'
+  const paperShadow = 'var(--pb-shadow-card)'
+  const hoverShadow = 'var(--pb-shadow-hover)'
 
   const coverBg = post.coverUrl
     ? undefined
@@ -147,7 +142,7 @@ export function WritingCard({ post, index, dark = true, locale = 'en', searchQue
                   gap: 5,
                   padding: '3px 8px',
                   background: theme.ink,
-                  color: '#FFF',
+                  color: 'var(--pb-bg)',
                   fontFamily: '"JetBrains Mono", ui-monospace, monospace',
                   fontSize: 9,
                   letterSpacing: '0.14em',

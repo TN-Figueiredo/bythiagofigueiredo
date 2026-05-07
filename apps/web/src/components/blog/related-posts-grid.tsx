@@ -26,8 +26,8 @@ const categoryColors: Record<string, string> = {
   negocio: '#B87333',
 }
 
-function paperTint(index: number) {
-  return index % 3 === 1 ? '#312A1E' : '#2A241A'
+function paperTint(_index: number) {
+  return 'var(--pb-paper)'
 }
 
 function paperRotation(index: number) {
@@ -166,7 +166,7 @@ function WritingCard({ post, locale, index, t }: { post: RelatedPost; locale: st
           padding: 0,
           position: 'relative',
           transform: `rotate(${rot}deg) translateY(${lift}px)`,
-          boxShadow: '0 2px 0 rgba(0,0,0,0.5), 0 12px 24px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.03)',
+          boxShadow: 'var(--pb-shadow-card)',
         }}
       >
         <Tape
@@ -199,7 +199,7 @@ function WritingCard({ post, locale, index, t }: { post: RelatedPost; locale: st
                 gap: 5,
                 padding: '3px 8px',
                 background: 'var(--pb-ink)',
-                color: '#FFF',
+                color: 'var(--pb-bg)',
                 fontSize: 10,
                 letterSpacing: '0.14em',
                 textTransform: 'uppercase',

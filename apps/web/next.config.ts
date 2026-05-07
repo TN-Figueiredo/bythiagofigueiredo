@@ -75,11 +75,11 @@ const nextConfig: NextConfig = {
     // baseline headers.
     const globalCsp = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com https://static.cloudflareinsights.com",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://i.ytimg.com https://yt3.ggpht.com https://*.public.blob.vercel-storage.com",
       "font-src 'self' data:",
-      "connect-src 'self' https://*.supabase.co https://*.supabase.in https://*.ingest.sentry.io https://*.public.blob.vercel-storage.com",
+      "connect-src 'self' https://*.supabase.co https://*.supabase.in https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://challenges.cloudflare.com https://cloudflareinsights.com https://*.public.blob.vercel-storage.com",
       "frame-src https://challenges.cloudflare.com https://www.youtube.com",
       "frame-ancestors 'none'",
       "form-action 'self'",

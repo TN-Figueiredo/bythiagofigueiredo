@@ -48,7 +48,7 @@ export function generateRootMetadata(config: SiteSeoConfig, locale?: string): Me
     ...baseMetadata(config),
     title: { default: config.siteName, template: `%s — ${config.siteName}` },
     description: desc,
-    alternates: { canonical: '/', languages },
+    alternates: { canonical: localePath('/', effectiveLocale), languages },
     openGraph: {
       ...baseMetadata(config).openGraph,
       type: 'website',

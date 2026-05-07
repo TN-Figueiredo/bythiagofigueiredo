@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import { coverGradient } from '../../../../lib/home/cover-image'
 import { VideoLightbox } from './VideoLightbox'
 import type { HomePost, HomeVideo, HomeChannel } from '../../../../lib/home/types'
@@ -79,7 +80,7 @@ export function DualHero({ post, video, channels, hasVideos, locale, t }: Props)
                 {/* Cover */}
                 <div style={{ position: 'relative', overflow: 'hidden', background: post.coverImageUrl ? undefined : coverGradient(post.tagName ?? post.category, false, post.tagColor), aspectRatio: '16 / 9' }}>
                   {post.coverImageUrl && (
-                    <img src={post.coverImageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                    <Image src={post.coverImageUrl} alt={post.title} fill sizes="(max-width: 768px) 100vw, min(50vw, 640px)" style={{ objectFit: 'cover' }} priority />
                   )}
                   <div style={{ position: 'absolute', top: 8, left: 8 }}>
                     <span className="font-mono" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px', background: 'var(--pb-ink)', color: 'var(--pb-paper)', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600 }}>
@@ -135,9 +136,9 @@ export function DualHero({ post, video, channels, hasVideos, locale, t }: Props)
               )}
 
               <VideoLightbox youtubeVideoId={video.youtubeVideoId}>
-                <div style={{ position: 'relative', aspectRatio: '16 / 9', overflow: 'hidden', background: video.thumbnailUrl ? undefined : 'linear-gradient(135deg, #51201F 0%, #142229 100%)' }}>
+                <div style={{ position: 'relative', aspectRatio: '16 / 9', overflow: 'hidden', background: video.thumbnailUrl ? undefined : 'linear-gradient(135deg, color-mix(in srgb, var(--pb-yt) 20%, var(--pb-bg)), var(--pb-bg))' }}>
                   {video.thumbnailUrl && (
-                    <img src={video.thumbnailUrl} alt="" referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <Image src={video.thumbnailUrl} alt={video.title} fill sizes="(max-width: 768px) 100vw, min(50vw, 640px)" style={{ objectFit: 'cover' }} referrerPolicy="no-referrer" />
                   )}
                   <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(transparent 40%, rgba(0,0,0,0.55))' }} />
                   <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -187,16 +188,16 @@ export function DualHero({ post, video, channels, hasVideos, locale, t }: Props)
             >
               <div aria-hidden="true" style={{ position: 'absolute', width: 80, height: 18, background: 'var(--pb-tapeR)', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.2)', top: -10, left: '22%', transform: 'rotate(4deg)' }} />
 
-              <div style={{ aspectRatio: '16 / 9', background: 'linear-gradient(135deg, #1a1714 0%, #2a2218 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+              <div style={{ aspectRatio: '16 / 9', background: 'linear-gradient(135deg, var(--pb-bg), var(--pb-paper2))', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ width: 56, height: 40, background: 'rgba(255,45,32,0.25)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 8px' }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="rgba(255,45,32,0.6)"><path d="M8 5v14l11-7z" /></svg>
+                  <div style={{ width: 56, height: 40, background: 'color-mix(in srgb, var(--pb-yt) 25%, transparent)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 8px' }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--pb-yt)" style={{ opacity: 0.6 }}><path d="M8 5v14l11-7z" /></svg>
                   </div>
-                  <div className="font-caveat" style={{ fontSize: 14, color: 'rgba(242,235,219,0.5)', transform: 'rotate(-1deg)' }}>
+                  <div className="font-caveat" style={{ fontSize: 14, color: 'var(--pb-faint)', transform: 'rotate(-1deg)' }}>
                     {t['home.youtube.comingSoon']}
                   </div>
                 </div>
-                <div className="font-mono" style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(255,45,32,0.3)', color: 'rgba(255,255,255,0.6)', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700, padding: '3px 7px' }}>
+                <div className="font-mono" style={{ position: 'absolute', top: 8, left: 8, background: 'color-mix(in srgb, var(--pb-yt) 30%, transparent)', color: 'var(--pb-muted)', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700, padding: '3px 7px' }}>
                   ▶ YouTube
                 </div>
               </div>

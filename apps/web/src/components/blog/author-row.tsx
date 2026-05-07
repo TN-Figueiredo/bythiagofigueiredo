@@ -48,7 +48,7 @@ export function AuthorRow({ author, engagement, locale, url }: Props) {
         className="w-10 h-10 rounded-full flex items-center justify-center font-fraunces font-semibold text-sm shrink-0"
         style={{
           background: 'linear-gradient(135deg, var(--pb-accent), var(--pb-marker))',
-          color: '#1A140C',
+          color: 'var(--pb-ink-on-accent)',
           border: '2px solid var(--pb-paper)',
           boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
         }}

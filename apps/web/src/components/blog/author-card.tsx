@@ -10,7 +10,7 @@ type Props = {
 
 export function AuthorCard({ author, locale, t: _t }: Props) {
   return (
-    <div className="relative my-12" style={{ background: '#1e1a14', padding: '32px 28px 24px' }}>
+    <div className="relative my-12" style={{ background: 'var(--pb-paper)', padding: '32px 28px 24px' }}>
       <div
         className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2"
         style={{ width: 80, height: 8, background: 'var(--pb-accent)', opacity: 0.7 }}
@@ -23,20 +23,20 @@ export function AuthorCard({ author, locale, t: _t }: Props) {
           className="w-14 h-14 rounded-full flex items-center justify-center font-fraunces font-semibold text-lg shrink-0"
           style={{
             background: 'linear-gradient(135deg, var(--pb-accent), var(--pb-marker))',
-            color: '#1A140C',
+            color: 'var(--pb-ink-on-accent)',
           }}
         >
           {author.initials}
         </div>
         <div>
-          <div className="font-fraunces text-xl" style={{ fontWeight: 500, color: '#efe6d2' }}>
+          <div className="font-fraunces text-xl" style={{ fontWeight: 500, color: 'var(--pb-ink)' }}>
             {author.name}
           </div>
           <div className="font-jetbrains text-xs text-pb-muted">{author.role}</div>
         </div>
       </div>
 
-      <p className="text-[15px] leading-relaxed mb-5" style={{ color: '#c4b89a', fontFamily: 'var(--font-source-serif), Georgia, serif' }}>
+      <p className="text-[15px] leading-relaxed mb-5" style={{ color: 'var(--pb-muted)', fontFamily: 'var(--font-source-serif), Georgia, serif' }}>
         {author.bio}
       </p>
 

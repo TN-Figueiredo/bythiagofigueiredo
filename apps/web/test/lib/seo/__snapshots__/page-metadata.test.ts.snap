@@ -244,7 +244,7 @@ exports[`page-metadata factories — snapshots > generateRootMetadata shape 1`] 
   },
   "description": "Blog, newsletters e projetos de Thiago Figueiredo. Engenharia de software, produto e construção em público.",
   "alternates": {
-    "canonical": "/",
+    "canonical": "/pt/",
     "languages": {
       "pt": "/pt/",
       "en": "/",

@@ -17,12 +17,12 @@ interface BlogFilterBarProps {
   locale: 'pt-BR' | 'en'
 }
 
-const tokens = (dark: boolean) => ({
-  line: dark ? '#2E2718' : '#CEBFA0',
-  ink: dark ? '#EFE6D2' : '#161208',
-  muted: dark ? '#958A75' : '#6A5F48',
-  faint: dark ? '#6B634F' : '#9C9178',
-  accent: dark ? '#FF8240' : '#C14513',
+const tokens = () => ({
+  line: 'var(--pb-line)',
+  ink: 'var(--pb-ink)',
+  muted: 'var(--pb-muted)',
+  faint: 'var(--pb-faint)',
+  accent: 'var(--pb-accent)',
 })
 
 function getSortOptions(t: BlogStrings) {
@@ -47,8 +47,7 @@ export function BlogFilterBar({
   hasFilters,
   locale,
 }: BlogFilterBarProps) {
-  const dark = true
-  const c = tokens(dark)
+  const c = tokens()
   const t = locale === 'pt-BR' ? ptBR : en
   const sortOptions = getSortOptions(t)
   const searchRef = useRef<HTMLInputElement>(null)
@@ -167,7 +166,7 @@ export function BlogFilterBar({
                   border: active ? 'none' : `1.5px solid ${c.line}`,
                   borderRadius: 3,
                   background: active ? c.ink : 'transparent',
-                  color: active ? (dark ? '#161208' : '#EFE6D2') : c.muted,
+                  color: active ? 'var(--pb-bg)' : c.muted,
                   cursor: 'pointer',
                   fontWeight: active ? 600 : 400,
                   transition: 'background 0.15s, color 0.15s',

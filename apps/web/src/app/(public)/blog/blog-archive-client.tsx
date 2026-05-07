@@ -54,12 +54,12 @@ const DEBOUNCE_MS = 150
 const SESSION_KEY = 'btf_blog_filters'
 
 const theme = {
-  bg: '#1E1A12',
-  ink: '#EFE6D2',
-  muted: '#958A75',
-  faint: '#6B634F',
-  accent: '#FF8240',
-  line: '#2E2718',
+  bg: 'var(--pb-bg)',
+  ink: 'var(--pb-ink)',
+  muted: 'var(--pb-muted)',
+  faint: 'var(--pb-faint)',
+  accent: 'var(--pb-accent)',
+  line: 'var(--pb-line)',
 }
 
 type Filters = { cat: string; tag: string; q: string; sort: string }
@@ -277,7 +277,7 @@ export function BlogArchiveClient({ posts, categories, tags, locale }: BlogArchi
         }
         .paper-card-lift:hover {
           transform: rotate(0deg) translateY(-6px) scale(1.02) !important;
-          box-shadow: 0 4px 0 rgba(0,0,0,0.5), 0 18px 36px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,255,255,0.05) !important;
+          box-shadow: var(--pb-shadow-hover) !important;
         }
       `}</style>
 
@@ -322,10 +322,10 @@ export function BlogArchiveClient({ posts, categories, tags, locale }: BlogArchi
               fontFamily: '"JetBrains Mono", monospace',
               fontSize: 11,
               padding: '5px 10px',
-              border: viewMode === 'grid' ? 'none' : '1.5px solid #2E2718',
+              border: viewMode === 'grid' ? 'none' : `1.5px solid var(--pb-line)`,
               borderRadius: 3,
-              background: viewMode === 'grid' ? '#EFE6D2' : 'transparent',
-              color: viewMode === 'grid' ? '#161208' : '#958A75',
+              background: viewMode === 'grid' ? 'var(--pb-ink)' : 'transparent',
+              color: viewMode === 'grid' ? 'var(--pb-bg)' : 'var(--pb-muted)',
               cursor: 'pointer',
               fontWeight: viewMode === 'grid' ? 600 : 400,
             }}
@@ -338,10 +338,10 @@ export function BlogArchiveClient({ posts, categories, tags, locale }: BlogArchi
               fontFamily: '"JetBrains Mono", monospace',
               fontSize: 11,
               padding: '5px 10px',
-              border: viewMode === 'list' ? 'none' : '1.5px solid #2E2718',
+              border: viewMode === 'list' ? 'none' : `1.5px solid var(--pb-line)`,
               borderRadius: 3,
-              background: viewMode === 'list' ? '#EFE6D2' : 'transparent',
-              color: viewMode === 'list' ? '#161208' : '#958A75',
+              background: viewMode === 'list' ? 'var(--pb-ink)' : 'transparent',
+              color: viewMode === 'list' ? 'var(--pb-bg)' : 'var(--pb-muted)',
               cursor: 'pointer',
               fontWeight: viewMode === 'list' ? 600 : 400,
             }}
@@ -358,10 +358,10 @@ export function BlogArchiveClient({ posts, categories, tags, locale }: BlogArchi
               fontFamily: '"JetBrains Mono", monospace',
               fontSize: 11,
               padding: '5px 10px',
-              border: '1.5px solid #2E2718',
+              border: '1.5px solid var(--pb-line)',
               borderRadius: 3,
               background: 'transparent',
-              color: '#958A75',
+              color: 'var(--pb-muted)',
               textDecoration: 'none',
               fontWeight: 400,
               letterSpacing: '0.04em',
