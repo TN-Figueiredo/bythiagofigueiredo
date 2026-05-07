@@ -32,7 +32,7 @@ export interface MediaAsset {
   contentHash: string
   folder: MediaFolder
   tags: string[]
-  uploadedBy: string
+  uploadedBy: string | null
   createdAt: string
 }
 
@@ -40,6 +40,7 @@ export type UploadErrorCode =
   | 'no_file'
   | 'unsupported_format'
   | 'file_too_large'
+  | 'empty_file'
   | 'dimension_exceeded'
   | 'blob_upload_failed'
   | 'db_insert_failed'
@@ -111,7 +112,7 @@ export function toMediaAsset(row: MediaAssetRow): MediaAsset {
     contentHash: row.content_hash,
     folder: row.folder as MediaFolder,
     tags: row.tags ?? [],
-    uploadedBy: row.uploaded_by ?? '',
+    uploadedBy: row.uploaded_by ?? null,
     createdAt: row.created_at,
   }
 }

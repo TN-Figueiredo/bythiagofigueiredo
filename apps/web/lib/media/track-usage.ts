@@ -15,8 +15,6 @@ export async function trackMediaUsage(
       resource_id: resourceId,
       field_name: fieldName,
     })
-    .select()
-    .single()
 
   if (error && error.code !== '23505') {
     throw new Error(`Failed to track media usage: ${error.message}`)
