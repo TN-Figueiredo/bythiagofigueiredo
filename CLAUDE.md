@@ -111,7 +111,8 @@ Workspace em `packages/cms/`, consumido via `"@tn-figueiredo/cms": "*"` + `trans
 
 LGPD: `LGPD_CRON_SWEEP_ENABLED` (safety valve — irreversible data deletion cron)
 SEO: `SEO_AI_CRAWLERS_BLOCKED` (controls robots.txt AI crawler rules)
-Links: `LINKS_SHORT_DOMAIN` (string), `LINKS_GEO_PROVIDER` (string — default `cloudflare`)
+Links: `LINKS_SHORT_DOMAIN` (string)
+Tracking: `GEO_PROVIDER` (string — default `auto`, set `stub` for dev/test)
 Ads: `AD_GOOGLE_ENABLED`, `AD_TRACKING_ENABLED`, `AD_REVENUE_SYNC_ENABLED` (require external Google setup)
 
 ## Environment Variables

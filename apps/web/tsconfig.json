@@ -36,6 +36,7 @@
       "@/lib/tracking/*": ["./lib/tracking/*"],
       "@/lib/links/*": ["./src/lib/links/*"],
       "@/lib/media/*": ["./lib/media/*"],
+      "@/lib/request/*": ["./lib/request/*"],
       "@/test/*": ["./test/*"],
       "@/*": ["./src/*"]
     }

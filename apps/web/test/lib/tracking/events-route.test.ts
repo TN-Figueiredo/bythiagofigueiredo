@@ -105,4 +105,85 @@ describe('POST /api/track/content', () => {
     const res = await POST(makeRequest({ events: [validEvent] }, { 'x-forwarded-for': '10.0.0.99' }))
     expect(res.status).toBe(429)
   })
+
+  it('includes geo data from Vercel headers in inserted rows', async () => {
+    await callRoute(
+      { events: [validEvent] },
+      {
+        'x-vercel-ip-country': 'BR',
+        'x-vercel-ip-city': 'Sao Paulo',
+        'x-vercel-ip-country-region': 'SP',
+      },
+    )
+    const rows = mockInsert.mock.calls[0][0] as Record<string, unknown>[]
+    expect(rows[0].country).toBe('BR')
+    expect(rows[0].city).toBe('Sao Paulo')
+    expect(rows[0].region).toBe('SP')
+  })
+
+  it('includes geo from Cloudflare headers as fallback', async () => {
+    await callRoute(
+      { events: [validEvent] },
+      {
+        'cf-ipcountry': 'US',
+        'cf-ipcity': 'New York',
+        'cf-ipregion': 'NY',
+      },
+    )
+    const rows = mockInsert.mock.calls[0][0] as Record<string, unknown>[]
+    expect(rows[0].country).toBe('US')
+    expect(rows[0].city).toBe('New York')
+    expect(rows[0].region).toBe('NY')
+  })
+
+  it('sets null geo when no geo headers present', async () => {
+    await callRoute({ events: [validEvent] })
+    const rows = mockInsert.mock.calls[0][0] as Record<string, unknown>[]
+    expect(rows[0].country).toBeNull()
+    expect(rows[0].city).toBeNull()
+    expect(rows[0].region).toBeNull()
+  })
+
+  it('classifies device_type from user-agent', async () => {
+    await callRoute(
+      { events: [validEvent] },
+      { 'user-agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0) AppleWebKit/605.1.15 Mobile' },
+    )
+    const rows = mockInsert.mock.calls[0][0] as Record<string, unknown>[]
+    expect(rows[0].device_type).toBe('mobile')
+  })
+
+  it('classifies desktop user-agent', async () => {
+    await callRoute(
+      { events: [validEvent] },
+      { 'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/125.0' },
+    )
+    const rows = mockInsert.mock.calls[0][0] as Record<string, unknown>[]
+    expect(rows[0].device_type).toBe('desktop')
+  })
+
+  it('classifies bot user-agent', async () => {
+    await callRoute(
+      { events: [validEvent] },
+      { 'user-agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)' },
+    )
+    const rows = mockInsert.mock.calls[0][0] as Record<string, unknown>[]
+    expect(rows[0].device_type).toBe('bot')
+  })
+
+  it('sets null device_type when no user-agent header', async () => {
+    await callRoute({ events: [validEvent] })
+    const rows = mockInsert.mock.calls[0][0] as Record<string, unknown>[]
+    expect(rows[0].device_type).toBeNull()
+  })
+
+  it('saves geo regardless of hasConsent (legitimate interest)', async () => {
+    await callRoute(
+      { events: [{ ...validEvent, hasConsent: false }] },
+      { 'x-vercel-ip-country': 'DE' },
+    )
+    const rows = mockInsert.mock.calls[0][0] as Record<string, unknown>[]
+    expect(rows[0].country).toBe('DE')
+    expect(rows[0].user_agent).toBeNull()
+  })
 })

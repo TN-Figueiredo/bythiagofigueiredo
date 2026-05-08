@@ -8,6 +8,8 @@ import {
   RATE_LIMIT_MAX,
   MAX_USER_AGENT_LENGTH,
 } from '@/lib/tracking/config'
+import { resolveGeo } from '@/lib/request/geo'
+import { classifyDevice } from '@/lib/request/device'
 
 const ipBuckets = new Map<string, { count: number; resetAt: number }>()
 
@@ -56,6 +58,8 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const rawUa = request.headers.get('user-agent')
+  const geo = resolveGeo(request.headers)
+  const deviceType = classifyDevice(rawUa)
   const userAgent = rawUa && rawUa.length > MAX_USER_AGENT_LENGTH
     ? rawUa.slice(0, MAX_USER_AGENT_LENGTH)
     : rawUa
@@ -74,6 +78,10 @@ export async function POST(request: Request): Promise<Response> {
     time_on_page: e.timeOnPage ?? null,
     has_consent: e.hasConsent,
     user_agent: e.hasConsent ? userAgent : null,
+    country: geo.country,
+    city: geo.city,
+    region: geo.region,
+    device_type: deviceType,
   }))
 
   const { error } = await supabase.from('content_events').insert(rows)
