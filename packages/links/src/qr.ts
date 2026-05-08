@@ -40,3 +40,5 @@ export type {
   Canvas,
   AspectRatioPreset,
 } from './qr/card-composition.js'
+
+export { compositionToSvg } from './qr/svg-export.js'
