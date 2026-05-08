@@ -10,6 +10,7 @@ export { QrComposer } from './components/qr-composer'
 export { AiInsightsPanel } from './components/ai-insights-panel'
 export { LivePulseIndicator } from './components/live-pulse-indicator'
 export { AlertRulesEditor } from './components/alert-rules-editor'
+export { QrCardBuilder } from './components/qr-card-builder/index'
 
 // Hooks
 export { useClickStream } from './hooks/use-click-stream'
@@ -31,3 +32,4 @@ export type { QrComposerProps } from './components/qr-composer'
 export type { AiInsightsPanelProps } from './components/ai-insights-panel'
 export type { LivePulseIndicatorProps } from './components/live-pulse-indicator'
 export type { AlertRulesEditorProps } from './components/alert-rules-editor'
+export type { QrCardBuilderProps } from './components/qr-card-builder/index'

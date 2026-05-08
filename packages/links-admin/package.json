@@ -22,20 +22,28 @@
     "test": "vitest run"
   },
   "peerDependencies": {
+    "konva": "^9.0.0",
     "lucide-react": "^0.400.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "react-konva": "^18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "konva": { "optional": true },
+    "react-konva": { "optional": true }
   },
   "devDependencies": {
     "@testing-library/jest-dom": "6.9.1",
     "@testing-library/react": "^16.0.0",
     "@testing-library/user-event": "^14.5.0",
+    "@types/qrcode": "1.5.6",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "jsdom": "^25.0.0",
+    "lucide-react": "^0.484.0",
+    "qrcode": "1.5.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "lucide-react": "^0.484.0",
     "tsup": "^8.0.0",
     "typescript": "^5.8.3",
     "vitest": "^2.0.0"
