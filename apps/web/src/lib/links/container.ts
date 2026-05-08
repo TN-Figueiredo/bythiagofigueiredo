@@ -1,5 +1,5 @@
 import { getSupabaseServiceClient } from '../../../lib/supabase/service'
-import { resolveGeo, type GeoData } from './geo'
+import { resolveGeo, type GeoData } from '../../../lib/request/geo'
 import { recordClick, type RecordClickInput, type RecordClickResult } from './click-recorder'
 import { invalidateLink, invalidateList, invalidateAnalytics } from './cache'
 import { resolveLink, type ResolvedLink } from './resolver'

@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { resolveGeo } from '../../../src/lib/links/geo'
+import { resolveGeo } from '../../../lib/request/geo'
 
 describe('resolveGeo', () => {
   beforeEach(() => {
-    vi.stubEnv('LINKS_GEO_PROVIDER', 'cloudflare')
+    vi.stubEnv('GEO_PROVIDER', 'auto')
   })
   afterEach(() => {
     vi.unstubAllEnvs()
@@ -32,9 +32,9 @@ describe('resolveGeo', () => {
   })
 
   it('uses stub provider in dev when LINKS_GEO_PROVIDER=stub', async () => {
-    vi.stubEnv('LINKS_GEO_PROVIDER', 'stub')
+    vi.stubEnv('GEO_PROVIDER', 'stub')
     vi.resetModules()
-    const mod = await import('../../../src/lib/links/geo')
+    const mod = await import('../../../lib/request/geo')
     const headers = new Headers({})
     const geo = mod.resolveGeo(headers)
     expect(geo).toEqual({ country: null, city: null, region: null })

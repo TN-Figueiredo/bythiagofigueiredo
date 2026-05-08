@@ -1,16 +1,8 @@
 import { createHash } from 'node:crypto'
 import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '../../../lib/supabase/service'
-import { resolveGeo } from './geo'
-
-const BOT_PATTERNS = [
-  /googlebot/i,
-  /bingbot/i,
-  /twitterbot/i,
-  /facebookexternalhit/i,
-  /linkedinbot/i,
-  /slackbot/i,
-]
+import { resolveGeo } from '../../../lib/request/geo'
+import { isBot as isBotShared } from '../../../lib/request/bot-patterns'
 
 const DEDUP_WINDOW_MS = 30_000 // 30 seconds
 
@@ -28,7 +20,7 @@ export function extractReferrerDomain(referrer: string | null | undefined): stri
 }
 
 export function isBot(userAgent: string): boolean {
-  return BOT_PATTERNS.some((pattern) => pattern.test(userAgent))
+  return isBotShared(userAgent)
 }
 
 export interface RecordClickInput {
