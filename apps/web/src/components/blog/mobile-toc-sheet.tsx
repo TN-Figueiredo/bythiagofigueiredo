@@ -2,6 +2,8 @@
 
 import { useEffect } from 'react'
 import { useScrollState } from './scroll-context'
+import { ptBR } from './_i18n/pt-BR'
+import { en } from './_i18n/en'
 import type { TocEntry } from './types'
 
 type Props = {
@@ -9,9 +11,12 @@ type Props = {
   onClose: () => void
   sections: TocEntry[]
   keyPoints?: string[]
+  locale?: string
 }
 
-export function MobileTocSheet({ open, onClose, sections, keyPoints }: Props) {
+export function MobileTocSheet({ open, onClose, sections, keyPoints, locale }: Props) {
+  const t = locale === 'pt-BR' ? ptBR : en
+
   useEffect(() => {
     if (open) document.body.style.overflow = 'hidden'
     else document.body.style.overflow = ''
@@ -25,21 +30,22 @@ export function MobileTocSheet({ open, onClose, sections, keyPoints }: Props) {
     return () => document.removeEventListener('keydown', handleKey)
   }, [open, onClose])
 
-  const { activeSection } = useScrollState()
+  const { activeSection, resolvedSections } = useScrollState()
+  const displaySections = resolvedSections.length > 0 ? resolvedSections : sections
 
   if (!open) return null
 
   return (
     <>
       <div className="fixed inset-0 bg-black/50 z-[95]" role="presentation" onClick={onClose} />
-      <div className="fixed bottom-0 left-0 right-0 bg-[--pb-paper] rounded-t-2xl z-[96] max-h-[70vh] overflow-y-auto p-6" role="dialog" aria-modal="true" aria-label="Sumario">
+      <div className="fixed bottom-0 left-0 right-0 bg-[--pb-paper] rounded-t-2xl z-[96] max-h-[70vh] overflow-y-auto p-6" role="dialog" aria-modal="true" aria-label={t.inThisText}>
         <div className="flex justify-between items-center mb-4">
           <div className="w-10 h-1 bg-[--pb-line] rounded-full" />
-          <button onClick={onClose} aria-label="Fechar sumario" className="text-pb-muted hover:text-pb-ink text-lg bg-transparent border-none cursor-pointer p-0">×</button>
+          <button onClick={onClose} aria-label={t.closeSummary} className="text-pb-muted hover:text-pb-ink text-lg bg-transparent border-none cursor-pointer p-0">×</button>
         </div>
-        <div className="blog-sidebar-label mb-3">Neste texto</div>
+        <div className="blog-sidebar-label mb-3">{t.inThisText}</div>
         <ul className="list-none mb-6">
-          {sections.map((entry) => (
+          {displaySections.map((entry) => (
             <li
               key={entry.slug}
               role="button"
@@ -72,7 +78,7 @@ export function MobileTocSheet({ open, onClose, sections, keyPoints }: Props) {
         </ul>
         {keyPoints && keyPoints.length > 0 && (
           <>
-            <div className="blog-sidebar-label mb-3">Pontos-chave</div>
+            <div className="blog-sidebar-label mb-3">{t.keyPoints}</div>
             {keyPoints.map((point, i) => (
               <div key={i} className="flex gap-2 items-start mb-3">
                 <span className="font-jetbrains text-xs font-bold text-pb-accent min-w-5">

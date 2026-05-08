@@ -309,11 +309,11 @@ describe('PostFootnotes', () => {
 })
 
 describe('ShareButtons', () => {
-  it('renders all 3 buttons with correct aria-labels', () => {
-    const { container } = render(<ShareButtons url="https://example.com/post" />)
-    const xBtn = container.querySelector('[aria-label="Compartilhar no X"]')
-    const linkedInBtn = container.querySelector('[aria-label="Compartilhar no LinkedIn"]')
-    const copyBtn = container.querySelector('[aria-label="Copiar link"]')
+  it('renders all 3 buttons with correct aria-labels (en)', () => {
+    const { container } = render(<ShareButtons url="https://example.com/post" locale="en" />)
+    const xBtn = container.querySelector('[aria-label="Share on X"]')
+    const linkedInBtn = container.querySelector('[aria-label="Share on LinkedIn"]')
+    const copyBtn = container.querySelector('[aria-label="Copy link"]')
     expect(xBtn).toBeTruthy()
     expect(linkedInBtn).toBeTruthy()
     expect(copyBtn).toBeTruthy()
@@ -321,10 +321,10 @@ describe('ShareButtons', () => {
 
   it('includes encoded URL in share links', () => {
     const url = 'https://example.com/post?a=1'
-    const { container } = render(<ShareButtons url={url} />)
-    const xLink = container.querySelector('[aria-label="Compartilhar no X"]') as HTMLAnchorElement
+    const { container } = render(<ShareButtons url={url} locale="en" />)
+    const xLink = container.querySelector('[aria-label="Share on X"]') as HTMLAnchorElement
     expect(xLink.href).toContain(encodeURIComponent(url))
-    const liLink = container.querySelector('[aria-label="Compartilhar no LinkedIn"]') as HTMLAnchorElement
+    const liLink = container.querySelector('[aria-label="Share on LinkedIn"]') as HTMLAnchorElement
     expect(liLink.href).toContain(encodeURIComponent(url))
   })
 })

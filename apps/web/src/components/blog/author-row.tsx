@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import type { AuthorData, EngagementStats } from './types'
 import { ShareButtons } from './share-buttons'
+import { ptBR } from './_i18n/pt-BR'
+import { en } from './_i18n/en'
 
 type Props = {
   author: AuthorData
@@ -37,6 +39,7 @@ function BookmarkIcon({ filled }: { filled: boolean }) {
 }
 
 export function AuthorRow({ author, engagement, locale, url }: Props) {
+  const t = locale === 'pt-BR' ? ptBR : en
   const [liked, setLiked] = useState(false)
   const [bookmarked, setBookmarked] = useState(engagement.bookmarked)
   const formattedViews = engagement.views.toLocaleString(locale === 'pt-BR' ? 'pt-BR' : 'en')
@@ -66,7 +69,7 @@ export function AuthorRow({ author, engagement, locale, url }: Props) {
       )}
       <div>
         <div className="text-sm text-pb-ink">
-          por <span className="underline underline-offset-2">{author.name}</span>
+          {t.byAuthor} <span className="underline underline-offset-2">{author.name}</span>
         </div>
         <div className="font-jetbrains text-xs text-pb-muted">{author.role}</div>
       </div>
@@ -79,7 +82,7 @@ export function AuthorRow({ author, engagement, locale, url }: Props) {
           onClick={() => setLiked(!liked)}
           className="flex items-center gap-1.5 bg-transparent border-none p-0 cursor-pointer transition-colors"
           style={{ color: liked ? 'var(--pb-accent)' : 'var(--pb-muted)', fontSize: 13 }}
-          aria-label={liked ? 'Descurtir' : 'Curtir'}
+          aria-label={liked ? t.unlikeLabel : t.likeLabel}
         >
           <HeartIcon filled={liked} />
           {likes}
@@ -88,13 +91,13 @@ export function AuthorRow({ author, engagement, locale, url }: Props) {
           onClick={() => setBookmarked(!bookmarked)}
           className="flex items-center gap-1 bg-transparent border-none p-0 cursor-pointer transition-colors font-jetbrains text-[11px] tracking-[0.12em] uppercase"
           style={{ color: bookmarked ? 'var(--pb-accent)' : 'var(--pb-muted)' }}
-          aria-label={bookmarked ? 'Remover salvo' : 'Salvar artigo'}
+          aria-label={bookmarked ? t.removeSaved : t.saveArticle}
         >
           <BookmarkIcon filled={bookmarked} />
-          {bookmarked ? 'salvo' : 'salvar'}
+          {bookmarked ? t.savedLabel : t.saveLabel}
         </button>
       </div>
-      <ShareButtons url={url} compact />
+      <ShareButtons url={url} compact locale={locale} />
     </div>
   )
 }

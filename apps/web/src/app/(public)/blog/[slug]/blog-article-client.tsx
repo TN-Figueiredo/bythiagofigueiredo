@@ -12,6 +12,8 @@ import {
   type TocEntry,
 } from '@/components/blog'
 import { useContentTracking } from '@/lib/tracking/use-content-tracking'
+import { ptBR } from '@/components/blog/_i18n/pt-BR'
+import { en } from '@/components/blog/_i18n/en'
 
 type Props = {
   children: ReactNode
@@ -27,7 +29,18 @@ type Props = {
   midContentAd?: ReactNode
 }
 
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+}
+
 export function BlogArticleClient({ children, sections, readingTimeMin, slug, locale, siteId, postId, keyPoints, bookmarkAd, mobileInlineAd, midContentAd }: Props) {
+  const t = locale === 'pt-BR' ? ptBR : en
   useContentTracking({
     siteId,
     resourceType: 'blog',
@@ -39,6 +52,24 @@ export function BlogArticleClient({ children, sections, readingTimeMin, slug, lo
   const [mobileTocOpen, setMobileTocOpen] = useState(false)
   const bodyRef = useRef<HTMLDivElement>(null)
   const [adPortalTarget, setAdPortalTarget] = useState<HTMLElement | null>(null)
+
+  useEffect(() => {
+    if (!bodyRef.current) return
+    const headings = bodyRef.current.querySelectorAll<HTMLElement>('h2, h3')
+    let patched = false
+    headings.forEach((el) => {
+      if (!el.id) {
+        const text = el.textContent?.replace(/#$/, '').trim() ?? ''
+        if (text) {
+          el.id = slugify(text)
+          patched = true
+        }
+      }
+    })
+    if (patched) {
+      window.dispatchEvent(new CustomEvent('headings-patched'))
+    }
+  }, [children])
 
   useEffect(() => {
     if (!midContentAd || !bodyRef.current) return
@@ -79,6 +110,7 @@ export function BlogArticleClient({ children, sections, readingTimeMin, slug, lo
         onClose={() => setMobileTocOpen(false)}
         sections={sections}
         keyPoints={keyPoints}
+        locale={locale}
       />
 
       <div className="blog-mobile-fab fixed bottom-28 right-7 z-[89] flex flex-col gap-2">
@@ -86,7 +118,7 @@ export function BlogArticleClient({ children, sections, readingTimeMin, slug, lo
           onClick={() => setMobileTocOpen(true)}
           className="w-11 h-11 rounded-full bg-pb-accent flex items-center justify-center text-white shadow-lg border-none cursor-pointer"
           style={{ color: 'var(--pb-bg)' }}
-          aria-label="Abrir sumario"
+          aria-label={t.openSummary}
         >
           ☰
         </button>

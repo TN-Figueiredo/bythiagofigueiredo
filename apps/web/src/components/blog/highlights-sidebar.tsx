@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { getHighlightStorageKey, type Highlight } from './types'
+import { ptBR } from './_i18n/pt-BR'
+import { en } from './_i18n/en'
 
 type Props = {
   slug: string
@@ -9,6 +11,7 @@ type Props = {
 }
 
 export function HighlightsSidebar({ slug, locale }: Props) {
+  const t = locale === 'pt-BR' ? ptBR : en
   const [highlights, setHighlights] = useState<Highlight[]>([])
 
   useEffect(() => {
@@ -34,9 +37,9 @@ export function HighlightsSidebar({ slug, locale }: Props) {
 
   return (
     <div className="mt-6">
-      <div className="blog-sidebar-label">SEUS DESTAQUES</div>
+      <div className="blog-sidebar-label">{t.yourHighlights.toUpperCase()}</div>
       {highlights.length === 0 ? (
-        <p className="text-xs text-pb-faint italic">Selecione texto no artigo para destacar.</p>
+        <p className="text-xs text-pb-faint italic">{t.highlightHint}</p>
       ) : (
         highlights.map((h) => (
           <div
@@ -47,7 +50,7 @@ export function HighlightsSidebar({ slug, locale }: Props) {
             &ldquo;{h.text}&rdquo;
             <button
               onClick={() => removeHighlight(h.id)}
-              aria-label="Remover destaque"
+              aria-label={t.removeHighlight}
               className="absolute top-1 right-1.5 text-[10px] text-pb-faint cursor-pointer bg-transparent border-none p-0"
             >
               ×

@@ -82,6 +82,32 @@ async function fetchPostAuthor(siteId: string, authorId: string | null, locale: 
 import { loadAdCreatives } from '@/lib/ads/resolve'
 import { BlogArticleClient } from './blog-article-client'
 
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+}
+
+function extractTocFromHtml(html: string): TocEntry[] {
+  const entries: TocEntry[] = []
+  const re = /<h([23])(\s[^>]*)?>(([\s\S]*?))<\/h\1>/gi
+  let match
+  while ((match = re.exec(html)) !== null) {
+    const depth = Number(match[1]) as 2 | 3
+    const attrs = match[2] ?? ''
+    const text = match[3]!.replace(/<[^>]+>/g, '').trim()
+    if (!text) continue
+    const idMatch = attrs.match(/\bid=["']([^"']+)["']/)
+    const slug = idMatch ? idMatch[1]! : slugify(text)
+    entries.push({ slug, text, depth })
+  }
+  return entries
+}
+
 export const revalidate = 3600
 
 interface Props {
@@ -112,6 +138,9 @@ export default async function BlogDetailPage({ params }: Props) {
   } else {
     const rawToc = extractToc(tx.content_mdx)
     toc = rawToc.map((h) => ({ slug: h.slug, text: h.text, depth: h.depth as 2 | 3 }))
+    if (toc.length === 0) {
+      toc = extractTocFromHtml(tx.content_mdx)
+    }
   }
 
   const footnotes = Array.from(tx.content_mdx.matchAll(/^\[\^(\d+)\]:\s*(.+)$/gm)).map((m) => ({
@@ -299,11 +328,11 @@ export default async function BlogDetailPage({ params }: Props) {
 
         <div className="blog-detail-grid">
           <div className="blog-sidebar blog-detail-sidebar">
-            <PostToc sections={toc} url={pageUrl} />
+            <PostToc sections={toc} url={pageUrl} locale={locale} />
             <div className="blog-ad-slot">
               {creatives['post:rail:anchor-left'] && <MarginaliaAd creative={creatives['post:rail:anchor-left']} locale={adLocale} />}
             </div>
-            <BackToTop />
+            <BackToTop locale={locale} />
           </div>
 
           <main id="main-content">

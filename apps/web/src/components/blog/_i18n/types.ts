@@ -51,4 +51,22 @@ export interface BlogStrings {
   backToArchive: string
   updatedAt: string
   progressLabel: (read: number, total: number, pct: number) => string
+  inThisText: string
+  share: string
+  shareOnX: string
+  shareOnLinkedIn: string
+  copyLink: string
+  yourHighlights: string
+  highlightHint: string
+  removeHighlight: string
+  saveLabel: string
+  savedLabel: string
+  saveArticle: string
+  removeSaved: string
+  likeLabel: string
+  unlikeLabel: string
+  byAuthor: string
+  backToTop: string
+  closeSummary: string
+  openSummary: string
 }

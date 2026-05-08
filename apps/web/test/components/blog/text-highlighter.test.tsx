@@ -3,8 +3,6 @@ import { render, fireEvent } from '@testing-library/react'
 import { HighlightsSidebar } from '../../../src/components/blog/highlights-sidebar'
 import { TextHighlighter } from '../../../src/components/blog/text-highlighter'
 
-// happy-dom ships localStorage as a frozen proxy without .clear;
-// install an in-memory shim so every test starts from a clean slate.
 function installLocalStorageShim() {
   const store = new Map<string, string>()
   const shim: Storage = {
@@ -24,8 +22,13 @@ describe('HighlightsSidebar', () => {
     localStorage.clear()
   })
 
-  it('shows empty state when no highlights', () => {
-    const { container } = render(<HighlightsSidebar slug="test-post" />)
+  it('shows empty state when no highlights (en)', () => {
+    const { container } = render(<HighlightsSidebar slug="test-post" locale="en" />)
+    expect(container.textContent).toContain('Select text in the article')
+  })
+
+  it('shows empty state when no highlights (pt-BR)', () => {
+    const { container } = render(<HighlightsSidebar slug="test-post" locale="pt-BR" />)
     expect(container.textContent).toContain('Selecione texto no artigo')
   })
 
@@ -38,7 +41,7 @@ describe('HighlightsSidebar', () => {
     expect(container.textContent).toContain('Test highlight')
   })
 
-  it('remove button has aria-label="Remover destaque"', () => {
+  it('remove button has correct aria-label', () => {
     const highlights = [
       { id: 'h1', text: 'Removable highlight', createdAt: new Date().toISOString() },
     ]
@@ -53,11 +56,10 @@ describe('HighlightsSidebar', () => {
       { id: 'h1', text: 'To be removed', createdAt: new Date().toISOString() },
     ]
     localStorage.setItem('btf-highlights:pt-BR/test-post', JSON.stringify(highlights))
-    const { container, rerender } = render(<HighlightsSidebar slug="test-post" locale="pt-BR" />)
+    const { container } = render(<HighlightsSidebar slug="test-post" locale="pt-BR" />)
     expect(container.textContent).toContain('To be removed')
     const removeBtn = container.querySelector('[aria-label="Remover destaque"]')!
     fireEvent.click(removeBtn)
-    // After removal, should show empty state
     expect(container.textContent).toContain('Selecione texto no artigo')
   })
 })
@@ -78,7 +80,6 @@ describe('TextHighlighter', () => {
         <span>Inner text</span>
       </TextHighlighter>,
     )
-    // The root wrapper div should exist
     const wrapper = container.firstElementChild
     expect(wrapper).toBeTruthy()
     expect(wrapper!.tagName).toBe('DIV')

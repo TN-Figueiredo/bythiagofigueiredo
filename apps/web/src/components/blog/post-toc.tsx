@@ -2,22 +2,27 @@
 
 import { useScrollState } from './scroll-context'
 import { ShareButtons } from './share-buttons'
+import { ptBR } from './_i18n/pt-BR'
+import { en } from './_i18n/en'
 import type { TocEntry } from './types'
 
 type Props = {
   sections: TocEntry[]
   url: string
+  locale?: string
 }
 
-export function PostToc({ sections, url }: Props) {
-  const { activeSection } = useScrollState()
+export function PostToc({ sections, url, locale }: Props) {
+  const { activeSection, resolvedSections } = useScrollState()
+  const t = locale === 'pt-BR' ? ptBR : en
+  const displaySections = resolvedSections.length > 0 ? resolvedSections : sections
 
   return (
     <div>
-      <div className="blog-sidebar-label">NESTE TEXTO</div>
-      <nav aria-label="Sumario do artigo">
+      <div className="blog-sidebar-label">{t.inThisText.toUpperCase()}</div>
+      <nav aria-label={t.inThisText}>
         <ul className="list-none">
-          {sections.map((entry) => {
+          {displaySections.map((entry) => {
             const isActive = activeSection === entry.slug
             return (
               <li key={entry.slug} style={{ marginLeft: '-2px' }}>
@@ -43,24 +48,25 @@ export function PostToc({ sections, url }: Props) {
         </ul>
       </nav>
       <hr className="border-none border-t border-dashed border-[--pb-line] my-4" />
-      <div className="blog-sidebar-label">COMPARTILHAR</div>
-      <ShareButtons url={url} />
+      <div className="blog-sidebar-label">{t.share.toUpperCase()}</div>
+      <ShareButtons url={url} locale={locale} />
     </div>
   )
 }
 
-export function BackToTop() {
+export function BackToTop({ locale }: { locale?: string }) {
   const { progress } = useScrollState()
+  const t = locale === 'pt-BR' ? ptBR : en
 
   if (progress < 0.15) return null
 
   return (
     <button
       onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-      aria-label="Voltar ao topo"
+      aria-label={t.backToTop}
       className="font-jetbrains text-[11px] text-pb-accent cursor-pointer mt-3 flex items-center gap-1 bg-transparent border-none p-0"
     >
-      TOPO ↑
+      {t.backToTop} ↑
     </button>
   )
 }

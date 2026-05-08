@@ -18,7 +18,7 @@ describe('MobileTocSheet', () => {
 
   it('returns null when closed', () => {
     const { container } = renderWithScroll(
-      <MobileTocSheet open={false} onClose={() => {}} sections={sections} />,
+      <MobileTocSheet open={false} onClose={() => {}} sections={sections} locale="en" />,
       sections,
     )
     expect(container.textContent).toBe('')
@@ -26,16 +26,16 @@ describe('MobileTocSheet', () => {
 
   it('renders sections when open', () => {
     const { container } = renderWithScroll(
-      <MobileTocSheet open onClose={() => {}} sections={sections} />,
+      <MobileTocSheet open onClose={() => {}} sections={sections} locale="en" />,
       sections,
     )
     expect(container.textContent).toContain('Introduction')
     expect(container.textContent).toContain('Main Body')
   })
 
-  it('renders key points when provided', () => {
+  it('renders key points when provided (pt-BR)', () => {
     const { container } = renderWithScroll(
-      <MobileTocSheet open onClose={() => {}} sections={sections} keyPoints={['Point A', 'Point B']} />,
+      <MobileTocSheet open onClose={() => {}} sections={sections} keyPoints={['Point A', 'Point B']} locale="pt-BR" />,
       sections,
     )
     expect(container.textContent).toContain('Point A')
@@ -44,23 +44,31 @@ describe('MobileTocSheet', () => {
 
   it('has dialog role when open', () => {
     const { container } = renderWithScroll(
-      <MobileTocSheet open onClose={() => {}} sections={sections} />,
+      <MobileTocSheet open onClose={() => {}} sections={sections} locale="en" />,
       sections,
     )
     expect(container.querySelector('[role="dialog"]')).toBeTruthy()
   })
 
-  it('renders Neste texto label', () => {
+  it('renders In This Text label (en)', () => {
     const { container } = renderWithScroll(
-      <MobileTocSheet open onClose={() => {}} sections={sections} />,
+      <MobileTocSheet open onClose={() => {}} sections={sections} locale="en" />,
       sections,
     )
-    expect(container.textContent).toContain('Neste texto')
+    expect(container.textContent).toContain('In This Text')
+  })
+
+  it('renders Neste Texto label (pt-BR)', () => {
+    const { container } = renderWithScroll(
+      <MobileTocSheet open onClose={() => {}} sections={sections} locale="pt-BR" />,
+      sections,
+    )
+    expect(container.textContent).toContain('Neste Texto')
   })
 
   it('has aria-modal="true" when open', () => {
     const { container } = renderWithScroll(
-      <MobileTocSheet open onClose={() => {}} sections={sections} />,
+      <MobileTocSheet open onClose={() => {}} sections={sections} locale="en" />,
       sections,
     )
     const dialog = container.querySelector('[role="dialog"]')
@@ -70,7 +78,7 @@ describe('MobileTocSheet', () => {
   it('calls onClose on Escape key', () => {
     const onClose = vi.fn()
     renderWithScroll(
-      <MobileTocSheet open onClose={onClose} sections={sections} />,
+      <MobileTocSheet open onClose={onClose} sections={sections} locale="en" />,
       sections,
     )
     fireEvent.keyDown(document, { key: 'Escape' })
@@ -79,9 +87,9 @@ describe('MobileTocSheet', () => {
 
   it('has a visible close button', () => {
     const { container } = renderWithScroll(
-      <MobileTocSheet open onClose={() => {}} sections={sections} />,
+      <MobileTocSheet open onClose={() => {}} sections={sections} locale="en" />,
       sections,
     )
-    expect(container.querySelector('[aria-label="Fechar sumario"]')).toBeTruthy()
+    expect(container.querySelector('[aria-label="Close summary"]')).toBeTruthy()
   })
 })

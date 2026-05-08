@@ -8,6 +8,7 @@ type ScrollState = {
   progress: number
   sectionProgress: Map<string, number>
   visible: boolean
+  resolvedSections: TocEntry[]
 }
 
 const ScrollContext = createContext<ScrollState>({
@@ -15,6 +16,7 @@ const ScrollContext = createContext<ScrollState>({
   progress: 0,
   sectionProgress: new Map(),
   visible: false,
+  resolvedSections: [],
 })
 
 export function useScrollState() {
@@ -32,15 +34,39 @@ export function ScrollProvider({ sections, children }: Props) {
     progress: 0,
     sectionProgress: new Map(),
     visible: false,
+    resolvedSections: sections,
   })
 
   const prevProgressRef = useRef<Map<string, number>>(new Map())
+  const [scanTrigger, setScanTrigger] = useState(0)
+
+  useEffect(() => {
+    const handlePatched = () => setScanTrigger((n) => n + 1)
+    window.addEventListener('headings-patched', handlePatched)
+    return () => window.removeEventListener('headings-patched', handlePatched)
+  }, [])
 
   useEffect(() => {
     const h2Sections = sections.filter((s) => s.depth === 2)
-    const elements = h2Sections
+    let elements = h2Sections
       .map((s) => document.getElementById(s.slug))
       .filter(Boolean) as HTMLElement[]
+
+    if (elements.length === 0) {
+      const mainContent = document.getElementById('main-content')
+      if (mainContent) {
+        const domHeadings = mainContent.querySelectorAll<HTMLElement>('h2[id], h3[id]')
+        if (domHeadings.length > 0) {
+          const domSections: TocEntry[] = Array.from(domHeadings).map((el) => ({
+            slug: el.id,
+            text: el.textContent?.replace(/#$/, '').trim() ?? '',
+            depth: (el.tagName === 'H2' ? 2 : 3) as 2 | 3,
+          }))
+          setState((prev) => ({ ...prev, resolvedSections: domSections }))
+          elements = Array.from(domHeadings).filter((el) => el.tagName === 'H2') as HTMLElement[]
+        }
+      }
+    }
 
     if (elements.length === 0) return
 
@@ -108,7 +134,7 @@ export function ScrollProvider({ sections, children }: Props) {
       observer.disconnect()
       window.removeEventListener('scroll', handleScroll)
     }
-  }, [sections])
+  }, [sections, scanTrigger])
 
   return <ScrollContext.Provider value={state}>{children}</ScrollContext.Provider>
 }
