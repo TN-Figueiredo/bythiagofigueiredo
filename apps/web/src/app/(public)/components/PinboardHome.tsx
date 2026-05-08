@@ -115,7 +115,7 @@ export async function PinboardHome({ locale }: Props) {
 
       {/* Instagram Feed */}
       <Suspense>
-        <InstagramFeed layout="scatter" count={5} className="px-4 py-12" />
+        <InstagramFeed locale={locale} className="px-4 py-12" />
       </Suspense>
 
       {/* §5 — Most Read + Tag Grid (side-by-side) */}

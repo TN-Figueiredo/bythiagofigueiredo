@@ -1745,6 +1745,16 @@ function InstagramAccountCard({
     })
   }
 
+  const effectiveSlots = account.slots.length > 0
+    ? account.slots
+    : Array.from({ length: account.display_slots }, (_, i) => ({
+        id: `virtual-${i + 1}`,
+        position: i + 1,
+        post_id: null as string | null,
+        thumbnail_url: null as string | null,
+        caption: null as string | null,
+      }))
+
   const handleSlotReorder = (slots: { position: number; postId: string | null }[]) => {
     startTransition(async () => {
       const { updateInstagramSlots } = await import('./actions')
@@ -1755,7 +1765,7 @@ function InstagramAccountCard({
   const handlePinPost = (position: number, postId: string | null) => {
     startTransition(async () => {
       const { updateInstagramSlots } = await import('./actions')
-      const currentSlots = account.slots.map(s => ({
+      const currentSlots = effectiveSlots.map(s => ({
         position: s.position,
         postId: s.position === position ? postId : s.post_id,
       }))
@@ -1935,7 +1945,7 @@ function InstagramAccountCard({
         <div className={sectionCls()}>
           <h4 className="text-sm font-medium text-slate-300">Pin Management</h4>
           <SlotManager
-            slots={account.slots.map(s => ({
+            slots={effectiveSlots.map(s => ({
               id: s.id,
               position: s.position,
               postId: s.post_id,

@@ -592,12 +592,14 @@ export async function updateInstagramSettings(input: {
   const supabase = getSupabaseServiceClient()
   const { accountId, ...updates } = parsed.data
 
-  const { error } = await supabase
+  const { error, data } = await supabase
     .from('instagram_accounts')
     .update({ ...updates, updated_at: new Date().toISOString() })
     .eq('id', accountId)
+    .select('id')
 
   if (error) return { ok: false, error: error.message }
+  if (!data || data.length === 0) return { ok: false, error: 'Account not found' }
   revalidatePath('/cms/settings')
   revalidatePath('/', 'layout')
   revalidateTag('instagram-feed')
