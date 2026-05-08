@@ -1,0 +1,72 @@
+'use client'
+
+import { useCallback } from 'react'
+import { QrCardBuilder } from '@tn-figueiredo/links-admin/client'
+import type { CardComposition } from '@tn-figueiredo/links/qr'
+import {
+  saveQrCard,
+  saveQrTemplate,
+  deleteQrTemplate,
+  exportQrCard,
+  uploadQrImage,
+} from './actions'
+
+interface QrTemplate {
+  id: string
+  name: string
+  composition: CardComposition
+  thumbnailUrl: string | null
+  createdAt: string
+}
+
+interface Props {
+  link: { id: string; code: string; title: string | null }
+  shortUrl: string
+  initialComposition: CardComposition
+  templates: QrTemplate[]
+}
+
+export function QrCardBuilderPage({ link, shortUrl, initialComposition, templates }: Props) {
+  const handleSave = useCallback(async (composition: CardComposition) => {
+    await saveQrCard(link.id, composition)
+  }, [link.id])
+
+  const handleExport = useCallback(async (blob: Blob, metadata: { format: 'png' | 'svg'; scale: number; width: number; height: number }) => {
+    const fd = new FormData()
+    fd.append('file', blob, `qr-card.${metadata.format}`)
+    fd.append('format', metadata.format)
+    const result = await exportQrCard(link.id, fd)
+    return result.ok ? { url: result.url } : null
+  }, [link.id])
+
+  const handleSaveTemplate = useCallback(async (name: string, composition: CardComposition, thumbnail: Blob) => {
+    const fd = new FormData()
+    fd.append('thumbnail', thumbnail, 'thumbnail.png')
+    await saveQrTemplate(name, composition, fd)
+  }, [])
+
+  const handleDeleteTemplate = useCallback(async (id: string) => {
+    await deleteQrTemplate(id)
+  }, [])
+
+  const handleImageUpload = useCallback(async (file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    const result = await uploadQrImage(fd)
+    return result.ok ? result.url : ''
+  }, [])
+
+  return (
+    <QrCardBuilder
+      link={link}
+      shortUrl={shortUrl}
+      initialComposition={initialComposition}
+      templates={templates}
+      onSave={handleSave}
+      onExport={handleExport}
+      onSaveTemplate={handleSaveTemplate}
+      onDeleteTemplate={handleDeleteTemplate}
+      onImageUpload={handleImageUpload}
+    />
+  )
+}

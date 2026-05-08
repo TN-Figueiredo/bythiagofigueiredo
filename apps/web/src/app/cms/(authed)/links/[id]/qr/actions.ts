@@ -98,7 +98,7 @@ export async function saveQrTemplate(
     const result = await uploadMediaAsset({
       file: thumbnailFile,
       filename: `qr-template-${Date.now()}.png`,
-      folder: 'qr-templates',
+      folder: 'links',
       siteId,
       uploadedBy: 'system',
       tags: ['qr-template'],
@@ -191,10 +191,32 @@ export async function exportQrCard(
   const result = await uploadMediaAsset({
     file,
     filename: `qr-card-${linkId}.${format}`,
-    folder: 'qr-cards',
+    folder: 'links',
     siteId,
     uploadedBy: 'system',
     tags: ['qr-card', `link:${linkId}`],
+  })
+
+  if (!result.ok) return { ok: false, error: result.error }
+  return { ok: true, url: result.asset.blobUrl }
+}
+
+export async function uploadQrImage(
+  formData: FormData,
+): Promise<ActionResult<{ url: string }>> {
+  const { siteId } = await getSiteContext()
+  await requireEditScope(siteId)
+
+  const file = formData.get('file') as File | null
+  if (!file) return { ok: false, error: 'file_required' }
+
+  const result = await uploadMediaAsset({
+    file,
+    filename: `qr-image-${Date.now()}-${file.name}`,
+    folder: 'links',
+    siteId,
+    uploadedBy: 'system',
+    tags: ['qr-card-image'],
   })
 
   if (!result.ok) return { ok: false, error: result.error }
