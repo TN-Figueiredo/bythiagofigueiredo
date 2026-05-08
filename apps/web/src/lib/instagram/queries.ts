@@ -10,13 +10,15 @@ export const getInstagramFeedData = unstable_cache(
     count?: number,
   ): Promise<{ account: InstagramAccountPublic | null; slots: ResolvedSlot[] }> => {
     const supabase = getSupabaseServiceClient()
-    const dbLocale = locale === 'pt-BR' ? 'pt' : locale
+    const dbLocale = locale.startsWith('pt') ? 'pt' : locale.startsWith('en') ? 'en' : locale
 
     const { data: account } = await supabase
       .from('instagram_accounts_public')
       .select('*')
       .eq('site_id', siteId)
-      .eq('locale', dbLocale)
+      .in('locale', [dbLocale, 'all'])
+      .order('locale', { ascending: true })
+      .limit(1)
       .single()
 
     if (!account) return { account: null, slots: [] }
@@ -47,5 +49,5 @@ export const getInstagramFeedData = unstable_cache(
     }
   },
   ['instagram-feed-data'],
-  { revalidate: 3600, tags: ['instagram-feed'] },
+  { revalidate: 900, tags: ['instagram-feed'] },
 )

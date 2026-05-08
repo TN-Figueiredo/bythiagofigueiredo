@@ -1,10 +1,19 @@
 import { getSiteContext } from '@/lib/cms/site-context'
 import { getInstagramFeedData } from '@/lib/instagram/queries'
 import { PolaroidCard } from './polaroid-card'
-import type { InstagramAccountPublic } from '@/lib/instagram/types'
+
+function extractUsername(handle: string): string {
+  const stripped = handle.replace(/^@/, '').trim()
+  try {
+    const url = new URL(stripped.startsWith('http') ? stripped : `https://${stripped}`)
+    if (url.hostname.includes('instagram.com')) {
+      return url.pathname.replace(/^\//, '').replace(/\/$/, '')
+    }
+  } catch { /* not a URL */ }
+  return stripped
+}
 
 interface InstagramFeedProps {
-  accountId?: string
   layout?: 'grid' | 'scatter'
   count?: number
   locale?: string
@@ -21,81 +30,29 @@ const INSTAGRAM_STRINGS = {
   en: {
     subtitle: 'latest shots',
     title: 'from the iPhone, no filter',
-    autoUpdated: 'auto-updated',
+    autoUpdated: 'auto-synced',
     follow: 'Follow on Instagram',
   },
 } as const
 
-const SCATTER_POSITIONS: Record<number, { top: string; left: string }[]> = {
-  3: [
-    { top: '5%', left: '5%' },
-    { top: '10%', left: '38%' },
-    { top: '0%', left: '68%' },
-  ],
-  4: [
-    { top: '0%', left: '2%' },
-    { top: '15%', left: '26%' },
-    { top: '5%', left: '50%' },
-    { top: '12%', left: '74%' },
-  ],
-  5: [
-    { top: '0%', left: '2%' },
-    { top: '15%', left: '22%' },
-    { top: '5%', left: '42%' },
-    { top: '18%', left: '60%' },
-    { top: '2%', left: '78%' },
-  ],
-  6: [
-    { top: '0%', left: '0%' },
-    { top: '12%', left: '18%' },
-    { top: '2%', left: '36%' },
-    { top: '15%', left: '52%' },
-    { top: '5%', left: '68%' },
-    { top: '10%', left: '84%' },
-  ],
-  8: [
-    { top: '0%', left: '0%' },
-    { top: '10%', left: '13%' },
-    { top: '2%', left: '26%' },
-    { top: '14%', left: '38%' },
-    { top: '4%', left: '50%' },
-    { top: '12%', left: '62%' },
-    { top: '0%', left: '74%' },
-    { top: '8%', left: '86%' },
-  ],
-  12: [
-    { top: '0%', left: '0%' },
-    { top: '8%', left: '9%' },
-    { top: '2%', left: '18%' },
-    { top: '12%', left: '27%' },
-    { top: '4%', left: '36%' },
-    { top: '10%', left: '45%' },
-    { top: '0%', left: '54%' },
-    { top: '14%', left: '63%' },
-    { top: '6%', left: '72%' },
-    { top: '10%', left: '81%' },
-    { top: '2%', left: '88%' },
-    { top: '8%', left: '94%' },
-  ],
-}
+type LangKey = keyof typeof INSTAGRAM_STRINGS
 
-function generateScatterPositions(count: number): { top: string; left: string }[] {
-  return Array.from({ length: count }, (_, i) => ({
-    top: `${(i * 7 + 3) % 20}%`,
-    left: `${(i / count) * 85}%`,
-  }))
-}
+const SCATTER_LAYOUT = [
+  { left: '2%',  top: 8,   rot: -4.5, z: 2, size: 220 },
+  { left: '20%', top: 90,  rot: 2.8,  z: 4, size: 230 },
+  { left: '39%', top: 0,   rot: -1.2, z: 5, size: 240 },
+  { left: '58%', top: 100, rot: 3.6,  z: 3, size: 220 },
+  { left: '76%', top: 20,  rot: -2.4, z: 2, size: 225 },
+]
 
 function getGridCols(count: number): string {
   if (count <= 3) return 'grid-cols-3'
   if (count <= 4) return 'grid-cols-4'
   if (count <= 6) return 'grid-cols-3'
-  if (count <= 8) return 'grid-cols-4'
   return 'grid-cols-4'
 }
 
 export async function InstagramFeed({
-  accountId,
   layout,
   count,
   locale,
@@ -109,34 +66,63 @@ export async function InstagramFeed({
 
     if (!account || slots.length === 0) return null
 
-    const effectiveLayout = layout ?? (account as InstagramAccountPublic).layout_type
-    const handle = (account as InstagramAccountPublic).handle
-    const lang = effectiveLocale.startsWith('en') ? 'en' : 'pt'
+    const effectiveLayout = layout ?? account.layout_type
+    const lang: LangKey = effectiveLocale.startsWith('en') ? 'en' : 'pt'
     const strings = INSTAGRAM_STRINGS[lang]
+    const profileHandle = extractUsername(account.handle)
+    const sectionTitle = (lang === 'en' ? account.section_title_en : account.section_title_pt) ?? strings.title
+    const sectionSubtitle = (lang === 'en' ? account.section_subtitle_en : account.section_subtitle_pt) ?? strings.subtitle
 
     return (
-      <section className={`${className}`}>
-        <div className="mb-6 text-center">
-          <p className="text-lg text-indigo-400 dark:text-indigo-300" style={{ fontFamily: 'var(--font-caveat-var), cursive', transform: 'rotate(-2deg)' }}>
-            {strings.subtitle}
-          </p>
-          <h2 className="text-2xl font-semibold text-slate-800 dark:text-slate-100" style={{ fontFamily: 'var(--font-fraunces-var), serif' }}>
-            {strings.title}
-          </h2>
-          <p className="mt-1 font-mono text-xs text-slate-500">
-            {handle} · {strings.autoUpdated}
-          </p>
+      <section
+        className={className}
+        aria-label="Instagram feed"
+        style={{ maxWidth: 1280, margin: '0 auto', padding: '72px 28px 48px', borderTop: '1px dashed rgba(149,138,117,0.3)', marginTop: 32 }}
+      >
+        {/* Header — flex row like the design */}
+        <div className="mb-9 flex flex-wrap items-baseline justify-between gap-4">
+          <div>
+            <div
+              className="inline-block text-[26px] text-orange-400 dark:text-orange-300"
+              style={{ fontFamily: 'var(--font-caveat-var), cursive', transform: 'rotate(-1.5deg)' }}
+            >
+              {sectionSubtitle}
+            </div>
+            <h2
+              className="mt-0.5 text-[38px] font-bold leading-none tracking-tight text-slate-900 dark:text-[#EFE6D2]"
+              style={{ fontFamily: 'var(--font-fraunces-var), serif', letterSpacing: '-0.01em' }}
+            >
+              {sectionTitle}
+            </h2>
+            <div className="mt-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6A5F48] dark:text-[#958A75]">
+              @{profileHandle} · {strings.autoUpdated}
+            </div>
+          </div>
+
+          <a
+            href={`https://instagram.com/${profileHandle}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2.5 bg-slate-900 px-[18px] py-3 font-mono text-xs font-semibold uppercase tracking-[0.1em] text-white no-underline transition-colors hover:bg-slate-800 dark:bg-[#EFE6D2] dark:text-[#14110B] dark:hover:bg-[#DFD5BF]"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="2" y="2" width="20" height="20" rx="5"/>
+              <circle cx="12" cy="12" r="4"/>
+              <circle cx="17.5" cy="6.5" r="1" fill="currentColor"/>
+            </svg>
+            {strings.follow}
+          </a>
         </div>
 
         {effectiveLayout === 'grid' && (
-          <div className={`grid gap-4 ${getGridCols(slots.length)} max-md:grid-cols-2`}>
+          <div className={`grid gap-4 ${getGridCols(slots.length)} max-md:grid-cols-2`} style={{ maxWidth: 1080, margin: '0 auto' }}>
             {slots.map((slot, i) => (
               <div
                 key={slot.post.id}
                 className="transition-transform"
                 style={{ transform: `translateY(${i % 2 === 0 ? 14 : -4}px)` }}
               >
-                <PolaroidCard post={slot.post} index={i} pinned={slot.pinned} />
+                <PolaroidCard post={slot.post} index={i} pinned={slot.pinned} locale={effectiveLocale} />
               </div>
             ))}
           </div>
@@ -144,45 +130,40 @@ export async function InstagramFeed({
 
         {effectiveLayout === 'scatter' && (
           <>
-            <div className="relative hidden min-h-[500px] md:block">
+            {/* Desktop: absolute-positioned scatter */}
+            <div className="relative hidden md:block" style={{ height: 460, maxWidth: 1080, margin: '0 auto' }}>
               {slots.map((slot, i) => {
-                const positions = SCATTER_POSITIONS[slots.length] ?? generateScatterPositions(slots.length)
-                const pos = positions[i % positions.length]!
+                const pos = SCATTER_LAYOUT[i % SCATTER_LAYOUT.length]!
                 return (
                   <div
                     key={slot.post.id}
-                    className="absolute w-[180px]"
-                    style={{ top: pos.top, left: pos.left, animation: `float ${3 + (i % 3)}s ease-in-out ${i * 0.5}s infinite` }}
+                    className="absolute transition-transform duration-200 hover:scale-[1.04]"
+                    style={{
+                      left: pos.left,
+                      top: pos.top,
+                      width: pos.size,
+                      zIndex: pos.z,
+                    }}
                   >
-                    <PolaroidCard post={slot.post} index={i} pinned={slot.pinned} />
+                    <PolaroidCard post={slot.post} index={i} pinned={slot.pinned} locale={effectiveLocale} rotation={pos.rot} />
                   </div>
                 )
               })}
             </div>
 
+            {/* Mobile: 2-col grid */}
             <div className="grid grid-cols-2 gap-3 md:hidden">
               {slots.map((slot, i) => (
                 <div
                   key={slot.post.id}
                   style={{ transform: `translateY(${i % 2 === 0 ? 14 : -4}px)` }}
                 >
-                  <PolaroidCard post={slot.post} index={i} pinned={slot.pinned} />
+                  <PolaroidCard post={slot.post} index={i} pinned={slot.pinned} locale={effectiveLocale} />
                 </div>
               ))}
             </div>
           </>
         )}
-
-        <div className="mt-8 text-center">
-          <a
-            href={`https://instagram.com/${handle.replace('@', '')}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-block rounded bg-slate-900 px-6 py-2.5 font-mono text-xs font-medium uppercase tracking-wider text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
-          >
-            {strings.follow}
-          </a>
-        </div>
       </section>
     )
   } catch {

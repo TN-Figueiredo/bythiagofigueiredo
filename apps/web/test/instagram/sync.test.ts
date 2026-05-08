@@ -34,7 +34,7 @@ function makeAccount(overrides: Partial<InstagramAccountRow> = {}): InstagramAcc
 }
 
 function mockSupabase() {
-  const upsertFn = vi.fn().mockReturnValue({ data: null, error: null })
+  const upsertFn = vi.fn().mockReturnValue({ data: null, error: null, count: null })
   const updateEqFn = vi.fn().mockReturnValue({ data: null, error: null })
   const updateFn = vi.fn().mockReturnValue({ eq: updateEqFn })
   const selectFn = vi.fn()
@@ -65,7 +65,7 @@ describe('syncInstagramAccount', () => {
     })
   })
 
-  it('inserts new posts and caches media to Blob', async () => {
+  it('inserts new posts and caches media to Blob in batch', async () => {
     mockFetchMedia.mockResolvedValueOnce([{
       id: 'media-1', media_type: 'IMAGE',
       media_url: 'https://scontent.cdninstagram.com/img.jpg',
@@ -128,6 +128,19 @@ describe('syncInstagramAccount', () => {
     const { supabase } = mockSupabase()
     const result = await syncInstagramAccount(supabase as never, makeAccount())
     expect(result.mediaCached).toBe(1)
-    expect(mockBlobPut.mock.calls[0][0]).toContain('vid-1')
+    expect(mockBlobPut.mock.calls[0]![0]).toContain('vid-1')
+  })
+
+  it('performs a single batch upsert for all posts', async () => {
+    mockFetchMedia.mockResolvedValueOnce([
+      { id: 'm1', media_type: 'IMAGE', media_url: 'u1', caption: 'c1', permalink: 'p1', like_count: 1, comments_count: 0, timestamp: '2026-05-01T00:00:00+0000' },
+      { id: 'm2', media_type: 'IMAGE', media_url: 'u2', caption: 'c2', permalink: 'p2', like_count: 2, comments_count: 0, timestamp: '2026-05-02T00:00:00+0000' },
+      { id: 'm3', media_type: 'IMAGE', media_url: 'u3', caption: 'c3', permalink: 'p3', like_count: 3, comments_count: 0, timestamp: '2026-05-03T00:00:00+0000' },
+    ])
+    const { supabase, upsertFn } = mockSupabase()
+    await syncInstagramAccount(supabase as never, makeAccount())
+    expect(upsertFn).toHaveBeenCalledTimes(1)
+    const upsertedRows = upsertFn.mock.calls[0]![0]
+    expect(upsertedRows).toHaveLength(3)
   })
 })

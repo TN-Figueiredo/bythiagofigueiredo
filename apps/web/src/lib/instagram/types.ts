@@ -1,7 +1,7 @@
 export interface InstagramAccountRow {
   id: string
   site_id: string
-  locale: 'pt' | 'en'
+  locale: 'pt' | 'en' | 'all'
   handle: string
   ig_user_id: string | null
   access_token: string | null
@@ -9,6 +9,10 @@ export interface InstagramAccountRow {
   sync_enabled: boolean
   display_slots: number
   layout_type: 'grid' | 'scatter'
+  section_title_pt: string | null
+  section_title_en: string | null
+  section_subtitle_pt: string | null
+  section_subtitle_en: string | null
   last_synced_at: string | null
   created_at: string
   updated_at: string
@@ -76,7 +80,7 @@ export interface ResolvedSlot {
 
 export interface InstagramAccountView {
   id: string
-  locale: 'pt' | 'en'
+  locale: 'pt' | 'en' | 'all'
   handle: string
   syncEnabled: boolean
   displaySlots: number
@@ -85,20 +89,7 @@ export interface InstagramAccountView {
   tokenExpiresAt: string | null
 }
 
-export interface InstagramAccountPublic {
-  id: string
-  site_id: string
-  locale: 'pt' | 'en'
-  handle: string
-  ig_user_id: string | null
-  sync_enabled: boolean
-  display_slots: number
-  layout_type: 'grid' | 'scatter'
-  last_synced_at: string | null
-  token_expires_at: string | null
-  created_at: string
-  updated_at: string
-}
+export type InstagramAccountPublic = Omit<InstagramAccountRow, 'access_token'>
 
 export type InstagramSyncMode = 'daily' | 'manual' | 'token_refresh'
 

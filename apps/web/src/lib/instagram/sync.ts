@@ -1,7 +1,55 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { put } from '@vercel/blob'
-import { fetchInstagramMedia } from './api-client'
+import { fetchInstagramMedia, type InstagramMediaItem } from './api-client'
 import type { InstagramAccountRow, SyncResult } from './types'
+
+const IMAGE_CACHE_CONCURRENCY = 5
+
+async function cacheImage(
+  accountId: string,
+  item: InstagramMediaItem,
+): Promise<string | null> {
+  const urlToCache = item.media_type === 'VIDEO'
+    ? (item.thumbnail_url ?? item.media_url)
+    : item.media_url
+
+  if (!urlToCache) return null
+
+  try {
+    const imgRes = await fetch(urlToCache)
+    if (!imgRes.ok) return null
+    const buffer = Buffer.from(await imgRes.arrayBuffer())
+    const contentType = imgRes.headers.get('content-type') ?? 'image/jpeg'
+    const ext = contentType.includes('png') ? 'png' : contentType.includes('webp') ? 'webp' : 'jpg'
+    const blobResult = await put(
+      `instagram/${accountId}/${item.id}.${ext}`,
+      buffer,
+      { access: 'public', addRandomSuffix: false, contentType },
+    )
+    return blobResult.url
+  } catch {
+    return null
+  }
+}
+
+async function cacheImagesInBatches(
+  accountId: string,
+  items: InstagramMediaItem[],
+): Promise<Map<string, string>> {
+  const cached = new Map<string, string>()
+  for (let i = 0; i < items.length; i += IMAGE_CACHE_CONCURRENCY) {
+    const batch = items.slice(i, i + IMAGE_CACHE_CONCURRENCY)
+    const results = await Promise.allSettled(
+      batch.map((item) => cacheImage(accountId, item)),
+    )
+    results.forEach((r, idx) => {
+      if (r.status === 'fulfilled' && r.value) {
+        cached.set(batch[idx]!.id, r.value)
+      }
+    })
+  }
+  return cached
+}
 
 export async function syncInstagramAccount(
   supabase: SupabaseClient,
@@ -28,59 +76,31 @@ export async function syncInstagramAccount(
     (existing ?? []).map((r: { ig_media_id: string; cached_image_url: string | null }) => [r.ig_media_id, r.cached_image_url]),
   )
 
-  for (const item of media) {
-    const isNew = !existingMap.has(item.id)
-    let cachedImageUrl = existingMap.get(item.id) ?? null
+  const newItems = media.filter((m) => !existingMap.has(m.id))
+  const cachedUrls = await cacheImagesInBatches(account.id, newItems)
+  result.mediaCached = cachedUrls.size
 
-    if (isNew) {
-      const urlToCache = item.media_type === 'VIDEO'
-        ? (item.thumbnail_url ?? item.media_url)
-        : item.media_url
+  const rows = media.map((item) => ({
+    account_id: account.id,
+    ig_media_id: item.id,
+    media_type: item.media_type,
+    media_url: item.media_url,
+    thumbnail_url: item.thumbnail_url ?? null,
+    cached_image_url: cachedUrls.get(item.id) ?? existingMap.get(item.id) ?? null,
+    caption: item.caption,
+    permalink: item.permalink,
+    like_count: item.like_count,
+    comments_count: item.comments_count,
+    ig_timestamp: item.timestamp,
+  }))
 
-      if (urlToCache) {
-        try {
-          const imgRes = await fetch(urlToCache)
-          if (imgRes.ok) {
-            const buffer = Buffer.from(await imgRes.arrayBuffer())
-            const contentType = imgRes.headers.get('content-type') ?? 'image/jpeg'
-            const ext = contentType.includes('png') ? 'png' : contentType.includes('webp') ? 'webp' : 'jpg'
-            const blobResult = await put(
-              `instagram/${account.id}/${item.id}.${ext}`,
-              buffer,
-              { access: 'public', addRandomSuffix: false, contentType },
-            )
-            cachedImageUrl = blobResult.url
-            result.mediaCached++
-          }
-        } catch {
-          // media cache failure is non-fatal
-        }
-      }
-    }
+  const { error, count } = await supabase
+    .from('instagram_posts')
+    .upsert(rows, { onConflict: 'ig_media_id', count: 'exact' })
 
-    const row = {
-      account_id: account.id,
-      ig_media_id: item.id,
-      media_type: item.media_type,
-      media_url: item.media_url,
-      thumbnail_url: item.thumbnail_url ?? null,
-      cached_image_url: cachedImageUrl,
-      caption: item.caption,
-      permalink: item.permalink,
-      like_count: item.like_count,
-      comments_count: item.comments_count,
-      ig_timestamp: item.timestamp,
-      updated_at: new Date().toISOString(),
-    }
-
-    const { error } = await supabase.from('instagram_posts').upsert(row, {
-      onConflict: 'ig_media_id',
-    })
-
-    if (!error) {
-      if (isNew) result.postsInserted++
-      else result.postsUpdated++
-    }
+  if (!error) {
+    result.postsInserted = newItems.length
+    result.postsUpdated = (count ?? rows.length) - newItems.length
   }
 
   await supabase

@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { cookies } from 'next/headers'
 import { DualHero } from './DualHero'
 import { StatsStrip } from './StatsStrip'
@@ -113,7 +114,9 @@ export async function PinboardHome({ locale }: Props) {
       <BookmarkPlaceholder locale={locale} t={t} />
 
       {/* Instagram Feed */}
-      <InstagramFeed layout="scatter" count={5} className="px-4 py-12" />
+      <Suspense>
+        <InstagramFeed layout="scatter" count={5} className="px-4 py-12" />
+      </Suspense>
 
       {/* §5 — Most Read + Tag Grid (side-by-side) */}
       {showMostReadSection && (

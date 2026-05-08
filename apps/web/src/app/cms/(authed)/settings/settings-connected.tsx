@@ -89,11 +89,15 @@ interface YouTubeChannelData {
 
 interface InstagramAccountData {
   id: string
-  locale: 'pt' | 'en'
+  locale: 'pt' | 'en' | 'all'
   handle: string
   sync_enabled: boolean
   display_slots: number
   layout_type: 'grid' | 'scatter'
+  section_title_pt: string | null
+  section_title_en: string | null
+  section_subtitle_pt: string | null
+  section_subtitle_en: string | null
   last_synced_at: string | null
   token_expires_at: string | null
   posts: { id: string; cached_image_url: string | null; caption: string | null }[]
@@ -1685,9 +1689,14 @@ function InstagramAccountCard({
 }) {
   const [saveState, setSaveState] = useSaveState()
   const [, startTransition] = useTransition()
+  const [accountLocale, setAccountLocale] = useState(account.locale)
   const [syncEnabled, setSyncEnabled] = useState(account.sync_enabled)
   const [displaySlots, setDisplaySlots] = useState(account.display_slots)
   const [layoutType, setLayoutType] = useState(account.layout_type)
+  const [titlePt, setTitlePt] = useState(account.section_title_pt ?? '')
+  const [titleEn, setTitleEn] = useState(account.section_title_en ?? '')
+  const [subtitlePt, setSubtitlePt] = useState(account.section_subtitle_pt ?? '')
+  const [subtitleEn, setSubtitleEn] = useState(account.section_subtitle_en ?? '')
   const [token, setToken] = useState('')
   const [syncing, setSyncing] = useState(false)
 
@@ -1703,9 +1712,14 @@ function InstagramAccountCard({
       const { updateInstagramSettings } = await import('./actions')
       const res = await updateInstagramSettings({
         accountId: account.id,
+        locale: accountLocale,
         sync_enabled: syncEnabled,
         display_slots: displaySlots,
         layout_type: layoutType,
+        section_title_pt: titlePt.trim() || null,
+        section_title_en: titleEn.trim() || null,
+        section_subtitle_pt: subtitlePt.trim() || null,
+        section_subtitle_en: subtitleEn.trim() || null,
       })
       setSaveState(res.ok ? 'success' : 'error')
     })
@@ -1755,7 +1769,16 @@ function InstagramAccountCard({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h3 className="text-base font-medium text-slate-200">{account.handle}</h3>
-            <span className="text-xs text-slate-500">{account.locale.toUpperCase()}</span>
+            <select
+              value={accountLocale}
+              onChange={e => setAccountLocale(e.target.value as 'pt' | 'en' | 'all')}
+              disabled={readOnly}
+              className="rounded border border-slate-600 bg-slate-800 px-1.5 py-0.5 text-xs text-slate-300"
+            >
+              <option value="all">All (PT + EN)</option>
+              <option value="pt">PT-BR</option>
+              <option value="en">EN</option>
+            </select>
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -1805,6 +1828,60 @@ function InstagramAccountCard({
             </select>
           </div>
         </div>
+
+        {(accountLocale === 'pt' || accountLocale === 'all') && (
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className={labelCls()}>Título (PT-BR)</label>
+              <input
+                type="text"
+                value={titlePt}
+                onChange={e => setTitlePt(e.target.value)}
+                disabled={readOnly}
+                placeholder="do iPhone, sem filtro"
+                className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-600"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className={labelCls()}>Subtítulo (PT-BR)</label>
+              <input
+                type="text"
+                value={subtitlePt}
+                onChange={e => setSubtitlePt(e.target.value)}
+                disabled={readOnly}
+                placeholder="últimos cliques"
+                className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-600"
+              />
+            </div>
+          </div>
+        )}
+
+        {(accountLocale === 'en' || accountLocale === 'all') && (
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className={labelCls()}>Title (EN)</label>
+              <input
+                type="text"
+                value={titleEn}
+                onChange={e => setTitleEn(e.target.value)}
+                disabled={readOnly}
+                placeholder="from the iPhone, no filter"
+                className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-600"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className={labelCls()}>Subtitle (EN)</label>
+              <input
+                type="text"
+                value={subtitleEn}
+                onChange={e => setSubtitleEn(e.target.value)}
+                disabled={readOnly}
+                placeholder="latest shots"
+                className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-600"
+              />
+            </div>
+          </div>
+        )}
 
         <div className="space-y-1">
           <label className={labelCls()}>Display Slots ({displaySlots})</label>
@@ -1910,13 +1987,13 @@ function AddInstagramForm({
   onAdded: (acc: InstagramAccountData) => void
 }) {
   const [handle, setHandle] = useState('')
-  const [locale, setLocale] = useState<'pt' | 'en'>(
-    existingLocales.includes('pt') ? 'en' : 'pt',
+  const [locale, setLocale] = useState<'pt' | 'en' | 'all'>(
+    existingLocales.includes('all') ? (existingLocales.includes('pt') ? 'en' : 'pt') : 'all',
   )
   const [adding, setAdding] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const availableLocales = (['pt', 'en'] as const).filter(l => !existingLocales.includes(l))
+  const availableLocales = (['all', 'pt', 'en'] as const).filter(l => !existingLocales.includes(l))
 
   const handleAdd = async () => {
     if (!handle.trim()) return
@@ -1933,6 +2010,10 @@ function AddInstagramForm({
       sync_enabled: true,
       display_slots: 6,
       layout_type: 'grid',
+      section_title_pt: null,
+      section_title_en: null,
+      section_subtitle_pt: null,
+      section_subtitle_en: null,
       last_synced_at: null,
       token_expires_at: null,
       posts: [],
@@ -1960,11 +2041,11 @@ function AddInstagramForm({
           <label className={labelCls()}>Locale</label>
           <select
             value={locale}
-            onChange={e => setLocale(e.target.value as 'pt' | 'en')}
+            onChange={e => setLocale(e.target.value as 'pt' | 'en' | 'all')}
             className="rounded border border-slate-600 bg-slate-800 px-2 py-1.5 text-sm text-slate-200"
           >
             {availableLocales.map(l => (
-              <option key={l} value={l}>{l === 'pt' ? 'PT-BR' : 'EN'}</option>
+              <option key={l} value={l}>{l === 'all' ? 'All (PT + EN)' : l === 'pt' ? 'PT-BR' : 'EN'}</option>
             ))}
           </select>
         </div>

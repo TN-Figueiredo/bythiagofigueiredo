@@ -36,7 +36,7 @@ export default async function SettingsPage({ searchParams }: Props) {
       .select('id, name, handle, locale, sync_enabled, sync_schedules, schedule_label')
       .eq('site_id', siteId),
     supabase.from('instagram_accounts')
-      .select('id, locale, handle, sync_enabled, display_slots, layout_type, last_synced_at, token_expires_at')
+      .select('id, locale, handle, sync_enabled, display_slots, layout_type, section_title_pt, section_title_en, section_subtitle_pt, section_subtitle_en, last_synced_at, token_expires_at')
       .eq('site_id', siteId)
       .order('locale'),
   ])

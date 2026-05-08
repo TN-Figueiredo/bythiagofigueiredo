@@ -491,14 +491,19 @@ export async function removeYouTubeChannel(input: z.infer<typeof removeChannelSc
 
 const instagramAccountSchema = z.object({
   handle: z.string().min(1).max(50),
-  locale: z.enum(['pt', 'en']),
+  locale: z.enum(['pt', 'en', 'all']),
 })
 
 const instagramSettingsSchema = z.object({
   accountId: z.string().uuid(),
+  locale: z.enum(['pt', 'en', 'all']).optional(),
   sync_enabled: z.boolean().optional(),
   display_slots: z.number().int().min(1).max(12).optional(),
   layout_type: z.enum(['grid', 'scatter']).optional(),
+  section_title_pt: z.string().max(100).nullable().optional(),
+  section_title_en: z.string().max(100).nullable().optional(),
+  section_subtitle_pt: z.string().max(100).nullable().optional(),
+  section_subtitle_en: z.string().max(100).nullable().optional(),
 })
 
 const instagramTokenSchema = z.object({
@@ -514,6 +519,17 @@ const instagramSlotSchema = z.object({
   })),
 })
 
+function normalizeHandle(raw: string): string {
+  const stripped = raw.replace(/^@/, '').trim()
+  try {
+    const url = new URL(stripped.startsWith('http') ? stripped : `https://${stripped}`)
+    if (url.hostname.includes('instagram.com')) {
+      return url.pathname.replace(/^\//, '').replace(/\/$/, '')
+    }
+  } catch { /* not a URL */ }
+  return stripped
+}
+
 export async function addInstagramAccount(input: {
   handle: string
   locale: string
@@ -522,12 +538,13 @@ export async function addInstagramAccount(input: {
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
   const siteId = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
+  const handle = normalizeHandle(parsed.data.handle)
 
   const { error } = await supabase
     .from('instagram_accounts')
     .insert({
       site_id: siteId,
-      handle: parsed.data.handle,
+      handle,
       locale: parsed.data.locale,
     })
     .select('id')
@@ -543,13 +560,14 @@ export async function removeInstagramAccount(input: {
 }): Promise<ActionResult> {
   const parsed = z.object({ accountId: z.string().uuid() }).safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  await requireEditAccess()
+  const siteId = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
 
   const { error } = await supabase
     .from('instagram_accounts')
     .delete()
     .eq('id', parsed.data.accountId)
+    .eq('site_id', siteId)
 
   if (error) return { ok: false, error: error.message }
   revalidatePath('/cms/settings')
@@ -559,9 +577,14 @@ export async function removeInstagramAccount(input: {
 
 export async function updateInstagramSettings(input: {
   accountId: string
+  locale?: 'pt' | 'en' | 'all'
   sync_enabled?: boolean
   display_slots?: number
   layout_type?: 'grid' | 'scatter'
+  section_title_pt?: string | null
+  section_title_en?: string | null
+  section_subtitle_pt?: string | null
+  section_subtitle_en?: string | null
 }): Promise<ActionResult> {
   const parsed = instagramSettingsSchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
@@ -576,6 +599,7 @@ export async function updateInstagramSettings(input: {
 
   if (error) return { ok: false, error: error.message }
   revalidatePath('/cms/settings')
+  revalidatePath('/', 'layout')
   revalidateTag('instagram-feed')
   return { ok: true }
 }
