@@ -64,7 +64,7 @@ export function BackToTop({ locale }: { locale?: string }) {
     <button
       onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
       aria-label={t.backToTop}
-      className="font-jetbrains text-[11px] text-pb-accent cursor-pointer mt-3 flex items-center gap-1 bg-transparent border-none p-0"
+      className="font-jetbrains text-[11px] text-pb-accent cursor-pointer mt-3 flex items-center gap-1 bg-transparent border-none p-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pb-accent rounded"
     >
       {t.backToTop} ↑
     </button>

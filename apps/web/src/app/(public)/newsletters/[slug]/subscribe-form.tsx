@@ -518,7 +518,8 @@ export function SubscribeForm({
             className={isLoading ? 'nl-pulse' : undefined}
             style={{
               background: canSubmit ? 'var(--nl-accent)' : 'var(--pb-faint)',
-              color: canSubmit ? 'var(--nl-accent-text, #fff)' : 'var(--pb-muted)',
+              color: canSubmit ? 'var(--nl-accent-text, #fff)' : 'var(--pb-card, #fff)',
+              opacity: canSubmit ? 1 : 0.5,
               border: 'none',
               borderRadius: 6,
               padding: '12px 20px',

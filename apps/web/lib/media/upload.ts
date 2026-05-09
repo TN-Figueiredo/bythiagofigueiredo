@@ -79,7 +79,14 @@ export async function uploadMediaAsset(
   const supabase = getSupabaseServiceClient()
   const existing = await checkDedup(supabase, siteId, contentHash)
   if (existing) {
-    return { ok: true, asset: toMediaAsset(existing), deduplicated: true }
+    try {
+      const head = await fetch(existing.blob_url, {
+        method: 'HEAD',
+        signal: AbortSignal.timeout(5000),
+      })
+      if (head.ok) return { ok: true, asset: toMediaAsset(existing), deduplicated: true }
+    } catch { /* blob unreachable or timed out */ }
+    await supabase.from('media_assets').delete().eq('id', existing.id)
   }
 
   const ext = mimeToExt(mimeType)

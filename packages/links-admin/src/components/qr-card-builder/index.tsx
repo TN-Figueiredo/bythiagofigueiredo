@@ -8,11 +8,17 @@ import type { CanvasEditorHandle } from './canvas-editor'
 import { LeftPanel } from './left-panel'
 import { RightPanel } from './right-panel'
 import { Toolbar } from './toolbar'
+import type { PositionAnchor } from './toolbar'
 import { ContextMenu } from './context-menu'
 import type { ContextMenuEntry } from './context-menu'
 import { ExportModal } from './export-modal'
 import { TemplateBrowser } from './template-browser'
 import type { QrTemplate } from './template-browser'
+
+function hasTemporaryUrls(composition: CardComposition): boolean {
+  if (composition.background.type === 'image' && composition.background.url.startsWith('blob:')) return true
+  return composition.elements.some(el => el.type === 'image' && el.src.startsWith('blob:'))
+}
 
 export interface QrCardBuilderProps {
   link: { id: string; code: string; title: string | null }
@@ -38,6 +44,7 @@ export function QrCardBuilder({
   const [showExport, setShowExport] = useState(false)
   const [showTemplates, setShowTemplates] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [hasPendingChanges, setHasPendingChanges] = useState(false)
   const [viewportTooSmall, setViewportTooSmall] = useState(false)
 
   useEffect(() => {
@@ -58,70 +65,177 @@ export function QrCardBuilder({
     return () => ro.disconnect()
   }, [])
 
-  useEffect(() => {
-    const timer = setTimeout(async () => {
+  const isFirstRender = useRef(true)
+  const lastSavedRef = useRef(initialComposition)
+  const pendingSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const nudgingRef = useRef(false)
+  const nudgeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const onSaveRef = useRef(onSave)
+  onSaveRef.current = onSave
+
+  const flushSave = useCallback(() => {
+    if (pendingSaveRef.current) {
+      clearTimeout(pendingSaveRef.current)
+      pendingSaveRef.current = null
+    }
+    const current = compRef.current.composition
+    if (current !== lastSavedRef.current && !hasTemporaryUrls(current)) {
+      lastSavedRef.current = current
+      setHasPendingChanges(false)
       setIsSaving(true)
-      try { await onSave(comp.composition) } finally { setIsSaving(false) }
-    }, 1500)
-    return () => clearTimeout(timer)
-  }, [comp.composition, onSave])
+      onSaveRef.current(current).finally(() => setIsSaving(false))
+    }
+  }, [])
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
+    }
+    if (pendingSaveRef.current) clearTimeout(pendingSaveRef.current)
+    pendingSaveRef.current = null
+    if (hasTemporaryUrls(comp.composition)) return
+    if (nudgingRef.current) { setHasPendingChanges(true); return }
+    setHasPendingChanges(true)
+    pendingSaveRef.current = setTimeout(() => {
+      pendingSaveRef.current = null
+      const current = compRef.current.composition
+      if (hasTemporaryUrls(current)) return
+      lastSavedRef.current = current
+      setIsSaving(true)
+      setHasPendingChanges(false)
+      onSaveRef.current(current).finally(() => setIsSaving(false))
+    }, 800)
+    return () => {
+      if (pendingSaveRef.current) clearTimeout(pendingSaveRef.current)
+    }
+  }, [comp.composition])
+
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasTemporaryUrls(compRef.current.composition)) {
+        e.preventDefault()
+        return
+      }
+      if (pendingSaveRef.current) {
+        flushSave()
+        e.preventDefault()
+      }
+    }
+    const handleVisibility = () => {
+      if (document.hidden) flushSave()
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
+  }, [flushSave])
+
+  const nudgeFlush = useCallback(() => {
+    nudgingRef.current = true
+    if (nudgeTimerRef.current) clearTimeout(nudgeTimerRef.current)
+    nudgeTimerRef.current = setTimeout(() => {
+      nudgingRef.current = false
+      nudgeTimerRef.current = null
+      const current = compRef.current.composition
+      if (!hasTemporaryUrls(current)) {
+        lastSavedRef.current = current
+        setHasPendingChanges(false)
+        setIsSaving(true)
+        onSaveRef.current(current).finally(() => setIsSaving(false))
+      }
+    }, 600)
+  }, [])
+
+  const compRef = useRef(comp)
+  const interactionRef = useRef(interaction)
+  const containerSizeRef = useRef(containerSize)
+  compRef.current = comp
+  interactionRef.current = interaction
+  containerSizeRef.current = containerSize
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return
+      const c = compRef.current
+      const ix = interactionRef.current
+      const cs = containerSizeRef.current
       const cmd = e.metaKey || e.ctrlKey
-      if (cmd && e.key === 'z' && !e.shiftKey) { e.preventDefault(); comp.undo() }
-      if (cmd && e.key === 'z' && e.shiftKey) { e.preventDefault(); comp.redo() }
-      if (cmd && e.key === 'g' && !e.shiftKey) { e.preventDefault(); interaction.toggleGuides() }
-      if (cmd && e.key === '0') { e.preventDefault(); interaction.fitToView(containerSize.width, containerSize.height, comp.composition.canvas.width, comp.composition.canvas.height) }
+      if (cmd && e.key === 'z' && !e.shiftKey) { e.preventDefault(); c.undo() }
+      if (cmd && e.key === 'z' && e.shiftKey) { e.preventDefault(); c.redo() }
+      if (cmd && e.key === 'g' && !e.shiftKey) { e.preventDefault(); ix.toggleGuides() }
+      if (cmd && e.key === '0') { e.preventDefault(); ix.fitToView(cs.width, cs.height, c.composition.canvas.width, c.composition.canvas.height) }
       if ((e.key === 'Delete' || e.key === 'Backspace') && !cmd) {
         e.preventDefault()
-        interaction.selectedIds.forEach(id => comp.removeElement(id))
-        interaction.deselectAll()
+        ix.selectedIds.forEach(id => c.removeElement(id))
+        ix.deselectAll()
       }
       if (cmd && e.key === 'd') {
         e.preventDefault()
-        interaction.selectedIds.forEach(id => {
-          const el = comp.composition.elements.find(e => e.id === id)
-          if (el) comp.addElement({ ...el, id: crypto.randomUUID(), x: el.x + 20, y: el.y + 20 })
+        ix.selectedIds.forEach(id => {
+          const el = c.composition.elements.find(e => e.id === id)
+          if (el) c.addElement({ ...el, id: crypto.randomUUID(), x: el.x + 20, y: el.y + 20 })
         })
       }
       if (cmd && e.key === 'l') {
         e.preventDefault()
-        interaction.selectedIds.forEach(id => {
-          const el = comp.composition.elements.find(e => e.id === id)
-          if (el) comp.updateElement(id, { locked: !el.locked })
+        ix.selectedIds.forEach(id => {
+          const el = c.composition.elements.find(e => e.id === id)
+          if (el) c.updateElement(id, { locked: !el.locked })
         })
       }
       if (cmd && e.key === ']' && !e.shiftKey) {
         e.preventDefault()
-        interaction.selectedIds.forEach(id => {
-          const idx = comp.composition.elements.findIndex(e => e.id === id)
-          if (idx < comp.composition.elements.length - 1) comp.reorderElements(idx, idx + 1)
+        ix.selectedIds.forEach(id => {
+          const idx = c.composition.elements.findIndex(e => e.id === id)
+          if (idx < c.composition.elements.length - 1) c.reorderElements(idx, idx + 1)
         })
       }
       if (cmd && e.key === '[' && !e.shiftKey) {
         e.preventDefault()
-        interaction.selectedIds.forEach(id => {
-          const idx = comp.composition.elements.findIndex(e => e.id === id)
-          if (idx > 0) comp.reorderElements(idx, idx - 1)
+        ix.selectedIds.forEach(id => {
+          const idx = c.composition.elements.findIndex(e => e.id === id)
+          if (idx > 0) c.reorderElements(idx, idx - 1)
         })
       }
+      if (cmd && e.shiftKey && e.key === 'K') { e.preventDefault(); ix.toggleClipOverflow() }
       if (cmd && e.shiftKey && e.key === 'E') { e.preventDefault(); setShowExport(true) }
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && !cmd && ix.selectedIds.size > 0) {
+        e.preventDefault()
+        const step = e.shiftKey ? 10 : 1
+        const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0
+        const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0
+        ix.selectedIds.forEach(id => {
+          const el = c.composition.elements.find(e => e.id === id)
+          if (el && !el.locked) c.updateElement(id, { x: Math.round(el.x + dx), y: Math.round(el.y + dy) })
+        })
+        nudgeFlush()
+      }
     }
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
-  }, [comp, interaction, containerSize])
+  }, [])
 
   const handleReplaceImage = useCallback((elementId: string) => {
+    const MAX_FILE_SIZE = 5 * 1024 * 1024
     const input = document.createElement('input')
     input.type = 'file'
     input.accept = 'image/*'
     input.onchange = async () => {
       const file = input.files?.[0]
-      if (!file || file.size > 5 * 1024 * 1024) return
-      const src = await onImageUpload(file)
-      comp.updateElement(elementId, { src })
+      if (!file || file.size > MAX_FILE_SIZE) return
+      try {
+        const remoteUrl = await onImageUpload(file)
+        if (remoteUrl) {
+          comp.updateElement(elementId, { src: remoteUrl })
+        } else {
+          console.error('[QR Card] Replace image upload returned empty URL')
+        }
+      } catch (err) {
+        console.error('[QR Card] Replace image upload failed:', err)
+      }
     }
     input.click()
   }, [comp, onImageUpload])
@@ -144,6 +258,26 @@ export function QrCardBuilder({
       { label: 'Delete', shortcut: '⌫', onClick: () => { comp.removeElement(el.id); interaction.deselectAll() } },
     ]
   }, [interaction.contextMenu, comp, interaction])
+
+  const handlePositionElement = useCallback((position: PositionAnchor) => {
+    const cw = comp.composition.canvas.width
+    const ch = comp.composition.canvas.height
+    interaction.selectedIds.forEach(id => {
+      const el = comp.composition.elements.find(e => e.id === id)
+      if (!el) return
+      let x = el.x
+      let y = el.y
+      const col = position[1]
+      const row = position[0]
+      if (col === 'l') x = 0
+      else if (col === 'c') x = (cw - el.width) / 2
+      else if (col === 'r') x = cw - el.width
+      if (row === 't') y = 0
+      else if (row === 'c') y = (ch - el.height) / 2
+      else if (row === 'b') y = ch - el.height
+      comp.updateElement(id, { x, y })
+    })
+  }, [comp, interaction.selectedIds])
 
   const handleSaveTemplate = useCallback(async (name: string) => {
     const stage = canvasRef.current?.getStage()
@@ -181,9 +315,13 @@ export function QrCardBuilder({
         onToggleGuides={interaction.toggleGuides}
         gridVisible={interaction.gridVisible}
         onToggleGrid={interaction.toggleGrid}
+        clipOverflow={interaction.clipOverflow}
+        onToggleClipOverflow={interaction.toggleClipOverflow}
         isSaving={isSaving}
         onOpenTemplates={() => setShowTemplates(true)}
         onOpenExport={() => setShowExport(true)}
+        onPositionElement={handlePositionElement}
+        hasSelection={interaction.selectedIds.size > 0}
       />
 
       <div className="flex flex-1 overflow-hidden">
@@ -215,6 +353,17 @@ export function QrCardBuilder({
         <span>{comp.composition.canvas.width}×{comp.composition.canvas.height}</span>
         <span>{comp.composition.canvas.aspectRatio}</span>
         <span>{comp.composition.elements.length} elements</span>
+        <span className="ml-auto">
+          {hasTemporaryUrls(comp.composition) ? (
+            <span className="text-blue-400">Uploading images...</span>
+          ) : isSaving ? (
+            <span className="text-amber-400">Saving...</span>
+          ) : hasPendingChanges ? (
+            <span className="text-neutral-600">Unsaved changes</span>
+          ) : (
+            <span className="text-green-600">Saved</span>
+          )}
+        </span>
       </div>
 
       {interaction.contextMenu && (

@@ -2,6 +2,7 @@
 
 import { useCallback } from 'react'
 import { QrCardBuilder } from '@tn-figueiredo/links-admin/client'
+import type { QrTemplate } from '@tn-figueiredo/links-admin'
 import type { CardComposition } from '@tn-figueiredo/links/qr'
 import {
   saveQrCard,
@@ -10,14 +11,6 @@ import {
   exportQrCard,
   uploadQrImage,
 } from './actions'
-
-interface QrTemplate {
-  id: string
-  name: string
-  composition: CardComposition
-  thumbnailUrl: string | null
-  createdAt: string
-}
 
 interface Props {
   link: { id: string; code: string; title: string | null }
@@ -53,6 +46,9 @@ export function QrCardBuilderPage({ link, shortUrl, initialComposition, template
     const fd = new FormData()
     fd.append('file', file)
     const result = await uploadQrImage(fd)
+    if (!result.ok) {
+      console.error('[QR Card] uploadQrImage failed:', result.error)
+    }
     return result.ok ? result.url : ''
   }, [])
 

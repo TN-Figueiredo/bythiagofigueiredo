@@ -13,7 +13,34 @@ interface ExportModalProps {
   onClose: () => void
 }
 
-type ExportState = 'idle' | 'exporting' | 'done'
+type ExportState = 'idle' | 'exporting' | 'done' | 'error'
+
+function withExportStage<T>(
+  stage: import('konva').default.Stage,
+  canvasW: number,
+  canvasH: number,
+  fn: (stage: import('konva').default.Stage) => T,
+): T {
+  const prev = {
+    width: stage.width(),
+    height: stage.height(),
+    scaleX: stage.scaleX(),
+    scaleY: stage.scaleY(),
+    offsetX: stage.offsetX(),
+    offsetY: stage.offsetY(),
+  }
+  stage.size({ width: canvasW, height: canvasH })
+  stage.scale({ x: 1, y: 1 })
+  stage.offset({ x: 0, y: 0 })
+  try {
+    return fn(stage)
+  } finally {
+    stage.size({ width: prev.width, height: prev.height })
+    stage.scale({ x: prev.scaleX, y: prev.scaleY })
+    stage.offset({ x: prev.offsetX, y: prev.offsetY })
+    stage.batchDraw()
+  }
+}
 
 export function ExportModal({ composition, canvasRef, linkCode, onExport, onClose }: ExportModalProps) {
   const [format, setFormat] = useState<'png' | 'svg'>('png')
@@ -23,7 +50,23 @@ export function ExportModal({ composition, canvasRef, linkCode, onExport, onClos
   const [blobUrl, setBlobUrl] = useState<string | null>(null)
   const [fileSize, setFileSize] = useState<number>(0)
   const [step, setStep] = useState(0)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const stage = canvasRef.current?.getStage()
+      if (!stage) return
+      try {
+        const url = withExportStage(stage, composition.canvas.width, composition.canvas.height, (s) =>
+          s.toDataURL({ pixelRatio: Math.max(0.5, 160 / composition.canvas.width) }),
+        )
+        setPreviewUrl(url)
+      } catch { /* tainted canvas */ }
+    }, 100)
+    return () => clearTimeout(timer)
+  }, [canvasRef, composition.canvas.width, composition.canvas.height])
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -40,46 +83,54 @@ export function ExportModal({ composition, canvasRef, linkCode, onExport, onClos
 
   const handleExport = useCallback(async () => {
     setState('exporting')
+    setErrorMsg(null)
     setStep(1)
 
-    let blob: Blob
+    try {
+      let blob: Blob
 
-    if (format === 'png') {
-      await document.fonts.ready
-      setStep(2)
-      const stage = canvasRef.current?.getStage()
-      if (!stage) { setState('idle'); return }
-      blob = await new Promise<Blob>((resolve, reject) => {
-        stage.toBlob({
-          pixelRatio: scale,
-          callback: (b: Blob | null) => b ? resolve(b) : reject(new Error('toBlob failed')),
-        })
-      })
-    } else {
-      setStep(2)
-      const svg = compositionToSvg(composition)
-      blob = new Blob([svg], { type: 'image/svg+xml' })
+      if (format === 'png') {
+        await document.fonts.ready
+        setStep(2)
+        const stage = canvasRef.current?.getStage()
+        if (!stage) { setState('idle'); return }
+        blob = await withExportStage(stage, w, h, (s) =>
+          new Promise<Blob>((resolve, reject) => {
+            s.toBlob({
+              pixelRatio: scale,
+              callback: (b: Blob | null) => b ? resolve(b) : reject(new Error('toBlob failed')),
+            })
+          }),
+        )
+      } else {
+        setStep(2)
+        const svg = compositionToSvg(composition)
+        blob = new Blob([svg], { type: 'image/svg+xml' })
+      }
+
+      setFileSize(blob.size)
+      setStep(3)
+
+      let resultUrl: string | null = null
+      if (saveToBlob) {
+        const result = await onExport(blob, { format, scale, width: outW, height: outH })
+        resultUrl = result?.url ?? null
+      }
+
+      setStep(4)
+      const downloadUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = downloadUrl
+      a.download = `qr-card-${linkCode}.${format}`
+      a.click()
+      setTimeout(() => URL.revokeObjectURL(downloadUrl), 5000)
+
+      setBlobUrl(resultUrl)
+      setState('done')
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Export failed')
+      setState('error')
     }
-
-    setFileSize(blob.size)
-    setStep(3)
-
-    let resultUrl: string | null = null
-    if (saveToBlob) {
-      const result = await onExport(blob, { format, scale, width: outW, height: outH })
-      resultUrl = result?.url ?? null
-    }
-
-    setStep(4)
-    const downloadUrl = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = downloadUrl
-    a.download = `qr-card-${linkCode}.${format}`
-    a.click()
-    URL.revokeObjectURL(downloadUrl)
-
-    setBlobUrl(resultUrl)
-    setState('done')
   }, [format, scale, saveToBlob, composition, canvasRef, linkCode, onExport, outW, outH])
 
   const steps = [
@@ -110,8 +161,12 @@ export function ExportModal({ composition, canvasRef, linkCode, onExport, onClos
 
         <div className="p-4 flex gap-6">
           <div className="shrink-0">
-            <div className="w-[160px] h-[160px] bg-neutral-800 rounded border border-neutral-700 flex items-center justify-center text-[11px] text-neutral-500">
-              Preview
+            <div className="w-[160px] bg-neutral-800 rounded border border-neutral-700 overflow-hidden flex items-center justify-center" style={{ aspectRatio: `${w}/${h}` }}>
+              {previewUrl ? (
+                <img src={previewUrl} alt="Card preview" className="w-full h-full object-contain" />
+              ) : (
+                <span className="text-[11px] text-neutral-500">Preview</span>
+              )}
             </div>
             <div className="text-[10px] text-neutral-500 text-center mt-1">{w}×{h}</div>
           </div>
@@ -132,14 +187,20 @@ export function ExportModal({ composition, canvasRef, linkCode, onExport, onClos
 
                 {format === 'png' && (
                   <div>
-                    <div className="text-[10px] text-neutral-400 mb-1">Scale</div>
-                    <div className="flex gap-2">
-                      {[1, 2, 3].map(s => (
-                        <button key={s} type="button" onClick={() => setScale(s)} className={`flex-1 py-1.5 rounded text-[11px] border ${scale === s ? 'border-blue-500 bg-blue-600/10 text-blue-300' : 'border-neutral-700 text-neutral-400'}`}>
-                          {s}× <span className="text-[9px] text-neutral-500 block">{w * s}×{h * s}</span>
+                    <div className="text-[10px] text-neutral-400 mb-1">Quality / Scale</div>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {([
+                        { s: 1, label: '1×', desc: 'Draft' },
+                        { s: 2, label: '2×', desc: 'Standard' },
+                        { s: 3, label: '3×', desc: 'High' },
+                        { s: 4, label: '4×', desc: 'Print' },
+                      ] as const).map(({ s, label, desc }) => (
+                        <button key={s} type="button" onClick={() => setScale(s)} className={`py-1.5 rounded text-[11px] border ${scale === s ? 'border-blue-500 bg-blue-600/10 text-blue-300' : 'border-neutral-700 text-neutral-400'}`}>
+                          {label} <span className="text-[9px] text-neutral-500 block">{desc}</span>
                         </button>
                       ))}
                     </div>
+                    <p className="text-[9px] text-neutral-500 mt-1">Output: {outW}×{outH}px — the preview is low-res, export is sharp</p>
                   </div>
                 )}
 
@@ -189,6 +250,19 @@ export function ExportModal({ composition, canvasRef, linkCode, onExport, onClos
                     Export Another
                   </button>
                 </div>
+              </div>
+            )}
+
+            {state === 'error' && (
+              <div className="space-y-3 text-center">
+                <div className="w-10 h-10 mx-auto bg-red-600/20 rounded-full flex items-center justify-center">
+                  <X size={20} className="text-red-400" />
+                </div>
+                <p className="text-[13px] text-neutral-200 font-medium">Export failed</p>
+                <p className="text-[11px] text-red-400">{errorMsg}</p>
+                <button type="button" onClick={() => setState('idle')} className="w-full py-1.5 rounded border border-neutral-700 text-[11px] text-neutral-300">
+                  Try Again
+                </button>
               </div>
             )}
           </div>

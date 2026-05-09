@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { AuthorData, EngagementStats } from './types'
 import { ShareButtons } from './share-buttons'
 import { ptBR } from './_i18n/pt-BR'
@@ -11,6 +11,27 @@ type Props = {
   engagement: EngagementStats
   locale: string
   url: string
+}
+
+function usePersistedToggle(key: string, initial: boolean): [boolean, () => void] {
+  const [value, setValue] = useState(initial)
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(key)
+      if (stored !== null) setValue(stored === '1')
+    } catch { /* SSR or storage unavailable */ }
+  }, [key])
+
+  const toggle = () => {
+    setValue((prev) => {
+      const next = !prev
+      try { localStorage.setItem(key, next ? '1' : '0') } catch { /* ignore */ }
+      return next
+    })
+  }
+
+  return [value, toggle]
 }
 
 function EyeIcon() {
@@ -40,8 +61,9 @@ function BookmarkIcon({ filled }: { filled: boolean }) {
 
 export function AuthorRow({ author, engagement, locale, url }: Props) {
   const t = locale === 'pt-BR' ? ptBR : en
-  const [liked, setLiked] = useState(false)
-  const [bookmarked, setBookmarked] = useState(engagement.bookmarked)
+  const slug = new URL(url).pathname.split('/').pop() ?? ''
+  const [liked, toggleLike] = usePersistedToggle(`btf:liked:${slug}`, false)
+  const [bookmarked, toggleBookmark] = usePersistedToggle(`btf:bookmarked:${slug}`, engagement.bookmarked)
   const formattedViews = engagement.views.toLocaleString(locale === 'pt-BR' ? 'pt-BR' : 'en')
   const likes = engagement.likes + (liked ? 1 : 0)
 
@@ -79,7 +101,7 @@ export function AuthorRow({ author, engagement, locale, url }: Props) {
           {formattedViews}
         </span>
         <button
-          onClick={() => setLiked(!liked)}
+          onClick={toggleLike}
           className="flex items-center gap-1.5 bg-transparent border-none p-0 cursor-pointer transition-colors"
           style={{ color: liked ? 'var(--pb-accent)' : 'var(--pb-muted)', fontSize: 13 }}
           aria-label={liked ? t.unlikeLabel : t.likeLabel}
@@ -88,7 +110,7 @@ export function AuthorRow({ author, engagement, locale, url }: Props) {
           {likes}
         </button>
         <button
-          onClick={() => setBookmarked(!bookmarked)}
+          onClick={toggleBookmark}
           className="flex items-center gap-1 bg-transparent border-none p-0 cursor-pointer transition-colors font-jetbrains text-[11px] tracking-[0.12em] uppercase"
           style={{ color: bookmarked ? 'var(--pb-accent)' : 'var(--pb-muted)' }}
           aria-label={bookmarked ? t.removeSaved : t.saveArticle}

@@ -198,59 +198,6 @@ function generateTagSlug(name: string): string {
     .slice(0, 80)
 }
 
-// ─── Newsletter Type Link Helpers ────────────────────────────────────────────
-
-export async function getUnlinkedNewsletterTypes(
-  siteId: string,
-  currentTagId?: string,
-): Promise<
-  Array<{ id: string; name: string; locale: string; color: string | null; color_dark: string | null }>
-> {
-  await requireEditScope(siteId)
-  const supabase = getSupabaseServiceClient()
-
-  let query = supabase
-    .from('newsletter_types')
-    .select('id, name, locale, color, color_dark')
-    .eq('site_id', siteId)
-    .order('sort_order', { ascending: true })
-    .order('name', { ascending: true })
-
-  if (currentTagId) {
-    // Show types that are unlinked OR linked to this specific tag
-    query = query.or(`linked_tag_id.is.null,linked_tag_id.eq.${currentTagId}`)
-  } else {
-    query = query.is('linked_tag_id', null)
-  }
-
-  const { data, error } = await query
-
-  if (error) return []
-  return (data ?? []) as Array<{ id: string; name: string; locale: string; color: string | null; color_dark: string | null }>
-}
-
-async function validateNewsletterTypeLink(
-  supabase: ReturnType<typeof getSupabaseServiceClient>,
-  siteId: string,
-  newsletterTypeId: string,
-  currentTagId?: string,
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { data: nlType, error: nlError } = await supabase
-    .from('newsletter_types')
-    .select('id, site_id, linked_tag_id')
-    .eq('id', newsletterTypeId)
-    .maybeSingle()
-
-  if (nlError) return { ok: false, error: nlError.message }
-  if (!nlType) return { ok: false, error: 'newsletter_type_not_found' }
-  if (nlType.site_id !== siteId) return { ok: false, error: 'newsletter_type_wrong_site' }
-  if (nlType.linked_tag_id && nlType.linked_tag_id !== currentTagId) {
-    return { ok: false, error: 'newsletter_type_already_linked' }
-  }
-
-  return { ok: true }
-}
-
 // ─── Tag CRUD ─────────────────────────────────────────────────────────────────
 
 export async function createTag(input: {
@@ -259,7 +206,6 @@ export async function createTag(input: {
   colorDark?: string | null
   badge?: string | null
   sortOrder?: number
-  linkedNewsletterTypeId?: string
   nameTranslations?: Record<string, string>
 }): Promise<{ ok: true; tagId: string } | { ok: false; error: string }> {
   if (!input.name.trim()) return { ok: false, error: 'name_required' }
@@ -268,16 +214,6 @@ export async function createTag(input: {
   await requireEditScope(siteId)
 
   const supabase = getSupabaseServiceClient()
-
-  // Validate newsletter type link if provided
-  if (input.linkedNewsletterTypeId) {
-    const linkCheck = await validateNewsletterTypeLink(
-      supabase,
-      siteId,
-      input.linkedNewsletterTypeId,
-    )
-    if (!linkCheck.ok) return linkCheck
-  }
 
   const slug = generateTagSlug(input.name.trim())
 
@@ -290,10 +226,6 @@ export async function createTag(input: {
     badge: input.badge ?? null,
     sort_order: input.sortOrder ?? 0,
   }
-  if (input.linkedNewsletterTypeId) {
-    insertData.linked_newsletter_type_id = input.linkedNewsletterTypeId
-  }
-
   // Sanitize name_translations: strip empty values, trim
   if (input.nameTranslations) {
     const cleaned: Record<string, string> = {}
@@ -327,7 +259,6 @@ export async function updateTag(
     colorDark?: string | null
     badge?: string | null
     sortOrder?: number
-    linkedNewsletterTypeId?: string | null
     nameTranslations?: Record<string, string>
   },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -335,17 +266,6 @@ export async function updateTag(
   await requireEditScope(siteId)
 
   const supabase = getSupabaseServiceClient()
-
-  // Validate newsletter type link if setting a new one
-  if (patch.linkedNewsletterTypeId !== undefined && patch.linkedNewsletterTypeId !== null) {
-    const linkCheck = await validateNewsletterTypeLink(
-      supabase,
-      siteId,
-      patch.linkedNewsletterTypeId,
-      tagId,
-    )
-    if (!linkCheck.ok) return linkCheck
-  }
 
   const updateData: Record<string, unknown> = {}
   if (patch.name !== undefined) {
@@ -356,9 +276,6 @@ export async function updateTag(
   if (patch.colorDark !== undefined) updateData.color_dark = patch.colorDark
   if (patch.badge !== undefined) updateData.badge = patch.badge
   if (patch.sortOrder !== undefined) updateData.sort_order = patch.sortOrder
-  if (patch.linkedNewsletterTypeId !== undefined) {
-    updateData.linked_newsletter_type_id = patch.linkedNewsletterTypeId
-  }
   if (patch.nameTranslations !== undefined) {
     const cleaned: Record<string, string> = {}
     for (const [locale, value] of Object.entries(patch.nameTranslations)) {
@@ -381,11 +298,6 @@ export async function updateTag(
   }
 
   revalidateBlogHub(siteId)
-  // Invalidate home page caches when newsletter link changes
-  if (patch.linkedNewsletterTypeId !== undefined) {
-    revalidateTag('home-tags')
-    revalidateTag('home-posts')
-  }
   return { ok: true }
 }
 
@@ -432,8 +344,7 @@ export async function getTagWithLink(
   color_dark: string | null
   badge: string | null
   sort_order: number
-  linked_newsletter_type_id: string | null
-  linkedNewsletterType: { id: string; name: string; locale: string } | null
+  linkedNewsletterTypes: Array<{ id: string; name: string; locale: string }>
 } | null> {
   const { siteId } = await getSiteContext()
 
@@ -441,25 +352,18 @@ export async function getTagWithLink(
 
   const { data: tag, error } = await supabase
     .from('blog_tags')
-    .select('id, name, slug, color, color_dark, badge, sort_order, linked_newsletter_type_id')
+    .select('id, name, slug, color, color_dark, badge, sort_order')
     .eq('id', tagId)
     .eq('site_id', siteId)
     .maybeSingle()
 
   if (error || !tag) return null
 
-  let linkedNewsletterType: { id: string; name: string; locale: string } | null = null
-  if (tag.linked_newsletter_type_id) {
-    const { data: nlType } = await supabase
-      .from('newsletter_types')
-      .select('id, name, locale')
-      .eq('id', tag.linked_newsletter_type_id)
-      .maybeSingle()
-
-    if (nlType) {
-      linkedNewsletterType = nlType as { id: string; name: string; locale: string }
-    }
-  }
+  const { data: nlTypes } = await supabase
+    .from('newsletter_types')
+    .select('id, name, locale')
+    .eq('linked_tag_id', tagId)
+    .eq('site_id', siteId)
 
   return {
     ...(tag as {
@@ -470,19 +374,9 @@ export async function getTagWithLink(
       color_dark: string | null
       badge: string | null
       sort_order: number
-      linked_newsletter_type_id: string | null
     }),
-    linkedNewsletterType,
+    linkedNewsletterTypes: (nlTypes ?? []) as Array<{ id: string; name: string; locale: string }>,
   }
-}
-
-export async function fetchUnlinkedNewsletterTypes(
-  currentTagId?: string,
-): Promise<
-  Array<{ id: string; name: string; locale: string; color: string | null; color_dark: string | null }>
-> {
-  const { siteId } = await getSiteContext()
-  return getUnlinkedNewsletterTypes(siteId, currentTagId)
 }
 
 export async function reorderTags(

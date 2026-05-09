@@ -73,4 +73,8 @@ export const en: BlogStrings = {
   backToTop: 'TOP',
   closeSummary: 'Close summary',
   openSummary: 'Open summary',
+  readingProgress: 'Reading progress',
+  minutesRemaining: (min: number) => `${min} min remaining`,
+  highlightAction: 'Highlight',
+  copyAction: 'Copy',
 }

@@ -4,6 +4,7 @@ const HexColor = z.string().regex(/^#[0-9a-fA-F]{6,8}$/)
 
 const BaseElementSchema = z.object({
   id: z.string().min(1),
+  name: z.string().optional(),
   x: z.number(),
   y: z.number(),
   width: z.number().positive(),
@@ -13,12 +14,22 @@ const BaseElementSchema = z.object({
   locked: z.boolean().default(false),
 })
 
+export const QR_DOT_STYLES = ['square', 'dots', 'rounded', 'classy'] as const
+export type QrDotStyle = typeof QR_DOT_STYLES[number]
+
 const QrElementSchema = BaseElementSchema.extend({
   type: z.literal('qr'),
   foregroundColor: HexColor.default('#000000'),
   backgroundColor: HexColor.default('#ffffff'),
   errorCorrection: z.enum(['L', 'M', 'Q', 'H']).default('M'),
-  cornerRadius: z.number().min(0).max(20).default(0),
+  dotStyle: z.enum(QR_DOT_STYLES).default('square'),
+  cornerRadius: z.number().min(0).max(50).default(0),
+  padding: z.number().min(0).max(40).default(0),
+  showLogo: z.boolean().default(false),
+  logoPadTop: z.number().min(0).max(60).default(10),
+  logoPadRight: z.number().min(0).max(60).default(8),
+  logoPadBottom: z.number().min(0).max(60).default(14),
+  logoPadLeft: z.number().min(0).max(60).default(12),
   maintainAspectRatio: z.literal(true).default(true),
 })
 
@@ -32,6 +43,9 @@ const TextElementSchema = BaseElementSchema.extend({
   letterSpacing: z.string().default('0em'),
   align: z.enum(['left', 'center', 'right']).default('left'),
   color: HexColor.default('#000000'),
+  backgroundColor: z.string().nullable().default(null),
+  backgroundPadding: z.number().min(0).max(40).default(8),
+  backgroundRadius: z.number().min(0).max(30).default(4),
   uppercase: z.boolean().default(false),
 })
 
@@ -118,12 +132,61 @@ export const ASPECT_RATIO_PRESETS: AspectRatioPreset[] = [
 ]
 
 export const AVAILABLE_FONTS = [
+  // Sans-serif
   'Inter',
-  'Fraunces',
-  'JetBrains Mono',
+  'Roboto',
+  'Open Sans',
+  'Montserrat',
+  'Poppins',
+  'Raleway',
+  'Nunito',
+  'Lato',
+  'Work Sans',
+  'DM Sans',
+  // Serif
+  'Playfair Display',
+  'Merriweather',
+  'Lora',
   'Source Serif Pro',
+  'Fraunces',
+  'Cormorant Garamond',
+  'Libre Baskerville',
+  // Display
+  'Bebas Neue',
+  'Oswald',
+  'Anton',
+  'Righteous',
+  'Permanent Marker',
+  'Alfa Slab One',
+  // Handwriting
   'Caveat',
+  'Dancing Script',
+  'Pacifico',
+  'Great Vibes',
+  'Sacramento',
+  // Monospace
+  'JetBrains Mono',
+  'Fira Code',
+  'Source Code Pro',
+  'Space Mono',
 ] as const
+
+export type FontCategory = 'sans-serif' | 'serif' | 'display' | 'handwriting' | 'monospace'
+
+export const FONT_CATEGORIES: Record<FontCategory, readonly string[]> = {
+  'sans-serif': ['Inter', 'Roboto', 'Open Sans', 'Montserrat', 'Poppins', 'Raleway', 'Nunito', 'Lato', 'Work Sans', 'DM Sans'],
+  'serif': ['Playfair Display', 'Merriweather', 'Lora', 'Source Serif Pro', 'Fraunces', 'Cormorant Garamond', 'Libre Baskerville'],
+  'display': ['Bebas Neue', 'Oswald', 'Anton', 'Righteous', 'Permanent Marker', 'Alfa Slab One'],
+  'handwriting': ['Caveat', 'Dancing Script', 'Pacifico', 'Great Vibes', 'Sacramento'],
+  'monospace': ['JetBrains Mono', 'Fira Code', 'Source Code Pro', 'Space Mono'],
+} as const
+
+export function nextElementName(elements: CardElement[], type: 'qr' | 'text' | 'image'): string {
+  const labels: Record<string, string> = { qr: 'QR Code', text: 'Text', image: 'Image' }
+  const base = labels[type]!
+  const count = elements.filter(e => e.type === type).length
+  return count === 0 ? base : `${base} ${count + 1}`
+}
 
 export const MAX_ELEMENTS = 20
 export const MAX_HISTORY = 50
@@ -149,10 +212,12 @@ export function createQrElement(
   id: string,
   canvasWidth: number,
   canvasHeight: number,
+  name?: string,
 ): QrElement {
   const size = Math.min(canvasWidth, canvasHeight) * 0.4
   return {
     id,
+    name,
     type: 'qr',
     x: (canvasWidth - size) / 2,
     y: (canvasHeight - size) / 2,
@@ -164,7 +229,14 @@ export function createQrElement(
     foregroundColor: '#000000',
     backgroundColor: '#ffffff',
     errorCorrection: 'M',
+    dotStyle: 'square',
     cornerRadius: 0,
+    padding: 0,
+    showLogo: false,
+    logoPadTop: 10,
+    logoPadRight: 8,
+    logoPadBottom: 14,
+    logoPadLeft: 12,
     maintainAspectRatio: true,
   }
 }
@@ -173,9 +245,11 @@ export function createTextElement(
   id: string,
   canvasWidth: number,
   canvasHeight: number,
+  name?: string,
 ): TextElement {
   return {
     id,
+    name,
     type: 'text',
     x: canvasWidth * 0.1,
     y: canvasHeight * 0.8,
@@ -192,6 +266,9 @@ export function createTextElement(
     letterSpacing: '0em',
     align: 'center',
     color: '#000000',
+    backgroundColor: null,
+    backgroundPadding: 8,
+    backgroundRadius: 4,
     uppercase: false,
   }
 }
@@ -201,15 +278,37 @@ export function createImageElement(
   src: string,
   canvasWidth: number,
   canvasHeight: number,
+  naturalWidth?: number,
+  naturalHeight?: number,
+  name?: string,
 ): ImageElement {
-  const size = Math.min(canvasWidth, canvasHeight) * 0.3
+  let w: number
+  let h: number
+
+  if (naturalWidth && naturalHeight && naturalWidth > 0 && naturalHeight > 0) {
+    const imgRatio = naturalWidth / naturalHeight
+    const canvasRatio = canvasWidth / canvasHeight
+
+    if (imgRatio > canvasRatio) {
+      w = canvasWidth
+      h = canvasWidth / imgRatio
+    } else {
+      h = canvasHeight
+      w = canvasHeight * imgRatio
+    }
+  } else {
+    w = canvasWidth
+    h = canvasHeight
+  }
+
   return {
     id,
+    name,
     type: 'image',
-    x: (canvasWidth - size) / 2,
-    y: canvasHeight * 0.1,
-    width: size,
-    height: size,
+    x: (canvasWidth - w) / 2,
+    y: (canvasHeight - h) / 2,
+    width: w,
+    height: h,
     rotation: 0,
     opacity: 1,
     locked: false,
@@ -237,7 +336,9 @@ export function migrateLegacyQrConfig(
   const qr = createQrElement('qr-migrated', canvasWidth, canvasHeight)
   qr.foregroundColor = legacyConfig.foreground ?? '#000000'
   qr.backgroundColor = legacyConfig.background ?? '#ffffff'
-  qr.errorCorrection = (legacyConfig.error_correction as 'L' | 'M' | 'Q' | 'H') ?? 'M'
+  const validEc = ['L', 'M', 'Q', 'H'] as const
+  const rawEc = legacyConfig.error_correction
+  qr.errorCorrection = validEc.includes(rawEc as typeof validEc[number]) ? (rawEc as 'L' | 'M' | 'Q' | 'H') : 'M'
   comp.elements = [qr]
   return comp
 }

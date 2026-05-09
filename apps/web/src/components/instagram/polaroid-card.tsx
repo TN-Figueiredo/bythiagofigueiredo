@@ -66,7 +66,7 @@ export function PolaroidCard({ post, index, pinned, locale = 'pt-BR', rotation, 
         />
 
         {pinned && (
-          <div className="absolute -top-2 left-1/2 z-20 -translate-x-1/2 rounded-full bg-amber-400 p-0.5 shadow-sm" aria-label="Pinned">
+          <div className="absolute -right-1.5 -top-1.5 z-20 rounded-full bg-amber-400 p-0.5 shadow-sm" aria-label="Pinned">
             <svg className="h-2.5 w-2.5 text-amber-900" viewBox="0 0 16 16" fill="currentColor">
               <path d="M9.828.722a.5.5 0 0 1 .354.146l4.95 4.95a.5.5 0 0 1-.707.707l-.71-.71-3.18 3.18a5 5 0 0 1-1.413 1.006l-.265.106-.452 2.26a.5.5 0 0 1-.588.393l-.07-.018-2.5-.625a.5.5 0 0 1-.276-.178L3.5 10.18l-1.793 1.793a.5.5 0 0 1-.707-.707L2.793 9.47l-1.75-1.75a.5.5 0 0 1-.178-.276l-.625-2.5a.5.5 0 0 1 .375-.658l2.26-.452.106-.265a5 5 0 0 1 1.006-1.413l3.18-3.18-.71-.71a.5.5 0 0 1 .708-.707z"/>
             </svg>

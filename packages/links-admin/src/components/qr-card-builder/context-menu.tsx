@@ -40,6 +40,18 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
     }
   }, [onClose])
 
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const maxX = window.innerWidth - rect.width - 4
+    const maxY = window.innerHeight - rect.height - 4
+    if (x > maxX || y > maxY) {
+      el.style.left = `${Math.max(4, Math.min(x, maxX))}px`
+      el.style.top = `${Math.max(4, Math.min(y, maxY))}px`
+    }
+  }, [x, y])
+
   return (
     <div
       ref={ref}

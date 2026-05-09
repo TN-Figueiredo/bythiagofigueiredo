@@ -26,7 +26,7 @@ describe('ReadingProgressBar', () => {
     const { container } = renderWithScroll(<ReadingProgressBar sections={sections} />, sections)
     const bar = container.querySelector('[role="progressbar"]')
     expect(bar).toBeTruthy()
-    expect(bar!.getAttribute('aria-label')).toBe('Progresso de leitura')
+    expect(bar!.getAttribute('aria-label')).toBe('Reading progress')
     expect(bar!.getAttribute('aria-valuemin')).toBe('0')
     expect(bar!.getAttribute('aria-valuemax')).toBe('100')
   })
@@ -52,7 +52,6 @@ describe('TimeLeftPill', () => {
     const { container } = render(
       <TimeLeftPill totalMinutes={9} currentSection="O que e, entao" />,
     )
-    expect(container.textContent).toContain('min')
-    expect(container.textContent).toContain('restantes')
+    expect(container.textContent).toContain('min remaining')
   })
 })

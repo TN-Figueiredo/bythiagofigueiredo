@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import type { CardComposition } from '@tn-figueiredo/links/qr'
+import { createDefaultComposition } from '@tn-figueiredo/links/qr'
 
 export interface QrTemplate {
   id: string
@@ -41,12 +42,7 @@ export function TemplateBrowser({ templates, onLoad, onSave, onDelete, onClose }
           <button
             type="button"
             onClick={() => {
-              onLoad({
-                version: 1,
-                canvas: { width: 1080, height: 1080, aspectRatio: '1:1' },
-                background: { type: 'solid', color: '#ffffff' },
-                elements: [],
-              })
+              onLoad(createDefaultComposition())
               onClose()
             }}
             className="aspect-square rounded-lg border-2 border-dashed border-neutral-700 flex flex-col items-center justify-center text-neutral-500 hover:border-neutral-500 hover:text-neutral-300"

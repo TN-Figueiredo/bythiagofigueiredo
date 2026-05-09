@@ -23,6 +23,7 @@ export function AuthorCard({ author, locale, t: _t }: Props) {
           <img
             src={author.avatarUrl}
             alt={author.name}
+            loading="lazy"
             className="w-14 h-14 rounded-full object-cover shrink-0"
           />
         ) : (

@@ -12,6 +12,7 @@ import {
   type TocEntry,
 } from '@/components/blog'
 import { useContentTracking } from '@/lib/tracking/use-content-tracking'
+import { slugify } from '@/lib/blog/slugify'
 import { ptBR } from '@/components/blog/_i18n/pt-BR'
 import { en } from '@/components/blog/_i18n/en'
 
@@ -27,16 +28,6 @@ type Props = {
   bookmarkAd?: ReactNode
   mobileInlineAd?: ReactNode
   midContentAd?: ReactNode
-}
-
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
 }
 
 export function BlogArticleClient({ children, sections, readingTimeMin, slug, locale, siteId, postId, keyPoints, bookmarkAd, mobileInlineAd, midContentAd }: Props) {
@@ -86,8 +77,8 @@ export function BlogArticleClient({ children, sections, readingTimeMin, slug, lo
 
   return (
     <div>
-      <ReadingProgressBar sections={sections} />
-      <TimeLeftPill totalMinutes={readingTimeMin} />
+      <ReadingProgressBar sections={sections} locale={locale} />
+      <TimeLeftPill totalMinutes={readingTimeMin} locale={locale} />
 
       <div className="reader-pinboard reader-article">
         <TextHighlighter slug={slug} locale={locale}>

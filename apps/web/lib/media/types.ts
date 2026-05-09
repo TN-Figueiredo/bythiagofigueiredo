@@ -82,7 +82,7 @@ export const FOLDER_LIMITS: Record<MediaFolder, FolderLimit> = {
   branding:    { maxSizeBytes: 1 * 1024 * 1024,  maxDimensionPx: 2048 },
   og:          { maxSizeBytes: 2 * 1024 * 1024,  maxDimensionPx: 2400 },
   ads:         { maxSizeBytes: 5 * 1024 * 1024,  maxDimensionPx: 4096 },
-  links:       { maxSizeBytes: 1 * 1024 * 1024,  maxDimensionPx: 1024 },
+  links:       { maxSizeBytes: 5 * 1024 * 1024,  maxDimensionPx: 4096 },
   general:     { maxSizeBytes: 5 * 1024 * 1024,  maxDimensionPx: 4096 },
 }
 

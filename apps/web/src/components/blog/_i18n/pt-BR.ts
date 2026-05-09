@@ -73,4 +73,8 @@ export const ptBR: BlogStrings = {
   backToTop: 'TOPO',
   closeSummary: 'Fechar sumario',
   openSummary: 'Abrir sumario',
+  readingProgress: 'Progresso de leitura',
+  minutesRemaining: (min: number) => `${min} min restantes`,
+  highlightAction: 'Destacar',
+  copyAction: 'Copiar',
 }

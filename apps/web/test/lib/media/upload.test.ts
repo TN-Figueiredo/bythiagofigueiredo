@@ -9,6 +9,7 @@ vi.mock('@vercel/blob', () => ({
 
 const insertMock = vi.fn()
 const selectMock = vi.fn()
+const deleteMock = vi.fn()
 const eqMock = vi.fn()
 const isMock = vi.fn()
 const limitMock = vi.fn()
@@ -16,6 +17,7 @@ const singleMock = vi.fn()
 
 function buildChain(resolvedData: unknown) {
   selectMock.mockReturnValue({ eq: eqMock })
+  deleteMock.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
   eqMock.mockReturnValue({ eq: eqMock, is: isMock })
   isMock.mockReturnValue({ limit: limitMock })
   limitMock.mockReturnValue({ single: singleMock })
@@ -29,6 +31,7 @@ vi.mock('@/lib/supabase/service', () => ({
         return {
           select: selectMock,
           insert: insertMock,
+          delete: deleteMock,
         }
       }
       return { select: vi.fn() }
@@ -96,6 +99,7 @@ describe('uploadMediaAsset', () => {
       url: 'https://abc.public.blob.vercel-storage.com/site-1/blog/aabbccdd.jpg',
       pathname: 'site-1/blog/aabbccdd.jpg',
     })
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true } as Response)
   })
 
   it('rejects unsupported MIME type', async () => {
@@ -208,6 +212,7 @@ describe('uploadMediaAsset', () => {
 describe('uploadMediaAssets (batch)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true } as Response)
     buildChain(mockAssetRow)
   })
 

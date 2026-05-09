@@ -69,4 +69,8 @@ export interface BlogStrings {
   backToTop: string
   closeSummary: string
   openSummary: string
+  readingProgress: string
+  minutesRemaining: (min: number) => string
+  highlightAction: string
+  copyAction: string
 }

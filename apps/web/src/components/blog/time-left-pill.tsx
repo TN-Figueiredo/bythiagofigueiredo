@@ -2,13 +2,17 @@
 
 import { useState, useEffect } from 'react'
 import { useScrollState } from './scroll-context'
+import { ptBR } from './_i18n/pt-BR'
+import { en } from './_i18n/en'
 
 type Props = {
   totalMinutes: number
   currentSection?: string
+  locale?: string
 }
 
-export function TimeLeftPill({ totalMinutes, currentSection }: Props) {
+export function TimeLeftPill({ totalMinutes, currentSection, locale }: Props) {
+  const t = locale === 'pt-BR' ? ptBR : en
   const { progress, visible, activeSection } = useScrollState()
   const [show, setShow] = useState(false)
   const [sectionLabel, setSectionLabel] = useState<string | undefined>(currentSection)
@@ -46,7 +50,7 @@ export function TimeLeftPill({ totalMinutes, currentSection }: Props) {
 
   return (
     <div className="blog-time-pill" style={{ opacity: show ? 1 : 0, pointerEvents: show ? 'auto' : 'none' }} aria-live="polite">
-      <span>{minutesLeft} min</span> restantes
+      <span>{t.minutesRemaining(minutesLeft)}</span>
       {sectionLabel && <> · <span className="text-pb-ink font-sans">{sectionLabel}</span></>}
     </div>
   )

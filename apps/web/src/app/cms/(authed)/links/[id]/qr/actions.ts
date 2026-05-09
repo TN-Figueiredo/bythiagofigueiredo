@@ -15,6 +15,15 @@ type ActionResult<T = object> =
 async function requireEditScope(siteId: string) {
   const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
   if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
+  return res.user.id
+}
+
+function sanitizeBlobUrls(comp: CardComposition): CardComposition {
+  const background = comp.background.type === 'image' && comp.background.url.startsWith('blob:')
+    ? { type: 'solid' as const, color: comp.background.fallbackColor }
+    : comp.background
+  const elements = comp.elements.filter(el => !(el.type === 'image' && el.src.startsWith('blob:')))
+  return { ...comp, background, elements }
 }
 
 export async function saveQrCard(
@@ -23,7 +32,8 @@ export async function saveQrCard(
 ): Promise<ActionResult> {
   if (!linkId) return { ok: false, error: 'id_required' }
 
-  const parsed = CardCompositionSchema.safeParse(composition)
+  const sanitized = sanitizeBlobUrls(composition)
+  const parsed = CardCompositionSchema.safeParse(sanitized)
   if (!parsed.success) return { ok: false, error: 'invalid_composition' }
 
   const { siteId } = await getSiteContext()
@@ -66,9 +76,21 @@ export async function loadQrCard(
   if (error) return { ok: false, error: error.message }
 
   const raw = data.qr_card_composition as unknown
-  if (raw) {
+  if (raw && typeof raw === 'object') {
     const parsed = CardCompositionSchema.safeParse(raw)
-    if (parsed.success) return { ok: true, composition: parsed.data, legacyConfig: null }
+    if (parsed.success) return { ok: true, composition: sanitizeBlobUrls(parsed.data), legacyConfig: null }
+    // Schema evolved — try to recover by deep-merging with defaults
+    try {
+      const obj = raw as Record<string, unknown>
+      const patched = {
+        version: 1,
+        canvas: obj.canvas ?? { width: 1080, height: 1080, aspectRatio: '1:1' },
+        background: obj.background ?? { type: 'solid', color: '#ffffff' },
+        elements: Array.isArray(obj.elements) ? obj.elements : [],
+      }
+      const retry = CardCompositionSchema.safeParse(patched)
+      if (retry.success) return { ok: true, composition: sanitizeBlobUrls(retry.data), legacyConfig: null }
+    } catch { /* fall through */ }
   }
 
   return {
@@ -89,7 +111,7 @@ export async function saveQrTemplate(
   if (!parsed.success) return { ok: false, error: 'invalid_composition' }
 
   const { siteId } = await getSiteContext()
-  await requireEditScope(siteId)
+  const userId = await requireEditScope(siteId)
 
   const thumbnailFile = thumbnailFormData.get('thumbnail') as File | null
   let thumbnailUrl: string | null = null
@@ -100,7 +122,7 @@ export async function saveQrTemplate(
       filename: `qr-template-${Date.now()}.png`,
       folder: 'links',
       siteId,
-      uploadedBy: 'system',
+      uploadedBy: userId,
       tags: ['qr-template'],
     })
     if (result.ok) thumbnailUrl = result.asset.blobUrl
@@ -182,7 +204,7 @@ export async function exportQrCard(
   if (!linkId) return { ok: false, error: 'id_required' }
 
   const { siteId } = await getSiteContext()
-  await requireEditScope(siteId)
+  const userId = await requireEditScope(siteId)
 
   const file = formData.get('file') as File | null
   if (!file) return { ok: false, error: 'file_required' }
@@ -193,7 +215,7 @@ export async function exportQrCard(
     filename: `qr-card-${linkId}.${format}`,
     folder: 'links',
     siteId,
-    uploadedBy: 'system',
+    uploadedBy: userId,
     tags: ['qr-card', `link:${linkId}`],
   })
 
@@ -205,7 +227,7 @@ export async function uploadQrImage(
   formData: FormData,
 ): Promise<ActionResult<{ url: string }>> {
   const { siteId } = await getSiteContext()
-  await requireEditScope(siteId)
+  const userId = await requireEditScope(siteId)
 
   const file = formData.get('file') as File | null
   if (!file) return { ok: false, error: 'file_required' }
@@ -215,7 +237,7 @@ export async function uploadQrImage(
     filename: `qr-image-${Date.now()}-${file.name}`,
     folder: 'links',
     siteId,
-    uploadedBy: 'system',
+    uploadedBy: userId,
     tags: ['qr-card-image'],
   })
 

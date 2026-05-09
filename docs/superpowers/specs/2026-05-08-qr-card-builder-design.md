@@ -467,8 +467,9 @@ Manages transient UI state that does not belong in the composition. Returns:
 
 | File | Purpose |
 |------|---------|
-| `src/app/cms/links/[id]/qr/page.tsx` | Page component — loads composition, renders QR Card Builder |
-| `src/app/cms/links/[id]/qr/actions.ts` | Server actions for save/load/export |
+| `src/app/cms/(authed)/links/[id]/qr/page.tsx` | Page component — loads composition, renders QR Card Builder |
+| `src/app/cms/(authed)/links/[id]/qr/client.tsx` | Client wrapper bridging server actions to QrCardBuilder props |
+| `src/app/cms/(authed)/links/[id]/qr/actions.ts` | Server actions for save/load/export |
 
 ## 16. Server Actions
 

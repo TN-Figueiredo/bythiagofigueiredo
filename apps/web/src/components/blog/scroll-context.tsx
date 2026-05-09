@@ -91,7 +91,9 @@ export function ScrollProvider({ sections, children }: Props) {
         const docHeight = document.documentElement.scrollHeight - window.innerHeight
         const globalProgress = docHeight > 0 ? Math.min(scrollTop / docHeight, 1) : 0
 
-        const nextProgress = new Map<string, number>()
+        const prev = prevProgressRef.current
+        let mapChanged = false
+
         for (let i = 0; i < elements.length; i++) {
           const el = elements[i]!
           const next = elements[i + 1]
@@ -99,25 +101,21 @@ export function ScrollProvider({ sections, children }: Props) {
           const sectionBottom = next ? next.offsetTop - 100 : document.documentElement.scrollHeight
           const sectionHeight = sectionBottom - sectionTop
 
+          let value: number
           if (scrollTop >= sectionBottom) {
-            nextProgress.set(el.id, 1)
+            value = 1
           } else if (scrollTop > sectionTop) {
-            nextProgress.set(el.id, (scrollTop - sectionTop) / sectionHeight)
+            value = (scrollTop - sectionTop) / sectionHeight
           } else {
-            nextProgress.set(el.id, 0)
+            value = 0
           }
+          if (prev.get(el.id) !== value) mapChanged = true
+          prev.set(el.id, value)
         }
 
         const visible = globalProgress > 0.08 && globalProgress < 0.96
 
-        let mapChanged = nextProgress.size !== prevProgressRef.current.size
-        if (!mapChanged) {
-          for (const [k, v] of nextProgress) {
-            if (prevProgressRef.current.get(k) !== v) { mapChanged = true; break }
-          }
-        }
-
-        if (mapChanged) prevProgressRef.current = nextProgress
+        const nextProgress = mapChanged ? new Map(prev) : prev
 
         setState((prev) => {
           if (prev.progress === globalProgress && prev.visible === visible && !mapChanged) return prev

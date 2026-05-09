@@ -8,6 +8,7 @@ import {
   createTextElement,
   createImageElement,
   migrateLegacyQrConfig,
+  nextElementName,
 } from './card-composition.js'
 
 describe('CardCompositionSchema', () => {
@@ -156,8 +157,9 @@ describe('ASPECT_RATIO_PRESETS', () => {
 })
 
 describe('AVAILABLE_FONTS', () => {
-  it('has 5 fonts', () => {
-    expect(AVAILABLE_FONTS).toHaveLength(5)
+  it('has all expected fonts', () => {
+    expect(AVAILABLE_FONTS.length).toBeGreaterThanOrEqual(30)
+    expect(AVAILABLE_FONTS).toContain('Inter')
   })
 })
 
@@ -225,6 +227,82 @@ describe('createImageElement', () => {
     const img = createImageElement('img-1', 'https://example.com/img.png', 1080, 1080)
     expect(img.type).toBe('image')
     expect(img.src).toBe('https://example.com/img.png')
+  })
+})
+
+describe('element name field', () => {
+  it('accepts element without name', () => {
+    const comp = {
+      version: 1,
+      canvas: { width: 1080, height: 1080, aspectRatio: '1:1' },
+      background: { type: 'solid' as const, color: '#ffffff' },
+      elements: [{
+        id: 'qr-1', type: 'qr', x: 0, y: 0, width: 200, height: 200,
+        rotation: 0, opacity: 1, locked: false,
+        foregroundColor: '#000000', backgroundColor: '#ffffff',
+        errorCorrection: 'M', cornerRadius: 0, maintainAspectRatio: true as const,
+      }],
+    }
+    expect(CardCompositionSchema.safeParse(comp).success).toBe(true)
+  })
+
+  it('accepts element with name', () => {
+    const comp = {
+      version: 1,
+      canvas: { width: 1080, height: 1080, aspectRatio: '1:1' },
+      background: { type: 'solid' as const, color: '#ffffff' },
+      elements: [{
+        id: 'qr-1', name: 'My QR Code', type: 'qr', x: 0, y: 0, width: 200, height: 200,
+        rotation: 0, opacity: 1, locked: false,
+        foregroundColor: '#000000', backgroundColor: '#ffffff',
+        errorCorrection: 'M', cornerRadius: 0, maintainAspectRatio: true as const,
+      }],
+    }
+    const result = CardCompositionSchema.safeParse(comp)
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.data.elements[0]!.name).toBe('My QR Code')
+  })
+
+  it('passes name through createQrElement', () => {
+    const qr = createQrElement('id', 1080, 1080, 'Logo QR')
+    expect(qr.name).toBe('Logo QR')
+  })
+
+  it('passes name through createTextElement', () => {
+    const txt = createTextElement('id', 1080, 1080, 'Title')
+    expect(txt.name).toBe('Title')
+  })
+
+  it('passes name through createImageElement', () => {
+    const img = createImageElement('id', 'https://x.com/a.png', 1080, 1080, undefined, undefined, 'Hero')
+    expect(img.name).toBe('Hero')
+  })
+})
+
+describe('nextElementName', () => {
+  it('returns base label for first element of type', () => {
+    expect(nextElementName([], 'qr')).toBe('QR Code')
+    expect(nextElementName([], 'text')).toBe('Text')
+    expect(nextElementName([], 'image')).toBe('Image')
+  })
+
+  it('increments for subsequent elements of same type', () => {
+    const elements = [
+      createQrElement('1', 1080, 1080),
+    ]
+    expect(nextElementName(elements, 'qr')).toBe('QR Code 2')
+  })
+
+  it('counts only elements of the requested type', () => {
+    const elements = [
+      createQrElement('1', 1080, 1080),
+      createTextElement('2', 1080, 1080),
+      createImageElement('3', 'https://x.com/a.png', 1080, 1080),
+      createImageElement('4', 'https://x.com/b.png', 1080, 1080),
+    ]
+    expect(nextElementName(elements, 'image')).toBe('Image 3')
+    expect(nextElementName(elements, 'text')).toBe('Text 2')
+    expect(nextElementName(elements, 'qr')).toBe('QR Code 2')
   })
 })
 

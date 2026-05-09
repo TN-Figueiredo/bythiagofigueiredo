@@ -44,38 +44,31 @@ export function MobileTocSheet({ open, onClose, sections, keyPoints, locale }: P
           <button onClick={onClose} aria-label={t.closeSummary} className="text-pb-muted hover:text-pb-ink text-lg bg-transparent border-none cursor-pointer p-0">×</button>
         </div>
         <div className="blog-sidebar-label mb-3">{t.inThisText}</div>
-        <ul className="list-none mb-6">
-          {displaySections.map((entry) => (
-            <li
-              key={entry.slug}
-              role="button"
-              tabIndex={0}
-              style={{
-                fontSize: 14,
-                padding: '8px 0 8px 12px',
-                cursor: 'pointer',
-                borderLeft: `2px solid ${activeSection === entry.slug ? 'var(--pb-accent)' : 'transparent'}`,
-                color: activeSection === entry.slug ? 'var(--pb-ink)' : 'var(--pb-muted)',
-                fontWeight: activeSection === entry.slug ? 600 : 400,
-                paddingLeft: entry.depth === 3 ? 24 : 12,
-                transition: 'all 0.15s',
-              }}
-              onClick={() => {
-                document.getElementById(entry.slug)?.scrollIntoView({ behavior: 'smooth' })
-                onClose()
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  document.getElementById(entry.slug)?.scrollIntoView({ behavior: 'smooth' })
-                  onClose()
-                }
-              }}
-            >
-              {entry.text}
-            </li>
-          ))}
-        </ul>
+        <nav aria-label={t.inThisText} className="mb-6">
+          <ul className="list-none">
+            {displaySections.map((entry) => (
+              <li key={entry.slug}>
+                <button
+                  className="w-full text-left bg-transparent border-none cursor-pointer transition-all"
+                  style={{
+                    fontSize: 14,
+                    padding: '8px 0 8px 12px',
+                    borderLeft: `2px solid ${activeSection === entry.slug ? 'var(--pb-accent)' : 'transparent'}`,
+                    color: activeSection === entry.slug ? 'var(--pb-ink)' : 'var(--pb-muted)',
+                    fontWeight: activeSection === entry.slug ? 600 : 400,
+                    paddingLeft: entry.depth === 3 ? 24 : 12,
+                  }}
+                  onClick={() => {
+                    document.getElementById(entry.slug)?.scrollIntoView({ behavior: 'smooth' })
+                    onClose()
+                  }}
+                >
+                  {entry.text}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </nav>
         {keyPoints && keyPoints.length > 0 && (
           <>
             <div className="blog-sidebar-label mb-3">{t.keyPoints}</div>

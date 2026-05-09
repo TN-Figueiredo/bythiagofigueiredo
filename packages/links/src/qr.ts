@@ -19,6 +19,7 @@ export {
   CardCompositionSchema,
   ASPECT_RATIO_PRESETS,
   AVAILABLE_FONTS,
+  FONT_CATEGORIES,
   MAX_ELEMENTS,
   MAX_HISTORY,
   MIN_CANVAS,
@@ -28,6 +29,8 @@ export {
   createTextElement,
   createImageElement,
   migrateLegacyQrConfig,
+  nextElementName,
+  QR_DOT_STYLES,
 } from './qr/card-composition.js'
 export type {
   CardComposition,
@@ -39,6 +42,8 @@ export type {
   GradientStop,
   Canvas,
   AspectRatioPreset,
+  FontCategory,
+  QrDotStyle,
 } from './qr/card-composition.js'
 
 export { compositionToSvg } from './qr/svg-export.js'

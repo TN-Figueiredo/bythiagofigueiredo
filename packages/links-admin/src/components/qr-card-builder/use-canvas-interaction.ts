@@ -11,6 +11,7 @@ export function useCanvasInteraction() {
   const [zoom, setZoomState] = useState(1)
   const [guidesVisible, setGuidesVisible] = useState(true)
   const [gridVisible, setGridVisible] = useState(false)
+  const [clipOverflow, setClipOverflow] = useState(true)
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
 
   const select = useCallback((id: string) => {
@@ -49,6 +50,7 @@ export function useCanvasInteraction() {
 
   const toggleGuides = useCallback(() => setGuidesVisible(prev => !prev), [])
   const toggleGrid = useCallback(() => setGridVisible(prev => !prev), [])
+  const toggleClipOverflow = useCallback(() => setClipOverflow(prev => !prev), [])
 
   const openContextMenu = useCallback((x: number, y: number, elementId: string | null) => {
     setContextMenu({ x, y, elementId })
@@ -66,15 +68,17 @@ export function useCanvasInteraction() {
     fitToView,
     guidesVisible,
     gridVisible,
+    clipOverflow,
     toggleGuides,
     toggleGrid,
+    toggleClipOverflow,
     contextMenu,
     openContextMenu,
     closeContextMenu,
   }), [
     selectedIds, select, multiSelect, deselectAll,
     zoom, setZoom, fitToView,
-    guidesVisible, gridVisible, toggleGuides, toggleGrid,
+    guidesVisible, gridVisible, clipOverflow, toggleGuides, toggleGrid, toggleClipOverflow,
     contextMenu, openContextMenu, closeContextMenu,
   ])
 }

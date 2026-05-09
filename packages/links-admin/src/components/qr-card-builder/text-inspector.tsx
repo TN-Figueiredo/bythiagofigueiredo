@@ -1,9 +1,97 @@
 'use client'
-import { AlignLeft, AlignCenter, AlignRight } from 'lucide-react'
-import { AVAILABLE_FONTS } from '@tn-figueiredo/links/qr'
-import type { TextElement } from '@tn-figueiredo/links/qr'
+import { useEffect, useRef, useState } from 'react'
+import { AlignLeft, AlignCenter, AlignRight, ChevronDown } from 'lucide-react'
+import { FONT_CATEGORIES } from '@tn-figueiredo/links/qr'
+import type { TextElement, FontCategory } from '@tn-figueiredo/links/qr'
 import { ColorPicker } from './color-picker'
 import { NumberField, SliderField, SectionTitle } from './inspector-field'
+
+const GOOGLE_FONTS_URL = 'https://fonts.googleapis.com/css2?'
+
+function useFontLoader(fontFamily: string) {
+  useEffect(() => {
+    if (!fontFamily || fontFamily === 'Inter') return
+    const id = `qr-font-${fontFamily.replace(/\s+/g, '-').toLowerCase()}`
+    if (document.getElementById(id)) return
+    const link = document.createElement('link')
+    link.id = id
+    link.rel = 'stylesheet'
+    link.href = `${GOOGLE_FONTS_URL}family=${encodeURIComponent(fontFamily)}:wght@100;200;300;400;500;600;700;800;900&display=swap`
+    document.head.appendChild(link)
+  }, [fontFamily])
+}
+
+const CATEGORY_LABELS: Record<FontCategory, string> = {
+  'sans-serif': 'Sans Serif',
+  'serif': 'Serif',
+  'display': 'Display',
+  'handwriting': 'Handwriting',
+  'monospace': 'Monospace',
+}
+
+function FontPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useFontLoader(value)
+
+  useEffect(() => {
+    if (!open) return
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [open])
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between bg-neutral-800 border border-neutral-700 rounded px-2 py-1.5 text-[11px] text-neutral-200 hover:border-neutral-600"
+      >
+        <span style={{ fontFamily: value }}>{value}</span>
+        <ChevronDown size={12} className={`text-neutral-500 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-neutral-800 border border-neutral-700 rounded shadow-xl max-h-[320px] overflow-y-auto">
+          {(Object.keys(FONT_CATEGORIES) as FontCategory[]).map(cat => (
+            <div key={cat}>
+              <div className="px-2 py-1 text-[9px] font-semibold text-neutral-500 uppercase tracking-wider sticky top-0 bg-neutral-800">
+                {CATEGORY_LABELS[cat]}
+              </div>
+              {FONT_CATEGORIES[cat].map(font => (
+                <FontOption key={font} font={font} selected={value === font} onSelect={() => { onChange(font); setOpen(false) }} />
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FontOption({ font, selected, onSelect }: { font: string; selected: boolean; onSelect: () => void }) {
+  useFontLoader(font)
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`w-full text-left px-2 py-1.5 text-[12px] hover:bg-neutral-700 ${selected ? 'bg-blue-600/20 text-blue-300' : 'text-neutral-200'}`}
+      style={{ fontFamily: font }}
+    >
+      {font}
+    </button>
+  )
+}
 
 interface TextInspectorProps {
   element: TextElement
@@ -11,6 +99,8 @@ interface TextInspectorProps {
 }
 
 export function TextInspector({ element, onUpdate }: TextInspectorProps) {
+  useFontLoader(element.fontFamily)
+
   return (
     <div className="space-y-2">
       <SectionTitle>Content</SectionTitle>
@@ -31,13 +121,7 @@ export function TextInspector({ element, onUpdate }: TextInspectorProps) {
       <SectionTitle>Typography</SectionTitle>
       <div>
         <span className="text-[10px] text-neutral-400">Font</span>
-        <select
-          value={element.fontFamily}
-          onChange={e => onUpdate({ fontFamily: e.target.value })}
-          className="w-full mt-0.5 bg-neutral-800 border border-neutral-700 rounded px-1.5 py-1 text-[11px] text-neutral-200"
-        >
-          {AVAILABLE_FONTS.map(f => <option key={f} value={f}>{f}</option>)}
-        </select>
+        <FontPicker value={element.fontFamily} onChange={v => onUpdate({ fontFamily: v })} />
       </div>
       <div className="grid grid-cols-2 gap-1.5">
         <NumberField label="Size" value={element.fontSize} onChange={v => onUpdate({ fontSize: v })} min={8} max={400} unit="px" />
@@ -64,6 +148,24 @@ export function TextInspector({ element, onUpdate }: TextInspectorProps) {
 
       <SectionTitle>Color</SectionTitle>
       <ColorPicker label="Text color" value={element.color} onChange={c => onUpdate({ color: c })} />
+      <div className="space-y-1.5">
+        <label className="flex items-center gap-2 text-[11px] text-neutral-300">
+          <input
+            type="checkbox"
+            checked={element.backgroundColor !== null}
+            onChange={e => onUpdate({ backgroundColor: e.target.checked ? '#00000099' : null })}
+            className="rounded"
+          />
+          Background
+        </label>
+        {element.backgroundColor !== null && (
+          <>
+            <ColorPicker label="BG color" value={element.backgroundColor} onChange={c => onUpdate({ backgroundColor: c })} />
+            <SliderField label="Padding" value={element.backgroundPadding ?? 8} onChange={v => onUpdate({ backgroundPadding: v })} min={0} max={40} format={v => `${v}px`} />
+            <SliderField label="Radius" value={element.backgroundRadius ?? 4} onChange={v => onUpdate({ backgroundRadius: v })} min={0} max={30} format={v => `${v}px`} />
+          </>
+        )}
+      </div>
 
       <SectionTitle>Display</SectionTitle>
       <SliderField label="Rotation" value={element.rotation} onChange={v => onUpdate({ rotation: v })} min={0} max={360} format={v => `${v}°`} />

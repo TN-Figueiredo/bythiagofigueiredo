@@ -1,12 +1,13 @@
 'use client'
 import { useState, useCallback } from 'react'
-import { QrCode, Type, ImagePlus } from 'lucide-react'
+import { QrCode, Type, ImagePlus, Loader2 } from 'lucide-react'
 import {
   ASPECT_RATIO_PRESETS,
   MAX_ELEMENTS,
   createQrElement,
   createTextElement,
   createImageElement,
+  nextElementName,
 } from '@tn-figueiredo/links/qr'
 import type { UseCardCompositionReturn } from './use-card-composition'
 import type { UseCanvasInteractionReturn } from './use-canvas-interaction'
@@ -22,26 +23,32 @@ interface LeftPanelProps {
 type BgTab = 'solid' | 'image' | 'gradient'
 
 export function LeftPanel({ comp, interaction, onImageUpload }: LeftPanelProps) {
-  const { composition, setCanvas, setBackground, addElement, updateElement, reorderElements } = comp
+  const { composition, setCanvas, setBackground, addElement, updateElement, removeElement, reorderElements } = comp
   const { selectedIds, select } = interaction
   const [bgTab, setBgTab] = useState<BgTab>(composition.background.type as BgTab)
+  const [isUploading, setIsUploading] = useState(false)
 
   const handlePreset = useCallback((preset: typeof ASPECT_RATIO_PRESETS[number]) => {
-    if (preset.name === 'custom') return
+    if (preset.name === 'custom') {
+      setCanvas({ ...composition.canvas, aspectRatio: 'custom' })
+      return
+    }
     setCanvas({ width: preset.width, height: preset.height, aspectRatio: preset.name })
-  }, [setCanvas])
+  }, [composition.canvas, setCanvas])
 
   const handleAddQr = useCallback(() => {
     if (composition.elements.length >= MAX_ELEMENTS) return
     const id = crypto.randomUUID()
-    addElement(createQrElement(id, composition.canvas.width, composition.canvas.height))
+    const name = nextElementName(composition.elements, 'qr')
+    addElement(createQrElement(id, composition.canvas.width, composition.canvas.height, name))
     select(id)
   }, [composition, addElement, select])
 
   const handleAddText = useCallback(() => {
     if (composition.elements.length >= MAX_ELEMENTS) return
     const id = crypto.randomUUID()
-    addElement(createTextElement(id, composition.canvas.width, composition.canvas.height))
+    const name = nextElementName(composition.elements, 'text')
+    addElement(createTextElement(id, composition.canvas.width, composition.canvas.height, name))
     select(id)
   }, [composition, addElement, select])
 
@@ -53,10 +60,30 @@ export function LeftPanel({ comp, interaction, onImageUpload }: LeftPanelProps) 
     input.onchange = async () => {
       const file = input.files?.[0]
       if (!file || file.size > 5 * 1024 * 1024) return
-      const src = await onImageUpload(file)
-      const id = crypto.randomUUID()
-      addElement(createImageElement(id, src, composition.canvas.width, composition.canvas.height))
-      select(id)
+      setIsUploading(true)
+      try {
+        const localUrl = URL.createObjectURL(file)
+        const { naturalWidth, naturalHeight } = await new Promise<HTMLImageElement>(resolve => {
+          const img = new window.Image()
+          img.onload = () => resolve(img)
+          img.onerror = () => resolve(img)
+          img.src = localUrl
+        })
+        URL.revokeObjectURL(localUrl)
+        const remoteUrl = await onImageUpload(file)
+        if (!remoteUrl) {
+          console.error('[QR Card] Image upload returned empty URL')
+          return
+        }
+        const id = crypto.randomUUID()
+        const name = nextElementName(composition.elements, 'image')
+        addElement(createImageElement(id, remoteUrl, composition.canvas.width, composition.canvas.height, naturalWidth, naturalHeight, name))
+        select(id)
+      } catch (err) {
+        console.error('[QR Card] Image upload failed:', err)
+      } finally {
+        setIsUploading(false)
+      }
     }
     input.click()
   }, [composition, addElement, select, onImageUpload])
@@ -127,8 +154,9 @@ export function LeftPanel({ comp, interaction, onImageUpload }: LeftPanelProps) 
           <button type="button" onClick={handleAddText} className="flex-1 flex flex-col items-center gap-1 p-2 rounded border border-neutral-700 text-neutral-300 hover:border-blue-500 hover:text-blue-300 text-[10px]" disabled={composition.elements.length >= MAX_ELEMENTS}>
             <Type size={18} />Text
           </button>
-          <button type="button" onClick={handleAddImage} className="flex-1 flex flex-col items-center gap-1 p-2 rounded border border-neutral-700 text-neutral-300 hover:border-blue-500 hover:text-blue-300 text-[10px]" disabled={composition.elements.length >= MAX_ELEMENTS}>
-            <ImagePlus size={18} />Image
+          <button type="button" onClick={handleAddImage} className="flex-1 flex flex-col items-center gap-1 p-2 rounded border border-neutral-700 text-neutral-300 hover:border-blue-500 hover:text-blue-300 text-[10px]" disabled={composition.elements.length >= MAX_ELEMENTS || isUploading}>
+            {isUploading ? <Loader2 size={18} className="animate-spin" /> : <ImagePlus size={18} />}
+            {isUploading ? 'Uploading...' : 'Image'}
           </button>
         </div>
       </section>
@@ -181,6 +209,7 @@ export function LeftPanel({ comp, interaction, onImageUpload }: LeftPanelProps) 
             )}
             <button
               type="button"
+              disabled={isUploading}
               onClick={async () => {
                 const input = document.createElement('input')
                 input.type = 'file'
@@ -188,8 +217,20 @@ export function LeftPanel({ comp, interaction, onImageUpload }: LeftPanelProps) 
                 input.onchange = async () => {
                   const file = input.files?.[0]
                   if (!file) return
-                  const src = await onImageUpload(file)
-                  setBackground({ type: 'image', url: src, fallbackColor: bg.type === 'image' ? bg.fallbackColor : '#ffffff' })
+                  const fallback = bg.type === 'image' ? bg.fallbackColor : '#ffffff'
+                  setIsUploading(true)
+                  try {
+                    const remoteUrl = await onImageUpload(file)
+                    if (remoteUrl) {
+                      setBackground({ type: 'image', url: remoteUrl, fallbackColor: fallback })
+                    } else {
+                      console.error('[QR Card] Background upload returned empty URL')
+                    }
+                  } catch (err) {
+                    console.error('[QR Card] Background upload failed:', err)
+                  } finally {
+                    setIsUploading(false)
+                  }
                 }
                 input.click()
               }}

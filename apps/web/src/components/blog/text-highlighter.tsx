@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { getHighlightStorageKey, type Highlight } from './types'
+import { ptBR } from './_i18n/pt-BR'
+import { en } from './_i18n/en'
 
 type Props = {
   slug: string
@@ -12,6 +14,7 @@ type Props = {
 const MAX_HIGHLIGHTS = 20
 
 export function TextHighlighter({ slug, locale, children }: Props) {
+  const t = locale === 'pt-BR' ? ptBR : en
   const containerRef = useRef<HTMLDivElement>(null)
   const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null)
 
@@ -90,13 +93,13 @@ export function TextHighlighter({ slug, locale, children }: Props) {
             onClick={handleHighlight}
             className="text-xs font-jetbrains text-pb-accent bg-transparent border-none cursor-pointer px-2 py-0.5 hover:bg-pb-accent/10 rounded"
           >
-            Destacar
+            {t.highlightAction}
           </button>
           <button
             onClick={handleCopy}
             className="text-xs font-jetbrains text-pb-muted bg-transparent border-none cursor-pointer px-2 py-0.5 hover:bg-[--pb-paper2] rounded"
           >
-            Copiar
+            {t.copyAction}
           </button>
         </div>
       )}

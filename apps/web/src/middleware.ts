@@ -247,11 +247,11 @@ export async function middleware(
     // Auth gating for rewritten paths
     if (effectivePathname.startsWith('/admin')) {
       const authRes = await adminAuth(request)
-      return mergeSiteHeaders(authRes, res)
+      return mergeSiteHeaders(request, authRes, res)
     }
     if (effectivePathname.startsWith('/cms')) {
       const authRes = await cmsAuth(request)
-      return mergeSiteHeaders(authRes, res)
+      return mergeSiteHeaders(request, authRes, res)
     }
     return res
   }
@@ -262,11 +262,11 @@ export async function middleware(
   // propagated by `resolveSite` into the shared response object below.
   if (pathname.startsWith('/admin')) {
     const authRes = await adminAuth(request)
-    return mergeSiteHeaders(authRes, siteRes.response)
+    return mergeSiteHeaders(request, authRes, siteRes.response)
   }
   if (pathname.startsWith('/cms')) {
     const authRes = await cmsAuth(request)
-    return mergeSiteHeaders(authRes, siteRes.response)
+    return mergeSiteHeaders(request, authRes, siteRes.response)
   }
 
   return siteRes.response
@@ -281,7 +281,6 @@ async function resolveSite(
   hostname: string,
   pathname: string,
 ): Promise<SiteResolution> {
-  const res = NextResponse.next()
   try {
     const ring = getRingContext()
     const site = await ring.getSiteByDomain(hostname)
@@ -297,11 +296,8 @@ async function resolveSite(
           ),
         }
       }
-      return { shortCircuit: false, response: res }
+      return { shortCircuit: false, response: NextResponse.next() }
     }
-    // cms_enabled kill switch — only rewrite when explicitly set to false.
-    // `undefined` (schema not yet migrated) defaults to allow for backward
-    // compat with Track A in-flight.
     const cmsEnabled = (site as { cms_enabled?: boolean }).cms_enabled
     if (pathname.startsWith('/cms') && cmsEnabled === false) {
       return {
@@ -311,10 +307,16 @@ async function resolveSite(
         ),
       }
     }
+    const siteTimezone = (site as { timezone?: string }).timezone ?? 'America/Sao_Paulo'
+    const requestHeaders = new Headers(request.headers)
+    requestHeaders.set('x-site-id', site.id)
+    requestHeaders.set('x-org-id', site.org_id)
+    requestHeaders.set('x-default-locale', site.default_locale)
+    requestHeaders.set('x-site-timezone', siteTimezone)
+    const res = NextResponse.next({ request: { headers: requestHeaders } })
     res.headers.set('x-site-id', site.id)
     res.headers.set('x-org-id', site.org_id)
     res.headers.set('x-default-locale', site.default_locale)
-    const siteTimezone = (site as { timezone?: string }).timezone ?? 'America/Sao_Paulo'
     res.headers.set('x-site-timezone', siteTimezone)
     return { shortCircuit: false, response: res }
   } catch (err) {
@@ -327,20 +329,37 @@ async function resolveSite(
 }
 
 function mergeSiteHeaders(
-  target: NextResponse,
-  source: NextResponse,
+  request: NextRequest,
+  authResponse: NextResponse,
+  siteResponse: NextResponse,
 ): NextResponse {
-  const siteId = source.headers.get('x-site-id')
-  const orgId = source.headers.get('x-org-id')
-  const defaultLocale = source.headers.get('x-default-locale')
-  const xLocale = source.headers.get('x-locale')
-  const siteTimezone = source.headers.get('x-site-timezone')
-  if (siteId) target.headers.set('x-site-id', siteId)
-  if (orgId) target.headers.set('x-org-id', orgId)
-  if (defaultLocale) target.headers.set('x-default-locale', defaultLocale)
-  if (xLocale) target.headers.set('x-locale', xLocale)
-  if (siteTimezone) target.headers.set('x-site-timezone', siteTimezone)
-  return target
+  const siteId = siteResponse.headers.get('x-site-id')
+  const orgId = siteResponse.headers.get('x-org-id')
+  const defaultLocale = siteResponse.headers.get('x-default-locale')
+  const xLocale = siteResponse.headers.get('x-locale')
+  const siteTimezone = siteResponse.headers.get('x-site-timezone')
+
+  if (authResponse.status >= 300) {
+    if (siteId) authResponse.headers.set('x-site-id', siteId)
+    if (orgId) authResponse.headers.set('x-org-id', orgId)
+    if (defaultLocale) authResponse.headers.set('x-default-locale', defaultLocale)
+    if (xLocale) authResponse.headers.set('x-locale', xLocale)
+    if (siteTimezone) authResponse.headers.set('x-site-timezone', siteTimezone)
+    return authResponse
+  }
+
+  const requestHeaders = new Headers(request.headers)
+  if (siteId) requestHeaders.set('x-site-id', siteId)
+  if (orgId) requestHeaders.set('x-org-id', orgId)
+  if (defaultLocale) requestHeaders.set('x-default-locale', defaultLocale)
+  if (xLocale) requestHeaders.set('x-locale', xLocale)
+  if (siteTimezone) requestHeaders.set('x-site-timezone', siteTimezone)
+
+  const merged = NextResponse.next({ request: { headers: requestHeaders } })
+  authResponse.cookies.getAll().forEach((cookie) => {
+    merged.cookies.set(cookie.name, cookie.value, cookie as Parameters<typeof merged.cookies.set>[2])
+  })
+  return merged
 }
 
 export default middleware

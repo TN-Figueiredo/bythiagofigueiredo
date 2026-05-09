@@ -86,11 +86,11 @@ describe('validateDimensions', () => {
   it('passes at exact 10×10', () => {
     expect(validateDimensions(10, 10, 'general')).toEqual({ ok: true })
   })
-  it('rejects when over folder max dimension (links: 1024px)', () => {
-    expect(validateDimensions(1025, 500, 'links').ok).toBe(false)
+  it('rejects when over folder max dimension (links: 4096px)', () => {
+    expect(validateDimensions(4097, 500, 'links').ok).toBe(false)
   })
-  it('passes at folder max dimension (links: 1024px)', () => {
-    expect(validateDimensions(1024, 1024, 'links')).toEqual({ ok: true })
+  it('passes at folder max dimension (links: 4096px)', () => {
+    expect(validateDimensions(4096, 4096, 'links')).toEqual({ ok: true })
   })
 })
 

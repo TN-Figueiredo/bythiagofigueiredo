@@ -80,17 +80,8 @@ async function fetchPostAuthor(siteId: string, authorId: string | null, locale: 
 }
 
 import { loadAdCreatives } from '@/lib/ads/resolve'
+import { slugify } from '@/lib/blog/slugify'
 import { BlogArticleClient } from './blog-article-client'
-
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-}
 
 function extractTocFromHtml(html: string): TocEntry[] {
   const entries: TocEntry[] = []
@@ -272,7 +263,7 @@ export default async function BlogDetailPage({ params }: Props) {
 
         {creatives['post:top:banner'] && <DoormanAd creative={creatives['post:top:banner']} locale={adLocale} />}
 
-        <div className="max-w-[1280px] mx-auto px-10">
+        <div className="max-w-[1280px] mx-auto px-4 sm:px-10">
           <div className="blog-detail-hero">
             <div
               className="flex items-center gap-3.5 mb-6 font-jetbrains flex-wrap"
