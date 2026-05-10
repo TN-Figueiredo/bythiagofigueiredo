@@ -102,8 +102,11 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
   }
 
   async function handleToggleChecklist(index: number, done: boolean) {
+    const optimistic = { ...item, production_checklist: item.production_checklist.map((c, i) => i === index ? { ...c, done } : c) }
+    setItem(optimistic)
     const result = await toggleChecklist(item.id, index, done)
     if (result.ok && result.data) setItem(result.data)
+    else setItem(item)
   }
 
   return (

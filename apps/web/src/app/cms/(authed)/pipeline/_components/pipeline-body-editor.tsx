@@ -88,6 +88,7 @@ export function PipelineBodyEditor({ itemId, version: initialVersion, initialCon
       />
       <div className="px-6 py-1.5 flex items-center justify-between text-[10px]" style={{ color: 'var(--gem-dim)', borderTop: '1px solid var(--gem-border)' }}>
         <span>{content.length} chars</span>
+        <span aria-live="polite" aria-atomic="true" className="sr-only">{stateLabel}</span>
         <span>⌘S to save</span>
       </div>
     </div>

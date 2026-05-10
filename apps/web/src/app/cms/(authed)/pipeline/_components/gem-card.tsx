@@ -1,5 +1,6 @@
 'use client'
 
+import { memo } from 'react'
 import Link from 'next/link'
 import {
   getPriorityConfig,
@@ -36,7 +37,7 @@ export interface GemCardItem {
   collection_code: string | null
 }
 
-export function GemCard({ item }: { item: GemCardItem }) {
+export const GemCard = memo(function GemCard({ item }: { item: GemCardItem }) {
   const priority = getPriorityConfig(item.priority)
   const staleness = getStaleness(item.updated_at)
   const formatIcon = getFormatIcon(item.format)
@@ -170,7 +171,7 @@ export function GemCard({ item }: { item: GemCardItem }) {
             <div
               key={i}
               data-segment
-              className="h-1 flex-1 rounded-sm"
+              className="h-1 flex-1 rounded-sm transition-colors duration-300"
               style={{
                 backgroundColor: done ? 'var(--gem-done)' : 'var(--gem-well)',
                 boxShadow: done ? '0 0 4px rgba(16,185,129,0.3)' : 'none',
@@ -192,4 +193,4 @@ export function GemCard({ item }: { item: GemCardItem }) {
       )}
     </Link>
   )
-}
+})
