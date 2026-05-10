@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { authenticatePipeline } from '@/lib/pipeline/auth'
+import { authenticatePipeline, buildRateLimitHeaders } from '@/lib/pipeline/auth'
 import { FORMATS } from '@/lib/pipeline/schemas'
 import { WORKFLOWS } from '@/lib/pipeline/workflows'
 
@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
   const recentlyUpdated = active.filter((i) => i.updated_at > sevenDaysAgo).length
 
+  const headers = buildRateLimitHeaders(auth)
   return NextResponse.json({
     data: {
       total: active.length,
@@ -42,5 +43,5 @@ export async function GET(req: NextRequest) {
         low: active.filter((i) => i.priority <= 2).length,
       },
     },
-  })
+  }, { headers })
 }

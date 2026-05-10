@@ -4,10 +4,13 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 
+export const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export interface PipelineAuth {
   siteId: string
   permissions: string[]
   source: 'api_key' | 'session'
+  keyHash?: string
 }
 
 const rateLimitMap = new Map<string, { count: number; window_start: number }>()
@@ -17,6 +20,13 @@ const WINDOW_MS = 60_000
 function checkRateLimit(keyHash: string): boolean {
   const now = Date.now()
   const entry = rateLimitMap.get(keyHash)
+
+  if (rateLimitMap.size > 1000) {
+    for (const [key, val] of rateLimitMap) {
+      if (now - val.window_start > WINDOW_MS) rateLimitMap.delete(key)
+    }
+  }
+
   if (!entry || now - entry.window_start > WINDOW_MS) {
     rateLimitMap.set(keyHash, { count: 1, window_start: now })
     return true
@@ -63,7 +73,7 @@ export async function authenticatePipeline(req: NextRequest): Promise<
       .update({ last_used_at: new Date().toISOString() })
       .eq('id', keyRow.id)
 
-    return { ok: true, auth: { siteId: keyRow.site_id, permissions: keyRow.permissions, source: 'api_key' } }
+    return { ok: true, auth: { siteId: keyRow.site_id, permissions: keyRow.permissions, source: 'api_key', keyHash } }
   }
 
   // Fall back to session auth
@@ -73,10 +83,15 @@ export async function authenticatePipeline(req: NextRequest): Promise<
     if (!res.ok) {
       return { ok: false, status: 403, error: 'Forbidden' }
     }
-    return { ok: true, auth: { siteId, permissions: ['read', 'write', 'admin'], source: 'session' } }
+    return { ok: true, auth: { siteId, permissions: ['read', 'write'], source: 'session' } }
   } catch {
     return { ok: false, status: 401, error: 'Unauthorized' }
   }
+}
+
+export function buildRateLimitHeaders(auth: PipelineAuth): HeadersInit | undefined {
+  if (auth.source !== 'api_key' || !auth.keyHash) return undefined
+  return getRateLimitHeaders(auth.keyHash)
 }
 
 export function requirePermission(auth: PipelineAuth, required: 'read' | 'write' | 'admin'): boolean {

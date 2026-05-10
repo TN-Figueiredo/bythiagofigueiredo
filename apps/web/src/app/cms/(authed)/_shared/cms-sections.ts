@@ -20,7 +20,7 @@ export function buildCmsSections(): SidebarSection[] {
     items: [
       { icon: '📊', label: 'Overview', href: '/cms/pipeline', minRole: 'editor' as const },
       { icon: '🎬', label: 'Video', href: '/cms/pipeline/video', minRole: 'editor' as const },
-      { icon: '✍️', label: 'Blog', href: '/cms/pipeline/blog', minRole: 'editor' as const },
+      { icon: '✍️', label: 'Blog', href: '/cms/pipeline/blog_post', minRole: 'editor' as const },
       { icon: '📧', label: 'Newsletter', href: '/cms/pipeline/newsletter', minRole: 'editor' as const },
       { icon: '🎓', label: 'Course', href: '/cms/pipeline/course', minRole: 'editor' as const },
       { icon: '📣', label: 'Campaign', href: '/cms/pipeline/campaign', minRole: 'editor' as const },

@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { authenticatePipeline, requirePermission } from '@/lib/pipeline/auth'
+import { authenticatePipeline, requirePermission, buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  if (!UUID_REGEX.test(id)) {
+    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid item ID format' } }, { status: 400 })
+  }
   const authResult = await authenticatePipeline(req)
   if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
   const { auth } = authResult
@@ -25,5 +28,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     event_type: 'restored',
   })
 
-  return NextResponse.json({ data: updated, meta: { version: updated.version, etag: String(updated.version), updated_at: updated.updated_at } })
+  const headers = buildRateLimitHeaders(auth)
+  return NextResponse.json({ data: updated, meta: { version: updated.version, etag: String(updated.version), updated_at: updated.updated_at } }, { headers })
 }

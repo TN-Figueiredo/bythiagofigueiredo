@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { authenticatePipeline, requirePermission } from '@/lib/pipeline/auth'
-import { PipelineItemUpdateSchema } from '@/lib/pipeline/schemas'
+import { authenticatePipeline, requirePermission, buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
+import { PipelineItemUpdateSchema, FORMAT_METADATA_SCHEMAS } from '@/lib/pipeline/schemas'
+import { isValidStage, WORKFLOWS } from '@/lib/pipeline/workflows'
+import type { Format } from '@/lib/pipeline/schemas'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  if (!UUID_REGEX.test(id)) {
+    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid item ID format' } }, { status: 400 })
+  }
   const authResult = await authenticatePipeline(req)
   if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
   const { auth } = authResult
@@ -31,14 +36,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     .select('blocker_id, blocked_id, dependency_type')
     .or(`blocker_id.eq.${id},blocked_id.eq.${id}`)
 
+  const headers = buildRateLimitHeaders(auth)
   return NextResponse.json({
     data: { ...item, history: history ?? [], dependencies: deps ?? [] },
     meta: { version: item.version, etag: String(item.version), updated_at: item.updated_at },
-  })
+  }, { headers })
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  if (!UUID_REGEX.test(id)) {
+    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid item ID format' } }, { status: 400 })
+  }
   const authResult = await authenticatePipeline(req)
   if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
   const { auth } = authResult
@@ -48,7 +57,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!ifMatch) return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'If-Match header required' } }, { status: 400 })
   const expectedVersion = parseInt(ifMatch)
 
-  const body = await req.json()
+  let body: unknown
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid JSON body' } }, { status: 400 })
+  }
   const parsed = PipelineItemUpdateSchema.safeParse(body)
   if (!parsed.success) {
     return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: parsed.error.issues.map((i) => i.message).join(', ') } }, { status: 400 })
@@ -58,12 +72,28 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { data: current } = await supabase
     .from('content_pipeline')
-    .select('version')
+    .select('version, format')
     .eq('id', id)
     .eq('site_id', auth.siteId)
     .single()
 
   if (!current) return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Item not found' } }, { status: 404 })
+
+  if (parsed.data.stage && !isValidStage(current.format as Format, parsed.data.stage)) {
+    return NextResponse.json({
+      error: { code: 'VALIDATION_ERROR', message: `Stage "${parsed.data.stage}" is not valid for format "${current.format}". Valid stages: ${WORKFLOWS[current.format as Format].map(s => s.stage).join(', ')}` },
+    }, { status: 400 })
+  }
+
+  if (parsed.data.format_metadata && Object.keys(parsed.data.format_metadata).length > 0) {
+    const metaResult = FORMAT_METADATA_SCHEMAS[current.format as Format].safeParse(parsed.data.format_metadata)
+    if (!metaResult.success) {
+      return NextResponse.json({
+        error: { code: 'VALIDATION_ERROR', message: `Invalid format_metadata: ${metaResult.error.issues.map(i => i.message).join(', ')}` },
+      }, { status: 400 })
+    }
+  }
+
   if (current.version !== expectedVersion) {
     const { data: freshItem } = await supabase.from('content_pipeline').select('*').eq('id', id).single()
     return NextResponse.json({
@@ -92,14 +122,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: { code: 'VERSION_CONFLICT', message: 'Concurrent modification detected' } }, { status: 409 })
   }
 
+  const headers = buildRateLimitHeaders(auth)
   return NextResponse.json({
     data: updated,
     meta: { version: updated.version, etag: String(updated.version), updated_at: updated.updated_at },
-  })
+  }, { headers })
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  if (!UUID_REGEX.test(id)) {
+    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid item ID format' } }, { status: 400 })
+  }
   const authResult = await authenticatePipeline(req)
   if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
   const { auth } = authResult
@@ -113,5 +147,6 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     .eq('site_id', auth.siteId)
 
   if (error) return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: error.message } }, { status: 400 })
-  return NextResponse.json({ data: { archived: true } })
+  const headers = buildRateLimitHeaders(auth)
+  return NextResponse.json({ data: { archived: true } }, { headers })
 }

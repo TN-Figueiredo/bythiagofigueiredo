@@ -35,8 +35,8 @@ export function parseSortParam(sort?: string): { column: string; ascending: bool
   return { column, ascending }
 }
 
+/* eslint-disable @typescript-eslint/no-explicit-any -- Supabase query builder generics are deeply nested; wrapping requires any */
 export function applyPipelineFilters(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   query: any,
   filters: {
     format?: string
@@ -53,8 +53,8 @@ export function applyPipelineFilters(
     stale_days?: string
     search?: string
   },
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): any {
+/* eslint-enable @typescript-eslint/no-explicit-any */
   if (filters.format) {
     const formats = filters.format.split(',')
     query = query.in('format', formats)
@@ -87,6 +87,16 @@ export function applyPipelineFilters(
     query = query.or('blog_post_id.not.is.null,newsletter_edition_id.not.is.null,youtube_video_id.not.is.null,campaign_id.not.is.null')
   } else if (filters.graduated === 'false') {
     query = query.is('blog_post_id', null).is('newsletter_edition_id', null).is('youtube_video_id', null).is('campaign_id', null)
+  }
+  if (filters.stale_days) {
+    const days = parseInt(filters.stale_days)
+    if (!isNaN(days) && days > 0) {
+      const cutoff = new Date(Date.now() - days * 86400000).toISOString()
+      query = query.lt('updated_at', cutoff)
+    }
+  }
+  if (filters.collection) {
+    query = query.filter('content_pipeline_memberships.collection_id', 'eq', filters.collection)
   }
   if (filters.search) {
     query = query.textSearch('search_vector', filters.search, { type: 'plain' })

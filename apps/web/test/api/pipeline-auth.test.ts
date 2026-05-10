@@ -25,7 +25,7 @@ vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
   requireSiteScope: vi.fn().mockResolvedValue({ ok: true }),
 }))
 
-import { authenticatePipeline, requirePermission, getRateLimitHeaders } from '@/lib/pipeline/auth'
+import { authenticatePipeline, requirePermission, getRateLimitHeaders, buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
 
 describe('authenticatePipeline', () => {
   it('authenticates via API key', async () => {
@@ -45,7 +45,7 @@ describe('authenticatePipeline', () => {
     expect(result.ok).toBe(true)
     if (result.ok) {
       expect(result.auth.source).toBe('session')
-      expect(result.auth.permissions).toEqual(['read', 'write', 'admin'])
+      expect(result.auth.permissions).toEqual(['read', 'write'])
     }
   })
 })
@@ -79,5 +79,31 @@ describe('getRateLimitHeaders', () => {
   it('returns full limit for unknown key', () => {
     const headers = getRateLimitHeaders('unknown-key-hash')
     expect(headers['X-RateLimit-Remaining']).toBe('100')
+  })
+})
+
+describe('buildRateLimitHeaders', () => {
+  it('returns headers for api_key auth', () => {
+    const headers = buildRateLimitHeaders({ siteId: 's', permissions: ['read'], source: 'api_key', keyHash: 'abc123' })
+    expect(headers).toBeDefined()
+    expect((headers as Record<string, string>)['X-RateLimit-Remaining']).toBe('100')
+  })
+
+  it('returns undefined for session auth', () => {
+    expect(buildRateLimitHeaders({ siteId: 's', permissions: ['admin'], source: 'session' })).toBeUndefined()
+  })
+})
+
+describe('UUID_REGEX', () => {
+  it('matches valid UUIDs', () => {
+    expect(UUID_REGEX.test('550e8400-e29b-41d4-a716-446655440000')).toBe(true)
+    expect(UUID_REGEX.test('F47AC10B-58CC-4372-A567-0E02B2C3D479')).toBe(true)
+  })
+
+  it('rejects invalid strings', () => {
+    expect(UUID_REGEX.test('not-a-uuid')).toBe(false)
+    expect(UUID_REGEX.test('')).toBe(false)
+    expect(UUID_REGEX.test('550e8400-e29b-41d4-a716')).toBe(false)
+    expect(UUID_REGEX.test('550e8400-e29b-41d4-a716-44665544000g')).toBe(false)
   })
 })

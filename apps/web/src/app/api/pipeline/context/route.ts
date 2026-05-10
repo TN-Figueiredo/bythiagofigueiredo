@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { authenticatePipeline } from '@/lib/pipeline/auth'
+import { authenticatePipeline, buildRateLimitHeaders } from '@/lib/pipeline/auth'
 
 export async function GET(req: NextRequest) {
   const authResult = await authenticatePipeline(req)
@@ -25,5 +25,6 @@ export async function GET(req: NextRequest) {
     updated_at: d.updated_at,
   }))
 
-  return NextResponse.json({ data: mapped })
+  const headers = buildRateLimitHeaders(auth)
+  return NextResponse.json({ data: mapped }, { headers })
 }

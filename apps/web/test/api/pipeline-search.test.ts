@@ -45,4 +45,60 @@ describe('Pipeline search query construction', () => {
     const decoded = decodeCursor(cursor)
     expect(decoded).toEqual({ sort_value: '2026-05-09T12:00:00Z', id: 'abc-123' })
   })
+
+  it('decodeCursor returns null for invalid base64', async () => {
+    const { decodeCursor } = await import('@/lib/pipeline/queries')
+    expect(decodeCursor('not-valid-base64!!!')).toBeNull()
+  })
+
+  it('decodeCursor returns null when pipe separator is missing', async () => {
+    const { decodeCursor } = await import('@/lib/pipeline/queries')
+    const encoded = Buffer.from('nopipe').toString('base64url')
+    expect(decodeCursor(encoded)).toBeNull()
+  })
+
+  it('applyPipelineFilters applies stale_days filter', async () => {
+    const { applyPipelineFilters } = await import('@/lib/pipeline/queries')
+    const calls: Array<{ method: string; args: unknown[] }> = []
+    const mockQuery = new Proxy({}, {
+      get: (_target, prop: string) => (...args: unknown[]) => {
+        calls.push({ method: prop, args })
+        return mockQuery
+      },
+    })
+    applyPipelineFilters(mockQuery as any, { stale_days: '7' })
+    const ltCall = calls.find((c) => c.method === 'lt')
+    expect(ltCall).toBeDefined()
+    expect(ltCall!.args[0]).toBe('updated_at')
+  })
+
+  it('applyPipelineFilters applies collection filter', async () => {
+    const { applyPipelineFilters } = await import('@/lib/pipeline/queries')
+    const calls: Array<{ method: string; args: unknown[] }> = []
+    const mockQuery = new Proxy({}, {
+      get: (_target, prop: string) => (...args: unknown[]) => {
+        calls.push({ method: prop, args })
+        return mockQuery
+      },
+    })
+    applyPipelineFilters(mockQuery as any, { collection: 'col-123' })
+    const filterCall = calls.find((c) => c.method === 'filter')
+    expect(filterCall).toBeDefined()
+    expect(filterCall!.args[0]).toBe('content_pipeline_memberships.collection_id')
+    expect(filterCall!.args[2]).toBe('col-123')
+  })
+
+  it('applyPipelineFilters ignores invalid stale_days', async () => {
+    const { applyPipelineFilters } = await import('@/lib/pipeline/queries')
+    const calls: Array<{ method: string; args: unknown[] }> = []
+    const mockQuery = new Proxy({}, {
+      get: (_target, prop: string) => (...args: unknown[]) => {
+        calls.push({ method: prop, args })
+        return mockQuery
+      },
+    })
+    applyPipelineFilters(mockQuery as any, { stale_days: 'abc' })
+    const ltCall = calls.find((c) => c.method === 'lt')
+    expect(ltCall).toBeUndefined()
+  })
 })

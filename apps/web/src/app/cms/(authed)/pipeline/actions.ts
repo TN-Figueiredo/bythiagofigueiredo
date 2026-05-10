@@ -193,9 +193,10 @@ export async function toggleChecklist(id: string, index: number, done: boolean):
 
   if (!item) return { ok: false, error: 'Item not found' }
 
-  const checklist = [...(item.production_checklist as any[] || [])]
+  const checklist = [...((item.production_checklist ?? []) as Array<{ label: string; done: boolean; toggled_at?: string }>)]
   if (index >= checklist.length) return { ok: false, error: 'Index out of bounds' }
-  checklist[index] = { ...checklist[index], done, toggled_at: new Date().toISOString() }
+  const current = checklist[index]!
+  checklist[index] = { label: current.label, done, toggled_at: new Date().toISOString() }
 
   const { data: updated, error } = await supabase
     .from('content_pipeline')

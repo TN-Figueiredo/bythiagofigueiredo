@@ -1,20 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { authenticatePipeline, requirePermission } from '@/lib/pipeline/auth'
+import { authenticatePipeline, requirePermission, buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
 import { getNextStage, isFinalStage } from '@/lib/pipeline/workflows'
 import { computeValidationScore } from '@/lib/pipeline/validation'
 import type { Format } from '@/lib/pipeline/schemas'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  if (!UUID_REGEX.test(id)) {
+    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid item ID format' } }, { status: 400 })
+  }
   const authResult = await authenticatePipeline(req)
   if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
   const { auth } = authResult
   if (!requirePermission(auth, 'write')) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
-
-  const ifMatch = req.headers.get('If-Match')
-  if (!ifMatch) return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'If-Match header required' } }, { status: 400 })
-  const expectedVersion = parseInt(ifMatch)
 
   const supabase = getSupabaseServiceClient()
   const { data: item } = await supabase
@@ -25,9 +24,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .single()
 
   if (!item) return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Item not found' } }, { status: 404 })
-  if (item.version !== expectedVersion) {
-    return NextResponse.json({ error: { code: 'VERSION_CONFLICT', message: `Version mismatch. Current: ${item.version}` } }, { status: 409 })
-  }
 
   const format = item.format as Format
   const nextStage = getNextStage(format, item.stage)
@@ -74,21 +70,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
 
-  const updateData: Record<string, unknown> = { stage: nextStage }
-  if (isFinalStage(format, nextStage)) {
-    updateData.published_at = new Date().toISOString()
-  }
-
   const { data: updated, error } = await supabase
     .from('content_pipeline')
-    .update(updateData)
+    .update({ stage: nextStage })
     .eq('id', id)
-    .eq('version', expectedVersion)
     .select()
     .single()
 
   if (error || !updated) {
-    return NextResponse.json({ error: { code: 'VERSION_CONFLICT', message: 'Concurrent modification' } }, { status: 409 })
+    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: error?.message ?? 'Update failed' } }, { status: 400 })
   }
 
   const { count: membershipsCount } = await supabase
@@ -111,9 +101,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   await supabase.from('content_pipeline').update({ validation_score: score }).eq('id', id)
 
+  const headers = buildRateLimitHeaders(auth)
   return NextResponse.json({
     data: { ...updated, validation_score: score },
     meta: { version: updated.version, etag: String(updated.version), updated_at: updated.updated_at },
     ...(warnings.length > 0 ? { warnings } : {}),
-  })
+  }, { headers })
 }

@@ -149,3 +149,7 @@ export function generateCode(format: Format, title: string, metadata?: Record<st
       return `camp-${slug}`
   }
 }
+
+export function isValidStage(format: Format, stage: string): boolean {
+  return WORKFLOWS[format].some((s) => s.stage === stage)
+}

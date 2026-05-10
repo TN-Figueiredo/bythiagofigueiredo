@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { authenticatePipeline, requirePermission } from '@/lib/pipeline/auth'
-import { PipelineItemCreateSchema } from '@/lib/pipeline/schemas'
-import { generateCode, DEFAULT_CHECKLISTS } from '@/lib/pipeline/workflows'
+import { authenticatePipeline, requirePermission, buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
+import { PipelineItemCreateSchema, FORMAT_METADATA_SCHEMAS } from '@/lib/pipeline/schemas'
+import { generateCode, DEFAULT_CHECKLISTS, WORKFLOWS, isValidStage } from '@/lib/pipeline/workflows'
 import { decodeCursor, encodeCursor, parseSortParam, applyPipelineFilters } from '@/lib/pipeline/queries'
 import type { Format } from '@/lib/pipeline/schemas'
 
@@ -45,8 +45,11 @@ export async function GET(req: NextRequest) {
   if (cursorParam) {
     const decoded = decodeCursor(cursorParam)
     if (decoded) {
-      const op = ascending ? 'gt' : 'lt'
-      query = query.or(`${column}.${op}.${decoded.sort_value},and(${column}.eq.${decoded.sort_value},id.gt.${decoded.id})`)
+      const safeValue = /^[a-zA-Z0-9\-_:.T+Z]+$/.test(decoded.sort_value) && decoded.sort_value.length <= 200
+      if (UUID_REGEX.test(decoded.id) && safeValue) {
+        const op = ascending ? 'gt' : 'lt'
+        query = query.or(`${column}.${op}.${decoded.sort_value},and(${column}.eq.${decoded.sort_value},id.gt.${decoded.id})`)
+      }
     }
   }
 
@@ -58,10 +61,11 @@ export async function GET(req: NextRequest) {
   const lastItem = items[items.length - 1]
   const nextCursor = hasNext && lastItem ? encodeCursor(String(lastItem[column as keyof typeof lastItem] ?? ''), lastItem.id) : undefined
 
+  const headers = buildRateLimitHeaders(auth)
   return NextResponse.json({
     data: items,
     meta: { total: count ?? 0, has_next: hasNext, next_cursor: nextCursor, limit },
-  })
+  }, { headers })
 }
 
 export async function POST(req: NextRequest) {
@@ -70,9 +74,14 @@ export async function POST(req: NextRequest) {
   const { auth } = authResult
   if (!requirePermission(auth, 'write')) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
 
-  const body = await req.json()
+  let body: unknown
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid JSON body' } }, { status: 400 })
+  }
   const isBatch = Array.isArray(body)
-  const items = isBatch ? body : [body]
+  const items = isBatch ? (body as unknown[]) : [body]
 
   if (items.length > 50) {
     return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Max 50 items per batch' } }, { status: 400 })
@@ -84,10 +93,29 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: firstError.error.issues.map((i) => i.message).join(', ') } }, { status: 400 })
   }
 
+  for (const p of parsed) {
+    if (!p.success) continue
+    const format = p.data.format as Format
+    const stage = p.data.stage || 'idea'
+    if (!isValidStage(format, stage)) {
+      return NextResponse.json({
+        error: { code: 'VALIDATION_ERROR', message: `Stage "${stage}" is not valid for format "${format}". Valid stages: ${WORKFLOWS[format].map(s => s.stage).join(', ')}` },
+      }, { status: 400 })
+    }
+    if (p.data.format_metadata && Object.keys(p.data.format_metadata).length > 0) {
+      const metaResult = FORMAT_METADATA_SCHEMAS[format].safeParse(p.data.format_metadata)
+      if (!metaResult.success) {
+        return NextResponse.json({
+          error: { code: 'VALIDATION_ERROR', message: `Invalid format_metadata for ${format}: ${metaResult.error.issues.map(i => i.message).join(', ')}` },
+        }, { status: 400 })
+      }
+    }
+  }
+
   const supabase = getSupabaseServiceClient()
   const toInsert = parsed.map((p) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const data = (p as any).data
+    if (!p.success) throw new Error('unreachable')
+    const data = p.data
     const format = data.format as Format
     const title = data.title_pt || data.title_en || 'untitled'
     const code = data.code || generateCode(format, title, data.format_metadata)
@@ -98,7 +126,6 @@ export async function POST(req: NextRequest) {
       code,
       title_pt: data.title_pt || null,
       title_en: data.title_en || null,
-      slug: data.slug || null,
       format,
       stage: data.stage || 'idea',
       language: data.language,
@@ -126,5 +153,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: error.message } }, { status: 400 })
   }
 
-  return NextResponse.json({ data: isBatch ? inserted : inserted?.[0] }, { status: 201 })
+  const headers = buildRateLimitHeaders(auth)
+  return NextResponse.json({ data: isBatch ? inserted : inserted?.[0] }, { status: 201, headers })
 }

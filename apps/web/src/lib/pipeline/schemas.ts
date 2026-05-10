@@ -60,7 +60,6 @@ export const PipelineItemCreateSchema = z.object({
   code: z.string().min(1).max(100).optional(),
   title_pt: z.string().max(500).optional(),
   title_en: z.string().max(500).optional(),
-  slug: z.string().max(200).optional(),
   format: z.enum(FORMATS),
   stage: z.string().optional(),
   language: z.enum(LANGUAGES).default('pt-br'),
@@ -68,7 +67,7 @@ export const PipelineItemCreateSchema = z.object({
   parent_id: z.string().uuid().optional(),
   hook: z.string().max(300).optional(),
   synopsis: z.string().max(2000).optional(),
-  body_content: z.string().optional(),
+  body_content: z.string().max(500_000).optional(),
   format_metadata: z.record(z.unknown()).default({}),
   production_checklist: z.array(z.object({
     label: z.string(),
@@ -85,13 +84,12 @@ export const PipelineItemCreateSchema = z.object({
 export const PipelineItemUpdateSchema = z.object({
   title_pt: z.string().max(500).optional(),
   title_en: z.string().max(500).optional(),
-  slug: z.string().max(200).optional(),
   stage: z.string().optional(),
   language: z.enum(LANGUAGES).optional(),
   priority: z.number().int().min(0).max(5).optional(),
   hook: z.string().max(300).optional(),
   synopsis: z.string().max(2000).optional(),
-  body_content: z.string().optional(),
+  body_content: z.string().max(500_000).optional(),
   format_metadata: z.record(z.unknown()).optional(),
   production_checklist: z.array(z.object({
     label: z.string(),
@@ -104,7 +102,7 @@ export const PipelineItemUpdateSchema = z.object({
   blog_post_id: z.string().uuid().nullable().optional(),
   newsletter_edition_id: z.string().uuid().nullable().optional(),
   campaign_id: z.string().uuid().nullable().optional(),
-}).partial()
+})
 
 export const CollectionCreateSchema = z.object({
   code: z.string().min(1).max(100),
@@ -120,7 +118,7 @@ export const CollectionUpdateSchema = CollectionCreateSchema.partial().omit({ ty
 
 export const ReferenceContentUpsertSchema = z.object({
   title: z.string().min(1).max(200),
-  content_md: z.string().optional(),
+  content_md: z.string().max(200_000).optional(),
   content_compact: z.record(z.unknown()).optional(),
 })
 

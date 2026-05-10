@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { authenticatePipeline } from '@/lib/pipeline/auth'
+import { authenticatePipeline, buildRateLimitHeaders } from '@/lib/pipeline/auth'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ code: string }> }) {
   const { code } = await params
@@ -41,6 +41,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ code
     collectionMembers = data ?? []
   }
 
+  const headers = buildRateLimitHeaders(auth)
   return NextResponse.json({
     data: {
       topic: code,
@@ -48,5 +49,5 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ code
       blog_posts: blogPosts ?? [],
       collection: collection ? { ...collection, members: collectionMembers } : null,
     },
-  })
+  }, { headers })
 }

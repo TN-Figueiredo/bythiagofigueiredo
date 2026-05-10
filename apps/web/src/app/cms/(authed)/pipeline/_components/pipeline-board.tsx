@@ -1,6 +1,7 @@
 'use client'
 
 import { WORKFLOWS } from '@/lib/pipeline/workflows'
+import { getFormatColor } from '@/lib/pipeline/colors'
 import { PipelineCard } from './pipeline-card'
 import type { Format } from '@/lib/pipeline/schemas'
 
@@ -16,6 +17,9 @@ interface BoardItem {
   production_checklist: Array<{ label: string; done: boolean }>
   version: number
   format: string
+  collectionCode: string | null
+  collectionName: string | null
+  membershipRole: string | null
 }
 
 interface PipelineBoardProps {
@@ -25,6 +29,7 @@ interface PipelineBoardProps {
 
 export function PipelineBoard({ format, items }: PipelineBoardProps) {
   const stages = WORKFLOWS[format]
+  const colors = getFormatColor(format)
 
   const itemsByStage = stages.reduce<Record<string, BoardItem[]>>((acc, stage) => {
     acc[stage.stage] = items.filter((i) => i.stage === stage.stage)
@@ -36,9 +41,15 @@ export function PipelineBoard({ format, items }: PipelineBoardProps) {
       {stages.map((stage) => (
         <div key={stage.stage} className="flex-shrink-0 w-64">
           <div className="sticky top-0 bg-slate-900 pb-2 z-10">
-            <div className="flex items-center justify-between px-2 py-1.5 rounded-lg bg-slate-800">
-              <span className="text-sm font-medium text-slate-200">{stage.label_pt}</span>
-              <span className="text-xs text-slate-500 bg-slate-700 px-1.5 py-0.5 rounded-full">
+            <div
+              className="flex items-center justify-between px-2 py-1.5 rounded-lg"
+              style={{ backgroundColor: colors.bg, borderLeft: `3px solid ${colors.accent}` }}
+            >
+              <span className="text-sm font-medium" style={{ color: colors.text }}>{stage.label_pt}</span>
+              <span
+                className="text-xs px-1.5 py-0.5 rounded-full"
+                style={{ backgroundColor: colors.border, color: colors.text }}
+              >
                 {itemsByStage[stage.stage]?.length ?? 0}
               </span>
             </div>
@@ -55,6 +66,9 @@ export function PipelineBoard({ format, items }: PipelineBoardProps) {
                 tags={item.tags}
                 checklist={item.production_checklist}
                 version={item.version}
+                collectionCode={item.collectionCode}
+                collectionName={item.collectionName}
+                membershipRole={item.membershipRole}
               />
             ))}
           </div>

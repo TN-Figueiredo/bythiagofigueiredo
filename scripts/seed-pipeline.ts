@@ -155,14 +155,15 @@ async function seed(): Promise<void> {
   // -------------------------------------------------------------------------
   // Resolve site
   // -------------------------------------------------------------------------
+  const targetDomain = process.env.NEXT_PUBLIC_DEV_SITE_HOSTNAME || 'bythiagofigueiredo.com'
   const { data: site, error: siteError } = await supabase
     .from('sites')
     .select('id')
-    .limit(1)
+    .contains('domains', [targetDomain])
     .single()
-  if (siteError || !site) throw new Error(`Could not resolve site: ${siteError?.message}`)
+  if (siteError || !site) throw new Error(`Could not resolve site for domain "${targetDomain}": ${siteError?.message}`)
   const siteId: string = site.id
-  console.log(`\nUsing site: ${siteId}\n`)
+  console.log(`\nUsing site: ${siteId} (domain: ${targetDomain})\n`)
 
   // -------------------------------------------------------------------------
   // Step 1: Create playlist collections
@@ -179,7 +180,7 @@ async function seed(): Promise<void> {
     const { data, error } = await supabase
       .from('content_collections')
       .upsert(
-        { site_id: siteId, code, name, type: 'playlist', position: i },
+        { site_id: siteId, code, name, title_pt: name, title_en: name, type: 'playlist', position: i },
         { onConflict: 'site_id,code' }
       )
       .select('id')
@@ -195,45 +196,22 @@ async function seed(): Promise<void> {
   }
 
   // -------------------------------------------------------------------------
-  // Step 2: Create arc sub-collections for playlist G
+  // Step 2: Clean up legacy arc/category sub-collections (now use role on membership)
   // -------------------------------------------------------------------------
-  console.log('\n--- Step 2: Arc collections (G — AI Empire) ---')
-  const arcCollectionMap: Record<number, string> = {} // arc num -> UUID
-
-  const gPlaylist = playlists['G']
-  const gCollectionId = playlistCollectionMap['G']
-
-  if (gPlaylist?.arcs && gCollectionId) {
-    for (let i = 0; i < gPlaylist.arcs.length; i++) {
-      const arc = gPlaylist.arcs[i]
-      const code = `arc-g-${arc.num}-${slugify(arc.name)}`
-
-      const { data, error } = await supabase
-        .from('content_collections')
-        .upsert(
-          {
-            site_id: siteId,
-            code,
-            name: arc.name,
-            type: 'arc',
-            parent_id: gCollectionId,
-            position: i,
-          },
-          { onConflict: 'site_id,code' }
-        )
-        .select('id')
-        .single()
-
-      if (error || !data) {
-        console.error(`  ✗ Arc ${arc.num} "${arc.name}": ${error?.message}`)
-        continue
-      }
-
-      arcCollectionMap[arc.num] = data.id
-      console.log(`  ✓ Arc ${arc.num} — "${arc.name}" (episodes ${arc.episodes})`)
+  console.log('\n--- Step 2: Cleanup legacy sub-collections ---')
+  const { data: legacyCollections } = await supabase
+    .from('content_collections')
+    .select('id, code')
+    .eq('site_id', siteId)
+    .or('type.eq.arc,type.eq.category')
+  if (legacyCollections && legacyCollections.length > 0) {
+    for (const lc of legacyCollections) {
+      await supabase.from('content_pipeline_memberships').delete().eq('collection_id', lc.id)
+      await supabase.from('content_collections').delete().eq('id', lc.id)
+      console.log(`  ✗ Removed: ${lc.code}`)
     }
   } else {
-    console.log('  (skipped — G playlist or arc data not found)')
+    console.log('  (none to remove)')
   }
 
   // -------------------------------------------------------------------------
@@ -308,32 +286,19 @@ async function seed(): Promise<void> {
 
       created++
 
-      // Membership: playlist
+      // Membership: playlist (use role for arc designation within G)
       if (collectionId) {
+        const role = letter === 'G' && video.arc !== undefined
+          ? `arc-${video.arc}`
+          : null
         const { error: memError } = await supabase
           .from('content_pipeline_memberships')
           .upsert(
-            { pipeline_id: item.id, collection_id: collectionId, position: i },
+            { pipeline_id: item.id, collection_id: collectionId, position: i, role },
             { onConflict: 'pipeline_id,collection_id' }
           )
         if (memError) {
           console.error(`    ✗ Membership ${videoCode} → playlist ${letter}: ${memError.message}`)
-        }
-      }
-
-      // Membership: arc (G playlist only)
-      if (letter === 'G' && video.arc !== undefined) {
-        const arcCollectionId = arcCollectionMap[video.arc]
-        if (arcCollectionId) {
-          const { error: arcMemError } = await supabase
-            .from('content_pipeline_memberships')
-            .upsert(
-              { pipeline_id: item.id, collection_id: arcCollectionId, position: i },
-              { onConflict: 'pipeline_id,collection_id' }
-            )
-          if (arcMemError) {
-            console.error(`    ✗ Arc membership ${videoCode} → arc ${video.arc}: ${arcMemError.message}`)
-          }
         }
       }
 

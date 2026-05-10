@@ -1,8 +1,6 @@
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
-import { FORMATS } from '@/lib/pipeline/schemas'
-import { WORKFLOWS } from '@/lib/pipeline/workflows'
 import { CmsTopbar } from '@tn-figueiredo/cms-ui/client'
 import { PipelineOverviewCards } from './_components/pipeline-overview-cards'
 
@@ -13,24 +11,46 @@ export default async function PipelineOverviewPage() {
   await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
   const supabase = getSupabaseServiceClient()
 
-  const { data: items } = await supabase
-    .from('content_pipeline')
-    .select('id, format, stage, priority, updated_at')
+  const { data: collections } = await supabase
+    .from('content_collections')
+    .select(`
+      id, code, name, type, position,
+      content_pipeline_memberships(
+        role,
+        content_pipeline(id, format, stage)
+      )
+    `)
     .eq('site_id', siteId)
-    .eq('is_archived', false)
+    .order('position')
 
-  const stats = FORMATS.map((format) => {
-    const formatItems = items?.filter((i) => i.format === format) ?? []
+  const collectionStats = (collections ?? []).map((c) => {
+    const members = c.content_pipeline_memberships ?? []
+    const items = members
+      .map((m: Record<string, unknown>) => m.content_pipeline)
+      .filter(Boolean) as Array<{ id: string; format: string; stage: string }>
+
+    const byFormat: Record<string, number> = {}
     const byStage: Record<string, number> = {}
-    WORKFLOWS[format].forEach((s) => { byStage[s.stage] = formatItems.filter((i) => i.stage === s.stage).length })
-    return { format, total: formatItems.length, byStage }
+    for (const item of items) {
+      byFormat[item.format] = (byFormat[item.format] || 0) + 1
+      byStage[item.stage] = (byStage[item.stage] || 0) + 1
+    }
+
+    return {
+      id: c.id,
+      code: c.code,
+      name: c.name ?? c.code,
+      total: items.length,
+      byFormat,
+      byStage,
+    }
   })
 
   return (
     <>
       <CmsTopbar title="Pipeline Overview" />
       <div className="p-6">
-        <PipelineOverviewCards stats={stats} />
+        <PipelineOverviewCards collections={collectionStats} />
       </div>
     </>
   )

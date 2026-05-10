@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { authenticatePipeline, requirePermission } from '@/lib/pipeline/auth'
+import { authenticatePipeline, requirePermission, buildRateLimitHeaders } from '@/lib/pipeline/auth'
 import { CollectionCreateSchema } from '@/lib/pipeline/schemas'
 
 export async function GET(req: NextRequest) {
@@ -20,7 +20,8 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await query
   if (error) return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: error.message } }, { status: 400 })
-  return NextResponse.json({ data })
+  const headers = buildRateLimitHeaders(auth)
+  return NextResponse.json({ data }, { headers })
 }
 
 export async function POST(req: NextRequest) {
@@ -44,5 +45,6 @@ export async function POST(req: NextRequest) {
     if (error.code === '23505') return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Duplicate collection code' } }, { status: 409 })
     return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: error.message } }, { status: 400 })
   }
-  return NextResponse.json({ data }, { status: 201 })
+  const headers = buildRateLimitHeaders(auth)
+  return NextResponse.json({ data }, { status: 201, headers })
 }
