@@ -7,7 +7,7 @@ export const GEM_CSS_VARS: Record<string, string> = {
   '--gem-well': '#0c1222',
   '--gem-text': '#edf2f7',
   '--gem-muted': '#7a8ba3',
-  '--gem-dim': '#4a5568',
+  '--gem-dim': '#5a6b7f',
   '--gem-faint': '#2a3650',
   '--gem-done': '#10b981',
   '--gem-warn': '#f59e0b',
