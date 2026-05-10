@@ -55,10 +55,13 @@ export function PipelineBoard({ format, items, collections }: PipelineBoardProps
         </div>
       )}
       <div className="flex gap-3 overflow-x-auto pb-4 min-h-[calc(100vh-14rem)]">
-        {stages.map((stage) => (
+        {stages.map((stage, idx) => {
+          const stageColors = ['#6366f1', '#8b5cf6', '#0ea5e9', '#06b6d4', '#10b981', '#22c55e', '#84cc16']
+          const stageAccent = stageColors[idx % stageColors.length]
+          return (
           <div key={stage.stage} className="flex-shrink-0 w-72">
             <div className="sticky top-0 pb-2 z-10" style={{ backgroundColor: 'var(--gem-well)' }}>
-              <div className="flex items-center justify-between px-2 py-1.5 rounded-lg" style={{ backgroundColor: 'var(--gem-surface)', borderLeft: '3px solid var(--gem-accent)' }}>
+              <div className="flex items-center justify-between px-2 py-1.5 rounded-lg" style={{ backgroundColor: 'var(--gem-surface)', borderLeft: `3px solid ${stageAccent}` }}>
                 <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: 'var(--gem-muted)' }}>{stage.label_pt}</span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'var(--gem-border)', color: 'var(--gem-dim)' }}>
                   {itemsByStage[stage.stage]?.length ?? 0}
@@ -74,7 +77,8 @@ export function PipelineBoard({ format, items, collections }: PipelineBoardProps
               )}
             </div>
           </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
