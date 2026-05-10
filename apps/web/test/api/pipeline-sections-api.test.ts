@@ -12,7 +12,14 @@ vi.mock('@/lib/pipeline/auth', () => ({
   UUID_REGEX: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
 }))
 
-import { GET, PATCH } from '@/app/api/pipeline/items/[id]/sections/[section]/route'
+// Re-export real implementation — avoids `@/` alias resolution failure in
+// the node test environment when the route file imports this module directly.
+vi.mock('@/lib/pipeline/sections', async () => {
+  const actual = await import('../../src/lib/pipeline/sections')
+  return actual
+})
+
+import { GET, PATCH } from '../../src/app/api/pipeline/items/[id]/sections/[section]/route'
 import { authenticatePipeline } from '@/lib/pipeline/auth'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
