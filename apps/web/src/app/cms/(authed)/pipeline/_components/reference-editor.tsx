@@ -27,13 +27,17 @@ export function ReferenceEditor({ docs }: { docs: ReferenceDoc[] }) {
 
   return (
     <div className="flex gap-4 h-[calc(100vh-10rem)]">
-      <div className="w-48 border-r border-slate-700 pr-4 overflow-y-auto">
+      <div className="w-48 pr-4 overflow-y-auto" style={{ borderRight: '1px solid var(--gem-border)' }}>
         <ul className="space-y-1">
           {docs.map((d) => (
             <li key={d.key}>
               <button
                 onClick={() => selectDoc(d.key)}
-                className={`w-full text-left px-2 py-1.5 rounded text-xs ${selected === d.key ? 'bg-indigo-900 text-indigo-300' : 'text-slate-400 hover:bg-slate-800'}`}
+                className="w-full text-left px-2 py-1.5 rounded text-xs transition-colors"
+                style={{
+                  backgroundColor: selected === d.key ? 'rgba(99,102,241,0.15)' : 'transparent',
+                  color: selected === d.key ? 'var(--gem-text)' : 'var(--gem-muted)',
+                }}
               >
                 {d.title || d.key}
               </button>
@@ -47,15 +51,22 @@ export function ReferenceEditor({ docs }: { docs: ReferenceDoc[] }) {
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Title"
-          className="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-100"
+          className="px-3 py-2 rounded-lg text-sm"
+          style={{ backgroundColor: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-text)' }}
         />
         <textarea
           value={content ?? ''}
           onChange={(e) => setContent(e.target.value)}
           placeholder="Markdown content..."
-          className="flex-1 px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 text-sm font-mono resize-none"
+          className="flex-1 px-3 py-2 rounded-lg text-sm font-mono resize-none"
+          style={{ backgroundColor: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-muted)' }}
         />
-        <button onClick={handleSave} disabled={saving} className="self-start px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm hover:bg-indigo-500 disabled:opacity-50">
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="self-start px-4 py-2 rounded-lg text-sm text-white disabled:opacity-50"
+          style={{ backgroundColor: 'var(--gem-accent)' }}
+        >
           {saving ? 'Saving...' : 'Save'}
         </button>
       </div>

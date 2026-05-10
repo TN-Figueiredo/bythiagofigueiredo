@@ -25,7 +25,6 @@ export function buildCmsSections(): SidebarSection[] {
       { icon: '🎓', label: 'Course', href: '/cms/pipeline/course', minRole: 'editor' as const },
       { icon: '📣', label: 'Campaign', href: '/cms/pipeline/campaign', minRole: 'editor' as const },
       { icon: '📁', label: 'Collections', href: '/cms/pipeline/collections', minRole: 'editor' as const },
-      { icon: '🔍', label: 'Search', href: '/cms/pipeline/search', minRole: 'editor' as const },
       { icon: '📝', label: 'Reference', href: '/cms/pipeline/reference', minRole: 'editor' as const },
     ],
   }
