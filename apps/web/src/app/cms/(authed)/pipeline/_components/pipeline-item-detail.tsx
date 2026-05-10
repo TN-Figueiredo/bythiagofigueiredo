@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -8,6 +8,15 @@ import { updatePipelineItem, advancePipelineItem, retreatPipelineItem, archivePi
 import { WORKFLOWS } from '@/lib/pipeline/workflows'
 import { getPriorityConfig, getStaleness, getFormatIcon, getLangConfig, getChecklistProgress } from '@/lib/pipeline/gem-design'
 import { GemVvsRing } from './gem-vvs-ring'
+import { TabContainer } from './detail/tab-container'
+import { useSection } from './detail/use-section'
+import { SectionToolbar } from './detail/section-toolbar'
+import { SaveFooter } from './detail/save-footer'
+import { CoworkRequestPanel } from './detail/cowork-request-panel'
+import { ConflictBanner } from './detail/conflict-banner'
+import { SectionContent } from './detail/section-content'
+import { EmptySection } from './detail/renderers/empty-section'
+import { getSectionKey, getSectionsForFormat, flattenSections, type SectionData, type SectionDefinition } from '@/lib/pipeline/sections'
 import type { Format } from '@/lib/pipeline/schemas'
 
 interface ChecklistItem { label: string; done: boolean; toggled_at: string | null }
@@ -34,6 +43,7 @@ interface ItemData {
   is_archived: boolean
   updated_at: string
   validation_score: number
+  sections: Record<string, SectionData> | null
 }
 
 interface Props {
@@ -43,6 +53,110 @@ interface Props {
   dependencies: Dependency[]
 }
 
+// ─── SectionPanel ──────────────────────────────────────────────────────────────
+interface SectionPanelProps {
+  sectionDef: SectionDefinition
+  activeSub: string | null
+  lang: string
+  itemId: string
+  itemVersion: number
+  itemCode: string
+  itemTitle: string
+  sections: Record<string, SectionData>
+}
+
+function SectionPanel({ sectionDef, activeSub, lang, itemId, itemVersion, itemCode, itemTitle, sections }: SectionPanelProps) {
+  // Determine leaf section type to render
+  const sectionType = sectionDef.subSections
+    ? (activeSub ?? sectionDef.subSections[0]?.key ?? sectionDef.key)
+    : sectionDef.key
+
+  const sectionKey = getSectionKey(sectionType, lang)
+  const sectionData = (sections[sectionKey] ?? null) as SectionData | null
+
+  const section = useSection({ itemId, sectionKey, initialData: sectionData, itemVersion })
+  const [showCowork, setShowCowork] = useState(false)
+
+  // Listen for ⌘S custom event
+  useEffect(() => {
+    const handler = () => { void section.save() }
+    document.addEventListener('pipeline:save-section', handler)
+    return () => document.removeEventListener('pipeline:save-section', handler)
+  }, [section.save])
+
+  // Listen for ⌘E custom event
+  useEffect(() => {
+    const handler = () => section.setIsEditing(!section.isEditing)
+    document.addEventListener('pipeline:toggle-edit', handler)
+    return () => document.removeEventListener('pipeline:toggle-edit', handler)
+  }, [section.isEditing, section.setIsEditing])
+
+  // Resolve the active sub-definition (or use the top-level def)
+  const activeDef = sectionDef.subSections?.find(s => s.key === sectionType) ?? sectionDef
+  const isShared = activeDef.shared
+  const title = activeDef.label_pt
+
+  return (
+    <div
+      className="rounded-lg border overflow-hidden"
+      style={{ borderColor: 'var(--gem-border)', background: 'var(--gem-surface)' }}
+      role="tabpanel"
+      id={`panel-${sectionDef.key}`}
+      aria-label={title}
+    >
+      <SectionToolbar
+        title={title}
+        lang={lang}
+        showLang={!isShared}
+        source={section.source}
+        edited={section.edited}
+        isEditing={section.isEditing}
+        isSaving={section.isSaving}
+        isDirty={section.isDirty}
+        onToggleEdit={section.setIsEditing}
+        onSave={() => { void section.save() }}
+        onToggleCowork={() => setShowCowork(prev => !prev)}
+      />
+
+      <CoworkRequestPanel
+        isOpen={showCowork}
+        onClose={() => setShowCowork(false)}
+        itemCode={itemCode}
+        itemTitle={itemTitle}
+        sectionLabel={title}
+        sectionKey={sectionKey}
+        lang={lang}
+        rev={section.rev}
+        placeholder={`Instruções para atualizar ${title}...`}
+      />
+
+      {section.conflict && (
+        <ConflictBanner
+          onKeepLocal={() => { void section.keepLocal() }}
+          onAcceptRemote={section.acceptRemote}
+          localContent={section.conflict.localContent}
+          remoteContent={section.conflict.remoteData.content}
+        />
+      )}
+
+      {section.content != null ? (
+        <SectionContent
+          sectionType={sectionType}
+          content={section.content}
+          isEditing={section.isEditing}
+          lang={lang}
+          onContentChange={section.setContent}
+        />
+      ) : (
+        <EmptySection sectionLabel={title} onRequestCowork={() => setShowCowork(true)} />
+      )}
+
+      <SaveFooter isDirty={section.isDirty} rev={section.rev} />
+    </div>
+  )
+}
+
+// ─── PipelineItemDetail ────────────────────────────────────────────────────────
 export function PipelineItemDetail({ item: initialItem, collections, history, dependencies }: Props) {
   const router = useRouter()
   const [item, setItem] = useState(initialItem)
@@ -64,7 +178,7 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(async () => {
       const result = await updatePipelineItem(item.id, item.version, { [field]: value || null })
-      if (result.ok && result.data) setItem(result.data)
+      if (result.ok && result.data) setItem(result.data as typeof item)
       else if (!result.ok) {
         if (result.error.includes('Version conflict')) {
           toast.error('Item atualizado por outro processo. Recarregando...')
@@ -105,14 +219,17 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
     const optimistic = { ...item, production_checklist: item.production_checklist.map((c, i) => i === index ? { ...c, done } : c) }
     setItem(optimistic)
     const result = await toggleChecklist(item.id, index, done)
-    if (result.ok && result.data) setItem(result.data)
+    if (result.ok && result.data) setItem(result.data as typeof item)
     else setItem(item)
   }
 
+  // Normalise sections to a safe Record
+  const sectionsMap = (item.sections ?? {}) as Record<string, SectionData>
+
   return (
-    <div className="flex gap-6 p-6">
+    <div className="flex gap-5" style={{ padding: '20px 24px', maxWidth: 1440, margin: '0 auto' }}>
       {/* Main content */}
-      <div className="flex-1 space-y-4 min-w-0">
+      <div className="flex-1 min-w-0 flex flex-col gap-3.5">
         {/* Breadcrumb */}
         <nav className="flex items-center gap-2 text-xs" style={{ color: 'var(--gem-dim)' }} aria-label="Breadcrumb">
           <Link href="/cms/pipeline" className="hover:underline">Pipeline</Link>
@@ -155,44 +272,41 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
           style={{ color: 'var(--gem-muted)' }}
         />
 
-        {/* Body preview */}
-        {item.body_content && (
-          <div className="rounded-lg border p-4 max-h-64 overflow-y-auto" style={{ backgroundColor: 'var(--gem-well)', borderColor: 'var(--gem-border)' }}>
-            <pre className="text-xs whitespace-pre-wrap font-mono" style={{ color: 'var(--gem-muted)' }}>
-              {item.body_content.slice(0, 2000)}{item.body_content.length > 2000 && '...'}
-            </pre>
-          </div>
-        )}
-        <Link
-          href={`/cms/pipeline/items/${item.id}/edit`}
-          className="inline-flex text-xs px-3 py-1.5 rounded-lg border transition-colors hover:bg-white/5"
-          style={{ borderColor: 'var(--gem-border)', color: 'var(--gem-muted)' }}
+        {/* Tabbed section editor */}
+        <TabContainer
+          format={item.format as Format}
+          itemId={item.id}
+          itemVersion={item.version}
+          sections={sectionsMap}
+          itemCode={item.code}
+          itemTitle={item.title_pt || item.title_en || ''}
         >
-          Editar roteiro
-        </Link>
-
-        {/* History timeline */}
-        {history.length > 0 && (
-          <div className="mt-6 pt-4" style={{ borderTop: '1px solid var(--gem-border)' }}>
-            <h3 className="text-xs font-medium mb-3" style={{ color: 'var(--gem-text)' }}>Histórico</h3>
-            <div className="space-y-2">
-              {history.slice(0, 10).map((h) => (
-                <div key={h.id} className="flex items-center gap-2 text-xs">
-                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: 'var(--gem-accent)' }} />
-                  <span style={{ color: 'var(--gem-muted)' }}>{h.event_type}</span>
-                  {h.to_value && <span style={{ color: 'var(--gem-text)' }}>→ {h.to_value}</span>}
-                  <span className="ml-auto text-[10px]" style={{ color: 'var(--gem-dim)' }}>
-                    {new Date(h.changed_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+          {({ activeTab, activeSub, lang: tabLang, sections, sectionDefs }) => {
+            const activeDef = sectionDefs.find(s => s.key === activeTab)
+            if (!activeDef) return null
+            return (
+              <SectionPanel
+                key={`${activeTab}-${activeSub ?? ''}-${tabLang}`}
+                sectionDef={activeDef}
+                activeSub={activeSub}
+                lang={tabLang}
+                itemId={item.id}
+                itemVersion={item.version}
+                itemCode={item.code}
+                itemTitle={item.title_pt || item.title_en || ''}
+                sections={sections}
+              />
+            )
+          }}
+        </TabContainer>
       </div>
 
       {/* Sidebar */}
-      <aside className="w-72 shrink-0 space-y-3" aria-label="Item details">
+      <aside
+        className="w-68 shrink-0 flex flex-col gap-2.5 sticky top-5 self-start max-h-[calc(100vh-40px)] overflow-y-auto"
+        style={{ scrollbarWidth: 'thin' }}
+        aria-label="Item details"
+      >
         {/* Stage card */}
         <div className="rounded-lg border p-4" style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}>
           <div className="flex items-center justify-between mb-3">
@@ -234,6 +348,42 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
           )}
         </div>
 
+        {/* Sections card */}
+        <div className="rounded-lg border p-4" style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}>
+          <h3 className="text-xs font-medium mb-2" style={{ color: 'var(--gem-text)' }}>Seções</h3>
+          <div className="space-y-1">
+            {flattenSections(getSectionsForFormat(item.format as Format))
+              .filter(s => !s.subSections)
+              .map(def => {
+                // Check both EN and PT and shared keys for existence
+                const keyEn = getSectionKey(def.key, 'en')
+                const keyPt = getSectionKey(def.key, 'pt')
+                const dataEn = sectionsMap[keyEn]
+                const dataPt = sectionsMap[keyPt]
+                const data = dataEn ?? dataPt ?? null
+                const hasContent = data != null
+
+                return (
+                  <div key={def.key} className="flex items-center justify-between text-[11px]">
+                    <span className="flex items-center gap-1.5">
+                      <span
+                        className="w-1.5 h-1.5 rounded-full shrink-0"
+                        style={{
+                          background: hasContent ? 'var(--gem-done)' : 'transparent',
+                          border: hasContent ? 'none' : '1px solid var(--gem-dim)',
+                        }}
+                      />
+                      <span style={{ color: hasContent ? 'var(--gem-muted)' : 'var(--gem-dim)' }}>{def.label_pt}</span>
+                    </span>
+                    {data && (
+                      <span className="font-mono text-[9px]" style={{ color: 'var(--gem-dim)' }}>rev.{data.rev}</span>
+                    )}
+                  </div>
+                )
+              })}
+          </div>
+        </div>
+
         {/* Checklist card */}
         <div className="rounded-lg border p-4" style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}>
           <h3 className="text-xs font-medium mb-2" style={{ color: 'var(--gem-text)' }}>Checklist</h3>
@@ -243,7 +393,7 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
                 <input
                   type="checkbox"
                   checked={c.done}
-                  onChange={(e) => handleToggleChecklist(i, e.target.checked)}
+                  onChange={(e) => { void handleToggleChecklist(i, e.target.checked) }}
                   className="rounded border-slate-600 w-3.5 h-3.5 accent-emerald-500"
                   aria-label={c.label}
                 />
@@ -319,6 +469,25 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
             </div>
           )}
         </div>
+
+        {/* History card */}
+        {history.length > 0 && (
+          <div className="rounded-lg border p-4" style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}>
+            <h3 className="text-xs font-medium mb-2" style={{ color: 'var(--gem-text)' }}>Histórico</h3>
+            <div className="space-y-2">
+              {history.slice(0, 10).map((h) => (
+                <div key={h.id} className="flex items-center gap-2 text-xs">
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: 'var(--gem-accent)' }} />
+                  <span style={{ color: 'var(--gem-muted)' }}>{h.event_type}</span>
+                  {h.to_value && <span style={{ color: 'var(--gem-text)' }}>→ {h.to_value}</span>}
+                  <span className="ml-auto text-[10px] shrink-0" style={{ color: 'var(--gem-dim)' }}>
+                    {new Date(h.changed_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </aside>
     </div>
   )

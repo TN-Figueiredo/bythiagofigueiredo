@@ -42,6 +42,7 @@ describe('PipelineItemDetail', () => {
           is_archived: false,
           updated_at: '2026-05-01T00:00:00Z',
           validation_score: 70,
+          sections: null,
         }}
         collections={[]}
         history={[]}
@@ -49,7 +50,8 @@ describe('PipelineItemDetail', () => {
       />,
     )
     expect(screen.getByDisplayValue('AI Agents')).toBeTruthy()
-    expect(screen.getByText('Roteiro')).toBeTruthy()
+    // 'Roteiro' appears both as the stage badge and as a section tab
+    expect(screen.getAllByText('Roteiro').length).toBeGreaterThan(0)
   })
 
   it('shows checklist items', async () => {
@@ -66,6 +68,7 @@ describe('PipelineItemDetail', () => {
           ],
           format_metadata: {}, version: 1, is_archived: false,
           updated_at: '2026-05-01T00:00:00Z', validation_score: 0,
+          sections: null,
         }}
         collections={[]}
         history={[]}
