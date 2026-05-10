@@ -3,6 +3,7 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { CmsTopbar } from '@tn-figueiredo/cms-ui/client'
 import { PipelineListTable } from '../_components/pipeline-list-table'
+import { GEM_CSS_VARS } from '@/lib/pipeline/gem-design'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,7 +23,7 @@ export default async function PipelineListPage() {
   return (
     <>
       <CmsTopbar title="Pipeline — All Items" />
-      <div className="p-6">
+      <div className="p-6 gem-pipeline-theme" style={GEM_CSS_VARS as React.CSSProperties}>
         <PipelineListTable items={items ?? []} />
       </div>
     </>

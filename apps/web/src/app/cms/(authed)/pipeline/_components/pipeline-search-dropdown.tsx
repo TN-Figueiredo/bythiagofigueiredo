@@ -17,6 +17,7 @@ export function PipelineSearchDropdown() {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout>>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   const search = useCallback(async (q: string) => {
     if (q.trim().length < 2) { setResults(null); setOpen(false); return }
@@ -37,6 +38,18 @@ export function PipelineSearchDropdown() {
     return () => { if (timerRef.current) clearTimeout(timerRef.current) }
   }, [query, search])
 
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    if (open) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [open])
+
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Escape') { setOpen(false); setResults(null) }
   }
@@ -44,7 +57,7 @@ export function PipelineSearchDropdown() {
   const hasResults = results && (results.pipeline.length > 0 || results.blog_posts.length > 0 || results.newsletters.length > 0 || results.collections.length > 0)
 
   return (
-    <div className="relative">
+    <div ref={containerRef} className="relative">
       <input
         type="text"
         value={query}
@@ -52,15 +65,23 @@ export function PipelineSearchDropdown() {
         onKeyDown={handleKeyDown}
         onFocus={() => { if (results) setOpen(true) }}
         placeholder="Buscar pipeline..."
+        aria-label="Search pipeline items"
+        aria-expanded={open}
+        aria-controls="pipeline-search-results"
+        role="combobox"
+        aria-autocomplete="list"
         className="w-full px-3 py-2 rounded-lg text-sm"
         style={{ backgroundColor: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-text)' }}
       />
-      {loading && <span className="absolute right-3 top-2.5 text-xs" style={{ color: 'var(--gem-dim)' }}>...</span>}
+      {loading && <span className="absolute right-3 top-2.5 text-xs animate-pulse" style={{ color: 'var(--gem-dim)' }}>...</span>}
 
       {open && results && (
         <div
-          className="absolute top-full mt-1 left-0 right-0 rounded-lg border overflow-hidden z-50 max-h-80 overflow-y-auto"
-          style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}
+          id="pipeline-search-results"
+          role="listbox"
+          aria-label="Search results"
+          className="absolute top-full mt-1 left-0 right-0 rounded-lg border overflow-hidden z-50 max-h-80 overflow-y-auto shadow-xl"
+          style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)', boxShadow: '0 12px 32px rgba(0,0,0,0.5)' }}
         >
           {!hasResults && (
             <p className="px-3 py-4 text-xs" style={{ color: 'var(--gem-dim)' }}>
@@ -78,7 +99,8 @@ export function PipelineSearchDropdown() {
                     key={item.id}
                     href={`/cms/pipeline/items/${item.id}`}
                     onClick={() => setOpen(false)}
-                    className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-white/5"
+                    role="option"
+                    className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-white/5 transition-colors"
                   >
                     <span className="text-xs">{icon.icon}</span>
                     <span className="text-[10px] font-mono" style={{ color: 'var(--gem-muted)' }}>{item.code}</span>
@@ -94,7 +116,7 @@ export function PipelineSearchDropdown() {
             <div className="p-2 border-t" style={{ borderColor: 'var(--gem-border)' }}>
               <p className="text-[10px] uppercase tracking-wider px-1 mb-1" style={{ color: 'var(--gem-dim)' }}>Blog Posts</p>
               {results.blog_posts.map((post) => (
-                <Link key={post.id} href={`/cms/blog/${post.id}`} onClick={() => setOpen(false)} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-white/5">
+                <Link key={post.id} href={`/cms/blog/${post.id}`} onClick={() => setOpen(false)} role="option" className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-white/5 transition-colors">
                   <span className="text-xs">✍️</span>
                   <span className="text-xs truncate" style={{ color: 'var(--gem-text)' }}>{post.title}</span>
                   <span className="text-[10px] ml-auto" style={{ color: 'var(--gem-dim)' }}>{post.status}</span>
@@ -107,7 +129,7 @@ export function PipelineSearchDropdown() {
             <div className="p-2 border-t" style={{ borderColor: 'var(--gem-border)' }}>
               <p className="text-[10px] uppercase tracking-wider px-1 mb-1" style={{ color: 'var(--gem-dim)' }}>Collections</p>
               {results.collections.map((c) => (
-                <Link key={c.id} href={`/cms/pipeline/collections/${c.id}`} onClick={() => setOpen(false)} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-white/5">
+                <Link key={c.id} href={`/cms/pipeline/collections/${c.id}`} onClick={() => setOpen(false)} role="option" className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-white/5 transition-colors">
                   <span className="text-xs">📁</span>
                   <span className="text-xs truncate" style={{ color: 'var(--gem-text)' }}>{c.name}</span>
                   <span className="text-[10px] ml-auto" style={{ color: 'var(--gem-dim)' }}>{c.type}</span>

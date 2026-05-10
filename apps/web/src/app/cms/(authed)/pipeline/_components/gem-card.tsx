@@ -49,6 +49,7 @@ export function GemCard({ item }: { item: GemCardItem }) {
   const isEnriched = state === 'enriched' || state === 'graduated'
   const isArchived = state === 'archived'
   const isGraduated = state === 'graduated'
+  const isBlockedState = blocked.blocked
 
   const tags: Array<{ label: string; className: string }> = []
   if (item.collection_code) {
@@ -63,15 +64,20 @@ export function GemCard({ item }: { item: GemCardItem }) {
   return (
     <Link
       href={`/cms/pipeline/items/${item.id}`}
-      className={`block rounded-lg border p-3 transition-[border-color,transform] duration-[120ms] hover:-translate-y-px ${
+      aria-label={`${title} — ${formatIcon.label}, ${priority.label}, stage ${item.stage}`}
+      className={`block rounded-lg border p-3 transition-[border-color,transform,box-shadow] duration-150 hover:-translate-y-0.5 hover:shadow-lg ${
         isArchived ? 'opacity-45 saturate-[0.3] hover:opacity-65' : ''
-      }`}
+      } ${isBlockedState ? 'ring-1 ring-red-500/30' : ''}`}
       style={{
-        borderColor: 'var(--gem-border)',
-        background: isEnriched
-          ? `linear-gradient(to bottom, ${priority.accentDim}, var(--gem-surface))`
-          : 'var(--gem-surface)',
+        borderColor: isBlockedState ? 'rgba(239,68,68,0.4)' : 'var(--gem-border)',
+        background: isBlockedState
+          ? 'linear-gradient(to bottom, rgba(239,68,68,0.05), var(--gem-surface))'
+          : isEnriched
+            ? `linear-gradient(to bottom, ${priority.accentDim}, var(--gem-surface))`
+            : 'var(--gem-surface)',
       }}
+      onMouseEnter={(e) => { if (!isArchived && !isBlockedState) e.currentTarget.style.borderColor = priority.accent }}
+      onMouseLeave={(e) => { e.currentTarget.style.borderColor = isBlockedState ? 'rgba(239,68,68,0.4)' : 'var(--gem-border)' }}
     >
       {/* Priority bar */}
       <div

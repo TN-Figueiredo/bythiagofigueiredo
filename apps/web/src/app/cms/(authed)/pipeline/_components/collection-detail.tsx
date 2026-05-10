@@ -28,7 +28,7 @@ export function CollectionDetail({ collection, members }: Props) {
         <p className="text-[10px] mt-2" style={{ color: 'var(--gem-dim)' }}>{members.length} items</p>
       </div>
 
-      <div className="space-y-2">
+      <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
         {members.map((item) => (<GemCard key={item.id} item={item} />))}
       </div>
 

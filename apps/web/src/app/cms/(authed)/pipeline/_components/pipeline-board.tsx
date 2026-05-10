@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { WORKFLOWS } from '@/lib/pipeline/workflows'
 import { GemCard, type GemCardItem } from './gem-card'
 import { PipelineFilterBar } from './pipeline-filter-bar'
@@ -34,7 +35,16 @@ export function PipelineBoard({ format, items, collections }: PipelineBoardProps
 
   return (
     <div>
-      <PipelineFilterBar collections={collections} />
+      <div className="flex items-center justify-between mb-1">
+        <PipelineFilterBar collections={collections} />
+        <Link
+          href={`/cms/pipeline/${format}?action=create`}
+          className="text-xs px-3 py-1.5 rounded-lg shrink-0 transition-opacity hover:opacity-80"
+          style={{ backgroundColor: 'var(--gem-accent)', color: 'white' }}
+        >
+          + New item
+        </Link>
+      </div>
       <div className="flex gap-3 overflow-x-auto pb-4 min-h-[calc(100vh-14rem)]">
         {stages.map((stage) => (
           <div key={stage.stage} className="flex-shrink-0 w-72">

@@ -12,8 +12,8 @@ export function GemVvsRing({ score, size = 26 }: GemVvsRingProps) {
   const fontSize = size > 30 ? 7 : 6
 
   return (
-    <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
-      <svg width={size} height={size} viewBox="0 0 24 24" className="-rotate-90">
+    <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }} role="meter" aria-valuenow={score} aria-valuemin={0} aria-valuemax={100} aria-label={`Validation score: ${score}%`}>
+      <svg width={size} height={size} viewBox="0 0 24 24" className="-rotate-90" aria-hidden="true">
         <circle cx="12" cy="12" r="10" fill="none" stroke="var(--gem-border, #222d40)" strokeWidth={strokeWidth} />
         <circle
           cx="12"

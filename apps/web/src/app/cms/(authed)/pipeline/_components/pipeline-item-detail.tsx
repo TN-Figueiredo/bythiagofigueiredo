@@ -108,65 +108,161 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
 
   return (
     <div className="flex gap-6 p-6">
+      {/* Main content */}
       <div className="flex-1 space-y-4 min-w-0">
-        <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--gem-dim)' }}>
+        {/* Breadcrumb */}
+        <nav className="flex items-center gap-2 text-xs" style={{ color: 'var(--gem-dim)' }} aria-label="Breadcrumb">
           <Link href="/cms/pipeline" className="hover:underline">Pipeline</Link>
-          <span>/</span>
+          <span aria-hidden="true">/</span>
           <Link href={`/cms/pipeline/${item.format}`} className="hover:underline">{formatIcon.label}</Link>
-          <span>/</span>
+          <span aria-hidden="true">/</span>
           <span style={{ color: 'var(--gem-muted)' }}>{item.code}</span>
-        </div>
+        </nav>
 
-        <input type="text" value={titlePt} onChange={(e) => { setTitlePt(e.target.value); debouncedSave('title_pt', e.target.value) }} placeholder="Título (PT)" className="w-full px-3 py-2 rounded-lg text-lg font-semibold bg-transparent border border-transparent hover:border-[var(--gem-border)] focus:border-[var(--gem-accent)] focus:outline-none transition-colors" style={{ color: 'var(--gem-text)' }} />
+        {/* Title */}
+        <input
+          type="text"
+          value={titlePt}
+          onChange={(e) => { setTitlePt(e.target.value); debouncedSave('title_pt', e.target.value) }}
+          placeholder="Título (PT)"
+          aria-label="Title"
+          className="w-full px-3 py-2 rounded-lg text-lg font-semibold bg-transparent border border-transparent hover:border-[var(--gem-border)] focus:border-[var(--gem-accent)] focus:outline-none transition-colors"
+          style={{ color: 'var(--gem-text)' }}
+        />
 
-        <input type="text" value={hook} onChange={(e) => { setHook(e.target.value); debouncedSave('hook', e.target.value) }} placeholder="Hook" className="w-full px-3 py-1.5 rounded-lg text-sm bg-transparent border border-transparent hover:border-[var(--gem-border)] focus:border-[var(--gem-accent)] focus:outline-none transition-colors" style={{ color: 'var(--gem-muted)', borderLeft: `2px solid ${priority.accent}` }} />
+        {/* Hook */}
+        <input
+          type="text"
+          value={hook}
+          onChange={(e) => { setHook(e.target.value); debouncedSave('hook', e.target.value) }}
+          placeholder="Hook — o que prende a audiência"
+          aria-label="Hook"
+          className="w-full px-3 py-1.5 rounded-lg text-sm bg-transparent border border-transparent hover:border-[var(--gem-border)] focus:border-[var(--gem-accent)] focus:outline-none transition-colors"
+          style={{ color: 'var(--gem-muted)', borderLeft: `2px solid ${priority.accent}` }}
+        />
 
-        <textarea value={synopsis} onChange={(e) => { setSynopsis(e.target.value); debouncedSave('synopsis', e.target.value) }} placeholder="Synopsis" rows={3} className="w-full px-3 py-2 rounded-lg text-sm bg-transparent border border-transparent hover:border-[var(--gem-border)] focus:border-[var(--gem-accent)] focus:outline-none transition-colors resize-y" style={{ color: 'var(--gem-muted)' }} />
+        {/* Synopsis */}
+        <textarea
+          value={synopsis}
+          onChange={(e) => { setSynopsis(e.target.value); debouncedSave('synopsis', e.target.value) }}
+          placeholder="Synopsis — resumo para orientação"
+          aria-label="Synopsis"
+          rows={3}
+          className="w-full px-3 py-2 rounded-lg text-sm bg-transparent border border-transparent hover:border-[var(--gem-border)] focus:border-[var(--gem-accent)] focus:outline-none transition-colors resize-y"
+          style={{ color: 'var(--gem-muted)' }}
+        />
 
+        {/* Body preview */}
         {item.body_content && (
           <div className="rounded-lg border p-4 max-h-64 overflow-y-auto" style={{ backgroundColor: 'var(--gem-well)', borderColor: 'var(--gem-border)' }}>
-            <pre className="text-xs whitespace-pre-wrap font-mono" style={{ color: 'var(--gem-muted)' }}>{item.body_content.slice(0, 2000)}{item.body_content.length > 2000 && '...'}</pre>
+            <pre className="text-xs whitespace-pre-wrap font-mono" style={{ color: 'var(--gem-muted)' }}>
+              {item.body_content.slice(0, 2000)}{item.body_content.length > 2000 && '...'}
+            </pre>
           </div>
         )}
-        <Link href={`/cms/pipeline/items/${item.id}/edit`} className="inline-flex text-xs px-3 py-1.5 rounded-lg border" style={{ borderColor: 'var(--gem-border)', color: 'var(--gem-muted)' }}>Editar roteiro</Link>
+        <Link
+          href={`/cms/pipeline/items/${item.id}/edit`}
+          className="inline-flex text-xs px-3 py-1.5 rounded-lg border transition-colors hover:bg-white/5"
+          style={{ borderColor: 'var(--gem-border)', color: 'var(--gem-muted)' }}
+        >
+          Editar roteiro
+        </Link>
+
+        {/* History timeline */}
+        {history.length > 0 && (
+          <div className="mt-6 pt-4" style={{ borderTop: '1px solid var(--gem-border)' }}>
+            <h3 className="text-xs font-medium mb-3" style={{ color: 'var(--gem-text)' }}>Histórico</h3>
+            <div className="space-y-2">
+              {history.slice(0, 10).map((h) => (
+                <div key={h.id} className="flex items-center gap-2 text-xs">
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: 'var(--gem-accent)' }} />
+                  <span style={{ color: 'var(--gem-muted)' }}>{h.event_type}</span>
+                  {h.to_value && <span style={{ color: 'var(--gem-text)' }}>→ {h.to_value}</span>}
+                  <span className="ml-auto text-[10px]" style={{ color: 'var(--gem-dim)' }}>
+                    {new Date(h.changed_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
-      <div className="w-72 shrink-0 space-y-3">
+      {/* Sidebar */}
+      <aside className="w-72 shrink-0 space-y-3" aria-label="Item details">
+        {/* Stage card */}
         <div className="rounded-lg border p-4" style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}>
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-medium px-2 py-0.5 rounded" style={{ backgroundColor: priority.accentDim, color: priority.accent }}>{currentStage?.label_pt || item.stage}</span>
+            <span className="text-xs font-medium px-2 py-0.5 rounded" style={{ backgroundColor: priority.accentDim, color: priority.accent }}>
+              {currentStage?.label_pt || item.stage}
+            </span>
             <span className="text-[10px]" style={{ color: 'var(--gem-dim)' }}>há {staleness.days}d</span>
           </div>
-          <div className="flex gap-1 mb-3">
-            {stages.map((s) => (<div key={s.stage} className="h-1.5 flex-1 rounded-sm" style={{ backgroundColor: s.position < currentPosition ? 'var(--gem-done)' : s.position === currentPosition ? priority.accent : 'transparent', border: s.position > currentPosition ? '1px dashed var(--gem-border)' : 'none' }} />))}
+          {/* Stage progress dots */}
+          <div className="flex gap-1 mb-3" role="progressbar" aria-valuenow={currentPosition} aria-valuemax={stages.length - 1} aria-label="Stage progress">
+            {stages.map((s) => (
+              <div
+                key={s.stage}
+                className="h-1.5 flex-1 rounded-sm transition-colors"
+                title={s.label_pt}
+                style={{
+                  backgroundColor: s.position < currentPosition ? 'var(--gem-done)' : s.position === currentPosition ? priority.accent : 'transparent',
+                  border: s.position > currentPosition ? '1px dashed var(--gem-border)' : 'none',
+                }}
+              />
+            ))}
           </div>
           <div className="flex gap-2">
-            <button onClick={handleRetreat} className="flex-1 text-xs py-1.5 rounded border" style={{ borderColor: 'var(--gem-border)', color: 'var(--gem-muted)' }}>Retreat</button>
-            <button onClick={handleAdvance} className="flex-1 text-xs py-1.5 rounded" style={{ backgroundColor: 'var(--gem-done)', color: 'white' }}>Advance</button>
+            <button onClick={handleRetreat} className="flex-1 text-xs py-1.5 rounded border transition-colors hover:bg-white/5" style={{ borderColor: 'var(--gem-border)', color: 'var(--gem-muted)' }}>
+              ← Retreat
+            </button>
+            <button onClick={handleAdvance} className="flex-1 text-xs py-1.5 rounded transition-opacity hover:opacity-80" style={{ backgroundColor: 'var(--gem-done)', color: 'white' }}>
+              Advance →
+            </button>
           </div>
           {item.is_archived ? (
-            <button onClick={handleRestore} className="w-full mt-2 text-xs py-1.5 rounded border" style={{ borderColor: 'var(--gem-done)', color: 'var(--gem-done)' }}>Restore</button>
+            <button onClick={handleRestore} className="w-full mt-2 text-xs py-1.5 rounded border transition-colors hover:bg-emerald-500/10" style={{ borderColor: 'var(--gem-done)', color: 'var(--gem-done)' }}>
+              Restore
+            </button>
           ) : (
-            <button onClick={handleArchive} className="w-full mt-2 text-xs py-1.5 rounded" style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>Archive</button>
+            <button onClick={handleArchive} className="w-full mt-2 text-xs py-1.5 rounded transition-colors hover:bg-red-500/20" style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>
+              Archive
+            </button>
           )}
         </div>
 
+        {/* Checklist card */}
         <div className="rounded-lg border p-4" style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}>
           <h3 className="text-xs font-medium mb-2" style={{ color: 'var(--gem-text)' }}>Checklist</h3>
           <div className="space-y-1.5">
             {item.production_checklist.map((c, i) => (
-              <label key={i} className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={c.done} onChange={(e) => handleToggleChecklist(i, e.target.checked)} className="rounded border-slate-600 w-3.5 h-3.5" />
-                <span className={`text-xs ${c.done ? 'line-through' : ''}`} style={{ color: c.done ? 'var(--gem-dim)' : 'var(--gem-muted)' }}>{c.label}</span>
+              <label key={i} className="flex items-center gap-2 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={c.done}
+                  onChange={(e) => handleToggleChecklist(i, e.target.checked)}
+                  className="rounded border-slate-600 w-3.5 h-3.5 accent-emerald-500"
+                  aria-label={c.label}
+                />
+                <span className={`text-xs transition-colors ${c.done ? 'line-through' : 'group-hover:text-white/80'}`} style={{ color: c.done ? 'var(--gem-dim)' : 'var(--gem-muted)' }}>
+                  {c.label}
+                </span>
               </label>
             ))}
           </div>
-          <div className="flex gap-0.5 mt-3">
-            {checklist.segments.map((done, i) => (<div key={i} className="h-1 flex-1 rounded-sm" style={{ backgroundColor: done ? 'var(--gem-done)' : 'var(--gem-well)', boxShadow: done ? '0 0 4px rgba(16,185,129,0.3)' : 'none' }} />))}
-          </div>
-          <p className="text-[10px] mt-1" style={{ color: 'var(--gem-dim)' }}>{checklist.done}/{checklist.total}</p>
+          {checklist.total > 0 && (
+            <>
+              <div className="flex gap-0.5 mt-3">
+                {checklist.segments.map((done, i) => (
+                  <div key={i} className="h-1 flex-1 rounded-sm" style={{ backgroundColor: done ? 'var(--gem-done)' : 'var(--gem-well)', boxShadow: done ? '0 0 4px rgba(16,185,129,0.3)' : 'none' }} />
+                ))}
+              </div>
+              <p className="text-[10px] mt-1" style={{ color: 'var(--gem-dim)' }}>{checklist.done}/{checklist.total}</p>
+            </>
+          )}
         </div>
 
+        {/* VVS card */}
         <div className="rounded-lg border p-4 flex items-center gap-3" style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}>
           <GemVvsRing score={item.validation_score} size={48} />
           <div>
@@ -175,19 +271,52 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
           </div>
         </div>
 
+        {/* Details card */}
         <div className="rounded-lg border p-4" style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}>
           <h3 className="text-xs font-medium mb-2" style={{ color: 'var(--gem-text)' }}>Details</h3>
           <dl className="space-y-1.5 text-xs">
-            <div className="flex justify-between"><dt style={{ color: 'var(--gem-dim)' }}>Format</dt><dd className="flex items-center gap-1"><span>{formatIcon.icon}</span><span style={{ color: 'var(--gem-muted)' }}>{formatIcon.label}</span></dd></div>
-            <div className="flex justify-between"><dt style={{ color: 'var(--gem-dim)' }}>Language</dt><dd><span className={`text-[10px] px-1 py-0.5 rounded ${lang.className}`}>{lang.label}</span></dd></div>
-            <div className="flex justify-between"><dt style={{ color: 'var(--gem-dim)' }}>Priority</dt><dd><span className="text-[10px] px-1 py-0.5 rounded" style={{ backgroundColor: priority.accentDim, color: priority.accent }}>{priority.label}</span></dd></div>
-            <div className="flex justify-between"><dt style={{ color: 'var(--gem-dim)' }}>Version</dt><dd style={{ color: 'var(--gem-muted)' }}>{item.version}</dd></div>
+            <div className="flex justify-between">
+              <dt style={{ color: 'var(--gem-dim)' }}>Format</dt>
+              <dd className="flex items-center gap-1">
+                <span>{formatIcon.icon}</span>
+                <span style={{ color: 'var(--gem-muted)' }}>{formatIcon.label}</span>
+              </dd>
+            </div>
+            <div className="flex justify-between">
+              <dt style={{ color: 'var(--gem-dim)' }}>Language</dt>
+              <dd><span className={`text-[10px] px-1 py-0.5 rounded ${lang.className}`}>{lang.label}</span></dd>
+            </div>
+            <div className="flex justify-between">
+              <dt style={{ color: 'var(--gem-dim)' }}>Priority</dt>
+              <dd><span className="text-[10px] px-1 py-0.5 rounded" style={{ backgroundColor: priority.accentDim, color: priority.accent }}>{priority.label}</span></dd>
+            </div>
+            <div className="flex justify-between">
+              <dt style={{ color: 'var(--gem-dim)' }}>Version</dt>
+              <dd style={{ color: 'var(--gem-muted)' }}>{item.version}</dd>
+            </div>
           </dl>
-          {item.tags.length > 0 && (<div className="mt-2 flex flex-wrap gap-1">{item.tags.map((tag) => <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-900/50 text-cyan-300">{tag}</span>)}</div>)}
-          {collections.length > 0 && (<div className="mt-2 flex flex-wrap gap-1">{collections.map((c) => <span key={c.id} className="text-[10px] px-1.5 py-0.5 rounded bg-purple-900/50 text-purple-300">{c.name}</span>)}</div>)}
-          {dependencies.length > 0 && (<div className="mt-2"><p className="text-[10px] mb-1" style={{ color: 'var(--gem-dim)' }}>Dependencies:</p>{dependencies.map((d, i) => (<span key={i} className="text-[10px] px-1 py-0.5 rounded bg-red-900/30 text-red-300 mr-1">{d.depends_on_pipeline.code}</span>))}</div>)}
+          {item.tags.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {item.tags.map((tag) => <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-900/50 text-cyan-300">{tag}</span>)}
+            </div>
+          )}
+          {collections.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {collections.map((c) => <span key={c.id} className="text-[10px] px-1.5 py-0.5 rounded bg-purple-900/50 text-purple-300">{c.name}</span>)}
+            </div>
+          )}
+          {dependencies.length > 0 && (
+            <div className="mt-2">
+              <p className="text-[10px] mb-1" style={{ color: 'var(--gem-dim)' }}>Dependencies:</p>
+              <div className="flex flex-wrap gap-1">
+                {dependencies.map((d, i) => (
+                  <span key={i} className="text-[10px] px-1 py-0.5 rounded bg-red-900/30 text-red-300">{d.depends_on_pipeline.code}</span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-      </div>
+      </aside>
     </div>
   )
 }

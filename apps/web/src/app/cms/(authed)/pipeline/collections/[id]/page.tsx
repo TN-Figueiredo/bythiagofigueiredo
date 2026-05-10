@@ -4,6 +4,7 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { CmsTopbar } from '@tn-figueiredo/cms-ui/client'
 import { CollectionDetail } from '../../_components/collection-detail'
+import { GEM_CSS_VARS } from '@/lib/pipeline/gem-design'
 import type { GemCardItem } from '../../_components/gem-card'
 
 export const dynamic = 'force-dynamic'
@@ -63,7 +64,7 @@ export default async function CollectionDetailPage({ params }: { params: Promise
   return (
     <>
       <CmsTopbar title={`Collection — ${collection.name || collection.code}`} />
-      <div className="p-6">
+      <div className="p-6 gem-pipeline-theme" style={GEM_CSS_VARS as React.CSSProperties}>
         <CollectionDetail collection={collection} members={members} />
       </div>
     </>

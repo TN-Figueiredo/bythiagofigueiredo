@@ -40,8 +40,8 @@ export default async function FormatBoardPage({ params }: { params: Promise<{ fo
       .eq('type', 'playlist'),
   ])
 
-  const boardItems = (itemsRes.data ?? []).map((item: any) => {
-    const memberships = item.content_pipeline_memberships ?? []
+  const boardItems = (itemsRes.data ?? []).map((item) => {
+    const memberships = (item.content_pipeline_memberships ?? []) as unknown as Array<{ role: string | null; content_collections: { code: string; name: string } | { code: string; name: string }[] | null }>
     let collectionCode: string | null = null
     for (const m of memberships) {
       const col = Array.isArray(m.content_collections) ? m.content_collections[0] : m.content_collections
@@ -66,7 +66,7 @@ export default async function FormatBoardPage({ params }: { params: Promise<{ fo
     }
   })
 
-  const collections = (collectionsRes.data ?? []).map((c: any) => ({ code: c.code, name: c.name ?? c.code }))
+  const collections = (collectionsRes.data ?? []).map((c) => ({ code: c.code, name: c.name ?? c.code }))
   const labels: Record<string, string> = { video: 'Video', blog_post: 'Blog', newsletter: 'Newsletter', course: 'Course', campaign: 'Campaign' }
 
   return (

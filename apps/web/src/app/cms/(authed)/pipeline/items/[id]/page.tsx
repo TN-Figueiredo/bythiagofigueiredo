@@ -26,7 +26,8 @@ export default async function PipelineItemPage({ params }: { params: Promise<{ i
   if (itemRes.error || !itemRes.data) notFound()
   const item = itemRes.data
 
-  const collections = (membershipsRes.data ?? []).map((m: any) => m.content_collections).filter(Boolean)
+  interface MembershipWithCollection { content_collections: { id: string; code: string; name: string; type: string } | null }
+  const collections = ((membershipsRes.data ?? []) as unknown as MembershipWithCollection[]).map((m) => m.content_collections).filter((c): c is NonNullable<typeof c> => c !== null)
   const dependencies = (depsRes.data ?? []).map((d: Record<string, unknown>) => ({
     dependency_type: d.dependency_type as string,
     depends_on_pipeline: (Array.isArray(d.depends_on_pipeline) ? d.depends_on_pipeline[0] : d.depends_on_pipeline) as { code: string },

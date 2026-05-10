@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { updatePipelineItem } from '../actions'
@@ -46,6 +46,17 @@ export function PipelineBodyEditor({ itemId, version: initialVersion, initialCon
     save(content)
   }
 
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault()
+        handleManualSave()
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  })
+
   const stateLabel = saveState === 'saved' ? 'Salvo' : saveState === 'saving' ? 'Salvando...' : 'Erro ao salvar'
   const stateColor = saveState === 'saved' ? 'var(--gem-done)' : saveState === 'saving' ? 'var(--gem-warn)' : 'var(--gem-danger)'
 
@@ -70,10 +81,15 @@ export function PipelineBodyEditor({ itemId, version: initialVersion, initialCon
       <textarea
         value={content}
         onChange={(e) => handleChange(e.target.value)}
+        aria-label="Body content editor"
         className="flex-1 w-full p-6 resize-none font-mono text-sm focus:outline-none"
         style={{ backgroundColor: 'var(--gem-well)', color: 'var(--gem-text)', minHeight: '60vh' }}
         placeholder="Escreva o roteiro / body content aqui..."
       />
+      <div className="px-6 py-1.5 flex items-center justify-between text-[10px]" style={{ color: 'var(--gem-dim)', borderTop: '1px solid var(--gem-border)' }}>
+        <span>{content.length} chars</span>
+        <span>⌘S to save</span>
+      </div>
     </div>
   )
 }
