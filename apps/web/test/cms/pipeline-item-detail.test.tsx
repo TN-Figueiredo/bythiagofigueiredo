@@ -14,6 +14,7 @@ vi.mock('@/app/cms/(authed)/pipeline/actions', () => ({
   advancePipelineItem: vi.fn().mockResolvedValue({ ok: true }),
   retreatPipelineItem: vi.fn().mockResolvedValue({ ok: true }),
   archivePipelineItem: vi.fn().mockResolvedValue({ ok: true }),
+  restorePipelineItem: vi.fn().mockResolvedValue({ ok: true }),
   toggleChecklist: vi.fn().mockResolvedValue({ ok: true }),
 }))
 
@@ -39,10 +40,12 @@ describe('PipelineItemDetail', () => {
           format_metadata: { playlist_letter: 'G', episode_number: 14 },
           version: 1,
           is_archived: false,
-          validation_score: { overall: 70, breakdown: {}, computed_at: '' },
+          updated_at: '2026-05-01T00:00:00Z',
+          validation_score: 70,
         }}
         collections={[]}
         history={[]}
+        dependencies={[]}
       />,
     )
     expect(screen.getByDisplayValue('AI Agents')).toBeTruthy()
@@ -61,10 +64,12 @@ describe('PipelineItemDetail', () => {
             { label: 'Task A', done: false, toggled_at: null },
             { label: 'Task B', done: true, toggled_at: '2026-05-09' },
           ],
-          format_metadata: {}, version: 1, is_archived: false, validation_score: null,
+          format_metadata: {}, version: 1, is_archived: false,
+          updated_at: '2026-05-01T00:00:00Z', validation_score: 0,
         }}
         collections={[]}
         history={[]}
+        dependencies={[]}
       />,
     )
     expect(screen.getByText('Task A')).toBeTruthy()

@@ -1,68 +1,42 @@
 'use client'
 
 import Link from 'next/link'
-import { getPlaylistColor } from '@/lib/pipeline/colors'
 
 interface CollectionData {
   id: string
   code: string
   name: string
   type: string
-  position: number
-  content_pipeline_memberships: Array<{ count: number }>
-}
-
-const PLAYLIST_ICONS: Record<string, string> = {
-  'playlist-a': '📖',
-  'playlist-b': '🎮',
-  'playlist-c': '🚀',
-  'playlist-e': '🌍',
-  'playlist-f': '💪',
-  'playlist-g': '🤖',
+  description: string | null
+  memberCount: number
+  progress: number
+  nextItem: { code: string; title: string } | null
 }
 
 export function CollectionManager({ collections }: { collections: CollectionData[] }) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
       {collections.map((c) => {
-        const memberCount = c.content_pipeline_memberships?.[0]?.count ?? 0
-        const colors = getPlaylistColor(c.code)
-        const icon = PLAYLIST_ICONS[c.code] ?? '📂'
-        const letter = c.code.replace('playlist-', '').toUpperCase()
+        const progressPct = c.memberCount > 0 ? Math.round((c.progress / c.memberCount) * 100) : 0
         return (
-          <Link
-            key={c.id}
-            href={`/cms/pipeline/collections/${c.id}`}
-            className="block rounded-lg border p-5 transition-all hover:brightness-110 hover:scale-[1.02]"
-            style={{ borderColor: colors.border, backgroundColor: colors.bg }}
-          >
-            <div className="flex items-center gap-3 mb-3">
-              <span className="text-2xl">{icon}</span>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-lg font-bold" style={{ color: colors.text }}>{letter}</span>
-                  <span className="text-xs text-slate-500 font-mono">{c.code}</span>
-                </div>
-                <p className="text-sm font-medium text-slate-200">{c.name}</p>
+          <Link key={c.id} href={`/cms/pipeline/collections/${c.id}`} className="block rounded-lg border p-4 transition-all hover:brightness-110" style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-mono" style={{ color: 'var(--gem-muted)' }}>{c.code}</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ backgroundColor: 'var(--gem-well)', color: 'var(--gem-dim)' }}>{c.type}</span>
+            </div>
+            <p className="text-sm font-medium mb-1" style={{ color: 'var(--gem-text)' }}>{c.name}</p>
+            {c.description && <p className="text-[10px] line-clamp-2 mb-2" style={{ color: 'var(--gem-muted)' }}>{c.description}</p>}
+            <div className="flex items-center gap-2 mb-1">
+              <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--gem-well)' }}>
+                <div className="h-full rounded-full" style={{ width: `${progressPct}%`, backgroundColor: 'var(--gem-done)', boxShadow: '0 0 4px rgba(16,185,129,0.3)' }} />
               </div>
+              <span className="text-[10px]" style={{ color: 'var(--gem-dim)' }}>{c.progress}/{c.memberCount}</span>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs" style={{ color: colors.text, opacity: 0.8 }}>
-                {memberCount} items
-              </span>
-              <span
-                className="text-[10px] px-2 py-0.5 rounded-full"
-                style={{ backgroundColor: colors.border, color: colors.text }}
-              >
-                {c.type}
-              </span>
-            </div>
+            {c.nextItem && <p className="text-[10px]" style={{ color: 'var(--gem-dim)' }}>Próximo: <span style={{ color: 'var(--gem-muted)' }}>{c.nextItem.code}</span> — {c.nextItem.title}</p>}
           </Link>
         )
       })}
-      {collections.length === 0 && (
-        <p className="text-slate-500 text-sm col-span-full">No collections yet</p>
-      )}
+      {collections.length === 0 && <p className="text-xs col-span-full" style={{ color: 'var(--gem-faint)' }}>No collections yet</p>}
     </div>
   )
 }

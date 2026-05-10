@@ -11,18 +11,29 @@ export default async function CollectionsPage() {
   await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
   const supabase = getSupabaseServiceClient()
 
-  const { data: collections } = await supabase
+  const { data: rawCollections } = await supabase
     .from('content_collections')
-    .select('*, content_pipeline_memberships(count)')
+    .select('id, code, name, type, description, content_pipeline_memberships(count)')
     .eq('site_id', siteId)
     .order('type')
     .order('position')
+
+  const collections = (rawCollections ?? []).map((c: Record<string, unknown>) => ({
+    id: c.id as string,
+    code: c.code as string,
+    name: (c.name as string) ?? (c.code as string),
+    type: c.type as string,
+    description: (c.description as string | null) ?? null,
+    memberCount: (Array.isArray(c.content_pipeline_memberships) ? (c.content_pipeline_memberships[0] as { count: number } | undefined)?.count : 0) ?? 0,
+    progress: 0,
+    nextItem: null,
+  }))
 
   return (
     <>
       <CmsTopbar title="Pipeline — Collections" />
       <div className="p-6">
-        <CollectionManager collections={collections ?? []} />
+        <CollectionManager collections={collections} />
       </div>
     </>
   )

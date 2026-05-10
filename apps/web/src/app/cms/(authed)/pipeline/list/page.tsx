@@ -13,7 +13,7 @@ export default async function PipelineListPage() {
 
   const { data: items } = await supabase
     .from('content_pipeline')
-    .select('id, code, title_pt, title_en, format, stage, priority, updated_at')
+    .select('id, code, title_pt, title_en, format, stage, priority, language, updated_at, production_checklist, validation_score')
     .eq('site_id', siteId)
     .eq('is_archived', false)
     .order('updated_at', { ascending: false })
