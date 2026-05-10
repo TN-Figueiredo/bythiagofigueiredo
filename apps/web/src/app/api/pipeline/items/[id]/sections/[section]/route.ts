@@ -66,7 +66,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
   const parsed = SectionPatchSchema.safeParse(body)
   if (!parsed.success) {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: parsed.error.issues[0].message } }, { status: 400 })
+    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: parsed.error.issues[0]?.message ?? 'Invalid request body' } }, { status: 400 })
   }
 
   const lang = req.nextUrl.searchParams.get('lang') || 'en'
