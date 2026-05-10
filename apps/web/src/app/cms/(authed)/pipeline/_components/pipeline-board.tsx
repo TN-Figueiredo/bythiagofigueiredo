@@ -33,6 +33,9 @@ export function PipelineBoard({ format, items, collections }: PipelineBoardProps
     return acc
   }, {})
 
+  const hasActiveFilters = !!(collectionFilter || langFilter || priorityFilter)
+  const noResults = filtered.length === 0 && hasActiveFilters
+
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
@@ -45,6 +48,12 @@ export function PipelineBoard({ format, items, collections }: PipelineBoardProps
           + New item
         </Link>
       </div>
+      {noResults && (
+        <div className="rounded-lg border p-8 text-center mb-4" style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}>
+          <p className="text-sm mb-1" style={{ color: 'var(--gem-muted)' }}>Nenhum item corresponde aos filtros aplicados.</p>
+          <p className="text-xs" style={{ color: 'var(--gem-dim)' }}>{items.length} items total neste formato</p>
+        </div>
+      )}
       <div className="flex gap-3 overflow-x-auto pb-4 min-h-[calc(100vh-14rem)]">
         {stages.map((stage) => (
           <div key={stage.stage} className="flex-shrink-0 w-72">

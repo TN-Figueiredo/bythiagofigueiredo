@@ -65,7 +65,7 @@ export function GemCard({ item }: { item: GemCardItem }) {
     <Link
       href={`/cms/pipeline/items/${item.id}`}
       aria-label={`${title} — ${formatIcon.label}, ${priority.label}, stage ${item.stage}`}
-      className={`block rounded-lg border p-3 transition-[border-color,transform,box-shadow] duration-150 hover:-translate-y-0.5 hover:shadow-lg ${
+      className={`block rounded-lg border p-3 transition-[border-color,transform,box-shadow] duration-150 hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 ${
         isArchived ? 'opacity-45 saturate-[0.3] hover:opacity-65' : ''
       } ${isBlockedState ? 'ring-1 ring-red-500/30' : ''}`}
       style={{
