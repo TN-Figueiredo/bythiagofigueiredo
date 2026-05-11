@@ -53,9 +53,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { auth } = authResult
   if (!requirePermission(auth, 'write')) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
 
-  const ifMatch = req.headers.get('If-Match')
-  if (!ifMatch) return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'If-Match header required' } }, { status: 400 })
-  const expectedVersion = parseInt(ifMatch)
+  const expectedVersionRaw = req.headers.get('X-Expected-Version') ?? req.headers.get('If-Match')
+  if (!expectedVersionRaw) return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'X-Expected-Version header required' } }, { status: 400 })
+  const expectedVersion = parseInt(expectedVersionRaw)
 
   let body: unknown
   try {

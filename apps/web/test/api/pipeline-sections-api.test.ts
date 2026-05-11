@@ -187,7 +187,7 @@ describe('PATCH /api/pipeline/items/[id]/sections/[section]', () => {
       from: vi.fn().mockReturnValue({ select: mockSelect, update: mockUpdate }),
     } as any)
 
-    const req = makeRequest('PATCH', { content: 'updated content', rev: 2 }, { 'If-Match': '3' })
+    const req = makeRequest('PATCH', { content: 'updated content', rev: 2 }, { 'X-Expected-Version': '3' })
     const params = Promise.resolve({ id: mockItem.id, section: 'roteiro' })
     const res = await PATCH(req as any, { params })
     const json = await res.json()
@@ -212,7 +212,7 @@ describe('PATCH /api/pipeline/items/[id]/sections/[section]', () => {
       from: vi.fn().mockReturnValue({ select: mockSelect }),
     } as any)
 
-    const req = makeRequest('PATCH', { content: 'x', rev: 2 }, { 'If-Match': '99' })
+    const req = makeRequest('PATCH', { content: 'x', rev: 2 }, { 'X-Expected-Version': '99' })
     const params = Promise.resolve({ id: mockItem.id, section: 'roteiro' })
     const res = await PATCH(req as any, { params })
     expect(res.status).toBe(412)
@@ -236,7 +236,7 @@ describe('PATCH /api/pipeline/items/[id]/sections/[section]', () => {
     } as any)
 
     // section rev is 2, but we send rev: 0 — mismatch
-    const req = makeRequest('PATCH', { content: 'x', rev: 0 }, { 'If-Match': '3' })
+    const req = makeRequest('PATCH', { content: 'x', rev: 0 }, { 'X-Expected-Version': '3' })
     const params = Promise.resolve({ id: mockItem.id, section: 'roteiro' })
     const res = await PATCH(req as any, { params })
     expect(res.status).toBe(409)
@@ -264,7 +264,7 @@ describe('PATCH /api/pipeline/items/[id]/sections/[section]', () => {
       from: vi.fn().mockReturnValue({ select: mockSelect, update: mockUpdate }),
     } as any)
 
-    const req = makeRequest('PATCH', { content: 'updated', rev: 2 }, { 'If-Match': '3' })
+    const req = makeRequest('PATCH', { content: 'updated', rev: 2 }, { 'X-Expected-Version': '3' })
     const params = Promise.resolve({ id: mockItem.id, section: 'roteiro' })
     const res = await PATCH(req as any, { params })
     expect(res.status).toBe(409)
@@ -301,7 +301,7 @@ describe('PATCH /api/pipeline/items/[id]/sections/[section]', () => {
     // 'ideia' is a shared section — key should be ideia_shared regardless of lang
     const reqWithIdeiaSection = new NextRequest(
       'http://localhost/api/pipeline/items/test-id/sections/ideia?lang=en',
-      { method: 'PATCH', body: JSON.stringify({ content: 'new idea', rev: 1 }), headers: { 'Content-Type': 'application/json', 'If-Match': '3' } }
+      { method: 'PATCH', body: JSON.stringify({ content: 'new idea', rev: 1 }), headers: { 'Content-Type': 'application/json', 'X-Expected-Version': '3' } }
     )
     const params = Promise.resolve({ id: mockItem.id, section: 'ideia' })
     const res = await PATCH(reqWithIdeiaSection as any, { params })

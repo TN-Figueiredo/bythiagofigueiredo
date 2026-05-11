@@ -23,7 +23,7 @@ export async function GET() {
       { method: 'GET', path: '/api/pipeline/items', description: 'List items (cursor pagination)' },
       { method: 'GET', path: '/api/pipeline/items/:id', description: 'Get item detail' },
       { method: 'POST', path: '/api/pipeline/items', description: 'Create item(s)' },
-      { method: 'PATCH', path: '/api/pipeline/items/:id', description: 'Update item (If-Match required)' },
+      { method: 'PATCH', path: '/api/pipeline/items/:id', description: 'Update item (X-Expected-Version required)' },
       { method: 'DELETE', path: '/api/pipeline/items/:id', description: 'Archive item' },
       { method: 'POST', path: '/api/pipeline/items/:id/advance', description: 'Advance to next stage' },
       { method: 'POST', path: '/api/pipeline/items/:id/retreat', description: 'Retreat to previous stage' },

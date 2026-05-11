@@ -52,7 +52,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
   const expectedVersionRaw = req.headers.get('X-Expected-Version') ?? req.headers.get('If-Match')
   if (!expectedVersionRaw) {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'X-Expected-Version or If-Match header required' } }, { status: 400 })
+    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'X-Expected-Version header required' } }, { status: 400 })
   }
   const expectedVersion = parseInt(expectedVersionRaw)
 

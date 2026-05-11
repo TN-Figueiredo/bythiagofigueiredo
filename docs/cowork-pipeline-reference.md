@@ -7,6 +7,18 @@ All content is delivered as JSON via the batch-sections or individual section PA
 
 ## API Contract
 
+### Version header (IMPORTANT)
+
+Use `X-Expected-Version` for optimistic locking. **Do NOT use `If-Match`** — Vercel's CDN
+intercepts `If-Match` as a standard HTTP conditional request header and returns its own 412
+before the request reaches the API.
+
+```
+X-Expected-Version: <number>   ← from GET response meta.item_version
+```
+
+### Section update payload
+
 Each section update sends:
 ```json
 {
