@@ -133,7 +133,11 @@ describe('PATCH /api/pipeline/items/[id]/sections/[section]', () => {
     const mockFetch = vi.fn().mockResolvedValue({ data: mockItem, error: null })
     const mockUpdate = vi.fn().mockReturnValue({
       eq: vi.fn().mockReturnValue({
-        eq: vi.fn().mockResolvedValue({ error: null }),
+        eq: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: { version: 4 }, error: null }),
+          }),
+        }),
       }),
     })
     const mockSelect = vi.fn().mockReturnValue({
@@ -165,7 +169,11 @@ describe('PATCH /api/pipeline/items/[id]/sections/[section]', () => {
     const mockFetch = vi.fn().mockResolvedValue({ data: mockItem, error: null })
     const mockUpdate = vi.fn().mockReturnValue({
       eq: vi.fn().mockReturnValue({
-        eq: vi.fn().mockResolvedValue({ error: null }),
+        eq: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: { version: 4 }, error: null }),
+          }),
+        }),
       }),
     })
     const mockSelect = vi.fn().mockReturnValue({
@@ -245,7 +253,11 @@ describe('PATCH /api/pipeline/items/[id]/sections/[section]', () => {
     })
     const mockUpdate = vi.fn().mockReturnValue({
       eq: vi.fn().mockReturnValue({
-        eq: vi.fn().mockResolvedValue({ error: { message: 'concurrent update' } }),
+        eq: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: null, error: { message: 'concurrent update' } }),
+          }),
+        }),
       }),
     })
     vi.mocked(getSupabaseServiceClient).mockReturnValue({
@@ -268,7 +280,11 @@ describe('PATCH /api/pipeline/items/[id]/sections/[section]', () => {
     const mockFetch = vi.fn().mockResolvedValue({ data: itemWithIdeia, error: null })
     const mockUpdate = vi.fn().mockReturnValue({
       eq: vi.fn().mockReturnValue({
-        eq: vi.fn().mockResolvedValue({ error: null }),
+        eq: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: { version: 4 }, error: null }),
+          }),
+        }),
       }),
     })
     const mockSelect = vi.fn().mockReturnValue({

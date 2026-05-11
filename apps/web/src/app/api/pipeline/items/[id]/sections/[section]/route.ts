@@ -106,23 +106,24 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
   const newSections = { ...sections, [sectionKey]: updatedSection }
 
-  const { error: updateError } = await supabase
+  const { data: updated, error: updateError } = await supabase
     .from('content_pipeline')
     .update({
       sections: newSections,
-      version: item.version + 1,
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)
     .eq('version', expectedVersion)
+    .select('version')
+    .single()
 
-  if (updateError) {
+  if (updateError || !updated) {
     return NextResponse.json({ error: { code: 'CONFLICT', message: 'Concurrent update detected' } }, { status: 409 })
   }
 
   const headers = buildRateLimitHeaders(authResult.auth)
   return NextResponse.json({
     data: updatedSection,
-    meta: { section_key: sectionKey, item_version: item.version + 1 },
+    meta: { section_key: sectionKey, item_version: updated.version },
   }, { headers })
 }

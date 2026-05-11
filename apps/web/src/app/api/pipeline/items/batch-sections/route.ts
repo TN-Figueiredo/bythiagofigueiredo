@@ -83,27 +83,34 @@ export async function POST(req: NextRequest) {
         section_key: sectionKey,
         ok: true,
         data: updatedSection,
-        meta: { item_version: currentVersion + 1 },
+        meta: { item_version: 0 },
       })
     }
 
-    const { error: updateError } = await supabase
+    const { data: updated, error: updateError } = await supabase
       .from('content_pipeline')
       .update({
         sections: currentSections,
-        version: currentVersion + 1,
         updated_at: new Date().toISOString(),
       })
       .eq('id', itemId)
       .eq('version', currentVersion)
+      .select('version')
+      .single()
 
-    if (updateError) {
+    if (updateError || !updated) {
       for (const r of results) {
         if (r.item_id === itemId && r.ok) {
           r.ok = false
           r.data = undefined
           r.meta = undefined
           r.error = { code: 'CONFLICT', message: 'Concurrent update detected, retry' }
+        }
+      }
+    } else {
+      for (const r of results) {
+        if (r.item_id === itemId && r.ok && r.meta) {
+          r.meta.item_version = updated.version
         }
       }
     }
