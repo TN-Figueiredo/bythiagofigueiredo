@@ -7,7 +7,7 @@ interface FilterBarProps {
   collections: Array<{ code: string; name: string }>
 }
 
-type FilterKey = 'collection' | 'lang' | 'priority'
+type FilterKey = 'collection' | 'lang' | 'priority' | 'link'
 
 const PRIORITY_OPTIONS = [
   { value: '5', label: 'P5' },
@@ -22,6 +22,11 @@ const LANG_OPTIONS = [
   { value: 'both', label: 'PT+EN' },
 ]
 
+const LINK_OPTIONS = [
+  { value: 'linked', label: 'Com blog post' },
+  { value: 'unlinked', label: 'Sem blog post' },
+]
+
 export function PipelineFilterBar({ collections }: FilterBarProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -32,6 +37,7 @@ export function PipelineFilterBar({ collections }: FilterBarProps) {
   const activeCollection = searchParams.get('collection')
   const activeLang = searchParams.get('lang')
   const activePriority = searchParams.get('priority')
+  const activeLink = searchParams.get('link')
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -56,6 +62,7 @@ export function PipelineFilterBar({ collections }: FilterBarProps) {
   function getOptions(key: FilterKey) {
     if (key === 'collection') return collections.map((c) => ({ value: c.code, label: c.name }))
     if (key === 'lang') return LANG_OPTIONS
+    if (key === 'link') return LINK_OPTIONS
     return PRIORITY_OPTIONS
   }
 
@@ -118,13 +125,14 @@ export function PipelineFilterBar({ collections }: FilterBarProps) {
     )
   }
 
-  const hasFilters = activeCollection || activeLang || activePriority
+  const hasFilters = activeCollection || activeLang || activePriority || activeLink
 
   return (
     <div ref={containerRef} className="flex items-center gap-2 mb-3">
       {renderChip('collection', 'Collection', activeCollection)}
       {renderChip('lang', 'Language', activeLang)}
       {renderChip('priority', 'Priority', activePriority)}
+      {renderChip('link', 'Vínculo', activeLink)}
       {hasFilters && (
         <button
           onClick={() => {

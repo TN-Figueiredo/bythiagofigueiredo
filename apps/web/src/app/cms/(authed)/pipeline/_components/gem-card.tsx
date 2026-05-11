@@ -31,6 +31,7 @@ export interface GemCardItem {
   blog_post_id: string | null
   newsletter_edition_id: string | null
   campaign_id: string | null
+  linked_post_status: string | null
   is_archived: boolean
   validation_score: number
   dependencies: Array<{ dependency_type: string; depends_on_pipeline: { code: string } }>
@@ -103,8 +104,15 @@ export const GemCard = memo(function GemCard({ item }: { item: GemCardItem }) {
           {priority.label}
         </span>
         {isGraduated && (
-          <span className="text-[10px] px-1 py-0.5 rounded bg-emerald-900/50 text-emerald-300 font-medium">
-            graduated
+          <span
+            className="text-[10px] px-1 py-0.5 rounded font-medium"
+            style={{
+              backgroundColor: item.linked_post_status === 'published' ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
+              color: item.linked_post_status === 'published' ? '#10b981' : '#f59e0b',
+            }}
+            title={`Blog post: ${item.linked_post_status ?? 'linked'}`}
+          >
+            {item.linked_post_status === 'published' ? '✓ published' : 'graduated'}
           </span>
         )}
         <span className={`text-[10px] flex items-center gap-0.5 ml-auto ${staleness.className}`}>

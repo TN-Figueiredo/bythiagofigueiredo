@@ -54,7 +54,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .single()
     if (!author) return NextResponse.json({ error: { code: 'INVALID_OPERATION', message: 'No author profile found for this user' } }, { status: 422 })
 
-    const locale = item.language === 'en' ? 'en' : 'pt-br'
+    const primaryLocale = item.language === 'en' ? 'en' : 'pt-br'
     const { data: post, error } = await supabase
       .from('blog_posts')
       .insert({
@@ -62,20 +62,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         author_id: author.id,
         status: 'draft',
         category: 'building',
-        locale,
+        locale: primaryLocale,
       })
       .select('id')
       .single()
     if (error) return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: error.message } }, { status: 400 })
 
-    const slug = (item.code || title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')).slice(0, 200)
-    await supabase.from('blog_translations').insert({
-      post_id: post.id,
-      locale,
-      title,
-      slug,
-      content_mdx: item.body_content || '',
-    })
+    const makeSlug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 200)
+    const translations: Array<{ post_id: string; locale: string; title: string; slug: string; content_mdx: string }> = []
+
+    if (item.language === 'both') {
+      if (item.title_pt) translations.push({ post_id: post.id, locale: 'pt-br', title: item.title_pt, slug: makeSlug(item.title_pt), content_mdx: '' })
+      if (item.title_en) translations.push({ post_id: post.id, locale: 'en', title: item.title_en, slug: makeSlug(item.title_en), content_mdx: '' })
+    } else {
+      translations.push({ post_id: post.id, locale: primaryLocale, title, slug: makeSlug(title), content_mdx: '' })
+    }
+
+    if (translations.length > 0) {
+      await supabase.from('blog_translations').insert(translations)
+    }
 
     entityId = post.id
     fkField = 'blog_post_id'
