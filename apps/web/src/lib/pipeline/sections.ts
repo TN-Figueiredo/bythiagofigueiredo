@@ -78,6 +78,7 @@ export const SectionDataSchema = z.object({
   edited: z.boolean(),
   content: z.union([z.string(), z.record(z.unknown()), z.array(z.unknown())]),
   updated_at: z.string().datetime(),
+  modified_by: z.string().nullable().optional(),
 })
 
 export type SectionData = z.infer<typeof SectionDataSchema>
@@ -86,6 +87,18 @@ export const SectionPatchSchema = z.object({
   content: z.union([z.string(), z.record(z.unknown()), z.array(z.unknown())]),
   rev: z.number().int().min(0),
   source: z.string().optional(),
+  modified_by: z.string().optional(),
 })
 
 export type SectionPatch = z.infer<typeof SectionPatchSchema>
+
+export const BatchSectionUpdateSchema = z.object({
+  updates: z.array(z.object({
+    item_id: z.string().uuid(),
+    section: z.string().min(1),
+    lang: z.string().default('en'),
+    content: z.union([z.string(), z.record(z.unknown()), z.array(z.unknown())]),
+    source: z.string().default('cowork'),
+    modified_by: z.string().optional(),
+  })).min(1).max(50),
+})

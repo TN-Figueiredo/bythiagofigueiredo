@@ -121,12 +121,36 @@ describe('PATCH /api/pipeline/items/[id]/sections/[section]', () => {
     vi.mocked(authenticatePipeline).mockResolvedValue(mockAuth)
   })
 
-  it('returns 400 without If-Match header', async () => {
+  it('returns 400 without version header', async () => {
     vi.mocked(getSupabaseServiceClient).mockReturnValue({} as any)
 
     const params = Promise.resolve({ id: mockItem.id, section: 'roteiro' })
     const res = await PATCH(makeRequest('PATCH', { content: 'new', rev: 2 }) as any, { params })
     expect(res.status).toBe(400)
+  })
+
+  it('accepts X-Expected-Version header as alternative to If-Match', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({ data: mockItem, error: null })
+    const mockUpdate = vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ error: null }),
+      }),
+    })
+    const mockSelect = vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          single: mockFetch,
+        }),
+      }),
+    })
+    vi.mocked(getSupabaseServiceClient).mockReturnValue({
+      from: vi.fn().mockReturnValue({ select: mockSelect, update: mockUpdate }),
+    } as any)
+
+    const req = makeRequest('PATCH', { content: 'updated', rev: 2 }, { 'X-Expected-Version': '3' })
+    const params = Promise.resolve({ id: mockItem.id, section: 'roteiro' })
+    const res = await PATCH(req as any, { params })
+    expect(res.status).toBe(200)
   })
 
   it('returns 400 for invalid item UUID', async () => {
@@ -167,7 +191,7 @@ describe('PATCH /api/pipeline/items/[id]/sections/[section]', () => {
     expect(json.meta.item_version).toBe(4)
   })
 
-  it('returns 409 on version mismatch', async () => {
+  it('returns 412 on version mismatch with expected/current fields', async () => {
     const mockFetch = vi.fn().mockResolvedValue({ data: mockItem, error: null })
     const mockSelect = vi.fn().mockReturnValue({
       eq: vi.fn().mockReturnValue({
@@ -180,11 +204,14 @@ describe('PATCH /api/pipeline/items/[id]/sections/[section]', () => {
       from: vi.fn().mockReturnValue({ select: mockSelect }),
     } as any)
 
-    // If-Match: 99 — version mismatch with item.version=3
     const req = makeRequest('PATCH', { content: 'x', rev: 2 }, { 'If-Match': '99' })
     const params = Promise.resolve({ id: mockItem.id, section: 'roteiro' })
     const res = await PATCH(req as any, { params })
-    expect(res.status).toBe(409)
+    expect(res.status).toBe(412)
+    const json = await res.json()
+    expect(json.error.code).toBe('PRECONDITION_FAILED')
+    expect(json.error.expected).toBe(99)
+    expect(json.error.current).toBe(3)
   })
 
   it('returns 409 on section revision mismatch', async () => {

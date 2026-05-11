@@ -78,9 +78,20 @@ export function useSection({ itemId, sectionKey, initialData, itemVersion, onSav
     try {
       const res = await fetch(`/api/pipeline/items/${itemId}/sections/${sectionBase}?lang=${lang}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'If-Match': String(versionRef.current) },
+        headers: { 'Content-Type': 'application/json', 'X-Expected-Version': String(versionRef.current) },
         body: JSON.stringify({ content: contentRef.current, rev: revRef.current, source: 'user' }),
       })
+
+      if (res.status === 412) {
+        const err = await res.json()
+        const currentVersion = err.error?.current as number | undefined
+        if (currentVersion != null) {
+          setVersion(currentVersion)
+          versionRef.current = currentVersion
+        }
+        toast.error('Versão desatualizada. Tentando novamente...')
+        return
+      }
 
       if (res.status === 409) {
         const remoteRes = await fetch(`/api/pipeline/items/${itemId}/sections/${sectionBase}?lang=${lang}`)

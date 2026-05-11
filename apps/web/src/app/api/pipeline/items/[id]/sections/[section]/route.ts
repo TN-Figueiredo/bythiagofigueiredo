@@ -50,9 +50,11 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
   }
 
-  const ifMatch = req.headers.get('If-Match')
-  if (!ifMatch) return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'If-Match header required' } }, { status: 400 })
-  const expectedVersion = parseInt(ifMatch)
+  const expectedVersionRaw = req.headers.get('X-Expected-Version') ?? req.headers.get('If-Match')
+  if (!expectedVersionRaw) {
+    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'X-Expected-Version or If-Match header required' } }, { status: 400 })
+  }
+  const expectedVersion = parseInt(expectedVersionRaw)
 
   let body: unknown
   try {
@@ -80,13 +82,15 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
   if (fetchError || !item) return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Item not found' } }, { status: 404 })
   if (item.version !== expectedVersion) {
-    return NextResponse.json({ error: { code: 'CONFLICT', message: 'Version mismatch', current_version: item.version } }, { status: 409 })
+    return NextResponse.json({
+      error: { code: 'PRECONDITION_FAILED', message: 'Version mismatch', expected: expectedVersion, current: item.version },
+    }, { status: 412 })
   }
 
   const sections = (item.sections ?? {}) as Record<string, SectionData>
   const existing = sections[sectionKey]
   if (existing && existing.rev !== parsed.data.rev) {
-    return NextResponse.json({ error: { code: 'CONFLICT', message: 'Section revision mismatch', current_rev: existing.rev } }, { status: 409 })
+    return NextResponse.json({ error: { code: 'CONFLICT', message: 'Section revision mismatch', expected_rev: parsed.data.rev, current_rev: existing.rev } }, { status: 409 })
   }
 
   const newRev = (existing?.rev ?? 0) + 1
@@ -97,6 +101,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     edited: (parsed.data.source ?? 'user') === 'user' || existing?.edited === true,
     content: parsed.data.content,
     updated_at: new Date().toISOString(),
+    modified_by: parsed.data.modified_by ?? null,
   }
 
   const newSections = { ...sections, [sectionKey]: updatedSection }
