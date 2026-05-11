@@ -20,6 +20,7 @@ import { getSectionKey, getSectionsForFormat, flattenSections, type SectionData,
 import type { Format } from '@/lib/pipeline/schemas'
 import { BlogPostCard } from './detail/blog-post-card'
 import { BlogPostSearchDialog } from './detail/blog-post-search-dialog'
+import { PromptGeneratorModal } from './prompt-generator-modal'
 
 interface ChecklistItem { label: string; done: boolean; toggled_at: string | null }
 interface HistoryEntry { id: string; event_type: string; from_value: string | null; to_value: string | null; changed_at: string }
@@ -206,18 +207,23 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
   const [isAdvancing, setIsAdvancing] = useState(false)
   const [isRetreating, setIsRetreating] = useState(false)
   const [showBlogSearch, setShowBlogSearch] = useState(false)
+  const [showPromptModal, setShowPromptModal] = useState(false)
+  const [promptSections, setPromptSections] = useState<Array<{ section_type: string; language: string; content: string }>>([])
+  const [loadingSections, setLoadingSections] = useState(false)
 
   const handleBlogSearch = useCallback(async (query: string) => {
     return searchBlogPostsAction(item.site_id, query)
   }, [item.site_id])
 
-  const handleGraduate = useCallback(async () => {
+  const handleGraduate = useCallback(async (): Promise<{ entity_id?: string }> => {
     const res = await fetch(`/api/pipeline/items/${item.id}/graduate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ target: 'blog_post' }),
     })
     if (!res.ok) throw new Error('Graduate failed')
+    const json = await res.json()
+    return { entity_id: json.data?.entity_id }
   }, [item.id])
 
   async function handleAdvance() {
@@ -253,6 +259,27 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
     const result = await restorePipelineItem(item.id)
     if (result.ok) { toast.success('Restaurado'); router.refresh() }
     else toast.error(result.error)
+  }
+
+  async function handleOpenPromptGenerator() {
+    setLoadingSections(true)
+    try {
+      const res = await fetch(`/api/pipeline/items/${item.id}/sections`)
+      if (!res.ok) throw new Error('Failed to fetch sections')
+      const data = await res.json()
+      setPromptSections(
+        (data.sections ?? []).map((s: { section_type: string; language: string; content: string }) => ({
+          section_type: s.section_type,
+          language: s.language,
+          content: s.content,
+        })),
+      )
+      setShowPromptModal(true)
+    } catch {
+      toast.error('Erro ao carregar seções')
+    } finally {
+      setLoadingSections(false)
+    }
   }
 
   async function handleToggleChecklist(index: number, done: boolean) {
@@ -411,8 +438,6 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
         {/* Blog Post card */}
         <BlogPostCard
           itemId={item.id}
-          itemVersion={item.version}
-          siteId={item.site_id}
           linkedPost={item.linked_post ?? null}
           onGraduate={handleGraduate}
           onShowSearch={() => setShowBlogSearch(true)}
@@ -516,7 +541,19 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
             </div>
             <div className="flex justify-between">
               <dt style={{ color: 'var(--gem-dim)' }}>Language</dt>
-              <dd><span className={`text-[10px] px-1 py-0.5 rounded ${lang.className}`}>{lang.label}</span></dd>
+              <dd className="flex items-center gap-2">
+                <span className={`text-[10px] px-1 py-0.5 rounded ${lang.className}`}>{lang.label}</span>
+                {item.language !== 'both' && (
+                  <button
+                    type="button"
+                    onClick={handleOpenPromptGenerator}
+                    disabled={loadingSections}
+                    className="text-[9px] text-[#6366f1] hover:text-[#818cf8] disabled:opacity-50"
+                  >
+                    {loadingSections ? '...' : `+ ${item.language === 'pt-br' ? 'EN' : 'PT'}`}
+                  </button>
+                )}
+              </dd>
             </div>
             <div className="flex justify-between">
               <dt style={{ color: 'var(--gem-dim)' }}>Priority</dt>
@@ -568,6 +605,26 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
           </div>
         )}
       </aside>
+
+      {showPromptModal && (
+        <PromptGeneratorModal
+          item={{
+            id: item.id,
+            code: item.code,
+            format: item.format,
+            stage: item.stage,
+            priority: item.priority,
+            language: item.language as 'pt-br' | 'en' | 'both',
+            title_pt: item.title_pt,
+            title_en: item.title_en,
+            hook: item.hook ?? null,
+            synopsis: item.synopsis ?? null,
+          }}
+          sections={promptSections}
+          targetLocale={item.language === 'pt-br' ? 'en' : 'pt-br'}
+          onClose={() => setShowPromptModal(false)}
+        />
+      )}
     </div>
   )
 }
