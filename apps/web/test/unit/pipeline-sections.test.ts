@@ -40,7 +40,7 @@ describe('getSectionsForFormat', () => {
     const postprod = sections.find(s => s.key === 'postprod')!
     expect(postprod.subSections).toHaveLength(3)
     expect(postprod.subSections!.map(s => s.key)).toEqual([
-      'postprod_crossref', 'postprod_speedramps', 'postprod_scenes',
+      'postprod_scenes', 'postprod_crossref', 'postprod_speedramps',
     ])
   })
 

@@ -2,10 +2,11 @@ import type { ReactNode } from 'react'
 import { TimestampChip, DbChip, NegHighlight } from './tokens'
 
 interface Token {
-  type: 'text' | 'timestamp' | 'db' | 'neg'
+  type: 'text' | 'timestamp' | 'db' | 'neg' | 'bold'
   value: string
   start: number
   end: number
+  inner?: string
 }
 
 const PATTERNS: { type: Token['type']; re: RegExp }[] = [
@@ -13,6 +14,8 @@ const PATTERNS: { type: Token['type']; re: RegExp }[] = [
   { type: 'db', re: /-?\d+dB/g },
   { type: 'neg', re: /\b(NÃO|[Nn]ot)\b/g },
 ]
+
+const BOLD_RE = /\*\*(.+?)\*\*/g
 
 function findTokens(text: string): Token[] {
   const tokens: Token[] = []
@@ -23,6 +26,12 @@ function findTokens(text: string): Token[] {
       tokens.push({ type, value: m[0], start: m.index, end: m.index + m[0].length })
     }
   }
+  BOLD_RE.lastIndex = 0
+  let bm: RegExpExecArray | null
+  while ((bm = BOLD_RE.exec(text)) !== null) {
+    tokens.push({ type: 'bold', value: bm[0], start: bm.index, end: bm.index + bm[0].length, inner: bm[1]! })
+  }
+
   tokens.sort((a, b) => a.start - b.start)
   const merged: Token[] = []
   for (const t of tokens) {
@@ -52,6 +61,13 @@ export function tokenizeText(text: string): ReactNode[] {
         break
       case 'neg':
         parts.push(<NegHighlight key={`neg-${i}`} text={t.value} />)
+        break
+      case 'bold':
+        parts.push(
+          <strong key={`bold-${i}`} style={{ color: 'var(--gem-text)' }}>
+            {tokenizeText(t.inner ?? t.value)}
+          </strong>
+        )
         break
     }
     cursor = t.end

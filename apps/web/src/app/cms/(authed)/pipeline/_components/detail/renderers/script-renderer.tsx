@@ -100,6 +100,30 @@ function SegmentRenderer({ segment }: { segment: ScriptSegment }) {
           {tokenizeText(segment.content)}
         </span>
       )
+    case 'blockquote':
+      return (
+        <div
+          className="narration text-[13px] leading-[1.85] py-2.5 px-3.5 my-1.5 rounded-r italic"
+          style={{
+            color: 'var(--gem-text)',
+            background: 'linear-gradient(90deg, var(--gem-well), transparent 80%)',
+            borderLeft: '2px solid var(--gem-dim)',
+          }}
+        >
+          {tokenizeText(segment.content)}
+        </div>
+      )
+    case 'bullet-list':
+      return (
+        <ul className="pl-4 my-1 space-y-0.5">
+          {segment.items.map((item, i) => (
+            <li key={i} className="text-[11.5px] leading-relaxed list-disc"
+              style={{ color: 'var(--gem-muted)' }}>
+              {tokenizeText(item)}
+            </li>
+          ))}
+        </ul>
+      )
   }
 }
 

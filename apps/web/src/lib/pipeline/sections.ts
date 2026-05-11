@@ -26,9 +26,9 @@ export const SECTION_DEFINITIONS: Record<Format, SectionDefinition[]> = {
     {
       key: 'postprod', label_pt: 'Pós-Produção', label_en: 'Post-Production', type: 'postprod', shared: false,
       subSections: [
+        { key: 'postprod_scenes', label_pt: 'Cena × Cena', label_en: 'Scene × Scene', type: 'postprod_scenes', shared: false },
         { key: 'postprod_crossref', label_pt: 'Cross-Reference', label_en: 'Cross-Reference', type: 'postprod_crossref', shared: false },
         { key: 'postprod_speedramps', label_pt: 'Speed Ramps', label_en: 'Speed Ramps', type: 'postprod_speedramps', shared: false },
-        { key: 'postprod_scenes', label_pt: 'Cena × Cena', label_en: 'Scene × Scene', type: 'postprod_scenes', shared: false },
       ],
     },
     { key: 'publish', label_pt: 'Publicação', label_en: 'Publication', type: 'publish', shared: false },

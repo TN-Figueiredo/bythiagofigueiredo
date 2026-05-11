@@ -85,12 +85,112 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function charCount(text: string): React.ReactNode {
   const count = text.length
-  const color = count > 100 ? 'var(--gem-warn)' : 'var(--gem-dim)'
+  let color: string
+  let label: string
+  if (count <= 70) {
+    color = '#22c55e'
+    label = 'ideal'
+  } else if (count <= 100) {
+    color = '#eab308'
+    label = 'pode truncar'
+  } else {
+    color = '#ef4444'
+    label = 'truncado'
+  }
   return (
-    <span className="text-[9px] ml-1.5" style={{ color }}>
-      {count} chars
+    <span className="text-[9px] ml-1.5 px-1.5 py-0.5 rounded-full" style={{ color, background: `${color}15` }}>
+      {count} chars · {label}
     </span>
   )
+}
+
+function tokenizeDescription(text: string): React.ReactNode[] {
+  const URL_RE = /https?:\/\/\S+/g
+  const HASH_RE = /#\w[\w]*/g
+  const HANDLE_RE = /@\w+/g
+  const TS_RE = /\d{2}:\d{2}/g
+
+  interface TMatch { start: number; end: number; node: React.ReactNode }
+  const matches: TMatch[] = []
+
+  let m: RegExpExecArray | null
+
+  URL_RE.lastIndex = 0
+  while ((m = URL_RE.exec(text)) !== null) {
+    matches.push({
+      start: m.index,
+      end: m.index + m[0].length,
+      node: <span key={`u${m.index}`} className="underline opacity-60" style={{ color: 'var(--gem-dim)' }}>{m[0]}</span>,
+    })
+  }
+
+  HASH_RE.lastIndex = 0
+  while ((m = HASH_RE.exec(text)) !== null) {
+    if (matches.some(prev => m!.index >= prev.start && m!.index < prev.end)) continue
+    matches.push({
+      start: m.index,
+      end: m.index + m[0].length,
+      node: (
+        <span key={`h${m.index}`} className="text-[10px] px-1.5 py-0.5 rounded-full"
+          style={{ background: 'rgba(167,139,250,0.1)', color: 'var(--gem-accent)' }}>
+          {m[0]}
+        </span>
+      ),
+    })
+  }
+
+  HANDLE_RE.lastIndex = 0
+  while ((m = HANDLE_RE.exec(text)) !== null) {
+    if (matches.some(prev => m!.index >= prev.start && m!.index < prev.end)) continue
+    matches.push({
+      start: m.index,
+      end: m.index + m[0].length,
+      node: <span key={`a${m.index}`} style={{ color: '#22d3ee' }}>{m[0]}</span>,
+    })
+  }
+
+  TS_RE.lastIndex = 0
+  while ((m = TS_RE.exec(text)) !== null) {
+    if (matches.some(prev => m!.index >= prev.start && m!.index < prev.end)) continue
+    matches.push({
+      start: m.index,
+      end: m.index + m[0].length,
+      node: (
+        <span key={`t${m.index}`} className="font-mono text-[10px] font-semibold px-1 py-px rounded"
+          style={{ color: '#818cf8', background: '#818cf810' }}>
+          {m[0]}
+        </span>
+      ),
+    })
+  }
+
+  if (matches.length === 0) return [text]
+
+  matches.sort((a, b) => a.start - b.start)
+  const result: React.ReactNode[] = []
+  let cursor = 0
+  for (const match of matches) {
+    if (match.start > cursor) result.push(text.slice(cursor, match.start))
+    result.push(match.node)
+    cursor = match.end
+  }
+  if (cursor < text.length) result.push(text.slice(cursor))
+  return result
+}
+
+function getCardTypeStyle(type: string): { background: string; color: string } {
+  const t = type.toLowerCase()
+  if (t === 'question' || t === 'poll') return { background: 'rgba(96,165,250,0.1)', color: '#60a5fa' }
+  if (t === 'video' || t === 'clip') return { background: 'rgba(74,222,128,0.1)', color: '#4ade80' }
+  return { background: 'rgba(6,182,212,0.1)', color: '#22d3ee' }
+}
+
+const PHASE_RE = /^(D\+\d+|Semana \d+|Hora \d+|Fase \d+):\s*/i
+
+function parsePhase(step: string): { phase: string | null; text: string } {
+  const m = step.match(PHASE_RE)
+  if (m) return { phase: m[1]!, text: step.slice(m[0].length) }
+  return { phase: null, text: step }
 }
 
 export function PublishRenderer({ content, isEditing, onContentChange }: RendererProps) {
@@ -107,7 +207,7 @@ export function PublishRenderer({ content, isEditing, onContentChange }: Rendere
           >
             <div className="flex items-start gap-2 mb-1">
               <div
-                className="text-[13px] font-semibold leading-snug flex-1"
+                className="text-[14px] font-semibold leading-snug flex-1"
                 style={{ color: 'var(--gem-text)' }}
                 contentEditable={isEditing}
                 suppressContentEditableWarning
@@ -131,7 +231,7 @@ export function PublishRenderer({ content, isEditing, onContentChange }: Rendere
                 {data.title.alternatives.map((alt, i) => (
                   <div
                     key={i}
-                    className="text-[11px] pl-2"
+                    className="flex items-start gap-2 text-[11px] pl-2"
                     style={{ color: 'var(--gem-muted)', borderLeft: '2px solid var(--gem-border)' }}
                     contentEditable={isEditing}
                     suppressContentEditableWarning
@@ -143,7 +243,11 @@ export function PublishRenderer({ content, isEditing, onContentChange }: Rendere
                       onContentChange({ ...data, title: { ...data.title!, alternatives: updated } })
                     }}
                   >
-                    {alt}
+                    <span className="text-[9px] font-bold flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center"
+                      style={{ background: 'var(--gem-accent)', color: 'white', opacity: 0.7 }}>
+                      {i + 1}
+                    </span>
+                    <span className="flex-1">{alt}</span>
                   </div>
                 ))}
               </div>
@@ -154,30 +258,50 @@ export function PublishRenderer({ content, isEditing, onContentChange }: Rendere
 
       {data.description != null && (
         <div>
-          <SectionLabel>Descrição</SectionLabel>
-          <div
-            className="p-3 rounded-md text-[11px] leading-relaxed whitespace-pre-wrap"
-            style={{
-              background: 'var(--gem-well)',
-              border: '1px solid var(--gem-border)',
-              color: 'var(--gem-muted)',
-              minHeight: '3rem',
-            }}
-            contentEditable={isEditing}
-            suppressContentEditableWarning
-            spellCheck={false}
-            onBlur={(e) =>
-              isEditing && onContentChange({ ...data, description: e.currentTarget.textContent ?? '' })
-            }
-          >
-            {data.description}
-          </div>
+          <SectionLabel>
+            Descrição
+            {data.description && (
+              <span className="text-[9px] font-normal ml-2" style={{ color: data.description.length > 200 ? '#eab308' : 'var(--gem-dim)' }}>
+                {data.description.length} chars
+                {data.description.length > 200 && ' · acima do fold'}
+              </span>
+            )}
+          </SectionLabel>
+          {isEditing ? (
+            <div
+              className="p-3 rounded-md text-[11px] leading-relaxed whitespace-pre-wrap"
+              style={{
+                background: 'var(--gem-well)',
+                border: '1px solid var(--gem-border)',
+                color: 'var(--gem-muted)',
+                minHeight: '3rem',
+              }}
+              contentEditable
+              suppressContentEditableWarning
+              spellCheck={false}
+              onBlur={(e) => onContentChange({ ...data, description: e.currentTarget.textContent ?? '' })}
+            >
+              {data.description}
+            </div>
+          ) : (
+            <div
+              className="p-3 rounded-md text-[11px] leading-relaxed whitespace-pre-wrap"
+              style={{
+                background: 'var(--gem-well)',
+                border: '1px solid var(--gem-border)',
+                color: 'var(--gem-muted)',
+                minHeight: '3rem',
+              }}
+            >
+              {tokenizeDescription(data.description)}
+            </div>
+          )}
         </div>
       )}
 
       {data.tags && data.tags.length > 0 && (
         <div>
-          <SectionLabel>Tags</SectionLabel>
+          <SectionLabel>Tags <span className="text-[9px] font-normal ml-1" style={{ color: 'var(--gem-dim)' }}>{data.tags.length}</span></SectionLabel>
           <div className="flex flex-wrap gap-1.5">
             {data.tags.map((tag, i) => (
               <span
@@ -199,42 +323,38 @@ export function PublishRenderer({ content, isEditing, onContentChange }: Rendere
       {data.cards && data.cards.length > 0 && (
         <div>
           <SectionLabel>Cards</SectionLabel>
-          <div className="space-y-1.5">
-            {data.cards.map((card, i) => (
-              <div
-                key={i}
-                className="flex items-center gap-3 p-2.5 rounded-md"
-                style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}
-              >
-                <span
-                  className="font-mono text-[10px] flex-shrink-0"
-                  style={{ color: 'var(--gem-accent)' }}
-                >
-                  {card.timestamp}
-                </span>
-                <span
-                  className="text-[11px] flex-1"
-                  style={{ color: 'var(--gem-muted)' }}
-                  contentEditable={isEditing}
-                  suppressContentEditableWarning
-                  spellCheck={false}
-                  onBlur={(e) => {
-                    if (!isEditing) return
-                    const updated = (data.cards ?? []).map((c, j) =>
-                      j === i ? { ...c, text: e.currentTarget.textContent ?? '' } : c
-                    )
-                    onContentChange({ ...data, cards: updated })
-                  }}
-                >
-                  {card.text}
-                </span>
-                {card.type && (
-                  <span className="text-[9px] px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: 'rgba(6,182,212,0.1)', color: '#22d3ee' }}>
-                    {card.type}
+          <div className="relative pl-4">
+            <div className="absolute left-[5px] top-3 bottom-3 w-px" style={{ background: 'var(--gem-border)' }} />
+            <div className="space-y-1.5">
+              {data.cards.map((card, i) => (
+                <div key={i} className="relative flex items-center gap-3 p-2.5 rounded-md"
+                  style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
+                  <div className="absolute w-[7px] h-[7px] rounded-full"
+                    style={{ left: -15, background: 'var(--gem-accent)', border: '2px solid var(--gem-border)' }} />
+                  <span className="font-mono text-[10px] flex-shrink-0" style={{ color: 'var(--gem-accent)' }}>
+                    {card.timestamp}
                   </span>
-                )}
-              </div>
-            ))}
+                  <span className="text-[11px] flex-1" style={{ color: 'var(--gem-muted)' }}
+                    contentEditable={isEditing}
+                    suppressContentEditableWarning
+                    spellCheck={false}
+                    onBlur={(e) => {
+                      if (!isEditing) return
+                      const updated = (data.cards ?? []).map((c, j) =>
+                        j === i ? { ...c, text: e.currentTarget.textContent ?? '' } : c
+                      )
+                      onContentChange({ ...data, cards: updated })
+                    }}>
+                    {card.text}
+                  </span>
+                  {card.type && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded flex-shrink-0" style={getCardTypeStyle(card.type)}>
+                      {card.type}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -242,39 +362,75 @@ export function PublishRenderer({ content, isEditing, onContentChange }: Rendere
       {data.end_screen != null && (
         <div>
           <SectionLabel>End Screen</SectionLabel>
-          <div
-            className="p-3 rounded-md text-[11px]"
-            style={{
-              background: 'var(--gem-well)',
-              border: '1px solid var(--gem-border)',
-              color: 'var(--gem-muted)',
-            }}
-            contentEditable={isEditing}
-            suppressContentEditableWarning
-            spellCheck={false}
-            onBlur={(e) =>
-              isEditing && onContentChange({ ...data, end_screen: e.currentTarget.textContent ?? '' })
+          {(() => {
+            const raw = typeof content === 'object' && content !== null && !Array.isArray(content)
+              ? (content as Record<string, unknown>).end_screen
+              : undefined
+            const isObj = raw && typeof raw === 'object' && !Array.isArray(raw)
+            const obj = isObj ? raw as Record<string, unknown> : null
+
+            if (obj) {
+              return (
+                <div className="p-3 rounded-md" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    {typeof obj.type === 'string' && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                        style={{ background: 'rgba(167,139,250,0.15)', color: 'var(--gem-accent)' }}>
+                        {obj.type}
+                      </span>
+                    )}
+                  </div>
+                  {typeof obj.video_suggestion === 'string' && (
+                    <div className="text-[11px]" style={{ color: 'var(--gem-muted)' }}>
+                      <span style={{ color: 'var(--gem-dim)' }}>Sugestão: </span>
+                      <span className="font-medium" style={{ color: 'var(--gem-text)' }}>{obj.video_suggestion}</span>
+                    </div>
+                  )}
+                </div>
+              )
             }
-          >
-            {data.end_screen}
-          </div>
+
+            return (
+              <div className="p-3 rounded-md text-[11px]"
+                style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-muted)' }}
+                contentEditable={isEditing}
+                suppressContentEditableWarning
+                spellCheck={false}
+                onBlur={(e) => isEditing && onContentChange({ ...data, end_screen: e.currentTarget.textContent ?? '' })}>
+                {data.end_screen}
+              </div>
+            )
+          })()}
         </div>
       )}
 
       {data.strategy && data.strategy.length > 0 && (
         <div>
           <SectionLabel>Estratégia de lançamento</SectionLabel>
-          <div
-            className="p-3 rounded-md"
-            style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}
-          >
-            <ol className="pl-4 m-0 space-y-1">
-              {data.strategy.map((step, i) => (
-                <li key={i} className="text-[11px]" style={{ color: 'var(--gem-muted)' }}>
-                  {step}
-                </li>
-              ))}
-            </ol>
+          <div className="relative pl-6">
+            <div className="absolute left-[7px] top-2 bottom-2 w-px" style={{ background: 'var(--gem-border)' }} />
+            <div className="space-y-2">
+              {data.strategy.map((step, i) => {
+                const { phase, text } = parsePhase(step)
+                return (
+                  <div key={i} className="relative flex items-start gap-2.5">
+                    <div className="absolute w-[15px] h-[15px] rounded-full flex items-center justify-center text-[8px] font-bold"
+                      style={{ left: -21, top: 1, background: 'var(--gem-accent)', color: 'white' }}>
+                      {i + 1}
+                    </div>
+                    <div className="text-[11px]" style={{ color: 'var(--gem-muted)' }}>
+                      {phase && (
+                        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded mr-1.5"
+                          style={{ background: 'rgba(167,139,250,0.1)', color: 'var(--gem-accent)' }}>
+                          {phase}
+                        </span>
+                      )}
+                      {text}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         </div>
       )}

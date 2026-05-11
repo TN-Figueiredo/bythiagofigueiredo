@@ -1,10 +1,12 @@
 export type ScriptSegment =
-  | { type: 'tag'; tag: 'VISUAL' | 'TOM' | 'B-ROLL' | 'CORTE' | 'OVERLAY' | 'TRANS'; content: string }
+  | { type: 'tag'; tag: 'VISUAL' | 'TOM' | 'B-ROLL' | 'CORTE' | 'OVERLAY' | 'TRANS' | 'DIRECTION' | 'SFX'; content: string }
   | { type: 'narration'; content: string }
   | { type: 'pause'; duration: string }
   | { type: 'section'; label: string; content: string }
   | { type: 'meta'; key: string; value: string }
   | { type: 'text'; content: string }
+  | { type: 'blockquote'; content: string }
+  | { type: 'bullet-list'; items: string[] }
 
 interface RawMatch {
   start: number
@@ -12,11 +14,15 @@ interface RawMatch {
   segment: ScriptSegment
 }
 
-const TAG_RE = /\[(VISUAL|TOM|B-ROLL|B-ROLLi|CORTE):\s*(.+?)\]/g
-const PAUSE_RE = /\[PAUSE\s+([\d.]+s)\]/g
+const TAG_RE = /\[(VISUAL|TOM|B-ROLL|B-ROLLi|CORTE|DIRECTION|SFX|DIREÇÃO):\s*(.+?)\]/g
+const PAUSE_RE = /\[PAUS[EA]\s+([\d.]+s)\]/g
 const QUOTE_RE = /"([^"]+)"/g
 const SECTION_RE = /(?:^|\n)\s*(MINI-HOOK|TALKING POINTS|TRANSITION):\s*([\s\S]+?)(?=\n\s*(?:MINI-HOOK|TALKING POINTS|TRANSITION|Promessa|Credencial|\[)|$)/g
 const META_RE = /(?:^|\n)\s*(Promessa|Credencial):\s*(.+?)$/gm
+
+function stripMarkdownTagWrapping(text: string): string {
+  return text.replace(/\*\*(\[[A-ZÇÃ\-]+[:\s][\s\S]*?\])\*\*/g, '$1')
+}
 
 function collectMatches(text: string): RawMatch[] {
   const matches: RawMatch[] = []
@@ -25,7 +31,9 @@ function collectMatches(text: string): RawMatch[] {
   let m: RegExpExecArray | null
   type TagName = Extract<ScriptSegment, { type: 'tag' }>['tag']
   while ((m = TAG_RE.exec(text)) !== null) {
-    let tag = m[1]!.replace(/i$/, '') as TagName
+    let rawTag = m[1]!.replace(/i$/, '')
+    if (rawTag === 'DIREÇÃO') rawTag = 'DIRECTION'
+    let tag = rawTag as TagName
     const content = m[2]!
     if (tag === 'VISUAL' && /^(Text overlay|Lower third)/i.test(content)) {
       tag = 'OVERLAY' as typeof tag
@@ -56,6 +64,7 @@ function collectMatches(text: string): RawMatch[] {
 
 export function parseScriptTags(text: string): ScriptSegment[] {
   if (!text) return []
+  text = stripMarkdownTagWrapping(text)
 
   const structuralMatches = collectMatches(text)
   if (structuralMatches.length === 0) {
@@ -97,7 +106,7 @@ export function parseScriptTags(text: string): ScriptSegment[] {
   return segments
 }
 
-function parseGapText(text: string): ScriptSegment[] {
+function parseInlineText(text: string): ScriptSegment[] {
   const segments: ScriptSegment[] = []
   QUOTE_RE.lastIndex = 0
   let cursor = 0
@@ -116,5 +125,45 @@ function parseGapText(text: string): ScriptSegment[] {
     const tail = text.slice(cursor).trim()
     if (tail) segments.push({ type: 'text', content: tail })
   }
+  return segments
+}
+
+function parseGapText(text: string): ScriptSegment[] {
+  const segments: ScriptSegment[] = []
+  const lines = text.split('\n')
+  let buffer: string[] = []
+  let mode: 'none' | 'bullet' = 'none'
+
+  function flushBuffer() {
+    if (buffer.length === 0) return
+    if (mode === 'bullet') {
+      segments.push({ type: 'bullet-list', items: buffer.map(b => b.replace(/^-\s*/, '')) })
+    } else {
+      const joined = buffer.join('\n').trim()
+      if (joined) {
+        for (const seg of parseInlineText(joined)) segments.push(seg)
+      }
+    }
+    buffer = []
+    mode = 'none'
+  }
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (trimmed.startsWith('> ')) {
+      flushBuffer()
+      const content = trimmed.slice(2).trim()
+      if (content) segments.push({ type: 'blockquote', content })
+    } else if (trimmed.startsWith('- ')) {
+      if (mode !== 'bullet') flushBuffer()
+      mode = 'bullet'
+      buffer.push(trimmed)
+    } else {
+      if (mode === 'bullet') flushBuffer()
+      mode = 'none'
+      buffer.push(line)
+    }
+  }
+  flushBuffer()
   return segments
 }
