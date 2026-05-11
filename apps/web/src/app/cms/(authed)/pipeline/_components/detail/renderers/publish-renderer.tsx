@@ -104,19 +104,19 @@ function charCount(text: string): React.ReactNode {
   )
 }
 
-function tokenizeDescription(text: string): React.ReactNode[] {
-  const URL_RE = /https?:\/\/\S+/g
-  const HASH_RE = /#\w[\w]*/g
-  const HANDLE_RE = /@\w+/g
-  const TS_RE = /\d{2}:\d{2}/g
+const DESC_URL_RE = /https?:\/\/\S+/g
+const DESC_HASH_RE = /#\w[\w]*/g
+const DESC_HANDLE_RE = /@\w+/g
+const DESC_TS_RE = /\d{2}:\d{2}/g
 
+function tokenizeDescription(text: string): React.ReactNode[] {
   interface TMatch { start: number; end: number; node: React.ReactNode }
   const matches: TMatch[] = []
 
   let m: RegExpExecArray | null
 
-  URL_RE.lastIndex = 0
-  while ((m = URL_RE.exec(text)) !== null) {
+  DESC_URL_RE.lastIndex = 0
+  while ((m = DESC_URL_RE.exec(text)) !== null) {
     matches.push({
       start: m.index,
       end: m.index + m[0].length,
@@ -124,8 +124,8 @@ function tokenizeDescription(text: string): React.ReactNode[] {
     })
   }
 
-  HASH_RE.lastIndex = 0
-  while ((m = HASH_RE.exec(text)) !== null) {
+  DESC_HASH_RE.lastIndex = 0
+  while ((m = DESC_HASH_RE.exec(text)) !== null) {
     if (matches.some(prev => m!.index >= prev.start && m!.index < prev.end)) continue
     matches.push({
       start: m.index,
@@ -139,8 +139,8 @@ function tokenizeDescription(text: string): React.ReactNode[] {
     })
   }
 
-  HANDLE_RE.lastIndex = 0
-  while ((m = HANDLE_RE.exec(text)) !== null) {
+  DESC_HANDLE_RE.lastIndex = 0
+  while ((m = DESC_HANDLE_RE.exec(text)) !== null) {
     if (matches.some(prev => m!.index >= prev.start && m!.index < prev.end)) continue
     matches.push({
       start: m.index,
@@ -149,8 +149,8 @@ function tokenizeDescription(text: string): React.ReactNode[] {
     })
   }
 
-  TS_RE.lastIndex = 0
-  while ((m = TS_RE.exec(text)) !== null) {
+  DESC_TS_RE.lastIndex = 0
+  while ((m = DESC_TS_RE.exec(text)) !== null) {
     if (matches.some(prev => m!.index >= prev.start && m!.index < prev.end)) continue
     matches.push({
       start: m.index,
@@ -193,6 +193,52 @@ function parsePhase(step: string): { phase: string | null; text: string } {
   return { phase: null, text: step }
 }
 
+function EndScreenContent({ rawContent, text, isEditing, onTextChange }: {
+  rawContent: RendererProps['content']
+  text: string
+  isEditing?: boolean
+  onTextChange: (text: string) => void
+}) {
+  const raw = typeof rawContent === 'object' && rawContent !== null && !Array.isArray(rawContent)
+    ? (rawContent as Record<string, unknown>).end_screen
+    : undefined
+  const obj = raw && typeof raw === 'object' && !Array.isArray(raw)
+    ? raw as Record<string, unknown>
+    : null
+
+  if (obj) {
+    return (
+      <div className="p-3 rounded-md" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
+        {typeof obj.type === 'string' && (
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+              style={{ background: 'rgba(167,139,250,0.15)', color: 'var(--gem-accent)' }}>
+              {obj.type}
+            </span>
+          </div>
+        )}
+        {typeof obj.video_suggestion === 'string' && (
+          <div className="text-[11px]" style={{ color: 'var(--gem-muted)' }}>
+            <span style={{ color: 'var(--gem-dim)' }}>Sugestão: </span>
+            <span className="font-medium" style={{ color: 'var(--gem-text)' }}>{obj.video_suggestion}</span>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="p-3 rounded-md text-[11px]"
+      style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-muted)' }}
+      contentEditable={isEditing}
+      suppressContentEditableWarning
+      spellCheck={false}
+      onBlur={(e) => isEditing && onTextChange(e.currentTarget.textContent ?? '')}>
+      {text}
+    </div>
+  )
+}
+
 export function PublishRenderer({ content, isEditing, onContentChange }: RendererProps) {
   const data = parseContent(content)
 
@@ -233,21 +279,25 @@ export function PublishRenderer({ content, isEditing, onContentChange }: Rendere
                     key={i}
                     className="flex items-start gap-2 text-[11px] pl-2"
                     style={{ color: 'var(--gem-muted)', borderLeft: '2px solid var(--gem-border)' }}
-                    contentEditable={isEditing}
-                    suppressContentEditableWarning
-                    spellCheck={false}
-                    onBlur={(e) => {
-                      if (!isEditing) return
-                      const updated = [...(data.title!.alternatives ?? [])]
-                      updated[i] = e.currentTarget.textContent ?? ''
-                      onContentChange({ ...data, title: { ...data.title!, alternatives: updated } })
-                    }}
                   >
                     <span className="text-[9px] font-bold flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center"
                       style={{ background: 'var(--gem-accent)', color: 'white', opacity: 0.7 }}>
                       {i + 1}
                     </span>
-                    <span className="flex-1">{alt}</span>
+                    <span
+                      className="flex-1"
+                      contentEditable={isEditing}
+                      suppressContentEditableWarning
+                      spellCheck={false}
+                      onBlur={(e) => {
+                        if (!isEditing) return
+                        const updated = [...(data.title!.alternatives ?? [])]
+                        updated[i] = e.currentTarget.textContent ?? ''
+                        onContentChange({ ...data, title: { ...data.title!, alternatives: updated } })
+                      }}
+                    >
+                      {alt}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -362,45 +412,12 @@ export function PublishRenderer({ content, isEditing, onContentChange }: Rendere
       {data.end_screen != null && (
         <div>
           <SectionLabel>End Screen</SectionLabel>
-          {(() => {
-            const raw = typeof content === 'object' && content !== null && !Array.isArray(content)
-              ? (content as Record<string, unknown>).end_screen
-              : undefined
-            const isObj = raw && typeof raw === 'object' && !Array.isArray(raw)
-            const obj = isObj ? raw as Record<string, unknown> : null
-
-            if (obj) {
-              return (
-                <div className="p-3 rounded-md" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
-                  <div className="flex items-center gap-2 mb-2">
-                    {typeof obj.type === 'string' && (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
-                        style={{ background: 'rgba(167,139,250,0.15)', color: 'var(--gem-accent)' }}>
-                        {obj.type}
-                      </span>
-                    )}
-                  </div>
-                  {typeof obj.video_suggestion === 'string' && (
-                    <div className="text-[11px]" style={{ color: 'var(--gem-muted)' }}>
-                      <span style={{ color: 'var(--gem-dim)' }}>Sugestão: </span>
-                      <span className="font-medium" style={{ color: 'var(--gem-text)' }}>{obj.video_suggestion}</span>
-                    </div>
-                  )}
-                </div>
-              )
-            }
-
-            return (
-              <div className="p-3 rounded-md text-[11px]"
-                style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-muted)' }}
-                contentEditable={isEditing}
-                suppressContentEditableWarning
-                spellCheck={false}
-                onBlur={(e) => isEditing && onContentChange({ ...data, end_screen: e.currentTarget.textContent ?? '' })}>
-                {data.end_screen}
-              </div>
-            )
-          })()}
+          <EndScreenContent
+            rawContent={content}
+            text={data.end_screen}
+            isEditing={isEditing}
+            onTextChange={(text) => onContentChange({ ...data, end_screen: text })}
+          />
         </div>
       )}
 

@@ -10,7 +10,7 @@ export const TAG_COLORS: Record<string, TagColor> = {
   OVERLAY: { pill: { bg: '#ec489920', color: '#f9a8d4', border: '#ec489930' }, text: '#fbcfe8' },
   TRANS:   { pill: { bg: '#f59e0b20', color: '#fbbf24', border: '#f59e0b30' }, text: '#fde68a' },
   DIRECTION: { pill: { bg: '#f4364520', color: '#fb7185', border: '#f4364530' }, text: '#fda4af' },
-  SFX:       { pill: { bg: '#d9770620', color: '#fbbf24', border: '#d9770630' }, text: '#fde68a' },
+  SFX:       { pill: { bg: '#d9770620', color: '#f59e0b', border: '#d9770630' }, text: '#fcd34d' },
   MUSIC:   { pill: { bg: '#a855f720', color: '#c084fc', border: '#a855f730' }, text: '#d8b4fe' },
   STYLE:   { pill: { bg: '#0ea5e920', color: '#67e8f9', border: '#0ea5e930' }, text: '#a5f3fc' },
   TIMING:  { pill: { bg: '#818cf820', color: '#a5b4fc', border: '#818cf830' }, text: '#c7d2fe' },

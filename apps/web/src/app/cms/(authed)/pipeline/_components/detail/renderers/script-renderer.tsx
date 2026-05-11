@@ -100,7 +100,8 @@ function SegmentRenderer({ segment }: { segment: ScriptSegment }) {
           {tokenizeText(segment.content)}
         </span>
       )
-    case 'blockquote':
+    case 'blockquote': {
+      const bqParts = segment.content.split(/\b([A-Z]{4,})\b/g)
       return (
         <div
           className="narration text-[13px] leading-[1.85] py-2.5 px-3.5 my-1.5 rounded-r italic"
@@ -110,9 +111,12 @@ function SegmentRenderer({ segment }: { segment: ScriptSegment }) {
             borderLeft: '2px solid var(--gem-dim)',
           }}
         >
-          {tokenizeText(segment.content)}
+          {bqParts.map((part, i) =>
+            i % 2 === 1 ? <EmphHighlight key={i} text={part} /> : <Fragment key={i}>{tokenizeText(part)}</Fragment>
+          )}
         </div>
       )
+    }
     case 'bullet-list':
       return (
         <ul className="pl-4 my-1 space-y-0.5">

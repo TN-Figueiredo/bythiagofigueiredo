@@ -14,7 +14,7 @@ interface RawMatch {
   segment: ScriptSegment
 }
 
-const TAG_RE = /\[(VISUAL|TOM|B-ROLL|B-ROLLi|CORTE|DIRECTION|SFX|DIREÇÃO):\s*(.+?)\]/g
+const TAG_RE = /\[(VISUAL|TOM|B-ROLL|B-ROLLi|CORTE|OVERLAY|TRANS|DIRECTION|SFX|DIREÇÃO):\s*(.+?)\]/g
 const PAUSE_RE = /\[PAUS[EA]\s+([\d.]+s)\]/g
 const QUOTE_RE = /"([^"]+)"/g
 const SECTION_RE = /(?:^|\n)\s*(MINI-HOOK|TALKING POINTS|TRANSITION):\s*([\s\S]+?)(?=\n\s*(?:MINI-HOOK|TALKING POINTS|TRANSITION|Promessa|Credencial|\[)|$)/g
