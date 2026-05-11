@@ -86,7 +86,9 @@ export function useSection({ itemId, sectionKey, initialData, itemVersion, onSav
         const remoteRes = await fetch(`/api/pipeline/items/${itemId}/sections/${sectionBase}?lang=${lang}`)
         if (remoteRes.ok) {
           const remote = await remoteRes.json()
-          setConflict({ remoteData: remote.data as SectionData, localContent: contentRef.current })
+          if (remote.data) {
+            setConflict({ remoteData: remote.data as SectionData, localContent: contentRef.current })
+          }
           setVersion(remote.meta.item_version as number)
           versionRef.current = remote.meta.item_version as number
         }

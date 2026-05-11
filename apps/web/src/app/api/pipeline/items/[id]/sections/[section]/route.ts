@@ -29,15 +29,12 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   if (error || !item) return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Item not found' } }, { status: 404 })
 
   const sections = (item.sections ?? {}) as Record<string, SectionData>
-  const sectionData = sections[sectionKey]
-  if (!sectionData) {
-    return NextResponse.json({ error: { code: 'NOT_FOUND', message: `Section "${sectionKey}" not found` } }, { status: 404 })
-  }
+  const sectionData = sections[sectionKey] ?? null
 
   const headers = buildRateLimitHeaders(authResult.auth)
   return NextResponse.json({
     data: sectionData,
-    meta: { section_key: sectionKey, item_version: item.version },
+    meta: { section_key: sectionKey, item_version: item.version, exists: sectionData !== null },
   }, { headers })
 }
 

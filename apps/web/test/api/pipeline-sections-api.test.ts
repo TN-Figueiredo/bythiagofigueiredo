@@ -65,7 +65,7 @@ describe('GET /api/pipeline/items/[id]/sections/[section]', () => {
     expect(json.data.content).toBe('beat content')
   })
 
-  it('returns 404 for a section that does not exist in the item', async () => {
+  it('returns 200 with data: null for a section that does not exist yet', async () => {
     const mockSelect = vi.fn().mockReturnValue({
       eq: vi.fn().mockReturnValue({
         eq: vi.fn().mockReturnValue({
@@ -77,7 +77,10 @@ describe('GET /api/pipeline/items/[id]/sections/[section]', () => {
 
     const params = Promise.resolve({ id: mockItem.id, section: 'publish' })
     const res = await GET(makeRequest('GET') as any, { params })
-    expect(res.status).toBe(404)
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.data).toBeNull()
+    expect(json.meta.exists).toBe(false)
   })
 
   it('returns 400 for invalid item UUID', async () => {
