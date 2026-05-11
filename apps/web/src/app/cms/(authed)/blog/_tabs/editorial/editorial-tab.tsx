@@ -11,7 +11,9 @@ import { VelocityStrip } from './velocity-strip'
 import { KanbanBoard } from './kanban-board'
 import { EmptyState } from '../../_shared/empty-state'
 import { SectionErrorBoundary } from '../../_shared/section-error-boundary'
-import { movePost, deleteHubPost, reassignTag, addLocale, removeTranslationLocale, duplicatePost, createPost, createTag } from '../../actions'
+import { movePost, deleteHubPost, reassignTag, addLocale, removeTranslationLocale, duplicatePost, createPost, createTag, searchPipelineItems, createPostFromPipeline } from '../../actions'
+import type { PipelineSearchResult } from '../../actions'
+import { PipelineSearchInput } from '../../_shared/pipeline-search-input'
 
 interface EditorialTabProps {
   data: EditorialTabData
@@ -25,7 +27,7 @@ interface EditorialTabProps {
   defaultLocale?: string
 }
 
-export function EditorialTab({ data, strings, tagId, locale, supportedLocales, siteTimezone = 'America/Sao_Paulo', tags, defaultLocale }: EditorialTabProps) {
+export function EditorialTab({ data, strings, siteId, tagId, locale, supportedLocales, siteTimezone = 'America/Sao_Paulo', tags, defaultLocale }: EditorialTabProps) {
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState('')
   const deferredQuery = useDeferredValue(searchQuery)
@@ -245,6 +247,32 @@ export function EditorialTab({ data, strings, tagId, locale, supportedLocales, s
           aria-label={strings?.editorial.searchPosts ?? 'Search posts'}
           className="w-64 rounded-md border border-gray-800 bg-gray-900 px-3 py-1.5 text-[11px] text-gray-300 placeholder-gray-600 focus:border-indigo-500 focus:outline-none"
         />
+        {siteId && (
+          <PipelineSearchInput
+            onSearch={(q) => searchPipelineItems(siteId, q)}
+            onSelect={async (item: PipelineSearchResult) => {
+              const postLocale =
+                item.language === 'en'
+                  ? 'en'
+                  : item.language === 'pt-br'
+                    ? 'pt-BR'
+                    : defaultLocale ?? 'pt-BR'
+              const result = await createPostFromPipeline(siteId, item.id, postLocale)
+              if (result.ok) {
+                toast.success(`Post criado a partir de ${item.code}`, {
+                  action: {
+                    label: 'Abrir →',
+                    onClick: () => window.open(`/cms/blog/${result.postId}/edit`, '_blank'),
+                  },
+                })
+                router.refresh()
+              } else {
+                toast.error(result.error)
+              }
+            }}
+            mode="create"
+          />
+        )}
       </div>
 
       <SectionErrorBoundary sectionName="Kanban board">
