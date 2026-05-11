@@ -5,6 +5,7 @@ import type { RendererProps } from '../section-content'
 interface PublishCard {
   timestamp: string
   text: string
+  type?: string
 }
 
 interface PublishContent {
@@ -27,7 +28,37 @@ function toArray(val: unknown): string[] {
 
 function toCardArray(val: unknown): PublishCard[] {
   if (!Array.isArray(val)) return []
-  return val.filter((c): c is PublishCard => c && typeof c === 'object' && 'timestamp' in c)
+  return val
+    .filter((c): c is Record<string, unknown> => c && typeof c === 'object')
+    .map(c => ({
+      timestamp: String(c.timestamp ?? c.time ?? ''),
+      text: String(c.text ?? ''),
+      type: typeof c.type === 'string' ? c.type : undefined,
+    }))
+}
+
+function parseTitle(raw: unknown): PublishContent['title'] | undefined {
+  if (typeof raw === 'string') return { chosen: raw }
+  if (!raw || typeof raw !== 'object') return undefined
+  const t = raw as Record<string, unknown>
+  const chosen = typeof t.chosen === 'string' ? t.chosen : typeof t.main === 'string' ? t.main : undefined
+  if (!chosen) return undefined
+  return {
+    chosen,
+    alternatives: Array.isArray(t.alternatives) ? t.alternatives.map(String) : undefined,
+  }
+}
+
+function parseEndScreen(raw: unknown): string | undefined {
+  if (typeof raw === 'string') return raw
+  if (raw && typeof raw === 'object') {
+    const es = raw as Record<string, unknown>
+    const parts: string[] = []
+    if (es.type) parts.push(String(es.type))
+    if (es.video_suggestion) parts.push(String(es.video_suggestion))
+    return parts.join(' — ') || undefined
+  }
+  return undefined
 }
 
 function parseContent(content: RendererProps['content']): PublishContent {
@@ -35,13 +66,11 @@ function parseContent(content: RendererProps['content']): PublishContent {
   if (Array.isArray(content) || content === null) return {}
   const raw = content as Record<string, unknown>
   return {
-    title: raw.title && typeof raw.title === 'object' && 'chosen' in (raw.title as Record<string, unknown>)
-      ? raw.title as PublishContent['title']
-      : typeof raw.title === 'string' ? { chosen: raw.title } : undefined,
+    title: parseTitle(raw.title),
     description: typeof raw.description === 'string' ? raw.description : undefined,
     tags: toArray(raw.tags),
     cards: toCardArray(raw.cards),
-    end_screen: typeof raw.end_screen === 'string' ? raw.end_screen : undefined,
+    end_screen: parseEndScreen(raw.end_screen),
     strategy: toArray(raw.strategy),
   }
 }
@@ -174,17 +203,17 @@ export function PublishRenderer({ content, isEditing, onContentChange }: Rendere
             {data.cards.map((card, i) => (
               <div
                 key={i}
-                className="flex gap-3 p-2.5 rounded-md"
+                className="flex items-center gap-3 p-2.5 rounded-md"
                 style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}
               >
                 <span
-                  className="font-mono text-[10px] flex-shrink-0 pt-0.5"
+                  className="font-mono text-[10px] flex-shrink-0"
                   style={{ color: 'var(--gem-accent)' }}
                 >
                   {card.timestamp}
                 </span>
                 <span
-                  className="text-[11px]"
+                  className="text-[11px] flex-1"
                   style={{ color: 'var(--gem-muted)' }}
                   contentEditable={isEditing}
                   suppressContentEditableWarning
@@ -199,6 +228,11 @@ export function PublishRenderer({ content, isEditing, onContentChange }: Rendere
                 >
                   {card.text}
                 </span>
+                {card.type && (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: 'rgba(6,182,212,0.1)', color: '#22d3ee' }}>
+                    {card.type}
+                  </span>
+                )}
               </div>
             ))}
           </div>

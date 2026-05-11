@@ -176,8 +176,7 @@ export function TabContainer({ format, itemId, itemVersion, sections, itemCode, 
         <div className="flex overflow-x-auto" role="tablist" aria-label="Seções do pipeline item" style={{ scrollbarWidth: 'none' }}>
           {sectionDefs.map((def, i) => {
             const isActive = activeTab === def.key
-            const sectionKey = def.shared ? `${def.key}_shared` : `${def.key}_${lang}`
-            const hasContent = !!sections[sectionKey]
+            const hasContent = hasAnyContent(def, sections)
             const isEnabled = enabledTabs.has(def.key)
             return (
               <button

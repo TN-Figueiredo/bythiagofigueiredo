@@ -14,6 +14,10 @@ interface SpeedRampContent {
   rows?: SpeedRampRow[]
   ramps?: SpeedRampRow[]
   segments?: SpeedRampRow[]
+  source?: string
+  est_final?: string
+  edit_style?: string
+  base_acceleration?: string
 }
 
 function parseContent(content: RendererProps['content']): SpeedRampContent {
@@ -86,7 +90,14 @@ export function SpeedRampRenderer({ content }: RendererProps) {
   }
 
   return (
-    <div className="p-5">
+    <div className="p-5 space-y-3">
+      {(data.est_final || data.edit_style || data.base_acceleration) && (
+        <div className="flex flex-wrap gap-3 text-[10px]" style={{ color: 'var(--gem-dim)' }}>
+          {data.est_final && <span>Duração final: <strong style={{ color: 'var(--gem-muted)' }}>{data.est_final}</strong></span>}
+          {data.edit_style && <span>Estilo: <strong style={{ color: 'var(--gem-muted)' }}>{data.edit_style}</strong></span>}
+          {data.base_acceleration && <span>Base: <strong style={{ color: 'var(--gem-muted)' }}>{data.base_acceleration}</strong></span>}
+        </div>
+      )}
       <div className="overflow-x-auto rounded-md" style={{ border: '1px solid var(--gem-border)' }}>
         <table className="w-full text-[11px] border-collapse">
           <thead>
@@ -128,6 +139,11 @@ export function SpeedRampRenderer({ content }: RendererProps) {
           </tbody>
         </table>
       </div>
+      {data.source && (
+        <div className="text-[9px]" style={{ color: 'var(--gem-dim)' }}>
+          Fonte: {data.source}
+        </div>
+      )}
     </div>
   )
 }

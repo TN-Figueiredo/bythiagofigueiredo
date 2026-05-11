@@ -33,12 +33,15 @@ interface SceneTransition {
 
 interface Scene {
   number: number
+  label?: string
   beat_ref?: string
   timestamps?: string
+  timeline?: string
   duration?: string
   status?: string
   difficulty?: string
   narrative?: string
+  edit_notes?: string[]
   music?: SceneMusic
   sfx?: SceneSFX[]
   overlays?: SceneOverlay[]
@@ -84,7 +87,7 @@ function SubSection({ title, children }: { title: string; children: React.ReactN
 }
 
 function SceneCard({ scene, expandAll }: { scene: Scene; expandAll: boolean }) {
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(true)
 
   useEffect(() => {
     setExpanded(expandAll)
@@ -109,7 +112,7 @@ function SceneCard({ scene, expandAll }: { scene: Scene; expandAll: boolean }) {
         </span>
         <span className="text-[11px] font-medium flex-1" style={{ color: 'var(--gem-text)' }}>
           {scene.beat_ref && <span style={{ color: 'var(--gem-dim)' }}>Beat {scene.beat_ref} · </span>}
-          {scene.timestamps ?? '—'}
+          {scene.label ?? scene.timestamps ?? scene.timeline ?? '—'}
           {scene.duration && <span style={{ color: 'var(--gem-dim)' }}> · {scene.duration}</span>}
         </span>
         <div className="flex items-center gap-1.5">
@@ -139,6 +142,16 @@ function SceneCard({ scene, expandAll }: { scene: Scene; expandAll: boolean }) {
           {scene.narrative && (
             <SubSection title="Narrativa">
               <p className="m-0 leading-relaxed" style={{ color: 'var(--gem-muted)' }}>{scene.narrative}</p>
+            </SubSection>
+          )}
+
+          {scene.edit_notes && scene.edit_notes.length > 0 && (
+            <SubSection title="Notas de Edição">
+              <ul className="pl-3.5 m-0 space-y-1">
+                {scene.edit_notes.map((note, i) => (
+                  <li key={i} className="leading-relaxed" style={{ color: 'var(--gem-muted)' }}>{note}</li>
+                ))}
+              </ul>
             </SubSection>
           )}
 
@@ -225,7 +238,7 @@ function SceneCard({ scene, expandAll }: { scene: Scene; expandAll: boolean }) {
 export function SceneGuideRenderer({ content }: RendererProps) {
   const data = parseContent(content)
   const scenes = data.scenes ?? []
-  const [allExpanded, setAllExpanded] = useState(false)
+  const [allExpanded, setAllExpanded] = useState(true)
 
   if (scenes.length === 0) {
     return (

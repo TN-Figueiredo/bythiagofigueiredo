@@ -1,18 +1,17 @@
 'use client'
 
-import { lazy, Suspense, Component, type ReactNode } from 'react'
+import { Component, type ReactNode } from 'react'
 import type { SectionData } from '@/lib/pipeline/sections'
+import { IdeaRenderer } from './renderers/idea-renderer'
+import { ScriptRenderer } from './renderers/script-renderer'
+import { BRollRenderer } from './renderers/broll-renderer'
+import { SceneGuideRenderer } from './renderers/scene-guide-renderer'
+import { CrossRefRenderer } from './renderers/crossref-renderer'
+import { SpeedRampRenderer } from './renderers/speedramp-renderer'
+import { PublishRenderer } from './renderers/publish-renderer'
+import { GenericRenderer } from './renderers/generic-renderer'
 
-const IdeaRenderer = lazy(() => import('./renderers/idea-renderer').then(m => ({ default: m.IdeaRenderer })))
-const ScriptRenderer = lazy(() => import('./renderers/script-renderer').then(m => ({ default: m.ScriptRenderer })))
-const BRollRenderer = lazy(() => import('./renderers/broll-renderer').then(m => ({ default: m.BRollRenderer })))
-const SceneGuideRenderer = lazy(() => import('./renderers/scene-guide-renderer').then(m => ({ default: m.SceneGuideRenderer })))
-const CrossRefRenderer = lazy(() => import('./renderers/crossref-renderer').then(m => ({ default: m.CrossRefRenderer })))
-const SpeedRampRenderer = lazy(() => import('./renderers/speedramp-renderer').then(m => ({ default: m.SpeedRampRenderer })))
-const PublishRenderer = lazy(() => import('./renderers/publish-renderer').then(m => ({ default: m.PublishRenderer })))
-const GenericRenderer = lazy(() => import('./renderers/generic-renderer').then(m => ({ default: m.GenericRenderer })))
-
-const REGISTRY: Record<string, React.LazyExoticComponent<React.ComponentType<RendererProps>>> = {
+const REGISTRY: Record<string, React.ComponentType<RendererProps>> = {
   ideia: IdeaRenderer,
   roteiro: ScriptRenderer,
   brolls: BRollRenderer,
@@ -58,24 +57,12 @@ class RendererErrorBoundary extends Component<{ children: ReactNode }, { error: 
   }
 }
 
-function LoadingSkeleton() {
-  return (
-    <div className="p-5 space-y-3">
-      {[...Array(4)].map((_, i) => (
-        <div key={i} className="h-4 rounded" style={{ background: 'var(--gem-well)', width: `${80 - i * 15}%` }} />
-      ))}
-    </div>
-  )
-}
-
 export function SectionContent({ sectionType, content, isEditing, lang, onContentChange }: SectionContentProps) {
   const Renderer = REGISTRY[sectionType] ?? GenericRenderer
 
   return (
     <RendererErrorBoundary>
-      <Suspense fallback={<LoadingSkeleton />}>
-        <Renderer content={content} isEditing={isEditing} lang={lang} onContentChange={onContentChange} />
-      </Suspense>
+      <Renderer content={content} isEditing={isEditing} lang={lang} onContentChange={onContentChange} />
     </RendererErrorBoundary>
   )
 }
