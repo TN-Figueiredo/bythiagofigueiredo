@@ -19,10 +19,31 @@ interface PublishContent {
   strategy?: string[]
 }
 
+function toArray(val: unknown): string[] {
+  if (Array.isArray(val)) return val.map(String)
+  if (typeof val === 'string') return val.split('\n').filter(Boolean)
+  return []
+}
+
+function toCardArray(val: unknown): PublishCard[] {
+  if (!Array.isArray(val)) return []
+  return val.filter((c): c is PublishCard => c && typeof c === 'object' && 'timestamp' in c)
+}
+
 function parseContent(content: RendererProps['content']): PublishContent {
   if (typeof content === 'string') return { title: { chosen: content } }
   if (Array.isArray(content) || content === null) return {}
-  return content as PublishContent
+  const raw = content as Record<string, unknown>
+  return {
+    title: raw.title && typeof raw.title === 'object' && 'chosen' in (raw.title as Record<string, unknown>)
+      ? raw.title as PublishContent['title']
+      : typeof raw.title === 'string' ? { chosen: raw.title } : undefined,
+    description: typeof raw.description === 'string' ? raw.description : undefined,
+    tags: toArray(raw.tags),
+    cards: toCardArray(raw.cards),
+    end_screen: typeof raw.end_screen === 'string' ? raw.end_screen : undefined,
+    strategy: toArray(raw.strategy),
+  }
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -48,7 +69,7 @@ export function PublishRenderer({ content, isEditing, onContentChange }: Rendere
 
   return (
     <div className="p-5 space-y-4">
-      {data.title && typeof data.title === 'object' && 'chosen' in data.title && (
+      {data.title && (
         <div>
           <SectionLabel>Título</SectionLabel>
           <div
