@@ -1,6 +1,6 @@
 import { getSiteContext } from '@/lib/cms/site-context'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { PostEditionEditor } from './post-edition-editor'
+import { NewPostWithPipelineSource } from './new-post-with-pipeline-source'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,7 +39,7 @@ export default async function NewPostPage({
   const supportedLocales = (siteResult.data?.supported_locales as string[] | null) ?? [ctx.defaultLocale]
 
   return (
-    <PostEditionEditor
+    <NewPostWithPipelineSource
       locale={locale}
       tagId={tagId}
       defaultLocale={ctx.defaultLocale}
