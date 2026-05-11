@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import type { RendererProps } from '../section-content'
 import { TagPill, OptionalBadge, getTagColor } from './tokens'
 import { tokenizeText } from './parse-tokens'
@@ -90,21 +90,25 @@ function groupByTimestamp(notes: CategorizedNote[]): { timestamp: string; notes:
   return Array.from(map.entries()).map(([timestamp, grouped]) => ({ timestamp, notes: grouped }))
 }
 
-function NoteLine({ note }: { note: CategorizedNote }) {
+function NoteLine({ note, stripLeadingTs }: { note: CategorizedNote; stripLeadingTs?: boolean }) {
   const textColor = getTagColor(note.category).text
+  let displayText = note.text
+  if (stripLeadingTs && note.timestamp && note.text.startsWith(note.timestamp)) {
+    displayText = note.text.slice(note.timestamp.length).replace(/^[\s:–-]+/, '')
+  }
   return (
     <div className="flex items-start gap-2 py-1 px-1 rounded transition-colors hover:bg-white/[0.03]">
       <TagPill tag={note.category} />
       <span className="text-[11px] leading-relaxed" style={{ color: textColor }}>
         {note.isOptional && <OptionalBadge />}
-        {tokenizeText(note.text)}
+        {tokenizeText(displayText)}
       </span>
     </div>
   )
 }
 
 function CategorizedNotes({ notes }: { notes: string[] }) {
-  const categorized = notes.map(n => categorizeNote(n))
+  const categorized = useMemo(() => notes.map(n => categorizeNote(n)), [notes])
   const nonTemporal = categorized.filter(n => !n.timestamp)
   const temporal = categorized.filter(n => n.timestamp)
   const grouped = groupByTimestamp(temporal)
@@ -115,7 +119,7 @@ function CategorizedNotes({ notes }: { notes: string[] }) {
         <NoteLine key={`nt-${i}`} note={n} />
       ))}
       {grouped.length > 0 && (
-        <div className="tl-strip relative pl-5 mt-1.5" style={{ paddingLeft: 20 }}>
+        <div className="tl-strip relative pl-5 mt-1.5">
           <div
             className="absolute left-[7px] top-0 bottom-0 w-px"
             style={{ background: 'linear-gradient(180deg, rgba(129,140,248,0.19), rgba(129,140,248,0.06))' }}
@@ -132,10 +136,10 @@ function CategorizedNotes({ notes }: { notes: string[] }) {
               <div className="pl-0.5">
                 {group.notes.length > 1 ? (
                   <div style={{ borderLeft: '1px solid var(--gem-border)', paddingLeft: 6 }}>
-                    {group.notes.map((n, ni) => <NoteLine key={ni} note={n} />)}
+                    {group.notes.map((n, ni) => <NoteLine key={ni} note={n} stripLeadingTs />)}
                   </div>
                 ) : (
-                  <NoteLine note={group.notes[0]!} />
+                  <NoteLine note={group.notes[0]!} stripLeadingTs />
                 )}
               </div>
             </div>
@@ -162,11 +166,12 @@ function SubSection({ title, children }: { title: string; children: React.ReactN
 /* ---------- SceneCard ---------- */
 
 function SceneCard({ scene, expandAll }: { scene: Scene; expandAll: boolean }) {
-  const [expanded, setExpanded] = useState(true)
-
-  useEffect(() => {
+  const [expanded, setExpanded] = useState(expandAll)
+  const prevExpandAll = useRef(expandAll)
+  if (prevExpandAll.current !== expandAll) {
+    prevExpandAll.current = expandAll
     setExpanded(expandAll)
-  }, [expandAll])
+  }
 
   const statusStyle = scene.status ? (STATUS_STYLES[scene.status.toUpperCase()] ?? { bg: 'rgba(107,114,128,0.15)', color: '#9ca3af' }) : null
   const diffStyle = scene.difficulty ? (DIFFICULTY_STYLES[scene.difficulty.toUpperCase()] ?? null) : null
@@ -217,20 +222,20 @@ function SceneCard({ scene, expandAll }: { scene: Scene; expandAll: boolean }) {
           {scene.narrative && (
             <div
               className="text-[11px] leading-snug italic pb-2 mb-2"
-              style={{ color: '#64748b', borderBottom: '1px solid var(--gem-border)' }}
+              style={{ color: 'var(--gem-dim)', borderBottom: '1px solid var(--gem-border)' }}
             >
               {scene.narrative}
             </div>
           )}
 
           {scene.edit_notes && scene.edit_notes.length > 0 && (
-            <SubSection title="Notas de Edicao">
+            <SubSection title="Notas de Edição">
               <CategorizedNotes notes={scene.edit_notes} />
             </SubSection>
           )}
 
           {scene.music && (
-            <SubSection title="Musica">
+            <SubSection title="Música">
               <div className="space-y-0.5" style={{ color: 'var(--gem-muted)' }}>
                 {scene.music.search_terms && <div><span style={{ color: 'var(--gem-dim)' }}>Busca: </span>{tokenizeText(scene.music.search_terms)}</div>}
                 {scene.music.style && <div><span style={{ color: 'var(--gem-dim)' }}>Estilo: </span>{tokenizeText(scene.music.style)}</div>}
@@ -283,7 +288,7 @@ function SceneCard({ scene, expandAll }: { scene: Scene; expandAll: boolean }) {
           )}
 
           {scene.transition && (
-            <SubSection title="Transicao">
+            <SubSection title="Transição">
               <div style={{ color: 'var(--gem-muted)' }}>
                 <strong style={{ color: 'var(--gem-text)' }}>{scene.transition.type}</strong>
                 {scene.transition.reasoning && <span style={{ color: 'var(--gem-dim)' }}> — {scene.transition.reasoning}</span>}
@@ -294,7 +299,7 @@ function SceneCard({ scene, expandAll }: { scene: Scene; expandAll: boolean }) {
           {hasDecide && (
             <div className="p-2.5 rounded-md" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)' }}>
               <div className="text-[9px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#f87171' }}>
-                Decisoes pendentes
+                Decisões pendentes
               </div>
               <ul className="pl-3.5 m-0 space-y-0.5">
                 {scene.decide_items!.map((item, i) => (

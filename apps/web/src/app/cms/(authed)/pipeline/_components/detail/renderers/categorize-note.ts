@@ -16,7 +16,7 @@ const RULES: { category: NoteCategory; test: (t: string) => boolean }[] = [
   { category: 'ENTRY',   test: t => /^entry:/i.test(t) },
   { category: 'VISUAL',  test: t => /montage|ken burns|b-roll|photo/i.test(t) },
   { category: 'TIMING',  test: t => /^(\d{2}:\d{2})|fade in|fade out/i.test(t) },
-  { category: 'FLOW',    test: t => /continues?|don[''']t change|same track|track change/i.test(t) },
+  { category: 'FLOW',    test: t => /continues?|don[''']t change|same track/i.test(t) },
 ]
 
 export function categorizeNote(text: string): CategorizedNote {

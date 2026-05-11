@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, Fragment } from 'react'
 import type { RendererProps } from '../section-content'
 import { StatusBadge } from './status-badge'
 import { TagPill, PauseChip, EmphHighlight, getTagColor } from './tokens'
@@ -49,18 +49,18 @@ function SegmentRenderer({ segment }: { segment: ScriptSegment }) {
       )
     }
     case 'narration': {
-      const parts = segment.content.split(/\b([A-Z]{3,})\b/g)
+      const parts = segment.content.split(/\b([A-Z]{4,})\b/g)
       return (
         <div
           className="narration text-[13px] leading-[1.85] py-2.5 px-3.5 my-1.5 rounded-r"
           style={{
-            color: '#f1f5f9',
-            background: 'linear-gradient(90deg, rgba(30,41,59,0.31), transparent 80%)',
-            borderLeft: '2px solid #475569',
+            color: 'var(--gem-text)',
+            background: 'linear-gradient(90deg, var(--gem-well), transparent 80%)',
+            borderLeft: '2px solid var(--gem-dim)',
           }}
         >
           {parts.map((part, i) =>
-            i % 2 === 1 && part.length >= 3 ? <EmphHighlight key={i} text={part} /> : part
+            i % 2 === 1 ? <EmphHighlight key={i} text={part} /> : <Fragment key={i}>{tokenizeText(part)}</Fragment>
           )}
         </div>
       )
@@ -72,12 +72,12 @@ function SegmentRenderer({ segment }: { segment: ScriptSegment }) {
         <div className="my-2">
           <div
             className="text-[8px] font-bold uppercase tracking-widest pb-1 flex items-center gap-2"
-            style={{ color: '#64748b' }}
+            style={{ color: 'var(--gem-dim)' }}
           >
             {segment.label}
-            <span className="flex-1 h-px" style={{ background: '#1e293b' }} />
+            <span className="flex-1 h-px" style={{ background: 'var(--gem-border)' }} />
           </div>
-          <div className="text-[11.5px] leading-relaxed" style={{ color: '#94a3b8' }}>
+          <div className="text-[11.5px] leading-relaxed" style={{ color: 'var(--gem-muted)' }}>
             {tokenizeText(segment.content)}
           </div>
         </div>
@@ -86,12 +86,12 @@ function SegmentRenderer({ segment }: { segment: ScriptSegment }) {
       return (
         <div
           className="inline-flex items-baseline gap-1.5 px-2.5 py-1 rounded my-0.5 text-[10.5px]"
-          style={{ background: 'rgba(30,41,59,0.19)' }}
+          style={{ background: 'var(--gem-well)' }}
         >
-          <span className="text-[8.5px] font-bold uppercase tracking-wide" style={{ color: '#64748b' }}>
+          <span className="text-[8.5px] font-bold uppercase tracking-wide" style={{ color: 'var(--gem-dim)' }}>
             {segment.key}
           </span>
-          <span style={{ color: '#94a3b8' }}>{segment.value}</span>
+          <span style={{ color: 'var(--gem-muted)' }}>{segment.value}</span>
         </div>
       )
     case 'text':

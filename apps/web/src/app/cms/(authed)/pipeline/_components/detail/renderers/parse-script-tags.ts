@@ -23,8 +23,9 @@ function collectMatches(text: string): RawMatch[] {
 
   TAG_RE.lastIndex = 0
   let m: RegExpExecArray | null
+  type TagName = Extract<ScriptSegment, { type: 'tag' }>['tag']
   while ((m = TAG_RE.exec(text)) !== null) {
-    let tag = m[1]!.replace(/i$/, '') as ScriptSegment & { type: 'tag' } extends { tag: infer T } ? T : never
+    let tag = m[1]!.replace(/i$/, '') as TagName
     const content = m[2]!
     if (tag === 'VISUAL' && /^(Text overlay|Lower third)/i.test(content)) {
       tag = 'OVERLAY' as typeof tag
