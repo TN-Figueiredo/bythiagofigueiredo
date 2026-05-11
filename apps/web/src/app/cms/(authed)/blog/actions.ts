@@ -9,6 +9,7 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { revalidateBlogPostSeo } from '@/lib/seo/cache-invalidation'
 import { isValidTransition } from './_hub/hub-utils'
+import { syncPipelineOnPostStatusChange } from '@/lib/pipeline/blog-sync'
 
 async function requireEditScope(siteId: string): Promise<void> {
   const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
@@ -47,6 +48,9 @@ export async function bulkPublish(
   }
 
   revalidatePath('/cms/blog')
+  for (const post of published) {
+    syncPipelineOnPostStatusChange(post.id, 'published', 'draft').catch(() => {})
+  }
   return { ok: true, count: published.length }
 }
 
@@ -538,6 +542,7 @@ export async function movePost(
   }
 
   revalidateBlogHub(siteId)
+  syncPipelineOnPostStatusChange(postId, newStatus, current.status as string).catch(() => {})
   return { ok: true }
 }
 

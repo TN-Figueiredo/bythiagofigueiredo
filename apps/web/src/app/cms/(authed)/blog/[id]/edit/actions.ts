@@ -313,3 +313,63 @@ export async function searchPosts(
     slug: row.slug,
   }))
 }
+
+// ─── Pipeline Linking ────────────────────────────────────────────────────────
+
+export async function linkToPipelineItem(
+  postId: string,
+  pipelineItemId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { siteId } = await getSiteContext()
+  await requireSiteAdminForRow('blog_posts', postId)
+
+  const { linkPostToItem } = await import('@/lib/pipeline/blog-link')
+  const { syncPipelineOnPostStatusChange } = await import('@/lib/pipeline/blog-sync')
+
+  const result = await linkPostToItem(pipelineItemId, postId, siteId, null)
+  if (!result.ok) return { ok: false, error: result.error }
+
+  const svc = getSupabaseServiceClient()
+  const { data: post } = await svc.from('blog_posts').select('status').eq('id', postId).maybeSingle()
+  if (post?.status === 'published') {
+    await syncPipelineOnPostStatusChange(postId, 'published', 'draft').catch(() => {})
+  }
+
+  return { ok: true }
+}
+
+export async function unlinkFromPipeline(
+  postId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { siteId } = await getSiteContext()
+  await requireSiteAdminForRow('blog_posts', postId)
+
+  const { getPipelineItemForPost, unlinkPostFromItem } = await import('@/lib/pipeline/blog-link')
+  const item = await getPipelineItemForPost(postId)
+  if (!item) return { ok: true }
+
+  return await unlinkPostFromItem(item.id, siteId, null)
+}
+
+export async function searchPipelineItems(
+  siteId: string,
+  query: string,
+): Promise<Array<{ id: string; code: string; title: string; format: string; stage: string; blog_post_id: string | null }>> {
+  const svc = getSupabaseServiceClient()
+  const { data } = await svc
+    .from('content_pipeline')
+    .select('id, code, title_pt, title_en, format, stage, blog_post_id')
+    .eq('site_id', siteId)
+    .eq('is_archived', false)
+    .or(`title_pt.ilike.%${query}%,title_en.ilike.%${query}%,code.ilike.%${query}%`)
+    .limit(10)
+
+  return (data ?? []).map((item: { id: string; code: string; title_pt: string | null; title_en: string | null; format: string; stage: string; blog_post_id: string | null }) => ({
+    id: item.id,
+    code: item.code,
+    title: (item.title_pt || item.title_en || 'Untitled'),
+    format: item.format,
+    stage: item.stage,
+    blog_post_id: item.blog_post_id,
+  }))
+}

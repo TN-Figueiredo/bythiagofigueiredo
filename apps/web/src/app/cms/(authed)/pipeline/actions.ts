@@ -279,6 +279,18 @@ export async function removeFromCollection(pipelineId: string, collectionId: str
   return { ok: true }
 }
 
+export async function searchBlogPostsAction(siteId: string, query: string): Promise<Array<{
+  id: string
+  title: string
+  locale: string
+  status: string
+  linked_to_code: string | null
+}>> {
+  'use server'
+  const { searchBlogPostsForLink } = await import('@/lib/pipeline/blog-link')
+  return searchBlogPostsForLink(siteId, query)
+}
+
 export async function upsertReference(key: string, input: { title: string; content_md?: string; content_compact?: Record<string, unknown> }): Promise<ActionResult> {
   const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()

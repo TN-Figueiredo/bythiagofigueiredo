@@ -4,7 +4,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { updatePipelineItem, advancePipelineItem, retreatPipelineItem, archivePipelineItem, restorePipelineItem, toggleChecklist } from '../actions'
+import { updatePipelineItem, advancePipelineItem, retreatPipelineItem, archivePipelineItem, restorePipelineItem, toggleChecklist, searchBlogPostsAction } from '../actions'
 import { WORKFLOWS } from '@/lib/pipeline/workflows'
 import { getPriorityConfig, getStaleness, getFormatIcon, getLangConfig, getChecklistProgress } from '@/lib/pipeline/gem-design'
 import { GemVvsRing } from './gem-vvs-ring'
@@ -18,6 +18,8 @@ import { SectionContent } from './detail/section-content'
 import { EmptySection } from './detail/renderers/empty-section'
 import { getSectionKey, getSectionsForFormat, flattenSections, type SectionData, type SectionDefinition } from '@/lib/pipeline/sections'
 import type { Format } from '@/lib/pipeline/schemas'
+import { BlogPostCard } from './detail/blog-post-card'
+import { BlogPostSearchDialog } from './detail/blog-post-search-dialog'
 
 interface ChecklistItem { label: string; done: boolean; toggled_at: string | null }
 interface HistoryEntry { id: string; event_type: string; from_value: string | null; to_value: string | null; changed_at: string }
@@ -44,6 +46,14 @@ interface ItemData {
   updated_at: string
   validation_score: number
   sections: Record<string, SectionData> | null
+  blog_post_id: string | null
+  site_id: string
+  linked_post?: {
+    id: string
+    title: string
+    status: string
+    locales: string[]
+  } | null
 }
 
 interface Props {
@@ -195,6 +205,20 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
 
   const [isAdvancing, setIsAdvancing] = useState(false)
   const [isRetreating, setIsRetreating] = useState(false)
+  const [showBlogSearch, setShowBlogSearch] = useState(false)
+
+  const handleBlogSearch = useCallback(async (query: string) => {
+    return searchBlogPostsAction(item.site_id, query)
+  }, [item.site_id])
+
+  const handleGraduate = useCallback(async () => {
+    const res = await fetch(`/api/pipeline/items/${item.id}/graduate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target: 'blog_post' }),
+    })
+    if (!res.ok) throw new Error('Graduate failed')
+  }, [item.id])
 
   async function handleAdvance() {
     setIsAdvancing(true)
@@ -383,6 +407,25 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
             </button>
           )}
         </div>
+
+        {/* Blog Post card */}
+        <BlogPostCard
+          itemId={item.id}
+          itemVersion={item.version}
+          siteId={item.site_id}
+          linkedPost={item.linked_post ?? null}
+          onGraduate={handleGraduate}
+          onShowSearch={() => setShowBlogSearch(true)}
+        />
+
+        {/* Blog Post search dialog */}
+        <BlogPostSearchDialog
+          itemId={item.id}
+          siteId={item.site_id}
+          open={showBlogSearch}
+          onClose={() => setShowBlogSearch(false)}
+          onSearch={handleBlogSearch}
+        />
 
         {/* Sections card */}
         <div className="rounded-lg border p-4" style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}>

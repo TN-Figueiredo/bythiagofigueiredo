@@ -3,6 +3,7 @@ import { postRepo } from '@/lib/cms/repositories'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { PostEditionEditor } from '../../new/post-edition-editor'
+import { getPipelineItemForPost } from '@/lib/pipeline/blog-link'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +22,7 @@ export default async function EditPostPage({ params }: Props) {
   const existingLocales = post.translations.map(t => t.locale)
 
   const supabase = getSupabaseServiceClient()
-  const [tagsResult, siteResult, hashtagResult, txExtraResult, postExtraResult] = await Promise.all([
+  const [tagsResult, siteResult, hashtagResult, txExtraResult, postExtraResult, pipelineItem] = await Promise.all([
     supabase
       .from('blog_tags')
       .select('id, name, color, name_translations')
@@ -47,6 +48,7 @@ export default async function EditPostPage({ params }: Props) {
       .select('previous_post_id, continues_in_next, status, tag_id')
       .eq('id', id)
       .maybeSingle(),
+    getPipelineItemForPost(id),
   ])
 
   const tags = (tagsResult.data ?? []).map((t: { id: string; name: string; color: string; name_translations?: Record<string, string> | null }) => ({
@@ -92,6 +94,7 @@ export default async function EditPostPage({ params }: Props) {
       initialHashtags={postHashtags}
       initialStatus={(postExtra as { status?: string }).status ?? 'draft'}
       existingLocales={existingLocales}
+      initialPipelineItem={pipelineItem}
     />
   )
 }

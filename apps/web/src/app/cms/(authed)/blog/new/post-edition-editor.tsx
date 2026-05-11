@@ -42,6 +42,7 @@ import type { SavePostActionInput } from '../[id]/edit/actions'
 import { getValidTargets } from '../_hub/hub-utils'
 import { ScheduleModal } from '../_tabs/editorial/schedule-modal'
 import { formatTagNameCms } from '../_hub/tag-locale'
+import { PipelinePill } from '../[id]/edit/pipeline-pill'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -74,6 +75,7 @@ interface PostEditionEditorProps {
   initialStatus?: string
   existingLocales?: string[]
   componentNames?: string[]
+  initialPipelineItem?: { id: string; code: string; title_pt: string | null; title_en: string | null; stage: string; format: string; priority: number } | null
 }
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -512,6 +514,7 @@ export function PostEditionEditor({
   initialHashtags: initHashtags,
   initialStatus: initStatus,
   existingLocales: initExistingLocales,
+  initialPipelineItem,
 }: PostEditionEditorProps) {
   const router = useRouter()
   const isEditMode = !!existingPostId
@@ -1119,6 +1122,14 @@ export function PostEditionEditor({
 
           {!isEphemeral && (
             <AutosaveIndicator state={saveState} lastSavedAt={lastSavedAt} mode={saveMode} />
+          )}
+
+          {!isEphemeral && postId && (
+            <PipelinePill
+              postId={postId}
+              siteId={siteId}
+              initialItem={initialPipelineItem ?? null}
+            />
           )}
         </div>
 

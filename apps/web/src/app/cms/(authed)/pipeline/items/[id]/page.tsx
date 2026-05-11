@@ -26,6 +26,21 @@ export default async function PipelineItemPage({ params }: { params: Promise<{ i
   if (itemRes.error || !itemRes.data) notFound()
   const item = itemRes.data
 
+  // Load linked blog post info if present
+  let linkedPost: { id: string; title: string; status: string; locales: string[] } | null = null
+  if (item.blog_post_id) {
+    const [postRes, translationsRes] = await Promise.all([
+      supabase.from('blog_posts').select('id, status').eq('id', item.blog_post_id).single(),
+      supabase.from('blog_translations').select('locale, title').eq('post_id', item.blog_post_id),
+    ])
+    if (postRes.data) {
+      const translations = translationsRes.data ?? []
+      const title = translations[0]?.title ?? '(sem título)'
+      const locales = translations.map((t: { locale: string; title: string }) => t.locale)
+      linkedPost = { id: postRes.data.id, title, status: postRes.data.status, locales }
+    }
+  }
+
   interface MembershipWithCollection { content_collections: { id: string; code: string; name: string; type: string } | null }
   const collections = ((membershipsRes.data ?? []) as unknown as MembershipWithCollection[]).map((m) => m.content_collections).filter((c): c is NonNullable<typeof c> => c !== null)
   const dependencies = (depsRes.data ?? []).map((d: Record<string, unknown>) => ({
@@ -39,7 +54,7 @@ export default async function PipelineItemPage({ params }: { params: Promise<{ i
     format_metadata: item.format_metadata ?? {}, memberships_count: collections.length, format: item.format as Format,
   })
 
-  const enrichedItem = { ...item, validation_score: score.overall }
+  const enrichedItem = { ...item, validation_score: score.overall, site_id: siteId, linked_post: linkedPost }
 
   return (
     <>
