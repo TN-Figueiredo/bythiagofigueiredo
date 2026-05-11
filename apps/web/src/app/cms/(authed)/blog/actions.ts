@@ -825,6 +825,154 @@ export async function duplicatePost(
   return { ok: true, newPostId: newPost.id as string }
 }
 
+// ─── Pipeline Search & Create ─────────────────────────────────────────────────
+
+export interface PipelineSearchResult {
+  id: string
+  code: string
+  title: string
+  format: string
+  stage: string
+  language: string
+  priority: number
+  hook: string | null
+  blog_post_id: string | null
+  linked_post_title: string | null
+}
+
+export async function searchPipelineItems(
+  siteId: string,
+  query: string,
+): Promise<PipelineSearchResult[]> {
+  await requireEditScope(siteId)
+  const svc = getSupabaseServiceClient()
+  const sanitized = query.replace(/[,%()]/g, '')
+  if (!sanitized) return []
+  const pattern = `%${sanitized}%`
+
+  const { data } = await svc
+    .from('content_pipeline')
+    .select('id, code, title_pt, title_en, format, stage, language, priority, hook, blog_post_id')
+    .eq('site_id', siteId)
+    .eq('is_archived', false)
+    .or(`title_pt.ilike.${pattern},title_en.ilike.${pattern},code.ilike.${pattern}`)
+    .limit(10)
+
+  if (!data || data.length === 0) return []
+
+  const linkedPostIds = data
+    .filter((item: { blog_post_id: string | null }) => item.blog_post_id)
+    .map((item: { blog_post_id: string }) => item.blog_post_id)
+
+  let titleMap = new Map<string, string>()
+  if (linkedPostIds.length > 0) {
+    const { data: translations } = await svc
+      .from('blog_translations')
+      .select('post_id, title')
+      .in('post_id', linkedPostIds)
+      .limit(linkedPostIds.length)
+
+    if (translations) {
+      titleMap = new Map(
+        translations.map((t: { post_id: string; title: string }) => [t.post_id, t.title]),
+      )
+    }
+  }
+
+  return data.map(
+    (item: {
+      id: string
+      code: string
+      title_pt: string | null
+      title_en: string | null
+      format: string
+      stage: string
+      language: string
+      priority: number
+      hook: string | null
+      blog_post_id: string | null
+    }) => ({
+      id: item.id,
+      code: item.code,
+      title: item.title_pt || item.title_en || 'Untitled',
+      format: item.format,
+      stage: item.stage,
+      language: item.language,
+      priority: item.priority,
+      hook: item.hook,
+      blog_post_id: item.blog_post_id,
+      linked_post_title: item.blog_post_id ? (titleMap.get(item.blog_post_id) ?? null) : null,
+    }),
+  )
+}
+
+export async function createPostFromPipeline(
+  siteId: string,
+  pipelineItemId: string,
+  locale: string,
+): Promise<{ ok: true; postId: string } | { ok: false; error: string }> {
+  await requireEditScope(siteId)
+  const svc = getSupabaseServiceClient()
+  const userClient = await getUserClient()
+  const {
+    data: { user },
+  } = await userClient.auth.getUser()
+  if (!user) return { ok: false, error: 'unauthenticated' }
+
+  const { data: item, error: itemErr } = await svc
+    .from('content_pipeline')
+    .select('id, code, title_pt, title_en, hook, language, blog_post_id')
+    .eq('id', pipelineItemId)
+    .eq('site_id', siteId)
+    .eq('is_archived', false)
+    .single()
+
+  if (itemErr || !item) return { ok: false, error: 'Pipeline item not found' }
+  if (item.blog_post_id) return { ok: false, error: 'Item already linked to a blog post' }
+
+  const isPt = locale === 'pt-BR'
+  const title = (isPt ? item.title_pt : item.title_en) ?? item.title_pt ?? item.title_en ?? 'Untitled'
+  const excerpt = item.hook ?? undefined
+
+  let bodyContent = ''
+  const { data: sections } = await svc
+    .from('content_pipeline_sections')
+    .select('section_type, content')
+    .eq('pipeline_id', pipelineItemId)
+    .or('section_type.ilike.%rascunho%,section_type.ilike.%body%,section_type.ilike.%draft%')
+    .limit(1)
+
+  if (sections && sections.length > 0) {
+    bodyContent = (sections[0] as { content: string }).content
+  }
+
+  const result = await createPost({
+    title,
+    locale,
+    status: 'idea',
+  })
+  if (!result.ok) return result
+
+  if (excerpt || bodyContent) {
+    await svc
+      .from('blog_translations')
+      .update({
+        ...(excerpt ? { excerpt } : {}),
+        ...(bodyContent ? { content_mdx: bodyContent } : {}),
+      })
+      .eq('post_id', result.postId)
+      .eq('locale', locale)
+  }
+
+  const { linkPostToItem } = await import('@/lib/pipeline/blog-link')
+  const linkResult = await linkPostToItem(pipelineItemId, result.postId, siteId, user.id)
+  if (!linkResult.ok) {
+    console.error('[createPostFromPipeline] link failed:', linkResult.error)
+  }
+
+  return { ok: true, postId: result.postId }
+}
+
 // ─── Cadence Management ───────────────────────────────────────────────────────
 
 export async function updateBlogCadence(
