@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticatePipeline, requirePermission, buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
 import { linkPostToItem } from '@/lib/pipeline/blog-link'
-import { syncPipelineOnPostStatusChange } from '@/lib/pipeline/blog-sync'
-import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { z } from 'zod'
 
 const LinkSchema = z.object({
@@ -33,12 +31,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!result.ok) {
     const status = result.code === 'NOT_FOUND' ? 404 : result.code === 'FORBIDDEN' ? 403 : result.code === 'DUPLICATE' || result.code === 'ALREADY_LINKED' ? 409 : 400
     return NextResponse.json({ error: { code: result.code ?? 'LINK_FAILED', message: result.error } }, { status })
-  }
-
-  const supabase = getSupabaseServiceClient()
-  const { data: post } = await supabase.from('blog_posts').select('status').eq('id', parsed.data.blog_post_id).maybeSingle()
-  if (post?.status === 'published') {
-    await syncPipelineOnPostStatusChange(parsed.data.blog_post_id, 'published', 'draft')
   }
 
   const headers = buildRateLimitHeaders(auth)

@@ -257,17 +257,21 @@ export function EditorialTab({ data, strings, siteId, tagId, locale, supportedLo
                   : item.language === 'pt-br'
                     ? 'pt-BR'
                     : defaultLocale ?? 'pt-BR'
-              const result = await createPostFromPipeline(siteId, item.id, postLocale)
-              if (result.ok) {
-                toast.success(`Post criado a partir de ${item.code}`, {
-                  action: {
-                    label: 'Abrir →',
-                    onClick: () => window.open(`/cms/blog/${result.postId}/edit`, '_blank'),
-                  },
-                })
-                router.refresh()
-              } else {
-                toast.error(result.error)
+              try {
+                const result = await createPostFromPipeline(siteId, item.id, postLocale)
+                if (result.ok) {
+                  toast.success(`Post criado a partir de ${item.code}`, {
+                    action: {
+                      label: 'Abrir →',
+                      onClick: () => window.open(`/cms/blog/${result.postId}/edit`, '_blank'),
+                    },
+                  })
+                  router.refresh()
+                } else {
+                  toast.error(result.error)
+                }
+              } catch {
+                toast.error('Erro ao criar post a partir do pipeline')
               }
             }}
             mode="create"

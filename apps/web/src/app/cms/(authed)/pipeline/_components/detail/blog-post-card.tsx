@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
@@ -13,26 +13,35 @@ interface BlogPostInfo {
 
 interface Props {
   itemId: string
-  itemVersion: number
-  siteId: string
   linkedPost: BlogPostInfo | null
-  onGraduate: () => Promise<void>
+  onGraduate: () => Promise<{ entity_id?: string } | void>
   onShowSearch: () => void
 }
 
-export function BlogPostCard({ itemId, itemVersion, siteId, linkedPost, onGraduate, onShowSearch }: Props) {
+export function BlogPostCard({ itemId, linkedPost, onGraduate, onShowSearch }: Props) {
   const router = useRouter()
   const [isGraduating, setIsGraduating] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [isUnlinking, setIsUnlinking] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!showMenu) return
+    function handleClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setShowMenu(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showMenu])
 
   const handleGraduate = useCallback(async () => {
     setIsGraduating(true)
     try {
-      await onGraduate()
+      const result = await onGraduate()
+      const entityId = result && 'entity_id' in result ? result.entity_id : undefined
       toast.success('Blog post criado', {
-        action: { label: 'Abrir editor →', onClick: () => {} },
+        action: entityId ? { label: 'Abrir editor →', onClick: () => window.open(`/cms/blog/${entityId}/edit`, '_blank') } : undefined,
       })
       router.refresh()
     } catch {
@@ -98,7 +107,7 @@ export function BlogPostCard({ itemId, itemVersion, siteId, linkedPost, onGradua
             >
               Abrir editor →
             </a>
-            <div className="relative ml-auto">
+            <div ref={menuRef} className="relative ml-auto">
               <button
                 onClick={() => setShowMenu(!showMenu)}
                 className="text-xs px-1.5 py-0.5 rounded hover:bg-white/5"

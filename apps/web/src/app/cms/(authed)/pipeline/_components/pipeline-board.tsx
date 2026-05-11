@@ -20,11 +20,14 @@ export function PipelineBoard({ format, items, collections }: PipelineBoardProps
   const collectionFilter = searchParams.get('collection')
   const langFilter = searchParams.get('lang')
   const priorityFilter = searchParams.get('priority')
+  const linkFilter = searchParams.get('link')
 
   const filtered = items.filter((item) => {
     if (collectionFilter && item.collection_code !== collectionFilter) return false
     if (langFilter && item.language !== langFilter) return false
     if (priorityFilter && item.priority !== Number(priorityFilter)) return false
+    if (linkFilter === 'linked' && !item.blog_post_id) return false
+    if (linkFilter === 'unlinked' && item.blog_post_id) return false
     return true
   })
 
@@ -33,7 +36,7 @@ export function PipelineBoard({ format, items, collections }: PipelineBoardProps
     return acc
   }, {})
 
-  const hasActiveFilters = !!(collectionFilter || langFilter || priorityFilter)
+  const hasActiveFilters = !!(collectionFilter || langFilter || priorityFilter || linkFilter)
   const noResults = filtered.length === 0 && hasActiveFilters
 
   return (

@@ -136,19 +136,23 @@ export async function searchBlogPostsForLink(
 
   if (!translations) return []
 
-  const postIds = translations.map((t: any) => t.post_id)
+  interface TranslationRow { post_id: string; title: string; locale: string; blog_posts: { status: string } | null }
+  const rows = translations as unknown as TranslationRow[]
+  const postIds = rows.map(t => t.post_id)
+
   const { data: linkedItems } = await svc
     .from('content_pipeline')
     .select('blog_post_id, code')
     .in('blog_post_id', postIds)
 
-  const linkMap = new Map((linkedItems ?? []).map((l: any) => [l.blog_post_id, l.code]))
+  interface LinkRow { blog_post_id: string; code: string }
+  const linkMap = new Map(((linkedItems ?? []) as unknown as LinkRow[]).map(l => [l.blog_post_id, l.code]))
 
-  return translations.map((t: any) => ({
-    id: t.post_id as string,
-    title: t.title as string,
-    locale: t.locale as string,
-    status: (t.blog_posts as any)?.status as string ?? 'draft',
-    linked_to_code: linkMap.get(t.post_id as string) ?? null,
+  return rows.map(t => ({
+    id: t.post_id,
+    title: t.title,
+    locale: t.locale,
+    status: t.blog_posts?.status ?? 'draft',
+    linked_to_code: linkMap.get(t.post_id) ?? null,
   }))
 }

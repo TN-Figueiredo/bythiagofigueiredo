@@ -1,8 +1,6 @@
 'use client'
 
-import React from 'react'
-
-const LOCALE_FLAGS: Record<string, string> = {
+export const LOCALE_FLAGS: Record<string, string> = {
   'pt-BR': '\u{1F1E7}\u{1F1F7}',
   en: '\u{1F1FA}\u{1F1F8}',
   es: '\u{1F1EA}\u{1F1F8}',
@@ -10,7 +8,7 @@ const LOCALE_FLAGS: Record<string, string> = {
   de: '\u{1F1E9}\u{1F1EA}',
 }
 
-const LOCALE_LABELS: Record<string, string> = {
+export const LOCALE_LABELS: Record<string, string> = {
   'pt-BR': 'PT-BR',
   en: 'EN',
   es: 'ES',

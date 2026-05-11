@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { GEM_CSS_VARS } from '@/lib/pipeline/gem-design'
 import { linkToPipelineItem, unlinkFromPipeline, searchPipelineItems } from './actions'
 
 interface PipelineItemInfo {
@@ -99,11 +100,11 @@ export function PipelinePill({ postId, siteId, initialItem }: Props) {
     }
   }, [postId])
 
-  const stageColor = item ? (STAGE_COLORS[item.stage] ?? '#6b7280') : undefined
+  const stageColor = item ? (STAGE_COLORS[item.stage] ?? GEM_CSS_VARS['--gem-dim']) : undefined
   const title = item ? (item.title_pt || item.title_en || 'Untitled') : null
 
   return (
-    <div ref={pillRef} className="relative inline-block mb-2">
+    <div ref={pillRef} className="relative inline-block mb-2" style={GEM_CSS_VARS as React.CSSProperties}>
       {item ? (
         <button
           onClick={() => setShowPopover(!showPopover)}
@@ -116,7 +117,7 @@ export function PipelinePill({ postId, siteId, initialItem }: Props) {
         <button
           onClick={() => setShowSearch(!showSearch)}
           className="text-xs px-2.5 py-1 rounded-full border border-dashed transition-colors hover:bg-white/5"
-          style={{ borderColor: '#374151', color: '#6b7280' }}
+          style={{ borderColor: 'var(--gem-border)', color: 'var(--gem-dim)' }}
         >
           + Pipeline
         </button>
@@ -125,24 +126,24 @@ export function PipelinePill({ postId, siteId, initialItem }: Props) {
       {showPopover && item && (
         <div
           className="absolute left-0 top-full mt-1 w-64 rounded-lg border p-3 z-50 shadow-lg"
-          style={{ backgroundColor: '#1e1e2e', borderColor: '#374151' }}
+          style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}
         >
-          <p className="text-xs font-medium" style={{ color: '#e5e7eb' }}>{title}</p>
+          <p className="text-xs font-medium" style={{ color: 'var(--gem-text)' }}>{title}</p>
           <div className="flex items-center gap-1.5 mt-1">
             <span className="text-[10px] px-1 py-0.5 rounded" style={{ backgroundColor: `${stageColor}20`, color: stageColor }}>{item.stage}</span>
-            <span className="text-[10px]" style={{ color: '#6b7280' }}>P{item.priority}</span>
+            <span className="text-[10px]" style={{ color: 'var(--gem-dim)' }}>P{item.priority}</span>
           </div>
-          <div className="flex items-center gap-2 mt-2 pt-2" style={{ borderTop: '1px solid #374151' }}>
-            <a href={`/cms/pipeline/items/${item.id}`} target="_blank" rel="noopener" className="text-xs" style={{ color: '#6366f1' }}>
+          <div className="flex items-center gap-2 mt-2 pt-2" style={{ borderTop: '1px solid var(--gem-border)' }}>
+            <a href={`/cms/pipeline/items/${item.id}`} target="_blank" rel="noopener" className="text-xs" style={{ color: 'var(--gem-accent)' }}>
               Abrir pipeline &rarr;
             </a>
             {showConfirm ? (
               <div className="ml-auto flex gap-1">
-                <button onClick={() => setShowConfirm(false)} className="text-[10px] px-1.5 py-0.5 rounded" style={{ color: '#6b7280' }}>Não</button>
-                <button onClick={handleUnlink} className="text-[10px] px-1.5 py-0.5 rounded" style={{ color: '#ef4444' }}>Sim, desvincular</button>
+                <button onClick={() => setShowConfirm(false)} className="text-[10px] px-1.5 py-0.5 rounded" style={{ color: 'var(--gem-dim)' }}>Não</button>
+                <button onClick={handleUnlink} className="text-[10px] px-1.5 py-0.5 rounded" style={{ color: 'var(--gem-danger)' }}>Sim, desvincular</button>
               </div>
             ) : (
-              <button onClick={() => setShowConfirm(true)} className="text-xs ml-auto" style={{ color: '#ef4444' }}>
+              <button onClick={() => setShowConfirm(true)} className="text-xs ml-auto" style={{ color: 'var(--gem-danger)' }}>
                 Desvincular
               </button>
             )}
@@ -153,21 +154,21 @@ export function PipelinePill({ postId, siteId, initialItem }: Props) {
       {showSearch && !item && (
         <div
           className="absolute left-0 top-full mt-1 w-80 rounded-lg border shadow-lg z-50"
-          style={{ backgroundColor: '#1e1e2e', borderColor: '#374151' }}
+          style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}
         >
-          <div className="p-2 border-b" style={{ borderColor: '#374151' }}>
+          <div className="p-2 border-b" style={{ borderColor: 'var(--gem-border)' }}>
             <input
               value={query}
               onChange={e => setQuery(e.target.value)}
               placeholder="Buscar por código ou título..."
               className="w-full bg-transparent text-xs outline-none"
-              style={{ color: '#e5e7eb' }}
+              style={{ color: 'var(--gem-text)' }}
               autoFocus
             />
           </div>
           <div className="max-h-48 overflow-y-auto p-1">
             {results.length === 0 && query && (
-              <p className="text-[11px] p-2 text-center" style={{ color: '#6b7280' }}>Nenhum item encontrado</p>
+              <p className="text-[11px] p-2 text-center" style={{ color: 'var(--gem-dim)' }}>Nenhum item encontrado</p>
             )}
             {results.map(r => {
               const disabled = !!r.blog_post_id
@@ -177,10 +178,10 @@ export function PipelinePill({ postId, siteId, initialItem }: Props) {
                   disabled={disabled || isLinking}
                   onClick={() => handleLink(r.id)}
                   className="w-full text-left px-2.5 py-1.5 rounded text-xs transition-colors hover:bg-white/5"
-                  style={{ opacity: disabled ? 0.4 : 1, cursor: disabled ? 'not-allowed' : 'pointer', color: '#e5e7eb' }}
+                  style={{ opacity: disabled ? 0.4 : 1, cursor: disabled ? 'not-allowed' : 'pointer', color: 'var(--gem-text)' }}
                   title={disabled ? 'Já vinculado a outro post' : undefined}
                 >
-                  <span className="font-mono text-[10px] mr-1.5" style={{ color: '#6366f1' }}>{r.code}</span>
+                  <span className="font-mono text-[10px] mr-1.5" style={{ color: 'var(--gem-accent)' }}>{r.code}</span>
                   {r.title}
                 </button>
               )

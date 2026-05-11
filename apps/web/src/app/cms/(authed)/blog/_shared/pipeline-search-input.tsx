@@ -117,7 +117,7 @@ export function PipelineSearchInput({ onSearch, onSelect, mode }: PipelineSearch
   }
 
   return (
-    <div ref={containerRef} className="relative" style={{ minWidth: 240 }}>
+    <div ref={containerRef} className="relative min-w-60">
       {/* Input */}
       <div
         className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[#222d40] bg-[#0c1222] focus-within:border-[#6366f1] transition-colors"
@@ -129,6 +129,7 @@ export function PipelineSearchInput({ onSearch, onSelect, mode }: PipelineSearch
           aria-autocomplete="list"
           aria-expanded={isOpen}
           aria-controls="pipeline-search-results"
+          aria-activedescendant={selectedIndex >= 0 && availableItems[selectedIndex] ? `pipeline-opt-${availableItems[selectedIndex].id}` : undefined}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value)
@@ -152,8 +153,7 @@ export function PipelineSearchInput({ onSearch, onSelect, mode }: PipelineSearch
           id="pipeline-search-results"
           role="listbox"
           aria-label="Pipeline search results"
-          className="absolute left-0 right-0 top-full z-10 mt-1 overflow-hidden rounded-lg border border-[#222d40] bg-[#161d2d] shadow-[0_8px_24px_rgba(0,0,0,0.5)]"
-          style={{ minWidth: 320 }}
+          className="absolute left-0 right-0 top-full z-10 mt-1 min-w-80 overflow-hidden rounded-lg border border-[#222d40] bg-[#161d2d] shadow-[0_8px_24px_rgba(0,0,0,0.5)]"
         >
           {results.length === 0 ? (
             <div className="px-4 py-5 text-center">
@@ -162,7 +162,7 @@ export function PipelineSearchInput({ onSearch, onSelect, mode }: PipelineSearch
             </div>
           ) : (
             <ul>
-              {results.map((item, idx) => {
+              {results.map((item) => {
                 const isLinked = !!item.blog_post_id
                 const fmtConfig = getFormatIcon(item.format as Parameters<typeof getFormatIcon>[0])
                 const pConfig = getPriorityConfig(item.priority)
@@ -171,6 +171,7 @@ export function PipelineSearchInput({ onSearch, onSelect, mode }: PipelineSearch
                 return (
                   <li
                     key={item.id}
+                    id={`pipeline-opt-${item.id}`}
                     role="option"
                     aria-selected={isHighlighted}
                     aria-disabled={isLinked}

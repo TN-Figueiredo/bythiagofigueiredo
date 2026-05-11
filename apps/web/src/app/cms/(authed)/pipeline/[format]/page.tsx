@@ -63,7 +63,7 @@ export default async function FormatBoardPage({ params }: { params: Promise<{ fo
       newsletter_edition_id: item.newsletter_edition_id, campaign_id: item.campaign_id,
       is_archived: item.is_archived, validation_score: score.overall,
       dependencies: [], collection_code: collectionCode,
-      linked_post_status: (item as any).blog_posts?.status ?? null,
+      linked_post_status: (item as unknown as { blog_posts?: { status: string } | null }).blog_posts?.status ?? null,
     }
   })
 

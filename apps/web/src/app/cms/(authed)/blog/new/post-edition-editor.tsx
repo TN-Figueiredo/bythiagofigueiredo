@@ -43,7 +43,7 @@ import { getValidTargets } from '../_hub/hub-utils'
 import { ScheduleModal } from '../_tabs/editorial/schedule-modal'
 import { formatTagNameCms } from '../_hub/tag-locale'
 import { PipelinePill } from '../[id]/edit/pipeline-pill'
-import { LocaleToggle } from '../_shared/locale-toggle'
+import { LocaleToggle, LOCALE_FLAGS, LOCALE_LABELS } from '../_shared/locale-toggle'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -80,22 +80,6 @@ interface PostEditionEditorProps {
 }
 
 // ─── Constants ──────────────────────────────────────────────────────────────
-
-const LOCALE_FLAGS: Record<string, string> = {
-  'pt-BR': '\u{1F1E7}\u{1F1F7}',
-  en: '\u{1F1FA}\u{1F1F8}',
-  es: '\u{1F1EA}\u{1F1F8}',
-  fr: '\u{1F1EB}\u{1F1F7}',
-  de: '\u{1F1E9}\u{1F1EA}',
-}
-
-const LOCALE_LABELS: Record<string, string> = {
-  'pt-BR': 'PT-BR',
-  en: 'EN',
-  es: 'ES',
-  fr: 'FR',
-  de: 'DE',
-}
 
 const STATUS_STYLES: Record<string, { bg: string; text: string }> = {
   idea: { bg: 'rgba(156,163,175,0.15)', text: '#9ca3af' },

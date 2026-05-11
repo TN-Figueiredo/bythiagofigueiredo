@@ -25,7 +25,7 @@ Object.defineProperty(navigator, 'clipboard', {
 // Fixtures
 // ---------------------------------------------------------------------------
 
-import { PromptGeneratorModal } from '@/app/cms/(authed)/pipeline/_components/prompt-generator-modal'
+import { PromptGeneratorModal, generatePrompt } from '@/app/cms/(authed)/pipeline/_components/prompt-generator-modal'
 import type {
   PipelineItemForPrompt,
   SectionForPrompt,
@@ -119,5 +119,58 @@ describe('PromptGeneratorModal', () => {
     const cancelBtn = screen.getByRole('button', { name: /cancelar/i })
     fireEvent.click(cancelBtn)
     expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('has role="dialog" and aria-modal', () => {
+    render(<PromptGeneratorModal {...defaultProps} />)
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toBeTruthy()
+    expect(dialog.getAttribute('aria-modal')).toBe('true')
+  })
+})
+
+describe('generatePrompt (pure function)', () => {
+  it('returns text with item code and context', () => {
+    const result = generatePrompt(baseItem, baseSections, 'en')
+    expect(result.text).toContain('VID-042')
+    expect(result.text).toContain('title_en: (vazio)')
+    expect(result.text).toContain('Possui apenas versão pt-br')
+  })
+
+  it('includes hook and synopsis when present', () => {
+    const result = generatePrompt(baseItem, baseSections, 'en')
+    expect(result.text).toContain('Hook: Você não precisa de câmera cara')
+    expect(result.text).toContain('Synopsis: Guia prático para iniciantes')
+  })
+
+  it('omits hook/synopsis lines when null', () => {
+    const itemNoHook = { ...baseItem, hook: null, synopsis: null }
+    const result = generatePrompt(itemNoHook, baseSections, 'en')
+    expect(result.text).not.toContain('Hook:')
+    expect(result.text).not.toContain('Synopsis:')
+  })
+
+  it('truncates sections over 500 chars and sets wasTruncated', () => {
+    const longSections: SectionForPrompt[] = [
+      { section_type: 'body', language: 'pt-br', content: 'X'.repeat(600) },
+    ]
+    const result = generatePrompt(baseItem, longSections, 'en')
+    expect(result.wasTruncated).toBe(true)
+    expect(result.text).toContain('...')
+    expect(result.text).not.toContain('X'.repeat(600))
+  })
+
+  it('generates correct direction for pt-br target', () => {
+    const itemEn = { ...baseItem, language: 'en' as const, title_en: 'Pro video', title_pt: null }
+    const result = generatePrompt(itemEn, [], 'pt-br')
+    expect(result.text).toContain('Possui apenas versão en')
+    expect(result.text).toContain('title_pt: (vazio)')
+    expect(result.text).toContain('Crie a versão Português (PT-BR)')
+  })
+
+  it('returns accurate word count', () => {
+    const result = generatePrompt(baseItem, [], 'en')
+    const manualCount = result.text.split(/\s+/).filter(Boolean).length
+    expect(result.wordCount).toBe(manualCount)
   })
 })

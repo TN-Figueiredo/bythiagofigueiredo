@@ -286,7 +286,7 @@ export async function searchBlogPostsAction(siteId: string, query: string): Prom
   status: string
   linked_to_code: string | null
 }>> {
-  'use server'
+  await requireEditAccess()
   const { searchBlogPostsForLink } = await import('@/lib/pipeline/blog-link')
   return searchBlogPostsForLink(siteId, query)
 }

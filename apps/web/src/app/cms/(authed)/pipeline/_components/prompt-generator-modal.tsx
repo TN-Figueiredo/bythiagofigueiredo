@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
 import { getFormatIcon } from '@/lib/pipeline/gem-design'
 
@@ -55,7 +55,7 @@ interface GenerateResult {
   wasTruncated: boolean
 }
 
-function generatePrompt(
+export function generatePrompt(
   item: PipelineItemForPrompt,
   sections: SectionForPrompt[],
   targetLocale: 'pt-br' | 'en',
@@ -141,9 +141,9 @@ export function PromptGeneratorModal({
   targetLocale,
   onClose,
 }: PromptGeneratorModalProps) {
-  const { text: initialText, wordCount, wasTruncated } = generatePrompt(item, sections, targetLocale)
+  const { text: initialText, wasTruncated } = generatePrompt(item, sections, targetLocale)
   const [promptText, setPromptText] = useState(initialText)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const wordCount = useMemo(() => promptText.split(/\s+/).filter(Boolean).length, [promptText])
 
   const formatInfo = getFormatIcon(item.format as Parameters<typeof getFormatIcon>[0])
 
@@ -152,13 +152,33 @@ export function PromptGeneratorModal({
   const targetTitle = targetLocale === 'en' ? 'English' : 'Português'
 
   async function handleCopy() {
-    await navigator.clipboard.writeText(promptText)
-    toast.success('Prompt copiado')
+    try {
+      await navigator.clipboard.writeText(promptText)
+      toast.success('Prompt copiado')
+    } catch {
+      toast.error('Falha ao copiar — copie manualmente')
+    }
   }
 
+  useEffect(() => {
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [onClose])
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-full max-w-lg rounded-lg border border-[#222d40] bg-[#161d2d] p-4 shadow-xl">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Adicionar versão ${targetTitle} — ${item.code}`}
+        className="w-full max-w-lg rounded-lg border border-[#222d40] bg-[#161d2d] p-4 shadow-xl"
+      >
         {/* Header */}
         <div className="mb-3">
           <div className="flex items-center gap-2">
@@ -181,12 +201,12 @@ export function PromptGeneratorModal({
 
         {/* Textarea */}
         <textarea
-          ref={textareaRef}
           role="textbox"
+          rows={10}
           value={promptText}
           onChange={(e) => setPromptText(e.target.value)}
           className="w-full rounded border border-[#222d40] bg-[#0c1222] p-3 font-mono text-xs text-[#edf2f7] outline-none focus:border-[#6366f1]"
-          style={{ maxHeight: '200px', overflowY: 'auto', resize: 'vertical' }}
+          style={{ maxHeight: '280px', overflowY: 'auto', resize: 'vertical' }}
           spellCheck={false}
         />
 
