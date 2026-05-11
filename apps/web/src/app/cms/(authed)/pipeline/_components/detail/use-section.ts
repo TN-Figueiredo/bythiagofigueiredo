@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useRef } from 'react'
+import { toast } from 'sonner'
 import type { SectionData } from '@/lib/pipeline/sections'
 
 interface UseSectionOptions {
@@ -27,6 +28,7 @@ interface UseSectionReturn {
   source: string | null
   edited: boolean
   coworkRev: number | null
+  updatedAt: string | null
 }
 
 export function useSection({ itemId, sectionKey, initialData, itemVersion, onSaveSuccess }: UseSectionOptions): UseSectionReturn {
@@ -37,11 +39,17 @@ export function useSection({ itemId, sectionKey, initialData, itemVersion, onSav
   const [isSaving, setIsSaving] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [conflict, setConflict] = useState<UseSectionReturn['conflict']>(null)
-  const [source] = useState(initialData?.source ?? null)
+  const [source, setSource] = useState(initialData?.source ?? null)
   const [edited, setEdited] = useState(initialData?.edited ?? false)
-  const [coworkRev] = useState(initialData?.cowork_rev ?? null)
+  const [coworkRev, setCoworkRev] = useState(initialData?.cowork_rev ?? null)
+  const [updatedAt, setUpdatedAt] = useState(initialData?.updated_at ?? null)
+
   const contentRef = useRef(content)
   contentRef.current = content
+  const revRef = useRef(rev)
+  revRef.current = rev
+  const versionRef = useRef(version)
+  versionRef.current = version
 
   const setContent = useCallback((newContent: SectionData['content']) => {
     setContentState(newContent)
@@ -70,45 +78,64 @@ export function useSection({ itemId, sectionKey, initialData, itemVersion, onSav
     try {
       const res = await fetch(`/api/pipeline/items/${itemId}/sections/${sectionBase}?lang=${lang}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'If-Match': String(version) },
-        body: JSON.stringify({ content: contentRef.current, rev, source: 'user' }),
+        headers: { 'Content-Type': 'application/json', 'If-Match': String(versionRef.current) },
+        body: JSON.stringify({ content: contentRef.current, rev: revRef.current, source: 'user' }),
       })
 
       if (res.status === 409) {
-        const error = await res.json()
-        if (error.error?.current_rev !== undefined) {
-          const remoteRes = await fetch(`/api/pipeline/items/${itemId}/sections/${sectionBase}?lang=${lang}`)
-          if (remoteRes.ok) {
-            const remote = await remoteRes.json()
-            setConflict({ remoteData: remote.data as SectionData, localContent: contentRef.current })
-          }
+        const remoteRes = await fetch(`/api/pipeline/items/${itemId}/sections/${sectionBase}?lang=${lang}`)
+        if (remoteRes.ok) {
+          const remote = await remoteRes.json()
+          setConflict({ remoteData: remote.data as SectionData, localContent: contentRef.current })
+          setVersion(remote.meta.item_version as number)
+          versionRef.current = remote.meta.item_version as number
         }
+        toast.error('Conflito detectado. Revise as diferenças.')
         return
       }
 
-      if (!res.ok) throw new Error('Save failed')
+      if (!res.ok) {
+        toast.error('Erro ao salvar seção. Tente novamente.')
+        return
+      }
 
       const { data, meta } = await res.json()
-      setRev(data.rev as number)
-      setVersion(meta.item_version as number)
+      const newRev = data.rev as number
+      const newVersion = meta.item_version as number
+      setRev(newRev)
+      revRef.current = newRev
+      setVersion(newVersion)
+      versionRef.current = newVersion
+      setSource(data.source as string)
+      setEdited(data.edited as boolean)
+      setCoworkRev((data.cowork_rev as number | null) ?? null)
+      setUpdatedAt(data.updated_at as string)
       setIsDirty(false)
-      onSaveSuccess?.(data.rev as number, meta.item_version as number)
+      toast.success('Seção salva')
+      onSaveSuccess?.(newRev, newVersion)
     } finally {
       setIsSaving(false)
     }
-  }, [isDirty, isSaving, itemId, sectionKey, version, rev, onSaveSuccess, extractLangFromKey, extractSectionBase])
+  }, [isDirty, isSaving, itemId, sectionKey, onSaveSuccess, extractLangFromKey, extractSectionBase])
 
   const acceptRemote = useCallback(() => {
     if (!conflict) return
     setContentState(conflict.remoteData.content)
     setRev(conflict.remoteData.rev)
+    revRef.current = conflict.remoteData.rev
+    setSource(conflict.remoteData.source)
+    setEdited(conflict.remoteData.edited)
+    setCoworkRev(conflict.remoteData.cowork_rev ?? null)
+    setUpdatedAt(conflict.remoteData.updated_at)
     setIsDirty(false)
     setConflict(null)
   }, [conflict])
 
   const keepLocal = useCallback(async () => {
     if (!conflict) return
-    setRev(conflict.remoteData.rev)
+    const newRev = conflict.remoteData.rev
+    setRev(newRev)
+    revRef.current = newRev
     setConflict(null)
     await save()
   }, [conflict, save])
@@ -118,6 +145,6 @@ export function useSection({ itemId, sectionKey, initialData, itemVersion, onSav
   return {
     content, rev, isDirty, isSaving, isEditing, conflict,
     setContent, setIsEditing, save, acceptRemote, keepLocal, dismissConflict,
-    source, edited, coworkRev,
+    source, edited, coworkRev, updatedAt,
   }
 }

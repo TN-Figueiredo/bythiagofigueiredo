@@ -66,7 +66,6 @@ interface SectionPanelProps {
 }
 
 function SectionPanel({ sectionDef, activeSub, lang, itemId, itemVersion, itemCode, itemTitle, sections }: SectionPanelProps) {
-  // Determine leaf section type to render
   const sectionType = sectionDef.subSections
     ? (activeSub ?? sectionDef.subSections[0]?.key ?? sectionDef.key)
     : sectionDef.key
@@ -76,28 +75,31 @@ function SectionPanel({ sectionDef, activeSub, lang, itemId, itemVersion, itemCo
 
   const section = useSection({ itemId, sectionKey, initialData: sectionData, itemVersion })
   const [showCowork, setShowCowork] = useState(false)
+  const panelRef = useRef<HTMLDivElement>(null)
 
-  // Listen for ⌘S custom event
+  useEffect(() => {
+    if (panelRef.current) panelRef.current.dataset.sectionDirty = String(section.isDirty)
+  }, [section.isDirty])
+
   useEffect(() => {
     const handler = () => { void section.save() }
     document.addEventListener('pipeline:save-section', handler)
     return () => document.removeEventListener('pipeline:save-section', handler)
   }, [section.save])
 
-  // Listen for ⌘E custom event
   useEffect(() => {
     const handler = () => section.setIsEditing(!section.isEditing)
     document.addEventListener('pipeline:toggle-edit', handler)
     return () => document.removeEventListener('pipeline:toggle-edit', handler)
   }, [section.isEditing, section.setIsEditing])
 
-  // Resolve the active sub-definition (or use the top-level def)
   const activeDef = sectionDef.subSections?.find(s => s.key === sectionType) ?? sectionDef
   const isShared = activeDef.shared
   const title = activeDef.label_pt
 
   return (
     <div
+      ref={panelRef}
       className="rounded-lg border overflow-hidden"
       style={{ borderColor: 'var(--gem-border)', background: 'var(--gem-surface)' }}
       role="tabpanel"
@@ -121,6 +123,7 @@ function SectionPanel({ sectionDef, activeSub, lang, itemId, itemVersion, itemCo
       <CoworkRequestPanel
         isOpen={showCowork}
         onClose={() => setShowCowork(false)}
+        itemId={itemId}
         itemCode={itemCode}
         itemTitle={itemTitle}
         sectionLabel={title}
@@ -151,7 +154,7 @@ function SectionPanel({ sectionDef, activeSub, lang, itemId, itemVersion, itemCo
         <EmptySection sectionLabel={title} onRequestCowork={() => setShowCowork(true)} />
       )}
 
-      <SaveFooter isDirty={section.isDirty} rev={section.rev} />
+      <SaveFooter isDirty={section.isDirty} rev={section.rev} updatedAt={section.updatedAt ?? undefined} />
     </div>
   )
 }
@@ -190,16 +193,29 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
     }, 500)
   }, [item.id, item.version, router])
 
+  const [isAdvancing, setIsAdvancing] = useState(false)
+  const [isRetreating, setIsRetreating] = useState(false)
+
   async function handleAdvance() {
-    const result = await advancePipelineItem(item.id, item.version)
-    if (result.ok) { toast.success('Stage avançado'); router.refresh() }
-    else toast.error(result.error)
+    setIsAdvancing(true)
+    try {
+      const result = await advancePipelineItem(item.id, item.version)
+      if (result.ok) { toast.success('Stage avançado'); router.refresh() }
+      else toast.error(result.error)
+    } finally {
+      setIsAdvancing(false)
+    }
   }
 
   async function handleRetreat() {
-    const result = await retreatPipelineItem(item.id, item.version)
-    if (result.ok) { toast.success('Stage recuado'); router.refresh() }
-    else toast.error(result.error)
+    setIsRetreating(true)
+    try {
+      const result = await retreatPipelineItem(item.id, item.version)
+      if (result.ok) { toast.success('Stage recuado'); router.refresh() }
+      else toast.error(result.error)
+    } finally {
+      setIsRetreating(false)
+    }
   }
 
   async function handleArchive() {
@@ -330,11 +346,31 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
             ))}
           </div>
           <div className="flex gap-2">
-            <button onClick={handleRetreat} className="flex-1 text-xs py-1.5 rounded border transition-colors hover:bg-white/5" style={{ borderColor: 'var(--gem-border)', color: 'var(--gem-muted)' }}>
-              ← Retreat
+            <button
+              onClick={handleRetreat}
+              disabled={isRetreating || isAdvancing || currentPosition === 0}
+              className="flex-1 text-xs py-1.5 rounded border transition-colors hover:bg-white/5"
+              style={{
+                borderColor: 'var(--gem-border)',
+                color: 'var(--gem-muted)',
+                opacity: isRetreating || isAdvancing || currentPosition === 0 ? 0.4 : 1,
+                cursor: isRetreating || isAdvancing || currentPosition === 0 ? 'default' : 'pointer',
+              }}
+            >
+              {isRetreating ? '⏳ Recuando...' : '← Retreat'}
             </button>
-            <button onClick={handleAdvance} className="flex-1 text-xs py-1.5 rounded transition-opacity hover:opacity-80" style={{ backgroundColor: 'var(--gem-done)', color: 'white' }}>
-              Advance →
+            <button
+              onClick={handleAdvance}
+              disabled={isAdvancing || isRetreating}
+              className="flex-1 text-xs py-1.5 rounded transition-opacity hover:opacity-80"
+              style={{
+                backgroundColor: 'var(--gem-done)',
+                color: 'white',
+                opacity: isAdvancing || isRetreating ? 0.5 : 1,
+                cursor: isAdvancing || isRetreating ? 'default' : 'pointer',
+              }}
+            >
+              {isAdvancing ? '⏳ Avançando...' : 'Advance →'}
             </button>
           </div>
           {item.is_archived ? (

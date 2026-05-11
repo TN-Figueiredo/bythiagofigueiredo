@@ -1,6 +1,7 @@
 'use client'
 
 import type { RendererProps } from '../section-content'
+import { StatusBadge } from './status-badge'
 
 interface CrossRefRow {
   beat: string
@@ -20,29 +21,6 @@ function parseContent(content: RendererProps['content']): CrossRefContent {
   if (Array.isArray(content)) return { rows: content as CrossRefRow[] }
   if (content === null) return {}
   return content as CrossRefContent
-}
-
-const STATUS_STYLES: Record<string, { bg: string; color: string; label: string }> = {
-  RECORDED: { bg: 'rgba(34,197,94,0.15)', color: '#22c55e', label: 'Gravado' },
-  GRAVADO: { bg: 'rgba(34,197,94,0.15)', color: '#22c55e', label: 'Gravado' },
-  IMPROVISED: { bg: 'rgba(249,115,22,0.15)', color: '#f97316', label: 'Improvisado' },
-  IMPROVISADO: { bg: 'rgba(249,115,22,0.15)', color: '#f97316', label: 'Improvisado' },
-  COMPRESSED: { bg: 'rgba(6,182,212,0.15)', color: '#06b6d4', label: 'Comprimido' },
-  EXPANDIDO: { bg: 'rgba(6,182,212,0.15)', color: '#06b6d4', label: 'Expandido' },
-  'EDITADO MANUALMENTE': { bg: 'rgba(234,179,8,0.15)', color: '#eab308', label: 'Edit. Manual' },
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const key = status.toUpperCase()
-  const style = STATUS_STYLES[key] ?? { bg: 'rgba(255,255,255,0.05)', color: 'var(--gem-dim)', label: status }
-  return (
-    <span
-      className="text-[9px] px-1.5 py-0.5 rounded font-medium whitespace-nowrap"
-      style={{ background: style.bg, color: style.color }}
-    >
-      {style.label}
-    </span>
-  )
 }
 
 export function CrossRefRenderer({ content }: RendererProps) {

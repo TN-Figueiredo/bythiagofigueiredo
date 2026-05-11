@@ -150,8 +150,8 @@ export const GemCard = memo(function GemCard({ item }: { item: GemCardItem }) {
               blocked by {blocked.blockers[0]}
             </span>
           )}
-          {tags.map((t) => (
-            <span key={t.label} className={`text-[10px] px-1 py-0.5 rounded shrink-0 ${t.className}`}>
+          {tags.map((t, i) => (
+            <span key={`${t.label}-${i}`} className={`text-[10px] px-1 py-0.5 rounded shrink-0 ${t.className}`}>
               {t.label}
             </span>
           ))}

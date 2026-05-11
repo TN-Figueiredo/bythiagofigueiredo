@@ -5,6 +5,7 @@ import { useState, useCallback } from 'react'
 interface CoworkRequestPanelProps {
   isOpen: boolean
   onClose: () => void
+  itemId: string
   itemCode: string
   itemTitle: string
   sectionLabel: string
@@ -14,7 +15,7 @@ interface CoworkRequestPanelProps {
   placeholder: string
 }
 
-export function CoworkRequestPanel({ isOpen, onClose, itemCode, itemTitle, sectionLabel, sectionKey, lang, rev, placeholder }: CoworkRequestPanelProps) {
+export function CoworkRequestPanel({ isOpen, onClose, itemId, itemCode, itemTitle, sectionLabel, sectionKey, lang, rev, placeholder }: CoworkRequestPanelProps) {
   const [instructions, setInstructions] = useState('')
   const [copied, setCopied] = useState(false)
 
@@ -31,9 +32,9 @@ ${instructions.trim()}
 
 ---
 Use the pipeline API to:
-1. GET /api/pipeline/items/{id}/sections/${sectionBase}?lang=${lang}
+1. GET /api/pipeline/items/${itemId}/sections/${sectionBase}?lang=${lang}
 2. Apply the instructions above to the current content
-3. PATCH /api/pipeline/items/{id}/sections/${sectionBase} with updated content`
+3. PATCH /api/pipeline/items/${itemId}/sections/${sectionBase}?lang=${lang} with updated content`
     : ''
 
   const handleCopy = useCallback(() => {
@@ -76,7 +77,7 @@ Use the pipeline API to:
             className="px-2 py-0.5 text-[10px] font-semibold rounded"
             style={{ background: '#a78bfa', border: '1px solid #a78bfa', color: 'white', opacity: prompt ? 1 : 0.3 }}
           >
-            📋 Copiar prompt
+            Copiar prompt
           </button>
         </div>
       </div>

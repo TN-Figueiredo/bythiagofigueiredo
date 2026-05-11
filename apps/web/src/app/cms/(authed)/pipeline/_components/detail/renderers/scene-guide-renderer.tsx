@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { RendererProps } from '../section-content'
 
 interface SceneMusic {
@@ -83,8 +83,13 @@ function SubSection({ title, children }: { title: string; children: React.ReactN
   )
 }
 
-function SceneCard({ scene }: { scene: Scene }) {
+function SceneCard({ scene, expandAll }: { scene: Scene; expandAll: boolean }) {
   const [expanded, setExpanded] = useState(false)
+
+  useEffect(() => {
+    setExpanded(expandAll)
+  }, [expandAll])
+
   const statusStyle = scene.status ? (STATUS_STYLES[scene.status.toUpperCase()] ?? { bg: 'rgba(107,114,128,0.15)', color: '#9ca3af' }) : null
   const diffStyle = scene.difficulty ? (DIFFICULTY_STYLES[scene.difficulty.toUpperCase()] ?? null) : null
   const hasDecide = scene.decide_items && scene.decide_items.length > 0
@@ -245,9 +250,9 @@ export function SceneGuideRenderer({ content }: RendererProps) {
         </button>
       </div>
 
-      <div key={allExpanded ? 'expanded' : 'collapsed'} className="space-y-1.5">
+      <div className="space-y-1.5">
         {scenes.map((scene, i) => (
-          <SceneCard key={i} scene={scene} />
+          <SceneCard key={i} scene={scene} expandAll={allExpanded} />
         ))}
       </div>
     </div>

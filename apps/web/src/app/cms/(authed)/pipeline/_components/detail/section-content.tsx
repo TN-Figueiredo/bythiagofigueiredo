@@ -10,6 +10,7 @@ const SceneGuideRenderer = lazy(() => import('./renderers/scene-guide-renderer')
 const CrossRefRenderer = lazy(() => import('./renderers/crossref-renderer').then(m => ({ default: m.CrossRefRenderer })))
 const SpeedRampRenderer = lazy(() => import('./renderers/speedramp-renderer').then(m => ({ default: m.SpeedRampRenderer })))
 const PublishRenderer = lazy(() => import('./renderers/publish-renderer').then(m => ({ default: m.PublishRenderer })))
+const GenericRenderer = lazy(() => import('./renderers/generic-renderer').then(m => ({ default: m.GenericRenderer })))
 
 const REGISTRY: Record<string, React.LazyExoticComponent<React.ComponentType<RendererProps>>> = {
   ideia: IdeaRenderer,
@@ -43,14 +44,7 @@ function LoadingSkeleton() {
 }
 
 export function SectionContent({ sectionType, content, isEditing, lang, onContentChange }: SectionContentProps) {
-  const Renderer = REGISTRY[sectionType]
-  if (!Renderer) {
-    return (
-      <div className="p-5 text-xs" style={{ color: 'var(--gem-dim)' }}>
-        Renderer não encontrado para tipo: {sectionType}
-      </div>
-    )
-  }
+  const Renderer = REGISTRY[sectionType] ?? GenericRenderer
 
   return (
     <Suspense fallback={<LoadingSkeleton />}>
