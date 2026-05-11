@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import type { RendererProps } from '../section-content'
+import { TagPill, OptionalBadge, getTagColor } from './tokens'
+import { tokenizeText } from './parse-tokens'
+import { categorizeNote, type CategorizedNote } from './categorize-note'
 
 interface SceneMusic {
   search_terms?: string
@@ -75,6 +78,76 @@ const DIFFICULTY_STYLES: Record<string, { bg: string; color: string }> = {
   HARD: { bg: 'rgba(239,68,68,0.1)', color: '#fca5a5' },
 }
 
+/* ---------- Categorized Notes components ---------- */
+
+function groupByTimestamp(notes: CategorizedNote[]): { timestamp: string; notes: CategorizedNote[] }[] {
+  const map = new Map<string, CategorizedNote[]>()
+  for (const n of notes) {
+    const ts = n.timestamp!
+    if (!map.has(ts)) map.set(ts, [])
+    map.get(ts)!.push(n)
+  }
+  return Array.from(map.entries()).map(([timestamp, grouped]) => ({ timestamp, notes: grouped }))
+}
+
+function NoteLine({ note }: { note: CategorizedNote }) {
+  const textColor = getTagColor(note.category).text
+  return (
+    <div className="flex items-start gap-2 py-1 px-1 rounded transition-colors hover:bg-white/[0.03]">
+      <TagPill tag={note.category} />
+      <span className="text-[11px] leading-relaxed" style={{ color: textColor }}>
+        {note.isOptional && <OptionalBadge />}
+        {tokenizeText(note.text)}
+      </span>
+    </div>
+  )
+}
+
+function CategorizedNotes({ notes }: { notes: string[] }) {
+  const categorized = notes.map(n => categorizeNote(n))
+  const nonTemporal = categorized.filter(n => !n.timestamp)
+  const temporal = categorized.filter(n => n.timestamp)
+  const grouped = groupByTimestamp(temporal)
+
+  return (
+    <div>
+      {nonTemporal.map((n, i) => (
+        <NoteLine key={`nt-${i}`} note={n} />
+      ))}
+      {grouped.length > 0 && (
+        <div className="tl-strip relative pl-5 mt-1.5" style={{ paddingLeft: 20 }}>
+          <div
+            className="absolute left-[7px] top-0 bottom-0 w-px"
+            style={{ background: 'linear-gradient(180deg, rgba(129,140,248,0.19), rgba(129,140,248,0.06))' }}
+          />
+          {grouped.map((group, gi) => (
+            <div key={gi} className="tl-point relative py-1">
+              <div
+                className="absolute w-[7px] h-[7px] rounded-full"
+                style={{ left: -17, top: 10, background: 'rgba(129,140,248,0.25)', border: '1.5px solid #818cf8' }}
+              />
+              <span className="font-mono text-[10px] font-bold block mb-0.5" style={{ color: '#818cf8' }}>
+                {group.timestamp}
+              </span>
+              <div className="pl-0.5">
+                {group.notes.length > 1 ? (
+                  <div style={{ borderLeft: '1px solid var(--gem-border)', paddingLeft: 6 }}>
+                    {group.notes.map((n, ni) => <NoteLine key={ni} note={n} />)}
+                  </div>
+                ) : (
+                  <NoteLine note={group.notes[0]!} />
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ---------- SubSection ---------- */
+
 function SubSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
@@ -85,6 +158,8 @@ function SubSection({ title, children }: { title: string; children: React.ReactN
     </div>
   )
 }
+
+/* ---------- SceneCard ---------- */
 
 function SceneCard({ scene, expandAll }: { scene: Scene; expandAll: boolean }) {
   const [expanded, setExpanded] = useState(true)
@@ -118,7 +193,7 @@ function SceneCard({ scene, expandAll }: { scene: Scene; expandAll: boolean }) {
         <div className="flex items-center gap-1.5">
           {hasDecide && (
             <span className="text-[9px] px-1.5 py-0.5 rounded font-medium" style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171' }}>
-              ⚠ DECIDE
+              DECIDE
             </span>
           )}
           {statusStyle && scene.status && (
@@ -140,28 +215,27 @@ function SceneCard({ scene, expandAll }: { scene: Scene; expandAll: boolean }) {
       {expanded && (
         <div className="px-3 py-3 space-y-3 text-[11px]" style={{ borderTop: '1px solid var(--gem-border)' }}>
           {scene.narrative && (
-            <SubSection title="Narrativa">
-              <p className="m-0 leading-relaxed" style={{ color: 'var(--gem-muted)' }}>{scene.narrative}</p>
-            </SubSection>
+            <div
+              className="text-[11px] leading-snug italic pb-2 mb-2"
+              style={{ color: '#64748b', borderBottom: '1px solid var(--gem-border)' }}
+            >
+              {scene.narrative}
+            </div>
           )}
 
           {scene.edit_notes && scene.edit_notes.length > 0 && (
-            <SubSection title="Notas de Edição">
-              <ul className="pl-3.5 m-0 space-y-1">
-                {scene.edit_notes.map((note, i) => (
-                  <li key={i} className="leading-relaxed" style={{ color: 'var(--gem-muted)' }}>{note}</li>
-                ))}
-              </ul>
+            <SubSection title="Notas de Edicao">
+              <CategorizedNotes notes={scene.edit_notes} />
             </SubSection>
           )}
 
           {scene.music && (
-            <SubSection title="Música">
+            <SubSection title="Musica">
               <div className="space-y-0.5" style={{ color: 'var(--gem-muted)' }}>
-                {scene.music.search_terms && <div><span style={{ color: 'var(--gem-dim)' }}>Busca: </span>{scene.music.search_terms}</div>}
-                {scene.music.style && <div><span style={{ color: 'var(--gem-dim)' }}>Estilo: </span>{scene.music.style}</div>}
-                {scene.music.entry_cue && <div><span style={{ color: 'var(--gem-dim)' }}>Entrada: </span>{scene.music.entry_cue}</div>}
-                {scene.music.continuation && <div><span style={{ color: 'var(--gem-dim)' }}>Continuação: </span>{scene.music.continuation}</div>}
+                {scene.music.search_terms && <div><span style={{ color: 'var(--gem-dim)' }}>Busca: </span>{tokenizeText(scene.music.search_terms)}</div>}
+                {scene.music.style && <div><span style={{ color: 'var(--gem-dim)' }}>Estilo: </span>{tokenizeText(scene.music.style)}</div>}
+                {scene.music.entry_cue && <div><span style={{ color: 'var(--gem-dim)' }}>Entrada: </span>{tokenizeText(scene.music.entry_cue)}</div>}
+                {scene.music.continuation && <div><span style={{ color: 'var(--gem-dim)' }}>Continuacao: </span>{tokenizeText(scene.music.continuation)}</div>}
               </div>
             </SubSection>
           )}
@@ -173,7 +247,7 @@ function SceneCard({ scene, expandAll }: { scene: Scene; expandAll: boolean }) {
                   <div key={i} className="flex gap-2">
                     <span className="font-mono text-[10px] flex-shrink-0" style={{ color: 'var(--gem-accent)' }}>{fx.timestamp}</span>
                     <span style={{ color: 'var(--gem-muted)' }}>
-                      {fx.description}
+                      {tokenizeText(fx.description)}
                       {fx.search_terms && <span style={{ color: 'var(--gem-dim)' }}> — {fx.search_terms}</span>}
                     </span>
                   </div>
@@ -188,7 +262,7 @@ function SceneCard({ scene, expandAll }: { scene: Scene; expandAll: boolean }) {
                 {scene.overlays.map((ov, i) => (
                   <div key={i} className="flex gap-2">
                     <span className="font-mono text-[10px] flex-shrink-0" style={{ color: 'var(--gem-accent)' }}>{ov.timestamp}</span>
-                    <span style={{ color: 'var(--gem-muted)' }}>{ov.instruction}</span>
+                    <span style={{ color: 'var(--gem-muted)' }}>{tokenizeText(ov.instruction)}</span>
                   </div>
                 ))}
               </div>
@@ -201,7 +275,7 @@ function SceneCard({ scene, expandAll }: { scene: Scene; expandAll: boolean }) {
                 {scene.mix.map((m, i) => (
                   <div key={i} className="flex gap-1.5">
                     <span style={{ color: 'var(--gem-dim)' }}>{m.parameter}:</span>
-                    <span style={{ color: 'var(--gem-muted)' }}>{m.value}</span>
+                    <span style={{ color: 'var(--gem-muted)' }}>{tokenizeText(m.value)}</span>
                   </div>
                 ))}
               </div>
@@ -209,7 +283,7 @@ function SceneCard({ scene, expandAll }: { scene: Scene; expandAll: boolean }) {
           )}
 
           {scene.transition && (
-            <SubSection title="Transição">
+            <SubSection title="Transicao">
               <div style={{ color: 'var(--gem-muted)' }}>
                 <strong style={{ color: 'var(--gem-text)' }}>{scene.transition.type}</strong>
                 {scene.transition.reasoning && <span style={{ color: 'var(--gem-dim)' }}> — {scene.transition.reasoning}</span>}
@@ -220,7 +294,7 @@ function SceneCard({ scene, expandAll }: { scene: Scene; expandAll: boolean }) {
           {hasDecide && (
             <div className="p-2.5 rounded-md" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)' }}>
               <div className="text-[9px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#f87171' }}>
-                ⚠ Decisões pendentes
+                Decisoes pendentes
               </div>
               <ul className="pl-3.5 m-0 space-y-0.5">
                 {scene.decide_items!.map((item, i) => (
@@ -234,6 +308,8 @@ function SceneCard({ scene, expandAll }: { scene: Scene; expandAll: boolean }) {
     </div>
   )
 }
+
+/* ---------- Main renderer ---------- */
 
 export function SceneGuideRenderer({ content }: RendererProps) {
   const data = parseContent(content)
