@@ -1,6 +1,6 @@
 'use client'
 
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, Component, type ReactNode } from 'react'
 import type { SectionData } from '@/lib/pipeline/sections'
 
 const IdeaRenderer = lazy(() => import('./renderers/idea-renderer').then(m => ({ default: m.IdeaRenderer })))
@@ -33,6 +33,31 @@ interface SectionContentProps extends RendererProps {
   sectionType: string
 }
 
+class RendererErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state: { error: Error | null } = { error: null }
+  static getDerivedStateFromError(error: Error) { return { error } }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="p-5 text-center space-y-2">
+          <p className="text-[12px] font-medium" style={{ color: '#f87171' }}>Erro ao renderizar seção</p>
+          <pre className="text-[10px] p-3 rounded-md overflow-auto text-left" style={{ background: 'var(--gem-well)', color: 'var(--gem-dim)' }}>
+            {this.state.error.message}
+          </pre>
+          <button
+            className="text-[11px] px-3 py-1 rounded"
+            style={{ background: 'var(--gem-well)', color: 'var(--gem-muted)', border: '1px solid var(--gem-border)' }}
+            onClick={() => this.setState({ error: null })}
+          >
+            Tentar novamente
+          </button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
 function LoadingSkeleton() {
   return (
     <div className="p-5 space-y-3">
@@ -47,8 +72,10 @@ export function SectionContent({ sectionType, content, isEditing, lang, onConten
   const Renderer = REGISTRY[sectionType] ?? GenericRenderer
 
   return (
-    <Suspense fallback={<LoadingSkeleton />}>
-      <Renderer content={content} isEditing={isEditing} lang={lang} onContentChange={onContentChange} />
-    </Suspense>
+    <RendererErrorBoundary>
+      <Suspense fallback={<LoadingSkeleton />}>
+        <Renderer content={content} isEditing={isEditing} lang={lang} onContentChange={onContentChange} />
+      </Suspense>
+    </RendererErrorBoundary>
   )
 }

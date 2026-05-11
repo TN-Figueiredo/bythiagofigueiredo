@@ -48,7 +48,7 @@ export function PublishRenderer({ content, isEditing, onContentChange }: Rendere
 
   return (
     <div className="p-5 space-y-4">
-      {data.title && (
+      {data.title && typeof data.title === 'object' && 'chosen' in data.title && (
         <div>
           <SectionLabel>Título</SectionLabel>
           <div

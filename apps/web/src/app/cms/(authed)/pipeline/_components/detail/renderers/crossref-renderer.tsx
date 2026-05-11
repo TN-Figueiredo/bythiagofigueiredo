@@ -13,6 +13,7 @@ interface CrossRefRow {
 
 interface CrossRefContent {
   rows?: CrossRefRow[]
+  beats?: CrossRefRow[]
   divergences?: string[]
 }
 
@@ -25,7 +26,7 @@ function parseContent(content: RendererProps['content']): CrossRefContent {
 
 export function CrossRefRenderer({ content }: RendererProps) {
   const data = parseContent(content)
-  const rows = data.rows ?? []
+  const rows = data.rows ?? data.beats ?? []
   const divergences = data.divergences ?? []
 
   if (rows.length === 0) {

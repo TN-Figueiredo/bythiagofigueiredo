@@ -12,6 +12,8 @@ interface SpeedRampRow {
 
 interface SpeedRampContent {
   rows?: SpeedRampRow[]
+  ramps?: SpeedRampRow[]
+  segments?: SpeedRampRow[]
 }
 
 function parseContent(content: RendererProps['content']): SpeedRampContent {
@@ -73,7 +75,7 @@ function SpeedBadge({ speed }: { speed: string }) {
 
 export function SpeedRampRenderer({ content }: RendererProps) {
   const data = parseContent(content)
-  const rows = data.rows ?? []
+  const rows = data.rows ?? data.ramps ?? data.segments ?? []
 
   if (rows.length === 0) {
     return (
