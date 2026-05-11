@@ -36,13 +36,14 @@ import { CROP_PRESETS } from '../../_shared/media/types'
 import { StructuredFields } from '../_shared/structured-fields'
 import { HashtagInput } from '../_shared/hashtag-input'
 import { SeriesFields } from '../_shared/series-fields'
-import { createPost, deleteHubPost, duplicatePost, changeTranslationLocale, removeTranslationLocale, movePost, createTag } from '../actions'
+import { createPost, deleteHubPost, duplicatePost, removeTranslationLocale, movePost, createTag, addLocale } from '../actions'
 import { savePost, saveCoverImage, uploadAsset, searchPosts } from '../[id]/edit/actions'
 import type { SavePostActionInput } from '../[id]/edit/actions'
 import { getValidTargets } from '../_hub/hub-utils'
 import { ScheduleModal } from '../_tabs/editorial/schedule-modal'
 import { formatTagNameCms } from '../_hub/tag-locale'
 import { PipelinePill } from '../[id]/edit/pipeline-pill'
+import { LocaleToggle } from '../_shared/locale-toggle'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -266,19 +267,6 @@ function TagSelector({
         </div>
       )}
     </div>
-  )
-}
-
-// ─── Locale Pill ────────────────────────────────────────────────────────────
-
-function LocalePill({ locale }: { locale: string }) {
-  const flag = LOCALE_FLAGS[locale] ?? '\u{1F310}'
-  const label = LOCALE_LABELS[locale] ?? locale.toUpperCase()
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-[#1f2937] px-2.5 py-0.5 text-[10px] font-medium text-[#d1d5db]">
-      <span className="text-xs">{flag}</span>
-      {label}
-    </span>
   )
 }
 
@@ -892,17 +880,6 @@ export function PostEditionEditor({
     }
   }
 
-  async function handleChangeLocale(toLocale: string) {
-    if (!postId) return
-    const result = await changeTranslationLocale(postId, locale, toLocale)
-    if (result.ok) {
-      toast.success('Locale changed')
-      router.push(`/cms/blog/${postId}/edit`)
-    } else {
-      toast.error(result.error === 'locale_exists' ? 'Locale already exists' : 'Failed to change locale')
-    }
-  }
-
   async function handleRemoveLocale() {
     if (!postId) return
     const result = await removeTranslationLocale(postId, locale)
@@ -915,7 +892,6 @@ export function PostEditionEditor({
   }
 
   const allExistingLocales = initExistingLocales ?? [locale]
-  const changeLocaleTargets = supportedLocales.filter(l => l !== locale && !allExistingLocales.includes(l))
   const canRemoveLocale = allExistingLocales.length > 1
 
   // ── Status transitions ───────────────────────────────────────────────────
@@ -1071,7 +1047,26 @@ export function PostEditionEditor({
           </Link>
           <div className="w-px h-5 bg-[#1f2937] shrink-0" />
 
-          <LocalePill locale={locale} />
+          <LocaleToggle
+            currentLocale={locale}
+            existingLocales={initExistingLocales ?? [locale]}
+            supportedLocales={supportedLocales}
+            isPostPersisted={!!postId}
+            isSaving={saveState === 'saving'}
+            onSwitchLocale={(toLocale) => {
+              router.push(`/cms/blog/${postId}/edit?locale=${toLocale}`)
+            }}
+            onAddLocale={async (newLocale) => {
+              if (!postId) return
+              const result = await addLocale(postId, newLocale)
+              if (result.ok) {
+                toast.success('Locale added')
+                router.push(`/cms/blog/${postId}/edit?locale=${newLocale}`)
+              } else {
+                toast.error(result.error === 'locale_exists' ? 'Locale already exists' : 'Failed to add locale')
+              }
+            }}
+          />
 
           <TagSelector
             tags={allTags}
@@ -1161,8 +1156,6 @@ export function PostEditionEditor({
               status={currentStatus}
               onDuplicate={handleDuplicate}
               onDelete={() => setShowDeleteModal(true)}
-              changeLocaleTargets={changeLocaleTargets}
-              onChangeLocale={handleChangeLocale}
               canRemoveLocale={canRemoveLocale}
               onRemoveLocale={handleRemoveLocale}
             />
