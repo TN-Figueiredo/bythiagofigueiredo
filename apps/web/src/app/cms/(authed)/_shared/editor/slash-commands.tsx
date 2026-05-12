@@ -16,6 +16,7 @@ import {
   Heading1,
   Heading2,
   Heading3,
+  Heading4,
   List,
   ListOrdered,
   Quote,
@@ -30,6 +31,11 @@ import {
   Github,
   Code2,
   Braces,
+  MessageSquare,
+  ChevronRight,
+  Columns2,
+  TableIcon,
+  CheckSquare,
 } from 'lucide-react'
 
 interface CommandItem {
@@ -44,6 +50,11 @@ function getSlashCommands(callbacks: {
   onInsertCTAButton: () => void
   onInsertMergeTag: (tag: string) => void
   onInsertSocialEmbed: (provider: EmbedProvider, url: string) => void
+  onInsertCallout: () => void
+  onInsertToggle: () => void
+  onInsertColumns: () => void
+  onInsertTable: () => void
+  onInsertChecklist: () => void
 }): CommandItem[] {
   return [
     {
@@ -191,6 +202,59 @@ function getSlashCommands(callbacks: {
         callbacks.onInsertSocialEmbed('github', '')
       },
     },
+    {
+      title: 'Heading 4',
+      description: 'Label heading',
+      icon: <Heading4 size={18} />,
+      command: ({ editor, range }) => {
+        editor.chain().focus().deleteRange(range).setHeading({ level: 4 }).run()
+      },
+    },
+    {
+      title: 'Callout',
+      description: 'Info/warning/tip box',
+      icon: <MessageSquare size={18} />,
+      command: ({ editor, range }) => {
+        editor.chain().focus().deleteRange(range).run()
+        callbacks.onInsertCallout()
+      },
+    },
+    {
+      title: 'Toggle',
+      description: 'Expandable section',
+      icon: <ChevronRight size={18} />,
+      command: ({ editor, range }) => {
+        editor.chain().focus().deleteRange(range).run()
+        callbacks.onInsertToggle()
+      },
+    },
+    {
+      title: 'Columns',
+      description: '2-3 column layout',
+      icon: <Columns2 size={18} />,
+      command: ({ editor, range }) => {
+        editor.chain().focus().deleteRange(range).run()
+        callbacks.onInsertColumns()
+      },
+    },
+    {
+      title: 'Table',
+      description: 'Insert a table',
+      icon: <TableIcon size={18} />,
+      command: ({ editor, range }) => {
+        editor.chain().focus().deleteRange(range).run()
+        callbacks.onInsertTable()
+      },
+    },
+    {
+      title: 'Checklist',
+      description: 'Task checklist',
+      icon: <CheckSquare size={18} />,
+      command: ({ editor, range }) => {
+        editor.chain().focus().deleteRange(range).run()
+        callbacks.onInsertChecklist()
+      },
+    },
   ]
 }
 
@@ -275,6 +339,11 @@ function createSuggestionConfig(callbacks: {
   onInsertCTAButton: () => void
   onInsertMergeTag: (tag: string) => void
   onInsertSocialEmbed: (provider: EmbedProvider, url: string) => void
+  onInsertCallout: () => void
+  onInsertToggle: () => void
+  onInsertColumns: () => void
+  onInsertTable: () => void
+  onInsertChecklist: () => void
 }): Omit<SuggestionOptions<CommandItem>, 'editor'> {
   return {
     char: '/',
@@ -352,6 +421,11 @@ export function createSlashCommandExtension(callbacks: {
   onInsertCTAButton: () => void
   onInsertMergeTag: (tag: string) => void
   onInsertSocialEmbed: (provider: EmbedProvider, url: string) => void
+  onInsertCallout: () => void
+  onInsertToggle: () => void
+  onInsertColumns: () => void
+  onInsertTable: () => void
+  onInsertChecklist: () => void
 }) {
   return Extension.create({
     name: 'slashCommand',

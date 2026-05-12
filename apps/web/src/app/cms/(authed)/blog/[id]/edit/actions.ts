@@ -11,6 +11,8 @@ import { revalidateBlogPostSeo } from '@/lib/seo/cache-invalidation'
 import { parseMdxFrontmatter, SeoExtrasValidationError } from '@/lib/seo/frontmatter'
 import { uploadMediaAsset } from '@/lib/media/upload'
 import { trackMediaUsage } from '@/lib/media/track-usage'
+import { compileJsonContent } from '@/lib/cms/compile-json'
+import type { JSONContent } from '@tiptap/core'
 import type { ZodIssue } from 'zod'
 
 export interface SavePostActionInput {
@@ -61,6 +63,66 @@ export async function savePost(
   }
 
   const { siteId } = await requireSiteAdminForRow('blog_posts', id)
+
+  // TipTap JSON path — compile JSON to HTML, skip MDX pipeline entirely
+  if (input.content_json && Object.keys(input.content_json).length > 0) {
+    const compiled = await compileJsonContent(input.content_json as JSONContent)
+
+    try {
+      await postRepo().update(id, {
+        ...(input.cover_image_url !== undefined ? { cover_image_url: input.cover_image_url } : {}),
+        translation: {
+          locale,
+          title: input.title,
+          slug: input.slug,
+          excerpt: input.excerpt ?? null,
+          content_mdx: input.content_mdx || undefined,
+          content_compiled: null,
+          content_toc: compiled.toc,
+          reading_time_min: compiled.readingTimeMin,
+          ...(input.meta_title !== undefined ? { meta_title: input.meta_title } : {}),
+          ...(input.meta_description !== undefined ? { meta_description: input.meta_description } : {}),
+          ...(input.og_image_url !== undefined ? { og_image_url: input.og_image_url } : {}),
+        },
+      })
+    } catch (e) {
+      return { ok: false, error: 'db_error' as const, message: e instanceof Error ? e.message : String(e) }
+    }
+
+    {
+      const supabase = getSupabaseServiceClient()
+      await supabase
+        .from('blog_translations')
+        .update({
+          content_json: input.content_json,
+          content_html: compiled.html,
+        })
+        .eq('post_id', id)
+        .eq('locale', locale)
+    }
+
+    {
+      const supabase = getSupabaseServiceClient()
+      const postPatch: Record<string, unknown> = { locale }
+      if (input.tag_id !== undefined) postPatch.tag_id = input.tag_id
+      if (input.previous_post_id !== undefined) postPatch.previous_post_id = input.previous_post_id || null
+      if (input.continues_in_next !== undefined) postPatch.continues_in_next = input.continues_in_next
+      await supabase.from('blog_posts').update(postPatch).eq('id', id)
+    }
+
+    if (input.hashtag_ids !== undefined) {
+      const supabase = getSupabaseServiceClient()
+      await supabase.from('post_hashtags').delete().eq('post_id', id)
+      if (input.hashtag_ids.length > 0) {
+        const rows = input.hashtag_ids.map(hid => ({ post_id: id, hashtag_id: hid }))
+        await supabase.from('post_hashtags').insert(rows)
+      }
+    }
+
+    revalidateBlogPostSeo(siteId, id, locale, input.slug)
+    revalidateTag('blog-hub')
+    return { ok: true, postId: id }
+  }
 
   // Sprint 5b PR-C: parse YAML frontmatter (seo_extras) BEFORE compile.
   // Stripped content is what we compile + persist so the editor doesn't

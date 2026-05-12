@@ -5,7 +5,7 @@ import { NodeViewWrapper, ReactNodeViewRenderer, type ReactNodeViewProps } from 
 import { useState, useCallback } from 'react'
 import { ExternalLink, Pencil, Loader2, Trash2 } from 'lucide-react'
 
-type EmbedProvider = 'youtube' | 'twitter' | 'instagram' | 'codesandbox' | 'codepen' | 'github'
+type EmbedProvider = 'youtube' | 'twitter' | 'instagram' | 'codesandbox' | 'codepen' | 'github' | 'vimeo' | 'loom' | 'spotify' | 'soundcloud' | 'figma' | 'pdf'
 
 const PROVIDER_META: Record<EmbedProvider, { label: string; color: string; placeholder: string }> = {
   youtube: { label: 'YouTube', color: '#ff0000', placeholder: 'https://youtube.com/watch?v=dQw4w9WgXcQ' },
@@ -14,6 +14,12 @@ const PROVIDER_META: Record<EmbedProvider, { label: string; color: string; place
   codesandbox: { label: 'CodeSandbox', color: '#3b82f6', placeholder: 'https://codesandbox.io/s/my-sandbox' },
   codepen: { label: 'CodePen', color: '#47cf73', placeholder: 'https://codepen.io/user/pen/abcdef' },
   github: { label: 'GitHub Gist', color: '#8b949e', placeholder: 'https://gist.github.com/user/abc123' },
+  vimeo: { label: 'Vimeo', color: '#1ab7ea', placeholder: 'https://vimeo.com/123456789' },
+  loom: { label: 'Loom', color: '#625df5', placeholder: 'https://www.loom.com/share/abc123' },
+  spotify: { label: 'Spotify', color: '#1db954', placeholder: 'https://open.spotify.com/track/abc123' },
+  soundcloud: { label: 'SoundCloud', color: '#ff5500', placeholder: 'https://soundcloud.com/artist/track' },
+  figma: { label: 'Figma', color: '#f24e1e', placeholder: 'https://www.figma.com/file/abc123/my-design' },
+  pdf: { label: 'PDF', color: '#ff0000', placeholder: 'https://example.com/document.pdf' },
 }
 
 function extractYouTubeId(url: string): string | null {
@@ -57,6 +63,30 @@ function extractGistId(url: string): string | null {
   return `${m[1]}/${m[2]}`
 }
 
+function extractVimeoId(url: string): string | null {
+  const m = url.match(/vimeo\.com\/(?:video\/)?(\d+)/)
+  return m?.[1] ?? null
+}
+
+function extractLoomId(url: string): string | null {
+  const m = url.match(/loom\.com\/share\/([A-Za-z0-9]+)/)
+  return m?.[1] ?? null
+}
+
+function extractSpotifyPath(url: string): string | null {
+  const m = url.match(/open\.spotify\.com\/(track|album|playlist|episode|show)\/([A-Za-z0-9]+)/)
+  if (!m) return null
+  return `${m[1]}/${m[2]}`
+}
+
+function extractSoundCloudUrl(url: string): string {
+  return encodeURIComponent(url)
+}
+
+function extractFigmaUrl(url: string): string {
+  return encodeURIComponent(url)
+}
+
 function getEmbedSrc(provider: EmbedProvider, url: string): string | null {
   switch (provider) {
     case 'youtube': {
@@ -83,6 +113,29 @@ function getEmbedSrc(provider: EmbedProvider, url: string): string | null {
       const id = extractGistId(url)
       return id ? `https://gist.github.com/${id}.js` : null
     }
+    case 'vimeo': {
+      const id = extractVimeoId(url)
+      return id ? `https://player.vimeo.com/video/${id}` : null
+    }
+    case 'loom': {
+      const id = extractLoomId(url)
+      return id ? `https://www.loom.com/embed/${id}` : null
+    }
+    case 'spotify': {
+      const path = extractSpotifyPath(url)
+      return path ? `https://open.spotify.com/embed/${path}` : null
+    }
+    case 'soundcloud': {
+      const encoded = extractSoundCloudUrl(url)
+      return `https://w.soundcloud.com/player/?url=${encoded}&color=%23ff5500&auto_play=false&hide_related=false&show_comments=true&show_user=true&show_reposts=false&show_teaser=true`
+    }
+    case 'figma': {
+      const encoded = extractFigmaUrl(url)
+      return `https://www.figma.com/embed?embed_host=share&url=${encoded}`
+    }
+    case 'pdf': {
+      return url
+    }
   }
 }
 
@@ -93,6 +146,12 @@ function detectProvider(url: string): EmbedProvider | null {
   if (/codesandbox\.io\//.test(url)) return 'codesandbox'
   if (/codepen\.io\//.test(url)) return 'codepen'
   if (/gist\.github\.com\//.test(url)) return 'github'
+  if (url.includes('vimeo.com/')) return 'vimeo'
+  if (url.includes('loom.com/share/')) return 'loom'
+  if (url.includes('open.spotify.com/')) return 'spotify'
+  if (url.includes('soundcloud.com/')) return 'soundcloud'
+  if (url.includes('figma.com/')) return 'figma'
+  if (url.endsWith('.pdf')) return 'pdf'
   return null
 }
 
@@ -103,6 +162,12 @@ const EMBED_HEIGHTS: Record<EmbedProvider, string> = {
   codesandbox: '500px',
   codepen: '400px',
   github: '320px',
+  vimeo: '400px',
+  loom: '400px',
+  spotify: '152px',
+  soundcloud: '166px',
+  figma: '450px',
+  pdf: '600px',
 }
 
 function escapeHtmlAttr(s: string): string {
@@ -366,5 +431,5 @@ export const SocialEmbedExtension = Node.create({
   },
 })
 
-export { detectProvider, PROVIDER_META, getEmbedSrc, extractYouTubeId, extractTweetId, extractInstagramCode, extractCodeSandboxId, extractCodePenPath, extractGistId, escapeHtmlAttr, GIST_SRC_RE }
+export { detectProvider, PROVIDER_META, getEmbedSrc, extractYouTubeId, extractTweetId, extractInstagramCode, extractCodeSandboxId, extractCodePenPath, extractGistId, extractVimeoId, extractLoomId, extractSpotifyPath, extractSoundCloudUrl, extractFigmaUrl, escapeHtmlAttr, GIST_SRC_RE }
 export type { EmbedProvider }

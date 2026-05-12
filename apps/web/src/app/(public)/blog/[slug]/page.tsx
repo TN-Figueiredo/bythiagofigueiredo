@@ -82,6 +82,7 @@ async function fetchPostAuthor(siteId: string, authorId: string | null, locale: 
 import { loadAdCreatives } from '@/lib/ads/resolve'
 import { slugify } from '@/lib/blog/slugify'
 import { BlogArticleClient } from './blog-article-client'
+import { BlogArticleHtml } from '@/components/blog/blog-article-html'
 
 function extractTocFromHtml(html: string): TocEntry[] {
   const entries: TocEntry[] = []
@@ -169,6 +170,16 @@ export default async function BlogDetailPage({ params }: Props) {
   ])
 
   const txExtra = txStructured.data ?? {}
+  const contentHtml = (txExtra as { content_html?: string | null }).content_html ?? null
+
+  // Override TOC with HTML-extracted headings when TipTap HTML is available
+  if (contentHtml) {
+    const htmlToc = extractTocFromHtml(contentHtml)
+    if (htmlToc.length > 0) {
+      toc = htmlToc
+    }
+  }
+
   const postHashtags = (hashtagResult.data ?? []).map((r: { hashtags: unknown }) => r.hashtags).filter(Boolean) as Array<{ id: string; name: string; slug: string }>
   const postSeries = prevPostResult.data ?? { previous_post_id: null, continues_in_next: false }
 
@@ -347,7 +358,10 @@ export default async function BlogDetailPage({ params }: Props) {
                   ) : null
                 }
               >
-                <MdxRunner compiledSource={compiledSource} registry={blogRegistry} />
+                {contentHtml
+                  ? <BlogArticleHtml html={contentHtml} />
+                  : <MdxRunner compiledSource={compiledSource} registry={blogRegistry} />
+                }
               </BlogArticleClient>
 
               <div className="blog-detail-footer">

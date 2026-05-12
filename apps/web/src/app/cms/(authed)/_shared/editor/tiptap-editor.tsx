@@ -14,9 +14,18 @@ import Highlight from '@tiptap/extension-highlight'
 import Placeholder from '@tiptap/extension-placeholder'
 import CharacterCount from '@tiptap/extension-character-count'
 import type { JSONContent } from '@tiptap/core'
+import TaskList from '@tiptap/extension-task-list'
+import TaskItem from '@tiptap/extension-task-item'
+import { Table } from '@tiptap/extension-table'
+import { TableRow } from '@tiptap/extension-table-row'
+import { TableHeader } from '@tiptap/extension-table-header'
+import { TableCell } from '@tiptap/extension-table-cell'
 import { MergeTagExtension } from './merge-tag-node'
 import { CTAButtonExtension } from './cta-button-node'
 import { SocialEmbedExtension, detectProvider, type EmbedProvider } from './social-embed-node'
+import { CalloutExtension } from './callout-node'
+import { ToggleWrapperExtension, ToggleTitleExtension, ToggleBodyExtension } from './toggle-node'
+import { ColumnsExtension, ColumnExtension } from './columns-node'
 import { EditorToolbar } from './editor-toolbar'
 import { EditorBubbleMenu } from './bubble-menu'
 import { createSlashCommandExtension } from './slash-commands'
@@ -75,6 +84,53 @@ export function TipTapEditor({
           }).run()
         },
         onInsertSocialEmbed: insertEmbed,
+        onInsertCallout: () => {
+          editorRef.current?.chain().focus().insertContent({
+            type: 'callout',
+            attrs: { variant: 'info' },
+            content: [{ type: 'text', text: '' }],
+          }).run()
+        },
+        onInsertToggle: () => {
+          editorRef.current?.chain().focus().insertContent({
+            type: 'toggleWrapper',
+            content: [
+              { type: 'toggleTitle', content: [{ type: 'text', text: 'Click to expand' }] },
+              { type: 'toggleBody', content: [{ type: 'paragraph' }] },
+            ],
+          }).run()
+        },
+        onInsertColumns: () => {
+          editorRef.current?.chain().focus().insertContent({
+            type: 'columns',
+            attrs: { ratio: '1:1' },
+            content: [
+              { type: 'column', content: [{ type: 'paragraph' }] },
+              { type: 'column', content: [{ type: 'paragraph' }] },
+            ],
+          }).run()
+        },
+        onInsertTable: () => {
+          editorRef.current?.chain().focus().insertContentAt(
+            editorRef.current.state.selection.anchor,
+            {
+              type: 'table',
+              content: Array.from({ length: 3 }, (_, i) => ({
+                type: 'tableRow',
+                content: Array.from({ length: 3 }, () => ({
+                  type: i === 0 ? 'tableHeader' : 'tableCell',
+                  content: [{ type: 'paragraph' }],
+                })),
+              })),
+            },
+          )
+        },
+        onInsertChecklist: () => {
+          editorRef.current?.chain().focus().insertContent({
+            type: 'taskList',
+            content: [{ type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph' }] }],
+          }).run()
+        },
       }),
     [],
   )
@@ -82,7 +138,7 @@ export function TipTapEditor({
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        heading: { levels: [1, 2, 3] },
+        heading: { levels: [1, 2, 3, 4] },
       }),
       Underline,
       Link.configure({
@@ -103,6 +159,18 @@ export function TipTapEditor({
       MergeTagExtension,
       CTAButtonExtension,
       SocialEmbedExtension,
+      CalloutExtension,
+      ToggleWrapperExtension,
+      ToggleTitleExtension,
+      ToggleBodyExtension,
+      ColumnsExtension,
+      ColumnExtension,
+      TaskList,
+      TaskItem.configure({ nested: true }),
+      Table.configure({ resizable: false }),
+      TableRow,
+      TableHeader,
+      TableCell,
       slashCommandExtension,
     ],
     content: content ?? undefined,
@@ -258,6 +326,38 @@ export function TipTapEditor({
         isFullscreen={isFullscreen}
         onToggleFullscreen={() => setIsFullscreen(!isFullscreen)}
         onOpenGallery={onOpenGallery}
+        onInsertCallout={() => {
+          editorRef.current?.chain().focus().insertContent({
+            type: 'callout',
+            attrs: { variant: 'info' },
+            content: [{ type: 'text', text: '' }],
+          }).run()
+        }}
+        onInsertTable={() => {
+          editorRef.current?.chain().focus().insertContentAt(
+            editorRef.current.state.selection.anchor,
+            {
+              type: 'table',
+              content: Array.from({ length: 3 }, (_, i) => ({
+                type: 'tableRow',
+                content: Array.from({ length: 3 }, () => ({
+                  type: i === 0 ? 'tableHeader' : 'tableCell',
+                  content: [{ type: 'paragraph' }],
+                })),
+              })),
+            },
+          )
+        }}
+        onInsertColumns={() => {
+          editorRef.current?.chain().focus().insertContent({
+            type: 'columns',
+            attrs: { ratio: '1:1' },
+            content: [
+              { type: 'column', content: [{ type: 'paragraph' }] },
+              { type: 'column', content: [{ type: 'paragraph' }] },
+            ],
+          }).run()
+        }}
       />
       <div className="flex-1 overflow-y-auto">
         {editor && <EditorBubbleMenu editor={editor} />}

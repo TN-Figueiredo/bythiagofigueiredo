@@ -2,11 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { PostEditor, type SavePostInput, type SaveResult } from '@tn-figueiredo/cms'
+import type { JSONContent } from '@tiptap/core'
+import { TipTapEditor } from '../../_shared/editor/tiptap-editor'
 import { createPost } from '../actions'
-import { savePost } from '../[id]/edit/actions'
-import { compilePreview, uploadAsset } from '../[id]/edit/actions'
-import { blogRegistry } from '@/lib/cms/registry'
+import { savePost, uploadAsset } from '../[id]/edit/actions'
 
 interface NewPostEditorProps {
   locale: string
@@ -18,6 +17,10 @@ export function NewPostEditor({ locale, tagId }: NewPostEditorProps) {
   const router = useRouter()
   const [postId, setPostId] = useState<string | null>(null)
   const [isDirty, setIsDirty] = useState(false)
+  const [title, setTitle] = useState('')
+  const [slug, setSlug] = useState('')
+  const [contentJson, setContentJson] = useState<JSONContent | null>(null)
+  const [contentHtml, setContentHtml] = useState<string | null>(null)
   const postIdRef = useRef<string | null>(null)
   const isDirtyRef = useRef(false)
 
@@ -41,20 +44,30 @@ export function NewPostEditor({ locale, tagId }: NewPostEditorProps) {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [])
 
-  async function handleSave(input: SavePostInput): Promise<SaveResult> {
+  function slugify(text: string): string {
+    return text
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 80)
+  }
+
+  async function handleSave() {
     setIsDirty(true)
 
     // If we don't have a post yet, create one first
     let currentPostId = postIdRef.current
     if (!currentPostId) {
       const createResult = await createPost({
-        title: input.title.trim() || undefined,
+        title: title.trim() || undefined,
         locale,
         tagId: tagId ?? null,
         status: 'draft',
       })
       if (!createResult.ok) {
-        return { ok: false, error: 'db_error', message: createResult.error }
+        return
       }
       currentPostId = createResult.postId
       postIdRef.current = currentPostId
@@ -62,29 +75,21 @@ export function NewPostEditor({ locale, tagId }: NewPostEditorProps) {
     }
 
     // Save the post content
-    const saveResult = await savePost(currentPostId, locale, input)
+    const saveResult = await savePost(currentPostId, locale, {
+      title,
+      slug,
+      content_json: contentJson as Record<string, unknown>,
+      content_html: contentHtml,
+      content_mdx: '',
+    })
 
     if (saveResult.ok) {
       // Navigate to the edit page; replace so back doesn't go back to /new
       router.replace(`/cms/blog/${currentPostId}/edit`)
     }
-
-    // Adapter: map invalid_seo_extras to validation_failed (PostEditor doesn't know the extra type)
-    if (!saveResult.ok && saveResult.error === 'invalid_seo_extras') {
-      const details = (saveResult as { ok: false; error: 'invalid_seo_extras'; details: Array<{ message?: string }> }).details
-      return {
-        ok: false,
-        error: 'validation_failed',
-        fields: {
-          content_mdx: details[0]?.message ?? 'invalid seo_extras frontmatter',
-        },
-      }
-    }
-
-    return saveResult
   }
 
-  async function handleUpload(file: File): Promise<{ url: string }> {
+  async function handleImageUpload(file: File): Promise<string | null> {
     // If post doesn't exist yet, create a stub first
     let currentPostId = postIdRef.current
     if (!currentPostId) {
@@ -94,26 +99,75 @@ export function NewPostEditor({ locale, tagId }: NewPostEditorProps) {
         status: 'draft',
       })
       if (!createResult.ok) {
-        throw new Error(createResult.error)
+        return null
       }
       currentPostId = createResult.postId
       postIdRef.current = currentPostId
       setPostId(currentPostId)
     }
-    return uploadAsset(file, currentPostId)
+    try {
+      const result = await uploadAsset(file, currentPostId)
+      return result.url
+    } catch {
+      return null
+    }
   }
 
   return (
-    <PostEditor
-      postId={postId ?? undefined}
-      initialContent=""
-      initialTitle=""
-      initialSlug=""
-      locale={locale}
-      componentNames={Object.keys(blogRegistry)}
-      onSave={handleSave}
-      onPreview={async (source) => compilePreview(source)}
-      onUpload={handleUpload}
-    />
+    <div className="flex flex-col gap-4 max-w-[780px] mx-auto px-6 pt-7 pb-20">
+      {/* Title */}
+      <input
+        type="text"
+        value={title}
+        onChange={(e) => {
+          setTitle(e.target.value)
+          setSlug(slugify(e.target.value))
+          setIsDirty(true)
+        }}
+        aria-label="Post title"
+        className="w-full bg-transparent text-[32px] font-bold tracking-[-0.5px] text-[#f9fafb] placeholder-[#374151] outline-none border-none resize-none leading-tight"
+        placeholder="Post title..."
+        autoFocus
+      />
+
+      {/* Slug */}
+      <div className="flex items-center gap-0 -mt-2">
+        <span className="text-xs text-[#4b5563] opacity-60 select-none">
+          /blog/{locale}/
+        </span>
+        <input
+          type="text"
+          value={slug}
+          onChange={(e) => setSlug(e.target.value)}
+          aria-label="Post slug"
+          className="flex-1 bg-transparent text-xs text-[#6b7280] placeholder-[#374151] outline-none border-none opacity-60 focus:opacity-100 transition-opacity"
+          placeholder="post-slug"
+        />
+      </div>
+
+      {/* TipTap Editor */}
+      <TipTapEditor
+        content={contentJson}
+        onChange={(json, html) => {
+          setContentJson(json)
+          setContentHtml(html)
+          setIsDirty(true)
+        }}
+        onImageUpload={handleImageUpload}
+        placeholder="Start writing your post... Type / for commands"
+      />
+
+      {/* Save button */}
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={!isDirty}
+          className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          Save & continue
+        </button>
+      </div>
+    </div>
   )
 }

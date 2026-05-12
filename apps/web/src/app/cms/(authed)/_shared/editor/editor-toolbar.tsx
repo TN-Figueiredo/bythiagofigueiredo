@@ -24,6 +24,10 @@ import {
   Heading1,
   Heading2,
   Heading3,
+  Heading4,
+  MessageSquare,
+  TableIcon,
+  Columns2,
   Pilcrow,
   Tags,
   Youtube,
@@ -43,13 +47,16 @@ interface EditorToolbarProps {
   onInsertCTAButton: () => void
   onInsertSocialEmbed: (provider: EmbedProvider, url: string) => void
   onImageUpload: (file: File) => Promise<string | null>
+  onInsertCallout?: () => void
+  onInsertTable?: () => void
+  onInsertColumns?: () => void
   onImageInserted?: () => void
   isFullscreen?: boolean
   onToggleFullscreen?: () => void
   onOpenGallery?: () => void
 }
 
-const EMBED_ICONS: Record<EmbedProvider, React.ReactNode> = {
+const EMBED_ICONS: Partial<Record<EmbedProvider, React.ReactNode>> = {
   youtube: <Youtube size={16} />,
   twitter: <Twitter size={16} />,
   instagram: <Instagram size={16} />,
@@ -206,6 +213,9 @@ export function EditorToolbar({
   isFullscreen,
   onToggleFullscreen,
   onOpenGallery,
+  onInsertCallout,
+  onInsertTable,
+  onInsertColumns,
 }: EditorToolbarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [showLinkPopover, setShowLinkPopover] = useState(false)
@@ -253,6 +263,13 @@ export function EditorToolbar({
       </ToolbarButton>
       <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={editor.isActive('heading', { level: 3 })} title="Heading 3">
         <Heading3 size={16} />
+      </ToolbarButton>
+      <ToolbarButton
+        onClick={() => editor.chain().focus().toggleHeading({ level: 4 }).run()}
+        active={editor.isActive('heading', { level: 4 })}
+        title="Heading 4"
+      >
+        <Heading4 size={16} />
       </ToolbarButton>
 
       <ToolbarDivider />
@@ -331,6 +348,19 @@ export function EditorToolbar({
       {/* CTA Button */}
       <ToolbarButton onClick={onInsertCTAButton} title="Insert CTA button">
         <RectangleHorizontal size={16} />
+      </ToolbarButton>
+
+      <ToolbarDivider />
+
+      {/* Content blocks */}
+      <ToolbarButton onClick={() => onInsertCallout?.()} title="Callout">
+        <MessageSquare size={16} />
+      </ToolbarButton>
+      <ToolbarButton onClick={() => onInsertTable?.()} title="Table">
+        <TableIcon size={16} />
+      </ToolbarButton>
+      <ToolbarButton onClick={() => onInsertColumns?.()} title="Columns">
+        <Columns2 size={16} />
       </ToolbarButton>
 
       <ToolbarDivider />

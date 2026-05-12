@@ -1,3 +1,4 @@
+export { BlogArticleHtml } from './blog-article-html'
 export { PostKeyPoints } from './post-key-points'
 export { PostPullQuote } from './post-pull-quote'
 export { PostColophon } from './post-colophon'

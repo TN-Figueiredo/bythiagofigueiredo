@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { PostEditor } from '@tn-figueiredo/cms'
+import { TipTapEditor } from '../../../_shared/editor/tiptap-editor'
+import type { JSONContent } from '@tiptap/core'
 import { StructuredFields } from '../../_shared/structured-fields'
 import { HashtagInput } from '../../_shared/hashtag-input'
 import { SeriesFields } from '../../_shared/series-fields'
@@ -33,6 +35,8 @@ interface EditPostClientProps {
   initialPreviousPostId: string | null
   initialContinuesInNext: boolean
   initialHashtags: Array<{ id: string; name: string; slug: string }>
+  initialContentJson: Record<string, unknown> | null
+  initialContentHtml: string | null
 }
 
 export function EditPostClient({
@@ -55,6 +59,8 @@ export function EditPostClient({
   initialPreviousPostId,
   initialContinuesInNext,
   initialHashtags,
+  initialContentJson,
+  initialContentHtml,
 }: EditPostClientProps) {
   const [keyPoints, setKeyPoints] = useState(initialKeyPoints)
   const [pullQuote, setPullQuote] = useState(initialPullQuote)
@@ -63,6 +69,13 @@ export function EditPostClient({
   const [previousPostId, setPreviousPostId] = useState(initialPreviousPostId)
   const [continuesInNext, setContinuesInNext] = useState(initialContinuesInNext)
   const [hashtags, setHashtags] = useState(initialHashtags)
+  const [titleState, setTitleState] = useState(initialTitle)
+  const [slugState, setSlugState] = useState(initialSlug)
+  const [contentJson, setContentJson] = useState<JSONContent | null>(
+    initialContentJson as JSONContent | null
+  )
+  const [contentHtml, setContentHtml] = useState<string | null>(initialContentHtml)
+  const useTipTap = contentJson !== null
   const coverGallery = useMediaGallery()
 
   const setCoverFromGallery = (url: string) => {
@@ -73,6 +86,39 @@ export function EditPostClient({
       input.dispatchEvent(new Event('input', { bubbles: true }))
       input.dispatchEvent(new Event('change', { bubbles: true }))
     }
+  }
+
+  const handleImageUpload = async (file: File): Promise<string | null> => {
+    try {
+      const result = await uploadAsset(file, postId)
+      return result.url
+    } catch {
+      return null
+    }
+  }
+
+  const handleTipTapSave = async () => {
+    if (!contentJson) return
+    const result = await savePost(postId, locale, {
+      content_mdx: '',
+      title: titleState,
+      slug: slugState,
+      content_json: contentJson as Record<string, unknown>,
+      content_html: contentHtml,
+      excerpt: initialExcerpt,
+      meta_title: initialMetaTitle,
+      meta_description: initialMetaDescription,
+      og_image_url: initialOgImageUrl,
+      cover_image_url: initialCoverImageUrl,
+      key_points: keyPoints.filter(Boolean),
+      pull_quote: pullQuote || null,
+      notes: notes.filter(Boolean),
+      colophon: colophon || null,
+      previous_post_id: previousPostId,
+      continues_in_next: continuesInNext,
+      hashtag_ids: hashtags.map(h => h.id),
+    })
+    return result
   }
 
   return (
@@ -86,43 +132,62 @@ export function EditPostClient({
           {locale === 'pt-BR' ? 'Capa da galeria' : 'Cover from gallery'}
         </button>
       </div>
-      <PostEditor
-        postId={postId}
-        initialContent={initialContent}
-        initialTitle={initialTitle}
-        initialSlug={initialSlug}
-        initialExcerpt={initialExcerpt}
-        initialMetaTitle={initialMetaTitle}
-        initialMetaDescription={initialMetaDescription}
-        initialOgImageUrl={initialOgImageUrl}
-        initialCoverImageUrl={initialCoverImageUrl}
-        locale={locale}
-        componentNames={componentNames}
-        onSave={async (input: SavePostActionInput) => {
-          const result = await savePost(postId, locale, {
-            ...input,
-            key_points: keyPoints.filter(Boolean),
-            pull_quote: pullQuote || null,
-            notes: notes.filter(Boolean),
-            colophon: colophon || null,
-            previous_post_id: previousPostId,
-            continues_in_next: continuesInNext,
-            hashtag_ids: hashtags.map(h => h.id),
-          })
-          if (!result.ok && result.error === 'invalid_seo_extras') {
-            return {
-              ok: false as const,
-              error: 'validation_failed' as const,
-              fields: {
-                content_mdx: result.details[0]?.message ?? 'invalid seo_extras frontmatter',
-              },
+      {useTipTap ? (
+        <>
+          <div className="max-w-[780px] mx-auto px-6 mb-4">
+            <TipTapEditor
+              content={contentJson}
+              onChange={(json: JSONContent, html: string) => { setContentJson(json); setContentHtml(html) }}
+              onImageUpload={handleImageUpload}
+            />
+            <button
+              type="button"
+              onClick={handleTipTapSave}
+              className="mt-3 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-colors"
+            >
+              {locale === 'pt-BR' ? 'Salvar' : 'Save'}
+            </button>
+          </div>
+        </>
+      ) : (
+        <PostEditor
+          postId={postId}
+          initialContent={initialContent}
+          initialTitle={initialTitle}
+          initialSlug={initialSlug}
+          initialExcerpt={initialExcerpt}
+          initialMetaTitle={initialMetaTitle}
+          initialMetaDescription={initialMetaDescription}
+          initialOgImageUrl={initialOgImageUrl}
+          initialCoverImageUrl={initialCoverImageUrl}
+          locale={locale}
+          componentNames={componentNames}
+          onSave={async (input: SavePostActionInput) => {
+            const result = await savePost(postId, locale, {
+              ...input,
+              key_points: keyPoints.filter(Boolean),
+              pull_quote: pullQuote || null,
+              notes: notes.filter(Boolean),
+              colophon: colophon || null,
+              previous_post_id: previousPostId,
+              continues_in_next: continuesInNext,
+              hashtag_ids: hashtags.map(h => h.id),
+            })
+            if (!result.ok && result.error === 'invalid_seo_extras') {
+              return {
+                ok: false as const,
+                error: 'validation_failed' as const,
+                fields: {
+                  content_mdx: result.details[0]?.message ?? 'invalid seo_extras frontmatter',
+                },
+              }
             }
-          }
-          return result
-        }}
-        onPreview={async (source: string) => compilePreview(source)}
-        onUpload={async (file: File) => uploadAsset(file, postId)}
-      />
+            return result
+          }}
+          onPreview={async (source: string) => compilePreview(source)}
+          onUpload={async (file: File) => uploadAsset(file, postId)}
+        />
+      )}
       <div className="max-w-[780px] mx-auto px-6 mt-4">
         <StructuredFields
           keyPoints={keyPoints}
