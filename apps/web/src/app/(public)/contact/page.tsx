@@ -97,7 +97,7 @@ export default async function ContactPage({ searchParams }: Props) {
         .maybeSingle(),
       supabase
         .from('authors')
-        .select('name, avatar_url, social_links, author_about_translations!inner(locale, headline)')
+        .select('name, avatar_url, social_links, author_about_translations!inner(locale, headline, bio)')
         .eq('site_id', ctx.siteId)
         .eq('is_default', true)
         .eq('author_about_translations.locale', locale)
@@ -111,12 +111,13 @@ export default async function ContactPage({ searchParams }: Props) {
       visibility = visRes.data as unknown as ContactPageVisibility
     }
     if (authorRes.data) {
+      const translations = authorRes.data.author_about_translations as Array<{ locale: string; headline: string | null; bio: string | null }>
       authorData = {
         name: authorRes.data.name,
         avatar_url: authorRes.data.avatar_url,
         social_links: (authorRes.data.social_links as Record<string, string>) ?? {},
-        headline: (authorRes.data.author_about_translations as Array<{ locale: string; headline: string | null }>)?.[0]?.headline ?? null,
-        bio: (authorRes.data.author_about_translations as Array<{ locale: string; headline: string | null }>)?.[0]?.headline ?? null,
+        headline: translations?.[0]?.headline ?? null,
+        bio: translations?.[0]?.bio ?? null,
       }
     }
   }

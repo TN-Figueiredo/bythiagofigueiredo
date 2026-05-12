@@ -691,3 +691,207 @@ export async function updateInstagramSlots(input: {
   revalidatePath('/cms/settings')
   return { ok: true }
 }
+
+// ── Contact Page Settings ──────────────────────────────────────────────────
+
+const contactHeroTextSchema = z.object({
+  locale: z.enum(['pt-BR', 'en']),
+  hero_title: z.string().min(1, 'Title is required').max(80),
+  hero_subtitle: z.string().max(300).default(''),
+  response_time_text: z.string().max(100).default(''),
+})
+
+const contactHeroDisplaySchema = z.object({
+  show_avatar: z.boolean(),
+  show_bio: z.boolean(),
+  show_response_badge: z.boolean(),
+})
+
+const SOCIAL_KEYS = ['email', 'instagram', 'youtube', 'x', 'github', 'rss'] as const
+const contactSocialSchema = z.object({
+  social_order: z.array(z.enum(SOCIAL_KEYS)),
+  social_visible: z.record(z.enum(SOCIAL_KEYS), z.boolean()),
+  email_highlight: z.boolean(),
+  handwritten_note: z.boolean(),
+})
+
+const contactFormSettingsSchema = z.object({
+  notification_email: z.string().email().max(320).or(z.literal('')),
+  show_subject_selector: z.boolean(),
+  show_marketing_consent: z.boolean(),
+})
+
+const contactFormTextSchema = z.object({
+  locale: z.enum(['pt-BR', 'en']),
+  form_title: z.string().max(100).default(''),
+  auto_reply_text: z.string().max(500).default(''),
+  subject_options: z.array(z.string().max(100)),
+})
+
+const contactFaqSchema = z.object({
+  locale: z.enum(['pt-BR', 'en']),
+  faq_items: z.array(z.object({ q: z.string().max(300), a: z.string().max(2000) })),
+})
+
+const contactVisibilitySchema = z.object({
+  show_hero: z.boolean(),
+  show_social_links: z.boolean(),
+  show_contact_form: z.boolean(),
+  show_faq: z.boolean(),
+})
+
+function revalidateContactPaths(): void {
+  revalidatePath('/contact')
+  revalidatePath('/pt/contact')
+  revalidatePath('/cms/settings')
+}
+
+export async function updateContactHeroText(input: {
+  locale: 'pt-BR' | 'en'
+  hero_title: string
+  hero_subtitle?: string
+  response_time_text?: string
+}): Promise<ActionResult> {
+  const parsed = contactHeroTextSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
+  const siteId = await requireEditAccess()
+  const supabase = getSupabaseServiceClient()
+  const { error } = await supabase
+    .from('contact_page_settings')
+    .upsert({ ...parsed.data, site_id: siteId }, { onConflict: 'site_id,locale' })
+  if (error) return { ok: false, error: error.message }
+  revalidateContactPaths()
+  return { ok: true }
+}
+
+export async function updateContactHeroDisplay(input: {
+  show_avatar: boolean
+  show_bio: boolean
+  show_response_badge: boolean
+}): Promise<ActionResult> {
+  const parsed = contactHeroDisplaySchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
+  const siteId = await requireEditAccess()
+  const supabase = getSupabaseServiceClient()
+  const { error } = await supabase
+    .from('contact_page_visibility')
+    .upsert({ ...parsed.data, site_id: siteId }, { onConflict: 'site_id' })
+  if (error) return { ok: false, error: error.message }
+  revalidateContactPaths()
+  return { ok: true }
+}
+
+export async function updateContactSocial(input: {
+  social_order: string[]
+  social_visible: Record<string, boolean>
+  email_highlight: boolean
+  handwritten_note: boolean
+}): Promise<ActionResult> {
+  const parsed = contactSocialSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
+  const siteId = await requireEditAccess()
+  const supabase = getSupabaseServiceClient()
+  const { error } = await supabase
+    .from('contact_page_visibility')
+    .upsert({ ...parsed.data, site_id: siteId }, { onConflict: 'site_id' })
+  if (error) return { ok: false, error: error.message }
+  revalidateContactPaths()
+  return { ok: true }
+}
+
+export async function updateContactFormSettings(input: {
+  notification_email: string
+  show_subject_selector: boolean
+  show_marketing_consent: boolean
+}): Promise<ActionResult> {
+  const parsed = contactFormSettingsSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
+  const siteId = await requireEditAccess()
+  const supabase = getSupabaseServiceClient()
+  const [sitesResult, visibilityResult] = await Promise.all([
+    supabase
+      .from('sites')
+      .update({ contact_notification_email: parsed.data.notification_email || null })
+      .eq('id', siteId),
+    supabase
+      .from('contact_page_visibility')
+      .upsert(
+        {
+          site_id: siteId,
+          show_subject_selector: parsed.data.show_subject_selector,
+          show_marketing_consent: parsed.data.show_marketing_consent,
+        },
+        { onConflict: 'site_id' },
+      ),
+  ])
+  if (sitesResult.error) return { ok: false, error: sitesResult.error.message }
+  if (visibilityResult.error) return { ok: false, error: visibilityResult.error.message }
+  revalidateContactPaths()
+  return { ok: true }
+}
+
+export async function updateContactFormText(input: {
+  locale: 'pt-BR' | 'en'
+  form_title?: string
+  auto_reply_text?: string
+  subject_options: string[]
+}): Promise<ActionResult> {
+  const parsed = contactFormTextSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
+  const siteId = await requireEditAccess()
+  const supabase = getSupabaseServiceClient()
+  const { error } = await supabase
+    .from('contact_page_settings')
+    .upsert(
+      {
+        ...parsed.data,
+        subject_options: parsed.data.subject_options.filter((s) => s.trim()),
+        site_id: siteId,
+      },
+      { onConflict: 'site_id,locale' },
+    )
+  if (error) return { ok: false, error: error.message }
+  revalidateContactPaths()
+  return { ok: true }
+}
+
+export async function updateContactFaq(input: {
+  locale: 'pt-BR' | 'en'
+  faq_items: { q: string; a: string }[]
+}): Promise<ActionResult> {
+  const parsed = contactFaqSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
+  const siteId = await requireEditAccess()
+  const supabase = getSupabaseServiceClient()
+  const { error } = await supabase
+    .from('contact_page_settings')
+    .upsert(
+      {
+        locale: parsed.data.locale,
+        faq_items: parsed.data.faq_items.filter((f) => f.q.trim() || f.a.trim()),
+        site_id: siteId,
+      },
+      { onConflict: 'site_id,locale' },
+    )
+  if (error) return { ok: false, error: error.message }
+  revalidateContactPaths()
+  return { ok: true }
+}
+
+export async function updateContactVisibility(input: {
+  show_hero: boolean
+  show_social_links: boolean
+  show_contact_form: boolean
+  show_faq: boolean
+}): Promise<ActionResult> {
+  const parsed = contactVisibilitySchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
+  const siteId = await requireEditAccess()
+  const supabase = getSupabaseServiceClient()
+  const { error } = await supabase
+    .from('contact_page_visibility')
+    .upsert({ ...parsed.data, site_id: siteId }, { onConflict: 'site_id' })
+  if (error) return { ok: false, error: error.message }
+  revalidateContactPaths()
+  return { ok: true }
+}

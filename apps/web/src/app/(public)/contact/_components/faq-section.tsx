@@ -33,13 +33,16 @@ export function FaqSection({ items, locale }: Props) {
       <div className="flex flex-col divide-y divide-pb-line border border-pb-line rounded-lg overflow-hidden bg-pb-paper">
         {items.map((item, index) => {
           const isOpen = openIndex === index
+          const panelId = `faq-answer-${index}`
           return (
-            <div key={index}>
+            <div key={`${item.q.slice(0, 40)}-${index}`}>
               <button
+                id={`faq-trigger-${index}`}
                 type="button"
                 onClick={() => toggle(index)}
                 className="flex items-center justify-between w-full px-4 py-3.5 text-left gap-3 text-pb-ink hover:bg-pb-line/30 transition-colors"
                 aria-expanded={isOpen}
+                aria-controls={panelId}
               >
                 <span
                   className="font-medium text-sm leading-snug"
@@ -61,7 +64,7 @@ export function FaqSection({ items, locale }: Props) {
               </button>
 
               {isOpen && (
-                <div className="px-4 pb-4 pt-1">
+                <div id={panelId} role="region" aria-labelledby={`faq-trigger-${index}`} className="px-4 pb-4 pt-1">
                   <p
                     className="text-pb-muted text-[15px] leading-relaxed"
                     style={{ fontFamily: 'var(--font-source-serif-var)' }}
