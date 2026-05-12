@@ -4,7 +4,7 @@
 # Custo: ~10s por commit. Vale a pena pra não descobrir build quebrada no deploy.
 
 echo "🧪 Rodando testes do web..."
-npm run test:web -- --bail 2>&1
+npm run test:web -- --bail 1 2>&1
 WEB_TEST_EXIT=$?
 
 if [ $WEB_TEST_EXIT -ne 0 ]; then
