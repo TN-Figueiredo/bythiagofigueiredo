@@ -15,6 +15,7 @@ import { SaveFooter } from './detail/save-footer'
 import { CoworkRequestPanel } from './detail/cowork-request-panel'
 import { ConflictBanner } from './detail/conflict-banner'
 import { SectionContent } from './detail/section-content'
+import { ContentCiteSelector } from './detail/content-cite-selector'
 import { EmptySection } from './detail/renderers/empty-section'
 import { getSectionKey, getSectionsForFormat, flattenSections, type SectionData, type SectionDefinition } from '@/lib/pipeline/sections'
 import type { Format } from '@/lib/pipeline/schemas'
@@ -74,9 +75,31 @@ interface SectionPanelProps {
   itemCode: string
   itemTitle: string
   sections: Record<string, SectionData>
+  format: string
+  stage: string
+  tags: string[]
+  hook: string | null
+  synopsis: string | null
 }
 
-function SectionPanel({ sectionDef, activeSub, lang, itemId, itemVersion, itemCode, itemTitle, sections }: SectionPanelProps) {
+function extractMisplacedSeo(sections: Record<string, SectionData>, lang: string): SectionData | null {
+  const draftKey = getSectionKey('draft', lang)
+  const draftData = sections[draftKey]
+  if (!draftData?.content || typeof draftData.content !== 'object' || Array.isArray(draftData.content)) return null
+  const obj = draftData.content as Record<string, unknown>
+  if (!obj.seo || typeof obj.seo !== 'object') return null
+  return {
+    rev: 0,
+    source: 'extracted',
+    edited: false,
+    content: obj.seo as SectionData['content'],
+    updated_at: draftData.updated_at,
+    cowork_rev: null,
+    modified_by: null,
+  }
+}
+
+function SectionPanel({ sectionDef, activeSub, lang, itemId, itemVersion, itemCode, itemTitle, sections, format, stage, tags, hook, synopsis }: SectionPanelProps) {
   const sectionType = sectionDef.subSections
     ? (activeSub ?? sectionDef.subSections[0]?.key ?? sectionDef.key)
     : sectionDef.key
@@ -84,8 +107,14 @@ function SectionPanel({ sectionDef, activeSub, lang, itemId, itemVersion, itemCo
   const sectionKey = getSectionKey(sectionType, lang)
   const sectionData = (sections[sectionKey] ?? null) as SectionData | null
 
-  const section = useSection({ itemId, sectionKey, initialData: sectionData, itemVersion })
+  const extractedSeo = sectionType === 'seo' && sectionData === null ? extractMisplacedSeo(sections, lang) : null
+  const effectiveData = sectionData ?? extractedSeo
+
+  const section = useSection({ itemId, sectionKey, initialData: effectiveData, itemVersion })
   const [showCowork, setShowCowork] = useState(false)
+  const [references, setReferences] = useState<Map<number, string>>(() => new Map())
+  const nextIdRef = useRef(1)
+  const [insertText, setInsertText] = useState<string | null>(null)
   const panelRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -104,6 +133,24 @@ function SectionPanel({ sectionDef, activeSub, lang, itemId, itemVersion, itemCo
     return () => document.removeEventListener('pipeline:toggle-edit', handler)
   }, [section.isEditing, section.setIsEditing])
 
+  const handleCite = useCallback((text: string) => {
+    const id = nextIdRef.current++
+    setReferences(prev => {
+      const next = new Map(prev)
+      next.set(id, text)
+      return next
+    })
+    setInsertText(`[citacao ${id}] `)
+    setShowCowork(true)
+  }, [])
+
+  const handleSendAndWait = useCallback(() => {
+    setReferences(new Map())
+    nextIdRef.current = 1
+    setShowCowork(false)
+    setInsertText(null)
+  }, [])
+
   const activeDef = sectionDef.subSections?.find(s => s.key === sectionType) ?? sectionDef
   const isShared = activeDef.shared
   const title = activeDef.label_pt
@@ -111,7 +158,7 @@ function SectionPanel({ sectionDef, activeSub, lang, itemId, itemVersion, itemCo
   return (
     <div
       ref={panelRef}
-      className="rounded-lg border overflow-hidden"
+      className="rounded-lg border overflow-clip"
       style={{ borderColor: 'var(--gem-border)', background: 'var(--gem-surface)' }}
       role="tabpanel"
       id={`panel-${sectionDef.key}`}
@@ -142,6 +189,16 @@ function SectionPanel({ sectionDef, activeSub, lang, itemId, itemVersion, itemCo
         lang={lang}
         rev={section.rev}
         placeholder={`Instruções para atualizar ${title}...`}
+        format={format}
+        stage={stage}
+        tags={tags}
+        hook={hook}
+        synopsis={synopsis}
+        sectionContent={section.content}
+        references={references}
+        onSendAndWait={handleSendAndWait}
+        insertText={insertText}
+        onInsertConsumed={() => setInsertText(null)}
       />
 
       {section.conflict && (
@@ -153,14 +210,28 @@ function SectionPanel({ sectionDef, activeSub, lang, itemId, itemVersion, itemCo
         />
       )}
 
+      {extractedSeo && section.content != null && (
+        <div
+          className="mx-4 mt-3 flex items-center gap-2 rounded-md px-3 py-2 text-[11px]"
+          style={{ background: 'color-mix(in srgb, var(--gem-accent) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--gem-accent) 25%, transparent)', color: 'var(--gem-accent)' }}
+        >
+          Dados extraídos do Rascunho. Salve para criar a seção SEO separada.
+        </div>
+      )}
+
       {section.content != null ? (
-        <SectionContent
-          sectionType={sectionType}
-          content={section.content}
-          isEditing={section.isEditing}
-          lang={lang}
-          onContentChange={section.setContent}
-        />
+        <ContentCiteSelector
+          enabled={showCowork && !section.isEditing}
+          onCite={handleCite}
+        >
+          <SectionContent
+            sectionType={sectionType}
+            content={section.content}
+            isEditing={section.isEditing}
+            lang={lang}
+            onContentChange={section.setContent}
+          />
+        </ContentCiteSelector>
       ) : (
         <EmptySection sectionLabel={title} onRequestCowork={() => setShowCowork(true)} />
       )}
@@ -362,6 +433,11 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
                 itemCode={item.code}
                 itemTitle={item.title_pt || item.title_en || ''}
                 sections={sections}
+                format={item.format}
+                stage={item.stage}
+                tags={item.tags}
+                hook={item.hook}
+                synopsis={item.synopsis}
               />
             )
           }}
@@ -429,7 +505,7 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
               Restore
             </button>
           ) : (
-            <button onClick={handleArchive} className="w-full mt-2 text-xs py-1.5 rounded transition-colors hover:bg-red-500/20" style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>
+            <button onClick={handleArchive} className="w-full mt-2 text-xs py-1.5 rounded transition-colors hover:bg-red-500/20" style={{ backgroundColor: 'color-mix(in srgb, var(--gem-danger) 10%, transparent)', color: 'var(--gem-danger)' }}>
               Archive
             </button>
           )}
@@ -511,7 +587,7 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
             <>
               <div className="flex gap-0.5 mt-3">
                 {checklist.segments.map((done, i) => (
-                  <div key={i} className="h-1 flex-1 rounded-sm" style={{ backgroundColor: done ? 'var(--gem-done)' : 'var(--gem-well)', boxShadow: done ? '0 0 4px rgba(16,185,129,0.3)' : 'none' }} />
+                  <div key={i} className="h-1 flex-1 rounded-sm" style={{ backgroundColor: done ? 'var(--gem-done)' : 'var(--gem-well)', boxShadow: done ? '0 0 4px color-mix(in srgb, var(--gem-done) 30%, transparent)' : 'none' }} />
                 ))}
               </div>
               <p className="text-[10px] mt-1" style={{ color: 'var(--gem-dim)' }}>{checklist.done}/{checklist.total}</p>
@@ -548,7 +624,8 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
                     type="button"
                     onClick={handleOpenPromptGenerator}
                     disabled={loadingSections}
-                    className="text-[9px] text-[#6366f1] hover:text-[#818cf8] disabled:opacity-50"
+                    className="text-[9px] disabled:opacity-50"
+                    style={{ color: 'var(--gem-accent)' }}
                   >
                     {loadingSections ? '...' : `+ ${item.language === 'pt-br' ? 'EN' : 'PT'}`}
                   </button>
