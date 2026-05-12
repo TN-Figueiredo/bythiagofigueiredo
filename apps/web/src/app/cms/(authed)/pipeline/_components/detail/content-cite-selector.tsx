@@ -30,7 +30,12 @@ export function ContentCiteSelector({ enabled, onCite, children }: ContentCiteSe
       const text = sel.toString().trim()
       if (text.length < 10) { hide(); return }
       const r = range.getBoundingClientRect()
-      setTooltip({ text, top: r.top - 32, left: r.left + r.width / 2 - 48 })
+      const tw = 96, th = 32
+      setTooltip({
+        text,
+        top: Math.max(4, r.top - th),
+        left: Math.min(window.innerWidth - tw - 4, Math.max(4, r.left + r.width / 2 - tw / 2)),
+      })
     }
     document.addEventListener('selectionchange', onSel)
     return () => document.removeEventListener('selectionchange', onSel)
@@ -65,12 +70,11 @@ export function ContentCiteSelector({ enabled, onCite, children }: ContentCiteSe
       {tooltip && (
         <div data-cite-tooltip role="button" aria-label="Citar trecho selecionado" onClick={cite} style={{
           position: 'fixed', top: tooltip.top, left: tooltip.left, background: 'var(--gem-accent)',
-          color: '#fff', borderRadius: '6px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer',
-          zIndex: 9999, boxShadow: '0 4px 12px rgba(0,0,0,0.4)', animation: 'cite-fade-in .15s ease-out',
+          color: 'var(--gem-on-accent, #fff)', borderRadius: '6px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer',
+          zIndex: 9999, boxShadow: '0 4px 12px rgba(0,0,0,0.4)', animation: 'citeTooltipIn .15s ease-out',
           whiteSpace: 'nowrap',
         }}>
-          📌 Citar <kbd style={{ opacity: 0.7, fontSize: '10px' }}>↵</kbd>
-          <style>{`@keyframes cite-fade-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}`}</style>
+          📌 Citar <kbd aria-hidden="true" style={{ opacity: 0.7, fontSize: '10px' }}>↵</kbd>
         </div>
       )}
     </div>

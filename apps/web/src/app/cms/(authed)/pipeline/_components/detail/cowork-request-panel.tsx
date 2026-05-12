@@ -55,11 +55,10 @@ export function CoworkRequestPanel({
     if (!insertText || !onInsertConsumed) return
     const ta = textareaRef.current
     if (ta) {
-      const start = ta.selectionStart ?? instructions.length
-      const before = instructions.slice(0, start)
-      const after = instructions.slice(start)
+      const start = ta.selectionStart ?? ta.value.length
+      const before = ta.value.slice(0, start)
+      const after = ta.value.slice(start)
       setInstructions(before + insertText + after)
-      // Restore cursor after the inserted text
       requestAnimationFrame(() => {
         const pos = start + insertText.length
         ta.setSelectionRange(pos, pos)
@@ -70,7 +69,7 @@ export function CoworkRequestPanel({
     }
     setCopied(false)
     onInsertConsumed()
-  }, [insertText, onInsertConsumed]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [insertText, onInsertConsumed])
 
   const sectionBase = sectionKey.replace(/_(?:en|pt|shared)$/, '')
   const contentSummary = useMemo(() => summarizeContent(sectionContent), [sectionContent])
