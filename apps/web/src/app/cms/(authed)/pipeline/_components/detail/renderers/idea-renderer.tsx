@@ -41,7 +41,6 @@ export function IdeaRenderer({ content, isEditing, onContentChange }: RendererPr
         className="p-3 rounded-md"
         style={{ background: 'var(--gem-well)', borderLeft: '3px solid var(--gem-done)' }}
       >
-        {/* Premise — stays as single-line contentEditable */}
         <div
           className={`text-sm font-semibold mb-1 rounded px-1 -mx-1 ${
             isEditing
@@ -59,7 +58,6 @@ export function IdeaRenderer({ content, isEditing, onContentChange }: RendererPr
           {data.premise || 'Sem título'}
         </div>
 
-        {/* Body — PipelineEditor compact */}
         <div className="mt-1">
           <PipelineEditor
             content={data.body}
@@ -70,7 +68,6 @@ export function IdeaRenderer({ content, isEditing, onContentChange }: RendererPr
           />
         </div>
 
-        {/* Metadata */}
         <div
           className="flex gap-2 flex-wrap mt-1.5 text-[9px]"
           style={{ color: 'var(--gem-dim)' }}

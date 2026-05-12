@@ -5,12 +5,12 @@ import type { RendererProps } from '../section-content'
 import { PipelineEditor, type JSONContent, isJSONContent } from '../editors/pipeline-editor'
 
 export function GenericRenderer({ content, isEditing, onContentChange }: RendererProps) {
-  if (content === null) return null
-
   const handleChange = useCallback(
     (json: JSONContent) => onContentChange(json),
     [onContentChange],
   )
+
+  if (content === null) return null
 
   if (typeof content === 'string' || isJSONContent(content)) {
     return (

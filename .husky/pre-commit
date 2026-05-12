@@ -4,8 +4,9 @@
 # Custo: ~10s por commit. Vale a pena pra não descobrir build quebrada no deploy.
 
 echo "🧪 Rodando testes do web..."
-npm run test:web -- --bail 1 2>&1
+cd apps/web && npx vitest run --bail 1 2>&1
 WEB_TEST_EXIT=$?
+cd ../..
 
 if [ $WEB_TEST_EXIT -ne 0 ]; then
   echo ""

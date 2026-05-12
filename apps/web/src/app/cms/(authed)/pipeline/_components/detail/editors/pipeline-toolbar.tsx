@@ -27,6 +27,22 @@ interface PipelineToolbarProps {
   preset: 'full' | 'compact'
 }
 
+function promptLink(editor: Editor) {
+  if (editor.isActive('link')) {
+    editor.chain().focus().unsetLink().run()
+    return
+  }
+  const url = window.prompt('URL:')
+  if (!url) return
+  try {
+    const parsed = new URL(url, 'https://placeholder.invalid')
+    if (!['http:', 'https:', 'mailto:'].includes(parsed.protocol)) return
+  } catch {
+    return
+  }
+  editor.chain().focus().setLink({ href: url }).run()
+}
+
 function Btn({
   active,
   disabled,
@@ -67,6 +83,8 @@ export function PipelineToolbar({ editor, preset }: PipelineToolbarProps) {
   if (preset === 'compact') {
     return (
       <div
+        role="toolbar"
+        aria-label="Formatação de texto"
         className="flex items-center gap-0.5 px-2 py-1.5 flex-wrap"
         style={{ borderBottom: '1px solid var(--gem-border)', background: 'var(--gem-surface)' }}
       >
@@ -86,14 +104,7 @@ export function PipelineToolbar({ editor, preset }: PipelineToolbarProps) {
         <Sep />
         <Btn
           active={editor.isActive('link')}
-          onClick={() => {
-            if (editor.isActive('link')) {
-              editor.chain().focus().unsetLink().run()
-              return
-            }
-            const url = window.prompt('URL:')
-            if (url) editor.chain().focus().setLink({ href: url }).run()
-          }}
+          onClick={() => promptLink(editor)}
           title="Link (Ctrl+K)"
         >
           <Link2 size={s} />
@@ -104,10 +115,11 @@ export function PipelineToolbar({ editor, preset }: PipelineToolbarProps) {
 
   return (
     <div
+      role="toolbar"
+      aria-label="Formatação de texto"
       className="flex items-center gap-0.5 px-2 py-1.5 flex-wrap"
       style={{ borderBottom: '1px solid var(--gem-border)', background: 'var(--gem-surface)' }}
     >
-      {/* Undo / Redo */}
       <Btn disabled={!editor.can().undo()} onClick={() => editor.chain().focus().undo().run()} title="Desfazer">
         <Undo2 size={s} />
       </Btn>
@@ -115,8 +127,6 @@ export function PipelineToolbar({ editor, preset }: PipelineToolbarProps) {
         <Redo2 size={s} />
       </Btn>
       <Sep />
-
-      {/* Block type */}
       <Btn active={editor.isActive('paragraph')} onClick={() => editor.chain().focus().setParagraph().run()} title="Parágrafo">
         <Pilcrow size={s} />
       </Btn>
@@ -130,8 +140,6 @@ export function PipelineToolbar({ editor, preset }: PipelineToolbarProps) {
         <Heading4 size={s} />
       </Btn>
       <Sep />
-
-      {/* Inline formatting */}
       <Btn active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()} title="Negrito (Ctrl+B)">
         <Bold size={s} />
       </Btn>
@@ -145,8 +153,6 @@ export function PipelineToolbar({ editor, preset }: PipelineToolbarProps) {
         <Strikethrough size={s} />
       </Btn>
       <Sep />
-
-      {/* Lists */}
       <Btn active={editor.isActive('bulletList')} onClick={() => editor.chain().focus().toggleBulletList().run()} title="Lista">
         <List size={s} />
       </Btn>
@@ -157,25 +163,14 @@ export function PipelineToolbar({ editor, preset }: PipelineToolbarProps) {
         <ListTodo size={s} />
       </Btn>
       <Sep />
-
-      {/* Link */}
       <Btn
         active={editor.isActive('link')}
-        onClick={() => {
-          if (editor.isActive('link')) {
-            editor.chain().focus().unsetLink().run()
-            return
-          }
-          const url = window.prompt('URL:')
-          if (url) editor.chain().focus().setLink({ href: url }).run()
-        }}
+        onClick={() => promptLink(editor)}
         title="Link (Ctrl+K)"
       >
         <Link2 size={s} />
       </Btn>
       <Sep />
-
-      {/* Block elements */}
       <Btn active={editor.isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()} title="Citação">
         <Quote size={s} />
       </Btn>

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { isJSONContent, contentToEditorInput, extractHeadings } from '@/app/cms/(authed)/pipeline/_components/detail/editors/pipeline-editor'
+import { transformPastedHTML } from '@/app/cms/(authed)/pipeline/_components/detail/editors/paste-sanitizer'
 
 describe('isJSONContent', () => {
   it('returns true for valid Tiptap doc', () => {
@@ -95,5 +96,27 @@ describe('extractHeadings', () => {
       ],
     }
     expect(extractHeadings(doc)).toEqual(['Hello world'])
+  })
+})
+
+describe('transformPastedHTML', () => {
+  it('strips class attributes', () => {
+    expect(transformPastedHTML('<p class="MsoNormal">text</p>')).toBe('<p>text</p>')
+  })
+
+  it('strips all style attributes', () => {
+    expect(transformPastedHTML('<span style="font-size:12pt">text</span>')).toBe('<span>text</span>')
+  })
+
+  it('strips Office o:p tags', () => {
+    expect(transformPastedHTML('<p>text<o:p>&nbsp;</o:p></p>')).toBe('<p>text</p>')
+  })
+
+  it('strips conditional comments', () => {
+    expect(transformPastedHTML('<!--[if gte mso 9]>stuff<![endif]--><p>ok</p>')).toBe('<p>ok</p>')
+  })
+
+  it('preserves clean HTML unchanged', () => {
+    expect(transformPastedHTML('<p><strong>bold</strong></p>')).toBe('<p><strong>bold</strong></p>')
   })
 })

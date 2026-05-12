@@ -198,6 +198,11 @@
   padding: 0;
 }
 
+.pipeline-editor[data-readonly="true"] .pipeline-editor-stats {
+  border-top: none;
+  margin-top: 0.75rem;
+}
+
 /* Stats bar */
 .pipeline-editor-stats {
   display: flex;
