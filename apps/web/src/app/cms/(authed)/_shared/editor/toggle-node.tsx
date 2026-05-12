@@ -20,8 +20,12 @@ function ToggleWrapperView() {
         }}
       >
         <div
+          role="button"
+          aria-expanded={open}
+          tabIndex={0}
           className="flex items-center cursor-pointer px-3 py-2 bg-[#111827] select-none"
           onClick={() => setOpen(!open)}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(!open) } }}
           contentEditable={false}
         >
           <ChevronRight

@@ -25,6 +25,7 @@ function BubbleButton({
       type="button"
       onClick={onClick}
       title={title}
+      aria-pressed={active}
       className={`p-1.5 rounded transition-colors ${
         active ? 'bg-white/20 text-white' : 'text-gray-300 hover:text-white hover:bg-white/10'
       }`}

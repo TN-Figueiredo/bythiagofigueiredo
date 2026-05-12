@@ -252,6 +252,10 @@
   text-underline-offset: 4px;
 }
 
+.pb-cta-align-left   { text-align: left; }
+.pb-cta-align-center { text-align: center; }
+.pb-cta-align-right  { text-align: right; }
+
 /* Checklist */
 .pb-checklist {
   list-style: none;
@@ -397,7 +401,8 @@
   margin: 0;
 }
 
-.pb-figure img {
+.pb-figure img,
+.pb-img {
   max-width: 100%;
   height: auto;
   border-radius: 8px;
@@ -409,4 +414,13 @@
   color: var(--pb-muted);
   margin-top: 0.5em;
   text-align: center;
+}
+
+.pb-merge-tag {
+  font-family: var(--font-jetbrains), monospace;
+  font-size: 0.85em;
+  color: var(--pb-accent);
+  background: var(--pb-accent-faint, rgba(99, 102, 241, 0.1));
+  padding: 0.1em 0.4em;
+  border-radius: 4px;
 }

@@ -52,7 +52,13 @@ export class EmbedHydrator {
 
       const embedUrl = getEmbedUrl(provider, url)
       if (!embedUrl) {
-        el.innerHTML = `<a href="${url}" target="_blank" rel="noopener noreferrer" style="color:var(--pb-accent)">${url}</a>`
+        const link = document.createElement('a')
+        link.href = url
+        link.target = '_blank'
+        link.rel = 'noopener noreferrer'
+        link.style.color = 'var(--pb-accent)'
+        link.textContent = url
+        el.replaceChildren(link)
         return
       }
 

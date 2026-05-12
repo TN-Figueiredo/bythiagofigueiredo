@@ -42,6 +42,8 @@ function CalloutNodeView({ node, updateAttributes }: NodeViewProps) {
                 key={v}
                 type="button"
                 onClick={() => updateAttributes({ variant: v })}
+                aria-pressed={variant === v}
+                aria-label={VARIANT_CONFIG[v].label}
                 className={`p-1 rounded text-xs ${variant === v ? 'bg-white/20 ring-1 ring-white/30' : 'opacity-40 hover:opacity-70'}`}
                 title={VARIANT_CONFIG[v].label}
               >

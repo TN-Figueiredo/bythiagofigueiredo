@@ -89,16 +89,23 @@ export async function savePost(
       return { ok: false, error: 'db_error' as const, message: e instanceof Error ? e.message : String(e) }
     }
 
-    {
+    try {
       const supabase = getSupabaseServiceClient()
+      const txPatch: Record<string, unknown> = {
+        content_json: input.content_json,
+        content_html: compiled.html,
+      }
+      if (input.colophon !== undefined) txPatch.colophon = input.colophon || null
+      if (input.notes !== undefined) txPatch.notes = input.notes && input.notes.length > 0 ? input.notes : null
+      if (input.pull_quote !== undefined) txPatch.pull_quote = input.pull_quote || null
+      if (input.key_points !== undefined) txPatch.key_points = input.key_points && input.key_points.length > 0 ? input.key_points : null
       await supabase
         .from('blog_translations')
-        .update({
-          content_json: input.content_json,
-          content_html: compiled.html,
-        })
+        .update(txPatch)
         .eq('post_id', id)
         .eq('locale', locale)
+    } catch (e) {
+      return { ok: false, error: 'db_error' as const, message: e instanceof Error ? e.message : String(e) }
     }
 
     {

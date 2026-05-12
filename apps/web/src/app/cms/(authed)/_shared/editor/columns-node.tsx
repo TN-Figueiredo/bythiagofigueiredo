@@ -28,6 +28,8 @@ function ColumnsNodeView({ node, updateAttributes }: NodeViewProps) {
               key={r}
               type="button"
               onClick={() => updateAttributes({ ratio: r })}
+              aria-pressed={ratio === r}
+              aria-label={`Column ratio ${r}`}
               className={`px-2 py-0.5 rounded text-xs font-mono ${
                 ratio === r ? 'bg-[#6366f1]/20 text-[#a5b4fc] ring-1 ring-[#6366f1]/40' : 'text-[#6b7280] hover:text-[#d1d5db]'
               }`}

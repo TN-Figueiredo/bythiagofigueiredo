@@ -21,6 +21,8 @@ export function NewPostEditor({ locale, tagId }: NewPostEditorProps) {
   const [slug, setSlug] = useState('')
   const [contentJson, setContentJson] = useState<JSONContent | null>(null)
   const [contentHtml, setContentHtml] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const postIdRef = useRef<string | null>(null)
   const isDirtyRef = useRef(false)
 
@@ -55,37 +57,46 @@ export function NewPostEditor({ locale, tagId }: NewPostEditorProps) {
   }
 
   async function handleSave() {
+    if (isSaving || !contentJson) return
+    setIsSaving(true)
+    setSaveError(null)
     setIsDirty(true)
 
-    // If we don't have a post yet, create one first
-    let currentPostId = postIdRef.current
-    if (!currentPostId) {
-      const createResult = await createPost({
-        title: title.trim() || undefined,
-        locale,
-        tagId: tagId ?? null,
-        status: 'draft',
-      })
-      if (!createResult.ok) {
-        return
+    try {
+      let currentPostId = postIdRef.current
+      if (!currentPostId) {
+        const createResult = await createPost({
+          title: title.trim() || undefined,
+          locale,
+          tagId: tagId ?? null,
+          status: 'draft',
+        })
+        if (!createResult.ok) {
+          setSaveError('Failed to create post')
+          return
+        }
+        currentPostId = createResult.postId
+        postIdRef.current = currentPostId
+        setPostId(currentPostId)
       }
-      currentPostId = createResult.postId
-      postIdRef.current = currentPostId
-      setPostId(currentPostId)
-    }
 
-    // Save the post content
-    const saveResult = await savePost(currentPostId, locale, {
-      title,
-      slug,
-      content_json: contentJson as Record<string, unknown>,
-      content_html: contentHtml,
-      content_mdx: '',
-    })
+      const saveResult = await savePost(currentPostId, locale, {
+        title,
+        slug,
+        content_json: contentJson as Record<string, unknown>,
+        content_html: contentHtml,
+        content_mdx: '',
+      })
 
-    if (saveResult.ok) {
-      // Navigate to the edit page; replace so back doesn't go back to /new
-      router.replace(`/cms/blog/${currentPostId}/edit`)
+      if (saveResult.ok) {
+        router.replace(`/cms/blog/${currentPostId}/edit`)
+      } else {
+        setSaveError('error' in saveResult ? saveResult.error : 'Save failed')
+      }
+    } catch {
+      setSaveError('Network error — please try again')
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -158,14 +169,17 @@ export function NewPostEditor({ locale, tagId }: NewPostEditorProps) {
       />
 
       {/* Save button */}
+      {saveError && (
+        <p className="text-sm text-red-400">{saveError}</p>
+      )}
       <div className="flex justify-end">
         <button
           type="button"
           onClick={handleSave}
-          disabled={!isDirty}
+          disabled={!isDirty || isSaving}
           className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
-          Save & continue
+          {isSaving ? 'Saving…' : 'Save & continue'}
         </button>
       </div>
     </div>

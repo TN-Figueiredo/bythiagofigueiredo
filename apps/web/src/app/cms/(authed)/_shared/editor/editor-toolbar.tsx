@@ -86,6 +86,7 @@ function ToolbarButton({
       onClick={onClick}
       disabled={disabled}
       title={title}
+      aria-pressed={active}
       className={`p-1.5 rounded-md transition-colors ${
         active
           ? 'bg-indigo-500/15 text-[#818cf8]'

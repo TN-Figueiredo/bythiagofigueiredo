@@ -97,28 +97,42 @@ export function EditPostClient({
     }
   }
 
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+
   const handleTipTapSave = async () => {
-    if (!contentJson) return
-    const result = await savePost(postId, locale, {
-      content_mdx: '',
-      title: titleState,
-      slug: slugState,
-      content_json: contentJson as Record<string, unknown>,
-      content_html: contentHtml,
-      excerpt: initialExcerpt,
-      meta_title: initialMetaTitle,
-      meta_description: initialMetaDescription,
-      og_image_url: initialOgImageUrl,
-      cover_image_url: initialCoverImageUrl,
-      key_points: keyPoints.filter(Boolean),
-      pull_quote: pullQuote || null,
-      notes: notes.filter(Boolean),
-      colophon: colophon || null,
-      previous_post_id: previousPostId,
-      continues_in_next: continuesInNext,
-      hashtag_ids: hashtags.map(h => h.id),
-    })
-    return result
+    if (!contentJson || isSaving) return
+    setIsSaving(true)
+    setSaveError(null)
+    try {
+      const result = await savePost(postId, locale, {
+        content_mdx: '',
+        title: titleState,
+        slug: slugState,
+        content_json: contentJson as Record<string, unknown>,
+        content_html: contentHtml,
+        excerpt: initialExcerpt,
+        meta_title: initialMetaTitle,
+        meta_description: initialMetaDescription,
+        og_image_url: initialOgImageUrl,
+        cover_image_url: initialCoverImageUrl,
+        key_points: keyPoints.filter(Boolean),
+        pull_quote: pullQuote || null,
+        notes: notes.filter(Boolean),
+        colophon: colophon || null,
+        previous_post_id: previousPostId,
+        continues_in_next: continuesInNext,
+        hashtag_ids: hashtags.map(h => h.id),
+      })
+      if (!result.ok) {
+        setSaveError('error' in result ? result.error : 'Save failed')
+      }
+      return result
+    } catch {
+      setSaveError('Network error — please try again')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   return (
@@ -140,12 +154,16 @@ export function EditPostClient({
               onChange={(json: JSONContent, html: string) => { setContentJson(json); setContentHtml(html) }}
               onImageUpload={handleImageUpload}
             />
+            {saveError && (
+              <p className="mt-2 text-sm text-red-400">{saveError}</p>
+            )}
             <button
               type="button"
               onClick={handleTipTapSave}
-              className="mt-3 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-colors"
+              disabled={isSaving}
+              className="mt-3 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
-              {locale === 'pt-BR' ? 'Salvar' : 'Save'}
+              {isSaving ? (locale === 'pt-BR' ? 'Salvando…' : 'Saving…') : (locale === 'pt-BR' ? 'Salvar' : 'Save')}
             </button>
           </div>
         </>

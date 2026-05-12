@@ -16,18 +16,26 @@ export interface CompileJsonResult {
   readingTimeMin: number
 }
 
+// ─── Whitelists for safe CSS class generation ───────────────────────────────
+
+const CALLOUT_VARIANTS = new Set(['info', 'warning', 'tip', 'error'])
+const CTA_STYLES = new Set(['primary', 'secondary', 'ghost'])
+const CTA_ALIGNS = new Set(['left', 'center', 'right'])
+const COLUMN_RATIOS = new Set(['1-1', '2-1', '1-2', '1-1-1'])
+const HEADING_LEVELS = new Set([1, 2, 3, 4])
+
 // ─── SVG icons for callout variants ──────────────────────────────────────────
 
 const CALLOUT_ICONS: Record<string, string> = {
-  info: '<svg class="pb-callout-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none"/><text x="12" y="17" text-anchor="middle" font-size="14" fill="currentColor">i</text></svg>',
-  warning: '<svg class="pb-callout-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="currentColor" stroke-width="2" fill="none"/><text x="12" y="17" text-anchor="middle" font-size="13" fill="currentColor">!</text></svg>',
-  tip: '<svg class="pb-callout-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21h6m-3-3V12m0 0a5 5 0 100-10 5 5 0 000 10z" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>',
-  error: '<svg class="pb-callout-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none"/><path d="M15 9l-6 6M9 9l6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  info: '<svg class="pb-callout-icon" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none"/><text x="12" y="17" text-anchor="middle" font-size="14" fill="currentColor">i</text></svg>',
+  warning: '<svg class="pb-callout-icon" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="currentColor" stroke-width="2" fill="none"/><text x="12" y="17" text-anchor="middle" font-size="13" fill="currentColor">!</text></svg>',
+  tip: '<svg class="pb-callout-icon" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21h6m-3-3V12m0 0a5 5 0 100-10 5 5 0 000 10z" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>',
+  error: '<svg class="pb-callout-icon" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none"/><path d="M15 9l-6 6M9 9l6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
 }
 
 // ─── URL sanitizer ────────────────────────────────────────────────────────────
 
-const UNSAFE_URL_PATTERN = /^\s*(javascript|data|vbscript):/i
+const UNSAFE_URL_PATTERN = /^\s*(javascript|data|vbscript|file):/i
 
 function sanitizeUrl(url: string): string {
   if (UNSAFE_URL_PATTERN.test(url)) return '#'
@@ -159,6 +167,8 @@ function renderBlock(node: JSONContent, state: CompileState): string {
       return renderTableCell(node, state)
     case 'socialEmbed':
       return renderSocialEmbed(node)
+    case 'mergeTag':
+      return renderMergeTag(node)
     default:
       // Unknown node: try to render children or text
       if (node.content) {
@@ -177,7 +187,8 @@ function renderParagraph(node: JSONContent, state: CompileState): string {
 }
 
 function renderHeading(node: JSONContent, state: CompileState): string {
-  const level = node.attrs?.level ?? 2
+  const rawLevel = Number(node.attrs?.level ?? 2)
+  const level = HEADING_LEVELS.has(rawLevel) ? rawLevel : 2
   const text = extractText(node)
   state.wordCount += text.split(/\s+/).filter(Boolean).length
   const slug = slugify(text)
@@ -230,23 +241,25 @@ function renderImage(node: JSONContent): string {
 }
 
 function renderCallout(node: JSONContent, state: CompileState): string {
-  const variant = escapeHtml(node.attrs?.variant ?? 'info')
+  const raw = String(node.attrs?.variant ?? 'info')
+  const variant = CALLOUT_VARIANTS.has(raw) ? raw : 'info'
   const icon = CALLOUT_ICONS[variant] ?? CALLOUT_ICONS.info
   const inner = (node.content ?? []).map((child) => renderBlock(child, state)).join('')
-  // If content is just text nodes (not block children), render inline
   const hasBlockContent = node.content?.some((c) => c.type !== 'text' && c.type !== 'hardBreak')
   const body = hasBlockContent ? inner : renderInline(node.content)
-  return `<aside class="pb-callout pb-callout-${variant}">${icon}<div class="pb-callout-body">${body}</div></aside>`
+  return `<aside class="pb-callout pb-callout-${variant}" role="note" aria-label="${variant}">${icon}<div class="pb-callout-content">${body}</div></aside>`
 }
 
 function renderCtaButton(node: JSONContent): string {
-  const align = escapeHtml(node.attrs?.align ?? 'center')
-  const buttons = (node.attrs?.buttons ?? []) as Array<{ text: string; url: string; style: string }>
-  const btns = buttons
+  const rawAlign = String(node.attrs?.align ?? 'center')
+  const align = CTA_ALIGNS.has(rawAlign) ? rawAlign : 'center'
+  const rawButtons = Array.isArray(node.attrs?.buttons) ? node.attrs.buttons : []
+  const btns = (rawButtons as Array<Record<string, unknown>>)
     .map((btn) => {
-      const href = escapeHtml(sanitizeUrl(btn.url ?? ''))
-      const style = escapeHtml(btn.style ?? 'primary')
-      const text = escapeHtml(btn.text ?? '')
+      const href = escapeHtml(sanitizeUrl(String(btn.url ?? '')))
+      const rawStyle = String(btn.style ?? 'primary')
+      const style = CTA_STYLES.has(rawStyle) ? rawStyle : 'primary'
+      const text = escapeHtml(String(btn.text ?? ''))
       return `<a href="${href}" class="pb-cta-${style}" rel="noopener noreferrer nofollow">${text}</a>`
     })
     .join('')
@@ -262,7 +275,7 @@ function renderTaskItem(node: JSONContent, state: CompileState): string {
   const checked = node.attrs?.checked === true
   const checkedAttr = checked ? ' checked' : ''
   const inner = (node.content ?? []).map((child) => renderBlock(child, state)).join('')
-  return `<li class="pb-checklist-item"><span class="pb-checklist-check"><input type="checkbox"${checkedAttr} disabled></span>${inner}</li>`
+  return `<li class="pb-checklist-item"><span class="pb-check"><input type="checkbox"${checkedAttr} disabled></span>${inner}</li>`
 }
 
 function renderToggleWrapper(node: JSONContent, state: CompileState): string {
@@ -281,9 +294,10 @@ function renderToggleBody(node: JSONContent, state: CompileState): string {
 }
 
 function renderColumns(node: JSONContent, state: CompileState): string {
-  const ratio = ((node.attrs?.ratio as string | undefined) ?? '1:1').replace(/:/g, '-')
+  const raw = ((node.attrs?.ratio as string | undefined) ?? '1:1').replace(/:/g, '-')
+  const ratio = COLUMN_RATIOS.has(raw) ? raw : '1-1'
   const inner = (node.content ?? []).map((child) => renderBlock(child, state)).join('')
-  return `<div class="pb-columns pb-cols-${escapeHtml(ratio)}">${inner}</div>`
+  return `<div class="pb-columns pb-cols-${ratio}">${inner}</div>`
 }
 
 function renderColumn(node: JSONContent, state: CompileState): string {
@@ -293,7 +307,7 @@ function renderColumn(node: JSONContent, state: CompileState): string {
 
 function renderTable(node: JSONContent, state: CompileState): string {
   const caption = node.attrs?.caption as string | undefined
-  const captionHtml = caption ? `<caption class="pb-caption">${escapeHtml(caption)}</caption>` : ''
+  const captionHtml = caption ? `<caption class="pb-table-caption">${escapeHtml(caption)}</caption>` : ''
   const rows = (node.content ?? []).map((child) => renderBlock(child, state)).join('')
   return `<div class="pb-table-wrap"><table class="pb-table">${captionHtml}${rows}</table></div>`
 }
@@ -319,10 +333,18 @@ function renderSocialEmbed(node: JSONContent): string {
   return `<div class="pb-embed" data-provider="${provider}" data-url="${url}"></div>`
 }
 
+function renderMergeTag(node: JSONContent): string {
+  const tag = escapeHtml(String(node.attrs?.tag ?? ''))
+  return `<span class="pb-merge-tag" data-tag="${tag}">{{${tag}}}</span>`
+}
+
 // ─── Top-level doc compiler ───────────────────────────────────────────────────
 
 export async function compileJsonContent(json: JSONContent): Promise<CompileJsonResult> {
-  const blocks = json.content ?? []
+  if (!json?.content) {
+    return { html: '', toc: [], readingTimeMin: 0 }
+  }
+  const blocks = json.content
   const state: CompileState = { toc: [], wordCount: 0 }
 
   if (blocks.length === 0) {

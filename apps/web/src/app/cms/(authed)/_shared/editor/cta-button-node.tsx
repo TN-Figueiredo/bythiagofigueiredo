@@ -72,6 +72,7 @@ function ButtonEditor({
             key={s}
             type="button"
             onClick={() => onChange({ ...button, style: s })}
+            aria-pressed={button.style === s}
             className={`flex-1 text-xs px-2 py-1 rounded transition-colors ${
               button.style === s
                 ? 'bg-purple-700 text-white border border-purple-500'
@@ -239,7 +240,7 @@ export const CTAButtonExtension = Node.create({
     const { buttons, align } = HTMLAttributes as { buttons: CTAButton[]; align: string }
     const safeButtons: CTAButton[] = Array.isArray(buttons) ? buttons : [{ text: 'Click Here', url: '', style: 'primary' }]
     const children = safeButtons.map((btn) => {
-      const safeUrl = btn.url && !btn.url.match(/^\s*javascript:/i) ? btn.url : '#'
+      const safeUrl = btn.url && !btn.url.match(/^\s*(javascript|data|vbscript|file):/i) ? btn.url : '#'
       return ['a', { class: `cta-button cta-button--${btn.style}`, href: safeUrl }, btn.text]
     })
     return [

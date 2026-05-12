@@ -74,7 +74,7 @@ export function TipTapEditor({
         onInsertCTAButton: () => {
           editorRef.current?.chain().focus().insertContent({
             type: 'ctaButton',
-            attrs: { text: 'Click Here', url: '', color: '#7c3aed', align: 'center' },
+            attrs: { text: 'Click Here', url: '', align: 'center' },
           }).run()
         },
         onInsertMergeTag: (tag: string) => {
@@ -313,7 +313,7 @@ export function TipTapEditor({
         onInsertCTAButton={() => {
           editor?.chain().focus().insertContent({
             type: 'ctaButton',
-            attrs: { text: 'Click Here', url: '', color: '#7c3aed', align: 'center' },
+            attrs: { text: 'Click Here', url: '', align: 'center' },
           }).run()
         }}
         onInsertSocialEmbed={(provider, url) => {
