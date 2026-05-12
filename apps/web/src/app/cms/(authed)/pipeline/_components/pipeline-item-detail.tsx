@@ -250,6 +250,7 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
   const [titlePt, setTitlePt] = useState(item.title_pt || '')
   const [hook, setHook] = useState(item.hook || '')
   const [synopsis, setSynopsis] = useState(item.synopsis || '')
+  const [focusedField, setFocusedField] = useState<'hook' | 'synopsis' | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
 
   const stages = WORKFLOWS[item.format as Format] || []
@@ -379,38 +380,91 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
           <span style={{ color: 'var(--gem-muted)' }}>{item.code}</span>
         </nav>
 
-        {/* Title */}
         <input
           type="text"
           value={titlePt}
           onChange={(e) => { setTitlePt(e.target.value); debouncedSave('title_pt', e.target.value) }}
-          placeholder="Título (PT)"
+          placeholder="Título do conteúdo"
           aria-label="Title"
-          className="w-full px-3 py-2 rounded-lg text-lg font-semibold bg-transparent border border-transparent hover:border-[var(--gem-border)] focus:border-[var(--gem-accent)] focus:outline-none transition-colors"
-          style={{ color: 'var(--gem-text)' }}
+          className="w-full bg-transparent border border-transparent rounded-lg hover:border-[var(--gem-border)] hover:bg-[var(--gem-surface-hi)] focus:border-[var(--gem-accent)] focus:bg-[var(--gem-well)] focus:shadow-[0_0_0_2px_rgba(99,102,241,0.12)] focus:outline-none transition-all duration-150"
+          style={{ color: 'var(--gem-text)', fontSize: 24, fontWeight: 700, letterSpacing: '-0.4px', lineHeight: 1.3, padding: '10px 14px' }}
         />
 
-        {/* Hook */}
-        <input
-          type="text"
-          value={hook}
-          onChange={(e) => { setHook(e.target.value); debouncedSave('hook', e.target.value) }}
-          placeholder="Hook — o que prende a audiência"
-          aria-label="Hook"
-          className="w-full px-3 py-1.5 rounded-lg text-sm bg-transparent border border-transparent hover:border-[var(--gem-border)] focus:border-[var(--gem-accent)] focus:outline-none transition-colors"
-          style={{ color: 'var(--gem-muted)', borderLeft: `2px solid ${priority.accent}` }}
-        />
+        <div className="relative">
+          {hook && (
+            <span
+              id={`hook-label-${item.id}`}
+              className="absolute top-[-7px] left-[22px] z-10 px-1.5 text-[9px] uppercase tracking-[1.2px] font-semibold transition-opacity duration-150"
+              style={{ color: priority.accent, background: 'var(--gem-surface)', lineHeight: '14px' }}
+            >
+              Hook
+            </span>
+          )}
+          <input
+            type="text"
+            value={hook}
+            onChange={(e) => { setHook(e.target.value); debouncedSave('hook', e.target.value) }}
+            onFocus={() => setFocusedField('hook')}
+            onBlur={() => setFocusedField(null)}
+            placeholder="O que prende a audiência em uma frase?"
+            aria-label="Hook"
+            aria-labelledby={hook ? `hook-label-${item.id}` : undefined}
+            className="w-full bg-transparent border border-transparent rounded-r-lg hover:border-[var(--gem-border)] hover:bg-[var(--gem-surface-hi)] focus:border-[var(--gem-accent)] focus:bg-[var(--gem-well)] focus:shadow-[0_0_0_2px_rgba(99,102,241,0.12)] focus:outline-none transition-all duration-150"
+            style={{
+              color: hook ? '#b8c5d6' : undefined,
+              fontSize: 15,
+              lineHeight: 1.5,
+              padding: '10px 14px 10px 16px',
+              borderLeft: `3px solid ${hook ? priority.accent : 'var(--gem-faint)'}`,
+            }}
+          />
+          {focusedField === 'hook' && (
+            <div
+              className="text-right text-[10px] transition-opacity duration-150"
+              style={{ color: hook.length >= 240 ? 'var(--gem-warn)' : 'var(--gem-dim)', padding: '3px 14px 0' }}
+            >
+              {hook.length} / 300
+            </div>
+          )}
+        </div>
 
-        {/* Synopsis */}
-        <textarea
-          value={synopsis}
-          onChange={(e) => { setSynopsis(e.target.value); debouncedSave('synopsis', e.target.value) }}
-          placeholder="Synopsis — resumo para orientação"
-          aria-label="Synopsis"
-          rows={3}
-          className="w-full px-3 py-2 rounded-lg text-sm bg-transparent border border-transparent hover:border-[var(--gem-border)] focus:border-[var(--gem-accent)] focus:outline-none transition-colors resize-y"
-          style={{ color: 'var(--gem-muted)' }}
-        />
+        <div className="relative">
+          {synopsis && (
+            <span
+              id={`synopsis-label-${item.id}`}
+              className="absolute top-[-7px] left-[22px] z-10 px-1.5 text-[9px] uppercase tracking-[1.2px] font-semibold transition-opacity duration-150"
+              style={{ color: 'var(--gem-dim)', background: 'var(--gem-surface)', lineHeight: '14px' }}
+            >
+              Synopsis
+            </span>
+          )}
+          <textarea
+            value={synopsis}
+            onChange={(e) => { setSynopsis(e.target.value); debouncedSave('synopsis', e.target.value) }}
+            onFocus={() => setFocusedField('synopsis')}
+            onBlur={() => setFocusedField(null)}
+            placeholder="Sobre o que é esse conteúdo? Contexto, tese, estrutura..."
+            aria-label="Synopsis"
+            aria-labelledby={synopsis ? `synopsis-label-${item.id}` : undefined}
+            rows={3}
+            className="w-full bg-transparent border border-transparent rounded-r-lg hover:border-[var(--gem-border)] hover:bg-[var(--gem-surface-hi)] focus:border-[var(--gem-accent)] focus:bg-[var(--gem-well)] focus:shadow-[0_0_0_2px_rgba(99,102,241,0.12)] focus:outline-none transition-all duration-150 resize-y"
+            style={{
+              color: 'var(--gem-muted)',
+              fontSize: 13,
+              lineHeight: 1.6,
+              padding: '10px 14px 10px 16px',
+              borderLeft: synopsis ? '1px solid var(--gem-faint)' : undefined,
+            }}
+          />
+          {focusedField === 'synopsis' && (
+            <div
+              className="text-right text-[10px] transition-opacity duration-150"
+              style={{ color: 'var(--gem-dim)', padding: '3px 14px 0' }}
+            >
+              {synopsis.length} / 2000
+            </div>
+          )}
+        </div>
 
         {/* Tabbed section editor */}
         <TabContainer
@@ -420,6 +474,7 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
           sections={sectionsMap}
           itemCode={item.code}
           itemTitle={item.title_pt || item.title_en || ''}
+          itemLanguage={item.language as 'pt-br' | 'en' | 'both'}
         >
           {({ activeTab, activeSub, lang: tabLang, sections, sectionDefs }) => {
             const activeDef = sectionDefs.find(s => s.key === activeTab)

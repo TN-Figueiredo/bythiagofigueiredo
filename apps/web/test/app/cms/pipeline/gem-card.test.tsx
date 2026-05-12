@@ -27,6 +27,9 @@ const baseItem: GemCardItem = {
   validation_score: 45,
   dependencies: [],
   collection_code: null,
+  linked_post_status: null,
+  sort_order: 0,
+  version: 1,
 }
 
 describe('GemCard', () => {
@@ -86,9 +89,10 @@ describe('GemCard', () => {
     expect(screen.getByText('+2')).toBeDefined()
   })
 
-  it('links to item detail page', () => {
+  it('renders as a button-like div', () => {
     const { container } = render(<GemCard item={baseItem} />)
-    const link = container.querySelector('a')
-    expect(link?.getAttribute('href')).toBe('/cms/pipeline/items/1')
+    const card = container.querySelector('[role="button"]')
+    expect(card).toBeDefined()
+    expect(card?.getAttribute('tabindex')).toBe('0')
   })
 })

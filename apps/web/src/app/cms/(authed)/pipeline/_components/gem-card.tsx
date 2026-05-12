@@ -1,7 +1,6 @@
 'use client'
 
 import { memo } from 'react'
-import Link from 'next/link'
 import {
   getPriorityConfig,
   getStaleness,
@@ -36,9 +35,17 @@ export interface GemCardItem {
   validation_score: number
   dependencies: Array<{ dependency_type: string; depends_on_pipeline: { code: string } }>
   collection_code: string | null
+  sort_order: number
+  version: number
 }
 
-export const GemCard = memo(function GemCard({ item }: { item: GemCardItem }) {
+interface GemCardProps {
+  item: GemCardItem
+  isDragging?: boolean
+  onNavigate?: () => void
+}
+
+export const GemCard = memo(function GemCard({ item, isDragging: _isDragging, onNavigate }: GemCardProps) {
   const priority = getPriorityConfig(item.priority)
   const staleness = getStaleness(item.updated_at)
   const formatIcon = getFormatIcon(item.format)
@@ -64,10 +71,13 @@ export const GemCard = memo(function GemCard({ item }: { item: GemCardItem }) {
   const overflowCount = (item.collection_code ? 1 : 0) + item.tags.length - tags.length
 
   return (
-    <Link
-      href={`/cms/pipeline/items/${item.id}`}
+    <div
+      role="button"
+      tabIndex={0}
       aria-label={`${title} — ${formatIcon.label}, ${priority.label}, stage ${item.stage}`}
-      className={`block rounded-lg border p-3 transition-[border-color,transform,box-shadow] duration-150 hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 ${
+      onClick={onNavigate}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigate?.() } }}
+      className={`block rounded-lg border p-3 transition-[border-color,transform,box-shadow] duration-150 hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 cursor-pointer ${
         isArchived ? 'opacity-45 saturate-[0.3] hover:opacity-65' : ''
       } ${isBlockedState ? 'ring-1 ring-red-500/30' : ''}`}
       style={{
@@ -199,6 +209,6 @@ export const GemCard = memo(function GemCard({ item }: { item: GemCardItem }) {
           style={{ background: 'linear-gradient(to right, #10b981, #059669 50%, transparent)' }}
         />
       )}
-    </Link>
+    </div>
   )
 })

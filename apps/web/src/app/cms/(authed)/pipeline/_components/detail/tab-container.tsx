@@ -12,6 +12,7 @@ interface TabContainerProps {
   sections: Record<string, SectionData>
   itemCode: string
   itemTitle: string
+  itemLanguage: 'pt-br' | 'en' | 'both'
   children: (props: {
     activeTab: string
     activeSub: string | null
@@ -52,11 +53,11 @@ const TAB_DEPENDENCIES: Record<string, string[]> = {
   metrics: ['briefing'],
 }
 
-export function TabContainer({ format, itemId, itemVersion, sections, itemCode, itemTitle, children }: TabContainerProps) {
+export function TabContainer({ format, itemId, itemVersion, sections, itemCode, itemTitle, itemLanguage, children }: TabContainerProps) {
   const sectionDefs = getSectionsForFormat(format)
   const [activeTab, setActiveTab] = useState(sectionDefs[0]?.key ?? '')
   const [activeSub, setActiveSub] = useState<string | null>(null)
-  const [lang, setLang] = useState('en')
+  const [lang, setLang] = useState(() => itemLanguage === 'en' ? 'en' : 'pt')
   const [langTransition, setLangTransition] = useState(false)
 
   const enabledTabs = useMemo(() => {

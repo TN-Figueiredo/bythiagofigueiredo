@@ -38,6 +38,9 @@ const makeItem = (overrides: Partial<Record<string, unknown>> = {}) => ({
   validation_score: 0,
   dependencies: [],
   collection_code: null,
+  linked_post_status: null,
+  sort_order: 0,
+  version: 1,
   ...overrides,
 })
 

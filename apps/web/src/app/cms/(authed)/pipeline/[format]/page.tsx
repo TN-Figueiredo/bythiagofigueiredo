@@ -23,7 +23,7 @@ export default async function FormatBoardPage({ params }: { params: Promise<{ fo
       .from('content_pipeline')
       .select(`
         id, code, title_pt, title_en, stage, priority, language, tags,
-        production_checklist, version, format, hook, body_content, updated_at,
+        production_checklist, version, sort_order, format, hook, body_content, updated_at,
         youtube_video_id, blog_post_id, newsletter_edition_id, campaign_id,
         is_archived, format_metadata, blog_posts(status),
         content_pipeline_memberships(role, content_collections(code, name))
@@ -31,8 +31,7 @@ export default async function FormatBoardPage({ params }: { params: Promise<{ fo
       .eq('site_id', siteId)
       .eq('format', format)
       .eq('is_archived', false)
-      .order('priority', { ascending: false })
-      .order('updated_at', { ascending: false }),
+      .order('sort_order', { ascending: true }),
     supabase
       .from('content_collections')
       .select('code, name')
@@ -64,6 +63,8 @@ export default async function FormatBoardPage({ params }: { params: Promise<{ fo
       is_archived: item.is_archived, validation_score: score.overall,
       dependencies: [], collection_code: collectionCode,
       linked_post_status: (item as unknown as { blog_posts?: { status: string } | null }).blog_posts?.status ?? null,
+      sort_order: (item as unknown as { sort_order: number }).sort_order ?? 0,
+      version: item.version ?? 1,
     }
   })
 

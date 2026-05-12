@@ -23,6 +23,30 @@ async function requireEditAccess() {
   return { siteId, timezone }
 }
 
+export async function reorderPipelineItem(
+  id: string,
+  version: number,
+  input: { stage?: string; sort_order: number }
+): Promise<ActionResult> {
+  const { siteId } = await requireEditAccess()
+  const supabase = getSupabaseServiceClient()
+
+  const updateData: Record<string, unknown> = { sort_order: input.sort_order }
+  if (input.stage) updateData.stage = input.stage
+
+  const { data: updated, error } = await supabase
+    .from('content_pipeline')
+    .update(updateData)
+    .eq('id', id)
+    .eq('site_id', siteId)
+    .eq('version', version)
+    .select('id, version, stage, sort_order')
+    .single()
+
+  if (error || !updated) return { ok: false, error: 'Version conflict or item not found' }
+  return { ok: true, data: updated }
+}
+
 export async function createPipelineItem(input: Record<string, unknown>): Promise<ActionResult> {
   const parsed = PipelineItemCreateSchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
@@ -33,6 +57,19 @@ export async function createPipelineItem(input: Record<string, unknown>): Promis
   const format = data.format as Format
   const title = data.title_pt || data.title_en || 'untitled'
   const code = data.code || generateCode(format, title, data.format_metadata)
+  const stage = data.stage || 'idea'
+
+  const { data: maxOrder } = await supabase
+    .from('content_pipeline')
+    .select('sort_order')
+    .eq('site_id', siteId)
+    .eq('format', format)
+    .eq('stage', stage)
+    .order('sort_order', { ascending: false })
+    .limit(1)
+    .single()
+
+  const newSortOrder = (maxOrder?.sort_order ?? 0) + 1000
 
   const { data: item, error } = await supabase
     .from('content_pipeline')
@@ -42,7 +79,7 @@ export async function createPipelineItem(input: Record<string, unknown>): Promis
       title_pt: data.title_pt || null,
       title_en: data.title_en || null,
       format,
-      stage: data.stage || 'idea',
+      stage,
       language: data.language,
       priority: data.priority,
       parent_id: data.parent_id || null,
@@ -53,6 +90,7 @@ export async function createPipelineItem(input: Record<string, unknown>): Promis
       production_checklist: data.production_checklist || DEFAULT_CHECKLISTS[format],
       tags: data.tags,
       assigned_to: data.assigned_to || null,
+      sort_order: newSortOrder,
     })
     .select()
     .single()

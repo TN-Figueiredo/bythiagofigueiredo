@@ -57,6 +57,9 @@ export default async function CollectionDetailPage({ params }: { params: Promise
         validation_score: (item.validation_score as number) ?? 0,
         dependencies: (item.content_pipeline_dependencies as Array<{ dependency_type: string; depends_on_pipeline: { code: string } }>) ?? [],
         collection_code: collection.code,
+        linked_post_status: null as string | null,
+        sort_order: 0,
+        version: 1,
       }
     })
     .filter((x): x is GemCardItem => x !== null)
