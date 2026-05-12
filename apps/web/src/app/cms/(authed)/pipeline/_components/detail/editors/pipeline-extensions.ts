@@ -1,0 +1,76 @@
+import StarterKit from '@tiptap/starter-kit'
+import Underline from '@tiptap/extension-underline'
+import Link from '@tiptap/extension-link'
+import Image from '@tiptap/extension-image'
+import TextAlign from '@tiptap/extension-text-align'
+import Highlight from '@tiptap/extension-highlight'
+import Placeholder from '@tiptap/extension-placeholder'
+import CharacterCount from '@tiptap/extension-character-count'
+import TaskList from '@tiptap/extension-task-list'
+import TaskItem from '@tiptap/extension-task-item'
+import { CalloutExtension } from '@/app/cms/(authed)/_shared/editor/callout-node'
+import {
+  ToggleWrapperExtension,
+  ToggleTitleExtension,
+  ToggleBodyExtension,
+} from '@/app/cms/(authed)/_shared/editor/toggle-node'
+import type { Extensions } from '@tiptap/react'
+
+interface ExtensionOptions {
+  placeholder?: string
+  enableImage?: boolean
+}
+
+export function getFullExtensions(options: ExtensionOptions = {}): Extensions {
+  const exts: Extensions = [
+    StarterKit.configure({
+      heading: { levels: [2, 3, 4] },
+    }),
+    Underline,
+    Link.configure({
+      openOnClick: false,
+      HTMLAttributes: { rel: 'noopener noreferrer nofollow' },
+    }),
+    TextAlign.configure({ types: ['heading', 'paragraph'] }),
+    Highlight.configure({ multicolor: true }),
+    Placeholder.configure({
+      placeholder: options.placeholder ?? 'Escreva o conteúdo do seu rascunho...',
+    }),
+    CharacterCount,
+    TaskList,
+    TaskItem.configure({ nested: true }),
+    CalloutExtension,
+    ToggleWrapperExtension,
+    ToggleTitleExtension,
+    ToggleBodyExtension,
+  ]
+
+  if (options.enableImage) {
+    exts.push(Image.configure({ inline: false, HTMLAttributes: { loading: 'lazy' } }))
+  }
+
+  return exts
+}
+
+export function getCompactExtensions(options: ExtensionOptions = {}): Extensions {
+  return [
+    StarterKit.configure({
+      heading: { levels: [3, 4] },
+    }),
+    Link.configure({
+      openOnClick: false,
+      HTMLAttributes: { rel: 'noopener noreferrer nofollow' },
+    }),
+    Placeholder.configure({
+      placeholder: options.placeholder ?? 'Descreva a ideia...',
+    }),
+    CharacterCount,
+  ]
+}
+
+export function getExtensions(
+  preset: 'full' | 'compact',
+  options: ExtensionOptions = {},
+): Extensions {
+  return preset === 'full' ? getFullExtensions(options) : getCompactExtensions(options)
+}
