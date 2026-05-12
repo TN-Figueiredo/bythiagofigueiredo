@@ -111,6 +111,9 @@ interface Props {
   blogCadence: BlogCadenceData[]
   youtubeChannels?: YouTubeChannelData[]
   instagramAccounts?: InstagramAccountData[]
+  contactSettings?: Record<string, unknown>[]
+  contactVisibility?: Record<string, unknown> | null
+  defaultAuthor?: Record<string, unknown> | null
   initialSection: string
   seoFlags?: SeoFlags
   readOnly?: boolean

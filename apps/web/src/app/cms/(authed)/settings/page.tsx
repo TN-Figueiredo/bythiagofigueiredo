@@ -20,7 +20,7 @@ export default async function SettingsPage({ searchParams }: Props) {
   const readOnly = !editRes.ok
 
   const supabase = getSupabaseServiceClient()
-  const [siteRes, typesRes, cadenceRes, ytChannelsRes, igAccountsRes] = await Promise.all([
+  const [siteRes, typesRes, cadenceRes, ytChannelsRes, igAccountsRes, contactSettingsRes, contactVisRes, defaultAuthorRes] = await Promise.all([
     supabase.from('sites').select('*').eq('id', siteId).single(),
     supabase
       .from('newsletter_types')
@@ -39,6 +39,21 @@ export default async function SettingsPage({ searchParams }: Props) {
       .select('id, locale, handle, sync_enabled, display_slots, layout_type, section_title_pt, section_title_en, section_subtitle_pt, section_subtitle_en, last_synced_at, token_expires_at')
       .eq('site_id', siteId)
       .order('locale'),
+    supabase
+      .from('contact_page_settings')
+      .select('*')
+      .eq('site_id', siteId),
+    supabase
+      .from('contact_page_visibility')
+      .select('*')
+      .eq('site_id', siteId)
+      .maybeSingle(),
+    supabase
+      .from('authors')
+      .select('id, name, avatar_url, social_links, author_about_translations(locale, headline)')
+      .eq('site_id', siteId)
+      .eq('is_default', true)
+      .maybeSingle(),
   ])
 
   const instagramData = await Promise.all(
@@ -90,6 +105,9 @@ export default async function SettingsPage({ searchParams }: Props) {
         blogCadence={cadenceRes.data ?? []}
         youtubeChannels={ytChannelsRes.data ?? []}
         instagramAccounts={instagramData}
+        contactSettings={contactSettingsRes.data ?? []}
+        contactVisibility={contactVisRes.data ?? null}
+        defaultAuthor={defaultAuthorRes.data ?? null}
         initialSection={params.section ?? 'branding'}
         seoFlags={seoFlags}
         readOnly={readOnly}

@@ -1,6 +1,7 @@
 @import '@tn-figueiredo/cms-ui/styles.css' layer(packages);
 @import '@tn-figueiredo/cms-admin/styles.css' layer(packages);
 @import '../styles/reader-pinboard.css';
+@import '../styles/pinboard-blocks.css';
 @import "tailwindcss";
 
 @source "../components";
