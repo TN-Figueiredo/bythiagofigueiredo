@@ -6,17 +6,18 @@ export function GenericRenderer({ content, isEditing, onContentChange }: Rendere
   if (content === null) return null
 
   if (typeof content === 'string') {
+    const isLong = content.length > 300
     return (
       <div className="p-5">
         {isEditing ? (
           <textarea
             value={content}
             onChange={(e) => onContentChange(e.target.value)}
-            className="w-full min-h-[120px] text-xs p-3 rounded-md resize-y font-sans"
+            className={`w-full min-h-[120px] ${isLong ? 'text-[13px] leading-[1.7]' : 'text-xs leading-relaxed'} p-3 rounded-md resize-y font-sans`}
             style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-text)' }}
           />
         ) : (
-          <div className="text-xs leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--gem-muted)' }}>
+          <div className={`${isLong ? 'text-[13px] leading-[1.7]' : 'text-xs leading-relaxed'} whitespace-pre-wrap`} style={{ color: 'var(--gem-muted)' }}>
             {content || <span style={{ color: 'var(--gem-dim)' }}>Sem conteúdo</span>}
           </div>
         )}

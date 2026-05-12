@@ -9,6 +9,9 @@ import { SceneGuideRenderer } from './renderers/scene-guide-renderer'
 import { CrossRefRenderer } from './renderers/crossref-renderer'
 import { SpeedRampRenderer } from './renderers/speedramp-renderer'
 import { PublishRenderer } from './renderers/publish-renderer'
+import { DraftRenderer } from './renderers/draft-renderer'
+import { SeoRenderer } from './renderers/seo-renderer'
+import { ImagesRenderer } from './renderers/images-renderer'
 import { GenericRenderer } from './renderers/generic-renderer'
 
 const REGISTRY: Record<string, React.ComponentType<RendererProps>> = {
@@ -19,6 +22,9 @@ const REGISTRY: Record<string, React.ComponentType<RendererProps>> = {
   postprod_crossref: CrossRefRenderer,
   postprod_speedramps: SpeedRampRenderer,
   publish: PublishRenderer,
+  draft: DraftRenderer,
+  seo: SeoRenderer,
+  images: ImagesRenderer,
 }
 
 export interface RendererProps {

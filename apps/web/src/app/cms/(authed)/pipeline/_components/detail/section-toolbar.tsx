@@ -18,19 +18,19 @@ export function SectionToolbar({
   title, lang, showLang, source, edited, isEditing, isSaving, isDirty, onToggleEdit, onSave, onToggleCowork,
 }: SectionToolbarProps) {
   return (
-    <div className="flex justify-between items-center px-4 py-2 flex-wrap gap-1.5" style={{ borderBottom: '1px solid var(--gem-border)', background: 'rgba(26,29,40,0.6)' }}>
+    <div className="flex justify-between items-center px-4 py-2 flex-wrap gap-1.5" style={{ borderBottom: '1px solid var(--gem-border)', background: 'color-mix(in srgb, var(--gem-surface) 60%, transparent)' }}>
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs font-semibold flex items-center gap-1.5">
           {title}
           {showLang && <span className="text-[10px] font-bold" style={{ color: 'var(--gem-accent)' }}>{lang.toUpperCase()}</span>}
         </span>
         {source && source !== 'user' && (
-          <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(167,139,250,0.12)', color: '#a78bfa' }}>
+          <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: 'color-mix(in srgb, var(--gem-accent) 12%, transparent)', color: 'var(--gem-accent)' }}>
             🤖 {source}
           </span>
         )}
         {edited && (
-          <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(245,158,11,0.12)', color: '#f59e0b' }}>
+          <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: 'color-mix(in srgb, var(--gem-warn) 12%, transparent)', color: 'var(--gem-warn)' }}>
             ✏️ editado
           </span>
         )}
@@ -43,7 +43,7 @@ export function SectionToolbar({
         <button
           onClick={onToggleCowork}
           className="px-2 py-0.5 text-[10px] rounded transition-colors"
-          style={{ background: 'rgba(167,139,250,0.1)', border: '1px solid rgba(167,139,250,0.3)', color: '#a78bfa' }}
+          style={{ background: 'color-mix(in srgb, var(--gem-accent) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--gem-accent) 30%, transparent)', color: 'var(--gem-accent)' }}
         >
           🤖 Pedir atualização
         </button>
