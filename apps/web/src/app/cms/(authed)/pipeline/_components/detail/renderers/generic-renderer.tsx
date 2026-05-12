@@ -1,26 +1,27 @@
 'use client'
 
+import { useCallback } from 'react'
 import type { RendererProps } from '../section-content'
+import { PipelineEditor, type JSONContent, isJSONContent } from '../editors/pipeline-editor'
 
 export function GenericRenderer({ content, isEditing, onContentChange }: RendererProps) {
   if (content === null) return null
 
-  if (typeof content === 'string') {
-    const isLong = content.length > 300
+  const handleChange = useCallback(
+    (json: JSONContent) => onContentChange(json),
+    [onContentChange],
+  )
+
+  if (typeof content === 'string' || isJSONContent(content)) {
     return (
       <div className="p-5">
-        {isEditing ? (
-          <textarea
-            value={content}
-            onChange={(e) => onContentChange(e.target.value)}
-            className={`w-full min-h-[120px] ${isLong ? 'text-[13px] leading-[1.7]' : 'text-xs leading-relaxed'} p-3 rounded-md resize-y font-sans`}
-            style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-text)' }}
-          />
-        ) : (
-          <div className={`${isLong ? 'text-[13px] leading-[1.7]' : 'text-xs leading-relaxed'} whitespace-pre-wrap`} style={{ color: 'var(--gem-muted)' }}>
-            {content || <span style={{ color: 'var(--gem-dim)' }}>Sem conteúdo</span>}
-          </div>
-        )}
+        <PipelineEditor
+          content={content}
+          isEditing={isEditing}
+          onContentChange={handleChange}
+          preset="compact"
+          placeholder="Escreva aqui..."
+        />
       </div>
     )
   }
@@ -33,17 +34,29 @@ export function GenericRenderer({ content, isEditing, onContentChange }: Rendere
         <textarea
           value={formatted}
           onChange={(e) => {
-            try { onContentChange(JSON.parse(e.target.value) as RendererProps['content']) }
-            catch { /* keep current value until valid JSON */ }
+            try {
+              onContentChange(JSON.parse(e.target.value) as RendererProps['content'])
+            } catch {
+              /* keep current value until valid JSON */
+            }
           }}
           className="w-full min-h-[200px] text-[11px] p-3 rounded-md resize-y font-mono"
-          style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-text)' }}
+          style={{
+            background: 'var(--gem-well)',
+            border: '1px solid var(--gem-border)',
+            color: 'var(--gem-text)',
+          }}
           spellCheck={false}
         />
       ) : (
         <pre
           className="text-[11px] p-3 rounded-md overflow-x-auto"
-          style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)', color: 'var(--gem-muted)', whiteSpace: 'pre-wrap' }}
+          style={{
+            background: 'var(--gem-well)',
+            border: '1px solid var(--gem-border)',
+            color: 'var(--gem-muted)',
+            whiteSpace: 'pre-wrap',
+          }}
         >
           {formatted}
         </pre>
