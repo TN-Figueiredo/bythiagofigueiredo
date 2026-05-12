@@ -55,7 +55,15 @@ const TAB_DEPENDENCIES: Record<string, string[]> = {
 
 export function TabContainer({ format, itemId, itemVersion, sections, itemCode, itemTitle, itemLanguage, children }: TabContainerProps) {
   const sectionDefs = getSectionsForFormat(format)
-  const [activeTab, setActiveTab] = useState(sectionDefs[0]?.key ?? '')
+  const [activeTab, setActiveTab] = useState(() => {
+    const skip = new Set(['seo', 'images', 'publish'])
+    for (let i = sectionDefs.length - 1; i >= 0; i--) {
+      const def = sectionDefs[i]!
+      if (skip.has(def.key)) continue
+      if (hasAnyContent(def, sections)) return def.key
+    }
+    return sectionDefs[0]?.key ?? ''
+  })
   const [activeSub, setActiveSub] = useState<string | null>(null)
   const [lang, setLang] = useState(() => itemLanguage === 'en' ? 'en' : 'pt')
   const [langTransition, setLangTransition] = useState(false)

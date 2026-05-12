@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Diário do Thiago — QR Card (Light + Dark)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700;9..144,900&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    min-height: 100vh;
+    background:
+      radial-gradient(circle at 30% 0%, #1A1610 0%, #0B0907 70%);
+    padding: 56px 24px 80px;
+    font-family: "Source Serif 4", Georgia, serif;
+  }
+  .toolbar {
+    max-width: 800px; margin: 0 auto 32px;
+    display: flex; align-items: center; justify-content: center; gap: 18px;
+    font-family: "JetBrains Mono", monospace;
+    color: rgba(255,255,255,0.6); font-size: 11px;
+    letter-spacing: 0.18em; text-transform: uppercase;
+  }
+  .toolbar .seg { display: inline-flex; background: rgba(255,255,255,0.08); border-radius: 999px; padding: 3px; gap: 2px; }
+  .toolbar .seg button {
+    background: transparent; border: 0; color: rgba(255,255,255,0.7);
+    padding: 6px 14px; border-radius: 999px; cursor: pointer;
+    font: inherit; letter-spacing: inherit; text-transform: inherit;
+  }
+  .toolbar .seg button.active { background: #F2EBDB; color: #141210; }
+  .toolbar .hint { color: rgba(255,255,255,0.4); font-size: 10px; letter-spacing: 0.14em; }
+  .stages {
+    display: flex; align-items: flex-start; justify-content: center;
+    gap: 48px; flex-wrap: wrap;
+  }
+  .stage {
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+  }
+  .stage .label {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: rgba(255,255,255,0.42);
+  }
+  .stage .download {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 16px; margin-top: 4px;
+    background: #F2EBDB; color: #141210; border: 0;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+    font-weight: 600; cursor: pointer;
+    transition: transform 0.1s ease, background 0.15s ease;
+  }
+  .stage .download:hover { background: #FFFFFF; transform: translateY(-1px); }
+  .stage .download:active { transform: translateY(0); }
+  .stage .download .arrow { color: #C7702E; }
+
+  /* ============================================================
+     CARD — variables drive light vs. dark
+     ============================================================ */
+  .card {
+    --bg:        #FBF6E8;
+    --bg2:       #F5EDD6;
+    --ink:       #161208;
+    --muted:     #6A5F48;
+    --faint:     #8A7E62;
+    --line:      #C9B997;
+    --line-soft: rgba(20,17,11,0.18);
+    --accent:    #C7702E;
+    --highlight: rgba(255,221,118,0.55);
+    --qr-bg:     #FFFFFF;
+    --qr-grid:   rgba(20,17,11,0.05);
+    --qr-dash:   #B7A580;
+    --tape:      rgba(255,226,140,0.78);
+    --paper-noise-1: rgba(150,120,60,0.06);
+    --paper-noise-2: rgba(120,90,40,0.08);
+    --paper-stripe:  rgba(60,40,10,0.018);
+    --shadow:    0 30px 80px rgba(0,0,0,0.55), 0 6px 14px rgba(0,0,0,0.35);
+
+    width: 350px; height: 960px;
+    position: relative;
+    background:
+      radial-gradient(circle at 18% 22%, var(--paper-noise-1) 0%, transparent 35%),
+      radial-gradient(circle at 82% 78%, var(--paper-noise-2) 0%, transparent 40%),
+      repeating-linear-gradient(0deg, var(--paper-stripe) 0 1px, transparent 1px 3px),
+      linear-gradient(180deg, var(--bg) 0%, var(--bg2) 100%);
+    color: var(--ink);
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .card.dark {
+    --bg:        #221C12;
+    --bg2:       #1A150D;
+    --ink:       #F2EBDB;
+    --muted:     #B8A988;
+    --faint:     #8E7E62;
+    --line:      #4A3F2C;
+    --line-soft: rgba(242,235,219,0.16);
+    --accent:    #E89252;
+    --highlight: rgba(232,146,82,0.22);
+    --qr-bg:     #F2EBDB;
+    --qr-grid:   rgba(20,17,11,0.05);
+    --qr-dash:   #6A5C42;
+    --tape:      rgba(232,146,82,0.32);
+    --paper-noise-1: rgba(255,210,140,0.05);
+    --paper-noise-2: rgba(255,180,90,0.04);
+    --paper-stripe:  rgba(255,235,200,0.025);
+    --shadow:    0 30px 80px rgba(0,0,0,0.7), 0 6px 14px rgba(0,0,0,0.5),
+                 inset 0 0 0 1px rgba(242,235,219,0.04);
+  }
+
+  /* hairline frame */
+  .card::before {
+    content: ""; position: absolute; inset: 12px;
+    border: 1px solid var(--line-soft);
+    pointer-events: none; z-index: 1;
+  }
+  /* corner brackets */
+  .corner {
+    position: absolute; width: 14px; height: 14px;
+    border: 1.5px solid var(--ink); z-index: 2;
+  }
+  .corner.tl { top: 18px; left: 18px;  border-right: 0; border-bottom: 0; }
+  .corner.tr { top: 18px; right: 18px; border-left:  0; border-bottom: 0; }
+  .corner.bl { bottom: 18px; left: 18px;  border-right: 0; border-top: 0; }
+  .corner.br { bottom: 18px; right: 18px; border-left:  0; border-top: 0; }
+
+  /* perforation hint */
+  .perf {
+    position: absolute; top: 80px; left: 14px; right: 14px;
+    border-top: 1px dotted var(--line-soft);
+    z-index: 1;
+  }
+
+  /* HEADER */
+  .header {
+    position: relative; z-index: 3;
+    padding: 36px 32px 0; text-align: center;
+  }
+  .stamp {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 5px 12px;
+    border: 1.2px solid var(--ink);
+    background: var(--bg);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 9.5px; font-weight: 600;
+    letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--ink);
+    transform: rotate(-1.5deg);
+  }
+  .stamp .dot { width: 5px; height: 5px; background: var(--accent); border-radius: 50%; }
+
+  .kicker {
+    margin-top: 12px;
+    font-family: "Caveat", cursive;
+    font-size: 18px; color: var(--accent);
+    transform: rotate(-1deg);
+    line-height: 1.15;
+    margin-bottom: 4px;
+  }
+  .masthead {
+    margin: 6px 0 0;
+    font-family: "Fraunces", serif;
+    font-weight: 900;
+    font-size: 44px;
+    line-height: 0.9;
+    letter-spacing: -0.025em;
+    color: var(--ink);
+  }
+  .masthead .apos { color: var(--accent); }
+  .masthead .row2 {
+    display: block; font-style: italic; font-weight: 700;
+    font-size: 40px;
+  }
+  .meta {
+    margin-top: 16px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--muted);
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+  }
+  .meta .bullet { width: 3px; height: 3px; border-radius: 50%; background: var(--muted); }
+
+  /* divider */
+  .rule {
+    margin: 22px 32px 0;
+    border-top: 1px dashed var(--line);
+    position: relative; z-index: 3;
+  }
+
+  /* PROMISE */
+  .promise {
+    position: relative; z-index: 3;
+    padding: 22px 36px 0; text-align: center;
+  }
+  .promise .lead {
+    font-family: "Fraunces", serif; font-weight: 400;
+    font-size: 17px; line-height: 1.32;
+    color: var(--ink);
+    text-wrap: pretty;
+    letter-spacing: -0.005em;
+  }
+  .promise .lead em {
+    font-style: italic; color: var(--accent); font-weight: 500;
+  }
+  .promise .lead b {
+    background: linear-gradient(180deg, transparent 60%, var(--highlight) 60%);
+    padding: 0 2px; font-weight: 600;
+  }
+
+  .bullets {
+    margin: 14px auto 0;
+    display: inline-flex; flex-direction: column; gap: 5px;
+    text-align: left;
+    font-family: "Source Serif 4", Georgia, serif;
+    font-size: 12.5px; color: var(--ink); line-height: 1.35;
+  }
+  .bullets .item { display: flex; gap: 10px; align-items: baseline; }
+  .bullets .arrow {
+    color: var(--accent); font-family: "JetBrains Mono", monospace;
+    font-size: 11px; font-weight: 600;
+  }
+
+  /* QR SLOT */
+  .qr-zone {
+    position: relative; z-index: 3;
+    margin: 28px 32px 0;
+  }
+  .qr-zone .tape {
+    position: absolute; top: -9px; left: 50%;
+    width: 78px; height: 18px;
+    background: var(--tape);
+    transform: translateX(-50%) rotate(-3deg);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+    z-index: 4;
+  }
+  .qr-zone .tape::before, .qr-zone .tape::after {
+    content: ""; position: absolute; top: 0; bottom: 0; width: 6px;
+    background: repeating-linear-gradient(-45deg,
+      transparent 0 3px, rgba(255,255,255,0.35) 3px 6px);
+  }
+  .qr-zone .tape::before { left: 0; }
+  .qr-zone .tape::after  { right: 0; transform: scaleX(-1); }
+
+  .qr-frame {
+    background: var(--qr-bg);
+    border: 1px solid var(--ink);
+    padding: 14px;
+    box-shadow:
+      0 1px 0 rgba(0,0,0,0.04),
+      0 8px 18px rgba(70,50,20,0.18),
+      inset 0 0 0 1px rgba(0,0,0,0.03);
+  }
+  .qr-slot {
+    width: 100%; aspect-ratio: 1 / 1;
+    border: 1px dashed var(--qr-dash);
+    background:
+      repeating-linear-gradient(0deg,  var(--qr-grid) 0 8px, transparent 8px 16px),
+      repeating-linear-gradient(90deg, var(--qr-grid) 0 8px, transparent 8px 16px),
+      var(--qr-bg);
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .qr-slot .placeholder {
+    text-align: center;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 9.5px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: #6A5F48;
+  }
+  .qr-slot .placeholder .glyph {
+    display: block; font-size: 32px; margin-bottom: 4px; color: #8A7E62;
+    letter-spacing: 0;
+  }
+  .qr-slot .peg {
+    position: absolute; width: 30px; height: 30px;
+    border: 4px solid var(--ink); background: var(--qr-bg);
+  }
+  .qr-slot .peg::after {
+    content: ""; position: absolute; inset: 6px; background: var(--ink);
+  }
+  .qr-slot .peg.tl { top: 8px; left: 8px; }
+  .qr-slot .peg.tr { top: 8px; right: 8px; }
+  .qr-slot .peg.bl { bottom: 8px; left: 8px; }
+
+  /* CTA */
+  .cta {
+    position: relative; z-index: 3;
+    margin: 18px 32px 0; text-align: center;
+  }
+  .cta .scan {
+    font-family: "Fraunces", serif; font-weight: 700;
+    font-size: 20px; line-height: 1.15; color: var(--ink);
+    letter-spacing: -0.01em;
+  }
+  .cta .scan-sub {
+    margin-top: 8px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--muted);
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .cta .scan-sub::before, .cta .scan-sub::after {
+    content: ""; width: 18px; border-top: 1px solid var(--muted);
+  }
+
+  /* sig */
+  .sig {
+    position: absolute; right: 28px; bottom: 72px;
+    z-index: 3;
+    font-family: "Caveat", cursive;
+    font-size: 26px; color: var(--accent);
+    transform: rotate(-6deg);
+    line-height: 1;
+  }
+  .sig::after {
+    content: ""; display: block;
+    width: 46px; height: 6px; margin-top: -1px;
+    border-bottom: 2px solid var(--accent);
+    border-radius: 50%;
+    transform: skewX(-20deg);
+  }
+
+  /* printer's mark */
+  .printers-mark {
+    position: absolute; left: 26px; bottom: 74px; z-index: 3;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 8.5px; letter-spacing: 0.22em; color: var(--faint);
+    text-transform: uppercase; line-height: 1.4;
+  }
+  .printers-mark .num {
+    display: inline-block; padding: 1px 5px;
+    border: 1px solid var(--faint);
+    color: var(--faint); margin-right: 6px;
+  }
+
+  /* footer */
+  .footer {
+    position: absolute; left: 0; right: 0; bottom: 22px;
+    z-index: 3;
+    padding: 0 28px;
+    text-align: center;
+    font-family: "JetBrains Mono", monospace;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--muted);
+    line-height: 1.45;
+  }
+  .footer .domain { font-size: 10px; color: var(--ink); font-weight: 600; }
+  .footer .path   { font-size: 8.5px;  color: var(--muted); }
+  .footer .path .arrow { color: var(--accent); margin-right: 4px; }
+
+  /* ============ EXPORT MODE: real transparent hole at QR slot ============ */
+  body.export-mode .card { position: relative; }
+  body.export-mode .qr-frame {
+    background: transparent !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+  }
+  body.export-mode .qr-slot {
+    background: transparent !important;
+    border: none !important;
+  }
+  body.export-mode .qr-slot .placeholder,
+  body.export-mode .qr-slot .peg { display: none !important; }
+
+  @media (max-width: 800px) {
+    .stages { flex-direction: column; align-items: center; gap: 32px; }
+  }
+</style>
+</head>
+<body data-mode="preview">
+
+<!-- Toolbar (preview only, hidden in export) -->
+<div class="toolbar" id="toolbar">
+  <span>Mode</span>
+  <div class="seg" id="mode-seg">
+    <button data-mode="preview" class="active">Preview</button>
+    <button data-mode="export">Export · transparent slot</button>
+  </div>
+  <span class="hint">→ in export mode, place QR image behind PNG in Canva</span>
+</div>
+
+<div class="stages">
+
+<!-- ============= LIGHT ============= -->
+<div class="stage">
+  <div class="label">— Light —</div>
+  <div class="card" id="card-light" role="img" aria-label="QR card para Diário do Thiago (light)">
+    <span class="corner tl"></span><span class="corner tr"></span>
+    <span class="corner bl"></span><span class="corner br"></span>
+    <div class="perf"></div>
+
+    <div class="header">
+      <div class="stamp"><span class="dot"></span>Newsletter · semanal</div>
+      <div class="kicker">pensamentos da beira do teclado —</div>
+      <h1 class="masthead">
+        Diário do
+        <span class="row2">Thiago</span>
+      </h1>
+      <div class="meta">
+        <span>Edição n.° 042</span><span class="bullet"></span><span>Mai 2026</span>
+      </div>
+    </div>
+    <div class="rule"></div>
+
+    <div class="promise">
+      <div class="lead">
+        Uma <b>carta por semana</b> sobre construir,<br/>escrever e <em>pensar em voz alta.</em>
+      </div>
+      <div class="bullets">
+        <div class="item"><span class="arrow">→</span><span>O post ou vídeo mais recente, com nota de bastidor</span></div>
+        <div class="item"><span class="arrow">→</span><span>O que cortei, mudei de ideia, ou quebrei</span></div>
+        <div class="item"><span class="arrow">→</span><span>3-5 links que salvei e achei que vale compartilhar</span></div>
+        <div class="item"><span class="arrow">→</span><span>Uma decisão ou número real do mês</span></div>
+      </div>
+    </div>
+
+    <div class="qr-zone">
+      <div class="tape" aria-hidden="true"></div>
+      <div class="qr-frame">
+        <div class="qr-slot">
+          <span class="peg tl"></span><span class="peg tr"></span><span class="peg bl"></span>
+          <div class="placeholder"><span class="glyph">▦</span>QR aqui</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cta">
+      <div class="scan">Aponte a câmera<br/>do celular</div>
+      <div class="scan-sub">ou acesse direto</div>
+    </div>
+
+    <div class="printers-mark"><span class="num">042</span>EST. 2024</div>
+    <div class="sig">obrigado!</div>
+
+    <div class="footer">
+      <div class="domain">bythiagofigueiredo.com</div>
+      <div class="path"><span class="arrow">↳</span>/newsletters/diario-do-thiago</div>
+    </div>
+  </div>
+  <button class="download" data-target="card-light" data-name="qr-card-diario-light">↓ Download PNG</button>
+</div>
+
+<!-- ============= DARK ============= -->
+<div class="stage">
+  <div class="label">— Dark —</div>
+  <div class="card dark" id="card-dark" role="img" aria-label="QR card para Diário do Thiago (dark)">
+    <span class="corner tl"></span><span class="corner tr"></span>
+    <span class="corner bl"></span><span class="corner br"></span>
+    <div class="perf"></div>
+
+    <div class="header">
+      <div class="stamp"><span class="dot"></span>Newsletter · semanal</div>
+      <div class="kicker">pensamentos da beira do teclado —</div>
+      <h1 class="masthead">
+        Diário do
+        <span class="row2">Thiago</span>
+      </h1>
+      <div class="meta">
+        <span>Edição n.° 042</span><span class="bullet"></span><span>Mai 2026</span>
+      </div>
+    </div>
+    <div class="rule"></div>
+
+    <div class="promise">
+      <div class="lead">
+        Uma <b>carta por semana</b> sobre construir,<br/>escrever e <em>pensar em voz alta.</em>
+      </div>
+      <div class="bullets">
+        <div class="item"><span class="arrow">→</span><span>O post ou vídeo mais recente, com nota de bastidor</span></div>
+        <div class="item"><span class="arrow">→</span><span>O que cortei, mudei de ideia, ou quebrei</span></div>
+        <div class="item"><span class="arrow">→</span><span>3-5 links que salvei e achei que vale compartilhar</span></div>
+        <div class="item"><span class="arrow">→</span><span>Uma decisão ou número real do mês</span></div>
+      </div>
+    </div>
+
+    <div class="qr-zone">
+      <div class="tape" aria-hidden="true"></div>
+      <div class="qr-frame">
+        <div class="qr-slot">
+          <span class="peg tl"></span><span class="peg tr"></span><span class="peg bl"></span>
+          <div class="placeholder"><span class="glyph">▦</span>QR aqui</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cta">
+      <div class="scan">Aponte a câmera<br/>do celular</div>
+      <div class="scan-sub">ou acesse direto</div>
+    </div>
+
+    <div class="printers-mark"><span class="num">042</span>EST. 2024</div>
+    <div class="sig">obrigado!</div>
+
+    <div class="footer">
+      <div class="domain">bythiagofigueiredo.com</div>
+      <div class="path"><span class="arrow">↳</span>/newsletters/diario-do-thiago</div>
+    </div>
+  </div>
+  <button class="download" data-target="card-dark" data-name="qr-card-diario-dark">↓ Download PNG</button>
+</div>
+
+</div><!-- /stages -->
+
+<script src="https://unpkg.com/html-to-image@1.11.11/dist/html-to-image.js"></script>
+<script>
+(function(){
+  const seg = document.getElementById('mode-seg');
+  const body = document.body;
+  function setMode(m) {
+    body.dataset.mode = m;
+    body.classList.toggle('export-mode', m === 'export');
+    seg.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.mode === m));
+  }
+  seg.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-mode]');
+    if (b) setMode(b.dataset.mode);
+  });
+
+  // Download handler
+  document.querySelectorAll('.download').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const target = document.getElementById(btn.dataset.target);
+      const baseName = btn.dataset.name;
+      const mode = body.dataset.mode; // preview | export
+      const fileName = `${baseName}-${mode}.png`;
+      btn.disabled = true;
+      const orig = btn.textContent;
+      btn.textContent = "Rendering…";
+      try {
+        const dataUrl = await window.htmlToImage.toPng(target, {
+          pixelRatio: 3,
+          // For export mode keep transparent bg; for preview use card's own bg
+          backgroundColor: mode === 'export' ? null : undefined,
+          cacheBust: true,
+        });
+        const a = document.createElement('a');
+        a.href = dataUrl; a.download = fileName;
+        document.body.appendChild(a); a.click(); a.remove();
+      } catch (err) {
+        console.error(err);
+        alert('Render failed: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = orig;
+      }
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

@@ -25,13 +25,54 @@ interface CoworkRequestPanelProps {
   onInsertConsumed?: () => void
 }
 
+interface TiptapNode {
+  type: string
+  text?: string
+  content?: TiptapNode[]
+}
+
+function isJSONContent(value: unknown): value is TiptapNode {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) && (value as Record<string, unknown>).type === 'doc'
+}
+
+function walkText(node: TiptapNode): string[] {
+  const texts: string[] = []
+  if (node.text) texts.push(node.text)
+  if (node.content) {
+    for (const child of node.content) texts.push(...walkText(child))
+  }
+  return texts
+}
+
+function summarizeJSONContent(doc: TiptapNode): string {
+  if (!doc.content) return 'Seção vazia'
+  let headings = 0
+  let paragraphs = 0
+  for (const node of doc.content) {
+    if (node.type === 'heading') headings++
+    if (node.type === 'paragraph') paragraphs++
+  }
+  const allText = walkText(doc).join(' ')
+  const words = allText.split(/\s+/).filter(Boolean).length
+  const parts = [`${words} palavras`]
+  if (headings > 0) parts.push(`${headings} seções`)
+  if (paragraphs > 0) parts.push(`${paragraphs} parágrafos`)
+  return parts.join(' | ')
+}
+
 export function summarizeContent(content: unknown): string {
   if (!content) return 'Seção vazia'
-  const text = typeof content === 'string'
-    ? content
-    : typeof content === 'object' && content !== null && 'body' in content && typeof (content as Record<string, unknown>).body === 'string'
-      ? (content as Record<string, unknown>).body as string
-      : JSON.stringify(content)
+  if (isJSONContent(content)) return summarizeJSONContent(content)
+  if (typeof content === 'object' && content !== null && 'body' in content) {
+    const body = (content as Record<string, unknown>).body
+    if (isJSONContent(body)) return summarizeJSONContent(body)
+    if (typeof body === 'string') return summarizeMarkdown(body)
+  }
+  const text = typeof content === 'string' ? content : JSON.stringify(content)
+  return summarizeMarkdown(text)
+}
+
+function summarizeMarkdown(text: string): string {
   const words = text.split(/\s+/).filter(Boolean).length
   const headings = (text.match(/^#{1,3}\s+.+$/gm) || []).length
   const paragraphs = text.split(/\n{2,}/).filter(p => p.trim() && !/^#{1,3}\s/.test(p.trim()) && !/^-{3,}$/.test(p.trim())).length
@@ -223,9 +264,10 @@ export function buildPrompt(ctx: {
 
   lines.push('---')
   lines.push('Use the pipeline API to:')
+  lines.push(`0. GET /api/pipeline/context/cowork-section-schemas → Section schema & formatting reference`)
   lines.push(`1. GET /api/pipeline/items/${ctx.itemId}/sections/${ctx.sectionBase}?lang=${ctx.lang}`)
   lines.push('   → Note the "rev" and "item_version" from the response')
-  lines.push('2. Apply the instructions above to the current content')
+  lines.push('2. Apply the instructions above to the current content, following the schema from step 0')
   lines.push(`3. PATCH /api/pipeline/items/${ctx.itemId}/sections/${ctx.sectionBase}?lang=${ctx.lang}`)
   lines.push('   Headers: { "X-Expected-Version": <item_version from GET> }')
   lines.push('   Body: { "content": <updated>, "rev": <rev from GET>, "source": "cowork" }')

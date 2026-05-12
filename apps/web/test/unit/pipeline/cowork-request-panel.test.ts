@@ -26,6 +26,79 @@ describe('summarizeContent', () => {
   it('handles empty string', () => {
     expect(summarizeContent('')).toBe('Seção vazia')
   })
+
+  it('counts words in JSONContent doc', () => {
+    const doc = {
+      type: 'doc',
+      content: [
+        { type: 'heading', content: [{ type: 'text', text: 'Title here' }] },
+        { type: 'paragraph', content: [{ type: 'text', text: 'Body text words' }] },
+      ],
+    }
+    const result = summarizeContent(doc)
+    expect(result).toContain('5 palavras')
+    expect(result).toContain('1 seções')
+    expect(result).toContain('1 parágrafos')
+  })
+
+  it('counts words inside nested list items in JSONContent', () => {
+    const doc = {
+      type: 'doc',
+      content: [
+        {
+          type: 'bulletList',
+          content: [
+            {
+              type: 'listItem',
+              content: [
+                { type: 'paragraph', content: [{ type: 'text', text: 'first item' }] },
+              ],
+            },
+            {
+              type: 'listItem',
+              content: [
+                { type: 'paragraph', content: [{ type: 'text', text: 'second item here' }] },
+              ],
+            },
+          ],
+        },
+      ],
+    }
+    const result = summarizeContent(doc)
+    expect(result).toContain('5 palavras')
+  })
+
+  it('counts words inside blockquotes in JSONContent', () => {
+    const doc = {
+      type: 'doc',
+      content: [
+        {
+          type: 'blockquote',
+          content: [
+            { type: 'paragraph', content: [{ type: 'text', text: 'quoted text inside blockquote' }] },
+          ],
+        },
+      ],
+    }
+    expect(summarizeContent(doc)).toContain('4 palavras')
+  })
+
+  it('handles JSONContent inside body wrapper', () => {
+    const content = {
+      body: {
+        type: 'doc',
+        content: [
+          { type: 'paragraph', content: [{ type: 'text', text: 'wrapped body' }] },
+        ],
+      },
+    }
+    expect(summarizeContent(content)).toContain('2 palavras')
+  })
+
+  it('returns "Seção vazia" for empty JSONContent doc', () => {
+    expect(summarizeContent({ type: 'doc' })).toBe('Seção vazia')
+    expect(summarizeContent({ type: 'doc', content: [] })).toContain('0 palavras')
+  })
 })
 
 describe('buildPrompt', () => {
@@ -87,6 +160,11 @@ describe('buildPrompt', () => {
   it('includes user instructions', () => {
     const result = buildPrompt(base)
     expect(result).toContain('Instructions:\nRewrite the intro')
+  })
+
+  it('includes reference doc fetch as step 0', () => {
+    const result = buildPrompt(base)
+    expect(result).toContain('0. GET /api/pipeline/context/cowork-section-schemas')
   })
 
   it('includes correct API endpoints', () => {

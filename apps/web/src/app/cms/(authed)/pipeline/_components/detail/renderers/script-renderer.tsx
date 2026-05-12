@@ -231,14 +231,14 @@ export function ScriptRenderer({ content, isEditing, onContentChange }: Renderer
 
             {isEditing ? (
               <div
-                className="px-3 py-2 font-mono text-[11px] leading-relaxed"
-                style={{ color: 'var(--gem-muted)' }}
+                className="px-3 py-3 text-[13px] leading-[1.8] whitespace-pre-wrap min-h-[120px] focus:outline-none focus:ring-1 focus:ring-inset focus:ring-[var(--gem-accent)]"
+                style={{ color: 'var(--gem-text)', background: 'var(--gem-well)' }}
                 contentEditable
                 suppressContentEditableWarning
                 spellCheck={false}
                 onBlur={(e) => {
                   const updated = beats.map((b, i) =>
-                    i === idx ? { ...b, text: e.currentTarget.textContent ?? '' } : b
+                    i === idx ? { ...b, text: e.currentTarget.innerText ?? '' } : b
                   )
                   onContentChange({ ...data, beats: updated })
                 }}

@@ -36,12 +36,67 @@ Language-specific sections use `_pt` or `_en`.
 
 ---
 
+## Formatação Rich Text (Tiptap)
+
+Todas as seções de texto renderizam conteúdo via editor Tiptap. Envie **markdown** no campo string — ele é convertido automaticamente para rich text (`marked.parse()` → Tiptap HTML → JSONContent).
+
+### Preset `full` (usado por: `draft`)
+
+| Markdown | Renderização |
+|----------|-------------|
+| `## Título` | H2 — com borda-esquerda accent e fundo gradiente |
+| `### Subtítulo` | H3 — mesmo estilo, menor |
+| `#### Seção` | H4 — uppercase, tracking, cor dim |
+| `**negrito**` | Texto bold com cor destaque |
+| `*itálico*` | Texto itálico |
+| `~~tachado~~` | Texto riscado |
+| `- item` | Lista com bullet |
+| `1. item` | Lista numerada |
+| `- [ ] task` | Checklist interativa |
+| `> citação` | Blockquote com borda accent e fundo gradiente |
+| `` `código` `` | Inline code com fundo accent |
+| ` ```bloco``` ` | Code block com fundo escuro e borda |
+| `[texto](url)` | Link com cor accent e underline |
+| `---` | Divisor horizontal |
+
+Extensões adicionais (sem sintaxe markdown — disponíveis via toolbar na UI): underline, text align, highlight, callout, toggle.
+
+### Preset `compact` (usado por: `ideia.body`, seções genéricas de texto)
+
+| Markdown | Renderização |
+|----------|-------------|
+| `### Subtítulo` | H3 |
+| `#### Seção` | H4 |
+| `**negrito**` | Bold |
+| `*itálico*` | Itálico |
+| `~~tachado~~` | Strikethrough |
+| `- item` | Lista com bullet |
+| `1. item` | Lista numerada |
+| `> citação` | Blockquote |
+| `` `código` `` | Inline code |
+| ` ```bloco``` ` | Code block |
+| `[texto](url)` | Link |
+| `---` | Divisor horizontal |
+
+Sem H2, sem underline, sem task lists, sem callout/toggle, sem text align, sem highlight.
+
+### Recomendação para geração de conteúdo
+
+- Use markdown nos campos `body` (ideia), `draft`, e `content` (newsletter) — será renderizado como rich text
+- Em `draft` (full): estruture com `##`, `###`, `####` para criar hierarquia visual com headings estilizados
+- Em `ideia.body`, `content` (newsletter) e genéricos (compact): use `###`, `####` — H2 não é suportado no preset compact
+- Use blockquotes para citações ou destaques
+- Use listas para pontos-chave
+- Quando o conteúdo já foi salvo como JSONContent (Tiptap AST), envie JSONContent — não reconverta para markdown
+
+---
+
 ## Section: `ideia` (shared)
 
 ```json
 {
   "premise": "Uma frase que resume a ideia do conteúdo",
-  "body": "Descrição expandida com contexto, motivação e proposta de valor",
+  "body": "Descrição expandida com contexto, motivação e proposta de valor.\n\n### Contexto\n\nTexto com **destaques** e [links](https://example.com).\n\n- Ponto A\n- Ponto B",
   "angle": "Ângulo editorial ou gancho estratégico",
   "vvs": 85,
   "cross_refs": [
@@ -52,12 +107,42 @@ Language-specific sections use `_pt` or `_en`.
 
 | Campo | Tipo | Obrigatório | Notas |
 |-------|------|-------------|-------|
-| `premise` | string | sim | Frase-chave da ideia |
-| `body` | string | sim | Descrição detalhada |
+| `premise` | string | sim | Frase-chave da ideia (contentEditable, sem markdown) |
+| `body` | string (markdown) | sim | Renderizado via Tiptap preset `compact` — use markdown |
 | `angle` | string | não | Ângulo editorial |
 | `vvs` | number 0-100 | não | Score de viabilidade |
 | `validated_at` | ISO datetime | não | Preenchido quando validada |
 | `cross_refs` | CrossRef[] | não | Referências cruzadas |
+
+---
+
+## Section: `draft` (per-lang) — Rascunho
+
+Renderer dedicado: `DraftRenderer` com `PipelineEditor preset="full"`.
+
+Formato preferido — markdown puro como string:
+```json
+"## Introdução\n\nParágrafo inicial com **destaque** e contexto.\n\n### Desenvolvimento\n\nTexto expandido com:\n\n- Argumento 1\n- Argumento 2\n\n> Citação relevante para o tema.\n\n### Conclusão\n\nFechamento com call-to-action."
+```
+
+Formato alternativo — wrapper object (quando há SEO legado):
+```json
+{
+  "body": "## Introdução\n\nParágrafo inicial..."
+}
+```
+
+| Campo | Tipo | Obrigatório | Notas |
+|-------|------|-------------|-------|
+| `body` | string (markdown) | sim | Conteúdo principal — renderizado via Tiptap `full` preset |
+| `seo` | object \| null | não | Se presente, exibe warning pedindo migração para aba SEO |
+
+**Formatos aceitos para `content`:**
+- String markdown → convertido automaticamente para rich text
+- JSONContent (`{ type: "doc", content: [...] }`) → renderizado direto pelo Tiptap
+- Object com `{ body, seo }` → `body` renderizado, `seo` gera warning
+
+**Dica:** Use a formatação completa do preset `full` (H2-H4, listas, blockquotes, code blocks, checklist). O DraftRenderer exibe um outline de seções quando há 2+ headings no conteúdo.
 
 ---
 
@@ -83,6 +168,8 @@ Language-specific sections use `_pt` or `_en`.
   ]
 }
 ```
+
+**Nota:** O campo `text` dos beats usa um parser próprio (`parseScriptTags`) — NÃO usa Tiptap. Não enviar markdown rich text nos beats; usar a tag syntax abaixo.
 
 ### Tag Syntax (inline no campo `text` dos beats)
 
@@ -345,34 +432,35 @@ Prefixo `optional` marca nota como opcional.
 
 ## Sections sem renderer especializado (usam GenericRenderer)
 
-Os seguintes tipos de seção usam renderização genérica (JSON pretty-print ou texto plano):
+Seções sem renderer dedicado usam `GenericRenderer`:
 
-| Section | Formato | Notas |
-|---------|---------|-------|
-| `draft` (blog_post) | string ou object | Rascunho do blog post |
-| `seo` (blog_post) | object | Meta tags, keywords, slug |
-| `images` (blog_post, shared) | object | Referências de imagens |
-| `content` (newsletter) | string ou object | Corpo da newsletter |
-| `layout` (newsletter) | object | Config de layout |
-| `audience` (newsletter) | object | Segmentação |
-| `send` (newsletter) | object | Config de envio |
-| `curriculum` (course) | object | Grade curricular |
-| `lessons` (course) | object | Aulas individuais |
-| `material` (course) | object | Material de apoio |
-| `briefing` (campaign) | object | Brief do cliente |
-| `assets` (campaign) | object | Assets da campanha |
-| `metrics` (campaign) | object | KPIs e métricas |
+- **String ou JSONContent** → renderizado via `PipelineEditor preset="compact"` (rich text com formatação limitada — sem H2, sem task list, sem callout)
+- **Object estruturado (JSON)** → renderizado como JSON pretty-print / textarea para edição
 
-Para esses, qualquer estrutura JSON válida é aceita. Será renderizada como JSON formatado.
+| Section | Formato | Renderização |
+|---------|---------|-------------|
+| `seo` (blog_post) | object | JSON pretty-print |
+| `images` (blog_post, shared) | object | JSON pretty-print |
+| `content` (newsletter) | string ou object | Rich text (compact) se string; JSON se object |
+| `layout` (newsletter) | object | JSON pretty-print |
+| `audience` (newsletter) | object | JSON pretty-print |
+| `send` (newsletter) | object | JSON pretty-print |
+| `curriculum` (course) | object | JSON pretty-print |
+| `lessons` (course) | object | JSON pretty-print |
+| `material` (course) | object | JSON pretty-print |
+| `briefing` (campaign) | object | JSON pretty-print |
+| `assets` (campaign) | object | JSON pretty-print |
+| `metrics` (campaign) | object | JSON pretty-print |
 
 ---
 
 ## Regras gerais
 
-1. **Sempre enviar JSON estruturado**, nunca texto plano — os renderers especializados dependem dos campos tipados
-2. **Campos opcionais**: omitir ao invés de enviar `null` ou string vazia
-3. **Status values**: usar MAIÚSCULAS (`DRAFT`, `PENDING`, `DONE`, `ON_TRACK`, etc.)
-4. **Timestamps**: formato `MM:SS` para display, formato SRT `HH:MM:SS,mmm --> HH:MM:SS,mmm` para cross-ref
-5. **Idioma**: conteúdo no idioma da seção (`_pt` = PT-BR, `_en` = EN). Tags de script são sempre em inglês.
-6. **`source`**: sempre `"cowork"` quando gerado por AI
-7. **`modified_by`**: sempre `"cowork-claude"` para rastreabilidade
+1. **Seções estruturadas** (`roteiro`, `brolls`, `postprod_*`, `publish`, `seo`, `images`, etc.): enviar JSON estruturado com os campos tipados documentados acima
+2. **Seções de texto** (`draft`, `ideia.body`, `content`): enviar **markdown como string** — será convertido automaticamente para rich text via Tiptap. Use headings, listas, blockquotes, bold, links.
+3. **Campos opcionais**: omitir ao invés de enviar `null` ou string vazia
+4. **Status values**: usar MAIÚSCULAS (`DRAFT`, `PENDING`, `DONE`, `ON_TRACK`, etc.)
+5. **Timestamps**: formato `MM:SS` para display, formato SRT `HH:MM:SS,mmm --> HH:MM:SS,mmm` para cross-ref
+6. **Idioma**: conteúdo no idioma da seção (`_pt` = PT-BR, `_en` = EN). Tags de script são sempre em inglês.
+7. **`source`**: sempre `"cowork"` quando gerado por AI
+8. **`modified_by`**: sempre `"cowork-claude"` para rastreabilidade

@@ -400,7 +400,7 @@ window.CONTENT = {
   // External sites (outbound navigation)
   sites: {
     dev: { label_pt: "Site dev", label_en: "Dev site", url: "https://dev.bythiagofigueiredo.com" },
-    contact: { label_pt: "Contato", label_en: "Contact", url: "/contact" },
+    contact: { label_pt: "Contato", label_en: "Contact", url: "contact.html" },
   },
 
   // Newsletters (plural — user subscribes to any combination).
