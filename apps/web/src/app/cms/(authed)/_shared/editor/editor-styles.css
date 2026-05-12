@@ -235,3 +235,87 @@
   color: #c4b5fd;
   text-decoration-color: rgba(196, 181, 253, 0.6);
 }
+
+/* ═══ Callout Block ═══ */
+.newsletter-editor .callout-editor-block .callout-content p {
+  margin: 0;
+}
+
+/* ═══ Toggle Block ═══ */
+.newsletter-editor .toggle-title-editor {
+  outline: none;
+}
+
+.newsletter-editor .toggle-body-editor {
+  min-height: 40px;
+}
+
+/* ═══ Columns Block ═══ */
+.newsletter-editor [data-column] {
+  min-height: 60px;
+}
+
+/* ═══ Task List (Checklist) ═══ */
+.newsletter-editor ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+
+.newsletter-editor ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5em;
+}
+
+.newsletter-editor ul[data-type="taskList"] li > label {
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+.newsletter-editor ul[data-type="taskList"] li > label input[type="checkbox"] {
+  accent-color: #6366f1;
+  cursor: pointer;
+}
+
+/* ═══ Table ═══ */
+.newsletter-editor table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 8px 0;
+}
+
+.newsletter-editor th,
+.newsletter-editor td {
+  border: 1px solid #1f2937;
+  padding: 8px 12px;
+  text-align: left;
+  min-width: 80px;
+}
+
+.newsletter-editor th {
+  background: #111827;
+  font-weight: 600;
+  color: #f3f4f6;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.newsletter-editor td {
+  color: #d1d5db;
+}
+
+.newsletter-editor .selectedCell {
+  background: rgba(99, 102, 241, 0.15);
+}
+
+/* ═══ H4 in editor ═══ */
+.newsletter-editor .ProseMirror h4 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6b7280;
+  margin: 16px 0 8px;
+}

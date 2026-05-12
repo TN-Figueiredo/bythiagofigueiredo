@@ -2,7 +2,7 @@
 
 import type { Editor } from '@tiptap/react'
 import { BubbleMenu as TipTapBubbleMenu } from '@tiptap/react/menus'
-import { Bold, Italic, Underline, Strikethrough, Link2, Code } from 'lucide-react'
+import { Bold, Italic, Underline, Strikethrough, Link2, Code, Highlighter } from 'lucide-react'
 import { useState } from 'react'
 
 interface BubbleMenuProps {
@@ -93,6 +93,9 @@ export function EditorBubbleMenu({ editor }: BubbleMenuProps) {
         </BubbleButton>
         <BubbleButton onClick={() => editor.chain().focus().toggleCode().run()} active={editor.isActive('code')} title="Code">
           <Code size={14} />
+        </BubbleButton>
+        <BubbleButton onClick={() => editor.chain().focus().toggleHighlight({ color: '#ffe37a' }).run()} active={editor.isActive('highlight')} title="Highlight">
+          <Highlighter size={14} />
         </BubbleButton>
         <BubbleButton
           onClick={() => setShowLink(!showLink)}
