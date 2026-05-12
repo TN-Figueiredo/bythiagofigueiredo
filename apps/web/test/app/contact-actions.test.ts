@@ -88,6 +88,18 @@ function buildSupabaseMock() {
           }),
         }
       }
+      if (table === 'contact_page_settings') {
+        return {
+          select: (_cols: string) => ({
+            eq: (_c: string, _v: unknown) => ({
+              eq: (_c2: string, _v2: unknown) => ({
+                maybeSingle: () =>
+                  Promise.resolve({ data: { response_time_text: '24-48h' }, error: null }),
+              }),
+            }),
+          }),
+        }
+      }
       return {
         select: () => ({
           eq: () => ({

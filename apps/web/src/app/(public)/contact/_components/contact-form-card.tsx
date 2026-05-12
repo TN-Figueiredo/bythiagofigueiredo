@@ -51,7 +51,6 @@ export function ContactFormCard({ settings, visibility, locale }: Props) {
               ? settings.subject_options
               : undefined
           }
-          showSubject={visibility.show_subject_selector}
           showMarketing={visibility.show_marketing_consent}
         />
       </Paper>

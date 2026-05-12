@@ -4,12 +4,8 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { localePath } from '@/lib/i18n/locale-path'
 
-export type ContactResult =
-  | { status: 'ok' }
-  | { status: 'validation' }
-  | { status: 'captcha_failed' }
-  | { status: 'rate_limited' }
-  | { status: 'error' }
+import type { ContactResult } from '@/lib/contact/types'
+export type { ContactResult }
 
 const FORM_STRINGS = {
   'pt-BR': {
@@ -73,12 +69,10 @@ interface Props {
   locale?: string
   submitAction: (formData: FormData) => Promise<ContactResult>
   subjectOptions?: string[]
-  showSubject?: boolean
   showMarketing?: boolean
-  formTitle?: string
 }
 
-export function ContactForm({ locale = 'pt-BR', submitAction, subjectOptions, showSubject = true, showMarketing = true, formTitle }: Props) {
+export function ContactForm({ locale = 'pt-BR', submitAction, subjectOptions, showMarketing = true }: Props) {
   const s = t(locale)
   const router = useRouter()
   const [token, setToken] = useState<string | null>(null)
@@ -172,10 +166,12 @@ export function ContactForm({ locale = 'pt-BR', submitAction, subjectOptions, sh
     }
   }
 
+  const inputClasses = 'w-full border border-pb-line rounded-lg px-3 py-2 text-sm text-pb-ink bg-pb-bg placeholder:text-pb-muted/50 focus:outline-none focus:ring-2 focus:ring-pb-accent/60 focus:border-pb-accent'
+
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       <div>
-        <label htmlFor="contact-name" className="block text-sm font-medium mb-1">
+        <label htmlFor="contact-name" className="block text-sm font-medium text-pb-ink mb-1">
           {s.nameLabel}
         </label>
         <input
@@ -186,12 +182,12 @@ export function ContactForm({ locale = 'pt-BR', submitAction, subjectOptions, sh
           minLength={2}
           maxLength={200}
           placeholder={s.namePlaceholder}
-          className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className={inputClasses}
         />
       </div>
 
       <div>
-        <label htmlFor="contact-email" className="block text-sm font-medium mb-1">
+        <label htmlFor="contact-email" className="block text-sm font-medium text-pb-ink mb-1">
           {s.emailLabel}
         </label>
         <input
@@ -200,19 +196,19 @@ export function ContactForm({ locale = 'pt-BR', submitAction, subjectOptions, sh
           name="email"
           required
           placeholder={s.emailPlaceholder}
-          className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className={inputClasses}
         />
       </div>
 
-      {showSubject && subjectOptions && subjectOptions.length > 0 && (
+      {subjectOptions && subjectOptions.length > 0 && (
         <div>
-          <label htmlFor="contact-subject" className="block text-sm font-medium mb-1">
-            {s.subjectLabel ?? (locale === 'pt-BR' ? 'Assunto' : 'Subject')}
+          <label htmlFor="contact-subject" className="block text-sm font-medium text-pb-ink mb-1">
+            {s.subjectLabel}
           </label>
           <select
             id="contact-subject"
             name="subject"
-            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            className={inputClasses + ' bg-pb-bg'}
           >
             <option value="">{locale === 'pt-BR' ? 'Selecione...' : 'Select...'}</option>
             {subjectOptions.map((opt) => (
@@ -223,7 +219,7 @@ export function ContactForm({ locale = 'pt-BR', submitAction, subjectOptions, sh
       )}
 
       <div>
-        <label htmlFor="contact-message" className="block text-sm font-medium mb-1">
+        <label htmlFor="contact-message" className="block text-sm font-medium text-pb-ink mb-1">
           {s.messageLabel}
         </label>
         <textarea
@@ -234,23 +230,23 @@ export function ContactForm({ locale = 'pt-BR', submitAction, subjectOptions, sh
           maxLength={5000}
           rows={5}
           placeholder={s.messagePlaceholder}
-          className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+          className={inputClasses + ' resize-y'}
         />
       </div>
 
-      <label className="flex items-start gap-2 text-sm">
+      <label className="flex items-start gap-2 text-sm text-pb-muted">
         <input
           type="checkbox"
           name="consent_processing"
           required
-          className="mt-0.5 shrink-0"
+          className="mt-0.5 shrink-0 accent-pb-accent"
         />
         <span>{s.consentLabel}</span>
       </label>
 
       {(showMarketing ?? true) && (
-        <label className="flex items-start gap-2 text-sm">
-          <input type="checkbox" name="consent_marketing" className="mt-0.5 shrink-0" />
+        <label className="flex items-start gap-2 text-sm text-pb-muted">
+          <input type="checkbox" name="consent_marketing" className="mt-0.5 shrink-0 accent-pb-accent" />
           <span>{s.marketingLabel}</span>
         </label>
       )}
@@ -258,7 +254,7 @@ export function ContactForm({ locale = 'pt-BR', submitAction, subjectOptions, sh
       <div ref={turnstileRef} />
 
       {error && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-red-400">
           {error}
         </p>
       )}
@@ -266,7 +262,8 @@ export function ContactForm({ locale = 'pt-BR', submitAction, subjectOptions, sh
       <button
         type="submit"
         disabled={loading}
-        className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold py-2.5 rounded-lg transition-colors"
+        className="w-full font-semibold py-2.5 rounded-lg transition-all disabled:opacity-60 text-pb-bg"
+        style={{ backgroundColor: 'var(--pb-accent)', fontFamily: 'var(--font-sans)' }}
       >
         {loading ? s.loadingLabel : s.submitLabel}
       </button>

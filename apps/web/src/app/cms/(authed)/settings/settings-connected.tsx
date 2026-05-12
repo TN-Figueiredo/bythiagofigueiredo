@@ -4,6 +4,7 @@ import {
   useState,
   useCallback,
   useEffect,
+  useRef,
   useTransition,
   type FormEvent,
 } from 'react'
@@ -141,14 +142,14 @@ type SectionId =
 
 type SaveState = 'idle' | 'saving' | 'success' | 'error'
 
-const SECTIONS: { id: SectionId; label: string }[] = [
+const SECTIONS: { id: SectionId; label: string; badge?: 'new' }[] = [
   { id: 'branding', label: 'Branding' },
   { id: 'seo', label: 'SEO' },
   { id: 'newsletters', label: 'Newsletters' },
   { id: 'blog-cadence', label: 'Blog Cadence' },
   { id: 'youtube', label: 'YouTube' },
   { id: 'instagram', label: 'Instagram' },
-  { id: 'contact-page', label: 'Contact Page' },
+  { id: 'contact-page', label: 'Contact Page', badge: 'new' as const },
   { id: 'localization', label: 'Localization' },
   { id: 'danger-zone', label: 'Danger Zone' },
 ]
@@ -214,6 +215,20 @@ function SaveButton({
 function FieldError({ message }: { message: string | undefined }) {
   if (!message) return null
   return <p className="mt-1 text-sm text-red-400">{message}</p>
+}
+
+function CharCount({ current, max }: { current: number; max: number }) {
+  const ratio = current / max
+  const cls = ratio >= 1
+    ? 'text-red-400 font-medium'
+    : ratio >= 0.9
+      ? 'text-amber-400'
+      : 'text-slate-500'
+  return (
+    <span className={`text-xs ${cls}`}>
+      {current}/{max}{ratio >= 1 ? ' !' : ''}
+    </span>
+  )
 }
 
 function ReadOnlyBanner() {
@@ -2145,13 +2160,13 @@ function ContactPageSection({
   const [activeTab, setActiveTab] = useState<ContactSubTab>('hero')
   const [pendingTab, setPendingTab] = useState<ContactSubTab | null>(null)
   const [showUnsaved, setShowUnsaved] = useState(false)
-  const dirtyRef = useState<Record<ContactSubTab, boolean>>(() => ({
+  const dirtyRef = useRef<Record<ContactSubTab, boolean>>({
     hero: false,
     social: false,
     form: false,
     faq: false,
     visibility: false,
-  }))[0]
+  })
   const [dirtyState, setDirtyState] = useState<Record<ContactSubTab, boolean>>({
     hero: false,
     social: false,
@@ -2177,11 +2192,11 @@ function ContactPageSection({
       : {}
 
   const markDirty = (tab: ContactSubTab) => {
-    dirtyRef[tab] = true
+    dirtyRef.current[tab] = true
     setDirtyState((prev) => ({ ...prev, [tab]: true }))
   }
   const markClean = (tab: ContactSubTab) => {
-    dirtyRef[tab] = false
+    dirtyRef.current[tab] = false
     setDirtyState((prev) => ({ ...prev, [tab]: false }))
   }
 
@@ -2441,7 +2456,7 @@ function ContactHeroTab({
         />
         <div className="flex justify-between mt-0.5">
           <FieldError message={errors.hero_title} />
-          <span className="text-xs text-slate-500">{cur.hero_title.length}/80</span>
+          <CharCount current={cur.hero_title.length} max={80} />
         </div>
       </div>
 
@@ -2460,7 +2475,7 @@ function ContactHeroTab({
           disabled={readOnly}
         />
         <div className="flex justify-end mt-0.5">
-          <span className="text-xs text-slate-500">{cur.hero_subtitle.length}/300</span>
+          <CharCount current={cur.hero_subtitle.length} max={300} />
         </div>
       </div>
 
@@ -2888,7 +2903,7 @@ function ContactFormTab({
               disabled={readOnly}
             />
             <div className="flex justify-end mt-0.5">
-              <span className="text-xs text-slate-500">{cur.auto_reply_text.length}/500</span>
+              <CharCount current={cur.auto_reply_text.length} max={500} />
             </div>
           </div>
 
@@ -3084,7 +3099,7 @@ function ContactFaqTab({
       <div className="space-y-2">
         {cur.map((item, idx) => (
           <div
-            key={idx}
+            key={`faq-${locale}-${idx}-${item.q.slice(0, 20)}`}
             className="rounded-md border border-slate-700 bg-slate-800"
           >
             <div className="flex items-center gap-2 px-3 py-2">
@@ -3464,6 +3479,11 @@ export function SettingsConnected({
                   {i + 1}
                 </span>
                 {s.label}
+                {'badge' in s && s.badge === 'new' && (
+                  <span className="ml-1.5 rounded-full bg-indigo-600 px-1.5 py-px text-[10px] font-medium text-white leading-none">
+                    new
+                  </span>
+                )}
               </button>
             </li>
           ))}

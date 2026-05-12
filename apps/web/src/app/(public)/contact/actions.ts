@@ -17,10 +17,13 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { getClientIp, isValidInet } from '../../../../lib/request-ip'
 import { verifyTurnstileToken } from '../../../../lib/turnstile'
 import { captureServerActionError } from '@/lib/sentry-wrap'
+import type { ContactResult } from '@/lib/contact/types'
 import {
   CONTACT_CONSENT_VERSION,
   CONTACT_MARKETING_CONSENT_VERSION,
 } from './consent'
+
+export type { ContactResult }
 
 const ContactSchema = z.object({
   name: z.string().min(2).max(200),
@@ -30,16 +33,8 @@ const ContactSchema = z.object({
   consent_processing: z.literal('on'),
   consent_marketing: z.string().transform((v) => v === 'true'),
   turnstile_token: z.string().min(1),
-  // M3: optional — falls back to pt-BR when unset/invalid.
   locale: z.enum(['pt-BR', 'en']).optional(),
 })
-
-export type ContactResult =
-  | { status: 'ok' }
-  | { status: 'validation' }
-  | { status: 'captcha_failed' }
-  | { status: 'rate_limited' }
-  | { status: 'error' }
 
 export async function submitContact(formData: FormData): Promise<ContactResult> {
   const h = await headers()
@@ -134,7 +129,7 @@ export async function submitContact(formData: FormData): Promise<ContactResult> 
     email: input.email,
     message: input.message,
     subject: input.subject,
-    locale: input.locale ?? 'en',
+    locale: input.locale ?? 'pt-BR',
   }).catch(() => {
     /* swallow */
   })
@@ -161,14 +156,22 @@ async function sendContactEmails(opts: {
     siteUrl: process.env.NEXT_PUBLIC_APP_URL ?? 'https://bythiagofigueiredo.com',
   }
 
-  // Auto-reply — rely on unique partial index (sent_emails_contact_autoreply_daily)
-  // to prevent duplicate sends for (site_id, to_email, 'contact-received', UTC day).
+  const { data: cmsSettings } = await supabase
+    .from('contact_page_settings')
+    .select('response_time_text')
+    .eq('site_id', opts.siteId)
+    .eq('locale', opts.locale)
+    .maybeSingle()
+
+  const replyTime = cmsSettings?.response_time_text
+    || (opts.locale === 'pt-BR' ? '24-48h' : '24-48h')
+
   try {
     const autoReplyResult = await emailService.sendTemplate(
       contactReceived,
       { email: sender.email, name: sender.name },
       opts.email,
-      { name: opts.name, expectedReplyTime: '2 dias úteis', branding },
+      { name: opts.name, expectedReplyTime: replyTime, branding },
       opts.locale,
     )
 

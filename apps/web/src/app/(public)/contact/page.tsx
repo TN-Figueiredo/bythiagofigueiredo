@@ -42,11 +42,19 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
-const errorMessages: Record<string, string> = {
-  validation_error: 'Dados inválidos. Verifique os campos e tente novamente.',
-  bot_check_failed: 'Verificação anti-bot falhou. Recarregue a página e tente novamente.',
-  submit_failed: 'Erro ao enviar. Por favor, tente novamente.',
-  rate_limited: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.',
+const ERROR_MESSAGES: Record<string, Record<string, string>> = {
+  'pt-BR': {
+    validation_error: 'Dados inválidos. Verifique os campos e tente novamente.',
+    bot_check_failed: 'Verificação anti-bot falhou. Recarregue a página e tente novamente.',
+    submit_failed: 'Erro ao enviar. Por favor, tente novamente.',
+    rate_limited: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.',
+  },
+  en: {
+    validation_error: 'Invalid data. Please check the fields and try again.',
+    bot_check_failed: 'Bot check failed. Reload the page and try again.',
+    submit_failed: 'Submit failed. Please try again.',
+    rate_limited: 'Too many attempts. Please wait a few minutes and try again.',
+  },
 }
 
 interface Props {
@@ -56,11 +64,12 @@ interface Props {
 export default async function ContactPage({ searchParams }: Props) {
   const { notice, error } = await searchParams
   const noticeMessage = notice != null ? (notice === 'contact_received' ? notice : null) : null
-  const errorMessage = error != null ? (errorMessages[error] ?? null) : null
-
   const ctx = await tryGetSiteContext()
   const h = await headers()
   const locale = (h.get('x-locale') ?? 'en') as 'en' | 'pt-BR'
+  const errorMessage = error != null
+    ? (ERROR_MESSAGES[locale]?.[error] ?? ERROR_MESSAGES['en']?.[error] ?? null)
+    : null
   const host = h.get('host') ?? ctx?.primaryDomain ?? ''
 
   const config = ctx

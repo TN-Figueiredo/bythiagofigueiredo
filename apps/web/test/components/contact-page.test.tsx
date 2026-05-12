@@ -185,6 +185,6 @@ describe('SocialLinksColumn', () => {
     }
     const authorNoLinks: ContactAuthorData = { ...mockAuthor, social_links: {} }
     render(<SocialLinksColumn visibility={vis} author={authorNoLinks} locale="en" />)
-    expect(screen.getByText("I'm happy to hear from you!")).toBeTruthy()
+    expect(screen.getByText('↑ email = fastest way')).toBeTruthy()
   })
 })

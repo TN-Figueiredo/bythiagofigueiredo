@@ -90,7 +90,7 @@ export function HeroSection({ settings, visibility, author }: Props) {
         <div className="flex items-center gap-2 mt-1 px-3 py-1.5 rounded-full border border-pb-line bg-pb-paper text-sm text-pb-muted">
           <span
             className="inline-block w-2 h-2 rounded-full bg-green-500"
-            style={{ animation: 'pulse 2s ease-in-out infinite' }}
+            style={{ animation: 'pulse-subtle 2s ease-in-out infinite' }}
             aria-hidden="true"
           />
           {settings.response_time_text}

@@ -41,3 +41,10 @@ export interface ContactAuthorData {
   headline: string | null
   bio: string | null
 }
+
+export type ContactResult =
+  | { status: 'ok' }
+  | { status: 'validation' }
+  | { status: 'captcha_failed' }
+  | { status: 'rate_limited' }
+  | { status: 'error' }

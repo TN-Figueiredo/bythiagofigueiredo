@@ -138,8 +138,8 @@ export function SocialLinksColumn({ visibility, author, locale }: Props) {
           style={{ fontFamily: 'var(--font-caveat-var)' }}
         >
           {locale === 'pt-BR'
-            ? 'Fico feliz em receber sua mensagem!'
-            : "I'm happy to hear from you!"}
+            ? '↑ email = mais rápido'
+            : '↑ email = fastest way'}
         </p>
       )}
     </div>
