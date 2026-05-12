@@ -47,15 +47,13 @@ describe('ContentCiteSelector', () => {
     expect(screen.queryByText('Selecione para citar')).toBeNull()
   })
 
-  it('calls onCite when cite action triggered', () => {
+  it('renders in enabled state ready for interaction (selectionchange not testable in jsdom)', () => {
     const onCite = vi.fn()
     render(
       <ContentCiteSelector enabled={true} onCite={onCite}>
         <p>Selectable draft content for testing</p>
       </ContentCiteSelector>,
     )
-    // selectionchange is not reliably testable in jsdom; verify component
-    // renders correctly in enabled state and is ready for interaction
     expect(screen.getByText('Selecione para citar')).toBeTruthy()
     expect(screen.getByText(/Selectable draft content/)).toBeTruthy()
   })

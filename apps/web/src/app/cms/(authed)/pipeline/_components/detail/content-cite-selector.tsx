@@ -71,7 +71,7 @@ export function ContentCiteSelector({ enabled, onCite, children }: ContentCiteSe
         <div data-cite-tooltip role="button" aria-label="Citar trecho selecionado" onClick={cite} style={{
           position: 'fixed', top: tooltip.top, left: tooltip.left, background: 'var(--gem-accent)',
           color: 'var(--gem-on-accent, #fff)', borderRadius: '6px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer',
-          zIndex: 9999, boxShadow: '0 4px 12px rgba(0,0,0,0.4)', animation: 'citeTooltipIn .15s ease-out',
+          zIndex: 9999, boxShadow: '0 4px 12px color-mix(in srgb, var(--gem-shadow, #000) 40%, transparent)', animation: 'citeTooltipIn .15s ease-out',
           whiteSpace: 'nowrap',
         }}>
           📌 Citar <kbd aria-hidden="true" style={{ opacity: 0.7, fontSize: '10px' }}>↵</kbd>

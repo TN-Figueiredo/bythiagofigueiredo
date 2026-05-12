@@ -151,6 +151,8 @@ function SectionPanel({ sectionDef, activeSub, lang, itemId, itemVersion, itemCo
     setInsertText(null)
   }, [])
 
+  const handleInsertConsumed = useCallback(() => setInsertText(null), [])
+
   const activeDef = sectionDef.subSections?.find(s => s.key === sectionType) ?? sectionDef
   const isShared = activeDef.shared
   const title = activeDef.label_pt
@@ -198,7 +200,7 @@ function SectionPanel({ sectionDef, activeSub, lang, itemId, itemVersion, itemCo
         references={references}
         onSendAndWait={handleSendAndWait}
         insertText={insertText}
-        onInsertConsumed={() => setInsertText(null)}
+        onInsertConsumed={handleInsertConsumed}
       />
 
       {section.conflict && (

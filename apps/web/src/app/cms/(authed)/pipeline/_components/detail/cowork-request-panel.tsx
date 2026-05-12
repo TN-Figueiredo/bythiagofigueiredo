@@ -85,9 +85,10 @@ export function CoworkRequestPanel({
     return ids
   }, [instructions, references])
 
-  const prompt = instructions.trim()
+  const prompt = useMemo(() => instructions.trim()
     ? buildPrompt({ itemCode, itemTitle, format, stage, tags, hook, synopsis, sectionLabel, sectionKey, lang, rev, contentSummary, instructions: instructions.trim(), itemId, sectionBase, references })
     : ''
+  , [instructions, itemCode, itemTitle, format, stage, tags, hook, synopsis, sectionLabel, sectionKey, lang, rev, contentSummary, itemId, sectionBase, references])
 
   const handleCopy = useCallback(() => {
     if (!prompt) return
@@ -98,10 +99,6 @@ export function CoworkRequestPanel({
     })
   }, [prompt])
 
-  const handleSendAndWait = useCallback(() => {
-    onSendAndWait()
-  }, [onSendAndWait])
-
   if (!isOpen) return null
 
   return (
@@ -111,7 +108,7 @@ export function CoworkRequestPanel({
         background: 'color-mix(in srgb, var(--gem-accent) 4%, var(--gem-surface))',
         borderTop: '1px solid color-mix(in srgb, var(--gem-accent) 15%, transparent)',
         borderBottom: '1px solid color-mix(in srgb, var(--gem-accent) 10%, transparent)',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
+        boxShadow: '0 4px 12px color-mix(in srgb, var(--gem-shadow, #000) 25%, transparent)',
       }}
     >
       <textarea
@@ -155,9 +152,7 @@ export function CoworkRequestPanel({
         </div>
       )}
       {prompt && (
-        <pre className="mt-2 p-2 rounded-md text-[10px] overflow-y-auto max-h-48" style={{ background: 'color-mix(in srgb, var(--gem-accent) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--gem-accent) 15%, transparent)', color: 'var(--gem-dim)', fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
-          {prompt}
-        </pre>
+        <pre className="mt-2 p-2 rounded-md text-[10px] overflow-y-auto max-h-48" style={{ background: 'color-mix(in srgb, var(--gem-accent) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--gem-accent) 15%, transparent)', color: 'var(--gem-dim)', fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>{prompt}</pre>
       )}
       <div className="flex justify-between items-center mt-2">
         <span className="text-[10px]" style={{ color: 'var(--gem-dim)' }}>
@@ -169,9 +164,9 @@ export function CoworkRequestPanel({
           <button onClick={onClose} className="px-2 py-0.5 text-[10px] rounded" style={{ border: '1px solid var(--gem-border)', color: 'var(--gem-muted)' }}>Cancelar</button>
           {copied ? (
             <button
-              onClick={handleSendAndWait}
+              onClick={onSendAndWait}
               className="px-2.5 py-0.5 text-[10px] font-semibold rounded"
-              style={{ background: 'var(--gem-done)', border: '1px solid var(--gem-done)', color: 'white' }}
+              style={{ background: 'var(--gem-done)', border: '1px solid var(--gem-done)', color: 'var(--gem-on-accent, #fff)' }}
             >
               ✓ Enviado — fechar e aguardar
             </button>
@@ -180,7 +175,7 @@ export function CoworkRequestPanel({
               onClick={handleCopy}
               disabled={!prompt}
               className="px-2 py-0.5 text-[10px] font-semibold rounded"
-              style={{ background: 'var(--gem-accent)', border: '1px solid var(--gem-accent)', color: 'white', opacity: prompt ? 1 : 0.3 }}
+              style={{ background: 'var(--gem-accent)', border: '1px solid var(--gem-accent)', color: 'var(--gem-on-accent, #fff)', opacity: prompt ? 1 : 0.3 }}
             >
               Copiar prompt
             </button>
