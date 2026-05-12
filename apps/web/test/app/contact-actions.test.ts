@@ -196,4 +196,11 @@ describe('submitContact', () => {
     const result = await submitContact(makeFormData())
     expect(result).toEqual({ status: 'ok' })
   })
+
+  it('accepts optional subject field', async () => {
+    const fd = makeFormData()
+    fd.set('subject', '💼 Project / Freelance')
+    const result = await submitContact(fd)
+    expect(result.status).toBe('ok')
+  })
 })

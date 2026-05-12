@@ -26,40 +26,46 @@ vi.mock('@/lib/cms/site-context', () => ({
 
 vi.mock('@/lib/supabase/service', () => ({
   getSupabaseServiceClient: vi.fn(() => ({
-    from: vi.fn((table: string) => ({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      order: vi.fn().mockResolvedValue({
+    from: vi.fn((table: string) => {
+      const resolvedData = {
         data:
           table === 'newsletter_types'
-            ? [
-                {
-                  id: 'nt-1',
-                  name: 'Weekly',
-                  cadence_days: 7,
-                  sort_order: 0,
-                },
-              ]
+            ? [{ id: 'nt-1', name: 'Weekly', cadence_days: 7, sort_order: 0 }]
             : table === 'blog_cadence'
               ? [{ locale: 'pt-BR', cadence_days: 7 }]
               : [],
         error: null,
-      }),
-      single: vi.fn().mockResolvedValue({
-        data: {
-          id: 'site-1',
-          logo_url: 'https://example.com/logo.png',
-          primary_color: '#000000',
-          identity_type: 'person',
-          twitter_handle: 'tnFigueiredo',
-          seo_default_og_image: null,
-          supported_locales: ['pt-BR', 'en'],
-          default_locale: 'pt-BR',
-          cms_enabled: true,
-        },
-        error: null,
-      }),
-    })),
+      }
+      const makeChainable = (resolved: { data: unknown[]; error: null }): unknown => ({
+        data: resolved.data,
+        error: resolved.error,
+        then: (resolve: (v: typeof resolved) => unknown, reject?: (e: unknown) => unknown) =>
+          Promise.resolve(resolved).then(resolve, reject),
+        limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+        order: vi.fn().mockImplementation(() => makeChainable({ data: [], error: null })),
+      })
+      return {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        order: vi.fn().mockImplementation(() => makeChainable(resolvedData)),
+        limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+        single: vi.fn().mockResolvedValue({
+          data: {
+            id: 'site-1',
+            logo_url: 'https://example.com/logo.png',
+            primary_color: '#000000',
+            identity_type: 'person',
+            twitter_handle: 'tnFigueiredo',
+            seo_default_og_image: null,
+            supported_locales: ['pt-BR', 'en'],
+            default_locale: 'pt-BR',
+            cms_enabled: true,
+          },
+          error: null,
+        }),
+        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+      }
+    }),
   })),
 }))
 

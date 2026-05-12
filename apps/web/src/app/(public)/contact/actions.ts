@@ -26,6 +26,7 @@ const ContactSchema = z.object({
   name: z.string().min(2).max(200),
   email: z.string().email().max(320),
   message: z.string().min(10).max(5000),
+  subject: z.string().max(100).optional(),
   consent_processing: z.literal('on'),
   consent_marketing: z.string().transform((v) => v === 'true'),
   turnstile_token: z.string().min(1),
@@ -51,6 +52,7 @@ export async function submitContact(formData: FormData): Promise<ContactResult> 
     name: formData.get('name'),
     email: formData.get('email'),
     message: formData.get('message'),
+    subject: formData.get('subject') ?? undefined,
     consent_processing: formData.get('consent_processing'),
     consent_marketing: formData.get('consent_marketing'),
     turnstile_token: formData.get('turnstile_token'),
@@ -98,6 +100,7 @@ export async function submitContact(formData: FormData): Promise<ContactResult> 
       name: input.name,
       email: input.email,
       message: input.message,
+      subject: input.subject || null,
       consent_processing: true,
       consent_processing_text_version: CONTACT_CONSENT_VERSION,
       consent_marketing: input.consent_marketing,
@@ -130,6 +133,7 @@ export async function submitContact(formData: FormData): Promise<ContactResult> 
     name: input.name,
     email: input.email,
     message: input.message,
+    subject: input.subject,
     locale: input.locale ?? 'en',
   }).catch(() => {
     /* swallow */
@@ -144,6 +148,7 @@ async function sendContactEmails(opts: {
   name: string
   email: string
   message: string
+  subject?: string
   locale: string
 }) {
   const supabase = getSupabaseServiceClient()
@@ -208,6 +213,7 @@ async function sendContactEmails(opts: {
         submitterName: opts.name,
         submitterEmail: opts.email,
         message: opts.message,
+        subject: opts.subject ?? null,
         viewInAdminUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://bythiagofigueiredo.com'}/cms/contacts/${opts.submissionId}`,
         branding,
       },

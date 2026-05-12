@@ -19,6 +19,7 @@ const FORM_STRINGS = {
     nameLabel: 'Nome',
     emailLabel: 'Email',
     messageLabel: 'Mensagem',
+    subjectLabel: 'Assunto',
     consentLabel:
       'Concordo com o tratamento dos meus dados pessoais para fins de resposta ao meu contato (LGPD).',
     marketingLabel:
@@ -39,6 +40,7 @@ const FORM_STRINGS = {
     nameLabel: 'Name',
     emailLabel: 'Email',
     messageLabel: 'Message',
+    subjectLabel: 'Subject',
     consentLabel:
       'I agree to have my personal data processed to respond to my inquiry (LGPD).',
     marketingLabel: 'I also want to receive updates and blog content by email.',
@@ -70,9 +72,13 @@ declare global {
 interface Props {
   locale?: string
   submitAction: (formData: FormData) => Promise<ContactResult>
+  subjectOptions?: string[]
+  showSubject?: boolean
+  showMarketing?: boolean
+  formTitle?: string
 }
 
-export function ContactForm({ locale = 'pt-BR', submitAction }: Props) {
+export function ContactForm({ locale = 'pt-BR', submitAction, subjectOptions, showSubject = true, showMarketing = true, formTitle }: Props) {
   const s = t(locale)
   const router = useRouter()
   const [token, setToken] = useState<string | null>(null)
@@ -198,6 +204,24 @@ export function ContactForm({ locale = 'pt-BR', submitAction }: Props) {
         />
       </div>
 
+      {showSubject && subjectOptions && subjectOptions.length > 0 && (
+        <div>
+          <label htmlFor="contact-subject" className="block text-sm font-medium mb-1">
+            {s.subjectLabel ?? (locale === 'pt-BR' ? 'Assunto' : 'Subject')}
+          </label>
+          <select
+            id="contact-subject"
+            name="subject"
+            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+          >
+            <option value="">{locale === 'pt-BR' ? 'Selecione...' : 'Select...'}</option>
+            {subjectOptions.map((opt) => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div>
         <label htmlFor="contact-message" className="block text-sm font-medium mb-1">
           {s.messageLabel}
@@ -224,10 +248,12 @@ export function ContactForm({ locale = 'pt-BR', submitAction }: Props) {
         <span>{s.consentLabel}</span>
       </label>
 
-      <label className="flex items-start gap-2 text-sm">
-        <input type="checkbox" name="consent_marketing" className="mt-0.5 shrink-0" />
-        <span>{s.marketingLabel}</span>
-      </label>
+      {(showMarketing ?? true) && (
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" name="consent_marketing" className="mt-0.5 shrink-0" />
+          <span>{s.marketingLabel}</span>
+        </label>
+      )}
 
       <div ref={turnstileRef} />
 
