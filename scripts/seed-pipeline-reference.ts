@@ -43,6 +43,48 @@ const ENTRIES: ReferenceEntry[] = [
     sort_order: 40,
     filePath: '../docs/cowork-playlist-reference.md',
   },
+  {
+    key: 'content-curator-skill',
+    title: 'Content Curator — Skill Reference (REVIEW, MERGE, PROMOTE, CLEAN)',
+    ref_group: 'craft',
+    sort_order: 50,
+    filePath: '../docs/cowork-content-curator-skill.md',
+  },
+  {
+    key: 'curator-rules',
+    title: 'Curator Rules — Critérios de Curadoria',
+    ref_group: 'estrategia',
+    sort_order: 51,
+    filePath: '../docs/cowork-curator-rules.md',
+  },
+  {
+    key: 'curator-memory',
+    title: 'Curator Memory — Histórico de Curadorias',
+    ref_group: 'memoria',
+    sort_order: 52,
+    filePath: '../docs/cowork-curator-memory.md',
+  },
+  {
+    key: 'playlist-architect-skill',
+    title: 'Playlist Architect — Skill Reference (BUILD, CONNECT, GAP, REORG, CAMPAIGN, COURSE)',
+    ref_group: 'craft',
+    sort_order: 60,
+    filePath: '../docs/cowork-playlist-architect-skill.md',
+  },
+  {
+    key: 'architect-templates',
+    title: 'Playlist Templates — Padrões por Tipo de Playlist',
+    ref_group: 'estrategia',
+    sort_order: 61,
+    filePath: '../docs/cowork-architect-templates.md',
+  },
+  {
+    key: 'architect-memory',
+    title: 'Architect Memory — Histórico de Playlists',
+    ref_group: 'memoria',
+    sort_order: 62,
+    filePath: '../docs/cowork-architect-memory.md',
+  },
 ]
 
 async function seed(): Promise<void> {
