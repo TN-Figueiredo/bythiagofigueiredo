@@ -94,13 +94,13 @@ export function PlaylistSettings({
         {/* Fields */}
         <div className="flex flex-col gap-3">
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-white/50">Name (PT)</span>
-            <input type="text" value={namePt} onChange={e => setNamePt(e.target.value)} className={fieldClasses} />
+            <span className="text-xs font-medium text-white/50">Name (EN)</span>
+            <input type="text" value={nameEn} onChange={e => setNameEn(e.target.value)} className={fieldClasses} />
           </label>
 
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-white/50">Name (EN)</span>
-            <input type="text" value={nameEn} onChange={e => setNameEn(e.target.value)} className={fieldClasses} />
+            <span className="text-xs font-medium text-white/50">Name (PT)</span>
+            <input type="text" value={namePt} onChange={e => setNamePt(e.target.value)} className={fieldClasses} />
           </label>
 
           <label className="flex flex-col gap-1">
@@ -114,13 +114,13 @@ export function PlaylistSettings({
           </label>
 
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-white/50">Description (PT)</span>
-            <textarea value={descriptionPt} onChange={e => setDescriptionPt(e.target.value)} rows={2} className={fieldClasses} />
+            <span className="text-xs font-medium text-white/50">Description (EN)</span>
+            <textarea value={descriptionEn} onChange={e => setDescriptionEn(e.target.value)} rows={2} className={fieldClasses} />
           </label>
 
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-white/50">Description (EN)</span>
-            <textarea value={descriptionEn} onChange={e => setDescriptionEn(e.target.value)} rows={2} className={fieldClasses} />
+            <span className="text-xs font-medium text-white/50">Description (PT)</span>
+            <textarea value={descriptionPt} onChange={e => setDescriptionPt(e.target.value)} rows={2} className={fieldClasses} />
           </label>
 
           <label className="flex flex-col gap-1">

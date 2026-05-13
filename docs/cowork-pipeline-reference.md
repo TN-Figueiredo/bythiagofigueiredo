@@ -620,8 +620,8 @@ Playlists usam campos denormalizados para i18n (igual a youtube_categories):
 
 | Campo | Tipo | Notas |
 |-------|------|-------|
-| `name_pt` | TEXT NOT NULL | Nome em português (obrigatório) |
-| `name_en` | TEXT NOT NULL | Nome em inglês (default: vazio) |
+| `name_en` | TEXT NOT NULL | Nome em inglês (obrigatório, idioma primário) |
+| `name_pt` | TEXT NOT NULL | Nome em português (default: vazio) |
 | `description_pt` | TEXT | Descrição em português |
 | `description_en` | TEXT | Descrição em inglês |
 | `slug` | TEXT | Slug único por site (single, não per-locale) |
@@ -725,4 +725,4 @@ Playlists podem ser embeddadas em blog posts e newsletters via TipTap custom nod
 3. Sequence edges não podem criar ciclos — o DB tem trigger `prevent_sequence_cycle` que rejeita
 4. `sortOrder` usa incrementos de 1000 (ex: 1000, 2000, 3000) para permitir inserções intermediárias
 5. Posições no canvas (`positionX`, `positionY`) são opcionais — se omitidas, default (0,0) e o editor oferece auto-layout
-6. `name_pt` é obrigatório; `name_en` pode ser vazio — sempre exibir `name_pt` como fallback
+6. `name_en` é obrigatório (idioma primário); `name_pt` pode ser vazio — sempre exibir `name_en` como fallback. Slug é gerado a partir do `name_en`

@@ -53,7 +53,7 @@ function PlaylistEmbedNodeView({ node, updateAttributes, deleteNode }: ReactNode
   function handleSelect(p: PlaylistSummary) {
     updateAttributes({
       playlistId: p.id,
-      playlistName: p.name_pt,
+      playlistName: p.name_en || p.name_pt,
       playlistSlug: p.slug,
       itemCount: p.item_count,
     })
@@ -120,7 +120,7 @@ function PlaylistEmbedNodeView({ node, updateAttributes, deleteNode }: ReactNode
                   onClick={() => handleSelect(p)}
                   className="flex items-center justify-between w-full text-left px-2.5 py-2 rounded-md text-sm text-[#d1d5db] hover:bg-indigo-500/10 hover:text-[#818cf8] transition-colors"
                 >
-                  <span className="truncate">{p.name_pt}</span>
+                  <span className="truncate">{p.name_en || p.name_pt}</span>
                   <span className="text-[0.65rem] text-[#6b7280] shrink-0 ml-2">
                     {p.item_count} items · {p.status}
                   </span>

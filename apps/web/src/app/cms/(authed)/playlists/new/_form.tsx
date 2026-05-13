@@ -22,8 +22,8 @@ export function NewPlaylistForm({ siteId }: Props) {
   const [descriptionEn, setDescriptionEn] = useState('')
   const [category, setCategory] = useState('')
 
-  function handleNamePtChange(value: string) {
-    setNamePt(value)
+  function handleNameEnChange(value: string) {
+    setNameEn(value)
     if (!slugEdited) {
       setSlug(slugifyPlaylist(value))
     }
@@ -39,8 +39,8 @@ export function NewPlaylistForm({ siteId }: Props) {
 
     startTransition(async () => {
       const result = await createPlaylist(siteId, {
-        name_pt: namePt.trim(),
-        name_en: nameEn.trim() || undefined,
+        name_en: nameEn.trim(),
+        name_pt: namePt.trim() || undefined,
         slug: slug.trim(),
         description_pt: descriptionPt.trim() || undefined,
         description_en: descriptionEn.trim() || undefined,
@@ -71,33 +71,33 @@ export function NewPlaylistForm({ siteId }: Props) {
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-        {/* Names (PT + EN) */}
+        {/* Names (EN + PT) */}
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col gap-2">
-            <label htmlFor="name_pt" className="text-sm font-medium text-white/70">
-              Name (PT) <span className="text-red-400">*</span>
+            <label htmlFor="name_en" className="text-sm font-medium text-white/70">
+              Name (EN) <span className="text-red-400">*</span>
             </label>
             <input
-              id="name_pt"
+              id="name_en"
               type="text"
-              value={namePt}
-              onChange={e => handleNamePtChange(e.target.value)}
-              placeholder="e.g. Começando com TypeScript"
+              value={nameEn}
+              onChange={e => handleNameEnChange(e.target.value)}
+              placeholder="e.g. Getting Started with TypeScript"
               required
               maxLength={200}
               className={inputClasses}
             />
           </div>
           <div className="flex flex-col gap-2">
-            <label htmlFor="name_en" className="text-sm font-medium text-white/70">
-              Name (EN)
+            <label htmlFor="name_pt" className="text-sm font-medium text-white/70">
+              Name (PT)
             </label>
             <input
-              id="name_en"
+              id="name_pt"
               type="text"
-              value={nameEn}
-              onChange={e => setNameEn(e.target.value)}
-              placeholder="e.g. Getting Started with TypeScript"
+              value={namePt}
+              onChange={e => setNamePt(e.target.value)}
+              placeholder="e.g. Começando com TypeScript"
               maxLength={200}
               className={inputClasses}
             />
@@ -114,7 +114,7 @@ export function NewPlaylistForm({ siteId }: Props) {
             type="text"
             value={slug}
             onChange={e => handleSlugChange(e.target.value)}
-            placeholder="comecando-com-typescript"
+            placeholder="getting-started-with-typescript"
             required
             maxLength={200}
             pattern="^[a-z0-9]+(?:-[a-z0-9]+)*$"
@@ -124,22 +124,8 @@ export function NewPlaylistForm({ siteId }: Props) {
           <p className="text-xs text-white/30">Lowercase letters, numbers and hyphens only.</p>
         </div>
 
-        {/* Descriptions (PT + EN) */}
+        {/* Descriptions (EN + PT) */}
         <div className="grid grid-cols-2 gap-4">
-          <div className="flex flex-col gap-2">
-            <label htmlFor="description_pt" className="text-sm font-medium text-white/70">
-              Description (PT)
-            </label>
-            <textarea
-              id="description_pt"
-              value={descriptionPt}
-              onChange={e => setDescriptionPt(e.target.value)}
-              placeholder="Uma breve descrição do que esta playlist cobre…"
-              rows={3}
-              maxLength={1000}
-              className={`${inputClasses} resize-none`}
-            />
-          </div>
           <div className="flex flex-col gap-2">
             <label htmlFor="description_en" className="text-sm font-medium text-white/70">
               Description (EN)
@@ -149,6 +135,20 @@ export function NewPlaylistForm({ siteId }: Props) {
               value={descriptionEn}
               onChange={e => setDescriptionEn(e.target.value)}
               placeholder="A short description of what this playlist covers…"
+              rows={3}
+              maxLength={1000}
+              className={`${inputClasses} resize-none`}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <label htmlFor="description_pt" className="text-sm font-medium text-white/70">
+              Description (PT)
+            </label>
+            <textarea
+              id="description_pt"
+              value={descriptionPt}
+              onChange={e => setDescriptionPt(e.target.value)}
+              placeholder="Uma breve descrição do que esta playlist cobre…"
               rows={3}
               maxLength={1000}
               className={`${inputClasses} resize-none`}
@@ -176,7 +176,7 @@ export function NewPlaylistForm({ siteId }: Props) {
         <div className="flex items-center gap-3 pt-2">
           <button
             type="submit"
-            disabled={isPending || !namePt.trim() || !slug.trim()}
+            disabled={isPending || !nameEn.trim() || !slug.trim()}
             className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isPending ? 'Creating…' : 'Create Playlist'}

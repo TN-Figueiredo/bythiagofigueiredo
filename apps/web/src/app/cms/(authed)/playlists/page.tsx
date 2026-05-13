@@ -100,7 +100,7 @@ function PlaylistCard({
     >
       <div className="flex items-start justify-between">
         <h3 className="font-semibold text-white group-hover:text-indigo-300">
-          {playlist.name_pt}
+          {playlist.name_en || playlist.name_pt}
         </h3>
         <span
           className={`rounded-md border px-2 py-0.5 text-xs font-medium ${statusColors[playlist.status]}`}
@@ -109,9 +109,9 @@ function PlaylistCard({
         </span>
       </div>
 
-      {(playlist.description_pt || playlist.description_en) && (
+      {(playlist.description_en || playlist.description_pt) && (
         <p className="mt-2 line-clamp-2 text-sm text-white/50">
-          {playlist.description_pt || playlist.description_en}
+          {playlist.description_en || playlist.description_pt}
         </p>
       )}
 

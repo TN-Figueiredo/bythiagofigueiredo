@@ -46,7 +46,7 @@ export async function createPlaylist(
     return { ok: false, error: parsed.error.issues.map((i) => i.message).join(', ') }
   }
 
-  const { name_pt, name_en, slug, description_pt, description_en, category, status } = parsed.data
+  const { name_en, name_pt, slug, description_pt, description_en, category, status } = parsed.data
 
   const existing = await getPlaylistBySlug(slug, siteId)
   if (existing) {
