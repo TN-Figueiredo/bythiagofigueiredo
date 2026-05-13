@@ -10,7 +10,7 @@ export interface MediaGalleryStrings {
   }
   library: {
     searchPlaceholder: string
-    folderAll: string; folderAuthors: string; folderBlog: string
+    folderAll: string; folderAuthors: string; folderBlog: string; folderPipeline: string
     folderNewsletters: string; folderBranding: string; folderOg: string
     folderAds: string; folderLinks: string; folderGeneral: string
     loadMore: string; noResults: string; emptyLibrary: string

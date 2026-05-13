@@ -19,6 +19,7 @@ const FOLDER_FILTERS: Array<{ value: string; labelKey: keyof ReturnType<typeof g
   { value: '', labelKey: 'folderAll' },
   { value: 'authors', labelKey: 'folderAuthors' },
   { value: 'blog', labelKey: 'folderBlog' },
+  { value: 'pipeline', labelKey: 'folderPipeline' },
   { value: 'newsletters', labelKey: 'folderNewsletters' },
   { value: 'branding', labelKey: 'folderBranding' },
   { value: 'og', labelKey: 'folderOg' },
@@ -36,7 +37,7 @@ export function MediaLibraryTab({ onSelect, folder, cropPreset, locale }: Librar
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const [search, setSearch] = useState('')
-  const [folderFilter, setFolderFilter] = useState(folder ?? '')
+  const [folderFilter, setFolderFilter] = useState('')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const fetchAssets = useCallback(

@@ -1,6 +1,7 @@
 export type MediaFolder =
   | 'authors'
   | 'blog'
+  | 'pipeline'
   | 'newsletters'
   | 'branding'
   | 'og'
@@ -78,6 +79,7 @@ interface FolderLimit {
 export const FOLDER_LIMITS: Record<MediaFolder, FolderLimit> = {
   authors:     { maxSizeBytes: 2 * 1024 * 1024,  maxDimensionPx: 2048 },
   blog:        { maxSizeBytes: 5 * 1024 * 1024,  maxDimensionPx: 4096 },
+  pipeline:    { maxSizeBytes: 5 * 1024 * 1024,  maxDimensionPx: 4096 },
   newsletters: { maxSizeBytes: 2 * 1024 * 1024,  maxDimensionPx: 2048 },
   branding:    { maxSizeBytes: 1 * 1024 * 1024,  maxDimensionPx: 2048 },
   og:          { maxSizeBytes: 2 * 1024 * 1024,  maxDimensionPx: 2400 },

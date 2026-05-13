@@ -21,7 +21,7 @@ export const ptBR: MediaGalleryStrings = {
   },
   library: {
     searchPlaceholder: 'Buscar por nome ou tag…',
-    folderAll: 'Todas', folderAuthors: 'Autores', folderBlog: 'Blog',
+    folderAll: 'Todas', folderAuthors: 'Autores', folderBlog: 'Blog', folderPipeline: 'Pipeline',
     folderNewsletters: 'Newsletters', folderBranding: 'Marca', folderOg: 'Imagens OG',
     folderAds: 'Anúncios', folderLinks: 'Links', folderGeneral: 'Geral',
     loadMore: 'Carregar mais',

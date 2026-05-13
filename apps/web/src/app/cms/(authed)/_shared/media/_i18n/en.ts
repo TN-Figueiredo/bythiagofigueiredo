@@ -21,7 +21,7 @@ export const en: MediaGalleryStrings = {
   },
   library: {
     searchPlaceholder: 'Search by filename or tag…',
-    folderAll: 'All', folderAuthors: 'Authors', folderBlog: 'Blog',
+    folderAll: 'All', folderAuthors: 'Authors', folderBlog: 'Blog', folderPipeline: 'Pipeline',
     folderNewsletters: 'Newsletters', folderBranding: 'Branding', folderOg: 'OG Images',
     folderAds: 'Ads', folderLinks: 'Links', folderGeneral: 'General',
     loadMore: 'Load more',

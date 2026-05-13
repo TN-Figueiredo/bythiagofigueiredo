@@ -61,6 +61,7 @@ const MEDIA_FOLDERS = [
   'general',
   'authors',
   'blog',
+  'pipeline',
   'newsletters',
   'branding',
   'og',
