@@ -47,6 +47,7 @@ export async function POST(
       .eq('playlist_id', playlistId)
       .eq('source_item_id', edge.source_item_id)
       .eq('target_item_id', edge.target_item_id)
+      .eq('edge_type', edge.edge_type)
       .maybeSingle()
 
     if (existing) {

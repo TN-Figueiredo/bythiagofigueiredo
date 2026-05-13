@@ -65,6 +65,27 @@ export function computeAutoLayout(
     }
   }
 
+  // Distribute disconnected nodes (no sequence edges) after the main graph
+  const MAX_PER_COLUMN = 5
+  const connectedIds = new Set<string>()
+  for (const e of sequenceEdges) {
+    if (items.some(i => i.id === e.source_item_id)) connectedIds.add(e.source_item_id)
+    if (items.some(i => i.id === e.target_item_id)) connectedIds.add(e.target_item_id)
+  }
+
+  if (connectedIds.size > 0) {
+    const disconnected = items.filter(i => !connectedIds.has(i.id))
+    if (disconnected.length > MAX_PER_COLUMN) {
+      const maxConnectedLayer = Math.max(...[...layers.entries()]
+        .filter(([id]) => connectedIds.has(id))
+        .map(([, l]) => l), 0)
+      const startLayer = maxConnectedLayer + 2
+      for (let i = 0; i < disconnected.length; i++) {
+        layers.set(disconnected[i]!.id, startLayer + Math.floor(i / MAX_PER_COLUMN))
+      }
+    }
+  }
+
   // Group by layer, sort within each layer by sort_order
   const layerGroups = new Map<number, PlaylistItemEnriched[]>()
   for (const item of items) {

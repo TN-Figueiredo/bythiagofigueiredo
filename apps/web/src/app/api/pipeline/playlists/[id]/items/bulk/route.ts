@@ -36,10 +36,13 @@ export async function POST(
 
   let nextSort = await getNextSortOrder(playlistId)
   const results: { id: string; already_existed: boolean }[] = []
+  const errors: { index: number; code: string; message: string }[] = []
   let added = 0
   let skipped = 0
 
-  for (const item of parsed.data.items) {
+  for (let i = 0; i < parsed.data.items.length; i++) {
+    const item = parsed.data.items[i]!
+
     let dupQuery = supabase.from('playlist_items').select('id').eq('playlist_id', playlistId)
     if (item.blog_post_id) dupQuery = dupQuery.eq('blog_post_id', item.blog_post_id)
     else if (item.newsletter_edition_id) dupQuery = dupQuery.eq('newsletter_edition_id', item.newsletter_edition_id)
@@ -70,13 +73,18 @@ export async function POST(
       .single()
 
     if (error) {
-      if (error.code === '23503') return pipelineError('VALIDATION_ERROR', 'Referenced content does not exist', 400, auth)
-      return pipelineError('VALIDATION_ERROR', error.message, 400, auth)
+      const isFk = error.code === '23503'
+      errors.push({
+        index: i,
+        code: isFk ? 'INVALID_REFERENCE' : 'VALIDATION_ERROR',
+        message: isFk ? 'Referenced content does not exist' : error.message,
+      })
+      continue
     }
 
     results.push({ id: data.id, already_existed: false })
     added++
   }
 
-  return pipelineSuccess({ items: results, added, skipped }, 200, auth)
+  return pipelineSuccess({ items: results, added, skipped, errors }, 200, auth)
 }

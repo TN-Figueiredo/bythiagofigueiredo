@@ -38,6 +38,7 @@ export async function POST(
     .eq('playlist_id', playlistId)
     .eq('source_item_id', source_item_id)
     .eq('target_item_id', target_item_id)
+    .eq('edge_type', edge_type)
     .maybeSingle()
   if (existing) return pipelineSuccess({ id: existing.id, already_existed: true }, 200, auth)
 

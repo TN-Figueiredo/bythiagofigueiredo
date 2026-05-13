@@ -261,13 +261,8 @@ export async function getPlaylistItemCounts(
   const supabase = getSupabaseServiceClient()
   const { data } = await supabase
     .from('playlist_items')
-    .select('playlist_id')
-    .in('playlist_id', (
-      await supabase
-        .from('playlists')
-        .select('id')
-        .eq('site_id', siteId)
-    ).data?.map((p: { id: string }) => p.id) ?? [])
+    .select('playlist_id, playlists!inner(site_id)')
+    .eq('playlists.site_id', siteId)
 
   const counts = new Map<string, number>()
   for (const row of (data ?? []) as { playlist_id: string }[]) {
@@ -278,13 +273,20 @@ export async function getPlaylistItemCounts(
 
 export async function resolveUniqueSlug(name: string, siteId: string): Promise<string> {
   const base = slugifyPlaylist(name)
-  const existing = await getPlaylistBySlug(base, siteId)
-  if (!existing) return base
+  const supabase = getSupabaseServiceClient()
+
+  const { data } = await supabase
+    .from('playlists')
+    .select('slug')
+    .eq('site_id', siteId)
+    .like('slug', `${base}%`)
+
+  const taken = new Set((data ?? []).map((d: { slug: string }) => d.slug))
+  if (!taken.has(base)) return base
 
   for (let i = 2; i <= 99; i++) {
     const candidate = `${base}-${i}`
-    const conflict = await getPlaylistBySlug(candidate, siteId)
-    if (!conflict) return candidate
+    if (!taken.has(candidate)) return candidate
   }
 
   throw new Error('SLUG_EXHAUSTED')
