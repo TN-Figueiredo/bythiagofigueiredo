@@ -43,6 +43,7 @@ CREATE POLICY "playlists_delete"
   ON public.playlists FOR DELETE TO authenticated
   USING (public.can_edit_site(site_id));
 
+DROP TRIGGER IF EXISTS set_playlists_updated_at ON public.playlists;
 CREATE TRIGGER set_playlists_updated_at
   BEFORE UPDATE ON public.playlists
   FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
@@ -102,6 +103,11 @@ CREATE POLICY "playlist_items_update"
     SELECT 1 FROM public.playlists
     WHERE playlists.id = playlist_items.playlist_id
       AND public.can_edit_site(playlists.site_id)
+  ))
+  WITH CHECK (EXISTS (
+    SELECT 1 FROM public.playlists
+    WHERE playlists.id = playlist_items.playlist_id
+      AND public.can_edit_site(playlists.site_id)
   ));
 
 DROP POLICY IF EXISTS "playlist_items_delete" ON public.playlist_items;
@@ -153,6 +159,11 @@ DROP POLICY IF EXISTS "playlist_edges_update" ON public.playlist_edges;
 CREATE POLICY "playlist_edges_update"
   ON public.playlist_edges FOR UPDATE TO authenticated
   USING (EXISTS (
+    SELECT 1 FROM public.playlists
+    WHERE playlists.id = playlist_edges.playlist_id
+      AND public.can_edit_site(playlists.site_id)
+  ))
+  WITH CHECK (EXISTS (
     SELECT 1 FROM public.playlists
     WHERE playlists.id = playlist_edges.playlist_id
       AND public.can_edit_site(playlists.site_id)
