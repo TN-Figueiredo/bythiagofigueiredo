@@ -109,9 +109,9 @@ function PlaylistCard({
         </span>
       </div>
 
-      {playlist.description_pt && (
+      {(playlist.description_pt || playlist.description_en) && (
         <p className="mt-2 line-clamp-2 text-sm text-white/50">
-          {playlist.description_pt}
+          {playlist.description_pt || playlist.description_en}
         </p>
       )}
 

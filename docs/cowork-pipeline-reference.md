@@ -646,6 +646,8 @@ Ambos usam a mesma autenticação do pipeline (`X-Pipeline-Key` ou session).
       "slug": "comecando-com-typescript",
       "status": "draft",
       "category": "TypeScript",
+      "description_pt": "Série para quem está começando com TypeScript",
+      "description_en": "Series for those getting started with TypeScript",
       "cover_image_url": null,
       "item_count": 5,
       "created_at": "2026-05-14T...",
@@ -659,7 +661,7 @@ Ambos usam a mesma autenticação do pipeline (`X-Pipeline-Key` ou session).
 ```json
 {
   "data": {
-    "playlist": { "id": "...", "name_pt": "...", "name_en": "...", "slug": "...", "status": "...", "category": "..." },
+    "playlist": { "id": "...", "name_pt": "...", "name_en": "...", "slug": "...", "status": "...", "category": "...", "description_pt": "...", "description_en": "...", "cover_image_url": null, "created_at": "...", "updated_at": "..." },
     "items": [
       {
         "id": "uuid",
@@ -685,7 +687,10 @@ Ambos usam a mesma autenticação do pipeline (`X-Pipeline-Key` ou session).
 | Action | Parâmetros | Retorno |
 |--------|-----------|---------|
 | `addItemToPlaylist(siteId, input)` | `{ playlistId, blogPostId?, newsletterEditionId?, pipelineId?, sortOrder?, positionX?, positionY? }` | `ActionResult<{ id: string }>` |
+| `removeItemFromPlaylist(playlistItemId, siteId)` | — | `ActionResult<void>` |
 | `createEdge(siteId, input)` | `{ playlistId, sourceItemId, targetItemId, edgeType, label? }` | `ActionResult<{ id: string }>` |
+| `deleteEdge(edgeId, siteId)` | — | `ActionResult<void>` |
+| `reorderPlaylistItems(siteId, playlistId, itemIds)` | `itemIds` em ordem desejada | `ActionResult<void>` |
 | `getPlaylistWithItems(playlistId, siteId)` | — | `ActionResult<PlaylistGraph>` |
 
 ### Edge types
@@ -710,7 +715,7 @@ Quando um pipeline item é graduado (ex: blog_post → blog_posts), o item pode 
 Playlists podem ser embeddadas em blog posts e newsletters via TipTap custom node:
 
 - Slash command: `/playlist` no editor
-- HTML output: `<div data-playlist-embed data-playlist-id="..." data-playlist-name="..." data-playlist-slug="...">`
+- HTML output: `<div data-playlist-embed data-playlist-id="..." data-playlist-name="..." data-playlist-slug="..." data-item-count="...">`
 - O node armazena `playlistId`, `playlistName`, `playlistSlug`, `itemCount` como atributos
 
 ### Regras

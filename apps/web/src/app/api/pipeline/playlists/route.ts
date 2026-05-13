@@ -24,6 +24,8 @@ export async function GET(req: NextRequest) {
       slug: p.slug,
       status: p.status,
       category: p.category,
+      description_pt: p.description_pt,
+      description_en: p.description_en,
       cover_image_url: p.cover_image_url,
       item_count: counts.get(p.id) ?? 0,
       created_at: p.created_at,

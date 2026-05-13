@@ -1,27 +1,34 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getSiteContext } from '@/lib/cms/site-context'
+import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getPlaylistGraph } from '@/lib/playlists/queries'
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  try {
-    const { id } = await params
-    const { siteId } = await getSiteContext()
-    const graph = await getPlaylistGraph(id, siteId)
+  const { siteId } = await getSiteContext()
+  const auth = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
+  if (!auth.ok) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  }
 
-    if (!graph) {
-      return NextResponse.json({ error: 'not_found' }, { status: 404 })
-    }
+  const { id } = await params
+  const graph = await getPlaylistGraph(id, siteId)
+  if (!graph) {
+    return NextResponse.json({ error: 'not_found' }, { status: 404 })
+  }
 
-    return NextResponse.json({
+  return NextResponse.json({
+    data: {
       id: graph.playlist.id,
       name_pt: graph.playlist.name_pt,
       name_en: graph.playlist.name_en,
       slug: graph.playlist.slug,
       status: graph.playlist.status,
       category: graph.playlist.category,
+      description_pt: graph.playlist.description_pt,
+      description_en: graph.playlist.description_en,
       item_count: graph.items.length,
       edge_count: graph.edges.length,
       items: graph.items.map(i => ({
@@ -40,8 +47,6 @@ export async function GET(
         edge_type: e.edge_type,
         label: e.label,
       })),
-    })
-  } catch {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  }
+    },
+  })
 }

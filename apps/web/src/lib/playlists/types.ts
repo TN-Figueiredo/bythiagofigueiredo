@@ -16,7 +16,7 @@ export type ContentType = (typeof CONTENT_TYPES)[number]
 
 export const CreatePlaylistSchema = z.object({
   name_pt: z.string().min(1, 'Name (PT) is required').max(200),
-  name_en: z.string().max(200).optional(),
+  name_en: z.string().max(200).default(''),
   slug: z.string().min(1).max(200).regex(SLUG_PATTERN, 'Invalid slug'),
   description_pt: z.string().max(1000).optional(),
   description_en: z.string().max(1000).optional(),
@@ -26,7 +26,7 @@ export const CreatePlaylistSchema = z.object({
 
 export const UpdatePlaylistSchema = z.object({
   name_pt: z.string().min(1).max(200).optional(),
-  name_en: z.string().max(200).nullable().optional(),
+  name_en: z.string().max(200).optional(),
   slug: z.string().min(1).max(200).regex(SLUG_PATTERN).optional(),
   description_pt: z.string().max(1000).nullable().optional(),
   description_en: z.string().max(1000).nullable().optional(),

@@ -59,7 +59,7 @@ export async function createPlaylist(
     .insert({
       site_id: siteId,
       name_pt,
-      name_en: name_en ?? '',
+      name_en,
       slug,
       description_pt: description_pt ?? null,
       description_en: description_en ?? null,

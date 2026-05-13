@@ -2,8 +2,8 @@
 
 import { Node, mergeAttributes } from '@tiptap/core'
 import { NodeViewWrapper, ReactNodeViewRenderer, type ReactNodeViewProps } from '@tiptap/react'
-import { useState, useEffect, useCallback } from 'react'
-import { Trash2, ExternalLink, ListMusic, Loader2 } from 'lucide-react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { Trash2, ExternalLink, ListMusic, Loader2, AlertCircle } from 'lucide-react'
 
 interface PlaylistSummary {
   id: string
@@ -16,18 +16,30 @@ interface PlaylistSummary {
 }
 
 function PlaylistEmbedNodeView({ node, updateAttributes, deleteNode }: ReactNodeViewProps) {
-  const playlistId = node.attrs.playlistId as string
-  const cachedName = node.attrs.playlistName as string
+  const playlistId = String(node.attrs.playlistId ?? '')
+  const cachedName = String(node.attrs.playlistName ?? '')
   const [picking, setPicking] = useState(!playlistId)
   const [playlists, setPlaylists] = useState<PlaylistSummary[]>([])
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const abortRef = useRef<AbortController | null>(null)
 
   const loadPlaylists = useCallback(async () => {
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
     setLoading(true)
+    setError(null)
     try {
-      const res = await fetch('/api/playlists')
-      if (res.ok) setPlaylists(await res.json())
+      const res = await fetch('/api/playlists', { signal: controller.signal })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const json = await res.json()
+      setPlaylists(json.data ?? [])
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return
+      setError('Failed to load playlists')
     } finally {
       setLoading(false)
     }
@@ -35,6 +47,7 @@ function PlaylistEmbedNodeView({ node, updateAttributes, deleteNode }: ReactNode
 
   useEffect(() => {
     if (picking) loadPlaylists()
+    return () => { abortRef.current?.abort() }
   }, [picking, loadPlaylists])
 
   function handleSelect(p: PlaylistSummary) {
@@ -81,6 +94,21 @@ function PlaylistEmbedNodeView({ node, updateAttributes, deleteNode }: ReactNode
             <div className="flex items-center justify-center py-4">
               <Loader2 size={16} className="text-[#4b5563] animate-spin" />
             </div>
+          ) : error ? (
+            <div className="flex flex-col items-center gap-2 py-3">
+              <div className="flex items-center gap-1.5 text-xs text-red-400">
+                <AlertCircle size={12} />
+                <span>{error}</span>
+              </div>
+              <button
+                type="button"
+                onClick={loadPlaylists}
+                className="text-xs text-indigo-400 hover:text-indigo-300"
+                aria-label="Retry loading playlists"
+              >
+                Retry
+              </button>
+            </div>
           ) : filtered.length === 0 ? (
             <p className="text-xs text-[#6b7280] py-2 text-center">No playlists found</p>
           ) : (
@@ -114,7 +142,7 @@ function PlaylistEmbedNodeView({ node, updateAttributes, deleteNode }: ReactNode
     )
   }
 
-  const itemCount = node.attrs.itemCount as number
+  const itemCount = Number(node.attrs.itemCount ?? 0)
   const displayName = cachedName || 'Untitled playlist'
 
   return (
@@ -130,6 +158,7 @@ function PlaylistEmbedNodeView({ node, updateAttributes, deleteNode }: ReactNode
               type="button"
               onClick={() => setPicking(true)}
               className="px-2 py-1 rounded text-[10px] font-medium text-[#6b7280] hover:bg-white/5 hover:text-[#d1d5db]"
+              aria-label="Change playlist"
             >
               Change
             </button>
@@ -138,7 +167,7 @@ function PlaylistEmbedNodeView({ node, updateAttributes, deleteNode }: ReactNode
               target="_blank"
               rel="noopener noreferrer"
               className="p-1 rounded hover:bg-white/5 text-[#6b7280] hover:text-[#d1d5db]"
-              title="Open in editor"
+              aria-label="Open playlist in editor"
             >
               <ExternalLink size={12} />
             </a>
@@ -146,7 +175,7 @@ function PlaylistEmbedNodeView({ node, updateAttributes, deleteNode }: ReactNode
               type="button"
               onClick={deleteNode}
               className="p-1 rounded hover:bg-red-500/10 text-[#6b7280] hover:text-[#f87171]"
-              title="Remove"
+              aria-label="Remove playlist embed"
             >
               <Trash2 size={12} />
             </button>

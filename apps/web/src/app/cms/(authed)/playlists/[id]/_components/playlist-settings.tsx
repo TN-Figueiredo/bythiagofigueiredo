@@ -41,7 +41,7 @@ export function PlaylistSettings({
     startTransition(async () => {
       const result = await onUpdate(playlist.id, playlist.site_id, {
         name_pt: namePt,
-        name_en: nameEn || null,
+        name_en: nameEn,
         slug,
         description_pt: descriptionPt || null,
         description_en: descriptionEn || null,

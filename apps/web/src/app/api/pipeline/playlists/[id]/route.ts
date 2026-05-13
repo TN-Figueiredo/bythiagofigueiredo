@@ -29,6 +29,8 @@ export async function GET(
         slug: graph.playlist.slug,
         status: graph.playlist.status,
         category: graph.playlist.category,
+        description_pt: graph.playlist.description_pt,
+        description_en: graph.playlist.description_en,
         cover_image_url: graph.playlist.cover_image_url,
         created_at: graph.playlist.created_at,
         updated_at: graph.playlist.updated_at,
