@@ -36,7 +36,7 @@ export function buildCmsSections(): SidebarSection[] {
       { icon: '📡', label: 'Posts', href: '/cms/social', minRole: 'reporter' as const },
       { icon: '✏️', label: 'Composer', href: '/cms/social/new', minRole: 'editor' as const },
       { icon: '📊', label: 'Insights', href: '/cms/social/insights', minRole: 'reporter' as const },
-      { icon: '🔗', label: 'Accounts', href: '/cms/social/accounts', minRole: 'admin' as const },
+      { icon: '🔗', label: 'Accounts', href: '/cms/social/accounts', minRole: 'org_admin' as const },
     ],
   }
 

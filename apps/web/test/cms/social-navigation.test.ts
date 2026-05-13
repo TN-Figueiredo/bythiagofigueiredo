@@ -44,8 +44,8 @@ describe('buildCmsSections — Social Hub nav', () => {
     expect(composerItem.minRole).toBe('editor')
   })
 
-  it('sets admin minRole for Accounts', () => {
+  it('sets org_admin minRole for Accounts', () => {
     const accountsItem = social.items.find(i => i.label === 'Accounts')!
-    expect(accountsItem.minRole).toBe('admin')
+    expect(accountsItem.minRole).toBe('org_admin')
   })
 })
