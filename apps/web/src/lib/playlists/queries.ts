@@ -57,7 +57,10 @@ export async function listPlaylists(
     query = query.ilike('category', filters.category)
   }
   if (filters?.search && filters.search.length >= 2) {
-    query = query.or(`name_en.ilike.%${filters.search}%,name_pt.ilike.%${filters.search}%`)
+    const safe = filters.search.replace(/[.,()\\%_]/g, '')
+    if (safe.length >= 2) {
+      query = query.or(`name_en.ilike.%${safe}%,name_pt.ilike.%${safe}%`)
+    }
   }
 
   const { data, error } = await query
