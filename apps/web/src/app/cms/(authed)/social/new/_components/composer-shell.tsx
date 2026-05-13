@@ -131,8 +131,8 @@ export function ComposerShell({
                   : []
             }
             disabledReason={{
-              youtube: 'Video mode only',
-              instagram: 'Requires image',
+              youtube: t.composer.disabledReason.videoOnly,
+              instagram: t.composer.disabledReason.requiresImage,
             }}
           />
         </div>

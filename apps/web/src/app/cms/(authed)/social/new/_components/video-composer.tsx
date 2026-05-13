@@ -62,9 +62,9 @@ export function VideoComposer({ strings: t, quotaUsed = 0 }: VideoComposerProps)
         <div>
           <label className="text-sm font-medium text-cms-text">{t.composer.video.privacyLabel}</label>
           <select value={privacy} onChange={e => setPrivacy(e.target.value as typeof privacy)} className="mt-1 w-full rounded-md border border-cms-border bg-cms-bg px-3 py-2 text-sm text-cms-text">
-            <option value="private">Private</option>
-            <option value="unlisted">Unlisted</option>
-            <option value="public">Public</option>
+            <option value="private">{t.composer.video.privacyPrivate}</option>
+            <option value="unlisted">{t.composer.video.privacyUnlisted}</option>
+            <option value="public">{t.composer.video.privacyPublic}</option>
           </select>
         </div>
       </div>

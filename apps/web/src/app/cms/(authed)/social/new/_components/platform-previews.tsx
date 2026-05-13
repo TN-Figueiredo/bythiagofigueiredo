@@ -43,6 +43,11 @@ export function PlatformPreviews({ content, url, hashtags, platforms, strings: t
   )
 }
 
+/**
+ * Platform preview sub-components below use hardcoded English strings intentionally.
+ * They simulate the real platform UIs (Facebook, Instagram, Bluesky) which are always
+ * rendered in their native language/format, not the CMS locale.
+ */
 function FacebookPreview({ content, url }: { content: string; url: string }) {
   return (
     <div className="rounded-lg border border-gray-700 bg-gray-800 p-3 space-y-2">

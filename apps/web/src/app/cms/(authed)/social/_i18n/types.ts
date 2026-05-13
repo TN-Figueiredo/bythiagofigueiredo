@@ -14,6 +14,9 @@ export interface SocialStrings {
     emptyFeedCta: string
     emptyCalendar: string
     emptyQueue: string
+    noContent: string
+    review: string
+    selected: string
     emptyDrafts: string
     emptyDraftsCta: string
     bulk: { reschedule: string; retry: string; moveToQueue: string; delete: string; deleteConfirm: string }
@@ -45,6 +48,10 @@ export interface SocialStrings {
       scheduleAction: string
       addToQueue: string
     }
+    disabledReason: {
+      videoOnly: string
+      requiresImage: string
+    }
     image: {
       addImages: string
       dragReorder: string
@@ -72,6 +79,9 @@ export interface SocialStrings {
       abTitles: string
       rotationPeriod: string
       firstComment: string
+      privacyPrivate: string
+      privacyUnlisted: string
+      privacyPublic: string
     }
     template: {
       title: string
@@ -114,6 +124,11 @@ export interface SocialStrings {
     viewOn: string
     timeline: string
     linkClicks: string
+    attempt: string
+    created: string
+    scheduledEvent: string
+    publishedOn: string
+    failedOn: string
     metrics: { likes: string; comments: string; shares: string }
   }
   insights: {
@@ -147,6 +162,7 @@ export interface SocialStrings {
       recentErrors: string
       reconnect: string
     }
+    noData: string
     empty: string
     emptyCta: string
   }

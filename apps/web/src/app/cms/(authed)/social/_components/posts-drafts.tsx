@@ -28,12 +28,12 @@ export function PostsDrafts({ posts, strings: t }: PostsDraftsProps) {
       {drafts.map(post => (
         <div key={post.id} className="flex items-center justify-between rounded-lg border border-cms-border bg-cms-surface px-4 py-3">
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-cms-text truncate">{post.content.title ?? post.content.description ?? 'Untitled draft'}</p>
+            <p className="text-sm font-medium text-cms-text truncate">{post.content.title ?? post.content.description ?? t.posts.noContent}</p>
             <p className="text-xs text-cms-text-dim">{new Date(post.created_at).toLocaleDateString()}</p>
           </div>
           <div className="flex items-center gap-2">
             <Link href={`/cms/social/new?draft=${post.id}`} className="text-sm text-cms-accent hover:underline">
-              Review
+              {t.posts.review}
             </Link>
           </div>
         </div>

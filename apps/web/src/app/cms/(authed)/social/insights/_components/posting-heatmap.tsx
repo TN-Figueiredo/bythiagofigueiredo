@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import type { SocialStrings } from '../../_i18n/types'
 
 interface HeatmapCell {
@@ -11,9 +12,14 @@ interface PostingHeatmapProps {
   strings: SocialStrings
 }
 
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-
 export function PostingHeatmap({ data, strings: t }: PostingHeatmapProps) {
+  const dayNames = useMemo(() => {
+    const formatter = new Intl.DateTimeFormat(undefined, { weekday: 'short' })
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(2024, 0, 7 + i) // 2024-01-07 is a Sunday
+      return formatter.format(d)
+    })
+  }, [])
   const maxVal = Math.max(...data.map(d => d.value), 1)
 
   function intensity(value: number): string {
@@ -34,7 +40,7 @@ export function PostingHeatmap({ data, strings: t }: PostingHeatmapProps) {
           {Array.from({ length: 24 }, (_, h) => (
             <div key={h} className="text-center text-[9px] text-cms-text-dim w-5">{h}</div>
           ))}
-          {DAYS.map((day, dayIdx) => (
+          {dayNames.map((day, dayIdx) => (
             <div key={`row-${dayIdx}`} className="contents">
               <div className="text-[10px] text-cms-text-dim pr-1 flex items-center">{day}</div>
               {Array.from({ length: 24 }, (_, hour) => {

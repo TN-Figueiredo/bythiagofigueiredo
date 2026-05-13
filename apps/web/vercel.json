@@ -1,7 +1,7 @@
 {
   "framework": "nextjs",
   "installCommand": "cd ../.. && npm ci --legacy-peer-deps",
-  "buildCommand": "cd ../.. && npm run build -w packages/links && npm run build -w packages/links-admin && npm run build -w apps/web",
+  "buildCommand": "cd ../.. && npm run build -w packages/links && npm run build -w packages/links-admin && npm run build -w packages/social && npm run build -w apps/web",
   "crons": [
     { "path": "/api/cron/publish-scheduled", "schedule": "0 9 * * *" },
     { "path": "/api/cron/purge-sent-emails", "schedule": "0 6 * * *" },
@@ -14,6 +14,7 @@
     { "path": "/api/cron/sync-youtube?mode=catchall", "schedule": "0 7 * * *" },
     { "path": "/api/cron/sync-youtube?mode=metrics", "schedule": "0 12,20 * * *" },
     { "path": "/api/cron/instagram-sync", "schedule": "0 8 * * *" },
-    { "path": "/api/cron/instagram-token-refresh", "schedule": "0 6 * * 1" }
+    { "path": "/api/cron/instagram-token-refresh", "schedule": "0 6 * * 1" },
+    { "path": "/api/cron/social-publish", "schedule": "* * * * *" }
   ]
 }

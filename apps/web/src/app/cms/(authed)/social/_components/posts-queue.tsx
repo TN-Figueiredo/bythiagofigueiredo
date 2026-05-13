@@ -26,7 +26,7 @@ export function PostsQueue({ posts, strings: t }: PostsQueueProps) {
           <div className="flex-1 min-w-0">
             <p className="text-sm text-cms-text truncate">{post.content.title ?? post.content.description ?? post.type}</p>
             <p className="text-xs text-cms-text-dim">
-              {post.scheduled_at ? new Date(post.scheduled_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
+              {post.scheduled_at ? new Date(post.scheduled_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
             </p>
           </div>
           <SocialStatusBadge status="scheduled" label={t.status.scheduled} />

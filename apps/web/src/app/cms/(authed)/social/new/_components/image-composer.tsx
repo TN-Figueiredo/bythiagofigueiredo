@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { Provider } from '@tn-figueiredo/social'
 import type { SocialStrings } from '../../_i18n/types'
 
@@ -15,6 +15,15 @@ interface ImageComposerProps {
 
 export function ImageComposer({ images, onImagesChange, caption, onCaptionChange, selectedPlatforms, strings: t }: ImageComposerProps) {
   const [dragIdx, setDragIdx] = useState<number | null>(null)
+  const blobUrlsRef = useRef<Set<string>>(new Set())
+
+  // Revoke blob URLs on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      blobUrlsRef.current.forEach(url => URL.revokeObjectURL(url))
+      blobUrlsRef.current.clear()
+    }
+  }, [])
 
   function handleDrop(targetIdx: number) {
     if (dragIdx === null || dragIdx === targetIdx) return
@@ -43,7 +52,13 @@ export function ImageComposer({ images, onImagesChange, caption, onCaptionChange
             <span className="absolute top-1 left-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[10px] text-white font-medium">{i + 1}</span>
             <button
               type="button"
-              onClick={() => onImagesChange(images.filter((_, j) => j !== i))}
+              onClick={() => {
+                if (url.startsWith('blob:')) {
+                  URL.revokeObjectURL(url)
+                  blobUrlsRef.current.delete(url)
+                }
+                onImagesChange(images.filter((_, j) => j !== i))
+              }}
               className="absolute top-1 right-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[10px] text-white hover:bg-red-600"
             >
               x
@@ -55,7 +70,11 @@ export function ImageComposer({ images, onImagesChange, caption, onCaptionChange
           <input type="file" accept="image/*" multiple className="hidden" onChange={e => {
             const files = e.target.files
             if (files) {
-              const urls = Array.from(files).map(f => URL.createObjectURL(f))
+              const urls = Array.from(files).map(f => {
+                const url = URL.createObjectURL(f)
+                blobUrlsRef.current.add(url)
+                return url
+              })
               onImagesChange([...images, ...urls])
             }
           }} />

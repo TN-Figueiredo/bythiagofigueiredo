@@ -88,4 +88,55 @@ describe('PostsFeed', () => {
     fireEvent.click(checkboxes[0])
     expect(screen.getByText(en.posts.bulk.delete)).toBeDefined()
   })
+
+  it('filters to show only matching posts when filter tab is clicked', () => {
+    renderFeed()
+    // Click the "Scheduled" filter
+    const scheduledFilter = screen.getByRole('button', { name: /Filter: Scheduled/i })
+    fireEvent.click(scheduledFilter)
+    // Only the scheduled post ("Upcoming post") should remain visible
+    expect(screen.getByText('Upcoming post')).toBeDefined()
+    expect(screen.queryByText('Test Post')).toBeNull()
+    expect(screen.queryByText('Failed post')).toBeNull()
+  })
+
+  it('shows bulk actions bar after checkbox selection', () => {
+    renderFeed()
+    const checkboxes = screen.getAllByRole('checkbox')
+    // Select two posts
+    fireEvent.click(checkboxes[0])
+    fireEvent.click(checkboxes[1])
+    // Bulk bar should show "2 selected"
+    expect(screen.getByRole('status')).toBeDefined()
+    expect(screen.getByText('2 selected')).toBeDefined()
+  })
+
+  it('shows empty state when filtering to a status with no posts', () => {
+    // Only provide completed and scheduled posts — no cancelled posts
+    const postsWithoutCancelled = [
+      {
+        id: 'p1', site_id: 's1', created_by: 'u1', type: 'link' as const, status: 'completed' as const,
+        scheduled_at: '2026-05-10T14:00:00Z', user_timezone: 'America/Sao_Paulo', published_at: '2026-05-10T14:01:00Z',
+        content: { title: 'Test Post', url: 'https://example.com' }, template_id: null, idempotency_key: 'k1',
+        created_at: '2026-05-10T12:00:00Z', updated_at: '2026-05-10T14:01:00Z',
+      },
+    ]
+    render(<PostsFeed posts={postsWithoutCancelled} siteId="s1" strings={en} />)
+    // Click the "Failed" filter — no posts match
+    const failedFilter = screen.getByRole('button', { name: /Filter: Failed/i })
+    fireEvent.click(failedFilter)
+    // The filtered list should be empty (no post cards visible)
+    expect(screen.queryByText('Test Post')).toBeNull()
+  })
+
+  it('clears selection when switching filters', () => {
+    renderFeed()
+    const checkboxes = screen.getAllByRole('checkbox')
+    fireEvent.click(checkboxes[0])
+    expect(screen.getByText(en.posts.bulk.delete)).toBeDefined()
+    // Switch filter — selection should be cleared
+    const scheduledFilter = screen.getByRole('button', { name: /Filter: Scheduled/i })
+    fireEvent.click(scheduledFilter)
+    expect(screen.queryByText('2 selected')).toBeNull()
+  })
 })

@@ -59,4 +59,38 @@ describe('InsightsOverview', () => {
     render(<InsightsOverview data={mockData} strings={en} />)
     expect(screen.getByText(en.insights.heatmap.title)).toBeDefined()
   })
+
+  it('renders zero-value KPIs correctly', () => {
+    const zeroData = {
+      ...mockData,
+      kpis: { postsPublished: 0, deliverySuccessRate: 0, linkClicks: 0, avgEngagement: 0, aiDraftsApproved: 0 },
+    }
+    render(<InsightsOverview data={zeroData} strings={en} />)
+    // All KPI labels should still render
+    expect(screen.getByText(en.insights.kpi.postsPublished)).toBeDefined()
+    expect(screen.getByText(en.insights.kpi.deliverySuccess)).toBeDefined()
+    expect(screen.getByText(en.insights.kpi.linkClicks)).toBeDefined()
+    // Zero values
+    const zeros = screen.getAllByText('0')
+    expect(zeros.length).toBeGreaterThanOrEqual(3)
+    expect(screen.getByText('0%')).toBeDefined()
+  })
+
+  it('formats large KPI values with locale separators', () => {
+    const bigData = {
+      ...mockData,
+      kpis: { ...mockData.kpis, linkClicks: 12345 },
+    }
+    render(<InsightsOverview data={bigData} strings={en} />)
+    // toLocaleString should produce "12,345"
+    expect(screen.getByText('12,345')).toBeDefined()
+  })
+
+  it('renders KPI cards with accessible aria-labels', () => {
+    render(<InsightsOverview data={mockData} strings={en} />)
+    // KpiCard renders aria-label="{label}: {value}"
+    expect(screen.getByLabelText(`${en.insights.kpi.postsPublished}: 42`)).toBeDefined()
+    expect(screen.getByLabelText(`${en.insights.kpi.deliverySuccess}: 94.5%`)).toBeDefined()
+    expect(screen.getByLabelText(`${en.insights.kpi.linkClicks}: 1,280`)).toBeDefined()
+  })
 })

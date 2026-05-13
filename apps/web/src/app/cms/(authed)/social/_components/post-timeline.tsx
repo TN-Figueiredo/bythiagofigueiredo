@@ -15,19 +15,19 @@ interface TimelineEvent {
 
 export function PostTimeline({ post, deliveries, strings: t }: PostTimelineProps) {
   const events: TimelineEvent[] = [
-    { time: post.created_at, label: 'Created', color: 'bg-gray-400' },
+    { time: post.created_at, label: t.detail.created, color: 'bg-gray-400' },
   ]
 
   if (post.scheduled_at) {
-    events.push({ time: post.scheduled_at, label: 'Scheduled', color: 'bg-blue-400' })
+    events.push({ time: post.scheduled_at, label: t.detail.scheduledEvent, color: 'bg-blue-400' })
   }
 
   for (const d of deliveries) {
     if (d.published_at) {
-      events.push({ time: d.published_at, label: `Published on ${d.provider}`, color: 'bg-green-400' })
+      events.push({ time: d.published_at, label: t.detail.publishedOn.replace('{provider}', d.provider), color: 'bg-green-400' })
     }
     if (d.status === 'failed' && d.last_error) {
-      events.push({ time: d.created_at, label: `Failed on ${d.provider}: ${d.last_error}`, color: 'bg-red-400' })
+      events.push({ time: d.created_at, label: `${t.detail.failedOn.replace('{provider}', d.provider)}: ${d.last_error}`, color: 'bg-red-400' })
     }
   }
 

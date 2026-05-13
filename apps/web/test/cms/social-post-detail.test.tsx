@@ -78,4 +78,55 @@ describe('PostDetail', () => {
     renderDetail()
     expect(screen.getByText(en.detail.back)).toBeDefined()
   })
+
+  it('calls retrySocialDelivery when retry button is clicked', () => {
+    renderDetail()
+    const retryButtons = screen.getAllByText(en.detail.retry)
+    fireEvent.click(retryButtons[0])
+    expect(mockRetry).toHaveBeenCalledWith('d2')
+  })
+
+  it('shows error message for failed delivery', () => {
+    renderDetail()
+    expect(screen.getByText('Rate limit exceeded')).toBeDefined()
+  })
+
+  it('shows error type badge for failed delivery', () => {
+    renderDetail()
+    expect(screen.getByText('transient')).toBeDefined()
+  })
+
+  it('renders attempt counter for deliveries', () => {
+    renderDetail()
+    // Facebook delivery: attempt 1/3, Bluesky delivery: attempt 3/3
+    expect(screen.getByText('Attempt 1/3')).toBeDefined()
+    expect(screen.getByText('Attempt 3/3')).toBeDefined()
+  })
+
+  it('renders timeline events in chronological order', () => {
+    renderDetail()
+    // Timeline should contain: Created, Scheduled, Published on facebook, Failed on bluesky
+    expect(screen.getByText('Created')).toBeDefined()
+    expect(screen.getByText('Scheduled')).toBeDefined()
+    expect(screen.getByText(/Published on facebook/)).toBeDefined()
+    expect(screen.getByText(/Failed on bluesky/)).toBeDefined()
+  })
+
+  it('shows platform delivery URL for published delivery', () => {
+    renderDetail()
+    // The Facebook delivery has a platform_url
+    const viewOnLink = screen.getByText(/View on Facebook/)
+    expect(viewOnLink).toBeDefined()
+    expect(viewOnLink.closest('a')!.getAttribute('href')).toBe('https://facebook.com/post/123')
+  })
+
+  it('shows post description text', () => {
+    renderDetail()
+    expect(screen.getByText('A test')).toBeDefined()
+  })
+
+  it('renders delivery status section header', () => {
+    renderDetail()
+    expect(screen.getByText(en.detail.deliveryStatus)).toBeDefined()
+  })
 })

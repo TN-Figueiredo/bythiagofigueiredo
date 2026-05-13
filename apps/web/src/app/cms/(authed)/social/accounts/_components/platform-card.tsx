@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import type { Provider } from '@tn-figueiredo/social'
 import { PlatformIcon, platformLabel } from '@/app/cms/(authed)/_shared/social/platform-icon'
 import { OauthButton } from './oauth-button'
@@ -26,6 +27,7 @@ interface PlatformCardProps {
 }
 
 export function PlatformCard({ provider, connections, strings: t }: PlatformCardProps) {
+  const router = useRouter()
   const [showManage, setShowManage] = useState(false)
   const [isPending, startTransition] = useTransition()
 
@@ -33,7 +35,7 @@ export function PlatformCard({ provider, connections, strings: t }: PlatformCard
     if (!confirm(t.accounts.connections.disconnectConfirm)) return
     startTransition(async () => {
       await disconnectSocial(connectionId)
-      window.location.reload()
+      router.refresh()
     })
   }
 
