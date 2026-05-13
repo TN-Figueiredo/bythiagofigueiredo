@@ -8,6 +8,9 @@ import {
   Italic,
   Underline,
   Strikethrough,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
   List,
   ListOrdered,
   ListTodo,
@@ -20,7 +23,16 @@ import {
   Pilcrow,
   Code2,
   MessageSquare,
+  TableIcon,
+  Columns2,
+  Image as ImageIcon,
+  Youtube,
+  Twitter,
+  Instagram,
+  Github,
+  Braces,
 } from 'lucide-react'
+import { PROVIDER_META, type EmbedProvider } from '@/app/cms/(authed)/_shared/editor/social-embed-node'
 
 interface PipelineToolbarProps {
   editor: Editor
@@ -41,6 +53,57 @@ function promptLink(editor: Editor) {
     return
   }
   editor.chain().focus().setLink({ href: url }).run()
+}
+
+function promptImage(editor: Editor) {
+  const url = window.prompt('URL da imagem:')
+  if (!url) return
+  try {
+    const parsed = new URL(url, 'https://placeholder.invalid')
+    if (!['http:', 'https:'].includes(parsed.protocol)) return
+  } catch {
+    return
+  }
+  editor.chain().focus().setImage({ src: url }).run()
+}
+
+const EMBED_ICONS: Partial<Record<EmbedProvider, React.ReactNode>> = {
+  youtube: <Youtube size={14} />,
+  twitter: <Twitter size={14} />,
+  instagram: <Instagram size={14} />,
+  codesandbox: <Code2 size={14} />,
+  codepen: <Braces size={14} />,
+  github: <Github size={14} />,
+}
+
+const EMBED_ORDER: EmbedProvider[] = ['youtube', 'twitter', 'instagram', 'codesandbox', 'codepen', 'github']
+
+function insertEmbed(editor: Editor, provider: EmbedProvider) {
+  editor.chain().focus().insertContent({ type: 'socialEmbed', attrs: { provider, url: '' } }).run()
+}
+
+function insertTable(editor: Editor) {
+  editor.chain().focus().insertContentAt(editor.state.selection.anchor, {
+    type: 'table',
+    content: Array.from({ length: 3 }, (_, i) => ({
+      type: 'tableRow',
+      content: Array.from({ length: 3 }, () => ({
+        type: i === 0 ? 'tableHeader' : 'tableCell',
+        content: [{ type: 'paragraph' }],
+      })),
+    })),
+  })
+}
+
+function insertColumns(editor: Editor) {
+  editor.chain().focus().insertContent({
+    type: 'columns',
+    attrs: { ratio: '1:1' },
+    content: [
+      { type: 'column', content: [{ type: 'paragraph' }] },
+      { type: 'column', content: [{ type: 'paragraph' }] },
+    ],
+  }).run()
 }
 
 function Btn({
@@ -120,6 +183,7 @@ export function PipelineToolbar({ editor, preset }: PipelineToolbarProps) {
       className="flex items-center gap-0.5 px-2 py-1.5 flex-wrap"
       style={{ borderBottom: '1px solid var(--gem-border)', background: 'var(--gem-surface)' }}
     >
+      {/* Row 1: undo/redo, headings, inline formatting */}
       <Btn disabled={!editor.can().undo()} onClick={() => editor.chain().focus().undo().run()} title="Desfazer">
         <Undo2 size={s} />
       </Btn>
@@ -153,6 +217,16 @@ export function PipelineToolbar({ editor, preset }: PipelineToolbarProps) {
         <Strikethrough size={s} />
       </Btn>
       <Sep />
+      <Btn active={editor.isActive({ textAlign: 'left' })} onClick={() => editor.chain().focus().setTextAlign('left').run()} title="Alinhar esquerda">
+        <AlignLeft size={s} />
+      </Btn>
+      <Btn active={editor.isActive({ textAlign: 'center' })} onClick={() => editor.chain().focus().setTextAlign('center').run()} title="Centralizar">
+        <AlignCenter size={s} />
+      </Btn>
+      <Btn active={editor.isActive({ textAlign: 'right' })} onClick={() => editor.chain().focus().setTextAlign('right').run()} title="Alinhar direita">
+        <AlignRight size={s} />
+      </Btn>
+      <Sep />
       <Btn active={editor.isActive('bulletList')} onClick={() => editor.chain().focus().toggleBulletList().run()} title="Lista">
         <List size={s} />
       </Btn>
@@ -163,6 +237,13 @@ export function PipelineToolbar({ editor, preset }: PipelineToolbarProps) {
         <ListTodo size={s} />
       </Btn>
       <Sep />
+      <Btn active={editor.isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()} title="Citação">
+        <Quote size={s} />
+      </Btn>
+      <Btn onClick={() => editor.chain().focus().setHorizontalRule().run()} title="Divisor">
+        <Minus size={s} />
+      </Btn>
+      <Sep />
       <Btn
         active={editor.isActive('link')}
         onClick={() => promptLink(editor)}
@@ -170,13 +251,10 @@ export function PipelineToolbar({ editor, preset }: PipelineToolbarProps) {
       >
         <Link2 size={s} />
       </Btn>
+      <Btn onClick={() => promptImage(editor)} title="Imagem (URL)">
+        <ImageIcon size={s} />
+      </Btn>
       <Sep />
-      <Btn active={editor.isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()} title="Citação">
-        <Quote size={s} />
-      </Btn>
-      <Btn active={editor.isActive('codeBlock')} onClick={() => editor.chain().focus().toggleCodeBlock().run()} title="Bloco de código">
-        <Code2 size={s} />
-      </Btn>
       <Btn
         active={editor.isActive('callout')}
         onClick={() => editor.chain().focus().insertContent({ type: 'callout', attrs: { variant: 'info' }, content: [{ type: 'text', text: ' ' }] }).run()}
@@ -184,9 +262,20 @@ export function PipelineToolbar({ editor, preset }: PipelineToolbarProps) {
       >
         <MessageSquare size={s} />
       </Btn>
-      <Btn onClick={() => editor.chain().focus().setHorizontalRule().run()} title="Divisor">
-        <Minus size={s} />
+      <Btn active={editor.isActive('codeBlock')} onClick={() => editor.chain().focus().toggleCodeBlock().run()} title="Bloco de código">
+        <Code2 size={s} />
       </Btn>
+      <Btn onClick={() => insertTable(editor)} title="Tabela">
+        <TableIcon size={s} />
+      </Btn>
+      <Btn onClick={() => insertColumns(editor)} title="Colunas">
+        <Columns2 size={s} />
+      </Btn>
+      {EMBED_ORDER.map((provider) => (
+        <Btn key={provider} onClick={() => insertEmbed(editor, provider)} title={`Embed ${PROVIDER_META[provider].label}`}>
+          {EMBED_ICONS[provider]}
+        </Btn>
+      ))}
     </div>
   )
 }

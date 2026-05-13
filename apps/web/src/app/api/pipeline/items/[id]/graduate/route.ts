@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { authenticatePipeline, requirePermission, buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
 import { GraduateSchema } from '@/lib/pipeline/schemas'
+import { prepareBlogTranslationPatch } from '@/lib/pipeline/draft-to-blog'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -69,14 +70,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (error) return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: error.message } }, { status: 400 })
 
     const makeSlug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 200)
-    const translations: Array<{ post_id: string; locale: string; title: string; slug: string; content_mdx: string }> = []
+    const sections = item.sections as Record<string, unknown> | null
+    const excerptField = item.hook ? { excerpt: item.hook } : {}
 
+    const locales: Array<{ locale: string; title: string }> = []
     if (item.language === 'both') {
-      if (item.title_pt) translations.push({ post_id: post.id, locale: 'pt-br', title: item.title_pt, slug: makeSlug(item.title_pt), content_mdx: '' })
-      if (item.title_en) translations.push({ post_id: post.id, locale: 'en', title: item.title_en, slug: makeSlug(item.title_en), content_mdx: '' })
+      if (item.title_pt) locales.push({ locale: 'pt-br', title: item.title_pt })
+      if (item.title_en) locales.push({ locale: 'en', title: item.title_en })
     } else {
-      translations.push({ post_id: post.id, locale: primaryLocale, title, slug: makeSlug(title), content_mdx: '' })
+      locales.push({ locale: primaryLocale, title })
     }
+
+    const translations = await Promise.all(locales.map(async ({ locale, title: txTitle }) => {
+      try {
+        const patch = await prepareBlogTranslationPatch(sections, locale)
+        if (patch) return { post_id: post.id, locale, title: txTitle, slug: makeSlug(txTitle), ...excerptField, ...patch }
+      } catch {
+        // Best-effort: fall back to empty content
+      }
+      return { post_id: post.id, locale, title: txTitle, slug: makeSlug(txTitle), content_mdx: '', ...excerptField }
+    }))
 
     if (translations.length > 0) {
       await supabase.from('blog_translations').insert(translations)

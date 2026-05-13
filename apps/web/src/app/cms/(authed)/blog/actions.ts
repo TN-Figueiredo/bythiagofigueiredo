@@ -10,6 +10,7 @@ import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { revalidateBlogPostSeo } from '@/lib/seo/cache-invalidation'
 import { isValidTransition } from './_hub/hub-utils'
 import { syncPipelineOnPostStatusChange } from '@/lib/pipeline/blog-sync'
+import { prepareBlogTranslationPatch, type BlogContentPatch } from '@/lib/pipeline/draft-to-blog'
 
 async function requireEditScope(siteId: string): Promise<void> {
   const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
@@ -921,7 +922,7 @@ export async function createPostFromPipeline(
 
   const { data: item, error: itemErr } = await svc
     .from('content_pipeline')
-    .select('id, code, title_pt, title_en, hook, language, blog_post_id')
+    .select('id, code, title_pt, title_en, hook, language, blog_post_id, sections')
     .eq('id', pipelineItemId)
     .eq('site_id', siteId)
     .eq('is_archived', false)
@@ -934,16 +935,14 @@ export async function createPostFromPipeline(
   const title = (isPt ? item.title_pt : item.title_en) ?? item.title_pt ?? item.title_en ?? 'Untitled'
   const excerpt = item.hook ?? undefined
 
-  let bodyContent = ''
-  const { data: sections } = await svc
-    .from('content_pipeline_sections')
-    .select('section_type, content')
-    .eq('pipeline_id', pipelineItemId)
-    .or('section_type.ilike.%rascunho%,section_type.ilike.%body%,section_type.ilike.%draft%')
-    .limit(1)
-
-  if (sections && sections.length > 0) {
-    bodyContent = (sections[0] as { content: string }).content
+  let contentPatch: BlogContentPatch | null = null
+  try {
+    const itemSections = item.sections as Record<string, unknown> | null
+    const normalizedLocale = locale === 'pt-BR' ? 'pt-br' : locale
+    const patch = await prepareBlogTranslationPatch(itemSections, normalizedLocale)
+    if (patch) contentPatch = patch
+  } catch {
+    // Best-effort
   }
 
   const result = await createPost({
@@ -953,12 +952,12 @@ export async function createPostFromPipeline(
   })
   if (!result.ok) return result
 
-  if (excerpt || bodyContent) {
+  if (excerpt || contentPatch) {
     await svc
       .from('blog_translations')
       .update({
         ...(excerpt ? { excerpt } : {}),
-        ...(bodyContent ? { content_mdx: bodyContent } : {}),
+        ...(contentPatch ?? {}),
       })
       .eq('post_id', result.postId)
       .eq('locale', locale)

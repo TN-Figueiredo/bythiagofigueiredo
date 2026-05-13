@@ -59,7 +59,11 @@ Todas as seções de texto renderizam conteúdo via editor Tiptap. Envie **markd
 | `[texto](url)` | Link com cor accent e underline |
 | `---` | Divisor horizontal |
 
-Extensões adicionais (sem sintaxe markdown — disponíveis via toolbar na UI): underline, text align, highlight, callout, toggle.
+| `![alt](url)` | Imagem responsiva com lazy loading |
+
+Extensões adicionais (sem sintaxe markdown — disponíveis via toolbar na UI): underline, text align, highlight, callout, toggle, tabela (3×3 com header), colunas (layout 1:1), embeds (YouTube, Twitter, Instagram, CodeSandbox, CodePen, GitHub).
+
+**Embeds:** cada provider tem botão dedicado na toolbar. O nó insere com URL vazia e exibe input inline para o usuário colar o link. Ao gerar conteúdo com embeds, recomende ao criador usar o botão correspondente na toolbar — não há sintaxe markdown para embeds.
 
 ### Preset `compact` (usado por: `ideia.body`, seções genéricas de texto)
 
@@ -142,7 +146,7 @@ Formato alternativo — wrapper object (quando há SEO legado):
 - JSONContent (`{ type: "doc", content: [...] }`) → renderizado direto pelo Tiptap
 - Object com `{ body, seo }` → `body` renderizado, `seo` gera warning
 
-**Dica:** Use a formatação completa do preset `full` (H2-H4, listas, blockquotes, code blocks, checklist). O DraftRenderer exibe um outline de seções quando há 2+ headings no conteúdo.
+**Dica:** Use a formatação completa do preset `full` (H2-H4, listas, blockquotes, code blocks, checklist, imagens, tabelas). O DraftRenderer exibe um outline de seções quando há 2+ headings no conteúdo. Para embeds e colunas, oriente o criador a usar os botões dedicados na toolbar.
 
 ---
 
