@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import type { PlaylistRow, PlaylistStatus, ActionResult } from '@/lib/playlists/types'
 
 interface PlaylistSettingsProps {
@@ -22,6 +23,7 @@ export function PlaylistSettings({
   onUpdate,
   onDelete,
 }: PlaylistSettingsProps) {
+  const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [name, setName] = useState(playlist.name)
   const [slug, setSlug] = useState(playlist.slug)
@@ -55,7 +57,7 @@ export function PlaylistSettings({
     startTransition(async () => {
       const result = await onDelete(playlist.id, playlist.site_id)
       if (result.ok) {
-        window.location.href = '/cms/playlists'
+        router.push('/cms/playlists')
       } else {
         setMessage({ type: 'error', text: result.error })
       }

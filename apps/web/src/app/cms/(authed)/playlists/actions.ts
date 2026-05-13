@@ -137,10 +137,6 @@ export async function addItemToPlaylist(
 
   const { playlistId, blogPostId, newsletterEditionId, pipelineId, sortOrder, positionX, positionY } = parsed.data
 
-  if (!blogPostId && !newsletterEditionId && !pipelineId) {
-    return { ok: false, error: 'At least one content reference is required' }
-  }
-
   const supabase = getSupabaseServiceClient()
 
   // Check if already in playlist
@@ -185,15 +181,19 @@ export async function removeItemFromPlaylist(
   // Verify item belongs to a playlist owned by this site
   const { data: item } = await supabase
     .from('playlist_items')
-    .select('id, playlist_id, playlists!inner(site_id)')
+    .select('id, playlist_id')
     .eq('id', playlistItemId)
     .maybeSingle()
 
   if (!item) return { ok: false, error: 'not_found' }
 
-  const itemRow = item as unknown as { id: string; playlist_id: string; playlists: Array<{ site_id: string }> }
-  const itemSiteId = itemRow.playlists[0]?.site_id
-  if (itemSiteId !== siteId) return { ok: false, error: 'forbidden' }
+  const { data: playlist } = await supabase
+    .from('playlists')
+    .select('site_id')
+    .eq('id', item.playlist_id)
+    .single()
+
+  if (!playlist || playlist.site_id !== siteId) return { ok: false, error: 'forbidden' }
 
   const { error } = await supabase
     .from('playlist_items')
@@ -273,15 +273,19 @@ export async function deleteEdge(
   // Verify edge belongs to a playlist owned by this site
   const { data: edge } = await supabase
     .from('playlist_edges')
-    .select('id, playlist_id, playlists!inner(site_id)')
+    .select('id, playlist_id')
     .eq('id', edgeId)
     .maybeSingle()
 
   if (!edge) return { ok: false, error: 'not_found' }
 
-  const edgeRow = edge as unknown as { id: string; playlist_id: string; playlists: Array<{ site_id: string }> }
-  const edgeSiteId = edgeRow.playlists[0]?.site_id
-  if (edgeSiteId !== siteId) return { ok: false, error: 'forbidden' }
+  const { data: edgePlaylist } = await supabase
+    .from('playlists')
+    .select('site_id')
+    .eq('id', edge.playlist_id)
+    .single()
+
+  if (!edgePlaylist || edgePlaylist.site_id !== siteId) return { ok: false, error: 'forbidden' }
 
   const { error } = await supabase
     .from('playlist_edges')

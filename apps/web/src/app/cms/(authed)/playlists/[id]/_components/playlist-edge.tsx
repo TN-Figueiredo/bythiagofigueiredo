@@ -47,7 +47,7 @@ export function PlaylistEdge({
   const midY = (sourcePoint.y + targetPoint.y) / 2
 
   return (
-    <g>
+    <g role="button" aria-label={`${edge.edge_type} edge: ${sourceItem.title} → ${targetItem.title}`}>
       {/* Fat invisible hit area */}
       <path
         d={path}

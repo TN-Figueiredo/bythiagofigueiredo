@@ -32,7 +32,7 @@ interface PlaylistNodeProps {
   onPointerDown: (e: React.PointerEvent, itemId: string, x: number, y: number) => void
   onHandlePointerDown: (e: React.PointerEvent, itemId: string, x: number, y: number) => void
   onContextMenu: (e: React.MouseEvent, itemId: string) => void
-  onClick: (e: React.MouseEvent, itemId: string) => void
+  onClick: (e: Pick<React.MouseEvent, 'shiftKey'>, itemId: string) => void
 }
 
 export function PlaylistNode({
@@ -71,6 +71,12 @@ export function PlaylistNode({
         onContextMenu(e, item.id)
       }}
       onClick={e => onClick(e, item.id)}
+      onKeyDown={e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onClick({ shiftKey: e.shiftKey }, item.id)
+        }
+      }}
     >
       {/* Left handle */}
       <div
@@ -113,7 +119,7 @@ export function PlaylistNode({
       {/* Cross-playlist badge */}
       {item.other_playlist_count > 0 && (
         <div className="border-t border-white/5 px-2.5 py-1 text-[0.62rem] text-white/30">
-          em {item.other_playlist_count + 1} playlists
+          +{item.other_playlist_count} playlist{item.other_playlist_count > 1 ? 's' : ''}
         </div>
       )}
     </div>

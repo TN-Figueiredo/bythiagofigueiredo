@@ -8,6 +8,36 @@ import type {
   ContentType,
 } from './types'
 
+interface BlogPostRef {
+  id: string
+  status: string | null
+  category: string | null
+  blog_translations: Array<{ title: string; locale: string }>
+}
+
+interface NewsletterRef {
+  id: string
+  subject: string
+  status: string | null
+  edition_kind: string | null
+}
+
+interface PipelineRef {
+  id: string
+  title_pt: string | null
+  title_en: string | null
+  format: string | null
+  stage: string | null
+  version: number
+}
+
+interface CrossPlaylistRef {
+  blog_post_id: string | null
+  newsletter_edition_id: string | null
+  pipeline_id: string | null
+  playlist_id: string
+}
+
 export async function listPlaylists(
   siteId: string,
   status?: string,
@@ -148,14 +178,14 @@ async function enrichItems(
       .neq('playlist_id', playlistId),
   ])
 
-  const blogMap = new Map((blogRes.data ?? []).map((b: Record<string, unknown>) => [b.id, b]))
-  const newsletterMap = new Map((newsletterRes.data ?? []).map((n: Record<string, unknown>) => [n.id, n]))
-  const pipelineMap = new Map((pipelineRes.data ?? []).map((p: Record<string, unknown>) => [p.id, p]))
+  const blogMap = new Map((blogRes.data ?? []).map((b) => [(b as BlogPostRef).id, b as BlogPostRef]))
+  const newsletterMap = new Map((newsletterRes.data ?? []).map((n) => [(n as NewsletterRef).id, n as NewsletterRef]))
+  const pipelineMap = new Map((pipelineRes.data ?? []).map((p) => [(p as PipelineRef).id, p as PipelineRef]))
 
   const crossCounts = new Map<string, number>()
-  for (const row of (crossRes.data ?? []) as Record<string, unknown>[]) {
-    const key = (row.blog_post_id ?? row.newsletter_edition_id ?? row.pipeline_id) as string
-    crossCounts.set(key, (crossCounts.get(key) ?? 0) + 1)
+  for (const row of (crossRes.data ?? []) as CrossPlaylistRef[]) {
+    const key = row.blog_post_id ?? row.newsletter_edition_id ?? row.pipeline_id
+    if (key) crossCounts.set(key, (crossCounts.get(key) ?? 0) + 1)
   }
 
   return items.map((item): PlaylistItemEnriched => {
@@ -169,23 +199,22 @@ async function enrichItems(
     let refId: string | null = null
 
     if (item.blog_post_id && blogMap.has(item.blog_post_id)) {
-      const blog = blogMap.get(item.blog_post_id) as Record<string, unknown>
-      const translations = blog.blog_translations as Array<{ title: string; locale: string }>
-      title = translations?.[0]?.title ?? 'Untitled'
-      status = blog.status as string
-      category = blog.category as string
+      const blog = blogMap.get(item.blog_post_id)!
+      title = blog.blog_translations?.[0]?.title ?? 'Untitled'
+      status = blog.status
+      category = blog.category
       refId = item.blog_post_id
     } else if (item.newsletter_edition_id && newsletterMap.has(item.newsletter_edition_id)) {
-      const nl = newsletterMap.get(item.newsletter_edition_id) as Record<string, unknown>
-      title = nl.subject as string
-      status = nl.status as string
-      metadata = nl.edition_kind as string
+      const nl = newsletterMap.get(item.newsletter_edition_id)!
+      title = nl.subject
+      status = nl.status
+      metadata = nl.edition_kind
       refId = item.newsletter_edition_id
     } else if (item.pipeline_id && pipelineMap.has(item.pipeline_id)) {
-      const pl = pipelineMap.get(item.pipeline_id) as Record<string, unknown>
-      title = (pl.title_pt ?? pl.title_en ?? 'Untitled') as string
-      status = pl.stage as string
-      category = pl.format as string
+      const pl = pipelineMap.get(item.pipeline_id)!
+      title = pl.title_pt ?? pl.title_en ?? 'Untitled'
+      status = pl.stage
+      category = pl.format
       metadata = `v${pl.version}`
       refId = item.pipeline_id
     }

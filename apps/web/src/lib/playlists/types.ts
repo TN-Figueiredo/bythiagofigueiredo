@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { SLUG_PATTERN } from './slug'
 
 // -- Enums --
 
@@ -15,7 +16,7 @@ export type ContentType = (typeof CONTENT_TYPES)[number]
 
 export const CreatePlaylistSchema = z.object({
   name: z.string().min(1, 'Name is required').max(200),
-  slug: z.string().min(1).max(200).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Invalid slug'),
+  slug: z.string().min(1).max(200).regex(SLUG_PATTERN, 'Invalid slug'),
   description: z.string().max(1000).optional(),
   category: z.string().max(100).optional(),
   status: z.enum(PLAYLIST_STATUSES).default('draft'),
@@ -23,7 +24,7 @@ export const CreatePlaylistSchema = z.object({
 
 export const UpdatePlaylistSchema = z.object({
   name: z.string().min(1).max(200).optional(),
-  slug: z.string().min(1).max(200).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(),
+  slug: z.string().min(1).max(200).regex(SLUG_PATTERN).optional(),
   description: z.string().max(1000).nullable().optional(),
   category: z.string().max(100).nullable().optional(),
   status: z.enum(PLAYLIST_STATUSES).optional(),
@@ -43,7 +44,10 @@ export const AddItemSchema = z.object({
   sortOrder: z.number().int().optional(),
   positionX: z.number().optional(),
   positionY: z.number().optional(),
-})
+}).refine(
+  d => d.blogPostId || d.newsletterEditionId || d.pipelineId,
+  { message: 'At least one content reference is required' },
+)
 
 export const CreateEdgeSchema = z.object({
   playlistId: z.string().uuid(),

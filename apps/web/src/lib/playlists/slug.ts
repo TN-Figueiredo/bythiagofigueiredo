@@ -1,3 +1,5 @@
+export const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+
 export function slugifyPlaylist(text: string): string {
   return text
     .toLowerCase()

@@ -35,7 +35,6 @@ interface PlaylistCanvasProps {
   graph: PlaylistGraph
   siteId: string
   onSaveDelta: (siteId: string, input: unknown) => Promise<ActionResult<void>>
-  onAddItem: (siteId: string, input: unknown) => Promise<ActionResult<{ id: string }>>
   onRemoveItem: (itemId: string, siteId: string) => Promise<ActionResult<void>>
   onCreateEdge: (siteId: string, input: unknown) => Promise<ActionResult<{ id: string }>>
   onDeleteEdge: (edgeId: string, siteId: string) => Promise<ActionResult<void>>
@@ -75,6 +74,7 @@ export function PlaylistCanvas({
   } | null>(null)
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isSavingRef = useRef(false)
   const pendingDeltaRef = useRef<{
     itemsUpserted: Map<
       string,
@@ -126,6 +126,7 @@ export function PlaylistCanvas({
   // ── Auto-save ────────────────────────────────────────────────────────
 
   const flushDelta = useCallback(async () => {
+    if (isSavingRef.current) return
     const delta = pendingDeltaRef.current
     const hasChanges =
       delta.itemsUpserted.size > 0 ||
@@ -135,6 +136,7 @@ export function PlaylistCanvas({
 
     if (!hasChanges) return
 
+    isSavingRef.current = true
     setSaveState('saving')
 
     const payload = {
@@ -145,7 +147,6 @@ export function PlaylistCanvas({
       edgesRemoved: Array.from(delta.edgesRemoved),
     }
 
-    // Reset pending
     pendingDeltaRef.current = {
       itemsUpserted: new Map(),
       itemsRemoved: new Set(),
@@ -153,8 +154,18 @@ export function PlaylistCanvas({
       edgesRemoved: new Set(),
     }
 
-    const result = await onSaveDelta(siteId, payload)
-    setSaveState(result.ok ? 'saved' : 'error')
+    try {
+      const result = await onSaveDelta(siteId, payload)
+      setSaveState(result.ok ? 'saved' : 'error')
+    } finally {
+      isSavingRef.current = false
+      // Re-check if more changes queued while we were saving
+      const next = pendingDeltaRef.current
+      if (next.itemsUpserted.size > 0 || next.itemsRemoved.size > 0 ||
+          next.edgesCreated.length > 0 || next.edgesRemoved.size > 0) {
+        scheduleSaveRef.current()
+      }
+    }
   }, [graph.playlist.id, onSaveDelta, siteId])
 
   const scheduleSave = useCallback(() => {
@@ -162,6 +173,8 @@ export function PlaylistCanvas({
     saveTimerRef.current = setTimeout(flushDelta, 1500)
     setSaveState('saving')
   }, [flushDelta])
+  const scheduleSaveRef = useRef(scheduleSave)
+  scheduleSaveRef.current = scheduleSave
 
   // ── Node drag ────────────────────────────────────────────────────────
 
@@ -248,7 +261,7 @@ export function PlaylistCanvas({
   // ── Selection ────────────────────────────────────────────────────────
 
   const handleNodeClick = useCallback(
-    (e: React.MouseEvent, itemId: string) => {
+    (e: Pick<React.MouseEvent, 'shiftKey'>, itemId: string) => {
       if (e.shiftKey) {
         const newIds = new Set(state.selectedItemIds)
         if (newIds.has(itemId)) newIds.delete(itemId)
@@ -286,11 +299,13 @@ export function PlaylistCanvas({
   )
 
   const handleDeleteSelectedEdges = useCallback(async () => {
-    for (const edgeId of state.selectedEdgeIds) {
-      pushSnapshot(state)
+    if (state.selectedEdgeIds.size === 0) return
+    pushSnapshot(state)
+    const edgeIds = Array.from(state.selectedEdgeIds)
+    for (const edgeId of edgeIds) {
       dispatch({ type: 'REMOVE_EDGE', edgeId })
-      await onDeleteEdge(edgeId, siteId)
     }
+    await Promise.all(edgeIds.map(edgeId => onDeleteEdge(edgeId, siteId)))
   }, [state, pushSnapshot, onDeleteEdge, siteId])
 
   // ── Toolbar actions ──────────────────────────────────────────────────
@@ -394,18 +409,31 @@ export function PlaylistCanvas({
     state.items,
   ])
 
-  // ── Viewport persistence ─────────────────────────────────────────────
+  // ── Viewport persistence (debounced) ─────────────────────────────────
+
+  const viewportTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const cameraRef = useRef(camera)
+  cameraRef.current = camera
+
+  useEffect(() => {
+    if (viewportTimerRef.current) clearTimeout(viewportTimerRef.current)
+    viewportTimerRef.current = setTimeout(() => {
+      onSaveViewport(graph.playlist.id, siteId, camera)
+    }, 2000)
+    return () => {
+      if (viewportTimerRef.current) clearTimeout(viewportTimerRef.current)
+    }
+  }, [camera, graph.playlist.id, siteId, onSaveViewport])
 
   useEffect(() => {
     function handleBeforeUnload() {
-      onSaveViewport(graph.playlist.id, siteId, camera)
+      onSaveViewport(graph.playlist.id, siteId, cameraRef.current)
     }
     window.addEventListener('beforeunload', handleBeforeUnload)
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload)
-      onSaveViewport(graph.playlist.id, siteId, camera)
     }
-  }, [camera, graph.playlist.id, siteId, onSaveViewport])
+  }, [graph.playlist.id, siteId, onSaveViewport])
 
   // ── Flush on unmount ─────────────────────────────────────────────────
 
@@ -584,10 +612,7 @@ export function PlaylistCanvas({
             {
               label: 'Select',
               onClick: () =>
-                handleNodeClick(
-                  { shiftKey: false } as React.MouseEvent,
-                  contextMenu.itemId,
-                ),
+                handleNodeClick({ shiftKey: false }, contextMenu.itemId),
             },
             {
               label: 'Remove from playlist',

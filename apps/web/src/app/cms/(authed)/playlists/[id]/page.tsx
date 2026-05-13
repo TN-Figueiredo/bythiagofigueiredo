@@ -5,7 +5,6 @@ import { getPlaylistGraph } from '@/lib/playlists/queries'
 import { PlaylistCanvas } from './_components/playlist-canvas'
 import {
   savePlaylistDelta,
-  addItemToPlaylist,
   removeItemFromPlaylist,
   createEdge,
   deleteEdge,
@@ -34,7 +33,6 @@ export default async function PlaylistEditorPage({
         graph={graph}
         siteId={siteId}
         onSaveDelta={savePlaylistDelta}
-        onAddItem={addItemToPlaylist}
         onRemoveItem={removeItemFromPlaylist}
         onCreateEdge={createEdge}
         onDeleteEdge={deleteEdge}
