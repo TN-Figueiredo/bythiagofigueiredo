@@ -10,6 +10,8 @@ import {
   createEdge,
   deleteEdge,
   saveViewportState,
+  updatePlaylist,
+  deletePlaylist,
 } from '../actions'
 
 export const dynamic = 'force-dynamic'
@@ -37,6 +39,8 @@ export default async function PlaylistEditorPage({
         onCreateEdge={createEdge}
         onDeleteEdge={deleteEdge}
         onSaveViewport={saveViewportState}
+        onUpdate={updatePlaylist}
+        onDelete={deletePlaylist}
       />
     </div>
   )

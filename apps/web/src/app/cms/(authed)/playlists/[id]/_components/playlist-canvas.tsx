@@ -14,6 +14,7 @@ import {
 } from '@/lib/playlists/canvas'
 import type {
   PlaylistGraph,
+  PlaylistRow,
   PlaylistEdgeRow,
   EdgeType,
   ActionResult,
@@ -22,6 +23,9 @@ import { PlaylistNode } from './playlist-node'
 import { PlaylistEdge, EdgeArrowDefs } from './playlist-edge'
 import { PlaylistToolbar } from './playlist-toolbar'
 import { PlaylistSidebar } from './playlist-sidebar'
+import { PlaylistMinimap } from './playlist-minimap'
+import { PlaylistSettings } from './playlist-settings'
+import { PlaylistEmptyState } from './playlist-skeleton'
 import { EdgeTypeSelector } from './edge-type-selector'
 import { ContextMenu } from './context-menu'
 
@@ -40,6 +44,8 @@ interface PlaylistCanvasProps {
     siteId: string,
     viewport: { zoom: number; x: number; y: number },
   ) => Promise<ActionResult<void>>
+  onUpdate: (playlistId: string, siteId: string, input: unknown) => Promise<ActionResult<PlaylistRow>>
+  onDelete: (playlistId: string, siteId: string) => Promise<ActionResult<void>>
 }
 
 export function PlaylistCanvas({
@@ -50,10 +56,12 @@ export function PlaylistCanvas({
   onCreateEdge,
   onDeleteEdge,
   onSaveViewport,
+  onUpdate,
+  onDelete,
 }: PlaylistCanvasProps) {
   const [state, dispatch] = useReducer(graphReducer, undefined, initialGraphState)
   const [saveState, setSaveState] = useState<SaveState>('saved')
-  const [, setShowSettings] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const [contextMenu, setContextMenu] = useState<{
     x: number
     y: number
@@ -95,6 +103,7 @@ export function PlaylistCanvas({
   // Canvas hooks
   const {
     camera,
+    setCamera,
     containerRef,
     handleWheel,
     handlePanStart,
@@ -322,6 +331,20 @@ export function PlaylistCanvas({
     zoomToFit(state.items)
   }, [zoomToFit, state.items])
 
+  const handleMinimapNavigate = useCallback(
+    (x: number, y: number) => {
+      const el = containerRef.current
+      if (!el) return
+      const { width, height } = el.getBoundingClientRect()
+      setCamera(prev => ({
+        ...prev,
+        x: -x * prev.zoom + width / 2,
+        y: -y * prev.zoom + height / 2,
+      }))
+    },
+    [containerRef, setCamera],
+  )
+
   // ── Keyboard shortcuts ───────────────────────────────────────────────
 
   useEffect(() => {
@@ -516,7 +539,30 @@ export function PlaylistCanvas({
               />
             ))}
           </div>
+
+          {/* Empty state */}
+          {state.items.length === 0 && <PlaylistEmptyState />}
+
+          {/* Mini-map */}
+          <PlaylistMinimap
+            items={state.items}
+            camera={camera}
+            viewportWidth={containerRef.current?.clientWidth ?? 0}
+            viewportHeight={containerRef.current?.clientHeight ?? 0}
+            onNavigate={handleMinimapNavigate}
+          />
         </div>
+
+        {/* Settings panel */}
+        <PlaylistSettings
+          playlist={graph.playlist}
+          itemCount={state.items.length}
+          edgeCount={state.edges.length}
+          isOpen={showSettings}
+          onClose={() => setShowSettings(false)}
+          onUpdate={onUpdate}
+          onDelete={onDelete}
+        />
       </div>
 
       {/* Edge type selector popover */}
