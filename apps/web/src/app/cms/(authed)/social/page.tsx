@@ -4,6 +4,9 @@ import { CmsTopbar } from '@tn-figueiredo/cms-ui/client'
 import { listSocialPosts } from '@/lib/social/actions'
 import { getSocialStrings } from './_i18n'
 import { PostsFeed } from './_components/posts-feed'
+import { PostsCalendar } from './_components/posts-calendar'
+import { PostsQueue } from './_components/posts-queue'
+import { PostsDrafts } from './_components/posts-drafts'
 import Link from 'next/link'
 
 export const dynamic = 'force-dynamic'
@@ -49,9 +52,9 @@ export default async function SocialPostsPage({ searchParams }: Props) {
         </div>
 
         {tab === 'feed' && <PostsFeed posts={posts} siteId={ctx.siteId} strings={t} />}
-        {tab === 'calendar' && <p className="text-cms-text-muted">{t.posts.emptyCalendar}</p>}
-        {tab === 'queue' && <p className="text-cms-text-muted">{t.posts.emptyQueue}</p>}
-        {tab === 'drafts' && <p className="text-cms-text-muted">{t.posts.emptyDrafts}</p>}
+        {tab === 'calendar' && <PostsCalendar posts={posts} strings={t} />}
+        {tab === 'queue' && <PostsQueue posts={posts} strings={t} />}
+        {tab === 'drafts' && <PostsDrafts posts={posts} strings={t} />}
       </div>
     </>
   )
