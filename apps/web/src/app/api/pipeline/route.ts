@@ -39,6 +39,8 @@ export async function GET() {
       { method: 'GET', path: '/api/pipeline/search', description: 'Cross-entity search' },
       { method: 'GET', path: '/api/pipeline/stats', description: 'Pipeline statistics' },
       { method: 'GET', path: '/api/pipeline/topics/:code', description: 'Topic aggregation' },
+      { method: 'GET', path: '/api/pipeline/playlists', description: 'List playlists' },
+      { method: 'GET', path: '/api/pipeline/playlists/:id', description: 'Get playlist graph (items + edges)' },
     ],
     formats: Object.keys(WORKFLOWS),
     workflows: WORKFLOWS,

@@ -614,6 +614,72 @@ Estes campos são gerenciados pela UI (dropdown de categoria, galeria de mídia)
 
 Playlists organizam conteúdo (blog posts, newsletters, pipeline items) em sequências visuais via um editor de grafos no CMS. Cowork pode adicionar itens graduados automaticamente a playlists relevantes.
 
+### Locale
+
+Playlists usam campos denormalizados para i18n (igual a youtube_categories):
+
+| Campo | Tipo | Notas |
+|-------|------|-------|
+| `name_pt` | TEXT NOT NULL | Nome em português (obrigatório) |
+| `name_en` | TEXT NOT NULL | Nome em inglês (default: vazio) |
+| `description_pt` | TEXT | Descrição em português |
+| `description_en` | TEXT | Descrição em inglês |
+| `slug` | TEXT | Slug único por site (single, não per-locale) |
+
+### API Endpoints
+
+```
+GET  /api/pipeline/playlists        → Lista todas as playlists do site
+GET  /api/pipeline/playlists/:id    → Retorna playlist com items e edges (grafo completo)
+```
+
+Ambos usam a mesma autenticação do pipeline (`X-Pipeline-Key` ou session).
+
+**Resposta `GET /api/pipeline/playlists`:**
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "name_pt": "Começando com TypeScript",
+      "name_en": "Getting Started with TypeScript",
+      "slug": "comecando-com-typescript",
+      "status": "draft",
+      "category": "TypeScript",
+      "cover_image_url": null,
+      "item_count": 5,
+      "created_at": "2026-05-14T...",
+      "updated_at": "2026-05-14T..."
+    }
+  ]
+}
+```
+
+**Resposta `GET /api/pipeline/playlists/:id`:**
+```json
+{
+  "data": {
+    "playlist": { "id": "...", "name_pt": "...", "name_en": "...", "slug": "...", "status": "...", "category": "..." },
+    "items": [
+      {
+        "id": "uuid",
+        "title": "Resolved title from blog/newsletter/pipeline",
+        "content_type": "blog_post|newsletter|pipeline|null",
+        "status": "published",
+        "category": "building",
+        "position_x": 200, "position_y": 100,
+        "sort_order": 1000,
+        "is_ghost": false,
+        "other_playlist_count": 1
+      }
+    ],
+    "edges": [
+      { "id": "uuid", "source_item_id": "...", "target_item_id": "...", "edge_type": "sequence", "label": null }
+    ]
+  }
+}
+```
+
 ### Server Actions disponíveis
 
 | Action | Parâmetros | Retorno |
@@ -635,9 +701,17 @@ Playlists organizam conteúdo (blog posts, newsletters, pipeline items) em sequ�
 
 Quando um pipeline item é graduado (ex: blog_post → blog_posts), o item pode ser adicionado a uma playlist existente:
 
-1. Buscar playlists do site via `getPlaylistWithItems` para encontrar playlists relevantes (por category ou conteúdo relacionado)
+1. Buscar playlists do site via `GET /api/pipeline/playlists` para encontrar playlists relevantes (por category ou conteúdo relacionado)
 2. Usar `addItemToPlaylist` com o `blogPostId` (ou `newsletterEditionId`) do conteúdo graduado
 3. Opcionalmente criar `sequence` edge conectando ao último item da playlist
+
+### TipTap Embed
+
+Playlists podem ser embeddadas em blog posts e newsletters via TipTap custom node:
+
+- Slash command: `/playlist` no editor
+- HTML output: `<div data-playlist-embed data-playlist-id="..." data-playlist-name="..." data-playlist-slug="...">`
+- O node armazena `playlistId`, `playlistName`, `playlistSlug`, `itemCount` como atributos
 
 ### Regras
 
@@ -646,3 +720,4 @@ Quando um pipeline item é graduado (ex: blog_post → blog_posts), o item pode 
 3. Sequence edges não podem criar ciclos — o DB tem trigger `prevent_sequence_cycle` que rejeita
 4. `sortOrder` usa incrementos de 1000 (ex: 1000, 2000, 3000) para permitir inserções intermediárias
 5. Posições no canvas (`positionX`, `positionY`) são opcionais — se omitidas, default (0,0) e o editor oferece auto-layout
+6. `name_pt` é obrigatório; `name_en` pode ser vazio — sempre exibir `name_pt` como fallback

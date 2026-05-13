@@ -14,14 +14,16 @@ export function NewPlaylistForm({ siteId }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
-  const [name, setName] = useState('')
+  const [namePt, setNamePt] = useState('')
+  const [nameEn, setNameEn] = useState('')
   const [slug, setSlug] = useState('')
   const [slugEdited, setSlugEdited] = useState(false)
-  const [description, setDescription] = useState('')
+  const [descriptionPt, setDescriptionPt] = useState('')
+  const [descriptionEn, setDescriptionEn] = useState('')
   const [category, setCategory] = useState('')
 
-  function handleNameChange(value: string) {
-    setName(value)
+  function handleNamePtChange(value: string) {
+    setNamePt(value)
     if (!slugEdited) {
       setSlug(slugifyPlaylist(value))
     }
@@ -37,9 +39,11 @@ export function NewPlaylistForm({ siteId }: Props) {
 
     startTransition(async () => {
       const result = await createPlaylist(siteId, {
-        name: name.trim(),
+        name_pt: namePt.trim(),
+        name_en: nameEn.trim() || undefined,
         slug: slug.trim(),
-        description: description.trim() || undefined,
+        description_pt: descriptionPt.trim() || undefined,
+        description_en: descriptionEn.trim() || undefined,
         category: category.trim() || undefined,
         status: 'draft',
       })
@@ -55,6 +59,8 @@ export function NewPlaylistForm({ siteId }: Props) {
     })
   }
 
+  const inputClasses = 'rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm text-white placeholder-white/25 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500'
+
   return (
     <div className="mx-auto max-w-2xl p-6">
       <div className="mb-8">
@@ -65,21 +71,37 @@ export function NewPlaylistForm({ siteId }: Props) {
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-        {/* Name */}
-        <div className="flex flex-col gap-2">
-          <label htmlFor="name" className="text-sm font-medium text-white/70">
-            Name <span className="text-red-400">*</span>
-          </label>
-          <input
-            id="name"
-            type="text"
-            value={name}
-            onChange={e => handleNameChange(e.target.value)}
-            placeholder="e.g. Getting Started with TypeScript"
-            required
-            maxLength={200}
-            className="rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm text-white placeholder-white/25 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-          />
+        {/* Names (PT + EN) */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-2">
+            <label htmlFor="name_pt" className="text-sm font-medium text-white/70">
+              Name (PT) <span className="text-red-400">*</span>
+            </label>
+            <input
+              id="name_pt"
+              type="text"
+              value={namePt}
+              onChange={e => handleNamePtChange(e.target.value)}
+              placeholder="e.g. Começando com TypeScript"
+              required
+              maxLength={200}
+              className={inputClasses}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <label htmlFor="name_en" className="text-sm font-medium text-white/70">
+              Name (EN)
+            </label>
+            <input
+              id="name_en"
+              type="text"
+              value={nameEn}
+              onChange={e => setNameEn(e.target.value)}
+              placeholder="e.g. Getting Started with TypeScript"
+              maxLength={200}
+              className={inputClasses}
+            />
+          </div>
         </div>
 
         {/* Slug */}
@@ -92,30 +114,46 @@ export function NewPlaylistForm({ siteId }: Props) {
             type="text"
             value={slug}
             onChange={e => handleSlugChange(e.target.value)}
-            placeholder="getting-started-with-typescript"
+            placeholder="comecando-com-typescript"
             required
             maxLength={200}
             pattern="^[a-z0-9]+(?:-[a-z0-9]+)*$"
             title="Lowercase letters, numbers and hyphens only"
-            className="rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 font-mono text-sm text-white placeholder-white/25 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+            className={`${inputClasses} font-mono`}
           />
           <p className="text-xs text-white/30">Lowercase letters, numbers and hyphens only.</p>
         </div>
 
-        {/* Description */}
-        <div className="flex flex-col gap-2">
-          <label htmlFor="description" className="text-sm font-medium text-white/70">
-            Description
-          </label>
-          <textarea
-            id="description"
-            value={description}
-            onChange={e => setDescription(e.target.value)}
-            placeholder="A short description of what this playlist covers…"
-            rows={3}
-            maxLength={1000}
-            className="rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm text-white placeholder-white/25 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 resize-none"
-          />
+        {/* Descriptions (PT + EN) */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-2">
+            <label htmlFor="description_pt" className="text-sm font-medium text-white/70">
+              Description (PT)
+            </label>
+            <textarea
+              id="description_pt"
+              value={descriptionPt}
+              onChange={e => setDescriptionPt(e.target.value)}
+              placeholder="Uma breve descrição do que esta playlist cobre…"
+              rows={3}
+              maxLength={1000}
+              className={`${inputClasses} resize-none`}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <label htmlFor="description_en" className="text-sm font-medium text-white/70">
+              Description (EN)
+            </label>
+            <textarea
+              id="description_en"
+              value={descriptionEn}
+              onChange={e => setDescriptionEn(e.target.value)}
+              placeholder="A short description of what this playlist covers…"
+              rows={3}
+              maxLength={1000}
+              className={`${inputClasses} resize-none`}
+            />
+          </div>
         </div>
 
         {/* Category */}
@@ -130,7 +168,7 @@ export function NewPlaylistForm({ siteId }: Props) {
             onChange={e => setCategory(e.target.value)}
             placeholder="e.g. TypeScript, Web Dev, Tutorials"
             maxLength={100}
-            className="rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm text-white placeholder-white/25 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+            className={inputClasses}
           />
         </div>
 
@@ -138,7 +176,7 @@ export function NewPlaylistForm({ siteId }: Props) {
         <div className="flex items-center gap-3 pt-2">
           <button
             type="submit"
-            disabled={isPending || !name.trim() || !slug.trim()}
+            disabled={isPending || !namePt.trim() || !slug.trim()}
             className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isPending ? 'Creating…' : 'Create Playlist'}

@@ -15,17 +15,21 @@ export type ContentType = (typeof CONTENT_TYPES)[number]
 // -- Schemas --
 
 export const CreatePlaylistSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(200),
+  name_pt: z.string().min(1, 'Name (PT) is required').max(200),
+  name_en: z.string().max(200).optional(),
   slug: z.string().min(1).max(200).regex(SLUG_PATTERN, 'Invalid slug'),
-  description: z.string().max(1000).optional(),
+  description_pt: z.string().max(1000).optional(),
+  description_en: z.string().max(1000).optional(),
   category: z.string().max(100).optional(),
   status: z.enum(PLAYLIST_STATUSES).default('draft'),
 })
 
 export const UpdatePlaylistSchema = z.object({
-  name: z.string().min(1).max(200).optional(),
+  name_pt: z.string().min(1).max(200).optional(),
+  name_en: z.string().max(200).nullable().optional(),
   slug: z.string().min(1).max(200).regex(SLUG_PATTERN).optional(),
-  description: z.string().max(1000).nullable().optional(),
+  description_pt: z.string().max(1000).nullable().optional(),
+  description_en: z.string().max(1000).nullable().optional(),
   category: z.string().max(100).nullable().optional(),
   status: z.enum(PLAYLIST_STATUSES).optional(),
   cover_image_url: z.string().url().nullable().optional(),
@@ -80,9 +84,11 @@ export const SaveDeltaSchema = z.object({
 export interface PlaylistRow {
   id: string
   site_id: string
-  name: string
+  name_pt: string
+  name_en: string
   slug: string
-  description: string | null
+  description_pt: string | null
+  description_en: string | null
   cover_image_url: string | null
   status: PlaylistStatus
   category: string | null

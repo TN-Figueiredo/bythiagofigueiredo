@@ -461,7 +461,7 @@ export function PlaylistCanvas({
     <div className="flex h-full flex-col bg-[#0a0a12]">
       {/* Toolbar */}
       <PlaylistToolbar
-        playlistName={graph.playlist.name}
+        playlistName={graph.playlist.name_pt}
         status={graph.playlist.status}
         saveState={saveState}
         canUndo={canUndo()}

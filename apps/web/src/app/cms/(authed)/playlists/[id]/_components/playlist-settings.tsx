@@ -25,9 +25,11 @@ export function PlaylistSettings({
 }: PlaylistSettingsProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
-  const [name, setName] = useState(playlist.name)
+  const [namePt, setNamePt] = useState(playlist.name_pt)
+  const [nameEn, setNameEn] = useState(playlist.name_en)
   const [slug, setSlug] = useState(playlist.slug)
-  const [description, setDescription] = useState(playlist.description ?? '')
+  const [descriptionPt, setDescriptionPt] = useState(playlist.description_pt ?? '')
+  const [descriptionEn, setDescriptionEn] = useState(playlist.description_en ?? '')
   const [category, setCategory] = useState(playlist.category ?? '')
   const [status, setStatus] = useState<PlaylistStatus>(playlist.status)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -38,9 +40,11 @@ export function PlaylistSettings({
   function handleSave() {
     startTransition(async () => {
       const result = await onUpdate(playlist.id, playlist.site_id, {
-        name,
+        name_pt: namePt,
+        name_en: nameEn || null,
         slug,
-        description: description || null,
+        description_pt: descriptionPt || null,
+        description_en: descriptionEn || null,
         category: category || null,
         status,
       })
@@ -63,6 +67,8 @@ export function PlaylistSettings({
       }
     })
   }
+
+  const fieldClasses = 'rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white'
 
   return (
     <div className="flex h-full w-80 flex-col border-l border-white/10 bg-[#0a0a12]">
@@ -88,13 +94,13 @@ export function PlaylistSettings({
         {/* Fields */}
         <div className="flex flex-col gap-3">
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-white/50">Name</span>
-            <input
-              type="text"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white"
-            />
+            <span className="text-xs font-medium text-white/50">Name (PT)</span>
+            <input type="text" value={namePt} onChange={e => setNamePt(e.target.value)} className={fieldClasses} />
+          </label>
+
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-white/50">Name (EN)</span>
+            <input type="text" value={nameEn} onChange={e => setNameEn(e.target.value)} className={fieldClasses} />
           </label>
 
           <label className="flex flex-col gap-1">
@@ -108,23 +114,18 @@ export function PlaylistSettings({
           </label>
 
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-white/50">Description</span>
-            <textarea
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              rows={3}
-              className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white"
-            />
+            <span className="text-xs font-medium text-white/50">Description (PT)</span>
+            <textarea value={descriptionPt} onChange={e => setDescriptionPt(e.target.value)} rows={2} className={fieldClasses} />
+          </label>
+
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-white/50">Description (EN)</span>
+            <textarea value={descriptionEn} onChange={e => setDescriptionEn(e.target.value)} rows={2} className={fieldClasses} />
           </label>
 
           <label className="flex flex-col gap-1">
             <span className="text-xs font-medium text-white/50">Category</span>
-            <input
-              type="text"
-              value={category}
-              onChange={e => setCategory(e.target.value)}
-              className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white"
-            />
+            <input type="text" value={category} onChange={e => setCategory(e.target.value)} className={fieldClasses} />
           </label>
 
           <label className="flex flex-col gap-1">
@@ -132,7 +133,7 @@ export function PlaylistSettings({
             <select
               value={status}
               onChange={e => setStatus(e.target.value as PlaylistStatus)}
-              className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white"
+              className={fieldClasses}
             >
               <option value="draft">Draft</option>
               <option value="published">Published</option>

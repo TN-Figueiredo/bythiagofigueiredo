@@ -37,6 +37,7 @@ import {
   Code2,
   Braces,
   ImagePlus,
+  ListMusic,
 } from 'lucide-react'
 import { MERGE_TAGS } from './merge-tag-node'
 import { PROVIDER_META, type EmbedProvider } from './social-embed-node'
@@ -50,6 +51,7 @@ interface EditorToolbarProps {
   onInsertCallout?: () => void
   onInsertTable?: () => void
   onInsertColumns?: () => void
+  onInsertPlaylist?: () => void
   onImageInserted?: () => void
   isFullscreen?: boolean
   onToggleFullscreen?: () => void
@@ -217,6 +219,7 @@ export function EditorToolbar({
   onInsertCallout,
   onInsertTable,
   onInsertColumns,
+  onInsertPlaylist,
 }: EditorToolbarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [showLinkPopover, setShowLinkPopover] = useState(false)
@@ -363,6 +366,11 @@ export function EditorToolbar({
       <ToolbarButton onClick={() => onInsertColumns?.()} title="Columns">
         <Columns2 size={16} />
       </ToolbarButton>
+      {onInsertPlaylist && (
+        <ToolbarButton onClick={onInsertPlaylist} title="Embed playlist">
+          <ListMusic size={16} />
+        </ToolbarButton>
+      )}
 
       <ToolbarDivider />
 

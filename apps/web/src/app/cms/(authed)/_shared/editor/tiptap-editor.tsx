@@ -26,6 +26,7 @@ import { SocialEmbedExtension, detectProvider, type EmbedProvider } from './soci
 import { CalloutExtension } from './callout-node'
 import { ToggleWrapperExtension, ToggleTitleExtension, ToggleBodyExtension } from './toggle-node'
 import { ColumnsExtension, ColumnExtension } from './columns-node'
+import { PlaylistEmbedExtension } from './playlist-embed-node'
 import { EditorToolbar } from './editor-toolbar'
 import { EditorBubbleMenu } from './bubble-menu'
 import { createSlashCommandExtension } from './slash-commands'
@@ -131,6 +132,12 @@ export function TipTapEditor({
             content: [{ type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph' }] }],
           }).run()
         },
+        onInsertPlaylist: () => {
+          editorRef.current?.chain().focus().insertContent({
+            type: 'playlistEmbed',
+            attrs: {},
+          }).run()
+        },
       }),
     [],
   )
@@ -165,6 +172,7 @@ export function TipTapEditor({
       ToggleBodyExtension,
       ColumnsExtension,
       ColumnExtension,
+      PlaylistEmbedExtension,
       TaskList,
       TaskItem.configure({ nested: true }),
       Table.configure({ resizable: false }),
@@ -356,6 +364,12 @@ export function TipTapEditor({
               { type: 'column', content: [{ type: 'paragraph' }] },
               { type: 'column', content: [{ type: 'paragraph' }] },
             ],
+          }).run()
+        }}
+        onInsertPlaylist={() => {
+          editorRef.current?.chain().focus().insertContent({
+            type: 'playlistEmbed',
+            attrs: {},
           }).run()
         }}
       />

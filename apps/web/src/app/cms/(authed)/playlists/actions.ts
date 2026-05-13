@@ -46,7 +46,7 @@ export async function createPlaylist(
     return { ok: false, error: parsed.error.issues.map((i) => i.message).join(', ') }
   }
 
-  const { name, slug, description, category, status } = parsed.data
+  const { name_pt, name_en, slug, description_pt, description_en, category, status } = parsed.data
 
   const existing = await getPlaylistBySlug(slug, siteId)
   if (existing) {
@@ -56,7 +56,16 @@ export async function createPlaylist(
   const supabase = getSupabaseServiceClient()
   const { data, error } = await supabase
     .from('playlists')
-    .insert({ site_id: siteId, name, slug, description: description ?? null, category: category ?? null, status })
+    .insert({
+      site_id: siteId,
+      name_pt,
+      name_en: name_en ?? '',
+      slug,
+      description_pt: description_pt ?? null,
+      description_en: description_en ?? null,
+      category: category ?? null,
+      status,
+    })
     .select('*')
     .single()
 
