@@ -1,4 +1,5 @@
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { slugifyPlaylist } from './slug'
 import type {
   PlaylistRow,
   PlaylistItemRow,
@@ -40,7 +41,7 @@ interface CrossPlaylistRef {
 
 export async function listPlaylists(
   siteId: string,
-  status?: string,
+  filters?: { status?: string; category?: string; search?: string },
 ): Promise<PlaylistRow[]> {
   const supabase = getSupabaseServiceClient()
   let query = supabase
@@ -49,8 +50,14 @@ export async function listPlaylists(
     .eq('site_id', siteId)
     .order('updated_at', { ascending: false })
 
-  if (status) {
-    query = query.eq('status', status)
+  if (filters?.status) {
+    query = query.eq('status', filters.status)
+  }
+  if (filters?.category) {
+    query = query.ilike('category', filters.category)
+  }
+  if (filters?.search && filters.search.length >= 2) {
+    query = query.or(`name_en.ilike.%${filters.search}%,name_pt.ilike.%${filters.search}%`)
   }
 
   const { data, error } = await query
@@ -264,4 +271,18 @@ export async function getPlaylistItemCounts(
     counts.set(row.playlist_id, (counts.get(row.playlist_id) ?? 0) + 1)
   }
   return counts
+}
+
+export async function resolveUniqueSlug(name: string, siteId: string): Promise<string> {
+  const base = slugifyPlaylist(name)
+  const existing = await getPlaylistBySlug(base, siteId)
+  if (!existing) return base
+
+  for (let i = 2; i <= 99; i++) {
+    const candidate = `${base}-${i}`
+    const conflict = await getPlaylistBySlug(candidate, siteId)
+    if (!conflict) return candidate
+  }
+
+  throw new Error('SLUG_EXHAUSTED')
 }

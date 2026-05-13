@@ -28,7 +28,7 @@ export default async function PlaylistsPage({
   const status = tab === 'all' ? undefined : tab
 
   const [playlists, itemCounts] = await Promise.all([
-    listPlaylists(ctx.siteId, status),
+    listPlaylists(ctx.siteId, status ? { status } : undefined),
     getPlaylistItemCounts(ctx.siteId),
   ])
 
