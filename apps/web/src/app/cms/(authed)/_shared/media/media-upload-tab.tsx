@@ -123,10 +123,13 @@ export function MediaUploadTab({ onSelect, folder, cropPreset, locale }: UploadT
   }, [])
 
   const addTag = useCallback(() => {
-    const trimmed = tagInput.trim().toLowerCase()
-    if (trimmed && !tags.includes(trimmed)) {
-      setTags((prev) => [...prev, trimmed])
-    }
+    const raw = tagInput.trim()
+    if (!raw) { setTagInput(''); return }
+    const newTags = raw
+      .split(/[,\s]+/)
+      .map((t) => t.replace(/^#/, '').trim().toLowerCase())
+      .filter((t) => t && !tags.includes(t))
+    if (newTags.length > 0) setTags((prev) => [...prev, ...newTags])
     setTagInput('')
   }, [tagInput, tags])
 
@@ -301,7 +304,7 @@ export function MediaUploadTab({ onSelect, folder, cropPreset, locale }: UploadT
           type="text"
           value={tagInput}
           onChange={(e) => setTagInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag() } }}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag() } }}
           placeholder={t.upload.tagsPlaceholder}
           className="w-full rounded-md border border-[#374151] bg-[#0a0f1a] px-3 py-2 text-sm text-[#f3f4f6] placeholder-[#6b7280] focus:border-indigo-500 focus:outline-none"
           data-testid="tags-input"
