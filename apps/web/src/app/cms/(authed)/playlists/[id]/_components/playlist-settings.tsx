@@ -39,31 +39,39 @@ export function PlaylistSettings({
 
   function handleSave() {
     startTransition(async () => {
-      const result = await onUpdate(playlist.id, playlist.site_id, {
-        name_pt: namePt,
-        name_en: nameEn,
-        slug,
-        description_pt: descriptionPt || null,
-        description_en: descriptionEn || null,
-        category: category || null,
-        status,
-      })
-      if (result.ok) {
-        setMessage({ type: 'success', text: 'Settings saved' })
-        setTimeout(() => setMessage(null), 2000)
-      } else {
-        setMessage({ type: 'error', text: result.error })
+      try {
+        const result = await onUpdate(playlist.id, playlist.site_id, {
+          name_pt: namePt,
+          name_en: nameEn,
+          slug,
+          description_pt: descriptionPt || null,
+          description_en: descriptionEn || null,
+          category: category || null,
+          status,
+        })
+        if (result.ok) {
+          setMessage({ type: 'success', text: 'Settings saved' })
+          setTimeout(() => setMessage(null), 2000)
+        } else {
+          setMessage({ type: 'error', text: result.error })
+        }
+      } catch {
+        setMessage({ type: 'error', text: 'Failed to save settings' })
       }
     })
   }
 
   function handleDelete() {
     startTransition(async () => {
-      const result = await onDelete(playlist.id, playlist.site_id)
-      if (result.ok) {
-        router.push('/cms/playlists')
-      } else {
-        setMessage({ type: 'error', text: result.error })
+      try {
+        const result = await onDelete(playlist.id, playlist.site_id)
+        if (result.ok) {
+          router.push('/cms/playlists')
+        } else {
+          setMessage({ type: 'error', text: result.error })
+        }
+      } catch {
+        setMessage({ type: 'error', text: 'Failed to delete playlist' })
       }
     })
   }

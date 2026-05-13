@@ -38,24 +38,28 @@ export function NewPlaylistForm({ siteId }: Props) {
     e.preventDefault()
 
     startTransition(async () => {
-      const result = await createPlaylist(siteId, {
-        name_en: nameEn.trim(),
-        name_pt: namePt.trim() || undefined,
-        slug: slug.trim(),
-        description_pt: descriptionPt.trim() || undefined,
-        description_en: descriptionEn.trim() || undefined,
-        category: category.trim() || undefined,
-        status: 'draft',
-      })
+      try {
+        const result = await createPlaylist(siteId, {
+          name_en: nameEn.trim(),
+          name_pt: namePt.trim() || undefined,
+          slug: slug.trim(),
+          description_pt: descriptionPt.trim() || undefined,
+          description_en: descriptionEn.trim() || undefined,
+          category: category.trim() || undefined,
+          status: 'draft',
+        })
 
-      if (!result.ok) {
-        toast.error(result.error === 'slug_already_exists'
-          ? 'That slug is already in use. Try a different one.'
-          : result.error)
-        return
+        if (!result.ok) {
+          toast.error(result.error === 'slug_already_exists'
+            ? 'That slug is already in use. Try a different one.'
+            : result.error)
+          return
+        }
+
+        router.push(`/cms/playlists/${result.data.id}`)
+      } catch {
+        toast.error('Failed to create playlist. Please try again.')
       }
-
-      router.push(`/cms/playlists/${result.data.id}`)
     })
   }
 
