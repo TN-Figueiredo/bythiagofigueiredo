@@ -11,6 +11,8 @@ import {
   saveViewportState,
   updatePlaylist,
   deletePlaylist,
+  addItemToPlaylist,
+  getAvailableContent,
 } from '../actions'
 
 export const dynamic = 'force-dynamic'
@@ -39,6 +41,8 @@ export default async function PlaylistEditorPage({
         onSaveViewport={saveViewportState}
         onUpdate={updatePlaylist}
         onDelete={deletePlaylist}
+        onAddItem={addItemToPlaylist}
+        onFetchContent={getAvailableContent}
       />
     </div>
   )

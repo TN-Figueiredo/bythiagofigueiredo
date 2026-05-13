@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   useCanvas,
   useDragNode,
@@ -28,6 +29,8 @@ import { PlaylistSettings } from './playlist-settings'
 import { PlaylistEmptyState } from './playlist-skeleton'
 import { EdgeTypeSelector } from './edge-type-selector'
 import { ContextMenu } from './context-menu'
+import { ContentPicker } from './content-picker'
+import type { PickerItem } from '../../actions'
 
 type SaveState = 'saved' | 'saving' | 'error'
 
@@ -45,6 +48,8 @@ interface PlaylistCanvasProps {
   ) => Promise<ActionResult<void>>
   onUpdate: (playlistId: string, siteId: string, input: unknown) => Promise<ActionResult<PlaylistRow>>
   onDelete: (playlistId: string, siteId: string) => Promise<ActionResult<void>>
+  onAddItem: (siteId: string, input: unknown) => Promise<ActionResult<{ id: string }>>
+  onFetchContent: (siteId: string, playlistId: string) => Promise<ActionResult<PickerItem[]>>
 }
 
 export function PlaylistCanvas({
@@ -57,10 +62,14 @@ export function PlaylistCanvas({
   onSaveViewport,
   onUpdate,
   onDelete,
+  onAddItem,
+  onFetchContent,
 }: PlaylistCanvasProps) {
+  const router = useRouter()
   const [state, dispatch] = useReducer(graphReducer, undefined, initialGraphState)
   const [saveState, setSaveState] = useState<SaveState>('saved')
   const [showSettings, setShowSettings] = useState(false)
+  const [showPicker, setShowPicker] = useState(false)
   const [contextMenu, setContextMenu] = useState<{
     x: number
     y: number
@@ -480,6 +489,7 @@ export function PlaylistCanvas({
           selectedItemIds={state.selectedItemIds}
           onSelectItem={handleSidebarSelectItem}
           onRemoveItem={handleRemoveItem}
+          onAddContent={() => setShowPicker(true)}
         />
 
         {/* Canvas viewport */}
@@ -623,6 +633,17 @@ export function PlaylistCanvas({
           onClose={() => setContextMenu(null)}
         />
       )}
+
+      {/* Content picker */}
+      <ContentPicker
+        isOpen={showPicker}
+        onClose={() => setShowPicker(false)}
+        playlistId={graph.playlist.id}
+        siteId={siteId}
+        onFetchContent={onFetchContent}
+        onAddItem={onAddItem}
+        onItemAdded={() => router.refresh()}
+      />
     </div>
   )
 }

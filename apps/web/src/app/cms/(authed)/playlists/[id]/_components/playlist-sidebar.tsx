@@ -1,5 +1,6 @@
 'use client'
 
+import { Plus } from 'lucide-react'
 import type { PlaylistItemEnriched, ContentType } from '@/lib/playlists/types'
 
 const TYPE_LABELS: Record<ContentType, string> = {
@@ -19,6 +20,7 @@ interface PlaylistSidebarProps {
   selectedItemIds: Set<string>
   onSelectItem: (itemId: string) => void
   onRemoveItem: (itemId: string) => void
+  onAddContent: () => void
 }
 
 export function PlaylistSidebar({
@@ -26,16 +28,26 @@ export function PlaylistSidebar({
   selectedItemIds,
   onSelectItem,
   onRemoveItem,
+  onAddContent,
 }: PlaylistSidebarProps) {
   const sortedItems = [...items].sort((a, b) => a.sort_order - b.sort_order)
 
   return (
     <div className="flex h-full w-64 flex-col border-r border-white/10 bg-[#0a0a12]">
       {/* Header */}
-      <div className="border-b border-white/10 px-3 py-2">
+      <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-white/40">
           Items ({items.length})
         </h2>
+        <button
+          type="button"
+          onClick={onAddContent}
+          className="flex items-center gap-1 rounded-md bg-indigo-600 px-2 py-1 text-[0.65rem] font-medium text-white hover:bg-indigo-700"
+          aria-label="Add content to playlist"
+        >
+          <Plus size={12} />
+          Add
+        </button>
       </div>
 
       {/* Items list */}

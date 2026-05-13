@@ -463,6 +463,96 @@ export async function updatePlaylistStatus(
   return updatePlaylist(playlistId, siteId, { status })
 }
 
+// ─── Content picker (read-only) ──────────────────────────────────────────────
+
+export interface PickerItem {
+  id: string
+  title: string
+  type: 'blog_post' | 'newsletter' | 'pipeline'
+  status: string | null
+  category: string | null
+  updatedAt: string
+}
+
+export async function getAvailableContent(
+  siteId: string,
+  playlistId: string,
+): Promise<ActionResult<PickerItem[]>> {
+  await requireEditScope()
+
+  const supabase = getSupabaseServiceClient()
+
+  const [blogRes, newsletterRes, pipelineRes, existingRes] = await Promise.all([
+    supabase
+      .from('blog_posts')
+      .select('id, status, category, updated_at, blog_translations!inner(title, locale)')
+      .eq('site_id', siteId)
+      .order('updated_at', { ascending: false }),
+    supabase
+      .from('newsletter_editions')
+      .select('id, subject, status, updated_at')
+      .eq('site_id', siteId)
+      .order('updated_at', { ascending: false }),
+    supabase
+      .from('content_pipeline')
+      .select('id, title_pt, title_en, format, stage, updated_at')
+      .eq('site_id', siteId)
+      .eq('is_archived', false)
+      .order('updated_at', { ascending: false }),
+    supabase
+      .from('playlist_items')
+      .select('blog_post_id, newsletter_edition_id, pipeline_id')
+      .eq('playlist_id', playlistId),
+  ])
+
+  const existing = new Set<string>()
+  for (const row of (existingRes.data ?? []) as { blog_post_id: string | null; newsletter_edition_id: string | null; pipeline_id: string | null }[]) {
+    if (row.blog_post_id) existing.add(row.blog_post_id)
+    if (row.newsletter_edition_id) existing.add(row.newsletter_edition_id)
+    if (row.pipeline_id) existing.add(row.pipeline_id)
+  }
+
+  const items: PickerItem[] = []
+
+  for (const b of (blogRes.data ?? []) as { id: string; status: string | null; category: string | null; updated_at: string; blog_translations: { title: string; locale: string }[] }[]) {
+    if (existing.has(b.id)) continue
+    items.push({
+      id: b.id,
+      title: b.blog_translations?.[0]?.title ?? 'Untitled',
+      type: 'blog_post',
+      status: b.status,
+      category: b.category,
+      updatedAt: b.updated_at,
+    })
+  }
+
+  for (const n of (newsletterRes.data ?? []) as { id: string; subject: string; status: string | null; updated_at: string }[]) {
+    if (existing.has(n.id)) continue
+    items.push({
+      id: n.id,
+      title: n.subject || 'Untitled',
+      type: 'newsletter',
+      status: n.status,
+      category: null,
+      updatedAt: n.updated_at,
+    })
+  }
+
+  for (const p of (pipelineRes.data ?? []) as { id: string; title_pt: string | null; title_en: string | null; format: string | null; stage: string | null; updated_at: string }[]) {
+    if (existing.has(p.id)) continue
+    items.push({
+      id: p.id,
+      title: p.title_en || p.title_pt || 'Untitled',
+      type: 'pipeline',
+      status: p.stage,
+      category: p.format,
+      updatedAt: p.updated_at,
+    })
+  }
+
+  return { ok: true, data: items }
+}
+
 // ─── Cowork API (read-only) ───────────────────────────────────────────────────
 
 export async function getPlaylistWithItems(
