@@ -83,7 +83,7 @@ export function computeAutoLayout(
   for (const [layerIndex, group] of sortedLayers) {
     for (let i = 0; i < group.length; i++) {
       positions.push({
-        itemId: group[i].id,
+        itemId: group[i]!.id,
         x: layerIndex * LAYER_GAP_X,
         y: i * NODE_GAP_Y,
       })
