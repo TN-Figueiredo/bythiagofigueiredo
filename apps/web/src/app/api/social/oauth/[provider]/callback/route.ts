@@ -12,8 +12,8 @@ function escapeHtml(s: string): string {
 function oauthResultHtml(provider: string, success: boolean, error?: string): Response {
   const origin = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
   const payload = success
-    ? JSON.stringify({ type: 'social-oauth-complete', provider })
-    : JSON.stringify({ type: 'social-oauth-error', provider, error })
+    ? JSON.stringify({ type: 'social-oauth-result', success: true, provider })
+    : JSON.stringify({ type: 'social-oauth-result', success: false, provider, error })
   // Escape </script> inside JSON to prevent breaking out of the script tag
   const safePayload = payload.replace(/<\//g, '<\\/')
   const safeError = escapeHtml(error ?? 'unknown')
