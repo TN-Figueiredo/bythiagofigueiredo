@@ -8,6 +8,7 @@ export function buildCmsSections(): SidebarSection[] {
         { icon: '🎬', label: 'YouTube', href: '/cms/youtube', minRole: 'editor' as const },
         { icon: '🖼️', label: 'Media', href: '/cms/media', minRole: 'editor' as const },
         { icon: '🔗', label: 'Links', href: '/cms/links', minRole: 'editor' as const },
+        { icon: '🎵', label: 'Playlists', href: '/cms/playlists', minRole: 'editor' as const },
       ]
 
       return { ...section, items }
@@ -29,7 +30,15 @@ export function buildCmsSections(): SidebarSection[] {
     ],
   }
 
+  const socialSection: SidebarSection = {
+    label: 'Social',
+    items: [
+      { icon: '📅', label: 'Calendar', href: '/cms/social', minRole: 'editor' as const },
+      { icon: '✏️', label: 'New Post', href: '/cms/social/new', minRole: 'editor' as const },
+    ],
+  }
+
   const contentIdx = sections.findIndex(s => s.label === 'Content')
-  sections.splice(contentIdx + 1, 0, pipelineSection)
+  sections.splice(contentIdx + 1, 0, pipelineSection, socialSection)
   return sections
 }
