@@ -1,6 +1,6 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import type { SocialDelivery } from '@tn-figueiredo/social'
 import { PlatformIcon, platformLabel } from '@/app/cms/(authed)/_shared/social/platform-icon'
 import { SocialStatusBadge } from '@/app/cms/(authed)/_shared/social/social-status-badge'
@@ -14,11 +14,20 @@ interface DeliveryCardProps {
 
 export function DeliveryCard({ delivery, strings: t }: DeliveryCardProps) {
   const [isPending, startTransition] = useTransition()
+  const [retryError, setRetryError] = useState<string | null>(null)
   const statusLabel = t.status[delivery.status as keyof typeof t.status] ?? delivery.status
 
   function handleRetry() {
+    setRetryError(null)
     startTransition(async () => {
-      await retrySocialDelivery(delivery.id)
+      try {
+        const result = await retrySocialDelivery(delivery.id)
+        if (!result.ok) {
+          setRetryError(result.error ?? t.common.error)
+        }
+      } catch {
+        setRetryError(t.common.error)
+      }
     })
   }
 
@@ -51,6 +60,9 @@ export function DeliveryCard({ delivery, strings: t }: DeliveryCardProps) {
               {t.detail.retry}
             </button>
           </div>
+          {retryError && (
+            <p role="alert" className="text-sm text-red-400">{retryError}</p>
+          )}
         </div>
       )}
 

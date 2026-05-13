@@ -7,6 +7,7 @@ import type { Provider } from '@tn-figueiredo/social'
 interface OauthButtonProps {
   provider: Provider
   label: string
+  connectingLabel?: string
   className?: string
 }
 
@@ -17,7 +18,7 @@ const OAUTH_PROVIDERS: Record<string, string> = {
   bluesky: 'bluesky',
 }
 
-export function OauthButton({ provider, label, className = '' }: OauthButtonProps) {
+export function OauthButton({ provider, label, connectingLabel, className = '' }: OauthButtonProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const messageListenerRef = useRef<((e: MessageEvent) => void) | null>(null)
@@ -72,7 +73,7 @@ export function OauthButton({ provider, label, className = '' }: OauthButtonProp
       disabled={isPending}
       className={`inline-flex items-center gap-2 rounded-md bg-cms-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-cms-accent-hover disabled:opacity-50 ${className}`}
     >
-      {isPending ? 'Connecting…' : label}
+      {isPending ? (connectingLabel ?? 'Connecting…') : label}
     </button>
   )
 }

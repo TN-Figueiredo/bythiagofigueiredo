@@ -30,12 +30,22 @@ export function PlatformCard({ provider, connections, strings: t }: PlatformCard
   const router = useRouter()
   const [showManage, setShowManage] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const [disconnectError, setDisconnectError] = useState<string | null>(null)
 
   function handleDisconnect(connectionId: string) {
     if (!confirm(t.accounts.connections.disconnectConfirm)) return
+    setDisconnectError(null)
     startTransition(async () => {
-      await disconnectSocial(connectionId)
-      router.refresh()
+      try {
+        const result = await disconnectSocial(connectionId)
+        if (!result.ok) {
+          setDisconnectError(result.error ?? t.common.error)
+        } else {
+          router.refresh()
+        }
+      } catch {
+        setDisconnectError(t.common.error)
+      }
     })
   }
 
@@ -66,7 +76,7 @@ export function PlatformCard({ provider, connections, strings: t }: PlatformCard
 
       {connections.length === 0 ? (
         <div className="py-4 text-center">
-          <OauthButton provider={provider} label={t.accounts.connections.addAccount} />
+          <OauthButton provider={provider} label={t.accounts.connections.addAccount} connectingLabel={t.common.connecting} />
         </div>
       ) : (
         <div className="space-y-2">
@@ -81,7 +91,7 @@ export function PlatformCard({ provider, connections, strings: t }: PlatformCard
                 {showManage && (
                   <div className="flex gap-2">
                     {status.color === 'text-red-400' && (
-                      <OauthButton provider={provider} label={t.accounts.connections.reconnect} className="text-xs px-2 py-1" />
+                      <OauthButton provider={provider} label={t.accounts.connections.reconnect} connectingLabel={t.common.connecting} className="text-xs px-2 py-1" />
                     )}
                     <button
                       type="button"
@@ -96,8 +106,11 @@ export function PlatformCard({ provider, connections, strings: t }: PlatformCard
               </div>
             )
           })}
+          {disconnectError && (
+            <p role="alert" className="text-sm text-red-400">{disconnectError}</p>
+          )}
           {showManage && (
-            <OauthButton provider={provider} label={t.accounts.connections.addAccount} className="w-full justify-center" />
+            <OauthButton provider={provider} label={t.accounts.connections.addAccount} connectingLabel={t.common.connecting} className="w-full justify-center" />
           )}
         </div>
       )}

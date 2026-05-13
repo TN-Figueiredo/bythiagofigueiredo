@@ -1,4 +1,17 @@
 export interface SocialStrings {
+  common: {
+    tryAgain: string
+    error: string
+    connecting: string
+    saving: string
+    deleting: string
+    loading: string
+  }
+  validation: {
+    contentOrUrl: string
+    invalidUrl: string
+    selectPlatform: string
+  }
   nav: {
     posts: string
     composer: string

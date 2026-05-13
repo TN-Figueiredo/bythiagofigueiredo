@@ -1,6 +1,19 @@
 import type { SocialStrings } from './types'
 
 export const en: SocialStrings = {
+  common: {
+    tryAgain: 'Try again',
+    error: 'Something went wrong',
+    connecting: 'Connecting…',
+    saving: 'Saving…',
+    deleting: 'Deleting…',
+    loading: 'Loading…',
+  },
+  validation: {
+    contentOrUrl: 'Content or URL is required',
+    invalidUrl: 'Enter a valid URL (e.g. https://example.com)',
+    selectPlatform: 'Select at least one platform',
+  },
   nav: { posts: 'Posts', composer: 'Composer', insights: 'Insights', accounts: 'Accounts' },
   posts: {
     title: 'Social Posts',

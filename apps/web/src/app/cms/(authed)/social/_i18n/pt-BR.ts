@@ -1,6 +1,19 @@
 import type { SocialStrings } from './types'
 
 export const ptBR: SocialStrings = {
+  common: {
+    tryAgain: 'Tentar novamente',
+    error: 'Algo deu errado',
+    connecting: 'Conectando…',
+    saving: 'Salvando…',
+    deleting: 'Excluindo…',
+    loading: 'Carregando…',
+  },
+  validation: {
+    contentOrUrl: 'Conteúdo ou URL é obrigatório',
+    invalidUrl: 'Digite uma URL válida (ex: https://exemplo.com)',
+    selectPlatform: 'Selecione pelo menos uma plataforma',
+  },
   nav: { posts: 'Posts', composer: 'Compositor', insights: 'Métricas', accounts: 'Contas' },
   posts: {
     title: 'Posts Sociais',
