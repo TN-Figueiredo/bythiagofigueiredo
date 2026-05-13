@@ -6,6 +6,7 @@ import type { Provider, PostType } from '@tn-figueiredo/social'
 import { PlatformSelector } from '@/app/cms/(authed)/_shared/social/platform-selector'
 import { ComposerEditor } from './composer-editor'
 import { PlatformPreviews } from './platform-previews'
+import { ImageComposer } from './image-composer'
 import { createSocialPost } from '@/lib/social/actions'
 import type { SocialStrings } from '../../_i18n/types'
 
@@ -37,6 +38,8 @@ export function ComposerShell({
   const [scheduleMode, setScheduleMode] = useState<'now' | 'schedule' | 'queue'>(
     'now',
   )
+  const [images, setImages] = useState<string[]>([])
+  const [caption, setCaption] = useState('')
   const [scheduledAt, setScheduledAt] = useState('')
 
   function handlePublish() {
@@ -110,9 +113,7 @@ export function ComposerShell({
           )}
 
           {mode === 'image' && (
-            <div className="rounded-lg border border-dashed border-cms-border p-8 text-center text-cms-text-muted">
-              {t.composer.image.addImages}
-            </div>
+            <ImageComposer images={images} onImagesChange={setImages} caption={caption} onCaptionChange={setCaption} selectedPlatforms={platforms} strings={t} />
           )}
 
           {mode === 'video' && (
