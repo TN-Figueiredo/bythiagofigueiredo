@@ -148,6 +148,31 @@ Formato alternativo — wrapper object (quando há SEO legado):
 
 **Dica:** Use a formatação completa do preset `full` (H2-H4, listas, blockquotes, code blocks, checklist, imagens, tabelas). O DraftRenderer exibe um outline de seções quando há 2+ headings no conteúdo. Para embeds e colunas, oriente o criador a usar os botões dedicados na toolbar.
 
+### Placeholders de imagem no draft
+
+Ao gerar o draft, insira placeholders de imagem usando markdown padrão com o `ref_id` como prefixo do alt text. Esses placeholders são detectados automaticamente pelo editor e exibidos como cards interativos com botões "Upload" e "Buscar", permitindo ao criador substituir pela imagem real.
+
+**Formato do placeholder:**
+```markdown
+![img-cover: Descrição da imagem de capa](https://placehold.co/1200x675/1a1a2e/e2e8f0?text=COVER)
+```
+
+**Para imagens no corpo:**
+```markdown
+![img-1: Descrição da primeira imagem](https://placehold.co/800x450/1a1a2e/e2e8f0?text=IMG-1)
+![img-2: Descrição da segunda imagem](https://placehold.co/800x450/1a1a2e/e2e8f0?text=IMG-2)
+```
+
+**Regras:**
+- O prefixo DEVE seguir o formato `img-<ref_id>:` (e.g., `img-cover:`, `img-1:`, `img-2:`)
+- O `ref_id` DEVE corresponder ao `ref_id` definido na seção `images_shared` (`body_images[].ref_id`)
+- A URL placeholder DEVE usar `placehold.co` — o editor detecta este domínio como placeholder
+- A descrição após o `:` é exibida no card de placeholder para contexto do criador
+- Quando o criador seleciona uma imagem real, a URL do placeholder é substituída automaticamente
+- Placeholders de cover usam `1200x675` (16:9), body images usam `800x450`
+
+**Posicionamento:** Coloque os placeholders no local exato onde a imagem deve aparecer no conteúdo final. O `placement` na seção `images_shared` documenta a posição semântica, mas a posição real é definida pelo placeholder no draft.
+
 ---
 
 ## Section: `roteiro` (per-lang)
@@ -434,6 +459,107 @@ Prefixo `optional` marca nota como opcional.
 
 ---
 
+## Section: `images` (shared) — Prompts Visuais e Image Management
+
+```json
+{
+  "cover": {
+    "prompts": [
+      {
+        "rank": 1,
+        "prompt": "developer at minimalist desk, laptop with code editor, warm golden hour light --ar 16:9 --v 6.1",
+        "rationale": "Recomendada: composição clássica, luz quente, preserva anonimato",
+        "alt_text_pt": "Desenvolvedor trabalhando em laptop com editor de código, luz dourada",
+        "alt_text_en": "Developer working on laptop with code editor, golden light"
+      },
+      { "rank": 2, "prompt": "...", "rationale": "Variação criativa", "alt_text_pt": "...", "alt_text_en": "..." },
+      { "rank": 3, "prompt": "...", "rationale": "Approach diferente", "alt_text_pt": "...", "alt_text_en": "..." }
+    ],
+    "chosen": null,
+    "image_url": null,
+    "fallback_search": "developer workspace golden hour - Unsplash",
+    "status": "prompt_ready"
+  },
+  "body_images": [
+    {
+      "ref_id": "img-1",
+      "placement": "after_h2:1",
+      "intent": "concept_illustration",
+      "description": "Timeline visual das 4 fases da trajetória",
+      "prompts": [
+        { "rank": 1, "prompt": "...", "rationale": "...", "alt_text_pt": "...", "alt_text_en": "..." },
+        { "rank": 2, "prompt": "...", "rationale": "...", "alt_text_pt": "...", "alt_text_en": "..." },
+        { "rank": 3, "prompt": "...", "rationale": "...", "alt_text_pt": "...", "alt_text_en": "..." }
+      ],
+      "chosen": null,
+      "image_url": null,
+      "fallback_search": "career timeline infographic - Unsplash",
+      "status": "prompt_ready"
+    }
+  ]
+}
+```
+
+### Cover
+
+| Campo | Tipo | Obrigatório | Notas |
+|-------|------|-------------|-------|
+| `cover.prompts` | Prompt[] | sim | 3 prompts rankeados (1=recomendada, 2=variação, 3=approach diferente) |
+| `cover.prompts[].rank` | number 1-3 | sim | Ordem de recomendação |
+| `cover.prompts[].prompt` | string | sim | Prompt Midjourney completo (com --ar e --v) |
+| `cover.prompts[].rationale` | string | sim | Por que esta opção |
+| `cover.prompts[].alt_text_pt` | string | sim | Texto alternativo PT para SEO/accessibility |
+| `cover.prompts[].alt_text_en` | string | sim | Texto alternativo EN |
+| `cover.chosen` | number 1-3 \| null | não | Preenchido quando criador escolhe |
+| `cover.image_url` | URL \| null | não | Preenchido após upload |
+| `cover.fallback_search` | string | não | Termos de busca Unsplash/Pexels se Midjourney falhar |
+| `cover.status` | string | não | `prompt_ready` → `generating` → `generated` → `uploaded` |
+
+### Body images
+
+| Campo | Tipo | Obrigatório | Notas |
+|-------|------|-------------|-------|
+| `body_images[].ref_id` | string | sim | Vincula ao placeholder no draft: `![ref_id: desc](placeholder_url)` |
+| `body_images[].placement` | string | sim | Posição no draft: `after_h2:N`, `after_paragraph:N`, `before_cta` |
+| `body_images[].intent` | string | sim | `concept_illustration`, `data_visualization`, `emotional_break`, `process_diagram`, `screenshot` |
+| `body_images[].description` | string | sim | O que a imagem mostra |
+| `body_images[].prompts` | Prompt[] | sim | Mesma estrutura do cover (3 rankeados) |
+| `body_images[].chosen` | number \| null | não | Índice escolhido |
+| `body_images[].image_url` | URL \| null | não | URL final após upload |
+| `body_images[].fallback_search` | string | não | Termos Unsplash |
+| `body_images[].status` | string | não | Mesmo workflow do cover |
+
+### Prompts Midjourney — regras
+
+- **Cover:** sempre `--ar 16:9` (hero 1200×675)
+- **Body images:** `--ar 16:9` ou `--ar 3:2`
+- **Versão:** `--v 6.1` (ou mais recente)
+- **Estilo:** cinematic, warm tones, natural light, sem stock-photo-feel
+- **Evitar:** pessoas com rosto visível (Midjourney distorce), texto na imagem, logos
+- **Structure:** [subject] + [setting] + [lighting] + [camera/lens] + [mood] + [parameters]
+
+### Placeholders no draft
+
+Quando a skill gera imagens no `images_shared`, inserir placeholders correspondentes no draft body. O editor detecta automaticamente placeholders `placehold.co` e imagens com prefixo `img-*:` no alt text, exibindo um card interativo com botões "Upload" e "Buscar existente".
+
+```markdown
+![img-cover: Descrição da imagem de capa](https://placehold.co/1200x675/1a1a2e/e2e8f0?text=COVER)
+![img-1: Descrição da imagem](https://placehold.co/800x450/1a1a2e/e2e8f0?text=IMG-1)
+```
+
+**Regras:**
+- O `ref_id` do placeholder DEVE corresponder ao `ref_id` no `body_images[]`
+- O prefixo do alt text DEVE ser `img-<ref_id>:` seguido de descrição
+- A URL DEVE usar domínio `placehold.co` para detecção automática
+- Quando o criador seleciona uma imagem real via o card, a URL placeholder é substituída automaticamente no draft
+- Se o campo `image_url` no `body_images[]` for preenchido via API, substituir também a URL placeholder no draft
+
+### Otimização de imagem
+
+Conversão para WebP, responsive sizes (400w/800w/1200w) e lazy loading são responsabilidade do CMS na graduação. Skills não gerenciam otimização — basta que `image_url` aponte para a imagem original.
+
+---
+
 ## Sections sem renderer especializado (usam GenericRenderer)
 
 Seções sem renderer dedicado usam `GenericRenderer`:
@@ -464,7 +590,7 @@ Além das seções, o pipeline item tem campos no nível do item que podem ser a
 
 | Campo | Tipo | Notas |
 |-------|------|-------|
-| `category` | `"stories"` \| `"building"` \| `"money"` \| `"bts"` \| `null` | Só relevante para format `blog_post`. Transferido na graduação (default: `building`). |
+| `category` | `"stories"` \| `"building"` \| `"control"` \| `"bts"` \| `null` | Só relevante para format `blog_post`. Transferido na graduação (default: `building`). Nota: `"money"` renomeado para `"control"` em 2026-05-12 — cobre finanças, fitness, livros, relacionamentos, rotina. |
 | `cover_image_url` | URL string \| `null` | Imagem de capa. Crop 16:9, max 1200×675. Transferida na graduação para `blog_posts.cover_image_url`. |
 
 Estes campos são gerenciados pela UI (dropdown de categoria, galeria de mídia). Cowork não precisa atualizá-los diretamente — mas pode referenciar `category` ao gerar conteúdo que mencione a categoria do post.
@@ -481,3 +607,42 @@ Estes campos são gerenciados pela UI (dropdown de categoria, galeria de mídia)
 6. **Idioma**: conteúdo no idioma da seção (`_pt` = PT-BR, `_en` = EN). Tags de script são sempre em inglês.
 7. **`source`**: sempre `"cowork"` quando gerado por AI
 8. **`modified_by`**: sempre `"cowork-claude"` para rastreabilidade
+
+---
+
+## Playlists
+
+Playlists organizam conteúdo (blog posts, newsletters, pipeline items) em sequências visuais via um editor de grafos no CMS. Cowork pode adicionar itens graduados automaticamente a playlists relevantes.
+
+### Server Actions disponíveis
+
+| Action | Parâmetros | Retorno |
+|--------|-----------|---------|
+| `addItemToPlaylist(siteId, input)` | `{ playlistId, blogPostId?, newsletterEditionId?, pipelineId?, sortOrder?, positionX?, positionY? }` | `ActionResult<{ id: string }>` |
+| `createEdge(siteId, input)` | `{ playlistId, sourceItemId, targetItemId, edgeType, label? }` | `ActionResult<{ id: string }>` |
+| `getPlaylistWithItems(playlistId, siteId)` | — | `ActionResult<PlaylistGraph>` |
+
+### Edge types
+
+| Type | Semântica | Uso |
+|------|----------|-----|
+| `sequence` | Ordem de leitura linear | Seta azul, define sort_order visual |
+| `related` | "Veja também" | Linha cinza tracejada, sem seta |
+| `prerequisite` | "Leia antes" | Seta amarela tracejada |
+| `continuation` | Continuação direta | Seta verde |
+
+### Integração com graduação
+
+Quando um pipeline item é graduado (ex: blog_post → blog_posts), o item pode ser adicionado a uma playlist existente:
+
+1. Buscar playlists do site via `getPlaylistWithItems` para encontrar playlists relevantes (por category ou conteúdo relacionado)
+2. Usar `addItemToPlaylist` com o `blogPostId` (ou `newsletterEditionId`) do conteúdo graduado
+3. Opcionalmente criar `sequence` edge conectando ao último item da playlist
+
+### Regras
+
+1. Cada conteúdo aparece **no máximo uma vez** por playlist (constraint único no DB)
+2. Não criar edges de self-loop (source === target) — o DB rejeita com constraint
+3. Sequence edges não podem criar ciclos — o DB tem trigger `prevent_sequence_cycle` que rejeita
+4. `sortOrder` usa incrementos de 1000 (ex: 1000, 2000, 3000) para permitir inserções intermediárias
+5. Posições no canvas (`positionX`, `positionY`) são opcionais — se omitidas, default (0,0) e o editor oferece auto-layout
