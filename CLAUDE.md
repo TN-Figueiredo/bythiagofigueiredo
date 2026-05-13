@@ -131,7 +131,7 @@ Sentry: `NEXT_PUBLIC_SENTRY_DSN` required em prod/preview, optional em dev (empt
 ## Roadmap
 
 **Done:** Sprints 0, 1a, 1b, 2, 3, 4a, 4b, 4.5, 4.75, 5a, 5b, 5c, 5e, 5f, 5g
-**Next:** Sprint 5d (Vercel deploy hardening) → Sprint 6 (MVP Launch, 30h)
+**Next:** Sprint 5h (Social Hub, ~78h) → Sprint 5d (Vercel deploy hardening) → Sprint 6 (MVP Launch, 30h)
 Source of truth: `docs/roadmap/README.md`
 
 ## Code Standards

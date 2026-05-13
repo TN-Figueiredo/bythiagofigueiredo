@@ -4,16 +4,16 @@
 > **Source of truth de execução:** este diretório.
 > **Rationale de produto e scoring:** `~/Workspace/ideias/bythiagofigueiredo/` (docs 01–05, 2026-04-12).
 
-**Versão:** 2026-04-17 · **Revisão:** 8 (CI hardening ✅ — PR #39+40, migrations 20260501000004-6 em prod)
+**Versão:** 2026-05-12 · **Revisão:** 11 (Sprint 5h Social Hub adicionado como próximo sprint)
 
 ## Visão macro
 
 | Fase | Sprints | Horas | Semanas | Status | Arquivo |
 |------|:-------:|:-----:|:-------:|:------:|---------|
-| **1 — MVP** | 0–6 | ~242h | 10–11 | 🟡 in-progress (Sprints 0–4.5 + 5a ✅; 5b stacked PRs open; 5c/5d/6 pending) | [phase-1-mvp.md](phase-1-mvp.md) |
+| **1 — MVP** | 0–6 + 5h | ~320h | 13–14 | 🟡 in-progress (Sprints 0–5b + 5e/5f/5g ✅; 5c/5d/6 pending; 5h next) | [phase-1-mvp.md](phase-1-mvp.md) |
 | **2 — Nice-to-Have** | 7–10 | 152h | 7 | ☐ not-started | [phase-2-nice-to-have.md](phase-2-nice-to-have.md) |
 | **3 — CMS Hub Distribution** | 11–12 | 70h | 3 | ☐ not-started | [phase-3-cms-hub.md](phase-3-cms-hub.md) |
-| **Total** | 12 | **~464h** | **20–21** | | |
+| **Total** | 13 | **~542h** | **23–24** | | |
 
 > **Nota sobre totais (rev 3, 2026-04-16):** source doc original reportava 202h / Fase 1, assumindo Sprint 4 = "LGPD & Deployment" (38h). Durante execução, Sprint 4 shipou outro escopo (package extraction + observability + LGPD retention, ~40h realizados) e o trabalho de LGPD público/deploy foi re-slotted num novo Sprint 5 — "Public launch prep". Burnout/MVP Launch renumerado Sprint 5→6. Nova soma Fase 1: 12+40+42+40+40+38+30 = **242h** (+40h vs plano). Total global **~464h** (+40h). Sprints downstream da Fase 2/3 renumerados (+1). Este roadmap usa os valores per-sprint como autoridade de execução.
 
@@ -75,7 +75,7 @@
 
 **Sprint ativo:** nenhum.
 
-**Próximo:** Sprint 5c (Playwright E2E, ~8h) — cobre auth + CMS critical paths ponta-a-ponta. Bloqueador de confiança para o MVP Launch.
+**Próximo:** Sprint 5h (Social Hub, ~78h) — cross-platform social media management (YouTube + Facebook + Instagram + Bluesky). Package `@tn-figueiredo/social` do ecossistema.
 
 ## Legenda de status
 
@@ -93,6 +93,7 @@ Aplicada em 3 níveis: fase, sprint, epic.
 |---------|:------:|:-----:|:----:|:------:|:------------:|
 | **@tn-figueiredo/cms** (NEW) | S2 + S4b extract + S4.5 /login | 24h + ~8h + ~3h | 1 | ✅ `v0.2.0` published | ~60h poupadas em 5+ sites |
 | **@tn-figueiredo/email** (NEW) | S3 setup + S4b extract | 6h + ~8h | 1 | ✅ `v0.1.0` published | ~48h em 6+ apps |
+| **@tn-figueiredo/social** (NEW) | S5h | ~78h | 1 | ☐ not-started | ~100h+ poupadas em 5+ sites |
 | **@tn-figueiredo/storage** (NEW) | S8 | 10h | 2 | ☐ not-started | ~24h em 6+ apps |
 
 ### Consumidos do ecossistema (criados em outros projetos)
@@ -167,6 +168,7 @@ Lista completa de 9 riscos: `~/Workspace/ideias/bythiagofigueiredo/03-roadmap-cr
 
 ## Changelog
 
+- **2026-05-12 rev11:** Sprint 5h (Social Hub) adicionado como próximo sprint. Package `@tn-figueiredo/social` — YouTube + Facebook + Instagram + Bluesky cross-platform publishing. ~78h estimadas. Spec: `docs/superpowers/specs/2026-05-12-sprint-5h-social-hub-design.md`.
 - **2026-04-19 rev10:** Affiliate Products & Setup Page adicionados (98/100 spec). Sprints 6 (+6h→46h), 7 (+14h→56h), 8 (+4h→52h). Total Fase 2: +24h (~176h). Spec: `docs/superpowers/specs/2026-04-19-affiliate-products-design.md`. Feature: `<ProductCard />` MDX + `/setup` bilíngue + `/go/[id]` redirect handler + `affiliate_products` DB + click tracking + cron de link expiry + compliance LGPD/CONAR/Amazon Associates.
 - **2026-04-19 rev9:** Roadmap de packages atualizado — tabela separada "criados" vs "consumidos"; `@tn-figueiredo/analytics` e `@tn-figueiredo/pixels` adicionados como targets de consumo no Sprint 8; Sprint 8 renomeado "Analytics, Pixels & Storage" (+8h, 40h→48h); pre-study gates adicionados. Dev local desbloqueado: `NEXT_PUBLIC_DEV_SITE_HOSTNAME` override no middleware + fix redirect no cms/login e admin/login (`searchParams → redirectTo`).
 - **2026-04-17 rev8:** Sprint 5b ✅ + CI hardening ✅ (PR #39+40 — 18 integration test failures drained, Integration job hard-gated, security fix lgpd_phase1_cleanup guard, migrations 20260501000004-6 em prod). Progress ~47% (218h / 464h). Sprint ativo: nenhum. Próximo: Sprint 5c (Playwright E2E, ~8h).

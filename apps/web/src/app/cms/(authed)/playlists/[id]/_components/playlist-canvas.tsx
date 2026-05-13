@@ -11,6 +11,7 @@ import {
   initialGraphState,
   computeAutoLayout,
   edgePath,
+  getConnectionPoints,
   type GraphState,
 } from '@/lib/playlists/canvas'
 import type {
@@ -119,6 +120,7 @@ export function PlaylistCanvas({
     handlePanMove,
     handlePanEnd,
     zoomToFit,
+    zoomBy,
     isPanning,
   } = useCanvas({
     initialCamera: graph.playlist.viewport_state
@@ -320,18 +322,18 @@ export function PlaylistCanvas({
   // ── Toolbar actions ──────────────────────────────────────────────────
 
   const handleUndo = useCallback(() => {
-    const prev = undo()
+    const prev = undo(state)
     if (prev) {
       dispatch({ type: 'LOAD', items: prev.items, edges: prev.edges })
     }
-  }, [undo])
+  }, [undo, state])
 
   const handleRedo = useCallback(() => {
-    const next = redo()
+    const next = redo(state)
     if (next) {
       dispatch({ type: 'LOAD', items: next.items, edges: next.edges })
     }
-  }, [redo])
+  }, [redo, state])
 
   const handleAutoLayout = useCallback(() => {
     pushSnapshot(state)
@@ -354,6 +356,121 @@ export function PlaylistCanvas({
   const handleZoomToFit = useCallback(() => {
     zoomToFit(state.items)
   }, [zoomToFit, state.items])
+
+  const handleZoomIn = useCallback(() => zoomBy(1.25), [zoomBy])
+  const handleZoomOut = useCallback(() => zoomBy(0.8), [zoomBy])
+
+  const handleExport = useCallback(() => {
+    const el = containerRef.current
+    if (!el) return
+    const items = state.items
+    if (items.length === 0) return
+
+    const pad = 60
+    const nodeW = 180
+    const nodeH = 100
+    const minX = Math.min(...items.map(i => i.position_x)) - pad
+    const minY = Math.min(...items.map(i => i.position_y)) - pad
+    const maxX = Math.max(...items.map(i => i.position_x)) + nodeW + pad
+    const maxY = Math.max(...items.map(i => i.position_y)) + nodeH + pad
+    const w = maxX - minX
+    const h = maxY - minY
+
+    const typeColors: Record<string, string> = {
+      blog_post: '#818cf8',
+      newsletter: '#34d399',
+      pipeline: '#a855f7',
+    }
+
+    const offscreen = document.createElement('canvas')
+    const scale = 2
+    offscreen.width = w * scale
+    offscreen.height = h * scale
+    const ctx = offscreen.getContext('2d')!
+    ctx.scale(scale, scale)
+    ctx.fillStyle = '#0a0a12'
+    ctx.fillRect(0, 0, w, h)
+
+    for (const item of items) {
+      const x = item.position_x - minX
+      const y = item.position_y - minY
+      const color = item.content_type ? typeColors[item.content_type] ?? '#6b7280' : '#6b7280'
+
+      ctx.fillStyle = color + '18'
+      ctx.strokeStyle = color + '40'
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.roundRect(x, y, 160, 70, 10)
+      ctx.fill()
+      ctx.stroke()
+
+      ctx.fillStyle = color
+      ctx.font = 'bold 9px -apple-system, sans-serif'
+      const badge = item.content_type === 'blog_post' ? 'BLOG' : item.content_type === 'newsletter' ? 'NEWS' : item.content_type === 'pipeline' ? 'PIPE' : ''
+      if (badge) {
+        const tw = ctx.measureText(badge).width
+        ctx.beginPath()
+        ctx.roundRect(x + 8, y + 8, tw + 8, 14, 3)
+        ctx.fill()
+        ctx.fillStyle = '#fff'
+        ctx.fillText(badge, x + 12, y + 18)
+      }
+
+      ctx.fillStyle = '#fff'
+      ctx.font = '600 12px -apple-system, sans-serif'
+      const title = item.title.length > 20 ? item.title.slice(0, 19) + '…' : item.title
+      ctx.fillText(title, x + 8, y + 38)
+
+      ctx.fillStyle = '#ffffff66'
+      ctx.font = '10px -apple-system, sans-serif'
+      ctx.fillText(item.status ?? '', x + 8, y + 54)
+    }
+
+    const edgeColors: Record<string, string> = {
+      sequence: '#818cf8',
+      related: '#6b7280',
+      prerequisite: '#fbbf24',
+      continuation: '#34d399',
+    }
+    for (const edge of state.edges) {
+      const src = items.find(i => i.id === edge.source_item_id)
+      const tgt = items.find(i => i.id === edge.target_item_id)
+      if (!src || !tgt) continue
+
+      const { sourcePoint, targetPoint } = getConnectionPoints(src, tgt)
+      const sx = sourcePoint.x - minX
+      const sy = sourcePoint.y - minY
+      const tx = targetPoint.x - minX
+      const ty = targetPoint.y - minY
+
+      ctx.strokeStyle = edgeColors[edge.edge_type] ?? '#6b7280'
+      ctx.lineWidth = 1.5
+      const dx = targetPoint.x - sourcePoint.x
+      const dy = targetPoint.y - sourcePoint.y
+      ctx.beginPath()
+      if (Math.abs(dx) >= Math.abs(dy)) {
+        const ecp = Math.max(Math.abs(tx - sx) * 0.4, 50)
+        const d = tx >= sx ? 1 : -1
+        ctx.moveTo(sx, sy)
+        ctx.bezierCurveTo(sx + ecp * d, sy, tx - ecp * d, ty, tx, ty)
+      } else {
+        const ecp = Math.max(Math.abs(ty - sy) * 0.4, 50)
+        const d = ty >= sy ? 1 : -1
+        ctx.moveTo(sx, sy)
+        ctx.bezierCurveTo(sx, sy + ecp * d, tx, ty - ecp * d, tx, ty)
+      }
+      ctx.stroke()
+    }
+
+    offscreen.toBlob(blob => {
+      if (!blob) return
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = `playlist-${graph.playlist.slug}.png`
+      a.click()
+      URL.revokeObjectURL(a.href)
+    }, 'image/png')
+  }, [containerRef, state.items, state.edges, graph.playlist.slug])
 
   const handleMinimapNavigate = useCallback(
     (x: number, y: number) => {
@@ -402,6 +519,12 @@ export function PlaylistCanvas({
       } else if (e.key === '0' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault()
         handleZoomToFit()
+      } else if ((e.key === '=' || e.key === '+') && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        handleZoomIn()
+      } else if (e.key === '-' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        handleZoomOut()
       }
     }
 
@@ -413,6 +536,8 @@ export function PlaylistCanvas({
     handleRemoveItem,
     handleDeleteSelectedEdges,
     handleZoomToFit,
+    handleZoomIn,
+    handleZoomOut,
     state.selectedItemIds,
     state.selectedEdgeIds,
     state.items,
@@ -475,10 +600,14 @@ export function PlaylistCanvas({
         saveState={saveState}
         canUndo={canUndo()}
         canRedo={canRedo()}
+        zoomPercent={Math.round(camera.zoom * 100)}
         onUndo={handleUndo}
         onRedo={handleRedo}
         onAutoLayout={handleAutoLayout}
+        onZoomIn={handleZoomIn}
+        onZoomOut={handleZoomOut}
         onZoomToFit={handleZoomToFit}
+        onExport={handleExport}
         onToggleSettings={() => setShowSettings(prev => !prev)}
       />
 
@@ -521,6 +650,7 @@ export function PlaylistCanvas({
         >
           {/* Transform group */}
           <div
+            data-transform-group
             style={{
               transform: `translate(${camera.x}px, ${camera.y}px) scale(${camera.zoom})`,
               transformOrigin: '0 0',
@@ -570,6 +700,10 @@ export function PlaylistCanvas({
                 key={item.id}
                 item={item}
                 isSelected={state.selectedItemIds.has(item.id)}
+                isDropTarget={
+                  edgeDrag.dragEdge.active &&
+                  edgeDrag.dragEdge.sourceItemId !== item.id
+                }
                 onPointerDown={dragNode.handlePointerDown}
                 onHandlePointerDown={edgeDrag.handleHandlePointerDown}
                 onContextMenu={handleContextMenu}

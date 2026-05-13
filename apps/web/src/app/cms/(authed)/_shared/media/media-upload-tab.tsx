@@ -13,6 +13,7 @@ const FOLDER_OPTIONS: Array<{ value: MediaFolder; labelKey: keyof ReturnType<typ
   { value: 'general', labelKey: 'folderGeneral' },
   { value: 'authors', labelKey: 'folderAuthors' },
   { value: 'blog', labelKey: 'folderBlog' },
+  { value: 'pipeline', labelKey: 'folderPipeline' },
   { value: 'newsletters', labelKey: 'folderNewsletters' },
   { value: 'branding', labelKey: 'folderBranding' },
   { value: 'og', labelKey: 'folderOg' },
@@ -153,8 +154,8 @@ export function MediaUploadTab({ onSelect, folder, cropPreset, locale }: UploadT
     try {
       const formData = new FormData()
       if (croppedBlob) {
-        const ext = selectedFile?.name.split('.').pop() ?? 'webp'
-        formData.append('file', croppedBlob, `cropped.${ext}`)
+        const file = new File([croppedBlob], 'cropped.webp', { type: 'image/webp' })
+        formData.append('file', file)
       } else {
         formData.append('file', fileToUpload as File)
       }
@@ -165,7 +166,7 @@ export function MediaUploadTab({ onSelect, folder, cropPreset, locale }: UploadT
       const result = await uploadMediaAction(formData)
 
       if (!result.ok) {
-        setUploadError(result.error)
+        setUploadError(t.upload.errorCodes?.[result.error] ?? result.error)
         return
       }
 
@@ -177,8 +178,10 @@ export function MediaUploadTab({ onSelect, folder, cropPreset, locale }: UploadT
         height: croppedDims?.height ?? result.asset.height ?? 0,
         mimeType: result.asset.mimeType,
       })
-    } catch {
-      setUploadError(t.upload.uploadError)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('[media-upload]', msg)
+      setUploadError(`${t.upload.uploadError}: ${msg}`)
     } finally {
       setUploading(false)
     }

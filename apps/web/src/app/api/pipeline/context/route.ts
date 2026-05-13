@@ -11,9 +11,9 @@ export async function GET(req: NextRequest) {
   const supabase = getSupabaseServiceClient()
   const { data, error } = await supabase
     .from('reference_content')
-    .select('key, title, content_md, content_compact, version, updated_at')
+    .select('key, title, content_md, content_compact, ref_group, sort_order, version, updated_at')
     .eq('site_id', auth.siteId)
-    .order('key')
+    .order('ref_group').order('sort_order').order('key')
 
   if (error) return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: error.message } }, { status: 400 })
 
@@ -21,6 +21,8 @@ export async function GET(req: NextRequest) {
     key: d.key,
     title: d.title,
     content: format === 'md' ? d.content_md : d.content_compact ?? d.content_md,
+    ref_group: d.ref_group,
+    sort_order: d.sort_order,
     version: d.version,
     updated_at: d.updated_at,
   }))

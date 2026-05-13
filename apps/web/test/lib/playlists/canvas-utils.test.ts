@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { screenToCanvas, canvasToScreen, edgePath, clampZoom } from '@/lib/playlists/canvas/utils'
+import { screenToCanvas, canvasToScreen, edgePath, clampZoom, getConnectionPoints } from '@/lib/playlists/canvas/utils'
 
 describe('screenToCanvas', () => {
   const camera = { x: 50, y: 30, zoom: 1 }
@@ -40,6 +40,52 @@ describe('edgePath', () => {
   it('uses minimum control point offset of 50', () => {
     const path = edgePath({ x: 0, y: 0 }, { x: 10, y: 0 })
     expect(path).toContain('C 50')
+  })
+})
+
+describe('edgePath vertical', () => {
+  it('generates vertical bezier when dy > dx', () => {
+    const path = edgePath({ x: 100, y: 0 }, { x: 100, y: 300 })
+    expect(path).toContain('M 100 0')
+    expect(path).toContain('C 100')
+  })
+})
+
+describe('getConnectionPoints', () => {
+  it('connects right-to-left when target is to the right', () => {
+    const { sourcePoint, targetPoint } = getConnectionPoints(
+      { position_x: 0, position_y: 0 },
+      { position_x: 300, position_y: 0 },
+    )
+    expect(sourcePoint.x).toBe(160)
+    expect(targetPoint.x).toBe(300)
+  })
+
+  it('connects left-to-right when target is to the left', () => {
+    const { sourcePoint, targetPoint } = getConnectionPoints(
+      { position_x: 300, position_y: 0 },
+      { position_x: 0, position_y: 0 },
+    )
+    expect(sourcePoint.x).toBe(300)
+    expect(targetPoint.x).toBe(160)
+  })
+
+  it('connects bottom-to-top when target is below', () => {
+    const { sourcePoint, targetPoint } = getConnectionPoints(
+      { position_x: 0, position_y: 0 },
+      { position_x: 0, position_y: 300 },
+    )
+    expect(sourcePoint.y).toBe(80)
+    expect(targetPoint.y).toBe(300)
+  })
+
+  it('connects top-to-bottom when target is above', () => {
+    const { sourcePoint, targetPoint } = getConnectionPoints(
+      { position_x: 0, position_y: 300 },
+      { position_x: 0, position_y: 0 },
+    )
+    expect(sourcePoint.y).toBe(300)
+    expect(targetPoint.y).toBe(80)
   })
 })
 

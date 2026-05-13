@@ -36,17 +36,21 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ key:
   const parsed = ReferenceContentUpsertSchema.safeParse(body)
   if (!parsed.success) return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: parsed.error.issues.map((i) => i.message).join(', ') } }, { status: 400 })
 
+  const upsertData: Record<string, unknown> = {
+    site_id: authResult.auth.siteId,
+    key,
+    title: parsed.data.title,
+    content_md: parsed.data.content_md ?? null,
+    content_compact: parsed.data.content_compact ?? {},
+    updated_at: new Date().toISOString(),
+  }
+  if (parsed.data.ref_group !== undefined) upsertData.ref_group = parsed.data.ref_group
+  if (parsed.data.sort_order !== undefined) upsertData.sort_order = parsed.data.sort_order
+
   const supabase = getSupabaseServiceClient()
   const { data, error } = await supabase
     .from('reference_content')
-    .upsert({
-      site_id: authResult.auth.siteId,
-      key,
-      title: parsed.data.title,
-      content_md: parsed.data.content_md ?? null,
-      content_compact: parsed.data.content_compact ?? {},
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'site_id,key' })
+    .upsert(upsertData, { onConflict: 'site_id,key' })
     .select()
     .single()
 

@@ -61,15 +61,22 @@ export function useEdgeDrag({ camera, containerRef, onEdgeCreated }: UseEdgeDrag
       const sourceId = sourceIdRef.current
       ;(e.target as HTMLElement).releasePointerCapture(e.pointerId)
 
-      // setPointerCapture routes all events to the source handle,
-      // so e.target is always the source — use elementFromPoint instead
-      const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null
-      const handle = el?.closest('[data-handle-id]')
-      const node = el?.closest('[data-node-id]')
-      const targetItemId = handle?.getAttribute('data-handle-id')
-        ?? node?.getAttribute('data-node-id')
+      // elementsFromPoint returns all elements at the pointer position in
+      // z-order. Walk the stack so SVG hit-area paths don't block detection.
+      let targetItemId: string | null = null
+      for (const el of document.elementsFromPoint(e.clientX, e.clientY)) {
+        const htmlEl = el as HTMLElement
+        const id =
+          htmlEl.closest?.('[data-handle-id]')?.getAttribute('data-handle-id') ??
+          htmlEl.closest?.('[data-node-id]')?.getAttribute('data-node-id') ??
+          null
+        if (id && id !== sourceId) {
+          targetItemId = id
+          break
+        }
+      }
 
-      if (targetItemId && targetItemId !== sourceId) {
+      if (targetItemId) {
         onEdgeCreated(sourceId, targetItemId)
       }
 

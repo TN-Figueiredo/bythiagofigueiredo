@@ -29,6 +29,7 @@ const TYPE_STYLES: Record<ContentType, { bg: string; border: string; badge: stri
 interface PlaylistNodeProps {
   item: PlaylistItemEnriched
   isSelected: boolean
+  isDropTarget: boolean
   onPointerDown: (e: React.PointerEvent, itemId: string, x: number, y: number) => void
   onHandlePointerDown: (e: React.PointerEvent, itemId: string, x: number, y: number) => void
   onContextMenu: (e: React.MouseEvent, itemId: string) => void
@@ -38,6 +39,7 @@ interface PlaylistNodeProps {
 export function PlaylistNode({
   item,
   isSelected,
+  isDropTarget,
   onPointerDown,
   onHandlePointerDown,
   onContextMenu,
@@ -53,7 +55,11 @@ export function PlaylistNode({
     ? 'border-dashed border-white/20 bg-white/[0.02]'
     : ''
 
-  const selectedRing = isSelected ? 'ring-2 ring-indigo-500/50 shadow-lg shadow-black/30' : ''
+  const selectedRing = isSelected
+    ? 'ring-2 ring-indigo-500/50 shadow-lg shadow-black/30'
+    : isDropTarget
+      ? 'ring-2 ring-indigo-400/40 shadow-lg shadow-indigo-500/20'
+      : ''
 
   return (
     <div
@@ -81,7 +87,7 @@ export function PlaylistNode({
       {/* Top handle */}
       <div
         data-handle-id={item.id}
-        className={`absolute top-[-6px] left-1/2 h-[11px] w-[11px] -translate-x-1/2 cursor-crosshair rounded-full border-[2.5px] border-[var(--bg,#0a0a12)] ${style?.badgeBg ?? 'bg-white/30'} hover:scale-125 opacity-0 group-hover:opacity-100 transition-opacity`}
+        className={`absolute top-[-6px] left-1/2 h-[11px] w-[11px] -translate-x-1/2 cursor-crosshair rounded-full border-[2.5px] border-[var(--bg,#0a0a12)] ${style?.badgeBg ?? 'bg-white/30'} opacity-0 transition-all group-hover:scale-110 group-hover:opacity-100 hover:!scale-150`}
         onPointerDown={e => {
           onHandlePointerDown(e, item.id, item.position_x + 80, item.position_y)
         }}
@@ -90,7 +96,7 @@ export function PlaylistNode({
       {/* Bottom handle */}
       <div
         data-handle-id={item.id}
-        className={`absolute bottom-[-6px] left-1/2 h-[11px] w-[11px] -translate-x-1/2 cursor-crosshair rounded-full border-[2.5px] border-[var(--bg,#0a0a12)] ${style?.badgeBg ?? 'bg-white/30'} hover:scale-125 opacity-0 group-hover:opacity-100 transition-opacity`}
+        className={`absolute bottom-[-6px] left-1/2 h-[11px] w-[11px] -translate-x-1/2 cursor-crosshair rounded-full border-[2.5px] border-[var(--bg,#0a0a12)] ${style?.badgeBg ?? 'bg-white/30'} opacity-0 transition-all group-hover:scale-110 group-hover:opacity-100 hover:!scale-150`}
         onPointerDown={e => {
           onHandlePointerDown(e, item.id, item.position_x + 80, item.position_y + 80)
         }}
@@ -99,7 +105,7 @@ export function PlaylistNode({
       {/* Left handle */}
       <div
         data-handle-id={item.id}
-        className={`absolute left-[-6px] top-1/2 h-[11px] w-[11px] -translate-y-1/2 cursor-crosshair rounded-full border-[2.5px] border-[var(--bg,#0a0a12)] ${style?.badgeBg ?? 'bg-white/30'} hover:scale-125`}
+        className={`absolute left-[-6px] top-1/2 h-[11px] w-[11px] -translate-y-1/2 cursor-crosshair rounded-full border-[2.5px] border-[var(--bg,#0a0a12)] ${style?.badgeBg ?? 'bg-white/30'} opacity-0 transition-all group-hover:scale-110 group-hover:opacity-100 hover:!scale-150`}
         onPointerDown={e => {
           onHandlePointerDown(e, item.id, item.position_x, item.position_y + 40)
         }}
@@ -108,7 +114,7 @@ export function PlaylistNode({
       {/* Right handle */}
       <div
         data-handle-id={item.id}
-        className={`absolute right-[-6px] top-1/2 h-[11px] w-[11px] -translate-y-1/2 cursor-crosshair rounded-full border-[2.5px] border-[var(--bg,#0a0a12)] ${style?.badgeBg ?? 'bg-white/30'} hover:scale-125`}
+        className={`absolute right-[-6px] top-1/2 h-[11px] w-[11px] -translate-y-1/2 cursor-crosshair rounded-full border-[2.5px] border-[var(--bg,#0a0a12)] ${style?.badgeBg ?? 'bg-white/30'} opacity-0 transition-all group-hover:scale-110 group-hover:opacity-100 hover:!scale-150`}
         onPointerDown={e => {
           onHandlePointerDown(e, item.id, item.position_x + 160, item.position_y + 40)
         }}

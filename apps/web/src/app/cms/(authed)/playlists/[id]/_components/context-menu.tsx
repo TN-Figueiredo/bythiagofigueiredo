@@ -35,6 +35,14 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
     }
   }, [onClose])
 
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    if (rect.right > window.innerWidth) el.style.left = `${window.innerWidth - rect.width - 8}px`
+    if (rect.bottom > window.innerHeight) el.style.top = `${window.innerHeight - rect.height - 8}px`
+  }, [x, y])
+
   return (
     <div
       ref={ref}

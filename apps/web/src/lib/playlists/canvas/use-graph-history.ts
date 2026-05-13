@@ -6,8 +6,8 @@ const MAX_HISTORY = 50
 
 export interface History<T> {
   push(state: T): void
-  undo(): T | null
-  redo(): T | null
+  undo(current: T): T | null
+  redo(current: T): T | null
   canUndo(): boolean
   canRedo(): boolean
   clear(): void
@@ -21,27 +21,23 @@ export function createHistory<T>(maxSize = MAX_HISTORY): History<T> {
     push(state: T) {
       past.push(state)
       future.length = 0
-      if (past.length > maxSize) {
-        past.shift()
-      }
+      if (past.length > maxSize) past.shift()
     },
 
-    undo(): T | null {
-      if (past.length <= 1) return null
-      const current = past.pop()!
+    undo(current: T): T | null {
+      if (past.length === 0) return null
       future.push(current)
-      return past[past.length - 1] ?? null
+      return past.pop()!
     },
 
-    redo(): T | null {
+    redo(current: T): T | null {
       if (future.length === 0) return null
-      const next = future.pop()!
-      past.push(next)
-      return next
+      past.push(current)
+      return future.pop()!
     },
 
     canUndo() {
-      return past.length > 1
+      return past.length > 0
     },
 
     canRedo() {
@@ -62,12 +58,12 @@ export function useGraphHistory<T>() {
     historyRef.current.push(structuredClone(state))
   }, [])
 
-  const undo = useCallback((): T | null => {
-    return historyRef.current.undo()
+  const undo = useCallback((current: T): T | null => {
+    return historyRef.current.undo(structuredClone(current))
   }, [])
 
-  const redo = useCallback((): T | null => {
-    return historyRef.current.redo()
+  const redo = useCallback((current: T): T | null => {
+    return historyRef.current.redo(structuredClone(current))
   }, [])
 
   const canUndo = useCallback(() => historyRef.current.canUndo(), [])

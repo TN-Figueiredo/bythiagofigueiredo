@@ -117,7 +117,14 @@ export function ContentPicker({
   })
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+      onKeyDown={e => { if (e.key === 'Escape') onClose() }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Add content"
+    >
       <div className="flex w-[520px] max-h-[70vh] flex-col rounded-xl border border-white/10 bg-[#0d0d1a] shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">

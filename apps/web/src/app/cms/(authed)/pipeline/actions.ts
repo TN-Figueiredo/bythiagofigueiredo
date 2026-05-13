@@ -329,16 +329,24 @@ export async function searchBlogPostsAction(siteId: string, query: string): Prom
   return searchBlogPostsForLink(siteId, query)
 }
 
-export async function upsertReference(key: string, input: { title: string; content_md?: string; content_compact?: Record<string, unknown> }): Promise<ActionResult> {
+export async function upsertReference(key: string, input: { title: string; content_md?: string; content_compact?: Record<string, unknown>; ref_group?: string; sort_order?: number }): Promise<ActionResult> {
   const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
 
+  const upsertData: Record<string, unknown> = {
+    site_id: siteId,
+    key,
+    title: input.title,
+    content_md: input.content_md ?? null,
+    content_compact: input.content_compact ?? null,
+    updated_at: new Date().toISOString(),
+  }
+  if (input.ref_group !== undefined) upsertData.ref_group = input.ref_group
+  if (input.sort_order !== undefined) upsertData.sort_order = input.sort_order
+
   const { data, error } = await supabase
     .from('reference_content')
-    .upsert(
-      { site_id: siteId, key, title: input.title, content_md: input.content_md ?? null, content_compact: input.content_compact ?? null, updated_at: new Date().toISOString() },
-      { onConflict: 'site_id,key' }
-    )
+    .upsert(upsertData, { onConflict: 'site_id,key' })
     .select()
     .single()
 

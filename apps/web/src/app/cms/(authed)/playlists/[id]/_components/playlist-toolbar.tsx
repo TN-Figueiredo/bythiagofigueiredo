@@ -11,10 +11,14 @@ interface PlaylistToolbarProps {
   saveState: SaveState
   canUndo: boolean
   canRedo: boolean
+  zoomPercent: number
   onUndo: () => void
   onRedo: () => void
   onAutoLayout: () => void
+  onZoomIn: () => void
+  onZoomOut: () => void
   onZoomToFit: () => void
+  onExport: () => void
   onToggleSettings: () => void
 }
 
@@ -24,10 +28,14 @@ export function PlaylistToolbar({
   saveState,
   canUndo,
   canRedo,
+  zoomPercent,
   onUndo,
   onRedo,
   onAutoLayout,
+  onZoomIn,
+  onZoomOut,
   onZoomToFit,
+  onExport,
   onToggleSettings,
 }: PlaylistToolbarProps) {
   const statusColors: Record<PlaylistStatus, string> = {
@@ -78,10 +86,23 @@ export function PlaylistToolbar({
         <ToolbarButton label="Auto-layout" onClick={onAutoLayout}>
           <LayoutIcon />
         </ToolbarButton>
+        <span className="mx-1 h-4 w-px bg-white/10" />
+        <ToolbarButton label="Zoom out" shortcut="Cmd+-" onClick={onZoomOut}>
+          <ZoomOutIcon />
+        </ToolbarButton>
+        <span className="min-w-[3ch] text-center text-[0.6rem] tabular-nums text-white/30">
+          {zoomPercent}%
+        </span>
+        <ToolbarButton label="Zoom in" shortcut="Cmd+=" onClick={onZoomIn}>
+          <ZoomInIcon />
+        </ToolbarButton>
         <ToolbarButton label="Zoom to fit" shortcut="Cmd+0" onClick={onZoomToFit}>
           <FitIcon />
         </ToolbarButton>
         <span className="mx-1 h-4 w-px bg-white/10" />
+        <ToolbarButton label="Export image" onClick={onExport}>
+          <ExportIcon />
+        </ToolbarButton>
         <ToolbarButton label="Settings" onClick={onToggleSettings}>
           <SettingsIcon />
         </ToolbarButton>
@@ -155,6 +176,35 @@ function FitIcon() {
       <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
       <path d="M3 16v3a2 2 0 0 0 2 2h3" />
       <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+    </svg>
+  )
+}
+
+function ZoomInIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="8" />
+      <line x1="11" y1="8" x2="11" y2="14" />
+      <line x1="8" y1="11" x2="14" y2="11" />
+    </svg>
+  )
+}
+
+function ZoomOutIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="8" />
+      <line x1="8" y1="11" x2="14" y2="11" />
+    </svg>
+  )
+}
+
+function ExportIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
     </svg>
   )
 }

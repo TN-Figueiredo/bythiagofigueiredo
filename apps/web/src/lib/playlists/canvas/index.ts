@@ -8,6 +8,7 @@ export {
   screenToCanvas,
   canvasToScreen,
   edgePath,
+  getConnectionPoints,
   clampZoom,
   zoomTowardPoint,
   fitAllNodes,

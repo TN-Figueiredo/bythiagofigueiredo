@@ -2,17 +2,14 @@
 
 import type { PlaylistEdgeRow, EdgeType } from '@/lib/playlists/types'
 import type { PlaylistItemEnriched } from '@/lib/playlists/types'
-import { edgePath } from '@/lib/playlists/canvas/utils'
+import { edgePath, getConnectionPoints } from '@/lib/playlists/canvas/utils'
 
-const EDGE_STYLES: Record<EdgeType, { stroke: string; dash?: string; marker: boolean; defaultLabel?: string }> = {
-  sequence: { stroke: '#818cf8', marker: true },
-  related: { stroke: '#4b5563', dash: '5,3', marker: false, defaultLabel: 'veja também' },
-  prerequisite: { stroke: '#fbbf24', dash: '8,3', marker: true, defaultLabel: 'leia antes' },
-  continuation: { stroke: '#34d399', marker: true },
+const EDGE_STYLES: Record<EdgeType, { stroke: string; glow: string; dash?: string; marker: boolean; defaultLabel?: string }> = {
+  sequence: { stroke: '#818cf8', glow: 'rgba(129,140,248,0.25)', marker: true },
+  related: { stroke: '#6b7280', glow: 'rgba(107,114,128,0.2)', dash: '5,3', marker: false, defaultLabel: 'see also' },
+  prerequisite: { stroke: '#fbbf24', glow: 'rgba(251,191,36,0.25)', dash: '8,3', marker: true, defaultLabel: 'read first' },
+  continuation: { stroke: '#34d399', glow: 'rgba(52,211,153,0.25)', marker: true },
 }
-
-const NODE_WIDTH = 160
-const NODE_HEIGHT = 80
 
 interface PlaylistEdgeProps {
   edge: PlaylistEdgeRow
@@ -30,19 +27,9 @@ export function PlaylistEdge({
   onSelect,
 }: PlaylistEdgeProps) {
   const style = EDGE_STYLES[edge.edge_type]
-
-  const sourcePoint = {
-    x: sourceItem.position_x + NODE_WIDTH,
-    y: sourceItem.position_y + NODE_HEIGHT / 2,
-  }
-  const targetPoint = {
-    x: targetItem.position_x,
-    y: targetItem.position_y + NODE_HEIGHT / 2,
-  }
-
+  const { sourcePoint, targetPoint } = getConnectionPoints(sourceItem, targetItem)
   const path = edgePath(sourcePoint, targetPoint)
   const displayLabel = edge.label || style.defaultLabel
-
   const midX = (sourcePoint.x + targetPoint.x) / 2
   const midY = (sourcePoint.y + targetPoint.y) / 2
 
@@ -52,37 +39,65 @@ export function PlaylistEdge({
       <path
         d={path}
         stroke="transparent"
-        strokeWidth={12}
+        strokeWidth={14}
         fill="none"
         style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
         onClick={() => onSelect(edge.id)}
+      />
+
+      {/* Glow layer */}
+      <path
+        d={path}
+        stroke={isSelected ? 'rgba(248,113,113,0.35)' : style.glow}
+        strokeWidth={isSelected ? 8 : 6}
+        fill="none"
+        strokeDasharray={style.dash}
+        style={{ pointerEvents: 'none' }}
       />
 
       {/* Visible edge */}
       <path
         d={path}
         stroke={isSelected ? '#f87171' : style.stroke}
-        strokeWidth={isSelected ? 3 : 2}
+        strokeWidth={isSelected ? 2.5 : 1.5}
         fill="none"
         strokeDasharray={style.dash}
-        markerEnd={style.marker ? `url(#arrow-${edge.edge_type})` : undefined}
-        style={{ pointerEvents: 'none', filter: isSelected ? 'drop-shadow(0 0 4px rgba(248,113,113,0.4))' : undefined }}
+        markerEnd={style.marker ? `url(#arrow-${isSelected ? 'selected' : edge.edge_type})` : undefined}
+        style={{ pointerEvents: 'none' }}
       />
 
       {/* Label */}
       {displayLabel && (
-        <text
-          x={midX}
-          y={midY - 8}
-          fill={style.stroke}
-          fontSize={9}
-          fontFamily="-apple-system, sans-serif"
-          fontStyle="italic"
-          textAnchor="middle"
-          style={{ pointerEvents: 'none' }}
+        <foreignObject
+          x={midX - 60}
+          y={midY - 18}
+          width={120}
+          height={22}
+          style={{ pointerEvents: 'none', overflow: 'visible' }}
         >
-          {displayLabel}
-        </text>
+          <span
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              width: '100%',
+            }}
+          >
+            <span
+              style={{
+                fontSize: 9,
+                fontWeight: 500,
+                fontFamily: '-apple-system, sans-serif',
+                color: isSelected ? '#f87171' : style.stroke,
+                background: 'rgba(10,10,18,0.88)',
+                padding: '1px 6px',
+                borderRadius: 4,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {displayLabel}
+            </span>
+          </span>
+        </foreignObject>
       )}
     </g>
   )
@@ -95,15 +110,25 @@ export function EdgeArrowDefs() {
         <marker
           key={type}
           id={`arrow-${type}`}
-          markerWidth="8"
-          markerHeight="6"
-          refX="8"
-          refY="3"
+          markerWidth="10"
+          markerHeight="8"
+          refX="9"
+          refY="4"
           orient="auto"
         >
-          <path d="M0,0 L8,3 L0,6" fill={EDGE_STYLES[type].stroke} />
+          <path d="M1,1 L9,4 L1,7" fill="none" stroke={EDGE_STYLES[type].stroke} strokeWidth="1.5" strokeLinejoin="round" />
         </marker>
       ))}
+      <marker
+        id="arrow-selected"
+        markerWidth="10"
+        markerHeight="8"
+        refX="9"
+        refY="4"
+        orient="auto"
+      >
+        <path d="M1,1 L9,4 L1,7" fill="none" stroke="#f87171" strokeWidth="1.5" strokeLinejoin="round" />
+      </marker>
     </defs>
   )
 }

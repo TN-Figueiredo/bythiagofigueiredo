@@ -1,0 +1,54 @@
+{
+  "name": "@tn-figueiredo/social",
+  "version": "0.1.0-dev",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./vault": {
+      "import": "./dist/core/token-vault.js",
+      "types": "./dist/core/token-vault.d.ts"
+    },
+    "./media": {
+      "import": "./dist/core/media-validator.js",
+      "types": "./dist/core/media-validator.d.ts"
+    },
+    "./adapters": {
+      "import": "./dist/core/content-adapter.js",
+      "types": "./dist/core/content-adapter.d.ts"
+    },
+    "./providers/youtube": {
+      "import": "./dist/providers/youtube.js",
+      "types": "./dist/providers/youtube.d.ts"
+    },
+    "./providers/meta": {
+      "import": "./dist/providers/meta.js",
+      "types": "./dist/providers/meta.d.ts"
+    },
+    "./providers/bluesky": {
+      "import": "./dist/providers/bluesky.js",
+      "types": "./dist/providers/bluesky.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@atproto/api": "0.19.17",
+    "@googleapis/youtube": "31.0.0",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "tsup": "^8.4.0",
+    "typescript": "^5.8.3",
+    "vitest": "^2.0.0"
+  }
+}

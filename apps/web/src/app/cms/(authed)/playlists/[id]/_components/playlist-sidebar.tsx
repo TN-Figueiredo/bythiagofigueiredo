@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
 import { Plus } from 'lucide-react'
 import type { PlaylistItemEnriched, ContentType } from '@/lib/playlists/types'
 
@@ -31,6 +32,14 @@ export function PlaylistSidebar({
   onAddContent,
 }: PlaylistSidebarProps) {
   const sortedItems = [...items].sort((a, b) => a.sort_order - b.sort_order)
+  const listRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (selectedItemIds.size !== 1) return
+    const id = selectedItemIds.values().next().value
+    const el = listRef.current?.querySelector(`[data-sidebar-item="${id}"]`)
+    el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  }, [selectedItemIds])
 
   return (
     <div className="flex h-full w-64 flex-col border-r border-white/10 bg-[#0a0a12]">
@@ -51,7 +60,7 @@ export function PlaylistSidebar({
       </div>
 
       {/* Items list */}
-      <div className="flex-1 overflow-y-auto">
+      <div ref={listRef} className="flex-1 overflow-y-auto">
         {sortedItems.length === 0 ? (
           <div className="p-4 text-center text-xs text-white/30">
             No items yet. Drag content from the library or use Add Content.
@@ -59,7 +68,7 @@ export function PlaylistSidebar({
         ) : (
           <ul className="divide-y divide-white/5">
             {sortedItems.map(item => (
-              <li key={item.id}>
+              <li key={item.id} data-sidebar-item={item.id}>
                 <div
                   role="button"
                   tabIndex={0}

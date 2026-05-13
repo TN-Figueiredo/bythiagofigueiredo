@@ -110,6 +110,38 @@ describe('MediaUploadTab', () => {
     })
   })
 
+  it('wraps cropped blob in File before appending to FormData', async () => {
+    mockUpload.mockImplementation(async (formData: FormData) => {
+      const file = formData.get('file')
+      expect(file).toBeInstanceOf(File)
+      expect((file as File).name).toBe('cropped.webp')
+      expect((file as File).type).toBe('image/webp')
+      return {
+        ok: true,
+        asset: {
+          id: 'a2',
+          blobUrl: 'https://x.blob.vercel-storage.com/cropped.webp',
+          filename: 'cropped.webp',
+          altText: 'Cropped',
+          width: 200,
+          height: 200,
+          mimeType: 'image/webp',
+        },
+        deduplicated: false,
+      }
+    })
+
+    renderModal({ cropPreset: CROP_PRESETS['avatar'] })
+    const input = screen.getByTestId('media-file-input') as HTMLInputElement
+    const file = new File(['pixels'], 'photo.jpg', { type: 'image/jpeg' })
+    Object.defineProperty(input, 'files', { value: [file] })
+    fireEvent.change(input)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('crop-cancel')).toBeDefined()
+    })
+  })
+
   it('shows drag-drop zone prompt', () => {
     renderModal()
     expect(screen.getByText('Drag an image here or click to browse')).toBeDefined()

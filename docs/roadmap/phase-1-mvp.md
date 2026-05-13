@@ -2,7 +2,7 @@
 
 # Fase 1 — MVP [🟡 in-progress]
 
-**Sprints:** 0–6 · **Horas:** ~242h · **Semanas:** 10–11
+**Sprints:** 0–6 + 5h · **Horas:** ~320h · **Semanas:** 13–14
 **Estimativa de entrega:** ~Junho/Julho 2026 (revisado 2026-04-16 após scope shift no Sprint 4)
 **Depende de:** nada (entry point)
 **Bloqueia:** Fase 3 integralmente. Parcialmente Fase 2 (portfolio content pode começar antes se desejado).
@@ -230,6 +230,49 @@ Playwright covering auth + CMS critical paths. Pendente.
 ### Sprint 5d — Vercel deploy hardening [☐ not-started] (~3h)
 
 Build perf, edge config, secrets review. Pendente.
+
+---
+
+## Sprint 5h — Social Hub [☐ not-started] (~78h)
+
+**Goal:** Cross-platform social media management — scheduling, publishing, and YouTube video management across YouTube, Facebook, Instagram, e Bluesky. Package `@tn-figueiredo/social` do ecossistema.
+**Estimativa:** ~78h
+**Custo:** $0 (todas APIs gratuitas)
+
+**Epics:**
+- [ ] Core package (`@tn-figueiredo/social`) — types, token vault (AES-256-GCM), media validator, content adapter — 10h
+- [ ] YouTube provider — resumable upload (client-side), metadata CRUD, thumbnail swap, quota tracking — 12h
+- [ ] Meta provider — Facebook Page posting + OG cache warming + Instagram Stories/Reels (container flow) — 10h
+- [ ] Bluesky provider — AT Protocol posting + link card generation (OG fetch → blob → embed) — 6h
+- [ ] Vercel Workflows — publishing orchestrator + Cron dispatcher — 8h
+- [ ] CMS UI — Social Settings/Connections (OAuth flows) — 6h
+- [ ] CMS UI — Composer + Calendar (schedule, preview, templates) — 10h
+- [ ] CMS UI — Status Dashboard (real-time delivery via Supabase Realtime) — 4h
+- [ ] Database — 4 tables (social_connections, social_posts, social_deliveries, youtube_quota_usage) + RLS — 4h
+- [ ] Tests — mock providers, fixtures, unit + integration (80% coverage target) — 8h
+
+**Pre-requisitos (iniciar ANTES do sprint):**
+- [x] Google Cloud: YouTube Data API v3 habilitado, 7 scopes configurados, modo Production — 2026-05-12
+- [x] Google OAuth credentials (Client ID + Secret) em `.env.local` + Vercel (prod + preview) — 2026-05-12
+- [x] Meta App: configurações básicas (domínio, privacy policy, terms, data deletion) — 2026-05-12
+- [x] Meta App credentials (App ID + Secret) em `.env.local` + Vercel (prod + preview) — 2026-05-12
+- [x] Meta App: OAuth redirect URI configurado (`/api/social/callback/meta`) — 2026-05-13
+- [x] SOCIAL_MASTER_KEY (AES-256-GCM) gerado e em `.env.local` + Vercel (prod + preview) — 2026-05-13
+- [ ] Google OAuth verification (submeter com vídeo após implementação) — ~2 semanas
+- [ ] Meta App Review (submeter com screencast após implementação) — ~2-4 semanas
+- [ ] Meta Business Verification — documentos legais
+
+**Providers:**
+| Provider | API | Custo | SDK |
+|----------|-----|-------|-----|
+| YouTube | Data API v3 | Free (10k units/dia) | `@googleapis/youtube` |
+| Facebook | Graph API v25.0 | Free | `facebook-nodejs-business-sdk` |
+| Instagram | Graph API v25.0 | Free (100 posts/dia) | `facebook-nodejs-business-sdk` |
+| Bluesky | AT Protocol | Free (5k points/hora) | `@atproto/api` |
+
+**X.com:** Removido do escopo (pay-per-use $0.20/post com URL, free tier descontinuado fev/2026).
+
+**Spec:** [2026-05-12-sprint-5h-social-hub-design.md](../superpowers/specs/2026-05-12-sprint-5h-social-hub-design.md)
 
 ---
 

@@ -25,6 +25,7 @@ import { PromptGeneratorModal } from './prompt-generator-modal'
 import { useMediaGallery } from '../../_shared/media/use-media-gallery'
 import { MediaGalleryModal } from '../../_shared/media/media-gallery-modal'
 import { CROP_PRESETS, type MediaAssetResult } from '../../_shared/media/types'
+import { PipelineMediaProvider, type ImageSelectResult } from './detail/editors/pipeline-media-context'
 import { ImageIcon, X } from 'lucide-react'
 
 interface ChecklistItem { label: string; done: boolean; toggled_at: string | null }
@@ -271,6 +272,20 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(item.cover_image_url)
   const [category, setCategory] = useState<string | null>(item.category)
   const coverGallery = useMediaGallery()
+  const inlineGallery = useMediaGallery()
+  const pendingInlineSelectRef = useRef<((result: ImageSelectResult) => void) | null>(null)
+
+  const handleRequestInlineImage = useCallback((onSelect: (result: ImageSelectResult) => void) => {
+    pendingInlineSelectRef.current = onSelect
+    inlineGallery.openGallery({ folder: 'blog' })
+  }, [inlineGallery])
+
+  const handleInlineImageSelect = useCallback((asset: MediaAssetResult) => {
+    if (pendingInlineSelectRef.current) {
+      pendingInlineSelectRef.current({ url: asset.url, alt: asset.alt ?? '' })
+      pendingInlineSelectRef.current = null
+    }
+  }, [])
 
   const debouncedSave = useCallback((field: string, value: string) => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -400,6 +415,7 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
   const sectionsMap = (item.sections ?? {}) as Record<string, SectionData>
 
   return (
+    <PipelineMediaProvider onRequestImage={handleRequestInlineImage}>
     <div className="flex gap-5" style={{ padding: '20px 24px', maxWidth: 1440, margin: '0 auto' }}>
       {/* Main content */}
       <div className="flex-1 min-w-0 flex flex-col gap-3.5">
@@ -419,7 +435,7 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
             <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
               <button
                 type="button"
-                onClick={() => coverGallery.openGallery({ folder: 'pipeline', cropPreset: CROP_PRESETS['blog-cover'] })}
+                onClick={() => coverGallery.openGallery({ folder: 'blog', cropPreset: CROP_PRESETS['blog-cover'] })}
                 className="text-xs text-white bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-md transition-colors"
               >
                 Trocar
@@ -436,7 +452,7 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
         ) : (
           <button
             type="button"
-            onClick={() => coverGallery.openGallery({ folder: 'pipeline', cropPreset: CROP_PRESETS['blog-cover'] })}
+            onClick={() => coverGallery.openGallery({ folder: 'blog', cropPreset: CROP_PRESETS['blog-cover'] })}
             className="w-full flex items-center justify-center gap-2 rounded-lg border border-dashed py-6 transition-colors hover:border-[var(--gem-accent)] hover:bg-[var(--gem-accent)]/5"
             style={{ borderColor: 'var(--gem-border)', color: 'var(--gem-dim)' }}
           >
@@ -849,6 +865,14 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
         locale="pt-BR"
         siteId={item.site_id}
       />
+
+      <MediaGalleryModal
+        {...inlineGallery.galleryProps}
+        onSelect={handleInlineImageSelect}
+        locale="pt-BR"
+        siteId={item.site_id}
+      />
     </div>
+    </PipelineMediaProvider>
   )
 }

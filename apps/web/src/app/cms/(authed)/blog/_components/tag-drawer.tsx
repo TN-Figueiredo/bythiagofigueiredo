@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useId, useTransition, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { createTag, updateTag, deleteTag, getTagWithLink } from '../actions'
+import { createTag, updateTag, deleteTag, getTagWithLink } from '../tag-actions'
 import type { BlogTag } from '../_hub/hub-types'
 import type { BlogHubStrings } from '../_i18n/types'
 import { COLOR_PALETTE } from '../../_shared/color-palette'

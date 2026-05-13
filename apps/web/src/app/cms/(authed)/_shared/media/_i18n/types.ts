@@ -7,6 +7,7 @@ export interface MediaGalleryStrings {
     folderLabel: string; tagsLabel: string; tagsPlaceholder: string
     uploadButton: string; uploading: string; uploadSuccess: string
     uploadError: string; duplicateNotice: string
+    errorCodes?: Record<string, string>
   }
   library: {
     searchPlaceholder: string

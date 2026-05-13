@@ -13,8 +13,10 @@ export default async function ReferencePage() {
 
   const { data: docs } = await supabase
     .from('reference_content')
-    .select('key, title, content_md, content_compact, updated_at')
+    .select('key, title, content_md, content_compact, ref_group, sort_order, updated_at')
     .eq('site_id', siteId)
+    .order('ref_group')
+    .order('sort_order')
     .order('key')
 
   return (

@@ -78,6 +78,19 @@ export function useCanvas(options: UseCanvasOptions = {}) {
     setCamera(prev => ({ ...prev, zoom: clampZoom(zoom) }))
   }, [])
 
+  const zoomBy = useCallback((factor: number) => {
+    const el = containerRef.current
+    if (!el) return
+    const { width, height } = el.getBoundingClientRect()
+    const cx = width / 2
+    const cy = height / 2
+    setCamera(prev => {
+      const newZoom = clampZoom(prev.zoom * factor)
+      const ratio = newZoom / prev.zoom
+      return { zoom: newZoom, x: cx - (cx - prev.x) * ratio, y: cy - (cy - prev.y) * ratio }
+    })
+  }, [])
+
   return {
     camera,
     setCamera,
@@ -89,6 +102,7 @@ export function useCanvas(options: UseCanvasOptions = {}) {
     handlePanEnd,
     zoomToFit,
     setZoom,
+    zoomBy,
     isPanning: isPanningRef,
   }
 }
