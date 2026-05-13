@@ -22,14 +22,18 @@ describe('buildCmsSections', () => {
     vi.resetModules()
   })
 
-  it('adds YouTube item to Content section', async () => {
+  it('adds YouTube item to Social section (not Content)', async () => {
     const { buildCmsSections } = await import(
       '../../src/app/cms/(authed)/_shared/cms-sections'
     )
     const sections = buildCmsSections()
     const contentSection = sections.find((s) => s.label === 'Content')
     expect(contentSection).toBeDefined()
-    const yt = contentSection!.items.find((i) => i.label === 'YouTube')
+    const ytInContent = contentSection!.items.find((i) => i.label === 'YouTube')
+    expect(ytInContent).toBeUndefined()
+    const socialSection = sections.find((s) => s.label === 'Social')
+    expect(socialSection).toBeDefined()
+    const yt = socialSection!.items.find((i) => i.label === 'YouTube')
     expect(yt).toBeDefined()
     expect(yt!.href).toBe('/cms/youtube')
   })

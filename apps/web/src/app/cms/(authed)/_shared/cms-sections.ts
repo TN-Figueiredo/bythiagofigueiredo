@@ -5,7 +5,6 @@ export function buildCmsSections(): SidebarSection[] {
     if (section.label === 'Content') {
       const items = [
         ...section.items,
-        { icon: '🎬', label: 'YouTube', href: '/cms/youtube', minRole: 'editor' as const },
         { icon: '🖼️', label: 'Media', href: '/cms/media', minRole: 'editor' as const },
         { icon: '🔗', label: 'Links', href: '/cms/links', minRole: 'editor' as const },
         { icon: '🎵', label: 'Playlists', href: '/cms/playlists', minRole: 'editor' as const },
@@ -33,8 +32,11 @@ export function buildCmsSections(): SidebarSection[] {
   const socialSection: SidebarSection = {
     label: 'Social',
     items: [
-      { icon: '📅', label: 'Calendar', href: '/cms/social', minRole: 'editor' as const },
-      { icon: '✏️', label: 'New Post', href: '/cms/social/new', minRole: 'editor' as const },
+      { icon: '🎬', label: 'YouTube', href: '/cms/youtube', minRole: 'editor' as const },
+      { icon: '📡', label: 'Posts', href: '/cms/social', minRole: 'reporter' as const },
+      { icon: '✏️', label: 'Composer', href: '/cms/social/new', minRole: 'editor' as const },
+      { icon: '📊', label: 'Insights', href: '/cms/social/insights', minRole: 'reporter' as const },
+      { icon: '🔗', label: 'Accounts', href: '/cms/social/accounts', minRole: 'admin' as const },
     ],
   }
 

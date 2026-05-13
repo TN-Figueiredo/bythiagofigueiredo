@@ -60,10 +60,12 @@ export function PlaylistSidebar({
           <ul className="divide-y divide-white/5">
             {sortedItems.map(item => (
               <li key={item.id}>
-                <button
-                  type="button"
+                <div
+                  role="button"
+                  tabIndex={0}
                   onClick={() => onSelectItem(item.id)}
-                  className={`flex w-full items-start gap-2 px-3 py-2 text-left transition-colors hover:bg-white/5 ${
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onSelectItem(item.id) }}
+                  className={`flex w-full items-start gap-2 px-3 py-2 text-left transition-colors hover:bg-white/5 cursor-pointer ${
                     selectedItemIds.has(item.id) ? 'bg-indigo-500/10' : ''
                   }`}
                 >
@@ -92,11 +94,11 @@ export function PlaylistSidebar({
                       onRemoveItem(item.id)
                     }}
                     className="mt-0.5 flex-shrink-0 rounded p-0.5 text-[0.6rem] text-white/20 hover:bg-red-500/10 hover:text-red-400"
-                    title="Remove from playlist"
+                    aria-label={`Remove ${item.title}`}
                   >
                     &times;
                   </button>
-                </button>
+                </div>
               </li>
             ))}
           </ul>

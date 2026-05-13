@@ -63,7 +63,7 @@ export function PlaylistNode({
       role="button"
       aria-label={`${item.content_type ?? 'Ghost'}: ${item.title}, ${item.status ?? 'removed'}`}
       tabIndex={0}
-      className={`absolute min-w-[160px] cursor-grab rounded-xl border-2 ${style?.bg ?? ''} ${style?.border ?? ''} ${ghostClasses} ${selectedRing} select-none transition-shadow`}
+      className={`group absolute min-w-[160px] cursor-grab rounded-xl border-2 ${style?.bg ?? ''} ${style?.border ?? ''} ${ghostClasses} ${selectedRing} select-none transition-shadow`}
       style={{ transform: `translate(${item.position_x}px, ${item.position_y}px)` }}
       onPointerDown={e => onPointerDown(e, item.id, item.position_x, item.position_y)}
       onContextMenu={e => {
@@ -78,6 +78,24 @@ export function PlaylistNode({
         }
       }}
     >
+      {/* Top handle */}
+      <div
+        data-handle-id={item.id}
+        className={`absolute top-[-6px] left-1/2 h-[11px] w-[11px] -translate-x-1/2 cursor-crosshair rounded-full border-[2.5px] border-[var(--bg,#0a0a12)] ${style?.badgeBg ?? 'bg-white/30'} hover:scale-125 opacity-0 group-hover:opacity-100 transition-opacity`}
+        onPointerDown={e => {
+          onHandlePointerDown(e, item.id, item.position_x + 80, item.position_y)
+        }}
+      />
+
+      {/* Bottom handle */}
+      <div
+        data-handle-id={item.id}
+        className={`absolute bottom-[-6px] left-1/2 h-[11px] w-[11px] -translate-x-1/2 cursor-crosshair rounded-full border-[2.5px] border-[var(--bg,#0a0a12)] ${style?.badgeBg ?? 'bg-white/30'} hover:scale-125 opacity-0 group-hover:opacity-100 transition-opacity`}
+        onPointerDown={e => {
+          onHandlePointerDown(e, item.id, item.position_x + 80, item.position_y + 80)
+        }}
+      />
+
       {/* Left handle */}
       <div
         data-handle-id={item.id}

@@ -59,9 +59,15 @@ export function useEdgeDrag({ camera, containerRef, onEdgeCreated }: UseEdgeDrag
     (e: React.PointerEvent) => {
       if (!sourceIdRef.current) return
       const sourceId = sourceIdRef.current
+      ;(e.target as HTMLElement).releasePointerCapture(e.pointerId)
 
-      const target = (e.target as HTMLElement).closest('[data-handle-id]')
-      const targetItemId = target?.getAttribute('data-handle-id')
+      // setPointerCapture routes all events to the source handle,
+      // so e.target is always the source — use elementFromPoint instead
+      const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null
+      const handle = el?.closest('[data-handle-id]')
+      const node = el?.closest('[data-node-id]')
+      const targetItemId = handle?.getAttribute('data-handle-id')
+        ?? node?.getAttribute('data-node-id')
 
       if (targetItemId && targetItemId !== sourceId) {
         onEdgeCreated(sourceId, targetItemId)
