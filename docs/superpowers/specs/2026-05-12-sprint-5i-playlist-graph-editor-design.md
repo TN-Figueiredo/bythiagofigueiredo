@@ -34,7 +34,7 @@ CREATE TABLE playlists (
   description TEXT,
   cover_image_url TEXT,
   status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'archived')),
-  category TEXT,
+  category TEXT, -- free-text, not constrained (playlists span content types unlike blog_posts)
   viewport_state JSONB DEFAULT '{"zoom":1,"x":0,"y":0}',
   created_by UUID REFERENCES auth.users(id),
   created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
@@ -420,7 +420,7 @@ Floating toolbar appears above selected node:
 
 ### 5.3 Edge Labels
 
-Edge labels (optional `label` field) shown on hover. For `prerequisite` edges, default label "leia antes". For `related`, default "veja também".
+Edge labels shown on hover of the edge path. Precedence: user-set `label` field > type default > none. Type defaults: `prerequisite` → "leia antes", `related` → "veja também". `sequence` and `continuation` have no default label. User can clear a label by setting it to empty string (reverts to default or none).
 
 ---
 
@@ -481,7 +481,7 @@ Accessible via ⚙ icon. Slide-over panel on the right:
 - Name, Slug, Description (editable)
 - Category (select)
 - Status (select: draft/published/archived)
-- Cover Image (media gallery picker)
+- Cover Image (via `<MediaGalleryDialog>` — same reusable picker used in blog/author/newsletter editors)
 - Stats: items count, edges count, content types count
 - Delete Playlist button (confirmation dialog, items are NOT deleted from source tables)
 
@@ -642,10 +642,9 @@ apps/web/src/app/cms/(authed)/playlists/
 - Collaborative editing / real-time sync
 - Import/export of playlists
 - Automatic sync with `previous_post_id` field on blog_posts
-- Mobile-first design (CMS is desktop-first, touch is best-effort via Pointer Events)
+- Mobile-first design (CMS is desktop-first). Pointer Events provide basic touch support out of the box: tap = click, single-finger drag = node move/pan. Multi-touch gestures (pinch-to-zoom) are NOT implemented in v1 — would require `gesturechange` event handler or touch-action CSS tuning. Documented as v2 enhancement.
 - Playlist analytics / play counts
-- Visual regression testing (canvas custom is hard to snapshot test — mitigated by unit tests on hooks + manual testing)
-- Touch/pinch-to-zoom (best-effort, documented limitation)
+- Pinch-to-zoom (v2 enhancement — requires multi-touch gesture handler)
 
 ---
 
@@ -657,7 +656,26 @@ apps/web/src/app/cms/(authed)/playlists/
 | **Integration (DB)** | CRUD operations, RLS policies, cascade behavior, SET NULL behavior, cycle trigger | Vitest, gated on `HAS_LOCAL_DB` |
 | **Component** | Node rendering (3 types), edge type visuals, sidebar search/filter | Vitest + React Testing Library |
 | **Canvas hooks** | `useCanvas`, `useDragNode` return correct state after simulated events | Vitest, unit test hooks |
-| **Manual** | Drag/zoom/pan, sidebar-to-canvas drag, edge creation flow | Manual testing in browser |
+| **Manual** | See manual test checklist below | Browser dev server |
+
+### 16.1 Manual Test Checklist (PR-D/PR-E)
+
+1. **Canvas basics:** Pan (middle-click drag), zoom (scroll wheel toward cursor), zoom limits (0.25x–2.0x)
+2. **Node drag:** Drag single node, verify position persists after save. Drag multi-selected nodes as group.
+3. **Sidebar drag:** Drag content from sidebar to canvas, verify phantom node follows cursor, item created at drop position.
+4. **Edge creation:** Drag from handle to handle, select edge type, verify edge renders with correct style.
+5. **Edge deletion:** Click edge (fat hit area), verify selection glow, press Delete.
+6. **Ghost nodes:** Delete a blog post from `/cms/blog`, return to playlist, verify ghost node with "Content removed".
+7. **Cycle prevention:** Create A→B→C sequence edges, attempt C→A, verify toast error.
+8. **Auto-layout:** Click Auto-layout, verify nodes reposition with animation, verify undo restores original positions.
+9. **Save indicator:** Move a node, verify "Saving..." → "Saved" transition. Kill network (DevTools offline), verify "Error" state.
+10. **Viewport persist:** Zoom/pan, navigate away, return, verify same viewport position.
+11. **Empty state:** Create new playlist, verify empty state message and sidebar hint.
+12. **Keyboard:** Tab between nodes, arrow-key move, ⌘Z undo, Delete remove.
+
+### 16.2 Concurrency Model
+
+Single-user CMS — no real-time sync. If two tabs edit the same playlist, **last write wins**. The debounced auto-save means the most recent tab's changes overwrite. This is acceptable for a personal CMS; collaborative editing is a documented non-goal.
 
 ---
 
