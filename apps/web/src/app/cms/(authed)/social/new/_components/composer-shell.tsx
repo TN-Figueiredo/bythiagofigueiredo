@@ -7,6 +7,7 @@ import { PlatformSelector } from '@/app/cms/(authed)/_shared/social/platform-sel
 import { ComposerEditor } from './composer-editor'
 import { PlatformPreviews } from './platform-previews'
 import { ImageComposer } from './image-composer'
+import { VideoComposer } from './video-composer'
 import { createSocialPost } from '@/lib/social/actions'
 import type { SocialStrings } from '../../_i18n/types'
 
@@ -116,11 +117,7 @@ export function ComposerShell({
             <ImageComposer images={images} onImagesChange={setImages} caption={caption} onCaptionChange={setCaption} selectedPlatforms={platforms} strings={t} />
           )}
 
-          {mode === 'video' && (
-            <div className="rounded-lg border border-dashed border-cms-border p-8 text-center text-cms-text-muted">
-              {t.composer.video.uploadZone}
-            </div>
-          )}
+          {mode === 'video' && <VideoComposer strings={t} />}
 
           <PlatformSelector
             selected={platforms}
