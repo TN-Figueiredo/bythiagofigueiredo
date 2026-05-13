@@ -133,10 +133,6 @@ vi.mock('@/lib/seo/cache-invalidation', () => ({
 }))
 
 import {
-  createTag,
-  updateTag,
-  deleteTag,
-  reorderTags,
   createPost,
   movePost,
   deleteHubPost,
@@ -145,6 +141,12 @@ import {
   duplicatePost,
   updateBlogCadence,
 } from '../../src/app/cms/(authed)/blog/actions'
+import {
+  createTag,
+  updateTag,
+  deleteTag,
+  reorderTags,
+} from '../../src/app/cms/(authed)/blog/tag-actions'
 
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 

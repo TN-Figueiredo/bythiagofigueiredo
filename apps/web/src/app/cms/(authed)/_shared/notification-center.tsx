@@ -33,7 +33,9 @@ const TYPE_COLORS: Record<NotificationType, string> = {
   published: 'border-l-gray-500',
 }
 
-export function NotificationCenter({ notifications, onMarkAllRead, strings }: NotificationCenterProps) {
+const DEFAULT_STRINGS: NotificationStrings = { title: 'Notifications', markAllRead: 'Mark all read', empty: 'No notifications' }
+
+export function NotificationCenter({ notifications, onMarkAllRead, strings = DEFAULT_STRINGS }: NotificationCenterProps) {
   const [open, setOpen] = useState(false)
   const unread = notifications.filter(n => !n.read).length
 
