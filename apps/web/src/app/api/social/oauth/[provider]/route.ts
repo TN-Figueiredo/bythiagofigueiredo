@@ -15,8 +15,9 @@ const META_OAUTH_URL = 'https://www.facebook.com/v25.0/dialog/oauth'
 const META_SCOPES = [
   'pages_read_engagement',
   'pages_show_list',
-  'instagram_business_basic',
-  'instagram_business_content_publish',
+  'pages_manage_posts',
+  'instagram_basic',
+  'instagram_content_publish',
   'business_management',
 ].join(',')
 
