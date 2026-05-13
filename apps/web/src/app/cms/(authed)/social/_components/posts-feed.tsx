@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type { SocialPost, PostStatus } from '@tn-figueiredo/social'
 import { PostCard } from './post-card'
@@ -26,6 +27,7 @@ const STATUS_TO_FILTER_KEY: Record<string, keyof SocialStrings['posts']['filters
 }
 
 export function PostsFeed({ posts, siteId, strings: t }: PostsFeedProps) {
+  const router = useRouter()
   const [filter, setFilter] = useState<PostStatus | 'all'>('all')
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
@@ -68,6 +70,8 @@ export function PostsFeed({ posts, siteId, strings: t }: PostsFeedProps) {
             key={status}
             type="button"
             onClick={() => { setFilter(status); setSelected(new Set()) }}
+            aria-label={`Filter: ${filterLabel(status)}`}
+            aria-current={filter === status ? 'true' : undefined}
             className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${filter === status ? 'bg-cms-accent/15 text-cms-accent' : 'text-cms-text-muted hover:text-cms-text'}`}
           >
             {filterLabel(status)}
@@ -90,7 +94,7 @@ export function PostsFeed({ posts, siteId, strings: t }: PostsFeedProps) {
       <BulkActionsBar
         selectedIds={[...selected]}
         strings={t}
-        onDone={() => { setSelected(new Set()); window.location.reload() }}
+        onDone={() => { setSelected(new Set()); router.refresh() }}
       />
     </div>
   )

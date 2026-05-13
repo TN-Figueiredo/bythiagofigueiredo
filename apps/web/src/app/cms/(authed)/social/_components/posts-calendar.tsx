@@ -9,7 +9,8 @@ interface PostsCalendarProps {
   strings: SocialStrings
 }
 
-const STATUS_COLORS: Record<string, string> = {
+/** Calendar-specific bg-only colors (no text color — cells use text-cms-text). */
+const CALENDAR_STATUS_COLORS: Record<string, string> = {
   completed: 'bg-green-500/20', scheduled: 'bg-blue-500/20', draft: 'bg-yellow-500/20',
   failed: 'bg-red-500/20', cancelled: 'bg-gray-500/20', partial_failure: 'bg-orange-500/20',
   publishing: 'bg-blue-500/20',
@@ -44,7 +45,16 @@ export function PostsCalendar({ posts, strings: t }: PostsCalendarProps) {
   function prevMonth() { setMonth(m => m.month === 0 ? { year: m.year - 1, month: 11 } : { ...m, month: m.month - 1 }) }
   function nextMonth() { setMonth(m => m.month === 11 ? { year: m.year + 1, month: 0 } : { ...m, month: m.month + 1 }) }
 
-  const monthName = new Date(month.year, month.month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+  const monthName = new Date(month.year, month.month).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+
+  const dayNames = useMemo(() => {
+    const formatter = new Intl.DateTimeFormat(undefined, { weekday: 'short' })
+    // Generate short day names starting from Sunday (index 0)
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(2024, 0, 7 + i) // 2024-01-07 is a Sunday
+      return formatter.format(d)
+    })
+  }, [])
 
   if (posts.length === 0) {
     return <p className="py-12 text-center text-cms-text-muted">{t.posts.emptyCalendar}</p>
@@ -53,27 +63,27 @@ export function PostsCalendar({ posts, strings: t }: PostsCalendarProps) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <button type="button" onClick={prevMonth} className="text-sm text-cms-accent hover:underline">&larr; Prev</button>
+        <button type="button" onClick={prevMonth} aria-label="Previous month" className="text-sm text-cms-accent hover:underline">&larr;</button>
         <span className="text-sm font-semibold text-cms-text">{monthName}</span>
-        <button type="button" onClick={nextMonth} className="text-sm text-cms-accent hover:underline">Next &rarr;</button>
+        <button type="button" onClick={nextMonth} aria-label="Next month" className="text-sm text-cms-accent hover:underline">&rarr;</button>
       </div>
-      <div className="grid grid-cols-7 gap-px bg-cms-border rounded-lg overflow-hidden">
-        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
+      <div role="grid" aria-label="Posts calendar" className="grid grid-cols-7 gap-px bg-cms-border rounded-lg overflow-hidden">
+        {dayNames.map(d => (
           <div key={d} className="bg-cms-surface px-2 py-1 text-center text-xs font-medium text-cms-text-muted">{d}</div>
         ))}
         {days.map((day, i) => {
-          if (!day) return <div key={`empty-${i}`} className="bg-cms-bg min-h-[60px]" />
+          if (!day) return <div key={`empty-${i}`} role="gridcell" className="bg-cms-bg min-h-[60px]" />
           const key = day.toISOString().slice(0, 10)
           const dayPosts = postsByDay[key] ?? []
           return (
-            <div key={key} className="bg-cms-bg min-h-[60px] p-1">
+            <div key={key} role="gridcell" className="bg-cms-bg min-h-[60px] p-1">
               <span className="text-xs text-cms-text-dim">{day.getDate()}</span>
               {dayPosts.slice(0, 3).map(p => (
-                <div key={p.id} className={`mt-0.5 rounded px-1 py-0.5 text-[10px] truncate ${STATUS_COLORS[p.status] ?? ''} text-cms-text`}>
+                <div key={p.id} className={`mt-0.5 rounded px-1 py-0.5 text-[10px] truncate ${CALENDAR_STATUS_COLORS[p.status] ?? ''} text-cms-text`}>
                   {p.content.title ?? p.content.description?.slice(0, 20) ?? p.type}
                 </div>
               ))}
-              {dayPosts.length > 3 && <p className="text-[10px] text-cms-text-dim">+{dayPosts.length - 3} more</p>}
+              {dayPosts.length > 3 && <p className="text-[10px] text-cms-text-dim">+{dayPosts.length - 3}</p>}
             </div>
           )
         })}

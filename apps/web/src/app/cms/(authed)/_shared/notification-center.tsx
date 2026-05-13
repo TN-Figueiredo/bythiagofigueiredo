@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 type NotificationType = 'delivery_failed' | 'token_expiring' | 'ai_drafts_ready' | 'ab_test_complete' | 'published'
 
@@ -13,9 +13,16 @@ interface Notification {
   href: string
 }
 
+interface NotificationStrings {
+  title: string
+  markAllRead: string
+  empty: string
+}
+
 interface NotificationCenterProps {
   notifications: Notification[]
   onMarkAllRead: () => void
+  strings: NotificationStrings
 }
 
 const TYPE_COLORS: Record<NotificationType, string> = {
@@ -26,9 +33,16 @@ const TYPE_COLORS: Record<NotificationType, string> = {
   published: 'border-l-gray-500',
 }
 
-export function NotificationCenter({ notifications, onMarkAllRead }: NotificationCenterProps) {
+export function NotificationCenter({ notifications, onMarkAllRead, strings }: NotificationCenterProps) {
   const [open, setOpen] = useState(false)
   const unread = notifications.filter(n => !n.read).length
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [open])
 
   return (
     <div className="relative">
@@ -36,6 +50,7 @@ export function NotificationCenter({ notifications, onMarkAllRead }: Notificatio
         type="button"
         onClick={() => setOpen(!open)}
         aria-label="Notifications"
+        aria-expanded={open}
         className="relative rounded-md p-2 text-cms-text-muted hover:text-cms-text"
       >
         🔔
@@ -47,17 +62,17 @@ export function NotificationCenter({ notifications, onMarkAllRead }: Notificatio
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-80 rounded-lg border border-cms-border bg-cms-surface shadow-xl">
+        <div role="dialog" aria-label="Notifications" className="absolute right-0 top-full z-50 mt-2 w-80 rounded-lg border border-cms-border bg-cms-surface shadow-xl">
           <div className="flex items-center justify-between border-b border-cms-border px-4 py-2">
-            <span className="text-sm font-semibold text-cms-text">Notifications</span>
+            <span className="text-sm font-semibold text-cms-text">{strings.title}</span>
             {unread > 0 && (
-              <button type="button" onClick={onMarkAllRead} className="text-xs text-cms-accent hover:underline">Mark all read</button>
+              <button type="button" onClick={onMarkAllRead} className="text-xs text-cms-accent hover:underline">{strings.markAllRead}</button>
             )}
           </div>
 
           <div className="max-h-80 overflow-y-auto">
             {notifications.length === 0 ? (
-              <p className="py-8 text-center text-sm text-cms-text-muted">No notifications</p>
+              <p className="py-8 text-center text-sm text-cms-text-muted">{strings.empty}</p>
             ) : (
               notifications.map(n => (
                 <a

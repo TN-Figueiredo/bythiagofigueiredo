@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 import { DEFAULT_TEMPLATES } from '@tn-figueiredo/social'
 
@@ -22,13 +22,20 @@ const TEMPLATE_LIST = [
 export function TemplatePicker({ onSelect, strings: t }: TemplatePickerProps) {
   const [open, setOpen] = useState(false)
 
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [open])
+
   return (
     <div className="relative">
-      <button type="button" onClick={() => setOpen(!open)} className="text-sm text-cms-accent hover:underline">
+      <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="text-sm text-cms-accent hover:underline">
         {t.composer.template.title} ▾
       </button>
       {open && (
-        <div className="absolute left-0 top-full z-20 mt-1 w-72 rounded-lg border border-cms-border bg-cms-surface shadow-lg">
+        <div role="menu" className="absolute left-0 top-full z-20 mt-1 w-72 rounded-lg border border-cms-border bg-cms-surface shadow-lg">
           {TEMPLATE_LIST.map(tmpl => {
             const label = t.composer.template[tmpl.key as keyof typeof t.composer.template] as string
             const text = DEFAULT_TEMPLATES[tmpl.id] ?? ''
@@ -36,6 +43,7 @@ export function TemplatePicker({ onSelect, strings: t }: TemplatePickerProps) {
               <button
                 key={tmpl.id}
                 type="button"
+                role="menuitem"
                 onClick={() => { onSelect(text); setOpen(false) }}
                 className="block w-full px-4 py-2 text-left hover:bg-cms-surface-hover"
               >

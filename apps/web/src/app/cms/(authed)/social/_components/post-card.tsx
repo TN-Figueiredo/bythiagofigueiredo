@@ -13,7 +13,7 @@ interface PostCardProps {
 }
 
 export function PostCard({ post, strings: t, selected, onSelect }: PostCardProps) {
-  const contentPreview = post.content.title ?? post.content.description ?? '(no content)'
+  const contentPreview = post.content.title ?? post.content.description ?? t.posts.noContent
   const statusLabel = t.status[post.status as keyof typeof t.status] ?? post.status
   const dateStr = post.published_at ?? post.scheduled_at ?? post.created_at
 
@@ -23,6 +23,7 @@ export function PostCard({ post, strings: t, selected, onSelect }: PostCardProps
         type="checkbox"
         checked={selected}
         onChange={() => onSelect(post.id)}
+        aria-label={`Select post: ${contentPreview}`}
         className="mt-1 accent-cms-accent"
       />
 
@@ -41,7 +42,7 @@ export function PostCard({ post, strings: t, selected, onSelect }: PostCardProps
         )}
 
         <p className="text-xs text-cms-text-dim mt-1">
-          {new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+          {new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
         </p>
       </div>
     </div>

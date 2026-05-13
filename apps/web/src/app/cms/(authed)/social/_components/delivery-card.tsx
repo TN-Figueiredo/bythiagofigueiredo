@@ -47,7 +47,7 @@ export function DeliveryCard({ delivery, strings: t }: DeliveryCardProps) {
             <span className="inline-block rounded-full bg-red-500/10 px-2 py-0.5 text-xs text-red-400">{delivery.error_type}</span>
           )}
           <div className="flex gap-2">
-            <button type="button" onClick={handleRetry} disabled={isPending} className="text-sm text-cms-accent hover:underline disabled:opacity-50">
+            <button type="button" onClick={handleRetry} disabled={isPending} aria-label={`Retry delivery to ${platformLabel(delivery.provider)}`} className="text-sm text-cms-accent hover:underline disabled:opacity-50">
               {t.detail.retry}
             </button>
           </div>
@@ -55,7 +55,7 @@ export function DeliveryCard({ delivery, strings: t }: DeliveryCardProps) {
       )}
 
       {delivery.attempt > 0 && (
-        <p className="text-xs text-cms-text-dim">Attempt {delivery.attempt}/{delivery.max_attempts}</p>
+        <p className="text-xs text-cms-text-dim">{t.detail.attempt.replace('{attempt}', String(delivery.attempt)).replace('{max}', String(delivery.max_attempts))}</p>
       )}
     </div>
   )

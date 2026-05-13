@@ -37,6 +37,7 @@ export default async function SocialPostsPage({ searchParams }: Props) {
               <a
                 key={tabId}
                 href={tabId === 'feed' ? '/cms/social' : `/cms/social?tab=${tabId}`}
+                aria-current={tab === tabId ? 'page' : undefined}
                 className={`px-3 py-1.5 text-sm font-medium ${tab === tabId ? 'text-cms-accent border-b-2 border-cms-accent' : 'text-cms-text-muted hover:text-cms-text'}`}
               >
                 {t.posts.tabs[tabId]}

@@ -49,6 +49,7 @@ export function AutomationsList({ strings: t }: AutomationsListProps) {
                   type="button"
                   role="switch"
                   aria-checked={rule.enabled}
+                  aria-label={label}
                   onClick={() => handleToggle(rule.id)}
                   className={`relative h-5 w-9 rounded-full transition-colors ${rule.enabled ? 'bg-cms-accent' : 'bg-gray-600'}`}
                 >

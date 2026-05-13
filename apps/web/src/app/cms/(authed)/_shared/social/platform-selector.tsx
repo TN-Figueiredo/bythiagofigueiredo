@@ -46,6 +46,8 @@ export function PlatformSelector({
             onClick={() => toggle(provider)}
             disabled={isDisabled}
             title={isDisabled ? disabledReason[provider] : undefined}
+            aria-label={`Toggle ${platformLabel(provider)}`}
+            aria-pressed={isSelected}
             className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors
               ${isSelected ? 'bg-cms-accent/15 text-cms-accent ring-1 ring-cms-accent/30' : 'bg-cms-surface text-cms-text-muted hover:bg-cms-surface-hover'}
               ${isDisabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}

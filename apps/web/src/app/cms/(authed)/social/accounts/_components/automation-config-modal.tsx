@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { SocialStrings } from '../../_i18n/types'
 
 interface AutomationRule {
@@ -20,11 +20,25 @@ interface AutomationConfigModalProps {
 export function AutomationConfigModal({ rule, strings: t, onClose, onSave }: AutomationConfigModalProps) {
   const [mode, setMode] = useState(rule.mode)
   const [template, setTemplate] = useState('')
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [onClose])
+
+  useEffect(() => {
+    if (!dialogRef.current) return
+    const focusable = dialogRef.current.querySelectorAll<HTMLElement>('button, input, select, textarea, [tabindex]:not([tabindex="-1"])')
+    const first = focusable[0]
+    if (first) first.focus()
+  }, [])
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
-      <div className="w-full max-w-lg rounded-lg bg-cms-surface border border-cms-border p-6 space-y-4" onClick={e => e.stopPropagation()} role="dialog" aria-label={t.accounts.config.title}>
-        <h2 className="text-lg font-semibold text-cms-text">{t.accounts.config.title}</h2>
+      <div ref={dialogRef} className="w-full max-w-lg rounded-lg bg-cms-surface border border-cms-border p-6 space-y-4" onClick={e => e.stopPropagation()} role="dialog" aria-labelledby="automation-config-title">
+        <h2 id="automation-config-title" className="text-lg font-semibold text-cms-text">{t.accounts.config.title}</h2>
 
         <div>
           <label className="text-sm font-medium text-cms-text-muted">{t.accounts.config.triggerLabel}</label>
