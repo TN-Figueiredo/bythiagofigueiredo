@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { PLAYLIST_STATUSES, EDGE_TYPES } from '@/lib/playlists/types'
 
 export const FORMATS = ['video', 'blog_post', 'newsletter', 'course', 'campaign'] as const
 export type Format = (typeof FORMATS)[number]
@@ -121,10 +122,14 @@ export const CollectionCreateSchema = z.object({
 
 export const CollectionUpdateSchema = CollectionCreateSchema.partial().omit({ type: true })
 
+export const REFERENCE_GROUP_VALUES = ['pessoal', 'estrategia', 'craft', 'producao', 'api', 'memoria'] as const
+
 export const ReferenceContentUpsertSchema = z.object({
   title: z.string().min(1).max(200),
   content_md: z.string().max(200_000).optional(),
   content_compact: z.record(z.unknown()).optional(),
+  ref_group: z.enum(REFERENCE_GROUP_VALUES).optional(),
+  sort_order: z.number().int().min(0).max(9999).optional(),
 })
 
 export const ChecklistToggleSchema = z.object({
@@ -147,4 +152,63 @@ export const BulkOperationSchema = z.object({
     z.object({ op: z.literal('tag'), id: z.string().uuid(), data: z.object({ add: z.array(z.string()).default([]), remove: z.array(z.string()).default([]) }) }),
     z.object({ op: z.literal('move_collection'), id: z.string().uuid(), data: z.object({ collection_id: z.string().uuid(), position: z.number().int() }) }),
   ])).min(1).max(50),
+})
+
+// -- Playlist schemas for Cowork API --
+
+export const PipelineCreatePlaylistSchema = z.object({
+  name_en: z.string().min(1).max(200),
+  name_pt: z.string().max(200).default(''),
+  description_en: z.string().max(1000).optional(),
+  description_pt: z.string().max(1000).optional(),
+  category: z.string().max(100).optional(),
+  status: z.enum(PLAYLIST_STATUSES).default('draft'),
+})
+
+export const PipelineUpdatePlaylistSchema = z.object({
+  name_en: z.string().min(1).max(200).optional(),
+  name_pt: z.string().max(200).optional(),
+  description_en: z.string().max(1000).nullable().optional(),
+  description_pt: z.string().max(1000).nullable().optional(),
+  category: z.string().max(100).nullable().optional(),
+  status: z.enum(PLAYLIST_STATUSES).optional(),
+  cover_image_url: z.string().url().nullable().optional(),
+})
+
+export const PipelineAddItemSchema = z.object({
+  blog_post_id: z.string().uuid().optional(),
+  newsletter_edition_id: z.string().uuid().optional(),
+  pipeline_id: z.string().uuid().optional(),
+  sort_order: z.number().int().min(0).optional(),
+  position_x: z.number().optional(),
+  position_y: z.number().optional(),
+}).refine(
+  d => [d.blog_post_id, d.newsletter_edition_id, d.pipeline_id].filter(Boolean).length === 1,
+  { message: 'Exactly one content reference is required' },
+)
+
+export const PipelineBulkAddItemsSchema = z.object({
+  items: z.array(z.object({
+    blog_post_id: z.string().uuid().optional(),
+    newsletter_edition_id: z.string().uuid().optional(),
+    pipeline_id: z.string().uuid().optional(),
+    sort_order: z.number().int().min(0).optional(),
+    position_x: z.number().optional(),
+    position_y: z.number().optional(),
+  })).min(1).max(50),
+})
+
+export const PipelineCreateEdgeSchema = z.object({
+  source_item_id: z.string().uuid(),
+  target_item_id: z.string().uuid(),
+  edge_type: z.enum(EDGE_TYPES),
+  label: z.string().max(100).optional(),
+})
+
+export const PipelineBulkCreateEdgesSchema = z.object({
+  edges: z.array(PipelineCreateEdgeSchema).min(1).max(100),
+})
+
+export const PipelineReorderSchema = z.object({
+  item_ids: z.array(z.string().uuid()).min(1),
 })
