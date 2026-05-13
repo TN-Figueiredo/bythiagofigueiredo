@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import type { Provider, PostType } from '@tn-figueiredo/social'
 import { PlatformSelector } from '@/app/cms/(authed)/_shared/social/platform-selector'
 import { ComposerEditor } from './composer-editor'
+import { PlatformPreviews } from './platform-previews'
 import { createSocialPost } from '@/lib/social/actions'
 import type { SocialStrings } from '../../_i18n/types'
 
@@ -139,12 +140,7 @@ export function ComposerShell({
         </div>
 
         <div className="rounded-lg border border-cms-border bg-cms-bg p-4">
-          <p className="text-sm text-cms-text-muted">Preview</p>
-          {platforms.length === 0 && (
-            <p className="mt-4 text-center text-xs text-cms-text-dim">
-              Select a platform to see preview
-            </p>
-          )}
+          <PlatformPreviews content={content} url={url} hashtags={hashtags} platforms={platforms} strings={t} />
         </div>
       </div>
 
