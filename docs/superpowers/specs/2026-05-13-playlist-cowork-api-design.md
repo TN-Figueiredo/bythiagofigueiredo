@@ -17,6 +17,7 @@ The Cowork pipeline agent (Claude) manages content through the Pipeline API, usi
 - 30 reference entries in `reference_content` table across 6 groups
 - `REFERENCE_USAGE` mapping in `reference-groups.ts` links keys to skills
 - Pipeline auth via `X-Pipeline-Key` header, rate limit 100 req/min
+- Existing playlist routes use inconsistent error format (`{ error: string }`) — must be standardized to `{ error: { code, message } }` matching all other pipeline routes
 
 ---
 
@@ -39,17 +40,45 @@ The Cowork pipeline agent (Claude) manages content through the Pipeline API, usi
 
 Writer and Producer are the skills that graduate pipeline items into published content and may need to add them to playlists.
 
-### Content format
+---
 
-The reference content is stored as `content_md` (markdown). It documents all 11 new endpoints plus the 2 existing read-only ones, decision trees, workflows, edge cases, and naming conventions.
+## API Design Standards
+
+### Error format
+
+All playlist pipeline endpoints (new AND existing) use the standard pipeline error format:
+
+```json
+{ "error": { "code": "ERROR_CODE", "message": "Human-readable description" } }
+```
+
+This matches `/api/pipeline/context/`, `/api/pipeline/items/`, and `/api/pipeline/search/`. The 2 existing read-only playlist routes currently return `{ error: string }` — they MUST be migrated to `{ error: { code, message } }` as part of this work.
+
+### Auth and permissions
+
+All endpoints call `authenticatePipeline(req)` for auth. **Mutation endpoints** (POST, PATCH, DELETE) additionally call `requirePermission(authResult.auth, 'write')` — returning 403 `FORBIDDEN` if the key lacks write access. Read endpoints (GET) only require the `read` permission (implicit via `authenticatePipeline`).
+
+The existing read-only routes do NOT check `requirePermission` for read — this is acceptable because `authenticatePipeline` already validates the key exists.
+
+### Rate limit headers
+
+All responses include rate limit headers when authenticated via API key:
+```
+X-RateLimit-Remaining: 97
+X-RateLimit-Reset: 42
+```
+
+Generated via `buildRateLimitHeaders(authResult.auth)` (returns `undefined` for session auth, which is correct).
 
 ---
 
 ## New API Endpoints
 
-All endpoints live under `/api/pipeline/playlists/`. All use pipeline authentication (`X-Pipeline-Key` header). All return `{ data: T }` on success, `{ error: { code: string, message: string } }` on failure.
+All endpoints live under `/api/pipeline/playlists/`. All return `{ data: T }` on success, `{ error: { code: string, message: string } }` on failure.
 
 ### 1. POST `/api/pipeline/playlists` — Create playlist
+
+**Auth:** `write` permission required.
 
 **Request body:**
 ```json
@@ -68,7 +97,7 @@ All endpoints live under `/api/pipeline/playlists/`. All use pipeline authentica
 
 **Slug generation:** Auto-generated from `name_en` via `slugifyPlaylist()`:
 - NFD normalize → lowercase → replace non-alphanumeric with `-` → trim → max 80 chars
-- Collision resolution: appends `-2`, `-3`, etc. if slug exists
+- Collision resolution: query `getPlaylistBySlug()`, if exists append `-2`, retry up to `-99`. If all 99 collide, return `ALREADY_EXISTS` error (practically impossible — would mean 99 playlists with near-identical names).
 
 **Response (201):**
 ```json
@@ -91,6 +120,8 @@ All endpoints live under `/api/pipeline/playlists/`. All use pipeline authentica
 
 ### 2. PATCH `/api/pipeline/playlists/:id` — Update playlist
 
+**Auth:** `write` permission required.
+
 **Request body (all fields optional):**
 ```json
 {
@@ -104,20 +135,27 @@ All endpoints live under `/api/pipeline/playlists/`. All use pipeline authentica
 }
 ```
 
-Slug is NOT updatable via API (only via CMS). Omitted fields are preserved.
+Slug is NOT updatable via API — slug changes break external links and TipTap embeds. CMS-only operation with explicit confirmation. Omitted fields are preserved (not nullified).
 
 **Response (200):** Same shape as create.
+**404:** If playlist doesn't exist or belongs to another site.
 
 ### 3. DELETE `/api/pipeline/playlists/:id` — Delete playlist
 
-Cascading delete — removes all items and edges.
+**Auth:** `write` permission required.
+
+Cascading delete — removes all items and edges (via DB `ON DELETE CASCADE`).
 
 **Response (200):**
 ```json
 { "data": { "deleted": true } }
 ```
 
+**404:** If playlist doesn't exist or belongs to another site.
+
 ### 4. POST `/api/pipeline/playlists/:id/items` — Add single item
+
+**Auth:** `write` permission required.
 
 **Request body:**
 ```json
@@ -129,11 +167,13 @@ Cascading delete — removes all items and edges.
 }
 ```
 
-Exactly one of `blog_post_id`, `newsletter_edition_id`, or `pipeline_id` is required.
+Exactly one of `blog_post_id`, `newsletter_edition_id`, or `pipeline_id` is required. Providing zero or multiple returns `VALIDATION_ERROR`.
 
-**Optional:** `sort_order` (default: auto-increment by 1000), `position_x` (default: 0), `position_y` (default: 0).
+**Optional:** `sort_order` (default: auto-increment — queries max existing `sort_order` + 1000), `position_x` (default: 0), `position_y` (default: 0).
 
-**Idempotent:** If the content is already in the playlist, returns `{ data: { id: "existing-item-uuid", already_existed: true } }` with status 200 (not an error).
+**Idempotent:** If the content is already in the playlist, returns the existing item ID with `already_existed: true` and status 200 (not an error).
+
+**FK error:** If the referenced content ID doesn't exist in `blog_posts`/`newsletter_editions`/`content_pipeline`, the DB FK constraint fails. Return `VALIDATION_ERROR` with message `"Referenced content does not exist"`.
 
 **Response (201 or 200):**
 ```json
@@ -147,6 +187,8 @@ Exactly one of `blog_post_id`, `newsletter_edition_id`, or `pipeline_id` is requ
 
 ### 5. POST `/api/pipeline/playlists/:id/items/bulk` — Add multiple items
 
+**Auth:** `write` permission required.
+
 **Request body:**
 ```json
 {
@@ -159,6 +201,8 @@ Exactly one of `blog_post_id`, `newsletter_edition_id`, or `pipeline_id` is requ
 ```
 
 Max 50 items per request. Each item follows the same schema as single add.
+
+**Sort order auto-assignment for bulk:** Items without explicit `sort_order` are assigned sequentially starting from `(max_existing_sort_order + 1000)`, incrementing by 1000 for each item. Items with explicit `sort_order` use their specified value. Processing order matches array order.
 
 **Response (200):**
 ```json
@@ -177,7 +221,11 @@ Max 50 items per request. Each item follows the same schema as single add.
 
 ### 6. DELETE `/api/pipeline/playlists/:id/items/:itemId` — Remove item
 
-Cascading — also removes edges connected to this item.
+**Auth:** `write` permission required.
+
+Cascading — also removes edges connected to this item (via DB `ON DELETE CASCADE` on `playlist_edges.source_item_id` and `playlist_edges.target_item_id`).
+
+Validates item belongs to the specified playlist. Returns `NOT_FOUND` if the item doesn't exist or belongs to a different playlist.
 
 **Response (200):**
 ```json
@@ -185,6 +233,8 @@ Cascading — also removes edges connected to this item.
 ```
 
 ### 7. POST `/api/pipeline/playlists/:id/edges` — Create single edge
+
+**Auth:** `write` permission required.
 
 **Request body:**
 ```json
@@ -198,17 +248,18 @@ Cascading — also removes edges connected to this item.
 
 **Edge types:**
 
-| Type | Meaning | Visual |
-|------|---------|--------|
-| `sequence` | Linear reading order | Blue solid arrow |
-| `related` | "See also" | Gray dashed line |
-| `prerequisite` | "Read first" | Yellow dashed arrow |
-| `continuation` | Direct continuation | Green solid arrow |
+| Type | Meaning | Visual | Cycle-safe |
+|------|---------|--------|-----------|
+| `sequence` | Linear reading order | Blue solid arrow | No cycles (DB trigger rejects) |
+| `related` | "See also" | Gray dashed line | Cycles allowed |
+| `prerequisite` | "Read first" | Yellow dashed arrow | Cycles allowed |
+| `continuation` | Direct continuation | Green solid arrow | Cycles allowed |
 
 **Constraints:**
-- `source_item_id !== target_item_id` (no self-loops — DB constraint)
-- Sequence edges cannot create cycles (DB trigger `prevent_sequence_cycle`)
-- Duplicate edge returns existing ID (idempotent)
+- `source_item_id !== target_item_id` (no self-loops — DB constraint `playlist_edges_no_self`)
+- Sequence edges cannot create cycles (DB trigger `prevent_sequence_cycle` — raises `P0001`)
+- Both items must belong to the same playlist (verified by `playlist_id` match)
+- Duplicate edge (same source + target + playlist) returns existing ID with `already_existed: true` (idempotent)
 
 **Response (201 or 200):**
 ```json
@@ -222,6 +273,8 @@ Cascading — also removes edges connected to this item.
 
 ### 8. POST `/api/pipeline/playlists/:id/edges/bulk` — Create multiple edges
 
+**Auth:** `write` permission required.
+
 **Request body:**
 ```json
 {
@@ -232,7 +285,9 @@ Cascading — also removes edges connected to this item.
 }
 ```
 
-Max 100 edges per request. Processed sequentially to respect cycle detection.
+Max 100 edges per request. Processed **sequentially** (not parallel) to respect cycle detection — each edge insertion triggers the `prevent_sequence_cycle` DB trigger, which must see previously inserted edges to correctly detect cycles.
+
+**Partial success:** If edge 3 of 5 causes a cycle, edges 1-2 are kept, edge 3 is reported in `errors`, edges 4-5 continue processing.
 
 **Response (200):**
 ```json
@@ -244,14 +299,18 @@ Max 100 edges per request. Processed sequentially to respect cycle detection.
     ],
     "created": 2,
     "skipped": 0,
-    "errors": []
+    "errors": [
+      { "index": 2, "source_item_id": "uuid-x", "target_item_id": "uuid-y", "code": "CYCLE_DETECTED", "message": "Sequence edge would create a cycle" }
+    ]
   }
 }
 ```
 
-Partial success is possible — `errors` array contains failed edges with reasons (e.g., cycle detected).
-
 ### 9. DELETE `/api/pipeline/playlists/:id/edges/:edgeId` — Delete edge
+
+**Auth:** `write` permission required.
+
+Validates edge belongs to the specified playlist. Returns `NOT_FOUND` if the edge doesn't exist or belongs to a different playlist.
 
 **Response (200):**
 ```json
@@ -260,6 +319,8 @@ Partial success is possible — `errors` array contains failed edges with reason
 
 ### 10. POST `/api/pipeline/playlists/:id/reorder` — Reorder items
 
+**Auth:** `write` permission required.
+
 **Request body:**
 ```json
 {
@@ -267,7 +328,9 @@ Partial success is possible — `errors` array contains failed edges with reason
 }
 ```
 
-All item IDs must belong to the playlist. Sort orders are reassigned as 1000, 2000, 3000, etc.
+`item_ids` is a **partial or full** list. Only the listed items get new sort orders (1000, 2000, 3000, etc.). Items NOT in the list keep their current `sort_order` unchanged. This allows reordering a subset without affecting the rest.
+
+All listed item IDs must belong to the specified playlist — returns `VALIDATION_ERROR` if any ID is foreign.
 
 **Response (200):**
 ```json
@@ -276,13 +339,17 @@ All item IDs must belong to the playlist. Sort orders are reassigned as 1000, 20
 
 ### 11. POST `/api/pipeline/playlists/:id/auto-layout` — Auto-layout graph
 
-Applies topological sort (Kahn's algorithm) using sequence edges to compute node positions. Items without sequence edges go to layer 0.
+**Auth:** `write` permission required.
 
-**Layout parameters:**
-- Horizontal gap: 200px between layers
-- Vertical gap: 120px between nodes in same layer
+Applies topological sort (Kahn's algorithm) using sequence edges to compute node positions. Items without sequence edges go to layer 0. Items within the same layer are sorted by `sort_order`.
+
+**Layout parameters (constants from `auto-layout.ts`):**
+- Horizontal gap: 200px between layers (`LAYER_GAP_X`)
+- Vertical gap: 120px between nodes in same layer (`NODE_GAP_Y`)
 
 No request body required.
+
+**Empty playlist:** Returns `{ data: { positions: [], layers: 0 } }` with status 200.
 
 **Response (200):**
 ```json
@@ -298,22 +365,32 @@ No request body required.
 }
 ```
 
-Positions are saved to the database. The CMS canvas will reflect the new layout.
+Positions are saved to the database via batch `UPDATE playlist_items SET position_x, position_y`. The CMS canvas will reflect the new layout on next load.
 
 ---
 
-## Existing Read-Only Endpoints (already implemented)
+## Existing Endpoints (standardization required)
 
 ### GET `/api/pipeline/playlists` — List all playlists
 
-Supports query parameters:
-- `?status=draft|published|archived` — filter by status
-- `?category=typescript` — filter by category
-- `?search=keyword` — search in name_en, name_pt
+**Current:** Returns `{ data: [...] }` — no filters.
+**After:** Adds query parameters:
+
+| Parameter | Type | Behavior |
+|-----------|------|----------|
+| `?status=draft` | string | Exact match on `playlists.status` |
+| `?category=typescript` | string | Case-insensitive match on `playlists.category` |
+| `?search=keyword` | string | `ilike` on `name_en` OR `name_pt` (min 2 chars) |
+
+All filters are optional, combinable, and AND-joined.
+
+**Error format migration:** Change `{ error: authResult.error }` → `{ error: { code: 'UNAUTHORIZED', message: authResult.error } }`.
 
 **Response:** Array of playlist summaries with `item_count`.
 
 ### GET `/api/pipeline/playlists/:id` — Get playlist with full graph
+
+**Error format migration:** Change `{ error: 'not_found' }` → `{ error: { code: 'NOT_FOUND', message: 'Playlist not found' } }`.
 
 **Response:** `{ playlist, items[], edges[] }` — complete graph data including enriched item titles, content types, statuses, and cross-playlist counts.
 
@@ -321,15 +398,15 @@ Supports query parameters:
 
 ## Error Codes
 
-| Code | HTTP | Meaning |
-|------|------|---------|
+| Code | HTTP | When |
+|------|------|------|
 | `UNAUTHORIZED` | 401 | Invalid or missing `X-Pipeline-Key` |
 | `FORBIDDEN` | 403 | Key lacks `write` permission |
-| `NOT_FOUND` | 404 | Playlist or item not found |
-| `VALIDATION_ERROR` | 400 | Invalid request body (Zod validation) |
-| `ALREADY_EXISTS` | 409 | Slug collision (create only) |
-| `CYCLE_DETECTED` | 422 | Sequence edge would create a cycle |
-| `LIMIT_EXCEEDED` | 400 | Bulk operation exceeds max items |
+| `NOT_FOUND` | 404 | Playlist, item, or edge not found (or belongs to different site) |
+| `VALIDATION_ERROR` | 400 | Invalid JSON, Zod validation failure, or FK constraint violation |
+| `ALREADY_EXISTS` | 409 | Slug collision after 99 suffix attempts (create only) |
+| `CYCLE_DETECTED` | 422 | Sequence edge would create a cycle (Postgres `P0001`) |
+| `LIMIT_EXCEEDED` | 400 | Bulk items > 50 or bulk edges > 100 |
 
 ---
 
@@ -353,55 +430,65 @@ Tarefa envolve conteúdo organizado em série/sequência?
 
 ## Workflows
 
-### Workflow 1: Graduation — Add published content to playlist
+### Workflow 1: Graduação — Adicionar conteúdo publicado à playlist
 
-When a pipeline item graduates (e.g., blog post published):
+Quando um pipeline item é graduado (ex: blog post publicado):
 
-1. `GET /api/pipeline/playlists?category={category}` — find matching playlist
-2. If no match: `POST /api/pipeline/playlists` — create new playlist
-3. `POST /api/pipeline/playlists/:id/items` — add the graduated content
-4. `GET /api/pipeline/playlists/:id` — check existing items
-5. `POST /api/pipeline/playlists/:id/edges` — connect to last item (sequence edge)
-6. `POST /api/pipeline/playlists/:id/auto-layout` — reorganize the graph
+1. `GET /api/pipeline/playlists?category={category}` — buscar playlist compatível
+2. Se não encontrar: `POST /api/pipeline/playlists` — criar nova playlist
+3. `GET /api/pipeline/playlists/:id` — ler grafo atual para saber último item
+4. `POST /api/pipeline/playlists/:id/items` — adicionar conteúdo graduado
+5. `POST /api/pipeline/playlists/:id/edges` — conectar ao último item existente (edge type `sequence`)
+6. `POST /api/pipeline/playlists/:id/auto-layout` — reorganizar o grafo
 
-### Workflow 2: Build a complete learning path
+### Workflow 2: Construir learning path completo
 
-1. `POST /api/pipeline/playlists` — create playlist with descriptive name
-2. `POST /api/pipeline/playlists/:id/items/bulk` — add all items at once
-3. `POST /api/pipeline/playlists/:id/edges/bulk` — connect items in sequence
-4. `POST /api/pipeline/playlists/:id/auto-layout` — arrange the graph
-5. `PATCH /api/pipeline/playlists/:id` — set status to `published`
+1. `POST /api/pipeline/playlists` — criar playlist com nome descritivo
+2. `POST /api/pipeline/playlists/:id/items/bulk` — adicionar todos os items de uma vez
+3. `POST /api/pipeline/playlists/:id/edges/bulk` — conectar items em sequência
+4. `POST /api/pipeline/playlists/:id/auto-layout` — organizar o grafo automaticamente
+5. `PATCH /api/pipeline/playlists/:id` — definir status como `published`
 
-### Workflow 3: Cross-reference related content
+### Workflow 3: Cross-reference entre playlists
 
-1. `GET /api/pipeline/playlists` — find two related playlists
-2. For each: `POST /playlists/:id/items` — add item from the other playlist's topic
-3. `POST /playlists/:id/edges` — use `related` edge type (not sequence)
+1. `GET /api/pipeline/playlists` — encontrar duas playlists relacionadas
+2. Para cada: `POST /playlists/:id/items` — adicionar item do tópico da outra playlist
+3. `POST /playlists/:id/edges` — usar edge type `related` (não `sequence`)
+
+### Workflow 4: Limpeza de ghosts
+
+1. `GET /api/pipeline/playlists/:id` — ler grafo
+2. Filtrar items onde `is_ghost === true` (conteúdo fonte foi deletado)
+3. Para cada ghost: `DELETE /api/pipeline/playlists/:id/items/:itemId`
+4. `POST /api/pipeline/playlists/:id/auto-layout` — reorganizar após remoções
 
 ---
 
 ## Naming Conventions
 
-| Concept | Convention | Example |
-|---------|-----------|---------|
-| Playlist name | Descriptive, title case | "Getting Started with TypeScript" |
-| Playlist name_pt | Portuguese translation | "Começando com TypeScript" |
-| Category | Lowercase, single word or hyphenated | "typescript", "react-native" |
-| Slug | Auto-generated, do not set manually | "getting-started-with-typescript" |
-| Edge labels | Short action phrase or null | "Read first", null |
+| Conceito | Convenção | Exemplo |
+|----------|-----------|---------|
+| Nome playlist (EN) | Descritivo, title case | "Getting Started with TypeScript" |
+| Nome playlist (PT) | Tradução em português | "Começando com TypeScript" |
+| Category | Lowercase, palavra única ou hyphenated | "typescript", "react-native" |
+| Slug | Auto-gerado, nunca definir manualmente | "getting-started-with-typescript" |
+| Edge labels | Frase curta de ação ou null | "Leia antes", null |
 
 ---
 
 ## Constraints and Edge Cases
 
-1. **Unique items:** Each content piece appears at most once per playlist (DB constraint). Attempting to add a duplicate returns the existing item ID.
-2. **No self-loops:** `source_item_id !== target_item_id` enforced by DB constraint.
-3. **No sequence cycles:** DB trigger `prevent_sequence_cycle` rejects sequence edges that would create cycles. Other edge types (related, prerequisite, continuation) allow cycles.
-4. **Sort order gaps:** Use increments of 1000 (1000, 2000, 3000) to allow future insertions without reordering.
-5. **Ghost items:** When referenced content is deleted (e.g., blog post removed), the playlist item becomes a "ghost" (`is_ghost: true`, `title: "Content removed"`). Cowork should clean up ghosts when detected.
-6. **Cascading deletes:** Deleting a playlist removes all items and edges. Deleting an item removes its connected edges.
-7. **Viewport state:** Not exposed via Pipeline API (CMS-only). Auto-layout handles positioning.
-8. **Slug collisions:** On create, if the generated slug collides, the API appends `-2`, `-3`, etc.
+1. **Unique items:** Cada conteúdo aparece no máximo uma vez por playlist (DB unique index parcial). Tentar adicionar duplicata retorna o item existente (idempotente).
+2. **No self-loops:** `source_item_id !== target_item_id` — DB constraint `playlist_edges_no_self`.
+3. **No sequence cycles:** DB trigger `prevent_sequence_cycle` rejeita sequence edges que criariam ciclos. Outros edge types (related, prerequisite, continuation) permitem referências circulares.
+4. **Sort order gaps:** Usar incrementos de 1000 (1000, 2000, 3000) para permitir inserções intermediárias sem reordenar tudo.
+5. **Ghost items:** Quando conteúdo referenciado é deletado (ex: blog post removido), o playlist item se torna "ghost" (`is_ghost: true`, `title: "Content removed"`). Cowork deve limpar ghosts quando detectar (Workflow 4).
+6. **Cascading deletes:** Deletar playlist remove todos items e edges. Deletar item remove edges conectadas.
+7. **Viewport state:** Não exposto via Pipeline API (apenas CMS). Auto-layout cuida do posicionamento.
+8. **Slug collisions:** Na criação, se slug colide, API tenta sufixos `-2` até `-99`. Se todos colidem (praticamente impossível), retorna `ALREADY_EXISTS`.
+9. **FK violations:** Se `blog_post_id`/`newsletter_edition_id`/`pipeline_id` referencia conteúdo inexistente, DB rejeita com FK violation → API retorna `VALIDATION_ERROR`.
+10. **Partial reorder:** `item_ids` no endpoint reorder pode ser subconjunto — só os listados recebem novo `sort_order`.
+11. **Empty auto-layout:** Playlist vazia retorna `{ positions: [], layers: 0 }`.
 
 ---
 
@@ -409,8 +496,8 @@ When a pipeline item graduates (e.g., blog post published):
 
 | File | Change |
 |------|--------|
-| `apps/web/src/app/api/pipeline/playlists/route.ts` | Add POST handler (create playlist), add query filters to GET |
-| `apps/web/src/app/api/pipeline/playlists/[id]/route.ts` | Add PATCH and DELETE handlers |
+| `apps/web/src/app/api/pipeline/playlists/route.ts` | Add POST handler, add query filters to GET, standardize error format |
+| `apps/web/src/app/api/pipeline/playlists/[id]/route.ts` | Add PATCH and DELETE handlers, standardize error format |
 | `apps/web/src/app/api/pipeline/playlists/[id]/items/route.ts` | **New** — POST single item |
 | `apps/web/src/app/api/pipeline/playlists/[id]/items/bulk/route.ts` | **New** — POST bulk items |
 | `apps/web/src/app/api/pipeline/playlists/[id]/items/[itemId]/route.ts` | **New** — DELETE item |
@@ -419,17 +506,20 @@ When a pipeline item graduates (e.g., blog post published):
 | `apps/web/src/app/api/pipeline/playlists/[id]/edges/[edgeId]/route.ts` | **New** — DELETE edge |
 | `apps/web/src/app/api/pipeline/playlists/[id]/reorder/route.ts` | **New** — POST reorder |
 | `apps/web/src/app/api/pipeline/playlists/[id]/auto-layout/route.ts` | **New** — POST auto-layout |
+| `apps/web/src/lib/pipeline/schemas.ts` | Add Pipeline playlist Zod schemas |
 | `apps/web/src/lib/pipeline/reference-groups.ts` | Add `'playlist-graph-api'` to `REFERENCE_USAGE` |
-| `apps/web/src/lib/playlists/queries.ts` | Add query filters (status, category, search) to `listPlaylists` |
-| `scripts/seed-pipeline-reference.ts` | Add `playlist-graph-api` entry seeding |
-| `docs/cowork-pipeline-reference.md` | Reduce playlist section to cross-reference pointer |
+| `apps/web/src/lib/playlists/queries.ts` | Extend `listPlaylists` with category, search filters |
+| `scripts/seed-pipeline-reference.ts` | Add `playlist-graph-api` entry seeding with content_md |
+| `docs/cowork-pipeline-reference.md` | Replace playlist section with cross-reference pointer |
 
 ---
 
-## Pipeline API Zod Schemas (new)
+## Pipeline API Zod Schemas
+
+All new schemas go in `apps/web/src/lib/pipeline/schemas.ts` alongside the existing `ReferenceContentUpsertSchema`:
 
 ```typescript
-// In a new file or extending existing schemas
+import { EDGE_TYPES, PLAYLIST_STATUSES } from '@/lib/playlists/types'
 
 export const PipelineCreatePlaylistSchema = z.object({
   name_en: z.string().min(1).max(200),
@@ -437,7 +527,7 @@ export const PipelineCreatePlaylistSchema = z.object({
   description_en: z.string().max(1000).optional(),
   description_pt: z.string().max(1000).optional(),
   category: z.string().max(100).optional(),
-  status: z.enum(['draft', 'published', 'archived']).default('draft'),
+  status: z.enum(PLAYLIST_STATUSES).default('draft'),
 })
 
 export const PipelineUpdatePlaylistSchema = z.object({
@@ -446,7 +536,7 @@ export const PipelineUpdatePlaylistSchema = z.object({
   description_en: z.string().max(1000).nullable().optional(),
   description_pt: z.string().max(1000).nullable().optional(),
   category: z.string().max(100).nullable().optional(),
-  status: z.enum(['draft', 'published', 'archived']).optional(),
+  status: z.enum(PLAYLIST_STATUSES).optional(),
   cover_image_url: z.string().url().nullable().optional(),
 })
 
@@ -463,13 +553,20 @@ export const PipelineAddItemSchema = z.object({
 )
 
 export const PipelineBulkAddItemsSchema = z.object({
-  items: z.array(PipelineAddItemSchema).min(1).max(50),
+  items: z.array(z.object({
+    blog_post_id: z.string().uuid().optional(),
+    newsletter_edition_id: z.string().uuid().optional(),
+    pipeline_id: z.string().uuid().optional(),
+    sort_order: z.number().int().min(0).optional(),
+    position_x: z.number().optional(),
+    position_y: z.number().optional(),
+  })).min(1).max(50),
 })
 
 export const PipelineCreateEdgeSchema = z.object({
   source_item_id: z.string().uuid(),
   target_item_id: z.string().uuid(),
-  edge_type: z.enum(['sequence', 'related', 'prerequisite', 'continuation']),
+  edge_type: z.enum(EDGE_TYPES),
   label: z.string().max(100).optional(),
 })
 
@@ -482,25 +579,264 @@ export const PipelineReorderSchema = z.object({
 })
 ```
 
+Note: `PipelineBulkAddItemsSchema` uses inline object schema instead of `PipelineAddItemSchema` because `.refine()` produces `ZodEffects` which cannot be nested in `z.array()` cleanly. The refine validation is applied per-item in the route handler loop instead.
+
 ---
 
 ## Reference Content (content_md)
 
-The actual markdown content stored in `reference_content` will be a condensed, agent-optimized version of this spec — focusing on endpoint signatures, request/response examples, the decision tree, and workflows. It will follow the same documentation style as the existing `cowork-section-schemas` reference.
+The following is the exact markdown content to be stored in the `playlist-graph-api` reference entry. It is written in Portuguese (Cowork's operating language) and optimized for agent consumption — concise, scannable, with concrete examples.
+
+````markdown
+# Playlist Graph API — Referência Completa
+
+API para criar, gerenciar e organizar playlists programaticamente.
+Base: `/api/pipeline/playlists`. Auth: `X-Pipeline-Key` (write permission para mutações).
+
+---
+
+## Árvore de Decisão
+
+```
+Tarefa envolve conteúdo em série/sequência?
+├─ SIM → Playlist existe? → GET /playlists?category={cat}
+│   ├─ SIM → GET /playlists/:id → ver grafo → adicionar/conectar/reorganizar
+│   └─ NÃO → POST /playlists → criar → adicionar items + edges + auto-layout
+├─ NÃO → Não usar playlists
+└─ DÚVIDA → GET /playlists → listar existentes
+```
+
+---
+
+## Endpoints
+
+### Leitura
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| GET | `/playlists` | Lista playlists. Filtros: `?status=`, `?category=`, `?search=` |
+| GET | `/playlists/:id` | Grafo completo: playlist + items[] + edges[] |
+
+### Criação/Atualização
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| POST | `/playlists` | Criar playlist. Slug auto-gerado de `name_en` |
+| PATCH | `/playlists/:id` | Atualizar campos (slug não editável via API) |
+| DELETE | `/playlists/:id` | Deletar playlist + items + edges (cascata) |
+
+### Items
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| POST | `/playlists/:id/items` | Adicionar 1 item. Idempotente (retorna existing se duplicata) |
+| POST | `/playlists/:id/items/bulk` | Adicionar até 50 items. Idempotente por item |
+| DELETE | `/playlists/:id/items/:itemId` | Remover item + edges conectadas (cascata) |
+
+### Edges (conexões entre items)
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| POST | `/playlists/:id/edges` | Criar 1 edge. Idempotente |
+| POST | `/playlists/:id/edges/bulk` | Criar até 100 edges. Sequencial (ciclo-safe) |
+| DELETE | `/playlists/:id/edges/:edgeId` | Remover edge |
+
+### Organização
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| POST | `/playlists/:id/reorder` | Reordenar items por sort_order |
+| POST | `/playlists/:id/auto-layout` | Auto-posicionar nós (topological sort) |
+
+---
+
+## Criar Playlist
+
+```json
+POST /api/pipeline/playlists
+{
+  "name_en": "Getting Started with TypeScript",    // OBRIGATÓRIO
+  "name_pt": "Começando com TypeScript",            // opcional, default ""
+  "description_en": "Series for TS beginners",      // opcional
+  "description_pt": "Série para iniciantes em TS",  // opcional
+  "category": "typescript",                          // opcional
+  "status": "draft"                                  // opcional, default "draft"
+}
+→ 201 { "data": { "id": "uuid", "slug": "getting-started-with-typescript", ... } }
+```
+
+Slug: auto-gerado de `name_en`. Colisão: sufixo `-2`, `-3`... até `-99`.
+
+## Adicionar Item
+
+```json
+POST /api/pipeline/playlists/:id/items
+{
+  "blog_post_id": "uuid"          // OU newsletter_edition_id OU pipeline_id (exatamente 1)
+  // "sort_order": 3000,           // opcional, default: auto-increment +1000
+  // "position_x": 400,            // opcional, default: 0
+  // "position_y": 200             // opcional, default: 0
+}
+→ 201 { "data": { "id": "item-uuid", "already_existed": false } }
+→ 200 { "data": { "id": "existing-uuid", "already_existed": true } }  // se já existia
+```
+
+## Adicionar Items em Lote
+
+```json
+POST /api/pipeline/playlists/:id/items/bulk
+{
+  "items": [
+    { "blog_post_id": "uuid-1" },
+    { "pipeline_id": "uuid-2", "sort_order": 2000 },
+    { "newsletter_edition_id": "uuid-3" }
+  ]
+}
+→ 200 { "data": { "items": [...], "added": 2, "skipped": 1 } }
+```
+
+Máximo 50 items. Sort order auto-atribuído sequencialmente (+1000) quando omitido.
+
+## Criar Edge
+
+```json
+POST /api/pipeline/playlists/:id/edges
+{
+  "source_item_id": "uuid-a",
+  "target_item_id": "uuid-b",
+  "edge_type": "sequence",      // sequence | related | prerequisite | continuation
+  "label": null                  // opcional
+}
+→ 201 { "data": { "id": "edge-uuid", "already_existed": false } }
+```
+
+### Edge Types
+
+| Type | Significado | Regra de ciclo |
+|------|-------------|---------------|
+| `sequence` | Ordem de leitura linear | Ciclos PROIBIDOS (DB rejeita) |
+| `related` | "Veja também" | Ciclos permitidos |
+| `prerequisite` | "Leia antes" | Ciclos permitidos |
+| `continuation` | Continuação direta | Ciclos permitidos |
+
+## Criar Edges em Lote
+
+```json
+POST /api/pipeline/playlists/:id/edges/bulk
+{
+  "edges": [
+    { "source_item_id": "a", "target_item_id": "b", "edge_type": "sequence" },
+    { "source_item_id": "b", "target_item_id": "c", "edge_type": "sequence" }
+  ]
+}
+→ 200 { "data": { "edges": [...], "created": 2, "skipped": 0, "errors": [] } }
+```
+
+Máximo 100 edges. Processamento sequencial (respeita detecção de ciclos). Sucesso parcial possível.
+
+## Auto-Layout
+
+```json
+POST /api/pipeline/playlists/:id/auto-layout
+// sem body
+→ 200 { "data": { "positions": [{ "item_id": "uuid", "position_x": 0, "position_y": 0 }, ...], "layers": 3 } }
+```
+
+Algoritmo: Kahn (topological sort) usando sequence edges. Gap horizontal: 200px, vertical: 120px.
+
+## Reorder
+
+```json
+POST /api/pipeline/playlists/:id/reorder
+{ "item_ids": ["uuid-1", "uuid-2", "uuid-3"] }
+→ 200 { "data": { "reordered": true, "count": 3 } }
+```
+
+Sort orders: 1000, 2000, 3000... Items não listados mantêm sort_order atual.
+
+---
+
+## Workflows
+
+### Graduação → Adicionar à Playlist
+
+1. `GET /playlists?category={cat}` → encontrar playlist
+2. Se não existe: `POST /playlists` → criar
+3. `GET /playlists/:id` → ler grafo atual
+4. `POST /playlists/:id/items` → adicionar conteúdo graduado
+5. `POST /playlists/:id/edges` → edge `sequence` conectando ao último item
+6. `POST /playlists/:id/auto-layout` → reorganizar
+
+### Construir Learning Path
+
+1. `POST /playlists` → criar
+2. `POST /playlists/:id/items/bulk` → adicionar todos items
+3. `POST /playlists/:id/edges/bulk` → conectar em sequência
+4. `POST /playlists/:id/auto-layout` → organizar
+5. `PATCH /playlists/:id` → `{ "status": "published" }`
+
+### Limpeza de Ghosts
+
+1. `GET /playlists/:id` → ler grafo
+2. Filtrar items com `is_ghost === true`
+3. `DELETE /playlists/:id/items/:itemId` para cada ghost
+4. `POST /playlists/:id/auto-layout` → reorganizar
+
+---
+
+## Regras
+
+1. Cada conteúdo aparece **no máximo 1x** por playlist (idempotente)
+2. Self-loop proibido: `source_item_id !== target_item_id`
+3. Sequence edges: ciclos proibidos (DB trigger)
+4. Sort order: incrementos de 1000 para inserções intermediárias
+5. Posições (x, y): default (0,0). Use auto-layout para organizar
+6. `name_en` obrigatório. `name_pt` pode ser vazio. Slug gerado de `name_en`
+7. Erros: formato `{ "error": { "code": "...", "message": "..." } }`
+````
+
+---
+
+## Cross-Reference Update (docs/cowork-pipeline-reference.md)
+
+The current Playlists section (lines 613-729) should be replaced with:
+
+```markdown
+## Playlists
+
+Para referência completa da API de playlists (CRUD, edges, auto-layout, workflows), consulte a referência `playlist-graph-api` no contexto do pipeline:
+
+```
+GET /api/pipeline/context/playlist-graph-api
+```
+
+Resumo dos endpoints disponíveis:
+- `GET/POST /api/pipeline/playlists` — listar / criar
+- `GET/PATCH/DELETE /api/pipeline/playlists/:id` — detalhe / atualizar / deletar
+- `POST /playlists/:id/items`, `/items/bulk`, `DELETE /items/:itemId` — gerenciar items
+- `POST /playlists/:id/edges`, `/edges/bulk`, `DELETE /edges/:edgeId` — gerenciar edges
+- `POST /playlists/:id/reorder` — reordenar items
+- `POST /playlists/:id/auto-layout` — auto-posicionar nós
+```
 
 ---
 
 ## Verification Checklist
 
-- [ ] All 11 new endpoints respond correctly with pipeline auth
-- [ ] Slug auto-generation with collision resolution works
-- [ ] Idempotent add item returns existing ID
-- [ ] Idempotent create edge returns existing ID
-- [ ] Bulk operations respect limits (50 items, 100 edges)
-- [ ] Cycle detection rejects cyclic sequence edges
-- [ ] Auto-layout computes correct positions via topological sort
+- [ ] All 11 new endpoints respond correctly with pipeline auth + write permission
+- [ ] Existing GET endpoints standardized to `{ error: { code, message } }` format
+- [ ] Rate limit headers present in all responses (API key auth only)
+- [ ] Slug auto-generation with collision resolution (up to `-99`)
+- [ ] Idempotent add item returns existing ID with `already_existed: true`
+- [ ] Idempotent create edge returns existing ID with `already_existed: true`
+- [ ] FK violation on non-existent content returns `VALIDATION_ERROR`
+- [ ] Bulk items: max 50, sort_order auto-assigned sequentially
+- [ ] Bulk edges: max 100, processed sequentially, partial success with `errors` array
+- [ ] Cycle detection rejects cyclic sequence edges with `CYCLE_DETECTED`
+- [ ] Auto-layout computes correct positions; empty playlist returns `layers: 0`
+- [ ] Reorder accepts partial item list; non-listed items unchanged
 - [ ] Query filters (status, category, search) work on GET list
-- [ ] `playlist-graph-api` reference entry exists in `reference_content`
-- [ ] `REFERENCE_USAGE` includes `'playlist-graph-api'`
-- [ ] Existing read-only endpoints still work
-- [ ] All tests pass
+- [ ] `playlist-graph-api` reference entry exists in `reference_content` with full content_md
+- [ ] `REFERENCE_USAGE` includes `'playlist-graph-api': ['Writer', 'Producer']`
+- [ ] `docs/cowork-pipeline-reference.md` playlist section replaced with cross-reference
+- [ ] All existing tests pass + new endpoint tests added
