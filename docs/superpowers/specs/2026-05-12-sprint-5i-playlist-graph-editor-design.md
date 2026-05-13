@@ -43,11 +43,22 @@ CREATE TABLE playlists (
 );
 ```
 
-**RLS:**
-- SELECT: `can_view_site(site_id)`
-- INSERT/UPDATE/DELETE: `can_edit_site(site_id)`
+```sql
+ALTER TABLE playlists ENABLE ROW LEVEL SECURITY;
 
-**Trigger:** `tg_set_updated_at()` on UPDATE.
+CREATE POLICY "playlists_select" ON playlists FOR SELECT
+  USING (public.can_view_site(site_id));
+CREATE POLICY "playlists_insert" ON playlists FOR INSERT
+  WITH CHECK (public.can_edit_site(site_id));
+CREATE POLICY "playlists_update" ON playlists FOR UPDATE
+  USING (public.can_edit_site(site_id));
+CREATE POLICY "playlists_delete" ON playlists FOR DELETE
+  USING (public.can_edit_site(site_id));
+
+CREATE TRIGGER tg_playlists_updated_at
+  BEFORE UPDATE ON playlists
+  FOR EACH ROW EXECUTE FUNCTION tg_set_updated_at();
+```
 
 ### 1.2 playlist_items
 
@@ -87,11 +98,27 @@ CREATE UNIQUE INDEX uq_playlist_pipeline ON playlist_items(playlist_id, pipeline
 
 **RLS:** Nested EXISTS via `playlists.site_id`:
 ```sql
+ALTER TABLE playlist_items ENABLE ROW LEVEL SECURITY;
+
 CREATE POLICY "playlist_items_select" ON playlist_items FOR SELECT USING (
   EXISTS (SELECT 1 FROM playlists WHERE playlists.id = playlist_items.playlist_id
     AND public.can_view_site(playlists.site_id))
 );
+CREATE POLICY "playlist_items_insert" ON playlist_items FOR INSERT WITH CHECK (
+  EXISTS (SELECT 1 FROM playlists WHERE playlists.id = playlist_items.playlist_id
+    AND public.can_edit_site(playlists.site_id))
+);
+CREATE POLICY "playlist_items_update" ON playlist_items FOR UPDATE USING (
+  EXISTS (SELECT 1 FROM playlists WHERE playlists.id = playlist_items.playlist_id
+    AND public.can_edit_site(playlists.site_id))
+);
+CREATE POLICY "playlist_items_delete" ON playlist_items FOR DELETE USING (
+  EXISTS (SELECT 1 FROM playlists WHERE playlists.id = playlist_items.playlist_id
+    AND public.can_edit_site(playlists.site_id))
+);
 ```
+
+**sort_order assignment:** New items get `sort_order = COALESCE((SELECT MAX(sort_order) FROM playlist_items WHERE playlist_id = $1), 0) + 1000`. Gap of 1000 allows easy reordering without renumbering. On sidebar drag-reorder, reassign sequential values (1000, 2000, 3000...) to avoid fragmentation.
 
 ### 1.3 playlist_edges
 
@@ -147,7 +174,32 @@ END;
 $$ LANGUAGE plpgsql;
 ```
 
-**RLS:** Same nested EXISTS pattern as playlist_items.
+```sql
+ALTER TABLE playlist_edges ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "playlist_edges_select" ON playlist_edges FOR SELECT USING (
+  EXISTS (SELECT 1 FROM playlists WHERE playlists.id = playlist_edges.playlist_id
+    AND public.can_view_site(playlists.site_id))
+);
+CREATE POLICY "playlist_edges_insert" ON playlist_edges FOR INSERT WITH CHECK (
+  EXISTS (SELECT 1 FROM playlists WHERE playlists.id = playlist_edges.playlist_id
+    AND public.can_edit_site(playlists.site_id))
+);
+CREATE POLICY "playlist_edges_update" ON playlist_edges FOR UPDATE USING (
+  EXISTS (SELECT 1 FROM playlists WHERE playlists.id = playlist_edges.playlist_id
+    AND public.can_edit_site(playlists.site_id))
+);
+CREATE POLICY "playlist_edges_delete" ON playlist_edges FOR DELETE USING (
+  EXISTS (SELECT 1 FROM playlists WHERE playlists.id = playlist_edges.playlist_id
+    AND public.can_edit_site(playlists.site_id))
+);
+
+CREATE TRIGGER tg_prevent_sequence_cycle
+  BEFORE INSERT OR UPDATE ON playlist_edges
+  FOR EACH ROW EXECUTE FUNCTION prevent_sequence_cycle();
+```
+
+**Edge type update safety:** Changing an edge from `related` to `sequence` fires the trigger and checks for cycles. The trigger always inspects `NEW.edge_type`, so type changes are safe.
 
 ### 1.4 Indexes
 
@@ -268,6 +320,22 @@ Undo/redo: before each dispatch, push a snapshot. Max 50 snapshots (~50-100KB ea
 
 Viewport state (`zoom`, `x`, `y`) saves **only on page leave** (beforeunload + Next.js router navigation). During the session, viewport lives in memory only. This avoids excessive DB writes from constant pan/zoom actions.
 
+**Viewport restore:** On page load, read `viewport_state` from the playlist row and apply as initial camera position. If null or invalid, default to `{ zoom: 1, x: 0, y: 0 }`.
+
+### 3.3 Batch Save Action Shape
+
+```typescript
+interface PlaylistSaveDelta {
+  playlistId: string;
+  itemsUpserted: Array<{ id: string; position_x: number; position_y: number; sort_order: number }>;
+  itemsRemoved: string[];        // playlist_item IDs
+  edgesCreated: Array<{ source_item_id: string; target_item_id: string; edge_type: EdgeType; label?: string }>;
+  edgesRemoved: string[];        // edge IDs
+}
+```
+
+Server action `savePlaylistDelta(delta: PlaylistSaveDelta)` executes all mutations in a single Supabase transaction. On conflict (e.g., cycle trigger), the entire batch rolls back and returns the specific error.
+
 ---
 
 ## 4. Node Components
@@ -305,19 +373,29 @@ When referenced content is deleted (ON DELETE SET NULL), the playlist_item survi
 
 ### 4.4 Cross-Playlist Membership Badge
 
-If a content item belongs to multiple playlists, show badge: "em N playlists". On hover/context menu, list the playlists with links. Data loaded via query on playlist load:
+If a content item belongs to multiple playlists, show badge: "em N playlists". On hover/context menu, list the playlists with links. Data loaded via single query on playlist load that covers all content types:
 ```sql
-SELECT blog_post_id, count(*) FROM playlist_items
-WHERE blog_post_id = $1 GROUP BY blog_post_id;
+SELECT pi2.playlist_id, p.name, p.slug
+FROM playlist_items pi1
+JOIN playlist_items pi2 ON (
+  (pi1.blog_post_id IS NOT NULL AND pi2.blog_post_id = pi1.blog_post_id)
+  OR (pi1.newsletter_edition_id IS NOT NULL AND pi2.newsletter_edition_id = pi1.newsletter_edition_id)
+  OR (pi1.pipeline_id IS NOT NULL AND pi2.pipeline_id = pi1.pipeline_id)
+)
+JOIN playlists p ON p.id = pi2.playlist_id
+WHERE pi1.playlist_id = $current_playlist_id
+  AND pi2.playlist_id != $current_playlist_id;
 ```
+This returns all other playlists that share any content with the current playlist, covering blog posts, newsletters, and pipeline items in one query.
 
 ### 4.5 Selected Node Toolbar
 
 Floating toolbar appears above selected node:
-- 📝 Open in editor (navigates to blog/newsletter/pipeline editor)
-- 📋 Duplicate
-- 🔗 Create edge from here
-- ✕ Remove from playlist
+- **Open in editor** — navigates to the source editor based on which FK is non-null: `blog_post_id` → `/cms/blog/${id}`, `newsletter_edition_id` → `/cms/newsletters/${id}`, `pipeline_id` → `/cms/pipeline/${id}`. Ghost nodes (all FKs null) disable this button.
+- **Create edge from here** — starts edge drag from this node
+- **Remove from playlist** — removes the playlist_item (not the source content)
+
+**Multi-select behavior:** When 2+ nodes are selected, toolbar shows only: "Remove N items" and "Delete key" shortcut. Drag moves all selected nodes as a group (delta applied to each). Edge creation is disabled during multi-select.
 
 ---
 
@@ -352,7 +430,7 @@ Edge labels (optional `label` field) shown on hover. For `prerequisite` edges, d
 
 - **Search input** — filters available content by title
 - **Type filters** — toggle buttons: Blog / News / Pipe / All
-- **Available items** — content not yet in the current playlist, grouped by type
+- **Available items** — content not yet in the current playlist, grouped by type. Filtered via `NOT EXISTS (SELECT 1 FROM playlist_items pi WHERE pi.playlist_id = $1 AND pi.blog_post_id = blog_posts.id)` per content type, loaded once on page open and updated optimistically on add/remove.
 - **Already in playlist** — dimmed, shown at bottom with count
 - **Empty search** — "Nenhum resultado" + "Limpar filtros" button
 
@@ -366,7 +444,7 @@ Uses **Pointer Events with phantom node pattern** (not HTML Drag & Drop API):
 4. `onPointerUp` → create playlist_item at canvas position via server action
 5. Clean up phantom node
 
-**Fallback:** "+ Add" button in toolbar opens a search modal.
+**Fallback:** "+ Add" button in toolbar opens a search modal. Items added via modal appear at the center of the current viewport (converted to canvas coords), offset by 20px per item if adding multiple at once.
 
 ### 6.3 Sidebar Reordering
 
@@ -547,12 +625,13 @@ apps/web/src/app/cms/(authed)/playlists/
       playlist-canvas.tsx             # Canvas container + layers
       playlist-sidebar.tsx            # Content sidebar
       playlist-toolbar.tsx            # Toolbar
-      playlist-node.tsx               # Node component (3 variants)
+      playlist-node.tsx               # Node component (3 variants + ghost)
       playlist-edge.tsx               # SVG edge component
       playlist-settings.tsx           # Settings slide-over
       playlist-minimap.tsx            # Mini-map
       edge-type-selector.tsx          # Edge type popover
-      context-menu.tsx                # Right-click menu
+      node-toolbar.tsx                # Selected node floating toolbar
+      context-menu.tsx                # Right-click context menu
 ```
 
 ---
