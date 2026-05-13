@@ -458,6 +458,19 @@ Seções sem renderer dedicado usam `GenericRenderer`:
 
 ---
 
+## Campos do item (PATCH)
+
+Além das seções, o pipeline item tem campos no nível do item que podem ser atualizados via PATCH:
+
+| Campo | Tipo | Notas |
+|-------|------|-------|
+| `category` | `"stories"` \| `"building"` \| `"money"` \| `"bts"` \| `null` | Só relevante para format `blog_post`. Transferido na graduação (default: `building`). |
+| `cover_image_url` | URL string \| `null` | Imagem de capa. Crop 16:9, max 1200×675. Transferida na graduação para `blog_posts.cover_image_url`. |
+
+Estes campos são gerenciados pela UI (dropdown de categoria, galeria de mídia). Cowork não precisa atualizá-los diretamente — mas pode referenciar `category` ao gerar conteúdo que mencione a categoria do post.
+
+---
+
 ## Regras gerais
 
 1. **Seções estruturadas** (`roteiro`, `brolls`, `postprod_*`, `publish`, `seo`, `images`, etc.): enviar JSON estruturado com os campos tipados documentados acima

@@ -55,6 +55,9 @@ export const FORMAT_METADATA_SCHEMAS: Record<Format, z.ZodType> = {
   campaign: CampaignMetadataSchema,
 }
 
+export const BLOG_CATEGORIES = ['stories', 'building', 'money', 'bts'] as const
+export type BlogCategory = (typeof BLOG_CATEGORIES)[number]
+
 // Pipeline item schemas
 export const PipelineItemCreateSchema = z.object({
   code: z.string().min(1).max(100).optional(),
@@ -102,6 +105,8 @@ export const PipelineItemUpdateSchema = z.object({
   blog_post_id: z.string().uuid().nullable().optional(),
   newsletter_edition_id: z.string().uuid().nullable().optional(),
   campaign_id: z.string().uuid().nullable().optional(),
+  category: z.enum(BLOG_CATEGORIES).nullable().optional(),
+  cover_image_url: z.string().url().max(2000).nullable().optional(),
 })
 
 export const CollectionCreateSchema = z.object({

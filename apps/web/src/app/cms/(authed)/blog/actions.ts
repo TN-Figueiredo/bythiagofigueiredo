@@ -922,7 +922,7 @@ export async function createPostFromPipeline(
 
   const { data: item, error: itemErr } = await svc
     .from('content_pipeline')
-    .select('id, code, title_pt, title_en, hook, language, blog_post_id, sections')
+    .select('id, code, title_pt, title_en, hook, language, blog_post_id, sections, category, cover_image_url')
     .eq('id', pipelineItemId)
     .eq('site_id', siteId)
     .eq('is_archived', false)
@@ -961,6 +961,14 @@ export async function createPostFromPipeline(
       })
       .eq('post_id', result.postId)
       .eq('locale', locale)
+  }
+
+  // Transfer category + cover image to blog post
+  if (item.category || item.cover_image_url) {
+    await svc.from('blog_posts').update({
+      ...(item.category ? { category: item.category } : {}),
+      ...(item.cover_image_url ? { cover_image_url: item.cover_image_url } : {}),
+    }).eq('id', result.postId)
   }
 
   const { linkPostToItem } = await import('@/lib/pipeline/blog-link')

@@ -18,10 +18,14 @@ import { SectionContent } from './detail/section-content'
 import { ContentCiteSelector } from './detail/content-cite-selector'
 import { EmptySection } from './detail/renderers/empty-section'
 import { getSectionKey, getSectionsForFormat, flattenSections, type SectionData, type SectionDefinition } from '@/lib/pipeline/sections'
-import type { Format } from '@/lib/pipeline/schemas'
+import { BLOG_CATEGORIES, type Format } from '@/lib/pipeline/schemas'
 import { BlogPostCard } from './detail/blog-post-card'
 import { BlogPostSearchDialog } from './detail/blog-post-search-dialog'
 import { PromptGeneratorModal } from './prompt-generator-modal'
+import { useMediaGallery } from '../../_shared/media/use-media-gallery'
+import { MediaGalleryModal } from '../../_shared/media/media-gallery-modal'
+import { CROP_PRESETS, type MediaAssetResult } from '../../_shared/media/types'
+import { ImageIcon, X } from 'lucide-react'
 
 interface ChecklistItem { label: string; done: boolean; toggled_at: string | null }
 interface HistoryEntry { id: string; event_type: string; from_value: string | null; to_value: string | null; changed_at: string }
@@ -48,6 +52,8 @@ interface ItemData {
   updated_at: string
   validation_score: number
   sections: Record<string, SectionData> | null
+  category: string | null
+  cover_image_url: string | null
   blog_post_id: string | null
   site_id: string
   linked_post?: {
@@ -262,6 +268,10 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
   const lang = getLangConfig(item.language)
   const checklist = getChecklistProgress(item.production_checklist)
 
+  const [coverImageUrl, setCoverImageUrl] = useState<string | null>(item.cover_image_url)
+  const [category, setCategory] = useState<string | null>(item.category)
+  const coverGallery = useMediaGallery()
+
   const debouncedSave = useCallback((field: string, value: string) => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(async () => {
@@ -277,6 +287,28 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
       }
     }, 500)
   }, [item.id, item.version, router])
+
+  const handleCoverSelect = useCallback(async (asset: MediaAssetResult) => {
+    setCoverImageUrl(asset.url)
+    const result = await updatePipelineItem(item.id, item.version, { cover_image_url: asset.url })
+    if (result.ok && result.data) setItem(result.data as typeof item)
+    else if (!result.ok) { toast.error('Erro ao salvar capa'); setCoverImageUrl(item.cover_image_url) }
+  }, [item.id, item.version, item.cover_image_url])
+
+  const handleCoverRemove = useCallback(async () => {
+    setCoverImageUrl(null)
+    const result = await updatePipelineItem(item.id, item.version, { cover_image_url: null })
+    if (result.ok && result.data) setItem(result.data as typeof item)
+    else if (!result.ok) { toast.error('Erro ao remover capa'); setCoverImageUrl(item.cover_image_url) }
+  }, [item.id, item.version, item.cover_image_url])
+
+  const handleCategoryChange = useCallback(async (value: string) => {
+    const newCategory = value || null
+    setCategory(newCategory)
+    const result = await updatePipelineItem(item.id, item.version, { category: newCategory })
+    if (result.ok && result.data) setItem(result.data as typeof item)
+    else if (!result.ok) { toast.error('Erro ao salvar categoria'); setCategory(item.category) }
+  }, [item.id, item.version, item.category])
 
   const [isAdvancing, setIsAdvancing] = useState(false)
   const [isRetreating, setIsRetreating] = useState(false)
@@ -379,6 +411,39 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
           <span aria-hidden="true">/</span>
           <span style={{ color: 'var(--gem-muted)' }}>{item.code}</span>
         </nav>
+
+        {/* Cover image */}
+        {coverImageUrl ? (
+          <div className="relative group rounded-lg overflow-hidden" style={{ maxHeight: 240 }}>
+            <img src={coverImageUrl} alt="" className="w-full object-cover" style={{ maxHeight: 240 }} />
+            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => coverGallery.openGallery({ folder: 'pipeline', cropPreset: CROP_PRESETS['blog-cover'] })}
+                className="text-xs text-white bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-md transition-colors"
+              >
+                Trocar
+              </button>
+              <button
+                type="button"
+                onClick={handleCoverRemove}
+                className="text-xs text-white bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-md transition-colors"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => coverGallery.openGallery({ folder: 'pipeline', cropPreset: CROP_PRESETS['blog-cover'] })}
+            className="w-full flex items-center justify-center gap-2 rounded-lg border border-dashed py-6 transition-colors hover:border-[var(--gem-accent)] hover:bg-[var(--gem-accent)]/5"
+            style={{ borderColor: 'var(--gem-border)', color: 'var(--gem-dim)' }}
+          >
+            <ImageIcon size={16} />
+            <span className="text-xs">Adicionar capa</span>
+          </button>
+        )}
 
         <input
           type="text"
@@ -693,6 +758,24 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
               <dt style={{ color: 'var(--gem-dim)' }}>Priority</dt>
               <dd><span className="text-[10px] px-1 py-0.5 rounded" style={{ backgroundColor: priority.accentDim, color: priority.accent }}>{priority.label}</span></dd>
             </div>
+            {item.format === 'blog_post' && (
+              <div className="flex justify-between items-center">
+                <dt style={{ color: 'var(--gem-dim)' }}>Category</dt>
+                <dd>
+                  <select
+                    value={category ?? ''}
+                    onChange={(e) => handleCategoryChange(e.target.value)}
+                    className="text-[10px] px-1.5 py-0.5 rounded bg-transparent border cursor-pointer focus:outline-none focus:border-[var(--gem-accent)]"
+                    style={{ color: 'var(--gem-muted)', borderColor: 'var(--gem-border)' }}
+                  >
+                    <option value="">Selecionar</option>
+                    {BLOG_CATEGORIES.map((cat) => (
+                      <option key={cat} value={cat}>{cat.charAt(0).toUpperCase() + cat.slice(1)}</option>
+                    ))}
+                  </select>
+                </dd>
+              </div>
+            )}
             <div className="flex justify-between">
               <dt style={{ color: 'var(--gem-dim)' }}>Version</dt>
               <dd style={{ color: 'var(--gem-muted)' }}>{item.version}</dd>
@@ -759,6 +842,13 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
           onClose={() => setShowPromptModal(false)}
         />
       )}
+
+      <MediaGalleryModal
+        {...coverGallery.galleryProps}
+        onSelect={handleCoverSelect}
+        locale="pt-BR"
+        siteId={item.site_id}
+      />
     </div>
   )
 }

@@ -62,7 +62,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         site_id: auth.siteId,
         author_id: author.id,
         status: 'draft',
-        category: 'building',
+        category: item.category ?? 'building',
+        cover_image_url: item.cover_image_url ?? null,
         locale: primaryLocale,
       })
       .select('id')

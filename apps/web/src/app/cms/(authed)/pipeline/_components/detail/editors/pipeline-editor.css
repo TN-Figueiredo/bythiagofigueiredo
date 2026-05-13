@@ -116,11 +116,13 @@
 .pipeline-editor .ProseMirror ul {
   padding-left: 1.25rem;
   margin: 0.75rem 0;
+  list-style-type: disc;
 }
 
 .pipeline-editor .ProseMirror ol {
   padding-left: 1.25rem;
   margin: 0.75rem 0;
+  list-style-type: decimal;
 }
 
 .pipeline-editor .ProseMirror li {
