@@ -59,7 +59,7 @@ export default async function Layout({ children }: { children: ReactNode }) {
 
   const { siteId: middlewareSiteId, timezone: siteTimezone } = await getSiteContext()
   const svc = getSupabaseServiceClient()
-  const [badgeData, pendingContactsRes, ytPendingRes] = await Promise.all([
+  const [badgeData, pendingContactsRes, ytPendingRes, researchUnreadRes] = await Promise.all([
     fetchSidebarBadges(middlewareSiteId, siteTimezone),
     svc.from('contact_submissions').select('id', { count: 'exact', head: true })
       .eq('site_id', middlewareSiteId).is('replied_at', null).is('anonymized_at', null),
@@ -67,10 +67,13 @@ export default async function Layout({ children }: { children: ReactNode }) {
       .eq('site_id', middlewareSiteId)
       .not('auto_suggested_category_id', 'is', null)
       .is('category_id', null),
+    svc.from('research_items').select('id', { count: 'exact', head: true })
+      .eq('site_id', middlewareSiteId).eq('status', 'new'),
   ])
   const badges: Record<string, number> = {}
   if (pendingContactsRes.count) badges['/cms/contacts'] = pendingContactsRes.count
   if (ytPendingRes.count) badges['/cms/youtube'] = ytPendingRes.count
+  if (researchUnreadRes.count) badges['/cms/pipeline/research'] = researchUnreadRes.count
 
   return (
     <CmsAdminProvider linkComponent={Link}>
