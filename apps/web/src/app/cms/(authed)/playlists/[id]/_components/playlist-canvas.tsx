@@ -20,6 +20,7 @@ import type {
   PlaylistEdgeRow,
   EdgeType,
   ActionResult,
+  FilterState,
 } from '@/lib/playlists/types'
 import { PlaylistNode } from './playlist-node'
 import { PlaylistEdge, EdgeArrowDefs } from './playlist-edge'
@@ -82,6 +83,15 @@ export function PlaylistCanvas({
     sourceId: string
     targetId: string
   } | null>(null)
+  const [filter, setFilter] = useState<FilterState>({
+    types: new Set(),
+    languages: new Set(),
+    mode: 'all',
+    search: '',
+  })
+  const [showExportMenu, setShowExportMenu] = useState(false)
+  const exportBtnRef = useRef<HTMLButtonElement>(null)
+  const handlePrint = useCallback(() => window.print(), [])
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isSavingRef = useRef(false)
@@ -607,7 +617,9 @@ export function PlaylistCanvas({
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
         onZoomToFit={handleZoomToFit}
-        onExport={handleExport}
+        onToggleExportMenu={() => setShowExportMenu(prev => !prev)}
+        onPrint={handlePrint}
+        exportButtonRef={exportBtnRef}
         onToggleSettings={() => setShowSettings(prev => !prev)}
       />
 
@@ -616,9 +628,12 @@ export function PlaylistCanvas({
         <PlaylistSidebar
           items={state.items}
           selectedItemIds={state.selectedItemIds}
+          viewNumbers={new Map()}
+          filter={filter}
           onSelectItem={handleSidebarSelectItem}
           onRemoveItem={handleRemoveItem}
           onAddContent={() => setShowPicker(true)}
+          onSearchChange={(search) => setFilter(prev => ({ ...prev, search }))}
         />
 
         {/* Canvas viewport */}

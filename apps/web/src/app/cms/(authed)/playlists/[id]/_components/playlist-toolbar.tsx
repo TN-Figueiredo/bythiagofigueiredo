@@ -18,7 +18,9 @@ interface PlaylistToolbarProps {
   onZoomIn: () => void
   onZoomOut: () => void
   onZoomToFit: () => void
-  onExport: () => void
+  onToggleExportMenu: () => void
+  onPrint: () => void
+  exportButtonRef: React.RefObject<HTMLButtonElement | null>
   onToggleSettings: () => void
 }
 
@@ -35,7 +37,9 @@ export function PlaylistToolbar({
   onZoomIn,
   onZoomOut,
   onZoomToFit,
-  onExport,
+  onToggleExportMenu,
+  onPrint,
+  exportButtonRef,
   onToggleSettings,
 }: PlaylistToolbarProps) {
   const statusColors: Record<PlaylistStatus, string> = {
@@ -100,9 +104,19 @@ export function PlaylistToolbar({
           <FitIcon />
         </ToolbarButton>
         <span className="mx-1 h-4 w-px bg-white/10" />
-        <ToolbarButton label="Export image" onClick={onExport}>
-          <ExportIcon />
+        <ToolbarButton label="Print" shortcut="Cmd+P" onClick={onPrint}>
+          <PrintIcon />
         </ToolbarButton>
+        <button
+          ref={exportButtonRef}
+          type="button"
+          onClick={onToggleExportMenu}
+          aria-label="Export"
+          title="Export"
+          className="rounded-md px-2 py-1 text-sm text-white/50 transition-colors hover:bg-white/5 hover:text-white/80"
+        >
+          <ExportIcon />
+        </button>
         <ToolbarButton label="Settings" onClick={onToggleSettings}>
           <SettingsIcon />
         </ToolbarButton>
@@ -195,6 +209,16 @@ function ZoomOutIcon() {
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="11" cy="11" r="8" />
       <line x1="8" y1="11" x2="14" y2="11" />
+    </svg>
+  )
+}
+
+function PrintIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="6 9 6 2 18 2 18 9" />
+      <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+      <rect x="6" y="14" width="12" height="8" />
     </svg>
   )
 }
