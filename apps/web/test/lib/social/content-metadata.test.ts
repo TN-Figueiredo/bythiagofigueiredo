@@ -3,21 +3,28 @@ import type { ContentType } from '@/lib/social/types'
 
 // ---------------------------------------------------------------------------
 // Mock Supabase client builder
+// Supports chaining: from -> select -> eq -> eq -> single
 // ---------------------------------------------------------------------------
 function createMockSupabase(tableData: Record<string, unknown>) {
+  const makeSingleResult = (table: string) => ({
+    single: vi.fn().mockResolvedValue({
+      data: tableData[table] ?? null,
+      error: tableData[table] ? null : { message: 'not found' },
+    }),
+  })
+
   return {
     from: vi.fn((table: string) => ({
       select: vi.fn().mockReturnValue({
         eq: vi.fn().mockReturnValue({
-          single: vi.fn().mockResolvedValue({
-            data: tableData[table] ?? null,
-            error: tableData[table] ? null : { message: 'not found' },
-          }),
+          eq: vi.fn().mockReturnValue(makeSingleResult(table)),
         }),
       }),
     })),
   }
 }
+
+const TEST_SITE_ID = 'site-test-1'
 
 describe('extractContentMetadata', () => {
   beforeEach(() => {
@@ -45,6 +52,7 @@ describe('extractContentMetadata', () => {
       supabase as never,
       'blog' as ContentType,
       'bp-1',
+      TEST_SITE_ID,
     )
 
     expect(meta.title).toBe('AI Empire: O Que Vem Por Ai')
@@ -60,26 +68,26 @@ describe('extractContentMetadata', () => {
       '@/lib/social/content-metadata'
     )
 
-    const selectMock = vi.fn().mockReturnValue({
-      eq: vi.fn().mockReturnValue({
-        single: vi.fn().mockResolvedValue({
-          data: {
-            id: 'ne-1',
-            subject: 'Weekly Digest #42',
-            preheader: 'Top stories this week',
-            content: '<p>Hello world</p><img src="https://cdn.example.com/nl-cover.jpg" />',
-            locale: 'pt',
-            newsletter_types: {
-              slug: 'weekly-digest',
-            },
-          },
-          error: null,
-        }),
-      }),
+    const singleMock = vi.fn().mockResolvedValue({
+      data: {
+        id: 'ne-1',
+        subject: 'Weekly Digest #42',
+        preheader: 'Top stories this week',
+        content: '<p>Hello world</p><img src="https://cdn.example.com/nl-cover.jpg" />',
+        locale: 'pt',
+        newsletter_types: {
+          slug: 'weekly-digest',
+        },
+      },
+      error: null,
     })
     const supabase = {
       from: vi.fn(() => ({
-        select: selectMock,
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({ single: singleMock }),
+          }),
+        }),
       })),
     }
 
@@ -87,6 +95,7 @@ describe('extractContentMetadata', () => {
       supabase as never,
       'newsletter' as ContentType,
       'ne-1',
+      TEST_SITE_ID,
     )
 
     expect(meta.title).toBe('Weekly Digest #42')
@@ -116,6 +125,7 @@ describe('extractContentMetadata', () => {
       supabase as never,
       'campaign' as ContentType,
       'camp-1',
+      TEST_SITE_ID,
     )
 
     expect(meta.title).toBe('Summer Sale 2026')
@@ -153,6 +163,7 @@ describe('extractContentMetadata', () => {
       supabase as never,
       'video' as ContentType,
       'dQw4w9WgXcQ',
+      TEST_SITE_ID,
     )
 
     expect(meta.title).toBe('Never Gonna Give You Up')
@@ -171,7 +182,7 @@ describe('extractContentMetadata', () => {
     const supabase = createMockSupabase({})
 
     await expect(
-      extractContentMetadata(supabase as never, 'podcast' as ContentType, 'x'),
+      extractContentMetadata(supabase as never, 'podcast' as ContentType, 'x', TEST_SITE_ID),
     ).rejects.toThrow('Unsupported content type: podcast')
   })
 
@@ -182,7 +193,7 @@ describe('extractContentMetadata', () => {
     const supabase = createMockSupabase({}) // no data for any table
 
     await expect(
-      extractContentMetadata(supabase as never, 'blog' as ContentType, 'missing-id'),
+      extractContentMetadata(supabase as never, 'blog' as ContentType, 'missing-id', TEST_SITE_ID),
     ).rejects.toThrow()
   })
 })

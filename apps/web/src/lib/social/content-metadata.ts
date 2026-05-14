@@ -10,16 +10,17 @@ export async function extractContentMetadata(
   supabase: SupabaseClient,
   contentType: ContentType,
   contentId: string,
+  siteId: string,
 ): Promise<ContentMetadata> {
   switch (contentType) {
     case 'blog':
-      return extractBlogMetadata(supabase, contentId)
+      return extractBlogMetadata(supabase, contentId, siteId)
     case 'newsletter':
-      return extractNewsletterMetadata(supabase, contentId)
+      return extractNewsletterMetadata(supabase, contentId, siteId)
     case 'campaign':
-      return extractCampaignMetadata(supabase, contentId)
+      return extractCampaignMetadata(supabase, contentId, siteId)
     case 'video':
-      return extractVideoMetadata(supabase, contentId)
+      return extractVideoMetadata(supabase, contentId, siteId)
     default:
       throw new Error(`Unsupported content type: ${contentType as string}`)
   }
@@ -28,11 +29,13 @@ export async function extractContentMetadata(
 async function extractBlogMetadata(
   supabase: SupabaseClient,
   contentId: string,
+  siteId: string,
 ): Promise<ContentMetadata> {
   const { data, error } = await supabase
     .from('blog_posts')
     .select('title, slug, locale, cover_image_url, excerpt, tags')
     .eq('id', contentId)
+    .eq('site_id', siteId)
     .single()
 
   if (error || !data) {
@@ -53,11 +56,13 @@ async function extractBlogMetadata(
 async function extractNewsletterMetadata(
   supabase: SupabaseClient,
   contentId: string,
+  siteId: string,
 ): Promise<ContentMetadata> {
   const { data, error } = await supabase
     .from('newsletter_editions')
     .select('id, subject, preheader, content, locale, newsletter_types(slug)')
     .eq('id', contentId)
+    .eq('site_id', siteId)
     .single()
 
   if (error || !data) {
@@ -89,11 +94,13 @@ async function extractNewsletterMetadata(
 async function extractCampaignMetadata(
   supabase: SupabaseClient,
   contentId: string,
+  siteId: string,
 ): Promise<ContentMetadata> {
   const { data, error } = await supabase
     .from('campaigns')
     .select('meta_title, slug, locale, og_image_url, meta_description')
     .eq('id', contentId)
+    .eq('site_id', siteId)
     .single()
 
   if (error || !data) {
@@ -114,11 +121,13 @@ async function extractCampaignMetadata(
 async function extractVideoMetadata(
   supabase: SupabaseClient,
   videoId: string,
+  siteId: string,
 ): Promise<ContentMetadata> {
   const { data, error } = await supabase
     .from('social_connections')
     .select('metadata')
     .eq('provider', 'youtube')
+    .eq('site_id', siteId)
     .single()
 
   if (error || !data) {
