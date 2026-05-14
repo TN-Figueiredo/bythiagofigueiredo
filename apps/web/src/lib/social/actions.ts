@@ -730,6 +730,59 @@ export async function createFromContentAction(params: {
   }
 }
 
+export async function scrapeOgTags(
+  postId: string,
+): Promise<{ ok: true; data: Record<string, unknown> } | { ok: false; error: string }> {
+  try {
+    const { siteId } = await requireEditAccess()
+    const supabase = getSupabaseServiceClient()
+
+    const { data: post, error } = await supabase
+      .from('social_posts')
+      .select('id, content, short_link_id')
+      .eq('id', postId)
+      .eq('site_id', siteId)
+      .single()
+
+    if (error || !post) return { ok: false, error: 'Post not found' }
+
+    const contentUrl = (post.content as Record<string, unknown> | null)?.url as string | undefined
+    if (!contentUrl) return { ok: false, error: 'No URL to scrape' }
+
+    // Get an active Facebook or Instagram connection to obtain a page token
+    const { data: connection } = await supabase
+      .from('social_connections')
+      .select('page_token_enc, access_token_enc')
+      .eq('site_id', siteId)
+      .is('revoked_at', null)
+      .in('provider', ['facebook', 'instagram'])
+      .not('page_token_enc', 'is', null)
+      .limit(1)
+      .single()
+
+    const key = getMasterKey()
+    const pageToken = connection?.page_token_enc
+      ? decrypt(connection.page_token_enc as string, key)
+      : (connection?.access_token_enc ? decrypt(connection.access_token_enc as string, key) : '')
+
+    const { scrapeOg } = await import('@/lib/social/og-scraper')
+    const result = await scrapeOg(contentUrl, pageToken)
+
+    const { updatePipelineStep } = await import('@/lib/social/pipeline')
+    const scrapeData = result as unknown as Record<string, unknown>
+    if (result.status === 'ok') {
+      await updatePipelineStep(supabase, postId, 'og_scrape', 'completed', scrapeData)
+    } else {
+      await updatePipelineStep(supabase, postId, 'og_scrape', 'warning', scrapeData)
+    }
+
+    return { ok: true, data: scrapeData }
+  } catch (err) {
+    Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'scrapeOgTags' } })
+    return { ok: false, error: err instanceof Error ? err.message : 'unknown' }
+  }
+}
+
 export async function listSocialPosts(
   siteId: string,
   filters?: { status?: PostStatus; from?: string; to?: string },
