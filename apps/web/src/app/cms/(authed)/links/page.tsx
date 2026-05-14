@@ -25,7 +25,7 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
   const sevenDaysAgoStr = toDateStringInTz(sevenDaysAgo, timezone)
 
-  const [totalRes, activeRes, clicksRes, dailyRes, sourceRes] = await Promise.all([
+  const [totalRes, activeRes, clicksRes, dailyRes, sourceRes, socialLinksRes, socialDeliveriesRes] = await Promise.all([
     supabase
       .from('tracked_links')
       .select('id', { count: 'exact', head: true })
@@ -55,6 +55,15 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
       .select('source_type, total_clicks')
       .eq('site_id', siteId)
       .is('deleted_at', null),
+    supabase
+      .from('social_posts')
+      .select('short_link_id, status, pipeline_steps')
+      .eq('site_id', siteId)
+      .not('short_link_id', 'is', null),
+    supabase
+      .from('social_deliveries')
+      .select('provider, status, post_id')
+      .eq('status', 'published'),
   ])
 
   const totalLinks = totalRes.count ?? 0
@@ -120,6 +129,20 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
     sourceBreakdown,
   }
 
+  const autoLinksCount = socialLinksRes.data?.length ?? 0
+  const ogValidated = (socialLinksRes.data ?? []).every((p) => {
+    const steps = (p as Record<string, unknown>).pipeline_steps as Array<{ step: string; status: string }> | null
+    if (!steps || !Array.isArray(steps)) return false
+    const ogStep = steps.find((s) => s.step === 'og_scrape')
+    return ogStep?.status === 'completed'
+  })
+
+  const platformCounts: Record<string, number> = {}
+  for (const d of (socialDeliveriesRes.data ?? []) as Record<string, unknown>[]) {
+    const provider = d.provider as string
+    platformCounts[provider] = (platformCounts[provider] ?? 0) + 1
+  }
+
   // Fetch paginated links (inline query — avoids server-action context issues)
   const page = parseInt(params.page ?? '1', 10)
   const perPage = 20
@@ -147,5 +170,5 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
   const { data: linksData } = await linksQuery
   const links = linksData ?? []
 
-  return <LinksHub metrics={metrics} activity={activity} links={links} siteId={siteId} />
+  return <LinksHub metrics={metrics} activity={activity} links={links} siteId={siteId} socialSummary={{ autoLinksCount, ogValidated, platformCounts }} />
 }

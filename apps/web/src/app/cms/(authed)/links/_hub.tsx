@@ -5,15 +5,23 @@ import { useTransition } from 'react'
 import { LinksDashboard } from '@tn-figueiredo/links-admin/client'
 import type { DashboardKpis, DashboardActivity, LinkSummary } from '@tn-figueiredo/links-admin'
 import { deleteLink, toggleLinkActive } from './actions'
+import { SocialSummaryBar } from './_components/social-summary-bar'
+
+interface SocialSummary {
+  autoLinksCount: number
+  ogValidated: boolean
+  platformCounts: Record<string, number>
+}
 
 interface LinksHubProps {
   metrics: DashboardKpis
   activity: DashboardActivity
   links: unknown[]
   siteId: string
+  socialSummary?: SocialSummary
 }
 
-export function LinksHub({ metrics, activity, links, siteId: _siteId }: LinksHubProps) {
+export function LinksHub({ metrics, activity, links, siteId: _siteId, socialSummary }: LinksHubProps) {
   const router = useRouter()
   const [, startTransition] = useTransition()
 
@@ -36,25 +44,34 @@ export function LinksHub({ metrics, activity, links, siteId: _siteId }: LinksHub
   }))
 
   return (
-    <LinksDashboard
-      links={typedLinks}
-      metrics={metrics}
-      activity={activity}
-      onCreateLink={() => router.push('/cms/links/new')}
-      onSelectLink={(id) => router.push(`/cms/links/${id}`)}
-      onEditLink={(id) => router.push(`/cms/links/${id}/edit`)}
-      onDeleteLink={(id) => {
-        startTransition(async () => {
-          await deleteLink(id)
-          router.refresh()
-        })
-      }}
-      onToggleActive={(id) => {
-        startTransition(async () => {
-          await toggleLinkActive(id)
-          router.refresh()
-        })
-      }}
-    />
+    <>
+      {socialSummary && socialSummary.autoLinksCount > 0 && (
+        <SocialSummaryBar
+          autoLinksCount={socialSummary.autoLinksCount}
+          ogValidated={socialSummary.ogValidated}
+          platformCounts={socialSummary.platformCounts}
+        />
+      )}
+      <LinksDashboard
+        links={typedLinks}
+        metrics={metrics}
+        activity={activity}
+        onCreateLink={() => router.push('/cms/links/new')}
+        onSelectLink={(id) => router.push(`/cms/links/${id}`)}
+        onEditLink={(id) => router.push(`/cms/links/${id}/edit`)}
+        onDeleteLink={(id) => {
+          startTransition(async () => {
+            await deleteLink(id)
+            router.refresh()
+          })
+        }}
+        onToggleActive={(id) => {
+          startTransition(async () => {
+            await toggleLinkActive(id)
+            router.refresh()
+          })
+        }}
+      />
+    </>
   )
 }
