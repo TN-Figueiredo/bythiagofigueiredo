@@ -42,12 +42,13 @@ export async function createSocialPostFromContent(
     userId,
   } = params
 
-  const metadata = await extractContentMetadata(supabase, contentType, contentId)
+  const metadata = await extractContentMetadata(supabase, contentType, contentId, siteId)
 
-  // Re-publish guard
+  // Re-publish guard — scoped to site_id to prevent cross-site matches
   const { data: existing } = await supabase
     .from('social_posts')
     .select('id, status')
+    .eq('site_id', siteId)
     .eq('source_content_type', contentType)
     .eq('source_content_id', contentId)
     .in('status', ['draft', 'scheduled', 'publishing'])
@@ -106,7 +107,7 @@ export async function createSocialPostFromContent(
 
   if (existing && (existing.status === 'draft' || existing.status === 'scheduled')) {
     postId = existing.id as string
-    await supabase
+    const { error: updateError } = await supabase
       .from('social_posts')
       .update({
         content: postContent,
@@ -118,6 +119,12 @@ export async function createSocialPostFromContent(
         updated_at: new Date().toISOString(),
       })
       .eq('id', postId)
+
+    if (updateError) {
+      throw new Error(
+        `Failed to update social post: ${updateError.message}`,
+      )
+    }
   } else {
     const { data: postData, error: postError } = await supabase
       .from('social_posts')
@@ -183,7 +190,15 @@ export async function createSocialPostFromContent(
       }
     })
 
-    await supabase.from('social_deliveries').insert(deliveryRows)
+    const { error: deliveryError } = await supabase
+      .from('social_deliveries')
+      .insert(deliveryRows)
+
+    if (deliveryError) {
+      throw new Error(
+        `Failed to create social deliveries: ${deliveryError.message}`,
+      )
+    }
   }
 
   // Trigger async pipeline (fire-and-forget) for immediate posts

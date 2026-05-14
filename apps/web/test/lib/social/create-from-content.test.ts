@@ -23,8 +23,10 @@ function buildSupabaseMock() {
           select: () => ({
             eq: () => ({
               eq: () => ({
-                in: () => ({
-                  maybeSingle: mockMaybeSingle,
+                eq: () => ({
+                  in: () => ({
+                    maybeSingle: mockMaybeSingle,
+                  }),
                 }),
               }),
               single: mockPostSelect,
