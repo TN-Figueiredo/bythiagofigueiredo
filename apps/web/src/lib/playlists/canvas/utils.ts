@@ -50,7 +50,7 @@ export function edgePath(source: Point, target: Point): string {
   return `M ${source.x} ${source.y} C ${source.x} ${source.y + cp * dir}, ${target.x} ${target.y - cp * dir}, ${target.x} ${target.y}`
 }
 
-const NODE_WIDTH = 160
+const NODE_WIDTH = 250
 const NODE_HEIGHT = 80
 
 export function getConnectionPoints(
@@ -104,7 +104,7 @@ export function fitAllNodes(
   viewportWidth: number,
   viewportHeight: number,
   padding = 60,
-  nodeWidth = 180,
+  nodeWidth = 250,
   nodeHeight = 80,
 ): Camera {
   if (items.length === 0) return { x: 0, y: 0, zoom: 1 }

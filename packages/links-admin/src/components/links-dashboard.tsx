@@ -118,7 +118,7 @@ function WeeklyActivityChart({
       const iso = d.toISOString().slice(0, 10)
       const match = data.find((x) => x.date === iso)
       result.push({
-        label: DAY_LABELS[d.getDay() === 0 ? 6 : d.getDay() - 1],
+        label: DAY_LABELS[d.getDay() === 0 ? 6 : d.getDay() - 1] ?? '',
         clicks: match?.clicks ?? 0,
         unique: match?.unique ?? 0,
       })

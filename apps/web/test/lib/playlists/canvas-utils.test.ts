@@ -57,7 +57,7 @@ describe('getConnectionPoints', () => {
       { position_x: 0, position_y: 0 },
       { position_x: 300, position_y: 0 },
     )
-    expect(sourcePoint.x).toBe(160)
+    expect(sourcePoint.x).toBe(250)
     expect(targetPoint.x).toBe(300)
   })
 
@@ -67,7 +67,7 @@ describe('getConnectionPoints', () => {
       { position_x: 0, position_y: 0 },
     )
     expect(sourcePoint.x).toBe(300)
-    expect(targetPoint.x).toBe(160)
+    expect(targetPoint.x).toBe(250)
   })
 
   it('connects bottom-to-top when target is below', () => {

@@ -236,7 +236,7 @@ export function ResearchDetail({
             Fontes ({item.sources.length})
           </span>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
-            {item.sources.map((s, i) => (
+            {item.sources.map((s: { url: string; title?: string }, i: number) => (
               <a key={i} href={s.url} target="_blank" rel="noopener noreferrer"
                 style={{ fontSize: 11, color: '#6366f1', textDecoration: 'none' }}>
                 {s.title || s.url}

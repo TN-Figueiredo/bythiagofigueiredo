@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeAutoLayout } from '@/lib/playlists/canvas/auto-layout'
+import { computeAutoLayout, DIMMED_OFFSET_Y } from '@/lib/playlists/canvas/auto-layout'
 import type { PlaylistItemEnriched } from '@/lib/playlists/types'
 import type { PlaylistEdgeRow } from '@/lib/playlists/types'
 
@@ -74,5 +74,34 @@ describe('computeAutoLayout', () => {
     const result = computeAutoLayout(items, edges)
     const posMap = new Map(result.map(r => [r.itemId, r]))
     expect(posMap.get('a')!.x).toBe(posMap.get('b')!.x)
+  })
+})
+
+describe('computeAutoLayout constants', () => {
+  it('uses 370px horizontal gap between layers', () => {
+    const items = [item('a', 1), item('b', 2)]
+    const edges = [edge('a', 'b')]
+    const positions = computeAutoLayout(items, edges)
+    const posA = positions.find(p => p.itemId === 'a')!
+    const posB = positions.find(p => p.itemId === 'b')!
+    expect(posB.x - posA.x).toBe(370)
+  })
+
+  it('uses 103px vertical gap within layers', () => {
+    const items = [item('a', 1), item('b', 2), item('c', 3)]
+    const edges = [edge('a', 'b'), edge('a', 'c')]
+    const positions = computeAutoLayout(items, edges)
+    const layer1 = positions.filter(p => p.itemId === 'b' || p.itemId === 'c').sort((a, b) => a.y - b.y)
+    expect(layer1[1]!.y - layer1[0]!.y).toBe(103)
+  })
+
+  it('positions all-disconnected items with NODE_GAP_Y (103px)', () => {
+    const items = [item('a', 1), item('b', 2)]
+    const positions = computeAutoLayout(items, [])
+    expect(positions[1]!.y - positions[0]!.y).toBe(103)
+  })
+
+  it('exports DIMMED_OFFSET_Y as 120', () => {
+    expect(DIMMED_OFFSET_Y).toBe(120)
   })
 })

@@ -8,12 +8,14 @@ const TYPE_LABELS: Record<ContentType, string> = {
   blog_post: 'Blog',
   newsletter: 'Newsletter',
   pipeline: 'Pipeline',
+  video: 'Video',
 }
 
 const TYPE_DOT_COLORS: Record<ContentType, string> = {
   blog_post: 'bg-indigo-500',
   newsletter: 'bg-green-500',
   pipeline: 'bg-purple-500',
+  video: 'bg-rose-500',
 }
 
 interface PlaylistSidebarProps {

@@ -24,6 +24,13 @@ const TYPE_STYLES: Record<ContentType, { bg: string; border: string; badge: stri
     badgeBg: 'bg-purple-500',
     headerBg: 'bg-purple-500/10',
   },
+  video: {
+    bg: 'bg-rose-500/[0.08]',
+    border: 'border-rose-500/25',
+    badge: 'VIDEO',
+    badgeBg: 'bg-rose-500',
+    headerBg: 'bg-rose-500/10',
+  },
 }
 
 interface PlaylistNodeProps {
