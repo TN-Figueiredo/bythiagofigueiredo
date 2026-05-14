@@ -356,14 +356,18 @@ edit_notes entries matching this format are auto-linked to Artlist music search:
 Search Artlist: Mood: {moods} | Genre: {genres} | BPM: {bpm_range} | Duration: {duration}
 ```
 
-Fields (all optional, pipe-separated, case-insensitive):
-- **Mood:** comma-separated terms — Mysterious, Dark, Peaceful, Energetic, Melancholic, etc.
-- **Genre:** comma-separated terms — Ambient, Electronic, Cinematic, Lo-fi, Acoustic, etc.
-- **Instrument:** comma-separated — Piano, Strings, Synth, Orchestral, etc.
+Fields (all optional, pipe-separated, case-insensitive). The CMS auto-links up to **4 filter IDs** with priority: Genre (max 2) → Mood (max 2) → Instrument (max 1) → Theme → backfill from remaining.
+
+- **Mood:** comma-separated — Mysterious, Dark, Peaceful, Energetic, Melancholic, Uplifting, Powerful, Happy, Carefree, Love, Serious, Dramatic, Angry, Tense, Sad, Playful, Hopeful, Scary, Groovy, Funny, Exciting, Epic
+- **Genre:** comma-separated — Ambient, Blues, Soul-RnB, Country, Jazz, Cinematic, World, Electronic, Acoustic, Indie, Rock, Pop, Singer-Songwriter, Folk, Classical, Hip-Hop, Funk, Latin, Lofi-Chill-Beats
+- **Instrument:** comma-separated — Piano, Acoustic-Guitar, Electric-Guitar, Strings, Acoustic-Drums, Electronic-Drums, Percussion, Bells, Synth, Keys, Orchestra, Brass, Pads, Bass
+- **Theme:** comma-separated — Documentary, Travel, Trailer, Vlog, Shorts
 - **BPM:** single value (90) or range (90-100)
 - **Duration:** minimum duration — 2+ min, 3:30+ min, 90+ sec
 - **Track:** suggestion for the editor, NOT used as search filter
 - **Style:** description, NOT used as filter
+
+**Synonym mappings (auto-resolved):** Determined→Uplifting, Building→Uplifting, Motivational→Uplifting, Focused→Serious, Reflective→Peaceful, Warm→Peaceful, Contemplative→Peaceful, Emotional→Sad, Nostalgic→Sad, Inspiring→Hopeful, Adventurous→Exciting, Suspenseful→Tense, Triumphant→Epic, Lo-fi/Lofi→Lofi-Chill-Beats, Orchestral→Orchestra (instrument).
 
 SFX references using `Artlist "Track Name"` in edit_notes or sfx.description are also auto-linked to Artlist SFX search.
 
@@ -646,3 +650,56 @@ Resumo dos endpoints disponíveis:
 - `POST /playlists/:id/edges`, `/edges/bulk`, `DELETE /edges/:edgeId` — gerenciar edges
 - `POST /playlists/:id/reorder` — reordenar items
 - `POST /playlists/:id/auto-layout` — auto-posicionar nós
+
+---
+
+## Research Library
+
+### POST /api/pipeline/research — Create/upsert research item
+
+Claude pushes research via this endpoint. Duplicate title+topic = upsert (updates content, resets status to 'new').
+
+```json
+{
+  "title": "WYD Ongame Era — Early MMORPG History",
+  "topic_slug": "gaming-history/wyd",
+  "content_md": "# WYD Research\n\n...",
+  "summary": "Research about WYD Online during the Ongame era (2003-2008)",
+  "sources": [
+    { "url": "https://example.com/article", "title": "Source Article" }
+  ]
+}
+```
+
+**topic_slug convention:** Use kebab-case path segments. Auto-creates missing topics.
+- `"estrategia"` → root topic (depth 0)
+- `"gaming-history/wyd"` → parent + child (depth 0 + 1)
+- `"cursos/ai-dev/prompt"` → 3 levels (depth 0 + 1 + 2)
+- Max 3 levels. `"a/b/c/d"` → 400 error.
+
+### GET /api/pipeline/research — List research items
+
+Default: lightweight (no body content). Use `?include=content` for full content_md.
+
+```
+GET /api/pipeline/research?topic_slug=gaming-history&include=content
+GET /api/pipeline/research?pipeline_item_id=<uuid>&include=content
+GET /api/pipeline/research?status=new,reviewed&search=wyd
+```
+
+### GET /api/pipeline/research/:id — Full item detail
+
+Returns both `content_md` and `content_json`, plus `linked_items` array.
+
+### POST /api/pipeline/research/import — Bulk import
+
+```json
+{
+  "items": [
+    { "title": "...", "topic_slug": "...", "content_md": "..." },
+    { "title": "...", "topic_slug": "...", "content_md": "..." }
+  ]
+}
+```
+
+Max 50 items. Each processed independently; partial failures don't block others.
