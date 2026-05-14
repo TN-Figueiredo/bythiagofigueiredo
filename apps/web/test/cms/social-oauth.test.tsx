@@ -159,19 +159,23 @@ describe('PlatformCard', () => {
     expect(screen.getByText('My Channel')).toBeDefined()
   })
 
-  it('shows Connected token status for active token', () => {
+  it('shows Active status badge for active token', () => {
     render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} />)
-    expect(screen.getByText(en.accounts.connections.tokenOk)).toBeDefined()
+    // Redesigned card shows "Active" badge (not tokenOk "Connected")
+    expect(screen.getByText('Active')).toBeDefined()
   })
 
   it('shows Token expired status for expired token', () => {
     render(<PlatformCard provider="youtube" connections={[expiredConnection]} strings={en} />)
-    expect(screen.getByText(en.accounts.connections.tokenExpired)).toBeDefined()
+    // The ExpiredBanner + ManageDetails both show tokenExpired text — use getAllByText
+    const expiredTexts = screen.getAllByText(en.accounts.connections.tokenExpired)
+    expect(expiredTexts.length).toBeGreaterThanOrEqual(1)
   })
 
-  it('shows Never expires for connection without token_expires_at', () => {
+  it('shows Active status badge for connection without token_expires_at', () => {
     render(<PlatformCard provider="facebook" connections={[neverExpiresConnection]} strings={en} />)
-    expect(screen.getByText(en.accounts.connections.tokenNever)).toBeDefined()
+    // Redesigned card shows "Active" badge for never-expires connections
+    expect(screen.getByText('Active')).toBeDefined()
   })
 
   it('shows Add account button when no connections', () => {
@@ -192,12 +196,10 @@ describe('PlatformCard', () => {
     })
   })
 
-  it('shows reconnect button for expired token when manage is open', async () => {
+  it('shows reconnect button for expired token (in expired banner)', () => {
+    // Redesigned component shows Reconnect in the expired banner, not just in manage mode
     render(<PlatformCard provider="youtube" connections={[expiredConnection]} strings={en} />)
-    fireEvent.click(screen.getByText(en.accounts.connections.manage))
-    await waitFor(() => {
-      expect(screen.getByText(en.accounts.connections.reconnect)).toBeDefined()
-    })
+    expect(screen.getAllByText(en.accounts.connections.reconnect).length).toBeGreaterThanOrEqual(1)
   })
 
   it('calls disconnectSocial on disconnect confirm', async () => {

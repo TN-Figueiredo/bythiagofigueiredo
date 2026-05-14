@@ -74,19 +74,18 @@ describe('ConnectionsGrid', () => {
       { ...mockConnections[0], token_expires_at: '2020-01-01T00:00:00Z' },
     ]
     renderGrid({ connections: expiredConnections })
-    expect(screen.getByText(en.accounts.connections.tokenExpired)).toBeDefined()
+    // Redesigned component shows tokenExpired in ExpiredBanner — use getAllByText
+    const expiredTexts = screen.getAllByText(en.accounts.connections.tokenExpired)
+    expect(expiredTexts.length).toBeGreaterThanOrEqual(1)
   })
 
-  it('shows Reconnect button for expired token when manage is open', async () => {
+  it('shows Reconnect button for expired token (in expired banner)', () => {
+    // Redesigned component shows Reconnect in the expired banner directly
     const expiredConnections = [
       { ...mockConnections[0], token_expires_at: '2020-01-01T00:00:00Z' },
     ]
     renderGrid({ connections: expiredConnections })
-    const manageButtons = screen.getAllByText(en.accounts.connections.manage)
-    fireEvent.click(manageButtons[0])
-    await waitFor(() => {
-      expect(screen.getByText(en.accounts.connections.reconnect)).toBeDefined()
-    })
+    expect(screen.getAllByText(en.accounts.connections.reconnect).length).toBeGreaterThanOrEqual(1)
   })
 
   it('shows empty add-account buttons when no connections exist', () => {
@@ -98,11 +97,12 @@ describe('ConnectionsGrid', () => {
     expect(screen.queryByText(en.accounts.connections.manage)).toBeNull()
   })
 
-  it('shows "Never expires" for tokens without expiry', () => {
+  it('shows Active status for tokens without expiry (never-expires)', () => {
     const neverExpireConn = [
       { ...mockConnections[1], token_expires_at: null },
     ]
     renderGrid({ connections: neverExpireConn })
-    expect(screen.getByText(en.accounts.connections.tokenNever)).toBeDefined()
+    // Redesigned component shows "Active" badge for never-expires connections
+    expect(screen.getByText('Active')).toBeDefined()
   })
 })

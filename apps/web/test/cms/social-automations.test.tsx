@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
 vi.mock('next/navigation', () => ({
@@ -12,15 +12,7 @@ vi.mock('next/link', () => ({
 }))
 
 import { AutomationsList } from '@/app/cms/(authed)/social/accounts/_components/automations-list'
-import { AutomationConfigModal } from '@/app/cms/(authed)/social/accounts/_components/automation-config-modal'
 import { en } from '@/app/cms/(authed)/social/_i18n/en'
-
-const RULE_STUB = {
-  id: 'blog_published',
-  label: 'blogPublished',
-  enabled: false,
-  mode: 'draft' as const,
-}
 
 describe('AutomationsList', () => {
   it('renders all 8 automation rules', () => {
@@ -41,19 +33,37 @@ describe('AutomationsList', () => {
     expect(switches).toHaveLength(8)
   })
 
-  it('shows mode labels for each rule', () => {
+  it('renders category headers', () => {
     render(<AutomationsList strings={en} />)
-    // Some rules default to 'draft', some to 'auto_publish'
-    const draftLabels = screen.getAllByText(
-      `${en.accounts.automations.modeLabel}: ${en.accounts.automations.modeDraft}`,
-    )
-    const autoLabels = screen.getAllByText(
-      `${en.accounts.automations.modeLabel}: ${en.accounts.automations.modeAutoPublish}`,
-    )
-    expect(draftLabels.length + autoLabels.length).toBe(8)
+    expect(screen.getByText(en.accounts.automations.categoryContent)).toBeDefined()
+    expect(screen.getByText(en.accounts.automations.categorySystem)).toBeDefined()
+    expect(screen.getByText(en.accounts.automations.categoryOptimization)).toBeDefined()
   })
 
-  it('fires onToggle when switch is clicked', async () => {
+  it('renders description text for each rule', () => {
+    render(<AutomationsList strings={en} />)
+    expect(screen.getByText(en.accounts.automations.blogPublishedDesc)).toBeDefined()
+    expect(screen.getByText(en.accounts.automations.videoPublishedDesc)).toBeDefined()
+    expect(screen.getByText(en.accounts.automations.tokenExpiringDesc)).toBeDefined()
+    expect(screen.getByText(en.accounts.automations.evergreenTimerDesc)).toBeDefined()
+  })
+
+  it('renders summary bar with correct counts', () => {
+    render(<AutomationsList strings={en} />)
+    // 8 total rules, 2 active (token_expiring + post_failed), 6 paused
+    expect(screen.getByText('8')).toBeDefined()
+    expect(screen.getByText('2')).toBeDefined()
+    expect(screen.getByText('6')).toBeDefined()
+  })
+
+  it('shows mode badges (DRAFT / AUTO)', () => {
+    render(<AutomationsList strings={en} />)
+    const draftBadges = screen.getAllByText('DRAFT')
+    const autoBadges = screen.getAllByText('AUTO')
+    expect(draftBadges.length + autoBadges.length).toBe(8)
+  })
+
+  it('fires toggle when switch is clicked', async () => {
     render(<AutomationsList strings={en} />)
     const switches = screen.getAllByRole('switch')
     const blogSwitch = switches[0]
@@ -66,119 +76,110 @@ describe('AutomationsList', () => {
 
   it('shows configure button for each rule', () => {
     render(<AutomationsList strings={en} />)
-    const configureButtons = screen.getAllByText(en.accounts.automations.configure)
-    expect(configureButtons).toHaveLength(8)
+    // Each rule has a configure button (text includes "Configure" followed by arrow)
+    const configButtons = screen.getAllByText(/Configure/)
+    expect(configButtons).toHaveLength(8)
   })
 
-  it('opens config modal when configure button is clicked', async () => {
+  it('opens inline config panel when configure is clicked', async () => {
     render(<AutomationsList strings={en} />)
-    const configureButtons = screen.getAllByText(en.accounts.automations.configure)
-    fireEvent.click(configureButtons[0])
+    const configButtons = screen.getAllByText(/Configure/)
+    fireEvent.click(configButtons[0])
     await waitFor(() => {
-      expect(screen.getByRole('dialog')).toBeDefined()
-      expect(screen.getByText(en.accounts.config.title)).toBeDefined()
+      expect(screen.getByRole('region')).toBeDefined()
+      expect(screen.getByText(en.accounts.config.actionMode)).toBeDefined()
     })
   })
 
-  it('closes the config modal after save', async () => {
+  it('shows action mode buttons in config panel', async () => {
     render(<AutomationsList strings={en} />)
-    const configureButtons = screen.getAllByText(en.accounts.automations.configure)
-    fireEvent.click(configureButtons[0])
-    await waitFor(() => expect(screen.getByRole('dialog')).toBeDefined())
+    const configButtons = screen.getAllByText(/Configure/)
+    fireEvent.click(configButtons[0])
+    await waitFor(() => {
+      expect(screen.getByText(en.accounts.automations.modeDraft)).toBeDefined()
+      expect(screen.getByText(en.accounts.automations.modeAutoPublish)).toBeDefined()
+    })
+  })
+
+  it('shows content template textarea in config panel', async () => {
+    render(<AutomationsList strings={en} />)
+    const configButtons = screen.getAllByText(/Configure/)
+    fireEvent.click(configButtons[0])
+    await waitFor(() => {
+      expect(screen.getByText(en.accounts.automations.templateLabel)).toBeDefined()
+      expect(screen.getByRole('textbox')).toBeDefined()
+    })
+  })
+
+  it('shows platform buttons in config panel', async () => {
+    render(<AutomationsList strings={en} />)
+    const configButtons = screen.getAllByText(/Configure/)
+    fireEvent.click(configButtons[0])
+    await waitFor(() => {
+      expect(screen.getByText(en.accounts.automations.targetPlatformsLabel)).toBeDefined()
+      expect(screen.getByText(en.platforms.youtube)).toBeDefined()
+      expect(screen.getByText(en.platforms.facebook)).toBeDefined()
+    })
+  })
+
+  it('closes config panel after save', async () => {
+    render(<AutomationsList strings={en} />)
+    const configButtons = screen.getAllByText(/Configure/)
+    fireEvent.click(configButtons[0])
+    await waitFor(() => expect(screen.getByRole('region')).toBeDefined())
     fireEvent.click(screen.getByText(en.accounts.config.save))
     await waitFor(() => {
-      expect(screen.queryByRole('dialog')).toBeNull()
+      expect(screen.queryByRole('region')).toBeNull()
+    })
+  })
+
+  it('closes config panel on cancel', async () => {
+    render(<AutomationsList strings={en} />)
+    const configButtons = screen.getAllByText(/Configure/)
+    fireEvent.click(configButtons[0])
+    await waitFor(() => expect(screen.getByRole('region')).toBeDefined())
+    fireEvent.click(screen.getByText(en.accounts.config.cancel))
+    await waitFor(() => {
+      expect(screen.queryByRole('region')).toBeNull()
     })
   })
 
   it('aria-checked reflects enabled state', () => {
     render(<AutomationsList strings={en} />)
-    // token_expiring and post_failed default to enabled=true (indices 4 and 5)
     const switches = screen.getAllByRole('switch')
+    // In the new categorized layout:
+    // content_trigger: blog(0), video(1), newsletter(2), playlist(3) — all false
+    // system_alert: token_expiring(4), post_failed(5) — both true
+    // optimization: evergreen(6), ab_test(7) — both false
     expect(switches[4].getAttribute('aria-checked')).toBe('true')
     expect(switches[5].getAttribute('aria-checked')).toBe('true')
-    // blog_published defaults to enabled=false (index 0)
     expect(switches[0].getAttribute('aria-checked')).toBe('false')
   })
-})
 
-describe('AutomationConfigModal', () => {
-  beforeEach(() => vi.clearAllMocks())
-
-  it('renders when open — shows title and trigger label', () => {
-    const onClose = vi.fn()
-    const onSave = vi.fn()
-    render(
-      <AutomationConfigModal rule={RULE_STUB} strings={en} onClose={onClose} onSave={onSave} />,
-    )
-    expect(screen.getByRole('dialog')).toBeDefined()
-    expect(screen.getByText(en.accounts.config.title)).toBeDefined()
-    expect(screen.getByText(en.accounts.config.triggerLabel)).toBeDefined()
-  })
-
-  it('shows action mode radio inputs', () => {
-    render(
-      <AutomationConfigModal rule={RULE_STUB} strings={en} onClose={vi.fn()} onSave={vi.fn()} />,
-    )
-    expect(screen.getByText(en.accounts.automations.modeDraft)).toBeDefined()
-    expect(screen.getByText(en.accounts.automations.modeAutoPublish)).toBeDefined()
-    const radios = screen.getAllByRole('radio')
-    expect(radios).toHaveLength(2)
-  })
-
-  it('shows content template textarea', () => {
-    render(
-      <AutomationConfigModal rule={RULE_STUB} strings={en} onClose={vi.fn()} onSave={vi.fn()} />,
-    )
-    expect(screen.getByText(en.accounts.config.contentTemplate)).toBeDefined()
-    expect(screen.getByRole('textbox')).toBeDefined()
-  })
-
-  it('closes on Escape key', async () => {
-    const onClose = vi.fn()
-    render(
-      <AutomationConfigModal rule={RULE_STUB} strings={en} onClose={onClose} onSave={vi.fn()} />,
-    )
-    fireEvent.keyDown(document, { key: 'Escape' })
+  it('delete rule removes it from the list', async () => {
+    render(<AutomationsList strings={en} />)
+    // Open config for first rule
+    const configButtons = screen.getAllByText(/Configure/)
+    fireEvent.click(configButtons[0])
+    await waitFor(() => expect(screen.getByRole('region')).toBeDefined())
+    // Click delete
+    fireEvent.click(screen.getByText(en.accounts.automations.deleteRule))
     await waitFor(() => {
-      expect(onClose).toHaveBeenCalledTimes(1)
+      expect(screen.queryByText(en.accounts.automations.blogPublished)).toBeNull()
+      // 7 switches remain
+      expect(screen.getAllByRole('switch')).toHaveLength(7)
     })
   })
 
-  it('calls onClose when cancel button clicked', () => {
-    const onClose = vi.fn()
-    render(
-      <AutomationConfigModal rule={RULE_STUB} strings={en} onClose={onClose} onSave={vi.fn()} />,
-    )
-    fireEvent.click(screen.getByText(en.accounts.config.cancel))
-    expect(onClose).toHaveBeenCalledTimes(1)
-  })
-
-  it('calls onSave with updated rule when save clicked', () => {
-    const onSave = vi.fn()
-    render(
-      <AutomationConfigModal rule={RULE_STUB} strings={en} onClose={vi.fn()} onSave={onSave} />,
-    )
-    fireEvent.click(screen.getByText(en.accounts.config.save))
-    expect(onSave).toHaveBeenCalledTimes(1)
-    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ id: RULE_STUB.id }))
-  })
-
-  it('shows the automation trigger name inside the modal', () => {
-    render(
-      <AutomationConfigModal rule={RULE_STUB} strings={en} onClose={vi.fn()} onSave={vi.fn()} />,
-    )
-    expect(screen.getByText(en.accounts.automations.blogPublished)).toBeDefined()
-  })
-
-  it('clicking backdrop calls onClose', () => {
-    const onClose = vi.fn()
-    const { container } = render(
-      <AutomationConfigModal rule={RULE_STUB} strings={en} onClose={onClose} onSave={vi.fn()} />,
-    )
-    // The backdrop is the outermost div (first child of body)
-    const backdrop = container.firstChild as HTMLElement
-    fireEvent.click(backdrop)
-    expect(onClose).toHaveBeenCalledTimes(1)
+  it('toggles close when clicking configure on already-open rule', async () => {
+    render(<AutomationsList strings={en} />)
+    const configButtons = screen.getAllByText(/Configure/)
+    fireEvent.click(configButtons[0])
+    await waitFor(() => expect(screen.getByRole('region')).toBeDefined())
+    // Click the same button again (now shows "Close")
+    fireEvent.click(screen.getByText(/Close/))
+    await waitFor(() => {
+      expect(screen.queryByRole('region')).toBeNull()
+    })
   })
 })
