@@ -4,6 +4,7 @@ export { useEdgeDrag } from './use-edge-drag'
 export { useGraphHistory, createHistory } from './use-graph-history'
 export { graphReducer, initialGraphState, type GraphState, type GraphAction } from './graph-reducer'
 export { computeAutoLayout } from './auto-layout'
+export { computeViewNumbers, matchesFilter } from './view-numbers'
 export {
   screenToCanvas,
   canvasToScreen,
