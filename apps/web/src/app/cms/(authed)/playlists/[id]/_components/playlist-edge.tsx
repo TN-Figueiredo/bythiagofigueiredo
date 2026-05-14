@@ -4,11 +4,11 @@ import type { PlaylistEdgeRow, EdgeType } from '@/lib/playlists/types'
 import type { PlaylistItemEnriched } from '@/lib/playlists/types'
 import { edgePath, getConnectionPoints } from '@/lib/playlists/canvas/utils'
 
-const EDGE_STYLES: Record<EdgeType, { stroke: string; glow: string; dash?: string; marker: boolean; defaultLabel?: string }> = {
-  sequence: { stroke: '#818cf8', glow: 'rgba(129,140,248,0.25)', marker: true },
-  related: { stroke: '#6b7280', glow: 'rgba(107,114,128,0.2)', dash: '5,3', marker: false, defaultLabel: 'see also' },
-  prerequisite: { stroke: '#fbbf24', glow: 'rgba(251,191,36,0.25)', dash: '8,3', marker: true, defaultLabel: 'read first' },
-  continuation: { stroke: '#34d399', glow: 'rgba(52,211,153,0.25)', marker: true },
+const EDGE_STYLES: Record<EdgeType, { stroke: string; glow: string; dash?: string; marker: 'arrow' | 'circle' | false; defaultLabel?: string }> = {
+  sequence:     { stroke: '#818cf8', glow: 'rgba(129,140,248,0.25)', marker: 'arrow', defaultLabel: 'seq' },
+  related:      { stroke: '#a855f7', glow: 'rgba(168,85,247,0.2)', dash: '5,3', marker: 'circle', defaultLabel: 'see also' },
+  prerequisite: { stroke: '#fbbf24', glow: 'rgba(251,191,36,0.25)', marker: 'arrow', defaultLabel: 'read first' },
+  continuation: { stroke: '#34d399', glow: 'rgba(52,211,153,0.25)', marker: 'arrow' },
 }
 
 interface PlaylistEdgeProps {
@@ -16,6 +16,7 @@ interface PlaylistEdgeProps {
   sourceItem: PlaylistItemEnriched
   targetItem: PlaylistItemEnriched
   isSelected: boolean
+  opacity?: number
   onSelect: (edgeId: string) => void
 }
 
@@ -24,6 +25,7 @@ export function PlaylistEdge({
   sourceItem,
   targetItem,
   isSelected,
+  opacity,
   onSelect,
 }: PlaylistEdgeProps) {
   const style = EDGE_STYLES[edge.edge_type]
@@ -34,7 +36,7 @@ export function PlaylistEdge({
   const midY = (sourcePoint.y + targetPoint.y) / 2
 
   return (
-    <g role="button" aria-label={`${edge.edge_type} edge: ${sourceItem.title} → ${targetItem.title}`}>
+    <g role="button" aria-label={`${edge.edge_type} edge: ${sourceItem.title} → ${targetItem.title}`} style={{ opacity: opacity ?? 1 }}>
       {/* Fat invisible hit area */}
       <path
         d={path}
@@ -62,7 +64,13 @@ export function PlaylistEdge({
         strokeWidth={isSelected ? 2.5 : 1.5}
         fill="none"
         strokeDasharray={style.dash}
-        markerEnd={style.marker ? `url(#arrow-${isSelected ? 'selected' : edge.edge_type})` : undefined}
+        markerEnd={
+          style.marker === 'arrow'
+            ? `url(#arrow-${isSelected ? 'selected' : edge.edge_type})`
+            : style.marker === 'circle'
+              ? 'url(#circle-related)'
+              : undefined
+        }
         style={{ pointerEvents: 'none' }}
       />
 
@@ -128,6 +136,9 @@ export function EdgeArrowDefs() {
         orient="auto"
       >
         <path d="M1,1 L9,4 L1,7" fill="none" stroke="#f87171" strokeWidth="1.5" strokeLinejoin="round" />
+      </marker>
+      <marker id="circle-related" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+        <circle cx="4" cy="4" r="3" fill="none" stroke="#a855f7" strokeWidth="1.5" />
       </marker>
     </defs>
   )
