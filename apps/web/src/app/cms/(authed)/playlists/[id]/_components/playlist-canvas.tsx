@@ -704,10 +704,14 @@ export function PlaylistCanvas({
                   edgeDrag.dragEdge.active &&
                   edgeDrag.dragEdge.sourceItemId !== item.id
                 }
+                isDimmed={false}
+                isIdea={!item.is_ghost && item.status === 'idea'}
+                viewNumber={null}
                 onPointerDown={dragNode.handlePointerDown}
                 onHandlePointerDown={edgeDrag.handleHandlePointerDown}
                 onContextMenu={handleContextMenu}
                 onClick={handleNodeClick}
+                onOpenContent={() => {}}
               />
             ))}
           </div>
