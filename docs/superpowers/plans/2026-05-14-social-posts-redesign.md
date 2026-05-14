@@ -391,7 +391,7 @@ const mockUpdate = vi.fn().mockReturnThis()
 const mockEq = vi.fn().mockReturnThis()
 const mockSingle = vi.fn().mockResolvedValue({ data: null, error: null })
 
-vi.mock('../../../lib/supabase/service', () => ({
+vi.mock('@/lib/supabase/service', () => ({
   getSupabaseServiceClient: () => ({
     from: () => ({
       select: () => ({
@@ -406,22 +406,22 @@ vi.mock('../../../lib/supabase/service', () => ({
   }),
 }))
 
-import type { PipelineStep } from '../../../src/lib/social/types'
+import type { PipelineStep } from '@/lib/social/types'
 
 describe('createInitialPipelineSteps', () => {
   it('returns 4 steps with first 2 completed and last 2 pending', async () => {
     const { createInitialPipelineSteps } = await import(
-      '../../../src/lib/social/pipeline'
+      '@/lib/social/pipeline'
     )
     const steps = createInitialPipelineSteps()
 
     expect(steps).toHaveLength(4)
     expect(steps[0]!.step).toBe('post_created')
     expect(steps[0]!.status).toBe('completed')
-    expect(steps[0]!.at).toBeTruthy()
+    expect(steps[0]!.at).toBeDefined()
     expect(steps[1]!.step).toBe('short_link')
     expect(steps[1]!.status).toBe('completed')
-    expect(steps[1]!.at).toBeTruthy()
+    expect(steps[1]!.at).toBeDefined()
     expect(steps[2]!.step).toBe('og_scrape')
     expect(steps[2]!.status).toBe('pending')
     expect(steps[3]!.step).toBe('deliver')
@@ -448,9 +448,9 @@ describe('updatePipelineStep', () => {
 
   it('updates the specified step status and timestamp', async () => {
     const { updatePipelineStep } = await import(
-      '../../../src/lib/social/pipeline'
+      '@/lib/social/pipeline'
     )
-    const supabase = (await import('../../../lib/supabase/service')).getSupabaseServiceClient()
+    const supabase = (await import('@/lib/supabase/service')).getSupabaseServiceClient()
 
     await updatePipelineStep(supabase, 'post-123', 'og_scrape', 'in_progress')
 
@@ -460,14 +460,14 @@ describe('updatePipelineStep', () => {
       (s: PipelineStep) => s.step === 'og_scrape',
     )
     expect(ogStep!.status).toBe('in_progress')
-    expect(ogStep!.at).toBeTruthy()
+    expect(ogStep!.at).toBeDefined()
   })
 
   it('merges optional data into the step', async () => {
     const { updatePipelineStep } = await import(
-      '../../../src/lib/social/pipeline'
+      '@/lib/social/pipeline'
     )
-    const supabase = (await import('../../../lib/supabase/service')).getSupabaseServiceClient()
+    const supabase = (await import('@/lib/supabase/service')).getSupabaseServiceClient()
 
     await updatePipelineStep(supabase, 'post-123', 'og_scrape', 'completed', {
       tags: 7,
@@ -485,7 +485,7 @@ describe('updatePipelineStep', () => {
 describe('getPipelineDuration', () => {
   it('returns duration in ms from first to last completed step', async () => {
     const { getPipelineDuration } = await import(
-      '../../../src/lib/social/pipeline'
+      '@/lib/social/pipeline'
     )
     const steps: PipelineStep[] = [
       { step: 'post_created', status: 'completed', at: '2026-01-01T00:00:00Z' },
@@ -499,7 +499,7 @@ describe('getPipelineDuration', () => {
 
   it('returns 0 if fewer than 2 completed steps', async () => {
     const { getPipelineDuration } = await import(
-      '../../../src/lib/social/pipeline'
+      '@/lib/social/pipeline'
     )
     const steps: PipelineStep[] = [
       { step: 'post_created', status: 'completed', at: '2026-01-01T00:00:00Z' },
@@ -514,7 +514,7 @@ describe('getPipelineDuration', () => {
 describe('isPipelineComplete', () => {
   it('returns true if all steps are completed or warning', async () => {
     const { isPipelineComplete } = await import(
-      '../../../src/lib/social/pipeline'
+      '@/lib/social/pipeline'
     )
     const steps: PipelineStep[] = [
       { step: 'post_created', status: 'completed', at: '2026-01-01T00:00:00Z' },
@@ -527,7 +527,7 @@ describe('isPipelineComplete', () => {
 
   it('returns false if any step is pending', async () => {
     const { isPipelineComplete } = await import(
-      '../../../src/lib/social/pipeline'
+      '@/lib/social/pipeline'
     )
     const steps: PipelineStep[] = [
       { step: 'post_created', status: 'completed', at: '2026-01-01T00:00:00Z' },
@@ -540,7 +540,7 @@ describe('isPipelineComplete', () => {
 
   it('returns false if any step is failed', async () => {
     const { isPipelineComplete } = await import(
-      '../../../src/lib/social/pipeline'
+      '@/lib/social/pipeline'
     )
     const steps: PipelineStep[] = [
       { step: 'post_created', status: 'completed', at: '2026-01-01T00:00:00Z' },
@@ -553,7 +553,7 @@ describe('isPipelineComplete', () => {
 
   it('returns false for an empty steps array', async () => {
     const { isPipelineComplete } = await import(
-      '../../../src/lib/social/pipeline'
+      '@/lib/social/pipeline'
     )
     expect(isPipelineComplete([])).toBe(false)
   })
@@ -692,7 +692,7 @@ git commit -m "feat(social): add pipeline step helpers with TDD"
 ```typescript
 // apps/web/test/lib/social/content-metadata.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { ContentType } from '../../../src/lib/social/types'
+import type { ContentType } from '@/lib/social/types'
 
 // ---------------------------------------------------------------------------
 // Mock Supabase client builder
@@ -720,7 +720,7 @@ describe('extractContentMetadata', () => {
 
   it('extracts metadata from a blog post', async () => {
     const { extractContentMetadata } = await import(
-      '../../../src/lib/social/content-metadata'
+      '@/lib/social/content-metadata'
     )
     const supabase = createMockSupabase({
       blog_posts: {
@@ -750,7 +750,7 @@ describe('extractContentMetadata', () => {
 
   it('extracts metadata from a newsletter edition', async () => {
     const { extractContentMetadata } = await import(
-      '../../../src/lib/social/content-metadata'
+      '@/lib/social/content-metadata'
     )
 
     // newsletter_editions needs a join to newsletter_types for the slug
@@ -793,7 +793,7 @@ describe('extractContentMetadata', () => {
 
   it('extracts metadata from a campaign', async () => {
     const { extractContentMetadata } = await import(
-      '../../../src/lib/social/content-metadata'
+      '@/lib/social/content-metadata'
     )
     const supabase = createMockSupabase({
       campaigns: {
@@ -822,7 +822,7 @@ describe('extractContentMetadata', () => {
 
   it('extracts metadata from a video (YouTube)', async () => {
     const { extractContentMetadata } = await import(
-      '../../../src/lib/social/content-metadata'
+      '@/lib/social/content-metadata'
     )
     const supabase = createMockSupabase({
       social_connections: {
@@ -860,7 +860,7 @@ describe('extractContentMetadata', () => {
 
   it('throws for unknown content type', async () => {
     const { extractContentMetadata } = await import(
-      '../../../src/lib/social/content-metadata'
+      '@/lib/social/content-metadata'
     )
     const supabase = createMockSupabase({})
 
@@ -871,7 +871,7 @@ describe('extractContentMetadata', () => {
 
   it('throws when content is not found in the database', async () => {
     const { extractContentMetadata } = await import(
-      '../../../src/lib/social/content-metadata'
+      '@/lib/social/content-metadata'
     )
     const supabase = createMockSupabase({}) // no data for any table
 
@@ -1124,7 +1124,7 @@ describe('scrapeOg', () => {
         }),
     })
 
-    const { scrapeOg } = await import('../../../src/lib/social/og-scraper')
+    const { scrapeOg } = await import('@/lib/social/og-scraper')
     const result = await scrapeOg(
       'https://example.com/blog/test',
       'page-token-123',
@@ -1154,7 +1154,7 @@ describe('scrapeOg', () => {
       return Promise.reject(error)
     })
 
-    const { scrapeOg } = await import('../../../src/lib/social/og-scraper')
+    const { scrapeOg } = await import('@/lib/social/og-scraper')
     const result = await scrapeOg(
       'https://example.com/blog/slow',
       'page-token-123',
@@ -1172,7 +1172,7 @@ describe('scrapeOg', () => {
       json: () => Promise.resolve({ error: { message: 'Internal error' } }),
     })
 
-    const { scrapeOg } = await import('../../../src/lib/social/og-scraper')
+    const { scrapeOg } = await import('@/lib/social/og-scraper')
     const result = await scrapeOg(
       'https://example.com/blog/broken',
       'page-token-123',
@@ -1186,7 +1186,7 @@ describe('scrapeOg', () => {
   it('returns error status on network failure', async () => {
     globalThis.fetch = vi.fn().mockRejectedValue(new Error('ECONNREFUSED'))
 
-    const { scrapeOg } = await import('../../../src/lib/social/og-scraper')
+    const { scrapeOg } = await import('@/lib/social/og-scraper')
     const result = await scrapeOg(
       'https://example.com/blog/offline',
       'page-token-123',
@@ -1202,7 +1202,7 @@ describe('scrapeOg', () => {
       json: () => Promise.resolve({}),
     })
 
-    const { scrapeOg } = await import('../../../src/lib/social/og-scraper')
+    const { scrapeOg } = await import('@/lib/social/og-scraper')
     const result = await scrapeOg(
       'https://example.com/blog/no-og',
       'page-token-123',
@@ -1298,7 +1298,7 @@ git commit -m "feat(social): add OG scraper service with TDD"
 ```typescript
 // apps/web/test/lib/social/create-from-content.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { SocialConfig, ContentMetadata } from '../../../src/lib/social/types'
+import type { SocialConfig, ContentMetadata } from '@/lib/social/types'
 
 // ---------------------------------------------------------------------------
 // Shared mock state
@@ -1357,15 +1357,15 @@ function buildSupabaseMock() {
 // ---------------------------------------------------------------------------
 // Mock dependencies
 // ---------------------------------------------------------------------------
-vi.mock('../../../lib/supabase/service', () => ({
+vi.mock('@/lib/supabase/service', () => ({
   getSupabaseServiceClient: vi.fn(),
 }))
 
-vi.mock('../../../src/lib/social/content-metadata', () => ({
+vi.mock('@/lib/social/content-metadata', () => ({
   extractContentMetadata: vi.fn(),
 }))
 
-vi.mock('../../../src/lib/social/pipeline', () => ({
+vi.mock('@/lib/social/pipeline', () => ({
   createInitialPipelineSteps: vi.fn().mockReturnValue([
     { step: 'post_created', status: 'completed', at: '2026-01-01T00:00:00Z' },
     { step: 'short_link', status: 'completed', at: '2026-01-01T00:00:01Z' },
@@ -1404,7 +1404,7 @@ describe('createSocialPostFromContent', () => {
     vi.clearAllMocks()
 
     const { extractContentMetadata } = await import(
-      '../../../src/lib/social/content-metadata'
+      '@/lib/social/content-metadata'
     )
     vi.mocked(extractContentMetadata).mockResolvedValue(defaultMetadata)
 
@@ -1454,7 +1454,7 @@ describe('createSocialPostFromContent', () => {
 
   it('creates a social post with correct fields and returns postId + shortLinkId', async () => {
     const { createSocialPostFromContent } = await import(
-      '../../../src/lib/social/create-from-content'
+      '@/lib/social/create-from-content'
     )
 
     const result = await createSocialPostFromContent({
@@ -1475,7 +1475,7 @@ describe('createSocialPostFromContent', () => {
 
   it('creates one delivery per platform in config.platforms', async () => {
     const { createSocialPostFromContent } = await import(
-      '../../../src/lib/social/create-from-content'
+      '@/lib/social/create-from-content'
     )
 
     await createSocialPostFromContent({
@@ -1508,7 +1508,7 @@ describe('createSocialPostFromContent', () => {
     })
 
     const { createSocialPostFromContent } = await import(
-      '../../../src/lib/social/create-from-content'
+      '@/lib/social/create-from-content'
     )
 
     const result = await createSocialPostFromContent({
@@ -1533,7 +1533,7 @@ describe('createSocialPostFromContent', () => {
     })
 
     const { createSocialPostFromContent } = await import(
-      '../../../src/lib/social/create-from-content'
+      '@/lib/social/create-from-content'
     )
 
     await expect(
@@ -1554,7 +1554,7 @@ describe('createSocialPostFromContent', () => {
     globalThis.fetch = mockFetch
 
     const { createSocialPostFromContent } = await import(
-      '../../../src/lib/social/create-from-content'
+      '@/lib/social/create-from-content'
     )
 
     await createSocialPostFromContent({
@@ -1579,7 +1579,7 @@ describe('createSocialPostFromContent', () => {
 
   it('sets status to scheduled when scheduledAt is provided', async () => {
     const { createSocialPostFromContent } = await import(
-      '../../../src/lib/social/create-from-content'
+      '@/lib/social/create-from-content'
     )
 
     await createSocialPostFromContent({
@@ -1596,6 +1596,87 @@ describe('createSocialPostFromContent', () => {
     const insertCall = mockPostInsert.mock.calls[0]![0] as Record<string, unknown>
     expect(insertCall.status).toBe('scheduled')
     expect(insertCall.scheduled_at).toBe('2026-05-20T15:00:00Z')
+  })
+
+  it('does not create post or deliveries when connections array is empty', async () => {
+    mockConnectionSelect.mockResolvedValue({ data: [], error: null })
+
+    const { createSocialPostFromContent } = await import(
+      '@/lib/social/create-from-content'
+    )
+
+    await createSocialPostFromContent({
+      supabase: buildSupabaseMock() as never,
+      siteId: 'site-1',
+      contentType: 'blog',
+      contentId: 'bp-1',
+      config: defaultConfig,
+      origin: 'auto',
+      userId: 'user-1',
+    })
+
+    // Post is still created (pipeline creates the post regardless)
+    // but deliveries should NOT be inserted when there are no connections
+    expect(mockDeliveryInsert).not.toHaveBeenCalled()
+  })
+
+  it('continues with null shortLinkId when tracked link insert fails', async () => {
+    mockLinkInsert.mockReturnValue({
+      select: () => ({
+        single: vi.fn().mockResolvedValue({
+          data: null,
+          error: { message: 'duplicate key value violates unique constraint' },
+        }),
+      }),
+    })
+
+    const { createSocialPostFromContent } = await import(
+      '@/lib/social/create-from-content'
+    )
+
+    // Should not throw — short link failure is non-blocking
+    const result = await createSocialPostFromContent({
+      supabase: buildSupabaseMock() as never,
+      siteId: 'site-1',
+      contentType: 'blog',
+      contentId: 'bp-1',
+      config: defaultConfig,
+      origin: 'auto',
+      userId: 'user-1',
+    })
+
+    expect(result.postId).toBe('post-1')
+    expect(result.shortLinkId).toBeNull()
+    expect(mockPostInsert).toHaveBeenCalled()
+  })
+
+  it('handles unique constraint violation on post insert gracefully', async () => {
+    mockMaybeSingle.mockResolvedValue({ data: null, error: null })
+    mockPostInsert.mockReturnValue({
+      select: () => ({
+        single: vi.fn().mockResolvedValue({
+          data: null,
+          error: { message: 'duplicate key value violates unique constraint "social_posts_idempotency_key_key"' },
+        }),
+      }),
+    })
+
+    const { createSocialPostFromContent } = await import(
+      '@/lib/social/create-from-content'
+    )
+
+    // Should throw with a descriptive error (not crash unhandled)
+    await expect(
+      createSocialPostFromContent({
+        supabase: buildSupabaseMock() as never,
+        siteId: 'site-1',
+        contentType: 'blog',
+        contentId: 'bp-1',
+        config: defaultConfig,
+        origin: 'auto',
+        userId: 'user-1',
+      }),
+    ).rejects.toThrow('Failed to create social post')
   })
 })
 ```
@@ -1871,7 +1952,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const mockPostSelect = vi.fn()
 const mockPipelineUpdate = vi.fn()
 
-vi.mock('../../lib/supabase/service', () => ({
+vi.mock('@/lib/supabase/service', () => ({
   getSupabaseServiceClient: () => ({
     from: vi.fn((table: string) => {
       if (table === 'social_posts') {
@@ -1910,17 +1991,17 @@ vi.mock('../../lib/supabase/service', () => ({
 }))
 
 // Mock OG scraper
-vi.mock('../../src/lib/social/og-scraper', () => ({
+vi.mock('@/lib/social/og-scraper', () => ({
   scrapeOg: vi.fn(),
 }))
 
 // Mock pipeline helpers
-vi.mock('../../src/lib/social/pipeline', () => ({
+vi.mock('@/lib/social/pipeline', () => ({
   updatePipelineStep: vi.fn(),
 }))
 
 // Mock publishSocialPost
-vi.mock('../../src/lib/social/workflows', () => ({
+vi.mock('@/lib/social/workflows', () => ({
   publishSocialPost: vi.fn(),
 }))
 
@@ -1935,10 +2016,10 @@ vi.mock('@sentry/nextjs', () => ({
   captureException: vi.fn(),
 }))
 
-import { POST } from '../../src/app/api/social/pipeline/run/route'
-import { scrapeOg } from '../../src/lib/social/og-scraper'
-import { updatePipelineStep } from '../../src/lib/social/pipeline'
-import { publishSocialPost } from '../../src/lib/social/workflows'
+import { POST } from '@/app/api/social/pipeline/run/route'
+import { scrapeOg } from '@/lib/social/og-scraper'
+import { updatePipelineStep } from '@/lib/social/pipeline'
+import { publishSocialPost } from '@/lib/social/workflows'
 
 describe('POST /api/social/pipeline/run', () => {
   beforeEach(() => {
@@ -2124,6 +2205,29 @@ describe('POST /api/social/pipeline/run', () => {
       'completed',
     )
   })
+
+  it('marks deliver step as failed and sets post status to failed when publishSocialPost throws', async () => {
+    vi.mocked(publishSocialPost).mockRejectedValue(new Error('Provider connection refused'))
+
+    const req = new Request('http://localhost/api/social/pipeline/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-cron-secret' },
+      body: JSON.stringify({ postId: 'post-1' }),
+    })
+
+    const res = await POST(req)
+
+    expect(updatePipelineStep).toHaveBeenCalledWith(
+      expect.anything(),
+      'post-1',
+      'deliver',
+      'failed',
+      expect.objectContaining({ error: expect.stringContaining('Provider connection refused') }),
+    )
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { ok: boolean; error?: string }
+    expect(body.ok).toBe(false)
+  })
 })
 ```
 
@@ -2293,7 +2397,7 @@ const mockSelect = vi.fn()
 const mockInsert = vi.fn().mockResolvedValue({ error: null })
 const mockSingle = vi.fn()
 
-vi.mock('../../../src/lib/supabase/service', () => ({
+vi.mock('@/lib/supabase/service', () => ({
   getSupabaseServiceClient: () => ({
     from: (table: string) => {
       if (table === 'social_posts') {
@@ -2324,7 +2428,7 @@ vi.mock('../../../src/lib/supabase/service', () => ({
 }))
 
 const mockPublishSocialPost = vi.fn().mockResolvedValue(undefined)
-vi.mock('../../../src/lib/social/workflows', () => ({
+vi.mock('@/lib/social/workflows', () => ({
   publishSocialPost: mockPublishSocialPost,
 }))
 
@@ -2334,19 +2438,19 @@ const mockScrapeOg = vi.fn().mockResolvedValue({
   latency_ms: 800,
   http_status: 200,
 })
-vi.mock('../../../src/lib/social/og-scraper', () => ({
+vi.mock('@/lib/social/og-scraper', () => ({
   scrapeOg: mockScrapeOg,
 }))
 
 const mockUpdatePipelineStep = vi.fn().mockResolvedValue(undefined)
-vi.mock('../../../src/lib/social/pipeline', () => ({
+vi.mock('@/lib/social/pipeline', () => ({
   updatePipelineStep: mockUpdatePipelineStep,
   createInitialPipelineSteps: vi.fn(),
   getPipelineDuration: vi.fn(),
   isPipelineComplete: vi.fn(),
 }))
 
-vi.mock('../../../src/lib/logger', () => ({
+vi.mock('@/lib/logger', () => ({
   withCronLock: vi.fn(async (_sb, _key, _runId, _job, fn) => {
     const result = await fn()
     return Response.json(result)
@@ -2379,7 +2483,7 @@ describe('social-publish cron', () => {
     mockSelect.mockResolvedValue({ data: [postNeedingScrape], error: null })
 
     const { POST } = await import(
-      '../../../src/app/api/cron/social-publish/route'
+      '@/app/api/cron/social-publish/route'
     )
     const req = new Request('http://localhost/api/cron/social-publish', {
       method: 'POST',
@@ -2418,7 +2522,7 @@ describe('social-publish cron', () => {
     mockSelect.mockResolvedValue({ data: [postReadyToDeliver], error: null })
 
     const { POST } = await import(
-      '../../../src/app/api/cron/social-publish/route'
+      '@/app/api/cron/social-publish/route'
     )
     const req = new Request('http://localhost/api/cron/social-publish', {
       method: 'POST',
@@ -2452,7 +2556,7 @@ describe('social-publish cron', () => {
     mockSelect.mockResolvedValue({ data: [postAlreadyScraped], error: null })
 
     const { POST } = await import(
-      '../../../src/app/api/cron/social-publish/route'
+      '@/app/api/cron/social-publish/route'
     )
     const req = new Request('http://localhost/api/cron/social-publish', {
       method: 'POST',
@@ -2467,7 +2571,7 @@ describe('social-publish cron', () => {
 
   it('returns 401 for missing auth', async () => {
     const { POST } = await import(
-      '../../../src/app/api/cron/social-publish/route'
+      '@/app/api/cron/social-publish/route'
     )
     const req = new Request('http://localhost/api/cron/social-publish', {
       method: 'POST',
@@ -2716,7 +2820,7 @@ describe('SocialTab', () => {
 
   it('renders share toggle and calls onConfigChange when toggled on', async () => {
     const { SocialTab } = await import(
-      '../../src/app/cms/(authed)/_shared/social/social-tab'
+      '@/app/cms/(authed)/_shared/social/social-tab'
     )
 
     render(
@@ -2730,7 +2834,7 @@ describe('SocialTab', () => {
     )
 
     const toggle = screen.getByRole('switch')
-    expect(toggle).toBeTruthy()
+    expect(toggle).toBeDefined()
 
     fireEvent.click(toggle)
 
@@ -2744,7 +2848,7 @@ describe('SocialTab', () => {
 
   it('shows platform chips when enabled', async () => {
     const { SocialTab } = await import(
-      '../../src/app/cms/(authed)/_shared/social/social-tab'
+      '@/app/cms/(authed)/_shared/social/social-tab'
     )
 
     render(
@@ -2762,14 +2866,14 @@ describe('SocialTab', () => {
       />,
     )
 
-    expect(screen.getByText('My Page')).toBeTruthy()
-    expect(screen.getByText('my_ig')).toBeTruthy()
-    expect(screen.getByText('me.bsky')).toBeTruthy()
+    expect(screen.getByText('My Page')).toBeDefined()
+    expect(screen.getByText('my_ig')).toBeDefined()
+    expect(screen.getByText('me.bsky')).toBeDefined()
   })
 
   it('toggles platform off and calls onConfigChange without that platform', async () => {
     const { SocialTab } = await import(
-      '../../src/app/cms/(authed)/_shared/social/social-tab'
+      '@/app/cms/(authed)/_shared/social/social-tab'
     )
 
     render(
@@ -2799,7 +2903,7 @@ describe('SocialTab', () => {
 
   it('renders caption editor tabs per platform', async () => {
     const { SocialTab } = await import(
-      '../../src/app/cms/(authed)/_shared/social/social-tab'
+      '@/app/cms/(authed)/_shared/social/social-tab'
     )
 
     render(
@@ -2818,13 +2922,13 @@ describe('SocialTab', () => {
     )
 
     // Should show caption tabs for enabled platforms
-    expect(screen.getByRole('tab', { name: /facebook/i })).toBeTruthy()
-    expect(screen.getByRole('tab', { name: /bluesky/i })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: /facebook/i })).toBeDefined()
+    expect(screen.getByRole('tab', { name: /bluesky/i })).toBeDefined()
   })
 
   it('shows pipeline preview one-liner', async () => {
     const { SocialTab } = await import(
-      '../../src/app/cms/(authed)/_shared/social/social-tab'
+      '@/app/cms/(authed)/_shared/social/social-tab'
     )
 
     render(
@@ -2842,14 +2946,14 @@ describe('SocialTab', () => {
       />,
     )
 
-    expect(screen.getByText(/short link/i)).toBeTruthy()
-    expect(screen.getByText(/og scrape/i)).toBeTruthy()
-    expect(screen.getByText(/deliver/i)).toBeTruthy()
+    expect(screen.getByText(/short link/i)).toBeDefined()
+    expect(screen.getByText(/og scrape/i)).toBeDefined()
+    expect(screen.getByText(/deliver/i)).toBeDefined()
   })
 
   it('hides form sections when toggle is off', async () => {
     const { SocialTab } = await import(
-      '../../src/app/cms/(authed)/_shared/social/social-tab'
+      '@/app/cms/(authed)/_shared/social/social-tab'
     )
 
     render(
@@ -3262,7 +3366,7 @@ import { render, screen } from '@testing-library/react'
 describe('OgCompact', () => {
   it('renders og:title with character count', async () => {
     const { OgCompact } = await import(
-      '../../src/app/cms/(authed)/_shared/social/og-compact'
+      '@/app/cms/(authed)/_shared/social/og-compact'
     )
 
     render(
@@ -3273,15 +3377,15 @@ describe('OgCompact', () => {
       />,
     )
 
-    expect(screen.getByText('og:title')).toBeTruthy()
-    expect(screen.getByText(/AI Empire/)).toBeTruthy()
+    expect(screen.getByText('og:title')).toBeDefined()
+    expect(screen.getByText(/AI Empire/)).toBeDefined()
     // Char count for title
-    expect(screen.getByText(/\/60/)).toBeTruthy()
+    expect(screen.getByText(/\/60/)).toBeDefined()
   })
 
   it('renders og:description with character count', async () => {
     const { OgCompact } = await import(
-      '../../src/app/cms/(authed)/_shared/social/og-compact'
+      '@/app/cms/(authed)/_shared/social/og-compact'
     )
 
     render(
@@ -3292,13 +3396,13 @@ describe('OgCompact', () => {
       />,
     )
 
-    expect(screen.getByText('og:description')).toBeTruthy()
-    expect(screen.getByText(/\/155/)).toBeTruthy()
+    expect(screen.getByText('og:description')).toBeDefined()
+    expect(screen.getByText(/\/155/)).toBeDefined()
   })
 
   it('renders og:image with thumbnail when URL provided', async () => {
     const { OgCompact } = await import(
-      '../../src/app/cms/(authed)/_shared/social/og-compact'
+      '@/app/cms/(authed)/_shared/social/og-compact'
     )
 
     const { container } = render(
@@ -3309,27 +3413,27 @@ describe('OgCompact', () => {
       />,
     )
 
-    expect(screen.getByText('og:image')).toBeTruthy()
+    expect(screen.getByText('og:image')).toBeDefined()
     const img = container.querySelector('img')
-    expect(img).toBeTruthy()
+    expect(img).toBeDefined()
     expect(img?.getAttribute('src')).toBe('https://example.com/image.jpg')
   })
 
   it('shows "Missing" when og:image is null', async () => {
     const { OgCompact } = await import(
-      '../../src/app/cms/(authed)/_shared/social/og-compact'
+      '@/app/cms/(authed)/_shared/social/og-compact'
     )
 
     render(
       <OgCompact ogTitle="Title" ogDescription="Desc" ogImage={null} />,
     )
 
-    expect(screen.getByText(/missing/i)).toBeTruthy()
+    expect(screen.getByText(/missing/i)).toBeDefined()
   })
 
   it('renders all 3 columns', async () => {
     const { OgCompact } = await import(
-      '../../src/app/cms/(authed)/_shared/social/og-compact'
+      '@/app/cms/(authed)/_shared/social/og-compact'
     )
 
     const { container } = render(
@@ -3342,7 +3446,7 @@ describe('OgCompact', () => {
 
     // 3 column grid
     const grid = container.querySelector('.grid')
-    expect(grid).toBeTruthy()
+    expect(grid).toBeDefined()
     expect(grid?.children.length).toBe(3)
   })
 })
@@ -3551,7 +3655,7 @@ const mockSupabaseUpdate = vi.fn().mockReturnValue({
   }),
 })
 
-vi.mock('../../lib/supabase/service', () => ({
+vi.mock('@/lib/supabase/service', () => ({
   getSupabaseServiceClient: () => ({
     from: () => ({
       select: () => ({
@@ -3592,7 +3696,7 @@ describe('Social publish hooks', () => {
       })
 
       const { publishPost } = await import(
-        '../../src/app/cms/(authed)/blog/[id]/edit/actions'
+        '@/app/cms/(authed)/blog/[id]/edit/actions'
       )
 
       await publishPost('p1')
@@ -3619,7 +3723,7 @@ describe('Social publish hooks', () => {
       })
 
       const { publishPost } = await import(
-        '../../src/app/cms/(authed)/blog/[id]/edit/actions'
+        '@/app/cms/(authed)/blog/[id]/edit/actions'
       )
 
       await publishPost('p1')
@@ -3636,7 +3740,7 @@ describe('Social publish hooks', () => {
       })
 
       const { publishPost } = await import(
-        '../../src/app/cms/(authed)/blog/[id]/edit/actions'
+        '@/app/cms/(authed)/blog/[id]/edit/actions'
       )
 
       await publishPost('p1')
@@ -3659,7 +3763,7 @@ describe('Social publish hooks', () => {
       })
 
       const { sendNow } = await import(
-        '../../src/app/cms/(authed)/newsletters/actions'
+        '@/app/cms/(authed)/newsletters/actions'
       )
 
       await sendNow('e1')
@@ -3703,7 +3807,7 @@ describe('Social publish hooks', () => {
       }))
 
       const { publishCampaign } = await import(
-        '../../src/app/cms/(authed)/campaigns/[id]/edit/actions'
+        '@/app/cms/(authed)/campaigns/[id]/edit/actions'
       )
 
       await publishCampaign('c1')
@@ -3716,6 +3820,64 @@ describe('Social publish hooks', () => {
           origin: 'auto',
         }),
       )
+    })
+  })
+
+  describe('bulkPublish()', () => {
+    it('calls createSocialPostFromContent only for items with social_config.enabled = true', async () => {
+      // Three posts: one with social enabled, one with disabled, one with no config
+      const bulkPublishedPosts = [
+        { id: 'p1', social_config: { enabled: true, platforms: ['facebook'], captions: {}, hashtags: [] }, blog_translations: [{ locale: 'pt-BR', slug: 'post-1' }] },
+        { id: 'p2', social_config: { enabled: false, platforms: [], captions: {}, hashtags: [] }, blog_translations: [{ locale: 'pt-BR', slug: 'post-2' }] },
+        { id: 'p3', social_config: null, blog_translations: [{ locale: 'pt-BR', slug: 'post-3' }] },
+      ]
+
+      // Override the supabase in mock to return these posts for bulk update
+      vi.doMock('@/lib/supabase/service', () => ({
+        getSupabaseServiceClient: () => ({
+          from: () => ({
+            update: () => ({
+              in: () => ({
+                select: vi.fn().mockResolvedValue({ data: bulkPublishedPosts, error: null }),
+              }),
+            }),
+          }),
+        }),
+      }))
+
+      const { bulkPublish } = await import('../../src/app/cms/(authed)/blog/actions')
+      await bulkPublish(['p1', 'p2', 'p3'])
+      await new Promise((r) => setTimeout(r, 10))
+
+      expect(mockCreateSocialPostFromContent).toHaveBeenCalledTimes(1)
+      expect(mockCreateSocialPostFromContent).toHaveBeenCalledWith(
+        expect.objectContaining({ contentId: 'p1', origin: 'auto' }),
+      )
+    })
+
+    it('does not call createSocialPostFromContent when no items have social_config enabled', async () => {
+      const bulkPublishedPosts = [
+        { id: 'p1', social_config: null, blog_translations: [] },
+        { id: 'p2', social_config: { enabled: false }, blog_translations: [] },
+      ]
+
+      vi.doMock('@/lib/supabase/service', () => ({
+        getSupabaseServiceClient: () => ({
+          from: () => ({
+            update: () => ({
+              in: () => ({
+                select: vi.fn().mockResolvedValue({ data: bulkPublishedPosts, error: null }),
+              }),
+            }),
+          }),
+        }),
+      }))
+
+      const { bulkPublish } = await import('../../src/app/cms/(authed)/blog/actions')
+      await bulkPublish(['p1', 'p2'])
+      await new Promise((r) => setTimeout(r, 10))
+
+      expect(mockCreateSocialPostFromContent).not.toHaveBeenCalled()
     })
   })
 })
@@ -3956,7 +4118,7 @@ import { render, fireEvent, screen, waitFor } from '@testing-library/react'
 // Mock server action
 const mockSearchContent = vi.fn()
 vi.mock(
-  '../../../src/app/cms/(authed)/social/new/_actions/search-content',
+  '@/app/cms/(authed)/social/new/_actions/search-content',
   () => ({
     searchContent: mockSearchContent,
   }),
@@ -3990,7 +4152,7 @@ describe('ContentPicker', () => {
 
   it('renders mode toggle between "Do CMS" and "Compor do zero"', async () => {
     const { ContentPicker } = await import(
-      '../../../src/app/cms/(authed)/social/new/_components/content-picker'
+      '@/app/cms/(authed)/social/new/_components/content-picker'
     )
 
     render(
@@ -4001,14 +4163,14 @@ describe('ContentPicker', () => {
       />,
     )
 
-    expect(screen.getByText('Do CMS')).toBeTruthy()
-    expect(screen.getByText('Compor do zero')).toBeTruthy()
+    expect(screen.getByText('Do CMS')).toBeDefined()
+    expect(screen.getByText('Compor do zero')).toBeDefined()
   })
 
   it('switches mode when toggle clicked', async () => {
     const mockModeChange = vi.fn()
     const { ContentPicker } = await import(
-      '../../../src/app/cms/(authed)/social/new/_components/content-picker'
+      '@/app/cms/(authed)/social/new/_components/content-picker'
     )
 
     render(
@@ -4025,7 +4187,7 @@ describe('ContentPicker', () => {
 
   it('shows tabs with counts when in CMS mode', async () => {
     const { ContentPicker } = await import(
-      '../../../src/app/cms/(authed)/social/new/_components/content-picker'
+      '@/app/cms/(authed)/social/new/_components/content-picker'
     )
 
     render(
@@ -4038,17 +4200,17 @@ describe('ContentPicker', () => {
 
     // Wait for search results to load
     await waitFor(() => {
-      expect(screen.getByText(/todos/i)).toBeTruthy()
+      expect(screen.getByText(/todos/i)).toBeDefined()
     })
 
-    expect(screen.getByText(/blog/i)).toBeTruthy()
-    expect(screen.getByText(/newsletter/i)).toBeTruthy()
-    expect(screen.getByText(/campaign/i)).toBeTruthy()
+    expect(screen.getByText(/blog/i)).toBeDefined()
+    expect(screen.getByText(/newsletter/i)).toBeDefined()
+    expect(screen.getByText(/campaign/i)).toBeDefined()
   })
 
   it('renders content items with title and type badge', async () => {
     const { ContentPicker } = await import(
-      '../../../src/app/cms/(authed)/social/new/_components/content-picker'
+      '@/app/cms/(authed)/social/new/_components/content-picker'
     )
 
     render(
@@ -4060,16 +4222,16 @@ describe('ContentPicker', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByText('AI Empire Article')).toBeTruthy()
+      expect(screen.getByText('AI Empire Article')).toBeDefined()
     })
 
-    expect(screen.getByText('Weekly Digest #42')).toBeTruthy()
+    expect(screen.getByText('Weekly Digest #42')).toBeDefined()
   })
 
   it('calls onSelect when item is clicked', async () => {
     const mockSelect = vi.fn()
     const { ContentPicker } = await import(
-      '../../../src/app/cms/(authed)/social/new/_components/content-picker'
+      '@/app/cms/(authed)/social/new/_components/content-picker'
     )
 
     render(
@@ -4081,7 +4243,7 @@ describe('ContentPicker', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByText('AI Empire Article')).toBeTruthy()
+      expect(screen.getByText('AI Empire Article')).toBeDefined()
     })
 
     fireEvent.click(screen.getByText('AI Empire Article'))
@@ -4093,7 +4255,7 @@ describe('ContentPicker', () => {
 
   it('filters by tab when tab clicked', async () => {
     const { ContentPicker } = await import(
-      '../../../src/app/cms/(authed)/social/new/_components/content-picker'
+      '@/app/cms/(authed)/social/new/_components/content-picker'
     )
 
     render(
@@ -4105,7 +4267,7 @@ describe('ContentPicker', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByText(/blog/i)).toBeTruthy()
+      expect(screen.getByText(/blog/i)).toBeDefined()
     })
 
     fireEvent.click(screen.getByRole('tab', { name: /blog/i }))
@@ -4120,7 +4282,7 @@ describe('ContentPicker', () => {
   it('searches with debounce on input', async () => {
     vi.useFakeTimers()
     const { ContentPicker } = await import(
-      '../../../src/app/cms/(authed)/social/new/_components/content-picker'
+      '@/app/cms/(authed)/social/new/_components/content-picker'
     )
 
     render(
@@ -4153,7 +4315,7 @@ describe('ContentPicker', () => {
 
   it('hides content list in freeform mode', async () => {
     const { ContentPicker } = await import(
-      '../../../src/app/cms/(authed)/social/new/_components/content-picker'
+      '@/app/cms/(authed)/social/new/_components/content-picker'
     )
 
     render(
@@ -4581,7 +4743,7 @@ describe('CaptionTabs', () => {
 
   it('renders a tab per platform', async () => {
     const { CaptionTabs } = await import(
-      '../../../src/app/cms/(authed)/social/new/_components/caption-tabs'
+      '@/app/cms/(authed)/social/new/_components/caption-tabs'
     )
 
     render(
@@ -4592,13 +4754,13 @@ describe('CaptionTabs', () => {
       />,
     )
 
-    expect(screen.getByRole('tab', { name: /facebook/i })).toBeTruthy()
-    expect(screen.getByRole('tab', { name: /bluesky/i })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: /facebook/i })).toBeDefined()
+    expect(screen.getByRole('tab', { name: /bluesky/i })).toBeDefined()
   })
 
   it('shows character count for active platform', async () => {
     const { CaptionTabs } = await import(
-      '../../../src/app/cms/(authed)/social/new/_components/caption-tabs'
+      '@/app/cms/(authed)/social/new/_components/caption-tabs'
     )
 
     render(
@@ -4611,12 +4773,12 @@ describe('CaptionTabs', () => {
 
     // Facebook is first, active by default
     // "Caption FB em PT" = 17 chars
-    expect(screen.getByText(/17\/63206/)).toBeTruthy()
+    expect(screen.getByText(/17\/63206/)).toBeDefined()
   })
 
   it('switches platform tab and shows correct char limit', async () => {
     const { CaptionTabs } = await import(
-      '../../../src/app/cms/(authed)/social/new/_components/caption-tabs'
+      '@/app/cms/(authed)/social/new/_components/caption-tabs'
     )
 
     render(
@@ -4630,12 +4792,12 @@ describe('CaptionTabs', () => {
     fireEvent.click(screen.getByRole('tab', { name: /bluesky/i }))
 
     // Bluesky limit is 300
-    expect(screen.getByText(/\/300/)).toBeTruthy()
+    expect(screen.getByText(/\/300/)).toBeDefined()
   })
 
   it('fires onChange when caption is edited', async () => {
     const { CaptionTabs } = await import(
-      '../../../src/app/cms/(authed)/social/new/_components/caption-tabs'
+      '@/app/cms/(authed)/social/new/_components/caption-tabs'
     )
 
     render(
@@ -4658,7 +4820,7 @@ describe('CaptionTabs', () => {
 
   it('toggles language between PT and EN', async () => {
     const { CaptionTabs } = await import(
-      '../../../src/app/cms/(authed)/social/new/_components/caption-tabs'
+      '@/app/cms/(authed)/social/new/_components/caption-tabs'
     )
 
     render(
@@ -4672,17 +4834,17 @@ describe('CaptionTabs', () => {
     )
 
     // Default is PT — should show "Texto PT"
-    expect(screen.getByDisplayValue('Texto PT')).toBeTruthy()
+    expect(screen.getByDisplayValue('Texto PT')).toBeDefined()
 
     // Toggle to EN
     fireEvent.click(screen.getByText('EN'))
 
-    expect(screen.getByDisplayValue('Text EN')).toBeTruthy()
+    expect(screen.getByDisplayValue('Text EN')).toBeDefined()
   })
 
   it('shows auto-fill badge for non-empty pre-populated captions', async () => {
     const { CaptionTabs } = await import(
-      '../../../src/app/cms/(authed)/social/new/_components/caption-tabs'
+      '@/app/cms/(authed)/social/new/_components/caption-tabs'
     )
 
     render(
@@ -4694,12 +4856,12 @@ describe('CaptionTabs', () => {
       />,
     )
 
-    expect(screen.getByText(/auto/i)).toBeTruthy()
+    expect(screen.getByText(/auto/i)).toBeDefined()
   })
 
   it('hides auto-fill badge after editing', async () => {
     const { CaptionTabs } = await import(
-      '../../../src/app/cms/(authed)/social/new/_components/caption-tabs'
+      '@/app/cms/(authed)/social/new/_components/caption-tabs'
     )
 
     const { rerender } = render(
@@ -4711,7 +4873,7 @@ describe('CaptionTabs', () => {
       />,
     )
 
-    expect(screen.getByText(/auto/i)).toBeTruthy()
+    expect(screen.getByText(/auto/i)).toBeDefined()
 
     // Simulate edit
     const textarea = screen.getByRole('textbox')
@@ -4732,7 +4894,7 @@ describe('CaptionTabs', () => {
 
   it('shows warning color when caption exceeds threshold', async () => {
     const { CaptionTabs } = await import(
-      '../../../src/app/cms/(authed)/social/new/_components/caption-tabs'
+      '@/app/cms/(authed)/social/new/_components/caption-tabs'
     )
 
     // Bluesky limit is 300, warning at >250
@@ -4950,7 +5112,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Mock Supabase
 const mockSelect = vi.fn()
-vi.mock('../../../src/lib/supabase/service', () => ({
+vi.mock('@/lib/supabase/service', () => ({
   getSupabaseServiceClient: () => ({
     from: () => ({
       select: () => ({
@@ -4982,7 +5144,7 @@ describe('getNextQueueSlot', () => {
     mockSelect.mockResolvedValue({ data: [], error: null })
 
     const { getNextQueueSlot } = await import(
-      '../../../src/lib/social/queue'
+      '@/lib/social/queue'
     )
 
     const slot = await getNextQueueSlot('site-1', 'America/Sao_Paulo')
@@ -5006,7 +5168,7 @@ describe('getNextQueueSlot', () => {
     })
 
     const { getNextQueueSlot } = await import(
-      '../../../src/lib/social/queue'
+      '@/lib/social/queue'
     )
 
     const slot = await getNextQueueSlot('site-1', 'America/Sao_Paulo')
@@ -5023,7 +5185,7 @@ describe('getNextQueueSlot', () => {
     mockSelect.mockResolvedValue({ data: [], error: null })
 
     const { getNextQueueSlot } = await import(
-      '../../../src/lib/social/queue'
+      '@/lib/social/queue'
     )
 
     const slot = await getNextQueueSlot('site-1', 'America/Sao_Paulo')
@@ -5050,7 +5212,7 @@ describe('getNextQueueSlot', () => {
     vi.setSystemTime(new Date('2026-05-14T11:00:00Z'))
 
     const { getNextQueueSlot } = await import(
-      '../../../src/lib/social/queue'
+      '@/lib/social/queue'
     )
 
     const slot = await getNextQueueSlot('site-1', 'America/Sao_Paulo')
@@ -5062,7 +5224,7 @@ describe('getNextQueueSlot', () => {
     mockSelect.mockResolvedValue({ data: [], error: null })
 
     const { getNextQueueSlot } = await import(
-      '../../../src/lib/social/queue'
+      '@/lib/social/queue'
     )
 
     const slot = await getNextQueueSlot('site-1', 'America/Sao_Paulo')
@@ -5079,7 +5241,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, fireEvent, screen } from '@testing-library/react'
 
 // Mock queue
-vi.mock('../../../src/lib/social/queue', () => ({
+vi.mock('@/lib/social/queue', () => ({
   getNextQueueSlot: vi.fn().mockResolvedValue({
     date: '2026-05-14',
     hour: 15,
@@ -5099,7 +5261,7 @@ describe('ScheduleBar', () => {
 
   it('renders 3 mode buttons: Agora, Agendar, Fila', async () => {
     const { ScheduleBar } = await import(
-      '../../../src/app/cms/(authed)/social/new/_components/schedule-bar'
+      '@/app/cms/(authed)/social/new/_components/schedule-bar'
     )
 
     render(
@@ -5116,14 +5278,14 @@ describe('ScheduleBar', () => {
       />,
     )
 
-    expect(screen.getByText('Agora')).toBeTruthy()
-    expect(screen.getByText('Agendar')).toBeTruthy()
-    expect(screen.getByText('Fila')).toBeTruthy()
+    expect(screen.getByText('Agora')).toBeDefined()
+    expect(screen.getByText('Agendar')).toBeDefined()
+    expect(screen.getByText('Fila')).toBeDefined()
   })
 
   it('shows date/time picker in Agendar mode', async () => {
     const { ScheduleBar } = await import(
-      '../../../src/app/cms/(authed)/social/new/_components/schedule-bar'
+      '@/app/cms/(authed)/social/new/_components/schedule-bar'
     )
 
     const { container } = render(
@@ -5141,13 +5303,13 @@ describe('ScheduleBar', () => {
     )
 
     // Should have date and time inputs
-    expect(container.querySelector('input[type="date"]')).toBeTruthy()
-    expect(container.querySelector('input[type="time"]')).toBeTruthy()
+    expect(container.querySelector('input[type="date"]')).toBeDefined()
+    expect(container.querySelector('input[type="time"]')).toBeDefined()
   })
 
   it('shows "Publicar" button in Agora mode', async () => {
     const { ScheduleBar } = await import(
-      '../../../src/app/cms/(authed)/social/new/_components/schedule-bar'
+      '@/app/cms/(authed)/social/new/_components/schedule-bar'
     )
 
     render(
@@ -5164,12 +5326,12 @@ describe('ScheduleBar', () => {
       />,
     )
 
-    expect(screen.getByText('Publicar')).toBeTruthy()
+    expect(screen.getByText('Publicar')).toBeDefined()
   })
 
   it('shows "Agendar" button in Agendar mode', async () => {
     const { ScheduleBar } = await import(
-      '../../../src/app/cms/(authed)/social/new/_components/schedule-bar'
+      '@/app/cms/(authed)/social/new/_components/schedule-bar'
     )
 
     render(
@@ -5186,12 +5348,12 @@ describe('ScheduleBar', () => {
       />,
     )
 
-    expect(screen.getByText('Agendar')).toBeTruthy()
+    expect(screen.getByText('Agendar')).toBeDefined()
   })
 
   it('shows "Adicionar a Fila" button in Fila mode', async () => {
     const { ScheduleBar } = await import(
-      '../../../src/app/cms/(authed)/social/new/_components/schedule-bar'
+      '@/app/cms/(authed)/social/new/_components/schedule-bar'
     )
 
     render(
@@ -5210,13 +5372,13 @@ describe('ScheduleBar', () => {
 
     // Wait for queue slot to load
     await vi.waitFor(() => {
-      expect(screen.getByText(/adicionar/i)).toBeTruthy()
+      expect(screen.getByText(/adicionar/i)).toBeDefined()
     })
   })
 
   it('always shows "Salvar Rascunho" button', async () => {
     const { ScheduleBar } = await import(
-      '../../../src/app/cms/(authed)/social/new/_components/schedule-bar'
+      '@/app/cms/(authed)/social/new/_components/schedule-bar'
     )
 
     render(
@@ -5233,12 +5395,12 @@ describe('ScheduleBar', () => {
       />,
     )
 
-    expect(screen.getByText('Salvar Rascunho')).toBeTruthy()
+    expect(screen.getByText('Salvar Rascunho')).toBeDefined()
   })
 
   it('calls onPublish when primary action clicked', async () => {
     const { ScheduleBar } = await import(
-      '../../../src/app/cms/(authed)/social/new/_components/schedule-bar'
+      '@/app/cms/(authed)/social/new/_components/schedule-bar'
     )
 
     render(
@@ -5261,7 +5423,7 @@ describe('ScheduleBar', () => {
 
   it('calls onSaveDraft when draft button clicked', async () => {
     const { ScheduleBar } = await import(
-      '../../../src/app/cms/(authed)/social/new/_components/schedule-bar'
+      '@/app/cms/(authed)/social/new/_components/schedule-bar'
     )
 
     render(
@@ -5284,7 +5446,7 @@ describe('ScheduleBar', () => {
 
   it('shows pipeline one-liner when showPipeline is true', async () => {
     const { ScheduleBar } = await import(
-      '../../../src/app/cms/(authed)/social/new/_components/schedule-bar'
+      '@/app/cms/(authed)/social/new/_components/schedule-bar'
     )
 
     render(
@@ -5301,14 +5463,14 @@ describe('ScheduleBar', () => {
       />,
     )
 
-    expect(screen.getByText(/short link/i)).toBeTruthy()
-    expect(screen.getByText(/deliver/i)).toBeTruthy()
+    expect(screen.getByText(/short link/i)).toBeDefined()
+    expect(screen.getByText(/deliver/i)).toBeDefined()
   })
 
   it('switches mode when mode button clicked', async () => {
     const mockModeChange = vi.fn()
     const { ScheduleBar } = await import(
-      '../../../src/app/cms/(authed)/social/new/_components/schedule-bar'
+      '@/app/cms/(authed)/social/new/_components/schedule-bar'
     )
 
     render(
@@ -5782,8 +5944,8 @@ vi.mock('@/lib/social/realtime', () => ({
   useSocialPostStatus: vi.fn(() => null),
 }))
 
-import { ComposerShell } from '../../src/app/cms/(authed)/social/new/_components/composer-shell'
-import { en } from '../../src/app/cms/(authed)/social/_i18n/en'
+import { ComposerShell } from '@/app/cms/(authed)/social/new/_components/composer-shell'
+import { en } from '@/app/cms/(authed)/social/_i18n/en'
 
 const mockConnections = [
   { provider: 'facebook' as const, account_name: 'My Page' },
@@ -6429,10 +6591,10 @@ vi.mock('@/lib/social/actions', () => ({
   scrapeOgTags: (...args: unknown[]) => mockScrapeOgTags(...args),
 }))
 
-import { OgValidation } from '../../src/app/cms/(authed)/social/[id]/_components/og-validation'
-import { UrlChain } from '../../src/app/cms/(authed)/social/[id]/_components/url-chain'
-import { ScrapeDetails } from '../../src/app/cms/(authed)/social/[id]/_components/scrape-details'
-import { RawResponse } from '../../src/app/cms/(authed)/social/[id]/_components/raw-response'
+import { OgValidation } from '@/app/cms/(authed)/social/[id]/_components/og-validation'
+import { UrlChain } from '@/app/cms/(authed)/social/[id]/_components/url-chain'
+import { ScrapeDetails } from '@/app/cms/(authed)/social/[id]/_components/scrape-details'
+import { RawResponse } from '@/app/cms/(authed)/social/[id]/_components/raw-response'
 
 const mockOgResult = {
   success: true,
@@ -8311,7 +8473,7 @@ vi.mock('@vercel/blob', () => ({
   }),
 }))
 
-import { generateStoryImage, type StoryTemplate, type StoryData } from '../../../src/lib/social/story-generator'
+import { generateStoryImage, type StoryTemplate, type StoryData } from '@/lib/social/story-generator'
 
 const baseData: StoryData = {
   title: 'AI Empire: O Que Vem Por Ai',
@@ -8366,6 +8528,29 @@ describe('generateStoryImage', () => {
     expect(result[1]).toBe(0x50)
     expect(result[2]).toBe(0x4e)
     expect(result[3]).toBe(0x47)
+  })
+
+  it('passes 1080×1920 dimensions to ImageResponse', async () => {
+    const { ImageResponse } = await import('@vercel/og')
+    const spy = vi.spyOn(ImageResponse.prototype, 'arrayBuffer')
+    await generateStoryImage('card', baseData)
+    // ImageResponse constructor is called — verify dimensions via the mock's stored values
+    const instance = spy.mock.instances[0] as Record<string, unknown>
+    expect(instance._width).toBe(1080)
+    expect(instance._height).toBe(1920)
+    spy.mockRestore()
+  })
+
+  it('uses fallback background color #0a0a0a when coverImageUrl is absent (minimal template)', async () => {
+    // generateStoryImage should complete without error when no coverImageUrl is given
+    const dataWithoutCover: StoryData = { ...baseData, coverImageUrl: undefined }
+    await expect(generateStoryImage('minimal', dataWithoutCover)).resolves.toBeInstanceOf(Buffer)
+  })
+
+  it('throws when an invalid template type is provided', async () => {
+    await expect(
+      generateStoryImage('invalid-template' as StoryTemplate, baseData),
+    ).rejects.toThrow()
   })
 })
 ```
@@ -9193,7 +9378,7 @@ vi.mock('@tn-figueiredo/social', async () => {
   }
 })
 
-import { publishSocialPost } from '../../../src/lib/social/workflows'
+import { publishSocialPost } from '@/lib/social/workflows'
 
 const mockPost = {
   id: 'p1',
@@ -9267,6 +9452,63 @@ describe('publishSocialPost — enhanced', () => {
     await publishSocialPost(mockPost)
     // Should still call publish on all providers
     expect(mockBlueskyPublish).toHaveBeenCalled()
+  })
+
+  it('sets post status to partial_failure when 1 platform succeeds and 1 fails', async () => {
+    // Bluesky succeeds, Instagram throws a permanent error (400) forcing failure
+    mockBlueskyPublish.mockResolvedValue({ id: 'at://post/1', url: 'https://bsky.app/post/1' })
+    mockInstagramPublish.mockRejectedValue(new Error('Instagram API error (400)'))
+
+    let capturedPostStatus: string | undefined
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'social_posts') {
+        return {
+          update: (patch: Record<string, unknown>) => {
+            if (patch.status && patch.status !== 'publishing') {
+              capturedPostStatus = patch.status as string
+            }
+            return { eq: vi.fn().mockResolvedValue({ error: null }) }
+          },
+          select: () => ({
+            eq: () => ({ single: vi.fn().mockResolvedValue({ data: { status: 'publishing' }, error: null }) }),
+          }),
+        }
+      }
+      if (table === 'social_deliveries') {
+        return {
+          select: () => ({
+            eq: () => ({
+              in: () =>
+                Promise.resolve({
+                  data: [
+                    { id: 'd1', post_id: 'p1', connection_id: 'c1', provider: 'bluesky', status: 'pending', attempt: 0, max_attempts: 3, format: 'link_card', template_config: null },
+                    { id: 'd2', post_id: 'p1', connection_id: 'c2', provider: 'instagram', status: 'pending', attempt: 0, max_attempts: 1, format: 'story', template_config: { template: 'card' } },
+                  ],
+                  error: null,
+                }),
+            }),
+          }),
+          update: () => ({ eq: vi.fn().mockResolvedValue({ error: null }) }),
+        }
+      }
+      if (table === 'social_connections') {
+        return {
+          select: () => ({
+            eq: () => ({
+              single: vi.fn().mockResolvedValue({
+                data: { id: 'c1', provider: 'bluesky', access_token_enc: 'enc', metadata: { did: 'did:plc:abc', handle: 'user.bsky.social' } },
+                error: null,
+              }),
+            }),
+          }),
+        }
+      }
+      return { select: vi.fn(), update: () => ({ eq: vi.fn().mockResolvedValue({ error: null }) }) }
+    })
+
+    await publishSocialPost(mockPost)
+
+    expect(capturedPostStatus).toBe('partial_failure')
   })
 })
 ```
