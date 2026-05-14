@@ -169,7 +169,7 @@ ALTER TABLE social_posts
 
 -- Tracking de cada etapa do pipeline (append-only JSONB array)
 ALTER TABLE social_posts
-  ADD COLUMN IF NOT EXISTS pipeline_steps JSONB DEFAULT '[]';
+  ADD COLUMN IF NOT EXISTS pipeline_steps JSONB NOT NULL DEFAULT '[]';
 
 -- ---------------------------------------------------------------------------
 -- 2. social_deliveries — format and template config
@@ -214,9 +214,35 @@ CREATE INDEX IF NOT EXISTS idx_social_posts_short_link
 -- Unique partial index: no maximo 1 social post ativo por conteudo
 -- Impede duplicacao acidental quando pipeline esta em andamento
 CREATE UNIQUE INDEX IF NOT EXISTS idx_social_posts_active_per_content
-  ON social_posts(source_content_type, source_content_id)
+  ON social_posts(site_id, source_content_type, source_content_id)
   WHERE status IN ('draft','scheduled','publishing')
     AND source_content_id IS NOT NULL;
+
+-- ---------------------------------------------------------------------------
+-- 5. RPC: atomic pipeline step update (avoids read-modify-write race)
+-- ---------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION update_pipeline_step(
+  p_post_id UUID, p_step_name TEXT, p_patch JSONB
+) RETURNS VOID AS $$
+DECLARE
+  idx INT;
+BEGIN
+  SELECT ordinality - 1 INTO idx
+  FROM social_posts, jsonb_array_elements(pipeline_steps) WITH ORDINALITY AS e(elem, ordinality)
+  WHERE id = p_post_id AND elem->>'step' = p_step_name;
+
+  IF idx IS NOT NULL THEN
+    UPDATE social_posts
+    SET pipeline_steps = jsonb_set(pipeline_steps, ARRAY[idx::TEXT], p_patch)
+    WHERE id = p_post_id;
+  ELSE
+    UPDATE social_posts
+    SET pipeline_steps = pipeline_steps || jsonb_build_array(p_patch)
+    WHERE id = p_post_id;
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 ```
 
 - [ ] **Step 2: Verify migration file is valid SQL**
@@ -567,8 +593,9 @@ export function createInitialPipelineSteps(): PipelineStep[] {
 }
 
 /**
- * Updates a single pipeline step in the social_posts.pipeline_steps JSONB.
- * Reads the current steps, patches the target step, and writes back.
+ * Updates a single pipeline step atomically via SQL jsonb_set.
+ * Avoids read-modify-write race conditions by finding the step index
+ * and patching in-place in a single UPDATE query.
  */
 export async function updatePipelineStep(
   supabase: SupabaseClient,
@@ -577,39 +604,42 @@ export async function updatePipelineStep(
   status: PipelineStepStatus,
   data?: Record<string, unknown>,
 ): Promise<void> {
-  // Read current steps
-  const { data: row, error: readError } = await supabase
-    .from('social_posts')
-    .select('pipeline_steps')
-    .eq('id', postId)
-    .single()
-
-  if (readError || !row) {
-    throw new Error(`Failed to read pipeline_steps for post ${postId}: ${readError?.message ?? 'not found'}`)
-  }
-
-  const steps: PipelineStep[] = (row.pipeline_steps as PipelineStep[]) ?? []
   const now = new Date().toISOString()
+  const patch: PipelineStep = { step: stepName, status, at: now, ...(data ? { data } : {}) }
 
-  const updated = steps.map((s) => {
-    if (s.step !== stepName) return s
-    return {
-      ...s,
-      status,
-      at: now,
-      ...(data ? { data } : {}),
-    }
+  const { error } = await supabase.rpc('update_pipeline_step', {
+    p_post_id: postId,
+    p_step_name: stepName,
+    p_patch: patch,
   })
 
-  const { error: writeError } = await supabase
-    .from('social_posts')
-    .update({ pipeline_steps: updated })
-    .eq('id', postId)
-
-  if (writeError) {
-    throw new Error(`Failed to update pipeline_steps for post ${postId}: ${writeError.message}`)
+  if (error) {
+    throw new Error(`Failed to update pipeline_steps for post ${postId}: ${error.message}`)
   }
 }
+
+// Requires SQL function (added in migration):
+// CREATE OR REPLACE FUNCTION update_pipeline_step(
+//   p_post_id UUID, p_step_name TEXT, p_patch JSONB
+// ) RETURNS VOID AS $$
+// DECLARE
+//   idx INT;
+// BEGIN
+//   SELECT ordinality - 1 INTO idx
+//   FROM social_posts, jsonb_array_elements(pipeline_steps) WITH ORDINALITY AS e(elem, ordinality)
+//   WHERE id = p_post_id AND elem->>'step' = p_step_name;
+//
+//   IF idx IS NOT NULL THEN
+//     UPDATE social_posts
+//     SET pipeline_steps = jsonb_set(pipeline_steps, ARRAY[idx::TEXT], p_patch)
+//     WHERE id = p_post_id;
+//   ELSE
+//     UPDATE social_posts
+//     SET pipeline_steps = pipeline_steps || jsonb_build_array(p_patch)
+//     WHERE id = p_post_id;
+//   END IF;
+// END;
+// $$ LANGUAGE plpgsql;
 
 /**
  * Calculates total pipeline duration in ms from first to last completed step.
@@ -1666,13 +1696,15 @@ export async function createSocialPostFromContent(
     .select('id, code')
     .single()
 
+  let shortLinkId: string | null = null
   if (linkError || !linkData) {
-    throw new Error(
-      `Failed to create tracked link: ${linkError?.message ?? 'unknown error'}`,
+    Sentry.captureException(
+      new Error(`Failed to create tracked link: ${linkError?.message ?? 'unknown error'}`),
+      { tags: { component: 'social-pipeline', action: 'create-short-link' } },
     )
+  } else {
+    shortLinkId = linkData.id as string
   }
-
-  const shortLinkId = linkData.id as string
 
   // Step 5: Build social post content JSONB
   const postContent = {
@@ -1780,7 +1812,10 @@ export async function createSocialPostFromContent(
       process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
     fetch(`${appUrl}/api/social/pipeline/run`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${process.env.CRON_SECRET}`,
+      },
       body: JSON.stringify({ postId }),
     }).catch((err) =>
       Sentry.captureException(err, {
@@ -1908,6 +1943,7 @@ import { publishSocialPost } from '../../src/lib/social/workflows'
 describe('POST /api/social/pipeline/run', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubEnv('CRON_SECRET', 'test-cron-secret')
 
     // Default: post found with short_link_id and pipeline_steps
     mockPostSelect.mockResolvedValue({
@@ -1956,10 +1992,33 @@ describe('POST /api/social/pipeline/run', () => {
     vi.mocked(publishSocialPost).mockResolvedValue(undefined)
   })
 
-  it('runs OG scrape and delivers post, updating pipeline steps', async () => {
+  it('returns 401 when Authorization header is missing', async () => {
     const req = new Request('http://localhost/api/social/pipeline/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ postId: 'post-1' }),
+    })
+
+    const res = await POST(req)
+    expect(res.status).toBe(401)
+    expect(publishSocialPost).not.toHaveBeenCalled()
+  })
+
+  it('returns 401 when Authorization header has wrong secret', async () => {
+    const req = new Request('http://localhost/api/social/pipeline/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer wrong-secret' },
+      body: JSON.stringify({ postId: 'post-1' }),
+    })
+
+    const res = await POST(req)
+    expect(res.status).toBe(401)
+  })
+
+  it('runs OG scrape and delivers post, updating pipeline steps', async () => {
+    const req = new Request('http://localhost/api/social/pipeline/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-cron-secret' },
       body: JSON.stringify({ postId: 'post-1' }),
     })
 
@@ -2005,7 +2064,7 @@ describe('POST /api/social/pipeline/run', () => {
 
     const req = new Request('http://localhost/api/social/pipeline/run', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-cron-secret' },
       body: JSON.stringify({ postId: 'post-1' }),
     })
 
@@ -2052,7 +2111,7 @@ describe('POST /api/social/pipeline/run', () => {
   it('updates deliver step as completed after publishSocialPost', async () => {
     const req = new Request('http://localhost/api/social/pipeline/run', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-cron-secret' },
       body: JSON.stringify({ postId: 'post-1' }),
     })
 
@@ -2098,6 +2157,12 @@ import type { OgScrapeResult } from '@/lib/social/types'
  * or by the scheduled cron for scheduled posts.
  */
 export async function POST(req: Request): Promise<NextResponse> {
+  // Auth: only internal server-side calls with CRON_SECRET
+  const authHeader = req.headers.get('authorization')
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   try {
     const body = (await req.json()) as { postId?: string }
     const { postId } = body

@@ -137,13 +137,13 @@ ALTER TABLE social_posts
 
 -- Tracking de cada etapa do pipeline
 ALTER TABLE social_posts
-  ADD COLUMN pipeline_steps JSONB DEFAULT '[]';
+  ADD COLUMN pipeline_steps JSONB NOT NULL DEFAULT '[]';
 ```
 
 **Notas:**
-- `source_content_id` nao tem FK constraint porque referencia tabelas distintas (`blog_posts`, `newsletter_editions`, `campaigns`) dependendo do `source_content_type`. A integridade e garantida pela aplicacao
+- `source_content_id` nao tem FK constraint porque referencia tabelas distintas (`blog_posts`, `newsletter_editions`, `campaigns`) dependendo do `source_content_type`. A integridade e garantida pela aplicacao. Se o conteudo fonte for deletado, social posts existentes continuam com `source_content_id` como referencia historica — `extractContentMetadata()` retorna `null` gracefully nesse caso
 - `origin` distingue os 3 caminhos: `auto` (toggle no editor), `publish_modal` (modal de agendamento), `manual` (Composer direto)
-- `pipeline_steps` e um array JSONB append-only — cada step e adicionado conforme o pipeline progride. Nunca removido, apenas atualizado
+- `pipeline_steps` e um array JSONB append-only com `NOT NULL` constraint — cada step e adicionado conforme o pipeline progride. Nunca removido, apenas atualizado
 
 ### 3.2 Extensao do `content` JSONB Existente
 
@@ -294,6 +294,16 @@ O campo `pipeline_steps` em `social_posts` e um array JSONB onde cada elemento r
 
 **Invariante:** steps sao append-only e ordenados cronologicamente. Status de um step nunca regride (nao volta de `completed` para `in_progress`).
 
+**Atomicidade:** `updatePipelineStep()` usa SQL atomico via `jsonb_set` ou `||` operator — nunca read-modify-write em JS. Isso evita race conditions se dois updates concorrentes ocorrerem (ex: OG scrape completando enquanto cron tenta atualizar o mesmo post). Implementacao:
+
+```sql
+UPDATE social_posts
+SET pipeline_steps = pipeline_steps || $1::jsonb
+WHERE id = $2;
+```
+
+Onde `$1` e o novo step como array de um elemento: `[{"step":"og_scrape","status":"completed","at":"...","data":{...}}]`.
+
 ### 3.6 Novos Indices
 
 ```sql
@@ -310,7 +320,7 @@ CREATE INDEX idx_social_posts_short_link
 -- Unique partial index: no maximo 1 social post ativo por conteudo
 -- Impede duplicacao acidental quando pipeline esta em andamento
 CREATE UNIQUE INDEX idx_social_posts_active_per_content
-  ON social_posts(source_content_type, source_content_id)
+  ON social_posts(site_id, source_content_type, source_content_id)
   WHERE status IN ('draft','scheduled','publishing')
     AND source_content_id IS NOT NULL;
 ```
@@ -426,7 +436,7 @@ if (existing?.status === 'publishing') {
 ```
 
 **Step 4 — Short Link:**
-Reutiliza `createTrackedLink()` do Links Engine existente (`apps/web/src/lib/links/`). O short link aponta para a URL canonica do conteudo com UTM parameters automaticos:
+Cria short link via insert direto em `tracked_links` com service client (sem auth checks — uso server-to-server dentro de `createSocialPostFromContent`). A funcao de server action existente `createLink()` em `apps/web/src/app/cms/(authed)/links/actions.ts` faz auth + revalidation e NAO e adequada para uso em pipeline. Se o insert falhar (ex: Links Engine DB down), o pipeline continua com a URL original do conteudo como fallback — `short_link_id` fica `NULL` e `pipeline_steps` registra `short_link` como `warning`. O short link aponta para a URL canonica do conteudo com UTM parameters automaticos:
 - `utm_source={provider}` (setado na hora da entrega, nao na criacao do link)
 - `utm_medium=social`
 - `utm_campaign={contentType}-{contentId}`
@@ -454,7 +464,7 @@ Step 1: Post Created        (sincrono — em createSocialPostFromContent)
 Step 2: Short Link Created   (sincrono — em createSocialPostFromContent)
           |
           v
-Step 3: OG Scrape            (assincrono — POST graph.facebook.com/?id={url}&scrape=true)
+Step 3: OG Scrape            (assincrono — POST graph.facebook.com/v21.0/?id={url}&scrape=true)
 Step 4: Deliver              (assincrono — publishSocialPost() existente, aprimorado)
 ```
 
@@ -465,12 +475,18 @@ Tempo estimado end-to-end: **~2-3 minutos** (OG scrape ~1-2s, delivery paralela 
 Para posts com execucao imediata (sem `scheduledAt`):
 
 1. `createSocialPostFromContent()` executa Steps 1-2 sincronamente
-2. Chama `POST /api/social/pipeline/run` com `{ postId }` via `fetch()` server-side (fire-and-forget: `fetch(...).catch(captureException)` sem `await` no caller). Se o fetch falhar, o cron de scheduled posts funciona como safety net — ele identifica posts com `status='scheduled'` e `pipeline_steps` incompleto e re-tenta
+2. Chama `POST /api/social/pipeline/run` com `{ postId }` via `fetch()` server-side (fire-and-forget: `fetch(...).catch(captureException)` sem `await` no caller). O fetch inclui `Authorization: Bearer ${CRON_SECRET}` para autenticacao. Se o fetch falhar, o cron de scheduled posts funciona como safety net — ele identifica posts com `status='scheduled'` ou `pipeline_steps` com steps `in_progress` ha mais de 5 minutos (stale) e re-tenta
 3. O route handler executa:
 
 ```typescript
 // POST /api/social/pipeline/run
 export async function POST(req: Request) {
+  // Autenticacao: apenas chamadas internas (server-side fire-and-forget) com CRON_SECRET
+  const authHeader = req.headers.get('authorization')
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   const { postId } = await req.json()
   const supabase = getSupabaseServiceClient()
 
@@ -532,7 +548,7 @@ async function scrapeOg(
 
   try {
     const res = await fetch(
-      `https://graph.facebook.com/?id=${encodeURIComponent(url)}&scrape=true`,
+      `https://graph.facebook.com/v21.0/?id=${encodeURIComponent(url)}&scrape=true`,
       {
         method: 'POST',
         headers: { Authorization: `Bearer ${pageToken}` },
@@ -585,7 +601,7 @@ async function checkNotCancelled(supabase: SupabaseClient, postId: string): Prom
 ```
 
 **UI:** Botao "Cancelar Pipeline" visivel na pagina de detalhe do post enquanto `status = 'publishing'`. Ao clicar:
-1. Chama `cancelSocialPost()` existente (seta `status = 'cancelled'`, deliveries para `'skipped'`)
+1. Chama `cancelSocialPost()` — **requer modificacao** para aceitar status `'publishing'` alem de `'draft'` e `'scheduled'` (atual codebase exclui `publishing`). Seta `status = 'cancelled'`, deliveries pendentes para `'skipped'`
 2. Pipeline em execucao detecta cancelamento no proximo checkpoint e aborta
 3. Supabase Realtime notifica a UI
 
@@ -640,13 +656,17 @@ interface SocialTabProps {
 
 ### 6.2 Publish Hooks (Thin)
 
-Cada server action de publicacao recebe ~5 linhas adicionais. A logica e identica para todos — so muda o `contentType`:
+Cada server action de publicacao recebe ~8 linhas adicionais. A logica e identica para todos — so muda o `contentType`.
+
+**IMPORTANTE:** As funcoes existentes (`publishPost()`, `sendNow()`, `publishCampaign()`) retornam `void` ou `{ ok: true }` sem dados do conteudo. O hook precisa buscar `social_config` separadamente via query adicional antes do fire-and-forget. Exemplo: `const { data: socialCfg } = await supabase.from('blog_posts').select('social_config').eq('id', id).single()`.
 
 **Blog — `publishPost()`**
 Localizacao: `apps/web/src/app/cms/(authed)/blog/[id]/edit/actions.ts`
 ```typescript
 // Apos publicacao bem-sucedida do blog post:
-if (post.social_config?.enabled) {
+// publishPost() retorna void — query social_config separadamente
+const { data: socialCfg } = await supabase.from('blog_posts').select('social_config').eq('id', postId).single()
+if (socialCfg?.social_config?.enabled) {
   createSocialPostFromContent({
     siteId,
     contentType: 'blog',
@@ -695,23 +715,30 @@ if (campaign.social_config?.enabled) {
 ```
 
 **Bulk Operations — `bulkPublish()` e `bulkPublishCampaigns()`**
-Itera os IDs publicados com sucesso. Fire-and-forget por item:
+Itera os IDs publicados com sucesso. Fire-and-forget por item com **concurrency limiter** (max 3 simultaneos) para nao flooding APIs de plataformas:
 ```typescript
-for (const id of successIds) {
-  const item = items.find((i) => i.id === id)
-  if (item?.social_config?.enabled) {
-    createSocialPostFromContent({
-      siteId,
-      contentType,
-      contentId: id,
-      config: item.social_config,
-      origin: 'auto',
-      userId,
-    }).catch((err) =>
-      captureException(err, { context: 'social-auto-share-bulk', id }),
-    )
-  }
-}
+import pLimit from 'p-limit'
+const limit = pLimit(3)
+
+const socialTasks = successIds
+  .map((id) => items.find((i) => i.id === id))
+  .filter((item) => item?.social_config?.enabled)
+  .map((item) =>
+    limit(() =>
+      createSocialPostFromContent({
+        siteId,
+        contentType,
+        contentId: item.id,
+        config: item.social_config,
+        origin: 'auto',
+        userId,
+      }).catch((err) =>
+        captureException(err, { context: 'social-auto-share-bulk', id: item.id }),
+      ),
+    ),
+  )
+
+Promise.allSettled(socialTasks)
 ```
 
 **Principio critico:** hooks sao fire-and-forget (`catch` sem `await`). A publicacao do conteudo CMS SEMPRE tem sucesso independente de falhas sociais. Erros sao capturados pelo Sentry com contexto rico (`contentType`, `contentId`, `origin`) para debugging.
@@ -996,7 +1023,7 @@ Card de detalhes técnicos do scrape executado.
 
 | Campo | Valor | Formatação |
 |-------|-------|-----------|
-| Endpoint | `POST graph.facebook.com/?id={url}&scrape=true` | `font-mono text-xs` |
+| Endpoint | `POST graph.facebook.com/v21.0/?id={url}&scrape=true` | `font-mono text-xs` |
 | Status | `200 OK` ou mensagem de erro | Badge verde/vermelho |
 | Latência | Ex: `1.2s` | `font-mono` |
 | Timestamp | Data/hora da execução | `text-muted-foreground` |
@@ -1060,7 +1087,7 @@ Barra de ações no topo da página, alinhada à direita.
 **Server action:** `scrapeOgTags(postId: string)`
 1. Busca `social_post` pelo ID com validação de permissão (`requireSiteAdmin`)
 2. Obtém token da conexão Facebook via `social_connections`
-3. Faz `POST` para `graph.facebook.com/?id={url}&scrape=true` com `access_token`
+3. Faz `POST` para `graph.facebook.com/v21.0/?id={url}&scrape=true` com `access_token`
 4. Parseia resposta e estrutura como `OgScrapeResult`
 5. Atualiza `pipeline_steps` JSONB no `social_posts` com resultado e timestamp
 6. Retorna `OgScrapeResult`
@@ -1800,8 +1827,10 @@ O usuario pode sobrescrever o template padrao no Social Tab (Tela 1) via campo `
 | OG scrape timeout (>10s) | Log warning, continua para delivery. Facebook pode ter OG cacheado. `pipeline_steps` registra `status="warning"` |
 | OG scrape HTTP error | Log warning, continua para delivery. Erro registrado em `pipeline_steps[].data` |
 | OAuth token expirado durante pipeline | Provider chama `refreshToken()` no 401. Se refresh falha → delivery `status="failed"`, `error_type="auth"` |
-| Rate limited pela plataforma (429) | Retry com exponential backoff (5s, 30s, 120s). `error_type="transient"` |
-| Conteudo deletado entre steps do pipeline | Cada step busca dados frescos do post. Se post nao encontrado → abort graceful do pipeline |
+| Rate limited pela plataforma (429) | Retry com exponential backoff (5s, 30s, 120s). `error_type="transient"`. **Limites conhecidos:** Facebook ~200 posts/hora/pagina, Instagram ~25 Stories/dia, Bluesky ~1666 actions/dia. Pre-flight check nao implementado em v1 — confiar no 429 + retry |
+| Pipeline timeout (step in_progress >5min) | Cron safety net marca steps `in_progress` ha mais de 5 min como `failed` com `error_type="timeout"`. Previne pipeline travado permanentemente |
+| Short link creation failure | Pipeline continua com URL original do conteudo como fallback. `pipeline_steps` registra `short_link` como `warning` com `error`. Post criado normalmente sem `short_link_id` |
+| Conteudo deletado entre steps do pipeline | Cada step busca dados frescos do post. Se post/conteudo fonte nao encontrado → `extractContentMetadata()` retorna `null`, pipeline aborta gracefully com status `failed` e reason descritiva |
 | Colisao de codigo de short link | `generateShortCode()` retenta ate 40 vezes com comprimento expandido (6→8 chars) |
 | Social post duplicado para mesmo conteudo | Unique partial index previne. Retorna post existente se draft/scheduled, cria novo se completed |
 | Todas as deliveries falham | Post status = `"failed"`. Usuario pode retentar via "Re-publicar" no Post Detail |
@@ -1951,7 +1980,7 @@ CREATE INDEX idx_social_posts_short_link
 
 -- Partial unique index: apenas 1 social post ativo por conteudo
 CREATE UNIQUE INDEX idx_social_posts_active_per_content
-  ON social_posts(source_content_type, source_content_id)
+  ON social_posts(site_id, source_content_type, source_content_id)
   WHERE status IN ('draft','scheduled','publishing')
     AND source_content_id IS NOT NULL;
 ```
