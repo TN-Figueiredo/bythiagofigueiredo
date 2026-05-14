@@ -46,9 +46,16 @@ created_at      timestamptz NOT NULL DEFAULT now()
 updated_at      timestamptz NOT NULL DEFAULT now()
 
 UNIQUE(site_id, path)
+UNIQUE(site_id, parent_id, slug)             -- no duplicate slugs under same parent
 INDEX idx_research_topics_site ON (site_id)
 INDEX idx_research_topics_parent ON (parent_id) WHERE parent_id IS NOT NULL
 ```
+
+**Path cascade on topic move:** When a topic's parent_id changes via PATCH, the server action must:
+1. Compute new path from new parent's path + slug
+2. Recursively update all descendant topics' path and depth
+3. Validate new depth ≤ 2 for all descendants (reject if move would exceed max depth)
+4. This is done in application code (server action), not via trigger, to keep the logic testable and explicit.
 
 ### Table: `research_items`
 
@@ -59,26 +66,28 @@ id              uuid PK default gen_random_uuid()
 topic_id        uuid NOT NULL FK → research_topics(id) ON DELETE CASCADE
 title           text NOT NULL
 content_json    jsonb                            -- Tiptap JSONContent (after first edit)
-content_md      text                             -- original markdown from Claude (immutable)
+content_md      text                             -- original markdown from Claude
 summary         text                             -- short summary (AI-generated or manual)
 sources         jsonb NOT NULL DEFAULT '[]'      -- [{url, title, accessed_at?}]
 status          text NOT NULL DEFAULT 'new'
                 CHECK (status IN ('new', 'reviewed', 'starred', 'archived'))
 word_count      int NOT NULL DEFAULT 0
 version         int NOT NULL DEFAULT 1
+search_vector   tsvector                         -- full-text search (trigger-maintained)
 site_id         uuid NOT NULL FK → sites(id) ON DELETE CASCADE
 created_at      timestamptz NOT NULL DEFAULT now()
 updated_at      timestamptz NOT NULL DEFAULT now()
 
+UNIQUE(site_id, topic_id, title)              -- no duplicate titles within same topic
 INDEX idx_research_items_topic ON (topic_id)
 INDEX idx_research_items_site_status ON (site_id, status) WHERE status != 'archived'
 INDEX idx_research_items_search USING GIN (search_vector)
 ```
 
-`search_vector` is a generated tsvector column updated by trigger:
+`search_vector` updated by trigger on INSERT/UPDATE OF title, content_md:
 ```sql
-setweight(to_tsvector('portuguese', coalesce(title, '')), 'A') ||
-setweight(to_tsvector('portuguese', left(coalesce(content_md, ''), 50000)), 'B')
+setweight(to_tsvector('portuguese', coalesce(NEW.title, '')), 'A') ||
+setweight(to_tsvector('portuguese', left(coalesce(NEW.content_md, ''), 50000)), 'B')
 ```
 
 ### Table: `research_links`
@@ -123,10 +132,25 @@ All tables follow the project pattern with idempotent `DROP POLICY IF EXISTS` be
 
 ### Content Storage Strategy
 
-- **content_md**: Original markdown from Claude. Set on creation, preserved as immutable source. API reads always return this field for AI consumption.
-- **content_json**: Tiptap JSONContent. Null until user first edits in the CMS. Once set, the editor loads from content_json.
-- **Editor loads**: `content_json ?? content_md` — PipelineEditor's `contentToEditorInput()` already handles both (string → `marked.parse()` → HTML, JSONContent → passthrough).
-- **On Tiptap save**: Updates content_json only. content_md stays as the original.
+Two columns serve different consumers:
+
+- **content_md**: Markdown text. Set by Claude on creation. **Also updated when user saves in Tiptap** — the server action extracts plain text from content_json and regenerates a readable markdown approximation. This ensures Claude always reads current content via API, not stale originals.
+- **content_json**: Tiptap JSONContent. Null until user first edits in the CMS. Once set, the editor loads from content_json. This is the source of truth for the rich editor.
+
+**Editor load priority**: `content_json ?? content_md` — PipelineEditor's `contentToEditorInput()` handles both (string → `marked.parse()` → HTML, JSONContent → passthrough).
+
+**Save flow:**
+1. User edits in Tiptap → `onContentChange` emits JSONContent
+2. Server action receives JSONContent → stores as `content_json`
+3. Server action also extracts text via `editor.getText()` equivalent (strip JSON to plain text) → stores as `content_md`
+4. word_count trigger recalculates from content_md
+
+**API read flow:**
+- `GET /api/pipeline/research/[id]` returns both `content_md` (for Claude) and `content_json` (for CMS editor)
+- `GET /api/pipeline/research` (list) returns `content_md` ONLY when `?include=content` is passed. Default list excludes body content for performance.
+
+**Claude re-push flow:**
+- `POST /api/pipeline/research` with same title+topic = **upsert** (updates content_md, clears content_json to null so editor re-parses from fresh markdown). Uses `ON CONFLICT (site_id, topic_id, title) DO UPDATE`.
 
 ## API Endpoints
 
@@ -154,9 +178,14 @@ Create a research item. Primary endpoint for Claude to push research.
 //
 // Auto-create: slug "gaming-history" → name "Gaming History"
 
-// Response: 201
+// Duplicate handling:
+// Same title + topic = UPSERT (updates content_md, clears content_json, resets status to 'new')
+// Uses ON CONFLICT (site_id, topic_id, title) DO UPDATE
+// Returns 200 for update, 201 for insert
+
+// Response: 201 (created) or 200 (upserted)
 {
-  data: { id, title, topic_id, status: 'new', word_count, version, created_at }
+  data: { id, title, topic_id, status: 'new', word_count, version, created_at, upserted: boolean }
 }
 ```
 
@@ -187,24 +216,36 @@ List research items with filters.
 ```typescript
 // Query params
 ?topic_id=uuid                     // filter by specific topic
-?topic_slug=gaming-history         // filter by topic slug (includes children)
+?topic_slug=gaming-history         // filter by topic slug (includes children via path LIKE 'gaming-history%')
 ?status=new,reviewed               // comma-separated status filter
-?search=wyd+ongame                 // full-text search
+?search=wyd+ongame                 // full-text search (uses search_vector)
+?search_scope=topic|all            // search within selected topic or all (default: all)
 ?pipeline_item_id=uuid             // get research linked to a pipeline item
+?include=content                   // include content_md in response (default: excluded for performance)
 ?limit=50&cursor=uuid              // pagination
 
-// Response: 200
+// Response: 200 (default — no content body, lightweight for CMS list)
 {
   data: Array<{
     id, title, topic_id, topic_path, topic_name, topic_icon,
     summary, status, word_count, sources_count,
-    content_md,                    // full markdown (for Claude reads)
     linked_items_count,
     version, created_at, updated_at
   }>,
   meta: { total, has_next, next_cursor, limit }
 }
+
+// Response: 200 (with ?include=content — for Claude reads)
+{
+  data: Array<{
+    ...same fields above...,
+    content_md                     // full markdown body included
+  }>,
+  meta: { ... }
+}
 ```
+
+**topic_slug children inclusion**: When `?topic_slug=gaming-history` is passed, the query finds the topic's path and filters items whose topic's path starts with it: `WHERE rt.path = $slug OR rt.path LIKE $slug || '/%'`. This returns items from "gaming-history" AND all its subtopics ("gaming-history/wyd", "gaming-history/dota-2", etc.).
 
 ### GET /api/pipeline/research/[id]
 
@@ -231,12 +272,16 @@ Update research item. Requires `X-Expected-Version` header.
 // Request body (all optional)
 {
   title?: string
-  content_json?: JSONContent       // from Tiptap editor
+  content_json?: JSONContent       // from Tiptap editor (also regenerates content_md)
+  content_md?: string              // direct markdown update (clears content_json — editor re-parses)
   summary?: string
   sources?: Array<{url, title}>
   status?: 'new' | 'reviewed' | 'starred' | 'archived'
   topic_id?: uuid                  // move to different topic
 }
+// Note: content_json and content_md are mutually exclusive in a single PATCH.
+// Sending content_json: updates json, regenerates md from json.
+// Sending content_md: updates md, clears json (editor will re-parse md on next load).
 
 // Response: 200
 {
@@ -316,33 +361,47 @@ Three-panel client component.
 
 **Left panel (220px): Topic Tree**
 - Search bar (⌘K to focus)
-- "Todas" entry with total count
+- "Todas" entry with total count — when selected, right panel shows **Overview Dashboard** (stats, recent, starred), NOT a flat item list
 - Collapsible tree with ▶/▼ toggles
 - Each topic shows: icon, name, item count
-- Unread (new) badges in yellow, bubble up from children
+- Unread (new) badges in yellow, bubble up from children to parent topics
 - "+" button to create new topic
 - Right-click: rename, change icon/color, delete
 
 **Middle panel (280px): Item List**
 - Breadcrumb header: `📚 › 🎮 Gaming History`
 - Sort dropdown: Recentes, Título, Tamanho
-- Items grouped by subtopic (when parent selected)
-- Each item shows: status dot, title, snippet (first ~100 chars of content_md), word count, date, linked items count
+- Items grouped by subtopic headers (when parent topic selected)
+- Each item shows: status dot, title, snippet (first ~100 chars of summary, falling back to content_md), word count, date, linked items count
 - Selected item highlighted with left border
 - Archived items shown at bottom with opacity 0.5
+- When "Todas" is selected, middle panel shows items grouped by root topic
 
 **Right panel (flex): Content**
-- **Read mode (default)**: Title input, status + star buttons, rendered markdown (read-only), action bar (Reviewed/Star/Archive shortcuts)
-- **Edit mode (press E)**: Full Tiptap editor with PipelineToolbar (preset='full'), tabs (Conteúdo, Fontes, Sumário, Links), save footer with ⌘S
-- **Empty state**: When no item selected, show "Selecione um item para ler"
+- **Overview mode** (when "Todas" selected, no item selected): Dashboard with stats (total, unread, starred, linked), recent items grid, starred items. Clicking any card selects the item.
+- **Read mode (default when item selected)**: Title (editable inline), status + star buttons, content rendered via `<PipelineEditor content={content_json ?? content_md} isEditing={false} preset="full" />` (Tiptap handles both markdown strings and JSONContent in read-only mode), action bar with keyboard shortcuts
+- **Edit mode (press E)**: Same PipelineEditor with `isEditing={true}`, toolbar appears, tabs (Conteúdo, Fontes, Sumário, Links), save footer with ⌘S
+- **Empty state**: When no item selected (non-Todas), show "Selecione um item para ler" with ↑↓ hint
+
+**Dirty state handling:**
+- Track `isDirty` flag when content changes in edit mode
+- Navigating to another item while dirty → show confirmation dialog: "Salvar alterações?" with Save / Descartar / Cancelar
+- ⌘S auto-saves and clears dirty state
+- Switching from edit to read mode while dirty → same confirmation
+
+### Component: `PipelineItemPicker`
+
+Dialog for linking research TO pipeline items. Used from Research detail "Links" tab → "Vincular a pipeline item".
+- Searches pipeline items by title, format, stage
+- Filter by format (video, blog, newsletter, etc.)
+- Shows format badge, title, stage, date
 
 ### Component: `ResearchPicker`
 
-Dialog for linking research to pipeline items. Used from:
-1. Research detail "Links" tab → "Vincular a pipeline item" button
-2. Pipeline item sidebar → "Buscar e vincular research" button
-
-Search by title/topic, filter by status. Shows compact cards with topic path and word count.
+Dialog for linking pipeline items TO research. Used from Pipeline item sidebar → "Buscar e vincular research".
+- Searches research items by title, topic
+- Filter by topic, status
+- Shows topic path, word count, status dot
 
 ### Sidebar Integration
 
@@ -372,16 +431,27 @@ In the pipeline item detail sidebar, add a "Research Vinculado" section:
 
 ## Keyboard Shortcuts
 
-Global (when ResearchLibrary is focused):
-- `⌘K` — focus search
-- `⌘S` — save current item
+**Three scopes to prevent conflicts:**
+
+**Global** (always active on page):
+- `⌘K` — focus search bar
+- `⌘S` — save current item (when in edit mode)
+- `Escape` — exit edit mode → exit search → deselect item (cascading)
+
+**List-focused** (when item list or read mode is focused, NOT when typing in search/editor):
 - `↑↓` — navigate items in list
 - `1-9` — jump to topic by position
-- `R` — mark as reviewed
-- `S` — toggle star
-- `A` — archive/restore
-- `E` — toggle edit mode
-- `Escape` — exit edit mode, clear search
+- `R` — mark selected as reviewed
+- `S` — toggle star on selected
+- `A` — archive/restore selected
+- `E` — enter edit mode
+
+**Edit mode** (when Tiptap editor is focused):
+- All letter shortcuts (R/S/A/E) are DISABLED — typing takes priority
+- `⌘S` — save
+- `Escape` — exit edit mode (with dirty check)
+
+Implementation: use a `focusScope` state ('tree' | 'list' | 'reader' | 'editor') tracked via onFocus handlers. Letter shortcuts only fire when scope is 'list' or 'reader'.
 
 ## Zod Schemas
 
@@ -403,6 +473,7 @@ const ResearchItemCreateSchema = z.object({
 const ResearchItemUpdateSchema = z.object({
   title: z.string().min(1).max(500).optional(),
   content_json: z.record(z.unknown()).optional(),
+  content_md: z.string().max(500_000).optional(),
   summary: z.string().max(2000).nullable().optional(),
   sources: z.array(z.object({
     url: z.string().url().max(2000),
@@ -410,7 +481,10 @@ const ResearchItemUpdateSchema = z.object({
   })).max(50).optional(),
   status: z.enum(RESEARCH_STATUS).optional(),
   topic_id: z.string().uuid().optional(),
-})
+}).refine(
+  (d) => !(d.content_json && d.content_md),
+  { message: 'content_json and content_md are mutually exclusive' }
+)
 
 const ResearchImportSchema = z.object({
   items: z.array(ResearchItemCreateSchema).min(1).max(50),
@@ -471,6 +545,36 @@ apps/web/src/
 supabase/migrations/
 └── YYYYMMDDHHMMSS_research_library.sql   # DDL + RLS + triggers + indexes
 ```
+
+## Cowork Skill Integration
+
+The Claude Cowork skill already uses the pipeline API via `X-Pipeline-Key`. Research uses the same auth mechanism — no new keys needed.
+
+**Skill update required in `docs/cowork-pipeline-reference.md`:**
+- Add Research section schemas to the reference document
+- Document POST /api/pipeline/research endpoint with topic_slug convention
+- Document GET /api/pipeline/research?include=content for reading existing research
+
+**Workflow for Claude:**
+1. User asks for deep research → Claude generates markdown
+2. Claude calls `POST /api/pipeline/research` with title, topic_slug, content_md, summary, sources
+3. Topic auto-created if needed (slug → name capitalization)
+4. Later, when creating content (blog/video), Claude calls `GET /api/pipeline/research?topic_slug=gaming-history&include=content` to read relevant research
+5. Claude can also call `GET /api/pipeline/research?pipeline_item_id=<uuid>&include=content` to get research linked to the item being worked on
+
+**Topic slug convention for Claude:** Use kebab-case paths matching the content domain. Examples:
+- `gaming-history/wyd` — game-specific research
+- `carreira/freelancing` — career subtopic
+- `cursos/ai-development` — course-specific research
+- `estrategia` — flat topic (no subtopic needed yet)
+
+## Empty States
+
+**Zero items (new user):** Overview dashboard shows welcome message: "Nenhuma pesquisa ainda. Peça ao Claude para pesquisar sobre um tema, ou crie manualmente." with a "Criar primeira pesquisa" CTA button.
+
+**Zero items in topic:** Middle panel shows "Nenhuma pesquisa neste tema" with suggestion to create or move items here.
+
+**Zero links on item:** Links tab shows "Nenhum item vinculado. Vincule este research a blog posts, vídeos, ou outros conteúdos para referência cruzada."
 
 ## What Is NOT In Scope
 
