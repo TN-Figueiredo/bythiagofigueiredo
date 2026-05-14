@@ -61,8 +61,9 @@ export interface ExternalEmbed {
 export async function buildExternalEmbed(
   agent: BskyAgent,
   url: string,
+  ogData?: OGTags,
 ): Promise<ExternalEmbed> {
-  const og = await fetchOGTags(url)
+  const og = ogData ?? await fetchOGTags(url)
 
   let thumb: BlobRef | undefined
 
@@ -103,7 +104,8 @@ export async function createPostWithLinkCard(
   agent: BskyAgent,
   text: string,
   url: string,
+  ogData?: OGTags,
 ): Promise<PlatformResult> {
-  const embed = await buildExternalEmbed(agent, url)
+  const embed = await buildExternalEmbed(agent, url, ogData)
   return createPost(agent, text, { embed })
 }

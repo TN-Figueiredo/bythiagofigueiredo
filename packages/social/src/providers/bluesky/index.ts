@@ -9,6 +9,7 @@ import { formatForPlatform } from '../../core/content-adapter.js'
 import { createSession } from './client.js'
 import { createPost, deletePost as deleteAtPost } from './post.js'
 import { createPostWithLinkCard } from './link-embed.js'
+import type { OGTags } from './link-embed.js'
 
 export type { BlueskySession } from './client.js'
 export type { PostImageInput } from './post.js'
@@ -58,6 +59,7 @@ export class BlueskyProvider implements ISocialProvider {
     post: SocialPost,
     connection: SocialConnection,
     _delivery: SocialDelivery,
+    options?: { ogData?: OGTags },
   ): Promise<PlatformResult> {
     const appPassword = this.decryptToken(connection.access_token_enc)
     const { handle, pds_url } = connection.metadata as unknown as BlueskyMetadata
@@ -66,7 +68,7 @@ export class BlueskyProvider implements ISocialProvider {
     const formattedText = formatForPlatform(post.content, 'bluesky', post.template_id ?? undefined)
 
     if (post.content.url) {
-      return createPostWithLinkCard(agent, formattedText, post.content.url)
+      return createPostWithLinkCard(agent, formattedText, post.content.url, options?.ogData)
     }
 
     if (post.content.media_urls?.length) {
