@@ -412,8 +412,9 @@ export function PlaylistCanvas({
     if (items.length === 0) return
 
     const pad = 60
-    const nodeW = 180
-    const nodeH = 100
+    const nodeW = 250
+    const nodeH = 80
+    const stripeW = 26
     const minX = Math.min(...items.map(i => i.position_x)) - pad
     const minY = Math.min(...items.map(i => i.position_y)) - pad
     const maxX = Math.max(...items.map(i => i.position_x)) + nodeW + pad
@@ -422,9 +423,16 @@ export function PlaylistCanvas({
     const h = maxY - minY
 
     const typeColors: Record<string, string> = {
-      blog_post: '#818cf8',
-      newsletter: '#34d399',
+      blog_post: '#6366f1',
+      newsletter: '#22c55e',
       pipeline: '#a855f7',
+      video: '#ef4444',
+    }
+    const typeBadges: Record<string, string> = {
+      blog_post: 'BLOG',
+      newsletter: 'NEWS',
+      pipeline: 'PIPE',
+      video: 'VIDEO',
     }
 
     const offscreen = document.createElement('canvas')
@@ -440,40 +448,58 @@ export function PlaylistCanvas({
       const x = item.position_x - minX
       const y = item.position_y - minY
       const color = item.content_type ? typeColors[item.content_type] ?? '#6b7280' : '#6b7280'
+      const vn = viewNumbers.get(item.id)
 
-      ctx.fillStyle = color + '18'
-      ctx.strokeStyle = color + '40'
-      ctx.lineWidth = 2
+      ctx.fillStyle = color + '10'
+      ctx.strokeStyle = color + '60'
+      ctx.lineWidth = 1.5
       ctx.beginPath()
-      ctx.roundRect(x, y, 160, 70, 10)
+      ctx.roundRect(x, y, nodeW, nodeH, 10)
       ctx.fill()
       ctx.stroke()
 
+      ctx.save()
+      ctx.beginPath()
+      ctx.roundRect(x, y, stripeW, nodeH, [10, 0, 0, 10])
+      ctx.clip()
       ctx.fillStyle = color
-      ctx.font = 'bold 9px -apple-system, sans-serif'
-      const badge = item.content_type === 'blog_post' ? 'BLOG' : item.content_type === 'newsletter' ? 'NEWS' : item.content_type === 'pipeline' ? 'PIPE' : ''
+      ctx.fillRect(x, y, stripeW, nodeH)
+      ctx.restore()
+
+      if (vn !== undefined) {
+        ctx.fillStyle = '#fff'
+        ctx.font = 'bold 11px -apple-system, sans-serif'
+        ctx.textAlign = 'center'
+        ctx.fillText(String(vn), x + stripeW / 2, y + nodeH / 2 + 4)
+        ctx.textAlign = 'left'
+      }
+
+      const badge = item.content_type ? typeBadges[item.content_type] ?? '' : ''
       if (badge) {
+        ctx.fillStyle = color
+        ctx.font = 'bold 8px -apple-system, sans-serif'
         const tw = ctx.measureText(badge).width
         ctx.beginPath()
-        ctx.roundRect(x + 8, y + 8, tw + 8, 14, 3)
+        ctx.roundRect(x + stripeW + 8, y + 8, tw + 8, 14, 3)
         ctx.fill()
         ctx.fillStyle = '#fff'
-        ctx.fillText(badge, x + 12, y + 18)
+        ctx.fillText(badge, x + stripeW + 12, y + 18)
       }
 
       ctx.fillStyle = '#fff'
       ctx.font = '600 12px -apple-system, sans-serif'
-      const title = item.title.length > 20 ? item.title.slice(0, 19) + '…' : item.title
-      ctx.fillText(title, x + 8, y + 38)
+      const maxTitleW = nodeW - stripeW - 20
+      const title = item.title.length > 28 ? item.title.slice(0, 27) + '…' : item.title
+      ctx.fillText(title, x + stripeW + 8, y + 38, maxTitleW)
 
       ctx.fillStyle = '#ffffff66'
       ctx.font = '10px -apple-system, sans-serif'
-      ctx.fillText(item.status ?? '', x + 8, y + 54)
+      ctx.fillText(item.status ?? '', x + stripeW + 8, y + 54)
     }
 
     const edgeColors: Record<string, string> = {
       sequence: '#818cf8',
-      related: '#6b7280',
+      related: '#a855f7',
       prerequisite: '#fbbf24',
       continuation: '#34d399',
     }
@@ -515,7 +541,7 @@ export function PlaylistCanvas({
       a.click()
       URL.revokeObjectURL(a.href)
     }, 'image/png')
-  }, [containerRef, state.items, state.edges, graph.playlist.slug])
+  }, [containerRef, state.items, state.edges, graph.playlist.slug, viewNumbers])
 
   const handleMinimapNavigate = useCallback(
     (x: number, y: number) => {
