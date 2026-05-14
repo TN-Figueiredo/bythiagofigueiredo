@@ -598,6 +598,138 @@ const listFiltersSchema = z.object({
   to: z.string().datetime().optional(),
 })
 
+export async function getContentForSocialPost(
+  contentType: string,
+  contentId: string,
+): Promise<
+  | {
+      ok: true
+      data: {
+        title: string
+        url: string
+        image: string | null
+        excerpt: string | null
+        tags: string[]
+        locale: string
+        contentType: string
+        contentId: string
+      }
+    }
+  | { ok: false; error: string }
+> {
+  try {
+    const { siteId } = await requireEditAccess()
+    const supabase = getSupabaseServiceClient()
+
+    if (contentType === 'blog') {
+      const { data } = await supabase
+        .from('blog_posts')
+        .select('id, slug, cover_image_url, blog_translations!inner(title, meta_description, locale)')
+        .eq('id', contentId)
+        .eq('site_id', siteId)
+        .single()
+      if (!data) return { ok: false, error: 'not_found' }
+      const record = data as unknown as Record<string, unknown>
+      const translations = record.blog_translations as Array<{ title: string; meta_description: string | null; locale: string }> | undefined
+      const tx = translations?.[0]
+      return {
+        ok: true,
+        data: {
+          title: tx?.title ?? '',
+          url: `${process.env.NEXT_PUBLIC_APP_URL}/blog/${data.slug as string}`,
+          image: data.cover_image_url as string | null,
+          excerpt: tx?.meta_description ?? null,
+          tags: [],
+          locale: tx?.locale ?? 'pt-BR',
+          contentType,
+          contentId,
+        },
+      }
+    }
+
+    if (contentType === 'newsletter') {
+      const { data } = await supabase
+        .from('newsletter_editions')
+        .select('id, subject, preview_text')
+        .eq('id', contentId)
+        .eq('site_id', siteId)
+        .single()
+      if (!data) return { ok: false, error: 'not_found' }
+      return {
+        ok: true,
+        data: {
+          title: data.subject as string,
+          url: `${process.env.NEXT_PUBLIC_APP_URL}/newsletter/${contentId}`,
+          image: null,
+          excerpt: data.preview_text as string | null,
+          tags: [],
+          locale: 'pt-BR',
+          contentType,
+          contentId,
+        },
+      }
+    }
+
+    if (contentType === 'campaign') {
+      const { data } = await supabase
+        .from('campaigns')
+        .select('id, slug, campaign_translations!inner(meta_title, meta_description, og_image_url)')
+        .eq('id', contentId)
+        .eq('site_id', siteId)
+        .single()
+      if (!data) return { ok: false, error: 'not_found' }
+      const record = data as unknown as Record<string, unknown>
+      const translations = record.campaign_translations as Array<{ meta_title: string; meta_description: string | null; og_image_url: string | null }> | undefined
+      const tx = translations?.[0]
+      return {
+        ok: true,
+        data: {
+          title: tx?.meta_title ?? '',
+          url: `${process.env.NEXT_PUBLIC_APP_URL}/campaigns/${data.slug as string}`,
+          image: tx?.og_image_url ?? null,
+          excerpt: tx?.meta_description ?? null,
+          tags: [],
+          locale: 'pt-BR',
+          contentType,
+          contentId,
+        },
+      }
+    }
+
+    return { ok: false, error: 'unsupported_content_type' }
+  } catch (err) {
+    Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'getContentForSocialPost' } })
+    return { ok: false, error: err instanceof Error ? err.message : 'unknown' }
+  }
+}
+
+export async function createFromContentAction(params: {
+  contentType: string
+  contentId: string
+  config: Record<string, unknown>
+  origin: string
+  scheduledAt?: string
+}): Promise<{ ok: true; data: { postId: string; shortLinkId: string | null } } | { ok: false; error: string }> {
+  try {
+    const { siteId, userId } = await requireEditAccess()
+    const { createSocialPostFromContent } = await import('@/lib/social/create-from-content')
+    const result = await createSocialPostFromContent({
+      supabase: getSupabaseServiceClient(),
+      siteId,
+      contentType: params.contentType as import('@/lib/social/types').ContentType,
+      contentId: params.contentId,
+      config: params.config as unknown as import('@/lib/social/types').SocialConfig,
+      origin: params.origin as import('@/lib/social/types').Origin,
+      scheduledAt: params.scheduledAt,
+      userId,
+    })
+    return { ok: true, data: result }
+  } catch (err) {
+    Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'createFromContentAction' } })
+    return { ok: false, error: err instanceof Error ? err.message : 'unknown' }
+  }
+}
+
 export async function listSocialPosts(
   siteId: string,
   filters?: { status?: PostStatus; from?: string; to?: string },

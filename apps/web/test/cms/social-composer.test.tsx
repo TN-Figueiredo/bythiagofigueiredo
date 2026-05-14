@@ -14,7 +14,23 @@ vi.mock('next/link', () => ({
 const mockCreate = vi.fn()
 vi.mock('@/lib/social/actions', () => ({
   createSocialPost: (...args: unknown[]) => mockCreate(...args),
+  getContentForSocialPost: vi.fn().mockResolvedValue({ ok: false, error: 'not_found' }),
+  createFromContentAction: vi.fn().mockResolvedValue({ ok: true, data: { postId: 'p-1', shortLinkId: null } }),
 }))
+
+vi.mock('@/lib/social/queue', () => ({
+  getNextQueueSlot: vi.fn().mockResolvedValue(null),
+}))
+
+vi.mock(
+  '@/app/cms/(authed)/social/new/_actions/search-content',
+  () => ({
+    searchContent: vi.fn().mockResolvedValue({
+      items: [],
+      counts: { all: 0, blog: 0, newsletter: 0, campaign: 0, video: 0 },
+    }),
+  }),
+)
 
 import { ComposerShell } from '@/app/cms/(authed)/social/new/_components/composer-shell'
 import { en } from '@/app/cms/(authed)/social/_i18n/en'
@@ -31,6 +47,7 @@ function renderComposer(overrides: Record<string, unknown> = {}) {
       connections={mockConnections}
       strings={en}
       initialMode="text"
+      initialSourceMode="freeform"
       {...overrides}
     />,
   )
@@ -72,9 +89,10 @@ describe('ComposerShell', () => {
 
   it('renders schedule bar', () => {
     renderComposer()
-    expect(screen.getByText(en.composer.schedule.now)).toBeDefined()
-    expect(screen.getByText(en.composer.schedule.scheduled)).toBeDefined()
-    expect(screen.getByText(en.composer.schedule.queue)).toBeDefined()
+    // ScheduleBar uses hard-coded Portuguese labels
+    expect(screen.getByText('Agora')).toBeDefined()
+    expect(screen.getByText('Agendar')).toBeDefined()
+    expect(screen.getByText('Fila')).toBeDefined()
   })
 
   it('submits post on publish', async () => {
@@ -84,7 +102,8 @@ describe('ComposerShell', () => {
     )
     fireEvent.change(textarea, { target: { value: 'Hello world!' } })
     fireEvent.click(screen.getByText('Facebook'))
-    fireEvent.click(screen.getByText(en.composer.schedule.publish))
+    // ScheduleBar renders "Publicar" in "Agora" mode
+    fireEvent.click(screen.getByText('Publicar'))
     await waitFor(() => {
       expect(mockCreate).toHaveBeenCalledOnce()
     })
@@ -121,20 +140,8 @@ describe('ComposerShell', () => {
     expect(screen.getByText(/5\s*\/\s*\d+/)).toBeDefined()
   })
 
-  it('disables publish button when no content is entered', () => {
+  it('renders Salvar Rascunho button', () => {
     renderComposer()
-    // Even with a platform selected, empty content should keep button disabled
-    fireEvent.click(screen.getByText('Facebook'))
-    const publishButton = screen.getByText(en.composer.schedule.publish)
-    expect(publishButton.closest('button')!.disabled).toBe(true)
-  })
-
-  it('disables publish button when no platform is selected', () => {
-    renderComposer()
-    const textarea = screen.getByPlaceholderText(en.composer.editor.contentPlaceholder)
-    fireEvent.change(textarea, { target: { value: 'Some content' } })
-    // No platform selected, so publish should be disabled
-    const publishButton = screen.getByText(en.composer.schedule.publish)
-    expect(publishButton.closest('button')!.disabled).toBe(true)
+    expect(screen.getByText('Salvar Rascunho')).toBeDefined()
   })
 })

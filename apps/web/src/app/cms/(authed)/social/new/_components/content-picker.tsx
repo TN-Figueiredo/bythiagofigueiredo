@@ -2,10 +2,23 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { searchContent, type ContentItem } from '../_actions/search-content'
+import type { ContentType } from '@/lib/social/types'
 
-type ContentType = 'blog' | 'newsletter' | 'campaign' | 'video'
+export type { ContentType }
+
 type Mode = 'cms' | 'freeform'
 type TabKey = 'all' | ContentType
+
+export interface SelectedContent {
+  contentType: ContentType
+  contentId: string
+  title: string
+  url: string
+  image: string | null
+  excerpt: string | null
+  tags: string[]
+  locale: string
+}
 
 interface ContentPickerProps {
   onSelect: (type: ContentType, id: string, metadata: ContentItem) => void
