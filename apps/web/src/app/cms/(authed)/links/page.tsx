@@ -4,7 +4,6 @@ import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import type { DashboardKpis, DashboardActivity } from '@tn-figueiredo/links-admin'
 import { toDateStringInTz } from '@/lib/cms/format-site-datetime'
-import { getLinks } from './actions'
 import { LinksHub } from './_hub'
 
 export const dynamic = 'force-dynamic'
@@ -121,22 +120,32 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
     sourceBreakdown,
   }
 
-  // Fetch paginated links
+  // Fetch paginated links (inline query — avoids server-action context issues)
   const page = parseInt(params.page ?? '1', 10)
-  const search = params.search ?? undefined
-  const sourceType = params.source_type ?? undefined
-  const activeFilter = params.active !== undefined
-    ? params.active === 'true'
-    : undefined
+  const perPage = 20
+  const from = (page - 1) * perPage
+  const to = from + perPage - 1
 
-  const linksResult = await getLinks(siteId, {
-    page,
-    search,
-    source_type: sourceType as 'manual' | 'campaign' | 'newsletter' | 'blog' | 'social' | 'print' | undefined,
-    active: activeFilter,
-  })
+  let linksQuery = supabase
+    .from('tracked_links')
+    .select('*', { count: 'exact' })
+    .eq('site_id', siteId)
+    .is('deleted_at', null)
 
-  const links = linksResult.ok ? linksResult.links : []
+  if (params.search) {
+    linksQuery = linksQuery.ilike('title', `%${params.search}%`)
+  }
+  if (params.source_type) {
+    linksQuery = linksQuery.eq('source_type', params.source_type)
+  }
+  if (params.active !== undefined) {
+    linksQuery = linksQuery.eq('active', params.active === 'true')
+  }
+
+  linksQuery = linksQuery.order('created_at', { ascending: false }).range(from, to)
+
+  const { data: linksData } = await linksQuery
+  const links = linksData ?? []
 
   return <LinksHub metrics={metrics} activity={activity} links={links} siteId={siteId} />
 }

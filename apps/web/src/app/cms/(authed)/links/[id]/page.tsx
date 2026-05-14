@@ -3,6 +3,7 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { toDateStringInTz } from '@/lib/cms/format-site-datetime'
+import { buildShortUrl } from '@/lib/links/short-url'
 import { LinkDetail } from './_detail'
 
 export const dynamic = 'force-dynamic'
@@ -74,6 +75,7 @@ export default async function LinkDetailPage({ params }: Props) {
   return (
     <div className="flex flex-col gap-6 px-4 py-4 md:px-7">
       <LinkDetail
+        shortUrl={buildShortUrl(link.code as string)}
         link={{
           id: link.id as string,
           code: link.code as string,

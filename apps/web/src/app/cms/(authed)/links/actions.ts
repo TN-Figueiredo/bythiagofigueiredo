@@ -7,6 +7,7 @@ import { generateQrSvg } from '@tn-figueiredo/links/qr'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { uploadMediaAsset } from '@/lib/media/upload'
+import { buildShortUrl } from '@/lib/links/short-url'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -719,8 +720,7 @@ export async function generateQr(
 
   if (linkError || !link) return { ok: false, error: 'not_found' }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://bythiagofigueiredo.com'
-  const shortUrl = `${appUrl}/go/${link.code}`
+  const shortUrl = buildShortUrl(link.code)
   const size = config.size ?? 256
   const fg = config.foreground ?? '#000000'
   const bg = config.background ?? '#FFFFFF'

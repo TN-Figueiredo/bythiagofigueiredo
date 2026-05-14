@@ -50,6 +50,7 @@ interface Props {
   dailyClicks: DailyClick[]
   topCountry: string | null
   linkId: string
+  shortUrl: string
 }
 
 const SOURCE_COLORS: Record<string, string> = {
@@ -124,7 +125,7 @@ function KpiCard({
   )
 }
 
-export function LinkDetail({ link, dailyClicks, topCountry, linkId }: Props) {
+export function LinkDetail({ link, dailyClicks, topCountry, linkId, shortUrl }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
@@ -177,7 +178,7 @@ export function LinkDetail({ link, dailyClicks, topCountry, linkId }: Props) {
         </div>
 
         <div className="flex items-center gap-2">
-          <CopyUrlButton url={`${typeof window !== 'undefined' ? window.location.origin : ''}/go/${link.code}`} />
+          <CopyUrlButton url={shortUrl} />
           <button
             type="button"
             onClick={() => router.push(`/cms/links/${linkId}/edit`)}

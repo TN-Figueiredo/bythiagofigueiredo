@@ -6,6 +6,7 @@ import {
   createDefaultComposition,
   migrateLegacyQrConfig,
 } from '@tn-figueiredo/links/qr'
+import { buildShortUrl } from '@/lib/links/short-url'
 import { loadQrCard, listQrTemplates } from './actions'
 import { QrCardBuilderPage } from './client'
 
@@ -33,8 +34,7 @@ export default async function QrCardPage({ params }: Props) {
 
   if (error || !link) notFound()
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://bythiagofigueiredo.com'
-  const shortUrl = `${appUrl}/go/${link.code}`
+  const shortUrl = buildShortUrl(link.code)
 
   let composition = createDefaultComposition()
   if (link.qr_card_composition) {
