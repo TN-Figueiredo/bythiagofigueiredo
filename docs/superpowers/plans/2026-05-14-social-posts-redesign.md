@@ -21,7 +21,7 @@
 
 ```
 Phase 1 (Foundation)  ──→ Phase 2 (Core Logic) ──→ Phase 3 (CMS Integration)
-   Tasks 1-4                Tasks 5-7               Tasks 8-11
+   Tasks 1-4                Tasks 5-7               Tasks 8-11, 22
                                 │
                                 ├──→ Phase 4 (Composer)      ← parallel with 3
                                 │       Tasks 12-15
@@ -30,7 +30,7 @@ Phase 1 (Foundation)  ──→ Phase 2 (Core Logic) ──→ Phase 3 (CMS Inte
                                 │       Tasks 16-18
                                 │
                                 └──→ Phase 6 (Specialized)    ← parallel with 3,4,5
-                                        Tasks 19-21
+                                        Tasks 19-21, 23
 ```
 
 Phases 3–6 can run **in parallel** after Phase 2 completes.
@@ -46,7 +46,8 @@ apps/web/src/
     pipeline.ts                         ← NEW  Pipeline step tracking helpers
     story-generator.ts                  ← NEW  IG Story image generation via @vercel/og
     queue.ts                            ← NEW  Queue slot calculation
-    actions.ts                          ← MODIFY  Export new actions
+    reel-pipeline.ts                    ← NEW  IG Reel download/upload/cleanup
+    actions.ts                          ← MODIFY  Export new actions (scrapeOgTags)
     workflows.ts                        ← MODIFY  Enhanced publishSocialPost with OG data pass-through
 
   app/
@@ -56,6 +57,7 @@ apps/web/src/
       _shared/social/
         social-tab.tsx                  ← NEW  Shared Social Tab for content editors
         og-compact.tsx                  ← NEW  3-column OG tag display
+        kanban-social-modal.tsx         ← NEW  Kanban scheduling modal with social confidence card
 
       social/
         new/_components/
@@ -108,6 +110,7 @@ apps/web/test/
     pipeline.test.ts                    ← NEW
     story-generator.test.ts             ← NEW
     queue.test.ts                       ← NEW
+    reel-pipeline.test.ts               ← NEW
   api/social/
     pipeline-run.test.ts                ← NEW
   cms/
@@ -116,6 +119,7 @@ apps/web/test/
     social-post-detail.test.ts          ← NEW
     social-og-validation.test.ts        ← NEW
     social-publish-hooks.test.ts        ← NEW
+    kanban-social-modal.test.tsx        ← NEW
     links-social-integration.test.ts    ← NEW
 ```
 
@@ -5464,8 +5468,10 @@ interface ScheduleBarProps {
   onPublish: () => void
   onSaveDraft: () => void
   isPending: boolean
-  siteId: string
+  disabled?: boolean
+  siteId?: string
   showPipeline: boolean
+  strings?: Record<string, unknown>
 }
 
 const MODE_LABELS: Record<ScheduleMode, string> = {
@@ -5945,7 +5951,7 @@ export function ComposerShell({
 
   // CMS content selection handler
   const handleContentSelected = useCallback(
-    async (contentType: ContentType, contentId: string) => {
+    async (contentType: ContentType, contentId: string, _metadata: ContentItem) => {
       const result = await getContentForSocialPost(contentType, contentId)
       if (!result.ok) return
 
@@ -6012,6 +6018,22 @@ export function ComposerShell({
 
     setValidationErrors(errors)
     return Object.keys(errors).length === 0
+  }
+
+  function handleSaveDraft() {
+    startTransition(async () => {
+      const result = await createSocialPost({
+        content,
+        url,
+        hashtags,
+        platforms,
+        captions,
+        status: 'draft',
+        scheduled_at: scheduledAt || null,
+      })
+      if (result.ok) router.push(`/cms/social/${result.data.id}`)
+      else setSubmitError(result.error ?? 'Erro ao salvar rascunho')
+    })
   }
 
   function handlePublish() {
@@ -6111,8 +6133,8 @@ export function ComposerShell({
             <div data-testid="content-picker">
               <ContentPicker
                 onSelect={handleContentSelected}
-                selected={selectedContent}
-                strings={t}
+                onModeChange={(m) => setSource(m === 'cms' ? 'cms' : 'freeform')}
+                mode={source === 'cms' ? 'cms' : 'freeform'}
               />
             </div>
           )}
@@ -6167,7 +6189,7 @@ export function ComposerShell({
             <CaptionTabs
               platforms={platforms}
               captions={captions}
-              onCaptionsChange={setCaptions}
+              onChange={setCaptions}
               strings={t}
             />
           )}
@@ -6278,9 +6300,9 @@ export function ComposerShell({
           mode={scheduleMode}
           onModeChange={setScheduleMode}
           scheduledAt={scheduledAt}
-          onScheduledAtChange={setScheduledAt}
+          onScheduleChange={setScheduledAt}
           onPublish={handlePublish}
-          onSaveDraft={() => {/* TODO: save draft */}}
+          onSaveDraft={handleSaveDraft}
           isPending={isPending}
           disabled={platforms.length === 0}
           showPipeline={source === 'cms'}
@@ -6316,6 +6338,7 @@ git commit -m "feat(social): redesign composer shell — CMS content mode, capti
 - Create: `apps/web/src/app/cms/(authed)/social/[id]/_components/url-chain.tsx`
 - Create: `apps/web/src/app/cms/(authed)/social/[id]/_components/scrape-details.tsx`
 - Create: `apps/web/src/app/cms/(authed)/social/[id]/_components/raw-response.tsx`
+- Modify: `apps/web/src/lib/social/actions.ts` — add `scrapeOgTags` server action
 - Test: `apps/web/test/cms/social-og-validation.test.tsx`
 
 - [ ] **Step 1: Write failing test**
@@ -6954,6 +6977,47 @@ export default async function OgValidationPage({ params }: Props) {
 }
 ```
 
+- [ ] **Step 3b: Add `scrapeOgTags` server action**
+
+Add to `apps/web/src/lib/social/actions.ts`:
+
+```typescript
+'use server'
+
+import { scrapeOg } from '@/lib/social/og-scraper'
+import { getSupabaseSiteClient } from '@tn-figueiredo/auth-nextjs/server'
+
+export async function scrapeOgTags(postId: string) {
+  const supabase = await getSupabaseSiteClient()
+
+  const { data: post, error } = await supabase
+    .from('social_posts')
+    .select('url, short_link_id, tracked_links(short_url)')
+    .eq('id', postId)
+    .single()
+
+  if (error || !post) return { ok: false as const, error: 'Post not found' }
+
+  const targetUrl = post.tracked_links?.short_url ?? post.url
+  if (!targetUrl) return { ok: false as const, error: 'No URL to scrape' }
+
+  const result = await scrapeOg(targetUrl)
+
+  await supabase
+    .from('social_posts')
+    .update({
+      pipeline_steps: supabase.rpc('jsonb_set_pipeline_step', {
+        post_id: postId,
+        step_name: 'og_scrape',
+        step_data: { status: result.success ? 'done' : 'warn', ...result },
+      }),
+    })
+    .eq('id', postId)
+
+  return { ok: true as const, data: result }
+}
+```
+
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `npm run test:web -- --run apps/web/test/cms/social-og-validation.test.tsx`
@@ -6962,8 +7026,8 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/web/src/app/cms/(authed)/social/[id]/og/page.tsx apps/web/src/app/cms/(authed)/social/[id]/_components/og-validation.tsx apps/web/src/app/cms/(authed)/social/[id]/_components/url-chain.tsx apps/web/src/app/cms/(authed)/social/[id]/_components/scrape-details.tsx apps/web/src/app/cms/(authed)/social/[id]/_components/raw-response.tsx apps/web/test/cms/social-og-validation.test.tsx
-git commit -m "feat(social): add OG validation page with checklist, URL chain, scrape details, and raw JSON viewer"
+git add apps/web/src/app/cms/(authed)/social/[id]/og/page.tsx apps/web/src/app/cms/(authed)/social/[id]/_components/og-validation.tsx apps/web/src/app/cms/(authed)/social/[id]/_components/url-chain.tsx apps/web/src/app/cms/(authed)/social/[id]/_components/scrape-details.tsx apps/web/src/app/cms/(authed)/social/[id]/_components/raw-response.tsx apps/web/src/lib/social/actions.ts apps/web/test/cms/social-og-validation.test.tsx
+git commit -m "feat(social): add OG validation page with scrapeOgTags action, checklist, URL chain, and raw JSON viewer"
 ```
 
 ---
@@ -9569,9 +9633,514 @@ git commit -m "feat(social): enhance publishSocialPost with ogData pass-through 
 
 ---
 
+### Task 22: Kanban Modal Enhancement (Tela 2)
+
+**Files:**
+- Create: `apps/web/src/app/cms/(authed)/_shared/social/kanban-social-modal.tsx`
+- Test: `apps/web/test/cms/kanban-social-modal.test.tsx`
+
+- [ ] **Step 1: Write failing test**
+
+```tsx
+// apps/web/test/cms/kanban-social-modal.test.tsx
+/**
+ * @vitest-environment happy-dom
+ */
+import React from 'react'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, fireEvent } from '@testing-library/react'
+
+vi.mock('next/navigation', () => ({
+  useRouter: vi.fn(() => ({ push: vi.fn(), back: vi.fn() })),
+}))
+
+const mockConnections = [
+  { provider: 'facebook' as const, account_name: 'My Page', status: 'connected' },
+  { provider: 'instagram' as const, account_name: 'my_ig', status: 'connected' },
+  { provider: 'bluesky' as const, account_name: 'user.bsky.social', status: 'disconnected' },
+]
+
+import { KanbanSocialModal } from '../../src/app/cms/(authed)/_shared/social/kanban-social-modal'
+
+const defaultProps = {
+  open: true,
+  onClose: vi.fn(),
+  onScheduleWithSocial: vi.fn(),
+  onScheduleWithoutSocial: vi.fn(),
+  contentTitle: 'AI Empire: O Que Vem Por Ai',
+  contentType: 'blog' as const,
+  contentId: 'blog-123',
+  shortLink: 'go.bythiagofigueiredo.com/ai-emp',
+  caption: 'O futuro da inteligencia artificial...',
+  coverImage: 'https://example.com/cover.jpg',
+  connections: mockConnections,
+  platforms: ['facebook', 'instagram', 'bluesky'] as const,
+}
+
+describe('KanbanSocialModal', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('renders header with content title', () => {
+    render(<KanbanSocialModal {...defaultProps} />)
+    expect(screen.getByText('Agendar Publicação')).toBeDefined()
+    expect(screen.getByText(defaultProps.contentTitle)).toBeDefined()
+  })
+
+  it('shows Social Share Confidence Card with platform status dots', () => {
+    render(<KanbanSocialModal {...defaultProps} />)
+    expect(screen.getByText('Tudo pronto para compartilhar')).toBeDefined()
+    expect(screen.getByText('Facebook')).toBeDefined()
+    expect(screen.getByText('Instagram')).toBeDefined()
+    expect(screen.getByText('Bluesky')).toBeDefined()
+  })
+
+  it('shows green dot for connected platforms and gray for disconnected', () => {
+    render(<KanbanSocialModal {...defaultProps} />)
+    const dots = screen.getAllByTestId('status-dot')
+    expect(dots[0].className).toContain('bg-emerald')
+    expect(dots[1].className).toContain('bg-emerald')
+    expect(dots[2].className).toContain('bg-zinc')
+  })
+
+  it('shows short link and caption preview', () => {
+    render(<KanbanSocialModal {...defaultProps} />)
+    expect(screen.getByText(defaultProps.shortLink)).toBeDefined()
+    expect(screen.getByText(defaultProps.caption, { exact: false })).toBeDefined()
+  })
+
+  it('shows pipeline one-liner', () => {
+    render(<KanbanSocialModal {...defaultProps} />)
+    expect(screen.getByText(/Publish.*Link.*OG.*Post.*~2-3 min/)).toBeDefined()
+  })
+
+  it('renders 3 action buttons', () => {
+    render(<KanbanSocialModal {...defaultProps} />)
+    expect(screen.getByText('Agendar + Social')).toBeDefined()
+    expect(screen.getByText('Agendar sem Social')).toBeDefined()
+    expect(screen.getByText('Personalizar no Social Hub')).toBeDefined()
+  })
+
+  it('calls onScheduleWithSocial when primary button clicked', () => {
+    render(<KanbanSocialModal {...defaultProps} />)
+    fireEvent.click(screen.getByText('Agendar + Social'))
+    expect(defaultProps.onScheduleWithSocial).toHaveBeenCalledOnce()
+  })
+
+  it('calls onScheduleWithoutSocial when secondary button clicked', () => {
+    render(<KanbanSocialModal {...defaultProps} />)
+    fireEvent.click(screen.getByText('Agendar sem Social'))
+    expect(defaultProps.onScheduleWithoutSocial).toHaveBeenCalledOnce()
+  })
+
+  it('navigates to composer with pre-populated params when customize link clicked', () => {
+    const mockPush = vi.fn()
+    vi.mocked(require('next/navigation').useRouter).mockReturnValue({ push: mockPush, back: vi.fn() })
+    render(<KanbanSocialModal {...defaultProps} />)
+    fireEvent.click(screen.getByText('Personalizar no Social Hub'))
+    expect(mockPush).toHaveBeenCalledWith(
+      `/cms/social/new?source=${defaultProps.contentType}&id=${defaultProps.contentId}`
+    )
+  })
+
+  it('shows mini preview grid with 3 platform previews', () => {
+    render(<KanbanSocialModal {...defaultProps} />)
+    expect(screen.getByTestId('preview-facebook')).toBeDefined()
+    expect(screen.getByTestId('preview-instagram')).toBeDefined()
+    expect(screen.getByTestId('preview-bluesky')).toBeDefined()
+  })
+})
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npm run test:web -- --run apps/web/test/cms/kanban-social-modal.test.tsx`
+Expected: FAIL — module not found
+
+- [ ] **Step 3: Write implementation**
+
+```tsx
+// apps/web/src/app/cms/(authed)/_shared/social/kanban-social-modal.tsx
+'use client'
+
+import { useRouter } from 'next/navigation'
+import type { ContentType, Provider } from '@/lib/social/types'
+
+interface Connection {
+  provider: Provider
+  account_name: string
+  status: 'connected' | 'disconnected'
+}
+
+interface KanbanSocialModalProps {
+  open: boolean
+  onClose: () => void
+  onScheduleWithSocial: () => void
+  onScheduleWithoutSocial: () => void
+  contentTitle: string
+  contentType: ContentType
+  contentId: string
+  shortLink: string
+  caption: string
+  coverImage?: string
+  connections: Connection[]
+  platforms: Provider[]
+}
+
+export function KanbanSocialModal({
+  open,
+  onClose,
+  onScheduleWithSocial,
+  onScheduleWithoutSocial,
+  contentTitle,
+  contentType,
+  contentId,
+  shortLink,
+  caption,
+  coverImage,
+  connections,
+  platforms,
+}: KanbanSocialModalProps) {
+  const router = useRouter()
+
+  if (!open) return null
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="w-full max-w-lg rounded-xl border border-cms-border bg-cms-bg shadow-xl">
+        {/* Header */}
+        <div className="border-b border-cms-border px-6 py-4">
+          <h2 className="text-lg font-semibold text-cms-text">Agendar Publicação</h2>
+          <p className="text-sm text-cms-text-muted mt-0.5">{contentTitle}</p>
+        </div>
+
+        {/* Social Share Confidence Card */}
+        <div className="px-6 py-4 space-y-4">
+          <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-3">
+            <p className="text-sm font-medium text-emerald-400">Tudo pronto para compartilhar</p>
+
+            {/* Platform status */}
+            <div className="flex flex-wrap gap-3">
+              {connections.map((conn) => (
+                <div key={conn.provider} className="flex items-center gap-1.5">
+                  <span
+                    data-testid="status-dot"
+                    className={`h-2 w-2 rounded-full ${
+                      conn.status === 'connected' ? 'bg-emerald-400' : 'bg-zinc-500'
+                    }`}
+                  />
+                  <span className="text-xs text-cms-text">{conn.provider === 'facebook' ? 'Facebook' : conn.provider === 'instagram' ? 'Instagram' : 'Bluesky'}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Content preview */}
+            <div className="space-y-1.5">
+              <p className="font-mono text-xs text-cms-text-muted">{shortLink}</p>
+              <p className="text-xs text-cms-text-muted line-clamp-2">{caption}</p>
+            </div>
+
+            {/* Mini preview grid */}
+            <div className="grid grid-cols-3 gap-2">
+              {platforms.map((p) => (
+                <div
+                  key={p}
+                  data-testid={`preview-${p}`}
+                  className="aspect-[4/3] rounded-md border border-cms-border bg-cms-surface overflow-hidden"
+                >
+                  {coverImage && (
+                    <img src={coverImage} alt="" className="h-full w-full object-cover" />
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Pipeline one-liner */}
+            <p className="text-[10px] text-cms-text-muted">
+              Publish → Link → OG → Post em ~2-3 min
+            </p>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex flex-col gap-2 border-t border-cms-border px-6 py-4">
+          <button
+            type="button"
+            onClick={onScheduleWithSocial}
+            className="w-full rounded-md bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            Agendar + Social
+          </button>
+          <button
+            type="button"
+            onClick={onScheduleWithoutSocial}
+            className="w-full rounded-md border border-cms-border px-4 py-2.5 text-sm font-medium text-cms-text hover:bg-cms-surface"
+          >
+            Agendar sem Social
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              onClose()
+              router.push(`/cms/social/new?source=${contentType}&id=${contentId}`)
+            }}
+            className="w-full text-center text-sm text-cms-accent hover:underline"
+          >
+            Personalizar no Social Hub
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `npm run test:web -- --run apps/web/test/cms/kanban-social-modal.test.tsx`
+Expected: PASS
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add apps/web/src/app/cms/'(authed)'/_shared/social/kanban-social-modal.tsx apps/web/test/cms/kanban-social-modal.test.tsx
+git commit -m "feat(social): add Kanban scheduling modal with Social Share Confidence Card and 3-action buttons"
+```
+
+---
+
+### Task 23: Video Pipeline — IG Reel Download & Upload
+
+**Files:**
+- Create: `apps/web/src/lib/social/reel-pipeline.ts`
+- Test: `apps/web/test/lib/social/reel-pipeline.test.ts`
+
+- [ ] **Step 1: Write failing test**
+
+```typescript
+// apps/web/test/lib/social/reel-pipeline.test.ts
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+const mockYoutubeInfo = vi.fn()
+const mockBlobPut = vi.fn()
+const mockBlobDel = vi.fn()
+const mockIgMedia = vi.fn()
+const mockIgPublish = vi.fn()
+const mockIgStatus = vi.fn()
+
+vi.mock('@/lib/social/youtube-utils', () => ({
+  getVideoInfo: (...args: unknown[]) => mockYoutubeInfo(...args),
+  downloadVideo: vi.fn().mockResolvedValue(Buffer.from('fake-mp4')),
+}))
+
+vi.mock('@vercel/blob', () => ({
+  put: (...args: unknown[]) => mockBlobPut(...args),
+  del: (...args: unknown[]) => mockBlobDel(...args),
+}))
+
+import {
+  prepareReelUpload,
+  shouldSkipReel,
+  publishReel,
+  cleanupReelBlob,
+} from '../../src/lib/social/reel-pipeline'
+
+describe('reel-pipeline', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  describe('shouldSkipReel', () => {
+    it('returns false for video <= 90s', () => {
+      expect(shouldSkipReel(90)).toBe(false)
+    })
+
+    it('returns false for video < 3s', () => {
+      expect(shouldSkipReel(2)).toBe(true)
+    })
+
+    it('returns true for video > 90s', () => {
+      expect(shouldSkipReel(91)).toBe(true)
+    })
+
+    it('returns true for video exactly 0s', () => {
+      expect(shouldSkipReel(0)).toBe(true)
+    })
+  })
+
+  describe('prepareReelUpload', () => {
+    beforeEach(() => {
+      mockBlobPut.mockResolvedValue({ url: 'https://blob.vercel-storage.com/reel-123.mp4' })
+    })
+
+    it('uploads video to Vercel Blob with 1h TTL prefix', async () => {
+      const result = await prepareReelUpload('fake-video-bytes' as unknown as Buffer, 'post-123')
+      expect(mockBlobPut).toHaveBeenCalledWith(
+        'social/reels/post-123.mp4',
+        expect.anything(),
+        expect.objectContaining({ access: 'public', addRandomSuffix: true }),
+      )
+      expect(result.blobUrl).toBe('https://blob.vercel-storage.com/reel-123.mp4')
+    })
+  })
+
+  describe('publishReel', () => {
+    it('creates container, polls status, and publishes', async () => {
+      mockIgMedia.mockResolvedValue({ id: 'container-1' })
+      mockIgStatus
+        .mockResolvedValueOnce({ status_code: 'IN_PROGRESS' })
+        .mockResolvedValueOnce({ status_code: 'FINISHED' })
+      mockIgPublish.mockResolvedValue({ id: 'reel-published-1' })
+
+      const result = await publishReel({
+        igUserId: 'ig-user-1',
+        accessToken: 'token',
+        blobUrl: 'https://blob.vercel-storage.com/reel-123.mp4',
+        caption: 'Check this out!',
+        createContainer: mockIgMedia,
+        getContainerStatus: mockIgStatus,
+        publishContainer: mockIgPublish,
+      })
+
+      expect(result.publishedId).toBe('reel-published-1')
+      expect(mockIgMedia).toHaveBeenCalledWith(expect.objectContaining({
+        media_type: 'REELS',
+        video_url: 'https://blob.vercel-storage.com/reel-123.mp4',
+      }))
+      expect(mockIgStatus).toHaveBeenCalledTimes(2)
+    })
+
+    it('throws after max poll attempts', async () => {
+      mockIgMedia.mockResolvedValue({ id: 'container-1' })
+      mockIgStatus.mockResolvedValue({ status_code: 'IN_PROGRESS' })
+
+      await expect(
+        publishReel({
+          igUserId: 'ig-user-1',
+          accessToken: 'token',
+          blobUrl: 'https://blob.vercel-storage.com/reel.mp4',
+          caption: 'test',
+          createContainer: mockIgMedia,
+          getContainerStatus: mockIgStatus,
+          publishContainer: mockIgPublish,
+          maxPollAttempts: 3,
+          pollIntervalMs: 10,
+        }),
+      ).rejects.toThrow(/container processing timed out/i)
+    })
+  })
+
+  describe('cleanupReelBlob', () => {
+    it('deletes blob by URL', async () => {
+      mockBlobDel.mockResolvedValue(undefined)
+      await cleanupReelBlob('https://blob.vercel-storage.com/reel-123.mp4')
+      expect(mockBlobDel).toHaveBeenCalledWith('https://blob.vercel-storage.com/reel-123.mp4')
+    })
+  })
+})
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npm run test:web -- --run apps/web/test/lib/social/reel-pipeline.test.ts`
+Expected: FAIL — module not found
+
+- [ ] **Step 3: Write implementation**
+
+```typescript
+// apps/web/src/lib/social/reel-pipeline.ts
+import { put, del } from '@vercel/blob'
+
+const MIN_REEL_DURATION = 3
+const MAX_REEL_DURATION = 90
+
+export function shouldSkipReel(durationSeconds: number): boolean {
+  return durationSeconds < MIN_REEL_DURATION || durationSeconds > MAX_REEL_DURATION
+}
+
+export async function prepareReelUpload(
+  videoBuffer: Buffer,
+  postId: string,
+): Promise<{ blobUrl: string }> {
+  const blob = await put(`social/reels/${postId}.mp4`, videoBuffer, {
+    access: 'public',
+    addRandomSuffix: true,
+  })
+  return { blobUrl: blob.url }
+}
+
+interface PublishReelOptions {
+  igUserId: string
+  accessToken: string
+  blobUrl: string
+  caption: string
+  createContainer: (params: {
+    media_type: 'REELS'
+    video_url: string
+    caption: string
+  }) => Promise<{ id: string }>
+  getContainerStatus: (containerId: string) => Promise<{ status_code: string }>
+  publishContainer: (params: {
+    creation_id: string
+  }) => Promise<{ id: string }>
+  maxPollAttempts?: number
+  pollIntervalMs?: number
+}
+
+export async function publishReel({
+  igUserId,
+  accessToken,
+  blobUrl,
+  caption,
+  createContainer,
+  getContainerStatus,
+  publishContainer,
+  maxPollAttempts = 30,
+  pollIntervalMs = 5_000,
+}: PublishReelOptions): Promise<{ publishedId: string }> {
+  const container = await createContainer({
+    media_type: 'REELS',
+    video_url: blobUrl,
+    caption,
+  })
+
+  let attempts = 0
+  while (attempts < maxPollAttempts) {
+    const status = await getContainerStatus(container.id)
+    if (status.status_code === 'FINISHED') break
+    if (status.status_code === 'ERROR') {
+      throw new Error(`Reel container processing failed for ${container.id}`)
+    }
+    attempts++
+    if (attempts >= maxPollAttempts) {
+      throw new Error(`Reel container processing timed out after ${maxPollAttempts} attempts`)
+    }
+    await new Promise((r) => setTimeout(r, pollIntervalMs))
+  }
+
+  const result = await publishContainer({ creation_id: container.id })
+  return { publishedId: result.id }
+}
+
+export async function cleanupReelBlob(blobUrl: string): Promise<void> {
+  await del(blobUrl)
+}
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `npm run test:web -- --run apps/web/test/lib/social/reel-pipeline.test.ts`
+Expected: PASS
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add apps/web/src/lib/social/reel-pipeline.ts apps/web/test/lib/social/reel-pipeline.test.ts
+git commit -m "feat(social): add IG Reel pipeline — duration validation, Vercel Blob upload, container polling, and cleanup"
+```
+
+---
+
 ## Execution Handoff
 
-Plan complete with 21 tasks across 6 phases. Two execution options:
+Plan complete with 23 tasks across 6 phases. Two execution options:
 
 **1. Subagent-Driven (recommended)** — Dispatch a fresh subagent per task, review between tasks, fast iteration
 
