@@ -94,7 +94,7 @@ export function ContentPicker({
     if (item.type === 'blog_post') input.blogPostId = item.id
     else if (item.type === 'newsletter') input.newsletterEditionId = item.id
     else if (item.type === 'pipeline') input.pipelineId = item.id
-    else if (item.type === 'video') input.videoId = item.id
+    else if (item.type === 'video') input.pipelineId = item.id
 
     startAdding(async () => {
       try {
