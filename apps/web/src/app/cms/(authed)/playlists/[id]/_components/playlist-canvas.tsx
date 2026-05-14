@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   useCanvas,
@@ -12,6 +12,9 @@ import {
   computeAutoLayout,
   edgePath,
   getConnectionPoints,
+  computeViewNumbers,
+  matchesFilter,
+  DIMMED_OFFSET_Y,
   type GraphState,
 } from '@/lib/playlists/canvas'
 import type {
@@ -21,6 +24,7 @@ import type {
   EdgeType,
   ActionResult,
   FilterState,
+  ContentType,
 } from '@/lib/playlists/types'
 import { PlaylistNode } from './playlist-node'
 import { PlaylistEdge, EdgeArrowDefs } from './playlist-edge'
@@ -30,7 +34,10 @@ import { PlaylistMinimap } from './playlist-minimap'
 import { PlaylistSettings } from './playlist-settings'
 import { PlaylistEmptyState } from './playlist-skeleton'
 import { EdgeTypeSelector } from './edge-type-selector'
-import { ContextMenu } from './context-menu'
+import { PlaylistContextMenu } from './context-menu'
+import { FilterBar } from './filter-bar'
+import { PrintView } from './print-view'
+import { ExportMenu } from './export-menu'
 import { ContentPicker } from './content-picker'
 import type { PickerItem } from '../../actions'
 
@@ -92,6 +99,26 @@ export function PlaylistCanvas({
   const [showExportMenu, setShowExportMenu] = useState(false)
   const exportBtnRef = useRef<HTMLButtonElement>(null)
   const handlePrint = useCallback(() => window.print(), [])
+
+  const viewNumbers = useMemo(
+    () => computeViewNumbers(state.items, filter),
+    [state.items, filter],
+  )
+
+  const typeCounts = useMemo(() => {
+    const counts: Record<ContentType, number> = { video: 0, blog_post: 0, newsletter: 0, pipeline: 0 }
+    for (const item of state.items) {
+      if (item.content_type && !item.is_ghost) counts[item.content_type]++
+    }
+    return counts
+  }, [state.items])
+
+  const filterLabel = useMemo(() => {
+    const parts: string[] = []
+    if (filter.types.size > 0) parts.push([...filter.types].map(t => t === 'blog_post' ? 'Blog' : t === 'newsletter' ? 'News' : t === 'pipeline' ? 'Pipe' : 'Video').join(', '))
+    if (filter.languages.size > 0) parts.push([...filter.languages].map(l => l === 'pt-br' ? 'PT-BR' : 'EN').join(', '))
+    return parts.join(' — ')
+  }, [filter])
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isSavingRef = useRef(false)
@@ -319,6 +346,14 @@ export function PlaylistCanvas({
     [pushSnapshot, state, onRemoveItem, siteId],
   )
 
+  const handleOpenContent = useCallback((itemId: string) => {
+    const item = state.items.find(i => i.id === itemId)
+    if (!item) return
+    if (item.blog_post_id) router.push(`/cms/blog/${item.blog_post_id}`)
+    else if (item.pipeline_id) router.push(`/cms/pipeline/${item.pipeline_id}`)
+    else if (item.newsletter_edition_id) router.push(`/cms/newsletters`)
+  }, [state.items, router])
+
   const handleDeleteSelectedEdges = useCallback(async () => {
     if (state.selectedEdgeIds.size === 0) return
     pushSnapshot(state)
@@ -536,6 +571,57 @@ export function PlaylistCanvas({
         e.preventDefault()
         handleZoomOut()
       }
+
+      // Print shortcut
+      if ((e.metaKey || e.ctrlKey) && e.key === 'p') {
+        e.preventDefault()
+        handlePrint()
+      }
+
+      // Cmd+Enter = open editor
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && state.selectedItemIds.size === 1) {
+        e.preventDefault()
+        const selectedId = [...state.selectedItemIds][0]!
+        handleOpenContent(selectedId)
+      }
+
+      // Single-node shortcuts (only when one node selected and no input focused)
+      const target = e.target as HTMLElement
+      const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
+      if (!isInput && state.selectedItemIds.size === 1) {
+        const selectedId = [...state.selectedItemIds][0]!
+        if (e.key === 'e' || e.key === 'E') {
+          const nodeEl = document.querySelector(`[data-node-id="${selectedId}"]`)
+          if (nodeEl) {
+            const handles = nodeEl.querySelectorAll('[data-handle-id]')
+            const rightHandle = handles[3]
+            if (rightHandle) {
+              const rect = rightHandle.getBoundingClientRect()
+              rightHandle.dispatchEvent(new PointerEvent('pointerdown', {
+                clientX: rect.left + rect.width / 2,
+                clientY: rect.top + rect.height / 2,
+                bubbles: true,
+              }))
+            }
+          }
+        } else if (e.key === 'm' || e.key === 'M') {
+          const input = window.prompt('Move to position #:', '')
+          if (!input) return
+          const pos = parseInt(input, 10)
+          if (isNaN(pos) || pos < 1) return
+          const sorted = [...state.items].sort((a, b) => a.sort_order - b.sort_order)
+          const targetIdx = Math.min(pos - 1, sorted.length - 1)
+          const newOrder = sorted.map(i => i.id)
+          const currentIdx = newOrder.indexOf(selectedId)
+          if (currentIdx === -1) return
+          newOrder.splice(currentIdx, 1)
+          newOrder.splice(targetIdx, 0, selectedId)
+          dispatch({ type: 'REORDER_ITEMS', itemIds: newOrder })
+        } else if (e.key === 'n' || e.key === 'N') {
+          const item = state.items.find(i => i.id === selectedId)
+          if (item) navigator.clipboard.writeText(`${item.title} (${item.other_playlist_count} other playlists)`)
+        }
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown)
@@ -548,6 +634,8 @@ export function PlaylistCanvas({
     handleZoomToFit,
     handleZoomIn,
     handleZoomOut,
+    handleOpenContent,
+    handlePrint,
     state.selectedItemIds,
     state.selectedEdgeIds,
     state.items,
@@ -602,7 +690,8 @@ export function PlaylistCanvas({
   const itemMap = new Map(state.items.map(i => [i.id, i]))
 
   return (
-    <div className="flex h-full flex-col bg-[#0a0a12]">
+    <>
+    <div className="flex h-full flex-col bg-[#0a0a12] print:hidden">
       {/* Toolbar */}
       <PlaylistToolbar
         playlistName={graph.playlist.name_en || graph.playlist.name_pt}
@@ -623,12 +712,19 @@ export function PlaylistCanvas({
         onToggleSettings={() => setShowSettings(prev => !prev)}
       />
 
+      <FilterBar
+        filter={filter}
+        counts={typeCounts}
+        totalCount={state.items.filter(i => !i.is_ghost).length}
+        onChange={setFilter}
+      />
+
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
         <PlaylistSidebar
           items={state.items}
           selectedItemIds={state.selectedItemIds}
-          viewNumbers={new Map()}
+          viewNumbers={viewNumbers}
           filter={filter}
           onSelectItem={handleSidebarSelectItem}
           onRemoveItem={handleRemoveItem}
@@ -681,6 +777,15 @@ export function PlaylistCanvas({
                 const source = itemMap.get(edge.source_item_id)
                 const target = itemMap.get(edge.target_item_id)
                 if (!source || !target) return null
+
+                const sourceHidden = filter.mode === 'hide' && !matchesFilter(source, filter)
+                const targetHidden = filter.mode === 'hide' && !matchesFilter(target, filter)
+                if (sourceHidden || targetHidden) return null
+
+                const sourceDimmed = filter.mode === 'dim' && !matchesFilter(source, filter)
+                const targetDimmed = filter.mode === 'dim' && !matchesFilter(target, filter)
+                const edgeOpacity = (sourceDimmed || targetDimmed) ? 0.04 : 1
+
                 return (
                   <PlaylistEdge
                     key={edge.id}
@@ -688,6 +793,7 @@ export function PlaylistCanvas({
                     sourceItem={source}
                     targetItem={target}
                     isSelected={state.selectedEdgeIds.has(edge.id)}
+                    opacity={edgeOpacity}
                     onSelect={handleEdgeSelect}
                   />
                 )
@@ -710,25 +816,32 @@ export function PlaylistCanvas({
             </svg>
 
             {/* DOM node layer */}
-            {state.items.map(item => (
-              <PlaylistNode
-                key={item.id}
-                item={item}
-                isSelected={state.selectedItemIds.has(item.id)}
-                isDropTarget={
-                  edgeDrag.dragEdge.active &&
-                  edgeDrag.dragEdge.sourceItemId !== item.id
-                }
-                isDimmed={false}
-                isIdea={!item.is_ghost && item.status === 'idea'}
-                viewNumber={null}
-                onPointerDown={dragNode.handlePointerDown}
-                onHandlePointerDown={edgeDrag.handleHandlePointerDown}
-                onContextMenu={handleContextMenu}
-                onClick={handleNodeClick}
-                onOpenContent={() => {}}
-              />
-            ))}
+            {state.items.map(item => {
+              const isDimmed = filter.mode === 'dim' && !matchesFilter(item, filter)
+              const isHidden = filter.mode === 'hide' && !matchesFilter(item, filter)
+              if (isHidden) return null
+              const offsetY = isDimmed ? DIMMED_OFFSET_Y : 0
+              const adjustedItem = offsetY > 0 ? { ...item, position_y: item.position_y + offsetY } : item
+              return (
+                <PlaylistNode
+                  key={item.id}
+                  item={adjustedItem}
+                  isSelected={state.selectedItemIds.has(item.id)}
+                  isDropTarget={
+                    edgeDrag.dragEdge.active &&
+                    edgeDrag.dragEdge.sourceItemId !== item.id
+                  }
+                  isDimmed={isDimmed}
+                  isIdea={!item.is_ghost && item.status === 'idea'}
+                  viewNumber={viewNumbers.get(item.id) ?? null}
+                  onPointerDown={dragNode.handlePointerDown}
+                  onHandlePointerDown={edgeDrag.handleHandlePointerDown}
+                  onContextMenu={handleContextMenu}
+                  onClick={handleNodeClick}
+                  onOpenContent={handleOpenContent}
+                />
+              )
+            })}
           </div>
 
           {/* Empty state */}
@@ -767,23 +880,82 @@ export function PlaylistCanvas({
       )}
 
       {/* Context menu */}
-      {contextMenu && (
-        <ContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          items={[
-            {
-              label: 'Select',
-              onClick: () =>
-                handleNodeClick({ shiftKey: false }, contextMenu.itemId),
-            },
-            {
-              label: 'Remove from playlist',
-              onClick: () => handleRemoveItem(contextMenu.itemId),
-              variant: 'danger',
-            },
-          ]}
-          onClose={() => setContextMenu(null)}
+      {contextMenu && (() => {
+        const item = state.items.find(i => i.id === contextMenu.itemId)
+        if (!item) return null
+        return (
+          <PlaylistContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            itemId={item.id}
+            itemTitle={item.title}
+            contentType={item.content_type}
+            viewNumber={viewNumbers.get(item.id) ?? null}
+            createdAt={item.created_at}
+            onClose={() => setContextMenu(null)}
+            onOpenEditor={() => handleOpenContent(item.id)}
+            onCopyId={() => navigator.clipboard.writeText(item.id)}
+            onAddEdge={() => {
+              setContextMenu(null)
+              const nodeEl = document.querySelector(`[data-node-id="${item.id}"]`)
+              if (nodeEl) {
+                const rect = nodeEl.getBoundingClientRect()
+                const syntheticEvent = new PointerEvent('pointerdown', {
+                  clientX: rect.right, clientY: rect.top + rect.height / 2,
+                })
+                nodeEl.querySelector('[data-handle-id]')?.dispatchEvent(syntheticEvent)
+              }
+            }}
+            onSelectConnected={() => {
+              setContextMenu(null)
+              const connected = new Set<string>()
+              const queue = [item.id]
+              while (queue.length > 0) {
+                const current = queue.pop()!
+                if (connected.has(current)) continue
+                connected.add(current)
+                for (const edge of state.edges) {
+                  if (edge.source_item_id === current && !connected.has(edge.target_item_id)) queue.push(edge.target_item_id)
+                  if (edge.target_item_id === current && !connected.has(edge.source_item_id)) queue.push(edge.source_item_id)
+                }
+              }
+              dispatch({ type: 'SET_SELECTION', itemIds: Array.from(connected), edgeIds: [] })
+            }}
+            onMoveToPosition={() => {
+              setContextMenu(null)
+              const input = window.prompt('Move to position #:', '')
+              if (!input) return
+              const pos = parseInt(input, 10)
+              if (isNaN(pos) || pos < 1) return
+              const sorted = [...state.items].sort((a, b) => a.sort_order - b.sort_order)
+              const targetIdx = Math.min(pos - 1, sorted.length - 1)
+              const newOrder = sorted.map(i => i.id)
+              const currentIdx = newOrder.indexOf(item.id)
+              if (currentIdx === -1) return
+              newOrder.splice(currentIdx, 1)
+              newOrder.splice(targetIdx, 0, item.id)
+              dispatch({ type: 'REORDER_ITEMS', itemIds: newOrder })
+            }}
+            onShowOtherPlaylists={() => {
+              setContextMenu(null)
+              navigator.clipboard.writeText(`${item.title} (${item.other_playlist_count} other playlists)`)
+            }}
+            onRemove={() => handleRemoveItem(item.id)}
+          />
+        )
+      })()}
+
+      {/* Export menu */}
+      {showExportMenu && (
+        <ExportMenu
+          anchorRef={exportBtnRef}
+          playlistName={graph.playlist.name_en || graph.playlist.name_pt}
+          filterLabel={filterLabel}
+          items={state.items}
+          viewNumbers={viewNumbers}
+          onPrint={handlePrint}
+          onExportPng={handleExport}
+          onClose={() => setShowExportMenu(false)}
         />
       )}
 
@@ -797,6 +969,16 @@ export function PlaylistCanvas({
         onAddItem={onAddItem}
         onItemAdded={() => router.refresh()}
       />
+
     </div>
+
+    {/* Print view (hidden on screen, visible only when printing) */}
+    <PrintView
+      playlistName={graph.playlist.name_en || graph.playlist.name_pt}
+      filterLabel={filterLabel}
+      items={state.items}
+      viewNumbers={viewNumbers}
+    />
+    </>
   )
 }
