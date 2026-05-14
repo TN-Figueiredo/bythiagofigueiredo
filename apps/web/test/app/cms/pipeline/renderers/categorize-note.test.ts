@@ -14,6 +14,10 @@ describe('categorizeNote', () => {
     expect(categorizeNote('Search Artist: Mood: Mysterious | Genre: Ambient | BPM: 60-80')).toMatchObject({ category: 'MUSIC' })
   })
 
+  it('detects MUSIC from "Search Artlist:" canonical format', () => {
+    expect(categorizeNote('Search Artlist: Mood: Mysterious | Genre: Ambient | BPM: 60-80')).toMatchObject({ category: 'MUSIC' })
+  })
+
   it('detects MUSIC from "track" keyword', () => {
     expect(categorizeNote('Track change here. Fade out ambient')).toMatchObject({ category: 'MUSIC' })
   })

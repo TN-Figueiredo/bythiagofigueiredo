@@ -11,7 +11,7 @@ const TS_RE = /\d{2}:\d{2}(?:[-–]\d{2}:\d{2})?/
 
 const RULES: { category: NoteCategory; test: (t: string) => boolean }[] = [
   { category: 'OVERLAY', test: t => /text overlay|lower third/i.test(t) },
-  { category: 'MUSIC',   test: t => /search artist|mood:|genre:|bpm[:\s]|track change|new track/i.test(t) },
+  { category: 'MUSIC',   test: t => /search art(?:list|ist)|mood:|genre:|bpm[:\s]|track change|new track/i.test(t) },
   { category: 'STYLE',   test: t => /^style:|needs? to feel|think\s+["']/i.test(t) },
   { category: 'ENTRY',   test: t => /^entry:/i.test(t) },
   { category: 'VISUAL',  test: t => /montage|ken burns|b-roll|photo/i.test(t) },

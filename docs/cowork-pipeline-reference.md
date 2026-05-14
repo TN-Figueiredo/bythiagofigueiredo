@@ -305,7 +305,7 @@ para controle individual de `captured`.
         "Style: needs to feel intimate, think \"Casey Neistat confessional\"",
         "00:15 entry: fade in música ambiente",
         "00:30-00:45 montage of photos — Ken Burns slow zoom",
-        "Search artist: Lo-fi ambient, mood: introspective, BPM: 70-80"
+        "Search Artlist: Mood: Introspective | Genre: Lo-fi | BPM: 70-80 | Duration: 2+ min"
       ],
       "music": {
         "search_terms": "lo-fi ambient introspective",
@@ -337,7 +337,7 @@ O renderer categoriza `edit_notes` automaticamente:
 | Categoria | Trigger (case-insensitive) |
 |-----------|---------------------------|
 | OVERLAY | `text overlay`, `lower third` |
-| MUSIC | `search artist`, `mood:`, `genre:`, `bpm:`, `track change`, `new track` |
+| MUSIC | `search artlist`, `search artist`, `mood:`, `genre:`, `bpm:`, `track change`, `new track` |
 | STYLE | começa com `style:`, `needs to feel`, `think "` |
 | ENTRY | começa com `entry:` |
 | VISUAL | `montage`, `ken burns`, `b-roll`, `photo` |
@@ -347,6 +347,27 @@ O renderer categoriza `edit_notes` automaticamente:
 
 Notas com timestamps `00:00` ou `00:00-00:00` são agrupadas numa timeline visual.
 Prefixo `optional` marca nota como opcional.
+
+### Artlist search format (auto-linked by CMS)
+
+edit_notes entries matching this format are auto-linked to Artlist music search:
+
+```
+Search Artlist: Mood: {moods} | Genre: {genres} | BPM: {bpm_range} | Duration: {duration}
+```
+
+Fields (all optional, pipe-separated, case-insensitive):
+- **Mood:** comma-separated terms — Mysterious, Dark, Peaceful, Energetic, Melancholic, etc.
+- **Genre:** comma-separated terms — Ambient, Electronic, Cinematic, Lo-fi, Acoustic, etc.
+- **Instrument:** comma-separated — Piano, Strings, Synth, Orchestral, etc.
+- **BPM:** single value (90) or range (90-100)
+- **Duration:** minimum duration — 2+ min, 3:30+ min, 90+ sec
+- **Track:** suggestion for the editor, NOT used as search filter
+- **Style:** description, NOT used as filter
+
+SFX references using `Artlist "Track Name"` in edit_notes or sfx.description are also auto-linked to Artlist SFX search.
+
+**Canonical format:** Always use `Search Artlist:` (not `Search Artist:`). The renderer supports both for backward compatibility.
 
 ---
 

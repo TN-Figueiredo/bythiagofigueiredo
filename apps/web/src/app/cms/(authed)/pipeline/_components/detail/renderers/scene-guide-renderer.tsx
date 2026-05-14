@@ -5,6 +5,7 @@ import type { RendererProps } from '../section-content'
 import { TagPill, OptionalBadge, getTagColor } from './tokens'
 import { tokenizeText } from './parse-tokens'
 import { categorizeNote, type CategorizedNote } from './categorize-note'
+import { parseArtlistSearch, parseArtlistSfxRef } from '@/lib/pipeline/artlist-search'
 
 interface SceneMusic {
   search_terms?: string
@@ -90,6 +91,56 @@ function groupByTimestamp(notes: CategorizedNote[]): { timestamp: string; notes:
   return Array.from(map.entries()).map(([timestamp, grouped]) => ({ timestamp, notes: grouped }))
 }
 
+function ArtlistLinks({ text }: { text: string }) {
+  const result = parseArtlistSearch(text)
+  if (!result) return null
+  return (
+    <div className="flex items-center gap-1.5 pl-[58px] -mt-0.5 pb-0.5">
+      <a
+        href={result.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Buscar música no Artlist (abre em nova aba)"
+        className="text-[9px] font-medium transition-colors hover:underline"
+        style={{ color: '#c084fc' }}
+      >
+        Buscar no Artlist ↗
+      </a>
+      {result.fallbackUrl && (
+        <>
+          <span className="text-[9px]" style={{ color: 'var(--gem-dim)' }}>·</span>
+          <a
+            href={result.fallbackUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Buscar no Artlist com menos filtros"
+            className="text-[9px] transition-colors hover:underline"
+            style={{ color: 'var(--gem-dim)' }}
+          >
+            Menos filtros ↗
+          </a>
+        </>
+      )}
+    </div>
+  )
+}
+
+function ArtlistSfxInline({ text }: { text: string }) {
+  const ref = parseArtlistSfxRef(text)
+  if (!ref) return null
+  return (
+    <a
+      href={ref.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-[9px] font-medium ml-1 transition-colors hover:underline"
+      style={{ color: '#fbbf24' }}
+    >
+      ↗ Artlist
+    </a>
+  )
+}
+
 function NoteLine({ note, stripLeadingTs }: { note: CategorizedNote; stripLeadingTs?: boolean }) {
   const textColor = getTagColor(note.category).text
   let displayText = note.text
@@ -97,13 +148,17 @@ function NoteLine({ note, stripLeadingTs }: { note: CategorizedNote; stripLeadin
     displayText = note.text.slice(note.timestamp.length).replace(/^[\s:–-]+/, '')
   }
   return (
-    <div className="flex items-start gap-2 py-1 px-1 rounded transition-colors hover:bg-white/[0.03]">
-      <TagPill tag={note.category} />
-      <span className="text-[11px] leading-relaxed" style={{ color: textColor }}>
-        {note.isOptional && <OptionalBadge />}
-        {tokenizeText(displayText)}
-      </span>
-    </div>
+    <>
+      <div className="flex items-start gap-2 py-1 px-1 rounded transition-colors hover:bg-white/[0.03]">
+        <TagPill tag={note.category} />
+        <span className="text-[11px] leading-relaxed" style={{ color: textColor }}>
+          {note.isOptional && <OptionalBadge />}
+          {tokenizeText(displayText)}
+          <ArtlistSfxInline text={note.text} />
+        </span>
+      </div>
+      {note.category === 'MUSIC' && <ArtlistLinks text={note.text} />}
+    </>
   )
 }
 
@@ -253,7 +308,13 @@ function SceneCard({ scene, expandAll }: { scene: Scene; expandAll: boolean }) {
                     <span className="font-mono text-[10px] flex-shrink-0" style={{ color: 'var(--gem-accent)' }}>{fx.timestamp}</span>
                     <span style={{ color: 'var(--gem-muted)' }}>
                       {tokenizeText(fx.description)}
-                      {fx.search_terms && <span style={{ color: 'var(--gem-dim)' }}> — {fx.search_terms}</span>}
+                      <ArtlistSfxInline text={fx.description} />
+                      {fx.search_terms && (
+                        <span style={{ color: 'var(--gem-dim)' }}>
+                          {' — '}{fx.search_terms}
+                          <ArtlistSfxInline text={fx.search_terms} />
+                        </span>
+                      )}
                     </span>
                   </div>
                 ))}
