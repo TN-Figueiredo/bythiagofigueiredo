@@ -14,6 +14,7 @@ import {
   type SocialDelivery,
   type SocialPost,
 } from '@tn-figueiredo/social'
+import type { OGTags } from '@tn-figueiredo/social/providers/bluesky'
 import { getSocialConfig } from './config'
 
 const SENTRY_TAG = { component: 'social-workflows' }
@@ -110,6 +111,7 @@ export async function executeWithRetry(
   connection: SocialConnection,
   post: SocialPost,
   publishFn: ISocialProvider,
+  options?: { ogData?: OGTags },
 ): Promise<{ status: DeliveryStatus; platformPostId?: string; platformUrl?: string; error?: string; errorType?: ErrorType }> {
   const supabase = getSupabaseServiceClient()
   const maxAttempts = Math.min(delivery.max_attempts, RETRY_DELAYS.length + 1)
@@ -122,7 +124,7 @@ export async function executeWithRetry(
         .update({ attempt: attempt + 1, status: attempt > 0 ? 'retrying' : 'publishing' })
         .eq('id', delivery.id)
 
-      const result = await publishFn.publish(post, connection, delivery)
+      const result = await publishFn.publish(post, connection, delivery, options)
 
       return {
         status: 'published',
@@ -181,10 +183,66 @@ export async function executeWithRetry(
 }
 
 // ---------------------------------------------------------------------------
+// Story delivery preparation
+// ---------------------------------------------------------------------------
+
+async function prepareStoryDelivery(
+  post: SocialPost,
+  delivery: SocialDelivery & { format?: string; template_config?: Record<string, unknown> | null },
+): Promise<SocialPost> {
+  if (delivery.format !== 'story') return post
+
+  try {
+    const { generateStoryImage } = await import('./story-generator')
+    const { put } = await import('@vercel/blob')
+
+    const template = (delivery.template_config?.template as string) ?? 'card'
+    const storyData = {
+      title: post.content.title ?? '',
+      description: post.content.description,
+      domain: 'bythiagofigueiredo.com',
+      shortUrl: post.content.url ?? '',
+      coverImageUrl: post.content.media_urls?.[0],
+    }
+
+    const buffer = await generateStoryImage(template as 'minimal' | 'card' | 'bold', storyData)
+
+    const blob = await put(
+      `stories/${post.id}-${Date.now()}.png`,
+      buffer,
+      {
+        access: 'public',
+        addRandomSuffix: false,
+      },
+    )
+
+    return {
+      ...post,
+      content: {
+        ...post.content,
+        media_urls: [blob.url],
+      },
+    }
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { ...SENTRY_TAG, action: 'prepareStoryDelivery', postId: post.id },
+    })
+    return post
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Main publish orchestration
 // ---------------------------------------------------------------------------
 
-export async function publishSocialPost(post: SocialPost): Promise<void> {
+export interface PublishOptions {
+  ogData?: OGTags
+}
+
+export async function publishSocialPost(
+  post: SocialPost,
+  options?: PublishOptions,
+): Promise<void> {
   const supabase = getSupabaseServiceClient()
 
   try {
@@ -215,7 +273,7 @@ export async function publishSocialPost(post: SocialPost): Promise<void> {
 
     // Step 3 & 4: Process each delivery in parallel
     const results = await Promise.allSettled(
-      (deliveries as unknown as SocialDelivery[]).map(async (delivery) => {
+      (deliveries as unknown as (SocialDelivery & { format?: string; template_config?: Record<string, unknown> | null })[]).map(async (delivery) => {
         // Get connection
         const { data: connectionData, error: connError } = await supabase
           .from('social_connections')
@@ -245,8 +303,26 @@ export async function publishSocialPost(post: SocialPost): Promise<void> {
         }
 
         try {
+          // Prepare story image for Instagram Story deliveries
+          let processedPost = post
+          if (delivery.format === 'story' && delivery.provider === 'instagram') {
+            processedPost = await prepareStoryDelivery(post, delivery)
+          }
+
           const provider = await getProvider(delivery.provider)
-          const result = await executeWithRetry(delivery, connection, post, provider)
+
+          // Pass ogData to Bluesky provider
+          const providerOptions = delivery.provider === 'bluesky' && options?.ogData
+            ? { ogData: options.ogData }
+            : undefined
+
+          const result = await executeWithRetry(
+            delivery,
+            connection,
+            processedPost,
+            provider,
+            providerOptions,
+          )
           return { deliveryId: delivery.id, ...result }
         } catch (err) {
           return {
