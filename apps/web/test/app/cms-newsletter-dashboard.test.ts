@@ -25,6 +25,15 @@ vi.mock('../../lib/cms/site-context', () => ({
   getSiteContext: () => Promise.resolve({ siteId: 's1', orgId: 'o1', defaultLocale: 'pt-BR' }),
 }))
 
+vi.mock('../../src/app/cms/(authed)/newsletters/_hub/hub-queries', () => ({
+  fetchSharedData: vi.fn().mockResolvedValue({ types: [], siteTimezone: 'America/Sao_Paulo' }),
+  fetchOverviewData: vi.fn().mockResolvedValue({}),
+  fetchEditorialData: vi.fn().mockResolvedValue({ editions: [] }),
+  fetchScheduleData: vi.fn().mockResolvedValue({ items: [] }),
+  fetchAutomationsData: vi.fn().mockResolvedValue({ rules: [] }),
+  fetchAudienceData: vi.fn().mockResolvedValue({ subscribers: [] }),
+}))
+
 describe('newsletter dashboard page', () => {
   it('exports default function', async () => {
     const mod = await import('../../src/app/cms/(authed)/newsletters/page')
