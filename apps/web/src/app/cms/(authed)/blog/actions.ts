@@ -36,7 +36,7 @@ export async function bulkPublish(
     .in('id', postIds)
     .eq('site_id', siteId)
     .in('status', ['draft', 'ready', 'pending_review'])
-    .select('id, blog_translations(locale, slug)')
+    .select('id, social_config, blog_translations(locale, slug)')
 
   if (error) return { ok: false, error: error.message }
 
@@ -51,6 +51,23 @@ export async function bulkPublish(
   revalidatePath('/cms/blog')
   for (const post of published) {
     syncPipelineOnPostStatusChange(post.id, 'published', 'draft').catch(() => {})
+  }
+  // Social auto-share: fire-and-forget for each published post with social_config
+  for (const post of published) {
+    const p = post as { id: string; social_config?: { enabled: boolean } }
+    if (p.social_config?.enabled) {
+      import('@/lib/social/create-from-content').then(({ createSocialPostFromContent }) =>
+        createSocialPostFromContent({
+          supabase: getSupabaseServiceClient(),
+          siteId,
+          contentType: 'blog',
+          contentId: p.id,
+          config: p.social_config as unknown as import('@/lib/social/types').SocialConfig,
+          origin: 'auto',
+          userId: 'system',
+        }).catch(() => {}),
+      )
+    }
   }
   return { ok: true, count: published.length }
 }

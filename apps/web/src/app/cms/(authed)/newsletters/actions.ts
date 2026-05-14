@@ -1,5 +1,6 @@
 'use server'
 
+import * as Sentry from '@sentry/nextjs'
 import { z } from 'zod'
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { cookies } from 'next/headers'
@@ -341,7 +342,7 @@ export async function sendNow(editionId: string): Promise<ActionResult> {
 
   const { data: edition } = await supabase
     .from('newsletter_editions')
-    .select('status, newsletter_type_id, site_id')
+    .select('status, newsletter_type_id, site_id, social_config')
     .eq('id', editionId)
     .single()
   if (!edition) return { ok: false, error: 'not_found' }
@@ -371,6 +372,26 @@ export async function sendNow(editionId: string): Promise<ActionResult> {
     .eq('id', editionId)
   if (error) return { ok: false, error: error.message }
   revalidateNewsletterHub()
+  // Social auto-share: fire-and-forget
+  const editionWithSocial = edition as typeof edition & { social_config?: { enabled: boolean } }
+  if (editionWithSocial.social_config?.enabled) {
+    import('@/lib/social/create-from-content').then(({ createSocialPostFromContent }) =>
+      createSocialPostFromContent({
+        supabase: getSupabaseServiceClient(),
+        siteId: edition.site_id,
+        contentType: 'newsletter',
+        contentId: editionId,
+        config: editionWithSocial.social_config as unknown as import('@/lib/social/types').SocialConfig,
+        origin: 'auto',
+        userId: 'system',
+      }).catch((err) =>
+        Sentry.captureException(err, {
+          tags: { context: 'social-auto-share', contentType: 'newsletter' },
+          extra: { editionId },
+        }),
+      ),
+    )
+  }
   return { ok: true }
 }
 

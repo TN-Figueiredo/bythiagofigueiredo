@@ -1,5 +1,6 @@
 'use server'
 
+import * as Sentry from '@sentry/nextjs'
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { compileMdx, isSafeUrl, type CompiledMdx } from '@tn-figueiredo/cms'
 import { postRepo } from '@/lib/cms/repositories'
@@ -263,6 +264,26 @@ export async function publishPost(id: string): Promise<void> {
   const post = await postRepo().publish(id)
   for (const tx of post.translations) {
     revalidateBlogPostSeo(siteId, id, tx.locale, tx.slug)
+  }
+  // Social auto-share: fire-and-forget
+  const postWithSocial = post as typeof post & { social_config?: { enabled: boolean } }
+  if (postWithSocial.social_config?.enabled) {
+    import('@/lib/social/create-from-content').then(({ createSocialPostFromContent }) =>
+      createSocialPostFromContent({
+        supabase: getSupabaseServiceClient(),
+        siteId,
+        contentType: 'blog',
+        contentId: id,
+        config: postWithSocial.social_config as unknown as import('@/lib/social/types').SocialConfig,
+        origin: 'auto',
+        userId: 'system',
+      }).catch((err) =>
+        Sentry.captureException(err, {
+          tags: { context: 'social-auto-share', contentType: 'blog' },
+          extra: { postId: id },
+        }),
+      ),
+    )
   }
 }
 

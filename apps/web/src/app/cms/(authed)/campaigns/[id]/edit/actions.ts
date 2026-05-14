@@ -1,5 +1,6 @@
 'use server'
 
+import * as Sentry from '@sentry/nextjs'
 import { revalidatePath } from 'next/cache'
 import { isSafeUrl } from '@tn-figueiredo/cms'
 import { campaignRepo } from '@/lib/cms/repositories'
@@ -123,6 +124,26 @@ export async function publishCampaign(id: string): Promise<void> {
     revalidatePath('/cms/campaigns')
     for (const tx of campaign.translations) {
       revalidateCampaignSeo(siteId, id, tx.locale, tx.slug)
+    }
+    // Social auto-share: fire-and-forget
+    const campaignWithSocial = campaign as typeof campaign & { social_config?: { enabled: boolean } }
+    if (campaignWithSocial.social_config?.enabled) {
+      import('@/lib/social/create-from-content').then(({ createSocialPostFromContent }) =>
+        createSocialPostFromContent({
+          supabase: getSupabaseServiceClient(),
+          siteId,
+          contentType: 'campaign',
+          contentId: id,
+          config: campaignWithSocial.social_config as unknown as import('@/lib/social/types').SocialConfig,
+          origin: 'auto',
+          userId: 'system',
+        }).catch((err) =>
+          Sentry.captureException(err, {
+            tags: { context: 'social-auto-share', contentType: 'campaign' },
+            extra: { campaignId: id },
+          }),
+        ),
+      )
     }
   } catch (err) {
     captureServerActionError(err, {
