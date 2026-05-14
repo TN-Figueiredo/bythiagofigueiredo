@@ -193,6 +193,22 @@ export interface SocialStrings {
       tokenNever: string
       quotaLabel: string
       empty: string
+      tokenExpiring: string
+      lastPublished: string
+      connectedOn: string
+      subscribers: string
+      videos: string
+      views: string
+      pageLikes: string
+      followers: string
+      posts: string
+      media: string
+      engRate: string
+      refreshToken: string
+      neverExpires: string
+      addAnother: string
+      linkedAccounts: string
+      metaSharedToken: string
     }
     automations: {
       blogPublished: string
@@ -203,6 +219,23 @@ export interface SocialStrings {
       postFailed: string
       abTestComplete: string
       playlistUpdated: string
+      blogPublishedDesc: string
+      videoPublishedDesc: string
+      newsletterSentDesc: string
+      playlistUpdatedDesc: string
+      tokenExpiringDesc: string
+      postFailedDesc: string
+      evergreenTimerDesc: string
+      abTestCompleteDesc: string
+      categoryContent: string
+      categorySystem: string
+      categoryOptimization: string
+      targetPlatformsLabel: string
+      schedulingLabel: string
+      aiEnhanceLabel: string
+      templateLabel: string
+      templateVars: string
+      deleteRule: string
       modeLabel: string
       modeDraft: string
       modeAutoPublish: string

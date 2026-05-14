@@ -77,22 +77,43 @@ async function exchangeGoogleCode(code: string, redirectUri: string) {
 interface YouTubeChannelInfo {
   channelId: string
   channelTitle: string
+  customUrl: string | null
+  thumbnailUrl: string | null
+  subscriberCount: string | null
+  videoCount: string | null
+  viewCount: string | null
 }
 
 async function fetchYouTubeChannel(accessToken: string): Promise<YouTubeChannelInfo> {
-  const url = 'https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true'
+  const url = 'https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&mine=true'
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
   if (!res.ok) throw new Error(`YouTube channel fetch failed: ${res.status}`)
 
   const data = (await res.json()) as {
-    items?: Array<{ id: string; snippet: { title: string } }>
+    items?: Array<{
+      id: string
+      snippet: {
+        title: string
+        customUrl?: string
+        thumbnails?: { default?: { url: string } }
+      }
+      statistics?: { subscriberCount?: string; videoCount?: string; viewCount?: string }
+    }>
   }
   const channel = data.items?.[0]
   if (!channel) throw new Error('No YouTube channel found for this account')
 
-  return { channelId: channel.id, channelTitle: channel.snippet.title }
+  return {
+    channelId: channel.id,
+    channelTitle: channel.snippet.title,
+    customUrl: channel.snippet.customUrl ?? null,
+    thumbnailUrl: channel.snippet.thumbnails?.default?.url ?? null,
+    subscriberCount: channel.statistics?.subscriberCount ?? null,
+    videoCount: channel.statistics?.videoCount ?? null,
+    viewCount: channel.statistics?.viewCount ?? null,
+  }
 }
 
 async function exchangeMetaCode(code: string, redirectUri: string) {
@@ -125,6 +146,9 @@ interface MetaPage {
   id: string
   name: string
   access_token: string
+  picture?: { data: { url: string } }
+  fan_count?: number
+  followers_count?: number
 }
 
 interface MetaIgAccount {
@@ -134,7 +158,7 @@ interface MetaIgAccount {
 
 async function fetchMetaPages(userAccessToken: string): Promise<MetaPage[]> {
   const res = await fetch(
-    `https://graph.facebook.com/v25.0/me/accounts?access_token=${userAccessToken}`,
+    `https://graph.facebook.com/v25.0/me/accounts?fields=id,name,access_token,picture{url},fan_count,followers_count&access_token=${userAccessToken}`,
   )
   if (!res.ok) throw new Error(`Meta pages fetch failed: ${res.status}`)
   const data = (await res.json()) as { data: MetaPage[] }
@@ -153,6 +177,26 @@ async function fetchInstagramAccount(
     instagram_business_account?: { id: string; username: string }
   }
   return data.instagram_business_account ?? null
+}
+
+async function fetchInstagramProfile(
+  igUserId: string,
+  userAccessToken: string,
+): Promise<{ profilePictureUrl: string | null; followersCount: number | null; mediaCount: number | null }> {
+  const res = await fetch(
+    `https://graph.facebook.com/v25.0/${igUserId}?fields=profile_picture_url,followers_count,media_count&access_token=${userAccessToken}`,
+  )
+  if (!res.ok) return { profilePictureUrl: null, followersCount: null, mediaCount: null }
+  const data = (await res.json()) as {
+    profile_picture_url?: string
+    followers_count?: number
+    media_count?: number
+  }
+  return {
+    profilePictureUrl: data.profile_picture_url ?? null,
+    followersCount: data.followers_count ?? null,
+    mediaCount: data.media_count ?? null,
+  }
 }
 
 function getCallbackUrl(provider: string): string {
@@ -209,7 +253,7 @@ export async function GET(
             site_id: siteId,
             provider: 'youtube' as const,
             account_id: channel.channelId,
-            account_name: channel.channelTitle,
+            account_name: channel.customUrl ?? channel.channelTitle,
             access_token_enc: accessTokenEnc,
             refresh_token_enc: refreshTokenEnc,
             token_expires_at: expiresAt,
@@ -217,6 +261,11 @@ export async function GET(
             metadata: {
               channel_id: channel.channelId,
               channel_title: channel.channelTitle,
+              custom_url: channel.customUrl,
+              thumbnail_url: channel.thumbnailUrl,
+              subscriber_count: channel.subscriberCount,
+              video_count: channel.videoCount,
+              view_count: channel.viewCount,
             },
             revoked_at: null,
             updated_at: new Date().toISOString(),
@@ -265,6 +314,9 @@ export async function GET(
             metadata: {
               page_id: page.id,
               page_name: page.name,
+              picture_url: page.picture?.data?.url ?? null,
+              fan_count: page.fan_count ?? null,
+              follower_count: page.followers_count ?? null,
             },
             revoked_at: null,
             updated_at: new Date().toISOString(),
@@ -278,6 +330,8 @@ export async function GET(
         const igAccount = await fetchInstagramAccount(page.id, tokens.access_token)
 
         if (igAccount) {
+          const igProfile = await fetchInstagramProfile(igAccount.id, tokens.access_token)
+
           const { error: igError } = await supabase.from('social_connections').upsert(
             {
               site_id: siteId,
@@ -294,6 +348,9 @@ export async function GET(
                 ig_username: igAccount.username,
                 page_id: page.id,
                 page_name: page.name,
+                profile_picture_url: igProfile.profilePictureUrl,
+                followers_count: igProfile.followersCount,
+                media_count: igProfile.mediaCount,
               },
               revoked_at: null,
               updated_at: new Date().toISOString(),
