@@ -4,6 +4,10 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 
+function escapeIlike(str: string): string {
+  return str.replace(/[%_\\]/g, '\\$&')
+}
+
 export interface ContentItem {
   id: string
   type: 'blog' | 'newsletter' | 'campaign' | 'video'
@@ -44,7 +48,7 @@ export async function searchContent(params: {
       .limit(limit)
 
     if (params.query) {
-      q = q.ilike('blog_translations.title', `%${params.query}%`)
+      q = q.ilike('blog_translations.title', '%' + escapeIlike(params.query) + '%')
     }
 
     const { data: blogs } = await q
@@ -76,7 +80,7 @@ export async function searchContent(params: {
       .limit(limit)
 
     if (params.query) {
-      q = q.ilike('subject', `%${params.query}%`)
+      q = q.ilike('subject', '%' + escapeIlike(params.query) + '%')
     }
 
     const { data: editions } = await q
@@ -104,7 +108,7 @@ export async function searchContent(params: {
       .limit(limit)
 
     if (params.query) {
-      q = q.ilike('campaign_translations.meta_title', `%${params.query}%`)
+      q = q.ilike('campaign_translations.meta_title', '%' + escapeIlike(params.query) + '%')
     }
 
     const { data: campaigns } = await q

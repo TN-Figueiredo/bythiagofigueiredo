@@ -733,6 +733,9 @@ export async function createFromContentAction(params: {
 export async function scrapeOgTags(
   postId: string,
 ): Promise<{ ok: true; data: Record<string, unknown> } | { ok: false; error: string }> {
+  const idParsed = z.string().uuid().safeParse(postId)
+  if (!idParsed.success) return { ok: false, error: 'Invalid post ID' }
+
   try {
     const { siteId } = await requireEditAccess()
     const supabase = getSupabaseServiceClient()
@@ -740,7 +743,7 @@ export async function scrapeOgTags(
     const { data: post, error } = await supabase
       .from('social_posts')
       .select('id, content, short_link_id')
-      .eq('id', postId)
+      .eq('id', idParsed.data)
       .eq('site_id', siteId)
       .single()
 
@@ -771,9 +774,9 @@ export async function scrapeOgTags(
     const { updatePipelineStep } = await import('@/lib/social/pipeline')
     const scrapeData = result as unknown as Record<string, unknown>
     if (result.status === 'ok') {
-      await updatePipelineStep(supabase, postId, 'og_scrape', 'completed', scrapeData)
+      await updatePipelineStep(supabase, idParsed.data, 'og_scrape', 'completed', scrapeData)
     } else {
-      await updatePipelineStep(supabase, postId, 'og_scrape', 'warning', scrapeData)
+      await updatePipelineStep(supabase, idParsed.data, 'og_scrape', 'warning', scrapeData)
     }
 
     return { ok: true, data: scrapeData }
