@@ -22,7 +22,7 @@ export function PlaylistMinimap({
 
   const MINIMAP_W = 130
   const MINIMAP_H = 80
-  const NODE_W = 160
+  const NODE_W = 250
   const NODE_H = 80
   const PADDING = 20
 
@@ -52,6 +52,7 @@ export function PlaylistMinimap({
     blog_post: '#818cf8',
     newsletter: '#34d399',
     pipeline: '#a78bfa',
+    video: '#ef4444',
   }
 
   return (

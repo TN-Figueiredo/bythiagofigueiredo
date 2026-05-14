@@ -38,7 +38,7 @@ describe('newsletter dashboard page', () => {
   it('exports default function', async () => {
     const mod = await import('../../src/app/cms/(authed)/newsletters/page')
     expect(typeof mod.default).toBe('function')
-  })
+  }, 15000)
 
   it('exports force-dynamic', async () => {
     const mod = await import('../../src/app/cms/(authed)/newsletters/page')

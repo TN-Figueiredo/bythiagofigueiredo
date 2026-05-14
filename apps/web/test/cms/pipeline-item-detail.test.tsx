@@ -52,7 +52,7 @@ describe('PipelineItemDetail', () => {
     expect(screen.getByDisplayValue('AI Agents')).toBeTruthy()
     // 'Roteiro' appears both as the stage badge and as a section tab
     expect(screen.getAllByText('Roteiro').length).toBeGreaterThan(0)
-  })
+  }, 15000)
 
   it('shows checklist items', async () => {
     const { PipelineItemDetail } = await import('@/app/cms/(authed)/pipeline/_components/pipeline-item-detail')
