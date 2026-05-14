@@ -4,7 +4,7 @@
 
 **Goal:** Redesign the CMS playlist editor with new video content type, V7 node design, filter system, print/export, and improved auto-layout.
 
-**Architecture:** Foundation-first approach — types and pure functions first, then visual components bottom-up (node → edge → sidebar → filter bar → toolbar → canvas orchestrator). Each task produces a working commit. Filter state lives in canvas orchestrator and flows down via props. Print view is a separate hidden div toggled by `@media print` CSS.
+**Architecture:** Foundation-first approach — types and pure functions first, then visual components bottom-up (node → edge → sidebar → filter bar → toolbar → canvas orchestrator → supporting components). 17 tasks, each producing a **compilable** commit. Component interface changes include their canvas.tsx call-site update in the same task to maintain TypeScript compilation at every commit. Filter state lives in canvas orchestrator and flows down via props. Print view is a separate hidden div toggled by `@media print` CSS.
 
 **Tech Stack:** Next.js 15, React 19, Tailwind 4, TypeScript 5, Vitest, Supabase PostgreSQL
 
@@ -21,13 +21,15 @@
 | `apps/web/src/lib/playlists/types.ts` | Add `'video'` to `CONTENT_TYPES`, add `language` to `PlaylistItemEnriched`, add `FilterState` interface, add `FILTER_LANGUAGES` const |
 | `apps/web/src/lib/playlists/queries.ts` | Update `resolveContentType()` to detect video via pipeline format, add `language` to enrichment, join `newsletter_types.locale`, add `language` to pipeline select |
 | `apps/web/src/lib/playlists/canvas/utils.ts` | Change `NODE_WIDTH` from 160 to 250, update `fitAllNodes` default `nodeWidth` from 180 to 250 |
-| `apps/web/src/lib/playlists/canvas/auto-layout.ts` | Update `LAYER_GAP_X=370`, `NODE_GAP_Y=103`, `ORPHAN_GAP_Y=140`, add `NODE_W=250` |
-| `apps/web/src/app/cms/(authed)/playlists/[id]/_components/playlist-node.tsx` | Full rewrite — left stripe, max-width 250px, 2-line clamp, language badge, 5 visual states, open button, progress bar |
+| `apps/web/src/lib/playlists/canvas/auto-layout.ts` | Update `LAYER_GAP_X=370`, `NODE_GAP_Y=103`, `ORPHAN_GAP_Y=140`, add `NODE_W=250`, add `DIMMED_OFFSET_Y=120` (exported) |
+| `apps/web/src/app/cms/(authed)/playlists/[id]/_components/playlist-node.tsx` | Full rewrite — left stripe, max-width 250px, 2-line clamp, language badge, 5 visual states, open button |
 | `apps/web/src/app/cms/(authed)/playlists/[id]/_components/playlist-edge.tsx` | Add circle marker for `related`, update stroke color from gray to purple, add opacity props for filter dimming |
-| `apps/web/src/app/cms/(authed)/playlists/[id]/_components/context-menu.tsx` | Full rewrite — header with type badge, 8 menu items with icons/shortcuts, footer with UUID/date |
+| `apps/web/src/app/cms/(authed)/playlists/[id]/_components/context-menu.tsx` | Full rewrite — header with type badge, 7 menu items with icons/shortcuts, footer with UUID/date |
 | `apps/web/src/app/cms/(authed)/playlists/[id]/_components/playlist-sidebar.tsx` | Add search input, grouped items, order numbers, language badges, dim/hide support |
 | `apps/web/src/app/cms/(authed)/playlists/[id]/_components/playlist-toolbar.tsx` | Replace single export button with export dropdown, add print button |
-| `apps/web/src/app/cms/(authed)/playlists/[id]/_components/playlist-canvas.tsx` | Add `FilterState` to state, wire filter bar, pass view numbers to nodes/sidebar, integrate print div, update edge opacity |
+| `apps/web/src/app/cms/(authed)/playlists/[id]/_components/playlist-canvas.tsx` | Add `FilterState` to state, wire filter bar, pass view numbers to nodes/sidebar, integrate print div, update edge opacity, keyboard shortcuts for E/M/N |
+| `apps/web/src/app/cms/(authed)/playlists/[id]/_components/playlist-minimap.tsx` | Add video type color (#ef4444), update NODE_W from 160 to 250 |
+| `apps/web/src/app/cms/(authed)/playlists/[id]/_components/content-picker.tsx` | Add video tab, TYPE_DOT, TYPE_LABEL entries |
 
 ### New Files
 
@@ -45,6 +47,7 @@
 | `apps/web/test/lib/playlists/view-numbers.test.ts` | `computeViewNumbers()` and `matchesFilter()` |
 | `apps/web/test/lib/playlists/auto-layout.test.ts` | Updated constants validation |
 | `apps/web/test/lib/playlists/types.test.ts` | CONTENT_TYPES includes video, FilterState type check |
+| `apps/web/test/lib/playlists/queries.test.ts` | normalizeLang, resolveContentType with video format |
 | `apps/web/test/cms/playlist-node.test.tsx` | V7 node rendering, all 5 visual states |
 | `apps/web/test/cms/playlist-filter-bar.test.tsx` | Chip toggling, counts, mode switching |
 | `apps/web/test/cms/playlist-context-menu.test.tsx` | Menu items, keyboard shortcuts, actions |
@@ -382,8 +385,58 @@ git commit -m "feat(playlists): add computeViewNumbers and matchesFilter"
 
 **Files:**
 - Modify: `apps/web/src/lib/playlists/queries.ts`
+- Create: `apps/web/test/lib/playlists/queries.test.ts`
 
-- [ ] **Step 1: Update ref interfaces**
+- [ ] **Step 1: Write the failing tests for normalizeLang and resolveContentType**
+
+Create `apps/web/test/lib/playlists/queries.test.ts`:
+
+```typescript
+import { describe, it, expect } from 'vitest'
+
+// normalizeLang is private, so we test it indirectly via a re-exported test helper.
+// We also create a standalone test for the pure logic.
+import { normalizeLang } from '@/lib/playlists/queries'
+
+describe('normalizeLang', () => {
+  it('normalizes pt-BR to pt-br', () => {
+    expect(normalizeLang('pt-BR')).toBe('pt-br')
+  })
+
+  it('normalizes pt to pt-br', () => {
+    expect(normalizeLang('pt')).toBe('pt-br')
+  })
+
+  it('normalizes en-US to en', () => {
+    expect(normalizeLang('en-US')).toBe('en')
+  })
+
+  it('normalizes EN to en', () => {
+    expect(normalizeLang('EN')).toBe('en')
+  })
+
+  it('returns null for null input', () => {
+    expect(normalizeLang(null)).toBeNull()
+  })
+
+  it('returns null for undefined', () => {
+    expect(normalizeLang(undefined)).toBeNull()
+  })
+
+  it('returns null for unknown locale', () => {
+    expect(normalizeLang('fr')).toBeNull()
+  })
+})
+```
+
+Note: `normalizeLang` must be exported from `queries.ts` for testing. Mark it as `export` in the implementation step.
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `cd apps/web && npx vitest run test/lib/playlists/queries.test.ts`
+Expected: FAIL — `normalizeLang` not exported or not found
+
+- [ ] **Step 3: Update ref interfaces**
 
 In `queries.ts`, update `PipelineRef` to include `language`:
 ```typescript
@@ -409,7 +462,7 @@ interface NewsletterRef {
 }
 ```
 
-- [ ] **Step 2: Update resolveContentType to accept pipeline format**
+- [ ] **Step 4: Update resolveContentType to accept pipeline format**
 
 Replace the function (currently lines 103-108):
 ```typescript
@@ -428,7 +481,7 @@ function resolveContentType(
 }
 ```
 
-- [ ] **Step 3: Update enrichment queries to fetch language data**
+- [ ] **Step 5: Update enrichment queries to fetch language data**
 
 In `enrichItems()`, update the newsletter select (line 169) to join `newsletter_types`:
 ```typescript
@@ -450,7 +503,7 @@ pipelineIds.length > 0
   : { data: [] },
 ```
 
-- [ ] **Step 4: Update enrichment mapping to populate language**
+- [ ] **Step 6: Update enrichment mapping to populate language**
 
 In the `items.map()` block (line 201), update `resolveContentType` call to pass `pipelineMap`:
 ```typescript
@@ -502,11 +555,11 @@ return {
 }
 ```
 
-- [ ] **Step 5: Add normalizeLang helper**
+- [ ] **Step 7: Add normalizeLang helper (exported for testing)**
 
-Add at the top of the file (after imports):
+Add at the top of the file (after imports). Export it so the test can import it directly:
 ```typescript
-function normalizeLang(locale: string | null | undefined): 'pt-br' | 'en' | null {
+export function normalizeLang(locale: string | null | undefined): 'pt-br' | 'en' | null {
   if (!locale) return null
   const lower = locale.toLowerCase()
   if (lower === 'pt-br' || lower === 'pt') return 'pt-br'
@@ -515,15 +568,20 @@ function normalizeLang(locale: string | null | undefined): 'pt-br' | 'en' | null
 }
 ```
 
-- [ ] **Step 6: Run full test suite**
+- [ ] **Step 8: Run query tests**
+
+Run: `cd apps/web && npx vitest run test/lib/playlists/queries.test.ts`
+Expected: PASS — all 7 normalizeLang tests green
+
+- [ ] **Step 9: Run full test suite**
 
 Run: `cd apps/web && npx vitest run`
 Expected: All tests pass. Existing test fixtures in other files may need `language: null` if not done in Task 1 Step 5.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
-git add apps/web/src/lib/playlists/queries.ts
+git add apps/web/src/lib/playlists/queries.ts apps/web/test/lib/playlists/queries.test.ts
 git commit -m "feat(playlists): resolve video content type and enrich language"
 ```
 
@@ -581,7 +639,9 @@ describe('computeAutoLayout constants', () => {
     expect(layer1[1]!.y - layer1[0]!.y).toBe(103)
   })
 
-  it('positions disconnected items with 140px gap', () => {
+  it('positions all-disconnected items with NODE_GAP_Y (103px)', () => {
+    // When ALL items are disconnected (no edges), auto-layout uses NODE_GAP_Y, not ORPHAN_GAP_Y.
+    // ORPHAN_GAP_Y only applies to the orphan section BELOW connected layers.
     const items = [makeItem('a', 1), makeItem('b', 2)]
     const positions = computeAutoLayout(items, [])
     expect(positions[1]!.y - positions[0]!.y).toBe(103)
@@ -603,28 +663,36 @@ const LAYER_GAP_X = 370
 const NODE_GAP_Y = 103
 const ORPHAN_COLS = 4
 const ORPHAN_GAP_Y = 140
+export const DIMMED_OFFSET_Y = 120
 ```
 
-- [ ] **Step 4: Update utils.ts NODE_WIDTH**
+- [ ] **Step 4: Export DIMMED_OFFSET_Y from canvas barrel**
+
+In `apps/web/src/lib/playlists/canvas/index.ts`, update the auto-layout export:
+```typescript
+export { computeAutoLayout, DIMMED_OFFSET_Y } from './auto-layout'
+```
+
+- [ ] **Step 5: Update utils.ts NODE_WIDTH**
 
 In `apps/web/src/lib/playlists/canvas/utils.ts`, change:
 - Line 53: `const NODE_WIDTH = 250` (was 160)
 - Line 107: `nodeWidth = 250` (was 180 — default param in `fitAllNodes`)
 
-- [ ] **Step 5: Run test to verify it passes**
+- [ ] **Step 6: Run test to verify it passes**
 
 Run: `cd apps/web && npx vitest run test/lib/playlists/auto-layout.test.ts`
 Expected: PASS
 
-- [ ] **Step 6: Run full test suite**
+- [ ] **Step 7: Run full test suite**
 
 Run: `cd apps/web && npx vitest run`
 Expected: All existing tests pass (node position-based tests may need adjustments)
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add apps/web/src/lib/playlists/canvas/auto-layout.ts apps/web/src/lib/playlists/canvas/utils.ts apps/web/test/lib/playlists/auto-layout.test.ts
+git add apps/web/src/lib/playlists/canvas/auto-layout.ts apps/web/src/lib/playlists/canvas/index.ts apps/web/src/lib/playlists/canvas/utils.ts apps/web/test/lib/playlists/auto-layout.test.ts
 git commit -m "feat(playlists): update layout constants for 250px nodes"
 ```
 
@@ -828,10 +896,6 @@ export function PlaylistNode({
       ? 'ring-2 ring-offset-1 ring-offset-transparent shadow-lg'
       : ''
 
-  const pipelineStep = item.content_type === 'pipeline' && item.metadata
-    ? parseStep(item.metadata)
-    : null
-
   return (
     <div
       data-node-id={item.id}
@@ -938,26 +1002,20 @@ export function PlaylistNode({
           )}
         </div>
 
-        {/* Progress bar (pipeline only) */}
-        {pipelineStep && (
+        {/* Pipeline version badge — spec calls for step N/M progress bar, but
+            pipeline metadata is "v3" (version number), not "step 3/7". Rendering
+            a progress bar would require joining pipeline_workflows to get position/total,
+            which is deferred. For now, show the version badge. */}
+        {(item.content_type === 'pipeline' || item.content_type === 'video') && item.metadata && (
           <div className="px-2 pb-1.5">
-            <div className="flex items-center gap-1.5">
-              <div className="h-1 flex-1 overflow-hidden rounded-full bg-white/10">
-                <div className="h-full rounded-full" style={{ width: `${(pipelineStep.current / pipelineStep.total) * 100}%`, backgroundColor: typeConfig?.borderColor ?? '#a855f7' }} />
-              </div>
-              <span className="text-[0.55rem] text-white/30">step {pipelineStep.current}/{pipelineStep.total}</span>
-            </div>
+            <span className="rounded bg-purple-500/10 px-1.5 py-0.5 text-[0.55rem] font-semibold text-purple-400">
+              {item.metadata}
+            </span>
           </div>
         )}
       </div>
     </div>
   )
-}
-
-function parseStep(metadata: string): { current: number; total: number } | null {
-  const match = metadata.match(/step\s*(\d+)\/(\d+)/i)
-  if (!match) return null
-  return { current: parseInt(match[1]!, 10), total: parseInt(match[2]!, 10) }
 }
 ```
 
@@ -966,15 +1024,42 @@ function parseStep(metadata: string): { current: number; total: number } | null 
 Run: `cd apps/web && npx vitest run test/cms/playlist-node.test.tsx`
 Expected: PASS — all 15 tests green
 
-- [ ] **Step 5: Run full test suite**
+- [ ] **Step 5: Update PlaylistNode call site in playlist-canvas.tsx to keep TypeScript compiling**
+
+In `apps/web/src/app/cms/(authed)/playlists/[id]/_components/playlist-canvas.tsx`, update the `PlaylistNode` rendering (around line 698-712) to pass the new required props with stub values. This keeps the build compiling while the full integration happens in Task 13.
+
+Find the `PlaylistNode` render block and update it:
+```tsx
+{state.items.map(item => (
+  <PlaylistNode
+    key={item.id}
+    item={item}
+    isSelected={state.selectedItemIds.has(item.id)}
+    isDropTarget={
+      edgeDrag.dragEdge.active &&
+      edgeDrag.dragEdge.sourceItemId !== item.id
+    }
+    isDimmed={false}
+    isIdea={!item.is_ghost && item.status === 'idea'}
+    viewNumber={null}
+    onPointerDown={dragNode.handlePointerDown}
+    onHandlePointerDown={edgeDrag.handleHandlePointerDown}
+    onContextMenu={handleContextMenu}
+    onClick={handleNodeClick}
+    onOpenContent={() => {}}
+  />
+))}
+```
+
+- [ ] **Step 6: Run full test suite**
 
 Run: `cd apps/web && npx vitest run`
-Expected: All tests pass. Other components that render `PlaylistNode` (playlist-canvas.tsx) will need updated props in a later task.
+Expected: All tests pass — TypeScript compiles because canvas passes all required props.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add apps/web/src/app/cms/(authed)/playlists/[id]/_components/playlist-node.tsx apps/web/test/cms/playlist-node.test.tsx
+git add apps/web/src/app/cms/(authed)/playlists/[id]/_components/playlist-node.tsx apps/web/src/app/cms/(authed)/playlists/[id]/_components/playlist-canvas.tsx apps/web/test/cms/playlist-node.test.tsx
 git commit -m "feat(playlists): V7 node with stripe, language badge, 5 states"
 ```
 
@@ -990,9 +1075,9 @@ git commit -m "feat(playlists): V7 node with stripe, language badge, 5 states"
 Change `related` stroke from gray to purple and add new style property for circle marker:
 ```typescript
 const EDGE_STYLES: Record<EdgeType, { stroke: string; glow: string; dash?: string; marker: 'arrow' | 'circle' | false; defaultLabel?: string }> = {
-  sequence:     { stroke: '#818cf8', glow: 'rgba(129,140,248,0.25)', marker: 'arrow' },
+  sequence:     { stroke: '#818cf8', glow: 'rgba(129,140,248,0.25)', marker: 'arrow', defaultLabel: 'seq' },
   related:      { stroke: '#a855f7', glow: 'rgba(168,85,247,0.2)', dash: '5,3', marker: 'circle', defaultLabel: 'see also' },
-  prerequisite: { stroke: '#fbbf24', glow: 'rgba(251,191,36,0.25)', dash: '8,3', marker: 'arrow', defaultLabel: 'read first' },
+  prerequisite: { stroke: '#fbbf24', glow: 'rgba(251,191,36,0.25)', marker: 'arrow', defaultLabel: 'read first' },
   continuation: { stroke: '#34d399', glow: 'rgba(52,211,153,0.25)', marker: 'arrow' },
 }
 ```
@@ -1038,7 +1123,9 @@ Add the circle marker inside the `<defs>`:
 </marker>
 ```
 
-- [ ] **Step 5: Run full test suite**
+- [ ] **Step 5: Update PlaylistEdge call site in playlist-canvas.tsx**
+
+The new `opacity` prop is optional (defaults to 1), so no change needed in canvas.tsx for this task. The existing `<PlaylistEdge>` calls will still compile. Verify:
 
 Run: `cd apps/web && npx vitest run`
 Expected: All tests pass
@@ -1339,12 +1426,48 @@ function TrashIcon() {
 Run: `cd apps/web && npx vitest run test/cms/playlist-context-menu.test.tsx`
 Expected: PASS
 
-- [ ] **Step 5: Run full test suite**
+- [ ] **Step 5: Keep old ContextMenu export as compatibility shim**
+
+Canvas.tsx imports `ContextMenu` from `./context-menu`. To keep compilation working until Task 13 wires the new API, add a compatibility re-export at the bottom of context-menu.tsx:
+
+```tsx
+// Compatibility shim — removed in Task 13 when canvas switches to PlaylistContextMenu
+interface ContextMenuLegacyProps {
+  x: number
+  y: number
+  items: Array<{ label: string; onClick: () => void; variant?: string }>
+  onClose: () => void
+}
+
+export function ContextMenu({ x, y, items, onClose }: ContextMenuLegacyProps) {
+  return (
+    <div
+      className="fixed z-50 w-[160px] rounded-lg border border-white/10 bg-[#14141f]/90 p-1 shadow-xl backdrop-blur-xl"
+      style={{ left: x, top: y }}
+    >
+      {items.map((item) => (
+        <button
+          key={item.label}
+          type="button"
+          onClick={() => { item.onClick(); onClose() }}
+          className={`flex w-full rounded px-3 py-1.5 text-left text-xs transition-colors ${
+            item.variant === 'danger' ? 'text-red-400 hover:bg-red-500/10' : 'text-white/70 hover:bg-white/5'
+          }`}
+        >
+          {item.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+```
+
+- [ ] **Step 6: Run full test suite**
 
 Run: `cd apps/web && npx vitest run`
-Expected: Pass (canvas.tsx will need updates later to use the new context menu API)
+Expected: All tests pass — canvas.tsx still imports `ContextMenu` which now comes from the shim.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add apps/web/src/app/cms/(authed)/playlists/[id]/_components/context-menu.tsx apps/web/test/cms/playlist-context-menu.test.tsx
@@ -1636,16 +1759,30 @@ const TYPE_DOT_COLORS: Record<ContentType, string> = {
 }
 ```
 
-- [ ] **Step 3: Add search input**
+- [ ] **Step 3: Add debounced search input**
 
-Below the header, add a search input:
+Below the header, add a search input with 200ms debounce per spec:
+```tsx
+const [localSearch, setLocalSearch] = useState(filter.search)
+const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
+
+const handleSearchChange = (value: string) => {
+  setLocalSearch(value)
+  if (debounceRef.current) clearTimeout(debounceRef.current)
+  debounceRef.current = setTimeout(() => onSearchChange(value), 200)
+}
+```
+
+Add the `useState` and `useRef` imports at the top.
+
+Render the search input:
 ```tsx
 <div className="px-3 py-1.5 border-b border-white/5">
   <input
     type="text"
     placeholder="Search items…"
-    value={filter.search}
-    onChange={e => onSearchChange(e.target.value)}
+    value={localSearch}
+    onChange={e => handleSearchChange(e.target.value)}
     className="w-full rounded-md bg-white/5 px-2 py-1 text-xs text-white/70 placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
   />
 </div>
@@ -1723,15 +1860,48 @@ When `hasActiveFilter` is true, render grouped headings:
 
 Extract the item rendering into a `renderItem` helper function to avoid duplication.
 
-- [ ] **Step 7: Run full test suite**
+- [ ] **Step 7: Update PlaylistSidebar call site in playlist-canvas.tsx**
+
+In `apps/web/src/app/cms/(authed)/playlists/[id]/_components/playlist-canvas.tsx`, add filter state and update the sidebar rendering (around line 616-622):
+
+Add filter state after the other `useState` calls (around line 78):
+```typescript
+const [filter, setFilter] = useState<FilterState>({
+  types: new Set(),
+  languages: new Set(),
+  mode: 'all',
+  search: '',
+})
+```
+
+Add the import at the top:
+```typescript
+import type { FilterState } from '@/lib/playlists/types'
+```
+
+Update the sidebar call:
+```tsx
+<PlaylistSidebar
+  items={state.items}
+  selectedItemIds={state.selectedItemIds}
+  viewNumbers={new Map()}
+  filter={filter}
+  onSelectItem={handleSidebarSelectItem}
+  onRemoveItem={handleRemoveItem}
+  onAddContent={() => setShowPicker(true)}
+  onSearchChange={(search) => setFilter(prev => ({ ...prev, search }))}
+/>
+```
+
+- [ ] **Step 8: Run full test suite**
 
 Run: `cd apps/web && npx vitest run`
 Expected: All tests pass
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add apps/web/src/app/cms/(authed)/playlists/[id]/_components/playlist-sidebar.tsx
+git add apps/web/src/app/cms/(authed)/playlists/[id]/_components/playlist-sidebar.tsx apps/web/src/app/cms/(authed)/playlists/[id]/_components/playlist-canvas.tsx
 git commit -m "feat(playlists): sidebar search, grouping, order numbers, language badges"
 ```
 
@@ -1772,7 +1942,7 @@ describe('generateCsv', () => {
     const viewNumbers = new Map([['a', 1], ['b', 2]]) as Map<string, number | null>
     const csv = generateCsv(items, viewNumbers)
     const lines = csv.split('\n')
-    expect(lines[0]).toBe('#,type,language,status,title,category,uuid')
+    expect(lines[0]).toBe('#,type,language,status,title,category,metadata,uuid')
     expect(lines[1]).toContain('1,video,pt-br,published,First Video')
     expect(lines[2]).toContain('2,blog_post,en,draft,Second Blog')
   })
@@ -1896,7 +2066,7 @@ export function generateCsv(
   items: PlaylistItemEnriched[],
   viewNumbers: Map<string, number | null>,
 ): string {
-  const header = '#,type,language,status,title,category,uuid'
+  const header = '#,type,language,status,title,category,metadata,uuid'
   const rows = items
     .filter(item => viewNumbers.get(item.id) !== null)
     .sort((a, b) => (viewNumbers.get(a.id) ?? 0) - (viewNumbers.get(b.id) ?? 0))
@@ -1906,7 +2076,7 @@ export function generateCsv(
         if (!s) return ''
         return s.includes(',') || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s
       }
-      return [n, item.content_type ?? '', item.language ?? '', item.status ?? '', escape(item.title), escape(item.category), item.id].join(',')
+      return [n, item.content_type ?? '', item.language ?? '', item.status ?? '', escape(item.title), escape(item.category), escape(item.metadata), item.id].join(',')
     })
   return [header, ...rows].join('\n')
 }
@@ -2102,15 +2272,49 @@ function PrintIcon() {
 }
 ```
 
-- [ ] **Step 4: Run full test suite**
+- [ ] **Step 4: Update PlaylistToolbar call site in playlist-canvas.tsx**
+
+In `apps/web/src/app/cms/(authed)/playlists/[id]/_components/playlist-canvas.tsx`, update the toolbar rendering (around line 597-612).
+
+Add refs and handlers near the other state:
+```typescript
+const [showExportMenu, setShowExportMenu] = useState(false)
+const exportBtnRef = useRef<HTMLButtonElement>(null)
+
+const handlePrint = useCallback(() => window.print(), [])
+```
+
+Update the toolbar call:
+```tsx
+<PlaylistToolbar
+  playlistName={graph.playlist.name_en || graph.playlist.name_pt}
+  status={graph.playlist.status}
+  saveState={saveState}
+  canUndo={canUndo()}
+  canRedo={canRedo()}
+  zoomPercent={Math.round(camera.zoom * 100)}
+  onUndo={handleUndo}
+  onRedo={handleRedo}
+  onAutoLayout={handleAutoLayout}
+  onZoomIn={handleZoomIn}
+  onZoomOut={handleZoomOut}
+  onZoomToFit={handleZoomToFit}
+  onToggleExportMenu={() => setShowExportMenu(prev => !prev)}
+  onPrint={handlePrint}
+  exportButtonRef={exportBtnRef}
+  onToggleSettings={() => setShowSettings(prev => !prev)}
+/>
+```
+
+- [ ] **Step 5: Run full test suite**
 
 Run: `cd apps/web && npx vitest run`
 Expected: All tests pass
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add apps/web/src/app/cms/(authed)/playlists/[id]/_components/playlist-toolbar.tsx
+git add apps/web/src/app/cms/(authed)/playlists/[id]/_components/playlist-toolbar.tsx apps/web/src/app/cms/(authed)/playlists/[id]/_components/playlist-canvas.tsx
 git commit -m "feat(playlists): toolbar print button and export dropdown"
 ```
 
@@ -2125,7 +2329,12 @@ This is the largest task — it wires everything together. The canvas orchestrat
 
 - [ ] **Step 1: Add filter state and imports**
 
-Add imports for the new components:
+Update the React import to include `useMemo`:
+```typescript
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+```
+
+Add imports for the new components (some may already exist from earlier tasks — deduplicate):
 ```typescript
 import { FilterBar } from './filter-bar'
 import { PrintView } from './print-view'
@@ -2135,7 +2344,7 @@ import { computeViewNumbers, matchesFilter } from '@/lib/playlists/canvas/view-n
 import type { FilterState, ContentType } from '@/lib/playlists/types'
 ```
 
-Add filter state:
+The `filter` state and `showExportMenu`/`exportBtnRef` were already added in earlier tasks (Tasks 9 and 12). Verify they exist; if not, add them:
 ```typescript
 const [filter, setFilter] = useState<FilterState>({
   types: new Set(),
@@ -2190,31 +2399,40 @@ Insert `<FilterBar>` between the toolbar and the canvas area:
 
 - [ ] **Step 5: Pass isDimmed/isIdea/viewNumber to PlaylistNode**
 
-Update the node rendering in the canvas to compute and pass the new props:
+Update the node rendering in the canvas to compute and pass the new props. Import `DIMMED_OFFSET_Y`:
+```typescript
+import { DIMMED_OFFSET_Y } from '@/lib/playlists/canvas/auto-layout'
+```
+
+For each node, compute state and apply dimmed offset:
 ```typescript
 const isDimmed = filter.mode === 'dim' && !matchesFilter(item, filter)
 const isHidden = filter.mode === 'hide' && !matchesFilter(item, filter)
 const isIdea = !item.is_ghost && item.status === 'idea'
 ```
 
-Skip rendering hidden items:
+Skip rendering hidden items. Dimmed items get a visual offset of +120px downward to create separation:
 ```tsx
-{!isHidden && (
-  <PlaylistNode
-    key={item.id}
-    item={item}
-    isSelected={state.selectedItemIds.has(item.id)}
-    isDropTarget={...}
-    isDimmed={isDimmed}
-    isIdea={isIdea}
-    viewNumber={viewNumbers.get(item.id) ?? null}
-    onPointerDown={...}
-    onHandlePointerDown={...}
-    onContextMenu={...}
-    onClick={...}
-    onOpenContent={handleOpenContent}
-  />
-)}
+{!isHidden && (() => {
+  const offsetY = isDimmed ? DIMMED_OFFSET_Y : 0
+  const adjustedItem = offsetY > 0 ? { ...item, position_y: item.position_y + offsetY } : item
+  return (
+    <PlaylistNode
+      key={item.id}
+      item={adjustedItem}
+      isSelected={state.selectedItemIds.has(item.id)}
+      isDropTarget={...}
+      isDimmed={isDimmed}
+      isIdea={isIdea}
+      viewNumber={viewNumbers.get(item.id) ?? null}
+      onPointerDown={...}
+      onHandlePointerDown={...}
+      onContextMenu={...}
+      onClick={...}
+      onOpenContent={handleOpenContent}
+    />
+  )
+})()}
 ```
 
 - [ ] **Step 6: Pass opacity to PlaylistEdge**
@@ -2341,7 +2559,7 @@ Replace the old context menu rendering with:
             if (edge.target_item_id === current && !connected.has(edge.source_item_id)) queue.push(edge.source_item_id)
           }
         }
-        dispatch({ type: 'SET_SELECTION', itemIds: connected, edgeIds: new Set() })
+        dispatch({ type: 'SET_SELECTION', itemIds: Array.from(connected), edgeIds: [] })
       }}
       onMoveToPosition={() => {
         setContextMenu(null)
@@ -2383,15 +2601,67 @@ Replace the old context menu rendering with:
 
 Add `print:hidden` to the main canvas wrapper div so it hides during print.
 
-- [ ] **Step 11: Add keyboard shortcut for Cmd+P**
+- [ ] **Step 11: Add keyboard shortcuts for Cmd+P, E, M, N**
 
-In the existing keyboard handler, add:
+In the existing keyboard handler (`handleKeyDown` inside the `useEffect`), add these cases. Place them after the existing `Escape` case:
+
 ```typescript
+// Print shortcut
 if ((e.metaKey || e.ctrlKey) && e.key === 'p') {
   e.preventDefault()
   handlePrint()
 }
+
+// Cmd+Enter = open editor (spec shortcut for "Open in editor")
+if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && state.selectedItemIds.size === 1) {
+  e.preventDefault()
+  const selectedId = [...state.selectedItemIds][0]!
+  handleOpenContent(selectedId)
+}
+
+// Single-node shortcuts (only when one node is selected and no input is focused)
+const target = e.target as HTMLElement
+const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
+if (!isInput && state.selectedItemIds.size === 1) {
+  const selectedId = [...state.selectedItemIds][0]!
+  if (e.key === 'e' || e.key === 'E') {
+    // E = add edge from here (enter edge-creation mode from right handle)
+    const nodeEl = document.querySelector(`[data-node-id="${selectedId}"]`)
+    if (nodeEl) {
+      const handles = nodeEl.querySelectorAll('[data-handle-id]')
+      const rightHandle = handles[3] // right handle is 4th
+      if (rightHandle) {
+        const rect = rightHandle.getBoundingClientRect()
+        rightHandle.dispatchEvent(new PointerEvent('pointerdown', {
+          clientX: rect.left + rect.width / 2,
+          clientY: rect.top + rect.height / 2,
+          bubbles: true,
+        }))
+      }
+    }
+  } else if (e.key === 'm' || e.key === 'M') {
+    // Move to position
+    const input = window.prompt('Move to position #:', '')
+    if (!input) return
+    const pos = parseInt(input, 10)
+    if (isNaN(pos) || pos < 1) return
+    const sorted = [...state.items].sort((a, b) => a.sort_order - b.sort_order)
+    const targetIdx = Math.min(pos - 1, sorted.length - 1)
+    const newOrder = sorted.map(i => i.id)
+    const currentIdx = newOrder.indexOf(selectedId)
+    if (currentIdx === -1) return
+    newOrder.splice(currentIdx, 1)
+    newOrder.splice(targetIdx, 0, selectedId)
+    dispatch({ type: 'REORDER_ITEMS', itemIds: newOrder })
+  } else if (e.key === 'n' || e.key === 'N') {
+    // Show other playlists info
+    const item = state.items.find(i => i.id === selectedId)
+    if (item) navigator.clipboard.writeText(`${item.title} (${item.other_playlist_count} other playlists)`)
+  }
+}
 ```
+
+Add `handleOpenContent` to the dependency array of the `useEffect`.
 
 - [ ] **Step 12: Update fitAllNodes to respect filter**
 
@@ -2407,16 +2677,179 @@ const visibleItems = filter.mode === 'hide'
 Run: `cd apps/web && npx vitest run`
 Expected: All tests pass
 
-- [ ] **Step 14: Commit**
+- [ ] **Step 14: Remove ContextMenu legacy shim**
+
+In `context-menu.tsx`, delete the `ContextMenu` function that was added in Task 7 Step 5 as a compatibility shim. Canvas.tsx now uses `PlaylistContextMenu` directly. Also update the import in canvas.tsx from:
+```typescript
+import { ContextMenu } from './context-menu'
+```
+to:
+```typescript
+// This import was already replaced in Step 9 by PlaylistContextMenu
+```
+
+Remove any remaining `ContextMenu` import if present.
+
+- [ ] **Step 15: Run full test suite**
+
+Run: `cd apps/web && npx vitest run`
+Expected: All tests pass
+
+- [ ] **Step 16: Commit**
 
 ```bash
-git add apps/web/src/app/cms/(authed)/playlists/[id]/_components/playlist-canvas.tsx
+git add apps/web/src/app/cms/(authed)/playlists/[id]/_components/playlist-canvas.tsx apps/web/src/app/cms/(authed)/playlists/[id]/_components/context-menu.tsx
 git commit -m "feat(playlists): wire filter, view numbers, print, export into canvas"
 ```
 
 ---
 
-### Task 14: Visual Testing in Browser
+### Task 14: Minimap — video color + NODE_W update
+
+**Files:**
+- Modify: `apps/web/src/app/cms/(authed)/playlists/[id]/_components/playlist-minimap.tsx`
+
+- [ ] **Step 1: Add video color to typeColors**
+
+In `playlist-minimap.tsx` (line 51-55), add video:
+```typescript
+const typeColors: Record<string, string> = {
+  blog_post: '#818cf8',
+  newsletter: '#34d399',
+  pipeline: '#a78bfa',
+  video: '#ef4444',
+}
+```
+
+- [ ] **Step 2: Update NODE_W from 160 to 250**
+
+Change line 25:
+```typescript
+const NODE_W = 250
+```
+
+- [ ] **Step 3: Run full test suite**
+
+Run: `cd apps/web && npx vitest run`
+Expected: All tests pass
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add apps/web/src/app/cms/(authed)/playlists/[id]/_components/playlist-minimap.tsx
+git commit -m "feat(playlists): minimap video color and 250px node width"
+```
+
+---
+
+### Task 15: Content Picker — video tab + type maps
+
+**Files:**
+- Modify: `apps/web/src/app/cms/(authed)/playlists/[id]/_components/content-picker.tsx`
+
+- [ ] **Step 1: Add video to TABS array**
+
+In `content-picker.tsx` (line 8-13), add the video tab:
+```typescript
+const TABS = [
+  { key: 'all', label: 'All' },
+  { key: 'blog_post', label: 'Blog' },
+  { key: 'newsletter', label: 'Newsletter' },
+  { key: 'pipeline', label: 'Pipeline' },
+  { key: 'video', label: 'Video' },
+] as const
+```
+
+- [ ] **Step 2: Add video to TYPE_DOT and TYPE_LABEL**
+
+```typescript
+const TYPE_DOT: Record<string, string> = {
+  blog_post: 'bg-indigo-500',
+  newsletter: 'bg-green-500',
+  pipeline: 'bg-purple-500',
+  video: 'bg-red-500',
+}
+
+const TYPE_LABEL: Record<string, string> = {
+  blog_post: 'Blog',
+  newsletter: 'Newsletter',
+  pipeline: 'Pipeline',
+  video: 'Video',
+}
+```
+
+- [ ] **Step 3: Run full test suite**
+
+Run: `cd apps/web && npx vitest run`
+Expected: All tests pass
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add apps/web/src/app/cms/(authed)/playlists/[id]/_components/content-picker.tsx
+git commit -m "feat(playlists): content picker video tab and type maps"
+```
+
+---
+
+### Task 16: PNG Export — video color + 250px nodes
+
+**Files:**
+- Modify: `apps/web/src/app/cms/(authed)/playlists/[id]/_components/playlist-canvas.tsx`
+
+The inline PNG export handler (`handleExport` in canvas.tsx, referenced as `handleExportPng` from the ExportMenu) still uses `typeColors` without video and draws nodes at 160px wide. Rename `handleExport` → `handleExportPng` so the ExportMenu `onExportPng` prop wires correctly.
+
+- [ ] **Step 1: Rename and update the PNG export handler**
+
+Rename `handleExport` to `handleExportPng` in canvas.tsx and update these internals:
+
+Add video to `typeColors`:
+```typescript
+const typeColors: Record<string, string> = {
+  blog_post: '#818cf8',
+  newsletter: '#34d399',
+  pipeline: '#a855f7',
+  video: '#ef4444',
+}
+```
+
+Change the node width from 160 to 250:
+```typescript
+const nodeW = 250
+```
+
+Update `ctx.roundRect(x, y, 160, 70, 10)` to `ctx.roundRect(x, y, 250, 70, 10)`.
+
+Add VIDEO to the badge mapping:
+```typescript
+const badge = item.content_type === 'blog_post' ? 'BLOG' : item.content_type === 'newsletter' ? 'NEWS' : item.content_type === 'pipeline' ? 'PIPE' : item.content_type === 'video' ? 'VIDEO' : ''
+```
+
+Update the related edge color from `'#6b7280'` to `'#a855f7'` (purple, matching the edge update):
+```typescript
+const edgeColors: Record<string, string> = {
+  sequence: '#818cf8',
+  related: '#a855f7',
+  prerequisite: '#fbbf24',
+  continuation: '#34d399',
+}
+```
+
+- [ ] **Step 2: Run full test suite**
+
+Run: `cd apps/web && npx vitest run`
+Expected: All tests pass
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add apps/web/src/app/cms/(authed)/playlists/[id]/_components/playlist-canvas.tsx
+git commit -m "feat(playlists): PNG export with video color and 250px nodes"
+```
+
+---
+
+### Task 17: Visual Testing in Browser
 
 **Files:** None (testing only)
 
@@ -2442,33 +2875,57 @@ Open a playlist in the browser. Check:
 
 - [ ] **Step 4: Test context menu**
 
-- Right-click a node — verify all 8 items, header, footer
-- Click "Open in editor" — should navigate
-- Click "Copy ID" — should copy UUID
+- Right-click a node — verify all 7 items, header with badge + title, footer with UUID
+- Click "Open in editor" — should navigate to blog/pipeline/newsletter editor
+- Click "Copy ID" — should copy UUID to clipboard
+- Click "Select connected" — should highlight all connected nodes via BFS
+- Press Escape — menu should close
 
-- [ ] **Step 5: Test print**
+- [ ] **Step 5: Test keyboard shortcuts**
+
+- Select a node, press E — should open in editor
+- Select a node, press M — should prompt for position number
+- Select a node, press Backspace — should remove from playlist
+- Press Cmd+P — should open print dialog
+- Press Cmd+Z / Cmd+Shift+Z — undo/redo
+
+- [ ] **Step 6: Test minimap**
+
+- Verify minimap shows video nodes in red
+- Verify minimap node widths match the wider 250px ratio
+- Click minimap — viewport should navigate to clicked area
+
+- [ ] **Step 7: Test content picker**
+
+- Open content picker — verify Video tab exists
+- Video tab should show red dot
+- Verify filtering by tab works
+
+- [ ] **Step 8: Test print**
 
 - Click Print button or Cmd+P
 - Verify light theme list appears in print preview
 - Verify only filtered items appear with correct numbering
 
-- [ ] **Step 6: Test export**
+- [ ] **Step 9: Test export**
 
 - Click Export → CSV — verify downloaded file contents
 - Click Export → JSON — verify downloaded file structure
+- Click Export → PNG — verify downloaded image has video nodes in red
 
-- [ ] **Step 7: Test auto-layout**
+- [ ] **Step 10: Test auto-layout**
 
 - Click Auto-layout button
 - Verify nodes don't overlap with new 370px horizontal gap
 - Verify edges have space for labels
+- Verify 250px wide nodes look correct
 
-- [ ] **Step 8: Run full test suite one final time**
+- [ ] **Step 11: Run full test suite one final time**
 
 Run: `cd apps/web && npx vitest run`
 Expected: All tests pass
 
-- [ ] **Step 9: Final commit**
+- [ ] **Step 12: Final commit (if any remaining changes)**
 
 ```bash
 git add -A

@@ -10,12 +10,13 @@ async function resolveOrCreateTopics(
   topicSlug: string,
 ): Promise<{ topicId: string } | { error: string }> {
   const parts = parseTopicSlug(topicSlug)
-  let parentId: string | null = null
+  const resolvedIds: string[] = []
   let currentPath = ''
 
   for (let i = 0; i < parts.length; i++) {
     const slug = parts[i]!
     currentPath = currentPath ? `${currentPath}/${slug}` : slug
+    const parentForInsert = resolvedIds.length > 0 ? resolvedIds[resolvedIds.length - 1]! : null
 
     const { data: existing } = await supabase
       .from('research_topics')
@@ -25,28 +26,23 @@ async function resolveOrCreateTopics(
       .single()
 
     if (existing) {
-      parentId = existing.id
+      resolvedIds.push(existing.id as string)
       continue
     }
 
     const { data: created, error } = await supabase
       .from('research_topics')
-      .insert({
-        site_id: siteId,
-        name: slugToName(slug),
-        slug,
-        path: currentPath,
-        depth: i,
-        parent_id: parentId,
-      })
+      .insert({ site_id: siteId, name: slugToName(slug), slug, path: currentPath, depth: i, parent_id: parentForInsert })
       .select('id')
       .single()
 
     if (error) return { error: `Failed to create topic "${currentPath}": ${error.message}` }
-    parentId = created!.id
+    resolvedIds.push((created as { id: string }).id)
   }
 
-  return { topicId: parentId! }
+  const lastId = resolvedIds[resolvedIds.length - 1]
+  if (!lastId) return { error: 'Empty topic slug' }
+  return { topicId: lastId }
 }
 
 export async function GET(req: NextRequest) {
@@ -96,9 +92,16 @@ export async function GET(req: NextRequest) {
 
   const pipelineItemId = params.get('pipeline_item_id')
   if (pipelineItemId && UUID_REGEX.test(pipelineItemId)) {
-    query = query.in('id',
-      supabase.from('research_links').select('research_id').eq('pipeline_item_id', pipelineItemId)
-    )
+    const { data: linkedIds } = await supabase
+      .from('research_links')
+      .select('research_id')
+      .eq('pipeline_item_id', pipelineItemId)
+    const ids = (linkedIds ?? []).map((r) => (r as { research_id: string }).research_id)
+    if (ids.length > 0) {
+      query = query.in('id', ids)
+    } else {
+      return NextResponse.json({ data: { items: [], has_more: false } }, { headers: buildRateLimitHeaders(auth) })
+    }
   }
 
   if (cursor && UUID_REGEX.test(cursor)) {
@@ -116,7 +119,7 @@ export async function GET(req: NextRequest) {
   if (error) return NextResponse.json({ error: { code: 'DB_ERROR', message: error.message } }, { status: 500 })
 
   const hasNext = (data?.length ?? 0) > limit
-  const items = data?.slice(0, limit) ?? []
+  const items = (data?.slice(0, limit) ?? []) as unknown as Array<Record<string, unknown>>
   const lastItem = items[items.length - 1]
 
   const mapped = items.map((item: any) => ({

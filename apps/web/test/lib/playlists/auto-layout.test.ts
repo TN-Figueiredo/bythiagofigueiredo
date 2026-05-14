@@ -21,6 +21,7 @@ function item(id: string, order = 1000): PlaylistItemEnriched {
     metadata: null,
     is_ghost: false,
     other_playlist_count: 0,
+    language: null,
   }
 }
 

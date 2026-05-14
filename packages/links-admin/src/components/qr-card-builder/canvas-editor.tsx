@@ -90,7 +90,7 @@ function QrNode({
 }: {
   element: CardElement & { type: 'qr' }
   shortUrl: string
-  onSelect: (id: string, e: Konva.KonvaEventObject<MouseEvent>) => void
+  onSelect: (id: string, e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => void
   onDragMove: (e: Konva.KonvaEventObject<DragEvent>) => void
   onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => void
 }) {
@@ -171,7 +171,7 @@ function TextNode({
   element, onSelect, onDragMove, onDragEnd,
 }: {
   element: CardElement & { type: 'text' }
-  onSelect: (id: string, e: Konva.KonvaEventObject<MouseEvent>) => void
+  onSelect: (id: string, e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => void
   onDragMove: (e: Konva.KonvaEventObject<DragEvent>) => void
   onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => void
 }) {
@@ -229,7 +229,7 @@ function ImageNode({
   element, onSelect, onDragMove, onDragEnd,
 }: {
   element: CardElement & { type: 'image' }
-  onSelect: (id: string, e: Konva.KonvaEventObject<MouseEvent>) => void
+  onSelect: (id: string, e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => void
   onDragMove: (e: Konva.KonvaEventObject<DragEvent>) => void
   onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => void
 }) {
@@ -345,16 +345,16 @@ export const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(fu
     tr.getLayer()?.batchDraw()
   }, [selectedIds, composition.elements])
 
-  const handleSelect = useCallback((id: string, e: Konva.KonvaEventObject<MouseEvent>) => {
+  const handleSelect = useCallback((id: string, e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
     e.cancelBubble = true
-    if ((e.evt as MouseEvent).shiftKey) {
+    if ('shiftKey' in e.evt && e.evt.shiftKey) {
       multiSelect(id)
     } else {
       select(id)
     }
   }, [select, multiSelect])
 
-  const handleStageClick = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
+  const handleStageClick = useCallback((e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
     if (e.target === e.target.getStage()) deselectAll()
   }, [deselectAll])
 

@@ -21,6 +21,8 @@ interface CreateParams {
   origin: Origin
   scheduledAt?: string
   userId: string
+  sourcePipelineId?: string
+  pipelineSnapshot?: Record<string, unknown>
 }
 
 interface CreateResult {

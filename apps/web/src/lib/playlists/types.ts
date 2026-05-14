@@ -9,8 +9,11 @@ export type PlaylistStatus = (typeof PLAYLIST_STATUSES)[number]
 export const EDGE_TYPES = ['sequence', 'related', 'prerequisite', 'continuation'] as const
 export type EdgeType = (typeof EDGE_TYPES)[number]
 
-export const CONTENT_TYPES = ['blog_post', 'newsletter', 'pipeline'] as const
+export const CONTENT_TYPES = ['blog_post', 'newsletter', 'pipeline', 'video'] as const
 export type ContentType = (typeof CONTENT_TYPES)[number]
+
+export const FILTER_LANGUAGES = ['pt-br', 'en'] as const
+export type FilterLanguage = (typeof FILTER_LANGUAGES)[number]
 
 // -- Schemas --
 
@@ -130,6 +133,7 @@ export interface PlaylistItemEnriched extends PlaylistItemRow {
   metadata: string | null
   is_ghost: boolean
   other_playlist_count: number
+  language: 'pt-br' | 'en' | null
 }
 
 export interface PlaylistGraph {
@@ -143,3 +147,10 @@ export interface PlaylistGraph {
 export type ActionResult<T = void> =
   | { ok: true; data: T }
   | { ok: false; error: string }
+
+export interface FilterState {
+  types: Set<ContentType>
+  languages: Set<FilterLanguage>
+  mode: 'dim' | 'hide' | 'all'
+  search: string
+}

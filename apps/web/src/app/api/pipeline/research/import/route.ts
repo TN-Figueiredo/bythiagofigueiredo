@@ -10,12 +10,13 @@ async function resolveOrCreateTopics(
   topicSlug: string,
 ): Promise<{ topicId: string } | { error: string }> {
   const parts = parseTopicSlug(topicSlug)
-  let parentId: string | null = null
+  const resolvedIds: string[] = []
   let currentPath = ''
 
   for (let i = 0; i < parts.length; i++) {
     const slug = parts[i]!
     currentPath = currentPath ? `${currentPath}/${slug}` : slug
+    const parentForInsert = resolvedIds.length > 0 ? resolvedIds[resolvedIds.length - 1]! : null
 
     const { data: existing } = await supabase
       .from('research_topics')
@@ -24,19 +25,24 @@ async function resolveOrCreateTopics(
       .eq('path', currentPath)
       .single()
 
-    if (existing) { parentId = existing.id; continue }
+    if (existing) {
+      resolvedIds.push(existing.id as string)
+      continue
+    }
 
     const { data: created, error } = await supabase
       .from('research_topics')
-      .insert({ site_id: siteId, name: slugToName(slug), slug, path: currentPath, depth: i, parent_id: parentId })
+      .insert({ site_id: siteId, name: slugToName(slug), slug, path: currentPath, depth: i, parent_id: parentForInsert })
       .select('id')
       .single()
 
     if (error) return { error: `Failed to create topic "${currentPath}": ${error.message}` }
-    parentId = created!.id
+    resolvedIds.push((created as { id: string }).id)
   }
 
-  return { topicId: parentId! }
+  const lastId = resolvedIds[resolvedIds.length - 1]
+  if (!lastId) return { error: 'Empty topic slug' }
+  return { topicId: lastId }
 }
 
 export async function POST(req: NextRequest) {

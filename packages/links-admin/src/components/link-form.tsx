@@ -254,7 +254,7 @@ export function LinkForm({ link, onSubmit, onCancel, siteId: _siteId }: LinkForm
                   setTagInput('')
                 }
                 if (e.key === 'Backspace' && !tagInput && form.tags.length > 0) {
-                  removeTag(form.tags[form.tags.length - 1])
+                  removeTag(form.tags[form.tags.length - 1]!)
                 }
               }}
               onPaste={(e) => {

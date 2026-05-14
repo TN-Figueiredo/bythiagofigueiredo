@@ -124,7 +124,7 @@ export async function executeWithRetry(
         .update({ attempt: attempt + 1, status: attempt > 0 ? 'retrying' : 'publishing' })
         .eq('id', delivery.id)
 
-      const result = await publishFn.publish(post, connection, delivery, options)
+      const result = await publishFn.publish(post, connection, delivery)
 
       return {
         status: 'published',

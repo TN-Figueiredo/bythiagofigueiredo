@@ -25,7 +25,8 @@ interface ResearchItemFull {
 }
 
 interface ResearchDetailProps {
-  item: ResearchItemFull | null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  item: any
   isEditing: boolean
   onToggleEdit: (editing: boolean) => void
   onItemUpdated: (item: any) => void

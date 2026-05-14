@@ -27,6 +27,8 @@ import { MediaGalleryModal } from '../../_shared/media/media-gallery-modal'
 import { CROP_PRESETS, type MediaAssetResult } from '../../_shared/media/types'
 import { PipelineMediaProvider, type ImageSelectResult } from './detail/editors/pipeline-media-context'
 import { ImageIcon, X } from 'lucide-react'
+import { SocialConfigEditor } from './detail/social-config-editor'
+import type { SocialConfig } from '@/lib/social/types'
 
 interface ChecklistItem { label: string; done: boolean; toggled_at: string | null }
 interface HistoryEntry { id: string; event_type: string; from_value: string | null; to_value: string | null; changed_at: string }
@@ -56,6 +58,8 @@ interface ItemData {
   category: string | null
   cover_image_url: string | null
   blog_post_id: string | null
+  social_config: Record<string, unknown> | null
+  social_post_id: string | null
   site_id: string
   linked_post?: {
     id: string
@@ -259,6 +263,15 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
   const [synopsis, setSynopsis] = useState(item.synopsis || '')
   const [focusedField, setFocusedField] = useState<'hook' | 'synopsis' | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
+  const itemRef = useRef(item)
+  useEffect(() => { itemRef.current = item }, [item])
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+      if (socialConfigDebounceRef.current) clearTimeout(socialConfigDebounceRef.current)
+    }
+  }, [])
 
   const stages = WORKFLOWS[item.format as Format] || []
   const currentStage = stages.find((s) => s.stage === item.stage)
@@ -275,6 +288,31 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
   const inlineGallery = useMediaGallery()
   const pendingInlineSelectRef = useRef<((result: ImageSelectResult) => void) | null>(null)
 
+  const [socialConfig, setSocialConfig] = useState<SocialConfig | null>(() => {
+    const raw = item.social_config
+    if (!raw || typeof raw !== 'object' || typeof (raw as Record<string, unknown>).enabled !== 'boolean') return null
+    return raw as unknown as SocialConfig
+  })
+  const socialConfigDebounceRef = useRef<ReturnType<typeof setTimeout>>(null)
+
+  const handleSocialConfigChange = useCallback((config: SocialConfig) => {
+    setSocialConfig(config)
+    if (socialConfigDebounceRef.current) clearTimeout(socialConfigDebounceRef.current)
+    socialConfigDebounceRef.current = setTimeout(async () => {
+      const current = itemRef.current
+      const result = await updatePipelineItem(current.id, current.version, { social_config: config })
+      if (result.ok && result.data) setItem(result.data as typeof item)
+      else if (!result.ok) {
+        if (result.error.includes('Version conflict')) {
+          toast.error('Item atualizado por outro processo. Recarregando...')
+          router.refresh()
+        } else {
+          toast.error('Erro ao salvar config social.')
+        }
+      }
+    }, 800)
+  }, [router])
+
   const handleRequestInlineImage = useCallback((onSelect: (result: ImageSelectResult) => void) => {
     pendingInlineSelectRef.current = onSelect
     inlineGallery.openGallery({ folder: 'blog' })
@@ -290,7 +328,8 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
   const debouncedSave = useCallback((field: string, value: string) => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(async () => {
-      const result = await updatePipelineItem(item.id, item.version, { [field]: value || null })
+      const current = itemRef.current
+      const result = await updatePipelineItem(current.id, current.version, { [field]: value || null })
       if (result.ok && result.data) setItem(result.data as typeof item)
       else if (!result.ok) {
         if (result.error.includes('Version conflict')) {
@@ -301,29 +340,32 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
         }
       }
     }, 500)
-  }, [item.id, item.version, router])
+  }, [router])
 
   const handleCoverSelect = useCallback(async (asset: MediaAssetResult) => {
     setCoverImageUrl(asset.url)
-    const result = await updatePipelineItem(item.id, item.version, { cover_image_url: asset.url })
+    const current = itemRef.current
+    const result = await updatePipelineItem(current.id, current.version, { cover_image_url: asset.url })
     if (result.ok && result.data) setItem(result.data as typeof item)
-    else if (!result.ok) { toast.error('Erro ao salvar capa'); setCoverImageUrl(item.cover_image_url) }
-  }, [item.id, item.version, item.cover_image_url])
+    else if (!result.ok) { toast.error('Erro ao salvar capa'); setCoverImageUrl(current.cover_image_url) }
+  }, [])
 
   const handleCoverRemove = useCallback(async () => {
     setCoverImageUrl(null)
-    const result = await updatePipelineItem(item.id, item.version, { cover_image_url: null })
+    const current = itemRef.current
+    const result = await updatePipelineItem(current.id, current.version, { cover_image_url: null })
     if (result.ok && result.data) setItem(result.data as typeof item)
-    else if (!result.ok) { toast.error('Erro ao remover capa'); setCoverImageUrl(item.cover_image_url) }
-  }, [item.id, item.version, item.cover_image_url])
+    else if (!result.ok) { toast.error('Erro ao remover capa'); setCoverImageUrl(current.cover_image_url) }
+  }, [])
 
   const handleCategoryChange = useCallback(async (value: string) => {
     const newCategory = value || null
     setCategory(newCategory)
-    const result = await updatePipelineItem(item.id, item.version, { category: newCategory })
+    const current = itemRef.current
+    const result = await updatePipelineItem(current.id, current.version, { category: newCategory })
     if (result.ok && result.data) setItem(result.data as typeof item)
-    else if (!result.ok) { toast.error('Erro ao salvar categoria'); setCategory(item.category) }
-  }, [item.id, item.version, item.category])
+    else if (!result.ok) { toast.error('Erro ao salvar categoria'); setCategory(current.category) }
+  }, [])
 
   const [isAdvancing, setIsAdvancing] = useState(false)
   const [isRetreating, setIsRetreating] = useState(false)
@@ -665,6 +707,28 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
           onClose={() => setShowBlogSearch(false)}
           onSearch={handleBlogSearch}
         />
+
+        {/* Social config card */}
+        <div className="rounded-lg border p-4" role="region" aria-label="Configuração Social" style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xs font-medium" style={{ color: 'var(--gem-text)' }}>Social</h3>
+            {item.social_post_id && (
+              <Link
+                href={`/cms/social/${item.social_post_id}`}
+                className="text-[10px] hover:underline"
+                style={{ color: 'var(--gem-accent)' }}
+              >
+                Ver post →
+              </Link>
+            )}
+          </div>
+          <SocialConfigEditor
+            config={socialConfig}
+            onChange={handleSocialConfigChange}
+            disabled={!!item.social_post_id}
+            contentFormat={item.format}
+          />
+        </div>
 
         {/* Sections card */}
         <div className="rounded-lg border p-4" style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}>

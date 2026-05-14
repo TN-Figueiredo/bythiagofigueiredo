@@ -24,6 +24,7 @@ function makeItem(id: string, x = 0, y = 0, order = 1000) {
     metadata: null,
     is_ghost: false,
     other_playlist_count: 0,
+    language: null,
   }
 }
 

@@ -57,7 +57,8 @@ export function ResearchLibrary({
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [items, setItems] = useState(initialItems)
-  const [detailItem, setDetailItem] = useState<ResearchItem | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [detailItem, setDetailItem] = useState<Record<string, any> | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
 
   const topicChildIds = useMemo(() => {

@@ -2,195 +2,32 @@
 
 import { z } from 'zod'
 import * as Sentry from '@sentry/nextjs'
-import { revalidatePath, revalidateTag } from 'next/cache'
-import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import {
   decrypt,
-  encrypt,
   getMasterKey,
   SocialPostContentSchema,
   type Provider,
   type PostType,
   type PostStatus,
-  type SocialConnection,
   type SocialPost,
   type SocialDelivery,
 } from '@tn-figueiredo/social'
-
-type ActionResult<T = void> =
-  | { ok: true; data: T }
-  | { ok: false; error: string }
-
-const SENTRY_TAG = { component: 'social-actions' }
-
-function zodError(err: z.ZodError): string {
-  return err.issues.map((i) => i.message).join(', ') || 'Validation failed'
-}
-
-async function requireEditAccess(): Promise<{ siteId: string; userId: string }> {
-  const { siteId } = await getSiteContext()
-  const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
-  if (!res.ok) {
-    throw new Error(
-      res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden',
-    )
-  }
-  return { siteId, userId: res.user.id }
-}
-
-function revalidateSocialPaths(): void {
-  revalidateTag('social')
-  revalidatePath('/cms/social')
-}
-
-// ---------------------------------------------------------------------------
-// Strip tokens from connections before returning to client
-// ---------------------------------------------------------------------------
-
-type SafeConnection = Omit<
-  SocialConnection,
-  'access_token_enc' | 'refresh_token_enc' | 'page_token_enc'
->
-
-function stripTokens(conn: SocialConnection): SafeConnection {
-  const { access_token_enc: _a, refresh_token_enc: _r, page_token_enc: _p, ...safe } = conn
-  return safe
-}
-
-// ---------------------------------------------------------------------------
-// Connection management
-// ---------------------------------------------------------------------------
-
-const connectSchema = z.object({
-  provider: z.enum(['youtube', 'facebook', 'instagram', 'bluesky']),
-  accessToken: z.string().min(1),
-  refreshToken: z.string().optional(),
-  pageToken: z.string().optional(),
-  expiresAt: z.string().datetime().optional(),
-  accountId: z.string().min(1),
-  accountName: z.string().min(1),
-  scopes: z.array(z.string()),
-  metadata: z.record(z.unknown()).optional(),
-})
-
-export async function connectSocial(
-  provider: Provider,
-  tokens: {
-    accessToken: string
-    refreshToken?: string
-    pageToken?: string
-    expiresAt?: string
-    accountId: string
-    accountName: string
-    scopes: string[]
-    metadata?: Record<string, unknown>
-  },
-): Promise<ActionResult<{ id: string }>> {
-  const parsed = connectSchema.safeParse({ provider, ...tokens })
-  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-
-  try {
-    const { siteId } = await requireEditAccess()
-    const key = getMasterKey()
-    const supabase = getSupabaseServiceClient()
-
-    const row = {
-      site_id: siteId,
-      provider: parsed.data.provider,
-      account_id: parsed.data.accountId,
-      account_name: parsed.data.accountName,
-      access_token_enc: encrypt(parsed.data.accessToken, key),
-      refresh_token_enc: parsed.data.refreshToken
-        ? encrypt(parsed.data.refreshToken, key)
-        : null,
-      page_token_enc: parsed.data.pageToken
-        ? encrypt(parsed.data.pageToken, key)
-        : null,
-      token_expires_at: parsed.data.expiresAt ?? null,
-      scopes: parsed.data.scopes,
-      metadata: parsed.data.metadata ?? {},
-    }
-
-    const { data, error } = await supabase
-      .from('social_connections')
-      .insert(row)
-      .select('id')
-      .single()
-
-    if (error) {
-      Sentry.captureException(error, { tags: { ...SENTRY_TAG, action: 'connectSocial' } })
-      return { ok: false, error: error.message }
-    }
-
-    revalidateSocialPaths()
-    return { ok: true, data: { id: data.id as string } }
-  } catch (err) {
-    Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'connectSocial' } })
-    throw err
-  }
-}
-
-export async function disconnectSocial(
-  connectionId: string,
-): Promise<ActionResult> {
-  const parsed = z.string().uuid().safeParse(connectionId)
-  if (!parsed.success) return { ok: false, error: 'Invalid connection ID' }
-
-  try {
-    const { siteId } = await requireEditAccess()
-    const supabase = getSupabaseServiceClient()
-
-    const { error } = await supabase
-      .from('social_connections')
-      .update({ revoked_at: new Date().toISOString() })
-      .eq('id', parsed.data)
-      .eq('site_id', siteId)
-      .is('revoked_at', null)
-
-    if (error) {
-      Sentry.captureException(error, { tags: { ...SENTRY_TAG, action: 'disconnectSocial' } })
-      return { ok: false, error: error.message }
-    }
-
-    revalidateSocialPaths()
-    return { ok: true, data: undefined }
-  } catch (err) {
-    Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'disconnectSocial' } })
-    throw err
-  }
-}
-
-export async function getConnections(
-  siteId: string,
-): Promise<ActionResult<SafeConnection[]>> {
-  const parsed = z.string().uuid().safeParse(siteId)
-  if (!parsed.success) return { ok: false, error: 'Invalid site ID' }
-
-  try {
-    await requireEditAccess()
-    const supabase = getSupabaseServiceClient()
-
-    const { data, error } = await supabase
-      .from('social_connections')
-      .select('*')
-      .eq('site_id', parsed.data)
-      .is('revoked_at', null)
-      .order('connected_at', { ascending: false })
-
-    if (error) {
-      Sentry.captureException(error, { tags: { ...SENTRY_TAG, action: 'getConnections' } })
-      return { ok: false, error: error.message }
-    }
-
-    const safe = (data as SocialConnection[]).map(stripTokens)
-    return { ok: true, data: safe }
-  } catch (err) {
-    Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'getConnections' } })
-    throw err
-  }
-}
+import {
+  type ActionResult,
+  SENTRY_TAG,
+  zodError,
+  requireEditAccess,
+  revalidateSocialPaths,
+} from './_shared'
+import {
+  toSocialPost,
+  toSocialPosts,
+  toSocialDeliveries,
+  toSocialConnection,
+  type SocialPostWithPipeline,
+} from '../row-parsers'
 
 // ---------------------------------------------------------------------------
 // Post management
@@ -222,7 +59,7 @@ export async function createSocialPost(data: {
     const ctx = await getSiteContext()
 
     const status: PostStatus = parsed.data.scheduledAt ? 'scheduled' : 'draft'
-    const idempotencyKey = `${siteId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const idempotencyKey = crypto.randomUUID()
 
     const postRow = {
       site_id: siteId,
@@ -376,7 +213,7 @@ export async function cancelSocialPost(postId: string): Promise<ActionResult> {
       .update({ status: 'cancelled', updated_at: new Date().toISOString() })
       .eq('id', parsed.data)
       .eq('site_id', siteId)
-      .in('status', ['draft', 'scheduled'])
+      .in('status', ['draft', 'scheduled', 'publishing'])
 
     if (postError) {
       Sentry.captureException(postError, { tags: { ...SENTRY_TAG, action: 'cancelSocialPost' } })
@@ -435,7 +272,7 @@ export async function deleteSocialPost(postId: string): Promise<ActionResult> {
 
           if (!connection) continue
 
-          const conn = connection as unknown as SocialConnection
+          const conn = toSocialConnection(connection as Record<string, unknown>)
           const provider = delivery.provider as Provider
 
           switch (provider) {
@@ -446,23 +283,35 @@ export async function deleteSocialPost(postId: string): Promise<ActionResult> {
               break
             }
             case 'facebook': {
+              if (!conn.page_token_enc) break
               const mod = await import('@tn-figueiredo/social/providers/meta')
-              const pageToken = decryptFn(conn.page_token_enc!)
+              const pageToken = decryptFn(conn.page_token_enc)
               await mod.deletePagePost(delivery.platform_post_id, pageToken)
               break
             }
             case 'instagram': {
+              if (!conn.page_token_enc) break
               const mod = await import('@tn-figueiredo/social/providers/meta')
-              const token = decryptFn(conn.page_token_enc!)
+              const token = decryptFn(conn.page_token_enc)
               await mod.deleteInstagramMedia(delivery.platform_post_id, token)
               break
             }
             case 'bluesky':
               // Bluesky post deletion requires AT Protocol session — handled separately
               break
+            default: {
+              const _exhaustive: never = provider
+              Sentry.captureMessage(`Unhandled provider in delete: ${_exhaustive}`, {
+                level: 'warning',
+                tags: { ...SENTRY_TAG, action: 'deleteSocialPost' },
+              })
+            }
           }
         } catch (deleteErr) {
-          console.warn(`[social] Platform delete failed for delivery ${delivery.id}:`, deleteErr)
+          Sentry.captureException(deleteErr, {
+            tags: { ...SENTRY_TAG, action: 'deleteSocialPost', step: 'platform-delete' },
+            extra: { deliveryId: delivery.id, provider: delivery.provider },
+          })
         }
       }
     }
@@ -507,6 +356,7 @@ export async function retrySocialDelivery(
     const { siteId } = await requireEditAccess()
     const supabase = getSupabaseServiceClient()
 
+    // Verify delivery belongs to a post owned by this site
     const { data: delivery } = await supabase
       .from('social_deliveries')
       .select('id, post_id, status')
@@ -561,7 +411,7 @@ export async function retrySocialDelivery(
 
 export async function getSocialPost(
   postId: string,
-): Promise<ActionResult<SocialPost & { deliveries: SocialDelivery[] }>> {
+): Promise<ActionResult<SocialPostWithPipeline & { deliveries: SocialDelivery[] }>> {
   const parsed = z.string().uuid().safeParse(postId)
   if (!parsed.success) return { ok: false, error: 'Invalid post ID' }
 
@@ -592,8 +442,8 @@ export async function getSocialPost(
     return {
       ok: true,
       data: {
-        ...(post as unknown as SocialPost),
-        deliveries: (deliveries ?? []) as unknown as SocialDelivery[],
+        ...toSocialPost(post as Record<string, unknown>),
+        deliveries: toSocialDeliveries(deliveries ?? []),
       },
     }
   } catch (err) {
@@ -611,198 +461,10 @@ const listFiltersSchema = z.object({
   to: z.string().datetime().optional(),
 })
 
-export async function getContentForSocialPost(
-  contentType: string,
-  contentId: string,
-): Promise<
-  | {
-      ok: true
-      data: {
-        title: string
-        url: string
-        image: string | null
-        excerpt: string | null
-        tags: string[]
-        locale: string
-        contentType: string
-        contentId: string
-      }
-    }
-  | { ok: false; error: string }
-> {
-  try {
-    const { siteId } = await requireEditAccess()
-    const supabase = getSupabaseServiceClient()
-
-    if (contentType === 'blog') {
-      const { data } = await supabase
-        .from('blog_posts')
-        .select('id, slug, cover_image_url, blog_translations!inner(title, meta_description, locale)')
-        .eq('id', contentId)
-        .eq('site_id', siteId)
-        .single()
-      if (!data) return { ok: false, error: 'not_found' }
-      const record = data as unknown as Record<string, unknown>
-      const translations = record.blog_translations as Array<{ title: string; meta_description: string | null; locale: string }> | undefined
-      const tx = translations?.[0]
-      return {
-        ok: true,
-        data: {
-          title: tx?.title ?? '',
-          url: `${process.env.NEXT_PUBLIC_APP_URL}/blog/${data.slug as string}`,
-          image: data.cover_image_url as string | null,
-          excerpt: tx?.meta_description ?? null,
-          tags: [],
-          locale: tx?.locale ?? 'pt-BR',
-          contentType,
-          contentId,
-        },
-      }
-    }
-
-    if (contentType === 'newsletter') {
-      const { data } = await supabase
-        .from('newsletter_editions')
-        .select('id, subject, preview_text')
-        .eq('id', contentId)
-        .eq('site_id', siteId)
-        .single()
-      if (!data) return { ok: false, error: 'not_found' }
-      return {
-        ok: true,
-        data: {
-          title: data.subject as string,
-          url: `${process.env.NEXT_PUBLIC_APP_URL}/newsletter/${contentId}`,
-          image: null,
-          excerpt: data.preview_text as string | null,
-          tags: [],
-          locale: 'pt-BR',
-          contentType,
-          contentId,
-        },
-      }
-    }
-
-    if (contentType === 'campaign') {
-      const { data } = await supabase
-        .from('campaigns')
-        .select('id, slug, campaign_translations!inner(meta_title, meta_description, og_image_url)')
-        .eq('id', contentId)
-        .eq('site_id', siteId)
-        .single()
-      if (!data) return { ok: false, error: 'not_found' }
-      const record = data as unknown as Record<string, unknown>
-      const translations = record.campaign_translations as Array<{ meta_title: string; meta_description: string | null; og_image_url: string | null }> | undefined
-      const tx = translations?.[0]
-      return {
-        ok: true,
-        data: {
-          title: tx?.meta_title ?? '',
-          url: `${process.env.NEXT_PUBLIC_APP_URL}/campaigns/${data.slug as string}`,
-          image: tx?.og_image_url ?? null,
-          excerpt: tx?.meta_description ?? null,
-          tags: [],
-          locale: 'pt-BR',
-          contentType,
-          contentId,
-        },
-      }
-    }
-
-    return { ok: false, error: 'unsupported_content_type' }
-  } catch (err) {
-    Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'getContentForSocialPost' } })
-    return { ok: false, error: err instanceof Error ? err.message : 'unknown' }
-  }
-}
-
-export async function createFromContentAction(params: {
-  contentType: string
-  contentId: string
-  config: Record<string, unknown>
-  origin: string
-  scheduledAt?: string
-}): Promise<{ ok: true; data: { postId: string; shortLinkId: string | null } } | { ok: false; error: string }> {
-  try {
-    const { siteId, userId } = await requireEditAccess()
-    const { createSocialPostFromContent } = await import('@/lib/social/create-from-content')
-    const result = await createSocialPostFromContent({
-      supabase: getSupabaseServiceClient(),
-      siteId,
-      contentType: params.contentType as import('@/lib/social/types').ContentType,
-      contentId: params.contentId,
-      config: params.config as unknown as import('@/lib/social/types').SocialConfig,
-      origin: params.origin as import('@/lib/social/types').Origin,
-      scheduledAt: params.scheduledAt,
-      userId,
-    })
-    return { ok: true, data: result }
-  } catch (err) {
-    Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'createFromContentAction' } })
-    return { ok: false, error: err instanceof Error ? err.message : 'unknown' }
-  }
-}
-
-export async function scrapeOgTags(
-  postId: string,
-): Promise<{ ok: true; data: Record<string, unknown> } | { ok: false; error: string }> {
-  const idParsed = z.string().uuid().safeParse(postId)
-  if (!idParsed.success) return { ok: false, error: 'Invalid post ID' }
-
-  try {
-    const { siteId } = await requireEditAccess()
-    const supabase = getSupabaseServiceClient()
-
-    const { data: post, error } = await supabase
-      .from('social_posts')
-      .select('id, content, short_link_id')
-      .eq('id', idParsed.data)
-      .eq('site_id', siteId)
-      .single()
-
-    if (error || !post) return { ok: false, error: 'Post not found' }
-
-    const contentUrl = (post.content as Record<string, unknown> | null)?.url as string | undefined
-    if (!contentUrl) return { ok: false, error: 'No URL to scrape' }
-
-    // Get an active Facebook or Instagram connection to obtain a page token
-    const { data: connection } = await supabase
-      .from('social_connections')
-      .select('page_token_enc, access_token_enc')
-      .eq('site_id', siteId)
-      .is('revoked_at', null)
-      .in('provider', ['facebook', 'instagram'])
-      .not('page_token_enc', 'is', null)
-      .limit(1)
-      .single()
-
-    const key = getMasterKey()
-    const pageToken = connection?.page_token_enc
-      ? decrypt(connection.page_token_enc as string, key)
-      : (connection?.access_token_enc ? decrypt(connection.access_token_enc as string, key) : '')
-
-    const { scrapeOg } = await import('@/lib/social/og-scraper')
-    const result = await scrapeOg(contentUrl, pageToken)
-
-    const { updatePipelineStep } = await import('@/lib/social/pipeline')
-    const scrapeData = result as unknown as Record<string, unknown>
-    if (result.status === 'ok') {
-      await updatePipelineStep(supabase, idParsed.data, 'og_scrape', 'completed', scrapeData)
-    } else {
-      await updatePipelineStep(supabase, idParsed.data, 'og_scrape', 'warning', scrapeData)
-    }
-
-    return { ok: true, data: scrapeData }
-  } catch (err) {
-    Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'scrapeOgTags' } })
-    return { ok: false, error: err instanceof Error ? err.message : 'unknown' }
-  }
-}
-
 export async function listSocialPosts(
   siteId: string,
   filters?: { status?: PostStatus; from?: string; to?: string },
-): Promise<ActionResult<SocialPost[]>> {
+): Promise<ActionResult<SocialPostWithPipeline[]>> {
   const idParsed = z.string().uuid().safeParse(siteId)
   if (!idParsed.success) return { ok: false, error: 'Invalid site ID' }
   const filtersParsed = listFiltersSchema.safeParse(filters ?? {})
@@ -835,7 +497,7 @@ export async function listSocialPosts(
       return { ok: false, error: error.message }
     }
 
-    return { ok: true, data: (data ?? []) as unknown as SocialPost[] }
+    return { ok: true, data: toSocialPosts(data ?? []) }
   } catch (err) {
     Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'listSocialPosts' } })
     throw err

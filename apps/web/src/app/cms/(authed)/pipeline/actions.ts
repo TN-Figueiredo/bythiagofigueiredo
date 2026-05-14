@@ -9,7 +9,9 @@ import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { PipelineItemCreateSchema, PipelineItemUpdateSchema, CollectionCreateSchema, CollectionUpdateSchema } from '@/lib/pipeline/schemas'
 import { generateCode, DEFAULT_CHECKLISTS, getNextStage, getPreviousStage } from '@/lib/pipeline/workflows'
 import type { Format } from '@/lib/pipeline/schemas'
+import type { PipelineItem } from '@/lib/pipeline/graduation'
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ActionResult = { ok: true; data?: any } | { ok: false; error: string }
 
 function zodError(err: z.ZodError): string {
@@ -127,12 +129,12 @@ export async function updatePipelineItem(id: string, version: number, input: Rec
 }
 
 export async function advancePipelineItem(id: string, version: number): Promise<ActionResult> {
-  const { siteId } = await requireEditAccess()
+  const { siteId, timezone } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
 
   const { data: item } = await supabase
     .from('content_pipeline')
-    .select('id, format, stage, version')
+    .select('id, format, stage, version, social_config, social_post_id')
     .eq('id', id)
     .eq('site_id', siteId)
     .single()
@@ -147,13 +149,35 @@ export async function advancePipelineItem(id: string, version: number): Promise<
     .from('content_pipeline')
     .update({ stage: next })
     .eq('id', id)
+    .eq('site_id', siteId)
     .eq('version', version)
     .select()
     .single()
 
   if (error || !updated) return { ok: false, error: 'Version conflict' }
+
+  let graduationResult: { postId: string; isDraft: boolean } | null = null
+  const isFinal = getNextStage(item.format as Format, next) === null
+  const socialConfig = item.social_config as Record<string, unknown> | null
+  if (isFinal && socialConfig?.enabled === true && !item.social_post_id) {
+    try {
+      const { graduateToSocialPost } = await import('@/lib/pipeline/graduation')
+      const result = await graduateToSocialPost(supabase, updated as unknown as PipelineItem, siteId, timezone)
+      if (result.ok) {
+        graduationResult = result.data
+      }
+    } catch (err) {
+      const Sentry = await import('@sentry/nextjs')
+      Sentry.captureException(err, {
+        tags: { component: 'pipeline-actions', action: 'auto-graduation' },
+        extra: { pipelineId: id, stage: next },
+      })
+    }
+  }
+
   revalidatePath('/cms/pipeline')
-  return { ok: true, data: updated }
+  if (graduationResult) revalidatePath('/cms/social')
+  return { ok: true, data: { ...updated, graduationResult } }
 }
 
 export async function retreatPipelineItem(id: string, version: number): Promise<ActionResult> {
@@ -177,6 +201,7 @@ export async function retreatPipelineItem(id: string, version: number): Promise<
     .from('content_pipeline')
     .update({ stage: prev })
     .eq('id', id)
+    .eq('site_id', siteId)
     .eq('version', version)
     .select()
     .single()

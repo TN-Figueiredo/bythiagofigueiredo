@@ -40,7 +40,7 @@ const STATUS_FILTERS = ['all', 'active', 'paused', 'expired'] as const
 type SourceFilter = (typeof SOURCE_FILTERS)[number]
 type StatusFilter = (typeof STATUS_FILTERS)[number]
 
-const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const
 
 const SOURCE_BAR_COLORS: Record<string, string> = {
   manual: 'bg-gray-500',

@@ -13,7 +13,7 @@ import type { Provider } from '@tn-figueiredo/social'
 
 export type ContentType = 'blog' | 'newsletter' | 'campaign' | 'video'
 
-export type Origin = 'manual' | 'auto' | 'publish_modal'
+export type Origin = 'manual' | 'auto' | 'publish_modal' | 'pipeline'
 
 // ---------------------------------------------------------------------------
 // Delivery format
@@ -85,9 +85,58 @@ export interface OgScrapeResult {
 // Format mapping: content type -> platform -> delivery format
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Pipeline format → content type mapping
+// ---------------------------------------------------------------------------
+
+export const PIPELINE_FORMAT_TO_CONTENT_TYPE: Record<string, ContentType> = {
+  blog_post: 'blog',
+  newsletter: 'newsletter',
+  campaign: 'campaign',
+  video: 'video',
+}
+
+// ---------------------------------------------------------------------------
+// Default timezone
+// ---------------------------------------------------------------------------
+
+export const DEFAULT_TIMEZONE = 'America/Sao_Paulo'
+
+// ---------------------------------------------------------------------------
+// Pipeline snapshot (frozen state at graduation)
+// ---------------------------------------------------------------------------
+
+export interface PipelineSnapshot {
+  pipeline_id: string
+  code: string
+  format: string
+  stage: string
+  language: string
+  title_pt: string | null
+  title_en: string | null
+  hook: string | null
+  synopsis: string | null
+  tags: string[]
+  category: string | null
+  cover_image_url: string | null
+  sections: Record<string, unknown>
+  format_metadata: Record<string, unknown>
+  blog_post_id: string | null
+  newsletter_edition_id: string | null
+  campaign_id: string | null
+  youtube_video_id: string | null
+  graduated_at: string
+  graduated_by: string
+  version: number
+}
+
+// ---------------------------------------------------------------------------
+// Format mapping: content type -> platform -> delivery format
+// ---------------------------------------------------------------------------
+
 export const CONTENT_FORMAT_MAP: Record<ContentType, Partial<Record<Provider, DeliveryFormat>>> = {
-  blog: { facebook: 'link_share', instagram: 'story', bluesky: 'link_card' },
-  newsletter: { facebook: 'link_share', instagram: 'story', bluesky: 'link_card' },
-  campaign: { facebook: 'link_share', instagram: 'story', bluesky: 'link_card' },
-  video: { facebook: 'video_share', instagram: 'reel', bluesky: 'link_card' },
+  blog: { facebook: 'link_share', instagram: 'story', bluesky: 'link_card', youtube: 'link_share' },
+  newsletter: { facebook: 'link_share', instagram: 'story', bluesky: 'link_card', youtube: 'link_share' },
+  campaign: { facebook: 'link_share', instagram: 'story', bluesky: 'link_card', youtube: 'link_share' },
+  video: { facebook: 'video_share', instagram: 'reel', bluesky: 'link_card', youtube: 'video_share' },
 }
