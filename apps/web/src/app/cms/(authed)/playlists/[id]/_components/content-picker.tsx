@@ -10,6 +10,7 @@ const TABS = [
   { key: 'blog_post', label: 'Blog' },
   { key: 'newsletter', label: 'Newsletter' },
   { key: 'pipeline', label: 'Pipeline' },
+  { key: 'video', label: 'Video' },
 ] as const
 
 type TabKey = (typeof TABS)[number]['key']
@@ -18,12 +19,14 @@ const TYPE_DOT: Record<string, string> = {
   blog_post: 'bg-indigo-500',
   newsletter: 'bg-green-500',
   pipeline: 'bg-purple-500',
+  video: 'bg-red-500',
 }
 
 const TYPE_LABEL: Record<string, string> = {
   blog_post: 'Blog',
   newsletter: 'Newsletter',
   pipeline: 'Pipeline',
+  video: 'Video',
 }
 
 interface ContentPickerProps {
@@ -91,6 +94,7 @@ export function ContentPicker({
     if (item.type === 'blog_post') input.blogPostId = item.id
     else if (item.type === 'newsletter') input.newsletterEditionId = item.id
     else if (item.type === 'pipeline') input.pipelineId = item.id
+    else if (item.type === 'video') input.videoId = item.id
 
     startAdding(async () => {
       try {
