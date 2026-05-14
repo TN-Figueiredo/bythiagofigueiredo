@@ -9,6 +9,14 @@ import type {
   ContentType,
 } from './types'
 
+export function normalizeLang(locale: string | null | undefined): 'pt-br' | 'en' | null {
+  if (!locale) return null
+  const lower = locale.toLowerCase()
+  if (lower === 'pt-br' || lower === 'pt') return 'pt-br'
+  if (lower === 'en' || lower === 'en-us') return 'en'
+  return null
+}
+
 interface BlogPostRef {
   id: string
   status: string | null
@@ -21,6 +29,7 @@ interface NewsletterRef {
   subject: string
   status: string | null
   edition_kind: string | null
+  newsletter_types: Array<{ locale: string }> | null
 }
 
 interface PipelineRef {
@@ -30,6 +39,7 @@ interface PipelineRef {
   format: string | null
   stage: string | null
   version: number
+  language: string | null
 }
 
 interface CrossPlaylistRef {
@@ -100,10 +110,17 @@ export async function getPlaylistBySlug(
   return data as PlaylistRow | null
 }
 
-function resolveContentType(item: PlaylistItemRow): ContentType | null {
+function resolveContentType(
+  item: PlaylistItemRow,
+  pipelineMap: Map<string, PipelineRef>,
+): ContentType | null {
   if (item.blog_post_id) return 'blog_post'
   if (item.newsletter_edition_id) return 'newsletter'
-  if (item.pipeline_id) return 'pipeline'
+  if (item.pipeline_id) {
+    const pl = pipelineMap.get(item.pipeline_id)
+    if (pl?.format === 'video' || pl?.format === 'ig_reel') return 'video'
+    return 'pipeline'
+  }
   return null
 }
 
@@ -166,13 +183,13 @@ async function enrichItems(
     newsletterIds.length > 0
       ? supabase
           .from('newsletter_editions')
-          .select('id, subject, status, edition_kind')
+          .select('id, subject, status, edition_kind, newsletter_types(locale)')
           .in('id', newsletterIds)
       : { data: [] },
     pipelineIds.length > 0
       ? supabase
           .from('content_pipeline')
-          .select('id, title_pt, title_en, format, stage, version')
+          .select('id, title_pt, title_en, format, stage, version, language')
           .in('id', pipelineIds)
       : { data: [] },
     supabase
@@ -199,7 +216,7 @@ async function enrichItems(
   }
 
   return items.map((item): PlaylistItemEnriched => {
-    const contentType = resolveContentType(item)
+    const contentType = resolveContentType(item, pipelineMap)
     const isGhost = contentType === null
 
     let title = 'Content removed'
@@ -207,18 +224,21 @@ async function enrichItems(
     let category: string | null = null
     let metadata: string | null = null
     let refId: string | null = null
+    let language: 'pt-br' | 'en' | null = null
 
     if (item.blog_post_id && blogMap.has(item.blog_post_id)) {
       const blog = blogMap.get(item.blog_post_id)!
       title = blog.blog_translations?.[0]?.title ?? 'Untitled'
       status = blog.status
       category = blog.category
+      language = normalizeLang(blog.blog_translations?.[0]?.locale)
       refId = item.blog_post_id
     } else if (item.newsletter_edition_id && newsletterMap.has(item.newsletter_edition_id)) {
       const nl = newsletterMap.get(item.newsletter_edition_id)!
       title = nl.subject
       status = nl.status
       metadata = nl.edition_kind
+      language = normalizeLang(nl.newsletter_types?.[0]?.locale)
       refId = item.newsletter_edition_id
     } else if (item.pipeline_id && pipelineMap.has(item.pipeline_id)) {
       const pl = pipelineMap.get(item.pipeline_id)!
@@ -226,6 +246,7 @@ async function enrichItems(
       status = pl.stage
       category = pl.format
       metadata = `v${pl.version}`
+      language = normalizeLang(pl.language)
       refId = item.pipeline_id
     }
 
@@ -236,6 +257,7 @@ async function enrichItems(
       status,
       category,
       metadata,
+      language,
       is_ghost: isGhost,
       other_playlist_count: refId ? (crossCounts.get(refId) ?? 0) : 0,
     }
