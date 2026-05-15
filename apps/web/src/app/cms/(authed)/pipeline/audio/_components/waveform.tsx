@@ -9,7 +9,9 @@ export function resamplePeaks(peaks: number[], targetCount: number): number[] {
     const lo = Math.floor(pos)
     const hi = Math.min(lo + 1, peaks.length - 1)
     const t = pos - lo
-    result.push(peaks[lo] * (1 - t) + peaks[hi] * t)
+    const vLo = peaks[lo] ?? 0
+    const vHi = peaks[hi] ?? 0
+    result.push(vLo * (1 - t) + vHi * t)
   }
   return result
 }
