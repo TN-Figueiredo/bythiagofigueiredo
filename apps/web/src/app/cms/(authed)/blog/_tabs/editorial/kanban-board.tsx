@@ -265,7 +265,7 @@ export function KanbanBoard({
       return
     }
     await onMovePost?.(postId, newStatus)
-  }, [onMovePost, working, strings])
+  }, [onMovePost, working])
 
   return (
     <>

@@ -163,7 +163,7 @@ export function EditorialTab({ data, strings, siteId, tagId, locale, supportedLo
   return (
     <div className="flex flex-col gap-4">
       {/* KPI bar */}
-      <div className="flex flex-wrap items-center gap-y-1 rounded-lg border border-indigo-500/8 bg-indigo-500/3 px-3 py-2">
+      <div role="group" aria-label="Key metrics" className="flex flex-wrap items-center gap-y-1 rounded-lg border border-indigo-500/8 bg-indigo-500/3 px-3 py-2">
         <div className="flex items-center gap-1 border-r border-gray-800 px-2.5">
           <span className="text-[9px] text-gray-500">{strings?.editorial.kpiTotal ?? 'Total'}</span>
           <span className="text-[11px] font-semibold text-gray-300">{data.velocity.totalPosts}</span>

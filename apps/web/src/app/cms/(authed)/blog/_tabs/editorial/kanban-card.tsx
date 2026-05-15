@@ -423,6 +423,7 @@ export function KanbanCard({
               src={card.coverImageUrl}
               alt=""
               loading="lazy"
+              onError={(e) => { e.currentTarget.style.display = 'none' }}
               className="h-full w-full object-cover"
             />
             <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#131B2E]/80" />
@@ -613,7 +614,7 @@ export function KanbanCard({
           {/* Word count progress bar */}
           {card.readingTimeMin != null && card.readingTimeMin > 0 && (
             <div className="mt-2">
-              <div className="h-[3px] w-full rounded-full bg-gray-800">
+              <div role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} className="h-[3px] w-full rounded-full bg-gray-800">
                 <div
                   className={`h-full rounded-full transition-all ${progressColorClass(pct)}`}
                   style={{ width: `${pct}%` }}
@@ -801,7 +802,7 @@ export function KanbanCardOverlay({ card }: { card: PostCard }) {
       {/* Cover tier (simplified) */}
       {card.coverImageUrl ? (
         <div className="relative h-[32px] w-full overflow-hidden">
-          <img src={card.coverImageUrl} alt="" className="h-full w-full object-cover" />
+          <img src={card.coverImageUrl} alt="" onError={(e) => { e.currentTarget.style.display = 'none' }} className="h-full w-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#131B2E]/80" />
         </div>
       ) : card.tagColor ? (

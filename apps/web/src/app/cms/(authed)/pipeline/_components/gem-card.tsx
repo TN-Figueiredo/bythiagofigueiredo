@@ -98,7 +98,7 @@ export const GemCard = memo(function GemCard({ item, isDragging: _isDragging, on
       {item.cover_image_url ? (
         <>
           <div className="relative h-[44px] w-full overflow-hidden rounded-t-lg -mt-3 -mx-3 mb-2">
-            <img src={item.cover_image_url} alt="" className="h-full w-full object-cover" />
+            <img src={item.cover_image_url} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.display = 'none' }} className="h-full w-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-[var(--gem-surface)] from-[20%] to-transparent" />
           </div>
           {/* Priority bar below cover */}
