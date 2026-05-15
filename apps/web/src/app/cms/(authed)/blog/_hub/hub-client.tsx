@@ -2,7 +2,7 @@
 
 import { type ReactNode, useCallback, useState, useTransition } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
-import { BarChart3, Kanban, CalendarDays, TrendingUp, Plus, Bell, Loader2 } from 'lucide-react'
+import { BarChart3, Kanban, CalendarDays, TrendingUp, Plus, Bell, Loader2, Settings } from 'lucide-react'
 import type { BlogHubSharedData, BlogTabId } from './hub-types'
 import { TagFilterChips } from '../_shared/tag-filter-chips'
 import { LocaleFilterChips } from '../_shared/locale-filter-chips'
@@ -199,6 +199,13 @@ export function HubClient({
             </button>
           )
         })}
+        <button
+          onClick={handleAddTag}
+          aria-label="Manage tags"
+          className="ml-auto flex shrink-0 items-center border-b-2 border-transparent px-3 py-2.5 text-gray-600 transition-colors hover:text-gray-300"
+        >
+          <Settings className="h-3.5 w-3.5" />
+        </button>
       </div>
 
       {/* Filters */}
