@@ -41,7 +41,7 @@ export function PlaylistEdge({
       <path
         d={path}
         stroke="transparent"
-        strokeWidth={14}
+        strokeWidth={10}
         fill="none"
         style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
         onClick={() => onSelect(edge.id)}
@@ -94,7 +94,7 @@ export function PlaylistEdge({
               style={{
                 fontSize: 9,
                 fontWeight: 500,
-                fontFamily: '-apple-system, sans-serif',
+                fontFamily: 'system-ui, -apple-system, sans-serif',
                 color: isSelected ? '#f87171' : style.stroke,
                 background: 'rgba(10,10,18,0.88)',
                 padding: '1px 6px',

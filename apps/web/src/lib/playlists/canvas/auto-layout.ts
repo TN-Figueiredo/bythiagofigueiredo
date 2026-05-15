@@ -1,10 +1,10 @@
 import type { PlaylistItemEnriched, PlaylistEdgeRow } from '../types'
 
 const NODE_W = 250
-const LAYER_GAP_X = 370
-const NODE_GAP_Y = 103
+const LAYER_GAP_X = 480
+const NODE_GAP_Y = 160
 const ORPHAN_COLS = 4
-const ORPHAN_GAP_Y = 140
+const ORPHAN_GAP_Y = 200
 export const DIMMED_OFFSET_Y = 120
 
 interface LayoutPosition {
@@ -71,7 +71,7 @@ export function computeAutoLayout(
     for (const next of adjacency.get(current) ?? []) {
       const newLayer = currentLayer + 1
       layers.set(next, Math.max(layers.get(next) ?? 0, newLayer))
-      const newDeg = (inDegree.get(next) ?? 1) - 1
+      const newDeg = (inDegree.get(next) ?? 0) - 1
       inDegree.set(next, newDeg)
       if (newDeg === 0) queue.push(next)
     }

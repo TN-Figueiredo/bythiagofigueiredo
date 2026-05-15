@@ -607,15 +607,15 @@ export function PlaylistCanvas({
       // Cmd+Enter = open editor
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && state.selectedItemIds.size === 1) {
         e.preventDefault()
-        const selectedId = [...state.selectedItemIds][0]!
-        handleOpenContent(selectedId)
+        const selectedId = state.selectedItemIds.values().next().value
+        if (selectedId) handleOpenContent(selectedId)
       }
 
       // Single-node shortcuts (only when one node selected and no input focused)
       const target = e.target as HTMLElement
       const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
       if (!isInput && state.selectedItemIds.size === 1) {
-        const selectedId = [...state.selectedItemIds][0]!
+        const selectedId = state.selectedItemIds.values().next().value as string
         if (e.key === 'e' || e.key === 'E') {
           const nodeEl = document.querySelector(`[data-node-id="${selectedId}"]`)
           if (nodeEl) {
@@ -713,7 +713,7 @@ export function PlaylistCanvas({
 
   // ── Render ───────────────────────────────────────────────────────────
 
-  const itemMap = new Map(state.items.map(i => [i.id, i]))
+  const itemMap = useMemo(() => new Map(state.items.map(i => [i.id, i])), [state.items])
 
   return (
     <>
@@ -937,7 +937,8 @@ export function PlaylistCanvas({
               const connected = new Set<string>()
               const queue = [item.id]
               while (queue.length > 0) {
-                const current = queue.pop()!
+                const current = queue.pop()
+                if (!current) break
                 if (connected.has(current)) continue
                 connected.add(current)
                 for (const edge of state.edges) {

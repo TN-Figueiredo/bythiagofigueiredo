@@ -265,31 +265,3 @@ export function PlaylistContextMenu({
 /*  Legacy ContextMenu shim (used by canvas.tsx until Task 13)         */
 /* ------------------------------------------------------------------ */
 
-interface ContextMenuLegacyProps {
-  x: number
-  y: number
-  items: Array<{ label: string; onClick: () => void; variant?: string }>
-  onClose: () => void
-}
-
-export function ContextMenu({ x, y, items, onClose }: ContextMenuLegacyProps) {
-  return (
-    <div
-      className="fixed z-50 w-[160px] rounded-lg border border-white/10 bg-[#14141f]/90 p-1 shadow-xl backdrop-blur-xl"
-      style={{ left: x, top: y }}
-    >
-      {items.map((item) => (
-        <button
-          key={item.label}
-          type="button"
-          onClick={() => { item.onClick(); onClose() }}
-          className={`flex w-full rounded px-3 py-1.5 text-left text-xs transition-colors ${
-            item.variant === 'danger' ? 'text-red-400 hover:bg-red-500/10' : 'text-white/70 hover:bg-white/5'
-          }`}
-        >
-          {item.label}
-        </button>
-      ))}
-    </div>
-  )
-}

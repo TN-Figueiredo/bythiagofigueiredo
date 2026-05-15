@@ -78,27 +78,27 @@ describe('computeAutoLayout', () => {
 })
 
 describe('computeAutoLayout constants', () => {
-  it('uses 370px horizontal gap between layers', () => {
+  it('uses 480px horizontal gap between layers', () => {
     const items = [item('a', 1), item('b', 2)]
     const edges = [edge('a', 'b')]
     const positions = computeAutoLayout(items, edges)
     const posA = positions.find(p => p.itemId === 'a')!
     const posB = positions.find(p => p.itemId === 'b')!
-    expect(posB.x - posA.x).toBe(370)
+    expect(posB.x - posA.x).toBe(480)
   })
 
-  it('uses 103px vertical gap within layers', () => {
+  it('uses 160px vertical gap within layers', () => {
     const items = [item('a', 1), item('b', 2), item('c', 3)]
     const edges = [edge('a', 'b'), edge('a', 'c')]
     const positions = computeAutoLayout(items, edges)
     const layer1 = positions.filter(p => p.itemId === 'b' || p.itemId === 'c').sort((a, b) => a.y - b.y)
-    expect(layer1[1]!.y - layer1[0]!.y).toBe(103)
+    expect(layer1[1]!.y - layer1[0]!.y).toBe(160)
   })
 
-  it('positions all-disconnected items with NODE_GAP_Y (103px)', () => {
+  it('positions all-disconnected items with NODE_GAP_Y (160px)', () => {
     const items = [item('a', 1), item('b', 2)]
     const positions = computeAutoLayout(items, [])
-    expect(positions[1]!.y - positions[0]!.y).toBe(103)
+    expect(positions[1]!.y - positions[0]!.y).toBe(160)
   })
 
   it('exports DIMMED_OFFSET_Y as 120', () => {

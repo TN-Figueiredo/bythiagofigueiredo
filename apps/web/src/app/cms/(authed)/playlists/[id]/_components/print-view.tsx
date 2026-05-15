@@ -28,8 +28,8 @@ export function PrintView({ playlistName, filterLabel, items, viewNumbers }: Pri
 
       <ol className="space-y-3">
         {visibleItems.map(item => {
-          const num = viewNumbers.get(item.id)!
-          const typeBadge = item.content_type ? TYPE_BADGES[item.content_type] : '???'
+          const num = viewNumbers.get(item.id) ?? 0
+          const typeBadge = item.content_type ? TYPE_BADGES[item.content_type] : 'N/A'
           const langBadge = item.language === 'pt-br' ? 'PT' : item.language === 'en' ? 'EN' : null
 
           return (

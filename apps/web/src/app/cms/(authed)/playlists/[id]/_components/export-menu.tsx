@@ -82,7 +82,7 @@ export function generateCsv(
     .filter(item => viewNumbers.get(item.id) !== null)
     .sort((a, b) => (viewNumbers.get(a.id) ?? 0) - (viewNumbers.get(b.id) ?? 0))
     .map(item => {
-      const n = viewNumbers.get(item.id)!
+      const n = viewNumbers.get(item.id) ?? 0
       const escape = (s: string | null) => {
         if (!s) return ''
         return s.includes(',') || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s
@@ -102,7 +102,7 @@ export function generateJson(
     .filter(item => viewNumbers.get(item.id) !== null)
     .sort((a, b) => (viewNumbers.get(a.id) ?? 0) - (viewNumbers.get(b.id) ?? 0))
     .map(item => ({
-      order: viewNumbers.get(item.id)!,
+      order: viewNumbers.get(item.id) ?? 0,
       type: item.content_type,
       language: item.language,
       status: item.status,

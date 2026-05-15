@@ -12,8 +12,8 @@ import type {
 export function normalizeLang(locale: string | null | undefined): 'pt-br' | 'en' | null {
   if (!locale) return null
   const lower = locale.toLowerCase()
-  if (lower === 'pt-br' || lower === 'pt') return 'pt-br'
-  if (lower === 'en' || lower === 'en-us') return 'en'
+  if (lower.startsWith('pt')) return 'pt-br'
+  if (lower.startsWith('en')) return 'en'
   return null
 }
 

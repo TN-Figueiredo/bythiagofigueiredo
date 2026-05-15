@@ -31,8 +31,8 @@ export function PlaylistMinimap({
   const minY = Math.min(...items.map(i => i.position_y)) - PADDING
   const maxY = Math.max(...items.map(i => i.position_y)) + NODE_H + PADDING
 
-  const contentW = maxX - minX
-  const contentH = maxY - minY
+  const contentW = Math.max(maxX - minX, 1)
+  const contentH = Math.max(maxY - minY, 1)
   const scale = Math.min(MINIMAP_W / contentW, MINIMAP_H / contentH)
 
   // Viewport indicator in content coords
@@ -51,7 +51,7 @@ export function PlaylistMinimap({
   const typeColors: Record<string, string> = {
     blog_post: '#818cf8',
     newsletter: '#34d399',
-    pipeline: '#a78bfa',
+    pipeline: '#a855f7',
     video: '#ef4444',
   }
 
