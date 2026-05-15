@@ -438,6 +438,30 @@ export function KanbanCard({
           <div data-testid="card-strip" className="h-[3px] w-full bg-gray-700/50" />
         )}
 
+        {/* Action buttons — pinned top-right of card, overlapping cover */}
+        <div className="absolute right-1.5 top-1.5 z-10 flex items-center gap-px rounded-md bg-gray-900/70 p-0.5 opacity-0 shadow-sm backdrop-blur-sm transition-opacity group-hover:opacity-100">
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              handleClick()
+            }}
+            aria-label={s?.open ?? 'Open'}
+            className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-700 hover:text-gray-100"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              setContextMenu({ x: e.clientX, y: e.clientY })
+            }}
+            aria-label={s?.moreActions ?? 'More actions'}
+            className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-700 hover:text-gray-100"
+          >
+            <MoreVertical className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
         {/* Card body */}
         <div className="relative p-3">
           {isLoading && (
@@ -451,30 +475,6 @@ export function KanbanCard({
             {Array.from({ length: 6 }).map((_, i) => (
               <span key={i} className="block h-[3px] w-[3px] rounded-full bg-gray-500" />
             ))}
-          </div>
-
-          {/* Hover action buttons — top-right */}
-          <div className="absolute right-1.5 top-1.5 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                handleClick()
-              }}
-              aria-label={s?.open ?? 'Open'}
-              className="rounded p-0.5 text-gray-500 hover:bg-gray-800 hover:text-gray-300"
-            >
-              <Pencil className="h-3 w-3" />
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                setContextMenu({ x: e.clientX, y: e.clientY })
-              }}
-              aria-label={s?.moreActions ?? 'More actions'}
-              className="rounded p-0.5 text-gray-500 hover:bg-gray-800 hover:text-gray-300"
-            >
-              <MoreVertical className="h-3 w-3" />
-            </button>
           </div>
 
           {/* Header row: displayId + status badge + tag badge */}

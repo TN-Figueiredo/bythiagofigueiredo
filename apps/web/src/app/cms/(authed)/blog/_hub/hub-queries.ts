@@ -240,7 +240,8 @@ export const fetchScheduleData = unstable_cache(
       if (p.scheduled_for) dates.push(toDateStringInTz(new Date(p.scheduled_for as string), siteTimezone))
       if (p.published_at) dates.push(toDateStringInTz(new Date(p.published_at as string), siteTimezone))
 
-      for (const dateStr of dates) {
+      const uniqueDates = [...new Set(dates)]
+      for (const dateStr of uniqueDates) {
         const slot = slotsMap.get(dateStr)
         if (slot) {
           const txs = p.blog_translations ?? []
