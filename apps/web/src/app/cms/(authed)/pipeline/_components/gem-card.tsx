@@ -38,15 +38,17 @@ export interface GemCardItem {
   collection_code: string | null
   sort_order: number
   version: number
+  cover_image_url: string | null
 }
 
 interface GemCardProps {
   item: GemCardItem
   isDragging?: boolean
   onNavigate?: () => void
+  onPromote?: (itemId: string) => void
 }
 
-export const GemCard = memo(function GemCard({ item, isDragging: _isDragging, onNavigate }: GemCardProps) {
+export const GemCard = memo(function GemCard({ item, isDragging: _isDragging, onNavigate, onPromote }: GemCardProps) {
   const priority = getPriorityConfig(item.priority)
   const staleness = getStaleness(item.updated_at)
   const formatIcon = getFormatIcon(item.format)
@@ -92,14 +94,32 @@ export const GemCard = memo(function GemCard({ item, isDragging: _isDragging, on
       onMouseEnter={(e) => { if (!isArchived && !isBlockedState) e.currentTarget.style.borderColor = priority.accent }}
       onMouseLeave={(e) => { e.currentTarget.style.borderColor = isBlockedState ? 'rgba(239,68,68,0.4)' : 'var(--gem-border)' }}
     >
-      {/* Priority bar */}
-      <div
-        className="h-0.5 -mx-3 -mt-3 mb-2 rounded-t-lg"
-        style={{
-          background: `linear-gradient(to right, ${priority.accent}, transparent 75%)`,
-          opacity: item.priority <= 1 ? 0.25 : 1,
-        }}
-      />
+      {/* Cover image tier */}
+      {item.cover_image_url ? (
+        <>
+          <div className="relative h-[44px] w-full overflow-hidden rounded-t-lg -mt-3 -mx-3 mb-2">
+            <img src={item.cover_image_url} alt="" className="h-full w-full object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[var(--gem-surface)] from-[20%] to-transparent" />
+          </div>
+          {/* Priority bar below cover */}
+          <div
+            className="h-0.5 -mx-3 mb-2"
+            style={{
+              background: `linear-gradient(to right, ${priority.accent}, transparent 75%)`,
+              opacity: item.priority <= 1 ? 0.25 : 1,
+            }}
+          />
+        </>
+      ) : (
+        /* Priority bar */
+        <div
+          className="h-0.5 -mx-3 -mt-3 mb-2 rounded-t-lg"
+          style={{
+            background: `linear-gradient(to right, ${priority.accent}, transparent 75%)`,
+            opacity: item.priority <= 1 ? 0.25 : 1,
+          }}
+        />
+      )}
 
       {/* Header row */}
       <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
@@ -202,6 +222,17 @@ export const GemCard = memo(function GemCard({ item, isDragging: _isDragging, on
         {/* VVS Ring */}
         <GemVvsRing score={item.validation_score} size={26} />
       </div>
+
+      {/* Promote to Posts Hub — only on ready/pronto stage */}
+      {item.stage === 'ready' && !isGraduated && onPromote && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onPromote(item.id) }}
+          className="mx-0 mt-2 flex w-full items-center gap-1 rounded-md border border-indigo-500/15 bg-indigo-500/8 px-2.5 py-1.5 text-[9px] font-semibold text-indigo-400 transition-colors hover:border-indigo-500/30 hover:bg-indigo-500/15 hover:text-indigo-300"
+        >
+          <span className="text-[11px]">&rarr;</span> Promote to Posts Hub
+        </button>
+      )}
 
       {/* Graduated emerald bar */}
       {isGraduated && (

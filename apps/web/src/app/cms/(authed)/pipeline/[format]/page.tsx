@@ -25,7 +25,7 @@ export default async function FormatBoardPage({ params }: { params: Promise<{ fo
         id, code, title_pt, title_en, stage, priority, language, tags,
         production_checklist, version, sort_order, format, hook, body_content, updated_at,
         youtube_video_id, blog_post_id, newsletter_edition_id, campaign_id, social_post_id,
-        is_archived, format_metadata, blog_posts(status),
+        is_archived, format_metadata, cover_image_url, blog_posts(status),
         content_pipeline_memberships(role, content_collections(code, name))
       `)
       .eq('site_id', siteId)
@@ -66,6 +66,7 @@ export default async function FormatBoardPage({ params }: { params: Promise<{ fo
       linked_post_status: (item as unknown as { blog_posts?: { status: string } | null }).blog_posts?.status ?? null,
       sort_order: (item as unknown as { sort_order: number }).sort_order ?? 0,
       version: item.version ?? 1,
+      cover_image_url: (item as unknown as { cover_image_url: string | null }).cover_image_url ?? null,
     }
   })
 
