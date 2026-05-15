@@ -31,7 +31,7 @@ export function StatusCard({ status, pipelineItemId, onSchedule, onPublish, onRe
         </span>
       </div>
 
-      <div className="flex gap-1 mb-3" role="progressbar" aria-valuenow={currentIdx} aria-valuemin={0} aria-valuemax={POST_STAGES.length - 1}>
+      <div className="flex gap-1 mb-3" role="progressbar" aria-valuenow={currentIdx} aria-valuemin={0} aria-valuemax={POST_STAGES.length - 1} aria-label="Estágio do post" aria-valuetext={POST_STAGES[currentIdx]?.labelPt ?? status}>
         {POST_STAGES.map((s, i) => (
           <div
             key={s.stage}

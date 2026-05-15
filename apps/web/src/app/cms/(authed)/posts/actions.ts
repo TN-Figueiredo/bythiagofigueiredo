@@ -16,7 +16,7 @@ const localeSchema = z.string().min(2).max(10)
 
 const contentInputSchema = z.object({
   title: z.string().min(1).max(500).optional(),
-  slug: z.string().optional(),
+  slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(),
   excerpt: z.string().max(1000).optional(),
   contentMdx: z.string().optional(),
   contentJson: z.record(z.unknown()).optional(),
@@ -38,8 +38,23 @@ const publishSettingsSchema = z.object({
 
 const scheduledAtSchema = z.string().datetime()
 
+const socialConfigSchema = z.object({
+  enabled: z.boolean(),
+  platforms: z.array(z.enum(['youtube', 'facebook', 'instagram', 'bluesky'])),
+  captions: z.record(z.string(), z.record(z.string(), z.string())).default({}),
+  hashtags: z.array(z.string()).default([]),
+  image_source: z.enum(['cover_image', 'custom', 'auto']).default('cover_image'),
+  ig_template: z.enum(['card', 'story', 'reel']).default('card'),
+  formats: z.record(z.string(), z.string()).default({}),
+})
+
 async function requireEditScope(siteId: string): Promise<void> {
   const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+  if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
+}
+
+async function requirePublishScope(siteId: string): Promise<void> {
+  const res = await requireSiteScope({ area: 'cms', siteId, mode: 'publish' })
   if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
 }
 
@@ -81,7 +96,10 @@ export async function savePostContent(
     .eq('post_id', postId)
     .eq('locale', locale)
 
-  if (error) return { ok: false, error: error.message }
+  if (error) {
+    console.error('[posts] savePostContent', error)
+    return { ok: false, error: 'Erro ao salvar conteúdo' }
+  }
 
   revalidatePath(`/cms/posts/${postId}`)
   return { ok: true }
@@ -119,7 +137,10 @@ export async function savePostSeo(
     .eq('post_id', postId)
     .eq('locale', locale)
 
-  if (error) return { ok: false, error: error.message }
+  if (error) {
+    console.error('[posts] savePostSeo', error)
+    return { ok: false, error: 'Erro ao salvar SEO' }
+  }
 
   const { data: txData } = await svc.from('blog_translations').select('slug').eq('post_id', postId).eq('locale', locale).single()
 
@@ -134,17 +155,23 @@ export async function savePostSocialConfig(
 ): Promise<ActionResult> {
   if (!uuidSchema.safeParse(postId).success) return { ok: false, error: 'ID inválido' }
 
+  const parsed = socialConfigSchema.safeParse(config)
+  if (!parsed.success) return { ok: false, error: 'Configuração inválida' }
+
   const { siteId } = await getSiteContext()
   await requireEditScope(siteId)
   const svc = getSupabaseServiceClient()
 
   const { error } = await svc
     .from('blog_posts')
-    .update({ social_config: config })
+    .update({ social_config: parsed.data })
     .eq('id', postId)
     .eq('site_id', siteId)
 
-  if (error) return { ok: false, error: error.message }
+  if (error) {
+    console.error('[posts] savePostSocialConfig', error)
+    return { ok: false, error: 'Erro ao salvar' }
+  }
 
   revalidatePath(`/cms/posts/${postId}`)
   return { ok: true }
@@ -178,7 +205,10 @@ export async function savePostPublishSettings(
     .eq('id', postId)
     .eq('site_id', siteId)
 
-  if (error) return { ok: false, error: error.message }
+  if (error) {
+    console.error('[posts] savePostPublishSettings', error)
+    return { ok: false, error: 'Erro ao salvar' }
+  }
 
   revalidatePath(`/cms/posts/${postId}`)
   return { ok: true }
@@ -200,7 +230,10 @@ export async function savePostCoverImage(
     .eq('id', postId)
     .eq('site_id', siteId)
 
-  if (error) return { ok: false, error: error.message }
+  if (error) {
+    console.error('[posts] savePostCoverImage', error)
+    return { ok: false, error: 'Erro ao salvar' }
+  }
 
   revalidatePath(`/cms/posts/${postId}`)
   return { ok: true }
@@ -214,7 +247,7 @@ export async function schedulePost(
   if (!scheduledAtSchema.safeParse(scheduledAt).success) return { ok: false, error: 'Data inválida' }
 
   const { siteId } = await getSiteContext()
-  await requireEditScope(siteId)
+  await requirePublishScope(siteId)
   const svc = getSupabaseServiceClient()
 
   const { data: post, error: fetchError } = await svc
@@ -233,7 +266,10 @@ export async function schedulePost(
     .eq('id', postId)
     .eq('site_id', siteId)
 
-  if (error) return { ok: false, error: error.message }
+  if (error) {
+    console.error('[posts] schedulePost', error)
+    return { ok: false, error: 'Erro ao agendar' }
+  }
 
   syncPipelineOnPostStatusChange(postId, 'scheduled', post.status).catch(err => console.error('[posts]', err))
 
@@ -248,7 +284,7 @@ export async function publishPost(
   if (!uuidSchema.safeParse(postId).success) return { ok: false, error: 'ID inválido' }
 
   const { siteId } = await getSiteContext()
-  await requireEditScope(siteId)
+  await requirePublishScope(siteId)
   const svc = getSupabaseServiceClient()
 
   const { data: post, error: fetchError } = await svc
@@ -267,7 +303,10 @@ export async function publishPost(
     .eq('id', postId)
     .eq('site_id', siteId)
 
-  if (error) return { ok: false, error: error.message }
+  if (error) {
+    console.error('[posts] publishPost', error)
+    return { ok: false, error: 'Erro ao publicar' }
+  }
 
   const translations = (post as { blog_translations: Array<{ locale: string; slug: string }> }).blog_translations ?? []
   for (const tx of translations) {
@@ -276,15 +315,16 @@ export async function publishPost(
 
   syncPipelineOnPostStatusChange(postId, 'published', post.status).catch(err => console.error('[posts]', err))
 
-  const socialConfig = (post as { social_config?: { enabled: boolean } }).social_config
-  if (socialConfig?.enabled) {
+  const rawSocialConfig = (post as { social_config?: unknown }).social_config
+  const parsedSocialConfig = socialConfigSchema.safeParse(rawSocialConfig)
+  if (parsedSocialConfig.success && parsedSocialConfig.data.enabled) {
     import('@/lib/social/create-from-content').then(({ createSocialPostFromContent }) =>
       createSocialPostFromContent({
         supabase: svc,
         siteId,
         contentType: 'blog',
         contentId: postId,
-        config: socialConfig as unknown as SocialConfig,
+        config: parsedSocialConfig.data as SocialConfig,
         origin: 'auto',
         userId: 'system',
       }).catch(err => console.error('[posts]', err)),
@@ -315,14 +355,19 @@ export async function returnToPipeline(
 
   if (!pipelineItem) return { ok: false, error: 'No linked pipeline item found' }
 
+  // Step 1: archive post
   const { error: archiveErr } = await svc
     .from('blog_posts')
     .update({ status: 'archived' })
     .eq('id', postId)
     .eq('site_id', siteId)
 
-  if (archiveErr) return { ok: false, error: archiveErr.message }
+  if (archiveErr) {
+    console.error('[posts] returnToPipeline archive', archiveErr)
+    return { ok: false, error: 'Erro ao retornar ao pipeline' }
+  }
 
+  // Step 2: restore pipeline
   const { error: pipelineErr } = await svc
     .from('content_pipeline')
     .update({
@@ -334,7 +379,12 @@ export async function returnToPipeline(
     .eq('id', pipelineItem.id)
     .eq('version', pipelineItem.version)
 
-  if (pipelineErr) return { ok: false, error: pipelineErr.message }
+  if (pipelineErr) {
+    console.error('[posts] returnToPipeline restore pipeline', pipelineErr)
+    // Compensate: revert archive
+    await svc.from('blog_posts').update({ status: 'draft' }).eq('id', postId).eq('site_id', siteId)
+    return { ok: false, error: 'Erro ao retornar ao pipeline' }
+  }
 
   await svc.from('content_pipeline_history').insert({
     pipeline_id: pipelineItem.id,

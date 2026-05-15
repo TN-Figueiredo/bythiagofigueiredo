@@ -89,6 +89,8 @@ export function PostTabBar({ tabStatuses, availableLocales }: PostTabBarProps) {
             return (
               <button
                 key={locale}
+                aria-label={`Editar em ${locale === 'pt-br' ? 'Português' : 'English'}`}
+                aria-pressed={isActive}
                 className="px-2.5 py-0.5 text-[10px] font-bold tracking-wider transition-colors"
                 style={{
                   background: isActive ? 'var(--gem-accent, #818cf8)' : 'transparent',

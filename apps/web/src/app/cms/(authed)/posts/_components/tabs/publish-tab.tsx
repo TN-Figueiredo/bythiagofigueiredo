@@ -31,7 +31,7 @@ export function PublishTab() {
     if (!scheduleDate) { toast.error('Selecione uma data'); return }
     setIsScheduling(true)
     try {
-      const scheduledAt = new Date(`${scheduleDate}T${scheduleTime}:00`).toISOString()
+      const scheduledAt = new Date(`${scheduleDate}T${scheduleTime}:00-03:00`).toISOString()
       const result = await schedulePost(post.id, scheduledAt)
       if (result.ok) {
         toast.success('Post agendado!')

@@ -100,12 +100,20 @@ function PostDetailInner() {
 
         <PostTabBar tabStatuses={tabStatuses} availableLocales={post.translations.map(t => t.locale)} />
 
-        <div role="tabpanel" id={`tabpanel-${activeTab}`} aria-labelledby={`tab-${activeTab}`}>
-          {activeTab === 'content' && <ContentTab />}
-          {activeTab === 'images' && <ImagesTab />}
-          {activeTab === 'seo' && <SeoTab />}
-          {activeTab === 'social' && <SocialTab />}
-          {activeTab === 'publish' && <PublishTab />}
+        <div role="tabpanel" id="tabpanel-content" aria-labelledby="tab-content" hidden={activeTab !== 'content'}>
+          <ContentTab />
+        </div>
+        <div role="tabpanel" id="tabpanel-images" aria-labelledby="tab-images" hidden={activeTab !== 'images'}>
+          <ImagesTab />
+        </div>
+        <div role="tabpanel" id="tabpanel-seo" aria-labelledby="tab-seo" hidden={activeTab !== 'seo'}>
+          <SeoTab />
+        </div>
+        <div role="tabpanel" id="tabpanel-social" aria-labelledby="tab-social" hidden={activeTab !== 'social'}>
+          <SocialTab />
+        </div>
+        <div role="tabpanel" id="tabpanel-publish" aria-labelledby="tab-publish" hidden={activeTab !== 'publish'}>
+          <PublishTab />
         </div>
       </div>
 

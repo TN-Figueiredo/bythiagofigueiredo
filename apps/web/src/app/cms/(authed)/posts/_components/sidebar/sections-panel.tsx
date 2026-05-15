@@ -36,7 +36,7 @@ export function SectionsPanel({ tabStatuses }: SectionsPanelProps) {
               style={{
                 background: state.activeTab === tab ? 'var(--gem-surface-hi, #151d2a)' : 'transparent',
               }}
-              aria-current={state.activeTab === tab ? 'true' : undefined}
+              aria-current={state.activeTab === tab ? 'step' : undefined}
             >
               <span className="flex items-center gap-1.5">
                 <span
