@@ -19,6 +19,8 @@ export const ptBR: BlogHubStrings = {
     viewAllPublished: 'Ver todos os publicados', archived: 'Arquivados', showArchived: 'Mostrar arquivados', hideArchived: 'Ocultar arquivados',
     addTranslationsLater: 'Adicione traduções nas config. da tag',
     moveToIdea: 'Voltar p/ ideia', moveToDraft: 'Voltar p/ rascunho', moveToReady: 'Marcar pronto', moveToScheduled: 'Agendar…', moveToPublished: 'Publicar agora', moveToArchived: 'Arquivar',
+    kpiTotal: 'Total', kpiPublished: 'Publicados', kpiThroughput: 'Vazão', kpiIdeaToPub: 'Ideia→Pub', kpiBottleneck: 'Gargalo', kpiNone: 'Nenhum',
+    promotedFromPipeline: 'Promovido do Pipeline',
   },
   deletePost: {
     triggerLabel: 'Excluir', triggerAriaLabel: 'Excluir {title}',

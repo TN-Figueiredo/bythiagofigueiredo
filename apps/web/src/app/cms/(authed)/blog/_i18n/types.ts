@@ -17,6 +17,8 @@ export interface BlogHubStrings {
     viewAllPublished: string; archived: string; showArchived: string; hideArchived: string
     addTranslationsLater: string
     moveToIdea: string; moveToDraft: string; moveToReady: string; moveToScheduled: string; moveToPublished: string; moveToArchived: string
+    kpiTotal: string; kpiPublished: string; kpiThroughput: string; kpiIdeaToPub: string; kpiBottleneck: string; kpiNone: string
+    promotedFromPipeline: string
   }
   deletePost: {
     triggerLabel: string; triggerAriaLabel: string

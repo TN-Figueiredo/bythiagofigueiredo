@@ -61,11 +61,15 @@ function progressColorClass(pct: number): string {
 
 function tagColorFamily(hex: string | null): string | null {
   if (!hex) return null
-  const lower = hex.toLowerCase()
-  if (lower.includes('ef4444') || lower.includes('f87171') || lower.includes('dc2626')) return 'red'
-  if (lower.includes('3b82f6') || lower.includes('60a5fa') || lower.includes('2563eb')) return 'blue'
-  if (lower.includes('22c55e') || lower.includes('4ade80') || lower.includes('16a34a')) return 'green'
-  if (lower.includes('a855f7') || lower.includes('8b5cf6') || lower.includes('7c3aed')) return 'purple'
+  const h = hex.toLowerCase().replace('#', '')
+  const RED = ['ef4444', 'f87171', 'dc2626']
+  const BLUE = ['3b82f6', '60a5fa', '2563eb']
+  const GREEN = ['22c55e', '4ade80', '16a34a']
+  const PURPLE = ['a855f7', '8b5cf6', '7c3aed']
+  if (RED.includes(h)) return 'red'
+  if (BLUE.includes(h)) return 'blue'
+  if (GREEN.includes(h)) return 'green'
+  if (PURPLE.includes(h)) return 'purple'
   return null
 }
 
@@ -418,6 +422,7 @@ export function KanbanCard({
             <img
               src={card.coverImageUrl}
               alt=""
+              loading="lazy"
               className="h-full w-full object-cover"
             />
             <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#131B2E]/80" />
@@ -790,38 +795,51 @@ export function KanbanCard({
 }
 
 export function KanbanCardOverlay({ card }: { card: PostCard }) {
+  const badge = statusBadge(card.status)
   return (
-    <div className="w-[220px] rotate-2 rounded-lg border border-indigo-500/50 bg-gray-900 p-3 shadow-2xl shadow-indigo-500/10">
-      <div className="mb-1.5 flex items-center justify-between gap-1">
-        <span className="shrink-0 whitespace-nowrap rounded bg-gray-800 px-1.5 py-0.5 text-[8px] font-bold tabular-nums tracking-wide text-gray-400">
-          {card.displayId}
-        </span>
-        {card.tagName && (
-          <span
-            className="flex max-w-[110px] items-center gap-1 rounded-full px-1.5 py-0.5 text-[8px] font-medium"
-            style={
-              card.tagColor
-                ? { backgroundColor: `${card.tagColor}20`, color: card.tagColor }
-                : { backgroundColor: '#374151', color: '#9ca3af' }
-            }
-          >
-            {card.tagColor && (
-              <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: card.tagColor }} />
-            )}
-            <span className="truncate">{formatTagNameCms({ name: card.tagName, nameTranslations: card.tagNameTranslations })}</span>
+    <div className="w-[280px] rotate-2 overflow-hidden rounded-lg border border-indigo-500/50 bg-[#131B2E] shadow-2xl shadow-indigo-500/10">
+      {/* Cover tier (simplified) */}
+      {card.coverImageUrl ? (
+        <div className="relative h-[32px] w-full overflow-hidden">
+          <img src={card.coverImageUrl} alt="" className="h-full w-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#131B2E]/80" />
+        </div>
+      ) : card.tagColor ? (
+        <div className="h-[16px] w-full" style={{ background: `linear-gradient(135deg, ${card.tagColor}30, ${card.tagColor}08)` }} />
+      ) : (
+        <div className="h-[3px] w-full bg-gray-700/50" />
+      )}
+      <div className="p-3">
+        <div className="mb-1.5 flex items-center gap-1">
+          <span className="shrink-0 rounded bg-gray-800 px-1.5 py-0.5 text-[8px] font-bold tabular-nums text-gray-400">
+            {card.displayId}
           </span>
-        )}
-      </div>
-      <p className={`text-[11px] font-medium leading-snug ${card.title ? 'text-gray-200' : 'italic text-gray-600'}`}>
-        {card.title || 'Untitled'}
-      </p>
-      <div className="mt-2 flex gap-1.5 text-[9px] text-gray-600">
-        {card.locales.map((loc) => (
-          <span key={loc} className={`rounded px-1 py-0.5 text-[8px] uppercase font-medium ${localeColorClass(loc)}`}>
-            {loc}
-          </span>
-        ))}
-        <time className="ml-auto">{formatRelativeDate(card.updatedAt)}</time>
+          {badge && (
+            <span className={`rounded-full px-1.5 py-0.5 text-[8px] font-semibold ${badge.className}`}>
+              {badge.label}
+            </span>
+          )}
+          {card.tagName && (
+            <span
+              className="ml-auto flex max-w-[110px] items-center gap-1 rounded-full px-1.5 py-0.5 text-[8px] font-medium"
+              style={card.tagColor ? { backgroundColor: `${card.tagColor}20`, color: card.tagColor } : { backgroundColor: '#374151', color: '#9ca3af' }}
+            >
+              {card.tagColor && <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: card.tagColor }} />}
+              <span className="truncate">{formatTagNameCms({ name: card.tagName, nameTranslations: card.tagNameTranslations })}</span>
+            </span>
+          )}
+        </div>
+        <p className={`text-[13px] font-semibold leading-snug line-clamp-2 ${card.title ? 'text-gray-200' : 'italic text-gray-600'}`}>
+          {card.title || 'Untitled'}
+        </p>
+        <div className="mt-2 flex gap-1.5 text-[9px] text-gray-600">
+          {card.locales.map((loc) => (
+            <span key={loc} className={`rounded px-1 py-0.5 text-[8px] uppercase font-medium ${localeColorClass(loc)}`}>
+              {loc}
+            </span>
+          ))}
+          <time className="ml-auto">{formatRelativeDate(card.updatedAt)}</time>
+        </div>
       </div>
     </div>
   )

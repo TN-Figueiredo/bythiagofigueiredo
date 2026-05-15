@@ -8,7 +8,7 @@ export const fetchDashboardBlogHealth = unstable_cache(
 
     const { data: posts } = await supabase
       .from('blog_posts')
-      .select('id, status, tag_id, created_at, published_at, blog_tags(name, color), blog_translations(reading_time_min)')
+      .select('id, status, tag_id, created_at, published_at, blog_tags(name, color), blog_translations(reading_time_min, title, locale)')
       .eq('site_id', siteId)
 
     if (!posts || posts.length === 0) return null
@@ -24,7 +24,7 @@ export const fetchDashboardBlogHealth = unstable_cache(
     const publishedPrev = published.filter((p) => p.published_at && new Date(p.published_at).getTime() > sixtyDaysAgo && new Date(p.published_at).getTime() <= thirtyDaysAgo)
 
     const readingTimes = posts.flatMap((p) => {
-      const trans = p.blog_translations as Array<{ reading_time_min: number | null }> | null
+      const trans = p.blog_translations as Array<{ reading_time_min: number | null; title: string; locale: string }> | null
       return trans?.map((t) => t.reading_time_min).filter((r): r is number => r != null) ?? []
     })
     const avgReading = readingTimes.length > 0 ? Math.round(readingTimes.reduce((a, b) => a + b, 0) / readingTimes.length) : 0
@@ -60,9 +60,15 @@ export const fetchDashboardBlogHealth = unstable_cache(
     const pctChange = (current: number, previous: number) =>
       previous === 0 ? (current > 0 ? 100 : 0) : ((current - previous) / previous) * 100
 
+    const recentlyCreated = posts.filter((p) => new Date(p.created_at as string).getTime() > thirtyDaysAgo)
+    const prevCreated = posts.filter((p) => {
+      const t = new Date(p.created_at as string).getTime()
+      return t > sixtyDaysAgo && t <= thirtyDaysAgo
+    })
+
     return {
       totalPosts: posts.length,
-      totalPostsTrend: 0,
+      totalPostsTrend: pctChange(recentlyCreated.length, prevCreated.length),
       published: published.length,
       publishedTrend: pctChange(publishedRecent.length, publishedPrev.length),
       avgReadingTime: avgReading,
@@ -75,9 +81,10 @@ export const fetchDashboardBlogHealth = unstable_cache(
       velocitySparkline: sparkline,
       recentPublications: recentPubs.map((p) => {
         const tag = p.blog_tags as unknown as { name: string; color: string } | null
+        const trans = p.blog_translations as Array<{ reading_time_min: number | null; title: string; locale: string }> | null
         return {
           id: p.id,
-          title: `Post ${p.id.slice(0, 8)}`,
+          title: trans?.[0]?.title ?? 'Untitled',
           tagName: tag?.name ?? null,
           tagColor: tag?.color ?? null,
           publishedAt: p.published_at!,

@@ -163,29 +163,29 @@ export function EditorialTab({ data, strings, siteId, tagId, locale, supportedLo
   return (
     <div className="flex flex-col gap-4">
       {/* KPI bar */}
-      <div className="flex items-center rounded-lg border border-indigo-500/8 bg-indigo-500/3 px-3 py-2">
+      <div className="flex flex-wrap items-center gap-y-1 rounded-lg border border-indigo-500/8 bg-indigo-500/3 px-3 py-2">
         <div className="flex items-center gap-1 border-r border-gray-800 px-2.5">
-          <span className="text-[9px] text-gray-500">Total</span>
+          <span className="text-[9px] text-gray-500">{strings?.editorial.kpiTotal ?? 'Total'}</span>
           <span className="text-[11px] font-semibold text-gray-300">{data.velocity.totalPosts}</span>
         </div>
         <div className="flex items-center gap-1 border-r border-gray-800 px-2.5">
-          <span className="text-[9px] text-gray-500">Published</span>
+          <span className="text-[9px] text-gray-500">{strings?.editorial.kpiPublished ?? 'Published'}</span>
           <span className="text-[11px] font-semibold text-gray-300">{data.velocity.publishedCount}</span>
         </div>
         <div className="flex items-center gap-1 border-r border-gray-800 px-2.5">
-          <span className="text-[9px] text-gray-500">Throughput</span>
+          <span className="text-[9px] text-gray-500">{strings?.editorial.kpiThroughput ?? 'Throughput'}</span>
           <span className="text-[11px] font-semibold text-gray-300">{data.velocity.throughput}/mo</span>
         </div>
         <div className="flex items-center gap-1 border-r border-gray-800 px-2.5">
-          <span className="text-[9px] text-gray-500">Idea→Pub</span>
+          <span className="text-[9px] text-gray-500">{strings?.editorial.kpiIdeaToPub ?? 'Idea→Pub'}</span>
           <span className="text-[11px] font-semibold text-gray-300">
             {data.velocity.avgIdeaToPublished > 0 ? `${data.velocity.avgIdeaToPublished}d` : '—'}
           </span>
         </div>
         <div className="flex items-center gap-1 px-2.5">
-          <span className="text-[9px] text-gray-500">Bottleneck</span>
+          <span className="text-[9px] text-gray-500">{strings?.editorial.kpiBottleneck ?? 'Bottleneck'}</span>
           <span className="text-[11px] font-semibold text-gray-400">
-            {data.velocity.bottleneck?.column ?? 'None'}
+            {data.velocity.bottleneck?.column ?? (strings?.editorial.kpiNone ?? 'None')}
           </span>
         </div>
       </div>

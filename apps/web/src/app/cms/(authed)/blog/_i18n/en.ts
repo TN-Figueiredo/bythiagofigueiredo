@@ -19,6 +19,8 @@ export const en: BlogHubStrings = {
     viewAllPublished: 'View all published', archived: 'Archived', showArchived: 'Show archived', hideArchived: 'Hide archived',
     addTranslationsLater: 'Add translations in tag settings',
     moveToIdea: 'Back to idea', moveToDraft: 'Back to draft', moveToReady: 'Mark ready', moveToScheduled: 'Schedule…', moveToPublished: 'Publish now', moveToArchived: 'Archive',
+    kpiTotal: 'Total', kpiPublished: 'Published', kpiThroughput: 'Throughput', kpiIdeaToPub: 'Idea→Pub', kpiBottleneck: 'Bottleneck', kpiNone: 'None',
+    promotedFromPipeline: 'Promoted from Pipeline',
   },
   deletePost: {
     triggerLabel: 'Delete', triggerAriaLabel: 'Delete {title}',

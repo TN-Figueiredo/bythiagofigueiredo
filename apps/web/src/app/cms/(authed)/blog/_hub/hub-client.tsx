@@ -2,7 +2,7 @@
 
 import { type ReactNode, useCallback, useState, useTransition } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
-import { BarChart3, Kanban, CalendarDays, TrendingUp, Plus, Bell, Loader2, Settings } from 'lucide-react'
+import { Kanban, CalendarDays, TrendingUp, Plus, Bell, Loader2, Settings } from 'lucide-react'
 import type { BlogHubSharedData, BlogTabId } from './hub-types'
 import { TagFilterChips } from '../_shared/tag-filter-chips'
 import { LocaleFilterChips } from '../_shared/locale-filter-chips'
@@ -11,7 +11,7 @@ import type { BlogHubStrings } from '../_i18n/types'
 import { useAutoRefresh } from './use-auto-refresh'
 import { useHubShortcuts } from './use-hub-shortcuts'
 
-const TABS: Array<{ id: BlogTabId; icon: typeof BarChart3 }> = [
+const TABS: Array<{ id: BlogTabId; icon: typeof Kanban }> = [
   { id: 'editorial', icon: Kanban },
   { id: 'schedule', icon: CalendarDays },
   { id: 'analytics', icon: TrendingUp },
@@ -76,7 +76,8 @@ export function HubClient({
     (tab: BlogTabId) => {
       startTransition(() => {
         const params = new URLSearchParams(searchParams.toString())
-        params.set('tab', tab)
+        if (tab === 'editorial') params.delete('tab')
+        else params.set('tab', tab)
         if (selectedTagId) params.set('tag', selectedTagId)
         else params.delete('tag')
         if (selectedLocale) params.set('locale', selectedLocale)
