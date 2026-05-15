@@ -71,7 +71,7 @@ Each lane uses a sort order optimized for **what the user needs to see first** i
 | **Agendado** | `scheduled_for` ASC | — | Nearest publication date first — urgency-based, shows what's coming up next. |
 | **Publicado** | `published_at` DESC | — | Most recently published at top — latest content, reverse chronological. |
 
-**Drag-and-drop reordering within a lane** is supported only for pipeline lanes (Ideia, Rascunho, Pronto) using the existing fractional `sort_order` column. When `sort_order` is set, it overrides the default sort. Blog lanes (Em Edição, Agendado, Publicado) use the timestamp-based sorts above and do not support manual reordering.
+**Drag-and-drop reordering within a lane** is supported only for pipeline lanes (Ideia, Rascunho, Pronto) using the existing integer `sort_order` column (midpoint insertion with 1000-step initial gaps). When `sort_order` is set, it overrides the default sort. Blog lanes (Em Edição, Agendado, Publicado) use the timestamp-based sorts above and do not support manual reordering.
 
 ### 2.4 Tab Order
 
@@ -204,9 +204,22 @@ This action:
 
 ### 3.5 Return to Pipeline
 
-A post in "Em Edição" can be returned to pipeline via context menu "Devolver ao Pipeline". This:
-- Deletes the `blog_posts` row (only if status is `idea` or `draft` — safety guard)
-- Clears `content_pipeline.blog_post_id`
+A post in "Em Edição" can be returned to pipeline via context menu "Devolver ao Pipeline".
+
+**New server action** in `blog/actions.ts`:
+
+```typescript
+export async function returnToPipeline(
+  postId: string,
+): Promise<{ ok: true } | { ok: false; error: string }>
+```
+
+This action:
+- Verifies `requireEditScope(siteId)`
+- Checks the post status is `idea` or `draft` (safety guard — rejects if scheduled/published)
+- Looks up the linked `content_pipeline` row via `blog_post_id`
+- In a single transaction: deletes the `blog_posts` row + clears `content_pipeline.blog_post_id`
+- Revalidates both `blog-hub` and `pipeline-blog` cache tags
 - The pipeline item reappears in its original lane
 
 ### 3.6 Atomicity
@@ -334,17 +347,20 @@ function renderCard(lane: LaneId, item: PipelineItem | PostCard) {
 
 | Action | Files | LOC |
 |--------|-------|-----|
-| Remove `posts/` directory (page, board, card) | 3 files | −278 |
+| Remove `posts/` directory (board, cards, editor, tabs, sidebar) | 20 files | −2,428 |
 | Remove `pipeline/[format]/page.tsx` blog_post route | 1 file | −84 |
 | Remove `pipeline/_components/pipeline-board.tsx` | 1 file | −310 |
 | Remove `blog/_tabs/editorial/kanban-board.tsx` | 1 file | −336 |
+| Remove `blog/_tabs/editorial/kanban-column.tsx` | 1 file | −148 |
 | Simplify `blog/_tabs/editorial/kanban-card.tsx` | 1 file | −400 (refactor) |
 | New `UnifiedBoard` + `KanbanLane` + `PromotionModal` | 3 files | +550 |
 | New `PipelineCard` (extracted, slimmed) | 1 file | +180 |
 | New `PostCard` (extracted, slimmed) | 1 file | +220 |
 | Update `blog/page.tsx` data fetching | 1 file | +50 |
-| Update `hub-utils.ts` / `hub-types.ts` | 2 files | +40 |
-| **Net** | | **≈ −370** |
+| Update `hub-utils.ts` / `hub-types.ts` / i18n | 4 files | +120 |
+| **Net** | | **≈ −2,586** |
+
+> **Note:** The `posts/` directory contains 20 files including a full post editor (tabs, sidebar, detail page) totaling 2,428 LOC. The canonical post editor lives at `/cms/blog/[id]/edit` — the `posts/[id]` editor is the legacy path being removed. All editor functionality is preserved in the blog route.
 
 ---
 
@@ -367,7 +383,7 @@ The KPI strip renders above the kanban (below the filter bar) as a horizontal ro
 
 ## 7. Data Fetching
 
-### 6.1 Server Component (blog/page.tsx)
+### 7.1 Server Component (blog/page.tsx)
 
 The Blog Hub RSC fetches both data sources in parallel:
 
@@ -379,7 +395,7 @@ const [sharedData, editorialData, pipelineData] = await Promise.all([
 ])
 ```
 
-### 6.2 `fetchPipelineData` (New Query)
+### 7.2 `fetchPipelineData` (New Query)
 
 ```typescript
 export const fetchPipelineData = unstable_cache(
@@ -404,7 +420,7 @@ export const fetchPipelineData = unstable_cache(
 
 The `.is('blog_post_id', null)` filter ensures graduated pipeline items (already linked to a blog post) don't appear in lanes 1–3.
 
-### 6.3 `buildUnifiedLanes` (Client-Side Merge)
+### 7.3 `buildUnifiedLanes` (Client-Side Merge)
 
 ```typescript
 function buildUnifiedLanes(pipelineItems: PipelineItem[], posts: PostCard[]): UnifiedLanes {
@@ -435,12 +451,13 @@ This is a prerequisite for the "Em Edição" lane to work correctly. Without it,
 
 ### 7.5 Performance: Remove `force-dynamic`
 
+
 The current `blog/page.tsx` uses `export const dynamic = 'force-dynamic'` which kills all caching. Replace with:
 - `unstable_cache` on each data query (already used by `fetchBlogSharedData` and `fetchEditorialData`)
 - `revalidateTag('blog-hub')` and `revalidateTag('pipeline-blog')` on mutations
 - Remove the `force-dynamic` export entirely
 
-### 6.5 Filtering
+### 7.6 Filtering
 
 The existing filter bar is extended with a unified scope:
 
@@ -453,7 +470,7 @@ The existing filter bar is extended with a unified scope:
 
 Filters that don't apply to a lane type simply show all items in those lanes (e.g., filtering by tag doesn't hide pipeline cards).
 
-### 7.8 URL State Persistence
+### 7.7 URL State Persistence
 
 The current hub persists `tab`, `tag`, and `locale` in URL search params via `hub-client.tsx`. The new filters follow the same pattern:
 
@@ -471,21 +488,23 @@ All filter state is reflected in the URL for shareability and browser back/forwa
 
 ## 8. Drag-and-Drop Rules
 
-### 7.1 Within-Lane Drag
+### 8.1 Within-Lane Drag
 
-- **Pipeline lanes (1–3):** Reorder via fractional `sort_order`. Uses existing `reorderPipelineItem` server action.
+- **Pipeline lanes (1–3):** Reorder via integer `sort_order` (midpoint insertion: `Math.floor((prev + next) / 2)`). Uses existing `reorderPipelineItem` server action.
 - **Blog lanes (4–6):** No manual reorder. Sort is timestamp-based (see §2.3).
 
-### 7.2 Cross-Lane Drag
+### 8.2 Cross-Lane Drag
+
+The current pipeline uses `advancePipelineItem` and `retreatPipelineItem` for one-step sequential transitions (idea→draft→ready). For the unified kanban, a new `movePipelineItemToStage` action is needed to support arbitrary stage jumping via drag (e.g., idea directly to ready, skipping draft).
 
 | From → To | Allowed? | Behavior |
 |-----------|----------|----------|
-| Pipeline lane → Pipeline lane | Yes | Updates `stage` via `movePipelineItem` action |
+| Pipeline lane → Pipeline lane | Yes | Updates `stage` via `movePipelineItemToStage` action (new) |
 | Pipeline lane → Blog lane | **No** | Blocked. Must use Promote button/menu. Toast: "Use 'Promover' para criar um post." |
 | Blog lane → Blog lane | Yes | Updates `status` via `movePost` action (validates via `isValidTransition`) |
 | Blog lane → Pipeline lane | **No** | Blocked. Must use "Devolver ao Pipeline" menu. Toast: "Use 'Devolver ao Pipeline' no menu do card." |
 
-### 7.3 Visual Feedback
+### 8.3 Visual Feedback
 
 - **Valid drop zone:** Lane header pulses, border highlights with lane accent color
 - **Invalid drop zone (cross-boundary):** Lane dims with a subtle red-gray overlay, cursor shows `not-allowed`
@@ -493,16 +512,16 @@ All filter state is reflected in the URL for shareability and browser back/forwa
 
 ---
 
-## 8. Bulk Operations
+## 9. Bulk Operations
 
-### 8.1 Selection
+### 9.1 Selection
 
 - **Cmd+Click** (Mac) / **Ctrl+Click** (Windows): Toggle single card selection
 - **Shift+Click**: Range select within a lane
 - Selection only works within the same card type (can't mix pipeline + post cards)
 - Selected cards show a checkmark overlay and a blue ring
 
-### 8.2 Floating Action Bar
+### 9.2 Floating Action Bar
 
 When 1+ cards are selected, a floating bar appears at the bottom:
 
@@ -523,9 +542,20 @@ When 1+ cards are selected, a floating bar appears at the bottom:
 - Archive (uses existing `bulkArchive`)
 - Delete (uses existing `bulkDelete`, only drafts/archived)
 
+### 9.3 Bulk Promotion
+
+When multiple Pronto cards are selected and "Promote all" is clicked:
+
+1. A single modal opens showing the list of items to promote (titles only)
+2. One shared locale selection applies to all items (same locale for all)
+3. Each item creates a separate `blog_posts` row via individual `createPostFromPipeline` calls (not batched — ensures each gets its own translation row and audit trail)
+4. **Sequential execution** — items promote one by one. A progress indicator shows "Promoting 2 of 5..."
+5. **Partial failure:** If item 3 of 5 fails, items 1-2 remain promoted, item 3 shows an error toast, items 4-5 are skipped. The user can retry the failed items individually.
+6. On completion: "5 items promoted" success toast (or "3 of 5 promoted, 2 failed" if partial)
+
 ---
 
-## 9. The "+ Novo" Button
+## 10. The "+ Novo" Button
 
 Top-right of the Editorial tab, a split button:
 
@@ -536,9 +566,9 @@ Top-right of the Editorial tab, a split button:
 
 ---
 
-## 10. Accessibility (WCAG 2.1 AA)
+## 11. Accessibility (WCAG 2.1 AA)
 
-### 10.1 ARIA Structure
+### 11.1 ARIA Structure
 
 ```html
 <div role="grid" aria-label="Blog editorial kanban">
@@ -550,7 +580,7 @@ Top-right of the Editorial tab, a split button:
 </div>
 ```
 
-### 10.2 Keyboard Navigation
+### 11.2 Keyboard Navigation
 
 | Key | Action |
 |-----|--------|
@@ -562,13 +592,13 @@ Top-right of the Editorial tab, a split button:
 | `Escape` | Cancel drag mode / close modal / deselect |
 | `Cmd+A` | Select all cards in focused lane |
 
-### 10.3 Focus Management
+### 11.3 Focus Management
 
 - Focus trap in modals (Promotion, Schedule)
 - Return focus to triggering element on modal close
 - Skip-link at top of kanban: "Skip to lane [name]"
 
-### 10.4 Color & Contrast
+### 11.4 Color & Contrast
 
 - All text meets 4.5:1 contrast ratio against backgrounds
 - Substatus badges use both color AND text label (not color-only)
@@ -576,9 +606,9 @@ Top-right of the Editorial tab, a split button:
 
 ---
 
-## 11. Routes and Redirects
+## 12. Routes and Redirects
 
-### 11.1 Affected Routes
+### 12.1 Affected Routes
 
 | Current route | Action | Redirect to |
 |---------------|--------|------------|
@@ -591,7 +621,7 @@ Top-right of the Editorial tab, a split button:
 | `/cms/pipeline` | **Keep** — overview for non-blog formats | — |
 | `/cms/pipeline/[format]` for video/newsletter/campaign/course | **Keep** — only blog_post is absorbed | — |
 
-### 11.2 Redirect Implementation
+### 12.2 Redirect Implementation
 
 Add a `next.config.ts` redirect:
 
@@ -605,11 +635,11 @@ redirects: async () => [
 
 ---
 
-## 12. Optimistic Update Strategy
+## 13. Optimistic Update Strategy
 
 The unified board manages two independent data sources, each needing its own optimistic strategy:
 
-### 12.1 Pipeline Lanes (useOptimistic)
+### 13.1 Pipeline Lanes (useOptimistic)
 
 Pipeline moves (stage changes, reorder) use a local `useOptimistic` hook on the pipeline items array. On drag-end:
 1. Immediately update the item's `stage` or `sort_order` in the optimistic state
@@ -617,11 +647,11 @@ Pipeline moves (stage changes, reorder) use a local `useOptimistic` hook on the 
 3. On success: `revalidateTag('pipeline-blog')` refreshes server state
 4. On failure: Revert optimistic state, show toast
 
-### 12.2 Blog Lanes (useOptimistic)
+### 13.2 Blog Lanes (useOptimistic)
 
 Blog post moves use a separate `useOptimistic` hook on the posts array. Same pattern as above, using `movePost` server action.
 
-### 12.3 Cross-Boundary (Promotion)
+### 13.3 Cross-Boundary (Promotion)
 
 Promotion is **not optimistic** — it always waits for the server because:
 - It creates a new DB row (can't generate a real ID client-side)
@@ -633,17 +663,17 @@ After successful promotion:
 2. Add new post to blog optimistic state (using the returned `postId`)
 3. Both caches revalidate
 
-### 12.4 Return to Pipeline
+### 13.4 Return to Pipeline
 
 Also **not optimistic** — waits for server confirmation before removing the post card and re-showing the pipeline item. Same rationale: cross-table operation with destructive side.
 
 ---
 
-## 13. Archived Items
+## 14. Archived Items
 
 Archived items (both `content_pipeline.is_archived = true` and `blog_posts.status = 'archived'`) are **not shown in the kanban by default**. They are accessible via:
 
-### 13.1 Archive Toggle
+### 14.1 Archive Toggle
 
 A toggle in the filter bar: "Mostrar arquivados" (off by default). When enabled:
 - Archived pipeline items appear in their original lane with 45% opacity and desaturated styling (matching current `GemCard` archived treatment)
@@ -651,17 +681,17 @@ A toggle in the filter bar: "Mostrar arquivados" (off by default). When enabled:
 
 When disabled (default): archived items are completely hidden from the kanban.
 
-### 13.2 Archive URL State
+### 14.2 Archive URL State
 
 The toggle persists as `?archived=1` in the URL. Default is omitted (not archived).
 
 ---
 
-## 14. i18n
+## 15. i18n
 
 The current Blog Hub uses a `BlogHubStrings` pattern with `en` and `pt-BR` string maps loaded at the RSC level. All new UI labels must follow this pattern:
 
-### 14.1 New String Keys
+### 15.1 New String Keys
 
 ```typescript
 // Added to BlogHubStrings.editorial
@@ -690,13 +720,13 @@ substatus: {
 }
 ```
 
-### 14.2 Pipeline Card Labels
+### 15.2 Pipeline Card Labels
 
 Pipeline card labels (code, priority, staleness) are already language-agnostic (use icons/numbers). The only text needing i18n is the "Promote to Posts Hub" button, which becomes `strings.promotion.promote`.
 
 ---
 
-## 15. Navigation: Pipeline Detail Breadcrumb
+## 16. Navigation: Pipeline Detail Breadcrumb
 
 When a user clicks a pipeline card in the unified kanban, they navigate to `/cms/pipeline/items/{id}`. Currently, that page's breadcrumb reads `Pipeline > Items > {code}`.
 
@@ -706,7 +736,7 @@ If `?from` is absent or equals `pipeline`, the breadcrumb stays as-is (for users
 
 ---
 
-## 16. Error States
+## 17. Error States
 
 | Scenario | Behavior |
 |----------|----------|
@@ -718,9 +748,9 @@ If `?from` is absent or equals `pipeline`, the breadcrumb stays as-is (for users
 
 ---
 
-## 17. Testing Strategy
+## 18. Testing Strategy
 
-### 17.1 Unit Tests
+### 18.1 Unit Tests
 
 | Component | Tests | Focus |
 |-----------|-------|-------|
@@ -735,7 +765,7 @@ If `?from` is absent or equals `pipeline`, the breadcrumb stays as-is (for users
 | Pagination ("Publicado") | 3 | Initial 30 load, "show more" appends, count badge format |
 | Archive toggle | 2 | Archived items hidden by default, shown when toggled |
 
-### 17.2 Integration Tests
+### 18.2 Integration Tests
 
 | Flow | Tests | Focus |
 |------|-------|-------|
@@ -749,13 +779,13 @@ If `?from` is absent or equals `pipeline`, the breadcrumb stays as-is (for users
 | Breadcrumb `?from=blog` | 1 | Pipeline detail shows "Blog > Pipeline > {code}" breadcrumb |
 | URL state roundtrip | 1 | Set filters → reload → filters preserved |
 
-### 17.3 Existing Tests Preserved
+### 18.3 Existing Tests Preserved
 
 All existing tests in `apps/web/test/` for `blog/actions.ts` (bulk publish/archive/delete, `createPostFromPipeline`) continue to work without changes to their test setup.
 
 ---
 
-## 18. Migration Checklist
+## 19. Migration Checklist
 
 1. **Fix `fetchEditorialData`** — extend status filter to include `idea`, `draft` (§7.4)
 2. Add `fetchPipelineData` query to `hub-queries.ts`
@@ -768,8 +798,9 @@ All existing tests in `apps/web/test/` for `blog/actions.ts` (bulk publish/archi
 9. Extract `PostCard` from `kanban-card.tsx` (add provenance pill, remove board logic)
 10. Create `PromotionModal` component
 11. Create `BulkActionBar` floating component
-12. Extend `createPostFromPipeline` with optional `scheduledFor` parameter
-13. Add `returnToPipeline` server action
+12. Add `movePipelineItemToStage` server action (arbitrary stage jump for DnD, extends current advance/retreat pattern)
+13. Extend `createPostFromPipeline` with optional `scheduledFor` parameter
+14. Add `returnToPipeline` server action
 14. Add i18n string keys to `_i18n/en.ts` and `_i18n/pt-BR.ts`
 15. Add `?from=blog` breadcrumb logic to pipeline detail page
 16. Add archive toggle to filter bar
@@ -778,11 +809,11 @@ All existing tests in `apps/web/test/` for `blog/actions.ts` (bulk publish/archi
 19. Add `next.config.ts` redirects for removed routes
 20. Delete `posts/` directory
 21. Delete `pipeline/[format]/page.tsx` blog_post-specific handling
-22. Write tests per §17
+22. Write tests per §18
 
 ---
 
-## 19. Files Changed
+## 20. Files Changed
 
 ### New files
 - `apps/web/src/app/cms/(authed)/blog/_tabs/editorial/unified-board.tsx`
@@ -806,8 +837,9 @@ All existing tests in `apps/web/test/` for `blog/actions.ts` (bulk publish/archi
 - `apps/web/next.config.ts` — add redirects
 
 ### Deleted files
-- `apps/web/src/app/cms/(authed)/posts/` (entire directory)
+- `apps/web/src/app/cms/(authed)/posts/` (entire directory — 20 files, 2,428 LOC)
 - `apps/web/src/app/cms/(authed)/blog/_tabs/editorial/kanban-board.tsx` (replaced by unified-board)
+- `apps/web/src/app/cms/(authed)/blog/_tabs/editorial/kanban-column.tsx` (replaced by kanban-lane)
 - `apps/web/src/app/cms/(authed)/blog/_tabs/editorial/kanban-card.tsx` (replaced by post-card)
 
 ### Preserved as-is
