@@ -386,8 +386,11 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
     })
     if (!res.ok) throw new Error('Graduate failed')
     const json = await res.json()
+    if (json.data?.entity_id) {
+      router.push(`/cms/posts/${json.data.entity_id}`)
+    }
     return { entity_id: json.data?.entity_id }
-  }, [item.id])
+  }, [item.id, router])
 
   async function handleAdvance() {
     setIsAdvancing(true)
@@ -727,6 +730,8 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
             onChange={handleSocialConfigChange}
             disabled={!!item.social_post_id}
             contentFormat={item.format}
+            autoFillHook={item.hook}
+            autoFillTags={item.tags}
           />
         </div>
 
