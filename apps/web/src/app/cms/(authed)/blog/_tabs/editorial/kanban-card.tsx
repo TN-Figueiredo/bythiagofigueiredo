@@ -41,6 +41,53 @@ function localeColorClass(locale: string): string {
   return LOCALE_COLORS[locale] ?? DEFAULT_LOCALE_COLOR
 }
 
+const WORD_COUNT_TARGET = 2000
+
+function estimateWordCount(readingTimeMin: number | null): number {
+  return (readingTimeMin ?? 0) * 200
+}
+
+function progressPercent(readingTimeMin: number | null): number {
+  const words = estimateWordCount(readingTimeMin)
+  return Math.min(100, Math.round((words / WORD_COUNT_TARGET) * 100))
+}
+
+function progressColorClass(pct: number): string {
+  if (pct >= 100) return 'bg-gradient-to-r from-green-500 to-cyan-500 shadow-[0_0_4px_rgba(34,197,94,0.3)]'
+  if (pct >= 75) return 'bg-green-500 shadow-[0_0_3px_rgba(34,197,94,0.3)]'
+  if (pct >= 40) return 'bg-amber-500'
+  return 'bg-red-500'
+}
+
+function tagColorFamily(hex: string | null): string | null {
+  if (!hex) return null
+  const lower = hex.toLowerCase()
+  if (lower.includes('ef4444') || lower.includes('f87171') || lower.includes('dc2626')) return 'red'
+  if (lower.includes('3b82f6') || lower.includes('60a5fa') || lower.includes('2563eb')) return 'blue'
+  if (lower.includes('22c55e') || lower.includes('4ade80') || lower.includes('16a34a')) return 'green'
+  if (lower.includes('a855f7') || lower.includes('8b5cf6') || lower.includes('7c3aed')) return 'purple'
+  return null
+}
+
+function statusBadge(status: PostCard['status']): { label: string; className: string } | null {
+  switch (status) {
+    case 'ready':
+    case 'queued':
+      return { label: 'Approved', className: 'bg-slate-400/10 text-slate-400' }
+    case 'published':
+      return { label: 'Published', className: 'bg-emerald-400/10 text-emerald-400' }
+    default:
+      return null
+  }
+}
+
+const GLOW_COLORS: Record<string, { border: string; shadow: string }> = {
+  red: { border: 'rgba(239,68,68,0.35)', shadow: '0 6px 20px rgba(239,68,68,0.06), 0 2px 6px rgba(0,0,0,0.3)' },
+  blue: { border: 'rgba(59,130,246,0.35)', shadow: '0 6px 20px rgba(59,130,246,0.06), 0 2px 6px rgba(0,0,0,0.3)' },
+  green: { border: 'rgba(34,197,94,0.35)', shadow: '0 6px 20px rgba(34,197,94,0.06), 0 2px 6px rgba(0,0,0,0.3)' },
+  purple: { border: 'rgba(168,85,247,0.35)', shadow: '0 6px 20px rgba(168,85,247,0.06), 0 2px 6px rgba(0,0,0,0.3)' },
+}
+
 interface KanbanCardProps {
   card: PostCard
   confirmed?: boolean
@@ -86,6 +133,7 @@ export function KanbanCard({
   const [removeLocaleDropdownOpen, setRemoveLocaleDropdownOpen] = useState(false)
   const [navigating, setNavigating] = useState(false)
   const [, startTransition] = useTransition()
+  const cardRef = useRef<HTMLDivElement>(null)
   const contextMenuRef = useRef<HTMLDivElement>(null)
   const tagDropdownRef = useRef<HTMLDivElement>(null)
   const localeDropdownRef = useRef<HTMLDivElement>(null)
@@ -308,10 +356,31 @@ export function KanbanCard({
 
   const s = strings?.editorial
 
+  const glowFamily = tagColorFamily(card.tagColor)
+  const wordCount = estimateWordCount(card.readingTimeMin)
+  const pct = progressPercent(card.readingTimeMin)
+  const badge = statusBadge(card.status)
+
+  const handleMouseEnter = useCallback(() => {
+    if (isDragging || isLoading || isOptimistic || !glowFamily) return
+    const el = cardRef.current
+    const glow = GLOW_COLORS[glowFamily]
+    if (!el || !glow) return
+    el.style.borderColor = glow.border
+    el.style.boxShadow = glow.shadow
+  }, [isDragging, isLoading, isOptimistic, glowFamily])
+
+  const handleMouseLeave = useCallback(() => {
+    const el = cardRef.current
+    if (!el) return
+    el.style.borderColor = ''
+    el.style.boxShadow = ''
+  }, [])
+
   return (
     <>
       <div
-        ref={setNodeRef}
+        ref={(node) => { setNodeRef(node); (cardRef as React.MutableRefObject<HTMLDivElement | null>).current = node }}
         style={style}
         {...attributes}
         {...listeners}
@@ -319,6 +388,7 @@ export function KanbanCard({
         tabIndex={0}
         aria-label={`${card.displayId} ${card.title || (s?.untitled ?? 'Untitled')}`}
         aria-busy={isLoading}
+        data-tc={glowFamily}
         onClick={handleClick}
         onKeyDown={(e) => {
           if ((e.key === 'Enter' || e.key === ' ') && !isLoading) { e.preventDefault(); handleClick() }
@@ -328,7 +398,9 @@ export function KanbanCard({
           e.stopPropagation()
           if (!isOptimistic) setContextMenu({ x: e.clientX, y: e.clientY })
         }}
-        className={`group relative rounded-lg border p-3 transition-all duration-300 ${
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        className={`group relative overflow-hidden rounded-lg border transition-all duration-300 ${
           isOptimistic
             ? 'animate-fade-in border-indigo-500/60 bg-indigo-950/20 ring-1 ring-indigo-500/20'
             : confirmed
@@ -337,52 +409,98 @@ export function KanbanCard({
                 ? 'border-indigo-500/30 bg-indigo-950/20 opacity-40'
                 : isLoading
                   ? 'pointer-events-none border-indigo-500/40 bg-indigo-950/10'
-                  : 'cursor-pointer border-gray-800 bg-gray-900 hover:border-gray-700 hover:bg-gray-800/50'
+                  : 'cursor-pointer border-gray-800 bg-[#131B2E] hover:border-gray-700'
         }`}
       >
-        {isLoading && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-gray-900/60">
-            <Loader2 className="h-4 w-4 animate-spin text-indigo-400" />
+        {/* 3-tier cover system */}
+        {card.coverImageUrl ? (
+          <div className="relative h-[44px] w-full overflow-hidden">
+            <img
+              src={card.coverImageUrl}
+              alt=""
+              className="h-full w-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#131B2E]/80" />
           </div>
+        ) : card.tagColor ? (
+          <div
+            data-testid="card-gradient"
+            className="h-[24px] w-full"
+            style={{ background: `linear-gradient(135deg, ${card.tagColor}30, ${card.tagColor}08)` }}
+          />
+        ) : (
+          <div data-testid="card-strip" className="h-[3px] w-full bg-gray-700/50" />
         )}
 
-        {/* Header row */}
-        <div className="mb-1.5 flex items-center justify-between gap-1">
-          {isOptimistic ? (
-            <span className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded bg-indigo-500/20 px-1.5 py-0.5 text-[8px] font-bold tracking-wide text-indigo-400">
-              <Sparkles className="h-2.5 w-2.5" />
-              NEW
-            </span>
-          ) : (
-            <span className="shrink-0 whitespace-nowrap rounded bg-gray-800 px-1.5 py-0.5 text-[8px] font-bold tabular-nums tracking-wide text-gray-400">
-              {card.displayId}
-            </span>
-          )}
-          <div className="flex min-w-0 items-center gap-1">
-            <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleClick()
-                }}
-                aria-label={s?.open ?? 'Open'}
-                className="rounded p-0.5 text-gray-500 hover:bg-gray-800 hover:text-gray-300"
-              >
-                <Pencil className="h-3 w-3" />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setContextMenu({ x: e.clientX, y: e.clientY })
-                }}
-                aria-label={s?.moreActions ?? 'More actions'}
-                className="rounded p-0.5 text-gray-500 hover:bg-gray-800 hover:text-gray-300"
-              >
-                <MoreVertical className="h-3 w-3" />
-              </button>
+        {/* Card body */}
+        <div className="relative p-3">
+          {isLoading && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-b-lg bg-[#131B2E]/60">
+              <Loader2 className="h-4 w-4 animate-spin text-indigo-400" />
             </div>
-            {/* Tag badge */}
-            <div className="relative" ref={tagDropdownRef}>
+          )}
+
+          {/* Drag grip dots — visible on hover */}
+          <div className="absolute left-1 top-1/2 -translate-y-1/2 grid grid-cols-2 gap-[2px] opacity-0 transition-opacity group-hover:opacity-40">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <span key={i} className="block h-[3px] w-[3px] rounded-full bg-gray-500" />
+            ))}
+          </div>
+
+          {/* Hover action buttons — top-right */}
+          <div className="absolute right-1.5 top-1.5 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                handleClick()
+              }}
+              aria-label={s?.open ?? 'Open'}
+              className="rounded p-0.5 text-gray-500 hover:bg-gray-800 hover:text-gray-300"
+            >
+              <Pencil className="h-3 w-3" />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setContextMenu({ x: e.clientX, y: e.clientY })
+              }}
+              aria-label={s?.moreActions ?? 'More actions'}
+              className="rounded p-0.5 text-gray-500 hover:bg-gray-800 hover:text-gray-300"
+            >
+              <MoreVertical className="h-3 w-3" />
+            </button>
+          </div>
+
+          {/* Header row: displayId + status badge + tag badge */}
+          <div className="mb-1.5 flex items-center gap-1">
+            {isOptimistic ? (
+              <span className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded bg-indigo-500/20 px-1.5 py-0.5 text-[8px] font-bold tracking-wide text-indigo-400">
+                <Sparkles className="h-2.5 w-2.5" />
+                NEW
+              </span>
+            ) : (
+              <span className="shrink-0 whitespace-nowrap rounded bg-gray-800 px-1.5 py-0.5 text-[8px] font-bold tabular-nums tracking-wide text-gray-400">
+                {card.displayId}
+              </span>
+            )}
+            {badge && (
+              <span className={`rounded-full px-1.5 py-0.5 text-[8px] font-semibold ${badge.className}`}>
+                {badge.label}
+              </span>
+            )}
+            {/* Sub-state badges */}
+            {card.status === 'pending_review' && (
+              <span className="rounded-full bg-orange-500/15 px-1.5 py-0.5 text-[8px] font-semibold text-orange-400">
+                {s?.review ?? 'Review'}
+              </span>
+            )}
+            {card.status === 'queued' && (
+              <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[8px] font-semibold text-amber-400">
+                {s?.queued ?? 'Queued'}
+              </span>
+            )}
+            {/* Tag badge — pushed right */}
+            <div className="ml-auto relative" ref={tagDropdownRef}>
               <button
                 onClick={(e) => {
                   e.stopPropagation()
@@ -470,56 +588,64 @@ export function KanbanCard({
               )}
             </div>
           </div>
-        </div>
 
-        {/* Title */}
-        <p
-          className={`text-[11px] font-medium leading-snug ${
-            card.title ? 'text-gray-200' : 'italic text-gray-600'
-          }`}
-        >
-          {card.title || (s?.untitled ?? 'Untitled')}
-        </p>
+          {/* Title */}
+          <p
+            className={`text-[13px] font-semibold leading-snug line-clamp-2 ${
+              card.title ? 'text-gray-200' : 'italic text-gray-600'
+            }`}
+          >
+            {card.title || (s?.untitled ?? 'Untitled')}
+          </p>
 
-        {/* Sub-state badges */}
-        <div className="mt-1.5 flex flex-wrap gap-1">
-          {card.status === 'pending_review' && (
-            <span className="rounded-full bg-orange-500/15 px-1.5 py-0.5 text-[8px] font-semibold text-orange-400">
-              {s?.review ?? 'Review'}
-            </span>
+          {/* Snippet */}
+          {card.snippet && (
+            <p className="mt-1 text-[11px] leading-relaxed text-gray-500 line-clamp-2">
+              {card.snippet}
+            </p>
           )}
-          {card.status === 'queued' && (
-            <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[8px] font-semibold text-amber-400">
-              {s?.queued ?? 'Queued'}
-            </span>
-          )}
-        </div>
 
-        {/* Footer row */}
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-[9px] text-gray-600">
-          {/* Locale badges */}
-          <div className="flex items-center gap-1">
-            {card.locales.map((loc) => (
-              <span
-                key={loc}
-                className={`rounded px-1 py-0.5 text-[8px] uppercase font-medium ${localeColorClass(loc)}`}
-              >
-                {loc}
+          {/* Word count progress bar */}
+          {card.readingTimeMin != null && card.readingTimeMin > 0 && (
+            <div className="mt-2">
+              <div className="h-[3px] w-full rounded-full bg-gray-800">
+                <div
+                  className={`h-full rounded-full transition-all ${progressColorClass(pct)}`}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+              <span className="mt-0.5 block text-[8px] tabular-nums text-gray-600">
+                {wordCount}/{WORD_COUNT_TARGET}w
               </span>
-            ))}
+            </div>
+          )}
+
+          {/* Footer row */}
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[9px] text-gray-600">
+            {/* Locale badges */}
+            <div className="flex items-center gap-1">
+              {card.locales.map((loc) => (
+                <span
+                  key={loc}
+                  className={`rounded px-1 py-0.5 text-[8px] uppercase font-medium ${localeColorClass(loc)}`}
+                >
+                  {loc}
+                </span>
+              ))}
+            </div>
+            {card.readingTimeMin != null && (
+              <span className="tabular-nums">{card.readingTimeMin} min</span>
+            )}
+            <time className="ml-auto">{formatRelativeDate(card.updatedAt)}</time>
+            {card.slotDate && (
+              <span className="rounded bg-purple-500/10 px-1 py-0.5 text-[8px] text-purple-400">
+                {new Date(card.slotDate + 'T00:00:00').toLocaleDateString(undefined, {
+                  month: 'short',
+                  day: 'numeric',
+                })}
+              </span>
+            )}
           </div>
-          {card.readingTimeMin != null && (
-            <span className="tabular-nums">{card.readingTimeMin} min</span>
-          )}
-          <time className="ml-auto">{formatRelativeDate(card.updatedAt)}</time>
-          {card.slotDate && (
-            <span className="rounded bg-purple-500/10 px-1 py-0.5 text-[8px] text-purple-400">
-              {new Date(card.slotDate + 'T00:00:00').toLocaleDateString(undefined, {
-                month: 'short',
-                day: 'numeric',
-              })}
-            </span>
-          )}
         </div>
       </div>
 

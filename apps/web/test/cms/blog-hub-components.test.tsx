@@ -114,6 +114,7 @@ function makeCard(overrides: Partial<PostCard> = {}): PostCard {
     tagId: 'tag-1',
     tagName: 'Tech',
     tagColor: '#3b82f6',
+    tagNameTranslations: null,
     locales: ['pt-BR', 'en'],
     readingTimeMin: 5,
     createdAt: '2026-04-01T10:00:00Z',
@@ -122,6 +123,8 @@ function makeCard(overrides: Partial<PostCard> = {}): PostCard {
     scheduledFor: null,
     slotDate: null,
     snippet: null,
+    coverImageUrl: null,
+    excerpt: null,
     ...overrides,
   }
 }
@@ -584,5 +587,77 @@ describe('EditorialTab KPI bar', () => {
     }
     render(<EditorialTab data={dataWithBottleneck} />)
     expect(screen.getByText('Review')).toBeTruthy()
+  })
+})
+
+/* ------------------------------------------------------------------ */
+/*  Tests: KanbanCard rich features                                    */
+/* ------------------------------------------------------------------ */
+
+describe('KanbanCard rich features', () => {
+  const baseCard: PostCard = {
+    id: 'card-1',
+    displayId: '#BP-001',
+    title: 'Test Post Title',
+    status: 'ready',
+    tagId: 'tag-1',
+    tagName: 'Behind the Scenes',
+    tagColor: '#ef4444',
+    tagNameTranslations: null,
+    locales: ['pt-BR'],
+    readingTimeMin: 7,
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-05-14T00:00:00Z',
+    publishedAt: null,
+    scheduledFor: null,
+    slotDate: null,
+    snippet: 'A short excerpt from the post content...',
+    coverImageUrl: 'https://example.com/cover.jpg',
+    excerpt: 'A short excerpt from the post content...',
+  }
+
+  it('renders cover image when coverImageUrl is present', () => {
+    const { container } = render(<KanbanCard card={baseCard} />)
+    const img = container.querySelector('img')
+    expect(img).toBeTruthy()
+    expect(img!.getAttribute('src')).toBe('https://example.com/cover.jpg')
+  })
+
+  it('renders gradient fallback when no cover image but has tag color', () => {
+    const card = { ...baseCard, coverImageUrl: null }
+    const { container } = render(<KanbanCard card={card} />)
+    const gradientDiv = container.querySelector('[data-testid="card-gradient"]')
+    expect(gradientDiv).toBeTruthy()
+  })
+
+  it('renders strip-only when no cover and no tag color', () => {
+    const card = { ...baseCard, coverImageUrl: null, tagColor: null }
+    const { container } = render(<KanbanCard card={card} />)
+    const strip = container.querySelector('[data-testid="card-strip"]')
+    expect(strip).toBeTruthy()
+  })
+
+  it('renders snippet text', () => {
+    render(<KanbanCard card={baseCard} />)
+    expect(screen.getByText('A short excerpt from the post content...')).toBeTruthy()
+  })
+
+  it('renders word count progress bar', () => {
+    render(<KanbanCard card={baseCard} />)
+    // readingTimeMin=7, estimated words = 7*200 = 1400, target 2000 = 70%
+    const progressLabel = screen.getByText(/1400\/2000w/)
+    expect(progressLabel).toBeTruthy()
+  })
+
+  it('applies tag-colored hover glow via data-tc attribute', () => {
+    const { container } = render(<KanbanCard card={baseCard} />)
+    const cardEl = container.querySelector('[data-tc="red"]')
+    expect(cardEl).toBeTruthy()
+  })
+
+  it('maps tag color to correct color family', () => {
+    const blueCard = { ...baseCard, tagColor: '#3b82f6' }
+    const { container } = render(<KanbanCard card={blueCard} />)
+    expect(container.querySelector('[data-tc="blue"]')).toBeTruthy()
   })
 })
