@@ -466,9 +466,9 @@ export function PlaylistCanvas({
       ctx.fillRect(x, y, stripeW, nodeH)
       ctx.restore()
 
-      if (vn !== undefined) {
+      if (vn != null) {
         ctx.fillStyle = '#fff'
-        ctx.font = 'bold 11px -apple-system, sans-serif'
+        ctx.font = 'bold 11px system-ui, -apple-system, sans-serif'
         ctx.textAlign = 'center'
         ctx.fillText(String(vn), x + stripeW / 2, y + nodeH / 2 + 4)
         ctx.textAlign = 'left'
@@ -477,7 +477,7 @@ export function PlaylistCanvas({
       const badge = item.content_type ? typeBadges[item.content_type] ?? '' : ''
       if (badge) {
         ctx.fillStyle = color
-        ctx.font = 'bold 8px -apple-system, sans-serif'
+        ctx.font = 'bold 8px system-ui, -apple-system, sans-serif'
         const tw = ctx.measureText(badge).width
         ctx.beginPath()
         ctx.roundRect(x + stripeW + 8, y + 8, tw + 8, 14, 3)
@@ -487,13 +487,13 @@ export function PlaylistCanvas({
       }
 
       ctx.fillStyle = '#fff'
-      ctx.font = '600 12px -apple-system, sans-serif'
+      ctx.font = '600 12px system-ui, -apple-system, sans-serif'
       const maxTitleW = nodeW - stripeW - 20
       const title = item.title.length > 28 ? item.title.slice(0, 27) + '…' : item.title
       ctx.fillText(title, x + stripeW + 8, y + 38, maxTitleW)
 
       ctx.fillStyle = '#ffffff66'
-      ctx.font = '10px -apple-system, sans-serif'
+      ctx.font = '10px system-ui, -apple-system, sans-serif'
       ctx.fillText(item.status ?? '', x + stripeW + 8, y + 54)
     }
 

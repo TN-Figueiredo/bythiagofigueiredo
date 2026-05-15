@@ -85,7 +85,7 @@ export function generateCsv(
       const n = viewNumbers.get(item.id) ?? 0
       const escape = (s: string | null) => {
         if (!s) return ''
-        return s.includes(',') || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s
+        return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s
       }
       return [n, item.content_type ?? '', item.language ?? '', item.status ?? '', escape(item.title), escape(item.category), escape(item.metadata), item.id].join(',')
     })
