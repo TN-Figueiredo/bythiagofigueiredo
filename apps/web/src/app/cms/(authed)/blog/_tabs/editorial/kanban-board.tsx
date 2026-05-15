@@ -24,7 +24,7 @@ import { ScheduleModal } from './schedule-modal'
 
 const COLUMN_DEFS = [
   { id: 'ready', key: 'ready' as const, color: '#06b6d4' },
-  { id: 'scheduled', key: 'scheduled' as const, color: '#8b5cf6' },
+  { id: 'scheduled', key: 'scheduled' as const, color: '#a78bfa' },
   { id: 'published', key: 'published' as const, color: '#22c55e' },
 ] as const
 
