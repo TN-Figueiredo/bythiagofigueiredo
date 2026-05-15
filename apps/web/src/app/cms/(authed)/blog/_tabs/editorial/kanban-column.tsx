@@ -124,6 +124,13 @@ export function KanbanColumn({
         </div>
       </SortableContext>
 
+      {/* Ready column: Promoted from Pipeline hint */}
+      {id === 'ready' && (
+        <div className="border-t border-gray-800/50 px-3 py-2 text-[9px] text-gray-600">
+          <span className="opacity-30">&larr;</span> Promoted from Pipeline
+        </div>
+      )}
+
       {/* Published column footer */}
       {isPublishedCol && cards.length >= PUBLISHED_FOOTER_THRESHOLD && (
         <div className="border-t border-gray-800 px-3 py-2">
