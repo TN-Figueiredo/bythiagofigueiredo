@@ -1,5 +1,7 @@
 'use client'
 
+import Link from 'next/link'
+
 export interface BlogHealthData {
   totalPosts: number
   totalPostsTrend: number
@@ -76,7 +78,7 @@ export function BlogHealthSection({ data }: { data: BlogHealthData }) {
           {data.velocitySparkline.length >= 2 && (
             <div className="mb-3">
               <h4 className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Velocity</h4>
-              <div className="flex h-8 items-end gap-[2px]">
+              <div role="img" aria-label={`Publishing velocity: ${data.velocitySparkline.join(', ')} posts per week`} className="flex h-8 items-end gap-[2px]">
                 {data.velocitySparkline.map((v, i) => (
                   <div
                     key={i}
@@ -92,9 +94,11 @@ export function BlogHealthSection({ data }: { data: BlogHealthData }) {
               <h4 className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Recent</h4>
               <ul className="space-y-1">
                 {data.recentPublications.slice(0, 5).map((pub) => (
-                  <li key={pub.id} className="flex items-center gap-2 text-xs text-gray-300">
-                    {pub.tagColor && <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: pub.tagColor }} />}
-                    <span className="truncate">{pub.title}</span>
+                  <li key={pub.id}>
+                    <Link href={`/cms/blog/${pub.id}/edit`} className="flex items-center gap-2 text-xs text-gray-300 hover:text-gray-100 transition-colors">
+                      {pub.tagColor && <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: pub.tagColor }} />}
+                      <span className="truncate">{pub.title}</span>
+                    </Link>
                   </li>
                 ))}
               </ul>

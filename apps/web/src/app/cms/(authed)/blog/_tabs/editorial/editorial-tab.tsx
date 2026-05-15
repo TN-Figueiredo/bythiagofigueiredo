@@ -30,7 +30,6 @@ export function EditorialTab({ data, strings, siteId, tagId, locale, supportedLo
   const [searchQuery, setSearchQuery] = useState('')
   const deferredQuery = useDeferredValue(searchQuery)
   const [, startTransition] = useTransition()
-  const [confirmedIds, setConfirmedIds] = useState<Set<string>>(new Set())
 
   const allPosts = data.posts
 
@@ -210,7 +209,6 @@ export function EditorialTab({ data, strings, siteId, tagId, locale, supportedLo
       <SectionErrorBoundary sectionName="Kanban board">
         <KanbanBoard
           posts={filtered}
-          confirmedIds={confirmedIds}
           onMovePost={handleMovePost}
           onDeletePost={handleDeletePost}
           onReassignTag={handleReassignTag}

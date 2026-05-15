@@ -19,7 +19,7 @@ interface Props {
 }
 
 async function TabContent({
-  tab, siteId, tagId, locale, strings, uiLocale, supportedLocales, siteTimezone,
+  tab, siteId, tagId, locale, strings, uiLocale, supportedLocales, siteTimezone, tags, defaultLocale,
 }: {
   tab: BlogTabId
   siteId: string
@@ -29,14 +29,13 @@ async function TabContent({
   uiLocale: 'en' | 'pt-BR'
   supportedLocales: string[]
   siteTimezone: string
+  tags: Awaited<ReturnType<typeof fetchBlogSharedData>>['tags']
+  defaultLocale: string
 }) {
   switch (tab) {
     case 'editorial': {
-      const [data, shared] = await Promise.all([
-        fetchEditorialData(siteId, tagId, locale),
-        fetchBlogSharedData(siteId),
-      ])
-      return <EditorialTab data={data} strings={strings} siteId={siteId} tagId={tagId} locale={locale} supportedLocales={supportedLocales} siteTimezone={siteTimezone} tags={shared.tags} defaultLocale={shared.defaultLocale} />
+      const data = await fetchEditorialData(siteId, tagId, locale)
+      return <EditorialTab data={data} strings={strings} siteId={siteId} tagId={tagId} locale={locale} supportedLocales={supportedLocales} siteTimezone={siteTimezone} tags={tags} defaultLocale={defaultLocale} />
     }
     case 'schedule': {
       const data = await fetchScheduleData(siteId, tagId, locale)
@@ -55,7 +54,8 @@ export default async function BlogHubPage({ searchParams }: Props) {
   const { siteId } = ctx
 
   const uiLocale: 'en' | 'pt-BR' = ctx.defaultLocale === 'pt-BR' ? 'pt-BR' : 'en'
-  const tab = (params.tab as BlogTabId) || 'editorial'
+  const VALID_TABS = new Set<string>(['editorial', 'schedule', 'analytics'])
+  const tab: BlogTabId = VALID_TABS.has(params.tab ?? '') ? (params.tab as BlogTabId) : 'editorial'
   const tagId = params.tag ?? null
   const filterLocale = params.locale ?? null
 
@@ -87,6 +87,8 @@ export default async function BlogHubPage({ searchParams }: Props) {
           uiLocale={uiLocale}
           supportedLocales={sharedData.supportedLocales}
           siteTimezone={sharedData.siteTimezone}
+          tags={sharedData.tags}
+          defaultLocale={sharedData.defaultLocale}
         />
       </Suspense>
     </HubClient>

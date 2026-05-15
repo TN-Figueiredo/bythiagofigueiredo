@@ -454,7 +454,7 @@ export function KanbanCard({
               handleClick()
             }}
             aria-label={s?.open ?? 'Open'}
-            className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-700 hover:text-gray-100"
+            className="rounded p-1.5 text-gray-400 transition-colors hover:bg-gray-700 hover:text-gray-100"
           >
             <Pencil className="h-3.5 w-3.5" />
           </button>
@@ -464,7 +464,7 @@ export function KanbanCard({
               setContextMenu(safeMenuPosition(e.clientX, e.clientY))
             }}
             aria-label={s?.moreActions ?? 'More actions'}
-            className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-700 hover:text-gray-100"
+            className="rounded p-1.5 text-gray-400 transition-colors hover:bg-gray-700 hover:text-gray-100"
           >
             <MoreVertical className="h-3.5 w-3.5" />
           </button>
@@ -735,10 +735,11 @@ export function KanbanCard({
               {s?.addLocale ?? 'Add locale'}
             </button>
             {localeDropdownOpen && missingLocales.length > 0 && (
-              <div className="absolute left-full top-0 z-50 ml-1 w-28 rounded-md border border-gray-700 bg-gray-900 py-1 shadow-xl">
+              <div className="absolute right-full top-0 z-50 mr-1 w-28 rounded-md border border-gray-700 bg-gray-900 py-1 shadow-xl">
                 {missingLocales.map((loc) => (
                   <button
                     key={loc}
+                    role="menuitem"
                     onClick={() => handleLocaleSelect(loc)}
                     className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[10px] text-gray-300 hover:bg-gray-800"
                   >
@@ -760,10 +761,11 @@ export function KanbanCard({
                 {s?.removeLocale ?? 'Remove locale'}
               </button>
               {removeLocaleDropdownOpen && (
-                <div className="absolute left-full top-0 z-50 ml-1 w-28 rounded-md border border-gray-700 bg-gray-900 py-1 shadow-xl">
+                <div className="absolute right-full top-0 z-50 mr-1 w-28 rounded-md border border-gray-700 bg-gray-900 py-1 shadow-xl">
                   {card.locales.map((loc) => (
                     <button
                       key={loc}
+                      role="menuitem"
                       onClick={() => handleRemoveLocaleSelect(loc)}
                       className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[10px] text-red-400 hover:bg-gray-800"
                     >
