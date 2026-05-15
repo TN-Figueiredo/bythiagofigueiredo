@@ -10,7 +10,7 @@ interface HubShortcutHandlers {
   onExportCsv?: () => void
 }
 
-const TAB_MAP: Record<string, BlogTabId> = { '1': 'overview', '2': 'editorial', '3': 'schedule', '4': 'analytics' }
+const TAB_MAP: Record<string, BlogTabId> = { '1': 'editorial', '2': 'schedule', '3': 'analytics' }
 
 export function useHubShortcuts(handlers: HubShortcutHandlers) {
   const ref = useRef(handlers)

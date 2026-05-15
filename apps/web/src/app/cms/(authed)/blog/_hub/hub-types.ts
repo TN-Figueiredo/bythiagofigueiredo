@@ -1,4 +1,4 @@
-export type BlogTabId = 'overview' | 'editorial' | 'schedule' | 'analytics'
+export type BlogTabId = 'editorial' | 'schedule' | 'analytics'
 
 export interface BlogTag {
   id: string
@@ -38,32 +38,8 @@ export interface PostCard {
   scheduledFor: string | null
   slotDate: string | null
   snippet: string | null
-}
-
-export interface OverviewTabData {
-  kpis: {
-    totalPosts: number
-    totalPostsTrend: number
-    published: number
-    publishedTrend: number
-    avgReadingTime: number
-    avgReadingTimeTrend: number
-    draftBacklog: number
-    draftBacklogTrend: number
-  }
-  sparklines: Record<'totalPosts' | 'published' | 'avgReadingTime' | 'draftBacklog', number[]>
-  tagBreakdown: Array<{ tagId: string | null; tagName: string; tagColor: string; tagNameTranslations: Record<string, string> | null; count: number }>
-  recentPublications: Array<{
-    id: string
-    title: string
-    tagName: string | null
-    tagColor: string | null
-    tagNameTranslations: Record<string, string> | null
-    locales: string[]
-    publishedAt: string
-    readingTimeMin: number | null
-  }>
-  velocitySparkline: number[]
+  coverImageUrl: string | null
+  excerpt: string | null
 }
 
 export interface EditorialTabData {
@@ -72,6 +48,8 @@ export interface EditorialTabData {
     avgIdeaToPublished: number
     movedThisWeek: number
     bottleneck: { column: string; avgDays: number } | null
+    totalPosts: number
+    publishedCount: number
   }
   posts: PostCard[]
 }

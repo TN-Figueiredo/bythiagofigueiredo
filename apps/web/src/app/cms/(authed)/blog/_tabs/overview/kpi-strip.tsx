@@ -2,12 +2,20 @@
 
 import { TrendingUp, TrendingDown } from 'lucide-react'
 import { SparklineSvg } from '../../_shared/sparkline-svg'
-import type { OverviewTabData } from '../../_hub/hub-types'
 import type { BlogHubStrings } from '../../_i18n/types'
 
 interface KpiStripProps {
-  kpis: OverviewTabData['kpis']
-  sparklines: OverviewTabData['sparklines']
+  kpis: {
+    totalPosts: number
+    totalPostsTrend: number
+    published: number
+    publishedTrend: number
+    avgReadingTime: number
+    avgReadingTimeTrend: number
+    draftBacklog: number
+    draftBacklogTrend: number
+  }
+  sparklines: Record<'totalPosts' | 'published' | 'avgReadingTime' | 'draftBacklog', number[]>
   strings?: BlogHubStrings
 }
 

@@ -2,12 +2,22 @@
 
 import Link from 'next/link'
 import { Clock } from 'lucide-react'
-import type { OverviewTabData } from '../../_hub/hub-types'
 import type { BlogHubStrings } from '../../_i18n/types'
 import { formatRelativeDate } from '../../_hub/hub-utils'
 
+type RecentPublication = {
+  id: string
+  title: string
+  tagName: string | null
+  tagColor: string | null
+  tagNameTranslations: Record<string, string> | null
+  locales: string[]
+  publishedAt: string
+  readingTimeMin: number | null
+}
+
 interface RecentPublicationsProps {
-  data: OverviewTabData['recentPublications']
+  data: RecentPublication[]
   strings?: BlogHubStrings
 }
 

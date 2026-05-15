@@ -114,28 +114,28 @@ describe('useHubShortcuts', () => {
     expect(onNewPost).toHaveBeenCalledTimes(1)
   })
 
-  it('pressing "1" switches to overview tab', () => {
+  it('pressing "1" switches to editorial tab', () => {
     setup()
     pressKey('1')
-    expect(onSwitchTab).toHaveBeenCalledWith('overview')
-  })
-
-  it('pressing "2" switches to editorial tab', () => {
-    setup()
-    pressKey('2')
     expect(onSwitchTab).toHaveBeenCalledWith('editorial')
   })
 
-  it('pressing "3" switches to schedule tab', () => {
+  it('pressing "2" switches to schedule tab', () => {
     setup()
-    pressKey('3')
+    pressKey('2')
     expect(onSwitchTab).toHaveBeenCalledWith('schedule')
   })
 
-  it('pressing "4" switches to analytics tab', () => {
+  it('pressing "3" switches to analytics tab', () => {
+    setup()
+    pressKey('3')
+    expect(onSwitchTab).toHaveBeenCalledWith('analytics')
+  })
+
+  it('pressing "4" does nothing (no tab mapped)', () => {
     setup()
     pressKey('4')
-    expect(onSwitchTab).toHaveBeenCalledWith('analytics')
+    expect(onSwitchTab).not.toHaveBeenCalled()
   })
 
   it('pressing "/" calls onFocusSearch', () => {

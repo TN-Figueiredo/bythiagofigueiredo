@@ -12,7 +12,6 @@ import { useAutoRefresh } from './use-auto-refresh'
 import { useHubShortcuts } from './use-hub-shortcuts'
 
 const TABS: Array<{ id: BlogTabId; icon: typeof BarChart3 }> = [
-  { id: 'overview', icon: BarChart3 },
   { id: 'editorial', icon: Kanban },
   { id: 'schedule', icon: CalendarDays },
   { id: 'analytics', icon: TrendingUp },
@@ -77,8 +76,7 @@ export function HubClient({
     (tab: BlogTabId) => {
       startTransition(() => {
         const params = new URLSearchParams(searchParams.toString())
-        if (tab === 'overview') params.delete('tab')
-        else params.set('tab', tab)
+        params.set('tab', tab)
         if (selectedTagId) params.set('tag', selectedTagId)
         else params.delete('tag')
         if (selectedLocale) params.set('locale', selectedLocale)

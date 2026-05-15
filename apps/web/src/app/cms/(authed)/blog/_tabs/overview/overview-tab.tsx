@@ -1,12 +1,37 @@
 'use client'
 
-import type { OverviewTabData } from '../../_hub/hub-types'
 import type { BlogHubStrings } from '../../_i18n/types'
 import { KpiStrip } from './kpi-strip'
 import { TagBreakdown } from './tag-breakdown'
 import { RecentPublications } from './recent-publications'
 import { SparklineSvg } from '../../_shared/sparkline-svg'
 import { SectionErrorBoundary } from '../../_shared/section-error-boundary'
+
+interface OverviewTabData {
+  kpis: {
+    totalPosts: number
+    totalPostsTrend: number
+    published: number
+    publishedTrend: number
+    avgReadingTime: number
+    avgReadingTimeTrend: number
+    draftBacklog: number
+    draftBacklogTrend: number
+  }
+  sparklines: Record<'totalPosts' | 'published' | 'avgReadingTime' | 'draftBacklog', number[]>
+  tagBreakdown: Array<{ tagId: string | null; tagName: string; tagColor: string; tagNameTranslations: Record<string, string> | null; count: number }>
+  recentPublications: Array<{
+    id: string
+    title: string
+    tagName: string | null
+    tagColor: string | null
+    tagNameTranslations: Record<string, string> | null
+    locales: string[]
+    publishedAt: string
+    readingTimeMin: number | null
+  }>
+  velocitySparkline: number[]
+}
 
 interface OverviewTabProps {
   data: OverviewTabData

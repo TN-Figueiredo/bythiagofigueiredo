@@ -333,6 +333,58 @@ describe('formatRelativeDate month boundary edge cases', () => {
   })
 })
 
+describe('PostCard type shape', () => {
+  it('should include coverImageUrl and excerpt fields', () => {
+    const card: PostCard = {
+      id: 'test-id',
+      displayId: '#BP-001',
+      title: 'Test Post',
+      status: 'ready',
+      tagId: null,
+      tagName: null,
+      tagColor: null,
+      tagNameTranslations: null,
+      locales: ['en'],
+      readingTimeMin: 5,
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+      publishedAt: null,
+      scheduledFor: null,
+      slotDate: null,
+      snippet: 'A short excerpt',
+      coverImageUrl: 'https://example.com/img.jpg',
+      excerpt: 'Full excerpt from DB',
+    }
+    expect(card.coverImageUrl).toBe('https://example.com/img.jpg')
+    expect(card.excerpt).toBe('Full excerpt from DB')
+  })
+
+  it('should allow null for coverImageUrl and excerpt', () => {
+    const card: PostCard = {
+      id: 'test-id',
+      displayId: '#BP-001',
+      title: 'Test Post',
+      status: 'draft',
+      tagId: null,
+      tagName: null,
+      tagColor: null,
+      tagNameTranslations: null,
+      locales: ['pt-BR'],
+      readingTimeMin: null,
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+      publishedAt: null,
+      scheduledFor: null,
+      slotDate: null,
+      snippet: null,
+      coverImageUrl: null,
+      excerpt: null,
+    }
+    expect(card.coverImageUrl).toBeNull()
+    expect(card.excerpt).toBeNull()
+  })
+})
+
 describe('BLOG_TRANSITIONS graph completeness', () => {
   it('every status in PostCard union has defined transitions', () => {
     const allStatuses: string[] = ['idea', 'draft', 'pending_review', 'ready', 'queued', 'scheduled', 'published', 'archived']

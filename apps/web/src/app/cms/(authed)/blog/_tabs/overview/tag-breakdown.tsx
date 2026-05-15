@@ -1,10 +1,11 @@
 'use client'
 
-import type { OverviewTabData } from '../../_hub/hub-types'
 import type { BlogHubStrings } from '../../_i18n/types'
 
+type TagBreakdownItem = { tagId: string | null; tagName: string; tagColor: string; tagNameTranslations: Record<string, string> | null; count: number }
+
 interface TagBreakdownProps {
-  data: OverviewTabData['tagBreakdown']
+  data: TagBreakdownItem[]
   strings?: BlogHubStrings
 }
 

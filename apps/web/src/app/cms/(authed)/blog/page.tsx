@@ -1,14 +1,13 @@
 import { Suspense } from 'react'
 import { getSiteContext } from '@/lib/cms/site-context'
 import type { BlogTabId } from './_hub/hub-types'
-import { fetchBlogSharedData, fetchOverviewData, fetchEditorialData, fetchScheduleData } from './_hub/hub-queries'
+import { fetchBlogSharedData, fetchEditorialData, fetchScheduleData } from './_hub/hub-queries'
 import { HubClient } from './_hub/hub-client'
 import { TabSkeleton } from './_hub/tab-skeleton'
 import { en } from './_i18n/en'
 import { ptBR } from './_i18n/pt-BR'
 import type { BlogHubStrings } from './_i18n/types'
 
-import { OverviewTab } from './_tabs/overview/overview-tab'
 import { EditorialTab } from './_tabs/editorial/editorial-tab'
 import { ScheduleTab } from './_tabs/schedule/schedule-tab'
 import { AnalyticsTab } from './_tabs/analytics/analytics-tab'
@@ -32,10 +31,6 @@ async function TabContent({
   siteTimezone: string
 }) {
   switch (tab) {
-    case 'overview': {
-      const data = await fetchOverviewData(siteId, tagId, locale)
-      return <OverviewTab data={data} strings={strings} />
-    }
     case 'editorial': {
       const [data, shared] = await Promise.all([
         fetchEditorialData(siteId, tagId, locale),
@@ -60,7 +55,7 @@ export default async function BlogHubPage({ searchParams }: Props) {
   const { siteId } = ctx
 
   const uiLocale: 'en' | 'pt-BR' = ctx.defaultLocale === 'pt-BR' ? 'pt-BR' : 'en'
-  const tab = (params.tab as BlogTabId) || 'overview'
+  const tab = (params.tab as BlogTabId) || 'editorial'
   const tagId = params.tag ?? null
   const filterLocale = params.locale ?? null
 

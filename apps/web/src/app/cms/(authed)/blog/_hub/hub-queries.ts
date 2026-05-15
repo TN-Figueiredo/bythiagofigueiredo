@@ -1,7 +1,7 @@
 import { unstable_cache } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { toDateStringInTz } from '@/lib/cms/format-site-datetime'
-import type { BlogHubSharedData, BlogTag, PostCard, OverviewTabData, EditorialTabData, ScheduleTabData, ScheduleSlot, BlogCadenceConfig, ReadyPost } from './hub-types'
+import type { BlogHubSharedData, BlogTag, PostCard, EditorialTabData, ScheduleTabData, ScheduleSlot, BlogCadenceConfig, ReadyPost } from './hub-types'
 import { computeDisplayId } from './hub-utils'
 import { generateSlots } from '@tn-figueiredo/newsletter'
 
@@ -66,7 +66,7 @@ export const fetchBlogSharedData = unstable_cache(
 )
 
 export const fetchOverviewData = unstable_cache(
-  async (siteId: string, tagId?: string | null, locale?: string | null): Promise<OverviewTabData> => {
+  async (siteId: string, tagId?: string | null, locale?: string | null) => {
     const supabase = getSupabaseServiceClient()
 
     let postsQuery = supabase
@@ -318,6 +318,8 @@ export const fetchEditorialData = unstable_cache(
         scheduledFor: p.scheduled_for as string | null,
         slotDate: p.slot_date as string | null,
         snippet: preferredTx?.content_mdx?.slice(0, 80) ?? null,
+        coverImageUrl: null,
+        excerpt: null,
       }
     })
 
@@ -348,6 +350,8 @@ export const fetchEditorialData = unstable_cache(
         movedThisWeek,
         // Intentionally null — computing real bottleneck requires historical column-duration data not yet tracked
         bottleneck: null,
+        totalPosts: allPosts.length,
+        publishedCount: publishedCards.length,
       },
       posts: cards,
     }
