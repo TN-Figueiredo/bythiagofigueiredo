@@ -1,10 +1,10 @@
 import type { PlaylistItemEnriched, PlaylistEdgeRow } from '../types'
 import { NODE_WIDTH } from './utils'
 
-const LAYER_GAP_X = 480
-const NODE_GAP_Y = 160
+const LAYER_GAP_X = 520
+const NODE_GAP_Y = 200
 const ORPHAN_COLS = 4
-const ORPHAN_GAP_Y = 200
+const ORPHAN_GAP_Y = 260
 export const DIMMED_OFFSET_Y = 120
 
 interface LayoutPosition {

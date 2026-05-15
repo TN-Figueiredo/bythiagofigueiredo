@@ -526,12 +526,12 @@ export function PlaylistCanvas({
       const dy = targetPoint.y - sourcePoint.y
       ctx.beginPath()
       if (Math.abs(dx) >= Math.abs(dy)) {
-        const ecp = Math.max(Math.abs(tx - sx) * 0.4, 50)
+        const ecp = Math.max(Math.abs(tx - sx) * 0.45, 60)
         const d = tx >= sx ? 1 : -1
         ctx.moveTo(sx, sy)
         ctx.bezierCurveTo(sx + ecp * d, sy, tx - ecp * d, ty, tx, ty)
       } else {
-        const ecp = Math.max(Math.abs(ty - sy) * 0.4, 50)
+        const ecp = Math.max(Math.abs(ty - sy) * 0.45, 60)
         const d = ty >= sy ? 1 : -1
         ctx.moveTo(sx, sy)
         ctx.bezierCurveTo(sx, sy + ecp * d, tx, ty - ecp * d, tx, ty)

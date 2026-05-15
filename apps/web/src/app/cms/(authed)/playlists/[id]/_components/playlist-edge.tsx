@@ -5,10 +5,10 @@ import type { PlaylistItemEnriched } from '@/lib/playlists/types'
 import { edgePath, getConnectionPoints } from '@/lib/playlists/canvas/utils'
 
 const EDGE_STYLES: Record<EdgeType, { stroke: string; glow: string; dash?: string; marker: 'arrow' | 'circle' | false; defaultLabel?: string }> = {
-  sequence:     { stroke: '#818cf8', glow: 'rgba(129,140,248,0.25)', marker: 'arrow', defaultLabel: 'seq' },
-  related:      { stroke: '#a855f7', glow: 'rgba(168,85,247,0.2)', dash: '5,3', marker: 'circle', defaultLabel: 'see also' },
-  prerequisite: { stroke: '#fbbf24', glow: 'rgba(251,191,36,0.25)', marker: 'arrow', defaultLabel: 'read first' },
-  continuation: { stroke: '#34d399', glow: 'rgba(52,211,153,0.25)', marker: 'arrow' },
+  sequence:     { stroke: '#818cf8', glow: 'rgba(129,140,248,0.15)', marker: 'arrow', defaultLabel: 'seq' },
+  related:      { stroke: '#a855f7', glow: 'rgba(168,85,247,0.12)', dash: '5,3', marker: 'circle', defaultLabel: 'see also' },
+  prerequisite: { stroke: '#fbbf24', glow: 'rgba(251,191,36,0.15)', marker: 'arrow', defaultLabel: 'read first' },
+  continuation: { stroke: '#34d399', glow: 'rgba(52,211,153,0.15)', marker: 'arrow' },
 }
 
 interface PlaylistEdgeProps {
@@ -96,7 +96,7 @@ export function PlaylistEdge({
                 fontWeight: 500,
                 fontFamily: 'system-ui, -apple-system, sans-serif',
                 color: isSelected ? '#f87171' : style.stroke,
-                background: 'rgba(10,10,18,0.88)',
+                background: 'rgba(10,10,18,0.92)',
                 padding: '1px 6px',
                 borderRadius: 4,
                 whiteSpace: 'nowrap',

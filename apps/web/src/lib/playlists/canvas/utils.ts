@@ -41,17 +41,17 @@ export function edgePath(source: Point, target: Point): string {
   const dy = target.y - source.y
 
   if (Math.abs(dx) >= Math.abs(dy)) {
-    const cp = Math.max(Math.abs(dx) * 0.4, 50)
+    const cp = Math.max(Math.abs(dx) * 0.45, 60)
     const dir = dx >= 0 ? 1 : -1
     return `M ${source.x} ${source.y} C ${source.x + cp * dir} ${source.y}, ${target.x - cp * dir} ${target.y}, ${target.x} ${target.y}`
   }
-  const cp = Math.max(Math.abs(dy) * 0.4, 50)
+  const cp = Math.max(Math.abs(dy) * 0.45, 60)
   const dir = dy >= 0 ? 1 : -1
   return `M ${source.x} ${source.y} C ${source.x} ${source.y + cp * dir}, ${target.x} ${target.y - cp * dir}, ${target.x} ${target.y}`
 }
 
-const NODE_WIDTH = 250
-const NODE_HEIGHT = 80
+export const NODE_WIDTH = 250
+export const NODE_HEIGHT = 80
 
 export function getConnectionPoints(
   source: { position_x: number; position_y: number },
@@ -104,8 +104,8 @@ export function fitAllNodes(
   viewportWidth: number,
   viewportHeight: number,
   padding = 60,
-  nodeWidth = 250,
-  nodeHeight = 80,
+  nodeWidth = NODE_WIDTH,
+  nodeHeight = NODE_HEIGHT,
 ): Camera {
   if (items.length === 0) return { x: 0, y: 0, zoom: 1 }
 

@@ -37,9 +37,9 @@ describe('edgePath', () => {
     expect(path).toContain('C')
   })
 
-  it('uses minimum control point offset of 50', () => {
+  it('uses minimum control point offset of 60', () => {
     const path = edgePath({ x: 0, y: 0 }, { x: 10, y: 0 })
-    expect(path).toContain('C 50')
+    expect(path).toContain('C 60')
   })
 })
 
