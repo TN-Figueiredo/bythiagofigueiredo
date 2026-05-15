@@ -65,209 +65,13 @@ export const fetchBlogSharedData = unstable_cache(
   { tags: ['blog-hub'], revalidate: 60 },
 )
 
-export const fetchOverviewData = unstable_cache(
-  async (siteId: string, tagId?: string | null, locale?: string | null) => {
-    const supabase = getSupabaseServiceClient()
-
-    let postsQuery = supabase
-      .from('blog_posts')
-      .select('id, status, tag_id, published_at, created_at, blog_translations(locale, reading_time_min)')
-      .eq('site_id', siteId)
-    if (tagId) postsQuery = postsQuery.eq('tag_id', tagId)
-
-    const [postsResult, tagsResult] = await Promise.all([
-      postsQuery,
-      supabase.from('blog_tags').select('id, name, color, name_translations').eq('site_id', siteId),
-    ])
-
-    let posts = postsResult.data ?? []
-    if (locale) {
-      posts = posts.filter((p: Record<string, unknown>) => {
-        const txs = (p as { blog_translations: Array<{ locale: string }> }).blog_translations ?? []
-        return txs.some((t) => t.locale === locale)
-      })
-    }
-
-    const tags = tagsResult.data ?? []
-    const now = Date.now()
-    const day = 24 * 60 * 60 * 1000
-
-    const totalPosts = posts.length
-    const published = posts.filter((p) => p.status === 'published')
-    const backlog = posts.filter((p) => ['idea', 'draft', 'pending_review'].includes(p.status as string))
-
-    const publishedReadingTimes = published
-      .flatMap((p) => ((p as { blog_translations: Array<{ reading_time_min: number | null }> }).blog_translations ?? []).map((t) => t.reading_time_min))
-      .filter((rt): rt is number => rt !== null && rt > 0)
-    const avgReadingTime = publishedReadingTimes.length > 0
-      ? Math.round((publishedReadingTimes.reduce((a, b) => a + b, 0) / publishedReadingTimes.length) * 10) / 10
-      : 0
-
-    const recentCreated = posts.filter((p) => now - new Date(p.created_at as string).getTime() < 7 * day).length
-    const prevCreated = posts.filter((p) => {
-      const age = now - new Date(p.created_at as string).getTime()
-      return age >= 7 * day && age < 14 * day
-    }).length
-    const totalPostsTrend = prevCreated > 0 ? Math.round(((recentCreated - prevCreated) / prevCreated) * 100) : 0
-
-    // publishedTrend: week-over-week change in posts published
-    const recentPublished = published.filter((p) => p.published_at && now - new Date(p.published_at).getTime() < 7 * day).length
-    const prevPublished = published.filter((p) => {
-      if (!p.published_at) return false
-      const age = now - new Date(p.published_at).getTime()
-      return age >= 7 * day && age < 14 * day
-    }).length
-    const publishedTrend = prevPublished > 0 ? Math.round(((recentPublished - prevPublished) / prevPublished) * 100) : 0
-
-    // avgReadingTimeTrend: avg reading time of posts published this week vs last week
-    const recentPublishedPosts = published.filter((p) => p.published_at && now - new Date(p.published_at).getTime() < 7 * day)
-    const prevPublishedPosts = published.filter((p) => {
-      if (!p.published_at) return false
-      const age = now - new Date(p.published_at).getTime()
-      return age >= 7 * day && age < 14 * day
-    })
-    const recentRT = recentPublishedPosts
-      .flatMap((p) => ((p as { blog_translations: Array<{ reading_time_min: number | null }> }).blog_translations ?? []).map((t) => t.reading_time_min))
-      .filter((rt): rt is number => rt !== null && rt > 0)
-    const prevRT = prevPublishedPosts
-      .flatMap((p) => ((p as { blog_translations: Array<{ reading_time_min: number | null }> }).blog_translations ?? []).map((t) => t.reading_time_min))
-      .filter((rt): rt is number => rt !== null && rt > 0)
-    const recentAvgRT = recentRT.length > 0 ? recentRT.reduce((a, b) => a + b, 0) / recentRT.length : 0
-    const prevAvgRT = prevRT.length > 0 ? prevRT.reduce((a, b) => a + b, 0) / prevRT.length : 0
-    const avgReadingTimeTrend = prevAvgRT > 0 ? Math.round(((recentAvgRT - prevAvgRT) / prevAvgRT) * 100) : 0
-
-    // draftBacklogTrend: week-over-week change in new drafts created
-    const recentDrafts = backlog.filter((p) => now - new Date(p.created_at as string).getTime() < 7 * day).length
-    const prevDrafts = backlog.filter((p) => {
-      const age = now - new Date(p.created_at as string).getTime()
-      return age >= 7 * day && age < 14 * day
-    }).length
-    const draftBacklogTrend = prevDrafts > 0 ? Math.round(((recentDrafts - prevDrafts) / prevDrafts) * 100) : 0
-
-    const tagBreakdown = tags.map((t) => ({
-      tagId: t.id as string,
-      tagName: t.name as string,
-      tagColor: t.color as string,
-      tagNameTranslations: (t.name_translations as Record<string, string> | null) ?? null,
-      count: posts.filter((p) => p.tag_id === t.id).length,
-    }))
-    const untaggedCount = posts.filter((p) => !p.tag_id).length
-    if (untaggedCount > 0) {
-      tagBreakdown.push({ tagId: null as unknown as string, tagName: 'Untagged', tagColor: '#6b7280', tagNameTranslations: null, count: untaggedCount })
-    }
-    tagBreakdown.sort((a, b) => b.count - a.count)
-
-    const recentPubs = published
-      .filter((p) => p.published_at)
-      .sort((a, b) => new Date(b.published_at!).getTime() - new Date(a.published_at!).getTime())
-      .slice(0, 5)
-      .map((p) => {
-        const txs = (p as { blog_translations: Array<{ locale: string; reading_time_min: number | null; title?: string }> }).blog_translations ?? []
-        const tag = tags.find((t) => t.id === p.tag_id)
-        return {
-          id: p.id as string,
-          title: txs[0]?.title ?? 'Untitled',
-          tagName: (tag?.name as string) ?? null,
-          tagColor: (tag?.color as string) ?? null,
-          tagNameTranslations: (tag?.name_translations as Record<string, string> | null) ?? null,
-          locales: txs.map((t) => t.locale),
-          publishedAt: p.published_at!,
-          readingTimeMin: txs[0]?.reading_time_min ?? null,
-        }
-      })
-
-    const weeklyVelocity: number[] = []
-    for (let w = 7; w >= 0; w--) {
-      const weekStart = now - (w + 1) * 7 * day
-      const weekEnd = now - w * 7 * day
-      weeklyVelocity.push(
-        published.filter((p) => {
-          const t = new Date(p.published_at!).getTime()
-          return t >= weekStart && t < weekEnd
-        }).length,
-      )
-    }
-
-    // Sparklines: 8 weekly data points (oldest to newest)
-    const totalPostsSparkline: number[] = []
-    const publishedSparkline: number[] = []
-    const avgReadingTimeSparkline: number[] = []
-    const draftBacklogSparkline: number[] = []
-
-    for (let w = 7; w >= 0; w--) {
-      const weekEnd = now - w * 7 * day
-
-      // Cumulative posts created up to this week boundary
-      totalPostsSparkline.push(
-        posts.filter((p) => new Date(p.created_at as string).getTime() <= weekEnd).length,
-      )
-
-      // Cumulative published posts up to this week boundary
-      const pubsUpTo = published.filter((p) => p.published_at && new Date(p.published_at).getTime() <= weekEnd)
-      publishedSparkline.push(pubsUpTo.length)
-
-      // Avg reading time of posts published in this week window
-      const weekStart = now - (w + 1) * 7 * day
-      const weekPubs = published.filter((p) => {
-        if (!p.published_at) return false
-        const t = new Date(p.published_at).getTime()
-        return t >= weekStart && t < weekEnd
-      })
-      const weekRTs = weekPubs
-        .flatMap((p) => ((p as { blog_translations: Array<{ reading_time_min: number | null }> }).blog_translations ?? []).map((t) => t.reading_time_min))
-        .filter((rt): rt is number => rt !== null && rt > 0)
-      avgReadingTimeSparkline.push(
-        weekRTs.length > 0 ? Math.round((weekRTs.reduce((a, b) => a + b, 0) / weekRTs.length) * 10) / 10 : 0,
-      )
-
-      // Cumulative backlog (drafts/ideas/pending_review created up to this week boundary, not yet published by then)
-      draftBacklogSparkline.push(
-        posts.filter((p) => {
-          const created = new Date(p.created_at as string).getTime()
-          if (created > weekEnd) return false
-          if (!['idea', 'draft', 'pending_review'].includes(p.status as string)) {
-            // Post is published/scheduled now — was it still a draft at weekEnd?
-            const pubTime = p.published_at ? new Date(p.published_at).getTime() : null
-            if (pubTime && pubTime <= weekEnd) return false
-          }
-          return true
-        }).length,
-      )
-    }
-
-    return {
-      kpis: {
-        totalPosts,
-        totalPostsTrend,
-        published: published.length,
-        publishedTrend,
-        avgReadingTime,
-        avgReadingTimeTrend,
-        draftBacklog: backlog.length,
-        draftBacklogTrend,
-      },
-      sparklines: {
-        totalPosts: totalPostsSparkline,
-        published: publishedSparkline,
-        avgReadingTime: avgReadingTimeSparkline,
-        draftBacklog: draftBacklogSparkline,
-      },
-      tagBreakdown,
-      recentPublications: recentPubs,
-      velocitySparkline: weeklyVelocity,
-    }
-  },
-  ['blog-overview'],
-  { tags: ['blog-hub', 'blog-hub-overview'], revalidate: 60 },
-)
-
 export const fetchEditorialData = unstable_cache(
   async (siteId: string, tagId?: string | null, locale?: string | null): Promise<EditorialTabData> => {
     const supabase = getSupabaseServiceClient()
 
     const { data: rawPosts } = await supabase
       .from('blog_posts')
-      .select('id, status, tag_id, published_at, scheduled_for, slot_date, created_at, updated_at, blog_translations(locale, title, slug, reading_time_min, content_mdx), blog_tags(id, name, color, name_translations)')
+      .select('id, status, tag_id, published_at, scheduled_for, slot_date, created_at, updated_at, cover_image_url, blog_translations(locale, title, slug, reading_time_min, content_mdx, cover_image_url, excerpt), blog_tags(id, name, color, name_translations)')
       .eq('site_id', siteId)
       .in('status', ['ready', 'queued', 'scheduled', 'published'])
       .order('created_at', { ascending: true })
@@ -275,7 +79,8 @@ export const fetchEditorialData = unstable_cache(
     const allPosts = rawPosts ?? []
 
     type RawPost = typeof allPosts[number] & {
-      blog_translations: Array<{ locale: string; title: string; slug: string; reading_time_min: number | null; content_mdx: string }>
+      cover_image_url: string | null
+      blog_translations: Array<{ locale: string; title: string; slug: string; reading_time_min: number | null; content_mdx: string; cover_image_url: string | null; excerpt: string | null }>
       blog_tags: { id: string; name: string; color: string; name_translations: Record<string, string> | null } | null
     }
 
@@ -317,9 +122,9 @@ export const fetchEditorialData = unstable_cache(
         publishedAt: p.published_at as string | null,
         scheduledFor: p.scheduled_for as string | null,
         slotDate: p.slot_date as string | null,
-        snippet: preferredTx?.content_mdx?.slice(0, 80) ?? null,
-        coverImageUrl: null,
-        excerpt: null,
+        snippet: preferredTx?.excerpt ?? preferredTx?.content_mdx?.slice(0, 80) ?? null,
+        coverImageUrl: preferredTx?.cover_image_url ?? p.cover_image_url ?? null,
+        excerpt: preferredTx?.excerpt ?? null,
       }
     })
 
