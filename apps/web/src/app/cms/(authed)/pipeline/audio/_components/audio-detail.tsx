@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import type { AudioAssetRow, AudioAssetUsageRow } from '@/lib/pipeline/audio-schemas'
 import { Waveform } from './waveform'
 
 interface AudioDetailProps {
@@ -8,8 +9,10 @@ interface AudioDetailProps {
   onClose: () => void
 }
 
+type AssetWithUsage = AudioAssetRow & { usage: AudioAssetUsageRow[] }
+
 export function AudioDetail({ assetId, onClose }: AudioDetailProps) {
-  const [asset, setAsset] = useState<Record<string, unknown> | null>(null)
+  const [asset, setAsset] = useState<AssetWithUsage | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -29,52 +32,52 @@ export function AudioDetail({ assetId, onClose }: AudioDetailProps) {
   if (loading) return <div style={{ width: 400, borderLeft: '1px solid var(--gem-border)', padding: 20, color: 'var(--gem-muted)' }}>Loading...</div>
   if (!asset) return <div style={{ width: 400, borderLeft: '1px solid var(--gem-border)', padding: 20, color: 'var(--gem-muted)' }}>Not found</div>
 
-  const peaks = (asset.metadata as Record<string, unknown>)?.waveform ? ((asset.metadata as Record<string, Record<string, unknown>>).waveform.peaks as number[]) : []
-  const usage = (asset.usage as Array<Record<string, unknown>>) ?? []
+  const wf = asset.metadata?.waveform as { peaks?: number[] } | undefined
+  const peaks = wf?.peaks ?? []
 
   return (
     <div style={{ width: 400, minWidth: 400, borderLeft: '1px solid var(--gem-border)', overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--gem-text)', margin: 0 }}>{(asset.track_name as string) || (asset.asset_id as string)}</h3>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--gem-muted)', cursor: 'pointer', fontSize: 16 }}>✕</button>
+        <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--gem-text)', margin: 0 }}>{asset.track_name || asset.asset_id}</h3>
+        <button aria-label="Close detail panel" onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--gem-muted)', cursor: 'pointer', fontSize: 16 }}>✕</button>
       </div>
 
       {/* Waveform */}
-      <Waveform peaks={peaks} width={360} height={80} color={asset.type === 'music' ? 'purple' : 'cyan'} duration={asset.duration_seconds as number | undefined} />
+      <Waveform peaks={peaks} width={360} height={80} color={asset.type === 'music' ? 'purple' : 'cyan'} duration={asset.duration_seconds ?? undefined} />
 
       {/* Identity */}
       <Section title="Identity">
-        <Row label="Asset ID" value={asset.asset_id as string} />
-        <Row label="Artist" value={asset.artist as string} />
-        <Row label="Source" value={asset.source as string} />
-        {asset.artlist_url && <Row label="Artlist" value={<a href={asset.artlist_url as string} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--gem-accent)', textDecoration: 'none' }}>Open ↗</a>} />}
+        <Row label="Asset ID" value={asset.asset_id} />
+        <Row label="Artist" value={asset.artist} />
+        <Row label="Source" value={asset.source} />
+        {asset.artlist_url && <Row label="Artlist" value={<a href={asset.artlist_url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--gem-accent)', textDecoration: 'none' }}>Open ↗</a>} />}
       </Section>
 
       {/* Classification */}
       <Section title="Classification">
         <Row label="Type" value={asset.type === 'music' ? '🎵 Music' : '🔊 SFX'} />
-        <Row label="Category" value={asset.category as string} />
-        {asset.genre && <Row label="Genre" value={asset.genre as string} />}
-        <Row label="Tags" value={((asset.tags as string[]) ?? []).join(', ')} />
-        <Row label="Mood" value={((asset.mood as string[]) ?? []).join(', ')} />
+        <Row label="Category" value={asset.category} />
+        {asset.genre && <Row label="Genre" value={asset.genre} />}
+        <Row label="Tags" value={asset.tags.join(', ')} />
+        <Row label="Mood" value={asset.mood.join(', ')} />
       </Section>
 
       {/* Audio */}
       <Section title="Audio">
         <Row label="Duration" value={asset.duration_seconds ? `${asset.duration_seconds}s` : '—'} />
         <Row label="BPM" value={asset.bpm ? String(asset.bpm) : '—'} />
-        <Row label="Key" value={(asset.music_key as string) ?? '—'} />
-        <Row label="Energy" value={asset.energy ? `${'●'.repeat(asset.energy as number)}${'○'.repeat(5 - (asset.energy as number))}` : '—'} />
-        <Row label="Instruments" value={((asset.instruments as string[]) ?? []).join(', ')} />
+        <Row label="Key" value={asset.music_key ?? '—'} />
+        <Row label="Energy" value={asset.energy ? `${'●'.repeat(asset.energy)}${'○'.repeat(5 - asset.energy)}` : '—'} />
+        <Row label="Instruments" value={asset.instruments.join(', ')} />
       </Section>
 
       {/* Usage */}
-      <Section title={`Usage (${usage.length})`}>
-        {usage.length === 0 && <span style={{ fontSize: 11, color: 'var(--gem-muted)' }}>Not used in any project yet</span>}
-        {usage.map((u) => (
-          <div key={u.id as string} style={{ fontSize: 11, color: 'var(--gem-text)', marginBottom: 4 }}>
-            {(u.content_pipeline as Record<string, unknown>)?.code as string ?? u.pipeline_item_id as string} — scene {(u.scene_number as number) ?? '?'} ({u.usage_type as string})
+      <Section title={`Usage (${asset.usage.length})`}>
+        {asset.usage.length === 0 && <span style={{ fontSize: 11, color: 'var(--gem-muted)' }}>Not used in any project yet</span>}
+        {asset.usage.map((u) => (
+          <div key={u.id} style={{ fontSize: 11, color: 'var(--gem-text)', marginBottom: 4 }}>
+            {u.content_pipeline?.code ?? u.pipeline_item_id} — scene {u.scene_number ?? '?'} ({u.usage_type})
           </div>
         ))}
       </Section>

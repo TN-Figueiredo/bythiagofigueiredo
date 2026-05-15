@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useMemo, useCallback } from 'react'
+import type { AudioAssetRow } from '@/lib/pipeline/audio-schemas'
 import { WaveformMini } from './waveform-mini'
 
 interface AudioTableProps {
-  assets: Record<string, unknown>[]
+  assets: AudioAssetRow[]
   selectedId: string | null
   onSelect: (id: string) => void
 }
@@ -24,10 +25,11 @@ export function AudioTable({ assets, selectedId, onSelect }: AudioTableProps) {
 
   const sorted = useMemo(() => {
     const list = [...assets]
+    const key = sortKey === 'name' ? 'track_name' : sortKey
     list.sort((a, b) => {
-      const va = (a as Record<string, unknown>)[sortKey === 'name' ? 'track_name' : sortKey] ?? ''
-      const vb = (b as Record<string, unknown>)[sortKey === 'name' ? 'track_name' : sortKey] ?? ''
-      const cmp = typeof va === 'number' ? va - (vb as number) : String(va).localeCompare(String(vb))
+      const va = a[key] ?? ''
+      const vb = b[key] ?? ''
+      const cmp = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb))
       return sortAsc ? cmp : -cmp
     })
     return list
@@ -48,7 +50,7 @@ export function AudioTable({ assets, selectedId, onSelect }: AudioTableProps) {
 
   const toggleAll = useCallback(() => {
     if (checked.size === sorted.length) setChecked(new Set())
-    else setChecked(new Set(sorted.map((a) => (a as Record<string, unknown>).id as string)))
+    else setChecked(new Set(sorted.map(a => a.id)))
   }, [checked.size, sorted])
 
   const bulkAction = useCallback(async (action: 'tag' | 'category' | 'status' | 'delete' | 'export') => {
@@ -56,7 +58,7 @@ export function AudioTable({ assets, selectedId, onSelect }: AudioTableProps) {
     if (ids.length === 0) return
 
     if (action === 'export') {
-      const selected = assets.filter((a) => checked.has((a as Record<string, unknown>).id as string))
+      const selected = assets.filter(a => checked.has(a.id))
       const blob = new Blob([JSON.stringify({ schema_version: '6.1.0', assets: selected }, null, 2)], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -80,7 +82,7 @@ export function AudioTable({ assets, selectedId, onSelect }: AudioTableProps) {
     await Promise.all(ids.map(id => fetch(`/api/pipeline/audio-library/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...body, version: ((assets.find((a) => (a as Record<string, unknown>).id === id)) as Record<string, unknown>)?.version ?? 1 }),
+      body: JSON.stringify({ ...body, version: assets.find(a => a.id === id)?.version ?? 1 }),
     })))
     setChecked(new Set())
   }, [assets, checked])
@@ -122,21 +124,21 @@ export function AudioTable({ assets, selectedId, onSelect }: AudioTableProps) {
           </tr>
         </thead>
         <tbody>
-          {sorted.map((asset) => {
-            const a = asset as Record<string, unknown>
-            const peaks = ((a.metadata as Record<string, unknown>)?.waveform as Record<string, unknown>)?.peaks as number[] ?? []
-            const badge = STATUS_BADGE[a.status as string] ?? STATUS_BADGE.retired!
+          {sorted.map((a) => {
+            const wf = a.metadata?.waveform as { peaks?: number[] } | undefined
+            const peaks = wf?.peaks ?? []
+            const badge = STATUS_BADGE[a.status] ?? STATUS_BADGE.retired!
             return (
-              <tr key={a.id as string} onClick={() => onSelect(a.id as string)} style={{ borderBottom: '1px solid var(--gem-border)', cursor: 'pointer', background: selectedId === a.id ? 'rgba(99,102,241,0.08)' : checked.has(a.id as string) ? 'rgba(99,102,241,0.04)' : 'transparent' }}>
+              <tr key={a.id} onClick={() => onSelect(a.id)} style={{ borderBottom: '1px solid var(--gem-border)', cursor: 'pointer', background: selectedId === a.id ? 'rgba(99,102,241,0.08)' : checked.has(a.id) ? 'rgba(99,102,241,0.04)' : 'transparent' }}>
                 <td style={{ padding: '4px 4px' }} onClick={e => e.stopPropagation()}>
-                  <input type="checkbox" checked={checked.has(a.id as string)} onChange={() => toggleCheck(a.id as string)} />
+                  <input type="checkbox" checked={checked.has(a.id)} onChange={() => toggleCheck(a.id)} />
                 </td>
                 <td style={{ padding: '4px 8px' }}><WaveformMini peaks={peaks} /></td>
-                <td style={{ padding: '4px 8px', color: 'var(--gem-text)' }}>{(a.track_name as string) || (a.asset_id as string)}</td>
+                <td style={{ padding: '4px 8px', color: 'var(--gem-text)' }}>{a.track_name || a.asset_id}</td>
                 <td style={{ padding: '4px 8px', color: 'var(--gem-muted)' }}>{a.type === 'music' ? '🎵' : '🔊'}</td>
-                <td style={{ padding: '4px 8px', color: 'var(--gem-muted)' }}>{(a.category as string) ?? '—'}</td>
-                <td style={{ padding: '4px 8px', color: 'var(--gem-muted)' }}>{(a.energy as number) ?? '—'}</td>
-                <td style={{ padding: '4px 8px', color: 'var(--gem-muted)' }}>{(a.bpm as number) ?? '—'}</td>
+                <td style={{ padding: '4px 8px', color: 'var(--gem-muted)' }}>{a.category ?? '—'}</td>
+                <td style={{ padding: '4px 8px', color: 'var(--gem-muted)' }}>{a.energy ?? '—'}</td>
+                <td style={{ padding: '4px 8px', color: 'var(--gem-muted)' }}>{a.bpm ?? '—'}</td>
                 <td style={{ padding: '4px 8px' }}>
                   <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: badge.bg, color: badge.color }}>{badge.label}</span>
                 </td>

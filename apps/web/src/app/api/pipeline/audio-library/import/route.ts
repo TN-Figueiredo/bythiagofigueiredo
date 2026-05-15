@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { authenticatePipeline, requirePermission, buildRateLimitHeaders } from '@/lib/pipeline/auth'
-import { ImportSchema } from '@/lib/pipeline/audio-schemas'
+import { ImportSchema, type ImportItem } from '@/lib/pipeline/audio-schemas'
 import { mapJsonToDbRow, classifyImportItem, buildDiffLog } from '@/lib/pipeline/audio-import'
 
 export async function POST(req: NextRequest) {
@@ -28,14 +28,14 @@ export async function POST(req: NextRequest) {
     ...sfx.map(item => ({ ...item, _type: 'sfx' as const })),
   ]
 
-  const assetIds = allItems.map(i => (i as Record<string, unknown>).asset_id as string).filter(Boolean)
+  const assetIds = allItems.map(i => i.asset_id).filter(Boolean)
   const { data: existingRows } = await supabase
     .from('audio_assets')
     .select('asset_id, sha256, tags, mood, energy')
     .eq('site_id', auth.siteId)
     .in('asset_id', assetIds.length > 0 ? assetIds : ['__none__'])
 
-  const existingMap = new Map((existingRows ?? []).map((r: Record<string, unknown>) => [r.asset_id, r]))
+  const existingMap = new Map((existingRows ?? []).map(r => [r.asset_id, r]))
 
   let created = 0, updated = 0, skipped = 0, errorCount = 0
   const errors: Array<{ asset_id: string; error: string }> = []
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
 
   for (const rawItem of allItems) {
     const { _type, ...item } = rawItem
-    const row = mapJsonToDbRow(item as Record<string, unknown>, _type)
+    const row = mapJsonToDbRow(item as ImportItem, _type)
     const existing = existingMap.get(row.asset_id as string) ?? null
     const classification = classifyImportItem(row, existing)
 
@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
       errors,
       diff_log: diffLog,
       schema_version,
-      imported_by: auth.source === 'api_key' ? 'cowork' : auth.siteId,
+      imported_by: auth.source === 'api_key' ? 'cowork' : 'cms_ui',
     })
     .select('id')
     .single()

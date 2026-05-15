@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 
 interface AudioFiltersProps {
   filters: Record<string, string>
@@ -9,6 +9,9 @@ interface AudioFiltersProps {
 
 export function AudioFilters({ filters, onChange }: AudioFiltersProps) {
   const [search, setSearch] = useState('')
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+
+  useEffect(() => () => clearTimeout(debounceRef.current), [])
 
   const updateFilter = useCallback((key: string, value: string | undefined) => {
     const next = { ...filters }
@@ -22,7 +25,15 @@ export function AudioFilters({ filters, onChange }: AudioFiltersProps) {
       {/* Search */}
       <div>
         <label style={{ fontSize: 10, fontWeight: 600, color: 'var(--gem-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Search</label>
-        <input data-audio-search value={search} onChange={e => { setSearch(e.target.value); if (e.target.value) updateFilter('q', e.target.value); else updateFilter('q', undefined) }} placeholder="Search… (press /)" style={{ width: '100%', padding: '4px 8px', fontSize: 12, borderRadius: 5, border: '1px solid var(--gem-border)', background: 'var(--gem-well)', color: 'var(--gem-text)' }} />
+        <input data-audio-search value={search} onChange={e => {
+          const val = e.target.value
+          setSearch(val)
+          clearTimeout(debounceRef.current)
+          debounceRef.current = setTimeout(() => {
+            if (val) updateFilter('q', val)
+            else updateFilter('q', undefined)
+          }, 300)
+        }} placeholder="Search… (press /)" style={{ width: '100%', padding: '4px 8px', fontSize: 12, borderRadius: 5, border: '1px solid var(--gem-border)', background: 'var(--gem-well)', color: 'var(--gem-text)' }} />
       </div>
 
       {/* Type */}

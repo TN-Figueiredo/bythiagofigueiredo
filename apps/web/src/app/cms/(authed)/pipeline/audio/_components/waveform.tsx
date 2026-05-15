@@ -1,8 +1,11 @@
 'use client'
 
+import { useId } from 'react'
+
 export function resamplePeaks(peaks: number[], targetCount: number): number[] {
   if (peaks.length === 0) return []
   if (peaks.length <= targetCount) return peaks
+  if (targetCount === 1) return [peaks[0]!]
   const result: number[] = []
   for (let i = 0; i < targetCount; i++) {
     const pos = (i / (targetCount - 1)) * (peaks.length - 1)
@@ -38,6 +41,7 @@ interface WaveformProps {
 }
 
 export function Waveform({ peaks, width = 320, height = 80, color = 'purple', duration }: WaveformProps) {
+  const instanceId = useId()
   const stops = COLORS[color]
   const cy = height / 2
 
@@ -49,10 +53,11 @@ export function Waveform({ peaks, width = 320, height = 80, color = 'purple', du
   const gap = barWidth < 2 ? 0.5 : 1
 
   if (!peaks || peaks.length === 0) {
+    const phId = `wf-ph-${instanceId}`
     return (
       <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} aria-label="Waveform available after download" role="img">
         <defs>
-          <linearGradient id="wf-ph" x1="0%" y1="0%" x2="100%" y2="0%">
+          <linearGradient id={phId} x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stopColor={stops.from} stopOpacity="0.15" />
             <stop offset="50%" stopColor={stops.to} stopOpacity="0.35">
               <animate attributeName="stopOpacity" values="0.15;0.45;0.15" dur="1.6s" repeatCount="indefinite" />
@@ -60,12 +65,12 @@ export function Waveform({ peaks, width = 320, height = 80, color = 'purple', du
             <stop offset="100%" stopColor={stops.from} stopOpacity="0.15" />
           </linearGradient>
         </defs>
-        <rect x={0} y={cy - 2} width={width} height={4} fill="url(#wf-ph)" rx={2} />
+        <rect x={0} y={cy - 2} width={width} height={4} fill={`url(#${phId})`} rx={2} />
       </svg>
     )
   }
 
-  const gradId = `wf-${color}`
+  const gradId = `wf-${instanceId}`
   return (
     <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} aria-label="Audio waveform" role="img">
       <defs>

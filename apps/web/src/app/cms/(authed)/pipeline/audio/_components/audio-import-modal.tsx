@@ -1,18 +1,38 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 
 interface AudioImportModalProps { onClose: () => void }
 
 type Step = 'input' | 'preview' | 'result'
 
+interface ImportPreview { preview: { to_create: number; to_update: number; to_skip: number } }
+interface ImportResult { created: number; updated: number; skipped: number; errors: Array<{ asset_id: string; error: string }> }
+
 export function AudioImportModal({ onClose }: AudioImportModalProps) {
   const [step, setStep] = useState<Step>('input')
   const [jsonText, setJsonText] = useState('')
-  const [preview, setPreview] = useState<Record<string, unknown> | null>(null)
-  const [result, setResult] = useState<Record<string, unknown> | null>(null)
+  const [preview, setPreview] = useState<ImportPreview | null>(null)
+  const [result, setResult] = useState<ImportResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = dialogRef.current
+    if (!el) return
+    const focusable = el.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
+    const first = focusable[0]
+    const last = focusable[focusable.length - 1]
+    first?.focus()
+    function onKeydown(e: KeyboardEvent) {
+      if (e.key !== 'Tab') return
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus() }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus() }
+    }
+    el.addEventListener('keydown', onKeydown)
+    return () => el.removeEventListener('keydown', onKeydown)
+  }, [step])
 
   const handlePreview = async () => {
     setError(null)
@@ -35,11 +55,12 @@ export function AudioImportModal({ onClose }: AudioImportModalProps) {
 
   const handleExecute = async () => {
     setLoading(true)
-    const parsed = JSON.parse(jsonText)
+    let parsed: unknown
+    try { parsed = JSON.parse(jsonText) } catch { setError('Invalid JSON'); setLoading(false); setStep('input'); return }
     const res = await fetch('/api/pipeline/audio-library/import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...parsed, dry_run: false }),
+      body: JSON.stringify({ ...(parsed as object), dry_run: false }),
     })
     const json = await res.json()
     setLoading(false)
@@ -49,10 +70,10 @@ export function AudioImportModal({ onClose }: AudioImportModalProps) {
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={{ width: 520, maxHeight: '80vh', background: 'var(--gem-surface)', border: '1px solid var(--gem-border)', borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto' }}>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="import-modal-title" onClick={e => e.stopPropagation()} style={{ width: 520, maxHeight: '80vh', background: 'var(--gem-surface)', border: '1px solid var(--gem-border)', borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--gem-text)', margin: 0 }}>Import Audio Library</h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--gem-muted)', cursor: 'pointer', fontSize: 16 }}>✕</button>
+          <h3 id="import-modal-title" style={{ fontSize: 14, fontWeight: 600, color: 'var(--gem-text)', margin: 0 }}>Import Audio Library</h3>
+          <button aria-label="Close" onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--gem-muted)', cursor: 'pointer', fontSize: 16 }}>✕</button>
         </div>
 
         {step === 'input' && (
@@ -68,9 +89,9 @@ export function AudioImportModal({ onClose }: AudioImportModalProps) {
         {step === 'preview' && preview && (
           <>
             <div style={{ fontSize: 12, color: 'var(--gem-text)' }}>
-              <div>Create: <strong>{(preview.preview as Record<string, unknown>)?.to_create as number ?? 0}</strong></div>
-              <div>Update: <strong>{(preview.preview as Record<string, unknown>)?.to_update as number ?? 0}</strong></div>
-              <div>Skip: <strong>{(preview.preview as Record<string, unknown>)?.to_skip as number ?? 0}</strong></div>
+              <div>Create: <strong>{preview.preview.to_create}</strong></div>
+              <div>Update: <strong>{preview.preview.to_update}</strong></div>
+              <div>Skip: <strong>{preview.preview.to_skip}</strong></div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => setStep('input')} style={{ padding: '6px 16px', fontSize: 12, borderRadius: 5, border: '1px solid var(--gem-border)', background: 'transparent', color: 'var(--gem-text)', cursor: 'pointer' }}>Back</button>
@@ -84,10 +105,10 @@ export function AudioImportModal({ onClose }: AudioImportModalProps) {
         {step === 'result' && result && (
           <>
             <div style={{ fontSize: 12, color: 'var(--gem-text)' }}>
-              <div>Created: <strong>{result.created as number}</strong></div>
-              <div>Updated: <strong>{result.updated as number}</strong></div>
-              <div>Skipped: <strong>{result.skipped as number}</strong></div>
-              {((result.errors as unknown[])?.length ?? 0) > 0 && <div style={{ color: 'var(--gem-danger)' }}>Errors: {(result.errors as unknown[]).length}</div>}
+              <div>Created: <strong>{result.created}</strong></div>
+              <div>Updated: <strong>{result.updated}</strong></div>
+              <div>Skipped: <strong>{result.skipped}</strong></div>
+              {result.errors.length > 0 && <div style={{ color: 'var(--gem-danger)' }}>Errors: {result.errors.length}</div>}
             </div>
             <button onClick={onClose} style={{ padding: '6px 16px', fontSize: 12, borderRadius: 5, border: 'none', background: 'var(--gem-accent)', color: '#fff', cursor: 'pointer' }}>Done</button>
           </>

@@ -10,12 +10,12 @@ export async function GET(req: NextRequest) {
 
   const supabase = getSupabaseServiceClient()
   const [assetsRes, usageRes] = await Promise.all([
-    supabase.from('audio_assets').select('id, type, status, category, track_name, created_at').eq('site_id', auth.siteId),
+    supabase.from('audio_assets').select('id, type, status, category, created_at').eq('site_id', auth.siteId),
     supabase.from('audio_asset_usage').select('audio_asset_id').eq('site_id', auth.siteId),
   ])
 
-  const assets = (assetsRes.data ?? []) as Array<{ id: string; type: string; status: string; category: string | null; track_name: string | null; created_at: string }>
-  const usedIds = new Set((usageRes.data ?? []).map((r: Record<string, unknown>) => r.audio_asset_id))
+  const assets = (assetsRes.data ?? []) as Array<{ id: string; type: string; status: string; category: string | null; created_at: string }>
+  const usedIds = new Set((usageRes.data ?? []).map(r => r.audio_asset_id))
 
   const by_type = { music: 0, sfx: 0 }
   const by_status = { downloaded: 0, pending: 0, retired: 0 }

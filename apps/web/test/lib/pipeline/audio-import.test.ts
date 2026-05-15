@@ -86,7 +86,7 @@ describe('buildExportJson', () => {
       { type: 'music', asset_id: 'M1', tags: ['a'] },
       { type: 'sfx', asset_id: 'S1', tags: ['b'] },
     ]
-    const result = buildExportJson(assets as any, {})
+    const result = buildExportJson(assets as never)
     expect(result.music).toHaveLength(1)
     expect(result.sfx).toHaveLength(1)
     expect(result.summary.total).toBe(2)
@@ -96,7 +96,7 @@ describe('buildExportJson', () => {
     const assets = [
       { type: 'music', asset_id: 'M1', tags: ['cinematic'], mood: ['inspiring'], instruments: ['strings'], category: null },
     ]
-    const result = buildExportJson(assets as any, {})
+    const result = buildExportJson(assets as never)
     expect(result.search_index.tags).toContain('cinematic')
     expect(result.search_index.moods).toContain('inspiring')
   })

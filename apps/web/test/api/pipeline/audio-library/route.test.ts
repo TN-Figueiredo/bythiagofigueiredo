@@ -35,14 +35,14 @@ function mockChain(data: unknown[] = [], count = 0) {
 }
 
 beforeEach(() => {
-  vi.mocked(authenticatePipeline).mockResolvedValue(mockAuth as any)
+  vi.mocked(authenticatePipeline).mockResolvedValue(mockAuth as never)
   vi.mocked(requirePermission).mockReturnValue(true)
 })
 
 describe('GET /api/pipeline/audio-library', () => {
   it('returns paginated assets', async () => {
     const assets = [{ id: '1', asset_id: 'M1', type: 'music' }]
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(mockChain(assets, 1) as any)
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(mockChain(assets, 1) as never)
     const res = await GET(new NextRequest('http://localhost/api/pipeline/audio-library'))
     const json = await res.json()
     expect(res.status).toBe(200)
@@ -51,7 +51,7 @@ describe('GET /api/pipeline/audio-library', () => {
   })
 
   it('returns 401 when unauthorized', async () => {
-    vi.mocked(authenticatePipeline).mockResolvedValue({ ok: false, status: 401, error: 'Unauthorized' } as any)
+    vi.mocked(authenticatePipeline).mockResolvedValue({ ok: false, status: 401, error: 'Unauthorized' } as never)
     const res = await GET(new NextRequest('http://localhost/api/pipeline/audio-library'))
     expect(res.status).toBe(401)
   })
@@ -66,7 +66,7 @@ describe('GET /api/pipeline/audio-library', () => {
 describe('POST /api/pipeline/audio-library', () => {
   it('creates a new asset with 201', async () => {
     const asset = { id: '1', asset_id: 'M1', type: 'music' }
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(mockChain([asset]) as any)
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(mockChain([asset]) as never)
     const req = new NextRequest('http://localhost/api/pipeline/audio-library', {
       method: 'POST',
       body: JSON.stringify({ asset_id: 'M1', original_filename: 'track.mp3', type: 'music' }),

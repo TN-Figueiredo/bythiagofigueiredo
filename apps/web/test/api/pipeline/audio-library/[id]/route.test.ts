@@ -18,7 +18,7 @@ const mockAuth = { ok: true as const, auth: { siteId: 'site-1', permissions: ['r
 const makeParams = (id: string) => Promise.resolve({ id })
 
 beforeEach(() => {
-  vi.mocked(authenticatePipeline).mockResolvedValue(mockAuth as any)
+  vi.mocked(authenticatePipeline).mockResolvedValue(mockAuth as never)
   vi.mocked(requirePermission).mockReturnValue(true)
 })
 
@@ -32,7 +32,7 @@ describe('GET /:id', () => {
         single: vi.fn().mockResolvedValue({ data: table === 'audio_assets' ? asset : null, error: null }),
       })),
     }
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as any)
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
     const res = await GET(new NextRequest('http://localhost'), { params: makeParams(VALID_ID) })
     expect(res.status).toBe(200)
   })
@@ -45,7 +45,7 @@ describe('GET /:id', () => {
         single: vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST116' } }),
       }),
     }
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as any)
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
     const res = await GET(new NextRequest('http://localhost'), { params: makeParams(VALID_ID) })
     expect(res.status).toBe(404)
   })
@@ -67,26 +67,39 @@ describe('PATCH /:id', () => {
         single: vi.fn().mockResolvedValue({ data: updated, error: null }),
       }),
     }
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as any)
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
     const req = new NextRequest('http://localhost', { method: 'PATCH', body: JSON.stringify({ version: 1, track_name: 'New' }) })
     const res = await PATCH(req, { params: makeParams(VALID_ID) })
     expect(res.status).toBe(200)
   })
 
   it('returns 409 on version mismatch', async () => {
+    let callCount = 0
     const chain = {
-      from: vi.fn().mockImplementation(() => ({
-        update: vi.fn().mockReturnThis(),
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({ data: { id: VALID_ID, version: 3 }, error: null }),
-      })),
+      from: vi.fn().mockImplementation(() => {
+        callCount++
+        if (callCount === 1) {
+          return {
+            update: vi.fn().mockReturnThis(),
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            single: vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST116' } }),
+          }
+        }
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue({ data: { id: VALID_ID, version: 3 }, error: null }),
+        }
+      }),
     }
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as any)
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
     const req = new NextRequest('http://localhost', { method: 'PATCH', body: JSON.stringify({ version: 1, track_name: 'X' }) })
     const res = await PATCH(req, { params: makeParams(VALID_ID) })
-    const status = res.status
-    expect([200, 409]).toContain(status)
+    expect(res.status).toBe(409)
+    const json = await res.json()
+    expect(json.error.code).toBe('CONFLICT')
+    expect(json.error.message).toContain('Version mismatch')
   })
 })
 
@@ -100,7 +113,7 @@ describe('DELETE /:id', () => {
         single: vi.fn().mockResolvedValue({ data: { id: VALID_ID, status: 'retired' }, error: null }),
       }),
     }
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as any)
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
     const req = new NextRequest('http://localhost', { method: 'DELETE' })
     const res = await DELETE(req, { params: makeParams(VALID_ID) })
     const json = await res.json()

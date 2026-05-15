@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
 
   const hasNext = (data?.length ?? 0) > limit
   const items = data?.slice(0, limit) ?? []
-  const lastItem = items[items.length - 1] as Record<string, unknown> | undefined
+  const lastItem = items[items.length - 1] as { id: string } | undefined
 
   return NextResponse.json({
     data: items,
@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
     if (error.code === '23505') {
       return NextResponse.json({ error: { code: 'CONFLICT', message: 'Asset with this ID or SHA256 already exists' } }, { status: 409 })
     }
-    return NextResponse.json({ error: { code: 'DB_ERROR', message: error.message } }, { status: 500 })
+    return NextResponse.json({ error: { code: 'DB_ERROR', message: 'Internal server error' } }, { status: 500 })
   }
 
   return NextResponse.json({ data }, { status: 201, headers: buildRateLimitHeaders(auth) })

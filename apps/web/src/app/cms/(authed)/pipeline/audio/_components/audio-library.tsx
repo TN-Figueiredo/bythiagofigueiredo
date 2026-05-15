@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
+import type { AudioAssetRow } from '@/lib/pipeline/audio-schemas'
 import { AudioFilters } from './audio-filters'
 import { AudioGrid } from './audio-grid'
 import { AudioTable } from './audio-table'
@@ -10,24 +11,27 @@ import { AudioImportModal } from './audio-import-modal'
 interface Stats { total: number; music: number; sfx: number; downloaded: number; pending: number; retired: number }
 
 interface AudioLibraryProps {
-  initialAssets: Record<string, unknown>[]
+  initialAssets: AudioAssetRow[]
   stats: Stats
 }
 
 export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
-  const [assets, setAssets] = useState(initialAssets)
+  const [assets, setAssets] = useState<AudioAssetRow[]>(initialAssets)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid')
   const [showImport, setShowImport] = useState(false)
   const [filters, setFilters] = useState<Record<string, string>>({})
+  const [loading, setLoading] = useState(false)
 
   const refetch = useCallback(async (params: Record<string, string> = {}) => {
+    setLoading(true)
     const qs = new URLSearchParams(params).toString()
     const res = await fetch(`/api/pipeline/audio-library${qs ? `?${qs}` : ''}`)
     if (res.ok) {
       const json = await res.json()
       setAssets(json.data)
     }
+    setLoading(false)
   }, [])
 
   const handleFilterChange = useCallback((newFilters: Record<string, string>) => {
@@ -46,7 +50,7 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
       if (gPressed && e.key === 't') { setViewMode(v => v === 'grid' ? 'table' : 'grid'); setGPressed(false); return }
       if (e.key === 'j' || e.key === 'k') {
         if (assets.length === 0) return
-        const ids = assets.map((a: Record<string, unknown>) => a.id as string)
+        const ids = assets.map(a => a.id)
         const idx = selectedId ? ids.indexOf(selectedId) : -1
         const next = e.key === 'j' ? Math.min(idx + 1, ids.length - 1) : Math.max(idx - 1, 0)
         setSelectedId(ids[next]!)
@@ -71,7 +75,8 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
         </div>
 
         {/* Main content */}
-        <div style={{ flex: 1, overflow: 'auto', padding: 12 }}>
+        <div style={{ flex: 1, overflow: 'auto', padding: 12, position: 'relative' }}>
+          {loading && <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, borderRadius: 4 }}><span style={{ fontSize: 12, color: 'var(--gem-text)' }}>Loading...</span></div>}
           {viewMode === 'grid'
             ? <AudioGrid assets={assets} selectedId={selectedId} onSelect={setSelectedId} />
             : <AudioTable assets={assets} selectedId={selectedId} onSelect={setSelectedId} />

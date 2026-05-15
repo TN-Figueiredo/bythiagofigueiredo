@@ -1,9 +1,10 @@
 'use client'
 
+import type { AudioAssetRow } from '@/lib/pipeline/audio-schemas'
 import { WaveformMini } from './waveform-mini'
 
 interface AudioGridProps {
-  assets: Record<string, unknown>[]
+  assets: AudioAssetRow[]
   selectedId: string | null
   onSelect: (id: string) => void
 }
@@ -17,22 +18,23 @@ export function AudioGrid({ assets, selectedId, onSelect }: AudioGridProps) {
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
-      {assets.map((asset) => {
-        const a = asset as Record<string, unknown>
+      {assets.map((a) => {
         const isSelected = selectedId === a.id
-        const peaks = ((a.metadata as Record<string, unknown>)?.waveform as Record<string, unknown>)?.peaks as number[] ?? []
+        const wf = a.metadata?.waveform as { peaks?: number[] } | undefined
+        const peaks = wf?.peaks ?? []
         return (
-          <button key={a.id as string} onClick={() => onSelect(a.id as string)} style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: 10, borderRadius: 8, border: isSelected ? '2px solid var(--gem-accent)' : '1px solid var(--gem-border)', background: 'var(--gem-surface-hi)', cursor: 'pointer', textAlign: 'left' }}>
+          <button key={a.id} onClick={() => onSelect(a.id)} style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: 10, borderRadius: 8, border: isSelected ? '2px solid var(--gem-accent)' : '1px solid var(--gem-border)', background: 'var(--gem-surface-hi)', cursor: 'pointer', textAlign: 'left' }}>
             <WaveformMini peaks={peaks} width={180} height={24} />
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ fontSize: 14 }}>{a.type === 'music' ? '🎵' : '🔊'}</span>
-              <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--gem-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{(a.track_name as string) || (a.asset_id as string)}</span>
-              <span style={{ width: 7, height: 7, borderRadius: '50%', background: STATUS_DOT[a.status as string] ?? '#6b7280', flexShrink: 0 }} />
+              <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--gem-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{a.track_name || a.asset_id}</span>
+              <span role="status" style={{ width: 7, height: 7, borderRadius: '50%', background: STATUS_DOT[a.status] ?? '#6b7280', flexShrink: 0 }} />
+              <span className="sr-only">{a.status}</span>
             </div>
-            {a.category && <span style={{ fontSize: 10, color: 'var(--gem-muted)' }}>{a.category as string}</span>}
-            {(a.tags as string[])?.length > 0 && (
+            {a.category && <span style={{ fontSize: 10, color: 'var(--gem-muted)' }}>{a.category}</span>}
+            {a.tags.length > 0 && (
               <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-                {(a.tags as string[]).slice(0, 3).map((tag: string) => (
+                {a.tags.slice(0, 3).map(tag => (
                   <span key={tag} style={{ fontSize: 9, padding: '1px 5px', borderRadius: 4, background: 'rgba(99,102,241,0.1)', color: 'var(--gem-accent)' }}>{tag}</span>
                 ))}
               </div>

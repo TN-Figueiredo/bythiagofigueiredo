@@ -1,5 +1,6 @@
 'use client'
 
+import { useId } from 'react'
 import { resamplePeaks } from './waveform'
 
 interface WaveformMiniProps {
@@ -9,6 +10,7 @@ interface WaveformMiniProps {
 }
 
 export function WaveformMini({ peaks, width = 80, height = 24 }: WaveformMiniProps) {
+  const instanceId = useId()
   const sampled = resamplePeaks(peaks ?? [], 40)
   const cy = height / 2
   const barWidth = Math.max(1, width / 40 - 0.5)
@@ -24,7 +26,7 @@ export function WaveformMini({ peaks, width = 80, height = 24 }: WaveformMiniPro
   return (
     <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} aria-hidden="true">
       <defs>
-        <linearGradient id="wf-mini" x1="0%" y1="0%" x2="100%" y2="0%">
+        <linearGradient id={`wf-mini-${instanceId}`} x1="0%" y1="0%" x2="100%" y2="0%">
           <stop offset="0%" stopColor="#7c3aed" />
           <stop offset="100%" stopColor="#e879f9" />
         </linearGradient>
@@ -34,8 +36,8 @@ export function WaveformMini({ peaks, width = 80, height = 24 }: WaveformMiniPro
         const amp = Math.max(1, peak * cy)
         return (
           <g key={i} opacity={0.6 + peak * 0.4}>
-            <rect x={x} y={cy - amp} width={barWidth} height={amp} fill="url(#wf-mini)" />
-            <rect x={x} y={cy} width={barWidth} height={amp} fill="url(#wf-mini)" />
+            <rect x={x} y={cy - amp} width={barWidth} height={amp} fill={`url(#wf-mini-${instanceId})`} />
+            <rect x={x} y={cy} width={barWidth} height={amp} fill={`url(#wf-mini-${instanceId})`} />
           </g>
         )
       })}

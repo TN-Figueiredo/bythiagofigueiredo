@@ -1,5 +1,7 @@
+import type { AudioAssetRow, ImportItem } from './audio-schemas'
+
 export function mapJsonToDbRow(
-  item: Record<string, unknown>,
+  item: ImportItem,
   type: 'music' | 'sfx',
 ): Record<string, unknown> {
   const audio = (item.audio ?? {}) as Record<string, unknown>
@@ -52,11 +54,11 @@ export function mapJsonToDbRow(
 
 export function classifyImportItem(
   row: Record<string, unknown>,
-  existing: Record<string, unknown> | null,
+  existing: Pick<AudioAssetRow, 'sha256' | 'tags' | 'mood' | 'energy'> | null,
 ): 'create' | 'update' | 'skip' {
   if (!existing) return 'create'
   if (existing.sha256 && row.sha256 === existing.sha256) {
-    const diffs = buildDiffLog(existing, row)
+    const diffs = buildDiffLog(existing as Record<string, unknown>, row)
     return diffs.length > 0 ? 'update' : 'skip'
   }
   return 'update'
@@ -81,14 +83,13 @@ export function buildDiffLog(
 }
 
 export function buildExportJson(
-  assets: Array<Record<string, unknown>>,
-  _stats: unknown,
+  assets: AudioAssetRow[],
 ): {
   schema: string
   schema_version: string
   exported_at: string
-  music: Array<Record<string, unknown>>
-  sfx: Array<Record<string, unknown>>
+  music: AudioAssetRow[]
+  sfx: AudioAssetRow[]
   summary: { total: number; music_count: number; sfx_count: number }
   search_index: { tags: string[]; moods: string[]; instruments: string[]; categories: string[] }
 } {
@@ -101,10 +102,10 @@ export function buildExportJson(
   const allCategories = new Set<string>()
 
   for (const asset of assets) {
-    for (const tag of (asset.tags as string[]) ?? []) allTags.add(tag)
-    for (const m of (asset.mood as string[]) ?? []) allMoods.add(m)
-    for (const i of (asset.instruments as string[]) ?? []) allInstruments.add(i)
-    if (asset.category) allCategories.add(asset.category as string)
+    for (const tag of asset.tags ?? []) allTags.add(tag)
+    for (const m of asset.mood ?? []) allMoods.add(m)
+    for (const i of asset.instruments ?? []) allInstruments.add(i)
+    if (asset.category) allCategories.add(asset.category)
   }
 
   return {
