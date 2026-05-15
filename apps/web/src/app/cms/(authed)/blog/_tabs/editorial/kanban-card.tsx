@@ -77,7 +77,7 @@ function statusBadge(status: PostCard['status']): { label: string; className: st
   switch (status) {
     case 'ready':
     case 'queued':
-      return { label: 'Approved', className: 'bg-slate-400/10 text-slate-400' }
+      return { label: 'Approved', className: 'bg-gray-400/10 text-gray-400' }
     case 'published':
       return { label: 'Published', className: 'bg-emerald-400/10 text-emerald-400' }
     default:
