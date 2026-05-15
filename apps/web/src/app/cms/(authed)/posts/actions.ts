@@ -43,8 +43,8 @@ const socialConfigSchema = z.object({
   platforms: z.array(z.enum(['youtube', 'facebook', 'instagram', 'bluesky'])),
   captions: z.record(z.string(), z.record(z.string(), z.string())).default({}),
   hashtags: z.array(z.string()).default([]),
-  image_source: z.enum(['cover_image', 'custom', 'auto']).default('cover_image'),
-  ig_template: z.enum(['card', 'story', 'reel']).default('card'),
+  image_source: z.enum(['og_image', 'cover_image', 'custom']).default('cover_image'),
+  ig_template: z.enum(['minimal', 'card', 'bold']).default('card'),
   formats: z.record(z.string(), z.string()).default({}),
 })
 
@@ -53,9 +53,10 @@ async function requireEditScope(siteId: string): Promise<void> {
   if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
 }
 
-async function requirePublishScope(siteId: string): Promise<void> {
+async function requirePublishScope(siteId: string): Promise<{ userId: string }> {
   const res = await requireSiteScope({ area: 'cms', siteId, mode: 'publish' })
   if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
+  return { userId: res.user.id }
 }
 
 export async function savePostContent(
@@ -89,6 +90,8 @@ export async function savePostContent(
   if (data.contentMdx !== undefined) patch.content_mdx = data.contentMdx
   if (data.contentJson !== undefined) patch.content_json = data.contentJson
   if (data.contentHtml !== undefined) patch.content_html = data.contentHtml
+
+  if (Object.keys(patch).length === 0) return { ok: true }
 
   const { error } = await svc
     .from('blog_translations')
@@ -130,6 +133,8 @@ export async function savePostSeo(
   if (data.metaTitle !== undefined) patch.meta_title = data.metaTitle
   if (data.metaDescription !== undefined) patch.meta_description = data.metaDescription
   if (data.ogImageUrl !== undefined) patch.og_image_url = data.ogImageUrl
+
+  if (Object.keys(patch).length === 0) return { ok: true }
 
   const { error } = await svc
     .from('blog_translations')
@@ -199,6 +204,8 @@ export async function savePostPublishSettings(
   if (data.searchIndexable !== undefined) patch.search_indexable = data.searchIndexable
   if (data.canonicalUrl !== undefined) patch.canonical_url = data.canonicalUrl
 
+  if (Object.keys(patch).length === 0) return { ok: true }
+
   const { error } = await svc
     .from('blog_posts')
     .update(patch)
@@ -214,11 +221,16 @@ export async function savePostPublishSettings(
   return { ok: true }
 }
 
+const coverImageUrlSchema = z.string().url().nullable()
+
 export async function savePostCoverImage(
   postId: string,
   coverImageUrl: string | null,
 ): Promise<ActionResult> {
   if (!uuidSchema.safeParse(postId).success) return { ok: false, error: 'ID inválido' }
+
+  const parsed = coverImageUrlSchema.safeParse(coverImageUrl)
+  if (!parsed.success) return { ok: false, error: 'URL inválida' }
 
   const { siteId } = await getSiteContext()
   await requireEditScope(siteId)
@@ -226,7 +238,7 @@ export async function savePostCoverImage(
 
   const { error } = await svc
     .from('blog_posts')
-    .update({ cover_image_url: coverImageUrl })
+    .update({ cover_image_url: parsed.data })
     .eq('id', postId)
     .eq('site_id', siteId)
 
@@ -284,7 +296,7 @@ export async function publishPost(
   if (!uuidSchema.safeParse(postId).success) return { ok: false, error: 'ID inválido' }
 
   const { siteId } = await getSiteContext()
-  await requirePublishScope(siteId)
+  const { userId } = await requirePublishScope(siteId)
   const svc = getSupabaseServiceClient()
 
   const { data: post, error: fetchError } = await svc
@@ -326,7 +338,7 @@ export async function publishPost(
         contentId: postId,
         config: parsedSocialConfig.data as SocialConfig,
         origin: 'auto',
-        userId: 'system',
+        userId,
       }).catch(err => console.error('[posts]', err)),
     )
   }

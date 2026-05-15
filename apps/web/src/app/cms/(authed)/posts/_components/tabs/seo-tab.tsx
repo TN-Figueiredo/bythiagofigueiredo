@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
 import { usePostEditor } from '../post-editor-context'
 import { SectionBar } from '../section-bar'
@@ -39,6 +39,9 @@ export function SeoTab() {
   const [ogImageUrl, setOgImageUrl] = useState(tx?.ogImageUrl ?? null)
   const [isSaving, setIsSaving] = useState(false)
 
+  const localeRef = useRef(activeLocale)
+  useEffect(() => { localeRef.current = activeLocale }, [activeLocale])
+
   useEffect(() => {
     const t = post.translations.find(t => t.locale === activeLocale) ?? post.translations[0]
     if (t) {
@@ -59,7 +62,7 @@ export function SeoTab() {
     if (!tx) return
     setIsSaving(true)
     try {
-      const result = await savePostSeo(post.id, activeLocale, { metaTitle, metaDescription, ogImageUrl })
+      const result = await savePostSeo(post.id, localeRef.current, { metaTitle, metaDescription, ogImageUrl })
       if (result.ok) {
         dispatch({ type: 'SAVE_TAB', tab: 'seo' })
         toast.success('SEO salvo')

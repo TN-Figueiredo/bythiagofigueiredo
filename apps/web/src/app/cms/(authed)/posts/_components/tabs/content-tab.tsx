@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { usePostEditor } from '../post-editor-context'
 import { SectionBar } from '../section-bar'
@@ -16,6 +16,9 @@ export function ContentTab() {
   const [excerpt, setExcerpt] = useState(tx?.excerpt ?? '')
   const [contentJson, setContentJson] = useState(tx?.contentJson ?? null)
   const [isSaving, setIsSaving] = useState(false)
+
+  const localeRef = useRef(activeLocale)
+  useEffect(() => { localeRef.current = activeLocale }, [activeLocale])
 
   useEffect(() => {
     const t = post.translations.find(t => t.locale === activeLocale) ?? post.translations[0]
@@ -44,7 +47,7 @@ export function ContentTab() {
     if (!tx) return
     setIsSaving(true)
     try {
-      const result = await savePostContent(post.id, activeLocale, {
+      const result = await savePostContent(post.id, localeRef.current, {
         title,
         excerpt: excerpt || undefined,
         contentJson: contentJson ?? undefined,

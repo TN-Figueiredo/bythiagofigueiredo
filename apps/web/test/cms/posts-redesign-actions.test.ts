@@ -7,7 +7,11 @@ vi.mock('@/lib/cms/site-context', () => ({
 }))
 
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
-  requireSiteScope: vi.fn().mockResolvedValue({ ok: true }),
+  requireSiteScope: vi.fn().mockResolvedValue({ ok: true, user: { id: 'test-user-id' } }),
+}))
+
+vi.mock('@/lib/social/create-from-content', () => ({
+  createSocialPostFromContent: vi.fn().mockResolvedValue({ ok: true }),
 }))
 
 vi.mock('next/cache', () => ({
@@ -56,6 +60,7 @@ import {
 
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { revalidatePath } from 'next/cache'
+import { createSocialPostFromContent } from '@/lib/social/create-from-content'
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -119,7 +124,7 @@ function makeSelectChain(result: { data: unknown; error: unknown }) {
 describe('savePostContent', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true } as never)
+    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true, user: { id: 'test-user-id' } } as never)
   })
 
   it('rejects invalid UUID', async () => {
@@ -182,6 +187,20 @@ describe('savePostContent', () => {
     expect(result).toEqual({ ok: false, error: 'Erro ao salvar conteúdo' })
   })
 
+  it('returns ok immediately for empty data without hitting blog_translations', async () => {
+    const updateTranslationFn = vi.fn()
+    buildFromMock({
+      blog_posts: { select: makeSelectChain({ data: { id: VALID_UUID }, error: null }) },
+      blog_translations: { update: updateTranslationFn },
+    })
+
+    // Empty patch — no fields to update
+    const result = await savePostContent(VALID_UUID, 'pt-BR', {})
+    expect(result).toEqual({ ok: true })
+    // The empty-patch guard short-circuits before touching blog_translations
+    expect(updateTranslationFn).not.toHaveBeenCalled()
+  })
+
   it('returns error on auth failure (forbidden)', async () => {
     vi.mocked(requireSiteScope).mockResolvedValueOnce({ ok: false, reason: 'forbidden' } as never)
     await expect(
@@ -202,7 +221,7 @@ describe('savePostContent', () => {
 describe('savePostSeo', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true } as never)
+    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true, user: { id: 'test-user-id' } } as never)
   })
 
   it('rejects invalid UUID', async () => {
@@ -270,7 +289,7 @@ describe('savePostSeo', () => {
 describe('savePostSocialConfig', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true } as never)
+    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true, user: { id: 'test-user-id' } } as never)
   })
 
   it('rejects invalid UUID', async () => {
@@ -338,12 +357,25 @@ describe('savePostSocialConfig', () => {
       platforms: [],
       captions: {},
       hashtags: [],
-      image_source: 'auto',
+      image_source: 'og_image',
       ig_template: 'card',
       formats: {},
     })
 
     expect(result).toEqual({ ok: false, error: 'Erro ao salvar' })
+  })
+
+  it('rejects invalid image_source enum value', async () => {
+    const result = await savePostSocialConfig(VALID_UUID, {
+      enabled: true,
+      platforms: ['bluesky'],
+      captions: {},
+      hashtags: [],
+      image_source: 'invalid_value' as never,
+      ig_template: 'card',
+      formats: {},
+    })
+    expect(result).toEqual({ ok: false, error: 'Configuração inválida' })
   })
 })
 
@@ -352,7 +384,7 @@ describe('savePostSocialConfig', () => {
 describe('savePostPublishSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true } as never)
+    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true, user: { id: 'test-user-id' } } as never)
   })
 
   it('rejects invalid UUID', async () => {
@@ -400,7 +432,7 @@ describe('savePostPublishSettings', () => {
 describe('savePostCoverImage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true } as never)
+    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true, user: { id: 'test-user-id' } } as never)
   })
 
   it('rejects invalid UUID', async () => {
@@ -448,7 +480,7 @@ describe('savePostCoverImage', () => {
 describe('schedulePost', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true } as never)
+    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true, user: { id: 'test-user-id' } } as never)
   })
 
   it('rejects invalid UUID', async () => {
@@ -536,7 +568,7 @@ describe('schedulePost', () => {
 describe('publishPost', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true } as never)
+    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true, user: { id: 'test-user-id' } } as never)
   })
 
   it('rejects invalid UUID', async () => {
@@ -628,6 +660,51 @@ describe('publishPost', () => {
     const result = await publishPost(VALID_UUID)
     expect(result).toEqual({ ok: false, error: 'Erro ao publicar' })
   })
+
+  it('triggers social post creation when social_config is enabled', async () => {
+    const updateChain = makeChain({ data: null, error: null })
+    const updateFn = vi.fn().mockReturnValue(updateChain)
+
+    buildFromMock({
+      blog_posts: {
+        select: makeSelectChain({
+          data: {
+            id: VALID_UUID,
+            status: 'draft',
+            social_config: {
+              enabled: true,
+              platforms: ['bluesky'],
+              captions: {},
+              hashtags: [],
+              image_source: 'cover_image',
+              ig_template: 'card',
+              formats: {},
+            },
+            blog_translations: [],
+          },
+          error: null,
+        }),
+        update: updateFn,
+      },
+    })
+
+    const result = await publishPost(VALID_UUID)
+    expect(result).toEqual({ ok: true })
+
+    // The dynamic import + createSocialPostFromContent call is fire-and-forget.
+    // Wait for the microtask queue to drain so the .then() callback has run.
+    await vi.waitFor(() => {
+      expect(vi.mocked(createSocialPostFromContent)).toHaveBeenCalledOnce()
+    })
+    expect(vi.mocked(createSocialPostFromContent)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        siteId: SITE_ID,
+        contentType: 'blog',
+        contentId: VALID_UUID,
+        origin: 'auto',
+      }),
+    )
+  })
 })
 
 // ── returnToPipeline ──────────────────────────────────────────────────
@@ -637,7 +714,7 @@ describe('returnToPipeline', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true } as never)
+    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true, user: { id: 'test-user-id' } } as never)
   })
 
   it('rejects invalid UUID', async () => {
@@ -736,6 +813,12 @@ describe('returnToPipeline', () => {
 
     const result = await returnToPipeline(VALID_UUID)
     expect(result).toEqual({ ok: false, error: 'Erro ao retornar ao pipeline' })
+
+    // Verify compensation: blog_posts.update was called twice —
+    // first to archive (status: 'archived'), then to revert (status: 'draft').
+    expect(archiveFn).toHaveBeenCalledTimes(2)
+    expect(archiveFn).toHaveBeenNthCalledWith(1, { status: 'archived' })
+    expect(archiveFn).toHaveBeenNthCalledWith(2, { status: 'draft' })
   })
 
   it('returns error on auth failure', async () => {

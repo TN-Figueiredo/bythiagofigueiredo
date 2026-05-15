@@ -13,14 +13,15 @@ function getColor(score: number): string {
 }
 
 export function ReadinessRing({ score, size = 48, strokeWidth = 4 }: ReadinessRingProps) {
+  const clamped = Math.max(0, Math.min(score, 100))
   const radius = (size - strokeWidth) / 2
   const circumference = 2 * Math.PI * radius
-  const offset = circumference - (score / 100) * circumference
+  const offset = circumference - (clamped / 100) * circumference
   const center = size / 2
 
   return (
     <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-label={`Readiness: ${score}%`} role="img">
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-label={`Readiness: ${clamped}%`} role="img">
         <circle
           cx={center}
           cy={center}
@@ -34,7 +35,7 @@ export function ReadinessRing({ score, size = 48, strokeWidth = 4 }: ReadinessRi
           cy={center}
           r={radius}
           fill="none"
-          stroke={getColor(score)}
+          stroke={getColor(clamped)}
           strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeDasharray={circumference}
@@ -46,9 +47,9 @@ export function ReadinessRing({ score, size = 48, strokeWidth = 4 }: ReadinessRi
       <span
         aria-hidden="true"
         className="absolute text-[11px] font-bold"
-        style={{ color: getColor(score) }}
+        style={{ color: getColor(clamped) }}
       >
-        {score}%
+        {clamped}%
       </span>
     </div>
   )

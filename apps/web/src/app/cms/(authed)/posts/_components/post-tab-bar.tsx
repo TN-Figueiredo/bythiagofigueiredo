@@ -36,7 +36,12 @@ export function PostTabBar({ tabStatuses, availableLocales }: PostTabBarProps) {
     }
     e.preventDefault()
     const next = tabs[nextIdx]
-    if (next) dispatch({ type: 'SET_ACTIVE_TAB', tab: next.tab })
+    if (next) {
+      dispatch({ type: 'SET_ACTIVE_TAB', tab: next.tab })
+      requestAnimationFrame(() => {
+        document.getElementById(`tab-${next.tab}`)?.focus()
+      })
+    }
   }, [state.activeTab, dispatch])
 
   return (
@@ -81,7 +86,12 @@ export function PostTabBar({ tabStatuses, availableLocales }: PostTabBarProps) {
       </div>
 
       {availableLocales.length > 1 && (
-        <div className="flex mb-2 rounded overflow-hidden" style={{ border: '1px solid var(--gem-border, #1a2030)' }}>
+        <div
+          role="radiogroup"
+          aria-label="Idioma do post"
+          className="flex mb-2 rounded overflow-hidden"
+          style={{ border: '1px solid var(--gem-border, #1a2030)' }}
+        >
           {availableLocales.map(locale => {
             const label = locale === 'pt-br' ? 'PT' : 'EN'
             const isActive = state.activeLocale === locale
@@ -89,8 +99,9 @@ export function PostTabBar({ tabStatuses, availableLocales }: PostTabBarProps) {
             return (
               <button
                 key={locale}
+                role="radio"
+                aria-checked={isActive}
                 aria-label={`Editar em ${locale === 'pt-br' ? 'Português' : 'English'}`}
-                aria-pressed={isActive}
                 className="px-2.5 py-0.5 text-[10px] font-bold tracking-wider transition-colors"
                 style={{
                   background: isActive ? 'var(--gem-accent, #818cf8)' : 'transparent',

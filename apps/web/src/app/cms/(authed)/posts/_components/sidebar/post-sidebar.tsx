@@ -37,9 +37,9 @@ export function PostSidebar({ tabStatuses, onSchedule, onPublish, onReturnToPipe
 
   const readinessInput: ReadinessInput = {
     content: {
-      titleFilled: (state.sections.content.title as string)?.length > 0 || post.translations.some(t => t.title.length > 0),
-      hookFilled: (state.sections.content.excerpt as string)?.length > 0 || post.translations.some(t => (t.excerpt?.length ?? 0) > 0),
-      bodyFilled: (state.sections.content.contentMdx as string)?.length > 0 || post.translations.some(t => (t.contentMdx?.length ?? 0) > 0),
+      titleFilled: String(state.sections.content.title ?? '').length > 0 || post.translations.some(t => t.title.length > 0),
+      hookFilled: String(state.sections.content.excerpt ?? '').length > 0 || post.translations.some(t => (t.excerpt?.length ?? 0) > 0),
+      bodyFilled: String(state.sections.content.contentMdx ?? '').length > 0 || post.translations.some(t => (t.contentMdx?.length ?? 0) > 0),
     },
     images: { coverSet: !!post.coverImageUrl },
     seo: {
@@ -49,7 +49,7 @@ export function PostSidebar({ tabStatuses, onSchedule, onPublish, onReturnToPipe
     },
     social: { platformsConfigured: post.socialConfig?.enabled ? post.socialConfig.platforms.length : 0 },
     schedule: { dateSet: !!post.scheduledAt, dateSaved: !!post.scheduledAt },
-    newsletter: { decisionMade: true },
+    newsletter: { decisionMade: state.dirty.publish || !!post.scheduledAt || post.status !== 'draft' },
   }
   const readiness = computeReadiness(readinessInput)
 

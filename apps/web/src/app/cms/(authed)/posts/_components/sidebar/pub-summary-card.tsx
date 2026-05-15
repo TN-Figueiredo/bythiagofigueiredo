@@ -12,6 +12,7 @@ interface PubSummaryCardProps {
 export function PubSummaryCard({ scheduledAt, socialConfig, includeInNewsletter, status }: PubSummaryCardProps) {
   const platformCount = socialConfig?.enabled ? socialConfig.platforms.length : 0
   const isPublished = status === 'published'
+  const statusLabel = isPublished ? 'Publicado' : status === 'scheduled' ? 'Agendado' : 'Rascunho'
 
   return (
     <div
@@ -25,7 +26,7 @@ export function PubSummaryCard({ scheduledAt, socialConfig, includeInNewsletter,
         <SummaryRow label="Agendamento" value={scheduledAt ? new Date(scheduledAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Não definido'} ok={!!scheduledAt} />
         <SummaryRow label="Social" value={platformCount > 0 ? `${platformCount} plataforma${platformCount > 1 ? 's' : ''}` : 'Não configurado'} ok={platformCount > 0} />
         <SummaryRow label="Newsletter" value={includeInNewsletter ? 'Incluído' : 'Não incluído'} ok={includeInNewsletter} />
-        <SummaryRow label="Status" value={isPublished ? 'Publicado' : 'Rascunho'} ok={isPublished} />
+        <SummaryRow label="Status" value={statusLabel} ok={isPublished} />
       </div>
     </div>
   )

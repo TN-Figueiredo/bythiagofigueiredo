@@ -19,6 +19,7 @@ const STATUS_COLORS: Record<SectionStatus, { bg: string; text: string }> = {
 
 export function SectionBar({ label, status, statusText, isDirty, isSaving, onSave }: SectionBarProps) {
   const colors = STATUS_COLORS[status]
+  const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent)
 
   return (
     <div
@@ -67,7 +68,7 @@ export function SectionBar({ label, status, statusText, isDirty, isSaving, onSav
               className="text-[9px] px-1 py-0.5 rounded"
               style={{ background: 'var(--gem-well, #0f1620)', color: 'var(--gem-dim, #3d4654)' }}
             >
-              ⌘S
+              {isMac ? '⌘S' : 'Ctrl+S'}
             </kbd>
           )}
         </button>
