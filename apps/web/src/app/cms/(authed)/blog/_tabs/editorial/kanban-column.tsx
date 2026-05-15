@@ -88,10 +88,10 @@ export function KanbanColumn({
         </span>
       </div>
 
-      {/* Scheduled column hint */}
-      {id === 'scheduled' && (
+      {/* Ready column hint */}
+      {id === 'ready' && (
         <div className="px-3 py-1 text-[8px] text-gray-600 border-b border-gray-800/50">
-          {strings?.editorial.scheduledHint ?? 'Only ready posts'}
+          Posts prontos seguem para o <Link href="/cms/posts" className="text-indigo-400 hover:underline">Editor</Link>
         </div>
       )}
 

@@ -280,6 +280,11 @@ export function EditorialTab({ data, strings, siteId, tagId, locale, supportedLo
         )}
       </div>
 
+      <div className="flex items-center gap-2 rounded-lg px-3 py-2 text-[11px]" style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)' }}>
+        <span style={{ color: '#818cf8' }}>Posts prontos para publicação estão no</span>
+        <Link href="/cms/posts" className="font-semibold underline" style={{ color: '#818cf8' }}>Editor de Posts →</Link>
+      </div>
+
       <SectionErrorBoundary sectionName="Kanban board">
         <KanbanBoard
           posts={filtered}

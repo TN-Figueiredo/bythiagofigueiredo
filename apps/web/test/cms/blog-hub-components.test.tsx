@@ -153,21 +153,22 @@ describe('KanbanCard', () => {
     const el = screen.getByRole('button', { name: /#BP-001/ })
     fireEvent.contextMenu(el)
 
-    // draft -> idea, ready, archived (pending_review/queued are sub-states, filtered from kanban)
+    // draft -> idea, ready (only pipeline-stage columns shown; archived/scheduled/published are not kanban columns)
     expect(screen.getByText('idea')).toBeTruthy()
     expect(screen.getByText('ready')).toBeTruthy()
     expect(screen.queryByText('pending_review')).toBeNull()
-    expect(screen.getByText('archived')).toBeTruthy()
+    expect(screen.queryByText('archived')).toBeNull()
   })
 
-  it('context menu shows valid transition targets for published status (only archived)', () => {
+  it('context menu shows no move targets for published status (not a pipeline column)', () => {
     const card = makeCard({ status: 'published' })
     render(<KanbanCard card={card} onMoveToStatus={vi.fn()} />)
 
     const el = screen.getByRole('button', { name: /#BP-001/ })
     fireEvent.contextMenu(el)
 
-    expect(screen.getByText('archived')).toBeTruthy()
+    // published -> archived is the only transition, but archived is not a kanban column
+    expect(screen.queryByText('archived')).toBeNull()
     expect(screen.queryByText('draft')).toBeNull()
   })
 

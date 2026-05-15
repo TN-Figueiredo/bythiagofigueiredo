@@ -5,6 +5,7 @@ export function buildCmsSections(): SidebarSection[] {
     if (section.label === 'Content') {
       const items = [
         ...section.items,
+        { icon: '✏️', label: 'Editor', href: '/cms/posts', minRole: 'editor' as const },
         { icon: '🖼️', label: 'Media', href: '/cms/media', minRole: 'editor' as const },
         { icon: '🔗', label: 'Links', href: '/cms/links', minRole: 'editor' as const },
         { icon: '🎵', label: 'Playlists', href: '/cms/playlists', minRole: 'editor' as const },

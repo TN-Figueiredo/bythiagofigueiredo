@@ -26,8 +26,6 @@ const COLUMN_DEFS = [
   { id: 'idea', key: 'idea' as const, color: '#9ca3af' },
   { id: 'draft', key: 'draft' as const, color: '#6366f1' },
   { id: 'ready', key: 'ready' as const, color: '#06b6d4' },
-  { id: 'scheduled', key: 'scheduled' as const, color: '#8b5cf6' },
-  { id: 'published', key: 'published' as const, color: '#22c55e' },
 ] as const
 
 const COLUMN_IDS: Set<string> = new Set(COLUMN_DEFS.map((c) => c.id))
@@ -36,8 +34,6 @@ const FALLBACK_TITLES: Record<string, string> = {
   idea: 'Idea',
   draft: 'Draft',
   ready: 'Ready',
-  scheduled: 'Scheduled',
-  published: 'Published',
 }
 
 // Map blog post status → kanban column id

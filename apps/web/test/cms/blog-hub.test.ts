@@ -76,16 +76,10 @@ describe('blog-hub utils', () => {
       expect(mapStatusToColumn('queued')).toBe('ready')
     })
 
-    it('maps scheduled to scheduled column', () => {
-      expect(mapStatusToColumn('scheduled')).toBe('scheduled')
-    })
-
-    it('maps published to published column', () => {
-      expect(mapStatusToColumn('published')).toBe('published')
-    })
-
-    it('maps archived to archived', () => {
-      expect(mapStatusToColumn('archived')).toBe('archived')
+    it('maps scheduled/published/archived to ready column (graduated to /cms/posts)', () => {
+      expect(mapStatusToColumn('scheduled')).toBe('ready')
+      expect(mapStatusToColumn('published')).toBe('ready')
+      expect(mapStatusToColumn('archived')).toBe('ready')
     })
   })
 })
@@ -145,9 +139,9 @@ describe('mapStatusToColumn exhaustive', () => {
       pending_review: 'draft',
       ready: 'ready',
       queued: 'ready',
-      scheduled: 'scheduled',
-      published: 'published',
-      archived: 'archived',
+      scheduled: 'ready',
+      published: 'ready',
+      archived: 'ready',
     }
     for (const [status, column] of Object.entries(expected)) {
       expect(mapStatusToColumn(status as any)).toBe(column)
