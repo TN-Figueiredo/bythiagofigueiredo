@@ -7,7 +7,6 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import type { EditorialTabData, BlogTag } from '../../_hub/hub-types'
 import type { BlogHubStrings } from '../../_i18n/types'
-import { VelocityStrip } from './velocity-strip'
 import { KanbanBoard } from './kanban-board'
 import { EmptyState } from '../../_shared/empty-state'
 import { SectionErrorBoundary } from '../../_shared/section-error-boundary'
@@ -163,9 +162,33 @@ export function EditorialTab({ data, strings, siteId, tagId, locale, supportedLo
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionErrorBoundary sectionName="Velocity metrics">
-        <VelocityStrip velocity={data.velocity} strings={strings} />
-      </SectionErrorBoundary>
+      {/* KPI bar */}
+      <div className="flex items-center rounded-lg border border-indigo-500/8 bg-indigo-500/3 px-3 py-2">
+        <div className="flex items-center gap-1 border-r border-gray-800 px-2.5">
+          <span className="text-[9px] text-gray-500">Total</span>
+          <span className="text-[11px] font-semibold text-gray-300">{data.velocity.totalPosts}</span>
+        </div>
+        <div className="flex items-center gap-1 border-r border-gray-800 px-2.5">
+          <span className="text-[9px] text-gray-500">Published</span>
+          <span className="text-[11px] font-semibold text-gray-300">{data.velocity.publishedCount}</span>
+        </div>
+        <div className="flex items-center gap-1 border-r border-gray-800 px-2.5">
+          <span className="text-[9px] text-gray-500">Throughput</span>
+          <span className="text-[11px] font-semibold text-gray-300">{data.velocity.throughput}/mo</span>
+        </div>
+        <div className="flex items-center gap-1 border-r border-gray-800 px-2.5">
+          <span className="text-[9px] text-gray-500">Idea→Pub</span>
+          <span className="text-[11px] font-semibold text-gray-300">
+            {data.velocity.avgIdeaToPublished > 0 ? `${data.velocity.avgIdeaToPublished}d` : '—'}
+          </span>
+        </div>
+        <div className="flex items-center gap-1 px-2.5">
+          <span className="text-[9px] text-gray-500">Bottleneck</span>
+          <span className="text-[11px] font-semibold text-gray-400">
+            {data.velocity.bottleneck?.column ?? 'None'}
+          </span>
+        </div>
+      </div>
 
       <div className="flex items-center gap-3">
         <input

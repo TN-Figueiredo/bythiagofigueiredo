@@ -64,6 +64,28 @@ vi.mock('lucide-react', () => ({
   Copy: () => React.createElement('span', null, 'Copy'),
   Sparkles: () => React.createElement('span', null, 'Sparkles'),
   Minus: () => React.createElement('span', null, 'Minus'),
+  Kanban: () => React.createElement('span', null, 'Kanban'),
+  Plus: () => React.createElement('span', null, 'Plus'),
+}))
+
+vi.mock('../../src/app/cms/(authed)/blog/actions', () => ({
+  movePost: vi.fn().mockResolvedValue({ ok: true }),
+  deleteHubPost: vi.fn().mockResolvedValue({ ok: true }),
+  reassignTag: vi.fn().mockResolvedValue({ ok: true }),
+  addLocale: vi.fn().mockResolvedValue({ ok: true }),
+  removeTranslationLocale: vi.fn().mockResolvedValue({ ok: true }),
+  duplicatePost: vi.fn().mockResolvedValue({ ok: true }),
+}))
+
+vi.mock('../../src/app/cms/(authed)/blog/tag-actions', () => ({
+  createTag: vi.fn().mockResolvedValue({ ok: true, tagId: 'new-tag' }),
+}))
+
+vi.mock('sonner', () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+  },
 }))
 
 /* ------------------------------------------------------------------ */
@@ -72,12 +94,12 @@ vi.mock('lucide-react', () => ({
 
 import { KanbanCard } from '../../src/app/cms/(authed)/blog/_tabs/editorial/kanban-card'
 import { KanbanColumn } from '../../src/app/cms/(authed)/blog/_tabs/editorial/kanban-column'
-import { VelocityStrip } from '../../src/app/cms/(authed)/blog/_tabs/editorial/velocity-strip'
+import { EditorialTab } from '../../src/app/cms/(authed)/blog/_tabs/editorial/editorial-tab'
 import { HealthStrip } from '../../src/app/cms/(authed)/blog/_shared/health-strip'
 import { EmptyState } from '../../src/app/cms/(authed)/blog/_shared/empty-state'
 import { LocaleFilterChips } from '../../src/app/cms/(authed)/blog/_shared/locale-filter-chips'
 import { TagFilterChips } from '../../src/app/cms/(authed)/blog/_shared/tag-filter-chips'
-import type { PostCard, BlogTag } from '../../src/app/cms/(authed)/blog/_hub/hub-types'
+import type { PostCard, BlogTag, EditorialTabData } from '../../src/app/cms/(authed)/blog/_hub/hub-types'
 
 /* ------------------------------------------------------------------ */
 /*  Fixtures                                                          */
@@ -274,40 +296,6 @@ describe('KanbanColumn', () => {
     render(<KanbanColumn id="draft" title="Draft" cards={cards} />)
 
     expect(screen.getByLabelText('Draft column, 1 items')).toBeTruthy()
-  })
-})
-
-/* ------------------------------------------------------------------ */
-/*  Tests: VelocityStrip                                              */
-/* ------------------------------------------------------------------ */
-
-describe('VelocityStrip', () => {
-  it('renders throughput, avg days, moved count, and bottleneck', () => {
-    const velocity = {
-      throughput: 8,
-      avgIdeaToPublished: 14,
-      movedThisWeek: 3,
-      bottleneck: { column: 'Review', avgDays: 5 },
-    }
-    render(<VelocityStrip velocity={velocity} />)
-
-    expect(screen.getByText('8/mo')).toBeTruthy()
-    expect(screen.getByText('14 d')).toBeTruthy()
-    expect(screen.getByText('3')).toBeTruthy()
-    expect(screen.getByText('Review')).toBeTruthy()
-  })
-
-  it('renders dash for avgIdeaToPublished when zero and hides bottleneck when null', () => {
-    const velocity = {
-      throughput: 0,
-      avgIdeaToPublished: 0,
-      movedThisWeek: 0,
-      bottleneck: null,
-    }
-    render(<VelocityStrip velocity={velocity} />)
-
-    expect(screen.getByText('—')).toBeTruthy()
-    expect(screen.queryByText('Bottleneck')).toBeNull()
   })
 })
 
@@ -534,5 +522,56 @@ describe('TagFilterChips', () => {
     const addBtn = screen.getByTestId('add-tag-chip')
     fireEvent.click(addBtn)
     expect(onAdd).toHaveBeenCalled()
+  })
+})
+
+/* ------------------------------------------------------------------ */
+/*  Tests: EditorialTab KPI bar                                        */
+/* ------------------------------------------------------------------ */
+
+describe('EditorialTab KPI bar', () => {
+  const mockData: EditorialTabData = {
+    velocity: {
+      throughput: 4,
+      avgIdeaToPublished: 12,
+      movedThisWeek: 2,
+      bottleneck: null,
+      totalPosts: 12,
+      publishedCount: 8,
+    },
+    posts: [
+      makeCard({ id: 'p1', displayId: '#BP-001', title: 'Post 1', status: 'draft' }),
+    ],
+  }
+
+  it('renders KPI metrics inline', () => {
+    render(<EditorialTab data={mockData} />)
+    expect(screen.getByText('12')).toBeTruthy() // totalPosts
+    expect(screen.getByText('8')).toBeTruthy() // publishedCount
+    expect(screen.getByText('4/mo')).toBeTruthy() // throughput
+    expect(screen.getByText('12d')).toBeTruthy() // avgIdeaToPublished
+  })
+
+  it('renders "None" for bottleneck when null', () => {
+    render(<EditorialTab data={mockData} />)
+    expect(screen.getByText('None')).toBeTruthy()
+  })
+
+  it('renders dash for avgIdeaToPublished when zero', () => {
+    const dataWithZeroAvg: EditorialTabData = {
+      ...mockData,
+      velocity: { ...mockData.velocity, avgIdeaToPublished: 0 },
+    }
+    render(<EditorialTab data={dataWithZeroAvg} />)
+    expect(screen.getByText('—')).toBeTruthy()
+  })
+
+  it('renders bottleneck column name when present', () => {
+    const dataWithBottleneck: EditorialTabData = {
+      ...mockData,
+      velocity: { ...mockData.velocity, bottleneck: { column: 'Review', avgDays: 5 } },
+    }
+    render(<EditorialTab data={dataWithBottleneck} />)
+    expect(screen.getByText('Review')).toBeTruthy()
   })
 })
