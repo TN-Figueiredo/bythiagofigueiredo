@@ -18,6 +18,21 @@ const DOT_COLORS: Record<SectionStatus, string> = {
 export function PostTabBar({ tabStatuses, availableLocales }: PostTabBarProps) {
   const { state, dispatch } = usePostEditor()
 
+  const handleLocaleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      e.preventDefault()
+      const currentIdx = availableLocales.indexOf(state.activeLocale)
+      const nextIdx = (currentIdx + 1) % availableLocales.length
+      const nextLocale = availableLocales[nextIdx]
+      if (nextLocale) {
+        dispatch({ type: 'SET_LOCALE', locale: nextLocale })
+        requestAnimationFrame(() => {
+          document.getElementById(`locale-${nextLocale}`)?.focus()
+        })
+      }
+    }
+  }, [availableLocales, state.activeLocale, dispatch])
+
   const handleTabKeyDown = useCallback((e: React.KeyboardEvent) => {
     const tabs = POST_TABS
     const currentIdx = tabs.findIndex(t => t.tab === state.activeTab)
@@ -99,9 +114,12 @@ export function PostTabBar({ tabStatuses, availableLocales }: PostTabBarProps) {
             return (
               <button
                 key={locale}
+                id={`locale-${locale}`}
                 role="radio"
                 aria-checked={isActive}
                 aria-label={`Editar em ${locale === 'pt-br' ? 'Português' : 'English'}`}
+                tabIndex={isActive ? 0 : -1}
+                onKeyDown={handleLocaleKeyDown}
                 className="px-2.5 py-0.5 text-[10px] font-bold tracking-wider transition-colors"
                 style={{
                   background: isActive ? 'var(--gem-accent, #818cf8)' : 'transparent',

@@ -367,6 +367,10 @@ export async function returnToPipeline(
 
   if (!pipelineItem) return { ok: false, error: 'No linked pipeline item found' }
 
+  const { data: currentPost } = await svc.from('blog_posts').select('status').eq('id', postId).eq('site_id', siteId).single()
+  if (!currentPost) return { ok: false, error: 'Post não encontrado' }
+  if (currentPost.status === 'published') return { ok: false, error: 'Não é possível retornar um post publicado ao pipeline' }
+
   // Step 1: archive post
   const { error: archiveErr } = await svc
     .from('blog_posts')
@@ -398,12 +402,13 @@ export async function returnToPipeline(
     return { ok: false, error: 'Erro ao retornar ao pipeline' }
   }
 
-  await svc.from('content_pipeline_history').insert({
+  const { error: historyErr } = await svc.from('content_pipeline_history').insert({
     pipeline_id: pipelineItem.id,
     event_type: 'returned_from_post',
     from_value: `post:${postId}`,
     to_value: 'draft',
   })
+  if (historyErr) console.error('[posts] returnToPipeline history insert', historyErr)
 
   revalidatePath('/cms/posts')
   revalidatePath('/cms/pipeline')

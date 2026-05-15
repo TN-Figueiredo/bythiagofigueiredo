@@ -69,12 +69,13 @@ export function PostsBoard({ items }: PostsBoardProps) {
       <div className="flex gap-3 overflow-x-auto pb-4 min-h-[calc(100vh-14rem)]">
         {POST_STAGES.map((stage, idx) => {
           const stageItems = itemsByStage[stage.dbStatus] ?? []
+          const color = COLUMN_COLORS[idx % COLUMN_COLORS.length] ?? '#818cf8'
           return (
             <div key={stage.dbStatus} className="flex-shrink-0 w-72">
               <div className="sticky top-0 pb-2 z-10" style={{ background: 'var(--gem-well, #0f1620)' }}>
                 <div
                   className="flex items-center justify-between px-2 py-1.5 rounded-lg"
-                  style={{ background: 'var(--gem-surface, #0d1118)', borderLeft: `3px solid ${COLUMN_COLORS[idx]}` }}
+                  style={{ background: 'var(--gem-surface, #0d1118)', borderLeft: `3px solid ${color}` }}
                 >
                   <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: 'var(--gem-muted, #8b949e)' }}>
                     {stage.labelPt}

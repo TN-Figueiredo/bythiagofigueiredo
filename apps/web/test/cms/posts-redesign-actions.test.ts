@@ -750,7 +750,10 @@ describe('returnToPipeline', () => {
         select: makeSelectChain({ data: pipelineItem, error: null }),
         update: pipelineUpdateFn,
       },
-      blog_posts: { update: archiveFn },
+      blog_posts: {
+        select: makeSelectChain({ data: { status: 'draft' }, error: null }),
+        update: archiveFn,
+      },
       content_pipeline_history: { insert: historyInsertFn },
     })
 
@@ -788,11 +791,30 @@ describe('returnToPipeline', () => {
       content_pipeline: {
         select: makeSelectChain({ data: pipelineItem, error: null }),
       },
-      blog_posts: { update: archiveFn },
+      blog_posts: {
+        select: makeSelectChain({ data: { status: 'draft' }, error: null }),
+        update: archiveFn,
+      },
     })
 
     const result = await returnToPipeline(VALID_UUID)
     expect(result).toEqual({ ok: false, error: 'Erro ao retornar ao pipeline' })
+  })
+
+  it('rejects returning a published post to pipeline', async () => {
+    const pipelineItem = { id: PIPELINE_ID, stage: 'published', version: 1 }
+
+    buildFromMock({
+      content_pipeline: {
+        select: makeSelectChain({ data: pipelineItem, error: null }),
+      },
+      blog_posts: {
+        select: makeSelectChain({ data: { status: 'published' }, error: null }),
+      },
+    })
+
+    const result = await returnToPipeline(VALID_UUID)
+    expect(result).toEqual({ ok: false, error: 'Não é possível retornar um post publicado ao pipeline' })
   })
 
   it('returns error (compensates) if pipeline restore fails after archive', async () => {
@@ -808,7 +830,10 @@ describe('returnToPipeline', () => {
         select: makeSelectChain({ data: pipelineItem, error: null }),
         update: pipelineUpdateFn,
       },
-      blog_posts: { update: archiveFn },
+      blog_posts: {
+        select: makeSelectChain({ data: { status: 'draft' }, error: null }),
+        update: archiveFn,
+      },
     })
 
     const result = await returnToPipeline(VALID_UUID)

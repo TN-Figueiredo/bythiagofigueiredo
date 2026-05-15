@@ -63,7 +63,7 @@ export function ContentTab() {
     } finally {
       setIsSaving(false)
     }
-  }, [post.id, activeLocale, title, excerpt, contentJson, tx, dispatch])
+  }, [post.id, title, excerpt, contentJson, tx, dispatch])
 
   useEffect(() => {
     const handler = () => { if (state.dirty.content) void handleSave() }

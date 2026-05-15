@@ -74,7 +74,7 @@ export function SeoTab() {
     } finally {
       setIsSaving(false)
     }
-  }, [post.id, activeLocale, metaTitle, metaDescription, ogImageUrl, tx, dispatch])
+  }, [post.id, metaTitle, metaDescription, ogImageUrl, tx, dispatch])
 
   useEffect(() => {
     const handler = () => { if (state.dirty.seo) void handleSave() }

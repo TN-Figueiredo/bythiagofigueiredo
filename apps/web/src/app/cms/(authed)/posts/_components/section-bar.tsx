@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import type { SectionStatus } from '@/lib/posts/types'
 
 interface SectionBarProps {
@@ -19,7 +20,8 @@ const STATUS_COLORS: Record<SectionStatus, { bg: string; text: string }> = {
 
 export function SectionBar({ label, status, statusText, isDirty, isSaving, onSave }: SectionBarProps) {
   const colors = STATUS_COLORS[status]
-  const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent)
+  const [isMac, setIsMac] = useState(false)
+  useEffect(() => { setIsMac(/Mac|iPhone|iPad/.test(navigator.userAgent)) }, [])
 
   return (
     <div
