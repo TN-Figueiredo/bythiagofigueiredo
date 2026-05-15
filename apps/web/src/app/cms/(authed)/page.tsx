@@ -10,6 +10,7 @@ import {
   type TopContentRow,
   type LastNewsletterData,
 } from './_components/dashboard-connected'
+import { fetchDashboardBlogHealth } from './_components/dashboard-blog-health-queries'
 
 /* ------------------------------------------------------------------ */
 /*  Data fetchers                                                     */
@@ -440,12 +441,15 @@ async function fetchDashboardData(siteId: string): Promise<DashboardData> {
 
 export default async function CmsDashboardPage() {
   const { siteId, timezone } = await getSiteContext()
-  const data = await fetchDashboardData(siteId)
+  const [data, blogHealth] = await Promise.all([
+    fetchDashboardData(siteId),
+    fetchDashboardBlogHealth(siteId),
+  ])
 
   return (
     <div>
       <CmsTopbar title="Dashboard" />
-      <DashboardConnected data={data} siteTimezone={timezone} />
+      <DashboardConnected data={{ ...data, blogHealth }} siteTimezone={timezone} />
     </div>
   )
 }

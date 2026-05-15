@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { KpiCard, formatRelativeTime } from '@tn-figueiredo/cms-ui/client'
 import { DualTimeDisplay } from './dual-time-display'
 import { todayInSiteTz } from '@/lib/cms/format-site-datetime'
+import { BlogHealthSection, type BlogHealthData } from './dashboard-blog-health'
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                             */
@@ -71,7 +72,10 @@ export interface DashboardData {
   topPosts: TopContentRow[]
   topNewsletters: TopContentRow[]
   topCampaigns: TopContentRow[]
+  blogHealth?: BlogHealthData | null
 }
+
+export type { BlogHealthData }
 
 interface Props {
   data: DashboardData
@@ -514,6 +518,7 @@ export function DashboardConnected({ data, siteTimezone }: Props) {
     topPosts,
     topNewsletters,
     topCampaigns,
+    blogHealth,
   } = data
 
   const isEmpty =
@@ -529,6 +534,9 @@ export function DashboardConnected({ data, siteTimezone }: Props) {
 
       {/* Last Newsletter Banner */}
       {lastNewsletter && <NewsletterBanner newsletter={lastNewsletter} />}
+
+      {/* Blog Health */}
+      {blogHealth && <BlogHealthSection data={blogHealth} />}
 
       {/* Empty state vs. content */}
       {isEmpty ? (
