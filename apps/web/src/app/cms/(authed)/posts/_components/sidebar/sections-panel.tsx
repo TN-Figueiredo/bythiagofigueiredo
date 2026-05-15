@@ -14,7 +14,7 @@ const STATUS_COLORS: Record<SectionStatus, string> = {
 }
 
 export function SectionsPanel({ tabStatuses }: SectionsPanelProps) {
-  const { dispatch } = usePostEditor()
+  const { state, dispatch } = usePostEditor()
 
   return (
     <div
@@ -32,7 +32,11 @@ export function SectionsPanel({ tabStatuses }: SectionsPanelProps) {
               key={tab}
               type="button"
               onClick={() => dispatch({ type: 'SET_ACTIVE_TAB', tab })}
-              className="w-full flex items-center justify-between text-[11px] py-0.5 transition-colors hover:opacity-80"
+              className="w-full flex items-center justify-between text-[11px] py-0.5 rounded px-1 transition-colors hover:opacity-80"
+              style={{
+                background: state.activeTab === tab ? 'var(--gem-surface-hi, #151d2a)' : 'transparent',
+              }}
+              aria-current={state.activeTab === tab ? 'true' : undefined}
             >
               <span className="flex items-center gap-1.5">
                 <span

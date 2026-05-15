@@ -22,7 +22,6 @@ export function PublishTab() {
     if (!post.scheduledAt) return '09:00'
     return new Date(post.scheduledAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
   })
-  const [timezone] = useState('America/Sao_Paulo')
   const [includeNewsletter, setIncludeNewsletter] = useState(post.includeInNewsletter)
   const [isSaving, setIsSaving] = useState(false)
   const [isScheduling, setIsScheduling] = useState(false)
@@ -31,40 +30,55 @@ export function PublishTab() {
   const handleSchedule = useCallback(async () => {
     if (!scheduleDate) { toast.error('Selecione uma data'); return }
     setIsScheduling(true)
-    const scheduledAt = new Date(`${scheduleDate}T${scheduleTime}:00`).toISOString()
-    const result = await schedulePost(post.id, scheduledAt, timezone)
-    setIsScheduling(false)
-    if (result.ok) {
-      toast.success('Post agendado!')
-      dispatch({ type: 'SAVE_TAB', tab: 'publish' })
-      router.refresh()
-    } else {
-      toast.error(result.error)
+    try {
+      const scheduledAt = new Date(`${scheduleDate}T${scheduleTime}:00`).toISOString()
+      const result = await schedulePost(post.id, scheduledAt)
+      if (result.ok) {
+        toast.success('Post agendado!')
+        dispatch({ type: 'SAVE_TAB', tab: 'publish' })
+        router.refresh()
+      } else {
+        toast.error(result.error)
+      }
+    } catch {
+      toast.error('Erro de conexão')
+    } finally {
+      setIsScheduling(false)
     }
-  }, [post.id, scheduleDate, scheduleTime, timezone, dispatch, router])
+  }, [post.id, scheduleDate, scheduleTime, dispatch, router])
 
   const handlePublish = useCallback(async () => {
     if (!confirm('Publicar imediatamente? O post ficará visível no /blog e os posts sociais serão disparados.')) return
     setIsPublishing(true)
-    const result = await publishPost(post.id)
-    setIsPublishing(false)
-    if (result.ok) {
-      toast.success('Post publicado!')
-      router.refresh()
-    } else {
-      toast.error(result.error)
+    try {
+      const result = await publishPost(post.id)
+      if (result.ok) {
+        toast.success('Post publicado!')
+        router.refresh()
+      } else {
+        toast.error(result.error)
+      }
+    } catch {
+      toast.error('Erro de conexão')
+    } finally {
+      setIsPublishing(false)
     }
   }, [post.id, router])
 
   const handleSaveSettings = useCallback(async () => {
     setIsSaving(true)
-    const result = await savePostPublishSettings(post.id, { includeInNewsletter: includeNewsletter })
-    setIsSaving(false)
-    if (result.ok) {
-      dispatch({ type: 'SAVE_TAB', tab: 'publish' })
-      toast.success('Configurações salvas')
-    } else {
-      toast.error(result.error)
+    try {
+      const result = await savePostPublishSettings(post.id, { includeInNewsletter: includeNewsletter })
+      if (result.ok) {
+        dispatch({ type: 'SAVE_TAB', tab: 'publish' })
+        toast.success('Configurações salvas')
+      } else {
+        toast.error(result.error)
+      }
+    } catch {
+      toast.error('Erro de conexão')
+    } finally {
+      setIsSaving(false)
     }
   }, [post.id, includeNewsletter, dispatch])
 
@@ -100,8 +114,9 @@ export function PublishTab() {
         </div>
         <div className="grid grid-cols-3 gap-3 mb-4">
           <div>
-            <label className="text-[10px] mb-1 block" style={{ color: 'var(--gem-dim)' }}>Data</label>
+            <label htmlFor="pub-date" className="text-[10px] mb-1 block" style={{ color: 'var(--gem-dim)' }}>Data</label>
             <input
+              id="pub-date"
               type="date"
               value={scheduleDate}
               onChange={e => { setScheduleDate(e.target.value); dispatch({ type: 'SET_DIRTY', tab: 'publish', dirty: true }) }}
@@ -110,8 +125,9 @@ export function PublishTab() {
             />
           </div>
           <div>
-            <label className="text-[10px] mb-1 block" style={{ color: 'var(--gem-dim)' }}>Horário</label>
+            <label htmlFor="pub-time" className="text-[10px] mb-1 block" style={{ color: 'var(--gem-dim)' }}>Horário</label>
             <input
+              id="pub-time"
               type="time"
               value={scheduleTime}
               onChange={e => { setScheduleTime(e.target.value); dispatch({ type: 'SET_DIRTY', tab: 'publish', dirty: true }) }}

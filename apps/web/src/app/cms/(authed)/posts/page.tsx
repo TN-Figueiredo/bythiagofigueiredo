@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
@@ -9,10 +10,11 @@ export const metadata = { title: 'Posts' }
 
 export default async function PostsPage() {
   const { siteId } = await getSiteContext()
-  await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
+  const authRes = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
+  if (!authRes.ok) redirect('/cms')
 
   const svc = getSupabaseServiceClient()
-  const { data: posts } = await svc
+  const { data: posts, error } = await svc
     .from('blog_posts')
     .select(`
       id,
@@ -26,9 +28,10 @@ export default async function PostsPage() {
     `)
     .eq('site_id', siteId)
     .in('status', ['draft', 'scheduled', 'published'])
-    .neq('status', 'archived')
     .order('updated_at', { ascending: false })
     .limit(100)
+
+  if (error) throw error
 
   const items: PostBoardItem[] = (posts ?? []).map((post: Record<string, unknown>) => {
     const translations = (post.blog_translations ?? []) as Array<{ locale: string; title: string; excerpt: string | null }>

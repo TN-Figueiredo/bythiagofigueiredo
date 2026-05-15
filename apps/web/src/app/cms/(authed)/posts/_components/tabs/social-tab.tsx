@@ -7,7 +7,7 @@ import { SectionBar } from '../section-bar'
 import { savePostSocialConfig } from '../../actions'
 import type { SocialConfig } from '@/lib/social/types'
 import type { Provider } from '@tn-figueiredo/social'
-import type { SectionStatus } from '@/lib/posts/types'
+import { socialLocale, type SectionStatus } from '@/lib/posts/types'
 
 const PLATFORMS: Array<{ provider: Provider; label: string; color: string; charLimit: number }> = [
   { provider: 'youtube', label: 'YouTube Community', color: '#f87171', charLimit: 5000 },
@@ -54,13 +54,18 @@ export function SocialTab() {
 
   const handleSave = useCallback(async () => {
     setIsSaving(true)
-    const result = await savePostSocialConfig(post.id, config)
-    setIsSaving(false)
-    if (result.ok) {
-      dispatch({ type: 'SAVE_TAB', tab: 'social' })
-      toast.success('Social config salva')
-    } else {
-      toast.error(result.error)
+    try {
+      const result = await savePostSocialConfig(post.id, config)
+      if (result.ok) {
+        dispatch({ type: 'SAVE_TAB', tab: 'social' })
+        toast.success('Social config salva')
+      } else {
+        toast.error(result.error)
+      }
+    } catch {
+      toast.error('Erro de conexão')
+    } finally {
+      setIsSaving(false)
     }
   }, [post.id, config, dispatch])
 
@@ -72,7 +77,7 @@ export function SocialTab() {
 
   const configuredCount = config.platforms.length
   const sectionStatus: SectionStatus = configuredCount > 0 ? 'done' : 'empty'
-  const captionLocale = activeLocale === 'pt-br' ? 'pt' : 'en' as const
+  const captionLocale = socialLocale(activeLocale)
 
   const hasMultiLang = post.translations.length > 1
 
@@ -96,6 +101,7 @@ export function SocialTab() {
               key={provider}
               type="button"
               onClick={() => togglePlatform(provider)}
+              aria-pressed={isActive}
               className="flex flex-col items-center gap-1.5 rounded-lg border p-3 transition-all"
               style={{
                 borderColor: isActive ? color : 'var(--gem-border)',
@@ -127,6 +133,7 @@ export function SocialTab() {
               type="button"
               onClick={() => setExpandedPlatform(isExpanded ? null : provider)}
               className="w-full flex items-center justify-between px-4 py-2.5"
+              aria-expanded={isExpanded}
             >
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full" style={{ background: color }} />

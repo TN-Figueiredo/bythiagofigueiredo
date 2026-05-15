@@ -20,6 +20,21 @@ export function PostSidebar({ tabStatuses, onSchedule, onPublish, onReturnToPipe
   const { state } = usePostEditor()
   const { post } = state
 
+  const seoScore = (() => {
+    const tx = post.translations[0]
+    if (!tx) return 0
+    let pass = 0
+    const total = 4
+    const titleLen = tx.metaTitle?.length ?? 0
+    if (titleLen >= 50 && titleLen <= 60) pass++
+    const descLen = tx.metaDescription?.length ?? 0
+    if (descLen >= 150 && descLen <= 160) pass++
+    const slugOk = (tx.slug?.length ?? 0) > 0 && !tx.slug?.includes(' ')
+    if (slugOk) pass++
+    if (post.coverImageUrl || tx.ogImageUrl) pass++
+    return Math.round((pass / total) * 100)
+  })()
+
   const readinessInput: ReadinessInput = {
     content: {
       titleFilled: (state.sections.content.title as string)?.length > 0 || post.translations.some(t => t.title.length > 0),
@@ -30,7 +45,7 @@ export function PostSidebar({ tabStatuses, onSchedule, onPublish, onReturnToPipe
     seo: {
       metaTitleFilled: post.translations.some(t => (t.metaTitle?.length ?? 0) > 0),
       metaDescriptionFilled: post.translations.some(t => (t.metaDescription?.length ?? 0) > 0),
-      score: 0,
+      score: seoScore,
     },
     social: { platformsConfigured: post.socialConfig?.enabled ? post.socialConfig.platforms.length : 0 },
     schedule: { dateSet: !!post.scheduledAt, dateSaved: !!post.scheduledAt },
@@ -46,7 +61,6 @@ export function PostSidebar({ tabStatuses, onSchedule, onPublish, onReturnToPipe
     >
       <StatusCard
         status={post.status}
-        postId={post.id}
         pipelineItemId={post.pipelineItem?.id ?? null}
         onSchedule={onSchedule}
         onPublish={onPublish}

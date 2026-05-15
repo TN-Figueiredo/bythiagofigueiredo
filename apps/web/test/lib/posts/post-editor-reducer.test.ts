@@ -54,4 +54,34 @@ describe('postEditorReducer', () => {
     const dirty = postEditorReducer(state, { type: 'SET_DIRTY', tab: 'images', dirty: true })
     expect(dirty.hasDirtyTabs).toBe(true)
   })
+
+  it('SET_POST replaces the post in state', () => {
+    const state = initialState({} as PostEditorState['post'])
+    const newPost = { ...state.post, status: 'published' } as PostEditorState['post']
+    const result = postEditorReducer(state, { type: 'SET_POST', post: newPost })
+    expect(result.post.status).toBe('published')
+  })
+
+  it('UPDATE_SECTION merges data with existing section', () => {
+    const state = initialState({} as PostEditorState['post'])
+    const s1 = postEditorReducer(state, { type: 'UPDATE_SECTION', tab: 'content', data: { title: 'Hello' } })
+    const s2 = postEditorReducer(s1, { type: 'UPDATE_SECTION', tab: 'content', data: { excerpt: 'World' } })
+    expect(s2.sections.content).toEqual({ title: 'Hello', excerpt: 'World' })
+  })
+
+  it('SAVE_TAB keeps hasDirtyTabs true when other tabs are dirty', () => {
+    const state = initialState({} as PostEditorState['post'])
+    let s = postEditorReducer(state, { type: 'SET_DIRTY', tab: 'content', dirty: true })
+    s = postEditorReducer(s, { type: 'SET_DIRTY', tab: 'seo', dirty: true })
+    s = postEditorReducer(s, { type: 'SAVE_TAB', tab: 'content' })
+    expect(s.dirty.content).toBe(false)
+    expect(s.dirty.seo).toBe(true)
+    expect(s.hasDirtyTabs).toBe(true)
+  })
+
+  it('returns unchanged state for unknown action', () => {
+    const state = initialState({} as PostEditorState['post'])
+    const result = postEditorReducer(state, { type: 'UNKNOWN' } as any)
+    expect(result).toBe(state)
+  })
 })

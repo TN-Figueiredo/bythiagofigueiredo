@@ -65,3 +65,11 @@ export interface PostTranslation {
   keyPoints: string[] | null
   pullQuote: string | null
 }
+
+export function mediaLocale(activeLocale: string): 'pt-BR' | 'en' {
+  return activeLocale === 'pt-br' ? 'pt-BR' : 'en'
+}
+
+export function socialLocale(activeLocale: string): 'pt' | 'en' {
+  return activeLocale === 'pt-br' ? 'pt' : 'en'
+}

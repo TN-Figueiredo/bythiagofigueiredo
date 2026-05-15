@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { z } from 'zod'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
@@ -9,6 +10,33 @@ import { syncPipelineOnPostStatusChange } from '@/lib/pipeline/blog-sync'
 import type { SocialConfig } from '@/lib/social/types'
 
 type ActionResult<T = void> = { ok: true; data?: T } | { ok: false; error: string }
+
+const uuidSchema = z.string().uuid()
+const localeSchema = z.string().min(2).max(10)
+
+const contentInputSchema = z.object({
+  title: z.string().min(1).max(500).optional(),
+  slug: z.string().optional(),
+  excerpt: z.string().max(1000).optional(),
+  contentMdx: z.string().optional(),
+  contentJson: z.record(z.unknown()).optional(),
+  contentHtml: z.string().optional(),
+})
+
+const seoInputSchema = z.object({
+  metaTitle: z.string().max(200).optional(),
+  metaDescription: z.string().max(500).optional(),
+  ogImageUrl: z.string().url().nullable().optional(),
+})
+
+const publishSettingsSchema = z.object({
+  includeInNewsletter: z.boolean().optional(),
+  rssIncluded: z.boolean().optional(),
+  searchIndexable: z.boolean().optional(),
+  canonicalUrl: z.string().url().nullable().optional(),
+})
+
+const scheduledAtSchema = z.string().datetime()
 
 async function requireEditScope(siteId: string): Promise<void> {
   const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
@@ -27,9 +55,17 @@ export async function savePostContent(
     contentHtml?: string
   },
 ): Promise<ActionResult> {
+  if (!uuidSchema.safeParse(postId).success) return { ok: false, error: 'ID inválido' }
+  if (!localeSchema.safeParse(locale).success) return { ok: false, error: 'Locale inválido' }
+  if (!contentInputSchema.safeParse(data).success) return { ok: false, error: 'Dados inválidos' }
+
   const { siteId } = await getSiteContext()
   await requireEditScope(siteId)
   const svc = getSupabaseServiceClient()
+
+  // Verify post belongs to this site before updating translations
+  const { data: post } = await svc.from('blog_posts').select('id').eq('id', postId).eq('site_id', siteId).single()
+  if (!post) return { ok: false, error: 'Post não encontrado' }
 
   const patch: Record<string, unknown> = {}
   if (data.title !== undefined) patch.title = data.title
@@ -60,9 +96,17 @@ export async function savePostSeo(
     ogImageUrl?: string | null
   },
 ): Promise<ActionResult> {
+  if (!uuidSchema.safeParse(postId).success) return { ok: false, error: 'ID inválido' }
+  if (!localeSchema.safeParse(locale).success) return { ok: false, error: 'Locale inválido' }
+  if (!seoInputSchema.safeParse(data).success) return { ok: false, error: 'Dados inválidos' }
+
   const { siteId } = await getSiteContext()
   await requireEditScope(siteId)
   const svc = getSupabaseServiceClient()
+
+  // Verify post belongs to this site before updating translations
+  const { data: post } = await svc.from('blog_posts').select('id').eq('id', postId).eq('site_id', siteId).single()
+  if (!post) return { ok: false, error: 'Post não encontrado' }
 
   const patch: Record<string, unknown> = {}
   if (data.metaTitle !== undefined) patch.meta_title = data.metaTitle
@@ -77,8 +121,10 @@ export async function savePostSeo(
 
   if (error) return { ok: false, error: error.message }
 
+  const { data: txData } = await svc.from('blog_translations').select('slug').eq('post_id', postId).eq('locale', locale).single()
+
   revalidatePath(`/cms/posts/${postId}`)
-  revalidateBlogPostSeo(siteId, postId, locale, '')
+  revalidateBlogPostSeo(siteId, postId, locale, txData?.slug ?? '')
   return { ok: true }
 }
 
@@ -86,6 +132,8 @@ export async function savePostSocialConfig(
   postId: string,
   config: SocialConfig,
 ): Promise<ActionResult> {
+  if (!uuidSchema.safeParse(postId).success) return { ok: false, error: 'ID inválido' }
+
   const { siteId } = await getSiteContext()
   await requireEditScope(siteId)
   const svc = getSupabaseServiceClient()
@@ -111,6 +159,9 @@ export async function savePostPublishSettings(
     canonicalUrl?: string | null
   },
 ): Promise<ActionResult> {
+  if (!uuidSchema.safeParse(postId).success) return { ok: false, error: 'ID inválido' }
+  if (!publishSettingsSchema.safeParse(data).success) return { ok: false, error: 'Dados inválidos' }
+
   const { siteId } = await getSiteContext()
   await requireEditScope(siteId)
   const svc = getSupabaseServiceClient()
@@ -137,6 +188,8 @@ export async function savePostCoverImage(
   postId: string,
   coverImageUrl: string | null,
 ): Promise<ActionResult> {
+  if (!uuidSchema.safeParse(postId).success) return { ok: false, error: 'ID inválido' }
+
   const { siteId } = await getSiteContext()
   await requireEditScope(siteId)
   const svc = getSupabaseServiceClient()
@@ -156,8 +209,10 @@ export async function savePostCoverImage(
 export async function schedulePost(
   postId: string,
   scheduledAt: string,
-  timezone: string,
 ): Promise<ActionResult> {
+  if (!uuidSchema.safeParse(postId).success) return { ok: false, error: 'ID inválido' }
+  if (!scheduledAtSchema.safeParse(scheduledAt).success) return { ok: false, error: 'Data inválida' }
+
   const { siteId } = await getSiteContext()
   await requireEditScope(siteId)
   const svc = getSupabaseServiceClient()
@@ -180,7 +235,7 @@ export async function schedulePost(
 
   if (error) return { ok: false, error: error.message }
 
-  syncPipelineOnPostStatusChange(postId, 'scheduled', post.status).catch(() => {})
+  syncPipelineOnPostStatusChange(postId, 'scheduled', post.status).catch(err => console.error('[posts]', err))
 
   revalidatePath('/cms/posts')
   revalidatePath(`/cms/posts/${postId}`)
@@ -190,6 +245,8 @@ export async function schedulePost(
 export async function publishPost(
   postId: string,
 ): Promise<ActionResult> {
+  if (!uuidSchema.safeParse(postId).success) return { ok: false, error: 'ID inválido' }
+
   const { siteId } = await getSiteContext()
   await requireEditScope(siteId)
   const svc = getSupabaseServiceClient()
@@ -217,7 +274,7 @@ export async function publishPost(
     revalidateBlogPostSeo(siteId, postId, tx.locale, tx.slug)
   }
 
-  syncPipelineOnPostStatusChange(postId, 'published', post.status).catch(() => {})
+  syncPipelineOnPostStatusChange(postId, 'published', post.status).catch(err => console.error('[posts]', err))
 
   const socialConfig = (post as { social_config?: { enabled: boolean } }).social_config
   if (socialConfig?.enabled) {
@@ -230,7 +287,7 @@ export async function publishPost(
         config: socialConfig as unknown as SocialConfig,
         origin: 'auto',
         userId: 'system',
-      }).catch(() => {}),
+      }).catch(err => console.error('[posts]', err)),
     )
   }
 
@@ -243,6 +300,8 @@ export async function publishPost(
 export async function returnToPipeline(
   postId: string,
 ): Promise<ActionResult<{ pipelineItemId: string }>> {
+  if (!uuidSchema.safeParse(postId).success) return { ok: false, error: 'ID inválido' }
+
   const { siteId } = await getSiteContext()
   await requireEditScope(siteId)
   const svc = getSupabaseServiceClient()

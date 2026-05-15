@@ -58,13 +58,18 @@ export function SeoTab() {
   const handleSave = useCallback(async () => {
     if (!tx) return
     setIsSaving(true)
-    const result = await savePostSeo(post.id, activeLocale, { metaTitle, metaDescription, ogImageUrl })
-    setIsSaving(false)
-    if (result.ok) {
-      dispatch({ type: 'SAVE_TAB', tab: 'seo' })
-      toast.success('SEO salvo')
-    } else {
-      toast.error(result.error)
+    try {
+      const result = await savePostSeo(post.id, activeLocale, { metaTitle, metaDescription, ogImageUrl })
+      if (result.ok) {
+        dispatch({ type: 'SAVE_TAB', tab: 'seo' })
+        toast.success('SEO salvo')
+      } else {
+        toast.error(result.error)
+      }
+    } catch {
+      toast.error('Erro de conexão')
+    } finally {
+      setIsSaving(false)
     }
   }, [post.id, activeLocale, metaTitle, metaDescription, ogImageUrl, tx, dispatch])
 
@@ -96,8 +101,9 @@ export function SeoTab() {
 
       {/* Meta Title */}
       <div>
-        <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--gem-text)' }}>Meta Title</label>
+        <label htmlFor="seo-meta-title" className="text-xs font-medium mb-1 block" style={{ color: 'var(--gem-text)' }}>Meta Title</label>
         <input
+          id="seo-meta-title"
           type="text"
           value={metaTitle}
           onChange={e => { setMetaTitle(e.target.value); markDirty() }}
@@ -112,8 +118,9 @@ export function SeoTab() {
 
       {/* Meta Description */}
       <div>
-        <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--gem-text)' }}>Meta Description</label>
+        <label htmlFor="seo-meta-desc" className="text-xs font-medium mb-1 block" style={{ color: 'var(--gem-text)' }}>Meta Description</label>
         <textarea
+          id="seo-meta-desc"
           value={metaDescription}
           onChange={e => { setMetaDescription(e.target.value); markDirty() }}
           placeholder="Descrição para resultados de busca"

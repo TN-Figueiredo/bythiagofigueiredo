@@ -4,7 +4,6 @@ import { POST_STAGES, dbStatusToStage } from '@/lib/posts/types'
 
 interface StatusCardProps {
   status: string
-  postId: string
   pipelineItemId: string | null
   onSchedule: () => void
   onPublish: () => void
@@ -32,7 +31,7 @@ export function StatusCard({ status, pipelineItemId, onSchedule, onPublish, onRe
         </span>
       </div>
 
-      <div className="flex gap-1 mb-3" role="progressbar" aria-valuenow={currentIdx} aria-valuemax={POST_STAGES.length - 1}>
+      <div className="flex gap-1 mb-3" role="progressbar" aria-valuenow={currentIdx} aria-valuemin={0} aria-valuemax={POST_STAGES.length - 1}>
         {POST_STAGES.map((s, i) => (
           <div
             key={s.stage}

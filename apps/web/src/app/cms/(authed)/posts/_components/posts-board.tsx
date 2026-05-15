@@ -10,8 +10,9 @@ import {
   useSensors,
   DragOverlay,
   type DragStartEvent,
+  type DragEndEvent,
 } from '@dnd-kit/core'
-import { SortableContext, verticalListSortingStrategy, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
+import { SortableContext, verticalListSortingStrategy, sortableKeyboardCoordinates, arrayMove } from '@dnd-kit/sortable'
 import { PostCard, type PostBoardItem } from './post-card'
 import { SortablePostCard } from './sortable-post-card'
 import { POST_STAGES } from '@/lib/posts/types'
@@ -45,8 +46,17 @@ export function PostsBoard({ items }: PostsBoardProps) {
     if (item) setActiveItem(item)
   }, [localItems])
 
-  const handleDragEnd = useCallback(() => {
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
     setActiveItem(null)
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    setLocalItems(prev => {
+      const oldIndex = prev.findIndex(i => i.id === active.id)
+      const newIndex = prev.findIndex(i => i.id === over.id)
+      if (oldIndex === -1 || newIndex === -1) return prev
+      return arrayMove(prev, oldIndex, newIndex)
+    })
   }, [])
 
   return (

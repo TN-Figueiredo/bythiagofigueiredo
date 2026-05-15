@@ -44,6 +44,7 @@ export function ReadinessRing({ score, size = 48, strokeWidth = 4 }: ReadinessRi
         />
       </svg>
       <span
+        aria-hidden="true"
         className="absolute text-[11px] font-bold"
         style={{ color: getColor(score) }}
       >

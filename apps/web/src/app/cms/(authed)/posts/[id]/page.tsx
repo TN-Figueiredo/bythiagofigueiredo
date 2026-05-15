@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
@@ -6,13 +6,18 @@ import { PostDetail } from '../_components/post-detail'
 import type { PostDetailData, PostTranslation } from '@/lib/posts/types'
 import type { SocialConfig } from '@/lib/social/types'
 
+const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export default async function PostDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  if (!uuidRegex.test(id)) notFound()
+
   const { siteId } = await getSiteContext()
-  await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
+  const authRes = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
+  if (!authRes.ok) redirect('/cms')
 
   const svc = getSupabaseServiceClient()
-  const { data: post } = await svc
+  const { data: post, error } = await svc
     .from('blog_posts')
     .select(`
       id, site_id, author_id, status, category, cover_image_url, locale,
@@ -26,6 +31,7 @@ export default async function PostDetailPage({ params }: { params: Promise<{ id:
     .eq('site_id', siteId)
     .single()
 
+  if (error) throw error
   if (!post) notFound()
 
   const rawTranslations = (post.blog_translations ?? []) as Array<Record<string, unknown>>

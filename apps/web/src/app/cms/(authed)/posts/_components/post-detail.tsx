@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -12,7 +12,7 @@ import { ImagesTab } from './tabs/images-tab'
 import { SeoTab } from './tabs/seo-tab'
 import { SocialTab } from './tabs/social-tab'
 import { PublishTab } from './tabs/publish-tab'
-import { schedulePost, publishPost, returnToPipeline } from '../actions'
+import { publishPost, returnToPipeline } from '../actions'
 import type { PostDetailData, PostTab, SectionStatus } from '@/lib/posts/types'
 
 interface PostDetailProps {
@@ -32,29 +32,37 @@ function PostDetailInner() {
     publish: post.scheduledAt ? 'done' : 'empty',
   }
 
-  const handleSchedule = useCallback(async () => {
+  const handleSchedule = useCallback(() => {
     dispatch({ type: 'SET_ACTIVE_TAB', tab: 'publish' })
   }, [dispatch])
 
   const handlePublish = useCallback(async () => {
     if (!confirm('Publicar imediatamente? O post ficará visível no /blog e os posts sociais serão disparados.')) return
-    const result = await publishPost(post.id)
-    if (result.ok) {
-      toast.success('Post publicado!')
-      router.refresh()
-    } else {
-      toast.error(result.error)
+    try {
+      const result = await publishPost(post.id)
+      if (result.ok) {
+        toast.success('Post publicado!')
+        router.refresh()
+      } else {
+        toast.error(result.error)
+      }
+    } catch {
+      toast.error('Erro de conexão')
     }
   }, [post.id, router])
 
   const handleReturnToPipeline = useCallback(async () => {
     if (!confirm('Devolver ao Pipeline? O post voltará como item de pipeline no estágio Rascunho. Social config e data de agendamento serão removidos.')) return
-    const result = await returnToPipeline(post.id)
-    if (result.ok && result.data) {
-      toast.success('Devolvido ao pipeline')
-      router.push(`/cms/pipeline/blog_post/${result.data.pipelineItemId}`)
-    } else if (!result.ok) {
-      toast.error(result.error)
+    try {
+      const result = await returnToPipeline(post.id)
+      if (result.ok && result.data) {
+        toast.success('Devolvido ao pipeline')
+        router.push(`/cms/pipeline/blog_post/${result.data.pipelineItemId}`)
+      } else if (!result.ok) {
+        toast.error(result.error)
+      }
+    } catch {
+      toast.error('Erro de conexão')
     }
   }, [post.id, router])
 
@@ -92,7 +100,7 @@ function PostDetailInner() {
 
         <PostTabBar tabStatuses={tabStatuses} availableLocales={post.translations.map(t => t.locale)} />
 
-        <div role="tabpanel" id={`tabpanel-${activeTab}`} aria-label={activeTab}>
+        <div role="tabpanel" id={`tabpanel-${activeTab}`} aria-labelledby={`tab-${activeTab}`}>
           {activeTab === 'content' && <ContentTab />}
           {activeTab === 'images' && <ImagesTab />}
           {activeTab === 'seo' && <SeoTab />}

@@ -1,5 +1,6 @@
 'use client'
 
+import { useCallback } from 'react'
 import { POST_TABS, type PostTab, type SectionStatus } from '@/lib/posts/types'
 import { usePostEditor } from './post-editor-context'
 
@@ -17,6 +18,27 @@ const DOT_COLORS: Record<SectionStatus, string> = {
 export function PostTabBar({ tabStatuses, availableLocales }: PostTabBarProps) {
   const { state, dispatch } = usePostEditor()
 
+  const handleTabKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const tabs = POST_TABS
+    const currentIdx = tabs.findIndex(t => t.tab === state.activeTab)
+    let nextIdx = currentIdx
+
+    if (e.key === 'ArrowRight') {
+      nextIdx = (currentIdx + 1) % tabs.length
+    } else if (e.key === 'ArrowLeft') {
+      nextIdx = (currentIdx - 1 + tabs.length) % tabs.length
+    } else if (e.key === 'Home') {
+      nextIdx = 0
+    } else if (e.key === 'End') {
+      nextIdx = tabs.length - 1
+    } else {
+      return
+    }
+    e.preventDefault()
+    const next = tabs[nextIdx]
+    if (next) dispatch({ type: 'SET_ACTIVE_TAB', tab: next.tab })
+  }, [state.activeTab, dispatch])
+
   return (
     <div
       className="flex items-end justify-between"
@@ -31,9 +53,12 @@ export function PostTabBar({ tabStatuses, availableLocales }: PostTabBarProps) {
           return (
             <button
               key={tab}
+              id={`tab-${tab}`}
               role="tab"
               aria-selected={isActive}
               aria-controls={`tabpanel-${tab}`}
+              tabIndex={isActive ? 0 : -1}
+              onKeyDown={handleTabKeyDown}
               className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium whitespace-nowrap select-none transition-colors"
               style={{
                 color: isActive ? 'var(--gem-text, #e2e8f0)' : 'var(--gem-dim, #3d4654)',
