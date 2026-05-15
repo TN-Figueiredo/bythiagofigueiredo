@@ -56,7 +56,7 @@ export function KanbanColumn({
     <div
       ref={setNodeRef}
       aria-label={`${title} column, ${cards.length} items`}
-      className={`flex w-[220px] shrink-0 flex-col rounded-lg border bg-gray-950 transition-all duration-200 ${
+      className={`flex flex-1 min-w-[220px] flex-col rounded-lg border bg-gray-950 transition-all duration-200 ${
         isDraggingInto
           ? 'border-indigo-500/60 bg-indigo-950/20 ring-1 ring-indigo-500/20'
           : isOver

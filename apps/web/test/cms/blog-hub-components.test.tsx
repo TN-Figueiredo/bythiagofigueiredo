@@ -299,6 +299,17 @@ describe('KanbanColumn', () => {
   })
 })
 
+describe('KanbanColumn full-width', () => {
+  it('uses flex-1 instead of fixed width', () => {
+    render(<KanbanColumn id="ready" title="Ready" cards={[]} />)
+    const col = screen.getByLabelText(/Ready column/)
+    expect(col.className).toContain('flex-1')
+    expect(col.className).toContain('min-w-[220px]')
+    // Ensure standalone w-[220px] is not present (min-w-[220px] is fine)
+    expect(col.className.split(' ')).not.toContain('w-[220px]')
+  })
+})
+
 /* ------------------------------------------------------------------ */
 /*  Tests: HealthStrip                                                */
 /* ------------------------------------------------------------------ */
