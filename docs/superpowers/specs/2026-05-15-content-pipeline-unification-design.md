@@ -215,6 +215,7 @@ export async function returnToPipeline(
 ```
 
 This action:
+- Resolves `siteId` via `getSiteContext()` (same pattern as all other actions in the file)
 - Verifies `requireEditScope(siteId)`
 - Checks the post status is `idea` or `draft` (safety guard — rejects if scheduled/published)
 - Looks up the linked `content_pipeline` row via `blog_post_id`
@@ -347,7 +348,7 @@ function renderCard(lane: LaneId, item: PipelineItem | PostCard) {
 
 | Action | Files | LOC |
 |--------|-------|-----|
-| Remove `posts/` directory (board, cards, editor, tabs, sidebar) | 20 files | −2,428 |
+| Remove `posts/` directory (board, cards, editor, tabs, sidebar) | 21 files | −2,428 |
 | Remove `pipeline/[format]/page.tsx` blog_post route | 1 file | −84 |
 | Remove `pipeline/_components/pipeline-board.tsx` | 1 file | −310 |
 | Remove `blog/_tabs/editorial/kanban-board.tsx` | 1 file | −336 |
@@ -360,7 +361,7 @@ function renderCard(lane: LaneId, item: PipelineItem | PostCard) {
 | Update `hub-utils.ts` / `hub-types.ts` / i18n | 4 files | +120 |
 | **Net** | | **≈ −2,586** |
 
-> **Note:** The `posts/` directory contains 20 files including a full post editor (tabs, sidebar, detail page) totaling 2,428 LOC. The canonical post editor lives at `/cms/blog/[id]/edit` — the `posts/[id]` editor is the legacy path being removed. All editor functionality is preserved in the blog route.
+> **Note:** The `posts/` directory contains 21 files including a full post editor (tabs, sidebar, detail page) totaling 2,428 LOC. The canonical post editor lives at `/cms/blog/[id]/edit` — the `posts/[id]` editor is the legacy path being removed. All editor functionality is preserved in the blog route.
 
 ---
 
@@ -801,15 +802,15 @@ All existing tests in `apps/web/test/` for `blog/actions.ts` (bulk publish/archi
 12. Add `movePipelineItemToStage` server action (arbitrary stage jump for DnD, extends current advance/retreat pattern)
 13. Extend `createPostFromPipeline` with optional `scheduledFor` parameter
 14. Add `returnToPipeline` server action
-14. Add i18n string keys to `_i18n/en.ts` and `_i18n/pt-BR.ts`
-15. Add `?from=blog` breadcrumb logic to pipeline detail page
-16. Add archive toggle to filter bar
-17. Add pagination to "Publicado" lane (initial 30, load more)
-18. Extend velocity KPI strip with pipeline metrics
-19. Add `next.config.ts` redirects for removed routes
-20. Delete `posts/` directory
-21. Delete `pipeline/[format]/page.tsx` blog_post-specific handling
-22. Write tests per §18
+15. Add i18n string keys to `_i18n/en.ts` and `_i18n/pt-BR.ts`
+16. Add `?from=blog` breadcrumb logic to pipeline detail page
+17. Add archive toggle to filter bar
+18. Add pagination to "Publicado" lane (initial 30, load more)
+19. Extend velocity KPI strip with pipeline metrics
+20. Add `next.config.ts` redirects for removed routes
+21. Delete `posts/` directory
+22. Delete `pipeline/[format]/page.tsx` blog_post-specific handling
+23. Write tests per §18
 
 ---
 
@@ -837,7 +838,7 @@ All existing tests in `apps/web/test/` for `blog/actions.ts` (bulk publish/archi
 - `apps/web/next.config.ts` — add redirects
 
 ### Deleted files
-- `apps/web/src/app/cms/(authed)/posts/` (entire directory — 20 files, 2,428 LOC)
+- `apps/web/src/app/cms/(authed)/posts/` (entire directory — 21 files, 2,428 LOC)
 - `apps/web/src/app/cms/(authed)/blog/_tabs/editorial/kanban-board.tsx` (replaced by unified-board)
 - `apps/web/src/app/cms/(authed)/blog/_tabs/editorial/kanban-column.tsx` (replaced by kanban-lane)
 - `apps/web/src/app/cms/(authed)/blog/_tabs/editorial/kanban-card.tsx` (replaced by post-card)
