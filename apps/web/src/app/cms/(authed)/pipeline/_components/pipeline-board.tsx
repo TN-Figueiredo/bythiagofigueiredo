@@ -22,7 +22,7 @@ import {
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable'
 import { toast } from 'sonner'
-import { WORKFLOWS } from '@/lib/pipeline/workflows'
+import { getPipelineStages } from '@/lib/pipeline/workflows'
 import { GemCard, type GemCardItem } from './gem-card'
 import { SortableGemCard } from './sortable-gem-card'
 import { PipelineFilterBar } from './pipeline-filter-bar'
@@ -36,7 +36,7 @@ interface PipelineBoardProps {
 }
 
 function isGraduated(item: GemCardItem): boolean {
-  return !!(item.blog_post_id || item.youtube_video_id || item.newsletter_edition_id || item.campaign_id)
+  return !!(item.blog_post_id || item.youtube_video_id || item.newsletter_edition_id || item.campaign_id || item.social_post_id)
 }
 
 function findStageForItem(id: string, stages: string[], itemsByStage: Record<string, GemCardItem[]>): string | null {
@@ -47,7 +47,7 @@ function findStageForItem(id: string, stages: string[], itemsByStage: Record<str
 }
 
 export function PipelineBoard({ format, items, collections }: PipelineBoardProps) {
-  const stages = WORKFLOWS[format]
+  const stages = getPipelineStages(format)
   const stageKeys = stages.map((s) => s.stage)
   const searchParams = useSearchParams()
 

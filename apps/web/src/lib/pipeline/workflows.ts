@@ -95,6 +95,16 @@ export const DEFAULT_CHECKLISTS: Record<Format, ChecklistItem[]> = {
   ],
 }
 
+export const PIPELINE_ONLY_STAGES: Partial<Record<Format, string[]>> = {
+  blog_post: ['idea', 'draft', 'ready'],
+}
+
+export function getPipelineStages(format: Format): WorkflowStage[] {
+  const allowed = PIPELINE_ONLY_STAGES[format]
+  if (!allowed) return WORKFLOWS[format]
+  return WORKFLOWS[format].filter(s => allowed.includes(s.stage))
+}
+
 export function getNextStage(format: Format, currentStage: string): string | null {
   const workflow = WORKFLOWS[format]
   const current = workflow.find((s) => s.stage === currentStage)
