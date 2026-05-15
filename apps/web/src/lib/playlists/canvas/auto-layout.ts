@@ -1,6 +1,6 @@
 import type { PlaylistItemEnriched, PlaylistEdgeRow } from '../types'
+import { NODE_WIDTH } from './utils'
 
-const NODE_W = 250
 const LAYER_GAP_X = 480
 const NODE_GAP_Y = 160
 const ORPHAN_COLS = 4
@@ -74,6 +74,14 @@ export function computeAutoLayout(
       const newDeg = (inDegree.get(next) ?? 0) - 1
       inDegree.set(next, newDeg)
       if (newDeg === 0) queue.push(next)
+    }
+  }
+
+  // Nodes trapped in cycles never reach in-degree 0, so Kahn's skips them.
+  // Treat them as disconnected so they still get positioned.
+  for (const item of connectedItems) {
+    if (!layers.has(item.id)) {
+      disconnectedItems.push(item)
     }
   }
 

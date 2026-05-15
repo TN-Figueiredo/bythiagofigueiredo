@@ -105,3 +105,56 @@ describe('computeAutoLayout constants', () => {
     expect(DIMMED_OFFSET_Y).toBe(120)
   })
 })
+
+describe('computeAutoLayout edge cases', () => {
+  it('handles pure cycles gracefully (Kahn drops cycled nodes to disconnected grid)', () => {
+    const items = [item('a', 1), item('b', 2), item('c', 3)]
+    const edges = [edge('a', 'b'), edge('b', 'c'), edge('c', 'a')]
+    const result = computeAutoLayout(items, edges)
+    // Kahn's algorithm can't resolve pure cycles (all in-degree > 0),
+    // so these nodes get treated as disconnected — still positioned, no crash
+    expect(result.length).toBeGreaterThan(0)
+    expect(result.length).toBeLessThanOrEqual(3)
+  })
+
+  it('handles partial cycle (some nodes reachable, some cycled)', () => {
+    const items = [item('root', 1), item('a', 2), item('b', 3), item('c', 4)]
+    const edges = [edge('root', 'a'), edge('a', 'b'), edge('b', 'c'), edge('c', 'a')]
+    const result = computeAutoLayout(items, edges)
+    // root and a are reachable from root; b and c form a cycle but a enters the cycle
+    expect(result.length).toBeGreaterThan(0)
+    const ids = new Set(result.map(r => r.itemId))
+    expect(ids.has('root')).toBe(true)
+  })
+
+  it('positions disconnected components in grid below connected ones', () => {
+    const items = [
+      item('a', 1), item('b', 2),
+      item('c', 3), item('d', 4),
+    ]
+    const edges = [edge('a', 'b')]
+    const result = computeAutoLayout(items, edges)
+    expect(result).toHaveLength(4)
+
+    const posMap = new Map(result.map(r => [r.itemId, r]))
+    const connectedMaxY = Math.max(posMap.get('a')!.y, posMap.get('b')!.y)
+    const disconnectedMinY = Math.min(posMap.get('c')!.y, posMap.get('d')!.y)
+    expect(disconnectedMinY).toBeGreaterThan(connectedMaxY)
+  })
+
+  it('positions a single item at (0,0) with no edges', () => {
+    const result = computeAutoLayout([item('x')], [])
+    expect(result).toEqual([{ itemId: 'x', x: 0, y: 0 }])
+  })
+
+  it('lays out all-disconnected items vertically by sort_order', () => {
+    const items = [item('c', 3), item('a', 1), item('b', 2)]
+    const result = computeAutoLayout(items, [])
+    expect(result).toHaveLength(3)
+    expect(result[0]!.itemId).toBe('a')
+    expect(result[1]!.itemId).toBe('b')
+    expect(result[2]!.itemId).toBe('c')
+    expect(result[0]!.y).toBeLessThan(result[1]!.y)
+    expect(result[1]!.y).toBeLessThan(result[2]!.y)
+  })
+})

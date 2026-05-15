@@ -65,6 +65,7 @@ export function FilterBar({ filter, counts, totalCount, onChange }: FilterBarPro
           <button
             key={mode}
             type="button"
+            aria-pressed={filter.mode === mode}
             onClick={() => setMode(mode)}
             className={`rounded px-2 py-0.5 text-[0.6rem] font-medium transition-colors ${
               filter.mode === mode ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white/60'
@@ -84,6 +85,7 @@ function Chip({ label, count, active, activeClass, onClick }: {
   return (
     <button
       type="button"
+      aria-pressed={active}
       onClick={onClick}
       className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[0.6rem] font-medium transition-colors ${
         active ? activeClass : 'text-white/30 hover:text-white/50'

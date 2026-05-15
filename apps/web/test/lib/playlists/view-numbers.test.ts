@@ -113,4 +113,26 @@ describe('computeViewNumbers', () => {
     expect(result.get('a')).toBe(1)
     expect(result.get('b')).toBeNull()
   })
+
+  it('combined filter: type + language + search all apply simultaneously', () => {
+    const items = [
+      makeItem({ id: 'match', sort_order: 1, content_type: 'video', language: 'pt-br', title: 'React Native Guide' }),
+      makeItem({ id: 'wrong-type', sort_order: 2, content_type: 'blog_post', language: 'pt-br', title: 'React Hooks' }),
+      makeItem({ id: 'wrong-lang', sort_order: 3, content_type: 'video', language: 'en', title: 'React Router' }),
+      makeItem({ id: 'wrong-search', sort_order: 4, content_type: 'video', language: 'pt-br', title: 'Vue Composition' }),
+      makeItem({ id: 'match2', sort_order: 5, content_type: 'video', language: 'pt-br', title: 'React Testing' }),
+    ]
+    const filter: FilterState = {
+      types: new Set(['video']),
+      languages: new Set(['pt-br']),
+      mode: 'dim',
+      search: 'react',
+    }
+    const result = computeViewNumbers(items, filter)
+    expect(result.get('match')).toBe(1)
+    expect(result.get('wrong-type')).toBeNull()
+    expect(result.get('wrong-lang')).toBeNull()
+    expect(result.get('wrong-search')).toBeNull()
+    expect(result.get('match2')).toBe(2)
+  })
 })

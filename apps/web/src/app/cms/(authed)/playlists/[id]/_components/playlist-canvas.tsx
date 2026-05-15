@@ -341,7 +341,8 @@ export function PlaylistCanvas({
     async (itemId: string) => {
       pushSnapshot(state)
       dispatch({ type: 'REMOVE_ITEM', itemId })
-      await onRemoveItem(itemId, siteId)
+      const result = await onRemoveItem(itemId, siteId)
+      if (!result.ok) setSaveState('error')
     },
     [pushSnapshot, state, onRemoveItem, siteId],
   )
@@ -361,7 +362,10 @@ export function PlaylistCanvas({
     for (const edgeId of edgeIds) {
       dispatch({ type: 'REMOVE_EDGE', edgeId })
     }
-    await Promise.all(edgeIds.map(edgeId => onDeleteEdge(edgeId, siteId)))
+    const results = await Promise.allSettled(edgeIds.map(edgeId => onDeleteEdge(edgeId, siteId)))
+    if (results.some(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.ok))) {
+      setSaveState('error')
+    }
   }, [state, pushSnapshot, onDeleteEdge, siteId])
 
   // ── Toolbar actions ──────────────────────────────────────────────────
