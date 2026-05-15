@@ -30,7 +30,7 @@ The redesign splits the CMS content flow into two distinct zones:
 | Zone | Entity | Stages | Purpose |
 |------|--------|--------|---------|
 | **Pipeline** | `content_pipeline` | Ideia → Rascunho → Pronto | Content ideation and drafting |
-| **Posts** | `blog_posts` + `blog_translations` | Pronto → Agendado → Publicado | Content editing, SEO, social, publication |
+| **Posts** | `blog_posts` + `blog_translations` | Em edição → Agendado → Publicado | Content editing, SEO, social, publication |
 
 **Graduation bridge**: When a pipeline item reaches "Pronto," it graduates to a post. The post inherits title, hook, synopsis, body, images, and metadata. The pipeline item retains a `blog_post_id` FK for traceability.
 
@@ -72,6 +72,8 @@ Three-column kanban board for pipeline items.
 
 **Empty states:** Each column has format-specific placeholder with "+" button
 
+**Pagination:** Kanban columns load 20 cards initially, with infinite scroll (intersection observer) loading 20 more. Column header shows total count (e.g., "Ideia · 34"). Same pattern for Tela 3 Posts Kanban.
+
 ### Tela 2: Pipeline Detail (02-pipeline-detail-v6)
 
 Full detail view for a single pipeline item. Three-column layout: left sidebar (nav) + main content + right sidebar (metadata).
@@ -87,7 +89,7 @@ Full detail view for a single pipeline item. Three-column layout: left sidebar (
 **Right sidebar groups:**
 
 1. **Ações**: Status card (Ideia/Rascunho/Pronto) with stage progress dots, "Avançar" button, "Graduar para Post" (only in Pronto stage, green gradient button)
-2. **Progresso**: Sections checklist (Conteúdo, Imagens, SEO — pipeline-only sections), readiness score ring
+2. **Progresso**: Flat sections checklist (not tabbed — all content is in a single scrollable view). Checklist items: Conteúdo (title + body filled), Imagens (cover set), SEO (hook + synopsis filled). Readiness score ring.
 3. **Info**: Details (format, author, language, category, slug, word count, reading time), tags, research links, history timeline
 
 **Key behaviors:**
@@ -100,7 +102,7 @@ Full detail view for a single pipeline item. Three-column layout: left sidebar (
 
 Three-column kanban for blog posts (graduated from pipeline).
 
-**Columns:** Pronto | Agendado | Publicado
+**Columns:** Em edição | Agendado | Publicado
 
 **Card anatomy (richer than pipeline cards):**
 - Cover image thumbnail (left, 48x48 rounded)
@@ -138,7 +140,7 @@ Each tab has a colored dot indicator:
 - Inline stats (words, reading time, revision count)
 
 **Right sidebar (consistent across all tabs):**
-1. **Ações**: Status card (Pronto/Agendado/Publicado), stage dots, "Agendar" + "Publicar" buttons, "Devolver ao Pipeline" link
+1. **Ações**: Status card (Em edição/Agendado/Publicado), stage dots, "Agendar" + "Publicar" buttons, "Devolver ao Pipeline" link
 2. **Origin card**: Links back to pipeline item (TG-86)
 3. **Publication summary card** (new): Quick glance at scheduling, social, newsletter, visibility status
 4. **Progresso**: Sections list with dots, Checklist with progress bar, Readiness ring
@@ -226,9 +228,10 @@ Social media configuration for post distribution. 4 platforms: YouTube Community
 - **Bluesky**: Card preview with text + link card
 
 **Data model:**
-- Social tab data stored in `content_pipeline.social_config` JSONB
-- On graduation, flows to `social_posts` table via pipeline-social unification
-- Per-platform text is per-language (PT and EN versions)
+- Social config stored in `blog_posts.social_config` JSONB (new column, same shape as `content_pipeline.social_config`)
+- When the user clicks "Agendar" or "Publicar", social config flows to `social_posts` table for delivery scheduling
+- Per-platform text is per-language (PT and EN versions stored as `{ pt: string, en: string }`)
+- Pipeline items that haven't graduated have no social config — it's a post-only concern
 
 ### Tela 8: Post Detail — Publicação Tab (08-posts-publish-tab-v2)
 
@@ -310,9 +313,15 @@ When a pipeline item reaches "Pronto" stage and the user clicks "Graduar para Po
 3. Copy cover image reference
 4. Set `content_pipeline.blog_post_id` FK
 5. Pipeline item stays in pipeline for traceability (not deleted)
-6. Post appears in Posts kanban "Pronto" column
+6. Post appears in Posts kanban "Em edição" column
 
 The pipeline item's `sections` JSONB is snapshotted into the post's metadata for audit.
+
+### Social config ownership
+
+Social configuration lives on the post, not the pipeline item. The `blog_posts` table gets a new `social_config JSONB` column (same shape as `content_pipeline.social_config` from the pipeline-social-unification spec, but owned by the post after graduation).
+
+This resolves a key data model question: the pipeline-social-unification spec designed `content_pipeline.social_config` for pipeline items that graduate directly to social posts (e.g., video pipeline items). For blog pipeline items, social config is created in the Post Detail Social tab and stored on `blog_posts.social_config`. Both paths converge at the `social_posts` table for delivery.
 
 ---
 
@@ -416,9 +425,50 @@ Calculated client-side from section completion:
 | SEO | 20% | Meta title + description filled, score ≥ 70 |
 | Social | 20% | At least 1 platform configured |
 | Data | 15% | Publication date set and saved |
-| Newsletter | 10% | Toggle decision made (on or off) |
+| Newsletter | 10% | Toggle decision made (default: ON for new posts, user can turn off) |
 
 Score displayed in both pre-publish review ring and sidebar readiness ring (always consistent).
+
+### Tab State Persistence
+
+Each tab's form state is held in a React Context (`PostEditorContext`) scoped to the post detail page. Switching tabs does NOT discard unsaved changes — dirty state persists until the user saves or navigates away from the post entirely.
+
+When navigating away with unsaved changes: browser `beforeunload` event + Next.js `routeChangeStart` listener show "Alterações não salvas. Deseja sair?" confirmation.
+
+No external state library — React Context + `useReducer` is sufficient for single-user CMS. The context holds:
+- `sections`: per-tab form data (content, images, seo, social, publication)
+- `dirty`: per-tab dirty flags
+- `readiness`: computed score (derived, not stored)
+
+---
+
+## UI States
+
+### Loading
+
+- **Kanban boards**: Skeleton cards (3 per column, pulsing gray rectangles matching card anatomy)
+- **Detail views**: Skeleton content (title bar, editor placeholder, sidebar cards) — right sidebar loads first (lighter payload)
+- **Tab switch**: Instant if data is cached in client state, otherwise skeleton for tab content area only (sidebar stays rendered)
+
+### Empty States
+
+- **Kanban columns**: Format-specific illustration + "Nenhum item em [stage]" + "+ Criar" button
+- **Post Detail — Imagens tab (0 images)**: Drag-drop upload zone spanning full width, with dotted border and upload icon
+- **Post Detail — Social tab (no accounts connected)**: Banner linking to Social Hub settings: "Conecte suas redes sociais para distribuir conteúdo" + "Configurar" button
+- **Post Detail — Social tab (accounts connected, no config)**: Platform cards all show "Não configurado" badge, "Gerar todos com IA" button prominent
+
+### Error States
+
+- **Save failure**: Toast notification (bottom-right) with retry button. Dirty state preserved — no data loss.
+- **Graduation failure**: Inline error banner below "Graduar para Post" button with specific reason (e.g., "Título obrigatório para graduação")
+- **Social API failure**: Per-platform error badge ("Erro") on platform card, with "Reconectar" action in kebab menu
+- **Image upload failure**: Failed image shows red border + error icon + "Tentar novamente" overlay
+
+### Confirmation Dialogs
+
+- **"Publicar agora"**: Modal confirmation: "Publicar imediatamente? O post ficará visível no /blog e os posts sociais serão disparados." [Cancelar] [Publicar]
+- **"Devolver ao Pipeline"**: Modal confirmation: "Devolver ao Pipeline? O post voltará como item de pipeline no estágio Rascunho. Social config e data de agendamento serão removidos." [Cancelar] [Devolver]
+- **"Arquivar" (kanban context menu)**: Inline confirmation in context menu: "Arquivar este item?" [Sim] [Não]
 
 ---
 
@@ -430,7 +480,7 @@ Pipeline Kanban ─── click card ──→ Pipeline Detail
        │                          "Graduar para Post"
        │                                  │
        │                                  ▼
-Posts Kanban ───── click card ──→ Post Detail (Conteúdo tab)
+Posts Kanban ───── click card ──→ Post Detail (Conteúdo tab, starts as "Em edição")
                                           │
                                    tab navigation
                                           │
@@ -445,7 +495,7 @@ Posts Kanban ───── click card ──→ Post Detail (Conteúdo tab)
 ```
 
 Cross-navigation:
-- Post detail → "Devolver ao Pipeline" → returns post to pipeline (reverse graduation)
+- Post detail → "Devolver ao Pipeline" → reverse graduation with confirmation dialog. Behavior: blog_post row is soft-deleted (archived), pipeline item's `blog_post_id` FK is nulled, pipeline item stage resets to "Rascunho". Social config and scheduled date are discarded. Content (title, body, images, SEO) remains on the pipeline item — only post-specific data (social, schedule) is lost.
 - Post detail → Origin card → opens pipeline detail for the source item
 - Publicação tab → "Editar" (social section) → navigates to Social tab
 - Pre-publish review → click warn item → navigates to relevant tab
@@ -459,13 +509,37 @@ This redesign touches the existing pipeline and blog post UIs. The implementatio
 1. **Reuse existing components** where they exist (TipTap editor, MediaGalleryDialog, sidebar nav)
 2. **Build new tab system** as the central architectural change
 3. **Preserve existing API routes** — the UI redesign doesn't change the data model (graduation, social_config, etc. already spec'd in prior specs)
-4. **No new DB migrations** — all needed columns exist from content-pipeline-design and pipeline-social-unification-design specs
+4. **One new column** — `blog_posts.social_config JSONB` (same shape as `content_pipeline.social_config`). No other schema changes needed.
 
 Existing specs that feed into this implementation:
 - `2026-05-09-content-pipeline-design.md` — DB schema, API routes, graduation logic
 - `2026-05-14-pipeline-social-unification-design.md` — Social config in pipeline, graduation to social_posts
 - `2026-05-12-sprint-5h-social-hub-design.md` — Social Hub architecture
 - `2026-05-14-social-posts-redesign-design.md` — Social posts data model
+
+### Key API Routes (existing)
+
+| Action | Method | Route | Notes |
+|--------|--------|-------|-------|
+| List pipeline items | GET | `/api/pipeline/items` | Filterable by format, stage |
+| Get pipeline item | GET | `/api/pipeline/items/[id]` | Includes sections JSONB |
+| Update pipeline item | PATCH | `/api/pipeline/items/[id]` | Optimistic locking via `version` |
+| Advance stage | POST | `/api/pipeline/items/[id]/advance` | Validates readiness |
+| Graduate to post | POST | `/api/pipeline/items/[id]/graduate` | Creates blog_post + translations |
+| List blog posts | GET | Supabase client query on `blog_posts` | Filtered by status |
+| Update blog post | PATCH | Supabase client query | Per-translation for i18n fields |
+| Schedule post | POST | Server action `schedulePost(id, date)` | Sets `scheduled_at`, creates social_posts |
+| Publish post | POST | Server action `publishPost(id)` | Sets `published_at`, triggers social delivery |
+| Reverse graduation | POST | Server action `returnToPipeline(postId)` | Archives post, resets pipeline item |
+
+---
+
+## Accessibility
+
+- **Keyboard navigation**: All interactive elements focusable via Tab. Kanban drag-drop has keyboard alternative (arrow keys + Enter to move). Tab bar navigable with arrow keys.
+- **ARIA roles**: Kanban columns use `role="list"`, cards use `role="listitem"`. Tab bar uses `role="tablist"` / `role="tab"` / `role="tabpanel"`. Status badges have `aria-label` with full text.
+- **Focus management**: Opening a detail view focuses the title input. Switching tabs focuses the first interactive element in the new tab panel. Modal dialogs trap focus.
+- **Color contrast**: All text meets WCAG AA against dark backgrounds. Status indicators use shape + color (dot + border), never color alone.
 
 ---
 
