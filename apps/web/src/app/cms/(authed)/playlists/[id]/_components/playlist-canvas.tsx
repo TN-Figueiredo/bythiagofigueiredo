@@ -352,9 +352,9 @@ export function PlaylistCanvas({
   const handleOpenContent = useCallback((itemId: string) => {
     const item = state.items.find(i => i.id === itemId)
     if (!item) return
-    if (item.blog_post_id) router.push(`/cms/blog/${item.blog_post_id}`)
-    else if (item.pipeline_id) router.push(`/cms/pipeline/${item.pipeline_id}`)
-    else if (item.newsletter_edition_id) router.push(`/cms/newsletters`)
+    if (item.blog_post_id) router.push(`/cms/blog/${item.blog_post_id}/edit`)
+    else if (item.pipeline_id) router.push(`/cms/pipeline/items/${item.pipeline_id}`)
+    else if (item.newsletter_edition_id) router.push(`/cms/newsletters/${item.newsletter_edition_id}/edit`)
   }, [state.items, router])
 
   const handleDeleteSelectedEdges = useCallback(async () => {
@@ -925,17 +925,28 @@ export function PlaylistCanvas({
             viewNumber={viewNumbers.get(item.id) ?? null}
             createdAt={item.created_at}
             onClose={() => setContextMenu(null)}
-            onOpenEditor={() => handleOpenContent(item.id)}
-            onCopyId={() => navigator.clipboard.writeText(item.id)}
+            onOpenEditor={() => {
+              setContextMenu(null)
+              handleOpenContent(item.id)
+            }}
+            onCopyId={() => {
+              navigator.clipboard.writeText(item.id)
+              setContextMenu(null)
+            }}
             onAddEdge={() => {
               setContextMenu(null)
               const nodeEl = document.querySelector(`[data-node-id="${item.id}"]`)
               if (nodeEl) {
-                const rect = nodeEl.getBoundingClientRect()
-                const syntheticEvent = new PointerEvent('pointerdown', {
-                  clientX: rect.right, clientY: rect.top + rect.height / 2,
-                })
-                nodeEl.querySelector('[data-handle-id]')?.dispatchEvent(syntheticEvent)
+                const handles = nodeEl.querySelectorAll('[data-handle-id]')
+                const rightHandle = handles[3]
+                if (rightHandle) {
+                  const rect = rightHandle.getBoundingClientRect()
+                  rightHandle.dispatchEvent(new PointerEvent('pointerdown', {
+                    clientX: rect.left + rect.width / 2,
+                    clientY: rect.top + rect.height / 2,
+                    bubbles: true,
+                  }))
+                }
               }
             }}
             onSelectConnected={() => {
