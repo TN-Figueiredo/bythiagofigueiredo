@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 const advancePhase3 = vi.fn();
 const sendReminders = vi.fn();
 const deleteExpiredBlobs = vi.fn();
+const purgeStaleResetAttempts = vi.fn();
+const purgeStaleUnsubscribeTokens = vi.fn();
 
 vi.mock('@/lib/lgpd/container', () => ({
   createLgpdContainer: () => ({
@@ -10,6 +12,8 @@ vi.mock('@/lib/lgpd/container', () => ({
       advancePhase3,
       sendReminders,
       deleteExpiredBlobs,
+      purgeStaleResetAttempts,
+      purgeStaleUnsubscribeTokens,
     },
   }),
 }));
@@ -47,6 +51,8 @@ beforeEach(() => {
   advancePhase3.mockResolvedValue({ processed: 0 });
   sendReminders.mockResolvedValue({ sent: 0 });
   deleteExpiredBlobs.mockResolvedValue({ deleted: 0 });
+  purgeStaleResetAttempts.mockResolvedValue({ deleted: 0 });
+  purgeStaleUnsubscribeTokens.mockResolvedValue({ deleted: 0 });
 });
 
 afterEach(() => {

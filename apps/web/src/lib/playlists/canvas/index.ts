@@ -13,6 +13,8 @@ export {
   clampZoom,
   zoomTowardPoint,
   fitAllNodes,
+  NODE_WIDTH,
+  NODE_HEIGHT,
   type Camera,
   type Point,
 } from './utils'

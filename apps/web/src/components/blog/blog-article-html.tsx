@@ -1,5 +1,6 @@
 'use client'
 
+import DOMPurify from 'isomorphic-dompurify'
 import { useEffect, useRef } from 'react'
 import { EmbedHydrator } from './embed-hydrator'
 
@@ -17,5 +18,5 @@ export function BlogArticleHtml({ html }: BlogArticleHtmlProps) {
     return () => hydrator.cleanup()
   }, [html])
 
-  return <div ref={bodyRef} dangerouslySetInnerHTML={{ __html: html }} />
+  return <div ref={bodyRef} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />
 }

@@ -4,47 +4,19 @@ import { useState, useCallback, useEffect, useMemo } from 'react'
 import { TopicTree } from './topic-tree'
 import { ResearchList } from './research-list'
 import { ResearchDetail } from './research-detail'
-
-interface Topic {
-  id: string
-  parent_id: string | null
-  name: string
-  slug: string
-  path: string
-  depth: number
-  color: string
-  icon: string
-  sort_order: number
-}
-
-interface ResearchItem {
-  id: string
-  title: string
-  topic_id: string
-  summary: string | null
-  status: string
-  word_count: number
-  sources: any[]
-  version: number
-  created_at: string
-  updated_at: string
-  content_json?: any
-  content_md?: string | null
-}
-
-interface Stats {
-  total: number
-  unread: number
-  starred: number
-  reviewed: number
-  archived: number
-}
+import type {
+  ResearchTopic,
+  ResearchItemSummary,
+  ResearchItemFull,
+  ResearchStats,
+  TopicItemCounts,
+} from '@/lib/pipeline/research-types'
 
 interface ResearchLibraryProps {
-  topics: Topic[]
-  items: ResearchItem[]
-  stats: Stats
-  topicItemCounts: Record<string, { total: number; unread: number }>
+  topics: ResearchTopic[]
+  items: ResearchItemSummary[]
+  stats: ResearchStats
+  topicItemCounts: TopicItemCounts
 }
 
 export function ResearchLibrary({
@@ -57,8 +29,7 @@ export function ResearchLibrary({
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [items, setItems] = useState(initialItems)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [detailItem, setDetailItem] = useState<Record<string, any> | null>(null)
+  const [detailItem, setDetailItem] = useState<ResearchItemFull | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
 
   const topicChildIds = useMemo(() => {
@@ -96,7 +67,7 @@ export function ResearchLibrary({
     }
   }, [])
 
-  const handleItemUpdated = useCallback((updated: any) => {
+  const handleItemUpdated = useCallback((updated: Partial<ResearchItemFull> & { id: string }) => {
     setItems((prev) =>
       prev.map((item) => (item.id === updated.id ? { ...item, ...updated } : item))
     )
@@ -111,17 +82,12 @@ export function ResearchLibrary({
     }
   }, [selectedItemId])
 
-  const handleCreateTopic = useCallback(() => {
+  const handleCreateTopic = useCallback(async () => {
     const name = window.prompt('Nome do topic:')
     if (!name) return
     const slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-    fetch('/api/pipeline/research/topics', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, slug, parent_id: selectedTopicId }),
-    }).then(() => {
-      window.location.reload()
-    })
+    const { createResearchTopic } = await import('../actions')
+    await createResearchTopic({ name, slug, parent_id: selectedTopicId })
   }, [selectedTopicId])
 
   useEffect(() => {
@@ -174,10 +140,12 @@ export function ResearchLibrary({
       />
       <ResearchDetail
         item={detailItem}
+        loading={loadingDetail}
         isEditing={isEditing}
         onToggleEdit={setIsEditing}
         onItemUpdated={handleItemUpdated}
         onItemDeleted={handleItemDeleted}
+        onSelectTopic={setSelectedTopicId}
       />
     </div>
   )

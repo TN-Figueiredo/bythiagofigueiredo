@@ -17,23 +17,23 @@ import { SortableContext, verticalListSortingStrategy, arrayMove, sortableKeyboa
 import { toast } from 'sonner'
 import type { PostCard, BlogTag } from '../../_hub/hub-types'
 import type { BlogHubStrings } from '../../_i18n/types'
-import { mapStatusToColumn } from '../../_hub/hub-utils'
+import { mapStatusToColumn, isValidTransition } from '../../_hub/hub-utils'
 import { KanbanColumn } from './kanban-column'
 import { KanbanCardOverlay } from './kanban-card'
 import { ScheduleModal } from './schedule-modal'
 
 const COLUMN_DEFS = [
-  { id: 'idea', key: 'idea' as const, color: '#9ca3af' },
-  { id: 'draft', key: 'draft' as const, color: '#6366f1' },
   { id: 'ready', key: 'ready' as const, color: '#06b6d4' },
+  { id: 'scheduled', key: 'scheduled' as const, color: '#8b5cf6' },
+  { id: 'published', key: 'published' as const, color: '#22c55e' },
 ] as const
 
 const COLUMN_IDS: Set<string> = new Set(COLUMN_DEFS.map((c) => c.id))
 
 const FALLBACK_TITLES: Record<string, string> = {
-  idea: 'Idea',
-  draft: 'Draft',
   ready: 'Ready',
+  scheduled: 'Scheduled',
+  published: 'Published',
 }
 
 // Map blog post status → kanban column id
@@ -53,7 +53,6 @@ interface KanbanBoardProps {
   onRemoveLocale?: (postId: string, locale: string) => Promise<void>
   onDuplicate?: (postId: string) => Promise<void>
   onCreateAndAssignTag?: (postId: string, tagName: string) => Promise<void>
-  onQuickAdd?: (title: string) => Promise<void>
   strings?: BlogHubStrings
   tags?: BlogTag[]
   supportedLocales?: string[]
@@ -71,7 +70,6 @@ export function KanbanBoard({
   onRemoveLocale,
   onDuplicate,
   onCreateAndAssignTag,
-  onQuickAdd,
   strings,
   tags,
   supportedLocales,
@@ -211,6 +209,12 @@ export function KanbanBoard({
       }
 
       const targetStatus = newCol as PostCard['status']
+
+      if (!isValidTransition(originalPost.status, targetStatus)) {
+        toast.error(strings?.common.couldntMove ?? "Couldn't move")
+        return
+      }
+
       const finalOrder = currentLocal ?? optimisticPosts
 
       startTransition(async () => {
@@ -296,7 +300,6 @@ export function KanbanBoard({
               onRemoveLocale={onRemoveLocale}
               onDuplicate={onDuplicate}
               onCreateAndAssignTag={onCreateAndAssignTag}
-              onQuickAdd={col.id === 'idea' ? onQuickAdd : undefined}
               defaultLocale={defaultLocale}
             />
           )

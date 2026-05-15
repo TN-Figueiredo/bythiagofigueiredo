@@ -8,7 +8,7 @@ import {
   useMemo,
 } from 'react'
 import { scheduleItem, unslotItem, publishNow } from './actions'
-import type { SchedulePost, ScheduleEdition } from './page'
+import type { SchedulePost, ScheduleEdition, ScheduleSocialPost } from './page'
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                             */
@@ -22,7 +22,7 @@ interface ScheduleItemBase {
   status: string
   slot_date: string | null
   queue_position: number | null
-  type: 'post' | 'newsletter'
+  type: 'post' | 'newsletter' | 'social'
   subtitle: string | null
 }
 
@@ -39,6 +39,7 @@ interface Props {
   backlogPosts: SchedulePost[]
   scheduledEditions: ScheduleEdition[]
   backlogEditions: ScheduleEdition[]
+  socialPosts?: ScheduleSocialPost[]
   today: string
   readOnly?: boolean
   siteTimezone: string
@@ -60,6 +61,7 @@ const TYPE_COLORS = {
   post: { bg: 'bg-blue-900/40', border: 'border-blue-700', text: 'text-blue-300', badge: 'bg-blue-800 text-blue-200' },
   newsletter: { bg: 'bg-emerald-900/40', border: 'border-emerald-700', text: 'text-emerald-300', badge: 'bg-emerald-800 text-emerald-200' },
   campaign: { bg: 'bg-purple-900/40', border: 'border-purple-700', text: 'text-purple-300', badge: 'bg-purple-800 text-purple-200' },
+  social: { bg: 'bg-pink-900/40', border: 'border-pink-700', text: 'text-pink-300', badge: 'bg-pink-800 text-pink-200' },
 } as const
 
 /* ------------------------------------------------------------------ */
@@ -105,6 +107,7 @@ function formatMonthYear(d: Date): string {
 function normalizeItems(
   posts: SchedulePost[],
   editions: ScheduleEdition[],
+  socials: ScheduleSocialPost[] = [],
 ): ScheduleItemBase[] {
   const postItems: ScheduleItemBase[] = posts.map((p) => ({
     id: p.id,
@@ -124,7 +127,16 @@ function normalizeItems(
     type: 'newsletter',
     subtitle: e.newsletter_type_name,
   }))
-  return [...postItems, ...editionItems]
+  const socialItems: ScheduleItemBase[] = socials.map((s) => ({
+    id: s.id,
+    title: s.title,
+    status: s.status,
+    slot_date: s.scheduled_at?.split('T')[0] ?? null,
+    queue_position: null,
+    type: 'social',
+    subtitle: s.origin,
+  }))
+  return [...postItems, ...editionItems, ...socialItems]
 }
 
 function groupByDate(
@@ -196,7 +208,7 @@ function ItemCard({
         <span
           className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${colors.badge}`}
         >
-          {item.type === 'post' ? 'Post' : 'NL'}
+          {item.type === 'post' ? 'Post' : item.type === 'social' ? 'Social' : 'NL'}
         </span>
       </div>
       {isOverdue && (
@@ -669,6 +681,7 @@ export function ScheduleConnected({
   backlogPosts,
   scheduledEditions,
   backlogEditions,
+  socialPosts = [],
   today,
   readOnly = false,
   siteTimezone,
@@ -695,8 +708,8 @@ export function ScheduleConnected({
 
   // Derived data
   const allScheduled = useMemo(
-    () => normalizeItems(localScheduledPosts, localScheduledEditions),
-    [localScheduledPosts, localScheduledEditions],
+    () => normalizeItems(localScheduledPosts, localScheduledEditions, socialPosts),
+    [localScheduledPosts, localScheduledEditions, socialPosts],
   )
   const allBacklog = useMemo(
     () => normalizeItems(localBacklogPosts, localBacklogEditions),
@@ -743,7 +756,7 @@ export function ScheduleConnected({
 
   const handleUnslot = useCallback(
     (item: ScheduleItemBase) => {
-      if (readOnly) return
+      if (readOnly || item.type === 'social') return
       const table = tableForItem(item)
       setUndoEntry({
         action: 'unslot',
@@ -790,7 +803,7 @@ export function ScheduleConnected({
 
   const handlePublish = useCallback(
     (item: ScheduleItemBase) => {
-      if (readOnly) return
+      if (readOnly || item.type === 'social') return
       const table = tableForItem(item)
 
       // Optimistic: remove from both lists

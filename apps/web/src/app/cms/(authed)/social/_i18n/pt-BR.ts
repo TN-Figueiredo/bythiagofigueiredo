@@ -27,6 +27,7 @@ export const ptBR: SocialStrings = {
     noContent: '(sem conteúdo)',
     review: 'Revisar',
     selected: '{count} selecionados',
+    emptyFilter: 'Nenhum resultado para os filtros selecionados.',
     emptyDrafts: 'Nenhum rascunho de IA pendente',
     emptyDraftsCta: 'Configurar Automações',
     bulk: { reschedule: 'Reagendar', retry: 'Retentar Falhas', moveToQueue: 'Mover para Fila', delete: 'Excluir', deleteConfirm: 'Posts publicados são removidos apenas do CMS — permanecem ativos nas plataformas.' },

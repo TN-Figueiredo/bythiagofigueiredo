@@ -22,7 +22,7 @@ export function useSocialDeliveries(postId: string): SocialDelivery[] {
     // Initial fetch
     supabase
       .from('social_deliveries')
-      .select('*')
+      .select('id, post_id, connection_id, provider, status, platform_post_id, platform_url, content_override, attempt, max_attempts, published_at, created_at')
       .eq('post_id', postId)
       .order('created_at', { ascending: true })
       .then(({ data }) => {

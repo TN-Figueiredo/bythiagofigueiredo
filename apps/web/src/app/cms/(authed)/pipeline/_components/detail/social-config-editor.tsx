@@ -10,6 +10,8 @@ interface SocialConfigEditorProps {
   onChange: (config: SocialConfig) => void
   disabled?: boolean
   contentFormat?: string
+  autoFillHook?: string | null
+  autoFillTags?: string[]
 }
 
 const ALL_PROVIDERS: Provider[] = ['facebook', 'instagram', 'bluesky', 'youtube']
@@ -68,7 +70,7 @@ function parseHashtags(input: string): string[] {
     .filter(Boolean)
 }
 
-export function SocialConfigEditor({ config, onChange, disabled, contentFormat }: SocialConfigEditorProps) {
+export function SocialConfigEditor({ config, onChange, disabled, contentFormat, autoFillHook, autoFillTags }: SocialConfigEditorProps) {
   const [expandedPlatforms, setExpandedPlatforms] = useState<Set<Provider>>(() => new Set())
 
   const update = useCallback(
@@ -133,7 +135,11 @@ export function SocialConfigEditor({ config, onChange, disabled, contentFormat }
       <button
         type="button"
         disabled={disabled}
-        onClick={() => onChange({ ...DEFAULT_CONFIG })}
+        onClick={() => onChange({
+          ...DEFAULT_CONFIG,
+          hashtags: autoFillTags ?? [],
+          captions: autoFillHook ? { facebook: { pt: autoFillHook, en: '' }, instagram: { pt: autoFillHook, en: '' }, bluesky: { pt: autoFillHook, en: '' }, youtube: { pt: autoFillHook, en: '' } } : {},
+        })}
         className="w-full py-2 text-xs font-semibold rounded-md transition-opacity"
         style={{
           background: 'var(--gem-accent)',

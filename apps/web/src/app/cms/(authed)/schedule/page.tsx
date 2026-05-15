@@ -31,6 +31,14 @@ export interface ScheduleEdition {
   newsletter_type_name: string | null
 }
 
+export interface ScheduleSocialPost {
+  id: string
+  title: string
+  status: string
+  scheduled_at: string | null
+  origin: string | null
+}
+
 /* ------------------------------------------------------------------ */
 /*  Data loader                                                       */
 /* ------------------------------------------------------------------ */
@@ -56,6 +64,7 @@ async function ScheduleData() {
     backlogPostsRes,
     scheduledEditionsRes,
     backlogEditionsRes,
+    socialPostsRes,
   ] = await Promise.all([
     // Scheduled posts (next 30 days)
     supabase
@@ -126,6 +135,15 @@ async function ScheduleData() {
       .eq('status', 'ready')
       .is('slot_date', null)
       .order('queue_position', { ascending: true, nullsFirst: false }),
+
+    // Social posts scheduled in the next 30 days
+    supabase
+      .from('social_posts')
+      .select('id, status, scheduled_at, origin, content')
+      .eq('site_id', siteId)
+      .not('scheduled_at', 'is', null)
+      .in('status', ['scheduled', 'draft'])
+      .order('scheduled_at'),
   ])
 
   // Map raw data to typed arrays
@@ -167,12 +185,25 @@ async function ScheduleData() {
   const scheduledEditions = (scheduledEditionsRes.data ?? []).map(mapEdition)
   const backlogEditions = (backlogEditionsRes.data ?? []).map(mapEdition)
 
+  const mapSocial = (row: Record<string, unknown>): ScheduleSocialPost => {
+    const content = row.content as { title?: string; description?: string } | null
+    return {
+      id: row.id as string,
+      title: content?.title ?? content?.description?.slice(0, 60) ?? 'Social Post',
+      status: row.status as string,
+      scheduled_at: row.scheduled_at as string | null,
+      origin: row.origin as string | null,
+    }
+  }
+  const socialPosts = (socialPostsRes.data ?? []).map(mapSocial)
+
   return (
     <ScheduleConnected
       scheduledPosts={scheduledPosts}
       backlogPosts={backlogPosts}
       scheduledEditions={scheduledEditions}
       backlogEditions={backlogEditions}
+      socialPosts={socialPosts}
       today={today}
       readOnly={readOnly}
       siteTimezone={siteTimezone}

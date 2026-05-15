@@ -55,6 +55,9 @@ apps/*/.env.local-db
 # Claude Code per-project state
 .claude/
 
+# MCP server configuration (may contain sensitive paths/keys)
+.mcp.json
+
 # Superpowers brainstorm artifacts
 .superpowers/
 supabase/backup_*_pre_squash.sql

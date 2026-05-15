@@ -24,7 +24,7 @@ export default async function FormatBoardPage({ params }: { params: Promise<{ fo
       .select(`
         id, code, title_pt, title_en, stage, priority, language, tags,
         production_checklist, version, sort_order, format, hook, body_content, updated_at,
-        youtube_video_id, blog_post_id, newsletter_edition_id, campaign_id,
+        youtube_video_id, blog_post_id, newsletter_edition_id, campaign_id, social_post_id,
         is_archived, format_metadata, blog_posts(status),
         content_pipeline_memberships(role, content_collections(code, name))
       `)
@@ -60,6 +60,7 @@ export default async function FormatBoardPage({ params }: { params: Promise<{ fo
       production_checklist: item.production_checklist ?? [], updated_at: item.updated_at,
       youtube_video_id: item.youtube_video_id, blog_post_id: item.blog_post_id,
       newsletter_edition_id: item.newsletter_edition_id, campaign_id: item.campaign_id,
+      social_post_id: (item as Record<string, unknown>).social_post_id as string | null,
       is_archived: item.is_archived, validation_score: score.overall,
       dependencies: [], collection_code: collectionCode,
       linked_post_status: (item as unknown as { blog_posts?: { status: string } | null }).blog_posts?.status ?? null,

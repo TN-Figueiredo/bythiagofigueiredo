@@ -61,25 +61,23 @@ export async function getContentForSocialPost(
     const supabase = getSupabaseServiceClient()
 
     if (parsedType.data === 'blog') {
-      const { data } = await supabase
+      const { data: rows, error: dbErr } = await supabase
         .from('blog_posts')
-        .select('id, slug, cover_image_url, blog_translations!inner(title, meta_description, locale)')
+        .select('id, cover_image_url, blog_translations(title, slug, meta_description, locale)')
         .eq('id', contentId)
         .eq('site_id', siteId)
-        .single()
-      if (!data) return { ok: false, error: 'not_found' }
-      const row = data as {
-        slug: string
-        cover_image_url: string | null
-        blog_translations: Array<{ title: string; meta_description: string | null; locale: string }>
-      }
-      const tx = row.blog_translations[0]
+        .limit(1)
+      if (dbErr || !rows?.[0]) return { ok: false, error: dbErr?.message ?? 'not_found' }
+      const data = rows[0]
+      const record = data as unknown as Record<string, unknown>
+      const translations = record.blog_translations as Array<{ title: string; slug: string; meta_description: string | null; locale: string }> | undefined
+      const tx = translations?.[0]
       return {
         ok: true,
         data: {
           title: tx?.title ?? '',
-          url: `${process.env.NEXT_PUBLIC_APP_URL}/blog/${row.slug}`,
-          image: row.cover_image_url,
+          url: `${process.env.NEXT_PUBLIC_APP_URL}/blog/${tx?.slug ?? contentId}`,
+          image: data.cover_image_url as string | null,
           excerpt: tx?.meta_description ?? null,
           tags: [],
           locale: tx?.locale ?? 'pt-BR',
@@ -113,23 +111,21 @@ export async function getContentForSocialPost(
     }
 
     if (parsedType.data === 'campaign') {
-      const { data } = await supabase
+      const { data: rows, error: dbErr } = await supabase
         .from('campaigns')
-        .select('id, slug, campaign_translations!inner(meta_title, meta_description, og_image_url)')
+        .select('id, campaign_translations(slug, meta_title, meta_description, og_image_url)')
         .eq('id', contentId)
         .eq('site_id', siteId)
-        .single()
-      if (!data) return { ok: false, error: 'not_found' }
-      const row = data as {
-        slug: string
-        campaign_translations: Array<{ meta_title: string; meta_description: string | null; og_image_url: string | null }>
-      }
-      const tx = row.campaign_translations[0]
+        .limit(1)
+      if (dbErr || !rows?.[0]) return { ok: false, error: dbErr?.message ?? 'not_found' }
+      const record = rows[0] as unknown as Record<string, unknown>
+      const translations = record.campaign_translations as Array<{ slug: string; meta_title: string; meta_description: string | null; og_image_url: string | null }> | undefined
+      const tx = translations?.[0]
       return {
         ok: true,
         data: {
           title: tx?.meta_title ?? '',
-          url: `${process.env.NEXT_PUBLIC_APP_URL}/campaigns/${row.slug}`,
+          url: `${process.env.NEXT_PUBLIC_APP_URL}/campaigns/${tx?.slug ?? contentId}`,
           image: tx?.og_image_url ?? null,
           excerpt: tx?.meta_description ?? null,
           tags: [],

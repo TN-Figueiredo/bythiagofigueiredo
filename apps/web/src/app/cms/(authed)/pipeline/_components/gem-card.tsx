@@ -30,6 +30,7 @@ export interface GemCardItem {
   blog_post_id: string | null
   newsletter_edition_id: string | null
   campaign_id: string | null
+  social_post_id: string | null
   linked_post_status: string | null
   is_archived: boolean
   validation_score: number

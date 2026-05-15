@@ -1,20 +1,18 @@
 'use client'
 
-import { useCallback, useDeferredValue, useMemo, useState, useTransition } from 'react'
+import { useDeferredValue, useState, useTransition } from 'react'
 import { Kanban, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import type { EditorialTabData, PostCard, BlogTag } from '../../_hub/hub-types'
+import type { EditorialTabData, BlogTag } from '../../_hub/hub-types'
 import type { BlogHubStrings } from '../../_i18n/types'
 import { VelocityStrip } from './velocity-strip'
 import { KanbanBoard } from './kanban-board'
 import { EmptyState } from '../../_shared/empty-state'
 import { SectionErrorBoundary } from '../../_shared/section-error-boundary'
-import { movePost, deleteHubPost, reassignTag, addLocale, removeTranslationLocale, duplicatePost, createPost, searchPipelineItems, createPostFromPipeline } from '../../actions'
+import { movePost, deleteHubPost, reassignTag, addLocale, removeTranslationLocale, duplicatePost } from '../../actions'
 import { createTag } from '../../tag-actions'
-import type { PipelineSearchResult } from '../../actions'
-import { PipelineSearchInput } from '../../_shared/pipeline-search-input'
 
 interface EditorialTabProps {
   data: EditorialTabData
@@ -33,13 +31,9 @@ export function EditorialTab({ data, strings, siteId, tagId, locale, supportedLo
   const [searchQuery, setSearchQuery] = useState('')
   const deferredQuery = useDeferredValue(searchQuery)
   const [, startTransition] = useTransition()
-  const [optimisticIdeas, setOptimisticIdeas] = useState<PostCard[]>([])
   const [confirmedIds, setConfirmedIds] = useState<Set<string>>(new Set())
 
-  // Merge server posts with optimistic ideas (filter out any that the server already returned)
-  const serverIds = new Set(data.posts.map((p) => p.id))
-  const pendingIdeas = optimisticIdeas.filter((o) => !serverIds.has(o.id))
-  const allPosts = [...pendingIdeas, ...data.posts]
+  const allPosts = data.posts
 
   const tagFiltered = tagId
     ? allPosts.filter((p) => p.tagId === tagId)
@@ -54,14 +48,6 @@ export function EditorialTab({ data, strings, siteId, tagId, locale, supportedLo
         p.title.toLowerCase().includes(deferredQuery.toLowerCase()),
       )
     : localeFiltered
-
-  const newPostHref = useMemo(() => {
-    const params = new URLSearchParams()
-    if (tagId) params.set('tag', tagId)
-    if (locale) params.set('locale', locale)
-    const qs = params.toString()
-    return qs ? `/cms/blog/new?${qs}` : '/cms/blog/new'
-  }, [tagId, locale])
 
   const handleMovePost = async (postId: string, newStatus: string, scheduledFor?: string) => {
     const previousStatus = allPosts.find((p) => p.id === postId)?.status
@@ -156,77 +142,19 @@ export function EditorialTab({ data, strings, siteId, tagId, locale, supportedLo
     })
   }
 
-  const handleQuickAdd = useCallback(async (title: string) => {
-    const tempId = `optimistic-${crypto.randomUUID()}`
-    const now = new Date().toISOString()
-    const optimisticCard: PostCard = {
-      id: tempId,
-      displayId: 'NEW',
-      title,
-      status: 'idea',
-      tagId: tagId ?? null,
-      tagName: null,
-      tagColor: null,
-      tagNameTranslations: null,
-      locales: [locale ?? 'en'],
-      readingTimeMin: null,
-      createdAt: now,
-      updatedAt: now,
-      publishedAt: null,
-      scheduledFor: null,
-      slotDate: null,
-      snippet: null,
-    }
-
-    // Insert optimistic card immediately
-    setOptimisticIdeas((prev) => [optimisticCard, ...prev])
-
-    try {
-      const result = await createPost({
-        title,
-        locale: locale ?? 'en',
-        tagId: tagId ?? null,
-        status: 'idea',
-      })
-
-      if (result.ok) {
-        // Remove the optimistic card (server revalidation will bring the real one)
-        setOptimisticIdeas((prev) => prev.filter((c) => c.id !== tempId))
-        // Mark the real postId as recently confirmed for the green flash
-        setConfirmedIds((prev) => new Set(prev).add(result.postId))
-        setTimeout(() => {
-          setConfirmedIds((prev) => {
-            const next = new Set(prev)
-            next.delete(result.postId)
-            return next
-          })
-        }, 1500)
-        toast.success(strings?.editorial.ideaCreated ?? 'Idea created')
-      } else {
-        // Remove optimistic card on server error
-        setOptimisticIdeas((prev) => prev.filter((c) => c.id !== tempId))
-        toast.error(strings?.editorial.ideaFailed ?? "Couldn't create idea")
-      }
-    } catch {
-      // Remove optimistic card on network/unexpected error
-      setOptimisticIdeas((prev) => prev.filter((c) => c.id !== tempId))
-      toast.error(strings?.editorial.ideaFailed ?? "Couldn't create idea")
-    }
-  }, [locale, tagId, strings])
-
   if (data.posts.length === 0) {
     return (
       <EmptyState
         icon={<Kanban className="h-8 w-8" />}
-        heading="Nenhum post no pipeline"
-        description="Comece criando uma ideia no Pipeline de Blog"
+        heading={strings?.empty.noPosts ?? 'Nenhum post pronto'}
+        description={strings?.empty.startWriting ?? 'Quando posts ficarem prontos no Pipeline, eles aparecerão aqui'}
         action={
           <Link
             href="/cms/pipeline/blog_post"
             className="rounded-lg bg-indigo-500 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-600"
           >
             <Plus className="mr-1 inline h-3.5 w-3.5" />
-            Ir para o Pipeline
+            {strings?.actions.newIdea ?? 'Ir para o Pipeline'}
           </Link>
         }
       />
@@ -248,42 +176,13 @@ export function EditorialTab({ data, strings, siteId, tagId, locale, supportedLo
           aria-label={strings?.editorial.searchPosts ?? 'Search posts'}
           className="w-64 rounded-md border border-gray-800 bg-gray-900 px-3 py-1.5 text-[11px] text-gray-300 placeholder-gray-600 focus:border-indigo-500 focus:outline-none"
         />
-        {siteId && (
-          <PipelineSearchInput
-            onSearch={(q) => searchPipelineItems(siteId, q)}
-            onSelect={async (item: PipelineSearchResult) => {
-              const postLocale =
-                item.language === 'en'
-                  ? 'en'
-                  : item.language === 'pt-br'
-                    ? 'pt-BR'
-                    : defaultLocale ?? 'pt-BR'
-              try {
-                const result = await createPostFromPipeline(siteId, item.id, postLocale)
-                if (result.ok) {
-                  toast.success(`Post criado a partir de ${item.code}`, {
-                    action: {
-                      label: 'Abrir →',
-                      onClick: () => window.open(`/cms/blog/${result.postId}/edit`, '_blank'),
-                    },
-                  })
-                  router.refresh()
-                } else {
-                  toast.error(result.error)
-                }
-              } catch {
-                toast.error('Erro ao criar post a partir do pipeline')
-              }
-            }}
-            mode="create"
-          />
-        )}
       </div>
 
-      <div className="flex items-center gap-2 rounded-lg px-3 py-2 text-[11px]" style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)' }}>
-        <span style={{ color: '#818cf8' }}>Posts prontos para publicação estão no</span>
-        <Link href="/cms/posts" className="font-semibold underline" style={{ color: '#818cf8' }}>Editor de Posts →</Link>
-      </div>
+      {filtered.length === 0 && allPosts.length > 0 && (
+        <p className="text-center text-[11px] text-gray-600 py-4">
+          {strings?.empty.noData ?? 'Nenhum post encontrado com os filtros atuais'}
+        </p>
+      )}
 
       <SectionErrorBoundary sectionName="Kanban board">
         <KanbanBoard
@@ -296,7 +195,6 @@ export function EditorialTab({ data, strings, siteId, tagId, locale, supportedLo
           onRemoveLocale={handleRemoveLocale}
           onDuplicate={handleDuplicate}
           onCreateAndAssignTag={handleCreateAndAssignTag}
-          onQuickAdd={handleQuickAdd}
           strings={strings}
           tags={tags}
           supportedLocales={supportedLocales}

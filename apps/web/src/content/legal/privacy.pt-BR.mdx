@@ -1,13 +1,13 @@
 ---
 title: "Política de Privacidade"
-version: "1.0"
-effectiveDate: "2026-04-16"
+version: "1.1"
+effectiveDate: "2026-05-14"
 locale: "pt-BR"
 ---
 
 # Política de Privacidade
 
-**Versão 1.0 — em vigor desde 16 de abril de 2026.**
+**Versão 1.1 — em vigor desde 14 de maio de 2026.**
 
 Esta Política de Privacidade descreve como coletamos, usamos, armazenamos e protegemos seus dados pessoais quando você usa o site **bythiagofigueiredo.com** e serviços relacionados. Foi escrita em linguagem simples para ser compreensível por qualquer pessoa — sem jargão jurídico desnecessário — e atende aos requisitos da Lei Geral de Proteção de Dados (LGPD, Lei 13.709/2018) e do Regulamento Geral sobre a Proteção de Dados (GDPR, Regulamento UE 2016/679) para visitantes na União Europeia.
 
@@ -25,7 +25,8 @@ O controlador dos dados pessoais tratados neste site é:
 Coletamos apenas os dados estritamente necessários para cada finalidade. Detalhamento por superfície:
 
 - **Conta de usuário (quando você se cadastra):** e-mail, senha (armazenada em hash bcrypt pelo Supabase Auth), data de criação, data do último login, locale preferido.
-- **Newsletter:** e-mail, data de inscrição, versão do texto de consentimento aceito, IP + user-agent no momento da inscrição (accountability LGPD Art. 9º).
+- **Newsletter:** e-mail, data de inscrição, versão do texto de consentimento aceito, IP + user-agent no momento da inscrição (accountability LGPD Art. 9º). Após o envio, coletamos eventos de abertura (open tracking pixel), eventos de clique em links, IP e user-agent associados a cada interação — utilizados exclusivamente para métricas agregadas de desempenho da newsletter.
+- **Gestão de redes sociais (se você conectar contas):** tokens de autenticação OAuth (Meta/Facebook, Meta/Instagram, Google/YouTube) ou credenciais de sessão (Bluesky/AT Protocol), dados de perfil público da conta conectada, metadados de publicações criadas ou agendadas através da plataforma.
 - **Formulário de contato:** nome, e-mail, mensagem, IP + user-agent, timestamp.
 - **Conteúdo autoral (se você for editor/repórter):** posts de blog, campanhas, biografia, avatar, metadados de edição.
 - **Logs de auditoria:** ações administrativas (criar/editar/publicar conteúdo, convites) associadas ao seu `user_id`, com IP e user-agent.
@@ -46,6 +47,9 @@ Para cada categoria de dado, listamos a finalidade e a base legal da LGPD (Art. 
 | Logs de auditoria | Conformidade legal, segurança, prevenção a fraude | Art. 7º VI (exercício regular de direitos) |
 | Telemetria de **erros** (Sentry, somente stack traces + metadados) | Identificar, diagnosticar e corrigir falhas | Art. 7º VIII (legítimo interesse) |
 | Telemetria de **performance** (Sentry Browser Tracing) e **Session Replay** | Métricas detalhadas de navegação e reprodução de sessão para debugging | Art. 7º I (consentimento — analytics) |
+| Rastreamento de newsletter (abertura, clique, IP) | Métricas agregadas de desempenho de campanhas | Art. 7º IX (legítimo interesse — analytics operacional) |
+| Gestão de redes sociais (Meta, YouTube, Bluesky) | Publicação e agendamento de conteúdo em plataformas de terceiros | Art. 7º I (consentimento — conexão OAuth explícita) |
+| Publicidade (Google AdSense) | Exibição de anúncios contextuais e personalizados | Art. 7º I (consentimento — opt-in via banner de cookies) |
 | Cookies funcionais | Sessão, preferências, CSRF | Art. 7º V (execução de contrato) |
 | Cookies de analytics/marketing | Métricas agregadas, personalização | Art. 7º I (consentimento) |
 
@@ -68,7 +72,7 @@ Quando — e **somente quando** — você aceita os cookies de **analytics** no 
 
 Esses dois componentes são ativados dinamicamente ao conceder o consentimento de analytics e **interrompidos em tempo real** ao revogá-lo. A base legal é **consentimento (LGPD Art. 7º I / GDPR Art. 6(1)(a))** e, ao contrário da camada de erros, **não operamos sob legítimo interesse para tracing/replay**.
 
-Não utilizamos o inciso IX do Art. 7º (que não existe na LGPD brasileira — a lista termina no X).
+O Art. 7º IX da LGPD (legítimo interesse — "quando necessário para atender aos interesses legítimos do controlador ou de terceiro") é utilizado apenas para o rastreamento operacional de newsletter (métricas de abertura e clique), conforme detalhado na tabela acima.
 
 ## 4. Compartilhamento com terceiros (suboperadores)
 
@@ -77,23 +81,33 @@ Compartilhamos dados estritamente necessários com os seguintes operadores, todo
 | Operador | Finalidade | Localização | Base de transferência |
 |----------|-----------|-------------|----------------------|
 | Supabase Inc. | Banco de dados + autenticação + storage | AWS sa-east-1 (São Paulo/BR) | Sem transferência internacional (BR→BR) |
-| Brevo SAS | Envio de e-mails transacionais e de newsletter | França (UE) | País com nível de proteção adequado (GDPR Art. 45) |
+| Resend, Inc. | Envio de e-mails transacionais e de newsletter | EUA | Cláusulas Contratuais Padrão (SCCs, GDPR Art. 46(2)(c)) + DPA assinado |
 | Vercel Inc. | Hospedagem da aplicação Next.js (web hosting) | EUA | Cláusulas Contratuais Padrão (SCCs, GDPR Art. 46(2)(c)) + DPA assinado |
 | Sentry (Functional Software Inc.) | Telemetria de erros | EUA | Cláusulas Contratuais Padrão (SCCs, GDPR Art. 46(2)(c)) + DPA assinado |
 | Cloudflare Inc. | CAPTCHA (Turnstile) | EUA | Cláusulas Contratuais Padrão (SCCs, GDPR Art. 46(2)(c)) |
+| Google LLC (AdSense) | Exibição de anúncios; cookies de personalização de anúncios, comportamento de navegação, interesses inferidos | EUA | Cláusulas Contratuais Padrão (SCCs, GDPR Art. 46(2)(c)) + DPA assinado |
+| Google LLC (YouTube/OAuth) | Autenticação OAuth, dados de canal, metadados de vídeos para gestão de publicações sociais | EUA | Cláusulas Contratuais Padrão (SCCs, GDPR Art. 46(2)(c)) + DPA assinado |
+| Meta Platforms, Inc. (Facebook/Instagram) | Autenticação OAuth, dados de perfil, publicação e agendamento de conteúdo em Facebook e Instagram | EUA | Cláusulas Contratuais Padrão (SCCs, GDPR Art. 46(2)(c)) + DPA assinado |
+| Bluesky PBC (AT Protocol) | Autenticação de sessão, publicação de conteúdo na rede Bluesky | EUA | Cláusulas Contratuais Padrão (SCCs, GDPR Art. 46(2)(c)) |
 
-Não vendemos, não alugamos, nem cedemos seus dados a anunciantes ou data brokers.
+Não vendemos, não alugamos, nem cedemos seus dados a data brokers. Os dados compartilhados com o Google AdSense são utilizados exclusivamente para exibição de anúncios e são coletados somente com seu consentimento explícito via banner de cookies (categoria marketing).
 
 ## 5. Transferências internacionais
 
-Os dados tratados ficam armazenados em **São Paulo (Brasil)** no Supabase (AWS sa-east-1). Algumas operações auxiliares envolvem transferência internacional para:
+Os dados tratados ficam armazenados em **São Paulo (Brasil)** no Supabase (AWS sa-east-1). Algumas operações auxiliares envolvem transferência internacional para os **Estados Unidos**, conforme detalhado abaixo:
 
-- **Estados Unidos** (Vercel hosting, Sentry telemetria, Cloudflare Turnstile) — todas amparadas por **Cláusulas Contratuais Padrão (SCCs) aprovadas pela Comissão Europeia** (GDPR Art. 46(2)(c)), além de DPAs (Data Processing Agreements) individuais.
-- **União Europeia** (Brevo, França) — país com nível de proteção adequado reconhecido pela ANPD e pela Comissão Europeia.
+| Operador | País | Dados transferidos | Salvaguarda |
+|----------|------|--------------------|-------------|
+| Vercel Inc. | EUA | Dados de requisição HTTP, conteúdo renderizado | SCCs + DPA |
+| Sentry (Functional Software Inc.) | EUA | Stack traces, metadados de erro, user-agent | SCCs + DPA |
+| Cloudflare Inc. | EUA | Dados de CAPTCHA (token, IP) | SCCs |
+| Resend, Inc. | EUA | E-mail do destinatário, conteúdo de e-mails transacionais e newsletters | SCCs + DPA |
+| Google LLC (AdSense) | EUA | Cookies de anúncio, comportamento de navegação (somente com consentimento) | SCCs + DPA |
+| Google LLC (YouTube/OAuth) | EUA | Tokens OAuth, dados de canal, metadados de vídeos (somente com consentimento) | SCCs + DPA |
+| Meta Platforms, Inc. | EUA | Tokens OAuth, dados de perfil, conteúdo de publicações (somente com consentimento) | SCCs + DPA |
+| Bluesky PBC | EUA | Credenciais de sessão, conteúdo de publicações (somente com consentimento) | SCCs |
 
-Nos termos da **LGPD Art. 33** e **GDPR Capítulo V**, essas transferências são amparadas em:
-- Cláusulas-padrão contratuais (para EUA — SCCs);
-- Adequação de país (para França/UE).
+Nos termos da **LGPD Art. 33** e **GDPR Capítulo V**, todas as transferências internacionais são amparadas em **Cláusulas Contratuais Padrão (SCCs) aprovadas pela Comissão Europeia** (GDPR Art. 46(2)(c)), complementadas por DPAs (Data Processing Agreements) individuais quando disponíveis. Os serviços de gestão de redes sociais (Google/YouTube, Meta, Bluesky) só transferem dados quando você opta explicitamente por conectar sua conta à plataforma.
 
 Você pode solicitar cópia das SCCs/DPAs em vigor pelo e-mail privacidade@bythiagofigueiredo.com.
 
@@ -105,7 +119,8 @@ Retemos cada categoria pelo prazo mínimo necessário à finalidade ou exigido p
 |-----------|-------------------|
 | Conta de usuário (ativa) | Enquanto a conta existir |
 | Conta de usuário (após pedido de exclusão) | 15 dias de carência (possibilidade de cancelamento) → exclusão definitiva |
-| Inscrições na newsletter | Anonimizadas imediatamente no unsubscribe (e-mail → hash SHA-256) |
+| Inscrições na newsletter | Anonimizadas em até **90 dias** após o unsubscribe (e-mail → hash SHA-256, via cron de anonimização) |
+| Rastreamento de newsletter (aberturas, cliques, IP) | Anonimizados após **90 dias** via cron automatizado (IP → null, user-agent → null; eventos agregados preservados para analytics) |
 | Submissões do formulário de contato | Até 2 anos (anonimização automática semanal por cron); anonimização sob solicitação a qualquer momento |
 | E-mails enviados (`sent_emails`) | Purga automática após **90 dias** |
 | Logs de auditoria | 5 anos (exigência regulatória para accountability) |
@@ -159,7 +174,7 @@ Usamos 3 categorias de cookies/storage. Você pode aceitar ou recusar granularme
 |-----------|-----------------|------------|-----|---------------|
 | Funcionais (obrigatórios) | `sb-access-token`, `sb-refresh-token`, `preferred_locale`, `lgpd_anon_id`, CSRF tokens | Autenticação, sessão, preferências, segurança | Sessão a 30 dias | Não requer (execução de contrato) |
 | Analytics (opt-in) | `lgpd_consent_v1.analytics`, `cookie_analytics_consent` (localStorage), Sentry Session Replay + Browser Tracing | Reprodução de sessão para debugging + métricas de performance | 1 ano | Opt-in explícito |
-| Marketing (opt-in) | `lgpd_consent_v1.marketing` | Personalização | 1 ano | Opt-in explícito |
+| Marketing / Publicidade (opt-in) | `lgpd_consent_v1.marketing`, cookies Google AdSense (`__gads`, `__gpi`, `_gcl_*`, `IDE`, `NID`) | Exibição de anúncios personalizados, remarketing, frequência de exibição | 1 a 2 anos (varia por cookie) | Opt-in explícito |
 
 Você pode revogar consentimentos a qualquer momento pelo rodapé ou em `/account/settings/privacy`.
 
@@ -212,7 +227,7 @@ Dados de menores recebem **o mesmo nível de proteção técnica** aplicado aos 
 
 Os fundamentos das transferências internacionais estão listados na Seção 5 (processadores + países + base de transferência). Se você quiser inspecionar os instrumentos em vigor:
 
-- **SCCs (Standard Contractual Clauses)** assinadas com Vercel, Sentry e Cloudflare — texto conforme a Decisão de Execução (UE) 2021/914 da Comissão Europeia.
+- **SCCs (Standard Contractual Clauses)** assinadas com Vercel, Sentry, Cloudflare, Resend, Google e Meta — texto conforme a Decisão de Execução (UE) 2021/914 da Comissão Europeia.
 - **DPAs (Data Processing Agreements)** com cada processador, contendo escopo de tratamento, sub-subcontratados autorizados e SLAs de incidente.
 
 Envie um pedido para **privacidade@bythiagofigueiredo.com** com o assunto "Cópia de DPA/SCC" identificando o(s) processador(es) de interesse. Respondemos em até 15 dias corridos com os documentos redigidos (assinaturas e cláusulas comerciais podem ser mascaradas).
@@ -236,6 +251,7 @@ Esta política pode ser atualizada para refletir mudanças legais, de serviço o
 - **Alterações materiais** (novas finalidades, novos suboperadores, novas bases legais) dispararão **re-prompt de consentimento** via banner de cookies e um e-mail de aviso para usuários autenticados.
 - **Versões anteriores** ficam arquivadas em `consent_texts` no banco, identificadas por `(category, locale, version)`. Você pode solicitar a versão vigente no momento do seu cadastro.
 - **Histórico de versões:**
+  - v1.1 — 2026-05-14 — adição de processadores: Google AdSense, Google/YouTube OAuth, Meta Platforms (Facebook/Instagram), Bluesky/AT Protocol; substituição de Brevo SAS por Resend, Inc.; documentação de rastreamento de newsletter (aberturas, cliques, IP com retenção de 90 dias); atualização da tabela de transferências internacionais (LGPD Art. 33); correção do prazo de anonimização de newsletter (de "imediata" para 90 dias).
   - v1.0 — 2026-04-16 — versão inicial.
 
 ## 14. Autoridade competente (direito de reclamação)
@@ -259,6 +275,6 @@ Recomendamos que, antes de recorrer à autoridade, tente resolver a questão dir
 
 ---
 
-**Versão 1.0 — em vigor desde 16 de abril de 2026.**
+**Versão 1.1 — em vigor desde 14 de maio de 2026.**
 
 Em caso de conflito entre traduções, **prevalece a versão em português (pt-BR)**.

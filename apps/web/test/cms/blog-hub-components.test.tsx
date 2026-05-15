@@ -1,6 +1,9 @@
+/**
+ * @vitest-environment happy-dom
+ */
+import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import React from 'react'
 
 /* ------------------------------------------------------------------ */
 /*  Mocks                                                             */
@@ -153,14 +156,28 @@ describe('KanbanCard', () => {
     const el = screen.getByRole('button', { name: /#BP-001/ })
     fireEvent.contextMenu(el)
 
-    // draft -> idea, ready (only pipeline-stage columns shown; archived/scheduled/published are not kanban columns)
-    expect(screen.getByText('idea')).toBeTruthy()
+    // draft -> ready is the only editorial kanban column target
     expect(screen.getByText('ready')).toBeTruthy()
+    expect(screen.queryByText('idea')).toBeNull()
     expect(screen.queryByText('pending_review')).toBeNull()
     expect(screen.queryByText('archived')).toBeNull()
   })
 
-  it('context menu shows no move targets for published status (not a pipeline column)', () => {
+  it('context menu shows valid targets for ready status', () => {
+    const card = makeCard({ status: 'ready' })
+    render(<KanbanCard card={card} onMoveToStatus={vi.fn()} />)
+
+    const el = screen.getByRole('button', { name: /#BP-001/ })
+    fireEvent.contextMenu(el)
+
+    // ready -> scheduled, published (kanban columns)
+    expect(screen.getByText('scheduled')).toBeTruthy()
+    expect(screen.getByText('published')).toBeTruthy()
+    expect(screen.queryByText('draft')).toBeNull()
+    expect(screen.queryByText('archived')).toBeNull()
+  })
+
+  it('context menu shows no move targets for published status', () => {
     const card = makeCard({ status: 'published' })
     render(<KanbanCard card={card} onMoveToStatus={vi.fn()} />)
 
@@ -172,17 +189,23 @@ describe('KanbanCard', () => {
     expect(screen.queryByText('draft')).toBeNull()
   })
 
-  it('delete option shows only for idea/draft/archived', () => {
+  it('delete option shows for idea/draft/ready/archived but not scheduled/published', () => {
     const onDelete = vi.fn()
 
     // draft => should show delete
-    const { unmount } = render(<KanbanCard card={makeCard({ status: 'draft' })} onDelete={onDelete} />)
+    const { unmount: u1 } = render(<KanbanCard card={makeCard({ status: 'draft' })} onDelete={onDelete} />)
     fireEvent.contextMenu(screen.getByRole('button', { name: /#BP-001/ }))
     expect(screen.getByText('Delete')).toBeTruthy()
-    unmount()
+    u1()
 
-    // ready => should NOT show delete
-    render(<KanbanCard card={makeCard({ status: 'ready' })} onDelete={onDelete} />)
+    // ready => should show delete
+    const { unmount: u2 } = render(<KanbanCard card={makeCard({ status: 'ready' })} onDelete={onDelete} />)
+    fireEvent.contextMenu(screen.getByRole('button', { name: /#BP-001/ }))
+    expect(screen.getByText('Delete')).toBeTruthy()
+    u2()
+
+    // scheduled => should NOT show delete
+    render(<KanbanCard card={makeCard({ status: 'scheduled' })} onDelete={onDelete} />)
     fireEvent.contextMenu(screen.getByRole('button', { name: /#BP-001/ }))
     expect(screen.queryByText('Delete')).toBeNull()
   })
@@ -223,18 +246,8 @@ describe('KanbanColumn', () => {
     expect(screen.getByText('2')).toBeTruthy()
   })
 
-  it('shows QuickAddInput only for idea column', () => {
-    const onQuickAdd = vi.fn()
-
-    // idea column => should have input
-    const { unmount } = render(
-      <KanbanColumn id="idea" title="Idea" cards={[]} onQuickAdd={onQuickAdd} />,
-    )
-    expect(screen.getByPlaceholderText('Quick idea…')).toBeTruthy()
-    unmount()
-
-    // draft column => no input
-    render(<KanbanColumn id="draft" title="Draft" cards={[]} onQuickAdd={onQuickAdd} />)
+  it('does not render QuickAddInput (editorial board has no quick-add)', () => {
+    render(<KanbanColumn id="ready" title="Ready" cards={[]} />)
     expect(screen.queryByPlaceholderText('Quick idea…')).toBeNull()
   })
 
@@ -284,7 +297,7 @@ describe('VelocityStrip', () => {
     expect(screen.getByText('Review')).toBeTruthy()
   })
 
-  it('renders dash for avgIdeaToPublished when zero', () => {
+  it('renders dash for avgIdeaToPublished when zero and hides bottleneck when null', () => {
     const velocity = {
       throughput: 0,
       avgIdeaToPublished: 0,
@@ -294,7 +307,7 @@ describe('VelocityStrip', () => {
     render(<VelocityStrip velocity={velocity} />)
 
     expect(screen.getByText('—')).toBeTruthy()
-    expect(screen.getByText('None')).toBeTruthy()
+    expect(screen.queryByText('Bottleneck')).toBeNull()
   })
 })
 

@@ -78,6 +78,9 @@ function createMockSupabase(overrides?: {
           })),
         }
       }),
+      delete: vi.fn(() => ({
+        eq: vi.fn().mockResolvedValue({ error: null }),
+      })),
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       single: vi.fn().mockResolvedValue({ data: insertData, error: null }),
@@ -219,7 +222,7 @@ describe('graduateToSocialPost', () => {
       (c) => c.table === 'content_pipeline' && c.method === 'update',
     )
     expect(pipelineUpdateCall).toBeDefined()
-    expect(pipelineUpdateCall!.args[0]).toEqual({ social_post_id: 'auto-post-1' })
+    expect(pipelineUpdateCall!.args[0]).toEqual({ social_post_id: 'auto-post-1', is_archived: true })
 
     // content_pipeline_history insert with 'graduated' event
     const historyCall = supabase._calls.find(
@@ -516,7 +519,7 @@ describe('graduateToSocialPost', () => {
       (c) => c.table === 'content_pipeline' && c.method === 'update',
     )
     expect(updateCall).toBeDefined()
-    expect(updateCall!.args[0]).toEqual({ social_post_id: 'post-123' })
+    expect(updateCall!.args[0]).toEqual({ social_post_id: 'post-123', is_archived: true })
   })
 
   // -------------------------------------------------------------------------
@@ -763,7 +766,7 @@ describe('graduateToSocialPost', () => {
   // Race condition — FK update count=0 (concurrent graduation)
   // -------------------------------------------------------------------------
 
-  it('auto-graduation captures Sentry on FK race (count=0, no error)', async () => {
+  it('auto-graduation returns error on FK race (count=0) and cleans up orphan', async () => {
     const supabase = createMockSupabase({ updateCount: 0 })
     const item = makeItem()
 
@@ -776,30 +779,21 @@ describe('graduateToSocialPost', () => {
     const result = await graduateToSocialPost(supabase, item, 'site-1', 'America/Sao_Paulo')
 
     expect(result).toEqual({
-      ok: true,
-      data: { postId: 'race-post-1', isDraft: false },
+      ok: false,
+      error: 'Concurrent graduation detected — another process already graduated this item',
     })
-
-    const raceCall = mockCaptureException.mock.calls.find(
-      (call) => call[1]?.tags?.path === 'fk-update-race',
-    )
-    expect(raceCall).toBeDefined()
-    expect(raceCall![0].message).toContain('orphan post')
   })
 
-  it('draft path captures Sentry on FK race (count=0, no error)', async () => {
+  it('draft path returns error on FK race (count=0) and cleans up orphan', async () => {
     const supabase = createMockSupabase({ updateCount: 0 })
     const item = makeItem({ social_config: null })
 
     const result = await graduateToSocialPost(supabase, item, 'site-1', 'America/Sao_Paulo')
 
-    expect(result.ok).toBe(true)
-
-    const raceCall = mockCaptureException.mock.calls.find(
-      (call) => call[1]?.tags?.path === 'draft-fk-update-race',
-    )
-    expect(raceCall).toBeDefined()
-    expect(raceCall![0].message).toContain('orphan draft')
+    expect(result).toEqual({
+      ok: false,
+      error: 'Concurrent graduation detected — another process already graduated this item',
+    })
   })
 
   // -------------------------------------------------------------------------

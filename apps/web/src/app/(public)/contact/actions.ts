@@ -76,14 +76,22 @@ export async function submitContact(formData: FormData): Promise<ContactResult> 
     p_email: input.email,
   })
   if (rateErr) {
+    // Differentiate DB errors from rate-limit responses: the RPC returns
+    // `false` for rate-limited and `true` for allowed. An error here means
+    // the DB itself failed (down, timeout, etc.). We fail-open for contact
+    // forms (availability > strict rate limiting) but log so it's visible.
+    console.warn(
+      '[contact] rate_check RPC failed — proceeding (fail-open):',
+      rateErr.message,
+      { code: rateErr.code, site_id: ctx.siteId },
+    )
     captureServerActionError(rateErr, {
       action: 'submit_contact',
       site_id: ctx.siteId,
       branch: 'rate_check',
     })
-    return { status: 'error' }
-  }
-  if (rateOk === false) {
+    // Fall through — allow the request when the DB is unavailable.
+  } else if (rateOk === false) {
     return { status: 'rate_limited' }
   }
 

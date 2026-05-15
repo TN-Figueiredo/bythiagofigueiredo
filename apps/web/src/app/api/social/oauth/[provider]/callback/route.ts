@@ -368,7 +368,7 @@ export async function GET(
         return oauthResultHtml(provider, false, `Unsupported provider: ${provider}`)
     }
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    return oauthResultHtml(provider, false, message)
+    console.error('[oauth-callback]', provider, err)
+    return oauthResultHtml(provider, false, 'OAuth authentication failed. Please try again.')
   }
 }

@@ -23,6 +23,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'videoId is required' }, { status: 400 })
   }
 
+  if (body.postId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.postId)) {
+    return NextResponse.json({ error: 'Invalid postId' }, { status: 400 })
+  }
+
   if (body.postId) {
     const supabase = getSupabaseServiceClient()
 

@@ -1,9 +1,8 @@
 'use server'
 
-import { cookies } from 'next/headers'
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { campaignRepo } from '@/lib/cms/repositories'
 import { getSiteContext } from '@/lib/cms/site-context'
+import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 
 export interface CreateCampaignActionInput {
   slug: string
@@ -34,39 +33,17 @@ export async function createCampaign(
 
   const ctx = await getSiteContext()
 
-  const cookieStore = await cookies()
-  const userClient = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet: Array<{ name: string; value: string; options?: CookieOptions }>) {
-          for (const { name, value, options } of cookiesToSet) {
-            cookieStore.set(name, value, options)
-          }
-        },
-      },
-    },
-  )
-
-  const { data: allowed, error: authzErr } = await userClient.rpc('can_admin_site', {
-    p_site_id: ctx.siteId,
-  })
-  if (authzErr) {
-    return { ok: false, error: 'forbidden', message: authzErr.message }
-  }
-  if (!allowed) {
-    return { ok: false, error: 'forbidden' }
+  // Guard: require authenticated user with edit access to this site
+  // before touching service client (campaignRepo bypasses RLS).
+  const scopeResult = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
+  if (!scopeResult.ok) {
+    return {
+      ok: false,
+      error: 'forbidden',
+      message: scopeResult.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden',
+    }
   }
 
-  // Defensive boundary: re-assert that the site id used for the insert is
-  // the same one we just authorized. If `getSiteContext()` ever drifts under
-  // Host-header spoofing (fix deferred to Sprint 4 observability), this guard
-  // refuses to write a row scoped to a different ring than the one the user
-  // was authorized against.
   const siteIdForInsert = ctx.siteId
   if (!siteIdForInsert || siteIdForInsert.length === 0) {
     return { ok: false, error: 'forbidden', message: 'site_id missing on insert' }

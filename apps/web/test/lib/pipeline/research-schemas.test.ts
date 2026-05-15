@@ -203,18 +203,21 @@ describe('research-schemas', () => {
       expect(result.success).toBe(true)
     })
 
-    it('accepts parent_id change', () => {
+    it('accepts sort_order change', () => {
       const result = ResearchTopicUpdateSchema.safeParse({
-        parent_id: '123e4567-e89b-12d3-a456-426614174000',
+        sort_order: 3,
       })
       expect(result.success).toBe(true)
     })
 
-    it('accepts null parent_id (move to root)', () => {
+    it('strips unknown fields', () => {
       const result = ResearchTopicUpdateSchema.safeParse({
-        parent_id: null,
+        slug: 'new-slug',
       })
       expect(result.success).toBe(true)
+      if (result.success) {
+        expect(Object.keys(result.data)).not.toContain('slug')
+      }
     })
   })
 

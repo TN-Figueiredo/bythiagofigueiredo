@@ -304,7 +304,7 @@ export function KanbanCard({
 
   const validTargets = getKanbanMoveTargets(card.status)
   const canDelete =
-    card.status === 'idea' || card.status === 'draft' || card.status === 'archived'
+    card.status === 'idea' || card.status === 'draft' || card.status === 'ready' || card.status === 'archived'
 
   const s = strings?.editorial
 

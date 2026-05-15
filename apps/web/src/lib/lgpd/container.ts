@@ -124,6 +124,10 @@ export interface CleanupSweepUseCases {
   advancePhase3(): Promise<{ processed: number }>;
   sendReminders(): Promise<{ sent: number }>;
   deleteExpiredBlobs(): Promise<{ deleted: number }>;
+  /** BTF-032: purge password_reset_attempts older than 30 days. */
+  purgeStaleResetAttempts(): Promise<{ deleted: number }>;
+  /** BTF-033: purge unsubscribe_tokens older than 90 days. */
+  purgeStaleUnsubscribeTokens(): Promise<{ deleted: number }>;
 }
 
 /**
@@ -1076,6 +1080,38 @@ function makeCleanupSweep(deps: UseCaseDeps): CleanupSweepUseCases {
         }
       }
       return { deleted };
+    },
+
+    // BTF-032: purge password_reset_attempts older than 30 days.
+    async purgeStaleResetAttempts() {
+      const cutoffIso = new Date(Date.now() - 30 * DAY_MS).toISOString();
+      const { error, count } = (await admin
+        .from('password_reset_attempts')
+        .delete({ count: 'exact' })
+        .lt('attempted_at', cutoffIso)) as {
+          error: { message: string } | null;
+          count: number | null;
+        };
+      if (error) {
+        throw new Error(`cleanup.purgeStaleResetAttempts: delete failed: ${error.message}`);
+      }
+      return { deleted: count ?? 0 };
+    },
+
+    // BTF-033: purge unsubscribe_tokens older than 90 days.
+    async purgeStaleUnsubscribeTokens() {
+      const cutoffIso = new Date(Date.now() - 90 * DAY_MS).toISOString();
+      const { error, count } = (await admin
+        .from('unsubscribe_tokens')
+        .delete({ count: 'exact' })
+        .lt('created_at', cutoffIso)) as {
+          error: { message: string } | null;
+          count: number | null;
+        };
+      if (error) {
+        throw new Error(`cleanup.purgeStaleUnsubscribeTokens: delete failed: ${error.message}`);
+      }
+      return { deleted: count ?? 0 };
     },
   };
 }

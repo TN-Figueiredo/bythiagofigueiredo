@@ -19,6 +19,11 @@ const EventSchema = z.object({
 
 const RATE_LIMIT_WINDOW_MS = 60_000
 const RATE_LIMIT_MAX = 50
+// NOTE: In-memory rate limiter resets on Vercel cold start, temporarily allowing
+// unlimited requests until the bucket refills. This is an acceptable tradeoff for
+// ad events — DB-based rate limiting would add latency to every beacon request.
+// The per-batch max (50 events) and Turnstile on the ad inquiry form provide
+// additional protection layers.
 const ipBuckets = new Map<string, { count: number; resetAt: number }>()
 
 function isRateLimited(ip: string): boolean {

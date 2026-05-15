@@ -14,6 +14,16 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (!requirePermission(auth, 'write')) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
 
   const supabase = getSupabaseServiceClient()
+
+  const { data: researchItem } = await supabase
+    .from('research_items')
+    .select('id')
+    .eq('id', id)
+    .eq('site_id', auth.siteId)
+    .single()
+
+  if (!researchItem) return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Research item not found' } }, { status: 404 })
+
   const { error } = await supabase
     .from('research_links')
     .delete()

@@ -21,6 +21,7 @@ interface CreateParams {
   origin: Origin
   scheduledAt?: string
   userId: string
+  timezone?: string
   sourcePipelineId?: string
   pipelineSnapshot?: Record<string, unknown>
 }
@@ -42,6 +43,7 @@ export async function createSocialPostFromContent(
     origin,
     scheduledAt,
     userId,
+    timezone,
   } = params
 
   const metadata = await extractContentMetadata(supabase, contentType, contentId, siteId)
@@ -103,7 +105,7 @@ export async function createSocialPostFromContent(
 
   const pipelineSteps = createInitialPipelineSteps()
   const status = scheduledAt ? 'scheduled' : 'draft'
-  const idempotencyKey = `${siteId}-${contentType}-${contentId}-${Date.now()}`
+  const idempotencyKey = `${siteId}-${contentType}-${contentId}-${crypto.randomUUID()}`
 
   let postId: string
 
@@ -137,7 +139,7 @@ export async function createSocialPostFromContent(
         status,
         content: postContent,
         scheduled_at: scheduledAt ?? null,
-        user_timezone: 'America/Sao_Paulo',
+        user_timezone: timezone ?? 'America/Sao_Paulo',
         idempotency_key: idempotencyKey,
         source_content_type: contentType,
         source_content_id: contentId,
@@ -203,23 +205,31 @@ export async function createSocialPostFromContent(
     }
   }
 
-  // Trigger async pipeline (fire-and-forget) for immediate posts
+  // Trigger pipeline for immediate posts (best-effort with retry)
   if (!scheduledAt) {
-    const appUrl =
-      process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-    fetch(`${appUrl}/api/social/pipeline/run`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.CRON_SECRET}`,
-      },
-      body: JSON.stringify({ postId }),
-    }).catch((err) =>
-      Sentry.captureException(err, {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+    const triggerPipeline = async () => {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const res = await fetch(`${appUrl}/api/social/pipeline/run`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${process.env.CRON_SECRET}`,
+            },
+            body: JSON.stringify({ postId }),
+            signal: AbortSignal.timeout(10_000),
+          })
+          if (res.ok) return
+        } catch { /* retry */ }
+      }
+      Sentry.captureMessage('Pipeline trigger failed after retries', {
+        level: 'warning',
         tags: { component: 'social-pipeline-trigger' },
         extra: { postId },
-      }),
-    )
+      })
+    }
+    triggerPipeline()
   }
 
   return { postId, shortLinkId }

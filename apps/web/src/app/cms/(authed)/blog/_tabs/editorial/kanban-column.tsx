@@ -6,7 +6,6 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import type { PostCard, BlogTag } from '../../_hub/hub-types'
 import type { BlogHubStrings } from '../../_i18n/types'
 import { KanbanCard } from './kanban-card'
-import { QuickAddInput } from '../../../_shared/editor/quick-add-input'
 
 const PUBLISHED_FOOTER_THRESHOLD = 15
 
@@ -27,7 +26,6 @@ interface KanbanColumnProps {
   onRemoveLocale?: (postId: string, locale: string) => Promise<void>
   onDuplicate?: (postId: string) => Promise<void>
   onCreateAndAssignTag?: (postId: string, tagName: string) => Promise<void>
-  onQuickAdd?: (title: string) => Promise<void>
   defaultLocale?: string
 }
 
@@ -48,7 +46,6 @@ export function KanbanColumn({
   onRemoveLocale,
   onDuplicate,
   onCreateAndAssignTag,
-  onQuickAdd,
   defaultLocale,
 }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id })
@@ -88,10 +85,10 @@ export function KanbanColumn({
         </span>
       </div>
 
-      {/* Ready column hint */}
-      {id === 'ready' && (
+      {/* Scheduled column hint */}
+      {id === 'scheduled' && cards.length > 0 && (
         <div className="px-3 py-1 text-[8px] text-gray-600 border-b border-gray-800/50">
-          Posts prontos seguem para o <Link href="/cms/posts" className="text-indigo-400 hover:underline">Editor</Link>
+          {strings?.editorial.scheduledHint ?? 'Posts agendados para publicação automática'}
         </div>
       )}
 
@@ -126,16 +123,6 @@ export function KanbanColumn({
           )}
         </div>
       </SortableContext>
-
-      {/* Quick-add input (only for idea column) */}
-      {id === 'idea' && onQuickAdd && (
-        <div className="border-t border-gray-800 p-2">
-          <QuickAddInput
-            placeholder={strings?.editorial.quickAddPlaceholder ?? 'Quick idea…'}
-            onAdd={onQuickAdd}
-          />
-        </div>
-      )}
 
       {/* Published column footer */}
       {isPublishedCol && cards.length >= PUBLISHED_FOOTER_THRESHOLD && (

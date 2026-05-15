@@ -8,7 +8,11 @@ import * as Sentry from '@sentry/nextjs'
 
 const SNS_CERT_URL_RE = /^https:\/\/sns\.[a-z0-9-]+\.amazonaws\.com\//
 const certCache = new Map<string, { pem: string; expiresAt: number }>()
-const CERT_TTL_MS = 60 * 60 * 1000
+// Certificate cache TTL: 15min balances latency (avoid fetching cert on every
+// webhook) vs. revocation freshness. AWS SNS cert rotation is rare and
+// announced; a 15min window is well within acceptable risk for webhook
+// signature verification.
+const CERT_TTL_MS = 15 * 60 * 1000
 
 async function getCachedCert(url: string): Promise<string> {
   const cached = certCache.get(url)

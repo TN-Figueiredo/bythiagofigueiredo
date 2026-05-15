@@ -132,7 +132,8 @@ export async function searchContent(params: {
   // Sort by updatedAt desc
   items.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
 
-  counts.all = items.length
+  const sliced = items.slice(0, limit)
+  counts.all = sliced.length
 
-  return { items: items.slice(0, limit), counts }
+  return { items: sliced, counts }
 }

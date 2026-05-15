@@ -101,8 +101,8 @@ export async function createInvitation(input: {
     .single()
 
   if (error) {
-    // I10: never surface raw db error.message to callers — log internally
-    console.error('[createInvitation] db error', error.code, error.message)
+    // I10: never surface raw db error.message to callers — log code only (no schema details)
+    console.error('[createInvitation] db error', error.code)
     if (error.message.match(/rate_limit_exceeded/)) {
       redirect('/admin/users?notice=invite_rate_limited')
     }
@@ -156,7 +156,7 @@ export async function createInvitation(input: {
     })
   } catch (e) {
     // Log but don't fail invitation
-    console.error('[invite_email_send_failed]', e)
+    console.error('[invite_email_send_failed]', e instanceof Error ? e.message : 'unknown error')
   }
 
   revalidatePath('/admin/users')
@@ -296,7 +296,7 @@ export async function createInvitationAction(input: {
     .select('id, token, expires_at, site_id')
 
   if (error) {
-    console.error('[createInvitationAction] db error', error.code, error.message)
+    console.error('[createInvitationAction] db error', error.code)
     if (error.message.match(/rate_limit_exceeded/)) {
       redirect('/admin/users?notice=invite_rate_limited')
     }
@@ -357,7 +357,7 @@ export async function createInvitationAction(input: {
         metadata: { invitation_id: row.id },
       })
     } catch (e) {
-      console.error('[invite_email_send_failed]', e)
+      console.error('[invite_email_send_failed]', e instanceof Error ? e.message : 'unknown error')
     }
   }
 
@@ -389,7 +389,7 @@ export async function reassignContentAction(input: {
   })
 
   if (error) {
-    console.error('[reassignContentAction] rpc error', error.message)
+    console.error('[reassignContentAction] rpc error', error.code ?? 'unknown')
     redirect(`/admin/users/${input.from_user}/edit?notice=reassign_failed`)
   }
 
@@ -420,7 +420,7 @@ export async function updateSiteMembershipRoleAction(input: {
     .eq('site_id', input.site_id)
 
   if (error) {
-    console.error('[updateSiteMembershipRoleAction] db error', error.message)
+    console.error('[updateSiteMembershipRoleAction] db error', error.code ?? 'unknown')
     redirect(`/admin/users/${input.user_id}/edit?notice=update_failed`)
   }
 
@@ -452,7 +452,7 @@ export async function revokeSiteMembershipAction(input: {
     .eq('site_id', input.site_id)
 
   if (error) {
-    console.error('[revokeSiteMembershipAction] db error', error.message)
+    console.error('[revokeSiteMembershipAction] db error', error.code ?? 'unknown')
     redirect(`/admin/users/${input.user_id}/edit?notice=revoke_failed`)
   }
 

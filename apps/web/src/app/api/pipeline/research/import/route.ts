@@ -2,48 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { authenticatePipeline, requirePermission, buildRateLimitHeaders } from '@/lib/pipeline/auth'
 import { ResearchImportSchema } from '@/lib/pipeline/research-schemas'
-import { slugToName, parseTopicSlug, validateTopicSlugDepth } from '@/lib/pipeline/research-topics'
-
-async function resolveOrCreateTopics(
-  supabase: ReturnType<typeof getSupabaseServiceClient>,
-  siteId: string,
-  topicSlug: string,
-): Promise<{ topicId: string } | { error: string }> {
-  const parts = parseTopicSlug(topicSlug)
-  const resolvedIds: string[] = []
-  let currentPath = ''
-
-  for (let i = 0; i < parts.length; i++) {
-    const slug = parts[i]!
-    currentPath = currentPath ? `${currentPath}/${slug}` : slug
-    const parentForInsert = resolvedIds.length > 0 ? resolvedIds[resolvedIds.length - 1]! : null
-
-    const { data: existing } = await supabase
-      .from('research_topics')
-      .select('id')
-      .eq('site_id', siteId)
-      .eq('path', currentPath)
-      .single()
-
-    if (existing) {
-      resolvedIds.push(existing.id as string)
-      continue
-    }
-
-    const { data: created, error } = await supabase
-      .from('research_topics')
-      .insert({ site_id: siteId, name: slugToName(slug), slug, path: currentPath, depth: i, parent_id: parentForInsert })
-      .select('id')
-      .single()
-
-    if (error) return { error: `Failed to create topic "${currentPath}": ${error.message}` }
-    resolvedIds.push((created as { id: string }).id)
-  }
-
-  const lastId = resolvedIds[resolvedIds.length - 1]
-  if (!lastId) return { error: 'Empty topic slug' }
-  return { topicId: lastId }
-}
+import { validateTopicSlugDepth, resolveOrCreateTopics } from '@/lib/pipeline/research-topics'
 
 export async function POST(req: NextRequest) {
   const authResult = await authenticatePipeline(req)
@@ -63,6 +22,7 @@ export async function POST(req: NextRequest) {
 
   const supabase = getSupabaseServiceClient()
   const results: Array<{ id?: string; title: string; ok: boolean; error?: string }> = []
+  const topicCache = new Map<string, string>()
 
   for (const item of parsed.data.items) {
     if (!validateTopicSlugDepth(item.topic_slug)) {
@@ -70,7 +30,7 @@ export async function POST(req: NextRequest) {
       continue
     }
 
-    const topicResult = await resolveOrCreateTopics(supabase, auth.siteId, item.topic_slug)
+    const topicResult = await resolveOrCreateTopics(supabase, auth.siteId, item.topic_slug, topicCache)
     if ('error' in topicResult) {
       results.push({ title: item.title, ok: false, error: topicResult.error })
       continue

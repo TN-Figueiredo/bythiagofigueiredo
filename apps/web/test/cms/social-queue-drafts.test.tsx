@@ -112,7 +112,7 @@ describe('PostsDrafts', () => {
   it('shows CTA link in empty state', () => {
     render(<PostsDrafts posts={[]} strings={en} />)
     const link = screen.getByRole('link', { name: en.posts.emptyDraftsCta })
-    expect(link.getAttribute('href')).toBe('/cms/social/accounts?tab=automations')
+    expect(link.getAttribute('href')).toBe('/cms/social/new')
   })
 
   it('renders draft posts', () => {

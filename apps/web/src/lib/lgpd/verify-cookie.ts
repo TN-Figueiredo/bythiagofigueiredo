@@ -21,18 +21,32 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 export const LGPD_VERIFY_COOKIE_NAME = 'lgpd_recently_verified';
 export const LGPD_VERIFY_MAX_AGE_SEC = 300; // 5 minutes
 
+/**
+ * Returns the HMAC key for verify-cookie signing.
+ *
+ * Priority:
+ *   1. Dedicated LGPD_VERIFY_SECRET (recommended for prod)
+ *   2. Derived key from CRON_SECRET via HMAC-based key derivation so that
+ *      compromising CRON_SECRET does NOT directly yield the LGPD signing key
+ *   3. Throws if neither is set
+ */
 function getSecret(): string {
-  const secret =
-    process.env.LGPD_VERIFY_SECRET || process.env.CRON_SECRET || '';
-  if (!secret) {
-    // Fail loudly — silent fallback would let the cookie be forged with
-    // `HMAC(key='')`, which is trivially computable. Callers must set the
-    // env var in every environment (dev, preview, prod).
-    throw new Error(
-      'LGPD_VERIFY_SECRET (or CRON_SECRET fallback) is not set — password re-auth cannot be enforced',
-    );
+  if (process.env.LGPD_VERIFY_SECRET) {
+    return process.env.LGPD_VERIFY_SECRET;
   }
-  return secret;
+  if (process.env.CRON_SECRET) {
+    // Derive an independent key using HMAC-SHA256 with a domain-separation
+    // label. This ensures the raw CRON_SECRET value is never used directly
+    // as the LGPD cookie signing key.
+    return createHmac('sha256', process.env.CRON_SECRET)
+      .update('lgpd-verify-cookie-v1')
+      .digest('hex');
+  }
+  // Fail loudly — silent fallback would let the cookie be forged with
+  // `HMAC(key='')`, which is trivially computable.
+  throw new Error(
+    'LGPD_VERIFY_SECRET (or CRON_SECRET) is not set — password re-auth cannot be enforced',
+  );
 }
 
 function hmacHex(input: string, secret: string): string {

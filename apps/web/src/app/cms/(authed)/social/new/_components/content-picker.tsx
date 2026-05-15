@@ -24,6 +24,8 @@ interface ContentPickerProps {
   onSelect: (type: ContentType, id: string, metadata: ContentItem) => void
   onModeChange: (mode: Mode) => void
   mode: Mode
+  selectedId?: string | null
+  isLoadingContent?: boolean
 }
 
 const TAB_CONFIG: { key: TabKey; label: string }[] = [
@@ -54,6 +56,8 @@ export function ContentPicker({
   onSelect,
   onModeChange,
   mode,
+  selectedId,
+  isLoadingContent,
 }: ContentPickerProps) {
   const [activeTab, setActiveTab] = useState<TabKey>('all')
   const [query, setQuery] = useState('')
@@ -182,44 +186,62 @@ export function ContentPicker({
               </p>
             )}
 
-            {items.map((item) => (
-              <button
-                key={`${item.type}-${item.id}`}
-                type="button"
-                onClick={() => onSelect(item.type, item.id, item)}
-                className="flex w-full items-center gap-3 rounded-md border border-transparent px-3 py-2 text-left transition-colors hover:border-cms-border hover:bg-cms-surface"
-              >
-                <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-cms-border">
-                  {item.thumbnail ? (
-                    <img
-                      src={item.thumbnail}
-                      alt=""
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center text-xs text-cms-text-muted">
-                      {item.type[0]?.toUpperCase()}
-                    </div>
-                  )}
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-cms-text">
-                    {item.title}
-                  </p>
-                  <div className="mt-0.5 flex items-center gap-2">
-                    <span
-                      className={`inline-block rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase ${TYPE_COLORS[item.type] ?? ''}`}
-                    >
-                      {item.type}
-                    </span>
-                    <span
-                      className={`inline-block h-1.5 w-1.5 rounded-full ${STATUS_DOTS[item.status] ?? 'bg-gray-400'}`}
-                    />
+            {items.map((item) => {
+              const isSelected = selectedId === item.id
+              const isLoadingThis = isSelected && isLoadingContent
+              return (
+                <button
+                  key={`${item.type}-${item.id}`}
+                  type="button"
+                  onClick={() => onSelect(item.type, item.id, item)}
+                  disabled={isLoadingContent}
+                  className={`flex w-full items-center gap-3 rounded-md border px-3 py-2 text-left transition-colors ${
+                    isSelected
+                      ? 'border-cms-accent bg-cms-accent/10'
+                      : 'border-transparent hover:border-cms-border hover:bg-cms-surface'
+                  } ${isLoadingContent ? 'cursor-wait opacity-70' : ''}`}
+                >
+                  <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-cms-border">
+                    {item.thumbnail ? (
+                      <img
+                        src={item.thumbnail}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-xs text-cms-text-muted">
+                        {item.type[0]?.toUpperCase()}
+                      </div>
+                    )}
                   </div>
-                </div>
-              </button>
-            ))}
+
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-cms-text">
+                      {item.title}
+                    </p>
+                    <div className="mt-0.5 flex items-center gap-2">
+                      <span
+                        className={`inline-block rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase ${TYPE_COLORS[item.type] ?? ''}`}
+                      >
+                        {item.type}
+                      </span>
+                      <span
+                        className={`inline-block h-1.5 w-1.5 rounded-full ${STATUS_DOTS[item.status] ?? 'bg-gray-400'}`}
+                      />
+                    </div>
+                  </div>
+
+                  {isLoadingThis && (
+                    <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-cms-accent border-t-transparent" />
+                  )}
+                  {isSelected && !isLoadingThis && (
+                    <svg className="h-4 w-4 shrink-0 text-cms-accent" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                </button>
+              )
+            })}
           </div>
         </>
       )}

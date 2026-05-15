@@ -46,6 +46,8 @@ export async function POST(req: Request): Promise<Response> {
     let phase3Processed = 0;
     let remindersSent = 0;
     let blobsDeleted = 0;
+    let resetAttemptsPurged = 0;
+    let unsubTokensPurged = 0;
     const errors: string[] = [];
 
     try {
@@ -75,6 +77,26 @@ export async function POST(req: Request): Promise<Response> {
       getLogger().error('[lgpd_sweep_blobs_failed]', { message: msg });
     }
 
+    // BTF-032: purge password_reset_attempts older than 30 days.
+    try {
+      const r = await container.cleanupSweep.purgeStaleResetAttempts();
+      resetAttemptsPurged = r.deleted;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      errors.push(`reset_attempts:${msg}`);
+      getLogger().error('[lgpd_sweep_reset_attempts_failed]', { message: msg });
+    }
+
+    // BTF-033: purge unsubscribe_tokens older than 90 days.
+    try {
+      const r = await container.cleanupSweep.purgeStaleUnsubscribeTokens();
+      unsubTokensPurged = r.deleted;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      errors.push(`unsub_tokens:${msg}`);
+      getLogger().error('[lgpd_sweep_unsub_tokens_failed]', { message: msg });
+    }
+
     // Best-effort cron audit row — matches the pattern from the other
     // cron handlers so `/admin/audit` can surface this job's history.
     try {
@@ -82,7 +104,8 @@ export async function POST(req: Request): Promise<Response> {
         job: JOB,
         status: errors.length === 0 ? 'ok' : 'error',
         items_processed:
-          phase3Processed + remindersSent + blobsDeleted,
+          phase3Processed + remindersSent + blobsDeleted +
+          resetAttemptsPurged + unsubTokensPurged,
       });
     } catch {
       /* best-effort */
@@ -95,6 +118,8 @@ export async function POST(req: Request): Promise<Response> {
         phase3_processed: phase3Processed,
         reminders_sent: remindersSent,
         blobs_deleted: blobsDeleted,
+        reset_attempts_purged: resetAttemptsPurged,
+        unsub_tokens_purged: unsubTokensPurged,
         errors_count: errors.length,
       };
     }
@@ -104,6 +129,8 @@ export async function POST(req: Request): Promise<Response> {
       phase3_processed: phase3Processed,
       reminders_sent: remindersSent,
       blobs_deleted: blobsDeleted,
+      reset_attempts_purged: resetAttemptsPurged,
+      unsub_tokens_purged: unsubTokensPurged,
     };
   });
 }

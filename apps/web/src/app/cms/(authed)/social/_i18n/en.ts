@@ -27,6 +27,7 @@ export const en: SocialStrings = {
     noContent: '(no content)',
     review: 'Review',
     selected: '{count} selected',
+    emptyFilter: 'No results for the selected filters.',
     emptyDrafts: 'No AI drafts pending',
     emptyDraftsCta: 'Configure Automations',
     bulk: { reschedule: 'Reschedule', retry: 'Retry Failed', moveToQueue: 'Move to Queue', delete: 'Delete', deleteConfirm: 'Published posts are removed from CMS only — they remain live on platforms.' },

@@ -43,6 +43,12 @@ describe('PipelineItemDetail', () => {
           updated_at: '2026-05-01T00:00:00Z',
           validation_score: 70,
           sections: null,
+          category: null,
+          cover_image_url: null,
+          blog_post_id: null,
+          social_config: null,
+          social_post_id: null,
+          site_id: 's1',
         }}
         collections={[]}
         history={[]}
@@ -68,7 +74,8 @@ describe('PipelineItemDetail', () => {
           ],
           format_metadata: {}, version: 1, is_archived: false,
           updated_at: '2026-05-01T00:00:00Z', validation_score: 0,
-          sections: null,
+          sections: null, category: null, cover_image_url: null,
+          blog_post_id: null, social_config: null, social_post_id: null, site_id: 's1',
         }}
         collections={[]}
         history={[]}

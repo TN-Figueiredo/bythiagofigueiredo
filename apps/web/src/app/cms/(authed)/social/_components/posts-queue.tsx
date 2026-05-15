@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import type { SocialPost } from '@tn-figueiredo/social'
 import { SocialStatusBadge } from '@/app/cms/(authed)/_shared/social/social-status-badge'
 import type { SocialStrings } from '../_i18n/types'
@@ -21,7 +22,7 @@ export function PostsQueue({ posts, strings: t }: PostsQueueProps) {
   return (
     <div className="space-y-2">
       {queued.map((post, i) => (
-        <div key={post.id} className="flex items-center gap-3 rounded-lg border border-cms-border bg-cms-surface px-4 py-3">
+        <Link key={post.id} href={`/cms/social/${post.id}`} className="flex items-center gap-3 rounded-lg border border-cms-border bg-cms-surface px-4 py-3 hover:border-cms-accent/30 transition-colors">
           <span className="flex h-6 w-6 items-center justify-center rounded-full bg-purple-500/15 text-xs font-medium text-purple-400">{i + 1}</span>
           <div className="flex-1 min-w-0">
             <p className="text-sm text-cms-text truncate">{post.content.title ?? post.content.description ?? post.type}</p>
@@ -30,7 +31,7 @@ export function PostsQueue({ posts, strings: t }: PostsQueueProps) {
             </p>
           </div>
           <SocialStatusBadge status="scheduled" label={t.status.scheduled} />
-        </div>
+        </Link>
       ))}
     </div>
   )

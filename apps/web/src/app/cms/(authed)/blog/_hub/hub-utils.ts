@@ -19,7 +19,7 @@ export function getValidTargets(status: string): string[] {
   return BLOG_TRANSITIONS[status] ?? []
 }
 
-const KANBAN_COLUMN_STATUSES = new Set<string>(['idea', 'draft', 'ready'])
+const KANBAN_COLUMN_STATUSES = new Set<string>(['ready', 'scheduled', 'published'])
 
 export function getKanbanMoveTargets(status: string): string[] {
   return (BLOG_TRANSITIONS[status] ?? []).filter(s => KANBAN_COLUMN_STATUSES.has(s))
@@ -30,18 +30,18 @@ export function computeDisplayId(rowNumber: number): string {
   return `#BP-${padded}`
 }
 
-export type KanbanColumnId = 'idea' | 'draft' | 'ready'
+export type KanbanColumnId = 'ready' | 'scheduled' | 'published'
 
 export function mapStatusToColumn(status: PostCard['status']): KanbanColumnId {
   switch (status) {
-    case 'idea': return 'idea'
+    case 'idea':
     case 'draft':
-    case 'pending_review': return 'draft'
+    case 'pending_review':
     case 'ready':
-    case 'queued':
-    case 'scheduled':
+    case 'queued': return 'ready'
+    case 'scheduled': return 'scheduled'
     case 'published':
-    case 'archived': return 'ready'
+    case 'archived': return 'published'
   }
 }
 

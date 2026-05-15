@@ -18,8 +18,8 @@ export async function POST(req: Request): Promise<NextResponse> {
     const body = (await req.json()) as { postId?: string }
     const { postId } = body
 
-    if (!postId) {
-      return NextResponse.json({ ok: false, error: 'postId required' }, { status: 400 })
+    if (!postId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(postId)) {
+      return NextResponse.json({ ok: false, error: 'Valid postId required' }, { status: 400 })
     }
 
     const supabase = getSupabaseServiceClient()
@@ -34,6 +34,14 @@ export async function POST(req: Request): Promise<NextResponse> {
       return NextResponse.json(
         { ok: false, error: 'Post not found' },
         { status: 404 },
+      )
+    }
+
+    const postStatus = post.status as string
+    if (postStatus === 'completed' || postStatus === 'cancelled' || postStatus === 'publishing') {
+      return NextResponse.json(
+        { ok: false, error: `Post already in status: ${postStatus}` },
+        { status: 409 },
       )
     }
 

@@ -125,7 +125,7 @@ describe('useSocialDeliveries', () => {
     })
 
     expect(mockSupabase.from).toHaveBeenCalledWith('social_deliveries')
-    expect(mockSelect).toHaveBeenCalledWith('*')
+    expect(mockSelect).toHaveBeenCalledWith('id, post_id, connection_id, provider, status, platform_post_id, platform_url, content_override, attempt, max_attempts, published_at, created_at')
     expect(mockEq).toHaveBeenCalledWith('post_id', 'post-1')
     expect(mockOrder).toHaveBeenCalledWith('created_at', { ascending: true })
   })

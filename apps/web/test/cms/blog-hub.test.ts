@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isValidTransition, getValidTargets, computeDisplayId, mapStatusToColumn, formatRelativeDate, BLOG_TRANSITIONS } from '../../src/app/cms/(authed)/blog/_hub/hub-utils'
+import { isValidTransition, getValidTargets, getKanbanMoveTargets, computeDisplayId, mapStatusToColumn, formatRelativeDate, BLOG_TRANSITIONS } from '../../src/app/cms/(authed)/blog/_hub/hub-utils'
 import type { PostCard } from '../../src/app/cms/(authed)/blog/_hub/hub-types'
 
 describe('blog-hub utils', () => {
@@ -62,13 +62,10 @@ describe('blog-hub utils', () => {
   })
 
   describe('mapStatusToColumn', () => {
-    it('maps idea to idea column', () => {
-      expect(mapStatusToColumn('idea')).toBe('idea')
-    })
-
-    it('maps draft and pending_review to draft column', () => {
-      expect(mapStatusToColumn('draft')).toBe('draft')
-      expect(mapStatusToColumn('pending_review')).toBe('draft')
+    it('maps idea/draft/pending_review to ready column (pre-graduation)', () => {
+      expect(mapStatusToColumn('idea')).toBe('ready')
+      expect(mapStatusToColumn('draft')).toBe('ready')
+      expect(mapStatusToColumn('pending_review')).toBe('ready')
     })
 
     it('maps ready and queued to ready column', () => {
@@ -76,10 +73,13 @@ describe('blog-hub utils', () => {
       expect(mapStatusToColumn('queued')).toBe('ready')
     })
 
-    it('maps scheduled/published/archived to ready column (graduated to /cms/posts)', () => {
-      expect(mapStatusToColumn('scheduled')).toBe('ready')
-      expect(mapStatusToColumn('published')).toBe('ready')
-      expect(mapStatusToColumn('archived')).toBe('ready')
+    it('maps scheduled to scheduled column', () => {
+      expect(mapStatusToColumn('scheduled')).toBe('scheduled')
+    })
+
+    it('maps published and archived to published column', () => {
+      expect(mapStatusToColumn('published')).toBe('published')
+      expect(mapStatusToColumn('archived')).toBe('published')
     })
   })
 })
@@ -134,14 +134,14 @@ describe('blog-hub action status matrix', () => {
 describe('mapStatusToColumn exhaustive', () => {
   it('maps all 8 statuses correctly', () => {
     const expected: Record<string, string> = {
-      idea: 'idea',
-      draft: 'draft',
-      pending_review: 'draft',
+      idea: 'ready',
+      draft: 'ready',
+      pending_review: 'ready',
       ready: 'ready',
       queued: 'ready',
-      scheduled: 'ready',
-      published: 'ready',
-      archived: 'ready',
+      scheduled: 'scheduled',
+      published: 'published',
+      archived: 'published',
     }
     for (const [status, column] of Object.entries(expected)) {
       expect(mapStatusToColumn(status as any)).toBe(column)
@@ -250,6 +250,42 @@ describe('getValidTargets edge cases', () => {
 
   it('idea has exactly 2 targets (draft, archived)', () => {
     expect(getValidTargets('idea')).toEqual(['draft', 'archived'])
+  })
+})
+
+describe('getKanbanMoveTargets (editorial board columns: ready/scheduled/published)', () => {
+  it('ready → scheduled, published (kanban columns only)', () => {
+    const targets = getKanbanMoveTargets('ready')
+    expect(targets).toEqual(['scheduled', 'published'])
+  })
+
+  it('scheduled → ready (only kanban column in transitions)', () => {
+    const targets = getKanbanMoveTargets('scheduled')
+    expect(targets).toEqual(['ready'])
+  })
+
+  it('published → empty (archived is not a kanban column)', () => {
+    expect(getKanbanMoveTargets('published')).toEqual([])
+  })
+
+  it('queued → ready (only kanban column in transitions)', () => {
+    expect(getKanbanMoveTargets('queued')).toEqual(['ready'])
+  })
+
+  it('idea → empty (draft/archived are not kanban columns)', () => {
+    expect(getKanbanMoveTargets('idea')).toEqual([])
+  })
+
+  it('draft → ready (only kanban column in transitions)', () => {
+    expect(getKanbanMoveTargets('draft')).toEqual(['ready'])
+  })
+
+  it('archived → empty (idea/draft are not kanban columns)', () => {
+    expect(getKanbanMoveTargets('archived')).toEqual([])
+  })
+
+  it('unknown status → empty', () => {
+    expect(getKanbanMoveTargets('nonexistent')).toEqual([])
   })
 })
 

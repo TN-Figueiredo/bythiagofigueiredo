@@ -83,9 +83,9 @@ describe('POST /api/social/pipeline/run', () => {
     // Default: post found with short_link_id and pipeline_steps
     mockPostSelect.mockResolvedValue({
       data: {
-        id: 'post-1',
+        id: '00000000-0000-0000-0000-000000000001',
         site_id: 'site-1',
-        status: 'draft',
+        status: 'scheduled',
         type: 'link',
         content: { title: 'Test', url: 'https://example.com' },
         short_link_id: 'link-1',
@@ -154,7 +154,7 @@ describe('POST /api/social/pipeline/run', () => {
     const req = new Request('http://localhost/api/social/pipeline/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-cron-secret' },
-      body: JSON.stringify({ postId: 'post-1' }),
+      body: JSON.stringify({ postId: '00000000-0000-0000-0000-000000000001' }),
     })
 
     const res = await POST(req)
@@ -167,20 +167,20 @@ describe('POST /api/social/pipeline/run', () => {
 
     expect(updatePipelineStep).toHaveBeenCalledWith(
       expect.anything(),
-      'post-1',
+      '00000000-0000-0000-0000-000000000001',
       'og_scrape',
       'in_progress',
     )
     expect(updatePipelineStep).toHaveBeenCalledWith(
       expect.anything(),
-      'post-1',
+      '00000000-0000-0000-0000-000000000001',
       'og_scrape',
       'completed',
       expect.objectContaining({ tags: 7 }),
     )
     expect(updatePipelineStep).toHaveBeenCalledWith(
       expect.anything(),
-      'post-1',
+      '00000000-0000-0000-0000-000000000001',
       'deliver',
       'in_progress',
     )
@@ -197,7 +197,7 @@ describe('POST /api/social/pipeline/run', () => {
     const req = new Request('http://localhost/api/social/pipeline/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-cron-secret' },
-      body: JSON.stringify({ postId: 'post-1' }),
+      body: JSON.stringify({ postId: '00000000-0000-0000-0000-000000000001' }),
     })
 
     const res = await POST(req)
@@ -205,7 +205,7 @@ describe('POST /api/social/pipeline/run', () => {
 
     expect(updatePipelineStep).toHaveBeenCalledWith(
       expect.anything(),
-      'post-1',
+      '00000000-0000-0000-0000-000000000001',
       'og_scrape',
       'warning',
       expect.objectContaining({ status: 'timeout' }),
@@ -231,7 +231,7 @@ describe('POST /api/social/pipeline/run', () => {
     const req = new Request('http://localhost/api/social/pipeline/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-cron-secret' },
-      body: JSON.stringify({ postId: 'missing-post' }),
+      body: JSON.stringify({ postId: '00000000-0000-0000-0000-000000000099' }),
     })
 
     const res = await POST(req)
@@ -242,14 +242,14 @@ describe('POST /api/social/pipeline/run', () => {
     const req = new Request('http://localhost/api/social/pipeline/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-cron-secret' },
-      body: JSON.stringify({ postId: 'post-1' }),
+      body: JSON.stringify({ postId: '00000000-0000-0000-0000-000000000001' }),
     })
 
     await POST(req)
 
     expect(updatePipelineStep).toHaveBeenCalledWith(
       expect.anything(),
-      'post-1',
+      '00000000-0000-0000-0000-000000000001',
       'deliver',
       'completed',
     )
@@ -261,14 +261,14 @@ describe('POST /api/social/pipeline/run', () => {
     const req = new Request('http://localhost/api/social/pipeline/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-cron-secret' },
-      body: JSON.stringify({ postId: 'post-1' }),
+      body: JSON.stringify({ postId: '00000000-0000-0000-0000-000000000001' }),
     })
 
     const res = await POST(req)
 
     expect(updatePipelineStep).toHaveBeenCalledWith(
       expect.anything(),
-      'post-1',
+      '00000000-0000-0000-0000-000000000001',
       'deliver',
       'failed',
       expect.objectContaining({ error: expect.stringContaining('Provider connection refused') }),

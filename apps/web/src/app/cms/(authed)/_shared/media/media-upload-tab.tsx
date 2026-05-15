@@ -7,6 +7,11 @@ import type { CropPreset, MediaAssetResult } from './types'
 import { getMediaGalleryStrings } from './_i18n/types'
 import type { MediaFolder } from '@/lib/media/types'
 
+// SVG files are accepted here but sanitized server-side: uploadMediaAction ->
+// uploadMediaAsset -> processImage -> sanitizeSvg (DOMPurify with SVG profile,
+// strips <script>, foreignObject, event handlers). No client-side sanitization
+// needed — the raw file never renders untrusted; only the server-processed
+// version is stored in Blob storage.
 const ACCEPTED_TYPES = 'image/jpeg,image/png,image/webp,image/gif,image/svg+xml'
 
 const FOLDER_OPTIONS: Array<{ value: MediaFolder; labelKey: keyof ReturnType<typeof getMediaGalleryStrings>['library'] }> = [

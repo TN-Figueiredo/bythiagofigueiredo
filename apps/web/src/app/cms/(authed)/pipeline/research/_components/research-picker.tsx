@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
+import { RESEARCH_STATUS_COLORS } from '@/lib/pipeline/research-types'
 
 interface ResearchPickerItem {
   id: string
@@ -18,13 +19,6 @@ interface ResearchPickerProps {
   excludeIds?: string[]
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  new: '#fbbf24',
-  reviewed: '#34d399',
-  starred: '#f472b6',
-  archived: '#64748b',
-}
-
 export function ResearchPicker({
   open,
   onClose,
@@ -34,6 +28,7 @@ export function ResearchPicker({
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<ResearchPickerItem[]>([])
   const [loading, setLoading] = useState(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const search = useCallback(async (q: string) => {
     setLoading(true)
@@ -44,13 +39,13 @@ export function ResearchPicker({
       if (res.ok) {
         const { data } = await res.json()
         setResults(
-          data.filter((r: any) => !excludeIds.includes(r.id)).map((r: any) => ({
-            id: r.id,
-            title: r.title,
-            topic_path: r.topic_path ?? '',
-            topic_icon: r.topic_icon ?? '📁',
-            status: r.status,
-            word_count: r.word_count,
+          data.filter((r: ResearchPickerItem) => !excludeIds.includes(r.id)).map((r: Record<string, unknown>) => ({
+            id: r.id as string,
+            title: r.title as string,
+            topic_path: (r.topic_path as string) ?? '',
+            topic_icon: (r.topic_icon as string) ?? '📁',
+            status: r.status as string,
+            word_count: r.word_count as number,
           }))
         )
       }
@@ -60,7 +55,14 @@ export function ResearchPicker({
   }, [excludeIds])
 
   useEffect(() => {
-    if (open) search(query)
+    if (!open) return
+    if (!query.trim()) {
+      search(query)
+      return
+    }
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => search(query), 250)
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
   }, [open, query, search])
 
   if (!open) return null
@@ -146,7 +148,7 @@ export function ResearchPicker({
                   width: 7,
                   height: 7,
                   borderRadius: '50%',
-                  backgroundColor: STATUS_COLORS[r.status] ?? '#64748b',
+                  backgroundColor: RESEARCH_STATUS_COLORS[r.status as keyof typeof RESEARCH_STATUS_COLORS] ?? '#64748b',
                   flexShrink: 0,
                 }}
               />

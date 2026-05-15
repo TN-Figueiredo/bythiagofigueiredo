@@ -120,8 +120,9 @@ export async function connectSocial(
       .single()
 
     if (error) {
+      console.error('[connectSocial]', error)
       Sentry.captureException(error, { tags: { ...SENTRY_TAG, action: 'connectSocial' } })
-      return { ok: false, error: error.message }
+      return { ok: false, error: 'Failed to connect social account' }
     }
 
     revalidateSocialPaths()
@@ -150,8 +151,9 @@ export async function disconnectSocial(
       .is('revoked_at', null)
 
     if (error) {
+      console.error('[disconnectSocial]', error)
       Sentry.captureException(error, { tags: { ...SENTRY_TAG, action: 'disconnectSocial' } })
-      return { ok: false, error: error.message }
+      return { ok: false, error: 'Failed to disconnect social account' }
     }
 
     revalidateSocialPaths()
@@ -174,14 +176,15 @@ export async function getConnections(
 
     const { data, error } = await supabase
       .from('social_connections')
-      .select('*')
+      .select('id, site_id, provider, account_id, account_name, token_expires_at, scopes, metadata, connected_at, revoked_at, updated_at')
       .eq('site_id', parsed.data)
       .is('revoked_at', null)
       .order('connected_at', { ascending: false })
 
     if (error) {
+      console.error('[getConnections]', error)
       Sentry.captureException(error, { tags: { ...SENTRY_TAG, action: 'getConnections' } })
-      return { ok: false, error: error.message }
+      return { ok: false, error: 'Failed to load connections' }
     }
 
     const safe = (data as SocialConnection[]).map(stripTokens)
@@ -243,8 +246,9 @@ export async function createSocialPost(data: {
       .single()
 
     if (postError) {
+      console.error('[createSocialPost]', postError)
       Sentry.captureException(postError, { tags: { ...SENTRY_TAG, action: 'createSocialPost' } })
-      return { ok: false, error: postError.message }
+      return { ok: false, error: 'Failed to create social post' }
     }
 
     const postId = post.id as string
@@ -258,8 +262,9 @@ export async function createSocialPost(data: {
       .in('provider', parsed.data.platforms)
 
     if (connError) {
+      console.error('[createSocialPost] connections lookup', connError)
       Sentry.captureException(connError, { tags: { ...SENTRY_TAG, action: 'createSocialPost' } })
-      return { ok: false, error: connError.message }
+      return { ok: false, error: 'Failed to create social post' }
     }
 
     if (connections && connections.length > 0) {
@@ -277,8 +282,9 @@ export async function createSocialPost(data: {
         .insert(deliveryRows)
 
       if (deliveryError) {
+        console.error('[createSocialPost] delivery insert', deliveryError)
         Sentry.captureException(deliveryError, { tags: { ...SENTRY_TAG, action: 'createSocialPost' } })
-        return { ok: false, error: deliveryError.message }
+        return { ok: false, error: 'Failed to create social post' }
       }
     }
 
@@ -351,8 +357,9 @@ export async function updateSocialPost(
       .eq('site_id', siteId)
 
     if (error) {
+      console.error('[updateSocialPost]', error)
       Sentry.captureException(error, { tags: { ...SENTRY_TAG, action: 'updateSocialPost' } })
-      return { ok: false, error: error.message }
+      return { ok: false, error: 'Failed to update social post' }
     }
 
     revalidateSocialPaths()
@@ -379,8 +386,9 @@ export async function cancelSocialPost(postId: string): Promise<ActionResult> {
       .in('status', ['draft', 'scheduled'])
 
     if (postError) {
+      console.error('[cancelSocialPost]', postError)
       Sentry.captureException(postError, { tags: { ...SENTRY_TAG, action: 'cancelSocialPost' } })
-      return { ok: false, error: postError.message }
+      return { ok: false, error: 'Failed to cancel social post' }
     }
 
     // Cancel pending deliveries
@@ -391,8 +399,9 @@ export async function cancelSocialPost(postId: string): Promise<ActionResult> {
       .eq('status', 'pending')
 
     if (deliveryError) {
+      console.error('[cancelSocialPost] delivery update', deliveryError)
       Sentry.captureException(deliveryError, { tags: { ...SENTRY_TAG, action: 'cancelSocialPost' } })
-      return { ok: false, error: deliveryError.message }
+      return { ok: false, error: 'Failed to cancel social post' }
     }
 
     revalidateSocialPaths()
@@ -427,9 +436,10 @@ export async function deleteSocialPost(postId: string): Promise<ActionResult> {
         if (!delivery.platform_post_id) continue
 
         try {
+          // Intentionally selecting token columns — needed for platform API deletion calls.
           const { data: connection } = await supabase
             .from('social_connections')
-            .select('*')
+            .select('id, site_id, provider, account_id, account_name, access_token_enc, refresh_token_enc, page_token_enc, token_expires_at, scopes, metadata, connected_at, revoked_at, updated_at')
             .eq('id', delivery.connection_id)
             .single()
 
@@ -474,8 +484,9 @@ export async function deleteSocialPost(postId: string): Promise<ActionResult> {
       .eq('post_id', parsed.data)
 
     if (delError) {
+      console.error('[deleteSocialPost] delivery delete', delError)
       Sentry.captureException(delError, { tags: { ...SENTRY_TAG, action: 'deleteSocialPost' } })
-      return { ok: false, error: delError.message }
+      return { ok: false, error: 'Failed to delete social post' }
     }
 
     const { error } = await supabase
@@ -485,8 +496,9 @@ export async function deleteSocialPost(postId: string): Promise<ActionResult> {
       .eq('site_id', siteId)
 
     if (error) {
+      console.error('[deleteSocialPost]', error)
       Sentry.captureException(error, { tags: { ...SENTRY_TAG, action: 'deleteSocialPost' } })
-      return { ok: false, error: error.message }
+      return { ok: false, error: 'Failed to delete social post' }
     }
 
     revalidateSocialPaths()
@@ -540,8 +552,9 @@ export async function retrySocialDelivery(
       .eq('id', parsed.data)
 
     if (error) {
+      console.error('[retrySocialDelivery]', error)
       Sentry.captureException(error, { tags: { ...SENTRY_TAG, action: 'retrySocialDelivery' } })
-      return { ok: false, error: error.message }
+      return { ok: false, error: 'Failed to retry delivery' }
     }
 
     await supabase
@@ -555,6 +568,55 @@ export async function retrySocialDelivery(
     return { ok: true, data: undefined }
   } catch (err) {
     Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'retrySocialDelivery' } })
+    throw err
+  }
+}
+
+export async function retryPostDeliveries(
+  postId: string,
+): Promise<ActionResult> {
+  const parsed = z.string().uuid().safeParse(postId)
+  if (!parsed.success) return { ok: false, error: 'Invalid post ID' }
+
+  try {
+    const { siteId } = await requireEditAccess()
+    const supabase = getSupabaseServiceClient()
+
+    const { data: post } = await supabase
+      .from('social_posts')
+      .select('id')
+      .eq('id', parsed.data)
+      .eq('site_id', siteId)
+      .single()
+
+    if (!post) return { ok: false, error: 'forbidden' }
+
+    const { data: deliveries, error: fetchErr } = await supabase
+      .from('social_deliveries')
+      .select('id, status')
+      .eq('post_id', parsed.data)
+      .in('status', ['failed', 'skipped'])
+
+    if (fetchErr) return { ok: false, error: fetchErr.message }
+    if (!deliveries || deliveries.length === 0) return { ok: false, error: 'No retryable deliveries' }
+
+    const { error: updateErr } = await supabase
+      .from('social_deliveries')
+      .update({ status: 'pending', attempt: 0, last_error: null, error_type: null })
+      .in('id', deliveries.map(d => d.id as string))
+
+    if (updateErr) return { ok: false, error: updateErr.message }
+
+    await supabase
+      .from('social_posts')
+      .update({ status: 'scheduled', updated_at: new Date().toISOString() })
+      .eq('id', parsed.data)
+      .in('status', ['failed', 'partial_failure'])
+
+    revalidateSocialPaths()
+    return { ok: true, data: undefined }
+  } catch (err) {
+    Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'retryPostDeliveries' } })
     throw err
   }
 }
@@ -585,8 +647,9 @@ export async function getSocialPost(
       .order('created_at', { ascending: true })
 
     if (delError) {
+      console.error('[getSocialPost] deliveries fetch', delError)
       Sentry.captureException(delError, { tags: { ...SENTRY_TAG, action: 'getSocialPost' } })
-      return { ok: false, error: delError.message }
+      return { ok: false, error: 'Failed to load social post' }
     }
 
     return {
@@ -633,23 +696,27 @@ export async function getContentForSocialPost(
   try {
     const { siteId } = await requireEditAccess()
     const supabase = getSupabaseServiceClient()
-
     if (contentType === 'blog') {
-      const { data } = await supabase
+      const { data: rows, error: dbErr } = await supabase
         .from('blog_posts')
-        .select('id, slug, cover_image_url, blog_translations!inner(title, meta_description, locale)')
+        .select('id, cover_image_url, blog_translations(title, slug, meta_description, locale)')
         .eq('id', contentId)
         .eq('site_id', siteId)
-        .single()
+        .limit(1)
+      if (dbErr) {
+        console.error('[getContentForSocialPost] blog error:', dbErr.message, { contentId, siteId })
+        return { ok: false, error: 'Failed to load content' }
+      }
+      const data = rows?.[0]
       if (!data) return { ok: false, error: 'not_found' }
       const record = data as unknown as Record<string, unknown>
-      const translations = record.blog_translations as Array<{ title: string; meta_description: string | null; locale: string }> | undefined
+      const translations = record.blog_translations as Array<{ title: string; slug: string; meta_description: string | null; locale: string }> | undefined
       const tx = translations?.[0]
       return {
         ok: true,
         data: {
           title: tx?.title ?? '',
-          url: `${process.env.NEXT_PUBLIC_APP_URL}/blog/${data.slug as string}`,
+          url: `${process.env.NEXT_PUBLIC_APP_URL}/blog/${tx?.slug ?? contentId}`,
           image: data.cover_image_url as string | null,
           excerpt: tx?.meta_description ?? null,
           tags: [],
@@ -661,13 +728,18 @@ export async function getContentForSocialPost(
     }
 
     if (contentType === 'newsletter') {
-      const { data } = await supabase
+      const { data: rows, error: dbErr } = await supabase
         .from('newsletter_editions')
         .select('id, subject, preview_text')
         .eq('id', contentId)
         .eq('site_id', siteId)
-        .single()
-      if (!data) return { ok: false, error: 'not_found' }
+        .limit(1)
+      if (dbErr) {
+        console.error('[getContentForSocialPost] newsletter error:', dbErr.message, { contentId, siteId })
+        return { ok: false, error: 'Failed to load content' }
+      }
+      if (!rows?.[0]) return { ok: false, error: 'not_found' }
+      const data = rows[0]
       return {
         ok: true,
         data: {
@@ -684,21 +756,25 @@ export async function getContentForSocialPost(
     }
 
     if (contentType === 'campaign') {
-      const { data } = await supabase
+      const { data: rows, error: dbErr } = await supabase
         .from('campaigns')
-        .select('id, slug, campaign_translations!inner(meta_title, meta_description, og_image_url)')
+        .select('id, campaign_translations(slug, meta_title, meta_description, og_image_url)')
         .eq('id', contentId)
         .eq('site_id', siteId)
-        .single()
-      if (!data) return { ok: false, error: 'not_found' }
-      const record = data as unknown as Record<string, unknown>
-      const translations = record.campaign_translations as Array<{ meta_title: string; meta_description: string | null; og_image_url: string | null }> | undefined
+        .limit(1)
+      if (dbErr) {
+        console.error('[getContentForSocialPost] campaign error:', dbErr.message, { contentId, siteId })
+        return { ok: false, error: 'Failed to load content' }
+      }
+      if (!rows?.[0]) return { ok: false, error: 'not_found' }
+      const record = rows[0] as unknown as Record<string, unknown>
+      const translations = record.campaign_translations as Array<{ slug: string; meta_title: string; meta_description: string | null; og_image_url: string | null }> | undefined
       const tx = translations?.[0]
       return {
         ok: true,
         data: {
           title: tx?.meta_title ?? '',
-          url: `${process.env.NEXT_PUBLIC_APP_URL}/campaigns/${data.slug as string}`,
+          url: `${process.env.NEXT_PUBLIC_APP_URL}/campaigns/${tx?.slug ?? contentId}`,
           image: tx?.og_image_url ?? null,
           excerpt: tx?.meta_description ?? null,
           tags: [],
@@ -711,8 +787,9 @@ export async function getContentForSocialPost(
 
     return { ok: false, error: 'unsupported_content_type' }
   } catch (err) {
+    console.error('[getContentForSocialPost]', err)
     Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'getContentForSocialPost' } })
-    return { ok: false, error: err instanceof Error ? err.message : 'unknown' }
+    return { ok: false, error: 'Failed to load content' }
   }
 }
 
@@ -738,8 +815,9 @@ export async function createFromContentAction(params: {
     })
     return { ok: true, data: result }
   } catch (err) {
+    console.error('[createFromContentAction]', err)
     Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'createFromContentAction' } })
-    return { ok: false, error: err instanceof Error ? err.message : 'unknown' }
+    return { ok: false, error: 'Failed to create social post from content' }
   }
 }
 
@@ -794,8 +872,9 @@ export async function scrapeOgTags(
 
     return { ok: true, data: scrapeData }
   } catch (err) {
+    console.error('[scrapeOgTags]', err)
     Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'scrapeOgTags' } })
-    return { ok: false, error: err instanceof Error ? err.message : 'unknown' }
+    return { ok: false, error: 'Failed to scrape OG tags' }
   }
 }
 
@@ -831,8 +910,9 @@ export async function listSocialPosts(
     const { data, error } = await query
 
     if (error) {
+      console.error('[listSocialPosts]', error)
       Sentry.captureException(error, { tags: { ...SENTRY_TAG, action: 'listSocialPosts' } })
-      return { ok: false, error: error.message }
+      return { ok: false, error: 'Failed to list social posts' }
     }
 
     return { ok: true, data: (data ?? []) as unknown as SocialPost[] }

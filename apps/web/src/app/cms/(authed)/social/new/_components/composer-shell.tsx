@@ -85,6 +85,9 @@ export function ComposerShell({
   const [images, setImages] = useState<string[]>([])
   const [caption, setCaption] = useState('')
 
+  // Content loading
+  const [loadingContentId, setLoadingContentId] = useState<string | null>(null)
+
   // Errors
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [validationErrors, setValidationErrors] = useState<{
@@ -116,11 +119,16 @@ export function ComposerShell({
   function handleContentSelect(
     type: ContentType,
     id: string,
-    metadata: { title: string; thumbnail: string | null; status: string; updatedAt: string },
+    _metadata: { title: string; thumbnail: string | null; status: string; updatedAt: string },
   ) {
-    // Fetch full metadata for the selected content
+    setLoadingContentId(id)
+    setSubmitError(null)
     getContentForSocialPost(type, id).then((res) => {
-      if (!res.ok) return
+      setLoadingContentId(null)
+      if (!res.ok) {
+        setSubmitError(`Erro ao carregar conteúdo: ${res.error}`)
+        return
+      }
       const d = res.data
       const sel: SelectedContent = {
         contentType: type,
@@ -135,7 +143,6 @@ export function ComposerShell({
       setSelectedContent(sel)
       setUrl(d.url)
 
-      // Auto-fill captions for each selected platform
       if (platforms.length > 0) {
         const autoCaptions: Record<string, Record<string, string>> = {}
         for (const p of platforms) {
@@ -147,6 +154,9 @@ export function ComposerShell({
         setCaptions(autoCaptions)
         setCaptionsAutoFilled(true)
       }
+    }).catch(() => {
+      setLoadingContentId(null)
+      setSubmitError('Erro ao carregar conteúdo. Tente novamente.')
     })
   }
 
@@ -297,6 +307,8 @@ export function ComposerShell({
         mode={sourceMode}
         onModeChange={handleModeChange}
         onSelect={handleContentSelect}
+        selectedId={selectedContent?.contentId ?? loadingContentId}
+        isLoadingContent={!!loadingContentId}
       />
 
       {/* Selected content OG preview (CMS mode only) */}

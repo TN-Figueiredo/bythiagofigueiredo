@@ -13,7 +13,7 @@ import {
   type ResearchStatus,
 } from '@/lib/pipeline/research-schemas'
 
-type ActionResult = { ok: true; data?: any } | { ok: false; error: string }
+type ActionResult = { ok: true; data?: Record<string, unknown> } | { ok: false; error: string }
 
 function zodError(err: z.ZodError): string {
   return err.issues.map((i) => i.message).join(', ') || 'Validation failed'
@@ -63,19 +63,26 @@ export async function saveResearchItem(
 export async function updateResearchStatus(
   id: string,
   status: ResearchStatus,
+  version?: number,
 ): Promise<ActionResult> {
   const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
 
-  const { data: updated, error } = await supabase
+  let query = supabase
     .from('research_items')
     .update({ status })
     .eq('id', id)
     .eq('site_id', siteId)
+
+  if (version !== undefined) {
+    query = query.eq('version', version)
+  }
+
+  const { data: updated, error } = await query
     .select('id, status, version')
     .single()
 
-  if (error || !updated) return { ok: false, error: 'Item not found' }
+  if (error || !updated) return { ok: false, error: version !== undefined ? 'Version conflict or item not found' : 'Item not found' }
   revalidatePath('/cms/pipeline/research')
   return { ok: true, data: updated }
 }
@@ -109,7 +116,10 @@ export async function moveResearchToTopic(
   return { ok: true, data: updated }
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export async function deleteResearchItem(id: string): Promise<ActionResult> {
+  if (!UUID_RE.test(id)) return { ok: false, error: 'Invalid id' }
   const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
 
@@ -218,11 +228,20 @@ export async function linkResearchToItem(
   pipelineItemId: string,
   note?: string,
 ): Promise<ActionResult> {
-  await requireEditAccess()
+  const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
 
   const parsed = ResearchLinkSchema.safeParse({ pipeline_item_id: pipelineItemId, note })
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
+
+  const { data: researchItem } = await supabase
+    .from('research_items')
+    .select('id')
+    .eq('id', researchId)
+    .eq('site_id', siteId)
+    .single()
+
+  if (!researchItem) return { ok: false, error: 'Research item not found' }
 
   const { data: link, error } = await supabase
     .from('research_links')
@@ -244,8 +263,19 @@ export async function linkResearchToItem(
 }
 
 export async function unlinkResearchFromItem(linkId: string): Promise<ActionResult> {
-  await requireEditAccess()
+  const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
+
+  const { data: link } = await supabase
+    .from('research_links')
+    .select('id, research_items!inner(site_id)')
+    .eq('id', linkId)
+    .single()
+
+  const linkWithResearch = link as { id: string; research_items?: { site_id: string } } | null
+  if (!linkWithResearch || linkWithResearch.research_items?.site_id !== siteId) {
+    return { ok: false, error: 'Link not found' }
+  }
 
   const { error } = await supabase
     .from('research_links')

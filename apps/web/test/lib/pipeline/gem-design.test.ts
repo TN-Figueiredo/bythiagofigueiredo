@@ -155,6 +155,7 @@ describe('gem-design', () => {
       blog_post_id: null,
       newsletter_edition_id: null,
       campaign_id: null,
+      social_post_id: null,
       is_archived: false,
     }
 
@@ -176,6 +177,10 @@ describe('gem-design', () => {
 
     it('returns graduated when blog_post_id set', () => {
       expect(getCardState({ ...base, hook: 'x', blog_post_id: 'abc' })).toBe('graduated')
+    })
+
+    it('returns graduated when social_post_id set', () => {
+      expect(getCardState({ ...base, hook: 'x', social_post_id: 'abc' })).toBe('graduated')
     })
 
     it('returns archived when is_archived true', () => {

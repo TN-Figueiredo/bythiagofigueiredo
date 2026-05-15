@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import type { SocialPost, PostStatus } from '@tn-figueiredo/social'
+import type { SocialPost, PostStatus, Provider } from '@tn-figueiredo/social'
 import { PostCard } from './post-card'
 import { BulkActionsBar } from './bulk-actions-bar'
 import type { SocialStrings } from '../_i18n/types'
@@ -12,12 +12,11 @@ interface PostsFeedProps {
   posts: SocialPost[]
   siteId: string
   strings: SocialStrings
+  platformsByPost?: Record<string, Provider[]>
 }
 
-/** Internal filter values — 'completed' maps to 'published' label in i18n. */
 const FILTER_STATUSES: (PostStatus | 'all')[] = ['all', 'completed', 'scheduled', 'failed', 'draft', 'cancelled']
 
-/** Maps internal PostStatus to the i18n filter key. */
 const STATUS_TO_FILTER_KEY: Record<string, keyof SocialStrings['posts']['filters']> = {
   completed: 'published',
   scheduled: 'scheduled',
@@ -26,15 +25,31 @@ const STATUS_TO_FILTER_KEY: Record<string, keyof SocialStrings['posts']['filters
   cancelled: 'cancelled',
 }
 
-export function PostsFeed({ posts, siteId, strings: t }: PostsFeedProps) {
+const ALL_PLATFORMS: Provider[] = ['facebook', 'instagram', 'bluesky', 'youtube']
+const PLATFORM_LABELS: Record<Provider, string> = {
+  facebook: 'FB',
+  instagram: 'IG',
+  bluesky: 'BS',
+  youtube: 'YT',
+}
+
+export function PostsFeed({ posts, siteId, strings: t, platformsByPost = {} }: PostsFeedProps) {
   const router = useRouter()
   const [filter, setFilter] = useState<PostStatus | 'all'>('all')
+  const [platformFilters, setPlatformFilters] = useState<Set<Provider>>(new Set())
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
   const filtered = useMemo(() => {
-    if (filter === 'all') return posts
-    return posts.filter(p => p.status === filter)
-  }, [posts, filter])
+    let result = posts
+    if (filter !== 'all') result = result.filter(p => p.status === filter)
+    if (platformFilters.size > 0) {
+      result = result.filter(p => {
+        const postPlatforms = platformsByPost[p.id] ?? []
+        return Array.from(platformFilters).some(pf => postPlatforms.includes(pf))
+      })
+    }
+    return result
+  }, [posts, filter, platformFilters, platformsByPost])
 
   function toggleSelect(id: string) {
     setSelected(prev => {
@@ -77,6 +92,23 @@ export function PostsFeed({ posts, siteId, strings: t }: PostsFeedProps) {
             {filterLabel(status)}
           </button>
         ))}
+        <span className="mx-1 h-4 w-px bg-cms-border" />
+        {ALL_PLATFORMS.map(p => (
+          <button
+            key={p}
+            type="button"
+            onClick={() => setPlatformFilters(prev => {
+              const next = new Set(prev)
+              if (next.has(p)) next.delete(p)
+              else next.add(p)
+              return next
+            })}
+            aria-pressed={platformFilters.has(p)}
+            className={`rounded-full px-2.5 py-1 text-xs font-semibold transition-colors ${platformFilters.has(p) ? 'bg-cms-accent/15 text-cms-accent' : 'text-cms-text-dim hover:text-cms-text'}`}
+          >
+            {PLATFORM_LABELS[p]}
+          </button>
+        ))}
       </div>
 
       <div className="space-y-2">
@@ -87,9 +119,16 @@ export function PostsFeed({ posts, siteId, strings: t }: PostsFeedProps) {
             strings={t}
             selected={selected.has(post.id)}
             onSelect={toggleSelect}
+            platforms={platformsByPost[post.id]}
           />
         ))}
       </div>
+
+      {filtered.length === 0 && posts.length > 0 && (
+        <p className="text-sm text-cms-text-muted text-center py-8">
+          {t.posts.emptyFilter ?? 'Nenhum resultado para os filtros selecionados.'}
+        </p>
+      )}
 
       <BulkActionsBar
         selectedIds={[...selected]}

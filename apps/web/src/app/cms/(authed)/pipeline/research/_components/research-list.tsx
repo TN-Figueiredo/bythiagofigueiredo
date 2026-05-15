@@ -1,43 +1,18 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-
-interface ResearchItem {
-  id: string
-  title: string
-  topic_id: string
-  summary: string | null
-  status: string
-  word_count: number
-  sources: any[]
-  version: number
-  created_at: string
-  updated_at: string
-}
-
-interface Topic {
-  id: string
-  name: string
-  icon: string
-  path: string
-}
+import { RESEARCH_STATUS_COLORS } from '@/lib/pipeline/research-types'
+import type { ResearchItemSummary, ResearchTopic } from '@/lib/pipeline/research-types'
 
 interface ResearchListProps {
-  items: ResearchItem[]
-  topics: Topic[]
+  items: ResearchItemSummary[]
+  topics: ResearchTopic[]
   selectedItemId: string | null
   selectedTopicId: string | null
   onSelectItem: (id: string) => void
 }
 
 type SortKey = 'recent' | 'title' | 'size'
-
-const STATUS_COLORS: Record<string, string> = {
-  new: '#fbbf24',
-  reviewed: '#34d399',
-  starred: '#f472b6',
-  archived: '#64748b',
-}
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
@@ -60,7 +35,7 @@ export function ResearchList({
   const [sortKey, setSortKey] = useState<SortKey>('recent')
 
   const topicMap = useMemo(() => {
-    const m = new Map<string, Topic>()
+    const m = new Map<string, ResearchTopic>()
     for (const t of topics) m.set(t.id, t)
     return m
   }, [topics])
@@ -120,7 +95,7 @@ export function ResearchList({
           }}
         >
           <option value="recent">Recentes</option>
-          <option value="title">Titulo</option>
+          <option value="title">Título</option>
           <option value="size">Tamanho</option>
         </select>
       </div>
@@ -142,6 +117,7 @@ export function ResearchList({
             <button
               key={item.id}
               onClick={() => onSelectItem(item.id)}
+              className="transition-colors duration-100"
               style={{
                 display: 'flex',
                 flexDirection: 'column',
@@ -156,6 +132,12 @@ export function ResearchList({
                 borderLeft: isSelected ? '3px solid rgb(99,102,241)' : '3px solid transparent',
                 opacity: isArchived ? 0.5 : 1,
               }}
+              onMouseEnter={(e) => {
+                if (!isSelected) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.02)'
+              }}
+              onMouseLeave={(e) => {
+                if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent'
+              }}
             >
               {/* Row 1: status dot + title */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -164,7 +146,7 @@ export function ResearchList({
                     width: 7,
                     height: 7,
                     borderRadius: '50%',
-                    backgroundColor: STATUS_COLORS[item.status] ?? '#64748b',
+                    backgroundColor: RESEARCH_STATUS_COLORS[item.status] ?? '#64748b',
                     flexShrink: 0,
                   }}
                 />

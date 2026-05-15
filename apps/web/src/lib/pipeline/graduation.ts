@@ -143,7 +143,7 @@ export async function graduateToSocialPost(
 
       const { error: fkError, count: fkCount } = await supabase
         .from('content_pipeline')
-        .update({ social_post_id: result.postId }, { count: 'exact' })
+        .update({ social_post_id: result.postId, is_archived: true }, { count: 'exact' })
         .eq('id', item.id)
         .eq('site_id', siteId)
         .is('social_post_id', null)
@@ -155,14 +155,9 @@ export async function graduateToSocialPost(
           extra: { pipelineId: item.id, postId: result.postId },
         })
       } else if (fkCount === 0) {
-        const { captureException } = await import('@sentry/nextjs')
-        captureException(
-          new Error('Concurrent graduation: social_post_id already set, orphan post created'),
-          {
-            tags: { component: 'pipeline-graduation', path: 'fk-update-race' },
-            extra: { pipelineId: item.id, postId: result.postId },
-          },
-        )
+        // Another concurrent graduation won — clean up our orphan post
+        await supabase.from('social_posts').delete().eq('id', result.postId)
+        return { ok: false, error: 'Concurrent graduation detected — another process already graduated this item' }
       }
 
       const { error: historyError } = await supabase.from('content_pipeline_history').insert({
@@ -230,7 +225,7 @@ export async function graduateToSocialPost(
 
   const { error: draftFkError, count: draftFkCount } = await supabase
     .from('content_pipeline')
-    .update({ social_post_id: postId }, { count: 'exact' })
+    .update({ social_post_id: postId, is_archived: true }, { count: 'exact' })
     .eq('id', item.id)
     .eq('site_id', siteId)
     .is('social_post_id', null)
@@ -242,14 +237,9 @@ export async function graduateToSocialPost(
       extra: { pipelineId: item.id, postId },
     })
   } else if (draftFkCount === 0) {
-    const { captureException } = await import('@sentry/nextjs')
-    captureException(
-      new Error('Concurrent graduation: social_post_id already set, orphan draft created'),
-      {
-        tags: { component: 'pipeline-graduation', path: 'draft-fk-update-race' },
-        extra: { pipelineId: item.id, postId },
-      },
-    )
+    // Another concurrent graduation won — clean up our orphan draft
+    await supabase.from('social_posts').delete().eq('id', postId)
+    return { ok: false, error: 'Concurrent graduation detected — another process already graduated this item' }
   }
 
   const { error: draftHistoryError } = await supabase.from('content_pipeline_history').insert({

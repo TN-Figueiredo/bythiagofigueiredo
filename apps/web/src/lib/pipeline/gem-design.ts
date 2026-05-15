@@ -105,6 +105,7 @@ interface CardStateInput {
   blog_post_id: string | null
   newsletter_edition_id: string | null
   campaign_id: string | null
+  social_post_id: string | null
   is_archived: boolean
 }
 
@@ -112,7 +113,7 @@ export type CardState = 'raw' | 'enriched' | 'graduated' | 'archived'
 
 export function getCardState(item: CardStateInput): CardState {
   if (item.is_archived) return 'archived'
-  if (item.youtube_video_id || item.blog_post_id || item.newsletter_edition_id || item.campaign_id) return 'graduated'
+  if (item.youtube_video_id || item.blog_post_id || item.newsletter_edition_id || item.campaign_id || item.social_post_id) return 'graduated'
   if (item.hook || item.body_content) return 'enriched'
   return 'raw'
 }

@@ -30,6 +30,7 @@ export interface SocialStrings {
     noContent: string
     review: string
     selected: string
+    emptyFilter: string
     emptyDrafts: string
     emptyDraftsCta: string
     bulk: { reschedule: string; retry: string; moveToQueue: string; delete: string; deleteConfirm: string }

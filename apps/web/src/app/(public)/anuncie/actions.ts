@@ -57,7 +57,12 @@ export async function submitAdInquiry(formData: FormData): Promise<InquiryResult
 
   const supabase = getSupabaseServiceClient()
 
-  // Simple IP-based rate limit: max 3 inquiries per IP per hour
+  // Simple IP-based rate limit: max 3 inquiries per IP per hour.
+  // NOTE: This uses a SELECT-then-INSERT pattern with a small race window where
+  // concurrent requests between the count check and the insert below could both
+  // pass. This is acceptable for ad inquiries (low volume, Turnstile-gated) —
+  // an atomic INSERT ... ON CONFLICT approach would require a dedicated rate
+  // limit table or DB function, which is overkill for this use case.
   if (ip && isValidInet(ip)) {
     const oneHourAgo = new Date(Date.now() - 3600000).toISOString()
     const { count } = await supabase

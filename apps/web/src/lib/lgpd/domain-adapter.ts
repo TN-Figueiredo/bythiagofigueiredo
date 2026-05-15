@@ -108,6 +108,37 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
       throw new Error(`lgpd_phase1_cleanup RPC failed: ${error.message}`);
     }
 
+    // BTF-022: anonymize ad_inquiries by email (table has no user_id FK).
+    // Retains the row for business records but strips PII fields.
+    if (emails.length > 0) {
+      const { error: adErr } = await this.supabase
+        .from('ad_inquiries')
+        .update({
+          name: '[REDACTED]',
+          email: '[REDACTED]@redacted.invalid',
+          company: null,
+          website: null,
+          message: '[REDACTED]',
+          ip: null,
+          user_agent: null,
+        })
+        .in('email', emails);
+      if (adErr) {
+        throw new Error(`phase1Cleanup: ad_inquiries anonymize failed: ${adErr.message}`);
+      }
+    }
+
+    // BTF-034: anonymize PII in consent records (ip, user_agent).
+    // Consent rows are retained for compliance proof (LGPD Art. 15) but
+    // the network-layer PII is no longer needed once the user is gone.
+    const { error: consentErr } = await this.supabase
+      .from('consents')
+      .update({ ip: null, user_agent: null })
+      .eq('user_id', userId);
+    if (consentErr) {
+      throw new Error(`phase1Cleanup: consents anonymize failed: ${consentErr.message}`);
+    }
+
     await this.supabase
       .from('media_assets')
       .update({ uploaded_by: null })
@@ -195,10 +226,25 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
       this.queryRows('media_assets', 'uploaded_by', userId),
     ]);
 
+    // BTF-022: ad_inquiries are keyed by email, not user_id. Fetch after
+    // resolving the user so we have the email for the query.
     if (userRes.error) {
       throw new Error(`collectUserData: getUserById failed: ${userRes.error.message}`);
     }
     const user = userRes.data?.user ?? null;
+    const userEmail = user?.email ?? null;
+
+    let adInquiries: unknown[] = [];
+    if (userEmail) {
+      const { data: adRows, error: adErr } = await this.supabase
+        .from('ad_inquiries')
+        .select('*')
+        .eq('email', userEmail);
+      if (adErr) {
+        throw new Error(`collectUserData: query ad_inquiries failed: ${adErr.message}`);
+      }
+      adInquiries = adRows ?? [];
+    }
 
     return {
       version: '1',
@@ -234,6 +280,7 @@ export class BythiagoLgpdDomainAdapter implements ILgpdDomainAdapter {
       lgpd_requests: lgpdRequests,
       consents,
       media_assets_uploaded: mediaAssets,
+      ad_inquiries: adInquiries,
     };
   }
 

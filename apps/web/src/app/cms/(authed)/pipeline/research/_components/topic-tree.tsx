@@ -1,22 +1,11 @@
 'use client'
 
 import { useState, useMemo, useCallback, useRef } from 'react'
-
-interface Topic {
-  id: string
-  parent_id: string | null
-  name: string
-  slug: string
-  path: string
-  depth: number
-  color: string
-  icon: string
-  sort_order: number
-}
+import type { ResearchTopic, TopicItemCounts } from '@/lib/pipeline/research-types'
 
 interface TopicTreeProps {
-  topics: Topic[]
-  topicItemCounts: Record<string, { total: number; unread: number }>
+  topics: ResearchTopic[]
+  topicItemCounts: TopicItemCounts
   selectedTopicId: string | null
   onSelectTopic: (topicId: string | null) => void
   onCreateTopic: () => void
@@ -24,13 +13,13 @@ interface TopicTreeProps {
   totalUnreadCount: number
 }
 
-interface TreeNode extends Topic {
+interface TreeNode extends ResearchTopic {
   children: TreeNode[]
   totalCount: number
   unreadCount: number
 }
 
-function buildTree(topics: Topic[], counts: Record<string, { total: number; unread: number }>): TreeNode[] {
+function buildTree(topics: ResearchTopic[], counts: TopicItemCounts): TreeNode[] {
   const map = new Map<string, TreeNode>()
   const roots: TreeNode[] = []
 
@@ -109,6 +98,7 @@ export function TopicTree({
       <div key={node.id}>
         <button
           onClick={() => onSelectTopic(node.id)}
+          className="transition-colors duration-100"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -122,6 +112,12 @@ export function TopicTree({
             cursor: 'pointer',
             backgroundColor: isSelected ? 'rgba(99,102,241,0.12)' : 'transparent',
             borderLeft: isSelected ? '2px solid rgb(99,102,241)' : '2px solid transparent',
+          }}
+          onMouseEnter={(e) => {
+            if (!isSelected) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.03)'
+          }}
+          onMouseLeave={(e) => {
+            if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent'
           }}
         >
           {hasChildren && (
@@ -228,11 +224,11 @@ export function TopicTree({
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Filter topics..."
+            placeholder="Filtrar temas..."
             style={{
               width: '100%',
               padding: '5px 8px',
-              paddingRight: 40,
+              paddingRight: search ? 28 : 8,
               fontSize: 12,
               borderRadius: 6,
               border: '1px solid var(--gem-border)',
@@ -241,21 +237,28 @@ export function TopicTree({
               outline: 'none',
             }}
           />
-          <span
-            style={{
-              position: 'absolute',
-              right: 8,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              fontSize: 9,
-              color: 'var(--gem-muted)',
-              opacity: 0.6,
-              pointerEvents: 'none',
-              fontFamily: 'monospace',
-            }}
-          >
-            {'⌘'}K
-          </span>
+          {search && (
+            <button
+              type="button"
+              onClick={() => { setSearch(''); searchRef.current?.focus() }}
+              style={{
+                position: 'absolute',
+                right: 6,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: 12,
+                color: 'var(--gem-muted)',
+                padding: '0 2px',
+                lineHeight: 1,
+              }}
+              aria-label="Limpar filtro"
+            >
+              ×
+            </button>
+          )}
         </div>
       </div>
 
@@ -263,6 +266,7 @@ export function TopicTree({
         {/* "Todas" entry */}
         <button
           onClick={() => onSelectTopic(null)}
+          className="transition-colors duration-100"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -275,6 +279,12 @@ export function TopicTree({
             cursor: 'pointer',
             backgroundColor: selectedTopicId === null ? 'rgba(99,102,241,0.12)' : 'transparent',
             borderLeft: selectedTopicId === null ? '2px solid rgb(99,102,241)' : '2px solid transparent',
+          }}
+          onMouseEnter={(e) => {
+            if (selectedTopicId !== null) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.03)'
+          }}
+          onMouseLeave={(e) => {
+            if (selectedTopicId !== null) e.currentTarget.style.backgroundColor = 'transparent'
           }}
         >
           <span style={{ width: 12 }} />

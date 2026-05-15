@@ -23,6 +23,7 @@ const baseItem: GemCardItem = {
   blog_post_id: null,
   newsletter_edition_id: null,
   campaign_id: null,
+  social_post_id: null,
   is_archived: false,
   validation_score: 45,
   dependencies: [],

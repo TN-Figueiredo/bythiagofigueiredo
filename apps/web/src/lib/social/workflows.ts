@@ -275,9 +275,11 @@ export async function publishSocialPost(
     const results = await Promise.allSettled(
       (deliveries as unknown as (SocialDelivery & { format?: string; template_config?: Record<string, unknown> | null })[]).map(async (delivery) => {
         // Get connection
+        // Intentionally selecting all columns including token fields —
+        // tokens are required by the provider publish flow (executeWithRetry → publishFn.publish).
         const { data: connectionData, error: connError } = await supabase
           .from('social_connections')
-          .select('*')
+          .select('id, site_id, provider, account_id, account_name, access_token_enc, refresh_token_enc, page_token_enc, token_expires_at, scopes, metadata, connected_at, revoked_at, updated_at')
           .eq('id', delivery.connection_id)
           .single()
 

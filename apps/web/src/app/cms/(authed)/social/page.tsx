@@ -1,5 +1,6 @@
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { CmsTopbar } from '@tn-figueiredo/cms-ui/client'
 import { listSocialPosts } from '@/lib/social/actions'
 import { getSocialStrings } from './_i18n'
@@ -8,6 +9,7 @@ import { PostsCalendar } from './_components/posts-calendar'
 import { PostsQueue } from './_components/posts-queue'
 import { PostsDrafts } from './_components/posts-drafts'
 import Link from 'next/link'
+import type { Provider } from '@tn-figueiredo/social'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,6 +28,22 @@ export default async function SocialPostsPage({ searchParams }: Props) {
 
   const result = await listSocialPosts(ctx.siteId)
   const posts = result.ok ? result.data : []
+
+  let platformsByPost = new Map<string, Provider[]>()
+  const postIds = posts.map(p => p.id)
+  if (postIds.length > 0) {
+    const supabase = getSupabaseServiceClient()
+    const { data: deliveries } = await supabase
+      .from('social_deliveries')
+      .select('post_id, provider')
+      .in('post_id', postIds)
+    for (const d of (deliveries ?? []) as Array<{ post_id: string; provider: Provider }>) {
+      const existing = platformsByPost.get(d.post_id) ?? []
+      if (!existing.includes(d.provider)) existing.push(d.provider)
+      platformsByPost.set(d.post_id, existing)
+    }
+  }
+  const platformsMap = Object.fromEntries(platformsByPost)
 
   return (
     <>
@@ -52,7 +70,7 @@ export default async function SocialPostsPage({ searchParams }: Props) {
           </Link>
         </div>
 
-        {tab === 'feed' && <PostsFeed posts={posts} siteId={ctx.siteId} strings={t} />}
+        {tab === 'feed' && <PostsFeed posts={posts} siteId={ctx.siteId} strings={t} platformsByPost={platformsMap} />}
         {tab === 'calendar' && <PostsCalendar posts={posts} strings={t} />}
         {tab === 'queue' && <PostsQueue posts={posts} strings={t} />}
         {tab === 'drafts' && <PostsDrafts posts={posts} strings={t} />}

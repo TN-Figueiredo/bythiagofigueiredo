@@ -83,6 +83,8 @@ export async function subscribeToNewsletter(formData: FormData): Promise<Subscri
     }
     const ok = await verifyTurnstileToken(turnstileToken)
     if (!ok) return { status: 'error', code: 'turnstile_failed' }
+  } else if (process.env.NODE_ENV === 'production') {
+    console.warn('[newsletter-subscribe] NEXT_PUBLIC_TURNSTILE_SITE_KEY is not set — bot protection disabled')
   }
 
   const { siteId } = await getSiteContext()

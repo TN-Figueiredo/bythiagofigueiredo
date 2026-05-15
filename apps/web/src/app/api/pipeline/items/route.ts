@@ -4,6 +4,7 @@ import { authenticatePipeline, requirePermission, buildRateLimitHeaders, UUID_RE
 import { PipelineItemCreateSchema, FORMAT_METADATA_SCHEMAS } from '@/lib/pipeline/schemas'
 import { generateCode, DEFAULT_CHECKLISTS, WORKFLOWS, isValidStage } from '@/lib/pipeline/workflows'
 import { decodeCursor, encodeCursor, parseSortParam, applyPipelineFilters } from '@/lib/pipeline/queries'
+import { sanitizeForFilter } from '@/lib/pipeline/sanitize'
 import type { Format } from '@/lib/pipeline/schemas'
 
 export async function GET(req: NextRequest) {
@@ -48,13 +49,17 @@ export async function GET(req: NextRequest) {
       const safeValue = /^[a-zA-Z0-9\-_:.T+Z]+$/.test(decoded.sort_value) && decoded.sort_value.length <= 200
       if (UUID_REGEX.test(decoded.id) && safeValue) {
         const op = ascending ? 'gt' : 'lt'
-        query = query.or(`${column}.${op}.${decoded.sort_value},and(${column}.eq.${decoded.sort_value},id.gt.${decoded.id})`)
+        const safeSortValue = sanitizeForFilter(decoded.sort_value)
+        query = query.or(`${column}.${op}.${safeSortValue},and(${column}.eq.${safeSortValue},id.gt.${decoded.id})`)
       }
     }
   }
 
   const { data, error, count } = await query
-  if (error) return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: error.message } }, { status: 400 })
+  if (error) {
+    console.error('[pipeline/items/GET]', error.message)
+    return NextResponse.json({ error: { code: 'DB_ERROR', message: 'Internal server error' } }, { status: 500 })
+  }
 
   const hasNext = (data?.length ?? 0) > limit
   const items = data?.slice(0, limit) ?? []

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { deleteSocialPost } from '@/lib/social/actions'
+import { deleteSocialPost, retryPostDeliveries } from '@/lib/social/actions'
 import type { SocialStrings } from '../_i18n/types'
 
 interface BulkActionsBarProps {
@@ -31,7 +31,9 @@ export function BulkActionsBar({ selectedIds, strings: t, onDone }: BulkActionsB
     setError(null)
     startTransition(async () => {
       try {
-        await Promise.all(selectedIds.map(() => Promise.resolve()))
+        const results = await Promise.all(selectedIds.map(id => retryPostDeliveries(id)))
+        const failed = results.filter(r => !r.ok)
+        if (failed.length > 0) setError(`${failed.length} falha(s) ao retentar`)
         onDone()
       } catch {
         setError(t.common.error)

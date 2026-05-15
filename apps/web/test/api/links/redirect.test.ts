@@ -22,6 +22,11 @@ const mockLink = {
 const mockResolve = vi.fn()
 const mockRecordClick = vi.fn().mockResolvedValue({ deduplicated: false, isBot: false })
 
+const mockMaybeSingle = vi.fn().mockResolvedValue({ data: { id: 'site-1' }, error: null })
+const mockContains = vi.fn().mockReturnValue({ maybeSingle: mockMaybeSingle })
+const mockSelect = vi.fn().mockReturnValue({ contains: mockContains })
+const mockFrom = vi.fn().mockReturnValue({ select: mockSelect })
+
 vi.mock('@/lib/links/resolver', () => ({
   resolveLink: (...args: unknown[]) => mockResolve(...args),
 }))
@@ -29,6 +34,10 @@ vi.mock('@/lib/links/resolver', () => ({
 vi.mock('@/lib/links/click-recorder', () => ({
   recordClick: (...args: unknown[]) => mockRecordClick(...args),
   isBot: (ua: string) => ua.includes('Googlebot'),
+}))
+
+vi.mock('@/lib/supabase/service', () => ({
+  getSupabaseServiceClient: () => ({ from: mockFrom }),
 }))
 
 vi.mock('next/cache', () => ({
@@ -45,7 +54,7 @@ describe('GET /go/[code]', () => {
     const { GET } = await import('../../../src/app/go/[code]/route')
     const req = new Request('http://go.example.com/abc', {
       headers: {
-        'x-site-id': 'site-1',
+        host: 'go.example.com',
         'x-forwarded-for': '1.2.3.4',
         'user-agent': 'Mozilla/5.0',
       },
@@ -60,7 +69,7 @@ describe('GET /go/[code]', () => {
     const { GET } = await import('../../../src/app/go/[code]/route')
     const req = new Request('http://go.example.com/abc', {
       headers: {
-        'x-site-id': 'site-1',
+        host: 'go.example.com',
         'x-forwarded-for': '1.2.3.4',
         'user-agent': 'Mozilla/5.0',
       },
@@ -73,7 +82,7 @@ describe('GET /go/[code]', () => {
     mockResolve.mockResolvedValue(null)
     const { GET } = await import('../../../src/app/go/[code]/route')
     const req = new Request('http://go.example.com/nope', {
-      headers: { 'x-site-id': 'site-1' },
+      headers: { host: 'go.example.com' },
     })
     const res = await GET(req, { params: Promise.resolve({ code: 'nope' }) })
     expect(res.status).toBe(404)
@@ -87,7 +96,7 @@ describe('GET /go/[code]', () => {
     })
     const { GET } = await import('../../../src/app/go/[code]/route')
     const req = new Request('http://go.example.com/abc', {
-      headers: { 'x-site-id': 'site-1' },
+      headers: { host: 'go.example.com' },
     })
     const res = await GET(req, { params: Promise.resolve({ code: 'abc' }) })
     expect(res.status).toBe(410)
@@ -101,7 +110,7 @@ describe('GET /go/[code]', () => {
     })
     const { GET } = await import('../../../src/app/go/[code]/route')
     const req = new Request('http://go.example.com/abc', {
-      headers: { 'x-site-id': 'site-1' },
+      headers: { host: 'go.example.com' },
     })
     const res = await GET(req, { params: Promise.resolve({ code: 'abc' }) })
     expect(res.status).toBe(410)
@@ -111,7 +120,7 @@ describe('GET /go/[code]', () => {
     mockResolve.mockResolvedValue({ ...mockLink, password_hash: '$2b$10$somehash' })
     const { GET } = await import('../../../src/app/go/[code]/route')
     const req = new Request('http://go.example.com/abc', {
-      headers: { 'x-site-id': 'site-1' },
+      headers: { host: 'go.example.com' },
     })
     const res = await GET(req, { params: Promise.resolve({ code: 'abc' }) })
     expect(res.status).toBe(302)
@@ -123,7 +132,7 @@ describe('GET /go/[code]', () => {
     const { GET } = await import('../../../src/app/go/[code]/route')
     const req = new Request('http://go.example.com/abc', {
       headers: {
-        'x-site-id': 'site-1',
+        host: 'go.example.com',
         'x-forwarded-for': '1.2.3.4',
         'user-agent': 'Mozilla/5.0',
         referer: 'https://twitter.com/post',
@@ -138,5 +147,17 @@ describe('GET /go/[code]', () => {
         ip: '1.2.3.4',
       }),
     )
+  })
+
+  it('returns 400 when host does not resolve to a site', async () => {
+    mockMaybeSingle.mockResolvedValueOnce({ data: null, error: null })
+    const { GET } = await import('../../../src/app/go/[code]/route')
+    const req = new Request('http://go.unknown.com/abc', {
+      headers: { host: 'go.unknown.com' },
+    })
+    const res = await GET(req, { params: Promise.resolve({ code: 'abc' }) })
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.error).toBe('site_not_resolved')
   })
 })

@@ -9,9 +9,11 @@ const SourceSchema = z.object({
   accessed_at: z.string().datetime().optional(),
 })
 
+export const TOPIC_SLUG_REGEX = /^[a-z0-9-]+(?:\/[a-z0-9-]+)*$/
+
 export const ResearchItemCreateSchema = z.object({
   title: z.string().min(1).max(500),
-  topic_slug: z.string().min(1).max(200),
+  topic_slug: z.string().min(1).max(200).regex(TOPIC_SLUG_REGEX, 'topic_slug must be lowercase kebab-case segments separated by /'),
   content_md: z.string().min(1).max(500_000),
   summary: z.string().max(2000).optional(),
   sources: z.array(SourceSchema).max(50).default([]),
@@ -25,15 +27,7 @@ export const ResearchItemUpdateSchema = z
     content_json: z.record(z.unknown()).optional(),
     content_md: z.string().max(500_000).optional(),
     summary: z.string().max(2000).nullable().optional(),
-    sources: z
-      .array(
-        z.object({
-          url: z.string().url().max(2000),
-          title: z.string().max(200),
-        })
-      )
-      .max(50)
-      .optional(),
+    sources: z.array(SourceSchema).max(50).optional(),
     status: z.enum(RESEARCH_STATUS).optional(),
     topic_id: z.string().uuid().optional(),
   })
@@ -59,13 +53,6 @@ export type ResearchTopicCreateInput = z.infer<typeof ResearchTopicCreateSchema>
 
 export const ResearchTopicUpdateSchema = z.object({
   name: z.string().min(1).max(100).optional(),
-  slug: z
-    .string()
-    .min(1)
-    .max(100)
-    .regex(/^[a-z0-9-]+$/)
-    .optional(),
-  parent_id: z.string().uuid().nullable().optional(),
   color: z
     .string()
     .regex(/^#[0-9a-f]{6}$/i)

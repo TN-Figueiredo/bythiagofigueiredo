@@ -32,15 +32,21 @@ export default defineConfig({
         maxForks: 4,
       },
     },
-    // Sprint 5a Track E — LGPD module coverage thresholds. v8 provider keeps
-    // runtime cheap (no Babel instrumentation). Only gates the LGPD surface so
-    // legacy code isn't forced to 90% overnight. Run via `npx vitest run
-    // --coverage` (CI or local).
+    // Coverage thresholds. v8 provider keeps runtime cheap (no Babel
+    // instrumentation). Global thresholds prevent silent coverage drops;
+    // LGPD module enforces stricter minimums (Sprint 5a Track E).
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
-      include: ['src/lib/lgpd/**', 'src/components/lgpd/**'],
-      thresholds: { lines: 90, functions: 90, branches: 85 },
+      include: ['src/**'],
+      thresholds: {
+        lines: 60,
+        functions: 60,
+        branches: 50,
+        perFile: false,
+        'src/lib/lgpd/**': { lines: 90, functions: 90, branches: 85 },
+        'src/components/lgpd/**': { lines: 90, functions: 90, branches: 85 },
+      },
     },
   },
   resolve: {

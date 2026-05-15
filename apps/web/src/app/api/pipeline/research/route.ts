@@ -2,48 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { authenticatePipeline, requirePermission, buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
 import { ResearchItemCreateSchema } from '@/lib/pipeline/research-schemas'
-import { slugToName, parseTopicSlug, validateTopicSlugDepth } from '@/lib/pipeline/research-topics'
-
-async function resolveOrCreateTopics(
-  supabase: ReturnType<typeof getSupabaseServiceClient>,
-  siteId: string,
-  topicSlug: string,
-): Promise<{ topicId: string } | { error: string }> {
-  const parts = parseTopicSlug(topicSlug)
-  const resolvedIds: string[] = []
-  let currentPath = ''
-
-  for (let i = 0; i < parts.length; i++) {
-    const slug = parts[i]!
-    currentPath = currentPath ? `${currentPath}/${slug}` : slug
-    const parentForInsert = resolvedIds.length > 0 ? resolvedIds[resolvedIds.length - 1]! : null
-
-    const { data: existing } = await supabase
-      .from('research_topics')
-      .select('id')
-      .eq('site_id', siteId)
-      .eq('path', currentPath)
-      .single()
-
-    if (existing) {
-      resolvedIds.push(existing.id as string)
-      continue
-    }
-
-    const { data: created, error } = await supabase
-      .from('research_topics')
-      .insert({ site_id: siteId, name: slugToName(slug), slug, path: currentPath, depth: i, parent_id: parentForInsert })
-      .select('id')
-      .single()
-
-    if (error) return { error: `Failed to create topic "${currentPath}": ${error.message}` }
-    resolvedIds.push((created as { id: string }).id)
-  }
-
-  const lastId = resolvedIds[resolvedIds.length - 1]
-  if (!lastId) return { error: 'Empty topic slug' }
-  return { topicId: lastId }
-}
+import { validateTopicSlugDepth, resolveOrCreateTopics } from '@/lib/pipeline/research-topics'
+import { sanitizeForFilter } from '@/lib/pipeline/sanitize'
 
 export async function GET(req: NextRequest) {
   const authResult = await authenticatePipeline(req)
@@ -57,8 +17,8 @@ export async function GET(req: NextRequest) {
   const includeContent = params.get('include') === 'content'
 
   const selectFields = includeContent
-    ? 'id, title, topic_id, summary, status, word_count, sources, version, created_at, updated_at, content_md, research_topics!inner(path, name, icon)'
-    : 'id, title, topic_id, summary, status, word_count, sources, version, created_at, updated_at, research_topics!inner(path, name, icon)'
+    ? 'id, title, topic_id, summary, status, word_count, sources, version, created_at, updated_at, content_md, research_topics(path, name, icon)'
+    : 'id, title, topic_id, summary, status, word_count, sources, version, created_at, updated_at, research_topics(path, name, icon)'
 
   const supabase = getSupabaseServiceClient()
   let query = supabase
@@ -75,8 +35,9 @@ export async function GET(req: NextRequest) {
   }
 
   const topicSlug = params.get('topic_slug')
-  if (topicSlug) {
-    query = query.or(`research_topics.path.eq.${topicSlug},research_topics.path.like.${topicSlug}/%`)
+  if (topicSlug && /^[a-z0-9-]+(?:\/[a-z0-9-]+)*$/.test(topicSlug)) {
+    const safeSlug = sanitizeForFilter(topicSlug)
+    query = query.or(`research_topics.path.eq.${safeSlug},research_topics.path.like.${safeSlug}/%`)
   }
 
   const statusFilter = params.get('status')
@@ -100,7 +61,7 @@ export async function GET(req: NextRequest) {
     if (ids.length > 0) {
       query = query.in('id', ids)
     } else {
-      return NextResponse.json({ data: { items: [], has_more: false } }, { headers: buildRateLimitHeaders(auth) })
+      return NextResponse.json({ data: [], meta: { total: 0, has_next: false, limit } }, { headers: buildRateLimitHeaders(auth) })
     }
   }
 
@@ -111,12 +72,16 @@ export async function GET(req: NextRequest) {
       .eq('id', cursor)
       .single()
     if (cursorItem) {
-      query = query.or(`created_at.lt.${cursorItem.created_at},and(created_at.eq.${cursorItem.created_at},id.lt.${cursor})`)
+      const safeTs = sanitizeForFilter(String(cursorItem.created_at))
+      query = query.or(`created_at.lt.${safeTs},and(created_at.eq.${safeTs},id.lt.${cursor})`)
     }
   }
 
   const { data, error, count } = await query
-  if (error) return NextResponse.json({ error: { code: 'DB_ERROR', message: error.message } }, { status: 500 })
+  if (error) {
+    console.error('[research/GET]', error.message)
+    return NextResponse.json({ error: { code: 'DB_ERROR', message: 'Internal server error' } }, { status: 500 })
+  }
 
   const hasNext = (data?.length ?? 0) > limit
   const items = (data?.slice(0, limit) ?? []) as unknown as Array<Record<string, unknown>>

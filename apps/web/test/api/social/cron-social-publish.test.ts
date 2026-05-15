@@ -8,6 +8,7 @@ const mockInsert = vi.fn().mockResolvedValue({ error: null })
 
 vi.mock('@/lib/supabase/service', () => ({
   getSupabaseServiceClient: () => ({
+    rpc: vi.fn().mockResolvedValue({ data: null, error: { code: '42883', message: 'function not found' } }),
     from: (table: string) => {
       if (table === 'social_posts') {
         return {

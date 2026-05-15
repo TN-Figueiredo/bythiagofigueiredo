@@ -32,12 +32,16 @@ function fakeContainer(overrides: Partial<{
   advancePhase3: () => Promise<{ processed: number }>;
   sendReminders: () => Promise<{ sent: number }>;
   deleteExpiredBlobs: () => Promise<{ deleted: number }>;
+  purgeStaleResetAttempts: () => Promise<{ deleted: number }>;
+  purgeStaleUnsubscribeTokens: () => Promise<{ deleted: number }>;
 }> = {}) {
   return {
     cleanupSweep: {
       advancePhase3: vi.fn().mockResolvedValue({ processed: 2 }),
       sendReminders: vi.fn().mockResolvedValue({ sent: 1 }),
       deleteExpiredBlobs: vi.fn().mockResolvedValue({ deleted: 3 }),
+      purgeStaleResetAttempts: vi.fn().mockResolvedValue({ deleted: 0 }),
+      purgeStaleUnsubscribeTokens: vi.fn().mockResolvedValue({ deleted: 0 }),
       ...overrides,
     },
   };

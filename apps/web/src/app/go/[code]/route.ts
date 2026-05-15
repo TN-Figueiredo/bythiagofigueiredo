@@ -2,15 +2,42 @@ import { NextResponse } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
 import { resolveLink } from '@/lib/links/resolver'
 import { recordClick } from '@/lib/links/click-recorder'
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
 export const runtime = 'nodejs'
+
+/**
+ * Resolve site_id from the Host header instead of trusting x-site-id.
+ * This prevents cross-origin link harvesting via spoofed headers.
+ */
+async function resolveSiteFromHost(host: string): Promise<string | null> {
+  const hostname = host.split(':')[0] ?? ''
+  // go.* subdomain → strip prefix to get base domain
+  const domain = hostname.startsWith('go.') ? hostname.slice(3) : hostname
+  // Dev override: resolve localhost using the configured dev hostname
+  const resolvedDomain =
+    (domain === 'localhost' || domain === '127.0.0.1') &&
+    process.env.NEXT_PUBLIC_DEV_SITE_HOSTNAME
+      ? process.env.NEXT_PUBLIC_DEV_SITE_HOSTNAME
+      : domain
+
+  const supabase = getSupabaseServiceClient()
+  const { data } = await supabase
+    .from('sites')
+    .select('id')
+    .contains('domains', [resolvedDomain])
+    .maybeSingle()
+
+  return data?.id ?? null
+}
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ code: string }> },
 ): Promise<Response> {
   const { code } = await params
-  const siteId = request.headers.get('x-site-id') ?? ''
+  const host = request.headers.get('host') ?? ''
+  const siteId = await resolveSiteFromHost(host)
 
   if (!siteId) {
     return NextResponse.json({ error: 'site_not_resolved' }, { status: 400 })

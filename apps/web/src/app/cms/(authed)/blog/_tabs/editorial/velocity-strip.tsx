@@ -12,30 +12,29 @@ interface VelocityStripProps {
 export function VelocityStrip({ velocity, strings }: VelocityStripProps) {
   const s = strings?.editorial
   const sd = strings?.schedule
-  return (
-    <HealthStrip
-      metrics={[
-        {
-          label: s?.throughput ?? 'Throughput',
-          value: `${velocity.throughput}/mo`,
-        },
-        {
-          label: s?.avgTime ?? 'Avg Idea→Pub',
-          value:
-            velocity.avgIdeaToPublished > 0
-              ? `${velocity.avgIdeaToPublished} ${sd?.daysUnit ?? 'd'}`
-              : '—',
-        },
-        {
-          label: s?.movedForward ?? 'Moved This Week',
-          value: velocity.movedThisWeek,
-        },
-        {
-          label: s?.bottleneck ?? 'Bottleneck',
-          value: velocity.bottleneck?.column ?? (s?.none ?? 'None'),
-          color: velocity.bottleneck ? '#f59e0b' : '#22c55e',
-        },
-      ]}
-    />
-  )
+  const metrics: Array<{ label: string; value: string | number; color?: string }> = [
+    {
+      label: s?.throughput ?? 'Throughput',
+      value: `${velocity.throughput}/mo`,
+    },
+    {
+      label: s?.avgTime ?? 'Avg Ready→Pub',
+      value:
+        velocity.avgIdeaToPublished > 0
+          ? `${velocity.avgIdeaToPublished} ${sd?.daysUnit ?? 'd'}`
+          : '—',
+    },
+    {
+      label: s?.movedForward ?? 'Moved This Week',
+      value: velocity.movedThisWeek,
+    },
+  ]
+  if (velocity.bottleneck) {
+    metrics.push({
+      label: s?.bottleneck ?? 'Bottleneck',
+      value: velocity.bottleneck.column,
+      color: '#f59e0b',
+    })
+  }
+  return <HealthStrip metrics={metrics} />
 }

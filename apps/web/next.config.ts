@@ -80,9 +80,15 @@ const nextConfig: NextConfig = {
     // (including the rewrite targets /site-not-configured, /site-error,
     // /cms/disabled) we register it under `/:path*` alongside the existing
     // baseline headers.
+    // unsafe-eval is required by Next.js in development (hot-reload / source
+    // maps) but MUST NOT ship to production builds.
+    const isDev = process.env.NODE_ENV !== 'production'
+    const scriptSrc = isDev
+      ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com https://static.cloudflareinsights.com"
+      : "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://static.cloudflareinsights.com"
     const globalCsp = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com https://static.cloudflareinsights.com",
+      scriptSrc,
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://i.ytimg.com https://yt3.ggpht.com https://*.public.blob.vercel-storage.com",
       "font-src 'self' data:",

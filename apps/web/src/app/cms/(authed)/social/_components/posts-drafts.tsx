@@ -16,7 +16,7 @@ export function PostsDrafts({ posts, strings: t }: PostsDraftsProps) {
     return (
       <div className="py-12 text-center">
         <p className="text-cms-text-muted">{t.posts.emptyDrafts}</p>
-        <Link href="/cms/social/accounts?tab=automations" className="mt-2 inline-block text-sm text-cms-accent hover:underline">
+        <Link href="/cms/social/new" className="mt-2 inline-block text-sm text-cms-accent hover:underline">
           {t.posts.emptyDraftsCta}
         </Link>
       </div>
