@@ -165,4 +165,43 @@ describe('graphReducer', () => {
     expect(next.items).toHaveLength(2)
     expect(next.selectedItemIds.size).toBe(0)
   })
+
+  it('REMOVE_ITEM clears removed item from selection', () => {
+    const state: GraphState = {
+      ...initialGraphState(),
+      items: [makeItem('a'), makeItem('b')],
+      selectedItemIds: new Set(['a', 'b']),
+    }
+    const next = graphReducer(state, { type: 'REMOVE_ITEM', itemId: 'a' })
+    expect(next.selectedItemIds.has('a')).toBe(false)
+    expect(next.selectedItemIds.has('b')).toBe(true)
+  })
+
+  it('REMOVE_EDGE clears removed edge from selection', () => {
+    const state: GraphState = {
+      ...initialGraphState(),
+      items: [makeItem('a'), makeItem('b')],
+      edges: [makeEdge('e1', 'a', 'b'), makeEdge('e2', 'a', 'b', 'related')],
+      selectedEdgeIds: new Set(['e1', 'e2']),
+    }
+    const next = graphReducer(state, { type: 'REMOVE_EDGE', edgeId: 'e1' })
+    expect(next.selectedEdgeIds.has('e1')).toBe(false)
+    expect(next.selectedEdgeIds.has('e2')).toBe(true)
+  })
+
+  it('MOVE_ITEMS only moves items present in state', () => {
+    const state: GraphState = {
+      ...initialGraphState(),
+      items: [makeItem('a', 100, 100)],
+    }
+    const next = graphReducer(state, {
+      type: 'MOVE_ITEMS',
+      moves: [
+        { itemId: 'a', x: 200, y: 200 },
+        { itemId: 'nonexistent', x: 999, y: 999 },
+      ],
+    })
+    expect(next.items).toHaveLength(1)
+    expect(next.items[0].position_x).toBe(200)
+  })
 })
