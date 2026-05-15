@@ -5,7 +5,12 @@ import { CSS } from '@dnd-kit/utilities'
 import { useRouter } from 'next/navigation'
 import { GemCard, type GemCardItem } from './gem-card'
 
-export function SortableGemCard({ item }: { item: GemCardItem }) {
+interface SortableGemCardProps {
+  item: GemCardItem
+  onPromote?: (itemId: string) => void
+}
+
+export function SortableGemCard({ item, onPromote }: SortableGemCardProps) {
   const router = useRouter()
   const {
     attributes,
@@ -28,6 +33,7 @@ export function SortableGemCard({ item }: { item: GemCardItem }) {
         item={item}
         isDragging={isDragging}
         onNavigate={() => router.push(`/cms/pipeline/items/${item.id}`)}
+        onPromote={onPromote}
       />
     </div>
   )

@@ -92,6 +92,14 @@ const GLOW_COLORS: Record<string, { border: string; shadow: string }> = {
   purple: { border: 'rgba(168,85,247,0.35)', shadow: '0 6px 20px rgba(168,85,247,0.06), 0 2px 6px rgba(0,0,0,0.3)' },
 }
 
+const CONTEXT_MENU_WIDTH = 170
+
+function safeMenuPosition(clientX: number, clientY: number): { x: number; y: number } {
+  const x = clientX + CONTEXT_MENU_WIDTH > window.innerWidth ? clientX - CONTEXT_MENU_WIDTH : clientX
+  const y = clientY + 300 > window.innerHeight ? Math.max(8, clientY - 200) : clientY
+  return { x, y }
+}
+
 interface KanbanCardProps {
   card: PostCard
   confirmed?: boolean
@@ -400,11 +408,11 @@ export function KanbanCard({
         onContextMenu={(e) => {
           e.preventDefault()
           e.stopPropagation()
-          if (!isOptimistic) setContextMenu({ x: e.clientX, y: e.clientY })
+          if (!isOptimistic) setContextMenu(safeMenuPosition(e.clientX, e.clientY))
         }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        className={`group relative overflow-hidden rounded-lg border transition-all duration-300 ${
+        className={`group relative rounded-lg border transition-all duration-300 ${
           isOptimistic
             ? 'animate-fade-in border-indigo-500/60 bg-indigo-950/20 ring-1 ring-indigo-500/20'
             : confirmed
@@ -418,7 +426,7 @@ export function KanbanCard({
       >
         {/* 3-tier cover system */}
         {card.coverImageUrl ? (
-          <div className="relative h-[44px] w-full overflow-hidden">
+          <div className="relative h-[44px] w-full overflow-hidden rounded-t-lg">
             <img
               src={card.coverImageUrl}
               alt=""
@@ -431,11 +439,11 @@ export function KanbanCard({
         ) : card.tagColor ? (
           <div
             data-testid="card-gradient"
-            className="h-[24px] w-full"
+            className="h-[24px] w-full rounded-t-lg"
             style={{ background: `linear-gradient(135deg, ${card.tagColor}30, ${card.tagColor}08)` }}
           />
         ) : (
-          <div data-testid="card-strip" className="h-[3px] w-full bg-gray-700/50" />
+          <div data-testid="card-strip" className="h-[3px] w-full rounded-t-lg bg-gray-700/50" />
         )}
 
         {/* Action buttons — pinned top-right of card, overlapping cover */}
@@ -453,7 +461,7 @@ export function KanbanCard({
           <button
             onClick={(e) => {
               e.stopPropagation()
-              setContextMenu({ x: e.clientX, y: e.clientY })
+              setContextMenu(safeMenuPosition(e.clientX, e.clientY))
             }}
             aria-label={s?.moreActions ?? 'More actions'}
             className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-700 hover:text-gray-100"

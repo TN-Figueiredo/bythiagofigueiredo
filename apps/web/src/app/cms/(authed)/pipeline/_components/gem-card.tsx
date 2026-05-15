@@ -80,7 +80,7 @@ export const GemCard = memo(function GemCard({ item, isDragging: _isDragging, on
       aria-label={`${title} — ${formatIcon.label}, ${priority.label}, stage ${item.stage}`}
       onClick={onNavigate}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigate?.() } }}
-      className={`block rounded-lg border p-3 transition-[border-color,transform,box-shadow] duration-150 hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 cursor-pointer ${
+      className={`block overflow-hidden rounded-lg border p-3 transition-[border-color,transform,box-shadow] duration-150 hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 cursor-pointer ${
         isArchived ? 'opacity-45 saturate-[0.3] hover:opacity-65' : ''
       } ${isBlockedState ? 'ring-1 ring-red-500/30' : ''}`}
       style={{

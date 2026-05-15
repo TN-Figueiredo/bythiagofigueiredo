@@ -13,7 +13,7 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core'
-import { SortableContext, verticalListSortingStrategy, arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
+import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { toast } from 'sonner'
 import type { PostCard, BlogTag } from '../../_hub/hub-types'
 import type { BlogHubStrings } from '../../_i18n/types'

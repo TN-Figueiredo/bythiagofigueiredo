@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import {
   DndContext,
   closestCorners,
@@ -56,6 +56,11 @@ export function PipelineBoard({ format, items, collections }: PipelineBoardProps
   const stages = getPipelineStages(format)
   const stageKeys = stages.map((s) => s.stage)
   const searchParams = useSearchParams()
+  const router = useRouter()
+
+  const handlePromote = useCallback((itemId: string) => {
+    router.push(`/cms/blog/new?pipelineId=${itemId}`)
+  }, [router])
 
   const collectionFilter = searchParams.get('collection')
   const langFilter = searchParams.get('lang')
@@ -261,7 +266,7 @@ export function PipelineBoard({ format, items, collections }: PipelineBoardProps
             const stageAccent = stageColors[idx % stageColors.length]
             const stageItems = itemsByStage[stage.stage] ?? []
             return (
-              <div key={stage.stage} className="flex-shrink-0 w-72">
+              <div key={stage.stage} className="flex-1 min-w-[260px]">
                 <div className="sticky top-0 pb-2 z-10" style={{ backgroundColor: 'var(--gem-well)' }}>
                   <div className="flex items-center justify-between px-2 py-1.5 rounded-lg" style={{ backgroundColor: 'var(--gem-surface)', borderLeft: `3px solid ${stageAccent}` }}>
                     <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: 'var(--gem-muted)' }}>{stage.label_pt}</span>
@@ -276,7 +281,11 @@ export function PipelineBoard({ format, items, collections }: PipelineBoardProps
                 >
                   <DroppableColumn id={stage.stage}>
                     {stageItems.map((item) => (
-                      <SortableGemCard key={item.id} item={item} />
+                      <SortableGemCard
+                        key={item.id}
+                        item={item}
+                        onPromote={stage.stage === 'ready' ? handlePromote : undefined}
+                      />
                     ))}
                     {stageItems.length === 0 && (
                       <p className="text-[10px] text-center py-8" style={{ color: 'var(--gem-faint)' }}>Nenhum em {stage.label_pt}</p>
