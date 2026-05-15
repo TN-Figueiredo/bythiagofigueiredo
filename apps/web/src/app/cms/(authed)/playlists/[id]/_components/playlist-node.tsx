@@ -1,6 +1,7 @@
 'use client'
 
 import type { PlaylistItemEnriched, ContentType } from '@/lib/playlists/types'
+import { NODE_WIDTH, NODE_HEIGHT } from '@/lib/playlists/canvas'
 
 const TYPE_CONFIG: Record<ContentType, {
   gradient: [string, string]
@@ -18,9 +19,6 @@ const LANG_CONFIG = {
   'pt-br': { label: 'PT', bg: 'rgba(251,191,36,0.1)', color: '#fbbf24' },
   en:      { label: 'EN', bg: 'rgba(59,130,246,0.1)', color: '#60a5fa' },
 } as const
-
-const NODE_W = 250
-const NODE_H = 80
 
 interface PlaylistNodeProps {
   item: PlaylistItemEnriched
@@ -79,10 +77,10 @@ export function PlaylistNode({
     >
       {/* Connection handles */}
       {([
-        { pos: 'top-[-6px] left-1/2 -translate-x-1/2', hx: item.position_x + NODE_W / 2, hy: item.position_y },
-        { pos: 'bottom-[-6px] left-1/2 -translate-x-1/2', hx: item.position_x + NODE_W / 2, hy: item.position_y + NODE_H },
-        { pos: 'left-[-6px] top-1/2 -translate-y-1/2', hx: item.position_x, hy: item.position_y + NODE_H / 2 },
-        { pos: 'right-[-6px] top-1/2 -translate-y-1/2', hx: item.position_x + NODE_W, hy: item.position_y + NODE_H / 2 },
+        { pos: 'top-[-6px] left-1/2 -translate-x-1/2', hx: item.position_x + NODE_WIDTH / 2, hy: item.position_y },
+        { pos: 'bottom-[-6px] left-1/2 -translate-x-1/2', hx: item.position_x + NODE_WIDTH / 2, hy: item.position_y + NODE_HEIGHT },
+        { pos: 'left-[-6px] top-1/2 -translate-y-1/2', hx: item.position_x, hy: item.position_y + NODE_HEIGHT / 2 },
+        { pos: 'right-[-6px] top-1/2 -translate-y-1/2', hx: item.position_x + NODE_WIDTH, hy: item.position_y + NODE_HEIGHT / 2 },
       ] as const).map((h, i) => (
         <div
           key={i}

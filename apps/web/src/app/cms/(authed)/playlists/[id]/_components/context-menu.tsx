@@ -259,7 +259,3 @@ export function PlaylistContextMenu({
   )
 }
 
-/* ------------------------------------------------------------------ */
-/*  Legacy ContextMenu shim (used by canvas.tsx until Task 13)         */
-/* ------------------------------------------------------------------ */
-

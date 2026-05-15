@@ -1,7 +1,7 @@
 'use client'
 
 import type { PlaylistItemEnriched } from '@/lib/playlists/types'
-import type { Camera } from '@/lib/playlists/canvas'
+import { NODE_WIDTH, NODE_HEIGHT, type Camera } from '@/lib/playlists/canvas'
 
 interface PlaylistMinimapProps {
   items: PlaylistItemEnriched[]
@@ -22,14 +22,12 @@ export function PlaylistMinimap({
 
   const MINIMAP_W = 130
   const MINIMAP_H = 80
-  const NODE_W = 250
-  const NODE_H = 80
   const PADDING = 20
 
   const minX = Math.min(...items.map(i => i.position_x)) - PADDING
-  const maxX = Math.max(...items.map(i => i.position_x)) + NODE_W + PADDING
+  const maxX = Math.max(...items.map(i => i.position_x)) + NODE_WIDTH + PADDING
   const minY = Math.min(...items.map(i => i.position_y)) - PADDING
-  const maxY = Math.max(...items.map(i => i.position_y)) + NODE_H + PADDING
+  const maxY = Math.max(...items.map(i => i.position_y)) + NODE_HEIGHT + PADDING
 
   const contentW = Math.max(maxX - minX, 1)
   const contentH = Math.max(maxY - minY, 1)
@@ -69,8 +67,8 @@ export function PlaylistMinimap({
             key={item.id}
             x={(item.position_x - minX) * scale}
             y={(item.position_y - minY) * scale}
-            width={NODE_W * scale}
-            height={NODE_H * scale}
+            width={NODE_WIDTH * scale}
+            height={NODE_HEIGHT * scale}
             rx={2}
             fill={item.is_ghost ? '#ffffff10' : (typeColors[item.content_type ?? ''] ?? '#ffffff20')}
             opacity={0.7}
