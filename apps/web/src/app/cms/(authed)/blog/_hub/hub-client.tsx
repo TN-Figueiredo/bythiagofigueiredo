@@ -119,17 +119,11 @@ export function HubClient({
   )
 
   useHubShortcuts({
-    onNewPost: () => router.push('/cms/blog/new'),
+    onNewPost: () => router.push('/cms/pipeline/blog_post'),
     onSwitchTab: switchTab,
   })
 
-  const newPostHref = (() => {
-    const params = new URLSearchParams()
-    if (selectedTagId) params.set('tag', selectedTagId)
-    if (selectedLocale) params.set('locale', selectedLocale)
-    const qs = params.toString()
-    return qs ? `/cms/blog/new?${qs}` : '/cms/blog/new'
-  })()
+  const newPostHref = '/cms/pipeline/blog_post'
 
   return (
     <div className="flex min-h-screen flex-col bg-[#030712]">

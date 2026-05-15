@@ -218,15 +218,15 @@ export function EditorialTab({ data, strings, siteId, tagId, locale, supportedLo
     return (
       <EmptyState
         icon={<Kanban className="h-8 w-8" />}
-        heading={strings?.empty.startWriting ?? 'Start writing your first post'}
-        description={strings?.empty.addIdea ?? 'Add your first idea to get started'}
+        heading="Nenhum post no pipeline"
+        description="Comece criando uma ideia no Pipeline de Blog"
         action={
           <Link
-            href={newPostHref}
+            href="/cms/pipeline/blog_post"
             className="rounded-lg bg-indigo-500 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-600"
           >
             <Plus className="mr-1 inline h-3.5 w-3.5" />
-            {strings?.actions.newPost ?? 'New Post'}
+            Ir para o Pipeline
           </Link>
         }
       />
