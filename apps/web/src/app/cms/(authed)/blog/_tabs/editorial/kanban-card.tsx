@@ -10,6 +10,17 @@ import type { BlogHubStrings } from '../../_i18n/types'
 import { formatRelativeDate, getKanbanMoveTargets } from '../../_hub/hub-utils'
 import { formatTagNameCms } from '../../_hub/tag-locale'
 
+function useClickOutside(ref: React.RefObject<HTMLElement | null>, active: boolean, onClose: () => void) {
+  useEffect(() => {
+    if (!active) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [ref, active, onClose])
+}
+
 function isOptimisticCard(card: PostCard): boolean {
   return card.id.startsWith('optimistic-')
 }
@@ -57,6 +68,10 @@ function progressColorClass(pct: number): string {
   if (pct >= 75) return 'bg-green-500 shadow-[0_0_3px_rgba(34,197,94,0.3)]'
   if (pct >= 40) return 'bg-amber-500'
   return 'bg-red-500'
+}
+
+function isValidHexColor(color: string | null): color is string {
+  return color != null && /^#[0-9a-fA-F]{3,8}$/.test(color)
 }
 
 function tagColorFamily(hex: string | null): string | null {
@@ -150,6 +165,7 @@ export function KanbanCard({
   const tagDropdownRef = useRef<HTMLDivElement>(null)
   const localeDropdownRef = useRef<HTMLDivElement>(null)
   const removeLocaleDropdownRef = useRef<HTMLDivElement>(null)
+  const moreActionsRef = useRef<HTMLButtonElement>(null)
 
   const confirmed = confirmedProp ?? false
 
@@ -304,63 +320,33 @@ export function KanbanCard({
     }
   }, [])
 
-  // Close context menu on outside click / Escape / scroll
+  const closeContextMenu = useCallback(() => {
+    setContextMenu(null)
+    requestAnimationFrame(() => moreActionsRef.current?.focus())
+  }, [])
+  // Close context menu on outside click
+  useClickOutside(contextMenuRef, !!contextMenu, closeContextMenu)
+  // Close context menu on Escape / scroll
   useEffect(() => {
     if (!contextMenu) return
-    const handleClickOutside = (e: MouseEvent) => {
-      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
-        setContextMenu(null)
-      }
-    }
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setContextMenu(null)
+      if (e.key === 'Escape') closeContextMenu()
     }
-    const handleScroll = () => setContextMenu(null)
-    document.addEventListener('mousedown', handleClickOutside)
+    const handleScroll = () => { setContextMenu(null) }
     document.addEventListener('keydown', handleEscape)
     document.addEventListener('scroll', handleScroll, true)
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
       document.removeEventListener('keydown', handleEscape)
       document.removeEventListener('scroll', handleScroll, true)
     }
-  }, [contextMenu])
+  }, [contextMenu, closeContextMenu])
 
   // Close tag dropdown on outside click
-  useEffect(() => {
-    if (!tagDropdownOpen) return
-    const handleClickOutside = (e: MouseEvent) => {
-      if (tagDropdownRef.current && !tagDropdownRef.current.contains(e.target as Node)) {
-        setTagDropdownOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [tagDropdownOpen])
-
+  useClickOutside(tagDropdownRef, tagDropdownOpen, useCallback(() => setTagDropdownOpen(false), []))
   // Close locale dropdown on outside click
-  useEffect(() => {
-    if (!localeDropdownOpen) return
-    const handleClickOutside = (e: MouseEvent) => {
-      if (localeDropdownRef.current && !localeDropdownRef.current.contains(e.target as Node)) {
-        setLocaleDropdownOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [localeDropdownOpen])
-
+  useClickOutside(localeDropdownRef, localeDropdownOpen, useCallback(() => setLocaleDropdownOpen(false), []))
   // Close remove-locale dropdown on outside click
-  useEffect(() => {
-    if (!removeLocaleDropdownOpen) return
-    const handleClickOutside = (e: MouseEvent) => {
-      if (removeLocaleDropdownRef.current && !removeLocaleDropdownRef.current.contains(e.target as Node)) {
-        setRemoveLocaleDropdownOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [removeLocaleDropdownOpen])
+  useClickOutside(removeLocaleDropdownRef, removeLocaleDropdownOpen, useCallback(() => setRemoveLocaleDropdownOpen(false), []))
 
   const validTargets = getKanbanMoveTargets(card.status)
   const canDelete =
@@ -396,8 +382,6 @@ export function KanbanCard({
         style={style}
         {...attributes}
         {...listeners}
-        role="button"
-        tabIndex={0}
         aria-label={`${card.displayId} ${card.title || (s?.untitled ?? 'Untitled')}`}
         aria-busy={isLoading}
         data-tc={glowFamily}
@@ -436,7 +420,7 @@ export function KanbanCard({
             />
             <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#131B2E]/80" />
           </div>
-        ) : card.tagColor ? (
+        ) : isValidHexColor(card.tagColor) ? (
           <div
             data-testid="card-gradient"
             className="h-[24px] w-full rounded-t-lg"
@@ -447,7 +431,7 @@ export function KanbanCard({
         )}
 
         {/* Action buttons — pinned top-right of card, overlapping cover */}
-        <div className="absolute right-1.5 top-1.5 z-10 flex items-center gap-px rounded-md bg-gray-900/70 p-0.5 opacity-0 shadow-sm backdrop-blur-sm transition-opacity group-hover:opacity-100">
+        <div className="absolute right-1.5 top-1.5 z-10 flex items-center gap-px rounded-md bg-gray-900/70 p-0.5 opacity-0 shadow-sm backdrop-blur-sm transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
           <button
             onClick={(e) => {
               e.stopPropagation()
@@ -459,6 +443,7 @@ export function KanbanCard({
             <Pencil className="h-3.5 w-3.5" />
           </button>
           <button
+            ref={moreActionsRef}
             onClick={(e) => {
               e.stopPropagation()
               setContextMenu(safeMenuPosition(e.clientX, e.clientY))
@@ -479,7 +464,7 @@ export function KanbanCard({
           )}
 
           {/* Drag grip dots — visible on hover */}
-          <div className="absolute left-1 top-1/2 -translate-y-1/2 grid grid-cols-2 gap-[2px] opacity-0 transition-opacity group-hover:opacity-40">
+          <div className="absolute left-1 top-1/2 -translate-y-1/2 grid grid-cols-2 gap-[2px] opacity-0 transition-opacity group-hover:opacity-40 group-focus-within:opacity-40">
             {Array.from({ length: 6 }).map((_, i) => (
               <span key={i} className="block h-[3px] w-[3px] rounded-full bg-gray-500" />
             ))}
@@ -524,7 +509,7 @@ export function KanbanCard({
                 aria-expanded={tagDropdownOpen}
                 className="flex max-w-[110px] items-center gap-1 rounded-full px-1.5 py-0.5 text-[8px] font-medium transition-colors hover:ring-1 hover:ring-gray-600"
                 style={
-                  card.tagColor
+                  isValidHexColor(card.tagColor)
                     ? {
                         backgroundColor: `${card.tagColor}20`,
                         color: card.tagColor,
@@ -532,7 +517,7 @@ export function KanbanCard({
                     : { backgroundColor: '#374151', color: '#9ca3af' }
                 }
               >
-                {card.tagColor && (
+                {isValidHexColor(card.tagColor) && (
                   <span
                     className="h-1.5 w-1.5 shrink-0 rounded-full"
                     style={{ backgroundColor: card.tagColor }}
@@ -815,7 +800,7 @@ export function KanbanCardOverlay({ card }: { card: PostCard }) {
           <img src={card.coverImageUrl} alt="" onError={(e) => { e.currentTarget.style.display = 'none' }} className="h-full w-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#131B2E]/80" />
         </div>
-      ) : card.tagColor ? (
+      ) : isValidHexColor(card.tagColor) ? (
         <div className="h-[16px] w-full" style={{ background: `linear-gradient(135deg, ${card.tagColor}30, ${card.tagColor}08)` }} />
       ) : (
         <div className="h-[3px] w-full bg-gray-700/50" />
@@ -833,9 +818,9 @@ export function KanbanCardOverlay({ card }: { card: PostCard }) {
           {card.tagName && (
             <span
               className="ml-auto flex max-w-[110px] items-center gap-1 rounded-full px-1.5 py-0.5 text-[8px] font-medium"
-              style={card.tagColor ? { backgroundColor: `${card.tagColor}20`, color: card.tagColor } : { backgroundColor: '#374151', color: '#9ca3af' }}
+              style={isValidHexColor(card.tagColor) ? { backgroundColor: `${card.tagColor}20`, color: card.tagColor } : { backgroundColor: '#374151', color: '#9ca3af' }}
             >
-              {card.tagColor && <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: card.tagColor }} />}
+              {isValidHexColor(card.tagColor) && <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: card.tagColor }} />}
               <span className="truncate">{formatTagNameCms({ name: card.tagName, nameTranslations: card.tagNameTranslations })}</span>
             </span>
           )}

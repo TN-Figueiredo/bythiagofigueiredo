@@ -71,7 +71,7 @@ export const fetchEditorialData = unstable_cache(
 
     const { data: rawPosts } = await supabase
       .from('blog_posts')
-      .select('id, status, tag_id, published_at, scheduled_for, slot_date, created_at, updated_at, cover_image_url, blog_translations(locale, title, slug, reading_time_min, content_mdx, cover_image_url, excerpt), blog_tags(id, name, color, name_translations)')
+      .select('id, status, tag_id, published_at, scheduled_for, slot_date, created_at, updated_at, cover_image_url, blog_translations(locale, title, slug, reading_time_min, cover_image_url, excerpt), blog_tags(id, name, color, name_translations)')
       .eq('site_id', siteId)
       .in('status', ['ready', 'queued', 'scheduled', 'published'])
       .order('created_at', { ascending: true })
@@ -80,7 +80,7 @@ export const fetchEditorialData = unstable_cache(
 
     type RawPost = typeof allPosts[number] & {
       cover_image_url: string | null
-      blog_translations: Array<{ locale: string; title: string; slug: string; reading_time_min: number | null; content_mdx: string; cover_image_url: string | null; excerpt: string | null }>
+      blog_translations: Array<{ locale: string; title: string; slug: string; reading_time_min: number | null; cover_image_url: string | null; excerpt: string | null }>
       blog_tags: { id: string; name: string; color: string; name_translations: Record<string, string> | null } | null
     }
 
@@ -122,7 +122,7 @@ export const fetchEditorialData = unstable_cache(
         publishedAt: p.published_at as string | null,
         scheduledFor: p.scheduled_for as string | null,
         slotDate: p.slot_date as string | null,
-        snippet: preferredTx?.excerpt ?? preferredTx?.content_mdx?.slice(0, 80) ?? null,
+        snippet: preferredTx?.excerpt ?? null,
         coverImageUrl: preferredTx?.cover_image_url ?? p.cover_image_url ?? null,
         excerpt: preferredTx?.excerpt ?? null,
       }

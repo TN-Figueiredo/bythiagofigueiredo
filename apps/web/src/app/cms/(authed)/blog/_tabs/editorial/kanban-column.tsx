@@ -55,6 +55,7 @@ export function KanbanColumn({
   return (
     <div
       ref={setNodeRef}
+      role="group"
       aria-label={`${title} column, ${cards.length} items`}
       className={`flex flex-1 min-w-[220px] flex-col rounded-lg border bg-gray-950 transition-all duration-200 ${
         isDraggingInto
@@ -118,7 +119,7 @@ export function KanbanColumn({
           ))}
           {isDraggingInto && cards.length === 0 && (
             <div className="flex h-16 items-center justify-center rounded-lg border border-dashed border-indigo-500/30 text-[10px] text-indigo-400/60">
-              Drop here
+              {strings?.editorial.dropHere ?? 'Drop here'}
             </div>
           )}
         </div>

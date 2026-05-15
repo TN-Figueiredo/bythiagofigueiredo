@@ -1,9 +1,7 @@
 export interface BlogHubStrings {
-  tabs: { overview: string; editorial: string; schedule: string; analytics: string }
-  kpi: { totalPosts: string; published: string; avgReadingTime: string; draftBacklog: string }
+  tabs: { editorial: string; schedule: string; analytics: string }
   actions: { newPost: string; newIdea: string }
   empty: { noData: string; noPosts: string; startWriting: string; addIdea: string; configCadence: string }
-  overview: { tagBreakdown: string; recentPublications: string; velocityTrend: string; untagged: string; readingTime: string; publishedAgo: string }
   editorial: {
     throughput: string; avgTime: string; movedForward: string; bottleneck: string
     searchPosts: string
@@ -19,6 +17,7 @@ export interface BlogHubStrings {
     moveToIdea: string; moveToDraft: string; moveToReady: string; moveToScheduled: string; moveToPublished: string; moveToArchived: string
     kpiTotal: string; kpiPublished: string; kpiThroughput: string; kpiIdeaToPub: string; kpiBottleneck: string; kpiNone: string
     promotedFromPipeline: string
+    dropHere: string
   }
   deletePost: {
     triggerLabel: string; triggerAriaLabel: string

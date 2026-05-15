@@ -1,11 +1,9 @@
 import type { BlogHubStrings } from './types'
 
 export const ptBR: BlogHubStrings = {
-  tabs: { overview: 'Visão Geral', editorial: 'Editorial', schedule: 'Agenda', analytics: 'Analytics' },
-  kpi: { totalPosts: 'Total de Posts', published: 'Publicados', avgReadingTime: 'Tempo Médio', draftBacklog: 'Rascunhos' },
+  tabs: { editorial: 'Editorial', schedule: 'Agenda', analytics: 'Analytics' },
   actions: { newPost: 'Novo Post', newIdea: 'Nova Ideia' },
   empty: { noData: 'Sem dados ainda', noPosts: 'Nenhum post ainda', startWriting: 'Comece a escrever seu primeiro post', addIdea: 'Adicione sua primeira ideia', configCadence: 'Configure sua cadência de publicação' },
-  overview: { tagBreakdown: 'Posts por Tag', recentPublications: 'Publicações Recentes', velocityTrend: 'Velocidade de Publicação', untagged: 'Sem tag', readingTime: 'min leitura', publishedAgo: 'atrás' },
   editorial: {
     throughput: 'Produtividade', avgTime: 'Média Ideia→Pub', movedForward: 'Movidos esta semana', bottleneck: 'Gargalo',
     searchPosts: 'Buscar posts…',
@@ -21,6 +19,7 @@ export const ptBR: BlogHubStrings = {
     moveToIdea: 'Voltar p/ ideia', moveToDraft: 'Voltar p/ rascunho', moveToReady: 'Marcar pronto', moveToScheduled: 'Agendar…', moveToPublished: 'Publicar agora', moveToArchived: 'Arquivar',
     kpiTotal: 'Total', kpiPublished: 'Publicados', kpiThroughput: 'Vazão', kpiIdeaToPub: 'Ideia→Pub', kpiBottleneck: 'Gargalo', kpiNone: 'Nenhum',
     promotedFromPipeline: 'Promovido do Pipeline',
+    dropHere: 'Solte aqui',
   },
   deletePost: {
     triggerLabel: 'Excluir', triggerAriaLabel: 'Excluir {title}',

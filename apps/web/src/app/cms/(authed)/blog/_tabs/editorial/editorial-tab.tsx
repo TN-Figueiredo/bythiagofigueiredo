@@ -101,7 +101,10 @@ export function EditorialTab({ data, strings, siteId, tagId, locale, supportedLo
 
   const handleAddLocale = async (postId: string, loc: string) => {
     startTransition(async () => {
-      await addLocale(postId, loc)
+      const result = await addLocale(postId, loc)
+      if (!result?.ok) {
+        toast.error(strings?.common.couldntMove ?? "Couldn't update")
+      }
     })
   }
 
@@ -120,7 +123,12 @@ export function EditorialTab({ data, strings, siteId, tagId, locale, supportedLo
 
   const handleDuplicate = async (postId: string) => {
     startTransition(async () => {
-      await duplicatePost(postId)
+      const result = await duplicatePost(postId)
+      if (result?.ok) {
+        toast.success(strings?.editorial.duplicate ?? 'Duplicated')
+      } else {
+        toast.error(strings?.common.couldntMove ?? "Couldn't duplicate")
+      }
     })
   }
 

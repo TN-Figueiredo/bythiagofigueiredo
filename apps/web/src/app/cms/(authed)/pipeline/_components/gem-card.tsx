@@ -77,7 +77,7 @@ export const GemCard = memo(function GemCard({ item, isDragging: _isDragging, on
     <div
       role="button"
       tabIndex={0}
-      aria-label={`${title} — ${formatIcon.label}, ${priority.label}, stage ${item.stage}`}
+      aria-label={`${title} — ${formatIcon.label}, ${priority.label}`}
       onClick={onNavigate}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigate?.() } }}
       className={`block overflow-hidden rounded-lg border p-3 transition-[border-color,transform,box-shadow] duration-150 hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 cursor-pointer ${

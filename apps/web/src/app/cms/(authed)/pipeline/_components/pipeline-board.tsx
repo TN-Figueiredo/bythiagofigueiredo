@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
 import {
@@ -85,12 +85,12 @@ export function PipelineBoard({ format, items, collections }: PipelineBoardProps
     return true
   })
 
-  const itemsByStage = stages.reduce<Record<string, GemCardItem[]>>((acc, stage) => {
+  const itemsByStage = useMemo(() => stages.reduce<Record<string, GemCardItem[]>>((acc, stage) => {
     acc[stage.stage] = filtered
       .filter((i) => i.stage === stage.stage)
       .sort((a, b) => a.sort_order - b.sort_order)
     return acc
-  }, {})
+  }, {}), [stages, filtered])
 
   const hasActiveFilters = !!(collectionFilter || langFilter || priorityFilter || linkFilter)
   const noResults = filtered.length === 0 && hasActiveFilters
@@ -239,6 +239,7 @@ export function PipelineBoard({ format, items, collections }: PipelineBoardProps
         <PipelineFilterBar collections={collections} />
         <Link
           href={`/cms/pipeline/${format}?action=create`}
+          aria-label={`New ${format.replace('_', ' ')} item`}
           className="text-xs px-3 py-1.5 rounded-lg shrink-0 transition-opacity hover:opacity-80"
           style={{ backgroundColor: 'var(--gem-accent)', color: 'white' }}
         >

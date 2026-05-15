@@ -1,11 +1,9 @@
 import type { BlogHubStrings } from './types'
 
 export const en: BlogHubStrings = {
-  tabs: { overview: 'Overview', editorial: 'Editorial', schedule: 'Schedule', analytics: 'Analytics' },
-  kpi: { totalPosts: 'Total Posts', published: 'Published', avgReadingTime: 'Avg Reading Time', draftBacklog: 'Draft Backlog' },
+  tabs: { editorial: 'Editorial', schedule: 'Schedule', analytics: 'Analytics' },
   actions: { newPost: 'New Post', newIdea: 'New Idea' },
   empty: { noData: 'No data yet', noPosts: 'No posts yet', startWriting: 'Start writing your first post', addIdea: 'Add your first idea', configCadence: 'Configure your publishing cadence' },
-  overview: { tagBreakdown: 'Posts by Tag', recentPublications: 'Recent Publications', velocityTrend: 'Publishing Velocity', untagged: 'Untagged', readingTime: 'min read', publishedAgo: 'ago' },
   editorial: {
     throughput: 'Throughput', avgTime: 'Avg Idea→Pub', movedForward: 'Moved this week', bottleneck: 'Bottleneck',
     searchPosts: 'Search posts…',
@@ -21,6 +19,7 @@ export const en: BlogHubStrings = {
     moveToIdea: 'Back to idea', moveToDraft: 'Back to draft', moveToReady: 'Mark ready', moveToScheduled: 'Schedule…', moveToPublished: 'Publish now', moveToArchived: 'Archive',
     kpiTotal: 'Total', kpiPublished: 'Published', kpiThroughput: 'Throughput', kpiIdeaToPub: 'Idea→Pub', kpiBottleneck: 'Bottleneck', kpiNone: 'None',
     promotedFromPipeline: 'Promoted from Pipeline',
+    dropHere: 'Drop here',
   },
   deletePost: {
     triggerLabel: 'Delete', triggerAriaLabel: 'Delete {title}',

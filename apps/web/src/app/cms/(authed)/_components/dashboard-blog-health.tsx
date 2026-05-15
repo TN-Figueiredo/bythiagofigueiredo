@@ -65,7 +65,7 @@ export function BlogHealthSection({ data }: { data: BlogHealthData }) {
           <div className="space-y-1.5">
             {data.tagBreakdown.map((tag) => (
               <div key={tag.tagName} className="flex items-center gap-2">
-                <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: tag.tagColor }} />
+                <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: tag.tagColor }} />
                 <span className="flex-1 text-xs text-gray-300">{tag.tagName}</span>
                 <span className="text-xs tabular-nums text-gray-500">{tag.count}</span>
               </div>
@@ -96,7 +96,7 @@ export function BlogHealthSection({ data }: { data: BlogHealthData }) {
                 {data.recentPublications.slice(0, 5).map((pub) => (
                   <li key={pub.id}>
                     <Link href={`/cms/blog/${pub.id}/edit`} className="flex items-center gap-2 text-xs text-gray-300 hover:text-gray-100 transition-colors">
-                      {pub.tagColor && <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: pub.tagColor }} />}
+                      {pub.tagColor && <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: pub.tagColor }} />}
                       <span className="truncate">{pub.title}</span>
                     </Link>
                   </li>

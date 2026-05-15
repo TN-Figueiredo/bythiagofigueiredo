@@ -30,7 +30,7 @@ vi.mock('next/link', () => ({
 
 vi.mock('@dnd-kit/sortable', () => ({
   useSortable: () => ({
-    attributes: {},
+    attributes: { role: 'button', tabIndex: 0 },
     listeners: {},
     setNodeRef: vi.fn(),
     transform: null,
@@ -40,6 +40,8 @@ vi.mock('@dnd-kit/sortable', () => ({
   SortableContext: ({ children }: { children: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
   verticalListSortingStrategy: {},
+  sortableKeyboardCoordinates: vi.fn(),
+  arrayMove: vi.fn(),
 }))
 
 vi.mock('@dnd-kit/core', () => ({
@@ -47,6 +49,15 @@ vi.mock('@dnd-kit/core', () => ({
     setNodeRef: vi.fn(),
     isOver: false,
   }),
+  DndContext: ({ children }: { children: React.ReactNode }) =>
+    React.createElement(React.Fragment, null, children),
+  DragOverlay: ({ children }: { children: React.ReactNode }) =>
+    React.createElement(React.Fragment, null, children),
+  closestCorners: vi.fn(),
+  PointerSensor: vi.fn(),
+  KeyboardSensor: vi.fn(),
+  useSensor: vi.fn(),
+  useSensors: () => [],
 }))
 
 vi.mock('@dnd-kit/utilities', () => ({

@@ -256,6 +256,19 @@ export function KanbanBoard({
     setPendingSchedule(null)
   }, [])
 
+  const announcements = {
+    onDragStart: ({ active }: DragStartEvent) => {
+      const card = working.find((p) => p.id === active.id)
+      return `Dragging ${card?.title || 'item'}`
+    },
+    onDragOver: () => '',
+    onDragEnd: ({ active, over }: DragEndEvent) => {
+      const card = working.find((p) => p.id === active.id)
+      return over ? `${card?.title || 'Item'} moved` : 'Drag cancelled'
+    },
+    onDragCancel: () => 'Drag cancelled',
+  }
+
   // Intercept 'scheduled' moves from context menu to open the modal instead
   const handleMoveToStatus = useCallback(async (postId: string, newStatus: string) => {
     const card = working.find((p) => p.id === postId)
@@ -277,6 +290,7 @@ export function KanbanBoard({
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
+      accessibility={{ announcements }}
     >
       <div className="flex gap-3 overflow-x-auto pb-4">
         {COLUMN_DEFS.map((col) => {
