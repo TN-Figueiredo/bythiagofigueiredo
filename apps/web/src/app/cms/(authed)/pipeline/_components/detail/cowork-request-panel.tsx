@@ -140,6 +140,18 @@ export function CoworkRequestPanel({
     })
   }, [prompt])
 
+  const handleSendAndWait = useCallback(() => {
+    setInstructions('')
+    setCopied(false)
+    onSendAndWait()
+  }, [onSendAndWait])
+
+  useEffect(() => {
+    if (isOpen) {
+      requestAnimationFrame(() => textareaRef.current?.focus())
+    }
+  }, [isOpen])
+
   if (!isOpen) return null
 
   return (
@@ -205,7 +217,7 @@ export function CoworkRequestPanel({
           <button onClick={onClose} className="px-2 py-0.5 text-[10px] rounded" style={{ border: '1px solid var(--gem-border)', color: 'var(--gem-muted)' }}>Cancelar</button>
           {copied ? (
             <button
-              onClick={onSendAndWait}
+              onClick={handleSendAndWait}
               className="px-2.5 py-0.5 text-[10px] font-semibold rounded"
               style={{ background: 'var(--gem-done)', border: '1px solid var(--gem-done)', color: 'var(--gem-on-accent, #fff)' }}
             >

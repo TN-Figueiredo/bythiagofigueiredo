@@ -221,14 +221,25 @@ function prioritizeIds(pools: Pools): number[] {
   return result
 }
 
+const MOOD_ID_SET = new Set(Object.values(MOODS))
+
 function buildUrl(ids: number[], bpm: { bpmMin: number; bpmMax: number } | null, duration: number | null): string {
-  const parts: string[] = [`${PARAM_IDS}=${ids.join(',')}`]
+  const otherIds = ids.filter(id => !MOOD_ID_SET.has(id))
+  const moodIds = ids.filter(id => MOOD_ID_SET.has(id))
+
+  const parts: string[] = []
+  if (otherIds.length > 0) {
+    parts.push(`${PARAM_IDS}=${otherIds.join(',')}`)
+  }
   if (bpm) {
     parts.push(`${PARAM_BPM_MIN}=${bpm.bpmMin}`)
     parts.push(`${PARAM_BPM_MAX}=${bpm.bpmMax}`)
   }
   if (duration !== null) {
     parts.push(`${PARAM_DURATION_MIN}=${duration}`)
+  }
+  for (const moodId of moodIds) {
+    parts.push(`${PARAM_IDS}=${moodId}`)
   }
   return `${SEARCH_BASE}?${parts.join('&')}`
 }

@@ -11,6 +11,7 @@ import {
   useSensor,
   useSensors,
   DragOverlay,
+  useDroppable,
   type DragStartEvent,
   type DragEndEvent,
   type DragOverEvent,
@@ -46,6 +47,11 @@ function findStageForItem(id: string, stages: string[], itemsByStage: Record<str
   return null
 }
 
+function DroppableColumn({ id, children }: { id: string; children: React.ReactNode }) {
+  const { setNodeRef } = useDroppable({ id })
+  return <div ref={setNodeRef} className="space-y-1.5 min-h-[48px]">{children}</div>
+}
+
 export function PipelineBoard({ format, items, collections }: PipelineBoardProps) {
   const stages = getPipelineStages(format)
   const stageKeys = stages.map((s) => s.stage)
@@ -59,6 +65,7 @@ export function PipelineBoard({ format, items, collections }: PipelineBoardProps
   const [localItems, setLocalItems] = useState(items)
   const [activeItem, setActiveItem] = useState<GemCardItem | null>(null)
   const snapshotRef = useRef<GemCardItem[]>([])
+  const originStageRef = useRef<string>('')
 
   useEffect(() => {
     setLocalItems(items)
@@ -93,6 +100,7 @@ export function PipelineBoard({ format, items, collections }: PipelineBoardProps
     if (item) {
       setActiveItem(item)
       snapshotRef.current = localItems
+      originStageRef.current = item.stage
     }
   }, [localItems])
 
@@ -134,31 +142,38 @@ export function PipelineBoard({ format, items, collections }: PipelineBoardProps
     const item = localItems.find((i) => i.id === activeId)
     if (!item) return
 
-    const currentStage = findStageForItem(activeId, stageKeys, itemsByStage) ?? item.stage
+    let targetStage = findStageForItem(activeId, stageKeys, itemsByStage) ?? item.stage
+    if (targetStage === originStageRef.current) {
+      const overStage = findStageForItem(overId, stageKeys, itemsByStage)
+        ?? (stageKeys.includes(overId) ? overId : null)
+      if (overStage) targetStage = overStage
+    }
 
-    if (currentStage === 'published' && !isGraduated(item)) {
+    if (targetStage === 'published' && !isGraduated(item)) {
       setLocalItems(snapshotRef.current)
       toast.error('Vincule a um post antes de mover para Publicado')
       return
     }
 
-    const stageItems = itemsByStage[currentStage] ?? []
-    const oldIndex = stageItems.findIndex((i) => i.id === activeId)
-    const newIndex = stageItems.findIndex((i) => i.id === overId)
+    const stageChanged = targetStage !== originStageRef.current
+    const targetItems = itemsByStage[targetStage] ?? []
+    const oldIndex = targetItems.findIndex((i) => i.id === activeId)
+    const newIndex = targetItems.findIndex((i) => i.id === overId)
 
-    if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) {
-      if (currentStage === item.stage) return
+    if (!stageChanged && (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex)) {
+      return
     }
 
-    const stageChanged = currentStage !== item.stage
     const reordered = oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex
-      ? arrayMove(stageItems, oldIndex, newIndex)
-      : stageItems
+      ? arrayMove(targetItems, oldIndex, newIndex)
+      : targetItems
     const movedIdx = newIndex !== -1 ? newIndex : reordered.findIndex((i) => i.id === activeId)
 
     let newSortOrder: number
-    if (reordered.length <= 1) {
-      newSortOrder = 1000
+    if (reordered.length <= 1 || movedIdx === -1) {
+      const existingItems = targetItems.filter((i) => i.id !== activeId)
+      const lastItem = existingItems[existingItems.length - 1]
+      newSortOrder = lastItem ? lastItem.sort_order + 1000 : 1000
     } else {
       const prev = movedIdx > 0 ? reordered[movedIdx - 1] : null
       const next = movedIdx < reordered.length - 1 ? reordered[movedIdx + 1] : null
@@ -167,18 +182,19 @@ export function PipelineBoard({ format, items, collections }: PipelineBoardProps
       else newSortOrder = Math.floor((prev.sort_order + next.sort_order) / 2)
     }
 
-    if (!stageChanged && newSortOrder === item.sort_order) return
+    const snapshotItem = snapshotRef.current.find((i) => i.id === activeId)
+    if (!stageChanged && newSortOrder === (snapshotItem?.sort_order ?? item.sort_order)) return
 
     setLocalItems((prev) =>
       prev.map((i) =>
         i.id === activeId
-          ? { ...i, stage: currentStage, sort_order: newSortOrder }
+          ? { ...i, stage: targetStage, sort_order: newSortOrder }
           : i
       )
     )
 
-    const result = await reorderPipelineItem(item.id, item.version, {
-      stage: stageChanged ? currentStage : undefined,
+    const result = await reorderPipelineItem(item.id, snapshotItem?.version ?? item.version, {
+      stage: stageChanged ? targetStage : undefined,
       sort_order: newSortOrder,
     })
 
@@ -258,14 +274,14 @@ export function PipelineBoard({ format, items, collections }: PipelineBoardProps
                   items={stageItems.map((i) => i.id)}
                   strategy={verticalListSortingStrategy}
                 >
-                  <div className="space-y-1.5 min-h-[48px]">
+                  <DroppableColumn id={stage.stage}>
                     {stageItems.map((item) => (
                       <SortableGemCard key={item.id} item={item} />
                     ))}
                     {stageItems.length === 0 && (
                       <p className="text-[10px] text-center py-8" style={{ color: 'var(--gem-faint)' }}>Nenhum em {stage.label_pt}</p>
                     )}
-                  </div>
+                  </DroppableColumn>
                 </SortableContext>
               </div>
             )
