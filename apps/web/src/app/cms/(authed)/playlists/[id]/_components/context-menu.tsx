@@ -196,12 +196,10 @@ export function PlaylistContextMenu({
     const el = ref.current
     if (!el) return
     const rect = el.getBoundingClientRect()
-    if (rect.right > window.innerWidth) {
-      el.style.left = `${window.innerWidth - rect.width - 8}px`
-    }
-    if (rect.bottom > window.innerHeight) {
-      el.style.top = `${window.innerHeight - rect.height - 8}px`
-    }
+    if (rect.right > window.innerWidth) el.style.left = `${window.innerWidth - rect.width - 8}px`
+    if (rect.left < 0) el.style.left = '8px'
+    if (rect.bottom > window.innerHeight) el.style.top = `${window.innerHeight - rect.height - 8}px`
+    if (rect.top < 0) el.style.top = '8px'
   }, [x, y])
 
   const meta = contentType ? TYPE_META[contentType] : null

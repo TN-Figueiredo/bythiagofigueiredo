@@ -20,6 +20,7 @@ const LANG_CONFIG = {
 } as const
 
 const NODE_W = 250
+const NODE_H = 80
 
 interface PlaylistNodeProps {
   item: PlaylistItemEnriched
@@ -52,7 +53,7 @@ export function PlaylistNode({
   const selectionClasses = isSelected
     ? 'ring-2 ring-offset-1 ring-offset-transparent shadow-lg'
     : isDropTarget
-      ? 'ring-2 ring-offset-1 ring-offset-transparent shadow-lg'
+      ? 'ring-2 ring-cyan-400/60 ring-offset-1 ring-offset-transparent shadow-lg'
       : ''
 
   return (
@@ -79,9 +80,9 @@ export function PlaylistNode({
       {/* Connection handles */}
       {([
         { pos: 'top-[-6px] left-1/2 -translate-x-1/2', hx: item.position_x + NODE_W / 2, hy: item.position_y },
-        { pos: 'bottom-[-6px] left-1/2 -translate-x-1/2', hx: item.position_x + NODE_W / 2, hy: item.position_y + 80 },
-        { pos: 'left-[-6px] top-1/2 -translate-y-1/2', hx: item.position_x, hy: item.position_y + 40 },
-        { pos: 'right-[-6px] top-1/2 -translate-y-1/2', hx: item.position_x + NODE_W, hy: item.position_y + 40 },
+        { pos: 'bottom-[-6px] left-1/2 -translate-x-1/2', hx: item.position_x + NODE_W / 2, hy: item.position_y + NODE_H },
+        { pos: 'left-[-6px] top-1/2 -translate-y-1/2', hx: item.position_x, hy: item.position_y + NODE_H / 2 },
+        { pos: 'right-[-6px] top-1/2 -translate-y-1/2', hx: item.position_x + NODE_W, hy: item.position_y + NODE_H / 2 },
       ] as const).map((h, i) => (
         <div
           key={i}
