@@ -1,0 +1,150 @@
+'use client'
+
+import { useState, useMemo, useCallback } from 'react'
+import { WaveformMini } from './waveform-mini'
+
+interface AudioTableProps {
+  assets: Record<string, unknown>[]
+  selectedId: string | null
+  onSelect: (id: string) => void
+}
+
+type SortKey = 'name' | 'type' | 'category' | 'energy' | 'bpm' | 'status'
+
+const STATUS_BADGE: Record<string, { label: string; bg: string; color: string }> = {
+  downloaded: { label: 'Downloaded', bg: 'rgba(16,185,129,0.15)', color: '#10b981' },
+  pending: { label: 'Pending', bg: 'rgba(245,158,11,0.15)', color: '#f59e0b' },
+  retired: { label: 'Retired', bg: 'rgba(107,114,128,0.15)', color: '#6b7280' },
+}
+
+export function AudioTable({ assets, selectedId, onSelect }: AudioTableProps) {
+  const [sortKey, setSortKey] = useState<SortKey>('name')
+  const [sortAsc, setSortAsc] = useState(true)
+  const [checked, setChecked] = useState<Set<string>>(new Set())
+
+  const sorted = useMemo(() => {
+    const list = [...assets]
+    list.sort((a, b) => {
+      const va = (a as Record<string, unknown>)[sortKey === 'name' ? 'track_name' : sortKey] ?? ''
+      const vb = (b as Record<string, unknown>)[sortKey === 'name' ? 'track_name' : sortKey] ?? ''
+      const cmp = typeof va === 'number' ? va - (vb as number) : String(va).localeCompare(String(vb))
+      return sortAsc ? cmp : -cmp
+    })
+    return list
+  }, [assets, sortKey, sortAsc])
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) setSortAsc(!sortAsc)
+    else { setSortKey(key); setSortAsc(true) }
+  }
+
+  const toggleCheck = useCallback((id: string) => {
+    setChecked(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }, [])
+
+  const toggleAll = useCallback(() => {
+    if (checked.size === sorted.length) setChecked(new Set())
+    else setChecked(new Set(sorted.map((a) => (a as Record<string, unknown>).id as string)))
+  }, [checked.size, sorted])
+
+  const bulkAction = useCallback(async (action: 'tag' | 'category' | 'status' | 'delete' | 'export') => {
+    const ids = Array.from(checked)
+    if (ids.length === 0) return
+
+    if (action === 'export') {
+      const selected = assets.filter((a) => checked.has((a as Record<string, unknown>).id as string))
+      const blob = new Blob([JSON.stringify({ schema_version: '6.1.0', assets: selected }, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = `audio-selection-${ids.length}.json`; a.click()
+      URL.revokeObjectURL(url)
+      return
+    }
+
+    if (action === 'delete') {
+      if (!confirm(`Delete ${ids.length} assets?`)) return
+      await Promise.all(ids.map(id => fetch(`/api/pipeline/audio-library/${id}`, { method: 'DELETE' })))
+      setChecked(new Set())
+      return
+    }
+
+    const value = prompt(`Enter ${action} value for ${ids.length} assets:`)
+    if (!value) return
+    const body: Record<string, unknown> = {}
+    if (action === 'tag') body.tags = value.split(',').map(t => t.trim())
+    else body[action] = value
+    await Promise.all(ids.map(id => fetch(`/api/pipeline/audio-library/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...body, version: ((assets.find((a) => (a as Record<string, unknown>).id === id)) as Record<string, unknown>)?.version ?? 1 }),
+    })))
+    setChecked(new Set())
+  }, [assets, checked])
+
+  const headers: Array<{ key: SortKey; label: string; width?: number }> = [
+    { key: 'name', label: 'Name' },
+    { key: 'type', label: 'Type', width: 60 },
+    { key: 'category', label: 'Category', width: 100 },
+    { key: 'energy', label: 'Energy', width: 60 },
+    { key: 'bpm', label: 'BPM', width: 60 },
+    { key: 'status', label: 'Status', width: 90 },
+  ]
+
+  return (
+    <div>
+      {checked.size > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', background: 'rgba(99,102,241,0.08)', borderRadius: 6, marginBottom: 8, fontSize: 12 }}>
+          <span style={{ color: 'var(--gem-text)', fontWeight: 600 }}>{checked.size} selected</span>
+          <button onClick={() => bulkAction('tag')} style={{ padding: '2px 8px', borderRadius: 4, border: '1px solid var(--gem-border)', background: 'transparent', color: 'var(--gem-text)', cursor: 'pointer', fontSize: 11 }}>Tag</button>
+          <button onClick={() => bulkAction('category')} style={{ padding: '2px 8px', borderRadius: 4, border: '1px solid var(--gem-border)', background: 'transparent', color: 'var(--gem-text)', cursor: 'pointer', fontSize: 11 }}>Category</button>
+          <button onClick={() => bulkAction('status')} style={{ padding: '2px 8px', borderRadius: 4, border: '1px solid var(--gem-border)', background: 'transparent', color: 'var(--gem-text)', cursor: 'pointer', fontSize: 11 }}>Status</button>
+          <button onClick={() => bulkAction('export')} style={{ padding: '2px 8px', borderRadius: 4, border: '1px solid var(--gem-border)', background: 'transparent', color: 'var(--gem-text)', cursor: 'pointer', fontSize: 11 }}>Export</button>
+          <button onClick={() => bulkAction('delete')} style={{ padding: '2px 8px', borderRadius: 4, border: '1px solid var(--gem-border)', background: 'transparent', color: 'var(--gem-danger)', cursor: 'pointer', fontSize: 11 }}>Delete</button>
+          <button onClick={() => setChecked(new Set())} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--gem-muted)', cursor: 'pointer', fontSize: 11 }}>Clear</button>
+        </div>
+      )}
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+        <thead>
+          <tr style={{ borderBottom: '1px solid var(--gem-border)' }}>
+            <th style={{ width: 32, padding: '6px 4px' }}>
+              <input type="checkbox" checked={checked.size === sorted.length && sorted.length > 0} onChange={toggleAll} />
+            </th>
+            <th style={{ width: 80, padding: '6px 8px' }} />
+            {headers.map(h => (
+              <th key={h.key} onClick={() => toggleSort(h.key)} style={{ padding: '6px 8px', textAlign: 'left', color: 'var(--gem-muted)', fontWeight: 600, cursor: 'pointer', width: h.width }}>
+                {h.label}{sortKey === h.key ? (sortAsc ? ' ↑' : ' ↓') : ''}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((asset) => {
+            const a = asset as Record<string, unknown>
+            const peaks = ((a.metadata as Record<string, unknown>)?.waveform as Record<string, unknown>)?.peaks as number[] ?? []
+            const badge = STATUS_BADGE[a.status as string] ?? STATUS_BADGE.retired!
+            return (
+              <tr key={a.id as string} onClick={() => onSelect(a.id as string)} style={{ borderBottom: '1px solid var(--gem-border)', cursor: 'pointer', background: selectedId === a.id ? 'rgba(99,102,241,0.08)' : checked.has(a.id as string) ? 'rgba(99,102,241,0.04)' : 'transparent' }}>
+                <td style={{ padding: '4px 4px' }} onClick={e => e.stopPropagation()}>
+                  <input type="checkbox" checked={checked.has(a.id as string)} onChange={() => toggleCheck(a.id as string)} />
+                </td>
+                <td style={{ padding: '4px 8px' }}><WaveformMini peaks={peaks} /></td>
+                <td style={{ padding: '4px 8px', color: 'var(--gem-text)' }}>{(a.track_name as string) || (a.asset_id as string)}</td>
+                <td style={{ padding: '4px 8px', color: 'var(--gem-muted)' }}>{a.type === 'music' ? '🎵' : '🔊'}</td>
+                <td style={{ padding: '4px 8px', color: 'var(--gem-muted)' }}>{(a.category as string) ?? '—'}</td>
+                <td style={{ padding: '4px 8px', color: 'var(--gem-muted)' }}>{(a.energy as number) ?? '—'}</td>
+                <td style={{ padding: '4px 8px', color: 'var(--gem-muted)' }}>{(a.bpm as number) ?? '—'}</td>
+                <td style={{ padding: '4px 8px' }}>
+                  <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: badge.bg, color: badge.color }}>{badge.label}</span>
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}

@@ -18,6 +18,8 @@ interface SceneSFX {
   timestamp: string
   description: string
   search_terms?: string
+  audio_asset_id?: string
+  resolve_status?: string
 }
 
 interface SceneOverlay {
@@ -71,6 +73,13 @@ const STATUS_STYLES: Record<string, { bg: string; color: string }> = {
   EM_ANDAMENTO: { bg: 'rgba(234,179,8,0.15)', color: '#eab308' },
   PENDING: { bg: 'rgba(107,114,128,0.15)', color: '#9ca3af' },
   PENDENTE: { bg: 'rgba(107,114,128,0.15)', color: '#9ca3af' },
+}
+
+const RESOLVE_BADGES: Record<string, { label: string; color: string; bg: string }> = {
+  LOCAL: { label: '✓ Local', color: '#10b981', bg: 'rgba(16,185,129,0.15)' },
+  PENDING_MATCH: { label: '⏳ Download', color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
+  PARTIAL_MATCH: { label: '~ Partial', color: '#f97316', bg: 'rgba(249,115,22,0.15)' },
+  NO_MATCH: { label: '🔗 Search', color: '#3b82f6', bg: 'rgba(59,130,246,0.15)' },
 }
 
 const DIFFICULTY_STYLES: Record<string, { bg: string; color: string }> = {
@@ -309,6 +318,19 @@ function SceneCard({ scene, expandAll }: { scene: Scene; expandAll: boolean }) {
                     <span style={{ color: 'var(--gem-muted)' }}>
                       {tokenizeText(fx.description)}
                       <ArtlistSfxInline text={fx.description} />
+                      {fx.resolve_status && RESOLVE_BADGES[fx.resolve_status] && (
+                        <span style={{
+                          fontSize: 9,
+                          padding: '1px 6px',
+                          borderRadius: 4,
+                          fontWeight: 600,
+                          background: RESOLVE_BADGES[fx.resolve_status]!.bg,
+                          color: RESOLVE_BADGES[fx.resolve_status]!.color,
+                          marginLeft: 6,
+                        }}>
+                          {RESOLVE_BADGES[fx.resolve_status]!.label}
+                        </span>
+                      )}
                       {fx.search_terms && (
                         <span style={{ color: 'var(--gem-dim)' }}>
                           {' — '}{fx.search_terms}
