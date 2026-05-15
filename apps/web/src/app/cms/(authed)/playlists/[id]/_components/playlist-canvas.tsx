@@ -15,6 +15,8 @@ import {
   computeViewNumbers,
   matchesFilter,
   DIMMED_OFFSET_Y,
+  NODE_WIDTH,
+  NODE_HEIGHT,
   type GraphState,
 } from '@/lib/playlists/canvas'
 import type {
@@ -416,8 +418,8 @@ export function PlaylistCanvas({
     if (items.length === 0) return
 
     const pad = 60
-    const nodeW = 250
-    const nodeH = 80
+    const nodeW = NODE_WIDTH
+    const nodeH = NODE_HEIGHT
     const stripeW = 26
     const minX = Math.min(...items.map(i => i.position_x)) - pad
     const minY = Math.min(...items.map(i => i.position_y)) - pad

@@ -164,42 +164,35 @@ export function computeAutoLayout(
         for (const adjKey of sortedLayerKeys) {
           if (adjKey !== layerKey - 1 && adjKey !== layerKey + 1) continue
           const adjGroup = layerGroups.get(adjKey)!
+          const adjPos = new Map<string, number>()
+          for (let j = 0; j < adjGroup.length; j++) adjPos.set(adjGroup[j]!, j)
 
-          for (let a = 0; a < group.length; a++) {
-            for (let b = a + 1; b < group.length; b++) {
-              const nA = allNeighbors.get(group[a]!)
-              const nB = allNeighbors.get(group[b]!)
-              if (!nA || !nB) continue
-              for (const na of nA) {
-                const posNA = adjGroup.indexOf(na)
-                if (posNA === -1) continue
-                for (const nb of nB) {
-                  const posNB = adjGroup.indexOf(nb)
-                  if (posNB === -1) continue
-                  if (posNA > posNB) currentCrossings++
+          const countCrossings = (order: string[]) => {
+            let crossings = 0
+            for (let a = 0; a < order.length; a++) {
+              for (let b = a + 1; b < order.length; b++) {
+                const nA = allNeighbors.get(order[a]!)
+                const nB = allNeighbors.get(order[b]!)
+                if (!nA || !nB) continue
+                for (const na of nA) {
+                  const posNA = adjPos.get(na)
+                  if (posNA === undefined) continue
+                  for (const nb of nB) {
+                    const posNB = adjPos.get(nb)
+                    if (posNB === undefined) continue
+                    if (posNA > posNB) crossings++
+                  }
                 }
               }
             }
+            return crossings
           }
+
+          currentCrossings += countCrossings(group)
 
           const swapped = [...group]
           ;[swapped[i], swapped[i + 1]] = [swapped[i + 1]!, swapped[i]!]
-          for (let a = 0; a < swapped.length; a++) {
-            for (let b = a + 1; b < swapped.length; b++) {
-              const nA = allNeighbors.get(swapped[a]!)
-              const nB = allNeighbors.get(swapped[b]!)
-              if (!nA || !nB) continue
-              for (const na of nA) {
-                const posNA = adjGroup.indexOf(na)
-                if (posNA === -1) continue
-                for (const nb of nB) {
-                  const posNB = adjGroup.indexOf(nb)
-                  if (posNB === -1) continue
-                  if (posNA > posNB) swappedCrossings++
-                }
-              }
-            }
-          }
+          swappedCrossings += countCrossings(swapped)
         }
 
         if (swappedCrossings < currentCrossings) {
