@@ -43,6 +43,13 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
   const [fetchError, setFetchError] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const gTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const liveStats = useMemo(() => ({
+    total: assets.length,
+    music: assets.filter(a => a.type === 'music').length,
+    sfx: assets.filter(a => a.type === 'sfx').length,
+    pending: assets.filter(a => a.status === 'pending').length,
+  }), [assets])
+
   const [isNarrow, setIsNarrow] = useState(false)
   const [showFilters, setShowFilters] = useState(true)
 
@@ -132,7 +139,10 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
         {fetchError && (
           <div style={{ padding: '6px 12px', background: 'rgba(245,158,11,0.1)', borderBottom: '1px solid rgba(245,158,11,0.3)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
             <span style={{ color: '#f59e0b' }}>{fetchError}</span>
-            <button aria-label="Dismiss error" onClick={() => setFetchError(null)} style={{ background: 'none', border: 'none', color: '#f59e0b', cursor: 'pointer', fontSize: 11 }}>✕</button>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <button onClick={() => refetch(filters)} style={{ background: 'none', border: '1px solid rgba(245,158,11,0.4)', color: '#f59e0b', cursor: 'pointer', fontSize: 11, padding: '1px 8px', borderRadius: 4 }}>Retry</button>
+              <button aria-label="Dismiss error" onClick={() => setFetchError(null)} style={{ background: 'none', border: 'none', color: '#f59e0b', cursor: 'pointer', fontSize: 11 }}>✕</button>
+            </div>
           </div>
         )}
 
@@ -147,7 +157,7 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
 
         {/* Stats bar */}
         <div style={{ padding: '6px 12px', borderTop: '1px solid var(--gem-border)', fontSize: 11, color: 'var(--gem-muted)' }}>
-          {stats.total} assets · {stats.music} music · {stats.sfx} sfx · {stats.pending} pending
+          {stats.total} total · Showing {liveStats.total} · {liveStats.music} music · {liveStats.sfx} sfx · {liveStats.pending} pending
         </div>
       </div>
 
