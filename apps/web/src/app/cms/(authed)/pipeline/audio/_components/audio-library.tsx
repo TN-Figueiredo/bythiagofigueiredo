@@ -2,25 +2,21 @@
 
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import type { AudioAssetRow } from '@/lib/pipeline/audio-schemas'
-import { AudioFilters } from './audio-filters'
-import { AudioGrid } from './audio-grid'
-import { AudioTable } from './audio-table'
-import { AudioDetail } from './audio-detail'
+import { AudioFiltersV2 } from './audio-filters-v2'
+import { AudioGridV2 } from './audio-grid-v2'
+import { AudioTableV2 } from './audio-table-v2'
+import { AudioDetailV2 } from './audio-detail-v2'
+import { AudioEmpty } from './audio-empty'
+import { AudioGridSkeleton } from './audio-skeleton'
+import { ToastContainer, useToasts } from './audio-toast'
 import { AudioImportModal } from './audio-import-modal'
+import { useAudioFilters, serializeFilters } from '../_helpers/use-audio-filters'
 
 interface Stats { total: number; music: number; sfx: number; downloaded: number; pending: number; retired: number }
 
 interface AudioLibraryProps {
   initialAssets: AudioAssetRow[]
   stats: Stats
-}
-
-function deriveCategories(assets: AudioAssetRow[]): string[] {
-  const seen = new Set<string>()
-  for (const a of assets) {
-    if (a.category) seen.add(a.category)
-  }
-  return Array.from(seen).sort()
 }
 
 function deriveTags(assets: AudioAssetRow[]): string[] {
@@ -33,12 +29,10 @@ function deriveTags(assets: AudioAssetRow[]): string[] {
 
 export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
   const [assets, setAssets] = useState<AudioAssetRow[]>(initialAssets)
-  const categories = useMemo(() => deriveCategories(assets), [assets])
   const availableTags = useMemo(() => deriveTags(assets), [assets])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid')
   const [showImport, setShowImport] = useState(false)
-  const [filters, setFilters] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasNext, setHasNext] = useState(false)
@@ -51,6 +45,9 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
   const selectedIdRef = useRef(selectedId)
   assetsRef.current = assets
   selectedIdRef.current = selectedId
+
+  const { filters, setFilters, clearAll, activeCount } = useAudioFilters()
+
   const liveStats = useMemo(() => ({
     total: assets.length,
     music: assets.filter(a => a.type === 'music').length,
@@ -74,14 +71,16 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
     return () => mq.removeEventListener('change', handler)
   }, [])
 
-  const refetch = useCallback(async (params: Record<string, string> = {}) => {
+  const { toasts, dismissToast } = useToasts()
+
+  const refetch = useCallback(async (params: URLSearchParams | Record<string, string> = {}) => {
     abortRef.current?.abort()
     const controller = new AbortController()
     abortRef.current = controller
     setFetchError(null)
     setLoading(true)
     try {
-      const qs = new URLSearchParams(params).toString()
+      const qs = params instanceof URLSearchParams ? params.toString() : new URLSearchParams(params).toString()
       const res = await fetch(`/api/pipeline/audio-library${qs ? `?${qs}` : ''}`, { signal: controller.signal })
       if (!res.ok) {
         setFetchError('Failed to load assets')
@@ -108,7 +107,8 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
     loadMoreAbortRef.current = controller
     setLoadingMore(true)
     try {
-      const params = new URLSearchParams({ ...filters, cursor: nextCursor })
+      const params = serializeFilters(filters)
+      params.set('cursor', nextCursor)
       const res = await fetch(`/api/pipeline/audio-library?${params.toString()}`, { signal: controller.signal })
       if (!res.ok) {
         setFetchError('Failed to load more assets')
@@ -128,13 +128,15 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
     }
   }, [hasNext, nextCursor, loadingMore, filters])
 
-  const handleFilterChange = useCallback((newFilters: Record<string, string>) => {
+  // Refetch whenever filters change (skip initial render)
+  const isFirstRender = useRef(true)
+  useEffect(() => {
+    if (isFirstRender.current) { isFirstRender.current = false; return }
     loadMoreAbortRef.current?.abort()
-    setFilters(newFilters)
     setHasNext(false)
     setNextCursor(null)
-    refetch(newFilters)
-  }, [refetch])
+    refetch(serializeFilters(filters))
+  }, [filters, refetch])
 
   const [gPressed, setGPressed] = useState(false)
 
@@ -162,45 +164,93 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
   }, [gPressed])
 
   return (
-    <div style={{ display: 'flex', height: '100%', gap: 0, overflow: 'hidden' }}>
-      {showFilters && <AudioFilters filters={filters} onChange={handleFilterChange} categories={categories} availableTags={availableTags} />}
+    <div style={{ display: 'flex', height: 'calc(100vh - 4rem)', overflow: 'hidden', gap: 12 }}>
+      {/* Left: Filters (280px) */}
+      {showFilters && (
+        <AudioFiltersV2
+          filters={filters}
+          setFilters={setFilters}
+          clearAll={clearAll}
+          activeCount={activeCount}
+          assets={assets}
+          availableTags={availableTags}
+        />
+      )}
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* Center: Main content */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 0 }}>
         {/* Toolbar */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderBottom: '1px solid var(--gem-border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 8 }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button onClick={() => setShowFilters(v => !v)} style={{ padding: '4px 10px', fontSize: 12, borderRadius: 5, border: '1px solid var(--gem-border)', background: showFilters ? 'var(--gem-accent)' : 'transparent', color: 'var(--gem-text)', cursor: 'pointer' }}>
+            <button
+              onClick={() => setShowFilters(v => !v)}
+              style={{ padding: '4px 10px', fontSize: 12, borderRadius: 5, border: '1px solid var(--gem-border)', background: showFilters ? 'var(--gem-accent)' : 'transparent', color: 'var(--gem-text)', cursor: 'pointer' }}
+            >
               {showFilters ? 'Hide Filters' : 'Filters'}
             </button>
-            <button aria-pressed={viewMode === 'grid'} onClick={() => setViewMode('grid')} style={{ padding: '4px 10px', fontSize: 12, borderRadius: 5, border: '1px solid var(--gem-border)', background: viewMode === 'grid' ? 'var(--gem-accent)' : 'transparent', color: 'var(--gem-text)', cursor: 'pointer' }}>Grid</button>
-            <button aria-pressed={viewMode === 'table'} onClick={() => setViewMode('table')} style={{ padding: '4px 10px', fontSize: 12, borderRadius: 5, border: '1px solid var(--gem-border)', background: viewMode === 'table' ? 'var(--gem-accent)' : 'transparent', color: 'var(--gem-text)', cursor: 'pointer' }}>Table</button>
+            <span style={{ fontSize: 12, color: 'var(--gem-muted)' }}>
+              {liveStats.total} track{liveStats.total !== 1 ? 's' : ''}
+              {activeCount > 0 && ` (filtered)`}
+            </span>
           </div>
-          <button onClick={() => setShowImport(true)} style={{ padding: '4px 12px', fontSize: 12, borderRadius: 5, border: '1px solid var(--gem-border)', background: 'var(--gem-surface-hi)', color: 'var(--gem-text)', cursor: 'pointer' }}>Import JSON</button>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div role="group" aria-label="View mode" style={{ display: 'flex', borderRadius: 5, overflow: 'hidden', border: '1px solid var(--gem-border)' }}>
+              <button
+                aria-pressed={viewMode === 'grid'}
+                onClick={() => setViewMode('grid')}
+                style={{ padding: '4px 10px', fontSize: 12, border: 'none', borderRight: '1px solid var(--gem-border)', background: viewMode === 'grid' ? 'var(--gem-surface-hi)' : 'transparent', color: viewMode === 'grid' ? 'var(--gem-text)' : 'var(--gem-muted)', cursor: 'pointer', fontWeight: viewMode === 'grid' ? 600 : 400 }}
+              >
+                Grid
+              </button>
+              <button
+                aria-pressed={viewMode === 'table'}
+                onClick={() => setViewMode('table')}
+                style={{ padding: '4px 10px', fontSize: 12, border: 'none', background: viewMode === 'table' ? 'var(--gem-surface-hi)' : 'transparent', color: viewMode === 'table' ? 'var(--gem-text)' : 'var(--gem-muted)', cursor: 'pointer', fontWeight: viewMode === 'table' ? 600 : 400 }}
+              >
+                Table
+              </button>
+            </div>
+            <button
+              onClick={() => setShowImport(true)}
+              style={{ padding: '4px 12px', fontSize: 12, borderRadius: 5, border: '1px solid var(--gem-border)', background: 'var(--gem-surface-hi)', color: 'var(--gem-text)', cursor: 'pointer' }}
+            >
+              Import JSON
+            </button>
+          </div>
         </div>
 
         {/* Error banner */}
         {fetchError && (
-          <div style={{ padding: '6px 12px', background: 'rgba(245,158,11,0.1)', borderBottom: '1px solid rgba(245,158,11,0.3)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
+          <div style={{ padding: '6px 12px', background: 'rgba(245,158,11,0.1)', borderBottom: '1px solid rgba(245,158,11,0.3)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, marginBottom: 12, borderRadius: 6 }}>
             <span style={{ color: '#f59e0b' }}>{fetchError}</span>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <button onClick={() => refetch(filters)} style={{ background: 'none', border: '1px solid rgba(245,158,11,0.4)', color: '#f59e0b', cursor: 'pointer', fontSize: 11, padding: '1px 8px', borderRadius: 4 }}>Retry</button>
+              <button onClick={() => refetch(serializeFilters(filters))} style={{ background: 'none', border: '1px solid rgba(245,158,11,0.4)', color: '#f59e0b', cursor: 'pointer', fontSize: 11, padding: '1px 8px', borderRadius: 4 }}>Retry</button>
               <button aria-label="Dismiss error" onClick={() => setFetchError(null)} style={{ background: 'none', border: 'none', color: '#f59e0b', cursor: 'pointer', fontSize: 11 }}>✕</button>
             </div>
           </div>
         )}
 
-        {/* Main content */}
-        <div style={{ flex: 1, overflow: 'auto', padding: 12, position: 'relative' }}>
-          {loading && <div role="status" aria-live="polite" style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, borderRadius: 4 }}><span style={{ fontSize: 12, color: 'var(--gem-text)' }}>Loading...</span></div>}
-          {viewMode === 'grid'
-            ? <AudioGrid assets={assets} selectedId={selectedId} onSelect={setSelectedId} />
-            : <AudioTable assets={assets} selectedId={selectedId} onSelect={setSelectedId} onRefetch={() => refetch(filters)} />
-          }
-        </div>
+        {/* Loading state */}
+        {loading && <AudioGridSkeleton />}
+
+        {/* Empty states */}
+        {!loading && assets.length === 0 && activeCount === 0 && (
+          <AudioEmpty variant="no-assets" onImport={() => setShowImport(true)} />
+        )}
+        {!loading && assets.length === 0 && activeCount > 0 && (
+          <AudioEmpty variant="no-results" onClearFilters={clearAll} />
+        )}
+
+        {/* Content */}
+        {!loading && assets.length > 0 && (
+          viewMode === 'grid'
+            ? <AudioGridV2 assets={assets} selectedId={selectedId} onSelect={setSelectedId} />
+            : <AudioTableV2 assets={assets} selectedId={selectedId} onSelect={setSelectedId} onRefetch={() => refetch(serializeFilters(filters))} />
+        )}
 
         {/* Load more */}
         {hasNext && (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 12px', borderTop: '1px solid var(--gem-border)' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 16 }}>
             <button
               onClick={loadMore}
               disabled={loadingMore}
@@ -212,21 +262,38 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
         )}
 
         {/* Stats bar */}
-        <div style={{ padding: '6px 12px', borderTop: '1px solid var(--gem-border)', fontSize: 11, color: 'var(--gem-muted)' }}>
+        <div style={{ marginTop: 'auto', paddingTop: 24, fontSize: 11, color: 'var(--gem-muted)' }}>
           {stats.total} total · Showing {liveStats.total} · {liveStats.music} music · {liveStats.sfx} sfx · {liveStats.downloaded} ready · {liveStats.pending} pending
         </div>
       </div>
 
+      {/* Right: Detail panel (360px, conditional on selectedId) */}
       {selectedId && (
         isNarrow ? (
           <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: '100%', maxWidth: 400, zIndex: 40, background: 'var(--gem-surface)', boxShadow: '-4px 0 20px rgba(0,0,0,0.3)' }}>
-            <AudioDetail assetId={selectedId} onClose={() => setSelectedId(null)} fullWidth />
+            <AudioDetailV2
+              assetId={selectedId}
+              allAssets={assets}
+              onClose={() => setSelectedId(null)}
+              onFilter={setFilters}
+              fullWidth
+            />
           </div>
         ) : (
-          <AudioDetail assetId={selectedId} onClose={() => setSelectedId(null)} />
+          <AudioDetailV2
+            assetId={selectedId}
+            allAssets={assets}
+            onClose={() => setSelectedId(null)}
+            onFilter={setFilters}
+          />
         )
       )}
-      {showImport && <AudioImportModal onClose={() => { setShowImport(false); refetch(filters) }} />}
+
+      {/* Modals */}
+      {showImport && <AudioImportModal onClose={() => { setShowImport(false); refetch(serializeFilters(filters)) }} />}
+
+      {/* Toast notifications */}
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   )
 }

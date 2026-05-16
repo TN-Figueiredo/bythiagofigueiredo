@@ -7,21 +7,7 @@ import { GEM_CSS_VARS } from '@/lib/pipeline/gem-design'
 import type { AudioAssetRow } from '@/lib/pipeline/audio-schemas'
 import { AudioLibrary } from './_components/audio-library'
 import { AudioErrorBoundary } from './_components/audio-error-boundary'
-
-function AudioSkeleton() {
-  return (
-    <div style={{ display: 'flex', height: '100%', gap: 0 }}>
-      <div style={{ width: 200, borderRight: '1px solid var(--gem-border)', padding: 12 }}>
-        {[1,2,3,4].map(i => <div key={i} style={{ height: 24, background: 'var(--gem-well)', borderRadius: 4, marginBottom: 12 }} />)}
-      </div>
-      <div style={{ flex: 1, padding: 12 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
-          {[1,2,3,4,5,6].map(i => <div key={i} style={{ height: 120, background: 'var(--gem-well)', borderRadius: 8 }} />)}
-        </div>
-      </div>
-    </div>
-  )
-}
+import { AudioGridSkeleton } from './_components/audio-skeleton'
 
 export const dynamic = 'force-dynamic'
 
@@ -62,7 +48,7 @@ export default async function AudioPage() {
       <CmsTopbar title="Pipeline — Audio Library" />
       <div className="p-4 gem-pipeline-theme" style={{ height: 'calc(100vh - 6rem)', ...GEM_CSS_VARS } as React.CSSProperties}>
         <AudioErrorBoundary>
-          <Suspense fallback={<AudioSkeleton />}>
+          <Suspense fallback={<div style={{ padding: 24 }}><AudioGridSkeleton /></div>}>
             <AudioLibrary initialAssets={assets} stats={stats} />
           </Suspense>
         </AudioErrorBoundary>

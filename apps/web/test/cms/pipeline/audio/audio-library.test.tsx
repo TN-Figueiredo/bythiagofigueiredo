@@ -3,17 +3,26 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import type { AudioAssetRow } from '@/lib/pipeline/audio-schemas'
 
 /* ------------------------------------------------------------------ */
+/*  Next.js navigation mock                                            */
+/* ------------------------------------------------------------------ */
+
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => new URLSearchParams(),
+  useRouter: () => ({ replace: vi.fn() }),
+}))
+
+/* ------------------------------------------------------------------ */
 /*  Child component mocks                                              */
 /* ------------------------------------------------------------------ */
 
-vi.mock('@/app/cms/(authed)/pipeline/audio/_components/audio-filters', () => ({
-  AudioFilters: (props: any) => (
-    <div data-testid="audio-filters" onClick={() => props.onChange({ type: 'music' })} />
+vi.mock('@/app/cms/(authed)/pipeline/audio/_components/audio-filters-v2', () => ({
+  AudioFiltersV2: (props: any) => (
+    <div data-testid="audio-filters" onClick={() => props.setFilters({ type: 'music' })} />
   ),
 }))
 
-vi.mock('@/app/cms/(authed)/pipeline/audio/_components/audio-grid', () => ({
-  AudioGrid: (props: any) => (
+vi.mock('@/app/cms/(authed)/pipeline/audio/_components/audio-grid-v2', () => ({
+  AudioGridV2: (props: any) => (
     <div data-testid="audio-grid">
       {props.assets.map((a: any) => (
         <div key={a.id}>{a.asset_id}</div>
@@ -22,14 +31,14 @@ vi.mock('@/app/cms/(authed)/pipeline/audio/_components/audio-grid', () => ({
   ),
 }))
 
-vi.mock('@/app/cms/(authed)/pipeline/audio/_components/audio-table', () => ({
-  AudioTable: (props: any) => (
+vi.mock('@/app/cms/(authed)/pipeline/audio/_components/audio-table-v2', () => ({
+  AudioTableV2: (props: any) => (
     <div data-testid="audio-table">{props.assets.length} assets</div>
   ),
 }))
 
-vi.mock('@/app/cms/(authed)/pipeline/audio/_components/audio-detail', () => ({
-  AudioDetail: (props: any) => (
+vi.mock('@/app/cms/(authed)/pipeline/audio/_components/audio-detail-v2', () => ({
+  AudioDetailV2: (props: any) => (
     <div data-testid="audio-detail">
       <button onClick={props.onClose}>close</button>
     </div>
@@ -42,6 +51,19 @@ vi.mock('@/app/cms/(authed)/pipeline/audio/_components/audio-import-modal', () =
       <button onClick={props.onClose}>close-import</button>
     </div>
   ),
+}))
+
+vi.mock('@/app/cms/(authed)/pipeline/audio/_components/audio-empty', () => ({
+  AudioEmpty: () => <div data-testid="audio-empty" />,
+}))
+
+vi.mock('@/app/cms/(authed)/pipeline/audio/_components/audio-skeleton', () => ({
+  AudioGridSkeleton: () => <div data-testid="audio-skeleton" />,
+}))
+
+vi.mock('@/app/cms/(authed)/pipeline/audio/_components/audio-toast', () => ({
+  ToastContainer: () => null,
+  useToasts: () => ({ toasts: [], addToast: vi.fn(), dismissToast: vi.fn() }),
 }))
 
 import { AudioLibrary } from '@/app/cms/(authed)/pipeline/audio/_components/audio-library'
