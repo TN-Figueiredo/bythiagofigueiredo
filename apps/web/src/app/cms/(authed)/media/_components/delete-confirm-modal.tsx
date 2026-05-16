@@ -10,10 +10,11 @@ interface DeleteConfirmModalProps {
   onConfirm: () => void
   onCancel: () => void
   isLoading?: boolean
+  error?: string | null
   t: MediaGalleryStrings
 }
 
-export function DeleteConfirmModal({ open, count, usageCount, onConfirm, onCancel, isLoading, t }: DeleteConfirmModalProps) {
+export function DeleteConfirmModal({ open, count, usageCount, onConfirm, onCancel, isLoading, error, t }: DeleteConfirmModalProps) {
   useEffect(() => {
     if (!open) return
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel() }
@@ -43,6 +44,9 @@ export function DeleteConfirmModal({ open, count, usageCount, onConfirm, onCance
               {t.delete.usageWarning.replace('{count}', String(usageCount))}
             </p>
           </div>
+        )}
+        {error && (
+          <p className="mt-3 text-sm text-red-400" role="alert">{error}</p>
         )}
         <div className="mt-4 flex justify-end gap-2">
           <button

@@ -105,12 +105,14 @@ export function MediaLibraryTab({ onSelect, folder, cropPreset, locale }: Librar
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t.library.searchPlaceholder}
           className="flex-1 rounded-md border border-cms-border bg-cms-bg px-3 py-2 text-sm text-cms-text placeholder:text-cms-text-dim focus:border-cms-accent focus:outline-none"
+          aria-label={t.toolbar.searchLabel}
           data-testid="library-search"
         />
         <select
           value={folderFilter}
           onChange={(e) => setFolderFilter(e.target.value)}
           className="rounded-md border border-cms-border bg-cms-bg px-3 py-2 text-sm text-cms-text focus:border-cms-accent focus:outline-none"
+          aria-label={t.upload.folderLabel}
           data-testid="library-folder-filter"
         >
           {FOLDER_FILTERS.map((f) => (

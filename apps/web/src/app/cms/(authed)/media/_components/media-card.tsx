@@ -18,6 +18,8 @@ interface MediaCardProps {
   onQuickAction: (id: string, action: QuickAction) => void
   searchQuery?: string
   compact?: boolean
+  typeLabel?: string
+  newBadgeLabel?: string
   'data-testid'?: string
 }
 
@@ -52,6 +54,8 @@ export function MediaCard({
   searchQuery,
   compact,
   focused,
+  typeLabel,
+  newBadgeLabel,
   'data-testid': dataTestId,
 }: MediaCardProps) {
   const colors = TYPE_COLORS[type]
@@ -163,11 +167,11 @@ export function MediaCard({
         <div className="flex flex-col gap-1 px-3 py-2">
           <div className="flex items-center gap-1.5">
             <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${colors.badge}`}>
-              {colors.label}
+              {typeLabel ?? colors.label}
             </span>
             {isNewAsset(item.createdAt) && (
               <span className="inline-flex items-center rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-400">
-                NEW
+                {newBadgeLabel ?? 'NEW'}
               </span>
             )}
           </div>

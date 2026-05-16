@@ -202,23 +202,26 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
     [fetchAssets],
   )
 
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
   const handleDeleteConfirm = useCallback(async () => {
     if (!deleteModal) return
     setIsDeleting(true)
+    setDeleteError(null)
     try {
       if (deleteModal.ids.length === 1) {
         await softDeleteMediaAssetAction(deleteModal.ids[0]!)
       } else {
         await bulkDeleteMediaAssetsAction(deleteModal.ids)
       }
+      const deletedIds = deleteModal.ids
       setDeleteModal(null)
       dispatch({ type: 'UNCHECK_ALL' })
+      setItems(prev => prev.filter(i => !deletedIds.includes(i.asset.id)))
       fetchAssets()
       getMediaStatsAction().then((res) => { if (res.ok) setStats(res.stats) }).catch(() => {})
     } catch {
-      const el = document.getElementById('media-announcements')
-      if (el) el.textContent = t.delete.deleteFailed
-      setDeleteModal(null)
+      setDeleteError(t.delete.deleteFailed)
     } finally {
       setIsDeleting(false)
     }
@@ -283,7 +286,7 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
       if (state.lightboxId) return
 
       if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (state.checked.size > 0) handleBulkDelete()
+        if (state.checked.size > 0 && !isDeleting && !deleteModal) handleBulkDelete()
       }
 
       const cols = state.view === 'list' ? 1 : state.cols
@@ -309,7 +312,7 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [state.lightboxId, state.selectedId, state.search, state.checked.size, state.view, state.cols, handleBulkDelete, focusedIndex, filteredItems])
+  }, [state.lightboxId, state.selectedId, state.search, state.checked.size, state.view, state.cols, handleBulkDelete, focusedIndex, filteredItems, isDeleting, deleteModal])
 
   useEffect(() => {
     const handleDragEnter = (e: DragEvent) => {
@@ -421,6 +424,7 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
             onCheck={handleCheck}
             onQuickAction={handleQuickAction}
             onContextMenu={(id, x, y) => setContextMenu({ id, x, y })}
+            t={t}
           />
         ) : (
           <MediaList
@@ -430,6 +434,7 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
             focusedIndex={focusedIndex}
             onSelect={handleSelect}
             onCheck={handleCheck}
+            t={t}
           />
         )}
 
@@ -490,7 +495,8 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
         count={deleteModal?.ids.length ?? 0}
         usageCount={deleteModal?.usageCount ?? 0}
         onConfirm={handleDeleteConfirm}
-        onCancel={() => setDeleteModal(null)}
+        onCancel={() => { setDeleteModal(null); setDeleteError(null) }}
+        error={deleteError}
         isLoading={isDeleting}
         t={t}
       />

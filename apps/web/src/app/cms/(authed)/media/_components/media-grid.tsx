@@ -2,6 +2,7 @@
 
 import { MediaCard, type QuickAction } from './media-card'
 import type { EnrichedMediaAsset, MediaColumnCount } from '../../_shared/media/types'
+import type { MediaGalleryStrings } from '../../_shared/media/_i18n/types'
 
 interface MediaGridProps {
   items: EnrichedMediaAsset[]
@@ -15,6 +16,7 @@ interface MediaGridProps {
   onQuickAction: (id: string, action: QuickAction) => void
   onContextMenu?: (id: string, x: number, y: number) => void
   compact?: boolean
+  t?: MediaGalleryStrings
 }
 
 const COL_CLASSES: Record<MediaColumnCount, string> = {
@@ -35,6 +37,7 @@ export function MediaGrid({
   onQuickAction,
   onContextMenu,
   compact,
+  t,
 }: MediaGridProps) {
   return (
     <div
@@ -64,6 +67,8 @@ export function MediaGrid({
             onQuickAction={onQuickAction}
             searchQuery={searchQuery}
             compact={compact}
+            typeLabel={t?.typeLabels[enriched.type]}
+            newBadgeLabel={t?.detail.newBadge}
           />
         </div>
       ))}

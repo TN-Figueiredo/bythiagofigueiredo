@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useRef } from 'react'
 import Image from 'next/image'
 import type { MediaAsset } from '@/lib/media/types'
 import type { MediaGalleryStrings } from '../../_shared/media/_i18n/types'
@@ -33,13 +33,19 @@ export function MediaLightbox({
     [onClose, onPrev, onNext, currentIndex, totalCount],
   )
 
+  const closeBtnRef = useRef<HTMLButtonElement>(null)
+  const previousFocusRef = useRef<HTMLElement | null>(null)
+
   useEffect(() => {
     if (!asset) return
+    previousFocusRef.current = document.activeElement as HTMLElement | null
     document.addEventListener('keydown', handleKeyDown)
     document.body.style.overflow = 'hidden'
+    requestAnimationFrame(() => closeBtnRef.current?.focus())
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
       document.body.style.overflow = ''
+      previousFocusRef.current?.focus()
     }
   }, [asset, handleKeyDown])
 
@@ -88,6 +94,7 @@ export function MediaLightbox({
           {counter}
         </span>
         <button
+          ref={closeBtnRef}
           type="button"
           onClick={onClose}
           className="rounded-full bg-black/50 p-2 text-white backdrop-blur-sm hover:bg-black/70"

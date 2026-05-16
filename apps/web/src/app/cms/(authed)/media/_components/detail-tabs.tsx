@@ -120,6 +120,14 @@ function DetailsTab({
     ? `${(asset.width / asset.height).toFixed(2)}:1`
     : '—'
 
+  const FOLDER_OPTIONS = ['general', 'authors', 'blog', 'pipeline', 'newsletters', 'branding', 'og', 'ads', 'links'] as const
+  const folderLabels: Record<string, string> = {
+    general: t.library.folderGeneral, authors: t.library.folderAuthors,
+    blog: t.library.folderBlog, pipeline: t.library.folderPipeline,
+    newsletters: t.library.folderNewsletters, branding: t.library.folderBranding,
+    og: t.library.folderOg, ads: t.library.folderAds, links: t.library.folderLinks,
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2 rounded-lg border border-cms-border bg-cms-bg p-3">
@@ -185,8 +193,8 @@ function DetailsTab({
           onChange={(e) => onUpdateFolder(e.target.value)}
           className="rounded-md border border-cms-border bg-cms-bg px-2.5 py-1.5 text-sm text-cms-text focus:border-cms-accent focus:outline-none"
         >
-          {['general', 'authors', 'blog', 'pipeline', 'newsletters', 'branding', 'og', 'ads', 'links'].map((f) => (
-            <option key={f} value={f}>{f}</option>
+          {FOLDER_OPTIONS.map((f) => (
+            <option key={f} value={f}>{folderLabels[f] ?? f}</option>
           ))}
         </select>
       </div>

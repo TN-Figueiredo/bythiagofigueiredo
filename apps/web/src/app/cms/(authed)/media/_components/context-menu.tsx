@@ -24,10 +24,30 @@ export function ContextMenu({ x, y, assetId, onAction, onClose, t }: ContextMenu
   }, [onClose])
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { onClose(); return }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End') {
+        e.preventDefault()
+        const buttons = ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]')
+        if (!buttons?.length) return
+        const active = document.activeElement as HTMLElement
+        const idx = Array.from(buttons).indexOf(active)
+        let next: number
+        if (e.key === 'ArrowDown') next = idx < buttons.length - 1 ? idx + 1 : 0
+        else if (e.key === 'ArrowUp') next = idx > 0 ? idx - 1 : buttons.length - 1
+        else if (e.key === 'Home') next = 0
+        else next = buttons.length - 1
+        buttons[next]?.focus()
+      }
+    }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
   }, [onClose])
+
+  useEffect(() => {
+    const firstItem = ref.current?.querySelector<HTMLElement>('[role="menuitem"]')
+    firstItem?.focus()
+  }, [])
 
   const items = [
     { action: 'preview', label: t.context.preview },

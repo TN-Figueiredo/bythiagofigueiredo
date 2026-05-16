@@ -3,6 +3,7 @@
 import Image from 'next/image'
 import type { EnrichedMediaAsset } from '../../_shared/media/types'
 import { TYPE_COLORS, formatBytes } from '../../_shared/media/types'
+import type { MediaGalleryStrings } from '../../_shared/media/_i18n/types'
 
 interface MediaListProps {
   items: EnrichedMediaAsset[]
@@ -11,9 +12,10 @@ interface MediaListProps {
   focusedIndex?: number
   onSelect: (id: string) => void
   onCheck: (id: string, shiftKey: boolean) => void
+  t?: MediaGalleryStrings
 }
 
-export function MediaList({ items, checked, selectedId, focusedIndex, onSelect, onCheck }: MediaListProps) {
+export function MediaList({ items, checked, selectedId, focusedIndex, onSelect, onCheck, t }: MediaListProps) {
   return (
     <div role="list" className="flex flex-col gap-1">
       {items.map((enriched, index) => {
@@ -68,7 +70,7 @@ export function MediaList({ items, checked, selectedId, focusedIndex, onSelect, 
             </div>
 
             <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${colors.badge}`}>
-              {colors.label}
+              {t?.typeLabels[type] ?? colors.label}
             </span>
 
             <span className="shrink-0 text-xs text-cms-text-muted tabular-nums w-24 text-right">
