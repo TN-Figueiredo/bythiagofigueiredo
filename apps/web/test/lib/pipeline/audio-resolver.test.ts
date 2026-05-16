@@ -114,6 +114,13 @@ describe('scoreAsset', () => {
     const asset = makeAsset({ category: null, tags: ['epic'], mood: [], instruments: [], reuse_scenarios: [], energy: null, bpm: null, duration_seconds: null })
     expect(scoreAsset(asset, { type: 'music', tags: ['epic'], limit: 5 } as ResolveQuery).resolve_status).toBe('NO_MATCH')
   })
+
+  it('description breakdown stays 0 when description is in query (DB handles filtering)', () => {
+    const query = fullQuery()
+    query.description = 'epic journey soundtrack'
+    const { breakdown } = scoreAsset(makeAsset(), query)
+    expect(breakdown.description).toBe(0)
+  })
 })
 
 describe('resolveAudio', () => {

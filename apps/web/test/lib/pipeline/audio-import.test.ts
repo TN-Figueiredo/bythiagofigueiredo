@@ -100,4 +100,10 @@ describe('buildExportJson', () => {
     expect(result.search_index.tags).toContain('cinematic')
     expect(result.search_index.moods).toContain('inspiring')
   })
+
+  it('includes naming_convention in export', () => {
+    const result = buildExportJson([])
+    expect(result.naming_convention).toBeDefined()
+    expect(result.naming_convention.pattern).toBe('{TYPE}_{CATEGORY}_{NUMBER}')
+  })
 })

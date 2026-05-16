@@ -92,6 +92,7 @@ export function buildExportJson(
   sfx: AudioAssetRow[]
   summary: { total: number; music_count: number; sfx_count: number }
   search_index: { tags: string[]; moods: string[]; instruments: string[]; categories: string[] }
+  naming_convention: { pattern: string; example: string }
 } {
   const music = assets.filter(a => a.type === 'music')
   const sfx = assets.filter(a => a.type === 'sfx')
@@ -124,6 +125,10 @@ export function buildExportJson(
       moods: [...allMoods],
       instruments: [...allInstruments],
       categories: [...allCategories],
+    },
+    naming_convention: {
+      pattern: '{TYPE}_{CATEGORY}_{NUMBER}',
+      example: 'MUSIC_CINEMATIC_01',
     },
   }
 }
