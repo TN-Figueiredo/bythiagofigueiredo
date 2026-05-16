@@ -264,3 +264,106 @@ describe('GET /api/pipeline/audio-library filters', () => {
     expect(res.status).toBe(500)
   })
 })
+
+describe('GET cursor pagination', () => {
+  it('ignores cursor when not a valid UUID', async () => {
+    const { chain, calls } = mockChain([{ id: 'a1', asset_id: 'M1' }], 1)
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    const res = await GET(new NextRequest('http://localhost/api/pipeline/audio-library?cursor=not-a-uuid'))
+    expect(res.status).toBe(200)
+    expect(calls.some(c => c.method === 'or')).toBe(false)
+  })
+
+  it('returns has_next=true and next_cursor when more items exist', async () => {
+    const items = Array.from({ length: 51 }, (_, i) => ({ id: `id-${i}`, asset_id: `M${i}` }))
+    const { chain } = mockChain(items, 100)
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    const res = await GET(new NextRequest('http://localhost/api/pipeline/audio-library'))
+    const json = await res.json()
+    expect(res.status).toBe(200)
+    expect(json.meta.has_next).toBe(true)
+    expect(json.meta.next_cursor).toBe('id-49')
+  })
+
+  it('returns has_next=false when fewer items than limit', async () => {
+    const items = [{ id: 'id-0', asset_id: 'M0' }, { id: 'id-1', asset_id: 'M1' }, { id: 'id-2', asset_id: 'M2' }]
+    const { chain } = mockChain(items, 3)
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    const res = await GET(new NextRequest('http://localhost/api/pipeline/audio-library'))
+    const json = await res.json()
+    expect(res.status).toBe(200)
+    expect(json.meta.has_next).toBe(false)
+    expect(json.meta.next_cursor).toBeUndefined()
+  })
+
+  it('applies subcategory filter', async () => {
+    const { chain, calls } = mockChain([], 0)
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    await GET(new NextRequest('http://localhost/api/pipeline/audio-library?subcategory=test'))
+    expect(calls.some(c => c.method === 'eq' && c.args[0] === 'subcategory' && c.args[1] === 'test')).toBe(true)
+  })
+
+  it('applies genre filter', async () => {
+    const { chain, calls } = mockChain([], 0)
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    await GET(new NextRequest('http://localhost/api/pipeline/audio-library?genre=rock'))
+    expect(calls.some(c => c.method === 'eq' && c.args[0] === 'genre' && c.args[1] === 'rock')).toBe(true)
+  })
+
+  it('applies source filter', async () => {
+    const { chain, calls } = mockChain([], 0)
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    await GET(new NextRequest('http://localhost/api/pipeline/audio-library?source=artlist'))
+    expect(calls.some(c => c.method === 'eq' && c.args[0] === 'source' && c.args[1] === 'artlist')).toBe(true)
+  })
+
+  it('applies cursor filter when valid UUID provided', async () => {
+    const validCursor = '550e8400-e29b-41d4-a716-446655440000'
+    const cursorCreatedAt = '2024-01-01T00:00:00Z'
+    const allCalls: Array<{ method: string; args: unknown[] }> = []
+    let fromCount = 0
+
+    // Cursor lookup proxy: supports .select().eq().eq().single() chain
+    function makeSingleProxy(data: unknown): object {
+      return new Proxy({}, {
+        get(_t, prop: string) {
+          if (prop === 'single') return () => Promise.resolve({ data, error: null })
+          return (...args: unknown[]) => {
+            allCalls.push({ method: prop, args })
+            return makeSingleProxy(data)
+          }
+        },
+      })
+    }
+
+    // Main query proxy: records .or() and other calls, resolves as thenable
+    const mainData = [{ id: 'a1', asset_id: 'M1' }]
+    const terminal = Promise.resolve({ data: mainData, error: null, count: 1 })
+    const mainProxy: object = new Proxy({}, {
+      get(_t, prop: string) {
+        if (prop === 'then') return terminal.then.bind(terminal)
+        if (prop === 'catch') return terminal.catch.bind(terminal)
+        if (prop === 'finally') return terminal.finally.bind(terminal)
+        return (...args: unknown[]) => {
+          allCalls.push({ method: prop, args })
+          return mainProxy
+        }
+      },
+    })
+
+    vi.mocked(getSupabaseServiceClient).mockReturnValue({
+      from: (...args: unknown[]) => {
+        allCalls.push({ method: 'from', args })
+        fromCount++
+        // First from() → main query (built first in route, line 19)
+        // Second from() → cursor lookup (line 73, inside cursor block)
+        return fromCount === 1 ? mainProxy : makeSingleProxy({ created_at: cursorCreatedAt })
+      },
+    } as never)
+
+    const res = await GET(new NextRequest(`http://localhost/api/pipeline/audio-library?cursor=${validCursor}`))
+    expect(res.status).toBe(200)
+    const orCall = allCalls.find(c => c.method === 'or' && typeof c.args[0] === 'string' && (c.args[0] as string).includes('created_at.lt.'))
+    expect(orCall).toBeDefined()
+  })
+})

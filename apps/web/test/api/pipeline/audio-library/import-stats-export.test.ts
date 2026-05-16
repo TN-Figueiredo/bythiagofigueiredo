@@ -204,6 +204,120 @@ describe('POST /api/pipeline/audio-library/import', () => {
     expect(upsertCalls[0].length).toBe(100)
     expect(upsertCalls[1].length).toBe(50)
   })
+
+  it('import with mixed create/update/skip items', async () => {
+    // Use valid 64-char hex sha256 strings as required by the schema
+    const SHA_SAME = 'a'.repeat(64)
+    const SHA_NEW = 'b'.repeat(64)
+    const SHA_OLD = 'c'.repeat(64)
+    const SHA_DIFF = 'd'.repeat(64)
+
+    // Item M1: new asset → create (not in existing)
+    // Item M2-existing: existing with same sha256 → skip
+    // Item M3-diff: existing with different sha256 → update
+    vi.mocked(mapJsonToDbRow).mockImplementation((item, type) => ({
+      asset_id: (item as Record<string, unknown>).asset_id as string,
+      sha256: (item as Record<string, unknown>).sha256 as string | undefined,
+      type,
+    }))
+    vi.mocked(classifyImportItem).mockImplementation((row, existing) => {
+      if (!existing) return 'create'
+      const r = row as Record<string, unknown>
+      const e = existing as Record<string, unknown>
+      if (e.sha256 && r.sha256 === e.sha256) return 'skip'
+      return 'update'
+    })
+
+    const existingRows = [
+      { asset_id: 'M2-existing', sha256: SHA_SAME, tags: [], mood: [], energy: null },
+      { asset_id: 'M3-diff', sha256: SHA_OLD, tags: [], mood: [], energy: null },
+    ]
+
+    vi.mocked(getSupabaseServiceClient).mockReturnValue({
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === 'audio_assets') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            in: vi.fn().mockResolvedValue({ data: existingRows, error: null }),
+            upsert: vi.fn().mockResolvedValue({ error: null }),
+          }
+        }
+        return {
+          insert: vi.fn().mockReturnThis(),
+          select: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue({ data: { id: 'log-mixed' }, error: null }),
+        }
+      }),
+    } as never)
+
+    const req = new NextRequest('http://localhost/api/pipeline/audio-library/import', {
+      method: 'POST',
+      body: JSON.stringify({
+        schema_version: '6.1.0',
+        music: [
+          { asset_id: 'M1', sha256: SHA_NEW },
+          { asset_id: 'M2-existing', sha256: SHA_SAME },
+          { asset_id: 'M3-diff', sha256: SHA_DIFF },
+        ],
+        sfx: [],
+      }),
+    })
+    const res = await ImportPOST(req)
+    const json = await res.json()
+    expect(res.status).toBe(200)
+    expect(json.data.created).toBe(1)
+    expect(json.data.updated).toBe(1)
+    expect(json.data.skipped).toBe(1)
+  })
+
+  it('import_log status is "partial" when some batches fail', async () => {
+    vi.mocked(classifyImportItem).mockReturnValue('create')
+    vi.mocked(mapJsonToDbRow).mockImplementation((item) => ({
+      asset_id: (item as Record<string, unknown>).asset_id as string,
+      type: 'music',
+    }))
+
+    let insertedLogData: Record<string, unknown> | null = null
+
+    vi.mocked(getSupabaseServiceClient).mockReturnValue({
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === 'audio_assets') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            in: vi.fn().mockResolvedValue({ data: [], error: null }),
+            upsert: vi.fn().mockResolvedValue({ error: { message: 'constraint violation' } }),
+          }
+        }
+        return {
+          insert: vi.fn().mockImplementation((data: Record<string, unknown>) => {
+            insertedLogData = data
+            return {
+              select: vi.fn().mockReturnThis(),
+              single: vi.fn().mockResolvedValue({ data: { id: 'log-partial' }, error: null }),
+            }
+          }),
+        }
+      }),
+    } as never)
+
+    const req = new NextRequest('http://localhost/api/pipeline/audio-library/import', {
+      method: 'POST',
+      body: JSON.stringify({
+        schema_version: '6.1.0',
+        music: [{ asset_id: 'M1' }, { asset_id: 'M2' }],
+        sfx: [],
+      }),
+    })
+    const res = await ImportPOST(req)
+    const json = await res.json()
+    expect(res.status).toBe(200)
+    expect(insertedLogData).not.toBeNull()
+    const status = (insertedLogData as Record<string, unknown>).status
+    expect(['partial', 'failed']).toContain(status)
+    expect(json.data.errors.length).toBeGreaterThan(0)
+  })
 })
 
 describe('GET /api/pipeline/audio-library/stats', () => {
@@ -452,5 +566,40 @@ describe('GET /api/pipeline/audio-library/export', () => {
     } as never)
     const res = await ExportGET(new NextRequest('http://localhost/api/pipeline/audio-library/export'))
     expect(res.status).toBe(500)
+  })
+
+  it('export paginates through multiple pages', async () => {
+    const PAGE_SIZE = 1000
+    const firstPage = Array.from({ length: PAGE_SIZE }, (_, i) => ({ id: `p1-${i}`, type: 'music' }))
+    const secondPage = Array.from({ length: 500 }, (_, i) => ({ id: `p2-${i}`, type: 'music' }))
+
+    const rangeCalls: Array<[number, number]> = []
+    let rangeCallCount = 0
+
+    vi.mocked(getSupabaseServiceClient).mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        neq: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        range: vi.fn().mockImplementation((start: number, end: number) => {
+          rangeCalls.push([start, end])
+          const page = rangeCallCount === 0 ? firstPage : secondPage
+          rangeCallCount++
+          return Promise.resolve({ data: page, error: null })
+        }),
+      }),
+    } as never)
+
+    const res = await ExportGET(new NextRequest('http://localhost/api/pipeline/audio-library/export'))
+    expect(res.status).toBe(200)
+    expect(rangeCalls).toHaveLength(2)
+    expect(rangeCalls[0]).toEqual([0, PAGE_SIZE - 1])
+    expect(rangeCalls[1]).toEqual([PAGE_SIZE, PAGE_SIZE * 2 - 1])
+
+    const { buildExportJson } = await import('@/lib/pipeline/audio-import')
+    const lastCall = vi.mocked(buildExportJson).mock.calls.at(-1)
+    expect(lastCall).toBeDefined()
+    expect(lastCall![0]).toHaveLength(1500)
   })
 })
