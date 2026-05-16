@@ -323,6 +323,46 @@ export function buildArtlistMusicUrl(searchTerms: string): string | null {
   return buildUrl(ids, null, null)
 }
 
+export interface ArtlistTierUrls {
+  narrow: string
+  medium: string
+  broad: string
+}
+
+export function buildArtlistTierUrls(params: {
+  searchTerms: string
+  bpm: { bpmMin: number; bpmMax: number } | null
+  duration: number | null
+}): ArtlistTierUrls {
+  const terms = params.searchTerms.split(/\s+/).filter(Boolean)
+  const pools: Pools = { genres: [], moods: [], instruments: [], themes: [] }
+
+  for (const term of terms) {
+    const normalized = term.toLowerCase()
+    const synonym = SYNONYMS[normalized]
+    if (synonym) {
+      addToPool(pools, synonym.id, synonym.category)
+    }
+  }
+
+  const allIds = prioritizeIds(pools)
+  const genreMoodIds = prioritizeIds({ genres: pools.genres, moods: pools.moods, instruments: [], themes: [] })
+
+  const narrow = allIds.length > 0
+    ? buildUrl(allIds, params.bpm, params.duration)
+    : `${SEARCH_BASE}?${PARAM_IDS}=${pools.genres[0] ?? pools.moods[0] ?? 62}`
+
+  const medium = allIds.length > 0
+    ? buildUrl(allIds, null, null)
+    : narrow
+
+  const broad = genreMoodIds.length > 0
+    ? buildUrl(genreMoodIds, null, null)
+    : medium
+
+  return { narrow, medium, broad }
+}
+
 export function parseArtlistSfxRef(text: string): { name: string; url: string } | null {
   const match = SFX_RE.exec(text)
   if (!match) return null

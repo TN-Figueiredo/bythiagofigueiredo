@@ -42,16 +42,15 @@ describe('SceneGuideRenderer — MusicFallback path', () => {
     expect(container.textContent).toContain('continua da cena anterior')
   })
 
-  it('renders empty recommendations array with fallback', () => {
+  it('renders music without recommendations using fallback', () => {
     const data = {
       scenes: [{
         number: 1,
         label: 'Empty',
-        music: { track: 'Test', artist: 'Artist', recommendations: [], resolve_status: 'NO_MATCH' as const },
+        music: { track: 'Test', artist: 'Artist', resolve_status: 'NO_MATCH' as const },
       }],
     }
     const { container } = render(<SceneGuideRenderer content={data} isEditing={false} lang="en" onContentChange={noop} />)
-    // Empty recommendations -> condition is false -> renders MusicFallback
     expect(container.textContent).toContain('Test')
   })
 

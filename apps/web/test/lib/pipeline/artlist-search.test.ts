@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   parseArtlistSearch,
   parseArtlistSfxRef,
+  buildArtlistTierUrls,
 } from '@/lib/pipeline/artlist-search'
 
 describe('parseArtlistSearch', () => {
@@ -223,5 +224,52 @@ describe('parseArtlistSfxRef', () => {
   it('returns null when quoted name has no Artlist keyword', () => {
     const result = parseArtlistSfxRef('"Some Track Name"')
     expect(result).toBeNull()
+  })
+})
+
+describe('buildArtlistTierUrls', () => {
+  it('returns 3 tier URLs with progressive filter removal', () => {
+    const result = buildArtlistTierUrls({
+      searchTerms: 'cinematic ambient mysterious piano',
+      bpm: { bpmMin: 80, bpmMax: 100 },
+      duration: 120,
+    })
+
+    expect(result.narrow).toContain('bpmMin=80')
+    expect(result.narrow).toContain('bpmMax=100')
+    expect(result.narrow).toContain('durationMin=120')
+    expect(result.narrow).toContain('includedIds=')
+
+    expect(result.medium).not.toContain('bpmMin')
+    expect(result.medium).not.toContain('durationMin')
+    expect(result.medium).toContain('includedIds=')
+
+    expect(result.broad).not.toContain('bpmMin')
+    expect(result.broad).not.toContain('durationMin')
+  })
+
+  it('broad tier keeps only genres and moods', () => {
+    const result = buildArtlistTierUrls({
+      searchTerms: 'cinematic mysterious piano strings',
+      bpm: null,
+      duration: null,
+    })
+
+    expect(result.narrow).toContain('40')
+    expect(result.medium).toContain('40')
+    expect(result.broad).not.toContain('40')
+    expect(result.broad).not.toContain('42')
+  })
+
+  it('returns valid URLs even with minimal input', () => {
+    const result = buildArtlistTierUrls({
+      searchTerms: 'cinematic',
+      bpm: null,
+      duration: null,
+    })
+
+    expect(result.narrow).toContain('artlist.io')
+    expect(result.medium).toContain('artlist.io')
+    expect(result.broad).toContain('artlist.io')
   })
 })

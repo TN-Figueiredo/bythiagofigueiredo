@@ -444,12 +444,12 @@ function SceneCard({ scene, expandAll }: { scene: Scene; expandAll: boolean }) {
           {scene.music && (
             <SubSection
               title="Música"
-              subtitle={scene.music.recommendations && scene.music.recommendations.length > 0
-                ? `${scene.music.recommendations.length} sugestão${scene.music.recommendations.length !== 1 ? 'es' : ''} · 1 recomendada`
+              subtitle={scene.music.recommendations
+                ? `${scene.music.fill_count} sugestões · 1 recomendada`
                 : undefined
               }
             >
-              {scene.music.recommendations && scene.music.recommendations.length > 0 ? (
+              {scene.music.recommendations ? (
                 <MusicSection music={scene.music} />
               ) : (
                 <MusicFallback music={scene.music} />
