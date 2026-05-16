@@ -26,7 +26,8 @@ function parseSceneIndex(label: string): number {
 export function MusicHeroSection({ music, sceneIndex }: MusicHeroSectionProps) {
   const isContinuation = !!music.continuation
   const fillStatus = getFillStatus(music)
-  const favorite = music.recommendations[music.favorite_index]
+  const safeFavIndex = Math.min(music.favorite_index ?? 0, music.recommendations.length - 1)
+  const favorite = music.recommendations[Math.max(0, safeFavIndex)]!
 
   return (
     <div
@@ -104,7 +105,7 @@ export function MusicHeroSection({ music, sceneIndex }: MusicHeroSectionProps) {
               searchTerms={music.search_terms}
             />
           )}
-          {music.recommendations.filter((_, i) => i !== music.favorite_index).map((rec, i) => (
+          {music.recommendations.filter((_, i) => i !== safeFavIndex).map((rec, i) => (
             <MusicAlternativeSlot
               key={i}
               recommendation={rec}

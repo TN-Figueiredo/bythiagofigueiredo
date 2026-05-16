@@ -4,19 +4,20 @@ import { useState, useMemo, useRef } from 'react'
 import type { RendererProps } from '../section-content'
 import { TagPill, OptionalBadge, getTagColor } from './tokens'
 import { tokenizeText } from './parse-tokens'
-import { categorizeNote, type CategorizedNote } from './categorize-note'
+import { categorizeNote, type CategorizedNote, type NoteCategory } from './categorize-note'
 import { parseArtlistSearch, parseArtlistSfxRef, buildArtlistMusicUrl } from '@/lib/pipeline/artlist-search'
 import {
   type SceneMusic,
   type SceneSFX,
   RESOLVE_COLORS,
-  MusicRecommendationCard,
-  MusicAlternativeRow,
   SFXItemCard,
   AudioSummaryV2,
   isContinuationTrack,
   CONTINUES_RE,
 } from './_music-sfx'
+import { MusicHeroSection } from './_music-sfx/music-hero-section'
+
+const MUSIC_ABSORBED_CATEGORIES: NoteCategory[] = ['MUSIC', 'STYLE', 'ENTRY', 'FLOW']
 
 interface SceneOverlay {
   timestamp: string
@@ -205,56 +206,6 @@ function CategorizedNotes({ notes }: { notes: string[] }) {
 
 /* ---------- Music section components ---------- */
 
-function MusicSection({ music }: { music: SceneMusic }) {
-  const recs = music.recommendations ?? []
-  const favIndex = Math.min(music.favorite_index ?? 0, recs.length - 1)
-  const favorite = recs.length > 0 ? recs[Math.max(0, favIndex)] : undefined
-
-  if (isContinuationTrack(music)) {
-    const resolveStatus = music.resolve_status ? RESOLVE_COLORS[music.resolve_status] : null
-    return (
-      <div
-        className="rounded-md px-3 py-2.5 space-y-1.5"
-        style={{ border: '1px solid rgba(255,255,255,0.06)', borderLeft: '3px solid #5a6b7f', background: 'rgba(255,255,255,0.015)' }}
-      >
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-[10px]" style={{ color: '#5a6b7f' }}>↩</span>
-          {music.track && <span className="text-[11px] font-medium" style={{ color: 'var(--gem-text)' }}>{music.track}</span>}
-          {music.artist && <span className="text-[10px]" style={{ color: '#5a6b7f' }}>— {music.artist}</span>}
-          <span className="text-[8px] px-[5px] py-px rounded" style={{ background: 'rgba(255,255,255,0.04)', color: '#5a6b7f', fontWeight: 500 }}>
-            continua da cena anterior
-          </span>
-          {resolveStatus && (
-            <span className="text-[9px] px-[6px] py-px rounded font-semibold" style={{ background: resolveStatus.bg, color: resolveStatus.color }}>
-              {resolveStatus.label}
-            </span>
-          )}
-        </div>
-        {music.continuation && !CONTINUES_RE.test(music.continuation) && (
-          <div className="text-[10px]" style={{ color: 'var(--gem-muted)' }}>
-            {tokenizeText(music.continuation)}
-          </div>
-        )}
-        <MusicDetails music={music} />
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-1">
-      {favorite && (
-        <MusicRecommendationCard recommendation={favorite} isFavorite />
-      )}
-      {recs.map((rec, i) => {
-        if (i === favIndex) return null
-        return <MusicAlternativeRow key={i} recommendation={rec} index={i < favIndex ? i + 1 : i} />
-      })}
-      <MusicArtlistFallback music={music} />
-      <MusicDetails music={music} />
-    </div>
-  )
-}
-
 function MusicArtlistFallback({ music }: { music: SceneMusic }) {
   if (music.resolve_status === 'LOCAL' && !music.artlist_url) return null
   if (isContinuationTrack(music)) return null
@@ -280,30 +231,6 @@ function MusicArtlistFallback({ music }: { music: SceneMusic }) {
         <span className="text-[8px]" style={{ color: '#3d4f65' }}>
           {music.search_terms}
         </span>
-      )}
-    </div>
-  )
-}
-
-function MusicDetails({ music }: { music: SceneMusic }) {
-  if (!music.style && !music.entry_cue && !music.continuation) return null
-
-  return (
-    <div className="pt-1.5 space-y-0.5" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-      {music.style && (
-        <div className="text-[11px]" style={{ color: 'var(--gem-muted)' }}>
-          <span style={{ color: 'var(--gem-dim)' }}>Estilo: </span>{tokenizeText(music.style)}
-        </div>
-      )}
-      {music.entry_cue && (
-        <div className="text-[11px]" style={{ color: 'var(--gem-muted)' }}>
-          <span style={{ color: 'var(--gem-dim)' }}>Entrada: </span>{tokenizeText(music.entry_cue)}
-        </div>
-      )}
-      {music.continuation && !isContinuationTrack(music) && (
-        <div className="text-[11px]" style={{ color: 'var(--gem-muted)' }}>
-          <span style={{ color: 'var(--gem-dim)' }}>Continuação: </span>{tokenizeText(music.continuation)}
-        </div>
       )}
     </div>
   )
@@ -372,7 +299,7 @@ function SubSection({ title, subtitle, children }: { title: string; subtitle?: s
 
 /* ---------- SceneCard ---------- */
 
-function SceneCard({ scene, expandAll }: { scene: Scene; expandAll: boolean }) {
+function SceneCard({ scene, expandAll, sceneIndex }: { scene: Scene; expandAll: boolean; sceneIndex: number }) {
   const [expanded, setExpanded] = useState(expandAll)
   const prevExpandAll = useRef(expandAll)
   if (prevExpandAll.current !== expandAll) {
@@ -383,6 +310,14 @@ function SceneCard({ scene, expandAll }: { scene: Scene; expandAll: boolean }) {
   const statusStyle = scene.status ? (STATUS_STYLES[scene.status.toUpperCase()] ?? { bg: 'rgba(107,114,128,0.15)', color: '#9ca3af' }) : null
   const diffStyle = scene.difficulty ? (DIFFICULTY_STYLES[scene.difficulty.toUpperCase()] ?? null) : null
   const hasDecide = scene.decide_items && scene.decide_items.length > 0
+
+  const filteredNotes = useMemo(() => {
+    if (!scene.edit_notes || !scene.music?.recommendations) return scene.edit_notes ?? []
+    return scene.edit_notes.filter((n: string) => {
+      const { category } = categorizeNote(n)
+      return !MUSIC_ABSORBED_CATEGORIES.includes(category)
+    })
+  }, [scene.edit_notes, scene.music])
 
   return (
     <div
@@ -435,25 +370,19 @@ function SceneCard({ scene, expandAll }: { scene: Scene; expandAll: boolean }) {
             </div>
           )}
 
-          {scene.edit_notes && scene.edit_notes.length > 0 && (
+          {scene.music && scene.music.recommendations && (
+            <MusicHeroSection music={scene.music} sceneIndex={sceneIndex} />
+          )}
+
+          {filteredNotes.length > 0 && (
             <SubSection title="Notas de Edição">
-              <CategorizedNotes notes={scene.edit_notes} />
+              <CategorizedNotes notes={filteredNotes} />
             </SubSection>
           )}
 
-          {scene.music && (
-            <SubSection
-              title="Música"
-              subtitle={scene.music.recommendations
-                ? `${scene.music.fill_count} sugestões · 1 recomendada`
-                : undefined
-              }
-            >
-              {scene.music.recommendations ? (
-                <MusicSection music={scene.music} />
-              ) : (
-                <MusicFallback music={scene.music} />
-              )}
+          {scene.music && !scene.music.recommendations && (
+            <SubSection title="Música">
+              <MusicFallback music={scene.music} />
             </SubSection>
           )}
 
@@ -565,7 +494,7 @@ export function SceneGuideRenderer({ content }: RendererProps) {
 
       <div className="space-y-1.5">
         {scenes.map((scene, i) => (
-          <SceneCard key={i} scene={scene} expandAll={allExpanded} />
+          <SceneCard key={i} scene={scene} expandAll={allExpanded} sceneIndex={scene.number ?? i + 1} />
         ))}
       </div>
     </div>

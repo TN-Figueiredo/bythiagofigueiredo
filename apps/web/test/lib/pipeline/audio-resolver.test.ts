@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { scoreAsset, resolveAudio } from '@/lib/pipeline/audio-resolver'
+import { scoreAsset, resolveAudio, resolveAudioSlots } from '@/lib/pipeline/audio-resolver'
 import type { ResolveQuery } from '@/lib/pipeline/audio-schemas'
 
 function makeAsset(overrides: Record<string, unknown> = {}) {
@@ -233,5 +233,90 @@ describe('resolveAudio', () => {
     }
     const result = await resolveAudio(mockSupabase as never, 'site-id', fullQuery())
     expect(result.matches).toHaveLength(0)
+  })
+})
+
+function createMockSupabase(assets: Array<{ id: string; score: number; status: string }>) {
+  const data = assets.map(a => ({
+    id: a.id,
+    site_id: 'site-1',
+    type: 'music',
+    status: a.status,
+    category: 'cinematic',
+    tags: ['cinematic', 'ambient'],
+    mood: ['mysterious'],
+    energy: 2,
+    bpm: 90,
+    duration_seconds: 200,
+    reuse_scenarios: [],
+    instruments: [],
+    title: `Track ${a.id}`,
+    artist: 'Test Artist',
+    original_filename: `${a.id}.mp3`,
+  }))
+
+  return {
+    from: () => ({
+      select: () => ({
+        eq: function() { return this },
+        neq: function() { return this },
+        overlaps: function() { return this },
+        gte: function() { return this },
+        lte: function() { return this },
+        textSearch: function() { return this },
+        limit: () => Promise.resolve({ data, error: null }),
+      }),
+    }),
+  }
+}
+
+describe('resolveAudioSlots', () => {
+  it('always returns exactly 3 slots', async () => {
+    const supabase = createMockSupabase([])
+    const query: ResolveQuery = { type: 'music', category: 'cinematic', tags: ['cinematic'], mood: ['mysterious'], limit: 3 }
+    const result = await resolveAudioSlots(supabase as never, 'site-1', query, 'cinematic mysterious')
+
+    expect(result.slots).toHaveLength(3)
+    expect(result.fill_count).toBe(0)
+    expect(result.slots[0].is_empty_slot).toBe(true)
+    expect(result.slots[1].is_empty_slot).toBe(true)
+    expect(result.slots[2].is_empty_slot).toBe(true)
+  })
+
+  it('fills slots by score descending', async () => {
+    const supabase = createMockSupabase([
+      { id: 'track-a', score: 10, status: 'downloaded' },
+      { id: 'track-b', score: 8, status: 'downloaded' },
+    ])
+    const query: ResolveQuery = { type: 'music', category: 'cinematic', tags: ['cinematic', 'ambient'], mood: ['mysterious'], energy: 2, bpm_range: { min: 80, max: 100 }, duration_range: { min: 100, max: 300 }, limit: 3 }
+    const result = await resolveAudioSlots(supabase as never, 'site-1', query, 'cinematic ambient mysterious')
+
+    expect(result.fill_count).toBe(2)
+    expect(result.slots[0].match).not.toBeNull()
+    expect(result.slots[1].match).not.toBeNull()
+    expect(result.slots[2].match).toBeNull()
+    expect(result.slots[2].is_empty_slot).toBe(true)
+  })
+
+  it('assigns progressive search tiers to empty slots', async () => {
+    const supabase = createMockSupabase([
+      { id: 'track-a', score: 10, status: 'downloaded' },
+    ])
+    const query: ResolveQuery = { type: 'music', category: 'cinematic', tags: ['cinematic', 'ambient'], mood: ['mysterious'], energy: 2, bpm_range: { min: 80, max: 100 }, duration_range: { min: 100, max: 300 }, limit: 3 }
+    const result = await resolveAudioSlots(supabase as never, 'site-1', query, 'cinematic ambient mysterious')
+
+    expect(result.slots[0].tier).toBe('narrow')
+    expect(result.slots[1].tier).toBe('medium')
+    expect(result.slots[2].tier).toBe('broad')
+
+    expect(result.search_tiers.narrow).toContain('artlist.io')
+    expect(result.search_tiers.medium).toContain('artlist.io')
+    expect(result.search_tiers.broad).toContain('artlist.io')
+
+    // Empty slots get descriptive labels
+    expect(result.slots[1].slot_label).toBe('Alternativa similar')
+    expect(result.slots[2].slot_label).toBe('Explorar gênero')
+    // Filled slot gets number label
+    expect(result.slots[0].slot_label).toBe('#1')
   })
 })

@@ -1,5 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ResolveQuery, AudioAssetRow, AudioStatus } from './audio-schemas'
+import { buildArtlistTierUrls } from './artlist-search'
+import type { ArtlistSearchTier } from '@/app/cms/(authed)/pipeline/_components/detail/renderers/_music-sfx/types'
 
 export type ResolveStatus = 'LOCAL' | 'PENDING_MATCH' | 'PARTIAL_MATCH' | 'NO_MATCH'
 
@@ -123,4 +125,60 @@ export async function resolveAudio(
     .slice(0, query.limit ?? 5)
 
   return { matches, query_time_ms: Date.now() - t0 }
+}
+
+export interface ResolvedSlot {
+  slot_index: 0 | 1 | 2
+  tier: ArtlistSearchTier
+  match: AudioMatch | null
+  is_empty_slot: boolean
+  artlist_search_url: string
+  slot_label: string
+}
+
+interface SlotResolveResult {
+  slots: [ResolvedSlot, ResolvedSlot, ResolvedSlot]
+  fill_count: number
+  search_tiers: { narrow: string; medium: string; broad: string }
+  query_time_ms: number
+}
+
+const TIER_ORDER: ArtlistSearchTier[] = ['narrow', 'medium', 'broad']
+const SLOT_LABELS: Record<ArtlistSearchTier, string> = {
+  narrow: 'Buscar alternativa',
+  medium: 'Alternativa similar',
+  broad: 'Explorar gênero',
+}
+
+export async function resolveAudioSlots(
+  supabase: SupabaseClient,
+  siteId: string,
+  query: ResolveQuery,
+  searchTerms: string,
+): Promise<SlotResolveResult> {
+  const t0 = Date.now()
+  const { matches } = await resolveAudio(supabase, siteId, { ...query, limit: 3 })
+
+  const bpmRange = query.bpm_range ? { bpmMin: query.bpm_range.min, bpmMax: query.bpm_range.max } : null
+  const duration = query.duration_range?.min ?? null
+  const tiers = buildArtlistTierUrls({ searchTerms, bpm: bpmRange, duration })
+
+  const slots = TIER_ORDER.map((tier, i) => {
+    const match = matches[i] ?? null
+    return {
+      slot_index: i as 0 | 1 | 2,
+      tier,
+      match,
+      is_empty_slot: match === null,
+      artlist_search_url: tiers[tier],
+      slot_label: match ? `#${i + 1}` : SLOT_LABELS[tier],
+    }
+  }) as [ResolvedSlot, ResolvedSlot, ResolvedSlot]
+
+  return {
+    slots,
+    fill_count: matches.length,
+    search_tiers: tiers,
+    query_time_ms: Date.now() - t0,
+  }
 }
