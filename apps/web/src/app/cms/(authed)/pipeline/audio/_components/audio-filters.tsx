@@ -5,11 +5,18 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 interface AudioFiltersProps {
   filters: Record<string, string>
   onChange: (filters: Record<string, string>) => void
+  categories?: string[]
+  availableTags?: string[]
 }
 
-export function AudioFilters({ filters, onChange }: AudioFiltersProps) {
+export function AudioFilters({ filters, onChange, categories = [], availableTags = [] }: AudioFiltersProps) {
   const [search, setSearch] = useState('')
+  const [tagSuggestions, setTagSuggestions] = useState<string[]>([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const searchRef = useRef<HTMLInputElement>(null)
+  const suggestionsRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => () => clearTimeout(debounceRef.current), [])
 
@@ -20,20 +27,130 @@ export function AudioFilters({ filters, onChange }: AudioFiltersProps) {
     onChange(next)
   }, [filters, onChange])
 
+  // Compute tag suggestions based on the portion after the last comma
+  const computeSuggestions = useCallback((val: string) => {
+    const commaIdx = val.lastIndexOf(',')
+    if (commaIdx === -1) {
+      setTagSuggestions([])
+      setShowSuggestions(false)
+      return
+    }
+    const fragment = val.slice(commaIdx + 1).trim().toLowerCase()
+    if (!fragment) {
+      setTagSuggestions([])
+      setShowSuggestions(false)
+      return
+    }
+    const already = val
+      .slice(0, commaIdx)
+      .split(',')
+      .map(t => t.trim().toLowerCase())
+      .filter(Boolean)
+    const matches = availableTags.filter(
+      t => t.toLowerCase().includes(fragment) && !already.includes(t.toLowerCase())
+    ).slice(0, 8)
+    setTagSuggestions(matches)
+    setShowSuggestions(matches.length > 0)
+    setActiveSuggestionIndex(-1)
+  }, [availableTags])
+
+  const applyTagSuggestion = useCallback((tag: string) => {
+    const val = search
+    const commaIdx = val.lastIndexOf(',')
+    const before = commaIdx >= 0 ? val.slice(0, commaIdx + 1) + ' ' : ''
+    const newVal = before + tag
+    setSearch(newVal)
+    setShowSuggestions(false)
+    setTagSuggestions([])
+    clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => updateFilter('q', newVal), 300)
+    searchRef.current?.focus()
+  }, [search, updateFilter])
+
+  const handleSearchKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showSuggestions) return
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setActiveSuggestionIndex(i => Math.min(i + 1, tagSuggestions.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setActiveSuggestionIndex(i => Math.max(i - 1, -1))
+    } else if (e.key === 'Enter' && activeSuggestionIndex >= 0) {
+      e.preventDefault()
+      applyTagSuggestion(tagSuggestions[activeSuggestionIndex]!)
+    } else if (e.key === 'Escape') {
+      setShowSuggestions(false)
+    }
+  }, [showSuggestions, tagSuggestions, activeSuggestionIndex, applyTagSuggestion])
+
   return (
     <div style={{ width: 200, minWidth: 200, borderRight: '1px solid var(--gem-border)', padding: 12, display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto' }}>
       {/* Search */}
-      <div>
+      <div style={{ position: 'relative' }}>
         <label style={{ fontSize: 10, fontWeight: 600, color: 'var(--gem-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Search</label>
-        <input data-audio-search value={search} onChange={e => {
-          const val = e.target.value
-          setSearch(val)
-          clearTimeout(debounceRef.current)
-          debounceRef.current = setTimeout(() => {
-            if (val) updateFilter('q', val)
-            else updateFilter('q', undefined)
-          }, 300)
-        }} placeholder="Search… (press /)" style={{ width: '100%', padding: '4px 8px', fontSize: 12, borderRadius: 5, border: '1px solid var(--gem-border)', background: 'var(--gem-well)', color: 'var(--gem-text)' }} />
+        <input
+          ref={searchRef}
+          data-audio-search
+          value={search}
+          onChange={e => {
+            const val = e.target.value
+            setSearch(val)
+            computeSuggestions(val)
+            clearTimeout(debounceRef.current)
+            debounceRef.current = setTimeout(() => {
+              if (val) updateFilter('q', val)
+              else updateFilter('q', undefined)
+            }, 300)
+          }}
+          onKeyDown={handleSearchKeyDown}
+          onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+          placeholder="Search… (press /)"
+          style={{ width: '100%', padding: '4px 8px', fontSize: 12, borderRadius: 5, border: '1px solid var(--gem-border)', background: 'var(--gem-well)', color: 'var(--gem-text)', boxSizing: 'border-box' }}
+        />
+        {showSuggestions && (
+          <div
+            ref={suggestionsRef}
+            style={{
+              position: 'absolute',
+              top: '100%',
+              left: 0,
+              right: 0,
+              background: 'var(--gem-surface)',
+              border: '1px solid var(--gem-border)',
+              borderRadius: 5,
+              zIndex: 50,
+              marginTop: 2,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+              overflow: 'hidden',
+            }}
+          >
+            {tagSuggestions.map((tag, i) => (
+              <button
+                key={tag}
+                onMouseDown={e => { e.preventDefault(); applyTagSuggestion(tag) }}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  textAlign: 'left',
+                  padding: '5px 8px',
+                  fontSize: 11,
+                  background: i === activeSuggestionIndex ? 'var(--gem-surface-hi)' : 'transparent',
+                  color: 'var(--gem-text)',
+                  border: 'none',
+                  cursor: 'pointer',
+                  borderBottom: i < tagSuggestions.length - 1 ? '1px solid var(--gem-border)' : 'none',
+                }}
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+        )}
+        {availableTags.length > 0 && (
+          <div style={{ fontSize: 10, color: 'var(--gem-muted)', marginTop: 3 }}>
+            Type comma to filter tags
+          </div>
+        )}
       </div>
 
       {/* Type */}
@@ -58,6 +175,37 @@ export function AudioFilters({ filters, onChange }: AudioFiltersProps) {
         ))}
       </div>
 
+      {/* Category */}
+      {categories.length > 0 && (
+        <div>
+          <label style={{ fontSize: 10, fontWeight: 600, color: 'var(--gem-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Category</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            {categories.map(cat => {
+              const active = filters.category === cat
+              return (
+                <button
+                  key={cat}
+                  onClick={() => updateFilter('category', active ? undefined : cat)}
+                  style={{
+                    padding: '3px 8px',
+                    fontSize: 11,
+                    borderRadius: 4,
+                    border: '1px solid var(--gem-border)',
+                    background: active ? 'var(--gem-accent)' : 'var(--gem-well)',
+                    color: active ? 'var(--gem-text)' : 'var(--gem-muted)',
+                    cursor: 'pointer',
+                    fontWeight: active ? 600 : 400,
+                    transition: 'background 0.1s',
+                  }}
+                >
+                  {cat}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Energy */}
       <div>
         <label style={{ fontSize: 10, fontWeight: 600, color: 'var(--gem-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Energy</label>
@@ -75,7 +223,7 @@ export function AudioFilters({ filters, onChange }: AudioFiltersProps) {
       </div>
 
       {/* Clear */}
-      <button onClick={() => { setSearch(''); onChange({}) }} style={{ padding: '4px 8px', fontSize: 11, borderRadius: 5, border: '1px solid var(--gem-border)', background: 'transparent', color: 'var(--gem-muted)', cursor: 'pointer' }}>Clear filters</button>
+      <button onClick={() => { setSearch(''); setShowSuggestions(false); onChange({}) }} style={{ padding: '4px 8px', fontSize: 11, borderRadius: 5, border: '1px solid var(--gem-border)', background: 'transparent', color: 'var(--gem-muted)', cursor: 'pointer' }}>Clear filters</button>
     </div>
   )
 }

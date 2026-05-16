@@ -15,8 +15,26 @@ interface AudioLibraryProps {
   stats: Stats
 }
 
+function deriveCategories(assets: AudioAssetRow[]): string[] {
+  const seen = new Set<string>()
+  for (const a of assets) {
+    if (a.category) seen.add(a.category)
+  }
+  return Array.from(seen).sort()
+}
+
+function deriveTags(assets: AudioAssetRow[]): string[] {
+  const seen = new Set<string>()
+  for (const a of assets) {
+    for (const t of a.tags) seen.add(t)
+  }
+  return Array.from(seen).sort()
+}
+
 export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
   const [assets, setAssets] = useState<AudioAssetRow[]>(initialAssets)
+  const categories = deriveCategories(initialAssets)
+  const availableTags = deriveTags(initialAssets)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid')
   const [showImport, setShowImport] = useState(false)
@@ -75,7 +93,7 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
 
   return (
     <div style={{ display: 'flex', height: '100%', gap: 0, overflow: 'hidden' }}>
-      <AudioFilters filters={filters} onChange={handleFilterChange} />
+      <AudioFilters filters={filters} onChange={handleFilterChange} categories={categories} availableTags={availableTags} />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Toolbar */}
