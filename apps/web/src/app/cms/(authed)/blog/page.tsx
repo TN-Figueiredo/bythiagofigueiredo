@@ -12,8 +12,6 @@ import { EditorialTab } from './_tabs/editorial/editorial-tab'
 import { ScheduleTab } from './_tabs/schedule/schedule-tab'
 import { AnalyticsTab } from './_tabs/analytics/analytics-tab'
 
-export const dynamic = 'force-dynamic'
-
 interface Props {
   searchParams: Promise<Record<string, string | undefined>>
 }

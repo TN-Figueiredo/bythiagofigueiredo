@@ -73,7 +73,7 @@ export const fetchEditorialData = unstable_cache(
       .from('blog_posts')
       .select('id, status, tag_id, published_at, scheduled_for, slot_date, created_at, updated_at, cover_image_url, blog_translations(locale, title, slug, reading_time_min, cover_image_url, excerpt), blog_tags(id, name, color, name_translations)')
       .eq('site_id', siteId)
-      .in('status', ['ready', 'queued', 'scheduled', 'published'])
+      .in('status', ['idea', 'draft', 'pending_review', 'ready', 'queued', 'scheduled', 'published'])
       .order('created_at', { ascending: true })
 
     const allPosts = rawPosts ?? []
