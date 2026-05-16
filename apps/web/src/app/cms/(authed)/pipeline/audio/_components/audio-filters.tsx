@@ -91,6 +91,11 @@ export function AudioFilters({ filters, onChange, categories = [], availableTags
         <input
           ref={searchRef}
           data-audio-search
+          role="combobox"
+          aria-expanded={showSuggestions}
+          aria-autocomplete="list"
+          {...(showSuggestions ? { 'aria-controls': 'audio-tag-suggestions' } : {})}
+          {...(activeSuggestionIndex >= 0 ? { 'aria-activedescendant': `audio-tag-suggestion-${activeSuggestionIndex}` } : {})}
           value={search}
           onChange={e => {
             const val = e.target.value
@@ -110,6 +115,8 @@ export function AudioFilters({ filters, onChange, categories = [], availableTags
         {showSuggestions && (
           <div
             ref={suggestionsRef}
+            id="audio-tag-suggestions"
+            role="listbox"
             style={{
               position: 'absolute',
               top: '100%',
@@ -125,8 +132,11 @@ export function AudioFilters({ filters, onChange, categories = [], availableTags
             }}
           >
             {tagSuggestions.map((tag, i) => (
-              <button
+              <div
                 key={tag}
+                role="option"
+                id={`audio-tag-suggestion-${i}`}
+                aria-selected={i === activeSuggestionIndex}
                 onMouseDown={e => { e.preventDefault(); applyTagSuggestion(tag) }}
                 style={{
                   display: 'block',
@@ -142,7 +152,7 @@ export function AudioFilters({ filters, onChange, categories = [], availableTags
                 }}
               >
                 {tag}
-              </button>
+              </div>
             ))}
           </div>
         )}
