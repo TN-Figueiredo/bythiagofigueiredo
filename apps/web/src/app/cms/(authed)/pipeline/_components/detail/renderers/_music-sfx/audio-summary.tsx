@@ -14,7 +14,6 @@ function isContinuation(music: SceneMusic): boolean {
 interface Scene {
   music?: SceneMusic
   sfx?: SceneSFX[]
-  [key: string]: unknown
 }
 
 interface Stats {
