@@ -102,13 +102,13 @@ export const PipelineCard = memo(function PipelineCard({
                 style={{ width: `${checkPct}%` }}
               />
             </div>
-            <span className="text-[8px] text-gray-600">{done}/{total}</span>
+            <span className="text-[10px] text-gray-600">{done}/{total}</span>
           </div>
         )}
 
         {/* VVS score */}
         <div className="mt-1.5 flex items-center justify-between">
-          <span className="text-[8px] text-gray-600">VVS {item.validation_score}%</span>
+          <span className="text-[10px] text-gray-600">VVS {item.validation_score}%</span>
 
           {/* Promote button — only in Ready lane */}
           {laneId === 'ready' && (

@@ -27,6 +27,9 @@ export const ptBR: BlogHubStrings = {
     dndMovingOver: 'Movendo {title} para {lane}',
     dndDropped: '{title} solto em {lane}',
     dndCancelled: 'Movimento de {title} cancelado',
+    dndInvalidPipelineToBlog: 'Não é possível soltar aqui. Use Promover para criar um post.',
+    dndInvalidBlogToPipeline: 'Não é possível soltar aqui. Use Devolver ao Pipeline no menu do card.',
+    laneShortcutHint: 'Alt+1 a Alt+6 para navegar entre as colunas',
   },
   deletePost: {
     triggerLabel: 'Excluir', triggerAriaLabel: 'Excluir {title}',

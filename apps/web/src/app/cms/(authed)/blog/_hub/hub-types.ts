@@ -100,7 +100,7 @@ export interface PipelineCardItem {
   title_pt: string | null
   title_en: string | null
   format: string
-  stage: string
+  stage: 'idea' | 'draft' | 'ready' | 'archived'
   language: string
   priority: number
   hook: string | null

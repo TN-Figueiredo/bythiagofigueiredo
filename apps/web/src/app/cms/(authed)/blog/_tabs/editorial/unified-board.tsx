@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useId, useMemo, useOptimistic, useRef, useState, useTransition } from 'react'
+import { useCallback, useId, useMemo, useOptimistic, useRef, useState, useTransition, KeyboardEvent } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -67,7 +67,7 @@ interface UnifiedBoardProps {
 }
 
 type PipelineAction =
-  | { type: 'move'; id: string; stage: string }
+  | { type: 'move'; id: string; stage: 'idea' | 'draft' | 'ready' | 'archived' }
 
 type PostAction =
   | { type: 'move'; id: string; status: PostCardType['status'] }
@@ -278,6 +278,20 @@ export function UnifiedBoard({
     setActiveType(null)
   }, [])
 
+  const boardRef = useRef<HTMLDivElement>(null)
+
+  const handleBoardKeyDown = useCallback((e: KeyboardEvent<HTMLDivElement>) => {
+    if (!e.altKey) return
+    const num = parseInt(e.key, 10)
+    if (num < 1 || num > 6) return
+    e.preventDefault()
+    const laneIndex = num - 1
+    const laneEl = boardRef.current?.querySelector<HTMLElement>(`[data-lane-index="${laneIndex}"]`)
+    if (!laneEl) return
+    const firstFocusable = laneEl.querySelector<HTMLElement>('a[href], button:not([disabled]), [tabindex="0"]')
+    firstFocusable?.focus()
+  }, [])
+
   const handleScheduleConfirm = useCallback(
     (scheduledFor: string) => {
       const pending = pendingScheduleRef.current
@@ -466,6 +480,16 @@ export function UnifiedBoard({
         const tpl = strings?.editorial?.dndCancelled ?? 'Cancelled moving {title}'
         return tpl.replace('{title}', title)
       }
+      const fromLane = findItemLane(String(active.id))
+      const toLane = resolveTargetLane(String(over.id))
+      if (fromLane && toLane && fromLane !== toLane) {
+        if (isPipelineLane(fromLane) && isBlogLane(toLane)) {
+          return strings?.editorial?.dndInvalidPipelineToBlog ?? 'Cannot drop here. Use Promote to create a post.'
+        }
+        if (isBlogLane(fromLane) && isPipelineLane(toLane)) {
+          return strings?.editorial?.dndInvalidBlogToPipeline ?? 'Cannot drop here. Use Return to Pipeline from the card menu.'
+        }
+      }
       const lane = getLaneTitle(over.id)
       const tpl = strings?.editorial?.dndDropped ?? 'Dropped {title} into {lane}'
       return tpl.replace('{title}', title).replace('{lane}', lane)
@@ -475,7 +499,7 @@ export function UnifiedBoard({
       const tpl = strings?.editorial?.dndCancelled ?? 'Cancelled moving {title}'
       return tpl.replace('{title}', title)
     },
-  }), [getItemTitle, getLaneTitle, strings])
+  }), [getItemTitle, getLaneTitle, findItemLane, resolveTargetLane, strings])
 
   const handlePublishAll = useCallback(async () => {
     await onBulkPublish([...selectedIds])
@@ -503,7 +527,7 @@ export function UnifiedBoard({
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
-        <div role="region" aria-label={strings?.tabs?.editorial ?? 'Blog editorial kanban'} aria-busy={isPending} tabIndex={0} className="flex gap-3 overflow-x-auto pb-4">
+        <div ref={boardRef} role="region" aria-label={strings?.tabs?.editorial ?? 'Blog editorial kanban'} aria-description={strings?.editorial?.laneShortcutHint ?? 'Alt+1 through Alt+6 to jump to lanes'} aria-busy={isPending} tabIndex={0} onKeyDown={handleBoardKeyDown} className="flex gap-3 overflow-x-auto pb-4">
           <div className="flex gap-3">
             {LANE_DEFS.map((lane, idx) => {
               const items = lanes[lane.id]
@@ -517,7 +541,7 @@ export function UnifiedBoard({
                   {showBoundary && (
                     <div className="flex flex-col items-center justify-center px-2" aria-hidden="true">
                       <div className="h-full w-[2px] bg-indigo-500/30" />
-                      <span className="my-2 -rotate-90 whitespace-nowrap text-[8px] font-medium tracking-wider text-indigo-400/50">
+                      <span className="my-2 -rotate-90 whitespace-nowrap text-[10px] font-medium tracking-wider text-indigo-400/50">
                         {strings?.editorial?.promotionBoundary ?? 'Publication →'}
                       </span>
                       <div className="h-full w-[2px] bg-indigo-500/30" />
@@ -526,6 +550,7 @@ export function UnifiedBoard({
 
                   <KanbanLane
                     id={lane.id}
+                    index={idx}
                     title={label}
                     color={lane.color}
                     count={items.length}
@@ -557,6 +582,7 @@ export function UnifiedBoard({
                       lane.id === 'published' && totalPublished > lanes.published.length ? (
                         <button
                           onClick={() => setPublishedPage((p) => p + 1)}
+                          aria-label={`${strings?.common?.showMore ?? 'Show more'} (${lanes.published.length} of ${totalPublished})`}
                           className="text-[10px] text-indigo-400 hover:text-indigo-300"
                         >
                           {strings?.common?.showMore ?? 'Show more'} →

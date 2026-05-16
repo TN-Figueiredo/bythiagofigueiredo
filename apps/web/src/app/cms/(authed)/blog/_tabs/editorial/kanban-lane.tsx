@@ -8,6 +8,7 @@ const LANE_MAX_HEIGHT = 'calc(100vh - var(--kanban-lane-offset, 260px))'
 
 interface KanbanLaneProps {
   id: string
+  index?: number
   title: string
   color: string
   count: number
@@ -25,6 +26,7 @@ interface KanbanLaneProps {
 
 export const KanbanLane = memo(function KanbanLane({
   id,
+  index,
   title,
   color,
   count,
@@ -46,6 +48,7 @@ export const KanbanLane = memo(function KanbanLane({
     <div
       ref={setNodeRef}
       role="group"
+      data-lane-index={index}
       aria-label={itemsLabel ? `${title}: ${count} ${itemsLabel}` : `${title}: ${count}`}
       className={`flex min-w-[220px] max-w-[320px] flex-1 flex-col rounded-lg border bg-gray-950 transition-all duration-200 ${
         isInvalidDrop && isOver

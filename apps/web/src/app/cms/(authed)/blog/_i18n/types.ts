@@ -25,6 +25,9 @@ export interface BlogHubStrings {
     dndMovingOver: string
     dndDropped: string
     dndCancelled: string
+    dndInvalidPipelineToBlog: string
+    dndInvalidBlogToPipeline: string
+    laneShortcutHint: string
   }
   deletePost: {
     triggerLabel: string; triggerAriaLabel: string

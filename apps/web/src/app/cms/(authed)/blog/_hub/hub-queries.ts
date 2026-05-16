@@ -367,7 +367,7 @@ export const fetchPipelineData = unstable_cache(
       title_pt: item.title_pt as string | null,
       title_en: item.title_en as string | null,
       format: item.format as string,
-      stage: item.stage as string,
+      stage: item.stage as 'idea' | 'draft' | 'ready' | 'archived',
       language: item.language as string,
       priority: item.priority as number,
       hook: item.hook as string | null,

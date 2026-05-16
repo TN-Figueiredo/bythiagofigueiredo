@@ -178,7 +178,7 @@ export const PostCard = memo(function PostCard({
       <div className="flex items-center gap-1.5 text-[9px]">
         <span className="font-mono text-gray-500">{card.displayId}</span>
         {subBadge && (
-          <span className={`rounded px-1.5 py-0.5 text-[8px] font-medium ${subBadge.color}`}>
+          <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${subBadge.color}`}>
             {strings?.substatus?.[subBadge.labelKey] ?? subBadge.labelKey}
           </span>
         )}
@@ -190,7 +190,7 @@ export const PostCard = memo(function PostCard({
             setMenuOpen((prev) => !prev)
           }}
           className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity text-gray-500 hover:text-gray-300 flex items-center justify-center min-h-[44px] min-w-[44px] -mr-1"
-          aria-label={strings?.editorial?.moreActions ?? 'More actions'}
+          aria-label={`${strings?.editorial?.moreActions ?? 'More actions'} — ${displayTitle}`}
           aria-haspopup="menu"
           aria-expanded={menuOpen}
         >
@@ -209,7 +209,7 @@ export const PostCard = memo(function PostCard({
       <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
         {card.tagName && (
           <span
-            className="rounded px-1.5 py-0.5 text-[8px] font-medium"
+            className="rounded px-1.5 py-0.5 text-[10px] font-medium"
             style={isValidHexColor(card.tagColor) ? { backgroundColor: `${card.tagColor}20`, color: card.tagColor } : undefined}
           >
             {card.tagName}
@@ -230,7 +230,7 @@ export const PostCard = memo(function PostCard({
       )}
 
       {pipelineCode && (
-        <div className="mt-1 text-[8px] text-gray-600">
+        <div className="mt-1 text-[10px] text-gray-600">
           &#x2197; {pipelineCode}
         </div>
       )}
@@ -323,7 +323,7 @@ export const PostCard = memo(function PostCard({
 
       {selected && (
         <div className="absolute inset-0 rounded-lg bg-indigo-500/5 pointer-events-none">
-          <div className="absolute right-2 top-2 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-500 text-[8px] text-white">
+          <div className="absolute right-2 top-2 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-500 text-[10px] text-white">
             &#x2713;
           </div>
         </div>

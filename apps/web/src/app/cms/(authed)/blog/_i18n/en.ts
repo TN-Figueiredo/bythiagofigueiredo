@@ -27,6 +27,9 @@ export const en: BlogHubStrings = {
     dndMovingOver: 'Moving {title} over {lane}',
     dndDropped: 'Dropped {title} into {lane}',
     dndCancelled: 'Cancelled moving {title}',
+    dndInvalidPipelineToBlog: 'Cannot drop here. Use Promote to create a post.',
+    dndInvalidBlogToPipeline: 'Cannot drop here. Use Return to Pipeline from the card menu.',
+    laneShortcutHint: 'Alt+1 through Alt+6 to jump to lanes',
   },
   deletePost: {
     triggerLabel: 'Delete', triggerAriaLabel: 'Delete {title}',
