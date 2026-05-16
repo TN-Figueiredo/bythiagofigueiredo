@@ -47,6 +47,7 @@ export const en: MediaGalleryStrings = {
     confirmTitle: 'Delete image?',
     confirmMessage: 'This image will be marked for deletion.',
     usageWarning: 'This image is used in {count} places. Deleting it may break content.',
+    deleting: 'Deleting…',
   },
   dimensions: { tooSmall: 'Image is too small for this context' },
   toolbar: {
@@ -146,5 +147,12 @@ export const en: MediaGalleryStrings = {
     showShortcuts: '? — Show shortcuts',
     rangeSelect: 'Shift+Click — Range select',
     lightboxNav: '←→ — Lightbox navigation',
+  },
+  typeLabels: {
+    cover: 'Cover',
+    inline: 'Inline',
+    avatar: 'Avatar',
+    og: 'OG',
+    orphan: 'Unused',
   },
 }

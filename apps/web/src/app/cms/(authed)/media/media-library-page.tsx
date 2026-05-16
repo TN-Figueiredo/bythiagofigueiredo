@@ -1,6 +1,6 @@
 'use client'
 
-import { useReducer, useEffect, useCallback, useRef, useState, useTransition } from 'react'
+import { useReducer, useEffect, useCallback, useRef, useState, useTransition, useMemo } from 'react'
 import { mediaLibraryReducer, initialState } from './media-library-reducer'
 import {
   listMediaAssetsWithUsageAction,
@@ -11,8 +11,7 @@ import {
   updateMediaAssetAction,
 } from './actions'
 import { getMediaGalleryStrings } from '../_shared/media/_i18n/types'
-import type { MediaAssetResult } from '../_shared/media/types'
-import type { EnrichedMediaAsset } from '../_shared/media/types'
+import type { MediaAssetResult, EnrichedMediaAsset, UsageEntry } from '../_shared/media/types'
 import type { MediaStats } from '@/lib/media/queries'
 import type { MediaFolder } from '@/lib/media/types'
 
@@ -43,26 +42,15 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
   const [items, setItems] = useState<EnrichedMediaAsset[]>([])
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [stats, setStats] = useState<MediaStats | null>(null)
-  const [usages, setUsages] = useState<Array<{ resourceType: string; resourceId: string; fieldName: string }>>([])
+  const [usages, setUsages] = useState<UsageEntry[]>([])
   const [showUpload, setShowUpload] = useState(false)
   const [deleteModal, setDeleteModal] = useState<{ ids: string[]; usageCount: number } | null>(null)
   const [contextMenu, setContextMenu] = useState<{ id: string; x: number; y: number } | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const lastCheckRef = useRef<string | null>(null)
-
-  const sortItems = useCallback((arr: EnrichedMediaAsset[]): EnrichedMediaAsset[] => {
-    const sorted = [...arr]
-    switch (state.sort) {
-      case 'newest': sorted.sort((a, b) => b.asset.createdAt.localeCompare(a.asset.createdAt)); break
-      case 'oldest': sorted.sort((a, b) => a.asset.createdAt.localeCompare(b.asset.createdAt)); break
-      case 'largest': sorted.sort((a, b) => b.asset.fileSize - a.asset.fileSize); break
-      case 'smallest': sorted.sort((a, b) => a.asset.fileSize - b.asset.fileSize); break
-      case 'name': sorted.sort((a, b) => a.asset.filename.localeCompare(b.asset.filename)); break
-    }
-    return sorted
-  }, [state.sort])
 
   const fetchAssets = useCallback(
     async (cursor?: string) => {
@@ -83,16 +71,28 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
         }))
 
         if (cursor) {
-          setItems((prev) => sortItems([...prev, ...enriched]))
+          setItems((prev) => [...prev, ...enriched])
         } else {
-          setItems(sortItems(enriched))
+          setItems(enriched)
         }
         setNextCursor(result.nextCursor)
       }
       dispatch({ type: 'SET_LOADING', loading: false })
     },
-    [state.search, sortItems],
+    [state.search],
   )
+
+  const sortedItems = useMemo(() => {
+    const sorted = [...items]
+    switch (state.sort) {
+      case 'newest': sorted.sort((a, b) => b.asset.createdAt.localeCompare(a.asset.createdAt)); break
+      case 'oldest': sorted.sort((a, b) => a.asset.createdAt.localeCompare(b.asset.createdAt)); break
+      case 'largest': sorted.sort((a, b) => b.asset.fileSize - a.asset.fileSize); break
+      case 'smallest': sorted.sort((a, b) => a.asset.fileSize - b.asset.fileSize); break
+      case 'name': sorted.sort((a, b) => a.asset.filename.localeCompare(b.asset.filename)); break
+    }
+    return sorted
+  }, [items, state.sort])
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -117,17 +117,20 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
     }).catch(() => {})
   }, [state.selectedId])
 
-  const filterCounts = {
-    all: items.length,
-    cover: items.filter((i) => i.type === 'cover').length,
-    inline: items.filter((i) => i.type === 'inline').length,
-    avatar: items.filter((i) => i.type === 'avatar').length,
-    og: items.filter((i) => i.type === 'og').length,
-    orphan: items.filter((i) => i.type === 'orphan').length,
-  }
+  const filterCounts = useMemo(() => ({
+    all: sortedItems.length,
+    cover: sortedItems.filter((i) => i.type === 'cover').length,
+    inline: sortedItems.filter((i) => i.type === 'inline').length,
+    avatar: sortedItems.filter((i) => i.type === 'avatar').length,
+    og: sortedItems.filter((i) => i.type === 'og').length,
+    orphan: sortedItems.filter((i) => i.type === 'orphan').length,
+  }), [sortedItems])
 
-  const filteredItems = state.filter === 'all' ? items : items.filter((i) => i.type === state.filter)
-  const selectedAsset = items.find((i) => i.asset.id === state.selectedId)?.asset ?? null
+  const filteredItems = useMemo(
+    () => state.filter === 'all' ? sortedItems : sortedItems.filter((i) => i.type === state.filter),
+    [sortedItems, state.filter],
+  )
+  const selectedAsset = sortedItems.find((i) => i.asset.id === state.selectedId)?.asset ?? null
 
   const handleSelect = useCallback((id: string) => {
     dispatch({ type: 'SELECT_ITEM', id })
@@ -150,7 +153,7 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
   }, [filteredItems])
 
   const handleQuickAction = useCallback((id: string, action: string) => {
-    const asset = items.find((i) => i.asset.id === id)?.asset
+    const asset = sortedItems.find((i) => i.asset.id === id)?.asset
     if (!asset) return
 
     switch (action) {
@@ -167,7 +170,7 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
         setDeleteModal({ ids: [id], usageCount: 0 })
         break
     }
-  }, [items])
+  }, [sortedItems])
 
   const handleContextAction = useCallback((action: string) => {
     if (!contextMenu) return
@@ -193,15 +196,24 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
 
   const handleDeleteConfirm = useCallback(async () => {
     if (!deleteModal) return
-    if (deleteModal.ids.length === 1) {
-      await softDeleteMediaAssetAction(deleteModal.ids[0]!)
-    } else {
-      await bulkDeleteMediaAssetsAction(deleteModal.ids)
+    setIsDeleting(true)
+    try {
+      if (deleteModal.ids.length === 1) {
+        await softDeleteMediaAssetAction(deleteModal.ids[0]!)
+      } else {
+        await bulkDeleteMediaAssetsAction(deleteModal.ids)
+      }
+      setDeleteModal(null)
+      dispatch({ type: 'UNCHECK_ALL' })
+      fetchAssets()
+      getMediaStatsAction().then((res) => { if (res.ok) setStats(res.stats) }).catch(() => {})
+    } catch {
+      const el = document.getElementById('media-announcements')
+      if (el) el.textContent = 'Delete failed. Please try again.'
+      setDeleteModal(null)
+    } finally {
+      setIsDeleting(false)
     }
-    setDeleteModal(null)
-    dispatch({ type: 'UNCHECK_ALL' })
-    fetchAssets()
-    getMediaStatsAction().then((res) => { if (res.ok) setStats(res.stats) }).catch(() => {})
   }, [deleteModal, fetchAssets])
 
   const handleBulkDelete = useCallback(() => {
@@ -210,10 +222,10 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
 
   const handleBulkDownload = useCallback(() => {
     for (const id of state.checked) {
-      const asset = items.find((i) => i.asset.id === id)?.asset
+      const asset = sortedItems.find((i) => i.asset.id === id)?.asset
       if (asset) window.open(asset.blobUrl, '_blank')
     }
-  }, [state.checked, items])
+  }, [state.checked, sortedItems])
 
   const handleUploadComplete = useCallback((_asset: MediaAssetResult) => {
     setShowUpload(false)
@@ -223,7 +235,7 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
     getMediaStatsAction().then((res) => { if (res.ok) setStats(res.stats) }).catch(() => {})
   }, [fetchAssets])
 
-  const lightboxAsset = state.lightboxId ? items.find((i) => i.asset.id === state.lightboxId)?.asset ?? null : null
+  const lightboxAsset = state.lightboxId ? sortedItems.find((i) => i.asset.id === state.lightboxId)?.asset ?? null : null
   const lightboxIndex = state.lightboxId ? filteredItems.findIndex((i) => i.asset.id === state.lightboxId) : -1
 
   const handleLightboxPrev = useCallback(() => {
@@ -241,6 +253,12 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
   const [focusedIndex, setFocusedIndex] = useState(-1)
 
   useEffect(() => {
+    if (focusedIndex < 0) return
+    const el = document.querySelector<HTMLElement>(`[data-focus-index="${focusedIndex}"]`)
+    el?.scrollIntoView({ block: 'nearest' })
+  }, [focusedIndex])
+
+  useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return
 
@@ -253,6 +271,9 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
         else if (state.selectedId) dispatch({ type: 'SELECT_ITEM', id: state.selectedId })
         else if (state.search) dispatch({ type: 'SET_SEARCH', search: '' })
       }
+
+      if (state.lightboxId) return
+
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (state.checked.size > 0) handleBulkDelete()
       }
@@ -372,6 +393,7 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
             selectedId={state.selectedId}
             cols={state.cols}
             searchQuery={state.search}
+            focusedIndex={focusedIndex}
             onSelect={handleSelect}
             onCheck={handleCheck}
             onQuickAction={handleQuickAction}
@@ -382,6 +404,7 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
             items={filteredItems}
             checked={state.checked}
             selectedId={state.selectedId}
+            focusedIndex={focusedIndex}
             onSelect={handleSelect}
             onCheck={handleCheck}
           />
@@ -439,6 +462,7 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
         usageCount={deleteModal?.usageCount ?? 0}
         onConfirm={handleDeleteConfirm}
         onCancel={() => setDeleteModal(null)}
+        isLoading={isDeleting}
         t={t}
       />
 

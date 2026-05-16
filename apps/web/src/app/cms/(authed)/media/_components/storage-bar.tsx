@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { TYPE_COLORS } from '../../_shared/media/types'
+import { TYPE_COLORS, formatBytes } from '../../_shared/media/types'
 import type { MediaAssetType } from '@/lib/media/types'
 import type { MediaGalleryStrings } from '../../_shared/media/_i18n/types'
 
@@ -27,13 +27,6 @@ const FOLDER_TO_TYPE: Record<string, MediaAssetType> = {
   ads: 'inline',
   links: 'inline',
   general: 'inline',
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
 }
 
 export function StorageBar({ folderBreakdown, totalSizeBytes, orphanCount, t }: StorageBarProps) {
@@ -65,7 +58,6 @@ export function StorageBar({ folderBreakdown, totalSizeBytes, orphanCount, t }: 
         <span className="text-xs font-semibold text-cms-text tabular-nums">{usedLabel}</span>
       </div>
 
-      {/* Bar */}
       <div className="flex h-2 overflow-hidden rounded-full bg-cms-bg">
         {segments.map((seg) => (
           <div
@@ -75,23 +67,18 @@ export function StorageBar({ folderBreakdown, totalSizeBytes, orphanCount, t }: 
             role="meter"
             aria-label={seg.type}
             aria-valuenow={seg.pct}
+            aria-valuemin={0}
+            aria-valuemax={100}
           />
         ))}
       </div>
 
-      {/* Legend */}
       <div className="mt-2 flex flex-wrap gap-3">
         {segments.map((seg) => (
           <div key={seg.type} className="flex items-center gap-1.5">
             <div className={`h-2 w-2 rounded-full ${TYPE_COLORS[seg.type].bg}`} />
             <span className="text-[10px] text-cms-text-muted">
-              {t.storage[
-                seg.type === 'cover'
-                  ? 'covers'
-                  : seg.type === 'avatar'
-                    ? 'avatars'
-                    : (seg.type as keyof typeof t.storage)
-              ] as string}
+              {t.typeLabels[seg.type]}
             </span>
             <span className="text-[10px] text-cms-text-dim tabular-nums">{formatBytes(seg.bytes)}</span>
           </div>

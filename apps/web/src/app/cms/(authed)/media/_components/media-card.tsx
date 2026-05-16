@@ -3,7 +3,7 @@
 import { useCallback } from 'react'
 import Image from 'next/image'
 import type { MediaAsset, MediaAssetType } from '@/lib/media/types'
-import { TYPE_COLORS } from '../../_shared/media/types'
+import { TYPE_COLORS, formatBytes } from '../../_shared/media/types'
 
 export type QuickAction = 'preview' | 'download' | 'copy-url' | 'delete'
 
@@ -12,18 +12,13 @@ interface MediaCardProps {
   type: MediaAssetType
   checked: boolean
   selected: boolean
+  focused?: boolean
   onSelect: (id: string) => void
   onCheck: (id: string, shiftKey: boolean) => void
   onQuickAction: (id: string, action: QuickAction) => void
   searchQuery?: string
   compact?: boolean
   'data-testid'?: string
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 function highlightMatch(text: string, query: string | undefined): React.ReactNode {
@@ -56,6 +51,7 @@ export function MediaCard({
   onQuickAction,
   searchQuery,
   compact,
+  focused,
   'data-testid': dataTestId,
 }: MediaCardProps) {
   const colors = TYPE_COLORS[type]
@@ -91,6 +87,7 @@ export function MediaCard({
         hover:bg-cms-surface-hover
         ${colors.border}
         ${selected ? 'ring-2 ring-cms-accent shadow-lg shadow-cms-accent/20' : 'border border-cms-border hover:border-cms-border-subtle'}
+        ${focused ? 'ring-2 ring-offset-1 ring-cms-accent/50' : ''}
         ${checked ? 'bg-cms-accent/5' : ''}
       `}
     >
@@ -115,7 +112,10 @@ export function MediaCard({
 
         {/* Checkbox — hidden in compact mode */}
         {!compact && (
-          <div
+          <button
+            type="button"
+            role="checkbox"
+            aria-checked={checked}
             onClick={handleCheckbox}
             className={`
               absolute left-2 top-2 z-10 flex h-5 w-5 items-center justify-center rounded border transition-all
@@ -129,7 +129,7 @@ export function MediaCard({
                 <path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             )}
-          </div>
+          </button>
         )}
 
         {/* Hover overlay with quick actions */}

@@ -34,7 +34,6 @@ export function ContextMenu({ x, y, assetId, onAction, onClose, t }: ContextMenu
     { action: 'download', label: t.context.download },
     { action: 'copy-url', label: t.context.copyUrl },
     { action: 'edit-alt', label: t.context.editAlt },
-    { action: 'move-to', label: t.context.moveTo },
     { action: 'divider', label: '' },
     { action: 'delete', label: t.context.deleteAsset },
   ]

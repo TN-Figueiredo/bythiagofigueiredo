@@ -17,7 +17,7 @@ export interface MediaGalleryStrings {
     loadMore: string; noResults: string; emptyLibrary: string
   }
   crop: { cropTitle: string; cropConfirm: string; cropCancel: string }
-  delete: { confirmTitle: string; confirmMessage: string; usageWarning: string }
+  delete: { confirmTitle: string; confirmMessage: string; usageWarning: string; deleting: string }
   dimensions: { tooSmall: string }
   toolbar: {
     selectAll: string; deselectAll: string
@@ -63,6 +63,9 @@ export interface MediaGalleryStrings {
     title: string; search: string; navigate: string; openDetail: string
     toggleSelect: string; escape: string; deleteKey: string; showShortcuts: string
     rangeSelect: string; lightboxNav: string
+  }
+  typeLabels: {
+    cover: string; inline: string; avatar: string; og: string; orphan: string
   }
 }
 

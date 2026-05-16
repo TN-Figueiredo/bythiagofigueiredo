@@ -66,3 +66,16 @@ export interface EnrichedMediaAsset {
 export type MediaViewMode = 'grid' | 'list'
 export type MediaSortOption = 'newest' | 'oldest' | 'largest' | 'smallest' | 'name'
 export type MediaColumnCount = 2 | 3 | 4
+
+export interface UsageEntry {
+  resourceType: string
+  resourceId: string
+  fieldName: string
+}
+
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
+}

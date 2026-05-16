@@ -104,13 +104,13 @@ export function MediaLibraryTab({ onSelect, folder, cropPreset, locale }: Librar
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t.library.searchPlaceholder}
-          className="flex-1 rounded-md border border-[#374151] bg-[#0a0f1a] px-3 py-2 text-sm text-[#f3f4f6] placeholder-[#6b7280] focus:border-indigo-500 focus:outline-none"
+          className="flex-1 rounded-md border border-cms-border bg-cms-bg px-3 py-2 text-sm text-cms-text placeholder:text-cms-text-dim focus:border-cms-accent focus:outline-none"
           data-testid="library-search"
         />
         <select
           value={folderFilter}
           onChange={(e) => setFolderFilter(e.target.value)}
-          className="rounded-md border border-[#374151] bg-[#0a0f1a] px-3 py-2 text-sm text-[#f3f4f6] focus:border-indigo-500 focus:outline-none"
+          className="rounded-md border border-cms-border bg-cms-bg px-3 py-2 text-sm text-cms-text focus:border-cms-accent focus:outline-none"
           data-testid="library-folder-filter"
         >
           {FOLDER_FILTERS.map((f) => (
@@ -121,7 +121,7 @@ export function MediaLibraryTab({ onSelect, folder, cropPreset, locale }: Librar
 
       {!loading && assets.length === 0 ? (
         <div className="flex flex-1 items-center justify-center">
-          <p className="text-sm text-[#6b7280]">
+          <p className="text-sm text-cms-text-dim">
             {search ? t.library.noResults : t.library.emptyLibrary}
           </p>
         </div>
@@ -159,7 +159,7 @@ export function MediaLibraryTab({ onSelect, folder, cropPreset, locale }: Librar
 
       {loading && (
         <div className="flex justify-center py-4">
-          <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#374151] border-t-indigo-500" />
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-cms-border border-t-cms-accent" />
         </div>
       )}
 
@@ -168,7 +168,7 @@ export function MediaLibraryTab({ onSelect, folder, cropPreset, locale }: Librar
           <button
             type="button"
             onClick={() => fetchAssets(nextCursor)}
-            className="rounded-md border border-[#374151] px-4 py-2 text-sm text-[#d1d5db] hover:bg-white/5"
+            className="rounded-md border border-cms-border px-4 py-2 text-sm text-cms-text-muted hover:bg-cms-surface-hover"
           >
             {t.library.loadMore}
           </button>
@@ -176,22 +176,22 @@ export function MediaLibraryTab({ onSelect, folder, cropPreset, locale }: Librar
       )}
 
       {selectedAsset && (
-        <div className="flex items-center justify-between rounded-lg border border-[#374151] bg-[#1e293b] px-4 py-3">
-          <div className="flex items-center gap-3 text-sm text-[#d1d5db]">
+        <div className="flex items-center justify-between rounded-lg border border-cms-border bg-cms-surface px-4 py-3">
+          <div className="flex items-center gap-3 text-sm text-cms-text-muted">
             <span className="font-medium">{selectedAsset.filename}</span>
-            <span className="text-[#6b7280]">
+            <span className="text-cms-text-dim">
               {selectedAsset.width && selectedAsset.height
                 ? `${selectedAsset.width} × ${selectedAsset.height}`
                 : 'SVG'}
             </span>
             {selectedAsset.altText && (
-              <span className="truncate text-[#6b7280]">{selectedAsset.altText}</span>
+              <span className="truncate text-cms-text-dim">{selectedAsset.altText}</span>
             )}
           </div>
           <button
             type="button"
             onClick={() => handleSelectAsset(selectedAsset)}
-            className="rounded-md bg-indigo-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-400"
+            className="rounded-md bg-cms-accent px-4 py-1.5 text-sm font-medium text-white hover:bg-cms-accent/90"
             data-testid="library-select-btn"
           >
             {locale === 'pt-BR' ? 'Selecionar' : 'Select'}

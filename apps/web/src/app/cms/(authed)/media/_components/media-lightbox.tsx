@@ -52,6 +52,9 @@ export function MediaLightbox({
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={t.modal.title}
       className="fixed inset-0 z-50 flex items-center justify-center"
       onClick={onClose}
       style={{ background: 'repeating-conic-gradient(#1a1a2e 0% 25%, #0e0e1a 0% 50%) 0 0 / 20px 20px' }}

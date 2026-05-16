@@ -6,11 +6,7 @@ import type { MediaAsset } from '@/lib/media/types'
 import type { MediaGalleryStrings } from '../../_shared/media/_i18n/types'
 import { DetailTabs } from './detail-tabs'
 
-interface UsageEntry {
-  resourceType: string
-  resourceId: string
-  fieldName: string
-}
+import type { UsageEntry } from '../../_shared/media/types'
 
 interface DetailPanelProps {
   asset: MediaAsset | null

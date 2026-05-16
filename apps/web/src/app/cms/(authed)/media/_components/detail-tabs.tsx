@@ -3,12 +3,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import type { MediaAsset } from '@/lib/media/types'
 import type { MediaGalleryStrings } from '../../_shared/media/_i18n/types'
-
-interface UsageEntry {
-  resourceType: string
-  resourceId: string
-  fieldName: string
-}
+import { formatBytes } from '../../_shared/media/types'
+import type { UsageEntry } from '../../_shared/media/types'
 
 interface DetailTabsProps {
   tab: 'details' | 'usage' | 'history'
@@ -18,12 +14,6 @@ interface DetailTabsProps {
   onUpdateTags: (tags: string[]) => void
   onUpdateFolder: (folder: string) => void
   t: MediaGalleryStrings
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 function copyToClipboard(text: string): void {
@@ -46,7 +36,7 @@ function CopyableValue({ label, value, t }: { label: string; value: string; t: M
         className="group flex items-center gap-1 text-xs text-cms-text hover:text-cms-accent"
       >
         <span className="tabular-nums">{value}</span>
-        <span className="text-[10px] text-cms-accent opacity-0 group-hover:opacity-100 transition-opacity">
+        <span className={`text-[10px] text-cms-accent transition-opacity ${copied ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
           {copied ? t.detail.copied : ''}
         </span>
       </button>

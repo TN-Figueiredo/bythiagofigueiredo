@@ -47,6 +47,7 @@ export const ptBR: MediaGalleryStrings = {
     confirmTitle: 'Excluir imagem?',
     confirmMessage: 'A imagem será marcada para exclusão.',
     usageWarning: 'Esta imagem é usada em {count} lugares. Excluí-la pode quebrar conteúdo.',
+    deleting: 'Excluindo…',
   },
   dimensions: { tooSmall: 'Imagem muito pequena para este contexto' },
   toolbar: {
@@ -146,5 +147,12 @@ export const ptBR: MediaGalleryStrings = {
     showShortcuts: '? — Mostrar atalhos',
     rangeSelect: 'Shift+Clique — Seleção em faixa',
     lightboxNav: '←→ — Navegação no lightbox',
+  },
+  typeLabels: {
+    cover: 'Capa',
+    inline: 'Inline',
+    avatar: 'Avatar',
+    og: 'OG',
+    orphan: 'Sem uso',
   },
 }
