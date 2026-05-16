@@ -37,6 +37,7 @@
       "@/lib/links/*": ["./src/lib/links/*"],
       "@/lib/media/*": ["./lib/media/*"],
       "@/lib/request/*": ["./lib/request/*"],
+      "@/lib/schedule/*": ["./lib/schedule/*"],
       "@/test/*": ["./test/*"],
       "@/*": ["./src/*"]
     }
