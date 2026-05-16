@@ -3,10 +3,10 @@
 import { useState } from 'react'
 import type { MusicRecommendation } from './types'
 import { RESOLVE_COLORS } from './types'
-import { ScoreGauge } from './score-gauge'
+import { ScoreBar } from './score-bar'
 import { EnergyIndicator } from './energy-indicator'
 import { CoworkReasoning } from './cowork-reasoning'
-import { formatDeltaNotes, getBreakdownColor } from './score-utils'
+import { getBreakdownColor, getDeltaParts, formatDeltaTotal } from './score-utils'
 
 interface MusicAlternativeRowProps {
   recommendation: MusicRecommendation
@@ -16,7 +16,6 @@ interface MusicAlternativeRowProps {
 export function MusicAlternativeRow({ recommendation: rec, index }: MusicAlternativeRowProps) {
   const [expanded, setExpanded] = useState(false)
   const status = RESOLVE_COLORS[rec.resolve_status]
-  const deltaText = formatDeltaNotes(rec.delta_vs_favorite)
 
   return (
     <div
@@ -48,14 +47,23 @@ export function MusicAlternativeRow({ recommendation: rec, index }: MusicAlterna
           >
             {status.label}
           </span>
-          <ScoreGauge score={rec.score} max={rec.score_max} size={28} />
+          <ScoreBar score={rec.score} max={rec.score_max} />
         </div>
       </button>
 
-      {!expanded && deltaText && (
-        <div className="px-2.5 pb-1.5 -mt-0.5">
-          <span className="text-[9px] font-mono" style={{ color: '#f97316' }}>
-            Δ {deltaText}
+      {!expanded && rec.delta_vs_favorite && getDeltaParts(rec.delta_vs_favorite).length > 0 && (
+        <div className="px-2.5 pb-1.5 -mt-0.5 flex items-center gap-1 flex-wrap" style={{ paddingLeft: 20 }}>
+          {getDeltaParts(rec.delta_vs_favorite).map(({ label, value }) => (
+            <span
+              key={label}
+              className="text-[7px] font-mono px-1 rounded-sm"
+              style={{ background: 'rgba(239,68,68,0.06)', color: '#6b7280' }}
+            >
+              {value > 0 ? '+' : '−'}{Math.abs(value)} {label}
+            </span>
+          ))}
+          <span className="text-[7px]" style={{ color: '#4b5563' }}>
+            = {formatDeltaTotal(rec.delta_vs_favorite) > 0 ? '+' : ''}{formatDeltaTotal(rec.delta_vs_favorite)} vs favorita
           </span>
         </div>
       )}
@@ -84,16 +92,36 @@ export function MusicAlternativeRow({ recommendation: rec, index }: MusicAlterna
               </span>
             )}
           </div>
-          {deltaText && (
-            <span className="text-[9px] font-mono" style={{ color: '#f97316' }}>Δ {deltaText}</span>
-          )}
-          {rec.score_breakdown && (
-            <div className="flex flex-wrap gap-x-2 gap-y-0.5">
-              {Object.entries(rec.score_breakdown).map(([key, { score, max }]) => (
-                <span key={key} className="text-[9px] font-mono" style={{ color: getBreakdownColor(score, max) }}>
-                  {key} {score}/{max}
+          {rec.delta_vs_favorite && getDeltaParts(rec.delta_vs_favorite).length > 0 && (
+            <div className="flex items-center gap-1 flex-wrap">
+              {getDeltaParts(rec.delta_vs_favorite).map(({ label, value }) => (
+                <span
+                  key={label}
+                  className="text-[7px] font-mono px-1 rounded-sm"
+                  style={{ background: 'rgba(239,68,68,0.06)', color: '#6b7280' }}
+                >
+                  {value > 0 ? '+' : '−'}{Math.abs(value)} {label}
                 </span>
               ))}
+              <span className="text-[7px]" style={{ color: '#4b5563' }}>
+                = {formatDeltaTotal(rec.delta_vs_favorite) > 0 ? '+' : ''}{formatDeltaTotal(rec.delta_vs_favorite)} vs favorita
+              </span>
+            </div>
+          )}
+          {rec.score_breakdown && (
+            <div className="flex flex-wrap gap-1">
+              {Object.entries(rec.score_breakdown).map(([key, { score, max }]) => {
+                const color = getBreakdownColor(score, max)
+                return (
+                  <span
+                    key={key}
+                    className="text-[8px] font-mono px-[5px] py-px rounded"
+                    style={{ color, background: `${color}15` }}
+                  >
+                    {key} {score}/{max}
+                  </span>
+                )
+              })}
             </div>
           )}
         </div>

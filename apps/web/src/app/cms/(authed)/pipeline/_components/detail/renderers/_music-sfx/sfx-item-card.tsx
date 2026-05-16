@@ -1,6 +1,6 @@
 import type { SceneSFX } from './types'
 import { RESOLVE_COLORS, SFX_CATEGORY_COLORS } from './types'
-import { computeScorePercent, getScoreColor } from './score-utils'
+import { ScoreBar } from './score-bar'
 import { buildArtlistSfxUrl } from '@/lib/pipeline/artlist-search'
 
 interface SFXItemCardProps {
@@ -54,12 +54,7 @@ export function SFXItemCard({ sfx }: SFXItemCardProps) {
               </span>
             )}
             {sfx.score != null && sfx.score_max != null && (
-              <span
-                className="text-[9px] font-bold"
-                style={{ color: getScoreColor(sfx.score, sfx.score_max) }}
-              >
-                {computeScorePercent(sfx.score, sfx.score_max)}%
-              </span>
+              <ScoreBar score={sfx.score} max={sfx.score_max} />
             )}
             {showSearch && searchUrl && (
               <a

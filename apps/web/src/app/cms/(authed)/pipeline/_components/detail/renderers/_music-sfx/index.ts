@@ -1,6 +1,7 @@
 export type { SceneMusic, SceneSFX, MusicRecommendation, ResolveStatus, SfxCategory } from './types'
 export { RESOLVE_COLORS, SFX_CATEGORY_COLORS, SCORE_MAX } from './types'
 export { ScoreGauge } from './score-gauge'
+export { ScoreBar } from './score-bar'
 export { EnergyIndicator } from './energy-indicator'
 export { CoworkReasoning } from './cowork-reasoning'
 export { MusicRecommendationCard } from './music-recommendation-card'

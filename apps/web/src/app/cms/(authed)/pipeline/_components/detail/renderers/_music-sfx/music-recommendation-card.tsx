@@ -99,12 +99,19 @@ export function MusicRecommendationCard({ recommendation: rec, isFavorite, isNoM
           </div>
 
           {rec.score_breakdown && (
-            <div className="flex flex-wrap gap-x-2 gap-y-0.5">
-              {Object.entries(rec.score_breakdown).map(([key, { score, max }]) => (
-                <span key={key} className="text-[9px] font-mono" style={{ color: getBreakdownColor(score, max) }}>
-                  {key} {score}/{max}
-                </span>
-              ))}
+            <div className="flex flex-wrap gap-1">
+              {Object.entries(rec.score_breakdown).map(([key, { score, max }]) => {
+                const color = getBreakdownColor(score, max)
+                return (
+                  <span
+                    key={key}
+                    className="text-[8px] font-mono px-[5px] py-px rounded"
+                    style={{ color, background: `${color}15` }}
+                  >
+                    {key} {score}/{max}
+                  </span>
+                )
+              })}
             </div>
           )}
         </div>

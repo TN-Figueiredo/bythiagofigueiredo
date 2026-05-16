@@ -52,3 +52,19 @@ export function formatDeltaNotes(delta: Record<string, number> | undefined): str
   }
   return parts.join(', ')
 }
+
+export function getDeltaParts(delta: Record<string, number> | undefined): { label: string; value: number }[] {
+  if (!delta) return []
+  const parts: { label: string; value: number }[] = []
+  for (const [key, value] of Object.entries(delta)) {
+    if (value === 0) continue
+    const label = CATEGORY_SHORT[key] ?? key
+    parts.push({ label, value })
+  }
+  return parts
+}
+
+export function formatDeltaTotal(delta: Record<string, number> | undefined): number {
+  if (!delta) return 0
+  return Object.values(delta).reduce((sum, v) => sum + v, 0)
+}
