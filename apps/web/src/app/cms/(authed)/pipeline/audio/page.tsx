@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
@@ -5,6 +6,22 @@ import { CmsTopbar } from '@tn-figueiredo/cms-ui/client'
 import { GEM_CSS_VARS } from '@/lib/pipeline/gem-design'
 import type { AudioAssetRow } from '@/lib/pipeline/audio-schemas'
 import { AudioLibrary } from './_components/audio-library'
+import { AudioErrorBoundary } from './_components/audio-error-boundary'
+
+function AudioSkeleton() {
+  return (
+    <div style={{ display: 'flex', height: '100%', gap: 0 }}>
+      <div style={{ width: 200, borderRight: '1px solid var(--gem-border)', padding: 12 }}>
+        {[1,2,3,4].map(i => <div key={i} style={{ height: 24, background: 'var(--gem-well)', borderRadius: 4, marginBottom: 12 }} />)}
+      </div>
+      <div style={{ flex: 1, padding: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+          {[1,2,3,4,5,6].map(i => <div key={i} style={{ height: 120, background: 'var(--gem-well)', borderRadius: 8 }} />)}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -44,7 +61,11 @@ export default async function AudioPage() {
     <>
       <CmsTopbar title="Pipeline — Audio Library" />
       <div className="p-4 gem-pipeline-theme" style={{ height: 'calc(100vh - 6rem)', ...GEM_CSS_VARS } as React.CSSProperties}>
-        <AudioLibrary initialAssets={assets} stats={stats} />
+        <AudioErrorBoundary>
+          <Suspense fallback={<AudioSkeleton />}>
+            <AudioLibrary initialAssets={assets} stats={stats} />
+          </Suspense>
+        </AudioErrorBoundary>
       </div>
     </>
   )

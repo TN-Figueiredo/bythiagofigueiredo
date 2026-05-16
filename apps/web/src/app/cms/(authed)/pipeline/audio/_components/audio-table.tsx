@@ -138,13 +138,26 @@ export function AudioTable({ assets, selectedId, onSelect, onRefetch }: AudioTab
             </th>
             <th style={{ width: 80, padding: '6px 8px' }} />
             {headers.map(h => (
-              <th key={h.key} onClick={() => toggleSort(h.key)} style={{ padding: '6px 8px', textAlign: 'left', color: 'var(--gem-muted)', fontWeight: 600, cursor: 'pointer', width: h.width }}>
+              <th
+                key={h.key}
+                onClick={() => toggleSort(h.key)}
+                aria-sort={sortKey === h.key ? (sortAsc ? 'ascending' : 'descending') : 'none'}
+                role="columnheader"
+                style={{ padding: '6px 8px', textAlign: 'left', color: 'var(--gem-muted)', fontWeight: 600, cursor: 'pointer', width: h.width }}
+              >
                 {h.label}{sortKey === h.key ? (sortAsc ? ' ↑' : ' ↓') : ''}
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
+          {sorted.length === 0 && (
+            <tr>
+              <td colSpan={headers.length + 2} style={{ padding: 40, textAlign: 'center', color: 'var(--gem-muted)', fontSize: 13 }}>
+                No assets match your filters.
+              </td>
+            </tr>
+          )}
           {sorted.map((a) => {
             const wf = a.metadata?.waveform as { peaks?: number[] } | undefined
             const peaks = wf?.peaks ?? []

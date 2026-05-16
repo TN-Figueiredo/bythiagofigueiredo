@@ -50,6 +50,7 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
     total: assets.length,
     music: assets.filter(a => a.type === 'music').length,
     sfx: assets.filter(a => a.type === 'sfx').length,
+    downloaded: assets.filter(a => a.status === 'downloaded').length,
     pending: assets.filter(a => a.status === 'pending').length,
   }), [assets])
 
@@ -200,7 +201,7 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
 
         {/* Stats bar */}
         <div style={{ padding: '6px 12px', borderTop: '1px solid var(--gem-border)', fontSize: 11, color: 'var(--gem-muted)' }}>
-          {stats.total} total · Showing {liveStats.total} · {liveStats.music} music · {liveStats.sfx} sfx · {liveStats.pending} pending
+          {stats.total} total · Showing {liveStats.total} · {liveStats.music} music · {liveStats.sfx} sfx · {liveStats.downloaded} downloaded · {liveStats.pending} pending
         </div>
       </div>
 
