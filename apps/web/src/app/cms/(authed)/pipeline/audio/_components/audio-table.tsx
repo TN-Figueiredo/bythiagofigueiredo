@@ -78,7 +78,7 @@ export function AudioTable({ assets, selectedId, onSelect, onRefetch }: AudioTab
     if (action === 'delete') {
       if (!confirm(`Delete ${ids.length} assets?`)) return
       const results = await Promise.allSettled(ids.map(id => fetch(`/api/pipeline/audio-library/${id}`, { method: 'DELETE' })))
-      const failed = results.filter(r => r.status === 'rejected').length
+      const failed = results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.ok)).length
       if (failed > 0) alert(`${failed} of ${ids.length} deletes failed`)
       setChecked(new Set())
       onRefetch?.()
@@ -95,7 +95,7 @@ export function AudioTable({ assets, selectedId, onSelect, onRefetch }: AudioTab
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...body, version: assets.find(a => a.id === id)?.version ?? 1 }),
     })))
-    const failed = results.filter(r => r.status === 'rejected').length
+    const failed = results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.ok)).length
     if (failed > 0) alert(`${failed} of ${ids.length} updates failed`)
     setChecked(new Set())
     onRefetch?.()

@@ -57,9 +57,15 @@ export function AudioDetail({ assetId, onClose }: AudioDetailProps) {
     const controller = new AbortController()
     setLoading(true)
     fetch(`/api/pipeline/audio-library/${assetId}`, { signal: controller.signal })
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
+      })
       .then(json => { if (!controller.signal.aborted) { setAsset(json.data); setLoading(false) } })
-      .catch(e => { if (!(e instanceof DOMException && e.name === 'AbortError')) setLoading(false) })
+      .catch(e => {
+        if (e instanceof DOMException && e.name === 'AbortError') return
+        if (!controller.signal.aborted) { setError('Failed to load asset'); setLoading(false) }
+      })
     return () => controller.abort()
   }, [assetId])
 
@@ -133,7 +139,7 @@ export function AudioDetail({ assetId, onClose }: AudioDetailProps) {
   }, [])
 
   if (loading) return <div style={{ width: 400, borderLeft: '1px solid var(--gem-border)', padding: 20, color: 'var(--gem-muted)' }}>Loading...</div>
-  if (!asset) return <div style={{ width: 400, borderLeft: '1px solid var(--gem-border)', padding: 20, color: 'var(--gem-muted)' }}>Not found</div>
+  if (!asset) return <div style={{ width: 400, borderLeft: '1px solid var(--gem-border)', padding: 20, color: 'var(--gem-muted)' }}>{error || 'Not found'}</div>
 
   const wf = asset.metadata?.waveform as { peaks?: number[] } | undefined
   const peaks = wf?.peaks ?? []

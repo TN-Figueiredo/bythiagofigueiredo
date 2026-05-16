@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import type { AudioAssetRow } from '@/lib/pipeline/audio-schemas'
 import { AudioFilters } from './audio-filters'
 import { AudioGrid } from './audio-grid'
@@ -33,8 +33,8 @@ function deriveTags(assets: AudioAssetRow[]): string[] {
 
 export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
   const [assets, setAssets] = useState<AudioAssetRow[]>(initialAssets)
-  const categories = deriveCategories(initialAssets)
-  const availableTags = deriveTags(initialAssets)
+  const categories = useMemo(() => deriveCategories(assets), [assets])
+  const availableTags = useMemo(() => deriveTags(assets), [assets])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid')
   const [showImport, setShowImport] = useState(false)
@@ -42,6 +42,7 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
   const [loading, setLoading] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const gTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   const refetch = useCallback(async (params: Record<string, string> = {}) => {
     abortRef.current?.abort()
@@ -78,7 +79,7 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
       if (e.key === '/') { e.preventDefault(); document.querySelector<HTMLInputElement>('[data-audio-search]')?.focus() }
       if (e.key === 'Escape') { setSelectedId(null); setGPressed(false) }
-      if (e.key === 'g') { setGPressed(true); setTimeout(() => setGPressed(false), 500); return }
+      if (e.key === 'g') { clearTimeout(gTimerRef.current); setGPressed(true); gTimerRef.current = setTimeout(() => setGPressed(false), 500); return }
       if (gPressed && e.key === 't') { setViewMode(v => v === 'grid' ? 'table' : 'grid'); setGPressed(false); return }
       if (e.key === 'Enter') {
         if (!selectedId && assets.length > 0) setSelectedId(assets[0]!.id)
@@ -93,7 +94,7 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
       }
     }
     window.addEventListener('keydown', onKeydown)
-    return () => window.removeEventListener('keydown', onKeydown)
+    return () => { window.removeEventListener('keydown', onKeydown); clearTimeout(gTimerRef.current) }
   }, [assets, selectedId, gPressed])
 
   return (
