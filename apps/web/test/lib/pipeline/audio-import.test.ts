@@ -96,6 +96,24 @@ describe('buildDiffLog', () => {
     const row = { asset_id: 'A', tags: ['x'] }
     expect(buildDiffLog(row, row)).toHaveLength(0)
   })
+
+  it('ignores undefined values in new row (no false positives)', () => {
+    const oldRow = { asset_id: 'M1', tags: ['epic', 'cinematic'], mood: ['inspiring'] }
+    const newRow = { asset_id: 'M1', tags: undefined, mood: undefined, category: 'cinematic' }
+    const diffs = buildDiffLog(oldRow, newRow)
+    // Only category should appear (it's defined in newRow but missing from oldRow)
+    expect(diffs).toHaveLength(1)
+    expect(diffs[0]!.field).toBe('category')
+  })
+
+  it('still reports diffs when new value is explicitly null', () => {
+    const oldRow = { asset_id: 'M1', category: 'cinematic' }
+    const newRow = { asset_id: 'M1', category: null }
+    const diffs = buildDiffLog(oldRow, newRow)
+    expect(diffs).toHaveLength(1)
+    expect(diffs[0]!.field).toBe('category')
+    expect(diffs[0]!.new).toBeNull()
+  })
 })
 
 describe('buildExportJson', () => {

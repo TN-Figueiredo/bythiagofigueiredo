@@ -73,6 +73,7 @@ export function buildDiffLog(
 
   for (const key of Object.keys(newRow)) {
     if (key === 'asset_id' || key === 'sha256') continue
+    if (newRow[key] === undefined) continue  // skip unset fields — not an intentional change
     const oldVal = JSON.stringify(oldRow[key])
     const newVal = JSON.stringify(newRow[key])
     if (oldVal !== newVal) {
