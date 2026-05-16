@@ -302,48 +302,74 @@ para controle individual de `captured`.
       "narrative": "Estabelecer conexão emocional com o espectador",
       "edit_notes": [
         "[VISUAL: Close-up, profundidade rasa]",
-        "Style: needs to feel intimate, think \"Casey Neistat confessional\"",
-        "00:15 entry: fade in música ambiente",
-        "00:30-00:45 montage of photos — Ken Burns slow zoom",
-        "Search Artlist: Mood: Introspective | Genre: Lo-fi | BPM: 70-80 | Duration: 2+ min"
+        "00:30-00:45 montage of photos — Ken Burns slow zoom"
       ],
       "music": {
         "track": "Ocean Depth",
         "artist": "Veaceslav Draganov",
+        "entry_cue": "Fade in at 00:15",
+        "style": "Minimal piano + textura lo-fi, intimate and introspective",
+        "search_terms": "lo-fi ambient introspective",
+        "reasoning": "Dark ambient pads match the cinematic tone for the hook. Low energy complements intimate confessional delivery.",
+        "continuation": null,
+        "flow_to": "Cena 2",
         "original_filename": "Veaceslav Draganov - Ocean Depth.wav",
         "audio_asset_id": "uuid-from-resolver",
         "resolve_status": "LOCAL",
         "score": 26,
-        "search_terms": "lo-fi ambient introspective",
         "artlist_url": null,
-        "style": "Minimal piano + textura",
-        "entry_cue": "Fade in at 00:15",
-        "continuation": "Continues into scene 2",
-        "reasoning": "Dark ambient pads match the cinematic tone for the hook.",
         "recommendations": [
           {
             "track": "Ocean Depth",
             "artist": "Veaceslav Draganov",
             "original_filename": "Veaceslav Draganov - Ocean Depth.wav",
+            "audio_asset_id": "uuid-from-resolver",
             "resolve_status": "LOCAL",
             "score": 26,
             "score_max": 34,
-            "reasoning": "Dark ambient pads match the cinematic tone.",
+            "score_breakdown": {
+              "category": { "score": 5, "max": 5 },
+              "tags": { "score": 6, "max": 8 },
+              "mood": { "score": 4, "max": 6 },
+              "energy": { "score": 3, "max": 3 },
+              "bpm_in_range": { "score": 3, "max": 3 },
+              "duration_in_range": { "score": 2, "max": 2 },
+              "reuse_scenarios": { "score": 0, "max": 4 },
+              "instruments": { "score": 3, "max": 3 }
+            },
+            "reasoning": "Dark ambient pads match the cinematic tone for the hook. Low energy complements intimate confessional delivery.",
             "energy": 2,
             "bpm": 90,
             "key": "E3",
             "duration": "3:42",
-            "category": "cinematic"
+            "category": "cinematic",
+            "artlist_url": "https://artlist.io/song/ocean-depth"
           },
           {
             "track": "Fission",
             "artist": "Phillip Gross",
+            "original_filename": "Phillip Gross - Fission.wav",
+            "audio_asset_id": "uuid-fission",
             "resolve_status": "LOCAL",
             "score": 18,
             "score_max": 34,
-            "reasoning": "Similar dark tone but more electronic.",
-            "delta_vs_favorite": { "tags": -2, "mood": -2, "reuse_scenarios": -4 },
-            "energy": 3
+            "score_breakdown": {
+              "category": { "score": 5, "max": 5 },
+              "tags": { "score": 4, "max": 8 },
+              "mood": { "score": 2, "max": 6 },
+              "energy": { "score": 3, "max": 3 },
+              "bpm_in_range": { "score": 0, "max": 3 },
+              "duration_in_range": { "score": 2, "max": 2 },
+              "reuse_scenarios": { "score": 0, "max": 4 },
+              "instruments": { "score": 2, "max": 3 }
+            },
+            "reasoning": "Similar dark tone but more electronic. Higher energy may clash with confessional pacing.",
+            "delta_vs_favorite": { "tags": -2, "mood": -2, "reuse_scenarios": 0, "instruments": -1 },
+            "energy": 3,
+            "bpm": 110,
+            "key": "Am",
+            "duration": "4:15",
+            "category": "electronic"
           }
         ],
         "favorite_index": 0
@@ -389,21 +415,35 @@ para controle individual de `captured`.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `track` | string | No | Track name from resolver or Artlist |
-| `artist` | string | No | Artist name |
+| `track` | string\|null | No | Track name from resolver or Artlist |
+| `artist` | string\|null | No | Artist name |
+| `entry_cue` | string | **Yes** | When the music should enter (e.g., "after narrator says X", "on cut to B-roll", "Fade in at 00:15") |
+| `style` | string | **Yes** | Musical style description (e.g., "Minimal piano + textura", "Dark ambient pads") |
+| `search_terms` | string | **Yes** | Search intent keywords (space-separated for music). Always keep, even for LOCAL — used for re-search |
+| `reasoning` | string | **Yes** | Cowork's editorial reasoning — WHY this track fits this scene's mood and pacing |
+| `continuation` | string\|null | No | If this scene continues music from a previous scene, the source scene label (e.g., "Cena 2", "Continues from Beat 1") |
+| `flow_to` | string\|null | No | If this track should flow into the next scene, target scene label (e.g., "Cena 3") |
 | `original_filename` | string | No | Filename from audio library (ONLY from resolver response, never invented) |
 | `audio_asset_id` | uuid | No | UUID of matched asset in Audio Library |
 | `resolve_status` | enum | No | `LOCAL` \| `PENDING_MATCH` \| `PARTIAL_MATCH` \| `NO_MATCH` — from resolver |
-| `score` | number | No | Resolver match score (0-34) |
-| `search_terms` | string | Yes | Space-separated search terms (always keep, even for LOCAL) |
+| `score` | number | No | Resolver match score (0-34, `score_max` always 34) |
 | `artlist_url` | url | No | Pre-computed Artlist search URL (when resolve_status is NO_MATCH or PARTIAL_MATCH) |
-| `style` | string | No | Musical style description |
-| `entry_cue` | string | No | When/how music enters |
-| `continuation` | string | No | How music transitions to next scene |
-| `reasoning` | string | No | Cowork's editorial reasoning for this pick |
-| `recommendations` | array | No | Ranked track alternatives (see below) |
+| `recommendations` | array | **Yes** | Ranked track alternatives from resolver (see transformation guide below). **REQUIRED for rich UI rendering** — without this, scene falls back to flat legacy display |
 | `favorite_index` | number | No | Index of starred favorite in recommendations (default 0) |
-| `score_breakdown` | object | No | Per-category scores: `{ category: { score: N, max: N }, ... }` |
+| `score_breakdown` | object | No | Per-category scores (deprecated at top-level — prefer inside each recommendation) |
+
+#### Music-related content MUST live in the music object
+
+All music-related information MUST be placed in the `music` object fields above — **NEVER in `edit_notes`**. The following categories of notes are absorbed into the music object:
+
+| Old category (edit_notes) | Now lives in | Music field |
+|---------------------------|-------------|-------------|
+| MUSIC (`search artlist`, `mood:`, `genre:`, `bpm:`) | music object | `search_terms` |
+| STYLE (`style:`, `needs to feel`, `think "`) | music object | `style` |
+| ENTRY (`entry:`, timestamp-based music entry) | music object | `entry_cue` |
+| FLOW (`continues`, `don't change`, `same track`) | music object | `continuation` or `flow_to` |
+
+`edit_notes` should contain ONLY non-music notes (VISUAL, TIMING, OVERLAY, NOTE categories).
 
 #### recommendations[] items
 
@@ -411,35 +451,90 @@ para controle individual de `captured`.
 |-------|------|----------|-------------|
 | `track` | string | Yes | Track name |
 | `artist` | string | Yes | Artist name |
-| `original_filename` | string | No | Local filename |
-| `audio_asset_id` | string | No | UUID from audio_assets |
+| `original_filename` | string | No | Local filename (from resolver `asset.original_filename`) |
+| `audio_asset_id` | string | No | UUID from audio_assets (from resolver `asset.id`) |
 | `resolve_status` | enum | Yes | `LOCAL` \| `PENDING_MATCH` \| `PARTIAL_MATCH` \| `NO_MATCH` |
 | `score` | number | Yes | Resolver score (0-34) |
-| `score_max` | number | Yes | Always 34 |
-| `score_breakdown` | object | No | Per-category scores |
-| `reasoning` | string | No | One-liner why consider this |
-| `delta_vs_favorite` | object | No | Score difference per category vs favorite |
-| `category` | string | No | e.g. cinematic, ambient |
-| `energy` | number | No | 1-5 |
-| `bpm` | number | No | Beats per minute |
-| `key` | string | No | Musical key |
-| `duration` | string | No | Formatted duration |
-| `artlist_url` | string | No | Direct Artlist URL |
+| `score_max` | number | Yes | Always `34` |
+| `score_breakdown` | object | **Yes** | Per-category scores as `{ key: { score: N, max: N } }` — see transformation below |
+| `reasoning` | string | Yes | One-liner editorial reasoning for this recommendation |
+| `delta_vs_favorite` | object | No | Score difference per category vs favorite (only for non-favorite items) |
+| `category` | string | No | e.g. cinematic, ambient (from `asset.category`) |
+| `energy` | number | No | 1-5 (from `asset.energy`) |
+| `bpm` | number | No | Beats per minute (from `asset.bpm`) |
+| `key` | string | No | Musical key (from `asset.music_key`) |
+| `duration` | string | No | Formatted duration e.g. "3:42" (from `asset.duration_seconds`) |
+| `artlist_url` | string | No | Direct Artlist URL (from `asset.artlist_url`, or build for NO_MATCH/PENDING_MATCH) |
+
+#### score_breakdown — REQUIRED transformation
+
+The resolver returns a **flat** breakdown object with raw numbers:
+```json
+// Resolver response (DO NOT use this format directly)
+"breakdown": { "category": 5, "tags": 4, "mood": 2, "energy": 3, "bpm_in_range": 3, "duration_in_range": 0, "reuse_scenarios": 0, "instruments": 1, "description": 0 }
+```
+
+The CMS UI requires `{ score, max }` objects per category. **You MUST transform** using this max-values map:
+
+```json
+{
+  "category":         { "score": <from_breakdown>, "max": 5 },
+  "tags":             { "score": <from_breakdown>, "max": 8 },
+  "mood":             { "score": <from_breakdown>, "max": 6 },
+  "energy":           { "score": <from_breakdown>, "max": 3 },
+  "bpm_in_range":     { "score": <from_breakdown>, "max": 3 },
+  "duration_in_range":{ "score": <from_breakdown>, "max": 2 },
+  "reuse_scenarios":  { "score": <from_breakdown>, "max": 4 },
+  "instruments":      { "score": <from_breakdown>, "max": 3 }
+}
+```
+
+**Max values constant:** `category=5, tags=8, mood=6, energy=3, bpm_in_range=3, duration_in_range=2, reuse_scenarios=4, instruments=3` (total: 34)
+
+Omit `description` from the breakdown — the UI does not render it.
+
+**Complete transformed example:**
+```json
+"score_breakdown": {
+  "category": { "score": 5, "max": 5 },
+  "tags": { "score": 4, "max": 8 },
+  "mood": { "score": 2, "max": 6 },
+  "energy": { "score": 3, "max": 3 },
+  "bpm_in_range": { "score": 3, "max": 3 },
+  "duration_in_range": { "score": 0, "max": 2 },
+  "reuse_scenarios": { "score": 0, "max": 4 },
+  "instruments": { "score": 1, "max": 3 }
+}
+```
+
+#### delta_vs_favorite computation
+
+For each non-favorite recommendation, compute the per-category score difference vs the favorite:
+
+```json
+"delta_vs_favorite": {
+  "tags": -2,       // this.breakdown.tags - favorite.breakdown.tags
+  "mood": -2,       // this.breakdown.mood - favorite.breakdown.mood  
+  "reuse_scenarios": -4
+}
+```
+
+Only include categories with non-zero difference. The UI renders these as colored pills showing where the alternative is weaker/stronger than the favorite.
 
 ### sfx object fields
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `timestamp` | string | Yes | Timecode (e.g. "00:05") |
-| `description` | string | Yes | What the SFX is/does |
-| `search_terms` | string | No | Search keywords for finding the SFX |
+| `description` | string | Yes | What the SFX is/does (one-liner, can include `—` separator for intent) |
+| `search_terms` | string | **Yes** | **Comma-separated** search phrases. Each comma-delimited term renders as a clickable Artlist chip in the UI. E.g. `"bass drop,impact hit low"` → 2 chips |
 | `audio_asset_id` | uuid | No | UUID of matched asset in Audio Library |
-| `resolve_status` | enum | No | `LOCAL` \| `PENDING_MATCH` \| `PARTIAL_MATCH` \| `NO_MATCH` — from resolver |
-| `sfx_category` | enum | No | `IMPACT` \| `RISER` \| `DROP` \| `TRANSITION` \| `AMBIENT` \| `FOLEY` |
-| `original_filename` | string | No | Matched file name |
-| `score` | number | No | Resolver score (0-34) |
-| `score_max` | number | No | Always 34 |
-| `artlist_url` | string | No | Direct SFX search URL |
+| `resolve_status` | enum | **Yes** | `LOCAL` \| `PENDING_MATCH` \| `PARTIAL_MATCH` \| `NO_MATCH` — from resolver |
+| `sfx_category` | enum | **Yes** | `IMPACT` \| `RISER` \| `DROP` \| `TRANSITION` \| `AMBIENT` \| `FOLEY` — determines pill color |
+| `original_filename` | string | No | Matched file name (required for LOCAL/PARTIAL_MATCH) |
+| `score` | number | No | Resolver score (0-34, required for LOCAL/PARTIAL_MATCH) |
+| `score_max` | number | No | Always `34` (include whenever score is present) |
+| `artlist_url` | string | No | Direct SFX search URL (auto-generated by UI from search_terms) |
 
 ### Continuation tracks
 
@@ -450,44 +545,207 @@ When a scene continues the previous scene's track, use this convention:
   "music": {
     "track": "Ocean Depth (continues)",
     "artist": "Veaceslav Draganov",
-    "resolve_status": null,
-    "search_terms": "Continues from Beat 0",
-    "style": "Volume -20dB constante...",
     "entry_cue": "Continues from Hook, no break.",
-    "continuation": "DROP total em 1:47..."
+    "style": "Volume -20dB constante, maintaining intimate tone",
+    "search_terms": "Continues from Beat 0",
+    "reasoning": "Same track continues to maintain emotional coherence across the narrative arc.",
+    "continuation": "Cena 1",
+    "flow_to": null,
+    "resolve_status": null
   }
 }
 ```
 
+- `entry_cue` (REQUIRED) — describe how the continuation enters (e.g., "Continues from Hook, no break.")
+- `style` (REQUIRED) — describe the continuation style (e.g., volume change, filter, same as parent)
+- `search_terms` (REQUIRED) — use "Continues from Beat N" or equivalent
+- `reasoning` (REQUIRED) — explain why the continuation serves the narrative
+- `continuation` — the source scene label (e.g., "Cena 1") — indicates this track is inherited
+- `flow_to: null` — continuations don't flow further (or set to next scene label if they do)
 - `resolve_status: null` — not resolved independently (inherits from parent scene)
 - No `audio_asset_id` — inherits from parent
 - No `artlist_url` — nothing to search
+- No `recommendations` — continuations inherit from parent; no resolver call needed
 - The CMS detects continuation tracks by matching `^Continues\b` or `(continues)` / `(continua)` at end of track name. Real track names like "The Journey Continues" are NOT treated as continuations.
 
-### Resolver integration workflow
+### Resolver integration workflow — Populating Rich Recommendations
 
-When creating or updating `postprod_scenes`, for each scene with music or SFX:
+When creating or updating `postprod_scenes`, populate **`recommendations[]`** for EVERY scene with music. This is REQUIRED — the UI renders recommendation cards only when `recommendations` is present and non-empty. Scenes without recommendations fall back to a flat legacy display.
 
-1. **Query resolver** — `POST /api/pipeline/audio-library/resolve` with structured query (tags, mood, category, energy, etc.)
-2. **Populate fields** — Copy `audio_asset_id`, `resolve_status`, `score`, `original_filename` from the top match
-3. **Keep search_terms always** — Even LOCAL assets retain search_terms for future re-search
-4. **Pre-compute artlist_url** — When NO_MATCH or PARTIAL_MATCH, compute and store the Artlist URL
-5. **Skip resolver for continuations** — Set `resolve_status: null`, no API call needed
+#### Step-by-step for each scene's music:
+
+**1. Build resolver query from scene context:**
+```json
+POST /api/pipeline/audio-library/resolve
+{
+  "type": "music",
+  "category": "<from scene mood/style>",
+  "tags": ["<from scene keywords>"],
+  "mood": ["<from scene emotional tone>"],
+  "energy": <1-5 from scene intensity>,
+  "bpm_range": { "min": <scene tempo low>, "max": <scene tempo high> },
+  "duration_range": { "min": <scene_duration_sec * 0.8>, "max": <scene_duration_sec * 2> },
+  "instruments": ["<desired instruments>"],
+  "reuse_scenarios": ["<background|intro|outro|highlight|transition>"],
+  "description": "<free-text scene description>",
+  "limit": 3
+}
+```
+
+**2. Transform each match into a recommendation:**
+
+For each item in `response.data.matches[]`:
+```
+asset  = match.asset
+score  = match.score
+status = match.resolve_status
+bdown  = match.breakdown
+```
+
+Map to recommendation:
+```json
+{
+  "track": asset.track_name,
+  "artist": asset.artist,
+  "original_filename": asset.original_filename,
+  "audio_asset_id": asset.id,
+  "resolve_status": status,
+  "score": score,
+  "score_max": 34,
+  "score_breakdown": {
+    "category":          { "score": bdown.category,          "max": 5 },
+    "tags":              { "score": bdown.tags,              "max": 8 },
+    "mood":              { "score": bdown.mood,              "max": 6 },
+    "energy":            { "score": bdown.energy,            "max": 3 },
+    "bpm_in_range":      { "score": bdown.bpm_in_range,     "max": 3 },
+    "duration_in_range": { "score": bdown.duration_in_range, "max": 2 },
+    "reuse_scenarios":   { "score": bdown.reuse_scenarios,   "max": 4 },
+    "instruments":       { "score": bdown.instruments,       "max": 3 }
+  },
+  "reasoning": "<your editorial reasoning — WHY this track fits this scene>",
+  "category": asset.category,
+  "energy": asset.energy,
+  "bpm": asset.bpm,
+  "key": asset.music_key,
+  "duration": formatDuration(asset.duration_seconds),
+  "artlist_url": asset.artlist_url
+}
+```
+
+**3. Choose favorite and compute deltas:**
+- Set `favorite_index` to the best recommendation (usually index 0 = highest score)
+- For each non-favorite, compute `delta_vs_favorite`:
+  ```
+  delta_vs_favorite[key] = this.breakdown[key] - favorite.breakdown[key]
+  ```
+  Only include keys with non-zero difference.
+
+**4. Set top-level music fields from favorite + required editorial fields:**
+```json
+{
+  "track": recommendations[favorite_index].track,
+  "artist": recommendations[favorite_index].artist,
+  "entry_cue": "<REQUIRED — when/how music enters this scene>",
+  "style": "<REQUIRED — musical style description>",
+  "search_terms": "<REQUIRED — original search intent, keep always>",
+  "reasoning": "<REQUIRED — editorial summary of why this track fits>",
+  "continuation": null,
+  "flow_to": "<scene label if track should flow into next scene, else null>",
+  "original_filename": recommendations[favorite_index].original_filename,
+  "audio_asset_id": recommendations[favorite_index].audio_asset_id,
+  "resolve_status": recommendations[favorite_index].resolve_status,
+  "score": recommendations[favorite_index].score,
+  "recommendations": [...],
+  "favorite_index": 0
+}
+```
+
+**5. Handle edge cases:**
+- **No resolver matches (0 results):** Set `resolve_status: "NO_MATCH"`, keep all REQUIRED fields (`entry_cue`, `style`, `search_terms`, `reasoning`), build `artlist_url` from search terms
+- **Continuation scenes:** Set `continuation: "Cena N"` (source scene), all 4 REQUIRED fields still apply, no resolver call, no recommendations
+- **Score = 0 everywhere:** Still create a recommendation with `resolve_status: "NO_MATCH"` so the UI shows the search chips
+
+#### Step-by-step for each SFX item:
+
+**1. Query resolver:**
+```json
+POST /api/pipeline/audio-library/resolve
+{ "type": "sfx", "category": "<sfx_category>", "tags": ["<sfx keywords>"], "description": "<what the SFX does>", "limit": 1 }
+```
+
+**2. Populate SFX fields:**
+```json
+{
+  "timestamp": "00:06",
+  "description": "Impact leve — marca entrada do talking head",
+  "sfx_category": "IMPACT",
+  "search_terms": "subtle impact,low hit,deep bass impact",
+  "resolve_status": "<from resolver>",
+  "original_filename": "<from top match asset.original_filename if LOCAL/PARTIAL>",
+  "audio_asset_id": "<from top match asset.id>",
+  "score": <from top match>,
+  "score_max": 34
+}
+```
+
+**IMPORTANT:** `search_terms` MUST be **comma-separated phrases** (not space-separated). Each comma-delimited term becomes a separate clickable Artlist search chip in the UI. Example: `"bass drop,impact hit low"` → renders 2 chips: [bass drop] [impact hit low].
+
+#### SFX category assignment rules:
+
+| Category | Use for |
+|----------|---------|
+| `IMPACT` | Hits, punches, emphasis marks, logo stings |
+| `RISER` | Build-ups, tension builders, ascending tones |
+| `DROP` | Bass drops, release moments, energy releases |
+| `TRANSITION` | Whooshes, swooshes, swipes between scenes |
+| `AMBIENT` | Room tone, wind, rain, crowd, atmosphere loops |
+| `FOLEY` | Footsteps, cloth, typing, object interactions |
+
+### UI Feature → Required Fields mapping
+
+The Scene Guide CMS renders rich audio UI components. Each feature requires specific fields to activate:
+
+| UI Feature | Component | Required Fields |
+|-----------|-----------|-----------------|
+| **Score Gauge** (SVG donut on favorite card) | `ScoreGauge` | `score`, `score_max` |
+| **Score Bar** (thin progress on alternatives) | `ScoreBar` | `score`, `score_max` |
+| **Score Breakdown pills** (per-category colored pills) | expand panel | `score_breakdown: { key: { score, max } }` |
+| **Energy indicator** (gradient dots ⚡ N/5) | `EnergyIndicator` | `energy` (1-5) |
+| **Category chip** (e.g. "cinematic") | inline pill | `category` |
+| **BPM / Key metadata** | expand panel | `bpm`, `key` |
+| **Duration** | expand panel | `duration` (formatted string) |
+| **Favorite star + accent border** | `MusicRecommendationCard` | `favorite_index` on parent music + ≥1 recommendation |
+| **Delta vs favorite pills** | `MusicAlternativeRow` | `delta_vs_favorite: { key: number }` |
+| **Cowork reasoning** (status-tinted text) | `CoworkReasoning` | `reasoning` (string) |
+| **Artlist download CTA** (amber button) | favorite card | `artlist_url` + `resolve_status: "PENDING_MATCH"` |
+| **SFX search chips** (individual clickable pills) | `SFXItemCard` | `search_terms` (comma-separated) + `resolve_status: "NO_MATCH"` |
+| **SFX category pill** (colored badge) | `SFXItemCard` | `sfx_category` |
+| **Continuation card** (dashed border, dim text) | scene renderer | `continuation` matching `/^Continues\b|\(continues?\)$|\(continua\)$/i` |
+| **Audio Resolver summary** (dashboard header) | `AudioSummaryV2` | Any scene with `music.resolve_status` or `sfx[].resolve_status` |
+| **Waveform visualization** (Audio Library cards) | `WaveformDisplay` | `metadata.waveform.peaks` on audio asset (40-80 normalized 0-1 values) |
+
+**Minimum for rich rendering:** `recommendations[]` with at least: `track`, `artist`, `resolve_status`, `score`, `score_max`, `score_breakdown`, `reasoning`.
+
+**Maximum impact fields:** All of the above + `energy`, `category`, `bpm`, `key`, `duration`, `delta_vs_favorite`, `artlist_url`.
+
+---
 
 ### edit_notes categorization rules
 
 O renderer categoriza `edit_notes` automaticamente:
 
-| Categoria | Trigger (case-insensitive) |
-|-----------|---------------------------|
-| OVERLAY | `text overlay`, `lower third` |
-| MUSIC | `search artlist`, `search artist`, `mood:`, `genre:`, `bpm:`, `track change`, `new track` |
-| STYLE | começa com `style:`, `needs to feel`, `think "` |
-| ENTRY | começa com `entry:` |
-| VISUAL | `montage`, `ken burns`, `b-roll`, `photo` |
-| TIMING | começa com `00:00` timestamp, `fade in`, `fade out` |
-| FLOW | `continues`, `don't change`, `same track` |
-| NOTE | default (nenhum match) |
+| Categoria | Trigger (case-insensitive) | Status |
+|-----------|---------------------------|--------|
+| OVERLAY | `text overlay`, `lower third` | Active |
+| MUSIC | `search artlist`, `search artist`, `mood:`, `genre:`, `bpm:`, `track change`, `new track` | **DEPRECATED** — use `music.search_terms` |
+| STYLE | começa com `style:`, `needs to feel`, `think "` | **DEPRECATED** — use `music.style` |
+| ENTRY | começa com `entry:` | **DEPRECATED** — use `music.entry_cue` |
+| VISUAL | `montage`, `ken burns`, `b-roll`, `photo` | Active |
+| TIMING | começa com `00:00` timestamp, `fade in`, `fade out` | Active |
+| FLOW | `continues`, `don't change`, `same track` | **DEPRECATED** — use `music.continuation` / `music.flow_to` |
+| NOTE | default (nenhum match) | Active |
+
+**IMPORTANT:** MUSIC, STYLE, ENTRY, and FLOW categories are deprecated in `edit_notes`. All music-related information MUST be placed in the scene's `music` object instead. The renderer still parses these categories for backward compatibility with legacy content, but new content MUST NOT use them in `edit_notes`.
 
 Notas com timestamps `00:00` ou `00:00-00:00` são agrupadas numa timeline visual.
 Prefixo `optional` marca nota como opcional.
@@ -937,7 +1195,7 @@ curl -X POST https://bythiagofigueiredo.com/api/pipeline/audio-library/resolve \
 }
 ```
 
-**Scoring algorithm (max ~36 points):**
+**Scoring algorithm (max 34 points):**
 
 | Criterion | Max points | Logic |
 |-----------|-----------|-------|
@@ -949,7 +1207,8 @@ curl -X POST https://bythiagofigueiredo.com/api/pipeline/audio-library/resolve \
 | `duration_in_range` | 2 | Within min–max range |
 | `reuse_scenarios` | 4 | Any overlap = 4 points |
 | `instruments` | 3 | 1 pt per matching instrument (capped at 3) |
-| `description` | 2 | Full-text search match |
+
+Total: **34 points**. The `description` field in the resolver response is for internal full-text ranking only — do NOT include it in `score_breakdown` for the UI. `score_max` is always `34`.
 
 **Resolve status thresholds:**
 - `LOCAL` — score ≥ 8 AND status = `downloaded` (ready to use immediately)
