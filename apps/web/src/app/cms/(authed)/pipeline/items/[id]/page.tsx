@@ -10,8 +10,16 @@ import type { Format } from '@/lib/pipeline/schemas'
 
 export const dynamic = 'force-dynamic'
 
-export default async function PipelineItemPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function PipelineItemPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<Record<string, string | undefined>>
+}) {
   const { id } = await params
+  const search = await searchParams
+  const fromBlog = search.from === 'blog'
   const { siteId } = await getSiteContext()
   await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
   const supabase = getSupabaseServiceClient()
@@ -58,7 +66,7 @@ export default async function PipelineItemPage({ params }: { params: Promise<{ i
 
   return (
     <>
-      <CmsTopbar title={item.title_pt || item.title_en || item.code} />
+      <CmsTopbar title={`${fromBlog ? 'Blog > ' : ''}Pipeline: ${item.title_pt || item.title_en || item.code}`} />
       <div className="gem-pipeline-theme" style={GEM_CSS_VARS as React.CSSProperties}>
         <PipelineItemDetail item={enrichedItem} collections={collections} history={historyRes.data ?? []} dependencies={dependencies} />
       </div>

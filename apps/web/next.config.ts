@@ -59,6 +59,14 @@ const nextConfig: NextConfig = {
   // same flow as @next/mdx default.
   pageExtensions: ['ts', 'tsx', 'js', 'jsx', 'mdx'],
 
+  async redirects() {
+    return [
+      { source: '/cms/posts', destination: '/cms/blog', permanent: true },
+      { source: '/cms/posts/:id', destination: '/cms/blog/:id/edit', permanent: true },
+      { source: '/cms/pipeline/blog_post', destination: '/cms/blog', permanent: true },
+    ]
+  },
+
   async headers() {
     const loginPaths = [
       '/admin/login',

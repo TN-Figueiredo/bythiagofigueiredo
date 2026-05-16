@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
@@ -13,6 +13,7 @@ export const dynamic = 'force-dynamic'
 export default async function FormatBoardPage({ params }: { params: Promise<{ format: string }> }) {
   const { format } = await params
   if (!FORMATS.includes(format as Format)) notFound()
+  if (format === 'blog_post') redirect('/cms/blog')
 
   const { siteId } = await getSiteContext()
   await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
