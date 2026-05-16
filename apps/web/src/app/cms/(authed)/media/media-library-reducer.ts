@@ -89,5 +89,7 @@ export function mediaLibraryReducer(
       return { ...state, detailTab: action.tab }
     case 'SET_LOADING':
       return { ...state, isLoading: action.loading }
+    default:
+      return state
   }
 }

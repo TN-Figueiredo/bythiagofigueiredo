@@ -82,6 +82,10 @@ function DetailsTab({
     setAltText(asset.altText ?? '')
   }, [asset.id, asset.altText])
 
+  useEffect(() => {
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  }, [])
+
   const handleAltChange = useCallback(
     (value: string) => {
       setAltText(value)

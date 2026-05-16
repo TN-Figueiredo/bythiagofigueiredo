@@ -165,10 +165,13 @@ export async function uploadMediaAction(
     if (!(file instanceof File)) return { ok: false, error: 'no_file' }
     if (file.size > 10_485_760) return { ok: false, error: 'file_too_large' }
 
-    const folder = (formData.get('folder') as string) || 'general'
-    const altText = (formData.get('altText') as string) || undefined
+    const folderRaw = formData.get('folder')
+    const folder = typeof folderRaw === 'string' ? folderRaw : 'general'
+    const altRaw = formData.get('altText')
+    const altText = typeof altRaw === 'string' && altRaw ? altRaw : undefined
     if (altText && altText.length > 500) return { ok: false, error: 'alt_text_too_long' }
-    const tagsRaw = formData.get('tags') as string | null
+    const tagsField = formData.get('tags')
+    const tagsRaw = typeof tagsField === 'string' ? tagsField : null
     const tags = tagsRaw
       ? tagsRaw
           .split(',')

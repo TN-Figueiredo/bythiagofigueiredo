@@ -51,9 +51,15 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const lastCheckRef = useRef<string | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
+  const dragCounterRef = useRef(0)
 
   const fetchAssets = useCallback(
     async (cursor?: string) => {
+      abortRef.current?.abort()
+      const controller = new AbortController()
+      abortRef.current = controller
+
       dispatch({ type: 'SET_LOADING', loading: true })
 
       const result = await listMediaAssetsWithUsageAction({
@@ -61,6 +67,8 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
         cursor,
         limit: 24,
       })
+
+      if (controller.signal.aborted) return
 
       if (result.ok) {
         const enriched: EnrichedMediaAsset[] = result.assets.map((a) => ({
@@ -214,7 +222,7 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
     } finally {
       setIsDeleting(false)
     }
-  }, [deleteModal, fetchAssets])
+  }, [deleteModal, fetchAssets, t])
 
   const handleBulkDelete = useCallback(() => {
     setDeleteModal({ ids: [...state.checked], usageCount: 0 })
@@ -304,14 +312,29 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
   }, [state.lightboxId, state.selectedId, state.search, state.checked.size, state.view, state.cols, handleBulkDelete, focusedIndex, filteredItems])
 
   useEffect(() => {
-    const handleDragOver = (e: DragEvent) => { e.preventDefault(); setIsDragging(true) }
-    const handleDragLeave = () => setIsDragging(false)
-    const handleDrop = (e: DragEvent) => { e.preventDefault(); setIsDragging(false); setShowUpload(true) }
+    const handleDragEnter = (e: DragEvent) => {
+      e.preventDefault()
+      dragCounterRef.current++
+      setIsDragging(true)
+    }
+    const handleDragOver = (e: DragEvent) => { e.preventDefault() }
+    const handleDragLeave = () => {
+      dragCounterRef.current--
+      if (dragCounterRef.current === 0) setIsDragging(false)
+    }
+    const handleDrop = (e: DragEvent) => {
+      e.preventDefault()
+      dragCounterRef.current = 0
+      setIsDragging(false)
+      setShowUpload(true)
+    }
 
+    document.addEventListener('dragenter', handleDragEnter)
     document.addEventListener('dragover', handleDragOver)
     document.addEventListener('dragleave', handleDragLeave)
     document.addEventListener('drop', handleDrop)
     return () => {
+      document.removeEventListener('dragenter', handleDragEnter)
       document.removeEventListener('dragover', handleDragOver)
       document.removeEventListener('dragleave', handleDragLeave)
       document.removeEventListener('drop', handleDrop)
@@ -408,6 +431,12 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
             onSelect={handleSelect}
             onCheck={handleCheck}
           />
+        )}
+
+        {state.isLoading && items.length > 0 && (
+          <div className="flex justify-center py-4">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-cms-border border-t-cms-accent" />
+          </div>
         )}
 
         {nextCursor && !state.isLoading && (
