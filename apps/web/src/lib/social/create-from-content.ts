@@ -11,6 +11,7 @@ import type {
 import { CONTENT_FORMAT_MAP } from './types'
 import { extractContentMetadata } from './content-metadata'
 import { createInitialPipelineSteps } from './pipeline'
+import { ensureTrackedLink } from '@/lib/links/auto-link'
 
 interface CreateParams {
   supabase: SupabaseClient
@@ -64,34 +65,18 @@ export async function createSocialPostFromContent(
     )
   }
 
-  // Create tracked link
-  const shortCode = generateShortCode()
-  const { data: linkData, error: linkError } = await supabase
-    .from('tracked_links')
-    .insert({
-      site_id: siteId,
-      destination_url: metadata.url,
-      code: shortCode,
-      title: metadata.title,
-      redirect_type: 301,
-      source_type: 'social',
-      source_id: contentId,
-      utm_medium: 'social',
-      utm_campaign: `${contentType}-${contentId}`,
-      active: true,
-    })
-    .select('id, code')
-    .single()
-
+  // Create tracked link (generic — works for blog, newsletter, campaign, etc.)
   let shortLinkId: string | null = null
-  if (linkError || !linkData) {
-    Sentry.captureException(
-      new Error(`Failed to create tracked link: ${linkError?.message ?? 'unknown error'}`),
-      { tags: { component: 'social-pipeline', action: 'create-short-link' } },
-    )
-  } else {
-    shortLinkId = linkData.id as string
-  }
+  const linkResult = await ensureTrackedLink(
+    supabase,
+    siteId,
+    contentId,
+    contentType,
+    metadata.url,
+    metadata.title,
+    `${contentType}-${contentId}`,
+  )
+  if (linkResult) shortLinkId = linkResult.linkId
 
   // Build social post content JSONB
   const postContent = {
@@ -235,10 +220,3 @@ export async function createSocialPostFromContent(
   return { postId, shortLinkId }
 }
 
-function generateShortCode(length = 7): string {
-  const alphabet =
-    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
-  const bytes = new Uint8Array(length)
-  crypto.getRandomValues(bytes)
-  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join('')
-}

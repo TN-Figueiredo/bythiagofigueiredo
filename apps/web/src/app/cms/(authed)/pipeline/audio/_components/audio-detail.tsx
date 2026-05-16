@@ -75,9 +75,9 @@ export function AudioDetail({ assetId, onClose }: AudioDetailProps) {
       </Section>
 
       {/* Metadata */}
-      {(asset.metadata?.mix_notes || asset.metadata?.pairs_well_with || asset.metadata?.avoid_with) && (
+      {Boolean(asset.metadata?.mix_notes || asset.metadata?.pairs_well_with || asset.metadata?.avoid_with) && (
         <Section title="Notes">
-          {asset.metadata.mix_notes && <Row label="Mix Notes" value={String(asset.metadata.mix_notes)} />}
+          {typeof asset.metadata.mix_notes === 'string' && <Row label="Mix Notes" value={asset.metadata.mix_notes} />}
           {Array.isArray(asset.metadata.pairs_well_with) && (asset.metadata.pairs_well_with as string[]).length > 0 && (
             <Row label="Pairs with" value={(asset.metadata.pairs_well_with as string[]).join(', ')} />
           )}

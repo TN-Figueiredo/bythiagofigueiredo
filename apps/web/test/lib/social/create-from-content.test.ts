@@ -10,6 +10,7 @@ const mockPostUpdate = vi.fn()
 const mockPostSelect = vi.fn()
 const mockDeliveryInsert = vi.fn()
 const mockLinkInsert = vi.fn()
+const mockTrackedLinkLookup = vi.fn()
 const mockConnectionSelect = vi.fn()
 const mockMaybeSingle = vi.fn()
 
@@ -40,6 +41,17 @@ function buildSupabaseMock() {
       if (table === 'tracked_links') {
         return {
           insert: mockLinkInsert,
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                eq: () => ({
+                  eq: () => ({
+                    maybeSingle: mockTrackedLinkLookup,
+                  }),
+                }),
+              }),
+            }),
+          }),
         }
       }
       if (table === 'social_connections') {
@@ -83,6 +95,13 @@ vi.mock('@sentry/nextjs', () => ({
   captureException: vi.fn(),
 }))
 
+// Mock auto-link module
+const mockEnsureTrackedLink = vi.fn()
+vi.mock('@/lib/links/auto-link', () => ({
+  ensureTrackedLink: (...args: unknown[]) => mockEnsureTrackedLink(...args),
+  generateShortCode: vi.fn().mockReturnValue('AbCdEfG'),
+}))
+
 // Mock fetch for fire-and-forget pipeline trigger
 globalThis.fetch = vi.fn().mockResolvedValue({ ok: true })
 
@@ -120,15 +139,8 @@ describe('createSocialPostFromContent', () => {
     // No existing post (fresh create)
     mockMaybeSingle.mockResolvedValue({ data: null, error: null })
 
-    // Link insert succeeds
-    mockLinkInsert.mockReturnValue({
-      select: () => ({
-        single: vi.fn().mockResolvedValue({
-          data: { id: 'link-1', code: 'ai-empire' },
-          error: null,
-        }),
-      }),
-    })
+    // ensureTrackedLink succeeds (used for all content types)
+    mockEnsureTrackedLink.mockResolvedValue({ linkId: 'link-1', code: 'ai-empire', isNew: true })
 
     // Post insert succeeds
     mockPostInsert.mockReturnValue({
@@ -178,7 +190,7 @@ describe('createSocialPostFromContent', () => {
 
     expect(result.postId).toBe('post-1')
     expect(result.shortLinkId).toBe('link-1')
-    expect(mockLinkInsert).toHaveBeenCalled()
+    expect(mockEnsureTrackedLink).toHaveBeenCalled()
     expect(mockPostInsert).toHaveBeenCalled()
   })
 
@@ -323,15 +335,8 @@ describe('createSocialPostFromContent', () => {
     expect(mockDeliveryInsert).not.toHaveBeenCalled()
   })
 
-  it('continues with null shortLinkId when tracked link insert fails', async () => {
-    mockLinkInsert.mockReturnValue({
-      select: () => ({
-        single: vi.fn().mockResolvedValue({
-          data: null,
-          error: { message: 'duplicate key value violates unique constraint' },
-        }),
-      }),
-    })
+  it('continues with null shortLinkId when ensureTrackedLink fails', async () => {
+    mockEnsureTrackedLink.mockResolvedValue(null)
 
     const { createSocialPostFromContent } = await import(
       '@/lib/social/create-from-content'

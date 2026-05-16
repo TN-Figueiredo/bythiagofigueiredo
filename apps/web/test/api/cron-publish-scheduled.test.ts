@@ -4,6 +4,15 @@ vi.mock('../../lib/supabase/service', () => ({
   getSupabaseServiceClient: vi.fn(),
 }));
 
+vi.mock('@sentry/nextjs', () => ({
+  captureException: vi.fn(),
+  captureMessage: vi.fn(),
+}));
+
+vi.mock('@/lib/social/create-from-content', () => ({
+  createSocialPostFromContent: vi.fn().mockResolvedValue({ postId: 'sp-1', shortLinkId: null }),
+}));
+
 import { POST } from '../../src/app/api/cron/publish-scheduled/route';
 import { getSupabaseServiceClient } from '../../lib/supabase/service';
 import { setLogger, resetLogger } from '../../lib/logger';
@@ -79,6 +88,52 @@ describe('POST /api/cron/publish-scheduled', () => {
     expect(c._cronInsert).toHaveBeenCalledWith(expect.objectContaining({
       job: 'publish-scheduled', status: 'error',
     }));
+  });
+});
+
+describe('POST /api/cron/publish-scheduled — social trigger', () => {
+  it('triggers social post creation only for posts with social_config.enabled', async () => {
+    const { createSocialPostFromContent } = await import('@/lib/social/create-from-content');
+    const postsWithSocial = [
+      {
+        id: 'p1',
+        site_id: 'site-1',
+        social_config: {
+          enabled: true,
+          platforms: ['facebook'],
+          captions: {},
+          hashtags: [],
+          image_source: 'cover_image',
+          ig_template: 'card',
+          formats: {},
+        },
+      },
+      { id: 'p2', site_id: 'site-1', social_config: null },
+      { id: 'p3', site_id: 'site-1', social_config: { enabled: false, platforms: [], captions: {}, hashtags: [], image_source: 'cover_image', ig_template: 'card', formats: {} } },
+    ];
+    const c = fakeClient(postsWithSocial, []);
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(c as never);
+
+    const req = new Request('http://x/api/cron/publish-scheduled', {
+      method: 'POST', headers: { authorization: 'Bearer topsecret' },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+
+    // Let fire-and-forget dynamic import + .then() resolve
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Only p1 has social_config.enabled = true
+    expect(createSocialPostFromContent).toHaveBeenCalledTimes(1);
+    expect(createSocialPostFromContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        siteId: 'site-1',
+        contentType: 'blog',
+        contentId: 'p1',
+        origin: 'auto',
+        userId: 'system',
+      }),
+    );
   });
 });
 

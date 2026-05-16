@@ -132,6 +132,21 @@ vi.mock('@/lib/seo/cache-invalidation', () => ({
   revalidateSiteBranding: vi.fn(),
 }))
 
+vi.mock('@/lib/links/auto-link', () => ({
+  ensureTrackedLink: vi.fn().mockResolvedValue({ linkId: 'link-1', code: 'abc1234', isNew: true }),
+  deactivateSourceLinks: vi.fn().mockResolvedValue(0),
+  reactivateSourceLinks: vi.fn().mockResolvedValue(0),
+  generateShortCode: vi.fn().mockReturnValue('abc1234'),
+}))
+
+vi.mock('@/lib/pipeline/blog-sync', () => ({
+  syncPipelineOnPostStatusChange: vi.fn().mockResolvedValue(undefined),
+}))
+
+vi.mock('@/lib/social/create-from-content', () => ({
+  createSocialPostFromContent: vi.fn().mockResolvedValue({ ok: true }),
+}))
+
 import {
   createPost,
   movePost,

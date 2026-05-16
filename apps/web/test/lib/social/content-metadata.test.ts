@@ -38,13 +38,15 @@ describe('extractContentMetadata', () => {
     )
     const supabase = createMockSupabase({
       blog_posts: {
-        id: 'bp-1',
-        title: 'AI Empire: O Que Vem Por Ai',
-        slug: 'ai-empire',
         locale: 'pt',
         cover_image_url: 'https://cdn.example.com/cover.jpg',
-        excerpt: 'O futuro da inteligencia artificial...',
-        tags: ['AI', 'BuildInPublic'],
+        blog_translations: [
+          {
+            title: 'AI Empire: O Que Vem Por Ai',
+            slug: 'ai-empire',
+            excerpt: 'O futuro da inteligencia artificial...',
+          },
+        ],
       },
     })
 
@@ -59,7 +61,7 @@ describe('extractContentMetadata', () => {
     expect(meta.url).toBe('https://bythiagofigueiredo.com/pt/blog/ai-empire')
     expect(meta.image).toBe('https://cdn.example.com/cover.jpg')
     expect(meta.excerpt).toBe('O futuro da inteligencia artificial...')
-    expect(meta.tags).toEqual(['AI', 'BuildInPublic'])
+    expect(meta.tags).toEqual([])
     expect(meta.locale).toBe('pt')
   })
 

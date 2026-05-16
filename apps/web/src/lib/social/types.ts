@@ -6,6 +6,8 @@
 // SocialPost/SocialDelivery DB row types from the package.
 
 import type { Provider } from '@tn-figueiredo/social'
+import type { z } from 'zod'
+import type { socialConfigSchema } from './schemas'
 
 // ---------------------------------------------------------------------------
 // Content type & origin
@@ -46,15 +48,7 @@ export interface PipelineStep {
 // Social config (stored in blog_posts.social_config, etc.)
 // ---------------------------------------------------------------------------
 
-export interface SocialConfig {
-  enabled: boolean
-  platforms: Provider[]
-  captions: Partial<Record<Provider, Partial<Record<'pt' | 'en', string>>>>
-  hashtags: string[]
-  image_source: 'og_image' | 'cover_image' | 'custom'
-  ig_template: 'minimal' | 'card' | 'bold'
-  formats: Partial<Record<Provider, DeliveryFormat>>
-}
+export type SocialConfig = z.infer<typeof socialConfigSchema>
 
 // ---------------------------------------------------------------------------
 // Content metadata (extracted from CMS content for social post creation)

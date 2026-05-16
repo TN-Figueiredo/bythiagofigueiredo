@@ -7,7 +7,12 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { revalidateBlogPostSeo } from '@/lib/seo/cache-invalidation'
 import { syncPipelineOnPostStatusChange } from '@/lib/pipeline/blog-sync'
+import { socialConfigSchema } from '@/lib/social/schemas'
 import type { SocialConfig } from '@/lib/social/types'
+import { ensureTrackedLink, deactivateSourceLinks } from '@/lib/links/auto-link'
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://bythiagofigueiredo.com'
+
 
 type ActionResult<T = void> = { ok: true; data?: T } | { ok: false; error: string }
 
@@ -38,15 +43,6 @@ const publishSettingsSchema = z.object({
 
 const scheduledAtSchema = z.string().datetime()
 
-const socialConfigSchema = z.object({
-  enabled: z.boolean(),
-  platforms: z.array(z.enum(['youtube', 'facebook', 'instagram', 'bluesky'])),
-  captions: z.record(z.string(), z.record(z.string(), z.string())).default({}),
-  hashtags: z.array(z.string()).default([]),
-  image_source: z.enum(['og_image', 'cover_image', 'custom']).default('cover_image'),
-  ig_template: z.enum(['minimal', 'card', 'bold']).default('card'),
-  formats: z.record(z.string(), z.string()).default({}),
-})
 
 async function requireEditScope(siteId: string): Promise<void> {
   const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
@@ -309,20 +305,29 @@ export async function publishPost(
   if (fetchError || !post) return { ok: false, error: 'Post not found' }
   if (post.status === 'published') return { ok: false, error: 'Post already published' }
 
-  const { error } = await svc
+  const { data: updated, error } = await svc
     .from('blog_posts')
     .update({ status: 'published', published_at: new Date().toISOString() })
     .eq('id', postId)
     .eq('site_id', siteId)
+    .eq('status', post.status as string)
+    .select('id')
 
   if (error) {
     console.error('[posts] publishPost', error)
     return { ok: false, error: 'Erro ao publicar' }
   }
+  if (!updated || updated.length === 0) return { ok: false, error: 'conflict' }
 
   const translations = (post as { blog_translations: Array<{ locale: string; slug: string }> }).blog_translations ?? []
   for (const tx of translations) {
     revalidateBlogPostSeo(siteId, postId, tx.locale, tx.slug)
+  }
+
+  // Create tracked link for the published post (idempotent)
+  const primaryTx = translations[0]
+  if (primaryTx) {
+    ensureTrackedLink(svc, siteId, postId, 'blog', `${APP_URL}/${primaryTx.locale}/blog/${primaryTx.slug}`, primaryTx.slug).catch(err => console.error('[posts] ensureTrackedLink', err))
   }
 
   syncPipelineOnPostStatusChange(postId, 'published', post.status).catch(err => console.error('[posts]', err))
@@ -382,6 +387,9 @@ export async function returnToPipeline(
     console.error('[posts] returnToPipeline archive', archiveErr)
     return { ok: false, error: 'Erro ao retornar ao pipeline' }
   }
+
+  // Deactivate tracked links on archive
+  deactivateSourceLinks(svc, postId, 'blog').catch(err => console.error('[posts] deactivateSourceLinks', err))
 
   // Step 2: restore pipeline
   const { error: pipelineErr } = await svc

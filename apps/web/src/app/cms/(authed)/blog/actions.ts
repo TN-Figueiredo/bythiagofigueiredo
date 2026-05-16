@@ -11,6 +11,12 @@ import { revalidateBlogPostSeo } from '@/lib/seo/cache-invalidation'
 import { isValidTransition } from './_hub/hub-utils'
 import { syncPipelineOnPostStatusChange } from '@/lib/pipeline/blog-sync'
 import { prepareBlogTranslationPatch, type BlogContentPatch } from '@/lib/pipeline/draft-to-blog'
+import { ensureTrackedLink, deactivateSourceLinks } from '@/lib/links/auto-link'
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://bythiagofigueiredo.com'
+import { socialConfigSchema } from '@/lib/social/schemas'
+
+import type { SocialConfig } from '@/lib/social/types'
 
 async function requireEditScope(siteId: string): Promise<void> {
   const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
@@ -46,6 +52,11 @@ export async function bulkPublish(
     for (const tx of translations) {
       revalidateBlogPostSeo(siteId, post.id, tx.locale, tx.slug)
     }
+    // Create tracked link (idempotent)
+    const primaryTx = translations[0]
+    if (primaryTx) {
+      ensureTrackedLink(supabase, siteId, post.id, 'blog', `${APP_URL}/${primaryTx.locale}/blog/${primaryTx.slug}`, primaryTx.slug).catch(() => {})
+    }
   }
 
   revalidatePath('/cms/blog')
@@ -58,11 +69,11 @@ export async function bulkPublish(
     if (p.social_config?.enabled) {
       import('@/lib/social/create-from-content').then(({ createSocialPostFromContent }) =>
         createSocialPostFromContent({
-          supabase: getSupabaseServiceClient(),
+          supabase,
           siteId,
           contentType: 'blog',
           contentId: p.id,
-          config: p.social_config as unknown as import('@/lib/social/types').SocialConfig,
+          config: p.social_config as unknown as SocialConfig,
           origin: 'auto',
           userId: 'system',
         }).catch(() => {}),
@@ -99,6 +110,8 @@ export async function bulkArchive(
     for (const tx of translations) {
       revalidateBlogPostSeo(siteId, post.id, tx.locale, tx.slug)
     }
+    // Deactivate tracked links on archive
+    deactivateSourceLinks(supabase, post.id, 'blog').catch(() => {})
   }
 
   revalidatePath('/cms/blog')
@@ -309,7 +322,7 @@ export async function movePost(
 
   const { data: current, error: fetchError } = await supabase
     .from('blog_posts')
-    .select('id, status, site_id, tag_id, blog_translations(locale, slug)')
+    .select('id, status, site_id, tag_id, social_config, blog_translations(locale, slug)')
     .eq('id', postId)
     .eq('site_id', siteId)
     .single()
@@ -350,6 +363,32 @@ export async function movePost(
   const translations = (current as { id: string; status: string; site_id: string; blog_translations: Array<{ locale: string; slug: string }> }).blog_translations ?? []
   for (const tx of translations) {
     revalidateBlogPostSeo(siteId, postId, tx.locale, tx.slug)
+  }
+
+  // Link lifecycle: create on publish, deactivate on archive
+  if (newStatus === 'published') {
+    const primaryTx = translations[0]
+    if (primaryTx) {
+      ensureTrackedLink(supabase, siteId, postId, 'blog', `${APP_URL}/${primaryTx.locale}/blog/${primaryTx.slug}`, primaryTx.slug).catch(() => {})
+    }
+    // Social auto-share: fire-and-forget
+    const rawSocialConfig = (current as { social_config?: unknown }).social_config
+    const parsedSocialConfig = socialConfigSchema.safeParse(rawSocialConfig)
+    if (parsedSocialConfig.success && parsedSocialConfig.data.enabled) {
+      import('@/lib/social/create-from-content').then(({ createSocialPostFromContent }) =>
+        createSocialPostFromContent({
+          supabase,
+          siteId,
+          contentType: 'blog',
+          contentId: postId,
+          config: parsedSocialConfig.data as SocialConfig,
+          origin: 'auto',
+          userId: 'system',
+        }).catch(err => console.error('[blog] movePost social', err)),
+      )
+    }
+  } else if (newStatus === 'archived') {
+    deactivateSourceLinks(supabase, postId, 'blog').catch(() => {})
   }
 
   revalidateBlogHub(siteId)

@@ -33,7 +33,7 @@ async function extractBlogMetadata(
 ): Promise<ContentMetadata> {
   const { data, error } = await supabase
     .from('blog_posts')
-    .select('title, slug, locale, cover_image_url, excerpt, tags')
+    .select('locale, cover_image_url, blog_translations(title, slug, excerpt)')
     .eq('id', contentId)
     .eq('site_id', siteId)
     .single()
@@ -42,13 +42,19 @@ async function extractBlogMetadata(
     throw new Error(`Blog post not found: ${contentId}`)
   }
 
+  const translations = (data as { locale: string; cover_image_url: string | null; blog_translations: Array<{ title: string; slug: string; excerpt: string | null }> }).blog_translations ?? []
+  const tx = translations[0]
+  if (!tx) {
+    throw new Error(`Blog post has no translations: ${contentId}`)
+  }
+
   const locale = (data.locale as string) || 'pt'
   return {
-    title: data.title as string,
-    url: `${APP_URL}/${locale}/blog/${data.slug as string}`,
+    title: tx.title,
+    url: `${APP_URL}/${locale}/blog/${tx.slug}`,
     image: (data.cover_image_url as string) ?? null,
-    excerpt: (data.excerpt as string) ?? null,
-    tags: (data.tags as string[]) ?? [],
+    excerpt: tx.excerpt ?? null,
+    tags: [],
     locale,
   }
 }

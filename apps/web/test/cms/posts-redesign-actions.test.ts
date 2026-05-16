@@ -37,6 +37,12 @@ vi.mock('@/lib/pipeline/blog-sync', () => ({
   syncPipelineOnPostStatusChange: (...args: unknown[]) => syncPipelineMock(...args),
 }))
 
+vi.mock('@/lib/links/auto-link', () => ({
+  ensureTrackedLink: vi.fn().mockResolvedValue({ linkId: 'link-1', code: 'abc1234', isNew: true }),
+  deactivateSourceLinks: vi.fn().mockResolvedValue(0),
+  reactivateSourceLinks: vi.fn().mockResolvedValue(0),
+}))
+
 // Supabase chainable mock — built per-test via setupChain()
 const fromMock = vi.fn()
 const updateMock = vi.fn()
@@ -99,6 +105,7 @@ function makeChain(result: { data: unknown; error: unknown }) {
   const chain: Record<string, unknown> = {}
   chain.eq = vi.fn().mockReturnThis()
   chain.in = vi.fn().mockReturnThis()
+  chain.select = vi.fn().mockResolvedValue(result)
   chain.single = vi.fn().mockResolvedValue(result)
   chain.maybeSingle = vi.fn().mockResolvedValue(result)
   // Make the chain itself awaitable (terminal)
@@ -607,7 +614,7 @@ describe('publishPost', () => {
   })
 
   it('publishes post, revalidates SEO, and triggers pipeline sync', async () => {
-    const updateChain = makeChain({ data: null, error: null })
+    const updateChain = makeChain({ data: [{ id: VALID_UUID }], error: null })
     const updateFn = vi.fn().mockReturnValue(updateChain)
 
     buildFromMock({
@@ -662,7 +669,7 @@ describe('publishPost', () => {
   })
 
   it('triggers social post creation when social_config is enabled', async () => {
-    const updateChain = makeChain({ data: null, error: null })
+    const updateChain = makeChain({ data: [{ id: VALID_UUID }], error: null })
     const updateFn = vi.fn().mockReturnValue(updateChain)
 
     buildFromMock({
