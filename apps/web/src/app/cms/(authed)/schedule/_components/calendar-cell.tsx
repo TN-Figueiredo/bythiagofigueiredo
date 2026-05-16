@@ -66,30 +66,35 @@ export function CalendarCell({
     (slot) => !items.some((i) => i.type === slot.type),
   )
 
+  const itemCount = items.length
+  const [, mm, dd] = dateKey.split('-')
+  const ariaLabel = `${parseInt(dd!, 10)} de ${mm}, ${itemCount} ${itemCount === 1 ? 'item' : 'itens'}`
+
   return (
     <div
       className={`relative min-h-[90px] p-1.5 transition-colors ${
         !isCurrentMonth
-          ? 'bg-slate-900/50'
+          ? 'bg-[var(--bg-0)]/50'
           : isToday
-            ? 'bg-sky-950/40 ring-1 ring-inset ring-sky-500/30'
+            ? 'bg-[color-mix(in_srgb,var(--acc)_15%,transparent)] ring-1 ring-inset ring-[var(--acc)]/30'
             : isThisWeek
-              ? 'shadow-[inset_0_0_0_1px_rgba(99,102,241,0.20)] bg-[#0f172a]'
-              : 'bg-[#0f172a]'
+              ? 'shadow-[inset_0_0_0_1px_rgba(99,102,241,0.20)] bg-[var(--bg-0)]'
+              : 'bg-[var(--bg-0)]'
       }`}
       data-testid={`cell-${dateKey}`}
+      aria-label={ariaLabel}
     >
       {/* Day number */}
       <div className="mb-1 flex items-center justify-between">
         <span
           className={`text-[11px] font-medium ${
             !isCurrentMonth
-              ? 'text-slate-700'
+              ? 'text-[var(--t5)]'
               : isToday
                 ? 'text-sky-300'
                 : isPast
-                  ? 'text-slate-600'
-                  : 'text-slate-400'
+                  ? 'text-[var(--t5)]'
+                  : 'text-[var(--t3)]'
           }`}
         >
           {dayNumber}
@@ -102,7 +107,7 @@ export function CalendarCell({
           <ScheduleItem key={item.id} item={item} colIndex={colIndex} />
         ))}
         {overflow > 0 && (
-          <span className="block text-[9px] text-slate-500">
+          <span className="block text-[9px] text-[var(--t3)]">
             +{overflow} more
           </span>
         )}
@@ -115,7 +120,7 @@ export function CalendarCell({
 
       {/* Today progress bar */}
       {isToday && todayProgress !== undefined && (
-        <div className="absolute inset-x-0 bottom-0 h-0.5 bg-slate-800">
+        <div className="absolute inset-x-0 bottom-0 h-0.5 bg-[var(--bg-2)]">
           <div
             className="h-full bg-sky-500/60 transition-all"
             style={{ width: `${todayProgress}%` }}

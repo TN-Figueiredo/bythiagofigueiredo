@@ -33,22 +33,22 @@ async function ScheduleData({
 
 function ScheduleSkeleton() {
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-[#0f172a] p-4 md:p-6">
+    <div className="min-h-[calc(100vh-4rem)] bg-[var(--bg-0)] p-4 md:p-6">
       {/* Nav skeleton */}
       <div className="mb-4 flex items-center gap-3">
         <div className="flex gap-1">
-          <div className="h-8 w-8 animate-pulse rounded bg-slate-700" />
-          <div className="h-8 w-16 animate-pulse rounded bg-slate-700" />
-          <div className="h-8 w-8 animate-pulse rounded bg-slate-700" />
+          <div className="h-8 w-8 animate-pulse rounded bg-[var(--bg-3)]" />
+          <div className="h-8 w-16 animate-pulse rounded bg-[var(--bg-3)]" />
+          <div className="h-8 w-8 animate-pulse rounded bg-[var(--bg-3)]" />
         </div>
-        <div className="h-5 w-32 animate-pulse rounded bg-slate-700" />
+        <div className="h-5 w-32 animate-pulse rounded bg-[var(--bg-3)]" />
       </div>
       {/* Metrics skeleton */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <div
             key={i}
-            className="h-16 animate-pulse rounded-lg bg-slate-800"
+            className="h-16 animate-pulse rounded-lg bg-[var(--bg-2)]"
           />
         ))}
       </div>
@@ -58,15 +58,15 @@ function ScheduleSkeleton() {
           {Array.from({ length: 7 }).map((_, i) => (
             <div
               key={i}
-              className="h-5 animate-pulse rounded bg-slate-800"
+              className="h-5 animate-pulse rounded bg-[var(--bg-2)]"
             />
           ))}
         </div>
-        <div className="grid grid-cols-7 gap-px rounded-lg border border-slate-700/50 bg-slate-700/50">
+        <div className="grid grid-cols-7 gap-px rounded-lg border border-[var(--bdr-1)]/50 bg-[var(--bdr-1)]/50">
           {Array.from({ length: 42 }).map((_, i) => (
             <div
               key={i}
-              className="h-[90px] animate-pulse bg-slate-800/50"
+              className="h-[90px] animate-pulse bg-[var(--bg-2)]/50"
             />
           ))}
         </div>

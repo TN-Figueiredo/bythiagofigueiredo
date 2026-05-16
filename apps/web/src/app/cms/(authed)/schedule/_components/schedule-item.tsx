@@ -3,43 +3,15 @@
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import type { CalendarItem } from '@/lib/schedule/schedule-queries'
+import { TYPE_COLORS, TYPE_LABELS } from './schedule-constants'
 
 /* ------------------------------------------------------------------ */
-/*  Color + status styling                                            */
+/*  Status styling helpers                                            */
 /* ------------------------------------------------------------------ */
-
-const TYPE_COLORS: Record<string, string> = {
-  blog: '#34d399',
-  newsletter: '#a78bfa',
-  video: '#fb7185',
-}
-
-const TYPE_LABELS: Record<string, string> = {
-  blog: 'Blog',
-  newsletter: 'Newsletter',
-  video: 'Video',
-}
-
-function getStatusClasses(item: CalendarItem): string {
-  const color = TYPE_COLORS[item.type] ?? '#94a3b8'
-
-  switch (item.status) {
-    case 'published':
-      return `bg-[${color}]/12 border-l-0`
-    case 'scheduled':
-      return `border-l-[3px]`
-    case 'queued':
-      return `border-l-[3px] border-dashed`
-    case 'overdue':
-      return `border-l-[3px]`
-    default:
-      return ''
-  }
-}
 
 function getStatusBorderColor(item: CalendarItem): string {
   if (item.status === 'overdue') return '#ef4444'
-  return TYPE_COLORS[item.type] ?? '#94a3b8'
+  return TYPE_COLORS[item.type] ?? 'var(--t3)'
 }
 
 /* ------------------------------------------------------------------ */
@@ -55,12 +27,13 @@ function Tooltip({
 }) {
   return (
     <div
-      className={`absolute top-full z-50 mt-1 w-48 rounded-md border border-slate-600 bg-slate-800 p-2.5 shadow-xl ${
+      role="tooltip"
+      className={`absolute top-full z-50 mt-1 w-48 rounded-md border border-[var(--bdr-2)] bg-[var(--bg-2)] p-2.5 shadow-xl ${
         flipRight ? 'left-0' : 'right-0'
       }`}
       data-testid="schedule-tooltip"
     >
-      <p className="truncate text-xs font-medium text-slate-100">
+      <p className="truncate text-xs font-medium text-[var(--t1)]">
         {item.title}
       </p>
       <div className="mt-1.5 flex items-center gap-2">
@@ -68,16 +41,16 @@ function Tooltip({
           className="inline-block h-2 w-2 rounded-full"
           style={{ backgroundColor: TYPE_COLORS[item.type] }}
         />
-        <span className="text-[10px] text-slate-400">
+        <span className="text-[10px] text-[var(--t3)]">
           {TYPE_LABELS[item.type]}
         </span>
       </div>
       {item.time && (
-        <p className="mt-1 text-[10px] text-slate-500">
+        <p className="mt-1 text-[10px] text-[var(--t5)]">
           {item.time}
         </p>
       )}
-      <p className="mt-1 text-[10px] capitalize text-slate-500">
+      <p className="mt-1 text-[10px] capitalize text-[var(--t5)]">
         {item.status}
       </p>
     </div>
@@ -110,7 +83,7 @@ export function ScheduleItem({ item, colIndex = 0 }: ScheduleItemProps) {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [showTooltip])
 
-  const color = TYPE_COLORS[item.type] ?? '#94a3b8'
+  const color = TYPE_COLORS[item.type] ?? 'var(--t3)'
   const borderColor = getStatusBorderColor(item)
 
   const bgOpacity = item.status === 'published' ? '0.12' : '0.06'
@@ -119,8 +92,11 @@ export function ScheduleItem({ item, colIndex = 0 }: ScheduleItemProps) {
     <div
       ref={ref}
       className="group relative"
+      tabIndex={0}
       onMouseEnter={() => setShowTooltip(true)}
       onMouseLeave={() => setShowTooltip(false)}
+      onFocus={() => setShowTooltip(true)}
+      onBlur={() => setShowTooltip(false)}
       data-testid={`schedule-item-${item.id}`}
     >
       <Link

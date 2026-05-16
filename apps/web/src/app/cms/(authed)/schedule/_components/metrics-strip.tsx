@@ -16,13 +16,13 @@ function StatCard({
   isAlert?: boolean
 }) {
   return (
-    <div className="rounded-lg border border-slate-700/50 bg-slate-800/50 px-4 py-3">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+    <div className="rounded-lg border border-[var(--bdr-1)]/50 bg-[var(--bg-2)]/50 px-4 py-3">
+      <p className="text-[11px] font-medium uppercase tracking-wide text-[var(--t3)]">
         {label}
       </p>
       <p
         className={`mt-1 text-lg font-semibold ${
-          isAlert ? 'text-red-400' : 'text-slate-100'
+          isAlert ? 'text-red-400' : 'text-[var(--t1)]'
         }`}
         data-testid={`metric-${label.toLowerCase().replace(/\s+/g, '-')}`}
       >

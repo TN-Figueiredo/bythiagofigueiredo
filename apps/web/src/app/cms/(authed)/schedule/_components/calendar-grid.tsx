@@ -95,7 +95,7 @@ export function CalendarGrid({
         {WEEKDAY_HEADERS.map((label) => (
           <div
             key={label}
-            className="py-1.5 text-center text-[11px] font-medium uppercase tracking-wider text-slate-600"
+            className="py-1.5 text-center text-[11px] font-medium uppercase tracking-wider text-[var(--t5)]"
           >
             {label}
           </div>
@@ -103,7 +103,7 @@ export function CalendarGrid({
       </div>
 
       {/* Day grid */}
-      <div className="grid grid-cols-7 gap-px rounded-lg border border-slate-700/50 bg-slate-700/50 overflow-hidden">
+      <div className="grid grid-cols-7 gap-px rounded-lg border border-[var(--bdr-1)]/50 bg-[var(--bdr-1)]/50 overflow-hidden">
         {days.map((dateKey, i) => {
           const dayNum = parseInt(dateKey.split('-')[2]!, 10)
           const colIndex = i % 7

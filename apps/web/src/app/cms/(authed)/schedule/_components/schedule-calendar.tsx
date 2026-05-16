@@ -54,7 +54,7 @@ export function ScheduleCalendar({ data }: ScheduleCalendarProps) {
   const goNext = () => navigateToMonth(shiftMonth(data.month, 1))
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-[#0f172a] p-4 md:p-6">
+    <div className="min-h-[calc(100vh-4rem)] bg-[var(--bg-0)] p-4 md:p-6">
       {/* Header: navigation + month label */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -62,7 +62,7 @@ export function ScheduleCalendar({ data }: ScheduleCalendarProps) {
             <button
               type="button"
               onClick={goPrev}
-              className="rounded-md border border-slate-700 p-1.5 text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+              className="rounded-md border border-[var(--bdr-1)] p-1.5 text-[var(--t3)] hover:bg-[var(--bg-2)] hover:text-[var(--t1)]"
               aria-label="Previous month"
               data-testid="prev-month"
             >
@@ -82,7 +82,7 @@ export function ScheduleCalendar({ data }: ScheduleCalendarProps) {
             <button
               type="button"
               onClick={goToday}
-              className="rounded-md border border-slate-700 px-2.5 py-1 text-xs font-medium text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+              className="rounded-md border border-[var(--bdr-1)] px-2.5 py-1 text-xs font-medium text-[var(--t2)] hover:bg-[var(--bg-2)] hover:text-[var(--t1)]"
               data-testid="today-button"
             >
               Today
@@ -90,7 +90,7 @@ export function ScheduleCalendar({ data }: ScheduleCalendarProps) {
             <button
               type="button"
               onClick={goNext}
-              className="rounded-md border border-slate-700 p-1.5 text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+              className="rounded-md border border-[var(--bdr-1)] p-1.5 text-[var(--t3)] hover:bg-[var(--bg-2)] hover:text-[var(--t1)]"
               aria-label="Next month"
               data-testid="next-month"
             >
@@ -108,23 +108,23 @@ export function ScheduleCalendar({ data }: ScheduleCalendarProps) {
               </svg>
             </button>
           </div>
-          <h2 className="text-sm font-semibold text-slate-200">
+          <h2 className="text-sm font-semibold text-[var(--t1)]">
             {formatMonthLabel(data.month)}
           </h2>
         </div>
 
         {/* Legend */}
-        <div className="flex items-center gap-4 text-[10px] text-slate-500">
+        <div className="flex items-center gap-4 text-[10px] text-[var(--t5)]">
           <span className="flex items-center gap-1">
-            <span className="inline-block h-2 w-2 rounded-full bg-[#34d399]" />
+            <span className="inline-block h-2 w-2 rounded-full bg-[var(--color-blog)]" />
             Blog
           </span>
           <span className="flex items-center gap-1">
-            <span className="inline-block h-2 w-2 rounded-full bg-[#a78bfa]" />
+            <span className="inline-block h-2 w-2 rounded-full bg-[var(--color-newsletter)]" />
             Newsletter
           </span>
           <span className="flex items-center gap-1">
-            <span className="inline-block h-2 w-2 rounded-full bg-[#fb7185]" />
+            <span className="inline-block h-2 w-2 rounded-full bg-[var(--color-video)]" />
             Video
           </span>
         </div>
