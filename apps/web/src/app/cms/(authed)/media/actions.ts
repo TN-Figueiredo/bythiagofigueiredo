@@ -12,9 +12,12 @@ import {
   getMediaAsset,
   getMediaStats,
   getAssetUsageCount,
+  listMediaAssetsWithUsage,
 } from '@/lib/media/queries'
-import { trackMediaUsage, removeMediaUsage } from '@/lib/media/track-usage'
+import { trackMediaUsage, removeMediaUsage, getAssetUsages } from '@/lib/media/track-usage'
 import { toMediaAsset, type MediaAsset } from '@/lib/media/types'
+import { resolveAssetType } from '@/lib/media/resolve-type'
+import type { EnrichedMediaAsset } from '../_shared/media/types'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -96,6 +99,7 @@ const UsageResourceTypes = [
   'ad_placeholder',
   'ad_slot_creative',
   'tracked_link',
+  'pipeline_item',
 ] as const
 
 // ─── 1. listMediaAssetsAction ───────────────────────────────────────────────
@@ -404,6 +408,56 @@ export async function removeMediaUsageAction(
 
     await removeMediaUsage(assetId, rtParsed.data, resourceId, fieldName)
     return { ok: true }
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { media: 'true', component: 'media-gallery' },
+    })
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'unknown_error',
+    }
+  }
+}
+
+// ─── 11. listMediaAssetsWithUsageAction ────────────────────────────────────
+
+export async function listMediaAssetsWithUsageAction(
+  filters: z.input<typeof ListFiltersSchema> = {},
+): Promise<ActionResult<{ assets: EnrichedMediaAsset[]; nextCursor: string | null }>> {
+  try {
+    const { siteId } = await requireViewScope()
+    const parsed = ListFiltersSchema.safeParse(filters)
+    if (!parsed.success) return { ok: false, error: 'validation_failed' }
+
+    const result = await listMediaAssetsWithUsage({ siteId, ...parsed.data })
+    const assets: EnrichedMediaAsset[] = result.assets.map((row) => ({
+      asset: toMediaAsset(row),
+      type: resolveAssetType(row.folder, row.usage_count, row.primary_field_name),
+      usageCount: row.usage_count,
+      primaryFieldName: row.primary_field_name,
+    }))
+    return { ok: true, assets, nextCursor: result.nextCursor }
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { media: 'true', component: 'media-gallery' },
+    })
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'unknown_error',
+    }
+  }
+}
+
+// ─── 12. getAssetUsagesAction ──────────────────────────────────────────────
+
+export async function getAssetUsagesAction(
+  assetId: string,
+): Promise<ActionResult<{ usages: Array<{ resourceType: string; resourceId: string; fieldName: string }> }>> {
+  try {
+    if (!z.string().uuid().safeParse(assetId).success) return { ok: false, error: 'invalid_id' }
+    await requireViewScope()
+    const usages = await getAssetUsages(assetId)
+    return { ok: true, usages }
   } catch (err) {
     Sentry.captureException(err, {
       tags: { media: 'true', component: 'media-gallery' },

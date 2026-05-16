@@ -17,6 +17,8 @@ export function AudioImportModal({ onClose }: AudioImportModalProps) {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const dialogRef = useRef<HTMLDivElement>(null)
+  const mountedRef = useRef(true)
+  useEffect(() => { return () => { mountedRef.current = false } }, [])
 
   useEffect(() => {
     const el = dialogRef.current
@@ -26,13 +28,14 @@ export function AudioImportModal({ onClose }: AudioImportModalProps) {
     const last = focusable[focusable.length - 1]
     first?.focus()
     function onKeydown(e: KeyboardEvent) {
+      if (e.key === 'Escape') { onClose(); return }
       if (e.key !== 'Tab') return
       if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus() }
       else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus() }
     }
     el.addEventListener('keydown', onKeydown)
     return () => el.removeEventListener('keydown', onKeydown)
-  }, [step])
+  }, [step, onClose])
 
   const handlePreview = async () => {
     setError(null)
@@ -41,17 +44,22 @@ export function AudioImportModal({ onClose }: AudioImportModalProps) {
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) { setError('JSON must be an object'); return }
 
     setLoading(true)
-    const res = await fetch('/api/pipeline/audio-library/import', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...parsed, dry_run: true }),
-    })
-    const json = await res.json()
-    setLoading(false)
-
-    if (!res.ok) { setError(json.error?.message ?? 'Import failed'); return }
-    setPreview(json.data)
-    setStep('preview')
+    try {
+      const res = await fetch('/api/pipeline/audio-library/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...parsed, dry_run: true }),
+      })
+      const json = await res.json()
+      if (!mountedRef.current) return
+      if (!res.ok) { setError(json.error?.message ?? 'Import failed'); return }
+      setPreview(json.data)
+      setStep('preview')
+    } catch {
+      if (mountedRef.current) setError('Network error — check your connection')
+    } finally {
+      if (mountedRef.current) setLoading(false)
+    }
   }
 
   const handleExecute = async () => {
@@ -59,16 +67,22 @@ export function AudioImportModal({ onClose }: AudioImportModalProps) {
     let parsed: unknown
     try { parsed = JSON.parse(jsonText) } catch { setError('Invalid JSON'); setLoading(false); setStep('input'); return }
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) { setError('JSON must be an object'); setLoading(false); setStep('input'); return }
-    const res = await fetch('/api/pipeline/audio-library/import', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...parsed, dry_run: false }),
-    })
-    const json = await res.json()
-    setLoading(false)
-    if (!res.ok) { setError(json.error?.message ?? 'Import failed'); setStep('input'); return }
-    setResult(json.data)
-    setStep('result')
+    try {
+      const res = await fetch('/api/pipeline/audio-library/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...parsed, dry_run: false }),
+      })
+      const json = await res.json()
+      if (!mountedRef.current) return
+      if (!res.ok) { setError(json.error?.message ?? 'Import failed'); setStep('input'); return }
+      setResult(json.data)
+      setStep('result')
+    } catch {
+      if (mountedRef.current) { setError('Network error — check your connection'); setStep('input') }
+    } finally {
+      if (mountedRef.current) setLoading(false)
+    }
   }
 
   return (
