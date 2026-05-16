@@ -1,0 +1,47 @@
+import { computeGaugeDasharray, computeScorePercent, getScoreColor } from './score-utils'
+
+interface ScoreGaugeProps {
+  score: number
+  max: number
+  size?: number
+}
+
+export function ScoreGauge({ score, max, size = 36 }: ScoreGaugeProps) {
+  const pct = computeScorePercent(score, max)
+  const color = getScoreColor(score, max)
+  const { filled, empty } = computeGaugeDasharray(score, max)
+  const r = 15
+  const cx = size / 2
+  const cy = size / 2
+
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="flex-shrink-0">
+      <circle
+        cx={cx} cy={cy} r={r}
+        fill="none"
+        stroke="rgba(255,255,255,0.06)"
+        strokeWidth={3}
+      />
+      <circle
+        cx={cx} cy={cy} r={r}
+        fill="none"
+        stroke={color}
+        strokeWidth={3}
+        strokeDasharray={`${filled} ${empty}`}
+        strokeDashoffset={94 / 4}
+        strokeLinecap="round"
+        transform={`rotate(-90 ${cx} ${cy})`}
+      />
+      <text
+        x={cx} y={cy}
+        textAnchor="middle"
+        dominantBaseline="central"
+        fill={color}
+        fontSize={size <= 36 ? 9 : 11}
+        fontWeight={700}
+      >
+        {pct}%
+      </text>
+    </svg>
+  )
+}

@@ -333,3 +333,10 @@ export function parseArtlistSfxRef(text: string): { name: string; url: string } 
   const search = encodeURIComponent(name).replace(/%20/g, '+')
   return { name, url: `${SFX_BASE}?search=${search}` }
 }
+
+export function buildArtlistSfxUrl(searchTerms: string): string | null {
+  const trimmed = searchTerms.trim()
+  if (!trimmed) return null
+  const encoded = encodeURIComponent(trimmed).replace(/%20/g, '+')
+  return `${SFX_BASE}?search=${encoded}`
+}
