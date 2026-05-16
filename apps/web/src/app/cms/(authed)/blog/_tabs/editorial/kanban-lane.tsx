@@ -1,6 +1,6 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import { memo, type ReactNode } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 
@@ -14,13 +14,13 @@ interface KanbanLaneProps {
   itemIds: string[]
   emptyMessage?: string
   emptyCta?: ReactNode
-  isDragOver?: boolean
   isInvalidDrop?: boolean
   footer?: ReactNode
   paginationLabel?: string
+  dropHereLabel?: string
 }
 
-export function KanbanLane({
+export const KanbanLane = memo(function KanbanLane({
   id,
   title,
   color,
@@ -33,6 +33,7 @@ export function KanbanLane({
   isInvalidDrop,
   footer,
   paginationLabel,
+  dropHereLabel,
 }: KanbanLaneProps) {
   const { setNodeRef, isOver } = useDroppable({ id, disabled: !droppable })
   const showDropZone = isOver && !isInvalidDrop
@@ -40,7 +41,7 @@ export function KanbanLane({
   return (
     <div
       ref={setNodeRef}
-      role="gridcell"
+      role="group"
       aria-label={`${title} — ${count} items`}
       className={`flex min-w-[220px] max-w-[320px] flex-1 flex-col rounded-lg border bg-gray-950 transition-all duration-200 ${
         isInvalidDrop && isOver
@@ -82,7 +83,7 @@ export function KanbanLane({
           {children}
           {showDropZone && count === 0 && (
             <div className="flex h-16 items-center justify-center rounded-lg border border-dashed border-indigo-500/30 text-[10px] text-indigo-400/60">
-              Solte aqui
+              {dropHereLabel ?? 'Drop here'}
             </div>
           )}
         </div>
@@ -95,4 +96,4 @@ export function KanbanLane({
       )}
     </div>
   )
-}
+})

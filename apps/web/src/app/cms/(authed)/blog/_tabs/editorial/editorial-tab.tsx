@@ -11,7 +11,7 @@ import { UnifiedBoard } from './unified-board'
 import { EmptyState } from '../../_shared/empty-state'
 import { SectionErrorBoundary } from '../../_shared/section-error-boundary'
 import { movePost, deleteHubPost, duplicatePost, createPostFromPipeline, returnToPipeline, bulkPublish, bulkArchive, bulkDelete } from '../../actions'
-import { movePipelineItemToStage, reorderPipelineItem } from '../../../pipeline/actions'
+import { movePipelineItemToStage } from '../../../pipeline/actions'
 
 interface EditorialTabProps {
   data: EditorialTabData
@@ -35,7 +35,6 @@ export function EditorialTab({ data, pipelineData = [], strings, siteId, tagId, 
   const allPosts = data.posts
   const allPipeline = pipelineData
 
-  // Client-side post filtering
   const tagFiltered = tagId
     ? allPosts.filter((p) => p.tagId === tagId)
     : allPosts
@@ -50,7 +49,6 @@ export function EditorialTab({ data, pipelineData = [], strings, siteId, tagId, 
       )
     : localeFiltered
 
-  // Client-side pipeline filtering
   const filteredPipeline = deferredQuery
     ? allPipeline.filter((p) => {
         const q = deferredQuery.toLowerCase()
@@ -62,7 +60,6 @@ export function EditorialTab({ data, pipelineData = [], strings, siteId, tagId, 
       })
     : allPipeline
 
-  // Build pipeline provenance map: blog_post_id → pipeline code
   const pipelineProvenanceMap = useMemo(() => {
     const map = new Map<string, string>()
     for (const item of allPipeline) {
@@ -72,8 +69,6 @@ export function EditorialTab({ data, pipelineData = [], strings, siteId, tagId, 
     }
     return map
   }, [allPipeline])
-
-  // ── Post handlers ──────────────────────────────────────────────────────────
 
   const handleMovePost = async (postId: string, newStatus: string, scheduledFor?: string) => {
     const previousStatus = allPosts.find((p) => p.id === postId)?.status
@@ -129,8 +124,6 @@ export function EditorialTab({ data, pipelineData = [], strings, siteId, tagId, 
     })
   }
 
-  // ── Pipeline handlers ──────────────────────────────────────────────────────
-
   const handleMovePipelineItem = async (id: string, version: number, stage: string) => {
     const result = await movePipelineItemToStage(id, version, stage)
     if (!result.ok) {
@@ -139,15 +132,6 @@ export function EditorialTab({ data, pipelineData = [], strings, siteId, tagId, 
       router.refresh()
     }
   }
-
-  const handleReorderPipelineItem = async (id: string, version: number, data: { stage?: string; sort_order: number }) => {
-    const result = await reorderPipelineItem(id, version, data)
-    if (!result.ok) {
-      toast.error(strings?.common.couldntMove ?? "Couldn't reorder")
-    }
-  }
-
-  // ── Promotion handlers ─────────────────────────────────────────────────────
 
   const handlePromote = async (
     sid: string,
@@ -171,13 +155,11 @@ export function EditorialTab({ data, pipelineData = [], strings, siteId, tagId, 
     }
   }
 
-  // ── Bulk handlers ──────────────────────────────────────────────────────────
-
   const handleBulkPublish = async (postIds: string[]) => {
     startTransition(async () => {
       const result = await bulkPublish(postIds)
       if (result.ok) {
-        toast.success(`${result.count} post(s) publicado(s)`)
+        toast.success(`${result.count} ${strings?.bulk?.publishAll ?? 'published'}`)
         router.refresh()
       } else {
         toast.error(strings?.common.couldntMove ?? "Couldn't publish")
@@ -189,7 +171,7 @@ export function EditorialTab({ data, pipelineData = [], strings, siteId, tagId, 
     startTransition(async () => {
       const result = await bulkArchive(postIds)
       if (result.ok) {
-        toast.success(`${result.count} post(s) arquivado(s)`)
+        toast.success(`${result.count} ${strings?.bulk?.archiveAll ?? 'archived'}`)
         router.refresh()
       } else {
         toast.error(strings?.common.couldntMove ?? "Couldn't archive")
@@ -201,7 +183,7 @@ export function EditorialTab({ data, pipelineData = [], strings, siteId, tagId, 
     startTransition(async () => {
       const result = await bulkDelete(postIds)
       if (result.ok) {
-        toast.success(`${result.count} post(s) deletado(s)`)
+        toast.success(`${result.count} ${strings?.bulk?.deleteAll ?? 'deleted'}`)
         router.refresh()
       } else {
         toast.error(strings?.common.couldntMove ?? "Couldn't delete")
@@ -213,15 +195,15 @@ export function EditorialTab({ data, pipelineData = [], strings, siteId, tagId, 
     return (
       <EmptyState
         icon={<Kanban className="h-8 w-8" />}
-        heading={strings?.empty.noPosts ?? 'Nenhum post pronto'}
-        description={strings?.empty.startWriting ?? 'Quando posts ficarem prontos no Pipeline, eles aparecerão aqui'}
+        heading={strings?.empty.noPosts ?? 'No posts ready'}
+        description={strings?.empty.startWriting ?? 'When posts are ready in the Pipeline, they will appear here'}
         action={
           <Link
-            href="/cms/pipeline/blog_post"
+            href="/cms/blog"
             className="rounded-lg bg-indigo-500 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-600"
           >
             <Plus className="mr-1 inline h-3.5 w-3.5" />
-            {strings?.actions.newIdea ?? 'Ir para o Pipeline'}
+            {strings?.actions.newIdea ?? 'Go to Pipeline'}
           </Link>
         }
       />
@@ -232,7 +214,6 @@ export function EditorialTab({ data, pipelineData = [], strings, siteId, tagId, 
 
   return (
     <div className="flex flex-col gap-4">
-      {/* KPI bar */}
       <div role="group" aria-label="Key metrics" className="flex flex-wrap items-center gap-y-1 rounded-lg border border-indigo-500/8 bg-indigo-500/3 px-3 py-2">
         <div className="flex items-center gap-1 border-r border-gray-800 px-2.5">
           <span className="text-[9px] text-gray-500">{strings?.editorial.kpiTotal ?? 'Total'}</span>
@@ -277,7 +258,7 @@ export function EditorialTab({ data, pipelineData = [], strings, siteId, tagId, 
 
       {filteredPosts.length === 0 && filteredPipeline.length === 0 && (allPosts.length > 0 || allPipeline.length > 0) && (
         <p className="text-center text-[11px] text-gray-600 py-4">
-          {strings?.empty.noData ?? 'Nenhum item encontrado com os filtros atuais'}
+          {strings?.empty.noData ?? 'No items found with current filters'}
         </p>
       )}
 
@@ -292,7 +273,6 @@ export function EditorialTab({ data, pipelineData = [], strings, siteId, tagId, 
           siteTimezone={siteTimezone}
           siteId={siteId}
           onMovePipelineItem={handleMovePipelineItem}
-          onReorderPipelineItem={handleReorderPipelineItem}
           onMovePost={handleMovePost}
           onDeletePost={handleDeletePost}
           onDuplicate={handleDuplicate}

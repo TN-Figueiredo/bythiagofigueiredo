@@ -42,7 +42,6 @@ interface UnifiedBoardProps {
   siteTimezone: string
   siteId: string
   onMovePipelineItem: (id: string, version: number, stage: string) => Promise<void>
-  onReorderPipelineItem: (id: string, version: number, data: { stage?: string; sort_order: number }) => Promise<void>
   onMovePost: (postId: string, newStatus: string, scheduledFor?: string) => Promise<void>
   onDeletePost: (postId: string) => Promise<void>
   onDuplicate: (postId: string) => Promise<void>
@@ -119,7 +118,6 @@ export function UnifiedBoard({
   const [promotionTarget, setPromotionTarget] = useState<PipelineCardItem | null>(null)
   const [promotionLoading, setPromotionLoading] = useState(false)
 
-  // Schedule modal — for drag-to-scheduled
   const [scheduleTarget, setScheduleTarget] = useState<{ postId: string; title: string } | null>(null)
   const pendingScheduleRef = useRef<{ postId: string } | null>(null)
 
@@ -275,7 +273,6 @@ export function UnifiedBoard({
     setActiveType(null)
   }, [])
 
-  // Schedule modal confirm
   const handleScheduleConfirm = useCallback(
     (scheduledFor: string) => {
       const pending = pendingScheduleRef.current
@@ -300,7 +297,6 @@ export function UnifiedBoard({
     setScheduleTarget(null)
   }, [])
 
-  // Promotion
   const handlePromoteClick = useCallback(
     (itemId: string) => {
       const item = optPipeline.find((i) => i.id === itemId)
@@ -330,7 +326,6 @@ export function UnifiedBoard({
     [promotionTarget, siteId, onPromote, strings],
   )
 
-  // Return to pipeline
   const handleReturnToPipeline = useCallback(
     async (postId: string) => {
       if (!window.confirm(strings?.promotion?.returnConfirm ?? 'Return to pipeline?')) return
@@ -346,7 +341,6 @@ export function UnifiedBoard({
     [onReturnToPipeline, strings, startTransition],
   )
 
-  // Post context menu move
   const handleMovePostToStatus = useCallback(
     async (postId: string, newStatus: string) => {
       // Scheduling via menu → open schedule modal
@@ -369,7 +363,6 @@ export function UnifiedBoard({
     [onMovePost, optPosts, strings, startTransition],
   )
 
-  // Selection
   const handleSelect = useCallback(
     (id: string, multi: boolean) => {
       setSelectedIds((prev) => {
@@ -391,7 +384,6 @@ export function UnifiedBoard({
     [findItemLane],
   )
 
-  // Active overlay item
   const activeItem = activeId
     ? activeType === 'pipeline'
       ? optPipeline.find((i) => i.id === activeId)
@@ -428,12 +420,11 @@ export function UnifiedBoard({
 
               return (
                 <div key={lane.id} className="flex">
-                  {/* Promotion boundary */}
                   {showBoundary && (
                     <div className="flex flex-col items-center justify-center px-2" aria-hidden="true">
                       <div className="h-full w-[2px] bg-indigo-500/30" />
                       <span className="my-2 -rotate-90 whitespace-nowrap text-[8px] font-medium tracking-wider text-indigo-400/50">
-                        Publicação →
+                        {strings?.editorial?.promotionBoundary ?? 'Publication →'}
                       </span>
                       <div className="h-full w-[2px] bg-indigo-500/30" />
                     </div>
@@ -447,24 +438,25 @@ export function UnifiedBoard({
                     droppable={true}
                     itemIds={itemIds}
                     emptyMessage={strings?.emptyLanes?.[lane.id]}
+                    dropHereLabel={strings?.editorial?.dropHere ?? 'Drop here'}
                     emptyCta={
                       lane.id === 'idea' ? (
                         <button className="rounded bg-amber-500/20 px-2 py-1 text-[9px] text-amber-400 hover:bg-amber-500/30">
-                          {strings?.emptyLanes?.newIdea ?? '+ Nova Ideia'}
+                          {strings?.emptyLanes?.newIdea ?? '+ New Idea'}
                         </button>
                       ) : lane.id === 'editing' ? (
                         <a
                           href="/cms/blog/new"
                           className="rounded bg-blue-500/20 px-2 py-1 text-[9px] text-blue-400 hover:bg-blue-500/30"
                         >
-                          {strings?.emptyLanes?.newPost ?? '+ Novo Post'}
+                          {strings?.emptyLanes?.newPost ?? '+ New Post'}
                         </a>
                       ) : undefined
                     }
                     isInvalidDrop={isInvalidDrop(lane.id)}
                     paginationLabel={
                       lane.id === 'published' && totalPublished > lanes.published.length
-                        ? `${lanes.published.length} de ${totalPublished}`
+                        ? `${lanes.published.length}/${totalPublished}`
                         : undefined
                     }
                     footer={
@@ -473,7 +465,7 @@ export function UnifiedBoard({
                           onClick={() => setPublishedPage((p) => p + 1)}
                           className="text-[10px] text-indigo-400 hover:text-indigo-300"
                         >
-                          Mostrar mais →
+                          {strings?.common?.showMore ?? 'Show more'} →
                         </button>
                       ) : undefined
                     }

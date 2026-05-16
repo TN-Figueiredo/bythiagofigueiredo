@@ -1,5 +1,6 @@
 'use client'
 
+import { memo } from 'react'
 import { X } from 'lucide-react'
 import type { BlogHubStrings } from '../../_i18n/types'
 
@@ -16,7 +17,7 @@ interface BulkActionBarProps {
   allInReady?: boolean
 }
 
-export function BulkActionBar({
+export const BulkActionBar = memo(function BulkActionBar({
   count,
   cardType,
   strings,
@@ -33,7 +34,7 @@ export function BulkActionBar({
   const s = strings?.bulk
 
   return (
-    <div className="fixed bottom-6 left-1/2 z-40 -translate-x-1/2 flex items-center gap-2 rounded-xl border border-gray-700 bg-gray-900 px-4 py-2.5 shadow-2xl">
+    <div role="toolbar" aria-label={`${count} ${s?.selected ?? 'selected'}`} aria-live="polite" className="fixed bottom-6 left-1/2 z-40 -translate-x-1/2 flex items-center gap-2 rounded-xl border border-gray-700 bg-gray-900 px-4 py-2.5 shadow-2xl">
       <span className="text-[12px] font-semibold text-gray-300">
         {count} {s?.selected ?? 'selected'}
       </span>
@@ -46,19 +47,19 @@ export function BulkActionBar({
             onClick={() => onMoveToStage?.('idea')}
             className="rounded-lg px-2.5 py-1 text-[11px] text-gray-300 hover:bg-gray-800"
           >
-            Ideia
+            {strings?.editorial?.idea ?? 'Idea'}
           </button>
           <button
             onClick={() => onMoveToStage?.('draft')}
             className="rounded-lg px-2.5 py-1 text-[11px] text-gray-300 hover:bg-gray-800"
           >
-            Rascunho
+            {strings?.editorial?.draft ?? 'Draft'}
           </button>
           <button
             onClick={() => onMoveToStage?.('ready')}
             className="rounded-lg px-2.5 py-1 text-[11px] text-gray-300 hover:bg-gray-800"
           >
-            Pronto
+            {strings?.editorial?.ready ?? 'Ready'}
           </button>
           {allInReady && (
             <button
@@ -111,4 +112,4 @@ export function BulkActionBar({
       </button>
     </div>
   )
-}
+})
