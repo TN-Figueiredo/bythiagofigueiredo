@@ -76,6 +76,7 @@ export default defineConfig({
       { find: /^@\/lib\/links(.*)$/, replacement: path.resolve(__dirname, './src/lib/links$1') },
       { find: /^@\/lib\/media(.*)$/, replacement: path.resolve(__dirname, './lib/media$1') },
       { find: /^@\/lib\/request(.*)$/, replacement: path.resolve(__dirname, './lib/request$1') },
+      { find: /^@\/lib\/schedule(.*)$/, replacement: path.resolve(__dirname, './lib/schedule$1') },
       { find: /^@\/lib\/instagram(.*)$/, replacement: path.resolve(__dirname, './src/lib/instagram$1') },
       { find: /^@\/lib\/youtube(.*)$/, replacement: path.resolve(__dirname, './src/lib/youtube$1') },
       { find: /^@\/lib\/social(.*)$/, replacement: path.resolve(__dirname, './src/lib/social$1') },
