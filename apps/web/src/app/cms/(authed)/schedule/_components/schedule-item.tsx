@@ -97,6 +97,9 @@ export function ScheduleItem({ item, colIndex = 0 }: ScheduleItemProps) {
       onMouseLeave={() => setShowTooltip(false)}
       onFocus={() => setShowTooltip(true)}
       onBlur={() => setShowTooltip(false)}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') setShowTooltip(false)
+      }}
       data-testid={`schedule-item-${item.id}`}
     >
       <Link

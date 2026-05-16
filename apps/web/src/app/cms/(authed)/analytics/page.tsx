@@ -14,6 +14,7 @@ import {
 import { AnalyticsHeader } from './_components/analytics-header'
 import { AnalyticsOverview } from './_components/analytics-overview'
 import type { PeriodInput, AnalyticsTab, AnalyticsOverviewData } from './types'
+import { SectionErrorBoundary } from '../_shared/section-error-boundary'
 
 const ComingSoonStub = dynamic(() => import('./_components/coming-soon-stub'))
 
@@ -51,9 +52,11 @@ export default async function AnalyticsPage({ searchParams }: Props) {
     <div className="min-h-[calc(100vh-4rem)] bg-cms-bg">
       <AnalyticsHeader activeTab={activeTab} activePeriod={periodValue} />
       {activeTab === 'overview' ? (
-        <Suspense fallback={<AnalyticsSkeleton />}>
-          <AnalyticsDataSection siteId={siteId} periodInput={periodInput} primaryDomain={primaryDomain} />
-        </Suspense>
+        <SectionErrorBoundary>
+          <Suspense fallback={<AnalyticsSkeleton />}>
+            <AnalyticsDataSection siteId={siteId} periodInput={periodInput} primaryDomain={primaryDomain} />
+          </Suspense>
+        </SectionErrorBoundary>
       ) : (
         <ComingSoonStub tab={activeTab} />
       )}

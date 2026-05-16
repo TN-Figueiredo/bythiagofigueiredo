@@ -14,6 +14,14 @@ interface Props {
 export function ClicksDestinationGrid({ data }: Props) {
   const total = data.inHouse + data.external + data.youtube + data.affiliate
 
+  if (total === 0) {
+    return (
+      <div className="rounded-lg border border-[var(--bdr-1)] bg-[var(--bg-1)] p-6 text-center" data-testid="clicks-destination">
+        <p className="text-sm text-[var(--t3)]">Sem dados de destinos ainda</p>
+      </div>
+    )
+  }
+
   return (
     <div className="rounded-lg border border-cms-border bg-cms-surface p-4" data-testid="clicks-destination">
       <h3 className="mb-3 text-sm font-medium text-cms-text-dim">Click Destinations</h3>

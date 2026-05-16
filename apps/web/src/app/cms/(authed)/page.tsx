@@ -16,6 +16,7 @@ import { DashboardWeekStrip } from './_components/dashboard-week-strip'
 import { DashboardQuickActions } from './_components/dashboard-quick-actions'
 import { DashboardActivityFeed } from './_components/dashboard-activity-feed'
 import { BlogHealthSection } from './_components/dashboard-blog-health'
+import { SectionErrorBoundary } from './_shared/section-error-boundary'
 
 /* ------------------------------------------------------------------ */
 /*  Page                                                              */
@@ -38,9 +39,11 @@ export default async function CmsDashboardPage({ searchParams }: PageProps) {
   return (
     <div className="flex min-h-screen flex-col" data-testid="dashboard">
       <DashboardHeader greeting={greeting} todayLabel={todayLabel} period={period} />
-      <Suspense fallback={<DashboardSkeleton />}>
-        <DashboardContent period={period} />
-      </Suspense>
+      <SectionErrorBoundary>
+        <Suspense fallback={<DashboardSkeleton />}>
+          <DashboardContent period={period} />
+        </Suspense>
+      </SectionErrorBoundary>
     </div>
   )
 }

@@ -3,7 +3,6 @@ import type { ClicksSource } from '../types'
 const SOURCES: { key: keyof ClicksSource; label: string; color: string }[] = [
   { key: 'blog', label: 'Blog', color: 'var(--color-blog)' },
   { key: 'newsletter', label: 'Newsletter', color: 'var(--color-newsletter)' },
-  { key: 'video', label: 'Video', color: 'var(--color-video)' },
   { key: 'social', label: 'Social', color: 'var(--color-link)' },
   { key: 'other', label: 'Other', color: 'var(--t3)' },
 ]
@@ -13,7 +12,15 @@ interface Props {
 }
 
 export function ClicksSourceList({ data }: Props) {
-  const total = data.blog + data.newsletter + data.video + data.social + data.other
+  const total = data.blog + data.newsletter + data.social + data.other
+
+  if (total === 0) {
+    return (
+      <div className="rounded-lg border border-[var(--bdr-1)] bg-[var(--bg-1)] p-6 text-center" data-testid="clicks-source">
+        <p className="text-sm text-[var(--t3)]">Sem dados de fontes ainda</p>
+      </div>
+    )
+  }
 
   return (
     <div className="rounded-lg border border-cms-border bg-cms-surface p-4" data-testid="clicks-source">
