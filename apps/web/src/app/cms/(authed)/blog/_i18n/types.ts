@@ -18,6 +18,7 @@ export interface BlogHubStrings {
     kpiTotal: string; kpiPublished: string; kpiThroughput: string; kpiIdeaToPub: string; kpiBottleneck: string; kpiNone: string
     promotedFromPipeline: string
     dropHere: string
+    promotionBoundary: string
   }
   deletePost: {
     triggerLabel: string; triggerAriaLabel: string

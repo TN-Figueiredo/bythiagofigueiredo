@@ -20,6 +20,7 @@ export const en: BlogHubStrings = {
     kpiTotal: 'Total', kpiPublished: 'Published', kpiThroughput: 'Throughput', kpiIdeaToPub: 'Idea→Pub', kpiBottleneck: 'Bottleneck', kpiNone: 'None',
     promotedFromPipeline: 'Promoted from Pipeline',
     dropHere: 'Drop here',
+    promotionBoundary: 'Publication →',
   },
   deletePost: {
     triggerLabel: 'Delete', triggerAriaLabel: 'Delete {title}',

@@ -55,10 +55,10 @@ describe('buildCmsSections', () => {
       '../../src/app/cms/(authed)/_shared/cms-sections'
     )
     const sections = buildCmsSections()
-    const settingsSection = sections.find((s) => s.label === 'Settings')
-    expect(settingsSection).toBeDefined()
-    expect(settingsSection!.items).toHaveLength(1)
-    expect(settingsSection!.items[0]!.label).toBe('Settings')
+    const insightsSection = sections.find((s) => s.label === 'Insights')
+    expect(insightsSection).toBeDefined()
+    expect(insightsSection!.items).toHaveLength(1)
+    expect(insightsSection!.items[0]!.label).toBe('Analytics')
   })
 
   it('preserves original Content items', async () => {

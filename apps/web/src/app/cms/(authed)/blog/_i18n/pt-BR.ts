@@ -20,6 +20,7 @@ export const ptBR: BlogHubStrings = {
     kpiTotal: 'Total', kpiPublished: 'Publicados', kpiThroughput: 'Vazão', kpiIdeaToPub: 'Ideia→Pub', kpiBottleneck: 'Gargalo', kpiNone: 'Nenhum',
     promotedFromPipeline: 'Promovido do Pipeline',
     dropHere: 'Solte aqui',
+    promotionBoundary: 'Publicação →',
   },
   deletePost: {
     triggerLabel: 'Excluir', triggerAriaLabel: 'Excluir {title}',

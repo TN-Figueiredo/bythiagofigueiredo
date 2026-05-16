@@ -1,49 +1,68 @@
-import { DEFAULT_SECTIONS, type SidebarSection } from '@tn-figueiredo/cms-ui'
+import { createElement } from 'react'
+import type { LucideIcon } from 'lucide-react'
+import type { SidebarSection } from '@tn-figueiredo/cms-ui'
+import {
+  LayoutDashboard, Calendar,
+  FileText, Mail, Megaphone, Image, Link2, ListMusic,
+  Kanban, Video, GraduationCap, FolderOpen, BookOpen, Microscope, Headphones,
+  Youtube, Send, Edit3, BarChart3, Users,
+  UserPen, UsersRound,
+  TrendingUp,
+} from 'lucide-react'
+
+const ICON_SIZE = 16
+const STROKE = 1.75
+const icon = (Icon: LucideIcon) => createElement(Icon, { size: ICON_SIZE, strokeWidth: STROKE })
 
 export function buildCmsSections(): SidebarSection[] {
-  const sections = DEFAULT_SECTIONS.map(section => {
-    if (section.label === 'Content') {
-      const items = [
-        ...section.items,
-        { icon: '✏️', label: 'Editor', href: '/cms/posts', minRole: 'editor' as const },
-        { icon: '🖼️', label: 'Media', href: '/cms/media', minRole: 'editor' as const },
-        { icon: '🔗', label: 'Links', href: '/cms/links', minRole: 'editor' as const },
-        { icon: '🎵', label: 'Playlists', href: '/cms/playlists', minRole: 'editor' as const },
-      ]
-
-      return { ...section, items }
-    }
-    return section
-  })
-
-  const pipelineSection: SidebarSection = {
-    label: 'Pipeline',
-    items: [
-      { icon: '📊', label: 'Overview', href: '/cms/pipeline', minRole: 'editor' as const },
-      { icon: '🎬', label: 'Video', href: '/cms/pipeline/video', minRole: 'editor' as const },
-      { icon: '✍️', label: 'Blog', href: '/cms/pipeline/blog_post', minRole: 'editor' as const },
-      { icon: '📧', label: 'Newsletter', href: '/cms/pipeline/newsletter', minRole: 'editor' as const },
-      { icon: '🎓', label: 'Course', href: '/cms/pipeline/course', minRole: 'editor' as const },
-      { icon: '📣', label: 'Campaign', href: '/cms/pipeline/campaign', minRole: 'editor' as const },
-      { icon: '📁', label: 'Collections', href: '/cms/pipeline/collections', minRole: 'editor' as const },
-      { icon: '📝', label: 'Reference', href: '/cms/pipeline/reference', minRole: 'editor' as const },
-      { icon: '🔬', label: 'Research', href: '/cms/pipeline/research', minRole: 'editor' as const },
-      { icon: '🎧', label: 'Audio', href: '/cms/pipeline/audio', minRole: 'editor' as const },
-    ],
-  }
-
-  const socialSection: SidebarSection = {
-    label: 'Social',
-    items: [
-      { icon: '🎬', label: 'YouTube', href: '/cms/youtube', minRole: 'editor' as const },
-      { icon: '📡', label: 'Posts', href: '/cms/social', minRole: 'reporter' as const },
-      { icon: '✏️', label: 'Composer', href: '/cms/social/new', minRole: 'editor' as const },
-      { icon: '📊', label: 'Insights', href: '/cms/social/insights', minRole: 'reporter' as const },
-      { icon: '🔗', label: 'Accounts', href: '/cms/social/accounts', minRole: 'org_admin' as const },
-    ],
-  }
-
-  const contentIdx = sections.findIndex(s => s.label === 'Content')
-  sections.splice(contentIdx + 1, 0, pipelineSection, socialSection)
-  return sections
+  return [
+    {
+      label: 'Overview',
+      items: [
+        { icon: icon(LayoutDashboard), label: 'Dashboard', href: '/cms' },
+        { icon: icon(Calendar), label: 'Schedule', href: '/cms/schedule' },
+      ],
+    },
+    {
+      label: 'Content',
+      items: [
+        { icon: icon(FileText), label: 'Blog', href: '/cms/blog' },
+        { icon: icon(Video), label: 'Video', href: '/cms/pipeline/video', minRole: 'editor' },
+        { icon: icon(Mail), label: 'Newsletters', href: '/cms/newsletters', minRole: 'editor' },
+        { icon: icon(Megaphone), label: 'Campaigns', href: '/cms/campaigns', minRole: 'editor' },
+        { icon: icon(Headphones), label: 'Audio', href: '/cms/pipeline/audio', minRole: 'editor' },
+        { icon: icon(GraduationCap), label: 'Courses', href: '/cms/pipeline/course', minRole: 'editor' },
+        { icon: icon(BookOpen), label: 'Reference', href: '/cms/pipeline/reference', minRole: 'editor' },
+        { icon: icon(Microscope), label: 'Research', href: '/cms/pipeline/research', minRole: 'editor' },
+        { icon: icon(FolderOpen), label: 'Collections', href: '/cms/pipeline/collections', minRole: 'editor' },
+        { icon: icon(Image), label: 'Media', href: '/cms/media', minRole: 'editor' },
+        { icon: icon(Link2), label: 'Links', href: '/cms/links', minRole: 'editor' },
+        { icon: icon(ListMusic), label: 'Playlists', href: '/cms/playlists', minRole: 'editor' },
+        { icon: icon(Kanban), label: 'Pipeline', href: '/cms/pipeline', minRole: 'editor' },
+      ],
+    },
+    {
+      label: 'Social',
+      items: [
+        { icon: icon(Youtube), label: 'YouTube', href: '/cms/youtube', minRole: 'editor' },
+        { icon: icon(Send), label: 'Posts', href: '/cms/social', minRole: 'reporter' },
+        { icon: icon(Edit3), label: 'Composer', href: '/cms/social/new', minRole: 'editor' },
+        { icon: icon(BarChart3), label: 'Insights', href: '/cms/social/insights', minRole: 'reporter' },
+        { icon: icon(Users), label: 'Accounts', href: '/cms/social/accounts', minRole: 'org_admin' },
+      ],
+    },
+    {
+      label: 'People',
+      items: [
+        { icon: icon(UserPen), label: 'Authors', href: '/cms/authors', minRole: 'editor' },
+        { icon: icon(UsersRound), label: 'Subscribers', href: '/cms/subscribers', minRole: 'org_admin' },
+      ],
+    },
+    {
+      label: 'Insights',
+      items: [
+        { icon: icon(TrendingUp), label: 'Analytics', href: '/cms/analytics', minRole: 'editor' },
+      ],
+    },
+  ]
 }
