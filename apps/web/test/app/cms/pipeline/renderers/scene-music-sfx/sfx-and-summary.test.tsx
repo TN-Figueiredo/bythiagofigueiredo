@@ -23,19 +23,21 @@ describe('SFXItemCard', () => {
     expect(container.textContent).toContain('Local')
   })
 
-  it('renders NO_MATCH with search link', () => {
+  it('renders NO_MATCH with individual search term chips', () => {
     const sfx: SceneSFX = {
       timestamp: '00:17',
       description: 'SFX bass drop — marca fim do hook',
       resolve_status: 'NO_MATCH',
       sfx_category: 'DROP',
-      search_terms: 'bass drop impact',
+      search_terms: 'bass drop,impact hit low',
     }
     const { container } = render(<SFXItemCard sfx={sfx} />)
     expect(container.textContent).toContain('Search')
-    const link = container.querySelector('a')
-    expect(link).toBeTruthy()
-    expect(link?.getAttribute('href')).toContain('artlist.io')
+    const links = container.querySelectorAll('a')
+    expect(links.length).toBe(2)
+    expect(links[0]?.textContent).toContain('bass drop')
+    expect(links[1]?.textContent).toContain('impact hit low')
+    expect(links[0]?.getAttribute('href')).toContain('artlist.io')
   })
 
   it('renders PARTIAL_MATCH with filename and search fallback', () => {
@@ -96,19 +98,20 @@ describe('AudioSummaryV2', () => {
     },
   ]
 
-  it('renders Música label', () => {
+  it('renders Audio Resolver header', () => {
     const { container } = render(<AudioSummaryV2 scenes={SCENES} />)
-    expect(container.textContent).toContain('Música')
+    expect(container.textContent).toContain('Audio Resolver')
   })
 
-  it('renders SFX label', () => {
+  it('renders side-by-side Música and SFX columns', () => {
     const { container } = render(<AudioSummaryV2 scenes={SCENES} />)
+    expect(container.textContent).toContain('Música')
     expect(container.textContent).toContain('SFX')
   })
 
   it('counts continuations', () => {
     const { container } = render(<AudioSummaryV2 scenes={SCENES} />)
-    expect(container.textContent).toContain('1 cont')
+    expect(container.textContent).toContain('1 cont.')
   })
 
   it('shows stat counts', () => {
