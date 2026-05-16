@@ -7,6 +7,7 @@ import { Waveform } from './waveform'
 interface AudioDetailProps {
   assetId: string
   onClose: () => void
+  fullWidth?: boolean
 }
 
 type AssetWithUsage = AudioAssetRow & { usage: AudioAssetUsageRow[] }
@@ -44,7 +45,7 @@ function assetToDraft(asset: AssetWithUsage): EditDraft {
   }
 }
 
-export function AudioDetail({ assetId, onClose }: AudioDetailProps) {
+export function AudioDetail({ assetId, onClose, fullWidth }: AudioDetailProps) {
   const [asset, setAsset] = useState<AssetWithUsage | null>(null)
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
@@ -138,14 +139,14 @@ export function AudioDetail({ assetId, onClose }: AudioDetailProps) {
     setDraft(prev => prev ? { ...prev, [key]: value } : prev)
   }, [])
 
-  if (loading) return <div style={{ width: 400, borderLeft: '1px solid var(--gem-border)', padding: 20, color: 'var(--gem-muted)' }}>Loading...</div>
-  if (!asset) return <div style={{ width: 400, borderLeft: '1px solid var(--gem-border)', padding: 20, color: 'var(--gem-muted)' }}>{error || 'Not found'}</div>
+  if (loading) return <div style={{ width: fullWidth ? '100%' : 400, borderLeft: '1px solid var(--gem-border)', padding: 20, color: 'var(--gem-muted)' }}>Loading...</div>
+  if (!asset) return <div style={{ width: fullWidth ? '100%' : 400, borderLeft: '1px solid var(--gem-border)', padding: 20, color: 'var(--gem-muted)' }}>{error || 'Not found'}</div>
 
   const wf = asset.metadata?.waveform as { peaks?: number[] } | undefined
   const peaks = wf?.peaks ?? []
 
   return (
-    <div style={{ width: 400, minWidth: 400, borderLeft: '1px solid var(--gem-border)', overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ width: fullWidth ? '100%' : 400, minWidth: fullWidth ? undefined : 400, borderLeft: '1px solid var(--gem-border)', overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--gem-text)', margin: 0 }}>

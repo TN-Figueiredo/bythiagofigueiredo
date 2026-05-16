@@ -43,6 +43,20 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
   const [fetchError, setFetchError] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const gTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const [isNarrow, setIsNarrow] = useState(false)
+  const [showFilters, setShowFilters] = useState(true)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 900px)')
+    setIsNarrow(mq.matches)
+    setShowFilters(!mq.matches)
+    const handler = (e: MediaQueryListEvent) => {
+      setIsNarrow(e.matches)
+      setShowFilters(!e.matches)
+    }
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
 
   const refetch = useCallback(async (params: Record<string, string> = {}) => {
     abortRef.current?.abort()
@@ -99,12 +113,15 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
 
   return (
     <div style={{ display: 'flex', height: '100%', gap: 0, overflow: 'hidden' }}>
-      <AudioFilters filters={filters} onChange={handleFilterChange} categories={categories} availableTags={availableTags} />
+      {showFilters && <AudioFilters filters={filters} onChange={handleFilterChange} categories={categories} availableTags={availableTags} />}
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Toolbar */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderBottom: '1px solid var(--gem-border)' }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button onClick={() => setShowFilters(v => !v)} style={{ padding: '4px 10px', fontSize: 12, borderRadius: 5, border: '1px solid var(--gem-border)', background: showFilters ? 'var(--gem-accent)' : 'transparent', color: 'var(--gem-text)', cursor: 'pointer' }}>
+              {showFilters ? 'Hide Filters' : 'Filters'}
+            </button>
             <button aria-pressed={viewMode === 'grid'} onClick={() => setViewMode('grid')} style={{ padding: '4px 10px', fontSize: 12, borderRadius: 5, border: '1px solid var(--gem-border)', background: viewMode === 'grid' ? 'var(--gem-accent)' : 'transparent', color: 'var(--gem-text)', cursor: 'pointer' }}>Grid</button>
             <button aria-pressed={viewMode === 'table'} onClick={() => setViewMode('table')} style={{ padding: '4px 10px', fontSize: 12, borderRadius: 5, border: '1px solid var(--gem-border)', background: viewMode === 'table' ? 'var(--gem-accent)' : 'transparent', color: 'var(--gem-text)', cursor: 'pointer' }}>Table</button>
           </div>
@@ -134,7 +151,15 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
         </div>
       </div>
 
-      {selectedId && <AudioDetail assetId={selectedId} onClose={() => setSelectedId(null)} />}
+      {selectedId && (
+        isNarrow ? (
+          <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: '100%', maxWidth: 400, zIndex: 40, background: 'var(--gem-surface)', boxShadow: '-4px 0 20px rgba(0,0,0,0.3)' }}>
+            <AudioDetail assetId={selectedId} onClose={() => setSelectedId(null)} fullWidth />
+          </div>
+        ) : (
+          <AudioDetail assetId={selectedId} onClose={() => setSelectedId(null)} />
+        )
+      )}
       {showImport && <AudioImportModal onClose={() => { setShowImport(false); refetch(filters) }} />}
     </div>
   )
