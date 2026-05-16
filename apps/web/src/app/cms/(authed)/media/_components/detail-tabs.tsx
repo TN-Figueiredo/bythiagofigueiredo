@@ -77,6 +77,8 @@ function DetailsTab({
 }) {
   const [altText, setAltText] = useState(asset.altText ?? '')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const onUpdateAltTextRef = useRef(onUpdateAltText)
+  onUpdateAltTextRef.current = onUpdateAltText
 
   useEffect(() => {
     setAltText(asset.altText ?? '')
@@ -90,9 +92,9 @@ function DetailsTab({
     (value: string) => {
       setAltText(value)
       if (debounceRef.current) clearTimeout(debounceRef.current)
-      debounceRef.current = setTimeout(() => onUpdateAltText(value), 500)
+      debounceRef.current = setTimeout(() => onUpdateAltTextRef.current(value), 500)
     },
-    [onUpdateAltText],
+    [],
   )
 
   const handleRemoveTag = useCallback(
