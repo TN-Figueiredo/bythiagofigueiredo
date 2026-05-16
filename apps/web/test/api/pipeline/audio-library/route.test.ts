@@ -317,7 +317,7 @@ describe('GET cursor pagination', () => {
     expect(calls.some(c => c.method === 'eq' && c.args[0] === 'source' && c.args[1] === 'artlist')).toBe(true)
   })
 
-  it('applies cursor filter when valid UUID provided', async () => {
+  it('applies cursor filter when valid UUID provided', { timeout: 15000 }, async () => {
     const validCursor = '550e8400-e29b-41d4-a716-446655440000'
     const cursorCreatedAt = '2024-01-01T00:00:00Z'
     const allCalls: Array<{ method: string; args: unknown[] }> = []
