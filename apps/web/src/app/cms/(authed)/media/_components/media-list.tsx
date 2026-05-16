@@ -31,8 +31,9 @@ export const MediaList = memo(function MediaList({ items, checked, selectedId, f
           <div
             key={asset.id}
             role="listitem"
+            aria-label={asset.filename}
             data-focus-index={index}
-            tabIndex={0}
+            tabIndex={focusedIndex === index ? 0 : (focusedIndex == null && index === 0 ? 0 : (focusedIndex === -1 && index === 0 ? 0 : -1))}
             onClick={() => onSelect(asset.id)}
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(asset.id) } }}
             className={`

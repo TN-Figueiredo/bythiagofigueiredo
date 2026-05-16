@@ -155,7 +155,7 @@ export const MediaToolbar = memo(function MediaToolbar({
               aria-pressed={isActive}
               onClick={() => onFilterChange(key)}
               className={`
-                flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-all
+                flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium transition-all
                 ${isActive
                   ? 'bg-cms-accent text-white shadow-sm'
                   : 'bg-cms-bg text-cms-text-muted hover:bg-cms-surface-hover hover:text-cms-text'}
@@ -195,7 +195,7 @@ export const MediaToolbar = memo(function MediaToolbar({
             type="button"
             aria-pressed={cols === n}
             onClick={() => onColsChange(n)}
-            className={`rounded px-1.5 py-0.5 text-xs transition-colors ${
+            className={`rounded px-2 py-1.5 text-xs transition-colors ${
               cols === n ? 'bg-cms-accent text-white' : 'text-cms-text-muted hover:text-cms-text'
             }`}
             aria-label={`${n} ${t.toolbar.columns}`}

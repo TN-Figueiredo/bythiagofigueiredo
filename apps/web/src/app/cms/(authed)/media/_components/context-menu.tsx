@@ -1,6 +1,8 @@
 'use client'
 
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
+
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
 import type { MediaGalleryStrings } from '../../_shared/media/_i18n/types'
 
 interface ContextMenuProps {
@@ -12,7 +14,7 @@ interface ContextMenuProps {
   t: MediaGalleryStrings
 }
 
-export const ContextMenu = React.memo(function ContextMenu({ x, y, assetId, onAction, onClose, t }: ContextMenuProps) {
+export const ContextMenu = React.memo(function ContextMenu({ x, y, assetId: _assetId, onAction, onClose, t }: ContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null)
   const previousFocusRef = useRef<Element | null>(null)
 
@@ -59,7 +61,7 @@ export const ContextMenu = React.memo(function ContextMenu({ x, y, assetId, onAc
   }, [])
 
   const [pos, setPos] = useState({ left: x, top: y })
-  useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     const el = ref.current
     if (!el) return
     const rect = el.getBoundingClientRect()
@@ -83,9 +85,9 @@ export const ContextMenu = React.memo(function ContextMenu({ x, y, assetId, onAc
     <div
       ref={ref}
       role="menu"
+      aria-label="Asset actions"
       className="fixed z-50 min-w-[160px] rounded-lg border border-cms-border bg-cms-surface py-1 shadow-xl"
       style={{ left: pos.left, top: pos.top }}
-      data-asset-id={assetId}
     >
       {items.map((item) =>
         item.action === 'divider' ? (

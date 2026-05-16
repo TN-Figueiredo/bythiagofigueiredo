@@ -77,6 +77,7 @@ export const DetailPanel = React.memo(function DetailPanel({
     <div
       role="complementary"
       aria-label={t.aria.assetDetails}
+      inert={!isOpen || undefined}
       className={`
         fixed right-0 top-0 z-40 flex h-full w-[380px] flex-col border-l border-cms-border bg-cms-surface shadow-2xl
         transition-transform duration-300 ease-out
@@ -117,7 +118,7 @@ export const DetailPanel = React.memo(function DetailPanel({
             type="button"
             role="tab"
             aria-selected={tab === t2}
-            aria-controls={`tabpanel-${t2}`}
+            aria-controls={tab === t2 ? `tabpanel-${t2}` : undefined}
             id={`tab-${t2}`}
             onClick={() => onTabChange(t2)}
             className={`flex-1 py-2.5 text-xs font-medium transition-colors ${

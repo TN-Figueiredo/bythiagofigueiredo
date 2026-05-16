@@ -26,7 +26,7 @@ export const BulkActionBar = memo(function BulkActionBar({ count, onDeselect, on
           <button
             type="button"
             onClick={onDeselect}
-            className="text-xs text-cms-accent hover:underline"
+            className="min-h-6 py-1 text-xs text-cms-accent hover:underline"
           >
             {t.bulk.deselect}
           </button>

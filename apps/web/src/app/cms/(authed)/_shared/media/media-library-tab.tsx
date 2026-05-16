@@ -6,11 +6,10 @@ import { MediaCard } from '../../media/_components/media-card'
 import type { CropPreset, MediaAssetResult, MediaAssetType } from './types'
 import { getMediaGalleryStrings } from './_i18n/types'
 import type { MediaAsset, MediaFolder } from '@/lib/media/types'
+import { FOLDER_TO_TYPE } from '@/lib/media/resolve-type'
 
 function folderToType(folder: MediaFolder): MediaAssetType {
-  if (folder === 'authors') return 'avatar'
-  if (folder === 'og') return 'og'
-  return 'inline'
+  return FOLDER_TO_TYPE[folder] ?? 'inline'
 }
 
 interface LibraryTabProps {

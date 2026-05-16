@@ -45,7 +45,7 @@ export const MediaGrid = memo(function MediaGrid({
         <div
           key={enriched.asset.id}
           role="listitem"
-          tabIndex={0}
+          tabIndex={focusedIndex === index ? 0 : (focusedIndex === -1 && index === 0 ? 0 : -1)}
           data-focus-index={index}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(enriched.asset.id) }

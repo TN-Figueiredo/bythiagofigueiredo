@@ -29,6 +29,7 @@ export type MediaLibraryAction =
   | { type: 'CLOSE_LIGHTBOX' }
   | { type: 'SET_DETAIL_TAB'; tab: 'details' | 'usage' | 'history' }
   | { type: 'SET_LOADING'; loading: boolean }
+  | { type: 'DESELECT' }
 
 export function initialState(): MediaLibraryState {
   return {
@@ -89,6 +90,8 @@ export function mediaLibraryReducer(
       return { ...state, detailTab: action.tab }
     case 'SET_LOADING':
       return { ...state, isLoading: action.loading }
+    case 'DESELECT':
+      return { ...state, selectedId: null, detailTab: 'details' }
     default:
       return state
   }

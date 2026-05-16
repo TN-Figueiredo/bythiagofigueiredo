@@ -60,6 +60,11 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
   const searchRef = useRef(state.search)
   searchRef.current = state.search
 
+  const announce = useCallback((message: string) => {
+    const el = document.getElementById('media-announcements')
+    if (el) el.textContent = message
+  }, [])
+
   const fetchAssets = useCallback(
     async (cursor?: string) => {
       abortRef.current?.abort()
@@ -68,33 +73,38 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
 
       dispatch({ type: 'SET_LOADING', loading: true })
 
-      const result = await listMediaAssetsWithUsageAction({
-        search: searchRef.current || undefined,
-        cursor,
-        limit: 24,
-      })
+      try {
+        const result = await listMediaAssetsWithUsageAction({
+          search: searchRef.current || undefined,
+          cursor,
+          limit: 24,
+        })
 
-      if (controller.signal.aborted) return
+        if (controller.signal.aborted) return
 
-      if (result.ok) {
-        setFetchError(null)
-        const enriched: EnrichedMediaAsset[] = result.assets.map((a) => ({
-          asset: a.asset,
-          type: a.type,
-          usageCount: a.usageCount,
-          primaryFieldName: a.primaryFieldName,
-        }))
+        if (result.ok) {
+          setFetchError(null)
+          const enriched: EnrichedMediaAsset[] = result.assets.map((a) => ({
+            asset: a.asset,
+            type: a.type,
+            usageCount: a.usageCount,
+            primaryFieldName: a.primaryFieldName,
+          }))
 
-        if (cursor) {
-          setItems((prev) => [...prev, ...enriched])
+          if (cursor) {
+            setItems((prev) => [...prev, ...enriched])
+          } else {
+            setItems(enriched)
+          }
+          setNextCursor(result.nextCursor)
         } else {
-          setItems(enriched)
+          setFetchError(t.upload.uploadError)
         }
-        setNextCursor(result.nextCursor)
-      } else {
-        setFetchError(t.upload.uploadError)
+      } finally {
+        if (!controller.signal.aborted) {
+          dispatch({ type: 'SET_LOADING', loading: false })
+        }
       }
-      dispatch({ type: 'SET_LOADING', loading: false })
     },
     [t.upload.uploadError],
   )
@@ -116,11 +126,16 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
     debounceRef.current = setTimeout(() => {
       setItems([])
       setNextCursor(null)
-      fetchAssets()
+      fetchAssets().then(() => {
+        if (searchRef.current) {
+          const count = document.querySelectorAll('[data-focus-index]').length
+          announce(t.toolbar.searchCount.replace('{count}', String(count)))
+        }
+      }).catch(() => {})
     }, 300)
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.search, fetchAssets])
+  }, [state.search, fetchAssets, announce, t.toolbar.searchCount])
 
   useEffect(() => {
     getMediaStatsAction().then((res) => {
@@ -174,21 +189,21 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
   }, [filteredItems])
 
   const handleQuickAction = useCallback((id: string, action: QuickAction) => {
-    const asset = sortedItems.find((i) => i.asset.id === id)?.asset
-    if (!asset) return
+    const enriched = sortedItems.find((i) => i.asset.id === id)
+    if (!enriched) return
 
     switch (action) {
       case 'preview':
         dispatch({ type: 'OPEN_LIGHTBOX', id })
         break
       case 'download':
-        window.open(asset.blobUrl, '_blank')
+        window.open(enriched.asset.blobUrl, '_blank')
         break
       case 'copy-url':
-        navigator.clipboard.writeText(asset.blobUrl).catch(() => {})
+        navigator.clipboard.writeText(enriched.asset.blobUrl).catch(() => {})
         break
       case 'delete':
-        setDeleteModal({ ids: [id], usageCount: 0 })
+        setDeleteModal({ ids: [id], usageCount: enriched.usageCount })
         break
     }
   }, [sortedItems])
@@ -234,12 +249,15 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
       dispatch({ type: 'UNCHECK_ALL' })
       setItems(prev => prev.filter(i => !deletedIds.includes(i.asset.id)))
       getMediaStatsAction().then((res) => { if (res.ok) setStats(res.stats) }).catch(() => {})
+      announce(deletedIds.length === 1
+        ? t.detail.deleteAsset
+        : t.bulk.deleteSelected + ` (${deletedIds.length})`)
     } catch {
       setDeleteError(t.delete.deleteFailed)
     } finally {
       setIsDeleting(false)
     }
-  }, [deleteModal, t.delete.deleteFailed])
+  }, [deleteModal, t.delete.deleteFailed, t.detail.deleteAsset, t.bulk.deleteSelected, announce])
 
   const handleBulkDelete = useCallback(() => {
     const totalUsages = [...state.checked].reduce((sum, id) => {
@@ -280,8 +298,8 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
   const handleContextMenuOpen = useCallback((id: string, x: number, y: number) => setContextMenu({ id, x, y }), [])
   const handleDetailTabChange = useCallback((tab: 'details' | 'usage' | 'history') => dispatch({ type: 'SET_DETAIL_TAB', tab }), [])
   const handleDetailClose = useCallback(() => {
-    if (state.selectedId) dispatch({ type: 'SELECT_ITEM', id: state.selectedId })
-  }, [state.selectedId])
+    dispatch({ type: 'DESELECT' })
+  }, [])
   const handleCopyUrl = useCallback((url: string) => { navigator.clipboard.writeText(url).catch(() => {}) }, [])
   const handleReplace = useCallback(() => setShowUpload(true), [])
   const handleDetailDelete = useCallback((id: string) => setDeleteModal({ ids: [id], usageCount: usages.length }), [usages.length])
@@ -325,6 +343,7 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
     if (focusedIndex < 0) return
     const el = document.querySelector<HTMLElement>(`[data-focus-index="${focusedIndex}"]`)
     el?.scrollIntoView({ block: 'nearest' })
+    el?.focus()
   }, [focusedIndex])
 
   useEffect(() => {
@@ -338,7 +357,7 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
       if (e.key === 'Escape') {
         if (deleteModal) return
         if (state.lightboxId) { dispatch({ type: 'CLOSE_LIGHTBOX' }); return }
-        if (state.selectedId) { dispatch({ type: 'SELECT_ITEM', id: state.selectedId }); return }
+        if (state.selectedId) { dispatch({ type: 'DESELECT' }); return }
         if (state.search) dispatch({ type: 'SET_SEARCH', search: '' })
         return
       }

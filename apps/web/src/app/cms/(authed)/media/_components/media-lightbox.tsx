@@ -42,9 +42,10 @@ export const MediaLightbox = memo(function MediaLightbox({
       if (e.key === 'ArrowLeft' && idx > 0) { prev(); return }
       if (e.key === 'ArrowRight' && idx < total - 1) { next(); return }
       if (e.key === 'Tab') {
-        const btns = [closeBtnRef.current, prevRef.current, nextRef.current].filter(Boolean) as HTMLElement[]
+        const btns = [closeBtnRef.current, prevRef.current, nextRef.current]
+          .filter((b): b is HTMLButtonElement => b != null && !b.disabled)
         if (!btns.length) return
-        const i = btns.indexOf(document.activeElement as HTMLElement)
+        const i = btns.indexOf(document.activeElement as HTMLButtonElement)
         e.preventDefault()
         if (e.shiftKey) btns[i <= 0 ? btns.length - 1 : i - 1]?.focus()
         else btns[i >= btns.length - 1 ? 0 : i + 1]?.focus()
@@ -74,6 +75,10 @@ export const MediaLightbox = memo(function MediaLightbox({
       onClick={onClose}
       style={{ background: 'repeating-conic-gradient(#1a1a2e 0% 25%, #0e0e1a 0% 50%) 0 0 / 20px 20px' }}
     >
+      <div aria-live="polite" className="sr-only">
+        {asset.filename} — {counter}
+      </div>
+
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
 
       <div
