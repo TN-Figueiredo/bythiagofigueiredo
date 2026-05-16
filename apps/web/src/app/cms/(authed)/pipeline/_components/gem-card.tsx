@@ -35,7 +35,6 @@ export interface GemCardItem {
   is_archived: boolean
   validation_score: number
   dependencies: Array<{ dependency_type: string; depends_on_pipeline: { code: string } }>
-  collection_code: string | null
   sort_order: number
   version: number
   cover_image_url: string | null
@@ -64,14 +63,11 @@ export const GemCard = memo(function GemCard({ item, isDragging: _isDragging, on
   const isBlockedState = blocked.blocked
 
   const tags: Array<{ label: string; className: string }> = []
-  if (item.collection_code) {
-    tags.push({ label: item.collection_code, className: 'bg-amber-900/50 text-amber-300' })
-  }
   for (const t of item.tags) {
     if (tags.length >= 3) break
     tags.push({ label: t, className: 'bg-cyan-900/50 text-cyan-300' })
   }
-  const overflowCount = (item.collection_code ? 1 : 0) + item.tags.length - tags.length
+  const overflowCount = item.tags.length - tags.length
 
   return (
     <div

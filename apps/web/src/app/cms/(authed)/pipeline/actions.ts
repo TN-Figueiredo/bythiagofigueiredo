@@ -6,7 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
-import { PipelineItemCreateSchema, PipelineItemUpdateSchema, CollectionCreateSchema, CollectionUpdateSchema } from '@/lib/pipeline/schemas'
+import { PipelineItemCreateSchema, PipelineItemUpdateSchema } from '@/lib/pipeline/schemas'
 import { generateCode, DEFAULT_CHECKLISTS, getNextStage, getPreviousStage } from '@/lib/pipeline/workflows'
 import type { Format } from '@/lib/pipeline/schemas'
 import type { PipelineItem } from '@/lib/pipeline/graduation'
@@ -299,75 +299,6 @@ export async function toggleChecklist(id: string, index: number, done: boolean):
   if (error) return { ok: false, error: error.message }
   revalidatePath('/cms/pipeline')
   return { ok: true, data: updated }
-}
-
-export async function createCollection(input: Record<string, unknown>): Promise<ActionResult> {
-  const parsed = CollectionCreateSchema.safeParse(input)
-  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-
-  const { siteId } = await requireEditAccess()
-  const supabase = getSupabaseServiceClient()
-
-  const { data, error } = await supabase
-    .from('content_collections')
-    .insert({ site_id: siteId, ...parsed.data })
-    .select()
-    .single()
-
-  if (error) return { ok: false, error: error.message }
-  revalidatePath('/cms/pipeline/collections')
-  return { ok: true, data }
-}
-
-export async function updateCollection(id: string, input: Record<string, unknown>): Promise<ActionResult> {
-  const parsed = CollectionUpdateSchema.safeParse(input)
-  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-
-  const { siteId } = await requireEditAccess()
-  const supabase = getSupabaseServiceClient()
-
-  const { data, error } = await supabase
-    .from('content_collections')
-    .update(parsed.data)
-    .eq('id', id)
-    .eq('site_id', siteId)
-    .select()
-    .single()
-
-  if (error) return { ok: false, error: error.message }
-  revalidatePath('/cms/pipeline/collections')
-  return { ok: true, data }
-}
-
-export async function addToCollection(pipelineId: string, collectionId: string, position?: number): Promise<ActionResult> {
-  await requireEditAccess()
-  const supabase = getSupabaseServiceClient()
-
-  const { error } = await supabase
-    .from('content_pipeline_memberships')
-    .upsert(
-      { pipeline_id: pipelineId, collection_id: collectionId, position: position ?? 0 },
-      { onConflict: 'pipeline_id,collection_id' }
-    )
-
-  if (error) return { ok: false, error: error.message }
-  revalidatePath('/cms/pipeline')
-  return { ok: true }
-}
-
-export async function removeFromCollection(pipelineId: string, collectionId: string): Promise<ActionResult> {
-  await requireEditAccess()
-  const supabase = getSupabaseServiceClient()
-
-  const { error } = await supabase
-    .from('content_pipeline_memberships')
-    .delete()
-    .eq('pipeline_id', pipelineId)
-    .eq('collection_id', collectionId)
-
-  if (error) return { ok: false, error: error.message }
-  revalidatePath('/cms/pipeline')
-  return { ok: true }
 }
 
 export async function searchBlogPostsAction(siteId: string, query: string): Promise<Array<{

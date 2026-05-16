@@ -72,22 +72,6 @@ describe('Pipeline search query construction', () => {
     expect(ltCall!.args[0]).toBe('updated_at')
   })
 
-  it('applyPipelineFilters applies collection filter', async () => {
-    const { applyPipelineFilters } = await import('@/lib/pipeline/queries')
-    const calls: Array<{ method: string; args: unknown[] }> = []
-    const mockQuery = new Proxy({}, {
-      get: (_target, prop: string) => (...args: unknown[]) => {
-        calls.push({ method: prop, args })
-        return mockQuery
-      },
-    })
-    applyPipelineFilters(mockQuery as any, { collection: 'col-123' })
-    const filterCall = calls.find((c) => c.method === 'filter')
-    expect(filterCall).toBeDefined()
-    expect(filterCall!.args[0]).toBe('content_pipeline_memberships.collection_id')
-    expect(filterCall!.args[2]).toBe('col-123')
-  })
-
   it('applyPipelineFilters ignores invalid stale_days', async () => {
     const { applyPipelineFilters } = await import('@/lib/pipeline/queries')
     const calls: Array<{ method: string; args: unknown[] }> = []

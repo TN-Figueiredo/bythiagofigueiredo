@@ -50,7 +50,6 @@ describe('PipelineItemDetail', () => {
           social_post_id: null,
           site_id: 's1',
         }}
-        collections={[]}
         history={[]}
         dependencies={[]}
       />,
@@ -77,7 +76,6 @@ describe('PipelineItemDetail', () => {
           sections: null, category: null, cover_image_url: null,
           blog_post_id: null, social_config: null, social_post_id: null, site_id: 's1',
         }}
-        collections={[]}
         history={[]}
         dependencies={[]}
       />,

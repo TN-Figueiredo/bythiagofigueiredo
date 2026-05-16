@@ -8,7 +8,6 @@ interface SearchResult {
   pipeline: Array<{ id: string; code: string; title_pt: string | null; title_en: string | null; format: string; stage: string }>
   blog_posts: Array<{ id: string; title: string; slug: string; status: string }>
   newsletters: Array<{ id: string; subject: string; status: string }>
-  collections: Array<{ id: string; code: string; name: string; type: string }>
 }
 
 export function PipelineSearchDropdown() {
@@ -54,7 +53,7 @@ export function PipelineSearchDropdown() {
     if (e.key === 'Escape') { setOpen(false); setResults(null) }
   }
 
-  const hasResults = results && (results.pipeline.length > 0 || results.blog_posts.length > 0 || results.newsletters.length > 0 || results.collections.length > 0)
+  const hasResults = results && (results.pipeline.length > 0 || results.blog_posts.length > 0 || results.newsletters.length > 0)
 
   return (
     <div ref={containerRef} className="relative">
@@ -120,19 +119,6 @@ export function PipelineSearchDropdown() {
                   <span className="text-xs">✍️</span>
                   <span className="text-xs truncate" style={{ color: 'var(--gem-text)' }}>{post.title}</span>
                   <span className="text-[10px] ml-auto" style={{ color: 'var(--gem-dim)' }}>{post.status}</span>
-                </Link>
-              ))}
-            </div>
-          )}
-
-          {results.collections.length > 0 && (
-            <div className="p-2 border-t" style={{ borderColor: 'var(--gem-border)' }}>
-              <p className="text-[10px] uppercase tracking-wider px-1 mb-1" style={{ color: 'var(--gem-dim)' }}>Collections</p>
-              {results.collections.map((c) => (
-                <Link key={c.id} href={`/cms/pipeline/collections/${c.id}`} onClick={() => setOpen(false)} role="option" className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-white/5 transition-colors">
-                  <span className="text-xs">📁</span>
-                  <span className="text-xs truncate" style={{ color: 'var(--gem-text)' }}>{c.name}</span>
-                  <span className="text-[10px] ml-auto" style={{ color: 'var(--gem-dim)' }}>{c.type}</span>
                 </Link>
               ))}
             </div>

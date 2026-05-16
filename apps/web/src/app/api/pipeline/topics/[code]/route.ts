@@ -24,30 +24,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ code
     .eq('site_id', auth.siteId)
     .eq('category', code)
 
-  const { data: collection } = await supabase
-    .from('content_collections')
-    .select('id, code, name, type')
-    .eq('site_id', auth.siteId)
-    .eq('code', code)
-    .maybeSingle()
-
-  let collectionMembers: unknown[] = []
-  if (collection) {
-    const { data } = await supabase
-      .from('content_pipeline_memberships')
-      .select('position, content_pipeline(id, code, title_pt, format, stage)')
-      .eq('collection_id', collection.id)
-      .order('position')
-    collectionMembers = data ?? []
-  }
-
   const headers = buildRateLimitHeaders(auth)
   return NextResponse.json({
     data: {
       topic: code,
       pipeline_items: pipelineItems ?? [],
       blog_posts: blogPosts ?? [],
-      collection: collection ? { ...collection, members: collectionMembers } : null,
     },
   }, { headers })
 }

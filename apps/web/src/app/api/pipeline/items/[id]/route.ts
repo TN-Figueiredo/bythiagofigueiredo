@@ -17,7 +17,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const supabase = getSupabaseServiceClient()
   const { data: item, error } = await supabase
     .from('content_pipeline')
-    .select('*, content_pipeline_memberships(collection_id, position, role, content_collections(id, code, name, type))')
+    .select('*')
     .eq('id', id)
     .eq('site_id', auth.siteId)
     .single()

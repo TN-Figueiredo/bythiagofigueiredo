@@ -10,15 +10,15 @@ vi.mock('next/navigation', () => ({
 }))
 
 describe('PipelineFilterBar', () => {
-  it('renders filter chips for collection, language, priority', () => {
-    render(<PipelineFilterBar collections={[{ code: 'playlist-a', name: 'Playlist A' }]} />)
-    expect(screen.getByText('Collection')).toBeDefined()
+  it('renders filter chips for language, priority, link', () => {
+    render(<PipelineFilterBar />)
+    expect(screen.getByText('Vínculo')).toBeDefined()
     expect(screen.getByText('Language')).toBeDefined()
     expect(screen.getByText('Priority')).toBeDefined()
   })
 
   it('updates URL params when chip selected', () => {
-    render(<PipelineFilterBar collections={[{ code: 'playlist-a', name: 'Playlist A' }]} />)
+    render(<PipelineFilterBar />)
     fireEvent.click(screen.getByText('Priority'))
     fireEvent.click(screen.getByText('P5'))
     expect(mockReplace).toHaveBeenCalled()

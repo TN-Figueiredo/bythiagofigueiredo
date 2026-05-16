@@ -12,7 +12,6 @@ describe('computeValidationScore', () => {
       tags: [],
       production_checklist: [],
       format_metadata: {},
-      memberships_count: 0,
       format: 'video',
     })
     expect(score.overall).toBe(0)
@@ -32,7 +31,6 @@ describe('computeValidationScore', () => {
         { label: 'B', done: true },
       ],
       format_metadata: { playlist_letter: 'G', episode_number: 1 },
-      memberships_count: 1,
       format: 'video',
     })
     expect(score.overall).toBe(100)
@@ -55,7 +53,6 @@ describe('computeValidationScore', () => {
         { label: 'D', done: true },
       ],
       format_metadata: {},
-      memberships_count: 0,
       format: 'blog_post',
     })
     expect(score.breakdown.checklist_pct).toBe(50)
@@ -73,7 +70,6 @@ describe('computeValidationScore', () => {
       tags: [],
       production_checklist: [],
       format_metadata: {},
-      memberships_count: 0,
       format: 'video',
     })
     expect(score.breakdown.metadata_complete).toBe(false)

@@ -10,7 +10,6 @@ const PG_URL =
 const db = createClient(SUPABASE_URL, SERVICE_KEY)
 
 const createdItemIds: string[] = []
-const createdCollectionIds: string[] = []
 const createdSiteIds: string[] = []
 
 describe.skipIf(skipIfNoLocalDb())('content_pipeline integration', () => {
@@ -19,9 +18,6 @@ describe.skipIf(skipIfNoLocalDb())('content_pipeline integration', () => {
   afterAll(async () => {
     if (createdItemIds.length) {
       await db.from('content_pipeline').delete().in('id', createdItemIds)
-    }
-    if (createdCollectionIds.length) {
-      await db.from('content_collections').delete().in('id', createdCollectionIds)
     }
     if (createdSiteIds.length) {
       await db.from('sites').delete().in('id', createdSiteIds)
@@ -157,44 +153,6 @@ describe.skipIf(skipIfNoLocalDb())('content_pipeline integration', () => {
 
     expect(error).not.toBeNull()
     expect(stale).toBeNull()
-  })
-
-  it('collection membership — add item to collection and verify', async () => {
-    const suffix = crypto.randomUUID().slice(0, 8)
-
-    const { data: col, error: colErr } = await db
-      .from('content_collections')
-      .insert({ site_id: siteId, code: `col-${suffix}`, type: 'series' })
-      .select()
-      .single()
-
-    expect(colErr).toBeNull()
-    createdCollectionIds.push(col!.id)
-
-    const { data: pi } = await db
-      .from('content_pipeline')
-      .insert(item({ title_pt: 'Collection Member' }))
-      .select()
-      .single()
-
-    createdItemIds.push(pi!.id)
-
-    const { error: memberErr } = await db
-      .from('content_pipeline_memberships')
-      .insert({ pipeline_id: pi!.id, collection_id: col!.id, position: 0 })
-
-    expect(memberErr).toBeNull()
-
-    const { data: membership } = await db
-      .from('content_pipeline_memberships')
-      .select('pipeline_id, collection_id')
-      .eq('pipeline_id', pi!.id)
-      .eq('collection_id', col!.id)
-      .single()
-
-    expect(membership).not.toBeNull()
-    expect(membership!.pipeline_id).toBe(pi!.id)
-    expect(membership!.collection_id).toBe(col!.id)
   })
 
   it('stale days filtering — items older than cutoff appear in results', async () => {

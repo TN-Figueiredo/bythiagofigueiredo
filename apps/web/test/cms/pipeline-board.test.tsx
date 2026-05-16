@@ -37,7 +37,6 @@ const makeItem = (overrides: Partial<Record<string, unknown>> = {}) => ({
   is_archived: false,
   validation_score: 0,
   dependencies: [],
-  collection_code: null,
   linked_post_status: null,
   sort_order: 0,
   version: 1,
@@ -50,7 +49,6 @@ describe('PipelineBoard', () => {
     render(
       <PipelineBoard
         format="video"
-        collections={[]}
         items={[
           makeItem({ id: '1', code: 'G1-test', title_pt: 'Video 1', stage: 'idea' }),
           makeItem({ id: '2', code: 'G2-test', title_pt: 'Video 2', stage: 'roteiro', language: 'both', tags: ['ai'], production_checklist: [{ label: 'X', done: true }] }),
@@ -66,27 +64,11 @@ describe('PipelineBoard', () => {
 
   it('renders empty columns gracefully', async () => {
     const { PipelineBoard } = await import('@/app/cms/(authed)/pipeline/_components/pipeline-board')
-    render(<PipelineBoard format="blog_post" items={[]} collections={[]} />)
+    render(<PipelineBoard format="blog_post" items={[]} />)
     expect(screen.getByText('Ideia')).toBeTruthy()
     expect(screen.getByText('Rascunho')).toBeTruthy()
     expect(screen.getByText('Pronto')).toBeTruthy()
   })
 
-  it('filters by collection_code when collection query param is set', async () => {
-    vi.mocked(vi.fn()).mockReturnValue
-    const { PipelineBoard } = await import('@/app/cms/(authed)/pipeline/_components/pipeline-board')
-    render(
-      <PipelineBoard
-        format="video"
-        collections={[{ code: 'col-a', name: 'Col A' }]}
-        items={[
-          makeItem({ id: '1', title_pt: 'Filtered In', stage: 'idea', collection_code: 'col-a' }),
-          makeItem({ id: '2', title_pt: 'Filtered Out', stage: 'idea', collection_code: 'col-b' }),
-        ]}
-      />,
-    )
-    // With empty search params both items show
-    expect(screen.getByText('Filtered In')).toBeTruthy()
-    expect(screen.getByText('Filtered Out')).toBeTruthy()
-  })
 })
+

@@ -48,7 +48,7 @@ describe('buildUnifiedLanes', () => {
     hook: null, body_content: null, tags: [], production_checklist: [],
     updated_at: '2026-01-01', created_at: '2026-01-01', blog_post_id: null,
     cover_image_url: null, validation_score: 50, dependencies: [],
-    collection_code: null, sort_order: 1000, version: 1, is_archived: false,
+    sort_order: 1000, version: 1, is_archived: false,
     ...overrides,
   })
 
@@ -98,7 +98,7 @@ describe('sortPipelineLane', () => {
     stage: 'idea', language: 'pt', priority, hook: null, body_content: null,
     tags: [], production_checklist: [], updated_at: created_at, created_at,
     blog_post_id: null, cover_image_url: null, validation_score: 50,
-    dependencies: [], collection_code: null, sort_order, version: 1, is_archived: false,
+    dependencies: [], sort_order, version: 1, is_archived: false,
   })
 
   it('sorts by sort_order when set, then priority DESC, created_at ASC', () => {

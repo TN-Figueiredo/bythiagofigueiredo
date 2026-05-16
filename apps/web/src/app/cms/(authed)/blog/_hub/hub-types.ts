@@ -113,7 +113,6 @@ export interface PipelineCardItem {
   cover_image_url: string | null
   validation_score: number
   dependencies: Array<{ dependency_type: string; depends_on_pipeline: { code: string } }>
-  collection_code: string | null
   sort_order: number
   version: number
   is_archived: boolean

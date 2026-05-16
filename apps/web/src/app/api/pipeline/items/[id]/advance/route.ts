@@ -81,11 +81,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: error?.message ?? 'Update failed' } }, { status: 400 })
   }
 
-  const { count: membershipsCount } = await supabase
-    .from('content_pipeline_memberships')
-    .select('*', { count: 'exact', head: true })
-    .eq('pipeline_id', id)
-
   const score = computeValidationScore({
     title_pt: updated.title_pt,
     title_en: updated.title_en,
@@ -95,7 +90,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     tags: updated.tags || [],
     production_checklist: updated.production_checklist || [],
     format_metadata: updated.format_metadata || {},
-    memberships_count: membershipsCount ?? 0,
     format,
   })
 

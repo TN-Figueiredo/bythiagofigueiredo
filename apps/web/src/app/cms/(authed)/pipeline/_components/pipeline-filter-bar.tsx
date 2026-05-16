@@ -3,11 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 
-interface FilterBarProps {
-  collections: Array<{ code: string; name: string }>
-}
-
-type FilterKey = 'collection' | 'lang' | 'priority' | 'link'
+type FilterKey = 'lang' | 'priority' | 'link'
 
 const PRIORITY_OPTIONS = [
   { value: '5', label: 'P5' },
@@ -27,14 +23,13 @@ const LINK_OPTIONS = [
   { value: 'unlinked', label: 'Sem blog post' },
 ]
 
-export function PipelineFilterBar({ collections }: FilterBarProps) {
+export function PipelineFilterBar() {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [openFilter, setOpenFilter] = useState<FilterKey | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const activeCollection = searchParams.get('collection')
   const activeLang = searchParams.get('lang')
   const activePriority = searchParams.get('priority')
   const activeLink = searchParams.get('link')
@@ -60,7 +55,6 @@ export function PipelineFilterBar({ collections }: FilterBarProps) {
   }
 
   function getOptions(key: FilterKey) {
-    if (key === 'collection') return collections.map((c) => ({ value: c.code, label: c.name }))
     if (key === 'lang') return LANG_OPTIONS
     if (key === 'link') return LINK_OPTIONS
     return PRIORITY_OPTIONS
@@ -125,11 +119,10 @@ export function PipelineFilterBar({ collections }: FilterBarProps) {
     )
   }
 
-  const hasFilters = activeCollection || activeLang || activePriority || activeLink
+  const hasFilters = activeLang || activePriority || activeLink
 
   return (
     <div ref={containerRef} className="flex items-center gap-2 mb-3">
-      {renderChip('collection', 'Collection', activeCollection)}
       {renderChip('lang', 'Language', activeLang)}
       {renderChip('priority', 'Priority', activePriority)}
       {renderChip('link', 'Vínculo', activeLink)}

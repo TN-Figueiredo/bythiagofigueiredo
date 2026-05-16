@@ -23,16 +23,6 @@ interface RecommendationItem {
   stage?: string
 }
 
-interface PlaylistData {
-  id: string
-  code: string
-  name: string
-  description: string | null
-  progress: number
-  total: number
-  nextItem: { code: string; title: string } | null
-}
-
 interface ActivityEntry {
   id: string
   code: string
@@ -45,7 +35,6 @@ interface ActivityEntry {
 interface PipelineOverviewProps {
   stats: Stats
   recommendations: { nextToRecord: RecommendationItem[]; topPriority: RecommendationItem[] }
-  playlists: PlaylistData[]
   activity: ActivityEntry[]
 }
 
@@ -68,7 +57,7 @@ function eventLabel(type: string, to: string | null): string {
   }
 }
 
-export function PipelineOverview({ stats, recommendations, playlists, activity }: PipelineOverviewProps) {
+export function PipelineOverview({ stats, recommendations, activity }: PipelineOverviewProps) {
   const kpis = [
     { label: 'Total Pipeline', value: stats.total, color: 'var(--gem-accent)' },
     { label: 'In Progress', value: stats.inProgress, color: '#0ea5e9' },
@@ -134,31 +123,6 @@ export function PipelineOverview({ stats, recommendations, playlists, activity }
           </div>
         </div>
       </div>
-
-      {playlists.length > 0 && (
-        <div>
-          <h3 className="text-xs font-medium mb-3" style={{ color: 'var(--gem-text)' }}>Playlists</h3>
-          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
-            {playlists.map((pl) => {
-              const progressPct = pl.total > 0 ? Math.round((pl.progress / pl.total) * 100) : 0
-              return (
-                <Link key={pl.id} href={`/cms/pipeline/collections/${pl.id}`} className="rounded-lg border p-4 hover:brightness-110 transition-all" style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-mono" style={{ color: 'var(--gem-muted)' }}>{pl.code}</span>
-                    <span className="text-[10px]" style={{ color: 'var(--gem-dim)' }}>{pl.progress}/{pl.total}</span>
-                  </div>
-                  <p className="text-sm font-medium mb-1" style={{ color: 'var(--gem-text)' }}>{pl.name}</p>
-                  {pl.description && <p className="text-[10px] line-clamp-2 mb-2" style={{ color: 'var(--gem-muted)' }}>{pl.description}</p>}
-                  <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--gem-well)' }}>
-                    <div className="h-full rounded-full transition-all" style={{ width: `${progressPct}%`, backgroundColor: 'var(--gem-done)', boxShadow: '0 0 6px rgba(16,185,129,0.4)' }} />
-                  </div>
-                  {pl.nextItem && <p className="text-[10px] mt-2" style={{ color: 'var(--gem-dim)' }}>Próximo: <span style={{ color: 'var(--gem-muted)' }}>{pl.nextItem.code}</span> — {pl.nextItem.title}</p>}
-                </Link>
-              )
-            })}
-          </div>
-        </div>
-      )}
 
       {activity.length > 0 && (
         <div className="rounded-lg border p-4" style={{ backgroundColor: 'var(--gem-surface)', borderColor: 'var(--gem-border)' }}>

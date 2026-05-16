@@ -10,7 +10,6 @@ export interface ValidationScore {
     has_body: boolean
     has_tags: boolean
     checklist_pct: number
-    in_collection: boolean
     metadata_complete: boolean
   }
   computed_at: string
@@ -25,7 +24,6 @@ interface ValidationInput {
   tags: string[]
   production_checklist: Array<{ label: string; done: boolean }>
   format_metadata: Record<string, unknown>
-  memberships_count: number
   format: Format
 }
 
@@ -34,9 +32,8 @@ const WEIGHTS = {
   has_hook: 15,
   has_synopsis: 10,
   has_body: 20,
-  has_tags: 5,
+  has_tags: 10,
   checklist_pct: 15,
-  in_collection: 5,
   metadata_complete: 10,
 }
 
@@ -46,7 +43,6 @@ export function computeValidationScore(input: ValidationInput): ValidationScore 
   const has_synopsis = Boolean(input.synopsis)
   const has_body = Boolean(input.body_content)
   const has_tags = input.tags.length > 0
-  const in_collection = input.memberships_count > 0
 
   const doneCount = input.production_checklist.filter((c) => c.done).length
   const totalCount = input.production_checklist.length
@@ -57,7 +53,7 @@ export function computeValidationScore(input: ValidationInput): ValidationScore 
   const hasMetaValues = Object.values(input.format_metadata).some((v) => v !== undefined && v !== null && v !== '')
   const metadata_complete = metaResult.success && hasMetaValues
 
-  const breakdown = { has_title, has_hook, has_synopsis, has_body, has_tags, checklist_pct, in_collection, metadata_complete }
+  const breakdown = { has_title, has_hook, has_synopsis, has_body, has_tags, checklist_pct, metadata_complete }
 
   const overall = Math.round(
     (has_title ? WEIGHTS.has_title : 0) +
@@ -66,7 +62,6 @@ export function computeValidationScore(input: ValidationInput): ValidationScore 
     (has_body ? WEIGHTS.has_body : 0) +
     (has_tags ? WEIGHTS.has_tags : 0) +
     (checklist_pct / 100) * WEIGHTS.checklist_pct +
-    (in_collection ? WEIGHTS.in_collection : 0) +
     (metadata_complete ? WEIGHTS.metadata_complete : 0)
   )
 

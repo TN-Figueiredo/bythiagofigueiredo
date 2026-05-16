@@ -27,7 +27,6 @@ const baseItem: GemCardItem = {
   is_archived: false,
   validation_score: 45,
   dependencies: [],
-  collection_code: null,
   linked_post_status: null,
   sort_order: 0,
   version: 1,
@@ -84,7 +83,7 @@ describe('GemCard', () => {
   })
 
   it('limits tags to 3 with overflow', () => {
-    const item = { ...baseItem, tags: ['t1', 't2', 't3', 't4', 't5'], collection_code: null }
+    const item = { ...baseItem, tags: ['t1', 't2', 't3', 't4', 't5'] }
     render(<GemCard item={item} />)
     // 3 tags shown, 2 overflow (5 total - 3 displayed = 2)
     expect(screen.getByText('+2')).toBeDefined()

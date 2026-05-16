@@ -26,7 +26,7 @@ describe('PipelineSearchDropdown', () => {
   it('fetches results after debounce with 2+ chars', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ data: { pipeline: [{ id: '1', code: 'vid-x', title_pt: 'Test', format: 'video', stage: 'idea' }], blog_posts: [], newsletters: [], collections: [] } }),
+      json: async () => ({ data: { pipeline: [{ id: '1', code: 'vid-x', title_pt: 'Test', format: 'video', stage: 'idea' }], blog_posts: [], newsletters: [] } }),
     })
     render(<PipelineSearchDropdown />)
     const input = screen.getByPlaceholderText('Buscar pipeline...')
@@ -38,7 +38,7 @@ describe('PipelineSearchDropdown', () => {
   it('shows no results message', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ data: { pipeline: [], blog_posts: [], newsletters: [], collections: [] } }),
+      json: async () => ({ data: { pipeline: [], blog_posts: [], newsletters: [] } }),
     })
     render(<PipelineSearchDropdown />)
     const input = screen.getByPlaceholderText('Buscar pipeline...')
@@ -49,7 +49,7 @@ describe('PipelineSearchDropdown', () => {
   it('closes on Escape key', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ data: { pipeline: [{ id: '1', code: 'vid-x', title_pt: 'Test', format: 'video', stage: 'idea' }], blog_posts: [], newsletters: [], collections: [] } }),
+      json: async () => ({ data: { pipeline: [{ id: '1', code: 'vid-x', title_pt: 'Test', format: 'video', stage: 'idea' }], blog_posts: [], newsletters: [] } }),
     })
     render(<PipelineSearchDropdown />)
     const input = screen.getByPlaceholderText('Buscar pipeline...')

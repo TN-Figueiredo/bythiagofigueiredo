@@ -38,20 +38,12 @@ export async function GET(req: NextRequest) {
     .ilike('subject', `%${safeQ}%`)
     .limit(10)
 
-  const { data: collections } = await supabase
-    .from('content_collections')
-    .select('id, code, name, type')
-    .eq('site_id', auth.siteId)
-    .or(`name.ilike.%${safeQ}%,code.ilike.%${safeQ}%`)
-    .limit(10)
-
   const headers = buildRateLimitHeaders(auth)
   return NextResponse.json({
     data: {
       pipeline: pipelineItems ?? [],
       blog_posts: blogPosts ?? [],
       newsletters: newsletters ?? [],
-      collections: collections ?? [],
     },
     meta: { query: q, limit },
   }, { headers })

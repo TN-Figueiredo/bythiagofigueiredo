@@ -33,7 +33,6 @@ import type { Format } from '@/lib/pipeline/schemas'
 interface PipelineBoardProps {
   format: Format
   items: GemCardItem[]
-  collections: Array<{ code: string; name: string }>
 }
 
 function isGraduated(item: GemCardItem): boolean {
@@ -52,7 +51,7 @@ function DroppableColumn({ id, children }: { id: string; children: React.ReactNo
   return <div ref={setNodeRef} className="space-y-1.5 min-h-[48px]">{children}</div>
 }
 
-export function PipelineBoard({ format, items, collections }: PipelineBoardProps) {
+export function PipelineBoard({ format, items }: PipelineBoardProps) {
   const stages = getPipelineStages(format)
   const stageKeys = stages.map((s) => s.stage)
   const searchParams = useSearchParams()
@@ -62,7 +61,6 @@ export function PipelineBoard({ format, items, collections }: PipelineBoardProps
     router.push(`/cms/blog/new?pipelineId=${itemId}`)
   }, [router])
 
-  const collectionFilter = searchParams.get('collection')
   const langFilter = searchParams.get('lang')
   const priorityFilter = searchParams.get('priority')
   const linkFilter = searchParams.get('link')
@@ -77,7 +75,6 @@ export function PipelineBoard({ format, items, collections }: PipelineBoardProps
   }, [items])
 
   const filtered = localItems.filter((item) => {
-    if (collectionFilter && item.collection_code !== collectionFilter) return false
     if (langFilter && item.language !== langFilter) return false
     if (priorityFilter && item.priority !== Number(priorityFilter)) return false
     if (linkFilter === 'linked' && !item.blog_post_id) return false
@@ -92,7 +89,7 @@ export function PipelineBoard({ format, items, collections }: PipelineBoardProps
     return acc
   }, {}), [stages, filtered])
 
-  const hasActiveFilters = !!(collectionFilter || langFilter || priorityFilter || linkFilter)
+  const hasActiveFilters = !!(langFilter || priorityFilter || linkFilter)
   const noResults = filtered.length === 0 && hasActiveFilters
 
   const sensors = useSensors(
@@ -236,7 +233,7 @@ export function PipelineBoard({ format, items, collections }: PipelineBoardProps
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <PipelineFilterBar collections={collections} />
+        <PipelineFilterBar />
         <Link
           href={`/cms/pipeline/${format}?action=create`}
           aria-label={`New ${format.replace('_', ' ')} item`}

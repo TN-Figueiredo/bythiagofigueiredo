@@ -7,9 +7,6 @@ export type Format = (typeof FORMATS)[number]
 export const LANGUAGES = ['pt-br', 'en', 'both'] as const
 export type Language = (typeof LANGUAGES)[number]
 
-export const COLLECTION_TYPES = ['playlist', 'category', 'series', 'arc', 'launch'] as const
-export type CollectionType = (typeof COLLECTION_TYPES)[number]
-
 // Format-specific metadata schemas
 export const VideoMetadataSchema = z.object({
   playlist_letter: z.string().max(2).optional(),
@@ -110,18 +107,6 @@ export const PipelineItemUpdateSchema = z.object({
   cover_image_url: z.string().url().max(2000).nullable().optional(),
 })
 
-export const CollectionCreateSchema = z.object({
-  code: z.string().min(1).max(100),
-  name: z.string().min(1).max(200),
-  description: z.string().max(2000).optional(),
-  type: z.enum(COLLECTION_TYPES),
-  parent_id: z.string().uuid().optional(),
-  metadata: z.record(z.unknown()).default({}),
-  position: z.number().int().default(0),
-})
-
-export const CollectionUpdateSchema = CollectionCreateSchema.partial().omit({ type: true })
-
 export const REFERENCE_GROUP_VALUES = ['pessoal', 'estrategia', 'craft', 'producao', 'api', 'memoria'] as const
 
 export const ReferenceContentUpsertSchema = z.object({
@@ -150,7 +135,6 @@ export const BulkOperationSchema = z.object({
     z.object({ op: z.literal('restore'), id: z.string().uuid() }),
     z.object({ op: z.literal('update'), id: z.string().uuid(), data: PipelineItemUpdateSchema, version: z.number().int() }),
     z.object({ op: z.literal('tag'), id: z.string().uuid(), data: z.object({ add: z.array(z.string()).default([]), remove: z.array(z.string()).default([]) }) }),
-    z.object({ op: z.literal('move_collection'), id: z.string().uuid(), data: z.object({ collection_id: z.string().uuid(), position: z.number().int() }) }),
   ])).min(1).max(50),
 })
 

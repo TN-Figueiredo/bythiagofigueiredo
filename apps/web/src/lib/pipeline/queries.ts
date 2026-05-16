@@ -41,7 +41,6 @@ export function applyPipelineFilters(
   filters: {
     format?: string
     stage?: string
-    collection?: string
     lang?: string
     archived?: string
     priority_min?: string
@@ -94,9 +93,6 @@ export function applyPipelineFilters(
       const cutoff = new Date(Date.now() - days * 86400000).toISOString()
       query = query.lt('updated_at', cutoff)
     }
-  }
-  if (filters.collection) {
-    query = query.filter('content_pipeline_memberships.collection_id', 'eq', filters.collection)
   }
   if (filters.search) {
     query = query.textSearch('search_vector', filters.search, { type: 'plain' })

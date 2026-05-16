@@ -56,8 +56,6 @@ export async function POST(req: NextRequest) {
       if (!item) { errors.push({ id: op.id, error: 'Not found' }); continue }
       if (item.version !== op.version) { errors.push({ id: op.id, error: `Version conflict. Current: ${item.version}` }); continue }
       validated.push({ op })
-    } else if (op.op === 'move_collection') {
-      validated.push({ op })
     }
   }
 
@@ -80,12 +78,6 @@ export async function POST(req: NextRequest) {
       } else if (op.op === 'update') {
         const { data, error } = await supabase.from('content_pipeline').update(op.data).eq('id', op.id).eq('site_id', auth.siteId).eq('version', op.version).select().single()
         if (error || !data) { results.push({ id: op.id, ok: false, error: 'Version conflict (concurrent modification)' }); continue }
-        results.push({ id: op.id, ok: true })
-      } else if (op.op === 'move_collection') {
-        const { error } = await supabase
-          .from('content_pipeline_memberships')
-          .upsert({ pipeline_id: op.id, collection_id: op.data.collection_id, position: op.data.position }, { onConflict: 'pipeline_id,collection_id' })
-        if (error) { results.push({ id: op.id, ok: false, error: error.message }); continue }
         results.push({ id: op.id, ok: true })
       }
     } catch (err) {

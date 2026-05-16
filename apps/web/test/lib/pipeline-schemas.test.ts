@@ -8,7 +8,6 @@ import {
   NewsletterMetadataSchema,
   CourseMetadataSchema,
   CampaignMetadataSchema,
-  CollectionCreateSchema,
   ReferenceContentUpsertSchema,
   BulkOperationSchema,
 } from '@/lib/pipeline/schemas'
@@ -78,27 +77,6 @@ describe('VideoMetadataSchema', () => {
 
   it('rejects unknown keys (strict)', () => {
     expect(VideoMetadataSchema.safeParse({ unknown_field: 'x' }).success).toBe(false)
-  })
-})
-
-describe('CollectionCreateSchema', () => {
-  it('validates a launch collection', () => {
-    const result = CollectionCreateSchema.safeParse({
-      code: 'q2-launch',
-      name: 'Q2 Launch',
-      type: 'launch',
-      metadata: { target_date: '2026-06-01', description: 'Ship it' },
-    })
-    expect(result.success).toBe(true)
-  })
-
-  it('rejects invalid type', () => {
-    const result = CollectionCreateSchema.safeParse({
-      code: 'x',
-      name: 'X',
-      type: 'invalid',
-    })
-    expect(result.success).toBe(false)
   })
 })
 

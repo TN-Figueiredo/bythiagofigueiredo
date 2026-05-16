@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   const supabase = getSupabaseServiceClient()
   let query = supabase
     .from('content_pipeline')
-    .select('*, content_pipeline_memberships(collection_id)', { count: 'exact' })
+    .select('*', { count: 'exact' })
     .eq('site_id', auth.siteId)
     .order(column, { ascending })
     .order('id', { ascending })
@@ -30,7 +30,6 @@ export async function GET(req: NextRequest) {
   query = applyPipelineFilters(query, {
     format: params.get('format') || undefined,
     stage: params.get('stage') || undefined,
-    collection: params.get('collection') || undefined,
     lang: params.get('lang') || undefined,
     archived: params.get('archived') || undefined,
     priority_min: params.get('priority_min') || undefined,

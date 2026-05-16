@@ -347,7 +347,7 @@ export const fetchPipelineData = unstable_cache(
         id, code, title_pt, title_en, format, stage, language, priority,
         hook, body_content, tags, production_checklist, updated_at, created_at,
         blog_post_id, cover_image_url, validation_score, sort_order, version,
-        is_archived, collection_code,
+        is_archived,
         dependencies:pipeline_dependencies(
           dependency_type,
           depends_on_pipeline:content_pipeline!pipeline_dependencies_depends_on_id_fkey(code)
@@ -380,7 +380,6 @@ export const fetchPipelineData = unstable_cache(
       cover_image_url: (item as Record<string, unknown>).cover_image_url as string | null,
       validation_score: (item as Record<string, unknown>).validation_score as number ?? 0,
       dependencies: ((item as Record<string, unknown>).dependencies ?? []) as PipelineCardItem['dependencies'],
-      collection_code: (item as Record<string, unknown>).collection_code as string | null,
       sort_order: (item as Record<string, unknown>).sort_order as number ?? 0,
       version: (item.version ?? 1) as number,
       is_archived: false,

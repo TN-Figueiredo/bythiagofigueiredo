@@ -4,7 +4,7 @@ import type { SidebarSection } from '@tn-figueiredo/cms-ui'
 import {
   LayoutDashboard, Calendar,
   FileText, Mail, Megaphone, Image, Link2, ListMusic,
-  Kanban, Video, GraduationCap, FolderOpen, BookOpen, Microscope, Headphones,
+  Kanban, Video, GraduationCap, BookOpen, Microscope, Headphones,
   Youtube, Send, Edit3, BarChart3, Users,
   UserPen, UsersRound,
   TrendingUp,
@@ -34,7 +34,6 @@ export function buildCmsSections(): SidebarSection[] {
         { icon: icon(GraduationCap), label: 'Courses', href: '/cms/pipeline/course', minRole: 'editor' },
         { icon: icon(BookOpen), label: 'Reference', href: '/cms/pipeline/reference', minRole: 'editor' },
         { icon: icon(Microscope), label: 'Research', href: '/cms/pipeline/research', minRole: 'editor' },
-        { icon: icon(FolderOpen), label: 'Collections', href: '/cms/pipeline/collections', minRole: 'editor' },
         { icon: icon(Image), label: 'Media', href: '/cms/media', minRole: 'editor' },
         { icon: icon(Link2), label: 'Links', href: '/cms/links', minRole: 'editor' },
         { icon: icon(ListMusic), label: 'Playlists', href: '/cms/playlists', minRole: 'editor' },

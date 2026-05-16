@@ -33,7 +33,6 @@ import type { SocialConfig } from '@/lib/social/types'
 
 interface ChecklistItem { label: string; done: boolean; toggled_at: string | null }
 interface HistoryEntry { id: string; event_type: string; from_value: string | null; to_value: string | null; changed_at: string }
-interface Collection { id: string; code: string; name: string; type: string }
 interface Dependency { dependency_type: string; depends_on_pipeline: { code: string } }
 
 interface ItemData {
@@ -72,7 +71,6 @@ interface ItemData {
 
 interface Props {
   item: ItemData
-  collections: Collection[]
   history: HistoryEntry[]
   dependencies: Dependency[]
 }
@@ -256,7 +254,7 @@ function SectionPanel({ sectionDef, activeSub, lang, itemId, itemVersion, itemCo
 }
 
 // ─── PipelineItemDetail ────────────────────────────────────────────────────────
-export function PipelineItemDetail({ item: initialItem, collections, history, dependencies }: Props) {
+export function PipelineItemDetail({ item: initialItem, history, dependencies }: Props) {
   const router = useRouter()
   const [item, setItem] = useState(initialItem)
   const [titlePt, setTitlePt] = useState(item.title_pt || '')
@@ -872,11 +870,6 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
           {item.tags.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1">
               {item.tags.map((tag) => <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-900/50 text-cyan-300">{tag}</span>)}
-            </div>
-          )}
-          {collections.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1">
-              {collections.map((c) => <span key={c.id} className="text-[10px] px-1.5 py-0.5 rounded bg-purple-900/50 text-purple-300">{c.name}</span>)}
             </div>
           )}
           {dependencies.length > 0 && (
