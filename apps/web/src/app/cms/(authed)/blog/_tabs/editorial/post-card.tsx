@@ -161,7 +161,7 @@ export const PostCard = memo(function PostCard({
       onClick={handleClick}
       className={`group relative rounded-lg border bg-gray-900 p-2.5 transition-colors hover:border-gray-700 ${
         selected ? 'border-indigo-500 ring-1 ring-indigo-500/30' : 'border-gray-800'
-      }`}
+      } ${laneId === 'published' ? 'cursor-default' : ''}`}
     >
       {card.coverImageUrl && (
         <div className="mb-2 h-24 w-full overflow-hidden rounded-md relative">
@@ -179,17 +179,17 @@ export const PostCard = memo(function PostCard({
         <span className="font-mono text-gray-500">{card.displayId}</span>
         {subBadge && (
           <span className={`rounded px-1.5 py-0.5 text-[8px] font-medium ${subBadge.color}`}>
-            {strings?.substatus?.[subBadge.labelKey as keyof typeof strings.substatus] ?? subBadge.labelKey}
+            {strings?.substatus?.[subBadge.labelKey] ?? subBadge.labelKey}
           </span>
         )}
-        <span className="ml-auto text-gray-600">{formatRelativeDate(card.updatedAt)}</span>
+        <span className="ml-auto text-gray-600">{formatRelativeDate(card.updatedAt, strings?.relativeLabels)}</span>
         <button
           ref={triggerRef}
           onClick={(e) => {
             e.stopPropagation()
             setMenuOpen((prev) => !prev)
           }}
-          className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity text-gray-500 hover:text-gray-300"
+          className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity text-gray-500 hover:text-gray-300 flex items-center justify-center min-h-[44px] min-w-[44px] -mr-1"
           aria-label={strings?.editorial?.moreActions ?? 'More actions'}
           aria-haspopup="menu"
           aria-expanded={menuOpen}

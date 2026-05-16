@@ -23,6 +23,10 @@ export const ptBR: BlogHubStrings = {
     promotionBoundary: 'Publicação →',
     dndPromoteHint: "Use 'Promover para Blog' para criar um post.",
     dndReturnHint: "Use 'Devolver ao Pipeline' no menu do card.",
+    dndPickedUp: '{title} selecionado',
+    dndMovingOver: 'Movendo {title} para {lane}',
+    dndDropped: '{title} solto em {lane}',
+    dndCancelled: 'Movimento de {title} cancelado',
   },
   deletePost: {
     triggerLabel: 'Excluir', triggerAriaLabel: 'Excluir {title}',
@@ -60,6 +64,9 @@ export const ptBR: BlogHubStrings = {
     dateLabel: 'Data', timeLabel: 'Horário',
     cancel: 'Cancelar', confirm: 'Agendar',
     dateRequired: 'Data obrigatória', datePast: 'A data deve ser futura',
+    invalidDateTime: 'Data ou horário inválido',
+    siteLabel: 'Site:', yoursLabel: 'Seu fuso:',
+    crossDayWarning: 'Publica em {localDate} no seu fuso ({siteDate} horário do site)',
   },
   tagDrawer: {
     createTitle: 'Nova Tag', editTitle: 'Editar Tag',
@@ -119,5 +126,14 @@ export const ptBR: BlogHubStrings = {
     clearSelection: 'Limpar',
     promotingProgress: 'Promovendo {current} de {total}…',
     promoted: '{count} itens promovidos', promotedPartial: '{ok} de {total} promovidos, {failed} falharam',
+    bulkPublished: '{count} publicado(s)', bulkArchived: '{count} arquivado(s)', bulkDeleted: '{count} excluído(s)',
+  },
+  relativeLabels: {
+    now: 'agora', minutes: 'm', hours: 'h', days: 'd', months: 'mês',
+  },
+  confirmDialog: {
+    cancel: 'Cancelar',
+    confirmDelete: 'Excluir',
+    confirmReturn: 'Continuar',
   },
 }

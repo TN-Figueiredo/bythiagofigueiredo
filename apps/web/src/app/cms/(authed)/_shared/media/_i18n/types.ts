@@ -22,6 +22,7 @@ export interface MediaGalleryStrings {
   dimensions: { tooSmall: string }
   toolbar: {
     selectAll: string; deselectAll: string
+    searchLabel: string; sortLabel: string; clearSearch: string
     searchHint: string; searchCount: string
     filterAll: string; filterCovers: string; filterInline: string
     filterAvatars: string; filterOg: string; filterUnused: string
@@ -35,7 +36,7 @@ export interface MediaGalleryStrings {
     ratio: string; mimeType: string; uploaded: string; uploadedBy: string
     tags: string; addTag: string; altText: string; folder: string
     copyUrl: string; replace: string; deleteAsset: string
-    copied: string; noUsages: string
+    copied: string; noUsages: string; removeTag: string; newBadge: string
     orphanWarning: string; orphanAutoDelete: string
     historyUpload: string; historyExifStrip: string; historyDedupCheck: string
     usedIn: string

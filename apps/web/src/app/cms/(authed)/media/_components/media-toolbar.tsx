@@ -112,6 +112,7 @@ export function MediaToolbar({
           placeholder={t.library.searchPlaceholder}
           className="w-full rounded-md border border-cms-border bg-cms-bg py-1.5 pl-8 pr-16 text-sm text-cms-text placeholder:text-cms-text-dim focus:border-cms-accent focus:outline-none"
           role="searchbox"
+          aria-label={t.toolbar.searchLabel}
           data-testid="media-search"
         />
         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
@@ -124,7 +125,7 @@ export function MediaToolbar({
                 type="button"
                 onClick={handleSearchClear}
                 className="rounded p-0.5 text-cms-text-dim hover:text-cms-text"
-                aria-label="Clear search"
+                aria-label={t.toolbar.clearSearch}
               >
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /></svg>
               </button>
@@ -176,6 +177,7 @@ export function MediaToolbar({
         value={sort}
         onChange={(e) => onSortChange(e.target.value as MediaSortOption)}
         className="rounded-md border border-cms-border bg-cms-bg px-2 py-1 text-xs text-cms-text focus:border-cms-accent focus:outline-none"
+        aria-label={t.toolbar.sortLabel}
         data-testid="media-sort"
       >
         {SORT_OPTIONS.map(({ value, tKey }) => (

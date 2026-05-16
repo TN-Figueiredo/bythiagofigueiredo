@@ -14,7 +14,7 @@ export function BulkActionBar({ count, onDeselect, onDownload, onDelete, t }: Bu
   if (count === 0) return null
 
   return (
-    <div className="fixed bottom-6 left-1/2 z-30 -translate-x-1/2">
+    <div role="status" aria-live="polite" className="fixed bottom-6 left-1/2 z-30 -translate-x-1/2">
       <div className="flex items-center gap-3 rounded-xl border border-cms-border bg-cms-surface px-4 py-2.5 shadow-2xl">
         <span className="text-sm font-medium text-cms-text tabular-nums">
           {t.bulk.selected.replace('{count}', String(count))}

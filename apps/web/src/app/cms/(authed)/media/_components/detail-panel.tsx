@@ -100,11 +100,15 @@ export function DetailPanel({
         </button>
       </div>
 
-      <div className="flex border-b border-cms-border">
+      <div role="tablist" className="flex border-b border-cms-border">
         {tabs.map((t2) => (
           <button
             key={t2}
             type="button"
+            role="tab"
+            aria-selected={tab === t2}
+            aria-controls={`tabpanel-${t2}`}
+            id={`tab-${t2}`}
             onClick={() => onTabChange(t2)}
             className={`flex-1 py-2.5 text-xs font-medium transition-colors ${
               tab === t2
@@ -117,7 +121,7 @@ export function DetailPanel({
         ))}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4">
+      <div id={`tabpanel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`} className="flex-1 overflow-y-auto p-4">
         <DetailTabs
           tab={tab}
           asset={asset}

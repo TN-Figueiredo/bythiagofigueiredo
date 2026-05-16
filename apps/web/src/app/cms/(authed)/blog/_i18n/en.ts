@@ -23,6 +23,10 @@ export const en: BlogHubStrings = {
     promotionBoundary: 'Publication →',
     dndPromoteHint: "Use 'Promote to Blog' to create a post.",
     dndReturnHint: "Use 'Return to Pipeline' from the card menu.",
+    dndPickedUp: 'Picked up {title}',
+    dndMovingOver: 'Moving {title} over {lane}',
+    dndDropped: 'Dropped {title} into {lane}',
+    dndCancelled: 'Cancelled moving {title}',
   },
   deletePost: {
     triggerLabel: 'Delete', triggerAriaLabel: 'Delete {title}',
@@ -60,6 +64,9 @@ export const en: BlogHubStrings = {
     dateLabel: 'Date', timeLabel: 'Time',
     cancel: 'Cancel', confirm: 'Schedule',
     dateRequired: 'Date is required', datePast: 'Date must be in the future',
+    invalidDateTime: 'Invalid date or time',
+    siteLabel: 'Site:', yoursLabel: 'Yours:',
+    crossDayWarning: 'This publishes on {localDate} in your timezone ({siteDate} site time)',
   },
   tagDrawer: {
     createTitle: 'New Tag', editTitle: 'Edit Tag',
@@ -119,5 +126,14 @@ export const en: BlogHubStrings = {
     clearSelection: 'Clear',
     promotingProgress: 'Promoting {current} of {total}…',
     promoted: '{count} items promoted', promotedPartial: '{ok} of {total} promoted, {failed} failed',
+    bulkPublished: '{count} published', bulkArchived: '{count} archived', bulkDeleted: '{count} deleted',
+  },
+  relativeLabels: {
+    now: 'now', minutes: 'm', hours: 'h', days: 'd', months: 'mo',
+  },
+  confirmDialog: {
+    cancel: 'Cancel',
+    confirmDelete: 'Delete',
+    confirmReturn: 'Continue',
   },
 }

@@ -49,7 +49,7 @@ export function DeleteConfirmModal({ open, count, usageCount, onConfirm, onCance
             type="button"
             onClick={onCancel}
             disabled={isLoading}
-            className="rounded-md border border-cms-border px-3 py-1.5 text-sm text-cms-text hover:bg-cms-surface-hover disabled:opacity-50"
+            className="rounded-md border border-cms-border px-3 py-1.5 text-sm text-cms-text hover:bg-cms-surface-hover disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {t.crop.cropCancel}
           </button>
@@ -57,7 +57,7 @@ export function DeleteConfirmModal({ open, count, usageCount, onConfirm, onCance
             type="button"
             onClick={onConfirm}
             disabled={isLoading}
-            className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50"
+            className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isLoading ? t.delete.deleting : t.detail.deleteAsset}
           </button>

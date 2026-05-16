@@ -41,20 +41,22 @@ export function ContextMenu({ x, y, assetId, onAction, onClose, t }: ContextMenu
   return (
     <div
       ref={ref}
+      role="menu"
       className="fixed z-50 min-w-[160px] rounded-lg border border-cms-border bg-cms-surface py-1 shadow-xl"
       style={{ left: x, top: y }}
       data-asset-id={assetId}
     >
-      {items.map((item, i) =>
+      {items.map((item) =>
         item.action === 'divider' ? (
-          <div key={i} className="my-1 h-px bg-cms-border" />
+          <div key="divider" role="separator" className="my-1 h-px bg-cms-border" />
         ) : (
           <button
             key={item.action}
             type="button"
+            role="menuitem"
             onClick={() => { onAction(item.action); onClose() }}
             className={`
-              w-full px-3 py-1.5 text-left text-xs transition-colors
+              w-full px-3 py-1.5 text-left text-xs transition-colors focus:outline-none focus:bg-cms-surface-hover
               ${item.action === 'delete' ? 'text-red-400 hover:bg-red-500/10' : 'text-cms-text hover:bg-cms-surface-hover'}
             `}
           >

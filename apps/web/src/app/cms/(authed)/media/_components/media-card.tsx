@@ -171,7 +171,7 @@ export function MediaCard({
               </span>
             )}
           </div>
-          <p className="truncate text-sm font-medium text-cms-text">
+          <p className="truncate text-sm font-medium text-cms-text" title={item.filename}>
             {highlightMatch(item.filename, searchQuery)}
           </p>
           <div className="flex items-center gap-2 text-xs text-cms-text-muted">

@@ -65,7 +65,7 @@ export function StorageBar({ folderBreakdown, totalSizeBytes, orphanCount, t }: 
             className={`${TYPE_COLORS[seg.type].bg} transition-all duration-700 ease-out`}
             style={{ width: `${seg.pct}%` }}
             role="meter"
-            aria-label={seg.type}
+            aria-label={`${t.typeLabels[seg.type]}: ${formatBytes(seg.bytes)} (${seg.pct.toFixed(1)}%)`}
             aria-valuenow={seg.pct}
             aria-valuemin={0}
             aria-valuemax={100}

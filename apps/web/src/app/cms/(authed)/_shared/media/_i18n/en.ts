@@ -55,6 +55,9 @@ export const en: MediaGalleryStrings = {
   toolbar: {
     selectAll: 'Select all',
     deselectAll: 'Deselect all',
+    searchLabel: 'Search media',
+    sortLabel: 'Sort by',
+    clearSearch: 'Clear search',
     searchHint: '⌘K',
     searchCount: '{count} results',
     filterAll: 'All',
@@ -92,6 +95,8 @@ export const en: MediaGalleryStrings = {
     deleteAsset: 'Delete',
     copied: 'Copied!',
     noUsages: 'No references found',
+    removeTag: 'Remove tag',
+    newBadge: 'NEW',
     orphanWarning: 'Unused for {days} days',
     orphanAutoDelete: 'Auto-deletes in {days} days',
     historyUpload: 'Uploaded',

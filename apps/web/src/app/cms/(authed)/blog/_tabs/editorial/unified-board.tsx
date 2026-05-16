@@ -6,10 +6,13 @@ import {
   DragOverlay,
   type DragStartEvent,
   type DragEndEvent,
+  type DragOverEvent,
+  type DragCancelEvent,
   type DropAnimation,
   closestCorners,
   PointerSensor,
   KeyboardSensor,
+  TouchSensor,
   useSensor,
   useSensors,
 } from '@dnd-kit/core'
@@ -32,6 +35,7 @@ import { PostCard, PostCardOverlay } from './post-card'
 import { PromotionModal } from './promotion-modal'
 import { BulkActionBar } from './bulk-action-bar'
 import { ScheduleModal } from './schedule-modal'
+import { ConfirmDialog } from './confirm-dialog'
 
 const DRAG_OVERLAY_ANIMATION: DropAnimation = { duration: 200, easing: 'ease' }
 const PUBLISHED_PAGE_SIZE = 30
@@ -47,7 +51,7 @@ interface UnifiedBoardProps {
   siteId: string
   onMovePipelineItem: (id: string, version: number, stage: string) => Promise<void>
   onMovePost: (postId: string, newStatus: string, scheduledFor?: string) => Promise<void>
-  onDeletePost: (postId: string) => Promise<void>
+  onDeletePost: (postId: string) => void
   onDuplicate: (postId: string) => Promise<void>
   onPromote: (
     siteId: string,
@@ -55,7 +59,7 @@ interface UnifiedBoardProps {
     locale: string,
     scheduledFor?: string,
   ) => Promise<{ ok: boolean; postId?: string }>
-  onReturnToPipeline: (postId: string) => Promise<void>
+  onReturnToPipeline: (postId: string) => void
   onBulkPublish: (postIds: string[]) => Promise<void>
   onBulkArchive: (postIds: string[]) => Promise<void>
   onBulkDelete: (postIds: string[]) => Promise<void>
@@ -92,6 +96,7 @@ export function UnifiedBoard({
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
   )
 
   const [optPipeline, dispatchPipeline] = useOptimistic(
@@ -114,7 +119,7 @@ export function UnifiedBoard({
     },
   )
 
-  const [, startTransition] = useTransition()
+  const [isPending, startTransition] = useTransition()
 
   const [activeId, setActiveId] = useState<string | null>(null)
   const [activeType, setActiveType] = useState<'pipeline' | 'post' | null>(null)
@@ -129,6 +134,9 @@ export function UnifiedBoard({
   const [selectionType, setSelectionType] = useState<'pipeline' | 'post' | null>(null)
 
   const [publishedPage, setPublishedPage] = useState(1)
+
+  const [returnConfirmPostId, setReturnConfirmPostId] = useState<string | null>(null)
+  const returnTriggerRef = useRef<string | null>(null)
 
   const lanes = useMemo(() => {
     const raw = buildUnifiedLanes(optPipeline, optPosts)
@@ -324,19 +332,31 @@ export function UnifiedBoard({
   )
 
   const handleReturnToPipeline = useCallback(
-    async (postId: string) => {
-      if (!window.confirm(strings?.promotion?.returnConfirm ?? 'Return to pipeline?')) return
-      startTransition(async () => {
-        try {
-          await onReturnToPipeline(postId)
-          toast.success(strings?.promotion?.returning ?? 'Returned')
-        } catch {
-          toast.error(strings?.promotion?.returnFailed ?? 'Failed')
-        }
-      })
+    (postId: string) => {
+      returnTriggerRef.current = postId
+      setReturnConfirmPostId(postId)
     },
-    [onReturnToPipeline, strings, startTransition],
+    [],
   )
+
+  const handleReturnConfirm = useCallback(() => {
+    const postId = returnTriggerRef.current
+    setReturnConfirmPostId(null)
+    if (!postId) return
+    startTransition(async () => {
+      try {
+        await onReturnToPipeline(postId)
+        toast.success(strings?.promotion?.returning ?? 'Returned')
+      } catch {
+        toast.error(strings?.promotion?.returnFailed ?? 'Failed')
+      }
+    })
+  }, [onReturnToPipeline, strings, startTransition])
+
+  const handleReturnCancel = useCallback(() => {
+    returnTriggerRef.current = null
+    setReturnConfirmPostId(null)
+  }, [])
 
   const handleMovePostToStatus = useCallback(
     async (postId: string, newStatus: string) => {
@@ -401,6 +421,62 @@ export function UnifiedBoard({
     [activeType],
   )
 
+  const getItemTitle = useCallback(
+    (id: string | number): string => {
+      const sid = String(id)
+      const pipelineItem = optPipeline.find((i) => i.id === sid)
+      if (pipelineItem) return pipelineItem.title_pt ?? pipelineItem.title_en ?? (strings?.editorial?.untitled ?? 'Untitled')
+      const post = optPosts.find((p) => p.id === sid)
+      return post?.title || (strings?.editorial?.untitled ?? 'Untitled')
+    },
+    [optPipeline, optPosts, strings],
+  )
+
+  const getLaneTitle = useCallback(
+    (id: string | number): string => {
+      const sid = String(id)
+      const laneDef = LANE_DEFS.find((l) => l.id === sid)
+      if (laneDef) return strings?.lanes?.[laneDef.id] ?? laneDef.label
+      const itemLane = findItemLane(sid)
+      if (itemLane) {
+        const def = LANE_DEFS.find((l) => l.id === itemLane)
+        return def ? (strings?.lanes?.[def.id] ?? def.label) : itemLane
+      }
+      return sid
+    },
+    [findItemLane, strings],
+  )
+
+  const announcements = useMemo(() => ({
+    onDragStart({ active }: DragStartEvent) {
+      const title = getItemTitle(active.id)
+      const tpl = strings?.editorial?.dndPickedUp ?? 'Picked up {title}'
+      return tpl.replace('{title}', title)
+    },
+    onDragOver({ active, over }: DragOverEvent) {
+      if (!over) return ''
+      const title = getItemTitle(active.id)
+      const lane = getLaneTitle(over.id)
+      const tpl = strings?.editorial?.dndMovingOver ?? 'Moving {title} over {lane}'
+      return tpl.replace('{title}', title).replace('{lane}', lane)
+    },
+    onDragEnd({ active, over }: DragEndEvent) {
+      const title = getItemTitle(active.id)
+      if (!over) {
+        const tpl = strings?.editorial?.dndCancelled ?? 'Cancelled moving {title}'
+        return tpl.replace('{title}', title)
+      }
+      const lane = getLaneTitle(over.id)
+      const tpl = strings?.editorial?.dndDropped ?? 'Dropped {title} into {lane}'
+      return tpl.replace('{title}', title).replace('{lane}', lane)
+    },
+    onDragCancel({ active }: DragCancelEvent) {
+      const title = getItemTitle(active.id)
+      const tpl = strings?.editorial?.dndCancelled ?? 'Cancelled moving {title}'
+      return tpl.replace('{title}', title)
+    },
+  }), [getItemTitle, getLaneTitle, strings])
+
   const handlePublishAll = useCallback(async () => {
     await onBulkPublish([...selectedIds])
     setSelectedIds(new Set())
@@ -422,11 +498,12 @@ export function UnifiedBoard({
         id={dndId}
         sensors={sensors}
         collisionDetection={closestCorners}
+        accessibility={{ announcements }}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
-        <div role="region" aria-label={strings?.tabs?.editorial ?? 'Blog editorial kanban'} tabIndex={0} className="flex gap-3 overflow-x-auto pb-4">
+        <div role="region" aria-label={strings?.tabs?.editorial ?? 'Blog editorial kanban'} aria-busy={isPending} tabIndex={0} className="flex gap-3 overflow-x-auto pb-4">
           <div className="flex gap-3">
             {LANE_DEFS.map((lane, idx) => {
               const items = lanes[lane.id]
@@ -565,6 +642,17 @@ export function UnifiedBoard({
         onDeleteAll={handleDeleteAll}
         onClear={() => setSelectedIds(new Set())}
       />
+
+      {returnConfirmPostId !== null && (
+        <ConfirmDialog
+          title={strings?.promotion?.returnToPipeline ?? 'Return to Pipeline'}
+          message={strings?.promotion?.returnConfirm ?? 'This will delete the blog post and return the item to the pipeline. Continue?'}
+          confirmLabel={strings?.confirmDialog?.confirmReturn ?? 'Continue'}
+          cancelLabel={strings?.confirmDialog?.cancel ?? 'Cancel'}
+          onConfirm={handleReturnConfirm}
+          onCancel={handleReturnCancel}
+        />
+      )}
     </>
   )
 }

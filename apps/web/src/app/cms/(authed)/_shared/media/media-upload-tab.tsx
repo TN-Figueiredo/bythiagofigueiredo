@@ -303,7 +303,7 @@ export function MediaUploadTab({ onSelect, folder, cropPreset, locale }: UploadT
           {tags.map((tag) => (
             <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-cms-surface px-2 py-0.5 text-xs text-cms-text-muted">
               {tag}
-              <button type="button" onClick={() => removeTag(tag)} className="text-cms-text-dim hover:text-cms-text">x</button>
+              <button type="button" onClick={() => removeTag(tag)} className="text-cms-text-dim hover:text-cms-text" aria-label={`${t.upload.tagsLabel}: ${tag}`}>x</button>
             </span>
           ))}
         </div>
@@ -335,7 +335,7 @@ export function MediaUploadTab({ onSelect, folder, cropPreset, locale }: UploadT
           type="button"
           onClick={handleSubmit}
           disabled={uploading}
-          className="rounded-md bg-cms-accent px-4 py-2 text-sm font-medium text-white hover:bg-cms-accent/90 disabled:opacity-50"
+          className="rounded-md bg-cms-accent px-4 py-2 text-sm font-medium text-white hover:bg-cms-accent/90 disabled:opacity-50 disabled:cursor-not-allowed"
           data-testid="upload-submit"
         >
           {uploading ? t.upload.uploading : t.upload.uploadButton}

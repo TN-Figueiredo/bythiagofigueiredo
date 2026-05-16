@@ -1,4 +1,21 @@
 import type { PipelineCardItem, PostCard, UnifiedLanes, LaneDef, LaneId } from './hub-types'
+import type { BlogHubStrings } from '../_i18n/types'
+
+export interface RelativeLabels {
+  now: string
+  minutes: string
+  hours: string
+  days: string
+  months: string
+}
+
+const DEFAULT_LABELS: RelativeLabels = {
+  now: 'now',
+  minutes: 'm',
+  hours: 'h',
+  days: 'd',
+  months: 'mo',
+}
 
 export const BLOG_TRANSITIONS: Record<string, string[]> = {
   idea:           ['draft', 'archived'],
@@ -45,17 +62,17 @@ export function mapStatusToColumn(status: PostCard['status']): KanbanColumnId {
   }
 }
 
-export function formatRelativeDate(dateStr: string): string {
+export function formatRelativeDate(dateStr: string, labels: RelativeLabels = DEFAULT_LABELS): string {
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diff / 60_000)
-  if (mins < 1) return 'now'
-  if (mins < 60) return `${mins}m`
+  if (mins < 1) return labels.now
+  if (mins < 60) return `${mins}${labels.minutes}`
   const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h`
+  if (hours < 24) return `${hours}${labels.hours}`
   const days = Math.floor(hours / 24)
-  if (days < 30) return `${days}d`
+  if (days < 30) return `${days}${labels.days}`
   const months = Math.floor(days / 30)
-  return `${months}mo`
+  return `${months}${labels.months}`
 }
 
 export const LANE_DEFS: LaneDef[] = [
@@ -67,7 +84,7 @@ export const LANE_DEFS: LaneDef[] = [
   { id: 'published', label: 'Publicado', color: '#22c55e', dataSource: 'blog' },
 ]
 
-export const SUBSTATUS_BADGES: Record<string, { color: string; labelKey: string }> = {
+export const SUBSTATUS_BADGES: Record<string, { color: string; labelKey: keyof BlogHubStrings['substatus'] }> = {
   idea: { color: 'bg-gray-400/10 text-gray-400', labelKey: 'idea' },
   draft: { color: 'bg-blue-400/10 text-blue-400', labelKey: 'draft' },
   pending_review: { color: 'bg-amber-400/10 text-amber-400', labelKey: 'pendingReview' },

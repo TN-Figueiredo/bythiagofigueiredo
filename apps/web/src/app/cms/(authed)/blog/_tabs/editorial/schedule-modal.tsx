@@ -24,8 +24,9 @@ export function ScheduleModal({ isOpen, postTitle, defaultDate, siteTimezone, on
   const [date, setDate] = useState(() => tomorrowInSiteTz(siteTimezone))
   const [time, setTime] = useState('09:00')
   const [error, setError] = useState<string | null>(null)
-  const dateRef = useRef<HTMLInputElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const firstFocusRef = useRef<HTMLInputElement>(null)
 
   const siteAbbr = useMemo(() => getTimezoneAbbr(siteTimezone), [siteTimezone])
   const localTz = useMemo(() => {
@@ -39,7 +40,7 @@ export function ScheduleModal({ isOpen, postTitle, defaultDate, siteTimezone, on
       setDate(defaultDate ?? tomorrowInSiteTz(siteTimezone))
       setTime('09:00')
       setError(null)
-      setTimeout(() => dateRef.current?.focus(), 0)
+      setTimeout(() => firstFocusRef.current?.focus(), 0)
     }
   }, [isOpen, defaultDate, siteTimezone])
 
@@ -62,6 +63,29 @@ export function ScheduleModal({ isOpen, postTitle, defaultDate, siteTimezone, on
     [onCancel],
   )
 
+  const handleTabKey = useCallback((e: React.KeyboardEvent) => {
+    if (e.key !== 'Tab') return
+    const dialog = dialogRef.current
+    if (!dialog) return
+    const focusable = dialog.querySelectorAll<HTMLElement>(
+      'a[href], input:not([disabled]), button:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    )
+    const first = focusable[0]
+    const last = focusable[focusable.length - 1]
+    if (!first || !last) return
+    if (e.shiftKey) {
+      if (document.activeElement === first) {
+        e.preventDefault()
+        last.focus()
+      }
+    } else {
+      if (document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+  }, [])
+
   const handleConfirm = useCallback(() => {
     if (!date) {
       setError(s?.dateRequired ?? 'Date is required')
@@ -73,7 +97,7 @@ export function ScheduleModal({ isOpen, postTitle, defaultDate, siteTimezone, on
     }
     const iso = toISOInTimezone(date, time, siteTimezone)
     if (!iso) {
-      setError('Invalid date or time')
+      setError(s?.invalidDateTime ?? 'Invalid date or time')
       return
     }
     setError(null)
@@ -94,6 +118,13 @@ export function ScheduleModal({ isOpen, postTitle, defaultDate, siteTimezone, on
 
   const sameTz = siteTimezone === localTz
 
+  const crossDayWarning = s?.crossDayWarning ?? 'This publishes on {localDate} in your timezone ({siteDate} site time)'
+  const crossDayMessage = dualTime
+    ? crossDayWarning
+        .replace('{localDate}', dualTime.local.dateStr)
+        .replace('{siteDate}', dualTime.site.dateStr)
+    : ''
+
   return (
     <div
       ref={overlayRef}
@@ -103,7 +134,11 @@ export function ScheduleModal({ isOpen, postTitle, defaultDate, siteTimezone, on
       aria-modal="true"
       aria-labelledby="schedule-modal-title"
     >
-      <div className="w-full max-w-sm rounded-xl border border-gray-700 bg-gray-900 p-5 shadow-xl">
+      <div
+        ref={dialogRef}
+        className="w-full max-w-sm rounded-xl border border-gray-700 bg-gray-900 p-5 shadow-xl"
+        onKeyDown={handleTabKey}
+      >
         <h2 id="schedule-modal-title" className="text-[15px] font-semibold text-gray-200">
           {s?.title ?? 'Schedule Post'}
         </h2>
@@ -118,7 +153,7 @@ export function ScheduleModal({ isOpen, postTitle, defaultDate, siteTimezone, on
               {s?.dateLabel ?? 'Date'}
             </label>
             <input
-              ref={dateRef}
+              ref={firstFocusRef}
               id="schedule-date"
               type="date"
               value={date}
@@ -150,12 +185,12 @@ export function ScheduleModal({ isOpen, postTitle, defaultDate, siteTimezone, on
           {dualTime && !sameTz && (
             <div className="rounded-lg border border-gray-700/60 bg-gray-800/50 px-3 py-2">
               <div className="flex items-center gap-2 text-[11px]">
-                <span className="text-gray-500">Site:</span>
+                <span className="text-gray-500">{s?.siteLabel ?? 'Site:'}</span>
                 <span className="font-medium text-gray-200">{dualTime.site.dateStr} at {dualTime.site.timeStr}</span>
                 <span className="rounded bg-indigo-500/15 px-1 py-0.5 text-[9px] font-semibold text-indigo-400">{dualTime.site.tzAbbr}</span>
               </div>
               <div className="mt-1 flex items-center gap-2 text-[11px]">
-                <span className="text-gray-500">Yours:</span>
+                <span className="text-gray-500">{s?.yoursLabel ?? 'Yours:'}</span>
                 <span className="text-gray-400">{dualTime.local.dateStr} at {dualTime.local.timeStr}</span>
                 <span className="text-[9px] text-gray-500">{dualTime.local.tzAbbr}</span>
                 {dualTime.crossDay && (
@@ -167,7 +202,7 @@ export function ScheduleModal({ isOpen, postTitle, defaultDate, siteTimezone, on
 
           {dualTime?.crossDay && !sameTz && (
             <p className="text-[11px] text-amber-400">
-              This publishes on {dualTime.local.dateStr} in your timezone ({dualTime.site.dateStr} site time)
+              {crossDayMessage}
             </p>
           )}
 

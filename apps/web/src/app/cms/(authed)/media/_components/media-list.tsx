@@ -64,7 +64,7 @@ export function MediaList({ items, checked, selectedId, focusedIndex, onSelect, 
             </div>
 
             <div className="flex-1 min-w-0">
-              <p className="truncate text-sm font-medium text-cms-text">{asset.filename}</p>
+              <p className="truncate text-sm font-medium text-cms-text" title={asset.filename}>{asset.filename}</p>
             </div>
 
             <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${colors.badge}`}>

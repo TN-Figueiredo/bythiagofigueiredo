@@ -22,10 +22,13 @@ function copyToClipboard(text: string): void {
 
 function CopyableValue({ label, value, t }: { label: string; value: string; t: MediaGalleryStrings }) {
   const [copied, setCopied] = useState(false)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current) }, [])
   const handleCopy = () => {
     copyToClipboard(value)
     setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
+    if (timerRef.current) clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => setCopied(false), 1500)
   }
   return (
     <div className="flex items-center justify-between">
@@ -156,6 +159,7 @@ function DetailsTab({
                 type="button"
                 onClick={() => handleRemoveTag(tag)}
                 className="ml-0.5 text-cms-text-dim hover:text-red-400"
+                aria-label={`${t.detail.removeTag}: ${tag}`}
               >
                 ×
               </button>
@@ -210,7 +214,7 @@ function UsageTab({ usages, t }: { usages: UsageEntry[]; t: MediaGalleryStrings 
           <span className="rounded-full bg-cms-accent/15 px-2 py-0.5 text-[10px] font-semibold text-cms-accent">
             {u.resourceType.replace('_', ' ')}
           </span>
-          <span className="text-xs text-cms-text truncate">{u.fieldName}</span>
+          <span className="text-xs text-cms-text truncate" title={u.fieldName}>{u.fieldName}</span>
         </div>
       ))}
     </div>

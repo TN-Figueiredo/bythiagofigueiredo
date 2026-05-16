@@ -21,6 +21,10 @@ export interface BlogHubStrings {
     promotionBoundary: string
     dndPromoteHint: string
     dndReturnHint: string
+    dndPickedUp: string
+    dndMovingOver: string
+    dndDropped: string
+    dndCancelled: string
   }
   deletePost: {
     triggerLabel: string; triggerAriaLabel: string
@@ -56,6 +60,9 @@ export interface BlogHubStrings {
     dateLabel: string; timeLabel: string
     cancel: string; confirm: string
     dateRequired: string; datePast: string
+    invalidDateTime: string
+    siteLabel: string; yoursLabel: string
+    crossDayWarning: string
   }
   tagDrawer: {
     createTitle: string; editTitle: string
@@ -115,5 +122,14 @@ export interface BlogHubStrings {
     publishAll: string; archiveAll: string; deleteAll: string
     clearSelection: string
     promotingProgress: string; promoted: string; promotedPartial: string
+    bulkPublished: string; bulkArchived: string; bulkDeleted: string
+  }
+  relativeLabels: {
+    now: string; minutes: string; hours: string; days: string; months: string
+  }
+  confirmDialog: {
+    cancel: string
+    confirmDelete: string
+    confirmReturn: string
   }
 }

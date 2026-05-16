@@ -55,6 +55,9 @@ export const ptBR: MediaGalleryStrings = {
   toolbar: {
     selectAll: 'Selecionar todos',
     deselectAll: 'Desmarcar todos',
+    searchLabel: 'Buscar mídia',
+    sortLabel: 'Ordenar por',
+    clearSearch: 'Limpar busca',
     searchHint: '⌘K',
     searchCount: '{count} resultados',
     filterAll: 'Todos',
@@ -92,6 +95,8 @@ export const ptBR: MediaGalleryStrings = {
     deleteAsset: 'Excluir',
     copied: 'Copiado!',
     noUsages: 'Nenhuma referência encontrada',
+    removeTag: 'Remover tag',
+    newBadge: 'NOVO',
     orphanWarning: 'Sem uso há {days} dias',
     orphanAutoDelete: 'Exclusão automática em {days} dias',
     historyUpload: 'Enviado',
