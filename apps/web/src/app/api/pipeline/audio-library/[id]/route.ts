@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { authenticatePipeline, requirePermission, buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
 import { AudioAssetUpdateSchema } from '@/lib/pipeline/audio-schemas'
+import { pipelineLog } from '@/lib/pipeline/logger'
 
 export async function GET(
   req: NextRequest,
@@ -24,7 +25,7 @@ export async function GET(
     .single()
 
   if (error) {
-    console.error('[audio-library] GET by id error:', error)
+    pipelineLog('error', 'audio-library', 'GET by id failed', { error })
     if (error.code === 'PGRST116') return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Asset not found' } }, { status: 404 })
     return NextResponse.json({ error: { code: 'DB_ERROR', message: 'Internal server error' } }, { status: 500 })
   }

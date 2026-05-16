@@ -3,6 +3,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { authenticatePipeline, requirePermission, buildRateLimitHeaders } from '@/lib/pipeline/auth'
 import { buildExportJson } from '@/lib/pipeline/audio-import'
 import type { AudioAssetRow } from '@/lib/pipeline/audio-schemas'
+import { pipelineLog } from '@/lib/pipeline/logger'
 
 export async function GET(req: NextRequest) {
   const authResult = await authenticatePipeline(req)
@@ -25,7 +26,7 @@ export async function GET(req: NextRequest) {
       .order('created_at', { ascending: false })
       .range(offset, offset + PAGE_SIZE - 1)
 
-    if (error) { console.error('[audio-export] DB error:', error); return NextResponse.json({ error: { code: 'DB_ERROR', message: 'Internal server error' } }, { status: 500 }) }
+    if (error) { pipelineLog('error', 'audio-library', 'export DB query failed', { error }); return NextResponse.json({ error: { code: 'DB_ERROR', message: 'Internal server error' } }, { status: 500 }) }
     const rows = (data ?? []) as AudioAssetRow[]
     allAssets.push(...rows)
     if (allAssets.length >= MAX_EXPORT_ROWS) break

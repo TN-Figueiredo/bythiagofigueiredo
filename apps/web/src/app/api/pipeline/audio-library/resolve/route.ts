@@ -3,6 +3,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { authenticatePipeline, requirePermission, buildRateLimitHeaders } from '@/lib/pipeline/auth'
 import { ResolveQuerySchema } from '@/lib/pipeline/audio-schemas'
 import { resolveAudio } from '@/lib/pipeline/audio-resolver'
+import { pipelineLog } from '@/lib/pipeline/logger'
 
 export async function POST(req: NextRequest) {
   const authResult = await authenticatePipeline(req)
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
   try {
     result = await resolveAudio(supabase, auth.siteId, parsed.data)
   } catch (err) {
-    console.error('[audio-resolve] error:', err)
+    pipelineLog('error', 'audio-library', 'resolve failed', { error: err })
     return NextResponse.json({ error: { code: 'DB_ERROR', message: 'Internal server error' } }, { status: 500 })
   }
 

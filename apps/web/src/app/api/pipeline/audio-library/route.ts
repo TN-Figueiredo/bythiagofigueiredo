@@ -3,6 +3,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { authenticatePipeline, requirePermission, buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
 import { AudioAssetCreateSchema } from '@/lib/pipeline/audio-schemas'
 import { sanitizeForFilter, sanitizeForTsquery } from '@/lib/pipeline/sanitize'
+import { pipelineLog } from '@/lib/pipeline/logger'
 
 export async function GET(req: NextRequest) {
   const authResult = await authenticatePipeline(req)
@@ -76,7 +77,7 @@ export async function GET(req: NextRequest) {
   }
 
   const { data, error, count } = await query.limit(limit + 1)
-  if (error) { console.error('[audio-library] GET error:', error); return NextResponse.json({ error: { code: 'DB_ERROR', message: 'Internal server error' } }, { status: 500 }) }
+  if (error) { pipelineLog('error', 'audio-library', 'GET failed', { error }); return NextResponse.json({ error: { code: 'DB_ERROR', message: 'Internal server error' } }, { status: 500 }) }
 
   const hasNext = (data?.length ?? 0) > limit
   const items = data?.slice(0, limit) ?? []
@@ -115,7 +116,7 @@ export async function POST(req: NextRequest) {
     if (error.code === '23505') {
       return NextResponse.json({ error: { code: 'CONFLICT', message: 'Asset with this ID or SHA256 already exists' } }, { status: 409 })
     }
-    console.error('[audio-library] POST error:', error)
+    pipelineLog('error', 'audio-library', 'POST failed', { error })
     return NextResponse.json({ error: { code: 'DB_ERROR', message: 'Internal server error' } }, { status: 500 })
   }
 
