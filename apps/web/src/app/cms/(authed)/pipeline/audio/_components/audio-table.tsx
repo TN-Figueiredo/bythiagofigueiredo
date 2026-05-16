@@ -11,7 +11,7 @@ interface AudioTableProps {
   onRefetch?: () => void
 }
 
-type SortKey = 'name' | 'type' | 'category' | 'energy' | 'bpm' | 'status'
+type SortKey = 'name' | 'type' | 'category' | 'tags' | 'energy' | 'bpm' | 'status'
 
 const STATUS_BADGE: Record<string, { label: string; bg: string; color: string }> = {
   downloaded: { label: 'Downloaded', bg: 'rgba(16,185,129,0.15)', color: '#10b981' },
@@ -26,13 +26,20 @@ export function AudioTable({ assets, selectedId, onSelect, onRefetch }: AudioTab
 
   const sorted = useMemo(() => {
     const list = [...assets]
-    const key = sortKey === 'name' ? 'track_name' : sortKey
-    list.sort((a, b) => {
-      const va = a[key] ?? ''
-      const vb = b[key] ?? ''
-      const cmp = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb))
-      return sortAsc ? cmp : -cmp
-    })
+    if (sortKey === 'tags') {
+      list.sort((a, b) => {
+        const cmp = a.tags.length - b.tags.length
+        return sortAsc ? cmp : -cmp
+      })
+    } else {
+      const key = sortKey === 'name' ? 'track_name' : sortKey
+      list.sort((a, b) => {
+        const va = a[key] ?? ''
+        const vb = b[key] ?? ''
+        const cmp = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb))
+        return sortAsc ? cmp : -cmp
+      })
+    }
     return list
   }, [assets, sortKey, sortAsc])
 
@@ -98,6 +105,7 @@ export function AudioTable({ assets, selectedId, onSelect, onRefetch }: AudioTab
     { key: 'name', label: 'Name' },
     { key: 'type', label: 'Type', width: 60 },
     { key: 'category', label: 'Category', width: 100 },
+    { key: 'tags', label: 'Tags', width: 140 },
     { key: 'energy', label: 'Energy', width: 60 },
     { key: 'bpm', label: 'BPM', width: 60 },
     { key: 'status', label: 'Status', width: 90 },
@@ -144,6 +152,16 @@ export function AudioTable({ assets, selectedId, onSelect, onRefetch }: AudioTab
                 <td style={{ padding: '4px 8px', color: 'var(--gem-text)' }}>{a.track_name || a.asset_id}</td>
                 <td style={{ padding: '4px 8px', color: 'var(--gem-muted)' }}>{a.type === 'music' ? '🎵' : '🔊'}</td>
                 <td style={{ padding: '4px 8px', color: 'var(--gem-muted)' }}>{a.category ?? '—'}</td>
+                <td style={{ padding: '4px 8px' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                    {a.tags.slice(0, 3).map(tag => (
+                      <span key={tag} style={{ fontSize: 9, padding: '1px 5px', borderRadius: 4, background: 'rgba(99,102,241,0.1)', color: 'var(--gem-accent)' }}>{tag}</span>
+                    ))}
+                    {a.tags.length > 3 && (
+                      <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 4, background: 'rgba(99,102,241,0.1)', color: 'var(--gem-accent)' }}>+{a.tags.length - 3}</span>
+                    )}
+                  </div>
+                </td>
                 <td style={{ padding: '4px 8px', color: 'var(--gem-muted)' }}>{a.energy ?? '—'}</td>
                 <td style={{ padding: '4px 8px', color: 'var(--gem-muted)' }}>{a.bpm ?? '—'}</td>
                 <td style={{ padding: '4px 8px' }}>
