@@ -83,4 +83,38 @@ export const ptBR: BlogHubStrings = {
     newsletterLoading: 'Carregando...',
     translationPlaceholder: 'Tradução (opcional)',
   },
+  lanes: {
+    idea: 'Ideia', draft: 'Rascunho', ready: 'Pronto',
+    editing: 'Em Edição', scheduled: 'Agendado', published: 'Publicado',
+  },
+  promotion: {
+    title: 'Promover para Blog', selectLocales: 'Idiomas', scheduleToggle: 'Agendar publicação',
+    promote: 'Promover', promoteSchedule: 'Promover e Agendar', cancel: 'Cancelar',
+    returnToPipeline: 'Devolver ao Pipeline', returnConfirm: 'Isso excluirá o post e devolverá o item ao pipeline. Continuar?',
+    promoting: 'Promovendo…', returning: 'Devolvendo…',
+    promoteFailed: 'Falha ao promover', returnFailed: 'Falha ao devolver ao pipeline',
+    onlyIdeaDraft: 'Apenas posts em ideia/rascunho podem ser devolvidos',
+  },
+  substatus: {
+    idea: 'Ideia', draft: 'Rascunho', pendingReview: 'Em Revisão',
+    ready: 'Pronto', queued: 'Na Fila',
+  },
+  emptyLanes: {
+    idea: 'Nenhuma ideia ainda', draft: 'Nenhum rascunho em progresso', ready: 'Nenhum item pronto para promover',
+    editing: 'Nenhum post em edição', scheduled: 'Nenhum post agendado', published: 'Nenhum post publicado',
+    newIdea: '+ Nova Ideia', newPost: '+ Novo Post',
+  },
+  pipeline: {
+    openItem: 'Abrir item', moveTo: 'Mover para…', archive: 'Arquivar',
+    promoteToPost: 'Promover para Blog', promoteAndSchedule: 'Promover e Agendar',
+    searchPipeline: 'Buscar pipeline…', priority: 'Prioridade',
+    inPipeline: 'No Pipeline',
+  },
+  bulk: {
+    selected: 'selecionados', moveToLabel: 'Mover para…', promoteAll: 'Promover todos',
+    publishAll: 'Publicar', archiveAll: 'Arquivar', deleteAll: 'Excluir',
+    clearSelection: 'Limpar',
+    promotingProgress: 'Promovendo {current} de {total}…',
+    promoted: '{count} itens promovidos', promotedPartial: '{ok} de {total} promovidos, {failed} falharam',
+  },
 }

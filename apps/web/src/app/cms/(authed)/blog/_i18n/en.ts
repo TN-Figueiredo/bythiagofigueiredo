@@ -83,4 +83,38 @@ export const en: BlogHubStrings = {
     newsletterLoading: 'Loading...',
     translationPlaceholder: 'Translation (optional)',
   },
+  lanes: {
+    idea: 'Idea', draft: 'Draft', ready: 'Ready',
+    editing: 'In Editing', scheduled: 'Scheduled', published: 'Published',
+  },
+  promotion: {
+    title: 'Promote to Blog', selectLocales: 'Languages', scheduleToggle: 'Schedule publication',
+    promote: 'Promote', promoteSchedule: 'Promote & Schedule', cancel: 'Cancel',
+    returnToPipeline: 'Return to Pipeline', returnConfirm: 'This will delete the blog post and return the item to the pipeline. Continue?',
+    promoting: 'Promoting…', returning: 'Returning…',
+    promoteFailed: 'Failed to promote', returnFailed: 'Failed to return to pipeline',
+    onlyIdeaDraft: 'Only idea/draft posts can be returned',
+  },
+  substatus: {
+    idea: 'Idea', draft: 'Draft', pendingReview: 'In Review',
+    ready: 'Ready', queued: 'Queued',
+  },
+  emptyLanes: {
+    idea: 'No ideas yet', draft: 'No drafts in progress', ready: 'No items ready to promote',
+    editing: 'No posts being edited', scheduled: 'No posts scheduled', published: 'No posts published',
+    newIdea: '+ New Idea', newPost: '+ New Post',
+  },
+  pipeline: {
+    openItem: 'Open item', moveTo: 'Move to…', archive: 'Archive',
+    promoteToPost: 'Promote to Blog', promoteAndSchedule: 'Promote & Schedule',
+    searchPipeline: 'Search pipeline…', priority: 'Priority',
+    inPipeline: 'In Pipeline',
+  },
+  bulk: {
+    selected: 'selected', moveToLabel: 'Move to…', promoteAll: 'Promote all',
+    publishAll: 'Publish', archiveAll: 'Archive', deleteAll: 'Delete',
+    clearSelection: 'Clear',
+    promotingProgress: 'Promoting {current} of {total}…',
+    promoted: '{count} items promoted', promotedPartial: '{ok} of {total} promoted, {failed} failed',
+  },
 }

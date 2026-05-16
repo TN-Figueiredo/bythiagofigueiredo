@@ -79,4 +79,37 @@ export interface BlogHubStrings {
     newsletterLoading: string
     translationPlaceholder: string
   }
+  lanes: {
+    idea: string; draft: string; ready: string
+    editing: string; scheduled: string; published: string
+  }
+  promotion: {
+    title: string; selectLocales: string; scheduleToggle: string
+    promote: string; promoteSchedule: string; cancel: string
+    returnToPipeline: string; returnConfirm: string
+    promoting: string; returning: string
+    promoteFailed: string; returnFailed: string
+    onlyIdeaDraft: string
+  }
+  substatus: {
+    idea: string; draft: string; pendingReview: string
+    ready: string; queued: string
+  }
+  emptyLanes: {
+    idea: string; draft: string; ready: string
+    editing: string; scheduled: string; published: string
+    newIdea: string; newPost: string
+  }
+  pipeline: {
+    openItem: string; moveTo: string; archive: string
+    promoteToPost: string; promoteAndSchedule: string
+    searchPipeline: string; priority: string
+    inPipeline: string
+  }
+  bulk: {
+    selected: string; moveToLabel: string; promoteAll: string
+    publishAll: string; archiveAll: string; deleteAll: string
+    clearSelection: string
+    promotingProgress: string; promoted: string; promotedPartial: string
+  }
 }
