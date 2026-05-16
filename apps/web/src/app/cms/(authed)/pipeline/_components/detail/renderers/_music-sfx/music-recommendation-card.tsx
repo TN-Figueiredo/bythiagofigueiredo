@@ -44,8 +44,8 @@ export function MusicRecommendationCard({ recommendation: rec, isFavorite, isNoM
         <div className="flex items-center gap-1.5 flex-1 min-w-0">
           {isFavorite && (
             <span
-              className="text-[9px] px-1 rounded font-bold flex-shrink-0"
-              style={{ background: 'rgba(16,185,129,0.2)', color: '#10b981' }}
+              className="text-[9px] w-4 h-4 inline-flex items-center justify-center rounded font-bold flex-shrink-0"
+              style={{ background: status.bg.replace(/[\d.]+\)$/, '0.2)'), color: status.color }}
             >
               ★
             </span>
@@ -70,7 +70,7 @@ export function MusicRecommendationCard({ recommendation: rec, isFavorite, isNoM
 
       {rec.reasoning && !expanded && (
         <div className="px-2.5 pb-2 -mt-0.5">
-          <CoworkReasoning text={rec.reasoning} variant={isNoMatchCard ? 'no-match' : 'default'} />
+          <CoworkReasoning text={rec.reasoning} variant={isNoMatchCard ? 'no-match' : rec.resolve_status === 'PENDING_MATCH' ? 'pending' : 'local'} />
         </div>
       )}
 
@@ -94,7 +94,7 @@ export function MusicRecommendationCard({ recommendation: rec, isFavorite, isNoM
       {expanded && (
         <div className="px-2.5 pb-2.5 space-y-2" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
           {rec.reasoning && (
-            <CoworkReasoning text={rec.reasoning} variant={isNoMatchCard ? 'no-match' : 'default'} />
+            <CoworkReasoning text={rec.reasoning} variant={isNoMatchCard ? 'no-match' : rec.resolve_status === 'PENDING_MATCH' ? 'pending' : 'local'} />
           )}
 
           {rec.resolve_status === 'PENDING_MATCH' && rec.artlist_url && (
@@ -114,22 +114,38 @@ export function MusicRecommendationCard({ recommendation: rec, isFavorite, isNoM
             </div>
           )}
 
-          {rec.original_filename && (
-            <div className="text-[10px] font-mono" style={{ color: 'var(--gem-dim)' }}>
-              📁 {rec.original_filename}
+          {(rec.original_filename || rec.duration || rec.artlist_url) && (
+            <div className="flex items-center gap-2 flex-wrap text-[9px]">
+              {rec.original_filename && (
+                <span className="font-mono" style={{ color: '#5a6b7f' }}>{rec.original_filename}</span>
+              )}
+              {rec.duration && <span style={{ color: '#3d4f65' }}>{rec.duration}</span>}
+              {rec.artlist_url && rec.resolve_status !== 'PENDING_MATCH' && (
+                <>
+                  <span style={{ color: '#3d4f65' }}>·</span>
+                  <a
+                    href={rec.artlist_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="transition-colors"
+                    style={{ color: '#c084fc', textDecoration: 'none' }}
+                  >
+                    ouvir no Artlist ↗
+                  </a>
+                </>
+              )}
             </div>
           )}
 
-          <div className="flex items-center gap-2 flex-wrap text-[9px]" style={{ color: 'var(--gem-dim)' }}>
-            {rec.key && <span style={{ color: '#818cf8' }}>{rec.key}</span>}
-            {rec.bpm && <span style={{ color: '#818cf8' }}>{rec.bpm} BPM</span>}
-            {rec.duration && <span style={{ color: '#818cf8' }}>{rec.duration}</span>}
-            {rec.energy != null && <EnergyIndicator level={rec.energy} />}
+          <div className="flex items-center gap-1.5 flex-wrap">
             {rec.category && (
-              <span className="px-1.5 py-px rounded-full" style={{ background: 'rgba(99,102,241,0.12)', color: '#818cf8' }}>
+              <span className="text-[9px] px-[6px] py-px rounded" style={{ background: 'rgba(99,102,241,0.12)', color: '#818cf8' }}>
                 {rec.category}
               </span>
             )}
+            {rec.energy != null && <EnergyIndicator level={rec.energy} />}
+            {rec.bpm && <span className="text-[9px] font-semibold" style={{ color: '#818cf8' }}>{rec.bpm} BPM</span>}
+            {rec.key && <span className="text-[9px] font-semibold" style={{ color: '#818cf8' }}>{rec.key}</span>}
           </div>
 
           {rec.score_breakdown && (

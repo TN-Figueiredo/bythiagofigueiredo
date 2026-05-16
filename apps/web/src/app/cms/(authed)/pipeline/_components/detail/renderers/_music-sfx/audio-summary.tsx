@@ -51,7 +51,7 @@ function computeStats(scenes: Scene[]): { music: Stats; sfx: Stats } {
   return { music, sfx }
 }
 
-function ProgressBar({ stats }: { stats: Stats }) {
+function ProgressColumn({ label, stats }: { label: string; stats: Stats }) {
   if (stats.total === 0) return null
   const pctLocal = (stats.local / stats.total) * 100
   const pctPending = (stats.pending / stats.total) * 100
@@ -60,26 +60,31 @@ function ProgressBar({ stats }: { stats: Stats }) {
   const pctResolved = Math.round((resolved / stats.total) * 100)
 
   return (
-    <div className="flex items-center gap-2">
-      <div className="flex-1 h-1 rounded-full overflow-hidden flex" style={{ background: 'rgba(255,255,255,0.06)' }}>
+    <div className="flex-1">
+      <div className="flex items-center justify-between mb-0.5">
+        <span className="text-[7px] uppercase tracking-wide" style={{ color: '#3d4f65' }}>{label}</span>
+        <span className="text-[9px] font-bold" style={{ color: pctResolved === 100 ? '#10b981' : pctResolved >= 50 ? '#f59e0b' : '#f97316' }}>
+          {pctResolved}%
+        </span>
+      </div>
+      <div className="h-[3px] rounded-full overflow-hidden flex" style={{ background: 'rgba(255,255,255,0.06)' }}>
         {pctLocal > 0 && <div className="h-full" style={{ width: `${pctLocal}%`, background: '#10b981' }} />}
         {pctPending > 0 && <div className="h-full" style={{ width: `${pctPending}%`, background: '#f59e0b' }} />}
         {pctPartial > 0 && <div className="h-full" style={{ width: `${pctPartial}%`, background: '#f97316' }} />}
       </div>
-      <span className="text-[10px] font-bold flex-shrink-0" style={{ color: pctResolved === 100 ? '#10b981' : 'var(--gem-accent)' }}>
-        {pctResolved}%
-      </span>
+      <span className="text-[7px]" style={{ color: '#5a6b7f' }}>{resolved}/{stats.total} resolvida{resolved !== 1 ? 's' : ''}</span>
     </div>
   )
 }
 
-function StatChips({ stats }: { stats: Stats }) {
+function StatChips({ stats, continuations }: { stats: Stats; continuations?: number }) {
   return (
-    <div className="flex gap-2.5 flex-wrap">
+    <div className="flex gap-1.5 flex-wrap">
       {stats.local > 0 && <span className="text-[9px]" style={{ color: '#10b981' }}>✓ {stats.local} local</span>}
       {stats.pending > 0 && <span className="text-[9px]" style={{ color: '#f59e0b' }}>⏳ {stats.pending} download</span>}
       {stats.partial > 0 && <span className="text-[9px]" style={{ color: '#f97316' }}>~ {stats.partial} parcial</span>}
       {stats.noMatch > 0 && <span className="text-[9px]" style={{ color: '#3b82f6' }}>🔗 {stats.noMatch} buscar</span>}
+      {continuations != null && continuations > 0 && <span className="text-[9px]" style={{ color: '#5a6b7f' }}>↩ {continuations} cont.</span>}
     </div>
   )
 }
@@ -89,32 +94,29 @@ export function AudioSummaryV2({ scenes }: { scenes: Scene[] }) {
 
   if (music.total === 0 && sfx.total === 0 && music.continuations === 0) return null
 
-  return (
-    <div className="rounded-md p-2.5 space-y-2" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
-      {(music.total > 0 || music.continuations > 0) && (
-        <div className="space-y-1">
-          <div className="flex items-center justify-between">
-            <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: 'var(--gem-dim)' }}>
-              Música
-            </span>
-            {music.continuations > 0 && (
-              <span className="text-[9px]" style={{ color: 'var(--gem-dim)' }}>↩ {music.continuations} cont</span>
-            )}
-          </div>
-          <ProgressBar stats={music} />
-          <StatChips stats={music} />
-        </div>
-      )}
+  const totalSfx = scenes.reduce((acc, s) => acc + (s.sfx?.length ?? 0), 0)
 
-      {sfx.total > 0 && (
-        <div className="space-y-1">
-          <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: 'var(--gem-dim)' }}>
-            SFX
-          </span>
-          <ProgressBar stats={sfx} />
-          <StatChips stats={sfx} />
-        </div>
-      )}
+  return (
+    <div className="rounded-md p-2.5" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: '#5a6b7f' }}>
+          Audio Resolver
+        </span>
+        <span className="text-[9px]" style={{ color: '#3d4f65' }}>
+          {scenes.length} cena{scenes.length !== 1 ? 's' : ''}{totalSfx > 0 ? ` · ${totalSfx} SFX` : ''}
+        </span>
+      </div>
+
+      <div className="flex gap-3 mb-1.5">
+        <ProgressColumn label="Música" stats={music} />
+        <ProgressColumn label="SFX" stats={sfx} />
+      </div>
+
+      <div className="flex gap-4 pt-1.5" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+        <StatChips stats={music} continuations={music.continuations} />
+        <div style={{ width: 1, background: 'rgba(255,255,255,0.06)' }} />
+        <StatChips stats={sfx} />
+      </div>
     </div>
   )
 }

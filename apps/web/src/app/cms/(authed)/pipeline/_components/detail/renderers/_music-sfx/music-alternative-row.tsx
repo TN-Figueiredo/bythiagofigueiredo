@@ -38,16 +38,22 @@ export function MusicAlternativeRow({ recommendation: rec, index }: MusicAlterna
           <span className="text-[10px] truncate" style={{ color: 'var(--gem-dim)' }}>
             — {rec.artist}
           </span>
-        </div>
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          {rec.energy != null && <EnergyIndicator level={rec.energy} />}
           <span
             className="text-[9px] px-1.5 py-px rounded font-semibold"
             style={{ background: status.bg, color: status.color }}
           >
             {status.label}
           </span>
+          {rec.category && (
+            <span className="text-[9px] px-[6px] py-px rounded" style={{ background: 'rgba(99,102,241,0.08)', color: '#6b7280' }}>
+              {rec.category}
+            </span>
+          )}
+          {rec.energy != null && <EnergyIndicator level={rec.energy} />}
+        </div>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
           <ScoreBar score={rec.score} max={rec.score_max} />
+          <span className="text-[8px]" style={{ color: '#3d4f65' }}>{expanded ? '▴' : '▾'}</span>
         </div>
       </button>
 

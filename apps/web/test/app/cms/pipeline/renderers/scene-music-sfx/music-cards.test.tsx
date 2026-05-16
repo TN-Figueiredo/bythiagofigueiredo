@@ -45,11 +45,12 @@ describe('MusicRecommendationCard', () => {
     expect(container.textContent).toContain('Local')
   })
 
-  it('shows score gauge with percentage', () => {
+  it('shows score gauge with raw score and max', () => {
     const { container } = render(<MusicRecommendationCard recommendation={LOCAL_TRACK} isFavorite />)
     const svg = container.querySelector('svg')
     expect(svg).toBeTruthy()
-    expect(container.textContent).toContain('76%')
+    expect(container.textContent).toContain('26')
+    expect(container.textContent).toContain('34')
   })
 
   it('expands to show score breakdown on click', () => {
@@ -91,11 +92,11 @@ describe('MusicAlternativeRow', () => {
     expect(container.textContent).toContain('Phillip Gross')
   })
 
-  it('shows delta notes', () => {
+  it('shows delta notes as individual pills', () => {
     const { container } = render(<MusicAlternativeRow recommendation={ALT_TRACK} index={2} />)
-    expect(container.textContent).toContain('Δ')
     expect(container.textContent).toContain('tags')
     expect(container.textContent).toContain('mood')
+    expect(container.textContent).toContain('vs favorita')
   })
 
   it('shows reasoning inline', () => {

@@ -3,10 +3,10 @@ import { render } from '@testing-library/react'
 import { ScoreGauge } from '@/app/cms/(authed)/pipeline/_components/detail/renderers/_music-sfx/score-gauge'
 
 describe('ScoreGauge', () => {
-  it('renders SVG with correct percentage text', () => {
+  it('renders SVG with raw score number', () => {
     const { container } = render(<ScoreGauge score={26} max={34} />)
     const text = container.querySelector('text')
-    expect(text?.textContent).toBe('76%')
+    expect(text?.textContent).toBe('26')
   })
 
   it('renders green stroke for high score', () => {
@@ -24,7 +24,7 @@ describe('ScoreGauge', () => {
   it('renders without crashing for 0 score', () => {
     const { container } = render(<ScoreGauge score={0} max={34} />)
     const text = container.querySelector('text')
-    expect(text?.textContent).toBe('0%')
+    expect(text?.textContent).toBe('0')
   })
 
   it('applies size prop', () => {
