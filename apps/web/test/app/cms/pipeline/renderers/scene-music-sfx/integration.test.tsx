@@ -39,7 +39,7 @@ describe('SceneGuideRenderer — MusicFallback path', () => {
       }],
     }
     const { container } = render(<SceneGuideRenderer content={data} isEditing={false} lang="en" onContentChange={noop} />)
-    expect(container.textContent).toContain('Continuação da cena anterior')
+    expect(container.textContent).toContain('continua da cena anterior')
   })
 
   it('renders empty recommendations array with fallback', () => {

@@ -211,14 +211,31 @@ function MusicSection({ music }: { music: SceneMusic }) {
   const favorite = recs.length > 0 ? recs[Math.max(0, favIndex)] : undefined
 
   if (isContinuationTrack(music)) {
+    const resolveStatus = music.resolve_status ? RESOLVE_COLORS[music.resolve_status] : null
     return (
-      <div className="flex items-center gap-2 py-1 px-1 rounded" style={{ borderLeft: '2px solid rgba(107,114,128,0.3)' }}>
-        <span className="text-[11px]" style={{ color: 'var(--gem-dim)' }}>
-          ↩ Continuação da cena anterior
-        </span>
+      <div
+        className="rounded-md px-3 py-2.5 space-y-1.5"
+        style={{ border: '1px solid rgba(255,255,255,0.06)', borderLeft: '3px solid #5a6b7f', background: 'rgba(255,255,255,0.015)' }}
+      >
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-[10px]" style={{ color: '#5a6b7f' }}>↩</span>
+          {music.track && <span className="text-[11px] font-medium" style={{ color: 'var(--gem-text)' }}>{music.track}</span>}
+          {music.artist && <span className="text-[10px]" style={{ color: '#5a6b7f' }}>— {music.artist}</span>}
+          <span className="text-[8px] px-[5px] py-px rounded" style={{ background: 'rgba(255,255,255,0.04)', color: '#5a6b7f', fontWeight: 500 }}>
+            continua da cena anterior
+          </span>
+          {resolveStatus && (
+            <span className="text-[9px] px-[6px] py-px rounded font-semibold" style={{ background: resolveStatus.bg, color: resolveStatus.color }}>
+              {resolveStatus.label}
+            </span>
+          )}
+        </div>
         {music.continuation && !CONTINUES_RE.test(music.continuation) && (
-          <span className="text-[10px]" style={{ color: 'var(--gem-dim)' }}>— {music.continuation}</span>
+          <div className="text-[10px]" style={{ color: 'var(--gem-muted)' }}>
+            {tokenizeText(music.continuation)}
+          </div>
         )}
+        <MusicDetails music={music} />
       </div>
     )
   }
@@ -246,16 +263,24 @@ function MusicArtlistFallback({ music }: { music: SceneMusic }) {
   if (!url) return null
 
   return (
-    <div className="flex items-center gap-2 pt-1">
+    <div
+      className="flex items-center gap-1.5 px-2 py-[5px] rounded-[5px]"
+      style={{ background: 'rgba(192,132,252,0.04)', border: '1px dashed rgba(192,132,252,0.12)' }}
+    >
       <a
         href={url}
         target="_blank"
         rel="noopener noreferrer"
-        className="text-[9px] font-medium transition-colors hover:underline"
-        style={{ color: '#c084fc' }}
+        className="text-[9px] font-medium rounded-full px-[6px] py-px transition-colors"
+        style={{ background: 'rgba(192,132,252,0.12)', color: '#c084fc' }}
       >
         🔍 Buscar outra no Artlist ↗
       </a>
+      {music.search_terms && (
+        <span className="text-[8px]" style={{ color: '#3d4f65' }}>
+          {music.search_terms}
+        </span>
+      )}
     </div>
   )
 }
