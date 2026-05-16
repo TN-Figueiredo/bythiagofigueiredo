@@ -33,6 +33,7 @@ export function CmsSiteSwitcherSlot({
       sites={sites}
       currentSiteId={currentSiteId}
       onChange={setCurrentSiteId}
+      className="w-full rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface text-cms-text text-[13px] px-2.5 py-1.5 transition-colors hover:bg-cms-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cms-accent"
     />
   )
 }

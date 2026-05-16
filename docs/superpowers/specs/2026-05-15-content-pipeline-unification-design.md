@@ -95,6 +95,19 @@ This order is unchanged from the current implementation.
 
 **Promotion boundary:** A 2px vertical divider between lanes 3 and 4, colored `indigo-500/30`, with a small label "Publicação →" centered vertically. It occupies ~16px of horizontal space and is not a lane itself.
 
+**Lane accent colors:**
+
+| Lane | Color | Hex | Rationale |
+|------|-------|-----|-----------|
+| Ideia | amber | `#f59e0b` | Warm — creative/ideation phase |
+| Rascunho | orange | `#f97316` | Active work in progress |
+| Pronto | cyan | `#06b6d4` | Cool/ready — matches current blog "Ready" lane |
+| Em Edição | blue | `#3b82f6` | Editorial/writing phase |
+| Agendado | purple | `#a78bfa` | Matches current blog "Scheduled" lane |
+| Publicado | green | `#22c55e` | Matches current blog "Published" lane |
+
+Blog lane colors (cyan, purple, green) are preserved from the existing `kanban-board.tsx` COLUMN_DEFS. Pipeline lane colors (amber, orange) use warm tones to visually distinguish pre-promotion content.
+
 ### 2.6 Responsive Behavior
 
 This is a single-user CMS (not a team tool), so mobile optimization is practical, not critical. Strategy:
@@ -349,8 +362,7 @@ function renderCard(lane: LaneId, item: PipelineItem | PostCard) {
 | Action | Files | LOC |
 |--------|-------|-----|
 | Remove `posts/` directory (board, cards, editor, tabs, sidebar) | 21 files | −2,428 |
-| Remove `pipeline/[format]/page.tsx` blog_post route | 1 file | −84 |
-| Remove `pipeline/_components/pipeline-board.tsx` | 1 file | −310 |
+| Modify `pipeline/[format]/page.tsx` — redirect blog_post to `/cms/blog` | 1 file | ~+5 |
 | Remove `blog/_tabs/editorial/kanban-board.tsx` | 1 file | −336 |
 | Remove `blog/_tabs/editorial/kanban-column.tsx` | 1 file | −148 |
 | Simplify `blog/_tabs/editorial/kanban-card.tsx` | 1 file | −400 (refactor) |
@@ -359,7 +371,7 @@ function renderCard(lane: LaneId, item: PipelineItem | PostCard) {
 | New `PostCard` (extracted, slimmed) | 1 file | +220 |
 | Update `blog/page.tsx` data fetching | 1 file | +50 |
 | Update `hub-utils.ts` / `hub-types.ts` / i18n | 4 files | +120 |
-| **Net** | | **≈ −2,586** |
+| **Net** | | **≈ −2,187** |
 
 > **Note:** The `posts/` directory contains 21 files including a full post editor (tabs, sidebar, detail page) totaling 2,428 LOC. The canonical post editor lives at `/cms/blog/[id]/edit` — the `posts/[id]` editor is the legacy path being removed. All editor functionality is preserved in the blog route.
 
@@ -378,7 +390,7 @@ The current editorial tab displays a KPI bar above the kanban with: Total posts,
 | **Avg Idea→Pub** | `blog_posts.created_at` to `published_at` | Extended: `content_pipeline.created_at` to `blog_posts.published_at` (full lifecycle) |
 | **Bottleneck** | Column with highest avg dwell time | Extended across all 6 lanes |
 
-The KPI strip renders above the kanban (below the filter bar) as a horizontal row of 5 stat cards, same as today.
+The KPI strip renders above the kanban (below the filter bar) as a horizontal row of 6 stat cards (extended from the current 5 to include "In Pipeline").
 
 ---
 
@@ -502,7 +514,7 @@ The current pipeline uses `advancePipelineItem` and `retreatPipelineItem` for on
 |-----------|----------|----------|
 | Pipeline lane → Pipeline lane | Yes | Updates `stage` via `movePipelineItemToStage` action (new) |
 | Pipeline lane → Blog lane | **No** | Blocked. Must use Promote button/menu. Toast: "Use 'Promover' para criar um post." |
-| Blog lane → Blog lane | Yes | Updates `status` via `movePost` action (validates via `isValidTransition`) |
+| Blog lane → Blog lane | Conditional | Updates `status` via `movePost` action (validates via `isValidTransition`). If the transition is invalid (e.g., `idea` → `scheduled` is not in `BLOG_TRANSITIONS`), the drop is rejected with toast: "Não é possível mover diretamente. Mova para Rascunho → Pronto primeiro." |
 | Blog lane → Pipeline lane | **No** | Blocked. Must use "Devolver ao Pipeline" menu. Toast: "Use 'Devolver ao Pipeline' no menu do card." |
 
 ### 8.3 Visual Feedback
@@ -563,7 +575,7 @@ Top-right of the Editorial tab, a split button:
 - **Primary action:** "Novo Post" — navigates to `/cms/blog/new` (existing new post page)
 - **Dropdown:**
   - "Novo Post" — `/cms/blog/new`
-  - "Nova Ideia no Pipeline" — opens inline creation form in the Ideia lane (title + priority + language)
+  - "Nova Ideia no Pipeline" — opens an inline creation card at the top of the Ideia lane with 3 fields: title (text), priority (1–5 select, default 3), language (pt/en select, default pt). Submit calls the existing `createPipelineItem` server action from `pipeline/actions.ts` with `format: 'blog_post'` and `stage: 'idea'`. Escape or clicking outside cancels.
 
 ---
 
@@ -629,10 +641,12 @@ Add a `next.config.ts` redirect:
 ```typescript
 redirects: async () => [
   { source: '/cms/posts', destination: '/cms/blog', permanent: true },
-  { source: '/cms/posts/:path*', destination: '/cms/blog', permanent: true },
+  { source: '/cms/posts/:id', destination: '/cms/blog/:id/edit', permanent: true },
   { source: '/cms/pipeline/blog_post', destination: '/cms/blog', permanent: true },
 ]
 ```
+
+The `/cms/posts/:id` redirect preserves the post ID and sends the user to the canonical editor at `/cms/blog/:id/edit` (not back to the hub).
 
 ---
 
@@ -644,7 +658,7 @@ The unified board manages two independent data sources, each needing its own opt
 
 Pipeline moves (stage changes, reorder) use a local `useOptimistic` hook on the pipeline items array. On drag-end:
 1. Immediately update the item's `stage` or `sort_order` in the optimistic state
-2. Fire the server action (`movePipelineItem` / `reorderPipelineItem`)
+2. Fire the server action (`movePipelineItemToStage` / `reorderPipelineItem`)
 3. On success: `revalidateTag('pipeline-blog')` refreshes server state
 4. On failure: Revert optimistic state, show toast
 
@@ -809,7 +823,7 @@ All existing tests in `apps/web/test/` for `blog/actions.ts` (bulk publish/archi
 19. Extend velocity KPI strip with pipeline metrics
 20. Add `next.config.ts` redirects for removed routes
 21. Delete `posts/` directory
-22. Delete `pipeline/[format]/page.tsx` blog_post-specific handling
+22. Modify `pipeline/[format]/page.tsx` — redirect `blog_post` format to `/cms/blog` (keep other formats)
 23. Write tests per §18
 
 ---
@@ -835,6 +849,8 @@ All existing tests in `apps/web/test/` for `blog/actions.ts` (bulk publish/archi
 - `apps/web/src/app/cms/(authed)/blog/_i18n/types.ts` — extend `BlogHubStrings` with new keys
 - `apps/web/src/app/cms/(authed)/blog/_tabs/editorial/editorial-tab.tsx` — extend velocity KPI strip
 - `apps/web/src/app/cms/(authed)/pipeline/items/[id]/page.tsx` — add `?from=blog` breadcrumb logic
+- `apps/web/src/app/cms/(authed)/pipeline/[format]/page.tsx` — redirect blog_post to `/cms/blog`
+- `apps/web/src/app/cms/(authed)/pipeline/actions.ts` — add `movePipelineItemToStage` action
 - `apps/web/next.config.ts` — add redirects
 
 ### Deleted files
@@ -845,6 +861,9 @@ All existing tests in `apps/web/test/` for `blog/actions.ts` (bulk publish/archi
 
 ### Preserved as-is
 - `apps/web/src/app/cms/(authed)/pipeline/items/[id]/` (pipeline detail page — modified only breadcrumb)
-- `apps/web/src/app/cms/(authed)/pipeline/_components/gem-card.tsx` (used by pipeline detail)
+- `apps/web/src/app/cms/(authed)/pipeline/_components/pipeline-board.tsx` (still used by video/newsletter/campaign/course formats)
+- `apps/web/src/app/cms/(authed)/pipeline/_components/gem-card.tsx` (used by pipeline-board for all formats)
+- `apps/web/src/app/cms/(authed)/pipeline/_components/sortable-gem-card.tsx` (used by pipeline-board)
+- `apps/web/src/app/cms/(authed)/pipeline/[format]/page.tsx` (modified: redirect blog_post to /cms/blog, keep others)
 - `apps/web/src/lib/pipeline/workflows.ts`
 - `apps/web/src/lib/pipeline/schemas.ts`

@@ -128,6 +128,9 @@ describe('resolveAudio', () => {
         eq: vi.fn().mockReturnThis(),
         neq: vi.fn().mockReturnThis(),
         overlaps: vi.fn().mockReturnThis(),
+        gte: vi.fn().mockReturnThis(),
+        lte: vi.fn().mockReturnThis(),
+        textSearch: vi.fn().mockReturnThis(),
         limit: vi.fn().mockResolvedValue({ data: mockData, error: null }),
       }),
     }
@@ -145,6 +148,9 @@ describe('resolveAudio', () => {
         eq: vi.fn().mockReturnThis(),
         neq: vi.fn().mockReturnThis(),
         overlaps: vi.fn().mockReturnThis(),
+        gte: vi.fn().mockReturnThis(),
+        lte: vi.fn().mockReturnThis(),
+        textSearch: vi.fn().mockReturnThis(),
         limit: vi.fn().mockResolvedValue({ data: [], error: null }),
       }),
     }

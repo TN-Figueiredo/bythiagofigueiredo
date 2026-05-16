@@ -8,6 +8,7 @@ interface AudioTableProps {
   assets: AudioAssetRow[]
   selectedId: string | null
   onSelect: (id: string) => void
+  onRefetch?: () => void
 }
 
 type SortKey = 'name' | 'type' | 'category' | 'energy' | 'bpm' | 'status'
@@ -18,7 +19,7 @@ const STATUS_BADGE: Record<string, { label: string; bg: string; color: string }>
   retired: { label: 'Retired', bg: 'rgba(107,114,128,0.15)', color: '#6b7280' },
 }
 
-export function AudioTable({ assets, selectedId, onSelect }: AudioTableProps) {
+export function AudioTable({ assets, selectedId, onSelect, onRefetch }: AudioTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortAsc, setSortAsc] = useState(true)
   const [checked, setChecked] = useState<Set<string>>(new Set())
@@ -69,8 +70,11 @@ export function AudioTable({ assets, selectedId, onSelect }: AudioTableProps) {
 
     if (action === 'delete') {
       if (!confirm(`Delete ${ids.length} assets?`)) return
-      await Promise.all(ids.map(id => fetch(`/api/pipeline/audio-library/${id}`, { method: 'DELETE' })))
+      const results = await Promise.allSettled(ids.map(id => fetch(`/api/pipeline/audio-library/${id}`, { method: 'DELETE' })))
+      const failed = results.filter(r => r.status === 'rejected').length
+      if (failed > 0) alert(`${failed} of ${ids.length} deletes failed`)
       setChecked(new Set())
+      onRefetch?.()
       return
     }
 
@@ -79,13 +83,16 @@ export function AudioTable({ assets, selectedId, onSelect }: AudioTableProps) {
     const body: Record<string, unknown> = {}
     if (action === 'tag') body.tags = value.split(',').map(t => t.trim())
     else body[action] = value
-    await Promise.all(ids.map(id => fetch(`/api/pipeline/audio-library/${id}`, {
+    const results = await Promise.allSettled(ids.map(id => fetch(`/api/pipeline/audio-library/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...body, version: assets.find(a => a.id === id)?.version ?? 1 }),
     })))
+    const failed = results.filter(r => r.status === 'rejected').length
+    if (failed > 0) alert(`${failed} of ${ids.length} updates failed`)
     setChecked(new Set())
-  }, [assets, checked])
+    onRefetch?.()
+  }, [assets, checked, onRefetch])
 
   const headers: Array<{ key: SortKey; label: string; width?: number }> = [
     { key: 'name', label: 'Name' },

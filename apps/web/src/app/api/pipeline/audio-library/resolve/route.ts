@@ -21,7 +21,12 @@ export async function POST(req: NextRequest) {
   }
 
   const supabase = getSupabaseServiceClient()
-  const result = await resolveAudio(supabase, auth.siteId, parsed.data)
+  let result
+  try {
+    result = await resolveAudio(supabase, auth.siteId, parsed.data)
+  } catch {
+    return NextResponse.json({ error: { code: 'DB_ERROR', message: 'Internal server error' } }, { status: 500 })
+  }
 
   return NextResponse.json({ data: result }, { headers: buildRateLimitHeaders(auth) })
 }

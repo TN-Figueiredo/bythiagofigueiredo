@@ -38,12 +38,13 @@ export function AudioImportModal({ onClose }: AudioImportModalProps) {
     setError(null)
     let parsed: unknown
     try { parsed = JSON.parse(jsonText) } catch { setError('Invalid JSON'); return }
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) { setError('JSON must be an object'); return }
 
     setLoading(true)
     const res = await fetch('/api/pipeline/audio-library/import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...(parsed as object), dry_run: true }),
+      body: JSON.stringify({ ...parsed, dry_run: true }),
     })
     const json = await res.json()
     setLoading(false)
@@ -57,13 +58,15 @@ export function AudioImportModal({ onClose }: AudioImportModalProps) {
     setLoading(true)
     let parsed: unknown
     try { parsed = JSON.parse(jsonText) } catch { setError('Invalid JSON'); setLoading(false); setStep('input'); return }
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) { setError('JSON must be an object'); setLoading(false); setStep('input'); return }
     const res = await fetch('/api/pipeline/audio-library/import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...(parsed as object), dry_run: false }),
+      body: JSON.stringify({ ...parsed, dry_run: false }),
     })
     const json = await res.json()
     setLoading(false)
+    if (!res.ok) { setError(json.error?.message ?? 'Import failed'); setStep('input'); return }
     setResult(json.data)
     setStep('result')
   }

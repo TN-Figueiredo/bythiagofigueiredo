@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   if (!requirePermission(auth, 'read')) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
 
   const params = req.nextUrl.searchParams
-  const limit = Math.min(parseInt(params.get('limit') || '50'), 200)
+  const limit = Math.max(1, Math.min(parseInt(params.get('limit') || '50') || 50, 200))
   const cursor = params.get('cursor') || undefined
 
   const supabase = getSupabaseServiceClient()
@@ -39,22 +39,22 @@ export async function GET(req: NextRequest) {
   if (mood) query = query.contains('mood', mood.split(',').map(m => m.trim()))
 
   const energyMin = params.get('energy_min')
-  if (energyMin) query = query.gte('energy', parseInt(energyMin))
+  if (energyMin) { const n = parseInt(energyMin); if (!isNaN(n)) query = query.gte('energy', n) }
 
   const energyMax = params.get('energy_max')
-  if (energyMax) query = query.lte('energy', parseInt(energyMax))
+  if (energyMax) { const n = parseInt(energyMax); if (!isNaN(n)) query = query.lte('energy', n) }
 
   const bpmMin = params.get('bpm_min')
-  if (bpmMin) query = query.gte('bpm', parseInt(bpmMin))
+  if (bpmMin) { const n = parseInt(bpmMin); if (!isNaN(n)) query = query.gte('bpm', n) }
 
   const bpmMax = params.get('bpm_max')
-  if (bpmMax) query = query.lte('bpm', parseInt(bpmMax))
+  if (bpmMax) { const n = parseInt(bpmMax); if (!isNaN(n)) query = query.lte('bpm', n) }
 
   const q = params.get('q')
   if (q) query = query.textSearch('search_vector', q, { type: 'websearch', config: 'english' })
 
   if (cursor && UUID_REGEX.test(cursor)) {
-    const { data: cursorItem } = await supabase.from('audio_assets').select('created_at').eq('id', cursor).single()
+    const { data: cursorItem } = await supabase.from('audio_assets').select('created_at').eq('id', cursor).eq('site_id', auth.siteId).single()
     if (cursorItem) {
       const safeTs = sanitizeForFilter(String(cursorItem.created_at))
       query = query.or(`created_at.lt.${safeTs},and(created_at.eq.${safeTs},id.lt.${cursor})`)

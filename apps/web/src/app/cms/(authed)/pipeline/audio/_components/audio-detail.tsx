@@ -16,11 +16,13 @@ export function AudioDetail({ assetId, onClose }: AudioDetailProps) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    const controller = new AbortController()
     setLoading(true)
-    fetch(`/api/pipeline/audio-library/${assetId}`)
+    fetch(`/api/pipeline/audio-library/${assetId}`, { signal: controller.signal })
       .then(r => r.json())
-      .then(json => { setAsset(json.data); setLoading(false) })
-      .catch(() => setLoading(false))
+      .then(json => { if (!controller.signal.aborted) { setAsset(json.data); setLoading(false) } })
+      .catch(e => { if (!(e instanceof DOMException && e.name === 'AbortError')) setLoading(false) })
+    return () => controller.abort()
   }, [assetId])
 
   useEffect(() => {
@@ -71,6 +73,19 @@ export function AudioDetail({ assetId, onClose }: AudioDetailProps) {
         <Row label="Energy" value={asset.energy ? `${'●'.repeat(asset.energy)}${'○'.repeat(5 - asset.energy)}` : '—'} />
         <Row label="Instruments" value={asset.instruments.join(', ')} />
       </Section>
+
+      {/* Metadata */}
+      {(asset.metadata?.mix_notes || asset.metadata?.pairs_well_with || asset.metadata?.avoid_with) && (
+        <Section title="Notes">
+          {asset.metadata.mix_notes && <Row label="Mix Notes" value={String(asset.metadata.mix_notes)} />}
+          {Array.isArray(asset.metadata.pairs_well_with) && (asset.metadata.pairs_well_with as string[]).length > 0 && (
+            <Row label="Pairs with" value={(asset.metadata.pairs_well_with as string[]).join(', ')} />
+          )}
+          {Array.isArray(asset.metadata.avoid_with) && (asset.metadata.avoid_with as string[]).length > 0 && (
+            <Row label="Avoid with" value={(asset.metadata.avoid_with as string[]).join(', ')} />
+          )}
+        </Section>
+      )}
 
       {/* Usage */}
       <Section title={`Usage (${asset.usage.length})`}>

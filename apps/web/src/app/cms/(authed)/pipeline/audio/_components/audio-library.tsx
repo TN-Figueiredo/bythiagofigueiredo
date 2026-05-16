@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import type { AudioAssetRow } from '@/lib/pipeline/audio-schemas'
 import { AudioFilters } from './audio-filters'
 import { AudioGrid } from './audio-grid'
@@ -22,16 +22,25 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
   const [showImport, setShowImport] = useState(false)
   const [filters, setFilters] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
+  const abortRef = useRef<AbortController | null>(null)
 
   const refetch = useCallback(async (params: Record<string, string> = {}) => {
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
     setLoading(true)
-    const qs = new URLSearchParams(params).toString()
-    const res = await fetch(`/api/pipeline/audio-library${qs ? `?${qs}` : ''}`)
-    if (res.ok) {
-      const json = await res.json()
-      setAssets(json.data)
+    try {
+      const qs = new URLSearchParams(params).toString()
+      const res = await fetch(`/api/pipeline/audio-library${qs ? `?${qs}` : ''}`, { signal: controller.signal })
+      if (res.ok) {
+        const json = await res.json()
+        if (!controller.signal.aborted) setAssets(json.data)
+      }
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return
+    } finally {
+      if (!controller.signal.aborted) setLoading(false)
     }
-    setLoading(false)
   }, [])
 
   const handleFilterChange = useCallback((newFilters: Record<string, string>) => {
@@ -79,7 +88,7 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
           {loading && <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, borderRadius: 4 }}><span style={{ fontSize: 12, color: 'var(--gem-text)' }}>Loading...</span></div>}
           {viewMode === 'grid'
             ? <AudioGrid assets={assets} selectedId={selectedId} onSelect={setSelectedId} />
-            : <AudioTable assets={assets} selectedId={selectedId} onSelect={setSelectedId} />
+            : <AudioTable assets={assets} selectedId={selectedId} onSelect={setSelectedId} onRefetch={() => refetch(filters)} />
           }
         </div>
 

@@ -64,9 +64,11 @@ export function AudioFilters({ filters, onChange }: AudioFiltersProps) {
         <div style={{ display: 'flex', gap: 4 }}>
           {[1, 2, 3, 4, 5].map(e => (
             <button key={e} onClick={() => {
-              const min = filters.energy_min === String(e) ? undefined : String(e)
-              updateFilter('energy_min', min)
-              updateFilter('energy_max', min)
+              const val = filters.energy_min === String(e) ? undefined : String(e)
+              const next = { ...filters }
+              if (val) { next.energy_min = val; next.energy_max = val }
+              else { delete next.energy_min; delete next.energy_max }
+              onChange(next)
             }} style={{ width: 28, height: 28, borderRadius: 5, border: '1px solid var(--gem-border)', background: filters.energy_min === String(e) ? 'var(--gem-accent)' : 'var(--gem-well)', color: 'var(--gem-text)', fontSize: 11, cursor: 'pointer' }}>{e}</button>
           ))}
         </div>

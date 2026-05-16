@@ -42,8 +42,12 @@ describe('sanitizeForLike', () => {
 })
 
 describe('sanitizeForFilter', () => {
-  it('removes dots and commas', () => {
-    expect(sanitizeForFilter('a.b,c')).toBe('abc')
+  it('preserves dots and plus for ISO timestamps', () => {
+    expect(sanitizeForFilter('2026-05-15T12:30:00.123+00:00')).toBe('2026-05-15T12:30:00.123+00:00')
+  })
+
+  it('removes commas', () => {
+    expect(sanitizeForFilter('a.b,c')).toBe('a.bc')
   })
 
   it('removes parentheses', () => {

@@ -41,6 +41,8 @@ export async function POST(req: NextRequest) {
   const errors: Array<{ asset_id: string; error: string }> = []
   const diffLog: Array<{ asset_id: string; field: string; old: unknown; new: unknown }> = []
 
+  const toUpsert: Array<Record<string, unknown>> = []
+
   for (const rawItem of allItems) {
     const { _type, ...item } = rawItem
     const row = mapJsonToDbRow(item as ImportItem, _type)
@@ -54,22 +56,33 @@ export async function POST(req: NextRequest) {
       continue
     }
 
-    try {
-      if (classification === 'skip') { skipped++; continue }
-      if (classification === 'update' && existing) {
-        diffLog.push(...buildDiffLog(existing, row))
-      }
+    if (classification === 'skip') { skipped++; continue }
+    if (classification === 'update' && existing) {
+      diffLog.push(...buildDiffLog(existing, row))
+    }
+    toUpsert.push({ ...row, site_id: auth.siteId, _classification: classification })
+  }
 
+  if (!dry_run && toUpsert.length > 0) {
+    const BATCH_SIZE = 100
+    for (let i = 0; i < toUpsert.length; i += BATCH_SIZE) {
+      const batch = toUpsert.slice(i, i + BATCH_SIZE).map(({ _classification, ...row }) => row)
+      const classifications = toUpsert.slice(i, i + BATCH_SIZE).map(r => r._classification)
       const { error } = await supabase
         .from('audio_assets')
-        .upsert({ ...row, site_id: auth.siteId }, { onConflict: 'site_id,asset_id' })
+        .upsert(batch, { onConflict: 'site_id,asset_id' })
 
-      if (error) throw error
-      if (classification === 'create') created++
-      else updated++
-    } catch (err) {
-      errorCount++
-      errors.push({ asset_id: (row.asset_id as string) ?? 'unknown', error: err instanceof Error ? err.message : String(err) })
+      if (error) {
+        errorCount += batch.length
+        for (const row of batch) {
+          errors.push({ asset_id: (row.asset_id as string) ?? 'unknown', error: 'Batch upsert failed' })
+        }
+      } else {
+        for (const cls of classifications) {
+          if (cls === 'create') created++
+          else updated++
+        }
+      }
     }
   }
 

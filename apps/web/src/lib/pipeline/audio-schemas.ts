@@ -35,7 +35,7 @@ export const AudioAssetCreateSchema = z.object({
   metadata: z.record(z.unknown()).default({}),
 })
 
-export const AudioAssetUpdateSchema = AudioAssetCreateSchema.partial().extend({
+export const AudioAssetUpdateSchema = AudioAssetCreateSchema.partial().omit({ asset_id: true, type: true }).extend({
   version: z.number().int().positive(),
 })
 

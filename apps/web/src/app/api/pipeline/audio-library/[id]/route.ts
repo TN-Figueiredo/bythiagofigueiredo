@@ -29,6 +29,7 @@ export async function GET(
     .from('audio_asset_usage')
     .select('id, pipeline_item_id, scene_number, usage_type, notes, content_pipeline(code, title_pt, format)')
     .eq('audio_asset_id', id)
+    .eq('site_id', auth.siteId)
 
   return NextResponse.json({ data: { ...asset, usage: usage ?? [] } }, { headers: buildRateLimitHeaders(auth) })
 }
@@ -67,7 +68,7 @@ export async function PATCH(
     .single()
 
   if (error || !data) {
-    const { data: exists } = await supabase.from('audio_assets').select('id, version').eq('id', id).single()
+    const { data: exists } = await supabase.from('audio_assets').select('id, version').eq('id', id).eq('site_id', auth.siteId).single()
     if (!exists) return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Asset not found' } }, { status: 404 })
     return NextResponse.json({ error: { code: 'CONFLICT', message: `Version mismatch: expected ${version}, current ${exists.version}` } }, { status: 409 })
   }

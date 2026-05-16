@@ -12,6 +12,7 @@ export interface ScoreBreakdown {
   duration_in_range: number
   reuse_scenarios: number
   instruments: number
+  description: number
 }
 
 export interface ScoreResult {
@@ -48,6 +49,7 @@ export function scoreAsset(asset: AudioAssetRow, query: ResolveQuery): ScoreResu
   const breakdown: ScoreBreakdown = {
     category: 0, tags: 0, mood: 0, energy: 0,
     bpm_in_range: 0, duration_in_range: 0, reuse_scenarios: 0, instruments: 0,
+    description: 0,
   }
 
   if (query.category && asset.category === query.category) breakdown.category = 5
@@ -82,6 +84,9 @@ export function scoreAsset(asset: AudioAssetRow, query: ResolveQuery): ScoreResu
   const aInst = asset.instruments ?? []
   if (qInst.length > 0 && aInst.length > 0) breakdown.instruments = Math.min(intersection(aInst, qInst).length, 3)
 
+  // description scoring is handled post-query if description provided
+  if (query.description) breakdown.description = 2
+
   const score = Object.values(breakdown).reduce((sum, v) => sum + v, 0)
   return { score, breakdown, resolve_status: toResolveStatus(score, asset.status) }
 }
@@ -103,6 +108,10 @@ export async function resolveAudio(
   if (query.tags && query.tags.length > 0) q = q.overlaps('tags', query.tags)
   if (query.mood && query.mood.length > 0) q = q.overlaps('mood', query.mood)
   if (query.reuse_scenarios && query.reuse_scenarios.length > 0) q = q.overlaps('reuse_scenarios', query.reuse_scenarios)
+  if (query.category) q = q.eq('category', query.category)
+  if (query.energy != null) q = q.gte('energy', query.energy - 1).lte('energy', query.energy + 1)
+  if (query.bpm_range) q = q.gte('bpm', query.bpm_range.min).lte('bpm', query.bpm_range.max)
+  if (query.description) q = q.textSearch('search_vector', query.description, { type: 'websearch', config: 'english' })
 
   const { data, error } = await q.limit((query.limit ?? 5) * 4)
   if (error) throw new Error(error.message)
@@ -112,6 +121,7 @@ export async function resolveAudio(
       const { score, breakdown, resolve_status } = scoreAsset(asset, query)
       return { asset, score, breakdown, resolve_status }
     })
+    .filter(m => m.score > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, query.limit ?? 5)
 
