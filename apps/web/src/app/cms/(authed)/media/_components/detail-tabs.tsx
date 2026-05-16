@@ -134,7 +134,7 @@ function DetailsTab({
         <CopyableValue label={t.detail.filename} value={asset.filename} t={t} />
         <CopyableValue
           label={t.detail.dimensions}
-          value={asset.width && asset.height ? `${asset.width} × ${asset.height}` : 'SVG'}
+          value={asset.width && asset.height ? `${asset.width} × ${asset.height}` : t.detail.svgLabel}
           t={t}
         />
         <CopyableValue label={t.detail.fileSize} value={formatBytes(asset.fileSize)} t={t} />
@@ -147,8 +147,9 @@ function DetailsTab({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-medium text-cms-text-muted">{t.detail.altText}</label>
+        <label htmlFor="detail-alt-text" className="text-xs font-medium text-cms-text-muted">{t.detail.altText}</label>
         <textarea
+          id="detail-alt-text"
           value={altText}
           onChange={(e) => handleAltChange(e.target.value)}
           rows={2}
@@ -158,7 +159,7 @@ function DetailsTab({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-medium text-cms-text-muted">{t.detail.tags}</label>
+        <label htmlFor="detail-new-tag" className="text-xs font-medium text-cms-text-muted">{t.detail.tags}</label>
         <div className="flex flex-wrap gap-1.5">
           {asset.tags.map((tag) => (
             <span key={tag} className="flex items-center gap-1 rounded-full bg-cms-bg px-2 py-0.5 text-xs text-cms-text">
@@ -175,6 +176,7 @@ function DetailsTab({
           ))}
           <div className="flex items-center gap-1">
             <input
+              id="detail-new-tag"
               type="text"
               value={newTag}
               onChange={(e) => setNewTag(e.target.value)}
@@ -187,8 +189,9 @@ function DetailsTab({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-medium text-cms-text-muted">{t.detail.folder}</label>
+        <label htmlFor="detail-folder" className="text-xs font-medium text-cms-text-muted">{t.detail.folder}</label>
         <select
+          id="detail-folder"
           value={asset.folder}
           onChange={(e) => onUpdateFolder(e.target.value)}
           className="rounded-md border border-cms-border bg-cms-bg px-2.5 py-1.5 text-sm text-cms-text focus:border-cms-accent focus:outline-none"

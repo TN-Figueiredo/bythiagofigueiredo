@@ -31,7 +31,9 @@ export function MediaList({ items, checked, selectedId, focusedIndex, onSelect, 
             key={asset.id}
             role="listitem"
             data-focus-index={index}
+            tabIndex={0}
             onClick={() => onSelect(asset.id)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(asset.id) } }}
             className={`
               flex items-center gap-3 rounded-lg border-l-4 px-3 py-2 cursor-pointer transition-colors
               ${colors.border}
@@ -44,6 +46,7 @@ export function MediaList({ items, checked, selectedId, focusedIndex, onSelect, 
               type="button"
               role="checkbox"
               aria-checked={isChecked}
+              aria-label={`Select ${asset.filename}`}
               onClick={(e) => { e.stopPropagation(); onCheck(asset.id, e.shiftKey) }}
               className={`
                 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors
@@ -74,7 +77,7 @@ export function MediaList({ items, checked, selectedId, focusedIndex, onSelect, 
             </span>
 
             <span className="shrink-0 text-xs text-cms-text-muted tabular-nums w-24 text-right">
-              {asset.width && asset.height ? `${asset.width}×${asset.height}` : 'SVG'}
+              {asset.width && asset.height ? `${asset.width}×${asset.height}` : (t?.detail.svgLabel ?? 'SVG')}
             </span>
 
             <span className="shrink-0 text-xs text-cms-text-dim tabular-nums w-16 text-right">

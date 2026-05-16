@@ -18,7 +18,7 @@ export interface MediaGalleryStrings {
     selectButton: string
   }
   crop: { cropTitle: string; cropConfirm: string; cropCancel: string }
-  delete: { confirmTitle: string; confirmMessage: string; usageWarning: string; deleting: string; deleteFailed: string }
+  delete: { confirmTitle: string; confirmMessage: string; usageWarning: string; deleting: string; deleteFailed: string; cancel: string }
   dimensions: { tooSmall: string }
   toolbar: {
     selectAll: string; deselectAll: string
@@ -40,6 +40,7 @@ export interface MediaGalleryStrings {
     orphanWarning: string; orphanAutoDelete: string
     historyUpload: string; historyExifStrip: string; historyDedupCheck: string
     usedIn: string
+    svgLabel: string
   }
   bulk: {
     selected: string; deselect: string

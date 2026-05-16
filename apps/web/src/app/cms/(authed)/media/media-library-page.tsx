@@ -14,6 +14,7 @@ import { getMediaGalleryStrings } from '../_shared/media/_i18n/types'
 import type { MediaAssetResult, EnrichedMediaAsset, UsageEntry } from '../_shared/media/types'
 import type { MediaStats } from '@/lib/media/queries'
 import type { MediaFolder } from '@/lib/media/types'
+import { type QuickAction } from './_components/media-card'
 
 import { StorageBar } from './_components/storage-bar'
 import { MediaToolbar } from './_components/media-toolbar'
@@ -49,10 +50,14 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
   const [isDragging, setIsDragging] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
 
+  const [fetchError, setFetchError] = useState<string | null>(null)
+
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const lastCheckRef = useRef<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const dragCounterRef = useRef(0)
+  const searchRef = useRef(state.search)
+  searchRef.current = state.search
 
   const fetchAssets = useCallback(
     async (cursor?: string) => {
@@ -63,7 +68,7 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
       dispatch({ type: 'SET_LOADING', loading: true })
 
       const result = await listMediaAssetsWithUsageAction({
-        search: state.search || undefined,
+        search: searchRef.current || undefined,
         cursor,
         limit: 24,
       })
@@ -71,6 +76,7 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
       if (controller.signal.aborted) return
 
       if (result.ok) {
+        setFetchError(null)
         const enriched: EnrichedMediaAsset[] = result.assets.map((a) => ({
           asset: a.asset,
           type: a.type,
@@ -84,10 +90,12 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
           setItems(enriched)
         }
         setNextCursor(result.nextCursor)
+      } else {
+        setFetchError(t.upload.uploadError)
       }
       dispatch({ type: 'SET_LOADING', loading: false })
     },
-    [state.search],
+    [t.upload.uploadError],
   )
 
   const sortedItems = useMemo(() => {
@@ -110,7 +118,8 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
       fetchAssets()
     }, 300)
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
-  }, [fetchAssets])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.search, fetchAssets])
 
   useEffect(() => {
     getMediaStatsAction().then((res) => {
@@ -125,20 +134,23 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
     }).catch(() => {})
   }, [state.selectedId])
 
-  const filterCounts = useMemo(() => ({
-    all: sortedItems.length,
-    cover: sortedItems.filter((i) => i.type === 'cover').length,
-    inline: sortedItems.filter((i) => i.type === 'inline').length,
-    avatar: sortedItems.filter((i) => i.type === 'avatar').length,
-    og: sortedItems.filter((i) => i.type === 'og').length,
-    orphan: sortedItems.filter((i) => i.type === 'orphan').length,
-  }), [sortedItems])
+  const filterCounts = useMemo(() => {
+    const counts = { all: 0, cover: 0, inline: 0, avatar: 0, og: 0, orphan: 0 }
+    for (const item of sortedItems) {
+      counts.all++
+      counts[item.type]++
+    }
+    return counts
+  }, [sortedItems])
 
   const filteredItems = useMemo(
     () => state.filter === 'all' ? sortedItems : sortedItems.filter((i) => i.type === state.filter),
     [sortedItems, state.filter],
   )
-  const selectedAsset = sortedItems.find((i) => i.asset.id === state.selectedId)?.asset ?? null
+  const selectedAsset = useMemo(
+    () => sortedItems.find((i) => i.asset.id === state.selectedId)?.asset ?? null,
+    [sortedItems, state.selectedId],
+  )
 
   const handleSelect = useCallback((id: string) => {
     dispatch({ type: 'SELECT_ITEM', id })
@@ -160,7 +172,7 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
     lastCheckRef.current = id
   }, [filteredItems])
 
-  const handleQuickAction = useCallback((id: string, action: string) => {
+  const handleQuickAction = useCallback((id: string, action: QuickAction) => {
     const asset = sortedItems.find((i) => i.asset.id === id)?.asset
     if (!asset) return
 
@@ -182,9 +194,10 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
 
   const handleContextAction = useCallback((action: string) => {
     if (!contextMenu) return
-    handleQuickAction(contextMenu.id, action)
     if (action === 'edit-alt') {
       dispatch({ type: 'SELECT_ITEM', id: contextMenu.id })
+    } else {
+      handleQuickAction(contextMenu.id, action as QuickAction)
     }
   }, [contextMenu, handleQuickAction])
 
@@ -218,14 +231,13 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
       setDeleteModal(null)
       dispatch({ type: 'UNCHECK_ALL' })
       setItems(prev => prev.filter(i => !deletedIds.includes(i.asset.id)))
-      fetchAssets()
       getMediaStatsAction().then((res) => { if (res.ok) setStats(res.stats) }).catch(() => {})
     } catch {
       setDeleteError(t.delete.deleteFailed)
     } finally {
       setIsDeleting(false)
     }
-  }, [deleteModal, fetchAssets, t])
+  }, [deleteModal, t])
 
   const handleBulkDelete = useCallback(() => {
     setDeleteModal({ ids: [...state.checked], usageCount: 0 })
@@ -234,7 +246,12 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
   const handleBulkDownload = useCallback(() => {
     for (const id of state.checked) {
       const asset = sortedItems.find((i) => i.asset.id === id)?.asset
-      if (asset) window.open(asset.blobUrl, '_blank')
+      if (asset) {
+        const a = document.createElement('a')
+        a.href = asset.blobUrl
+        a.download = asset.filename
+        a.click()
+      }
     }
   }, [state.checked, sortedItems])
 
@@ -271,16 +288,18 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement || (e.target instanceof HTMLElement && e.target.isContentEditable)) return
 
       if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault()
         document.querySelector<HTMLInputElement>('[data-testid="media-search"]')?.focus()
       }
       if (e.key === 'Escape') {
-        if (state.lightboxId) dispatch({ type: 'CLOSE_LIGHTBOX' })
-        else if (state.selectedId) dispatch({ type: 'SELECT_ITEM', id: state.selectedId })
-        else if (state.search) dispatch({ type: 'SET_SEARCH', search: '' })
+        if (deleteModal) return
+        if (state.lightboxId) { dispatch({ type: 'CLOSE_LIGHTBOX' }); return }
+        if (state.selectedId) { dispatch({ type: 'SELECT_ITEM', id: state.selectedId }); return }
+        if (state.search) dispatch({ type: 'SET_SEARCH', search: '' })
+        return
       }
 
       if (state.lightboxId) return
@@ -439,8 +458,15 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
         )}
 
         {state.isLoading && items.length > 0 && (
-          <div className="flex justify-center py-4">
+          <div className="flex justify-center py-4" role="status">
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-cms-border border-t-cms-accent" />
+            <span className="sr-only">{t.aria.loading}</span>
+          </div>
+        )}
+
+        {fetchError && !state.isLoading && (
+          <div role="alert" className="rounded-md border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+            {fetchError}
           </div>
         )}
 

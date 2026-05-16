@@ -2,8 +2,9 @@
 
 import { useMemo } from 'react'
 import { TYPE_COLORS, formatBytes } from '../../_shared/media/types'
-import type { MediaAssetType } from '@/lib/media/types'
 import type { MediaGalleryStrings } from '../../_shared/media/_i18n/types'
+import { FOLDER_TO_TYPE } from '@/lib/media/resolve-type'
+import type { MediaAssetType } from '@/lib/media/types'
 
 interface FolderStat {
   count: number
@@ -15,18 +16,6 @@ interface StorageBarProps {
   totalSizeBytes: number
   orphanCount: number
   t: MediaGalleryStrings
-}
-
-const FOLDER_TO_TYPE: Record<string, MediaAssetType> = {
-  authors: 'avatar',
-  og: 'og',
-  blog: 'cover',
-  branding: 'cover',
-  newsletters: 'inline',
-  pipeline: 'inline',
-  ads: 'inline',
-  links: 'inline',
-  general: 'inline',
 }
 
 export function StorageBar({ folderBreakdown, totalSizeBytes, orphanCount, t }: StorageBarProps) {
@@ -58,17 +47,12 @@ export function StorageBar({ folderBreakdown, totalSizeBytes, orphanCount, t }: 
         <span className="text-xs font-semibold text-cms-text tabular-nums">{usedLabel}</span>
       </div>
 
-      <div className="flex h-2 overflow-hidden rounded-full bg-cms-bg">
+      <div role="img" aria-label={segments.map(s => `${t.typeLabels[s.type]}: ${formatBytes(s.bytes)}`).join(', ')} className="flex h-2 overflow-hidden rounded-full bg-cms-bg">
         {segments.map((seg) => (
           <div
             key={seg.type}
             className={`${TYPE_COLORS[seg.type].bg} transition-all duration-700 ease-out`}
             style={{ width: `${seg.pct}%` }}
-            role="meter"
-            aria-label={`${t.typeLabels[seg.type]}: ${formatBytes(seg.bytes)} (${seg.pct.toFixed(1)}%)`}
-            aria-valuenow={seg.pct}
-            aria-valuemin={0}
-            aria-valuemax={100}
           />
         ))}
       </div>

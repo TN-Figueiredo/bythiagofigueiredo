@@ -34,6 +34,8 @@ export function MediaLightbox({
   )
 
   const closeBtnRef = useRef<HTMLButtonElement>(null)
+  const prevRef = useRef<HTMLButtonElement>(null)
+  const nextRef = useRef<HTMLButtonElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
@@ -42,8 +44,23 @@ export function MediaLightbox({
     document.addEventListener('keydown', handleKeyDown)
     document.body.style.overflow = 'hidden'
     requestAnimationFrame(() => closeBtnRef.current?.focus())
+    const trap = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return
+      const btns = [closeBtnRef.current, prevRef.current, nextRef.current].filter(Boolean) as HTMLElement[]
+      if (!btns.length) return
+      const idx = btns.indexOf(document.activeElement as HTMLElement)
+      if (e.shiftKey) {
+        e.preventDefault()
+        btns[idx <= 0 ? btns.length - 1 : idx - 1]?.focus()
+      } else {
+        e.preventDefault()
+        btns[idx >= btns.length - 1 ? 0 : idx + 1]?.focus()
+      }
+    }
+    document.addEventListener('keydown', trap)
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
+      document.removeEventListener('keydown', trap)
       document.body.style.overflow = ''
       previousFocusRef.current?.focus()
     }
@@ -108,6 +125,7 @@ export function MediaLightbox({
 
       {currentIndex > 0 && (
         <button
+          ref={prevRef}
           type="button"
           onClick={(e) => { e.stopPropagation(); onPrev() }}
           className="absolute left-4 z-20 rounded-full bg-black/50 p-3 text-white backdrop-blur-sm hover:bg-black/70"
@@ -121,6 +139,7 @@ export function MediaLightbox({
 
       {currentIndex < totalCount - 1 && (
         <button
+          ref={nextRef}
           type="button"
           onClick={(e) => { e.stopPropagation(); onNext() }}
           className="absolute right-4 z-20 rounded-full bg-black/50 p-3 text-white backdrop-blur-sm hover:bg-black/70"

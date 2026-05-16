@@ -82,6 +82,8 @@ export function MediaToolbar({
       {/* Select-all checkbox */}
       <button
         type="button"
+        role="checkbox"
+        aria-checked={checkedCount === 0 ? false : checkedCount === totalCount ? true : 'mixed'}
         onClick={checkedCount > 0 ? onDeselectAll : onSelectAll}
         className="flex h-5 w-5 items-center justify-center rounded border border-cms-border transition-colors hover:border-cms-accent"
         aria-label={checkedCount > 0 ? t.toolbar.deselectAll : t.toolbar.selectAll}
@@ -151,6 +153,7 @@ export function MediaToolbar({
             <button
               key={key}
               type="button"
+              aria-pressed={isActive}
               onClick={() => onFilterChange(key)}
               className={`
                 flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-all
@@ -191,6 +194,7 @@ export function MediaToolbar({
           <button
             key={n}
             type="button"
+            aria-pressed={cols === n}
             onClick={() => onColsChange(n)}
             className={`rounded px-1.5 py-0.5 text-xs transition-colors ${
               cols === n ? 'bg-cms-accent text-white' : 'text-cms-text-muted hover:text-cms-text'
@@ -206,6 +210,7 @@ export function MediaToolbar({
       <div className="flex gap-0.5 rounded-md border border-cms-border bg-cms-bg p-0.5">
         <button
           type="button"
+          aria-pressed={view === 'grid'}
           onClick={() => onViewChange('grid')}
           className={`rounded p-1 transition-colors ${view === 'grid' ? 'bg-cms-accent text-white' : 'text-cms-text-muted hover:text-cms-text'}`}
           aria-label={t.toolbar.viewGrid}
@@ -214,6 +219,7 @@ export function MediaToolbar({
         </button>
         <button
           type="button"
+          aria-pressed={view === 'list'}
           onClick={() => onViewChange('list')}
           className={`rounded p-1 transition-colors ${view === 'list' ? 'bg-cms-accent text-white' : 'text-cms-text-muted hover:text-cms-text'}`}
           aria-label={t.toolbar.viewList}

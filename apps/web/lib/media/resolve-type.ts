@@ -2,7 +2,7 @@ import type { MediaFolder, MediaAssetType } from './types'
 
 const INLINE_FIELD_NAMES = new Set(['inline_image', 'content_inline'])
 
-const FOLDER_TO_TYPE: Record<string, MediaAssetType> = {
+export const FOLDER_TO_TYPE: Record<string, MediaAssetType> = {
   authors: 'avatar',
   og: 'og',
   branding: 'cover',

@@ -50,6 +50,7 @@ export const ptBR: MediaGalleryStrings = {
     usageWarning: 'Esta imagem é usada em {count} lugares. Excluí-la pode quebrar conteúdo.',
     deleting: 'Excluindo…',
     deleteFailed: 'Falha ao excluir. Tente novamente.',
+    cancel: 'Cancelar',
   },
   dimensions: { tooSmall: 'Imagem muito pequena para este contexto' },
   toolbar: {
@@ -103,6 +104,7 @@ export const ptBR: MediaGalleryStrings = {
     historyExifStrip: 'Metadados EXIF removidos',
     historyDedupCheck: 'Verificação SHA-256 concluída',
     usedIn: 'Referenciado em',
+    svgLabel: 'SVG',
   },
   bulk: {
     selected: '{count} selecionados',

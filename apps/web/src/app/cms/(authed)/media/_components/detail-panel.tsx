@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import type { MediaAsset } from '@/lib/media/types'
 import type { MediaGalleryStrings } from '../../_shared/media/_i18n/types'
@@ -36,6 +36,7 @@ export function DetailPanel({
   t,
 }: DetailPanelProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const closeBtnRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     if (asset) {
@@ -44,6 +45,10 @@ export function DetailPanel({
       setIsOpen(false)
     }
   }, [asset])
+
+  useEffect(() => {
+    if (isOpen) requestAnimationFrame(() => closeBtnRef.current?.focus())
+  }, [isOpen])
 
   const handleUpdateAltText = useCallback(
     (altText: string) => { if (asset) onUpdateAsset(asset.id, { altText }) },
@@ -62,7 +67,7 @@ export function DetailPanel({
 
   const isSvg = asset.mimeType === 'image/svg+xml'
   const tabs = ['details', 'usage', 'history'] as const
-  const tabLabels: Record<string, string> = {
+  const tabLabels: Record<typeof tabs[number], string> = {
     details: t.detail.tabDetails,
     usage: t.detail.tabUsage,
     history: t.detail.tabHistory,
@@ -89,6 +94,7 @@ export function DetailPanel({
           <Image src={asset.blobUrl} alt={asset.altText ?? ''} fill className="object-contain" />
         )}
         <button
+          ref={closeBtnRef}
           type="button"
           onClick={(e) => { e.stopPropagation(); onClose() }}
           className="absolute right-2 top-2 rounded-full bg-black/40 p-1.5 text-white backdrop-blur-sm hover:bg-black/60"

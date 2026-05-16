@@ -20,6 +20,7 @@ interface MediaCardProps {
   compact?: boolean
   typeLabel?: string
   newBadgeLabel?: string
+  svgLabel?: string
   'data-testid'?: string
 }
 
@@ -56,8 +57,13 @@ export function MediaCard({
   focused,
   typeLabel,
   newBadgeLabel,
+  svgLabel,
   'data-testid': dataTestId,
 }: MediaCardProps) {
+  const ACTION_LABELS: Record<QuickAction, string> = {
+    preview: 'Preview', download: 'Download', 'copy-url': 'Copy URL', delete: 'Delete',
+  }
+
   const colors = TYPE_COLORS[type]
   const isSvg = item.mimeType === 'image/svg+xml'
 
@@ -120,6 +126,7 @@ export function MediaCard({
             type="button"
             role="checkbox"
             aria-checked={checked}
+            aria-label={`Select ${item.filename}`}
             onClick={handleCheckbox}
             className={`
               absolute left-2 top-2 z-10 flex h-5 w-5 items-center justify-center rounded border transition-all
@@ -148,7 +155,7 @@ export function MediaCard({
                   onQuickAction(item.id, action)
                 }}
                 className="rounded-full bg-white/10 p-2 text-white backdrop-blur-sm transition-colors hover:bg-white/20"
-                aria-label={action}
+                aria-label={ACTION_LABELS[action]}
               >
                 <QuickActionIcon action={action} />
               </button>
@@ -182,7 +189,7 @@ export function MediaCard({
             {item.width && item.height ? (
               <span>{item.width} × {item.height}</span>
             ) : (
-              <span>SVG</span>
+              <span>{svgLabel ?? 'SVG'}</span>
             )}
             <span>·</span>
             <span>{formatBytes(item.fileSize)}</span>

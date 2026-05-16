@@ -50,6 +50,7 @@ export const en: MediaGalleryStrings = {
     usageWarning: 'This image is used in {count} places. Deleting it may break content.',
     deleting: 'Deleting…',
     deleteFailed: 'Delete failed. Please try again.',
+    cancel: 'Cancel',
   },
   dimensions: { tooSmall: 'Image is too small for this context' },
   toolbar: {
@@ -103,6 +104,7 @@ export const en: MediaGalleryStrings = {
     historyExifStrip: 'EXIF metadata stripped',
     historyDedupCheck: 'SHA-256 dedup verified',
     usedIn: 'Referenced in',
+    svgLabel: 'SVG',
   },
   bulk: {
     selected: '{count} selected',

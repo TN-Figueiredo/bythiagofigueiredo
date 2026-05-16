@@ -2,17 +2,12 @@
 
 import type { MediaColumnCount } from '../../_shared/media/types'
 import type { MediaGalleryStrings } from '../../_shared/media/_i18n/types'
+import { COL_CLASSES } from '../../_shared/media/constants'
 
 interface SkeletonGridProps {
   cols: MediaColumnCount
   count?: number
   t?: MediaGalleryStrings
-}
-
-const COL_CLASSES: Record<MediaColumnCount, string> = {
-  2: 'grid-cols-2',
-  3: 'grid-cols-2 md:grid-cols-3',
-  4: 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4',
 }
 
 export function SkeletonGrid({ cols, count = 12, t }: SkeletonGridProps) {

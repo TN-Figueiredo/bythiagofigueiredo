@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import type { MediaGalleryStrings } from '../../_shared/media/_i18n/types'
 
 interface DeleteConfirmModalProps {
@@ -15,12 +15,33 @@ interface DeleteConfirmModalProps {
 }
 
 export function DeleteConfirmModal({ open, count, usageCount, onConfirm, onCancel, isLoading, error, t }: DeleteConfirmModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const cancelRef = useRef<HTMLButtonElement>(null)
+
   useEffect(() => {
     if (!open) return
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel() }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
   }, [open, onCancel])
+
+  useEffect(() => {
+    if (!open) return
+    cancelRef.current?.focus()
+    const dialog = dialogRef.current
+    if (!dialog) return
+    const trap = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return
+      const focusable = dialog.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
+      if (!focusable.length) return
+      const first = focusable[0]!
+      const last = focusable[focusable.length - 1]!
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+    }
+    document.addEventListener('keydown', trap)
+    return () => document.removeEventListener('keydown', trap)
+  }, [open])
 
   if (!open) return null
 
@@ -30,14 +51,16 @@ export function DeleteConfirmModal({ open, count, usageCount, onConfirm, onCance
       onClick={onCancel}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="delete-confirm-title"
+        aria-describedby="delete-confirm-desc"
         className="mx-4 w-full max-w-sm rounded-xl border border-cms-border bg-cms-surface p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <h3 id="delete-confirm-title" className="text-base font-semibold text-cms-text">{t.delete.confirmTitle}</h3>
-        <p className="mt-2 text-sm text-cms-text-muted">{t.delete.confirmMessage}</p>
+        <p id="delete-confirm-desc" className="mt-2 text-sm text-cms-text-muted">{t.delete.confirmMessage}</p>
         {usageCount > 0 && (
           <div className="mt-3 rounded-md border border-orange-500/30 bg-orange-500/10 px-3 py-2">
             <p className="text-xs text-orange-400">
@@ -50,12 +73,13 @@ export function DeleteConfirmModal({ open, count, usageCount, onConfirm, onCance
         )}
         <div className="mt-4 flex justify-end gap-2">
           <button
+            ref={cancelRef}
             type="button"
             onClick={onCancel}
             disabled={isLoading}
             className="rounded-md border border-cms-border px-3 py-1.5 text-sm text-cms-text hover:bg-cms-surface-hover disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {t.crop.cropCancel}
+            {t.delete.cancel}
           </button>
           <button
             type="button"
