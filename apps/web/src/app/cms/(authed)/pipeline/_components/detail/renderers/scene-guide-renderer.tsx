@@ -327,11 +327,18 @@ function MusicFallback({ music }: { music: SceneMusic }) {
 
 /* ---------- SubSection ---------- */
 
-function SubSection({ title, children }: { title: string; children: React.ReactNode }) {
+function SubSection({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="text-[9px] font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--gem-dim)' }}>
-        {title}
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: 'var(--gem-dim)' }}>
+          {title}
+        </span>
+        {subtitle && (
+          <span className="text-[8px]" style={{ color: '#3d4f65', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>
+            {subtitle}
+          </span>
+        )}
       </div>
       {children}
     </div>
@@ -410,7 +417,13 @@ function SceneCard({ scene, expandAll }: { scene: Scene; expandAll: boolean }) {
           )}
 
           {scene.music && (
-            <SubSection title="Música">
+            <SubSection
+              title="Música"
+              subtitle={scene.music.recommendations && scene.music.recommendations.length > 0
+                ? `${scene.music.recommendations.length} sugestão${scene.music.recommendations.length !== 1 ? 'es' : ''} · 1 recomendada`
+                : undefined
+              }
+            >
               {scene.music.recommendations && scene.music.recommendations.length > 0 ? (
                 <MusicSection music={scene.music} />
               ) : (
@@ -420,7 +433,18 @@ function SceneCard({ scene, expandAll }: { scene: Scene; expandAll: boolean }) {
           )}
 
           {scene.sfx && scene.sfx.length > 0 && (
-            <SubSection title="SFX">
+            <SubSection
+              title="SFX"
+              subtitle={(() => {
+                const total = scene.sfx.length
+                const local = scene.sfx.filter(f => f.resolve_status === 'LOCAL').length
+                const search = scene.sfx.filter(f => f.resolve_status === 'NO_MATCH').length
+                const parts = [`${total} efeito${total !== 1 ? 's' : ''}`]
+                if (local > 0) parts.push(`${local} local`)
+                if (search > 0) parts.push(`${search} buscar`)
+                return parts.join(' · ')
+              })()}
+            >
               <div className="space-y-1">
                 {scene.sfx.map((fx, i) => (
                   <SFXItemCard key={i} sfx={fx} />

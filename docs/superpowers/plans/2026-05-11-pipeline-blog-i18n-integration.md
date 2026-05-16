@@ -1243,7 +1243,7 @@ Add an "Adicionar versão EN/PT" button in the language section of the pipeline 
 
 **Existing code to know:**
 - Language display is at lines 517-520: a simple `<dt>Language</dt><dd>{lang.label}</dd>` row.
-- The sidebar's Details card starts around line 490 and contains format, language, priority, tags, collections.
+- The sidebar's Details card starts around line 490 and contains format, language, priority, tags.
 - The item data is available as `item` (the full pipeline item with all fields).
 - Sections are NOT currently fetched on the detail page. Need to fetch them when modal opens.
 

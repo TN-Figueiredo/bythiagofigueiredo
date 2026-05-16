@@ -74,10 +74,44 @@ export function MusicRecommendationCard({ recommendation: rec, isFavorite, isNoM
         </div>
       )}
 
+      {rec.resolve_status === 'PENDING_MATCH' && rec.artlist_url && !expanded && (
+        <div className="px-2.5 pb-2 flex items-center gap-2">
+          <a
+            href={rec.artlist_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[10px] font-semibold inline-flex items-center gap-1 rounded-[5px] px-3 py-1 transition-colors"
+            style={{ color: '#f59e0b', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)' }}
+          >
+            ⬇ Baixar no Artlist ↗
+          </a>
+          <span className="text-[9px]" style={{ color: '#5a6b7f' }}>
+            Após download, rodar import na Audio Library
+          </span>
+        </div>
+      )}
+
       {expanded && (
         <div className="px-2.5 pb-2.5 space-y-2" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
           {rec.reasoning && (
             <CoworkReasoning text={rec.reasoning} variant={isNoMatchCard ? 'no-match' : 'default'} />
+          )}
+
+          {rec.resolve_status === 'PENDING_MATCH' && rec.artlist_url && (
+            <div className="flex items-center gap-2">
+              <a
+                href={rec.artlist_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[10px] font-semibold inline-flex items-center gap-1 rounded-[5px] px-3 py-1 transition-colors"
+                style={{ color: '#f59e0b', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)' }}
+              >
+                ⬇ Baixar no Artlist ↗
+              </a>
+              <span className="text-[9px]" style={{ color: '#5a6b7f' }}>
+                Após download, rodar import na Audio Library
+              </span>
+            </div>
           )}
 
           {rec.original_filename && (

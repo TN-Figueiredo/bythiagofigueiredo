@@ -1,7 +1,7 @@
 # Content Pipeline API — Plano de Testes Completo
 
 > **Para:** Claude Cowork / agente autônomo  
-> **Objetivo:** Testar TODAS as APIs do Content Pipeline end-to-end, validando CRUD completo, transições de stage, collections, referências, busca, e bulk operations.  
+> **Objetivo:** Testar TODAS as APIs do Content Pipeline end-to-end, validando CRUD completo, transições de stage, referências, busca, e bulk operations.  
 > **Resultado esperado:** Relatório de aprovação/falha por endpoint, identificando bugs para correção antes da migração dos .md para o sistema.
 
 ---
@@ -313,77 +313,6 @@ curl -s -X POST "http://localhost:3001/api/pipeline/items/$ITEM_ID/restore" \
 
 ---
 
-## 6. Collections
-
-### 6.1 GET /api/pipeline/collections — Listar
-```bash
-curl -s "http://localhost:3001/api/pipeline/collections" \
-  -H "X-Pipeline-Key: $KEY" | jq '.data | map({code, name, member_count: (.members | length)})'
-```
-**Esperado:** 6 collections (playlist-a, playlist-b, playlist-c, playlist-e, playlist-f, playlist-g)
-
-### 6.2 POST /api/pipeline/collections — Criar
-```bash
-curl -s -X POST "http://localhost:3001/api/pipeline/collections" \
-  -H "X-Pipeline-Key: $KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "code": "test-collection",
-    "name": "Test Collection",
-    "type": "category",
-    "position": 999
-  }' | jq .
-```
-**Esperado:** 201 com a collection criada.  
-**Salvar:** `$COLLECTION_ID`
-
-### 6.3 GET /api/pipeline/collections/:id — Detalhe
-```bash
-curl -s "http://localhost:3001/api/pipeline/collections/$COLLECTION_ID" \
-  -H "X-Pipeline-Key: $KEY" | jq .
-```
-**Esperado:** Collection com dados completos + members array (vazio por enquanto)
-
-### 6.4 Adicionar item à collection
-```bash
-curl -s -X POST "http://localhost:3001/api/pipeline/collections/$COLLECTION_ID" \
-  -H "X-Pipeline-Key: $KEY" \
-  -H "Content-Type: application/json" \
-  -d "{
-    \"add\": [{\"pipeline_id\": \"$ITEM_ID\", \"position\": 1, \"role\": \"test\"}]
-  }" | jq .
-```
-**Esperado:** Item adicionado à collection. Ou usar o endpoint de membership se diferente — verificar a implementação.
-
-**Alternativa via server action (se API não suportar add diretamente):**
-O endpoint PUT /api/pipeline/collections/:id pode aceitar membership changes. Testar ambos.
-
-### 6.5 PUT /api/pipeline/collections/:id — Atualizar
-```bash
-curl -s -X PUT "http://localhost:3001/api/pipeline/collections/$COLLECTION_ID" \
-  -H "X-Pipeline-Key: $KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Test Collection Updated",
-    "position": 998
-  }' | jq .
-```
-**Esperado:** 200 com collection atualizada
-
-### 6.6 DELETE /api/pipeline/collections/:id — Deletar
-```bash
-curl -s -X DELETE "http://localhost:3001/api/pipeline/collections/$COLLECTION_ID" \
-  -H "X-Pipeline-Key: $KEY" | jq .
-```
-**Esperado:** 200/204 — collection removida
-
-### 6.7 Verificar que collections default NÃO foram afetadas
-```bash
-curl -s "http://localhost:3001/api/pipeline/collections" \
-  -H "X-Pipeline-Key: $KEY" | jq '.data | length'
-```
-**Esperado:** 6 (as playlists originais intactas)
-
 ---
 
 ## 7. Reference Content (Context)
@@ -542,13 +471,6 @@ curl -s "http://localhost:3001/api/pipeline/topics/idea-bank" \
 ```
 **Esperado:** Agregação de items com a tag "idea-bank"
 
-### 11.2 Consultar por código de collection
-```bash
-curl -s "http://localhost:3001/api/pipeline/topics/playlist-e" \
-  -H "X-Pipeline-Key: $KEY" | jq .
-```
-**Esperado:** Dados agregados da collection E (Languages)
-
 ---
 
 ## 12. Cleanup — Remover Dados de Teste
@@ -600,13 +522,6 @@ Após rodar todos os testes, preencher:
 | 5.2 | Archive | GET /api/pipeline/items | Excluded from list | ⬜ |
 | 5.3 | Archive | GET /api/pipeline/items | Included with flag | ⬜ |
 | 5.4 | Archive | POST .../restore | Restore | ⬜ |
-| 6.1 | Collections | GET /api/pipeline/collections | List 6 | ⬜ |
-| 6.2 | Collections | POST /api/pipeline/collections | Create | ⬜ |
-| 6.3 | Collections | GET /api/pipeline/collections/:id | Detail | ⬜ |
-| 6.4 | Collections | Membership | Add item | ⬜ |
-| 6.5 | Collections | PUT /api/pipeline/collections/:id | Update | ⬜ |
-| 6.6 | Collections | DELETE /api/pipeline/collections/:id | Delete | ⬜ |
-| 6.7 | Collections | GET /api/pipeline/collections | Originals intact | ⬜ |
 | 7.1 | Reference | GET /api/pipeline/context | List 8 refs | ⬜ |
 | 7.2 | Reference | GET /api/pipeline/context/:key | Detail | ⬜ |
 | 7.3 | Reference | PUT /api/pipeline/context/:key | Create | ⬜ |
@@ -621,7 +536,6 @@ Após rodar todos os testes, preencher:
 | 10.2 | Bulk | POST /api/pipeline/items/bulk | Batch tag | ⬜ |
 | 10.3 | Bulk | POST /api/pipeline/items/bulk | Batch retreat | ⬜ |
 | 11.1 | Topics | GET /api/pipeline/topics/:code | By tag | ⬜ |
-| 11.2 | Topics | GET /api/pipeline/topics/:code | By collection | ⬜ |
 
 ---
 
@@ -641,11 +555,6 @@ Após rodar todos os testes, preencher:
 ### Formato Imutável
 - Trigger `trg_pipeline_immutable_format` impede mudança de `format` após criação
 - Para mudar formato: deletar e recriar
-
-### Collections — Modelo Atual
-- 6 playlists: A (Life Chapters), B (Gaming→Life), C (Taking Control), E (Languages), F (Body&Mind), G (AI Empire)
-- Memberships usam `role` para classificar: `null` = video, `text` = artigo, `idea-bank` = banco de ideias, `arc-1/2/3` = arcos narrativos de G
-- Text playlists (TA-TF) são mapeadas para collections por tema: TA→E, TB→C, TC→A, TD→G, TE→C, TF→B
 
 ### Dados Seeded
 - 77 vídeos (playlists A-G)
