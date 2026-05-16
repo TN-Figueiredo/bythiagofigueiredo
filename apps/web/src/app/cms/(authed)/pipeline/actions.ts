@@ -180,6 +180,34 @@ export async function advancePipelineItem(id: string, version: number): Promise<
   return { ok: true, data: { ...updated, graduationResult } }
 }
 
+export async function movePipelineItemToStage(
+  id: string,
+  version: number,
+  targetStage: string,
+): Promise<ActionResult> {
+  const { siteId } = await requireEditAccess()
+  const supabase = getSupabaseServiceClient()
+
+  const validStages = ['idea', 'draft', 'ready']
+  if (!validStages.includes(targetStage)) {
+    return { ok: false, error: `Invalid stage: ${targetStage}` }
+  }
+
+  const { data: updated, error } = await supabase
+    .from('content_pipeline')
+    .update({ stage: targetStage })
+    .eq('id', id)
+    .eq('site_id', siteId)
+    .eq('version', version)
+    .select('id, version, stage, sort_order')
+    .single()
+
+  if (error || !updated) return { ok: false, error: 'Version conflict or item not found' }
+  revalidatePath('/cms/pipeline')
+  revalidatePath('/cms/blog')
+  return { ok: true, data: updated }
+}
+
 export async function retreatPipelineItem(id: string, version: number): Promise<ActionResult> {
   const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
