@@ -444,3 +444,43 @@ textarea:focus-visible {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* CMS REDESIGN TOKENS — indigo-dark design system */
+:root {
+  --bg-0: #101124;
+  --bg-1: #141530;
+  --bg-2: #1a1b3a;
+  --bg-3: #212247;
+  --bg-4: #2a2c55;
+
+  --t1: #f1f5f9;
+  --t2: #cbd5e1;
+  --t3: #94a3b8;
+  --t4: #7d8ba0;
+  --t5: #5a6a80;
+
+  --bdr-0: #1a1b30;
+  --bdr-1: #252640;
+  --bdr-2: #333460;
+  --bdr-3: #444570;
+
+  --color-blog: #34d399;
+  --color-newsletter: #a78bfa;
+  --color-video: #fb7185;
+  --color-link: #38bdf8;
+  --color-int: #60a5fa;
+
+  --acc: #818cf8;
+
+  --color-blog-bg: #34d3991f;
+  --color-newsletter-bg: #a78bfa1f;
+  --color-video-bg: #fb71851f;
+  --color-link-bg: #38bdf81f;
+  --color-int-bg: #60a5fa1f;
+
+  --color-blog-bdr: #34d39966;
+  --color-newsletter-bdr: #a78bfa66;
+  --color-video-bdr: #fb718566;
+  --color-link-bdr: #38bdf866;
+  --color-int-bdr: #60a5fa66;
+}
+

@@ -21,6 +21,7 @@ export function buildCmsSections(): SidebarSection[] {
       items: [
         { icon: icon(LayoutDashboard), label: 'Dashboard', href: '/cms' },
         { icon: icon(Calendar), label: 'Schedule', href: '/cms/schedule' },
+        { icon: icon(TrendingUp), label: 'Analytics', href: '/cms/analytics', minRole: 'editor' },
       ],
     },
     {
@@ -55,12 +56,6 @@ export function buildCmsSections(): SidebarSection[] {
       items: [
         { icon: icon(UserPen), label: 'Authors', href: '/cms/authors', minRole: 'editor' },
         { icon: icon(UsersRound), label: 'Subscribers', href: '/cms/subscribers', minRole: 'org_admin' },
-      ],
-    },
-    {
-      label: 'Insights',
-      items: [
-        { icon: icon(TrendingUp), label: 'Analytics', href: '/cms/analytics', minRole: 'editor' },
       ],
     },
   ]
