@@ -1,5 +1,6 @@
 'use client'
 
+import { memo } from 'react'
 import Image from 'next/image'
 import type { EnrichedMediaAsset } from '../../_shared/media/types'
 import { TYPE_COLORS, formatBytes } from '../../_shared/media/types'
@@ -15,7 +16,7 @@ interface MediaListProps {
   t?: MediaGalleryStrings
 }
 
-export function MediaList({ items, checked, selectedId, focusedIndex, onSelect, onCheck, t }: MediaListProps) {
+export const MediaList = memo(function MediaList({ items, checked, selectedId, focusedIndex, onSelect, onCheck, t }: MediaListProps) {
   return (
     <div role="list" className="flex flex-col gap-1">
       {items.map((enriched, index) => {
@@ -49,7 +50,7 @@ export function MediaList({ items, checked, selectedId, focusedIndex, onSelect, 
               aria-label={`Select ${asset.filename}`}
               onClick={(e) => { e.stopPropagation(); onCheck(asset.id, e.shiftKey) }}
               className={`
-                flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors
+                flex min-h-6 min-w-6 shrink-0 items-center justify-center rounded border transition-colors
                 ${isChecked ? 'border-cms-accent bg-cms-accent text-white' : 'border-cms-border hover:border-cms-accent'}
               `}
             >
@@ -88,4 +89,4 @@ export function MediaList({ items, checked, selectedId, focusedIndex, onSelect, 
       })}
     </div>
   )
-}
+})

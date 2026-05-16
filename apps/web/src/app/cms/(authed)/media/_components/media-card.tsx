@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback } from 'react'
+import { memo, useCallback } from 'react'
 import Image from 'next/image'
 import type { MediaAsset, MediaAssetType } from '@/lib/media/types'
 import { TYPE_COLORS, formatBytes } from '../../_shared/media/types'
@@ -49,7 +49,7 @@ function isNewAsset(createdAt: string): boolean {
   return new Date(createdAt).getTime() > threeDaysAgo
 }
 
-export function MediaCard({
+export const MediaCard = memo(function MediaCard({
   item,
   type,
   checked,
@@ -132,7 +132,7 @@ export function MediaCard({
             aria-label={`Select ${item.filename}`}
             onClick={handleCheckbox}
             className={`
-              absolute left-2 top-2 z-10 flex h-5 w-5 items-center justify-center rounded border transition-all
+              absolute left-2 top-2 z-10 flex min-h-6 min-w-6 items-center justify-center rounded border transition-all
               ${checked
                 ? 'border-cms-accent bg-cms-accent text-white'
                 : 'border-white/40 bg-black/30 opacity-0 group-hover:opacity-100'}
@@ -206,7 +206,7 @@ export function MediaCard({
       )}
     </div>
   )
-}
+})
 
 function QuickActionIcon({ action }: { action: QuickAction }) {
   switch (action) {

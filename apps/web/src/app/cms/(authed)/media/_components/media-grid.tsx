@@ -1,5 +1,6 @@
 'use client'
 
+import { memo } from 'react'
 import { MediaCard, type QuickAction } from './media-card'
 import type { EnrichedMediaAsset, MediaColumnCount } from '../../_shared/media/types'
 import type { MediaGalleryStrings } from '../../_shared/media/_i18n/types'
@@ -20,7 +21,7 @@ interface MediaGridProps {
   t?: MediaGalleryStrings
 }
 
-export function MediaGrid({
+export const MediaGrid = memo(function MediaGrid({
   items,
   checked,
   selectedId,
@@ -77,4 +78,4 @@ export function MediaGrid({
       ))}
     </div>
   )
-}
+})

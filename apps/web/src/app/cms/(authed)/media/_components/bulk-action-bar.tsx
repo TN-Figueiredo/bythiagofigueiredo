@@ -1,5 +1,6 @@
 'use client'
 
+import { memo } from 'react'
 import type { MediaGalleryStrings } from '../../_shared/media/_i18n/types'
 
 interface BulkActionBarProps {
@@ -10,7 +11,7 @@ interface BulkActionBarProps {
   t: MediaGalleryStrings
 }
 
-export function BulkActionBar({ count, onDeselect, onDownload, onDelete, t }: BulkActionBarProps) {
+export const BulkActionBar = memo(function BulkActionBar({ count, onDeselect, onDownload, onDelete, t }: BulkActionBarProps) {
   return (
     <>
       <span aria-live="polite" className="sr-only">
@@ -51,4 +52,4 @@ export function BulkActionBar({ count, onDeselect, onDownload, onDelete, t }: Bu
       </div>
     </>
   )
-}
+})

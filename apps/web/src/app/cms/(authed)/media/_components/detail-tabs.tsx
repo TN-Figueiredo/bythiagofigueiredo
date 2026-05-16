@@ -6,6 +6,17 @@ import type { MediaGalleryStrings } from '../../_shared/media/_i18n/types'
 import { formatBytes } from '../../_shared/media/types'
 import type { UsageEntry } from '../../_shared/media/types'
 
+const FOLDER_OPTIONS = ['general', 'authors', 'blog', 'pipeline', 'newsletters', 'branding', 'og', 'ads', 'links'] as const
+
+function folderLabels(t: MediaGalleryStrings): Record<string, string> {
+  return {
+    general: t.library.folderGeneral, authors: t.library.folderAuthors,
+    blog: t.library.folderBlog, pipeline: t.library.folderPipeline,
+    newsletters: t.library.folderNewsletters, branding: t.library.folderBranding,
+    og: t.library.folderOg, ads: t.library.folderAds, links: t.library.folderLinks,
+  }
+}
+
 interface DetailTabsProps {
   tab: 'details' | 'usage' | 'history'
   asset: MediaAsset
@@ -36,7 +47,7 @@ function CopyableValue({ label, value, t }: { label: string; value: string; t: M
       <button
         type="button"
         onClick={handleCopy}
-        className="group flex items-center gap-1 text-xs text-cms-text hover:text-cms-accent"
+        className="group flex items-center gap-1 text-xs text-cms-text hover:text-cms-accent focus-visible:text-cms-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cms-accent"
       >
         <span className="tabular-nums">{value}</span>
         <span className={`text-[10px] text-cms-accent transition-opacity ${copied ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
@@ -79,12 +90,15 @@ function DetailsTab({
   t: MediaGalleryStrings
 }) {
   const [altText, setAltText] = useState(asset.altText ?? '')
+  const [newTag, setNewTag] = useState('')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const onUpdateAltTextRef = useRef(onUpdateAltText)
   onUpdateAltTextRef.current = onUpdateAltText
 
   useEffect(() => {
     setAltText(asset.altText ?? '')
+    setNewTag('')
+    if (debounceRef.current) { clearTimeout(debounceRef.current); debounceRef.current = undefined }
   }, [asset.id, asset.altText])
 
   useEffect(() => {
@@ -106,8 +120,6 @@ function DetailsTab({
     },
     [asset.tags, onUpdateTags],
   )
-
-  const [newTag, setNewTag] = useState('')
   const handleAddTag = useCallback(() => {
     const trimmed = newTag.trim()
     if (trimmed && !asset.tags.includes(trimmed)) {
@@ -120,13 +132,7 @@ function DetailsTab({
     ? `${(asset.width / asset.height).toFixed(2)}:1`
     : '—'
 
-  const FOLDER_OPTIONS = ['general', 'authors', 'blog', 'pipeline', 'newsletters', 'branding', 'og', 'ads', 'links'] as const
-  const folderLabels: Record<string, string> = {
-    general: t.library.folderGeneral, authors: t.library.folderAuthors,
-    blog: t.library.folderBlog, pipeline: t.library.folderPipeline,
-    newsletters: t.library.folderNewsletters, branding: t.library.folderBranding,
-    og: t.library.folderOg, ads: t.library.folderAds, links: t.library.folderLinks,
-  }
+  const labels = folderLabels(t)
 
   return (
     <div className="flex flex-col gap-4">
@@ -197,7 +203,7 @@ function DetailsTab({
           className="rounded-md border border-cms-border bg-cms-bg px-2.5 py-1.5 text-sm text-cms-text focus:border-cms-accent focus:outline-none"
         >
           {FOLDER_OPTIONS.map((f) => (
-            <option key={f} value={f}>{folderLabels[f] ?? f}</option>
+            <option key={f} value={f}>{labels[f] ?? f}</option>
           ))}
         </select>
       </div>

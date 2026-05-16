@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useCallback, useRef } from 'react'
+import { memo, useEffect, useCallback, useRef } from 'react'
 import Image from 'next/image'
 import type { MediaAsset } from '@/lib/media/types'
 import type { MediaGalleryStrings } from '../../_shared/media/_i18n/types'
@@ -15,7 +15,7 @@ interface MediaLightboxProps {
   t: MediaGalleryStrings
 }
 
-export function MediaLightbox({
+export const MediaLightbox = memo(function MediaLightbox({
   asset,
   currentIndex,
   totalCount,
@@ -115,33 +115,33 @@ export function MediaLightbox({
         </button>
       </div>
 
-      {currentIndex > 0 && (
-        <button
-          ref={prevRef}
-          type="button"
-          onClick={(e) => { e.stopPropagation(); onPrev() }}
-          className="absolute left-4 z-20 rounded-full bg-black/50 p-3 text-white backdrop-blur-sm hover:bg-black/70"
-          aria-label={t.lightbox.previous}
-        >
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <path d="M12 4l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-      )}
+      <button
+        ref={prevRef}
+        type="button"
+        disabled={currentIndex <= 0}
+        aria-disabled={currentIndex <= 0}
+        onClick={(e) => { e.stopPropagation(); onPrev() }}
+        className={`absolute left-4 z-20 rounded-full bg-black/50 p-3 text-white backdrop-blur-sm ${currentIndex <= 0 ? 'opacity-0 pointer-events-none' : 'hover:bg-black/70'}`}
+        aria-label={t.lightbox.previous}
+      >
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path d="M12 4l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
 
-      {currentIndex < totalCount - 1 && (
-        <button
-          ref={nextRef}
-          type="button"
-          onClick={(e) => { e.stopPropagation(); onNext() }}
-          className="absolute right-4 z-20 rounded-full bg-black/50 p-3 text-white backdrop-blur-sm hover:bg-black/70"
-          aria-label={t.lightbox.next}
-        >
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <path d="M8 4l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-      )}
+      <button
+        ref={nextRef}
+        type="button"
+        disabled={currentIndex >= totalCount - 1}
+        aria-disabled={currentIndex >= totalCount - 1}
+        onClick={(e) => { e.stopPropagation(); onNext() }}
+        className={`absolute right-4 z-20 rounded-full bg-black/50 p-3 text-white backdrop-blur-sm ${currentIndex >= totalCount - 1 ? 'opacity-0 pointer-events-none' : 'hover:bg-black/70'}`}
+        aria-label={t.lightbox.next}
+      >
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path d="M8 4l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
 
       <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 rounded-full bg-black/50 px-4 py-2 backdrop-blur-sm">
         <p className="text-xs text-white">
@@ -153,4 +153,4 @@ export function MediaLightbox({
       </div>
     </div>
   )
-}
+})

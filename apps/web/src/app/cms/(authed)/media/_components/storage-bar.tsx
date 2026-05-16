@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { memo, useMemo } from 'react'
 import { TYPE_COLORS, formatBytes } from '../../_shared/media/types'
 import type { MediaGalleryStrings } from '../../_shared/media/_i18n/types'
 import { FOLDER_TO_TYPE } from '@/lib/media/resolve-type'
@@ -18,7 +18,7 @@ interface StorageBarProps {
   t: MediaGalleryStrings
 }
 
-export function StorageBar({ folderBreakdown, totalSizeBytes, orphanCount, t }: StorageBarProps) {
+export const StorageBar = memo(function StorageBar({ folderBreakdown, totalSizeBytes, orphanCount, t }: StorageBarProps) {
   const segments = useMemo(() => {
     const byType: Record<MediaAssetType, number> = { cover: 0, inline: 0, avatar: 0, og: 0, orphan: 0 }
 
@@ -77,4 +77,4 @@ export function StorageBar({ folderBreakdown, totalSizeBytes, orphanCount, t }: 
       </div>
     </div>
   )
-}
+})

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { MediaGalleryStrings } from '../../_shared/media/_i18n/types'
 
 interface ContextMenuProps {
@@ -12,8 +12,13 @@ interface ContextMenuProps {
   t: MediaGalleryStrings
 }
 
-export function ContextMenu({ x, y, assetId, onAction, onClose, t }: ContextMenuProps) {
+export const ContextMenu = React.memo(function ContextMenu({ x, y, assetId, onAction, onClose, t }: ContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null)
+  const previousFocusRef = useRef<Element | null>(null)
+
+  useEffect(() => {
+    previousFocusRef.current = document.activeElement
+  }, [])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -42,7 +47,10 @@ export function ContextMenu({ x, y, assetId, onAction, onClose, t }: ContextMenu
       }
     }
     document.addEventListener('keydown', handler)
-    return () => document.removeEventListener('keydown', handler)
+    return () => {
+      document.removeEventListener('keydown', handler)
+      ;(previousFocusRef.current as HTMLElement | null)?.focus()
+    }
   }, [onClose])
 
   useEffect(() => {
@@ -51,7 +59,7 @@ export function ContextMenu({ x, y, assetId, onAction, onClose, t }: ContextMenu
   }, [])
 
   const [pos, setPos] = useState({ left: x, top: y })
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = ref.current
     if (!el) return
     const rect = el.getBoundingClientRect()
@@ -100,4 +108,4 @@ export function ContextMenu({ x, y, assetId, onAction, onClose, t }: ContextMenu
       )}
     </div>
   )
-}
+})

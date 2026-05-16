@@ -25,7 +25,7 @@ export function EmptyState({ filter, searchQuery, t }: EmptyStateProps) {
 
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-20">
-      <svg width="48" height="48" viewBox="0 0 48 48" fill="none" className="text-cms-text-dim">
+      <svg aria-hidden="true" width="48" height="48" viewBox="0 0 48 48" fill="none" className="text-cms-text-dim">
         <rect x="6" y="10" width="36" height="28" rx="4" stroke="currentColor" strokeWidth="2" />
         <circle cx="18" cy="22" r="4" stroke="currentColor" strokeWidth="2" />
         <path d="M6 32l10-8 6 4 10-10 10 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />

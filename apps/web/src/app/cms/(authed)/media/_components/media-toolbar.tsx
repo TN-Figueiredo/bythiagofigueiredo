@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useCallback } from 'react'
+import { memo, useRef, useCallback } from 'react'
 import type { MediaAssetType } from '@/lib/media/types'
 import type { MediaSortOption, MediaViewMode, MediaColumnCount } from '../../_shared/media/types'
 import type { MediaGalleryStrings } from '../../_shared/media/_i18n/types'
@@ -51,7 +51,7 @@ const SORT_OPTIONS: Array<{ value: MediaSortOption; tKey: keyof MediaGalleryStri
   { value: 'name', tKey: 'sortName' },
 ]
 
-export function MediaToolbar({
+export const MediaToolbar = memo(function MediaToolbar({
   filter,
   search,
   sort,
@@ -102,18 +102,17 @@ export function MediaToolbar({
 
       {/* Search */}
       <div className="relative flex-1 min-w-[180px] max-w-[320px]">
-        <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 text-cms-text-dim" width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <svg aria-hidden="true" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-cms-text-dim" width="14" height="14" viewBox="0 0 14 14" fill="none">
           <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2" />
           <path d="M9.5 9.5L13 13" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
         </svg>
         <input
           ref={searchRef}
-          type="text"
+          type="search"
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder={t.library.searchPlaceholder}
           className="w-full rounded-md border border-cms-border bg-cms-bg py-1.5 pl-8 pr-16 text-sm text-cms-text placeholder:text-cms-text-dim focus:border-cms-accent focus:outline-none"
-          role="searchbox"
           aria-label={t.toolbar.searchLabel}
           data-testid="media-search"
         />
@@ -229,4 +228,4 @@ export function MediaToolbar({
       </div>
     </div>
   )
-}
+})

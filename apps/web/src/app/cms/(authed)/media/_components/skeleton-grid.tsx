@@ -1,5 +1,6 @@
 'use client'
 
+import { memo } from 'react'
 import type { MediaColumnCount } from '../../_shared/media/types'
 import type { MediaGalleryStrings } from '../../_shared/media/_i18n/types'
 import { COL_CLASSES } from '../../_shared/media/constants'
@@ -10,7 +11,7 @@ interface SkeletonGridProps {
   t?: MediaGalleryStrings
 }
 
-export function SkeletonGrid({ cols, count = 12, t }: SkeletonGridProps) {
+export const SkeletonGrid = memo(function SkeletonGrid({ cols, count = 12, t }: SkeletonGridProps) {
   return (
     <div className={`grid gap-3 ${COL_CLASSES[cols]}`} aria-busy="true" aria-label={t?.aria.loading ?? 'Loading'}>
       {Array.from({ length: count }, (_, i) => (
@@ -25,4 +26,4 @@ export function SkeletonGrid({ cols, count = 12, t }: SkeletonGridProps) {
       ))}
     </div>
   )
-}
+})

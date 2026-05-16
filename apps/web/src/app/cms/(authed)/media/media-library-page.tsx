@@ -11,9 +11,10 @@ import {
   updateMediaAssetAction,
 } from './actions'
 import { getMediaGalleryStrings } from '../_shared/media/_i18n/types'
-import type { MediaAssetResult, EnrichedMediaAsset, UsageEntry } from '../_shared/media/types'
+import type { MediaAssetResult, EnrichedMediaAsset, UsageEntry, MediaSortOption, MediaViewMode, MediaColumnCount } from '../_shared/media/types'
 import type { MediaStats } from '@/lib/media/queries'
-import type { MediaFolder } from '@/lib/media/types'
+import type { MediaFolder, MediaAssetType } from '@/lib/media/types'
+import { FOLDER_TO_TYPE } from '@/lib/media/resolve-type'
 import { type QuickAction } from './_components/media-card'
 
 import { StorageBar } from './_components/storage-bar'
@@ -208,7 +209,7 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
         await updateMediaAssetAction(assetId, {
           altText: updates.altText,
           tags: updates.tags,
-          folder: updates.folder as MediaFolder | undefined,
+          folder: updates.folder && updates.folder in FOLDER_TO_TYPE ? updates.folder as MediaFolder : undefined,
         })
         fetchAssets()
       })
@@ -241,8 +242,12 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
   }, [deleteModal, t.delete.deleteFailed])
 
   const handleBulkDelete = useCallback(() => {
-    setDeleteModal({ ids: [...state.checked], usageCount: 0 })
-  }, [state.checked])
+    const totalUsages = [...state.checked].reduce((sum, id) => {
+      const enriched = items.find((e) => e.asset.id === id)
+      return sum + (enriched?.usageCount ?? 0)
+    }, 0)
+    setDeleteModal({ ids: [...state.checked], usageCount: totalUsages })
+  }, [state.checked, items])
 
   const handleBulkDownload = useCallback(() => {
     for (const id of state.checked) {
@@ -264,11 +269,41 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
     getMediaStatsAction().then((res) => { if (res.ok) setStats(res.stats) }).catch(() => {})
   }, [fetchAssets])
 
+  // Memoized dispatch callbacks for child components
+  const handleFilterChange = useCallback((f: 'all' | MediaAssetType) => dispatch({ type: 'SET_FILTER', filter: f }), [])
+  const handleSearchChange = useCallback((s: string) => dispatch({ type: 'SET_SEARCH', search: s }), [])
+  const handleSortChange = useCallback((s: MediaSortOption) => dispatch({ type: 'SET_SORT', sort: s }), [])
+  const handleViewChange = useCallback((v: MediaViewMode) => dispatch({ type: 'SET_VIEW', view: v }), [])
+  const handleColsChange = useCallback((c: MediaColumnCount) => dispatch({ type: 'SET_COLS', cols: c }), [])
+  const handleSelectAll = useCallback(() => dispatch({ type: 'CHECK_ALL', ids: filteredItems.map((i) => i.asset.id) }), [filteredItems])
+  const handleDeselectAll = useCallback(() => dispatch({ type: 'UNCHECK_ALL' }), [])
+  const handleContextMenuOpen = useCallback((id: string, x: number, y: number) => setContextMenu({ id, x, y }), [])
+  const handleDetailTabChange = useCallback((tab: 'details' | 'usage' | 'history') => dispatch({ type: 'SET_DETAIL_TAB', tab }), [])
+  const handleDetailClose = useCallback(() => {
+    if (state.selectedId) dispatch({ type: 'SELECT_ITEM', id: state.selectedId })
+  }, [state.selectedId])
+  const handleCopyUrl = useCallback((url: string) => { navigator.clipboard.writeText(url).catch(() => {}) }, [])
+  const handleReplace = useCallback(() => setShowUpload(true), [])
+  const handleDetailDelete = useCallback((id: string) => setDeleteModal({ ids: [id], usageCount: usages.length }), [usages.length])
+  const handleOpenLightbox = useCallback((id: string) => dispatch({ type: 'OPEN_LIGHTBOX', id }), [])
+  const handleContextMenuClose = useCallback(() => setContextMenu(null), [])
+  const handleDeleteCancel = useCallback(() => { setDeleteModal(null); setDeleteError(null) }, [])
+  const handleCloseLightbox = useCallback(() => dispatch({ type: 'CLOSE_LIGHTBOX' }), [])
+  const handleLoadMore = useCallback(() => {
+    if (nextCursor) {
+      setFocusedIndex(-1)
+      fetchAssets(nextCursor)
+    }
+  }, [nextCursor, fetchAssets])
+
   const lightboxAsset = useMemo(
     () => state.lightboxId ? sortedItems.find((i) => i.asset.id === state.lightboxId)?.asset ?? null : null,
     [sortedItems, state.lightboxId],
   )
-  const lightboxIndex = state.lightboxId ? filteredItems.findIndex((i) => i.asset.id === state.lightboxId) : -1
+  const lightboxIndex = useMemo(
+    () => state.lightboxId ? filteredItems.findIndex((i) => i.asset.id === state.lightboxId) : -1,
+    [state.lightboxId, filteredItems],
+  )
 
   const handleLightboxPrev = useCallback(() => {
     if (lightboxIndex > 0) {
@@ -313,6 +348,11 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (state.checked.size > 0 && !isDeleting && !deleteModal) handleBulkDelete()
       }
+
+      const active = document.activeElement
+      const isInsideGrid = active === document.body || active?.closest('[role="list"]') !== null
+
+      if (!isInsideGrid) return
 
       const cols = state.view === 'list' ? 1 : state.cols
       if (e.key === 'ArrowRight' && focusedIndex < filteredItems.length - 1) {
@@ -412,13 +452,13 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
         totalCount={items.length}
         checkedCount={state.checked.size}
         filterCounts={filterCounts}
-        onFilterChange={(f) => dispatch({ type: 'SET_FILTER', filter: f })}
-        onSearchChange={(s) => dispatch({ type: 'SET_SEARCH', search: s })}
-        onSortChange={(s) => dispatch({ type: 'SET_SORT', sort: s })}
-        onViewChange={(v) => dispatch({ type: 'SET_VIEW', view: v })}
-        onColsChange={(c) => dispatch({ type: 'SET_COLS', cols: c })}
-        onSelectAll={() => dispatch({ type: 'CHECK_ALL', ids: filteredItems.map((i) => i.asset.id) })}
-        onDeselectAll={() => dispatch({ type: 'UNCHECK_ALL' })}
+        onFilterChange={handleFilterChange}
+        onSearchChange={handleSearchChange}
+        onSortChange={handleSortChange}
+        onViewChange={handleViewChange}
+        onColsChange={handleColsChange}
+        onSelectAll={handleSelectAll}
+        onDeselectAll={handleDeselectAll}
         t={t}
       />
 
@@ -448,7 +488,7 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
             onSelect={handleSelect}
             onCheck={handleCheck}
             onQuickAction={handleQuickAction}
-            onContextMenu={(id, x, y) => setContextMenu({ id, x, y })}
+            onContextMenu={handleContextMenuOpen}
             t={t}
           />
         ) : (
@@ -480,7 +520,7 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
           <div className="flex justify-center py-4">
             <button
               type="button"
-              onClick={() => fetchAssets(nextCursor)}
+              onClick={handleLoadMore}
               className="rounded-md border border-cms-border px-4 py-2 text-sm text-cms-text-muted hover:bg-cms-surface-hover"
             >
               {t.library.loadMore}
@@ -493,19 +533,19 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
         asset={selectedAsset}
         tab={state.detailTab}
         usages={usages}
-        onTabChange={(tab) => dispatch({ type: 'SET_DETAIL_TAB', tab })}
-        onClose={() => state.selectedId && dispatch({ type: 'SELECT_ITEM', id: state.selectedId })}
+        onTabChange={handleDetailTabChange}
+        onClose={handleDetailClose}
         onUpdateAsset={handleUpdateAsset}
-        onCopyUrl={(url) => navigator.clipboard.writeText(url).catch(() => {})}
-        onReplace={() => setShowUpload(true)}
-        onDelete={(id) => setDeleteModal({ ids: [id], usageCount: usages.length })}
-        onOpenLightbox={(id) => dispatch({ type: 'OPEN_LIGHTBOX', id })}
+        onCopyUrl={handleCopyUrl}
+        onReplace={handleReplace}
+        onDelete={handleDetailDelete}
+        onOpenLightbox={handleOpenLightbox}
         t={t}
       />
 
       <BulkActionBar
         count={state.checked.size}
-        onDeselect={() => dispatch({ type: 'UNCHECK_ALL' })}
+        onDeselect={handleDeselectAll}
         onDownload={handleBulkDownload}
         onDelete={handleBulkDelete}
         t={t}
@@ -517,7 +557,7 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
           y={contextMenu.y}
           assetId={contextMenu.id}
           onAction={handleContextAction}
-          onClose={() => setContextMenu(null)}
+          onClose={handleContextMenuClose}
           t={t}
         />
       )}
@@ -527,7 +567,7 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
         count={deleteModal?.ids.length ?? 0}
         usageCount={deleteModal?.usageCount ?? 0}
         onConfirm={handleDeleteConfirm}
-        onCancel={() => { setDeleteModal(null); setDeleteError(null) }}
+        onCancel={handleDeleteCancel}
         error={deleteError}
         isLoading={isDeleting}
         t={t}
@@ -539,7 +579,7 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
         totalCount={filteredItems.length}
         onPrev={handleLightboxPrev}
         onNext={handleLightboxNext}
-        onClose={() => dispatch({ type: 'CLOSE_LIGHTBOX' })}
+        onClose={handleCloseLightbox}
         t={t}
       />
 

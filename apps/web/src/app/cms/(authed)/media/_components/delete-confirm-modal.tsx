@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import React, { useEffect, useRef } from 'react'
 import type { MediaGalleryStrings } from '../../_shared/media/_i18n/types'
 
 interface DeleteConfirmModalProps {
@@ -14,9 +14,21 @@ interface DeleteConfirmModalProps {
   t: MediaGalleryStrings
 }
 
-export function DeleteConfirmModal({ open, count, usageCount, onConfirm, onCancel, isLoading, error, t }: DeleteConfirmModalProps) {
+export const DeleteConfirmModal = React.memo(function DeleteConfirmModal({ open, count, usageCount, onConfirm, onCancel, isLoading, error, t }: DeleteConfirmModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const cancelRef = useRef<HTMLButtonElement>(null)
+  const previousFocusRef = useRef<Element | null>(null)
+
+  useEffect(() => {
+    if (open) {
+      previousFocusRef.current = document.activeElement
+    }
+    return () => {
+      if (open) {
+        ;(previousFocusRef.current as HTMLElement | null)?.focus()
+      }
+    }
+  }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -93,4 +105,4 @@ export function DeleteConfirmModal({ open, count, usageCount, onConfirm, onCance
       </div>
     </div>
   )
-}
+})

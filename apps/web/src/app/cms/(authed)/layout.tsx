@@ -82,6 +82,8 @@ export default async function Layout({ children }: { children: ReactNode }) {
           <CmsShell
             siteName={currentSite?.site_name ?? 'OneCMS'}
             siteInitials={currentSite?.site_name?.slice(0, 2).toUpperCase() ?? 'CM'}
+            logoUrl="/brand/monogram-cms.svg"
+            logoUrlLight="/brand/monogram-cms-light.svg"
             userDisplayName={userDisplayName}
             userRole={userRole}
             siteSwitcher={<CmsSiteSwitcherSlot sites={rawSites} />}

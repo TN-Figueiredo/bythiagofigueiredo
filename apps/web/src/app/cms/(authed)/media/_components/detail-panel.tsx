@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import type { MediaAsset } from '@/lib/media/types'
 import type { MediaGalleryStrings } from '../../_shared/media/_i18n/types'
@@ -22,7 +22,7 @@ interface DetailPanelProps {
   t: MediaGalleryStrings
 }
 
-export function DetailPanel({
+export const DetailPanel = React.memo(function DetailPanel({
   asset,
   tab,
   usages,
@@ -117,6 +117,7 @@ export function DetailPanel({
             type="button"
             role="tab"
             aria-selected={tab === t2}
+            aria-controls={`tabpanel-${t2}`}
             id={`tab-${t2}`}
             onClick={() => onTabChange(t2)}
             className={`flex-1 py-2.5 text-xs font-medium transition-colors ${
@@ -167,4 +168,4 @@ export function DetailPanel({
       </div>
     </div>
   )
-}
+})
