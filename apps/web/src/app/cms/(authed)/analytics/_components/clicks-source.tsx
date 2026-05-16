@@ -1,0 +1,40 @@
+import type { ClicksSource } from '../types'
+
+const SOURCES: { key: keyof ClicksSource; label: string; color: string }[] = [
+  { key: 'blog', label: 'Blog', color: '#34d399' },         // emerald-400
+  { key: 'newsletter', label: 'Newsletter', color: '#a78bfa' }, // violet-400
+  { key: 'video', label: 'Video', color: '#fb7185' },        // rose-400
+  { key: 'social', label: 'Social', color: '#818cf8' },      // indigo-400
+  { key: 'other', label: 'Other', color: '#9ca3af' },        // gray-400
+]
+
+interface Props {
+  data: ClicksSource
+}
+
+export function ClicksSourceList({ data }: Props) {
+  const total = data.blog + data.newsletter + data.video + data.social + data.other
+
+  return (
+    <div className="rounded-lg border border-cms-border bg-cms-surface p-4" data-testid="clicks-source">
+      <h3 className="mb-3 text-sm font-medium text-cms-text-dim">Click Sources</h3>
+      <div className="space-y-2.5">
+        {SOURCES.map(({ key, label, color }) => {
+          const count = data[key]
+          const pct = total > 0 ? Math.round((count / total) * 100) : 0
+          return (
+            <div
+              key={key}
+              className="flex items-center gap-3 rounded-md py-1.5"
+              style={{ borderLeft: `3px solid ${color}`, paddingLeft: '12px' }}
+            >
+              <span className="flex-1 text-sm text-cms-text">{label}</span>
+              <span className="text-sm font-medium tabular-nums text-cms-text">{count}</span>
+              <span className="w-10 text-right text-xs text-cms-text-muted">{pct}%</span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
