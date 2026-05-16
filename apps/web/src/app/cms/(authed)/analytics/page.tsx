@@ -35,7 +35,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   if (!authRes.ok) redirect('/cms')
 
   const periodValue = params.period ?? '30d'
-  const VALID_TABS: AnalyticsTab[] = ['overview', 'content', 'links', 'newsletter', 'audience']
+  const VALID_TABS: AnalyticsTab[] = ['overview', 'content', 'links', 'audience', 'revenue']
   const activeTab: AnalyticsTab = VALID_TABS.includes(params.tab as AnalyticsTab)
     ? (params.tab as AnalyticsTab)
     : 'overview'
