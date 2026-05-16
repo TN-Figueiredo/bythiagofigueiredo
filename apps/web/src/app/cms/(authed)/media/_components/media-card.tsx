@@ -7,6 +7,10 @@ import { TYPE_COLORS, formatBytes } from '../../_shared/media/types'
 
 export type QuickAction = 'preview' | 'download' | 'copy-url' | 'delete'
 
+const DEFAULT_ACTION_LABELS: Record<QuickAction, string> = {
+  preview: 'Preview', download: 'Download', 'copy-url': 'Copy URL', delete: 'Delete',
+}
+
 interface MediaCardProps {
   item: MediaAsset
   type: MediaAssetType
@@ -21,6 +25,7 @@ interface MediaCardProps {
   typeLabel?: string
   newBadgeLabel?: string
   svgLabel?: string
+  actionLabels?: Record<QuickAction, string>
   'data-testid'?: string
 }
 
@@ -58,12 +63,10 @@ export function MediaCard({
   typeLabel,
   newBadgeLabel,
   svgLabel,
+  actionLabels,
   'data-testid': dataTestId,
 }: MediaCardProps) {
-  const ACTION_LABELS: Record<QuickAction, string> = {
-    preview: 'Preview', download: 'Download', 'copy-url': 'Copy URL', delete: 'Delete',
-  }
-
+  const labels = actionLabels ?? DEFAULT_ACTION_LABELS
   const colors = TYPE_COLORS[type]
   const isSvg = item.mimeType === 'image/svg+xml'
 
@@ -155,7 +158,7 @@ export function MediaCard({
                   onQuickAction(item.id, action)
                 }}
                 className="rounded-full bg-white/10 p-2 text-white backdrop-blur-sm transition-colors hover:bg-white/20"
-                aria-label={ACTION_LABELS[action]}
+                aria-label={labels[action]}
               >
                 <QuickActionIcon action={action} />
               </button>
@@ -199,7 +202,7 @@ export function MediaCard({
 
       {/* Orphan pulse effect */}
       {type === 'orphan' && (
-        <div className="absolute inset-0 rounded-lg shadow-[inset_0_0_0_1px_rgba(239,68,68,0.3)] animate-pulse pointer-events-none" />
+        <div className="absolute inset-0 rounded-lg shadow-[inset_0_0_0_1px_rgba(239,68,68,0.3)] motion-safe:animate-pulse pointer-events-none" />
       )}
     </div>
   )
@@ -208,12 +211,12 @@ export function MediaCard({
 function QuickActionIcon({ action }: { action: QuickAction }) {
   switch (action) {
     case 'preview':
-      return <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z" stroke="currentColor" strokeWidth="1.2" /><circle cx="8" cy="8" r="2" stroke="currentColor" strokeWidth="1.2" /></svg>
+      return <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z" stroke="currentColor" strokeWidth="1.2" /><circle cx="8" cy="8" r="2" stroke="currentColor" strokeWidth="1.2" /></svg>
     case 'download':
-      return <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2v8m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      return <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2v8m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
     case 'copy-url':
-      return <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.2" /><path d="M3 11V3.5A1.5 1.5 0 014.5 2H11" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /></svg>
+      return <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.2" /><path d="M3 11V3.5A1.5 1.5 0 014.5 2H11" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /></svg>
     case 'delete':
-      return <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M6 4V3a1 1 0 011-1h2a1 1 0 011 1v1m2 0v8a2 2 0 01-2 2H6a2 2 0 01-2-2V4h8z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /></svg>
+      return <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M6 4V3a1 1 0 011-1h2a1 1 0 011 1v1m2 0v8a2 2 0 01-2 2H6a2 2 0 01-2-2V4h8z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /></svg>
   }
 }

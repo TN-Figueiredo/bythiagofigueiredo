@@ -24,47 +24,39 @@ export function MediaLightbox({
   onClose,
   t,
 }: MediaLightboxProps) {
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-      if (e.key === 'ArrowLeft' && currentIndex > 0) onPrev()
-      if (e.key === 'ArrowRight' && currentIndex < totalCount - 1) onNext()
-    },
-    [onClose, onPrev, onNext, currentIndex, totalCount],
-  )
-
   const closeBtnRef = useRef<HTMLButtonElement>(null)
   const prevRef = useRef<HTMLButtonElement>(null)
   const nextRef = useRef<HTMLButtonElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
+  const propsRef = useRef({ onClose, onPrev, onNext, currentIndex, totalCount })
+  propsRef.current = { onClose, onPrev, onNext, currentIndex, totalCount }
 
   useEffect(() => {
     if (!asset) return
     previousFocusRef.current = document.activeElement as HTMLElement | null
-    document.addEventListener('keydown', handleKeyDown)
     document.body.style.overflow = 'hidden'
     requestAnimationFrame(() => closeBtnRef.current?.focus())
-    const trap = (e: KeyboardEvent) => {
-      if (e.key !== 'Tab') return
-      const btns = [closeBtnRef.current, prevRef.current, nextRef.current].filter(Boolean) as HTMLElement[]
-      if (!btns.length) return
-      const idx = btns.indexOf(document.activeElement as HTMLElement)
-      if (e.shiftKey) {
+    const handler = (e: KeyboardEvent) => {
+      const { onClose: close, onPrev: prev, onNext: next, currentIndex: idx, totalCount: total } = propsRef.current
+      if (e.key === 'Escape') { close(); return }
+      if (e.key === 'ArrowLeft' && idx > 0) { prev(); return }
+      if (e.key === 'ArrowRight' && idx < total - 1) { next(); return }
+      if (e.key === 'Tab') {
+        const btns = [closeBtnRef.current, prevRef.current, nextRef.current].filter(Boolean) as HTMLElement[]
+        if (!btns.length) return
+        const i = btns.indexOf(document.activeElement as HTMLElement)
         e.preventDefault()
-        btns[idx <= 0 ? btns.length - 1 : idx - 1]?.focus()
-      } else {
-        e.preventDefault()
-        btns[idx >= btns.length - 1 ? 0 : idx + 1]?.focus()
+        if (e.shiftKey) btns[i <= 0 ? btns.length - 1 : i - 1]?.focus()
+        else btns[i >= btns.length - 1 ? 0 : i + 1]?.focus()
       }
     }
-    document.addEventListener('keydown', trap)
+    document.addEventListener('keydown', handler)
     return () => {
-      document.removeEventListener('keydown', handleKeyDown)
-      document.removeEventListener('keydown', trap)
+      document.removeEventListener('keydown', handler)
       document.body.style.overflow = ''
       previousFocusRef.current?.focus()
     }
-  }, [asset, handleKeyDown])
+  }, [asset])
 
   if (!asset) return null
 

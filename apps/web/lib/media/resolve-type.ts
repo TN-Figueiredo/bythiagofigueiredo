@@ -5,6 +5,7 @@ const INLINE_FIELD_NAMES = new Set(['inline_image', 'content_inline'])
 export const FOLDER_TO_TYPE: Record<string, MediaAssetType> = {
   authors: 'avatar',
   og: 'og',
+  blog: 'cover',
   branding: 'cover',
   newsletters: 'inline',
   pipeline: 'inline',

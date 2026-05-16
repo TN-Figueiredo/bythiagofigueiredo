@@ -85,8 +85,12 @@ export function DetailPanel({
       style={{ marginTop: 'var(--cms-topbar-height, 0px)' }}
     >
       <div
+        role="button"
+        tabIndex={0}
+        aria-label={t.context.preview}
         className="relative aspect-[16/10] w-full cursor-pointer bg-cms-bg"
         onClick={() => onOpenLightbox(asset.id)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenLightbox(asset.id) } }}
       >
         {isSvg ? (
           <img src={asset.blobUrl} alt={asset.altText ?? ''} className="h-full w-full object-contain p-4" />
@@ -113,7 +117,6 @@ export function DetailPanel({
             type="button"
             role="tab"
             aria-selected={tab === t2}
-            aria-controls={`tabpanel-${t2}`}
             id={`tab-${t2}`}
             onClick={() => onTabChange(t2)}
             className={`flex-1 py-2.5 text-xs font-medium transition-colors ${

@@ -136,12 +136,12 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
 
   const filterCounts = useMemo(() => {
     const counts = { all: 0, cover: 0, inline: 0, avatar: 0, og: 0, orphan: 0 }
-    for (const item of sortedItems) {
+    for (const item of items) {
       counts.all++
       counts[item.type]++
     }
     return counts
-  }, [sortedItems])
+  }, [items])
 
   const filteredItems = useMemo(
     () => state.filter === 'all' ? sortedItems : sortedItems.filter((i) => i.type === state.filter),
@@ -192,12 +192,13 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
     }
   }, [sortedItems])
 
-  const handleContextAction = useCallback((action: string) => {
+  type ContextAction = QuickAction | 'edit-alt'
+  const handleContextAction = useCallback((action: ContextAction) => {
     if (!contextMenu) return
     if (action === 'edit-alt') {
       dispatch({ type: 'SELECT_ITEM', id: contextMenu.id })
     } else {
-      handleQuickAction(contextMenu.id, action as QuickAction)
+      handleQuickAction(contextMenu.id, action)
     }
   }, [contextMenu, handleQuickAction])
 
@@ -237,7 +238,7 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
     } finally {
       setIsDeleting(false)
     }
-  }, [deleteModal, t])
+  }, [deleteModal, t.delete.deleteFailed])
 
   const handleBulkDelete = useCallback(() => {
     setDeleteModal({ ids: [...state.checked], usageCount: 0 })
@@ -263,7 +264,10 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
     getMediaStatsAction().then((res) => { if (res.ok) setStats(res.stats) }).catch(() => {})
   }, [fetchAssets])
 
-  const lightboxAsset = state.lightboxId ? sortedItems.find((i) => i.asset.id === state.lightboxId)?.asset ?? null : null
+  const lightboxAsset = useMemo(
+    () => state.lightboxId ? sortedItems.find((i) => i.asset.id === state.lightboxId)?.asset ?? null : null,
+    [sortedItems, state.lightboxId],
+  )
   const lightboxIndex = state.lightboxId ? filteredItems.findIndex((i) => i.asset.id === state.lightboxId) : -1
 
   const handleLightboxPrev = useCallback(() => {
@@ -279,6 +283,8 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
   }, [lightboxIndex, filteredItems])
 
   const [focusedIndex, setFocusedIndex] = useState(-1)
+
+  useEffect(() => { setFocusedIndex(-1) }, [state.filter, state.search])
 
   useEffect(() => {
     if (focusedIndex < 0) return

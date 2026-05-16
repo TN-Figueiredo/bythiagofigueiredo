@@ -12,9 +12,13 @@ interface BulkActionBarProps {
 
 export function BulkActionBar({ count, onDeselect, onDownload, onDelete, t }: BulkActionBarProps) {
   return (
-    <div role="status" aria-live="polite" className="fixed bottom-6 left-1/2 z-30 -translate-x-1/2 pointer-events-none">
+    <>
+      <span aria-live="polite" className="sr-only">
+        {count > 0 ? t.bulk.selected.replace('{count}', String(count)) : ''}
+      </span>
+      <div className="fixed bottom-6 left-1/2 z-30 -translate-x-1/2 pointer-events-none">
       {count > 0 && (
-        <div className="pointer-events-auto flex items-center gap-3 rounded-xl border border-cms-border bg-cms-surface px-4 py-2.5 shadow-2xl">
+        <div role="toolbar" aria-label={t.bulk.selected.replace('{count}', String(count))} className="pointer-events-auto flex items-center gap-3 rounded-xl border border-cms-border bg-cms-surface px-4 py-2.5 shadow-2xl">
           <span className="text-sm font-medium text-cms-text tabular-nums">
             {t.bulk.selected.replace('{count}', String(count))}
           </span>
@@ -44,6 +48,7 @@ export function BulkActionBar({ count, onDeselect, onDownload, onDelete, t }: Bu
           </button>
         </div>
       )}
-    </div>
+      </div>
+    </>
   )
 }

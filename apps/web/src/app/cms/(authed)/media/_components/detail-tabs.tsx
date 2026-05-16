@@ -209,7 +209,7 @@ function UsageTab({ usages, t }: { usages: UsageEntry[]; t: MediaGalleryStrings 
   if (usages.length === 0) {
     return (
       <div className="flex flex-col items-center gap-2 py-8">
-        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" className="text-red-400">
+        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" className="text-red-400" aria-hidden="true">
           <circle cx="16" cy="16" r="12" stroke="currentColor" strokeWidth="2" />
           <path d="M12 12l8 8M20 12l-8 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
         </svg>

@@ -44,13 +44,18 @@ export function MediaGrid({
         <div
           key={enriched.asset.id}
           role="listitem"
+          tabIndex={0}
           data-focus-index={index}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(enriched.asset.id) }
+          }}
           onContextMenu={(e) => {
             if (onContextMenu) {
               e.preventDefault()
               onContextMenu(enriched.asset.id, e.clientX, e.clientY)
             }
           }}
+          className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:rounded-lg"
         >
           <MediaCard
             item={enriched.asset}
@@ -66,6 +71,7 @@ export function MediaGrid({
             typeLabel={t?.typeLabels[enriched.type]}
             newBadgeLabel={t?.detail.newBadge}
             svgLabel={t?.detail.svgLabel}
+            actionLabels={t ? { preview: t.context.preview, download: t.context.download, 'copy-url': t.context.copyUrl, delete: t.context.deleteAsset } : undefined}
           />
         </div>
       ))}

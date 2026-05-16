@@ -87,6 +87,7 @@ export function ContextMenu({ x, y, assetId, onAction, onClose, t }: ContextMenu
             key={item.action}
             type="button"
             role="menuitem"
+            tabIndex={-1}
             onClick={() => { onAction(item.action as ContextAction); onClose() }}
             className={`
               w-full px-3 py-1.5 text-left text-xs transition-colors focus:outline-none focus:bg-cms-surface-hover
