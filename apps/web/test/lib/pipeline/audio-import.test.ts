@@ -63,6 +63,24 @@ describe('classifyImportItem', () => {
     const existing = { asset_id: 'A', sha256: 'abc', tags: ['x'] }
     expect(classifyImportItem(row, existing)).toBe('update')
   })
+
+  it('returns update when existing has no sha256', () => {
+    const row = { asset_id: 'M1', sha256: 'abc123', tags: ['epic'] }
+    const existing = { sha256: null, tags: ['old'], mood: [], energy: 3 }
+    expect(classifyImportItem(row as never, existing as never)).toBe('update')
+  })
+
+  it('returns update when sha256 differs', () => {
+    const row = { asset_id: 'M1', sha256: 'new_hash', tags: ['epic'] }
+    const existing = { sha256: 'old_hash', tags: ['old'], mood: [], energy: 3 }
+    expect(classifyImportItem(row as never, existing as never)).toBe('update')
+  })
+
+  it('returns skip when sha256 matches and no field diffs', () => {
+    const row = { asset_id: 'M1', sha256: 'same_hash' }
+    const existing = { sha256: 'same_hash', tags: [], mood: [], energy: null }
+    expect(classifyImportItem(row as never, existing as never)).toBe('skip')
+  })
 })
 
 describe('buildDiffLog', () => {

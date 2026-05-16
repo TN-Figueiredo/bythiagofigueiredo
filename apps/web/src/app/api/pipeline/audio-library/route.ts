@@ -21,7 +21,6 @@ export async function GET(req: NextRequest) {
     .eq('site_id', auth.siteId)
     .order('created_at', { ascending: false })
     .order('id', { ascending: false })
-    .limit(limit + 1)
 
   const type = params.get('type')
   if (type && ['music', 'sfx'].includes(type)) query = query.eq('type', type)
@@ -76,8 +75,8 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const { data, error, count } = await query
-  if (error) return NextResponse.json({ error: { code: 'DB_ERROR', message: 'Internal server error' } }, { status: 500 })
+  const { data, error, count } = await query.limit(limit + 1)
+  if (error) { console.error('[audio-library] GET error:', error); return NextResponse.json({ error: { code: 'DB_ERROR', message: 'Internal server error' } }, { status: 500 }) }
 
   const hasNext = (data?.length ?? 0) > limit
   const items = data?.slice(0, limit) ?? []
@@ -116,6 +115,7 @@ export async function POST(req: NextRequest) {
     if (error.code === '23505') {
       return NextResponse.json({ error: { code: 'CONFLICT', message: 'Asset with this ID or SHA256 already exists' } }, { status: 409 })
     }
+    console.error('[audio-library] POST error:', error)
     return NextResponse.json({ error: { code: 'DB_ERROR', message: 'Internal server error' } }, { status: 500 })
   }
 

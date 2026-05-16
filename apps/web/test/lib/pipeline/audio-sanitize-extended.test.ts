@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { sanitizeForFilter, sanitizeForTsquery } from '@/lib/pipeline/sanitize'
+import { sanitizeForFilter, sanitizeForTsquery, sanitizeForLike } from '@/lib/pipeline/sanitize'
 
 describe('sanitizeForFilter edge cases', () => {
   it('preserves full ISO 8601 timestamp', () => {
@@ -26,5 +26,27 @@ describe('sanitizeForTsquery edge cases', () => {
 
   it('handles mixed content', () => {
     expect(sanitizeForTsquery('hello & "world" | test')).toBe('hello world test')
+  })
+})
+
+describe('sanitizeForLike', () => {
+  it('escapes backslashes', () => {
+    expect(sanitizeForLike('test\\path')).toBe('test\\\\path')
+  })
+
+  it('escapes percent signs', () => {
+    expect(sanitizeForLike('100% done')).toBe('100\\% done')
+  })
+
+  it('escapes underscores', () => {
+    expect(sanitizeForLike('test_value')).toBe('test\\_value')
+  })
+
+  it('escapes all special chars together', () => {
+    expect(sanitizeForLike('50%_\\test')).toBe('50\\%\\_\\\\test')
+  })
+
+  it('returns empty string unchanged', () => {
+    expect(sanitizeForLike('')).toBe('')
   })
 })

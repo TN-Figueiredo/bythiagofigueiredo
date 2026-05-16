@@ -51,8 +51,10 @@ describe('GET /:id', () => {
   })
 
   it('returns 400 for invalid UUID', async () => {
-    const res = await GET(new NextRequest('http://localhost'), { params: makeParams('not-uuid') })
+    const res = await GET(new NextRequest('http://localhost'), { params: makeParams('not-a-uuid') })
     expect(res.status).toBe(400)
+    const json = await res.json()
+    expect(json.error.code).toBe('VALIDATION_ERROR')
   })
 })
 
@@ -101,6 +103,48 @@ describe('PATCH /:id', () => {
     expect(json.error.code).toBe('CONFLICT')
     expect(json.error.message).toContain('Version mismatch')
   })
+
+  it('returns 400 for invalid JSON body', async () => {
+    const req = new NextRequest('http://localhost', { method: 'PATCH', body: 'not json' })
+    const res = await PATCH(req, { params: makeParams(VALID_ID) })
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 400 for invalid update schema', async () => {
+    // version must be positive integer; -1 is invalid
+    const req = new NextRequest('http://localhost', { method: 'PATCH', body: JSON.stringify({ version: -1 }) })
+    const res = await PATCH(req, { params: makeParams(VALID_ID) })
+    expect(res.status).toBe(400)
+    const json = await res.json()
+    expect(json.error.code).toBe('VALIDATION_ERROR')
+  })
+
+  it('returns 404 when asset does not exist', async () => {
+    let callCount = 0
+    const chain = {
+      from: vi.fn().mockImplementation(() => {
+        callCount++
+        if (callCount === 1) {
+          return {
+            update: vi.fn().mockReturnThis(),
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            single: vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST116' } }),
+          }
+        }
+        // exists check returns null too
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue({ data: null, error: null }),
+        }
+      }),
+    }
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    const req = new NextRequest('http://localhost', { method: 'PATCH', body: JSON.stringify({ version: 1, track_name: 'X' }) })
+    const res = await PATCH(req, { params: makeParams(VALID_ID) })
+    expect(res.status).toBe(404)
+  })
 })
 
 describe('DELETE /:id', () => {
@@ -119,5 +163,33 @@ describe('DELETE /:id', () => {
     const json = await res.json()
     expect(res.status).toBe(200)
     expect(json.data.status).toBe('retired')
+  })
+
+  it('returns 400 for invalid UUID', async () => {
+    const req = new NextRequest('http://localhost', { method: 'DELETE' })
+    const res = await DELETE(req, { params: makeParams('not-a-uuid') })
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 404 when asset does not exist', async () => {
+    const chain = {
+      from: vi.fn().mockReturnValue({
+        update: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        select: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST116' } }),
+      }),
+    }
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
+    const req = new NextRequest('http://localhost', { method: 'DELETE' })
+    const res = await DELETE(req, { params: makeParams(VALID_ID) })
+    expect(res.status).toBe(404)
+  })
+
+  it('returns 401 when unauthorized', async () => {
+    vi.mocked(authenticatePipeline).mockResolvedValue({ ok: false, status: 401, error: 'Unauthorized' } as never)
+    const req = new NextRequest('http://localhost', { method: 'DELETE' })
+    const res = await DELETE(req, { params: makeParams(VALID_ID) })
+    expect(res.status).toBe(401)
   })
 })

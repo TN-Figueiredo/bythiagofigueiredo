@@ -43,4 +43,24 @@ describe('POST /resolve', () => {
     const req = new NextRequest('http://localhost', { method: 'POST', body: JSON.stringify({ type: 'music' }) })
     expect((await POST(req)).status).toBe(401)
   })
+
+  it('returns 500 when resolveAudio throws', async () => {
+    vi.mocked(resolveAudio).mockRejectedValue(new Error('DB connection failed'))
+    const req = new NextRequest('http://localhost', { method: 'POST', body: JSON.stringify({ type: 'music' }) })
+    const res = await POST(req)
+    expect(res.status).toBe(500)
+  })
+
+  it('returns 400 for invalid JSON body', async () => {
+    const req = new NextRequest('http://localhost', { method: 'POST', body: 'not json' })
+    const res = await POST(req)
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 400 for invalid resolve query', async () => {
+    // limit: 50 exceeds max of 20, and type is missing
+    const req = new NextRequest('http://localhost', { method: 'POST', body: JSON.stringify({ limit: 50 }) })
+    const res = await POST(req)
+    expect(res.status).toBe(400)
+  })
 })

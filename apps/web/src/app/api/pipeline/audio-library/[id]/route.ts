@@ -23,7 +23,12 @@ export async function GET(
     .eq('site_id', auth.siteId)
     .single()
 
-  if (error || !asset) return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Asset not found' } }, { status: 404 })
+  if (error) {
+    console.error('[audio-library] GET by id error:', error)
+    if (error.code === 'PGRST116') return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Asset not found' } }, { status: 404 })
+    return NextResponse.json({ error: { code: 'DB_ERROR', message: 'Internal server error' } }, { status: 500 })
+  }
+  if (!asset) return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Asset not found' } }, { status: 404 })
 
   const { data: usage } = await supabase
     .from('audio_asset_usage')

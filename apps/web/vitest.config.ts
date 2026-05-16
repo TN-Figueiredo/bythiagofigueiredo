@@ -80,6 +80,12 @@ export default defineConfig({
       { find: /^@\/lib\/youtube(.*)$/, replacement: path.resolve(__dirname, './src/lib/youtube$1') },
       { find: /^@\/lib\/social(.*)$/, replacement: path.resolve(__dirname, './src/lib/social$1') },
       { find: /^@\/test(.*)$/, replacement: path.resolve(__dirname, './test$1') },
+      // Explicit alias for Next.js dynamic-segment route so Vite resolves
+      // the literal `[id]` directory (brackets confuse the catch-all regex).
+      {
+        find: '@/app/api/pipeline/audio-library/[id]/route',
+        replacement: path.resolve(__dirname, './src/app/api/pipeline/audio-library/[id]/route.ts'),
+      },
       { find: /^@\/(.*)$/, replacement: path.resolve(__dirname, './src/$1') },
     ],
   },
