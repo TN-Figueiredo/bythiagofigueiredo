@@ -15,10 +15,9 @@ const FOLDER_TO_TYPE: Record<string, MediaAssetType> = {
 
 export function resolveAssetType(
   folder: MediaFolder | string,
-  usageCount: number,
+  _usageCount: number,
   primaryFieldName: string | null,
 ): MediaAssetType {
-  if (usageCount === 0) return 'orphan'
   if (folder === 'authors') return 'avatar'
   if (folder === 'og') return 'og'
   if (folder === 'blog') {

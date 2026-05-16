@@ -2,10 +2,10 @@ import { describe, it, expect } from 'vitest'
 import { resolveAssetType } from '@/lib/media/resolve-type'
 
 describe('resolveAssetType', () => {
-  it('returns orphan when usageCount is 0', () => {
-    expect(resolveAssetType('blog', 0, null)).toBe('orphan')
-    expect(resolveAssetType('general', 0, null)).toBe('orphan')
-    expect(resolveAssetType('authors', 0, null)).toBe('orphan')
+  it('uses folder-based classification regardless of usageCount', () => {
+    expect(resolveAssetType('blog', 0, null)).toBe('cover')
+    expect(resolveAssetType('general', 0, null)).toBe('inline')
+    expect(resolveAssetType('authors', 0, null)).toBe('avatar')
   })
 
   it('returns avatar for authors folder', () => {
