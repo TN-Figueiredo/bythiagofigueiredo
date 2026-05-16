@@ -68,7 +68,8 @@ describe('MediaCard', () => {
     const { container } = render(
       <MediaCard
         item={mockAsset}
-        type="orphan"
+        type="cover"
+        isOrphan
         checked={false}
         selected={false}
         onSelect={onSelect}
@@ -76,8 +77,8 @@ describe('MediaCard', () => {
         onQuickAction={onQuickAction}
       />,
     )
-    const card = container.firstElementChild as HTMLElement
-    expect(card.className).toContain('border-l-red-500')
+    const orphanOverlay = container.querySelector('[class*="animate-pulse"]')
+    expect(orphanOverlay).toBeTruthy()
   })
 
   it('shows type badge', () => {
