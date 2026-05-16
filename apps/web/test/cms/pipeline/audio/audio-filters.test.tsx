@@ -39,8 +39,8 @@ describe('AudioFilters', () => {
     const typeRadios = radios.filter(r => (r as HTMLInputElement).name === 'type')
     expect(typeRadios).toHaveLength(3)
 
-    // Labels rendered next to radios
-    expect(screen.getByText('All')).toBeDefined()
+    // Labels rendered next to radios (multiple "All" labels exist for type + status)
+    expect(screen.getAllByText('All').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText(/Music/i)).toBeDefined()
     expect(screen.getByText(/SFX/i)).toBeDefined()
   })

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useMediaGallery } from '../../../cms/(authed)/_shared/media/use-media-gallery'
 import { MediaGalleryModal } from '../../../cms/(authed)/_shared/media/media-gallery-modal'
 import type { CropPreset } from '../../../cms/(authed)/_shared/media/types'
+import { trackMediaUsageAction } from '../../../cms/(authed)/media/actions'
 
 interface GalleryUrlFieldProps {
   id: string
@@ -15,6 +16,9 @@ interface GalleryUrlFieldProps {
   cropPreset: CropPreset
   siteId: string
   locale: 'en' | 'pt-BR'
+  trackResourceType?: string
+  trackResourceId?: string
+  trackFieldName?: string
 }
 
 export function GalleryUrlField({
@@ -27,6 +31,9 @@ export function GalleryUrlField({
   cropPreset,
   siteId,
   locale,
+  trackResourceType,
+  trackResourceId,
+  trackFieldName,
 }: GalleryUrlFieldProps) {
   const [value, setValue] = useState(defaultValue)
   const gallery = useMediaGallery()
@@ -58,6 +65,9 @@ export function GalleryUrlField({
         {...gallery.galleryProps}
         onSelect={(asset) => {
           setValue(asset.url)
+          if (trackResourceType && trackResourceId && trackFieldName) {
+            trackMediaUsageAction(asset.id, trackResourceType, trackResourceId, trackFieldName).catch(() => {})
+          }
           gallery.closeGallery()
         }}
         locale={locale}

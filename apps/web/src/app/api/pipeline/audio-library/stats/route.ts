@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
       most_used,
       recently_added: recentRes.count ?? 0,
       needs_download: by_status.pending,
-      unused: total - new Set(usageList).size,
+      unused: Math.max(0, total - new Set(usageList).size),
     },
   }, { headers: { ...buildRateLimitHeaders(auth), 'Cache-Control': 'private, max-age=30' } })
 }

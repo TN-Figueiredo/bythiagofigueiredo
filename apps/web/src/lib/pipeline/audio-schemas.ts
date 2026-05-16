@@ -32,7 +32,10 @@ export const AudioAssetCreateSchema = z.object({
   reusable: z.boolean().default(true),
   status: z.enum(AUDIO_STATUSES).default('downloaded'),
   priority: z.enum(AUDIO_PRIORITIES).optional(),
-  metadata: z.record(z.unknown()).default({}),
+  metadata: z.record(z.unknown()).default({}).refine(
+    (val) => JSON.stringify(val).length <= 65536,
+    { message: 'metadata must be under 64KB when serialized' }
+  ),
 })
 
 export const AudioAssetUpdateSchema = AudioAssetCreateSchema.partial().omit({ asset_id: true, type: true }).extend({
@@ -81,9 +84,15 @@ export const ImportItemSchema = z.object({
   instruments: z.array(z.string().max(50)).max(30).optional(),
   use_cases: z.array(z.string().max(100)).max(30).optional(),
   reuse_scenarios: z.array(z.string().max(100)).max(30).optional(),
-  audio: z.record(z.unknown()).optional(),
+  audio: z.record(z.unknown()).optional().refine(
+    (val) => !val || JSON.stringify(val).length <= 16384,
+    { message: 'audio metadata must be under 16KB when serialized' }
+  ),
   mix_notes: z.string().optional(),
-  video_mapping: z.record(z.unknown()).optional(),
+  video_mapping: z.record(z.unknown()).optional().refine(
+    (val) => !val || JSON.stringify(val).length <= 16384,
+    { message: 'video_mapping must be under 16KB when serialized' }
+  ),
   pairs_well_with: z.array(z.string()).optional(),
   avoid_with: z.array(z.string()).optional(),
   entry_style: z.string().optional(),

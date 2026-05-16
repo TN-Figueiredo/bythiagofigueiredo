@@ -8,6 +8,7 @@ export function pipelineLog(
 ): void {
   const entry = JSON.stringify({
     timestamp: new Date().toISOString(),
+    level,
     module,
     message,
     ...extra,
