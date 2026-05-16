@@ -242,6 +242,17 @@ export async function fetchScheduleData(
       .limit(20),
   ])
 
+  if (blogRes.error) console.error('[schedule-queries]', blogRes.error.message)
+  if (blogPublishedRes.error) console.error('[schedule-queries]', blogPublishedRes.error.message)
+  if (newsletterRes.error) console.error('[schedule-queries]', newsletterRes.error.message)
+  if (newsletterPublishedRes.error) console.error('[schedule-queries]', newsletterPublishedRes.error.message)
+  if (videoRes.error) console.error('[schedule-queries]', videoRes.error.message)
+  if (videoPublishedRes.error) console.error('[schedule-queries]', videoPublishedRes.error.message)
+  if (nlTypesRes.error) console.error('[schedule-queries]', nlTypesRes.error.message)
+  if (backlogBlogRes.error) console.error('[schedule-queries]', backlogBlogRes.error.message)
+  if (backlogNlRes.error) console.error('[schedule-queries]', backlogNlRes.error.message)
+  if (backlogVideoRes.error) console.error('[schedule-queries]', backlogVideoRes.error.message)
+
   // Map blog items
   const items: CalendarItem[] = []
 

@@ -166,12 +166,12 @@ export function fetchDashboardKpis(
       ])
 
       // Aggregate views
-      const totalViews = (viewsRes.data ?? []).reduce(
-        (sum, r) => sum + ((r as { views: number }).views ?? 0),
-        0,
-      )
+      if (viewsRes.error) console.error('[dashboard-queries]', viewsRes.error.message)
+      const viewRows = (viewsRes.data ?? []) as Array<{ views: number }>
+      const totalViews = viewRows.reduce((sum, r) => sum + (r.views ?? 0), 0)
 
       // Build views sparkline
+      if (sparklineRes.error) console.error('[dashboard-queries]', sparklineRes.error.message)
       const viewsByDay = new Map<string, number>()
       for (const r of (sparklineRes.data ?? []) as Array<{ date: string; views: number }>) {
         viewsByDay.set(r.date, (viewsByDay.get(r.date) ?? 0) + r.views)
@@ -179,23 +179,29 @@ export function fetchDashboardKpis(
       const totalViewsSparkline = sparklineDays.map((d) => viewsByDay.get(d) ?? 0)
 
       // Published count
+      if (publishedPostsRes.error) console.error('[dashboard-queries]', publishedPostsRes.error.message)
+      if (sentEditionsRes.error) console.error('[dashboard-queries]', sentEditionsRes.error.message)
+      if (publishedPipelineRes.error) console.error('[dashboard-queries]', publishedPipelineRes.error.message)
       const publishedCount =
         (publishedPostsRes.count ?? 0) +
         (sentEditionsRes.count ?? 0) +
         (publishedPipelineRes.count ?? 0)
 
       // Subscribers
+      if (subscribersRes.error) console.error('[dashboard-queries]', subscribersRes.error.message)
+      if (subscribersGainedRes.error) console.error('[dashboard-queries]', subscribersGainedRes.error.message)
+      if (subscribersChurnedRes.error) console.error('[dashboard-queries]', subscribersChurnedRes.error.message)
       const subscribers = subscribersRes.count ?? 0
       const subscribersNet =
         (subscribersGainedRes.count ?? 0) - (subscribersChurnedRes.count ?? 0)
 
       // Link clicks
-      const linkClicks = (linkClicksRes.data ?? []).reduce(
-        (sum, r) => sum + ((r as { clicks: number }).clicks ?? 0),
-        0,
-      )
+      if (linkClicksRes.error) console.error('[dashboard-queries]', linkClicksRes.error.message)
+      const clickRows = (linkClicksRes.data ?? []) as Array<{ clicks: number }>
+      const linkClicks = clickRows.reduce((sum, r) => sum + (r.clicks ?? 0), 0)
 
       // Link sparkline
+      if (linkSparklineRes.error) console.error('[dashboard-queries]', linkSparklineRes.error.message)
       const clicksByDay = new Map<string, number>()
       for (const r of (linkSparklineRes.data ?? []) as Array<{ date: string; clicks: number }>) {
         clicksByDay.set(r.date, (clicksByDay.get(r.date) ?? 0) + r.clicks)
@@ -275,11 +281,16 @@ export function fetchNeedsAttention(siteId: string): Promise<AttentionItem[]> {
             .limit(5),
         ])
 
+      if (overdueRes.error) console.error('[dashboard-queries]', overdueRes.error.message)
+      if (staleDraftsRes.error) console.error('[dashboard-queries]', staleDraftsRes.error.message)
+      if (upcomingRes.error) console.error('[dashboard-queries]', upcomingRes.error.message)
+      if (stalePipelineRes.error) console.error('[dashboard-queries]', stalePipelineRes.error.message)
+
       const items: AttentionItem[] = []
 
       // P1 — overdue
       type PostRow = { id: string; published_at: string; blog_translations: Array<{ title: string }> | null }
-      for (const row of (overdueRes.data ?? []) as unknown as PostRow[]) {
+      for (const row of (overdueRes.data ?? []) as PostRow[]) {
         const title = Array.isArray(row.blog_translations)
           ? row.blog_translations[0]?.title ?? 'Untitled'
           : 'Untitled'
@@ -295,7 +306,7 @@ export function fetchNeedsAttention(siteId: string): Promise<AttentionItem[]> {
 
       // P1 — stale drafts
       type DraftRow = { id: string; updated_at: string; blog_translations: Array<{ title: string }> | null }
-      for (const row of (staleDraftsRes.data ?? []) as unknown as DraftRow[]) {
+      for (const row of (staleDraftsRes.data ?? []) as DraftRow[]) {
         const title = Array.isArray(row.blog_translations)
           ? row.blog_translations[0]?.title ?? 'Untitled'
           : 'Untitled'
@@ -310,7 +321,7 @@ export function fetchNeedsAttention(siteId: string): Promise<AttentionItem[]> {
       }
 
       // P2 — upcoming scheduled
-      for (const row of (upcomingRes.data ?? []) as unknown as PostRow[]) {
+      for (const row of (upcomingRes.data ?? []) as PostRow[]) {
         const title = Array.isArray(row.blog_translations)
           ? row.blog_translations[0]?.title ?? 'Untitled'
           : 'Untitled'
@@ -326,7 +337,7 @@ export function fetchNeedsAttention(siteId: string): Promise<AttentionItem[]> {
 
       // P3 — stale pipeline
       type PipelineRow = { id: string; title: string; updated_at: string }
-      for (const row of (stalePipelineRes.data ?? []) as unknown as PipelineRow[]) {
+      for (const row of (stalePipelineRes.data ?? []) as PipelineRow[]) {
         items.push({
           id: row.id,
           title: row.title ?? 'Untitled',
@@ -406,6 +417,10 @@ export function fetchThisWeekStrip(
           .limit(30),
       ])
 
+      if (postsRes.error) console.error('[dashboard-queries]', postsRes.error.message)
+      if (editionsRes.error) console.error('[dashboard-queries]', editionsRes.error.message)
+      if (pipelineRes.error) console.error('[dashboard-queries]', pipelineRes.error.message)
+
       const dayLabels = ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom']
 
       const dotsByDay = new Map<string, WeekDayDot[]>()
@@ -413,7 +428,7 @@ export function fetchThisWeekStrip(
 
       // Posts
       type PostRow = { id: string; published_at: string; blog_translations: Array<{ title: string }> | null }
-      for (const row of (postsRes.data ?? []) as unknown as PostRow[]) {
+      for (const row of (postsRes.data ?? []) as PostRow[]) {
         const day = row.published_at?.slice(0, 10)
         if (day && dotsByDay.has(day)) {
           const title = Array.isArray(row.blog_translations)
@@ -429,7 +444,7 @@ export function fetchThisWeekStrip(
 
       // Newsletter editions
       type EditionRow = { id: string; subject: string | null; scheduled_at: string | null; sent_at: string | null }
-      for (const row of (editionsRes.data ?? []) as unknown as EditionRow[]) {
+      for (const row of (editionsRes.data ?? []) as EditionRow[]) {
         const dateStr = row.sent_at ?? row.scheduled_at
         const day = dateStr?.slice(0, 10)
         if (day && dotsByDay.has(day)) {
@@ -443,7 +458,7 @@ export function fetchThisWeekStrip(
 
       // Pipeline items
       type PipelineRow = { id: string; title: string; updated_at: string }
-      for (const row of (pipelineRes.data ?? []) as unknown as PipelineRow[]) {
+      for (const row of (pipelineRes.data ?? []) as PipelineRow[]) {
         const day = row.updated_at?.slice(0, 10)
         if (day && dotsByDay.has(day)) {
           dotsByDay.get(day)!.push({
@@ -476,21 +491,28 @@ export function fetchActivityFeed(siteId: string): Promise<ActivityFeedItem[]> {
     async (): Promise<ActivityFeedItem[]> => {
       const supabase = getSupabaseServiceClient()
 
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('audit_log')
         .select('id, action, resource_type, resource_id, created_at, actor_user_id')
         .eq('site_id', siteId)
         .order('created_at', { ascending: false })
         .limit(30)
 
-      return ((data ?? []) as Array<{
+      if (error) {
+        console.error('[dashboard-queries]', error.message)
+        return []
+      }
+
+      type AuditRow = {
         id: string
         action: string
         resource_type: string
         resource_id: string | null
         created_at: string
         actor_user_id: string | null
-      }>).map((row) => ({
+      }
+
+      return ((data ?? []) as AuditRow[]).map((row) => ({
         id: row.id,
         action: row.action,
         resourceType: row.resource_type,
