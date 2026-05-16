@@ -62,5 +62,5 @@ export async function GET(req: NextRequest) {
       needs_download: by_status.pending,
       unused: total - new Set(usageList).size,
     },
-  }, { headers: buildRateLimitHeaders(auth) })
+  }, { headers: { ...buildRateLimitHeaders(auth), 'Cache-Control': 'private, max-age=30' } })
 }

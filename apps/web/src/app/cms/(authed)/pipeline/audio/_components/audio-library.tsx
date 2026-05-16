@@ -40,6 +40,9 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
   const [showImport, setShowImport] = useState(false)
   const [filters, setFilters] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasNext, setHasNext] = useState(false)
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const gTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
@@ -79,7 +82,11 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
         return
       }
       const json = await res.json()
-      if (!controller.signal.aborted) setAssets(json.data)
+      if (!controller.signal.aborted) {
+        setAssets(json.data)
+        setHasNext(json.meta?.has_next ?? false)
+        setNextCursor(json.meta?.next_cursor ?? null)
+      }
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return
       setFetchError('Network error')
@@ -88,8 +95,31 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
     }
   }, [])
 
+  const loadMore = useCallback(async () => {
+    if (!hasNext || !nextCursor || loadingMore) return
+    setLoadingMore(true)
+    try {
+      const params = new URLSearchParams({ ...filters, cursor: nextCursor })
+      const res = await fetch(`/api/pipeline/audio-library?${params.toString()}`)
+      if (!res.ok) {
+        setFetchError('Failed to load more assets')
+        return
+      }
+      const json = await res.json()
+      setAssets(prev => [...prev, ...json.data])
+      setHasNext(json.meta?.has_next ?? false)
+      setNextCursor(json.meta?.next_cursor ?? null)
+    } catch {
+      setFetchError('Network error')
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [hasNext, nextCursor, loadingMore, filters])
+
   const handleFilterChange = useCallback((newFilters: Record<string, string>) => {
     setFilters(newFilters)
+    setHasNext(false)
+    setNextCursor(null)
     refetch(newFilters)
   }, [refetch])
 
@@ -154,6 +184,19 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
             : <AudioTable assets={assets} selectedId={selectedId} onSelect={setSelectedId} onRefetch={() => refetch(filters)} />
           }
         </div>
+
+        {/* Load more */}
+        {hasNext && (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 12px', borderTop: '1px solid var(--gem-border)' }}>
+            <button
+              onClick={loadMore}
+              disabled={loadingMore}
+              style={{ padding: '6px 20px', fontSize: 12, borderRadius: 5, border: '1px solid var(--gem-border)', background: 'var(--gem-surface-hi)', color: 'var(--gem-text)', cursor: loadingMore ? 'not-allowed' : 'pointer', opacity: loadingMore ? 0.6 : 1 }}
+            >
+              {loadingMore ? 'Loading more...' : 'Load more'}
+            </button>
+          </div>
+        )}
 
         {/* Stats bar */}
         <div style={{ padding: '6px 12px', borderTop: '1px solid var(--gem-border)', fontSize: 11, color: 'var(--gem-muted)' }}>

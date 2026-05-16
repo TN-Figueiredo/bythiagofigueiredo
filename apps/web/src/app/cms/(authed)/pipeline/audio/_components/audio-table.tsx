@@ -23,6 +23,7 @@ export function AudioTable({ assets, selectedId, onSelect, onRefetch }: AudioTab
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortAsc, setSortAsc] = useState(true)
   const [checked, setChecked] = useState<Set<string>>(new Set())
+  const [bulkLoading, setBulkLoading] = useState(false)
 
   const sorted = useMemo(() => {
     const list = [...assets]
@@ -75,30 +76,35 @@ export function AudioTable({ assets, selectedId, onSelect, onRefetch }: AudioTab
       return
     }
 
-    if (action === 'delete') {
-      if (!confirm(`Delete ${ids.length} assets?`)) return
-      const results = await Promise.allSettled(ids.map(id => fetch(`/api/pipeline/audio-library/${id}`, { method: 'DELETE' })))
+    setBulkLoading(true)
+    try {
+      if (action === 'delete') {
+        if (!confirm(`Delete ${ids.length} assets?`)) return
+        const results = await Promise.allSettled(ids.map(id => fetch(`/api/pipeline/audio-library/${id}`, { method: 'DELETE' })))
+        const failed = results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.ok)).length
+        if (failed > 0) alert(`${failed} of ${ids.length} deletes failed`)
+        setChecked(new Set())
+        onRefetch?.()
+        return
+      }
+
+      const value = prompt(`Enter ${action} value for ${ids.length} assets:`)
+      if (!value) return
+      const body: Record<string, unknown> = {}
+      if (action === 'tag') body.tags = value.split(',').map(t => t.trim())
+      else body[action] = value
+      const results = await Promise.allSettled(ids.map(id => fetch(`/api/pipeline/audio-library/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...body, version: assets.find(a => a.id === id)?.version ?? 1 }),
+      })))
       const failed = results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.ok)).length
-      if (failed > 0) alert(`${failed} of ${ids.length} deletes failed`)
+      if (failed > 0) alert(`${failed} of ${ids.length} updates failed`)
       setChecked(new Set())
       onRefetch?.()
-      return
+    } finally {
+      setBulkLoading(false)
     }
-
-    const value = prompt(`Enter ${action} value for ${ids.length} assets:`)
-    if (!value) return
-    const body: Record<string, unknown> = {}
-    if (action === 'tag') body.tags = value.split(',').map(t => t.trim())
-    else body[action] = value
-    const results = await Promise.allSettled(ids.map(id => fetch(`/api/pipeline/audio-library/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...body, version: assets.find(a => a.id === id)?.version ?? 1 }),
-    })))
-    const failed = results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.ok)).length
-    if (failed > 0) alert(`${failed} of ${ids.length} updates failed`)
-    setChecked(new Set())
-    onRefetch?.()
   }, [assets, checked, onRefetch])
 
   const headers: Array<{ key: SortKey; label: string; width?: number }> = [
@@ -115,13 +121,13 @@ export function AudioTable({ assets, selectedId, onSelect, onRefetch }: AudioTab
     <div style={{ overflowX: 'auto' }}>
       {checked.size > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', background: 'rgba(99,102,241,0.08)', borderRadius: 6, marginBottom: 8, fontSize: 12 }}>
-          <span style={{ color: 'var(--gem-text)', fontWeight: 600 }}>{checked.size} selected</span>
-          <button onClick={() => bulkAction('tag')} style={{ padding: '2px 8px', borderRadius: 4, border: '1px solid var(--gem-border)', background: 'transparent', color: 'var(--gem-text)', cursor: 'pointer', fontSize: 11 }}>Tag</button>
-          <button onClick={() => bulkAction('category')} style={{ padding: '2px 8px', borderRadius: 4, border: '1px solid var(--gem-border)', background: 'transparent', color: 'var(--gem-text)', cursor: 'pointer', fontSize: 11 }}>Category</button>
-          <button onClick={() => bulkAction('status')} style={{ padding: '2px 8px', borderRadius: 4, border: '1px solid var(--gem-border)', background: 'transparent', color: 'var(--gem-text)', cursor: 'pointer', fontSize: 11 }}>Status</button>
-          <button onClick={() => bulkAction('export')} style={{ padding: '2px 8px', borderRadius: 4, border: '1px solid var(--gem-border)', background: 'transparent', color: 'var(--gem-text)', cursor: 'pointer', fontSize: 11 }}>Export</button>
-          <button onClick={() => bulkAction('delete')} style={{ padding: '2px 8px', borderRadius: 4, border: '1px solid var(--gem-border)', background: 'transparent', color: 'var(--gem-danger)', cursor: 'pointer', fontSize: 11 }}>Delete</button>
-          <button onClick={() => setChecked(new Set())} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--gem-muted)', cursor: 'pointer', fontSize: 11 }}>Clear</button>
+          <span style={{ color: 'var(--gem-text)', fontWeight: 600 }}>{checked.size} selected{bulkLoading ? ' · Working...' : ''}</span>
+          <button onClick={() => bulkAction('tag')} disabled={bulkLoading} style={{ padding: '2px 8px', borderRadius: 4, border: '1px solid var(--gem-border)', background: 'transparent', color: 'var(--gem-text)', cursor: bulkLoading ? 'not-allowed' : 'pointer', fontSize: 11, opacity: bulkLoading ? 0.5 : 1 }}>Tag</button>
+          <button onClick={() => bulkAction('category')} disabled={bulkLoading} style={{ padding: '2px 8px', borderRadius: 4, border: '1px solid var(--gem-border)', background: 'transparent', color: 'var(--gem-text)', cursor: bulkLoading ? 'not-allowed' : 'pointer', fontSize: 11, opacity: bulkLoading ? 0.5 : 1 }}>Category</button>
+          <button onClick={() => bulkAction('status')} disabled={bulkLoading} style={{ padding: '2px 8px', borderRadius: 4, border: '1px solid var(--gem-border)', background: 'transparent', color: 'var(--gem-text)', cursor: bulkLoading ? 'not-allowed' : 'pointer', fontSize: 11, opacity: bulkLoading ? 0.5 : 1 }}>Status</button>
+          <button onClick={() => bulkAction('export')} disabled={bulkLoading} style={{ padding: '2px 8px', borderRadius: 4, border: '1px solid var(--gem-border)', background: 'transparent', color: 'var(--gem-text)', cursor: bulkLoading ? 'not-allowed' : 'pointer', fontSize: 11, opacity: bulkLoading ? 0.5 : 1 }}>Export</button>
+          <button onClick={() => bulkAction('delete')} disabled={bulkLoading} style={{ padding: '2px 8px', borderRadius: 4, border: '1px solid var(--gem-border)', background: 'transparent', color: 'var(--gem-danger)', cursor: bulkLoading ? 'not-allowed' : 'pointer', fontSize: 11, opacity: bulkLoading ? 0.5 : 1 }}>Delete</button>
+          <button onClick={() => setChecked(new Set())} disabled={bulkLoading} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--gem-muted)', cursor: bulkLoading ? 'not-allowed' : 'pointer', fontSize: 11 }}>Clear</button>
         </div>
       )}
       <table aria-label="Audio assets" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 600 }}>
