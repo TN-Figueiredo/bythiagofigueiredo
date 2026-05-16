@@ -2,6 +2,14 @@ export type ResolveStatus = 'LOCAL' | 'PENDING_MATCH' | 'PARTIAL_MATCH' | 'NO_MA
 
 export type SfxCategory = 'IMPACT' | 'RISER' | 'DROP' | 'TRANSITION' | 'AMBIENT' | 'FOLEY'
 
+export type ArtlistSearchTier = 'narrow' | 'medium' | 'broad'
+
+export interface ArtlistSearchTiers {
+  narrow: string
+  medium: string
+  broad: string
+}
+
 export const SCORE_MAX = 34
 
 export interface ScoreBreakdownEntry {
@@ -26,6 +34,10 @@ export interface MusicRecommendation {
   key?: string
   duration?: string
   artlist_url?: string
+  is_empty_slot: boolean
+  slot_label?: string
+  artlist_search_url?: string
+  artlist_search_tier: ArtlistSearchTier
 }
 
 export interface SceneMusic {
@@ -37,8 +49,11 @@ export interface SceneMusic {
   score?: number
   score_breakdown?: Record<string, ScoreBreakdownEntry>
   reasoning?: string
-  recommendations?: MusicRecommendation[]
-  favorite_index?: number
+  recommendations: [MusicRecommendation, MusicRecommendation, MusicRecommendation]
+  favorite_index: 0 | 1 | 2
+  fill_count: number
+  search_tiers: ArtlistSearchTiers
+  flow_to?: string
   search_terms?: string
   artlist_url?: string
   style?: string
