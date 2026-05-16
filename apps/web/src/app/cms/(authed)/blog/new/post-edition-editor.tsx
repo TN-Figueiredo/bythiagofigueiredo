@@ -33,7 +33,8 @@ import { DeleteConfirmModal } from '../../_shared/editor/delete-confirm-modal'
 import { MoreMenu } from '../../_shared/editor/more-menu'
 import { useMediaGallery } from '../../_shared/media/use-media-gallery'
 import { MediaGalleryModal } from '../../_shared/media/media-gallery-modal'
-import { CROP_PRESETS } from '../../_shared/media/types'
+import { CROP_PRESETS, type MediaAssetResult } from '../../_shared/media/types'
+import { trackMediaUsageAction } from '../../media/actions'
 import { StructuredFields } from '../_shared/structured-fields'
 import { HashtagInput } from '../_shared/hashtag-input'
 import { SeriesFields } from '../_shared/series-fields'
@@ -792,12 +793,13 @@ export function PostEditionEditor({
     }
   }
 
-  function handleCoverFromGallery(asset: { url: string }) {
+  function handleCoverFromGallery(asset: MediaAssetResult) {
     setCoverImageUrl(asset.url)
     fieldsRef.current.coverImageUrl = asset.url
     coverGallery.closeGallery()
     if (postId) {
       saveCoverImage(postId, asset.url)
+      trackMediaUsageAction(asset.id, 'blog_post', postId, 'cover_image').catch(() => {})
     }
   }
 

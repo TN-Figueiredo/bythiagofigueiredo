@@ -73,6 +73,7 @@ export function AudioDetail({ assetId, onClose, fullWidth }: AudioDetailProps) {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
+        e.stopImmediatePropagation()
         if (editing) { setEditing(false); setDraft(null); setConflict(false) }
         else onClose()
       }

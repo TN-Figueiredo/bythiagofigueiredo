@@ -25,6 +25,7 @@ import { PromptGeneratorModal } from './prompt-generator-modal'
 import { useMediaGallery } from '../../_shared/media/use-media-gallery'
 import { MediaGalleryModal } from '../../_shared/media/media-gallery-modal'
 import { CROP_PRESETS, type MediaAssetResult } from '../../_shared/media/types'
+import { trackMediaUsageAction } from '../../media/actions'
 import { PipelineMediaProvider, type ImageSelectResult } from './detail/editors/pipeline-media-context'
 import { ImageIcon, X } from 'lucide-react'
 import { SocialConfigEditor } from './detail/social-config-editor'
@@ -323,6 +324,7 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
       pendingInlineSelectRef.current({ url: asset.url, alt: asset.alt ?? '' })
       pendingInlineSelectRef.current = null
     }
+    trackMediaUsageAction(asset.id, 'pipeline_item', itemRef.current.id, 'content_inline').catch(() => {})
   }, [])
 
   const debouncedSave = useCallback((field: string, value: string) => {
@@ -348,6 +350,7 @@ export function PipelineItemDetail({ item: initialItem, collections, history, de
     const result = await updatePipelineItem(current.id, current.version, { cover_image_url: asset.url })
     if (result.ok && result.data) setItem(result.data as typeof item)
     else if (!result.ok) { toast.error('Erro ao salvar capa'); setCoverImageUrl(current.cover_image_url) }
+    trackMediaUsageAction(asset.id, 'pipeline_item', current.id, 'cover_image').catch(() => {})
   }, [])
 
   const handleCoverRemove = useCallback(async () => {

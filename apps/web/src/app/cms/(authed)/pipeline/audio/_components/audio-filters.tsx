@@ -177,10 +177,10 @@ export function AudioFilters({ filters, onChange, categories = [], availableTags
       {/* Status */}
       <div>
         <label style={{ fontSize: 10, fontWeight: 600, color: 'var(--gem-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Status</label>
-        {['downloaded', 'pending', 'retired'].map(s => (
+        {['all', 'downloaded', 'pending', 'retired'].map(s => (
           <label key={s} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--gem-text)', cursor: 'pointer', marginBottom: 2 }}>
-            <input type="radio" name="status" checked={filters.status === s} onChange={() => updateFilter('status', filters.status === s ? undefined : s)} />
-            {s.charAt(0).toUpperCase() + s.slice(1)}
+            <input type="radio" name="status" checked={s === 'all' ? !filters.status : filters.status === s} onChange={() => updateFilter('status', s === 'all' ? undefined : s)} />
+            {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
           </label>
         ))}
       </div>

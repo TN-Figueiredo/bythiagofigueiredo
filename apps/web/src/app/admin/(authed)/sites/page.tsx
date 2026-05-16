@@ -164,6 +164,9 @@ export default async function AdminSitesPage({ searchParams }: Props) {
           cropPreset={CROP_PRESETS['site-logo']}
           siteId={site.id}
           locale="pt-BR"
+          trackResourceType="site"
+          trackResourceId={site.id}
+          trackFieldName="logo_url"
         />
 
         <GalleryUrlField
@@ -176,6 +179,9 @@ export default async function AdminSitesPage({ searchParams }: Props) {
           cropPreset={CROP_PRESETS['og-image']}
           siteId={site.id}
           locale="pt-BR"
+          trackResourceType="site"
+          trackResourceId={site.id}
+          trackFieldName="og_image"
         />
 
         <div>

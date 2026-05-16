@@ -45,7 +45,12 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const loadMoreAbortRef = useRef<AbortController | null>(null)
   const gTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const assetsRef = useRef(assets)
+  const selectedIdRef = useRef(selectedId)
+  assetsRef.current = assets
+  selectedIdRef.current = selectedId
   const liveStats = useMemo(() => ({
     total: assets.length,
     music: assets.filter(a => a.type === 'music').length,
@@ -98,26 +103,33 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
 
   const loadMore = useCallback(async () => {
     if (!hasNext || !nextCursor || loadingMore) return
+    loadMoreAbortRef.current?.abort()
+    const controller = new AbortController()
+    loadMoreAbortRef.current = controller
     setLoadingMore(true)
     try {
       const params = new URLSearchParams({ ...filters, cursor: nextCursor })
-      const res = await fetch(`/api/pipeline/audio-library?${params.toString()}`)
+      const res = await fetch(`/api/pipeline/audio-library?${params.toString()}`, { signal: controller.signal })
       if (!res.ok) {
         setFetchError('Failed to load more assets')
         return
       }
       const json = await res.json()
-      setAssets(prev => [...prev, ...json.data])
-      setHasNext(json.meta?.has_next ?? false)
-      setNextCursor(json.meta?.next_cursor ?? null)
-    } catch {
+      if (!controller.signal.aborted) {
+        setAssets(prev => [...prev, ...json.data])
+        setHasNext(json.meta?.has_next ?? false)
+        setNextCursor(json.meta?.next_cursor ?? null)
+      }
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return
       setFetchError('Network error')
     } finally {
-      setLoadingMore(false)
+      if (!controller.signal.aborted) setLoadingMore(false)
     }
   }, [hasNext, nextCursor, loadingMore, filters])
 
   const handleFilterChange = useCallback((newFilters: Record<string, string>) => {
+    loadMoreAbortRef.current?.abort()
     setFilters(newFilters)
     setHasNext(false)
     setNextCursor(null)
@@ -134,20 +146,20 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
       if (e.key === 'g') { clearTimeout(gTimerRef.current); setGPressed(true); gTimerRef.current = setTimeout(() => setGPressed(false), 500); return }
       if (gPressed && e.key === 't') { setViewMode(v => v === 'grid' ? 'table' : 'grid'); setGPressed(false); return }
       if (e.key === 'Enter') {
-        if (!selectedId && assets.length > 0) setSelectedId(assets[0]!.id)
+        if (!selectedIdRef.current && assetsRef.current.length > 0) setSelectedId(assetsRef.current[0]!.id)
         return
       }
       if (e.key === 'j' || e.key === 'k') {
-        if (assets.length === 0) return
-        const ids = assets.map(a => a.id)
-        const idx = selectedId ? ids.indexOf(selectedId) : -1
+        if (assetsRef.current.length === 0) return
+        const ids = assetsRef.current.map(a => a.id)
+        const idx = selectedIdRef.current ? ids.indexOf(selectedIdRef.current) : -1
         const next = e.key === 'j' ? Math.min(idx + 1, ids.length - 1) : Math.max(idx - 1, 0)
         setSelectedId(ids[next]!)
       }
     }
     window.addEventListener('keydown', onKeydown)
     return () => { window.removeEventListener('keydown', onKeydown); clearTimeout(gTimerRef.current) }
-  }, [assets, selectedId, gPressed])
+  }, [gPressed])
 
   return (
     <div style={{ display: 'flex', height: '100%', gap: 0, overflow: 'hidden' }}>
@@ -201,7 +213,7 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
 
         {/* Stats bar */}
         <div style={{ padding: '6px 12px', borderTop: '1px solid var(--gem-border)', fontSize: 11, color: 'var(--gem-muted)' }}>
-          {stats.total} total · Showing {liveStats.total} · {liveStats.music} music · {liveStats.sfx} sfx · {liveStats.downloaded} downloaded · {liveStats.pending} pending
+          {stats.total} total · Showing {liveStats.total} · {liveStats.music} music · {liveStats.sfx} sfx · {liveStats.downloaded} ready · {liveStats.pending} pending
         </div>
       </div>
 
