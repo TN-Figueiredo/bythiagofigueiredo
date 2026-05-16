@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { AudioAssetCreateSchema, AudioAssetUpdateSchema, ResolveQuerySchema, ImportSchema } from '@/lib/pipeline/audio-schemas'
+import { AudioAssetCreateSchema, AudioAssetUpdateSchema, ResolveQuerySchema, ImportSchema, AudioUsageCreateSchema, ImportItemSchema } from '@/lib/pipeline/audio-schemas'
 
 describe('AudioAssetCreateSchema extended', () => {
   it('accepts valid music asset with minimal fields', () => {
@@ -116,5 +116,93 @@ describe('ImportSchema extended', () => {
     })
     expect(result.success).toBe(true)
     if (result.success) expect(result.data.dry_run).toBe(false)
+  })
+})
+
+describe('ImportItemSchema strips unknown fields', () => {
+  it('strips unknown fields (no passthrough)', () => {
+    const result = ImportItemSchema.safeParse({
+      asset_id: 'M1',
+      original_filename: 'track.mp3',
+      malicious_field: '<script>alert(1)</script>',
+    })
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.data).not.toHaveProperty('malicious_field')
+  })
+
+  it('preserves known metadata fields', () => {
+    const result = ImportItemSchema.safeParse({
+      asset_id: 'M1',
+      mix_notes: 'Boost bass at 80Hz',
+      pairs_well_with: ['M2', 'M3'],
+      avoid_with: ['S1'],
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.mix_notes).toBe('Boost bass at 80Hz')
+      expect(result.data.pairs_well_with).toEqual(['M2', 'M3'])
+    }
+  })
+})
+
+describe('AudioUsageCreateSchema', () => {
+  it('accepts valid usage record', () => {
+    const result = AudioUsageCreateSchema.safeParse({
+      audio_asset_id: '00000000-0000-0000-0000-000000000001',
+      pipeline_item_id: '00000000-0000-0000-0000-000000000002',
+      usage_type: 'background',
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects non-UUID audio_asset_id', () => {
+    const result = AudioUsageCreateSchema.safeParse({
+      audio_asset_id: 'not-a-uuid',
+      pipeline_item_id: '00000000-0000-0000-0000-000000000002',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects invalid usage_type', () => {
+    const result = AudioUsageCreateSchema.safeParse({
+      audio_asset_id: '00000000-0000-0000-0000-000000000001',
+      pipeline_item_id: '00000000-0000-0000-0000-000000000002',
+      usage_type: 'invalid',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('defaults usage_type to background', () => {
+    const result = AudioUsageCreateSchema.safeParse({
+      audio_asset_id: '00000000-0000-0000-0000-000000000001',
+      pipeline_item_id: '00000000-0000-0000-0000-000000000002',
+    })
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.data.usage_type).toBe('background')
+  })
+
+  it('accepts all valid usage types', () => {
+    for (const ut of ['background', 'sfx', 'transition', 'intro', 'outro']) {
+      const result = AudioUsageCreateSchema.safeParse({
+        audio_asset_id: '00000000-0000-0000-0000-000000000001',
+        pipeline_item_id: '00000000-0000-0000-0000-000000000002',
+        usage_type: ut,
+      })
+      expect(result.success).toBe(true)
+    }
+  })
+
+  it('accepts optional scene_number and notes', () => {
+    const result = AudioUsageCreateSchema.safeParse({
+      audio_asset_id: '00000000-0000-0000-0000-000000000001',
+      pipeline_item_id: '00000000-0000-0000-0000-000000000002',
+      scene_number: 3,
+      notes: 'Background for intro sequence',
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.scene_number).toBe(3)
+      expect(result.data.notes).toBe('Background for intro sequence')
+    }
   })
 })

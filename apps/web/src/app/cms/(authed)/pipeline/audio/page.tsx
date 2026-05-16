@@ -13,33 +13,31 @@ export default async function AudioPage() {
   await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
   const supabase = getSupabaseServiceClient()
 
-  const [assetsRes, statsRes] = await Promise.all([
+  const [assetsRes, totalRes, musicRes, sfxRes, downloadedRes, pendingRes, retiredRes] = await Promise.all([
     supabase
       .from('audio_assets')
       .select('*')
       .eq('site_id', siteId)
       .order('created_at', { ascending: false })
       .limit(50),
-    supabase
-      .from('audio_assets')
-      .select('type, status')
-      .eq('site_id', siteId),
+    supabase.from('audio_assets').select('*', { count: 'exact', head: true }).eq('site_id', siteId),
+    supabase.from('audio_assets').select('*', { count: 'exact', head: true }).eq('site_id', siteId).eq('type', 'music'),
+    supabase.from('audio_assets').select('*', { count: 'exact', head: true }).eq('site_id', siteId).eq('type', 'sfx'),
+    supabase.from('audio_assets').select('*', { count: 'exact', head: true }).eq('site_id', siteId).eq('status', 'downloaded'),
+    supabase.from('audio_assets').select('*', { count: 'exact', head: true }).eq('site_id', siteId).eq('status', 'pending'),
+    supabase.from('audio_assets').select('*', { count: 'exact', head: true }).eq('site_id', siteId).eq('status', 'retired'),
   ])
 
   if (assetsRes.error) console.error('[audio] assets query:', assetsRes.error.message)
-  if (statsRes.error) console.error('[audio] stats query:', statsRes.error.message)
 
   const assets = (assetsRes.data ?? []) as AudioAssetRow[]
-  const statsRows = (statsRes.data ?? []) as Array<{ type: string; status: string }>
-
-  const stats = { total: 0, music: 0, sfx: 0, downloaded: 0, pending: 0, retired: 0 }
-  for (const row of statsRows) {
-    stats.total++
-    if (row.type === 'music') stats.music++
-    else stats.sfx++
-    if (row.status === 'downloaded') stats.downloaded++
-    else if (row.status === 'pending') stats.pending++
-    else if (row.status === 'retired') stats.retired++
+  const stats = {
+    total: totalRes.count ?? 0,
+    music: musicRes.count ?? 0,
+    sfx: sfxRes.count ?? 0,
+    downloaded: downloadedRes.count ?? 0,
+    pending: pendingRes.count ?? 0,
+    retired: retiredRes.count ?? 0,
   }
 
   return (

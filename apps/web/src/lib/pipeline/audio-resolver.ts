@@ -84,9 +84,6 @@ export function scoreAsset(asset: AudioAssetRow, query: ResolveQuery): ScoreResu
   const aInst = asset.instruments ?? []
   if (qInst.length > 0 && aInst.length > 0) breakdown.instruments = Math.min(intersection(aInst, qInst).length, 3)
 
-  // description scoring is handled post-query if description provided
-  if (query.description) breakdown.description = 2
-
   const score = Object.values(breakdown).reduce((sum, v) => sum + v, 0)
   return { score, breakdown, resolve_status: toResolveStatus(score, asset.status) }
 }

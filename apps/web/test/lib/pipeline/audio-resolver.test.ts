@@ -157,4 +157,38 @@ describe('resolveAudio', () => {
     const result = await resolveAudio(mockSupabase as never, 'site-id', fullQuery())
     expect(result.matches).toHaveLength(0)
   })
+
+  it('throws on supabase error', async () => {
+    const mockSupabase = {
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        neq: vi.fn().mockReturnThis(),
+        overlaps: vi.fn().mockReturnThis(),
+        gte: vi.fn().mockReturnThis(),
+        lte: vi.fn().mockReturnThis(),
+        textSearch: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockResolvedValue({ data: null, error: { message: 'connection refused' } }),
+      }),
+    }
+    await expect(resolveAudio(mockSupabase as never, 'site-id', fullQuery())).rejects.toThrow('connection refused')
+  })
+
+  it('filters out zero-score assets', async () => {
+    const zeroScoreAsset = makeAsset({ category: 'jazz', tags: ['relaxed'], mood: ['calm'], instruments: ['piano'], reuse_scenarios: ['podcast'], energy: 2, bpm: 70, duration_seconds: 45 })
+    const mockSupabase = {
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        neq: vi.fn().mockReturnThis(),
+        overlaps: vi.fn().mockReturnThis(),
+        gte: vi.fn().mockReturnThis(),
+        lte: vi.fn().mockReturnThis(),
+        textSearch: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockResolvedValue({ data: [zeroScoreAsset], error: null }),
+      }),
+    }
+    const result = await resolveAudio(mockSupabase as never, 'site-id', fullQuery())
+    expect(result.matches).toHaveLength(0)
+  })
 })

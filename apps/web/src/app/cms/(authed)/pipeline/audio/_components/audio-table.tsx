@@ -140,7 +140,7 @@ export function AudioTable({ assets, selectedId, onSelect, onRefetch }: AudioTab
                 <td style={{ padding: '4px 4px' }} onClick={e => e.stopPropagation()}>
                   <input type="checkbox" checked={checked.has(a.id)} onChange={() => toggleCheck(a.id)} />
                 </td>
-                <td style={{ padding: '4px 8px' }}><WaveformMini peaks={peaks} /></td>
+                <td style={{ padding: '4px 8px' }}><WaveformMini peaks={peaks} color={a.type === 'music' ? 'purple' : 'cyan'} /></td>
                 <td style={{ padding: '4px 8px', color: 'var(--gem-text)' }}>{a.track_name || a.asset_id}</td>
                 <td style={{ padding: '4px 8px', color: 'var(--gem-muted)' }}>{a.type === 'music' ? '🎵' : '🔊'}</td>
                 <td style={{ padding: '4px 8px', color: 'var(--gem-muted)' }}>{a.category ?? '—'}</td>

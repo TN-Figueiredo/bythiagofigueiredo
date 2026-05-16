@@ -7,9 +7,10 @@ interface WaveformMiniProps {
   peaks: number[]
   width?: number
   height?: number
+  color?: 'purple' | 'cyan'
 }
 
-export function WaveformMini({ peaks, width = 80, height = 24 }: WaveformMiniProps) {
+export function WaveformMini({ peaks, width = 80, height = 24, color = 'purple' }: WaveformMiniProps) {
   const instanceId = useId()
   const sampled = resamplePeaks(peaks ?? [], 40)
   const cy = height / 2
@@ -27,8 +28,8 @@ export function WaveformMini({ peaks, width = 80, height = 24 }: WaveformMiniPro
     <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} aria-hidden="true">
       <defs>
         <linearGradient id={`wf-mini-${instanceId}`} x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#7c3aed" />
-          <stop offset="100%" stopColor="#e879f9" />
+          <stop offset="0%" stopColor={color === 'cyan' ? '#0ea5e9' : '#7c3aed'} />
+          <stop offset="100%" stopColor={color === 'cyan' ? '#67e8f9' : '#e879f9'} />
         </linearGradient>
       </defs>
       {sampled.map((peak, i) => {

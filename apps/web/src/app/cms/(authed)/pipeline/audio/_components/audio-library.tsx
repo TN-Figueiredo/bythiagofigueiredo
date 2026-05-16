@@ -57,6 +57,10 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
       if (e.key === 'Escape') { setSelectedId(null); setGPressed(false) }
       if (e.key === 'g') { setGPressed(true); setTimeout(() => setGPressed(false), 500); return }
       if (gPressed && e.key === 't') { setViewMode(v => v === 'grid' ? 'table' : 'grid'); setGPressed(false); return }
+      if (e.key === 'Enter') {
+        if (!selectedId && assets.length > 0) setSelectedId(assets[0]!.id)
+        return
+      }
       if (e.key === 'j' || e.key === 'k') {
         if (assets.length === 0) return
         const ids = assets.map(a => a.id)

@@ -24,7 +24,7 @@ export function AudioGrid({ assets, selectedId, onSelect }: AudioGridProps) {
         const peaks = wf?.peaks ?? []
         return (
           <button key={a.id} onClick={() => onSelect(a.id)} style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: 10, borderRadius: 8, border: isSelected ? '2px solid var(--gem-accent)' : '1px solid var(--gem-border)', background: 'var(--gem-surface-hi)', cursor: 'pointer', textAlign: 'left' }}>
-            <WaveformMini peaks={peaks} width={180} height={24} />
+            <WaveformMini peaks={peaks} width={180} height={24} color={a.type === 'music' ? 'purple' : 'cyan'} />
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ fontSize: 14 }}>{a.type === 'music' ? '🎵' : '🔊'}</span>
               <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--gem-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{a.track_name || a.asset_id}</span>

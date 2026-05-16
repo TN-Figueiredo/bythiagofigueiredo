@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { authenticatePipeline, requirePermission, buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
 import { AudioAssetCreateSchema } from '@/lib/pipeline/audio-schemas'
-import { sanitizeForFilter } from '@/lib/pipeline/sanitize'
+import { sanitizeForFilter, sanitizeForTsquery } from '@/lib/pipeline/sanitize'
 
 export async function GET(req: NextRequest) {
   const authResult = await authenticatePipeline(req)
@@ -33,10 +33,10 @@ export async function GET(req: NextRequest) {
   if (category) query = query.eq('category', sanitizeForFilter(category))
 
   const tags = params.get('tags')
-  if (tags) query = query.contains('tags', tags.split(',').map(t => t.trim()))
+  if (tags) query = query.contains('tags', tags.split(',').map(t => sanitizeForFilter(t.trim())).filter(Boolean))
 
   const mood = params.get('mood')
-  if (mood) query = query.contains('mood', mood.split(',').map(m => m.trim()))
+  if (mood) query = query.contains('mood', mood.split(',').map(m => sanitizeForFilter(m.trim())).filter(Boolean))
 
   const energyMin = params.get('energy_min')
   if (energyMin) { const n = parseInt(energyMin); if (!isNaN(n)) query = query.gte('energy', n) }
@@ -50,14 +50,29 @@ export async function GET(req: NextRequest) {
   const bpmMax = params.get('bpm_max')
   if (bpmMax) { const n = parseInt(bpmMax); if (!isNaN(n)) query = query.lte('bpm', n) }
 
+  const subcategory = params.get('subcategory')
+  if (subcategory) query = query.eq('subcategory', sanitizeForFilter(subcategory))
+
+  const genre = params.get('genre')
+  if (genre) query = query.eq('genre', sanitizeForFilter(genre))
+
+  const source = params.get('source')
+  if (source) query = query.eq('source', sanitizeForFilter(source))
+
+  const reusable = params.get('reusable')
+  if (reusable === 'true') query = query.eq('reusable', true)
+  else if (reusable === 'false') query = query.eq('reusable', false)
+
   const q = params.get('q')
-  if (q) query = query.textSearch('search_vector', q, { type: 'websearch', config: 'english' })
+  if (q) {
+    const safe = sanitizeForTsquery(q)
+    if (safe) query = query.textSearch('search_vector', safe, { type: 'websearch', config: 'english' })
+  }
 
   if (cursor && UUID_REGEX.test(cursor)) {
     const { data: cursorItem } = await supabase.from('audio_assets').select('created_at').eq('id', cursor).eq('site_id', auth.siteId).single()
     if (cursorItem) {
-      const safeTs = sanitizeForFilter(String(cursorItem.created_at))
-      query = query.or(`created_at.lt.${safeTs},and(created_at.eq.${safeTs},id.lt.${cursor})`)
+      query = query.or(`created_at.lt.${cursorItem.created_at},and(created_at.eq.${cursorItem.created_at},id.lt.${cursor})`)
     }
   }
 

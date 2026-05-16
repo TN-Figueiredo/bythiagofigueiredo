@@ -82,7 +82,15 @@ export const ImportItemSchema = z.object({
   use_cases: z.array(z.string()).optional(),
   reuse_scenarios: z.array(z.string()).optional(),
   audio: z.record(z.unknown()).optional(),
-}).passthrough()
+  mix_notes: z.string().optional(),
+  video_mapping: z.record(z.unknown()).optional(),
+  pairs_well_with: z.array(z.string()).optional(),
+  avoid_with: z.array(z.string()).optional(),
+  entry_style: z.string().optional(),
+  duration_hint: z.string().optional(),
+  loudness_headroom: z.unknown().optional(),
+  measured_loudness: z.unknown().optional(),
+})
 
 export type ImportItem = z.infer<typeof ImportItemSchema>
 

@@ -8,7 +8,10 @@ vi.mock('@/lib/pipeline/auth', () => ({
   buildRateLimitHeaders: vi.fn(() => ({})),
   UUID_REGEX: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
 }))
-vi.mock('@/lib/pipeline/sanitize', () => ({ sanitizeForFilter: vi.fn((s: string) => s) }))
+vi.mock('@/lib/pipeline/sanitize', () => ({
+  sanitizeForFilter: vi.fn((s: string) => s),
+  sanitizeForTsquery: vi.fn((s: string) => s),
+}))
 
 import { GET, POST } from '@/app/api/pipeline/audio-library/route'
 import { authenticatePipeline, requirePermission } from '@/lib/pipeline/auth'
@@ -82,5 +85,48 @@ describe('POST /api/pipeline/audio-library', () => {
     })
     const res = await POST(req)
     expect(res.status).toBe(400)
+  })
+
+  it('returns 400 for malformed JSON', async () => {
+    const req = new NextRequest('http://localhost/api/pipeline/audio-library', {
+      method: 'POST',
+      body: 'not json',
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 409 on duplicate asset_id or sha256', async () => {
+    vi.mocked(getSupabaseServiceClient).mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        insert: vi.fn().mockReturnThis(),
+        select: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({ data: null, error: { code: '23505' } }),
+      }),
+    } as never)
+    const req = new NextRequest('http://localhost/api/pipeline/audio-library', {
+      method: 'POST',
+      body: JSON.stringify({ asset_id: 'DUP', original_filename: 'dup.mp3', type: 'music' }),
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(409)
+    const json = await res.json()
+    expect(json.error.code).toBe('CONFLICT')
+  })
+
+  it('returns 500 on generic DB error', async () => {
+    vi.mocked(getSupabaseServiceClient).mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        insert: vi.fn().mockReturnThis(),
+        select: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({ data: null, error: { code: '42000', message: 'unexpected' } }),
+      }),
+    } as never)
+    const req = new NextRequest('http://localhost/api/pipeline/audio-library', {
+      method: 'POST',
+      body: JSON.stringify({ asset_id: 'M1', original_filename: 'track.mp3', type: 'music' }),
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(500)
   })
 })

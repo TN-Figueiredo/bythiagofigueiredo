@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import type { AudioAssetRow, AudioAssetUsageRow } from '@/lib/pipeline/audio-schemas'
 import { Waveform } from './waveform'
 
@@ -96,6 +96,9 @@ export function AudioDetail({ assetId, onClose }: AudioDetailProps) {
           </div>
         ))}
       </Section>
+
+      {/* Raw Metadata */}
+      {Object.keys(asset.metadata).length > 0 && <MetadataViewer metadata={asset.metadata} />}
     </div>
   )
 }
@@ -114,6 +117,25 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
       <span style={{ color: 'var(--gem-muted)' }}>{label}</span>
       <span style={{ color: 'var(--gem-text)', textAlign: 'right', maxWidth: '60%', overflow: 'hidden', textOverflow: 'ellipsis' }}>{value || '—'}</span>
+    </div>
+  )
+}
+
+function MetadataViewer({ metadata }: { metadata: Record<string, unknown> }) {
+  const [open, setOpen] = useState(false)
+  const toggle = useCallback(() => setOpen(v => !v), [])
+
+  return (
+    <div>
+      <button onClick={toggle} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+        <h4 style={{ fontSize: 10, fontWeight: 600, color: 'var(--gem-muted)', textTransform: 'uppercase', margin: 0 }}>Metadata</h4>
+        <span style={{ fontSize: 10, color: 'var(--gem-muted)' }}>{open ? '▾' : '▸'}</span>
+      </button>
+      {open && (
+        <pre style={{ fontSize: 10, color: 'var(--gem-text)', background: 'rgba(0,0,0,0.2)', padding: 8, borderRadius: 4, overflow: 'auto', maxHeight: 200, marginTop: 6, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+          {JSON.stringify(metadata, null, 2)}
+        </pre>
+      )}
     </div>
   )
 }

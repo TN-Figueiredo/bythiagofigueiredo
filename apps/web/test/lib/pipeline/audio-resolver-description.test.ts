@@ -25,10 +25,10 @@ function makeAsset(overrides: Record<string, unknown> = {}) {
 }
 
 describe('scoreAsset description scoring', () => {
-  it('awards +2 when description is provided', () => {
+  it('description field does not inflate TS score (DB textSearch handles filtering)', () => {
     const query: ResolveQuery = { type: 'music', description: 'epic cinematic', limit: 5 }
     const { breakdown } = scoreAsset(makeAsset() as never, query)
-    expect(breakdown.description).toBe(2)
+    expect(breakdown.description).toBe(0)
   })
 
   it('awards 0 when no description', () => {

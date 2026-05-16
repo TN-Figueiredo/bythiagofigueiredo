@@ -58,12 +58,82 @@ describe('POST /api/pipeline/audio-library/import', () => {
     expect(res.status).toBe(200)
     expect(json.data.dry_run).toBe(true)
     expect(json.data.preview).toBeDefined()
+    expect(json.data.preview.to_create).toBe(1)
+  })
+
+  it('executes import and returns counts', async () => {
+    let callCount = 0
+    vi.mocked(getSupabaseServiceClient).mockReturnValue({
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === 'audio_assets') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            in: vi.fn().mockResolvedValue({ data: [], error: null }),
+            upsert: vi.fn().mockImplementation(() => { callCount++; return Promise.resolve({ error: null }) }),
+          }
+        }
+        return {
+          insert: vi.fn().mockReturnThis(),
+          select: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue({ data: { id: 'log-1' }, error: null }),
+        }
+      }),
+    } as never)
+    const req = new NextRequest('http://localhost/api/pipeline/audio-library/import', {
+      method: 'POST',
+      body: JSON.stringify({ schema_version: '6.1.0', music: [{ asset_id: 'M1' }, { asset_id: 'M2' }], sfx: [] }),
+    })
+    const res = await ImportPOST(req)
+    const json = await res.json()
+    expect(res.status).toBe(200)
+    expect(json.data.dry_run).toBe(false)
+    expect(json.data.created).toBe(2)
+    expect(json.data.import_log_id).toBe('log-1')
+  })
+
+  it('tracks errors on batch upsert failure', async () => {
+    vi.mocked(getSupabaseServiceClient).mockReturnValue({
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === 'audio_assets') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            in: vi.fn().mockResolvedValue({ data: [], error: null }),
+            upsert: vi.fn().mockResolvedValue({ error: { message: 'constraint violation' } }),
+          }
+        }
+        return {
+          insert: vi.fn().mockReturnThis(),
+          select: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue({ data: { id: 'log-2' }, error: null }),
+        }
+      }),
+    } as never)
+    const req = new NextRequest('http://localhost/api/pipeline/audio-library/import', {
+      method: 'POST',
+      body: JSON.stringify({ schema_version: '6.1.0', music: [{ asset_id: 'M1' }], sfx: [] }),
+    })
+    const res = await ImportPOST(req)
+    const json = await res.json()
+    expect(res.status).toBe(200)
+    expect(json.data.errors).toHaveLength(1)
+    expect(json.data.created).toBe(0)
   })
 
   it('returns 400 for missing schema_version', async () => {
     const req = new NextRequest('http://localhost/api/pipeline/audio-library/import', {
       method: 'POST',
       body: JSON.stringify({ music: [{ asset_id: 'M1' }] }),
+    })
+    const res = await ImportPOST(req)
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 400 for invalid JSON body', async () => {
+    const req = new NextRequest('http://localhost/api/pipeline/audio-library/import', {
+      method: 'POST',
+      body: 'not json',
     })
     const res = await ImportPOST(req)
     expect(res.status).toBe(400)
@@ -78,20 +148,30 @@ describe('POST /api/pipeline/audio-library/import', () => {
     const res = await ImportPOST(req)
     expect(res.status).toBe(401)
   })
+
+  it('returns 403 when missing write permission', async () => {
+    vi.mocked(requirePermission).mockReturnValue(false)
+    const req = new NextRequest('http://localhost/api/pipeline/audio-library/import', {
+      method: 'POST',
+      body: JSON.stringify({ schema_version: '6.1.0' }),
+    })
+    const res = await ImportPOST(req)
+    expect(res.status).toBe(403)
+  })
 })
 
 describe('GET /api/pipeline/audio-library/stats', () => {
   it('returns aggregated stats', async () => {
     const assets = [
-      { id: 'a1', type: 'music', status: 'downloaded', category: 'cinematic', created_at: new Date().toISOString() },
-      { id: 'a2', type: 'sfx', status: 'pending', category: null, created_at: new Date().toISOString() },
+      { id: 'a1', asset_id: 'M1', track_name: 'Track 1', type: 'music', status: 'downloaded', category: 'cinematic', created_at: new Date().toISOString() },
+      { id: 'a2', asset_id: 'S1', track_name: null, type: 'sfx', status: 'pending', category: null, created_at: new Date().toISOString() },
     ]
     const usage = [{ audio_asset_id: 'a1' }]
     const sb = {
       from: vi.fn().mockImplementation((table: string) => {
-        const chain = { select: vi.fn().mockReturnThis(), eq: vi.fn() as ReturnType<typeof vi.fn> }
-        if (table === 'audio_assets') chain.eq = vi.fn().mockResolvedValue({ data: assets, error: null })
-        else chain.eq = vi.fn().mockResolvedValue({ data: usage, error: null })
+        const chain = { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), limit: vi.fn() as ReturnType<typeof vi.fn> }
+        if (table === 'audio_assets') chain.limit = vi.fn().mockResolvedValue({ data: assets, error: null })
+        else chain.limit = vi.fn().mockResolvedValue({ data: usage, error: null })
         return chain
       }),
     }
@@ -106,16 +186,95 @@ describe('GET /api/pipeline/audio-library/stats', () => {
     expect(json.data.unused).toBe(1)
     expect(json.data.by_category.cinematic).toBe(1)
   })
+
+  it('returns zero stats for empty library', async () => {
+    const sb = {
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+      }),
+    }
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(sb as never)
+    const res = await StatsGET(new NextRequest('http://localhost/api/pipeline/audio-library/stats'))
+    const json = await res.json()
+    expect(json.data.total).toBe(0)
+    expect(json.data.by_type).toEqual({ music: 0, sfx: 0 })
+    expect(json.data.most_used).toEqual([])
+    expect(json.data.unused).toBe(0)
+  })
+
+  it('handles unknown status values gracefully', async () => {
+    const assets = [{ id: 'a1', asset_id: 'M1', track_name: null, type: 'music', status: 'archived', category: null, created_at: new Date().toISOString() }]
+    const sb = {
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockResolvedValue({ data: assets, error: null }),
+      }),
+    }
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(sb as never)
+    const res = await StatsGET(new NextRequest('http://localhost/api/pipeline/audio-library/stats'))
+    const json = await res.json()
+    expect(res.status).toBe(200)
+    expect(json.data.by_status.downloaded).toBe(0)
+  })
+
+  it('computes most_used correctly', async () => {
+    const assets = [
+      { id: 'a1', asset_id: 'M1', track_name: 'Track 1', type: 'music', status: 'downloaded', category: null, created_at: new Date().toISOString() },
+      { id: 'a2', asset_id: 'M2', track_name: 'Track 2', type: 'music', status: 'downloaded', category: null, created_at: new Date().toISOString() },
+    ]
+    const usage = [{ audio_asset_id: 'a1' }, { audio_asset_id: 'a1' }, { audio_asset_id: 'a2' }]
+    const sb = {
+      from: vi.fn().mockImplementation((table: string) => {
+        const chain = { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), limit: vi.fn() as ReturnType<typeof vi.fn> }
+        if (table === 'audio_assets') chain.limit = vi.fn().mockResolvedValue({ data: assets, error: null })
+        else chain.limit = vi.fn().mockResolvedValue({ data: usage, error: null })
+        return chain
+      }),
+    }
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(sb as never)
+    const res = await StatsGET(new NextRequest('http://localhost/api/pipeline/audio-library/stats'))
+    const json = await res.json()
+    expect(json.data.most_used[0].asset_id).toBe('M1')
+    expect(json.data.most_used[0].usage_count).toBe(2)
+  })
 })
 
 describe('GET /api/pipeline/audio-library/export', () => {
   it('returns export JSON with Content-Disposition header', async () => {
-    vi.mocked(getSupabaseServiceClient).mockReturnValue(mockSupabase({
-      neq: vi.fn().mockReturnThis(),
-      order: vi.fn().mockResolvedValue({ data: [{ id: 'a1', type: 'music' }], error: null }),
-    }) as never)
+    vi.mocked(getSupabaseServiceClient).mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        neq: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        range: vi.fn().mockResolvedValue({ data: [{ id: 'a1', type: 'music' }], error: null }),
+      }),
+    } as never)
     const res = await ExportGET(new NextRequest('http://localhost/api/pipeline/audio-library/export'))
     expect(res.status).toBe(200)
     expect(res.headers.get('Content-Disposition')).toContain('audio-library-export.json')
+  })
+
+  it('returns 401 when unauthorized', async () => {
+    vi.mocked(authenticatePipeline).mockResolvedValue({ ok: false, status: 401, error: 'Unauthorized' } as never)
+    const res = await ExportGET(new NextRequest('http://localhost/api/pipeline/audio-library/export'))
+    expect(res.status).toBe(401)
+  })
+
+  it('returns 500 on DB error', async () => {
+    vi.mocked(getSupabaseServiceClient).mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        neq: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        range: vi.fn().mockResolvedValue({ data: null, error: { message: 'DB error' } }),
+      }),
+    } as never)
+    const res = await ExportGET(new NextRequest('http://localhost/api/pipeline/audio-library/export'))
+    expect(res.status).toBe(500)
   })
 })
