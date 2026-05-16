@@ -40,10 +40,14 @@ npm run db:env               # Gera .env.local-db com keys locais
 ### Nova migration
 
 ```bash
-npx supabase migration new <nome_descritivo>
+npm run db:new <nome_descritivo>   # OBRIGATÓRIO — gera timestamp sequencial correto
 # Edita o arquivo em supabase/migrations/
-npm run db:push:prod          # Pra prod
+npm run db:push:prod               # Push pra prod
 ```
+
+**NUNCA criar arquivos de migration manualmente nem usar `npx supabase migration new`.**
+O script `npm run db:new` garante que o timestamp é sempre posterior à última migration existente,
+evitando erro de "out of order" que exigiria `--include-all`.
 
 DB password salvo em keychain/1Password. Recuperar via Supabase Dashboard → Project Settings → Database.
 
@@ -167,3 +171,4 @@ Secrets: `NPM_TOKEN` (read:packages), `CRON_SECRET` (health checks), `LHCI_GITHU
 - Não fazer force-push em `main` ou `staging` sem autorização explícita
 - Não chamar `getSupabaseServiceClient()` sem antes validar `canAdminSite(siteId)`
 - Não importar server actions diretamente em client components — passe callbacks via props
+- Não criar arquivos de migration manualmente — usar **`npm run db:new <nome>`** (garante timestamp sequencial)
