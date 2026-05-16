@@ -6,6 +6,7 @@ import {
   DragOverlay,
   type DragStartEvent,
   type DragEndEvent,
+  type DropAnimation,
   closestCorners,
   PointerSensor,
   KeyboardSensor,
@@ -31,6 +32,9 @@ import { PostCard, PostCardOverlay } from './post-card'
 import { PromotionModal } from './promotion-modal'
 import { BulkActionBar } from './bulk-action-bar'
 import { ScheduleModal } from './schedule-modal'
+
+const DRAG_OVERLAY_ANIMATION: DropAnimation = { duration: 200, easing: 'ease' }
+const PUBLISHED_PAGE_SIZE = 30
 
 interface UnifiedBoardProps {
   pipelineItems: PipelineCardItem[]
@@ -125,7 +129,6 @@ export function UnifiedBoard({
   const [selectionType, setSelectionType] = useState<'pipeline' | 'post' | null>(null)
 
   const [publishedPage, setPublishedPage] = useState(1)
-  const PUBLISHED_PAGE_SIZE = 30
 
   const lanes = useMemo(() => {
     const raw = buildUnifiedLanes(optPipeline, optPosts)
@@ -147,7 +150,10 @@ export function UnifiedBoard({
   const findItemLane = useCallback(
     (itemId: string): LaneId | null => {
       for (const [laneId, items] of Object.entries(lanes)) {
-        if ((items as Array<{ id: string }>).some((i) => i.id === itemId)) return laneId as LaneId
+        if (items.some((i) => i.id === itemId)) {
+          const def = LANE_DEFS.find((l) => l.id === laneId)
+          if (def) return def.id
+        }
       }
       return null
     },
@@ -165,7 +171,7 @@ export function UnifiedBoard({
 
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
-      const id = event.active.id as string
+      const id = String(event.active.id)
       setActiveId(id)
       const lane = findItemLane(id)
       setActiveType(lane && isPipelineLane(lane) ? 'pipeline' : 'post')
@@ -181,27 +187,18 @@ export function UnifiedBoard({
 
       if (!over) return
 
-      const itemId = active.id as string
+      const itemId = String(active.id)
       const fromLane = findItemLane(itemId)
-      const toLane = resolveTargetLane(over.id as string)
+      const toLane = resolveTargetLane(String(over.id))
 
       if (!fromLane || !toLane || fromLane === toLane) return
 
-      // Block cross-boundary drags
       if (isPipelineLane(fromLane) && isBlogLane(toLane)) {
-        toast.error(
-          strings?.pipeline?.promoteToPost
-            ? `Use '${strings.pipeline.promoteToPost}' para criar um post.`
-            : "Use 'Promover' para criar um post.",
-        )
+        toast.error(strings?.editorial?.dndPromoteHint ?? "Use 'Promote to Blog' to create a post.")
         return
       }
       if (isBlogLane(fromLane) && isPipelineLane(toLane)) {
-        toast.error(
-          strings?.promotion?.returnToPipeline
-            ? `Use '${strings.promotion.returnToPipeline}' no menu do card.`
-            : "Use 'Devolver ao Pipeline' no menu do card.",
-        )
+        toast.error(strings?.editorial?.dndReturnHint ?? "Use 'Return to Pipeline' from the card menu.")
         return
       }
 
@@ -233,7 +230,7 @@ export function UnifiedBoard({
         }
 
         const statusMap: Record<string, PostCardType['status']> = {
-          editing: card.status,
+          editing: 'draft',
           published: 'published',
         }
         const targetStatus = statusMap[toLane]
@@ -384,11 +381,15 @@ export function UnifiedBoard({
     [findItemLane],
   )
 
-  const activeItem = activeId
-    ? activeType === 'pipeline'
-      ? optPipeline.find((i) => i.id === activeId)
-      : optPosts.find((p) => p.id === activeId)
-    : null
+  const activeItem = useMemo(
+    () =>
+      activeId
+        ? activeType === 'pipeline'
+          ? optPipeline.find((i) => i.id === activeId)
+          : optPosts.find((p) => p.id === activeId)
+        : null,
+    [activeId, activeType, optPipeline, optPosts],
+  )
 
   const isInvalidDrop = useCallback(
     (targetLane: LaneId): boolean => {
@@ -400,6 +401,21 @@ export function UnifiedBoard({
     [activeType],
   )
 
+  const handlePublishAll = useCallback(async () => {
+    await onBulkPublish([...selectedIds])
+    setSelectedIds(new Set())
+  }, [onBulkPublish, selectedIds])
+
+  const handleArchiveAll = useCallback(async () => {
+    await onBulkArchive([...selectedIds])
+    setSelectedIds(new Set())
+  }, [onBulkArchive, selectedIds])
+
+  const handleDeleteAll = useCallback(async () => {
+    await onBulkDelete([...selectedIds])
+    setSelectedIds(new Set())
+  }, [onBulkDelete, selectedIds])
+
   return (
     <>
       <DndContext
@@ -410,13 +426,14 @@ export function UnifiedBoard({
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
-        <div role="grid" aria-label="Blog editorial kanban" className="flex gap-3 overflow-x-auto pb-4">
-          <div role="row" className="flex gap-3">
+        <div role="region" aria-label={strings?.tabs?.editorial ?? 'Blog editorial kanban'} tabIndex={0} className="flex gap-3 overflow-x-auto pb-4">
+          <div className="flex gap-3">
             {LANE_DEFS.map((lane, idx) => {
               const items = lanes[lane.id]
-              const itemIds = (items as Array<{ id: string }>).map((i) => i.id)
+              const itemIds = items.map((i) => i.id)
               const label = strings?.lanes?.[lane.id] ?? lane.label
-              const showBoundary = idx === 3
+              const prevLane = LANE_DEFS[idx - 1]
+              const showBoundary = idx > 0 && prevLane !== undefined && prevLane.dataSource === 'pipeline' && lane.dataSource === 'blog'
 
               return (
                 <div key={lane.id} className="flex">
@@ -441,9 +458,9 @@ export function UnifiedBoard({
                     dropHereLabel={strings?.editorial?.dropHere ?? 'Drop here'}
                     emptyCta={
                       lane.id === 'idea' ? (
-                        <button className="rounded bg-amber-500/20 px-2 py-1 text-[9px] text-amber-400 hover:bg-amber-500/30">
+                        <span className="rounded bg-amber-500/20 px-2 py-1 text-[9px] text-amber-400">
                           {strings?.emptyLanes?.newIdea ?? '+ New Idea'}
-                        </button>
+                        </span>
                       ) : lane.id === 'editing' ? (
                         <a
                           href="/cms/blog/new"
@@ -471,7 +488,7 @@ export function UnifiedBoard({
                     }
                   >
                     {isPipelineLane(lane.id)
-                      ? (items as PipelineCardItem[]).map((item) => (
+                      ? items.filter((i): i is PipelineCardItem => 'stage' in i).map((item) => (
                           <PipelineCard
                             key={item.id}
                             item={item}
@@ -480,7 +497,7 @@ export function UnifiedBoard({
                             onPromote={handlePromoteClick}
                           />
                         ))
-                      : (items as PostCardType[]).map((card) => (
+                      : items.filter((i): i is PostCardType => 'status' in i).map((card) => (
                           <PostCard
                             key={card.id}
                             card={card}
@@ -488,7 +505,7 @@ export function UnifiedBoard({
                             showSubstatus={lane.id === 'editing'}
                             pipelineCode={pipelineProvenanceMap.get(card.id) ?? null}
                             strings={strings}
-                            tags={tags}
+                            locale={defaultLocale}
                             onMoveToStatus={handleMovePostToStatus}
                             onDelete={onDeletePost}
                             onDuplicate={onDuplicate}
@@ -504,18 +521,18 @@ export function UnifiedBoard({
           </div>
         </div>
 
-        <DragOverlay dropAnimation={{ duration: 200, easing: 'ease' }}>
-          {activeItem && activeType === 'pipeline' ? (
-            <PipelineCardOverlay item={activeItem as PipelineCardItem} />
-          ) : activeItem && activeType === 'post' ? (
-            <PostCardOverlay card={activeItem as PostCardType} />
+        <DragOverlay dropAnimation={DRAG_OVERLAY_ANIMATION}>
+          {activeItem && activeType === 'pipeline' && 'stage' in activeItem ? (
+            <PipelineCardOverlay item={activeItem} strings={strings} />
+          ) : activeItem && activeType === 'post' && 'status' in activeItem ? (
+            <PostCardOverlay card={activeItem} />
           ) : null}
         </DragOverlay>
       </DndContext>
 
       <PromotionModal
         isOpen={!!promotionTarget}
-        itemTitle={promotionTarget?.title_pt ?? promotionTarget?.title_en ?? 'Untitled'}
+        itemTitle={promotionTarget?.title_pt ?? promotionTarget?.title_en ?? (strings?.editorial?.untitled ?? 'Untitled')}
         itemCode={promotionTarget?.code ?? ''}
         supportedLocales={supportedLocales}
         defaultLocale={defaultLocale}
@@ -543,18 +560,9 @@ export function UnifiedBoard({
           selectionType === 'pipeline' &&
           [...selectedIds].every((id) => lanes.ready.some((i) => i.id === id))
         }
-        onPublishAll={() => {
-          void onBulkPublish([...selectedIds])
-          setSelectedIds(new Set())
-        }}
-        onArchiveAll={() => {
-          void onBulkArchive([...selectedIds])
-          setSelectedIds(new Set())
-        }}
-        onDeleteAll={() => {
-          void onBulkDelete([...selectedIds])
-          setSelectedIds(new Set())
-        }}
+        onPublishAll={handlePublishAll}
+        onArchiveAll={handleArchiveAll}
+        onDeleteAll={handleDeleteAll}
         onClear={() => setSelectedIds(new Set())}
       />
     </>

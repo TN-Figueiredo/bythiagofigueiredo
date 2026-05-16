@@ -34,44 +34,53 @@ export const BulkActionBar = memo(function BulkActionBar({
   const s = strings?.bulk
 
   return (
-    <div role="toolbar" aria-label={`${count} ${s?.selected ?? 'selected'}`} aria-live="polite" className="fixed bottom-6 left-1/2 z-40 -translate-x-1/2 flex items-center gap-2 rounded-xl border border-gray-700 bg-gray-900 px-4 py-2.5 shadow-2xl">
-      <span className="text-[12px] font-semibold text-gray-300">
+    <div
+      role="group"
+      aria-label={`${count} ${s?.selected ?? 'selected'}`}
+      className="fixed bottom-6 left-1/2 z-40 -translate-x-1/2 flex items-center gap-2 rounded-xl border border-gray-700 bg-gray-900 px-4 py-2.5 shadow-2xl"
+    >
+      <span aria-live="polite" className="text-[12px] font-semibold text-gray-300">
         {count} {s?.selected ?? 'selected'}
       </span>
 
-      <div className="mx-2 h-4 w-px bg-gray-700" />
+      <div className="mx-2 h-4 w-px bg-gray-700" aria-hidden="true" />
 
       {cardType === 'pipeline' && (
         <>
           <button
             onClick={() => onMoveToStage?.('idea')}
-            className="rounded-lg px-2.5 py-1 text-[11px] text-gray-300 hover:bg-gray-800"
+            disabled={onMoveToStage === undefined}
+            className="rounded-lg px-2.5 py-1 text-[11px] text-gray-300 hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {strings?.editorial?.idea ?? 'Idea'}
           </button>
           <button
             onClick={() => onMoveToStage?.('draft')}
-            className="rounded-lg px-2.5 py-1 text-[11px] text-gray-300 hover:bg-gray-800"
+            disabled={onMoveToStage === undefined}
+            className="rounded-lg px-2.5 py-1 text-[11px] text-gray-300 hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {strings?.editorial?.draft ?? 'Draft'}
           </button>
           <button
             onClick={() => onMoveToStage?.('ready')}
-            className="rounded-lg px-2.5 py-1 text-[11px] text-gray-300 hover:bg-gray-800"
+            disabled={onMoveToStage === undefined}
+            className="rounded-lg px-2.5 py-1 text-[11px] text-gray-300 hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {strings?.editorial?.ready ?? 'Ready'}
           </button>
           {allInReady && (
             <button
               onClick={onPromoteAll}
-              className="rounded-lg bg-indigo-500/20 px-2.5 py-1 text-[11px] font-medium text-indigo-400 hover:bg-indigo-500/30"
+              disabled={onPromoteAll === undefined}
+              className="rounded-lg bg-indigo-500/20 px-2.5 py-1 text-[11px] font-medium text-indigo-400 hover:bg-indigo-500/30 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {s?.promoteAll ?? 'Promote all'}
             </button>
           )}
           <button
             onClick={onArchiveAll}
-            className="rounded-lg px-2.5 py-1 text-[11px] text-gray-400 hover:bg-gray-800"
+            disabled={onArchiveAll === undefined}
+            className="rounded-lg px-2.5 py-1 text-[11px] text-gray-400 hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {s?.archiveAll ?? 'Archive'}
           </button>
@@ -82,26 +91,29 @@ export const BulkActionBar = memo(function BulkActionBar({
         <>
           <button
             onClick={onPublishAll}
-            className="rounded-lg bg-emerald-500/20 px-2.5 py-1 text-[11px] font-medium text-emerald-400 hover:bg-emerald-500/30"
+            disabled={onPublishAll === undefined}
+            className="rounded-lg bg-emerald-500/20 px-2.5 py-1 text-[11px] font-medium text-emerald-400 hover:bg-emerald-500/30 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {s?.publishAll ?? 'Publish'}
           </button>
           <button
             onClick={onArchiveAll}
-            className="rounded-lg px-2.5 py-1 text-[11px] text-gray-400 hover:bg-gray-800"
+            disabled={onArchiveAll === undefined}
+            className="rounded-lg px-2.5 py-1 text-[11px] text-gray-400 hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {s?.archiveAll ?? 'Archive'}
           </button>
           <button
             onClick={onDeleteAll}
-            className="rounded-lg px-2.5 py-1 text-[11px] text-red-400 hover:bg-gray-800"
+            disabled={onDeleteAll === undefined}
+            className="rounded-lg px-2.5 py-1 text-[11px] text-red-400 hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {s?.deleteAll ?? 'Delete'}
           </button>
         </>
       )}
 
-      <div className="mx-1 h-4 w-px bg-gray-700" />
+      <div className="mx-1 h-4 w-px bg-gray-700" aria-hidden="true" />
 
       <button
         onClick={onClear}

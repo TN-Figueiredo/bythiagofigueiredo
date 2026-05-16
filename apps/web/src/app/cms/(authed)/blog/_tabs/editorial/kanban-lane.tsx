@@ -4,6 +4,8 @@ import { memo, type ReactNode } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 
+const LANE_MAX_HEIGHT = 'calc(100vh - var(--kanban-lane-offset, 260px))'
+
 interface KanbanLaneProps {
   id: string
   title: string
@@ -18,6 +20,7 @@ interface KanbanLaneProps {
   footer?: ReactNode
   paginationLabel?: string
   dropHereLabel?: string
+  itemsLabel?: string
 }
 
 export const KanbanLane = memo(function KanbanLane({
@@ -34,6 +37,7 @@ export const KanbanLane = memo(function KanbanLane({
   footer,
   paginationLabel,
   dropHereLabel,
+  itemsLabel,
 }: KanbanLaneProps) {
   const { setNodeRef, isOver } = useDroppable({ id, disabled: !droppable })
   const showDropZone = isOver && !isInvalidDrop
@@ -42,7 +46,7 @@ export const KanbanLane = memo(function KanbanLane({
     <div
       ref={setNodeRef}
       role="group"
-      aria-label={`${title} — ${count} items`}
+      aria-label={itemsLabel ? `${title}: ${count} ${itemsLabel}` : `${title}: ${count}`}
       className={`flex min-w-[220px] max-w-[320px] flex-1 flex-col rounded-lg border bg-gray-950 transition-all duration-200 ${
         isInvalidDrop && isOver
           ? 'border-red-500/30 bg-red-950/10 opacity-60'
@@ -64,7 +68,13 @@ export const KanbanLane = memo(function KanbanLane({
         >
           {title}
         </span>
-        <span className="ml-auto rounded-full bg-gray-800 px-1.5 py-0.5 text-[8px] font-bold tabular-nums text-gray-500">
+        <span
+          className={`ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums transition-colors ${
+            showDropZone && count > 0
+              ? 'bg-indigo-500/20 text-indigo-400'
+              : 'bg-gray-800 text-gray-500'
+          }`}
+        >
           {paginationLabel ?? count}
         </span>
       </div>
@@ -72,7 +82,7 @@ export const KanbanLane = memo(function KanbanLane({
       <SortableContext items={itemIds} strategy={verticalListSortingStrategy} disabled={!droppable}>
         <div
           className="flex min-h-[120px] flex-1 flex-col gap-2 overflow-y-auto p-2"
-          style={{ maxHeight: 'calc(100vh - 260px)' }}
+          style={{ maxHeight: LANE_MAX_HEIGHT }}
         >
           {count === 0 && (
             <div className="flex flex-col items-center justify-center gap-2 py-8 opacity-50">

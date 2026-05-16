@@ -17,10 +17,12 @@ export const ptBR: BlogHubStrings = {
     viewAllPublished: 'Ver todos os publicados', archived: 'Arquivados', showArchived: 'Mostrar arquivados', hideArchived: 'Ocultar arquivados',
     addTranslationsLater: 'Adicione traduções nas config. da tag',
     moveToIdea: 'Voltar p/ ideia', moveToDraft: 'Voltar p/ rascunho', moveToReady: 'Marcar pronto', moveToScheduled: 'Agendar…', moveToPublished: 'Publicar agora', moveToArchived: 'Arquivar',
-    kpiTotal: 'Total', kpiPublished: 'Publicados', kpiThroughput: 'Vazão', kpiIdeaToPub: 'Ideia→Pub', kpiBottleneck: 'Gargalo', kpiNone: 'Nenhum',
+    kpiTotal: 'Total', kpiPublished: 'Publicados', kpiThroughput: 'Vazão', kpiThroughputUnit: '/mês', kpiIdeaToPub: 'Ideia→Pub', kpiBottleneck: 'Gargalo', kpiNone: 'Nenhum',
     promotedFromPipeline: 'Promovido do Pipeline',
     dropHere: 'Solte aqui',
     promotionBoundary: 'Publicação →',
+    dndPromoteHint: "Use 'Promover para Blog' para criar um post.",
+    dndReturnHint: "Use 'Devolver ao Pipeline' no menu do card.",
   },
   deletePost: {
     triggerLabel: 'Excluir', triggerAriaLabel: 'Excluir {title}',

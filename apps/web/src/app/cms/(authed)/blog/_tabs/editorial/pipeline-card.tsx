@@ -4,7 +4,7 @@ import { memo } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import Link from 'next/link'
-import { ArrowRightCircle, MoreVertical } from 'lucide-react'
+import { ArrowRightCircle } from 'lucide-react'
 import type { PipelineCardItem } from '../../_hub/hub-types'
 import type { BlogHubStrings } from '../../_i18n/types'
 
@@ -27,7 +27,6 @@ interface PipelineCardProps {
   laneId: 'idea' | 'draft' | 'ready'
   strings?: BlogHubStrings
   onPromote?: (itemId: string) => void
-  onContextMenu?: (itemId: string, action: string) => void
 }
 
 export const PipelineCard = memo(function PipelineCard({
@@ -35,7 +34,6 @@ export const PipelineCard = memo(function PipelineCard({
   laneId,
   strings,
   onPromote,
-  onContextMenu,
 }: PipelineCardProps) {
   const {
     attributes,
@@ -52,7 +50,7 @@ export const PipelineCard = memo(function PipelineCard({
     opacity: isDragging ? 0.5 : 1,
   }
 
-  const title = item.title_pt || item.title_en || 'Untitled'
+  const title = item.title_pt || item.title_en || (strings?.editorial?.untitled ?? 'Untitled')
   const checklist = item.production_checklist
   const done = checklist.filter((c) => c.done).length
   const total = checklist.length
@@ -77,21 +75,12 @@ export const PipelineCard = memo(function PipelineCard({
           <span className="font-mono text-gray-500">{item.code}</span>
           <span>{LANG_FLAGS[item.language] ?? item.language}</span>
           <span className="ml-auto text-gray-600">P{item.priority}</span>
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onContextMenu?.(item.id, 'menu')
-            }}
-            className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-500 hover:text-gray-300"
-            aria-label="More actions"
-          >
-            <MoreVertical className="h-3 w-3" />
-          </button>
         </div>
 
         {/* Title */}
         <Link
           href={`/cms/pipeline/items/${item.id}?from=blog`}
+          onClick={(e) => e.stopPropagation()}
           className="mt-1 block text-[12px] font-medium text-gray-200 line-clamp-2 hover:text-white"
         >
           {title}
@@ -131,7 +120,7 @@ export const PipelineCard = memo(function PipelineCard({
               className="flex items-center gap-1 rounded bg-indigo-500/20 px-2 py-0.5 text-[9px] font-medium text-indigo-400 hover:bg-indigo-500/30 transition-colors"
             >
               <ArrowRightCircle className="h-3 w-3" />
-              {strings?.promotion.promote ?? 'Promote'}
+              {strings?.promotion?.promote ?? 'Promote'}
             </button>
           )}
         </div>
@@ -140,8 +129,8 @@ export const PipelineCard = memo(function PipelineCard({
   )
 })
 
-export function PipelineCardOverlay({ item }: { item: PipelineCardItem }) {
-  const title = item.title_pt || item.title_en || 'Untitled'
+export function PipelineCardOverlay({ item, strings }: { item: PipelineCardItem; strings?: BlogHubStrings }) {
+  const title = item.title_pt || item.title_en || (strings?.editorial?.untitled ?? 'Untitled')
   return (
     <div className="w-[280px] rounded-lg border border-indigo-500/40 bg-gray-900 p-3 shadow-xl">
       <div className="flex items-center gap-1.5 text-[9px]">

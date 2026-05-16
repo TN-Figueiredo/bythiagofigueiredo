@@ -15,10 +15,12 @@ export interface BlogHubStrings {
     viewAllPublished: string; archived: string; showArchived: string; hideArchived: string
     addTranslationsLater: string
     moveToIdea: string; moveToDraft: string; moveToReady: string; moveToScheduled: string; moveToPublished: string; moveToArchived: string
-    kpiTotal: string; kpiPublished: string; kpiThroughput: string; kpiIdeaToPub: string; kpiBottleneck: string; kpiNone: string
+    kpiTotal: string; kpiPublished: string; kpiThroughput: string; kpiThroughputUnit: string; kpiIdeaToPub: string; kpiBottleneck: string; kpiNone: string
     promotedFromPipeline: string
     dropHere: string
     promotionBoundary: string
+    dndPromoteHint: string
+    dndReturnHint: string
   }
   deletePost: {
     triggerLabel: string; triggerAriaLabel: string
@@ -91,6 +93,7 @@ export interface BlogHubStrings {
     promoting: string; returning: string
     promoteFailed: string; returnFailed: string
     onlyIdeaDraft: string
+    defaultLocale?: string
   }
   substatus: {
     idea: string; draft: string; pendingReview: string

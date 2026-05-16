@@ -1,6 +1,6 @@
 'use client'
 
-import { useDeferredValue, useMemo, useState, useTransition } from 'react'
+import { useCallback, useDeferredValue, useMemo, useState, useTransition } from 'react'
 import { Kanban, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -26,18 +26,26 @@ interface EditorialTabProps {
   defaultLocale?: string
 }
 
-export function EditorialTab({ data, pipelineData = [], strings, siteId, tagId, locale, supportedLocales = [], siteTimezone = 'America/Sao_Paulo', tags, defaultLocale = 'pt-BR' }: EditorialTabProps) {
+export function EditorialTab({
+  data,
+  pipelineData = [],
+  strings,
+  siteId,
+  tagId,
+  locale,
+  supportedLocales = [],
+  siteTimezone = 'America/Sao_Paulo',
+  tags,
+  defaultLocale = 'pt-BR',
+}: EditorialTabProps) {
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState('')
   const deferredQuery = useDeferredValue(searchQuery)
   const [, startTransition] = useTransition()
 
-  const allPosts = data.posts
-  const allPipeline = pipelineData
-
   const tagFiltered = tagId
-    ? allPosts.filter((p) => p.tagId === tagId)
-    : allPosts
+    ? data.posts.filter((p) => p.tagId === tagId)
+    : data.posts
 
   const localeFiltered = locale
     ? tagFiltered.filter((p) => p.locales.includes(locale))
@@ -50,7 +58,7 @@ export function EditorialTab({ data, pipelineData = [], strings, siteId, tagId, 
     : localeFiltered
 
   const filteredPipeline = deferredQuery
-    ? allPipeline.filter((p) => {
+    ? pipelineData.filter((p) => {
         const q = deferredQuery.toLowerCase()
         return (
           (p.title_pt?.toLowerCase().includes(q) ?? false) ||
@@ -58,189 +66,223 @@ export function EditorialTab({ data, pipelineData = [], strings, siteId, tagId, 
           p.code.toLowerCase().includes(q)
         )
       })
-    : allPipeline
+    : pipelineData
 
   const pipelineProvenanceMap = useMemo(() => {
     const map = new Map<string, string>()
-    for (const item of allPipeline) {
+    for (const item of pipelineData) {
       if (item.blog_post_id) {
         map.set(item.blog_post_id, item.code)
       }
     }
     return map
-  }, [allPipeline])
+  }, [pipelineData])
 
-  const handleMovePost = async (postId: string, newStatus: string, scheduledFor?: string) => {
-    const previousStatus = allPosts.find((p) => p.id === postId)?.status
-    startTransition(async () => {
-      const result = await movePost(postId, newStatus, scheduledFor)
+  const handleMovePost = useCallback(
+    async (postId: string, newStatus: string, scheduledFor?: string) => {
+      const previousStatus = data.posts.find((p) => p.id === postId)?.status
+      startTransition(async () => {
+        const result = await movePost(postId, newStatus, scheduledFor)
+        if (result.ok) {
+          router.refresh()
+          toast.success(strings?.common?.moved ?? 'Moved', {
+            action: previousStatus
+              ? {
+                  label: strings?.common?.undo ?? 'Undo',
+                  onClick: () => {
+                    startTransition(async () => {
+                      const revert = await movePost(postId, previousStatus)
+                      if (revert.ok) {
+                        router.refresh()
+                      } else {
+                        toast.error(strings?.common?.couldntMove ?? "Couldn't move")
+                      }
+                    })
+                  },
+                }
+              : undefined,
+          })
+        } else {
+          toast.error(strings?.common?.couldntMove ?? "Couldn't move")
+        }
+      })
+    },
+    [data.posts, router, startTransition, strings],
+  )
+
+  const handleDeletePost = useCallback(
+    async (postId: string) => {
+      if (!window.confirm(strings?.editorial?.confirmDelete ?? 'Are you sure you want to delete this post?')) return
+      startTransition(async () => {
+        const result = await deleteHubPost(postId)
+        if (result.ok) {
+          toast.success(strings?.editorial?.deleted ?? 'Deleted')
+          router.refresh()
+        } else {
+          toast.error(strings?.editorial?.deleteFailed ?? "Couldn't delete")
+        }
+      })
+    },
+    [router, startTransition, strings],
+  )
+
+  const handleDuplicate = useCallback(
+    async (postId: string) => {
+      startTransition(async () => {
+        const result = await duplicatePost(postId)
+        if (result?.ok) {
+          toast.success(strings?.editorial?.duplicate ?? 'Duplicated')
+          router.refresh()
+        } else {
+          toast.error(strings?.common?.couldntMove ?? "Couldn't duplicate")
+        }
+      })
+    },
+    [router, startTransition, strings],
+  )
+
+  const handleMovePipelineItem = useCallback(
+    async (id: string, version: number, stage: string) => {
+      startTransition(async () => {
+        const result = await movePipelineItemToStage(id, version, stage)
+        if (!result.ok) {
+          toast.error(strings?.common?.couldntMove ?? "Couldn't move")
+        } else {
+          router.refresh()
+        }
+      })
+    },
+    [router, startTransition, strings],
+  )
+
+  const handlePromote = useCallback(
+    async (
+      sid: string,
+      pipelineItemId: string,
+      loc: string,
+      scheduledFor?: string,
+    ): Promise<{ ok: boolean; postId?: string }> => {
+      const result = await createPostFromPipeline(sid, pipelineItemId, loc, scheduledFor)
       if (result.ok) {
         router.refresh()
-        toast.success(strings?.common.moved ?? 'Moved', {
-          action: previousStatus
-            ? {
-                label: strings?.common.undo ?? 'Undo',
-                onClick: () => {
-                  startTransition(async () => {
-                    const revert = await movePost(postId, previousStatus)
-                    if (revert.ok) {
-                      router.refresh()
-                    } else {
-                      toast.error(strings?.common.couldntMove ?? "Couldn't move")
-                    }
-                  })
-                },
-              }
-            : undefined,
-        })
-      } else {
-        toast.error(strings?.common.couldntMove ?? "Couldn't move")
       }
-    })
-  }
+      return result
+    },
+    [router],
+  )
 
-  const handleDeletePost = async (postId: string) => {
-    if (!window.confirm(strings?.editorial.confirmDelete ?? 'Are you sure you want to delete this post?')) return
-    startTransition(async () => {
-      const result = await deleteHubPost(postId)
+  const handleReturnToPipeline = useCallback(
+    async (postId: string) => {
+      const result = await returnToPipeline(postId)
       if (result.ok) {
-        toast.success(strings?.editorial.deleted ?? 'Deleted')
         router.refresh()
       } else {
-        toast.error(strings?.editorial.deleteFailed ?? "Couldn't delete")
+        throw new Error(result.error ?? 'return_to_pipeline_failed')
       }
-    })
-  }
+    },
+    [router],
+  )
 
-  const handleDuplicate = async (postId: string) => {
-    startTransition(async () => {
-      const result = await duplicatePost(postId)
-      if (result?.ok) {
-        toast.success(strings?.editorial.duplicate ?? 'Duplicated')
-        router.refresh()
-      } else {
-        toast.error(strings?.common.couldntMove ?? "Couldn't duplicate")
-      }
-    })
-  }
+  const handleBulkPublish = useCallback(
+    async (postIds: string[]) => {
+      startTransition(async () => {
+        const result = await bulkPublish(postIds)
+        if (result.ok) {
+          toast.success(`${result.count} ${strings?.bulk?.publishAll ?? 'published'}`)
+          router.refresh()
+        } else {
+          toast.error(strings?.common?.couldntMove ?? "Couldn't publish")
+        }
+      })
+    },
+    [router, startTransition, strings],
+  )
 
-  const handleMovePipelineItem = async (id: string, version: number, stage: string) => {
-    const result = await movePipelineItemToStage(id, version, stage)
-    if (!result.ok) {
-      toast.error(strings?.common.couldntMove ?? "Couldn't move")
-    } else {
-      router.refresh()
-    }
-  }
+  const handleBulkArchive = useCallback(
+    async (postIds: string[]) => {
+      startTransition(async () => {
+        const result = await bulkArchive(postIds)
+        if (result.ok) {
+          toast.success(`${result.count} ${strings?.bulk?.archiveAll ?? 'archived'}`)
+          router.refresh()
+        } else {
+          toast.error(strings?.common?.couldntMove ?? "Couldn't archive")
+        }
+      })
+    },
+    [router, startTransition, strings],
+  )
 
-  const handlePromote = async (
-    sid: string,
-    pipelineItemId: string,
-    loc: string,
-    scheduledFor?: string,
-  ): Promise<{ ok: boolean; postId?: string }> => {
-    const result = await createPostFromPipeline(sid, pipelineItemId, loc, scheduledFor)
-    if (result.ok) {
-      router.refresh()
-    }
-    return result
-  }
-
-  const handleReturnToPipeline = async (postId: string) => {
-    const result = await returnToPipeline(postId)
-    if (result.ok) {
-      router.refresh()
-    } else {
-      throw new Error(result.error)
-    }
-  }
-
-  const handleBulkPublish = async (postIds: string[]) => {
-    startTransition(async () => {
-      const result = await bulkPublish(postIds)
-      if (result.ok) {
-        toast.success(`${result.count} ${strings?.bulk?.publishAll ?? 'published'}`)
-        router.refresh()
-      } else {
-        toast.error(strings?.common.couldntMove ?? "Couldn't publish")
-      }
-    })
-  }
-
-  const handleBulkArchive = async (postIds: string[]) => {
-    startTransition(async () => {
-      const result = await bulkArchive(postIds)
-      if (result.ok) {
-        toast.success(`${result.count} ${strings?.bulk?.archiveAll ?? 'archived'}`)
-        router.refresh()
-      } else {
-        toast.error(strings?.common.couldntMove ?? "Couldn't archive")
-      }
-    })
-  }
-
-  const handleBulkDelete = async (postIds: string[]) => {
-    startTransition(async () => {
-      const result = await bulkDelete(postIds)
-      if (result.ok) {
-        toast.success(`${result.count} ${strings?.bulk?.deleteAll ?? 'deleted'}`)
-        router.refresh()
-      } else {
-        toast.error(strings?.common.couldntMove ?? "Couldn't delete")
-      }
-    })
-  }
+  const handleBulkDelete = useCallback(
+    async (postIds: string[]) => {
+      startTransition(async () => {
+        const result = await bulkDelete(postIds)
+        if (result.ok) {
+          toast.success(`${result.count} ${strings?.bulk?.deleteAll ?? 'deleted'}`)
+          router.refresh()
+        } else {
+          toast.error(strings?.common?.couldntMove ?? "Couldn't delete")
+        }
+      })
+    },
+    [router, startTransition, strings],
+  )
 
   if (data.posts.length === 0 && pipelineData.length === 0) {
     return (
       <EmptyState
         icon={<Kanban className="h-8 w-8" />}
-        heading={strings?.empty.noPosts ?? 'No posts ready'}
-        description={strings?.empty.startWriting ?? 'When posts are ready in the Pipeline, they will appear here'}
+        heading={strings?.empty?.noPosts ?? 'No posts ready'}
+        description={strings?.empty?.startWriting ?? 'When posts are ready in the Pipeline, they will appear here'}
         action={
           <Link
             href="/cms/blog"
             className="rounded-lg bg-indigo-500 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-600"
           >
             <Plus className="mr-1 inline h-3.5 w-3.5" />
-            {strings?.actions.newIdea ?? 'Go to Pipeline'}
+            {strings?.actions?.newIdea ?? 'Go to Pipeline'}
           </Link>
         }
       />
     )
   }
 
-  const totalItems = data.velocity.totalPosts + allPipeline.length
+  const totalItems = data.velocity.totalPosts + pipelineData.length
+
+  const hasNoFilterResults =
+    filteredPosts.length === 0 &&
+    filteredPipeline.length === 0 &&
+    (data.posts.length > 0 || pipelineData.length > 0)
 
   return (
     <div className="flex flex-col gap-4">
       <div role="group" aria-label="Key metrics" className="flex flex-wrap items-center gap-y-1 rounded-lg border border-indigo-500/8 bg-indigo-500/3 px-3 py-2">
         <div className="flex items-center gap-1 border-r border-gray-800 px-2.5">
-          <span className="text-[9px] text-gray-500">{strings?.editorial.kpiTotal ?? 'Total'}</span>
+          <span className="text-[9px] text-gray-500">{strings?.editorial?.kpiTotal ?? 'Total'}</span>
           <span className="text-[11px] font-semibold text-gray-300">{totalItems}</span>
         </div>
         <div className="flex items-center gap-1 border-r border-gray-800 px-2.5">
-          <span className="text-[9px] text-gray-500">Pipeline</span>
-          <span className="text-[11px] font-semibold text-amber-400">{allPipeline.length}</span>
+          <span className="text-[9px] text-gray-500">{strings?.pipeline?.inPipeline ?? 'Pipeline'}</span>
+          <span className="text-[11px] font-semibold text-amber-400">{pipelineData.length}</span>
         </div>
         <div className="flex items-center gap-1 border-r border-gray-800 px-2.5">
-          <span className="text-[9px] text-gray-500">{strings?.editorial.kpiPublished ?? 'Published'}</span>
+          <span className="text-[9px] text-gray-500">{strings?.editorial?.kpiPublished ?? 'Published'}</span>
           <span className="text-[11px] font-semibold text-gray-300">{data.velocity.publishedCount}</span>
         </div>
         <div className="flex items-center gap-1 border-r border-gray-800 px-2.5">
-          <span className="text-[9px] text-gray-500">{strings?.editorial.kpiThroughput ?? 'Throughput'}</span>
-          <span className="text-[11px] font-semibold text-gray-300">{data.velocity.throughput}/mo</span>
+          <span className="text-[9px] text-gray-500">{strings?.editorial?.kpiThroughput ?? 'Throughput'}</span>
+          <span className="text-[11px] font-semibold text-gray-300">{data.velocity.throughput}{strings?.editorial?.kpiThroughputUnit ?? '/mo'}</span>
         </div>
         <div className="flex items-center gap-1 border-r border-gray-800 px-2.5">
-          <span className="text-[9px] text-gray-500">{strings?.editorial.kpiIdeaToPub ?? 'Idea→Pub'}</span>
+          <span className="text-[9px] text-gray-500">{strings?.editorial?.kpiIdeaToPub ?? 'Idea→Pub'}</span>
           <span className="text-[11px] font-semibold text-gray-300">
             {data.velocity.avgIdeaToPublished > 0 ? `${data.velocity.avgIdeaToPublished}d` : '—'}
           </span>
         </div>
         <div className="flex items-center gap-1 px-2.5">
-          <span className="text-[9px] text-gray-500">{strings?.editorial.kpiBottleneck ?? 'Bottleneck'}</span>
+          <span className="text-[9px] text-gray-500">{strings?.editorial?.kpiBottleneck ?? 'Bottleneck'}</span>
           <span className="text-[11px] font-semibold text-gray-400">
-            {data.velocity.bottleneck?.column ?? (strings?.editorial.kpiNone ?? 'None')}
+            {data.velocity.bottleneck?.column ?? (strings?.editorial?.kpiNone ?? 'None')}
           </span>
         </div>
       </div>
@@ -248,17 +290,17 @@ export function EditorialTab({ data, pipelineData = [], strings, siteId, tagId, 
       <div className="flex items-center gap-3">
         <input
           type="search"
-          placeholder={strings?.editorial.searchPosts ?? 'Search posts…'}
+          placeholder={strings?.editorial?.searchPosts ?? 'Search posts…'}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          aria-label={strings?.editorial.searchPosts ?? 'Search posts'}
+          aria-label={strings?.editorial?.searchPosts ?? 'Search posts'}
           className="w-64 rounded-md border border-gray-800 bg-gray-900 px-3 py-1.5 text-[11px] text-gray-300 placeholder-gray-600 focus:border-indigo-500 focus:outline-none"
         />
       </div>
 
-      {filteredPosts.length === 0 && filteredPipeline.length === 0 && (allPosts.length > 0 || allPipeline.length > 0) && (
+      {hasNoFilterResults && (
         <p className="text-center text-[11px] text-gray-600 py-4">
-          {strings?.empty.noData ?? 'No items found with current filters'}
+          {strings?.empty?.noData ?? 'No items found with current filters'}
         </p>
       )}
 
