@@ -1,22 +1,23 @@
 'use client'
 
-import { useDeferredValue, useState, useTransition } from 'react'
+import { useDeferredValue, useMemo, useState, useTransition } from 'react'
 import { Kanban, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import type { EditorialTabData, BlogTag } from '../../_hub/hub-types'
+import type { EditorialTabData, BlogTag, PipelineCardItem } from '../../_hub/hub-types'
 import type { BlogHubStrings } from '../../_i18n/types'
-import { KanbanBoard } from './kanban-board'
+import { UnifiedBoard } from './unified-board'
 import { EmptyState } from '../../_shared/empty-state'
 import { SectionErrorBoundary } from '../../_shared/section-error-boundary'
-import { movePost, deleteHubPost, reassignTag, addLocale, removeTranslationLocale, duplicatePost } from '../../actions'
-import { createTag } from '../../tag-actions'
+import { movePost, deleteHubPost, duplicatePost, createPostFromPipeline, returnToPipeline, bulkPublish, bulkArchive, bulkDelete } from '../../actions'
+import { movePipelineItemToStage, reorderPipelineItem } from '../../../pipeline/actions'
 
 interface EditorialTabProps {
   data: EditorialTabData
+  pipelineData: PipelineCardItem[]
   strings?: BlogHubStrings
-  siteId?: string
+  siteId: string
   tagId?: string | null
   locale?: string | null
   supportedLocales?: string[]
@@ -25,14 +26,16 @@ interface EditorialTabProps {
   defaultLocale?: string
 }
 
-export function EditorialTab({ data, strings, siteId, tagId, locale, supportedLocales, siteTimezone = 'America/Sao_Paulo', tags, defaultLocale }: EditorialTabProps) {
+export function EditorialTab({ data, pipelineData = [], strings, siteId, tagId, locale, supportedLocales = [], siteTimezone = 'America/Sao_Paulo', tags, defaultLocale = 'pt-BR' }: EditorialTabProps) {
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState('')
   const deferredQuery = useDeferredValue(searchQuery)
   const [, startTransition] = useTransition()
 
   const allPosts = data.posts
+  const allPipeline = pipelineData
 
+  // Client-side post filtering
   const tagFiltered = tagId
     ? allPosts.filter((p) => p.tagId === tagId)
     : allPosts
@@ -41,11 +44,36 @@ export function EditorialTab({ data, strings, siteId, tagId, locale, supportedLo
     ? tagFiltered.filter((p) => p.locales.includes(locale))
     : tagFiltered
 
-  const filtered = deferredQuery
+  const filteredPosts = deferredQuery
     ? localeFiltered.filter((p) =>
         p.title.toLowerCase().includes(deferredQuery.toLowerCase()),
       )
     : localeFiltered
+
+  // Client-side pipeline filtering
+  const filteredPipeline = deferredQuery
+    ? allPipeline.filter((p) => {
+        const q = deferredQuery.toLowerCase()
+        return (
+          (p.title_pt?.toLowerCase().includes(q) ?? false) ||
+          (p.title_en?.toLowerCase().includes(q) ?? false) ||
+          p.code.toLowerCase().includes(q)
+        )
+      })
+    : allPipeline
+
+  // Build pipeline provenance map: blog_post_id → pipeline code
+  const pipelineProvenanceMap = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const item of allPipeline) {
+      if (item.blog_post_id) {
+        map.set(item.blog_post_id, item.code)
+      }
+    }
+    return map
+  }, [allPipeline])
+
+  // ── Post handlers ──────────────────────────────────────────────────────────
 
   const handleMovePost = async (postId: string, newStatus: string, scheduledFor?: string) => {
     const previousStatus = allPosts.find((p) => p.id === postId)?.status
@@ -82,41 +110,9 @@ export function EditorialTab({ data, strings, siteId, tagId, locale, supportedLo
       const result = await deleteHubPost(postId)
       if (result.ok) {
         toast.success(strings?.editorial.deleted ?? 'Deleted')
+        router.refresh()
       } else {
         toast.error(strings?.editorial.deleteFailed ?? "Couldn't delete")
-      }
-    })
-  }
-
-  const handleReassignTag = async (postId: string, newTagId: string | null) => {
-    startTransition(async () => {
-      const result = await reassignTag(postId, newTagId)
-      if (result.ok) {
-        toast.success(strings?.editorial.reassigned ?? 'Tag changed')
-      } else {
-        toast.error(strings?.common.couldntMove ?? "Couldn't update")
-      }
-    })
-  }
-
-  const handleAddLocale = async (postId: string, loc: string) => {
-    startTransition(async () => {
-      const result = await addLocale(postId, loc)
-      if (!result?.ok) {
-        toast.error(strings?.common.couldntMove ?? "Couldn't update")
-      }
-    })
-  }
-
-  const handleRemoveLocale = async (postId: string, loc: string) => {
-    startTransition(async () => {
-      const result = await removeTranslationLocale(postId, loc)
-      if (result.ok) {
-        toast.success(strings?.editorial.localeRemoved ?? 'Locale removed')
-      } else if (result.error === 'last_locale') {
-        toast.error(strings?.editorial.lastLocale ?? 'Cannot remove the only locale')
-      } else {
-        toast.error(strings?.common.couldntMove ?? "Couldn't update")
       }
     })
   }
@@ -126,29 +122,94 @@ export function EditorialTab({ data, strings, siteId, tagId, locale, supportedLo
       const result = await duplicatePost(postId)
       if (result?.ok) {
         toast.success(strings?.editorial.duplicate ?? 'Duplicated')
+        router.refresh()
       } else {
         toast.error(strings?.common.couldntMove ?? "Couldn't duplicate")
       }
     })
   }
 
-  const handleCreateAndAssignTag = async (postId: string, tagName: string) => {
-    const tagResult = await createTag({ name: tagName })
-    if (!tagResult.ok) {
-      toast.error(tagResult.error === 'name_already_exists' ? 'Tag already exists' : 'Failed to create tag')
-      return
+  // ── Pipeline handlers ──────────────────────────────────────────────────────
+
+  const handleMovePipelineItem = async (id: string, version: number, stage: string) => {
+    const result = await movePipelineItemToStage(id, version, stage)
+    if (!result.ok) {
+      toast.error(strings?.common.couldntMove ?? "Couldn't move")
+    } else {
+      router.refresh()
     }
+  }
+
+  const handleReorderPipelineItem = async (id: string, version: number, data: { stage?: string; sort_order: number }) => {
+    const result = await reorderPipelineItem(id, version, data)
+    if (!result.ok) {
+      toast.error(strings?.common.couldntMove ?? "Couldn't reorder")
+    }
+  }
+
+  // ── Promotion handlers ─────────────────────────────────────────────────────
+
+  const handlePromote = async (
+    sid: string,
+    pipelineItemId: string,
+    loc: string,
+    scheduledFor?: string,
+  ): Promise<{ ok: boolean; postId?: string }> => {
+    const result = await createPostFromPipeline(sid, pipelineItemId, loc, scheduledFor)
+    if (result.ok) {
+      router.refresh()
+    }
+    return result
+  }
+
+  const handleReturnToPipeline = async (postId: string) => {
+    const result = await returnToPipeline(postId)
+    if (result.ok) {
+      router.refresh()
+    } else {
+      throw new Error(result.error)
+    }
+  }
+
+  // ── Bulk handlers ──────────────────────────────────────────────────────────
+
+  const handleBulkPublish = async (postIds: string[]) => {
     startTransition(async () => {
-      const result = await reassignTag(postId, tagResult.tagId)
+      const result = await bulkPublish(postIds)
       if (result.ok) {
-        toast.success(`Tag "${tagName}" created and assigned`)
+        toast.success(`${result.count} post(s) publicado(s)`)
+        router.refresh()
       } else {
-        toast.error(strings?.common.couldntMove ?? "Couldn't assign tag")
+        toast.error(strings?.common.couldntMove ?? "Couldn't publish")
       }
     })
   }
 
-  if (data.posts.length === 0) {
+  const handleBulkArchive = async (postIds: string[]) => {
+    startTransition(async () => {
+      const result = await bulkArchive(postIds)
+      if (result.ok) {
+        toast.success(`${result.count} post(s) arquivado(s)`)
+        router.refresh()
+      } else {
+        toast.error(strings?.common.couldntMove ?? "Couldn't archive")
+      }
+    })
+  }
+
+  const handleBulkDelete = async (postIds: string[]) => {
+    startTransition(async () => {
+      const result = await bulkDelete(postIds)
+      if (result.ok) {
+        toast.success(`${result.count} post(s) deletado(s)`)
+        router.refresh()
+      } else {
+        toast.error(strings?.common.couldntMove ?? "Couldn't delete")
+      }
+    })
+  }
+
+  if (data.posts.length === 0 && pipelineData.length === 0) {
     return (
       <EmptyState
         icon={<Kanban className="h-8 w-8" />}
@@ -167,13 +228,19 @@ export function EditorialTab({ data, strings, siteId, tagId, locale, supportedLo
     )
   }
 
+  const totalItems = data.velocity.totalPosts + allPipeline.length
+
   return (
     <div className="flex flex-col gap-4">
       {/* KPI bar */}
       <div role="group" aria-label="Key metrics" className="flex flex-wrap items-center gap-y-1 rounded-lg border border-indigo-500/8 bg-indigo-500/3 px-3 py-2">
         <div className="flex items-center gap-1 border-r border-gray-800 px-2.5">
           <span className="text-[9px] text-gray-500">{strings?.editorial.kpiTotal ?? 'Total'}</span>
-          <span className="text-[11px] font-semibold text-gray-300">{data.velocity.totalPosts}</span>
+          <span className="text-[11px] font-semibold text-gray-300">{totalItems}</span>
+        </div>
+        <div className="flex items-center gap-1 border-r border-gray-800 px-2.5">
+          <span className="text-[9px] text-gray-500">Pipeline</span>
+          <span className="text-[11px] font-semibold text-amber-400">{allPipeline.length}</span>
         </div>
         <div className="flex items-center gap-1 border-r border-gray-800 px-2.5">
           <span className="text-[9px] text-gray-500">{strings?.editorial.kpiPublished ?? 'Published'}</span>
@@ -208,27 +275,33 @@ export function EditorialTab({ data, strings, siteId, tagId, locale, supportedLo
         />
       </div>
 
-      {filtered.length === 0 && allPosts.length > 0 && (
+      {filteredPosts.length === 0 && filteredPipeline.length === 0 && (allPosts.length > 0 || allPipeline.length > 0) && (
         <p className="text-center text-[11px] text-gray-600 py-4">
-          {strings?.empty.noData ?? 'Nenhum post encontrado com os filtros atuais'}
+          {strings?.empty.noData ?? 'Nenhum item encontrado com os filtros atuais'}
         </p>
       )}
 
-      <SectionErrorBoundary sectionName="Kanban board">
-        <KanbanBoard
-          posts={filtered}
-          onMovePost={handleMovePost}
-          onDeletePost={handleDeletePost}
-          onReassignTag={handleReassignTag}
-          onAddLocale={handleAddLocale}
-          onRemoveLocale={handleRemoveLocale}
-          onDuplicate={handleDuplicate}
-          onCreateAndAssignTag={handleCreateAndAssignTag}
+      <SectionErrorBoundary sectionName="Unified board">
+        <UnifiedBoard
+          pipelineItems={filteredPipeline}
+          posts={filteredPosts}
           strings={strings}
           tags={tags}
           supportedLocales={supportedLocales}
-          siteTimezone={siteTimezone}
           defaultLocale={defaultLocale}
+          siteTimezone={siteTimezone}
+          siteId={siteId}
+          onMovePipelineItem={handleMovePipelineItem}
+          onReorderPipelineItem={handleReorderPipelineItem}
+          onMovePost={handleMovePost}
+          onDeletePost={handleDeletePost}
+          onDuplicate={handleDuplicate}
+          onPromote={handlePromote}
+          onReturnToPipeline={handleReturnToPipeline}
+          onBulkPublish={handleBulkPublish}
+          onBulkArchive={handleBulkArchive}
+          onBulkDelete={handleBulkDelete}
+          pipelineProvenanceMap={pipelineProvenanceMap}
         />
       </SectionErrorBoundary>
     </div>

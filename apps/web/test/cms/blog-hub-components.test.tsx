@@ -86,6 +86,16 @@ vi.mock('../../src/app/cms/(authed)/blog/actions', () => ({
   addLocale: vi.fn().mockResolvedValue({ ok: true }),
   removeTranslationLocale: vi.fn().mockResolvedValue({ ok: true }),
   duplicatePost: vi.fn().mockResolvedValue({ ok: true }),
+  createPostFromPipeline: vi.fn().mockResolvedValue({ ok: true, postId: 'new-post' }),
+  returnToPipeline: vi.fn().mockResolvedValue({ ok: true }),
+  bulkPublish: vi.fn().mockResolvedValue({ ok: true, count: 0 }),
+  bulkArchive: vi.fn().mockResolvedValue({ ok: true, count: 0 }),
+  bulkDelete: vi.fn().mockResolvedValue({ ok: true, count: 0 }),
+}))
+
+vi.mock('../../src/app/cms/(authed)/pipeline/actions', () => ({
+  movePipelineItemToStage: vi.fn().mockResolvedValue({ ok: true }),
+  reorderPipelineItem: vi.fn().mockResolvedValue({ ok: true }),
 }))
 
 vi.mock('../../src/app/cms/(authed)/blog/tag-actions', () => ({
@@ -570,15 +580,15 @@ describe('EditorialTab KPI bar', () => {
   }
 
   it('renders KPI metrics inline', () => {
-    render(<EditorialTab data={mockData} />)
-    expect(screen.getByText('12')).toBeTruthy() // totalPosts
+    render(<EditorialTab data={mockData} pipelineData={[]} siteId="site-1" />)
+    expect(screen.getByText('12')).toBeTruthy() // totalPosts (0 pipeline + 12 posts = 12 total)
     expect(screen.getByText('8')).toBeTruthy() // publishedCount
     expect(screen.getByText('4/mo')).toBeTruthy() // throughput
     expect(screen.getByText('12d')).toBeTruthy() // avgIdeaToPublished
   })
 
   it('renders "None" for bottleneck when null', () => {
-    render(<EditorialTab data={mockData} />)
+    render(<EditorialTab data={mockData} pipelineData={[]} siteId="site-1" />)
     expect(screen.getByText('None')).toBeTruthy()
   })
 
@@ -587,7 +597,7 @@ describe('EditorialTab KPI bar', () => {
       ...mockData,
       velocity: { ...mockData.velocity, avgIdeaToPublished: 0 },
     }
-    render(<EditorialTab data={dataWithZeroAvg} />)
+    render(<EditorialTab data={dataWithZeroAvg} pipelineData={[]} siteId="site-1" />)
     expect(screen.getByText('—')).toBeTruthy()
   })
 
@@ -596,7 +606,7 @@ describe('EditorialTab KPI bar', () => {
       ...mockData,
       velocity: { ...mockData.velocity, bottleneck: { column: 'Review', avgDays: 5 } },
     }
-    render(<EditorialTab data={dataWithBottleneck} />)
+    render(<EditorialTab data={dataWithBottleneck} pipelineData={[]} siteId="site-1" />)
     expect(screen.getByText('Review')).toBeTruthy()
   })
 })
