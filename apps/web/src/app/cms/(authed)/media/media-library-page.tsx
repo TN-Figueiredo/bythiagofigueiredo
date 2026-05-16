@@ -1,0 +1,458 @@
+'use client'
+
+import { useReducer, useEffect, useCallback, useRef, useState, useTransition } from 'react'
+import { mediaLibraryReducer, initialState } from './media-library-reducer'
+import {
+  listMediaAssetsWithUsageAction,
+  getMediaStatsAction,
+  getAssetUsagesAction,
+  softDeleteMediaAssetAction,
+  bulkDeleteMediaAssetsAction,
+  updateMediaAssetAction,
+} from './actions'
+import { getMediaGalleryStrings } from '../_shared/media/_i18n/types'
+import type { MediaAssetResult } from '../_shared/media/types'
+import type { EnrichedMediaAsset } from '../_shared/media/types'
+import type { MediaStats } from '@/lib/media/queries'
+import type { MediaFolder } from '@/lib/media/types'
+
+import { StorageBar } from './_components/storage-bar'
+import { MediaToolbar } from './_components/media-toolbar'
+import { MediaGrid } from './_components/media-grid'
+import { MediaList } from './_components/media-list'
+import { SkeletonGrid } from './_components/skeleton-grid'
+import { EmptyState } from './_components/empty-state'
+import { DetailPanel } from './_components/detail-panel'
+import { MediaLightbox } from './_components/media-lightbox'
+import { BulkActionBar } from './_components/bulk-action-bar'
+import { ContextMenu } from './_components/context-menu'
+import { DeleteConfirmModal } from './_components/delete-confirm-modal'
+import { DropOverlay } from './_components/drop-overlay'
+import { MediaUploadTab } from '../_shared/media/media-upload-tab'
+
+interface Props {
+  locale: 'en' | 'pt-BR'
+  siteId: string
+}
+
+export function MediaLibraryPage({ locale, siteId }: Props) {
+  const t = getMediaGalleryStrings(locale)
+  const [state, dispatch] = useReducer(mediaLibraryReducer, undefined, initialState)
+  const [, startTransition] = useTransition()
+
+  const [items, setItems] = useState<EnrichedMediaAsset[]>([])
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [stats, setStats] = useState<MediaStats | null>(null)
+  const [usages, setUsages] = useState<Array<{ resourceType: string; resourceId: string; fieldName: string }>>([])
+  const [showUpload, setShowUpload] = useState(false)
+  const [deleteModal, setDeleteModal] = useState<{ ids: string[]; usageCount: number } | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ id: string; x: number; y: number } | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const lastCheckRef = useRef<string | null>(null)
+
+  const sortItems = useCallback((arr: EnrichedMediaAsset[]): EnrichedMediaAsset[] => {
+    const sorted = [...arr]
+    switch (state.sort) {
+      case 'newest': sorted.sort((a, b) => b.asset.createdAt.localeCompare(a.asset.createdAt)); break
+      case 'oldest': sorted.sort((a, b) => a.asset.createdAt.localeCompare(b.asset.createdAt)); break
+      case 'largest': sorted.sort((a, b) => b.asset.fileSize - a.asset.fileSize); break
+      case 'smallest': sorted.sort((a, b) => a.asset.fileSize - b.asset.fileSize); break
+      case 'name': sorted.sort((a, b) => a.asset.filename.localeCompare(b.asset.filename)); break
+    }
+    return sorted
+  }, [state.sort])
+
+  const fetchAssets = useCallback(
+    async (cursor?: string) => {
+      dispatch({ type: 'SET_LOADING', loading: true })
+
+      const result = await listMediaAssetsWithUsageAction({
+        search: state.search || undefined,
+        cursor,
+        limit: 24,
+      })
+
+      if (result.ok) {
+        const enriched: EnrichedMediaAsset[] = result.assets.map((a) => ({
+          asset: a.asset,
+          type: a.type,
+          usageCount: a.usageCount,
+          primaryFieldName: a.primaryFieldName,
+        }))
+
+        if (cursor) {
+          setItems((prev) => sortItems([...prev, ...enriched]))
+        } else {
+          setItems(sortItems(enriched))
+        }
+        setNextCursor(result.nextCursor)
+      }
+      dispatch({ type: 'SET_LOADING', loading: false })
+    },
+    [state.search, sortItems],
+  )
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      setItems([])
+      setNextCursor(null)
+      fetchAssets()
+    }, 300)
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  }, [fetchAssets])
+
+  useEffect(() => {
+    getMediaStatsAction().then((res) => {
+      if (res.ok) setStats(res.stats)
+    }).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (!state.selectedId) { setUsages([]); return }
+    getAssetUsagesAction(state.selectedId).then((res) => {
+      if (res.ok) setUsages(res.usages)
+    }).catch(() => {})
+  }, [state.selectedId])
+
+  const filterCounts = {
+    all: items.length,
+    cover: items.filter((i) => i.type === 'cover').length,
+    inline: items.filter((i) => i.type === 'inline').length,
+    avatar: items.filter((i) => i.type === 'avatar').length,
+    og: items.filter((i) => i.type === 'og').length,
+    orphan: items.filter((i) => i.type === 'orphan').length,
+  }
+
+  const filteredItems = state.filter === 'all' ? items : items.filter((i) => i.type === state.filter)
+  const selectedAsset = items.find((i) => i.asset.id === state.selectedId)?.asset ?? null
+
+  const handleSelect = useCallback((id: string) => {
+    dispatch({ type: 'SELECT_ITEM', id })
+  }, [])
+
+  const handleCheck = useCallback((id: string, shiftKey: boolean) => {
+    if (shiftKey && lastCheckRef.current) {
+      const ids = filteredItems.map((i) => i.asset.id)
+      const start = ids.indexOf(lastCheckRef.current)
+      const end = ids.indexOf(id)
+      if (start !== -1 && end !== -1) {
+        const range = ids.slice(Math.min(start, end), Math.max(start, end) + 1)
+        dispatch({ type: 'CHECK_RANGE', ids: range })
+        lastCheckRef.current = id
+        return
+      }
+    }
+    dispatch({ type: 'TOGGLE_CHECK', id })
+    lastCheckRef.current = id
+  }, [filteredItems])
+
+  const handleQuickAction = useCallback((id: string, action: string) => {
+    const asset = items.find((i) => i.asset.id === id)?.asset
+    if (!asset) return
+
+    switch (action) {
+      case 'preview':
+        dispatch({ type: 'OPEN_LIGHTBOX', id })
+        break
+      case 'download':
+        window.open(asset.blobUrl, '_blank')
+        break
+      case 'copy-url':
+        navigator.clipboard.writeText(asset.blobUrl).catch(() => {})
+        break
+      case 'delete':
+        setDeleteModal({ ids: [id], usageCount: 0 })
+        break
+    }
+  }, [items])
+
+  const handleContextAction = useCallback((action: string) => {
+    if (!contextMenu) return
+    handleQuickAction(contextMenu.id, action)
+    if (action === 'edit-alt') {
+      dispatch({ type: 'SELECT_ITEM', id: contextMenu.id })
+    }
+  }, [contextMenu, handleQuickAction])
+
+  const handleUpdateAsset = useCallback(
+    (assetId: string, updates: { altText?: string; tags?: string[]; folder?: string }) => {
+      startTransition(async () => {
+        await updateMediaAssetAction(assetId, {
+          altText: updates.altText,
+          tags: updates.tags,
+          folder: updates.folder as MediaFolder | undefined,
+        })
+        fetchAssets()
+      })
+    },
+    [fetchAssets],
+  )
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!deleteModal) return
+    if (deleteModal.ids.length === 1) {
+      await softDeleteMediaAssetAction(deleteModal.ids[0]!)
+    } else {
+      await bulkDeleteMediaAssetsAction(deleteModal.ids)
+    }
+    setDeleteModal(null)
+    dispatch({ type: 'UNCHECK_ALL' })
+    fetchAssets()
+    getMediaStatsAction().then((res) => { if (res.ok) setStats(res.stats) }).catch(() => {})
+  }, [deleteModal, fetchAssets])
+
+  const handleBulkDelete = useCallback(() => {
+    setDeleteModal({ ids: [...state.checked], usageCount: 0 })
+  }, [state.checked])
+
+  const handleBulkDownload = useCallback(() => {
+    for (const id of state.checked) {
+      const asset = items.find((i) => i.asset.id === id)?.asset
+      if (asset) window.open(asset.blobUrl, '_blank')
+    }
+  }, [state.checked, items])
+
+  const handleUploadComplete = useCallback((_asset: MediaAssetResult) => {
+    setShowUpload(false)
+    setItems([])
+    setNextCursor(null)
+    fetchAssets()
+    getMediaStatsAction().then((res) => { if (res.ok) setStats(res.stats) }).catch(() => {})
+  }, [fetchAssets])
+
+  const lightboxAsset = state.lightboxId ? items.find((i) => i.asset.id === state.lightboxId)?.asset ?? null : null
+  const lightboxIndex = state.lightboxId ? filteredItems.findIndex((i) => i.asset.id === state.lightboxId) : -1
+
+  const handleLightboxPrev = useCallback(() => {
+    if (lightboxIndex > 0) {
+      dispatch({ type: 'OPEN_LIGHTBOX', id: filteredItems[lightboxIndex - 1]!.asset.id })
+    }
+  }, [lightboxIndex, filteredItems])
+
+  const handleLightboxNext = useCallback(() => {
+    if (lightboxIndex < filteredItems.length - 1) {
+      dispatch({ type: 'OPEN_LIGHTBOX', id: filteredItems[lightboxIndex + 1]!.asset.id })
+    }
+  }, [lightboxIndex, filteredItems])
+
+  const [focusedIndex, setFocusedIndex] = useState(-1)
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return
+
+      if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        document.querySelector<HTMLInputElement>('[data-testid="media-search"]')?.focus()
+      }
+      if (e.key === 'Escape') {
+        if (state.lightboxId) dispatch({ type: 'CLOSE_LIGHTBOX' })
+        else if (state.selectedId) dispatch({ type: 'SELECT_ITEM', id: state.selectedId })
+        else if (state.search) dispatch({ type: 'SET_SEARCH', search: '' })
+      }
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (state.checked.size > 0) handleBulkDelete()
+      }
+
+      const cols = state.view === 'list' ? 1 : state.cols
+      if (e.key === 'ArrowRight' && focusedIndex < filteredItems.length - 1) {
+        e.preventDefault(); setFocusedIndex((i) => Math.min(i + 1, filteredItems.length - 1))
+      }
+      if (e.key === 'ArrowLeft' && focusedIndex > 0) {
+        e.preventDefault(); setFocusedIndex((i) => Math.max(i - 1, 0))
+      }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault(); setFocusedIndex((i) => Math.min(i + cols, filteredItems.length - 1))
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault(); setFocusedIndex((i) => Math.max(i - cols, 0))
+      }
+      if (e.key === 'Enter' && focusedIndex >= 0 && focusedIndex < filteredItems.length) {
+        dispatch({ type: 'SELECT_ITEM', id: filteredItems[focusedIndex]!.asset.id })
+      }
+      if (e.key === ' ' && focusedIndex >= 0 && focusedIndex < filteredItems.length) {
+        e.preventDefault()
+        dispatch({ type: 'TOGGLE_CHECK', id: filteredItems[focusedIndex]!.asset.id })
+      }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [state.lightboxId, state.selectedId, state.search, state.checked.size, state.view, state.cols, handleBulkDelete, focusedIndex, filteredItems])
+
+  useEffect(() => {
+    const handleDragOver = (e: DragEvent) => { e.preventDefault(); setIsDragging(true) }
+    const handleDragLeave = () => setIsDragging(false)
+    const handleDrop = (e: DragEvent) => { e.preventDefault(); setIsDragging(false); setShowUpload(true) }
+
+    document.addEventListener('dragover', handleDragOver)
+    document.addEventListener('dragleave', handleDragLeave)
+    document.addEventListener('drop', handleDrop)
+    return () => {
+      document.removeEventListener('dragover', handleDragOver)
+      document.removeEventListener('dragleave', handleDragLeave)
+      document.removeEventListener('drop', handleDrop)
+    }
+  }, [])
+
+  return (
+    <div className="flex flex-col gap-4 px-6 py-4 motion-reduce:*:!transition-none motion-reduce:*:!animate-none">
+      <div aria-live="polite" className="sr-only" id="media-announcements" />
+
+      {showUpload && (
+        <div className="rounded-lg border border-cms-border bg-cms-surface p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-cms-text">{t.tabs.upload}</h3>
+            <button
+              type="button"
+              onClick={() => setShowUpload(false)}
+              className="text-xs text-cms-text-muted hover:text-cms-text"
+            >
+              {t.modal.close}
+            </button>
+          </div>
+          <MediaUploadTab
+            onSelect={handleUploadComplete}
+            locale={locale}
+            siteId={siteId}
+          />
+        </div>
+      )}
+
+      {stats && (
+        <StorageBar
+          folderBreakdown={stats.folderBreakdown}
+          totalSizeBytes={stats.totalSizeBytes}
+          orphanCount={stats.orphanCount}
+          t={t}
+        />
+      )}
+
+      <MediaToolbar
+        filter={state.filter}
+        search={state.search}
+        sort={state.sort}
+        view={state.view}
+        cols={state.cols}
+        resultCount={filteredItems.length}
+        totalCount={items.length}
+        checkedCount={state.checked.size}
+        filterCounts={filterCounts}
+        onFilterChange={(f) => dispatch({ type: 'SET_FILTER', filter: f })}
+        onSearchChange={(s) => dispatch({ type: 'SET_SEARCH', search: s })}
+        onSortChange={(s) => dispatch({ type: 'SET_SORT', sort: s })}
+        onViewChange={(v) => dispatch({ type: 'SET_VIEW', view: v })}
+        onColsChange={(c) => dispatch({ type: 'SET_COLS', cols: c })}
+        onSelectAll={() => dispatch({ type: 'CHECK_ALL', ids: filteredItems.map((i) => i.asset.id) })}
+        onDeselectAll={() => dispatch({ type: 'UNCHECK_ALL' })}
+        t={t}
+      />
+
+      {!showUpload && (
+        <button
+          type="button"
+          onClick={() => setShowUpload(true)}
+          className="self-start rounded-md bg-cms-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-cms-accent/90"
+        >
+          {t.tabs.upload}
+        </button>
+      )}
+
+      <div className={`flex-1 ${state.selectedId ? 'mr-[396px]' : ''} transition-all duration-300`}>
+        {state.isLoading && items.length === 0 ? (
+          <SkeletonGrid cols={state.cols} />
+        ) : filteredItems.length === 0 ? (
+          <EmptyState filter={state.filter} searchQuery={state.search} t={t} />
+        ) : state.view === 'grid' ? (
+          <MediaGrid
+            items={filteredItems}
+            checked={state.checked}
+            selectedId={state.selectedId}
+            cols={state.cols}
+            searchQuery={state.search}
+            onSelect={handleSelect}
+            onCheck={handleCheck}
+            onQuickAction={handleQuickAction}
+            onContextMenu={(id, x, y) => setContextMenu({ id, x, y })}
+          />
+        ) : (
+          <MediaList
+            items={filteredItems}
+            checked={state.checked}
+            selectedId={state.selectedId}
+            onSelect={handleSelect}
+            onCheck={handleCheck}
+          />
+        )}
+
+        {nextCursor && !state.isLoading && (
+          <div className="flex justify-center py-4">
+            <button
+              type="button"
+              onClick={() => fetchAssets(nextCursor)}
+              className="rounded-md border border-cms-border px-4 py-2 text-sm text-cms-text-muted hover:bg-cms-surface-hover"
+            >
+              {t.library.loadMore}
+            </button>
+          </div>
+        )}
+      </div>
+
+      <DetailPanel
+        asset={selectedAsset}
+        tab={state.detailTab}
+        usages={usages}
+        onTabChange={(tab) => dispatch({ type: 'SET_DETAIL_TAB', tab })}
+        onClose={() => state.selectedId && dispatch({ type: 'SELECT_ITEM', id: state.selectedId })}
+        onUpdateAsset={handleUpdateAsset}
+        onCopyUrl={(url) => navigator.clipboard.writeText(url).catch(() => {})}
+        onReplace={() => setShowUpload(true)}
+        onDelete={(id) => setDeleteModal({ ids: [id], usageCount: usages.length })}
+        onOpenLightbox={(id) => dispatch({ type: 'OPEN_LIGHTBOX', id })}
+        t={t}
+      />
+
+      <BulkActionBar
+        count={state.checked.size}
+        onDeselect={() => dispatch({ type: 'UNCHECK_ALL' })}
+        onDownload={handleBulkDownload}
+        onDelete={handleBulkDelete}
+        t={t}
+      />
+
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          assetId={contextMenu.id}
+          onAction={handleContextAction}
+          onClose={() => setContextMenu(null)}
+          t={t}
+        />
+      )}
+
+      <DeleteConfirmModal
+        open={deleteModal !== null}
+        count={deleteModal?.ids.length ?? 0}
+        usageCount={deleteModal?.usageCount ?? 0}
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setDeleteModal(null)}
+        t={t}
+      />
+
+      <MediaLightbox
+        asset={lightboxAsset}
+        currentIndex={lightboxIndex}
+        totalCount={filteredItems.length}
+        onPrev={handleLightboxPrev}
+        onNext={handleLightboxNext}
+        onClose={() => dispatch({ type: 'CLOSE_LIGHTBOX' })}
+        t={t}
+      />
+
+      <DropOverlay active={isDragging} t={t} />
+    </div>
+  )
+}

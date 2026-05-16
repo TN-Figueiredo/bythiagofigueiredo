@@ -1,11 +1,17 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import Image from 'next/image'
 import { listMediaAssetsAction } from '../../media/actions'
-import type { CropPreset, MediaAssetResult } from './types'
+import { MediaCard } from '../../media/_components/media-card'
+import type { CropPreset, MediaAssetResult, MediaAssetType } from './types'
 import { getMediaGalleryStrings } from './_i18n/types'
 import type { MediaAsset, MediaFolder } from '@/lib/media/types'
+
+function folderToType(folder: MediaFolder): MediaAssetType {
+  if (folder === 'authors') return 'avatar'
+  if (folder === 'og') return 'og'
+  return 'inline'
+}
 
 interface LibraryTabProps {
   onSelect: (asset: MediaAssetResult) => void
@@ -122,39 +128,31 @@ export function MediaLibraryTab({ onSelect, folder, cropPreset, locale }: Librar
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {assets.map((asset) => (
-            <button
+            <div
               key={asset.id}
-              type="button"
-              onClick={() => setSelectedId(selectedId === asset.id ? null : asset.id)}
               onDoubleClick={() => handleSelectAsset(asset)}
-              className={`group relative aspect-square overflow-hidden rounded-lg border-2 transition-all ${
-                selectedId === asset.id
-                  ? 'border-indigo-500 ring-2 ring-indigo-500'
-                  : 'border-[#374151] hover:border-[#4b5563]'
-              }`}
-              data-testid={`media-thumb-${asset.id}`}
+              className="relative"
             >
-              {asset.mimeType === 'image/svg+xml' ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={asset.blobUrl} alt={asset.altText ?? ''} className="h-full w-full object-cover" />
-              ) : (
-                <Image
-                  src={asset.blobUrl}
-                  alt={asset.altText ?? ''}
-                  fill
-                  sizes="150px"
-                  className="object-cover"
-                />
-              )}
+              <MediaCard
+                item={asset}
+                type={folderToType(asset.folder)}
+                checked={false}
+                selected={selectedId === asset.id}
+                onSelect={(id) => setSelectedId(selectedId === id ? null : id)}
+                onCheck={() => undefined}
+                onQuickAction={() => undefined}
+                compact
+                data-testid={`media-thumb-${asset.id}`}
+              />
               {isTooSmall(asset) && (
                 <span
-                  className="absolute right-1 top-1 rounded bg-amber-500/80 px-1 py-0.5 text-[10px] font-medium text-black"
+                  className="pointer-events-none absolute right-1 top-1 z-10 rounded bg-amber-500/80 px-1 py-0.5 text-[10px] font-medium text-black"
                   title={t.dimensions.tooSmall}
                 >
                   !
                 </span>
               )}
-            </button>
+            </div>
           ))}
         </div>
       )}

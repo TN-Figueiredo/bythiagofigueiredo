@@ -17,6 +17,7 @@ interface MediaCardProps {
   onQuickAction: (id: string, action: QuickAction) => void
   searchQuery?: string
   compact?: boolean
+  'data-testid'?: string
 }
 
 function formatBytes(bytes: number): string {
@@ -55,6 +56,7 @@ export function MediaCard({
   onQuickAction,
   searchQuery,
   compact,
+  'data-testid': dataTestId,
 }: MediaCardProps) {
   const colors = TYPE_COLORS[type]
   const isSvg = item.mimeType === 'image/svg+xml'
@@ -80,7 +82,7 @@ export function MediaCard({
 
   return (
     <div
-      data-testid={`media-card-${item.id}`}
+      data-testid={dataTestId ?? `media-card-${item.id}`}
       data-checked={checked}
       onClick={handleClick}
       className={`
@@ -111,22 +113,24 @@ export function MediaCard({
           />
         )}
 
-        {/* Checkbox */}
-        <div
-          onClick={handleCheckbox}
-          className={`
-            absolute left-2 top-2 z-10 flex h-5 w-5 items-center justify-center rounded border transition-all
-            ${checked
-              ? 'border-cms-accent bg-cms-accent text-white'
-              : 'border-white/40 bg-black/30 opacity-0 group-hover:opacity-100'}
-          `}
-        >
-          {checked && (
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          )}
-        </div>
+        {/* Checkbox — hidden in compact mode */}
+        {!compact && (
+          <div
+            onClick={handleCheckbox}
+            className={`
+              absolute left-2 top-2 z-10 flex h-5 w-5 items-center justify-center rounded border transition-all
+              ${checked
+                ? 'border-cms-accent bg-cms-accent text-white'
+                : 'border-white/40 bg-black/30 opacity-0 group-hover:opacity-100'}
+            `}
+          >
+            {checked && (
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
+          </div>
+        )}
 
         {/* Hover overlay with quick actions */}
         {!compact && (
@@ -154,31 +158,33 @@ export function MediaCard({
         )}
       </div>
 
-      {/* Info section */}
-      <div className="flex flex-col gap-1 px-3 py-2">
-        <div className="flex items-center gap-1.5">
-          <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${colors.badge}`}>
-            {colors.label}
-          </span>
-          {isNewAsset(item.createdAt) && (
-            <span className="inline-flex items-center rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-400">
-              NEW
+      {/* Info section — hidden in compact mode (gallery modal has its own details bar) */}
+      {!compact && (
+        <div className="flex flex-col gap-1 px-3 py-2">
+          <div className="flex items-center gap-1.5">
+            <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${colors.badge}`}>
+              {colors.label}
             </span>
-          )}
+            {isNewAsset(item.createdAt) && (
+              <span className="inline-flex items-center rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-400">
+                NEW
+              </span>
+            )}
+          </div>
+          <p className="truncate text-sm font-medium text-cms-text">
+            {highlightMatch(item.filename, searchQuery)}
+          </p>
+          <div className="flex items-center gap-2 text-xs text-cms-text-muted">
+            {item.width && item.height ? (
+              <span>{item.width} × {item.height}</span>
+            ) : (
+              <span>SVG</span>
+            )}
+            <span>·</span>
+            <span>{formatBytes(item.fileSize)}</span>
+          </div>
         </div>
-        <p className="truncate text-sm font-medium text-cms-text">
-          {highlightMatch(item.filename, searchQuery)}
-        </p>
-        <div className="flex items-center gap-2 text-xs text-cms-text-muted">
-          {item.width && item.height ? (
-            <span>{item.width} × {item.height}</span>
-          ) : (
-            <span>SVG</span>
-          )}
-          <span>·</span>
-          <span>{formatBytes(item.fileSize)}</span>
-        </div>
-      </div>
+      )}
 
       {/* Orphan pulse effect */}
       {type === 'orphan' && (
