@@ -3,7 +3,7 @@ import { z } from 'zod'
 export const ResourceType = z.enum(['blog', 'campaign', 'newsletter_archive'])
 export type ResourceType = z.infer<typeof ResourceType>
 
-export const EventType = z.enum(['view', 'read_progress', 'read_complete'])
+export const EventType = z.enum(['view', 'read_progress', 'read_complete', 'link_click'])
 export type EventType = z.infer<typeof EventType>
 
 export const ReferrerSrc = z.enum(['direct', 'google', 'newsletter', 'social', 'other'])
@@ -20,6 +20,8 @@ export const TrackingEventSchema = z.object({
   referrerSrc: ReferrerSrc.optional(),
   readDepth: z.number().int().min(0).max(100).optional(),
   timeOnPage: z.number().int().min(0).max(3600).optional(),
+  destUrl: z.string().optional(),
+  linkType: z.enum(['internal', 'external', 'shortlink']).optional(),
   hasConsent: z.boolean(),
 })
 

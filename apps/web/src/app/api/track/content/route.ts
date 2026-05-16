@@ -76,6 +76,8 @@ export async function POST(request: Request): Promise<Response> {
     referrer_src: e.referrerSrc ?? null,
     read_depth: e.readDepth ?? null,
     time_on_page: e.timeOnPage ?? null,
+    dest_url: e.destUrl ?? null,
+    link_type: e.linkType ?? null,
     has_consent: e.hasConsent,
     user_agent: e.hasConsent ? userAgent : null,
     country: geo.country,

@@ -12,6 +12,7 @@ import {
   type TocEntry,
 } from '@/components/blog'
 import { useContentTracking } from '@/lib/tracking/use-content-tracking'
+import { useLinkTracking } from '@/lib/tracking/use-link-tracking'
 import { slugify } from '@/lib/blog/slugify'
 import { ptBR } from '@/components/blog/_i18n/pt-BR'
 import { en } from '@/components/blog/_i18n/en'
@@ -39,9 +40,14 @@ export function BlogArticleClient({ children, sections, readingTimeMin, slug, lo
     locale,
     isPreview: typeof window !== 'undefined' && (window.location.pathname.includes('/cms/') || new URLSearchParams(window.location.search).has('preview')),
   })
+  const bodyRef = useRef<HTMLDivElement>(null)
+  useLinkTracking(bodyRef, {
+    siteId,
+    resourceId: postId,
+    siteOrigin: typeof window !== 'undefined' ? window.location.origin : '',
+  })
   const [aiDrawerOpen, setAiDrawerOpen] = useState(false)
   const [mobileTocOpen, setMobileTocOpen] = useState(false)
-  const bodyRef = useRef<HTMLDivElement>(null)
   const [adPortalTarget, setAdPortalTarget] = useState<HTMLElement | null>(null)
 
   useEffect(() => {
