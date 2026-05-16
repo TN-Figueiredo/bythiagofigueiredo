@@ -91,3 +91,46 @@ export interface ScheduleTabData {
   cadenceConfigs: BlogCadenceConfig[]
   readyPosts: ReadyPost[]
 }
+
+export type LaneId = 'idea' | 'draft' | 'ready' | 'editing' | 'scheduled' | 'published'
+
+export interface PipelineCardItem {
+  id: string
+  code: string
+  title_pt: string | null
+  title_en: string | null
+  format: string
+  stage: string
+  language: string
+  priority: number
+  hook: string | null
+  body_content: string | null
+  tags: string[]
+  production_checklist: Array<{ label: string; done: boolean }>
+  updated_at: string
+  created_at: string
+  blog_post_id: string | null
+  cover_image_url: string | null
+  validation_score: number
+  dependencies: Array<{ dependency_type: string; depends_on_pipeline: { code: string } }>
+  collection_code: string | null
+  sort_order: number
+  version: number
+  is_archived: boolean
+}
+
+export interface UnifiedLanes {
+  idea: PipelineCardItem[]
+  draft: PipelineCardItem[]
+  ready: PipelineCardItem[]
+  editing: PostCard[]
+  scheduled: PostCard[]
+  published: PostCard[]
+}
+
+export interface LaneDef {
+  id: LaneId
+  label: string
+  color: string
+  dataSource: 'pipeline' | 'blog'
+}
