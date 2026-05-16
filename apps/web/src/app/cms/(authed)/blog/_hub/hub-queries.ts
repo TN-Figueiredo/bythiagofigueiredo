@@ -2,6 +2,7 @@ import { unstable_cache } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { toDateStringInTz } from '@/lib/cms/format-site-datetime'
 import type { BlogHubSharedData, BlogTag, PostCard, EditorialTabData, ScheduleTabData, ScheduleSlot, BlogCadenceConfig, ReadyPost } from './hub-types'
+import type { PipelineCardItem } from './hub-types'
 import { computeDisplayId } from './hub-utils'
 import { generateSlots } from '@tn-figueiredo/newsletter'
 
@@ -335,4 +336,56 @@ export const fetchScheduleData = unstable_cache(
   },
   ['blog-schedule'],
   { tags: ['blog-hub', 'blog-hub-schedule'], revalidate: 60 },
+)
+
+export const fetchPipelineData = unstable_cache(
+  async (siteId: string): Promise<PipelineCardItem[]> => {
+    const supabase = getSupabaseServiceClient()
+    const { data } = await supabase
+      .from('content_pipeline')
+      .select(`
+        id, code, title_pt, title_en, format, stage, language, priority,
+        hook, body_content, tags, production_checklist, updated_at, created_at,
+        blog_post_id, cover_image_url, validation_score, sort_order, version,
+        is_archived, collection_code,
+        dependencies:pipeline_dependencies(
+          dependency_type,
+          depends_on_pipeline:content_pipeline!pipeline_dependencies_depends_on_id_fkey(code)
+        )
+      `)
+      .eq('site_id', siteId)
+      .eq('format', 'blog_post')
+      .eq('is_archived', false)
+      .is('blog_post_id', null)
+      .in('stage', ['idea', 'draft', 'ready'])
+      .order('priority', { ascending: false })
+      .order('created_at', { ascending: true })
+
+    return (data ?? []).map((item) => ({
+      id: item.id as string,
+      code: item.code as string,
+      title_pt: item.title_pt as string | null,
+      title_en: item.title_en as string | null,
+      format: item.format as string,
+      stage: item.stage as string,
+      language: item.language as string,
+      priority: item.priority as number,
+      hook: item.hook as string | null,
+      body_content: item.body_content as string | null,
+      tags: (item.tags ?? []) as string[],
+      production_checklist: (item.production_checklist ?? []) as Array<{ label: string; done: boolean }>,
+      updated_at: item.updated_at as string,
+      created_at: item.created_at as string,
+      blog_post_id: null,
+      cover_image_url: (item as Record<string, unknown>).cover_image_url as string | null,
+      validation_score: (item as Record<string, unknown>).validation_score as number ?? 0,
+      dependencies: ((item as Record<string, unknown>).dependencies ?? []) as PipelineCardItem['dependencies'],
+      collection_code: (item as Record<string, unknown>).collection_code as string | null,
+      sort_order: (item as Record<string, unknown>).sort_order as number ?? 0,
+      version: (item.version ?? 1) as number,
+      is_archived: false,
+    }))
+  },
+  ['pipeline-blog'],
+  { tags: ['pipeline-blog'], revalidate: 60 },
 )
