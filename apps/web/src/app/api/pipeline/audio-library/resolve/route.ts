@@ -24,7 +24,8 @@ export async function POST(req: NextRequest) {
   let result
   try {
     result = await resolveAudio(supabase, auth.siteId, parsed.data)
-  } catch {
+  } catch (err) {
+    console.error('[audio-resolve] error:', err)
     return NextResponse.json({ error: { code: 'DB_ERROR', message: 'Internal server error' } }, { status: 500 })
   }
 

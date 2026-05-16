@@ -73,6 +73,7 @@ export async function POST(req: NextRequest) {
         .upsert(batch, { onConflict: 'site_id,asset_id' })
 
       if (error) {
+        console.error('[audio-import] batch upsert error:', error)
         errorCount += batch.length
         for (const row of batch) {
           errors.push({ asset_id: (row.asset_id as string) ?? 'unknown', error: 'Batch upsert failed' })

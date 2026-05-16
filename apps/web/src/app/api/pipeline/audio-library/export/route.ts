@@ -12,6 +12,7 @@ export async function GET(req: NextRequest) {
 
   const supabase = getSupabaseServiceClient()
   const PAGE_SIZE = 1000
+  const MAX_EXPORT_ROWS = 50_000
   const allAssets: AudioAssetRow[] = []
   let offset = 0
 
@@ -24,9 +25,10 @@ export async function GET(req: NextRequest) {
       .order('created_at', { ascending: false })
       .range(offset, offset + PAGE_SIZE - 1)
 
-    if (error) return NextResponse.json({ error: { code: 'DB_ERROR', message: 'Internal server error' } }, { status: 500 })
+    if (error) { console.error('[audio-export] DB error:', error); return NextResponse.json({ error: { code: 'DB_ERROR', message: 'Internal server error' } }, { status: 500 }) }
     const rows = (data ?? []) as AudioAssetRow[]
     allAssets.push(...rows)
+    if (allAssets.length >= MAX_EXPORT_ROWS) break
     if (rows.length < PAGE_SIZE) break
     offset += PAGE_SIZE
   }
