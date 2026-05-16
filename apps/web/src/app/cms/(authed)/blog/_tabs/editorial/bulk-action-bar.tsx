@@ -1,0 +1,114 @@
+'use client'
+
+import { X } from 'lucide-react'
+import type { BlogHubStrings } from '../../_i18n/types'
+
+interface BulkActionBarProps {
+  count: number
+  cardType: 'pipeline' | 'post'
+  strings?: BlogHubStrings
+  onMoveToStage?: (stage: string) => void
+  onPromoteAll?: () => void
+  onPublishAll?: () => void
+  onArchiveAll?: () => void
+  onDeleteAll?: () => void
+  onClear: () => void
+  allInReady?: boolean
+}
+
+export function BulkActionBar({
+  count,
+  cardType,
+  strings,
+  onMoveToStage,
+  onPromoteAll,
+  onPublishAll,
+  onArchiveAll,
+  onDeleteAll,
+  onClear,
+  allInReady,
+}: BulkActionBarProps) {
+  if (count === 0) return null
+
+  const s = strings?.bulk
+
+  return (
+    <div className="fixed bottom-6 left-1/2 z-40 -translate-x-1/2 flex items-center gap-2 rounded-xl border border-gray-700 bg-gray-900 px-4 py-2.5 shadow-2xl">
+      <span className="text-[12px] font-semibold text-gray-300">
+        {count} {s?.selected ?? 'selected'}
+      </span>
+
+      <div className="mx-2 h-4 w-px bg-gray-700" />
+
+      {cardType === 'pipeline' && (
+        <>
+          <button
+            onClick={() => onMoveToStage?.('idea')}
+            className="rounded-lg px-2.5 py-1 text-[11px] text-gray-300 hover:bg-gray-800"
+          >
+            Ideia
+          </button>
+          <button
+            onClick={() => onMoveToStage?.('draft')}
+            className="rounded-lg px-2.5 py-1 text-[11px] text-gray-300 hover:bg-gray-800"
+          >
+            Rascunho
+          </button>
+          <button
+            onClick={() => onMoveToStage?.('ready')}
+            className="rounded-lg px-2.5 py-1 text-[11px] text-gray-300 hover:bg-gray-800"
+          >
+            Pronto
+          </button>
+          {allInReady && (
+            <button
+              onClick={onPromoteAll}
+              className="rounded-lg bg-indigo-500/20 px-2.5 py-1 text-[11px] font-medium text-indigo-400 hover:bg-indigo-500/30"
+            >
+              {s?.promoteAll ?? 'Promote all'}
+            </button>
+          )}
+          <button
+            onClick={onArchiveAll}
+            className="rounded-lg px-2.5 py-1 text-[11px] text-gray-400 hover:bg-gray-800"
+          >
+            {s?.archiveAll ?? 'Archive'}
+          </button>
+        </>
+      )}
+
+      {cardType === 'post' && (
+        <>
+          <button
+            onClick={onPublishAll}
+            className="rounded-lg bg-emerald-500/20 px-2.5 py-1 text-[11px] font-medium text-emerald-400 hover:bg-emerald-500/30"
+          >
+            {s?.publishAll ?? 'Publish'}
+          </button>
+          <button
+            onClick={onArchiveAll}
+            className="rounded-lg px-2.5 py-1 text-[11px] text-gray-400 hover:bg-gray-800"
+          >
+            {s?.archiveAll ?? 'Archive'}
+          </button>
+          <button
+            onClick={onDeleteAll}
+            className="rounded-lg px-2.5 py-1 text-[11px] text-red-400 hover:bg-gray-800"
+          >
+            {s?.deleteAll ?? 'Delete'}
+          </button>
+        </>
+      )}
+
+      <div className="mx-1 h-4 w-px bg-gray-700" />
+
+      <button
+        onClick={onClear}
+        className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] text-gray-500 hover:text-gray-300"
+        aria-label={s?.clearSelection ?? 'Clear selection'}
+      >
+        <X className="h-3 w-3" />
+      </button>
+    </div>
+  )
+}
