@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import Link from 'next/link'
@@ -8,14 +8,8 @@ import Image from 'next/image'
 import { MoreVertical, ArrowRight, Copy, Trash2, Undo2, Calendar } from 'lucide-react'
 import type { PostCard as PostCardType } from '../../_hub/hub-types'
 import type { BlogHubStrings } from '../../_i18n/types'
-import { formatRelativeDate, getKanbanMoveTargets } from '../../_hub/hub-utils'
+import { formatRelativeDate, getKanbanMoveTargets, LOCALE_FLAGS } from '../../_hub/hub-utils'
 import { SUBSTATUS_BADGES } from '../../_hub/hub-utils'
-
-const LOCALE_FLAGS: Record<string, string> = {
-  'pt-BR': '\u{1F1E7}\u{1F1F7}',
-  en: '\u{1F1FA}\u{1F1F8}',
-  es: '\u{1F1EA}\u{1F1F8}',
-}
 
 const MOVE_TO_LABEL_MAP: Record<string, keyof BlogHubStrings['editorial']> = {
   idea: 'moveToIdea',
@@ -146,7 +140,7 @@ export const PostCard = memo(function PostCard({
     }
   }, [card.id, onSelect])
 
-  const moveTargets = getKanbanMoveTargets(card.status)
+  const moveTargets = useMemo(() => getKanbanMoveTargets(card.status), [card.status])
   const subBadge = showSubstatus ? SUBSTATUS_BADGES[card.status] : null
   const canReturn = pipelineCode && (card.status === 'idea' || card.status === 'draft')
 
@@ -189,7 +183,7 @@ export const PostCard = memo(function PostCard({
             e.stopPropagation()
             setMenuOpen((prev) => !prev)
           }}
-          className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity text-gray-500 hover:text-gray-300 flex items-center justify-center min-h-[44px] min-w-[44px] -mr-1"
+          className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 transition-opacity text-gray-500 hover:text-gray-300 flex items-center justify-center min-h-[44px] min-w-[44px] -mr-1"
           aria-label={`${strings?.editorial?.moreActions ?? 'More actions'} — ${displayTitle}`}
           aria-haspopup="menu"
           aria-expanded={menuOpen}
@@ -217,7 +211,7 @@ export const PostCard = memo(function PostCard({
         )}
         {card.locales.map((loc) => (
           <span key={loc} className="text-[9px] text-gray-500">
-            {LOCALE_FLAGS[loc] ?? loc}
+            <span aria-hidden="true">{LOCALE_FLAGS[loc] ?? ''}</span>
           </span>
         ))}
       </div>

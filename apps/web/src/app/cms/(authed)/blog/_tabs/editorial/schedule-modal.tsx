@@ -9,6 +9,7 @@ import {
   formatSchedulePreview,
 } from '@/lib/cms/format-site-datetime'
 import type { BlogHubStrings } from '../../_i18n/types'
+import { useFocusTrap } from './use-focus-trap'
 
 interface ScheduleModalProps {
   isOpen: boolean
@@ -63,28 +64,7 @@ export function ScheduleModal({ isOpen, postTitle, defaultDate, siteTimezone, on
     [onCancel],
   )
 
-  const handleTabKey = useCallback((e: React.KeyboardEvent) => {
-    if (e.key !== 'Tab') return
-    const dialog = dialogRef.current
-    if (!dialog) return
-    const focusable = dialog.querySelectorAll<HTMLElement>(
-      'a[href], input:not([disabled]), button:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    )
-    const first = focusable[0]
-    const last = focusable[focusable.length - 1]
-    if (!first || !last) return
-    if (e.shiftKey) {
-      if (document.activeElement === first) {
-        e.preventDefault()
-        last.focus()
-      }
-    } else {
-      if (document.activeElement === last) {
-        e.preventDefault()
-        first.focus()
-      }
-    }
-  }, [])
+  const handleTabKey = useFocusTrap(dialogRef)
 
   const handleConfirm = useCallback(() => {
     if (!date) {

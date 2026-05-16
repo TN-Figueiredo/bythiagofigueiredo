@@ -141,3 +141,10 @@ export function isPipelineLane(lane: LaneId): lane is 'idea' | 'draft' | 'ready'
 export function isBlogLane(lane: LaneId): lane is 'editing' | 'scheduled' | 'published' {
   return lane === 'editing' || lane === 'scheduled' || lane === 'published'
 }
+
+export const LOCALE_FLAGS: Record<string, string> = {
+  'pt-BR': '\u{1F1E7}\u{1F1F7}',
+  pt: '\u{1F1E7}\u{1F1F7}',
+  en: '\u{1F1FA}\u{1F1F8}',
+  es: '\u{1F1EA}\u{1F1F8}',
+}

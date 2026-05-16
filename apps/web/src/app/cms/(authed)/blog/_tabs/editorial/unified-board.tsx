@@ -155,17 +155,21 @@ export function UnifiedBoard({
     [optPosts],
   )
 
+  const itemLaneMap = useMemo(() => {
+    const map = new Map<string, LaneId>()
+    for (const [laneId, items] of Object.entries(lanes)) {
+      for (const item of items) {
+        map.set(item.id, laneId as LaneId)
+      }
+    }
+    return map
+  }, [lanes])
+
   const findItemLane = useCallback(
     (itemId: string): LaneId | null => {
-      for (const [laneId, items] of Object.entries(lanes)) {
-        if (items.some((i) => i.id === itemId)) {
-          const def = LANE_DEFS.find((l) => l.id === laneId)
-          if (def) return def.id
-        }
-      }
-      return null
+      return itemLaneMap.get(itemId) ?? null
     },
-    [lanes],
+    [itemLaneMap],
   )
 
   const resolveTargetLane = useCallback(
@@ -558,6 +562,7 @@ export function UnifiedBoard({
                     itemIds={itemIds}
                     emptyMessage={strings?.emptyLanes?.[lane.id]}
                     dropHereLabel={strings?.editorial?.dropHere ?? 'Drop here'}
+                    itemsLabel={strings?.common?.posts ?? 'items'}
                     emptyCta={
                       lane.id === 'idea' ? (
                         <span className="rounded bg-amber-500/20 px-2 py-1 text-[9px] text-amber-400">

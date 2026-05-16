@@ -29,17 +29,27 @@ export const BulkActionBar = memo(function BulkActionBar({
   onClear,
   allInReady,
 }: BulkActionBarProps) {
-  if (count === 0) return null
-
   const s = strings?.bulk
 
+  if (count === 0) {
+    return (
+      <span className="sr-only" aria-live="polite" aria-atomic="true">
+        {''}
+      </span>
+    )
+  }
+
   return (
+    <>
+    <span className="sr-only" aria-live="polite" aria-atomic="true">
+      {`${count} ${s?.selected ?? 'selected'}`}
+    </span>
     <div
       role="group"
       aria-label={`${count} ${s?.selected ?? 'selected'}`}
       className="fixed bottom-6 left-1/2 z-40 -translate-x-1/2 flex items-center gap-2 rounded-xl border border-gray-700 bg-gray-900 px-4 py-2.5 shadow-2xl"
     >
-      <span aria-live="polite" className="text-[12px] font-semibold text-gray-300">
+      <span className="text-[12px] font-semibold text-gray-300">
         {count} {s?.selected ?? 'selected'}
       </span>
 
@@ -123,5 +133,6 @@ export const BulkActionBar = memo(function BulkActionBar({
         <X className="h-3 w-3" />
       </button>
     </div>
+    </>
   )
 })

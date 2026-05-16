@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { todayInSiteTz, tomorrowInSiteTz, toISOInTimezone } from '@/lib/cms/format-site-datetime'
 import type { BlogHubStrings } from '../../_i18n/types'
+import { useFocusTrap } from './use-focus-trap'
 
 interface PromotionModalProps {
   isOpen: boolean
@@ -67,28 +68,7 @@ export function PromotionModal({
     [onCancel],
   )
 
-  const handleTabKey = useCallback((e: React.KeyboardEvent) => {
-    if (e.key !== 'Tab') return
-    const dialog = dialogRef.current
-    if (!dialog) return
-    const focusable = dialog.querySelectorAll<HTMLElement>(
-      'a[href], input:not([disabled]), button:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    )
-    const first = focusable[0]
-    const last = focusable[focusable.length - 1]
-    if (!first || !last) return
-    if (e.shiftKey) {
-      if (document.activeElement === first) {
-        e.preventDefault()
-        last.focus()
-      }
-    } else {
-      if (document.activeElement === last) {
-        e.preventDefault()
-        first.focus()
-      }
-    }
-  }, [])
+  const handleTabKey = useFocusTrap(dialogRef)
 
   const handleConfirm = useCallback(() => {
     if (scheduleEnabled) {
@@ -117,6 +97,7 @@ export function PromotionModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="promotion-modal-title"
+        aria-describedby="promotion-modal-desc"
         className="w-full max-w-sm rounded-xl border border-gray-700 bg-gray-900 p-5 shadow-xl"
         onKeyDown={handleTabKey}
       >
@@ -124,7 +105,7 @@ export function PromotionModal({
           {s?.title ?? 'Promote to Blog'}
         </h2>
 
-        <div className="mt-2 space-y-1 text-[12px]">
+        <div id="promotion-modal-desc" className="mt-2 space-y-1 text-[12px]">
           <p className="truncate text-gray-300">{itemTitle}</p>
           <p className="font-mono text-[10px] text-gray-500">{itemCode}</p>
         </div>

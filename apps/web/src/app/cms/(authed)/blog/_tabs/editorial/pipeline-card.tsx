@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { ArrowRightCircle } from 'lucide-react'
 import type { PipelineCardItem } from '../../_hub/hub-types'
 import type { BlogHubStrings } from '../../_i18n/types'
+import { LOCALE_FLAGS } from '../../_hub/hub-utils'
 
 const PRIORITY_COLORS: Record<number, string> = {
   5: 'bg-red-500',
@@ -14,12 +15,6 @@ const PRIORITY_COLORS: Record<number, string> = {
   3: 'bg-amber-500',
   2: 'bg-sky-500',
   1: 'bg-gray-500',
-}
-
-const LANG_FLAGS: Record<string, string> = {
-  pt: '\u{1F1E7}\u{1F1F7}',
-  en: '\u{1F1FA}\u{1F1F8}',
-  es: '\u{1F1EA}\u{1F1F8}',
 }
 
 interface PipelineCardProps {
@@ -73,7 +68,7 @@ export const PipelineCard = memo(function PipelineCard({
         {/* Header: code + lang + priority */}
         <div className="flex items-center gap-1.5 text-[9px]">
           <span className="font-mono text-gray-500">{item.code}</span>
-          <span>{LANG_FLAGS[item.language] ?? item.language}</span>
+          <span aria-hidden="true">{LOCALE_FLAGS[item.language] ?? ''}</span>
           <span className="ml-auto text-gray-600">P{item.priority}</span>
         </div>
 

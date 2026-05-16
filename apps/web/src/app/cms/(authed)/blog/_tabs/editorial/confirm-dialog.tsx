@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useId, useRef } from 'react'
 
 interface ConfirmDialogProps {
   title: string
@@ -21,6 +21,8 @@ export function ConfirmDialog({
   onCancel,
   variant = 'default',
 }: ConfirmDialogProps) {
+  const titleId = useId()
+  const descId = useId()
   const cancelRef = useRef<HTMLButtonElement>(null)
   const confirmRef = useRef<HTMLButtonElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
@@ -69,18 +71,18 @@ export function ConfirmDialog({
       <div
         role="dialog"
         aria-modal="true"
-        aria-labelledby="confirm-dialog-title"
-        aria-describedby="confirm-dialog-desc"
+        aria-labelledby={titleId}
+        aria-describedby={descId}
         className="mx-4 w-full max-w-sm rounded-lg border border-gray-700 bg-gray-900 p-6 shadow-xl"
       >
         <h3
-          id="confirm-dialog-title"
+          id={titleId}
           className="text-sm font-semibold text-gray-100"
         >
           {title}
         </h3>
         <p
-          id="confirm-dialog-desc"
+          id={descId}
           className="mt-2 text-[12px] text-gray-400"
         >
           {message}
