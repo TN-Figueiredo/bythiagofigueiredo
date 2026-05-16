@@ -124,7 +124,7 @@ export function AudioTable({ assets, selectedId, onSelect, onRefetch }: AudioTab
           <button onClick={() => setChecked(new Set())} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--gem-muted)', cursor: 'pointer', fontSize: 11 }}>Clear</button>
         </div>
       )}
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+      <table aria-label="Audio assets" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
         <thead>
           <tr style={{ borderBottom: '1px solid var(--gem-border)' }}>
             <th style={{ width: 32, padding: '6px 4px' }}>

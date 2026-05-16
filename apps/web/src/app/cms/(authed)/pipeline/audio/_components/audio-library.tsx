@@ -105,8 +105,8 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
         {/* Toolbar */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderBottom: '1px solid var(--gem-border)' }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button onClick={() => setViewMode('grid')} style={{ padding: '4px 10px', fontSize: 12, borderRadius: 5, border: '1px solid var(--gem-border)', background: viewMode === 'grid' ? 'var(--gem-accent)' : 'transparent', color: 'var(--gem-text)', cursor: 'pointer' }}>Grid</button>
-            <button onClick={() => setViewMode('table')} style={{ padding: '4px 10px', fontSize: 12, borderRadius: 5, border: '1px solid var(--gem-border)', background: viewMode === 'table' ? 'var(--gem-accent)' : 'transparent', color: 'var(--gem-text)', cursor: 'pointer' }}>Table</button>
+            <button aria-pressed={viewMode === 'grid'} onClick={() => setViewMode('grid')} style={{ padding: '4px 10px', fontSize: 12, borderRadius: 5, border: '1px solid var(--gem-border)', background: viewMode === 'grid' ? 'var(--gem-accent)' : 'transparent', color: 'var(--gem-text)', cursor: 'pointer' }}>Grid</button>
+            <button aria-pressed={viewMode === 'table'} onClick={() => setViewMode('table')} style={{ padding: '4px 10px', fontSize: 12, borderRadius: 5, border: '1px solid var(--gem-border)', background: viewMode === 'table' ? 'var(--gem-accent)' : 'transparent', color: 'var(--gem-text)', cursor: 'pointer' }}>Table</button>
           </div>
           <button onClick={() => setShowImport(true)} style={{ padding: '4px 12px', fontSize: 12, borderRadius: 5, border: '1px solid var(--gem-border)', background: 'var(--gem-surface-hi)', color: 'var(--gem-text)', cursor: 'pointer' }}>Import JSON</button>
         </div>
@@ -115,13 +115,13 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
         {fetchError && (
           <div style={{ padding: '6px 12px', background: 'rgba(245,158,11,0.1)', borderBottom: '1px solid rgba(245,158,11,0.3)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
             <span style={{ color: '#f59e0b' }}>{fetchError}</span>
-            <button onClick={() => setFetchError(null)} style={{ background: 'none', border: 'none', color: '#f59e0b', cursor: 'pointer', fontSize: 11 }}>✕</button>
+            <button aria-label="Dismiss error" onClick={() => setFetchError(null)} style={{ background: 'none', border: 'none', color: '#f59e0b', cursor: 'pointer', fontSize: 11 }}>✕</button>
           </div>
         )}
 
         {/* Main content */}
         <div style={{ flex: 1, overflow: 'auto', padding: 12, position: 'relative' }}>
-          {loading && <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, borderRadius: 4 }}><span style={{ fontSize: 12, color: 'var(--gem-text)' }}>Loading...</span></div>}
+          {loading && <div role="status" aria-live="polite" style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, borderRadius: 4 }}><span style={{ fontSize: 12, color: 'var(--gem-text)' }}>Loading...</span></div>}
           {viewMode === 'grid'
             ? <AudioGrid assets={assets} selectedId={selectedId} onSelect={setSelectedId} />
             : <AudioTable assets={assets} selectedId={selectedId} onSelect={setSelectedId} onRefetch={() => refetch(filters)} />
