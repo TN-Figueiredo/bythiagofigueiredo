@@ -21,7 +21,7 @@ export function MusicRecommendationCard({ recommendation: rec, isFavorite, isNoM
 
   const borderColor = isFavorite ? status.border : 'rgba(255,255,255,0.06)'
   const bgColor = isFavorite
-    ? `${status.bg.replace('0.15', '0.04')}`
+    ? status.bg.replace(/[\d.]+\)$/, '0.04)')
     : 'rgba(255,255,255,0.02)'
 
   return (
@@ -31,6 +31,7 @@ export function MusicRecommendationCard({ recommendation: rec, isFavorite, isNoM
     >
       <button
         onClick={() => setExpanded(v => !v)}
+        aria-expanded={expanded}
         className="w-full flex items-center gap-2 px-2.5 py-2 text-left"
         style={{ background: 'transparent' }}
       >

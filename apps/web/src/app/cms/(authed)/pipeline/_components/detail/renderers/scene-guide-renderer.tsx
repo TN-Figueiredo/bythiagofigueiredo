@@ -14,6 +14,8 @@ import {
   MusicAlternativeRow,
   SFXItemCard,
   AudioSummaryV2,
+  isContinuationTrack,
+  CONTINUES_RE,
 } from './_music-sfx'
 
 interface SceneOverlay {
@@ -201,22 +203,12 @@ function CategorizedNotes({ notes }: { notes: string[] }) {
   )
 }
 
-/* ---------- Music / SFX helpers ---------- */
-
-const CONTINUES_RE = /^Continues\b|\(continues?\)$|\(continua\)$/i
-
-function isContinuationTrack(music: SceneMusic): boolean {
-  if (music.continuation && CONTINUES_RE.test(music.continuation)) return true
-  if (music.search_terms && CONTINUES_RE.test(music.search_terms)) return true
-  return false
-}
-
 /* ---------- Music section components ---------- */
 
 function MusicSection({ music }: { music: SceneMusic }) {
   const recs = music.recommendations ?? []
-  const favIndex = music.favorite_index ?? 0
-  const favorite = recs[favIndex]
+  const favIndex = Math.min(music.favorite_index ?? 0, recs.length - 1)
+  const favorite = recs.length > 0 ? recs[Math.max(0, favIndex)] : undefined
 
   if (isContinuationTrack(music)) {
     return (

@@ -68,8 +68,7 @@ describe('MediaCard', () => {
     const { container } = render(
       <MediaCard
         item={mockAsset}
-        type="cover"
-        isOrphan
+        type="orphan"
         checked={false}
         selected={false}
         onSelect={onSelect}

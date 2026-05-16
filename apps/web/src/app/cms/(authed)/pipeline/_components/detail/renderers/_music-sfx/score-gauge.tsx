@@ -11,11 +11,11 @@ export function ScoreGauge({ score, max, size = 36 }: ScoreGaugeProps) {
   const color = getScoreColor(score, max)
   const { filled, empty } = computeGaugeDasharray(score, max)
   const r = 15
-  const cx = size / 2
-  const cy = size / 2
+  const cx = 18
+  const cy = 18
 
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="flex-shrink-0">
+    <svg width={size} height={size} viewBox="0 0 36 36" className="flex-shrink-0" role="img" aria-label={`Score: ${pct}%`}>
       <circle
         cx={cx} cy={cy} r={r}
         fill="none"

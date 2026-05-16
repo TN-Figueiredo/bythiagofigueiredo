@@ -2,14 +2,7 @@
 
 import { useMemo } from 'react'
 import type { SceneMusic, SceneSFX } from './types'
-
-const CONTINUES_RE = /^Continues\b|\(continues?\)$|\(continua\)$/i
-
-function isContinuation(music: SceneMusic): boolean {
-  if (music.continuation && CONTINUES_RE.test(music.continuation)) return true
-  if (music.search_terms && CONTINUES_RE.test(music.search_terms)) return true
-  return false
-}
+import { isContinuationTrack } from './continuation'
 
 interface Scene {
   music?: SceneMusic
@@ -31,9 +24,9 @@ function computeStats(scenes: Scene[]): { music: Stats; sfx: Stats } {
 
   for (const scene of scenes) {
     if (scene.music) {
-      if (isContinuation(scene.music)) {
+      if (isContinuationTrack(scene.music)) {
         music.continuations++
-      } else {
+      } else if (scene.music.resolve_status) {
         music.total++
         const s = scene.music.resolve_status
         if (s === 'LOCAL') music.local++
@@ -44,6 +37,7 @@ function computeStats(scenes: Scene[]): { music: Stats; sfx: Stats } {
     }
     if (scene.sfx) {
       for (const fx of scene.sfx) {
+        if (!fx.resolve_status) continue
         sfx.total++
         const s = fx.resolve_status
         if (s === 'LOCAL') sfx.local++

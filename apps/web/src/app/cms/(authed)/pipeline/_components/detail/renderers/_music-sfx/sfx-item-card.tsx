@@ -1,13 +1,7 @@
 import type { SceneSFX } from './types'
 import { RESOLVE_COLORS, SFX_CATEGORY_COLORS } from './types'
 import { computeScorePercent, getScoreColor } from './score-utils'
-
-const SFX_SEARCH_BASE = 'https://artlist.io/royalty-free-sound-effects'
-
-function buildSfxSearchUrl(terms: string): string {
-  const encoded = encodeURIComponent(terms).replace(/%20/g, '+')
-  return `${SFX_SEARCH_BASE}?search=${encoded}`
-}
+import { buildArtlistSfxUrl } from '@/lib/pipeline/artlist-search'
 
 interface SFXItemCardProps {
   sfx: SceneSFX
@@ -18,7 +12,7 @@ export function SFXItemCard({ sfx }: SFXItemCardProps) {
   const categoryColor = sfx.sfx_category ? SFX_CATEGORY_COLORS[sfx.sfx_category] : null
   const hasFile = sfx.original_filename && sfx.resolve_status !== 'NO_MATCH'
   const showSearch = sfx.resolve_status === 'NO_MATCH' || sfx.resolve_status === 'PARTIAL_MATCH'
-  const searchUrl = sfx.search_terms ? buildSfxSearchUrl(sfx.search_terms) : (sfx.artlist_url ?? null)
+  const searchUrl = sfx.search_terms ? buildArtlistSfxUrl(sfx.search_terms) : (sfx.artlist_url ?? null)
   const borderColor = sfx.resolve_status === 'NO_MATCH' ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.06)'
 
   return (

@@ -25,6 +25,7 @@ export function MusicAlternativeRow({ recommendation: rec, index }: MusicAlterna
     >
       <button
         onClick={() => setExpanded(v => !v)}
+        aria-expanded={expanded}
         className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left"
         style={{ background: 'transparent' }}
       >
