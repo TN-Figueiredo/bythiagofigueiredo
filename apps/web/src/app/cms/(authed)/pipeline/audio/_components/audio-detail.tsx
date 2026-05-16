@@ -51,6 +51,7 @@ export function AudioDetail({ assetId, onClose }: AudioDetailProps) {
   const [draft, setDraft] = useState<EditDraft | null>(null)
   const [saving, setSaving] = useState(false)
   const [conflict, setConflict] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -77,6 +78,7 @@ export function AudioDetail({ assetId, onClose }: AudioDetailProps) {
     if (!asset) return
     setDraft(assetToDraft(asset))
     setConflict(false)
+    setError(null)
     setEditing(true)
   }, [asset])
 
@@ -84,19 +86,23 @@ export function AudioDetail({ assetId, onClose }: AudioDetailProps) {
     setEditing(false)
     setDraft(null)
     setConflict(false)
+    setError(null)
   }, [])
 
   const handleSave = useCallback(async () => {
     if (!asset || !draft) return
     setSaving(true)
     setConflict(false)
+    setError(null)
     try {
+      const energyNum = draft.energy !== '' ? parseInt(draft.energy, 10) : null
+      const energy = energyNum != null && !isNaN(energyNum) && energyNum >= 1 && energyNum <= 5 ? energyNum : null
       const body = {
         track_name: draft.track_name || null,
         category: draft.category || null,
         tags: draft.tags.split(',').map(s => s.trim()).filter(Boolean),
         mood: draft.mood.split(',').map(s => s.trim()).filter(Boolean),
-        energy: draft.energy !== '' ? Number(draft.energy) : null,
+        energy,
         status: draft.status,
         priority: draft.priority || null,
         version: asset.version,
@@ -116,7 +122,7 @@ export function AudioDetail({ assetId, onClose }: AudioDetailProps) {
       setEditing(false)
       setDraft(null)
     } catch {
-      // non-conflict errors: stay in edit mode so user can retry
+      setError('Failed to save. Please try again.')
     } finally {
       setSaving(false)
     }
@@ -186,6 +192,13 @@ export function AudioDetail({ assetId, onClose }: AudioDetailProps) {
       {conflict && (
         <div role="alert" style={{ fontSize: 12, color: '#f87171', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 4, padding: '6px 10px' }}>
           Asset was modified by another user. Please refresh.
+        </div>
+      )}
+
+      {/* Save error alert */}
+      {error && (
+        <div role="alert" style={{ fontSize: 12, color: '#fb923c', background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.3)', borderRadius: 4, padding: '6px 10px' }}>
+          {error}
         </div>
       )}
 
