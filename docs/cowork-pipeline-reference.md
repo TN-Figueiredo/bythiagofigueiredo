@@ -308,13 +308,68 @@ para controle individual de `captured`.
         "Search Artlist: Mood: Introspective | Genre: Lo-fi | BPM: 70-80 | Duration: 2+ min"
       ],
       "music": {
+        "track": "Ocean Depth",
+        "artist": "Veaceslav Draganov",
+        "original_filename": "Veaceslav Draganov - Ocean Depth.wav",
+        "audio_asset_id": "uuid-from-resolver",
+        "resolve_status": "LOCAL",
+        "score": 26,
         "search_terms": "lo-fi ambient introspective",
+        "artlist_url": null,
         "style": "Minimal piano + textura",
         "entry_cue": "Fade in at 00:15",
-        "continuation": "Continues into scene 2"
+        "continuation": "Continues into scene 2",
+        "reasoning": "Dark ambient pads match the cinematic tone for the hook.",
+        "recommendations": [
+          {
+            "track": "Ocean Depth",
+            "artist": "Veaceslav Draganov",
+            "original_filename": "Veaceslav Draganov - Ocean Depth.wav",
+            "resolve_status": "LOCAL",
+            "score": 26,
+            "score_max": 34,
+            "reasoning": "Dark ambient pads match the cinematic tone.",
+            "energy": 2,
+            "bpm": 90,
+            "key": "E3",
+            "duration": "3:42",
+            "category": "cinematic"
+          },
+          {
+            "track": "Fission",
+            "artist": "Phillip Gross",
+            "resolve_status": "LOCAL",
+            "score": 18,
+            "score_max": 34,
+            "reasoning": "Similar dark tone but more electronic.",
+            "delta_vs_favorite": { "tags": -2, "mood": -2, "reuse_scenarios": -4 },
+            "energy": 3
+          }
+        ],
+        "favorite_index": 0
       },
       "sfx": [
-        { "timestamp": "00:05", "description": "Room tone fade in", "search_terms": "room ambience quiet" }
+        {
+          "timestamp": "00:05",
+          "description": "Room tone fade in",
+          "search_terms": "room ambience quiet",
+          "audio_asset_id": "uuid-if-resolved",
+          "resolve_status": "LOCAL",
+          "sfx_category": "AMBIENT",
+          "original_filename": "Room Tone Quiet.wav",
+          "score": 28,
+          "score_max": 34
+        },
+        {
+          "timestamp": "00:06",
+          "description": "Impact leve — marca entrada do talking head",
+          "sfx_category": "IMPACT",
+          "resolve_status": "LOCAL",
+          "original_filename": "Deep Low Impact.wav",
+          "score": 30,
+          "score_max": 34,
+          "search_terms": "subtle impact low"
+        }
       ],
       "overlays": [
         { "timestamp": "00:10", "instruction": "Lower third: nome + localização" }
@@ -329,6 +384,95 @@ para controle individual de `captured`.
   ]
 }
 ```
+
+### music object fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `track` | string | No | Track name from resolver or Artlist |
+| `artist` | string | No | Artist name |
+| `original_filename` | string | No | Filename from audio library (ONLY from resolver response, never invented) |
+| `audio_asset_id` | uuid | No | UUID of matched asset in Audio Library |
+| `resolve_status` | enum | No | `LOCAL` \| `PENDING_MATCH` \| `PARTIAL_MATCH` \| `NO_MATCH` — from resolver |
+| `score` | number | No | Resolver match score (0-34) |
+| `search_terms` | string | Yes | Space-separated search terms (always keep, even for LOCAL) |
+| `artlist_url` | url | No | Pre-computed Artlist search URL (when resolve_status is NO_MATCH or PARTIAL_MATCH) |
+| `style` | string | No | Musical style description |
+| `entry_cue` | string | No | When/how music enters |
+| `continuation` | string | No | How music transitions to next scene |
+| `reasoning` | string | No | Cowork's editorial reasoning for this pick |
+| `recommendations` | array | No | Ranked track alternatives (see below) |
+| `favorite_index` | number | No | Index of starred favorite in recommendations (default 0) |
+| `score_breakdown` | object | No | Per-category scores: `{ category: { score: N, max: N }, ... }` |
+
+#### recommendations[] items
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `track` | string | Yes | Track name |
+| `artist` | string | Yes | Artist name |
+| `original_filename` | string | No | Local filename |
+| `audio_asset_id` | string | No | UUID from audio_assets |
+| `resolve_status` | enum | Yes | `LOCAL` \| `PENDING_MATCH` \| `PARTIAL_MATCH` \| `NO_MATCH` |
+| `score` | number | Yes | Resolver score (0-34) |
+| `score_max` | number | Yes | Always 34 |
+| `score_breakdown` | object | No | Per-category scores |
+| `reasoning` | string | No | One-liner why consider this |
+| `delta_vs_favorite` | object | No | Score difference per category vs favorite |
+| `category` | string | No | e.g. cinematic, ambient |
+| `energy` | number | No | 1-5 |
+| `bpm` | number | No | Beats per minute |
+| `key` | string | No | Musical key |
+| `duration` | string | No | Formatted duration |
+| `artlist_url` | string | No | Direct Artlist URL |
+
+### sfx object fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `timestamp` | string | Yes | Timecode (e.g. "00:05") |
+| `description` | string | Yes | What the SFX is/does |
+| `search_terms` | string | No | Search keywords for finding the SFX |
+| `audio_asset_id` | uuid | No | UUID of matched asset in Audio Library |
+| `resolve_status` | enum | No | `LOCAL` \| `PENDING_MATCH` \| `PARTIAL_MATCH` \| `NO_MATCH` — from resolver |
+| `sfx_category` | enum | No | `IMPACT` \| `RISER` \| `DROP` \| `TRANSITION` \| `AMBIENT` \| `FOLEY` |
+| `original_filename` | string | No | Matched file name |
+| `score` | number | No | Resolver score (0-34) |
+| `score_max` | number | No | Always 34 |
+| `artlist_url` | string | No | Direct SFX search URL |
+
+### Continuation tracks
+
+When a scene continues the previous scene's track, use this convention:
+
+```json
+{
+  "music": {
+    "track": "Ocean Depth (continues)",
+    "artist": "Veaceslav Draganov",
+    "resolve_status": null,
+    "search_terms": "Continues from Beat 0",
+    "style": "Volume -20dB constante...",
+    "entry_cue": "Continues from Hook, no break.",
+    "continuation": "DROP total em 1:47..."
+  }
+}
+```
+
+- `resolve_status: null` — not resolved independently (inherits from parent scene)
+- No `audio_asset_id` — inherits from parent
+- No `artlist_url` — nothing to search
+- The CMS detects continuation tracks by matching `^Continues\b` or `(continues)` / `(continua)` at end of track name. Real track names like "The Journey Continues" are NOT treated as continuations.
+
+### Resolver integration workflow
+
+When creating or updating `postprod_scenes`, for each scene with music or SFX:
+
+1. **Query resolver** — `POST /api/pipeline/audio-library/resolve` with structured query (tags, mood, category, energy, etc.)
+2. **Populate fields** — Copy `audio_asset_id`, `resolve_status`, `score`, `original_filename` from the top match
+3. **Keep search_terms always** — Even LOCAL assets retain search_terms for future re-search
+4. **Pre-compute artlist_url** — When NO_MATCH or PARTIAL_MATCH, compute and store the Artlist URL
+5. **Skip resolver for continuations** — Set `resolve_status: null`, no API call needed
 
 ### edit_notes categorization rules
 
@@ -865,7 +1009,11 @@ curl -X POST https://bythiagofigueiredo.com/api/pipeline/audio-library \
     "instruments": ["piano", "synth pad"],
     "reuse_scenarios": ["background", "outro"],
     "reusable": true,
-    "status": "downloaded"
+    "status": "downloaded",
+    "metadata": {
+      "waveform": { "peaks": [0.1, 0.3, 0.6, 0.9, 0.7, 0.5, 0.2] },
+      "mix_notes": "Gentle piano intro, builds with strings at 0:45"
+    }
   }'
 ```
 
@@ -911,6 +1059,65 @@ curl -X PATCH https://bythiagofigueiredo.com/api/pipeline/audio-library/<uuid> \
 
 Updatable fields: all except `asset_id` and `type`. Always include `version`.
 
+### Metadata fields (JSONB `metadata` column)
+
+The `metadata` column stores structured data that enriches the CMS UI. Include these in imports and PATCH updates. Fields are nested inside the `metadata` object.
+
+| Field path | Type | Description | Example |
+|-----------|------|-------------|---------|
+| `waveform.peaks` | `number[]` (0–1, max 200 values) | Normalized amplitude peaks for visual waveform display. Generate from audio analysis. Values 0.0 (silence) to 1.0 (max amplitude). 40–80 samples ideal for card display, 60–120 for detail. | `[0.1, 0.35, 0.8, 0.6, ...]` |
+| `pairs_well_with` | `string[]` | `asset_id`s of complementary tracks (shown in detail panel "Compatibility" section) | `["artlist-123", "artlist-456"]` |
+| `avoid_with` | `string[]` | `asset_id`s that clash with this track | `["artlist-789"]` |
+| `mix_notes` | `string` | Free-text mixing/usage notes (shown in detail panel) | `"Starts quiet, builds at 0:45. Good for layering under voiceover."` |
+| `audio.loudness_lufs` | `number` | Measured loudness in LUFS | `-14.2` |
+| `audio.sample_rate` | `number` | Sample rate in Hz | `44100` |
+| `audio.bit_depth` | `number` | Bit depth | `24` |
+| `audio.channels` | `number` | Channel count (1=mono, 2=stereo) | `2` |
+| `video_mapping` | `object` | Scene-to-timestamp mapping for video editors | `{ "intro": "0:00-0:15", "build": "0:15-0:45" }` |
+| `entry_style` | `string` | How the track should enter (fade, cut, crossfade) | `"fade"` |
+| `duration_hint` | `string` | Recommended usage duration | `"30s-2min"` |
+
+**Waveform peaks generation:**
+
+When importing or updating assets, include waveform peaks for visual display in the CMS grid/table/detail views. Without peaks, the UI shows a shimmer placeholder.
+
+Example in import payload:
+```json
+{
+  "schema_version": "6.1.0",
+  "music": [
+    {
+      "asset_id": "artlist-12345",
+      "original_filename": "Epic Rise.mp3",
+      "category": "cinematic",
+      "energy": 4,
+      "waveform": {
+        "peaks": [0.12, 0.25, 0.48, 0.72, 0.85, 0.93, 0.78, 0.62, 0.45, 0.3]
+      },
+      "pairs_well_with": ["artlist-67890"],
+      "mix_notes": "Dramatic build starting at 0:30. Layer under voiceover for first 30 seconds."
+    }
+  ]
+}
+```
+
+Example PATCH to add waveform data to existing asset:
+```bash
+curl -X PATCH https://bythiagofigueiredo.com/api/pipeline/audio-library/<uuid> \
+  -H "X-Pipeline-Key: $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "version": 1,
+    "metadata": {
+      "waveform": {
+        "peaks": [0.12, 0.25, 0.48, 0.72, 0.85, 0.93, 0.78, 0.62, 0.45, 0.3]
+      },
+      "pairs_well_with": ["artlist-67890"],
+      "mix_notes": "Dramatic build starting at 0:30"
+    }
+  }'
+```
+
 ### DELETE /api/pipeline/audio-library/:id — Soft-delete (retire) asset
 
 Sets status to `retired`. Asset remains in DB but excluded from resolve queries and exports.
@@ -932,7 +1139,7 @@ curl -X POST https://bythiagofigueiredo.com/api/pipeline/audio-library/import \
     "dry_run": false,
     "schema_version": "1.0",
     "music": [
-      { "asset_id": "artlist-100", "original_filename": "Track A.mp3", "category": "cinematic", "tags": ["epic"], "energy": 4 },
+      { "asset_id": "artlist-100", "original_filename": "Track A.mp3", "category": "cinematic", "tags": ["epic"], "energy": 4, "waveform": { "peaks": [0.1, 0.3, 0.5, 0.8, 0.6, 0.4, 0.2] } },
       { "asset_id": "artlist-101", "original_filename": "Track B.mp3", "category": "electronic", "tags": ["upbeat"], "energy": 3 }
     ],
     "sfx": [
