@@ -1,15 +1,25 @@
 import { redirect } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
-import { AnalyticsTabsConnected } from './analytics-tabs-connected'
-import { fetchOverview } from './actions'
-import type { PeriodInput } from './types'
+import {
+  fetchKpiData,
+  fetchFunnelData,
+  fetchTopLinks,
+  fetchClicksDestination,
+  fetchClicksSource,
+  fetchClicksChart,
+} from '@/lib/analytics/analytics-queries'
+import { AnalyticsHeader } from './_components/analytics-header'
+import { AnalyticsOverview } from './_components/analytics-overview'
+import type { PeriodInput, AnalyticsTab, AnalyticsOverviewData } from './types'
+
+const ComingSoonStub = dynamic(() => import('./_components/coming-soon-stub'))
 
 interface Props {
   searchParams: Promise<{
     tab?: string
     period?: string
-    compare?: string
     start?: string
     end?: string
   }>
@@ -17,41 +27,50 @@ interface Props {
 
 export default async function AnalyticsPage({ searchParams }: Props) {
   const params = await searchParams
-  const { siteId } = await getSiteContext()
+  const { siteId, timezone, primaryDomain } = await getSiteContext()
 
   const authRes = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
   if (!authRes.ok) redirect('/cms')
 
-  const editRes = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
-  const canExport = editRes.ok
-
   const periodValue = params.period ?? '30d'
-  const compare = params.compare === 'true'
+  const activeTab = (params.tab as AnalyticsTab) ?? 'overview'
 
   let periodInput: PeriodInput
-  if (
-    periodValue === 'custom' &&
-    params.start &&
-    params.end
-  ) {
+  if (periodValue === 'custom' && params.start && params.end) {
     periodInput = { type: 'custom', start: params.start, end: params.end }
   } else {
     const preset = periodValue === '7d' || periodValue === '90d' ? periodValue : '30d'
     periodInput = { type: 'preset', value: preset }
   }
 
-  const overviewResult = await fetchOverview(periodInput, compare)
-  const initialOverview = overviewResult.ok ? overviewResult.data : null
+  // Only fetch data for overview tab
+  let overviewData: AnalyticsOverviewData | null = null
+  if (activeTab === 'overview') {
+    const siteOrigin = primaryDomain
+      ? `https://${primaryDomain}`
+      : (process.env.NEXT_PUBLIC_APP_URL ?? 'https://localhost:3000')
+
+    const [kpis, funnel, topLinks, destinations, sources, clicksChart] = await Promise.all([
+      fetchKpiData(siteId, periodInput, timezone),
+      fetchFunnelData(siteId, periodInput, timezone),
+      fetchTopLinks(siteId, periodInput, siteOrigin),
+      fetchClicksDestination(siteId, periodInput, siteOrigin),
+      fetchClicksSource(siteId, periodInput),
+      fetchClicksChart(siteId, periodInput, timezone),
+    ])
+
+    overviewData = { kpis, funnel, topLinks, destinations, sources, clicksChart }
+  }
 
   return (
-    <AnalyticsTabsConnected
-      initialTab={(params.tab as 'overview' | 'newsletters' | 'campaigns' | 'content') ?? 'overview'}
-      initialPeriod={periodValue}
-      initialCompare={compare}
-      initialCustomStart={params.start}
-      initialCustomEnd={params.end}
-      initialOverview={initialOverview}
-      canExport={canExport}
-    />
+    <div className="min-h-[calc(100vh-4rem)] bg-cms-bg">
+      <AnalyticsHeader activeTab={activeTab} activePeriod={periodValue} />
+      {activeTab === 'overview' && overviewData && (
+        <AnalyticsOverview data={overviewData} />
+      )}
+      {activeTab !== 'overview' && (
+        <ComingSoonStub tab={activeTab} />
+      )}
+    </div>
   )
 }
