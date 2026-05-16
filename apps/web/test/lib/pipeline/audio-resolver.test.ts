@@ -121,6 +121,42 @@ describe('scoreAsset', () => {
     const { breakdown } = scoreAsset(makeAsset(), query)
     expect(breakdown.description).toBe(0)
   })
+
+  it('handles null tags gracefully', () => {
+    const asset = makeAsset({ tags: null })
+    const query: ResolveQuery = { type: 'music', tags: ['epic'], limit: 5 }
+    const result = scoreAsset(asset as never, query)
+    expect(result.score).toBe(0)
+  })
+
+  it('handles null mood gracefully', () => {
+    const asset = makeAsset({ mood: null })
+    const query: ResolveQuery = { type: 'music', mood: ['calm'], limit: 5 }
+    const result = scoreAsset(asset as never, query)
+    expect(result.score).toBe(0)
+  })
+
+  it('retired asset with high score resolves to PARTIAL_MATCH', () => {
+    const asset = makeAsset({ status: 'retired' })
+    const result = scoreAsset(asset, fullQuery())
+    // retired status: score >= 8 but not downloaded/pending → falls to PARTIAL_MATCH
+    expect(result.resolve_status).toBe('PARTIAL_MATCH')
+    // Should not be LOCAL or PENDING_MATCH
+    expect(result.resolve_status).not.toBe('LOCAL')
+    expect(result.resolve_status).not.toBe('PENDING_MATCH')
+  })
+
+  it('duration just at lower boundary of range is included', () => {
+    const asset = makeAsset({ duration_seconds: 60 })
+    const { breakdown } = scoreAsset(asset, { type: 'music', duration_range: { min: 60, max: 120 }, limit: 5 } as ResolveQuery)
+    expect(breakdown.duration_in_range).toBe(2)
+  })
+
+  it('bpm just at upper boundary of range is included', () => {
+    const asset = makeAsset({ bpm: 120 })
+    const { breakdown } = scoreAsset(asset, { type: 'music', bpm_range: { min: 80, max: 120 }, limit: 5 } as ResolveQuery)
+    expect(breakdown.bpm_in_range).toBe(3)
+  })
 })
 
 describe('resolveAudio', () => {

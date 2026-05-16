@@ -1,6 +1,24 @@
 import { describe, it, expect } from 'vitest'
 import { sanitizeForFilter, sanitizeForTsquery, sanitizeForLike } from '@/lib/pipeline/sanitize'
 
+describe('sanitizeForFilter Unicode support', () => {
+  it('preserves Portuguese accented characters', () => {
+    expect(sanitizeForFilter('Acústico')).toBe('Acústico')
+    expect(sanitizeForFilter('eletrônica')).toBe('eletrônica')
+    expect(sanitizeForFilter('canção')).toBe('canção')
+  })
+
+  it('preserves other Unicode letters', () => {
+    expect(sanitizeForFilter('日本語')).toBe('日本語')
+    expect(sanitizeForFilter('über')).toBe('über')
+  })
+
+  it('still strips dangerous characters', () => {
+    expect(sanitizeForFilter('test<script>')).toBe('testscript')
+    expect(sanitizeForFilter("test'; DROP TABLE")).toBe('test DROP TABLE')
+  })
+})
+
 describe('sanitizeForFilter edge cases', () => {
   it('preserves full ISO 8601 timestamp', () => {
     expect(sanitizeForFilter('2026-05-15T12:30:00.123456+00:00')).toBe('2026-05-15T12:30:00.123456+00:00')

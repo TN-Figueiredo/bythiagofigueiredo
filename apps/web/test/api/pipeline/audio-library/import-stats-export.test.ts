@@ -19,6 +19,7 @@ import { GET as StatsGET } from '@/app/api/pipeline/audio-library/stats/route'
 import { GET as ExportGET } from '@/app/api/pipeline/audio-library/export/route'
 import { authenticatePipeline, requirePermission } from '@/lib/pipeline/auth'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { classifyImportItem, mapJsonToDbRow } from '@/lib/pipeline/audio-import'
 
 const mockAuth = { ok: true as const, auth: { siteId: 'site-1', permissions: ['read', 'write'], source: 'session' as const } }
 
@@ -157,6 +158,51 @@ describe('POST /api/pipeline/audio-library/import', () => {
     })
     const res = await ImportPOST(req)
     expect(res.status).toBe(403)
+  })
+
+  it('processes items in batches of 100', async () => {
+    const items = Array.from({ length: 150 }, (_, i) => ({
+      asset_id: `M${i}`,
+      original_filename: `track${i}.mp3`,
+    }))
+    vi.mocked(classifyImportItem).mockReturnValue('create')
+    vi.mocked(mapJsonToDbRow).mockImplementation((item) => ({
+      asset_id: (item as Record<string, unknown>).asset_id as string,
+      type: 'music',
+    }))
+
+    const upsertCalls: unknown[][] = []
+    vi.mocked(getSupabaseServiceClient).mockReturnValue({
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === 'audio_assets') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            in: vi.fn().mockResolvedValue({ data: [], error: null }),
+            upsert: vi.fn().mockImplementation((batch: unknown[]) => {
+              upsertCalls.push(batch)
+              return Promise.resolve({ error: null })
+            }),
+          }
+        }
+        return {
+          insert: vi.fn().mockReturnThis(),
+          select: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue({ data: { id: 'log-1' }, error: null }),
+        }
+      }),
+    } as never)
+
+    const req = new NextRequest('http://localhost/api/pipeline/audio-library/import', {
+      method: 'POST',
+      body: JSON.stringify({ schema_version: '6.1.0', music: items, dry_run: false }),
+    })
+    const res = await ImportPOST(req)
+    expect(res.status).toBe(200)
+    // Should have made 2 upsert calls: 100 + 50
+    expect(upsertCalls.length).toBe(2)
+    expect(upsertCalls[0].length).toBe(100)
+    expect(upsertCalls[1].length).toBe(50)
   })
 })
 
@@ -323,6 +369,52 @@ describe('GET /api/pipeline/audio-library/stats', () => {
     const json = await res.json()
     expect(json.data.most_used[0].asset_id).toBe('M1')
     expect(json.data.most_used[0].usage_count).toBe(2)
+  })
+
+  it('returns stats even when usage query fails (data is null)', async () => {
+    // Build a mock where usage query returns null data (simulating an error/empty response)
+    const counts = [5, 3, 2, 2, 2, 1, 5]
+    let audioAssetsCallCount = 0
+
+    const makeCountChain = (count: number) => {
+      const chain: Record<string, unknown> = {}
+      const terminal = Promise.resolve({ count, data: null, error: null })
+      const proxy = new Proxy(chain, {
+        get(_t, prop) {
+          if (prop === 'then') return terminal.then.bind(terminal)
+          if (prop === 'catch') return terminal.catch.bind(terminal)
+          if (prop === 'finally') return terminal.finally.bind(terminal)
+          return () => proxy
+        },
+      })
+      return proxy
+    }
+
+    const sb = {
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === 'audio_asset_usage') {
+          // Simulate query failure: data is null
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            limit: vi.fn().mockResolvedValue({ data: null, error: { message: 'timeout' } }),
+          }
+        }
+        const idx = audioAssetsCallCount++
+        return makeCountChain(idx < counts.length ? counts[idx] : 0)
+      }),
+    }
+
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(sb as never)
+    const res = await StatsGET(new NextRequest('http://localhost/api/pipeline/audio-library/stats'))
+    const json = await res.json()
+    expect(res.status).toBe(200)
+    // Count-based fields still resolve
+    expect(json.data.total).toBe(5)
+    expect(json.data.by_type.music).toBe(3)
+    // With null usage data, most_used should be empty and unused = total - 0 = 5
+    expect(json.data.most_used).toEqual([])
+    expect(json.data.unused).toBe(5)
   })
 })
 
