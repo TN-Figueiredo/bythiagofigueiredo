@@ -1,5 +1,6 @@
 'use client'
 
+import { memo } from 'react'
 import type { MediaGalleryStrings } from '../../_shared/media/_i18n/types'
 
 interface DropOverlayProps {
@@ -7,7 +8,7 @@ interface DropOverlayProps {
   t: MediaGalleryStrings
 }
 
-export function DropOverlay({ active, t }: DropOverlayProps) {
+export const DropOverlay = memo(function DropOverlay({ active, t }: DropOverlayProps) {
   if (!active) return null
 
   return (
@@ -20,4 +21,4 @@ export function DropOverlay({ active, t }: DropOverlayProps) {
       </div>
     </div>
   )
-}
+})

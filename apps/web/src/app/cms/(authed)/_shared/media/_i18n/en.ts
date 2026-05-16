@@ -51,6 +51,8 @@ export const en: MediaGalleryStrings = {
     deleting: 'Deleting…',
     deleteFailed: 'Delete failed. Please try again.',
     cancel: 'Cancel',
+    deleteSuccess: 'Asset deleted successfully',
+    deleteBulkSuccess: '{count} assets deleted successfully',
   },
   dimensions: { tooSmall: 'Image is too small for this context' },
   toolbar: {
@@ -135,6 +137,7 @@ export const en: MediaGalleryStrings = {
     editAlt: 'Edit alt text',
     moveTo: 'Move to…',
     deleteAsset: 'Delete',
+    menuLabel: 'Asset actions',
   },
   empty: {
     noAssets: 'No images uploaded yet.',

@@ -250,14 +250,14 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
       setItems(prev => prev.filter(i => !deletedIds.includes(i.asset.id)))
       getMediaStatsAction().then((res) => { if (res.ok) setStats(res.stats) }).catch(() => {})
       announce(deletedIds.length === 1
-        ? t.detail.deleteAsset
-        : t.bulk.deleteSelected + ` (${deletedIds.length})`)
+        ? t.delete.deleteSuccess
+        : t.delete.deleteBulkSuccess.replace('{count}', String(deletedIds.length)))
     } catch {
       setDeleteError(t.delete.deleteFailed)
     } finally {
       setIsDeleting(false)
     }
-  }, [deleteModal, t.delete.deleteFailed, t.detail.deleteAsset, t.bulk.deleteSelected, announce])
+  }, [deleteModal, t.delete.deleteFailed, t.delete.deleteSuccess, t.delete.deleteBulkSuccess, announce])
 
   const handleBulkDelete = useCallback(() => {
     const totalUsages = [...state.checked].reduce((sum, id) => {

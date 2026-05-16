@@ -1,5 +1,6 @@
 'use client'
 
+import { memo } from 'react'
 import type { MediaAssetType } from '@/lib/media/types'
 import type { MediaGalleryStrings } from '../../_shared/media/_i18n/types'
 
@@ -18,7 +19,7 @@ const FILTER_EMPTY_KEY: Record<string, keyof MediaGalleryStrings['empty']> = {
   orphan: 'noUnused',
 }
 
-export function EmptyState({ filter, searchQuery, t }: EmptyStateProps) {
+export const EmptyState = memo(function EmptyState({ filter, searchQuery, t }: EmptyStateProps) {
   const message = searchQuery
     ? t.empty.noSearchResults.replace('{query}', searchQuery)
     : t.empty[FILTER_EMPTY_KEY[filter] ?? 'noAssets']
@@ -33,4 +34,4 @@ export function EmptyState({ filter, searchQuery, t }: EmptyStateProps) {
       <p className="text-sm text-cms-text-muted">{message}</p>
     </div>
   )
-}
+})

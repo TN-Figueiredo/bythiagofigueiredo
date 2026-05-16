@@ -85,7 +85,7 @@ export const ContextMenu = React.memo(function ContextMenu({ x, y, assetId: _ass
     <div
       ref={ref}
       role="menu"
-      aria-label="Asset actions"
+      aria-label={t.context.menuLabel}
       className="fixed z-50 min-w-[160px] rounded-lg border border-cms-border bg-cms-surface py-1 shadow-xl"
       style={{ left: pos.left, top: pos.top }}
     >

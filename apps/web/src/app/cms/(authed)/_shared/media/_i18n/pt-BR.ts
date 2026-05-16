@@ -51,6 +51,8 @@ export const ptBR: MediaGalleryStrings = {
     deleting: 'Excluindo…',
     deleteFailed: 'Falha ao excluir. Tente novamente.',
     cancel: 'Cancelar',
+    deleteSuccess: 'Asset excluído com sucesso',
+    deleteBulkSuccess: '{count} assets excluídos com sucesso',
   },
   dimensions: { tooSmall: 'Imagem muito pequena para este contexto' },
   toolbar: {
@@ -135,6 +137,7 @@ export const ptBR: MediaGalleryStrings = {
     editAlt: 'Editar texto alt',
     moveTo: 'Mover para…',
     deleteAsset: 'Excluir',
+    menuLabel: 'Ações do asset',
   },
   empty: {
     noAssets: 'Nenhuma imagem enviada ainda.',

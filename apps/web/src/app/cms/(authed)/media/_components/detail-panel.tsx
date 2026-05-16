@@ -85,24 +85,26 @@ export const DetailPanel = React.memo(function DetailPanel({
       `}
       style={{ marginTop: 'var(--cms-topbar-height, 0px)' }}
     >
-      <div
-        role="button"
-        tabIndex={0}
-        aria-label={t.context.preview}
-        className="relative aspect-[16/10] w-full cursor-pointer bg-cms-bg"
-        onClick={() => onOpenLightbox(asset.id)}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenLightbox(asset.id) } }}
-      >
-        {isSvg ? (
-          <img src={asset.blobUrl} alt={asset.altText ?? ''} className="h-full w-full object-contain p-4" />
-        ) : (
-          <Image src={asset.blobUrl} alt={asset.altText ?? ''} fill className="object-contain" />
-        )}
+      <div className="relative aspect-[16/10] w-full bg-cms-bg">
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label={t.context.preview}
+          className="absolute inset-0 cursor-pointer"
+          onClick={() => onOpenLightbox(asset.id)}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenLightbox(asset.id) } }}
+        >
+          {isSvg ? (
+            <img src={asset.blobUrl} alt={asset.altText ?? ''} className="h-full w-full object-contain p-4" />
+          ) : (
+            <Image src={asset.blobUrl} alt={asset.altText ?? ''} fill className="object-contain" />
+          )}
+        </div>
         <button
           ref={closeBtnRef}
           type="button"
-          onClick={(e) => { e.stopPropagation(); onClose() }}
-          className="absolute right-2 top-2 rounded-full bg-black/40 p-1.5 text-white backdrop-blur-sm hover:bg-black/60"
+          onClick={onClose}
+          className="absolute right-2 top-2 rounded-full bg-black/40 p-1.5 text-white backdrop-blur-sm hover:bg-black/60 focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
           aria-label={t.modal.close}
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
