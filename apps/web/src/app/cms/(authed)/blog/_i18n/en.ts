@@ -67,6 +67,7 @@ export const en: BlogHubStrings = {
     invalidDateTime: 'Invalid date or time',
     siteLabel: 'Site:', yoursLabel: 'Yours:',
     crossDayWarning: 'This publishes on {localDate} in your timezone ({siteDate} site time)',
+    crossDayBadge: '+1d',
   },
   tagDrawer: {
     createTitle: 'New Tag', editTitle: 'Edit Tag',

@@ -63,6 +63,7 @@ export interface BlogHubStrings {
     invalidDateTime: string
     siteLabel: string; yoursLabel: string
     crossDayWarning: string
+    crossDayBadge: string
   }
   tagDrawer: {
     createTitle: string; editTitle: string

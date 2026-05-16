@@ -130,12 +130,12 @@ export function ScheduleModal({ isOpen, postTitle, defaultDate, siteTimezone, on
       ref={overlayRef}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
       onClick={handleOverlayClick}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="schedule-modal-title"
     >
       <div
         ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="schedule-modal-title"
         className="w-full max-w-sm rounded-xl border border-gray-700 bg-gray-900 p-5 shadow-xl"
         onKeyDown={handleTabKey}
       >
@@ -194,7 +194,7 @@ export function ScheduleModal({ isOpen, postTitle, defaultDate, siteTimezone, on
                 <span className="text-gray-400">{dualTime.local.dateStr} at {dualTime.local.timeStr}</span>
                 <span className="text-[9px] text-gray-500">{dualTime.local.tzAbbr}</span>
                 {dualTime.crossDay && (
-                  <span className="rounded bg-amber-500/15 px-1 py-0.5 text-[9px] font-semibold text-amber-400">+1d</span>
+                  <span className="rounded bg-amber-500/15 px-1 py-0.5 text-[9px] font-semibold text-amber-400">{s?.crossDayBadge ?? '+1d'}</span>
                 )}
               </div>
             </div>

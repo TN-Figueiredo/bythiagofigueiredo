@@ -67,6 +67,7 @@ export const ptBR: BlogHubStrings = {
     invalidDateTime: 'Data ou horário inválido',
     siteLabel: 'Site:', yoursLabel: 'Seu fuso:',
     crossDayWarning: 'Publica em {localDate} no seu fuso ({siteDate} horário do site)',
+    crossDayBadge: '+1d',
   },
   tagDrawer: {
     createTitle: 'Nova Tag', editTitle: 'Editar Tag',

@@ -111,12 +111,12 @@ export function PromotionModal({
       ref={overlayRef}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
       onClick={handleOverlayClick}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="promotion-modal-title"
     >
       <div
         ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="promotion-modal-title"
         className="w-full max-w-sm rounded-xl border border-gray-700 bg-gray-900 p-5 shadow-xl"
         onKeyDown={handleTabKey}
       >
