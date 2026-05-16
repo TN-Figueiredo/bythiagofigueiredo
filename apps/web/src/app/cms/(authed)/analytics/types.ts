@@ -51,5 +51,70 @@ export const exportSectionsSchema = z.array(
   z.enum(['overview', 'newsletters', 'campaigns', 'content']),
 ).min(1)
 
+export interface ViewsTrendPoint {
+  date: string
+  views: number
+  uniqueViews: number
+}
+
 export type PeriodInput = z.infer<typeof periodInputSchema>
 export type ExportFormat = z.infer<typeof exportFormatSchema>
+
+/* ------------------------------------------------------------------ */
+/*  New Analytics v2 types                                            */
+/* ------------------------------------------------------------------ */
+
+export type AnalyticsTab = 'overview' | 'content' | 'links' | 'audience' | 'revenue'
+
+export interface KpiData {
+  label: string
+  value: number
+  previousValue: number | null
+  sparkline: number[] // last N days
+}
+
+export interface FunnelData {
+  views: number
+  read50: number
+  clickedLink: number
+  nlOpened: number
+  subscribed: number
+}
+
+export interface ClickedLink {
+  url: string
+  linkType: 'internal' | 'external' | 'shortlink'
+  clicks: number
+  topSource: string
+}
+
+export interface ClicksDestination {
+  inHouse: number
+  external: number
+  youtube: number
+  affiliate: number
+}
+
+export interface ClicksSource {
+  blog: number
+  newsletter: number
+  video: number
+  social: number
+  other: number
+}
+
+export interface ClicksChartPoint {
+  date: string
+  current: number
+  previous: number
+  average: number
+}
+
+export interface AnalyticsOverviewData {
+  kpis: KpiData[]
+  funnel: FunnelData
+  topLinks: ClickedLink[]
+  destinations: ClicksDestination
+  sources: ClicksSource
+  clicksChart: ClicksChartPoint[]
+}
