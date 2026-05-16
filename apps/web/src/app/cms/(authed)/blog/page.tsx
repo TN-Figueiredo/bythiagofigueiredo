@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 import { getSiteContext } from '@/lib/cms/site-context'
 import type { BlogTabId } from './_hub/hub-types'
-import { fetchBlogSharedData, fetchEditorialData, fetchScheduleData } from './_hub/hub-queries'
+import { fetchBlogSharedData, fetchEditorialData, fetchScheduleData, fetchPipelineData } from './_hub/hub-queries'
 import { HubClient } from './_hub/hub-client'
 import { TabSkeleton } from './_hub/tab-skeleton'
 import { en } from './_i18n/en'
@@ -32,8 +32,24 @@ async function TabContent({
 }) {
   switch (tab) {
     case 'editorial': {
-      const data = await fetchEditorialData(siteId, tagId, locale)
-      return <EditorialTab data={data} strings={strings} siteId={siteId} tagId={tagId} locale={locale} supportedLocales={supportedLocales} siteTimezone={siteTimezone} tags={tags} defaultLocale={defaultLocale} />
+      const [data, pipelineData] = await Promise.all([
+        fetchEditorialData(siteId, tagId, locale),
+        fetchPipelineData(siteId),
+      ])
+      return (
+        <EditorialTab
+          data={data}
+          pipelineData={pipelineData}
+          strings={strings}
+          siteId={siteId}
+          tagId={tagId}
+          locale={locale}
+          supportedLocales={supportedLocales}
+          siteTimezone={siteTimezone}
+          tags={tags}
+          defaultLocale={defaultLocale}
+        />
+      )
     }
     case 'schedule': {
       const data = await fetchScheduleData(siteId, tagId, locale)
