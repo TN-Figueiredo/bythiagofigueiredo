@@ -42,15 +42,15 @@ export function MediaGalleryModal({
         role="dialog"
         aria-modal="true"
         aria-label={t.modal.title}
-        className="mx-4 flex h-[85vh] w-full max-w-4xl flex-col rounded-xl border border-[#374151] bg-[#111827] shadow-2xl sm:h-[600px]"
+        className="mx-4 flex h-[85vh] w-full max-w-4xl flex-col rounded-xl border border-cms-border bg-cms-bg shadow-2xl sm:h-[600px]"
         data-testid="gallery-dialog"
       >
-        <div className="flex items-center justify-between border-b border-[#374151] px-6 py-4">
-          <h3 className="text-lg font-semibold text-[#f3f4f6]">{t.modal.title}</h3>
+        <div className="flex items-center justify-between border-b border-cms-border px-6 py-4">
+          <h3 className="text-lg font-semibold text-cms-text">{t.modal.title}</h3>
           <button
             type="button"
             onClick={onClose}
-            className="rounded p-1 text-[#9ca3af] hover:bg-white/5 hover:text-[#f3f4f6]"
+            className="rounded p-1 text-cms-text-muted hover:bg-cms-surface-hover hover:text-cms-text"
             aria-label={t.modal.close}
             data-testid="gallery-close"
           >
@@ -58,7 +58,7 @@ export function MediaGalleryModal({
           </button>
         </div>
 
-        <div className="flex border-b border-[#374151]">
+        <div className="flex border-b border-cms-border">
           {(['upload', 'library'] as const).map((tab) => (
             <button
               key={tab}
@@ -66,8 +66,8 @@ export function MediaGalleryModal({
               onClick={() => setActiveTab(tab)}
               className={`px-6 py-3 text-sm font-medium transition-colors ${
                 activeTab === tab
-                  ? 'border-b-2 border-indigo-500 text-indigo-400'
-                  : 'text-[#9ca3af] hover:text-[#f3f4f6]'
+                  ? 'border-b-2 border-cms-accent text-cms-accent'
+                  : 'text-cms-text-muted hover:text-cms-text'
               }`}
             >
               {t.tabs[tab]}

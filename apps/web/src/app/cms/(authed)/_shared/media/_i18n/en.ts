@@ -41,6 +41,7 @@ export const en: MediaGalleryStrings = {
     loadMore: 'Load more',
     noResults: 'No images match your search.',
     emptyLibrary: 'No images uploaded yet.',
+    selectButton: 'Select',
   },
   crop: { cropTitle: 'Crop image', cropConfirm: 'Apply crop', cropCancel: 'Cancel' },
   delete: {
@@ -48,6 +49,7 @@ export const en: MediaGalleryStrings = {
     confirmMessage: 'This image will be marked for deletion.',
     usageWarning: 'This image is used in {count} places. Deleting it may break content.',
     deleting: 'Deleting…',
+    deleteFailed: 'Delete failed. Please try again.',
   },
   dimensions: { tooSmall: 'Image is too small for this context' },
   toolbar: {

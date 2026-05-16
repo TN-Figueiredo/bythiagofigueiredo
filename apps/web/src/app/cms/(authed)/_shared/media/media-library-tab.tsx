@@ -194,7 +194,7 @@ export function MediaLibraryTab({ onSelect, folder, cropPreset, locale }: Librar
             className="rounded-md bg-cms-accent px-4 py-1.5 text-sm font-medium text-white hover:bg-cms-accent/90"
             data-testid="library-select-btn"
           >
-            {locale === 'pt-BR' ? 'Selecionar' : 'Select'}
+            {t.library.selectButton}
           </button>
         </div>
       )}

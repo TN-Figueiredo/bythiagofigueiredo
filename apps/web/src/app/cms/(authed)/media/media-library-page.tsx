@@ -209,7 +209,7 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
       getMediaStatsAction().then((res) => { if (res.ok) setStats(res.stats) }).catch(() => {})
     } catch {
       const el = document.getElementById('media-announcements')
-      if (el) el.textContent = 'Delete failed. Please try again.'
+      if (el) el.textContent = t.delete.deleteFailed
       setDeleteModal(null)
     } finally {
       setIsDeleting(false)

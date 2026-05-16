@@ -209,24 +209,24 @@ export function MediaUploadTab({ onSelect, folder, cropPreset, locale }: UploadT
       <div
         className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-12 transition-colors ${
           isDragOver
-            ? 'border-indigo-500 bg-indigo-500/10'
-            : 'border-[#374151] hover:border-[#4b5563]'
+            ? 'border-cms-accent bg-cms-accent/10'
+            : 'border-cms-border hover:border-cms-border'
         }`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         data-testid="drop-zone"
       >
-        <svg className="mb-4 h-12 w-12 text-[#6b7280]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg className="mb-4 h-12 w-12 text-cms-text-dim" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
-        <p className="mb-2 text-sm text-[#9ca3af]">
+        <p className="mb-2 text-sm text-cms-text-muted">
           {isDragOver ? t.upload.dropHere : t.upload.dragPrompt}
         </p>
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          className="rounded-md bg-indigo-500 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-400"
+          className="rounded-md bg-cms-accent px-4 py-2 text-sm font-medium text-white hover:bg-cms-accent/90"
         >
           {t.upload.selectFile}
         </button>
@@ -250,18 +250,18 @@ export function MediaUploadTab({ onSelect, folder, cropPreset, locale }: UploadT
           <img
             src={croppedPreviewUrl ?? previewUrl}
             alt=""
-            className="max-h-48 rounded-lg border border-[#374151]"
+            className="max-h-48 rounded-lg border border-cms-border"
           />
         </div>
       )}
 
-      <p className="text-center text-xs text-[#6b7280]">
+      <p className="text-center text-xs text-cms-text-dim">
         {selectedFile.name}
         {croppedDims ? ` — ${croppedDims.width}x${croppedDims.height}` : ''}
       </p>
 
       <div>
-        <label htmlFor="media-alt" className="mb-1 block text-sm font-medium text-[#d1d5db]">
+        <label htmlFor="media-alt" className="mb-1 block text-sm font-medium text-cms-text-muted">
           {t.upload.altLabel} <span className="text-red-400">*</span>
         </label>
         <input
@@ -270,21 +270,21 @@ export function MediaUploadTab({ onSelect, folder, cropPreset, locale }: UploadT
           value={altText}
           onChange={(e) => { setAltText(e.target.value); setAltError(false) }}
           placeholder={t.upload.altPlaceholder}
-          className="w-full rounded-md border border-[#374151] bg-[#0a0f1a] px-3 py-2 text-sm text-[#f3f4f6] placeholder-[#6b7280] focus:border-indigo-500 focus:outline-none"
+          className="w-full rounded-md border border-cms-border bg-cms-bg px-3 py-2 text-sm text-cms-text placeholder:text-cms-text-dim focus:border-cms-accent focus:outline-none"
           data-testid="alt-input"
         />
         {altError && <p className="mt-1 text-xs text-red-400">{t.upload.altRequired}</p>}
       </div>
 
       <div>
-        <label htmlFor="media-folder" className="mb-1 block text-sm font-medium text-[#d1d5db]">
+        <label htmlFor="media-folder" className="mb-1 block text-sm font-medium text-cms-text-muted">
           {t.upload.folderLabel}
         </label>
         <select
           id="media-folder"
           value={selectedFolder}
           onChange={(e) => setSelectedFolder(e.target.value as MediaFolder)}
-          className="w-full rounded-md border border-[#374151] bg-[#0a0f1a] px-3 py-2 text-sm text-[#f3f4f6] focus:border-indigo-500 focus:outline-none"
+          className="w-full rounded-md border border-cms-border bg-cms-bg px-3 py-2 text-sm text-cms-text focus:border-cms-accent focus:outline-none"
           data-testid="folder-select"
         >
           {FOLDER_OPTIONS.map((opt) => (
@@ -296,14 +296,14 @@ export function MediaUploadTab({ onSelect, folder, cropPreset, locale }: UploadT
       </div>
 
       <div>
-        <label htmlFor="media-tags" className="mb-1 block text-sm font-medium text-[#d1d5db]">
+        <label htmlFor="media-tags" className="mb-1 block text-sm font-medium text-cms-text-muted">
           {t.upload.tagsLabel}
         </label>
         <div className="flex flex-wrap gap-1 mb-1">
           {tags.map((tag) => (
-            <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-[#1e293b] px-2 py-0.5 text-xs text-[#d1d5db]">
+            <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-cms-surface px-2 py-0.5 text-xs text-cms-text-muted">
               {tag}
-              <button type="button" onClick={() => removeTag(tag)} className="text-[#6b7280] hover:text-[#f3f4f6]">x</button>
+              <button type="button" onClick={() => removeTag(tag)} className="text-cms-text-dim hover:text-cms-text">x</button>
             </span>
           ))}
         </div>
@@ -314,7 +314,7 @@ export function MediaUploadTab({ onSelect, folder, cropPreset, locale }: UploadT
           onChange={(e) => setTagInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag() } }}
           placeholder={t.upload.tagsPlaceholder}
-          className="w-full rounded-md border border-[#374151] bg-[#0a0f1a] px-3 py-2 text-sm text-[#f3f4f6] placeholder-[#6b7280] focus:border-indigo-500 focus:outline-none"
+          className="w-full rounded-md border border-cms-border bg-cms-bg px-3 py-2 text-sm text-cms-text placeholder:text-cms-text-dim focus:border-cms-accent focus:outline-none"
           data-testid="tags-input"
         />
       </div>
@@ -327,7 +327,7 @@ export function MediaUploadTab({ onSelect, folder, cropPreset, locale }: UploadT
         <button
           type="button"
           onClick={() => { setSelectedFile(null); setPreviewUrl(null); setCroppedBlob(null) }}
-          className="rounded-md px-4 py-2 text-sm text-[#9ca3af] hover:bg-white/5"
+          className="rounded-md px-4 py-2 text-sm text-cms-text-muted hover:bg-cms-surface-hover"
         >
           {t.crop.cropCancel}
         </button>
@@ -335,7 +335,7 @@ export function MediaUploadTab({ onSelect, folder, cropPreset, locale }: UploadT
           type="button"
           onClick={handleSubmit}
           disabled={uploading}
-          className="rounded-md bg-indigo-500 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-400 disabled:opacity-50"
+          className="rounded-md bg-cms-accent px-4 py-2 text-sm font-medium text-white hover:bg-cms-accent/90 disabled:opacity-50"
           data-testid="upload-submit"
         >
           {uploading ? t.upload.uploading : t.upload.uploadButton}

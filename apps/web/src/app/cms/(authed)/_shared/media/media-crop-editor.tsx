@@ -94,8 +94,8 @@ export function MediaCropEditor({ imageUrl, preset, locale, onConfirm, onCancel 
 
   return (
     <div className="flex flex-col gap-4">
-      <h4 className="text-sm font-semibold text-[#f3f4f6]">{t.crop.cropTitle}</h4>
-      <div className="flex justify-center overflow-hidden rounded-lg border border-[#374151] bg-black/20">
+      <h4 className="text-sm font-semibold text-cms-text">{t.crop.cropTitle}</h4>
+      <div className="flex justify-center overflow-hidden rounded-lg border border-cms-border bg-black/20">
         <ReactCrop
           crop={crop}
           onChange={(c) => setCrop(c)}
@@ -108,10 +108,10 @@ export function MediaCropEditor({ imageUrl, preset, locale, onConfirm, onCancel 
         </ReactCrop>
       </div>
       <div className="flex justify-end gap-2">
-        <button type="button" onClick={onCancel} className="rounded-md px-4 py-2 text-sm font-medium text-[#9ca3af] hover:bg-white/5" data-testid="crop-cancel">
+        <button type="button" onClick={onCancel} className="rounded-md px-4 py-2 text-sm font-medium text-cms-text-muted hover:bg-cms-surface-hover" data-testid="crop-cancel">
           {t.crop.cropCancel}
         </button>
-        <button type="button" onClick={handleConfirm} disabled={!completedCrop} className="rounded-md bg-indigo-500 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed" data-testid="crop-confirm">
+        <button type="button" onClick={handleConfirm} disabled={!completedCrop} className="rounded-md bg-cms-accent px-4 py-2 text-sm font-medium text-white hover:bg-cms-accent/90 disabled:opacity-50 disabled:cursor-not-allowed" data-testid="crop-confirm">
           {t.crop.cropConfirm}
         </button>
       </div>

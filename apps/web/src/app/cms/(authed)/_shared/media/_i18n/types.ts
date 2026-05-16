@@ -15,9 +15,10 @@ export interface MediaGalleryStrings {
     folderNewsletters: string; folderBranding: string; folderOg: string
     folderAds: string; folderLinks: string; folderGeneral: string
     loadMore: string; noResults: string; emptyLibrary: string
+    selectButton: string
   }
   crop: { cropTitle: string; cropConfirm: string; cropCancel: string }
-  delete: { confirmTitle: string; confirmMessage: string; usageWarning: string; deleting: string }
+  delete: { confirmTitle: string; confirmMessage: string; usageWarning: string; deleting: string; deleteFailed: string }
   dimensions: { tooSmall: string }
   toolbar: {
     selectAll: string; deselectAll: string

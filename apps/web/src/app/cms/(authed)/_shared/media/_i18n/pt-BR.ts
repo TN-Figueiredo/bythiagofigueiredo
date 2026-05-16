@@ -41,6 +41,7 @@ export const ptBR: MediaGalleryStrings = {
     loadMore: 'Carregar mais',
     noResults: 'Nenhuma imagem encontrada.',
     emptyLibrary: 'Nenhuma imagem enviada ainda.',
+    selectButton: 'Selecionar',
   },
   crop: { cropTitle: 'Recortar imagem', cropConfirm: 'Aplicar recorte', cropCancel: 'Cancelar' },
   delete: {
@@ -48,6 +49,7 @@ export const ptBR: MediaGalleryStrings = {
     confirmMessage: 'A imagem será marcada para exclusão.',
     usageWarning: 'Esta imagem é usada em {count} lugares. Excluí-la pode quebrar conteúdo.',
     deleting: 'Excluindo…',
+    deleteFailed: 'Falha ao excluir. Tente novamente.',
   },
   dimensions: { tooSmall: 'Imagem muito pequena para este contexto' },
   toolbar: {
