@@ -102,6 +102,78 @@ export interface MediaStats {
   folderBreakdown: Record<string, FolderStat>
 }
 
+export interface MediaAssetWithUsage extends MediaAssetRow {
+  usage_count: number
+  primary_field_name: string | null
+}
+
+export interface ListMediaWithUsageResult {
+  assets: MediaAssetWithUsage[]
+  nextCursor: string | null
+}
+
+export async function listMediaAssetsWithUsage(opts: ListMediaOptions): Promise<ListMediaWithUsageResult> {
+  const supabase = getSupabaseServiceClient()
+  const limit = opts.limit ?? 24
+
+  let query = supabase
+    .from('media_assets')
+    .select(`
+      *,
+      media_asset_usage(field_name)
+    `)
+    .eq('site_id', opts.siteId)
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(limit + 1)
+
+  if (!opts.includeDeleted) {
+    query = query.is('deleted_at', null)
+  }
+  if (opts.folder) {
+    query = query.eq('folder', opts.folder)
+  }
+  if (opts.search) {
+    const escaped = opts.search.replace(/[%_\\]/g, '\\$&')
+    query = query.ilike('filename', `%${escaped}%`)
+  }
+  if (opts.tags?.length) {
+    query = query.contains('tags', opts.tags)
+  }
+  if (opts.cursor) {
+    const pipeIdx = opts.cursor.indexOf('|')
+    if (pipeIdx > 0) {
+      const ts = opts.cursor.slice(0, pipeIdx)
+      const id = opts.cursor.slice(pipeIdx + 1)
+      query = query.or(`created_at.lt.${ts},and(created_at.eq.${ts},id.lt.${id})`)
+    } else {
+      query = query.lt('created_at', opts.cursor)
+    }
+  }
+
+  const { data, error } = await query
+  if (error) throw new Error(error.message)
+
+  const rows = (data ?? []) as Array<MediaAssetRow & { media_asset_usage: Array<{ field_name: string }> }>
+  const hasMore = rows.length > limit
+  const sliced = hasMore ? rows.slice(0, limit) : rows
+
+  const assets: MediaAssetWithUsage[] = sliced.map((row) => {
+    const usages = row.media_asset_usage ?? []
+    const { media_asset_usage: _, ...rest } = row
+    return {
+      ...rest,
+      usage_count: usages.length,
+      primary_field_name: usages.length > 0 ? (usages[0]?.field_name ?? null) : null,
+    }
+  })
+
+  const last = hasMore ? assets[assets.length - 1] : null
+  const nextCursor = last ? `${last.created_at}|${last.id}` : null
+
+  return { assets, nextCursor }
+}
+
 export async function getMediaStats(siteId: string): Promise<MediaStats> {
   const supabase = getSupabaseServiceClient()
 

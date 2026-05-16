@@ -3,7 +3,7 @@ export function sanitizeForLike(input: string): string {
 }
 
 export function sanitizeForFilter(input: string): string {
-  return input.replace(/[^a-zA-Z0-9\s\-_.+/:@]/g, '')
+  return input.replace(/[^\p{L}\p{N}\s\-_.+/:@]/gu, '')
 }
 
 export function sanitizeForTsquery(input: string): string {
