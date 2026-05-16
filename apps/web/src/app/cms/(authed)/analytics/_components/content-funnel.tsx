@@ -1,4 +1,5 @@
 import type { FunnelData } from '../types'
+import { formatNumber } from '../../_shared/format-number'
 
 const STAGES: { key: keyof FunnelData; label: string; color: string; flex: string }[] = [
   { key: 'views', label: 'Views', color: 'var(--color-int)', flex: '2.5' },
@@ -7,12 +8,6 @@ const STAGES: { key: keyof FunnelData; label: string; color: string; flex: strin
   { key: 'nlOpened', label: 'NL Opened', color: 'var(--color-blog)', flex: '0.8' },
   { key: 'subscribed', label: 'Subscribed', color: '#fbbf24', flex: '0.5' }, // no amber token
 ]
-
-function formatNum(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`
-  return String(n)
-}
 
 interface Props {
   funnel: FunnelData
@@ -43,7 +38,7 @@ export function ContentFunnel({ funnel }: Props) {
                 data-testid={`funnel-stage-${stage.key}`}
               >
                 <span className="text-lg font-bold tabular-nums text-cms-text">
-                  {formatNum(value)}
+                  {formatNumber(value)}
                 </span>
                 <span className="mt-0.5 text-[11px] text-cms-text-muted">{stage.label}</span>
               </div>

@@ -1,4 +1,5 @@
 import type { KpiQueryResult } from './dashboard-queries'
+import { formatNumber } from '../_shared/format-number'
 
 interface DashboardKpiGridProps {
   data: KpiQueryResult
@@ -10,12 +11,6 @@ interface KpiCardProps {
   trend?: { direction: 'up' | 'down' | 'flat'; label: string }
   sparkline?: number[]
   testId: string
-}
-
-function formatNumber(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
-  return n.toLocaleString('pt-BR')
 }
 
 function Sparkline({ points, color }: { points: number[]; color: string }) {

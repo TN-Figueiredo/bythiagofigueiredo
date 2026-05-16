@@ -24,9 +24,9 @@ describe('KpiRow', () => {
     expect(screen.getByTestId('kpi-link-clicks')).toBeTruthy()
   })
 
-  it('formats large numbers with k suffix', () => {
+  it('formats large numbers with K suffix', () => {
     render(<KpiRow kpis={mockKpis} />)
-    expect(screen.getByTestId('kpi-views').textContent).toContain('1.2k')
+    expect(screen.getByTestId('kpi-views').textContent).toContain('1.2K')
   })
 
   it('shows positive trend arrow', () => {

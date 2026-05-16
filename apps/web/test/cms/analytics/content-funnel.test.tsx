@@ -24,7 +24,7 @@ describe('ContentFunnel', () => {
 
   it('displays formatted values', () => {
     render(<ContentFunnel funnel={mockFunnel} />)
-    expect(screen.getByTestId('funnel-stage-views').textContent).toContain('1.0k')
+    expect(screen.getByTestId('funnel-stage-views').textContent).toContain('1.0K')
     expect(screen.getByTestId('funnel-stage-read50').textContent).toContain('400')
     expect(screen.getByTestId('funnel-stage-clickedLink').textContent).toContain('150')
   })

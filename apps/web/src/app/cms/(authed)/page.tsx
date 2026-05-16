@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { fetchDashboardBlogHealth } from './_components/dashboard-blog-health-queries'
 import {
@@ -30,6 +31,25 @@ export default async function CmsDashboardPage({ searchParams }: PageProps) {
   const period: DashboardPeriod =
     periodParam === '30d' || periodParam === '90d' ? periodParam : '7d'
 
+  const { timezone } = await getSiteContext()
+  const { text: greeting } = getGreeting(timezone)
+  const todayLabel = formatTodayLabel(timezone)
+
+  return (
+    <div className="flex min-h-screen flex-col" data-testid="dashboard">
+      <DashboardHeader greeting={greeting} todayLabel={todayLabel} period={period} />
+      <Suspense fallback={<DashboardSkeleton />}>
+        <DashboardContent period={period} />
+      </Suspense>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  Data section (streamed)                                           */
+/* ------------------------------------------------------------------ */
+
+async function DashboardContent({ period }: { period: DashboardPeriod }) {
   const { siteId, timezone } = await getSiteContext()
 
   const [kpis, attentionItems, weekStrip, activityFeed, blogHealth] =
@@ -41,32 +61,43 @@ export default async function CmsDashboardPage({ searchParams }: PageProps) {
       fetchDashboardBlogHealth(siteId),
     ])
 
-  const { text: greeting } = getGreeting(timezone)
-  const todayLabel = formatTodayLabel(timezone)
-
   return (
-    <div className="flex min-h-screen flex-col" data-testid="dashboard">
-      <DashboardHeader greeting={greeting} todayLabel={todayLabel} period={period} />
+    <div className="flex flex-1 gap-6 p-6 lg:p-8">
+      {/* Main column */}
+      <main className="flex min-w-0 flex-1 flex-col gap-6">
+        <DashboardKpiGrid data={kpis} />
+        <DashboardNeedsAttention items={attentionItems} />
+        <DashboardWeekStrip days={weekStrip} />
+        <DashboardQuickActions />
+        {blogHealth && <BlogHealthSection data={blogHealth} />}
+      </main>
 
-      <div className="flex flex-1 gap-6 p-6 lg:p-8">
-        {/* Main column */}
-        <main className="flex min-w-0 flex-1 flex-col gap-6">
-          <DashboardKpiGrid data={kpis} />
-          <DashboardNeedsAttention items={attentionItems} />
-          <DashboardWeekStrip days={weekStrip} />
-          <DashboardQuickActions />
-          {blogHealth && <BlogHealthSection data={blogHealth} />}
-        </main>
-
-        {/* Aside — Activity Feed */}
-        <aside className="hidden w-[340px] shrink-0 lg:block">
-          <div className="sticky top-20 rounded-xl border border-[var(--bdr-1)] bg-[var(--bg-2)]/40 p-5">
-            <div className="max-h-[calc(100vh-10rem)] overflow-y-auto [mask-image:linear-gradient(to_bottom,black_calc(100%-2rem),transparent)]">
-              <DashboardActivityFeed items={activityFeed} />
-            </div>
+      {/* Aside — Activity Feed */}
+      <aside className="hidden w-[340px] shrink-0 lg:block">
+        <div className="sticky top-20 rounded-xl border border-[var(--bdr-1)] bg-[var(--bg-2)]/40 p-5">
+          <div className="max-h-[calc(100vh-10rem)] overflow-y-auto [mask-image:linear-gradient(to_bottom,black_calc(100%-2rem),transparent)]">
+            <DashboardActivityFeed items={activityFeed} />
           </div>
-        </aside>
+        </div>
+      </aside>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  Skeleton fallback                                                  */
+/* ------------------------------------------------------------------ */
+
+function DashboardSkeleton() {
+  return (
+    <div className="animate-pulse space-y-6 p-6">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="h-24 rounded-lg bg-[var(--bg-2)]" />
+        ))}
       </div>
+      <div className="h-48 rounded-lg bg-[var(--bg-2)]" />
+      <div className="h-36 rounded-lg bg-[var(--bg-2)]" />
     </div>
   )
 }

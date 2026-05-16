@@ -1,10 +1,5 @@
 import type { KpiData } from '../types'
-
-function formatValue(value: number): string {
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`
-  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`
-  return String(value)
-}
+import { formatNumber } from '../../_shared/format-number'
 
 function trendArrow(current: number, previous: number | null): { text: string; color: string; arrow: string } | null {
   if (previous === null) return null
@@ -69,7 +64,7 @@ export function KpiRow({ kpis }: Props) {
             </p>
             <div className="mt-1 flex items-end justify-between gap-2">
               <p className="text-2xl font-bold tabular-nums text-cms-text">
-                {formatValue(kpi.value)}
+                {formatNumber(kpi.value)}
               </p>
               {kpi.sparkline.length > 1 && <Sparkline data={kpi.sparkline} />}
             </div>
