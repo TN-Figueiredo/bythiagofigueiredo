@@ -26,14 +26,14 @@ export function DashboardNeedsAttention({ items }: DashboardNeedsAttentionProps)
   if (items.length === 0) {
     return (
       <div
-        className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-5"
+        className="rounded-xl border border-[var(--bdr-1)] bg-[var(--bg-2)]/40 p-5"
         data-testid="needs-attention"
       >
-        <h2 className="mb-3 text-sm font-semibold text-slate-200">
+        <h2 className="mb-3 text-sm font-semibold text-[var(--t2)]">
           Precisa de Atenção
         </h2>
         <p
-          className="text-sm text-slate-500"
+          className="text-sm text-[var(--t5)]"
           data-testid="needs-attention-empty"
         >
           Tudo em ordem
@@ -47,10 +47,10 @@ export function DashboardNeedsAttention({ items }: DashboardNeedsAttentionProps)
 
   return (
     <div
-      className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-5"
+      className="rounded-xl border border-[var(--bdr-1)] bg-[var(--bg-2)]/40 p-5"
       data-testid="needs-attention"
     >
-      <h2 className="mb-3 text-sm font-semibold text-slate-200">
+      <h2 className="mb-3 text-sm font-semibold text-[var(--t2)]">
         Precisa de Atenção
       </h2>
       <ul className="space-y-2" data-testid="needs-attention-list">
@@ -58,18 +58,18 @@ export function DashboardNeedsAttention({ items }: DashboardNeedsAttentionProps)
           <li key={item.id}>
             <Link
               href={item.href}
-              className={`block rounded-lg border-l-[3px] bg-slate-800/60 px-4 py-3 transition-colors hover:bg-slate-700/50 ${PRIORITY_STYLES[item.priority]}`}
+              className={`block rounded-lg border-l-[3px] bg-[var(--bg-2)]/60 px-4 py-3 transition-colors hover:bg-[var(--bg-3)]/50 ${PRIORITY_STYLES[item.priority]}`}
               data-testid={`attention-item-${item.priority}`}
             >
               <div className="flex items-center gap-2">
                 <span
                   className={`h-2 w-2 shrink-0 rounded-full ${PRIORITY_DOT[item.priority]}`}
                 />
-                <span className="truncate text-sm font-medium text-slate-200">
+                <span className="truncate text-sm font-medium text-[var(--t2)]">
                   {item.title}
                 </span>
               </div>
-              <p className="ml-4 mt-0.5 text-xs text-slate-500">
+              <p className="ml-4 mt-0.5 text-xs text-[var(--t5)]">
                 {item.reason}
               </p>
             </Link>
@@ -79,8 +79,9 @@ export function DashboardNeedsAttention({ items }: DashboardNeedsAttentionProps)
       {hasMore && (
         <button
           type="button"
+          aria-expanded={expanded}
           onClick={() => setExpanded(true)}
-          className="mt-3 text-xs font-medium text-indigo-400 hover:text-indigo-300 transition-colors"
+          className="mt-3 text-xs font-medium text-[var(--acc)] hover:text-[var(--acc)]/80 transition-colors"
           data-testid="needs-attention-expand"
         >
           Ver todos ({items.length})

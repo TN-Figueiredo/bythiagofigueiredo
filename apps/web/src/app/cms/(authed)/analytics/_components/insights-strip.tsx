@@ -2,8 +2,8 @@ import type { InsightCard } from '@/lib/analytics/insights-engine'
 
 const COLOR_MAP: Record<string, string> = {
   red: '#f87171',
-  green: '#34d399',
-  indigo: '#818cf8',
+  green: 'var(--color-blog)',
+  indigo: 'var(--acc)',
 }
 
 interface Props {
@@ -20,7 +20,7 @@ export function InsightsStrip({ insights }: Props) {
         return (
           <div
             key={card.id}
-            className="group cursor-pointer rounded-lg border border-cms-border bg-cms-surface p-4 transition-colors hover:border-cms-text-muted"
+            className="group rounded-lg border border-cms-border bg-cms-surface p-4 transition-colors hover:border-cms-text-muted"
           >
             <div className="flex items-start gap-2">
               <span

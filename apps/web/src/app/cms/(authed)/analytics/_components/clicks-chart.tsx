@@ -9,10 +9,10 @@ const CHART_PADDING_BOTTOM = 30
 const CHART_PADDING_LEFT = 40
 const CHART_PADDING_RIGHT = 16
 const GRIDLINE_COUNT = 4
-const BAR_COLOR = '#818cf8'
-const GHOST_COLOR = '#818cf8'
+const BAR_COLOR = 'var(--acc)'
+const GHOST_COLOR = 'var(--bg-3)'
 const GHOST_OPACITY = 0.15
-const AVG_LINE_COLOR = '#fbbf24'
+const AVG_LINE_COLOR = 'var(--color-blog)'
 
 function formatDateShort(dateStr: string): string {
   const [, month, day] = dateStr.split('-')

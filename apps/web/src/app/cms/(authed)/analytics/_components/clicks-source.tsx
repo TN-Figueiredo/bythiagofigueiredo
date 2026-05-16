@@ -1,11 +1,11 @@
 import type { ClicksSource } from '../types'
 
 const SOURCES: { key: keyof ClicksSource; label: string; color: string }[] = [
-  { key: 'blog', label: 'Blog', color: '#34d399' },         // emerald-400
-  { key: 'newsletter', label: 'Newsletter', color: '#a78bfa' }, // violet-400
-  { key: 'video', label: 'Video', color: '#fb7185' },        // rose-400
-  { key: 'social', label: 'Social', color: '#818cf8' },      // indigo-400
-  { key: 'other', label: 'Other', color: '#9ca3af' },        // gray-400
+  { key: 'blog', label: 'Blog', color: 'var(--color-blog)' },
+  { key: 'newsletter', label: 'Newsletter', color: 'var(--color-newsletter)' },
+  { key: 'video', label: 'Video', color: 'var(--color-video)' },
+  { key: 'social', label: 'Social', color: 'var(--color-link)' },
+  { key: 'other', label: 'Other', color: 'var(--t3)' },
 ]
 
 interface Props {

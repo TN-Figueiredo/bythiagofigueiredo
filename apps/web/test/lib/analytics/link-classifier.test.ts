@@ -47,9 +47,9 @@ describe('classifyLink', () => {
 
 describe('linkTypeBadgeColor', () => {
   it('returns correct colors', () => {
-    expect(linkTypeBadgeColor('internal')).toBe('#60a5fa')
-    expect(linkTypeBadgeColor('external')).toBe('#38bdf8')
-    expect(linkTypeBadgeColor('shortlink')).toBe('#818cf8')
+    expect(linkTypeBadgeColor('internal')).toBe('var(--color-int)')
+    expect(linkTypeBadgeColor('external')).toBe('var(--color-link)')
+    expect(linkTypeBadgeColor('shortlink')).toBe('var(--acc)')
   })
 })
 

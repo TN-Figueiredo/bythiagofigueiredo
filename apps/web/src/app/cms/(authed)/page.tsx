@@ -60,7 +60,7 @@ export default async function CmsDashboardPage({ searchParams }: PageProps) {
 
         {/* Aside — Activity Feed */}
         <aside className="hidden w-[340px] shrink-0 lg:block">
-          <div className="sticky top-20 rounded-xl border border-slate-700/50 bg-slate-800/40 p-5">
+          <div className="sticky top-20 rounded-xl border border-[var(--bdr-1)] bg-[var(--bg-2)]/40 p-5">
             <div className="max-h-[calc(100vh-10rem)] overflow-y-auto [mask-image:linear-gradient(to_bottom,black_calc(100%-2rem),transparent)]">
               <DashboardActivityFeed items={activityFeed} />
             </div>

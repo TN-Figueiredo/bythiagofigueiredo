@@ -85,7 +85,7 @@ describe('DashboardWeekStrip', () => {
     render(<DashboardWeekStrip days={days} />)
 
     const todayBtn = screen.getByTestId('week-day-2026-05-15')
-    expect(todayBtn.className).toContain('bg-indigo-500')
+    expect(todayBtn.className).toContain('bg-[var(--acc)]')
     expect(todayBtn.className).toContain('shadow')
   })
 
@@ -94,7 +94,7 @@ describe('DashboardWeekStrip', () => {
     render(<DashboardWeekStrip days={days} />)
 
     const otherDay = screen.getByTestId('week-day-2026-05-11')
-    expect(otherDay.className).not.toContain('bg-indigo-500')
+    expect(otherDay.className).not.toContain('bg-[var(--acc)]')
   })
 
   it('shows dots for days with content', () => {

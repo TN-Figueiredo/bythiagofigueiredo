@@ -31,23 +31,25 @@ export function DashboardHeader({
 
   return (
     <header
-      className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-700/50 bg-slate-900/80 px-6 py-4 backdrop-blur-[12px]"
+      className="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--bdr-1)] bg-[var(--bg-0)]/80 px-6 py-4 backdrop-blur-[12px]"
       data-testid="dashboard-header"
     >
       <div>
-        <h1 className="text-lg font-semibold text-slate-100">{greeting}</h1>
-        <p className="text-sm text-slate-400 capitalize">{todayLabel}</p>
+        <h1 className="text-lg font-semibold text-[var(--t1)]">{greeting}</h1>
+        <p className="text-sm text-[var(--t3)] capitalize">{todayLabel}</p>
       </div>
-      <div className="flex gap-1 rounded-lg bg-slate-800/60 p-1">
+      <div className="flex gap-1 rounded-lg bg-[var(--bg-2)]/60 p-1" role="tablist">
         {PERIODS.map((p) => (
           <button
             key={p.value}
             type="button"
+            role="tab"
+            aria-selected={period === p.value}
             onClick={() => handlePeriodChange(p.value)}
             className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
               period === p.value
-                ? 'bg-indigo-500 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-[var(--acc)] text-white shadow-sm'
+                : 'text-[var(--t3)] hover:text-[var(--t2)]'
             }`}
             data-testid={`period-${p.value}`}
           >

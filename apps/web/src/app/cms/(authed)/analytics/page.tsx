@@ -33,7 +33,10 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   if (!authRes.ok) redirect('/cms')
 
   const periodValue = params.period ?? '30d'
-  const activeTab = (params.tab as AnalyticsTab) ?? 'overview'
+  const VALID_TABS: AnalyticsTab[] = ['overview', 'content', 'links', 'newsletter', 'audience']
+  const activeTab: AnalyticsTab = VALID_TABS.includes(params.tab as AnalyticsTab)
+    ? (params.tab as AnalyticsTab)
+    : 'overview'
 
   let periodInput: PeriodInput
   if (periodValue === 'custom' && params.start && params.end) {
@@ -48,7 +51,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   if (activeTab === 'overview') {
     const siteOrigin = primaryDomain
       ? `https://${primaryDomain}`
-      : (process.env.NEXT_PUBLIC_APP_URL ?? 'https://localhost:3000')
+      : (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000')
 
     const [kpis, funnel, topLinks, destinations, sources, clicksChart] = await Promise.all([
       fetchKpiData(siteId, periodInput, timezone),

@@ -64,7 +64,7 @@ export function AnalyticsHeader({ activeTab, activePeriod }: Props) {
               onClick={() => handlePeriodChange(p)}
               className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
                 activePeriod === p
-                  ? 'bg-[#818cf8] font-medium text-white'
+                  ? 'bg-[var(--acc)] font-medium text-white'
                   : 'text-cms-text-muted hover:text-cms-text'
               }`}
               data-testid={`period-${p}`}
@@ -84,14 +84,14 @@ export function AnalyticsHeader({ activeTab, activePeriod }: Props) {
             onClick={() => handleTabChange(tab.id)}
             className={`relative px-4 py-2.5 text-sm transition-colors ${
               activeTab === tab.id
-                ? 'font-medium text-[#818cf8]'
+                ? 'font-medium text-[var(--acc)]'
                 : 'text-cms-text-muted hover:text-cms-text'
             }`}
             data-testid={`tab-${tab.id}`}
           >
             {tab.label}
             {activeTab === tab.id && (
-              <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-[#818cf8]" />
+              <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-[var(--acc)]" />
             )}
           </button>
         ))}

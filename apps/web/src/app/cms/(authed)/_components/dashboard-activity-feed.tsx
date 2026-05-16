@@ -1,5 +1,3 @@
-'use client'
-
 import { formatRelativeTime } from '@tn-figueiredo/cms-ui/client'
 import type { ActivityFeedItem } from './dashboard-queries'
 
@@ -64,8 +62,8 @@ export function DashboardActivityFeed({ items }: DashboardActivityFeedProps) {
   if (items.length === 0) {
     return (
       <div data-testid="activity-feed">
-        <h2 className="mb-4 text-sm font-semibold text-slate-200">Atividade</h2>
-        <p className="text-sm text-slate-500" data-testid="activity-feed-empty">
+        <h2 className="mb-4 text-sm font-semibold text-[var(--t2)]">Atividade</h2>
+        <p className="text-sm text-[var(--t5)]" data-testid="activity-feed-empty">
           Nenhuma atividade recente
         </p>
       </div>
@@ -74,7 +72,7 @@ export function DashboardActivityFeed({ items }: DashboardActivityFeedProps) {
 
   return (
     <div data-testid="activity-feed">
-      <h2 className="mb-4 text-sm font-semibold text-slate-200">Atividade</h2>
+      <h2 className="mb-4 text-sm font-semibold text-[var(--t2)]">Atividade</h2>
       <ul className="space-y-3" data-testid="activity-feed-list">
         {items.map((item) => (
           <li key={item.id} className="flex items-start gap-3">
@@ -82,15 +80,15 @@ export function DashboardActivityFeed({ items }: DashboardActivityFeedProps) {
               {getResourceIcon(item.resourceType)}
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-sm text-slate-300">
-                <span className="font-medium text-slate-200">
+              <p className="text-sm text-[var(--t2)]">
+                <span className="font-medium text-[var(--t2)]">
                   {getActionLabel(item.action)}
                 </span>{' '}
-                <span className="text-slate-400">
+                <span className="text-[var(--t3)]">
                   {getResourceLabel(item.resourceType)}
                 </span>
               </p>
-              <p className="mt-0.5 text-xs text-slate-500">
+              <p className="mt-0.5 text-xs text-[var(--t5)]">
                 {formatRelativeTime(item.createdAt)}
               </p>
             </div>

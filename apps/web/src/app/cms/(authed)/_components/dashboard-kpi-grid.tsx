@@ -1,5 +1,3 @@
-'use client'
-
 import type { KpiQueryResult } from './dashboard-queries'
 
 interface DashboardKpiGridProps {
@@ -63,21 +61,26 @@ function TrendArrow({ direction }: { direction: 'up' | 'down' | 'flat' }) {
 }
 
 function KpiCard({ label, value, trend, sparkline, testId }: KpiCardProps) {
+  const ariaLabel = trend
+    ? `${label}: ${value}, tendência ${trend.direction === 'up' ? 'crescente' : trend.direction === 'down' ? 'decrescente' : 'estável'} ${trend.label}`
+    : `${label}: ${value}`
+
   return (
     <div
-      className="flex flex-col justify-between rounded-xl border border-slate-700/50 bg-slate-800/40 p-4"
+      className="flex flex-col justify-between rounded-xl border border-[var(--bdr-1)] bg-[var(--bg-2)]/40 p-4"
       data-testid={testId}
+      aria-label={ariaLabel}
     >
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--t5)]">
           {label}
         </span>
         {sparkline && (
-          <Sparkline points={sparkline} color="rgb(99 102 241)" />
+          <Sparkline points={sparkline} color="var(--acc)" />
         )}
       </div>
       <div className="flex items-baseline gap-2">
-        <span className="text-[22px] font-bold leading-none text-slate-100 tabular-nums">
+        <span className="text-[22px] font-bold leading-none text-[var(--t1)] tabular-nums">
           {value}
         </span>
         {trend && trend.direction !== 'flat' && (

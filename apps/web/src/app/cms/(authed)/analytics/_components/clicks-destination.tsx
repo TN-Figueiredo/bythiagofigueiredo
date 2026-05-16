@@ -1,10 +1,10 @@
 import type { ClicksDestination } from '../types'
 
 const DESTINATIONS: { key: keyof ClicksDestination; label: string; color: string }[] = [
-  { key: 'inHouse', label: 'In-house', color: '#38bdf8' },  // sky-400
-  { key: 'external', label: 'External', color: '#60a5fa' },  // blue-400
-  { key: 'youtube', label: 'YouTube', color: '#fb7185' },    // rose-400
-  { key: 'affiliate', label: 'Affiliate', color: '#fbbf24' }, // amber-400
+  { key: 'inHouse', label: 'In-house', color: 'var(--color-int)' },
+  { key: 'external', label: 'External', color: 'var(--color-link)' },
+  { key: 'youtube', label: 'YouTube', color: 'var(--color-video)' },
+  { key: 'affiliate', label: 'Affiliate', color: '#fbbf24' }, // no amber token
 ]
 
 interface Props {

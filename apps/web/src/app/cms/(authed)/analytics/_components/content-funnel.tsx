@@ -1,11 +1,11 @@
 import type { FunnelData } from '../types'
 
 const STAGES: { key: keyof FunnelData; label: string; color: string; flex: string }[] = [
-  { key: 'views', label: 'Views', color: '#60a5fa', flex: '2.5' },
-  { key: 'read50', label: 'Read 50%+', color: '#818cf8', flex: '1.8' },
-  { key: 'clickedLink', label: 'Clicked Link', color: '#a78bfa', flex: '1.2' },
-  { key: 'nlOpened', label: 'NL Opened', color: '#34d399', flex: '0.8' },
-  { key: 'subscribed', label: 'Subscribed', color: '#fbbf24', flex: '0.5' },
+  { key: 'views', label: 'Views', color: 'var(--color-int)', flex: '2.5' },
+  { key: 'read50', label: 'Read 50%+', color: 'var(--acc)', flex: '1.8' },
+  { key: 'clickedLink', label: 'Clicked Link', color: 'var(--color-newsletter)', flex: '1.2' },
+  { key: 'nlOpened', label: 'NL Opened', color: 'var(--color-blog)', flex: '0.8' },
+  { key: 'subscribed', label: 'Subscribed', color: '#fbbf24', flex: '0.5' }, // no amber token
 ]
 
 function formatNum(n: number): string {

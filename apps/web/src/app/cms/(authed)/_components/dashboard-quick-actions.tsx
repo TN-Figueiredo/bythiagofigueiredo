@@ -1,5 +1,3 @@
-'use client'
-
 import Link from 'next/link'
 
 interface QuickAction {
@@ -13,19 +11,19 @@ const ACTIONS: QuickAction[] = [
   {
     title: 'Novo Post',
     href: '/cms/blog?action=new',
-    gradient: 'from-indigo-600 to-violet-600',
+    gradient: 'from-[var(--acc)] to-[var(--color-newsletter)]',
     icon: 'P',
   },
   {
     title: 'Nova Edição',
     href: '/cms/newsletters?action=new',
-    gradient: 'from-emerald-600 to-teal-600',
+    gradient: 'from-[var(--color-blog)] to-[#2dd4bf]',
     icon: 'N',
   },
   {
     title: 'Item Pipeline',
     href: '/cms/pipeline?action=new',
-    gradient: 'from-amber-600 to-orange-600',
+    gradient: 'from-[var(--color-video)] to-[#f97316]',
     icon: 'I',
   },
 ]

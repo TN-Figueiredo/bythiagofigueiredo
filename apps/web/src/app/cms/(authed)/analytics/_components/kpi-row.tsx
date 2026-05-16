@@ -10,13 +10,13 @@ function trendArrow(current: number, previous: number | null): { text: string; c
   if (previous === null) return null
   if (previous === 0) {
     if (current === 0) return null
-    return { text: '+100%', color: '#34d399', arrow: 'up' }
+    return { text: '+100%', color: 'var(--color-blog)', arrow: 'up' }
   }
   const delta = Math.round(((current - previous) / previous) * 100)
   if (delta === 0) return null
   return {
     text: `${delta >= 0 ? '+' : ''}${delta}%`,
-    color: delta >= 0 ? '#34d399' : '#f87171',
+    color: delta >= 0 ? 'var(--color-blog)' : '#f87171',
     arrow: delta >= 0 ? 'up' : 'down',
   }
 }
@@ -40,7 +40,7 @@ function Sparkline({ data }: { data: number[] }) {
       <polyline
         points={points}
         fill="none"
-        stroke="#818cf8"
+        stroke="var(--acc)"
         strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"

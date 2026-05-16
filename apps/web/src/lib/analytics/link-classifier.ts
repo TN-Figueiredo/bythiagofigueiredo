@@ -36,11 +36,11 @@ export function classifyLink(href: string, siteOrigin: string): LinkType {
 export function linkTypeBadgeColor(type: LinkType): string {
   switch (type) {
     case 'internal':
-      return '#60a5fa' // blue-400
+      return 'var(--color-int)'
     case 'external':
-      return '#38bdf8' // sky-400
+      return 'var(--color-link)'
     case 'shortlink':
-      return '#818cf8' // indigo-400
+      return 'var(--acc)'
   }
 }
 

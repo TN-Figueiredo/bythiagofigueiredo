@@ -15,7 +15,7 @@ interface Props {
 export function AnalyticsOverview({ data }: Props) {
   const insights = generateInsights(data.funnel, {
     topLinks: data.topLinks,
-    totalClicks: data.topLinks.reduce((s, l) => s + l.clicks, 0),
+    totalClicks: data.destinations.inHouse + data.destinations.external + data.destinations.youtube + data.destinations.affiliate,
   })
 
   return (
