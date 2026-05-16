@@ -40,22 +40,27 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
   const [showImport, setShowImport] = useState(false)
   const [filters, setFilters] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
 
   const refetch = useCallback(async (params: Record<string, string> = {}) => {
     abortRef.current?.abort()
     const controller = new AbortController()
     abortRef.current = controller
+    setFetchError(null)
     setLoading(true)
     try {
       const qs = new URLSearchParams(params).toString()
       const res = await fetch(`/api/pipeline/audio-library${qs ? `?${qs}` : ''}`, { signal: controller.signal })
-      if (res.ok) {
-        const json = await res.json()
-        if (!controller.signal.aborted) setAssets(json.data)
+      if (!res.ok) {
+        setFetchError('Failed to load assets')
+        return
       }
+      const json = await res.json()
+      if (!controller.signal.aborted) setAssets(json.data)
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return
+      setFetchError('Network error')
     } finally {
       if (!controller.signal.aborted) setLoading(false)
     }
@@ -104,6 +109,14 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
           </div>
           <button onClick={() => setShowImport(true)} style={{ padding: '4px 12px', fontSize: 12, borderRadius: 5, border: '1px solid var(--gem-border)', background: 'var(--gem-surface-hi)', color: 'var(--gem-text)', cursor: 'pointer' }}>Import JSON</button>
         </div>
+
+        {/* Error banner */}
+        {fetchError && (
+          <div style={{ padding: '6px 12px', background: 'rgba(245,158,11,0.1)', borderBottom: '1px solid rgba(245,158,11,0.3)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
+            <span style={{ color: '#f59e0b' }}>{fetchError}</span>
+            <button onClick={() => setFetchError(null)} style={{ background: 'none', border: 'none', color: '#f59e0b', cursor: 'pointer', fontSize: 11 }}>✕</button>
+          </div>
+        )}
 
         {/* Main content */}
         <div style={{ flex: 1, overflow: 'auto', padding: 12, position: 'relative' }}>
