@@ -27,7 +27,13 @@ export function MusicRecommendationCard({ recommendation: rec, isFavorite, isNoM
   return (
     <div
       className="rounded-md overflow-hidden"
-      style={{ border: `1px solid ${borderColor}`, background: bgColor }}
+      style={{
+        border: `1px solid ${borderColor}`,
+        borderLeft: isFavorite ? `3px solid ${isNoMatchCard ? '#c084fc' : status.color}` : undefined,
+        background: isFavorite
+          ? `linear-gradient(135deg, ${status.bg.replace(/[\d.]+\)$/, '0.04)')}, ${status.bg.replace(/[\d.]+\)$/, '0.01)')})`
+          : bgColor,
+      }}
     >
       <button
         onClick={() => setExpanded(v => !v)}
