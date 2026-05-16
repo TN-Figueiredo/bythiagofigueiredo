@@ -7,7 +7,7 @@ interface AudioImportModalProps { onClose: () => void }
 type Step = 'input' | 'preview' | 'result'
 
 interface ImportPreview { preview: { to_create: number; to_update: number; to_skip: number } }
-interface ImportResult { created: number; updated: number; skipped: number; errors: Array<{ asset_id: string; error: string }> }
+interface ImportResult { dry_run: false; import_log_id: string; created: number; updated: number; skipped: number; errors: Array<{ asset_id: string; error: string }> }
 
 export function AudioImportModal({ onClose }: AudioImportModalProps) {
   const [step, setStep] = useState<Step>('input')
@@ -82,6 +82,20 @@ export function AudioImportModal({ onClose }: AudioImportModalProps) {
         {step === 'input' && (
           <>
             <textarea value={jsonText} onChange={e => setJsonText(e.target.value)} placeholder="Paste JSON here..." style={{ width: '100%', height: 200, padding: 8, fontSize: 12, fontFamily: 'monospace', borderRadius: 5, border: '1px solid var(--gem-border)', background: 'var(--gem-well)', color: 'var(--gem-text)', resize: 'vertical' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <label style={{ fontSize: 11, color: 'var(--gem-muted)' }}>Or upload a JSON file</label>
+              <label style={{ fontSize: 11, padding: '4px 10px', borderRadius: 5, border: '1px solid var(--gem-border)', color: 'var(--gem-text)', background: 'var(--gem-surface-hi)', cursor: 'pointer' }}>
+                Choose file
+                <input type="file" accept=".json" style={{ display: 'none' }} onChange={e => {
+                  const file = e.target.files?.[0]
+                  if (!file) return
+                  const reader = new FileReader()
+                  reader.onload = ev => { setJsonText(ev.target?.result as string ?? '') }
+                  reader.readAsText(file)
+                  e.target.value = ''
+                }} />
+              </label>
+            </div>
             {error && <span style={{ fontSize: 12, color: 'var(--gem-danger)' }}>{error}</span>}
             <button onClick={handlePreview} disabled={loading || !jsonText.trim()} style={{ padding: '6px 16px', fontSize: 12, borderRadius: 5, border: 'none', background: 'var(--gem-accent)', color: '#fff', cursor: 'pointer', opacity: loading ? 0.5 : 1 }}>
               {loading ? 'Validating...' : 'Preview Import'}
@@ -112,6 +126,7 @@ export function AudioImportModal({ onClose }: AudioImportModalProps) {
               <div>Updated: <strong>{result.updated}</strong></div>
               <div>Skipped: <strong>{result.skipped}</strong></div>
               {result.errors.length > 0 && <div style={{ color: 'var(--gem-danger)' }}>Errors: {result.errors.length}</div>}
+              <div style={{ marginTop: 6, fontSize: 11, color: 'var(--gem-muted)' }}>Import log: {result.import_log_id}</div>
             </div>
             <button onClick={onClose} style={{ padding: '6px 16px', fontSize: 12, borderRadius: 5, border: 'none', background: 'var(--gem-accent)', color: '#fff', cursor: 'pointer' }}>Done</button>
           </>
