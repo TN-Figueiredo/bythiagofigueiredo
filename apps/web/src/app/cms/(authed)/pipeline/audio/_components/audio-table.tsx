@@ -142,7 +142,7 @@ export function AudioTable({ assets, selectedId, onSelect, onRefetch }: AudioTab
           {sorted.map((a) => {
             const wf = a.metadata?.waveform as { peaks?: number[] } | undefined
             const peaks = wf?.peaks ?? []
-            const badge = STATUS_BADGE[a.status] ?? STATUS_BADGE.retired!
+            const badge = STATUS_BADGE[a.status] ?? { label: a.status, bg: 'rgba(107,114,128,0.15)', color: '#6b7280' }
             return (
               <tr key={a.id} onClick={() => onSelect(a.id)} style={{ borderBottom: '1px solid var(--gem-border)', cursor: 'pointer', background: selectedId === a.id ? 'rgba(99,102,241,0.08)' : checked.has(a.id) ? 'rgba(99,102,241,0.04)' : 'transparent' }}>
                 <td style={{ padding: '4px 4px' }} onClick={e => e.stopPropagation()}>
