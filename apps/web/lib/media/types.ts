@@ -129,3 +129,5 @@ export function mimeToExt(mime: string): string {
     default: return 'bin'
   }
 }
+
+export type MediaAssetType = 'cover' | 'inline' | 'avatar' | 'og' | 'orphan'

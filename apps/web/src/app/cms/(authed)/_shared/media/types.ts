@@ -43,3 +43,26 @@ export interface MediaGalleryModalProps {
   locale: 'en' | 'pt-BR'
   siteId: string
 }
+
+import type { MediaAssetType } from '@/lib/media/types'
+
+export type { MediaAssetType }
+
+export const TYPE_COLORS: Record<MediaAssetType, { border: string; badge: string; bg: string; label: string }> = {
+  cover:  { border: 'border-l-blue-500',   badge: 'bg-blue-500/15 text-blue-400',   bg: 'bg-blue-500', label: 'Cover' },
+  inline: { border: 'border-l-green-500',  badge: 'bg-green-500/15 text-green-400',  bg: 'bg-green-500', label: 'Inline' },
+  avatar: { border: 'border-l-purple-500', badge: 'bg-purple-500/15 text-purple-400', bg: 'bg-purple-500', label: 'Avatar' },
+  og:     { border: 'border-l-orange-500', badge: 'bg-orange-500/15 text-orange-400', bg: 'bg-orange-500', label: 'OG' },
+  orphan: { border: 'border-l-red-500',    badge: 'bg-red-500/15 text-red-400',       bg: 'bg-red-500', label: 'Unused' },
+}
+
+export interface EnrichedMediaAsset {
+  asset: import('@/lib/media/types').MediaAsset
+  type: MediaAssetType
+  usageCount: number
+  primaryFieldName: string | null
+}
+
+export type MediaViewMode = 'grid' | 'list'
+export type MediaSortOption = 'newest' | 'oldest' | 'largest' | 'smallest' | 'name'
+export type MediaColumnCount = 2 | 3 | 4
