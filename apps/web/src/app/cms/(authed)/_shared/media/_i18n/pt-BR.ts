@@ -162,4 +162,9 @@ export const ptBR: MediaGalleryStrings = {
     og: 'OG',
     orphan: 'Sem uso',
   },
+  aria: {
+    loading: 'Carregando',
+    mediaAssets: 'Arquivos de mídia',
+    assetDetails: 'Detalhes do arquivo',
+  },
 }

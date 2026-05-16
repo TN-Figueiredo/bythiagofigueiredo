@@ -42,7 +42,7 @@ export function MediaGrid({
   return (
     <div
       role="grid"
-      aria-label="Media assets"
+      aria-label={t?.aria.mediaAssets ?? 'Media assets'}
       className={`grid gap-3 ${COL_CLASSES[cols]}`}
     >
       {items.map((enriched, index) => (

@@ -162,4 +162,9 @@ export const en: MediaGalleryStrings = {
     og: 'OG',
     orphan: 'Unused',
   },
+  aria: {
+    loading: 'Loading',
+    mediaAssets: 'Media assets',
+    assetDetails: 'Asset details',
+  },
 }

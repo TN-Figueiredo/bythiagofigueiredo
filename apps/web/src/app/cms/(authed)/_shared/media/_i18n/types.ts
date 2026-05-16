@@ -69,6 +69,9 @@ export interface MediaGalleryStrings {
   typeLabels: {
     cover: string; inline: string; avatar: string; og: string; orphan: string
   }
+  aria: {
+    loading: string; mediaAssets: string; assetDetails: string
+  }
 }
 
 import { en } from './en'

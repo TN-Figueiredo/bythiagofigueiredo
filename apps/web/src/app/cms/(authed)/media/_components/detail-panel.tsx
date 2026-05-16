@@ -71,7 +71,7 @@ export function DetailPanel({
   return (
     <div
       role="complementary"
-      aria-label="Asset details"
+      aria-label={t.aria.assetDetails}
       className={`
         fixed right-0 top-0 z-40 flex h-full w-[380px] flex-col border-l border-cms-border bg-cms-surface shadow-2xl
         transition-transform duration-300 ease-out

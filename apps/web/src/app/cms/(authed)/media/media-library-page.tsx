@@ -409,7 +409,7 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
 
       <div className={`flex-1 ${state.selectedId ? 'mr-[396px]' : ''} transition-all duration-300`}>
         {state.isLoading && items.length === 0 ? (
-          <SkeletonGrid cols={state.cols} />
+          <SkeletonGrid cols={state.cols} t={t} />
         ) : filteredItems.length === 0 ? (
           <EmptyState filter={state.filter} searchQuery={state.search} t={t} />
         ) : state.view === 'grid' ? (
