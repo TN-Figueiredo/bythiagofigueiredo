@@ -301,6 +301,28 @@ export function parseArtlistSearch(text: string): ArtlistSearchResult | null {
   return { url, fallbackUrl, ids, fallbackIds }
 }
 
+export const CATEGORY_TABLES = { GENRES, MOODS, INSTRUMENTS, VIDEO_THEMES } as const
+
+export function buildArtlistMusicUrl(searchTerms: string): string | null {
+  const terms = searchTerms.split(/\s+/).filter(Boolean)
+  if (terms.length === 0) return null
+
+  const pools: Pools = { genres: [], moods: [], instruments: [], themes: [] }
+
+  for (const term of terms) {
+    const normalized = term.toLowerCase()
+    const synonym = SYNONYMS[normalized]
+    if (synonym) {
+      addToPool(pools, synonym.id, synonym.category)
+    }
+  }
+
+  const ids = prioritizeIds(pools)
+  if (ids.length === 0) return null
+
+  return buildUrl(ids, null, null)
+}
+
 export function parseArtlistSfxRef(text: string): { name: string; url: string } | null {
   const match = SFX_RE.exec(text)
   if (!match) return null

@@ -5,13 +5,22 @@ import type { RendererProps } from '../section-content'
 import { TagPill, OptionalBadge, getTagColor } from './tokens'
 import { tokenizeText } from './parse-tokens'
 import { categorizeNote, type CategorizedNote } from './categorize-note'
-import { parseArtlistSearch, parseArtlistSfxRef } from '@/lib/pipeline/artlist-search'
+import { parseArtlistSearch, parseArtlistSfxRef, buildArtlistMusicUrl } from '@/lib/pipeline/artlist-search'
+
+type ResolveStatus = 'LOCAL' | 'PENDING_MATCH' | 'PARTIAL_MATCH' | 'NO_MATCH'
 
 interface SceneMusic {
   search_terms?: string
   style?: string
   entry_cue?: string
   continuation?: string
+  track?: string
+  artist?: string
+  original_filename?: string
+  audio_asset_id?: string
+  resolve_status?: ResolveStatus
+  score?: number
+  artlist_url?: string
 }
 
 interface SceneSFX {
@@ -19,7 +28,7 @@ interface SceneSFX {
   description: string
   search_terms?: string
   audio_asset_id?: string
-  resolve_status?: string
+  resolve_status?: ResolveStatus
 }
 
 interface SceneOverlay {
@@ -214,6 +223,99 @@ function CategorizedNotes({ notes }: { notes: string[] }) {
   )
 }
 
+/* ---------- Music / SFX helpers ---------- */
+
+const CONTINUES_RE = /^Continues\b|\(continues?\)$|\(continua\)$/i
+
+function isContinuationTrack(music: SceneMusic): boolean {
+  if (music.continuation && CONTINUES_RE.test(music.continuation)) return true
+  if (music.search_terms && CONTINUES_RE.test(music.search_terms)) return true
+  return false
+}
+
+function shouldShowArtlistLink(music: SceneMusic): boolean {
+  if (music.resolve_status === 'LOCAL') return false
+  if (isContinuationTrack(music)) return false
+  return !!(music.search_terms || music.artlist_url)
+}
+
+function MusicArtlistLink({ music }: { music: SceneMusic }) {
+  if (!shouldShowArtlistLink(music)) return null
+
+  const url = music.artlist_url ?? (music.search_terms ? buildArtlistMusicUrl(music.search_terms) : null)
+  if (!url) return null
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-[9px] font-medium transition-colors hover:underline"
+      style={{ color: '#c084fc' }}
+    >
+      Buscar no Artlist ↗
+    </a>
+  )
+}
+
+/* ---------- AudioSummary ---------- */
+
+function AudioSummary({ scenes }: { scenes: Scene[] }) {
+  const stats = useMemo(() => {
+    let total = 0
+    let local = 0
+    let pending = 0
+    let partial = 0
+    let noMatch = 0
+    let continuations = 0
+
+    for (const scene of scenes) {
+      if (scene.music) {
+        total++
+        const status = scene.music.resolve_status
+        if (status === 'LOCAL') local++
+        else if (status === 'PENDING_MATCH') pending++
+        else if (status === 'PARTIAL_MATCH') partial++
+        else if (status === 'NO_MATCH') noMatch++
+        if (isContinuationTrack(scene.music)) continuations++
+      }
+    }
+
+    return { total, local, pending, partial, noMatch, continuations }
+  }, [scenes])
+
+  if (stats.total === 0) return null
+
+  const resolved = stats.local + stats.pending
+  const pct = Math.round((resolved / stats.total) * 100)
+
+  return (
+    <div className="rounded-md p-2.5" style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: 'var(--gem-dim)' }}>
+          Audio Resolver
+        </span>
+        <span className="text-[10px] font-bold" style={{ color: pct === 100 ? '#10b981' : 'var(--gem-accent)' }}>
+          {pct}%
+        </span>
+      </div>
+      <div className="h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+        <div
+          className="h-full rounded-full transition-all"
+          style={{ width: `${pct}%`, background: pct === 100 ? '#10b981' : '#818cf8' }}
+        />
+      </div>
+      <div className="flex gap-3 mt-1.5 flex-wrap">
+        {stats.local > 0 && <span className="text-[9px]" style={{ color: '#10b981' }}>✓ {stats.local} local</span>}
+        {stats.pending > 0 && <span className="text-[9px]" style={{ color: '#f59e0b' }}>⏳ {stats.pending} download</span>}
+        {stats.partial > 0 && <span className="text-[9px]" style={{ color: '#f97316' }}>~ {stats.partial} parcial</span>}
+        {stats.noMatch > 0 && <span className="text-[9px]" style={{ color: '#3b82f6' }}>🔗 {stats.noMatch} buscar</span>}
+        {stats.continuations > 0 && <span className="text-[9px]" style={{ color: 'var(--gem-dim)' }}>↩ {stats.continuations} continuação</span>}
+      </div>
+    </div>
+  )
+}
+
 /* ---------- SubSection ---------- */
 
 function SubSection({ title, children }: { title: string; children: React.ReactNode }) {
@@ -301,10 +403,48 @@ function SceneCard({ scene, expandAll }: { scene: Scene; expandAll: boolean }) {
           {scene.music && (
             <SubSection title="Música">
               <div className="space-y-0.5" style={{ color: 'var(--gem-muted)' }}>
+                {scene.music.track && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-medium" style={{ color: 'var(--gem-text)' }}>{scene.music.track}</span>
+                    {scene.music.artist && <span style={{ color: 'var(--gem-dim)' }}>— {scene.music.artist}</span>}
+                    {scene.music.resolve_status && RESOLVE_BADGES[scene.music.resolve_status] && (
+                      <span style={{
+                        fontSize: 9,
+                        padding: '1px 6px',
+                        borderRadius: 4,
+                        fontWeight: 600,
+                        background: RESOLVE_BADGES[scene.music.resolve_status]!.bg,
+                        color: RESOLVE_BADGES[scene.music.resolve_status]!.color,
+                      }}>
+                        {RESOLVE_BADGES[scene.music.resolve_status]!.label}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {!scene.music.track && scene.music.resolve_status && RESOLVE_BADGES[scene.music.resolve_status] && (
+                  <div>
+                    <span style={{
+                      fontSize: 9,
+                      padding: '1px 6px',
+                      borderRadius: 4,
+                      fontWeight: 600,
+                      background: RESOLVE_BADGES[scene.music.resolve_status]!.bg,
+                      color: RESOLVE_BADGES[scene.music.resolve_status]!.color,
+                    }}>
+                      {RESOLVE_BADGES[scene.music.resolve_status]!.label}
+                    </span>
+                  </div>
+                )}
+                {isContinuationTrack(scene.music) && (
+                  <div className="text-[9px] italic" style={{ color: 'var(--gem-dim)' }}>↩ Continuação da cena anterior</div>
+                )}
                 {scene.music.search_terms && <div><span style={{ color: 'var(--gem-dim)' }}>Busca: </span>{tokenizeText(scene.music.search_terms)}</div>}
                 {scene.music.style && <div><span style={{ color: 'var(--gem-dim)' }}>Estilo: </span>{tokenizeText(scene.music.style)}</div>}
                 {scene.music.entry_cue && <div><span style={{ color: 'var(--gem-dim)' }}>Entrada: </span>{tokenizeText(scene.music.entry_cue)}</div>}
-                {scene.music.continuation && <div><span style={{ color: 'var(--gem-dim)' }}>Continuacao: </span>{tokenizeText(scene.music.continuation)}</div>}
+                {scene.music.continuation && !isContinuationTrack(scene.music) && (
+                  <div><span style={{ color: 'var(--gem-dim)' }}>Continuação: </span>{tokenizeText(scene.music.continuation)}</div>
+                )}
+                <MusicArtlistLink music={scene.music} />
               </div>
             </SubSection>
           )}
@@ -312,34 +452,37 @@ function SceneCard({ scene, expandAll }: { scene: Scene; expandAll: boolean }) {
           {scene.sfx && scene.sfx.length > 0 && (
             <SubSection title="SFX">
               <div className="space-y-1">
-                {scene.sfx.map((fx, i) => (
-                  <div key={i} className="flex gap-2">
-                    <span className="font-mono text-[10px] flex-shrink-0" style={{ color: 'var(--gem-accent)' }}>{fx.timestamp}</span>
-                    <span style={{ color: 'var(--gem-muted)' }}>
-                      {tokenizeText(fx.description)}
-                      <ArtlistSfxInline text={fx.description} />
-                      {fx.resolve_status && RESOLVE_BADGES[fx.resolve_status] && (
-                        <span style={{
-                          fontSize: 9,
-                          padding: '1px 6px',
-                          borderRadius: 4,
-                          fontWeight: 600,
-                          background: RESOLVE_BADGES[fx.resolve_status]!.bg,
-                          color: RESOLVE_BADGES[fx.resolve_status]!.color,
-                          marginLeft: 6,
-                        }}>
-                          {RESOLVE_BADGES[fx.resolve_status]!.label}
-                        </span>
-                      )}
-                      {fx.search_terms && (
-                        <span style={{ color: 'var(--gem-dim)' }}>
-                          {' — '}{fx.search_terms}
-                          <ArtlistSfxInline text={fx.search_terms} />
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                ))}
+                {scene.sfx.map((fx, i) => {
+                  const hasSfxRef = !!parseArtlistSfxRef(fx.description)
+                  return (
+                    <div key={i} className="flex gap-2">
+                      <span className="font-mono text-[10px] flex-shrink-0" style={{ color: 'var(--gem-accent)' }}>{fx.timestamp}</span>
+                      <span style={{ color: 'var(--gem-muted)' }}>
+                        {tokenizeText(fx.description)}
+                        <ArtlistSfxInline text={fx.description} />
+                        {fx.resolve_status && RESOLVE_BADGES[fx.resolve_status] && (
+                          <span style={{
+                            fontSize: 9,
+                            padding: '1px 6px',
+                            borderRadius: 4,
+                            fontWeight: 600,
+                            background: RESOLVE_BADGES[fx.resolve_status]!.bg,
+                            color: RESOLVE_BADGES[fx.resolve_status]!.color,
+                            marginLeft: 6,
+                          }}>
+                            {RESOLVE_BADGES[fx.resolve_status]!.label}
+                          </span>
+                        )}
+                        {fx.search_terms && !hasSfxRef && (
+                          <span style={{ color: 'var(--gem-dim)' }}>
+                            {' — '}{fx.search_terms}
+                            <ArtlistSfxInline text={fx.search_terms} />
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
             </SubSection>
           )}
@@ -426,6 +569,8 @@ export function SceneGuideRenderer({ content }: RendererProps) {
           {allExpanded ? 'Colapsar todas' : 'Expandir todas'}
         </button>
       </div>
+
+      <AudioSummary scenes={scenes} />
 
       <div className="space-y-1.5">
         {scenes.map((scene, i) => (
