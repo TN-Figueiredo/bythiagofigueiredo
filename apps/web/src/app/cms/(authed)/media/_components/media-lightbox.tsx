@@ -1,0 +1,135 @@
+'use client'
+
+import { useEffect, useCallback } from 'react'
+import Image from 'next/image'
+import type { MediaAsset } from '@/lib/media/types'
+import type { MediaGalleryStrings } from '../../_shared/media/_i18n/types'
+
+interface MediaLightboxProps {
+  asset: MediaAsset | null
+  currentIndex: number
+  totalCount: number
+  onPrev: () => void
+  onNext: () => void
+  onClose: () => void
+  t: MediaGalleryStrings
+}
+
+export function MediaLightbox({
+  asset,
+  currentIndex,
+  totalCount,
+  onPrev,
+  onNext,
+  onClose,
+  t,
+}: MediaLightboxProps) {
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+      if (e.key === 'ArrowLeft' && currentIndex > 0) onPrev()
+      if (e.key === 'ArrowRight' && currentIndex < totalCount - 1) onNext()
+    },
+    [onClose, onPrev, onNext, currentIndex, totalCount],
+  )
+
+  useEffect(() => {
+    if (!asset) return
+    document.addEventListener('keydown', handleKeyDown)
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = ''
+    }
+  }, [asset, handleKeyDown])
+
+  if (!asset) return null
+
+  const isSvg = asset.mimeType === 'image/svg+xml'
+  const counter = t.lightbox.counter
+    .replace('{current}', String(currentIndex + 1))
+    .replace('{total}', String(totalCount))
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      onClick={onClose}
+      style={{ background: 'repeating-conic-gradient(#1a1a2e 0% 25%, #0e0e1a 0% 50%) 0 0 / 20px 20px' }}
+    >
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+
+      <div
+        className="relative z-10 max-h-[85vh] max-w-[85vw]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {isSvg ? (
+          <img
+            src={asset.blobUrl}
+            alt={asset.altText ?? ''}
+            className="max-h-[85vh] max-w-[85vw] object-contain"
+          />
+        ) : (
+          <Image
+            src={asset.blobUrl}
+            alt={asset.altText ?? ''}
+            width={asset.width ?? 800}
+            height={asset.height ?? 600}
+            className="max-h-[85vh] max-w-[85vw] object-contain"
+            priority
+          />
+        )}
+      </div>
+
+      <div className="absolute top-4 right-4 z-20 flex items-center gap-3">
+        <span className="rounded-full bg-black/50 px-3 py-1 text-xs text-white backdrop-blur-sm tabular-nums">
+          {counter}
+        </span>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-full bg-black/50 p-2 text-white backdrop-blur-sm hover:bg-black/70"
+          aria-label={t.lightbox.close}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </button>
+      </div>
+
+      {currentIndex > 0 && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onPrev() }}
+          className="absolute left-4 z-20 rounded-full bg-black/50 p-3 text-white backdrop-blur-sm hover:bg-black/70"
+          aria-label={t.lightbox.previous}
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M12 4l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      )}
+
+      {currentIndex < totalCount - 1 && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onNext() }}
+          className="absolute right-4 z-20 rounded-full bg-black/50 p-3 text-white backdrop-blur-sm hover:bg-black/70"
+          aria-label={t.lightbox.next}
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M8 4l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      )}
+
+      <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 rounded-full bg-black/50 px-4 py-2 backdrop-blur-sm">
+        <p className="text-xs text-white">
+          {asset.filename}
+          {asset.width && asset.height && (
+            <span className="ml-2 text-white/60">{asset.width} × {asset.height}</span>
+          )}
+        </p>
+      </div>
+    </div>
+  )
+}
