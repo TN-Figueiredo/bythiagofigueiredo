@@ -4,6 +4,8 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
 import { calculateBayesianConfidence } from '@/lib/youtube/ab-statistics'
 import { setThumbnail, fetchVariantImageBuffer } from '@/lib/youtube/ab-youtube'
+import { updateVideoMetadata } from '@/lib/youtube/ab-metadata'
+import { resolveTemplates } from '@/lib/youtube/ab-templates'
 import type { AbTestVariantRow, AbTestCycleRow, VariantStats, AbTestConfig } from '@/lib/youtube/ab-types'
 
 export const maxDuration = 120
@@ -51,6 +53,9 @@ export async function GET(req: NextRequest) {
           variant_id: v.id,
           label: v.label,
           blob_url: v.blob_url,
+          title_text: v.title_text ?? null,
+          description_text: v.description_text ?? null,
+          metadata: v.metadata ?? {},
           is_original: v.is_original,
           total_impressions: totalImpressions,
           total_clicks: totalClicks,
@@ -92,19 +97,47 @@ export async function GET(req: NextRequest) {
       const allPass = gates.every(g => g.passed) && newConsecutive >= stabilityThreshold
 
       if (allPass && (config.auto_apply_winner ?? true)) {
-        // Auto-resolve: apply winner thumbnail
+        // Auto-resolve: apply winner
         const winner = variants.find(v => v.id === bayesian.winnerId)
-        if (winner?.blob_url) {
-          const { data: video } = await supabase
-            .from('youtube_videos')
-            .select('youtube_video_id')
-            .eq('id', test.youtube_video_id)
-            .single()
 
-          if (video) {
-            const { accessToken } = await ensureFreshToken(test.site_id, 'youtube')
+        const { data: video } = await supabase
+          .from('youtube_videos')
+          .select('youtube_video_id')
+          .eq('id', test.youtube_video_id)
+          .single()
+
+        if (video) {
+          const { accessToken } = await ensureFreshToken(test.site_id, 'youtube')
+
+          // Apply thumbnail for thumbnail/combo tests
+          if (winner?.blob_url && (test.test_type === 'thumbnail' || test.test_type === 'combo')) {
             const { buffer, contentType } = await fetchVariantImageBuffer(winner.blob_url)
             await setThumbnail(video.youtube_video_id, buffer, contentType, accessToken)
+          }
+
+          // Apply title/description for title/description/combo tests
+          if (winner && (test.test_type === 'title' || test.test_type === 'description' || test.test_type === 'combo')) {
+            const titleToApply = (test.test_type === 'title' || test.test_type === 'combo')
+              ? winner.title_text : null
+            let descToApply: string | null = null
+            if (test.test_type === 'description' || test.test_type === 'combo') {
+              const rawDesc = winner.description_text
+              if (rawDesc) {
+                const { data: linkMappings } = await supabase
+                  .from('ab_test_tracked_links')
+                  .select('template_name, short_code')
+                  .eq('variant_id', winner.id)
+                const linkMap: Record<string, string> = {}
+                const shortDomain = process.env.LINKS_SHORT_DOMAIN ?? 'go.bythiagofigueiredo.com'
+                for (const lm of linkMappings ?? []) {
+                  linkMap[lm.template_name] = `https://${shortDomain}/${lm.short_code}`
+                }
+                descToApply = resolveTemplates(rawDesc, linkMap)
+              }
+            }
+            if (titleToApply || descToApply) {
+              await updateVideoMetadata(video.youtube_video_id, titleToApply, descToApply, accessToken)
+            }
           }
         }
 
