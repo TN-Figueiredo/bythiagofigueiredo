@@ -13,6 +13,20 @@ interface MusicHeroCardProps {
   music: SceneMusic
 }
 
+function HeroDownloadCTA({ url }: { url: string }) {
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-[10px] font-semibold inline-flex items-center gap-1 rounded-[5px] px-3 py-1"
+      style={{ color: '#f59e0b', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)' }}
+    >
+      ⬇ Baixar no Artlist ↗
+    </a>
+  )
+}
+
 export function MusicHeroCard({ recommendation: rec, music }: MusicHeroCardProps) {
   const [expanded, setExpanded] = useState(false)
   const status = RESOLVE_COLORS[rec.resolve_status]
@@ -79,23 +93,19 @@ export function MusicHeroCard({ recommendation: rec, music }: MusicHeroCardProps
       </div>
 
       {rec.reasoning && !expanded && (
-        <div className="mx-3 mb-2 text-[10px] rounded px-2 py-1 flex items-baseline gap-1" style={{ background: `${status.color}08`, borderLeft: `2px solid ${status.color}25`, color: '#a3b1bf' }}>
+        <button
+          onClick={() => setExpanded(true)}
+          className="mx-3 mb-2 text-[10px] rounded px-2 py-1 flex items-baseline gap-1 w-[calc(100%-1.5rem)] text-left"
+          style={{ background: `${status.color}08`, borderLeft: `2px solid ${status.color}25`, color: '#a3b1bf', border: 'none' }}
+        >
           <span className="italic truncate flex-1">{rec.reasoning}</span>
-          <span className="text-[8px] flex-shrink-0 cursor-pointer" style={{ color: '#818cf8' }}>mais</span>
-        </div>
+          <span className="text-[8px] flex-shrink-0" style={{ color: '#818cf8' }}>mais</span>
+        </button>
       )}
 
       {rec.resolve_status === 'PENDING_MATCH' && rec.artlist_url && !expanded && (
         <div className="px-3 pb-2 flex items-center gap-2">
-          <a
-            href={rec.artlist_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[10px] font-semibold inline-flex items-center gap-1 rounded-[5px] px-3 py-1"
-            style={{ color: '#f59e0b', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)' }}
-          >
-            ⬇ Baixar no Artlist ↗
-          </a>
+          <HeroDownloadCTA url={rec.artlist_url} />
           <span className="text-[9px]" style={{ color: '#5a6b7f' }}>Após download, rodar import</span>
         </div>
       )}
@@ -104,15 +114,7 @@ export function MusicHeroCard({ recommendation: rec, music }: MusicHeroCardProps
         <div className="px-3 pb-3 space-y-2" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
           {rec.reasoning && <CoworkReasoning text={rec.reasoning} />}
           {rec.resolve_status === 'PENDING_MATCH' && rec.artlist_url && (
-            <a
-              href={rec.artlist_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[10px] font-semibold inline-flex items-center gap-1 rounded-[5px] px-3 py-1"
-              style={{ color: '#f59e0b', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)' }}
-            >
-              ⬇ Baixar no Artlist ↗
-            </a>
+            <HeroDownloadCTA url={rec.artlist_url} />
           )}
           {rec.original_filename && (
             <div className="text-[9px] font-mono" style={{ color: '#5a6b7f' }}>{rec.original_filename}</div>
