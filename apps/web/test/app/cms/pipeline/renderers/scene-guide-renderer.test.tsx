@@ -4,7 +4,8 @@ import { SceneGuideRenderer } from '@/app/cms/(authed)/pipeline/_components/deta
 
 const noop = vi.fn()
 
-const SCENE_DATA = {
+// Scene without music — STYLE/FLOW notes are shown as pills (not absorbed)
+const SCENE_DATA_NO_MUSIC = {
   scenes: [
     {
       number: 1,
@@ -19,7 +20,6 @@ const SCENE_DATA = {
         '00:00: fade in 1s, -20dB under voice',
         '00:10: Lower third with channel name, hold 4s.',
       ],
-      music: { search_terms: 'Mysterious, Dark', style: 'Ambient pads', entry_cue: '00:00 fade in' },
       sfx: [{ timestamp: '00:03', description: 'Subtle whoosh', search_terms: 'whoosh soft' }],
       overlays: [{ timestamp: '00:10', instruction: 'Channel name lower third' }],
       mix: [{ parameter: 'Voice', value: '-6dB' }],
@@ -28,10 +28,22 @@ const SCENE_DATA = {
   ],
 }
 
+// Scene with music — STYLE/FLOW notes are absorbed into MusicHeroSection
+const SCENE_DATA = {
+  scenes: [
+    {
+      ...SCENE_DATA_NO_MUSIC.scenes[0],
+      narrative: 'Hook — montagem rapida 3 paises.',
+      music: { search_terms: 'Mysterious, Dark', style: 'Ambient pads', entry_cue: '00:00 fade in' },
+    },
+  ],
+}
+
 describe('SceneGuideRenderer — category pills', () => {
   it('renders category pills for edit notes', () => {
+    // Use scene without music so STYLE/FLOW pills are shown (not absorbed into music section)
     const { container } = render(
-      <SceneGuideRenderer content={SCENE_DATA} isEditing={false} lang="en" onContentChange={noop} />
+      <SceneGuideRenderer content={SCENE_DATA_NO_MUSIC} isEditing={false} lang="en" onContentChange={noop} />
     )
     const pills = container.querySelectorAll('[class*="uppercase"]')
     const pillTexts = Array.from(pills).map(p => p.textContent)
@@ -70,16 +82,18 @@ describe('SceneGuideRenderer — narrative summary', () => {
 
 describe('SceneGuideRenderer — token highlighting', () => {
   it('highlights -20dB in edit notes', () => {
+    // Use scene without music so timestamped note with -20dB is rendered
     const { container } = render(
-      <SceneGuideRenderer content={SCENE_DATA} isEditing={false} lang="en" onContentChange={noop} />
+      <SceneGuideRenderer content={SCENE_DATA_NO_MUSIC} isEditing={false} lang="en" onContentChange={noop} />
     )
     const dbChips = container.querySelectorAll('[style*="fbbf24"]')
     expect(dbChips.length).toBeGreaterThanOrEqual(1)
   })
 
   it('highlights "Not" negation in edit notes', () => {
+    // Use scene without music so STYLE note containing "Not dramatic" is rendered
     const { container } = render(
-      <SceneGuideRenderer content={SCENE_DATA} isEditing={false} lang="en" onContentChange={noop} />
+      <SceneGuideRenderer content={SCENE_DATA_NO_MUSIC} isEditing={false} lang="en" onContentChange={noop} />
     )
     const negs = container.querySelectorAll('[style*="f87171"]')
     expect(negs.length).toBeGreaterThanOrEqual(1)

@@ -5,15 +5,17 @@ import type { RendererProps } from '../section-content'
 import { TagPill, OptionalBadge, getTagColor } from './tokens'
 import { tokenizeText } from './parse-tokens'
 import { categorizeNote, type CategorizedNote, type NoteCategory } from './categorize-note'
-import { parseArtlistSearch, parseArtlistSfxRef, buildArtlistMusicUrl } from '@/lib/pipeline/artlist-search'
+import { parseArtlistSearch, parseArtlistSfxRef, buildArtlistTierUrls } from '@/lib/pipeline/artlist-search'
 import {
   type SceneMusic,
+  type SceneMusicRaw,
   type SceneSFX,
-  RESOLVE_COLORS,
+  type MusicRecommendation,
+  SCORE_MAX,
   SFXItemCard,
   AudioSummaryV2,
-  isContinuationTrack,
 } from './_music-sfx'
+import type { ArtlistSearchTier } from './_music-sfx/types'
 import { MusicHeroSection } from './_music-sfx/music-hero-section'
 
 const MUSIC_ABSORBED_CATEGORIES: NoteCategory[] = ['MUSIC', 'STYLE', 'ENTRY', 'FLOW']
@@ -33,7 +35,7 @@ interface SceneTransition {
   reasoning?: string
 }
 
-interface Scene {
+interface SceneRaw {
   number: number
   label?: string
   beat_ref?: string
@@ -44,7 +46,7 @@ interface Scene {
   difficulty?: string
   narrative?: string
   edit_notes?: string[]
-  music?: SceneMusic
+  music?: SceneMusicRaw
   sfx?: SceneSFX[]
   overlays?: SceneOverlay[]
   mix?: SceneMixParam[]
@@ -52,14 +54,110 @@ interface Scene {
   decide_items?: string[]
 }
 
+interface Scene extends Omit<SceneRaw, 'music'> {
+  music?: SceneMusic
+}
+
 interface SceneGuideContent {
-  scenes?: Scene[]
+  scenes?: SceneRaw[]
+}
+
+function makeEmptyRec(tier: ArtlistSearchTier, searchUrl: string): MusicRecommendation {
+  return {
+    track: '', artist: '', resolve_status: 'NO_MATCH', score: 0, score_max: SCORE_MAX,
+    is_empty_slot: true, artlist_search_tier: tier, artlist_search_url: searchUrl,
+    slot_label: tier === 'narrow' ? 'Buscar alternativa' : tier === 'medium' ? 'Alternativa similar' : 'Explorar gênero',
+  }
+}
+
+function normalizeRec(raw: Partial<MusicRecommendation>, tier: ArtlistSearchTier): MusicRecommendation {
+  return {
+    track: raw.track ?? '',
+    artist: raw.artist ?? '',
+    resolve_status: raw.resolve_status ?? 'NO_MATCH',
+    score: raw.score ?? 0,
+    score_max: raw.score_max ?? SCORE_MAX,
+    is_empty_slot: false,
+    artlist_search_tier: raw.artlist_search_tier ?? tier,
+    original_filename: raw.original_filename,
+    audio_asset_id: raw.audio_asset_id,
+    score_breakdown: raw.score_breakdown,
+    reasoning: raw.reasoning,
+    delta_vs_favorite: raw.delta_vs_favorite,
+    category: raw.category,
+    energy: raw.energy,
+    bpm: raw.bpm,
+    key: raw.key,
+    duration: raw.duration,
+    artlist_url: raw.artlist_url,
+    artlist_search_url: raw.artlist_search_url,
+    slot_label: raw.slot_label,
+  }
+}
+
+function normalizeSceneMusic(raw: SceneMusicRaw): SceneMusic {
+  const searchTerms = raw.search_terms ?? ''
+  const tiers = searchTerms
+    ? buildArtlistTierUrls({ searchTerms, bpm: null, duration: null })
+    : { narrow: '', medium: '', broad: '' }
+
+  if (raw.recommendations && raw.recommendations.length >= 3 && raw.fill_count != null && raw.search_tiers) {
+    return raw as SceneMusic
+  }
+
+  const oldRecs = raw.recommendations ?? []
+  const tierOrder: ArtlistSearchTier[] = ['narrow', 'medium', 'broad']
+
+  const mainRec: MusicRecommendation | null = raw.track
+    ? normalizeRec({
+        track: raw.track,
+        artist: raw.artist,
+        resolve_status: raw.resolve_status,
+        score: raw.score ?? 0,
+        score_max: raw.score_max ?? SCORE_MAX,
+        original_filename: raw.original_filename,
+        audio_asset_id: raw.audio_asset_id,
+        score_breakdown: raw.score_breakdown,
+        reasoning: raw.reasoning,
+        artlist_url: raw.artlist_url,
+      }, 'narrow')
+    : null
+
+  const filled: MusicRecommendation[] = []
+  if (oldRecs.length > 0) {
+    for (const r of oldRecs) filled.push(normalizeRec(r, tierOrder[filled.length] ?? 'broad'))
+  } else if (mainRec) {
+    filled.push(mainRec)
+  }
+
+  const recs: [MusicRecommendation, MusicRecommendation, MusicRecommendation] = [
+    filled[0] ?? makeEmptyRec('narrow', tiers.narrow),
+    filled[1] ?? makeEmptyRec('medium', tiers.medium),
+    filled[2] ?? makeEmptyRec('broad', tiers.broad),
+  ]
+
+  const fillCount = recs.filter(r => !r.is_empty_slot).length
+
+  return {
+    ...raw,
+    recommendations: recs,
+    favorite_index: (raw.favorite_index ?? 0) as 0 | 1 | 2,
+    fill_count: fillCount,
+    search_tiers: raw.search_tiers ?? tiers,
+  }
 }
 
 function parseContent(content: RendererProps['content']): SceneGuideContent {
   if (typeof content === 'string') return {}
   if (Array.isArray(content) || content === null) return {}
   return content as SceneGuideContent
+}
+
+function normalizeScenes(raw: SceneRaw[]): Scene[] {
+  return raw.map(scene => ({
+    ...scene,
+    music: scene.music ? normalizeSceneMusic(scene.music) : undefined,
+  }))
 }
 
 const STATUS_STYLES: Record<string, { bg: string; color: string }> = {
@@ -203,79 +301,6 @@ function CategorizedNotes({ notes }: { notes: string[] }) {
   )
 }
 
-/* ---------- Music section components ---------- */
-
-function MusicArtlistFallback({ music }: { music: SceneMusic }) {
-  if (music.resolve_status === 'LOCAL' && !music.artlist_url) return null
-  if (isContinuationTrack(music)) return null
-
-  const url = music.artlist_url ?? (music.search_terms ? buildArtlistMusicUrl(music.search_terms) : null)
-  if (!url) return null
-
-  return (
-    <div
-      className="flex items-center gap-1.5 px-2 py-[5px] rounded-[5px]"
-      style={{ background: 'rgba(192,132,252,0.04)', border: '1px dashed rgba(192,132,252,0.12)' }}
-    >
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-[9px] font-medium rounded-full px-[6px] py-px transition-colors"
-        style={{ background: 'rgba(192,132,252,0.12)', color: '#c084fc' }}
-      >
-        🔍 Buscar outra no Artlist ↗
-      </a>
-      {music.search_terms && (
-        <span className="text-[8px]" style={{ color: '#3d4f65' }}>
-          {music.search_terms}
-        </span>
-      )}
-    </div>
-  )
-}
-
-function MusicFallback({ music }: { music: SceneMusic }) {
-  const resolveStatus = music.resolve_status ? RESOLVE_COLORS[music.resolve_status] : null
-
-  return (
-    <div className="space-y-0.5" style={{ color: 'var(--gem-muted)' }}>
-      {music.track && (
-        <div className="flex items-center gap-1.5">
-          <span className="font-medium" style={{ color: 'var(--gem-text)' }}>{music.track}</span>
-          {music.artist && <span style={{ color: 'var(--gem-dim)' }}>— {music.artist}</span>}
-          {resolveStatus && (
-            <span style={{
-              fontSize: 9, padding: '1px 6px', borderRadius: 4, fontWeight: 600,
-              background: resolveStatus.bg, color: resolveStatus.color,
-            }}>
-              {resolveStatus.label}
-            </span>
-          )}
-        </div>
-      )}
-      {!music.track && resolveStatus && (
-        <span style={{
-          fontSize: 9, padding: '1px 6px', borderRadius: 4, fontWeight: 600,
-          background: resolveStatus.bg, color: resolveStatus.color,
-        }}>
-          {resolveStatus.label}
-        </span>
-      )}
-      {isContinuationTrack(music) && (
-        <div className="text-[9px] italic" style={{ color: 'var(--gem-dim)' }}>↩ Continuação da cena anterior</div>
-      )}
-      {music.search_terms && <div><span style={{ color: 'var(--gem-dim)' }}>Busca: </span>{tokenizeText(music.search_terms)}</div>}
-      {music.style && <div><span style={{ color: 'var(--gem-dim)' }}>Estilo: </span>{tokenizeText(music.style)}</div>}
-      {music.entry_cue && <div><span style={{ color: 'var(--gem-dim)' }}>Entrada: </span>{tokenizeText(music.entry_cue)}</div>}
-      {music.continuation && !isContinuationTrack(music) && (
-        <div><span style={{ color: 'var(--gem-dim)' }}>Continuação: </span>{tokenizeText(music.continuation)}</div>
-      )}
-      <MusicArtlistFallback music={music} />
-    </div>
-  )
-}
-
 /* ---------- SubSection ---------- */
 
 function SubSection({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
@@ -311,7 +336,7 @@ function SceneCard({ scene, expandAll, sceneIndex }: { scene: Scene; expandAll: 
   const hasDecide = scene.decide_items && scene.decide_items.length > 0
 
   const filteredNotes = useMemo(() => {
-    if (!scene.edit_notes || !scene.music?.recommendations) return scene.edit_notes ?? []
+    if (!scene.edit_notes || !scene.music) return scene.edit_notes ?? []
     return scene.edit_notes.filter((n: string) => {
       const { category } = categorizeNote(n)
       return !MUSIC_ABSORBED_CATEGORIES.includes(category)
@@ -369,19 +394,13 @@ function SceneCard({ scene, expandAll, sceneIndex }: { scene: Scene; expandAll: 
             </div>
           )}
 
-          {scene.music && scene.music.recommendations && (
+          {scene.music && (
             <MusicHeroSection music={scene.music} sceneIndex={sceneIndex} />
           )}
 
           {filteredNotes.length > 0 && (
             <SubSection title="Notas de Edição">
               <CategorizedNotes notes={filteredNotes} />
-            </SubSection>
-          )}
-
-          {scene.music && !scene.music.recommendations && (
-            <SubSection title="Música">
-              <MusicFallback music={scene.music} />
             </SubSection>
           )}
 
@@ -463,7 +482,7 @@ function SceneCard({ scene, expandAll, sceneIndex }: { scene: Scene; expandAll: 
 
 export function SceneGuideRenderer({ content }: RendererProps) {
   const data = parseContent(content)
-  const scenes = data.scenes ?? []
+  const scenes = useMemo(() => normalizeScenes(data.scenes ?? []), [data.scenes])
   const [allExpanded, setAllExpanded] = useState(true)
 
   if (scenes.length === 0) {

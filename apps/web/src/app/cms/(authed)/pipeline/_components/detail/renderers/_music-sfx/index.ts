@@ -1,4 +1,4 @@
-export type { SceneMusic, SceneSFX, MusicRecommendation, ResolveStatus, SfxCategory } from './types'
+export type { SceneMusic, SceneMusicRaw, SceneSFX, MusicRecommendation, ResolveStatus, SfxCategory } from './types'
 export { RESOLVE_COLORS, SFX_CATEGORY_COLORS, SCORE_MAX } from './types'
 export { ScoreBar } from './score-bar'
 export { EnergyIndicator } from './energy-indicator'

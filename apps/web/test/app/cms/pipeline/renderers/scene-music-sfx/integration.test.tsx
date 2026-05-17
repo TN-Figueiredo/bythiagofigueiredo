@@ -5,8 +5,8 @@ import { AudioSummaryV2 } from '@/app/cms/(authed)/pipeline/_components/detail/r
 
 const noop = vi.fn()
 
-describe('SceneGuideRenderer — MusicFallback path', () => {
-  it('renders old-format music data without recommendations', () => {
+describe('SceneGuideRenderer — music normalization', () => {
+  it('normalizes old-format music data into MusicHeroSection', () => {
     const data = {
       scenes: [{
         number: 1,
@@ -42,16 +42,36 @@ describe('SceneGuideRenderer — MusicFallback path', () => {
     expect(container.textContent).toContain('Continua da')
   })
 
-  it('renders music without recommendations using fallback', () => {
+  it('normalizes music without recommendations into hero with empty slots', () => {
     const data = {
       scenes: [{
         number: 1,
         label: 'Empty',
-        music: { track: 'Test', artist: 'Artist', resolve_status: 'NO_MATCH' as const },
+        music: { track: 'Test', artist: 'Artist', resolve_status: 'NO_MATCH' as const, search_terms: 'ambient' },
       }],
     }
     const { container } = render(<SceneGuideRenderer content={data} isEditing={false} lang="en" onContentChange={noop} />)
     expect(container.textContent).toContain('Test')
+    expect(container.textContent).toContain('Buscar')
+  })
+
+  it('absorbs MUSIC/STYLE/ENTRY notes from edit_notes when music exists', () => {
+    const data = {
+      scenes: [{
+        number: 1,
+        label: 'Note absorption',
+        music: { track: 'Track', artist: 'Artist', resolve_status: 'LOCAL' as const, search_terms: 'test', style: 'cinematic' },
+        edit_notes: [
+          'Style: cinematic ambient',
+          'Entry: after narrator speaks',
+          'Hard cut at 00:05',
+          'Search Artlist: mood: mysterious',
+        ],
+      }],
+    }
+    const { container } = render(<SceneGuideRenderer content={data} isEditing={false} lang="en" onContentChange={noop} />)
+    expect(container.textContent).toContain('Hard cut at 00:05')
+    expect(container.textContent).not.toContain('Search Artlist')
   })
 
   it('handles favorite_index out of bounds gracefully', () => {

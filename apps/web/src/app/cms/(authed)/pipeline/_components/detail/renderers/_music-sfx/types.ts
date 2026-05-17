@@ -40,6 +40,28 @@ export interface MusicRecommendation {
   artlist_search_tier: ArtlistSearchTier
 }
 
+export interface SceneMusicRaw {
+  track?: string
+  artist?: string
+  original_filename?: string
+  audio_asset_id?: string
+  resolve_status?: ResolveStatus
+  score?: number
+  score_max?: number
+  score_breakdown?: Record<string, ScoreBreakdownEntry>
+  reasoning?: string
+  recommendations?: MusicRecommendation[] | [MusicRecommendation, MusicRecommendation, MusicRecommendation]
+  favorite_index?: number
+  fill_count?: number
+  search_tiers?: ArtlistSearchTiers
+  flow_to?: string
+  search_terms?: string
+  artlist_url?: string
+  style?: string
+  entry_cue?: string
+  continuation?: string
+}
+
 export interface SceneMusic {
   track?: string
   artist?: string
@@ -47,6 +69,7 @@ export interface SceneMusic {
   audio_asset_id?: string
   resolve_status?: ResolveStatus
   score?: number
+  score_max?: number
   score_breakdown?: Record<string, ScoreBreakdownEntry>
   reasoning?: string
   recommendations: [MusicRecommendation, MusicRecommendation, MusicRecommendation]
