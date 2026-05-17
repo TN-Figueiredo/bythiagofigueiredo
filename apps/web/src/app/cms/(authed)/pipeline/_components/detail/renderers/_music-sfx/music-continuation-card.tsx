@@ -40,9 +40,6 @@ export function MusicContinuationCard({ music, sourceSceneLabel, sourceSceneInde
         <span className="text-[9px] px-1.5 py-px rounded" style={{ background: 'rgba(255,255,255,0.04)', color: '#5a6b7f' }}>
           score da cena {sourceSceneIndex}
         </span>
-        {music.continuation && (
-          <span className="text-[9px] italic" style={{ color: '#5a6b7f' }}>{music.continuation}</span>
-        )}
       </div>
     </div>
   )

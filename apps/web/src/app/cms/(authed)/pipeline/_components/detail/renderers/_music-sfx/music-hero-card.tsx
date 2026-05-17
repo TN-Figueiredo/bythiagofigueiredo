@@ -6,25 +6,18 @@ import { RESOLVE_COLORS } from './types'
 import { EnergyIndicator } from './energy-indicator'
 import { CoworkReasoning } from './cowork-reasoning'
 import { ScoreBreakdown } from './score-breakdown'
-import { computeScorePercent } from './score-utils'
+import { computeScorePercent, getScoreColorFromPercent } from './score-utils'
 
 interface MusicHeroCardProps {
   recommendation: MusicRecommendation
   music: SceneMusic
 }
 
-function getScoreColor(pct: number): string {
-  if (pct >= 75) return '#10b981'
-  if (pct >= 50) return '#f59e0b'
-  if (pct >= 25) return '#f97316'
-  return '#6b7280'
-}
-
 export function MusicHeroCard({ recommendation: rec, music }: MusicHeroCardProps) {
   const [expanded, setExpanded] = useState(false)
   const status = RESOLVE_COLORS[rec.resolve_status]
   const pct = computeScorePercent(rec.score, rec.score_max)
-  const scoreColor = getScoreColor(pct)
+  const scoreColor = getScoreColorFromPercent(pct)
 
   return (
     <div

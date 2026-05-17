@@ -15,7 +15,7 @@ export function ScoreBreakdown({ breakdown }: ScoreBreakdownProps) {
   return (
     <div className="p-2 rounded-md" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }}>
       <div className="text-[9px] font-semibold uppercase tracking-wider mb-2" style={{ color: '#94a3b8' }}>
-        Score Breakdown
+        Detalhamento
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 gap-x-4">
         {entries.map(([key, { score, max }]) => {

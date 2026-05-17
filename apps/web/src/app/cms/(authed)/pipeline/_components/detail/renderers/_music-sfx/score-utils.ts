@@ -9,6 +9,13 @@ export function getScoreColor(score: number, max: number): string {
   return '#6b7280'
 }
 
+export function getScoreColorFromPercent(pct: number): string {
+  if (pct >= 75) return '#10b981'
+  if (pct >= 50) return '#f59e0b'
+  if (pct >= 25) return '#f97316'
+  return '#6b7280'
+}
+
 export function getBreakdownColor(score: number, max: number): string {
   if (max === 0) return '#4b5563'
   if (score === 0) return '#4b5563'

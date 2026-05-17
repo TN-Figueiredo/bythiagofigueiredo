@@ -5,11 +5,11 @@ import type { MusicRecommendation, ArtlistSearchTier } from './types'
 import { RESOLVE_COLORS } from './types'
 import { CoworkReasoning } from './cowork-reasoning'
 import { ScoreBreakdown } from './score-breakdown'
-import { computeScorePercent, getDeltaParts, formatDeltaTotal } from './score-utils'
+import { computeScorePercent, getScoreColorFromPercent, getDeltaParts, formatDeltaTotal } from './score-utils'
 
 interface MusicAlternativeSlotProps {
   recommendation: MusicRecommendation
-  slotIndex: 2 | 3
+  slotIndex: 1 | 2 | 3
   searchTier: ArtlistSearchTier
   searchUrl?: string
   searchTerms?: string
@@ -27,11 +27,18 @@ const TIER_COLORS: Record<ArtlistSearchTier, { text: string; bg: string; border:
   broad: { text: '#c084fc', bg: 'rgba(192,132,252,0.08)', border: 'rgba(192,132,252,0.15)' },
 }
 
-function getScoreColor(pct: number): string {
-  if (pct >= 75) return '#10b981'
-  if (pct >= 50) return '#f59e0b'
-  if (pct >= 25) return '#f97316'
-  return '#6b7280'
+function DownloadCTA({ url }: { url: string }) {
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-[9px] font-semibold rounded px-2 py-0.5"
+      style={{ color: '#f59e0b', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)', textDecoration: 'none' }}
+    >
+      ⬇ Baixar no Artlist ↗
+    </a>
+  )
 }
 
 export function MusicAlternativeSlot({ recommendation: rec, slotIndex, searchTier, searchUrl, searchTerms }: MusicAlternativeSlotProps) {
@@ -83,7 +90,7 @@ export function MusicAlternativeSlot({ recommendation: rec, slotIndex, searchTie
 
   const status = RESOLVE_COLORS[rec.resolve_status]
   const pct = computeScorePercent(rec.score, rec.score_max)
-  const scoreColor = getScoreColor(pct)
+  const scoreColor = getScoreColorFromPercent(pct)
   const deltas = rec.delta_vs_favorite ? getDeltaParts(rec.delta_vs_favorite) : []
   const deltaTotal = rec.delta_vs_favorite ? formatDeltaTotal(rec.delta_vs_favorite) : 0
 
@@ -129,15 +136,7 @@ export function MusicAlternativeSlot({ recommendation: rec, slotIndex, searchTie
 
       {rec.resolve_status === 'PENDING_MATCH' && rec.artlist_url && !expanded && (
         <div className="px-2.5 pb-2 flex items-center gap-1.5" style={{ paddingLeft: 34 }}>
-          <a
-            href={rec.artlist_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[9px] font-semibold rounded px-2 py-0.5"
-            style={{ color: '#f59e0b', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)', textDecoration: 'none' }}
-          >
-            ⬇ Baixar ↗
-          </a>
+          <DownloadCTA url={rec.artlist_url} />
           <span className="text-[8px]" style={{ color: '#3d4f65' }}>①Baixar ②Importar ③Re-resolver</span>
         </div>
       )}
@@ -146,7 +145,7 @@ export function MusicAlternativeSlot({ recommendation: rec, slotIndex, searchTie
         <div className="px-2.5 pb-2.5 space-y-1.5" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
           {rec.reasoning && <CoworkReasoning text={rec.reasoning} />}
           {rec.resolve_status === 'PENDING_MATCH' && rec.artlist_url && (
-            <a href={rec.artlist_url} target="_blank" rel="noopener noreferrer" className="text-[9px] font-semibold rounded px-2 py-0.5 inline-block" style={{ color: '#f59e0b', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)', textDecoration: 'none' }}>⬇ Baixar no Artlist ↗</a>
+            <DownloadCTA url={rec.artlist_url} />
           )}
           {deltas.length > 0 && (
             <div className="flex items-center gap-1 flex-wrap">

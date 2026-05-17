@@ -189,6 +189,47 @@ describe('MusicHeroSection — 6 visual states', () => {
     })
   })
 
+  describe('PENDING_MATCH download CTA', () => {
+    it('shows download CTA for PENDING_MATCH hero', () => {
+      const music = makeMusic({
+        recommendations: [
+          makeRec({ resolve_status: 'PENDING_MATCH', artlist_url: 'https://artlist.io/track/123' }),
+          makeRec({ track: 'Alt', score: 20 }),
+          makeEmptyRec('broad'),
+        ],
+        fill_count: 2,
+      })
+      render(<MusicHeroSection music={music} sceneIndex={1} />)
+      const container = screen.getByRole('region')
+      expect(container.textContent).toContain('Baixar')
+    })
+  })
+
+  describe('Delta vs favorite', () => {
+    it('shows delta vs favorite on alternative slot when expanded', () => {
+      const music = makeMusic({
+        recommendations: [
+          makeRec({ score: 30 }),
+          makeRec({ track: 'Runner Up', score: 24, delta_vs_favorite: { mood: -2, energy: -1, bpm_in_range: -3 } }),
+          makeRec({ track: 'Third', score: 18 }),
+        ],
+      })
+      const { container } = render(<MusicHeroSection music={music} sceneIndex={1} />)
+      // Delta shows in collapsed view as "−N pts vs #1"
+      expect(container.textContent).toContain('vs #1')
+    })
+  })
+
+  describe('Note absorption — entry_cue and style rendering', () => {
+    it('filters MUSIC/STYLE/ENTRY/FLOW notes when music has recommendations', () => {
+      const music = makeMusic({ entry_cue: 'After beat drop', style: 'Epic cinematic' })
+      render(<MusicHeroSection music={music} sceneIndex={1} />)
+      const container = screen.getByRole('region')
+      expect(container.textContent).toContain('Entrada: After beat drop')
+      expect(container.textContent).toContain('Epic cinematic')
+    })
+  })
+
   describe('State 6: Expanded breakdown', () => {
     const recWithBreakdown = makeRec({
       score_breakdown: {
@@ -215,7 +256,7 @@ describe('MusicHeroSection — 6 visual states', () => {
       const heroButton = container.querySelector('button[aria-expanded]')
       expect(heroButton).toBeDefined()
       act(() => { fireEvent.click(heroButton!) })
-      expect(container.textContent).toContain('Score Breakdown')
+      expect(container.textContent).toContain('Detalhamento')
     })
 
     it('displays breakdown categories after expansion', () => {

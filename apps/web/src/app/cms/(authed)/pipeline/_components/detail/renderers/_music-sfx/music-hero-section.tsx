@@ -99,7 +99,7 @@ export function MusicHeroSection({ music, sceneIndex }: MusicHeroSectionProps) {
           ) : (
             <MusicAlternativeSlot
               recommendation={favorite}
-              slotIndex={2}
+              slotIndex={1}
               searchTier="narrow"
               searchUrl={music.search_tiers.narrow}
               searchTerms={music.search_terms}
@@ -107,9 +107,9 @@ export function MusicHeroSection({ music, sceneIndex }: MusicHeroSectionProps) {
           )}
           {music.recommendations.filter((_, i) => i !== safeFavIndex).map((rec, i) => (
             <MusicAlternativeSlot
-              key={i}
+              key={rec.track || rec.artlist_search_tier}
               recommendation={rec}
-              slotIndex={(i + 2) as 2 | 3}
+              slotIndex={(i + 2) as 1 | 2 | 3}
               searchTier={rec.artlist_search_tier}
               searchUrl={rec.artlist_search_url}
               searchTerms={music.search_terms}
@@ -118,11 +118,13 @@ export function MusicHeroSection({ music, sceneIndex }: MusicHeroSectionProps) {
         </>
       )}
 
-      <div className="flex items-center justify-center mt-2 pt-1">
-        <span className="text-[9px] cursor-pointer" style={{ color: '#5a6b7f' }}>
-          ↻ Re-resolver após importar novas tracks
-        </span>
-      </div>
+      {(music.fill_count < 3 || music.recommendations.some(r => r.resolve_status === 'PENDING_MATCH')) && (
+        <div className="flex items-center justify-center mt-2 pt-1" style={{ borderTop: '1px solid rgba(255,255,255,0.03)' }}>
+          <span className="text-[9px]" style={{ color: '#4b5563' }}>
+            ↻ Re-resolver após importar novas tracks
+          </span>
+        </div>
+      )}
     </div>
   )
 }
