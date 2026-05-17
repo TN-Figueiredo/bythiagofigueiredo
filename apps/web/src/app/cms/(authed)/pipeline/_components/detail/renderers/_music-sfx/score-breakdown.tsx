@@ -17,7 +17,7 @@ export function ScoreBreakdown({ breakdown }: ScoreBreakdownProps) {
       <div className="text-[9px] font-semibold uppercase tracking-wider mb-2" style={{ color: '#94a3b8' }}>
         Detalhamento
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 gap-x-4">
+      <div className="grid grid-cols-1 gap-1">
         {entries.map(([key, { score, max }]) => {
           const color = getBreakdownColor(score, max)
           const pct = max > 0 ? (score / max) * 100 : 0

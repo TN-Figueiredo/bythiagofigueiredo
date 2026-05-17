@@ -20,7 +20,7 @@ export function FillIndicator({ filled, total, status }: FillIndicatorProps) {
     <span
       className="inline-flex items-center gap-1"
       role="img"
-      aria-label={`${filled} de ${total} slots preenchidos`}
+      aria-label={`${filled} de ${total} músicas encontradas`}
     >
       <span className="inline-flex gap-[3px]">
         {Array.from({ length: total }, (_, i) => (

@@ -4,7 +4,6 @@ import {
   getBreakdownColor,
   computeGaugeDasharray,
   computeScorePercent,
-  formatDeltaNotes,
 } from '@/app/cms/(authed)/pipeline/_components/detail/renderers/_music-sfx/score-utils'
 
 describe('getScoreColor', () => {
@@ -81,20 +80,3 @@ describe('computeScorePercent', () => {
   })
 })
 
-describe('formatDeltaNotes', () => {
-  it('formats negative deltas with category labels', () => {
-    const delta = { tags: -2, mood: -2, reuse_scenarios: -4 }
-    const result = formatDeltaNotes(delta)
-    expect(result).toContain('tags −2')
-    expect(result).toContain('mood −2')
-    expect(result).toContain('reuse −4')
-  })
-
-  it('returns empty string for empty delta', () => {
-    expect(formatDeltaNotes({})).toBe('')
-  })
-
-  it('returns empty string for undefined', () => {
-    expect(formatDeltaNotes(undefined)).toBe('')
-  })
-})

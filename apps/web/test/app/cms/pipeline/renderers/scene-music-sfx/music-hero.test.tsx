@@ -53,7 +53,7 @@ describe('MusicHeroSection — 6 visual states', () => {
 
     it('shows green fill indicator 3/3', () => {
       render(<MusicHeroSection music={makeMusic()} sceneIndex={1} />)
-      const fillIndicator = screen.getByRole('img', { name: /3 de 3 slots preenchidos/ })
+      const fillIndicator = screen.getByRole('img', { name: /3 de 3 músicas encontradas/ })
       expect(fillIndicator).toBeDefined()
       expect(fillIndicator.textContent).toContain('3/3')
     })
@@ -86,7 +86,7 @@ describe('MusicHeroSection — 6 visual states', () => {
 
     it('shows amber fill indicator 2/3', () => {
       render(<MusicHeroSection music={music} sceneIndex={1} />)
-      const fillIndicator = screen.getByRole('img', { name: /2 de 3 slots preenchidos/ })
+      const fillIndicator = screen.getByRole('img', { name: /2 de 3 músicas encontradas/ })
       expect(fillIndicator).toBeDefined()
       expect(fillIndicator.textContent).toContain('2/3')
     })
@@ -116,7 +116,7 @@ describe('MusicHeroSection — 6 visual states', () => {
 
     it('shows amber fill indicator 1/3', () => {
       render(<MusicHeroSection music={music} sceneIndex={1} />)
-      const fillIndicator = screen.getByRole('img', { name: /1 de 3 slots preenchidos/ })
+      const fillIndicator = screen.getByRole('img', { name: /1 de 3 músicas encontradas/ })
       expect(fillIndicator).toBeDefined()
       expect(fillIndicator.textContent).toContain('1/3')
     })
@@ -141,7 +141,7 @@ describe('MusicHeroSection — 6 visual states', () => {
 
     it('shows red fill indicator 0/3', () => {
       render(<MusicHeroSection music={music} sceneIndex={1} />)
-      const fillIndicator = screen.getByRole('img', { name: /0 de 3 slots preenchidos/ })
+      const fillIndicator = screen.getByRole('img', { name: /0 de 3 músicas encontradas/ })
       expect(fillIndicator).toBeDefined()
       expect(fillIndicator.textContent).toContain('0/3')
     })
@@ -171,7 +171,7 @@ describe('MusicHeroSection — 6 visual states', () => {
 
     it('shows dim fill indicator', () => {
       render(<MusicHeroSection music={music} sceneIndex={4} />)
-      const fillIndicator = screen.getByRole('img', { name: /1 de 3 slots preenchidos/ })
+      const fillIndicator = screen.getByRole('img', { name: /1 de 3 músicas encontradas/ })
       expect(fillIndicator).toBeDefined()
     })
 

@@ -99,9 +99,9 @@ export interface SceneSFX {
 
 export const RESOLVE_COLORS: Record<ResolveStatus, { label: string; color: string; bg: string; border: string }> = {
   LOCAL: { label: '✓ Local', color: '#10b981', bg: 'rgba(16,185,129,0.15)', border: 'rgba(16,185,129,0.3)' },
-  PENDING_MATCH: { label: '⏳ Download', color: '#f59e0b', bg: 'rgba(245,158,11,0.15)', border: 'rgba(245,158,11,0.3)' },
-  PARTIAL_MATCH: { label: '~ Partial', color: '#f97316', bg: 'rgba(249,115,22,0.15)', border: 'rgba(249,115,22,0.3)' },
-  NO_MATCH: { label: '🔗 Search', color: '#3b82f6', bg: 'rgba(59,130,246,0.15)', border: 'rgba(59,130,246,0.3)' },
+  PENDING_MATCH: { label: '⏳ Baixar', color: '#f59e0b', bg: 'rgba(245,158,11,0.15)', border: 'rgba(245,158,11,0.3)' },
+  PARTIAL_MATCH: { label: '~ Parcial', color: '#f97316', bg: 'rgba(249,115,22,0.15)', border: 'rgba(249,115,22,0.3)' },
+  NO_MATCH: { label: '🔍 Buscar', color: '#3b82f6', bg: 'rgba(59,130,246,0.15)', border: 'rgba(59,130,246,0.3)' },
 }
 
 export const SFX_CATEGORY_COLORS: Record<SfxCategory, { bg: string; color: string }> = {

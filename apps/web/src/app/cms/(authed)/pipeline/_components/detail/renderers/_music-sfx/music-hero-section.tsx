@@ -18,16 +18,11 @@ function getFillStatus(music: SceneMusic): 'green' | 'amber' | 'red' | 'dim' {
   return 'amber'
 }
 
-function parseSceneIndex(label: string): number {
-  const match = label.match(/(\d+)/)
-  return match?.[1] ? parseInt(match[1], 10) : 0
-}
-
 export function MusicHeroSection({ music, sceneIndex }: MusicHeroSectionProps) {
   const isContinuation = !!music.continuation
   const fillStatus = getFillStatus(music)
   const safeFavIndex = Math.min(music.favorite_index ?? 0, music.recommendations.length - 1)
-  const favorite = music.recommendations[Math.max(0, safeFavIndex)]!
+  const favorite = music.recommendations[safeFavIndex]!
 
   return (
     <div
@@ -71,7 +66,6 @@ export function MusicHeroSection({ music, sceneIndex }: MusicHeroSectionProps) {
           <MusicContinuationCard
             music={music}
             sourceSceneLabel={music.continuation!}
-            sourceSceneIndex={parseSceneIndex(music.continuation!)}
           />
           {music.recommendations[1] && (
             <MusicAlternativeSlot

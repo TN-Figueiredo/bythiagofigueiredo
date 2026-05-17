@@ -141,7 +141,7 @@ function normalizeSceneMusic(raw: SceneMusicRaw): SceneMusic {
   return {
     ...raw,
     recommendations: recs,
-    favorite_index: (raw.favorite_index ?? 0) as 0 | 1 | 2,
+    favorite_index: Math.min(raw.favorite_index ?? 0, 2) as 0 | 1 | 2,
     fill_count: fillCount,
     search_tiers: raw.search_tiers ?? tiers,
   }

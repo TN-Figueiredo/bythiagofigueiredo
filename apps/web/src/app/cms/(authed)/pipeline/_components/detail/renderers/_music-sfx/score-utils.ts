@@ -48,18 +48,6 @@ const CATEGORY_SHORT: Record<string, string> = {
   description: 'desc',
 }
 
-export function formatDeltaNotes(delta: Record<string, number> | undefined): string {
-  if (!delta) return ''
-  const parts: string[] = []
-  for (const [key, value] of Object.entries(delta)) {
-    if (value === 0) continue
-    const label = CATEGORY_SHORT[key] ?? key
-    const sign = value > 0 ? '+' : '−'
-    parts.push(`${label} ${sign}${Math.abs(value)}`)
-  }
-  return parts.join(', ')
-}
-
 export function getDeltaParts(delta: Record<string, number> | undefined): { label: string; value: number }[] {
   if (!delta) return []
   const parts: { label: string; value: number }[] = []

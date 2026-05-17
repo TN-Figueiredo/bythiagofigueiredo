@@ -32,7 +32,7 @@ describe('SFXItemCard', () => {
       search_terms: 'bass drop,impact hit low',
     }
     const { container } = render(<SFXItemCard sfx={sfx} />)
-    expect(container.textContent).toContain('Search')
+    expect(container.textContent).toContain('Buscar')
     const links = container.querySelectorAll('a')
     expect(links.length).toBe(2)
     expect(links[0]?.textContent).toContain('bass drop')
@@ -52,7 +52,7 @@ describe('SFXItemCard', () => {
       search_terms: 'subtle riser 2s',
     }
     const { container } = render(<SFXItemCard sfx={sfx} />)
-    expect(container.textContent).toContain('Partial')
+    expect(container.textContent).toContain('Parcial')
     expect(container.textContent).toContain('Short Riser.wav')
     const link = container.querySelector('a')
     expect(link).toBeTruthy()

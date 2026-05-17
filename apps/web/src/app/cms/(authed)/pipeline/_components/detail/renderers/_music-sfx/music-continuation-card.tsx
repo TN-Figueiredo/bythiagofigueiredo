@@ -7,10 +7,9 @@ import { computeScorePercent } from './score-utils'
 interface MusicContinuationCardProps {
   music: SceneMusic
   sourceSceneLabel: string
-  sourceSceneIndex: number
 }
 
-export function MusicContinuationCard({ music, sourceSceneLabel, sourceSceneIndex }: MusicContinuationCardProps) {
+export function MusicContinuationCard({ music, sourceSceneLabel }: MusicContinuationCardProps) {
   const status = music.resolve_status ? RESOLVE_COLORS[music.resolve_status] : null
   const pct = music.score != null && music.recommendations[0]
     ? computeScorePercent(music.score, music.recommendations[0].score_max)
@@ -36,11 +35,16 @@ export function MusicContinuationCard({ music, sourceSceneLabel, sourceSceneInde
           </span>
         )}
       </div>
-      <div className="flex items-center gap-2 mt-1 flex-wrap" style={{ paddingLeft: 18 }}>
-        <span className="text-[9px] px-1.5 py-px rounded" style={{ background: 'rgba(255,255,255,0.04)', color: '#5a6b7f' }}>
-          score da cena {sourceSceneIndex}
-        </span>
-      </div>
+      {music.recommendations[0] && !music.recommendations[0].is_empty_slot && (
+        <div className="flex items-center gap-1.5 mt-1" style={{ paddingLeft: 18 }}>
+          <span className="text-[9px]" style={{ color: '#5a6b7f' }}>
+            {music.recommendations[0].track}
+          </span>
+          {pct != null && (
+            <span className="text-[9px] font-mono" style={{ color: '#5a6b7f' }}>{pct}%</span>
+          )}
+        </div>
+      )}
     </div>
   )
 }
