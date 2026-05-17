@@ -86,4 +86,15 @@ describe('parseScriptTags', () => {
   it('handles empty string', () => {
     expect(parseScriptTags('')).toEqual([])
   })
+
+  it('converts ═══ separator lines to separator segments', () => {
+    const text = 'Some text\n═══════════════════════════════════════════\n[VISUAL: next section]'
+    const segments = parseScriptTags(text)
+    expect(segments.some(s => s.type === 'separator')).toBe(true)
+  })
+
+  it('converts --- separator lines to separator segments', () => {
+    const segments = parseScriptTags('Before\n---\nAfter')
+    expect(segments.some(s => s.type === 'separator')).toBe(true)
+  })
 })

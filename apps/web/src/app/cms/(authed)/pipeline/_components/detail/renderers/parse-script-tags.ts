@@ -7,6 +7,7 @@ export type ScriptSegment =
   | { type: 'text'; content: string }
   | { type: 'blockquote'; content: string }
   | { type: 'bullet-list'; items: string[] }
+  | { type: 'separator' }
 
 interface RawMatch {
   start: number
@@ -68,12 +69,7 @@ export function parseScriptTags(text: string): ScriptSegment[] {
 
   const structuralMatches = collectMatches(text)
   if (structuralMatches.length === 0) {
-    QUOTE_RE.lastIndex = 0
-    const qm = QUOTE_RE.exec(text)
-    if (qm) {
-      return [{ type: 'narration', content: qm[1]! }]
-    }
-    return [{ type: 'text', content: text }]
+    return parseGapText(text)
   }
 
   const merged: RawMatch[] = []
@@ -148,9 +144,14 @@ function parseGapText(text: string): ScriptSegment[] {
     mode = 'none'
   }
 
+  const SEPARATOR_RE = /^[═─—=\-_~]{3,}$/
+
   for (const line of lines) {
     const trimmed = line.trim()
-    if (trimmed.startsWith('> ')) {
+    if (SEPARATOR_RE.test(trimmed)) {
+      flushBuffer()
+      segments.push({ type: 'separator' })
+    } else if (trimmed.startsWith('> ')) {
       flushBuffer()
       const content = trimmed.slice(2).trim()
       if (content) segments.push({ type: 'blockquote', content })

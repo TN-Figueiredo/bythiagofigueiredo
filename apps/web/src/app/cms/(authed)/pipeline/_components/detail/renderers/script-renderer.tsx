@@ -38,9 +38,13 @@ function parseContent(content: RendererProps['content']): ScriptContent {
 function SegmentRenderer({ segment }: { segment: ScriptSegment }) {
   switch (segment.type) {
     case 'tag': {
-      const textColor = getTagColor(segment.tag).text
+      const { text: textColor, pill } = getTagColor(segment.tag)
+      const isLong = segment.content.length > 120
       return (
-        <div className="tag-line flex items-start gap-2 py-1 px-1 rounded transition-colors hover:bg-white/[0.03]">
+        <div
+          className="tag-line flex items-start gap-2 py-1 px-1 rounded transition-colors hover:bg-white/[0.03]"
+          style={isLong ? { background: `${pill.bg}40`, borderLeft: `2px solid ${pill.border}`, paddingLeft: 8, marginBottom: 4 } : undefined}
+        >
           <TagPill tag={segment.tag} />
           <span className="text-[11.5px] leading-relaxed" style={{ color: textColor }}>
             {tokenizeText(segment.content)}
@@ -127,6 +131,12 @@ function SegmentRenderer({ segment }: { segment: ScriptSegment }) {
             </li>
           ))}
         </ul>
+      )
+    case 'separator':
+      return (
+        <div className="my-3 flex items-center gap-3">
+          <span className="flex-1 h-px" style={{ background: 'linear-gradient(90deg, transparent, var(--gem-border), transparent)' }} />
+        </div>
       )
   }
 }
