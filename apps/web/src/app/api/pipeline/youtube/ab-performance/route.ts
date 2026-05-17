@@ -3,8 +3,9 @@ import { authenticateRead, pipelineError, pipelineSuccess } from '@/lib/pipeline
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
 export async function GET(req: NextRequest) {
-  const authResult = await authenticateRead(req)
-  if (!('ok' in authResult)) return authResult
+  const result = await authenticateRead(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
   const supabase = getSupabaseServiceClient()
 
@@ -42,5 +43,5 @@ export async function GET(req: NextRequest) {
     completed_tests: completedTests?.length ?? 0,
     winning_patterns: patterns,
     winning_tags: tags,
-  }, 200, authResult.auth)
+  }, 200, auth)
 }

@@ -3,8 +3,9 @@ import { authenticateRead, pipelineError, pipelineSuccess } from '@/lib/pipeline
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
 export async function GET(req: NextRequest) {
-  const authResult = await authenticateRead(req)
-  if (!('ok' in authResult)) return authResult
+  const result = await authenticateRead(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
   const supabase = getSupabaseServiceClient()
   const { searchParams } = new URL(req.url)
@@ -23,7 +24,7 @@ export async function GET(req: NextRequest) {
   }
 
   const { data, error } = await query
-  if (error) return pipelineError('DB_ERROR', error.message, 500, authResult.auth)
+  if (error) return pipelineError('DB_ERROR', error.message, 500, auth)
 
-  return pipelineSuccess(data, 200, authResult.auth)
+  return pipelineSuccess(data, 200, auth)
 }

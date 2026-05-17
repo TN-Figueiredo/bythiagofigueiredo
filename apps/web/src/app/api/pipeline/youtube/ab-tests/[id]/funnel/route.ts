@@ -6,8 +6,9 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const authResult = await authenticateRead(req)
-  if (!('ok' in authResult)) return authResult
+  const result = await authenticateRead(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
   const { id } = await params
   const supabase = getSupabaseServiceClient()
@@ -18,7 +19,7 @@ export async function GET(
     .eq('id', id)
     .single()
 
-  if (!test) return pipelineError('NOT_FOUND', 'Test not found', 404, authResult.auth)
+  if (!test) return pipelineError('NOT_FOUND', 'Test not found', 404, auth)
 
   const { data: trackedLinks } = await supabase
     .from('ab_test_tracked_links')
@@ -72,5 +73,5 @@ export async function GET(
     clicks: linkClicksByLinkId[tl.link_id] ?? 0,
   }))
 
-  return pipelineSuccess({ per_variant: perVariant, per_link: perLink }, 200, authResult.auth)
+  return pipelineSuccess({ per_variant: perVariant, per_link: perLink }, 200, auth)
 }
