@@ -103,7 +103,7 @@ export async function GET(req: NextRequest) {
             const linkMap: Record<string, string> = {}
             const shortDomain = process.env.LINKS_SHORT_DOMAIN ?? 'go.bythiagofigueiredo.com'
             for (const lm of linkMappings ?? []) {
-              linkMap[lm.template_name] = `${shortDomain}/${lm.short_code}`
+              linkMap[lm.template_name] = `https://${shortDomain}/${lm.short_code}`
             }
             descToSet = resolveTemplates(rawDesc, linkMap)
             appliedMeta.links_resolved = linkMap
