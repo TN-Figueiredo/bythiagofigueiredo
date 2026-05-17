@@ -2,7 +2,17 @@
 
 import { useState, useRef, useCallback } from 'react'
 import { YtOverview } from './yt-overview'
-import type { YtChannelMetrics, YtDailyMetric } from '@/lib/youtube/analytics-types'
+import { YtGrades } from './yt-grades'
+import { YtOutliers } from './yt-outliers'
+import { YtDemographicsView } from './yt-demographics'
+import { YtSearchTermsView } from './yt-search-terms'
+import type {
+  YtChannelMetrics,
+  YtDailyMetric,
+  YtVideoGrade,
+  YtSearchTerm,
+  YtDemographics,
+} from '@/lib/youtube/analytics-types'
 
 const SUB_TABS = [
   { id: 'overview', label: 'Overview' },
@@ -12,15 +22,25 @@ const SUB_TABS = [
   { id: 'search', label: 'Search Terms' },
 ] as const
 
-type TabId = typeof SUB_TABS[number]['id']
+type TabId = (typeof SUB_TABS)[number]['id']
 
 interface Props {
   siteId: string
   metrics: YtChannelMetrics
   dailyMetrics: YtDailyMetric[]
+  grades: YtVideoGrade[]
+  searchTerms: YtSearchTerm[]
+  demographics: YtDemographics
 }
 
-export function YtAnalyticsTabs({ siteId: _siteId, metrics, dailyMetrics }: Props) {
+export function YtAnalyticsTabs({
+  siteId: _siteId,
+  metrics,
+  dailyMetrics,
+  grades,
+  searchTerms,
+  demographics,
+}: Props) {
   const [activeTab, setActiveTab] = useState<TabId>('overview')
   const tablistRef = useRef<HTMLDivElement>(null)
 
@@ -77,10 +97,10 @@ export function YtAnalyticsTabs({ siteId: _siteId, metrics, dailyMetrics }: Prop
         aria-labelledby={`tab-yt-${activeTab}`}
       >
         {activeTab === 'overview' && <YtOverview metrics={metrics} dailyMetrics={dailyMetrics} />}
-        {activeTab === 'grades' && <p className="p-4 text-sm text-cms-text-muted">Grades &amp; CTR — coming in next phase.</p>}
-        {activeTab === 'outliers' && <p className="p-4 text-sm text-cms-text-muted">Outliers — coming in next phase.</p>}
-        {activeTab === 'demographics' && <p className="p-4 text-sm text-cms-text-muted">Demographics — coming in next phase.</p>}
-        {activeTab === 'search' && <p className="p-4 text-sm text-cms-text-muted">Search Terms — coming in next phase.</p>}
+        {activeTab === 'grades' && <YtGrades grades={grades} />}
+        {activeTab === 'outliers' && <YtOutliers grades={grades} />}
+        {activeTab === 'demographics' && <YtDemographicsView demographics={demographics} />}
+        {activeTab === 'search' && <YtSearchTermsView terms={searchTerms} />}
       </div>
     </div>
   )

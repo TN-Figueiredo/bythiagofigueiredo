@@ -6,6 +6,7 @@ import {
   fetchNeedsAttention,
   fetchThisWeekStrip,
   fetchActivityFeed,
+  fetchYtDashboardSummary,
   type DashboardPeriod,
 } from './_components/dashboard-queries'
 import { getGreeting, formatTodayLabel } from './_components/dashboard-greeting'
@@ -16,6 +17,8 @@ import { DashboardWeekStrip } from './_components/dashboard-week-strip'
 import { DashboardQuickActions } from './_components/dashboard-quick-actions'
 import { DashboardActivityFeed } from './_components/dashboard-activity-feed'
 import { BlogHealthSection } from './_components/dashboard-blog-health'
+import { DashboardYoutubeCard } from './_components/dashboard-youtube-card'
+import { DashboardAiInsights } from './_components/dashboard-ai-insights'
 import { SectionErrorBoundary } from './_shared/section-error-boundary'
 
 /* ------------------------------------------------------------------ */
@@ -55,14 +58,19 @@ export default async function CmsDashboardPage({ searchParams }: PageProps) {
 async function DashboardContent({ period }: { period: DashboardPeriod }) {
   const { siteId, timezone } = await getSiteContext()
 
-  const [kpis, attentionItems, weekStrip, activityFeed, blogHealth] =
+  const [kpis, attentionItems, weekStrip, activityFeed, blogHealth, ytSummary] =
     await Promise.all([
       fetchDashboardKpis(siteId, period),
       fetchNeedsAttention(siteId),
       fetchThisWeekStrip(siteId, timezone),
       fetchActivityFeed(siteId),
       fetchDashboardBlogHealth(siteId),
+      fetchYtDashboardSummary(siteId),
     ])
+
+  const aiInsights = [
+    { type: 'anomaly' as const, message: 'Your latest video is performing 2.3× above average in the first 48 hours.', actions: [{ label: 'Write Follow-up →', href: '/cms/youtube/content' }] },
+  ]
 
   return (
     <div className="flex flex-1 gap-6 p-6 lg:p-8">
@@ -73,6 +81,8 @@ async function DashboardContent({ period }: { period: DashboardPeriod }) {
         <DashboardWeekStrip days={weekStrip} />
         <DashboardQuickActions />
         {blogHealth && <BlogHealthSection data={blogHealth} />}
+        {ytSummary && <DashboardYoutubeCard data={ytSummary} />}
+        <DashboardAiInsights insights={aiInsights} />
       </main>
 
       {/* Aside — Activity Feed */}

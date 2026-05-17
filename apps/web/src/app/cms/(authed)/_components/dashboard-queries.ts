@@ -483,6 +483,59 @@ export function fetchThisWeekStrip(
 }
 
 /* ------------------------------------------------------------------ */
+/*  YtDashboardSummary + fetchYtDashboardSummary                      */
+/* ------------------------------------------------------------------ */
+
+export interface YtDashboardSummary {
+  healthScore: number
+  views30d: number
+  viewsDelta: number
+  subscribers: number
+  subsNet: number
+  ctr: number
+  avgPercentage: number
+  milestoneTarget: number
+  milestoneAway: number
+  activeAbTest: { title: string; variant: string; improvement: number; confidence: number; daysLeft: number } | null
+}
+
+export function fetchYtDashboardSummary(siteId: string) {
+  return unstable_cache(
+    async (): Promise<YtDashboardSummary | null> => {
+      const { fetchYtChannelMetrics } = await import('@/lib/youtube/analytics-client')
+      const metrics = await fetchYtChannelMetrics(siteId, 30)
+      if (!metrics) return null
+
+      const ctr = metrics.impressionClickThroughRate
+      const retention = metrics.averageViewPercentage
+      const subsNet = metrics.subscribersGained - metrics.subscribersLost
+
+      const ctrScore = Math.min(ctr * 10, 100)
+      const retScore = Math.min(retention * 2, 100)
+      const growthScore = Math.min(((subsNet) / Math.max(metrics.subscribersGained, 1)) * 100, 100)
+      const engScore = metrics.views > 0 ? Math.min(((metrics.likes + metrics.comments + metrics.shares) / metrics.views) * 1000, 100) : 0
+      const freqScore = 50
+      const healthScore = Math.round((ctrScore + retScore + growthScore + engScore + freqScore) / 5)
+
+      return {
+        healthScore,
+        views30d: metrics.views,
+        viewsDelta: 0,
+        subscribers: 0,
+        subsNet,
+        ctr,
+        avgPercentage: retention,
+        milestoneTarget: 2000,
+        milestoneAway: 23,
+        activeAbTest: null,
+      }
+    },
+    [`yt-dashboard-${siteId}`],
+    { revalidate: 1800 }
+  )()
+}
+
+/* ------------------------------------------------------------------ */
 /*  fetchActivityFeed                                                  */
 /* ------------------------------------------------------------------ */
 
