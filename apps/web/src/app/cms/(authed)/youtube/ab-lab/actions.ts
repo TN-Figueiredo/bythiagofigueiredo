@@ -5,8 +5,20 @@ import { put } from '@vercel/blob'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { AB_TEST_CONFIG_DEFAULTS } from '@/lib/youtube/ab-types'
-import type { AbTestCreateInput } from '@/lib/youtube/ab-types'
+import { AB_TEST_CONFIG_DEFAULTS, AB_SITE_SETTINGS_DEFAULTS } from '@/lib/youtube/ab-types'
+import type {
+  AbTestCreateInput,
+  AbTestWithVariants,
+  AbTestVariantRow,
+  AbTestCycleRow,
+  AbTestSiteSettings,
+  AbTestResults,
+  VariantStats,
+} from '@/lib/youtube/ab-types'
+import { ensureFreshToken } from '@/lib/social/token-refresh'
+import { setThumbnail, fetchVariantImageBuffer } from '@/lib/youtube/ab-youtube'
+import { getVariantForCycle } from '@/lib/youtube/ab-rotation'
+import { calculateBayesianConfidence } from '@/lib/youtube/ab-statistics'
 
 const VARIANT_LABELS = ['variant_b', 'variant_c', 'variant_d'] as const
 
@@ -382,4 +394,567 @@ export async function pullPipelineThumbnails(
 
   revalidateTag('youtube')
   return { ok: true, added }
+}
+
+// ---------------------------------------------------------------------------
+// Lifecycle helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve the YouTube Data API video ID (youtube_video_id column on youtube_videos)
+ * given the FK stored in ab_tests (which is the PK of youtube_videos).
+ */
+async function resolveYouTubeVideoId(
+  supabase: ReturnType<typeof getSupabaseServiceClient>,
+  internalVideoId: string,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from('youtube_videos')
+    .select('youtube_video_id')
+    .eq('id', internalVideoId)
+    .single()
+  return (data?.youtube_video_id as string | null) ?? null
+}
+
+// ---------------------------------------------------------------------------
+// startAbTest
+// ---------------------------------------------------------------------------
+
+export async function startAbTest(
+  testId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  let siteId: string
+  try {
+    siteId = await requireEditAccess()
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+
+  const supabase = getSupabaseServiceClient()
+
+  const { data: test, error: testError } = await supabase
+    .from('ab_tests')
+    .select('id, site_id, status, youtube_video_id')
+    .eq('id', testId)
+    .eq('site_id', siteId)
+    .single()
+
+  if (testError || !test) return { ok: false, error: 'Test not found' }
+  if (test.status !== 'draft') return { ok: false, error: 'Only draft tests can be started' }
+
+  const { data: variants, error: variantsError } = await supabase
+    .from('ab_test_variants')
+    .select('id, label, is_original, blob_url, sort_order')
+    .eq('test_id', testId)
+    .order('sort_order', { ascending: true })
+
+  if (variantsError) return { ok: false, error: variantsError.message }
+  if (!variants || variants.length < 2) {
+    return { ok: false, error: 'A test needs at least 2 variants (original + 1) to start' }
+  }
+
+  const firstIndex = getVariantForCycle(variants.length, 0)
+  const firstVariant = variants[firstIndex] as AbTestVariantRow
+
+  try {
+    const { accessToken } = await ensureFreshToken(siteId, 'youtube')
+    const youtubeVideoId = await resolveYouTubeVideoId(supabase, test.youtube_video_id as string)
+    if (!youtubeVideoId) return { ok: false, error: 'YouTube video ID not found' }
+
+    if (!firstVariant.is_original && firstVariant.blob_url) {
+      const { buffer, contentType } = await fetchVariantImageBuffer(firstVariant.blob_url)
+      await setThumbnail(youtubeVideoId, buffer, contentType, accessToken)
+    }
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+
+  const now = new Date().toISOString()
+
+  const { error: updateError } = await supabase
+    .from('ab_tests')
+    .update({ status: 'active', started_at: now, paused_at: null, updated_at: now })
+    .eq('id', testId)
+
+  if (updateError) return { ok: false, error: updateError.message }
+
+  const { error: cycleError } = await supabase.from('ab_test_cycles').insert({
+    test_id: testId,
+    variant_id: firstVariant.id,
+    cycle_number: 0,
+    started_at: now,
+  })
+
+  if (cycleError) return { ok: false, error: cycleError.message }
+
+  revalidateTag('youtube')
+  return { ok: true }
+}
+
+// ---------------------------------------------------------------------------
+// pauseAbTest
+// ---------------------------------------------------------------------------
+
+export async function pauseAbTest(
+  testId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  let siteId: string
+  try {
+    siteId = await requireEditAccess()
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+
+  const supabase = getSupabaseServiceClient()
+
+  const { data: test, error: testError } = await supabase
+    .from('ab_tests')
+    .select('id, site_id, status, youtube_video_id')
+    .eq('id', testId)
+    .eq('site_id', siteId)
+    .single()
+
+  if (testError || !test) return { ok: false, error: 'Test not found' }
+  if (test.status !== 'active') return { ok: false, error: 'Only active tests can be paused' }
+
+  const { data: variants } = await supabase
+    .from('ab_test_variants')
+    .select('id, label, is_original, blob_url')
+    .eq('test_id', testId)
+
+  const originalVariant = variants?.find(v => v.is_original)
+
+  try {
+    const { accessToken } = await ensureFreshToken(siteId, 'youtube')
+    const youtubeVideoId = await resolveYouTubeVideoId(supabase, test.youtube_video_id as string)
+    if (!youtubeVideoId) return { ok: false, error: 'YouTube video ID not found' }
+
+    if (originalVariant?.blob_url) {
+      const { buffer, contentType } = await fetchVariantImageBuffer(originalVariant.blob_url)
+      await setThumbnail(youtubeVideoId, buffer, contentType, accessToken)
+    }
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+
+  const now = new Date().toISOString()
+
+  // Close current open cycle
+  await supabase
+    .from('ab_test_cycles')
+    .update({ ended_at: now })
+    .eq('test_id', testId)
+    .is('ended_at', null)
+
+  const { error: updateError } = await supabase
+    .from('ab_tests')
+    .update({ status: 'paused', paused_at: now, updated_at: now })
+    .eq('id', testId)
+
+  if (updateError) return { ok: false, error: updateError.message }
+
+  revalidateTag('youtube')
+  return { ok: true }
+}
+
+// ---------------------------------------------------------------------------
+// resumeAbTest
+// ---------------------------------------------------------------------------
+
+export async function resumeAbTest(
+  testId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  let siteId: string
+  try {
+    siteId = await requireEditAccess()
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+
+  const supabase = getSupabaseServiceClient()
+
+  const { data: test, error: testError } = await supabase
+    .from('ab_tests')
+    .select('id, site_id, status, youtube_video_id')
+    .eq('id', testId)
+    .eq('site_id', siteId)
+    .single()
+
+  if (testError || !test) return { ok: false, error: 'Test not found' }
+  if (test.status !== 'paused') return { ok: false, error: 'Only paused tests can be resumed' }
+
+  const { data: variants } = await supabase
+    .from('ab_test_variants')
+    .select('id, label, is_original, blob_url, sort_order')
+    .eq('test_id', testId)
+    .order('sort_order', { ascending: true })
+
+  if (!variants || variants.length < 2) {
+    return { ok: false, error: 'No variants found' }
+  }
+
+  const { count: completedCount } = await supabase
+    .from('ab_test_cycles')
+    .select('id', { count: 'exact', head: true })
+    .eq('test_id', testId)
+    .not('ended_at', 'is', null)
+
+  const nextCycleNumber = completedCount ?? 0
+  const nextIndex = getVariantForCycle(variants.length, nextCycleNumber)
+  const nextVariant = variants[nextIndex] as AbTestVariantRow
+
+  try {
+    const { accessToken } = await ensureFreshToken(siteId, 'youtube')
+    const youtubeVideoId = await resolveYouTubeVideoId(supabase, test.youtube_video_id as string)
+    if (!youtubeVideoId) return { ok: false, error: 'YouTube video ID not found' }
+
+    if (nextVariant.blob_url) {
+      const { buffer, contentType } = await fetchVariantImageBuffer(nextVariant.blob_url)
+      await setThumbnail(youtubeVideoId, buffer, contentType, accessToken)
+    }
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+
+  const now = new Date().toISOString()
+
+  const { error: cycleError } = await supabase.from('ab_test_cycles').insert({
+    test_id: testId,
+    variant_id: nextVariant.id,
+    cycle_number: nextCycleNumber,
+    started_at: now,
+  })
+
+  if (cycleError) return { ok: false, error: cycleError.message }
+
+  const { error: updateError } = await supabase
+    .from('ab_tests')
+    .update({ status: 'active', paused_at: null, updated_at: now })
+    .eq('id', testId)
+
+  if (updateError) return { ok: false, error: updateError.message }
+
+  revalidateTag('youtube')
+  return { ok: true }
+}
+
+// ---------------------------------------------------------------------------
+// endAbTest
+// ---------------------------------------------------------------------------
+
+export async function endAbTest(
+  testId: string,
+  winnerId?: string,
+): Promise<{ ok: boolean; error?: string }> {
+  let siteId: string
+  try {
+    siteId = await requireEditAccess()
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+
+  const supabase = getSupabaseServiceClient()
+
+  const { data: test, error: testError } = await supabase
+    .from('ab_tests')
+    .select('id, site_id, status, youtube_video_id')
+    .eq('id', testId)
+    .eq('site_id', siteId)
+    .single()
+
+  if (testError || !test) return { ok: false, error: 'Test not found' }
+  if (!['active', 'paused'].includes(test.status as string)) {
+    return { ok: false, error: 'Only active or paused tests can be ended' }
+  }
+
+  const { data: variants } = await supabase
+    .from('ab_test_variants')
+    .select('id, label, is_original, blob_url')
+    .eq('test_id', testId)
+
+  if (!variants) return { ok: false, error: 'No variants found' }
+
+  // Validate winnerId belongs to this test
+  if (winnerId) {
+    const winnerExists = variants.some(v => v.id === winnerId)
+    if (!winnerExists) return { ok: false, error: 'Winner variant does not belong to this test' }
+  }
+
+  const targetVariant = winnerId
+    ? variants.find(v => v.id === winnerId)
+    : variants.find(v => v.is_original)
+
+  try {
+    const { accessToken } = await ensureFreshToken(siteId, 'youtube')
+    const youtubeVideoId = await resolveYouTubeVideoId(supabase, test.youtube_video_id as string)
+    if (!youtubeVideoId) return { ok: false, error: 'YouTube video ID not found' }
+
+    if (targetVariant?.blob_url) {
+      const { buffer, contentType } = await fetchVariantImageBuffer(targetVariant.blob_url)
+      await setThumbnail(youtubeVideoId, buffer, contentType, accessToken)
+    }
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+
+  const now = new Date().toISOString()
+
+  // Close open cycle
+  await supabase
+    .from('ab_test_cycles')
+    .update({ ended_at: now })
+    .eq('test_id', testId)
+    .is('ended_at', null)
+
+  const completedReason = winnerId ? 'manual_winner' : 'manual_archive'
+
+  const { error: updateError } = await supabase
+    .from('ab_tests')
+    .update({
+      status: 'completed',
+      completed_at: now,
+      completed_reason: completedReason,
+      winner_variant_id: winnerId ?? null,
+      updated_at: now,
+    })
+    .eq('id', testId)
+
+  if (updateError) return { ok: false, error: updateError.message }
+
+  revalidateTag('youtube')
+  return { ok: true }
+}
+
+// ---------------------------------------------------------------------------
+// archiveAbTest
+// ---------------------------------------------------------------------------
+
+export async function archiveAbTest(
+  testId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  let siteId: string
+  try {
+    siteId = await requireEditAccess()
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+
+  const supabase = getSupabaseServiceClient()
+
+  const { error: updateError } = await supabase
+    .from('ab_tests')
+    .update({ status: 'archived', updated_at: new Date().toISOString() })
+    .eq('id', testId)
+    .eq('site_id', siteId)
+    .in('status', ['completed', 'draft'])
+
+  if (updateError) return { ok: false, error: updateError.message }
+
+  revalidateTag('youtube')
+  return { ok: true }
+}
+
+// ---------------------------------------------------------------------------
+// getAbTestsForSite
+// ---------------------------------------------------------------------------
+
+export async function getAbTestsForSite(): Promise<{
+  active: AbTestWithVariants[]
+  draft: AbTestWithVariants[]
+  completed: AbTestWithVariants[]
+}> {
+  const siteId = await requireEditAccess()
+  const supabase = getSupabaseServiceClient()
+
+  const { data: tests, error } = await supabase
+    .from('ab_tests')
+    .select(
+      `
+      *,
+      variants:ab_test_variants(*),
+      cycles:ab_test_cycles(*)
+    `,
+    )
+    .eq('site_id', siteId)
+    .not('status', 'eq', 'archived')
+    .order('created_at', { ascending: false })
+
+  if (error) throw new Error(error.message)
+
+  type RawTest = typeof tests extends (infer T)[] | null ? T : never
+
+  function toWithVariants(raw: RawTest): AbTestWithVariants {
+    const cycles = ((raw as Record<string, unknown>).cycles ?? []) as AbTestCycleRow[]
+    const openCycle = cycles.find(c => !c.ended_at) ?? null
+    return {
+      ...(raw as AbTestWithVariants),
+      variants: ((raw as Record<string, unknown>).variants ?? []) as AbTestVariantRow[],
+      current_cycle: openCycle,
+      total_cycles: cycles.length,
+    }
+  }
+
+  const all = (tests ?? []).map(toWithVariants)
+
+  return {
+    active: all.filter(t => t.status === 'active'),
+    draft: all.filter(t => t.status === 'draft'),
+    completed: all.filter(t => t.status === 'completed' || t.status === 'paused'),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// getTestResults
+// ---------------------------------------------------------------------------
+
+export async function getTestResults(testId: string): Promise<AbTestResults | null> {
+  const siteId = await requireEditAccess()
+  const supabase = getSupabaseServiceClient()
+
+  const { data: test, error: testError } = await supabase
+    .from('ab_tests')
+    .select('*')
+    .eq('id', testId)
+    .eq('site_id', siteId)
+    .single()
+
+  if (testError || !test) return null
+
+  const { data: variants } = await supabase
+    .from('ab_test_variants')
+    .select('*')
+    .eq('test_id', testId)
+    .order('sort_order', { ascending: true })
+
+  const { data: cycles } = await supabase
+    .from('ab_test_cycles')
+    .select('*')
+    .eq('test_id', testId)
+    .order('cycle_number', { ascending: true })
+
+  const allVariants = (variants ?? []) as AbTestVariantRow[]
+  const allCycles = (cycles ?? []) as AbTestCycleRow[]
+
+  // Only confirmed cycles (ended_at set, backfill_status = confirmed)
+  const confirmedCycles = allCycles.filter(
+    c => c.ended_at !== null && c.backfill_status === 'confirmed',
+  )
+
+  // Aggregate per-variant stats
+  const statsMap = new Map<string, VariantStats>()
+  for (const v of allVariants) {
+    statsMap.set(v.id, {
+      variant_id: v.id,
+      label: v.label,
+      blob_url: v.blob_url,
+      is_original: v.is_original,
+      total_impressions: 0,
+      total_clicks: 0,
+      avg_ctr: 0,
+      cycles_completed: 0,
+    })
+  }
+
+  for (const cycle of confirmedCycles) {
+    const stats = statsMap.get(cycle.variant_id)
+    if (!stats) continue
+    stats.total_impressions += cycle.impressions ?? 0
+    stats.total_clicks += cycle.clicks ?? 0
+    stats.cycles_completed += 1
+  }
+
+  for (const stats of statsMap.values()) {
+    stats.avg_ctr =
+      stats.total_impressions > 0 ? stats.total_clicks / stats.total_impressions : 0
+  }
+
+  const variantStats = Array.from(statsMap.values())
+
+  const hasEnoughData = variantStats.every(
+    v => v.total_impressions >= 100 && v.cycles_completed >= 1,
+  )
+
+  let confidence = 0
+  let suggestedWinnerId: string | null = null
+  let isSignificant = false
+
+  if (hasEnoughData && variantStats.length >= 2) {
+    const bayesian = calculateBayesianConfidence(variantStats)
+    confidence = bayesian.confidence
+    suggestedWinnerId = bayesian.winnerId || null
+    const config = (test as Record<string, unknown>).config as { confidence_threshold?: number } | null
+    const threshold = config?.confidence_threshold ?? 0.95
+    isSignificant = confidence >= threshold
+  }
+
+  return {
+    test: test as AbTestResults['test'],
+    variants: variantStats,
+    confidence,
+    is_significant: isSignificant,
+    suggested_winner_id: suggestedWinnerId,
+    timeline: allCycles,
+    data_freshness: new Date().toISOString(),
+  } as AbTestResults
+}
+
+// ---------------------------------------------------------------------------
+// getAbSiteSettings
+// ---------------------------------------------------------------------------
+
+export async function getAbSiteSettings(): Promise<AbTestSiteSettings> {
+  const siteId = await requireEditAccess()
+  const supabase = getSupabaseServiceClient()
+
+  const { data: site } = await supabase
+    .from('sites')
+    .select('settings')
+    .eq('id', siteId)
+    .single()
+
+  const settings = (site?.settings as Record<string, unknown> | null) ?? {}
+  const abSettings = (settings.ab_test as Partial<AbTestSiteSettings> | null) ?? {}
+
+  return { ...AB_SITE_SETTINGS_DEFAULTS, ...abSettings }
+}
+
+// ---------------------------------------------------------------------------
+// updateAbSiteSettings
+// ---------------------------------------------------------------------------
+
+export async function updateAbSiteSettings(
+  newSettings: Partial<AbTestSiteSettings>,
+): Promise<{ ok: boolean; error?: string }> {
+  let siteId: string
+  try {
+    siteId = await requireEditAccess()
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+
+  const supabase = getSupabaseServiceClient()
+
+  const { data: site } = await supabase
+    .from('sites')
+    .select('settings')
+    .eq('id', siteId)
+    .single()
+
+  const currentSettings = (site?.settings as Record<string, unknown> | null) ?? {}
+  const currentAbSettings = (currentSettings.ab_test as Partial<AbTestSiteSettings> | null) ?? {}
+
+  const merged = { ...currentAbSettings, ...newSettings }
+
+  const { error: updateError } = await supabase
+    .from('sites')
+    .update({
+      settings: { ...currentSettings, ab_test: merged },
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', siteId)
+
+  if (updateError) return { ok: false, error: updateError.message }
+
+  revalidateTag('youtube')
+  return { ok: true }
 }
