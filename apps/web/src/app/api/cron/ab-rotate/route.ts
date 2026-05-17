@@ -59,11 +59,12 @@ export async function GET(req: NextRequest) {
         .eq('test_id', test.id)
         .is('ended_at', null)
 
-      // Get completed cycle count for next ABBA position
+      // Count only completed cycles for correct ABBA position
       const { count } = await supabase
         .from('ab_test_cycles')
         .select('*', { count: 'exact', head: true })
         .eq('test_id', test.id)
+        .not('ended_at', 'is', null)
 
       const nextCycle = count ?? 0
       const nextVariantIndex = getVariantForCycle(variants.length, nextCycle)
@@ -93,13 +94,17 @@ export async function GET(req: NextRequest) {
         extra: { testId: test.id },
       })
 
-      // Auto-pause on auth failure
-      if (err instanceof Error && err.message.includes('401')) {
+      // Auto-pause on auth/quota/permission failure
+      const msg = err instanceof Error ? err.message : ''
+      if (msg.includes('401') || msg.includes('403') || msg.includes('429')) {
+        const reason = msg.includes('401') ? 'token expired'
+          : msg.includes('403') ? 'insufficient permissions'
+          : 'API quota exceeded'
         await supabase
           .from('ab_tests')
           .update({
             status: 'paused',
-            status_note: 'paused: token expired',
+            status_note: `auto-paused: ${reason}`,
             paused_at: new Date().toISOString(),
           })
           .eq('id', test.id)

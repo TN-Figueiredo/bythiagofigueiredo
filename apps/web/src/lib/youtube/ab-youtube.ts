@@ -48,7 +48,7 @@ export async function fetchAnalyticsForDateRange(
     ids: 'channel==MINE',
     startDate,
     endDate,
-    metrics: 'impressions,annotationImpressionClickThroughRate',
+    metrics: 'impressions,impressionClickThroughRate',
     dimensions: 'day',
     filters: `video==${videoId}`,
   })

@@ -22,7 +22,10 @@ interface Props {
 
 export function AbVideoPicker({ videos, onSelect, onClose }: Props) {
   const [search, setSearch] = useState('')
+  const [channelFilter, setChannelFilter] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+
+  const channels = Array.from(new Set(videos.map(v => v.channelHandle)))
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -36,9 +39,11 @@ export function AbVideoPicker({ videos, onSelect, onClose }: Props) {
     setTimeout(() => inputRef.current?.focus(), 50)
   }, [])
 
-  const filtered = search.trim()
-    ? videos.filter(v => v.title.toLowerCase().includes(search.toLowerCase()))
-    : videos
+  const filtered = videos.filter(v => {
+    if (channelFilter && v.channelHandle !== channelFilter) return false
+    if (search.trim() && !v.title.toLowerCase().includes(search.toLowerCase())) return false
+    return true
+  })
 
   function isDisabled(v: PickerVideo): boolean {
     return v.durationSeconds <= 60 || v.hasActiveTest
@@ -84,8 +89,22 @@ export function AbVideoPicker({ videos, onSelect, onClose }: Props) {
           </button>
         </div>
 
-        {/* Search */}
-        <div className="px-4 py-3 border-b border-cms-border shrink-0">
+        {/* Filters */}
+        <div className="px-4 py-3 border-b border-cms-border shrink-0 space-y-2">
+          {channels.length > 1 && (
+            <select
+              value={channelFilter}
+              onChange={e => setChannelFilter(e.target.value)}
+              className="w-full rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface px-3 py-1.5 text-sm text-cms-text focus:outline-none focus:ring-1 focus:ring-cms-accent"
+            >
+              <option value="">All channels</option>
+              {channels.map(ch => (
+                <option key={ch} value={ch}>
+                  {ch.startsWith('@') ? ch : `@${ch}`}
+                </option>
+              ))}
+            </select>
+          )}
           <input
             ref={inputRef}
             type="search"
@@ -146,7 +165,7 @@ export function AbVideoPicker({ videos, onSelect, onClose }: Props) {
                       {/* Info */}
                       <div className="flex-1 min-w-0">
                         <p className="truncate text-sm font-medium text-cms-text">{video.title}</p>
-                        <p className="text-xs text-cms-text-dim">@{video.channelHandle}</p>
+                        <p className="text-xs text-cms-text-dim">{video.channelHandle.startsWith('@') ? video.channelHandle : `@${video.channelHandle}`}</p>
                       </div>
 
                       {/* Badge */}

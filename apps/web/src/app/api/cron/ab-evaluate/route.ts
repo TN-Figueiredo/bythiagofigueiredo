@@ -68,6 +68,7 @@ export async function GET(req: NextRequest) {
       const startedAt = new Date(test.started_at ?? test.created_at)
       const daysSinceStart = (Date.now() - startedAt.getTime()) / (1000 * 60 * 60 * 24)
       const threshold = config.confidence_threshold ?? 0.95
+      const stabilityThreshold = config.stability_threshold ?? 3
 
       const gates = [
         { name: 'confidence', passed: bayesian.confidence >= threshold, detail: `${(bayesian.confidence * 100).toFixed(1)}% >= ${threshold * 100}%` },
@@ -75,7 +76,7 @@ export async function GET(req: NextRequest) {
         { name: 'min_duration', passed: daysSinceStart >= 7, detail: `${daysSinceStart.toFixed(0)} days` },
         { name: 'min_cycles', passed: confirmedCycles.length >= 14, detail: `${confirmedCycles.length} cycles` },
         { name: 'burn_in', passed: burnInEnd === 0 || eligibleCycles.length > 0, detail: `burn-in: ${burnInEnd} cycles` },
-        { name: 'stability', passed: (test.consecutive_confident_evals ?? 0) >= 2, detail: `${test.consecutive_confident_evals ?? 0} consecutive` },
+        { name: 'stability', passed: (test.consecutive_confident_evals ?? 0) >= (stabilityThreshold - 1), detail: `${test.consecutive_confident_evals ?? 0} consecutive` },
       ]
 
       // Update consecutive confidence counter
@@ -88,7 +89,7 @@ export async function GET(req: NextRequest) {
         .update({ consecutive_confident_evals: newConsecutive })
         .eq('id', test.id)
 
-      const allPass = gates.every(g => g.passed) && newConsecutive >= 3
+      const allPass = gates.every(g => g.passed) && newConsecutive >= stabilityThreshold
 
       if (allPass && (config.auto_apply_winner ?? true)) {
         // Auto-resolve: apply winner thumbnail

@@ -66,6 +66,10 @@ export async function createAbTest(
     return { ok: false, error: 'Shorts (≤ 60s) are not eligible for A/B tests' }
   }
 
+  if (!video.thumbnail_hq_url) {
+    return { ok: false, error: 'Video has no thumbnail — sync first' }
+  }
+
   // Check for existing active/draft/paused test on the same video
   const { data: existing } = await supabase
     .from('ab_tests')
@@ -152,9 +156,9 @@ export async function uploadVariant(
   if (!file || !(file instanceof File)) return { ok: false, error: 'No file provided' }
 
   // Validate type and size
-  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
+  const allowedTypes = ['image/jpeg', 'image/png']
   if (!allowedTypes.includes(file.type)) {
-    return { ok: false, error: 'File must be JPEG, PNG, or WebP' }
+    return { ok: false, error: 'File must be JPEG or PNG (YouTube does not accept WebP)' }
   }
   const MAX_SIZE = 2 * 1024 * 1024 // 2 MB
   if (file.size > MAX_SIZE) {

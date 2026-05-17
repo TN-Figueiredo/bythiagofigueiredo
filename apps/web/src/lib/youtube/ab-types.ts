@@ -1,0 +1,177 @@
+export type AbTestStatus = 'draft' | 'active' | 'paused' | 'completed' | 'archived'
+export type CompletedReason = 'auto_resolve' | 'manual_winner' | 'manual_archive' | 'max_duration' | 'inconclusive'
+export type BackfillStatus = 'pending' | 'partial' | 'confirmed' | 'no_data' | 'error'
+
+export interface AbTestConfig {
+  max_duration_days: number
+  confidence_threshold: number
+  burn_in_days: number
+  auto_apply_winner: boolean
+  rotation_pattern: 'abba' | 'round_robin'
+  stability_threshold: number
+}
+
+export const AB_TEST_CONFIG_DEFAULTS: AbTestConfig = {
+  max_duration_days: 14,
+  confidence_threshold: 0.95,
+  burn_in_days: 2,
+  auto_apply_winner: true,
+  rotation_pattern: 'abba',
+  stability_threshold: 3,
+}
+
+export interface AbTestRow {
+  id: string
+  site_id: string
+  youtube_video_id: string
+  source_pipeline_id: string | null
+  name: string
+  status: AbTestStatus
+  config: AbTestConfig
+  original_thumbnail_url: string
+  winner_variant_id: string | null
+  started_at: string | null
+  paused_at: string | null
+  completed_at: string | null
+  completed_reason: CompletedReason | null
+  confidence_at_completion: number | null
+  consecutive_confident_evals: number
+  status_note: string | null
+  result_metadata: ResultMetadata | null
+  created_at: string
+  updated_at: string
+}
+
+export interface AbTestVariantRow {
+  id: string
+  test_id: string
+  label: string
+  is_original: boolean
+  blob_url: string | null
+  blob_key: string | null
+  file_size_bytes: number | null
+  dimensions: string | null
+  sort_order: number
+  created_at: string
+}
+
+export interface AbTestCycleRow {
+  id: string
+  test_id: string
+  variant_id: string
+  cycle_number: number
+  started_at: string
+  ended_at: string | null
+  impressions: number | null
+  clicks: number | null
+  ctr: number | null
+  estimated_impressions: number | null
+  estimated_clicks: number | null
+  estimated_ctr: number | null
+  backfill_status: BackfillStatus
+  backfill_attempts: number
+  created_at: string
+}
+
+export interface AbTestWithVariants extends AbTestRow {
+  variants: AbTestVariantRow[]
+  current_cycle: AbTestCycleRow | null
+  total_cycles: number
+}
+
+export interface AbTestCreateInput {
+  site_id: string
+  youtube_video_id: string
+  name: string
+  config?: Partial<AbTestConfig>
+}
+
+export interface CreateVariantInput {
+  test_id: string
+  file: File
+  label?: string
+}
+
+export interface VariantStats {
+  variant_id: string
+  label: string
+  blob_url: string | null
+  is_original: boolean
+  total_impressions: number
+  total_clicks: number
+  avg_ctr: number
+  cycles_completed: number
+}
+
+export interface ResultMetadata {
+  ctr_lift_percent: number
+  winner_label: string
+  total_impressions: number
+  estimated_monthly_extra_clicks: number
+}
+
+export interface BayesianResult {
+  winnerId: string
+  confidence: number
+  probabilities: Record<string, number>
+}
+
+export interface ZTestResult {
+  zScore: number
+  pValue: number
+  significant: boolean
+}
+
+export interface EvaluationResult {
+  confidence: number
+  winnerId: string | null
+  bayesian: BayesianResult
+  zTest: ZTestResult | null
+  gates: { name: string; passed: boolean; detail: string }[]
+  shouldResolve: boolean
+}
+
+export interface AbTestSiteSettings {
+  max_concurrent_tests: number
+  default_duration_days: number
+  default_confidence: number
+  default_auto_apply: boolean
+  default_burn_in_days: number
+  ctr_drop_trigger: {
+    enabled: boolean
+    threshold_percent: number
+    min_days_below: number
+  }
+  post_publish_trigger: {
+    enabled: boolean
+    delay_hours: number
+    requires_pipeline_thumbs: boolean
+  }
+  notifications: {
+    test_completed: boolean
+    test_auto_paused: boolean
+    ctr_drop_alert: boolean
+    daily_digest: boolean
+  }
+}
+
+export const AB_SITE_SETTINGS_DEFAULTS: AbTestSiteSettings = {
+  max_concurrent_tests: 3,
+  default_duration_days: 14,
+  default_confidence: 0.95,
+  default_auto_apply: true,
+  default_burn_in_days: 2,
+  ctr_drop_trigger: { enabled: false, threshold_percent: 20, min_days_below: 7 },
+  post_publish_trigger: { enabled: false, delay_hours: 48, requires_pipeline_thumbs: true },
+  notifications: { test_completed: true, test_auto_paused: true, ctr_drop_alert: false, daily_digest: false },
+}
+
+export interface AbTestResults {
+  test: AbTestRow
+  variants: VariantStats[]
+  confidence: number
+  is_significant: boolean
+  suggested_winner_id: string | null
+  timeline: AbTestCycleRow[]
+  data_freshness: string
+}

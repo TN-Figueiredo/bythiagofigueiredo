@@ -85,7 +85,7 @@ export function YtAnalyticsTabs({
           >
             {channels.map((ch) => (
               <option key={ch.channelId} value={ch.channelId}>
-                {ch.name} (@{ch.handle})
+                {ch.name} ({ch.handle.startsWith('@') ? ch.handle : `@${ch.handle}`})
               </option>
             ))}
           </select>

@@ -106,4 +106,35 @@ describe('calculateBayesianConfidence', () => {
     const sum = Object.values(result.probabilities).reduce((a, b) => a + b, 0)
     expect(sum).toBeCloseTo(1, 1)
   })
+
+  it('returns low confidence with very small sample sizes', () => {
+    const variants = [
+      makeVariant('A', 10, 1),
+      makeVariant('B', 10, 2),
+    ]
+    const result = calculateBayesianConfidence(variants)
+    expect(result.confidence).toBeLessThan(0.95)
+  })
+
+  it('handles identical variants', () => {
+    const variants = [
+      makeVariant('A', 5000, 250),
+      makeVariant('B', 5000, 250),
+    ]
+    const result = calculateBayesianConfidence(variants)
+    expect(result.confidence).toBeLessThan(0.7)
+  })
+
+  it('probabilities always sum to 1', () => {
+    const variants = [
+      makeVariant('A', 1000, 50),
+      makeVariant('B', 1000, 60),
+      makeVariant('C', 1000, 55),
+      makeVariant('D', 1000, 45),
+    ]
+    const result = calculateBayesianConfidence(variants)
+    const sum = Object.values(result.probabilities).reduce((a, b) => a + b, 0)
+    expect(sum).toBeCloseTo(1, 1)
+    expect(Object.keys(result.probabilities)).toHaveLength(4)
+  })
 })

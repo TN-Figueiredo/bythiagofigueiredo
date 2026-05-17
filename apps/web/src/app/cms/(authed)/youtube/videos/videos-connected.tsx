@@ -284,7 +284,7 @@ export function VideosConnected({ videos, channels, categories }: Props) {
                           </p>
                         )}
                         <p className="mt-0.5 text-xs text-cms-text-dim">
-                          @{video.channelHandle}
+                          {video.channelHandle.startsWith('@') ? video.channelHandle : `@${video.channelHandle}`}
                         </p>
                       </div>
                     </div>
@@ -394,7 +394,7 @@ export function VideosConnected({ videos, channels, categories }: Props) {
                               <p className="mt-0.5 text-sm text-cms-text-muted italic">{video.titleTranslation}</p>
                             )}
                             <p className="mt-1 text-xs text-cms-text-dim">
-                              @{video.channelHandle} · {video.duration} · {video.viewCount.toLocaleString()} views
+                              {video.channelHandle.startsWith('@') ? video.channelHandle : `@${video.channelHandle}`} · {video.duration} · {video.viewCount.toLocaleString()} views
                             </p>
                           </div>
 
