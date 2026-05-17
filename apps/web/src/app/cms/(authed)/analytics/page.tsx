@@ -14,6 +14,7 @@ import {
 import { AnalyticsHeader } from './_components/analytics-header'
 import { AnalyticsOverview } from './_components/analytics-overview'
 import { AudienceTab } from './_components/audience-tab'
+import { ContentTab } from './_components/content-tab'
 import type { PeriodInput, AnalyticsTab, AnalyticsOverviewData } from './types'
 import { SectionErrorBoundary } from '../_shared/section-error-boundary'
 import { LinksTab } from './_components/links-tab'
@@ -57,6 +58,12 @@ export default async function AnalyticsPage({ searchParams }: Props) {
         <SectionErrorBoundary>
           <Suspense fallback={<AnalyticsSkeleton />}>
             <AnalyticsDataSection siteId={siteId} periodInput={periodInput} primaryDomain={primaryDomain} />
+          </Suspense>
+        </SectionErrorBoundary>
+      ) : activeTab === 'content' ? (
+        <SectionErrorBoundary>
+          <Suspense fallback={<AnalyticsSkeleton />}>
+            <ContentTab periodInput={periodInput} />
           </Suspense>
         </SectionErrorBoundary>
       ) : activeTab === 'links' ? (

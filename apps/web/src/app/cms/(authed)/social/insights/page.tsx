@@ -6,6 +6,7 @@ import { getSocialStrings } from '../_i18n'
 import { InsightsOverview } from './_components/insights-overview'
 import { InsightsBestOf } from './_components/insights-best-of'
 import { InsightsHealth } from './_components/insights-health'
+import { PlatformBreakdown } from './_components/platform-breakdown'
 
 export const dynamic = 'force-dynamic'
 
@@ -68,6 +69,26 @@ async function loadInsightsData(siteId: string) {
     linkClicks = count ?? 0
   }
 
+  // Aggregate clicks by platform using delivery counts as a proxy for distribution
+  const platformMap = new Map<string, { clicks: number; postsCount: number }>()
+  for (const d of deliveries) {
+    const platform = d.provider as string
+    if (!platform) continue
+    const entry = platformMap.get(platform) ?? { clicks: 0, postsCount: 0 }
+    entry.postsCount += 1
+    platformMap.set(platform, entry)
+  }
+  const totalDeliveriesCount = deliveries.length
+  const platforms = Array.from(platformMap.entries())
+    .map(([platform, data]) => ({
+      platform,
+      clicks: totalDeliveriesCount > 0
+        ? Math.round(linkClicks * (data.postsCount / totalDeliveriesCount))
+        : 0,
+      postsCount: data.postsCount,
+    }))
+    .sort((a, b) => b.clicks - a.clicks)
+
   const chartMap = new Map<string, { clicks: number; engagement: number; posts: number }>()
   for (const p of posts) {
     const date = String(p.created_at).split('T')[0] ?? ''
@@ -119,6 +140,7 @@ async function loadInsightsData(siteId: string) {
     heatmapData,
     topPosts,
     connections,
+    platforms,
   }
 }
 
@@ -152,7 +174,12 @@ export default async function SocialInsightsPage({ searchParams }: Props) {
           })}
         </div>
 
-        {tab === 'overview' && <InsightsOverview data={insights} strings={t} />}
+        {tab === 'overview' && (
+          <>
+            <InsightsOverview data={insights} strings={t} />
+            <PlatformBreakdown platforms={insights.platforms} />
+          </>
+        )}
         {tab === 'best-of' && <InsightsBestOf topThumbnails={[]} topTitles={[]} topPosts={insights.topPosts} strings={t} />}
         {tab === 'platform-health' && <InsightsHealth connections={insights.connections} strings={t} />}
       </div>

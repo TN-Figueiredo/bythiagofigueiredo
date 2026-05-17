@@ -13,6 +13,7 @@ const TABS = [
   { label: 'Categories', href: '/cms/youtube/categories' },
   { label: 'Comments', href: '/cms/youtube/comments' },
   { label: 'Content', href: '/cms/youtube/content' },
+  { label: 'Analytics', href: '/cms/youtube/analytics' },
 ] as const
 
 export default function YouTubeLayout({ children }: { children: ReactNode }) {
