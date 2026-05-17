@@ -16,6 +16,20 @@ function formatDate(dateStr: string | null): string {
   })
 }
 
+const typeLabels: Record<string, string> = {
+  thumbnail: 'Thumbnail',
+  title: 'Título',
+  description: 'Descrição',
+  combo: 'Combo',
+}
+
+const typeBadgeColors: Record<string, string> = {
+  thumbnail: 'bg-blue-500/20 text-blue-400',
+  title: 'bg-green-500/20 text-green-400',
+  description: 'bg-purple-500/20 text-purple-400',
+  combo: 'bg-orange-500/20 text-orange-400',
+}
+
 export function AbTestCompletedRow({ test }: AbTestCompletedRowProps) {
   const winnerVariant = test.winner_variant_id
     ? test.variants.find(v => v.id === test.winner_variant_id)
@@ -34,7 +48,12 @@ export function AbTestCompletedRow({ test }: AbTestCompletedRowProps) {
       className="flex items-center justify-between px-4 py-3 border-b border-cms-border last:border-0 hover:bg-cms-surface-hover transition-colors group"
     >
       <div className="flex-1 min-w-0 mr-4">
-        <p className="text-sm text-cms-text truncate group-hover:text-cms-text">{test.name}</p>
+        <div className="flex items-center gap-2">
+          <p className="text-sm text-cms-text truncate group-hover:text-cms-text">{test.name}</p>
+          <span className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${typeBadgeColors[test.test_type ?? 'thumbnail']}`}>
+            {typeLabels[test.test_type ?? 'thumbnail']}
+          </span>
+        </div>
         <p className="text-xs text-cms-text-muted mt-0.5">{formatDate(test.completed_at)}</p>
       </div>
 

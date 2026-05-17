@@ -39,6 +39,11 @@ export function AbLabDashboard({ siteId, active, draft, completed, settings, eli
     sourcePipelineId?: string | null
   } | null>(null)
   const [draftsOpen, setDraftsOpen] = useState(true)
+  const [typeFilter, setTypeFilter] = useState<string>('')
+
+  const filteredActive = typeFilter ? active.filter(t => t.test_type === typeFilter) : active
+  const filteredDraft = typeFilter ? draft.filter(t => t.test_type === typeFilter) : draft
+  const filteredCompleted = typeFilter ? completed.filter(t => t.test_type === typeFilter) : completed
 
   const hasAny = active.length + draft.length + completed.length > 0
 
@@ -101,6 +106,17 @@ export function AbLabDashboard({ siteId, active, draft, completed, settings, eli
           {active.length}/{settings.max_concurrent_tests} slots
         </span>
         <div className="ml-auto flex items-center gap-2">
+          <select
+            value={typeFilter}
+            onChange={e => setTypeFilter(e.target.value)}
+            className="text-sm bg-cms-surface border border-cms-border rounded-[var(--cms-radius)] px-2 py-1 text-cms-text"
+          >
+            <option value="">Todos os Tipos</option>
+            <option value="thumbnail">Thumbnail</option>
+            <option value="title">Título</option>
+            <option value="description">Descrição</option>
+            <option value="combo">Combo</option>
+          </select>
           <button
             onClick={() => setShowSettings(true)}
             className="flex items-center justify-center w-8 h-8 rounded-[var(--cms-radius)] border border-cms-border text-cms-text-muted hover:bg-cms-surface-hover hover:text-cms-text transition-colors"
@@ -165,13 +181,13 @@ export function AbLabDashboard({ siteId, active, draft, completed, settings, eli
         </div>
       )}
 
-      {draft.length > 0 && (
+      {filteredDraft.length > 0 && (
         <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface">
           <button
             onClick={() => setDraftsOpen(o => !o)}
             className="flex items-center justify-between w-full px-4 py-3 text-left"
           >
-            <span className="text-sm font-medium text-cms-text">Drafts ({draft.length})</span>
+            <span className="text-sm font-medium text-cms-text">Drafts ({filteredDraft.length})</span>
             <svg
               width="16"
               height="16"
@@ -187,7 +203,7 @@ export function AbLabDashboard({ siteId, active, draft, completed, settings, eli
           </button>
           {draftsOpen && (
             <ul className="border-t border-cms-border divide-y divide-cms-border">
-              {draft.map(test => (
+              {filteredDraft.map(test => (
                 <li key={test.id} className="flex items-center justify-between px-4 py-3">
                   <span className="text-sm text-cms-text truncate">{test.name}</span>
                   <Link
@@ -203,19 +219,19 @@ export function AbLabDashboard({ siteId, active, draft, completed, settings, eli
         </div>
       )}
 
-      {active.length > 0 && (
+      {filteredActive.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {active.map(test => (
+          {filteredActive.map(test => (
             <AbTestCard key={test.id} test={test} />
           ))}
         </div>
       )}
 
-      {completed.length > 0 && (
+      {filteredCompleted.length > 0 && (
         <div>
           <h2 className="text-sm font-semibold text-cms-text mb-3">Completed Tests</h2>
           <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface divide-y divide-cms-border">
-            {completed.map(test => (
+            {filteredCompleted.map(test => (
               <AbTestCompletedRow key={test.id} test={test} />
             ))}
           </div>

@@ -29,6 +29,20 @@ function healthSymbol(confidence: number, threshold: number): { symbol: string; 
   return { symbol: '↓', color: 'text-red-400' }
 }
 
+const typeLabels: Record<string, string> = {
+  thumbnail: 'Thumbnail',
+  title: 'Título',
+  description: 'Descrição',
+  combo: 'Combo',
+}
+
+const typeBadgeColors: Record<string, string> = {
+  thumbnail: 'bg-blue-500/20 text-blue-400',
+  title: 'bg-green-500/20 text-green-400',
+  description: 'bg-purple-500/20 text-purple-400',
+  combo: 'bg-orange-500/20 text-orange-400',
+}
+
 export function AbTestCard({ test }: AbTestCardProps) {
   const [showPause, setShowPause] = useState(false)
 
@@ -56,6 +70,9 @@ export function AbTestCard({ test }: AbTestCardProps) {
       <div className="flex items-center gap-2 flex-wrap">
         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusBadgeClass}`}>
           {test.status.charAt(0).toUpperCase() + test.status.slice(1)}
+        </span>
+        <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${typeBadgeColors[test.test_type ?? 'thumbnail']}`}>
+          {typeLabels[test.test_type ?? 'thumbnail']}
         </span>
         {test.started_at && (
           <span className="text-xs text-cms-text-muted">D{days}</span>
@@ -106,6 +123,23 @@ export function AbTestCard({ test }: AbTestCardProps) {
               <span className="text-[10px] text-cms-text-dim capitalize">{variant.label.replace('_', ' ')}</span>
             </div>
           ))}
+        </div>
+      )}
+
+      {test.test_type && test.test_type !== 'thumbnail' && sortedVariants.length > 1 && (
+        <div className="space-y-1 rounded bg-cms-surface-hover p-2">
+          {sortedVariants[1].title_text && (
+            <p className="text-xs text-cms-text line-clamp-1">
+              <span className="text-cms-text-muted mr-1">Title B:</span>
+              {sortedVariants[1].title_text}
+            </p>
+          )}
+          {sortedVariants[1].description_text && (
+            <p className="text-xs text-cms-text-muted line-clamp-2">
+              <span className="text-cms-text-muted mr-1">Desc B:</span>
+              {sortedVariants[1].description_text}
+            </p>
+          )}
         </div>
       )}
 
