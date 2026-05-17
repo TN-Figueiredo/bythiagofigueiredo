@@ -14,11 +14,11 @@ export default async function YouTubeVideosPage() {
 
   const supabase = getSupabaseServiceClient()
 
-  const [videosRes, channelsRes, categoriesRes] = await Promise.all([
+  const [videosRes, channelsRes, categoriesRes, abTestsRes] = await Promise.all([
     supabase
       .from('youtube_videos')
       .select(
-        'id, youtube_video_id, title, title_translation, published_at, thumbnail_url, view_count, like_count, duration, is_featured, is_hidden, category_id, auto_suggested_category_id, channel_id, pinned_until, youtube_channels!inner(locale, handle, name)',
+        'id, youtube_video_id, title, title_translation, published_at, thumbnail_url, view_count, like_count, duration, duration_seconds, is_featured, is_hidden, category_id, auto_suggested_category_id, channel_id, pinned_until, youtube_channels!inner(locale, handle, name)',
       )
       .eq('site_id', siteId)
       .order('published_at', { ascending: false }),
@@ -28,11 +28,26 @@ export default async function YouTubeVideosPage() {
       .select('id, name_pt, name_en, color')
       .eq('site_id', siteId)
       .order('sort_order'),
+    supabase
+      .from('ab_tests')
+      .select('id, youtube_video_id, status, started_at, result_metadata')
+      .eq('site_id', siteId)
+      .in('status', ['draft', 'active', 'paused', 'completed']),
   ])
 
   const rawVideos = videosRes.data ?? []
   const rawChannels = channelsRes.data ?? []
   const rawCategories = categoriesRes.data ?? []
+
+  const abTestMap = new Map<string, { id: string; status: string; started_at: string | null; result_metadata: { ctr_lift_percent: number } | null }>()
+  for (const t of (abTestsRes.data ?? [])) {
+    abTestMap.set(t.youtube_video_id as string, {
+      id: t.id as string,
+      status: t.status as string,
+      started_at: (t.started_at as string | null) ?? null,
+      result_metadata: t.result_metadata as { ctr_lift_percent: number } | null,
+    })
+  }
 
   // Build a lookup map: categoryId → { name, color }
   type CatInfo = { namePt: string; nameEn: string; color: string }
@@ -78,6 +93,9 @@ export default async function YouTubeVideosPage() {
       channelHandle: (channel?.handle as string) ?? '',
       channelName: (channel?.name as string) ?? '',
       pinnedUntil: (v.pinned_until as string | null) ?? null,
+      durationSeconds: (v.duration_seconds as number | null) ?? null,
+      abTest: abTestMap.get(v.id as string) ?? null,
+      sourcePipelineId: null,
     }
   })
 

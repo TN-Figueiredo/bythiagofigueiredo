@@ -1,6 +1,7 @@
 'use client'
 
 import { useTransition, useState, useRef, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import { updateVideo, approveCategory, rejectCategory, pinWeeklyPick, unpinWeeklyPick } from './actions'
 
 interface CategoryBadgeProps {
@@ -288,6 +289,55 @@ export function PinButton({ videoId, channelId, pinnedUntil, hasExistingPin }: P
       )}
     </div>
   )
+}
+
+export function AbStatusBadge({ test, videoId, isShort }: {
+  test: { id: string; status: string; started_at: string | null; result_metadata: { ctr_lift_percent: number } | null } | null
+  videoId: string
+  isShort: boolean
+}) {
+  if (isShort) return <span className="text-cms-text-muted">—</span>
+
+  if (!test) {
+    return (
+      <span className="text-[11px] px-2 py-0.5 rounded border border-cms-border text-cms-text-muted">
+        Start A/B
+      </span>
+    )
+  }
+
+  const href = `/cms/youtube/ab-lab/${test.id}`
+
+  if (test.status === 'active') {
+    const dayCount = test.started_at
+      ? Math.floor((Date.now() - new Date(test.started_at).getTime()) / 86400000)
+      : 0
+    return (
+      <Link href={href} className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-green-900/30 text-green-400">
+        <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
+        D{dayCount}
+      </Link>
+    )
+  }
+
+  if (test.status === 'paused') {
+    return (
+      <Link href={href} className="text-[11px] px-2 py-0.5 rounded-full bg-amber-900/30 text-amber-400">
+        Paused
+      </Link>
+    )
+  }
+
+  if (test.status === 'completed' && test.result_metadata) {
+    const lift = test.result_metadata.ctr_lift_percent
+    return (
+      <Link href={href} className={`text-[11px] ${lift > 0 ? 'text-green-400' : 'text-cms-text-muted'}`}>
+        {lift > 0 ? `+${lift}%` : '= Original'}
+      </Link>
+    )
+  }
+
+  return <span className="text-cms-text-muted">—</span>
 }
 
 interface SyncButtonProps {

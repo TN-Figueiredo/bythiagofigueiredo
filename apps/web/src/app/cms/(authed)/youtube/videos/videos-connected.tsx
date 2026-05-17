@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useTransition } from 'react'
 import Image from 'next/image'
-import { CategoryBadge, FeaturedToggle, HiddenToggle, PinButton, SyncButton } from './video-row-actions'
+import { CategoryBadge, FeaturedToggle, HiddenToggle, PinButton, SyncButton, AbStatusBadge } from './video-row-actions'
 import { triggerSync } from './actions'
 
 export interface VideoRow {
@@ -27,6 +27,9 @@ export interface VideoRow {
   channelHandle: string
   channelName: string
   pinnedUntil: string | null
+  durationSeconds: number | null
+  abTest: { id: string; status: string; started_at: string | null; result_metadata: { ctr_lift_percent: number } | null } | null
+  sourcePipelineId: string | null
 }
 
 export interface ChannelOption {
@@ -201,6 +204,7 @@ export function VideosConnected({ videos, channels, categories }: Props) {
                 <th className="px-3 py-2.5 w-[160px]">Category</th>
                 <th className="px-3 py-2.5 w-[60px] text-center">Featured</th>
                 <th className="px-3 py-2.5 w-[60px] text-center">Hidden</th>
+                <th className="px-3 py-2.5 w-[70px] text-center">A/B</th>
                 <th className="px-3 py-2.5 w-[80px] text-center">Pick</th>
                 <th className="px-3 py-2.5 w-[90px]">Published</th>
                 <th className="px-3 py-2.5 w-[80px] text-right">Views</th>
@@ -265,6 +269,11 @@ export function VideosConnected({ videos, channels, categories }: Props) {
                       <div>
                         <p className="line-clamp-2 font-medium text-cms-text leading-snug">
                           {video.title}
+                          {video.sourcePipelineId && (
+                            <span className="ml-1.5 bg-purple-900/30 text-purple-400 text-[10px] px-1.5 py-0.5 rounded-full font-medium">
+                              Pipeline
+                            </span>
+                          )}
                         </p>
                         {video.titleTranslation && (
                           <p className="mt-0.5 line-clamp-1 text-xs text-cms-text-muted italic">
@@ -302,6 +311,15 @@ export function VideosConnected({ videos, channels, categories }: Props) {
                     <div className="flex justify-center">
                       <HiddenToggle videoId={video.id} isHidden={video.isHidden} />
                     </div>
+                  </td>
+
+                  {/* A/B test status */}
+                  <td className="px-3 py-2 text-center">
+                    <AbStatusBadge
+                      test={video.abTest}
+                      videoId={video.id}
+                      isShort={(video.durationSeconds ?? 0) <= 60}
+                    />
                   </td>
 
                   {/* Weekly pick pin */}

@@ -1,14 +1,23 @@
 import { getSiteContext } from '@/lib/cms/site-context'
-import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
-import { AbLabTab } from '../_components/ab-lab-tab'
+import { getAbTestsForSite, getAbSiteSettings } from './actions'
+import { AbLabDashboard } from './_components/ab-lab-dashboard'
 
 export const dynamic = 'force-dynamic'
 
 export default async function AbLabPage() {
   const { siteId } = await getSiteContext()
-  await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+  const [tests, settings] = await Promise.all([
+    getAbTestsForSite(),
+    getAbSiteSettings(),
+  ])
 
-  const tests: [] = []
-
-  return <AbLabTab tests={tests} />
+  return (
+    <AbLabDashboard
+      siteId={siteId}
+      active={tests.active}
+      draft={tests.draft}
+      completed={tests.completed}
+      settings={settings}
+    />
+  )
 }
