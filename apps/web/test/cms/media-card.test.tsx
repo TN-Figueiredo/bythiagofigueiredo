@@ -92,7 +92,7 @@ describe('MediaCard', () => {
         onQuickAction={onQuickAction}
       />,
     )
-    expect(screen.getByText('avatar')).toBeDefined()
+    expect(screen.getByText('Avatar')).toBeDefined()
   })
 
   it('calls onSelect when clicked', () => {
