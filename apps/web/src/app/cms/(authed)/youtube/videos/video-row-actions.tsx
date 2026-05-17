@@ -300,9 +300,12 @@ export function AbStatusBadge({ test, videoId, isShort }: {
 
   if (!test) {
     return (
-      <span className="text-[11px] px-2 py-0.5 rounded border border-cms-border text-cms-text-muted">
+      <Link
+        href="/cms/youtube/ab-lab"
+        className="text-[11px] px-2 py-0.5 rounded border border-cms-border text-cms-text-muted hover:text-cms-text hover:border-cms-accent transition-colors"
+      >
         Start A/B
-      </span>
+      </Link>
     )
   }
 

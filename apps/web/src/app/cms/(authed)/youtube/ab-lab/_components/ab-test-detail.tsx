@@ -257,6 +257,11 @@ export function AbTestDetail({ results }: AbTestDetailProps) {
             </button>
           )}
         </div>
+
+        <div className="flex items-center gap-1.5 text-xs text-cms-text-dim">
+          <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+          Last sync: {new Date(results.data_freshness).toLocaleDateString('en', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+        </div>
       </div>
 
       {test.status === 'completed' && (
@@ -334,6 +339,13 @@ export function AbTestDetail({ results }: AbTestDetailProps) {
         >
           Live Estimate
         </button>
+
+        <p className="text-[10px] text-cms-text-dim">
+          YouTube Analytics data has a 48-72h delay. Last confirmed data:{' '}
+          {results.data_freshness
+            ? new Date(results.data_freshness).toLocaleDateString('en', { month: 'short', day: 'numeric' })
+            : 'pending'}
+        </p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">

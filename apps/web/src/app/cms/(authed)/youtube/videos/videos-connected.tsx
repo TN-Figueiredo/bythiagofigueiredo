@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useTransition } from 'react'
+import React, { useState, useMemo, useTransition } from 'react'
 import Image from 'next/image'
 import { CategoryBadge, FeaturedToggle, HiddenToggle, PinButton, SyncButton, AbStatusBadge, VideoContextMenu } from './video-row-actions'
 import { triggerSync } from './actions'
@@ -71,6 +71,7 @@ export function VideosConnected({ videos, channels, categories }: Props) {
   const [channelFilter, setChannelFilter] = useState<string>('')
   const [categoryFilter, setCategoryFilter] = useState<string>('')
   const [search, setSearch] = useState<string>('')
+  const [expandedId, setExpandedId] = useState<string | null>(null)
   const [, startTransition] = useTransition()
 
   const filtered = useMemo(() => {
@@ -213,13 +214,14 @@ export function VideosConnected({ videos, channels, categories }: Props) {
             </thead>
             <tbody>
               {filtered.map((video) => (
+                <React.Fragment key={video.id}>
                 <tr
-                  key={video.id}
-                  className={`border-b border-cms-border last:border-0 hover:bg-cms-surface-hover ${
+                  onClick={() => setExpandedId(expandedId === video.id ? null : video.id)}
+                  className={`border-b border-cms-border last:border-0 cursor-pointer hover:bg-cms-surface-hover ${
                     video.pinnedUntil && new Date(video.pinnedUntil) > new Date()
                       ? 'shadow-[inset_3px_0_0_0_#f59e0b]'
                       : ''
-                  }`}
+                  } ${expandedId === video.id ? 'bg-cms-surface-hover/50' : ''}`}
                 >
                   {/* Thumbnail */}
                   <td className="px-3 py-2">
@@ -301,21 +303,21 @@ export function VideosConnected({ videos, channels, categories }: Props) {
                   </td>
 
                   {/* Featured toggle */}
-                  <td className="px-3 py-2 text-center">
+                  <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>
                     <div className="flex justify-center">
                       <FeaturedToggle videoId={video.id} isFeatured={video.isFeatured} />
                     </div>
                   </td>
 
                   {/* Hidden toggle */}
-                  <td className="px-3 py-2 text-center">
+                  <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>
                     <div className="flex justify-center">
                       <HiddenToggle videoId={video.id} isHidden={video.isHidden} />
                     </div>
                   </td>
 
                   {/* A/B test status */}
-                  <td className="px-3 py-2 text-center">
+                  <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>
                     <AbStatusBadge
                       test={video.abTest}
                       videoId={video.id}
@@ -324,7 +326,7 @@ export function VideosConnected({ videos, channels, categories }: Props) {
                   </td>
 
                   {/* Weekly pick pin */}
-                  <td className="px-3 py-2 text-center">
+                  <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>
                     <div className="flex justify-center">
                       <PinButton
                         videoId={video.id}
@@ -353,7 +355,7 @@ export function VideosConnected({ videos, channels, categories }: Props) {
                   </td>
 
                   {/* Context menu */}
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                     <VideoContextMenu
                       videoId={video.id}
                       isShort={(video.durationSeconds ?? 0) <= 60}
@@ -361,6 +363,91 @@ export function VideosConnected({ videos, channels, categories }: Props) {
                     />
                   </td>
                 </tr>
+
+                {/* Expansion row */}
+                {expandedId === video.id && (
+                  <tr className="border-b border-cms-border bg-cms-bg/50">
+                    <td colSpan={10} className="px-4 py-4">
+                      <div className="flex gap-6">
+                        {/* Left: larger thumbnail */}
+                        <div className="shrink-0">
+                          {video.thumbnailUrl ? (
+                            <Image
+                              src={video.thumbnailUrl}
+                              alt={video.title}
+                              width={240}
+                              height={135}
+                              className="rounded-[var(--cms-radius)] object-cover"
+                            />
+                          ) : (
+                            <div className="h-[135px] w-[240px] rounded-[var(--cms-radius)] bg-cms-surface-hover flex items-center justify-center text-cms-text-dim text-sm">
+                              No thumbnail
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Right: details */}
+                        <div className="flex-1 space-y-3">
+                          <div>
+                            <h3 className="font-medium text-cms-text">{video.title}</h3>
+                            {video.titleTranslation && (
+                              <p className="mt-0.5 text-sm text-cms-text-muted italic">{video.titleTranslation}</p>
+                            )}
+                            <p className="mt-1 text-xs text-cms-text-dim">
+                              @{video.channelHandle} · {video.duration} · {video.viewCount.toLocaleString()} views
+                            </p>
+                          </div>
+
+                          {/* A/B Test panel */}
+                          <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface p-3">
+                            <p className="text-xs font-semibold uppercase tracking-wider text-cms-text-dim mb-2">A/B Testing</p>
+                            {(video.durationSeconds ?? 0) <= 60 ? (
+                              <p className="text-sm text-cms-text-muted">Shorts are not eligible for A/B testing.</p>
+                            ) : video.abTest ? (
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                    video.abTest.status === 'active' ? 'bg-green-900/30 text-green-400' :
+                                    video.abTest.status === 'paused' ? 'bg-amber-900/30 text-amber-400' :
+                                    'bg-blue-900/30 text-blue-400'
+                                  }`}>
+                                    {video.abTest.status.charAt(0).toUpperCase() + video.abTest.status.slice(1)}
+                                  </span>
+                                </div>
+                                <a
+                                  href={`/cms/youtube/ab-lab/${video.abTest.id}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="text-xs text-cms-accent hover:underline"
+                                >
+                                  View Details →
+                                </a>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-between">
+                                <p className="text-sm text-cms-text-muted">No test running</p>
+                                <a
+                                  href="/cms/youtube/ab-lab"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="text-xs text-cms-accent hover:underline"
+                                >
+                                  Start A/B Test →
+                                </a>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Pipeline badge if applicable */}
+                          {video.sourcePipelineId && (
+                            <span className="inline-flex items-center gap-1 bg-purple-900/30 text-purple-400 text-[10px] px-2 py-0.5 rounded-full font-medium">
+                              Pipeline linked
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </React.Fragment>
               ))}
             </tbody>
           </table>
