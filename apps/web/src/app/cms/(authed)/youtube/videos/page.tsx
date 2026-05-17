@@ -30,7 +30,7 @@ export default async function YouTubeVideosPage() {
       .order('sort_order'),
     supabase
       .from('ab_tests')
-      .select('id, youtube_video_id, status, started_at, result_metadata')
+      .select('id, youtube_video_id, status, started_at, result_metadata, source_pipeline_id')
       .eq('site_id', siteId)
       .in('status', ['draft', 'active', 'paused', 'completed']),
   ])
@@ -39,13 +39,14 @@ export default async function YouTubeVideosPage() {
   const rawChannels = channelsRes.data ?? []
   const rawCategories = categoriesRes.data ?? []
 
-  const abTestMap = new Map<string, { id: string; status: string; started_at: string | null; result_metadata: { ctr_lift_percent: number } | null }>()
+  const abTestMap = new Map<string, { id: string; status: string; started_at: string | null; result_metadata: { ctr_lift_percent: number } | null; sourcePipelineId: string | null }>()
   for (const t of (abTestsRes.data ?? [])) {
     abTestMap.set(t.youtube_video_id as string, {
       id: t.id as string,
       status: t.status as string,
       started_at: (t.started_at as string | null) ?? null,
       result_metadata: t.result_metadata as { ctr_lift_percent: number } | null,
+      sourcePipelineId: (t.source_pipeline_id as string | null) ?? null,
     })
   }
 
@@ -95,7 +96,7 @@ export default async function YouTubeVideosPage() {
       pinnedUntil: (v.pinned_until as string | null) ?? null,
       durationSeconds: (v.duration_seconds as number | null) ?? null,
       abTest: abTestMap.get(v.id as string) ?? null,
-      sourcePipelineId: null,
+      sourcePipelineId: abTestMap.get(v.id as string)?.sourcePipelineId ?? null,
     }
   })
 

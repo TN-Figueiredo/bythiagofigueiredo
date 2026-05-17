@@ -1,14 +1,15 @@
 import { getSiteContext } from '@/lib/cms/site-context'
-import { getAbTestsForSite, getAbSiteSettings } from './actions'
+import { getAbTestsForSite, getAbSiteSettings, getEligibleVideosForPicker } from './actions'
 import { AbLabDashboard } from './_components/ab-lab-dashboard'
 
 export const dynamic = 'force-dynamic'
 
 export default async function AbLabPage() {
   const { siteId } = await getSiteContext()
-  const [tests, settings] = await Promise.all([
+  const [tests, settings, eligibleVideos] = await Promise.all([
     getAbTestsForSite(),
     getAbSiteSettings(),
+    getEligibleVideosForPicker(),
   ])
 
   return (
@@ -18,6 +19,7 @@ export default async function AbLabPage() {
       draft={tests.draft}
       completed={tests.completed}
       settings={settings}
+      eligibleVideos={eligibleVideos}
     />
   )
 }

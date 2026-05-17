@@ -340,6 +340,79 @@ export function AbStatusBadge({ test, videoId, isShort }: {
   return <span className="text-cms-text-muted">—</span>
 }
 
+interface VideoContextMenuProps {
+  videoId: string
+  isShort: boolean
+  abTest: { id: string; status: string } | null
+}
+
+export function VideoContextMenu({ videoId: _videoId, isShort, abTest }: VideoContextMenuProps) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [open])
+
+  const items: Array<{ label: string; href: string; className?: string }> = []
+
+  if (!isShort && !abTest) {
+    items.push({ label: 'Start A/B Test', href: '/cms/youtube/ab-lab' })
+  }
+  if (abTest) {
+    items.push({ label: 'View Test Details', href: `/cms/youtube/ab-lab/${abTest.id}` })
+  }
+  if (abTest?.status === 'active') {
+    items.push({ label: 'Pause Test', href: `/cms/youtube/ab-lab/${abTest.id}`, className: 'text-amber-400' })
+    items.push({ label: 'End Test', href: `/cms/youtube/ab-lab/${abTest.id}`, className: 'text-red-400' })
+  }
+
+  if (items.length === 0) return null
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="p-1 rounded text-cms-text-dim hover:text-cms-text hover:bg-cms-surface-hover"
+        aria-label="More actions"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <circle cx="12" cy="5" r="2" />
+          <circle cx="12" cy="12" r="2" />
+          <circle cx="12" cy="19" r="2" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute right-0 top-7 z-10 min-w-[160px] rounded-lg border border-cms-border bg-cms-surface p-1 shadow-lg">
+          {items.map((item) => (
+            <a
+              key={item.label}
+              href={item.href}
+              onClick={() => setOpen(false)}
+              className={`block w-full rounded px-3 py-1.5 text-left text-xs hover:bg-cms-surface-hover ${item.className ?? 'text-cms-text'}`}
+            >
+              {item.label}
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 interface SyncButtonProps {
   onSync: () => Promise<void>
 }

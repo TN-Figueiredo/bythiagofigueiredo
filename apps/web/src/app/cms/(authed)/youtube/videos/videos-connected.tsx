@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useTransition } from 'react'
 import Image from 'next/image'
-import { CategoryBadge, FeaturedToggle, HiddenToggle, PinButton, SyncButton, AbStatusBadge } from './video-row-actions'
+import { CategoryBadge, FeaturedToggle, HiddenToggle, PinButton, SyncButton, AbStatusBadge, VideoContextMenu } from './video-row-actions'
 import { triggerSync } from './actions'
 
 export interface VideoRow {
@@ -208,6 +208,7 @@ export function VideosConnected({ videos, channels, categories }: Props) {
                 <th className="px-3 py-2.5 w-[80px] text-center">Pick</th>
                 <th className="px-3 py-2.5 w-[90px]">Published</th>
                 <th className="px-3 py-2.5 w-[80px] text-right">Views</th>
+                <th className="px-3 py-2.5 w-[40px]"></th>
               </tr>
             </thead>
             <tbody>
@@ -349,6 +350,15 @@ export function VideosConnected({ videos, channels, categories }: Props) {
                         {formatCount(video.likeCount)} likes
                       </span>
                     )}
+                  </td>
+
+                  {/* Context menu */}
+                  <td className="px-3 py-2">
+                    <VideoContextMenu
+                      videoId={video.id}
+                      isShort={(video.durationSeconds ?? 0) <= 60}
+                      abTest={video.abTest}
+                    />
                   </td>
                 </tr>
               ))}

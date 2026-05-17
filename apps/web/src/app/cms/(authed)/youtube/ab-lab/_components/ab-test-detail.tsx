@@ -7,12 +7,25 @@ import type { AbTestResults, AbTestWithVariants } from '@/lib/youtube/ab-types'
 import { resumeAbTest, archiveAbTest } from '../actions'
 import { AbConfidenceTrend } from './ab-confidence-trend'
 import { AbRotationTimeline } from './ab-rotation-timeline'
+import { AbDailyCtrChart } from './ab-daily-ctr-chart'
 import { AbEndTestDialog } from './ab-end-test-dialog'
 import { AbPauseDialog } from './ab-pause-dialog'
 import { AbVariantCard } from './ab-variant-card'
 
 interface AbTestDetailProps {
   results: AbTestResults
+}
+
+function normalCdf(z: number): number {
+  if (z < -8) return 0
+  if (z > 8) return 1
+  let sum = 0
+  let term = z
+  for (let i = 3; sum + term !== sum; i += 2) {
+    sum += term
+    term *= (z * z) / i
+  }
+  return 0.5 + sum * Math.exp(-0.5 * z * z - 0.9189385332)
 }
 
 type DataMode = 'confirmed' | 'estimate'
@@ -53,10 +66,62 @@ export function AbTestDetail({ results }: AbTestDetailProps) {
   )
 
   const evaluations = useMemo(() => {
-    const confirmed = timeline.filter(c => c.backfill_status === 'confirmed')
-    if (confirmed.length === 0) return []
-    return [{ day: confirmed.length, confidence }]
-  }, [timeline, confidence])
+    const confirmed = results.timeline
+      .filter(c => c.backfill_status === 'confirmed' && c.impressions !== null && c.clicks !== null)
+      .sort((a, b) => a.cycle_number - b.cycle_number)
+
+    if (confirmed.length < 2) {
+      if (results.confidence > 0) return [{ day: 1, confidence: results.confidence }]
+      return []
+    }
+
+    const points: { day: number; confidence: number }[] = []
+    const variantTotals = new Map<string, { impressions: number; clicks: number }>()
+
+    for (let i = 0; i < confirmed.length; i++) {
+      const cycle = confirmed[i]
+      if (!cycle) continue
+      const existing = variantTotals.get(cycle.variant_id) ?? { impressions: 0, clicks: 0 }
+      existing.impressions += cycle.impressions ?? 0
+      existing.clicks += cycle.clicks ?? 0
+      variantTotals.set(cycle.variant_id, existing)
+
+      // Need at least 2 variants with data to compute confidence
+      const activeVariants = Array.from(variantTotals.values()).filter(v => v.impressions > 0)
+      if (activeVariants.length < 2) continue
+
+      const ctrs = Array.from(variantTotals.entries()).map(([id, v]) => ({
+        id,
+        ctr: v.impressions > 0 ? v.clicks / v.impressions : 0,
+      }))
+      const sorted = ctrs.sort((a, b) => b.ctr - a.ctr)
+      const best = sorted[0]
+      const second = sorted[1]
+
+      if (!best || !second) continue
+
+      const bestData = variantTotals.get(best.id)!
+      const secondData = variantTotals.get(second.id)!
+
+      const diff = Math.abs(best.ctr - second.ctr)
+      const se = Math.sqrt(
+        (best.ctr * (1 - best.ctr)) / Math.max(bestData.impressions, 1) +
+          (second.ctr * (1 - second.ctr)) / Math.max(secondData.impressions, 1),
+      )
+      const z = se > 0 ? diff / se : 0
+      const pointConfidence = Math.min(normalCdf(z), 0.999)
+
+      points.push({ day: i + 1, confidence: pointConfidence })
+    }
+
+    // If the final confidence from results differs significantly, add it as the last point
+    const lastPoint = points[points.length - 1]
+    if (lastPoint !== undefined && Math.abs(lastPoint.confidence - results.confidence) > 0.01) {
+      points.push({ day: points.length + 1, confidence: results.confidence })
+    }
+
+    return points
+  }, [results])
 
   const winnerVariant = useMemo(
     () => variants.find(v => v.variant_id === test.winner_variant_id) ?? null,
@@ -296,6 +361,13 @@ export function AbTestDetail({ results }: AbTestDetailProps) {
           totalDays={totalDays}
         />
       </div>
+
+      <section className="space-y-3">
+        <AbDailyCtrChart
+          cycles={results.timeline}
+          variants={results.variants.map(v => ({ id: v.variant_id, label: v.label }))}
+        />
+      </section>
 
       {showEndDialog && (
         <AbEndTestDialog

@@ -16,9 +16,19 @@ interface AbLabDashboardProps {
   draft: AbTestWithVariants[]
   completed: AbTestWithVariants[]
   settings: AbTestSiteSettings
+  eligibleVideos: Array<{
+    id: string
+    title: string
+    thumbnailUrl: string | null
+    durationSeconds: number
+    channelHandle: string
+    hasActiveTest: boolean
+    previousLift: number | null
+    sourcePipelineId: string | null
+  }>
 }
 
-export function AbLabDashboard({ siteId, active, draft, completed, settings }: AbLabDashboardProps) {
+export function AbLabDashboard({ siteId, active, draft, completed, settings, eligibleVideos }: AbLabDashboardProps) {
   const router = useRouter()
   const [showSettings, setShowSettings] = useState(false)
   const [showPicker, setShowPicker] = useState(false)
@@ -58,6 +68,24 @@ export function AbLabDashboard({ siteId, active, draft, completed, settings }: A
           (sum, t) => sum + (t.result_metadata?.ctr_lift_percent ?? 0),
           0,
         ) / testsWithPositiveLift.length
+      : 0
+
+  const insightTests = completed.filter(t => t.winner_variant_id && t.result_metadata)
+  const totalExtraClicks = insightTests.reduce(
+    (sum, t) =>
+      sum +
+      ((t.result_metadata as { estimated_monthly_extra_clicks?: number } | null)
+        ?.estimated_monthly_extra_clicks ?? 0),
+    0,
+  )
+  const avgLift =
+    insightTests.length > 0
+      ? insightTests.reduce(
+          (sum, t) =>
+            sum +
+            ((t.result_metadata as { ctr_lift_percent?: number } | null)?.ctr_lift_percent ?? 0),
+          0,
+        ) / insightTests.length
       : 0
 
   return (
@@ -194,13 +222,35 @@ export function AbLabDashboard({ siteId, active, draft, completed, settings }: A
         </div>
       )}
 
+      {insightTests.length >= 3 && (
+        <section className="space-y-3">
+          <h3 className="text-sm font-semibold text-cms-text">Cross-Test Insights</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface p-4">
+              <p className="text-xs text-cms-text-muted uppercase tracking-wider">Cumulative Impact</p>
+              <p className="text-xl font-bold text-cms-text">
+                {totalExtraClicks.toLocaleString()} extra clicks/mo
+              </p>
+            </div>
+            <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface p-4">
+              <p className="text-xs text-cms-text-muted uppercase tracking-wider">Avg CTR Lift</p>
+              <p className="text-xl font-bold text-green-400">+{avgLift.toFixed(1)}%</p>
+            </div>
+            <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface p-4">
+              <p className="text-xs text-cms-text-muted uppercase tracking-wider">Tests Won</p>
+              <p className="text-xl font-bold text-cms-text">{insightTests.length}/{completed.length}</p>
+            </div>
+          </div>
+        </section>
+      )}
+
       {showSettings && (
         <AbSettingsPanel settings={settings} onClose={() => setShowSettings(false)} />
       )}
 
       {showPicker && (
         <AbVideoPicker
-          videos={[]}
+          videos={eligibleVideos}
           onSelect={v => {
             setSelectedVideo(v)
             setShowPicker(false)

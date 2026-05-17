@@ -919,6 +919,70 @@ export async function getAbSiteSettings(): Promise<AbTestSiteSettings> {
 }
 
 // ---------------------------------------------------------------------------
+// getEligibleVideosForPicker
+// ---------------------------------------------------------------------------
+
+export async function getEligibleVideosForPicker(): Promise<Array<{
+  id: string
+  title: string
+  thumbnailUrl: string | null
+  durationSeconds: number
+  channelHandle: string
+  hasActiveTest: boolean
+  previousLift: number | null
+  sourcePipelineId: string | null
+}>> {
+  const siteId = await requireEditAccess()
+  const supabase = getSupabaseServiceClient()
+
+  const { data: videos } = await supabase
+    .from('youtube_videos')
+    .select('id, title, thumbnail_url, duration_seconds, youtube_channels!inner(handle)')
+    .eq('site_id', siteId)
+    .order('published_at', { ascending: false })
+    .limit(100)
+
+  if (!videos) return []
+
+  // Get existing tests for these videos
+  const videoIds = videos.map(v => v.id as string)
+  const { data: tests } = await supabase
+    .from('ab_tests')
+    .select('youtube_video_id, status, result_metadata, source_pipeline_id')
+    .eq('site_id', siteId)
+    .in('youtube_video_id', videoIds)
+
+  const testMap = new Map<string, { hasActive: boolean; lift: number | null; pipelineId: string | null }>()
+  for (const t of (tests ?? [])) {
+    const vid = t.youtube_video_id as string
+    const existing = testMap.get(vid)
+    const isActive = ['draft', 'active', 'paused'].includes(t.status as string)
+    const lift = (t.result_metadata as { ctr_lift_percent: number } | null)?.ctr_lift_percent ?? null
+
+    testMap.set(vid, {
+      hasActive: existing?.hasActive || isActive,
+      lift: lift ?? existing?.lift ?? null,
+      pipelineId: (t.source_pipeline_id as string | null) ?? existing?.pipelineId ?? null,
+    })
+  }
+
+  return videos.map(v => {
+    const channel = v.youtube_channels as unknown as { handle: string }
+    const testInfo = testMap.get(v.id as string)
+    return {
+      id: v.id as string,
+      title: v.title as string,
+      thumbnailUrl: (v.thumbnail_url as string | null) ?? null,
+      durationSeconds: (v.duration_seconds as number) ?? 0,
+      channelHandle: channel?.handle ?? '',
+      hasActiveTest: testInfo?.hasActive ?? false,
+      previousLift: testInfo?.lift ?? null,
+      sourcePipelineId: testInfo?.pipelineId ?? null,
+    }
+  })
+}
+
+// ---------------------------------------------------------------------------
 // updateAbSiteSettings
 // ---------------------------------------------------------------------------
 
