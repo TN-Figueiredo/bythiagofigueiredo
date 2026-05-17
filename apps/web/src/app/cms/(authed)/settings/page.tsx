@@ -5,6 +5,8 @@ import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { CmsTopbar } from '@tn-figueiredo/cms-ui/client'
 import { SettingsConnected } from './settings-connected'
 
+export const dynamic = 'force-dynamic'
+
 interface Props {
   searchParams: Promise<{ section?: string }>
 }

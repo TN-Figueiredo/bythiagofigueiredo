@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
-import dynamic from 'next/dynamic'
+import nextDynamic from 'next/dynamic'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import {
@@ -19,7 +19,9 @@ import type { PeriodInput, AnalyticsTab, AnalyticsOverviewData } from './types'
 import { SectionErrorBoundary } from '../_shared/section-error-boundary'
 import { LinksTab } from './_components/links-tab'
 
-const ComingSoonStub = dynamic(() => import('./_components/coming-soon-stub'))
+const ComingSoonStub = nextDynamic(() => import('./_components/coming-soon-stub'))
+
+export const dynamic = 'force-dynamic'
 
 interface Props {
   searchParams: Promise<{

@@ -7,6 +7,8 @@ import { CmsTopbar } from '@tn-figueiredo/cms-ui/client'
 import { fetchScheduleData } from '@/lib/schedule/schedule-queries'
 import { ScheduleCalendar } from './_components/schedule-calendar'
 
+export const dynamic = 'force-dynamic'
+
 /* ------------------------------------------------------------------ */
 /*  Data loader                                                       */
 /* ------------------------------------------------------------------ */

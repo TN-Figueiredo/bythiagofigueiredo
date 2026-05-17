@@ -5,6 +5,8 @@ import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { CmsTopbar } from '@tn-figueiredo/cms-ui/client'
 import { AuthorsConnected, type AuthorData } from './authors-connected'
 
+export const dynamic = 'force-dynamic'
+
 interface AuthorRow {
   id: string
   display_name: string | null

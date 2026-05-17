@@ -124,7 +124,7 @@ export function fetchDashboardKpis(
           .from('content_pipeline')
           .select('id', { count: 'exact', head: true })
           .eq('site_id', siteId)
-          .eq('status', 'published')
+          .eq('stage', 'published')
           .gte('updated_at', periodStart),
 
         // Total confirmed subscribers
@@ -148,7 +148,7 @@ export function fetchDashboardKpis(
           .select('id', { count: 'exact', head: true })
           .eq('site_id', siteId)
           .eq('status', 'unsubscribed')
-          .gte('updated_at', periodStart),
+          .gte('unsubscribed_at', periodStart),
 
         // Link clicks in period
         supabase
@@ -273,9 +273,9 @@ export function fetchNeedsAttention(siteId: string): Promise<AttentionItem[]> {
           // P3: Pipeline ideas stale 30+ days
           supabase
             .from('content_pipeline')
-            .select('id, title, updated_at')
+            .select('id, title_pt, title_en, updated_at')
             .eq('site_id', siteId)
-            .eq('status', 'idea')
+            .eq('stage', 'idea')
             .lt('updated_at', thirtyDaysAgo)
             .order('updated_at', { ascending: true })
             .limit(5),
@@ -336,11 +336,11 @@ export function fetchNeedsAttention(siteId: string): Promise<AttentionItem[]> {
       }
 
       // P3 — stale pipeline
-      type PipelineRow = { id: string; title: string; updated_at: string }
+      type PipelineRow = { id: string; title_pt: string | null; title_en: string | null; updated_at: string }
       for (const row of (stalePipelineRes.data ?? []) as PipelineRow[]) {
         items.push({
           id: row.id,
-          title: row.title ?? 'Untitled',
+          title: row.title_pt ?? row.title_en ?? 'Untitled',
           priority: 'P3',
           reason: 'Ideia parada 30+ dias',
           href: `/cms/pipeline?item=${row.id}`,
@@ -409,9 +409,9 @@ export function fetchThisWeekStrip(
 
         supabase
           .from('content_pipeline')
-          .select('id, title, updated_at')
+          .select('id, title_pt, title_en, updated_at')
           .eq('site_id', siteId)
-          .eq('status', 'published')
+          .eq('stage', 'published')
           .gte('updated_at', weekStart)
           .lte('updated_at', weekEnd)
           .limit(30),
@@ -457,13 +457,13 @@ export function fetchThisWeekStrip(
       }
 
       // Pipeline items
-      type PipelineRow = { id: string; title: string; updated_at: string }
-      for (const row of (pipelineRes.data ?? []) as PipelineRow[]) {
+      type PipelineWeekRow = { id: string; title_pt: string | null; title_en: string | null; updated_at: string }
+      for (const row of (pipelineRes.data ?? []) as PipelineWeekRow[]) {
         const day = row.updated_at?.slice(0, 10)
         if (day && dotsByDay.has(day)) {
           dotsByDay.get(day)!.push({
             type: 'pipeline',
-            title: row.title ?? 'Pipeline',
+            title: row.title_pt ?? row.title_en ?? 'Pipeline',
             href: `/cms/pipeline?item=${row.id}`,
           })
         }
@@ -494,8 +494,8 @@ export interface YtDashboardSummary {
   subsNet: number
   ctr: number
   avgPercentage: number
-  milestoneTarget: number
-  milestoneAway: number
+  milestoneTarget: number | null
+  milestoneAway: number | null
   activeAbTest: { title: string; variant: string; improvement: number; confidence: number; daysLeft: number } | null
 }
 
@@ -503,12 +503,19 @@ export function fetchYtDashboardSummary(siteId: string) {
   return unstable_cache(
     async (): Promise<YtDashboardSummary | null> => {
       const { fetchYtChannelMetrics } = await import('@/lib/youtube/analytics-client')
-      const metrics = await fetchYtChannelMetrics(siteId, 30)
+      const [metrics, metrics60] = await Promise.all([
+        fetchYtChannelMetrics(siteId, 30),
+        fetchYtChannelMetrics(siteId, 60),
+      ])
       if (!metrics) return null
 
       const ctr = metrics.impressionClickThroughRate
       const retention = metrics.averageViewPercentage
       const subsNet = metrics.subscribersGained - metrics.subscribersLost
+
+      // Compute views delta: current 30d vs previous 30d (derived from 60d - 30d)
+      const prevViews = (metrics60?.views ?? 0) - metrics.views
+      const viewsDelta = metrics.views - prevViews
 
       const ctrScore = Math.min(ctr * 10, 100)
       const retScore = Math.min(retention * 2, 100)
@@ -520,13 +527,13 @@ export function fetchYtDashboardSummary(siteId: string) {
       return {
         healthScore,
         views30d: metrics.views,
-        viewsDelta: 0,
-        subscribers: 0,
+        viewsDelta,
+        subscribers: 0, // YT Analytics API v2 doesn't expose total subscriber count; requires Data API v3
         subsNet,
         ctr,
         avgPercentage: retention,
-        milestoneTarget: 2000,
-        milestoneAway: 23,
+        milestoneTarget: null, // Unavailable without YT Data API v3 channels.list endpoint
+        milestoneAway: null,
         activeAbTest: null,
       }
     },

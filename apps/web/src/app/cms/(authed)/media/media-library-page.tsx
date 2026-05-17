@@ -98,7 +98,14 @@ export function MediaLibraryPage({ locale, siteId }: Props) {
           }
           setNextCursor(result.nextCursor)
         } else {
-          setFetchError(t.upload.uploadError)
+          console.error('[media-library] action failed:', result.error)
+          setFetchError(result.error ?? t.upload.uploadError)
+        }
+      } catch (err) {
+        if (!controller.signal.aborted) {
+          const msg = err instanceof Error ? err.message : 'unknown_error'
+          console.error('[media-library] fetch threw:', msg)
+          setFetchError(msg)
         }
       } finally {
         if (!controller.signal.aborted) {

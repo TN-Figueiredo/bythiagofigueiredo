@@ -21,7 +21,7 @@ export function DashboardYoutubeCard({ data }: Props) {
       <div className="flex items-center gap-4">
         <div className="relative h-20 w-20 shrink-0">
           <svg viewBox="0 0 80 80" className="h-full w-full" role="img" aria-label={`Channel health score: ${data.healthScore}`}>
-            <title>Health {data.healthScore}/100</title>
+            <title>{`Health ${data.healthScore}/100`}</title>
             <circle cx="40" cy="40" r={radius} fill="none" stroke="var(--bdr-1)" strokeWidth="7" />
             <circle cx="40" cy="40" r={radius} fill="none" stroke={color} strokeWidth="7"
               strokeDasharray={`${dashLength} ${circumference}`}
@@ -52,9 +52,11 @@ export function DashboardYoutubeCard({ data }: Props) {
               <div className="font-medium tabular-nums text-cms-text">{Math.round(data.avgPercentage)}%</div>
             </div>
           </div>
-          <p className="text-[11px] text-cms-text-muted">
-            <span aria-hidden="true">🎯</span> {data.milestoneTarget.toLocaleString()} subs — {data.milestoneAway} away
-          </p>
+          {data.milestoneTarget !== null && (
+            <p className="text-[11px] text-cms-text-muted">
+              <span aria-hidden="true">🎯</span> {data.milestoneTarget.toLocaleString()} subs — {data.milestoneAway} away
+            </p>
+          )}
         </div>
       </div>
     </div>

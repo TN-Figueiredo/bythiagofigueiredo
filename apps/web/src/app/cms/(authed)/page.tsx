@@ -1,5 +1,7 @@
 import { Suspense } from 'react'
 import { getSiteContext } from '@/lib/cms/site-context'
+
+export const dynamic = 'force-dynamic'
 import { fetchDashboardBlogHealth } from './_components/dashboard-blog-health-queries'
 import {
   fetchDashboardKpis,
@@ -9,6 +11,8 @@ import {
   fetchYtDashboardSummary,
   type DashboardPeriod,
 } from './_components/dashboard-queries'
+import { fetchFunnelData, fetchTopLinks } from '@/lib/analytics/analytics-queries'
+import { generateInsights } from '@/lib/analytics/insights-engine'
 import { getGreeting, formatTodayLabel } from './_components/dashboard-greeting'
 import { DashboardHeader } from './_components/dashboard-header'
 import { DashboardKpiGrid } from './_components/dashboard-kpi-grid'
@@ -56,9 +60,13 @@ export default async function CmsDashboardPage({ searchParams }: PageProps) {
 /* ------------------------------------------------------------------ */
 
 async function DashboardContent({ period }: { period: DashboardPeriod }) {
-  const { siteId, timezone } = await getSiteContext()
+  const { siteId, timezone, primaryDomain } = await getSiteContext()
+  const periodInput = { type: 'preset' as const, value: period }
+  const siteOrigin = primaryDomain
+    ? `https://${primaryDomain}`
+    : (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000')
 
-  const [kpis, attentionItems, weekStrip, activityFeed, blogHealth, ytSummary] =
+  const [kpis, attentionItems, weekStrip, activityFeed, blogHealth, ytSummary, funnel, topLinks] =
     await Promise.all([
       fetchDashboardKpis(siteId, period),
       fetchNeedsAttention(siteId),
@@ -66,11 +74,15 @@ async function DashboardContent({ period }: { period: DashboardPeriod }) {
       fetchActivityFeed(siteId),
       fetchDashboardBlogHealth(siteId),
       fetchYtDashboardSummary(siteId),
+      fetchFunnelData(siteId, periodInput, timezone),
+      fetchTopLinks(siteId, periodInput, siteOrigin),
     ])
 
-  const aiInsights = [
-    { type: 'anomaly' as const, message: 'Your latest video is performing 2.3× above average in the first 48 hours.', actions: [{ label: 'Write Follow-up →', href: '/cms/youtube/content' }] },
-  ]
+  const aiInsights = generateInsights(funnel, {
+    topLinks,
+    totalClicks: kpis.linkClicks,
+    prevTotalClicks: undefined,
+  })
 
   return (
     <div className="flex flex-1 gap-6 p-6 lg:p-8">
