@@ -1,8 +1,10 @@
 'use client'
 
 import { useState, useEffect, useTransition } from 'react'
-import Image from 'next/image'
-import { createAbTest, uploadVariant, startAbTest, pullPipelineThumbnails } from '../actions'
+import NextImage from 'next/image'
+import { Image, Type, FileText, Layers } from 'lucide-react'
+import { createAbTest, uploadVariant, startAbTest, pullPipelineThumbnails, createTextVariant } from '../actions'
+import type { TestType } from '@/lib/youtube/ab-types'
 
 interface WizardVideo {
   id: string
@@ -33,18 +35,42 @@ interface SlotFile {
   previewUrl: string
 }
 
+interface TextVariant {
+  title: string
+  description: string
+}
+
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-const STEP_LABELS = ['Upload', 'Configure', 'Review'] as const
+const STEP_LABELS = ['Type', 'Variants', 'Configure', 'Review'] as const
+
+const TYPE_OPTIONS: Array<{
+  type: TestType
+  label: string
+  description: string
+  icon: typeof Image
+  badge?: string
+}> = [
+  { type: 'thumbnail', label: 'Thumbnail', description: 'Testar diferentes miniaturas', icon: Image },
+  { type: 'title', label: 'Título', description: 'Testar variações de título', icon: Type },
+  { type: 'description', label: 'Descrição', description: 'Testar descrições + links rastreados', icon: FileText },
+  { type: 'combo', label: 'Combo', description: 'Thumb + título + descrição como pacote', icon: Layers, badge: 'COMBO' },
+]
 
 export function AbCreateWizard({ video, siteId, onClose, onCreated }: Props) {
   const [step, setStep] = useState(1)
+  const [testType, setTestType] = useState<TestType>('thumbnail')
   const [slots, setSlots] = useState<(SlotFile | null)[]>([null, null, null])
   const [slotError, setSlotError] = useState<string | null>(null)
+  const [textVariants, setTextVariants] = useState<TextVariant[]>([
+    { title: '', description: '' },
+    { title: '', description: '' },
+    { title: '', description: '' },
+  ])
   const [config, setConfig] = useState<Config>({
     max_duration_days: 14,
     confidence_threshold: 0.95,
@@ -72,7 +98,17 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated }: Props) {
   }, [slots])
 
   const variants = slots.filter((s): s is SlotFile => s !== null)
-  const hasVariant = variants.length > 0
+  const hasImageVariant = variants.length > 0
+  const hasTextVariant = textVariants.some(tv => tv.title.trim() || tv.description.trim())
+
+  const hasVariantForType = (() => {
+    switch (testType) {
+      case 'thumbnail': return hasImageVariant
+      case 'title': return textVariants.some(tv => tv.title.trim().length > 0)
+      case 'description': return textVariants.some(tv => tv.description.trim().length > 0)
+      case 'combo': return hasImageVariant || hasTextVariant
+    }
+  })()
 
   function handleFileChange(slotIndex: number, file: File | null) {
     setSlotError(null)
@@ -110,6 +146,7 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated }: Props) {
         site_id: siteId,
         youtube_video_id: video.id,
         name: `Test: ${video.title}`,
+        test_type: testType,
         config,
       })
       if (!result.ok || !result.id) {
@@ -132,6 +169,7 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated }: Props) {
         site_id: siteId,
         youtube_video_id: video.id,
         name: `Test: ${video.title}`,
+        test_type: testType,
         config,
       })
       if (!result.ok || !result.id) {
@@ -139,15 +177,42 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated }: Props) {
         return
       }
       const testId = result.id
-      for (const slot of variants) {
-        const fd = new FormData()
-        fd.append('file', slot.file)
-        const uploadResult = await uploadVariant(testId, fd)
-        if (!uploadResult.ok) {
-          setSubmitError(uploadResult.error ?? 'Failed to upload variant')
-          return
+
+      // Upload image variants (for thumbnail and combo types)
+      if (testType === 'thumbnail' || testType === 'combo') {
+        for (const slot of variants) {
+          const fd = new FormData()
+          fd.append('file', slot.file)
+          const uploadResult = await uploadVariant(testId, fd)
+          if (!uploadResult.ok) {
+            setSubmitError(uploadResult.error ?? 'Failed to upload variant')
+            return
+          }
         }
       }
+
+      // Create text variants (for title, description, and combo types)
+      if (testType === 'title' || testType === 'description' || testType === 'combo') {
+        const textSlotsToSave = textVariants.filter(tv => {
+          if (testType === 'title') return tv.title.trim().length > 0
+          if (testType === 'description') return tv.description.trim().length > 0
+          // combo: any non-empty field
+          return tv.title.trim().length > 0 || tv.description.trim().length > 0
+        })
+
+        for (const tv of textSlotsToSave) {
+          const textResult = await createTextVariant({
+            test_id: testId,
+            title_text: tv.title.trim() || undefined,
+            description_text: tv.description.trim() || undefined,
+          })
+          if (!textResult.ok) {
+            setSubmitError(textResult.error ?? 'Failed to create text variant')
+            return
+          }
+        }
+      }
+
       if (isLaunch) {
         const startResult = await startAbTest(testId)
         if (!startResult.ok) {
@@ -157,6 +222,11 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated }: Props) {
       }
       onCreated(testId)
     })
+  }
+
+  function handleTypeSelect(type: TestType) {
+    setTestType(type)
+    setStep(2)
   }
 
   return (
@@ -226,22 +296,36 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated }: Props) {
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-5 py-4">
           {step === 1 && (
-            <Step1Upload
+            <Step0TypeSelect onSelect={handleTypeSelect} />
+          )}
+          {step === 2 && (
+            <Step1Variants
+              testType={testType}
               video={video}
               slots={slots}
               slotError={slotError}
+              textVariants={textVariants}
               onFileChange={handleFileChange}
+              onTextChange={(i, field, value) => {
+                setTextVariants(prev => {
+                  const next = [...prev]
+                  next[i] = { ...next[i], [field]: value }
+                  return next
+                })
+              }}
               onPipelinePull={handlePipelinePull}
               isPipelinePending={isPipelinePending}
             />
           )}
-          {step === 2 && (
+          {step === 3 && (
             <Step2Configure config={config} onChange={setConfig} />
           )}
-          {step === 3 && (
+          {step === 4 && (
             <Step3Review
               video={video}
+              testType={testType}
               slots={slots}
+              textVariants={textVariants}
               config={config}
             />
           )}
@@ -264,16 +348,16 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated }: Props) {
                 Back
               </button>
             )}
-            {step < 3 && (
+            {step > 1 && step < 4 && (
               <button
                 onClick={() => setStep(s => s + 1)}
-                disabled={step === 1 && !hasVariant}
+                disabled={step === 2 && !hasVariantForType}
                 className="bg-cms-accent text-white rounded-[var(--cms-radius)] px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Next
               </button>
             )}
-            {step === 3 && (
+            {step === 4 && (
               <>
                 <button
                   onClick={() => handleSubmit(false)}
@@ -299,21 +383,106 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated }: Props) {
 }
 
 // ---------------------------------------------------------------------------
-// Step 1 — Upload
+// Step 0 — Type Selection
+// ---------------------------------------------------------------------------
+
+function Step0TypeSelect({ onSelect }: { onSelect: (type: TestType) => void }) {
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-cms-text-muted">
+        Escolha o tipo de teste A/B que deseja criar.
+      </p>
+      <div className="grid grid-cols-2 gap-3">
+        {TYPE_OPTIONS.map(opt => {
+          const Icon = opt.icon
+          return (
+            <button
+              key={opt.type}
+              onClick={() => onSelect(opt.type)}
+              className="relative rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface p-4 flex flex-col items-center gap-2 hover:border-cms-accent hover:bg-cms-surface-hover transition-colors text-center group"
+            >
+              {opt.badge && (
+                <span className="absolute top-2 right-2 text-[9px] font-bold tracking-wide bg-cms-accent text-white px-1.5 py-0.5 rounded">
+                  {opt.badge}
+                </span>
+              )}
+              <Icon className="w-6 h-6 text-cms-text-muted group-hover:text-cms-accent transition-colors" />
+              <span className="text-xs font-semibold text-cms-text">{opt.label}</span>
+              <span className="text-[10px] text-cms-text-dim leading-tight">{opt.description}</span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Step 1 — Variants (contextual based on testType)
 // ---------------------------------------------------------------------------
 
 interface Step1Props {
+  testType: TestType
+  video: WizardVideo
+  slots: (SlotFile | null)[]
+  slotError: string | null
+  textVariants: TextVariant[]
+  onFileChange: (index: number, file: File | null) => void
+  onTextChange: (index: number, field: 'title' | 'description', value: string) => void
+  onPipelinePull: () => void
+  isPipelinePending: boolean
+}
+
+function Step1Variants({ testType, video, slots, slotError, textVariants, onFileChange, onTextChange, onPipelinePull, isPipelinePending }: Step1Props) {
+  return (
+    <div className="space-y-4">
+      {/* Thumbnail upload section — shown for thumbnail and combo */}
+      {(testType === 'thumbnail' || testType === 'combo') && (
+        <ThumbnailUploadSection
+          video={video}
+          slots={slots}
+          slotError={slotError}
+          onFileChange={onFileChange}
+          onPipelinePull={onPipelinePull}
+          isPipelinePending={isPipelinePending}
+        />
+      )}
+
+      {/* Title editor — shown for title and combo */}
+      {(testType === 'title' || testType === 'combo') && (
+        <TitleEditorSection
+          textVariants={textVariants}
+          onTextChange={onTextChange}
+        />
+      )}
+
+      {/* Description editor — shown for description and combo */}
+      {(testType === 'description' || testType === 'combo') && (
+        <DescriptionEditorSection
+          textVariants={textVariants}
+          onTextChange={onTextChange}
+        />
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Thumbnail Upload Section
+// ---------------------------------------------------------------------------
+
+function ThumbnailUploadSection({
+  video, slots, slotError, onFileChange, onPipelinePull, isPipelinePending,
+}: {
   video: WizardVideo
   slots: (SlotFile | null)[]
   slotError: string | null
   onFileChange: (index: number, file: File | null) => void
   onPipelinePull: () => void
   isPipelinePending: boolean
-}
-
-function Step1Upload({ video, slots, slotError, onFileChange, onPipelinePull, isPipelinePending }: Step1Props) {
+}) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <p className="text-xs text-cms-text-muted">
         Upload up to 3 thumbnail variants. Slot A is locked to the current thumbnail.
       </p>
@@ -326,7 +495,7 @@ function Step1Upload({ video, slots, slotError, onFileChange, onPipelinePull, is
           </div>
           <div className="w-full aspect-video rounded overflow-hidden bg-cms-surface flex items-center justify-center">
             {video.thumbnailUrl ? (
-              <Image
+              <NextImage
                 src={video.thumbnailUrl}
                 alt="Original thumbnail"
                 width={240}
@@ -375,6 +544,116 @@ function Step1Upload({ video, slots, slotError, onFileChange, onPipelinePull, is
   )
 }
 
+// ---------------------------------------------------------------------------
+// Title Editor Section
+// ---------------------------------------------------------------------------
+
+function TitleEditorSection({
+  textVariants,
+  onTextChange,
+}: {
+  textVariants: TextVariant[]
+  onTextChange: (index: number, field: 'title' | 'description', value: string) => void
+}) {
+  return (
+    <div className="space-y-3">
+      <div>
+        <h3 className="text-xs font-semibold text-cms-text">Variações de Título</h3>
+        <p className="text-[10px] text-cms-text-dim mt-0.5">Até 3 variações. Máx. 100 caracteres.</p>
+      </div>
+
+      {/* Original (locked) */}
+      <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface-hover p-3">
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-xs font-semibold text-cms-text">A — Original</span>
+          <span className="text-[10px] rounded px-1.5 py-0.5 bg-cms-surface text-cms-text-muted">Locked</span>
+        </div>
+        <p className="text-xs text-cms-text-dim italic truncate">Título atual do vídeo (capturado ao criar)</p>
+      </div>
+
+      {/* Editable slots */}
+      {[0, 1, 2].map(i => {
+        const value = textVariants[i].title
+        const charCount = value.length
+        const isOverLimit = charCount > 100
+        return (
+          <div key={i} className="rounded-[var(--cms-radius)] border border-dashed border-cms-border bg-cms-surface p-3 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-cms-text">{String.fromCharCode(66 + i)}</span>
+              <span className={`text-[10px] ${isOverLimit ? 'text-red-400 font-semibold' : 'text-cms-text-dim'}`}>
+                {charCount}/100
+              </span>
+            </div>
+            <input
+              type="text"
+              value={value}
+              onChange={e => onTextChange(i, 'title', e.target.value)}
+              maxLength={100}
+              placeholder="Digite variação de título..."
+              className="w-full rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface px-3 py-1.5 text-sm text-cms-text placeholder:text-cms-text-dim focus:outline-none focus:ring-2 focus:ring-cms-accent"
+            />
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Description Editor Section
+// ---------------------------------------------------------------------------
+
+function DescriptionEditorSection({
+  textVariants,
+  onTextChange,
+}: {
+  textVariants: TextVariant[]
+  onTextChange: (index: number, field: 'title' | 'description', value: string) => void
+}) {
+  return (
+    <div className="space-y-3">
+      <div>
+        <h3 className="text-xs font-semibold text-cms-text">Variações de Descrição</h3>
+        <p className="text-[10px] text-cms-text-dim mt-0.5">
+          Use <code className="bg-cms-surface-hover px-1 rounded text-cms-accent">{'{{link:nome}}'}</code> para inserir links rastreados automaticamente.
+        </p>
+      </div>
+
+      {/* Original (locked) */}
+      <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface-hover p-3">
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-xs font-semibold text-cms-text">A — Original</span>
+          <span className="text-[10px] rounded px-1.5 py-0.5 bg-cms-surface text-cms-text-muted">Locked</span>
+        </div>
+        <p className="text-xs text-cms-text-dim italic">Descrição atual do vídeo (capturada ao criar)</p>
+      </div>
+
+      {/* Editable slots */}
+      {[0, 1, 2].map(i => {
+        const value = textVariants[i].description
+        return (
+          <div key={i} className="rounded-[var(--cms-radius)] border border-dashed border-cms-border bg-cms-surface p-3 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-cms-text">{String.fromCharCode(66 + i)}</span>
+            </div>
+            <textarea
+              value={value}
+              onChange={e => onTextChange(i, 'description', e.target.value)}
+              rows={4}
+              placeholder="Digite variação de descrição..."
+              className="w-full rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface px-3 py-1.5 text-sm text-cms-text placeholder:text-cms-text-dim focus:outline-none focus:ring-2 focus:ring-cms-accent resize-none"
+            />
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Variant Slot (thumbnail image)
+// ---------------------------------------------------------------------------
+
 interface VariantSlotProps {
   label: string
   slot: SlotFile | null
@@ -409,7 +688,7 @@ function VariantSlot({ label, slot, onChange }: VariantSlotProps) {
       {slot ? (
         <div className="space-y-1.5">
           <div className="w-full aspect-video rounded overflow-hidden bg-cms-surface-hover">
-            <Image
+            <NextImage
               src={slot.previewUrl}
               alt="Variant thumbnail"
               width={240}
@@ -549,48 +828,104 @@ function Step2Configure({ config, onChange }: Step2Props) {
 
 interface Step3Props {
   video: WizardVideo
+  testType: TestType
   slots: (SlotFile | null)[]
+  textVariants: TextVariant[]
   config: Config
 }
 
-function Step3Review({ video, slots, config }: Step3Props) {
-  const allThumbnails = [
-    { label: 'A — Original', src: video.thumbnailUrl, isOriginal: true },
-    ...slots
-      .map((s, i) => ({ label: String.fromCharCode(66 + i), src: s?.previewUrl ?? null, isOriginal: false }))
-      .filter(s => s.src !== null),
-  ]
+function Step3Review({ video, testType, slots, textVariants, config }: Step3Props) {
+  const showThumbnails = testType === 'thumbnail' || testType === 'combo'
+  const showTitles = testType === 'title' || testType === 'combo'
+  const showDescriptions = testType === 'description' || testType === 'combo'
+
+  const allThumbnails = showThumbnails
+    ? [
+        { label: 'A — Original', src: video.thumbnailUrl, isOriginal: true },
+        ...slots
+          .map((s, i) => ({ label: String.fromCharCode(66 + i), src: s?.previewUrl ?? null, isOriginal: false }))
+          .filter(s => s.src !== null),
+      ]
+    : []
+
+  const typeLabel = TYPE_OPTIONS.find(o => o.type === testType)?.label ?? testType
 
   return (
     <div className="space-y-5">
-      {/* Thumbnails */}
-      <div>
-        <h3 className="text-xs font-semibold text-cms-text mb-3">Variants</h3>
-        <div className="flex gap-3 overflow-x-auto pb-1">
-          {allThumbnails.map(t => (
-            <div key={t.label} className="shrink-0 w-32 space-y-1">
-              <div className="w-32 h-[72px] rounded overflow-hidden bg-cms-surface-hover">
-                {t.src ? (
-                  <Image
-                    src={t.src}
-                    alt={t.label}
-                    width={128}
-                    height={72}
-                    className="object-cover w-full h-full"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-cms-text-dim" aria-hidden="true">
-                      <rect x="2" y="3" width="20" height="14" rx="2" />
-                    </svg>
-                  </div>
-                )}
-              </div>
-              <p className="text-[10px] text-cms-text-dim text-center">{t.label}</p>
-            </div>
-          ))}
-        </div>
+      {/* Test type badge */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-cms-text-muted">Tipo:</span>
+        <span className="text-xs font-semibold text-cms-accent">{typeLabel}</span>
       </div>
+
+      {/* Thumbnails */}
+      {showThumbnails && allThumbnails.length > 0 && (
+        <div>
+          <h3 className="text-xs font-semibold text-cms-text mb-3">Thumbnails</h3>
+          <div className="flex gap-3 overflow-x-auto pb-1">
+            {allThumbnails.map(t => (
+              <div key={t.label} className="shrink-0 w-32 space-y-1">
+                <div className="w-32 h-[72px] rounded overflow-hidden bg-cms-surface-hover">
+                  {t.src ? (
+                    <NextImage
+                      src={t.src}
+                      alt={t.label}
+                      width={128}
+                      height={72}
+                      className="object-cover w-full h-full"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-cms-text-dim" aria-hidden="true">
+                        <rect x="2" y="3" width="20" height="14" rx="2" />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+                <p className="text-[10px] text-cms-text-dim text-center">{t.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Titles */}
+      {showTitles && (
+        <div>
+          <h3 className="text-xs font-semibold text-cms-text mb-2">Títulos</h3>
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface-hover">
+              <span className="text-[10px] font-semibold text-cms-text-muted shrink-0">A</span>
+              <span className="text-xs text-cms-text-dim italic">Original</span>
+            </div>
+            {textVariants.map((tv, i) => tv.title.trim() ? (
+              <div key={i} className="flex items-center gap-2 px-3 py-1.5 rounded-[var(--cms-radius)] border border-cms-border">
+                <span className="text-[10px] font-semibold text-cms-text-muted shrink-0">{String.fromCharCode(66 + i)}</span>
+                <span className="text-xs text-cms-text truncate">{tv.title}</span>
+              </div>
+            ) : null)}
+          </div>
+        </div>
+      )}
+
+      {/* Descriptions */}
+      {showDescriptions && (
+        <div>
+          <h3 className="text-xs font-semibold text-cms-text mb-2">Descrições</h3>
+          <div className="space-y-1.5">
+            <div className="flex items-start gap-2 px-3 py-1.5 rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface-hover">
+              <span className="text-[10px] font-semibold text-cms-text-muted shrink-0 mt-0.5">A</span>
+              <span className="text-xs text-cms-text-dim italic">Original</span>
+            </div>
+            {textVariants.map((tv, i) => tv.description.trim() ? (
+              <div key={i} className="flex items-start gap-2 px-3 py-1.5 rounded-[var(--cms-radius)] border border-cms-border">
+                <span className="text-[10px] font-semibold text-cms-text-muted shrink-0 mt-0.5">{String.fromCharCode(66 + i)}</span>
+                <span className="text-xs text-cms-text line-clamp-3">{tv.description}</span>
+              </div>
+            ) : null)}
+          </div>
+        </div>
+      )}
 
       {/* Config summary */}
       <div>
