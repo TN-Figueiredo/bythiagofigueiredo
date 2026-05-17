@@ -1140,7 +1140,7 @@ export async function createTextVariant(
   if (input.description_text) {
     const tokens = parseTemplateTokens(input.description_text)
     for (const templateName of tokens) {
-      const destinationUrl = `https://bythiagofigueiredo.com`
+      const destinationUrl = input.link_destinations?.[templateName] ?? `https://bythiagofigueiredo.com`
       const linkResult = await ensureTrackedLink(
         supabase, siteId, `ab-${input.test_id}-${variant.id}-${templateName}`,
         'ab_test', destinationUrl, `A/B: ${templateName} (${label})`,

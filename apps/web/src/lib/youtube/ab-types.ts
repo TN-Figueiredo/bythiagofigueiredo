@@ -135,6 +135,7 @@ export interface CreateTextVariantInput {
   title_text?: string
   description_text?: string
   metadata?: Partial<VariantMetadata>
+  link_destinations?: Record<string, string>
 }
 
 export interface AbTestTrackedLinkRow {
