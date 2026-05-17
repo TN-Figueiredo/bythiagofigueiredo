@@ -141,9 +141,9 @@ export function AbLabDashboard({ siteId, active, draft, completed, settings, eli
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-cms-text-dim mb-4" aria-hidden="true">
             <path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18" />
           </svg>
-          <h2 className="text-base font-semibold text-cms-text mb-2">No thumbnail tests yet</h2>
+          <h2 className="text-base font-semibold text-cms-text mb-2">Nenhum teste A/B ainda</h2>
           <p className="text-sm text-cms-text-muted mb-6 max-w-sm">
-            Run A/B tests on your YouTube thumbnails to find which ones drive more clicks.
+            Crie testes A/B nos seus vídeos do YouTube para descobrir qual variação gera mais cliques.
           </p>
           <button
             onClick={() => setShowPicker(true)}
@@ -157,7 +157,7 @@ export function AbLabDashboard({ siteId, active, draft, completed, settings, eli
       {completed.length > 0 && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface p-4">
-            <p className="text-xs text-cms-text-muted uppercase tracking-wider mb-1">Active Tests</p>
+            <p className="text-xs text-cms-text-muted uppercase tracking-wider mb-1">Testes Ativos</p>
             <p className="text-2xl font-bold text-cms-text">{active.length}</p>
           </div>
           <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface p-4">
@@ -187,7 +187,7 @@ export function AbLabDashboard({ siteId, active, draft, completed, settings, eli
             onClick={() => setDraftsOpen(o => !o)}
             className="flex items-center justify-between w-full px-4 py-3 text-left"
           >
-            <span className="text-sm font-medium text-cms-text">Drafts ({filteredDraft.length})</span>
+            <span className="text-sm font-medium text-cms-text">Rascunhos ({filteredDraft.length})</span>
             <svg
               width="16"
               height="16"

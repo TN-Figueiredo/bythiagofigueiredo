@@ -46,7 +46,7 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-const STEP_LABELS = ['Type', 'Variants', 'Configure', 'Review'] as const
+const STEP_LABELS = ['Tipo', 'Variantes', 'Configurar', 'Revisar'] as const
 
 const TYPE_OPTIONS: Array<{
   type: TestType
@@ -123,11 +123,11 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated }: Props) {
     }
     const allowed = ['image/jpeg', 'image/png', 'image/webp']
     if (!allowed.includes(file.type)) {
-      setSlotError('File must be JPEG, PNG, or WebP')
+      setSlotError('Arquivo deve ser JPEG, PNG ou WebP')
       return
     }
     if (file.size > MAX_FILE_SIZE) {
-      setSlotError('File must be 2 MB or smaller')
+      setSlotError('Arquivo deve ter no máximo 2 MB')
       return
     }
     const previewUrl = URL.createObjectURL(file)
@@ -150,12 +150,12 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated }: Props) {
         config,
       })
       if (!result.ok || !result.id) {
-        setSlotError(result.error ?? 'Failed to create test for pipeline pull')
+        setSlotError(result.error ?? 'Falha ao criar teste para pull do pipeline')
         return
       }
       const pullResult = await pullPipelineThumbnails(result.id, video.sourcePipelineId!)
       if (!pullResult.ok) {
-        setSlotError(pullResult.error ?? 'Failed to pull pipeline thumbnails')
+        setSlotError(pullResult.error ?? 'Falha ao puxar thumbnails do pipeline')
       } else {
         onCreated(result.id)
       }
@@ -173,7 +173,7 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated }: Props) {
         config,
       })
       if (!result.ok || !result.id) {
-        setSubmitError(result.error ?? 'Failed to create test')
+        setSubmitError(result.error ?? 'Falha ao criar teste')
         return
       }
       const testId = result.id
@@ -185,7 +185,7 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated }: Props) {
           fd.append('file', slot.file)
           const uploadResult = await uploadVariant(testId, fd)
           if (!uploadResult.ok) {
-            setSubmitError(uploadResult.error ?? 'Failed to upload variant')
+            setSubmitError(uploadResult.error ?? 'Falha ao enviar variante')
             return
           }
         }
@@ -207,7 +207,7 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated }: Props) {
             description_text: tv.description.trim() || undefined,
           })
           if (!textResult.ok) {
-            setSubmitError(textResult.error ?? 'Failed to create text variant')
+            setSubmitError(textResult.error ?? 'Falha ao criar variante de texto')
             return
           }
         }
@@ -216,7 +216,7 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated }: Props) {
       if (isLaunch) {
         const startResult = await startAbTest(testId)
         if (!startResult.ok) {
-          setSubmitError(startResult.error ?? 'Failed to start test')
+          setSubmitError(startResult.error ?? 'Falha ao iniciar teste')
           return
         }
       }
@@ -241,13 +241,13 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-cms-border shrink-0">
           <div>
-            <h2 className="text-sm font-semibold text-cms-text">New A/B Test</h2>
+            <h2 className="text-sm font-semibold text-cms-text">Novo Teste A/B</h2>
             <p className="text-xs text-cms-text-dim truncate max-w-[400px]">{video.title}</p>
           </div>
           <button
             onClick={onClose}
             className="text-cms-text-muted hover:text-cms-text transition-colors p-1 -mr-1 rounded"
-            aria-label="Close"
+            aria-label="Fechar"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <line x1="18" y1="6" x2="6" y2="18" />
@@ -346,7 +346,7 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated }: Props) {
                 disabled={isPending}
                 className="border border-cms-border text-cms-text rounded-[var(--cms-radius)] px-4 py-2 text-sm hover:bg-cms-surface-hover transition-colors disabled:opacity-40"
               >
-                Back
+                Voltar
               </button>
             )}
             {step > 1 && step < 4 && (
@@ -355,7 +355,7 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated }: Props) {
                 disabled={step === 2 && !hasVariantForType}
                 className="bg-cms-accent text-white rounded-[var(--cms-radius)] px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Next
+                Próximo
               </button>
             )}
             {step === 4 && (
@@ -365,14 +365,14 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated }: Props) {
                   disabled={isPending}
                   className="border border-cms-border text-cms-text rounded-[var(--cms-radius)] px-4 py-2 text-sm hover:bg-cms-surface-hover transition-colors disabled:opacity-40"
                 >
-                  {isPending ? 'Saving…' : 'Save as Draft'}
+                  {isPending ? 'Salvando…' : 'Salvar Rascunho'}
                 </button>
                 <button
                   onClick={() => handleSubmit(true)}
                   disabled={isPending}
                   className="bg-cms-accent text-white rounded-[var(--cms-radius)] px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-40"
                 >
-                  {isPending ? 'Launching…' : 'Launch Test'}
+                  {isPending ? 'Lançando…' : 'Lançar Teste'}
                 </button>
               </>
             )}
@@ -485,14 +485,14 @@ function ThumbnailUploadSection({
   return (
     <div className="space-y-3">
       <p className="text-xs text-cms-text-muted">
-        Upload up to 3 thumbnail variants. Slot A is locked to the current thumbnail.
+        Upload de até 3 variantes de thumbnail. Slot A é travado com a thumbnail atual.
       </p>
       <div className="grid grid-cols-2 gap-3">
         {/* Slot A — locked original */}
         <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface-hover p-3 flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-cms-text">A — Original</span>
-            <span className="text-[10px] rounded px-1.5 py-0.5 bg-cms-surface text-cms-text-muted">Locked</span>
+            <span className="text-[10px] rounded px-1.5 py-0.5 bg-cms-surface text-cms-text-muted">Travado</span>
           </div>
           <div className="w-full aspect-video rounded overflow-hidden bg-cms-surface flex items-center justify-center">
             {video.thumbnailUrl ? (
@@ -538,7 +538,7 @@ function ThumbnailUploadSection({
             <line x1="12" y1="12" x2="12" y2="21" />
             <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" />
           </svg>
-          {isPipelinePending ? 'Pulling from Pipeline…' : 'From Pipeline'}
+          {isPipelinePending ? 'Puxando do Pipeline…' : 'Do Pipeline'}
         </button>
       )}
     </div>
@@ -567,7 +567,7 @@ function TitleEditorSection({
       <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface-hover p-3">
         <div className="flex items-center justify-between mb-1.5">
           <span className="text-xs font-semibold text-cms-text">A — Original</span>
-          <span className="text-[10px] rounded px-1.5 py-0.5 bg-cms-surface text-cms-text-muted">Locked</span>
+          <span className="text-[10px] rounded px-1.5 py-0.5 bg-cms-surface text-cms-text-muted">Travado</span>
         </div>
         <p className="text-xs text-cms-text-dim italic truncate">Título atual do vídeo (capturado ao criar)</p>
       </div>
@@ -624,7 +624,7 @@ function DescriptionEditorSection({
       <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface-hover p-3">
         <div className="flex items-center justify-between mb-1.5">
           <span className="text-xs font-semibold text-cms-text">A — Original</span>
-          <span className="text-[10px] rounded px-1.5 py-0.5 bg-cms-surface text-cms-text-muted">Locked</span>
+          <span className="text-[10px] rounded px-1.5 py-0.5 bg-cms-surface text-cms-text-muted">Travado</span>
         </div>
         <p className="text-xs text-cms-text-dim italic">Descrição atual do vídeo (capturada ao criar)</p>
       </div>
@@ -676,7 +676,7 @@ function VariantSlot({ label, slot, onChange }: VariantSlotProps) {
           <button
             onClick={() => onChange(null)}
             className="text-cms-text-dim hover:text-red-400 transition-colors"
-            aria-label="Remove variant"
+            aria-label="Remover variante"
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <line x1="18" y1="6" x2="6" y2="18" />
