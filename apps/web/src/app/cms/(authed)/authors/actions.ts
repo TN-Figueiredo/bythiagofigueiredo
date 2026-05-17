@@ -7,7 +7,6 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { revalidateAuthor, revalidateAbout } from '@/lib/newsletter/cache-invalidation'
 import { compileMdx, defaultComponents } from '@tn-figueiredo/cms'
-import { uploadMediaAsset } from '@/lib/media/upload'
 import { trackMediaUsage } from '@/lib/media/track-usage'
 
 type ActionResult = { ok: true } | { ok: false; error: string }
@@ -265,6 +264,7 @@ export async function uploadAuthorAvatar(
   if (!(file instanceof File)) return { ok: false, error: 'No file provided' }
 
   const authRes = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+  const { uploadMediaAsset } = await import('@/lib/media/upload')
   const result = await uploadMediaAsset({
     file,
     filename: file.name,
@@ -410,6 +410,7 @@ export async function uploadAuthorAboutPhoto(
   if (!file) return { ok: false, error: 'no_file' }
 
   const authRes = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+  const { uploadMediaAsset } = await import('@/lib/media/upload')
   const result = await uploadMediaAsset({
     file,
     filename: file.name,

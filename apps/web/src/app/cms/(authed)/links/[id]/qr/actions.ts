@@ -5,7 +5,6 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { CardCompositionSchema } from '@tn-figueiredo/links/qr'
-import { uploadMediaAsset } from '@/lib/media/upload'
 import type { CardComposition } from '@tn-figueiredo/links/qr'
 
 type ActionResult<T = object> =
@@ -117,6 +116,7 @@ export async function saveQrTemplate(
   let thumbnailUrl: string | null = null
 
   if (thumbnailFile && thumbnailFile.size > 0) {
+    const { uploadMediaAsset } = await import('@/lib/media/upload')
     const result = await uploadMediaAsset({
       file: thumbnailFile,
       filename: `qr-template-${Date.now()}.png`,
@@ -210,6 +210,7 @@ export async function exportQrCard(
   if (!file) return { ok: false, error: 'file_required' }
 
   const format = formData.get('format') as string ?? 'png'
+  const { uploadMediaAsset } = await import('@/lib/media/upload')
   const result = await uploadMediaAsset({
     file,
     filename: `qr-card-${linkId}.${format}`,
@@ -232,6 +233,7 @@ export async function uploadQrImage(
   const file = formData.get('file') as File | null
   if (!file) return { ok: false, error: 'file_required' }
 
+  const { uploadMediaAsset } = await import('@/lib/media/upload')
   const result = await uploadMediaAsset({
     file,
     filename: `qr-image-${Date.now()}-${file.name}`,

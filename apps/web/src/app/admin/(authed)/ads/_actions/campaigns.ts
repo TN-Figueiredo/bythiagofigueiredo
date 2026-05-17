@@ -7,7 +7,6 @@ import { requireArea } from '@tn-figueiredo/auth-nextjs/server'
 import { captureServerActionError } from '@/lib/sentry-wrap'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { AD_APP_ID } from '@/lib/ads/config'
-import { uploadMediaAsset } from '@/lib/media/upload'
 import { trackMediaUsage } from '@/lib/media/track-usage'
 
 const VALID_CAMPAIGN_STATUSES = ['draft', 'active', 'paused', 'archived'] as const
@@ -135,6 +134,7 @@ export async function deleteCampaign(id: string): Promise<void> {
 export async function uploadMedia(file: File): Promise<{ id: string; url: string }> {
   await requireArea('admin')
 
+  const { uploadMediaAsset } = await import('@/lib/media/upload')
   const result = await uploadMediaAsset({
     file,
     filename: file.name,

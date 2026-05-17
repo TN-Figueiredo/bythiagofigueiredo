@@ -6,7 +6,6 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { generateQrSvg } from '@tn-figueiredo/links/qr'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
-import { uploadMediaAsset } from '@/lib/media/upload'
 import { buildShortUrl } from '@/lib/links/short-url'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -739,6 +738,7 @@ export async function generateQr(
   })
 
   const svgFile = new File([svg], `qr-${link.code}.svg`, { type: 'image/svg+xml' })
+  const { uploadMediaAsset } = await import('@/lib/media/upload')
   const result = await uploadMediaAsset({
     file: svgFile,
     filename: `qr-${link.code}.svg`,

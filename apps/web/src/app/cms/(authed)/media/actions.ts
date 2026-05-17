@@ -6,7 +6,6 @@ import * as Sentry from '@sentry/nextjs'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { uploadMediaAsset } from '@/lib/media/upload'
 import {
   listMediaAssets,
   getMediaAsset,
@@ -182,6 +181,7 @@ export async function uploadMediaAction(
     const folderParsed = z.enum(MEDIA_FOLDERS).safeParse(folder)
     if (!folderParsed.success) return { ok: false, error: 'invalid_folder' }
 
+    const { uploadMediaAsset } = await import('@/lib/media/upload')
     const result = await uploadMediaAsset({
       file,
       filename: file.name,

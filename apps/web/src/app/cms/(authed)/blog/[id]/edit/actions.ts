@@ -10,7 +10,6 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { requireSiteAdminForRow } from '@/lib/cms/auth-guards'
 import { revalidateBlogPostSeo } from '@/lib/seo/cache-invalidation'
 import { parseMdxFrontmatter, SeoExtrasValidationError } from '@/lib/seo/frontmatter'
-import { uploadMediaAsset } from '@/lib/media/upload'
 import { trackMediaUsage } from '@/lib/media/track-usage'
 import { compileJsonContent } from '@/lib/cms/compile-json'
 import type { JSONContent } from '@tiptap/core'
@@ -363,6 +362,7 @@ export async function uploadAsset(file: File, postId: string): Promise<{ url: st
   await requireSiteAdminForRow('blog_posts', postId)
   const ctx = await getSiteContext()
 
+  const { uploadMediaAsset } = await import('@/lib/media/upload')
   const result = await uploadMediaAsset({
     file,
     filename: file.name,

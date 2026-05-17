@@ -15,7 +15,6 @@ import { render } from '@react-email/render'
 import { Newsletter } from '@/emails/newsletter'
 import { revalidateNewsletterTypeSeo } from '@/lib/seo/cache-invalidation'
 import { generateCadenceSlots, describePattern, computeScheduledAt } from '@/lib/newsletter/cadence-slots'
-import { uploadMediaAsset } from '@/lib/media/upload'
 import { trackMediaUsage } from '@/lib/media/track-usage'
 import { todayInSiteTz } from '@/lib/cms/format-site-datetime'
 import type { CadencePattern } from '@/lib/newsletter/cadence-pattern'
@@ -1308,6 +1307,7 @@ export async function uploadNewsletterImage(
 
   const ctx = await getSiteContext()
   const authRes = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
+  const { uploadMediaAsset } = await import('@/lib/media/upload')
   const result = await uploadMediaAsset({
     file,
     filename: file.name,
@@ -1331,6 +1331,7 @@ export async function uploadNewsletterTypeImage(
   const res = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
   if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
 
+  const { uploadMediaAsset } = await import('@/lib/media/upload')
   const result = await uploadMediaAsset({
     file,
     filename: file.name,
