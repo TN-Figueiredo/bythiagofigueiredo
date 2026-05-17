@@ -2,6 +2,28 @@ import { NextRequest } from 'next/server'
 import { authenticateRead, pipelineError, pipelineSuccess } from '@/lib/pipeline/helpers'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
+interface TrackedLink {
+  id: string
+  ab_test_id: string
+  variant_id: string
+  link_id: string
+  template_name: string
+  short_code: string
+  created_at: string
+  link: { id: string; code: string; destination_url: string }
+}
+
+interface CycleRow {
+  variant_id: string
+  impressions: number | null
+  clicks: number | null
+}
+
+interface ClickAggregate {
+  link_id: string
+  total_clicks: number | null
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -45,7 +67,7 @@ export async function GET(
 
   const linkClicksByLinkId: Record<string, number> = {}
   if (trackedLinks?.length) {
-    const linkIds = trackedLinks.map((tl: any) => tl.link_id).filter(Boolean)
+    const linkIds = (trackedLinks as TrackedLink[]).map((tl) => tl.link_id).filter(Boolean)
     if (linkIds.length) {
       const { data: clickAggs } = await supabase
         .from('link_click_aggregates')
@@ -61,12 +83,12 @@ export async function GET(
     variant_id: variantId,
     impressions: stats.impressions,
     clicks: stats.clicks,
-    link_clicks: (trackedLinks ?? [])
-      .filter((tl: any) => tl.variant_id === variantId)
-      .reduce((sum: number, tl: any) => sum + (linkClicksByLinkId[tl.link_id] ?? 0), 0),
+    link_clicks: ((trackedLinks ?? []) as TrackedLink[])
+      .filter((tl) => tl.variant_id === variantId)
+      .reduce((sum, tl) => sum + (linkClicksByLinkId[tl.link_id] ?? 0), 0),
   }))
 
-  const perLink = (trackedLinks ?? []).map((tl: any) => ({
+  const perLink = ((trackedLinks ?? []) as TrackedLink[]).map((tl) => ({
     template_name: tl.template_name,
     variant_id: tl.variant_id,
     short_code: tl.short_code,

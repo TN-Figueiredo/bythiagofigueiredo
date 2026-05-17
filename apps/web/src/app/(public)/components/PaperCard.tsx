@@ -22,7 +22,7 @@ export function PaperCard({ index, variant = 'paper', className = '', style: ext
 
   return (
     <div
-      className={`relative ${className}`}
+      className={`relative hover:-translate-y-0.5 hover:shadow-[var(--pb-shadow-hover)] transition-[transform,box-shadow] duration-200 ${className}`}
       style={baseStyle}
     >
       {children}

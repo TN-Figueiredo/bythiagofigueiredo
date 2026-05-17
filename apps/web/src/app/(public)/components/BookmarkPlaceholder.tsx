@@ -9,15 +9,13 @@ export function BookmarkPlaceholder({ locale, t }: Props) {
   const isPt = locale === 'pt-BR'
 
   return (
-    <aside aria-label={isPt ? 'Publicidade' : 'Advertisement'} className="px-[18px] md:px-7" style={{ maxWidth: 760, margin: '-8px auto 0' }}>
+    <aside aria-label={isPt ? 'Publicidade' : 'Advertisement'} className="px-[18px] md:px-7 -mt-2 mx-auto" style={{ maxWidth: 760 }}>
       <div style={{ margin: '44px 0', display: 'flex', justifyContent: 'center' }}>
         <div
+          className="p-5 md:p-6 max-w-xl w-full"
           style={{
             position: 'relative',
             background: 'var(--pb-paper)',
-            padding: '20px 24px',
-            maxWidth: 540,
-            width: '100%',
             boxShadow: 'var(--pb-shadow-card)',
             transform: 'rotate(-0.2deg)',
           }}

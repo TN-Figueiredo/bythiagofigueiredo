@@ -46,7 +46,7 @@ export function DualHero({ post, video, channels, hasVideos, locale, t }: Props)
   const cols = post && (showVideo || showComingSoon) ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1 max-w-2xl mx-auto'
 
   return (
-    <section className="px-[18px] md:px-7" style={{ maxWidth: 1280, margin: '0 auto', paddingTop: 56, paddingBottom: 24 }}>
+    <section role="region" aria-labelledby="hero-heading" className="px-[18px] md:px-7" style={{ maxWidth: 1280, margin: '0 auto', paddingTop: 56, paddingBottom: 24 }}>
       <h2 id="hero-heading" className="sr-only">
         {isPt ? 'Destaque da semana' : "This week's picks"}
       </h2>
@@ -67,9 +67,9 @@ export function DualHero({ post, video, channels, hasVideos, locale, t }: Props)
 
         {/* ── Post card ── */}
         {post && (
-          <div style={{ position: 'relative', paddingTop: 20, paddingBottom: 28 }}>
+          <div className="group" style={{ position: 'relative', paddingTop: 20, paddingBottom: 28 }}>
             <div
-              className="dh-card"
+              className="dh-card transition-transform duration-200 group-hover:scale-[1.01]"
               style={{ background: 'var(--pb-paper)', position: 'relative', transform: 'rotate(-0.8deg)', boxShadow: 'var(--pb-shadow-card)' }}
             >
               {/* Tapes — sticking over the top edge */}
@@ -106,7 +106,7 @@ export function DualHero({ post, video, channels, hasVideos, locale, t }: Props)
                     {post.title}
                   </h3>
                   {post.excerpt && (
-                    <p style={{ fontSize: 14.5, color: 'var(--pb-muted)', lineHeight: 1.55, marginTop: 12, marginBottom: 0, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                    <p className="line-clamp-3" style={{ fontSize: 14.5, color: 'var(--pb-muted)', lineHeight: 1.55, marginTop: 12, marginBottom: 0 }}>
                       {post.excerpt}
                     </p>
                   )}
@@ -121,9 +121,9 @@ export function DualHero({ post, video, channels, hasVideos, locale, t }: Props)
 
         {/* ── Video card ── */}
         {showVideo && video && (
-          <div style={{ position: 'relative', paddingTop: 20, paddingBottom: 28 }}>
+          <div className="group" style={{ position: 'relative', paddingTop: 20, paddingBottom: 28 }}>
             <div
-              className="dh-card dh-card-video"
+              className="dh-card dh-card-video transition-transform duration-200 group-hover:scale-[1.01]"
               style={{ background: 'var(--pb-paper)', position: 'relative', transform: 'rotate(0.8deg)', boxShadow: 'var(--pb-shadow-card)' }}
             >
               <div aria-hidden="true" style={{ position: 'absolute', width: 80, height: 18, background: 'var(--pb-tapeR)', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.2)', top: -10, left: '22%', transform: 'rotate(4deg)' }} />
@@ -167,7 +167,7 @@ export function DualHero({ post, video, channels, hasVideos, locale, t }: Props)
                   <h3 className="font-fraunces" style={{ fontSize: 'clamp(24px, 2.8vw, 34px)', lineHeight: 1.08, letterSpacing: '-0.02em', margin: 0, fontWeight: 500, color: 'var(--pb-ink)' }}>
                     {video.title}
                   </h3>
-                  <p style={{ fontSize: 14.5, color: 'var(--pb-muted)', lineHeight: 1.55, marginTop: 12, marginBottom: 0, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                  <p className="line-clamp-3" style={{ fontSize: 14.5, color: 'var(--pb-muted)', lineHeight: 1.55, marginTop: 12, marginBottom: 0 }}>
                     {video.description}
                   </p>
                 </div>

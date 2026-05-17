@@ -38,6 +38,7 @@ export function DesktopNav({ items }: Props) {
               target="_blank"
               rel="noopener"
               data-active={isActive ? 'true' : undefined}
+              className="focus-visible:outline-2 focus-visible:outline-[var(--pb-accent)]"
               style={style}
             >
               {item.label}
@@ -50,6 +51,7 @@ export function DesktopNav({ items }: Props) {
             key={item.key}
             href={item.href}
             data-active={isActive ? 'true' : undefined}
+            className="focus-visible:outline-2 focus-visible:outline-[var(--pb-accent)]"
             style={style}
           >
             {item.label}

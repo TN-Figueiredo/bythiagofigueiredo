@@ -29,7 +29,7 @@ export function MostReadSidebar({ posts, locale, t }: Props) {
 
         <ol style={{ listStyle: 'none', padding: 0, margin: 0 }}>
           {posts.map((post, i) => (
-            <li key={post.id} style={{
+            <li key={post.id} className="transition-colors duration-150" style={{
               display: 'grid',
               gridTemplateColumns: 'auto 1fr',
               gap: 12,
@@ -46,7 +46,7 @@ export function MostReadSidebar({ posts, locale, t }: Props) {
                       {post.tagName}
                     </span>
                   )}
-                  <h3 className="font-fraunces" style={{ fontSize: 15, lineHeight: 1.25, marginTop: 3, fontWeight: 500, letterSpacing: '-0.005em', color: 'var(--pb-ink)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', margin: '2px 0 0' }}>
+                  <h3 className="font-fraunces line-clamp-2 hover:text-[var(--pb-accent)] transition-colors duration-150" style={{ fontSize: 15, lineHeight: 1.25, marginTop: 3, fontWeight: 500, letterSpacing: '-0.005em', color: 'var(--pb-ink)', margin: '2px 0 0' }}>
                     {post.title}
                   </h3>
                 </Link>

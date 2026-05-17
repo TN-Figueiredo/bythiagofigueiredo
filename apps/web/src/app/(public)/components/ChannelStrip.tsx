@@ -52,7 +52,7 @@ export function ChannelStrip({ newsletter, channels, locale, t }: Props) {
               )}
               <a
                 href={localePath(`/newsletters/${newsletter!.slug}`, locale)}
-                className="font-mono inline-block"
+                className="font-mono inline-block hover:brightness-110 hover:-translate-y-0.5 transition-all duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--pb-accent)]"
                 style={{
                   fontSize: 12,
                   letterSpacing: '0.1em',
@@ -107,6 +107,7 @@ function ChannelCard({ ch, idx, locale, t }: {
   return (
     <div data-testid="channel-card" style={{ position: 'relative', paddingTop: 14 }}>
       <div
+        className="transition-all duration-200"
         style={{
           background: 'var(--pb-channel-card-bg, var(--pb-paper))',
           padding: '22px 26px',
@@ -121,7 +122,7 @@ function ChannelCard({ ch, idx, locale, t }: {
           <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--pb-yt)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(255,51,51,0.3)', position: 'relative' }}>
             <svg width="26" height="26" viewBox="0 0 24 24" fill="#FFF"><path d="M8 5v14l11-7z" /></svg>
             <div style={{ position: 'absolute', bottom: -4, right: -4, width: 24, height: 24, borderRadius: '50%', background: 'var(--pb-channel-card-bg, var(--pb-paper))', border: '2px solid var(--pb-yt)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>
-              {ch.flag}
+              <span role="img" aria-label={ch.locale === 'pt-BR' ? 'Brazil flag' : 'United States flag'}>{ch.flag}</span>
             </div>
           </div>
           <div>
@@ -151,7 +152,7 @@ function ChannelCard({ ch, idx, locale, t }: {
             target="_blank"
             rel="noopener noreferrer"
             aria-label={`${t['channels.subscribe']} ${ch.name}`}
-            className="col-span-2 sm:col-span-1 text-center sm:text-left"
+            className="col-span-2 sm:col-span-1 text-center sm:text-left hover:brightness-110 hover:-translate-y-0.5 transition-all duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--pb-accent)]"
             style={{
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
               background: 'var(--pb-yt)', color: '#FFF', padding: '10px 16px',

@@ -22,13 +22,13 @@ export function PinboardFooter({ locale, t }: Props) {
 
         {/* Links */}
         <nav className="flex flex-wrap gap-x-5 gap-y-2 text-pb-muted text-sm" aria-label="Footer navigation">
-          <Link href={localePath('/blog', locale)} className="hover:text-pb-ink transition-colors">{t['footer.blog']}</Link>
-          <Link href={localePath('/newsletters', locale)} className="hover:text-pb-ink transition-colors">{t['footer.newsletters']}</Link>
-          <Link href={localePath('/contact', locale)} className="hover:text-pb-ink transition-colors">{t['footer.contact']}</Link>
-          <Link href={localePath('/privacy', locale)} className="hover:text-pb-ink transition-colors">{locale === 'pt-BR' ? 'Privacidade' : 'Privacy'}</Link>
-          <Link href={localePath('/terms', locale)} className="hover:text-pb-ink transition-colors">{locale === 'pt-BR' ? 'Termos' : 'Terms'}</Link>
-          <a href="/feed.xml" className="hover:text-pb-ink transition-colors" title="RSS Feed">RSS</a>
-          <a href="https://dev.bythiagofigueiredo.com" target="_blank" rel="noopener" className="hover:text-pb-ink transition-colors opacity-60">Dev ↗</a>
+          <Link href={localePath('/blog', locale)} className="hover:text-pb-ink transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-[var(--pb-accent)]">{t['footer.blog']}</Link>
+          <Link href={localePath('/newsletters', locale)} className="hover:text-pb-ink transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-[var(--pb-accent)]">{t['footer.newsletters']}</Link>
+          <Link href={localePath('/contact', locale)} className="hover:text-pb-ink transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-[var(--pb-accent)]">{t['footer.contact']}</Link>
+          <Link href={localePath('/privacy', locale)} className="hover:text-pb-ink transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-[var(--pb-accent)]">{locale === 'pt-BR' ? 'Privacidade' : 'Privacy'}</Link>
+          <Link href={localePath('/terms', locale)} className="hover:text-pb-ink transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-[var(--pb-accent)]">{locale === 'pt-BR' ? 'Termos' : 'Terms'}</Link>
+          <a href="/feed.xml" className="hover:text-pb-ink transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-[var(--pb-accent)]" title="RSS Feed">RSS</a>
+          <a href="https://dev.bythiagofigueiredo.com" target="_blank" rel="noopener noreferrer" className="hover:text-pb-ink transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-[var(--pb-accent)] opacity-60">Dev ↗</a>
         </nav>
 
         {/* Copyright */}

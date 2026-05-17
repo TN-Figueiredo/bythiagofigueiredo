@@ -2,6 +2,19 @@ import { NextRequest } from 'next/server'
 import { authenticateRead, pipelineError, pipelineSuccess } from '@/lib/pipeline/helpers'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
+interface WinnerVariant {
+  id: string
+  label: string
+  title_text: string | null
+  description_text: string | null
+  metadata: {
+    title_pattern?: string
+    thumbnail_tags?: string[]
+    emotional_triggers?: string[]
+    visual_description?: string
+  }
+}
+
 export async function GET(req: NextRequest) {
   const result = await authenticateRead(req)
   if (result instanceof Response) return result
@@ -24,7 +37,8 @@ export async function GET(req: NextRequest) {
   const tags: Record<string, { wins: number; tests: number }> = {}
 
   for (const test of completedTests ?? []) {
-    const winner = test.winner as any
+    const winnerRaw = test.winner as WinnerVariant[] | WinnerVariant | null
+    const winner: WinnerVariant | null = Array.isArray(winnerRaw) ? winnerRaw[0] ?? null : winnerRaw
     if (!winner) continue
 
     const meta = winner.metadata ?? {}

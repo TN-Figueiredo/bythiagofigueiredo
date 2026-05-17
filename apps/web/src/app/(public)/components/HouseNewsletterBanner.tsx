@@ -47,11 +47,11 @@ export function HouseNewsletterBanner({ newsletter, locale, subscriberCount, t }
         />
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
-          <span className="font-mono" style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 600, color: 'var(--pb-ink-on-accent)', opacity: 0.7 }}>
+          <span className="font-mono" style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 600, color: 'var(--pb-ink-on-accent)', opacity: 0.85 }}>
             house
           </span>
-          <span style={{ color: 'var(--pb-ink-on-accent)', fontSize: 10, opacity: 0.4 }}>·</span>
-          <span className="font-mono" style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 600, color: 'var(--pb-ink-on-accent)', opacity: 0.7 }}>
+          <span style={{ color: 'var(--pb-ink-on-accent)', fontSize: 10, opacity: 0.6 }}>·</span>
+          <span className="font-mono" style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 600, color: 'var(--pb-ink-on-accent)', opacity: 0.85 }}>
             newsletter
           </span>
         </div>
@@ -68,7 +68,7 @@ export function HouseNewsletterBanner({ newsletter, locale, subscriberCount, t }
 
         <a
           href={localePath(`/newsletters/${slug}`, locale)}
-          className="font-mono inline-block"
+          className="font-mono inline-block hover:brightness-110 transition-all duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
           style={{
             fontSize: 12,
             letterSpacing: '0.08em',

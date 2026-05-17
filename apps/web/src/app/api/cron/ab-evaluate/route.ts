@@ -118,10 +118,10 @@ export async function GET(req: NextRequest) {
           // Apply title/description for title/description/combo tests
           if (winner && (test.test_type === 'title' || test.test_type === 'description' || test.test_type === 'combo')) {
             const titleToApply = (test.test_type === 'title' || test.test_type === 'combo')
-              ? winner.title_text : null
+              ? (winner.title_text ?? test.original_title ?? null) : null
             let descToApply: string | null = null
             if (test.test_type === 'description' || test.test_type === 'combo') {
-              const rawDesc = winner.description_text
+              const rawDesc = winner.description_text ?? test.original_description ?? null
               if (rawDesc) {
                 const { data: linkMappings } = await supabase
                   .from('ab_test_tracked_links')
@@ -147,6 +147,13 @@ export async function GET(req: NextRequest) {
           ? ((winnerStats.avg_ctr - original.avg_ctr) / original.avg_ctr) * 100
           : 0
 
+        const totalTestImpressions = activeVariants.reduce((s, v) => s + v.total_impressions, 0)
+        const dailyImpressions = daysSinceStart > 0 ? totalTestImpressions / daysSinceStart : 0
+        const monthlyImpressions = dailyImpressions * 30
+        const extraClicksPerMonth = original && winnerStats && winnerStats.avg_ctr > original.avg_ctr
+          ? Math.round((winnerStats.avg_ctr - original.avg_ctr) * monthlyImpressions)
+          : 0
+
         // Close open cycle and complete test
         await supabase
           .from('ab_test_cycles')
@@ -165,8 +172,8 @@ export async function GET(req: NextRequest) {
             result_metadata: {
               ctr_lift_percent: Math.round(ctrLift * 10) / 10,
               winner_label: winner?.label ?? '',
-              total_impressions: activeVariants.reduce((s, v) => s + v.total_impressions, 0),
-              estimated_monthly_extra_clicks: 0,
+              total_impressions: totalTestImpressions,
+              estimated_monthly_extra_clicks: extraClicksPerMonth,
             },
           })
           .eq('id', test.id)

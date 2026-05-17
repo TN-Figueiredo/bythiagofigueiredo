@@ -49,16 +49,16 @@ export function BlogGrid({ posts, locale, t, isDark }: Props) {
         </PaperCard>
       ) : (
         <>
-          <div className={`grid grid-cols-1 md:grid-cols-2 ${gridCols} gap-7 md:gap-10`} style={{ rowGap: 48 }}>
+          <div className={`grid grid-cols-1 md:grid-cols-2 ${gridCols} gap-7 md:gap-10 gap-y-12`}>
             {posts.map((post, i) => (
               <div key={post.id} style={{ position: 'relative', paddingTop: 16 }}>
                 <ReadableCard postId={post.id}>
                   <PaperCard index={i} variant={i % 3 === 1 ? 'paper2' : 'paper'} className="overflow-hidden">
                     <Tape variant={tapeVariants[i % 3]} className="-top-2 left-4" rotate={-7 + (i % 5)} />
-                    <Link href={`${blogBase}/${post.slug}`} className="block group" style={{ textDecoration: 'none', color: 'inherit' }}>
+                    <Link href={`${blogBase}/${post.slug}`} className="block group hover:-translate-y-1 hover:shadow-lg transition-all duration-200" style={{ textDecoration: 'none', color: 'inherit' }}>
                       <div style={{ background: post.coverImageUrl ? undefined : coverGradient(post.tagName ?? post.category, isDark, post.tagColor), aspectRatio: '16 / 10', position: 'relative', overflow: 'hidden' }}>
                         {post.coverImageUrl && (
-                          <Image src={post.coverImageUrl} alt={post.title} fill sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw" style={{ objectFit: 'cover' }} loading={i > 2 ? 'lazy' : 'eager'} />
+                          <Image src={post.coverImageUrl} alt={post.title} fill sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw" style={{ objectFit: 'cover' }} loading={i > 2 ? 'lazy' : 'eager'} placeholder="blur" blurDataURL="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mN8+P/BfwAJhAPk+kC8WQAAAABJRU5ErkJggg==" />
                         )}
                         <div style={{ position: 'absolute', top: 8, left: 8 }}>
                           <span className="font-mono" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px', background: 'var(--pb-ink)', color: 'var(--pb-paper)', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600 }}>
@@ -66,7 +66,7 @@ export function BlogGrid({ posts, locale, t, isDark }: Props) {
                           </span>
                         </div>
                       </div>
-                      <div style={{ padding: '16px 18px 18px' }}>
+                      <div className="p-4 md:p-5">
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
                           {post.tagName && (
                             <span className="font-mono" style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, color: post.tagColor ?? 'var(--pb-accent)' }}>

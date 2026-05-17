@@ -21,21 +21,22 @@ export function StatsStrip({ postCount, videoCount, subscriberCount, locale, t }
   return (
     <div style={{ borderBottom: '1px dashed var(--pb-line)', background: 'var(--pb-bg)' }}>
       <div
+        role="list"
         className="flex justify-center md:justify-end items-center flex-wrap px-[18px] md:px-7"
         style={{
           maxWidth: 1280,
           margin: '0 auto',
           paddingTop: 10,
           paddingBottom: 10,
-          fontFamily: '"JetBrains Mono", monospace',
+          fontFamily: 'var(--font-jetbrains)',
           fontSize: 12,
           color: 'var(--pb-faint)',
           gap: '8px 18px',
         }}
       >
         {items.map((item, i) => (
-          <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {i > 0 && <span className="hidden md:inline" style={{ opacity: 0.4 }}>|</span>}
+          <span key={i} role="listitem" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {i > 0 && <span aria-hidden="true" className="hidden md:inline" style={{ opacity: 0.4 }}>|</span>}
             {i === 0 ? `▸ ${item}` : item}
           </span>
         ))}

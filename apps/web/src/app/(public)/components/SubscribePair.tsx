@@ -44,16 +44,20 @@ export function SubscribePair({ newsletter, channels, locale, t }: Props) {
               </p>
 
               <form action={newsletter ? `/newsletters/${newsletter.slug}` : '/newsletters'} method="get" className="flex flex-col sm:flex-row gap-2" style={{ marginTop: 18 }}>
+                <label htmlFor="subscribe-email" className="sr-only">{t['newsletter.emailPlaceholder']}</label>
                 <input
+                  id="subscribe-email"
                   name="email"
                   type="email"
                   required
                   placeholder={t['newsletter.emailPlaceholder']}
                   className="font-mono"
-                  style={{ flex: 1, padding: '12px 16px', border: '1.5px dashed var(--pb-line)', borderRadius: 0, background: 'var(--pb-bg)', color: 'var(--pb-ink)', fontSize: 14, outline: 'none', minWidth: 0 }}
+                  style={{ flex: 1, padding: '12px 16px', border: '2px dashed var(--pb-line)', borderRadius: 0, background: 'var(--pb-bg)', color: 'var(--pb-ink)', fontSize: 14, outline: 'none', minWidth: 0 }}
                 />
                 <button
                   type="submit"
+                  aria-label={t['newsletter.submit']}
+                  className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--pb-accent)]"
                   style={{ padding: '12px 20px', background: 'var(--pb-ink)', color: 'var(--pb-bg)', border: 'none', borderRadius: 0, fontSize: 13, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.04em' }}
                 >
                   {t['newsletter.submit']}

@@ -11,7 +11,7 @@ export function MarginaliaPlaceholder({ locale, t }: Props) {
 
   return (
     <aside aria-label={isPt ? 'Publicidade' : 'Advertisement'} style={{ marginTop: 26 }}>
-      <PaperCard index={18} variant="paper" style={{ padding: '16px 18px' }}>
+      <PaperCard index={18} variant="paper" className="px-[18px] py-4">
         <Tape variant="tape2" className="-top-2 left-6" rotate={-4} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
           <span className="font-mono" style={{ fontSize: 8, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700, color: 'var(--pb-faint)', opacity: 0.6 }}>

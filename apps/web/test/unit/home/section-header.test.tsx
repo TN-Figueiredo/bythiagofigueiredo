@@ -7,7 +7,7 @@ describe('SectionHeader', () => {
     const { getByText } = render(
       <SectionHeader number="02" label="blog" title="Últimos escritos" subtitle="os 6 mais recentes" />
     )
-    expect(getByText(/§ 02/)).toBeDefined()
+    expect(getByText(/02/)).toBeDefined()
     expect(getByText(/blog/)).toBeDefined()
     expect(getByText('Últimos escritos')).toBeDefined()
     expect(getByText('os 6 mais recentes')).toBeDefined()

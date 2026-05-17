@@ -33,6 +33,7 @@ export function ThemeToggle({ currentTheme, size = 32 }: Props) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+      className="transition-colors duration-150"
       style={{
         width: size,
         height: size,

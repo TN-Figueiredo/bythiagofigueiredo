@@ -37,7 +37,7 @@ export function SectionHeader({
               display: 'block',
             }}
           >
-            § {number} · {label}
+            <span aria-hidden="true">§</span> {number} · {label}
           </span>
           <h2
             className="font-fraunces"
@@ -75,7 +75,7 @@ export function SectionHeader({
         {linkText && linkHref && (
           <a
             href={linkHref}
-            className="font-caveat shrink-0"
+            className="font-caveat shrink-0 hover:underline"
             style={{
               fontSize: 20,
               color: linkColor ?? kickerColor,

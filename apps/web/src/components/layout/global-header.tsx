@@ -37,11 +37,12 @@ export function GlobalHeader({ locale, currentTheme, variant, ctas, t, channelUr
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
-          <Link href={homeHref} aria-label="by Thiago Figueiredo" className="no-underline">
+          <Link href={homeHref} aria-label="by Thiago Figueiredo" className="no-underline focus-visible:outline-2 focus-visible:outline-[var(--pb-accent)]">
             <span className="hidden md:inline-block"><BrandWordmark theme={currentTheme} size={22} /></span>
             <span className="inline-block md:hidden"><BrandWordmark theme={currentTheme} size={18} /></span>
           </Link>
           <span
+            aria-hidden="true"
             className="font-caveat hidden md:inline-block"
             style={{
               fontSize: 17,

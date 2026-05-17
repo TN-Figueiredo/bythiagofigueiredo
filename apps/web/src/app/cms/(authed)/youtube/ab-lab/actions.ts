@@ -1108,6 +1108,9 @@ export async function createTextVariant(
 
   if (!test) return { ok: false, error: 'Test not found' }
   if (test.status !== 'draft') return { ok: false, error: 'Can only add variants to draft tests' }
+  if (test.test_type === 'thumbnail') {
+    return { ok: false, error: 'Texto não pode ser adicionado a testes de thumbnail' }
+  }
 
   const { count } = await supabase
     .from('ab_test_variants')

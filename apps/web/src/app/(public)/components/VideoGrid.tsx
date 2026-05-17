@@ -82,13 +82,13 @@ export function VideoGrid({ videos, channels, hasVideos, locale, t }: Props) {
 
         <div className={`grid grid-cols-1 md:grid-cols-2 ${gridCols} gap-6 md:gap-8`} style={{ rowGap: 48, paddingTop: 12 }}>
           {videos.map((video, i) => (
-            <div key={video.id} style={{ position: 'relative', paddingTop: 16 }}>
+            <div key={video.id} className="group" style={{ position: 'relative', paddingTop: 16 }}>
               <PaperCard index={i + 11} variant="paper" style={{ padding: '12px 12px 18px' }}>
                 <Tape variant="tapeR" className="-top-2 left-5" rotate={-6 + (i % 4)} />
                 <VideoLightbox youtubeVideoId={video.youtubeVideoId}>
                   <div style={{ position: 'relative', aspectRatio: '4 / 3', overflow: 'hidden', background: video.thumbnailUrl ? undefined : 'linear-gradient(135deg, color-mix(in srgb, var(--pb-yt) 20%, var(--pb-bg)), var(--pb-bg))' }}>
                     {video.thumbnailUrl && (
-                      <Image src={video.thumbnailUrl} alt={video.title} fill sizes="(max-width: 768px) 100vw, 33vw" style={{ objectFit: 'cover' }} referrerPolicy="no-referrer" loading="lazy" />
+                      <Image src={video.thumbnailUrl} alt={video.title} fill sizes="(max-width: 768px) 100vw, 33vw" style={{ objectFit: 'cover' }} referrerPolicy="no-referrer" loading="lazy" placeholder="blur" blurDataURL="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mN8+P/BfwAJhAPk+kC8WQAAAABJRU5ErkJggg==" />
                     )}
                     <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(transparent 40%, rgba(0,0,0,0.55))' }} />
                     <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -117,7 +117,7 @@ export function VideoGrid({ videos, channels, hasVideos, locale, t }: Props) {
                     <h3 className="font-fraunces" style={{ fontSize: 19, lineHeight: 1.2, letterSpacing: '-0.01em', margin: '0 0 8px', fontWeight: 500, color: 'var(--pb-ink)' }}>
                       {video.title}
                     </h3>
-                    <p style={{ fontSize: 13, color: 'var(--pb-muted)', lineHeight: 1.5, margin: '0 0 10px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                    <p className="line-clamp-2" style={{ fontSize: 13, color: 'var(--pb-muted)', lineHeight: 1.5, margin: '0 0 10px' }}>
                       {video.description}
                     </p>
                     <p className="font-mono" style={{ fontSize: 11, color: 'var(--pb-faint)', letterSpacing: '0.06em', margin: 0 }}>
