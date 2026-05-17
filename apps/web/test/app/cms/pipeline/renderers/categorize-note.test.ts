@@ -54,6 +54,14 @@ describe('categorizeNote', () => {
     expect(categorizeNote('Same track, volume stays at -20dB')).toMatchObject({ category: 'FLOW' })
   })
 
+  it('detects SFX from "SFX" keyword', () => {
+    expect(categorizeNote('00:06 SFX impact leve — Artlist "Low Impact Hit"')).toMatchObject({ category: 'SFX' })
+  })
+
+  it('SFX takes priority over TIMING for timestamped SFX notes', () => {
+    expect(categorizeNote('00:17 SFX bass drop — marca fim do hook')).toMatchObject({ category: 'SFX' })
+  })
+
   it('falls back to NOTE for unrecognized content', () => {
     expect(categorizeNote('Remember to check the color grading')).toMatchObject({ category: 'NOTE' })
   })

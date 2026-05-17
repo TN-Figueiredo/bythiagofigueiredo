@@ -132,6 +132,22 @@ function SegmentRenderer({ segment }: { segment: ScriptSegment }) {
           ))}
         </ul>
       )
+    case 'reference':
+      return (
+        <div
+          className="text-[10px] italic leading-relaxed px-3 py-1.5 my-1.5 rounded"
+          style={{
+            color: 'var(--gem-dim)',
+            background: 'rgba(129,140,248,0.04)',
+            borderLeft: '2px solid rgba(129,140,248,0.15)',
+          }}
+        >
+          <span className="text-[8px] font-semibold uppercase tracking-wider mr-1.5" style={{ color: 'rgba(129,140,248,0.5)' }}>
+            Ref
+          </span>
+          {tokenizeText(segment.content)}
+        </div>
+      )
     case 'separator':
       return (
         <div className="my-3 flex items-center gap-3">

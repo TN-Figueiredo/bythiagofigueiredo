@@ -8,6 +8,7 @@ export type ScriptSegment =
   | { type: 'blockquote'; content: string }
   | { type: 'bullet-list'; items: string[] }
   | { type: 'separator' }
+  | { type: 'reference'; content: string }
 
 interface RawMatch {
   start: number
@@ -124,7 +125,39 @@ function parseInlineText(text: string): ScriptSegment[] {
   return segments
 }
 
+const REF_BLOCK_RE = /_\(([\s\S]+?)\)_/g
+
 function parseGapText(text: string): ScriptSegment[] {
+  const segments: ScriptSegment[] = []
+
+  const refMatches: { start: number; end: number; content: string }[] = []
+  REF_BLOCK_RE.lastIndex = 0
+  let rm: RegExpExecArray | null
+  while ((rm = REF_BLOCK_RE.exec(text)) !== null) {
+    refMatches.push({ start: rm.index, end: rm.index + rm[0].length, content: rm[1]!.replace(/\s+/g, ' ').trim() })
+  }
+
+  if (refMatches.length > 0) {
+    let cursor = 0
+    for (const ref of refMatches) {
+      if (ref.start > cursor) {
+        const before = text.slice(cursor, ref.start).trim()
+        if (before) for (const seg of parseGapLines(before)) segments.push(seg)
+      }
+      segments.push({ type: 'reference', content: ref.content })
+      cursor = ref.end
+    }
+    if (cursor < text.length) {
+      const after = text.slice(cursor).trim()
+      if (after) for (const seg of parseGapLines(after)) segments.push(seg)
+    }
+    return segments
+  }
+
+  return parseGapLines(text)
+}
+
+function parseGapLines(text: string): ScriptSegment[] {
   const segments: ScriptSegment[] = []
   const lines = text.split('\n')
   let buffer: string[] = []

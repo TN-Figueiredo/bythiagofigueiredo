@@ -1,8 +1,10 @@
 import 'server-only'
 
+import { unstable_cache } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { toDateStringInTz } from '@/lib/cms/format-site-datetime'
 import type { PeriodInput } from '@/app/cms/(authed)/analytics/types'
+import { resolveDateRange, resolvePrevDateRange } from './date-range'
 
 export interface ContentKpi {
   label: string
@@ -34,35 +36,29 @@ export interface ContentTabData {
   dailyChart: DailyViewPoint[]
 }
 
-function resolveDateRange(period: PeriodInput): { start: Date; end: Date } {
-  const end = new Date()
-  if (period.type === 'custom') {
-    return { start: new Date(period.start), end: new Date(period.end) }
-  }
-  const days = period.value === '7d' ? 7 : period.value === '30d' ? 30 : period.value === '90d' ? 90 : 365
-  const start = new Date()
-  start.setDate(start.getDate() - days)
-  return { start, end }
-}
 
-function resolvePrevDateRange(period: PeriodInput): { start: Date; end: Date } | null {
-  if (period.type === 'custom') return null
-  if (period.value === 'all') return null
-  const days = period.value === '7d' ? 7 : period.value === '30d' ? 30 : 90
-  const end = new Date()
-  end.setDate(end.getDate() - days)
-  const start = new Date(end)
-  start.setDate(start.getDate() - days)
-  return { start, end }
-}
-
-function formatDuration(seconds: number): string {
+export function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60)
   const s = seconds % 60
   return `${m}:${String(s).padStart(2, '0')}`
 }
 
-export async function fetchContentTabData(
+export function fetchContentTabData(
+  siteId: string,
+  period: PeriodInput,
+  timezone: string,
+): Promise<ContentTabData> {
+  const cacheKey = period.type === 'custom'
+    ? `content-tab-${siteId}-${period.start}-${period.end}`
+    : `content-tab-${siteId}-${period.value}`
+  return unstable_cache(
+    () => _fetchContentTabData(siteId, period, timezone),
+    [cacheKey],
+    { revalidate: 300, tags: ['analytics'] },
+  )()
+}
+
+async function _fetchContentTabData(
   siteId: string,
   period: PeriodInput,
   timezone: string,
@@ -73,15 +69,34 @@ export async function fetchContentTabData(
   const startStr = toDateStringInTz(start, timezone)
   const endStr = toDateStringInTz(end, timezone)
 
-  const { data: metrics } = await supabase
-    .from('content_metrics')
-    .select('date, views, unique_views, reads_complete, avg_read_depth, avg_time_sec')
-    .eq('site_id', siteId)
-    .gte('date', startStr)
-    .lte('date', endStr)
-    .order('date', { ascending: true })
+  // Phase 1: All independent current-period queries in parallel
+  const [metricsRes, postsCountRes, topPostsRes] = await Promise.all([
+    supabase
+      .from('content_metrics')
+      .select('date, views, unique_views, reads_complete, avg_read_depth, avg_time_sec')
+      .eq('site_id', siteId)
+      .gte('date', startStr)
+      .lte('date', endStr)
+      .order('date', { ascending: true }),
+    supabase
+      .from('blog_posts')
+      .select('id', { count: 'exact', head: true })
+      .eq('site_id', siteId)
+      .eq('status', 'published')
+      .gte('published_at', start.toISOString())
+      .lte('published_at', end.toISOString()),
+    supabase.rpc('get_top_posts_analytics', {
+      p_site_id: siteId,
+      p_start: start.toISOString(),
+      p_end: end.toISOString(),
+      p_limit: 10,
+    }),
+  ])
 
-  const rows = metrics ?? []
+  const rows = metricsRes.data ?? []
+  const postsCount = postsCountRes.count ?? 0
+  const topPostsRaw = topPostsRes.data ?? []
+
   const totalReads = rows.reduce((s, r) => s + (r.reads_complete ?? 0), 0)
   const avgDepth =
     rows.length > 0
@@ -92,28 +107,38 @@ export async function fetchContentTabData(
       ? Math.round(rows.reduce((s, r) => s + (r.avg_time_sec ?? 0), 0) / rows.length)
       : 0
 
-  const { count: postsCount } = await supabase
-    .from('blog_posts')
-    .select('id', { count: 'exact', head: true })
-    .eq('site_id', siteId)
-    .eq('status', 'published')
-    .gte('published_at', start.toISOString())
-    .lte('published_at', end.toISOString())
-
+  // Phase 2: Conditional previous-period queries in parallel
   let prevReads = 0
   let prevDepth = 0
   let prevTime = 0
   let prevPosts = 0
+  let prevArr: Array<{ date: string; views: number }> = []
 
   if (prevRange) {
-    const { data: prevMetrics } = await supabase
-      .from('content_metrics')
-      .select('views, reads_complete, avg_read_depth, avg_time_sec')
-      .eq('site_id', siteId)
-      .gte('date', toDateStringInTz(prevRange.start, timezone))
-      .lte('date', toDateStringInTz(prevRange.end, timezone))
+    const [prevMetricsRes, prevPostsRes, prevDailyRes] = await Promise.all([
+      supabase
+        .from('content_metrics')
+        .select('views, reads_complete, avg_read_depth, avg_time_sec')
+        .eq('site_id', siteId)
+        .gte('date', toDateStringInTz(prevRange.start, timezone))
+        .lte('date', toDateStringInTz(prevRange.end, timezone)),
+      supabase
+        .from('blog_posts')
+        .select('id', { count: 'exact', head: true })
+        .eq('site_id', siteId)
+        .eq('status', 'published')
+        .gte('published_at', prevRange.start.toISOString())
+        .lte('published_at', prevRange.end.toISOString()),
+      supabase
+        .from('content_metrics')
+        .select('date, views')
+        .eq('site_id', siteId)
+        .gte('date', toDateStringInTz(prevRange.start, timezone))
+        .lte('date', toDateStringInTz(prevRange.end, timezone))
+        .order('date', { ascending: true }),
+    ])
 
-    const prev = prevMetrics ?? []
+    const prev = prevMetricsRes.data ?? []
     prevReads = prev.reduce((s, r) => s + (r.reads_complete ?? 0), 0)
     prevDepth =
       prev.length > 0
@@ -123,15 +148,8 @@ export async function fetchContentTabData(
       prev.length > 0
         ? Math.round(prev.reduce((s, r) => s + (r.avg_time_sec ?? 0), 0) / prev.length)
         : 0
-
-    const { count } = await supabase
-      .from('blog_posts')
-      .select('id', { count: 'exact', head: true })
-      .eq('site_id', siteId)
-      .eq('status', 'published')
-      .gte('published_at', prevRange.start.toISOString())
-      .lte('published_at', prevRange.end.toISOString())
-    prevPosts = count ?? 0
+    prevPosts = prevPostsRes.count ?? 0
+    prevArr = (prevDailyRes.data ?? []) as Array<{ date: string; views: number }>
   }
 
   function makeDelta(current: number, previous: number, suffix = ''): ContentKpi['delta'] {
@@ -145,8 +163,8 @@ export async function fetchContentTabData(
   const kpis: ContentKpi[] = [
     {
       label: 'Posts Published',
-      value: postsCount ?? 0,
-      delta: makeDelta(postsCount ?? 0, prevPosts),
+      value: postsCount,
+      delta: makeDelta(postsCount, prevPosts),
       sparkline: rows.map(() => 1),
     },
     {
@@ -169,14 +187,7 @@ export async function fetchContentTabData(
     },
   ]
 
-  const { data: topPostsRaw } = await supabase.rpc('get_top_posts_analytics', {
-    p_site_id: siteId,
-    p_start: start.toISOString(),
-    p_end: end.toISOString(),
-    p_limit: 10,
-  })
-
-  const topPosts: TopPost[] = (topPostsRaw ?? []).map((r: Record<string, unknown>) => ({
+  const topPosts: TopPost[] = (topPostsRaw).map((r: Record<string, unknown>) => ({
     id: r['id'] as string,
     title: r['title'] as string,
     status: r['status'] as string,
@@ -193,19 +204,8 @@ export async function fetchContentTabData(
     previous: 0,
   }))
 
-  if (prevRange) {
-    const { data: prevDaily } = await supabase
-      .from('content_metrics')
-      .select('date, views')
-      .eq('site_id', siteId)
-      .gte('date', toDateStringInTz(prevRange.start, timezone))
-      .lte('date', toDateStringInTz(prevRange.end, timezone))
-      .order('date', { ascending: true })
-
-    const prevArr = prevDaily ?? []
-    for (let i = 0; i < dailyChart.length; i++) {
-      dailyChart[i]!.previous = prevArr[i]?.views ?? 0
-    }
+  for (let i = 0; i < dailyChart.length; i++) {
+    dailyChart[i]!.previous = prevArr[i]?.views ?? 0
   }
 
   return { kpis, topPosts, dailyChart }

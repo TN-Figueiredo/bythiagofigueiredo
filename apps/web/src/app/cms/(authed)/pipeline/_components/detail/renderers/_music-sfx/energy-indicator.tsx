@@ -7,8 +7,8 @@ const DOT_COLORS = ['#22c55e', '#22c55e', '#eab308', '#f97316', '#ef4444']
 export function EnergyIndicator({ level }: EnergyIndicatorProps) {
   const clamped = Math.max(1, Math.min(5, Math.round(level)))
   return (
-    <span className="inline-flex items-center gap-[3px]" title={`Energy ${clamped}/5`}>
-      <span className="text-[8px]" style={{ color: '#f59e0b' }}>⚡</span>
+    <span className="inline-flex items-center gap-[3px]" role="img" aria-label={`Energia ${clamped} de 5`}>
+      <span className="text-[8px]" style={{ color: '#f59e0b' }} aria-hidden="true">⚡</span>
       <span className="inline-flex items-center" style={{ letterSpacing: '1px' }}>
         {Array.from({ length: 5 }, (_, i) => (
           <span

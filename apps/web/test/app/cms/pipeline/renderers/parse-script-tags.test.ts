@@ -97,4 +97,22 @@ describe('parseScriptTags', () => {
     const segments = parseScriptTags('Before\n---\nAfter')
     expect(segments.some(s => s.type === 'separator')).toBe(true)
   })
+
+  it('parses _(Reference ...)_ as a reference block', () => {
+    const text = '_(Reference — não falado: promessa dupla = por que cada decisão + plano pra Ásia. Credencial implícita em\nquatro anos no Canadá\n.)_'
+    const segments = parseScriptTags(text)
+    const ref = segments.find(s => s.type === 'reference')
+    expect(ref).toBeDefined()
+    expect(ref!.type === 'reference' && ref!.content).toContain('promessa dupla')
+    expect(ref!.type === 'reference' && ref!.content).toContain('quatro anos no Canadá')
+    expect(ref!.type === 'reference' && ref!.content).not.toContain('\n')
+  })
+
+  it('keeps surrounding content when reference block is in the middle', () => {
+    const text = '"Narration before."\n\n_(Ref: some note.)_\n\n"Narration after."'
+    const segments = parseScriptTags(text)
+    expect(segments.some(s => s.type === 'narration' && s.content === 'Narration before.')).toBe(true)
+    expect(segments.some(s => s.type === 'reference')).toBe(true)
+    expect(segments.some(s => s.type === 'narration' && s.content === 'Narration after.')).toBe(true)
+  })
 })

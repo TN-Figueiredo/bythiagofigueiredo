@@ -51,6 +51,10 @@ export default defineConfig({
   },
   resolve: {
     alias: [
+      // Stub `server-only` — the package isn't installed but Next.js provides
+      // it at build time. Tests that import source files with `import 'server-only'`
+      // need this resolved to an empty module.
+      { find: /^server-only$/, replacement: path.resolve(__dirname, './test/__stubs__/server-only.ts') },
       // Sprint 5b — `apps/web/lib/seo/` lives outside `src/`. Map specifically
       // so plan-prescribed `@/lib/seo/...` imports resolve correctly without
       // shadowing other `@/lib/*` paths under `src/lib/` (e.g. lgpd).

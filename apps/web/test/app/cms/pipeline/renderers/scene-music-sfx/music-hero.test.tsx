@@ -159,7 +159,7 @@ describe('MusicHeroSection — 6 visual states', () => {
     })
   })
 
-  describe('State 5: Continuation scene (dim)', () => {
+  describe('State 5: Continuation scene with LOCAL track (green)', () => {
     const music = makeMusic({
       continuation: 'Cena 3',
       fill_count: 1,
@@ -169,10 +169,10 @@ describe('MusicHeroSection — 6 visual states', () => {
       score: 28,
     })
 
-    it('shows dim fill indicator', () => {
+    it('shows green fill indicator when continuation source is LOCAL', () => {
       render(<MusicHeroSection music={music} sceneIndex={4} />)
-      const fillIndicator = screen.getByRole('img', { name: /1 de 3 músicas encontradas/ })
-      expect(fillIndicator).toBeDefined()
+      const fillIndicator = screen.getByRole('img', { name: /1 de 3 músicas encontradas — status: completo/ })
+      expect(fillIndicator).toBeTruthy()
     })
 
     it('displays "Continua da" with source scene label', () => {
@@ -186,6 +186,22 @@ describe('MusicHeroSection — 6 visual states', () => {
       render(<MusicHeroSection music={music} sceneIndex={4} />)
       const container = screen.getByRole('region')
       expect(container.textContent).toContain('Ocean Depth')
+    })
+  })
+
+  describe('State 5b: Continuation scene without resolved track (dim)', () => {
+    const music = makeMusic({
+      continuation: 'Cena 3',
+      fill_count: 0,
+      track: '',
+      resolve_status: 'NO_MATCH',
+      recommendations: [makeEmptyRec('narrow'), makeEmptyRec('medium'), makeEmptyRec('broad')],
+    })
+
+    it('shows dim fill indicator when continuation has no resolved tracks', () => {
+      render(<MusicHeroSection music={music} sceneIndex={4} />)
+      const fillIndicator = screen.getByRole('img', { name: /0 de 3 músicas encontradas — status: pendente/ })
+      expect(fillIndicator).toBeTruthy()
     })
   })
 
@@ -205,6 +221,72 @@ describe('MusicHeroSection — 6 visual states', () => {
     })
   })
 
+  describe('Score color on alternative slots', () => {
+    it('applies orange color (#f97316) for scores in 25-49% range', () => {
+      // 10/34 = 29% → orange
+      const music = makeMusic({
+        recommendations: [
+          makeRec({ score: 28 }),
+          makeRec({ track: 'Alt Orange', score: 10 }),
+          makeRec({ track: 'Alt Also Orange', score: 13 }),
+        ],
+      })
+      const { container } = render(<MusicHeroSection music={music} sceneIndex={1} />)
+      const altSlot = screen.getByLabelText(/Alt Orange, 29%, ✓ Local/)
+      const scoreSpan = altSlot.querySelector('button span[style*="font-size: 16"]')
+      expect(scoreSpan).toBeTruthy()
+      expect(scoreSpan!.style.color).toBe('#f97316')
+    })
+
+    it('applies amber color (#f59e0b) for scores in 50-74% range', () => {
+      // 22/34 = 65% → amber
+      const music = makeMusic({
+        recommendations: [
+          makeRec({ score: 28 }),
+          makeRec({ track: 'Alt Amber', score: 22 }),
+          makeRec({ track: 'Alt Three', score: 18 }),
+        ],
+      })
+      const { container } = render(<MusicHeroSection music={music} sceneIndex={1} />)
+      const altSlot = screen.getByLabelText(/Alt Amber, 65%, ✓ Local/)
+      const scoreSpan = altSlot.querySelector('button span[style*="font-size: 16"]')
+      expect(scoreSpan).toBeTruthy()
+      expect(scoreSpan!.style.color).toBe('#f59e0b')
+    })
+
+    it('applies green color (#10b981) for scores >= 75%', () => {
+      // 28/34 = 82% → green
+      const music = makeMusic({
+        recommendations: [
+          makeRec({ score: 30 }),
+          makeRec({ track: 'Alt Green', score: 28 }),
+          makeRec({ track: 'Alt Three', score: 18 }),
+        ],
+      })
+      const { container } = render(<MusicHeroSection music={music} sceneIndex={1} />)
+      const altSlot = screen.getByLabelText(/Alt Green, 82%, ✓ Local/)
+      const scoreSpan = altSlot.querySelector('button span[style*="font-size: 16"]')
+      expect(scoreSpan).toBeTruthy()
+      expect(scoreSpan!.style.color).toBe('#10b981')
+    })
+
+    it('applies gray color (#6b7280) for scores < 25%', () => {
+      // 7/34 = 21% → gray
+      const music = makeMusic({
+        recommendations: [
+          makeRec({ score: 28 }),
+          makeRec({ track: 'Alt Gray', score: 7 }),
+          makeRec({ track: 'Alt Three', score: 18 }),
+        ],
+      })
+      const { container } = render(<MusicHeroSection music={music} sceneIndex={1} />)
+      const altSlot = screen.getByLabelText(/Alt Gray, 21%, ✓ Local/)
+      const scoreSpan = altSlot.querySelector('button span[style*="font-size: 16"]')
+      expect(scoreSpan).toBeTruthy()
+      expect(scoreSpan!.style.color).toBe('#6b7280')
+    })
+  })
+
   describe('Delta vs favorite', () => {
     it('shows delta vs favorite on alternative slot when expanded', () => {
       const music = makeMusic({
@@ -220,8 +302,8 @@ describe('MusicHeroSection — 6 visual states', () => {
     })
   })
 
-  describe('Note absorption — entry_cue and style rendering', () => {
-    it('filters MUSIC/STYLE/ENTRY/FLOW notes when music has recommendations', () => {
+  describe('entry_cue and style rendering', () => {
+    it('renders entry_cue and style text when present', () => {
       const music = makeMusic({ entry_cue: 'After beat drop', style: 'Epic cinematic' })
       render(<MusicHeroSection music={music} sceneIndex={1} />)
       const container = screen.getByRole('region')

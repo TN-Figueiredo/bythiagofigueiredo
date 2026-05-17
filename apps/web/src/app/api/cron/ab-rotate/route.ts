@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
-import { getVariantForCycle } from '@/lib/youtube/ab-rotation'
+import { getNextVariantIndex } from '@/lib/youtube/ab-rotation'
 import {
   setThumbnail,
   fetchVariantImageBuffer,
@@ -69,7 +69,8 @@ export async function GET(req: NextRequest) {
         .not('ended_at', 'is', null)
 
       const nextCycle = count ?? 0
-      const nextVariantIndex = getVariantForCycle(variants.length, nextCycle)
+      const pattern = test.config?.rotation_pattern ?? 'abba'
+      const nextVariantIndex = getNextVariantIndex(pattern, variants.length, nextCycle)
       const nextVariant = variants[nextVariantIndex]
 
       if (!nextVariant) continue

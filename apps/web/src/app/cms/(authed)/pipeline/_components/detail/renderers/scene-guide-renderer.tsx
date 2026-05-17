@@ -66,7 +66,6 @@ function makeEmptyRec(tier: ArtlistSearchTier, searchUrl: string): MusicRecommen
   return {
     track: '', artist: '', resolve_status: 'NO_MATCH', score: 0, score_max: SCORE_MAX,
     is_empty_slot: true, artlist_search_tier: tier, artlist_search_url: searchUrl,
-    slot_label: tier === 'narrow' ? 'Buscar alternativa' : tier === 'medium' ? 'Alternativa similar' : 'Explorar gênero',
   }
 }
 
@@ -336,12 +335,16 @@ function SceneCard({ scene, expandAll, sceneIndex }: { scene: Scene; expandAll: 
   const hasDecide = scene.decide_items && scene.decide_items.length > 0
 
   const filteredNotes = useMemo(() => {
-    if (!scene.edit_notes || !scene.music) return scene.edit_notes ?? []
+    if (!scene.edit_notes) return []
+    const absorbed: NoteCategory[] = []
+    if (scene.music) absorbed.push(...MUSIC_ABSORBED_CATEGORIES)
+    if (scene.sfx && scene.sfx.length > 0) absorbed.push('SFX')
+    if (absorbed.length === 0) return scene.edit_notes
     return scene.edit_notes.filter((n: string) => {
       const { category } = categorizeNote(n)
-      return !MUSIC_ABSORBED_CATEGORIES.includes(category)
+      return !absorbed.includes(category)
     })
-  }, [scene.edit_notes, scene.music])
+  }, [scene.edit_notes, scene.music, scene.sfx])
 
   return (
     <div

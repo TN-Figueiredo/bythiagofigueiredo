@@ -1,3 +1,5 @@
+import type { AbTestConfig } from './ab-types'
+
 /**
  * ABBA Rotation Algorithm
  *
@@ -17,4 +19,30 @@ export function getVariantForCycle(variantCount: number, cycleNumber: number): n
   const posInBlock = cycleNumber % blockSize
   if (posInBlock < variantCount) return posInBlock
   return blockSize - 1 - posInBlock
+}
+
+export function getVariantRoundRobin(variantCount: number, cycleNumber: number): number {
+  if (variantCount <= 0) return 0
+  return cycleNumber % variantCount
+}
+
+export function getVariantRandom(variantCount: number): number {
+  if (variantCount <= 0) return 0
+  return Math.floor(Math.random() * variantCount)
+}
+
+export function getNextVariantIndex(
+  pattern: AbTestConfig['rotation_pattern'],
+  variantCount: number,
+  cycleNumber: number,
+): number {
+  switch (pattern) {
+    case 'round_robin':
+      return getVariantRoundRobin(variantCount, cycleNumber)
+    case 'random':
+      return getVariantRandom(variantCount)
+    case 'abba':
+    default:
+      return getVariantForCycle(variantCount, cycleNumber)
+  }
 }

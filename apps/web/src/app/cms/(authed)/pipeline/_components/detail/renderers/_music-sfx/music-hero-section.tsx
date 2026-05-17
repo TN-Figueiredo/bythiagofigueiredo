@@ -12,7 +12,11 @@ interface MusicHeroSectionProps {
 }
 
 function getFillStatus(music: SceneMusic): 'green' | 'amber' | 'red' | 'dim' {
-  if (music.continuation) return 'dim'
+  if (music.continuation) {
+    if (music.resolve_status === 'LOCAL') return 'green'
+    if (music.fill_count > 0) return 'amber'
+    return 'dim'
+  }
   if (music.fill_count === 0) return 'red'
   if (music.fill_count === 3 && music.recommendations.every(r => r.resolve_status === 'LOCAL')) return 'green'
   return 'amber'
@@ -21,8 +25,8 @@ function getFillStatus(music: SceneMusic): 'green' | 'amber' | 'red' | 'dim' {
 export function MusicHeroSection({ music, sceneIndex }: MusicHeroSectionProps) {
   const isContinuation = !!music.continuation
   const fillStatus = getFillStatus(music)
-  const safeFavIndex = Math.min(music.favorite_index ?? 0, music.recommendations.length - 1)
-  const favorite = music.recommendations[safeFavIndex]!
+  const safeFavIndex = Math.min(music.favorite_index ?? 0, 2)
+  const favorite = music.recommendations[safeFavIndex]
 
   return (
     <div
@@ -37,7 +41,7 @@ export function MusicHeroSection({ music, sceneIndex }: MusicHeroSectionProps) {
       aria-label={`Recomendações de música para cena ${sceneIndex}`}
     >
       <div className="flex items-center gap-2 mb-0.5">
-        <span className="text-[13px]">♪</span>
+        <span className="text-[13px]" aria-hidden="true">♪</span>
         <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#a78bfa' }}>Música</span>
         {music.entry_cue && !isContinuation && (
           <span className="text-[9px] font-medium px-1.5 py-px rounded" style={{ background: 'rgba(129,140,248,0.1)', color: '#818cf8' }}>
@@ -50,7 +54,7 @@ export function MusicHeroSection({ music, sceneIndex }: MusicHeroSectionProps) {
           </span>
         )}
         <span className="ml-auto">
-          <FillIndicator filled={music.fill_count} total={3} status={fillStatus} />
+          <FillIndicator filled={music.fill_count} total={music.recommendations.length} status={fillStatus} />
         </span>
       </div>
 
@@ -63,10 +67,7 @@ export function MusicHeroSection({ music, sceneIndex }: MusicHeroSectionProps) {
 
       {isContinuation ? (
         <>
-          <MusicContinuationCard
-            music={music}
-            sourceSceneLabel={music.continuation!}
-          />
+          <MusicContinuationCard music={music} />
           {music.recommendations[1] && (
             <MusicAlternativeSlot
               recommendation={music.recommendations[1]}
@@ -88,9 +89,9 @@ export function MusicHeroSection({ music, sceneIndex }: MusicHeroSectionProps) {
         </>
       ) : (
         <>
-          {!favorite.is_empty_slot ? (
+          {favorite && !favorite.is_empty_slot ? (
             <MusicHeroCard recommendation={favorite} music={music} />
-          ) : (
+          ) : favorite ? (
             <MusicAlternativeSlot
               recommendation={favorite}
               slotIndex={1}
@@ -98,7 +99,7 @@ export function MusicHeroSection({ music, sceneIndex }: MusicHeroSectionProps) {
               searchUrl={music.search_tiers.narrow}
               searchTerms={music.search_terms}
             />
-          )}
+          ) : null}
           {music.recommendations.filter((_, i) => i !== safeFavIndex).map((rec, i) => (
             <MusicAlternativeSlot
               key={rec.track || rec.artlist_search_tier}

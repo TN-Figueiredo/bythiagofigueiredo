@@ -5,7 +5,8 @@ import type { MusicRecommendation, ArtlistSearchTier } from './types'
 import { RESOLVE_COLORS } from './types'
 import { CoworkReasoning } from './cowork-reasoning'
 import { ScoreBreakdown } from './score-breakdown'
-import { computeScorePercent, getScoreColorFromPercent, getDeltaParts, formatDeltaTotal } from './score-utils'
+import { computeScorePercent, getScoreColorFromPercent, getDeltaParts, formatDeltaTotal, SCORE_LOW } from './score-utils'
+import { DownloadCTA } from './music-hero-card'
 
 interface MusicAlternativeSlotProps {
   recommendation: MusicRecommendation
@@ -21,24 +22,12 @@ const TIER_LABELS: Record<ArtlistSearchTier, string> = {
   broad: 'filtros amplos',
 }
 
+const DOWNLOAD_STEPS = '①Baixar ②Importar ③Re-resolver'
+
 const TIER_COLORS: Record<ArtlistSearchTier, { text: string; bg: string; border: string }> = {
   narrow: { text: '#3b82f6', bg: 'rgba(59,130,246,0.08)', border: 'rgba(59,130,246,0.25)' },
   medium: { text: '#3b82f6', bg: 'rgba(59,130,246,0.08)', border: 'rgba(59,130,246,0.2)' },
   broad: { text: '#c084fc', bg: 'rgba(192,132,252,0.08)', border: 'rgba(192,132,252,0.15)' },
-}
-
-function DownloadCTA({ url }: { url: string }) {
-  return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="text-[9px] font-semibold rounded px-2 py-0.5"
-      style={{ color: '#f59e0b', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)', textDecoration: 'none' }}
-    >
-      ⬇ Baixar no Artlist ↗
-    </a>
-  )
 }
 
 export function MusicAlternativeSlot({ recommendation: rec, slotIndex, searchTier, searchUrl, searchTerms }: MusicAlternativeSlotProps) {
@@ -119,7 +108,7 @@ export function MusicAlternativeSlot({ recommendation: rec, slotIndex, searchTie
         >
           {status.label}
         </span>
-        <span className="ml-auto flex-shrink-0" style={{ fontSize: 16, fontWeight: 700, color: scoreColor, fontVariantNumeric: 'tabular-nums' }}>
+        <span className="ml-auto flex-shrink-0" style={{ fontSize: 16, fontWeight: 700, color: scoreColor, fontVariantNumeric: 'tabular-nums', textShadow: pct >= SCORE_LOW ? `0 0 8px ${scoreColor}35` : undefined }}>
           {pct}<span style={{ fontSize: 10, fontWeight: 600 }}>%</span>
         </span>
       </button>
@@ -140,8 +129,8 @@ export function MusicAlternativeSlot({ recommendation: rec, slotIndex, searchTie
 
       {rec.resolve_status === 'PENDING_MATCH' && rec.artlist_url && !expanded && (
         <div className="px-2.5 pb-2 flex items-center gap-1.5" style={{ paddingLeft: 34 }}>
-          <DownloadCTA url={rec.artlist_url} />
-          <span className="text-[8px]" style={{ color: '#3d4f65' }}>①Baixar ②Importar ③Re-resolver</span>
+          <DownloadCTA url={rec.artlist_url} size="sm" />
+          <span className="text-[8px]" style={{ color: '#3d4f65' }}>{DOWNLOAD_STEPS}</span>
         </div>
       )}
 
@@ -149,7 +138,7 @@ export function MusicAlternativeSlot({ recommendation: rec, slotIndex, searchTie
         <div className="px-2.5 pb-2.5 space-y-1.5" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
           {rec.reasoning && <CoworkReasoning text={rec.reasoning} />}
           {rec.resolve_status === 'PENDING_MATCH' && rec.artlist_url && (
-            <DownloadCTA url={rec.artlist_url} />
+            <DownloadCTA url={rec.artlist_url} size="sm" />
           )}
           {deltas.length > 0 && (
             <div className="flex items-center gap-1 flex-wrap">

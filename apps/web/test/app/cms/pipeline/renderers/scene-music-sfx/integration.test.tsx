@@ -74,6 +74,25 @@ describe('SceneGuideRenderer — music normalization', () => {
     expect(container.textContent).not.toContain('Search Artlist')
   })
 
+  it('absorbs SFX notes from edit_notes when sfx data exists', () => {
+    const data = {
+      scenes: [{
+        number: 1,
+        label: 'SFX absorption',
+        sfx: [{ timestamp: '00:06', description: 'Impact leve', resolve_status: 'LOCAL' as const }],
+        edit_notes: [
+          '00:04 Hard cut pra talking head',
+          '00:06 SFX impact leve — Artlist "Low Impact Hit"',
+          '00:17 SFX bass drop — marca fim do hook',
+        ],
+      }],
+    }
+    const { container } = render(<SceneGuideRenderer content={data} isEditing={false} lang="en" onContentChange={noop} />)
+    expect(container.textContent).toContain('Hard cut pra talking head')
+    expect(container.textContent).not.toContain('SFX impact leve')
+    expect(container.textContent).not.toContain('SFX bass drop')
+  })
+
   it('handles favorite_index out of bounds gracefully', () => {
     const data = {
       scenes: [{

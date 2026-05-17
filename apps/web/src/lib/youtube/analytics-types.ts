@@ -33,7 +33,6 @@ export interface YtSearchTerm {
   term: string
   views: number
   estimatedMinutesWatched: number
-  impressionClickThroughRate: number
 }
 
 export interface YtDemographics {

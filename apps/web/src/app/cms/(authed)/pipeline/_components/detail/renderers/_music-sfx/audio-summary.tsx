@@ -1,8 +1,9 @@
 'use client'
 
 import { useMemo } from 'react'
-import type { SceneMusic, SceneSFX } from './types'
+import { RESOLVE_COLORS, type SceneMusic, type SceneSFX } from './types'
 import { isContinuationTrack } from './continuation'
+import { SCORE_MID } from './score-utils'
 
 interface Scene {
   music?: SceneMusic
@@ -63,14 +64,14 @@ function ProgressColumn({ label, stats }: { label: string; stats: Stats }) {
     <div className="flex-1">
       <div className="flex items-center justify-between mb-0.5">
         <span className="text-[7px] uppercase tracking-wide" style={{ color: '#3d4f65' }}>{label}</span>
-        <span className="text-[9px] font-bold" style={{ color: pctResolved === 100 ? '#10b981' : pctResolved >= 50 ? '#f59e0b' : '#f97316' }}>
+        <span className="text-[9px] font-bold" style={{ color: pctResolved === 100 ? RESOLVE_COLORS.LOCAL.color : pctResolved >= SCORE_MID ? RESOLVE_COLORS.PENDING_MATCH.color : RESOLVE_COLORS.PARTIAL_MATCH.color }}>
           {pctResolved}%
         </span>
       </div>
       <div className="h-[3px] rounded-full overflow-hidden flex" style={{ background: 'rgba(255,255,255,0.06)' }}>
-        {pctLocal > 0 && <div className="h-full" style={{ width: `${pctLocal}%`, background: '#10b981' }} />}
-        {pctPending > 0 && <div className="h-full" style={{ width: `${pctPending}%`, background: '#f59e0b' }} />}
-        {pctPartial > 0 && <div className="h-full" style={{ width: `${pctPartial}%`, background: '#f97316' }} />}
+        {pctLocal > 0 && <div className="h-full" style={{ width: `${pctLocal}%`, background: RESOLVE_COLORS.LOCAL.color }} />}
+        {pctPending > 0 && <div className="h-full" style={{ width: `${pctPending}%`, background: RESOLVE_COLORS.PENDING_MATCH.color }} />}
+        {pctPartial > 0 && <div className="h-full" style={{ width: `${pctPartial}%`, background: RESOLVE_COLORS.PARTIAL_MATCH.color }} />}
       </div>
       <span className="text-[7px]" style={{ color: '#5a6b7f' }}>{resolved}/{stats.total} resolvida{resolved !== 1 ? 's' : ''}</span>
     </div>
@@ -80,10 +81,10 @@ function ProgressColumn({ label, stats }: { label: string; stats: Stats }) {
 function StatChips({ stats, continuations }: { stats: Stats; continuations?: number }) {
   return (
     <div className="flex gap-1.5 flex-wrap">
-      {stats.local > 0 && <span className="text-[9px]" style={{ color: '#10b981' }}>✓ {stats.local} local</span>}
-      {stats.pending > 0 && <span className="text-[9px]" style={{ color: '#f59e0b' }}>⏳ {stats.pending} download</span>}
-      {stats.partial > 0 && <span className="text-[9px]" style={{ color: '#f97316' }}>~ {stats.partial} parcial</span>}
-      {stats.noMatch > 0 && <span className="text-[9px]" style={{ color: '#3b82f6' }}>🔗 {stats.noMatch} buscar</span>}
+      {stats.local > 0 && <span className="text-[9px]" style={{ color: RESOLVE_COLORS.LOCAL.color }}>✓ {stats.local} local</span>}
+      {stats.pending > 0 && <span className="text-[9px]" style={{ color: RESOLVE_COLORS.PENDING_MATCH.color }}>⏳ {stats.pending} download</span>}
+      {stats.partial > 0 && <span className="text-[9px]" style={{ color: RESOLVE_COLORS.PARTIAL_MATCH.color }}>~ {stats.partial} parcial</span>}
+      {stats.noMatch > 0 && <span className="text-[9px]" style={{ color: RESOLVE_COLORS.NO_MATCH.color }}>🔗 {stats.noMatch} buscar</span>}
       {continuations != null && continuations > 0 && <span className="text-[9px]" style={{ color: '#5a6b7f' }}>↩ {continuations} cont.</span>}
     </div>
   )

@@ -1,4 +1,4 @@
-export type NoteCategory = 'MUSIC' | 'STYLE' | 'TIMING' | 'ENTRY' | 'VISUAL' | 'OVERLAY' | 'FLOW' | 'NOTE'
+export type NoteCategory = 'MUSIC' | 'STYLE' | 'TIMING' | 'ENTRY' | 'VISUAL' | 'OVERLAY' | 'FLOW' | 'SFX' | 'NOTE'
 
 export interface CategorizedNote {
   category: NoteCategory
@@ -15,6 +15,7 @@ const RULES: { category: NoteCategory; test: (t: string) => boolean }[] = [
   { category: 'STYLE',   test: t => /^style:|needs? to feel|think\s+["']/i.test(t) },
   { category: 'ENTRY',   test: t => /^entry:/i.test(t) },
   { category: 'VISUAL',  test: t => /montage|ken burns|b-roll|photo/i.test(t) },
+  { category: 'SFX',     test: t => /\bsfx\b/i.test(t) },
   { category: 'TIMING',  test: t => /^(\d{2}:\d{2})|fade in|fade out/i.test(t) },
   { category: 'FLOW',    test: t => /continues?|don[''']t change|same track/i.test(t) },
 ]

@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CMS Analytics v8.1 — Extensions to Existing Modules</title>
+<style>
+:root{--bg-0:#15141a;--bg-1:#1c1b22;--bg-2:#232229;--bg-3:#2a2930;--bdr-1:#35343b;--bdr-2:rgba(53,52,59,.5);--t1:#e8e6ed;--t2:#c4c2cb;--t3:#9b99a5;--t5:#8f8d9a;--acc:#FF8240;--acc-d:#cc6833;--acc-s:rgba(255,130,64,.08);--color-blog:#34d399;--color-newsletter:#22d3ee;--color-video:#f472b6;--color-int:#60a5fa;--red:#f87171;--red-d:rgba(248,113,113,.12);--amber:#fbbf24;--amber-d:rgba(251,191,36,.12);--green:#34d399;--green-d:rgba(52,211,153,.12);--blue:#60a5fa;--blue-d:rgba(96,165,250,.12);--purple:#a78bfa;--purple-d:rgba(167,139,250,.12);--cyan:#22d3ee;--cyan-d:rgba(34,211,238,.12);--pink:#f472b6;--pink-d:rgba(244,114,182,.12)}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg-0);color:var(--t1);font-size:14px;line-height:1.5}
+
+/* === NAV === */
+.topbar{display:flex;align-items:center;gap:12px;padding:10px 20px;background:var(--bg-1);border-bottom:1px solid var(--bdr-1);position:sticky;top:0;z-index:100}
+.topbar .logo{font-weight:700;color:var(--acc);font-size:12px;letter-spacing:.5px;white-space:nowrap}
+.topbar .sections{display:flex;gap:2px;flex:1;overflow-x:auto;scrollbar-width:none;-webkit-mask-image:linear-gradient(90deg,#000 90%,transparent);mask-image:linear-gradient(90deg,#000 90%,transparent)}
+.topbar .sections::-webkit-scrollbar{display:none}
+.topbar .sections button{padding:6px 12px;background:none;border:none;border-radius:6px;color:var(--t5);font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;transition:all .15s}
+.topbar .sections button:hover{color:var(--t3);background:var(--bg-2)}
+.topbar .sections button.on{color:var(--acc);background:var(--acc-s)}
+
+/* === CONTENT === */
+.s{display:none;padding:20px;max-width:1280px;margin:0 auto;animation:fadeUp .2s ease-out}
+.s.on{display:block}
+.c{background:var(--bg-2);border:1px solid var(--bdr-1);border-radius:10px;padding:16px;transition:box-shadow .12s}
+.c:hover{box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.c2{background:var(--bg-3);border:1px solid var(--bdr-1);border-radius:8px;padding:12px}
+
+/* === BADGES === */
+.b{display:inline-block;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:600}
+.bg{background:var(--green-d);color:var(--green)}.br{background:var(--red-d);color:var(--red)}.ba{background:var(--amber-d);color:var(--amber)}.bb{background:var(--blue-d);color:var(--blue)}.bo{background:var(--acc-s);color:var(--acc)}.bp{background:var(--purple-d);color:var(--purple)}.bm{background:rgba(107,105,122,.15);color:var(--t5)}.bc{background:var(--cyan-d);color:var(--cyan)}.bpk{background:var(--pink-d);color:var(--pink)}
+.grade{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;font-size:13px;font-weight:700}
+.grade-a{background:var(--green-d);color:var(--green);border:1px solid rgba(52,211,153,.3)}
+.grade-b{background:var(--blue-d);color:var(--blue);border:1px solid rgba(96,165,250,.3)}
+.grade-c{background:var(--amber-d);color:var(--amber);border:1px solid rgba(251,191,36,.3)}
+.grade-d{background:var(--red-d);color:var(--red);border:1px solid rgba(248,113,113,.3)}
+
+/* === KPI === */
+.kpi{padding:14px}
+.kpi .l{font-size:11px;color:var(--t5);text-transform:uppercase;letter-spacing:.5px;font-weight:500}
+.kpi .v{font-size:22px;font-weight:700;margin-top:3px;font-variant-numeric:tabular-nums}
+/* g6/g3 grids are tighter — smaller KPI value to prevent clipping */
+.g6 .kpi .v,.g3 .kpi .v{font-size:18px}
+.kpi .dt{font-size:11px;margin-top:2px}.dt.up{color:var(--green)}.dt.dn{color:var(--red)}
+.kpi .spark{display:block;width:100%;height:24px;margin-top:6px;opacity:.7}
+
+/* === TYPOGRAPHY === */
+.hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--bdr-1)}
+.hdr h2{font-size:17px;font-weight:600}
+.card-title{font-size:14px;font-weight:600;letter-spacing:-.2px}
+.new{display:inline-block;background:var(--acc);color:#1a0a00;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:4px;vertical-align:middle}
+.ann{background:var(--acc-s);border:1px dashed var(--acc);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:var(--acc);line-height:1.7}
+.ann strong{color:var(--t1)}
+.ann code{background:rgba(255,130,64,.12);padding:1px 4px;border-radius:3px;font-size:11px}
+.loc{font-size:10px;color:var(--t5);margin-bottom:6px;display:flex;align-items:center;gap:4px;opacity:.7}
+.loc code{background:var(--bg-3);padding:1px 6px;border-radius:3px;font-size:10px;color:var(--t3)}
+
+/* === TABLES === */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:7px 10px;color:var(--t5);font-weight:500;border-bottom:1px solid var(--bdr-1);font-size:11px;text-transform:uppercase;letter-spacing:.4px}
+th.r{text-align:right}th.ct{text-align:center}
+td{padding:8px 10px;border-bottom:1px solid var(--bdr-2);vertical-align:middle}
+td.r{text-align:right}td.ct{text-align:center}td.d{color:var(--t3)}td.m{color:var(--t5)}
+tr{transition:background .1s}tr:hover{background:var(--bg-3)}
+td.sticky{position:sticky;left:0;background:var(--bg-2);z-index:1;transition:background .1s}
+tr:hover td.sticky{background:var(--bg-3)}
+
+/* === CONTROLS === */
+.search-bar{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.search-bar input{flex:1;background:var(--bg-3);border:1px solid var(--bdr-1);border-radius:6px;padding:7px 10px;font-size:13px;color:var(--t1);outline:none;transition:border .15s}
+.search-bar input:focus{border-color:var(--acc)}
+.search-bar select{background:var(--bg-3);border:1px solid var(--bdr-1);border-radius:6px;padding:7px 8px;font-size:12px;color:var(--t3);cursor:pointer;transition:border-color .15s}
+.search-bar select:hover{border-color:var(--acc)}
+.period-bar{display:flex;align-items:center;gap:10px;margin-bottom:16px;padding:10px 14px;background:var(--bg-2);border:1px solid var(--bdr-1);border-radius:8px}
+.period-bar .pills{display:flex;gap:2px;background:var(--bg-3);border-radius:6px;padding:2px}
+.period-bar .pills button{padding:5px 12px;border:none;border-radius:4px;font-size:12px;cursor:pointer;background:none;color:var(--t5);font-weight:500;transition:color .12s,background .12s}
+.period-bar .pills button:hover:not(.on){color:var(--t3);background:var(--bg-2)}
+.period-bar .pills button.on{background:var(--acc);color:#1a0a00;font-weight:600}
+.period-bar .range{font-size:12px;color:var(--t3)}
+.period-bar .compare{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--t3);margin-left:auto}
+.period-bar .compare .toggle{width:32px;height:18px;background:var(--acc);border-radius:9px;position:relative;cursor:pointer;transition:background .15s,opacity .15s}
+.period-bar .compare .toggle:hover{opacity:.85}
+.period-bar .compare .toggle::after{content:'';position:absolute;top:2px;left:16px;width:14px;height:14px;background:#fff;border-radius:50%;transition:left .15s cubic-bezier(.4,0,.2,1),box-shadow .15s}
+.period-bar .compare .toggle[aria-checked="false"]{background:var(--bdr-1)}
+.period-bar .compare .toggle[aria-checked="false"]::after{left:2px}
+
+/* === BUTTONS === */
+.btn{padding:6px 12px;border-radius:6px;border:none;font-size:12px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:4px;transition:all .12s}
+.btn:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.btn-a{background:var(--acc);color:#1a0a00}.btn-a:hover{background:var(--acc-d)}
+.btn-o{background:none;border:1px solid var(--bdr-1);color:var(--t3)}.btn-o:hover{border-color:var(--acc);color:var(--acc)}
+.btn-sm{padding:3px 8px;font-size:10px}
+.btn-export{padding:4px 8px;font-size:10px;background:var(--bg-3);border:1px solid var(--bdr-1);color:var(--t5);border-radius:4px;cursor:pointer}
+.btn-export:hover{border-color:var(--acc);color:var(--acc)}
+
+/* === TABS (ARIA) === */
+[role="tablist"]{display:flex;gap:0;border-bottom:1px solid var(--bdr-1);margin-bottom:16px}
+[role="tab"]{padding:8px 14px;background:none;border:none;color:var(--t5);font-size:12px;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .12s,border-color .12s}
+[role="tab"]:hover{color:var(--t3)}
+[role="tab"][aria-selected="true"]{color:var(--t1);border-bottom-color:var(--acc)}
+[role="tab"]:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
+
+/* === LAYOUT === */
+.progress{height:5px;background:var(--bdr-1);border-radius:9999px;overflow:hidden}.progress .f{height:100%;border-radius:9999px;transition:width .6s cubic-bezier(.4,0,.2,1)}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.g5{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.g6{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+.f{display:flex}.fc{flex-direction:column}.fw{flex-wrap:wrap}.f1{flex:1}
+.ac{align-items:center}.as{align-items:flex-start}.jb{justify-content:space-between}.jc{justify-content:center}
+.g1{gap:4px}.g2g{gap:8px}.g3g{gap:12px}.g4g{gap:16px}
+.mt1{margin-top:4px}.mt2{margin-top:8px}.mt3{margin-top:12px}.mt4{margin-top:16px}
+.mb1{margin-bottom:4px}.mb2{margin-bottom:8px}.mb3{margin-bottom:12px}
+.xs{font-size:11px}.sm{font-size:12px}.lg{font-size:17px}.xl{font-size:22px}.xxl{font-size:28px}
+.bold{font-weight:700}.med{font-weight:500}
+.tn{font-variant-numeric:tabular-nums}
+.trunc{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px}
+.tc{text-align:center}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+/* === HEALTH RING === */
+.health-ring{position:relative;width:120px;height:120px}
+.health-ring svg{width:100%;height:100%}
+.health-ring .score{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.health-ring .score .num{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums}
+.health-ring .score .lbl{font-size:10px;color:var(--t5);text-transform:uppercase}
+
+/* === DONUT === */
+.donut{position:relative;width:100px;height:100px}
+.donut svg{transform:rotate(-90deg)}
+.donut .center{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column}
+.donut .center .num{font-size:14px;font-weight:700}.donut .center .lbl{font-size:9px;color:var(--t5)}
+
+/* === HEATMAP === */
+.heatmap{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.heatmap .cell{aspect-ratio:1;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--t5)}
+.heatmap .h0{background:var(--bg-3)}.heatmap .h1{background:rgba(52,211,153,.1)}.heatmap .h2{background:rgba(52,211,153,.2)}.heatmap .h3{background:rgba(52,211,153,.35)}.heatmap .h4{background:rgba(52,211,153,.5);color:#15141a}.heatmap .h5{background:rgba(52,211,153,.7);color:#15141a}
+
+/* === SKELETON / SHIMMER === */
+.skeleton{background:linear-gradient(90deg,var(--bg-2) 25%,var(--bg-3) 50%,var(--bg-2) 75%);background-size:400% 100%;animation:sh 1.5s ease-in-out infinite;border-radius:6px}
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 20px;text-align:center;gap:10px;border:1px dashed var(--bdr-1);border-radius:10px;color:var(--t5)}
+.empty-state .em-icon{font-size:24px;opacity:.5}
+.empty-state .em-text{font-size:13px;max-width:280px}
+
+/* === ANIMATIONS === */
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes sh{0%{background-position:100% 0}100%{background-position:-100% 0}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+svg path,svg line,svg polyline{stroke-linecap:round;stroke-linejoin:round}
+
+/* === RESPONSIVE === */
+@media(max-width:1024px){.g6{grid-template-columns:repeat(3,1fr)}.g5{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:768px){.g4,.g5,.g6{grid-template-columns:repeat(2,1fr)}.g3,.g2{grid-template-columns:1fr}.period-bar{flex-wrap:wrap}.period-bar .compare{margin-left:0;margin-top:6px}}
+@media(max-width:480px){.g4,.g5,.g6{grid-template-columns:1fr 1fr}.topbar .sections{-webkit-mask-image:linear-gradient(90deg,#000 80%,transparent)}.heatmap{grid-template-columns:repeat(7,1fr);gap:1px}.heatmap .cell{font-size:7px}.funnel-row{flex-wrap:wrap}.funnel-row .funnel-step{min-width:100px}.period-bar .pills button{padding:4px 8px;font-size:11px}}
+/* === ACCESSIBILITY === */
+.skip-link{position:absolute;left:-9999px;top:0;z-index:999;padding:8px 16px;background:var(--acc);color:#1a0a00;font-size:12px;font-weight:600;border-radius:0 0 6px 0}
+.skip-link:focus{left:0}
+.toggle:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+</style>
+</head>
+<body>
+
+<a href="#main-content" class="skip-link">Skip to main content</a>
+
+<!-- ====== NAV ====== -->
+<nav aria-label="CMS Analytics sections" class="topbar">
+  <span class="logo">MOCKUP v8.1</span>
+  <div class="sections">
+    <button class="on" aria-current="page" onclick="sect(this,'analytics')">Analytics — Content</button>
+    <button onclick="sect(this,'analytics-links')">Analytics — Links</button>
+    <button onclick="sect(this,'analytics-aud')">Analytics — Audience</button>
+    <button onclick="sect(this,'yt')">YouTube — Analytics</button>
+    <button onclick="sect(this,'dashboard')">Dashboard additions</button>
+    <button onclick="sect(this,'social')">Social Insights fix</button>
+  </div>
+</nav>
+
+<!-- ======================================================== -->
+<!-- MODULE 1: /cms/analytics — "Content" tab                 -->
+<!-- ======================================================== -->
+<main id="main-content">
+<div id="an-content" class="s on">
+<div class="loc"><code>/cms/analytics?tab=content</code> — replaces ComingSoonStub</div>
+<div class="ann"><strong>Analytics → Content tab</strong><span class="new">NEW</span> — Top posts by views/depth/time. Uses <code>content_metrics</code> + <code>content_events</code>.</div>
+
+<!-- Period selector (shared component, visible on all analytics screens) -->
+<div class="period-bar">
+  <div class="pills" role="group" aria-label="Time period"><button aria-label="Last 7 days" aria-pressed="false">7d</button><button class="on" aria-label="Last 30 days" aria-pressed="true">30d</button><button aria-label="Last 90 days" aria-pressed="false">90d</button><button aria-label="Custom date range" aria-pressed="false">Custom</button></div>
+  <span class="range">Apr 16 – May 16, 2026</span>
+  <div class="compare"><div class="toggle" role="switch" tabindex="0" aria-checked="true" aria-label="Compare to previous period"></div><span>vs prev period</span></div>
+</div>
+
+<div class="g4">
+  <div class="c kpi"><div class="l">Posts Published</div><div class="v tn">12</div><div class="dt up">▲ +3 vs prev</div><svg class="spark" role="img" viewBox="0 0 60 20" aria-label="Posts published trend: rising"><polyline points="0,18 10,16 20,18 30,14 40,12 50,14 60,10" fill="none" stroke="var(--green)" stroke-width="1.5"/></svg></div>
+  <div class="c kpi"><div class="l">Avg Read Depth</div><div class="v">68%</div><div class="dt up">▲ +4pp</div><svg class="spark" role="img" viewBox="0 0 60 20" aria-label="Read depth trend: rising"><polyline points="0,16 10,14 20,15 30,12 40,10 50,9 60,7" fill="none" stroke="var(--green)" stroke-width="1.5"/></svg></div>
+  <div class="c kpi"><div class="l">Avg Time on Page</div><div class="v">4:12</div><div class="dt up">▲ +38s</div><svg class="spark" role="img" viewBox="0 0 60 20" aria-label="Time on page trend: rising"><polyline points="0,14 10,12 20,13 30,10 40,9 50,8 60,6" fill="none" stroke="var(--green)" stroke-width="1.5"/></svg></div>
+  <div class="c kpi"><div class="l">Reads Complete</div><div class="v tn">312</div><div class="dt up">▲ +35%</div><svg class="spark" role="img" viewBox="0 0 60 20" aria-label="Reads complete trend: rising"><polyline points="0,17 10,15 20,16 30,13 40,11 50,9 60,7" fill="none" stroke="var(--green)" stroke-width="1.5"/></svg></div>
+</div>
+
+<!-- Time-series line chart -->
+<div class="c mt3">
+  <div class="f jb ac mb2"><span class="card-title">Daily Views — Last 30 Days</span><button class="btn-export"><span aria-hidden="true">⬇</span> CSV</button></div>
+  <svg viewBox="0 0 560 90" style="width:100%;height:90px" role="img" aria-label="Daily views chart showing growth trend with spike on April 28 when Bangkok post was published">
+    <line x1="20" y1="70" x2="550" y2="70" stroke="var(--bdr-1)" stroke-width="1"/>
+    <line x1="20" y1="45" x2="550" y2="45" stroke="var(--bdr-1)" stroke-dasharray="3" stroke-width="1"/>
+    <line x1="20" y1="20" x2="550" y2="20" stroke="var(--bdr-1)" stroke-dasharray="3" stroke-width="1"/>
+    <text x="4" y="23" fill="var(--t5)" font-size="8">40</text>
+    <text x="4" y="48" fill="var(--t5)" font-size="8">20</text>
+    <text x="4" y="73" fill="var(--t5)" font-size="8">0</text>
+    <defs><linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--acc)" stop-opacity=".3"/><stop offset="100%" stop-color="var(--acc)" stop-opacity="0"/></linearGradient></defs>
+    <path d="M30,62 L70,58 L110,60 L150,52 L190,55 L230,38 L270,28 L310,42 L350,45 L390,40 L430,36 L470,32 L510,24 L550,20 L550,70 L30,70 Z" fill="url(#areaGrad)"/>
+    <polyline points="30,62 70,58 110,60 150,52 190,55 230,38 270,28 310,42 350,45 390,40 430,36 470,32 510,24 550,20" fill="none" stroke="var(--acc)" stroke-width="2"/>
+    <!-- Previous period (dashed) -->
+    <polyline points="30,65 70,64 110,66 150,62 190,60 230,58 270,55 310,58 350,56 390,54 430,52 470,50 510,48 550,46" fill="none" stroke="var(--t5)" stroke-width="1.5" stroke-dasharray="4"/>
+    <!-- Annotation: post published -->
+    <line x1="270" y1="15" x2="270" y2="70" stroke="var(--green)" stroke-dasharray="3" stroke-width="1"/>
+    <circle cx="270" cy="28" r="3" fill="var(--green)"/><text x="274" y="14" fill="var(--green)" font-size="8">↑ Bangkok published</text>
+    <circle cx="550" cy="20" r="3" fill="var(--acc)"/>
+  </svg>
+  <div class="f jb xs mt1" style="color:var(--t5);padding:0 20px"><span>Apr 16</span><span>Apr 23</span><span>Apr 30</span><span>May 7</span><span>May 14</span></div>
+  <div class="f ac g3g xs mt2" style="color:var(--t5)"><span class="f ac g1"><span style="width:16px;height:2px;background:var(--acc);display:inline-block"></span> Current period</span><span class="f ac g1"><span style="width:16px;height:2px;background:var(--t5);display:inline-block;border-top:1px dashed var(--t5)"></span> Previous period</span></div>
+</div>
+
+<!-- Top posts table -->
+<div class="c mt3">
+  <div class="f jb ac mb2"><span class="card-title">Top Posts</span><button class="btn-export"><span aria-hidden="true">⬇</span> CSV</button></div>
+  <div class="search-bar"><input type="text" placeholder="Search posts..." aria-label="Search posts"><select aria-label="Sort order"><option>Sort: Views ↓</option><option>Sort: Depth ↓</option><option>Sort: Time ↓</option></select></div>
+  <div style="overflow-x:auto"><table><thead><tr><th scope="col">Post</th><th scope="col">Status</th><th scope="col" class="r">Views</th><th scope="col" class="r">Unique</th><th scope="col" class="r">Depth</th><th scope="col" class="r">Avg Time</th><th scope="col" class="r">Reads 100%</th></tr></thead><tbody>
+  <tr><td class="med sm trunc sticky">O que esperar de Bangkok</td><td><span class="b bg">published</span></td><td class="r tn bold" style="color:var(--green)">412</td><td class="r tn d">298</td><td class="r">82%</td><td class="r">5:40</td><td class="r tn">87</td></tr>
+  <tr><td class="med sm trunc sticky">Nômade Digital: Guia Completo</td><td><span class="b bg">published</span></td><td class="r tn bold">287</td><td class="r tn d">201</td><td class="r">71%</td><td class="r">4:10</td><td class="r tn">54</td></tr>
+  <tr><td class="med sm trunc sticky">Filosofia e Minimalismo</td><td><span class="b bg">published</span></td><td class="r tn bold">198</td><td class="r tn d">156</td><td class="r">68%</td><td class="r">3:30</td><td class="r tn">42</td></tr>
+  <tr><td class="med sm trunc sticky">Controlando Seu Tempo</td><td><span class="b bg">published</span></td><td class="r tn">145</td><td class="r tn d">112</td><td class="r">55%</td><td class="r">2:45</td><td class="r tn">28</td></tr>
+  </tbody></table></div>
+</div>
+
+<!-- Insight card -->
+<div class="c mt3" style="border-left:3px solid var(--green)">
+  <div class="f jb ac"><div><span class="b bg" style="padding:2px 8px;font-size:10px">Pattern</span> <span class="sm" style="color:var(--t3)">Posts with <strong style="color:var(--green)">5+ min avg time</strong> get 40% higher read completion. Schedule long-form content for Tue/Thu mornings.</span></div>
+  <button class="btn btn-o btn-sm">New Post →</button></div>
+</div>
+</div>
+
+<!-- ======================================================== -->
+<!-- MODULE 2: /cms/analytics — "Links" tab                   -->
+<!-- ======================================================== -->
+<div id="an-links" class="s">
+<div class="loc"><code>/cms/analytics?tab=links</code> — replaces ComingSoonStub</div>
+<div class="ann"><strong>Analytics → Links tab</strong><span class="new">NEW</span> — Aggregates from <code>link_clicks</code> + <code>link_daily_metrics</code> + <code>tracked_links</code>.</div>
+
+<div class="period-bar">
+  <div class="pills" role="group" aria-label="Time period"><button aria-label="Last 7 days" aria-pressed="false">7d</button><button class="on" aria-label="Last 30 days" aria-pressed="true">30d</button><button aria-label="Last 90 days" aria-pressed="false">90d</button><button aria-label="Custom date range" aria-pressed="false">Custom</button></div>
+  <span class="range">Apr 16 – May 16, 2026</span>
+  <div class="compare"><div class="toggle" role="switch" tabindex="0" aria-checked="true" aria-label="Compare to previous period"></div><span>vs prev period</span></div>
+</div>
+
+<div class="g5">
+  <div class="c kpi"><div class="l">Total Clicks</div><div class="v tn">3,842</div><div class="dt up">▲ +24%</div><svg class="spark" role="img" viewBox="0 0 60 20" aria-label="Total clicks trend: strong growth"><polyline points="0,16 10,12 20,14 30,8 40,10 50,4 60,2" fill="none" stroke="var(--green)" stroke-width="1.5"/></svg></div>
+  <div class="c kpi"><div class="l">Unique Clicks</div><div class="v tn">2,187</div><div class="dt up">▲ +18%</div><svg class="spark" role="img" viewBox="0 0 60 20" aria-label="Unique clicks trend: rising"><polyline points="0,15 10,13 20,14 30,10 40,9 50,6 60,4" fill="none" stroke="var(--green)" stroke-width="1.5"/></svg></div>
+  <div class="c kpi"><div class="l">Conversions</div><div class="v tn" style="color:var(--green)">89</div><div class="dt up">▲ +42%</div><svg class="spark" role="img" viewBox="0 0 60 20" aria-label="Conversions trend: strong growth"><polyline points="0,18 10,16 20,14 30,12 40,8 50,6 60,3" fill="none" stroke="var(--green)" stroke-width="1.5"/></svg></div>
+  <div class="c kpi"><div class="l">Conv. Rate</div><div class="v" style="color:var(--green)">2.3%</div><div class="dt up">▲ +0.4pp</div><svg class="spark" role="img" viewBox="0 0 60 20" aria-label="Conversion rate trend: improving"><polyline points="0,14 10,13 20,12 30,12 40,11 50,10 60,8" fill="none" stroke="var(--green)" stroke-width="1.5"/></svg></div>
+  <div class="c kpi"><div class="l">Active Links</div><div class="v tn">24</div><div class="dt" style="color:var(--t5)">— same</div></div>
+</div>
+
+<div class="f jb ac mt3 mb2"><div class="search-bar" style="margin-bottom:0;flex:1"><input type="text" placeholder="Search links..." aria-label="Search links"><select aria-label="Source filter"><option>All sources</option><option>Blog</option><option>Email</option><option>Social</option></select><select aria-label="Sort order"><option>Sort: Clicks ↓</option><option>Sort: Conv ↓</option></select></div><button class="btn btn-a btn-sm" style="margin-left:12px">+ Create UTM Link</button></div>
+<div class="c" style="padding:0;overflow-x:auto"><table><thead><tr><th scope="col">Link</th><th scope="col">Source</th><th scope="col" class="r">Clicks</th><th scope="col" class="r">Unique</th><th scope="col" class="r">Conv</th><th scope="col">Country</th><th scope="col">Device</th></tr></thead><tbody>
+<tr><td class="med sm sticky"><span style="color:var(--acc)">go/</span>bangkok-guide</td><td><span class="b bb">blog</span></td><td class="r tn bold">847</td><td class="r tn d">612</td><td class="r tn" style="color:var(--green)">23</td><td class="d"><span aria-hidden="true">🇧🇷</span> 72%</td><td class="d"><span aria-hidden="true">📱</span> 65%</td></tr>
+<tr><td class="med sm sticky"><span style="color:var(--acc)">go/</span>newsletter-42</td><td><span class="b bp">email</span></td><td class="r tn bold">412</td><td class="r tn d">389</td><td class="r tn" style="color:var(--green)">12</td><td class="d"><span aria-hidden="true">🇧🇷</span> 68%</td><td class="d"><span aria-hidden="true">💻</span> 54%</td></tr>
+<tr><td class="med sm sticky"><span style="color:var(--acc)">go/</span>creator-pack</td><td><span class="b bo">campaign</span></td><td class="r tn bold">198</td><td class="r tn d">167</td><td class="r tn" style="color:var(--green)">7</td><td class="d"><span aria-hidden="true">🇧🇷</span> 65%</td><td class="d"><span aria-hidden="true">📱</span> 71%</td></tr>
+</tbody></table></div>
+
+<div class="g2 mt3">
+<div class="c"><div class="f jb ac mb2"><span class="card-title">UTM Campaign Attribution</span><button class="btn-export"><span aria-hidden="true">⬇</span> CSV</button></div>
+<table><thead><tr><th scope="col">Campaign</th><th scope="col">Medium</th><th scope="col" class="r">Clicks</th><th scope="col" class="r">Conv</th><th scope="col" class="r">Rate</th></tr></thead><tbody>
+<tr><td class="sm">bangkok-launch</td><td><span class="b bb">email</span></td><td class="r tn bold">412</td><td class="r tn" style="color:var(--green)">12</td><td class="r" style="color:var(--green)">2.9%</td></tr>
+<tr><td class="sm">creator-pack-q2</td><td><span class="b bo">social</span></td><td class="r tn bold">198</td><td class="r tn" style="color:var(--green)">7</td><td class="r" style="color:var(--green)">3.5%</td></tr>
+<tr><td class="sm">yt-description</td><td><span class="b bpk">video</span></td><td class="r tn bold">289</td><td class="r tn" style="color:var(--green)">8</td><td class="r" style="color:var(--green)">2.8%</td></tr>
+</tbody></table></div>
+<div class="c"><div class="card-title mb2">Top Referrer Domains</div>
+<div class="fc g2g"><div><div class="f jb xs mb1"><span>youtube.com</span><span class="bold tn">892</span></div><div class="progress"><div class="f" style="width:100%;background:var(--red)"></div></div></div><div><div class="f jb xs mb1"><span>bsky.app</span><span class="bold tn">412</span></div><div class="progress"><div class="f" style="width:46%;background:var(--blue)"></div></div></div><div><div class="f jb xs mb1"><span>mail.google.com</span><span class="bold tn">287</span></div><div class="progress"><div class="f" style="width:32%;background:var(--purple)"></div></div></div><div><div class="f jb xs mb1"><span>instagram.com</span><span class="bold tn">198</span></div><div class="progress"><div class="f" style="width:22%;background:var(--pink)"></div></div></div></div></div>
+</div>
+</div>
+
+<!-- ======================================================== -->
+<!-- MODULE 3: /cms/analytics — "Audience" tab                -->
+<!-- ======================================================== -->
+<div id="an-audience" class="s">
+<div class="loc"><code>/cms/analytics?tab=audience</code> — replaces ComingSoonStub</div>
+<div class="ann"><strong>Analytics → Audience tab</strong><span class="new">NEW</span> — Blog/site audience: geo, device, referrer from <code>content_events</code>. For YouTube audience demographics, see YouTube → Analytics → YT Demographics.</div>
+
+<div class="period-bar">
+  <div class="pills" role="group" aria-label="Time period"><button aria-label="Last 7 days" aria-pressed="false">7d</button><button class="on" aria-label="Last 30 days" aria-pressed="true">30d</button><button aria-label="Last 90 days" aria-pressed="false">90d</button><button aria-label="Custom date range" aria-pressed="false">Custom</button></div>
+  <span class="range">Apr 16 – May 16, 2026</span>
+  <div class="compare"><div class="toggle" role="switch" tabindex="0" aria-checked="true" aria-label="Compare to previous period"></div><span>vs prev period</span></div>
+</div>
+
+<div class="g3">
+  <!-- Country donut -->
+  <div class="c"><div class="card-title mb2">Countries (Blog visitors)</div>
+  <div class="f ac g4g">
+    <div class="donut"><svg viewBox="0 0 100 100" width="100" height="100" role="img" aria-label="Country distribution: Brazil 72%, Portugal 15%, USA 8%, Other 5%"><title>Country distribution</title><circle cx="50" cy="50" r="40" fill="none" stroke="var(--bdr-1)" stroke-width="12"/><circle cx="50" cy="50" r="40" fill="none" stroke="var(--green)" stroke-width="12" stroke-dasharray="181 251" stroke-dashoffset="0"/><circle cx="50" cy="50" r="40" fill="none" stroke="var(--blue)" stroke-width="12" stroke-dasharray="38 251" stroke-dashoffset="-181"/><circle cx="50" cy="50" r="40" fill="none" stroke="var(--purple)" stroke-width="12" stroke-dasharray="20 251" stroke-dashoffset="-219"/></svg><div class="center"><div class="num">5</div><div class="lbl">countries</div></div></div>
+    <div class="fc g1 xs f1"><div class="f jb"><span class="f ac g1"><span class="dot" style="background:var(--green)"></span> Brazil</span><span class="bold tn">72%</span></div><div class="f jb"><span class="f ac g1"><span class="dot" style="background:var(--blue)"></span> Portugal</span><span class="bold tn">15%</span></div><div class="f jb"><span class="f ac g1"><span class="dot" style="background:var(--purple)"></span> USA</span><span class="bold tn">8%</span></div><div class="f jb"><span class="f ac g1"><span class="dot" style="background:var(--amber)"></span> Other</span><span class="bold tn">5%</span></div></div>
+  </div></div>
+
+  <!-- Device donut -->
+  <div class="c"><div class="card-title mb2">Devices</div>
+  <div class="f ac g4g">
+    <div class="donut"><svg viewBox="0 0 100 100" width="100" height="100" role="img" aria-label="Device distribution: Mobile 62%, Desktop 28%, Tablet 10%"><title>Device distribution</title><circle cx="50" cy="50" r="40" fill="none" stroke="var(--bdr-1)" stroke-width="12"/><circle cx="50" cy="50" r="40" fill="none" stroke="var(--acc)" stroke-width="12" stroke-dasharray="156 251" stroke-dashoffset="0"/><circle cx="50" cy="50" r="40" fill="none" stroke="var(--cyan)" stroke-width="12" stroke-dasharray="70 251" stroke-dashoffset="-156"/><circle cx="50" cy="50" r="40" fill="none" stroke="var(--purple)" stroke-width="12" stroke-dasharray="25 251" stroke-dashoffset="-226"/></svg><div class="center"><div class="num">3</div><div class="lbl">types</div></div></div>
+    <div class="fc g1 xs f1"><div class="f jb"><span class="f ac g1"><span class="dot" style="background:var(--acc)"></span> Mobile</span><span class="bold tn">62%</span></div><div class="f jb"><span class="f ac g1"><span class="dot" style="background:var(--cyan)"></span> Desktop</span><span class="bold tn">28%</span></div><div class="f jb"><span class="f ac g1"><span class="dot" style="background:var(--purple)"></span> Tablet</span><span class="bold tn">10%</span></div></div>
+  </div></div>
+
+  <!-- Referrer sources -->
+  <div class="c"><div class="card-title mb2">Traffic Sources</div>
+  <div class="fc g2g"><div><div class="f jb xs mb1"><span>Google Search</span><span class="bold tn">38%</span></div><div class="progress"><div class="f" style="width:100%;background:var(--blue)"></div></div></div><div><div class="f jb xs mb1"><span>Direct</span><span class="bold tn">24%</span></div><div class="progress"><div class="f" style="width:63%;background:var(--green)"></div></div></div><div><div class="f jb xs mb1"><span>Newsletter</span><span class="bold tn">18%</span></div><div class="progress"><div class="f" style="width:47%;background:var(--purple)"></div></div></div><div><div class="f jb xs mb1"><span>YouTube</span><span class="bold tn">12%</span></div><div class="progress"><div class="f" style="width:32%;background:var(--red)"></div></div></div><div><div class="f jb xs mb1"><span>Social</span><span class="bold tn">8%</span></div><div class="progress"><div class="f" style="width:21%;background:var(--amber)"></div></div></div></div></div>
+</div>
+
+<!-- Cross-system funnel (proportional) -->
+<div class="c mt3">
+  <div class="f jb ac mb2"><span class="card-title">Cross-System Funnel: YouTube → Blog → Newsletter</span><button class="btn-export">📋 Copy</button></div>
+  <div class="fc g2g">
+    <div class="f ac g2g"><span style="width:90px;font-size:11px;color:var(--t5);text-align:right">YT Views</span><div style="flex:1;height:24px;background:var(--pink-d);border-radius:4px;display:flex;align-items:center;padding:0 10px"><span style="font-size:12px;font-weight:700;color:var(--pink)">12,400</span></div><span class="xs" style="width:40px;color:var(--t5)">100%</span></div>
+    <div class="f ac g2g"><span style="width:90px;font-size:11px;color:var(--t5);text-align:right">Blog Clicks</span><div style="width:5%;min-width:70px;height:24px;background:var(--blue-d);border:1px solid var(--blue);border-radius:4px;display:flex;align-items:center;padding:0 8px"><span style="font-size:12px;font-weight:700;color:var(--blue)">89</span></div><span class="xs" style="color:var(--red);margin-left:4px">▼ 99.3% drop</span></div>
+    <div class="f ac g2g"><span style="width:90px;font-size:11px;color:var(--t5);text-align:right">NL Signups</span><div style="width:1%;min-width:52px;height:24px;background:var(--cyan-d);border:1px solid var(--cyan);border-radius:4px;display:flex;align-items:center;padding:0 8px"><span style="font-size:12px;font-weight:700;color:var(--cyan)">12</span></div><span class="xs" style="color:var(--green);margin-left:4px">13% of clicks</span></div>
+    <div class="f ac g2g"><span style="width:90px;font-size:11px;color:var(--t5);text-align:right">Purchases</span><div style="width:0.5%;min-width:44px;height:24px;background:var(--acc-s);border:1px solid var(--acc);border-radius:4px;display:flex;align-items:center;padding:0 8px"><span style="font-size:12px;font-weight:700;color:var(--acc)">4</span></div><span class="xs" style="color:var(--green);margin-left:4px">33% of subs</span></div>
+  </div>
+  <div class="f jb ac mt2"><div class="xs" style="color:var(--t5)"><span aria-hidden="true">⚡</span> Biggest opportunity: Blog CTA rate (0.7%) — stronger YT description links could 3× newsletter signups</div><button class="btn btn-o btn-sm" title="Edit YouTube video descriptions to add stronger CTAs">Edit YT Descriptions →</button></div>
+</div>
+
+<!-- Best time to publish (multi-channel heatmaps) -->
+<div class="c mt3">
+  <div class="card-title mb3">Best Time to Publish</div>
+  <div class="fc" style="gap:20px">
+    <!-- YouTube -->
+    <div>
+      <div class="f jb ac mb1"><span class="sm med" style="color:var(--pink)">YouTube</span><span class="xs" style="color:var(--green)">★ Sat 2–4pm BRT</span></div>
+      <div style="display:grid;grid-template-columns:28px repeat(7,1fr);gap:2px;font-size:9px">
+        <span style="color:var(--t5);text-align:right;padding-right:4px;line-height:18px">8a</span><div style="height:18px;background:rgba(244,114,182,.08);border-radius:2px"></div><div style="height:18px;background:rgba(244,114,182,.15);border-radius:2px"></div><div style="height:18px;background:rgba(244,114,182,.1);border-radius:2px"></div><div style="height:18px;background:rgba(244,114,182,.08);border-radius:2px"></div><div style="height:18px;background:rgba(244,114,182,.05);border-radius:2px"></div><div style="height:18px;background:rgba(244,114,182,.2);border-radius:2px"></div><div style="height:18px;background:rgba(244,114,182,.15);border-radius:2px"></div>
+        <span style="color:var(--t5);text-align:right;padding-right:4px;line-height:18px">2p</span><div style="height:18px;background:rgba(244,114,182,.15);border-radius:2px"></div><div style="height:18px;background:rgba(244,114,182,.2);border-radius:2px"></div><div style="height:18px;background:rgba(244,114,182,.2);border-radius:2px"></div><div style="height:18px;background:rgba(244,114,182,.15);border-radius:2px"></div><div style="height:18px;background:rgba(244,114,182,.2);border-radius:2px"></div><div style="height:18px;background:rgba(244,114,182,.8);border-radius:2px;outline:1px solid var(--pink)"></div><div style="height:18px;background:rgba(244,114,182,.5);border-radius:2px"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:28px repeat(7,1fr);gap:2px;font-size:9px;color:var(--t5);margin-top:2px"><span></span><span class="tc">M</span><span class="tc">T</span><span class="tc">W</span><span class="tc">T</span><span class="tc">F</span><span class="tc" style="color:var(--pink)">Sa</span><span class="tc">Su</span></div>
+    </div>
+    <!-- Blog -->
+    <div>
+      <div class="f jb ac mb1"><span class="sm med" style="color:var(--color-blog)">Blog</span><span class="xs" style="color:var(--green)">★ Tue/Thu 8–10am BRT</span></div>
+      <div style="display:grid;grid-template-columns:28px repeat(7,1fr);gap:2px;font-size:9px">
+        <span style="color:var(--t5);text-align:right;padding-right:4px;line-height:18px">8a</span><div style="height:18px;background:rgba(52,211,153,.1);border-radius:2px"></div><div style="height:18px;background:rgba(52,211,153,.8);border-radius:2px;outline:1px solid var(--green)"></div><div style="height:18px;background:rgba(52,211,153,.15);border-radius:2px"></div><div style="height:18px;background:rgba(52,211,153,.8);border-radius:2px;outline:1px solid var(--green)"></div><div style="height:18px;background:rgba(52,211,153,.1);border-radius:2px"></div><div style="height:18px;background:rgba(52,211,153,.05);border-radius:2px"></div><div style="height:18px;background:rgba(52,211,153,.05);border-radius:2px"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:28px repeat(7,1fr);gap:2px;font-size:9px;color:var(--t5);margin-top:2px"><span></span><span class="tc">M</span><span class="tc" style="color:var(--green)">T</span><span class="tc">W</span><span class="tc" style="color:var(--green)">T</span><span class="tc">F</span><span class="tc">Sa</span><span class="tc">Su</span></div>
+    </div>
+    <!-- Newsletter -->
+    <div>
+      <div class="f jb ac mb1"><span class="sm med" style="color:var(--color-newsletter)">Newsletter</span><span class="xs" style="color:var(--green)">★ Wed 7am BRT</span></div>
+      <div style="display:grid;grid-template-columns:28px repeat(7,1fr);gap:2px;font-size:9px">
+        <span style="color:var(--t5);text-align:right;padding-right:4px;line-height:18px">7a</span><div style="height:18px;background:rgba(34,211,238,.05);border-radius:2px"></div><div style="height:18px;background:rgba(34,211,238,.15);border-radius:2px"></div><div style="height:18px;background:rgba(34,211,238,.85);border-radius:2px;outline:1px solid var(--cyan)"></div><div style="height:18px;background:rgba(34,211,238,.1);border-radius:2px"></div><div style="height:18px;background:rgba(34,211,238,.08);border-radius:2px"></div><div style="height:18px;background:rgba(34,211,238,.05);border-radius:2px"></div><div style="height:18px;background:rgba(34,211,238,.05);border-radius:2px"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:28px repeat(7,1fr);gap:2px;font-size:9px;color:var(--t5);margin-top:2px"><span></span><span class="tc">M</span><span class="tc">T</span><span class="tc" style="color:var(--cyan)">W</span><span class="tc">T</span><span class="tc">F</span><span class="tc">Sa</span><span class="tc">Su</span></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ======================================================== -->
+<!-- MODULE 4: /cms/youtube — new "Analytics" tab             -->
+<!-- ======================================================== -->
+<div id="yt-analytics" class="s">
+<div class="loc"><code>/cms/youtube</code> layout.tsx — add <code>Analytics</code> tab alongside Dashboard, Videos, A/B Lab, Categories, Comments, Content</div>
+<div class="ann"><strong>YouTube → Analytics tab</strong><span class="new">NEW</span> — Channel Health Score, video grades, outlier detection, audience demographics. All from YouTube Analytics API v2 (<code>yt-analytics.readonly</code> scope). Quota: 1 unit/query, 10K/day.</div>
+
+<!-- ARIA sub-tabs -->
+<div role="tablist" aria-label="YouTube Analytics sub-navigation">
+  <button role="tab" aria-selected="true" tabindex="0" id="tab-yt-ov" aria-controls="yt-an-ov" onclick="ytSub('yt-an-ov',this)">Overview</button>
+  <button role="tab" aria-selected="false" tabindex="-1" id="tab-yt-grades" aria-controls="yt-an-grades" onclick="ytSub('yt-an-grades',this)">Grades & CTR</button>
+  <button role="tab" aria-selected="false" tabindex="-1" id="tab-yt-out" aria-controls="yt-an-out" onclick="ytSub('yt-an-out',this)">Outliers</button>
+  <button role="tab" aria-selected="false" tabindex="-1" id="tab-yt-aud" aria-controls="yt-an-aud" onclick="ytSub('yt-an-aud',this)">YT Demographics</button>
+  <button role="tab" aria-selected="false" tabindex="-1" id="tab-yt-search" aria-controls="yt-an-search" onclick="ytSub('yt-an-search',this)">Search Terms</button>
+</div>
+
+<!-- YT Analytics > Overview -->
+<div id="yt-an-ov" role="tabpanel" aria-labelledby="tab-yt-ov" class="yt-sub">
+<div class="f g4g ac mb3">
+  <div class="health-ring" aria-label="Channel health score: 78 out of 100">
+    <svg role="img" viewBox="0 0 120 120"><title>Health score ring: 78/100</title><circle cx="60" cy="60" r="48" fill="none" stroke="var(--bdr-1)" stroke-width="10"/><circle cx="60" cy="60" r="48" fill="none" stroke="var(--green)" stroke-width="10" stroke-dasharray="235 301" stroke-dashoffset="75" transform="rotate(-90 60 60)"/></svg>
+    <div class="score"><div class="num" style="color:var(--green)">78</div><div class="lbl">Health</div></div>
+  </div>
+  <div class="fc g2g f1">
+    <div class="f ac g4g">
+      <!-- Radar chart -->
+      <svg viewBox="0 0 120 120" style="width:100px;height:100px;max-width:100%;flex-shrink:0" role="img" aria-label="Channel health radar: CTR A, Retention B+, Growth B, Engagement B, Frequency D (weak axis)">
+        <title>Health radar — Frequency is the weakest dimension</title>
+        <polygon points="60,17 95,35 95,85 60,103 25,85 25,35" fill="none" stroke="var(--bdr-1)" stroke-width=".7"/>
+        <polygon points="60,27 88,42 88,78 60,93 32,78 32,42" fill="none" stroke="var(--bdr-1)" stroke-width=".5"/>
+        <polygon points="60,37 81,48 81,72 60,83 39,72 39,48" fill="none" stroke="var(--bdr-1)" stroke-width=".5"/>
+        <line x1="60" y1="60" x2="60" y2="17" stroke="var(--bdr-1)" stroke-width=".5"/>
+        <line x1="60" y1="60" x2="95" y2="35" stroke="var(--bdr-1)" stroke-width=".5"/>
+        <line x1="60" y1="60" x2="95" y2="85" stroke="var(--bdr-1)" stroke-width=".5"/>
+        <line x1="60" y1="60" x2="25" y2="85" stroke="var(--bdr-1)" stroke-width=".5"/>
+        <line x1="60" y1="60" x2="25" y2="35" stroke="var(--bdr-1)" stroke-width=".5"/>
+        <polygon points="60,21 83,44 80,74 42,73 54,56" fill="rgba(52,211,153,.15)" stroke="var(--green)" stroke-width="1.5"/>
+        <circle cx="60" cy="21" r="2.5" fill="var(--green)"/>
+        <circle cx="83" cy="44" r="2.5" fill="var(--green)"/>
+        <circle cx="80" cy="74" r="2.5" fill="var(--blue)"/>
+        <circle cx="42" cy="73" r="2.5" fill="var(--blue)"/>
+        <circle cx="54" cy="56" r="2.5" fill="var(--red)"/>
+        <text x="60" y="13" fill="var(--t3)" font-size="7" text-anchor="middle">CTR</text>
+        <text x="100" y="35" fill="var(--t3)" font-size="7">Ret.</text>
+        <text x="100" y="88" fill="var(--t3)" font-size="7">Growth</text>
+        <text x="18" y="88" fill="var(--t3)" font-size="7" text-anchor="end">Eng.</text>
+        <text x="18" y="35" fill="var(--red)" font-size="7" text-anchor="end">Freq</text>
+      </svg>
+      <div class="fc g1 xs">
+        <div class="f jb" style="min-width:100px"><span>CTR</span><span class="b bg" style="padding:1px 6px">A 5.2%</span></div>
+        <div class="f jb"><span>Retention</span><span class="b bg" style="padding:1px 6px">B+ 41%</span></div>
+        <div class="f jb"><span>Growth</span><span class="b bb" style="padding:1px 6px">B 1.2%/mo</span></div>
+        <div class="f jb"><span>Engagement</span><span class="b bb" style="padding:1px 6px">B</span></div>
+        <div class="f jb"><span style="color:var(--red)">Frequency</span><span class="b br" style="padding:1px 6px">D 1/mo</span></div>
+      </div>
+    </div>
+    <div class="xs" style="color:var(--t5)">Next milestone: <strong style="color:var(--acc)">2,000 subs</strong> (23 away) · ETA ~30d at current rate</div>
+    <div class="xs" style="color:var(--t5)">Past: <span style="color:var(--t3)">1,000 (Mar 2025) · 1,500 (Nov 2025) · 1,900 (Apr 2026)</span></div>
+  </div>
+  <div class="c2" style="min-width:120px;text-align:center"><div class="xs" style="color:var(--t5)">API Quota</div><div class="bold tn mt1" style="color:var(--green)">1,240</div><div class="progress mt1"><div class="f" style="width:12.4%;background:var(--green)"></div></div><div class="xs mt1" style="color:var(--t5)">of 10K/day</div></div>
+</div>
+
+<div class="g6">
+  <div class="c kpi"><div class="l">Views</div><div class="v tn">12.4K</div><div class="dt up">▲ +8%</div><svg class="spark" role="img" viewBox="0 0 60 20" aria-label="Views trend"><polyline points="0,14 10,12 20,16 30,10 40,8 50,11 60,4" fill="none" stroke="var(--green)" stroke-width="1.5"/></svg></div>
+  <div class="c kpi"><div class="l">Watch Time</div><div class="v tn">847h</div><div class="dt dn">▼ -3%</div><svg class="spark" role="img" viewBox="0 0 60 20" aria-label="Watch time trend: declining"><polyline points="0,8 10,9 20,10 30,11 40,12 50,14 60,15" fill="none" stroke="var(--red)" stroke-width="1.5"/></svg></div>
+  <div class="c kpi"><div class="l">Subs Net</div><div class="v tn">+23</div><div class="dt up">▲ +15%</div><svg class="spark" role="img" viewBox="0 0 60 20" aria-label="Subscribers trend: growing"><polyline points="0,16 10,14 20,15 30,12 40,10 50,8 60,6" fill="none" stroke="var(--green)" stroke-width="1.5"/></svg></div>
+  <div class="c kpi"><div class="l">Impressions</div><div class="v tn">98.2K</div><div class="dt up">▲ +12%</div><svg class="spark" role="img" viewBox="0 0 60 20" aria-label="Impressions trend"><polyline points="0,16 10,14 20,15 30,11 40,10 50,8 60,5" fill="none" stroke="var(--green)" stroke-width="1.5"/></svg></div>
+  <div class="c kpi"><div class="l">CTR</div><div class="v">5.2%</div><div class="dt up">▲ +0.4pp</div><svg class="spark" role="img" viewBox="0 0 60 20" aria-label="CTR trend: improving"><polyline points="0,14 10,14 20,12 30,11 40,10 50,9 60,8" fill="none" stroke="var(--green)" stroke-width="1.5"/></svg></div>
+  <div class="c kpi"><div class="l">Avg Duration</div><div class="v">8:42</div><div class="dt up">▲ +12s</div><svg class="spark" role="img" viewBox="0 0 60 20" aria-label="Average view duration trend"><polyline points="0,13 10,12 20,11 30,12 40,11 50,10 60,9" fill="none" stroke="var(--green)" stroke-width="1.5"/></svg></div>
+</div>
+
+<div class="g3 mt3">
+  <div class="c kpi"><div class="l">Likes</div><div class="v tn">342</div><div class="dt up">▲ +12%</div><svg class="spark" role="img" viewBox="0 0 60 20" aria-label="Likes trend"><polyline points="0,15 10,14 20,12 30,11 40,10 50,9 60,7" fill="none" stroke="var(--green)" stroke-width="1.5"/></svg></div>
+  <div class="c kpi"><div class="l">Comments</div><div class="v tn">47</div><div class="dt up">▲ +28%</div><svg class="spark" role="img" viewBox="0 0 60 20" aria-label="Comments trend"><polyline points="0,18 10,16 20,14 30,12 40,10 50,9 60,5" fill="none" stroke="var(--green)" stroke-width="1.5"/></svg></div>
+  <div class="c kpi"><div class="l">Shares</div><div class="v tn">89</div><div class="dt dn">▼ -5%</div><svg class="spark" role="img" viewBox="0 0 60 20" aria-label="Shares trend: slight decline"><polyline points="0,10 10,11 20,10 30,11 40,12 50,13 60,14" fill="none" stroke="var(--red)" stroke-width="1.5"/></svg></div>
+</div>
+
+<!-- Section separator -->
+<div class="hdr mt3"><h2>Channel Performance</h2><span class="xs" style="color:var(--t5)">Retention, funnel, conversion</span></div>
+
+<!-- Retention curve (realistic hook-drop shape) -->
+<div class="c">
+  <div class="f jb ac mb2"><span class="card-title">Avg Retention Curve (last 10 videos)</span><span class="xs" style="color:var(--t5)">41% avg view percentage</span></div>
+  <svg viewBox="0 0 520 100" style="width:100%;height:100px" role="img" aria-label="Retention curve: sharp 30% drop in first 30 seconds (hook phase), stabilizes around 45% mid-video, ends at 24%">
+    <title>Average retention curve — realistic small-channel shape</title>
+    <line x1="40" y1="85" x2="510" y2="85" stroke="var(--bdr-1)" stroke-width="1"/>
+    <line x1="40" y1="57" x2="510" y2="57" stroke="var(--bdr-1)" stroke-dasharray="3" stroke-width="1"/>
+    <line x1="40" y1="29" x2="510" y2="29" stroke="var(--bdr-1)" stroke-dasharray="3" stroke-width="1"/>
+    <line x1="40" y1="5" x2="510" y2="5" stroke="var(--bdr-1)" stroke-dasharray="3" stroke-width="1"/>
+    <text x="8" y="8" fill="var(--t3)" font-size="7">100%</text>
+    <text x="8" y="32" fill="var(--t3)" font-size="7">75%</text>
+    <text x="8" y="60" fill="var(--t3)" font-size="7">50%</text>
+    <text x="8" y="88" fill="var(--t3)" font-size="7">0%</text>
+    <!-- Hook zone highlight -->
+    <rect x="40" y="5" width="24" height="80" fill="var(--amber)" opacity=".06" rx="2"/>
+    <text x="42" y="16" fill="var(--amber)" font-size="6.5">Hook</text>
+    <!-- Area fill -->
+    <defs><linearGradient id="retGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--green)" stop-opacity=".2"/><stop offset="100%" stop-color="var(--green)" stop-opacity="0"/></linearGradient></defs>
+    <path d="M40,5 C45,5 48,8 64,30 C72,38 92,42 130,44 C170,46 210,48 250,50 C260,51 265,56 280,60 C300,63 330,65 370,67 C410,69 450,72 480,74 C500,75 510,76 510,77 L510,85 L40,85 Z" fill="url(#retGrad)"/>
+    <path d="M40,5 C45,5 48,8 64,30 C72,38 92,42 130,44 C170,46 210,48 250,50 C260,51 265,56 280,60 C300,63 330,65 370,67 C410,69 450,72 480,74 C500,75 510,76 510,77" fill="none" stroke="var(--green)" stroke-width="2"/>
+    <!-- Annotations -->
+    <circle cx="64" cy="30" r="3" fill="var(--amber)"/><text x="68" y="27" fill="var(--amber)" font-size="7">70% — hook drop</text>
+    <line x1="275" y1="20" x2="275" y2="85" stroke="var(--t5)" stroke-dasharray="2" stroke-width=".5"/>
+    <circle cx="275" cy="58" r="2.5" fill="var(--blue)"/><text x="279" y="55" fill="var(--blue)" font-size="7">~45% mid</text>
+    <circle cx="510" cy="77" r="3" fill="var(--red)"/><text x="472" y="74" fill="var(--red)" font-size="7">24% end</text>
+  </svg>
+  <div class="f jb xs mt1" style="color:var(--t5);padding:0 40px"><span>0:00</span><span>0:30</span><span>Mid</span><span>3/4</span><span>End</span></div>
+  <div class="xs mt2" style="color:var(--t5)"><span aria-hidden="true">⚠</span> Hook drop: <strong style="color:var(--amber)">30pp in first 30s</strong> — improve opening hook. Mid-notch at 50% is normal.</div>
+</div>
+
+<!-- Impressions funnel (corrected) -->
+<div class="c mt3">
+  <div class="card-title mb2">Impressions → Subscriber Funnel</div>
+  <div class="fc g2g">
+    <div class="f ac g2g"><span style="width:120px;font-size:11px;color:var(--t5);text-align:right">Impressions</span><div style="flex:1;height:22px;background:var(--blue-d);border-radius:3px;display:flex;align-items:center;padding:0 10px"><span style="font-size:11px;font-weight:700;color:var(--blue)">98,200</span></div><span class="xs" style="width:36px;color:var(--t5)">100%</span></div>
+    <div class="f ac g2g"><span style="width:120px;font-size:11px;color:var(--t5);text-align:right">Clicks (CTR 5.2%)</span><div style="width:5.2%;min-width:60px;height:22px;background:var(--acc-s);border:1px solid var(--acc);border-radius:3px;display:flex;align-items:center;padding:0 8px"><span style="font-size:11px;font-weight:700;color:var(--acc)">5,106</span></div><span class="xs" style="color:var(--acc)">5.2%</span></div>
+    <div class="f ac g2g"><span style="width:120px;font-size:11px;color:var(--t5);text-align:right">Views (all sources)</span><div style="width:12.6%;min-width:60px;height:22px;background:var(--green-d);border:1px solid var(--green);border-radius:3px;display:flex;align-items:center;padding:0 8px"><span style="font-size:11px;font-weight:700;color:var(--green)">12,400</span></div><span class="xs" style="color:var(--t5)">incl. search/suggested</span></div>
+    <div class="f ac g2g"><span style="width:120px;font-size:11px;color:var(--t5);text-align:right">New Subscribers</span><div style="position:relative;flex:1;height:22px;background:var(--bg-3);border-radius:3px"><div style="position:absolute;left:0;top:0;width:0.19%;min-width:4px;height:100%;background:var(--purple);border-radius:3px"></div></div><span style="font-size:11px;font-weight:700;color:var(--purple);margin-left:6px">23</span><span class="xs" style="color:var(--t5);margin-left:4px">(0.19% view→sub)</span></div>
+  </div>
+  <div class="xs mt2" style="color:var(--t5)">Industry avg view→sub rate: 0.1–0.5%. You're at 0.19% — in range.</div>
+</div>
+</div>
+
+<!-- YT Analytics > Grades -->
+<div id="yt-an-grades" role="tabpanel" aria-labelledby="tab-yt-grades" class="yt-sub" style="display:none" hidden>
+<div class="hdr"><h2>Video Performance Grades</h2><span class="sm" style="color:var(--t5)">vs. channel avg (first 7 days)</span></div>
+<div class="search-bar"><input type="text" placeholder="Search videos..." aria-label="Search videos"><select aria-label="Sort"><option>Sort: CTR ↓</option><option>Sort: Grade ↓</option><option>Sort: Views ↓</option></select></div>
+<div class="c" style="padding:0;overflow-x:auto"><table><thead><tr><th scope="col" style="width:36px" class="ct">Grade</th><th scope="col" style="width:72px">Thumb</th><th scope="col">Title</th><th scope="col" class="r">CTR</th><th scope="col" class="r">Views (7d)</th><th scope="col" class="r">Avg %</th><th scope="col" class="r">Score</th><th scope="col" class="ct" style="width:55px"></th></tr></thead><tbody>
+<tr><td class="ct"><span class="grade grade-a" aria-label="Grade A: exceptional performance">A</span></td><td><div style="width:64px;height:36px;background:linear-gradient(135deg,#4a3020,#2a1a10);border-radius:4px;display:flex;align-items:center;justify-content:center"><span style="font-size:8px;color:var(--t5)">MBK</span></div></td><td class="med sm sticky">O Que Esperar Do MBK Center</td><td class="r bold" style="color:var(--green)">7.8%</td><td class="r tn bold" style="color:var(--green)">2,340</td><td class="r">42%</td><td class="r"><span class="b bg">3.2×</span></td><td class="ct"><button class="btn btn-o btn-sm" style="border-color:var(--acc);color:var(--acc)" title="Start A/B test for this video's thumbnail">A/B</button></td></tr>
+<tr><td class="ct"><span class="grade grade-b" aria-label="Grade B: above average">B</span></td><td><div style="width:64px;height:36px;background:var(--bg-3);border-radius:4px;display:flex;align-items:center;justify-content:center"><span style="font-size:8px;color:var(--t5)">#6</span></div></td><td class="med sm sticky">6 - Como somos controlados</td><td class="r bold">5.4%</td><td class="r tn">890</td><td class="r">40%</td><td class="r"><span class="b bb">1.2×</span></td><td class="ct"><button class="btn btn-o btn-sm" style="border-color:var(--acc);color:var(--acc)" title="Start A/B test">A/B</button></td></tr>
+<tr><td class="ct"><span class="grade grade-d" aria-label="Grade D: underperforming">D</span></td><td><div style="width:64px;height:36px;background:var(--bg-3);border-radius:4px;display:flex;align-items:center;justify-content:center"><span style="font-size:8px;color:var(--t5)">#8</span></div></td><td class="med sm sticky">8 - 9 dicas para debates</td><td class="r" style="color:var(--red)">2.8%</td><td class="r tn" style="color:var(--red)">210</td><td class="r" style="color:var(--red)">35%</td><td class="r"><span class="b br">0.3×</span></td><td class="ct"><button class="btn btn-o btn-sm" style="border-color:var(--red);color:var(--red)" title="Start A/B test — strong recommendation">A/B</button></td></tr>
+</tbody></table></div>
+
+<div class="c mt3" style="border-left:3px solid var(--green)">
+  <div class="f jb ac"><div><span class="b bg" style="padding:2px 8px;font-size:10px">Pattern</span> <span class="sm" style="color:var(--t3)">A-grade videos use <strong style="color:var(--green)">location thumbnails with faces</strong>. D-grade uses text-heavy thumbnails.</span></div></div>
+  <div class="f g2g mt2"><button class="btn btn-a btn-sm" title="Opens A/B Lab for &quot;9 dicas&quot; video">A/B Test "9 dicas" → A/B Lab</button><button class="btn btn-o btn-sm">Dismiss</button></div>
+</div>
+
+<!-- Empty state example -->
+<div class="mt3"><div class="xs mb1" style="color:var(--t5)">Empty state (when &lt;3 videos):</div>
+<div class="empty-state"><div class="em-icon" aria-hidden="true">📊</div><div class="em-text">Grade data appears after you have at least 3 videos older than 7 days. Upload more content to see performance comparisons.</div><button class="btn btn-a btn-sm">Upload Video →</button></div>
+</div>
+</div>
+
+<!-- YT Analytics > Outliers -->
+<div id="yt-an-out" role="tabpanel" aria-labelledby="tab-yt-out" class="yt-sub" style="display:none" hidden>
+<div class="hdr"><h2>Video Outliers</h2><span class="sm" style="color:var(--t5)">vs. last 10 uploads avg (first 7 days)</span></div>
+
+<div class="c mb3"><div class="card-title mb2">Outlier Timeline (6 months)</div>
+<svg viewBox="0 0 500 80" style="width:100%;height:80px" role="img" aria-label="Scatter plot showing video outliers over 6 months. Two positive outliers in December and May, one negative in October.">
+  <title>Video outlier timeline</title>
+  <line x1="30" y1="40" x2="480" y2="40" stroke="var(--bdr-1)" stroke-width="1"/>
+  <line x1="30" y1="20" x2="480" y2="20" stroke="var(--bdr-1)" stroke-dasharray="3"/><text x="6" y="23" fill="var(--t5)" font-size="7">2×</text>
+  <line x1="30" y1="60" x2="480" y2="60" stroke="var(--bdr-1)" stroke-dasharray="3"/><text x="6" y="63" fill="var(--t5)" font-size="7">0.5×</text>
+  <text x="6" y="43" fill="var(--t5)" font-size="7">1×</text>
+  <!-- X-axis labels -->
+  <text x="100" y="78" fill="var(--t5)" font-size="7" text-anchor="middle">Oct</text>
+  <text x="180" y="78" fill="var(--t5)" font-size="7" text-anchor="middle">Nov</text>
+  <text x="260" y="78" fill="var(--t5)" font-size="7" text-anchor="middle">Dec</text>
+  <text x="340" y="78" fill="var(--t5)" font-size="7" text-anchor="middle">Feb</text>
+  <text x="420" y="78" fill="var(--t5)" font-size="7" text-anchor="middle">May</text>
+  <!-- Dots with labels -->
+  <circle cx="100" cy="52" r="5" fill="var(--red)" opacity=".7"/><text x="100" y="66" fill="var(--red)" font-size="7" text-anchor="middle">debates</text>
+  <circle cx="180" cy="36" r="4" fill="var(--blue)" opacity=".6"/><text x="180" y="30" fill="var(--blue)" font-size="6" text-anchor="middle">#6</text>
+  <circle cx="260" cy="12" r="7" fill="var(--green)"/><text x="260" y="8" fill="var(--green)" font-size="7" text-anchor="middle">MBK 3.2×</text>
+  <circle cx="340" cy="36" r="4" fill="var(--blue)" opacity=".6"/>
+  <circle cx="420" cy="15" r="6" fill="var(--green)"/><text x="420" y="10" fill="var(--green)" font-size="7" text-anchor="middle">new 2.5×</text>
+</svg></div>
+
+<div class="c mb3" style="border-left:3px solid var(--green)">
+  <div class="f jb ac"><div class="f ac g3g"><span class="grade grade-a">A</span><div><div class="med sm">O Que Esperar Do MBK Center</div><div class="xs" style="color:var(--t5)">Dec 10, 2025 · 5mo ago</div></div></div>
+  <div class="f g4g ac"><div class="tc"><div class="xs" style="color:var(--t5)">Views (7d)</div><div class="bold tn" style="color:var(--green)">2,340</div><div class="xs" style="color:var(--green)">3.2× avg</div></div><div class="tc"><div class="xs" style="color:var(--t5)">CTR</div><div class="bold tn" style="color:var(--green)">7.8%</div></div><div class="tc"><span class="b bg" style="font-size:14px;padding:5px 12px">3.2×</span></div></div></div>
+  <div class="f g2g mt2" style="border-top:1px solid var(--bdr-2);padding-top:8px"><button class="btn btn-a btn-sm" title="Creates a new blog draft related to this video">Write Follow-up → New Post</button><button class="btn btn-o btn-sm" title="Shows detailed analytics for this video">Deep Dive → Video Detail</button></div>
+</div>
+
+<div class="c mb3" style="border-left:3px solid var(--red)">
+  <div class="f jb ac"><div class="f ac g3g"><span class="grade grade-d">D</span><div><div class="med sm">9 dicas para debates</div><div class="xs" style="color:var(--t5)">Oct 17, 2025 · 7mo ago</div></div></div>
+  <div class="f g4g ac"><div class="tc"><div class="xs" style="color:var(--t5)">Views (7d)</div><div class="bold tn" style="color:var(--red)">210</div><div class="xs" style="color:var(--red)">0.3× avg</div></div><div class="tc"><div class="xs" style="color:var(--t5)">CTR</div><div class="bold tn" style="color:var(--red)">2.8%</div></div><div class="tc"><span class="b br" style="font-size:14px;padding:5px 12px">0.3×</span></div></div></div>
+  <div class="f g2g mt2" style="border-top:1px solid var(--bdr-2);padding-top:8px"><button class="btn btn-a btn-sm" style="background:var(--amber);color:#000" title="Opens A/B Lab for this video">A/B Test → Thumbnail Lab</button><button class="btn btn-o btn-sm" title="Analyze what went wrong">Analyze → Video Detail</button></div>
+</div>
+</div>
+
+<!-- YT Analytics > Demographics -->
+<div id="yt-an-aud" role="tabpanel" aria-labelledby="tab-yt-aud" class="yt-sub" style="display:none" hidden>
+<div class="hdr"><h2>YouTube Demographics</h2><span class="sm" style="color:var(--t5)">YouTube Analytics API: ageGroup, gender, country, deviceType</span></div>
+<div class="g2">
+  <div class="c"><div class="card-title mb2">Age & Gender</div>
+  <div class="fc g2g">
+    <div><div class="f jb xs mb1"><span>18-24</span><span class="bold tn">32%</span></div><div class="f g1"><div style="height:6px;width:18%;background:var(--blue);border-radius:3px" title="Male 18%"></div><div style="height:6px;width:14%;background:var(--pink);border-radius:3px" title="Female 14%"></div></div></div>
+    <div><div class="f jb xs mb1"><span>25-34</span><span class="bold tn">41%</span></div><div class="f g1"><div style="height:6px;width:24%;background:var(--blue);border-radius:3px" title="Male 24%"></div><div style="height:6px;width:17%;background:var(--pink);border-radius:3px" title="Female 17%"></div></div></div>
+    <div><div class="f jb xs mb1"><span>35-44</span><span class="bold tn">18%</span></div><div class="f g1"><div style="height:6px;width:11%;background:var(--blue);border-radius:3px" title="Male 11%"></div><div style="height:6px;width:7%;background:var(--pink);border-radius:3px" title="Female 7%"></div></div></div>
+    <div><div class="f jb xs mb1"><span>45+</span><span class="bold tn">9%</span></div><div class="f g1"><div style="height:6px;width:6%;background:var(--blue);border-radius:3px" title="Male 6%"></div><div style="height:6px;width:3%;background:var(--pink);border-radius:3px" title="Female 3%"></div></div></div>
+  </div>
+  <div class="f g3g xs mt2" style="color:var(--t5)"><span class="f ac g1"><span class="dot" style="background:var(--blue)"></span> Male 62%</span><span class="f ac g1"><span class="dot" style="background:var(--pink)"></span> Female 38%</span></div></div>
+
+  <div class="c"><div class="card-title mb2">Top Countries</div>
+  <div class="fc g2g"><div><div class="f jb xs mb1"><span><span aria-hidden="true">🇧🇷</span> Brazil</span><span class="bold tn">80%</span></div><div class="progress"><div class="f" style="width:80%;background:var(--green)"></div></div></div><div><div class="f jb xs mb1"><span><span aria-hidden="true">🇵🇹</span> Portugal</span><span class="bold tn">8%</span></div><div class="progress"><div class="f" style="width:8%;background:var(--blue)"></div></div></div><div><div class="f jb xs mb1"><span><span aria-hidden="true">🇺🇸</span> USA</span><span class="bold tn">4%</span></div><div class="progress"><div class="f" style="width:4%;background:var(--purple)"></div></div></div><div><div class="f jb xs mb1"><span><span aria-hidden="true">🇦🇴</span> Angola</span><span class="bold tn">3%</span></div><div class="progress"><div class="f" style="width:3%;background:var(--amber)"></div></div></div></div></div>
+</div>
+
+<div class="g2 mt3">
+  <div class="c"><div class="card-title mb2">Device Type</div>
+  <div class="f ac g4g">
+    <div class="donut"><svg viewBox="0 0 100 100" width="100" height="100" role="img" aria-label="Device type: Mobile 55%, Desktop 30%, TV 10%, Tablet 5%"><title>YouTube device distribution</title><circle cx="50" cy="50" r="40" fill="none" stroke="var(--bdr-1)" stroke-width="12"/><circle cx="50" cy="50" r="40" fill="none" stroke="var(--acc)" stroke-width="12" stroke-dasharray="138 251" stroke-dashoffset="0"/><circle cx="50" cy="50" r="40" fill="none" stroke="var(--blue)" stroke-width="12" stroke-dasharray="75 251" stroke-dashoffset="-138"/><circle cx="50" cy="50" r="40" fill="none" stroke="var(--green)" stroke-width="12" stroke-dasharray="25 251" stroke-dashoffset="-213"/></svg><div class="center"><div class="num">4</div><div class="lbl">types</div></div></div>
+    <div class="fc g1 xs f1"><div class="f jb"><span class="f ac g1"><span class="dot" style="background:var(--acc)"></span> Mobile</span><span class="bold tn">55%</span></div><div class="f jb"><span class="f ac g1"><span class="dot" style="background:var(--blue)"></span> Desktop</span><span class="bold tn">30%</span></div><div class="f jb"><span class="f ac g1"><span class="dot" style="background:var(--green)"></span> TV</span><span class="bold tn">10%</span></div><div class="f jb"><span class="f ac g1"><span class="dot" style="background:var(--purple)"></span> Tablet</span><span class="bold tn">5%</span></div></div>
+  </div></div>
+
+  <div class="c"><div class="card-title mb2">Subscriber Sources (last 30d)</div>
+  <table><thead><tr><th scope="col">Source</th><th scope="col" class="r">Subs</th><th scope="col" class="r">%</th></tr></thead><tbody>
+  <tr><td class="sm">Video page (watch)</td><td class="r tn bold">14</td><td class="r" style="color:var(--green)">61%</td></tr>
+  <tr><td class="sm">YouTube search</td><td class="r tn">5</td><td class="r">22%</td></tr>
+  <tr><td class="sm">External (blog/social)</td><td class="r tn">3</td><td class="r">13%</td></tr>
+  <tr><td class="sm">Channel page</td><td class="r tn">1</td><td class="r">4%</td></tr>
+  </tbody></table></div>
+</div>
+
+<!-- Posting heatmap -->
+<div class="c mt3"><div class="card-title mb2">Best Posting Time (heatmap)</div>
+<div class="xs mb2" style="color:var(--t5)">Views by day × hour (last 90d)</div>
+<div class="f g1 xs mb1" style="color:var(--t5);padding-left:28px"><span style="flex:1;text-align:center">Mon</span><span style="flex:1;text-align:center">Tue</span><span style="flex:1;text-align:center">Wed</span><span style="flex:1;text-align:center">Thu</span><span style="flex:1;text-align:center">Fri</span><span style="flex:1;text-align:center">Sat</span><span style="flex:1;text-align:center">Sun</span></div>
+<figure role="group" aria-label="Posting heatmap: highest engagement Saturday 2-4pm BRT, moderate on evenings and weekends, lowest on weekday mornings">
+<div class="fc g1">
+  <div class="f ac g1"><span class="xs" style="width:24px;color:var(--t5);text-align:right">8a</span><div class="heatmap f1"><div class="cell h1"></div><div class="cell h2"></div><div class="cell h2"></div><div class="cell h1"></div><div class="cell h1"></div><div class="cell h3"></div><div class="cell h2"></div></div></div>
+  <div class="f ac g1"><span class="xs" style="width:24px;color:var(--t5);text-align:right">12</span><div class="heatmap f1"><div class="cell h2"></div><div class="cell h2"></div><div class="cell h3"></div><div class="cell h2"></div><div class="cell h2"></div><div class="cell h4"></div><div class="cell h3"></div></div></div>
+  <div class="f ac g1"><span class="xs" style="width:24px;color:var(--t5);text-align:right">2p</span><div class="heatmap f1"><div class="cell h2"></div><div class="cell h3"></div><div class="cell h3"></div><div class="cell h2"></div><div class="cell h3"></div><div class="cell h5">★</div><div class="cell h4"></div></div></div>
+  <div class="f ac g1"><span class="xs" style="width:24px;color:var(--t5);text-align:right">6p</span><div class="heatmap f1"><div class="cell h3"></div><div class="cell h3"></div><div class="cell h3"></div><div class="cell h3"></div><div class="cell h3"></div><div class="cell h4"></div><div class="cell h4"></div></div></div>
+  <div class="f ac g1"><span class="xs" style="width:24px;color:var(--t5);text-align:right">10</span><div class="heatmap f1"><div class="cell h2"></div><div class="cell h2"></div><div class="cell h2"></div><div class="cell h2"></div><div class="cell h2"></div><div class="cell h3"></div><div class="cell h3"></div></div></div>
+</div>
+<figcaption class="xs mt2" style="color:var(--t5)">★ Peak: <strong style="color:var(--green)">Saturday 2–4pm BRT</strong> — schedule your next upload here</figcaption>
+</figure>
+</div>
+</div>
+
+<!-- YT Analytics > Search Terms (VidIQ parity) -->
+<div id="yt-an-search" role="tabpanel" aria-labelledby="tab-yt-search" class="yt-sub" style="display:none" hidden>
+<div class="hdr"><h2>Top Search Terms</h2><span class="sm" style="color:var(--t5)">YouTube Analytics API: <code>insightTrafficSourceDetail</code> where <code>insightTrafficSourceType=YT_SEARCH</code></span></div>
+
+<div class="g3">
+  <div class="c kpi"><div class="l">Search Views</div><div class="v tn">3,412</div><div class="dt up">▲ +18%</div><svg class="spark" role="img" viewBox="0 0 60 20" aria-label="Search views trend: growing"><polyline points="0,16 10,14 20,12 30,10 40,9 50,7 60,5" fill="none" stroke="var(--green)" stroke-width="1.5"/></svg></div>
+  <div class="c kpi"><div class="l">Search % of Total</div><div class="v">27.5%</div><div class="dt up">▲ +3.2pp</div><svg class="spark" role="img" viewBox="0 0 60 20" aria-label="Search share trend: improving"><polyline points="0,14 10,13 20,12 30,12 40,11 50,10 60,8" fill="none" stroke="var(--green)" stroke-width="1.5"/></svg></div>
+  <div class="c kpi"><div class="l">Unique Terms</div><div class="v tn">87</div><div class="dt" style="color:var(--t5)">last 30d</div></div>
+</div>
+
+<!-- Top search terms table -->
+<div class="c mt3">
+  <div class="f jb ac mb2"><span class="card-title">Search Terms Driving Views</span><button class="btn-export"><span aria-hidden="true">⬇</span> CSV</button></div>
+  <div class="search-bar"><input type="text" placeholder="Filter terms..." aria-label="Filter search terms"><select aria-label="Sort order"><option>Sort: Views ↓</option><option>Sort: Watch Time ↓</option><option>Sort: CTR ↓</option></select></div>
+  <div style="overflow-x:auto"><table><thead><tr><th scope="col">#</th><th scope="col">Search Term</th><th scope="col" class="r">Views</th><th scope="col" class="r">Watch Time</th><th scope="col" class="r">Avg Duration</th><th scope="col" class="r">Impressions CTR</th><th scope="col">Trend (7d)</th></tr></thead><tbody>
+  <tr><td class="m">1</td><td class="med sm"><span style="color:var(--acc)">mbk center bangkok</span></td><td class="r tn bold" style="color:var(--green)">892</td><td class="r tn">124h</td><td class="r">8:21</td><td class="r bold" style="color:var(--green)">12.4%</td><td><svg width="48" height="16" viewBox="0 0 48 16" role="img" aria-label="Rising strongly"><polyline points="0,14 12,12 24,8 36,5 48,2" fill="none" stroke="var(--green)" stroke-width="1.5"/></svg></td></tr>
+  <tr><td class="m">2</td><td class="med sm"><span style="color:var(--acc)">nomade digital brasil</span></td><td class="r tn bold">541</td><td class="r tn">68h</td><td class="r">7:32</td><td class="r bold">8.1%</td><td><svg width="48" height="16" viewBox="0 0 48 16" role="img" aria-label="Stable"><polyline points="0,8 12,7 24,8 36,7 48,8" fill="none" stroke="var(--blue)" stroke-width="1.5"/></svg></td></tr>
+  <tr><td class="m">3</td><td class="med sm">como ser nomade digital</td><td class="r tn bold">387</td><td class="r tn">42h</td><td class="r">6:30</td><td class="r">6.2%</td><td><svg width="48" height="16" viewBox="0 0 48 16" role="img" aria-label="Rising"><polyline points="0,12 12,10 24,9 36,7 48,5" fill="none" stroke="var(--green)" stroke-width="1.5"/></svg></td></tr>
+  <tr><td class="m">4</td><td class="med sm">filosofia minimalismo</td><td class="r tn">234</td><td class="r tn">31h</td><td class="r">7:55</td><td class="r">5.8%</td><td><svg width="48" height="16" viewBox="0 0 48 16" role="img" aria-label="Declining"><polyline points="0,6 12,8 24,9 36,11 48,13" fill="none" stroke="var(--red)" stroke-width="1.5"/></svg></td></tr>
+  <tr><td class="m">5</td><td class="med sm">trabalhar remoto exterior</td><td class="r tn">198</td><td class="r tn">22h</td><td class="r">6:42</td><td class="r">4.9%</td><td><svg width="48" height="16" viewBox="0 0 48 16" role="img" aria-label="Stable rising"><polyline points="0,10 12,9 24,9 36,8 48,7" fill="none" stroke="var(--green)" stroke-width="1.5"/></svg></td></tr>
+  <tr><td class="m">6</td><td class="med sm">controlando seu tempo</td><td class="r tn">167</td><td class="r tn">18h</td><td class="r">6:28</td><td class="r">4.5%</td><td><svg width="48" height="16" viewBox="0 0 48 16" role="img" aria-label="Declining slightly"><polyline points="0,7 12,8 24,9 36,10 48,11" fill="none" stroke="var(--amber)" stroke-width="1.5"/></svg></td></tr>
+  <tr><td class="m">7</td><td class="med sm">dicas debate</td><td class="r tn" style="color:var(--red)">43</td><td class="r tn">4h</td><td class="r" style="color:var(--red)">5:35</td><td class="r" style="color:var(--red)">2.1%</td><td><svg width="48" height="16" viewBox="0 0 48 16" role="img" aria-label="Declining sharply"><polyline points="0,4 12,7 24,10 36,12 48,14" fill="none" stroke="var(--red)" stroke-width="1.5"/></svg></td></tr>
+  </tbody></table></div>
+</div>
+
+<!-- Keyword opportunities -->
+<div class="g2 mt3">
+  <div class="c" style="border-left:3px solid var(--green)">
+    <div class="card-title mb2"><span aria-hidden="true">🔍</span> High-Opportunity Terms</div>
+    <div class="xs mb2" style="color:var(--t5)">High search volume + low competition from your channel</div>
+    <div class="fc g2g">
+      <div class="f jb ac"><span class="sm">"viver na tailandia custo"</span><div class="f ac g1"><span class="b bg">High vol</span><span class="b ba">No video</span></div></div>
+      <div class="f jb ac"><span class="sm">"como abrir empresa exterior"</span><div class="f ac g1"><span class="b bg">High vol</span><span class="b ba">No video</span></div></div>
+      <div class="f jb ac"><span class="sm">"rotina nomade digital"</span><div class="f ac g1"><span class="b bb">Med vol</span><span class="b ba">No video</span></div></div>
+    </div>
+    <button class="btn btn-a btn-sm mt2" title="Create video draft for top opportunity term">Draft Video Idea →</button>
+  </div>
+  <div class="c">
+    <div class="card-title mb2"><span aria-hidden="true">📈</span> Rising Terms (7d)</div>
+    <div class="xs mb2" style="color:var(--t5)">Terms gaining momentum</div>
+    <div class="fc g2g">
+      <div class="f jb ac"><span class="sm">"mbk center bangkok"</span><div class="f ac g1"><span class="b bg">+340%</span><span class="xs" style="color:var(--t5)">seasonal</span></div></div>
+      <div class="f jb ac"><span class="sm">"trabalhar remoto europa 2026"</span><div class="f ac g1"><span class="b bg">+85%</span></div></div>
+      <div class="f jb ac"><span class="sm">"melhor pais nomade digital"</span><div class="f ac g1"><span class="b bb">+42%</span></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Search term → video mapping -->
+<div class="c mt3">
+  <div class="card-title mb2">Term → Video Mapping</div>
+  <div class="xs mb2" style="color:var(--t5)">Which videos rank for each term (helps identify cannibalization)</div>
+  <div class="fc g2g">
+    <div class="c2">
+      <div class="f jb ac"><span class="sm med" style="color:var(--acc)">mbk center bangkok</span><span class="b bg">892 views</span></div>
+      <div class="f g2g mt1 xs" style="color:var(--t3)"><span>→ "O Que Esperar Do MBK Center" <span class="b bg btn-sm">Primary</span></span></div>
+    </div>
+    <div class="c2">
+      <div class="f jb ac"><span class="sm med" style="color:var(--acc)">nomade digital brasil</span><span class="b bb">541 views</span></div>
+      <div class="fc g1 mt1 xs" style="color:var(--t3)">
+        <span>→ "Nômade Digital: Guia Completo" <span class="b bg btn-sm">Primary</span></span>
+        <span>→ "Controlando Seu Tempo" <span class="b ba btn-sm">Cannibalize?</span></span>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+<!-- ======================================================== -->
+<!-- MODULE 5: Dashboard — additions to existing /cms page    -->
+<!-- ======================================================== -->
+<div id="dash-add" class="s">
+<div class="loc"><code>/cms</code> (Dashboard page) — additions below existing BlogHealth</div>
+<div class="ann"><strong>Dashboard additions</strong> — Two new cards: <strong>YouTube Summary</strong> + <strong>AI Insights</strong>. No changes to existing components (KpiGrid, NeedsAttention, BlogHealth, QuickActions, WeekStrip, ActivityFeed).</div>
+
+<div class="c mb3" style="opacity:.4;padding:10px 14px;border-style:dashed"><div class="xs" style="color:var(--t5)">⬆ Existing: DashboardHeader · KpiGrid (5) · NeedsAttention · BlogHealth · QuickActions — unchanged</div></div>
+
+<!-- YouTube Summary Card -->
+<div class="hdr"><h2>YouTube Summary Card <span class="new">NEW</span></h2><a href="#" style="color:var(--acc);font-size:12px;text-decoration:none" title="Navigate to YouTube Analytics tab">Full Analytics →</a></div>
+<div class="c mb3">
+  <div class="f g4g ac">
+    <div class="health-ring" style="width:80px;height:80px" aria-label="Channel health score: 78">
+      <svg role="img" viewBox="0 0 80 80"><title>Health 78/100</title><circle cx="40" cy="40" r="32" fill="none" stroke="var(--bdr-1)" stroke-width="7"/><circle cx="40" cy="40" r="32" fill="none" stroke="var(--green)" stroke-width="7" stroke-dasharray="157 201" stroke-dashoffset="50" transform="rotate(-90 40 40)"/></svg>
+      <div class="score"><div class="num" style="font-size:20px;color:var(--green)">78</div><div class="lbl" style="font-size:8px">Health</div></div>
+    </div>
+    <div class="fc g1 f1">
+      <div class="f g3g"><div><div class="xs" style="color:var(--t5)">Views (30d)</div><div class="med tn">12.4K <span class="xs" style="color:var(--green)">▲ 8%</span></div></div><div><div class="xs" style="color:var(--t5)">Subs</div><div class="med tn">1,977 <span class="xs" style="color:var(--green)">+23</span></div></div><div><div class="xs" style="color:var(--t5)">CTR</div><div class="med tn">5.2% <span class="xs" style="color:var(--green)">▲</span></div></div><div><div class="xs" style="color:var(--t5)">Avg %</div><div class="med tn">41%</div></div></div>
+      <div class="xs mt1" style="color:var(--t5)"><span aria-hidden="true">🎯</span> 2,000 subs — 23 away · ETA ~30d</div>
+    </div>
+  </div>
+  <!-- Active A/B test inline -->
+  <div class="c2 mt2"><div class="f jb ac"><div><span class="xs" style="color:var(--t5)">A/B Active:</span> <span class="sm med">"Quem você está copiando"</span></div><div class="f ac g2g"><span class="b bg">B +38% CTR</span><span class="xs" style="color:var(--t5)">72% conf · 3d left</span></div></div></div>
+</div>
+
+<!-- AI Insights Strip -->
+<div class="hdr"><h2>AI Insights <span class="new">NEW</span></h2><span class="xs" style="color:var(--t5)">Cross-system patterns detected automatically</span></div>
+<div class="fc g2g">
+  <div class="c" style="border-left:3px solid var(--green)">
+    <div class="f jb ac"><div class="f ac g2g f1"><span class="b bg" style="padding:2px 8px;font-size:10px">Anomaly</span><span class="sm" style="color:var(--t3)"><strong style="color:var(--green)">"MBK Center"</strong> 3.2× above avg — likely seasonal tourism interest (Dec/Jan peak)</span></div>
+    <div class="f g1" style="flex-shrink:0"><button class="btn btn-a btn-sm" title="Creates draft post related to this video">Write Follow-up →</button><button class="btn-export" title="Copy insight text">📋</button></div></div>
+  </div>
+  <div class="c" style="border-left:3px solid var(--amber)">
+    <div class="f jb ac"><div class="f ac g2g f1"><span class="b ba" style="padding:2px 8px;font-size:10px">Pattern</span><span class="sm" style="color:var(--t3)">Editions with <strong style="color:var(--amber)">1 CTA</strong> convert 2.9× better — #42 (67% open) vs #40 (23% open)</span></div>
+    <div class="f g1" style="flex-shrink:0"><button class="btn btn-o btn-sm">Apply to Next →</button><button class="btn-export" title="Copy insight">📋</button></div></div>
+  </div>
+  <div class="c" style="border-left:3px solid var(--blue)">
+    <div class="f jb ac"><div class="f ac g2g f1"><span class="b bb" style="padding:2px 8px;font-size:10px">Opportunity</span><span class="sm" style="color:var(--t3)">Upload frequency is <strong style="color:var(--red)">1/mo (Grade D)</strong>. Bumping to 2/mo would improve Health to est. ~84</span></div>
+    <div class="f g1" style="flex-shrink:0"><button class="btn btn-o btn-sm">Dismiss</button></div></div>
+  </div>
+</div>
+
+<div class="c mt3" style="opacity:.4;padding:10px 14px;border-style:dashed"><div class="xs" style="color:var(--t5)">⬇ Existing: WeekStrip · ActivityFeed — unchanged</div></div>
+
+<!-- Skeleton example -->
+<div class="hdr mt4"><h2>Loading State (skeleton)</h2><span class="xs" style="color:var(--t5)">shown while data fetches</span></div>
+<div class="g4">
+  <div class="skeleton" style="height:80px"></div>
+  <div class="skeleton" style="height:80px"></div>
+  <div class="skeleton" style="height:80px"></div>
+  <div class="skeleton" style="height:80px"></div>
+</div>
+<div class="skeleton mt2" style="height:140px;width:100%"></div>
+</div>
+
+<!-- ======================================================== -->
+<!-- MODULE 6: Social Insights — linkClicks fix               -->
+<!-- ======================================================== -->
+<div id="social-fix" class="s">
+<div class="loc"><code>/cms/social/insights</code> — fix <code>linkClicks: 0</code> bug + add platform breakdown</div>
+<div class="ann"><strong>Social Insights fix</strong> — Join <code>social_posts.short_link_id → tracked_links → link_clicks</code> to get real click counts. Before/after shown below.</div>
+
+<div class="hdr"><h2>KPIs — After Fix</h2><span class="xs" style="color:var(--t5)">linkClicks now pulls real data</span></div>
+<div class="g4">
+  <div class="c kpi"><div class="l">Posts (30d)</div><div class="v tn">18</div><svg class="spark" role="img" viewBox="0 0 60 20" aria-label="Posts trend"><polyline points="0,15 10,13 20,14 30,12 40,10 50,11 60,9" fill="none" stroke="var(--green)" stroke-width="1.5"/></svg></div>
+  <div class="c kpi"><div class="l">Link Clicks</div><div class="v tn" style="color:var(--blue)">412</div><div class="dt up">▲ was showing 0</div><svg class="spark" role="img" viewBox="0 0 60 20" aria-label="Link clicks trend: growing"><polyline points="0,18 10,16 20,14 30,11 40,9 50,7 60,4" fill="none" stroke="var(--blue)" stroke-width="1.5"/></svg></div>
+  <div class="c kpi"><div class="l">Clicks/Post</div><div class="v tn">22.9</div><svg class="spark" role="img" viewBox="0 0 60 20" aria-label="Clicks per post trend"><polyline points="0,14 10,12 20,13 30,10 40,9 50,8 60,7" fill="none" stroke="var(--green)" stroke-width="1.5"/></svg></div>
+  <div class="c kpi"><div class="l">Best Platform</div><div class="v" style="font-size:14px;color:var(--blue)">Bluesky</div><div class="xs" style="color:var(--t5)">38.2 clicks/post avg</div></div>
+</div>
+
+<div class="hdr mt4"><h2>Platform Breakdown <span class="new">NEW</span></h2><button class="btn-export"><span aria-hidden="true">⬇</span> CSV</button></div>
+<div class="g3">
+  <div class="c"><div class="card-title mb2">Clicks by Platform</div><div class="fc g2g"><div><div class="f jb xs mb1"><span>Bluesky</span><span class="bold tn">191 (46%)</span></div><div class="progress"><div class="f" style="width:46%;background:var(--blue)"></div></div></div><div><div class="f jb xs mb1"><span>Instagram</span><span class="bold tn">112 (27%)</span></div><div class="progress"><div class="f" style="width:27%;background:var(--purple)"></div></div></div><div><div class="f jb xs mb1"><span>Facebook</span><span class="bold tn">78 (19%)</span></div><div class="progress"><div class="f" style="width:19%;background:var(--acc)"></div></div></div><div><div class="f jb xs mb1"><span>YouTube (desc)</span><span class="bold tn">31 (8%)</span></div><div class="progress"><div class="f" style="width:8%;background:var(--red)"></div></div></div></div></div>
+  <div class="c"><div class="card-title mb2">Clicks/Post by Platform</div><div class="fc g2g"><div class="f jb sm"><span class="f ac g1"><span class="dot" style="background:var(--blue)"></span> Bluesky</span><span class="bold" style="color:var(--green)">38.2</span></div><div class="f jb sm"><span class="f ac g1"><span class="dot" style="background:var(--purple)"></span> Instagram</span><span class="bold">22.4</span></div><div class="f jb sm"><span class="f ac g1"><span class="dot" style="background:var(--acc)"></span> Facebook</span><span class="bold">15.6</span></div><div class="f jb sm"><span class="f ac g1"><span class="dot" style="background:var(--red)"></span> YouTube</span><span class="bold">10.3</span></div></div></div>
+  <div class="c"><div class="card-title mb2">Best Content Types</div><div class="fc g2g"><div class="f jb sm"><span>Video announcements</span><span class="bold" style="color:var(--green)">42 avg</span></div><div class="f jb sm"><span>Blog posts</span><span class="bold">28 avg</span></div><div class="f jb sm"><span>Threads</span><span class="bold">22 avg</span></div><div class="f jb sm"><span>Single image</span><span class="bold">14 avg</span></div></div></div>
+</div>
+
+<!-- Time-series: clicks over 30 days by platform -->
+<div class="c mt3">
+  <div class="f jb ac mb2"><span class="card-title">Link Clicks Over Time (30d)</span><button class="btn-export"><span aria-hidden="true">⬇</span> CSV</button></div>
+  <svg viewBox="0 0 520 80" style="width:100%;height:80px" role="img" aria-label="Link clicks over 30 days broken by platform: Bluesky dominates, spike mid-month">
+    <title>Social link clicks time series</title>
+    <line x1="30" y1="70" x2="500" y2="70" stroke="var(--bdr-1)" stroke-width="1"/>
+    <line x1="30" y1="40" x2="500" y2="40" stroke="var(--bdr-1)" stroke-dasharray="3" stroke-width="1"/>
+    <text x="8" y="43" fill="var(--t3)" font-size="7">20</text>
+    <text x="8" y="73" fill="var(--t3)" font-size="7">0</text>
+    <!-- Bluesky (blue) -->
+    <polyline points="40,62 80,58 120,55 160,48 200,42 240,38 280,44 320,40 360,36 400,34 440,32 480,30" fill="none" stroke="var(--blue)" stroke-width="2"/>
+    <!-- Instagram (purple) -->
+    <polyline points="40,66 80,64 120,62 160,58 200,56 240,54 280,56 320,52 360,50 400,48 440,46 480,44" fill="none" stroke="var(--purple)" stroke-width="1.5" stroke-dasharray="4"/>
+    <!-- Facebook (orange) -->
+    <polyline points="40,68 80,66 120,66 160,64 200,62 240,60 280,62 320,60 360,58 400,56 440,56 480,54" fill="none" stroke="var(--acc)" stroke-width="1.5" stroke-dasharray="2"/>
+    <!-- Legend -->
+    <circle cx="40" cy="12" r="3" fill="var(--blue)"/><text x="46" y="15" fill="var(--t3)" font-size="7">Bluesky</text>
+    <circle cx="120" cy="12" r="3" fill="var(--purple)"/><text x="126" y="15" fill="var(--t3)" font-size="7">Instagram</text>
+    <circle cx="210" cy="12" r="3" fill="var(--acc)"/><text x="216" y="15" fill="var(--t3)" font-size="7">Facebook</text>
+  </svg>
+  <div class="f jb xs mt1" style="color:var(--t5);padding:0 30px"><span>Apr 16</span><span>Apr 23</span><span>Apr 30</span><span>May 7</span><span>May 14</span></div>
+</div>
+
+<!-- Best post spotlight -->
+<div class="c mt3" style="border-left:3px solid var(--blue)">
+  <div class="f jb ac"><div><span class="b bb" style="padding:2px 8px;font-size:10px">Top Post</span> <span class="sm" style="color:var(--t3)">"<strong style="color:var(--blue)">O Que Esperar Do MBK Center</strong>" on Bluesky — 67 clicks from single post</span></div>
+  <button class="btn btn-o btn-sm">View Post →</button></div>
+</div>
+
+<!-- Before vs After comparison -->
+<div class="c mt3"><div class="card-title mb2">Before / After Comparison</div>
+<div class="g2">
+  <div class="c2" style="border-color:var(--red)"><div class="xs" style="color:var(--red)">Before (bug)</div><div class="xl bold tn mt1" style="color:var(--red)">0</div><div class="xs mt1" style="color:var(--t5)">linkClicks hardcoded</div></div>
+  <div class="c2" style="border-color:var(--green)"><div class="xs" style="color:var(--green)">After (fixed)</div><div class="xl bold tn mt1" style="color:var(--green)">412</div><div class="xs mt1" style="color:var(--t5)">real join query result</div></div>
+</div></div>
+</div>
+</main>
+
+<script>
+const screens={
+  'analytics':['an-content'],
+  'analytics-links':['an-links'],
+  'analytics-aud':['an-audience'],
+  'yt':['yt-analytics'],
+  'dashboard':['dash-add'],
+  'social':['social-fix']
+};
+
+function sect(btn,s){
+  document.querySelectorAll('nav .sections button').forEach(b=>{b.classList.remove('on');b.removeAttribute('aria-current')});
+  btn.classList.add('on');
+  btn.setAttribute('aria-current','page');
+  document.querySelectorAll('.s').forEach(el=>el.classList.remove('on'));
+  const id=screens[s]?.[0];
+  if(id){const el=document.getElementById(id);el?.classList.add('on');el?.style.setProperty('animation','none');void el?.offsetHeight;el?.style.removeProperty('animation')}
+}
+
+function ytSub(id,tab){
+  document.querySelectorAll('.yt-sub').forEach(el=>{el.style.display='none';el.setAttribute('hidden','')});
+  const panel=document.getElementById(id);
+  panel.style.display='block';panel.removeAttribute('hidden');
+  panel.style.animation='none';void panel.offsetHeight;panel.style.animation='fadeUp .2s ease-out';
+  document.querySelectorAll('[role="tab"]').forEach(t=>{t.setAttribute('aria-selected','false');t.setAttribute('tabindex','-1')});
+  if(tab){tab.setAttribute('aria-selected','true');tab.setAttribute('tabindex','0')}
+}
+
+// Keyboard navigation for tabs
+document.querySelector('[role="tablist"]')?.addEventListener('keydown',e=>{
+  const tabs=[...e.currentTarget.querySelectorAll('[role="tab"]')];
+  const i=tabs.indexOf(e.target);
+  if(e.key==='ArrowRight'||e.key==='ArrowLeft'){
+    e.preventDefault();
+    const next=e.key==='ArrowRight'?(i+1)%tabs.length:(i-1+tabs.length)%tabs.length;
+    tabs[next].focus();tabs[next].click();
+  }
+  if(e.key==='Home'){e.preventDefault();tabs[0].focus();tabs[0].click()}
+  if(e.key==='End'){e.preventDefault();tabs[tabs.length-1].focus();tabs[tabs.length-1].click()}
+});
+
+// Keyboard nav for topbar sections
+document.querySelector('.topbar .sections')?.addEventListener('keydown',e=>{
+  const btns=[...e.currentTarget.querySelectorAll('button')];
+  const i=btns.indexOf(e.target);
+  if(e.key==='ArrowRight'||e.key==='ArrowLeft'){
+    e.preventDefault();
+    const next=e.key==='ArrowRight'?(i+1)%btns.length:(i-1+btns.length)%btns.length;
+    btns[next].focus();btns[next].click();
+  }
+});
+
+// Toggle switch keyboard support (Enter/Space)
+document.querySelectorAll('[role="switch"]').forEach(toggle=>{
+  toggle.addEventListener('keydown',e=>{
+    if(e.key===' '||e.key==='Enter'){e.preventDefault();toggle.click()}
+  });
+  toggle.addEventListener('click',()=>{
+    const checked=toggle.getAttribute('aria-checked')==='true';
+    toggle.setAttribute('aria-checked',checked?'false':'true');
+  });
+});
+</script>
+</body>
+</html>

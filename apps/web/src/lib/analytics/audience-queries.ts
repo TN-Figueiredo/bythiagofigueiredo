@@ -1,7 +1,9 @@
 import 'server-only'
 
+import { unstable_cache } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import type { PeriodInput } from '@/app/cms/(authed)/analytics/types'
+import { resolveDateRange } from './date-range'
 
 export interface CountryBreakdown {
   country: string
@@ -40,58 +42,62 @@ export interface AudienceTabData {
   bestTimes: BestTimeSlot[]
 }
 
-function resolveDateRange(period: PeriodInput): { start: Date; end: Date } {
-  const end = new Date()
-  if (period.type === 'custom') return { start: new Date(period.start), end: new Date(period.end) }
-  const days = period.value === '7d' ? 7 : period.value === '30d' ? 30 : period.value === '90d' ? 90 : 365
-  const start = new Date()
-  start.setDate(start.getDate() - days)
-  return { start, end }
+
+export function fetchAudienceTabData(siteId: string, period: PeriodInput): Promise<AudienceTabData> {
+  const cacheKey = period.type === 'custom'
+    ? `audience-tab-${siteId}-${period.start}-${period.end}`
+    : `audience-tab-${siteId}-${period.value}`
+  return unstable_cache(
+    () => _fetchAudienceTabData(siteId, period),
+    [cacheKey],
+    { revalidate: 300, tags: ['analytics'] },
+  )()
 }
 
-export async function fetchAudienceTabData(siteId: string, period: PeriodInput): Promise<AudienceTabData> {
+async function _fetchAudienceTabData(siteId: string, period: PeriodInput): Promise<AudienceTabData> {
   const supabase = getSupabaseServiceClient()
   const { start, end } = resolveDateRange(period)
 
-  const { data: countryRaw } = await supabase.rpc('get_audience_countries', {
-    p_site_id: siteId,
-    p_start: start.toISOString(),
-    p_end: end.toISOString(),
-  })
+  // All queries in a single parallel batch
+  const [countryRes, deviceRes, sourceRes, viewsRes, clicksRes, signupsRes] = await Promise.all([
+    supabase.rpc('get_audience_countries', { p_site_id: siteId, p_start: start.toISOString(), p_end: end.toISOString() }),
+    supabase.rpc('get_audience_devices', { p_site_id: siteId, p_start: start.toISOString(), p_end: end.toISOString() }),
+    supabase.rpc('get_audience_sources', { p_site_id: siteId, p_start: start.toISOString(), p_end: end.toISOString() }),
+    supabase.from('content_events').select('id', { count: 'exact', head: true }).eq('site_id', siteId).eq('event_type', 'view').gte('created_at', start.toISOString()).lte('created_at', end.toISOString()),
+    supabase.from('link_clicks').select('id', { count: 'exact', head: true }).eq('site_id', siteId).gte('clicked_at', start.toISOString()).lte('clicked_at', end.toISOString()),
+    supabase.from('newsletter_subscriptions').select('id', { count: 'exact', head: true }).eq('site_id', siteId).eq('status', 'confirmed').gte('confirmed_at', start.toISOString()).lte('confirmed_at', end.toISOString()),
+  ])
 
-  const countries: CountryBreakdown[] = (countryRaw ?? []).map((r: Record<string, unknown>) => ({
+  const countries: CountryBreakdown[] = (countryRes.data ?? []).map((r: Record<string, unknown>) => ({
     country: r.country as string,
     percentage: Number(r.percentage ?? 0),
   }))
 
-  const { data: deviceRaw } = await supabase.rpc('get_audience_devices', {
-    p_site_id: siteId,
-    p_start: start.toISOString(),
-    p_end: end.toISOString(),
-  })
-
-  const devices: DeviceBreakdown[] = (deviceRaw ?? []).map((r: Record<string, unknown>) => ({
+  const devices: DeviceBreakdown[] = (deviceRes.data ?? []).map((r: Record<string, unknown>) => ({
     device: r.device_type as string,
     percentage: Number(r.percentage ?? 0),
   }))
 
-  const { data: sourceRaw } = await supabase.rpc('get_audience_sources', {
-    p_site_id: siteId,
-    p_start: start.toISOString(),
-    p_end: end.toISOString(),
-  })
-
-  const sources: TrafficSource[] = (sourceRaw ?? []).map((r: Record<string, unknown>) => ({
+  const sources: TrafficSource[] = (sourceRes.data ?? []).map((r: Record<string, unknown>) => ({
     source: r.referrer_src as string,
     percentage: Number(r.percentage ?? 0),
   }))
 
-  // Cross-system funnel — placeholder values until YT integration is wired
+  const funnelViews = viewsRes.count ?? 0
+  const funnelClicks = clicksRes.count ?? 0
+  const funnelSignups = signupsRes.count ?? 0
+
+  function computeDropOff(from: number, to: number): string {
+    if (from === 0) return '—'
+    const drop = Math.round(((from - to) / from) * 100)
+    return `-${drop}%`
+  }
+
   const funnel: FunnelStep[] = [
-    { label: 'YT Views', value: 0 },
-    { label: 'Blog Clicks', value: 0, dropOff: '—' },
-    { label: 'NL Signups', value: 0, dropOff: '—' },
-    { label: 'Purchases', value: 0, dropOff: '—' },
+    { label: 'Page Views', value: funnelViews },
+    { label: 'Link Clicks', value: funnelClicks, dropOff: computeDropOff(funnelViews, funnelClicks) },
+    { label: 'NL Signups', value: funnelSignups, dropOff: computeDropOff(funnelClicks, funnelSignups) },
+    { label: 'Purchases', value: 0, dropOff: computeDropOff(funnelSignups, 0) },
   ]
 
   // Best time — no dedicated RPC, return empty (will be populated later)

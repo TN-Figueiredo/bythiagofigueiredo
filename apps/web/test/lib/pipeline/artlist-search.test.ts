@@ -192,7 +192,7 @@ describe('parseArtlistSfxRef', () => {
     const result = parseArtlistSfxRef('Artlist "Low Impact Hit"')
     expect(result).not.toBeNull()
     expect(result!.name).toBe('Low Impact Hit')
-    expect(result!.url).toMatch(/^https:\/\/artlist\.io\/royalty-free-sound-effects\?search=/)
+    expect(result!.url).toMatch(/^https:\/\/artlist\.io\/sfx\/search\?search=/)
     expect(result!.url).toMatch(/Low(\+|%20)Impact(\+|%20)Hit/)
   })
 

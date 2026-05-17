@@ -1,14 +1,14 @@
-'use client'
+import { RESOLVE_COLORS } from './types'
 
 interface FillIndicatorProps {
   filled: number
-  total: 3
+  total: number
   status: 'green' | 'amber' | 'red' | 'dim'
 }
 
 const STATUS_COLORS: Record<FillIndicatorProps['status'], string> = {
-  green: '#10b981',
-  amber: '#f59e0b',
+  green: RESOLVE_COLORS.LOCAL.color,
+  amber: RESOLVE_COLORS.PENDING_MATCH.color,
   red: '#ef4444',
   dim: '#5a6b7f',
 }
@@ -20,7 +20,7 @@ export function FillIndicator({ filled, total, status }: FillIndicatorProps) {
     <span
       className="inline-flex items-center gap-1"
       role="img"
-      aria-label={`${filled} de ${total} músicas encontradas`}
+      aria-label={`${filled} de ${total} músicas encontradas — status: ${status === 'green' ? 'completo' : status === 'amber' ? 'parcial' : status === 'red' ? 'insuficiente' : 'pendente'}`}
     >
       <span className="inline-flex gap-[3px]">
         {Array.from({ length: total }, (_, i) => (

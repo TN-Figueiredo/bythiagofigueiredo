@@ -378,6 +378,7 @@ para controle individual de `captured`.
         {
           "timestamp": "00:05",
           "description": "Room tone fade in",
+          "cue_text": "Vida estável",
           "search_terms": "room ambience quiet",
           "audio_asset_id": "uuid-if-resolved",
           "resolve_status": "LOCAL",
@@ -389,6 +390,7 @@ para controle individual de `captured`.
         {
           "timestamp": "00:06",
           "description": "Impact leve — marca entrada do talking head",
+          "cue_text": "Vida estável",
           "sfx_category": "IMPACT",
           "resolve_status": "LOCAL",
           "original_filename": "Deep Low Impact.wav",
@@ -527,6 +529,7 @@ Only include categories with non-zero difference. The UI renders these as colore
 |-------|------|----------|-------------|
 | `timestamp` | string | Yes | Timecode (e.g. "00:05") |
 | `description` | string | Yes | What the SFX is/does (one-liner, can include `—` separator for intent) |
+| `cue_text` | string | **Yes** | The exact word(s) from the script that trigger this SFX. Rendered as `"…cue_text" → CATEGORY` in the UI. E.g. `"vida estável"` for an impact that fires on those words. Keep short (1-5 words). |
 | `search_terms` | string | **Yes** | **Comma-separated** search phrases. Each comma-delimited term renders as a clickable Artlist chip in the UI. E.g. `"bass drop,impact hit low"` → 2 chips |
 | `audio_asset_id` | uuid | No | UUID of matched asset in Audio Library |
 | `resolve_status` | enum | **Yes** | `LOCAL` \| `PENDING_MATCH` \| `PARTIAL_MATCH` \| `NO_MATCH` — from resolver |
@@ -678,6 +681,7 @@ POST /api/pipeline/audio-library/resolve
 {
   "timestamp": "00:06",
   "description": "Impact leve — marca entrada do talking head",
+  "cue_text": "vida estável",
   "sfx_category": "IMPACT",
   "search_terms": "subtle impact,low hit,deep bass impact",
   "resolve_status": "<from resolver>",
@@ -718,6 +722,7 @@ The Scene Guide CMS renders rich audio UI components. Each feature requires spec
 | **Delta vs favorite pills** | `MusicAlternativeRow` | `delta_vs_favorite: { key: number }` |
 | **Cowork reasoning** (status-tinted text) | `CoworkReasoning` | `reasoning` (string) |
 | **Artlist download CTA** (amber button) | favorite card | `artlist_url` + `resolve_status: "PENDING_MATCH"` |
+| **SFX cue text** (`"…word" → IMPACT`) | `SFXItemCard` | `cue_text` (1-5 words from script) |
 | **SFX search chips** (individual clickable pills) | `SFXItemCard` | `search_terms` (comma-separated) + `resolve_status: "NO_MATCH"` |
 | **SFX category pill** (colored badge) | `SFXItemCard` | `sfx_category` |
 | **Continuation card** (dashed border, dim text) | scene renderer | `continuation` matching `/^Continues\b|\(continues?\)$|\(continua\)$/i` |
@@ -741,11 +746,12 @@ O renderer categoriza `edit_notes` automaticamente:
 | STYLE | começa com `style:`, `needs to feel`, `think "` | **DEPRECATED** — use `music.style` |
 | ENTRY | começa com `entry:` | **DEPRECATED** — use `music.entry_cue` |
 | VISUAL | `montage`, `ken burns`, `b-roll`, `photo` | Active |
+| SFX | contains `sfx` (case-insensitive) | **ABSORBED** — filtered from edit_notes when scene has `sfx[]` data |
 | TIMING | começa com `00:00` timestamp, `fade in`, `fade out` | Active |
 | FLOW | `continues`, `don't change`, `same track` | **DEPRECATED** — use `music.continuation` / `music.flow_to` |
 | NOTE | default (nenhum match) | Active |
 
-**IMPORTANT:** MUSIC, STYLE, ENTRY, and FLOW categories are deprecated in `edit_notes`. All music-related information MUST be placed in the scene's `music` object instead. The renderer still parses these categories for backward compatibility with legacy content, but new content MUST NOT use them in `edit_notes`.
+**IMPORTANT:** MUSIC, STYLE, ENTRY, FLOW, and SFX categories are absorbed from `edit_notes`. Music-related info MUST be in the `music` object; SFX-related info MUST be in the `sfx[]` array. The renderer filters these categories automatically when the corresponding data exists on the scene. New content MUST NOT duplicate them in `edit_notes`.
 
 Notas com timestamps `00:00` ou `00:00-00:00` são agrupadas numa timeline visual.
 Prefixo `optional` marca nota como opcional.

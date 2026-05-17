@@ -12,6 +12,9 @@ const GENRES: Record<string, number> = {
   'hip-hop': 85, 'funk': 89, 'latin': 91, 'lofi-chill-beats': 549,
 }
 
+/** Fallback when no genre/mood IDs resolve — maps to GENRES['cinematic'] */
+const FALLBACK_GENRE_ID = GENRES['cinematic'] as number // 62
+
 const MOODS: Record<string, number> = {
   'uplifting': 5, 'powerful': 6, 'happy': 7, 'carefree': 8, 'love': 9,
   'peaceful': 10, 'serious': 12, 'dramatic': 13, 'angry': 14, 'tense': 15,
@@ -103,7 +106,7 @@ function categoryForField(fieldName: string): Category | null {
 }
 
 const SEARCH_BASE = 'https://artlist.io/royalty-free-music/search'
-const SFX_BASE = 'https://artlist.io/royalty-free-sound-effects'
+const SFX_BASE = 'https://artlist.io/sfx/search'
 const PARAM_IDS = 'includedIds'
 const PARAM_BPM_MIN = 'bpmMin'
 const PARAM_BPM_MAX = 'bpmMax'
@@ -350,7 +353,7 @@ export function buildArtlistTierUrls(params: {
 
   const narrow = allIds.length > 0
     ? buildUrl(allIds, params.bpm, params.duration)
-    : `${SEARCH_BASE}?${PARAM_IDS}=${pools.genres[0] ?? pools.moods[0] ?? 62}`
+    : `${SEARCH_BASE}?${PARAM_IDS}=${pools.genres[0] ?? pools.moods[0] ?? FALLBACK_GENRE_ID}`
 
   const medium = allIds.length > 0
     ? buildUrl(allIds, null, null)
@@ -371,12 +374,12 @@ export function parseArtlistSfxRef(text: string): { name: string; url: string } 
   if (!name) return null
 
   const search = encodeURIComponent(name).replace(/%20/g, '+')
-  return { name, url: `${SFX_BASE}?search=${search}` }
+  return { name, url: `${SFX_BASE}?search=${search}&terms=${search}` }
 }
 
 export function buildArtlistSfxUrl(searchTerms: string): string | null {
   const trimmed = searchTerms.trim()
   if (!trimmed) return null
   const encoded = encodeURIComponent(trimmed).replace(/%20/g, '+')
-  return `${SFX_BASE}?search=${encoded}`
+  return `${SFX_BASE}?search=${encoded}&terms=${encoded}`
 }

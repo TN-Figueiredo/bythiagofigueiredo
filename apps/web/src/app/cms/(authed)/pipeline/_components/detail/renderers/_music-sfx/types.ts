@@ -11,6 +11,7 @@ export interface ArtlistSearchTiers {
 }
 
 export const SCORE_MAX = 34
+export const SFX_SCORE_MAX = 25
 
 export interface ScoreBreakdownEntry {
   score: number
@@ -84,9 +85,29 @@ export interface SceneMusic {
   continuation?: string
 }
 
+export interface SfxRecommendation {
+  title: string
+  artist: string
+  original_filename?: string
+  audio_asset_id?: string
+  resolve_status: ResolveStatus
+  score: number
+  score_max: number
+  score_breakdown?: Record<string, ScoreBreakdownEntry>
+  reasoning?: string
+  category?: string
+  subcategory?: string
+  duration?: string
+  duration_seconds?: number
+  rank?: number
+  preferred?: boolean
+  artlist_url?: string
+}
+
 export interface SceneSFX {
   timestamp: string
   description: string
+  cue_text?: string
   search_terms?: string
   audio_asset_id?: string
   resolve_status?: ResolveStatus
@@ -94,6 +115,9 @@ export interface SceneSFX {
   original_filename?: string
   score?: number
   score_max?: number
+  score_breakdown?: Record<string, ScoreBreakdownEntry>
+  reasoning?: string
+  recommendations?: SfxRecommendation[]
   artlist_url?: string
 }
 

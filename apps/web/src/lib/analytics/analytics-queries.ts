@@ -3,6 +3,7 @@ import 'server-only'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { toDateStringInTz } from '@/lib/cms/format-site-datetime'
 import { classifyLink } from './link-classifier'
+import { resolveDateRange, resolvePrevDateRange, getDaysBetween } from './date-range'
 import type {
   PeriodInput,
   KpiData,
@@ -12,36 +13,6 @@ import type {
   ClicksSource,
   ClicksChartPoint,
 } from '@/app/cms/(authed)/analytics/types'
-
-/* ------------------------------------------------------------------ */
-/*  Date range helpers                                                */
-/* ------------------------------------------------------------------ */
-
-function resolveDateRange(period: PeriodInput): { start: Date; end: Date } {
-  const end = new Date()
-  if (period.type === 'custom') {
-    return { start: new Date(period.start), end: new Date(period.end) }
-  }
-  const days = period.value === '7d' ? 7 : period.value === '30d' ? 30 : period.value === '90d' ? 90 : 365
-  const start = new Date()
-  start.setDate(start.getDate() - days)
-  return { start, end }
-}
-
-function resolvePrevDateRange(period: PeriodInput): { start: Date; end: Date } | null {
-  if (period.type === 'custom') return null
-  if (period.value === 'all') return null
-  const days = period.value === '7d' ? 7 : period.value === '30d' ? 30 : 90
-  const end = new Date()
-  end.setDate(end.getDate() - days)
-  const start = new Date(end)
-  start.setDate(start.getDate() - days)
-  return { start, end }
-}
-
-function getDaysBetween(start: Date, end: Date): number {
-  return Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
-}
 
 /* ------------------------------------------------------------------ */
 /*  KPI Data                                                          */
@@ -57,46 +28,43 @@ export async function fetchKpiData(
   const prevRange = resolvePrevDateRange(period)
   const days = getDaysBetween(start, end)
 
-  // Current period metrics
-  const { data: currentMetrics } = await supabase
-    .from('content_metrics')
-    .select('date, views, unique_views, reads_complete, avg_read_depth, avg_time_sec')
-    .eq('site_id', siteId)
-    .gte('date', toDateStringInTz(start, timezone))
-    .lte('date', toDateStringInTz(end, timezone))
+  // Current period — all independent queries in parallel
+  const [currentMetricsRes, subCountRes, editionsRes, linkClickRes] = await Promise.all([
+    supabase
+      .from('content_metrics')
+      .select('date, views, unique_views, reads_complete, avg_read_depth, avg_time_sec')
+      .eq('site_id', siteId)
+      .gte('date', toDateStringInTz(start, timezone))
+      .lte('date', toDateStringInTz(end, timezone)),
+    supabase
+      .from('newsletter_subscriptions')
+      .select('id', { count: 'exact', head: true })
+      .eq('site_id', siteId)
+      .eq('status', 'confirmed'),
+    supabase
+      .from('newsletter_editions')
+      .select('stats_delivered, stats_opens, stats_clicks')
+      .eq('site_id', siteId)
+      .eq('status', 'sent')
+      .gte('sent_at', start.toISOString())
+      .lte('sent_at', end.toISOString()),
+    supabase
+      .from('content_events')
+      .select('id', { count: 'exact', head: true })
+      .eq('site_id', siteId)
+      .eq('event_type', 'link_click')
+      .gte('created_at', start.toISOString())
+      .lte('created_at', end.toISOString()),
+  ])
 
-  // Current subscribers
-  const { count: subCount } = await supabase
-    .from('newsletter_subscriptions')
-    .select('id', { count: 'exact', head: true })
-    .eq('site_id', siteId)
-    .eq('status', 'confirmed')
-
-  // Current period newsletter stats
-  const { data: editions } = await supabase
-    .from('newsletter_editions')
-    .select('stats_delivered, stats_opens, stats_clicks')
-    .eq('site_id', siteId)
-    .eq('status', 'sent')
-    .gte('sent_at', start.toISOString())
-    .lte('sent_at', end.toISOString())
-
-  // Link click events
-  const { count: linkClickCount } = await supabase
-    .from('content_events')
-    .select('id', { count: 'exact', head: true })
-    .eq('site_id', siteId)
-    .eq('event_type', 'link_click')
-    .gte('created_at', start.toISOString())
-    .lte('created_at', end.toISOString())
-
-  // Aggregate current
-  const rows = currentMetrics ?? []
+  const rows = currentMetricsRes.data ?? []
+  const subCount = subCountRes.count
+  const editionsData = editionsRes.data ?? []
+  const linkClickCount = linkClickRes.count
   const totalViews = rows.reduce((s, r) => s + (r.views ?? 0), 0)
   const totalUnique = rows.reduce((s, r) => s + (r.unique_views ?? 0), 0)
   const totalReads = rows.reduce((s, r) => s + (r.reads_complete ?? 0), 0)
 
-  const editionsData = editions ?? []
   const totalDelivered = editionsData.reduce((s, e) => s + (e.stats_delivered ?? 0), 0)
   const totalOpens = editionsData.reduce((s, e) => s + (e.stats_opens ?? 0), 0)
   const openRate = totalDelivered > 0 ? Math.round((totalOpens / totalDelivered) * 100) : 0
@@ -124,41 +92,41 @@ export async function fetchKpiData(
   let prevLinkClicks: number | null = null
 
   if (prevRange) {
-    const { data: prevMetrics } = await supabase
-      .from('content_metrics')
-      .select('views, unique_views, reads_complete')
-      .eq('site_id', siteId)
-      .gte('date', toDateStringInTz(prevRange.start, timezone))
-      .lte('date', toDateStringInTz(prevRange.end, timezone))
+    const [prevMetricsRes, prevEditionsRes, prevLinkCountRes] = await Promise.all([
+      supabase
+        .from('content_metrics')
+        .select('views, unique_views, reads_complete')
+        .eq('site_id', siteId)
+        .gte('date', toDateStringInTz(prevRange.start, timezone))
+        .lte('date', toDateStringInTz(prevRange.end, timezone)),
+      supabase
+        .from('newsletter_editions')
+        .select('stats_delivered, stats_opens')
+        .eq('site_id', siteId)
+        .eq('status', 'sent')
+        .gte('sent_at', prevRange.start.toISOString())
+        .lte('sent_at', prevRange.end.toISOString()),
+      supabase
+        .from('content_events')
+        .select('id', { count: 'exact', head: true })
+        .eq('site_id', siteId)
+        .eq('event_type', 'link_click')
+        .gte('created_at', prevRange.start.toISOString())
+        .lte('created_at', prevRange.end.toISOString()),
+    ])
 
-    const pRows = prevMetrics ?? []
+    const pRows = prevMetricsRes.data ?? []
     prevViews = pRows.reduce((s, r) => s + (r.views ?? 0), 0)
     prevUnique = pRows.reduce((s, r) => s + (r.unique_views ?? 0), 0)
     prevReads = pRows.reduce((s, r) => s + (r.reads_complete ?? 0), 0)
     prevSubs = 0 // subscribers is cumulative, no period comparison
 
-    const { data: prevEditions } = await supabase
-      .from('newsletter_editions')
-      .select('stats_delivered, stats_opens')
-      .eq('site_id', siteId)
-      .eq('status', 'sent')
-      .gte('sent_at', prevRange.start.toISOString())
-      .lte('sent_at', prevRange.end.toISOString())
-
-    const pEd = prevEditions ?? []
+    const pEd = prevEditionsRes.data ?? []
     const pDelivered = pEd.reduce((s, e) => s + (e.stats_delivered ?? 0), 0)
     const pOpens = pEd.reduce((s, e) => s + (e.stats_opens ?? 0), 0)
     prevOpenRate = pDelivered > 0 ? Math.round((pOpens / pDelivered) * 100) : 0
 
-    const { count: prevLinkCount } = await supabase
-      .from('content_events')
-      .select('id', { count: 'exact', head: true })
-      .eq('site_id', siteId)
-      .eq('event_type', 'link_click')
-      .gte('created_at', prevRange.start.toISOString())
-      .lte('created_at', prevRange.end.toISOString())
-
-    prevLinkClicks = prevLinkCount ?? 0
+    prevLinkClicks = prevLinkCountRes.count ?? 0
   }
 
   return [
@@ -183,62 +151,56 @@ export async function fetchFunnelData(
   const supabase = getSupabaseServiceClient()
   const { start, end } = resolveDateRange(period)
 
-  // Views from content_metrics
-  const { data: metricsRows } = await supabase
-    .from('content_metrics')
-    .select('views, reads_complete')
-    .eq('site_id', siteId)
-    .gte('date', toDateStringInTz(start, timezone))
-    .lte('date', toDateStringInTz(end, timezone))
+  // All funnel queries are independent — run in parallel
+  const [metricsRes, read50Res, clickedLinkRes, editionsRes, subscribedRes] = await Promise.all([
+    supabase
+      .from('content_metrics')
+      .select('views, reads_complete')
+      .eq('site_id', siteId)
+      .gte('date', toDateStringInTz(start, timezone))
+      .lte('date', toDateStringInTz(end, timezone)),
+    supabase
+      .from('content_events')
+      .select('id', { count: 'exact', head: true })
+      .eq('site_id', siteId)
+      .in('event_type', ['read_progress', 'read_complete'])
+      .gte('read_depth', 50)
+      .gte('created_at', start.toISOString())
+      .lte('created_at', end.toISOString()),
+    supabase
+      .from('content_events')
+      .select('id', { count: 'exact', head: true })
+      .eq('site_id', siteId)
+      .eq('event_type', 'link_click')
+      .gte('created_at', start.toISOString())
+      .lte('created_at', end.toISOString()),
+    supabase
+      .from('newsletter_editions')
+      .select('stats_opens')
+      .eq('site_id', siteId)
+      .eq('status', 'sent')
+      .gte('sent_at', start.toISOString())
+      .lte('sent_at', end.toISOString()),
+    supabase
+      .from('newsletter_subscriptions')
+      .select('id', { count: 'exact', head: true })
+      .eq('site_id', siteId)
+      .eq('status', 'confirmed')
+      .gte('created_at', start.toISOString())
+      .lte('created_at', end.toISOString()),
+  ])
 
-  const views = (metricsRows ?? []).reduce((s, r) => s + (r.views ?? 0), 0)
-  const readsComplete = (metricsRows ?? []).reduce((s, r) => s + (r.reads_complete ?? 0), 0)
-
-  // read_progress events with depth >= 50
-  const { count: read50Count } = await supabase
-    .from('content_events')
-    .select('id', { count: 'exact', head: true })
-    .eq('site_id', siteId)
-    .in('event_type', ['read_progress', 'read_complete'])
-    .gte('read_depth', 50)
-    .gte('created_at', start.toISOString())
-    .lte('created_at', end.toISOString())
-
-  // Link click events
-  const { count: clickedLinkCount } = await supabase
-    .from('content_events')
-    .select('id', { count: 'exact', head: true })
-    .eq('site_id', siteId)
-    .eq('event_type', 'link_click')
-    .gte('created_at', start.toISOString())
-    .lte('created_at', end.toISOString())
-
-  // Newsletter opens
-  const { data: editionsData } = await supabase
-    .from('newsletter_editions')
-    .select('stats_opens')
-    .eq('site_id', siteId)
-    .eq('status', 'sent')
-    .gte('sent_at', start.toISOString())
-    .lte('sent_at', end.toISOString())
-
-  const nlOpened = (editionsData ?? []).reduce((s, e) => s + (e.stats_opens ?? 0), 0)
-
-  // New subscribers
-  const { count: subscribedCount } = await supabase
-    .from('newsletter_subscriptions')
-    .select('id', { count: 'exact', head: true })
-    .eq('site_id', siteId)
-    .eq('status', 'confirmed')
-    .gte('created_at', start.toISOString())
-    .lte('created_at', end.toISOString())
+  const metricsRows = metricsRes.data ?? []
+  const views = metricsRows.reduce((s, r) => s + (r.views ?? 0), 0)
+  const readsComplete = metricsRows.reduce((s, r) => s + (r.reads_complete ?? 0), 0)
+  const nlOpened = (editionsRes.data ?? []).reduce((s, e) => s + (e.stats_opens ?? 0), 0)
 
   return {
     views,
-    read50: read50Count ?? readsComplete,
-    clickedLink: clickedLinkCount ?? 0,
+    read50: read50Res.count ?? readsComplete,
+    clickedLink: clickedLinkRes.count ?? 0,
     nlOpened,
-    subscribed: subscribedCount ?? 0,
+    subscribed: subscribedRes.count ?? 0,
   }
 }
 
