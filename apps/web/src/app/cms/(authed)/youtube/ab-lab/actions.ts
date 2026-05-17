@@ -14,11 +14,18 @@ import type {
   AbTestSiteSettings,
   AbTestResults,
   VariantStats,
+  TestType,
+  CreateTextVariantInput,
+  AbTestTrackedLinkRow,
+  VariantMetadata,
 } from '@/lib/youtube/ab-types'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
 import { setThumbnail, fetchVariantImageBuffer } from '@/lib/youtube/ab-youtube'
 import { getVariantForCycle } from '@/lib/youtube/ab-rotation'
 import { calculateBayesianConfidence } from '@/lib/youtube/ab-statistics'
+import { captureOriginalMetadata } from '@/lib/youtube/ab-metadata'
+import { parseTemplateTokens } from '@/lib/youtube/ab-templates'
+import { ensureTrackedLink } from '@/lib/links/auto-link'
 
 const VARIANT_LABELS = ['variant_b', 'variant_c', 'variant_d'] as const
 
@@ -87,6 +94,32 @@ export async function createAbTest(
   // Merge config with defaults
   const config = { ...AB_TEST_CONFIG_DEFAULTS, ...(input.config ?? {}) }
 
+  // Capture original metadata for title/desc/combo tests
+  let originalTitle: string | null = null
+  let originalDescription: string | null = null
+  const testType: TestType = input.test_type ?? 'thumbnail'
+
+  if (testType !== 'thumbnail') {
+    try {
+      const { accessToken } = await ensureFreshToken(siteId, 'youtube')
+      const { data: ytVideo } = await supabase
+        .from('youtube_videos')
+        .select('youtube_video_id')
+        .eq('id', input.youtube_video_id)
+        .single()
+
+      if (ytVideo) {
+        const meta = await captureOriginalMetadata(ytVideo.youtube_video_id, accessToken)
+        if (meta) {
+          originalTitle = meta.title
+          originalDescription = meta.description
+        }
+      }
+    } catch {
+      // Non-fatal — we can proceed without originals
+    }
+  }
+
   // Insert test
   const { data: test, error: testError } = await supabase
     .from('ab_tests')
@@ -97,6 +130,9 @@ export async function createAbTest(
       status: 'draft',
       config,
       original_thumbnail_url: video.thumbnail_hq_url ?? null,
+      test_type: testType,
+      original_title: originalTitle,
+      original_description: originalDescription,
     })
     .select('id')
     .single()
@@ -1034,5 +1070,130 @@ export async function updateAbSiteSettings(
   if (updateError) return { ok: false, error: updateError.message }
 
   revalidateTag('youtube')
+  return { ok: true }
+}
+
+// ---------------------------------------------------------------------------
+// createTextVariant
+// ---------------------------------------------------------------------------
+
+export async function createTextVariant(
+  input: CreateTextVariantInput,
+): Promise<{ ok: boolean; id?: string; error?: string }> {
+  let siteId: string
+  try {
+    siteId = await requireEditAccess()
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+
+  const supabase = getSupabaseServiceClient()
+
+  const { data: test } = await supabase
+    .from('ab_tests')
+    .select('id, site_id, status, test_type')
+    .eq('id', input.test_id)
+    .eq('site_id', siteId)
+    .single()
+
+  if (!test) return { ok: false, error: 'Test not found' }
+  if (test.status !== 'draft') return { ok: false, error: 'Can only add variants to draft tests' }
+
+  const { count } = await supabase
+    .from('ab_test_variants')
+    .select('*', { count: 'exact', head: true })
+    .eq('test_id', input.test_id)
+
+  if ((count ?? 0) >= 4) return { ok: false, error: 'Maximum 4 variants per test' }
+
+  const sortOrder = (count ?? 0)
+  const VARIANT_LABELS_TEXT = ['variant_b', 'variant_c', 'variant_d'] as const
+  const label = input.label ?? VARIANT_LABELS_TEXT[sortOrder - 1] ?? `variant_${sortOrder + 1}`
+
+  const { data: variant, error } = await supabase
+    .from('ab_test_variants')
+    .insert({
+      test_id: input.test_id,
+      label,
+      is_original: false,
+      title_text: input.title_text ?? null,
+      description_text: input.description_text ?? null,
+      metadata: input.metadata ?? {},
+      sort_order: sortOrder,
+    })
+    .select('id')
+    .single()
+
+  if (error || !variant) return { ok: false, error: error?.message ?? 'Insert failed' }
+
+  // Create tracked links for {{link:name}} templates in description
+  if (input.description_text) {
+    const tokens = parseTemplateTokens(input.description_text)
+    for (const templateName of tokens) {
+      const destinationUrl = `https://bythiagofigueiredo.com`
+      const linkResult = await ensureTrackedLink(
+        supabase, siteId, `ab-${input.test_id}-${variant.id}-${templateName}`,
+        'ab_test', destinationUrl, `A/B: ${templateName} (${label})`,
+      )
+      if (linkResult) {
+        await supabase.from('ab_test_tracked_links').insert({
+          ab_test_id: input.test_id,
+          variant_id: variant.id,
+          link_id: linkResult.linkId,
+          template_name: templateName,
+          short_code: linkResult.code,
+        })
+      }
+    }
+  }
+
+  revalidateTag('ab-tests')
+  return { ok: true, id: variant.id }
+}
+
+// ---------------------------------------------------------------------------
+// updateTextVariant
+// ---------------------------------------------------------------------------
+
+export async function updateTextVariant(
+  variantId: string,
+  updates: { title_text?: string; description_text?: string; metadata?: Partial<VariantMetadata> },
+): Promise<{ ok: boolean; error?: string }> {
+  let siteId: string
+  try {
+    siteId = await requireEditAccess()
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+
+  const supabase = getSupabaseServiceClient()
+
+  const { data: variant } = await supabase
+    .from('ab_test_variants')
+    .select('id, test_id')
+    .eq('id', variantId)
+    .single()
+
+  if (!variant) return { ok: false, error: 'Variant not found' }
+
+  const { data: test } = await supabase
+    .from('ab_tests')
+    .select('status, site_id')
+    .eq('id', variant.test_id)
+    .eq('site_id', siteId)
+    .single()
+
+  if (!test || test.status !== 'draft') {
+    return { ok: false, error: 'Can only edit variants of draft tests' }
+  }
+
+  const { error } = await supabase
+    .from('ab_test_variants')
+    .update(updates)
+    .eq('id', variantId)
+
+  if (error) return { ok: false, error: error.message }
+
+  revalidateTag('ab-tests')
   return { ok: true }
 }
