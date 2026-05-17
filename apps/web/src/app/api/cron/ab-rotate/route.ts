@@ -7,7 +7,9 @@ import {
   setThumbnail,
   fetchVariantImageBuffer,
 } from '@/lib/youtube/ab-youtube'
-import type { AbTestVariantRow } from '@/lib/youtube/ab-types'
+import { updateVideoMetadata } from '@/lib/youtube/ab-metadata'
+import { resolveTemplates } from '@/lib/youtube/ab-templates'
+import type { AbTestVariantRow, AppliedMetadata } from '@/lib/youtube/ab-types'
 
 export const maxDuration = 120
 
@@ -72,10 +74,46 @@ export async function GET(req: NextRequest) {
 
       if (!nextVariant) continue
 
-      // Apply thumbnail
-      if (nextVariant.blob_url) {
+      // Apply variant based on test type
+      const appliedMeta: AppliedMetadata = {}
+      const testType = test.test_type ?? 'thumbnail'
+
+      if ((testType === 'thumbnail' || testType === 'combo') && nextVariant.blob_url) {
         const { buffer, contentType } = await fetchVariantImageBuffer(nextVariant.blob_url)
         await setThumbnail(video.youtube_video_id, buffer, contentType, accessToken)
+        appliedMeta.thumbnail_set = true
+      }
+
+      if (testType === 'title' || testType === 'description' || testType === 'combo') {
+        let titleToSet: string | null = null
+        let descToSet: string | null = null
+
+        if (testType === 'title' || testType === 'combo') {
+          titleToSet = nextVariant.title_text ?? test.original_title ?? null
+        }
+        if (testType === 'description' || testType === 'combo') {
+          const rawDesc = nextVariant.description_text ?? test.original_description ?? null
+          if (rawDesc) {
+            const { data: linkMappings } = await supabase
+              .from('ab_test_tracked_links')
+              .select('template_name, short_code')
+              .eq('variant_id', nextVariant.id)
+
+            const linkMap: Record<string, string> = {}
+            const shortDomain = process.env.LINKS_SHORT_DOMAIN ?? 'go.bythiagofigueiredo.com'
+            for (const lm of linkMappings ?? []) {
+              linkMap[lm.template_name] = `${shortDomain}/${lm.short_code}`
+            }
+            descToSet = resolveTemplates(rawDesc, linkMap)
+            appliedMeta.links_resolved = linkMap
+          }
+        }
+
+        if (titleToSet || descToSet) {
+          await updateVideoMetadata(video.youtube_video_id, titleToSet, descToSet, accessToken)
+          appliedMeta.title_set = titleToSet
+          appliedMeta.description_set = descToSet
+        }
       }
 
       // Open new cycle
@@ -84,6 +122,7 @@ export async function GET(req: NextRequest) {
         variant_id: nextVariant.id,
         cycle_number: nextCycle,
         started_at: new Date().toISOString(),
+        applied_metadata: Object.keys(appliedMeta).length ? appliedMeta : null,
       })
 
       processed++
