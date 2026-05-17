@@ -22,7 +22,7 @@ async function loadInsightsData(siteId: string) {
   const [postsRes, connectionsRes] = await Promise.all([
     supabase
       .from('social_posts')
-      .select('id, status, published_at, origin, content, created_at')
+      .select('id, status, published_at, origin, content, created_at, short_link_id')
       .eq('site_id', siteId)
       .gte('created_at', since),
     supabase
@@ -53,6 +53,20 @@ async function loadInsightsData(siteId: string) {
   const aiDraftsApproved = posts.filter(p =>
     (p.origin === 'pipeline' || p.origin === 'auto') && p.status === 'completed'
   ).length
+
+  const shortLinkIds = posts
+    .map(p => p.short_link_id as string | null)
+    .filter((id): id is string => id !== null)
+
+  let linkClicks = 0
+  if (shortLinkIds.length > 0) {
+    const { count } = await supabase
+      .from('link_clicks')
+      .select('id', { count: 'exact', head: true })
+      .in('link_id', shortLinkIds)
+      .gte('clicked_at', since)
+    linkClicks = count ?? 0
+  }
 
   const chartMap = new Map<string, { clicks: number; engagement: number; posts: number }>()
   for (const p of posts) {
@@ -100,7 +114,7 @@ async function loadInsightsData(siteId: string) {
   }>
 
   return {
-    kpis: { postsPublished, deliverySuccessRate, linkClicks: 0, avgEngagement: totalDeliveries > 0 ? Math.round(successDeliveries / Math.max(postsPublished, 1) * 10) / 10 : 0, aiDraftsApproved },
+    kpis: { postsPublished, deliverySuccessRate, linkClicks, avgEngagement: totalDeliveries > 0 ? Math.round(successDeliveries / Math.max(postsPublished, 1) * 10) / 10 : 0, aiDraftsApproved },
     chartData,
     heatmapData,
     topPosts,
