@@ -510,7 +510,7 @@ export const CHANNEL_SIZE_TIERS: ChannelSizeTier[] = [
 export function getChannelSizeTier(subscriberCount: number): ChannelSizeTier {
   return CHANNEL_SIZE_TIERS.find(
     t => subscriberCount >= t.min_subscribers && subscriberCount < t.max_subscribers
-  ) ?? CHANNEL_SIZE_TIERS[1]
+  ) ?? CHANNEL_SIZE_TIERS[1]!
 }
 
 /**
