@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { YtOverview } from './yt-overview'
 import { YtGrades } from './yt-grades'
 import { YtOutliers } from './yt-outliers'
@@ -13,6 +14,7 @@ import type {
   YtSearchTerm,
   YtDemographics,
 } from '@/lib/youtube/analytics-types'
+import type { YtConnectedChannel } from '@/lib/youtube/analytics-client'
 
 const SUB_TABS = [
   { id: 'overview', label: 'Overview' },
@@ -31,6 +33,8 @@ interface Props {
   grades: YtVideoGrade[]
   searchTerms: YtSearchTerm[]
   demographics: YtDemographics
+  channels?: YtConnectedChannel[]
+  activeChannelId?: string
 }
 
 export function YtAnalyticsTabs({
@@ -40,7 +44,10 @@ export function YtAnalyticsTabs({
   grades,
   searchTerms,
   demographics,
+  channels,
+  activeChannelId,
 }: Props) {
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState<TabId>('overview')
   const tablistRef = useRef<HTMLDivElement>(null)
 
@@ -64,6 +71,27 @@ export function YtAnalyticsTabs({
 
   return (
     <div>
+      {channels && channels.length > 1 && (
+        <div className="mb-3 flex items-center gap-2">
+          <span className="text-xs font-medium text-cms-text-muted">Channel:</span>
+          <select
+            value={activeChannelId ?? ''}
+            onChange={(e) => {
+              const url = new URL(window.location.href)
+              url.searchParams.set('channel', e.target.value)
+              router.push(url.pathname + url.search)
+            }}
+            className="rounded border border-cms-border bg-cms-surface px-2 py-1 text-xs text-cms-text focus:outline-none focus:ring-1 focus:ring-[var(--acc)]"
+          >
+            {channels.map((ch) => (
+              <option key={ch.channelId} value={ch.channelId}>
+                {ch.name} (@{ch.handle})
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div
         ref={tablistRef}
         role="tablist"

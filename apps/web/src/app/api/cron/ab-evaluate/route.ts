@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     .from('ab_tests')
     .select(`
       *,
-      variants:ab_test_variants(*),
+      variants:ab_test_variants!test_id(*),
       cycles:ab_test_cycles(*)
     `)
     .eq('status', 'active')

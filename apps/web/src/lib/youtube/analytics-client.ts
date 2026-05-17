@@ -17,14 +17,16 @@ interface TokenInfo {
   channelId: string
 }
 
-async function getYouTubeToken(siteId: string): Promise<TokenInfo | null> {
+async function getYouTubeToken(siteId: string, targetChannelId?: string): Promise<TokenInfo | null> {
   const supabase = getSupabaseServiceClient()
-  const { data } = await supabase
+  let query = supabase
     .from('social_connections')
     .select('account_id')
     .eq('site_id', siteId)
     .eq('provider', 'youtube')
     .is('revoked_at', null)
+  if (targetChannelId) query = query.eq('account_id', targetChannelId)
+  const { data } = await query
     .order('connected_at', { ascending: false })
     .limit(1)
     .single()
@@ -32,11 +34,47 @@ async function getYouTubeToken(siteId: string): Promise<TokenInfo | null> {
   if (!data?.account_id) return null
 
   const channelId = data.account_id as string
-
-  // ensureFreshToken handles decrypt + automatic refresh if token is near-expiry
-  const { accessToken } = await ensureFreshToken(siteId, 'youtube')
+  const { accessToken } = await ensureFreshToken(siteId, 'youtube', channelId)
 
   return { accessToken, channelId }
+}
+
+export interface YtConnectedChannel {
+  internalId: string
+  channelId: string
+  name: string
+  handle: string
+  thumbnailUrl: string | null
+}
+
+export async function getConnectedYouTubeChannels(siteId: string): Promise<YtConnectedChannel[]> {
+  const supabase = getSupabaseServiceClient()
+
+  const { data: connections } = await supabase
+    .from('social_connections')
+    .select('account_id')
+    .eq('site_id', siteId)
+    .eq('provider', 'youtube')
+    .is('revoked_at', null)
+
+  if (!connections || connections.length === 0) return []
+
+  const connectedIds = connections.map(c => c.account_id as string)
+
+  const { data: channels } = await supabase
+    .from('youtube_channels')
+    .select('id, channel_id, name, handle, thumbnail_url')
+    .eq('site_id', siteId)
+    .in('channel_id', connectedIds)
+    .order('name')
+
+  return (channels ?? []).map(ch => ({
+    internalId: ch.id as string,
+    channelId: ch.channel_id as string,
+    name: ch.name as string,
+    handle: ch.handle as string,
+    thumbnailUrl: ch.thumbnail_url as string | null,
+  }))
 }
 
 async function queryYtAnalytics(
@@ -82,23 +120,33 @@ function toDateStr(date: Date): string {
 export async function fetchYtChannelMetrics(
   siteId: string,
   days: number,
+  channelId?: string,
 ): Promise<YtChannelMetrics | null> {
-  const tokenInfo = await getYouTubeToken(siteId)
+  const tokenInfo = await getYouTubeToken(siteId, channelId)
   if (!tokenInfo) return null
 
   const end = new Date()
   const start = new Date()
   start.setDate(start.getDate() - days)
 
-  const report = await queryYtAnalytics(tokenInfo.accessToken, tokenInfo.channelId, {
-    startDate: toDateStr(start),
-    endDate: toDateStr(end),
-    metrics:
-      'views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,subscribersGained,subscribersLost,impressions,impressionClickThroughRate,likes,comments,shares',
-  })
+  const coreMetrics = 'views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,subscribersGained,subscribersLost,likes,comments,shares'
 
-  if (!report.rows?.[0]) return null
-  const row = report.rows[0]!
+  const [coreReport, impressionReport] = await Promise.all([
+    queryYtAnalytics(tokenInfo.accessToken, tokenInfo.channelId, {
+      startDate: toDateStr(start),
+      endDate: toDateStr(end),
+      metrics: coreMetrics,
+    }),
+    queryYtAnalytics(tokenInfo.accessToken, tokenInfo.channelId, {
+      startDate: toDateStr(start),
+      endDate: toDateStr(end),
+      metrics: 'impressions,impressionClickThroughRate',
+    }).catch(() => null),
+  ])
+
+  if (!coreReport.rows?.[0]) return null
+  const row = coreReport.rows[0]!
+  const impRow = impressionReport?.rows?.[0]
 
   return {
     views: Number(row[0]),
@@ -107,47 +155,64 @@ export async function fetchYtChannelMetrics(
     averageViewPercentage: Number(row[3]),
     subscribersGained: Number(row[4]),
     subscribersLost: Number(row[5]),
-    impressions: Number(row[6]),
-    impressionClickThroughRate: Number(row[7]),
-    likes: Number(row[8]),
-    comments: Number(row[9]),
-    shares: Number(row[10]),
+    impressions: impRow ? Number(impRow[0]) : 0,
+    impressionClickThroughRate: impRow ? Number(impRow[1]) : 0,
+    likes: Number(row[6]),
+    comments: Number(row[7]),
+    shares: Number(row[8]),
   }
 }
 
-export async function fetchYtDailyMetrics(siteId: string, days: number): Promise<YtDailyMetric[]> {
-  const tokenInfo = await getYouTubeToken(siteId)
+export async function fetchYtDailyMetrics(siteId: string, days: number, channelId?: string): Promise<YtDailyMetric[]> {
+  const tokenInfo = await getYouTubeToken(siteId, channelId)
   if (!tokenInfo) return []
 
   const end = new Date()
   const start = new Date()
   start.setDate(start.getDate() - days)
 
-  const report = await queryYtAnalytics(tokenInfo.accessToken, tokenInfo.channelId, {
-    startDate: toDateStr(start),
-    endDate: toDateStr(end),
-    metrics:
-      'views,estimatedMinutesWatched,subscribersGained,subscribersLost,impressions,impressionClickThroughRate,likes,comments,shares',
-    dimensions: 'day',
-    sort: 'day',
-  })
+  const [coreReport, impReport] = await Promise.all([
+    queryYtAnalytics(tokenInfo.accessToken, tokenInfo.channelId, {
+      startDate: toDateStr(start),
+      endDate: toDateStr(end),
+      metrics: 'views,estimatedMinutesWatched,subscribersGained,subscribersLost,likes,comments,shares',
+      dimensions: 'day',
+      sort: 'day',
+    }),
+    queryYtAnalytics(tokenInfo.accessToken, tokenInfo.channelId, {
+      startDate: toDateStr(start),
+      endDate: toDateStr(end),
+      metrics: 'impressions,impressionClickThroughRate',
+      dimensions: 'day',
+      sort: 'day',
+    }).catch(() => ({ rows: [] as (string | number)[][] })),
+  ])
 
-  return (report.rows ?? []).map((row) => ({
-    date: String(row[0]),
-    views: Number(row[1]),
-    estimatedMinutesWatched: Number(row[2]),
-    subscribersGained: Number(row[3]),
-    subscribersLost: Number(row[4]),
-    impressions: Number(row[5]),
-    impressionClickThroughRate: Number(row[6]),
-    likes: Number(row[7]),
-    comments: Number(row[8]),
-    shares: Number(row[9]),
-  }))
+  const impByDate = new Map<string, { impressions: number; ctr: number }>()
+  for (const row of impReport.rows ?? []) {
+    impByDate.set(String(row[0]), { impressions: Number(row[1]), ctr: Number(row[2]) })
+  }
+
+  return (coreReport.rows ?? []).map((row) => {
+    const date = String(row[0])
+    const imp = impByDate.get(date)
+    return {
+      date,
+      views: Number(row[1]),
+      estimatedMinutesWatched: Number(row[2]),
+      subscribersGained: Number(row[3]),
+      subscribersLost: Number(row[4]),
+      impressions: imp?.impressions ?? 0,
+      impressionClickThroughRate: imp?.ctr ?? 0,
+      likes: Number(row[5]),
+      comments: Number(row[6]),
+      shares: Number(row[7]),
+    }
+  })
 }
 
-export async function fetchYtSearchTerms(siteId: string, days: number): Promise<YtSearchTerm[]> {
-  const tokenInfo = await getYouTubeToken(siteId)
+export async function fetchYtSearchTerms(siteId: string, days: number, channelId?: string): Promise<YtSearchTerm[]> {
+  const tokenInfo = await getYouTubeToken(siteId, channelId)
   if (!tokenInfo) return []
 
   const end = new Date()
@@ -157,7 +222,7 @@ export async function fetchYtSearchTerms(siteId: string, days: number): Promise<
   const report = await queryYtAnalytics(tokenInfo.accessToken, tokenInfo.channelId, {
     startDate: toDateStr(start),
     endDate: toDateStr(end),
-    metrics: 'views,estimatedMinutesWatched,impressionClickThroughRate',
+    metrics: 'views,estimatedMinutesWatched',
     dimensions: 'insightTrafficSourceDetail',
     filters: 'insightTrafficSourceType==YT_SEARCH',
     sort: '-views',
@@ -168,12 +233,11 @@ export async function fetchYtSearchTerms(siteId: string, days: number): Promise<
     term: String(row[0]),
     views: Number(row[1]),
     estimatedMinutesWatched: Number(row[2]),
-    impressionClickThroughRate: Number(row[3]),
   }))
 }
 
-export async function fetchYtDemographics(siteId: string, days: number): Promise<YtDemographics> {
-  const tokenInfo = await getYouTubeToken(siteId)
+export async function fetchYtDemographics(siteId: string, days: number, channelId?: string): Promise<YtDemographics> {
+  const tokenInfo = await getYouTubeToken(siteId, channelId)
   if (!tokenInfo) return { ageGender: [], countries: [], devices: [] }
 
   const end = new Date()

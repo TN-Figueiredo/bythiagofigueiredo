@@ -9,19 +9,15 @@ export function YtSearchTermsView({ terms }: Props) {
     return (
       <div className="rounded-lg border border-dashed border-cms-border p-8 text-center">
         <p className="text-sm text-cms-text-muted">
-          No search term data available. Connect YouTube Analytics to see traffic from YouTube
-          Search.
+          No search term data available yet. YouTube Analytics data may take 48-72 hours to appear.
         </p>
       </div>
     )
   }
 
   const totalViews = terms.reduce((s, t) => s + t.views, 0)
+  const totalWatchTime = terms.reduce((s, t) => s + t.estimatedMinutesWatched, 0)
   const uniqueTerms = terms.length
-  const avgCtr =
-    terms.length > 0
-      ? terms.reduce((s, t) => s + t.impressionClickThroughRate, 0) / terms.length
-      : 0
 
   return (
     <div className="space-y-4">
@@ -42,10 +38,10 @@ export function YtSearchTermsView({ terms }: Props) {
         </div>
         <div className="rounded-lg border border-cms-border bg-cms-surface p-3">
           <p className="text-[10px] font-medium uppercase tracking-wider text-cms-text-muted">
-            Avg CTR
+            Watch Time
           </p>
           <p className="mt-0.5 text-sm font-bold tabular-nums text-cms-text">
-            {avgCtr.toFixed(1)}%
+            {Math.round(totalWatchTime).toLocaleString()}min
           </p>
         </div>
       </div>
@@ -68,9 +64,6 @@ export function YtSearchTermsView({ terms }: Props) {
                 <th scope="col" className="pb-2 text-right font-medium">
                   Watch Time
                 </th>
-                <th scope="col" className="pb-2 text-right font-medium">
-                  CTR
-                </th>
               </tr>
             </thead>
             <tbody>
@@ -83,9 +76,6 @@ export function YtSearchTermsView({ terms }: Props) {
                   </td>
                   <td className="py-2 text-right tabular-nums text-cms-text-muted">
                     {Math.round(t.estimatedMinutesWatched)}min
-                  </td>
-                  <td className="py-2 text-right tabular-nums text-cms-text-muted">
-                    {t.impressionClickThroughRate.toFixed(1)}%
                   </td>
                 </tr>
               ))}

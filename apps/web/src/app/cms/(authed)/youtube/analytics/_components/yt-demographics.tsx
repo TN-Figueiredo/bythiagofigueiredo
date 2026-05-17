@@ -9,7 +9,7 @@ export function YtDemographicsView({ demographics }: Props) {
     return (
       <div className="rounded-lg border border-dashed border-cms-border p-8 text-center">
         <p className="text-sm text-cms-text-muted">
-          Connect YouTube Analytics to see demographics data.
+          No demographics data available yet. YouTube Analytics data may take 48-72 hours to appear.
         </p>
       </div>
     )

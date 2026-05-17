@@ -781,7 +781,7 @@ export async function getAbTestsForSite(): Promise<{
     .select(
       `
       *,
-      variants:ab_test_variants(*),
+      variants:ab_test_variants!test_id(*),
       cycles:ab_test_cycles(*)
     `,
     )
