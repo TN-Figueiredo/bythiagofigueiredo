@@ -1,6 +1,7 @@
 import type { SceneSFX } from './types'
 import { RESOLVE_COLORS, SFX_CATEGORY_COLORS } from './types'
 import { ScoreBar } from './score-bar'
+import { computeScorePercent, getScoreColorFromPercent } from './score-utils'
 
 interface SFXItemCardProps {
   sfx: SceneSFX
@@ -11,14 +12,21 @@ export function SFXItemCard({ sfx }: SFXItemCardProps) {
   const categoryColor = sfx.sfx_category ? SFX_CATEGORY_COLORS[sfx.sfx_category] : null
   const hasFile = sfx.original_filename && sfx.resolve_status !== 'NO_MATCH'
   const showSearch = sfx.resolve_status === 'NO_MATCH' || sfx.resolve_status === 'PARTIAL_MATCH'
-  const borderColor = sfx.resolve_status === 'NO_MATCH' ? 'rgba(59,130,246,0.12)' : 'rgba(255,255,255,0.05)'
+  const isLocal = sfx.resolve_status === 'LOCAL'
+  const borderColor = isLocal
+    ? 'rgba(16,185,129,0.25)'
+    : sfx.resolve_status === 'NO_MATCH' ? 'rgba(59,130,246,0.12)' : 'rgba(255,255,255,0.05)'
+  const bgColor = isLocal
+    ? 'rgba(16,185,129,0.04)'
+    : sfx.resolve_status === 'NO_MATCH' ? 'rgba(59,130,246,0.02)' : 'rgba(255,255,255,0.015)'
 
   return (
     <div
       className="rounded-[5px] px-2.5 py-[7px]"
       style={{
         border: `1px solid ${borderColor}`,
-        background: sfx.resolve_status === 'NO_MATCH' ? 'rgba(59,130,246,0.02)' : 'rgba(255,255,255,0.015)',
+        borderLeft: isLocal ? '3px solid rgba(16,185,129,0.5)' : undefined,
+        background: bgColor,
       }}
     >
       <div className="flex gap-2 items-start">
@@ -42,7 +50,7 @@ export function SFXItemCard({ sfx }: SFXItemCardProps) {
 
           <div className="flex items-center gap-1.5 flex-wrap">
             {hasFile && (
-              <span className="text-[9px] font-semibold" style={{ color: '#c9d1d9' }}>
+              <span className="text-[9px] font-semibold" style={{ color: isLocal ? '#10b981' : '#c9d1d9' }}>
                 {sfx.original_filename}
               </span>
             )}
@@ -55,7 +63,17 @@ export function SFXItemCard({ sfx }: SFXItemCardProps) {
               </span>
             )}
             {sfx.score != null && sfx.score_max != null && (
-              <ScoreBar score={sfx.score} max={sfx.score_max} />
+              <>
+                <ScoreBar score={sfx.score} max={sfx.score_max} />
+                {isLocal && (() => {
+                  const pct = computeScorePercent(sfx.score!, sfx.score_max!)
+                  return (
+                    <span className="text-[11px] font-bold" style={{ color: getScoreColorFromPercent(pct), fontVariantNumeric: 'tabular-nums' }}>
+                      {pct}<span className="text-[8px]">%</span>
+                    </span>
+                  )
+                })()}
+              </>
             )}
           </div>
 

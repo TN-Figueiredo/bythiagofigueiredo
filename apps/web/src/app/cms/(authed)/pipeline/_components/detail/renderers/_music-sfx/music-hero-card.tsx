@@ -32,14 +32,17 @@ export function MusicHeroCard({ recommendation: rec, music }: MusicHeroCardProps
   const status = RESOLVE_COLORS[rec.resolve_status]
   const pct = computeScorePercent(rec.score, rec.score_max)
   const scoreColor = getScoreColorFromPercent(pct)
+  const isHighScore = pct >= 75
 
   return (
     <div
       className="rounded-md overflow-hidden mb-2"
       style={{
-        border: `1px solid ${status.border}`,
-        borderLeft: `3px solid ${status.color}`,
-        background: `linear-gradient(135deg, ${status.bg.replace(/[\d.]+\)$/, '0.06)')}, ${status.bg.replace(/[\d.]+\)$/, '0.01)')})`,
+        border: `1px solid ${isHighScore ? `${scoreColor}30` : status.border}`,
+        borderLeft: `3px solid ${isHighScore ? scoreColor : status.color}`,
+        background: isHighScore
+          ? `linear-gradient(135deg, ${scoreColor}0A, ${scoreColor}03)`
+          : `linear-gradient(135deg, ${status.bg.replace(/[\d.]+\)$/, '0.06)')}, ${status.bg.replace(/[\d.]+\)$/, '0.01)')})`,
       }}
       aria-label={`${rec.track}, ${pct}%, ${status.label}`}
     >
@@ -66,7 +69,7 @@ export function MusicHeroCard({ recommendation: rec, music }: MusicHeroCardProps
           {status.label}
         </span>
         <div className="text-right flex-shrink-0 min-w-[52px]">
-          <div style={{ fontSize: 28, fontWeight: 800, color: scoreColor, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
+          <div style={{ fontSize: 28, fontWeight: 800, color: scoreColor, lineHeight: 1, fontVariantNumeric: 'tabular-nums', textShadow: pct >= 75 ? `0 0 12px ${scoreColor}40` : undefined }}>
             {pct}<span style={{ fontSize: 16, fontWeight: 600 }}>%</span>
           </div>
           <div className="text-[8px]" style={{ color: '#5a6b7f' }}>{rec.score}/{rec.score_max} pts</div>

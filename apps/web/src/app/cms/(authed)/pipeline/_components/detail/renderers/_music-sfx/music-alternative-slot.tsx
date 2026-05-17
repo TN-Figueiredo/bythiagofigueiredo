@@ -93,11 +93,15 @@ export function MusicAlternativeSlot({ recommendation: rec, slotIndex, searchTie
   const scoreColor = getScoreColorFromPercent(pct)
   const deltas = rec.delta_vs_favorite ? getDeltaParts(rec.delta_vs_favorite) : []
   const deltaTotal = rec.delta_vs_favorite ? formatDeltaTotal(rec.delta_vs_favorite) : 0
+  const isLocal = rec.resolve_status === 'LOCAL'
 
   return (
     <div
       className="rounded-md overflow-hidden mb-1.5"
-      style={{ border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}
+      style={{
+        border: `1px solid ${isLocal ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.06)'}`,
+        background: isLocal ? 'rgba(16,185,129,0.03)' : 'rgba(255,255,255,0.02)',
+      }}
       aria-label={`${rec.track}, ${pct}%, ${status.label}`}
     >
       <button
