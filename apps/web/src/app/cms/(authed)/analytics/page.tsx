@@ -13,8 +13,10 @@ import {
 } from '@/lib/analytics/analytics-queries'
 import { AnalyticsHeader } from './_components/analytics-header'
 import { AnalyticsOverview } from './_components/analytics-overview'
+import { AudienceTab } from './_components/audience-tab'
 import type { PeriodInput, AnalyticsTab, AnalyticsOverviewData } from './types'
 import { SectionErrorBoundary } from '../_shared/section-error-boundary'
+import { LinksTab } from './_components/links-tab'
 
 const ComingSoonStub = dynamic(() => import('./_components/coming-soon-stub'))
 
@@ -55,6 +57,18 @@ export default async function AnalyticsPage({ searchParams }: Props) {
         <SectionErrorBoundary>
           <Suspense fallback={<AnalyticsSkeleton />}>
             <AnalyticsDataSection siteId={siteId} periodInput={periodInput} primaryDomain={primaryDomain} />
+          </Suspense>
+        </SectionErrorBoundary>
+      ) : activeTab === 'links' ? (
+        <SectionErrorBoundary>
+          <Suspense fallback={<AnalyticsSkeleton />}>
+            <LinksTab periodInput={periodInput} />
+          </Suspense>
+        </SectionErrorBoundary>
+      ) : activeTab === 'audience' ? (
+        <SectionErrorBoundary>
+          <Suspense fallback={<AnalyticsSkeleton />}>
+            <AudienceTab periodInput={periodInput} />
           </Suspense>
         </SectionErrorBoundary>
       ) : (
