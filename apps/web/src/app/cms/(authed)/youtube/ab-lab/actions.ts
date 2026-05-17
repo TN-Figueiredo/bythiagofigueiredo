@@ -897,6 +897,9 @@ export async function getTestResults(testId: string): Promise<AbTestResults | nu
       variant_id: v.id,
       label: v.label,
       blob_url: v.blob_url,
+      title_text: v.title_text,
+      description_text: v.description_text,
+      metadata: v.metadata,
       is_original: v.is_original,
       total_impressions: 0,
       total_clicks: 0,
@@ -937,6 +940,12 @@ export async function getTestResults(testId: string): Promise<AbTestResults | nu
     isSignificant = confidence >= threshold
   }
 
+  // Fetch tracked links for description/combo tests
+  const { data: trackedLinks } = await supabase
+    .from('ab_test_tracked_links')
+    .select('*')
+    .eq('ab_test_id', testId)
+
   return {
     test: test as AbTestResults['test'],
     variants: variantStats,
@@ -945,6 +954,7 @@ export async function getTestResults(testId: string): Promise<AbTestResults | nu
     suggested_winner_id: suggestedWinnerId,
     timeline: allCycles,
     data_freshness: new Date().toISOString(),
+    tracked_links: (trackedLinks ?? []) as AbTestTrackedLinkRow[],
   } as AbTestResults
 }
 

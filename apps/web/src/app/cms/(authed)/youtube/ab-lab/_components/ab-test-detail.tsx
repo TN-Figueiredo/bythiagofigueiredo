@@ -3,7 +3,7 @@
 import { useState, useMemo, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import type { AbTestResults, AbTestWithVariants } from '@/lib/youtube/ab-types'
+import type { AbTestResults, AbTestWithVariants, AbTestTrackedLinkRow } from '@/lib/youtube/ab-types'
 import { resumeAbTest, archiveAbTest } from '../actions'
 import { AbConfidenceTrend } from './ab-confidence-trend'
 import { AbRotationTimeline } from './ab-rotation-timeline'
@@ -30,6 +30,13 @@ function normalCdf(z: number): number {
 
 type DataMode = 'confirmed' | 'estimate'
 
+const typeLabels: Record<string, string> = {
+  thumbnail: 'Thumbnail',
+  title: 'Título',
+  description: 'Descrição',
+  combo: 'Combo',
+}
+
 function formatDate(iso: string | null): string {
   if (!iso) return 'ongoing'
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -42,7 +49,7 @@ export function AbTestDetail({ results }: AbTestDetailProps) {
   const [showPauseDialog, setShowPauseDialog] = useState(false)
   const [dataMode, setDataMode] = useState<DataMode>('confirmed')
 
-  const { test, variants, confidence, is_significant, suggested_winner_id, timeline } = results
+  const { test, variants, confidence, is_significant, suggested_winner_id, timeline, tracked_links } = results
 
   const testWithVariants: AbTestWithVariants = useMemo(
     () => ({
@@ -197,6 +204,10 @@ export function AbTestDetail({ results }: AbTestDetailProps) {
           ].join(' ')}
         >
           {test.status}
+        </span>
+
+        <span className="inline-flex items-center rounded-full bg-orange-500/20 px-2 py-0.5 text-xs font-medium text-orange-400">
+          {typeLabels[test.test_type ?? 'thumbnail']}
         </span>
 
         <span className="text-xs text-cms-text-muted">
@@ -380,6 +391,25 @@ export function AbTestDetail({ results }: AbTestDetailProps) {
           variants={results.variants.map(v => ({ id: v.variant_id, label: v.label }))}
         />
       </section>
+
+      {(test.test_type === 'description' || test.test_type === 'combo') && tracked_links && tracked_links.length > 0 && (
+        <section className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface p-5 space-y-3">
+          <h3 className="text-sm font-semibold text-cms-text-muted">Atribuição de Links</h3>
+          <div className="grid gap-2">
+            {tracked_links.map((link: AbTestTrackedLinkRow) => (
+              <div key={link.id} className="flex items-center justify-between p-3 rounded-[var(--cms-radius)] bg-cms-surface-hover border border-cms-border">
+                <div>
+                  <span className="text-sm text-cms-text">{link.template_name}</span>
+                  <span className="text-xs text-cms-text-muted ml-2">{link.short_code}</span>
+                </div>
+                <span className="text-sm font-medium text-orange-400">
+                  {(link as AbTestTrackedLinkRow & { clicks?: number }).clicks ?? 0} clicks
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {showEndDialog && (
         <AbEndTestDialog

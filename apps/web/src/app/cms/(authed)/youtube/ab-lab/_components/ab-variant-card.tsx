@@ -71,6 +71,19 @@ export function AbVariantCard({ variant, isWinner, isLeading, isEstimate }: AbVa
         )}
       </div>
 
+      {variant.title_text && (
+        <div className="px-3 pt-2">
+          <span className="text-[10px] text-cms-text-muted">Título</span>
+          <p className="text-sm font-medium text-cms-text">{variant.title_text}</p>
+        </div>
+      )}
+      {variant.description_text && (
+        <div className="px-3 pt-2">
+          <span className="text-[10px] text-cms-text-muted">Descrição</span>
+          <p className="text-xs line-clamp-3 font-mono text-cms-text opacity-80">{variant.description_text}</p>
+        </div>
+      )}
+
       <div className="p-3 space-y-2">
         <div className="flex items-center justify-between">
           <span className="text-xs text-cms-text-muted uppercase font-medium tracking-wide">CTR</span>

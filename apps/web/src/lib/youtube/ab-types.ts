@@ -218,4 +218,5 @@ export interface AbTestResults {
   suggested_winner_id: string | null
   timeline: AbTestCycleRow[]
   data_freshness: string
+  tracked_links: AbTestTrackedLinkRow[]
 }
