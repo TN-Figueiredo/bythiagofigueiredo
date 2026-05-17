@@ -6,7 +6,7 @@ export function parseTemplateTokens(text: string): string[] {
   let match: RegExpExecArray | null
   const regex = new RegExp(TEMPLATE_REGEX.source, 'g')
   while ((match = regex.exec(text)) !== null) {
-    names.add(match[1])
+    if (match[1]) names.add(match[1])
   }
   return Array.from(names)
 }

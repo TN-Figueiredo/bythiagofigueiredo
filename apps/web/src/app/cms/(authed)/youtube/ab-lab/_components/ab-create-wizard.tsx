@@ -309,7 +309,8 @@ export function AbCreateWizard({ video, siteId, onClose, onCreated }: Props) {
               onTextChange={(i, field, value) => {
                 setTextVariants(prev => {
                   const next = [...prev]
-                  next[i] = { ...next[i], [field]: value }
+                  const current = next[i] ?? { title: '', description: '' }
+                  next[i] = { ...current, [field]: value }
                   return next
                 })
               }}
@@ -573,7 +574,7 @@ function TitleEditorSection({
 
       {/* Editable slots */}
       {[0, 1, 2].map(i => {
-        const value = textVariants[i].title
+        const value = textVariants[i]?.title ?? ''
         const charCount = value.length
         const isOverLimit = charCount > 100
         return (
@@ -630,7 +631,7 @@ function DescriptionEditorSection({
 
       {/* Editable slots */}
       {[0, 1, 2].map(i => {
-        const value = textVariants[i].description
+        const value = textVariants[i]?.description ?? ''
         return (
           <div key={i} className="rounded-[var(--cms-radius)] border border-dashed border-cms-border bg-cms-surface p-3 space-y-1.5">
             <div className="flex items-center justify-between">

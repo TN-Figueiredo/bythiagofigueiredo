@@ -128,16 +128,16 @@ export function AbTestCard({ test }: AbTestCardProps) {
 
       {test.test_type && test.test_type !== 'thumbnail' && sortedVariants.length > 1 && (
         <div className="space-y-1 rounded bg-cms-surface-hover p-2">
-          {sortedVariants[1].title_text && (
+          {sortedVariants[1]?.title_text && (
             <p className="text-xs text-cms-text line-clamp-1">
               <span className="text-cms-text-muted mr-1">Title B:</span>
-              {sortedVariants[1].title_text}
+              {sortedVariants[1]?.title_text}
             </p>
           )}
-          {sortedVariants[1].description_text && (
+          {sortedVariants[1]?.description_text && (
             <p className="text-xs text-cms-text-muted line-clamp-2">
               <span className="text-cms-text-muted mr-1">Desc B:</span>
-              {sortedVariants[1].description_text}
+              {sortedVariants[1]?.description_text}
             </p>
           )}
         </div>
