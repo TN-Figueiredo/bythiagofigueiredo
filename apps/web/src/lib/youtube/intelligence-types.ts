@@ -514,15 +514,26 @@ export function getChannelSizeTier(subscriberCount: number): ChannelSizeTier {
 }
 
 /**
- * Grade thresholds based on score (views relative to channel average)
+ * Grade thresholds (0-100 normalized score from 6-axis sigmoid scoring)
  *
- * A: score >= 2.0 (2x+ channel average)
- * B: score >= 1.2 (20%+ above average)
- * C: score >= 0.7 (within normal range)
- * D: score < 0.7  (30%+ below average)
+ * A: score >= 85 — top performer, protect and replicate
+ * B: score >= 65 — above average, minor optimizations
+ * C: score >= 40 — below average, specific issues identifiable
+ * D: score < 40  — underperforming, needs intervention
  */
 export const GRADE_THRESHOLDS = {
-  A: 2.0,
-  B: 1.2,
-  C: 0.7,
+  A: 85,
+  B: 65,
+  C: 40,
 } as const
+
+export const SIGMOID_STEEPNESS: Record<string, number> = {
+  ctr: 1.8,
+  retention: 2.0,
+  reach: 1.2,
+  engagement: 1.5,
+  growth_velocity: 2.5,
+  subscriber_impact: 2.2,
+}
+
+export type VideoAgeCategory = 'fresh' | 'maturing' | 'established' | 'evergreen'
