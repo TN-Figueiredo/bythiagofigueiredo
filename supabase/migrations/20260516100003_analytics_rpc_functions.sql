@@ -22,21 +22,22 @@ LANGUAGE sql STABLE SECURITY DEFINER
 AS $$
   SELECT
     bp.id,
-    bp.title,
-    bp.status,
+    COALESCE(bt.title, 'Untitled') AS title,
+    bp.status::text,
     COUNT(ce.id) FILTER (WHERE ce.event_type = 'view') AS views,
     COUNT(DISTINCT ce.anonymous_id) FILTER (WHERE ce.event_type = 'view') AS unique_views,
     COALESCE(AVG(ce.read_depth) FILTER (WHERE ce.read_depth IS NOT NULL), 0) AS avg_depth,
     COALESCE(AVG(ce.time_on_page) FILTER (WHERE ce.time_on_page IS NOT NULL), 0) AS avg_time,
     COUNT(ce.id) FILTER (WHERE ce.event_type = 'read_complete') AS reads_complete
   FROM blog_posts bp
+  LEFT JOIN blog_translations bt ON bt.post_id = bp.id AND bt.locale = bp.locale
   LEFT JOIN content_events ce ON ce.resource_id = bp.id
     AND ce.site_id = p_site_id
     AND ce.created_at >= p_start
     AND ce.created_at <= p_end
   WHERE bp.site_id = p_site_id
     AND bp.status = 'published'
-  GROUP BY bp.id
+  GROUP BY bp.id, bt.title
   ORDER BY views DESC
   LIMIT p_limit;
 $$;
@@ -63,7 +64,7 @@ AS $$
   SELECT
     tl.id,
     tl.code,
-    COALESCE(tl.source, 'direct') AS source,
+    COALESCE(tl.source_type::text, 'manual') AS source,
     COUNT(lc.id) AS clicks,
     COUNT(DISTINCT lc.visitor_id) AS unique_clicks,
     0::bigint AS conversions,
@@ -74,7 +75,8 @@ AS $$
     AND lc.clicked_at >= p_start
     AND lc.clicked_at <= p_end
   WHERE tl.site_id = p_site_id
-    AND tl.is_active = true
+    AND tl.active = true
+    AND tl.deleted_at IS NULL
   GROUP BY tl.id
   HAVING COUNT(lc.id) > 0
   ORDER BY clicks DESC
@@ -129,7 +131,7 @@ AS $$
   ORDER BY clicks DESC;
 $$;
 
--- get_audience_countries
+-- get_audience_countries (from link_clicks — content_events lacks country)
 CREATE OR REPLACE FUNCTION public.get_audience_countries(
   p_site_id uuid,
   p_start timestamptz,
@@ -140,20 +142,20 @@ LANGUAGE sql STABLE SECURITY DEFINER
 AS $$
   WITH totals AS (
     SELECT COUNT(*) AS total
-    FROM content_events
-    WHERE site_id = p_site_id AND created_at >= p_start AND created_at <= p_end AND country IS NOT NULL
+    FROM link_clicks
+    WHERE site_id = p_site_id AND clicked_at >= p_start AND clicked_at <= p_end AND country IS NOT NULL
   )
   SELECT
-    COALESCE(ce.country, 'Unknown') AS country,
+    COALESCE(lc.country, 'Unknown') AS country,
     ROUND(COUNT(*)::numeric / GREATEST(t.total, 1) * 100, 1) AS percentage
-  FROM content_events ce, totals t
-  WHERE ce.site_id = p_site_id AND ce.created_at >= p_start AND ce.created_at <= p_end AND ce.country IS NOT NULL
-  GROUP BY ce.country, t.total
+  FROM link_clicks lc, totals t
+  WHERE lc.site_id = p_site_id AND lc.clicked_at >= p_start AND lc.clicked_at <= p_end AND lc.country IS NOT NULL
+  GROUP BY lc.country, t.total
   ORDER BY percentage DESC
   LIMIT 10;
 $$;
 
--- get_audience_devices
+-- get_audience_devices (from link_clicks — content_events lacks device_type)
 CREATE OR REPLACE FUNCTION public.get_audience_devices(
   p_site_id uuid,
   p_start timestamptz,
@@ -164,15 +166,15 @@ LANGUAGE sql STABLE SECURITY DEFINER
 AS $$
   WITH totals AS (
     SELECT COUNT(*) AS total
-    FROM content_events
-    WHERE site_id = p_site_id AND created_at >= p_start AND created_at <= p_end AND device_type IS NOT NULL
+    FROM link_clicks
+    WHERE site_id = p_site_id AND clicked_at >= p_start AND clicked_at <= p_end AND device_type IS NOT NULL
   )
   SELECT
-    ce.device_type,
+    lc.device_type,
     ROUND(COUNT(*)::numeric / GREATEST(t.total, 1) * 100, 1) AS percentage
-  FROM content_events ce, totals t
-  WHERE ce.site_id = p_site_id AND ce.created_at >= p_start AND ce.created_at <= p_end AND ce.device_type IS NOT NULL
-  GROUP BY ce.device_type, t.total
+  FROM link_clicks lc, totals t
+  WHERE lc.site_id = p_site_id AND lc.clicked_at >= p_start AND lc.clicked_at <= p_end AND lc.device_type IS NOT NULL
+  GROUP BY lc.device_type, t.total
   ORDER BY percentage DESC;
 $$;
 
