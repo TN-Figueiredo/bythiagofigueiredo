@@ -1,0 +1,18 @@
+/**
+ * ABBA Rotation Algorithm
+ *
+ * Generates a balanced rotation pattern where each variant gets equal exposure.
+ * Block size = 2 * variantCount
+ * Pattern: forward [0..n-1] + reverse [n-1..0], repeating
+ *
+ * Examples:
+ * - 2 variants: [0,1,1,0] repeating
+ * - 3 variants: [0,1,2,2,1,0] repeating
+ * - 4 variants: [0,1,2,3,3,2,1,0] repeating
+ */
+export function getVariantForCycle(variantCount: number, cycleNumber: number): number {
+  const blockSize = 2 * variantCount
+  const posInBlock = cycleNumber % blockSize
+  if (posInBlock < variantCount) return posInBlock
+  return blockSize - 1 - posInBlock
+}

@@ -1,0 +1,89 @@
+import { describe, it, expect } from 'vitest'
+import {
+  calculateBayesianConfidence,
+  calculateZTest,
+  normalCdf,
+} from '@/lib/youtube/ab-statistics'
+import type { VariantStats } from '@/lib/youtube/ab-types'
+
+function makeVariant(id: string, impressions: number, clicks: number): VariantStats {
+  return {
+    variant_id: id,
+    label: id,
+    blob_url: null,
+    is_original: id === 'A',
+    total_impressions: impressions,
+    total_clicks: clicks,
+    avg_ctr: clicks / impressions,
+    cycles_completed: 7,
+  }
+}
+
+describe('normalCdf', () => {
+  it('returns 0.5 for z=0', () => {
+    expect(normalCdf(0)).toBeCloseTo(0.5, 4)
+  })
+  it('returns ~0.9772 for z=2', () => {
+    expect(normalCdf(2)).toBeCloseTo(0.9772, 3)
+  })
+})
+
+describe('calculateZTest', () => {
+  it('detects significant difference with large samples', () => {
+    const a = makeVariant('A', 5000, 250)
+    const b = makeVariant('B', 5000, 350)
+    const result = calculateZTest(a, b)
+    expect(result.zScore).toBeGreaterThan(2)
+    expect(result.pValue).toBeLessThan(0.05)
+    expect(result.significant).toBe(true)
+  })
+
+  it('does not detect significance with small samples', () => {
+    const a = makeVariant('A', 100, 5)
+    const b = makeVariant('B', 100, 7)
+    const result = calculateZTest(a, b)
+    expect(result.significant).toBe(false)
+  })
+
+  it('handles equal CTRs', () => {
+    const a = makeVariant('A', 1000, 50)
+    const b = makeVariant('B', 1000, 50)
+    const result = calculateZTest(a, b)
+    expect(result.zScore).toBeCloseTo(0, 1)
+    expect(result.significant).toBe(false)
+  })
+})
+
+describe('calculateBayesianConfidence', () => {
+  it('returns high confidence when B clearly better', () => {
+    const variants = [
+      makeVariant('A', 5000, 250),
+      makeVariant('B', 5000, 350),
+    ]
+    const result = calculateBayesianConfidence(variants)
+    expect(result.winnerId).toBe('B')
+    expect(result.confidence).toBeGreaterThan(0.95)
+  })
+
+  it('returns low confidence when difference is small', () => {
+    const variants = [
+      makeVariant('A', 200, 10),
+      makeVariant('B', 200, 12),
+    ]
+    const result = calculateBayesianConfidence(variants)
+    expect(result.confidence).toBeLessThan(0.9)
+  })
+
+  it('handles 3 variants', () => {
+    const variants = [
+      makeVariant('A', 3000, 150),
+      makeVariant('B', 3000, 210),
+      makeVariant('C', 3000, 120),
+    ]
+    const result = calculateBayesianConfidence(variants)
+    expect(result.winnerId).toBe('B')
+    expect(Object.keys(result.probabilities)).toHaveLength(3)
+    const sum = Object.values(result.probabilities).reduce((a, b) => a + b, 0)
+    expect(sum).toBeCloseTo(1, 1)
+  })
+})
