@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { PaperCard } from './PaperCard'
 import { Tape } from './Tape'
 import { localePath } from '@/lib/i18n/locale-path'
@@ -20,7 +21,7 @@ export function ChannelStrip({ newsletter, channels, locale, t }: Props) {
   const isSingle = allChannels.length === 1
 
   return (
-    <section aria-labelledby="channels-heading" className="px-[18px] md:px-7" style={{ maxWidth: 1280, margin: '0 auto', paddingTop: 56, paddingBottom: 24 }}>
+    <section aria-labelledby="channels-heading" className="px-[18px] md:px-7 animate-on-scroll" style={{ maxWidth: 1280, margin: '0 auto', paddingTop: 56, paddingBottom: 24 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginBottom: 24 }}>
         <div className="font-caveat" style={{ color: 'var(--pb-yt)', fontSize: 26, transform: 'rotate(-1.5deg)', display: 'inline-block', whiteSpace: 'nowrap' }}>
           ▶ {isSingle ? t['home.channels.headlineSingle'] : t['home.channels.headline']}
@@ -50,8 +51,9 @@ export function ChannelStrip({ newsletter, channels, locale, t }: Props) {
                   {newsletter!.tagline}
                 </p>
               )}
-              <a
+              <Link
                 href={localePath(`/newsletters/${newsletter!.slug}`, locale)}
+                prefetch={true}
                 className="font-mono inline-block hover:brightness-110 hover:-translate-y-0.5 transition-all duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--pb-accent)]"
                 style={{
                   fontSize: 12,
@@ -66,7 +68,7 @@ export function ChannelStrip({ newsletter, channels, locale, t }: Props) {
                 }}
               >
                 {t['home.channels.subscribe']}
-              </a>
+              </Link>
               <p className="font-caveat" style={{ fontSize: 15, color: 'var(--pb-accent)', marginTop: 10, transform: 'rotate(-0.8deg)' }}>
                 {t['home.channels.noSpam']}
               </p>

@@ -14,7 +14,7 @@ export function HouseNewsletterBanner({ newsletter, locale, subscriberCount, t }
   return (
     <section
       aria-label={t['home.newsletter.bannerCta']}
-      className="px-[18px] md:px-7"
+      className="px-[18px] md:px-7 animate-on-scroll"
       style={{
         maxWidth: 920,
         margin: '0 auto',
@@ -68,7 +68,7 @@ export function HouseNewsletterBanner({ newsletter, locale, subscriberCount, t }
 
         <a
           href={localePath(`/newsletters/${slug}`, locale)}
-          className="font-mono inline-block hover:brightness-110 transition-all duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          className="font-mono inline-block hover:brightness-110 hover:scale-105 transition-all duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
           style={{
             fontSize: 12,
             letterSpacing: '0.08em',

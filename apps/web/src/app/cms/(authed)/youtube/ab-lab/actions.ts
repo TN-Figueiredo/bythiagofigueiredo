@@ -1210,3 +1210,47 @@ export async function updateTextVariant(
   revalidateTag('ab-tests')
   return { ok: true }
 }
+
+// ---------------------------------------------------------------------------
+// getVideoTestHistory
+// ---------------------------------------------------------------------------
+
+export async function getVideoTestHistory(youtubeVideoId: string): Promise<Array<{
+  id: string
+  name: string
+  test_type: string
+  status: string
+  started_at: string | null
+  completed_at: string | null
+  completed_reason: string | null
+  winner_label: string | null
+  ctr_lift_percent: number | null
+  confidence_at_completion: number | null
+}>> {
+  const siteId = await requireEditAccess()
+  const supabase = getSupabaseServiceClient()
+
+  const { data: tests } = await supabase
+    .from('ab_tests')
+    .select(`
+      id, name, test_type, status, started_at, completed_at,
+      completed_reason, confidence_at_completion, result_metadata,
+      winner:ab_test_variants!winner_variant_id(label)
+    `)
+    .eq('youtube_video_id', youtubeVideoId)
+    .eq('site_id', siteId)
+    .order('created_at', { ascending: false })
+
+  return (tests ?? []).map(t => ({
+    id: t.id as string,
+    name: t.name as string,
+    test_type: (t.test_type as string) ?? 'thumbnail',
+    status: t.status as string,
+    started_at: t.started_at as string | null,
+    completed_at: t.completed_at as string | null,
+    completed_reason: t.completed_reason as string | null,
+    winner_label: (t.winner as { label: string } | null)?.label ?? null,
+    ctr_lift_percent: (t.result_metadata as { ctr_lift_percent?: number } | null)?.ctr_lift_percent ?? null,
+    confidence_at_completion: t.confidence_at_completion as number | null,
+  }))
+}

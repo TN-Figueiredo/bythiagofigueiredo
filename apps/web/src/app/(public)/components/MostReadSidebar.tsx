@@ -15,7 +15,7 @@ export function MostReadSidebar({ posts, locale, t }: Props) {
   const blogBase = locale === 'pt-BR' ? '/pt/blog' : '/blog'
 
   return (
-    <div style={{ position: 'relative', paddingTop: 12 }}>
+    <div className="animate-on-scroll" style={{ position: 'relative', paddingTop: 12 }}>
       <PaperCard index={7} variant="paper2" className="overflow-hidden" style={{ padding: '24px 26px' }}>
         <Tape variant="tape" className="-top-2 right-4" rotate={4} />
         <div style={{ marginBottom: 4 }}>

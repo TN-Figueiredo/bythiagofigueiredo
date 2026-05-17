@@ -80,9 +80,9 @@ export function VideoGrid({ videos, channels, hasVideos, locale, t }: Props) {
         />
         <h2 id="videos-heading" className="sr-only">{t['home.youtube.title']}</h2>
 
-        <div className={`grid grid-cols-1 md:grid-cols-2 ${gridCols} gap-6 md:gap-8`} style={{ rowGap: 48, paddingTop: 12 }}>
+        <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 ${gridCols} gap-6 md:gap-8`} style={{ rowGap: 48, paddingTop: 12 }}>
           {videos.map((video, i) => (
-            <div key={video.id} className="group" style={{ position: 'relative', paddingTop: 16 }}>
+            <div key={video.id} className="group animate-on-scroll" style={{ position: 'relative', paddingTop: 16 }}>
               <PaperCard index={i + 11} variant="paper" style={{ padding: '12px 12px 18px' }}>
                 <Tape variant="tapeR" className="-top-2 left-5" rotate={-6 + (i % 4)} />
                 <VideoLightbox youtubeVideoId={video.youtubeVideoId}>

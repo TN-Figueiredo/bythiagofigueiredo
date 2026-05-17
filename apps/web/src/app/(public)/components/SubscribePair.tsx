@@ -28,7 +28,7 @@ export function SubscribePair({ newsletter, channels, locale, t }: Props) {
       </div>
 
       <div className={`grid ${gridCols} gap-7 md:gap-10`}>
-        <div style={{ position: 'relative', paddingTop: 18 }}>
+        <div className="animate-on-scroll" style={{ position: 'relative', paddingTop: 18 }}>
           <PaperCard index={30} variant="paper" style={{ padding: '36px 36px 32px' }}>
             <Tape variant="tape" className="-top-2 left-6" rotate={-3} />
             <Tape variant="tape2" className="-top-2 right-6" rotate={4} />
@@ -57,7 +57,7 @@ export function SubscribePair({ newsletter, channels, locale, t }: Props) {
                 <button
                   type="submit"
                   aria-label={t['newsletter.submit']}
-                  className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--pb-accent)]"
+                  className="hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--pb-accent)] transition-transform duration-200"
                   style={{ padding: '12px 20px', background: 'var(--pb-ink)', color: 'var(--pb-bg)', border: 'none', borderRadius: 0, fontSize: 13, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.04em' }}
                 >
                   {t['newsletter.submit']}
@@ -72,7 +72,7 @@ export function SubscribePair({ newsletter, channels, locale, t }: Props) {
         </div>
 
         {allChannels.length > 0 && (
-          <div style={{ position: 'relative', paddingTop: 18 }}>
+          <div className="animate-on-scroll" style={{ position: 'relative', paddingTop: 18 }}>
             <PaperCard index={31} variant="paper" style={{ border: '2px solid var(--pb-yt)', padding: '36px 36px 32px', backgroundColor: 'var(--pb-channel-card-bg)' }}>
               <Tape variant="tapeR" className="-top-2 left-7" rotate={3} />
               <div style={{ transform: 'rotate(0.6deg)' }}>
@@ -106,7 +106,7 @@ export function SubscribePair({ newsletter, channels, locale, t }: Props) {
                         href={ch.url + '?sub_confirmation=1'}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="font-mono shrink-0"
+                        className="font-mono shrink-0 hover:scale-105 transition-transform duration-200"
                         style={{ padding: '7px 12px', background: 'var(--pb-yt)', color: '#FFF', fontSize: 12, fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}
                       >
                         {t['channels.subscribe']}

@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import Image from 'next/image'
 import type { VariantStats } from '@/lib/youtube/ab-types'
 
@@ -27,6 +28,27 @@ function capitalizeLabel(label: string): string {
 }
 
 export function AbVariantCard({ variant, isWinner, isLeading, isEstimate }: AbVariantCardProps) {
+  const [isDownloading, setIsDownloading] = useState(false)
+
+  async function handleDownload() {
+    if (!variant.blob_url || isDownloading) return
+    setIsDownloading(true)
+    try {
+      const res = await fetch(variant.blob_url)
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${variant.label}.jpg`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } finally {
+      setIsDownloading(false)
+    }
+  }
+
   const borderClass = isWinner
     ? 'border-l-4 border-l-green-500'
     : 'border border-cms-border'
@@ -54,7 +76,7 @@ export function AbVariantCard({ variant, isWinner, isLeading, isEstimate }: AbVa
         </div>
       )}
 
-      <div className="relative w-full" style={{ aspectRatio: '16/9' }}>
+      <div className="group relative w-full" style={{ aspectRatio: '16/9' }}>
         {variant.blob_url ? (
           <Image
             src={variant.blob_url}
@@ -68,6 +90,21 @@ export function AbVariantCard({ variant, isWinner, isLeading, isEstimate }: AbVa
           <div className="flex h-full w-full items-center justify-center bg-cms-surface-hover text-xs text-cms-text-muted">
             No thumbnail
           </div>
+        )}
+        {variant.blob_url && (
+          <button
+            type="button"
+            onClick={handleDownload}
+            disabled={isDownloading}
+            className="absolute top-2 right-2 rounded-full bg-black/60 p-1.5 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80 disabled:opacity-50"
+            title="Download thumbnail"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+          </button>
         )}
       </div>
 
