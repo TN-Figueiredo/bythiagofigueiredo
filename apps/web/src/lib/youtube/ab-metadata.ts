@@ -6,6 +6,8 @@ export async function updateVideoMetadata(
   description: string | null,
   accessToken: string,
 ): Promise<void> {
+  if (title === null && description === null) return
+
   const listUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}`
   const listRes = await fetch(listUrl, {
     headers: { Authorization: `Bearer ${accessToken}` },
