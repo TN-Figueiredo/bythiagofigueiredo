@@ -1,13 +1,14 @@
 export type AbTestStatus = 'draft' | 'active' | 'paused' | 'completed' | 'archived'
 export type CompletedReason = 'auto_resolve' | 'manual_winner' | 'manual_archive' | 'max_duration' | 'inconclusive'
 export type BackfillStatus = 'pending' | 'partial' | 'confirmed' | 'no_data' | 'error'
+export type TestType = 'thumbnail' | 'title' | 'description' | 'combo'
 
 export interface AbTestConfig {
   max_duration_days: number
   confidence_threshold: number
   burn_in_days: number
   auto_apply_winner: boolean
-  rotation_pattern: 'abba' | 'round_robin'
+  rotation_pattern: 'abba' | 'round_robin' | 'random'
   stability_threshold: number
 }
 
@@ -28,7 +29,10 @@ export interface AbTestRow {
   name: string
   status: AbTestStatus
   config: AbTestConfig
+  test_type: TestType
   original_thumbnail_url: string
+  original_title: string | null
+  original_description: string | null
   winner_variant_id: string | null
   started_at: string | null
   paused_at: string | null
@@ -42,6 +46,13 @@ export interface AbTestRow {
   updated_at: string
 }
 
+export interface VariantMetadata {
+  thumbnail_tags?: string[]
+  title_pattern?: string
+  emotional_triggers?: string[]
+  visual_description?: string
+}
+
 export interface AbTestVariantRow {
   id: string
   test_id: string
@@ -51,8 +62,18 @@ export interface AbTestVariantRow {
   blob_key: string | null
   file_size_bytes: number | null
   dimensions: string | null
+  title_text: string | null
+  description_text: string | null
+  metadata: VariantMetadata
   sort_order: number
   created_at: string
+}
+
+export interface AppliedMetadata {
+  thumbnail_set?: boolean
+  title_set?: string | null
+  description_set?: string | null
+  links_resolved?: Record<string, string>
 }
 
 export interface AbTestCycleRow {
@@ -70,6 +91,7 @@ export interface AbTestCycleRow {
   estimated_ctr: number | null
   backfill_status: BackfillStatus
   backfill_attempts: number
+  applied_metadata: AppliedMetadata | null
   created_at: string
 }
 
@@ -83,6 +105,7 @@ export interface AbTestCreateInput {
   site_id: string
   youtube_video_id: string
   name: string
+  test_type?: TestType
   config?: Partial<AbTestConfig>
 }
 
@@ -96,11 +119,32 @@ export interface VariantStats {
   variant_id: string
   label: string
   blob_url: string | null
+  title_text: string | null
+  description_text: string | null
+  metadata: VariantMetadata
   is_original: boolean
   total_impressions: number
   total_clicks: number
   avg_ctr: number
   cycles_completed: number
+}
+
+export interface CreateTextVariantInput {
+  test_id: string
+  label?: string
+  title_text?: string
+  description_text?: string
+  metadata?: Partial<VariantMetadata>
+}
+
+export interface AbTestTrackedLinkRow {
+  id: string
+  ab_test_id: string
+  variant_id: string
+  link_id: string
+  template_name: string
+  short_code: string
+  created_at: string
 }
 
 export interface ResultMetadata {
