@@ -82,6 +82,7 @@ export async function GET(req: NextRequest) {
         test_id: test.id,
         variant_id: nextVariant.id,
         cycle_number: nextCycle,
+        started_at: new Date().toISOString(),
       })
 
       processed++

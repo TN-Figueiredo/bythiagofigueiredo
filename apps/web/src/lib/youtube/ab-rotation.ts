@@ -11,6 +11,8 @@
  * - 4 variants: [0,1,2,3,3,2,1,0] repeating
  */
 export function getVariantForCycle(variantCount: number, cycleNumber: number): number {
+  if (variantCount <= 0) return 0
+  if (variantCount === 1) return 0
   const blockSize = 2 * variantCount
   const posInBlock = cycleNumber % blockSize
   if (posInBlock < variantCount) return posInBlock

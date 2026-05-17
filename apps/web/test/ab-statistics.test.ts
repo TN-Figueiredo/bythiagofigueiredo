@@ -52,6 +52,26 @@ describe('calculateZTest', () => {
     expect(result.zScore).toBeCloseTo(0, 1)
     expect(result.significant).toBe(false)
   })
+
+  it('handles zero impressions gracefully in zTest', () => {
+    const result = calculateZTest(
+      { variant_id: 'a', label: 'A', blob_url: null, is_original: true, total_impressions: 0, total_clicks: 0, avg_ctr: 0, cycles_completed: 0 },
+      { variant_id: 'b', label: 'B', blob_url: null, is_original: false, total_impressions: 1000, total_clicks: 50, avg_ctr: 0.05, cycles_completed: 5 }
+    )
+    expect(result.zScore).toBe(0)
+    expect(result.pValue).toBe(1)
+    expect(result.significant).toBe(false)
+  })
+
+  it('handles both variants having zero impressions', () => {
+    const result = calculateZTest(
+      { variant_id: 'a', label: 'A', blob_url: null, is_original: true, total_impressions: 0, total_clicks: 0, avg_ctr: 0, cycles_completed: 0 },
+      { variant_id: 'b', label: 'B', blob_url: null, is_original: false, total_impressions: 0, total_clicks: 0, avg_ctr: 0, cycles_completed: 0 }
+    )
+    expect(result.zScore).toBe(0)
+    expect(result.pValue).toBe(1)
+    expect(result.significant).toBe(false)
+  })
 })
 
 describe('calculateBayesianConfidence', () => {

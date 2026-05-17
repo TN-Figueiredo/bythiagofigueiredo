@@ -11,6 +11,9 @@ export function normalCdf(z: number): number {
 }
 
 export function calculateZTest(a: VariantStats, b: VariantStats): ZTestResult {
+  if (a.total_impressions === 0 || b.total_impressions === 0) {
+    return { zScore: 0, pValue: 1, significant: false }
+  }
   const pA = a.total_clicks / a.total_impressions
   const pB = b.total_clicks / b.total_impressions
   const pPool = (a.total_clicks + b.total_clicks) / (a.total_impressions + b.total_impressions)

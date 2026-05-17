@@ -34,4 +34,17 @@ describe('getVariantForCycle', () => {
       expect(counts[1]).toBe(7)
     })
   })
+
+  describe('edge cases', () => {
+    it('returns 0 for single variant', () => {
+      expect(getVariantForCycle(1, 0)).toBe(0)
+      expect(getVariantForCycle(1, 5)).toBe(0)
+      expect(getVariantForCycle(1, 100)).toBe(0)
+    })
+
+    it('returns 0 for zero variants (guard)', () => {
+      expect(getVariantForCycle(0, 0)).toBe(0)
+      expect(getVariantForCycle(0, 5)).toBe(0)
+    })
+  })
 })

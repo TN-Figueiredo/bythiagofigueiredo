@@ -213,6 +213,10 @@ export async function uploadVariant(
     .single()
 
   if (insertError || !variant) {
+    try {
+      const { del } = await import('@vercel/blob')
+      await del(blob.url)
+    } catch {}
     return { ok: false, error: insertError?.message ?? 'Failed to insert variant' }
   }
 
@@ -454,6 +458,9 @@ export async function startAbTest(
   }
 
   const firstIndex = getVariantForCycle(variants.length, 0)
+  if (firstIndex < 0 || firstIndex >= variants.length) {
+    return { ok: false, error: 'Invalid variant rotation index' }
+  }
   const firstVariant = variants[firstIndex] as AbTestVariantRow
 
   try {
@@ -539,19 +546,20 @@ export async function pauseAbTest(
 
   const now = new Date().toISOString()
 
-  // Close current open cycle
-  await supabase
-    .from('ab_test_cycles')
-    .update({ ended_at: now })
-    .eq('test_id', testId)
-    .is('ended_at', null)
-
+  // Set paused first (prevents rotate cron from acting on this test)
   const { error: updateError } = await supabase
     .from('ab_tests')
     .update({ status: 'paused', paused_at: now, updated_at: now })
     .eq('id', testId)
 
   if (updateError) return { ok: false, error: updateError.message }
+
+  // Now close the open cycle safely
+  await supabase
+    .from('ab_test_cycles')
+    .update({ ended_at: now })
+    .eq('test_id', testId)
+    .is('ended_at', null)
 
   revalidateTag('youtube')
   return { ok: true }
@@ -593,14 +601,16 @@ export async function resumeAbTest(
     return { ok: false, error: 'No variants found' }
   }
 
-  const { count: completedCount } = await supabase
+  const { count: totalCycleCount } = await supabase
     .from('ab_test_cycles')
     .select('id', { count: 'exact', head: true })
     .eq('test_id', testId)
-    .not('ended_at', 'is', null)
 
-  const nextCycleNumber = completedCount ?? 0
+  const nextCycleNumber = totalCycleCount ?? 0
   const nextIndex = getVariantForCycle(variants.length, nextCycleNumber)
+  if (nextIndex < 0 || nextIndex >= variants.length) {
+    return { ok: false, error: 'Invalid variant rotation index' }
+  }
   const nextVariant = variants[nextIndex] as AbTestVariantRow
 
   try {
