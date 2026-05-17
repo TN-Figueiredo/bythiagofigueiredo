@@ -56,8 +56,8 @@ function randn(): number {
 const MC_SAMPLES = 10_000
 
 export function calculateBayesianConfidence(variants: VariantStats[]): BayesianResult {
-  const wins: Record<string, number> = {}
-  for (const v of variants) wins[v.variant_id] = 0
+  const wins = new Map<string, number>()
+  for (const v of variants) wins.set(v.variant_id, 0)
 
   for (let i = 0; i < MC_SAMPLES; i++) {
     let bestId = ''
@@ -71,19 +71,20 @@ export function calculateBayesianConfidence(variants: VariantStats[]): BayesianR
         bestId = v.variant_id
       }
     }
-    wins[bestId]++
+    if (bestId) wins.set(bestId, (wins.get(bestId) ?? 0) + 1)
   }
 
   let winnerId = ''
   let maxWins = 0
   const probabilities: Record<string, number> = {}
   for (const v of variants) {
-    probabilities[v.variant_id] = wins[v.variant_id] / MC_SAMPLES
-    if (wins[v.variant_id] > maxWins) {
-      maxWins = wins[v.variant_id]
+    const w = wins.get(v.variant_id) ?? 0
+    probabilities[v.variant_id] = w / MC_SAMPLES
+    if (w > maxWins) {
+      maxWins = w
       winnerId = v.variant_id
     }
   }
 
-  return { winnerId, confidence: probabilities[winnerId], probabilities }
+  return { winnerId, confidence: probabilities[winnerId] ?? 0, probabilities }
 }
