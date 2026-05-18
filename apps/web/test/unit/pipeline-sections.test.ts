@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { getSectionKey, getSectionsForFormat, SectionDataSchema, SectionPatchSchema } from '@/lib/pipeline/sections'
+import { getSectionKey, getSectionsForFormat, flattenSections, SectionDataSchema, SectionPatchSchema } from '@/lib/pipeline/sections'
 
 describe('getSectionKey', () => {
   it('returns shared key for shared sections', () => {
     expect(getSectionKey('ideia', 'en')).toBe('ideia_shared')
-    expect(getSectionKey('brolls', 'pt')).toBe('brolls_shared')
+    expect(getSectionKey('images', 'pt')).toBe('images_shared')
   })
 
   it('returns lang-specific key for bilateral sections', () => {
@@ -13,7 +13,17 @@ describe('getSectionKey', () => {
     expect(getSectionKey('publish', 'en')).toBe('publish_en')
   })
 
-  it('returns lang-specific key for postprod sub-sections', () => {
+  it('returns lang-specific key for postprod (no longer shared)', () => {
+    expect(getSectionKey('postprod', 'en')).toBe('postprod_en')
+    expect(getSectionKey('postprod', 'pt')).toBe('postprod_pt')
+  })
+
+  it('brolls is no longer shared — returns lang-specific key', () => {
+    expect(getSectionKey('brolls', 'en')).toBe('brolls_en')
+    expect(getSectionKey('brolls', 'pt')).toBe('brolls_pt')
+  })
+
+  it('returns lang-specific key for legacy postprod sub-section keys', () => {
     expect(getSectionKey('postprod_scenes', 'en')).toBe('postprod_scenes_en')
     expect(getSectionKey('postprod_crossref', 'pt')).toBe('postprod_crossref_pt')
     expect(getSectionKey('postprod_speedramps', 'en')).toBe('postprod_speedramps_en')
@@ -21,27 +31,29 @@ describe('getSectionKey', () => {
 })
 
 describe('getSectionsForFormat', () => {
-  it('returns 5 primary sections for video', () => {
+  it('returns 4 primary sections for video (brolls removed)', () => {
     const sections = getSectionsForFormat('video')
     expect(sections.map(s => s.key)).toEqual([
-      'ideia', 'roteiro', 'brolls', 'postprod', 'publish',
+      'ideia', 'roteiro', 'postprod', 'publish',
     ])
   })
 
-  it('marks ideia and brolls as shared for video', () => {
+  it('marks only ideia as shared for video', () => {
     const sections = getSectionsForFormat('video')
     expect(sections.find(s => s.key === 'ideia')!.shared).toBe(true)
-    expect(sections.find(s => s.key === 'brolls')!.shared).toBe(true)
     expect(sections.find(s => s.key === 'roteiro')!.shared).toBe(false)
+    expect(sections.find(s => s.key === 'postprod')!.shared).toBe(false)
   })
 
-  it('returns sub-sections for postprod', () => {
+  it('postprod has no subSections', () => {
     const sections = getSectionsForFormat('video')
     const postprod = sections.find(s => s.key === 'postprod')!
-    expect(postprod.subSections).toHaveLength(3)
-    expect(postprod.subSections!.map(s => s.key)).toEqual([
-      'postprod_scenes', 'postprod_crossref', 'postprod_speedramps',
-    ])
+    expect(postprod.subSections).toBeUndefined()
+  })
+
+  it('brolls is not in video sections', () => {
+    const sections = getSectionsForFormat('video')
+    expect(sections.find(s => s.key === 'brolls')).toBeUndefined()
   })
 
   it('returns sections for blog_post', () => {
@@ -49,6 +61,11 @@ describe('getSectionsForFormat', () => {
     expect(sections.map(s => s.key)).toEqual([
       'ideia', 'draft', 'seo', 'images', 'publish',
     ])
+  })
+
+  it('flattenSections with no sub-sections returns same array', () => {
+    const sections = getSectionsForFormat('video')
+    expect(flattenSections(sections)).toEqual(sections)
   })
 })
 

@@ -10,7 +10,7 @@ export interface SectionDefinition {
   subSections?: SectionDefinition[]
 }
 
-const SHARED_SECTIONS = new Set(['ideia', 'brolls', 'images'])
+const SHARED_SECTIONS = new Set(['ideia', 'images'])
 
 export function getSectionKey(sectionType: string, lang: string): string {
   if (SHARED_SECTIONS.has(sectionType)) return `${sectionType}_shared`
@@ -22,15 +22,7 @@ export const SECTION_DEFINITIONS: Record<Format, SectionDefinition[]> = {
   video: [
     { key: 'ideia', label_pt: 'Ideia', label_en: 'Idea', type: 'ideia', shared: true },
     { key: 'roteiro', label_pt: 'Roteiro', label_en: 'Script', type: 'roteiro', shared: false },
-    { key: 'brolls', label_pt: 'B-Rolls', label_en: 'B-Rolls', type: 'brolls', shared: true },
-    {
-      key: 'postprod', label_pt: 'Pós-Produção', label_en: 'Post-Production', type: 'postprod', shared: false,
-      subSections: [
-        { key: 'postprod_scenes', label_pt: 'Cena × Cena', label_en: 'Scene × Scene', type: 'postprod_scenes', shared: false },
-        { key: 'postprod_crossref', label_pt: 'Cross-Reference', label_en: 'Cross-Reference', type: 'postprod_crossref', shared: false },
-        { key: 'postprod_speedramps', label_pt: 'Speed Ramps', label_en: 'Speed Ramps', type: 'postprod_speedramps', shared: false },
-      ],
-    },
+    { key: 'postprod', label_pt: 'Pós-Produção', label_en: 'Post-Production', type: 'postprod', shared: false },
     { key: 'publish', label_pt: 'Publicação', label_en: 'Publication', type: 'publish', shared: false },
   ],
   blog_post: [

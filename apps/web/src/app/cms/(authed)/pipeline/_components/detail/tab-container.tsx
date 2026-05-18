@@ -39,7 +39,6 @@ function hasAnyContent(def: SectionDefinition, sections: Record<string, SectionD
 }
 
 const TAB_DEPENDENCIES: Record<string, string[]> = {
-  brolls: ['roteiro'],
   postprod: ['roteiro'],
   publish: ['roteiro'],
   seo: ['draft'],
