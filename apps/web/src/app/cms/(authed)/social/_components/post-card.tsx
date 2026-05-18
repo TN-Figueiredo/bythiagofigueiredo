@@ -5,6 +5,7 @@ import Link from 'next/link'
 import type { SocialPost, Provider } from '@tn-figueiredo/social'
 import { SocialStatusBadge } from '@/app/cms/(authed)/_shared/social/social-status-badge'
 import { retrySocialDelivery } from '@/lib/social/actions'
+import { PostMetricsInline } from './post-metrics-inline'
 import type { SocialStrings } from '../_i18n/types'
 
 interface PostCardProps {
@@ -15,6 +16,12 @@ interface PostCardProps {
   platforms?: Provider[]
   failedDeliveryIds?: string[]
   metricsLine?: string | null
+  metrics?: {
+    likes: number
+    comments: number
+    shares: number
+    linkClicks: number | null
+  } | null
 }
 
 const PLATFORM_COLORS: Record<Provider, string> = {
@@ -39,6 +46,7 @@ export function PostCard({
   platforms,
   failedDeliveryIds,
   metricsLine,
+  metrics,
 }: PostCardProps) {
   const [isPending, startTransition] = useTransition()
   const [retryError, setRetryError] = useState<string | null>(null)
@@ -97,9 +105,16 @@ export function PostCard({
           <p className="text-xs text-cms-text-muted mt-0.5 truncate">{post.content.url}</p>
         )}
 
-        {metricsLine && (
+        {metrics ? (
+          <PostMetricsInline
+            likes={metrics.likes}
+            comments={metrics.comments}
+            shares={metrics.shares}
+            linkClicks={metrics.linkClicks}
+          />
+        ) : metricsLine ? (
           <p className="text-xs text-cms-text-dim mt-0.5">{metricsLine}</p>
-        )}
+        ) : null}
 
         <div className="flex items-center gap-2 mt-1">
           <p className="text-xs text-cms-text-dim">

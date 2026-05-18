@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import type { Provider, PostType } from '@tn-figueiredo/social'
+import type { Provider, PostType, DeliveryStatus, ErrorType } from '@tn-figueiredo/social'
 import { PlatformSelector } from '@/app/cms/(authed)/_shared/social/platform-selector'
 import { ComposerEditor } from './composer-editor'
 import { PlatformPreviews } from './platform-previews'
@@ -13,13 +13,18 @@ import { CaptionTabs } from './caption-tabs'
 import { ScheduleBar } from './schedule-bar'
 import { OgCompact } from '@/app/cms/(authed)/_shared/social/og-compact'
 import { PublishConfirmationDialog } from './publish-confirmation-dialog'
+import { PublishStatusBanner } from './publish-status-banner'
+import { OgPreviewSidebar } from './og-preview-sidebar'
 import type { OgData } from './og-preview-sidebar'
 import {
   createSocialPost,
   createFromContentAction,
   getContentForSocialPost,
   editPublishedPost,
+  checkDuplicatesAction,
+  retrySocialDelivery,
 } from '@/lib/social/actions'
+import type { DuplicateWarnings } from '@/lib/social/duplicate-detection'
 import type { SocialStrings } from '../../_i18n/types'
 import { getEditRules, type ContentType } from '@/lib/social/types'
 
@@ -112,6 +117,19 @@ export function ComposerShell({
   const [editCaption, setEditCaption] = useState('')
   const isEditMode = !!editPostId
 
+  // Duplicate detection (CMS mode only)
+  const [duplicateWarnings, setDuplicateWarnings] = useState<DuplicateWarnings | null>(null)
+
+  // Post-publish delivery status (shown before navigation)
+  const [publishedDeliveries, setPublishedDeliveries] = useState<Array<{
+    id: string
+    provider: Provider
+    status: DeliveryStatus
+    error: string | null
+    errorType: ErrorType | null
+  }>>([])
+  const [publishedPostId, setPublishedPostId] = useState<string | null>(null)
+
   // Errors
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [validationErrors, setValidationErrors] = useState<{
@@ -163,6 +181,26 @@ export function ComposerShell({
     })
   }, [selectedContent])
 
+  // Run duplicate check whenever content or platform selection changes in CMS mode
+  useEffect(() => {
+    if (sourceMode !== 'cms' || !selectedContent || platforms.length === 0) {
+      setDuplicateWarnings(null)
+      return
+    }
+
+    checkDuplicatesAction(
+      selectedContent.contentType,
+      selectedContent.contentId,
+      platforms,
+    ).then((res) => {
+      if (res.ok) {
+        setDuplicateWarnings(res.data)
+      }
+    }).catch(() => {
+      // Silently ignore — duplicate check is informational only
+    })
+  }, [sourceMode, selectedContent, platforms])
+
   function handleContentSelect(
     type: ContentType,
     id: string,
@@ -211,6 +249,7 @@ export function ComposerShell({
     setSourceMode(mode)
     if (mode === 'freeform') {
       setSelectedContent(null)
+      setDuplicateWarnings(null)
     }
   }
 
@@ -328,6 +367,17 @@ export function ComposerShell({
     setSubmitError(null)
     if (!validate()) return
 
+    // Show pending delivery statuses immediately while the publish runs
+    setPublishedDeliveries(
+      platforms.map((p, i) => ({
+        id: `pending-${i}`,
+        provider: p,
+        status: 'publishing' as DeliveryStatus,
+        error: null,
+        errorType: null,
+      })),
+    )
+
     startTransition(async () => {
       if (sourceMode === 'cms' && selectedContent) {
         const result = await createFromContentAction({
@@ -346,8 +396,10 @@ export function ComposerShell({
           scheduledAt: scheduleMode === 'schedule' ? scheduledAt : undefined,
         })
         if (result.ok) {
+          setPublishedPostId(result.data.postId)
           router.push(`/cms/social/${result.data.postId}`)
         } else {
+          setPublishedDeliveries([])
           setSubmitError(result.error ?? t.common.error)
         }
       } else {
@@ -370,8 +422,10 @@ export function ComposerShell({
           scheduledAt: scheduleMode === 'schedule' ? scheduledAt : undefined,
         })
         if (result.ok) {
+          setPublishedPostId(result.data.id)
           router.push(`/cms/social/${result.data.id}`)
         } else {
+          setPublishedDeliveries([])
           setSubmitError(result.error ?? t.common.error)
         }
       }
@@ -487,6 +541,49 @@ export function ComposerShell({
             ogDescription={selectedContent.excerpt}
             ogImage={selectedContent.image}
           />
+
+          {/* Per-platform OG preview sidebar — shown when platforms are selected */}
+          {ogData && platforms.length > 0 && (
+            <details className="group">
+              <summary className="cursor-pointer select-none text-xs font-medium text-cms-text-muted hover:text-cms-text list-none flex items-center gap-1">
+                <span className="transition-transform group-open:rotate-90">▶</span>
+                Visualização por plataforma
+              </summary>
+              <div className="mt-3 overflow-x-auto">
+                <OgPreviewSidebar
+                  platforms={platforms}
+                  ogData={ogData}
+                />
+              </div>
+            </details>
+          )}
+        </div>
+      )}
+
+      {/* Duplicate post warning banner (CMS mode only) */}
+      {sourceMode === 'cms' && duplicateWarnings && duplicateWarnings.severity !== 'none' && (
+        <div
+          data-testid="duplicate-warning-banner"
+          className={`rounded-md border px-4 py-3 text-sm ${
+            duplicateWarnings.severity === 'confirm'
+              ? 'border-red-500/30 bg-red-500/10 text-red-400'
+              : 'border-yellow-500/30 bg-yellow-500/10 text-yellow-400'
+          }`}
+        >
+          {duplicateWarnings.severity === 'confirm' ? (
+            <>
+              <strong>Aviso:</strong> Este conteudo ja foi postado em{' '}
+              {duplicateWarnings.samePlatformPosts.map((p) => p.platform).join(', ')}.
+              Publicar novamente criara uma postagem duplicada.
+            </>
+          ) : (
+            <>
+              <strong>Info:</strong> Este conteudo ja foi postado em outra(s) plataforma(s) (
+              {duplicateWarnings.totalExisting} post
+              {duplicateWarnings.totalExisting !== 1 ? 's' : ''} existente
+              {duplicateWarnings.totalExisting !== 1 ? 's' : ''}).
+            </>
+          )}
         </div>
       )}
 
@@ -634,6 +731,20 @@ export function ComposerShell({
         showPipeline={showPipeline}
         siteId=""
       />
+
+      {/* Post-publish delivery status banner — shown while navigating to detail page */}
+      {publishedDeliveries.length > 0 && (
+        <PublishStatusBanner
+          deliveries={publishedDeliveries}
+          onRetry={async (deliveryId) => {
+            await retrySocialDelivery(deliveryId)
+            if (publishedPostId) {
+              router.push(`/cms/social/${publishedPostId}`)
+            }
+          }}
+          strings={t}
+        />
+      )}
 
       {/* Pre-publish confirmation dialog (CMS mode only) */}
       {showConfirmation && selectedContent && (
