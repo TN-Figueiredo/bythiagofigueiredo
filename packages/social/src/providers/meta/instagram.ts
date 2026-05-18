@@ -1,4 +1,5 @@
 import type { PlatformResult } from '../../core/types.js'
+import { checkRateBudget, type RateBudgetCheck } from './rate-budget.js'
 
 const GRAPH_BASE = 'https://graph.facebook.com/v25.0'
 const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000
@@ -120,6 +121,33 @@ export async function publishInstagramMedia(
   }
 
   return publishContainer(igUserId, token, containerId)
+}
+
+export class InsufficientRateBudgetError extends Error {
+  constructor(public budget: RateBudgetCheck) {
+    super(`Need ${budget.required} API calls, only ${budget.remaining} remaining`)
+    this.name = 'InsufficientRateBudgetError'
+  }
+}
+
+export async function publishMultiSlideStory(
+  igUserId: string,
+  token: string,
+  mediaUrls: string[],
+  rateBudgetRemaining: number,
+): Promise<PlatformResult[]> {
+  const budgetCheck = checkRateBudget(rateBudgetRemaining, mediaUrls.length)
+  if (!budgetCheck.sufficient) throw new InsufficientRateBudgetError(budgetCheck)
+
+  const results: PlatformResult[] = []
+  for (const url of mediaUrls) {
+    const result = await publishInstagramMedia(igUserId, token, {
+      image_url: url,
+      media_type: 'STORIES',
+    })
+    results.push(result)
+  }
+  return results
 }
 
 export async function deleteInstagramMedia(
