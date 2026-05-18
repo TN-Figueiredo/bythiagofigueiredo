@@ -1,0 +1,62 @@
+// Barrel re-export for all social server actions.
+// UI components should continue importing from '@/lib/social/actions'.
+
+// Shared types (ActionResult, SafeConnection)
+export type { ActionResult, SafeConnection } from './_shared'
+
+// Connection management
+export {
+  connectSocial,
+  disconnectSocial,
+  getConnections,
+} from './connections'
+
+// Post management (create, update, cancel, delete, retry, list, get, edit published)
+export {
+  createSocialPost,
+  updateSocialPost,
+  cancelSocialPost,
+  deleteSocialPost,
+  retrySocialDelivery,
+  getSocialPost,
+  listSocialPosts,
+  editPublishedPost,
+} from './posts'
+
+// Content helpers (get content metadata, create from CMS content, OG scraping)
+export {
+  getContentForSocialPost,
+  createFromContentAction,
+  scrapeOgTags,
+} from './content'
+
+// Template management
+export {
+  listTemplates,
+  getTemplate,
+  createTemplate,
+  updateTemplate,
+  deleteTemplate,
+  setDefaultTemplate,
+  duplicateTemplate,
+} from './templates'
+
+// Site-level social settings (defaults matrix, queue slots)
+export {
+  getSocialDefaults,
+  updateSocialDefaults,
+  getQueueSlotConfig,
+  saveQueueSlotConfig,
+} from './settings'
+
+export type {
+  SocialContentType,
+  SocialPlatform,
+  SocialDefaults,
+} from './settings'
+
+// Queue slot action
+export { getNextQueueSlotAction } from './queue'
+
+// Legacy functions not yet in a dedicated module
+export { retryPostDeliveries, markAsPosted } from './_legacy'

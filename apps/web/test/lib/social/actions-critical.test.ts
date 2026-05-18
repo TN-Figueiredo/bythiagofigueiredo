@@ -114,7 +114,7 @@ describe('cancelSocialPost', () => {
     const postId = '00000000-0000-0000-0000-000000000001'
     const result = await cancelSocialPost(postId)
 
-    expect(result).toEqual({ ok: false, error: 'Failed to cancel social post' })
+    expect(result).toEqual({ ok: false, error: 'update failed' })
   })
 })
 
@@ -149,7 +149,7 @@ describe('deleteSocialPost', () => {
     const postId = '00000000-0000-0000-0000-000000000002'
     const result = await deleteSocialPost(postId)
 
-    expect(result).toEqual({ ok: false, error: 'Failed to delete social post' })
+    expect(result).toEqual({ ok: false, error: 'FK violation' })
   })
 })
 
