@@ -65,14 +65,14 @@ export async function listTemplates(
   }
 
   try {
-    await requireEditAccess()
+    const { siteId: authorizedSiteId } = await requireEditAccess()
+    if (idParsed.data !== authorizedSiteId) return { ok: false, error: 'forbidden' }
     const supabase = getSupabaseServiceClient()
 
-    // Return site-specific templates + global defaults (site_id IS NULL)
     let query = supabase
       .from('social_templates')
       .select('*')
-      .or(`site_id.eq.${idParsed.data},site_id.is.null`)
+      .or(`site_id.eq.${authorizedSiteId},site_id.is.null`)
       .order('is_default', { ascending: false })
       .order('created_at', { ascending: false })
 
@@ -105,13 +105,14 @@ export async function getTemplate(
   if (!parsed.success) return { ok: false, error: 'Invalid template ID' }
 
   try {
-    await requireEditAccess()
+    const { siteId: authorizedSiteId } = await requireEditAccess()
     const supabase = getSupabaseServiceClient()
 
     const { data, error } = await supabase
       .from('social_templates')
       .select('*')
       .eq('id', parsed.data)
+      .or(`site_id.eq.${authorizedSiteId},site_id.is.null`)
       .single()
 
     if (error || !data) return { ok: false, error: 'Template not found' }

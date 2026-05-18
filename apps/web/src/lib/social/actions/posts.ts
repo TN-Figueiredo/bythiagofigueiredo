@@ -217,9 +217,9 @@ export async function cancelSocialPost(postId: string): Promise<ActionResult> {
     const { siteId } = await requireEditAccess()
     const supabase = getSupabaseServiceClient()
 
-    const { error: postError } = await supabase
+    const { error: postError, count } = await supabase
       .from('social_posts')
-      .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+      .update({ status: 'cancelled', updated_at: new Date().toISOString() }, { count: 'exact' })
       .eq('id', parsed.data)
       .eq('site_id', siteId)
       .in('status', ['draft', 'scheduled', 'publishing'])
@@ -229,7 +229,8 @@ export async function cancelSocialPost(postId: string): Promise<ActionResult> {
       return { ok: false, error: postError.message }
     }
 
-    // Cancel pending deliveries
+    if (count === 0) return { ok: false, error: 'Post not found' }
+
     const { error: deliveryError } = await supabase
       .from('social_deliveries')
       .update({ status: 'skipped' })
@@ -257,31 +258,42 @@ export async function deleteSocialPost(postId: string): Promise<ActionResult> {
     const { siteId } = await requireEditAccess()
     const supabase = getSupabaseServiceClient()
 
-    // Get post with deliveries to check if anything was published
+    const { data: post } = await supabase
+      .from('social_posts')
+      .select('id')
+      .eq('id', parsed.data)
+      .eq('site_id', siteId)
+      .single()
+
+    if (!post) return { ok: false, error: 'Post not found' }
+
     const { data: deliveries } = await supabase
       .from('social_deliveries')
       .select('id, provider, platform_post_id, connection_id, status')
       .eq('post_id', parsed.data)
       .eq('status', 'published')
 
-    // For published deliveries, attempt platform deletion
     if (deliveries && deliveries.length > 0) {
       const key = getMasterKey()
       const decryptFn = (enc: string) => decrypt(enc, key)
+
+      const connectionIds = [...new Set(deliveries.map((d) => d.connection_id as string))]
+      const { data: connections } = await supabase
+        .from('social_connections')
+        .select('*')
+        .in('id', connectionIds)
+
+      const connMap = new Map(
+        (connections ?? []).map((c) => [c.id as string, toSocialConnection(c as Record<string, unknown>)]),
+      )
 
       for (const delivery of deliveries) {
         if (!delivery.platform_post_id) continue
 
         try {
-          const { data: connection } = await supabase
-            .from('social_connections')
-            .select('*')
-            .eq('id', delivery.connection_id)
-            .single()
+          const conn = connMap.get(delivery.connection_id as string)
+          if (!conn) continue
 
-          if (!connection) continue
-
-          const conn = toSocialConnection(connection as Record<string, unknown>)
           const provider = delivery.provider as Provider
 
           switch (provider) {
@@ -306,7 +318,6 @@ export async function deleteSocialPost(postId: string): Promise<ActionResult> {
               break
             }
             case 'bluesky':
-              // Bluesky post deletion requires AT Protocol session — handled separately
               break
             default: {
               const _exhaustive: never = provider
@@ -480,13 +491,14 @@ export async function listSocialPosts(
   if (!filtersParsed.success) return { ok: false, error: zodError(filtersParsed.error) }
 
   try {
-    await requireEditAccess()
+    const { siteId: authorizedSiteId } = await requireEditAccess()
+    if (idParsed.data !== authorizedSiteId) return { ok: false, error: 'forbidden' }
     const supabase = getSupabaseServiceClient()
 
     let query = supabase
       .from('social_posts')
       .select('*')
-      .eq('site_id', idParsed.data)
+      .eq('site_id', authorizedSiteId)
       .order('created_at', { ascending: false })
 
     if (filtersParsed.data.status) {

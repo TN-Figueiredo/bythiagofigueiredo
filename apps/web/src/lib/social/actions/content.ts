@@ -264,9 +264,9 @@ export async function checkDuplicatesAction(
   if (!parsedId.success) return { ok: false, error: 'Invalid content ID' }
 
   try {
-    await requireEditAccess()
+    const { siteId } = await requireEditAccess()
     const supabase = getSupabaseServiceClient()
-    const { posts } = await checkDuplicates(supabase, parsedType.data, parsedId.data)
+    const { posts } = await checkDuplicates(supabase, parsedType.data, parsedId.data, siteId)
     const warnings = getDuplicateWarnings(posts, targetPlatforms)
     return { ok: true, data: warnings }
   } catch (err) {

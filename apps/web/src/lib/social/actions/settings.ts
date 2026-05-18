@@ -45,13 +45,14 @@ export async function getSocialDefaults(
   if (!parsed.success) return { ok: false, error: 'Invalid site ID' }
 
   try {
-    await requireEditAccess()
+    const { siteId: authorizedSiteId } = await requireEditAccess()
+    if (parsed.data !== authorizedSiteId) return { ok: false, error: 'forbidden' }
     const supabase = getSupabaseServiceClient()
 
     const { data, error } = await supabase
       .from('sites')
       .select('social_defaults')
-      .eq('id', parsed.data)
+      .eq('id', authorizedSiteId)
       .single()
 
     if (error || !data) return { ok: false, error: 'Site not found' }
@@ -152,13 +153,14 @@ export async function getQueueSlotConfig(
   if (!parsed.success) return { ok: false, error: 'Invalid site ID' }
 
   try {
-    await requireEditAccess()
+    const { siteId: authorizedSiteId } = await requireEditAccess()
+    if (parsed.data !== authorizedSiteId) return { ok: false, error: 'forbidden' }
     const supabase = getSupabaseServiceClient()
 
     const { data, error } = await supabase
       .from('sites')
       .select('social_defaults')
-      .eq('id', parsed.data)
+      .eq('id', authorizedSiteId)
       .single()
 
     if (error || !data) return { ok: false, error: 'Site not found' }
@@ -218,3 +220,4 @@ export async function saveQueueSlotConfig(
     throw err
   }
 }
+

@@ -22,12 +22,12 @@ export async function handleUpdate(
     expires_at?: string | null
     activates_at?: string | null
     pass_click_ids?: boolean
-    redirect_type?: 301 | 302 | 307 | 308
+    redirect_type?: '301' | '302' | '307' | '308'
   },
 ): Promise<ActionResult> {
   if (!id) return { ok: false, error: 'id_required' }
 
-  const result = await updateLink(id, input)
+  const result = await updateLink(id, input as Parameters<typeof updateLink>[1])
 
   if (result.ok) {
     revalidatePath(`/cms/links/${id}`)

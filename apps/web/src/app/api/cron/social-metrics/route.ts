@@ -8,7 +8,7 @@ import {
 } from '@/lib/social/metrics-poller'
 import type { Provider } from '@tn-figueiredo/social'
 
-// Vercel Cron: { "path": "/api/cron/social-metrics", "schedule": "0 */2 * * *" }
+// Vercel Cron: { "path": "/api/cron/social-metrics", "schedule": "0 */4 * * *" }
 
 export const runtime = 'nodejs'
 export const maxDuration = 60

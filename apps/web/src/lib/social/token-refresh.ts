@@ -282,6 +282,7 @@ async function callGoogleRefresh(
       refresh_token: refreshToken,
       grant_type: 'refresh_token',
     }),
+    signal: AbortSignal.timeout(15_000),
   })
 
   if (!res.ok) {
@@ -314,7 +315,9 @@ async function callMetaRefresh(
   url.searchParams.set('client_secret', process.env.META_APP_SECRET ?? '')
   url.searchParams.set('fb_exchange_token', currentAccessToken)
 
-  const res = await fetch(url.toString())
+  const res = await fetch(url.toString(), {
+    signal: AbortSignal.timeout(15_000),
+  })
 
   if (!res.ok) {
     const text = await res.text()

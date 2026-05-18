@@ -178,35 +178,32 @@ export async function renderTemplate(
   const layer = new Konva.Layer()
   stage.add(layer)
 
-  // 1. Background
-  renderBackground(layer, background, size.width, size.height)
+  try {
+    renderBackground(layer, background, size.width, size.height)
 
-  // 2. Elements (in order = z-index)
-  for (const el of elements) {
-    switch (el.type) {
-      case 'text':
-        renderTextElement(layer, el, context, scaleX, scaleY)
-        break
-      case 'image':
-        renderImagePlaceholder(layer, el, scaleX, scaleY)
-        break
-      case 'qr':
-        // QR elements are not rendered in social templates
-        // (QR codes are handled by the Links Engine separately)
-        break
+    for (const el of elements) {
+      switch (el.type) {
+        case 'text':
+          renderTextElement(layer, el, context, scaleX, scaleY)
+          break
+        case 'image':
+          renderImagePlaceholder(layer, el, scaleX, scaleY)
+          break
+        case 'qr':
+          break
+      }
     }
+
+    layer.draw()
+
+    const canvasElement = stage.toCanvas({
+      width: size.width,
+      height: size.height,
+    })
+    const buffer = (canvasElement as unknown as { toBuffer: (mime: string) => Buffer }).toBuffer('image/png')
+
+    return buffer
+  } finally {
+    stage.destroy()
   }
-
-  layer.draw()
-
-  // Render to PNG buffer via the underlying node-canvas Canvas object
-  const canvasElement = stage.toCanvas({
-    width: size.width,
-    height: size.height,
-  })
-  const buffer = (canvasElement as unknown as { toBuffer: (mime: string) => Buffer }).toBuffer('image/png')
-
-  stage.destroy()
-
-  return buffer
 }

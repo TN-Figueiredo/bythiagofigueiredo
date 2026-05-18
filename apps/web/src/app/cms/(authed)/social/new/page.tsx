@@ -9,6 +9,7 @@ import {
   getContentForSocialPost,
   editPublishedPost,
   checkDuplicatesAction,
+  getNextQueueSlotAction,
 } from '@/lib/social/actions'
 import type { Provider } from '@tn-figueiredo/social'
 import { getSocialStrings } from '../_i18n'
@@ -58,6 +59,12 @@ export default async function SocialComposerPage({ searchParams }: Props) {
     }
   }
 
+  const fetchQueueSlot = async (timezone: string) => {
+    'use server'
+    const res = await getNextQueueSlotAction(ctx.siteId, timezone)
+    return res.ok ? res.data : null
+  }
+
   return (
     <>
       <CmsTopbar title={editPostId ? 'Editar Post' : t.composer.title} />
@@ -73,6 +80,7 @@ export default async function SocialComposerPage({ searchParams }: Props) {
           onGetContentForSocialPost={getContentForSocialPost}
           onEditPublishedPost={editPublishedPost}
           onCheckDuplicates={checkDuplicatesAction}
+          onFetchQueueSlot={fetchQueueSlot}
         />
       </div>
     </>

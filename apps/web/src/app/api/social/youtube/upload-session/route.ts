@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { decrypt, getMasterKey } from '@tn-figueiredo/social'
 
 export const runtime = 'nodejs'
 
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
 
   const { data: connection } = await supabase
     .from('social_connections')
-    .select('access_token_encrypted, token_expires_at')
+    .select('access_token_enc, token_expires_at')
     .eq('site_id', siteId)
     .eq('provider', 'google')
     .eq('status', 'active')
@@ -38,15 +39,14 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // TODO: decrypt access_token_encrypted via vault
-  const accessToken = connection.access_token_encrypted
+  const accessToken = decrypt(connection.access_token_enc as string, getMasterKey())
 
   const metadata = {
     snippet: {
       title: body.title,
       description: body.description ?? '',
       tags: body.tags ?? [],
-      categoryId: body.categoryId ?? '22', // "People & Blogs" default
+      categoryId: body.categoryId ?? '22',
     },
     status: {
       privacyStatus: body.privacyStatus,
@@ -63,6 +63,7 @@ export async function POST(req: NextRequest) {
         'X-Upload-Content-Type': 'video/*',
       },
       body: JSON.stringify(metadata),
+      signal: AbortSignal.timeout(15_000),
     },
   )
 

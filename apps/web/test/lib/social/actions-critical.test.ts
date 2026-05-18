@@ -6,9 +6,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const mockUpdate = vi.fn().mockReturnValue({
   eq: vi.fn().mockReturnValue({
     eq: vi.fn().mockReturnValue({
-      in: vi.fn().mockResolvedValue({ error: null }),
+      in: vi.fn().mockResolvedValue({ error: null, count: 1 }),
     }),
-    in: vi.fn().mockResolvedValue({ error: null }),
+    in: vi.fn().mockResolvedValue({ error: null, count: 1 }),
   }),
 })
 
@@ -30,6 +30,17 @@ const mockSelect = vi.fn()
 const mockFrom = vi.fn((table: string) => ({
   select: (...args: unknown[]) => {
     mockSelect(table, ...args)
+    if (table === 'social_posts') {
+      return {
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: { id: 'p1' }, error: null }),
+          }),
+          single: vi.fn().mockResolvedValue({ data: { id: 'p1' }, error: null }),
+          in: vi.fn().mockResolvedValue({ data: [], error: null }),
+        }),
+      }
+    }
     return {
       eq: vi.fn().mockReturnValue({
         eq: vi.fn().mockReturnValue({

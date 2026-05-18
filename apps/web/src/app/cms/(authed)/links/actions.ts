@@ -62,6 +62,7 @@ const UpdateLinkSchema = z.object({
   destination_url: z.string().url('invalid_url').optional(),
   title: z.string().optional(),
   slug: z.string().max(255).nullable().optional(),
+  redirect_type: z.enum(['301', '302', '307', '308']).optional(),
   source_type: z.enum(sourceTypes).optional(),
   utm_source: z.string().max(255).optional().transform(v => normalizeUtmValue('utm_source', v)),
   utm_medium: z.string().max(255).optional().transform(v => normalizeUtmValue('utm_medium', v)),
@@ -100,9 +101,18 @@ const GetLinksFiltersSchema = z.object({
 
 function generateShortCode(length = 7): string {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
-  const bytes = new Uint8Array(length)
-  crypto.getRandomValues(bytes)
-  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join('')
+  const maxUnbiased = 248
+  const result: string[] = []
+  while (result.length < length) {
+    const bytes = new Uint8Array(length * 2)
+    crypto.getRandomValues(bytes)
+    for (const b of bytes) {
+      if (b >= maxUnbiased) continue
+      result.push(alphabet[b % alphabet.length]!)
+      if (result.length === length) break
+    }
+  }
+  return result.join('')
 }
 
 // ─── CRUD Actions ───────────────────────────────────────────────────────────
@@ -183,6 +193,7 @@ export async function updateLink(
   if (d.destination_url !== undefined) updateData.destination_url = d.destination_url
   if (d.title !== undefined) updateData.title = d.title
   if (d.slug !== undefined) updateData.slug = d.slug
+  if (d.redirect_type !== undefined) updateData.redirect_type = Number(d.redirect_type)
   if (d.source_type !== undefined) updateData.source_type = d.source_type
   if (d.utm_source !== undefined) updateData.utm_source = d.utm_source
   if (d.utm_medium !== undefined) updateData.utm_medium = d.utm_medium
@@ -607,7 +618,7 @@ export async function deleteAlertRule(id: string): Promise<ActionResult> {
 export async function getLinks(
   siteId: string,
   filters: z.input<typeof GetLinksFiltersSchema>,
-): Promise<ActionResult<{ links: unknown[]; total: number }>> {
+): Promise<ActionResult<{ links: Record<string, unknown>[]; total: number }>> {
   const parsed = GetLinksFiltersSchema.safeParse(filters)
   if (!parsed.success) return { ok: false, error: 'invalid_filters' }
 
@@ -648,7 +659,7 @@ export async function getLinks(
 
 export async function getLinkDetail(
   id: string,
-): Promise<ActionResult<{ link: unknown }>> {
+): Promise<ActionResult<{ link: Record<string, unknown> }>> {
   if (!id) return { ok: false, error: 'id_required' }
 
   const { siteId } = await getSiteContext()

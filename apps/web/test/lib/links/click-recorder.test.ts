@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto'
 const mockInsert = vi.fn().mockResolvedValue({ error: null })
 const mockUpdate = vi.fn().mockResolvedValue({ error: null })
 const mockSelect = vi.fn()
+const mockUniquenessCheck = vi.fn()
 const mockRpc = vi.fn().mockResolvedValue({ data: null, error: null })
 
 vi.mock('../../../lib/supabase/service', () => ({
@@ -13,15 +14,26 @@ vi.mock('../../../lib/supabase/service', () => ({
       if (table === 'link_clicks') {
         return {
           insert: mockInsert,
-          select: () => ({
-            eq: () => ({
+          select: (_col?: string, opts?: { count?: string; head?: boolean }) => {
+            if (opts?.head) {
+              return {
+                eq: () => ({
+                  eq: () => ({
+                    limit: () => mockUniquenessCheck(),
+                  }),
+                }),
+              }
+            }
+            return {
               eq: () => ({
-                gte: () => ({
-                  maybeSingle: mockSelect,
+                eq: () => ({
+                  gte: () => ({
+                    maybeSingle: mockSelect,
+                  }),
                 }),
               }),
-            }),
-          }),
+            }
+          },
         }
       }
       if (table === 'tracked_links') {
@@ -43,6 +55,7 @@ describe('ClickRecorder', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockSelect.mockResolvedValue({ data: null, error: null })
+    mockUniquenessCheck.mockResolvedValue({ count: 0 })
   })
 
   it('generates visitor_id as sha256(ip+ua+date)', async () => {
@@ -100,5 +113,90 @@ describe('ClickRecorder', () => {
     })
     expect(result.deduplicated).toBe(false)
     expect(mockInsert).toHaveBeenCalled()
+  })
+
+  it('sets device_type based on user agent', async () => {
+    mockSelect.mockResolvedValue({ data: null, error: null })
+    const { recordClick } = await import('../../../src/lib/links/click-recorder')
+    await recordClick({
+      linkId: 'link-1',
+      siteId: 'site-1',
+      ip: '1.2.3.4',
+      userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)',
+      referrer: null,
+      headers: new Headers({}),
+    })
+    const insertData = mockInsert.mock.calls[0][0]
+    expect(insertData.device_type).toBe('mobile')
+  })
+
+  it('classifies referrer_source from referrer URL', async () => {
+    mockSelect.mockResolvedValue({ data: null, error: null })
+    const { recordClick } = await import('../../../src/lib/links/click-recorder')
+    await recordClick({
+      linkId: 'link-1',
+      siteId: 'site-1',
+      ip: '1.2.3.4',
+      userAgent: 'Mozilla/5.0',
+      referrer: 'https://www.youtube.com/watch?v=abc',
+      headers: new Headers({}),
+    })
+    const insertData = mockInsert.mock.calls[0][0]
+    expect(insertData.referrer_source).toBe('youtube')
+  })
+
+  it('sets referrer_source to direct when referrer is null', async () => {
+    mockSelect.mockResolvedValue({ data: null, error: null })
+    const { recordClick } = await import('../../../src/lib/links/click-recorder')
+    await recordClick({
+      linkId: 'link-1',
+      siteId: 'site-1',
+      ip: '1.2.3.4',
+      userAgent: 'Mozilla/5.0',
+      referrer: null,
+      headers: new Headers({}),
+    })
+    const insertData = mockInsert.mock.calls[0][0]
+    expect(insertData.referrer_source).toBe('direct')
+  })
+
+  it('sets is_unique false when visitor has prior clicks', async () => {
+    mockSelect.mockResolvedValue({ data: null, error: null })
+    mockUniquenessCheck.mockResolvedValue({ count: 3 })
+    const { recordClick } = await import('../../../src/lib/links/click-recorder')
+    await recordClick({
+      linkId: 'link-1',
+      siteId: 'site-1',
+      ip: '1.2.3.4',
+      userAgent: 'Mozilla/5.0',
+      referrer: null,
+      headers: new Headers({}),
+    })
+    const insertData = mockInsert.mock.calls[0][0]
+    expect(insertData.is_unique).toBe(false)
+    expect(mockRpc).toHaveBeenCalledWith('increment_link_clicks', {
+      p_link_id: 'link-1',
+      p_is_unique: false,
+    })
+  })
+
+  it('sets is_unique true when visitor has no prior clicks', async () => {
+    mockSelect.mockResolvedValue({ data: null, error: null })
+    mockUniquenessCheck.mockResolvedValue({ count: 0 })
+    const { recordClick } = await import('../../../src/lib/links/click-recorder')
+    await recordClick({
+      linkId: 'link-1',
+      siteId: 'site-1',
+      ip: '1.2.3.4',
+      userAgent: 'Mozilla/5.0',
+      referrer: null,
+      headers: new Headers({}),
+    })
+    const insertData = mockInsert.mock.calls[0][0]
+    expect(insertData.is_unique).toBe(true)
+    expect(mockRpc).toHaveBeenCalledWith('increment_link_clicks', {
+      p_link_id: 'link-1',
+      p_is_unique: true,
+    })
   })
 })

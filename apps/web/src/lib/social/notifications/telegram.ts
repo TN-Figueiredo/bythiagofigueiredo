@@ -54,6 +54,7 @@ export async function sendTelegramStoryNotification(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        signal: AbortSignal.timeout(10_000),
       },
     )
 
@@ -85,5 +86,6 @@ export async function sendTelegramConfirmation(chatId: string): Promise<void> {
       chat_id: chatId,
       text: 'Connected! You will receive story notifications here.',
     }),
-  })
+    signal: AbortSignal.timeout(10_000),
+  }).catch(() => {})
 }

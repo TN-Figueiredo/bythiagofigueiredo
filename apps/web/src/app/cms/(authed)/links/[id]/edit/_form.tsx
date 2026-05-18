@@ -68,7 +68,7 @@ export function EditLinkForm({ linkId, siteId, initial }: EditLinkFormProps) {
       expires_at: data.expires_at || null,
       activates_at: data.activates_at || null,
       pass_click_ids: data.pass_click_ids,
-      redirect_type: data.redirect_type,
+      redirect_type: String(data.redirect_type) as '301' | '302' | '307' | '308',
     })
     if (!result.ok) return { ok: false, error: result.error }
     router.push(`/cms/links/${linkId}`)

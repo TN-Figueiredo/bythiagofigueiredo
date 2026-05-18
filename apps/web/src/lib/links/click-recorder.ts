@@ -23,6 +23,33 @@ export function isBot(userAgent: string): boolean {
   return isBotShared(userAgent)
 }
 
+function classifyDevice(ua: string): 'mobile' | 'tablet' | 'desktop' {
+  const lower = ua.toLowerCase()
+  if (/ipad|tablet|playbook|silk/i.test(lower)) return 'tablet'
+  if (/mobile|iphone|ipod|android.*mobile|opera\s*m(ob|in)|windows\s*phone/i.test(lower))
+    return 'mobile'
+  return 'desktop'
+}
+
+function classifyReferrer(referrer: string | null): string {
+  if (!referrer) return 'direct'
+  try {
+    const host = new URL(referrer).hostname.toLowerCase()
+    if (host.includes('google')) return 'google'
+    if (host.includes('youtube')) return 'youtube'
+    if (host.includes('facebook') || host.includes('fb.com')) return 'facebook'
+    if (host.includes('instagram')) return 'instagram'
+    if (host.includes('twitter') || host.includes('x.com')) return 'twitter'
+    if (host.includes('linkedin')) return 'linkedin'
+    if (host.includes('tiktok')) return 'tiktok'
+    if (host.includes('reddit')) return 'reddit'
+    if (host.includes('pinterest')) return 'pinterest'
+    return 'other'
+  } catch {
+    return 'other'
+  }
+}
+
 export interface RecordClickInput {
   linkId: string
   siteId: string
@@ -73,6 +100,23 @@ export async function recordClick(input: RecordClickInput): Promise<RecordClickR
     return { deduplicated: true, isBot: bot }
   }
 
+  const deviceType = classifyDevice(userAgent)
+  const referrerSource = classifyReferrer(referrer)
+
+  let isUnique = true
+  try {
+    const { count: priorCount } = await supabase
+      .from('link_clicks')
+      .select('id', { count: 'exact', head: true })
+      .eq('link_id', linkId)
+      .eq('visitor_id', visitorId)
+      .limit(1)
+
+    isUnique = (priorCount ?? 0) === 0
+  } catch {
+    isUnique = true
+  }
+
   // Insert click record
   const { error: insertErr } = await supabase.from('link_clicks').insert({
     link_id: linkId,
@@ -82,11 +126,13 @@ export async function recordClick(input: RecordClickInput): Promise<RecordClickR
     user_agent: userAgent,
     referrer_domain: referrerDomain,
     referrer_url: referrer,
+    referrer_source: referrerSource,
+    device_type: deviceType,
     country: geo.country,
     city: geo.city,
     region: geo.region,
     is_bot: bot,
-    is_unique: true, // determined by aggregation cron later
+    is_unique: isUnique,
     clicked_at: new Date().toISOString(),
     utm_source: utmSource ?? null,
     utm_medium: utmMedium ?? null,
@@ -112,7 +158,7 @@ export async function recordClick(input: RecordClickInput): Promise<RecordClickR
   // Update link counters (best-effort, non-blocking in caller)
   const { error: rpcErr } = await supabase.rpc('increment_link_clicks', {
     p_link_id: linkId,
-    p_is_unique: true,
+    p_is_unique: isUnique,
   })
 
   if (rpcErr) {

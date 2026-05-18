@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { getNextQueueSlot, type QueueSlot } from '@/lib/social/queue'
+import type { QueueSlot } from '@/lib/social/queue'
 
 type ScheduleMode = 'now' | 'schedule' | 'queue'
 
@@ -14,9 +14,9 @@ interface ScheduleBarProps {
   onSaveDraft: () => void
   isPending: boolean
   disabled?: boolean
-  siteId?: string
   showPipeline: boolean
   strings?: Record<string, unknown>
+  onFetchQueueSlot?: (timezone: string) => Promise<QueueSlot | null>
 }
 
 const MODE_LABELS: Record<ScheduleMode, string> = {
@@ -45,20 +45,20 @@ export function ScheduleBar({
   onPublish,
   onSaveDraft,
   isPending,
-  siteId,
   showPipeline,
+  onFetchQueueSlot,
 }: ScheduleBarProps) {
   const [queueSlot, setQueueSlot] = useState<QueueSlot | null>(null)
   const [queueLoading, setQueueLoading] = useState(false)
 
   useEffect(() => {
-    if (mode !== 'queue') return
+    if (mode !== 'queue' || !onFetchQueueSlot) return
     setQueueLoading(true)
-    getNextQueueSlot(siteId ?? '', 'America/Sao_Paulo')
+    onFetchQueueSlot('America/Sao_Paulo')
       .then(setQueueSlot)
       .catch(() => setQueueSlot(null))
       .finally(() => setQueueLoading(false))
-  }, [mode, siteId])
+  }, [mode, onFetchQueueSlot])
 
   const dateValue = scheduledAt ? scheduledAt.slice(0, 10) : ''
   const timeValue = scheduledAt ? scheduledAt.slice(11, 16) : ''

@@ -45,13 +45,16 @@ export async function checkDuplicates(
   supabase: SupabaseClient,
   sourceType: string,
   sourceId: string,
+  siteId?: string,
 ): Promise<DuplicateCheckResult> {
-  const { data, error } = await supabase
+  let query = supabase
     .from('social_posts')
     .select('id, platform, status, published_at')
     .eq('source_content_type', sourceType)
     .eq('source_content_id', sourceId)
     .not('status', 'in', '("cancelled","failed")')
+  if (siteId) query = query.eq('site_id', siteId)
+  const { data, error } = await query
 
   if (error || !data) {
     return { hasDuplicates: false, posts: [] }

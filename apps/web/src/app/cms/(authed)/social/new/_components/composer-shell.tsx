@@ -66,6 +66,7 @@ interface ComposerShellProps {
   onGetContentForSocialPost: typeof getContentForSocialPost
   onEditPublishedPost: typeof editPublishedPost
   onCheckDuplicates: typeof checkDuplicatesAction
+  onFetchQueueSlot?: (timezone: string) => Promise<{ date: string; hour: number; scheduledAt: string; label: string } | null>
 }
 
 function isValidUrl(value: string): boolean {
@@ -93,6 +94,7 @@ export function ComposerShell({
   onGetContentForSocialPost,
   onEditPublishedPost,
   onCheckDuplicates,
+  onFetchQueueSlot,
 }: ComposerShellProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -768,7 +770,7 @@ export function ComposerShell({
         onSaveDraft={handleSaveDraft}
         isPending={isPending}
         showPipeline={showPipeline}
-        siteId=""
+        onFetchQueueSlot={onFetchQueueSlot}
       />
 
       {/* Post-publish delivery status banner — shown while navigating to detail page */}
