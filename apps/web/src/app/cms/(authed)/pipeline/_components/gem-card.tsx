@@ -80,21 +80,21 @@ export const GemCard = memo(function GemCard({ item, isDragging: _isDragging, on
         isArchived ? 'opacity-45 saturate-[0.3] hover:opacity-65' : ''
       } ${isBlockedState ? 'ring-1 ring-red-500/30' : ''}`}
       style={{
-        borderColor: isBlockedState ? 'rgba(239,68,68,0.4)' : 'var(--gem-border)',
+        borderColor: isBlockedState ? 'color-mix(in srgb, var(--gem-danger, #ef4444) 40%, transparent)' : 'var(--gem-border)',
         background: isBlockedState
-          ? 'linear-gradient(to bottom, rgba(239,68,68,0.05), var(--gem-surface))'
+          ? 'linear-gradient(to bottom, color-mix(in srgb, var(--gem-danger, #ef4444) 5%, transparent), var(--gem-surface))'
           : isEnriched
             ? `linear-gradient(to bottom, ${priority.accentDim}, var(--gem-surface))`
             : 'var(--gem-surface)',
       }}
       onMouseEnter={(e) => { if (!isArchived && !isBlockedState) e.currentTarget.style.borderColor = priority.accent }}
-      onMouseLeave={(e) => { e.currentTarget.style.borderColor = isBlockedState ? 'rgba(239,68,68,0.4)' : 'var(--gem-border)' }}
+      onMouseLeave={(e) => { e.currentTarget.style.borderColor = isBlockedState ? 'color-mix(in srgb, var(--gem-danger, #ef4444) 40%, transparent)' : 'var(--gem-border)' }}
     >
       {/* Cover image tier */}
       {item.cover_image_url ? (
         <>
           <div className="relative h-[44px] w-full overflow-hidden rounded-t-lg -mt-3 -mx-3 mb-2">
-            <img src={item.cover_image_url} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.display = 'none' }} className="h-full w-full object-cover" />
+            <img src={item.cover_image_url} alt={title} loading="lazy" onError={(e) => { e.currentTarget.style.display = 'none' }} className="h-full w-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-[var(--gem-surface)] from-[20%] to-transparent" />
           </div>
           {/* Priority bar below cover */}
@@ -134,19 +134,19 @@ export const GemCard = memo(function GemCard({ item, isDragging: _isDragging, on
           <span
             className="text-[10px] px-1 py-0.5 rounded font-medium"
             style={{
-              backgroundColor: item.linked_post_status === 'published' ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
-              color: item.linked_post_status === 'published' ? '#10b981' : '#f59e0b',
+              backgroundColor: item.linked_post_status === 'published' ? 'color-mix(in srgb, var(--gem-done, #10b981) 15%, transparent)' : 'color-mix(in srgb, var(--gem-warn, #f59e0b) 15%, transparent)',
+              color: item.linked_post_status === 'published' ? 'var(--gem-done, #10b981)' : 'var(--gem-warn, #f59e0b)',
             }}
             title={`Blog post: ${item.linked_post_status ?? 'linked'}`}
           >
             {item.linked_post_status === 'published' ? '✓ published' : 'graduated'}
           </span>
         )}
-        <span className={`text-[10px] flex items-center gap-0.5 ml-auto ${staleness.className}`}>
+        <span className={`text-[10px] flex items-center gap-0.5 ml-auto ${staleness.className}`} title={staleness.tier === 'ok' ? 'Current' : staleness.tier === 'warn' ? 'Stale' : 'Very stale'}>
           <span
             className="w-1.5 h-1.5 rounded-full inline-block"
             style={{
-              backgroundColor: staleness.tier === 'ok' ? '#10b981' : staleness.tier === 'warn' ? '#f59e0b' : '#ef4444',
+              backgroundColor: staleness.tier === 'ok' ? 'var(--gem-done, #10b981)' : staleness.tier === 'warn' ? 'var(--gem-warn, #f59e0b)' : 'var(--gem-danger, #ef4444)',
             }}
           />
           {staleness.days}d
@@ -209,7 +209,7 @@ export const GemCard = memo(function GemCard({ item, isDragging: _isDragging, on
               className="h-1 flex-1 rounded-sm transition-colors duration-300"
               style={{
                 backgroundColor: done ? 'var(--gem-done)' : 'var(--gem-well)',
-                boxShadow: done ? '0 0 4px rgba(16,185,129,0.3)' : 'none',
+                boxShadow: done ? '0 0 4px color-mix(in srgb, var(--gem-done, #10b981) 30%, transparent)' : 'none',
                 border: done ? 'none' : '1px solid var(--gem-border)',
               }}
             />
@@ -234,7 +234,7 @@ export const GemCard = memo(function GemCard({ item, isDragging: _isDragging, on
       {isGraduated && (
         <div
           className="h-0.5 -mx-3 -mb-3 mt-2 rounded-b-lg"
-          style={{ background: 'linear-gradient(to right, #10b981, #059669 50%, transparent)' }}
+          style={{ background: 'linear-gradient(to right, var(--gem-done, #10b981), var(--gem-done, #059669) 50%, transparent)' }}
         />
       )}
     </div>

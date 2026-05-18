@@ -48,7 +48,7 @@ export function PipelineListTable({ items }: { items: ListItem[] }) {
   function SortHeader({ k, label, align }: { k: SortKey; label: string; align?: 'center' }) {
     const active = sortKey === k
     return (
-      <th className={`pb-2 text-${align ?? 'left'} text-[10px] uppercase tracking-wider font-medium cursor-pointer select-none hover:opacity-80`} style={{ color: active ? 'var(--gem-text)' : 'var(--gem-dim)' }} onClick={() => toggleSort(k)} aria-sort={active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+      <th scope="col" tabIndex={0} className={`pb-2 text-${align ?? 'left'} text-[10px] uppercase tracking-wider font-medium cursor-pointer select-none hover:opacity-80`} style={{ color: active ? 'var(--gem-text)' : 'var(--gem-dim)' }} onClick={() => toggleSort(k)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSort(k) } }} aria-sort={active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>
         {label}{active && (sortDir === 'asc' ? ' ↑' : ' ↓')}
       </th>
     )
@@ -60,13 +60,13 @@ export function PipelineListTable({ items }: { items: ListItem[] }) {
         <thead>
           <tr className="border-b" style={{ borderColor: 'var(--gem-border)' }}>
             <SortHeader k="code" label="Code" />
-            <th className="pb-2 text-left text-[10px] uppercase tracking-wider font-medium" style={{ color: 'var(--gem-dim)' }}>Title</th>
-            <th className="pb-2 text-left text-[10px] uppercase tracking-wider font-medium" style={{ color: 'var(--gem-dim)' }}>Format</th>
+            <th scope="col" className="pb-2 text-left text-[10px] uppercase tracking-wider font-medium" style={{ color: 'var(--gem-dim)' }}>Title</th>
+            <th scope="col" className="pb-2 text-left text-[10px] uppercase tracking-wider font-medium" style={{ color: 'var(--gem-dim)' }}>Format</th>
             <SortHeader k="stage" label="Stage" />
             <SortHeader k="priority" label="Priority" />
-            <th className="pb-2 text-left text-[10px] uppercase tracking-wider font-medium" style={{ color: 'var(--gem-dim)' }}>Lang</th>
+            <th scope="col" className="pb-2 text-left text-[10px] uppercase tracking-wider font-medium" style={{ color: 'var(--gem-dim)' }}>Lang</th>
             <SortHeader k="validation_score" label="VVS" align="center" />
-            <th className="pb-2 text-left text-[10px] uppercase tracking-wider font-medium" style={{ color: 'var(--gem-dim)' }}>Checklist</th>
+            <th scope="col" className="pb-2 text-left text-[10px] uppercase tracking-wider font-medium" style={{ color: 'var(--gem-dim)' }}>Checklist</th>
           </tr>
         </thead>
         <tbody>

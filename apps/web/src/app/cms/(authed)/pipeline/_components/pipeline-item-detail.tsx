@@ -477,7 +477,7 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
         {/* Cover image */}
         {coverImageUrl ? (
           <div className="relative group rounded-lg overflow-hidden" style={{ maxHeight: 240 }}>
-            <img src={coverImageUrl} alt="" className="w-full object-cover" style={{ maxHeight: 240 }} />
+            <img src={coverImageUrl} alt={item.title_pt || item.title_en || 'Cover image'} className="w-full object-cover" style={{ maxHeight: 240 }} />
             <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
               <button
                 type="button"
@@ -643,18 +643,22 @@ export function PipelineItemDetail({ item: initialItem, history, dependencies }:
             <span className="text-[10px]" style={{ color: 'var(--gem-dim)' }}>há {staleness.days}d</span>
           </div>
           {/* Stage progress dots */}
-          <div className="flex gap-1 mb-3" role="progressbar" aria-valuenow={currentPosition} aria-valuemax={stages.length - 1} aria-label="Stage progress">
-            {stages.map((s) => (
-              <div
-                key={s.stage}
-                className="h-1.5 flex-1 rounded-sm transition-colors"
-                title={s.label_pt}
-                style={{
-                  backgroundColor: s.position < currentPosition ? 'var(--gem-done)' : s.position === currentPosition ? priority.accent : 'transparent',
-                  border: s.position > currentPosition ? '1px dashed var(--gem-border)' : 'none',
-                }}
-              />
-            ))}
+          <div className="flex gap-1 mb-3" role="progressbar" aria-valuemin={0} aria-valuenow={currentPosition} aria-valuemax={stages.length - 1} aria-label="Stage progress">
+            {stages.map((s) => {
+              const status = s.position < currentPosition ? 'completed' : s.position === currentPosition ? 'active' : 'pending'
+              return (
+                <div
+                  key={s.stage}
+                  className="h-1.5 flex-1 rounded-sm transition-colors"
+                  title={s.label_pt}
+                  aria-label={`${s.label_pt}: ${status === 'completed' ? 'concluído' : status === 'active' ? 'atual' : 'pendente'}`}
+                  style={{
+                    backgroundColor: status === 'completed' ? 'var(--gem-done)' : status === 'active' ? priority.accent : 'transparent',
+                    border: status === 'pending' ? '1px dashed var(--gem-border)' : 'none',
+                  }}
+                />
+              )
+            })}
           </div>
           <div className="flex gap-2">
             <button
