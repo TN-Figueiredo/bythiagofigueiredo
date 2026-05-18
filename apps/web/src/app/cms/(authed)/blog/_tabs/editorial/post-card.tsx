@@ -11,6 +11,8 @@ import type { BlogHubStrings } from '../../_i18n/types'
 import { formatRelativeDate, getKanbanMoveTargets, LOCALE_FLAGS } from '../../_hub/hub-utils'
 import { SUBSTATUS_BADGES } from '../../_hub/hub-utils'
 
+const LOCALE_NAMES: Record<string, string> = { 'pt-BR': 'Português', pt: 'Português', en: 'English', es: 'Español' }
+
 const MOVE_TO_LABEL_MAP: Record<string, keyof BlogHubStrings['editorial']> = {
   idea: 'moveToIdea',
   draft: 'moveToDraft',
@@ -210,7 +212,7 @@ export const PostCard = memo(function PostCard({
           </span>
         )}
         {card.locales.map((loc) => (
-          <span key={loc} className="text-[9px] text-gray-500">
+          <span key={loc} className="text-[9px] text-gray-500" aria-label={LOCALE_NAMES[loc] ?? loc}>
             <span aria-hidden="true">{LOCALE_FLAGS[loc] ?? ''}</span>
           </span>
         ))}
@@ -219,7 +221,7 @@ export const PostCard = memo(function PostCard({
       {laneId === 'scheduled' && card.scheduledFor && (
         <div className="mt-1.5 flex items-center gap-1 text-[9px] text-purple-400">
           <Calendar className="h-3 w-3" />
-          {new Date(card.scheduledFor).toLocaleDateString(locale, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+          {new Date(card.scheduledFor).toLocaleString(locale, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
         </div>
       )}
 
@@ -332,7 +334,7 @@ export function PostCardOverlay({ card }: { card: PostCardType }) {
       <div className="flex items-center gap-1.5 text-[9px]">
         <span className="font-mono text-gray-500">{card.displayId}</span>
       </div>
-      <p className="mt-1 text-[12px] font-medium text-gray-200 line-clamp-2">{card.title}</p>
+      <p className="mt-1 text-[12px] font-medium text-gray-200 line-clamp-2">{card.title || 'Untitled'}</p>
     </div>
   )
 }

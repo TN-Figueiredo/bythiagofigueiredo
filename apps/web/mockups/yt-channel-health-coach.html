@@ -1,0 +1,501 @@
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  .health-panel {
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    background: #0f1117;
+    color: #e2e8f0;
+    padding: 32px;
+    min-height: 100vh;
+    --radius: 12px;
+  }
+  .health-panel h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .health-panel .subtitle {
+    color: #94a3b8;
+    font-size: 0.875rem;
+    margin-bottom: 28px;
+  }
+
+  .health-top-row {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    gap: 24px;
+    margin-bottom: 32px;
+  }
+
+  /* Health Score Ring */
+  .health-ring-card {
+    background: #1a1d27;
+    border: 1px solid #2a2d37;
+    border-radius: var(--radius);
+    padding: 28px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .health-ring-container {
+    position: relative;
+    width: 160px;
+    height: 160px;
+    margin-bottom: 16px;
+  }
+  .health-ring-svg {
+    width: 160px;
+    height: 160px;
+    transform: rotate(-90deg);
+  }
+  .ring-bg {
+    fill: none;
+    stroke: #2a2d37;
+    stroke-width: 10;
+  }
+  .ring-fill {
+    fill: none;
+    stroke-width: 10;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.8s ease;
+  }
+  .health-ring-score {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+  }
+  .health-ring-number {
+    font-size: 2.8rem;
+    font-weight: 800;
+    line-height: 1;
+    color: #60a5fa;
+  }
+  .health-ring-label {
+    font-size: 0.7rem;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-top: 4px;
+  }
+  .health-ring-grade {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #60a5fa;
+    margin-top: 8px;
+  }
+  .health-ring-trend {
+    font-size: 0.8rem;
+    color: #34d399;
+    margin-top: 4px;
+  }
+
+  /* Radar Chart */
+  .radar-card {
+    background: #1a1d27;
+    border: 1px solid #2a2d37;
+    border-radius: var(--radius);
+    padding: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+  .radar-svg {
+    width: 320px;
+    height: 320px;
+  }
+  .radar-grid { stroke: #2a2d37; fill: none; stroke-width: 0.5; }
+  .radar-axis { stroke: #2a2d37; stroke-width: 0.5; }
+  .radar-area {
+    fill: rgba(96, 165, 250, 0.15);
+    stroke: #60a5fa;
+    stroke-width: 2;
+  }
+  .radar-point { fill: #60a5fa; }
+  .radar-label {
+    font-size: 11px;
+    fill: #94a3b8;
+    font-weight: 600;
+  }
+  .radar-legend {
+    position: absolute;
+    bottom: 16px;
+    right: 20px;
+    display: flex;
+    gap: 16px;
+    font-size: 0.7rem;
+    color: #64748b;
+  }
+  .radar-legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 4px;
+  }
+
+  /* Coaching Cards */
+  .coaching-section-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #64748b;
+    margin-bottom: 16px;
+  }
+  .coaching-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .coaching-card {
+    background: #1a1d27;
+    border: 1px solid #2a2d37;
+    border-radius: var(--radius);
+    padding: 20px;
+    transition: border-color 0.2s;
+  }
+  .coaching-card:hover {
+    border-color: #3b3f4a;
+  }
+  .coaching-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .coaching-axis-name {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #e2e8f0;
+  }
+  .coaching-grade {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    font-weight: 800;
+    font-size: 0.8rem;
+  }
+  .coaching-score-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .coaching-score-number {
+    font-size: 1.6rem;
+    font-weight: 800;
+  }
+  .coaching-score-bar {
+    flex: 1;
+    height: 6px;
+    background: #2a2d37;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .coaching-score-fill {
+    height: 100%;
+    border-radius: 3px;
+  }
+  .coaching-benchmark {
+    font-size: 0.78rem;
+    color: #94a3b8;
+    margin-bottom: 8px;
+    line-height: 1.5;
+  }
+  .coaching-benchmark strong {
+    color: #e2e8f0;
+  }
+  .coaching-trend {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.75rem;
+    padding: 3px 10px;
+    border-radius: 6px;
+    margin-bottom: 12px;
+  }
+  .coaching-trend-down { background: rgba(248, 113, 113, 0.12); color: #f87171; }
+  .coaching-trend-up { background: rgba(52, 211, 153, 0.12); color: #34d399; }
+  .coaching-trend-stable { background: rgba(148, 163, 184, 0.12); color: #94a3b8; }
+
+  .coaching-rec {
+    background: #141722;
+    border: 1px solid #232636;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 0.8rem;
+    color: #cbd5e1;
+    line-height: 1.5;
+  }
+  .coaching-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 10px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #a78bfa;
+    cursor: pointer;
+    text-decoration: none;
+  }
+  .coaching-action:hover { color: #c4b5fd; }
+
+  /* Footer */
+  .health-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #1a1d27;
+    border: 1px solid #2a2d37;
+    border-radius: var(--radius);
+    padding: 16px 24px;
+  }
+  .health-footer-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .health-footer-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #34d399;
+  }
+  .health-footer-text {
+    font-size: 0.85rem;
+    color: #94a3b8;
+  }
+  .health-footer-text strong {
+    color: #e2e8f0;
+  }
+  .health-footer-btn {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    border: none;
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  .health-footer-btn:hover { opacity: 0.85; }
+
+  /* Full-width coaching card */
+  .coaching-full {
+    grid-column: 1 / -1;
+  }
+</style>
+
+<div class="health-panel">
+  <h2>Coach de Saúde do Canal</h2>
+  <p class="subtitle">Diagnóstico holístico com recomendações personalizadas por eixo</p>
+
+  <div class="health-top-row">
+    <!-- Health Score Ring -->
+    <div class="health-ring-card">
+      <div class="health-ring-container">
+        <svg class="health-ring-svg" viewBox="0 0 160 160">
+          <circle class="ring-bg" cx="80" cy="80" r="65"/>
+          <!-- 68/100 = ~68% of circumference. C = 2*pi*65 = 408.4. dasharray=408.4, offset = 408.4 * (1 - 0.68) = 130.7 -->
+          <circle class="ring-fill" cx="80" cy="80" r="65"
+            stroke="#60a5fa"
+            stroke-dasharray="408.4"
+            stroke-dashoffset="130.7"/>
+        </svg>
+        <div class="health-ring-score">
+          <div class="health-ring-number">68</div>
+          <div class="health-ring-label">de 100</div>
+        </div>
+      </div>
+      <div class="health-ring-grade">Nota B</div>
+      <div class="health-ring-trend">↑ +5 pts vs mês passado</div>
+    </div>
+
+    <!-- Radar Chart -->
+    <div class="radar-card">
+      <svg class="radar-svg" viewBox="0 0 320 320">
+        <!-- Grid circles (pentagons) -->
+        <!-- Level markers at 20, 40, 60, 80, 100 -->
+        <!-- Pentagon vertices for 5 axes at angles: -90, -18, 54, 126, 198 degrees -->
+        <!-- Simplified: draw 5 concentric pentagons -->
+
+        <!-- Grid level 20% -->
+        <polygon class="radar-grid" points="160,144 163.1,157.6 157.7,159.5 156.9,157.6 156.1,144"/>
+        <!-- Simplified grid — just draw circles for visual clarity -->
+        <circle class="radar-grid" cx="160" cy="160" r="24"/>
+        <circle class="radar-grid" cx="160" cy="160" r="48"/>
+        <circle class="radar-grid" cx="160" cy="160" r="72"/>
+        <circle class="radar-grid" cx="160" cy="160" r="96"/>
+        <circle class="radar-grid" cx="160" cy="160" r="120"/>
+
+        <!-- Axis lines -->
+        <line class="radar-axis" x1="160" y1="160" x2="160" y2="40"/>
+        <line class="radar-axis" x1="160" y1="160" x2="274" y2="117"/>
+        <line class="radar-axis" x1="160" y1="160" x2="230" y2="263"/>
+        <line class="radar-axis" x1="160" y1="160" x2="90" y2="263"/>
+        <line class="radar-axis" x1="160" y1="160" x2="46" y2="117"/>
+
+        <!-- Data polygon (CTR:42, Ret:72, Cresc:55, Eng:68, Freq:80) -->
+        <!-- Mapped to radius: 42%*120=50.4, 72%*120=86.4, 55%*120=66, 68%*120=81.6, 80%*120=96 -->
+        <!-- Axis 1 (up): 160, 160-50.4 = 160, 109.6 -->
+        <!-- Axis 2 (upper right): 160 + 86.4*sin(72) = 160+82.2=242.2, 160 - 86.4*cos(72) = 160-26.7=133.3 -->
+        <!-- Axis 3 (lower right): 160 + 66*sin(144) = 160+38.8=198.8, 160 - 66*cos(144) = 160+53.4=213.4 -->
+        <!-- Axis 4 (lower left): 160 + 81.6*sin(216) = 160-48=112, 160 - 81.6*cos(216) = 160+66=226 -->
+        <!-- Axis 5 (upper left): 160 + 96*sin(288) = 160-91.3=68.7, 160 - 96*cos(288) = 160-29.7=130.3 -->
+        <polygon class="radar-area" points="160,109.6 242.2,133.3 198.8,213.4 112,226 68.7,130.3"/>
+
+        <!-- Data points -->
+        <circle class="radar-point" cx="160" cy="109.6" r="4"/>
+        <circle class="radar-point" cx="242.2" cy="133.3" r="4"/>
+        <circle class="radar-point" cx="198.8" cy="213.4" r="4"/>
+        <circle class="radar-point" cx="112" cy="226" r="4"/>
+        <circle class="radar-point" cx="68.7" cy="130.3" r="4"/>
+
+        <!-- Labels -->
+        <text class="radar-label" x="160" y="28" text-anchor="middle">CTR (42)</text>
+        <text class="radar-label" x="284" y="117" text-anchor="start">Retenção (72)</text>
+        <text class="radar-label" x="240" y="280" text-anchor="middle">Crescimento (55)</text>
+        <text class="radar-label" x="80" y="280" text-anchor="middle">Engagement (68)</text>
+        <text class="radar-label" x="36" y="117" text-anchor="end">Frequência (80)</text>
+      </svg>
+      <div class="radar-legend">
+        <span><span class="radar-legend-dot" style="background:#60a5fa"></span>Seu canal</span>
+        <span><span class="radar-legend-dot" style="background:#2a2d37;border:1px solid #64748b"></span>Média do nicho</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Coaching Cards -->
+  <div class="coaching-section-title">Coaching por Eixo</div>
+  <div class="coaching-grid">
+
+    <!-- CTR Card -->
+    <div class="coaching-card">
+      <div class="coaching-card-header">
+        <span class="coaching-axis-name">CTR (Click-Through Rate)</span>
+        <span class="coaching-grade grade-c" style="background:rgba(251,191,36,0.15);color:#fbbf24">C</span>
+      </div>
+      <div class="coaching-score-row">
+        <span class="coaching-score-number" style="color:#fbbf24">42</span>
+        <div class="coaching-score-bar">
+          <div class="coaching-score-fill" style="width:42%;background:#fbbf24"></div>
+        </div>
+      </div>
+      <div class="coaching-benchmark">
+        Média do nicho: <strong>5.8%</strong> • Seu canal: <strong>3.2%</strong> • Gap: -2.6pp
+      </div>
+      <span class="coaching-trend coaching-trend-down">↓ Caindo 15% vs mês passado</span>
+      <div class="coaching-rec">
+        Suas thumbnails têm pouco contraste e texto pequeno demais. Teste close-up facial com expressão forte + texto bold com max 4 palavras. Priorize os próximos 3 vídeos como experimento.
+      </div>
+      <a class="coaching-action" href="#">3 vídeos para testar nova thumbnail →</a>
+    </div>
+
+    <!-- Retention Card -->
+    <div class="coaching-card">
+      <div class="coaching-card-header">
+        <span class="coaching-axis-name">Retenção</span>
+        <span class="coaching-grade" style="background:rgba(96,165,250,0.15);color:#60a5fa">B</span>
+      </div>
+      <div class="coaching-score-row">
+        <span class="coaching-score-number" style="color:#60a5fa">72</span>
+        <div class="coaching-score-bar">
+          <div class="coaching-score-fill" style="width:72%;background:#60a5fa"></div>
+        </div>
+      </div>
+      <div class="coaching-benchmark">
+        Média do nicho: <strong>45%</strong> • Seu canal: <strong>48%</strong> • Acima: +3pp
+      </div>
+      <span class="coaching-trend coaching-trend-up">↑ Subindo 8% vs mês passado</span>
+      <div class="coaching-rec">
+        Boa retenção média, mas queda brusca nos primeiros 30s. Teste hooks mais diretos: comece com o resultado final, depois conte a história. Pattern interrupt a cada 2-3 min.
+      </div>
+      <a class="coaching-action" href="#">Ver análise de retenção por vídeo →</a>
+    </div>
+
+    <!-- Growth Card -->
+    <div class="coaching-card">
+      <div class="coaching-card-header">
+        <span class="coaching-axis-name">Crescimento</span>
+        <span class="coaching-grade" style="background:rgba(251,191,36,0.15);color:#fbbf24">C</span>
+      </div>
+      <div class="coaching-score-row">
+        <span class="coaching-score-number" style="color:#fbbf24">55</span>
+        <div class="coaching-score-bar">
+          <div class="coaching-score-fill" style="width:55%;background:#fbbf24"></div>
+        </div>
+      </div>
+      <div class="coaching-benchmark">
+        Taxa de crescimento: <strong>+2.1%/mês</strong> • Nicho avg: <strong>+3.8%/mês</strong> • Gap: -1.7pp
+      </div>
+      <span class="coaching-trend coaching-trend-stable">→ Estável vs mês passado</span>
+      <div class="coaching-rec">
+        Crescimento abaixo do nicho. Seus vídeos performam bem com inscritos mas não atraem novos viewers. Foque em SEO: títulos com keywords de cauda longa + descrições otimizadas nos próximos uploads.
+      </div>
+      <a class="coaching-action" href="#">Sugestões de keywords para próximo vídeo →</a>
+    </div>
+
+    <!-- Engagement Card -->
+    <div class="coaching-card">
+      <div class="coaching-card-header">
+        <span class="coaching-axis-name">Engagement</span>
+        <span class="coaching-grade" style="background:rgba(96,165,250,0.15);color:#60a5fa">B</span>
+      </div>
+      <div class="coaching-score-row">
+        <span class="coaching-score-number" style="color:#60a5fa">68</span>
+        <div class="coaching-score-bar">
+          <div class="coaching-score-fill" style="width:68%;background:#60a5fa"></div>
+        </div>
+      </div>
+      <div class="coaching-benchmark">
+        Like ratio: <strong>4.8%</strong> (nicho: 3.5%) • Comentários/view: <strong>0.6%</strong> (nicho: 0.4%)
+      </div>
+      <span class="coaching-trend coaching-trend-up">↑ Subindo 12% vs mês passado</span>
+      <div class="coaching-rec">
+        Engagement forte — sua audiência é ativa. Capitalize: adicione CTAs de comentário mais cedo (antes do minuto 3) e crie polls na aba Community pelo menos 2x/semana para manter engajamento entre uploads.
+      </div>
+      <a class="coaching-action" href="#">Templates de Community Posts →</a>
+    </div>
+
+    <!-- Frequency Card (full width) -->
+    <div class="coaching-card coaching-full">
+      <div class="coaching-card-header">
+        <span class="coaching-axis-name">Frequência de Upload</span>
+        <span class="coaching-grade" style="background:rgba(52,211,153,0.15);color:#34d399">A</span>
+      </div>
+      <div class="coaching-score-row">
+        <span class="coaching-score-number" style="color:#34d399">80</span>
+        <div class="coaching-score-bar">
+          <div class="coaching-score-fill" style="width:80%;background:#34d399"></div>
+        </div>
+      </div>
+      <div class="coaching-benchmark">
+        Uploads últimos 30 dias: <strong>8 vídeos</strong> • Cadência: <strong>~2/semana</strong> • Consistência: <strong>92%</strong> (sem gaps > 5 dias)
+      </div>
+      <span class="coaching-trend coaching-trend-up">↑ Melhorou 20% vs mês passado</span>
+      <div class="coaching-rec">
+        Cadência excelente e consistente. O algoritmo está recompensando — impressões médias subiram 15% desde que estabilizou em 2/semana. Mantenha esse ritmo e evite gaps maiores que 4 dias. Considere adicionar Shorts nos dias sem long-form para preencher lacunas.
+      </div>
+      <a class="coaching-action" href="#">Ver calendário de uploads →</a>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="health-footer">
+    <div class="health-footer-info">
+      <div class="health-footer-dot"></div>
+      <div class="health-footer-text">
+        <strong>Última análise AI:</strong> há 2 dias (15 mai 2026, 14:32)
+      </div>
+    </div>
+    <button class="health-footer-btn">✨ Solicitar Nova Análise</button>
+  </div>
+</div>

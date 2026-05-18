@@ -159,6 +159,11 @@ ALTER TABLE public.social_posts
   ADD CONSTRAINT social_posts_status_check
     CHECK (status IN ('draft', 'queued', 'scheduled', 'publishing', 'completed', 'partial_failure', 'failed', 'cancelled'));
 
+-- IMPORTANT: Also update the TypeScript POST_STATUSES array in
+-- packages/social/src/core/types.ts to include 'queued':
+-- export const POST_STATUSES = ['draft', 'queued', 'scheduled', 'publishing', ...] as const
+-- Then rebuild: npm run build -w packages/social
+
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 5. ALTER social_deliveries: add format column (idempotent — may already exist)
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -184,13 +189,24 @@ ALTER TABLE public.social_connections
   ADD COLUMN IF NOT EXISTS bluesky_did TEXT;
 
 ALTER TABLE public.social_connections
-  ADD COLUMN IF NOT EXISTS bluesky_access_jwt TEXT;
+  ADD COLUMN IF NOT EXISTS bluesky_access_jwt_enc_enc TEXT;
 
 ALTER TABLE public.social_connections
-  ADD COLUMN IF NOT EXISTS bluesky_refresh_jwt TEXT;
+  ADD COLUMN IF NOT EXISTS bluesky_refresh_jwt_enc_enc TEXT;
 
 ALTER TABLE public.social_connections
   ADD COLUMN IF NOT EXISTS bluesky_jwt_expires_at TIMESTAMPTZ;
+
+-- Rate limiting (spec 3.6): rolling 24h counter per connection
+ALTER TABLE public.social_connections
+  ADD COLUMN IF NOT EXISTS rate_window_start TIMESTAMPTZ;
+
+ALTER TABLE public.social_connections
+  ADD COLUMN IF NOT EXISTS rate_window_count INTEGER DEFAULT 0;
+
+-- Circuit breaker (spec 3.5): skip deliveries after consecutive failures
+ALTER TABLE public.social_connections
+  ADD COLUMN IF NOT EXISTS circuit_open_until TIMESTAMPTZ;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 8. Pipeline step rename: og_scrape -> platform_prepare
@@ -913,7 +929,17 @@ Expected output: All tests pass.
 npm run test:web
 ```
 
-If any tests fail due to `og_scrape` references, update them to `platform_prepare`. Common locations to check:
+If any tests fail due to `og_scrape` references, update them to `platform_prepare`.
+
+> **Important:** The following SOURCE files also reference `og_scrape` and MUST be updated:
+> - `apps/web/src/app/cms/(authed)/social/[id]/_components/pipeline-compact.tsx`
+> - `apps/web/src/app/cms/(authed)/social/[id]/_components/timeline.tsx`
+> - `apps/web/src/app/api/social/pipeline/run/route.ts`
+> - `apps/web/src/app/api/cron/social-publish/route.ts`
+>
+> After the `PipelineStepName` type change in step 3.5, TypeScript will flag these with compile errors. Run `npx tsc --noEmit` to find ALL remaining references.
+
+Common test file locations to check:
 - `apps/web/test/api/social-pipeline-run.test.ts`
 - `apps/web/test/api/social/cron-social-publish.test.ts`
 
@@ -925,6 +951,10 @@ git add apps/web/src/lib/social/types.ts \
         apps/web/src/lib/social/platform-prepare.ts \
         apps/web/src/lib/social/actions.ts \
         apps/web/src/lib/social/actions/content.ts \
+        apps/web/src/app/cms/(authed)/social/[id]/_components/pipeline-compact.tsx \
+        apps/web/src/app/cms/(authed)/social/[id]/_components/timeline.tsx \
+        apps/web/src/app/api/social/pipeline/run/route.ts \
+        apps/web/src/app/api/cron/social-publish/route.ts \
         apps/web/test/lib/social/pipeline.test.ts \
         apps/web/test/lib/social/platform-prepare.test.ts
 git commit -m "refactor(social): rename og_scrape -> platform_prepare with per-platform prepare logic
@@ -1288,7 +1318,7 @@ export class BlueskyProvider implements ISocialProvider {
    * For Bluesky, we use the stored refresh JWT to get new access + refresh tokens
    * via the `com.atproto.server.refreshSession` endpoint.
    *
-   * Note: The connection must have `bluesky_access_jwt` and `bluesky_refresh_jwt`
+   * Note: The connection must have `bluesky_access_jwt_enc` and `bluesky_refresh_jwt_enc`
    * columns populated (added in the social_composer_v6 migration).
    * Falls back to null if the JWT columns are not present (legacy connections
    * still use app passwords and don't need refresh).
@@ -1299,13 +1329,13 @@ export class BlueskyProvider implements ISocialProvider {
     const metadata = connection.metadata as unknown as BlueskyMetadata
     const conn = connection as unknown as Record<string, unknown>
 
-    const refreshJwt = conn.bluesky_refresh_jwt as string | null
+    const refreshJwt = conn.bluesky_refresh_jwt_enc as string | null
     if (!refreshJwt) {
       // Legacy app-password connection — no JWT refresh needed/possible
       return null
     }
 
-    const accessJwt = conn.bluesky_access_jwt as string | null
+    const accessJwt = conn.bluesky_access_jwt_enc as string | null
     if (!accessJwt) return null
 
     try {
@@ -1364,10 +1394,10 @@ async function refreshBluesky(
   oldExpiresAt: string,
 ): Promise<FreshToken> {
   // Bluesky JWT refresh uses the stored JWT tokens, not the app password.
-  // The bluesky_refresh_jwt column stores the AT Protocol refresh token.
+  // The bluesky_refresh_jwt_enc column stores the AT Protocol refresh token.
   const connRecord = conn as unknown as Record<string, unknown>
-  const refreshJwt = connRecord.bluesky_refresh_jwt as string | null
-  const accessJwt = connRecord.bluesky_access_jwt as string | null
+  const refreshJwt = connRecord.bluesky_refresh_jwt_enc as string | null
+  const accessJwt = connRecord.bluesky_access_jwt_enc as string | null
   const did = connRecord.bluesky_did as string | null
 
   if (!refreshJwt || !accessJwt || !did) {
@@ -1397,8 +1427,8 @@ async function refreshBluesky(
       .from('social_connections')
       .update(
         {
-          bluesky_access_jwt: newSession.accessJwt,
-          bluesky_refresh_jwt: newSession.refreshJwt,
+          bluesky_access_jwt_enc: newSession.accessJwt,
+          bluesky_refresh_jwt_enc: newSession.refreshJwt,
           bluesky_jwt_expires_at: newExpiresAt,
           updated_at: new Date().toISOString(),
         },
@@ -1440,7 +1470,7 @@ Also update the `select` query at the top of `ensureFreshToken` to include the n
 With:
 
 ```typescript
-    .select('id, access_token_enc, refresh_token_enc, token_expires_at, metadata, bluesky_did, bluesky_access_jwt, bluesky_refresh_jwt, bluesky_jwt_expires_at')
+    .select('id, access_token_enc, refresh_token_enc, token_expires_at, metadata, bluesky_did, bluesky_access_jwt_enc, bluesky_refresh_jwt_enc, bluesky_jwt_expires_at')
 ```
 
 And for the Bluesky case, the expiry check should also consider the `bluesky_jwt_expires_at` column. Update the expiry detection logic after the `const isExpired` line. Replace:

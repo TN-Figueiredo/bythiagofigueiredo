@@ -46,7 +46,7 @@ export const PipelineCard = memo(function PipelineCard({
   }
 
   const title = item.title_pt || item.title_en || (strings?.editorial?.untitled ?? 'Untitled')
-  const checklist = item.production_checklist
+  const checklist = Array.isArray(item.production_checklist) ? item.production_checklist : []
   const done = checklist.filter((c) => c.done).length
   const total = checklist.length
   const checkPct = total > 0 ? Math.round((done / total) * 100) : 0

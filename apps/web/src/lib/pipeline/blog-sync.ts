@@ -17,14 +17,21 @@ export async function syncPipelineOnPostStatusChange(
 
   // Publish: advance pipeline item to 'published'
   if (newStatus === 'published' && item.stage !== 'published') {
-    const { error } = await svc
+    const { data: updated, error } = await svc
       .from('content_pipeline')
-      .update({ stage: 'published', version: item.version + 1 })
+      .update({ stage: 'published' })
       .eq('id', item.id)
       .eq('version', item.version)
+      .select('id')
+      .maybeSingle()
 
     if (error) {
       console.error('[blog-sync] Failed to advance pipeline item', item.id, error)
+      return
+    }
+
+    if (!updated) {
+      console.warn('[blog-sync] CAS conflict: pipeline item', item.id, 'was modified concurrently')
       return
     }
 
@@ -52,14 +59,21 @@ export async function syncPipelineOnPostStatusChange(
 
     const retreatTo = (hist?.from_value as string) || 'ready'
 
-    const { error } = await svc
+    const { data: updated, error } = await svc
       .from('content_pipeline')
-      .update({ stage: retreatTo, version: item.version + 1 })
+      .update({ stage: retreatTo })
       .eq('id', item.id)
       .eq('version', item.version)
+      .select('id')
+      .maybeSingle()
 
     if (error) {
       console.error('[blog-sync] Failed to retreat pipeline item', item.id, error)
+      return
+    }
+
+    if (!updated) {
+      console.warn('[blog-sync] CAS conflict: pipeline item', item.id, 'was modified concurrently')
       return
     }
 

@@ -26,6 +26,20 @@ Phase 1: Foundation (DB + backend core)
     └─────────┴──► Phase 5: Lifecycle (queue + schedule + analytics + editing)
 ```
 
+## Prerequisites
+
+Before starting Phase 1, install required dependencies:
+
+```bash
+# Server-side Konva rendering (Phase 2)
+npm install canvas -w apps/web
+
+# Verify react-konva already installed (konva@10.3.0, react-konva@19.2.4)
+npm ls konva react-konva
+```
+
+> **Important:** The dual actions file pattern — `actions.ts` (monolithic barrel) and `actions/posts.ts` (modular) both contain `createSocialPost` with independent implementations. When modifying this function, update BOTH files.
+
 ## Phase Plans
 
 | Phase | Plan File | Tasks | Est. Hours | Dependencies |

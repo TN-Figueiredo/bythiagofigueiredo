@@ -53,7 +53,7 @@ const VALID_TRANSITIONS: Record<OptimizationState, OptimizationState[]> = {
   testing: ['post_test_monitoring', 'retest_needed'],
   post_test_monitoring: ['resolved', 'retest_needed'],
   retest_needed: ['flagged', 'exhausted'],
-  resolved: ['flagged'],
+  resolved: ['flagged', 'exhausted'],
   exhausted: [],
 }
 
@@ -75,7 +75,9 @@ export function transitionState(
 
   switch (to) {
     case 'flagged': {
-      const nextCycle = cycle.state === 'retest_needed' ? cycle.cycle_number + 1 : cycle.cycle_number
+      const nextCycle = (cycle.state === 'unmonitored' || cycle.state === 'retest_needed' || cycle.state === 'resolved')
+        ? cycle.cycle_number + 1
+        : cycle.cycle_number
       if (nextCycle > OPTIMIZATION_CONFIG.max_cycles_per_video) {
         updated.state = 'exhausted'
         updated.resolved_at = now
@@ -101,6 +103,7 @@ export function transitionState(
       break
     case 'post_test_monitoring':
       updated.test_completed_at = now
+      updated.test_winner_applied_at = now
       break
     case 'resolved':
       updated.resolved_at = now

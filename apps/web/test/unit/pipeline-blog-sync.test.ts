@@ -73,10 +73,10 @@ describe('syncPipelineOnPostStatusChange', () => {
       error: null,
     }))
 
-    // 2) update pipeline item — .update().eq().eq() resolves as thenable
-    const updateEqResult = Promise.resolve({ data: null, error: null })
-    const updateEq2: Record<string, unknown> = {}
-    updateEq2.eq = vi.fn(() => updateEqResult)
+    // 2) update pipeline item — .update().eq().eq().select().maybeSingle()
+    const updateTerminal = { maybeSingle: vi.fn(() => Promise.resolve({ data: { id: 'pipe-1' }, error: null })) }
+    const updateSelect = { select: vi.fn(() => updateTerminal) }
+    const updateEq2 = { eq: vi.fn(() => updateSelect) }
     const updateEq1: Record<string, unknown> = {}
     updateEq1.eq = vi.fn(() => updateEq2)
     const pipelineUpdateChain = makeChain({ data: null, error: null })
@@ -93,7 +93,7 @@ describe('syncPipelineOnPostStatusChange', () => {
     expect(mockSvc.from).toHaveBeenCalledWith('content_pipeline_history')
     expect(
       (pipelineUpdateChain as Record<string, unknown>).update as ReturnType<typeof vi.fn>,
-    ).toHaveBeenCalledWith({ stage: 'published', version: 4 })
+    ).toHaveBeenCalledWith({ stage: 'published' })
   })
 
   it('does not advance if pipeline item is already at published', async () => {
@@ -118,10 +118,10 @@ describe('syncPipelineOnPostStatusChange', () => {
     const historySelectChain = makeChain({ data: { from_value: 'review' }, error: null })
     enqueue('content_pipeline_history', historySelectChain)
 
-    // 3) update pipeline item
-    const updateEqResult = Promise.resolve({ data: null, error: null })
-    const updateEq2: Record<string, unknown> = {}
-    updateEq2.eq = vi.fn(() => updateEqResult)
+    // 3) update pipeline item — .update().eq().eq().select().maybeSingle()
+    const updateTerminal = { maybeSingle: vi.fn(() => Promise.resolve({ data: { id: 'pipe-1' }, error: null })) }
+    const updateSelect = { select: vi.fn(() => updateTerminal) }
+    const updateEq2 = { eq: vi.fn(() => updateSelect) }
     const updateEq1: Record<string, unknown> = {}
     updateEq1.eq = vi.fn(() => updateEq2)
     const pipelineUpdateChain = makeChain({ data: null, error: null })
@@ -136,7 +136,7 @@ describe('syncPipelineOnPostStatusChange', () => {
 
     expect(
       (pipelineUpdateChain as Record<string, unknown>).update as ReturnType<typeof vi.fn>,
-    ).toHaveBeenCalledWith({ stage: 'review', version: 8 })
+    ).toHaveBeenCalledWith({ stage: 'review' })
   })
 
   it('retreats to "ready" when no history entry found', async () => {
@@ -149,10 +149,10 @@ describe('syncPipelineOnPostStatusChange', () => {
     // 2) history select — no data
     enqueue('content_pipeline_history', makeChain({ data: null, error: null }))
 
-    // 3) update pipeline item
-    const updateEqResult = Promise.resolve({ data: null, error: null })
-    const updateEq2: Record<string, unknown> = {}
-    updateEq2.eq = vi.fn(() => updateEqResult)
+    // 3) update pipeline item — .update().eq().eq().select().maybeSingle()
+    const updateTerminal = { maybeSingle: vi.fn(() => Promise.resolve({ data: { id: 'pipe-1' }, error: null })) }
+    const updateSelect = { select: vi.fn(() => updateTerminal) }
+    const updateEq2 = { eq: vi.fn(() => updateSelect) }
     const updateEq1: Record<string, unknown> = {}
     updateEq1.eq = vi.fn(() => updateEq2)
     const pipelineUpdateChain = makeChain({ data: null, error: null })
@@ -166,6 +166,6 @@ describe('syncPipelineOnPostStatusChange', () => {
 
     expect(
       (pipelineUpdateChain as Record<string, unknown>).update as ReturnType<typeof vi.fn>,
-    ).toHaveBeenCalledWith({ stage: 'ready', version: 3 })
+    ).toHaveBeenCalledWith({ stage: 'ready' })
   })
 })

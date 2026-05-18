@@ -79,6 +79,13 @@ describe('transitionState', () => {
     expect(result.ab_test_id).toBe('test-123')
     expect(result.testing_started_at).toBeTruthy()
   })
+  it('sets test_winner_applied_at on transition to post_test_monitoring', () => {
+    const cycle = makeCycle({ state: 'testing', testing_started_at: new Date().toISOString() })
+    const result = transitionState(cycle, 'post_test_monitoring', {})
+    expect(result.state).toBe('post_test_monitoring')
+    expect(result.test_completed_at).toBeTruthy()
+    expect(result.test_winner_applied_at).toBeTruthy()
+  })
   it('transitions post_test_monitoring → resolved', () => {
     const cycle = makeCycle({ state: 'post_test_monitoring', test_winner_applied_at: new Date().toISOString() })
     const result = transitionState(cycle, 'resolved', { resolved_reason: 'grade_improved' })
@@ -112,9 +119,43 @@ describe('transitionState', () => {
     expect(result.flagged_at).toBeTruthy()
     expect(result.cooldown_until).toBeNull()
   })
+  it('increments cycle_number on resolved → flagged', () => {
+    const cycle = makeCycle({ state: 'resolved', cycle_number: 2, resolved_at: new Date().toISOString(), resolved_reason: 'grade_improved' })
+    const result = transitionState(cycle, 'flagged', {})
+    expect(result.state).toBe('flagged')
+    expect(result.cycle_number).toBe(3)
+  })
+  it('auto-transitions to exhausted when cycle_number >= max on resolved → flagged', () => {
+    const cycle = makeCycle({ state: 'resolved', cycle_number: 5, resolved_at: new Date().toISOString(), resolved_reason: 'grade_improved' })
+    const result = transitionState(cycle, 'flagged', {})
+    expect(result.state).toBe('exhausted')
+    expect(result.resolved_reason).toBe('max_cycles_reached')
+  })
+  it('increments cycle_number on unmonitored → flagged', () => {
+    const cycle = makeCycle({ state: 'unmonitored', cycle_number: 0 })
+    const result = transitionState(cycle, 'flagged', {})
+    expect(result.state).toBe('flagged')
+    expect(result.cycle_number).toBe(1)
+  })
+  it('auto-transitions to exhausted when cycle_number >= max on resolved → flagged', () => {
+    const cycle = makeCycle({ state: 'resolved', cycle_number: 5, resolved_at: new Date().toISOString() })
+    const result = transitionState(cycle, 'flagged', {})
+    expect(result.state).toBe('exhausted')
+  })
+  it('allows resolved → exhausted in canTransition', () => {
+    expect(canTransition('resolved', 'exhausted')).toBe(true)
+  })
   it('throws for invalid transition', () => {
     const cycle = makeCycle({ state: 'exhausted' })
     expect(() => transitionState(cycle, 'flagged', {})).toThrow()
+  })
+  it('allows diagnosed → test_suggested', () => {
+    const result = transitionState(
+      makeCycle({ state: 'diagnosed', cycle_number: 1 }),
+      'test_suggested',
+      {},
+    )
+    expect(result.state).toBe('test_suggested')
   })
 })
 

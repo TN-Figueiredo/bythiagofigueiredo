@@ -30,11 +30,11 @@ export function prepareAxisInput(axis: Axis, rawValue: number): number {
 }
 
 const TIER_MODIFIERS: Record<ChannelTier, { ctr: number; retention: number }> = {
-  nano: { ctr: 0.5, retention: 0.3 },
-  micro: { ctr: 0.2, retention: 0.1 },
+  nano: { ctr: 0.5, retention: 6 },
+  micro: { ctr: 0.3, retention: 3 },
   small: { ctr: 0, retention: 0 },
-  medium: { ctr: -0.1, retention: -0.1 },
-  large: { ctr: -0.3, retention: -0.2 },
+  medium: { ctr: -0.3, retention: -3 },
+  large: { ctr: -0.5, retention: -5 },
 }
 
 export function getChannelTier(subscriberCount: number): ChannelTier {
@@ -47,16 +47,21 @@ export function getChannelTier(subscriberCount: number): ChannelTier {
 
 export function computeGrowthVelocity(dailyViews: DailyViewPoint[], recencyExponent: number): number {
   if (dailyViews.length < 7) return 0
-  const n = dailyViews.length
+
+  // Sort by date to handle gaps correctly
+  const sorted = [...dailyViews].sort((a, b) => a.date.localeCompare(b.date))
+  const earliest = new Date(sorted[0]!.date).getTime()
+  const n = sorted.length
   let sumW = 0, sumWX = 0, sumWY = 0, sumWXX = 0, sumWXY = 0
 
   for (let i = 0; i < n; i++) {
-    const w = Math.pow(i + 1, recencyExponent)
+    const x = Math.round((new Date(sorted[i]!.date).getTime() - earliest) / 86400000)
+    const w = Math.pow(x + 1, recencyExponent)
     sumW += w
-    sumWX += w * i
-    sumWY += w * dailyViews[i]!.views
-    sumWXX += w * i * i
-    sumWXY += w * i * dailyViews[i]!.views
+    sumWX += w * x
+    sumWY += w * sorted[i]!.views
+    sumWXX += w * x * x
+    sumWXY += w * x * sorted[i]!.views
   }
 
   const denominator = sumW * sumWXX - sumWX * sumWX
@@ -69,6 +74,7 @@ export function computeGrowthVelocity(dailyViews: DailyViewPoint[], recencyExpon
 
 export function computeEvergreenBonus(ageDays: number, dailyViews: number[], channelDailyMean: number): number {
   if (ageDays <= 180 || dailyViews.length < 14) return 0
+  if (channelDailyMean <= 0) return 0
   const videoMean = dailyViews.reduce((a, b) => a + b, 0) / dailyViews.length
   if (videoMean < channelDailyMean) return 0
   const stdDev = Math.sqrt(dailyViews.reduce((sum, v) => sum + Math.pow(v - videoMean, 2), 0) / dailyViews.length)
@@ -169,11 +175,19 @@ export function computeOutliers(
   const midDev = Math.floor(sortedDev.length / 2)
   const mad = sortedDev.length % 2 === 0 ? (sortedDev[midDev - 1]! + sortedDev[midDev]!) / 2 : sortedDev[midDev]!
 
-  if (mad === 0) return []
+  let effectiveMad = mad
+  if (effectiveMad === 0) {
+    // Fallback: use IQR / 1.4826 (consistent estimator of std dev from IQR)
+    const q1Idx = Math.floor(sorted.length * 0.25)
+    const q3Idx = Math.floor(sorted.length * 0.75)
+    const iqr = sorted[q3Idx]! - sorted[q1Idx]!
+    effectiveMad = iqr / 1.4826
+    if (effectiveMad === 0) return [] // Truly all identical
+  }
 
   return videoScores
     .map(v => {
-      const modifiedZ = (0.6745 * (v.score - median)) / mad
+      const modifiedZ = (0.6745 * (v.score - median)) / effectiveMad
       if (Math.abs(modifiedZ) <= 2.5) return null
       return {
         videoId: v.videoId,
@@ -183,6 +197,16 @@ export function computeOutliers(
       }
     })
     .filter((r): r is OutlierResult => r !== null)
+}
+
+export interface BaselineDailyRow {
+  date: string
+  views: number
+  likes?: number
+  comments?: number
+  shares?: number
+  subscribers_gained?: number
+  impressions?: number
 }
 
 export interface BaselineVideoInput {
@@ -212,7 +236,7 @@ export function computeReachDiversityForBaseline(trafficSources: Record<string, 
 
 export function computeBaseline(
   videos: BaselineVideoInput[],
-  dailyByVideo: Map<string, Array<{ date: string; views: number }>>,
+  dailyByVideo: Map<string, Array<BaselineDailyRow>>,
   subscriberCount: number,
 ): ChannelBaseline {
   const ctrs = videos.map(v => v.ctr ?? 0).filter(c => c > 0).sort((a, b) => a - b)
@@ -230,13 +254,50 @@ export function computeBaseline(
     return arr.length % 2 === 0 ? (arr[mid - 1]! + arr[mid]!) / 2 : arr[mid]!
   }
 
+  // Compute medianEngagement from actual data: (likes+comments+shares)/views*100 per video
+  const cutoff28d = Date.now() - 28 * 86400000
+  const engagementRates: number[] = []
+  const growthVelocities: number[] = []
+  const subImpacts: number[] = []
+
+  for (const [, rows] of dailyByVideo) {
+    const recent = rows.filter(r => new Date(r.date).getTime() > cutoff28d)
+    if (recent.length === 0) continue
+
+    const totalViewsVideo = recent.reduce((s, r) => s + r.views, 0)
+    const totalLikes = recent.reduce((s, r) => s + (r.likes ?? 0), 0)
+    const totalComments = recent.reduce((s, r) => s + (r.comments ?? 0), 0)
+    const totalShares = recent.reduce((s, r) => s + (r.shares ?? 0), 0)
+    const totalSubsGained = recent.reduce((s, r) => s + (r.subscribers_gained ?? 0), 0)
+
+    if (totalViewsVideo > 0) {
+      engagementRates.push(((totalLikes + totalComments + totalShares) / totalViewsVideo) * 100)
+    }
+    const totalImpressions = recent.reduce((s, r) => s + (r.impressions ?? 0), 0)
+    if (totalImpressions > 0) {
+      subImpacts.push((totalSubsGained / totalImpressions) * 1000)
+    }
+
+    // Growth velocity per video
+    const dailyPoints: DailyViewPoint[] = recent
+      .map(r => ({ date: r.date, views: r.views }))
+      .sort((a, b) => a.date.localeCompare(b.date))
+    if (dailyPoints.length >= 7) {
+      growthVelocities.push(computeGrowthVelocity(dailyPoints, 1.0))
+    }
+  }
+
+  engagementRates.sort((a, b) => a - b)
+  growthVelocities.sort((a, b) => a - b)
+  subImpacts.sort((a, b) => a - b)
+
   return {
     medianCtr: median(ctrs),
     medianRetention: median(retentions),
     medianReach: median(reachDiversities),
-    medianEngagement: 4.0,
-    medianGrowth: 0,
-    medianSubImpact: 0.5,
+    medianEngagement: engagementRates.length > 0 ? median(engagementRates) : 4.0,
+    medianGrowth: growthVelocities.length > 0 ? median(growthVelocities) : 0,
+    medianSubImpact: subImpacts.length > 0 ? median(subImpacts) : 0.5,
     channelDailyMean: totalViews / totalDays,
     subscriberCount,
   }

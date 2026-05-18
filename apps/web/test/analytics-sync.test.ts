@@ -117,9 +117,9 @@ describe('getIsoWeek', () => {
     expect(getIsoWeek(new Date('2026-12-31'))).toBe('2026-W53')
   })
 
-  it('Jan 1 2024 belongs to W52 of 2023 (year boundary)', () => {
-    // Jan 1 2024 is a Monday but falls in the last ISO week of 2023
-    expect(getIsoWeek(new Date('2024-01-01'))).toBe('2023-W52')
+  it('Jan 1 2024 belongs to W01 of 2024 (Monday starts ISO W01)', () => {
+    // Use local-time constructor to avoid UTC→local shift (São Paulo UTC-3 would make '2024-01-01' → Dec 31)
+    expect(getIsoWeek(new Date(2024, 0, 1))).toBe('2024-W01')
   })
 
   it('Dec 31 2018 belongs to W52 of 2018 (year boundary)', () => {

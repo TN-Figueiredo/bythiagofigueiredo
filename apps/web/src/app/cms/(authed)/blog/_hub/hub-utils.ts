@@ -63,7 +63,10 @@ export function mapStatusToColumn(status: PostCard['status']): KanbanColumnId {
 }
 
 export function formatRelativeDate(dateStr: string, labels: RelativeLabels = DEFAULT_LABELS): string {
-  const diff = Date.now() - new Date(dateStr).getTime()
+  const time = new Date(dateStr).getTime()
+  if (isNaN(time)) return labels.now
+  const diff = Date.now() - time
+  if (diff < 0) return labels.now
   const mins = Math.floor(diff / 60_000)
   if (mins < 1) return labels.now
   if (mins < 60) return `${mins}${labels.minutes}`
@@ -113,9 +116,10 @@ export function sortPipelineLane(
   _lane: 'idea' | 'draft' | 'ready',
 ): PipelineCardItem[] {
   return [...items].sort((a, b) => {
-    if (a.sort_order !== 0 || b.sort_order !== 0) {
-      return a.sort_order - b.sort_order
-    }
+    const aHasOrder = a.sort_order !== 0
+    const bHasOrder = b.sort_order !== 0
+    if (aHasOrder && bHasOrder) return a.sort_order - b.sort_order
+    if (aHasOrder !== bHasOrder) return aHasOrder ? -1 : 1
     if (a.priority !== b.priority) return b.priority - a.priority
     return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
   })

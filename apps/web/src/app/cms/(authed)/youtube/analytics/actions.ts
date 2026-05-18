@@ -7,7 +7,10 @@ import { scoreVideo, computeOutliers, computeTrend, computeBaseline } from '@/li
 import type { VideoScoreInput } from '@/lib/youtube/scoring-types'
 import { revalidateTag } from 'next/cache'
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export async function fetchGradesData(channelId: string) {
+  if (!UUID_RE.test(channelId)) throw new Error('invalid_input')
   const { siteId } = await getSiteContext()
   const auth = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
   if (!auth.ok) throw new Error(auth.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
@@ -23,10 +26,12 @@ export async function fetchGradesData(channelId: string) {
 
   if (!videos?.length) return { videos: [], outliers: [] }
 
+  const videoIds = videos.map(v => v.id)
   const { data: dailyData } = await supabase
     .from('youtube_video_analytics')
     .select('youtube_video_id, date, views, likes, comments, shares, subscribers_gained, impressions')
     .eq('site_id', siteId)
+    .in('youtube_video_id', videoIds)
     .gte('date', new Date(Date.now() - 90 * 86400000).toISOString().split('T')[0]!)
 
   const dailyByVideo = new Map<string, Array<{ date: string; views: number; likes: number; comments: number; shares: number; subscribers_gained: number; impressions: number }>>()
@@ -40,6 +45,7 @@ export async function fetchGradesData(channelId: string) {
     .from('video_grade_history')
     .select('youtube_video_id, score, week_iso')
     .eq('site_id', siteId)
+    .in('youtube_video_id', videoIds)
     .order('week_iso', { ascending: false })
     .limit(200)
 
@@ -70,6 +76,7 @@ export async function fetchGradesData(channelId: string) {
     .from('youtube_channels')
     .select('subscriber_count')
     .eq('id', channelId)
+    .eq('site_id', siteId)
     .single()
 
   const baseline = computeBaseline(videos, dailyByVideo, channel?.subscriber_count ?? 0)
@@ -151,6 +158,7 @@ export async function fetchNotifications() {
 }
 
 export async function markNotificationRead(notificationId: string) {
+  if (!UUID_RE.test(notificationId)) throw new Error('invalid_input')
   const { siteId } = await getSiteContext()
   const auth = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
   if (!auth.ok) throw new Error(auth.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
@@ -169,6 +177,7 @@ export async function markAllNotificationsRead() {
 }
 
 export async function dismissNotification(notificationId: string) {
+  if (!UUID_RE.test(notificationId)) throw new Error('invalid_input')
   const { siteId } = await getSiteContext()
   const auth = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
   if (!auth.ok) throw new Error(auth.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
@@ -178,6 +187,7 @@ export async function dismissNotification(notificationId: string) {
 }
 
 export async function requestIntelligenceAnalysis(channelId: string) {
+  if (!UUID_RE.test(channelId)) throw new Error('invalid_input')
   const { siteId } = await getSiteContext()
   const auth = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
   if (!auth.ok) throw new Error(auth.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')

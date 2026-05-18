@@ -173,16 +173,18 @@ export function buildNotification(input: NotificationInput): NotificationPayload
         video_id: input.videoId,
         action_href: `${baseHref}?tab=grades&video=${input.videoId}`,
       }
-    case 'trending_viral':
+    case 'trending_viral': {
+      const multiplier = input.channelAvg48h > 0 ? Math.round(input.views48h / input.channelAvg48h) : 0
       return {
         type: input.type,
         priority,
         title: `Vídeo viral detectado!`,
-        message: `"${input.videoTitle.slice(0, 30)}" — ${input.views48h.toLocaleString('pt-BR')} views em 48h (${Math.round(input.views48h / input.channelAvg48h)}x a média).`,
+        message: `"${input.videoTitle.slice(0, 30)}" — ${input.views48h.toLocaleString('pt-BR')} views em 48h (${multiplier}x a média).`,
         dedup_key: dedupKey,
         video_id: input.videoId,
         action_href: `${baseHref}?tab=grades&video=${input.videoId}`,
       }
+    }
     case 'optimization_resolved':
       return {
         type: input.type,

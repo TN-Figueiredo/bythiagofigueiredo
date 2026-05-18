@@ -92,7 +92,6 @@ export default async function YouTubeAnalyticsPage({
 
   return (
     <YtAnalyticsTabs
-      siteId={siteId}
       metrics={metrics}
       dailyMetrics={dailyMetrics}
       grades={grades}

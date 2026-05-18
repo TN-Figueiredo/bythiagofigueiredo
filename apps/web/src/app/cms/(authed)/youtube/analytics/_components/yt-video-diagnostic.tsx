@@ -20,10 +20,9 @@ interface VideoAnalytics {
 interface Props {
   video: VideoAnalytics
   onCreateAbTest?: (videoId: string, testType: string) => void
-  onDismiss?: (videoId: string) => void
 }
 
-export function YtVideoDiagnostic({ video, onCreateAbTest, onDismiss }: Props) {
+export function YtVideoDiagnostic({ video, onCreateAbTest }: Props) {
   if (video.axes.length === 0) return null
   const weakestAxis = video.axes.reduce((min, a) => a.normalized < min.normalized ? a : min, video.axes[0]!)
 
@@ -73,24 +72,16 @@ export function YtVideoDiagnostic({ video, onCreateAbTest, onDismiss }: Props) {
       )}
 
       {/* Actions */}
-      <div className="flex gap-2">
-        {onCreateAbTest && (
+      {onCreateAbTest && (
+        <div className="flex gap-2">
           <button
             onClick={() => onCreateAbTest(video.videoId, weakestAxis.axis === 'ctr' ? 'thumbnail' : 'title')}
             className="rounded bg-cms-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-[#FF9A60]"
           >
             Criar A/B Test
           </button>
-        )}
-        {onDismiss && (
-          <button
-            onClick={() => onDismiss(video.videoId)}
-            className="rounded border border-cms-border px-3 py-1.5 text-xs text-cms-text-muted hover:bg-cms-surface"
-          >
-            Dispensar
-          </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }

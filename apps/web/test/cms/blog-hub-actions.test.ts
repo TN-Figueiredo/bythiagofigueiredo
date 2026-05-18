@@ -774,6 +774,7 @@ describe('addLocale', () => {
     vi.clearAllMocks()
     resetMockState({
       perTable: {
+        blog_posts: [{ id: 'p1' }],
         blog_translations: [{ title: 'Original Title' }],
       },
     })
@@ -787,13 +788,19 @@ describe('addLocale', () => {
   })
 
   it('returns locale_exists on duplicate (23505)', async () => {
-    resetMockState({ perTableErr: { blog_translations: { message: 'dup', code: '23505' } } })
+    resetMockState({
+      perTable: { blog_posts: [{ id: 'p1' }] },
+      perTableErr: { blog_translations: { message: 'dup', code: '23505' } },
+    })
     const result = await addLocale('p1', 'en')
     expect(result).toEqual({ ok: false, error: 'locale_exists' })
   })
 
   it('returns generic error for other DB errors', async () => {
-    resetMockState({ perTableErr: { blog_translations: { message: 'db-oops' } } })
+    resetMockState({
+      perTable: { blog_posts: [{ id: 'p1' }] },
+      perTableErr: { blog_translations: { message: 'db-oops' } },
+    })
     const result = await addLocale('p1', 'en')
     expect(result).toEqual({ ok: false, error: 'db-oops' })
   })

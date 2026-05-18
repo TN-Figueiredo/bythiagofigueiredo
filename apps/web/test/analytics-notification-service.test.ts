@@ -355,6 +355,19 @@ describe('buildNotification', () => {
       expect(n.message).toContain(sliced)
       expect(n.message).not.toContain(longTitle)
     })
+
+    it('handles channelAvg48h=0 without producing Infinity', () => {
+      const n = buildNotification({
+        type: 'trending_viral',
+        videoId: 'v1',
+        videoTitle: 'Test Video',
+        weekIso: '2026-W20',
+        views48h: 5000,
+        channelAvg48h: 0,
+      })
+      expect(n.message).not.toContain('Infinity')
+      expect(n.message).toContain('0x')
+    })
   })
 
   describe('optimization_resolved', () => {

@@ -173,11 +173,12 @@ export async function bulkChangeAuthor(
 
   const supabase = getSupabaseServiceClient()
 
-  // Verify author exists
+  // Verify author exists and belongs to site
   const { data: author, error: authorError } = await supabase
     .from('authors')
     .select('id')
     .eq('id', newAuthorId)
+    .eq('site_id', siteId)
     .maybeSingle()
 
   if (authorError) return { ok: false, error: authorError.message }
@@ -479,6 +480,15 @@ export async function addLocale(
 
   const supabase = getSupabaseServiceClient()
 
+  // Verify post belongs to this site
+  const { data: postCheck } = await supabase
+    .from('blog_posts')
+    .select('id')
+    .eq('id', postId)
+    .eq('site_id', siteId)
+    .maybeSingle()
+  if (!postCheck) return { ok: false, error: 'not_found' }
+
   // Fetch existing primary translation for title fallback
   const { data: existing } = await supabase
     .from('blog_translations')
@@ -492,7 +502,8 @@ export async function addLocale(
 
   const { data: slugConflict } = await supabase
     .from('blog_translations')
-    .select('id')
+    .select('id, blog_posts!inner(site_id)')
+    .eq('blog_posts.site_id', siteId)
     .eq('locale', locale)
     .eq('slug', baseSlug)
     .maybeSingle()
@@ -527,6 +538,15 @@ export async function changeTranslationLocale(
   await requireEditScope(siteId)
 
   const supabase = getSupabaseServiceClient()
+
+  // Verify post belongs to this site
+  const { data: postCheck } = await supabase
+    .from('blog_posts')
+    .select('id')
+    .eq('id', postId)
+    .eq('site_id', siteId)
+    .maybeSingle()
+  if (!postCheck) return { ok: false, error: 'not_found' }
 
   const { data: existing } = await supabase
     .from('blog_translations')
@@ -572,6 +592,15 @@ export async function removeTranslationLocale(
   await requireEditScope(siteId)
 
   const supabase = getSupabaseServiceClient()
+
+  // Verify post belongs to this site
+  const { data: postCheck } = await supabase
+    .from('blog_posts')
+    .select('id')
+    .eq('id', postId)
+    .eq('site_id', siteId)
+    .maybeSingle()
+  if (!postCheck) return { ok: false, error: 'not_found' }
 
   const { data: translations } = await supabase
     .from('blog_translations')

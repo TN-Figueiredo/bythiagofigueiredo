@@ -212,14 +212,19 @@ export const fetchScheduleData = unstable_cache(
 
     const now = new Date()
     const todayStr = toDateStringInTz(now, siteTimezone)
-    const [curY, curM] = todayStr.split('-').map(Number) as [number, number, number]
-    const calendarStart = new Date(curY, curM - 1, 1)
-    const calendarEnd = new Date(curY, curM, 0)
+    const [curY, curM] = todayStr.split('-').map(Number)
+    if (!curY || !curM) throw new Error('[fetchScheduleData] invalid todayStr')
+    const daysInMonth = new Date(Date.UTC(curY, curM, 0)).getUTCDate()
+    const dateStrings: string[] = []
+    for (let day = 1; day <= daysInMonth; day++) {
+      const mm = String(curM).padStart(2, '0')
+      const dd = String(day).padStart(2, '0')
+      dateStrings.push(`${curY}-${mm}-${dd}`)
+    }
 
     const slotsMap = new Map<string, ScheduleSlot>()
-    for (let d = new Date(calendarStart); d <= calendarEnd; d.setDate(d.getDate() + 1)) {
-      const key = d.toLocaleDateString('sv-SE')
-      slotsMap.set(key, { date: key, posts: [], emptySlots: [] })
+    for (const dateStr of dateStrings) {
+      slotsMap.set(dateStr, { date: dateStr, posts: [], emptySlots: [] })
     }
 
     type PostWithRelations = typeof posts[number] & {
@@ -265,7 +270,7 @@ export const fetchScheduleData = unstable_cache(
       try {
         const slots = generateSlots(
           { cadenceDays: config.cadenceDays, startDate: config.cadenceStartDate, lastSentAt: config.lastPublishedAt, paused: false },
-          { today: calendarStart.toLocaleDateString('sv-SE'), count: 31 },
+          { today: dateStrings[0]!, count: 31 },
         )
         for (const s of slots) {
           const slot = slotsMap.get(s)
@@ -372,15 +377,15 @@ export const fetchPipelineData = unstable_cache(
       priority: item.priority as number,
       hook: item.hook as string | null,
       body_content: item.body_content as string | null,
-      tags: (item.tags ?? []) as string[],
-      production_checklist: (item.production_checklist ?? []) as Array<{ label: string; done: boolean }>,
+      tags: Array.isArray(item.tags) ? item.tags as string[] : [],
+      production_checklist: Array.isArray(item.production_checklist) ? item.production_checklist as Array<{ label: string; done: boolean }> : [],
       updated_at: item.updated_at as string,
       created_at: item.created_at as string,
       blog_post_id: null,
       cover_image_url: (item as Record<string, unknown>).cover_image_url as string | null,
-      validation_score: (item as Record<string, unknown>).validation_score as number ?? 0,
-      dependencies: ((item as Record<string, unknown>).dependencies ?? []) as PipelineCardItem['dependencies'],
-      sort_order: (item as Record<string, unknown>).sort_order as number ?? 0,
+      validation_score: typeof (item as Record<string, unknown>).validation_score === 'number' ? (item as Record<string, unknown>).validation_score as number : 0,
+      dependencies: Array.isArray((item as Record<string, unknown>).dependencies) ? (item as Record<string, unknown>).dependencies as unknown as PipelineCardItem['dependencies'] : [],
+      sort_order: typeof (item as Record<string, unknown>).sort_order === 'number' ? (item as Record<string, unknown>).sort_order as number : 0,
       version: (item.version ?? 1) as number,
       is_archived: false,
     }))

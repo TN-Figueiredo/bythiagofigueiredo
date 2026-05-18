@@ -68,9 +68,10 @@ interface UnifiedBoardProps {
 
 type PipelineAction =
   | { type: 'move'; id: string; stage: 'idea' | 'draft' | 'ready' | 'archived' }
+  | { type: 'remove'; id: string }
 
 type PostAction =
-  | { type: 'move'; id: string; status: PostCardType['status'] }
+  | { type: 'move'; id: string; status: PostCardType['status']; scheduledFor?: string }
 
 export function UnifiedBoard({
   pipelineItems,
@@ -105,6 +106,9 @@ export function UnifiedBoard({
       if (action.type === 'move') {
         return state.map((i) => i.id === action.id ? { ...i, stage: action.stage } : i)
       }
+      if (action.type === 'remove') {
+        return state.filter((i) => i.id !== action.id)
+      }
       return state
     },
   )
@@ -113,7 +117,11 @@ export function UnifiedBoard({
     posts,
     (state: PostCardType[], action: PostAction) => {
       if (action.type === 'move') {
-        return state.map((p) => p.id === action.id ? { ...p, status: action.status } : p)
+        return state.map((p) =>
+          p.id === action.id
+            ? { ...p, status: action.status, ...(action.scheduledFor ? { scheduledFor: action.scheduledFor } : {}) }
+            : p,
+        )
       }
       return state
     },
@@ -304,7 +312,7 @@ export function UnifiedBoard({
       pendingScheduleRef.current = null
       setScheduleTarget(null)
       startTransition(async () => {
-        dispatchPosts({ type: 'move', id: postId, status: 'scheduled' })
+        dispatchPosts({ type: 'move', id: postId, status: 'scheduled', scheduledFor })
         try {
           await onMovePost(postId, 'scheduled', scheduledFor)
         } catch {
@@ -335,6 +343,9 @@ export function UnifiedBoard({
       try {
         const result = await onPromote(siteId, promotionTarget.id, locale, scheduledFor)
         if (result.ok) {
+          startTransition(() => {
+            dispatchPipeline({ type: 'remove', id: promotionTarget.id })
+          })
           toast.success(strings?.promotion?.promote ?? 'Promoted')
           setPromotionTarget(null)
         } else {
@@ -346,7 +357,7 @@ export function UnifiedBoard({
         setPromotionLoading(false)
       }
     },
-    [promotionTarget, siteId, onPromote, strings],
+    [promotionTarget, siteId, onPromote, strings, startTransition, dispatchPipeline],
   )
 
   const handleReturnToPipeline = useCallback(
@@ -388,6 +399,7 @@ export function UnifiedBoard({
         return
       }
       startTransition(async () => {
+        dispatchPosts({ type: 'move', id: postId, status: newStatus as PostCardType['status'] })
         try {
           await onMovePost(postId, newStatus)
         } catch {
@@ -395,7 +407,7 @@ export function UnifiedBoard({
         }
       })
     },
-    [onMovePost, optPosts, strings, startTransition],
+    [onMovePost, optPosts, strings, startTransition, dispatchPosts],
   )
 
   const handleSelect = useCallback(

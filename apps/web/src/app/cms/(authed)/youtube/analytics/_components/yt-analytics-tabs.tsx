@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { YtOverview } from './yt-overview'
 import { YtGrades } from './yt-grades'
@@ -9,7 +9,6 @@ import { YtOutliers } from './yt-outliers'
 import { YtOutliersV2 } from './yt-outliers-v2'
 import { YtHealthCoach } from './yt-health-coach'
 import { YtNotificationsBell } from './yt-notifications-bell'
-import { YtBootstrapBanner } from './yt-bootstrap-banner'
 import { YtDemographicsView } from './yt-demographics'
 import { YtSearchTermsView } from './yt-search-terms'
 import type {
@@ -36,7 +35,6 @@ const SUB_TABS = [
 type TabId = (typeof SUB_TABS)[number]['id']
 
 interface Props {
-  siteId: string
   metrics: YtChannelMetrics
   dailyMetrics: YtDailyMetric[]
   grades: YtVideoGrade[]
@@ -49,18 +47,14 @@ interface Props {
   intelligenceOutliers?: OutlierVideo[]
   notifications?: Notification[]
   healthScore?: number
-  weeksSinceFirstGrade?: number
   onMarkNotificationRead?: (id: string) => Promise<void>
   onMarkAllNotificationsRead?: () => Promise<void>
   onDismissNotification?: (id: string) => Promise<void>
-  onCreateAbTest?: (videoId: string, testType: string) => void
   onRequestAnalysis?: (channelId: string) => Promise<unknown>
-  analysisState?: 'idle' | 'pending' | 'running' | 'cooldown'
   lastAnalysisAt?: string | null
 }
 
 export function YtAnalyticsTabs({
-  siteId: _siteId,
   metrics,
   dailyMetrics,
   grades,
@@ -73,43 +67,72 @@ export function YtAnalyticsTabs({
   intelligenceOutliers,
   notifications,
   healthScore,
-  weeksSinceFirstGrade,
   onMarkNotificationRead,
   onMarkAllNotificationsRead,
   onDismissNotification,
-  onCreateAbTest,
   onRequestAnalysis,
-  analysisState = 'idle',
   lastAnalysisAt,
 }: Props) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<TabId>('overview')
+  const [analysisState, setAnalysisState] = useState<'idle' | 'pending' | 'cooldown'>('idle')
   const tablistRef = useRef<HTMLDivElement>(null)
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     const tabs = SUB_TABS.map(t => t.id)
     const i = tabs.indexOf(activeTab)
+    let nextId: string | undefined
     if (e.key === 'ArrowRight') {
       e.preventDefault()
-      setActiveTab(tabs[(i + 1) % tabs.length]!)
+      nextId = tabs[(i + 1) % tabs.length]!
     } else if (e.key === 'ArrowLeft') {
       e.preventDefault()
-      setActiveTab(tabs[(i - 1 + tabs.length) % tabs.length]!)
+      nextId = tabs[(i - 1 + tabs.length) % tabs.length]!
     } else if (e.key === 'Home') {
       e.preventDefault()
-      setActiveTab(tabs[0]!)
+      nextId = tabs[0]!
     } else if (e.key === 'End') {
       e.preventDefault()
-      setActiveTab(tabs[tabs.length - 1]!)
+      nextId = tabs[tabs.length - 1]!
+    }
+    if (nextId) {
+      setActiveTab(nextId as TabId)
+      document.getElementById(`tab-yt-${nextId}`)?.focus()
     }
   }, [activeTab])
+
+  const handleRequestAnalysis = useCallback(async () => {
+    if (!onRequestAnalysis || !channelInternalId || analysisState !== 'idle') return
+    setAnalysisState('pending')
+    try {
+      const result = await onRequestAnalysis(channelInternalId) as { cooldown?: boolean } | null
+      if (result && typeof result === 'object' && 'cooldown' in result && result.cooldown) {
+        setAnalysisState('cooldown')
+        setTimeout(() => setAnalysisState('idle'), 10_000)
+      } else {
+        setAnalysisState('idle')
+      }
+    } catch {
+      setAnalysisState('idle')
+    }
+  }, [onRequestAnalysis, channelInternalId, analysisState])
+
+  const radarData = useMemo(
+    () => intelligenceVideos ? computeRadarData(intelligenceVideos) : [],
+    [intelligenceVideos]
+  )
+  const coachingCards = useMemo(
+    () => intelligenceVideos ? computeCoachingCards(intelligenceVideos) : [],
+    [intelligenceVideos]
+  )
 
   return (
     <div>
       {channels && channels.length > 1 && (
         <div className="mb-3 flex items-center gap-2">
-          <span className="text-xs font-medium text-cms-text-muted">Channel:</span>
+          <label htmlFor="yt-channel-select" className="text-xs font-medium text-cms-text-muted">Channel:</label>
           <select
+            id="yt-channel-select"
             value={activeChannelId ?? ''}
             onChange={(e) => {
               const url = new URL(window.location.href)
@@ -124,12 +147,6 @@ export function YtAnalyticsTabs({
               </option>
             ))}
           </select>
-        </div>
-      )}
-
-      {weeksSinceFirstGrade !== undefined && weeksSinceFirstGrade < 2 && (
-        <div className="mb-4">
-          <YtBootstrapBanner weeksSinceFirstGrade={weeksSinceFirstGrade} />
         </div>
       )}
 
@@ -180,23 +197,17 @@ export function YtAnalyticsTabs({
         {activeTab === 'overview' && <YtOverview metrics={metrics} dailyMetrics={dailyMetrics} />}
         {activeTab === 'grades' && (
           intelligenceVideos && intelligenceVideos.length > 0
-            ? <YtGradesV2 videos={intelligenceVideos} onCreateAbTest={onCreateAbTest} />
+            ? <YtGradesV2 videos={intelligenceVideos} />
             : <YtGrades grades={grades} />
         )}
         {activeTab === 'coach' && (
           <YtHealthCoach
             healthScore={healthScore ?? 0}
-            radarData={intelligenceVideos
-              ? computeRadarData(intelligenceVideos)
-              : []}
-            coachingCards={intelligenceVideos ? computeCoachingCards(intelligenceVideos) : []}
+            radarData={radarData}
+            coachingCards={coachingCards}
             videoCount={intelligenceVideos?.length ?? 0}
             lastAnalysisAt={lastAnalysisAt ?? null}
-            onRequestAnalysis={
-              onRequestAnalysis && channelInternalId
-                ? () => onRequestAnalysis(channelInternalId)
-                : undefined
-            }
+            onRequestAnalysis={onRequestAnalysis && channelInternalId ? handleRequestAnalysis : undefined}
             analysisState={analysisState}
           />
         )}

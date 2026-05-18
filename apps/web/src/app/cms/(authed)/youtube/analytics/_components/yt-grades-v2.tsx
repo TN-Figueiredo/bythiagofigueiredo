@@ -8,7 +8,6 @@ import type { Grade } from '@/lib/youtube/scoring-types'
 
 interface Props {
   videos: VideoGradeRow[]
-  onCreateAbTest?: (videoId: string, testType: string) => void
 }
 
 const GRADE_COLORS: Record<Grade, string> = {
@@ -26,7 +25,7 @@ const STATE_BADGES: Record<string, { label: string; color: string }> = {
   post_test_monitoring: { label: 'Monitorando', color: 'text-[#06b6d4]' },
 }
 
-export function YtGradesV2({ videos, onCreateAbTest }: Props) {
+export function YtGradesV2({ videos }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [gradeFilter, setGradeFilter] = useState<Grade | 'all'>('all')
   const [sortBy, setSortBy] = useState<'score' | 'ctr' | 'trend'>('score')
@@ -67,6 +66,7 @@ export function YtGradesV2({ videos, onCreateAbTest }: Props) {
         <select
           value={sortBy}
           onChange={e => setSortBy(e.target.value as typeof sortBy)}
+          aria-label="Ordenar vídeos por"
           className="ml-auto rounded border border-cms-border bg-transparent px-2 py-0.5 text-xs text-cms-text-muted"
         >
           <option value="score">Score ↓</option>
@@ -135,7 +135,6 @@ export function YtGradesV2({ videos, onCreateAbTest }: Props) {
                     optimizationState: video.optimizationState,
                     trafficSources: video.trafficSources,
                   }}
-                  onCreateAbTest={onCreateAbTest}
                 />
               </div>
             )}

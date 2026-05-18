@@ -127,11 +127,13 @@ export async function searchBlogPostsForLink(
 }>> {
   const svc = getSupabaseServiceClient()
 
+  const escaped = query.replace(/[%_\\]/g, '\\$&')
+
   const { data: translations } = await svc
     .from('blog_translations')
     .select('post_id, title, locale, blog_posts!inner(id, site_id, status)')
     .eq('blog_posts.site_id', siteId)
-    .ilike('title', `%${query}%`)
+    .ilike('title', `%${escaped}%`)
     .limit(10)
 
   if (!translations) return []

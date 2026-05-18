@@ -1,23 +1,84 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef, useOptimistic, useTransition } from 'react'
 import { YtNotificationsPanel } from './yt-notifications-panel'
 import type { Notification } from './types'
 
+type OptimisticAction =
+  | { type: 'mark_read'; id: string }
+  | { type: 'mark_all_read' }
+  | { type: 'dismiss'; id: string }
+
 interface Props {
   notifications: Notification[]
-  onMarkRead: (id: string) => void
-  onMarkAllRead: () => void
-  onDismiss: (id: string) => void
+  onMarkRead: (id: string) => Promise<void>
+  onMarkAllRead: () => Promise<void>
+  onDismiss: (id: string) => Promise<void>
 }
 
 export function YtNotificationsBell({ notifications, onMarkRead, onMarkAllRead, onDismiss }: Props) {
   const [open, setOpen] = useState(false)
-  const unreadCount = notifications.filter(n => !n.read).length
-  const hasCritical = notifications.some(n => !n.read && n.priority >= 4)
+  const [isPending, startTransition] = useTransition()
+
+  const [optimisticNotifications, updateOptimistic] = useOptimistic<Notification[], OptimisticAction>(
+    notifications,
+    (state, action) => {
+      switch (action.type) {
+        case 'mark_read':
+          return state.map(n => n.id === action.id ? { ...n, read: true } : n)
+        case 'mark_all_read':
+          return state.map(n => ({ ...n, read: true }))
+        case 'dismiss':
+          return state.filter(n => n.id !== action.id)
+        default:
+          return state
+      }
+    }
+  )
+
+  const unreadCount = optimisticNotifications.filter(n => !n.read).length
+  const hasCritical = optimisticNotifications.some(n => !n.read && n.priority >= 4)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const bellRef = useRef<HTMLButtonElement>(null)
+
+  const handleMarkRead = useCallback(async (id: string) => {
+    startTransition(async () => {
+      updateOptimistic({ type: 'mark_read', id })
+      try {
+        await onMarkRead(id)
+      } catch {
+        // optimistic state auto-reverts on transition error
+      }
+    })
+  }, [onMarkRead, updateOptimistic])
+
+  const handleMarkAllRead = useCallback(async () => {
+    startTransition(async () => {
+      updateOptimistic({ type: 'mark_all_read' })
+      try {
+        await onMarkAllRead()
+      } catch {
+        // optimistic state auto-reverts on transition error
+      }
+    })
+  }, [onMarkAllRead, updateOptimistic])
+
+  const handleDismiss = useCallback(async (id: string) => {
+    startTransition(async () => {
+      updateOptimistic({ type: 'dismiss', id })
+      try {
+        await onDismiss(id)
+      } catch {
+        // optimistic state auto-reverts on transition error
+      }
+    })
+  }, [onDismiss, updateOptimistic])
 
   const handleEscape = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'Escape') setOpen(false)
+    if (e.key === 'Escape') {
+      setOpen(false)
+      bellRef.current?.focus()
+    }
   }, [])
 
   useEffect(() => {
@@ -25,9 +86,47 @@ export function YtNotificationsBell({ notifications, onMarkRead, onMarkAllRead, 
     return () => document.removeEventListener('keydown', handleEscape)
   }, [open, handleEscape])
 
+  useEffect(() => {
+    if (open && panelRef.current) {
+      const first = panelRef.current.querySelector<HTMLElement>('button, [tabindex="0"], a')
+      first?.focus()
+    }
+  }, [open])
+
+  const handlePanelKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Tab') return
+    const panel = panelRef.current
+    if (!panel) return
+    const focusable = panel.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    )
+    if (focusable.length === 0) return
+    const first = focusable[0]!
+    const last = focusable[focusable.length - 1]!
+    if (e.shiftKey) {
+      if (document.activeElement === first) {
+        e.preventDefault()
+        last.focus()
+      }
+    } else {
+      if (document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+  }, [])
+
   return (
     <div className="relative">
+      <span className="sr-only" aria-live="polite" aria-atomic="true">
+        {isPending
+          ? 'Atualizando notificações...'
+          : unreadCount > 0
+            ? `${unreadCount} notificações não lidas`
+            : 'Nenhuma notificação não lida'}
+      </span>
       <button
+        ref={bellRef}
         onClick={() => setOpen(!open)}
         className="relative rounded p-1.5 hover:bg-cms-surface"
         aria-label={`Notificações${unreadCount > 0 ? ` (${unreadCount} não lidas)` : ''}`}
@@ -45,12 +144,13 @@ export function YtNotificationsBell({ notifications, onMarkRead, onMarkAllRead, 
       {open && (
         <>
           <div className="fixed inset-0 z-40" role="presentation" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full z-50 mt-2 w-80 rounded border border-cms-border bg-cms-bg shadow-lg" role="dialog" aria-label="Painel de notificações">
+          <div ref={panelRef} onKeyDown={handlePanelKeyDown} className="absolute right-0 top-full z-50 mt-2 w-80 rounded border border-cms-border bg-cms-bg shadow-lg" role="dialog" aria-label="Painel de notificações">
             <YtNotificationsPanel
-              notifications={notifications}
-              onMarkRead={onMarkRead}
-              onMarkAllRead={onMarkAllRead}
-              onDismiss={onDismiss}
+              notifications={optimisticNotifications}
+              onMarkRead={handleMarkRead}
+              onMarkAllRead={handleMarkAllRead}
+              onDismiss={handleDismiss}
+              pending={isPending}
             />
           </div>
         </>

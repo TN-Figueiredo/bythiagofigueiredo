@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
     .select('id, youtube_video_id, site_id, test_winner_applied_at, monitoring_day7_at, monitoring_day14_at, monitoring_day30_at')
     .eq('state', 'post_test_monitoring')
     .not('test_winner_applied_at', 'is', null)
+    .limit(200)
 
   if (!monitoring?.length) return NextResponse.json({ checked: 0 })
 
@@ -37,6 +38,7 @@ export async function GET(req: NextRequest) {
         .from('youtube_videos')
         .select('title, ctr')
         .eq('id', cycle.youtube_video_id)
+        .eq('site_id', cycle.site_id)
         .single()
 
       const currentCtr = video?.ctr ?? 0

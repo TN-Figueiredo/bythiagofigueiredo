@@ -40,10 +40,12 @@ export async function GET(req: NextRequest) {
 
       if (!videos?.length) continue
 
+      const videoIds = videos.map(v => v.id)
       const { data: dailyData } = await supabase
         .from('youtube_video_analytics')
         .select('youtube_video_id, date, views, likes, comments, shares, subscribers_gained, impressions')
         .eq('site_id', channel.site_id)
+        .in('youtube_video_id', videoIds)
         .gte('date', new Date(Date.now() - 90 * 86400000).toISOString().split('T')[0]!)
         .order('date', { ascending: true })
 
@@ -56,7 +58,22 @@ export async function GET(req: NextRequest) {
 
       const medians = computeBaseline(videos, dailyByVideo, channel.subscriber_count ?? 0)
 
+      const { data: allHistory } = await supabase
+        .from('video_grade_history')
+        .select('youtube_video_id, grade, score, week_iso')
+        .in('youtube_video_id', videoIds)
+        .order('week_iso', { ascending: false })
+        .limit(200)
+
+      const historyByVideo = new Map<string, Array<{ grade: string; score: number; week_iso: string }>>()
+      for (const h of allHistory ?? []) {
+        const arr = historyByVideo.get(h.youtube_video_id) ?? []
+        arr.push(h)
+        historyByVideo.set(h.youtube_video_id, arr)
+      }
+
       const gradeDrops: Array<{ videoTitle: string; oldGrade: string; newGrade: string; videoId: string }> = []
+      const gradeOrder = { A: 0, B: 1, C: 2, D: 3 } as Record<string, number>
 
       for (const video of videos) {
         const daily = dailyByVideo.get(video.id) ?? []
@@ -100,25 +117,17 @@ export async function GET(req: NextRequest) {
 
         graded++
 
-        const { data: history } = await supabase
-          .from('video_grade_history')
-          .select('grade, score, week_iso')
-          .eq('youtube_video_id', video.id)
-          .order('week_iso', { ascending: false })
-          .limit(4)
+        const history = historyByVideo.get(video.id) ?? []
 
-        if (history && history.length >= 2) {
+        if (history.length >= 2) {
           const prevGrade = history[1]!.grade
-          if (prevGrade && scored.grade > prevGrade) {
-            const gradeOrder = { A: 0, B: 1, C: 2, D: 3 } as Record<string, number>
-            const drop = (gradeOrder[scored.grade] ?? 0) - (gradeOrder[prevGrade] ?? 0)
-            if (drop >= 2) {
-              gradeDrops.push({ videoTitle: video.title ?? 'Video', oldGrade: prevGrade, newGrade: scored.grade, videoId: video.id })
-            }
+          const drop = (gradeOrder[scored.grade] ?? 0) - (gradeOrder[prevGrade] ?? 0)
+          if (drop >= 2) {
+            gradeDrops.push({ videoTitle: video.title ?? 'Video', oldGrade: prevGrade, newGrade: scored.grade, videoId: video.id })
           }
         }
 
-        if (history && history.length >= 2) {
+        if (history.length >= 2) {
           let consecutiveLow = 0
           for (const h of history) {
             if (h.grade === 'C' || h.grade === 'D') consecutiveLow++
@@ -134,14 +143,26 @@ export async function GET(req: NextRequest) {
               .single()
 
             if (!existingCycle) {
-              await supabase.from('optimization_cycles').insert({
-                youtube_video_id: video.id,
-                site_id: channel.site_id,
-                state: 'flagged',
-                cycle_number: 1,
-                flagged_at: new Date().toISOString(),
-              })
-              flagged++
+              const { data: resolvedCycle } = await supabase
+                .from('optimization_cycles')
+                .select('id, cooldown_until')
+                .eq('youtube_video_id', video.id)
+                .eq('state', 'resolved')
+                .not('cooldown_until', 'is', null)
+                .gt('cooldown_until', new Date().toISOString())
+                .limit(1)
+                .single()
+
+              if (!resolvedCycle) {
+                await supabase.from('optimization_cycles').insert({
+                  youtube_video_id: video.id,
+                  site_id: channel.site_id,
+                  state: 'flagged',
+                  cycle_number: 1,
+                  flagged_at: new Date().toISOString(),
+                })
+                flagged++
+              }
             }
           }
         }

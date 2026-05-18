@@ -988,22 +988,38 @@ The `social_defaults` JSONB stores content-type-to-platform template mappings, e
 ```sql
 ALTER TABLE social_connections
   ADD COLUMN IF NOT EXISTS bluesky_did text,
-  ADD COLUMN IF NOT EXISTS bluesky_access_jwt text,
-  ADD COLUMN IF NOT EXISTS bluesky_refresh_jwt text,
-  ADD COLUMN IF NOT EXISTS bluesky_jwt_expires_at timestamptz;
+  ADD COLUMN IF NOT EXISTS bluesky_access_jwt_enc text,
+  ADD COLUMN IF NOT EXISTS bluesky_refresh_jwt_enc text,
+  ADD COLUMN IF NOT EXISTS bluesky_jwt_expires_at timestamptz,
+  ADD COLUMN IF NOT EXISTS rate_window_start timestamptz,
+  ADD COLUMN IF NOT EXISTS rate_window_count integer DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS circuit_open_until timestamptz;
 ```
 
 ### Pipeline Step Rename
 
-Rename the `og_scrape` enum value to `platform_prepare` in the pipeline step check constraint:
+Rename the `og_scrape` value to `platform_prepare` in the `social_posts.pipeline_steps` JSONB array (note: pipeline steps are stored in `social_posts.pipeline_steps`, NOT as a column on `social_deliveries`):
 
 ```sql
-UPDATE social_deliveries SET step = 'platform_prepare' WHERE step = 'og_scrape';
+-- Update existing JSONB pipeline_steps arrays
+UPDATE social_posts
+SET pipeline_steps = (
+  SELECT jsonb_agg(
+    CASE WHEN elem->>'name' = 'og_scrape'
+      THEN jsonb_set(elem, '{name}', '"platform_prepare"')
+      ELSE elem
+    END
+  )
+  FROM jsonb_array_elements(pipeline_steps) AS elem
+)
+WHERE pipeline_steps::text LIKE '%og_scrape%';
 
-ALTER TABLE social_deliveries DROP CONSTRAINT IF EXISTS social_deliveries_step_check;
-ALTER TABLE social_deliveries ADD CONSTRAINT social_deliveries_step_check
-  CHECK (step IN ('draft', 'platform_prepare', 'image_gen', 'scheduled', 'publishing', 'published', 'failed'));
+-- Update the RPC validation function
+CREATE OR REPLACE FUNCTION update_pipeline_step(...)
+  -- Validate step_name IN ('post_created', 'short_link', 'platform_prepare', 'deliver')
 ```
+
+> **Note:** `social_deliveries` has NO `step` column. The `status` column on `social_deliveries` tracks delivery state (`pending`/`publishing`/`published`/`failed`/`retrying`/`skipped`). Pipeline progress is tracked in `social_posts.pipeline_steps` JSONB.
 
 ### Seed Data
 
@@ -1022,6 +1038,53 @@ ALTER TABLE social_deliveries ADD CONSTRAINT social_deliveries_step_check
 | `video-promo-landscape` | 16:9 | YouTube-style thumbnail with text overlay |
 
 Each template ships with a `composition` JSONB containing placeholder elements (`{{title}}`, `{{cover_image}}`, `{{author_name}}`, `{{excerpt}}`) that hydrate at application time.
+
+> **Bluesky JWT encryption:** `bluesky_access_jwt_enc` and `bluesky_refresh_jwt_enc` are encrypted at rest using the same `encrypt()`/`decrypt()` envelope as other provider tokens (`access_token_enc`, `refresh_token_enc`). Never store JWTs in plaintext.
+
+> **CardComposition schema:** Defined in `@tn-figueiredo/links/qr` (exported as `CardCompositionSchema` Zod validator and `CardComposition` TypeScript type). Structure: `{ version: 1, canvas: { width, height }, background: { type, color/stops/angle }, elements: Array<TextElement | ImageElement | QrElement> }`. Each element has `x, y, width, height, rotation, opacity` plus type-specific properties. The same schema drives both the QR Card Builder and the Social Template system.
+
+> **Caption vs template variables:** Caption variables (`{{link}}`, `{{title}}`, `{{url}}`) are resolved at **publish time** in the caption text. Template placeholders (`{{title}}`, `{{short_url}}`, `{{cover_image}}`, `{{logo}}`, `{{description}}`) are resolved at **template render time** for the visual image. `{{link}}` (caption) and `{{short_url}}` (template) both resolve to the tracked short URL but operate in different contexts.
+
+> **Konva server-side deployment:** Server-side Konva uses the `canvas` npm package (node-canvas) which ships prebuilt binaries for linux-x64 (Vercel Functions runtime). The `canvas` package must be added to `apps/web/package.json` as a production dependency. No native build step required.
+
+---
+
+## 9. UI States
+
+Every async boundary requires three states. Components MUST handle:
+
+**Loading:** Skeleton/spinner while data loads.
+- OG sidebar: shimmer placeholder while scraping
+- Template carousel: skeleton cards while loading templates
+- Confirmation dialog: disabled "Publicar" button + spinner during fan-out
+- Canvas editor: loading overlay while exporting
+
+**Empty:** Zero-data guidance.
+- Template library (no custom templates): "Create your first template" CTA
+- Queue (no scheduled posts): "No posts in queue" with link to Composer
+- Post metrics (no data yet): "Metrics will appear after first poll"
+- Link-in-Bio (no entries): "No stories shared yet" message
+
+**Error:** Actionable error display.
+- OG scrape failure: "Could not load preview" with Retry button
+- Template render failure: fallback to @vercel/og generator, show warning toast
+- Publish failure: per-platform error badges in confirmation dialog
+- Telegram connection failure: "Could not connect" with retry link
+
+---
+
+## 10. Accessibility
+
+- **Canvas editor** (react-konva): inherently not screen-reader accessible. Provide keyboard shortcuts overlay and ensure toolbar/inspector panels are fully keyboard-navigable with proper ARIA labels.
+- **Template carousel:** Horizontal scroll with keyboard arrow navigation. Each template card has `role="option"` with `aria-selected`.
+- **OG preview sidebar:** Tab panels use `role="tablist"` / `role="tab"` / `role="tabpanel"` pattern.
+- **Confirmation dialog:** Focus trap with `aria-modal="true"`, Escape to close, auto-focus on primary action.
+
+---
+
+## 11. Resilience
+
+**Circuit breaker:** After 3 consecutive failures to the same platform connection within a 30-minute window, the system sets `circuit_open_until` on `social_connections` and skips deliveries to that connection until the cooldown expires. The CMS shows a "Platform temporarily unavailable — retrying at HH:MM" banner. This prevents burning rate limits and compute on known-broken connections. The circuit resets automatically when the cooldown expires, or manually via the "Retry Now" button.
 
 ---
 

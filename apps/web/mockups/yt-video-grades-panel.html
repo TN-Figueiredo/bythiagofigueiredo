@@ -1,0 +1,599 @@
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  .grades-panel {
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    background: #0f1117;
+    color: #e2e8f0;
+    padding: 32px;
+    min-height: 100vh;
+    --radius: 12px;
+  }
+  .grades-panel h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .grades-panel .subtitle {
+    color: #94a3b8;
+    font-size: 0.875rem;
+    margin-bottom: 24px;
+  }
+  .grades-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+  .grades-filters {
+    display: flex;
+    gap: 8px;
+  }
+  .grades-filters button {
+    background: #1a1d27;
+    border: 1px solid #2a2d37;
+    color: #94a3b8;
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .grades-filters button.active {
+    background: #2a2d37;
+    color: #e2e8f0;
+    border-color: #3b3f4a;
+  }
+  .video-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0 8px;
+  }
+  .video-table thead th {
+    color: #64748b;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0 12px 12px;
+    text-align: left;
+    border-bottom: 1px solid #1e2130;
+  }
+  .video-table thead th:nth-child(4),
+  .video-table thead th:nth-child(5) {
+    text-align: center;
+  }
+  .video-row {
+    background: #1a1d27;
+    border-radius: var(--radius);
+    transition: all 0.2s;
+    cursor: pointer;
+  }
+  .video-row:hover {
+    background: #1e2233;
+  }
+  .video-row td {
+    padding: 16px 12px;
+    vertical-align: middle;
+  }
+  .video-row td:first-child {
+    border-radius: var(--radius) 0 0 var(--radius);
+  }
+  .video-row td:last-child {
+    border-radius: 0 var(--radius) var(--radius) 0;
+  }
+  .grade-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    font-weight: 800;
+    font-size: 1rem;
+    letter-spacing: -0.02em;
+  }
+  .grade-a { background: rgba(52, 211, 153, 0.15); color: #34d399; }
+  .grade-b { background: rgba(96, 165, 250, 0.15); color: #60a5fa; }
+  .grade-c { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
+  .grade-d { background: rgba(248, 113, 113, 0.15); color: #f87171; }
+
+  .video-title {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #e2e8f0;
+    margin-bottom: 3px;
+  }
+  .video-meta {
+    color: #64748b;
+    font-size: 0.75rem;
+  }
+  .score-bars {
+    display: flex;
+    gap: 4px;
+    align-items: flex-end;
+    height: 32px;
+  }
+  .score-bar-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    width: 36px;
+  }
+  .score-bar-label {
+    font-size: 0.6rem;
+    color: #64748b;
+    text-transform: uppercase;
+  }
+  .score-bar-track {
+    width: 100%;
+    height: 4px;
+    background: #2a2d37;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .score-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.3s;
+  }
+  .overall-score {
+    text-align: center;
+    font-weight: 800;
+    font-size: 1.3rem;
+  }
+  .trend-arrow {
+    text-align: center;
+    font-size: 1.1rem;
+  }
+  .trend-up { color: #34d399; }
+  .trend-stable { color: #94a3b8; }
+  .trend-down { color: #f87171; }
+
+  /* Expanded diagnostic panel */
+  .diagnostic-panel {
+    background: #141722;
+    border: 1px solid #2a2d37;
+    border-radius: var(--radius);
+    margin: 0 8px 8px;
+    padding: 20px 24px;
+    display: none;
+  }
+  .diagnostic-panel.expanded {
+    display: block;
+  }
+  .diagnostic-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  .diag-section-title {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #64748b;
+    margin-bottom: 12px;
+  }
+  .axis-breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .axis-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.82rem;
+  }
+  .axis-name {
+    width: 80px;
+    font-weight: 600;
+    color: #e2e8f0;
+  }
+  .axis-value {
+    color: #94a3b8;
+  }
+  .axis-status {
+    margin-left: auto;
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    border-radius: 6px;
+  }
+  .status-below { background: rgba(248, 113, 113, 0.12); color: #f87171; }
+  .status-above { background: rgba(52, 211, 153, 0.12); color: #34d399; }
+  .status-avg { background: rgba(251, 191, 36, 0.12); color: #fbbf24; }
+
+  .ai-recommendation {
+    background: #1e2233;
+    border: 1px solid #2a2d37;
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-top: 12px;
+  }
+  .ai-rec-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #a78bfa;
+    margin-bottom: 8px;
+  }
+  .ai-rec-text {
+    font-size: 0.85rem;
+    color: #e2e8f0;
+    line-height: 1.5;
+  }
+  .ai-action-btn {
+    margin-top: 12px;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    border: none;
+    color: #fff;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  .ai-action-btn:hover { opacity: 0.85; }
+
+  .traffic-chart {
+    margin-top: 16px;
+  }
+  .traffic-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .traffic-label {
+    width: 70px;
+    font-size: 0.75rem;
+    color: #94a3b8;
+  }
+  .traffic-track {
+    flex: 1;
+    height: 6px;
+    background: #2a2d37;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .traffic-fill {
+    height: 100%;
+    border-radius: 3px;
+  }
+  .traffic-pct {
+    font-size: 0.75rem;
+    color: #64748b;
+    width: 32px;
+    text-align: right;
+  }
+  .expand-indicator {
+    color: #64748b;
+    font-size: 0.75rem;
+    padding: 4px 8px;
+  }
+</style>
+
+<div class="grades-panel">
+  <div class="grades-header">
+    <div>
+      <h2>Notas dos Vídeos</h2>
+      <p class="subtitle">Performance individual com diagnóstico AI • Últimos 90 dias</p>
+    </div>
+    <div class="grades-filters">
+      <button class="active">Todos</button>
+      <button>Nota A</button>
+      <button>Nota B</button>
+      <button>Nota C–D</button>
+      <button>Últimos 30 dias</button>
+    </div>
+  </div>
+
+  <table class="video-table">
+    <thead>
+      <tr>
+        <th style="width:48px">Nota</th>
+        <th>Vídeo</th>
+        <th>Métricas</th>
+        <th style="width:64px">Score</th>
+        <th style="width:48px">Trend</th>
+        <th style="width:28px"></th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- Video 1 - Grade A -->
+      <tr class="video-row">
+        <td><span class="grade-badge grade-a">A</span></td>
+        <td>
+          <div class="video-title">Como Criar Rotinas que Realmente Funcionam em 2026</div>
+          <div class="video-meta">12 mai 2026 • 48.2K views • 12:34</div>
+        </td>
+        <td>
+          <div class="score-bars">
+            <div class="score-bar-col">
+              <div class="score-bar-track"><div class="score-bar-fill" style="width:88%;background:#34d399"></div></div>
+              <span class="score-bar-label">CTR</span>
+            </div>
+            <div class="score-bar-col">
+              <div class="score-bar-track"><div class="score-bar-fill" style="width:92%;background:#34d399"></div></div>
+              <span class="score-bar-label">Alc</span>
+            </div>
+            <div class="score-bar-col">
+              <div class="score-bar-track"><div class="score-bar-fill" style="width:78%;background:#60a5fa"></div></div>
+              <span class="score-bar-label">Ret</span>
+            </div>
+            <div class="score-bar-col">
+              <div class="score-bar-track"><div class="score-bar-fill" style="width:85%;background:#34d399"></div></div>
+              <span class="score-bar-label">Eng</span>
+            </div>
+            <div class="score-bar-col">
+              <div class="score-bar-track"><div class="score-bar-fill" style="width:90%;background:#34d399"></div></div>
+              <span class="score-bar-label">Cres</span>
+            </div>
+            <div class="score-bar-col">
+              <div class="score-bar-track"><div class="score-bar-fill" style="width:82%;background:#34d399"></div></div>
+              <span class="score-bar-label">Subs</span>
+            </div>
+          </div>
+        </td>
+        <td><div class="overall-score" style="color:#34d399">87</div></td>
+        <td><div class="trend-arrow trend-up">↑</div></td>
+        <td><span class="expand-indicator">▾</span></td>
+      </tr>
+
+      <!-- Expanded diagnostic for Video 1 -->
+      <tr><td colspan="6" style="padding:0">
+        <div class="diagnostic-panel expanded">
+          <div class="diagnostic-grid">
+            <div>
+              <div class="diag-section-title">Análise por Eixo</div>
+              <div class="axis-breakdown">
+                <div class="axis-item">
+                  <span class="axis-name">CTR</span>
+                  <span class="axis-value">8.4% (canal avg: 5.1%)</span>
+                  <span class="axis-status status-above">🟢 Acima da média</span>
+                </div>
+                <div class="axis-item">
+                  <span class="axis-name">Alcance</span>
+                  <span class="axis-value">48.2K imp. (avg: 22K)</span>
+                  <span class="axis-status status-above">🟢 +119%</span>
+                </div>
+                <div class="axis-item">
+                  <span class="axis-name">Retenção</span>
+                  <span class="axis-value">52% avg (canal: 45%)</span>
+                  <span class="axis-status status-above">🟢 Acima</span>
+                </div>
+                <div class="axis-item">
+                  <span class="axis-name">Engagement</span>
+                  <span class="axis-value">6.8% (canal: 4.2%)</span>
+                  <span class="axis-status status-above">🟢 Forte</span>
+                </div>
+                <div class="axis-item">
+                  <span class="axis-name">Crescimento</span>
+                  <span class="axis-value">+342 subs via vídeo</span>
+                  <span class="axis-status status-above">🟢 Top 10%</span>
+                </div>
+                <div class="axis-item">
+                  <span class="axis-name">Subs Conv.</span>
+                  <span class="axis-value">0.71% (avg: 0.3%)</span>
+                  <span class="axis-status status-above">🟢 Excelente</span>
+                </div>
+              </div>
+
+              <div class="ai-recommendation">
+                <div class="ai-rec-label">✨ Recomendação AI</div>
+                <div class="ai-rec-text">Este vídeo é um outlier positivo. Replique o formato: título com número + promessa clara + thumbnail minimalista. Considere criar uma série "Rotinas" com episódios semanais.</div>
+                <button class="ai-action-btn">Criar Série Derivada →</button>
+              </div>
+            </div>
+
+            <div>
+              <div class="diag-section-title">Fontes de Tráfego</div>
+              <div class="traffic-chart">
+                <div class="traffic-bar">
+                  <span class="traffic-label">Pesquisa</span>
+                  <div class="traffic-track"><div class="traffic-fill" style="width:42%;background:#60a5fa"></div></div>
+                  <span class="traffic-pct">42%</span>
+                </div>
+                <div class="traffic-bar">
+                  <span class="traffic-label">Browse</span>
+                  <div class="traffic-track"><div class="traffic-fill" style="width:28%;background:#a78bfa"></div></div>
+                  <span class="traffic-pct">28%</span>
+                </div>
+                <div class="traffic-bar">
+                  <span class="traffic-label">Sugeridos</span>
+                  <div class="traffic-track"><div class="traffic-fill" style="width:20%;background:#f472b6"></div></div>
+                  <span class="traffic-pct">20%</span>
+                </div>
+                <div class="traffic-bar">
+                  <span class="traffic-label">Externo</span>
+                  <div class="traffic-track"><div class="traffic-fill" style="width:10%;background:#fbbf24"></div></div>
+                  <span class="traffic-pct">10%</span>
+                </div>
+              </div>
+
+              <div style="margin-top:20px">
+                <div class="diag-section-title">Palavras-Chave que Trouxeram Tráfego</div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">
+                  <span style="background:#1a1d27;border:1px solid #2a2d37;padding:4px 10px;border-radius:6px;font-size:0.75rem;color:#94a3b8">rotina matinal</span>
+                  <span style="background:#1a1d27;border:1px solid #2a2d37;padding:4px 10px;border-radius:6px;font-size:0.75rem;color:#94a3b8">produtividade 2026</span>
+                  <span style="background:#1a1d27;border:1px solid #2a2d37;padding:4px 10px;border-radius:6px;font-size:0.75rem;color:#94a3b8">hábitos</span>
+                  <span style="background:#1a1d27;border:1px solid #2a2d37;padding:4px 10px;border-radius:6px;font-size:0.75rem;color:#94a3b8">como criar rotina</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </td></tr>
+
+      <!-- Video 2 - Grade B -->
+      <tr class="video-row">
+        <td><span class="grade-badge grade-b">B</span></td>
+        <td>
+          <div class="video-title">5 Ferramentas de IA que Mudaram Meu Workflow</div>
+          <div class="video-meta">8 mai 2026 • 31.5K views • 15:22</div>
+        </td>
+        <td>
+          <div class="score-bars">
+            <div class="score-bar-col">
+              <div class="score-bar-track"><div class="score-bar-fill" style="width:72%;background:#60a5fa"></div></div>
+              <span class="score-bar-label">CTR</span>
+            </div>
+            <div class="score-bar-col">
+              <div class="score-bar-track"><div class="score-bar-fill" style="width:78%;background:#60a5fa"></div></div>
+              <span class="score-bar-label">Alc</span>
+            </div>
+            <div class="score-bar-col">
+              <div class="score-bar-track"><div class="score-bar-fill" style="width:65%;background:#60a5fa"></div></div>
+              <span class="score-bar-label">Ret</span>
+            </div>
+            <div class="score-bar-col">
+              <div class="score-bar-track"><div class="score-bar-fill" style="width:70%;background:#60a5fa"></div></div>
+              <span class="score-bar-label">Eng</span>
+            </div>
+            <div class="score-bar-col">
+              <div class="score-bar-track"><div class="score-bar-fill" style="width:75%;background:#60a5fa"></div></div>
+              <span class="score-bar-label">Cres</span>
+            </div>
+            <div class="score-bar-col">
+              <div class="score-bar-track"><div class="score-bar-fill" style="width:68%;background:#60a5fa"></div></div>
+              <span class="score-bar-label">Subs</span>
+            </div>
+          </div>
+        </td>
+        <td><div class="overall-score" style="color:#60a5fa">72</div></td>
+        <td><div class="trend-arrow trend-up">↑</div></td>
+        <td><span class="expand-indicator">▸</span></td>
+      </tr>
+
+      <!-- Video 3 - Grade B -->
+      <tr class="video-row">
+        <td><span class="grade-badge grade-b">B</span></td>
+        <td>
+          <div class="video-title">Minha Setup Tour 2026 — Home Office Minimalista</div>
+          <div class="video-meta">2 mai 2026 • 27.8K views • 18:45</div>
+        </td>
+        <td>
+          <div class="score-bars">
+            <div class="score-bar-col">
+              <div class="score-bar-track"><div class="score-bar-fill" style="width:60%;background:#60a5fa"></div></div>
+              <span class="score-bar-label">CTR</span>
+            </div>
+            <div class="score-bar-col">
+              <div class="score-bar-track"><div class="score-bar-fill" style="width:70%;background:#60a5fa"></div></div>
+              <span class="score-bar-label">Alc</span>
+            </div>
+            <div class="score-bar-col">
+              <div class="score-bar-track"><div class="score-bar-fill" style="width:82%;background:#34d399"></div></div>
+              <span class="score-bar-label">Ret</span>
+            </div>
+            <div class="score-bar-col">
+              <div class="score-bar-track"><div class="score-bar-fill" style="width:74%;background:#60a5fa"></div></div>
+              <span class="score-bar-label">Eng</span>
+            </div>
+            <div class="score-bar-col">
+              <div class="score-bar-track"><div class="score-bar-fill" style="width:58%;background:#fbbf24"></div></div>
+              <span class="score-bar-label">Cres</span>
+            </div>
+            <div class="score-bar-col">
+              <div class="score-bar-track"><div class="score-bar-fill" style="width:62%;background:#60a5fa"></div></div>
+              <span class="score-bar-label">Subs</span>
+            </div>
+          </div>
+        </td>
+        <td><div class="overall-score" style="color:#60a5fa">68</div></td>
+        <td><div class="trend-arrow trend-stable">→</div></td>
+        <td><span class="expand-indicator">▸</span></td>
+      </tr>
+
+      <!-- Video 4 - Grade C -->
+      <tr class="video-row">
+        <td><span class="grade-badge grade-c">C</span></td>
+        <td>
+          <div class="video-title">Por Que Parei de Usar o Notion (e o que uso agora)</div>
+          <div class="video-meta">25 abr 2026 • 14.2K views • 10:18</div>
+        </td>
+        <td>
+          <div class="score-bars">
+            <div class="score-bar-col">
+              <div class="score-bar-track"><div class="score-bar-fill" style="width:45%;background:#fbbf24"></div></div>
+              <span class="score-bar-label">CTR</span>
+            </div>
+            <div class="score-bar-col">
+              <div class="score-bar-track"><div class="score-bar-fill" style="width:52%;background:#fbbf24"></div></div>
+              <span class="score-bar-label">Alc</span>
+            </div>
+            <div class="score-bar-col">
+              <div class="score-bar-track"><div class="score-bar-fill" style="width:58%;background:#fbbf24"></div></div>
+              <span class="score-bar-label">Ret</span>
+            </div>
+            <div class="score-bar-col">
+              <div class="score-bar-track"><div class="score-bar-fill" style="width:40%;background:#fbbf24"></div></div>
+              <span class="score-bar-label">Eng</span>
+            </div>
+            <div class="score-bar-col">
+              <div class="score-bar-track"><div class="score-bar-fill" style="width:35%;background:#f87171"></div></div>
+              <span class="score-bar-label">Cres</span>
+            </div>
+            <div class="score-bar-col">
+              <div class="score-bar-track"><div class="score-bar-fill" style="width:30%;background:#f87171"></div></div>
+              <span class="score-bar-label">Subs</span>
+            </div>
+          </div>
+        </td>
+        <td><div class="overall-score" style="color:#fbbf24">44</div></td>
+        <td><div class="trend-arrow trend-down">↓</div></td>
+        <td><span class="expand-indicator">▸</span></td>
+      </tr>
+
+      <!-- Video 5 - Grade D -->
+      <tr class="video-row">
+        <td><span class="grade-badge grade-d">D</span></td>
+        <td>
+          <div class="video-title">Vlog: Um Dia Normal na Minha Vida de Criador</div>
+          <div class="video-meta">18 abr 2026 • 6.1K views • 22:07</div>
+        </td>
+        <td>
+          <div class="score-bars">
+            <div class="score-bar-col">
+              <div class="score-bar-track"><div class="score-bar-fill" style="width:22%;background:#f87171"></div></div>
+              <span class="score-bar-label">CTR</span>
+            </div>
+            <div class="score-bar-col">
+              <div class="score-bar-track"><div class="score-bar-fill" style="width:28%;background:#f87171"></div></div>
+              <span class="score-bar-label">Alc</span>
+            </div>
+            <div class="score-bar-col">
+              <div class="score-bar-track"><div class="score-bar-fill" style="width:35%;background:#f87171"></div></div>
+              <span class="score-bar-label">Ret</span>
+            </div>
+            <div class="score-bar-col">
+              <div class="score-bar-track"><div class="score-bar-fill" style="width:42%;background:#fbbf24"></div></div>
+              <span class="score-bar-label">Eng</span>
+            </div>
+            <div class="score-bar-col">
+              <div class="score-bar-track"><div class="score-bar-fill" style="width:18%;background:#f87171"></div></div>
+              <span class="score-bar-label">Cres</span>
+            </div>
+            <div class="score-bar-col">
+              <div class="score-bar-track"><div class="score-bar-fill" style="width:15%;background:#f87171"></div></div>
+              <span class="score-bar-label">Subs</span>
+            </div>
+          </div>
+        </td>
+        <td><div class="overall-score" style="color:#f87171">27</div></td>
+        <td><div class="trend-arrow trend-down">↓</div></td>
+        <td><span class="expand-indicator">▸</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div style="text-align:center;margin-top:20px;color:#64748b;font-size:0.8rem">
+    Mostrando 5 de 47 vídeos • <a href="#" style="color:#60a5fa;text-decoration:none">Ver todos →</a>
+  </div>
+</div>
