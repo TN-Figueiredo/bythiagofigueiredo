@@ -12,6 +12,8 @@ import { ContentPicker, type SelectedContent } from './content-picker'
 import { CaptionTabs } from './caption-tabs'
 import { ScheduleBar } from './schedule-bar'
 import { OgCompact } from '@/app/cms/(authed)/_shared/social/og-compact'
+import { PublishConfirmationDialog } from './publish-confirmation-dialog'
+import type { OgData } from './og-preview-sidebar'
 import {
   createSocialPost,
   createFromContentAction,
@@ -88,6 +90,14 @@ export function ComposerShell({
   // Content loading
   const [loadingContentId, setLoadingContentId] = useState<string | null>(null)
 
+  // Pre-publish confirmation dialog
+  const [showConfirmation, setShowConfirmation] = useState(false)
+  const [confirmationShortUrl, setConfirmationShortUrl] = useState<string | null>(null)
+  const [isPrePublishLoading, setIsPrePublishLoading] = useState(false)
+
+  // OG data (derived from selected content)
+  const [ogData, setOgData] = useState<OgData | null>(null)
+
   // Errors
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [validationErrors, setValidationErrors] = useState<{
@@ -115,6 +125,29 @@ export function ComposerShell({
       setUrl(d.url)
     })
   }, [preselectedContentType, preselectedContentId])
+
+  // Derive OG data from selected content
+  useEffect(() => {
+    if (!selectedContent) {
+      setOgData(null)
+      return
+    }
+    const domain = selectedContent.url
+      ? (() => {
+          try {
+            return new URL(selectedContent.url).hostname
+          } catch {
+            return ''
+          }
+        })()
+      : ''
+    setOgData({
+      title: selectedContent.title,
+      description: selectedContent.excerpt ?? '',
+      image: selectedContent.image ?? null,
+      domain,
+    })
+  }, [selectedContent])
 
   function handleContentSelect(
     type: ContentType,
@@ -242,6 +275,39 @@ export function ComposerShell({
         }
       }
     })
+  }
+
+  function handlePrePublish() {
+    setSubmitError(null)
+    if (!validate()) return
+
+    if (sourceMode === 'cms' && selectedContent) {
+      setIsPrePublishLoading(true)
+      try {
+        // JIT short link — placeholder until Phase 1 provides ensureTrackedLink
+        setConfirmationShortUrl(
+          `${process.env.NEXT_PUBLIC_SHORT_DOMAIN ?? 'go.btf.com'}/______`,
+        )
+        setShowConfirmation(true)
+      } catch {
+        setSubmitError('Erro ao preparar publicacao')
+      } finally {
+        setIsPrePublishLoading(false)
+      }
+    } else {
+      // Freeform mode: publish directly (no confirmation needed)
+      handlePublishConfirm()
+    }
+  }
+
+  function handlePublishConfirm() {
+    setShowConfirmation(false)
+    handlePublish()
+  }
+
+  function handlePublishCancel() {
+    setShowConfirmation(false)
+    setConfirmationShortUrl(null)
   }
 
   function handlePublish() {
@@ -468,12 +534,28 @@ export function ComposerShell({
         onModeChange={setScheduleMode}
         scheduledAt={scheduledAt}
         onScheduleChange={setScheduledAt}
-        onPublish={handlePublish}
+        onPublish={handlePrePublish}
         onSaveDraft={handleSaveDraft}
         isPending={isPending}
         showPipeline={showPipeline}
         siteId=""
       />
+
+      {/* Pre-publish confirmation dialog (CMS mode only) */}
+      {showConfirmation && selectedContent && (
+        <PublishConfirmationDialog
+          open={showConfirmation}
+          onClose={handlePublishCancel}
+          onConfirm={handlePublishConfirm}
+          platforms={platforms}
+          captions={captions}
+          contentTitle={selectedContent.title}
+          contentUrl={selectedContent.url ?? url}
+          shortUrl={confirmationShortUrl ?? ''}
+          ogData={ogData}
+          isLoading={isPending}
+        />
+      )}
     </div>
   )
 }
