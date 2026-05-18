@@ -293,3 +293,40 @@
   color: var(--gem-dim);
   border-top: 1px solid var(--gem-border);
 }
+
+/* ── Script Beat Editor (inside ScriptBeatAccordion) ─── */
+.script-beat-editor .ProseMirror {
+  outline: none;
+  min-height: 80px;
+  font-size: 0.8125rem;
+  line-height: 1.85;
+  color: var(--gem-text);
+}
+
+.script-beat-editor .ProseMirror.script-beat-prosemirror {
+  padding: 0;
+}
+
+.script-beat-editor .ProseMirror p {
+  margin: 0.25rem 0;
+  color: var(--gem-muted);
+}
+
+.script-beat-editor .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--gem-dim);
+  pointer-events: none;
+  height: 0;
+}
+
+.script-beat-editor .ProseMirror blockquote {
+  margin: 0.5rem 0;
+  padding: 0.5rem 0.75rem;
+  border-left: 2px solid rgba(129, 140, 248, 0.3);
+  border-radius: 0 0.25rem 0.25rem 0;
+  background: rgba(129, 140, 248, 0.04);
+  color: var(--gem-dim);
+  font-size: 0.75rem;
+  font-style: italic;
+}
