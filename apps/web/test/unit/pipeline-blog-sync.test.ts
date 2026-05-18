@@ -1,58 +1,34 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // ---------------------------------------------------------------------------
-// Supabase service mock — fluent builder pattern
+// Supabase service mock — queue-based fluent builder
 // ---------------------------------------------------------------------------
 
 type QueryResult = { data: unknown; error: unknown }
 
-// Each mock call returns itself to support chaining, ending in maybeSingle /
-// insert which return the configured result.
 function makeChain(result: QueryResult) {
   const chain: Record<string, unknown> = {}
-  const methods = [
-    'select', 'eq', 'order', 'limit', 'update', 'insert',
-  ]
+  const methods = ['select', 'eq', 'order', 'limit', 'update', 'insert']
   for (const m of methods) {
     chain[m] = vi.fn(() => chain)
   }
-  ;(chain as { maybeSingle: () => Promise<QueryResult> }).maybeSingle = vi.fn(
-    () => Promise.resolve(result),
-  )
-  // insert / update resolve from the chain itself when awaited — we achieve
-  // this by making the chain thenable when needed. Instead we keep it simpler:
-  // override insert/update to return a resolved promise with the result.
+  ;(chain as Record<string, unknown>).maybeSingle = vi.fn(() => Promise.resolve(result))
   ;(chain as Record<string, unknown>).insert = vi.fn(() => Promise.resolve(result))
   ;(chain as Record<string, unknown>).update = vi.fn(() => chain)
   return chain
 }
 
-// We need separate chains per table call so we can assert on each one.
-let pipelineSelectChain: ReturnType<typeof makeChain>
-let pipelineUpdateChain: ReturnType<typeof makeChain>
-let historySelectChain: ReturnType<typeof makeChain>
-let historyInsertChain: ReturnType<typeof makeChain>
+const tableQueues: Record<string, ReturnType<typeof makeChain>[]> = {}
 
-// Track which table is being accessed and in what order.
-let fromCallIndex = 0
+function enqueue(table: string, chain: ReturnType<typeof makeChain>) {
+  if (!tableQueues[table]) tableQueues[table] = []
+  tableQueues[table].push(chain)
+}
 
 const mockSvc = {
   from: vi.fn((table: string) => {
-    fromCallIndex++
-    if (table === 'content_pipeline') {
-      // First call → select, second call → update
-      if (fromCallIndex === 1) return pipelineSelectChain
-      return pipelineUpdateChain
-    }
-    if (table === 'content_pipeline_history') {
-      // Third call in publish path → insert
-      // Third call in unpublish path → select, fourth → insert
-      if ((pipelineUpdateChain.update as ReturnType<typeof vi.fn>).mock.calls.length > 0) {
-        // update was already called — this is the history insert
-        return historyInsertChain
-      }
-      return historySelectChain
-    }
+    const queue = tableQueues[table]
+    if (queue && queue.length > 0) return queue.shift()!
     return makeChain({ data: null, error: null })
   }),
 }
@@ -68,20 +44,10 @@ import { syncPipelineOnPostStatusChange } from '@/lib/pipeline/blog-sync'
 // ---------------------------------------------------------------------------
 
 function resetMocks() {
-  fromCallIndex = 0
   vi.clearAllMocks()
-
-  pipelineSelectChain = makeChain({ data: null, error: null })
-  pipelineUpdateChain = makeChain({ data: null, error: null })
-  historySelectChain = makeChain({ data: null, error: null })
-  historyInsertChain = makeChain({ data: null, error: null })
-}
-
-// Make pipelineSelectChain.maybeSingle return a pipeline item
-function withLinkedItem(stage = 'ready', version = 1) {
-  ;(pipelineSelectChain as Record<string, unknown>).maybeSingle = vi.fn(() =>
-    Promise.resolve({ data: { id: 'pipe-1', stage, version }, error: null }),
-  )
+  for (const key of Object.keys(tableQueues)) {
+    delete tableQueues[key]
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -92,7 +58,8 @@ describe('syncPipelineOnPostStatusChange', () => {
   beforeEach(resetMocks)
 
   it('does nothing when no pipeline item is linked (only 1 DB call)', async () => {
-    // maybeSingle returns null data — no item linked
+    enqueue('content_pipeline', makeChain({ data: null, error: null }))
+
     await syncPipelineOnPostStatusChange('post-1', 'published', 'draft')
 
     expect(mockSvc.from).toHaveBeenCalledTimes(1)
@@ -100,63 +67,70 @@ describe('syncPipelineOnPostStatusChange', () => {
   })
 
   it('advances pipeline item to published when post is published', async () => {
-    withLinkedItem('ready', 3)
-
-    // Make update chain's eq chain resolve successfully when awaited
-    const eqChain = {
-      eq: vi.fn().mockReturnThis(),
-    }
-    const updateResult = Promise.resolve({ data: null, error: null })
-    ;(pipelineUpdateChain as Record<string, unknown>).update = vi.fn(() => eqChain)
-    ;(eqChain as unknown as Record<string, unknown>).eq = vi.fn(() => ({
-      eq: vi.fn(() => updateResult),
+    // 1) select pipeline item
+    enqueue('content_pipeline', makeChain({
+      data: { id: 'pipe-1', stage: 'ready', version: 3, format: 'blog_post' },
+      error: null,
     }))
 
-    // historyInsertChain insert should also resolve
-    ;(historyInsertChain as Record<string, unknown>).insert = vi.fn(() =>
-      Promise.resolve({ data: null, error: null }),
-    )
+    // 2) update pipeline item — .update().eq().eq() resolves as thenable
+    const updateEqResult = Promise.resolve({ data: null, error: null })
+    const updateEq2: Record<string, unknown> = {}
+    updateEq2.eq = vi.fn(() => updateEqResult)
+    const updateEq1: Record<string, unknown> = {}
+    updateEq1.eq = vi.fn(() => updateEq2)
+    const pipelineUpdateChain = makeChain({ data: null, error: null })
+    ;(pipelineUpdateChain as Record<string, unknown>).update = vi.fn(() => updateEq1)
+    enqueue('content_pipeline', pipelineUpdateChain)
+
+    // 3) history insert — .insert().then()
+    const historyChain = makeChain({ data: null, error: null })
+    enqueue('content_pipeline_history', historyChain)
 
     await syncPipelineOnPostStatusChange('post-1', 'published', 'draft')
 
-    // Should have called from() for: select pipeline, update pipeline, insert history
     expect(mockSvc.from).toHaveBeenCalledWith('content_pipeline')
     expect(mockSvc.from).toHaveBeenCalledWith('content_pipeline_history')
-    // update was called with stage: 'published' and incremented version
     expect(
       (pipelineUpdateChain as Record<string, unknown>).update as ReturnType<typeof vi.fn>,
     ).toHaveBeenCalledWith({ stage: 'published', version: 4 })
   })
 
   it('does not advance if pipeline item is already at published', async () => {
-    withLinkedItem('published', 5)
+    enqueue('content_pipeline', makeChain({
+      data: { id: 'pipe-1', stage: 'published', version: 5, format: 'blog_post' },
+      error: null,
+    }))
 
     await syncPipelineOnPostStatusChange('post-1', 'published', 'draft')
 
-    // Only the initial select call — no update, no history insert
     expect(mockSvc.from).toHaveBeenCalledTimes(1)
   })
 
   it('retreats pipeline item when post is unpublished', async () => {
-    withLinkedItem('published', 7)
-
-    // History select returns a previous stage
-    ;(historySelectChain as Record<string, unknown>).maybeSingle = vi.fn(() =>
-      Promise.resolve({ data: { from_value: 'review' }, error: null }),
-    )
-
-    const eqChain = {
-      eq: vi.fn().mockReturnThis(),
-    }
-    const updateResult = Promise.resolve({ data: null, error: null })
-    ;(pipelineUpdateChain as Record<string, unknown>).update = vi.fn(() => eqChain)
-    ;(eqChain as unknown as Record<string, unknown>).eq = vi.fn(() => ({
-      eq: vi.fn(() => updateResult),
+    // 1) select pipeline item
+    enqueue('content_pipeline', makeChain({
+      data: { id: 'pipe-1', stage: 'published', version: 7, format: 'blog_post' },
+      error: null,
     }))
 
-    ;(historyInsertChain as Record<string, unknown>).insert = vi.fn(() =>
-      Promise.resolve({ data: null, error: null }),
-    )
+    // 2) history select — returns previous stage
+    const historySelectChain = makeChain({ data: { from_value: 'review' }, error: null })
+    enqueue('content_pipeline_history', historySelectChain)
+
+    // 3) update pipeline item
+    const updateEqResult = Promise.resolve({ data: null, error: null })
+    const updateEq2: Record<string, unknown> = {}
+    updateEq2.eq = vi.fn(() => updateEqResult)
+    const updateEq1: Record<string, unknown> = {}
+    updateEq1.eq = vi.fn(() => updateEq2)
+    const pipelineUpdateChain = makeChain({ data: null, error: null })
+    ;(pipelineUpdateChain as Record<string, unknown>).update = vi.fn(() => updateEq1)
+    enqueue('content_pipeline', pipelineUpdateChain)
+
+    // 4) history insert
+    const historyInsertChain = makeChain({ data: null, error: null })
+    enqueue('content_pipeline_history', historyInsertChain)
 
     await syncPipelineOnPostStatusChange('post-1', 'draft', 'published')
 
@@ -166,25 +140,27 @@ describe('syncPipelineOnPostStatusChange', () => {
   })
 
   it('retreats to "ready" when no history entry found', async () => {
-    withLinkedItem('published', 2)
-
-    // History select returns no data
-    ;(historySelectChain as Record<string, unknown>).maybeSingle = vi.fn(() =>
-      Promise.resolve({ data: null, error: null }),
-    )
-
-    const eqChain = {
-      eq: vi.fn().mockReturnThis(),
-    }
-    const updateResult = Promise.resolve({ data: null, error: null })
-    ;(pipelineUpdateChain as Record<string, unknown>).update = vi.fn(() => eqChain)
-    ;(eqChain as unknown as Record<string, unknown>).eq = vi.fn(() => ({
-      eq: vi.fn(() => updateResult),
+    // 1) select pipeline item
+    enqueue('content_pipeline', makeChain({
+      data: { id: 'pipe-1', stage: 'published', version: 2, format: 'blog_post' },
+      error: null,
     }))
 
-    ;(historyInsertChain as Record<string, unknown>).insert = vi.fn(() =>
-      Promise.resolve({ data: null, error: null }),
-    )
+    // 2) history select — no data
+    enqueue('content_pipeline_history', makeChain({ data: null, error: null }))
+
+    // 3) update pipeline item
+    const updateEqResult = Promise.resolve({ data: null, error: null })
+    const updateEq2: Record<string, unknown> = {}
+    updateEq2.eq = vi.fn(() => updateEqResult)
+    const updateEq1: Record<string, unknown> = {}
+    updateEq1.eq = vi.fn(() => updateEq2)
+    const pipelineUpdateChain = makeChain({ data: null, error: null })
+    ;(pipelineUpdateChain as Record<string, unknown>).update = vi.fn(() => updateEq1)
+    enqueue('content_pipeline', pipelineUpdateChain)
+
+    // 4) history insert
+    enqueue('content_pipeline_history', makeChain({ data: null, error: null }))
 
     await syncPipelineOnPostStatusChange('post-1', 'draft', 'published')
 

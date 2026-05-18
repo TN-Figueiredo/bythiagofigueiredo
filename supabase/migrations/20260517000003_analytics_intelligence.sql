@@ -138,7 +138,7 @@ CREATE POLICY "optimization_cycles_update" ON optimization_cycles
 
 CREATE TRIGGER set_optimization_cycles_updated_at
   BEFORE UPDATE ON optimization_cycles
-  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+  FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
 
 -- =============================================================================
 -- 5. yt_notifications — CMS notification storage
@@ -222,7 +222,7 @@ CREATE POLICY "youtube_intelligence_update" ON youtube_intelligence
 
 CREATE TRIGGER set_youtube_intelligence_updated_at
   BEFORE UPDATE ON youtube_intelligence
-  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+  FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
 
 -- =============================================================================
 -- 7. youtube_intelligence_tasks — Pipeline task coordination
@@ -266,7 +266,7 @@ CREATE POLICY "yt_intel_tasks_update" ON youtube_intelligence_tasks
 
 CREATE TRIGGER set_yt_intel_tasks_updated_at
   BEFORE UPDATE ON youtube_intelligence_tasks
-  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+  FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
 
 -- =============================================================================
 -- 8. Helper functions

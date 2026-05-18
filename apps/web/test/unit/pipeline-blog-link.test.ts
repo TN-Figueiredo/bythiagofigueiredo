@@ -175,11 +175,14 @@ describe('linkPostToItem', () => {
     })
     enqueue('blog_posts', postChain)
 
-    // pipeline update chain — update().eq() resolves with no error
-    const updateEqResult = Promise.resolve({ data: null, error: null })
-    const updateEqChain = { eq: vi.fn(() => updateEqResult) }
+    // pipeline update chain — update().eq().eq().is().select().maybeSingle()
+    const updateTerminal = { maybeSingle: vi.fn(() => Promise.resolve({ data: { id: 'item-1' }, error: null })) }
+    const updateSelect = { select: vi.fn(() => updateTerminal) }
+    const updateIs = { is: vi.fn(() => updateSelect) }
+    const updateEq2 = { eq: vi.fn(() => updateIs) }
+    const updateEq1 = { eq: vi.fn(() => updateEq2) }
     const pipelineUpdateChain = makeChain({ data: null, error: null })
-    ;(pipelineUpdateChain as Record<string, unknown>).update = vi.fn(() => updateEqChain)
+    ;(pipelineUpdateChain as Record<string, unknown>).update = vi.fn(() => updateEq1)
     enqueue('content_pipeline', pipelineUpdateChain)
 
     // history insert
@@ -238,7 +241,9 @@ describe('unlinkPostFromItem', () => {
     enqueue('content_pipeline', pipelineSelectChain)
 
     const updateEqResult = Promise.resolve({ data: null, error: null })
-    const updateEqChain = { eq: vi.fn(() => updateEqResult) }
+    const updateEqChain: Record<string, unknown> = {}
+    updateEqChain.eq = vi.fn(() => updateEqChain)
+    updateEqChain.then = (updateEqResult as Promise<unknown>).then.bind(updateEqResult)
     const pipelineUpdateChain = makeChain({ data: null, error: null })
     ;(pipelineUpdateChain as Record<string, unknown>).update = vi.fn(() => updateEqChain)
     enqueue('content_pipeline', pipelineUpdateChain)
