@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { scoreVideo } from '@/lib/youtube/scoring'
+import { scoreVideo, computeBaseline } from '@/lib/youtube/scoring'
 import { getIsoWeek } from '@/lib/youtube/analytics-sync'
 import { buildNotification, buildGroupNotification, shouldAggregate } from '@/lib/youtube/notification-service'
-import type { ChannelBaseline, VideoScoreInput } from '@/lib/youtube/scoring-types'
+import type { VideoScoreInput } from '@/lib/youtube/scoring-types'
 import * as Sentry from '@sentry/nextjs'
 
 export const dynamic = 'force-dynamic'
@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
         dailyByVideo.set(row.youtube_video_id, arr)
       }
 
-      const medians = computeChannelBaseline(videos, dailyByVideo, channel.subscriber_count ?? 0)
+      const medians = computeBaseline(videos, dailyByVideo, channel.subscriber_count ?? 0)
 
       const gradeDrops: Array<{ videoTitle: string; oldGrade: string; newGrade: string; videoId: string }> = []
 
@@ -72,7 +72,9 @@ export async function GET(req: NextRequest) {
           ctr: video.ctr ?? 0,
           avgViewPercentage: video.avg_view_percentage ?? 0,
           impressions: video.impressions ?? 0,
-          trafficSources: video.traffic_sources as VideoScoreInput['trafficSources'],
+          trafficSources: (video.traffic_sources && typeof video.traffic_sources === 'object')
+            ? video.traffic_sources as VideoScoreInput['trafficSources']
+            : null,
           engagementRate,
           dailyViews: last28.map(d => ({ date: d.date, views: d.views })),
           subscribersGained: totalSubs,
@@ -188,29 +190,3 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ graded, flagged, week: weekIso })
 }
 
-function computeChannelBaseline(
-  videos: Array<{ ctr: number | null; avg_view_percentage: number | null; impressions: number | null }>,
-  dailyByVideo: Map<string, Array<{ date: string; views: number; likes: number; comments: number; shares: number; subscribers_gained: number; impressions: number }>>,
-  subscriberCount: number,
-): ChannelBaseline {
-  const ctrs = videos.map(v => v.ctr ?? 0).filter(c => c > 0).sort((a, b) => a - b)
-  const retentions = videos.map(v => v.avg_view_percentage ?? 0).filter(r => r > 0).sort((a, b) => a - b)
-  const reaches = videos.map(v => v.impressions ?? 0).filter(r => r > 0).sort((a, b) => a - b)
-
-  const allDaily = Array.from(dailyByVideo.values()).flat()
-  const totalViews = allDaily.reduce((s, d) => s + d.views, 0)
-  const totalDays = new Set(allDaily.map(d => d.date)).size || 1
-
-  const median = (arr: number[]) => arr.length === 0 ? 0 : arr[Math.floor(arr.length / 2)]!
-
-  return {
-    medianCtr: median(ctrs),
-    medianRetention: median(retentions),
-    medianReach: median(reaches),
-    medianEngagement: 4.0,
-    medianGrowth: 0,
-    medianSubImpact: 0.5,
-    channelDailyMean: totalViews / totalDays,
-    subscriberCount,
-  }
-}

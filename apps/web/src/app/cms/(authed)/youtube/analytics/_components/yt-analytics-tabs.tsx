@@ -79,16 +79,17 @@ interface Props {
   demographics: YtDemographics
   channels?: YtConnectedChannel[]
   activeChannelId?: string
+  channelInternalId?: string
   intelligenceVideos?: VideoGradeRow[]
   intelligenceOutliers?: OutlierVideo[]
   notifications?: Notification[]
   healthScore?: number
   weeksSinceFirstGrade?: number
-  onMarkNotificationRead?: (id: string) => void
-  onMarkAllNotificationsRead?: () => void
-  onDismissNotification?: (id: string) => void
+  onMarkNotificationRead?: (id: string) => Promise<void>
+  onMarkAllNotificationsRead?: () => Promise<void>
+  onDismissNotification?: (id: string) => Promise<void>
   onCreateAbTest?: (videoId: string, testType: string) => void
-  onRequestAnalysis?: () => void
+  onRequestAnalysis?: (channelId: string) => Promise<unknown>
   analysisState?: 'idle' | 'pending' | 'running' | 'cooldown'
   lastAnalysisAt?: string | null
 }
@@ -102,6 +103,7 @@ export function YtAnalyticsTabs({
   demographics,
   channels,
   activeChannelId,
+  channelInternalId,
   intelligenceVideos,
   intelligenceOutliers,
   notifications,
@@ -166,44 +168,43 @@ export function YtAnalyticsTabs({
         </div>
       )}
 
-      <div className="mb-4 flex items-center gap-0 border-b border-cms-border">
-        {notifications && onMarkNotificationRead && onMarkAllNotificationsRead && onDismissNotification && (
+      <div className="mb-4 flex items-center border-b border-cms-border">
+        <div
+          ref={tablistRef}
+          role="tablist"
+          aria-label="YouTube Analytics sub-navigation"
+          className="flex gap-0"
+          onKeyDown={handleKeyDown}
+        >
+          {SUB_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              tabIndex={activeTab === tab.id ? 0 : -1}
+              id={`tab-yt-${tab.id}`}
+              aria-controls={`panel-yt-${tab.id}`}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+                activeTab === tab.id
+                  ? 'border-b-2 border-[var(--acc)] text-cms-text'
+                  : 'text-cms-text-muted hover:text-cms-text'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        {notifications && (
           <div className="ml-auto pr-2">
             <YtNotificationsBell
               notifications={notifications}
-              onMarkRead={onMarkNotificationRead}
-              onMarkAllRead={onMarkAllNotificationsRead}
-              onDismiss={onDismissNotification}
+              onMarkRead={onMarkNotificationRead ?? (() => Promise.resolve())}
+              onMarkAllRead={onMarkAllNotificationsRead ?? (() => Promise.resolve())}
+              onDismiss={onDismissNotification ?? (() => Promise.resolve())}
             />
           </div>
         )}
-      </div>
-
-      <div
-        ref={tablistRef}
-        role="tablist"
-        aria-label="YouTube Analytics sub-navigation"
-        className="mb-4 flex gap-0 border-b border-cms-border"
-        onKeyDown={handleKeyDown}
-      >
-        {SUB_TABS.map((tab) => (
-          <button
-            key={tab.id}
-            role="tab"
-            aria-selected={activeTab === tab.id}
-            tabIndex={activeTab === tab.id ? 0 : -1}
-            id={`tab-yt-${tab.id}`}
-            aria-controls={`panel-yt-${tab.id}`}
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-2.5 text-sm font-medium transition-colors ${
-              activeTab === tab.id
-                ? 'border-b-2 border-[var(--acc)] text-cms-text'
-                : 'text-cms-text-muted hover:text-cms-text'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
       </div>
 
       <div
@@ -223,10 +224,14 @@ export function YtAnalyticsTabs({
             radarData={intelligenceVideos
               ? computeRadarData(intelligenceVideos)
               : []}
-            coachingCards={[]}
+            coachingCards={intelligenceVideos ? computeCoachingCards(intelligenceVideos) : []}
             videoCount={intelligenceVideos?.length ?? 0}
             lastAnalysisAt={lastAnalysisAt ?? null}
-            onRequestAnalysis={onRequestAnalysis}
+            onRequestAnalysis={
+              onRequestAnalysis && channelInternalId
+                ? () => onRequestAnalysis(channelInternalId)
+                : undefined
+            }
             analysisState={analysisState}
           />
         )}
@@ -252,4 +257,62 @@ function computeRadarData(videos: VideoGradeRow[]): Array<{ label: string; value
     const grade = avg >= 85 ? 'A' : avg >= 65 ? 'B' : avg >= 40 ? 'C' : 'D'
     return { label: AXIS_LABELS[axis], value: avg, grade }
   })
+}
+
+const COACHING_DIAGNOSTICS: Record<Axis, { diagnosis: string; action: string }> = {
+  ctr: {
+    diagnosis: 'Sua taxa de clique está abaixo da média. Thumbnails e títulos precisam de mais impacto visual.',
+    action: 'Teste novas thumbnails com texto overlay e expressões faciais. Considere criar um A/B test.',
+  },
+  retention: {
+    diagnosis: 'Os espectadores estão saindo antes do vídeo terminar. O conteúdo pode precisar de mais ganchos internos.',
+    action: 'Adicione pattern interrupts a cada 2-3 minutos. Comece com a promessa mais forte nos primeiros 30 segundos.',
+  },
+  reach: {
+    diagnosis: 'O tráfego vem de poucas fontes. Diversifique para reduzir dependência do browse/sugestões.',
+    action: 'Otimize títulos para search (palavras-chave), compartilhe em redes sociais, e crie playlists temáticas.',
+  },
+  engagement: {
+    diagnosis: 'A taxa de interação (likes, comentários, compartilhamentos) está baixa em relação às views.',
+    action: 'Inclua CTAs claros pedindo likes/comentários. Faça perguntas ao público no vídeo e na descrição.',
+  },
+  growth: {
+    diagnosis: 'O crescimento diário de views está estagnado ou em declínio.',
+    action: 'Publique com mais consistência. Explore tópicos trending no seu nicho. Revise horários de publicação.',
+  },
+  sub_impact: {
+    diagnosis: 'Poucos espectadores estão se inscrevendo após assistir seus vídeos.',
+    action: 'Adicione telas finais com botão de inscrição. Mencione o canal no início do vídeo. Ofereça valor exclusivo para inscritos.',
+  },
+}
+
+function computeCoachingCards(videos: VideoGradeRow[]): Array<{
+  axis: Axis
+  score: number
+  benchmark: number
+  channelValue: number
+  diagnosis: string
+  action: string
+  source: 'cowork' | 'fallback'
+}> {
+  const axes: Axis[] = ['ctr', 'retention', 'reach', 'engagement', 'growth', 'sub_impact']
+  return axes
+    .map(axis => {
+      const scores = videos.map(v => v.axes.find(a => a.axis === axis)?.normalized ?? 0)
+      const avg = scores.length > 0 ? scores.reduce((s, v) => s + v, 0) / scores.length : 0
+      const normalized10 = avg / 10
+      const coaching = COACHING_DIAGNOSTICS[axis]
+      return {
+        axis,
+        score: Math.round(normalized10 * 10) / 10,
+        benchmark: 5.0,
+        channelValue: avg,
+        diagnosis: coaching.diagnosis,
+        action: coaching.action,
+        source: 'fallback' as const,
+      }
+    })
+    .filter(c => c.score < 6.5)
+    .sort((a, b) => a.score - b.score)
+    .slice(0, 3)
 }

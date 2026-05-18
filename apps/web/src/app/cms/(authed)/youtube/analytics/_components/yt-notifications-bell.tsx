@@ -55,7 +55,7 @@ export function YtNotificationsBell({ notifications, onMarkRead, onMarkAllRead, 
       {open && (
         <>
           <div className="fixed inset-0 z-40" role="presentation" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full z-50 mt-2 w-80 rounded border border-cms-border bg-cms-bg shadow-lg">
+          <div className="absolute right-0 top-full z-50 mt-2 w-80 rounded border border-cms-border bg-cms-bg shadow-lg" role="dialog" aria-label="Painel de notificações">
             <YtNotificationsPanel
               notifications={notifications}
               onMarkRead={onMarkRead}

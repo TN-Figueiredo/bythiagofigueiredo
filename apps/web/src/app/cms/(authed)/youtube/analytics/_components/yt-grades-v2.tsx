@@ -73,6 +73,7 @@ export function YtGradesV2({ videos, onCreateAbTest }: Props) {
           <button
             key={g}
             onClick={() => setGradeFilter(g)}
+            aria-pressed={gradeFilter === g}
             className={`rounded px-2 py-0.5 text-xs ${gradeFilter === g ? 'bg-cms-accent text-white' : 'border border-cms-border text-cms-text-muted hover:bg-cms-surface'}`}
           >
             {g === 'all' ? 'Todos' : g}

@@ -3,8 +3,8 @@
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
-import { scoreVideo, computeOutliers, computeTrend } from '@/lib/youtube/scoring'
-import type { ChannelBaseline, VideoScoreInput } from '@/lib/youtube/scoring-types'
+import { scoreVideo, computeOutliers, computeTrend, computeBaseline } from '@/lib/youtube/scoring'
+import type { VideoScoreInput } from '@/lib/youtube/scoring-types'
 import { revalidateTag } from 'next/cache'
 
 export async function fetchGradesData(channelId: string) {
@@ -87,7 +87,9 @@ export async function fetchGradesData(channelId: string) {
       ctr: video.ctr ?? 0,
       avgViewPercentage: video.avg_view_percentage ?? 0,
       impressions: video.impressions ?? 0,
-      trafficSources: video.traffic_sources as VideoScoreInput['trafficSources'],
+      trafficSources: (video.traffic_sources && typeof video.traffic_sources === 'object')
+        ? video.traffic_sources as VideoScoreInput['trafficSources']
+        : null,
       engagementRate: totalViews > 0 ? (totalEng / totalViews) * 100 : 0,
       dailyViews: last28.map(d => ({ date: d.date, views: d.views })),
       subscribersGained: totalSubs,
@@ -224,53 +226,3 @@ export async function requestIntelligenceAnalysis(channelId: string) {
   return { ok: true }
 }
 
-function computeReachDiversityForBaseline(trafficSources: Record<string, number> | null): number {
-  if (!trafficSources) return 0
-  const values = [
-    trafficSources.browse ?? 0,
-    trafficSources.search ?? 0,
-    trafficSources.suggested ?? 0,
-    trafficSources.external ?? 0,
-    trafficSources.direct ?? 0,
-    trafficSources.notifications ?? 0,
-    trafficSources.playlists ?? 0,
-  ]
-  const total = values.reduce((a, b) => a + b, 0)
-  if (total === 0) return 0
-  const probs = values.map(v => v / total).filter(p => p > 0)
-  const entropy = -probs.reduce((sum, p) => sum + p * Math.log2(p), 0)
-  const maxEntropy = Math.log2(probs.length)
-  return maxEntropy > 0 ? (entropy / maxEntropy) * 100 : 0
-}
-
-function computeBaseline(
-  videos: Array<{ ctr: number | null; avg_view_percentage: number | null; impressions: number | null; traffic_sources?: unknown }>,
-  dailyByVideo: Map<string, Array<{ date: string; views: number }>>,
-  subscriberCount: number,
-): ChannelBaseline {
-  const ctrs = videos.map(v => v.ctr ?? 0).filter(c => c > 0).sort((a, b) => a - b)
-  const retentions = videos.map(v => v.avg_view_percentage ?? 0).filter(r => r > 0).sort((a, b) => a - b)
-  const reachDiversities = videos
-    .map(v => computeReachDiversityForBaseline(v.traffic_sources as Record<string, number> | null))
-    .filter(r => r > 0)
-    .sort((a, b) => a - b)
-  const allDaily = Array.from(dailyByVideo.values()).flat()
-  const totalViews = allDaily.reduce((s, d) => s + d.views, 0)
-  const totalDays = new Set(allDaily.map(d => d.date)).size || 1
-  const median = (arr: number[]) => {
-    if (arr.length === 0) return 0
-    const mid = Math.floor(arr.length / 2)
-    return arr.length % 2 === 0 ? (arr[mid - 1]! + arr[mid]!) / 2 : arr[mid]!
-  }
-
-  return {
-    medianCtr: median(ctrs),
-    medianRetention: median(retentions),
-    medianReach: median(reachDiversities),
-    medianEngagement: 4.0,
-    medianGrowth: 0,
-    medianSubImpact: 0.5,
-    channelDailyMean: totalViews / totalDays,
-    subscriberCount,
-  }
-}

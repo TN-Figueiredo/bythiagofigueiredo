@@ -40,6 +40,7 @@ export function YtOutliersV2({ outliers }: Props) {
       <div className="flex flex-wrap gap-1.5">
         <button
           onClick={() => setSelectedAxis('all')}
+          aria-pressed={selectedAxis === 'all'}
           className={`rounded px-2 py-0.5 text-[10px] ${selectedAxis === 'all' ? 'bg-cms-accent text-white' : 'border border-cms-border text-cms-text-muted'}`}
         >
           Todos
@@ -48,6 +49,7 @@ export function YtOutliersV2({ outliers }: Props) {
           <button
             key={a}
             onClick={() => setSelectedAxis(a)}
+            aria-pressed={selectedAxis === a}
             className={`rounded px-2 py-0.5 text-[10px] ${selectedAxis === a ? 'bg-cms-accent text-white' : 'border border-cms-border text-cms-text-muted'}`}
           >
             {AXIS_LABELS[a]}

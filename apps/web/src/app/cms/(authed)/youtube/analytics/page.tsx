@@ -1,13 +1,21 @@
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { redirect } from 'next/navigation'
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { fetchYtChannelMetrics, fetchYtDailyMetrics, getConnectedYouTubeChannels } from '@/lib/youtube/analytics-client'
 import {
   fetchVideoGrades,
   getCachedYtSearchTerms,
   getCachedYtDemographics,
 } from '@/lib/youtube/analytics-queries'
-import { fetchGradesData, fetchNotifications } from './actions'
+import {
+  fetchGradesData,
+  fetchNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
+  dismissNotification,
+  requestIntelligenceAnalysis,
+} from './actions'
 import { YtAnalyticsTabs } from './_components/yt-analytics-tabs'
 
 export const dynamic = 'force-dynamic'
@@ -40,7 +48,8 @@ export default async function YouTubeAnalyticsPage({
   const { channel: selectedChannelId } = await searchParams
   const activeChannel = channels.find(c => c.channelId === selectedChannelId) ?? channels[0]!
 
-  const [metrics, dailyMetrics, grades, searchTerms, demographics, intelligenceData, notifications] = await Promise.all([
+  const supabaseForLastAnalysis = getSupabaseServiceClient()
+  const [metrics, dailyMetrics, grades, searchTerms, demographics, intelligenceData, notifications, lastAnalysisRow] = await Promise.all([
     fetchYtChannelMetrics(siteId, 30, activeChannel.channelId),
     fetchYtDailyMetrics(siteId, 30, activeChannel.channelId),
     fetchVideoGrades(siteId, activeChannel.internalId),
@@ -48,6 +57,16 @@ export default async function YouTubeAnalyticsPage({
     getCachedYtDemographics(siteId, 30, activeChannel.channelId),
     fetchGradesData(activeChannel.internalId).catch(() => ({ videos: [], outliers: [] })),
     fetchNotifications().catch(() => []),
+    supabaseForLastAnalysis
+      .from('youtube_intelligence_tasks')
+      .select('completed_at')
+      .eq('site_id', siteId)
+      .eq('channel_id', activeChannel.internalId)
+      .eq('status', 'completed')
+      .order('completed_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(r => r.data, () => null),
   ])
 
   if (!metrics) {
@@ -81,10 +100,16 @@ export default async function YouTubeAnalyticsPage({
       demographics={demographics}
       channels={channels}
       activeChannelId={activeChannel.channelId}
+      channelInternalId={activeChannel.internalId}
       intelligenceVideos={intelligenceData.videos}
       intelligenceOutliers={enrichedOutliers}
       notifications={notifications}
       healthScore={healthScore}
+      lastAnalysisAt={lastAnalysisRow?.completed_at ?? null}
+      onMarkNotificationRead={markNotificationRead}
+      onMarkAllNotificationsRead={markAllNotificationsRead}
+      onDismissNotification={dismissNotification}
+      onRequestAnalysis={requestIntelligenceAnalysis}
     />
   )
 }

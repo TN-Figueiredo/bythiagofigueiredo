@@ -1,11 +1,14 @@
 'use client'
 
+import { useId } from 'react'
+
 interface Props {
   retentionCurve: number[] | null
   avgViewPercentage: number
 }
 
 export function YtRetentionCurveV2({ retentionCurve, avgViewPercentage }: Props) {
+  const uid = useId()
   if (!retentionCurve || retentionCurve.length < 2) {
     return (
       <div className="flex h-20 items-center justify-center rounded border border-dashed border-cms-border">
@@ -42,14 +45,14 @@ export function YtRetentionCurveV2({ retentionCurve, avgViewPercentage }: Props)
 
   return (
     <div className="relative">
-      <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ height: '80px' }}>
+      <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ height: '80px' }} role="img" aria-label="Curva de retenção do vídeo">
         <defs>
-          <linearGradient id="retGradV2" x1="0" y1="0" x2="0" y2="1">
+          <linearGradient id={`retGradV2-${uid}`} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#60a5fa" stopOpacity="0.15" />
             <stop offset="100%" stopColor="#60a5fa" stopOpacity="0" />
           </linearGradient>
         </defs>
-        <path d={areaD} fill="url(#retGradV2)" />
+        <path d={areaD} fill={`url(#retGradV2-${uid})`} />
         <line x1="0" y1={benchY} x2={w} y2={benchY} stroke="#958A75" strokeWidth="0.5" strokeDasharray="3" />
         <path d={pathD} fill="none" stroke="#60a5fa" strokeWidth="1.5" />
         {cliffs.map((cliff, i) => (
