@@ -76,6 +76,11 @@ export function BRollFilters({ filters, setFilters, clearAll, activeCount, asset
 
   useEffect(() => { setLocalQ(filters.q ?? '') }, [filters.q])
 
+  /* Clear debounce timer on unmount */
+  useEffect(() => {
+    return () => { clearTimeout(debounceRef.current) }
+  }, [])
+
   /* Derived counts */
   const sourceCounts = useMemo(() => ({
     all: assets.length,

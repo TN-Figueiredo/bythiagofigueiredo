@@ -180,9 +180,11 @@ describe('BRollCard', () => {
     expect(screen.queryByText('Pending')).toBeNull()
   })
 
-  it('does not show status badge for retired assets (badge only for pending)', () => {
+  it('shows status badge for retired assets with red styling', () => {
     render(<BRollCard asset={makeAsset({ status: 'retired' })} selected={false} onSelect={vi.fn()} />)
-    expect(screen.queryByText('Retired')).toBeNull()
+    const badge = screen.getByText('Retired')
+    expect(badge).toBeTruthy()
+    expect(badge.style.color).toBe('#f87171')
   })
 
   it('calls onSelect with the asset id when clicked', () => {

@@ -101,7 +101,6 @@ function BeatsOverview({ beats }: { beats: RoteiroBeat[] }) {
 }
 
 export function ScriptEditMode({ content, isEditing, onChange }: ScriptEditModeProps) {
-  const printRef = useRef<HTMLDivElement>(null)
   const stableKeys = useStableBeatKeys(content.beats.length)
 
   const pointerSensor = useSensor(PointerSensor, { activationConstraint: POINTER_ACTIVATION })
@@ -178,7 +177,7 @@ export function ScriptEditMode({ content, isEditing, onChange }: ScriptEditModeP
   }, [])
 
   return (
-    <div ref={printRef} className="script-section p-5 space-y-4">
+    <div className="script-section p-5 space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <span

@@ -11,13 +11,13 @@ export function roteiroToTipTap(beat: RoteiroBeat): JSONContent {
   for (const line of beat.script) {
     switch (line.type) {
       case 'line': {
-        const marks: JSONContent['marks'] = [{ type: 'italic' }]
+        const marks: JSONContent['marks'] = []
         if (line.accent) {
           marks.push({ type: 'highlight', attrs: { color: line.accent } })
         }
         children.push({
           type: 'paragraph',
-          content: [{ type: 'text', text: line.text, marks }],
+          content: [{ type: 'text', text: line.text, ...(marks.length > 0 ? { marks } : {}) }],
         })
         break
       }

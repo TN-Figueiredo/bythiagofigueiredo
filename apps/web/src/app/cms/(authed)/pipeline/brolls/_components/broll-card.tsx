@@ -24,6 +24,11 @@ const STATUS_BADGE_STYLE: Record<string, React.CSSProperties> = {
     color: '#fbbf24',
     border: '1px solid rgba(234,179,8,0.25)',
   },
+  retired: {
+    background: 'rgba(239,68,68,0.15)',
+    color: '#f87171',
+    border: '1px solid rgba(239,68,68,0.25)',
+  },
 }
 
 
@@ -43,6 +48,7 @@ function BRollCardInner({ asset, selected, onSelect }: BRollCardProps) {
   } = asset
 
   const isPending = status === 'pending'
+  const showStatusBadge = status === 'pending' || status === 'retired'
   const srcConfig = sourceTypeConfig(source_type)
   const catConfig = categoryConfig(category)
   const displayName = renamed_to ?? original_filename
@@ -135,8 +141,8 @@ function BRollCardInner({ asset, selected, onSelect }: BRollCardProps) {
           </span>
         )}
 
-        {/* Status badge — pending only */}
-        {isPending && (
+        {/* Status badge — pending & retired */}
+        {showStatusBadge && (
           <span
             aria-hidden="true"
             style={{

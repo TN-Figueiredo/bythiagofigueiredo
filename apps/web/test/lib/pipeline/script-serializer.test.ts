@@ -3,7 +3,7 @@ import { roteiroToTipTap, tipTapToRoteiro } from '@/lib/pipeline/script-serializ
 import type { RoteiroBeat, ScriptLine } from '@/lib/pipeline/roteiro-schemas'
 
 describe('roteiroToTipTap', () => {
-  it('converts spoken lines to italic paragraphs', () => {
+  it('converts spoken lines to plain paragraphs (no forced italic)', () => {
     const beat: RoteiroBeat = {
       idx: 0, name: 'Hook', status: 'PENDING',
       script: [{ type: 'line', text: 'I lived in Canada.' }],
@@ -13,7 +13,7 @@ describe('roteiroToTipTap', () => {
     expect(doc.content).toHaveLength(1)
     expect(doc.content![0]!.type).toBe('paragraph')
     expect(doc.content![0]!.content![0]!.text).toBe('I lived in Canada.')
-    expect(doc.content![0]!.content![0]!.marks).toContainEqual({ type: 'italic' })
+    expect(doc.content![0]!.content![0]!.marks).toBeUndefined()
   })
 
   it('converts pause to scriptPause node', () => {

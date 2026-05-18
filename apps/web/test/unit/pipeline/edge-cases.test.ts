@@ -331,15 +331,15 @@ describe('roteiroToTipTap — edge cases', () => {
     expect(doc.content![0]!.content).toBeUndefined()
   })
 
-  it('line with accent includes highlight mark', () => {
+  it('line with accent includes highlight mark (no forced italic)', () => {
     const beat: RoteiroBeat = {
       idx: 0, name: 'X', status: 'PENDING',
       script: [{ type: 'line', text: 'Highlight me', accent: '#ff0000' }],
     }
     const doc = roteiroToTipTap(beat)
     const textNode = doc.content![0]!.content![0]!
-    expect(textNode.marks).toContainEqual({ type: 'italic' })
     expect(textNode.marks).toContainEqual({ type: 'highlight', attrs: { color: '#ff0000' } })
+    expect(textNode.marks).not.toContainEqual({ type: 'italic' })
   })
 
   it('line without accent has no highlight mark', () => {
