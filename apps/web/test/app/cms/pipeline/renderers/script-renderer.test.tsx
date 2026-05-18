@@ -1,8 +1,64 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { ScriptRenderer } from '@/app/cms/(authed)/pipeline/_components/detail/renderers/script-renderer'
 
 const noop = vi.fn()
+
+vi.mock('@tiptap/react', async () => {
+  const actual = await vi.importActual('@tiptap/react')
+  return {
+    ...actual,
+    useEditor: () => ({
+      isEditable: true,
+      setEditable: vi.fn(),
+      getJSON: () => ({ type: 'doc', content: [] }),
+      storage: { characterCount: { words: () => 5 } },
+      chain: () => ({ focus: () => ({ toggleBold: () => ({ run: vi.fn() }) }) }),
+      isActive: () => false,
+    }),
+    EditorContent: () => <div data-testid="editor-content">Editor</div>,
+  }
+})
+
+vi.mock('@dnd-kit/core', () => ({
+  DndContext: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  closestCenter: vi.fn(),
+  KeyboardSensor: vi.fn(),
+  PointerSensor: vi.fn(),
+  useSensor: vi.fn(),
+  useSensors: () => [],
+}))
+
+vi.mock('@dnd-kit/sortable', () => ({
+  SortableContext: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  sortableKeyboardCoordinates: vi.fn(),
+  verticalListSortingStrategy: 'vertical',
+  useSortable: () => ({
+    attributes: {},
+    listeners: {},
+    setNodeRef: vi.fn(),
+    setActivatorNodeRef: vi.fn(),
+    transform: null,
+    transition: null,
+    isDragging: false,
+  }),
+}))
+
+vi.mock('@dnd-kit/utilities', () => ({
+  CSS: { Transform: { toString: () => undefined } },
+}))
+
+// ScriptViewMode mock — renders a .script-view sentinel
+vi.mock(
+  '@/app/cms/(authed)/pipeline/_components/detail/renderers/script-view-mode',
+  () => ({
+    ScriptViewMode: ({ onExitView }: { onExitView: () => void }) => (
+      <div className="script-view">
+        <button onClick={onExitView}>Exit view</button>
+      </div>
+    ),
+  }),
+)
 
 const BEAT_WITH_TAGS = {
   meta: { canal: 'EN', formato: 'Storytelling' },
@@ -16,46 +72,10 @@ const BEAT_WITH_TAGS = {
   ],
 }
 
-describe('ScriptRenderer — read mode', () => {
-  it('renders tag pills for VISUAL and TOM', () => {
-    const { container } = render(
-      <ScriptRenderer content={BEAT_WITH_TAGS} isEditing={false} lang="en" onContentChange={noop} />
-    )
-    const pills = container.querySelectorAll('[class*="uppercase"]')
-    const pillTexts = Array.from(pills).map(p => p.textContent)
-    expect(pillTexts).toContain('VISUAL')
-    expect(pillTexts).toContain('TOM')
-  })
-
-  it('renders narration blocks with border', () => {
-    const { container } = render(
-      <ScriptRenderer content={BEAT_WITH_TAGS} isEditing={false} lang="en" onContentChange={noop} />
-    )
-    const narrations = container.querySelectorAll('[class*="narration"]')
-    expect(narrations.length).toBeGreaterThanOrEqual(1)
-    expect(narrations[0].textContent).toContain('I lived in Canada')
-  })
-
-  it('renders pause chips', () => {
-    const { container } = render(
-      <ScriptRenderer content={BEAT_WITH_TAGS} isEditing={false} lang="en" onContentChange={noop} />
-    )
-    expect(container.textContent).toContain('⏸')
-    expect(container.textContent).toContain('0.5s')
-  })
-
-  it('highlights NÃO in red', () => {
-    const { container } = render(
-      <ScriptRenderer content={BEAT_WITH_TAGS} isEditing={false} lang="en" onContentChange={noop} />
-    )
-    const neg = container.querySelector('[style*="f87171"]')
-    expect(neg).toBeTruthy()
-    expect(neg!.textContent).toBe('NÃO')
-  })
-
-  it('renders beat header with number, label, and status', () => {
+describe('ScriptRenderer — edit mode (new architecture)', () => {
+  it('renders beat header with number and label after v1→v2 migration', () => {
     render(
-      <ScriptRenderer content={BEAT_WITH_TAGS} isEditing={false} lang="en" onContentChange={noop} />
+      <ScriptRenderer content={BEAT_WITH_TAGS} isEditing={false} lang="en" onContentChange={noop} />,
     )
     expect(screen.getByText('#0')).toBeTruthy()
     expect(screen.getByText('HOOK — Triple Curiosity Gap')).toBeTruthy()
@@ -63,52 +83,65 @@ describe('ScriptRenderer — read mode', () => {
 
   it('renders meta grid when meta is present', () => {
     const { container } = render(
-      <ScriptRenderer content={BEAT_WITH_TAGS} isEditing={false} lang="en" onContentChange={noop} />
+      <ScriptRenderer content={BEAT_WITH_TAGS} isEditing={false} lang="en" onContentChange={noop} />,
     )
     expect(container.textContent).toContain('Canal')
     expect(container.textContent).toContain('EN')
   })
-})
 
-describe('ScriptRenderer — edit mode', () => {
-  it('shows raw text in contentEditable when isEditing=true', () => {
-    const { container } = render(
-      <ScriptRenderer content={BEAT_WITH_TAGS} isEditing={true} lang="en" onContentChange={noop} />
+  it('shows editor content for each beat', () => {
+    const { getAllByTestId } = render(
+      <ScriptRenderer content={BEAT_WITH_TAGS} isEditing={true} lang="en" onContentChange={noop} />,
     )
-    const editable = container.querySelector('[contenteditable="true"]')
-    expect(editable).toBeTruthy()
-    expect(editable!.textContent).toContain('[VISUAL:')
-  })
-
-  it('does NOT render tag pills in edit mode', () => {
-    const { container } = render(
-      <ScriptRenderer content={BEAT_WITH_TAGS} isEditing={true} lang="en" onContentChange={noop} />
-    )
-    const pills = Array.from(container.querySelectorAll('[class*="uppercase"]')).filter(el => el.textContent === 'VISUAL')
-    expect(pills.length).toBe(0)
+    expect(getAllByTestId('editor-content').length).toBeGreaterThanOrEqual(1)
   })
 })
 
 describe('ScriptRenderer — edge cases', () => {
-  it('handles beats with no tags as plain text', () => {
-    const content = { beats: [{ number: 1, label: 'Beat 1', text: 'Just plain text here' }] }
-    const { container } = render(
-      <ScriptRenderer content={content} isEditing={false} lang="en" onContentChange={noop} />
-    )
-    expect(container.textContent).toContain('Just plain text here')
-  })
-
   it('handles empty beats array', () => {
     const { container } = render(
-      <ScriptRenderer content={{ beats: [] }} isEditing={false} lang="en" onContentChange={noop} />
+      <ScriptRenderer content={{ beats: [] }} isEditing={false} lang="en" onContentChange={noop} />,
     )
     expect(container.textContent).toContain('Nenhum beat')
   })
 
   it('handles string content fallback', () => {
     const { container } = render(
-      <ScriptRenderer content="raw string content" isEditing={false} lang="en" onContentChange={noop} />
+      <ScriptRenderer content="raw string content" isEditing={false} lang="en" onContentChange={noop} />,
     )
-    expect(container.textContent).toContain('raw string content')
+    // Migrated to a single beat, beat header is rendered
+    expect(container.textContent).toContain('#0')
+  })
+})
+
+describe('ScriptRenderer — dual-mode toggle', () => {
+  it('starts in edit mode by default', () => {
+    const { container } = render(
+      <ScriptRenderer content={BEAT_WITH_TAGS} isEditing={true} lang="en" onContentChange={noop} />,
+    )
+    expect(container.querySelector('.script-view')).toBeNull()
+  })
+
+  it('shows Edit/View toggle buttons', () => {
+    render(
+      <ScriptRenderer content={BEAT_WITH_TAGS} isEditing={false} lang="en" onContentChange={noop} />,
+    )
+    expect(screen.getByTitle('Edit mode')).toBeTruthy()
+    expect(screen.getByTitle(/View mode/)).toBeTruthy()
+  })
+
+  it('switches to view mode when View button clicked', () => {
+    const { container } = render(
+      <ScriptRenderer content={BEAT_WITH_TAGS} isEditing={false} lang="en" onContentChange={noop} />,
+    )
+    fireEvent.click(screen.getByTitle(/View mode/))
+    expect(container.querySelector('.script-view')).toBeTruthy()
+  })
+
+  it('migrates v1 content automatically', () => {
+    render(
+      <ScriptRenderer content={BEAT_WITH_TAGS} isEditing={false} lang="en" onContentChange={noop} />,
+    )
+    expect(screen.getByText('#0')).toBeTruthy()
   })
 })
