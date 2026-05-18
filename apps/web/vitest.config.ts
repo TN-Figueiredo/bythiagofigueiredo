@@ -56,6 +56,9 @@ export default defineConfig({
       // it at build time. Tests that import source files with `import 'server-only'`
       // need this resolved to an empty module.
       { find: /^server-only$/, replacement: path.resolve(__dirname, './test/__stubs__/server-only.ts') },
+      // @tn-figueiredo/email requires `resend` as a peer dep. It's not installed
+      // directly — stub it so inlined email package resolves without errors.
+      { find: /^resend$/, replacement: path.resolve(__dirname, './test/__stubs__/resend.ts') },
       // Sprint 5b — `apps/web/lib/seo/` lives outside `src/`. Map specifically
       // so plan-prescribed `@/lib/seo/...` imports resolve correctly without
       // shadowing other `@/lib/*` paths under `src/lib/` (e.g. lgpd).
