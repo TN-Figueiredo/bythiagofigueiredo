@@ -69,11 +69,11 @@ function resolveTemplatePlaceholders(composition: CardComposition, postData: Soc
     ...composition,
     elements: composition.elements.map(el => {
       if (el.type !== 'text') return el
-      let text = el.text
+      let content = el.content
       for (const [token, value] of Object.entries(replacements)) {
-        text = text.split(token).join(value)
+        content = content.split(token).join(value)
       }
-      return { ...el, text }
+      return { ...el, content }
     }),
   }
   return resolved
