@@ -73,7 +73,7 @@ export function PipelineFilterBar() {
           className="text-xs px-2.5 py-1 rounded-full border transition-colors"
           style={{
             borderColor: active ? 'var(--gem-accent)' : 'var(--gem-border)',
-            backgroundColor: active ? 'rgba(99,102,241,0.1)' : 'transparent',
+            backgroundColor: active ? 'color-mix(in srgb, var(--gem-accent, #6366f1) 10%, transparent)' : 'transparent',
             color: active ? 'var(--gem-text)' : 'var(--gem-muted)',
           }}
         >

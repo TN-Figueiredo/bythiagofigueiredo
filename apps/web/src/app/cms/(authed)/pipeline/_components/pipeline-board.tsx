@@ -260,7 +260,7 @@ export function PipelineBoard({ format, items }: PipelineBoardProps) {
       >
         <div className="flex gap-3 overflow-x-auto pb-4 min-h-[calc(100vh-14rem)]">
           {stages.map((stage, idx) => {
-            const stageColors = ['#6366f1', '#8b5cf6', '#0ea5e9', '#06b6d4', '#10b981', '#22c55e', '#84cc16']
+            const stageColors = ['var(--gem-accent, #6366f1)', 'var(--gem-purple, #8b5cf6)', 'var(--gem-sky, #0ea5e9)', '#06b6d4', 'var(--gem-done, #10b981)', '#22c55e', '#84cc16']
             const stageAccent = stageColors[idx % stageColors.length]
             const stageItems = itemsByStage[stage.stage] ?? []
             return (

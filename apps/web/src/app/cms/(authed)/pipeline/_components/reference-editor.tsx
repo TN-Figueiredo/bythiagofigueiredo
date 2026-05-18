@@ -285,6 +285,8 @@ export function ReferenceEditor({ docs }: { docs: ReferenceDoc[] }) {
               <button
                 onClick={collapseAll}
                 title="Collapse all"
+                aria-label="Collapse all reference groups"
+                type="button"
                 style={{
                   background: 'none',
                   border: 'none',
@@ -300,6 +302,8 @@ export function ReferenceEditor({ docs }: { docs: ReferenceDoc[] }) {
               <button
                 onClick={expandAll}
                 title="Expand all"
+                aria-label="Expand all reference groups"
+                type="button"
                 style={{
                   background: 'none',
                   border: 'none',

@@ -60,10 +60,10 @@ function eventLabel(type: string, to: string | null): string {
 export function PipelineOverview({ stats, recommendations, activity }: PipelineOverviewProps) {
   const kpis = [
     { label: 'Total Pipeline', value: stats.total, color: 'var(--gem-accent)' },
-    { label: 'In Progress', value: stats.inProgress, color: '#0ea5e9' },
-    { label: 'High Priority', value: stats.highPriority, color: '#ef4444' },
-    { label: 'Scripts Ready', value: stats.scriptsReady, color: '#10b981' },
-    { label: 'Published', value: stats.published, color: '#8b5cf6' },
+    { label: 'In Progress', value: stats.inProgress, color: 'var(--gem-sky, #0ea5e9)' },
+    { label: 'High Priority', value: stats.highPriority, color: 'var(--gem-danger, #ef4444)' },
+    { label: 'Scripts Ready', value: stats.scriptsReady, color: 'var(--gem-done, #10b981)' },
+    { label: 'Published', value: stats.published, color: 'var(--gem-purple, #8b5cf6)' },
   ]
 
   return (
