@@ -1,7 +1,7 @@
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { CmsTopbar } from '@tn-figueiredo/cms-ui/client'
-import { getSocialPost } from '@/lib/social/actions'
+import { getSocialPost, cancelSocialPost, deleteSocialPost, updateSocialPost, retrySocialDelivery } from '@/lib/social/actions'
 import { getSocialStrings } from '../_i18n'
 import { PostDetail } from '../_components/post-detail'
 import { SourceCard } from './_components/source-card'
@@ -78,7 +78,14 @@ export default async function SocialPostDetailPage({ params }: Props) {
           </div>
         )}
 
-        <PostDetail post={post} strings={t} />
+        <PostDetail
+          post={post}
+          strings={t}
+          onCancel={cancelSocialPost}
+          onDelete={deleteSocialPost}
+          onUpdate={updateSocialPost}
+          onRetryDelivery={retrySocialDelivery}
+        />
 
         {/* Pipeline context panel — shows pipeline snapshot when post originated from pipeline */}
         {pipelineSnapshot && (

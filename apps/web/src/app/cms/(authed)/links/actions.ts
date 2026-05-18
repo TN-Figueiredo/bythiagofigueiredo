@@ -914,3 +914,123 @@ export async function deleteQrTemplate(id: string): Promise<ActionResult> {
   revalidateTag('links-settings')
   return { ok: true }
 }
+
+// ─── Batch Operations ───────────────────────────────────────────────────────
+
+const BatchFiltersSchema = z.object({
+  ids: z.array(z.string().uuid()).optional(),
+  tags: z.array(z.string()).optional(),
+  utm_campaign: z.string().optional(),
+  source_type: z.enum(sourceTypes).optional(),
+  active: z.boolean().optional(),
+})
+
+const BatchUpdateSchema = z.object({
+  utm_source: z
+    .string()
+    .max(255)
+    .nullish()
+    .transform(v => (v ? normalizeUtmValue('utm_source', v) : v)),
+  utm_medium: z
+    .string()
+    .max(255)
+    .nullish()
+    .transform(v => (v ? normalizeUtmValue('utm_medium', v) : v)),
+  utm_campaign: z
+    .string()
+    .max(255)
+    .nullish()
+    .transform(v => (v ? normalizeUtmValue('utm_campaign', v) : v)),
+  expires_at: z.string().datetime().nullish(),
+  active: z.boolean().optional(),
+  pass_click_ids: z.boolean().optional(),
+})
+
+export async function previewBatchUpdate(
+  siteId: string,
+  filters: z.input<typeof BatchFiltersSchema>,
+): Promise<
+  ActionResult<{
+    links: Array<{ id: string; code: string; title: string | null; utm_campaign: string | null }>
+    total: number
+  }>
+> {
+  const { siteId: ctxSiteId } = await getSiteContext()
+  if (siteId !== ctxSiteId) return { ok: false, error: 'forbidden' }
+  await requireEditScope(siteId)
+  const parsed = BatchFiltersSchema.safeParse(filters)
+  if (!parsed.success) return { ok: false, error: parsed.error.message }
+  const supabase = getSupabaseServiceClient()
+  let query = supabase
+    .from('tracked_links')
+    .select('id, code, title, utm_campaign', { count: 'exact' })
+    .eq('site_id', siteId)
+    .is('deleted_at', null)
+  if (parsed.data.ids) query = query.in('id', parsed.data.ids)
+  if (parsed.data.tags) query = query.overlaps('tags', parsed.data.tags)
+  if (parsed.data.utm_campaign) query = query.eq('utm_campaign', parsed.data.utm_campaign)
+  if (parsed.data.source_type) query = query.eq('source_type', parsed.data.source_type)
+  if (parsed.data.active !== undefined) query = query.eq('active', parsed.data.active)
+  const { data, count, error } = await query.limit(100)
+  if (error) return { ok: false, error: error.message }
+  return { ok: true, links: data ?? [], total: count ?? 0 }
+}
+
+export async function batchUpdateLinks(
+  siteId: string,
+  filters: z.input<typeof BatchFiltersSchema>,
+  updates: z.input<typeof BatchUpdateSchema>,
+): Promise<ActionResult<{ updated: number }>> {
+  const { siteId: ctxSiteId } = await getSiteContext()
+  if (siteId !== ctxSiteId) return { ok: false, error: 'forbidden' }
+  await requireEditScope(siteId)
+  const filtersParsed = BatchFiltersSchema.safeParse(filters)
+  if (!filtersParsed.success) return { ok: false, error: filtersParsed.error.message }
+  const updatesParsed = BatchUpdateSchema.safeParse(updates)
+  if (!updatesParsed.success) return { ok: false, error: updatesParsed.error.message }
+  const updateObj: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(updatesParsed.data)) {
+    if (value !== undefined) updateObj[key] = value
+  }
+  if (Object.keys(updateObj).length === 0) return { ok: false, error: 'No updates provided' }
+  const supabase = getSupabaseServiceClient()
+  let query = supabase
+    .from('tracked_links')
+    .update(updateObj)
+    .eq('site_id', siteId)
+    .is('deleted_at', null)
+  if (filtersParsed.data.ids) query = query.in('id', filtersParsed.data.ids)
+  if (filtersParsed.data.tags) query = query.overlaps('tags', filtersParsed.data.tags)
+  if (filtersParsed.data.utm_campaign) query = query.eq('utm_campaign', filtersParsed.data.utm_campaign)
+  if (filtersParsed.data.source_type) query = query.eq('source_type', filtersParsed.data.source_type)
+  if (filtersParsed.data.active !== undefined) query = query.eq('active', filtersParsed.data.active)
+  const { data: updated, error } = await query.select('id')
+  if (error) return { ok: false, error: error.message }
+  return { ok: true, updated: updated?.length ?? 0 }
+}
+
+export async function batchExtendExpiry(
+  siteId: string,
+  filters: z.input<typeof BatchFiltersSchema>,
+  hours: number,
+): Promise<ActionResult<{ extended: number }>> {
+  const { siteId: ctxSiteId } = await getSiteContext()
+  if (siteId !== ctxSiteId) return { ok: false, error: 'forbidden' }
+  await requireEditScope(siteId)
+  const parsed = BatchFiltersSchema.safeParse(filters)
+  if (!parsed.success) return { ok: false, error: parsed.error.message }
+  if (hours < 1 || hours > 8760) return { ok: false, error: 'Hours must be 1-8760' }
+  const supabase = getSupabaseServiceClient()
+  const { data: count, error } = await supabase.rpc('batch_extend_link_expiry', {
+    p_site_id: siteId,
+    p_campaign: parsed.data.utm_campaign ?? null,
+    p_tags: parsed.data.tags ?? null,
+    p_hours: hours,
+  })
+  if (error) return { ok: false, error: error.message }
+  return { ok: true, extended: count ?? 0 }
+}
+
+export async function batchActivateNow(siteId: string, campaign: string): Promise<ActionResult<{ updated: number }>> {
+  return batchUpdateLinks(siteId, { utm_campaign: campaign }, { active: true })
+}

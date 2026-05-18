@@ -25,7 +25,13 @@ vi.mock('../../../lib/supabase/service', () => ({
         }
       }
       if (table === 'tracked_links') {
-        return { update: () => ({ eq: mockUpdate }) }
+        return {
+          update: () => ({
+            eq: () => ({
+              is: (col: string, val: unknown) => mockUpdate(col, val),
+            }),
+          }),
+        }
       }
       return { insert: mockInsert }
     },

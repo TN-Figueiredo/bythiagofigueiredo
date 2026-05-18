@@ -6,7 +6,6 @@ import Link from 'next/link'
 import type { SocialPost, SocialDelivery } from '@tn-figueiredo/social'
 import { useSocialDeliveries, useSocialPostStatus } from '@/lib/social/realtime'
 import { SocialStatusBadge } from '@/app/cms/(authed)/_shared/social/social-status-badge'
-import { cancelSocialPost, deleteSocialPost, updateSocialPost } from '@/lib/social/actions'
 import { DeliveryCard } from './delivery-card'
 import { PostTimeline } from './post-timeline'
 import type { SocialStrings } from '../_i18n/types'
@@ -19,6 +18,10 @@ interface PostDetailProps {
     short_link_id?: string | null
   }
   strings: SocialStrings
+  onCancel: (id: string) => Promise<{ ok: boolean; error?: string }>
+  onDelete: (id: string) => Promise<{ ok: boolean; error?: string }>
+  onUpdate: (id: string, data: { content?: Record<string, unknown> }) => Promise<{ ok: boolean; error?: string }>
+  onRetryDelivery: (deliveryId: string) => Promise<{ ok: boolean; error?: string }>
 }
 
 const ORIGIN_LABELS: Record<string, string> = {
@@ -46,7 +49,7 @@ function getContentLink(type: string, id: string): string {
 
 type EditField = 'description' | 'hashtags'
 
-export function PostDetail({ post, strings: t }: PostDetailProps) {
+export function PostDetail({ post, strings: t, onCancel, onDelete, onUpdate, onRetryDelivery }: PostDetailProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const liveDeliveries = useSocialDeliveries(post.id)
@@ -70,7 +73,7 @@ export function PostDetail({ post, strings: t }: PostDetailProps) {
   function handleCancel() {
     setActionError(null)
     startTransition(async () => {
-      const result = await cancelSocialPost(post.id)
+      const result = await onCancel(post.id)
       if (!result.ok) setActionError(result.error ?? t.common.error)
       else router.refresh()
     })
@@ -79,7 +82,7 @@ export function PostDetail({ post, strings: t }: PostDetailProps) {
   function handleDelete() {
     setActionError(null)
     startTransition(async () => {
-      const result = await deleteSocialPost(post.id)
+      const result = await onDelete(post.id)
       if (!result.ok) setActionError(result.error ?? t.common.error)
       else router.push('/cms/social')
     })
@@ -97,7 +100,7 @@ export function PostDetail({ post, strings: t }: PostDetailProps) {
           .map((h) => h.trim().replace(/^#/, ''))
           .filter(Boolean)
       }
-      const result = await updateSocialPost(post.id, { content: updatedContent })
+      const result = await onUpdate(post.id, { content: updatedContent })
       if (!result.ok) {
         setActionError(result.error ?? t.common.error)
       } else {
@@ -332,7 +335,7 @@ export function PostDetail({ post, strings: t }: PostDetailProps) {
             <p className="text-sm text-cms-text-muted">Nenhuma entrega configurada</p>
           )}
           {deliveries.map(d => (
-            <DeliveryCard key={d.id} delivery={d} strings={t} />
+            <DeliveryCard key={d.id} delivery={d} strings={t} onRetry={onRetryDelivery} />
           ))}
         </div>
       </div>

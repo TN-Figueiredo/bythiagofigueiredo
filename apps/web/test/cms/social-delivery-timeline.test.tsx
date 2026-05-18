@@ -96,11 +96,12 @@ describe('DeliveryCard', () => {
   })
 
   it('calls retrySocialDelivery when retry button clicked', async () => {
-    mockRetry.mockResolvedValue(undefined)
+    mockRetry.mockResolvedValue({ ok: true })
     render(
       <DeliveryCard
         delivery={makeDelivery({ status: 'failed', published_at: null, platform_url: null })}
         strings={en}
+        onRetry={mockRetry}
       />,
     )
     fireEvent.click(screen.getByRole('button', { name: /Retry delivery to Facebook/i }))

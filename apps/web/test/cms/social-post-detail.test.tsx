@@ -37,8 +37,20 @@ const mockPost = {
   ],
 }
 
+const noop = vi.fn().mockResolvedValue({ ok: true })
+
 function renderDetail(overrides: Record<string, unknown> = {}) {
-  return render(<PostDetail post={mockPost} strings={en} {...overrides} />)
+  return render(
+    <PostDetail
+      post={mockPost}
+      strings={en}
+      onCancel={noop}
+      onDelete={noop}
+      onUpdate={noop}
+      onRetryDelivery={noop}
+      {...overrides}
+    />,
+  )
 }
 
 describe('PostDetail', () => {
@@ -80,7 +92,7 @@ describe('PostDetail', () => {
   })
 
   it('calls retrySocialDelivery when retry button is clicked', () => {
-    renderDetail()
+    renderDetail({ onRetryDelivery: mockRetry })
     const retryButtons = screen.getAllByText(en.detail.retry)
     fireEvent.click(retryButtons[0])
     expect(mockRetry).toHaveBeenCalledWith('d2')

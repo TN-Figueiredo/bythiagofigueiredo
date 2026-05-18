@@ -19,7 +19,10 @@ interface EditLinkFormProps {
     utm_campaign: string
     utm_term: string
     utm_content: string
+    utm_id?: string
     expires_at: string
+    activates_at?: string
+    pass_click_ids?: boolean
     tags: string[]
   }
 }
@@ -41,7 +44,10 @@ export function EditLinkForm({ linkId, siteId, initial }: EditLinkFormProps) {
     utm_campaign: initial.utm_campaign,
     utm_term: initial.utm_term,
     utm_content: initial.utm_content,
+    utm_id: initial.utm_id ?? '',
     expires_at: initial.expires_at,
+    activates_at: initial.activates_at ?? '',
+    pass_click_ids: initial.pass_click_ids ?? false,
     click_limit: null,
     password: '',
   }

@@ -5,6 +5,7 @@ import type { SocialDelivery } from '@tn-figueiredo/social'
 import { PlatformIcon, platformLabel } from '@/app/cms/(authed)/_shared/social/platform-icon'
 import { SocialStatusBadge } from '@/app/cms/(authed)/_shared/social/social-status-badge'
 import type { SocialStrings } from '../_i18n/types'
+
 interface DeliveryCardProps {
   delivery: SocialDelivery
   strings: SocialStrings
@@ -17,7 +18,6 @@ export function DeliveryCard({ delivery, strings: t, onRetry }: DeliveryCardProp
   const statusLabel = t.status[delivery.status as keyof typeof t.status] ?? delivery.status
 
   function handleRetry() {
-    if (!onRetry) return
     setRetryError(null)
     startTransition(async () => {
       try {
