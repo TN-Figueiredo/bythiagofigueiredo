@@ -5,6 +5,10 @@
 // a package publish cycle during development. They extend the existing
 // SocialPost/SocialDelivery DB row types from the package.
 
+// Story & fan types
+export type { StorySlide, StoryInsights, FanScore, FanInteraction, SlideMetrics } from './story-types'
+export { StorySlidesSchema, StorySlideSchema, FanInteractionSchema, postDataToTemplateContext } from './story-types'
+
 import type { Provider } from '@tn-figueiredo/social'
 import type { z } from 'zod'
 import type { socialConfigSchema } from './schemas'
