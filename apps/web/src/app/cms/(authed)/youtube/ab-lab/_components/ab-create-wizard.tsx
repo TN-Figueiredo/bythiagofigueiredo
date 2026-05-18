@@ -20,11 +20,18 @@ interface Config {
   burn_in_days: number
 }
 
+interface PrefillData {
+  testType?: TestType
+  suggestedDescription?: string
+  fromOptimizationCycle?: string
+}
+
 interface Props {
   video: WizardVideo
   siteId: string
   onClose: () => void
   onCreated: (testId: string) => void
+  prefill?: PrefillData
 }
 
 const DURATION_OPTIONS = [7, 14, 21, 28] as const
@@ -61,9 +68,9 @@ const TYPE_OPTIONS: Array<{
   { type: 'combo', label: 'Combo', description: 'Thumb + título + descrição como pacote', icon: Layers, badge: 'COMBO' },
 ]
 
-export function AbCreateWizard({ video, siteId, onClose, onCreated }: Props) {
-  const [step, setStep] = useState(1)
-  const [testType, setTestType] = useState<TestType>('thumbnail')
+export function AbCreateWizard({ video, siteId, onClose, onCreated, prefill }: Props) {
+  const [step, setStep] = useState(prefill?.testType ? 2 : 1)
+  const [testType, setTestType] = useState<TestType>(prefill?.testType ?? 'thumbnail')
   const [slots, setSlots] = useState<(SlotFile | null)[]>([null, null, null])
   const [slotError, setSlotError] = useState<string | null>(null)
   const [textVariants, setTextVariants] = useState<TextVariant[]>([

@@ -6,6 +6,8 @@ import { calculateBayesianConfidence } from '@/lib/youtube/ab-statistics'
 import { setThumbnail, fetchVariantImageBuffer } from '@/lib/youtube/ab-youtube'
 import { updateVideoMetadata } from '@/lib/youtube/ab-metadata'
 import { resolveTemplates } from '@/lib/youtube/ab-templates'
+import { buildNotification } from '@/lib/youtube/notification-service'
+import { getIsoWeek } from '@/lib/youtube/analytics-sync'
 import type { AbTestVariantRow, AbTestCycleRow, VariantStats, AbTestConfig } from '@/lib/youtube/ab-types'
 
 export const maxDuration = 120
@@ -177,6 +179,45 @@ export async function GET(req: NextRequest) {
             },
           })
           .eq('id', test.id)
+
+        // Emit notification for completed test
+        const weekIso = getIsoWeek(new Date())
+        const notifPayload = buildNotification({
+          type: 'ab_test_completed',
+          videoId: test.youtube_video_id,
+          videoTitle: test.name ?? 'Vídeo',
+          testName: test.name ?? 'A/B Test',
+          winnerLabel: winner?.label ?? 'Variante vencedora',
+          ctrLift: Math.round(ctrLift * 10) / 10,
+          weekIso,
+        })
+        await supabase.rpc('create_yt_notification', {
+          p_site_id: test.site_id,
+          p_type: notifPayload.type,
+          p_priority: notifPayload.priority,
+          p_title: notifPayload.title,
+          p_message: notifPayload.message,
+          p_dedup_key: notifPayload.dedup_key,
+          p_video_id: notifPayload.video_id ?? null,
+          p_ab_test_id: test.id,
+          p_action_href: notifPayload.action_href ?? null,
+        })
+
+        // Transition optimization cycle to post_test_monitoring
+        const { data: cycle } = await supabase
+          .from('optimization_cycles')
+          .select('id')
+          .eq('youtube_video_id', test.youtube_video_id)
+          .eq('state', 'testing')
+          .single()
+
+        if (cycle) {
+          await supabase.from('optimization_cycles').update({
+            state: 'post_test_monitoring',
+            test_completed_at: new Date().toISOString(),
+            test_winner_applied_at: new Date().toISOString(),
+          }).eq('id', cycle.id)
+        }
 
         resolved++
       }

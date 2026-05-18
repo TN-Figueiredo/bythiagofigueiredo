@@ -4,7 +4,12 @@ import { useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { YtOverview } from './yt-overview'
 import { YtGrades } from './yt-grades'
+import { YtGradesV2 } from './yt-grades-v2'
 import { YtOutliers } from './yt-outliers'
+import { YtOutliersV2 } from './yt-outliers-v2'
+import { YtHealthCoach } from './yt-health-coach'
+import { YtNotificationsBell } from './yt-notifications-bell'
+import { YtBootstrapBanner } from './yt-bootstrap-banner'
 import { YtDemographicsView } from './yt-demographics'
 import { YtSearchTermsView } from './yt-search-terms'
 import type {
@@ -15,16 +20,46 @@ import type {
   YtDemographics,
 } from '@/lib/youtube/analytics-types'
 import type { YtConnectedChannel } from '@/lib/youtube/analytics-client'
+import type { Axis, Grade, TrendDirection } from '@/lib/youtube/scoring-types'
+import { AXIS_LABELS } from '@/lib/youtube/scoring-types'
 
 const SUB_TABS = [
   { id: 'overview', label: 'Overview' },
-  { id: 'grades', label: 'Grades & CTR' },
+  { id: 'grades', label: 'Grades' },
+  { id: 'coach', label: 'Health Coach' },
   { id: 'outliers', label: 'Outliers' },
   { id: 'demographics', label: 'Demographics' },
   { id: 'search', label: 'Search Terms' },
 ] as const
 
 type TabId = (typeof SUB_TABS)[number]['id']
+
+interface VideoGradeRow {
+  videoId: string
+  title: string
+  thumbnailUrl: string
+  grade: Grade
+  score: number
+  axes: Array<{ axis: Axis; normalized: number }>
+  trend: { direction: TrendDirection; velocity: number }
+  optimizationState: string | null
+  retentionCurve: number[] | null
+  avgViewPercentage: number
+  diagnosis: string | null
+  recommendation: string | null
+  trafficSources: Record<string, number> | null
+}
+
+interface Notification {
+  id: string
+  type: string
+  priority: number
+  title: string
+  message: string
+  read: boolean
+  action_href: string | null
+  created_at: string
+}
 
 interface Props {
   siteId: string
@@ -35,6 +70,17 @@ interface Props {
   demographics: YtDemographics
   channels?: YtConnectedChannel[]
   activeChannelId?: string
+  intelligenceVideos?: VideoGradeRow[]
+  notifications?: Notification[]
+  healthScore?: number
+  weeksSinceFirstGrade?: number
+  onMarkNotificationRead?: (id: string) => void
+  onMarkAllNotificationsRead?: () => void
+  onDismissNotification?: (id: string) => void
+  onCreateAbTest?: (videoId: string, testType: string) => void
+  onRequestAnalysis?: () => void
+  analysisState?: 'idle' | 'pending' | 'running' | 'cooldown'
+  lastAnalysisAt?: string | null
 }
 
 export function YtAnalyticsTabs({
@@ -46,6 +92,17 @@ export function YtAnalyticsTabs({
   demographics,
   channels,
   activeChannelId,
+  intelligenceVideos,
+  notifications,
+  healthScore,
+  weeksSinceFirstGrade,
+  onMarkNotificationRead,
+  onMarkAllNotificationsRead,
+  onDismissNotification,
+  onCreateAbTest,
+  onRequestAnalysis,
+  analysisState = 'idle',
+  lastAnalysisAt,
 }: Props) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<TabId>('overview')
@@ -92,6 +149,25 @@ export function YtAnalyticsTabs({
         </div>
       )}
 
+      {weeksSinceFirstGrade !== undefined && weeksSinceFirstGrade < 2 && (
+        <div className="mb-4">
+          <YtBootstrapBanner weeksSinceFirstGrade={weeksSinceFirstGrade} />
+        </div>
+      )}
+
+      <div className="mb-4 flex items-center gap-0 border-b border-cms-border">
+        {notifications && onMarkNotificationRead && onMarkAllNotificationsRead && onDismissNotification && (
+          <div className="ml-auto pr-2">
+            <YtNotificationsBell
+              notifications={notifications}
+              onMarkRead={onMarkNotificationRead}
+              onMarkAllRead={onMarkAllNotificationsRead}
+              onDismiss={onDismissNotification}
+            />
+          </div>
+        )}
+      </div>
+
       <div
         ref={tablistRef}
         role="tablist"
@@ -125,11 +201,42 @@ export function YtAnalyticsTabs({
         aria-labelledby={`tab-yt-${activeTab}`}
       >
         {activeTab === 'overview' && <YtOverview metrics={metrics} dailyMetrics={dailyMetrics} />}
-        {activeTab === 'grades' && <YtGrades grades={grades} />}
-        {activeTab === 'outliers' && <YtOutliers grades={grades} />}
+        {activeTab === 'grades' && (
+          intelligenceVideos && intelligenceVideos.length > 0
+            ? <YtGradesV2 videos={intelligenceVideos} onCreateAbTest={onCreateAbTest} />
+            : <YtGrades grades={grades} />
+        )}
+        {activeTab === 'coach' && (
+          <YtHealthCoach
+            healthScore={healthScore ?? 0}
+            radarData={intelligenceVideos
+              ? computeRadarData(intelligenceVideos)
+              : []}
+            coachingCards={[]}
+            videoCount={intelligenceVideos?.length ?? 0}
+            lastAnalysisAt={lastAnalysisAt ?? null}
+            onRequestAnalysis={onRequestAnalysis}
+            analysisState={analysisState}
+          />
+        )}
+        {activeTab === 'outliers' && (
+          intelligenceVideos && intelligenceVideos.length > 0
+            ? <YtOutliersV2 outliers={[]} />
+            : <YtOutliers grades={grades} />
+        )}
         {activeTab === 'demographics' && <YtDemographicsView demographics={demographics} />}
         {activeTab === 'search' && <YtSearchTermsView terms={searchTerms} />}
       </div>
     </div>
   )
+}
+
+function computeRadarData(videos: VideoGradeRow[]): Array<{ label: string; value: number; grade: string }> {
+  const axes: Axis[] = ['ctr', 'retention', 'reach', 'engagement', 'growth', 'sub_impact']
+  return axes.map(axis => {
+    const scores = videos.map(v => v.axes.find(a => a.axis === axis)?.normalized ?? 0)
+    const avg = scores.length > 0 ? scores.reduce((s, v) => s + v, 0) / scores.length : 0
+    const grade = avg >= 85 ? 'A' : avg >= 65 ? 'B' : avg >= 40 ? 'C' : 'D'
+    return { label: AXIS_LABELS[axis], value: avg, grade }
+  })
 }

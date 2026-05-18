@@ -7,6 +7,8 @@ vi.mock('@/lib/youtube/ab-statistics', () => ({ calculateBayesianConfidence: vi.
 vi.mock('@/lib/youtube/ab-youtube', () => ({ setThumbnail: vi.fn(), fetchVariantImageBuffer: vi.fn() }))
 vi.mock('@/lib/youtube/ab-metadata', () => ({ updateVideoMetadata: vi.fn() }))
 vi.mock('@/lib/youtube/ab-templates', () => ({ resolveTemplates: vi.fn() }))
+vi.mock('@/lib/youtube/notification-service', () => ({ buildNotification: vi.fn(() => ({ type: 'ab_test_completed', priority: 3, title: 'Test', message: 'Done', dedup_key: 'k', video_id: null, action_href: null })) }))
+vi.mock('@/lib/youtube/analytics-sync', () => ({ getIsoWeek: vi.fn(() => '2026-W20') }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }))
 
 import { GET } from '@/app/api/cron/ab-evaluate/route'
@@ -106,10 +108,26 @@ function buildSupabaseMock(opts: { tests: unknown[]; trackedLinks?: { template_n
         }),
       }
     }
+    if (table === 'optimization_cycles') {
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data: null, error: null }),
+            }),
+          }),
+        }),
+        update: vi.fn((data: unknown) => {
+          updateCalls.push({ table, data })
+          return { eq: vi.fn().mockResolvedValue({ data: null, error: null }) }
+        }),
+      }
+    }
     return { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis() }
   })
 
-  const client = { from: fromMock }
+  const rpcMock = vi.fn().mockResolvedValue({ data: null, error: null })
+  const client = { from: fromMock, rpc: rpcMock }
   ;(getSupabaseServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(client)
 
   return { client, fromMock, updateCalls, insertCalls }
