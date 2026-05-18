@@ -115,7 +115,8 @@ async function renderImageBackground(
     const img = new Image()
     img.src = Buffer.from(arrayBuffer)
     const konvaImage = new Konva.Image({
-      image: img,
+      // canvas.Image is compatible at runtime — cast to satisfy TS types
+      image: img as unknown as HTMLImageElement,
       x: 0,
       y: 0,
       width,
@@ -198,7 +199,8 @@ async function renderImageElement(
     const img = new Image()
     img.src = Buffer.from(arrayBuffer)
     const konvaImage = new Konva.Image({
-      image: img,
+      // canvas.Image is compatible at runtime — cast to satisfy TS types
+      image: img as unknown as HTMLImageElement,
       x: el.x * scaleX,
       y: el.y * scaleY,
       width: el.width * scaleX,

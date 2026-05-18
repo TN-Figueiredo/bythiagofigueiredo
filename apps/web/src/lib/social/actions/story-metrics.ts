@@ -29,7 +29,9 @@ export async function getStoryInsights(siteId: string, postId: string): Promise<
     }))
 
   const dropOff = perSlide.slice(1).map((slide, i) => {
-    const prev = perSlide[i]
+    // perSlide[i] is always defined here: slice(1) shifts index by 1,
+    // so i < perSlide.length is guaranteed.
+    const prev = perSlide[i]!
     const reachDrop = prev.reach - slide.reach
     return {
       from_slide: prev.slide_index,

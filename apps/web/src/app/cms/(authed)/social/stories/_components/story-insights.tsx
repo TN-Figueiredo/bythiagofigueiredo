@@ -71,9 +71,9 @@ export function StoryInsightsPanel({ siteId, postId }: StoryInsightsProps) {
                 <span className="text-xs text-cms-text w-16 text-right tabular-nums shrink-0">
                   {slide.reach.toLocaleString('pt-BR')}
                 </span>
-                {i > 0 && insights.drop_off[i - 1] && (
+                {i > 0 && insights.drop_off[i - 1] != null && (
                   <span className="text-[10px] text-red-400 w-12 text-right shrink-0">
-                    -{insights.drop_off[i - 1].drop_percentage.toFixed(1)}%
+                    -{insights.drop_off[i - 1]!.drop_percentage.toFixed(1)}%
                   </span>
                 )}
               </div>
