@@ -27,6 +27,13 @@ function makeLink(overrides: Partial<TrackedLink> = {}): TrackedLink {
     createdBy: null,
     createdAt: new Date(),
     updatedAt: new Date(),
+    utmId: null,
+    launchedAt: null,
+    activatesAt: null,
+    customParams: {},
+    healthStatus: 'unchecked' as const,
+    healthCheckedAt: null,
+    passClickIds: true,
     ...overrides,
   }
 }
@@ -134,6 +141,24 @@ describe('RedirectResolver', () => {
       const result = await resolver.resolve('abc123', { passwordHash: 'hashed' })
       expect((result as RedirectResult).url).toBe('https://example.com/target')
     })
+
+    it('returns not_yet_active when activatesAt is in the future', async () => {
+      const link = makeLink({ activatesAt: new Date(Date.now() + 86_400_000) })
+      const repo = makeMockRepo(link)
+      resolver = new RedirectResolver(repo)
+
+      const result = await resolver.resolve('abc123')
+      expect((result as RedirectGuardFailure).reason).toBe('not_yet_active')
+    })
+
+    it('passes when activatesAt is in the past', async () => {
+      const link = makeLink({ activatesAt: new Date(Date.now() - 86_400_000) })
+      const repo = makeMockRepo(link)
+      resolver = new RedirectResolver(repo)
+
+      const result = await resolver.resolve('abc123')
+      expect((result as RedirectResult).url).toBe('https://example.com/target')
+    })
   })
 
   describe('UTM append', () => {
@@ -151,6 +176,19 @@ describe('RedirectResolver', () => {
       expect(url.searchParams.get('utm_source')).toBe('mylink')
       expect(url.searchParams.get('utm_medium')).toBe('shorturl')
       expect(url.searchParams.get('utm_campaign')).toBe('spring')
+    })
+
+    it('appends custom_params to destination URL', async () => {
+      const link = makeLink({
+        customParams: { ref: 'homepage', variant: 'a' },
+      })
+      const repo = makeMockRepo(link)
+      resolver = new RedirectResolver(repo)
+
+      const result = await resolver.resolve('abc123') as RedirectResult
+      const url = new URL(result.url)
+      expect(url.searchParams.get('ref')).toBe('homepage')
+      expect(url.searchParams.get('variant')).toBe('a')
     })
 
     it('does not overwrite existing UTMs on destination', async () => {

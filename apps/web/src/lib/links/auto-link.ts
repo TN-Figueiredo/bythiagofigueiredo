@@ -7,6 +7,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import * as Sentry from '@sentry/nextjs'
+import { normalizeAllUtmFields, slugifyForCampaign } from '@tn-figueiredo/links'
 
 // ---------------------------------------------------------------------------
 // Shared utility — cryptographic short-code generator (rejection sampling)
@@ -114,11 +115,13 @@ export async function ensureTrackedLink(
         destination_url: destinationUrl,
         code: shortCode,
         title,
-        redirect_type: 301,
+        redirect_type: 307,
         source_type: sourceType,
         source_id: sourceId,
-        utm_medium: 'social',
-        utm_campaign: utmCampaign ?? `${sourceType}-${sourceId}`,
+        ...normalizeAllUtmFields({
+          utm_medium: sourceType === 'social' ? 'social' : sourceType === 'newsletter' ? 'email' : 'referral',
+          utm_campaign: utmCampaign ?? `${sourceType}-${slugifyForCampaign(title) || sourceId.slice(0, 8)}`,
+        }),
         active: true,
       })
       .select('id, code')

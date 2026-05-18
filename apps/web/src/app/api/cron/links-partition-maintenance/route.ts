@@ -8,7 +8,7 @@ export const runtime = 'nodejs'
 const JOB = 'links-partition-maintenance'
 const LOCK_KEY = 'cron:links-partition-maintenance'
 
-export async function POST(req: Request): Promise<Response> {
+export async function GET(req: Request): Promise<Response> {
   const auth = req.headers.get('authorization')
   const secret = process.env.CRON_SECRET
   if (!secret || auth !== `Bearer ${secret}`) {

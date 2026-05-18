@@ -30,6 +30,13 @@ export interface RecordClickInput {
   userAgent: string
   referrer: string | null
   headers: Headers
+  utmSource?: string | null
+  utmMedium?: string | null
+  utmCampaign?: string | null
+  utmTerm?: string | null
+  utmContent?: string | null
+  utmId?: string | null
+  adClickIds?: Record<string, string> | null
 }
 
 export interface RecordClickResult {
@@ -39,6 +46,7 @@ export interface RecordClickResult {
 
 export async function recordClick(input: RecordClickInput): Promise<RecordClickResult> {
   const { linkId, siteId, ip, userAgent, referrer, headers } = input
+  const { utmSource, utmMedium, utmCampaign, utmTerm, utmContent, utmId, adClickIds } = input
   const today = new Date().toISOString().slice(0, 10)
   const visitorId = generateVisitorId(ip, userAgent, today)
   const bot = isBot(userAgent)
@@ -80,10 +88,25 @@ export async function recordClick(input: RecordClickInput): Promise<RecordClickR
     is_bot: bot,
     is_unique: true, // determined by aggregation cron later
     clicked_at: new Date().toISOString(),
+    utm_source: utmSource ?? null,
+    utm_medium: utmMedium ?? null,
+    utm_campaign: utmCampaign ?? null,
+    utm_term: utmTerm ?? null,
+    utm_content: utmContent ?? null,
+    utm_id: utmId ?? null,
+    ad_click_ids: adClickIds ?? null,
   })
 
   if (insertErr) {
     Sentry.captureException(insertErr, { tags: { links: 'true', component: 'click-recorder' } })
+  }
+
+  if (!bot) {
+    await supabase
+      .from('tracked_links')
+      .update({ launched_at: new Date().toISOString() })
+      .eq('id', linkId)
+      .is('launched_at', null)
   }
 
   // Update link counters (best-effort, non-blocking in caller)

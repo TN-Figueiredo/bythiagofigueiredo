@@ -7,6 +7,7 @@ import { generateQrSvg } from '@tn-figueiredo/links/qr'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { buildShortUrl } from '@/lib/links/short-url'
+import { normalizeUtmValue, normalizeAllUtmFields, slugifyForCampaign } from '@tn-figueiredo/links'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -41,14 +42,15 @@ const CreateLinkSchema = z.object({
   title: z.string().optional(),
   code: z.string().max(64).optional(),
   slug: z.string().max(255).optional(),
-  redirect_type: z.enum(['301', '302']).optional(),
+  redirect_type: z.enum(['301', '302', '307', '308']).optional(),
   source_type: z.enum(sourceTypes).optional(),
   source_id: z.string().uuid().optional(),
-  utm_source: z.string().max(255).optional(),
-  utm_medium: z.string().max(255).optional(),
-  utm_campaign: z.string().max(255).optional(),
-  utm_term: z.string().max(255).optional(),
-  utm_content: z.string().max(255).optional(),
+  utm_source: z.string().max(255).optional().transform(v => normalizeUtmValue('utm_source', v)),
+  utm_medium: z.string().max(255).optional().transform(v => normalizeUtmValue('utm_medium', v)),
+  utm_campaign: z.string().max(255).optional().transform(v => normalizeUtmValue('utm_campaign', v)),
+  utm_term: z.string().max(255).optional().transform(v => normalizeUtmValue('utm_term', v)),
+  utm_content: z.string().max(255).optional().transform(v => normalizeUtmValue('utm_content', v)),
+  utm_id: z.string().max(255).optional().transform(v => normalizeUtmValue('utm_id', v)),
   tags: z.array(z.string()).optional(),
   expires_at: z.string().datetime().optional(),
 })
@@ -58,11 +60,12 @@ const UpdateLinkSchema = z.object({
   title: z.string().optional(),
   slug: z.string().max(255).nullable().optional(),
   source_type: z.enum(sourceTypes).optional(),
-  utm_source: z.string().max(255).optional(),
-  utm_medium: z.string().max(255).optional(),
-  utm_campaign: z.string().max(255).optional(),
-  utm_term: z.string().max(255).optional(),
-  utm_content: z.string().max(255).optional(),
+  utm_source: z.string().max(255).optional().transform(v => normalizeUtmValue('utm_source', v)),
+  utm_medium: z.string().max(255).optional().transform(v => normalizeUtmValue('utm_medium', v)),
+  utm_campaign: z.string().max(255).optional().transform(v => normalizeUtmValue('utm_campaign', v)),
+  utm_term: z.string().max(255).optional().transform(v => normalizeUtmValue('utm_term', v)),
+  utm_content: z.string().max(255).optional().transform(v => normalizeUtmValue('utm_content', v)),
+  utm_id: z.string().max(255).optional().transform(v => normalizeUtmValue('utm_id', v)),
   tags: z.array(z.string()).optional(),
   expires_at: z.string().datetime().nullable().optional(),
 })
@@ -243,11 +246,13 @@ export async function duplicateLink(id: string): Promise<ActionResult<{ linkId: 
       title: original.title ? `${original.title} (copy)` : null,
       source_type: original.source_type,
       tags: original.tags,
-      utm_source: original.utm_source,
-      utm_medium: original.utm_medium,
-      utm_campaign: original.utm_campaign,
-      utm_term: original.utm_term,
-      utm_content: original.utm_content,
+      ...normalizeAllUtmFields({
+        utm_source: original.utm_source,
+        utm_medium: original.utm_medium,
+        utm_campaign: original.utm_campaign,
+        utm_term: original.utm_term,
+        utm_content: original.utm_content,
+      }),
       redirect_type: original.redirect_type,
       expires_at: original.expires_at,
       active: true,
@@ -795,6 +800,10 @@ export async function saveLinkSettings(input: {
   const { siteId } = await getSiteContext()
   await requireEditScope(siteId)
 
+  const normalizedUtmSource = input.default_utm_source
+    ? normalizeUtmValue('utm_source', input.default_utm_source)
+    : input.default_utm_source
+
   const supabase = getSupabaseServiceClient()
   const { error } = await supabase
     .from('link_settings')
@@ -805,7 +814,7 @@ export async function saveLinkSettings(input: {
         default_code_length: input.default_code_length ?? 6,
         auto_qr: input.auto_qr ?? false,
         bot_filtering: input.bot_filtering ?? true,
-        config: { default_utm_source: input.default_utm_source },
+        config: { default_utm_source: normalizedUtmSource },
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'site_id' },
@@ -826,15 +835,19 @@ export async function saveUtmPreset(input: {
   const { siteId } = await getSiteContext()
   await requireEditScope(siteId)
 
+  const normalized = normalizeAllUtmFields({
+    utm_source: input.utm_source,
+    utm_medium: input.utm_medium,
+    utm_campaign: input.utm_campaign,
+  })
+
   const supabase = getSupabaseServiceClient()
   const { data, error } = await supabase
     .from('link_utm_presets')
     .insert({
       site_id: siteId,
       name: input.name,
-      utm_source: input.utm_source || null,
-      utm_medium: input.utm_medium || null,
-      utm_campaign: input.utm_campaign || null,
+      ...normalized,
     })
     .select('id')
     .single()

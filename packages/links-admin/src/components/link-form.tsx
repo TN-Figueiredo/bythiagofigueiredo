@@ -280,8 +280,10 @@ export function LinkForm({ link, onSubmit, onCancel, siteId: _siteId }: LinkForm
           <legend className="text-[11px] font-medium text-foreground">Redirect Type</legend>
           <div className="mt-2 grid grid-cols-2 gap-2">
             {[
-              { value: 302 as const, label: '302', desc: 'Temporary (recommended)' },
-              { value: 301 as const, label: '301', desc: 'Permanent' },
+              { value: 307 as const, label: '307', desc: 'Temporary (recommended)' },
+              { value: 302 as const, label: '302', desc: 'Found' },
+              { value: 301 as const, label: '301', desc: 'Permanent (cached)' },
+              { value: 308 as const, label: '308', desc: 'Permanent (strict)' },
             ].map((opt) => (
               <button
                 key={opt.value}
@@ -332,6 +334,18 @@ export function LinkForm({ link, onSubmit, onCancel, siteId: _siteId }: LinkForm
             <FieldError error={errors.click_limit} />
           </div>
         </div>
+
+        <div>
+          <FieldLabel htmlFor="activates_at">Ativação programada</FieldLabel>
+          <input
+            id="activates_at"
+            type="datetime-local"
+            value={form.activates_at ? form.activates_at.slice(0, 16) : ''}
+            onChange={(e) => setField('activates_at', e.target.value)}
+            className={inputClass}
+          />
+          <p className="mt-1 text-[10px] text-muted-foreground">Link mostra página "em breve" até esta data</p>
+        </div>
       </div>
 
       {/* --- Options --- */}
@@ -381,6 +395,25 @@ export function LinkForm({ link, onSubmit, onCancel, siteId: _siteId }: LinkForm
             </div>
           </div>
         </label>
+
+        {/* Pass Click IDs Toggle */}
+        <div className="flex items-center justify-between rounded-lg border border-border bg-card p-3">
+          <div>
+            <span className="text-[11px] font-medium text-foreground">Encaminhar click IDs</span>
+            <p className="text-[10px] text-muted-foreground">gclid, fbclid, ttclid, etc.</p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={form.pass_click_ids}
+            onClick={() => setField('pass_click_ids', !form.pass_click_ids)}
+            className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors ${form.pass_click_ids ? 'bg-indigo-500' : 'bg-muted-foreground/30'}`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform mt-0.5 ${form.pass_click_ids ? 'translate-x-5' : 'translate-x-0.5'}`}
+            />
+          </button>
+        </div>
       </div>
 
       {/* --- UTM Parameters (collapsible) --- */}
@@ -410,6 +443,7 @@ export function LinkForm({ link, onSubmit, onCancel, siteId: _siteId }: LinkForm
                 ['utm_campaign', 'Campaign', 'e.g. spring_sale'],
                 ['utm_term', 'Term', 'e.g. running shoes'],
                 ['utm_content', 'Content', 'e.g. banner_v2'],
+                ['utm_id', 'utm_id', 'GA4 campaign ID'],
               ] as const
             ).map(([field, label, placeholder]) => (
               <div key={field}>

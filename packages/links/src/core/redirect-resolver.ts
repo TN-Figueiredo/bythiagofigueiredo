@@ -1,5 +1,5 @@
 import type { ILinkRepository } from '../interfaces/link-repository.js'
-import type { TrackedLink, RedirectResult, RedirectGuardFailure } from '../types.js'
+import type { TrackedLink, RedirectResult, RedirectGuardFailure, UtmParams } from '../types.js'
 import { buildUtmUrl } from './utm-parser.js'
 
 export interface ResolveOptions {
@@ -80,6 +80,11 @@ export class RedirectResolver {
       return { reason: 'expired', link }
     }
 
+    // 3.5 Not yet active
+    if (link.activatesAt && link.activatesAt > new Date()) {
+      return { reason: 'not_yet_active', link }
+    }
+
     // 4. Click limit
     if (link.clickLimit != null && link.totalClicks >= link.clickLimit) {
       return { reason: 'click_limit', link }
@@ -94,18 +99,28 @@ export class RedirectResolver {
   }
 
   private buildRedirectUrl(link: TrackedLink): string {
-    const utm = {
-      utmSource: link.utmSource ?? undefined,
-      utmMedium: link.utmMedium ?? undefined,
-      utmCampaign: link.utmCampaign ?? undefined,
-      utmTerm: link.utmTerm ?? undefined,
-      utmContent: link.utmContent ?? undefined,
+    const utm: UtmParams = {}
+    if (link.utmSource) utm.utmSource = link.utmSource
+    if (link.utmMedium) utm.utmMedium = link.utmMedium
+    if (link.utmCampaign) utm.utmCampaign = link.utmCampaign
+    if (link.utmTerm) utm.utmTerm = link.utmTerm
+    if (link.utmContent) utm.utmContent = link.utmContent
+    if (link.utmId) utm.utmId = link.utmId
+
+    let url = Object.keys(utm).length > 0
+      ? buildUtmUrl(link.destinationUrl, utm)
+      : link.destinationUrl
+
+    if (link.customParams && Object.keys(link.customParams).length > 0) {
+      const parsed = new URL(url)
+      for (const [key, value] of Object.entries(link.customParams)) {
+        if (value && !parsed.searchParams.has(key)) {
+          parsed.searchParams.set(key, value)
+        }
+      }
+      url = parsed.toString()
     }
 
-    // Only append if there are UTM params to add
-    const hasUtm = Object.values(utm).some((v) => v != null)
-    if (!hasUtm) return link.destinationUrl
-
-    return buildUtmUrl(link.destinationUrl, utm)
+    return url
   }
 }

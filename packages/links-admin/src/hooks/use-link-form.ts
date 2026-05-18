@@ -6,7 +6,7 @@ export interface LinkFormData {
   title: string
   slug: string
   source_type: 'manual' | 'campaign' | 'newsletter' | 'blog' | 'social' | 'print'
-  redirect_type: 301 | 302
+  redirect_type: 301 | 302 | 307 | 308
   active: boolean
   tags: string[]
   utm_source: string
@@ -17,6 +17,9 @@ export interface LinkFormData {
   expires_at: string
   click_limit: number | null
   password: string
+  utm_id: string
+  activates_at: string
+  pass_click_ids: boolean
 }
 
 export type LinkFormErrors = Partial<Record<keyof LinkFormData, string>>
@@ -26,7 +29,7 @@ const EMPTY_FORM: LinkFormData = {
   title: '',
   slug: '',
   source_type: 'manual',
-  redirect_type: 302,
+  redirect_type: 307,
   active: true,
   tags: [],
   utm_source: '',
@@ -37,6 +40,9 @@ const EMPTY_FORM: LinkFormData = {
   expires_at: '',
   click_limit: null,
   password: '',
+  utm_id: '',
+  activates_at: '',
+  pass_click_ids: true,
 }
 
 const URL_REGEX = /^https?:\/\/.+/

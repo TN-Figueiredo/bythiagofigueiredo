@@ -66,6 +66,15 @@ export async function GET(
       return NextResponse.redirect(new URL(`/go/${code}/unlock`, request.url), 302)
     }
 
+    if (link.activates_at && new Date(link.activates_at) > new Date()) {
+      const comingSoonUrl = new URL('/go/coming-soon', request.url)
+      comingSoonUrl.searchParams.set('title', link.title ?? link.code)
+      if (link.activates_at) {
+        comingSoonUrl.searchParams.set('activates', link.activates_at)
+      }
+      return NextResponse.rewrite(comingSoonUrl)
+    }
+
     // Extract visitor info
     const ip =
       request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
@@ -88,16 +97,30 @@ export async function GET(
           ),
         ),
       ),
+      utmSource: link.utm_source,
+      utmMedium: link.utm_medium,
+      utmCampaign: link.utm_campaign,
+      utmTerm: link.utm_term,
+      utmContent: link.utm_content,
+      utmId: link.utm_id,
     }).catch((err) => {
       Sentry.captureException(err, { tags: { links: 'true', component: 'redirect' } })
     })
 
-    const destination = new URL(link.destination_url)
-    if (link.utm_source) destination.searchParams.set('utm_source', link.utm_source)
-    if (link.utm_medium) destination.searchParams.set('utm_medium', link.utm_medium)
-    if (link.utm_campaign) destination.searchParams.set('utm_campaign', link.utm_campaign)
-    if (link.utm_term) destination.searchParams.set('utm_term', link.utm_term)
-    if (link.utm_content) destination.searchParams.set('utm_content', link.utm_content)
+    let destination = new URL(link.destination_url)
+    const utmMapping = [
+      ['utm_source', link.utm_source],
+      ['utm_medium', link.utm_medium],
+      ['utm_campaign', link.utm_campaign],
+      ['utm_term', link.utm_term],
+      ['utm_content', link.utm_content],
+      ['utm_id', link.utm_id],
+    ] as const
+    for (const [param, value] of utmMapping) {
+      if (value && !destination.searchParams.has(param)) {
+        destination.searchParams.set(param, value)
+      }
+    }
 
     return NextResponse.redirect(destination.toString(), link.redirect_type)
   } catch (err) {

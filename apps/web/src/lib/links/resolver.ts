@@ -4,6 +4,7 @@ export interface ResolvedLink {
   id: string
   site_id: string
   code: string
+  title: string | null
   destination_url: string
   redirect_type: number
   active: boolean
@@ -17,6 +18,11 @@ export interface ResolvedLink {
   utm_campaign: string | null
   utm_term: string | null
   utm_content: string | null
+  utm_id: string | null
+  launched_at: string | null
+  activates_at: string | null
+  custom_params: Record<string, string>
+  pass_click_ids: boolean
 }
 
 /**
@@ -28,7 +34,7 @@ export async function resolveLink(siteId: string, code: string): Promise<Resolve
   const { data, error } = await supabase
     .from('tracked_links')
     .select(
-      'id, site_id, code, destination_url, redirect_type, active, deleted_at, password_hash, click_limit, total_clicks, expires_at, utm_source, utm_medium, utm_campaign, utm_term, utm_content',
+      'id, site_id, code, title, destination_url, redirect_type, active, deleted_at, password_hash, click_limit, total_clicks, expires_at, utm_source, utm_medium, utm_campaign, utm_term, utm_content, utm_id, launched_at, activates_at, custom_params, pass_click_ids',
     )
     .eq('site_id', siteId)
     .eq('code', code)

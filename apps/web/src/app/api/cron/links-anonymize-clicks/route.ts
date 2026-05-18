@@ -6,10 +6,10 @@ export const runtime = 'nodejs'
 
 const JOB = 'links-anonymize-clicks'
 const LOCK_KEY = 'cron:links-anonymize-clicks'
-const RETENTION_DAYS = 90
+const RETENTION_DAYS = 30
 const BATCH_SIZE = 10_000
 
-export async function POST(req: Request): Promise<Response> {
+export async function GET(req: Request): Promise<Response> {
   const auth = req.headers.get('authorization')
   const secret = process.env.CRON_SECRET
   if (!secret || auth !== `Bearer ${secret}`) {
@@ -30,7 +30,9 @@ export async function POST(req: Request): Promise<Response> {
         ip: null,
         user_agent: null,
         city: null,
+        region: null,
         referrer_url: null,
+        ad_click_ids: null,
       })
       .lt('clicked_at', cutoff)
       .not('ip', 'is', null)
