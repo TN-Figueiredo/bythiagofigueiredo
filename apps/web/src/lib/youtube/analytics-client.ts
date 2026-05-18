@@ -1,5 +1,6 @@
 import 'server-only'
 
+import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
 import type {
@@ -11,6 +12,37 @@ import type {
 } from './analytics-types'
 
 const YT_ANALYTICS_BASE = 'https://youtubeanalytics.googleapis.com/v2/reports'
+
+export class YouTubeAnalyticsError extends Error {
+  constructor(
+    message: string,
+    public readonly statusCode: number,
+    public readonly endpoint: string,
+    public readonly channelId: string,
+    public readonly errorBody?: string,
+  ) {
+    super(message)
+    this.name = 'YouTubeAnalyticsError'
+  }
+}
+
+async function fetchWithRetry(
+  url: string,
+  headers: HeadersInit,
+  maxRetries = 3,
+): Promise<Response> {
+  let lastError: Error | null = null
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const res = await fetch(url, { headers, next: { revalidate: 300 } })
+    if (res.ok) return res
+    if (res.status < 500 && res.status !== 429) return res
+    lastError = new Error(`HTTP ${res.status}`)
+    if (attempt < maxRetries - 1) {
+      await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 1000))
+    }
+  }
+  throw lastError!
+}
 
 interface TokenInfo {
   accessToken: string
@@ -100,14 +132,18 @@ async function queryYtAnalytics(
   if (params.sort) url.searchParams.set('sort', params.sort)
   if (params.maxResults) url.searchParams.set('maxResults', String(params.maxResults))
 
-  const res = await fetch(url.toString(), {
-    headers: { Authorization: `Bearer ${token}` },
-    next: { revalidate: 300 },
-  })
+  const res = await fetchWithRetry(url.toString(), { Authorization: `Bearer ${token}` })
 
   if (!res.ok) {
-    const err = await res.text()
-    throw new Error(`YouTube Analytics API error ${res.status}: ${err}`)
+    const errorBody = await res.text()
+    const endpoint = params.dimensions ?? params.metrics.split(',')[0] ?? 'unknown'
+    throw new YouTubeAnalyticsError(
+      `YouTube Analytics API error ${res.status}: ${errorBody}`,
+      res.status,
+      endpoint,
+      channelId,
+      errorBody,
+    )
   }
 
   return res.json() as Promise<YtAnalyticsReport>
@@ -141,7 +177,14 @@ export async function fetchYtChannelMetrics(
       startDate: toDateStr(start),
       endDate: toDateStr(end),
       metrics: 'impressions,impressionClickThroughRate',
-    }).catch(() => null),
+    }).catch((e) => {
+      // 403 = scope not granted (expected for some channels)
+      if (e instanceof YouTubeAnalyticsError && e.statusCode === 403) return null
+      Sentry.captureException(e, {
+        tags: { youtube_endpoint: 'impressions', channel_id: tokenInfo.channelId },
+      })
+      return null
+    }),
   ])
 
   if (!coreReport.rows?.[0]) return null
@@ -185,7 +228,15 @@ export async function fetchYtDailyMetrics(siteId: string, days: number, channelI
       metrics: 'impressions,impressionClickThroughRate',
       dimensions: 'day',
       sort: 'day',
-    }).catch(() => ({ rows: [] as (string | number)[][] })),
+    }).catch((e) => {
+      if (e instanceof YouTubeAnalyticsError && e.statusCode === 403) {
+        return { rows: [] as (string | number)[][] }
+      }
+      Sentry.captureException(e, {
+        tags: { youtube_endpoint: 'impressions_daily', channel_id: tokenInfo.channelId },
+      })
+      return { rows: [] as (string | number)[][] }
+    }),
   ])
 
   const impByDate = new Map<string, { impressions: number; ctr: number }>()

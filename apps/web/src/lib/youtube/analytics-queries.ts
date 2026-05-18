@@ -1,45 +1,75 @@
 import 'server-only'
 
+import * as Sentry from '@sentry/nextjs'
 import { unstable_cache } from 'next/cache'
 import {
   fetchYtChannelMetrics,
   fetchYtDailyMetrics,
   fetchYtSearchTerms,
   fetchYtDemographics,
+  YouTubeAnalyticsError,
 } from './analytics-client'
 import type { YtVideoGrade, YtHealthScore } from './analytics-types'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
-export function getCachedYtMetrics(siteId: string, days: number, channelId?: string) {
-  return unstable_cache(
-    () => fetchYtChannelMetrics(siteId, days, channelId),
-    [`yt-metrics-${siteId}-${days}-${channelId ?? 'default'}`],
-    { revalidate: 300 },
-  )()
+export async function getCachedYtMetrics(siteId: string, days: number, channelId?: string) {
+  try {
+    return await unstable_cache(
+      () => fetchYtChannelMetrics(siteId, days, channelId),
+      [`yt-metrics-${siteId}-${days}-${channelId ?? 'default'}`],
+      { revalidate: 300 },
+    )()
+  } catch (e) {
+    if (e instanceof YouTubeAnalyticsError) {
+      Sentry.captureException(e, { tags: { youtube_endpoint: 'metrics' } })
+    }
+    return null
+  }
 }
 
-export function getCachedYtDaily(siteId: string, days: number, channelId?: string) {
-  return unstable_cache(
-    () => fetchYtDailyMetrics(siteId, days, channelId),
-    [`yt-daily-${siteId}-${days}-${channelId ?? 'default'}`],
-    { revalidate: 300 },
-  )()
+export async function getCachedYtDaily(siteId: string, days: number, channelId?: string) {
+  try {
+    return await unstable_cache(
+      () => fetchYtDailyMetrics(siteId, days, channelId),
+      [`yt-daily-${siteId}-${days}-${channelId ?? 'default'}`],
+      { revalidate: 300 },
+    )()
+  } catch (e) {
+    if (e instanceof YouTubeAnalyticsError) {
+      Sentry.captureException(e, { tags: { youtube_endpoint: 'daily' } })
+    }
+    return []
+  }
 }
 
-export function getCachedYtSearchTerms(siteId: string, days: number, channelId?: string) {
-  return unstable_cache(
-    () => fetchYtSearchTerms(siteId, days, channelId),
-    [`yt-search-${siteId}-${days}-${channelId ?? 'default'}`],
-    { revalidate: 300 },
-  )()
+export async function getCachedYtSearchTerms(siteId: string, days: number, channelId?: string) {
+  try {
+    return await unstable_cache(
+      () => fetchYtSearchTerms(siteId, days, channelId),
+      [`yt-search-${siteId}-${days}-${channelId ?? 'default'}`],
+      { revalidate: 300 },
+    )()
+  } catch (e) {
+    if (e instanceof YouTubeAnalyticsError) {
+      Sentry.captureException(e, { tags: { youtube_endpoint: 'search_terms' } })
+    }
+    return []
+  }
 }
 
-export function getCachedYtDemographics(siteId: string, days: number, channelId?: string) {
-  return unstable_cache(
-    () => fetchYtDemographics(siteId, days, channelId),
-    [`yt-demographics-${siteId}-${days}-${channelId ?? 'default'}`],
-    { revalidate: 300 },
-  )()
+export async function getCachedYtDemographics(siteId: string, days: number, channelId?: string) {
+  try {
+    return await unstable_cache(
+      () => fetchYtDemographics(siteId, days, channelId),
+      [`yt-demographics-${siteId}-${days}-${channelId ?? 'default'}`],
+      { revalidate: 300 },
+    )()
+  } catch (e) {
+    if (e instanceof YouTubeAnalyticsError) {
+      Sentry.captureException(e, { tags: { youtube_endpoint: 'demographics' } })
+    }
+    return { ageGender: [], countries: [], devices: [] }
+  }
 }
 
 export async function fetchVideoGrades(siteId: string, internalChannelId?: string): Promise<YtVideoGrade[]> {
