@@ -239,7 +239,7 @@ export async function duplicateLink(id: string): Promise<ActionResult<{ linkId: 
 
   const { data: original, error: fetchErr } = await supabase
     .from('tracked_links')
-    .select('destination_url, title, source_type, tags, utm_source, utm_medium, utm_campaign, utm_term, utm_content, utm_id, redirect_type, expires_at')
+    .select('destination_url, title, source_type, tags, utm_source, utm_medium, utm_campaign, utm_term, utm_content, utm_id, redirect_type, expires_at, pass_click_ids, custom_params, activates_at')
     .eq('id', id)
     .eq('site_id', siteId)
     .single()
@@ -266,6 +266,9 @@ export async function duplicateLink(id: string): Promise<ActionResult<{ linkId: 
       }),
       redirect_type: original.redirect_type,
       expires_at: original.expires_at,
+      pass_click_ids: original.pass_click_ids ?? true,
+      custom_params: original.custom_params ?? null,
+      activates_at: original.activates_at ?? null,
       active: true,
     })
     .select('id')
@@ -773,12 +776,24 @@ export async function generateQr(
   return { ok: true, qrUrl: result.asset.blobUrl }
 }
 
+const SSRF_PRIVATE_IP_RE =
+  /^(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|169\.254\.\d{1,3}\.\d{1,3}|127\.\d{1,3}\.\d{1,3}\.\d{1,3}|0\.0\.0\.0|localhost|\[?::1\]?|\[?fe80:[^\]]*\]?|\[?fc[0-9a-f]{2}:[^\]]*\]?|\[?fd[0-9a-f]{2}:[^\]]*\]?)/i
+
 export async function validateDestinationUrl(
   url: string,
 ): Promise<ActionResult<{ status: number; finalUrl: string; durationMs: number }>> {
+  let parsed: URL
   try {
-    new URL(url)
+    parsed = new URL(url)
   } catch {
+    return { ok: false, error: 'invalid_url' }
+  }
+
+  const host = parsed.hostname.toLowerCase()
+  if (
+    SSRF_PRIVATE_IP_RE.test(host) ||
+    host === 'metadata.google.internal'
+  ) {
     return { ok: false, error: 'invalid_url' }
   }
 
@@ -953,6 +968,7 @@ const BatchUpdateSchema = z.object({
     .nullish()
     .transform(v => (v ? normalizeUtmValue('utm_campaign', v) : v)),
   expires_at: z.string().datetime().nullish(),
+  activates_at: z.string().datetime().nullish(),
   active: z.boolean().optional(),
   pass_click_ids: z.boolean().optional(),
 })
@@ -1043,5 +1059,5 @@ export async function batchExtendExpiry(
 }
 
 export async function batchActivateNow(siteId: string, campaign: string): Promise<ActionResult<{ updated: number }>> {
-  return batchUpdateLinks(siteId, { utm_campaign: campaign }, { active: true })
+  return batchUpdateLinks(siteId, { utm_campaign: campaign }, { active: true, activates_at: null })
 }

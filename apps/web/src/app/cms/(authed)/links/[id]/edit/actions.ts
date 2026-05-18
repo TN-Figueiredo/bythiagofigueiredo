@@ -17,8 +17,12 @@ export async function handleUpdate(
     utm_campaign?: string
     utm_term?: string
     utm_content?: string
+    utm_id?: string
     tags?: string[]
     expires_at?: string | null
+    activates_at?: string | null
+    pass_click_ids?: boolean
+    redirect_type?: 301 | 302 | 307 | 308
   },
 ): Promise<ActionResult> {
   if (!id) return { ok: false, error: 'id_required' }

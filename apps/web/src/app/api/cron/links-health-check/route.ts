@@ -12,7 +12,7 @@ const REQUEST_TIMEOUT_MS = 10_000
 const RATE_LIMIT_MS = 1_000
 
 const PRIVATE_IP_RE =
-  /^(https?:\/\/)?(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|127\.\d{1,3}\.\d{1,3}\.\d{1,3}|0\.0\.0\.0|localhost|\[?::1\]?|\[?0+:0+:0+:0+:0+:0+:0+:0*1\]?|\[?fe80:[^\]]*\]?|\[?fc[0-9a-f]{2}:[^\]]*\]?|\[?fd[0-9a-f]{2}:[^\]]*\]?)/i
+  /^(https?:\/\/)?(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|169\.254\.\d{1,3}\.\d{1,3}|127\.\d{1,3}\.\d{1,3}\.\d{1,3}|0\.0\.0\.0|localhost|\[?::1\]?|\[?0+:0+:0+:0+:0+:0+:0+:0*1\]?|\[?fe80:[^\]]*\]?|\[?fc[0-9a-f]{2}:[^\]]*\]?|\[?fd[0-9a-f]{2}:[^\]]*\]?)/i
 
 function isPrivateUrl(url: string): boolean {
   if (PRIVATE_IP_RE.test(url)) return true
@@ -22,6 +22,7 @@ function isPrivateUrl(url: string): boolean {
     if (
       host === 'localhost' ||
       host === '0.0.0.0' ||
+      host === 'metadata.google.internal' ||
       host.startsWith('fe80') ||
       host.startsWith('fc') ||
       host.startsWith('fd')

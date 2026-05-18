@@ -4,6 +4,7 @@ const mockLink = {
   id: 'link-1',
   site_id: 'site-1',
   code: 'abc',
+  title: null,
   destination_url: 'https://example.com/page',
   redirect_type: 301,
   active: true,
@@ -17,6 +18,11 @@ const mockLink = {
   utm_campaign: null,
   utm_term: null,
   utm_content: null,
+  utm_id: null,
+  launched_at: null,
+  activates_at: null,
+  custom_params: {},
+  pass_click_ids: false,
 }
 
 const mockResolve = vi.fn()

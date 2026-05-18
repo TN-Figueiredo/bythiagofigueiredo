@@ -247,4 +247,187 @@ describe('GET /go/[code] — A++ features', () => {
       )
     })
   })
+
+  describe('Click ID passthrough', () => {
+    it('forwards gclid to destination when pass_click_ids is true', async () => {
+      mockResolve.mockResolvedValue({
+        ...mockLink,
+        pass_click_ids: true,
+      })
+      const { GET } = await import('../../../src/app/go/[code]/route')
+      const req = new Request('http://go.example.com/abc?gclid=abc123', {
+        headers: {
+          host: 'go.example.com',
+          'x-forwarded-for': '1.2.3.4',
+          'user-agent': 'Mozilla/5.0',
+        },
+      })
+      const res = await GET(req, { params: Promise.resolve({ code: 'abc' }) })
+      const location = res.headers.get('location')!
+      const url = new URL(location)
+      expect(url.searchParams.get('gclid')).toBe('abc123')
+    })
+
+    it('does NOT forward click IDs when pass_click_ids is false', async () => {
+      mockResolve.mockResolvedValue({
+        ...mockLink,
+        pass_click_ids: false,
+      })
+      const { GET } = await import('../../../src/app/go/[code]/route')
+      const req = new Request('http://go.example.com/abc?gclid=abc123', {
+        headers: {
+          host: 'go.example.com',
+          'x-forwarded-for': '1.2.3.4',
+          'user-agent': 'Mozilla/5.0',
+        },
+      })
+      const res = await GET(req, { params: Promise.resolve({ code: 'abc' }) })
+      const location = res.headers.get('location')!
+      const url = new URL(location)
+      expect(url.searchParams.has('gclid')).toBe(false)
+    })
+
+    it('passes adClickIds to recordClick when click IDs are forwarded', async () => {
+      mockResolve.mockResolvedValue({
+        ...mockLink,
+        pass_click_ids: true,
+      })
+      const { GET } = await import('../../../src/app/go/[code]/route')
+      const req = new Request('http://go.example.com/abc?gclid=abc123', {
+        headers: {
+          host: 'go.example.com',
+          'x-forwarded-for': '1.2.3.4',
+          'user-agent': 'Mozilla/5.0',
+        },
+      })
+      await GET(req, { params: Promise.resolve({ code: 'abc' }) })
+      expect(mockRecordClick).toHaveBeenCalledWith(
+        expect.objectContaining({
+          adClickIds: expect.objectContaining({ gclid: 'abc123' }),
+        }),
+      )
+    })
+  })
+
+  describe('Cache-Control for 301 + click IDs', () => {
+    it('sets Cache-Control: private, no-store on 301 redirect with click IDs', async () => {
+      mockResolve.mockResolvedValue({
+        ...mockLink,
+        redirect_type: 301,
+        pass_click_ids: true,
+      })
+      const { GET } = await import('../../../src/app/go/[code]/route')
+      const req = new Request('http://go.example.com/abc?gclid=test', {
+        headers: {
+          host: 'go.example.com',
+          'x-forwarded-for': '1.2.3.4',
+          'user-agent': 'Mozilla/5.0',
+        },
+      })
+      const res = await GET(req, { params: Promise.resolve({ code: 'abc' }) })
+      expect(res.status).toBe(301)
+      expect(res.headers.get('cache-control')).toBe('private, no-store')
+    })
+
+    it('does NOT set Cache-Control on 302 redirect with click IDs', async () => {
+      mockResolve.mockResolvedValue({
+        ...mockLink,
+        redirect_type: 302,
+        pass_click_ids: true,
+      })
+      const { GET } = await import('../../../src/app/go/[code]/route')
+      const req = new Request('http://go.example.com/abc?gclid=test', {
+        headers: {
+          host: 'go.example.com',
+          'x-forwarded-for': '1.2.3.4',
+          'user-agent': 'Mozilla/5.0',
+        },
+      })
+      const res = await GET(req, { params: Promise.resolve({ code: 'abc' }) })
+      expect(res.status).toBe(302)
+      expect(res.headers.get('cache-control')).toBeNull()
+    })
+
+    it('does NOT set Cache-Control on 301 without click IDs', async () => {
+      mockResolve.mockResolvedValue({
+        ...mockLink,
+        redirect_type: 301,
+        pass_click_ids: true,
+      })
+      const { GET } = await import('../../../src/app/go/[code]/route')
+      // No click IDs in the request URL
+      const req = new Request('http://go.example.com/abc', {
+        headers: {
+          host: 'go.example.com',
+          'x-forwarded-for': '1.2.3.4',
+          'user-agent': 'Mozilla/5.0',
+        },
+      })
+      const res = await GET(req, { params: Promise.resolve({ code: 'abc' }) })
+      expect(res.status).toBe(301)
+      expect(res.headers.get('cache-control')).toBeNull()
+    })
+  })
+
+  describe('Custom params', () => {
+    it('appends custom_params to destination URL', async () => {
+      mockResolve.mockResolvedValue({
+        ...mockLink,
+        custom_params: { ref: 'social', campaign: 'summer' },
+      })
+      const { GET } = await import('../../../src/app/go/[code]/route')
+      const req = new Request('http://go.example.com/abc', {
+        headers: {
+          host: 'go.example.com',
+          'x-forwarded-for': '1.2.3.4',
+          'user-agent': 'Mozilla/5.0',
+        },
+      })
+      const res = await GET(req, { params: Promise.resolve({ code: 'abc' }) })
+      const location = res.headers.get('location')!
+      const url = new URL(location)
+      expect(url.searchParams.get('ref')).toBe('social')
+      expect(url.searchParams.get('campaign')).toBe('summer')
+    })
+
+    it('skips utm_ keys in custom_params', async () => {
+      mockResolve.mockResolvedValue({
+        ...mockLink,
+        custom_params: { utm_source: 'hack', ref: 'ok' },
+      })
+      const { GET } = await import('../../../src/app/go/[code]/route')
+      const req = new Request('http://go.example.com/abc', {
+        headers: {
+          host: 'go.example.com',
+          'x-forwarded-for': '1.2.3.4',
+          'user-agent': 'Mozilla/5.0',
+        },
+      })
+      const res = await GET(req, { params: Promise.resolve({ code: 'abc' }) })
+      const location = res.headers.get('location')!
+      const url = new URL(location)
+      expect(url.searchParams.has('utm_source')).toBe(false)
+      expect(url.searchParams.get('ref')).toBe('ok')
+    })
+
+    it('does not overwrite existing destination params', async () => {
+      mockResolve.mockResolvedValue({
+        ...mockLink,
+        destination_url: 'https://example.com/page?ref=original',
+        custom_params: { ref: 'new' },
+      })
+      const { GET } = await import('../../../src/app/go/[code]/route')
+      const req = new Request('http://go.example.com/abc', {
+        headers: {
+          host: 'go.example.com',
+          'x-forwarded-for': '1.2.3.4',
+          'user-agent': 'Mozilla/5.0',
+        },
+      })
+      const res = await GET(req, { params: Promise.resolve({ code: 'abc' }) })
+      const location = res.headers.get('location')!
+      const url = new URL(location)
+      expect(url.searchParams.get('ref')).toBe('original')
+    })
+  })
 })
