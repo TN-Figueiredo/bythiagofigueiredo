@@ -429,12 +429,39 @@ export function BRollDetail({ assetId, allAssets, onClose, onFilter, fullWidth }
       </div>
 
       {/* Tabs */}
-      <div style={{ flexShrink: 0, display: 'flex', borderBottom: '1px solid var(--gem-border)', background: 'var(--gem-surface)', position: 'sticky', top: 0, zIndex: 1, paddingLeft: 14, paddingRight: 14 }}>
+      <div
+        role="tablist"
+        aria-label="B-Roll detail tabs"
+        style={{ flexShrink: 0, display: 'flex', borderBottom: '1px solid var(--gem-border)', background: 'var(--gem-surface)', position: 'sticky', top: 0, zIndex: 1, paddingLeft: 14, paddingRight: 14 }}
+        onKeyDown={(e) => {
+          const tabs: Tab[] = ['details', 'usage', 'related', 'raw']
+          const currentIndex = tabs.indexOf(activeTab)
+          if (e.key === 'ArrowRight') {
+            e.preventDefault()
+            const next = tabs[(currentIndex + 1) % tabs.length]
+            setActiveTab(next)
+            ;(e.currentTarget.querySelector(`[id="tab-${next}"]`) as HTMLElement | null)?.focus()
+          } else if (e.key === 'ArrowLeft') {
+            e.preventDefault()
+            const prev = tabs[(currentIndex - 1 + tabs.length) % tabs.length]
+            setActiveTab(prev)
+            ;(e.currentTarget.querySelector(`[id="tab-${prev}"]`) as HTMLElement | null)?.focus()
+          }
+        }}
+      >
         {(['details', 'usage', 'related', 'raw'] as Tab[]).map(tab => {
           const active = activeTab === tab
           return (
-            <button key={tab} role="tab" aria-selected={active} onClick={() => setActiveTab(tab)}
-              style={{ fontSize: 11, padding: '7px 10px', background: 'none', border: 'none', borderBottom: active ? '2px solid var(--gem-accent)' : '2px solid transparent', color: active ? 'var(--gem-text)' : 'var(--gem-dim)', fontWeight: active ? 600 : 400, cursor: 'pointer', position: 'relative', transition: 'color 0.15s', whiteSpace: 'nowrap' }}>
+            <button
+              key={tab}
+              id={`tab-${tab}`}
+              role="tab"
+              aria-selected={active}
+              aria-controls={`panel-${tab}`}
+              tabIndex={active ? 0 : -1}
+              onClick={() => setActiveTab(tab)}
+              style={{ fontSize: 11, padding: '7px 10px', background: 'none', border: 'none', borderBottom: active ? '2px solid var(--gem-accent)' : '2px solid transparent', color: active ? 'var(--gem-text)' : 'var(--gem-dim)', fontWeight: active ? 600 : 400, cursor: 'pointer', position: 'relative', transition: 'color 0.15s', whiteSpace: 'nowrap' }}
+            >
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
               {tab === 'usage' && hasUsage && (<span style={{ position: 'absolute', top: 5, right: 3, width: 6, height: 6, borderRadius: '50%', background: '#3b82f6', display: 'block' }} />)}
             </button>
@@ -443,7 +470,12 @@ export function BRollDetail({ assetId, allAssets, onClose, onFilter, fullWidth }
       </div>
 
       {/* Tab content */}
-      <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+      <div
+        id={`panel-${activeTab}`}
+        role="tabpanel"
+        aria-labelledby={`tab-${activeTab}`}
+        style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}
+      >
         {activeTab === 'details' && <DetailsPanel asset={asset} editing={editing} draft={draft} setField={setField} onFilter={onFilter} />}
         {activeTab === 'usage' && <UsagePanel asset={asset} />}
         {activeTab === 'related' && <RelatedPanel asset={asset} allAssets={allAssets} onFilter={onFilter} />}

@@ -1,0 +1,9 @@
+.brollCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), 0 1px 4px rgba(0, 0, 0, 0.2);
+  border-color: var(--broll-hover-accent) !important;
+}
+
+.brollCard:focus-visible {
+  box-shadow: 0 0 0 2px var(--gem-accent);
+}

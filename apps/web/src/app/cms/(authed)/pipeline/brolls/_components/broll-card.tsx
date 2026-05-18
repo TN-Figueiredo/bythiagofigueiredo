@@ -2,8 +2,9 @@
 
 import { memo } from 'react'
 import { FrameStrip } from './frame-strip'
-import { formatDuration, sourceTypeConfig, categoryConfig } from '../_helpers/broll-helpers'
+import { formatDuration, sourceTypeConfig, categoryConfig, sanitizeThumbnailUrl } from '../_helpers/broll-helpers'
 import type { BRollAssetRow } from '@/lib/pipeline/broll-schemas'
+import styles from './broll-card.module.css'
 
 interface BRollCardProps {
   asset: BRollAssetRow
@@ -25,18 +26,6 @@ const STATUS_BADGE_STYLE: Record<string, React.CSSProperties> = {
   },
 }
 
-/** Validates a thumbnail URL to only allow https: and data:image/ schemes. */
-function sanitizeThumbnailUrl(url: string | null | undefined): string | null {
-  if (!url) return null
-  try {
-    const parsed = new URL(url)
-    if (parsed.protocol === 'https:') return url
-    if (parsed.protocol === 'data:' && url.startsWith('data:image/')) return url
-    return null
-  } catch {
-    return null
-  }
-}
 
 function BRollCardInner({ asset, selected, onSelect }: BRollCardProps) {
   const {
@@ -108,11 +97,11 @@ function BRollCardInner({ asset, selected, onSelect }: BRollCardProps) {
       tabIndex={0}
       aria-label={ariaLabel}
       aria-pressed={selected}
-      style={cardStyle}
+      style={{ ...cardStyle, '--broll-hover-accent': catConfig.hoverAccent } as React.CSSProperties}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       data-card-id={id}
-      className="broll-card"
+      className={styles.brollCard}
     >
       {/* Thumbnail hero */}
       <div style={{ position: 'relative' }}>
@@ -286,16 +275,6 @@ function BRollCardInner({ asset, selected, onSelect }: BRollCardProps) {
         )}
       </div>
 
-      <style>{`
-        .broll-card:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 4px 16px rgba(0,0,0,0.3), 0 1px 4px rgba(0,0,0,0.2);
-          border-color: ${catConfig.hoverAccent} !important;
-        }
-        .broll-card:focus-visible {
-          box-shadow: 0 0 0 2px var(--gem-accent);
-        }
-      `}</style>
     </article>
   )
 }

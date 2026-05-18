@@ -19,6 +19,8 @@ const btnStyle = {
 }
 const btnSmStyle = { ...btnStyle, padding: '3px 8px', fontSize: 10 }
 
+const allTracks = [...TL_TRACKS.video].reverse().concat(TL_TRACKS.audio)
+
 function ToolbarRaw({ zoom, setZoom, expandAll, collapseAll }: ToolbarProps) {
   const zoomIn = useCallback(() => setZoom(z => Math.min(ZOOM_MAX, z + ZOOM_STEP)), [setZoom])
   const zoomOut = useCallback(() => setZoom(z => Math.max(ZOOM_MIN, z - ZOOM_STEP)), [setZoom])
@@ -27,8 +29,6 @@ function ToolbarRaw({ zoom, setZoom, expandAll, collapseAll }: ToolbarProps) {
     const val = parseFloat(e.target.value)
     setZoom(() => val)
   }, [setZoom])
-
-  const allTracks = [...TL_TRACKS.video].reverse().concat(TL_TRACKS.audio)
 
   return (
     <div
