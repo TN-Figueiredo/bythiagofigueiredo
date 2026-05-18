@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
 
   let synced = 0
   let errors = 0
+  const errorDetails: string[] = []
   const notifications: Array<{ siteId: string; payload: ReturnType<typeof buildNotification> }> = []
 
   for (const channel of channels) {
@@ -56,7 +57,9 @@ export async function GET(req: NextRequest) {
       })
 
       if (!res.ok) {
+        const errBody = await res.text().catch(() => '')
         Sentry.captureMessage(`sync-analytics-metrics failed for channel ${channel.channel_id}: ${res.status}`)
+        errorDetails.push(`${channel.channel_id}: HTTP ${res.status} — ${errBody.slice(0, 200)}`)
         errors++
         continue
       }
@@ -135,6 +138,7 @@ export async function GET(req: NextRequest) {
       synced++
     } catch (e) {
       Sentry.captureException(e)
+      errorDetails.push(`${channel.channel_id}: ${e instanceof Error ? e.message : String(e)}`)
       errors++
     }
   }
@@ -153,5 +157,5 @@ export async function GET(req: NextRequest) {
     })
   }
 
-  return NextResponse.json({ synced, errors, notifications: notifications.length })
+  return NextResponse.json({ synced, errors, notifications: notifications.length, ...(errorDetails.length > 0 && { errorDetails }) })
 }
