@@ -47,7 +47,10 @@ export async function GET(req: NextRequest) {
       url.searchParams.set('ids', `channel==${channel.channel_id}`)
       url.searchParams.set('startDate', startStr)
       url.searchParams.set('endDate', endStr)
-      url.searchParams.set('metrics', 'views,impressions,impressionClickThroughRate,averageViewDuration,likes,comments,shares,subscribersGained')
+      // impressions/impressionClickThroughRate are NOT available in YouTube Analytics API v2
+      // — the API returns "Unknown identifier". Per-video impression data is only available
+      // through YouTube Studio (internal). We sync what's available: views, watch time, engagement.
+      url.searchParams.set('metrics', 'views,estimatedMinutesWatched,averageViewDuration,likes,comments,shares,subscribersGained')
       url.searchParams.set('dimensions', 'video')
       url.searchParams.set('sort', '-views')
       url.searchParams.set('maxResults', '50')
@@ -87,19 +90,15 @@ export async function GET(req: NextRequest) {
         if (!dbVideo) continue
 
         const views = Number(row[1])
-        const impressions = Number(row[2])
-        const ctr = Number(row[3])
-        const avgDuration = Number(row[4])
-        const likes = Number(row[5])
-        const comments = Number(row[6])
-        const shares = Number(row[7])
-        const subsGained = Number(row[8])
+        const avgDuration = Number(row[3])
+        const likes = Number(row[4])
+        const comments = Number(row[5])
+        const shares = Number(row[6])
+        const subsGained = Number(row[7])
 
         const previousPeriod = dbVideo.view_count_delta_today ?? 0
 
         await supabase.from('youtube_videos').update({
-          impressions,
-          ctr,
           avg_view_duration_seconds: avgDuration,
           view_count_delta_today: views,
           view_count_yesterday: previousPeriod,
@@ -111,8 +110,6 @@ export async function GET(req: NextRequest) {
           site_id: channel.site_id,
           date: today,
           views,
-          impressions,
-          ctr,
           avg_view_duration_seconds: avgDuration,
           likes,
           comments,

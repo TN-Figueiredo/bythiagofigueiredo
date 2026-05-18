@@ -167,29 +167,15 @@ export async function fetchYtChannelMetrics(
 
   const coreMetrics = 'views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,subscribersGained,subscribersLost,likes,comments,shares'
 
-  const [coreReport, impressionReport] = await Promise.all([
-    queryYtAnalytics(tokenInfo.accessToken, tokenInfo.channelId, {
-      startDate: toDateStr(start),
-      endDate: toDateStr(end),
-      metrics: coreMetrics,
-    }),
-    queryYtAnalytics(tokenInfo.accessToken, tokenInfo.channelId, {
-      startDate: toDateStr(start),
-      endDate: toDateStr(end),
-      metrics: 'impressions,impressionClickThroughRate',
-    }).catch((e) => {
-      // 403 = scope not granted (expected for some channels)
-      if (e instanceof YouTubeAnalyticsError && e.statusCode === 403) return null
-      Sentry.captureException(e, {
-        tags: { youtube_endpoint: 'impressions', channel_id: tokenInfo.channelId },
-      })
-      return null
-    }),
-  ])
+  // impressions/impressionClickThroughRate are NOT available in YouTube Analytics API v2
+  const coreReport = await queryYtAnalytics(tokenInfo.accessToken, tokenInfo.channelId, {
+    startDate: toDateStr(start),
+    endDate: toDateStr(end),
+    metrics: coreMetrics,
+  })
 
   if (!coreReport.rows?.[0]) return null
   const row = coreReport.rows[0]!
-  const impRow = impressionReport?.rows?.[0]
 
   return {
     views: Number(row[0]),
@@ -198,8 +184,8 @@ export async function fetchYtChannelMetrics(
     averageViewPercentage: Number(row[3]),
     subscribersGained: Number(row[4]),
     subscribersLost: Number(row[5]),
-    impressions: impRow ? Number(impRow[0]) : 0,
-    impressionClickThroughRate: impRow ? Number(impRow[1]) : 0,
+    impressions: 0,
+    impressionClickThroughRate: 0,
     likes: Number(row[6]),
     comments: Number(row[7]),
     shares: Number(row[8]),
@@ -214,52 +200,26 @@ export async function fetchYtDailyMetrics(siteId: string, days: number, channelI
   const start = new Date()
   start.setDate(start.getDate() - days)
 
-  const [coreReport, impReport] = await Promise.all([
-    queryYtAnalytics(tokenInfo.accessToken, tokenInfo.channelId, {
-      startDate: toDateStr(start),
-      endDate: toDateStr(end),
-      metrics: 'views,estimatedMinutesWatched,subscribersGained,subscribersLost,likes,comments,shares',
-      dimensions: 'day',
-      sort: 'day',
-    }),
-    queryYtAnalytics(tokenInfo.accessToken, tokenInfo.channelId, {
-      startDate: toDateStr(start),
-      endDate: toDateStr(end),
-      metrics: 'impressions,impressionClickThroughRate',
-      dimensions: 'day',
-      sort: 'day',
-    }).catch((e) => {
-      if (e instanceof YouTubeAnalyticsError && e.statusCode === 403) {
-        return { rows: [] as (string | number)[][] }
-      }
-      Sentry.captureException(e, {
-        tags: { youtube_endpoint: 'impressions_daily', channel_id: tokenInfo.channelId },
-      })
-      return { rows: [] as (string | number)[][] }
-    }),
-  ])
-
-  const impByDate = new Map<string, { impressions: number; ctr: number }>()
-  for (const row of impReport.rows ?? []) {
-    impByDate.set(String(row[0]), { impressions: Number(row[1]), ctr: Number(row[2]) })
-  }
-
-  return (coreReport.rows ?? []).map((row) => {
-    const date = String(row[0])
-    const imp = impByDate.get(date)
-    return {
-      date,
-      views: Number(row[1]),
-      estimatedMinutesWatched: Number(row[2]),
-      subscribersGained: Number(row[3]),
-      subscribersLost: Number(row[4]),
-      impressions: imp?.impressions ?? 0,
-      impressionClickThroughRate: imp?.ctr ?? 0,
-      likes: Number(row[5]),
-      comments: Number(row[6]),
-      shares: Number(row[7]),
-    }
+  const coreReport = await queryYtAnalytics(tokenInfo.accessToken, tokenInfo.channelId, {
+    startDate: toDateStr(start),
+    endDate: toDateStr(end),
+    metrics: 'views,estimatedMinutesWatched,subscribersGained,subscribersLost,likes,comments,shares',
+    dimensions: 'day',
+    sort: 'day',
   })
+
+  return (coreReport.rows ?? []).map((row) => ({
+    date: String(row[0]),
+    views: Number(row[1]),
+    estimatedMinutesWatched: Number(row[2]),
+    subscribersGained: Number(row[3]),
+    subscribersLost: Number(row[4]),
+    impressions: 0,
+    impressionClickThroughRate: 0,
+    likes: Number(row[5]),
+    comments: Number(row[6]),
+    shares: Number(row[7]),
+  }))
 }
 
 export async function fetchYtSearchTerms(siteId: string, days: number, channelId?: string): Promise<YtSearchTerm[]> {

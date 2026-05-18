@@ -228,13 +228,11 @@ describe('fetchYtChannelMetrics', () => {
     expect(result).toBeNull()
   })
 
-  it('combines core + impression reports correctly', async () => {
+  it('returns core metrics with impressions always 0 (not available in Analytics API v2)', async () => {
     const coreRow = [1000, 500, 180, 45.5, 20, 5, 150, 30, 25]
-    const impRow = [3000, 8.2]
 
     global.fetch = makeFetchMock([
       { status: 200, ok: true, body: { rows: [coreRow] } },
-      { status: 200, ok: true, body: { rows: [impRow] } },
     ])
 
     const promise = fetchYtChannelMetrics('site-1', 30)
@@ -251,50 +249,9 @@ describe('fetchYtChannelMetrics', () => {
     expect(result!.likes).toBe(150)
     expect(result!.comments).toBe(30)
     expect(result!.shares).toBe(25)
-    expect(result!.impressions).toBe(3000)
-    expect(result!.impressionClickThroughRate).toBe(8.2)
-  })
-
-  it('falls back to 0 impressions on 403 (scope not granted)', async () => {
-    const coreRow = [500, 250, 120, 40.0, 10, 2, 80, 15, 8]
-
-    // First call succeeds (core), second call 403 (impressions)
-    global.fetch = makeFetchMock([
-      { status: 200, ok: true, body: { rows: [coreRow] } },
-      { status: 403, ok: false, text: 'forbidden' },
-    ])
-
-    const promise = fetchYtChannelMetrics('site-1', 30)
-    await vi.runAllTimersAsync()
-    const result = await promise
-
-    expect(result).not.toBeNull()
-    expect(result!.views).toBe(500)
-    // Impression fallback to 0
     expect(result!.impressions).toBe(0)
     expect(result!.impressionClickThroughRate).toBe(0)
-    // Non-impression fields still correct
-    expect(result!.likes).toBe(80)
-  })
-
-  it('captures to Sentry and falls back on non-403 impression error', async () => {
-    const coreRow = [500, 250, 120, 40.0, 10, 2, 80, 15, 8]
-
-    global.fetch = makeFetchMock([
-      { status: 200, ok: true, body: { rows: [coreRow] } },
-      // 503 on impression call — non-403, should go to Sentry
-      { status: 503, ok: false },
-      { status: 503, ok: false },
-      { status: 503, ok: false },
-    ])
-
-    const promise = fetchYtChannelMetrics('site-1', 30)
-    await vi.runAllTimersAsync()
-    const result = await promise
-
-    expect(result).not.toBeNull()
-    expect(result!.impressions).toBe(0)
-    expect(Sentry.captureException).toHaveBeenCalled()
+    expect(global.fetch).toHaveBeenCalledTimes(1)
   })
 })
 
