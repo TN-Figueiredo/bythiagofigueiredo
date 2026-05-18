@@ -353,9 +353,9 @@ export const fetchPipelineData = unstable_cache(
         hook, body_content, tags, production_checklist, updated_at, created_at,
         blog_post_id, cover_image_url, validation_score, sort_order, version,
         is_archived,
-        dependencies:pipeline_dependencies(
+        dependencies:pipeline_dependencies!pipeline_dependencies_blocked_id_fkey(
           dependency_type,
-          depends_on_pipeline:content_pipeline!pipeline_dependencies_depends_on_id_fkey(code)
+          depends_on_pipeline:content_pipeline!pipeline_dependencies_blocker_id_fkey(code)
         )
       `)
       .eq('site_id', siteId)
