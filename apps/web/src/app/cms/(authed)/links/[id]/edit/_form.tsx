@@ -47,7 +47,7 @@ export function EditLinkForm({ linkId, siteId, initial }: EditLinkFormProps) {
     utm_id: initial.utm_id ?? '',
     expires_at: initial.expires_at,
     activates_at: initial.activates_at ?? '',
-    pass_click_ids: initial.pass_click_ids ?? false,
+    pass_click_ids: initial.pass_click_ids ?? true,
     click_limit: null,
     password: '',
   }

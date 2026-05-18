@@ -129,7 +129,7 @@ export async function createLink(
     code,
     slug: parsed.data.slug ?? null,
     title: parsed.data.title ?? null,
-    redirect_type: Number(parsed.data.redirect_type) as 301 | 302 | 307 | 308,
+    redirect_type: Number(parsed.data.redirect_type ?? '307') as 301 | 302 | 307 | 308,
     source_type: parsed.data.source_type ?? 'manual',
     source_id: parsed.data.source_id ?? null,
     utm_source: parsed.data.utm_source ?? null,
@@ -626,7 +626,8 @@ export async function getLinks(
     .is('deleted_at', null)
 
   if (parsed.data.search) {
-    query = query.ilike('title', `%${parsed.data.search}%`)
+    const escaped = parsed.data.search.replace(/%/g, '\\%').replace(/_/g, '\\_')
+    query = query.ilike('title', `%${escaped}%`)
   }
   if (parsed.data.source_type) {
     query = query.eq('source_type', parsed.data.source_type)

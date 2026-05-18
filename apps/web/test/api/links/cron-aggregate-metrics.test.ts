@@ -22,7 +22,9 @@ vi.mock('../../../lib/supabase/service', () => ({
           select: () => ({
             gt: () => ({
               lte: () => ({
-                order: () => ({ data: [], error: null }),
+                order: () => ({
+                  limit: () => ({ data: [], error: null }),
+                }),
               }),
             }),
           }),

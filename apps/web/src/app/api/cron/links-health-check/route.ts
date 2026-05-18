@@ -55,7 +55,7 @@ async function checkUrl(url: string): Promise<HealthStatus> {
       })
       clearTimeout(timer)
 
-      const ok = res.status < 500 || res.status === 401 || res.status === 403
+      const ok = (res.status >= 200 && res.status < 400) || res.status === 401 || res.status === 403
       return ok ? 'healthy' : 'unhealthy'
     } catch (err) {
       clearTimeout(timer)

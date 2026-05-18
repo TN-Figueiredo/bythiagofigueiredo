@@ -24,102 +24,107 @@ export async function GET(req: Request): Promise<Response> {
       .select('last_processed_at')
       .single()
 
-    const since = watermark?.last_processed_at ?? new Date(0).toISOString()
+    let since = watermark?.last_processed_at ?? new Date(0).toISOString()
     const until = new Date().toISOString()
+    const PAGE_SIZE = 1000
 
-    // Fetch clicks since watermark
-    const { data: clicks, error: clicksErr } = await supabase
-      .from('link_clicks')
-      .select('link_id, site_id, clicked_at, is_unique, is_bot, country, referrer_domain, device_type, referrer_source')
-      .gt('clicked_at', since)
-      .lte('clicked_at', until)
-      .order('clicked_at', { ascending: true })
-
-    if (clicksErr) {
-      Sentry.captureException(clicksErr, { tags: { links: 'true', component: 'cron-aggregate' } })
-      return {
-        status: 'error' as const,
-        error: clicksErr.message,
-      }
+    type Bucket = {
+      link_id: string
+      site_id: string
+      date: string
+      clicks: number
+      unique_visitors: number
+      bot_clicks: number
+      countries: Record<string, number>
+      mobile_clicks: number
+      desktop_clicks: number
+      tablet_clicks: number
+      ref_direct: number
+      ref_search: number
+      ref_social: number
+      ref_email: number
+      ref_referral: number
+      ref_other: number
+      hourly_clicks: Record<string, number>
     }
 
-    if (!clicks || clicks.length === 0) {
+    const buckets = new Map<string, Bucket>()
+    let totalFetched = 0
+
+    while (true) {
+      const { data: clicks, error: clicksErr } = await supabase
+        .from('link_clicks')
+        .select('link_id, site_id, clicked_at, is_unique, is_bot, country, referrer_domain, device_type, referrer_source')
+        .gt('clicked_at', since)
+        .lte('clicked_at', until)
+        .order('clicked_at', { ascending: true })
+        .limit(PAGE_SIZE)
+
+      if (clicksErr) {
+        Sentry.captureException(clicksErr, { tags: { links: 'true', component: 'cron-aggregate' } })
+        return {
+          status: 'error' as const,
+          error: clicksErr.message,
+        }
+      }
+
+      if (!clicks || clicks.length === 0) break
+
+      for (const click of clicks) {
+        const date = click.clicked_at.slice(0, 10)
+        const key = `${click.link_id}:${date}`
+        if (!buckets.has(key)) {
+          buckets.set(key, {
+            link_id: click.link_id,
+            site_id: click.site_id,
+            date,
+            clicks: 0,
+            unique_visitors: 0,
+            bot_clicks: 0,
+            countries: {},
+            mobile_clicks: 0,
+            desktop_clicks: 0,
+            tablet_clicks: 0,
+            ref_direct: 0,
+            ref_search: 0,
+            ref_social: 0,
+            ref_email: 0,
+            ref_referral: 0,
+            ref_other: 0,
+            hourly_clicks: {},
+          })
+        }
+        const b = buckets.get(key)!
+        b.clicks++
+        if (click.is_unique) b.unique_visitors++
+        if (click.is_bot) b.bot_clicks++
+        if (click.country) {
+          b.countries[click.country] = (b.countries[click.country] ?? 0) + 1
+        }
+        if (click.device_type === 'mobile') b.mobile_clicks++
+        else if (click.device_type === 'desktop') b.desktop_clicks++
+        else if (click.device_type === 'tablet') b.tablet_clicks++
+        const src = click.referrer_source ?? 'direct'
+        if (src === 'direct') b.ref_direct++
+        else if (src === 'search') b.ref_search++
+        else if (src === 'social') b.ref_social++
+        else if (src === 'email') b.ref_email++
+        else if (src === 'referral') b.ref_referral++
+        else b.ref_other++
+        const hour = String(new Date(click.clicked_at).getUTCHours())
+        b.hourly_clicks[hour] = (b.hourly_clicks[hour] ?? 0) + 1
+      }
+
+      totalFetched += clicks.length
+      since = clicks[clicks.length - 1]!.clicked_at
+
+      if (clicks.length < PAGE_SIZE) break
+    }
+
+    if (buckets.size === 0) {
       return { status: 'ok' as const, aggregated: 0 }
     }
 
-    // Aggregate by (link_id, date)
-    const buckets = new Map<
-      string,
-      {
-        link_id: string
-        site_id: string
-        date: string
-        clicks: number
-        unique_visitors: number
-        bot_clicks: number
-        countries: Record<string, number>
-        mobile_clicks: number
-        desktop_clicks: number
-        tablet_clicks: number
-        ref_direct: number
-        ref_search: number
-        ref_social: number
-        ref_email: number
-        ref_referral: number
-        ref_other: number
-        hourly_clicks: Record<string, number>
-      }
-    >()
-
-    for (const click of clicks) {
-      const date = click.clicked_at.slice(0, 10)
-      const key = `${click.link_id}:${date}`
-      if (!buckets.has(key)) {
-        buckets.set(key, {
-          link_id: click.link_id,
-          site_id: click.site_id,
-          date,
-          clicks: 0,
-          unique_visitors: 0,
-          bot_clicks: 0,
-          countries: {},
-          mobile_clicks: 0,
-          desktop_clicks: 0,
-          tablet_clicks: 0,
-          ref_direct: 0,
-          ref_search: 0,
-          ref_social: 0,
-          ref_email: 0,
-          ref_referral: 0,
-          ref_other: 0,
-          hourly_clicks: {},
-        })
-      }
-      const b = buckets.get(key)!
-      b.clicks++
-      if (click.is_unique) b.unique_visitors++
-      if (click.is_bot) b.bot_clicks++
-      if (click.country) {
-        b.countries[click.country] = (b.countries[click.country] ?? 0) + 1
-      }
-      // Device breakdown
-      if (click.device_type === 'mobile') b.mobile_clicks++
-      else if (click.device_type === 'desktop') b.desktop_clicks++
-      else if (click.device_type === 'tablet') b.tablet_clicks++
-      // Referrer source breakdown
-      const src = click.referrer_source ?? 'direct'
-      if (src === 'direct') b.ref_direct++
-      else if (src === 'search') b.ref_search++
-      else if (src === 'social') b.ref_social++
-      else if (src === 'email') b.ref_email++
-      else if (src === 'referral') b.ref_referral++
-      else b.ref_other++
-      // Hourly distribution
-      const hour = String(new Date(click.clicked_at).getUTCHours())
-      b.hourly_clicks[hour] = (b.hourly_clicks[hour] ?? 0) + 1
-    }
-
-    // Upsert daily metrics
     const rows = [...buckets.values()].map((b) => ({
       link_id: b.link_id,
       site_id: b.site_id,
@@ -150,11 +155,10 @@ export async function GET(req: Request): Promise<Response> {
       return { status: 'error' as const, error: upsertErr.message }
     }
 
-    // Update watermark
     await supabase
       .from('link_aggregation_watermark')
       .upsert({ id: 'singleton', last_processed_at: until })
 
-    return { status: 'ok' as const, aggregated: rows.length }
+    return { status: 'ok' as const, aggregated: rows.length, clicksProcessed: totalFetched }
   })
 }

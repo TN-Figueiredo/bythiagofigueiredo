@@ -3,7 +3,7 @@ import * as Sentry from '@sentry/nextjs'
 import { resolveLink } from '@/lib/links/resolver'
 import { recordClick } from '@/lib/links/click-recorder'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { safePassthrough, extractClickIds } from '@tn-figueiredo/links'
+import { safePassthrough } from '@tn-figueiredo/links'
 
 export const runtime = 'nodejs'
 
@@ -70,9 +70,7 @@ export async function GET(
     if (link.activates_at && new Date(link.activates_at) > new Date()) {
       const comingSoonUrl = new URL('/go/coming-soon', request.url)
       comingSoonUrl.searchParams.set('title', link.title ?? link.code)
-      if (link.activates_at) {
-        comingSoonUrl.searchParams.set('activates', link.activates_at)
-      }
+      comingSoonUrl.searchParams.set('activates', link.activates_at)
       return NextResponse.rewrite(comingSoonUrl)
     }
 
@@ -109,7 +107,11 @@ export async function GET(
       const passResult = safePassthrough(incomingUrl, destination)
       if (passResult.forwarded.length > 0) {
         destination = passResult.url
-        clickIds = extractClickIds(incomingUrl)
+        clickIds = {}
+        for (const name of passResult.forwarded) {
+          const val = passResult.url.searchParams.get(name)
+          if (val) clickIds[name] = val
+        }
         Sentry.addBreadcrumb({
           category: 'links.passthrough',
           message: `Forwarded click IDs: ${passResult.forwarded.join(', ')}`,
@@ -126,11 +128,13 @@ export async function GET(
     }
 
     // Custom params (jsonb key-value pairs from tracked_links)
+    const SAFE_KEY_RE = /^[a-zA-Z0-9_-]+$/
     if (link.custom_params && typeof link.custom_params === 'object') {
       const entries = Object.entries(link.custom_params)
       let applied = 0
       for (const [key, value] of entries) {
         if (applied >= 20) break
+        if (!SAFE_KEY_RE.test(key)) continue
         if (!value || typeof value !== 'string') continue
         if (key.toLowerCase().startsWith('utm_')) continue
         if (value.length > 500) continue
