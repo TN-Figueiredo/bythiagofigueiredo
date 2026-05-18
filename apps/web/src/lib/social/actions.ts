@@ -1113,3 +1113,55 @@ export async function editPublishedPost(
     throw err
   }
 }
+
+// ---------------------------------------------------------------------------
+// Mark as posted (manual Story posting flow)
+// ---------------------------------------------------------------------------
+
+export async function markAsPosted(postId: string): Promise<ActionResult> {
+  const parsed = z.string().uuid().safeParse(postId)
+  if (!parsed.success) return { ok: false, error: 'Invalid post ID' }
+
+  try {
+    const { siteId } = await requireEditAccess()
+    const supabase = getSupabaseServiceClient()
+
+    const now = new Date().toISOString()
+
+    const { error: postError } = await supabase
+      .from('social_posts')
+      .update({
+        status: 'completed',
+        published_at: now,
+        updated_at: now,
+      })
+      .eq('id', parsed.data)
+      .eq('site_id', siteId)
+      .in('status', ['publishing', 'scheduled', 'draft'])
+
+    if (postError) {
+      console.error('[markAsPosted]', postError)
+      Sentry.captureException(postError, { tags: { ...SENTRY_TAG, action: 'markAsPosted' } })
+      return { ok: false, error: 'Failed to mark post as posted' }
+    }
+
+    // Mark pending deliveries as completed
+    const { error: deliveryError } = await supabase
+      .from('social_deliveries')
+      .update({ status: 'delivered', delivered_at: now })
+      .eq('post_id', parsed.data)
+      .in('status', ['pending', 'publishing'])
+
+    if (deliveryError) {
+      console.error('[markAsPosted] delivery update', deliveryError)
+      Sentry.captureException(deliveryError, { tags: { ...SENTRY_TAG, action: 'markAsPosted' } })
+      // Non-fatal: post status already updated
+    }
+
+    revalidateSocialPaths()
+    return { ok: true, data: undefined }
+  } catch (err) {
+    Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'markAsPosted' } })
+    throw err
+  }
+}

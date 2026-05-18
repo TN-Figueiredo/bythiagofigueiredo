@@ -29,6 +29,8 @@ vi.mock('@/lib/supabase/service', () => ({
   }),
 }))
 
+import { getNextQueueSlot } from '@/lib/social/queue'
+
 describe('getNextQueueSlot', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -42,8 +44,6 @@ describe('getNextQueueSlot', () => {
   it('returns the next available 2h slot between 9h-21h', async () => {
     vi.setSystemTime(new Date('2026-05-14T13:30:00Z'))
     mockSelect.mockResolvedValue({ data: [], error: null })
-
-    const { getNextQueueSlot } = await import('@/lib/social/queue')
 
     const slot = await getNextQueueSlot('site-1', 'America/Sao_Paulo')
 
@@ -62,8 +62,6 @@ describe('getNextQueueSlot', () => {
       error: null,
     })
 
-    const { getNextQueueSlot } = await import('@/lib/social/queue')
-
     const slot = await getNextQueueSlot('site-1', 'America/Sao_Paulo')
 
     expect(slot).not.toBeNull()
@@ -73,8 +71,6 @@ describe('getNextQueueSlot', () => {
   it('moves to next day when all slots for today are past or taken', async () => {
     vi.setSystemTime(new Date('2026-05-15T00:30:00Z'))
     mockSelect.mockResolvedValue({ data: [], error: null })
-
-    const { getNextQueueSlot } = await import('@/lib/social/queue')
 
     const slot = await getNextQueueSlot('site-1', 'America/Sao_Paulo')
 
@@ -97,8 +93,6 @@ describe('getNextQueueSlot', () => {
 
     vi.setSystemTime(new Date('2026-05-14T11:00:00Z'))
 
-    const { getNextQueueSlot } = await import('@/lib/social/queue')
-
     const slot = await getNextQueueSlot('site-1', 'America/Sao_Paulo')
     expect(slot).toBeNull()
   })
@@ -106,8 +100,6 @@ describe('getNextQueueSlot', () => {
   it('generates valid ISO 8601 scheduledAt', async () => {
     vi.setSystemTime(new Date('2026-05-14T13:00:00Z'))
     mockSelect.mockResolvedValue({ data: [], error: null })
-
-    const { getNextQueueSlot } = await import('@/lib/social/queue')
 
     const slot = await getNextQueueSlot('site-1', 'America/Sao_Paulo')
 
