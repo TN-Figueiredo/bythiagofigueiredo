@@ -93,6 +93,21 @@ export function YtNotificationsBell({ notifications, onMarkRead, onMarkAllRead, 
     }
   }, [open])
 
+  useEffect(() => {
+    if (!open) return
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node
+      if (
+        panelRef.current && !panelRef.current.contains(target) &&
+        bellRef.current && !bellRef.current.contains(target)
+      ) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [open])
+
   const handlePanelKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== 'Tab') return
     const panel = panelRef.current
@@ -142,18 +157,15 @@ export function YtNotificationsBell({ notifications, onMarkRead, onMarkAllRead, 
       </button>
 
       {open && (
-        <>
-          <div className="fixed inset-0 z-40" role="presentation" onClick={() => setOpen(false)} />
-          <div ref={panelRef} onKeyDown={handlePanelKeyDown} className="absolute right-0 top-full z-50 mt-2 w-80 rounded border border-cms-border bg-cms-bg shadow-lg" role="dialog" aria-label="Painel de notificações">
-            <YtNotificationsPanel
-              notifications={optimisticNotifications}
-              onMarkRead={handleMarkRead}
-              onMarkAllRead={handleMarkAllRead}
-              onDismiss={handleDismiss}
-              pending={isPending}
-            />
-          </div>
-        </>
+        <div ref={panelRef} onKeyDown={handlePanelKeyDown} className="absolute right-0 top-full z-50 mt-2 w-80 rounded border border-cms-border bg-cms-bg shadow-lg" role="dialog" aria-label="Painel de notificações">
+          <YtNotificationsPanel
+            notifications={optimisticNotifications}
+            onMarkRead={handleMarkRead}
+            onMarkAllRead={handleMarkAllRead}
+            onDismiss={handleDismiss}
+            pending={isPending}
+          />
+        </div>
       )}
     </div>
   )

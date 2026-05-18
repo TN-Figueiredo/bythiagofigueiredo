@@ -86,6 +86,22 @@ export function transitionState(
       }
       updated.cycle_number = nextCycle
       updated.flagged_at = now
+      updated.diagnosed_at = null
+      updated.diagnosis_summary = null
+      updated.test_suggested_at = null
+      updated.test_suggestion = null
+      updated.ab_test_id = null
+      updated.testing_started_at = null
+      updated.test_completed_at = null
+      updated.test_winner_applied_at = null
+      updated.monitoring_day7_at = null
+      updated.monitoring_day7_result = null
+      updated.monitoring_day14_at = null
+      updated.monitoring_day14_result = null
+      updated.monitoring_day30_at = null
+      updated.monitoring_day30_result = null
+      updated.resolved_at = null
+      updated.resolved_reason = null
       updated.cooldown_until = null
       break
     }

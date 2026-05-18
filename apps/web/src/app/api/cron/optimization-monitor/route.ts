@@ -52,6 +52,7 @@ export async function GET(req: NextRequest) {
             .from('video_grade_history')
             .select('score, grade')
             .eq('youtube_video_id', cycle.youtube_video_id)
+            .eq('site_id', cycle.site_id)
             .order('recorded_at', { ascending: false })
             .limit(1)
             .single()

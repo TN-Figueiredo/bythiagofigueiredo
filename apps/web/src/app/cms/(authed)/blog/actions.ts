@@ -723,11 +723,13 @@ export async function searchPipelineItems(
   siteId: string,
   query: string,
 ): Promise<PipelineSearchResult[]> {
+  const ctx = await getSiteContext()
+  siteId = ctx.siteId
   await requireEditScope(siteId)
   const svc = getSupabaseServiceClient()
-  const sanitized = query.replace(/[,%()]/g, '')
-  if (!sanitized) return []
-  const pattern = `%${sanitized}%`
+  const escaped = query.replace(/[%_\\]/g, '\\$&')
+  if (!escaped.trim()) return []
+  const pattern = `%${escaped}%`
 
   const { data } = await svc
     .from('content_pipeline')
@@ -791,6 +793,8 @@ export async function createPostFromPipeline(
   locale: string,
   scheduledFor?: string,
 ): Promise<{ ok: true; postId: string } | { ok: false; error: string }> {
+  const ctx = await getSiteContext()
+  siteId = ctx.siteId
   await requireEditScope(siteId)
   const svc = getSupabaseServiceClient()
   const userClient = await getUserClient()

@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   const { data: channels } = await supabase
     .from('youtube_channels')
     .select('id, site_id, subscriber_count')
-    .eq('enabled', true)
+    .eq('sync_enabled', true)
 
   if (!channels?.length) return NextResponse.json({ status: 'no_channels' })
 
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
     try {
       const { data: videos } = await supabase
         .from('youtube_videos')
-        .select('id, video_id, title, published_at, view_count, ctr, impressions, avg_view_percentage, avg_view_duration_seconds, traffic_sources')
+        .select('id, youtube_video_id, title, published_at, view_count, ctr, impressions, avg_view_percentage, avg_view_duration_seconds, traffic_sources')
         .eq('channel_id', channel.id)
         .not('ctr', 'is', null)
         .order('published_at', { ascending: false })
@@ -61,6 +61,7 @@ export async function GET(req: NextRequest) {
       const { data: allHistory } = await supabase
         .from('video_grade_history')
         .select('youtube_video_id, grade, score, week_iso')
+        .eq('site_id', channel.site_id)
         .in('youtube_video_id', videoIds)
         .order('week_iso', { ascending: false })
         .limit(200)
@@ -138,6 +139,7 @@ export async function GET(req: NextRequest) {
               .from('optimization_cycles')
               .select('id')
               .eq('youtube_video_id', video.id)
+              .eq('site_id', channel.site_id)
               .not('state', 'in', '("resolved","exhausted","unmonitored")')
               .limit(1)
               .single()
@@ -147,6 +149,7 @@ export async function GET(req: NextRequest) {
                 .from('optimization_cycles')
                 .select('id, cooldown_until')
                 .eq('youtube_video_id', video.id)
+                .eq('site_id', channel.site_id)
                 .eq('state', 'resolved')
                 .not('cooldown_until', 'is', null)
                 .gt('cooldown_until', new Date().toISOString())

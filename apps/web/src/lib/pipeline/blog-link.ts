@@ -51,6 +51,7 @@ export async function linkPostToItem(
     .from('content_pipeline')
     .update({ blog_post_id: postId })
     .eq('id', itemId)
+    .eq('site_id', siteId)
 
   if (updateErr) {
     if (updateErr.code === '23505') {
@@ -100,10 +101,13 @@ export async function unlinkPostFromItem(
 
   const previousPostId = item.blog_post_id
 
-  await svc
+  const { error: updateErr } = await svc
     .from('content_pipeline')
     .update({ blog_post_id: null })
     .eq('id', itemId)
+    .eq('site_id', siteId)
+
+  if (updateErr) return { ok: false, error: updateErr.message }
 
   await svc.from('content_pipeline_history').insert({
     pipeline_id: itemId,

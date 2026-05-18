@@ -112,6 +112,7 @@ export const PipelineCard = memo(function PipelineCard({
                 e.stopPropagation()
                 onPromote?.(item.id)
               }}
+              aria-label={`${strings?.promotion?.promote ?? 'Promote'} — ${title}`}
               className="flex items-center gap-1 rounded bg-indigo-500/20 px-2 py-0.5 text-[9px] font-medium text-indigo-400 hover:bg-indigo-500/30 transition-colors"
             >
               <ArrowRightCircle className="h-3 w-3" />

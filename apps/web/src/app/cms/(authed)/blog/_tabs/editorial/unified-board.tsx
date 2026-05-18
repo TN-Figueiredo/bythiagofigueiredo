@@ -518,19 +518,34 @@ export function UnifiedBoard({
   }), [getItemTitle, getLaneTitle, findItemLane, resolveTargetLane, strings])
 
   const handlePublishAll = useCallback(async () => {
-    await onBulkPublish([...selectedIds])
-    setSelectedIds(new Set())
-  }, [onBulkPublish, selectedIds])
+    try {
+      await onBulkPublish([...selectedIds])
+    } catch {
+      toast.error(strings?.common?.couldntMove ?? 'Operation failed')
+    } finally {
+      setSelectedIds(new Set())
+    }
+  }, [onBulkPublish, selectedIds, strings])
 
   const handleArchiveAll = useCallback(async () => {
-    await onBulkArchive([...selectedIds])
-    setSelectedIds(new Set())
-  }, [onBulkArchive, selectedIds])
+    try {
+      await onBulkArchive([...selectedIds])
+    } catch {
+      toast.error(strings?.common?.couldntMove ?? 'Operation failed')
+    } finally {
+      setSelectedIds(new Set())
+    }
+  }, [onBulkArchive, selectedIds, strings])
 
   const handleDeleteAll = useCallback(async () => {
-    await onBulkDelete([...selectedIds])
-    setSelectedIds(new Set())
-  }, [onBulkDelete, selectedIds])
+    try {
+      await onBulkDelete([...selectedIds])
+    } catch {
+      toast.error(strings?.common?.couldntMove ?? 'Operation failed')
+    } finally {
+      setSelectedIds(new Set())
+    }
+  }, [onBulkDelete, selectedIds, strings])
 
   return (
     <>
