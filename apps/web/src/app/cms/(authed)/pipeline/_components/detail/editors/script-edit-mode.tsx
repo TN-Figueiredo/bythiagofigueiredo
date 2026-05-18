@@ -71,6 +71,7 @@ function BeatsOverview({ beats }: { beats: RoteiroBeat[] }) {
           <tr style={{ borderBottom: '1px solid var(--gem-border)' }}>
             <th className="px-3 py-1.5 text-left font-bold uppercase tracking-wider text-[8px]" style={{ color: 'var(--gem-dim)', width: 32 }} />
             <th className="px-2 py-1.5 text-left font-bold uppercase tracking-wider text-[8px]" style={{ color: 'var(--gem-dim)' }}>Beat</th>
+            <th className="px-2 py-1.5 text-center font-bold uppercase tracking-wider text-[8px]" style={{ color: 'var(--gem-dim)', width: 50 }}>Status</th>
             <th className="px-2 py-1.5 text-right font-bold uppercase tracking-wider text-[8px]" style={{ color: 'var(--gem-dim)', width: 50 }}>Dur</th>
             <th className="px-3 py-1.5 text-right font-bold uppercase tracking-wider text-[8px]" style={{ color: 'var(--gem-dim)', width: 60 }}>Leitura</th>
           </tr>
@@ -80,6 +81,7 @@ function BeatsOverview({ beats }: { beats: RoteiroBeat[] }) {
             <tr key={b.idx} style={{ borderBottom: '1px solid color-mix(in srgb, var(--gem-border) 50%, transparent)' }}>
               <td className="px-3 py-1 font-bold tabular-nums" style={{ color: 'var(--gem-accent)' }}>#{b.idx}</td>
               <td className="px-2 py-1 font-medium truncate" style={{ color: 'var(--gem-muted)' }}>{b.name}</td>
+              <td className="px-2 py-1 text-center text-[8px] font-bold uppercase" style={{ color: b.status === 'DONE' ? '#22c55e' : 'var(--gem-dim)' }}>{b.status === 'DONE' ? '✓' : '―'}</td>
               <td className="px-2 py-1 text-right tabular-nums font-mono text-[9px]" style={{ color: 'var(--gem-dim)' }}>{b.duration ? fmtDur(b.duration) : '-'}</td>
               <td className="px-3 py-1 text-right tabular-nums font-mono text-[9px]" style={{ color: 'var(--gem-dim)' }}>~{beatReadTime(b)}s</td>
             </tr>

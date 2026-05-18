@@ -108,6 +108,7 @@ export function ScriptBeatAccordion({
       style={{
         ...sortableStyle,
         border: '1px solid var(--gem-border)',
+        borderLeft: `3px solid ${beat.status === 'DONE' ? '#22c55e' : 'var(--gem-border)'}`,
         background: isDragging ? 'var(--gem-well)' : 'transparent',
       }}
     >
