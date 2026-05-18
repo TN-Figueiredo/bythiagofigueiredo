@@ -1,7 +1,7 @@
 // apps/web/test/unit/timeline-utils.test.ts
 
 import { describe, it, expect } from 'vitest'
-import { fmtTime, fmtDur, pRand, badgeTextColor, tickInterval, calcPxPerSec, difficultyColor } from '@/app/cms/(authed)/pipeline/_components/detail/renderers/_timeline/utils'
+import { fmtTime, fmtDur, pRand, badgeTextColor, tickInterval, calcPxPerSec, difficultyColor, parsePostProdContent } from '@/app/cms/(authed)/pipeline/_components/detail/renderers/_timeline/utils'
 
 describe('fmtTime', () => {
   it('formats 0 as 00:00', () => {
@@ -90,5 +90,31 @@ describe('difficultyColor', () => {
 
   it('returns orange for MEDIUM', () => {
     expect(difficultyColor('MEDIUM')).toBe('#E67E22')
+  })
+})
+
+describe('parsePostProdContent', () => {
+  it('parses scenes content into beats and assets', () => {
+    const scenes = {
+      beats: [{ idx: 0, label: 'Beat 0', name: 'Hook', duration: 24, absStart: 0, status: 'PENDING', difficulty: 'EASY', clips: {} }],
+      assets: { 0: { music: [] } },
+    }
+    const result = parsePostProdContent(scenes, undefined, undefined)
+    expect(result.beats).toHaveLength(1)
+    expect(result.beats![0]!.name).toBe('Hook')
+    expect(result.assets).toBeDefined()
+  })
+
+  it('parses crossRef and speedRamps', () => {
+    const crossRef = { summary: 'test', beats: [], divergences: [] }
+    const speedRamps = { summary: 'test', base: 'x', sections: [] }
+    const result = parsePostProdContent(undefined, crossRef, speedRamps)
+    expect(result.crossRef).toBeDefined()
+    expect(result.speedRamps).toBeDefined()
+  })
+
+  it('returns empty object for null inputs', () => {
+    const result = parsePostProdContent(null, null, null)
+    expect(result).toEqual({})
   })
 })
