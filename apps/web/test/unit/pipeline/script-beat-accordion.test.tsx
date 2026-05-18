@@ -93,4 +93,27 @@ describe('ScriptBeatAccordion', () => {
     fireEvent.click(screen.getByLabelText('Status: PENDING'))
     expect(onBeatChange).toHaveBeenCalledWith(expect.objectContaining({ status: 'DONE' }))
   })
+
+  it('shows "Gravado" status badge when beat.status is DONE in read mode', () => {
+    const doneBeat: RoteiroBeat = { ...baseBeat, status: 'DONE' }
+    render(
+      <ScriptBeatAccordion beat={doneBeat} isEditing={false} onBeatChange={vi.fn()} onDelete={vi.fn()} />,
+    )
+    expect(screen.getByText('Gravado')).toBeTruthy()
+  })
+
+  it('shows "Pendente" status badge when beat.status is PENDING in read mode', () => {
+    render(
+      <ScriptBeatAccordion beat={baseBeat} isEditing={false} onBeatChange={vi.fn()} onDelete={vi.fn()} />,
+    )
+    expect(screen.getByText('Pendente')).toBeTruthy()
+  })
+
+  it('shows duration display in read mode when beat has duration', () => {
+    const beatWithDuration: RoteiroBeat = { ...baseBeat, duration: 45 }
+    render(
+      <ScriptBeatAccordion beat={beatWithDuration} isEditing={false} onBeatChange={vi.fn()} onDelete={vi.fn()} />,
+    )
+    expect(screen.getByText('45s')).toBeTruthy()
+  })
 })

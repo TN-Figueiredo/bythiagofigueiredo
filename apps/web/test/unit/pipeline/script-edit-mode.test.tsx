@@ -95,4 +95,10 @@ describe('ScriptEditMode', () => {
     render(<ScriptEditMode content={empty} isEditing={false} onChange={vi.fn()} />)
     expect(screen.getByText('Nenhum beat encontrado no roteiro.')).toBeTruthy()
   })
+
+  it('shows add-beat button when beats empty and editing', () => {
+    const empty: RoteiroContent = { version: 2, meta: {}, beats: [] }
+    render(<ScriptEditMode content={empty} isEditing={true} onChange={vi.fn()} />)
+    expect(screen.getByText('Adicionar beat')).toBeTruthy()
+  })
 })

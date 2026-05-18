@@ -91,6 +91,7 @@ function BeatsOverview({ beats }: { beats: RoteiroBeat[] }) {
           <tr style={{ borderTop: '1px solid var(--gem-border)' }}>
             <td className="px-3 py-1.5" />
             <td className="px-2 py-1.5 font-semibold" style={{ color: 'var(--gem-muted)' }}>Total</td>
+            <td className="px-2 py-1.5" />
             <td className="px-2 py-1.5 text-right tabular-nums font-mono text-[9px] font-semibold" style={{ color: 'var(--gem-muted)' }}>{fmtDur(totalDur)}</td>
             <td className="px-3 py-1.5 text-right tabular-nums font-mono text-[9px] font-semibold" style={{ color: 'var(--gem-muted)' }}>~{totalRead}s</td>
           </tr>

@@ -103,6 +103,35 @@ describe('ScriptRenderer — unified mode', () => {
   })
 })
 
+describe('ScriptRenderer — overview table', () => {
+  it('shows status indicators in overview table', () => {
+    const content = {
+      meta: { canal: 'EN' },
+      beats: [
+        { number: 0, label: 'HOOK', status: 'GRAVADO', text: '"Hello world"' },
+        { number: 1, label: 'Body', status: 'PENDING', text: '"Main content"' },
+      ],
+    }
+    const { container } = render(
+      <ScriptRenderer content={content} isEditing={false} lang="en" onContentChange={noop} />,
+    )
+    // The overview table should have a Status column header
+    expect(container.textContent).toContain('Status')
+  })
+
+  it('print view container has script-view class', () => {
+    const { container } = render(
+      <ScriptRenderer content={BEAT_WITH_TAGS} isEditing={false} lang="en" onContentChange={noop} />,
+    )
+    const printView = container.querySelector('.script-print-view')
+    expect(printView).toBeTruthy()
+    const scriptView = printView!.querySelector('.script-view')
+    expect(scriptView).toBeTruthy()
+    // Verify it contains expected content structure
+    expect(scriptView!.textContent).toContain('Roteiro')
+  })
+})
+
 describe('ScriptRenderer — edge cases', () => {
   it('handles empty beats array', () => {
     const { container } = render(

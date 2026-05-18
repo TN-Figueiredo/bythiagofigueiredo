@@ -70,10 +70,14 @@ export function tipTapToRoteiro(json: JSONContent): ScriptLine[] {
   for (const node of json.content) {
     switch (node.type) {
       case 'scriptTag': {
-        const tag = (node.attrs?.tag ?? 'VISUAL') as ScriptLine & { type: 'note' } extends { tag: infer T } ? T : never
+        const raw = String(node.attrs?.tag ?? 'VISUAL')
+        const TAG_WHITELIST = ['VISUAL', 'DIRECTION', 'NARRACAO'] as const
+        const tag = TAG_WHITELIST.includes(raw as typeof TAG_WHITELIST[number])
+          ? (raw as typeof TAG_WHITELIST[number])
+          : 'VISUAL'
         const text = extractText(node)
         if (text) {
-          lines.push({ type: 'note', tag: tag as 'VISUAL' | 'DIRECTION' | 'NARRACAO', text })
+          lines.push({ type: 'note', tag, text })
         }
         break
       }

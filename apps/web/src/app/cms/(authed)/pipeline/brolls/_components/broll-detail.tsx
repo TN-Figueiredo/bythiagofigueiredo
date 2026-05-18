@@ -344,7 +344,7 @@ export function BRollDetail({ assetId, allAssets, onClose, onFilter, fullWidth }
   if (fetchError || !asset) {
     return (
       <div style={{ ...panelStyle, padding: 20, gap: 10, display: 'flex', flexDirection: 'column' }}>
-        <span style={{ fontSize: 12, color: '#f87171' }}>{fetchError ?? 'Asset not found'}</span>
+        <span style={{ fontSize: 12, color: 'var(--gem-danger, #f87171)' }}>{fetchError ?? 'Asset not found'}</span>
         <button onClick={onClose} style={{ fontSize: 11, background: 'none', border: '1px solid var(--gem-border)', color: 'var(--gem-muted)', cursor: 'pointer', borderRadius: 4, padding: '3px 10px', alignSelf: 'flex-start' }}>Close</button>
       </div>
     )
@@ -382,7 +382,7 @@ export function BRollDetail({ assetId, allAssets, onClose, onFilter, fullWidth }
 
         {/* Conflict alert */}
         {conflict && (
-          <div role="alert" style={{ fontSize: 11, color: '#f87171', background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 4, padding: '5px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div role="alert" style={{ fontSize: 11, color: 'var(--gem-danger, #f87171)', background: 'color-mix(in srgb, var(--gem-danger, #f87171) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--gem-danger, #f87171) 30%, transparent)', borderRadius: 4, padding: '5px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>Asset was modified. Merge or force save?</span>
             <div style={{ display: 'flex', gap: 6 }}>
               <button onClick={() => {
@@ -391,8 +391,8 @@ export function BRollDetail({ assetId, allAssets, onClose, onFilter, fullWidth }
                   .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() as Promise<{ data: AssetWithUsage }> })
                   .then(json => { setAsset(json.data); setLoading(false) })
                   .catch(() => { setSaveError('Failed to refresh. Please try again.'); setLoading(false) })
-              }} style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3, background: 'none', border: '1px solid #f87171', color: '#f87171', cursor: 'pointer' }}>Refresh &amp; merge</button>
-              <button onClick={() => handleSave(true)} style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3, background: 'rgba(248,113,113,0.2)', border: '1px solid #f87171', color: '#f87171', cursor: 'pointer' }}>Force save</button>
+              }} style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3, background: 'none', border: '1px solid var(--gem-danger, #f87171)', color: 'var(--gem-danger, #f87171)', cursor: 'pointer' }}>Refresh &amp; merge</button>
+              <button onClick={() => handleSave(true)} style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3, background: 'color-mix(in srgb, var(--gem-danger, #f87171) 20%, transparent)', border: '1px solid var(--gem-danger, #f87171)', color: 'var(--gem-danger, #f87171)', cursor: 'pointer' }}>Force save</button>
             </div>
           </div>
         )}
@@ -438,12 +438,12 @@ export function BRollDetail({ assetId, allAssets, onClose, onFilter, fullWidth }
           const currentIndex = tabs.indexOf(activeTab)
           if (e.key === 'ArrowRight') {
             e.preventDefault()
-            const next = tabs[(currentIndex + 1) % tabs.length]
+            const next = tabs[(currentIndex + 1) % tabs.length]!
             setActiveTab(next)
             ;(e.currentTarget.querySelector(`[id="tab-${next}"]`) as HTMLElement | null)?.focus()
           } else if (e.key === 'ArrowLeft') {
             e.preventDefault()
-            const prev = tabs[(currentIndex - 1 + tabs.length) % tabs.length]
+            const prev = tabs[(currentIndex - 1 + tabs.length) % tabs.length]!
             setActiveTab(prev)
             ;(e.currentTarget.querySelector(`[id="tab-${prev}"]`) as HTMLElement | null)?.focus()
           }
