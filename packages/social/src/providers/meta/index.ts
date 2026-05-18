@@ -113,7 +113,7 @@ export class InstagramProvider implements ISocialProvider {
   async publish(
     post: SocialPost,
     connection: SocialConnection,
-    _delivery: SocialDelivery,
+    delivery: SocialDelivery,
   ): Promise<PlatformResult> {
     const token = this.decryptToken(connection.page_token_enc!)
     const igUserId = (connection.metadata as { ig_user_id: string }).ig_user_id
@@ -126,7 +126,13 @@ export class InstagramProvider implements ISocialProvider {
       ? /\.(mp4|mov|webm)(\?|$)/i.test(firstMedia)
       : false
 
-    const mediaType = isVideo ? 'REELS' as const : undefined
+    // Determine media_type from delivery format first, then file extension
+    let mediaType: 'STORIES' | 'REELS' | undefined
+    if (delivery.format === 'story') {
+      mediaType = 'STORIES'
+    } else if (delivery.format === 'reel' || isVideo) {
+      mediaType = 'REELS'
+    }
 
     return publishInstagramMedia(igUserId, token, {
       image_url: !isVideo ? firstMedia : undefined,

@@ -103,6 +103,7 @@ export interface SocialDelivery {
   error_type: ErrorType | null
   published_at: string | null
   created_at: string
+  format?: 'link_share' | 'image_post' | 'story' | 'reel' | 'link_card' | 'video_share'
 }
 
 export interface YouTubeQuotaUsage {

@@ -188,24 +188,26 @@ export async function executeWithRetry(
 
 async function prepareStoryDelivery(
   post: SocialPost,
-  delivery: SocialDelivery & { format?: string; template_config?: Record<string, unknown> | null },
+  delivery: SocialDelivery & { template_config?: Record<string, unknown> | null },
 ): Promise<SocialPost> {
   if (delivery.format !== 'story') return post
 
   try {
-    const { generateStoryImage } = await import('./story-generator')
+    const { renderTemplate } = await import('@/lib/social/template-renderer')
     const { put } = await import('@vercel/blob')
 
-    const template = (delivery.template_config?.template as string) ?? 'card'
-    const storyData = {
-      title: post.content.title ?? '',
-      description: post.content.description,
-      domain: 'bythiagofigueiredo.com',
-      shortUrl: post.content.url ?? '',
-      coverImageUrl: post.content.media_urls?.[0],
-    }
+    const templateId = delivery.template_config?.templateId as string | undefined
 
-    const buffer = await generateStoryImage(template as 'minimal' | 'card' | 'bold', storyData)
+    const buffer = await renderTemplate({
+      templateId,
+      aspectRatio: '9:16',
+      data: {
+        title: post.content.title ?? '',
+        description: post.content.description,
+        cover_image: post.content.media_urls?.[0],
+        short_url: post.content.url ?? '',
+      },
+    })
 
     const blob = await put(
       `stories/${post.id}-${Date.now()}.png`,
@@ -227,7 +229,33 @@ async function prepareStoryDelivery(
     Sentry.captureException(err, {
       tags: { ...SENTRY_TAG, action: 'prepareStoryDelivery', postId: post.id },
     })
-    return post
+    // Fallback: try legacy generator
+    try {
+      const { generateStoryImage } = await import('./story-generator')
+      const { put } = await import('@vercel/blob')
+      const template = (delivery.template_config?.template as string) ?? 'card'
+      const storyData = {
+        title: post.content.title ?? '',
+        description: post.content.description,
+        domain: 'bythiagofigueiredo.com',
+        shortUrl: post.content.url ?? '',
+        coverImageUrl: post.content.media_urls?.[0],
+      }
+      const buffer = await generateStoryImage(template as 'minimal' | 'card' | 'bold', storyData)
+      const blob = await put(`stories/${post.id}-${Date.now()}.png`, buffer, {
+        access: 'public',
+        addRandomSuffix: false,
+      })
+      return {
+        ...post,
+        content: { ...post.content, media_urls: [blob.url] },
+      }
+    } catch (fallbackErr) {
+      Sentry.captureException(fallbackErr, {
+        tags: { ...SENTRY_TAG, action: 'prepareStoryDelivery:fallback', postId: post.id },
+      })
+      return post
+    }
   }
 }
 
@@ -273,7 +301,7 @@ export async function publishSocialPost(
 
     // Step 3 & 4: Process each delivery in parallel
     const results = await Promise.allSettled(
-      (deliveries as unknown as (SocialDelivery & { format?: string; template_config?: Record<string, unknown> | null })[]).map(async (delivery) => {
+      (deliveries as unknown as (SocialDelivery & { template_config?: Record<string, unknown> | null })[]).map(async (delivery) => {
         // Get connection
         // Intentionally selecting all columns including token fields —
         // tokens are required by the provider publish flow (executeWithRetry → publishFn.publish).
