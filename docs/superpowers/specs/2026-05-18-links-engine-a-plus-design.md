@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-18
 **Status:** Draft
-**Score:** 103/110
+**Score:** 98/100
 **Sprint:** 5h (Social Hub) — Links Engine improvements
 
 ## Context
@@ -20,9 +20,39 @@ Competitor analysis (`formulayoutube.com.br/fyt/v01?utm_source=youtube&vk_source
 | **Bloco 2** | Click ID Passthrough | Safe forwarding of gclid/fbclid/etc through redirects, LGPD-compliant storage |
 | **Bloco 3** | Lifecycle & Campaign Intelligence | launched_at, activates_at, smart UTM defaults, custom params, health check, batch ops |
 
-## Consolidated Migration
+## Deployment Plan
 
-Single migration via `npm run db:new links_engine_a_plus`:
+### Ordering
+
+1. **Fix cron HTTP methods** (Bloco 0 pre-req — can ship immediately)
+2. `npm run db:new links_engine_a_plus_schema` — DDL only (columns, constraints, functions, triggers, indexes)
+3. **Preview normalization impact** — run dry-run query (see below) and verify no surprises
+4. `npm run db:new links_engine_a_plus_data` — data migration UPDATE + RPC function
+5. Deploy code changes (same commit to staging)
+6. Verify crons in Vercel dashboard, run each manually once
+7. After 2 weeks stable: drop `_utm_backup` column
+
+### Rollback
+
+- **Schema migration**: write a reverse migration dropping columns/triggers/constraints
+- **Data migration**: `_utm_backup` jsonb column preserves original UTM values for 2 weeks
+- **Code changes**: revert commit on staging; old code ignores new columns safely
+
+### Preview Query (run after schema migration, before data migration)
+
+```sql
+SELECT id, code, utm_campaign,
+  public.normalize_utm_value('utm_campaign', utm_campaign) AS normalized
+FROM tracked_links
+WHERE utm_campaign IS NOT NULL
+  AND utm_campaign != public.normalize_utm_value('utm_campaign', utm_campaign);
+```
+
+---
+
+## Migration 1: Schema (DDL only)
+
+`npm run db:new links_engine_a_plus_schema`:
 
 ```sql
 -- 1. New columns on tracked_links
@@ -32,7 +62,8 @@ ALTER TABLE tracked_links
   ADD COLUMN IF NOT EXISTS activates_at timestamptz,
   ADD COLUMN IF NOT EXISTS utm_id text,
   ADD COLUMN IF NOT EXISTS health_status text DEFAULT 'unchecked' NOT NULL,
-  ADD COLUMN IF NOT EXISTS health_checked_at timestamptz;
+  ADD COLUMN IF NOT EXISTS health_checked_at timestamptz,
+  ADD COLUMN IF NOT EXISTS pass_click_ids boolean DEFAULT true NOT NULL;
 
 -- 2. Constraints
 ALTER TABLE tracked_links
@@ -106,6 +137,19 @@ END; $$;
 CREATE OR REPLACE FUNCTION public.trg_normalize_tracked_links_utm() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
+  -- Short-circuit on UPDATE when no UTM field changed (critical for performance:
+  -- increment_link_clicks RPC does UPDATE on total_clicks which fires this trigger
+  -- on every single click — without this guard, 6 unnecessary normalizations per click)
+  IF TG_OP = 'UPDATE' AND
+     NEW.utm_source   IS NOT DISTINCT FROM OLD.utm_source AND
+     NEW.utm_medium   IS NOT DISTINCT FROM OLD.utm_medium AND
+     NEW.utm_campaign IS NOT DISTINCT FROM OLD.utm_campaign AND
+     NEW.utm_term     IS NOT DISTINCT FROM OLD.utm_term AND
+     NEW.utm_content  IS NOT DISTINCT FROM OLD.utm_content AND
+     NEW.utm_id       IS NOT DISTINCT FROM OLD.utm_id THEN
+    RETURN NEW;
+  END IF;
+
   NEW.utm_source   := public.normalize_utm_value('utm_source',   NEW.utm_source);
   NEW.utm_medium   := public.normalize_utm_value('utm_medium',   NEW.utm_medium);
   NEW.utm_campaign := public.normalize_utm_value('utm_campaign', NEW.utm_campaign);
@@ -137,7 +181,26 @@ CREATE TRIGGER normalize_utm_before_upsert
   BEFORE INSERT OR UPDATE ON link_utm_presets
   FOR EACH ROW EXECUTE FUNCTION public.trg_normalize_utm_presets();
 
--- 8. Normalize existing data (triggers fire on UPDATE)
+```
+
+---
+
+## Migration 2: Data Migration
+
+`npm run db:new links_engine_a_plus_data` (run AFTER previewing normalization impact):
+
+```sql
+-- 1. Backup original UTM values before normalization (rollback safety)
+ALTER TABLE tracked_links ADD COLUMN IF NOT EXISTS _utm_backup jsonb;
+UPDATE tracked_links SET _utm_backup = jsonb_build_object(
+  'utm_source', utm_source, 'utm_medium', utm_medium,
+  'utm_campaign', utm_campaign, 'utm_term', utm_term,
+  'utm_content', utm_content
+) WHERE utm_source IS NOT NULL OR utm_medium IS NOT NULL
+   OR utm_campaign IS NOT NULL OR utm_term IS NOT NULL
+   OR utm_content IS NOT NULL;
+
+-- 2. Normalize existing data (triggers fire on UPDATE)
 UPDATE tracked_links SET utm_source = utm_source
 WHERE utm_source IS NOT NULL OR utm_medium IS NOT NULL
    OR utm_campaign IS NOT NULL OR utm_term IS NOT NULL
@@ -149,16 +212,19 @@ WHERE utm_source IS NOT NULL OR utm_medium IS NOT NULL
    OR utm_content IS NOT NULL;
 
 -- NOTE: link_clicks (partitioned, append-only) is NOT backfilled.
--- Historical click UTM data is preserved as-is.
--- New clicks are normalized at insert time by the application layer.
 
--- 9. Batch operations RPC
+-- 3. Batch operations RPC (with authorization guard)
 CREATE OR REPLACE FUNCTION public.batch_extend_link_expiry(
   p_site_id uuid, p_campaign text DEFAULT NULL,
   p_tags text[] DEFAULT NULL, p_hours integer DEFAULT 24
 ) RETURNS integer LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public' AS $$
 DECLARE v_count integer;
 BEGIN
+  -- Authorization guard: caller must have edit permission on the site
+  IF NOT public.can_edit_site(p_site_id) THEN
+    RAISE EXCEPTION 'forbidden: caller cannot edit site %', p_site_id;
+  END IF;
+
   UPDATE tracked_links
   SET expires_at = COALESCE(expires_at, now()) + (p_hours || ' hours')::interval,
       updated_at = now()
@@ -169,6 +235,10 @@ BEGIN
   GET DIAGNOSTICS v_count = ROW_COUNT;
   RETURN v_count;
 END; $$;
+
+-- 4. Drop _utm_backup after 2 weeks (separate future migration)
+-- npm run db:new drop_utm_backup
+-- ALTER TABLE tracked_links DROP COLUMN IF EXISTS _utm_backup;
 ```
 
 ---
@@ -200,7 +270,18 @@ END; $$;
 
 **Verification:** After deploy, Vercel dashboard > Crons tab shows all 5. Manual trigger each with `CRON_SECRET`. After 24h, verify `link_daily_metrics` has rows.
 
-### 0.2 -- Align IP retention to 30 days
+### 0.2 -- Fix cron HTTP methods (POST → GET)
+
+**Problem:** Vercel invokes crons with GET requests. Two existing cron route handlers export `POST` instead of `GET`, causing them to return 405 Method Not Allowed and silently never run:
+
+| Cron route | Current export | Fix |
+|------------|---------------|-----|
+| `links-anonymize-clicks/route.ts` | `export async function POST()` | Change to `GET` |
+| `links-partition-maintenance/route.ts` | `export async function POST()` | Change to `GET` |
+
+**Verification:** After fix, trigger each manually via `curl -H "Authorization: Bearer $CRON_SECRET"` and confirm 200 response.
+
+### 0.3 -- Align IP retention to 30 days
 
 **Problem:** Code says 90 days, design said 24h, neither runs. Compromise: 30 days (fraud lookback + LGPD proportionality).
 
@@ -209,9 +290,11 @@ END; $$;
 **Change:** `RETENTION_DAYS = 90` → `RETENTION_DAYS = 30`
 
 Also align DB function and cron route (they disagree on which fields to anonymize):
-- Both must nullify: `ip`, `user_agent`, `city`, `region`, `referrer_url`, `ad_click_ids`
+- **Cron route** nullifies: `ip`, `user_agent`, `city`, `referrer_url` — MISSING `region`
+- **DB function** nullifies: `ip`, `user_agent`, `city`, `region` — MISSING `referrer_url`
+- **Fix both** to the canonical set: `ip`, `user_agent`, `city`, `region`, `referrer_url`, `ad_click_ids`
 
-### 0.3 -- Consolidate redirect paths
+### 0.4 -- Consolidate redirect paths
 
 **Problem:** Route handler (`go/[code]/route.ts`) reimplements guard logic that `RedirectResolver.checkGuards()` already handles, with different semantics (boolean `active` vs enum `status`).
 
@@ -219,7 +302,7 @@ Also align DB function and cron route (they disagree on which fields to anonymiz
 
 **Files:** `apps/web/src/app/go/[code]/route.ts`, `apps/web/src/lib/links/resolver.ts`
 
-### 0.4 -- Fix UTM overwrite
+### 0.5 -- Fix UTM overwrite
 
 **Problem:** Route handler uses `searchParams.set()` (overwrites destination UTMs). Package uses `searchParams.has()` guard (preserves). The route handler is destructive.
 
@@ -232,7 +315,7 @@ if (value && !destination.searchParams.has(param)) {
 
 **File:** `apps/web/src/app/go/[code]/route.ts` lines 96-100
 
-### 0.5 -- Populate link_clicks.utm_* columns
+### 0.6 -- Populate link_clicks.utm_* columns
 
 **Problem:** 5 UTM columns on `link_clicks` are always NULL. Click recorder never sets them.
 
@@ -439,6 +522,7 @@ New cron `links-health-check` (daily 05:00 UTC):
 - Results: `health_status` + `health_checked_at` on tracked_links
 - NEVER blocks activation — only notifies creator
 - Skip links with 0 clicks in last 30 days
+- Gated by `LINKS_HEALTH_CHECK_ENABLED` env var (default false) — safe to enable later
 
 ### 3.6 -- Batch operations
 
@@ -449,6 +533,67 @@ New cron `links-health-check` (daily 05:00 UTC):
 - Audit: `link_annotations` row per affected link
 
 ---
+
+## Feature Flags
+
+| Flag | Type | Default | Purpose |
+|------|------|---------|---------|
+| `LINKS_HEALTH_CHECK_ENABLED` | `boolean` | `false` | Gate for health-check cron; disable without redeploy if it causes rate-limit issues with destinations |
+
+All other features in this spec are unconditional — they fix bugs or add core functionality that should always be active.
+
+## Per-Link Opt-Out: Click ID Passthrough
+
+New column on `tracked_links`:
+
+```sql
+ALTER TABLE tracked_links ADD COLUMN IF NOT EXISTS pass_click_ids boolean DEFAULT true NOT NULL;
+```
+
+When `pass_click_ids = false`, redirect handler skips `safePassthrough()` entirely. Use case: affiliate links where the destination rejects unknown query params or links to domains that break with extra params.
+
+Exposed in link-form.tsx as a toggle in the Advanced section: "Forward ad click IDs (gclid, fbclid, etc.)".
+
+## Barrel File Updates
+
+`packages/links/src/index.ts` must re-export new modules:
+
+```typescript
+export { normalizeUtmValue, normalizeAllUtmFields, slugifyForCampaign, isKnownMedium, GA4_MEDIUM_SUGGESTIONS } from './core/utm-normalizer'
+export { safePassthrough, KNOWN_CLICK_IDS } from './core/click-id-passthrough'
+```
+
+## Test Matrix
+
+### Unit Tests
+
+| Test file | Cases | What it validates |
+|-----------|-------|-------------------|
+| `utm-normalizer.test.ts` | NFKD stripping (`café` → `cafe`), whitespace → hyphens, empty → null, `utm_term` preserves `+`, diacritics removal, double-hyphen collapse, leading/trailing hyphen trim, `utm_id` normalization | App-side normalizer matches DB trigger output bit-for-bit |
+| `click-id-passthrough.test.ts` | Allowlist-only (unknown params dropped), value length cap (501 chars → rejected), charset validation (`<script>` → rejected), URL length cap (8192 rollback), empty value skip, canonical casing preservation | Security boundaries hold under adversarial input |
+| `utm-normalizer.test.ts` (idempotence) | `normalize(normalize(x)) === normalize(x)` for 50 random inputs | Trigger firing twice on same row produces no change |
+
+### Integration Tests
+
+| Test | What it validates |
+|------|-------------------|
+| Redirect with UTMs | UTM values on `go/` request are forwarded to destination via `.has()` guard (never overwrite) |
+| Redirect with click IDs | `gclid` + `fbclid` on incoming URL appear on redirect Location header |
+| Redirect with `pass_click_ids=false` | Click IDs NOT forwarded when opt-out is set |
+| 301 + click IDs present | Response includes `Cache-Control: private, no-store` |
+| `activates_at` future date | Redirect returns 200 with coming-soon page, not 302 |
+| Trigger short-circuit | `UPDATE tracked_links SET total_clicks = total_clicks + 1` does NOT mutate UTM values (verify with `_utm_backup` comparison) |
+| Anonymize cron | After cron run, clicks older than 30 days have NULL `ip`, `user_agent`, `city`, `region`, `referrer_url`, `ad_click_ids` |
+| Migration idempotence | Running both migrations twice produces no errors (IF NOT EXISTS guards) |
+
+### Smoke Tests (post-deploy)
+
+| Test | How |
+|------|-----|
+| All 6 crons registered | Vercel dashboard > Crons tab shows 6 entries |
+| Crons respond to GET | `curl -H "Authorization: Bearer $CRON_SECRET" $URL` → 200 for each |
+| Redirect works | Click a known short link → lands on destination with UTMs |
+| Health check cron | Manual trigger → `health_status` updated on at least 1 link |
 
 ## Out of Scope (with rationale)
 
@@ -471,6 +616,8 @@ New cron `links-health-check` (daily 05:00 UTC):
 | **Modified (actions)** | `apps/web/src/app/cms/(authed)/links/actions.ts` |
 | **Modified (click recording)** | `apps/web/src/lib/links/click-recorder.ts` |
 | **Modified (UI)** | `packages/links-admin/src/components/link-form.tsx`, `packages/links-admin/src/hooks/use-link-form.ts` |
+| **Modified (barrel)** | `packages/links/src/index.ts` (re-export new modules) |
 | **Modified (config)** | `apps/web/vercel.json` |
-| **Migration** | 1 consolidated migration via `npm run db:new links_engine_a_plus` |
-| **Tests** | `packages/links/src/core/__tests__/utm-normalizer.test.ts`, `packages/links/src/core/__tests__/click-id-passthrough.test.ts`, integration tests for middleware rewrite |
+| **Modified (cron fix)** | `apps/web/src/app/api/cron/links-anonymize-clicks/route.ts` (POST→GET, retention 90→30, field alignment), `apps/web/src/app/api/cron/links-partition-maintenance/route.ts` (POST→GET) |
+| **Migration** | 2 migrations: `links_engine_a_plus_schema` (DDL) + `links_engine_a_plus_data` (data migration) |
+| **Tests** | `packages/links/src/core/__tests__/utm-normalizer.test.ts`, `packages/links/src/core/__tests__/click-id-passthrough.test.ts`, integration tests for redirect handler, smoke tests for crons |
