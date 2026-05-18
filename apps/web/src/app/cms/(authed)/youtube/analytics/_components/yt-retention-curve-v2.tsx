@@ -6,7 +6,7 @@ interface Props {
 }
 
 export function YtRetentionCurveV2({ retentionCurve, avgViewPercentage }: Props) {
-  if (!retentionCurve || retentionCurve.length === 0) {
+  if (!retentionCurve || retentionCurve.length < 2) {
     return (
       <div className="flex h-20 items-center justify-center rounded border border-dashed border-cms-border">
         <span className="text-xs text-cms-text-muted">

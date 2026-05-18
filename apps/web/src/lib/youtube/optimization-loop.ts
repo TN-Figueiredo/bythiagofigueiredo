@@ -53,7 +53,7 @@ const VALID_TRANSITIONS: Record<OptimizationState, OptimizationState[]> = {
   testing: ['post_test_monitoring', 'retest_needed'],
   post_test_monitoring: ['resolved', 'retest_needed'],
   retest_needed: ['flagged', 'exhausted'],
-  resolved: [],
+  resolved: ['flagged'],
   exhausted: [],
 }
 
@@ -74,9 +74,19 @@ export function transitionState(
   const updated = { ...cycle, state: to }
 
   switch (to) {
-    case 'flagged':
+    case 'flagged': {
+      const nextCycle = cycle.state === 'retest_needed' ? cycle.cycle_number + 1 : cycle.cycle_number
+      if (nextCycle > OPTIMIZATION_CONFIG.max_cycles_per_video) {
+        updated.state = 'exhausted'
+        updated.resolved_at = now
+        updated.resolved_reason = 'max_cycles_reached'
+        return updated
+      }
+      updated.cycle_number = nextCycle
       updated.flagged_at = now
+      updated.cooldown_until = null
       break
+    }
     case 'diagnosed':
       updated.diagnosed_at = now
       updated.diagnosis_summary = trigger.diagnosis_summary ?? null
@@ -110,7 +120,10 @@ export function transitionState(
   return updated
 }
 
-export function isInCooldown(testWinnerAppliedAt: string | null): boolean {
+export function isInCooldown(testWinnerAppliedAt: string | null, cooldownUntil?: string | null): boolean {
+  if (cooldownUntil) {
+    return new Date() < new Date(cooldownUntil)
+  }
   if (!testWinnerAppliedAt) return false
   const appliedDate = new Date(testWinnerAppliedAt)
   const cooldownEnd = new Date(appliedDate.getTime() + OPTIMIZATION_CONFIG.cooldown_days * 86400000)

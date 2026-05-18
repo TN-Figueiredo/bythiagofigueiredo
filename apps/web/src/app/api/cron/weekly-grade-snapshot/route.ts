@@ -117,8 +117,12 @@ export async function GET(req: NextRequest) {
         }
 
         if (history && history.length >= 2) {
-          const lowWeeks = history.filter(h => h.grade === 'C' || h.grade === 'D').length
-          if (lowWeeks >= 2) {
+          let consecutiveLow = 0
+          for (const h of history) {
+            if (h.grade === 'C' || h.grade === 'D') consecutiveLow++
+            else break
+          }
+          if (consecutiveLow >= 2) {
             const { data: existingCycle } = await supabase
               .from('optimization_cycles')
               .select('id')

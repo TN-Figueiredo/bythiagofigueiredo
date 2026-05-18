@@ -24,12 +24,12 @@ import type { Axis, Grade, TrendDirection } from '@/lib/youtube/scoring-types'
 import { AXIS_LABELS } from '@/lib/youtube/scoring-types'
 
 const SUB_TABS = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'grades', label: 'Grades' },
+  { id: 'overview', label: 'Visão Geral' },
+  { id: 'grades', label: 'Notas' },
   { id: 'coach', label: 'Health Coach' },
   { id: 'outliers', label: 'Outliers' },
-  { id: 'demographics', label: 'Demographics' },
-  { id: 'search', label: 'Search Terms' },
+  { id: 'demographics', label: 'Demografia' },
+  { id: 'search', label: 'Termos de Busca' },
 ] as const
 
 type TabId = (typeof SUB_TABS)[number]['id']
@@ -61,6 +61,15 @@ interface Notification {
   created_at: string
 }
 
+interface OutlierVideo {
+  videoId: string
+  title: string
+  score: number
+  modifiedZ: number
+  direction: 'positive' | 'negative'
+  axis: Axis
+}
+
 interface Props {
   siteId: string
   metrics: YtChannelMetrics
@@ -71,6 +80,7 @@ interface Props {
   channels?: YtConnectedChannel[]
   activeChannelId?: string
   intelligenceVideos?: VideoGradeRow[]
+  intelligenceOutliers?: OutlierVideo[]
   notifications?: Notification[]
   healthScore?: number
   weeksSinceFirstGrade?: number
@@ -93,6 +103,7 @@ export function YtAnalyticsTabs({
   channels,
   activeChannelId,
   intelligenceVideos,
+  intelligenceOutliers,
   notifications,
   healthScore,
   weeksSinceFirstGrade,
@@ -220,9 +231,11 @@ export function YtAnalyticsTabs({
           />
         )}
         {activeTab === 'outliers' && (
-          intelligenceVideos && intelligenceVideos.length > 0
-            ? <YtOutliersV2 outliers={[]} />
-            : <YtOutliers grades={grades} />
+          intelligenceOutliers && intelligenceOutliers.length > 0
+            ? <YtOutliersV2 outliers={intelligenceOutliers} />
+            : intelligenceVideos && intelligenceVideos.length > 0
+              ? <YtOutliersV2 outliers={[]} />
+              : <YtOutliers grades={grades} />
         )}
         {activeTab === 'demographics' && <YtDemographicsView demographics={demographics} />}
         {activeTab === 'search' && <YtSearchTermsView terms={searchTerms} />}

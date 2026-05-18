@@ -7,6 +7,7 @@ import {
   getCachedYtSearchTerms,
   getCachedYtDemographics,
 } from '@/lib/youtube/analytics-queries'
+import { fetchGradesData, fetchNotifications } from './actions'
 import { YtAnalyticsTabs } from './_components/yt-analytics-tabs'
 
 export const dynamic = 'force-dynamic'
@@ -39,12 +40,14 @@ export default async function YouTubeAnalyticsPage({
   const { channel: selectedChannelId } = await searchParams
   const activeChannel = channels.find(c => c.channelId === selectedChannelId) ?? channels[0]!
 
-  const [metrics, dailyMetrics, grades, searchTerms, demographics] = await Promise.all([
+  const [metrics, dailyMetrics, grades, searchTerms, demographics, intelligenceData, notifications] = await Promise.all([
     fetchYtChannelMetrics(siteId, 30, activeChannel.channelId),
     fetchYtDailyMetrics(siteId, 30, activeChannel.channelId),
     fetchVideoGrades(siteId, activeChannel.internalId),
     getCachedYtSearchTerms(siteId, 30, activeChannel.channelId),
     getCachedYtDemographics(siteId, 30, activeChannel.channelId),
+    fetchGradesData(activeChannel.internalId).catch(() => ({ videos: [], outliers: [] })),
+    fetchNotifications().catch(() => []),
   ])
 
   if (!metrics) {
@@ -57,6 +60,17 @@ export default async function YouTubeAnalyticsPage({
     )
   }
 
+  const healthScore = intelligenceData.videos.length > 0
+    ? Math.round(intelligenceData.videos.reduce((s, v) => s + v.score, 0) / intelligenceData.videos.length)
+    : 0
+
+  const videoMap = new Map(intelligenceData.videos.map(v => [v.videoId, v]))
+  const enrichedOutliers = intelligenceData.outliers.map(o => ({
+    ...o,
+    title: videoMap.get(o.videoId)?.title ?? '',
+    score: videoMap.get(o.videoId)?.score ?? 0,
+  }))
+
   return (
     <YtAnalyticsTabs
       siteId={siteId}
@@ -67,6 +81,10 @@ export default async function YouTubeAnalyticsPage({
       demographics={demographics}
       channels={channels}
       activeChannelId={activeChannel.channelId}
+      intelligenceVideos={intelligenceData.videos}
+      intelligenceOutliers={enrichedOutliers}
+      notifications={notifications}
+      healthScore={healthScore}
     />
   )
 }

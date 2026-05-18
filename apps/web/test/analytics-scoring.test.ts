@@ -5,6 +5,7 @@ import {
   computeGrowthVelocity,
   computeEvergreenBonus,
   getAxisWeights,
+  getChannelTier,
   scoreVideo,
   assignGrade,
   computeOutliers,
@@ -29,8 +30,8 @@ describe('sigmoid', () => {
 })
 
 describe('prepareAxisInput', () => {
-  it('applies log2 transform for reach', () => {
-    expect(prepareAxisInput('reach', 1000)).toBeCloseTo(Math.log2(1001), 4)
+  it('returns raw value for reach (no log2 transform)', () => {
+    expect(prepareAxisInput('reach', 75)).toBe(75)
   })
   it('applies log2 transform for growth', () => {
     expect(prepareAxisInput('growth', 100)).toBeCloseTo(Math.log2(101), 4)
@@ -65,21 +66,22 @@ describe('computeGrowthVelocity', () => {
 })
 
 describe('computeEvergreenBonus', () => {
-  it('returns 0 for video younger than 90 days', () => {
+  it('returns 0 for video younger than or equal to 180 days', () => {
+    expect(computeEvergreenBonus(180, [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100], 50)).toBe(0)
     expect(computeEvergreenBonus(60, [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100], 50)).toBe(0)
   })
   it('returns 0 if below channel mean', () => {
-    expect(computeEvergreenBonus(120, [20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20], 50)).toBe(0)
+    expect(computeEvergreenBonus(200, [20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20], 50)).toBe(0)
   })
   it('returns bonus 3-8 for qualifying evergreen', () => {
     const views = Array.from({ length: 14 }, () => 100)
-    const bonus = computeEvergreenBonus(120, views, 50)
+    const bonus = computeEvergreenBonus(200, views, 50)
     expect(bonus).toBeGreaterThanOrEqual(3)
     expect(bonus).toBeLessThanOrEqual(8)
   })
   it('returns 0 if high variance (CV > 0.8)', () => {
     const views = [10, 200, 5, 300, 8, 250, 3, 180, 15, 220, 7, 190, 4, 210]
-    expect(computeEvergreenBonus(120, views, 50)).toBe(0)
+    expect(computeEvergreenBonus(200, views, 50)).toBe(0)
   })
 })
 
@@ -89,11 +91,16 @@ describe('getAxisWeights', () => {
     expect(w.growth).toBe(0.12)
     expect(w.ctr + w.retention + w.reach + w.engagement + w.growth + w.sub_impact).toBeCloseTo(1.0)
   })
-  it('reduces growth weight for fresh video (<=14 days)', () => {
-    const w = getAxisWeights(7)
+  it('reduces growth weight for fresh video (<7 days)', () => {
+    const w = getAxisWeights(3)
     expect(w.growth).toBe(0.04)
-    expect(w.ctr).toBe(0.29)
+    expect(w.ctr).toBe(0.30)
     expect(w.ctr + w.retention + w.reach + w.engagement + w.growth + w.sub_impact).toBeCloseTo(1.0)
+  })
+  it('uses standard weights at exactly 7 days', () => {
+    const w = getAxisWeights(7)
+    expect(w.ctr).toBe(0.25)
+    expect(w.growth).toBe(0.12)
   })
 })
 
@@ -104,16 +111,39 @@ describe('assignGrade', () => {
   it('assigns D for score < 40', () => expect(assignGrade(30)).toBe('D'))
 })
 
+describe('getChannelTier', () => {
+  it('returns nano for < 1K subs', () => {
+    expect(getChannelTier(500)).toBe('nano')
+    expect(getChannelTier(0)).toBe('nano')
+  })
+  it('returns micro for 1K-10K subs', () => {
+    expect(getChannelTier(1000)).toBe('micro')
+    expect(getChannelTier(9999)).toBe('micro')
+  })
+  it('returns small for 10K-100K subs', () => {
+    expect(getChannelTier(10000)).toBe('small')
+    expect(getChannelTier(99999)).toBe('small')
+  })
+  it('returns medium for 100K-1M subs', () => {
+    expect(getChannelTier(100000)).toBe('medium')
+    expect(getChannelTier(999999)).toBe('medium')
+  })
+  it('returns large for > 1M subs', () => {
+    expect(getChannelTier(1000000)).toBe('large')
+    expect(getChannelTier(5000000)).toBe('large')
+  })
+})
+
 describe('scoreVideo', () => {
   const baseline: ChannelBaseline = {
     medianCtr: 5.0,
     medianRetention: 45,
-    medianReach: 5000,
+    medianReach: 60,
     medianEngagement: 4.0,
     medianGrowth: 0,
     medianSubImpact: 0.5,
     channelDailyMean: 100,
-    subscriberCount: 5000,
+    subscriberCount: 50000,
   }
 
   it('scores a high-performing video as A or B', () => {
@@ -151,6 +181,46 @@ describe('scoreVideo', () => {
     const result = scoreVideo(input, baseline)
     expect(result.grade).toMatch(/^[CD]$/)
     expect(result.overall).toBeLessThan(65)
+  })
+
+  it('applies channel tier modifiers — nano channel scores higher than large channel for same CTR', () => {
+    const input: VideoScoreInput = {
+      videoId: 'tier-test',
+      publishedAt: new Date(Date.now() - 30 * 86400000).toISOString(),
+      ctr: 5.0,
+      avgViewPercentage: 45,
+      impressions: 5000,
+      trafficSources: { browse: 30, search: 20, suggested: 20, external: 15, direct: 5, notifications: 5, playlists: 5 },
+      engagementRate: 4.0,
+      dailyViews: Array.from({ length: 14 }, (_, i) => ({ date: `2026-05-${String(i + 1).padStart(2, '0')}`, views: 100 })),
+      subscribersGained: 10,
+      viewCount: 1400,
+    }
+    const nanoBaseline: ChannelBaseline = { ...baseline, subscriberCount: 500 }
+    const largeBaseline: ChannelBaseline = { ...baseline, subscriberCount: 2000000 }
+    const nanoResult = scoreVideo(input, nanoBaseline)
+    const largeResult = scoreVideo(input, largeBaseline)
+    expect(nanoResult.overall).toBeGreaterThan(largeResult.overall)
+  })
+
+  it('clamps NaN axis scores to 50 instead of propagating', () => {
+    const input: VideoScoreInput = {
+      videoId: 'nan-test',
+      publishedAt: new Date(Date.now() - 30 * 86400000).toISOString(),
+      ctr: NaN,
+      avgViewPercentage: 45,
+      impressions: 5000,
+      trafficSources: { browse: 30, search: 20, suggested: 20, external: 15, direct: 5, notifications: 5, playlists: 5 },
+      engagementRate: 4.0,
+      dailyViews: Array.from({ length: 14 }, (_, i) => ({ date: `2026-05-${String(i + 1).padStart(2, '0')}`, views: 100 })),
+      subscribersGained: 10,
+      viewCount: 1400,
+    }
+    const result = scoreVideo(input, baseline)
+    expect(Number.isNaN(result.overall)).toBe(false)
+    const ctrAxis = result.axes.find(a => a.axis === 'ctr')!
+    expect(Number.isNaN(ctrAxis.normalized)).toBe(false)
+    expect(ctrAxis.normalized).toBe(50)
   })
 })
 

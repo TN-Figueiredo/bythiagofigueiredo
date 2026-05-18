@@ -2,12 +2,15 @@
 
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
+import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { scoreVideo, computeOutliers, computeTrend } from '@/lib/youtube/scoring'
 import type { ChannelBaseline, VideoScoreInput } from '@/lib/youtube/scoring-types'
 import { revalidateTag } from 'next/cache'
 
 export async function fetchGradesData(channelId: string) {
   const { siteId } = await getSiteContext()
+  const auth = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
+  if (!auth.ok) throw new Error(auth.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
   const supabase = getSupabaseServiceClient()
 
   const { data: videos } = await supabase
@@ -15,7 +18,6 @@ export async function fetchGradesData(channelId: string) {
     .select('id, video_id, title, thumbnail_url, published_at, view_count, ctr, impressions, avg_view_percentage, avg_view_duration_seconds, retention_curve, traffic_sources')
     .eq('channel_id', channelId)
     .eq('site_id', siteId)
-    .not('ctr', 'is', null)
     .order('published_at', { ascending: false })
     .limit(50)
 
@@ -115,17 +117,22 @@ export async function fetchGradesData(channelId: string) {
     }
   })
 
-  const ctrScores = scoredVideos.map(v => ({
-    videoId: v.videoId,
-    score: v.axes.find(a => a.axis === 'ctr')?.normalized ?? 50,
-  }))
-  const outliers = computeOutliers(ctrScores, 'ctr')
+  const axes: Array<'ctr' | 'retention' | 'reach' | 'engagement' | 'growth' | 'sub_impact'> = ['ctr', 'retention', 'reach', 'engagement', 'growth', 'sub_impact']
+  const outliers = axes.flatMap(axis => {
+    const axisScores = scoredVideos.map(v => ({
+      videoId: v.videoId,
+      score: v.axes.find(a => a.axis === axis)?.normalized ?? 50,
+    }))
+    return computeOutliers(axisScores, axis)
+  })
 
   return { videos: scoredVideos, outliers }
 }
 
 export async function fetchNotifications() {
   const { siteId } = await getSiteContext()
+  const auth = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
+  if (!auth.ok) throw new Error(auth.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
   const supabase = getSupabaseServiceClient()
 
   const { data } = await supabase
@@ -143,6 +150,8 @@ export async function fetchNotifications() {
 
 export async function markNotificationRead(notificationId: string) {
   const { siteId } = await getSiteContext()
+  const auth = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+  if (!auth.ok) throw new Error(auth.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
   const supabase = getSupabaseServiceClient()
   await supabase.from('yt_notifications').update({ read: true }).eq('id', notificationId).eq('site_id', siteId)
   revalidateTag('yt-notifications')
@@ -150,6 +159,8 @@ export async function markNotificationRead(notificationId: string) {
 
 export async function markAllNotificationsRead() {
   const { siteId } = await getSiteContext()
+  const auth = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+  if (!auth.ok) throw new Error(auth.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
   const supabase = getSupabaseServiceClient()
   await supabase.from('yt_notifications').update({ read: true }).eq('site_id', siteId).eq('read', false)
   revalidateTag('yt-notifications')
@@ -157,6 +168,8 @@ export async function markAllNotificationsRead() {
 
 export async function dismissNotification(notificationId: string) {
   const { siteId } = await getSiteContext()
+  const auth = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+  if (!auth.ok) throw new Error(auth.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
   const supabase = getSupabaseServiceClient()
   await supabase.from('yt_notifications').update({ dismissed: true }).eq('id', notificationId).eq('site_id', siteId)
   revalidateTag('yt-notifications')
@@ -164,7 +177,17 @@ export async function dismissNotification(notificationId: string) {
 
 export async function requestIntelligenceAnalysis(channelId: string) {
   const { siteId } = await getSiteContext()
+  const auth = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+  if (!auth.ok) throw new Error(auth.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
   const supabase = getSupabaseServiceClient()
+
+  const { data: channel } = await supabase
+    .from('youtube_channels')
+    .select('id')
+    .eq('id', channelId)
+    .eq('site_id', siteId)
+    .single()
+  if (!channel) return { error: 'channel_not_found' }
 
   const { data: existing } = await supabase
     .from('youtube_intelligence_tasks')
@@ -201,23 +224,49 @@ export async function requestIntelligenceAnalysis(channelId: string) {
   return { ok: true }
 }
 
+function computeReachDiversityForBaseline(trafficSources: Record<string, number> | null): number {
+  if (!trafficSources) return 0
+  const values = [
+    trafficSources.browse ?? 0,
+    trafficSources.search ?? 0,
+    trafficSources.suggested ?? 0,
+    trafficSources.external ?? 0,
+    trafficSources.direct ?? 0,
+    trafficSources.notifications ?? 0,
+    trafficSources.playlists ?? 0,
+  ]
+  const total = values.reduce((a, b) => a + b, 0)
+  if (total === 0) return 0
+  const probs = values.map(v => v / total).filter(p => p > 0)
+  const entropy = -probs.reduce((sum, p) => sum + p * Math.log2(p), 0)
+  const maxEntropy = Math.log2(probs.length)
+  return maxEntropy > 0 ? (entropy / maxEntropy) * 100 : 0
+}
+
 function computeBaseline(
-  videos: Array<{ ctr: number | null; avg_view_percentage: number | null; impressions: number | null }>,
-  dailyByVideo: Map<string, Array<{ views: number }>>,
+  videos: Array<{ ctr: number | null; avg_view_percentage: number | null; impressions: number | null; traffic_sources?: unknown }>,
+  dailyByVideo: Map<string, Array<{ date: string; views: number }>>,
   subscriberCount: number,
 ): ChannelBaseline {
   const ctrs = videos.map(v => v.ctr ?? 0).filter(c => c > 0).sort((a, b) => a - b)
   const retentions = videos.map(v => v.avg_view_percentage ?? 0).filter(r => r > 0).sort((a, b) => a - b)
-  const reaches = videos.map(v => v.impressions ?? 0).filter(r => r > 0).sort((a, b) => a - b)
+  const reachDiversities = videos
+    .map(v => computeReachDiversityForBaseline(v.traffic_sources as Record<string, number> | null))
+    .filter(r => r > 0)
+    .sort((a, b) => a - b)
   const allDaily = Array.from(dailyByVideo.values()).flat()
   const totalViews = allDaily.reduce((s, d) => s + d.views, 0)
-  const totalDays = new Set(allDaily.map((d: { views: number }) => JSON.stringify(d))).size || 1
-  const median = (arr: number[]) => arr.length === 0 ? 0 : arr[Math.floor(arr.length / 2)]!
+  const totalDays = new Set(allDaily.map(d => d.date)).size || 1
+  const median = (arr: number[]) => {
+    if (arr.length === 0) return 0
+    const mid = Math.floor(arr.length / 2)
+    return arr.length % 2 === 0 ? (arr[mid - 1]! + arr[mid]!) / 2 : arr[mid]!
+  }
 
   return {
     medianCtr: median(ctrs),
     medianRetention: median(retentions),
-    medianReach: median(reaches),
+    medianReach: median(reachDiversities),
     medianEngagement: 4.0,
     medianGrowth: 0,
     medianSubImpact: 0.5,

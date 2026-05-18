@@ -24,6 +24,7 @@ interface Props {
 }
 
 export function YtVideoDiagnostic({ video, onCreateAbTest, onDismiss }: Props) {
+  if (video.axes.length === 0) return null
   const weakestAxis = video.axes.reduce((min, a) => a.normalized < min.normalized ? a : min, video.axes[0]!)
 
   return (

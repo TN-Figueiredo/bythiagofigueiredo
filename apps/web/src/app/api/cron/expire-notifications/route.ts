@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 120
 
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
@@ -11,7 +12,8 @@ export async function GET(req: NextRequest) {
 
   const supabase = getSupabaseServiceClient()
 
-  const { count: expiredNotifications } = await supabase.rpc('expire_old_yt_notifications')
+  const { data: expiredCount, error } = await supabase.rpc('expire_old_yt_notifications')
+  if (error) console.error('[expire-notifications] RPC failed:', error.message)
 
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString()
   const { data: staleTasks } = await supabase
@@ -22,7 +24,7 @@ export async function GET(req: NextRequest) {
     .select('id')
 
   return NextResponse.json({
-    expired_notifications: expiredNotifications ?? 0,
+    expired_notifications: expiredCount ?? 0,
     stale_tasks: staleTasks?.length ?? 0,
   })
 }

@@ -3,6 +3,7 @@ import type {
   AxisScore,
   AxisWeights,
   ChannelBaseline,
+  ChannelTier,
   DailyViewPoint,
   Grade,
   OutlierResult,
@@ -28,6 +29,22 @@ export function prepareAxisInput(axis: Axis, rawValue: number): number {
   return rawValue
 }
 
+const TIER_MODIFIERS: Record<ChannelTier, { ctr: number; retention: number }> = {
+  nano: { ctr: 0.5, retention: 0.3 },
+  micro: { ctr: 0.2, retention: 0.1 },
+  small: { ctr: 0, retention: 0 },
+  medium: { ctr: -0.1, retention: -0.1 },
+  large: { ctr: -0.3, retention: -0.2 },
+}
+
+export function getChannelTier(subscriberCount: number): ChannelTier {
+  if (subscriberCount < 1000) return 'nano'
+  if (subscriberCount < 10000) return 'micro'
+  if (subscriberCount < 100000) return 'small'
+  if (subscriberCount < 1000000) return 'medium'
+  return 'large'
+}
+
 export function computeGrowthVelocity(dailyViews: DailyViewPoint[], recencyExponent: number): number {
   if (dailyViews.length < 7) return 0
   const n = dailyViews.length
@@ -51,7 +68,7 @@ export function computeGrowthVelocity(dailyViews: DailyViewPoint[], recencyExpon
 }
 
 export function computeEvergreenBonus(ageDays: number, dailyViews: number[], channelDailyMean: number): number {
-  if (ageDays < 90 || dailyViews.length < 14) return 0
+  if (ageDays <= 180 || dailyViews.length < 14) return 0
   const videoMean = dailyViews.reduce((a, b) => a + b, 0) / dailyViews.length
   if (videoMean < channelDailyMean) return 0
   const stdDev = Math.sqrt(dailyViews.reduce((sum, v) => sum + Math.pow(v - videoMean, 2), 0) / dailyViews.length)
@@ -60,8 +77,8 @@ export function computeEvergreenBonus(ageDays: number, dailyViews: number[], cha
 }
 
 export function getAxisWeights(videoAgeDays: number): AxisWeights {
-  if (videoAgeDays <= 14) {
-    return { ctr: 0.29, retention: 0.29, reach: 0.15, engagement: 0.15, growth: 0.04, sub_impact: 0.08 }
+  if (videoAgeDays < 7) {
+    return { ctr: 0.30, retention: 0.30, reach: 0.13, engagement: 0.15, growth: 0.04, sub_impact: 0.08 }
   }
   return { ctr: 0.25, retention: 0.25, reach: 0.15, engagement: 0.15, growth: 0.12, sub_impact: 0.08 }
 }
@@ -74,14 +91,14 @@ export function assignGrade(score: number): Grade {
 }
 
 function getLifecycle(ageDays: number): VideoLifecycle {
-  if (ageDays <= 14) return 'fresh'
+  if (ageDays < 7) return 'fresh'
   if (ageDays <= 90) return 'maturing'
-  if (ageDays <= 365) return 'established'
+  if (ageDays <= 180) return 'established'
   return 'evergreen'
 }
 
 function getRecencyExponent(ageDays: number): number {
-  if (ageDays <= 14) return 2.0
+  if (ageDays < 7) return 2.0
   if (ageDays <= 90) return 1.5
   return 1.0
 }
@@ -103,14 +120,17 @@ export function scoreVideo(input: VideoScoreInput, baseline: ChannelBaseline): V
   const weights = getAxisWeights(ageDays)
   const recencyExp = getRecencyExponent(ageDays)
 
+  const tier = getChannelTier(baseline.subscriberCount)
+  const tierMod = TIER_MODIFIERS[tier]
+
   const velocity = computeGrowthVelocity(input.dailyViews, recencyExp)
   const reachDiversity = computeReachDiversity(input.trafficSources)
   const subImpactRaw = input.impressions > 0 ? (input.subscribersGained / input.impressions) * 1000 : 0
 
   const axisInputs: Record<Axis, { raw: number; midpoint: number }> = {
-    ctr: { raw: input.ctr, midpoint: baseline.medianCtr },
-    retention: { raw: input.avgViewPercentage, midpoint: baseline.medianRetention },
-    reach: { raw: reachDiversity, midpoint: prepareAxisInput('reach', baseline.medianReach) },
+    ctr: { raw: input.ctr, midpoint: baseline.medianCtr - tierMod.ctr },
+    retention: { raw: input.avgViewPercentage, midpoint: baseline.medianRetention - tierMod.retention },
+    reach: { raw: reachDiversity, midpoint: baseline.medianReach },
     engagement: { raw: input.engagementRate, midpoint: baseline.medianEngagement },
     growth: { raw: velocity, midpoint: prepareAxisInput('growth', baseline.medianGrowth) },
     sub_impact: { raw: subImpactRaw, midpoint: baseline.medianSubImpact },
@@ -119,7 +139,8 @@ export function scoreVideo(input: VideoScoreInput, baseline: ChannelBaseline): V
   const axes: AxisScore[] = (Object.keys(weights) as Axis[]).map(axis => {
     const { raw, midpoint } = axisInputs[axis]!
     const prepared = prepareAxisInput(axis, raw)
-    const normalized = sigmoid(prepared, SIGMOID_K[axis]!, midpoint)
+    let normalized = sigmoid(prepared, SIGMOID_K[axis]!, midpoint)
+    if (Number.isNaN(normalized)) normalized = 50
     const weight = weights[axis]!
     return { axis, raw, normalized, weight, weighted: normalized * weight }
   })
@@ -141,10 +162,12 @@ export function computeOutliers(
 
   const scores = videoScores.map(v => v.score)
   const sorted = [...scores].sort((a, b) => a - b)
-  const median = sorted[Math.floor(sorted.length / 2)]!
+  const mid = Math.floor(sorted.length / 2)
+  const median = sorted.length % 2 === 0 ? (sorted[mid - 1]! + sorted[mid]!) / 2 : sorted[mid]!
   const deviations = scores.map(s => Math.abs(s - median))
   const sortedDev = [...deviations].sort((a, b) => a - b)
-  const mad = sortedDev[Math.floor(sortedDev.length / 2)]!
+  const midDev = Math.floor(sortedDev.length / 2)
+  const mad = sortedDev.length % 2 === 0 ? (sortedDev[midDev - 1]! + sortedDev[midDev]!) / 2 : sortedDev[midDev]!
 
   if (mad === 0) return []
 

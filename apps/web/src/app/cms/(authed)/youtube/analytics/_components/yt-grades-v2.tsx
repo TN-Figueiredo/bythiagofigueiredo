@@ -48,9 +48,9 @@ export function YtGradesV2({ videos, onCreateAbTest }: Props) {
 
   const filtered = videos.filter(v => gradeFilter === 'all' || v.grade === gradeFilter)
   const sorted = [...filtered].sort((a, b) => {
-    if (sortBy === 'score') return a.score - b.score
-    if (sortBy === 'trend') return a.trend.velocity - b.trend.velocity
-    return (a.axes.find(x => x.axis === 'ctr')?.normalized ?? 0) - (b.axes.find(x => x.axis === 'ctr')?.normalized ?? 0)
+    if (sortBy === 'score') return b.score - a.score
+    if (sortBy === 'trend') return b.trend.velocity - a.trend.velocity
+    return (b.axes.find(x => x.axis === 'ctr')?.normalized ?? 0) - (a.axes.find(x => x.axis === 'ctr')?.normalized ?? 0)
   })
 
   const counts = { A: 0, B: 0, C: 0, D: 0 }
@@ -83,18 +83,24 @@ export function YtGradesV2({ videos, onCreateAbTest }: Props) {
           onChange={e => setSortBy(e.target.value as typeof sortBy)}
           className="ml-auto rounded border border-cms-border bg-transparent px-2 py-0.5 text-xs text-cms-text-muted"
         >
-          <option value="score">Score ↑</option>
-          <option value="ctr">CTR ↑</option>
-          <option value="trend">Tendência ↑</option>
+          <option value="score">Score ↓</option>
+          <option value="ctr">CTR ↓</option>
+          <option value="trend">Tendência ↓</option>
         </select>
       </div>
 
       {/* Video List */}
       <div className="space-y-1">
+        {sorted.length === 0 && (
+          <div className="rounded border border-dashed border-cms-border p-8 text-center text-sm text-cms-text-muted">
+            Nenhum vídeo com nota {gradeFilter} encontrado.
+          </div>
+        )}
         {sorted.map(video => (
           <div key={video.videoId} className="rounded border border-cms-border bg-cms-surface">
             <button
               onClick={() => setExpandedId(expandedId === video.videoId ? null : video.videoId)}
+              aria-expanded={expandedId === video.videoId}
               className="flex w-full items-center gap-3 p-3 text-left"
             >
               {/* Grade Badge */}

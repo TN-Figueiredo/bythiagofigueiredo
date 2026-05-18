@@ -56,8 +56,8 @@ describe('canTransition', () => {
   it('allows post_test_monitoring → retest_needed', () => {
     expect(canTransition('post_test_monitoring', 'retest_needed')).toBe(true)
   })
-  it('disallows resolved → anything', () => {
-    expect(canTransition('resolved', 'flagged')).toBe(false)
+  it('allows resolved → flagged', () => {
+    expect(canTransition('resolved', 'flagged')).toBe(true)
   })
   it('disallows exhausted → anything', () => {
     expect(canTransition('exhausted', 'flagged')).toBe(false)
@@ -91,8 +91,29 @@ describe('transitionState', () => {
     const result = transitionState(cycle, 'exhausted', {})
     expect(result.state).toBe('exhausted')
   })
+  it('increments cycle_number on retest_needed → flagged', () => {
+    const cycle = makeCycle({ state: 'retest_needed', cycle_number: 2 })
+    const result = transitionState(cycle, 'flagged', {})
+    expect(result.state).toBe('flagged')
+    expect(result.cycle_number).toBe(3)
+    expect(result.cooldown_until).toBeNull()
+  })
+  it('auto-transitions to exhausted when cycle_number >= max on retest_needed → flagged', () => {
+    const cycle = makeCycle({ state: 'retest_needed', cycle_number: 5 })
+    const result = transitionState(cycle, 'flagged', {})
+    expect(result.state).toBe('exhausted')
+    expect(result.resolved_reason).toBe('max_cycles_reached')
+    expect(result.resolved_at).toBeTruthy()
+  })
+  it('transitions resolved → flagged', () => {
+    const cycle = makeCycle({ state: 'resolved', resolved_at: new Date().toISOString(), resolved_reason: 'grade_improved' })
+    const result = transitionState(cycle, 'flagged', {})
+    expect(result.state).toBe('flagged')
+    expect(result.flagged_at).toBeTruthy()
+    expect(result.cooldown_until).toBeNull()
+  })
   it('throws for invalid transition', () => {
-    const cycle = makeCycle({ state: 'resolved' })
+    const cycle = makeCycle({ state: 'exhausted' })
     expect(() => transitionState(cycle, 'flagged', {})).toThrow()
   })
 })
@@ -110,6 +131,23 @@ describe('isInCooldown', () => {
   })
   it('returns false for null', () => {
     expect(isInCooldown(null)).toBe(false)
+  })
+  it('uses cooldownUntil directly when provided', () => {
+    const future = new Date()
+    future.setDate(future.getDate() + 10)
+    expect(isInCooldown(null, future.toISOString())).toBe(true)
+  })
+  it('returns false when cooldownUntil is in the past', () => {
+    const past = new Date()
+    past.setDate(past.getDate() - 1)
+    expect(isInCooldown(null, past.toISOString())).toBe(false)
+  })
+  it('ignores testWinnerAppliedAt when cooldownUntil is provided', () => {
+    const future = new Date()
+    future.setDate(future.getDate() + 10)
+    const oldApplied = new Date()
+    oldApplied.setDate(oldApplied.getDate() - 90)
+    expect(isInCooldown(oldApplied.toISOString(), future.toISOString())).toBe(true)
   })
 })
 

@@ -47,7 +47,10 @@ export function YtNotificationsPanel({ notifications, onMarkRead, onMarkAllRead,
         {notifications.slice(0, 50).map(n => (
           <div
             key={n.id}
+            role={!n.read ? 'button' : undefined}
+            tabIndex={!n.read ? 0 : undefined}
             onClick={() => { if (!n.read) onMarkRead(n.id) }}
+            onKeyDown={(e) => { if (!n.read && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onMarkRead(n.id) } }}
             className={`group flex gap-2 border-l-2 ${PRIORITY_BORDER[n.priority] ?? ''} px-3 py-2.5 ${!n.read ? 'bg-cms-surface/50 cursor-pointer' : ''}`}
           >
             <span className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${n.read ? 'border border-cms-text-muted' : 'bg-cms-accent'}`} />
@@ -62,7 +65,7 @@ export function YtNotificationsPanel({ notifications, onMarkRead, onMarkAllRead,
             </div>
             <button
               onClick={(e) => { e.stopPropagation(); onDismiss(n.id) }}
-              className="shrink-0 opacity-0 group-hover:opacity-100 text-cms-text-muted hover:text-cms-text"
+              className="shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 text-cms-text-muted hover:text-cms-text"
               aria-label="Dispensar"
             >
               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -78,7 +81,9 @@ export function YtNotificationsPanel({ notifications, onMarkRead, onMarkAllRead,
 
 function formatRelativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
+  if (diff < 0 || !Number.isFinite(diff)) return 'agora'
   const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'agora'
   if (mins < 60) return `${mins}m atrás`
   const hours = Math.floor(mins / 60)
   if (hours < 24) return `${hours}h atrás`

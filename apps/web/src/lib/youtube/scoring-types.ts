@@ -2,7 +2,7 @@ export type Axis = 'ctr' | 'retention' | 'reach' | 'engagement' | 'growth' | 'su
 export type Grade = 'A' | 'B' | 'C' | 'D'
 export type VideoLifecycle = 'fresh' | 'maturing' | 'established' | 'evergreen'
 export type TrendDirection = 'up' | 'down' | 'flat'
-export type ChannelTier = 'small' | 'medium' | 'large'
+export type ChannelTier = 'nano' | 'micro' | 'small' | 'medium' | 'large'
 
 export interface AxisWeights {
   ctr: number
@@ -102,4 +102,4 @@ export const SIGMOID_K: Record<Axis, number> = {
   growth: 2.5,
   sub_impact: 2.2,
 }
-export const LOG_TRANSFORM_AXES: Axis[] = ['reach', 'growth']
+export const LOG_TRANSFORM_AXES: Axis[] = ['growth']

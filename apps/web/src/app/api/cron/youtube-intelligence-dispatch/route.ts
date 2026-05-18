@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import * as Sentry from '@sentry/nextjs'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 120
 
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
@@ -20,22 +22,27 @@ export async function GET(req: NextRequest) {
 
   let created = 0
   for (const channel of channels) {
-    const { data: existing } = await supabase
-      .from('youtube_intelligence_tasks')
-      .select('id')
-      .eq('channel_id', channel.id)
-      .in('status', ['pending', 'running'])
-      .limit(1)
-      .single()
+    try {
+      const { data: existing } = await supabase
+        .from('youtube_intelligence_tasks')
+        .select('id')
+        .eq('channel_id', channel.id)
+        .in('status', ['pending', 'running'])
+        .limit(1)
+        .single()
 
-    if (existing) continue
+      if (existing) continue
 
-    await supabase.from('youtube_intelligence_tasks').insert({
-      site_id: channel.site_id,
-      channel_id: channel.id,
-      trigger_type: 'cron',
-    })
-    created++
+      await supabase.from('youtube_intelligence_tasks').insert({
+        site_id: channel.site_id,
+        channel_id: channel.id,
+        trigger_type: 'cron',
+      })
+      created++
+    } catch (err) {
+      console.error('[youtube-intelligence-dispatch] Error processing channel:', err)
+      Sentry.captureException(err)
+    }
   }
 
   return NextResponse.json({ created })
