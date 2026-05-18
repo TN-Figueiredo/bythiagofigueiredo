@@ -1,7 +1,15 @@
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { CmsTopbar } from '@tn-figueiredo/cms-ui/client'
-import { getConnections, getSocialPost } from '@/lib/social/actions'
+import {
+  getConnections,
+  getSocialPost,
+  createSocialPost,
+  createFromContentAction,
+  getContentForSocialPost,
+  editPublishedPost,
+  checkDuplicatesAction,
+} from '@/lib/social/actions'
 import type { Provider } from '@tn-figueiredo/social'
 import { getSocialStrings } from '../_i18n'
 import { ComposerShell } from './_components/composer-shell'
@@ -60,6 +68,11 @@ export default async function SocialComposerPage({ searchParams }: Props) {
           initialMode={mode}
           editPostId={editPostId}
           editDeliveries={editDeliveries}
+          onCreateSocialPost={createSocialPost}
+          onCreateFromContent={createFromContentAction}
+          onGetContentForSocialPost={getContentForSocialPost}
+          onEditPublishedPost={editPublishedPost}
+          onCheckDuplicates={checkDuplicatesAction}
         />
       </div>
     </>

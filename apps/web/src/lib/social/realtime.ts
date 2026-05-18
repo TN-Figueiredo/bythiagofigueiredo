@@ -4,6 +4,26 @@ import { useEffect, useState } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import type { PostStatus, SocialDelivery } from '@tn-figueiredo/social'
 
+function parseSocialDelivery(row: Record<string, unknown>): SocialDelivery {
+  return {
+    id: row.id as string,
+    post_id: row.post_id as string,
+    connection_id: row.connection_id as string,
+    provider: row.provider as SocialDelivery['provider'],
+    status: row.status as SocialDelivery['status'],
+    platform_post_id: (row.platform_post_id as string | null) ?? null,
+    platform_url: (row.platform_url as string | null) ?? null,
+    content_override: (row.content_override as Record<string, unknown> | null) ?? null,
+    attempt: row.attempt as number,
+    max_attempts: row.max_attempts as number,
+    last_error: (row.last_error as string | null) ?? null,
+    error_type: (row.error_type as SocialDelivery['error_type']) ?? null,
+    published_at: (row.published_at as string | null) ?? null,
+    created_at: row.created_at as string,
+    format: row.format as SocialDelivery['format'],
+  }
+}
+
 function getSupabaseBrowserClient() {
   return createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -26,7 +46,7 @@ export function useSocialDeliveries(postId: string): SocialDelivery[] {
       .eq('post_id', postId)
       .order('created_at', { ascending: true })
       .then(({ data }) => {
-        if (data) setDeliveries(data as unknown as SocialDelivery[])
+        if (data) setDeliveries((data as Record<string, unknown>[]).map(parseSocialDelivery))
       })
 
     // Subscribe to changes
@@ -42,7 +62,9 @@ export function useSocialDeliveries(postId: string): SocialDelivery[] {
         },
         (payload) => {
           setDeliveries((prev) => {
-            const updated = payload.new as unknown as SocialDelivery | undefined
+            const updated = payload.new && typeof payload.new === 'object' && 'id' in payload.new
+            ? parseSocialDelivery(payload.new as Record<string, unknown>)
+            : undefined
             const deleted = payload.old as { id?: string } | undefined
 
             if (payload.eventType === 'DELETE' && deleted?.id) {

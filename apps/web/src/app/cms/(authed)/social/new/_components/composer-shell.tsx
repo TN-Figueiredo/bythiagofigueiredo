@@ -17,14 +17,14 @@ import { PublishConfirmationDialog } from './publish-confirmation-dialog'
 import { PublishStatusBanner } from './publish-status-banner'
 import { OgPreviewSidebar } from './og-preview-sidebar'
 import type { OgData } from './og-preview-sidebar'
-import {
+import type { DuplicateWarnings } from '@/lib/social/duplicate-detection'
+import type {
   createSocialPost,
   createFromContentAction,
   getContentForSocialPost,
   editPublishedPost,
   checkDuplicatesAction,
 } from '@/lib/social/actions'
-import type { DuplicateWarnings } from '@/lib/social/duplicate-detection'
 import type { SocialStrings } from '../../_i18n/types'
 import { getEditRules, type ContentType } from '@/lib/social/types'
 
@@ -61,6 +61,11 @@ interface ComposerShellProps {
     platform_post_id: string | null
   }>
   onRetrySocialDelivery?: (deliveryId: string) => Promise<{ ok: boolean; error?: string }>
+  onCreateSocialPost: typeof createSocialPost
+  onCreateFromContent: typeof createFromContentAction
+  onGetContentForSocialPost: typeof getContentForSocialPost
+  onEditPublishedPost: typeof editPublishedPost
+  onCheckDuplicates: typeof checkDuplicatesAction
 }
 
 function isValidUrl(value: string): boolean {
@@ -83,6 +88,11 @@ export function ComposerShell({
   editPostId,
   editDeliveries,
   onRetrySocialDelivery,
+  onCreateSocialPost,
+  onCreateFromContent,
+  onGetContentForSocialPost,
+  onEditPublishedPost,
+  onCheckDuplicates,
 }: ComposerShellProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -158,7 +168,7 @@ export function ComposerShell({
   // If a content was preselected (e.g. from publish modal), load its metadata
   useEffect(() => {
     if (!preselectedContentType || !preselectedContentId) return
-    getContentForSocialPost(preselectedContentType, preselectedContentId).then((res) => {
+    onGetContentForSocialPost(preselectedContentType, preselectedContentId).then((res) => {
       if (!res.ok) return
       const d = res.data
       setSelectedContent({
@@ -173,7 +183,7 @@ export function ComposerShell({
       })
       setUrl(d.url)
     })
-  }, [preselectedContentType, preselectedContentId])
+  }, [preselectedContentType, preselectedContentId, onGetContentForSocialPost])
 
   // Derive OG data from selected content
   useEffect(() => {
@@ -205,7 +215,7 @@ export function ComposerShell({
       return
     }
 
-    checkDuplicatesAction(
+    onCheckDuplicates(
       selectedContent.contentType,
       selectedContent.contentId,
       platforms,
@@ -216,7 +226,7 @@ export function ComposerShell({
     }).catch(() => {
       // Silently ignore — duplicate check is informational only
     })
-  }, [sourceMode, selectedContent, platforms])
+  }, [sourceMode, selectedContent, platforms, onCheckDuplicates])
 
   function handleContentSelect(
     type: ContentType,
@@ -225,7 +235,7 @@ export function ComposerShell({
   ) {
     setLoadingContentId(id)
     setSubmitError(null)
-    getContentForSocialPost(type, id).then((res) => {
+    onGetContentForSocialPost(type, id).then((res) => {
       setLoadingContentId(null)
       if (!res.ok) {
         setSubmitError(`Erro ao carregar conteúdo: ${res.error}`)
@@ -300,7 +310,7 @@ export function ComposerShell({
     setSubmitError(null)
     startTransition(async () => {
       if (sourceMode === 'cms' && selectedContent) {
-        const result = await createFromContentAction({
+        const result = await onCreateFromContent({
           contentType: selectedContent.contentType,
           contentId: selectedContent.contentId,
           config: {
@@ -329,7 +339,7 @@ export function ComposerShell({
               : url
                 ? 'link'
                 : 'text'
-        const result = await createSocialPost({
+        const result = await onCreateSocialPost({
           type: postType,
           content: {
             description: content || undefined,
@@ -397,7 +407,7 @@ export function ComposerShell({
 
     startTransition(async () => {
       if (sourceMode === 'cms' && selectedContent) {
-        const result = await createFromContentAction({
+        const result = await onCreateFromContent({
           contentType: selectedContent.contentType,
           contentId: selectedContent.contentId,
           config: {
@@ -428,7 +438,7 @@ export function ComposerShell({
               : url
                 ? 'link'
                 : 'text'
-        const result = await createSocialPost({
+        const result = await onCreateSocialPost({
           type: postType,
           content: {
             description: content || undefined,
@@ -453,7 +463,7 @@ export function ComposerShell({
     if (!editPostId || !editCaption.trim()) return
     setSubmitError(null)
     startTransition(async () => {
-      const result = await editPublishedPost(editPostId, deliveryId, { caption: editCaption })
+      const result = await onEditPublishedPost(editPostId, deliveryId, { caption: editCaption })
       if (result.ok) {
         router.push(`/cms/social/${editPostId}`)
       } else {

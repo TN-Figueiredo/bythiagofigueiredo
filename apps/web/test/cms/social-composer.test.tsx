@@ -12,10 +12,16 @@ vi.mock('next/link', () => ({
 }))
 
 const mockCreate = vi.fn()
+const mockGetContent = vi.fn().mockResolvedValue({ ok: false, error: 'not_found' })
+const mockCreateFromContent = vi.fn().mockResolvedValue({ ok: true, data: { postId: 'p-1', shortLinkId: null } })
+const mockEditPublished = vi.fn().mockResolvedValue({ ok: true })
+const mockCheckDuplicates = vi.fn().mockResolvedValue({ ok: true, data: { severity: 'none', samePlatformPosts: [], totalExisting: 0 } })
 vi.mock('@/lib/social/actions', () => ({
   createSocialPost: (...args: unknown[]) => mockCreate(...args),
-  getContentForSocialPost: vi.fn().mockResolvedValue({ ok: false, error: 'not_found' }),
-  createFromContentAction: vi.fn().mockResolvedValue({ ok: true, data: { postId: 'p-1', shortLinkId: null } }),
+  getContentForSocialPost: (...args: unknown[]) => mockGetContent(...args),
+  createFromContentAction: (...args: unknown[]) => mockCreateFromContent(...args),
+  editPublishedPost: (...args: unknown[]) => mockEditPublished(...args),
+  checkDuplicatesAction: (...args: unknown[]) => mockCheckDuplicates(...args),
 }))
 
 vi.mock('@/lib/social/queue', () => ({
@@ -48,6 +54,11 @@ function renderComposer(overrides: Record<string, unknown> = {}) {
       strings={en}
       initialMode="text"
       initialSourceMode="freeform"
+      onCreateSocialPost={mockCreate}
+      onCreateFromContent={mockCreateFromContent}
+      onGetContentForSocialPost={mockGetContent}
+      onEditPublishedPost={mockEditPublished}
+      onCheckDuplicates={mockCheckDuplicates}
       {...overrides}
     />,
   )
@@ -57,6 +68,10 @@ describe('ComposerShell', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockCreate.mockResolvedValue({ ok: true, data: { id: 'new-1' } })
+    mockGetContent.mockResolvedValue({ ok: false, error: 'not_found' })
+    mockCreateFromContent.mockResolvedValue({ ok: true, data: { postId: 'p-1', shortLinkId: null } })
+    mockEditPublished.mockResolvedValue({ ok: true })
+    mockCheckDuplicates.mockResolvedValue({ ok: true, data: { severity: 'none', samePlatformPosts: [], totalExisting: 0 } })
   })
 
   it('renders mode tabs', () => {
