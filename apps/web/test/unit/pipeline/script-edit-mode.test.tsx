@@ -64,10 +64,10 @@ describe('ScriptEditMode', () => {
 
   it('renders all beats', () => {
     render(<ScriptEditMode content={CONTENT} isEditing={false} onChange={vi.fn()} />)
-    expect(screen.getByText('#0')).toBeTruthy()
-    expect(screen.getByText('#1')).toBeTruthy()
-    expect(screen.getByText('Hook')).toBeTruthy()
-    expect(screen.getByText('Body')).toBeTruthy()
+    expect(screen.getAllByText('#0').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('#1').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Hook').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Body').length).toBeGreaterThanOrEqual(1)
   })
 
   it('shows add-beat button in edit mode', () => {

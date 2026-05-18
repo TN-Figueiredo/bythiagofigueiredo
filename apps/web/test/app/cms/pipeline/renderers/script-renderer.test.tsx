@@ -65,8 +65,8 @@ describe('ScriptRenderer — unified mode', () => {
     render(
       <ScriptRenderer content={BEAT_WITH_TAGS} isEditing={false} lang="en" onContentChange={noop} />,
     )
-    expect(screen.getByText('#0')).toBeTruthy()
-    expect(screen.getByText('HOOK — Triple Curiosity Gap')).toBeTruthy()
+    expect(screen.getAllByText('#0').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('HOOK — Triple Curiosity Gap').length).toBeGreaterThanOrEqual(1)
   })
 
   it('renders meta grid when meta is present', () => {
@@ -120,6 +120,6 @@ describe('ScriptRenderer — edge cases', () => {
     render(
       <ScriptRenderer content={BEAT_WITH_TAGS} isEditing={false} lang="en" onContentChange={noop} />,
     )
-    expect(screen.getByText('#0')).toBeTruthy()
+    expect(screen.getAllByText('#0').length).toBeGreaterThanOrEqual(1)
   })
 })

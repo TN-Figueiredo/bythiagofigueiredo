@@ -330,3 +330,19 @@
   font-size: 0.75rem;
   font-style: italic;
 }
+
+/* ── Script Section — Print ──────────────────────────── */
+@media print {
+  .script-section {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .script-section [data-beat-idx] {
+    break-inside: avoid;
+  }
+  .script-section .script-tag-block,
+  .script-section .script-pause-block {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
