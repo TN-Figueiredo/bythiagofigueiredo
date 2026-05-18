@@ -4,15 +4,15 @@ import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import type { SocialPost } from '@tn-figueiredo/social'
 import { SocialStatusBadge } from '@/app/cms/(authed)/_shared/social/social-status-badge'
-import { updateSocialPost } from '@/lib/social/actions'
 import type { SocialStrings } from '../../_i18n/types'
 
 interface QueueListProps {
   posts: SocialPost[]
   strings: SocialStrings
+  onUpdatePost: (id: string, data: { scheduledAt?: string }) => Promise<{ ok: boolean }>
 }
 
-export function QueueList({ posts: initialPosts, strings: t }: QueueListProps) {
+export function QueueList({ posts: initialPosts, strings: t, onUpdatePost }: QueueListProps) {
   const [posts, setPosts] = useState(initialPosts)
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -47,7 +47,7 @@ export function QueueList({ posts: initialPosts, strings: t }: QueueListProps) {
         const post = posts[i]!
         const newTime = sortedTimes[i]
         if (post.scheduled_at !== newTime && newTime) {
-          await updateSocialPost(post.id, { scheduledAt: newTime })
+          await onUpdatePost(post.id, { scheduledAt: newTime })
         }
       }
     })

@@ -2,7 +2,7 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { CmsTopbar } from '@tn-figueiredo/cms-ui/client'
-import { listSocialPosts } from '@/lib/social/actions'
+import { listSocialPosts, deleteSocialPost, retrySocialDelivery, retryPostDeliveries } from '@/lib/social/actions'
 import { getSocialStrings } from './_i18n'
 import { PostsFeed } from './_components/posts-feed'
 import { PostsCalendar } from './_components/posts-calendar'
@@ -70,7 +70,17 @@ export default async function SocialPostsPage({ searchParams }: Props) {
           </Link>
         </div>
 
-        {tab === 'feed' && <PostsFeed posts={posts} siteId={ctx.siteId} strings={t} platformsByPost={platformsMap} />}
+        {tab === 'feed' && (
+          <PostsFeed
+            posts={posts}
+            siteId={ctx.siteId}
+            strings={t}
+            platformsByPost={platformsMap}
+            onRetryDelivery={retrySocialDelivery}
+            onDeletePost={deleteSocialPost}
+            onRetryPostDeliveries={retryPostDeliveries}
+          />
+        )}
         {tab === 'calendar' && <PostsCalendar posts={posts} strings={t} platformsByPost={platformsMap} />}
         {tab === 'queue' && <PostsQueue posts={posts} strings={t} />}
         {tab === 'drafts' && <PostsDrafts posts={posts} strings={t} />}

@@ -4,7 +4,6 @@ import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import type { SocialPost, Provider } from '@tn-figueiredo/social'
 import { SocialStatusBadge } from '@/app/cms/(authed)/_shared/social/social-status-badge'
-import { retrySocialDelivery } from '@/lib/social/actions'
 import { PostMetricsInline } from './post-metrics-inline'
 import type { SocialStrings } from '../_i18n/types'
 
@@ -22,6 +21,7 @@ interface PostCardProps {
     shares: number
     linkClicks: number | null
   } | null
+  onRetryDelivery: (deliveryId: string) => Promise<{ ok: boolean; error?: string }>
 }
 
 const PLATFORM_COLORS: Record<Provider, string> = {
@@ -47,6 +47,7 @@ export function PostCard({
   failedDeliveryIds,
   metricsLine,
   metrics,
+  onRetryDelivery,
 }: PostCardProps) {
   const [isPending, startTransition] = useTransition()
   const [retryError, setRetryError] = useState<string | null>(null)
@@ -61,7 +62,7 @@ export function PostCard({
     setRetryError(null)
     startTransition(async () => {
       for (const deliveryId of failedDeliveryIds) {
-        const result = await retrySocialDelivery(deliveryId)
+        const result = await onRetryDelivery(deliveryId)
         if (!result.ok) {
           setRetryError(result.error ?? t.common.error)
           return

@@ -9,6 +9,9 @@ import { TemplateCard } from './template-card'
 interface TemplateGridProps {
   templates: SocialTemplate[]
   siteId: string
+  onDeleteTemplate: (templateId: string) => Promise<unknown>
+  onDuplicateTemplate: (templateId: string) => Promise<unknown>
+  onSetDefaultTemplate: (templateId: string, siteId: string) => Promise<unknown>
 }
 
 const TAB_LABELS: Record<TemplateAspectRatio, string> = {
@@ -17,11 +20,10 @@ const TAB_LABELS: Record<TemplateAspectRatio, string> = {
   '16:9': '16:9 Landscape',
 }
 
-export function TemplateGrid({ templates, siteId }: TemplateGridProps) {
+export function TemplateGrid({ templates, siteId, onDeleteTemplate, onDuplicateTemplate, onSetDefaultTemplate }: TemplateGridProps) {
   const [activeRatio, setActiveRatio] = useState<TemplateAspectRatio>('9:16')
   const filtered = templates.filter(t => t.aspect_ratio === activeRatio)
 
-  // Grid columns adjust by aspect ratio for sensible card sizing
   const gridClass =
     activeRatio === '9:16'
       ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
@@ -38,7 +40,6 @@ export function TemplateGrid({ templates, siteId }: TemplateGridProps) {
 
   return (
     <div className="space-y-6">
-      {/* Tabs */}
       <div className="flex items-center justify-between">
         <div className="flex gap-2 border-b border-cms-border pb-2">
           {ASPECT_RATIOS.map(ratio => (
@@ -58,17 +59,18 @@ export function TemplateGrid({ templates, siteId }: TemplateGridProps) {
         </div>
       </div>
 
-      {/* Grid */}
       <div className={`grid gap-4 ${gridClass}`}>
         {filtered.map(template => (
           <TemplateCard
             key={template.id}
             template={template}
             siteId={siteId}
+            onDelete={onDeleteTemplate}
+            onDuplicate={onDuplicateTemplate}
+            onSetDefault={onSetDefaultTemplate}
           />
         ))}
 
-        {/* "+ New Template" card */}
         <Link
           href={`/cms/social/templates/new?ratio=${activeRatio}`}
           className={`${newCardAspect} flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-cms-border bg-cms-bg text-cms-text-dim transition-colors hover:border-cms-accent/40 hover:text-cms-accent`}

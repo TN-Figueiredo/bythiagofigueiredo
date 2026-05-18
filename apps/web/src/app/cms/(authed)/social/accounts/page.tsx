@@ -1,7 +1,7 @@
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { CmsTopbar } from '@tn-figueiredo/cms-ui/client'
-import { getConnections } from '@/lib/social/actions'
+import { getConnections, disconnectSocial } from '@/lib/social/actions'
 import { getSocialStrings } from '../_i18n'
 import { ConnectionsGrid } from './_components/connections-grid'
 import { AutomationsList } from './_components/automations-list'
@@ -43,7 +43,7 @@ export default async function SocialAccountsPage({ searchParams }: Props) {
           </a>
         </div>
         {tab === 'connections' && (
-          <ConnectionsGrid connections={connections} siteId={ctx.siteId} strings={t} />
+          <ConnectionsGrid connections={connections} siteId={ctx.siteId} strings={t} onDisconnect={disconnectSocial} />
         )}
         {tab === 'automations' && (
           <AutomationsList strings={t} />

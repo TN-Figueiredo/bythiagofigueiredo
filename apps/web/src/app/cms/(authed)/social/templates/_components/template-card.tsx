@@ -2,15 +2,17 @@
 
 import { useState, useTransition } from 'react'
 import type { SocialTemplate } from '@/lib/social/template-schemas'
-import { deleteTemplate, duplicateTemplate, setDefaultTemplate } from '@/lib/social/actions/templates'
 import { useRouter } from 'next/navigation'
 
 interface TemplateCardProps {
   template: SocialTemplate
   siteId: string
+  onDuplicate: (templateId: string) => Promise<unknown>
+  onSetDefault: (templateId: string, siteId: string) => Promise<unknown>
+  onDelete: (templateId: string) => Promise<unknown>
 }
 
-export function TemplateCard({ template, siteId }: TemplateCardProps) {
+export function TemplateCard({ template, siteId, onDuplicate, onSetDefault, onDelete }: TemplateCardProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [isPending, startTransition] = useTransition()
@@ -21,7 +23,7 @@ export function TemplateCard({ template, siteId }: TemplateCardProps) {
   function handleDuplicate() {
     setMenuOpen(false)
     startTransition(async () => {
-      await duplicateTemplate(template.id)
+      await onDuplicate(template.id)
       router.refresh()
     })
   }
@@ -29,7 +31,7 @@ export function TemplateCard({ template, siteId }: TemplateCardProps) {
   function handleSetDefault() {
     setMenuOpen(false)
     startTransition(async () => {
-      await setDefaultTemplate(template.id, siteId)
+      await onSetDefault(template.id, siteId)
       router.refresh()
     })
   }
@@ -38,7 +40,7 @@ export function TemplateCard({ template, siteId }: TemplateCardProps) {
     setConfirmDelete(false)
     setMenuOpen(false)
     startTransition(async () => {
-      await deleteTemplate(template.id)
+      await onDelete(template.id)
       router.refresh()
     })
   }

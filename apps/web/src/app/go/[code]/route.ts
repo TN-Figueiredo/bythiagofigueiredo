@@ -3,6 +3,7 @@ import * as Sentry from '@sentry/nextjs'
 import { resolveLink } from '@/lib/links/resolver'
 import { recordClick } from '@/lib/links/click-recorder'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { safePassthrough, extractClickIds } from '@tn-figueiredo/links'
 
 export const runtime = 'nodejs'
 
@@ -83,6 +84,63 @@ export async function GET(
     const userAgent = request.headers.get('user-agent') ?? ''
     const referrer = request.headers.get('referer') ?? null
 
+    // ── Build destination URL ──────────────────────────────────────────
+    let destination = new URL(link.destination_url)
+
+    // UTM params from tracked_links
+    const utmMapping = [
+      ['utm_source', link.utm_source],
+      ['utm_medium', link.utm_medium],
+      ['utm_campaign', link.utm_campaign],
+      ['utm_term', link.utm_term],
+      ['utm_content', link.utm_content],
+      ['utm_id', link.utm_id],
+    ] as const
+    for (const [param, value] of utmMapping) {
+      if (value && !destination.searchParams.has(param)) {
+        destination.searchParams.set(param, value)
+      }
+    }
+
+    // Click ID passthrough (gclid, fbclid, etc.)
+    const incomingUrl = new URL(request.url)
+    let clickIds: Record<string, string> | null = null
+    if (link.pass_click_ids) {
+      const passResult = safePassthrough(incomingUrl, destination)
+      if (passResult.forwarded.length > 0) {
+        destination = passResult.url
+        clickIds = extractClickIds(incomingUrl)
+        Sentry.addBreadcrumb({
+          category: 'links.passthrough',
+          message: `Forwarded click IDs: ${passResult.forwarded.join(', ')}`,
+          level: 'info',
+        })
+      }
+      if (passResult.rejected.length > 0) {
+        Sentry.addBreadcrumb({
+          category: 'links.passthrough',
+          message: `Rejected click IDs: ${passResult.rejected.join(', ')}`,
+          level: 'warning',
+        })
+      }
+    }
+
+    // Custom params (jsonb key-value pairs from tracked_links)
+    if (link.custom_params && typeof link.custom_params === 'object') {
+      const entries = Object.entries(link.custom_params)
+      let applied = 0
+      for (const [key, value] of entries) {
+        if (applied >= 20) break
+        if (!value || typeof value !== 'string') continue
+        if (key.toLowerCase().startsWith('utm_')) continue
+        if (value.length > 500) continue
+        if (!destination.searchParams.has(key)) {
+          destination.searchParams.set(key, value)
+          applied++
+        }
+      }
+    }
+
     // Fire-and-forget click recording (non-blocking)
     void recordClick({
       linkId: link.id,
@@ -103,26 +161,16 @@ export async function GET(
       utmTerm: link.utm_term,
       utmContent: link.utm_content,
       utmId: link.utm_id,
+      adClickIds: clickIds,
     }).catch((err) => {
       Sentry.captureException(err, { tags: { links: 'true', component: 'redirect' } })
     })
 
-    let destination = new URL(link.destination_url)
-    const utmMapping = [
-      ['utm_source', link.utm_source],
-      ['utm_medium', link.utm_medium],
-      ['utm_campaign', link.utm_campaign],
-      ['utm_term', link.utm_term],
-      ['utm_content', link.utm_content],
-      ['utm_id', link.utm_id],
-    ] as const
-    for (const [param, value] of utmMapping) {
-      if (value && !destination.searchParams.has(param)) {
-        destination.searchParams.set(param, value)
-      }
+    const response = NextResponse.redirect(destination.toString(), link.redirect_type)
+    if (link.redirect_type === 301 && clickIds) {
+      response.headers.set('Cache-Control', 'private, no-store')
     }
-
-    return NextResponse.redirect(destination.toString(), link.redirect_type)
+    return response
   } catch (err) {
     Sentry.captureException(err, { tags: { links: 'true', component: 'redirect' } })
     return NextResponse.json({ error: 'internal_error' }, { status: 500 })

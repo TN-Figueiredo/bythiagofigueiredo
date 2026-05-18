@@ -13,6 +13,9 @@ interface PostsFeedProps {
   siteId: string
   strings: SocialStrings
   platformsByPost?: Record<string, Provider[]>
+  onRetryDelivery: (deliveryId: string) => Promise<{ ok: boolean; error?: string }>
+  onDeletePost: (id: string) => Promise<{ ok: boolean }>
+  onRetryPostDeliveries: (id: string) => Promise<{ ok: boolean }>
 }
 
 const FILTER_STATUSES: (PostStatus | 'all')[] = ['all', 'completed', 'scheduled', 'failed', 'draft', 'cancelled']
@@ -33,7 +36,7 @@ const PLATFORM_LABELS: Record<Provider, string> = {
   youtube: 'YT',
 }
 
-export function PostsFeed({ posts, siteId, strings: t, platformsByPost = {} }: PostsFeedProps) {
+export function PostsFeed({ posts, siteId: _siteId, strings: t, platformsByPost = {}, onRetryDelivery, onDeletePost, onRetryPostDeliveries }: PostsFeedProps) {
   const router = useRouter()
   const [filter, setFilter] = useState<PostStatus | 'all'>('all')
   const [platformFilters, setPlatformFilters] = useState<Set<Provider>>(new Set())
@@ -120,6 +123,7 @@ export function PostsFeed({ posts, siteId, strings: t, platformsByPost = {} }: P
             selected={selected.has(post.id)}
             onSelect={toggleSelect}
             platforms={platformsByPost[post.id]}
+            onRetryDelivery={onRetryDelivery}
           />
         ))}
       </div>
@@ -134,6 +138,8 @@ export function PostsFeed({ posts, siteId, strings: t, platformsByPost = {} }: P
         selectedIds={[...selected]}
         strings={t}
         onDone={() => { setSelected(new Set()); router.refresh() }}
+        onDeletePost={onDeletePost}
+        onRetryPostDeliveries={onRetryPostDeliveries}
       />
     </div>
   )

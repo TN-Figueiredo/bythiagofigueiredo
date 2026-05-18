@@ -22,7 +22,6 @@ import {
   getContentForSocialPost,
   editPublishedPost,
   checkDuplicatesAction,
-  retrySocialDelivery,
 } from '@/lib/social/actions'
 import type { DuplicateWarnings } from '@/lib/social/duplicate-detection'
 import type { SocialStrings } from '../../_i18n/types'
@@ -51,6 +50,7 @@ interface ComposerShellProps {
     status: string
     platform_post_id: string | null
   }>
+  onRetrySocialDelivery?: (deliveryId: string) => Promise<{ ok: boolean; error?: string }>
 }
 
 function isValidUrl(value: string): boolean {
@@ -71,6 +71,7 @@ export function ComposerShell({
   preselectedContentId,
   editPostId,
   editDeliveries,
+  onRetrySocialDelivery,
 }: ComposerShellProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -737,7 +738,7 @@ export function ComposerShell({
         <PublishStatusBanner
           deliveries={publishedDeliveries}
           onRetry={async (deliveryId) => {
-            await retrySocialDelivery(deliveryId)
+            if (onRetrySocialDelivery) await onRetrySocialDelivery(deliveryId)
             if (publishedPostId) {
               router.push(`/cms/social/${publishedPostId}`)
             }

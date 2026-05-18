@@ -7,7 +7,7 @@ import { generateQrSvg } from '@tn-figueiredo/links/qr'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { buildShortUrl } from '@/lib/links/short-url'
-import { normalizeUtmValue, normalizeAllUtmFields, slugifyForCampaign } from '@tn-figueiredo/links'
+import { normalizeUtmValue, normalizeAllUtmFields } from '@tn-figueiredo/links'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -53,6 +53,8 @@ const CreateLinkSchema = z.object({
   utm_id: z.string().max(255).optional().transform(v => normalizeUtmValue('utm_id', v)),
   tags: z.array(z.string()).optional(),
   expires_at: z.string().datetime().optional(),
+  activates_at: z.string().datetime().optional(),
+  pass_click_ids: z.boolean().optional(),
 })
 
 const UpdateLinkSchema = z.object({
@@ -68,6 +70,8 @@ const UpdateLinkSchema = z.object({
   utm_id: z.string().max(255).optional().transform(v => normalizeUtmValue('utm_id', v)),
   tags: z.array(z.string()).optional(),
   expires_at: z.string().datetime().nullable().optional(),
+  activates_at: z.string().datetime().nullable().optional(),
+  pass_click_ids: z.boolean().optional(),
 })
 
 const AlertRuleSchema = z.object({
@@ -124,7 +128,7 @@ export async function createLink(
     code,
     slug: parsed.data.slug ?? null,
     title: parsed.data.title ?? null,
-    redirect_type: parsed.data.redirect_type === '301' ? 301 : 302,
+    redirect_type: Number(parsed.data.redirect_type) as 301 | 302 | 307 | 308,
     source_type: parsed.data.source_type ?? 'manual',
     source_id: parsed.data.source_id ?? null,
     utm_source: parsed.data.utm_source ?? null,
@@ -132,9 +136,12 @@ export async function createLink(
     utm_campaign: parsed.data.utm_campaign ?? null,
     utm_term: parsed.data.utm_term ?? null,
     utm_content: parsed.data.utm_content ?? null,
+    utm_id: parsed.data.utm_id ?? null,
     tags: parsed.data.tags ?? [],
     expires_at: parsed.data.expires_at ?? null,
     active: true,
+    activates_at: parsed.data.activates_at ?? null,
+    pass_click_ids: parsed.data.pass_click_ids ?? true,
   }
 
   const { data, error } = await supabase
@@ -181,8 +188,11 @@ export async function updateLink(
   if (d.utm_campaign !== undefined) updateData.utm_campaign = d.utm_campaign
   if (d.utm_term !== undefined) updateData.utm_term = d.utm_term
   if (d.utm_content !== undefined) updateData.utm_content = d.utm_content
+  if (d.utm_id !== undefined) updateData.utm_id = d.utm_id
   if (d.tags !== undefined) updateData.tags = d.tags
   if (d.expires_at !== undefined) updateData.expires_at = d.expires_at
+  if (d.activates_at !== undefined) updateData.activates_at = d.activates_at
+  if (d.pass_click_ids !== undefined) updateData.pass_click_ids = d.pass_click_ids
 
   const { error } = await supabase
     .from('tracked_links')
@@ -229,7 +239,7 @@ export async function duplicateLink(id: string): Promise<ActionResult<{ linkId: 
 
   const { data: original, error: fetchErr } = await supabase
     .from('tracked_links')
-    .select('destination_url, title, source_type, tags, utm_source, utm_medium, utm_campaign, utm_term, utm_content, redirect_type, expires_at')
+    .select('destination_url, title, source_type, tags, utm_source, utm_medium, utm_campaign, utm_term, utm_content, utm_id, redirect_type, expires_at')
     .eq('id', id)
     .eq('site_id', siteId)
     .single()
@@ -252,6 +262,7 @@ export async function duplicateLink(id: string): Promise<ActionResult<{ linkId: 
         utm_campaign: original.utm_campaign,
         utm_term: original.utm_term,
         utm_content: original.utm_content,
+        utm_id: original.utm_id,
       }),
       redirect_type: original.redirect_type,
       expires_at: original.expires_at,
@@ -810,7 +821,7 @@ export async function saveLinkSettings(input: {
     .upsert(
       {
         site_id: siteId,
-        default_redirect_type: input.default_redirect_type ?? 302,
+        default_redirect_type: input.default_redirect_type ?? 307,
         default_code_length: input.default_code_length ?? 6,
         auto_qr: input.auto_qr ?? false,
         bot_filtering: input.bot_filtering ?? true,

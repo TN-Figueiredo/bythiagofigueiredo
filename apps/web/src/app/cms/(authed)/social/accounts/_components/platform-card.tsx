@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import type { Provider } from '@tn-figueiredo/social'
 import { PlatformIcon, platformLabel } from '@/app/cms/(authed)/_shared/social/platform-icon'
 import { OauthButton } from './oauth-button'
-import { disconnectSocial } from '@/lib/social/actions'
 import type { SocialStrings } from '../../_i18n/types'
 
 // ---------------------------------------------------------------------------
@@ -28,6 +27,7 @@ interface PlatformCardProps {
   provider: Provider
   connections: SafeConnection[]
   strings: SocialStrings
+  onDisconnect: (connectionId: string) => Promise<{ ok: boolean; error?: string }>
   /** When true, renders as a sub-card inside a Meta group */
   nested?: boolean
   /** Hide the token bar (shared bar rendered by parent) */
@@ -545,6 +545,7 @@ export function PlatformCard({
   provider,
   connections,
   strings: t,
+  onDisconnect,
   nested = false,
   hideTokenBar: _hideTokenBar = false,
 }: PlatformCardProps) {
@@ -558,7 +559,7 @@ export function PlatformCard({
     setDisconnectError(null)
     startTransition(async () => {
       try {
-        const result = await disconnectSocial(connectionId)
+        const result = await onDisconnect(connectionId)
         if (!result.ok) {
           setDisconnectError(result.error ?? t.common.error)
         } else {
@@ -711,12 +712,14 @@ interface MetaPlatformCardProps {
   facebookConnections: SafeConnection[]
   instagramConnections: SafeConnection[]
   strings: SocialStrings
+  onDisconnect: (connectionId: string) => Promise<{ ok: boolean; error?: string }>
 }
 
 export function MetaPlatformCard({
   facebookConnections,
   instagramConnections,
   strings: t,
+  onDisconnect,
 }: MetaPlatformCardProps) {
   const router = useRouter()
   const [showManage, setShowManage] = useState(false)
@@ -728,7 +731,7 @@ export function MetaPlatformCard({
     setDisconnectError(null)
     startTransition(async () => {
       try {
-        const result = await disconnectSocial(connectionId)
+        const result = await onDisconnect(connectionId)
         if (!result.ok) {
           setDisconnectError(result.error ?? t.common.error)
         } else {
@@ -799,6 +802,7 @@ export function MetaPlatformCard({
           strings={t}
           nested
           hideTokenBar
+          onDisconnect={onDisconnect}
         />
 
         {/* Instagram sub-card */}
@@ -808,6 +812,7 @@ export function MetaPlatformCard({
           strings={t}
           nested
           hideTokenBar
+          onDisconnect={onDisconnect}
         />
 
         {disconnectError && (

@@ -21,9 +21,10 @@ interface ConnectionsGridProps {
   connections: SafeConnection[]
   siteId: string
   strings: SocialStrings
+  onDisconnect: (connectionId: string) => Promise<{ ok: boolean; error?: string }>
 }
 
-export function ConnectionsGrid({ connections, strings: t }: ConnectionsGridProps) {
+export function ConnectionsGrid({ connections, strings: t, onDisconnect }: ConnectionsGridProps) {
   const youtube = connections.filter(c => c.provider === 'youtube')
   const facebook = connections.filter(c => c.provider === 'facebook')
   const instagram = connections.filter(c => c.provider === 'instagram')
@@ -43,6 +44,7 @@ export function ConnectionsGrid({ connections, strings: t }: ConnectionsGridProp
           provider="youtube"
           connections={youtube}
           strings={t}
+          onDisconnect={onDisconnect}
         />
 
         {/* Meta group (Facebook + Instagram) */}
@@ -51,6 +53,7 @@ export function ConnectionsGrid({ connections, strings: t }: ConnectionsGridProp
             facebookConnections={facebook}
             instagramConnections={instagram}
             strings={t}
+            onDisconnect={onDisconnect}
           />
         ) : (
           <>
@@ -58,11 +61,13 @@ export function ConnectionsGrid({ connections, strings: t }: ConnectionsGridProp
               provider="facebook"
               connections={facebook}
               strings={t}
+              onDisconnect={onDisconnect}
             />
             <PlatformCard
               provider="instagram"
               connections={instagram}
               strings={t}
+              onDisconnect={onDisconnect}
             />
           </>
         )}
@@ -72,6 +77,7 @@ export function ConnectionsGrid({ connections, strings: t }: ConnectionsGridProp
           provider="bluesky"
           connections={bluesky}
           strings={t}
+          onDisconnect={onDisconnect}
         />
       </div>
     </div>

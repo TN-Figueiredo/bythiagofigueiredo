@@ -1,7 +1,7 @@
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { CmsTopbar } from '@tn-figueiredo/cms-ui/client'
-import { listTemplates } from '@/lib/social/actions/templates'
+import { listTemplates, deleteTemplate, duplicateTemplate, setDefaultTemplate } from '@/lib/social/actions/templates'
 import { TemplateGrid } from './_components/template-grid'
 
 export const dynamic = 'force-dynamic'
@@ -17,7 +17,13 @@ export default async function TemplatesPage() {
     <>
       <CmsTopbar title="Templates" />
       <div className="p-6">
-        <TemplateGrid templates={templates} siteId={ctx.siteId} />
+        <TemplateGrid
+            templates={templates}
+            siteId={ctx.siteId}
+            onDeleteTemplate={deleteTemplate}
+            onDuplicateTemplate={duplicateTemplate}
+            onSetDefaultTemplate={setDefaultTemplate}
+          />
       </div>
     </>
   )

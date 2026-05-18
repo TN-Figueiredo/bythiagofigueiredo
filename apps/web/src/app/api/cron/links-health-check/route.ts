@@ -11,7 +11,26 @@ const BATCH_SIZE = 50
 const REQUEST_TIMEOUT_MS = 10_000
 const RATE_LIMIT_MS = 1_000
 
-const PRIVATE_IP_RE = /^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|0\.|localhost|::1|\[::1\])/i
+const PRIVATE_IP_RE =
+  /^(https?:\/\/)?(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|127\.\d{1,3}\.\d{1,3}\.\d{1,3}|0\.0\.0\.0|localhost|\[?::1\]?|\[?0+:0+:0+:0+:0+:0+:0+:0*1\]?|\[?fe80:[^\]]*\]?|\[?fc[0-9a-f]{2}:[^\]]*\]?|\[?fd[0-9a-f]{2}:[^\]]*\]?)/i
+
+function isPrivateUrl(url: string): boolean {
+  if (PRIVATE_IP_RE.test(url)) return true
+  try {
+    const parsed = new URL(url)
+    const host = parsed.hostname.toLowerCase()
+    if (
+      host === 'localhost' ||
+      host === '0.0.0.0' ||
+      host.startsWith('fe80') ||
+      host.startsWith('fc') ||
+      host.startsWith('fd')
+    ) {
+      return true
+    }
+  } catch { /* invalid URL, let the regex handle it */ }
+  return false
+}
 
 type HealthStatus = 'healthy' | 'unhealthy' | 'timeout' | 'dns_error'
 
@@ -21,8 +40,7 @@ function delay(ms: number): Promise<void> {
 
 async function checkUrl(url: string): Promise<HealthStatus> {
   try {
-    const parsed = new URL(url)
-    if (PRIVATE_IP_RE.test(parsed.hostname)) return 'unhealthy'
+    if (isPrivateUrl(url)) return 'unhealthy'
 
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)

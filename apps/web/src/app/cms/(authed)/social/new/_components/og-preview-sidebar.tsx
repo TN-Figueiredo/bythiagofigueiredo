@@ -9,7 +9,6 @@ import {
 import { OgFacebookCard } from './og-facebook-card'
 import { OgBlueskyCard } from './og-bluesky-card'
 import { OgInstagramPreview } from './og-instagram-preview'
-import { scrapeOgTags } from '@/lib/social/actions'
 
 // ---------------------------------------------------------------------------
 // OG validation badge types
@@ -75,6 +74,7 @@ interface OgPreviewSidebarProps {
   ogData: OgData | null
   postId?: string
   onForceRescrape?: () => void
+  onScrapeOgTags?: (postId: string) => Promise<unknown>
 }
 
 // Platforms that show OG previews (YouTube excluded — no link cards)
@@ -85,6 +85,7 @@ export function OgPreviewSidebar({
   ogData,
   postId,
   onForceRescrape,
+  onScrapeOgTags,
 }: OgPreviewSidebarProps) {
   const visiblePlatforms = platforms.filter((p) => OG_PLATFORMS.includes(p))
   const [activeTab, setActiveTab] = useState<Provider>(
@@ -111,7 +112,7 @@ export function OgPreviewSidebar({
   function handleForceRescrape() {
     if (postId) {
       startTransition(async () => {
-        await scrapeOgTags(postId)
+        if (onScrapeOgTags) await onScrapeOgTags(postId)
         onForceRescrape?.()
       })
     }

@@ -12,10 +12,12 @@ ALTER TABLE tracked_links
   ADD COLUMN IF NOT EXISTS pass_click_ids boolean DEFAULT true NOT NULL;
 
 -- 2. Constraints
+ALTER TABLE tracked_links DROP CONSTRAINT IF EXISTS chk_activation_before_expiry;
 ALTER TABLE tracked_links
   ADD CONSTRAINT chk_activation_before_expiry
     CHECK (activates_at IS NULL OR expires_at IS NULL OR activates_at < expires_at);
 
+ALTER TABLE tracked_links DROP CONSTRAINT IF EXISTS chk_health_status_values;
 ALTER TABLE tracked_links
   ADD CONSTRAINT chk_health_status_values
     CHECK (health_status IN ('unchecked', 'healthy', 'unhealthy', 'timeout', 'dns_error'));
