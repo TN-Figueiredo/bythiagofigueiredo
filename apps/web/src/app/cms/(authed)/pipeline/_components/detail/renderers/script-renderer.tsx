@@ -11,6 +11,9 @@ type ViewMode = 'edit' | 'view'
 
 export function ScriptRenderer({ content, isEditing, lang, onContentChange }: RendererProps) {
   const [mode, setMode] = useState<ViewMode>('edit')
+  // Cast to string to prevent TypeScript from narrowing the comparison after an early return
+  const currentMode: string = mode
+  const isViewMode = currentMode === 'view'
 
   const v2Content = useMemo(() => migrateV1toV2(content), [content])
 
@@ -61,9 +64,9 @@ export function ScriptRenderer({ content, isEditing, lang, onContentChange }: Re
           type="button"
           onClick={() => setMode('view')}
           className={`px-2 py-1 rounded text-[10px] font-medium transition-colors ${
-            mode === 'view' ? 'text-[var(--gem-accent)]' : 'text-[var(--gem-dim)] hover:text-[var(--gem-muted)]'
+            isViewMode ? 'text-[var(--gem-accent)]' : 'text-[var(--gem-dim)] hover:text-[var(--gem-muted)]'
           }`}
-          style={mode === 'view' ? { background: 'color-mix(in srgb, var(--gem-accent) 10%, transparent)' } : undefined}
+          style={isViewMode ? { background: 'color-mix(in srgb, var(--gem-accent) 10%, transparent)' } : undefined}
           title="View mode (Cmd+Shift+P)"
         >
           <Eye size={12} className="inline mr-1" />

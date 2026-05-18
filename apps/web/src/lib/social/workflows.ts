@@ -184,18 +184,90 @@ export async function executeWithRetry(
 }
 
 // ---------------------------------------------------------------------------
+// Extended post type for multi-slide delivery
+// ---------------------------------------------------------------------------
+
+/**
+ * SocialPost extended with optional story_slides from the DB.
+ * The @tn-figueiredo/social package SocialPost doesn't include story_slides
+ * since it's a DB-only field; callers can pass it via this extended type.
+ */
+export interface SocialPostWithSlides extends SocialPost {
+  story_slides?: unknown[]
+}
+
+// ---------------------------------------------------------------------------
 // Story delivery preparation
 // ---------------------------------------------------------------------------
 
 async function prepareStoryDelivery(
-  post: SocialPost,
+  post: SocialPostWithSlides,
   delivery: SocialDelivery & { template_config?: Record<string, unknown> | null },
 ): Promise<SocialPost> {
   if (delivery.format !== 'story') return post
 
   try {
-    const { renderTemplate } = await import('@/lib/social/template-renderer')
     const { put } = await import('@vercel/blob')
+
+    // ---------------------------------------------------------------------------
+    // Multi-slide path: render each CardComposition and upload individually
+    // ---------------------------------------------------------------------------
+    const storySlides = post.story_slides ?? delivery.template_config?.storySlides
+    if (Array.isArray(storySlides) && storySlides.length > 0) {
+      const { renderMultiSlide } = await import('@/lib/social/template-renderer')
+      const { CardCompositionSchema } = await import('@tn-figueiredo/links/qr')
+
+      const validSlides = storySlides.flatMap((slide) => {
+        const parsed = CardCompositionSchema.safeParse(slide)
+        return parsed.success ? [parsed.data] : []
+      })
+
+      if (validSlides.length > 0) {
+        const context = {
+          title: post.content.title ?? '',
+          description: post.content.description,
+          cover_image: post.content.media_urls?.[0],
+          short_url: post.content.url ?? '',
+        }
+
+        const buffers = await renderMultiSlide(validSlides, context)
+
+        const uploadedUrls: string[] = []
+        for (let i = 0; i < buffers.length; i++) {
+          const slideBuffer = buffers[i]
+          if (!slideBuffer) continue
+          const blob = await put(
+            `stories/${post.id}-slide-${i + 1}-${Date.now()}.jpg`,
+            slideBuffer,
+            { access: 'public', addRandomSuffix: false },
+          )
+          uploadedUrls.push(blob.url)
+        }
+
+        if (uploadedUrls.length > 0) {
+          notifyStoryReady({
+            userId: post.created_by,
+            postId: post.id,
+            title: post.content.title ?? '',
+            imageUrl: uploadedUrls[0]!,
+            shortUrl: post.content.url ?? '',
+          }).catch(() => {})
+
+          return {
+            ...post,
+            content: {
+              ...post.content,
+              media_urls: uploadedUrls,
+            },
+          }
+        }
+      }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Single-slide path: render a single template composition
+    // ---------------------------------------------------------------------------
+    const { renderTemplate } = await import('@/lib/social/template-renderer')
 
     const templateId = delivery.template_config?.templateId as string | undefined
 
@@ -288,7 +360,7 @@ export interface PublishOptions {
 }
 
 export async function publishSocialPost(
-  post: SocialPost,
+  post: SocialPostWithSlides,
   options?: PublishOptions,
 ): Promise<void> {
   const supabase = getSupabaseServiceClient()

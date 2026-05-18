@@ -101,3 +101,24 @@ export async function renderTemplate(
 
   return renderKonva(composition, opts.data, size)
 }
+
+// ---------------------------------------------------------------------------
+// Multi-slide rendering
+// ---------------------------------------------------------------------------
+
+/**
+ * Renders an array of CardCompositions into JPEG Buffers in order.
+ * Each slide is rendered independently at its own canvas dimensions.
+ */
+export async function renderMultiSlide(
+  slides: CardComposition[],
+  context: TemplateContext,
+): Promise<Buffer[]> {
+  const buffers: Buffer[] = []
+  for (const slide of slides) {
+    const size = { width: slide.canvas.width, height: slide.canvas.height }
+    const buffer = await renderKonva(slide, context, size)
+    buffers.push(buffer)
+  }
+  return buffers
+}
