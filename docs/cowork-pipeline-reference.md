@@ -286,6 +286,190 @@ para controle individual de `captured`.
 
 ---
 
+## Section: `postprod` (per-lang) — DaVinci Timeline View
+
+This is the **timeline-native** format that powers the DaVinci Resolve-like timeline UI. It describes clips on named tracks (V1-V7 video, A1-A6 audio) with start/end times in seconds, organized per beat.
+
+**IMPORTANT:** This section MUST be written alongside or after `postprod_scenes`. While `postprod_scenes` captures editorial intent (music choice, SFX placement, narrative), `postprod` maps that intent onto a concrete multi-track timeline. Both sections should be consistent.
+
+### Track IDs and their roles
+
+| Track | Name | Purpose |
+|-------|------|---------|
+| `V1` | Main Footage | Talking head, A-roll principal |
+| `V2` | Background Layer | Content behind speaker (Fusion Magic Mask) |
+| `V3` | B-Roll | Cutaways, insert shots, Ken Burns photos |
+| `V4` | Lower Thirds | Name, location, chapter titles |
+| `V5` | Graphics + QR | QR codes, subscribe CTA, logos, infographics |
+| `V6` | Subtitles | Styled captions (Text+ ou Fusion) |
+| `V7` | Overlays + End Screen | End screen, cards, visual transitions, vignettes |
+| `A1` | Voice | Narration, talking head audio |
+| `A2` | Music | Music bed (ducked under voice) |
+| `A3` | SFX Punctuation | Impacts, bass drops, risers |
+| `A4` | SFX Textures | Whooshes, shimmers, transitions |
+| `A5` | Ambience | Room tone, ambient sound |
+| `A6` | Sound Design | Branded sounds, notifications, stingers |
+
+### Content schema
+
+```json
+{
+  "beats": [
+    {
+      "idx": 0,
+      "label": "Hook",
+      "name": "Hook — Revelação pessoal",
+      "duration": 24,
+      "absStart": 0,
+      "status": "PENDING",
+      "difficulty": "EASY",
+      "clips": {
+        "V1": [{ "s": 0, "e": 24, "label": "DJI_20001180_0067_D.MP4" }],
+        "V3": [
+          { "s": 2, "e": 8, "label": "Fotos Canadá (Ken Burns)" },
+          { "s": 9, "e": 14, "label": "Fotos Brasil (Ken Burns)" },
+          { "s": 15, "e": 20, "label": "Fotos Asia (Ken Burns)" }
+        ],
+        "V6": [{ "s": 0, "e": 24, "label": "Subtitle Track — 42 clips" }],
+        "A1": [{ "s": 0, "e": 24, "label": "DJI_20001180_0067.wav" }],
+        "A2": [{ "s": 0, "e": 24, "label": "Ocean Depth — v5 smooth duck.wav" }],
+        "A3": [
+          { "s": 5, "e": 6, "label": "Impact Live — B..." },
+          { "s": 14, "e": 16, "label": "Riser Sutil 2s" },
+          { "s": 20, "e": 21, "label": "Bass Drop — De..." }
+        ],
+        "A4": [
+          { "s": 8, "e": 9, "label": "Whoosh transition" },
+          { "s": 12, "e": 13, "label": "Shimmer light" }
+        ]
+      }
+    },
+    {
+      "idx": 1,
+      "label": "O Capítulo Canadá",
+      "name": "Beat 1 — O Capítulo Canadá",
+      "duration": 93,
+      "absStart": 24,
+      "status": "PENDING",
+      "difficulty": "MEDIUM",
+      "clips": {
+        "V1": [
+          { "s": 0, "e": 20, "label": "DJI_20001180_0068_D.MP4" },
+          { "s": 20, "e": 40, "label": "DJI_20001180_0069_D.MP4" },
+          { "s": 40, "e": 60, "label": "DJI_20001180_0070_D.MP4" },
+          { "s": 60, "e": 80, "label": "DJI_20001180_0071_D.MP4" },
+          { "s": 80, "e": 93, "label": "DJI_20001180_0072_D.MP4" }
+        ],
+        "V2": [{ "s": 0, "e": 93, "label": "Background Layer — Magic Mask" }],
+        "V3": [
+          { "s": 5, "e": 15, "label": "B-roll: Toronto..." },
+          { "s": 25, "e": 38, "label": "B-roll: Winter ca..." },
+          { "s": 55, "e": 68, "label": "B-roll: Apartm..." },
+          { "s": 75, "e": 88, "label": "B-roll: Downto..." }
+        ],
+        "V4": [
+          { "s": 3, "e": 8, "label": "LT: \"A...\"" },
+          { "s": 50, "e": 55, "label": "LT: \"T...\"" }
+        ],
+        "V6": [{ "s": 0, "e": 93, "label": "Subtitle Track — 186 clips" }],
+        "A1": [{ "s": 0, "e": 93, "label": "Voice narration" }],
+        "A2": [{ "s": 0, "e": 93, "label": "Ocean Depth — v5 smooth duck.wav" }]
+      }
+    }
+  ],
+  "assets": {
+    "0": {
+      "music": [
+        {
+          "id": "uuid-ocean-depth",
+          "name": "Ocean Depth",
+          "artist": "Veaceslav Draganov",
+          "genre": "cinematic",
+          "bpm": 90,
+          "dur": "3:42",
+          "match": 26,
+          "local": true,
+          "selected": true,
+          "confirmed": true,
+          "tags": ["dark", "ambient", "piano"],
+          "note": "Dark ambient pads — intimate confessional tone"
+        }
+      ],
+      "sfx": [
+        {
+          "tc": "00:05",
+          "type": "IMPACT",
+          "typeColor": "#E67E22",
+          "desc": "Impact leve — marca entrada do talking head",
+          "file": { "name": "Impact Live.wav", "local": true, "match": 30 }
+        },
+        {
+          "tc": "00:14",
+          "type": "RISER",
+          "typeColor": "#E67E22",
+          "desc": "Riser sutil 2s antes da transição",
+          "file": { "name": "Riser Sutil 2s.wav", "local": true, "match": 28 }
+        }
+      ]
+    }
+  }
+}
+```
+
+### Field reference — `beats[]`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `idx` | number | **Yes** | 0-based index, must be sequential |
+| `label` | string | **Yes** | Short beat label (shown in progress bar, e.g. "Hook", "O Capítulo Canadá") |
+| `name` | string | **Yes** | Full beat name (shown in accordion header) |
+| `duration` | number | **Yes** | Duration in seconds (determines ruler width) |
+| `absStart` | number | **Yes** | Absolute start time: `sum of all previous beat durations` |
+| `status` | string | **Yes** | `PENDING` \| `IN_PROGRESS` \| `DONE` |
+| `difficulty` | string | **Yes** | `EASY` \| `MEDIUM` \| `HARD` — affects badge color |
+| `clips` | Record | **Yes** | Track ID → array of clips. Only include tracks that have clips — empty tracks are auto-rendered as empty lanes |
+| `script` | array | No | Optional script lines from roteiro (auto-populated by UI) |
+
+### Field reference — `clips[trackId][]`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `s` | number | **Yes** | Start time in seconds (relative to beat start, 0 = beat start) |
+| `e` | number | **Yes** | End time in seconds (relative to beat start, must be ≤ beat duration) |
+| `label` | string | **Yes** | Clip label displayed on the timeline bar. Use the actual filename, description, or SFX name |
+
+### Field reference — `assets{}`
+
+Assets are keyed by beat index (as string). Each beat can have `music[]`, `sfx[]`, `visual[]`, `ambience[]`, `soundDesign[]`. These populate the "ASSETS" collapsible panel below each beat's timeline. See existing `MusicAsset`, `SfxAsset`, etc. types for field details.
+
+### Mapping from `postprod_scenes` to `postprod`
+
+When writing `postprod`, transform the semantic `postprod_scenes` data into timeline clips:
+
+| `postprod_scenes` source | → `postprod` target track |
+|--------------------------|---------------------------|
+| Scene timestamps | `absStart` + `duration` |
+| Scene's main footage reference | `V1` clips |
+| Scene's B-roll items | `V3` clips |
+| Scene's overlays/lower thirds | `V4` / `V7` clips |
+| Scene subtitle reference | `V6` clip (one per beat, spanning full duration) |
+| Scene music track | `A2` clip (usually spans full beat) |
+| Scene's voice/narration | `A1` clip (usually spans full beat) |
+| Scene's SFX (IMPACT, RISER, DROP) | `A3` clips (short, at specific timestamps) |
+| Scene's SFX (WHOOSH, SHIMMER, TRANSITION) | `A4` clips |
+| Scene's ambience reference | `A5` clip |
+
+**Rules:**
+1. Clip times are **relative to beat start** (s=0 means beat start, NOT absolute timeline position)
+2. `absStart` for beat N = sum of durations of beats 0..N-1
+3. Every beat SHOULD have at least `V1` and `A1` clips (main footage + voice)
+4. If a music track continues from the previous beat, still include a full-duration `A2` clip with the track name + " (continues)"
+5. Subtitle track (`V6`) is one clip per beat — label as "Subtitle Track — N clips" where N is approximate word count ÷ 3
+6. SFX clips are short (0.3-3s). Place them at the exact timestamp from the scene's sfx array, converted to beat-relative time
+7. B-roll clips should have descriptive labels matching the brolls section's clip names
+
+---
+
 ## Section: `postprod_scenes` (per-lang) — Cena × Cena
 
 ```json
