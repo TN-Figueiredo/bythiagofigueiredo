@@ -64,17 +64,28 @@ export async function PATCH(
 
   const { version, ...updates } = parsed.data
   const supabase = getSupabaseServiceClient()
+
+  // Atomic OCC: the version check is part of the UPDATE's WHERE clause.
+  // A single round-trip either succeeds (row returned) or affects 0 rows (version mismatch or row absent).
+  // Use select().maybeSingle() instead of .single() so that 0 rows does not raise PGRST116 —
+  // we differentiate 404 vs 409 with one additional point-lookup only on the failure path.
   const { data, error } = await supabase
     .from('broll_library')
-    .update(updates)
+    .update({ ...updates, version: version + 1 })
     .eq('id', id)
     .eq('site_id', auth.siteId)
     .eq('version', version)
     .select('*')
-    .single()
+    .maybeSingle()
 
-  if (error || !data) {
-    const { data: exists } = await supabase.from('broll_library').select('id, version').eq('id', id).eq('site_id', auth.siteId).single()
+  if (error) {
+    pipelineLog('error', 'broll-library', 'PATCH failed', { error })
+    return NextResponse.json({ error: { code: 'DB_ERROR', message: 'Internal server error' } }, { status: 500 })
+  }
+
+  if (!data) {
+    // 0 rows updated: determine whether the record is missing (404) or version-mismatched (409).
+    const { data: exists } = await supabase.from('broll_library').select('id, version').eq('id', id).eq('site_id', auth.siteId).maybeSingle()
     if (!exists) return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Asset not found' } }, { status: 404 })
     return NextResponse.json({ error: { code: 'CONFLICT', message: `Version mismatch: expected ${version}, current ${exists.version}` } }, { status: 409 })
   }

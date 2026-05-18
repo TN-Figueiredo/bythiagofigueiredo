@@ -35,7 +35,7 @@ export const BRollAssetCreateSchema = z.object({
   status: z.enum(BROLL_STATUSES).default('available'),
   captured_at: z.string().datetime().optional(),
   metadata: z.record(z.unknown()).default({}).refine(
-    (val) => JSON.stringify(val).length <= 65536,
+    (val) => new TextEncoder().encode(JSON.stringify(val)).byteLength <= 65536,
     { message: 'metadata must be under 64KB when serialized' }
   ),
 })
@@ -89,7 +89,7 @@ export const BRollImportItemSchema = z.object({
   status: z.enum(BROLL_STATUSES).optional(),
   captured_at: z.string().datetime().optional(),
   metadata: z.record(z.unknown()).optional().refine(
-    (val) => !val || JSON.stringify(val).length <= 65536,
+    (val) => !val || new TextEncoder().encode(JSON.stringify(val)).byteLength <= 65536,
     { message: 'metadata must be under 64KB when serialized' }
   ),
 })

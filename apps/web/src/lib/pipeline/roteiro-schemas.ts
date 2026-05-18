@@ -9,7 +9,7 @@ export const ScriptLineLineSchema = z.object({
 
 export const ScriptLinePauseSchema = z.object({
   type: z.literal('pause'),
-  duration: z.number().min(0),
+  duration: z.number().min(0).max(30),
 })
 
 export const ScriptLineNoteSchema = z.object({

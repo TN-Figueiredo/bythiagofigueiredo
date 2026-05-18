@@ -50,7 +50,11 @@ export function ScriptBeatAccordion({
   }
 
   const extensions = useMemo(() => getScriptExtensions(), [])
-  const initialContent = useMemo(() => roteiroToTipTap(beat), []) // eslint-disable-line react-hooks/exhaustive-deps
+  // beat.idx is the stable identity for a beat instance — intentionally
+  // computed only on mount so the editor is not re-initialised on every
+  // keystroke.  The eslint-disable is intentional.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const initialContent = useMemo(() => roteiroToTipTap(beat), [beat.idx])
 
   const editor = useEditor({
     extensions,
@@ -63,8 +67,13 @@ export function ScriptBeatAccordion({
       },
     },
     onUpdate: ({ editor: e }) => {
-      const lines = tipTapToRoteiro(e.getJSON())
-      onBeatChange({ ...beat, script: lines })
+      try {
+        const lines = tipTapToRoteiro(e.getJSON())
+        onBeatChange({ ...beat, script: lines })
+      } catch {
+        // Serialisation failed (e.g. malformed node) — discard this update
+        // rather than propagating an exception into the TipTap update cycle.
+      }
     },
   })
 

@@ -61,7 +61,15 @@ export async function GET(req: NextRequest) {
   if (cursor && UUID_REGEX.test(cursor)) {
     const { data: cursorItem } = await supabase.from('broll_library').select('created_at').eq('id', cursor).eq('site_id', auth.siteId).single()
     if (cursorItem) {
-      query = query.or(`created_at.lt.${cursorItem.created_at},and(created_at.eq.${cursorItem.created_at},id.lt.${cursor})`)
+      const ts = cursorItem.created_at as string
+      // Validate that the DB-returned timestamp is a safe ISO-8601 string before using it in
+      // the PostgREST filter expression. cursor is already UUID-validated above; ts is fetched
+      // from the DB via that UUID + site_id scope, but we guard the format to prevent any
+      // unexpected value from being interpolated into the filter string.
+      const ISO_TS_REGEX = /^\d{4}-\d{2}-\d{2}T[\d:.+Z-]+$/
+      if (ISO_TS_REGEX.test(ts)) {
+        query = query.or(`created_at.lt.${ts},and(created_at.eq.${ts},id.lt.${cursor})`)
+      }
     }
   }
 

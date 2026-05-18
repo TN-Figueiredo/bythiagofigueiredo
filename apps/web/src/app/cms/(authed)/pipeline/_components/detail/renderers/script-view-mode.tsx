@@ -4,6 +4,11 @@ import { useState, useMemo, useCallback, useEffect } from 'react'
 import type { RoteiroContent, RoteiroBeat, ScriptLine } from '@/lib/pipeline/roteiro-schemas'
 import './script-view-mode.css'
 
+/** Maximum character length a single script line may contribute to word-count.
+ *  Lines longer than this are truncated before splitting to prevent ReDoS on
+ *  pathological whitespace-heavy strings. */
+const MAX_SCRIPT_LINE_LENGTH = 100_000
+
 interface ScriptViewModeProps {
   content: RoteiroContent
   title?: string
@@ -20,7 +25,12 @@ function fmtDur(sec: number): string {
 function beatWordCount(beat: RoteiroBeat): number {
   return beat.script
     .filter((l): l is ScriptLine & { type: 'line' } => l.type === 'line')
-    .reduce((n, l) => n + l.text.split(/\s+/).length, 0)
+    .reduce((n, l) => {
+      const safe = l.text.length > MAX_SCRIPT_LINE_LENGTH
+        ? l.text.slice(0, MAX_SCRIPT_LINE_LENGTH)
+        : l.text
+      return n + safe.split(/\s+/).length
+    }, 0)
 }
 
 function beatReadTime(beat: RoteiroBeat): number {

@@ -13,10 +13,15 @@ const TAG_STYLE: Record<ScriptTagName, { bg: string; color: string; border: stri
   NARRACAO:  { bg: '#0ea5e915', color: '#67e8f9', border: '#0ea5e930', label: 'NARRACAO' },
 }
 
+/** Return a safe ScriptTagName, falling back to 'VISUAL' for unrecognised values.
+ *  Prevents CSS injection when user-provided tag values are interpolated into
+ *  class names or style attributes via renderHTML. */
+function sanitiseTag(raw: unknown): ScriptTagName {
+  return TAG_OPTIONS.includes(raw as ScriptTagName) ? (raw as ScriptTagName) : 'VISUAL'
+}
+
 function ScriptTagNodeView({ node, updateAttributes }: NodeViewProps) {
-  const tag = (TAG_OPTIONS.includes(node.attrs.tag as ScriptTagName)
-    ? node.attrs.tag
-    : 'VISUAL') as ScriptTagName
+  const tag = sanitiseTag(node.attrs.tag)
   const style = TAG_STYLE[tag]
 
   return (
@@ -36,7 +41,7 @@ function ScriptTagNodeView({ node, updateAttributes }: NodeViewProps) {
             outline: 'none',
           }}
           value={tag}
-          onChange={(e) => updateAttributes({ tag: e.target.value })}
+          onChange={(e) => updateAttributes({ tag: sanitiseTag(e.target.value) })}
           aria-label="Tag type"
         >
           {TAG_OPTIONS.map((t) => (
@@ -68,11 +73,12 @@ export const ScriptTagExtension = Node.create({
   },
 
   renderHTML({ HTMLAttributes }) {
+    const safeTag = sanitiseTag(HTMLAttributes.tag)
     return [
       'div',
       mergeAttributes(HTMLAttributes, {
-        'data-script-tag': HTMLAttributes.tag ?? 'VISUAL',
-        class: `script-tag script-tag--${(HTMLAttributes.tag ?? 'visual').toLowerCase()}`,
+        'data-script-tag': safeTag,
+        class: `script-tag script-tag--${safeTag.toLowerCase()}`,
       }),
       0,
     ]
