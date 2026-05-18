@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import { CaptionVariableTextarea } from './caption-variable-textarea'
 
 type Platform = string
 type Locale = 'pt' | 'en'
@@ -10,6 +11,9 @@ interface CaptionTabsProps {
   onChange: (captions: Record<string, Record<string, string>>) => void
   platforms: Platform[]
   autoFilled?: boolean
+  contentTitle?: string
+  contentUrl?: string
+  shortDomain?: string
 }
 
 const CHAR_LIMITS: Record<string, number> = {
@@ -41,6 +45,9 @@ export function CaptionTabs({
   onChange,
   platforms,
   autoFilled = false,
+  contentTitle,
+  contentUrl,
+  shortDomain,
 }: CaptionTabsProps) {
   const [activePlatform, setActivePlatform] = useState<Platform>(
     platforms[0] ?? 'facebook',
@@ -130,23 +137,38 @@ export function CaptionTabs({
           </span>
         )}
 
-        <textarea
-          role="textbox"
-          value={currentCaption}
-          onChange={(e) => handleChange(e.target.value)}
-          placeholder={`Escreva uma mensagem para o ${activePlatform}...`}
-          className="min-h-[120px] w-full resize-y rounded-md border border-cms-border bg-cms-bg p-3 font-mono text-[13px] leading-relaxed text-cms-text placeholder:text-cms-text-muted"
-          maxLength={charLimit}
-        />
+        {contentTitle != null ? (
+          <CaptionVariableTextarea
+            value={currentCaption}
+            onChange={handleChange}
+            platform={activePlatform}
+            charLimit={charLimit}
+            contentTitle={contentTitle}
+            contentUrl={contentUrl ?? ''}
+            shortDomain={shortDomain ?? 'go.btf.com'}
+            placeholder={`Escreva uma mensagem para o ${activePlatform}...`}
+          />
+        ) : (
+          <>
+            <textarea
+              role="textbox"
+              value={currentCaption}
+              onChange={(e) => handleChange(e.target.value)}
+              placeholder={`Escreva uma mensagem para o ${activePlatform}...`}
+              className="min-h-[120px] w-full resize-y rounded-md border border-cms-border bg-cms-bg p-3 font-mono text-[13px] leading-relaxed text-cms-text placeholder:text-cms-text-muted"
+              maxLength={charLimit}
+            />
 
-        <div className="mt-1 flex items-center justify-end">
-          <span
-            data-testid="char-count"
-            className={`text-xs ${getCharCountColor(activePlatform, currentCaption.length)}`}
-          >
-            {currentCaption.length}/{charLimit}
-          </span>
-        </div>
+            <div className="mt-1 flex items-center justify-end">
+              <span
+                data-testid="char-count"
+                className={`text-xs ${getCharCountColor(activePlatform, currentCaption.length)}`}
+              >
+                {currentCaption.length}/{charLimit}
+              </span>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )

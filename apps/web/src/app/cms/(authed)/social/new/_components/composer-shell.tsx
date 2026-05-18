@@ -449,6 +449,9 @@ export function ComposerShell({
           onChange={setCaptions}
           platforms={platforms}
           autoFilled={captionsAutoFilled}
+          contentTitle={selectedContent.title}
+          contentUrl={selectedContent.url ?? url}
+          shortDomain={process.env.NEXT_PUBLIC_SHORT_DOMAIN ?? 'go.btf.com'}
         />
       )}
 
