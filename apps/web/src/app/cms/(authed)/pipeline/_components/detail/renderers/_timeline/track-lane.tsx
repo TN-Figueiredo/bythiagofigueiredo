@@ -28,6 +28,14 @@ function TrackLaneRaw({ track, clips, height, pxPerSec, duration, isAudio = fals
     return lines
   }, [duration, intv])
 
+  const clipElements = useMemo(
+    () =>
+      (clips ?? []).map((clip, i) => (
+        <TimelineClip key={i} clip={clip} track={track} pxPerSec={pxPerSec} laneH={height} isAudio={isAudio} idx={i} />
+      )),
+    [clips, track, pxPerSec, height, isAudio],
+  )
+
   return (
     <div
       className="relative"
@@ -54,9 +62,7 @@ function TrackLaneRaw({ track, clips, height, pxPerSec, duration, isAudio = fals
         style={{ left: 0, width: 1, height: '100%', background: `${TH.playhead}18` }}
       />
       {/* Clips */}
-      {(clips ?? []).map((clip, i) => (
-        <TimelineClip key={i} clip={clip} track={track} pxPerSec={pxPerSec} laneH={height} isAudio={isAudio} idx={i} />
-      ))}
+      {clipElements}
     </div>
   )
 }

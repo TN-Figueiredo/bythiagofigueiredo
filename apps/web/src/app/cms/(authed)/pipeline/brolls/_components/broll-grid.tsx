@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useMemo, useCallback } from 'react'
 import type { BRollAssetRow } from '@/lib/pipeline/broll-schemas'
 import { BRollCard } from './broll-card'
 
@@ -12,6 +12,8 @@ interface BRollGridProps {
 
 export function BRollGrid({ assets, selectedId, onSelect }: BRollGridProps) {
   const gridRef = useRef<HTMLDivElement>(null)
+
+  const handleSelect = useCallback((id: string) => onSelect(id), [onSelect])
 
   useEffect(() => {
     if (!gridRef.current) return
@@ -30,18 +32,9 @@ export function BRollGrid({ assets, selectedId, onSelect }: BRollGridProps) {
     return () => observer.disconnect()
   }, [assets])
 
-  if (assets.length === 0) return null
-
-  return (
-    <div
-      ref={gridRef}
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 340px))',
-        gap: 14,
-      }}
-    >
-      {assets.map((asset, i) => (
+  const gridItems = useMemo(
+    () =>
+      assets.map((asset, i) => (
         <div
           key={asset.id}
           data-card-animate
@@ -54,10 +47,25 @@ export function BRollGrid({ assets, selectedId, onSelect }: BRollGridProps) {
           <BRollCard
             asset={asset}
             selected={asset.id === selectedId}
-            onSelect={onSelect}
+            onSelect={handleSelect}
           />
         </div>
-      ))}
+      )),
+    [assets, selectedId, handleSelect],
+  )
+
+  if (assets.length === 0) return null
+
+  return (
+    <div
+      ref={gridRef}
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 340px))',
+        gap: 14,
+      }}
+    >
+      {gridItems}
     </div>
   )
 }

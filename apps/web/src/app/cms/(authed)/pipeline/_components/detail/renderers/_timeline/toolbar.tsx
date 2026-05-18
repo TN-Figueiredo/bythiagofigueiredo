@@ -58,12 +58,12 @@ function ToolbarRaw({ zoom, setZoom, expandAll, collapseAll }: ToolbarProps) {
         <span className={`${MONO_SM_CLS} min-w-[36px] text-center`} style={{ color: TH.text }}>
           {Math.round(zoom * 100)}%
         </span>
-        <button onClick={zoomFit} className={btnCls} style={btnSmStyle}>Fit</button>
+        <button onClick={zoomFit} className={btnCls} style={btnSmStyle} aria-label="Reset zoom to fit">Fit</button>
       </div>
       <div className="flex-1" />
       {/* Collapse / Expand */}
-      <button onClick={expandAll} className={btnCls} style={btnSmStyle}>Expand All</button>
-      <button onClick={collapseAll} className={btnCls} style={btnSmStyle}>Collapse All</button>
+      <button onClick={expandAll} className={btnCls} style={btnSmStyle} aria-label="Expand all beats">Expand All</button>
+      <button onClick={collapseAll} className={btnCls} style={btnSmStyle} aria-label="Collapse all beats">Collapse All</button>
       {/* Track color legend */}
       <div className="flex gap-1.5 flex-wrap">
         {allTracks.map(t => (

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -27,11 +27,17 @@ interface ScriptEditModeProps {
   onChange: (content: RoteiroContent) => void
 }
 
+// Stable activation constraint — defined outside the component to avoid re-creating on every render
+const POINTER_ACTIVATION = { distance: 5 } as const
+
 export function ScriptEditMode({ content, isEditing, onChange }: ScriptEditModeProps) {
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  )
+  // Keep a stable ref to onChange so callbacks that close over it stay stable
+  const onChangeRef = useRef(onChange)
+  onChangeRef.current = onChange
+
+  const pointerSensor = useSensor(PointerSensor, { activationConstraint: POINTER_ACTIVATION })
+  const keyboardSensor = useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  const sensors = useSensors(pointerSensor, keyboardSensor)
 
   const sortableIds = useMemo(
     () => content.beats.map((b) => `beat-${b.idx}`),
