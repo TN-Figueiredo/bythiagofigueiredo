@@ -22,6 +22,10 @@ vi.mock('@sentry/nextjs', () => ({
   captureException: vi.fn(),
 }))
 
+vi.mock('@tn-figueiredo/email', () => ({
+  sendEmail: vi.fn(),
+}))
+
 import { executeWithRetry } from '@/lib/social/workflows'
 import type {
   ISocialProvider,

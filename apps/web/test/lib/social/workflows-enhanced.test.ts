@@ -114,6 +114,15 @@ vi.mock('@/lib/social/config', () => ({
   }),
 }))
 
+vi.mock('@tn-figueiredo/email', () => ({
+  ResendEmailAdapter: vi.fn(),
+  NodemailerAdapter: vi.fn(),
+}))
+
+vi.mock('@/lib/social/notifications/notify-story-ready', () => ({
+  notifyStoryReady: vi.fn().mockResolvedValue({ ok: true, channel: 'none' }),
+}))
+
 vi.mock('@tn-figueiredo/social', async () => {
   const actual = await vi.importActual('@tn-figueiredo/social')
   return {

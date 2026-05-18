@@ -140,11 +140,36 @@ export function useLinkForm(initialData?: LinkFormData) {
     }))
   }, [])
 
+  const setFieldWithDefaults = useCallback(
+    <K extends keyof LinkFormData>(key: K, value: LinkFormData[K]) => {
+      setField(key, value)
+      if (key === 'source_type' && typeof value === 'string') {
+        const defaults: Record<string, { utm_source?: string; utm_medium?: string }> = {
+          social: { utm_medium: 'social' },
+          newsletter: { utm_medium: 'email', utm_source: 'newsletter' },
+          blog: { utm_medium: 'referral' },
+          campaign: { utm_medium: 'cpc' },
+        }
+        const d = defaults[value]
+        if (d) {
+          setForm((prev) => {
+            const next = { ...prev }
+            if (d.utm_source && !prev.utm_source) next.utm_source = d.utm_source
+            if (d.utm_medium && !prev.utm_medium) next.utm_medium = d.utm_medium
+            return next
+          })
+        }
+      }
+    },
+    [setField],
+  )
+
   return {
     form,
     errors,
     isSubmitting,
     setField,
+    setFieldWithDefaults,
     validate,
     handleSubmit,
     reset,

@@ -484,10 +484,8 @@ describe('refreshMeta — happy path', () => {
 
   it('calls Facebook graph API for token exchange', async () => {
     await ensureFreshToken('site-1', 'facebook')
-    expect(globalThis.fetch).toHaveBeenCalledWith(
-      expect.stringContaining('graph.facebook.com'),
-      expect.any(Object),
-    )
+    const [url] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]!
+    expect(url as string).toContain('graph.facebook.com')
   })
 })
 

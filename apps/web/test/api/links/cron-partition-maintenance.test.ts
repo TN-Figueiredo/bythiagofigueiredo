@@ -10,21 +10,20 @@ vi.mock('../../../lib/supabase/service', () => ({
 
 vi.stubEnv('CRON_SECRET', 'test-secret')
 
-describe('POST /api/cron/links-partition-maintenance', () => {
+describe('GET /api/cron/links-partition-maintenance', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockRpc.mockResolvedValue({ data: true, error: null })
   })
 
   it('returns 401 without valid CRON_SECRET', async () => {
-    const { POST } = await import(
+    const { GET } = await import(
       '../../../src/app/api/cron/links-partition-maintenance/route'
     )
     const req = new Request('http://localhost/api/cron/links-partition-maintenance', {
-      method: 'POST',
       headers: { authorization: 'Bearer wrong' },
     })
-    const res = await POST(req)
+    const res = await GET(req)
     expect(res.status).toBe(401)
   })
 
@@ -33,14 +32,13 @@ describe('POST /api/cron/links-partition-maintenance', () => {
       .mockResolvedValueOnce({ data: true, error: null }) // cron_try_lock
       .mockResolvedValueOnce({ data: 'link_clicks_2026_06', error: null }) // create partition
       .mockResolvedValueOnce({ data: null, error: null }) // cron_unlock
-    const { POST } = await import(
+    const { GET } = await import(
       '../../../src/app/api/cron/links-partition-maintenance/route'
     )
     const req = new Request('http://localhost/api/cron/links-partition-maintenance', {
-      method: 'POST',
       headers: { authorization: 'Bearer test-secret' },
     })
-    const res = await POST(req)
+    const res = await GET(req)
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body).toHaveProperty('partition')
@@ -50,7 +48,6 @@ describe('POST /api/cron/links-partition-maintenance', () => {
     const { getNextMonthRange } = await import(
       '../../../src/lib/links/partition-utils'
     )
-    // Calling in May 2026 should produce June 2026 range
     const result = getNextMonthRange(new Date('2026-05-15'))
     expect(result.year).toBe(2026)
     expect(result.month).toBe(6)
@@ -74,14 +71,13 @@ describe('POST /api/cron/links-partition-maintenance', () => {
       .mockResolvedValueOnce({ data: true, error: null }) // cron_try_lock
       .mockResolvedValueOnce({ data: 'link_clicks_2026_06', error: null }) // create partition
       .mockResolvedValueOnce({ data: null, error: null }) // cron_unlock
-    const { POST } = await import(
+    const { GET } = await import(
       '../../../src/app/api/cron/links-partition-maintenance/route'
     )
     const req = new Request('http://localhost/api/cron/links-partition-maintenance', {
-      method: 'POST',
       headers: { authorization: 'Bearer test-secret' },
     })
-    await POST(req)
+    await GET(req)
     expect(mockRpc).toHaveBeenCalledWith('cron_try_lock', {
       p_job: 'cron:links-partition-maintenance',
     })

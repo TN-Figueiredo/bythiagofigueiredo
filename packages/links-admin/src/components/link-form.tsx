@@ -12,6 +12,7 @@ import {
   X,
   Loader2,
 } from 'lucide-react'
+import { GA4_MEDIUM_SUGGESTIONS, isKnownMedium } from '@tn-figueiredo/links'
 import { useLinkForm, type LinkFormData } from '../hooks/use-link-form'
 
 const SOURCE_TYPES = ['manual', 'campaign', 'newsletter', 'blog', 'social', 'print'] as const
@@ -93,7 +94,7 @@ const inputClass =
   'mt-1.5 block w-full rounded-lg border border-border bg-card px-3 py-2 text-[11px] text-foreground placeholder:text-muted-foreground/50 focus:border-indigo-500/50 focus:outline-none focus:ring-1 focus:ring-indigo-500/30 transition-colors'
 
 export function LinkForm({ link, onSubmit, onCancel, siteId: _siteId }: LinkFormProps) {
-  const { form, errors, isSubmitting, setField, handleSubmit, addTag, addTags, removeTag } = useLinkForm(
+  const { form, errors, isSubmitting, setField, setFieldWithDefaults, handleSubmit, addTag, addTags, removeTag } = useLinkForm(
     link ?? undefined,
   )
   const [showUtm, setShowUtm] = useState(
@@ -200,7 +201,7 @@ export function LinkForm({ link, onSubmit, onCancel, siteId: _siteId }: LinkForm
               <button
                 key={type}
                 type="button"
-                onClick={() => setField('source_type', type)}
+                onClick={() => setFieldWithDefaults('source_type', type)}
                 className={`rounded-full border px-3 py-1.5 text-[10px] font-medium transition-all ${
                   form.source_type === type
                     ? SOURCE_ACTIVE[type]
@@ -439,7 +440,6 @@ export function LinkForm({ link, onSubmit, onCancel, siteId: _siteId }: LinkForm
             {(
               [
                 ['utm_source', 'Source', 'e.g. google'],
-                ['utm_medium', 'Medium', 'e.g. cpc'],
                 ['utm_campaign', 'Campaign', 'e.g. spring_sale'],
                 ['utm_term', 'Term', 'e.g. running shoes'],
                 ['utm_content', 'Content', 'e.g. banner_v2'],
@@ -463,6 +463,36 @@ export function LinkForm({ link, onSubmit, onCancel, siteId: _siteId }: LinkForm
                 />
               </div>
             ))}
+
+            {/* utm_medium — combobox with GA4 suggestions and warning */}
+            <div>
+              <label
+                htmlFor="utm_medium"
+                className="block text-[10px] font-medium text-muted-foreground"
+              >
+                Medium
+              </label>
+              <input
+                id="utm_medium"
+                type="text"
+                value={form.utm_medium}
+                onChange={(e) => setField('utm_medium', e.target.value)}
+                list="utm-medium-suggestions"
+                placeholder="cpc, paid_social, email..."
+                className="mt-1 block w-full rounded-md border border-border bg-card px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground/40 focus:border-indigo-500/50 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
+              />
+              <datalist id="utm-medium-suggestions">
+                {GA4_MEDIUM_SUGGESTIONS.map((m) => (
+                  <option key={m} value={m} />
+                ))}
+              </datalist>
+              {form.utm_medium && !isKnownMedium(form.utm_medium) && (
+                <p className="mt-1 flex items-center gap-1 text-[10px] text-amber-400">
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-400" />
+                  Medium não reconhecido pelo GA4 — verifique a grafia
+                </p>
+              )}
+            </div>
           </div>
         )}
       </div>

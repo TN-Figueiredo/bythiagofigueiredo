@@ -1,4 +1,14 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+
+vi.mock('@tn-figueiredo/email', () => ({
+  ResendEmailAdapter: vi.fn(),
+  NodemailerAdapter: vi.fn(),
+}))
+
+vi.mock('@/lib/social/notifications/notify-story-ready', () => ({
+  notifyStoryReady: vi.fn().mockResolvedValue({ ok: true, channel: 'none' }),
+}))
+
 import { classifyError } from '@/lib/social/workflows'
 
 describe('classifyError', () => {
