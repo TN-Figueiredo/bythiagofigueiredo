@@ -132,6 +132,16 @@ export function ScriptEditMode({ content, isEditing, onChange }: ScriptEditModeP
 
   return (
     <div className="p-5 space-y-4">
+      {/* Header label */}
+      <div className="flex items-baseline gap-2">
+        <span
+          className="text-[8px] font-bold uppercase tracking-widest"
+          style={{ color: 'var(--gem-dim)' }}
+        >
+          Roteiro {'·'} v{content.version ?? 2} {'·'} {content.beats.length} beats
+        </span>
+      </div>
+
       {/* Meta grid */}
       <ScriptMetaEditor
         meta={content.meta}

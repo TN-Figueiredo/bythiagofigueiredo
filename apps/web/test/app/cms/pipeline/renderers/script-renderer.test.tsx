@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { ScriptRenderer } from '@/app/cms/(authed)/pipeline/_components/detail/renderers/script-renderer'
 
 const noop = vi.fn()
@@ -48,18 +48,6 @@ vi.mock('@dnd-kit/utilities', () => ({
   CSS: { Transform: { toString: () => undefined } },
 }))
 
-// ScriptViewMode mock — renders a .script-view sentinel
-vi.mock(
-  '@/app/cms/(authed)/pipeline/_components/detail/renderers/script-view-mode',
-  () => ({
-    ScriptViewMode: ({ onExitView }: { onExitView: () => void }) => (
-      <div className="script-view">
-        <button onClick={onExitView}>Exit view</button>
-      </div>
-    ),
-  }),
-)
-
 const BEAT_WITH_TAGS = {
   meta: { canal: 'EN', formato: 'Storytelling' },
   beats: [
@@ -72,7 +60,7 @@ const BEAT_WITH_TAGS = {
   ],
 }
 
-describe('ScriptRenderer — edit mode (new architecture)', () => {
+describe('ScriptRenderer — unified mode', () => {
   it('renders beat header with number and label after v1→v2 migration', () => {
     render(
       <ScriptRenderer content={BEAT_WITH_TAGS} isEditing={false} lang="en" onContentChange={noop} />,
@@ -95,6 +83,22 @@ describe('ScriptRenderer — edit mode (new architecture)', () => {
     )
     expect(getAllByTestId('editor-content').length).toBeGreaterThanOrEqual(1)
   })
+
+  it('does not render separate view-mode UI or toggle buttons', () => {
+    const { container } = render(
+      <ScriptRenderer content={BEAT_WITH_TAGS} isEditing={false} lang="en" onContentChange={noop} />,
+    )
+    expect(container.querySelector('.script-view')).toBeNull()
+    expect(screen.queryByTitle('Edit mode')).toBeNull()
+    expect(screen.queryByTitle(/View mode/)).toBeNull()
+  })
+
+  it('shows roteiro header label with beat count', () => {
+    const { container } = render(
+      <ScriptRenderer content={BEAT_WITH_TAGS} isEditing={false} lang="en" onContentChange={noop} />,
+    )
+    expect(container.textContent).toContain('1 beats')
+  })
 })
 
 describe('ScriptRenderer — edge cases', () => {
@@ -109,33 +113,7 @@ describe('ScriptRenderer — edge cases', () => {
     const { container } = render(
       <ScriptRenderer content="raw string content" isEditing={false} lang="en" onContentChange={noop} />,
     )
-    // Migrated to a single beat, beat header is rendered
     expect(container.textContent).toContain('#0')
-  })
-})
-
-describe('ScriptRenderer — dual-mode toggle', () => {
-  it('starts in edit mode by default', () => {
-    const { container } = render(
-      <ScriptRenderer content={BEAT_WITH_TAGS} isEditing={true} lang="en" onContentChange={noop} />,
-    )
-    expect(container.querySelector('.script-view')).toBeNull()
-  })
-
-  it('shows Edit/View toggle buttons', () => {
-    render(
-      <ScriptRenderer content={BEAT_WITH_TAGS} isEditing={false} lang="en" onContentChange={noop} />,
-    )
-    expect(screen.getByTitle('Edit mode')).toBeTruthy()
-    expect(screen.getByTitle(/View mode/)).toBeTruthy()
-  })
-
-  it('switches to view mode when View button clicked', () => {
-    const { container } = render(
-      <ScriptRenderer content={BEAT_WITH_TAGS} isEditing={false} lang="en" onContentChange={noop} />,
-    )
-    fireEvent.click(screen.getByTitle(/View mode/))
-    expect(container.querySelector('.script-view')).toBeTruthy()
   })
 
   it('migrates v1 content automatically', () => {
