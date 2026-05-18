@@ -8,7 +8,7 @@ describe('buildCmsSections — Social Hub nav', () => {
 
   it('has a Social section', () => {
     expect(social).toBeDefined()
-    expect(social.items.length).toBe(5)
+    expect(social.items.length).toBe(6)
   })
 
   it('includes YouTube in Social section, not Content', () => {
@@ -20,7 +20,7 @@ describe('buildCmsSections — Social Hub nav', () => {
 
   it('has correct nav items in order', () => {
     const labels = social.items.map(i => i.label)
-    expect(labels).toEqual(['YouTube', 'Posts', 'Composer', 'Insights', 'Accounts'])
+    expect(labels).toEqual(['YouTube', 'Posts', 'Composer', 'Insights', 'Templates', 'Accounts'])
   })
 
   it('has correct routes', () => {
@@ -30,6 +30,7 @@ describe('buildCmsSections — Social Hub nav', () => {
       '/cms/social',
       '/cms/social/new',
       '/cms/social/insights',
+      '/cms/social/templates',
       '/cms/social/accounts',
     ])
   })

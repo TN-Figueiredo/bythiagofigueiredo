@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Calendar,
   FileText, Mail, Megaphone, Image, Link2, ListMusic,
   Kanban, Video, GraduationCap, BookOpen, Microscope, Headphones,
-  Youtube, Send, Edit3, BarChart3, Users,
+  Youtube, Send, Edit3, BarChart3, Users, LayoutTemplate,
   UserPen, UsersRound,
   TrendingUp,
 } from 'lucide-react'
@@ -48,6 +48,7 @@ export function buildCmsSections(): SidebarSection[] {
         { icon: icon(Send), label: 'Posts', href: '/cms/social', minRole: 'reporter' },
         { icon: icon(Edit3), label: 'Composer', href: '/cms/social/new', minRole: 'editor' },
         { icon: icon(BarChart3), label: 'Insights', href: '/cms/social/insights', minRole: 'reporter' },
+        { icon: icon(LayoutTemplate), label: 'Templates', href: '/cms/social/templates', minRole: 'editor' },
         { icon: icon(Users), label: 'Accounts', href: '/cms/social/accounts', minRole: 'org_admin' },
       ],
     },
