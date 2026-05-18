@@ -1,13 +1,9 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import {
-  renderTemplate,
   resolvePlaceholders,
   type TemplateContext,
 } from '@/lib/social/konva-renderer'
 import type { CardComposition } from '@tn-figueiredo/links/qr'
-
-// PNG magic bytes: 0x89 0x50 0x4E 0x47
-const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47])
 
 const SIMPLE_COMPOSITION: CardComposition = {
   version: 1,
@@ -94,6 +90,31 @@ const PLACEHOLDER_COMPOSITION: CardComposition = {
   ],
 }
 
+const IMAGE_ELEMENT_COMPOSITION: CardComposition = {
+  version: 1,
+  canvas: { width: 400, height: 400, aspectRatio: '1:1' },
+  background: { type: 'solid', color: '#0a0a0a' },
+  elements: [
+    {
+      id: 'cover',
+      type: 'image',
+      x: 0,
+      y: 0,
+      width: 400,
+      height: 400,
+      rotation: 0,
+      opacity: 1,
+      locked: false,
+      src: '{{cover_image}}',
+      objectFit: 'cover',
+      borderRadius: 0,
+      borderColor: '#000000',
+      borderWidth: 0,
+      maintainAspectRatio: true,
+    },
+  ],
+}
+
 describe('resolvePlaceholders', () => {
   it('replaces {{title}} placeholder', () => {
     const ctx: TemplateContext = { title: 'My Blog Post' }
@@ -133,7 +154,13 @@ describe('resolvePlaceholders', () => {
 })
 
 describe('renderTemplate', () => {
-  it('renders a simple composition to a PNG buffer', async () => {
+  it('exports a renderTemplate function', async () => {
+    const mod = await import('@/lib/social/konva-renderer')
+    expect(typeof mod.renderTemplate).toBe('function')
+  })
+
+  it('renders a simple composition to a JPEG buffer', async () => {
+    const { renderTemplate } = await import('@/lib/social/konva-renderer')
     const ctx: TemplateContext = {}
     const buffer = await renderTemplate(
       SIMPLE_COMPOSITION,
@@ -142,10 +169,13 @@ describe('renderTemplate', () => {
     )
     expect(buffer).toBeInstanceOf(Buffer)
     expect(buffer.length).toBeGreaterThan(100)
-    expect(buffer.subarray(0, 4).equals(PNG_MAGIC)).toBe(true)
+    // JPEG starts with FF D8
+    expect(buffer[0]).toBe(0xff)
+    expect(buffer[1]).toBe(0xd8)
   })
 
   it('renders a composition with placeholders resolved', async () => {
+    const { renderTemplate } = await import('@/lib/social/konva-renderer')
     const ctx: TemplateContext = {
       title: 'Como configurar OAuth 2.0',
       short_url: 'go.btf.com/s5k2q1',
@@ -157,10 +187,12 @@ describe('renderTemplate', () => {
     )
     expect(buffer).toBeInstanceOf(Buffer)
     expect(buffer.length).toBeGreaterThan(100)
-    expect(buffer.subarray(0, 4).equals(PNG_MAGIC)).toBe(true)
+    expect(buffer[0]).toBe(0xff)
+    expect(buffer[1]).toBe(0xd8)
   })
 
   it('renders at the specified size', async () => {
+    const { renderTemplate } = await import('@/lib/social/konva-renderer')
     const ctx: TemplateContext = {}
     const small = await renderTemplate(
       SIMPLE_COMPOSITION,
@@ -172,15 +204,14 @@ describe('renderTemplate', () => {
       ctx,
       { width: 800, height: 800 },
     )
-    // Larger output should generally produce a larger buffer
-    // (not guaranteed for simple compositions, but a reasonable heuristic)
     expect(small).toBeInstanceOf(Buffer)
     expect(large).toBeInstanceOf(Buffer)
-    expect(small.subarray(0, 4).equals(PNG_MAGIC)).toBe(true)
-    expect(large.subarray(0, 4).equals(PNG_MAGIC)).toBe(true)
+    expect(small[0]).toBe(0xff)
+    expect(large[0]).toBe(0xff)
   })
 
   it('handles empty elements array', async () => {
+    const { renderTemplate } = await import('@/lib/social/konva-renderer')
     const emptyComp: CardComposition = {
       version: 1,
       canvas: { width: 400, height: 400, aspectRatio: '1:1' },
@@ -189,10 +220,12 @@ describe('renderTemplate', () => {
     }
     const buffer = await renderTemplate(emptyComp, {}, { width: 400, height: 400 })
     expect(buffer).toBeInstanceOf(Buffer)
-    expect(buffer.subarray(0, 4).equals(PNG_MAGIC)).toBe(true)
+    expect(buffer[0]).toBe(0xff)
+    expect(buffer[1]).toBe(0xd8)
   })
 
   it('handles gradient background', async () => {
+    const { renderTemplate } = await import('@/lib/social/konva-renderer')
     const gradComp: CardComposition = {
       version: 1,
       canvas: { width: 400, height: 400, aspectRatio: '1:1' },
@@ -209,6 +242,59 @@ describe('renderTemplate', () => {
     }
     const buffer = await renderTemplate(gradComp, {}, { width: 400, height: 400 })
     expect(buffer).toBeInstanceOf(Buffer)
-    expect(buffer.subarray(0, 4).equals(PNG_MAGIC)).toBe(true)
+    expect(buffer[0]).toBe(0xff)
+    expect(buffer[1]).toBe(0xd8)
+  })
+
+  it('renders image element with unresolvable placeholder as fallback rect (no fetch)', async () => {
+    const { renderTemplate } = await import('@/lib/social/konva-renderer')
+    // cover_image placeholder with no context value → renders gray rect fallback
+    const buffer = await renderTemplate(
+      IMAGE_ELEMENT_COMPOSITION,
+      {},
+      { width: 400, height: 400 },
+    )
+    expect(buffer).toBeInstanceOf(Buffer)
+    expect(buffer.length).toBeGreaterThan(100)
+    expect(buffer[0]).toBe(0xff)
+    expect(buffer[1]).toBe(0xd8)
+  })
+
+  it('renders image element with a failing URL as fallback rect', async () => {
+    const { renderTemplate } = await import('@/lib/social/konva-renderer')
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, status: 404 }) as typeof fetch
+    try {
+      const comp: CardComposition = {
+        version: 1,
+        canvas: { width: 400, height: 400, aspectRatio: '1:1' },
+        background: { type: 'solid', color: '#0a0a0a' },
+        elements: [
+          {
+            id: 'cover',
+            type: 'image',
+            x: 0,
+            y: 0,
+            width: 400,
+            height: 400,
+            rotation: 0,
+            opacity: 1,
+            locked: false,
+            src: 'https://example.com/image.jpg',
+            objectFit: 'cover',
+            borderRadius: 0,
+            borderColor: '#000000',
+            borderWidth: 0,
+            maintainAspectRatio: true,
+          },
+        ],
+      }
+      const buffer = await renderTemplate(comp, {}, { width: 400, height: 400 })
+      expect(buffer).toBeInstanceOf(Buffer)
+      expect(buffer[0]).toBe(0xff)
+      expect(buffer[1]).toBe(0xd8)
+    } finally {
+      globalThis.fetch = originalFetch
+    }
   })
 })

@@ -29,13 +29,14 @@ interface SocialLeftPanelProps {
   onAspectRatioChange: (ratio: SocialAspectRatio) => void
   templates: Array<{ id: string; name: string; thumbnailUrl: string | null; aspectRatio: string }>
   onLoadTemplate: (templateId: string) => void
+  hideAspectRatioSelector?: boolean
 }
 
 type BgTab = 'solid' | 'image' | 'gradient'
 
 export function SocialLeftPanel({
   comp, interaction, onImageUpload, onOpenMediaGallery,
-  aspectRatio, onAspectRatioChange, templates, onLoadTemplate,
+  aspectRatio, onAspectRatioChange, templates, onLoadTemplate, hideAspectRatioSelector,
 }: SocialLeftPanelProps) {
   const { composition, setCanvas, setBackground, addElement } = comp
   const { selectedIds, select } = interaction
@@ -98,26 +99,28 @@ export function SocialLeftPanel({
   return (
     <aside className="w-[252px] shrink-0 bg-neutral-900 border-r border-neutral-800 overflow-y-auto flex flex-col">
       {/* Aspect Ratio -- fixed presets only, no custom */}
-      <section className="p-3 border-b border-neutral-800">
-        <h3 className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mb-2">Aspect Ratio</h3>
-        <div className="grid grid-cols-3 gap-1.5">
-          {SOCIAL_ASPECT_RATIOS.map(preset => (
-            <button
-              key={preset.name}
-              type="button"
-              onClick={() => handleAspectRatio(preset.name)}
-              className={`p-1.5 rounded text-[10px] text-center border ${
-                aspectRatio === preset.name
-                  ? 'border-blue-500 bg-blue-500/10 text-blue-300'
-                  : 'border-neutral-700 text-neutral-400 hover:border-neutral-600'
-              }`}
-            >
-              <div className="font-medium">{preset.label}</div>
-              <div className="text-neutral-500">{preset.width}x{preset.height}</div>
-            </button>
-          ))}
-        </div>
-      </section>
+      {!hideAspectRatioSelector && (
+        <section className="p-3 border-b border-neutral-800">
+          <h3 className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mb-2">Aspect Ratio</h3>
+          <div className="grid grid-cols-3 gap-1.5">
+            {SOCIAL_ASPECT_RATIOS.map(preset => (
+              <button
+                key={preset.name}
+                type="button"
+                onClick={() => handleAspectRatio(preset.name)}
+                className={`p-1.5 rounded text-[10px] text-center border ${
+                  aspectRatio === preset.name
+                    ? 'border-blue-500 bg-blue-500/10 text-blue-300'
+                    : 'border-neutral-700 text-neutral-400 hover:border-neutral-600'
+                }`}
+              >
+                <div className="font-medium">{preset.label}</div>
+                <div className="text-neutral-500">{preset.width}x{preset.height}</div>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Add Elements */}
       <section className="p-3 border-b border-neutral-800">

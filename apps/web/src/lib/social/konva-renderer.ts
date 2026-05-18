@@ -81,8 +81,8 @@ function renderBackground(
       break
     }
     case 'image': {
-      // Image backgrounds are handled as a solid fallback on server
-      // (downloading the image would add latency; can be extended later)
+      // Image backgrounds: render solid fallback first; async image download
+      // layered on top via renderImageBackground() in the main render function.
       const rect = new Konva.Rect({
         x: 0,
         y: 0,
@@ -93,6 +93,37 @@ function renderBackground(
       layer.add(rect)
       break
     }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Image background rendering (async — downloads and composites the image)
+// ---------------------------------------------------------------------------
+
+async function renderImageBackground(
+  layer: InstanceType<typeof Konva.Layer>,
+  bg: Background & { type: 'image' },
+  width: number,
+  height: number,
+): Promise<void> {
+  if (!bg.url) return
+  try {
+    const response = await fetch(bg.url)
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    const arrayBuffer = await response.arrayBuffer()
+    const { Image } = await import('canvas')
+    const img = new Image()
+    img.src = Buffer.from(arrayBuffer)
+    const konvaImage = new Konva.Image({
+      image: img,
+      x: 0,
+      y: 0,
+      width,
+      height,
+    })
+    layer.add(konvaImage)
+  } catch {
+    // Fallback solid rect already rendered by renderBackground — no-op here
   }
 }
 
@@ -131,26 +162,66 @@ function renderTextElement(
   layer.add(text)
 }
 
-function renderImagePlaceholder(
+async function renderImageElement(
   layer: InstanceType<typeof Konva.Layer>,
   el: ImageElement,
+  context: TemplateContext,
   scaleX: number,
   scaleY: number,
-): void {
-  // On server, image elements with placeholder src ({{cover_image}}, {{logo}})
-  // are rendered as a semi-transparent rect. Full image download for concrete
-  // URLs can be added in a future iteration.
-  const rect = new Konva.Rect({
-    x: el.x * scaleX,
-    y: el.y * scaleY,
-    width: el.width * scaleX,
-    height: el.height * scaleY,
-    fill: '#333333',
-    opacity: el.opacity * 0.3,
-    cornerRadius: el.borderRadius * Math.min(scaleX, scaleY),
-    rotation: el.rotation,
-  })
-  layer.add(rect)
+): Promise<void> {
+  // Resolve placeholder tokens to actual URLs from context
+  let src = el.src as string | undefined
+  if (src === '{{cover_image}}' && context.cover_image) src = context.cover_image
+  else if (src === '{{logo}}' && context.logo) src = context.logo
+
+  // If src is still a placeholder or empty, render a gray fallback rect
+  if (!src || src.startsWith('{{')) {
+    const rect = new Konva.Rect({
+      x: el.x * scaleX,
+      y: el.y * scaleY,
+      width: el.width * scaleX,
+      height: el.height * scaleY,
+      fill: '#333333',
+      opacity: el.opacity * 0.3,
+      cornerRadius: el.borderRadius * Math.min(scaleX, scaleY),
+      rotation: el.rotation,
+    })
+    layer.add(rect)
+    return
+  }
+
+  try {
+    const response = await fetch(src)
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    const arrayBuffer = await response.arrayBuffer()
+    const { Image } = await import('canvas')
+    const img = new Image()
+    img.src = Buffer.from(arrayBuffer)
+    const konvaImage = new Konva.Image({
+      image: img,
+      x: el.x * scaleX,
+      y: el.y * scaleY,
+      width: el.width * scaleX,
+      height: el.height * scaleY,
+      rotation: el.rotation ?? 0,
+      opacity: el.opacity ?? 1,
+      cornerRadius: el.borderRadius * Math.min(scaleX, scaleY),
+    })
+    layer.add(konvaImage)
+  } catch {
+    // Fallback: render gray placeholder rect when image download fails
+    const rect = new Konva.Rect({
+      x: el.x * scaleX,
+      y: el.y * scaleY,
+      width: el.width * scaleX,
+      height: el.height * scaleY,
+      fill: '#333333',
+      opacity: (el.opacity ?? 1) * 0.3,
+      cornerRadius: el.borderRadius * Math.min(scaleX, scaleY),
+      rotation: el.rotation ?? 0,
+    })
+    layer.add(rect)
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -181,13 +252,18 @@ export async function renderTemplate(
   try {
     renderBackground(layer, background, size.width, size.height)
 
+    // If the background is an image type, attempt async image download on top
+    if (background.type === 'image') {
+      await renderImageBackground(layer, background, size.width, size.height)
+    }
+
     for (const el of elements) {
       switch (el.type) {
         case 'text':
           renderTextElement(layer, el, context, scaleX, scaleY)
           break
         case 'image':
-          renderImagePlaceholder(layer, el, scaleX, scaleY)
+          await renderImageElement(layer, el, context, scaleX, scaleY)
           break
         case 'qr':
           break
@@ -200,7 +276,7 @@ export async function renderTemplate(
       width: size.width,
       height: size.height,
     })
-    const buffer = (canvasElement as unknown as { toBuffer: (mime: string) => Buffer }).toBuffer('image/png')
+    const buffer = (canvasElement as unknown as { toBuffer: (mime: string, options?: { quality: number }) => Buffer }).toBuffer('image/jpeg', { quality: 0.92 })
 
     return buffer
   } finally {
