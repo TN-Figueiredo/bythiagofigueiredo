@@ -19,6 +19,7 @@ export function extractUtmFromSearchParams(params: URLSearchParams): UtmParams {
     utmCampaign: get('utm_campaign'),
     utmTerm: get('utm_term'),
     utmContent: get('utm_content'),
+    utmId: get('utm_id'),
   }
 }
 
@@ -35,6 +36,7 @@ export function buildUtmUrl(baseUrl: string, utm: UtmParams): string {
     ['utmCampaign', 'utm_campaign'],
     ['utmTerm', 'utm_term'],
     ['utmContent', 'utm_content'],
+    ['utmId', 'utm_id'],
   ]
 
   for (const [key, param] of mapping) {

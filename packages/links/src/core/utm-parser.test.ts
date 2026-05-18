@@ -36,6 +36,11 @@ describe('UtmParser', () => {
       const utm = parseUtm('https://example.com/page?utm_source=test#section')
       expect(utm.utmSource).toBe('test')
     })
+
+    it('extracts utm_id from URL', () => {
+      const utm = parseUtm('https://example.com?utm_id=camp123&utm_source=google')
+      expect(utm.utmId).toBe('camp123')
+    })
   })
 
   describe('buildUtmUrl', () => {
@@ -77,6 +82,12 @@ describe('UtmParser', () => {
       // existing UTMs should be preserved (not overwritten)
       expect(url.searchParams.get('utm_source')).toBe('existing')
     })
+
+    it('appends utm_id to URL', () => {
+      const result = buildUtmUrl('https://example.com', { utmId: 'camp123' })
+      const url = new URL(result)
+      expect(url.searchParams.get('utm_id')).toBe('camp123')
+    })
   })
 
   describe('extractUtmFromSearchParams', () => {
@@ -85,6 +96,12 @@ describe('UtmParser', () => {
       const utm = extractUtmFromSearchParams(sp)
       expect(utm.utmSource).toBe('google')
       expect(utm.utmMedium).toBe('cpc')
+    })
+
+    it('extracts utm_id from URLSearchParams', () => {
+      const sp = new URLSearchParams('utm_id=camp123')
+      const utm = extractUtmFromSearchParams(sp)
+      expect(utm.utmId).toBe('camp123')
     })
   })
 

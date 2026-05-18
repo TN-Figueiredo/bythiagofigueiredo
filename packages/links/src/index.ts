@@ -54,6 +54,17 @@ export { isBot, getBotName, BOT_SIGNATURES } from './core/bot-filter.js'
 export { parseUtm, buildUtmUrl, extractUtmFromSearchParams, stripUtm } from './core/utm-parser.js'
 export { classifyDevice } from './core/device-classifier.js'
 export { classifyReferrer } from './core/referrer-classifier.js'
+export {
+  normalizeUtmValue,
+  normalizeAllUtmFields,
+  slugifyForCampaign,
+  isKnownMedium,
+  GA4_MEDIUM_SUGGESTIONS,
+  KNOWN_UTM_SOURCES,
+} from './core/utm-normalizer.js'
+export type { UtmField, UtmFieldsInput, UtmFieldsNormalized } from './core/utm-normalizer.js'
+export { safePassthrough, extractClickIds, KNOWN_CLICK_IDS } from './core/click-id-passthrough.js'
+export type { PassthroughResult } from './core/click-id-passthrough.js'
 
 // Core services
 export { RedirectResolver } from './core/redirect-resolver.js'

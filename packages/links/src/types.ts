@@ -50,6 +50,13 @@ export interface TrackedLink {
   utmCampaign: string | null
   utmTerm: string | null
   utmContent: string | null
+  utmId: string | null
+  launchedAt: Date | null
+  activatesAt: Date | null
+  customParams: Record<string, string>
+  healthStatus: 'unchecked' | 'healthy' | 'unhealthy' | 'timeout' | 'dns_error'
+  healthCheckedAt: Date | null
+  passClickIds: boolean
   qrCodeUrl: string | null
   createdBy: string | null
   createdAt: Date
@@ -78,6 +85,8 @@ export interface LinkClick {
   utmCampaign: string | null
   utmTerm: string | null
   utmContent: string | null
+  utmId: string | null
+  adClickIds: Record<string, string> | null
   clickedAt: Date
 }
 
@@ -222,6 +231,7 @@ export interface UtmParams {
   utmCampaign?: string
   utmTerm?: string
   utmContent?: string
+  utmId?: string
 }
 
 /** Device info parsed from user agent */
@@ -254,6 +264,7 @@ export interface CreateLinkInput {
   utmCampaign?: string
   utmTerm?: string
   utmContent?: string
+  utmId?: string
   createdBy?: string
 }
 
@@ -272,6 +283,7 @@ export interface UpdateLinkInput {
   utmCampaign?: string | null
   utmTerm?: string | null
   utmContent?: string | null
+  utmId?: string | null
   qrCodeUrl?: string | null
 }
 
@@ -318,6 +330,8 @@ export interface RecordClickInput {
   utmCampaign?: string
   utmTerm?: string
   utmContent?: string
+  utmId?: string
+  adClickIds?: Record<string, string>
 }
 
 /** Result of redirect resolution */
@@ -329,6 +343,6 @@ export interface RedirectResult {
 
 /** Failure reason when redirect cannot be resolved */
 export interface RedirectGuardFailure {
-  reason: 'not_found' | 'deleted' | 'expired' | 'click_limit' | 'password_required' | 'paused'
+  reason: 'not_found' | 'deleted' | 'expired' | 'click_limit' | 'password_required' | 'paused' | 'not_yet_active'
   link?: TrackedLink
 }
