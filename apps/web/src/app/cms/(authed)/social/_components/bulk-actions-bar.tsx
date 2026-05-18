@@ -1,25 +1,32 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { deleteSocialPost, retryPostDeliveries } from '@/lib/social/actions'
 import type { SocialStrings } from '../_i18n/types'
 
 interface BulkActionsBarProps {
   selectedIds: string[]
   strings: SocialStrings
   onDone: () => void
+  onDeletePost?: (id: string) => Promise<{ ok: boolean }>
+  onRetryPostDeliveries?: (id: string) => Promise<{ ok: boolean }>
 }
 
-export function BulkActionsBar({ selectedIds, strings: t, onDone }: BulkActionsBarProps) {
+export function BulkActionsBar({
+  selectedIds,
+  strings: t,
+  onDone,
+  onDeletePost,
+  onRetryPostDeliveries,
+}: BulkActionsBarProps) {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
   function handleDelete() {
-    if (!confirm(t.posts.bulk.deleteConfirm)) return
+    if (!onDeletePost || !confirm(t.posts.bulk.deleteConfirm)) return
     setError(null)
     startTransition(async () => {
       try {
-        await Promise.all(selectedIds.map(id => deleteSocialPost(id)))
+        await Promise.all(selectedIds.map(id => onDeletePost(id)))
         onDone()
       } catch {
         setError(t.common.error)
@@ -28,10 +35,11 @@ export function BulkActionsBar({ selectedIds, strings: t, onDone }: BulkActionsB
   }
 
   function handleRetry() {
+    if (!onRetryPostDeliveries) return
     setError(null)
     startTransition(async () => {
       try {
-        const results = await Promise.all(selectedIds.map(id => retryPostDeliveries(id)))
+        const results = await Promise.all(selectedIds.map(id => onRetryPostDeliveries!(id)))
         const failed = results.filter(r => !r.ok)
         if (failed.length > 0) setError(`${failed.length} falha(s) ao retentar`)
         onDone()

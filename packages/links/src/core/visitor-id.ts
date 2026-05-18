@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash } from 'crypto'
 
 /**
  * Compute an anonymous, daily-rotating visitor ID.

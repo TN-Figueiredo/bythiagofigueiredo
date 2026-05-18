@@ -4,24 +4,24 @@ import { useState, useTransition } from 'react'
 import type { SocialDelivery } from '@tn-figueiredo/social'
 import { PlatformIcon, platformLabel } from '@/app/cms/(authed)/_shared/social/platform-icon'
 import { SocialStatusBadge } from '@/app/cms/(authed)/_shared/social/social-status-badge'
-import { retrySocialDelivery } from '@/lib/social/actions'
 import type { SocialStrings } from '../_i18n/types'
-
 interface DeliveryCardProps {
   delivery: SocialDelivery
   strings: SocialStrings
+  onRetry: (deliveryId: string) => Promise<{ ok: boolean; error?: string }>
 }
 
-export function DeliveryCard({ delivery, strings: t }: DeliveryCardProps) {
+export function DeliveryCard({ delivery, strings: t, onRetry }: DeliveryCardProps) {
   const [isPending, startTransition] = useTransition()
   const [retryError, setRetryError] = useState<string | null>(null)
   const statusLabel = t.status[delivery.status as keyof typeof t.status] ?? delivery.status
 
   function handleRetry() {
+    if (!onRetry) return
     setRetryError(null)
     startTransition(async () => {
       try {
-        const result = await retrySocialDelivery(delivery.id)
+        const result = await onRetry(delivery.id)
         if (!result.ok) {
           setRetryError(result.error ?? t.common.error)
         }
