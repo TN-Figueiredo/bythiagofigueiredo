@@ -47,6 +47,17 @@ export function PostProductionView({
   const [allState, setAllState] = useState<0 | 1 | 2>(0)
   const [resetKey, setResetKey] = useState(0)
 
+  // Abort any in-flight async operations when this view unmounts
+  const abortRef = useRef<AbortController | null>(null)
+  useEffect(() => {
+    const controller = new AbortController()
+    abortRef.current = controller
+    return () => {
+      controller.abort()
+      abortRef.current = null
+    }
+  }, [])
+
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
@@ -63,8 +74,10 @@ export function PostProductionView({
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement).tagName
+      const target = e.target as HTMLElement
+      const tag = target.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      if (target.isContentEditable) return
 
       switch (e.key) {
         case '+':
@@ -132,7 +145,7 @@ export function PostProductionView({
 
       <Toolbar
         zoom={zoom}
-        setZoom={setZoom as (fn: (z: number) => number) => void}
+        setZoom={(fn: (z: number) => number) => { setZoom(fn) }}
         expandAll={() => { setAllState(2); setResetKey(k => k + 1) }}
         collapseAll={() => { setAllState(1); setResetKey(k => k + 1) }}
       />

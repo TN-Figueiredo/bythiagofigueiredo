@@ -12,7 +12,7 @@ interface TrackHeadProps {
   isAudio?: boolean
 }
 
-function TrackHeadRaw({ track, height, clipCount }: TrackHeadProps) {
+function TrackHeadRaw({ track, height, clipCount, isAudio = false }: TrackHeadProps) {
   const hasClips = clipCount > 0
   return (
     <div
@@ -21,7 +21,7 @@ function TrackHeadRaw({ track, height, clipCount }: TrackHeadProps) {
         height,
         padding: '0 8px 0 10px',
         borderBottom: `1px solid ${TH.border}`,
-        background: TH.surface,
+        background: isAudio ? `${TH.surface}e8` : TH.surface,
         opacity: hasClips ? 1 : 0.45,
         transition: 'opacity 0.15s',
       }}
@@ -45,6 +45,12 @@ function TrackHeadRaw({ track, height, clipCount }: TrackHeadProps) {
       >
         {track.name}
       </div>
+      {/* Audio indicator */}
+      {isAudio && (
+        <span style={{ color: TH.dim, fontSize: 9, flexShrink: 0, opacity: 0.6 }} aria-label="audio track">
+          ♫
+        </span>
+      )}
       {/* Clip count */}
       {hasClips && (
         <span className={MONO_SM_CLS} style={{ color: TH.dim, fontSize: 9, flexShrink: 0 }}>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback, memo } from 'react'
+import { useState, useRef, useCallback, memo, useEffect } from 'react'
 import type { BeatData, BeatAssets, TrackHeightMap } from './types'
 import {
   TL_TRACKS, ALL_TRACKS, TH,
@@ -29,6 +29,19 @@ interface BeatAccordionProps {
 function BeatAccordionRaw({ beat, assets, trackHeights, onResize, zoom, containerW, defaultOpen }: BeatAccordionProps) {
   const [open, setOpen] = useState(defaultOpen)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const rafRef = useRef<number>(0)
+  // Stores the cleanup function for the active drag session so we can cancel on unmount
+  const dragCleanupRef = useRef<(() => void) | null>(null)
+  const headerId = `beat-header-${beat.idx}`
+  const regionId = `beat-region-${beat.idx}`
+
+  // Cancel any in-flight RAF and drag listeners when the component unmounts mid-drag
+  useEffect(() => {
+    return () => {
+      cancelAnimationFrame(rafRef.current)
+      dragCleanupRef.current?.()
+    }
+  }, [])
 
   const effH = useCallback(
     (tid: string) => effectiveTrackH(tid, beat.clips, trackHeights, EMPTY_H),
@@ -43,28 +56,38 @@ function BeatAccordionRaw({ beat, assets, trackHeights, onResize, zoom, containe
     e.preventDefault()
     const startY = e.clientY
     const startH = trackHeights[trackId] ?? EMPTY_H
-    let raf: number | null = null
 
     const move = (me: MouseEvent) => {
-      if (raf) cancelAnimationFrame(raf)
-      raf = requestAnimationFrame(() => {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = requestAnimationFrame(() => {
         const delta = me.clientY - startY
         onResize(trackId, Math.max(MIN_H, Math.min(MAX_H, startH + delta)))
       })
     }
 
     const up = () => {
-      if (raf) cancelAnimationFrame(raf)
+      cancelAnimationFrame(rafRef.current)
       document.removeEventListener('mousemove', move)
       document.removeEventListener('mouseup', up)
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
+      dragCleanupRef.current = null
+    }
+
+    const cleanup = () => {
+      cancelAnimationFrame(rafRef.current)
+      document.removeEventListener('mousemove', move)
+      document.removeEventListener('mouseup', up)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      dragCleanupRef.current = null
     }
 
     document.body.style.cursor = 'row-resize'
     document.body.style.userSelect = 'none'
     document.addEventListener('mousemove', move)
     document.addEventListener('mouseup', up)
+    dragCleanupRef.current = cleanup
   }, [trackHeights, onResize])
 
   const totalClips = ALL_TRACKS.reduce((n, t) => n + (beat.clips[t.id]?.length ?? 0), 0)
@@ -78,9 +101,12 @@ function BeatAccordionRaw({ beat, assets, trackHeights, onResize, zoom, containe
     >
       {/* Beat header */}
       <button
+        id={headerId}
         className="w-full flex items-center gap-2 px-3.5 py-2.5 cursor-pointer select-none text-left"
         style={{ background: TH.header, borderBottom: open ? `1px solid ${TH.border}` : 'none' }}
         onClick={() => setOpen(v => !v)}
+        aria-expanded={open}
+        aria-controls={regionId}
       >
         <span
           className="text-[11px] shrink-0 w-3.5 text-center transition-transform duration-200"
@@ -115,7 +141,7 @@ function BeatAccordionRaw({ beat, assets, trackHeights, onResize, zoom, containe
 
       {/* Beat body — lazy render when collapsed */}
       {open && (
-        <>
+        <div id={regionId} role="region" aria-labelledby={headerId}>
           <div className="flex">
             {/* Track panel (left) */}
             <div className="shrink-0" style={{ width: PANEL_W, borderRight: `1px solid ${TH.border}` }}>
@@ -171,7 +197,7 @@ function BeatAccordionRaw({ beat, assets, trackHeights, onResize, zoom, containe
           </div>
           <AssetResolver assets={assets} />
           <ScriptPanel script={beat.script} />
-        </>
+        </div>
       )}
     </div>
   )
