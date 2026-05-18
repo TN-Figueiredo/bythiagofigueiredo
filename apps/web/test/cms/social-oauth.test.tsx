@@ -145,51 +145,51 @@ describe('OauthButton', () => {
 
 describe('PlatformCard', () => {
   it('renders platform name', () => {
-    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} />)
+    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} onDisconnect={mockDisconnectSocial} />)
     expect(screen.getByText('Youtube')).toBeDefined()
   })
 
   it('shows platform icon', () => {
-    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} />)
+    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} onDisconnect={mockDisconnectSocial} />)
     expect(screen.getByTestId('icon-youtube')).toBeDefined()
   })
 
   it('shows account name for connected account', () => {
-    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} />)
+    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} onDisconnect={mockDisconnectSocial} />)
     expect(screen.getByText('My Channel')).toBeDefined()
   })
 
   it('shows Active status badge for active token', () => {
-    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} />)
+    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} onDisconnect={mockDisconnectSocial} />)
     // Redesigned card shows "Active" badge (not tokenOk "Connected")
     expect(screen.getByText('Active')).toBeDefined()
   })
 
   it('shows Token expired status for expired token', () => {
-    render(<PlatformCard provider="youtube" connections={[expiredConnection]} strings={en} />)
+    render(<PlatformCard provider="youtube" connections={[expiredConnection]} strings={en} onDisconnect={mockDisconnectSocial} />)
     // The ExpiredBanner + ManageDetails both show tokenExpired text — use getAllByText
     const expiredTexts = screen.getAllByText(en.accounts.connections.tokenExpired)
     expect(expiredTexts.length).toBeGreaterThanOrEqual(1)
   })
 
   it('shows Active status badge for connection without token_expires_at', () => {
-    render(<PlatformCard provider="facebook" connections={[neverExpiresConnection]} strings={en} />)
+    render(<PlatformCard provider="facebook" connections={[neverExpiresConnection]} strings={en} onDisconnect={mockDisconnectSocial} />)
     // Redesigned card shows "Active" badge for never-expires connections
     expect(screen.getByText('Active')).toBeDefined()
   })
 
   it('shows Add account button when no connections', () => {
-    render(<PlatformCard provider="instagram" connections={[]} strings={en} />)
+    render(<PlatformCard provider="instagram" connections={[]} strings={en} onDisconnect={mockDisconnectSocial} />)
     expect(screen.getByText(en.accounts.connections.addAccount)).toBeDefined()
   })
 
   it('shows manage button when connections exist', () => {
-    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} />)
+    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} onDisconnect={mockDisconnectSocial} />)
     expect(screen.getByText(en.accounts.connections.manage)).toBeDefined()
   })
 
   it('shows disconnect button after clicking manage', async () => {
-    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} />)
+    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} onDisconnect={mockDisconnectSocial} />)
     fireEvent.click(screen.getByText(en.accounts.connections.manage))
     await waitFor(() => {
       expect(screen.getByText(en.accounts.connections.disconnect)).toBeDefined()
@@ -198,13 +198,13 @@ describe('PlatformCard', () => {
 
   it('shows reconnect button for expired token (in expired banner)', () => {
     // Redesigned component shows Reconnect in the expired banner, not just in manage mode
-    render(<PlatformCard provider="youtube" connections={[expiredConnection]} strings={en} />)
+    render(<PlatformCard provider="youtube" connections={[expiredConnection]} strings={en} onDisconnect={mockDisconnectSocial} />)
     expect(screen.getAllByText(en.accounts.connections.reconnect).length).toBeGreaterThanOrEqual(1)
   })
 
   it('calls disconnectSocial on disconnect confirm', async () => {
     mockDisconnectSocial.mockResolvedValue({ ok: true })
-    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} />)
+    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} onDisconnect={mockDisconnectSocial} />)
     fireEvent.click(screen.getByText(en.accounts.connections.manage))
     await waitFor(() => screen.getByText(en.accounts.connections.disconnect))
     fireEvent.click(screen.getByText(en.accounts.connections.disconnect))

@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 const mockSupabase = {
   from: vi.fn(),
+  rpc: vi.fn(),
 }
 
 vi.mock('@/lib/supabase/service', () => ({
@@ -198,21 +199,20 @@ describe('addLinkinBioEntry', () => {
 
   it('inserts a new entry at position 0', async () => {
     const mockInsert = vi.fn().mockResolvedValue({ error: null })
-    const mockUpdate = vi.fn().mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ error: null }),
-    })
+
+    mockSupabase.rpc.mockResolvedValue({ error: null })
 
     mockSupabase.from.mockImplementation((table: string) => {
       if (table === 'link_in_bio_entries') {
         return {
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
-              order: vi.fn().mockResolvedValue({ data: [], error: null }),
-              range: vi.fn().mockResolvedValue({ data: [], error: null }),
+              order: vi.fn().mockReturnValue({
+                range: vi.fn().mockResolvedValue({ data: [], error: null }),
+              }),
             }),
           }),
           insert: mockInsert,
-          update: mockUpdate,
           delete: vi.fn().mockReturnValue({
             in: vi.fn().mockResolvedValue({ error: null }),
           }),
@@ -233,43 +233,22 @@ describe('addLinkinBioEntry', () => {
     )
   })
 
-  it('shifts existing entries down by 1 before inserting', async () => {
-    const existing = [
-      { id: 'e1', position: 0 },
-      { id: 'e2', position: 1 },
-    ]
-
+  it('shifts existing entries down by 1 before inserting via RPC', async () => {
     const mockInsert = vi.fn().mockResolvedValue({ error: null })
-    const updateEqMock = vi.fn().mockResolvedValue({ error: null })
-    const mockUpdate = vi.fn().mockReturnValue({ eq: updateEqMock })
 
-    // Track select calls to distinguish the initial listing from the range query
-    let selectCallCount = 0
+    mockSupabase.rpc.mockResolvedValue({ error: null })
 
     mockSupabase.from.mockImplementation((table: string) => {
       if (table === 'link_in_bio_entries') {
         return {
-          select: vi.fn().mockImplementation(() => {
-            selectCallCount++
-            if (selectCallCount === 1) {
-              // First select: list existing entries for position shifting
-              return {
-                eq: vi.fn().mockReturnValue({
-                  order: vi.fn().mockResolvedValue({ data: existing, error: null }),
-                }),
-              }
-            }
-            // Second select: range query for overflow pruning
-            return {
-              eq: vi.fn().mockReturnValue({
-                order: vi.fn().mockReturnValue({
-                  range: vi.fn().mockResolvedValue({ data: [], error: null }),
-                }),
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              order: vi.fn().mockReturnValue({
+                range: vi.fn().mockResolvedValue({ data: [], error: null }),
               }),
-            }
+            }),
           }),
           insert: mockInsert,
-          update: mockUpdate,
           delete: vi.fn().mockReturnValue({
             in: vi.fn().mockResolvedValue({ error: null }),
           }),
@@ -280,46 +259,34 @@ describe('addLinkinBioEntry', () => {
 
     await addLinkinBioEntry({ siteId: 'site-1', postId: 'post-new', linkId: 'link-new' })
 
-    // update called once per existing entry
-    expect(mockUpdate).toHaveBeenCalledTimes(2)
-    expect(mockUpdate).toHaveBeenNthCalledWith(1, { position: 1 })
-    expect(mockUpdate).toHaveBeenNthCalledWith(2, { position: 2 })
+    // RPC called once with correct arguments for the bulk shift
+    expect(mockSupabase.rpc).toHaveBeenCalledWith('shift_link_in_bio_positions', {
+      p_site_id: 'site-1',
+      p_min_position: 0,
+    })
   })
 
   it('auto-prunes entries beyond MAX_ENTRIES (20)', async () => {
     const mockInsert = vi.fn().mockResolvedValue({ error: null })
     const mockDeleteIn = vi.fn().mockResolvedValue({ error: null })
-    let selectCallCount = 0
+
+    mockSupabase.rpc.mockResolvedValue({ error: null })
 
     mockSupabase.from.mockImplementation((table: string) => {
       if (table === 'link_in_bio_entries') {
         return {
-          select: vi.fn().mockImplementation(() => {
-            selectCallCount++
-            if (selectCallCount === 1) {
-              // Existing entries listing (for position shift)
-              return {
-                eq: vi.fn().mockReturnValue({
-                  order: vi.fn().mockResolvedValue({ data: [], error: null }),
-                }),
-              }
-            }
-            // Range query returns overflow entries
-            return {
-              eq: vi.fn().mockReturnValue({
-                order: vi.fn().mockReturnValue({
-                  range: vi.fn().mockResolvedValue({
-                    data: [{ id: 'overflow-1' }, { id: 'overflow-2' }],
-                    error: null,
-                  }),
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              order: vi.fn().mockReturnValue({
+                // Range query returns overflow entries
+                range: vi.fn().mockResolvedValue({
+                  data: [{ id: 'overflow-1' }, { id: 'overflow-2' }],
+                  error: null,
                 }),
               }),
-            }
+            }),
           }),
           insert: mockInsert,
-          update: vi.fn().mockReturnValue({
-            eq: vi.fn().mockResolvedValue({ error: null }),
-          }),
           delete: vi.fn().mockReturnValue({
             in: mockDeleteIn,
           }),
@@ -339,19 +306,13 @@ describe('addLinkinBioEntry', () => {
   it('captures exception and does not throw when insert fails', async () => {
     const { captureException } = await import('@sentry/nextjs')
 
+    mockSupabase.rpc.mockResolvedValue({ error: null })
+
     mockSupabase.from.mockImplementation((table: string) => {
       if (table === 'link_in_bio_entries') {
         return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              order: vi.fn().mockResolvedValue({ data: [], error: null }),
-            }),
-          }),
           insert: vi.fn().mockResolvedValue({
             error: { message: 'unique constraint violation' },
-          }),
-          update: vi.fn().mockReturnValue({
-            eq: vi.fn().mockResolvedValue({ error: null }),
           }),
           delete: vi.fn().mockReturnValue({
             in: vi.fn().mockResolvedValue({ error: null }),

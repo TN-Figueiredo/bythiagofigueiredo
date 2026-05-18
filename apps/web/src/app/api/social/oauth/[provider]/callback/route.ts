@@ -5,6 +5,11 @@ import { encrypt, getMasterKey } from '@tn-figueiredo/social'
 
 export const runtime = 'nodejs'
 
+/** Derive a purpose-specific HMAC key so the master key is never used directly for signing. */
+function deriveHmacKey(masterKey: string): string {
+  return createHmac('sha256', masterKey).update('oauth-state-hmac').digest('hex')
+}
+
 function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
@@ -227,7 +232,7 @@ export async function GET(
       return oauthResultHtml(provider, false, 'SOCIAL_MASTER_KEY not configured')
     }
 
-    const stateData = verifyState(stateRaw, masterKeyHex)
+    const stateData = verifyState(stateRaw, deriveHmacKey(masterKeyHex))
     if (!stateData) {
       return oauthResultHtml(provider, false, 'Invalid or tampered state parameter')
     }

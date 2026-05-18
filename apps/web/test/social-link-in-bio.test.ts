@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const mockSupabase = {
   from: vi.fn(),
+  rpc: vi.fn(),
 }
 
 vi.mock('@/lib/supabase/service', () => ({
@@ -52,28 +53,24 @@ describe('Link-in-Bio data layer', () => {
   it('addLinkinBioEntry prepends and auto-prunes beyond 20', async () => {
     const mockInsert = vi.fn().mockResolvedValue({ error: null })
     const mockDelete = vi.fn().mockResolvedValue({ error: null })
-    const mockSelect = vi.fn().mockReturnValue({
-      eq: vi.fn().mockReturnValue({
-        order: vi.fn().mockReturnValue({
-          range: vi.fn().mockResolvedValue({
-            data: [{ id: 'oldest-entry' }],
-            error: null,
-          }),
-        }),
-      }),
-    })
-    const mockCount = vi.fn().mockReturnValue({
-      eq: vi.fn().mockResolvedValue({
-        count: 21,
-        error: null,
-      }),
-    })
+
+    // shift_link_in_bio_positions RPC succeeds
+    mockSupabase.rpc.mockResolvedValue({ error: null })
 
     mockSupabase.from.mockImplementation((table: string) => {
       if (table === 'link_in_bio_entries') {
         return {
           insert: mockInsert,
-          select: mockSelect,
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              order: vi.fn().mockReturnValue({
+                range: vi.fn().mockResolvedValue({
+                  data: [{ id: 'oldest-entry' }],
+                  error: null,
+                }),
+              }),
+            }),
+          }),
           delete: vi.fn().mockReturnValue({
             in: mockDelete,
           }),
@@ -89,6 +86,10 @@ describe('Link-in-Bio data layer', () => {
       linkId: 'link-new',
     })
 
+    expect(mockSupabase.rpc).toHaveBeenCalledWith('shift_link_in_bio_positions', {
+      p_site_id: 'site-1',
+      p_min_position: 0,
+    })
     expect(mockInsert).toHaveBeenCalledWith(
       expect.objectContaining({
         site_id: 'site-1',

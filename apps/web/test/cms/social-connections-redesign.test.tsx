@@ -191,27 +191,27 @@ describe('PlatformCard — basic rendering', () => {
   })
 
   it('renders platform name via platformLabel', () => {
-    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} />)
+    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} onDisconnect={mockDisconnectSocial} />)
     expect(screen.getByText('YouTube')).toBeDefined()
   })
 
   it('renders account name', () => {
-    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} />)
+    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} onDisconnect={mockDisconnectSocial} />)
     expect(screen.getByText('My Channel')).toBeDefined()
   })
 
   it('shows Add account button when no connections', () => {
-    render(<PlatformCard provider="instagram" connections={[]} strings={en} />)
+    render(<PlatformCard provider="instagram" connections={[]} strings={en} onDisconnect={mockDisconnectSocial} />)
     expect(screen.getByText(en.accounts.connections.addAccount)).toBeDefined()
   })
 
   it('shows Manage button when connections exist', () => {
-    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} />)
+    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} onDisconnect={mockDisconnectSocial} />)
     expect(screen.getByText(en.accounts.connections.manage)).toBeDefined()
   })
 
   it('does not show Manage button when no connections', () => {
-    render(<PlatformCard provider="youtube" connections={[]} strings={en} />)
+    render(<PlatformCard provider="youtube" connections={[]} strings={en} onDisconnect={mockDisconnectSocial} />)
     expect(screen.queryByText(en.accounts.connections.manage)).toBeNull()
   })
 })
@@ -225,19 +225,19 @@ describe('PlatformCard — token status', () => {
   })
 
   it('shows Active badge for active token (>30d)', () => {
-    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} />)
+    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} onDisconnect={mockDisconnectSocial} />)
     // New card shows "Active" status badge
     expect(screen.getByText('Active')).toBeDefined()
   })
 
   it('shows Expired badge for expired token', () => {
-    render(<PlatformCard provider="youtube" connections={[expiredConnection]} strings={en} />)
+    render(<PlatformCard provider="youtube" connections={[expiredConnection]} strings={en} onDisconnect={mockDisconnectSocial} />)
     // New card shows "Expired" status badge
     expect(screen.getByText('Expired')).toBeDefined()
   })
 
   it('shows neverExpires text for connection with null token_expires_at', () => {
-    render(<PlatformCard provider="facebook" connections={[neverExpiresConnection]} strings={en} />)
+    render(<PlatformCard provider="facebook" connections={[neverExpiresConnection]} strings={en} onDisconnect={mockDisconnectSocial} />)
     expect(screen.getByText(en.accounts.connections.neverExpires)).toBeDefined()
   })
 })
@@ -254,13 +254,13 @@ describe('PlatformCard — avatar / thumbnail metadata', () => {
     const conn = makeConnection({
       metadata: { thumbnail_url: 'https://example.com/avatar.jpg' },
     })
-    const { container } = render(<PlatformCard provider="youtube" connections={[conn]} strings={en} />)
+    const { container } = render(<PlatformCard provider="youtube" connections={[conn]} strings={en} onDisconnect={mockDisconnectSocial} />)
     const img = container.querySelector('img[src*="avatar.jpg"]')
     expect(img).not.toBeNull()
   })
 
   it('does not render an img element when no thumbnail_url in metadata', () => {
-    const { container } = render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} />)
+    const { container } = render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} onDisconnect={mockDisconnectSocial} />)
     // No avatar img should be present (initials div is used instead)
     expect(container.querySelector('img')).toBeNull()
   })
@@ -269,13 +269,13 @@ describe('PlatformCard — avatar / thumbnail metadata', () => {
     const conn = makeConnection({
       metadata: { custom_url: '@mychannel' },
     })
-    render(<PlatformCard provider="youtube" connections={[conn]} strings={en} />)
+    render(<PlatformCard provider="youtube" connections={[conn]} strings={en} onDisconnect={mockDisconnectSocial} />)
     expect(screen.getByText('@mychannel')).toBeDefined()
   })
 
   it('does not render handle when metadata has no custom_url', () => {
     const conn = makeConnection({ metadata: {} })
-    render(<PlatformCard provider="youtube" connections={[conn]} strings={en} />)
+    render(<PlatformCard provider="youtube" connections={[conn]} strings={en} onDisconnect={mockDisconnectSocial} />)
     // No handle link should appear
     expect(screen.queryByText(/@/)).toBeNull()
   })
@@ -285,7 +285,7 @@ describe('PlatformCard — avatar / thumbnail metadata', () => {
       provider: 'instagram',
       metadata: { ig_username: 'myprofile' },
     })
-    render(<PlatformCard provider="instagram" connections={[conn]} strings={en} />)
+    render(<PlatformCard provider="instagram" connections={[conn]} strings={en} onDisconnect={mockDisconnectSocial} />)
     expect(screen.getByText('@myprofile')).toBeDefined()
   })
 })
@@ -299,7 +299,7 @@ describe('PlatformCard — manage mode', () => {
   })
 
   it('shows disconnect button after clicking Manage', async () => {
-    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} />)
+    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} onDisconnect={mockDisconnectSocial} />)
     fireEvent.click(screen.getByText(en.accounts.connections.manage))
     await waitFor(() => {
       expect(screen.getByText(en.accounts.connections.disconnect)).toBeDefined()
@@ -307,7 +307,7 @@ describe('PlatformCard — manage mode', () => {
   })
 
   it('shows reconnect button for expired token when manage is open', async () => {
-    render(<PlatformCard provider="youtube" connections={[expiredConnection]} strings={en} />)
+    render(<PlatformCard provider="youtube" connections={[expiredConnection]} strings={en} onDisconnect={mockDisconnectSocial} />)
     fireEvent.click(screen.getByText(en.accounts.connections.manage))
     await waitFor(() => {
       // Multiple reconnect buttons may appear (expired banner + manage details)
@@ -317,7 +317,7 @@ describe('PlatformCard — manage mode', () => {
   })
 
   it('does not show reconnect for active token even in manage mode', async () => {
-    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} />)
+    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} onDisconnect={mockDisconnectSocial} />)
     fireEvent.click(screen.getByText(en.accounts.connections.manage))
     await waitFor(() => screen.getByText(en.accounts.connections.disconnect))
     expect(screen.queryByText(en.accounts.connections.reconnect)).toBeNull()
@@ -325,7 +325,7 @@ describe('PlatformCard — manage mode', () => {
 
   it('calls disconnectSocial when disconnect is confirmed', async () => {
     mockDisconnectSocial.mockResolvedValue({ ok: true })
-    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} />)
+    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} onDisconnect={mockDisconnectSocial} />)
     fireEvent.click(screen.getByText(en.accounts.connections.manage))
     await waitFor(() => screen.getByText(en.accounts.connections.disconnect))
     fireEvent.click(screen.getByText(en.accounts.connections.disconnect))
@@ -336,7 +336,7 @@ describe('PlatformCard — manage mode', () => {
 
   it('does not call disconnectSocial when confirm is cancelled', async () => {
     vi.stubGlobal('confirm', vi.fn(() => false))
-    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} />)
+    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} onDisconnect={mockDisconnectSocial} />)
     fireEvent.click(screen.getByText(en.accounts.connections.manage))
     await waitFor(() => screen.getByText(en.accounts.connections.disconnect))
     fireEvent.click(screen.getByText(en.accounts.connections.disconnect))
@@ -344,7 +344,7 @@ describe('PlatformCard — manage mode', () => {
   })
 
   it('shows Add another button in manage mode for adding more accounts', async () => {
-    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} />)
+    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} onDisconnect={mockDisconnectSocial} />)
     fireEvent.click(screen.getByText(en.accounts.connections.manage))
     await waitFor(() => {
       // New card shows "+ Add another YouTube" in manage mode
@@ -353,7 +353,7 @@ describe('PlatformCard — manage mode', () => {
   })
 
   it('toggles manage off when Manage is clicked again', async () => {
-    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} />)
+    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} onDisconnect={mockDisconnectSocial} />)
     fireEvent.click(screen.getByText(en.accounts.connections.manage))
     await waitFor(() => screen.getByText(en.accounts.connections.disconnect))
     fireEvent.click(screen.getByText(en.accounts.connections.manage))
@@ -364,7 +364,7 @@ describe('PlatformCard — manage mode', () => {
 
   it('shows error message when disconnectSocial returns error', async () => {
     mockDisconnectSocial.mockResolvedValue({ ok: false, error: 'Server error' })
-    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} />)
+    render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} onDisconnect={mockDisconnectSocial} />)
     fireEvent.click(screen.getByText(en.accounts.connections.manage))
     await waitFor(() => screen.getByText(en.accounts.connections.disconnect))
     fireEvent.click(screen.getByText(en.accounts.connections.disconnect))
@@ -385,7 +385,7 @@ describe('PlatformCard — multiple connections', () => {
   it('renders all connections', () => {
     const conn1 = makeConnection({ id: 'c1', account_name: 'Channel One' })
     const conn2 = makeConnection({ id: 'c2', account_name: 'Channel Two' })
-    render(<PlatformCard provider="youtube" connections={[conn1, conn2]} strings={en} />)
+    render(<PlatformCard provider="youtube" connections={[conn1, conn2]} strings={en} onDisconnect={mockDisconnectSocial} />)
     expect(screen.getByText('Channel One')).toBeDefined()
     expect(screen.getByText('Channel Two')).toBeDefined()
   })
@@ -393,7 +393,7 @@ describe('PlatformCard — multiple connections', () => {
   it('renders multiple avatar images when both have thumbnail_url', () => {
     const conn1 = makeConnection({ id: 'c1', metadata: { thumbnail_url: 'https://example.com/a.jpg' } })
     const conn2 = makeConnection({ id: 'c2', account_name: 'Two', metadata: { thumbnail_url: 'https://example.com/b.jpg' } })
-    const { container } = render(<PlatformCard provider="youtube" connections={[conn1, conn2]} strings={en} />)
+    const { container } = render(<PlatformCard provider="youtube" connections={[conn1, conn2]} strings={en} onDisconnect={mockDisconnectSocial} />)
     const imgs = container.querySelectorAll('img')
     expect(imgs).toHaveLength(2)
   })
@@ -411,7 +411,7 @@ describe('PlatformCard — rich card features', () => {
     const conn = makeConnection({
       metadata: { subscriber_count: 1500, video_count: 42, view_count: 250000 },
     })
-    render(<PlatformCard provider="youtube" connections={[conn]} strings={en} />)
+    render(<PlatformCard provider="youtube" connections={[conn]} strings={en} onDisconnect={mockDisconnectSocial} />)
     expect(screen.getByText('Subscribers')).toBeDefined()
     expect(screen.getByText('Videos')).toBeDefined()
     expect(screen.getByText('Views')).toBeDefined()
@@ -421,13 +421,13 @@ describe('PlatformCard — rich card features', () => {
   })
 
   it('shows token health bar with green color for active connection', () => {
-    const { container } = render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} />)
+    const { container } = render(<PlatformCard provider="youtube" connections={[activeConnection]} strings={en} onDisconnect={mockDisconnectSocial} />)
     const bar = container.querySelector('.bg-green-500')
     expect(bar).not.toBeNull()
   })
 
   it('shows expired banner with reconnect for expired connection', () => {
-    render(<PlatformCard provider="youtube" connections={[expiredConnection]} strings={en} />)
+    render(<PlatformCard provider="youtube" connections={[expiredConnection]} strings={en} onDisconnect={mockDisconnectSocial} />)
     // Expired banner shows token expired text
     const tokenExpired = screen.getAllByText(en.accounts.connections.tokenExpired)
     expect(tokenExpired.length).toBeGreaterThanOrEqual(1)
@@ -439,18 +439,18 @@ describe('PlatformCard — rich card features', () => {
   it('shows connection count badge', () => {
     const conn1 = makeConnection({ id: 'c1' })
     const conn2 = makeConnection({ id: 'c2', account_name: 'Two' })
-    render(<PlatformCard provider="youtube" connections={[conn1, conn2]} strings={en} />)
+    render(<PlatformCard provider="youtube" connections={[conn1, conn2]} strings={en} onDisconnect={mockDisconnectSocial} />)
     expect(screen.getByText('2 channels')).toBeDefined()
   })
 
   it('shows empty state with dashed circle when no connections', () => {
-    const { container } = render(<PlatformCard provider="youtube" connections={[]} strings={en} />)
+    const { container } = render(<PlatformCard provider="youtube" connections={[]} strings={en} onDisconnect={mockDisconnectSocial} />)
     expect(container.querySelector('.border-dashed')).not.toBeNull()
     expect(screen.getByText(/Connect your YouTube account/)).toBeDefined()
   })
 
   it('shows accent bar at top of card', () => {
-    const { container } = render(<PlatformCard provider="youtube" connections={[]} strings={en} />)
+    const { container } = render(<PlatformCard provider="youtube" connections={[]} strings={en} onDisconnect={mockDisconnectSocial} />)
     // YouTube accent bar has red gradient
     const accentBar = container.querySelector('.from-red-600')
     expect(accentBar).not.toBeNull()

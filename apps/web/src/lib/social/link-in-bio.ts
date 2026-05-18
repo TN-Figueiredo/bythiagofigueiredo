@@ -56,22 +56,11 @@ export async function addLinkinBioEntry(input: {
   const supabase = getSupabaseServiceClient()
 
   try {
-    // Shift all existing entries down by 1
-    const { data: existing } = await supabase
-      .from('link_in_bio_entries')
-      .select('id, position')
-      .eq('site_id', input.siteId)
-      .order('position', { ascending: true })
-
-    if (existing && existing.length > 0) {
-      // Increment all positions
-      for (const entry of existing) {
-        await supabase
-          .from('link_in_bio_entries')
-          .update({ position: (entry.position as number) + 1 })
-          .eq('id', entry.id)
-      }
-    }
+    // Shift all existing entries down by 1 in a single bulk update (avoids N+1 queries)
+    await supabase.rpc('shift_link_in_bio_positions', {
+      p_site_id: input.siteId,
+      p_min_position: 0,
+    })
 
     // Insert new entry at position 0
     const { error: insertError } = await supabase

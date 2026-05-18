@@ -20,6 +20,11 @@ const META_SCOPES = [
   'business_management',
 ].join(',')
 
+/** Derive a purpose-specific HMAC key so the master key is never used directly for signing. */
+function deriveHmacKey(masterKey: string): string {
+  return createHmac('sha256', masterKey).update('oauth-state-hmac').digest('hex')
+}
+
 function signState(payload: string, key: string): string {
   const hmac = createHmac('sha256', key).update(payload).digest('hex')
   return `${Buffer.from(payload).toString('base64')}.${hmac}`
@@ -46,7 +51,7 @@ export async function GET(
   }
 
   const statePayload = JSON.stringify({ siteId })
-  const signedState = encodeURIComponent(signState(statePayload, masterKey))
+  const signedState = encodeURIComponent(signState(statePayload, deriveHmacKey(masterKey)))
 
   switch (provider) {
     case 'google': {
