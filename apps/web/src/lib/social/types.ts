@@ -134,3 +134,46 @@ export const CONTENT_FORMAT_MAP: Record<ContentType, Partial<Record<Provider, De
   campaign: { facebook: 'link_share', instagram: 'story', bluesky: 'link_card', youtube: 'link_share' },
   video: { facebook: 'video_share', instagram: 'reel', bluesky: 'link_card', youtube: 'video_share' },
 }
+
+// ---------------------------------------------------------------------------
+// Per-platform edit rules
+// ---------------------------------------------------------------------------
+
+export interface EditRules {
+  canEditCaption: boolean
+  canEditMedia: boolean
+  method?: 'update' | 'delete_recreate'
+  readOnly?: boolean
+  readOnlyReason?: string
+  warning?: string
+}
+
+export function getEditRules(provider: Provider): EditRules {
+  switch (provider) {
+    case 'facebook':
+      return { canEditCaption: true, canEditMedia: false, method: 'update' }
+    case 'bluesky':
+      return {
+        canEditCaption: true,
+        canEditMedia: false,
+        method: 'delete_recreate',
+        warning: 'Editing on Bluesky deletes the original post and creates a new one. This resets engagement metrics.',
+      }
+    case 'instagram':
+      return {
+        canEditCaption: false,
+        canEditMedia: false,
+        readOnly: true,
+        readOnlyReason: 'Instagram does not support editing published posts',
+      }
+    case 'youtube':
+      return {
+        canEditCaption: false,
+        canEditMedia: false,
+        readOnly: true,
+        readOnlyReason: 'YouTube editing is not supported in v1',
+      }
+    default:
+      return { canEditCaption: false, canEditMedia: false, readOnly: true }
+  }
+}

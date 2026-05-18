@@ -18,9 +18,10 @@ import {
   createSocialPost,
   createFromContentAction,
   getContentForSocialPost,
+  editPublishedPost,
 } from '@/lib/social/actions'
 import type { SocialStrings } from '../../_i18n/types'
-import type { ContentType } from '@/lib/social/types'
+import { getEditRules, type ContentType } from '@/lib/social/types'
 
 type ComposerMode = 'text' | 'image' | 'video'
 type SourceMode = 'cms' | 'freeform'
@@ -38,6 +39,13 @@ interface ComposerShellProps {
   initialSourceMode?: SourceMode
   preselectedContentType?: ContentType
   preselectedContentId?: string
+  editPostId?: string
+  editDeliveries?: Array<{
+    id: string
+    provider: Provider
+    status: string
+    platform_post_id: string | null
+  }>
 }
 
 function isValidUrl(value: string): boolean {
@@ -56,6 +64,8 @@ export function ComposerShell({
   initialSourceMode = 'cms',
   preselectedContentType,
   preselectedContentId,
+  editPostId,
+  editDeliveries,
 }: ComposerShellProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -97,6 +107,10 @@ export function ComposerShell({
 
   // OG data (derived from selected content)
   const [ogData, setOgData] = useState<OgData | null>(null)
+
+  // Edit mode state
+  const [editCaption, setEditCaption] = useState('')
+  const isEditMode = !!editPostId
 
   // Errors
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -364,7 +378,87 @@ export function ComposerShell({
     })
   }
 
+  function handleEditSave(deliveryId: string) {
+    if (!editPostId || !editCaption.trim()) return
+    setSubmitError(null)
+    startTransition(async () => {
+      const result = await editPublishedPost(editPostId, deliveryId, { caption: editCaption })
+      if (result.ok) {
+        router.push(`/cms/social/${editPostId}`)
+      } else {
+        setSubmitError(result.error ?? t.common.error)
+      }
+    })
+  }
+
   const showPipeline = sourceMode === 'cms' && !!selectedContent
+
+  // -----------------------------------------------------------------------
+  // Edit mode: show per-platform edit rules + caption editor
+  // -----------------------------------------------------------------------
+  if (isEditMode && editDeliveries) {
+    return (
+      <div className="space-y-6">
+        <div className="rounded-lg border border-cms-border bg-cms-surface p-4 space-y-4">
+          <h3 className="text-sm font-semibold text-cms-text">
+            Editar post publicado
+          </h3>
+
+          {editDeliveries.map((d) => {
+            const rules = getEditRules(d.provider)
+            return (
+              <div key={d.id} className="rounded-md border border-cms-border bg-cms-bg p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium capitalize text-cms-text">
+                    {d.provider}
+                  </span>
+                  {rules.readOnly ? (
+                    <span className="rounded-full bg-cms-text-muted/10 px-2 py-0.5 text-xs text-cms-text-muted">
+                      {rules.readOnlyReason ?? 'Somente leitura'}
+                    </span>
+                  ) : (
+                    <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-xs text-green-400">
+                      {rules.method === 'update' ? 'Editavel' : 'Recriar'}
+                    </span>
+                  )}
+                </div>
+
+                {rules.warning && (
+                  <p className="rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-400">
+                    {rules.warning}
+                  </p>
+                )}
+
+                {!rules.readOnly && rules.canEditCaption && d.status === 'published' && (
+                  <div className="space-y-2">
+                    <textarea
+                      value={editCaption}
+                      onChange={(e) => setEditCaption(e.target.value)}
+                      rows={3}
+                      placeholder="Nova legenda..."
+                      className="w-full rounded-md border border-cms-border bg-cms-bg px-3 py-2 text-sm text-cms-text"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleEditSave(d.id)}
+                      disabled={isPending || !editCaption.trim()}
+                      className="rounded-md bg-cms-accent px-4 py-2 text-sm font-medium text-white hover:bg-cms-accent/90 disabled:opacity-50"
+                    >
+                      {isPending ? 'Salvando...' : 'Salvar alteracao'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        {submitError && (
+          <p role="alert" className="text-sm text-red-400">{submitError}</p>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">

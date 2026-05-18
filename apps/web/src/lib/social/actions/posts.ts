@@ -28,6 +28,7 @@ import {
   toSocialConnection,
   type SocialPostWithPipeline,
 } from '../row-parsers'
+import { getEditRules } from '../types'
 
 // ---------------------------------------------------------------------------
 // Post management
@@ -40,6 +41,7 @@ const createPostSchema = z.object({
   scheduledAt: z.string().datetime().optional(),
   userTimezone: z.string().optional(),
   templateId: z.string().optional(),
+  storyMode: z.boolean().optional(),
 })
 
 export async function createSocialPost(data: {
@@ -49,6 +51,7 @@ export async function createSocialPost(data: {
   scheduledAt?: string
   userTimezone?: string
   templateId?: string
+  storyMode?: boolean
 }): Promise<ActionResult<{ id: string }>> {
   const parsed = createPostSchema.safeParse(data)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
@@ -107,6 +110,12 @@ export async function createSocialPost(data: {
         status: 'pending' as const,
         attempt: 0,
         max_attempts: 3,
+        // Set format based on provider and post type
+        format: conn.provider === 'instagram' && parsed.data.storyMode
+          ? 'story'
+          : conn.provider === 'bluesky'
+            ? 'link_card'
+            : 'link_share',
       }))
 
       const { error: deliveryError } = await supabase
@@ -500,6 +509,194 @@ export async function listSocialPosts(
     return { ok: true, data: toSocialPosts(data ?? []) }
   } catch (err) {
     Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'listSocialPosts' } })
+    throw err
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Edit published post (caption-only per platform rules)
+// ---------------------------------------------------------------------------
+
+const editPublishedSchema = z.object({
+  caption: z.string().min(1),
+})
+
+export async function editPublishedPost(
+  postId: string,
+  deliveryId: string,
+  data: { caption: string },
+): Promise<ActionResult> {
+  const idParsed = z.string().uuid().safeParse(postId)
+  if (!idParsed.success) return { ok: false, error: 'Invalid post ID' }
+  const deliveryParsed = z.string().uuid().safeParse(deliveryId)
+  if (!deliveryParsed.success) return { ok: false, error: 'Invalid delivery ID' }
+  const parsed = editPublishedSchema.safeParse(data)
+  if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
+
+  try {
+    const { siteId } = await requireEditAccess()
+    const supabase = getSupabaseServiceClient()
+
+    // Verify post belongs to this site and is published
+    const { data: post, error: postError } = await supabase
+      .from('social_posts')
+      .select('id, status, site_id')
+      .eq('id', idParsed.data)
+      .eq('site_id', siteId)
+      .single()
+
+    if (postError || !post) return { ok: false, error: 'Post not found' }
+
+    const completedStatuses: PostStatus[] = ['completed', 'partial_failure']
+    if (!completedStatuses.includes(post.status as PostStatus)) {
+      return { ok: false, error: `Cannot edit post with status "${post.status}"` }
+    }
+
+    // Get delivery
+    const { data: delivery, error: delError } = await supabase
+      .from('social_deliveries')
+      .select('id, provider, platform_post_id, connection_id, status')
+      .eq('id', deliveryParsed.data)
+      .eq('post_id', idParsed.data)
+      .single()
+
+    if (delError || !delivery) return { ok: false, error: 'Delivery not found' }
+    if (delivery.status !== 'published') return { ok: false, error: 'Delivery not published' }
+
+    const provider = delivery.provider as Provider
+    const rules = getEditRules(provider)
+
+    if (rules.readOnly) {
+      return { ok: false, error: rules.readOnlyReason ?? 'Platform does not support editing' }
+    }
+
+    if (!rules.canEditCaption) {
+      return { ok: false, error: 'Caption editing not supported for this platform' }
+    }
+
+    // Get connection
+    const { data: connection, error: connError } = await supabase
+      .from('social_connections')
+      .select('*')
+      .eq('id', delivery.connection_id)
+      .single()
+
+    if (connError || !connection) return { ok: false, error: 'Connection not found' }
+
+    const key = getMasterKey()
+
+    if (rules.method === 'update') {
+      // Facebook: POST /{post-id} with updated message
+      if (provider === 'facebook' && connection.page_token_enc) {
+        const pageToken = decrypt(connection.page_token_enc as string, key)
+        const res = await fetch(
+          `https://graph.facebook.com/v21.0/${delivery.platform_post_id}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message: parsed.data.caption,
+              access_token: pageToken,
+            }),
+            signal: AbortSignal.timeout(10_000),
+          },
+        )
+        if (!res.ok) {
+          const body = await res.text()
+          return { ok: false, error: `Facebook edit failed (${res.status}): ${body}` }
+        }
+      }
+    } else if (rules.method === 'delete_recreate') {
+      // Bluesky: delete old + create new
+      if (provider === 'bluesky') {
+        const conn = toSocialConnection(connection as Record<string, unknown>)
+
+        // Delete old record (best-effort)
+        if (delivery.platform_post_id) {
+          try {
+            await fetch(
+              `${(conn.metadata as Record<string, unknown>)?.service ?? 'https://bsky.social'}/xrpc/com.atproto.repo.deleteRecord`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${decrypt(conn.access_token_enc, key)}`,
+                },
+                body: JSON.stringify({
+                  repo: conn.account_id,
+                  collection: 'app.bsky.feed.post',
+                  rkey: (delivery.platform_post_id as string).split('/').pop(),
+                }),
+                signal: AbortSignal.timeout(10_000),
+              },
+            )
+          } catch {
+            // Best effort -- old post may already be deleted
+          }
+        }
+
+        // Create new post with updated caption
+        const { data: postData } = await supabase
+          .from('social_posts')
+          .select('*')
+          .eq('id', idParsed.data)
+          .single()
+
+        if (postData) {
+          const socialPost = toSocialPost(postData as Record<string, unknown>)
+          const bsMod = await import('@tn-figueiredo/social/providers/bluesky')
+          const bsProvider = new bsMod.BlueskyProvider((enc: string) => decrypt(enc, key))
+          const updatedPost = {
+            ...socialPost,
+            content: { ...socialPost.content, description: parsed.data.caption },
+          }
+          const publishResult = await bsProvider.publish(updatedPost, conn, {
+            id: delivery.id as string,
+            post_id: postData.id as string,
+            connection_id: conn.id,
+            provider: 'bluesky',
+            status: 'pending' as const,
+            platform_post_id: null,
+            platform_url: null,
+            content_override: null,
+            attempt: 0,
+            max_attempts: 1,
+            last_error: null,
+            error_type: null,
+            published_at: null,
+            created_at: new Date().toISOString(),
+          })
+
+          // Update delivery with new platform_post_id
+          await supabase
+            .from('social_deliveries')
+            .update({
+              platform_post_id: publishResult.id,
+              platform_url: publishResult.url,
+            })
+            .eq('id', delivery.id)
+        }
+      }
+    }
+
+    // Update post timestamp
+    await supabase
+      .from('social_posts')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', idParsed.data)
+
+    // Store caption override on the delivery
+    await supabase
+      .from('social_deliveries')
+      .update({
+        content_override: { caption: parsed.data.caption },
+      })
+      .eq('id', delivery.id)
+
+    revalidateSocialPaths()
+    return { ok: true, data: undefined }
+  } catch (err) {
+    Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'editPublishedPost' } })
     throw err
   }
 }

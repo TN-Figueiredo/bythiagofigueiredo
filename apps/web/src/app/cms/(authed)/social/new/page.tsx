@@ -1,14 +1,15 @@
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { CmsTopbar } from '@tn-figueiredo/cms-ui/client'
-import { getConnections } from '@/lib/social/actions'
+import { getConnections, getSocialPost } from '@/lib/social/actions'
+import type { Provider } from '@tn-figueiredo/social'
 import { getSocialStrings } from '../_i18n'
 import { ComposerShell } from './_components/composer-shell'
 
 export const dynamic = 'force-dynamic'
 
 interface Props {
-  searchParams: Promise<{ mode?: string }>
+  searchParams: Promise<{ mode?: string; post?: string }>
 }
 
 export default async function SocialComposerPage({ searchParams }: Props) {
@@ -27,11 +28,39 @@ export default async function SocialComposerPage({ searchParams }: Props) {
     ? result.data.map((c) => ({ provider: c.provider, account_name: c.account_name }))
     : []
 
+  // Edit mode: load existing post when ?post={id} is present
+  let editPostId: string | undefined
+  let editDeliveries: Array<{
+    id: string
+    provider: Provider
+    status: string
+    platform_post_id: string | null
+  }> | undefined
+
+  if (params.post) {
+    const postResult = await getSocialPost(params.post)
+    if (postResult.ok) {
+      editPostId = postResult.data.id
+      editDeliveries = postResult.data.deliveries.map((d) => ({
+        id: d.id,
+        provider: d.provider,
+        status: d.status,
+        platform_post_id: d.platform_post_id,
+      }))
+    }
+  }
+
   return (
     <>
-      <CmsTopbar title={t.composer.title} />
+      <CmsTopbar title={editPostId ? 'Editar Post' : t.composer.title} />
       <div className="p-6">
-        <ComposerShell connections={connections} strings={t} initialMode={mode} />
+        <ComposerShell
+          connections={connections}
+          strings={t}
+          initialMode={mode}
+          editPostId={editPostId}
+          editDeliveries={editDeliveries}
+        />
       </div>
     </>
   )

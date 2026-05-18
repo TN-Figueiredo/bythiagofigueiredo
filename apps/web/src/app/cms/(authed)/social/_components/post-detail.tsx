@@ -63,6 +63,7 @@ export function PostDetail({ post, strings: t }: PostDetailProps) {
   const [editHashtags, setEditHashtags] = useState((post.content.hashtags ?? []).join(', '))
 
   const canEdit = status === 'draft' || status === 'scheduled'
+  const canEditPublished = status === 'completed' || status === 'partial_failure'
   const canCancel = status === 'draft' || status === 'scheduled'
   const canDelete = status === 'draft' || status === 'cancelled' || status === 'failed'
 
@@ -119,6 +120,14 @@ export function PostDetail({ post, strings: t }: PostDetailProps) {
             >
               {editing ? 'Fechar edição' : t.detail.edit}
             </button>
+          )}
+          {canEditPublished && (
+            <Link
+              href={`/cms/social/new?post=${post.id}`}
+              className="rounded-md border border-cms-accent/30 px-3 py-1.5 text-sm text-cms-accent hover:bg-cms-accent/10"
+            >
+              Editar publicado
+            </Link>
           )}
           {canCancel && (
             <button
