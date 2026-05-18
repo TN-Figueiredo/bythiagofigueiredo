@@ -102,4 +102,82 @@ describe('PostsCalendar', () => {
     render(<PostsCalendar posts={posts} strings={en} />)
     expect(screen.getByText('+2')).toBeDefined()
   })
+
+  it('renders indigo pills as clickable buttons', () => {
+    const post = makePost({ id: 'pill-1', content: { description: 'Indigo Pill Post' } })
+    render(<PostsCalendar posts={[post]} strings={en} />)
+    const pill = screen.getByText('Indigo Pill Post')
+    expect(pill.tagName).toBe('BUTTON')
+  })
+
+  it('opens slide-over panel when a pill is clicked', () => {
+    const post = makePost({ id: 'slide-1', content: { description: 'Slide Over Post' } })
+    render(<PostsCalendar posts={[post]} strings={en} />)
+    const pill = screen.getByText('Slide Over Post')
+    fireEvent.click(pill)
+    expect(screen.getByRole('dialog', { name: 'Post preview' })).toBeDefined()
+    expect(screen.getByText('Post Preview')).toBeDefined()
+  })
+
+  it('closes slide-over when Close panel button is clicked', () => {
+    const post = makePost({ id: 'close-1', content: { description: 'Close Me' } })
+    render(<PostsCalendar posts={[post]} strings={en} />)
+    fireEvent.click(screen.getByText('Close Me'))
+    expect(screen.getByRole('dialog')).toBeDefined()
+    fireEvent.click(screen.getByRole('button', { name: 'Close panel' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('shows platform icons in pills when platformsByPost is provided', () => {
+    const post = makePost({ id: 'platform-1', content: { description: 'Platform Post' } })
+    render(
+      <PostsCalendar
+        posts={[post]}
+        strings={en}
+        platformsByPost={{ 'platform-1': ['youtube', 'bluesky'] }}
+      />,
+    )
+    // The pill button contains the text + platform icons
+    const buttons = screen.getAllByRole('button')
+    const pill = buttons.find(b => b.textContent?.includes('Platform Post'))
+    expect(pill).toBeDefined()
+    // Platform icons render as role="img" spans inside the pill
+    const icons = pill!.querySelectorAll('[role="img"]')
+    expect(icons.length).toBe(2)
+  })
+
+  it('shows status badge and platform badges in slide-over', () => {
+    const post = makePost({ id: 'detail-1', status: 'scheduled', content: { description: 'Detail Post' } })
+    render(
+      <PostsCalendar
+        posts={[post]}
+        strings={en}
+        platformsByPost={{ 'detail-1': ['youtube'] }}
+      />,
+    )
+    fireEvent.click(screen.getByText('Detail Post'))
+    // Status badge should show the localized "scheduled" label
+    expect(screen.getByText(en.status.scheduled)).toBeDefined()
+    // YouTube platform badge in slide-over
+    expect(screen.getByText('YouTube')).toBeDefined()
+  })
+
+  it('shows edit link and remove button in slide-over actions', () => {
+    const post = makePost({ id: 'action-1', content: { description: 'Action Post' } })
+    render(<PostsCalendar posts={[post]} strings={en} />)
+    fireEvent.click(screen.getByText('Action Post'))
+    expect(screen.getByText(en.detail.edit)).toBeDefined()
+    expect(screen.getByText('Remove from Schedule')).toBeDefined()
+  })
+
+  it('shows content preview with description and url in slide-over', () => {
+    const post = makePost({
+      id: 'content-1',
+      content: { title: 'My Title', description: 'My Description', url: 'https://example.com' },
+    })
+    render(<PostsCalendar posts={[post]} strings={en} />)
+    fireEvent.click(screen.getByText('My Title'))
+    expect(screen.getByText('My Description')).toBeDefined()
+    expect(screen.getByText('https://example.com')).toBeDefined()
+  })
 })

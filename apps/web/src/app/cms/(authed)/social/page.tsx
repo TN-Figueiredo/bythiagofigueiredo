@@ -71,7 +71,7 @@ export default async function SocialPostsPage({ searchParams }: Props) {
         </div>
 
         {tab === 'feed' && <PostsFeed posts={posts} siteId={ctx.siteId} strings={t} platformsByPost={platformsMap} />}
-        {tab === 'calendar' && <PostsCalendar posts={posts} strings={t} />}
+        {tab === 'calendar' && <PostsCalendar posts={posts} strings={t} platformsByPost={platformsMap} />}
         {tab === 'queue' && <PostsQueue posts={posts} strings={t} />}
         {tab === 'drafts' && <PostsDrafts posts={posts} strings={t} />}
       </div>
