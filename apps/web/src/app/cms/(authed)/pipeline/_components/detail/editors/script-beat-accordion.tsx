@@ -178,6 +178,32 @@ export function ScriptBeatAccordion({
           {wordCount}w
         </span>
 
+        {/* Duration input (edit mode) or display (read mode) */}
+        {isEditing && (
+          <div className="flex items-center gap-0.5 shrink-0" title="Beat duration (seconds)">
+            <input
+              type="number"
+              className="w-10 bg-transparent text-right outline-none tabular-nums text-[9px]"
+              style={{ color: 'var(--gem-dim)', borderBottom: '1px solid var(--gem-border)' }}
+              value={beat.duration ?? ''}
+              onChange={(e) => {
+                const val = e.target.value === '' ? undefined : Math.max(0, Number(e.target.value))
+                onBeatChange({ ...beat, duration: val })
+              }}
+              placeholder="—"
+              min="0"
+              step="1"
+              aria-label="Beat duration in seconds"
+            />
+            <span className="text-[8px]" style={{ color: 'var(--gem-dim)' }}>s</span>
+          </div>
+        )}
+        {!isEditing && beat.duration != null && (
+          <span className="text-[9px] tabular-nums shrink-0" style={{ color: 'var(--gem-dim)' }}>
+            {beat.duration}s
+          </span>
+        )}
+
         {/* Status badge (read-only) or toggle (editing) */}
         {isEditing ? (
           <button

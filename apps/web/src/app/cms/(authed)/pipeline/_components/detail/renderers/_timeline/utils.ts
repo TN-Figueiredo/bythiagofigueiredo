@@ -1,5 +1,7 @@
 // apps/web/src/app/cms/(authed)/pipeline/_components/detail/renderers/_timeline/utils.ts
 
+import { PRIMARY_H } from './constants'
+
 /**
  * Format seconds as MM:SS.
  */
@@ -116,7 +118,7 @@ export function parsePostProdContent(
 export function buildDefaultTrackHeights(tracks: import('./types').TrackDef[], defH: number): Record<string, number> {
   const heights: Record<string, number> = {}
   for (const t of tracks) {
-    heights[t.id] = (t.id === 'V1' || t.id === 'A1') ? 42 : defH
+    heights[t.id] = (t.id === 'V1' || t.id === 'A1') ? PRIMARY_H : defH
   }
   return heights
 }

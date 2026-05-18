@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import type { RendererProps } from '../../section-content'
 import type { PostProdContent, TrackHeightMap } from './types'
-import { ALL_TRACKS, DEF_H, TH, ZOOM_DEFAULT, ZOOM_MIN, ZOOM_MAX, ZOOM_STEP, MONO_SM_CLS } from './constants'
+import { ALL_TRACKS, DEF_H, PRIMARY_H, TH, ZOOM_DEFAULT, ZOOM_MIN, ZOOM_MAX, ZOOM_STEP, MONO_SM_CLS } from './constants'
 import { fmtDur, parsePostProdContent } from './utils'
 import { ProgressBar } from './progress-bar'
 import { CrossRefPanel } from './crossref-panel'
@@ -38,7 +38,7 @@ export function PostProductionView({
   const [zoom, setZoom] = useState(ZOOM_DEFAULT)
   const [trackHeights, setTrackHeights] = useState<TrackHeightMap>(() => {
     const h: TrackHeightMap = {}
-    ALL_TRACKS.forEach(t => { h[t.id] = (t.id === 'V1' || t.id === 'A1') ? 42 : DEF_H })
+    ALL_TRACKS.forEach(t => { h[t.id] = (t.id === 'V1' || t.id === 'A1') ? PRIMARY_H : DEF_H })
     return h
   })
   const [containerW, setContainerW] = useState(960)
@@ -46,17 +46,6 @@ export function PostProductionView({
 
   const [allState, setAllState] = useState<0 | 1 | 2>(0)
   const [resetKey, setResetKey] = useState(0)
-
-  // Abort any in-flight async operations when this view unmounts
-  const abortRef = useRef<AbortController | null>(null)
-  useEffect(() => {
-    const controller = new AbortController()
-    abortRef.current = controller
-    return () => {
-      controller.abort()
-      abortRef.current = null
-    }
-  }, [])
 
   useEffect(() => {
     const el = containerRef.current

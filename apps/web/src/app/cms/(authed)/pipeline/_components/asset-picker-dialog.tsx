@@ -412,7 +412,7 @@ export function AssetPickerDialog({ assetType, context, onSelect, onCancel, init
             </div>
 
             {/* Grid */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: 14 }}>
+            <div style={{ flex: 1, overflowY: 'auto', padding: 14 }} aria-busy={loading}>
               {loading && (
                 <div style={{ textAlign: 'center', padding: 40, color: 'var(--gem-dim)', fontSize: 12 }}>Loading...</div>
               )}
@@ -441,7 +441,7 @@ export function AssetPickerDialog({ assetType, context, onSelect, onCancel, init
 
         {/* Footer */}
         <div style={{ flexShrink: 0, padding: '10px 16px', borderTop: '1px solid var(--gem-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: 11, color: 'var(--gem-muted)' }}>
+          <span style={{ fontSize: 11, color: 'var(--gem-muted)' }} aria-live="polite" role="status">
             {results.length} resultado{results.length !== 1 ? 's' : ''}{selectedId ? ' · 1 selecionado' : ''}
           </span>
           <div style={{ display: 'flex', gap: 8 }}>

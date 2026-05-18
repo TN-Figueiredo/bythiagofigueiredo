@@ -10,6 +10,7 @@ export const DEF_H = 34
 export const EMPTY_H = 18
 export const MIN_H = 16
 export const MAX_H = 120
+export const PRIMARY_H = 42
 export const HANDLE_H = 4
 export const DIVIDER_H = 16
 
