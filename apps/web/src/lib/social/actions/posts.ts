@@ -514,6 +514,46 @@ export async function listSocialPosts(
 }
 
 // ---------------------------------------------------------------------------
+// Batch queue reorder
+// ---------------------------------------------------------------------------
+
+export async function reorderQueuePosts(
+  updates: Array<{ postId: string; scheduledAt: string }>,
+): Promise<ActionResult<void>> {
+  const schemaParsed = z.array(
+    z.object({ postId: z.string().uuid(), scheduledAt: z.string().datetime() }),
+  ).min(1).safeParse(updates)
+  if (!schemaParsed.success) return { ok: false, error: zodError(schemaParsed.error) }
+
+  try {
+    const { siteId } = await requireEditAccess()
+    const supabase = getSupabaseServiceClient()
+
+    const results = await Promise.all(
+      schemaParsed.data.map(({ postId, scheduledAt }) =>
+        supabase
+          .from('social_posts')
+          .update({ scheduled_at: scheduledAt, updated_at: new Date().toISOString() })
+          .eq('id', postId)
+          .eq('site_id', siteId)
+          .eq('status', 'scheduled'),
+      ),
+    )
+
+    const errors = results.filter((r) => r.error)
+    if (errors.length > 0) {
+      return { ok: false, error: 'Some updates failed' }
+    }
+
+    revalidateSocialPaths()
+    return { ok: true, data: undefined }
+  } catch (err) {
+    Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'reorderQueuePosts' } })
+    throw err
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Edit published post (caption-only per platform rules)
 // ---------------------------------------------------------------------------
 

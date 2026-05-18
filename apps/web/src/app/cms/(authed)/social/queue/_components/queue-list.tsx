@@ -9,10 +9,10 @@ import type { SocialStrings } from '../../_i18n/types'
 interface QueueListProps {
   posts: SocialPost[]
   strings: SocialStrings
-  onUpdatePost: (id: string, data: { scheduledAt?: string }) => Promise<{ ok: boolean }>
+  onReorderPosts: (updates: Array<{ postId: string; scheduledAt: string }>) => Promise<{ ok: boolean }>
 }
 
-export function QueueList({ posts: initialPosts, strings: t, onUpdatePost }: QueueListProps) {
+export function QueueList({ posts: initialPosts, strings: t, onReorderPosts }: QueueListProps) {
   const [posts, setPosts] = useState(initialPosts)
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -36,19 +36,24 @@ export function QueueList({ posts: initialPosts, strings: t, onUpdatePost }: Que
     if (draggedIdx === null) return
     setDraggedIdx(null)
 
-    // Persist new order by swapping scheduled_at times
+    // Persist new order by swapping scheduled_at times (batch, parallel)
     startTransition(async () => {
       const sortedTimes = [...posts]
         .map((p) => p.scheduled_at)
         .filter(Boolean)
         .sort()
 
+      const updates: Array<{ postId: string; scheduledAt: string }> = []
       for (let i = 0; i < posts.length; i++) {
         const post = posts[i]!
         const newTime = sortedTimes[i]
         if (post.scheduled_at !== newTime && newTime) {
-          await onUpdatePost(post.id, { scheduledAt: newTime })
+          updates.push({ postId: post.id, scheduledAt: newTime })
         }
+      }
+
+      if (updates.length > 0) {
+        await onReorderPosts(updates)
       }
     })
   }

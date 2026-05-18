@@ -11,7 +11,7 @@ export {
   getConnections,
 } from './connections'
 
-// Post management (create, update, cancel, delete, retry, list, get, edit published)
+// Post management (create, update, cancel, delete, retry, list, get, edit published, batch reorder)
 export {
   createSocialPost,
   updateSocialPost,
@@ -21,6 +21,7 @@ export {
   getSocialPost,
   listSocialPosts,
   editPublishedPost,
+  reorderQueuePosts,
 } from './posts'
 
 // Content helpers (get content metadata, create from CMS content, OG scraping, duplicate detection)

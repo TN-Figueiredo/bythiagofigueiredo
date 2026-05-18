@@ -1,7 +1,7 @@
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { CmsTopbar } from '@tn-figueiredo/cms-ui/client'
-import { listSocialPosts, updateSocialPost } from '@/lib/social/actions'
+import { listSocialPosts, reorderQueuePosts } from '@/lib/social/actions'
 import { getSocialStrings } from '../_i18n'
 import { QueueList } from './_components/queue-list'
 
@@ -29,7 +29,7 @@ export default async function SocialQueuePage() {
     <>
       <CmsTopbar title={t.posts.tabs.queue} />
       <div className="p-6">
-        <QueueList posts={queuedPosts} strings={t} onUpdatePost={updateSocialPost} />
+        <QueueList posts={queuedPosts} strings={t} onReorderPosts={reorderQueuePosts} />
       </div>
     </>
   )

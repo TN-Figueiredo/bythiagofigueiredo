@@ -247,7 +247,7 @@ async function prepareStoryDelivery(
       const storyData = {
         title: post.content.title ?? '',
         description: post.content.description,
-        domain: 'bythiagofigueiredo.com',
+        domain: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://bythiagofigueiredo.com').hostname,
         shortUrl: post.content.url ?? '',
         coverImageUrl: post.content.media_urls?.[0],
       }

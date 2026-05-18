@@ -11,6 +11,7 @@ import { VideoComposer } from './video-composer'
 import { ContentPicker, type SelectedContent } from './content-picker'
 import { CaptionTabs } from './caption-tabs'
 import { ScheduleBar } from './schedule-bar'
+import { TemplateCarousel } from './template-carousel'
 import { OgCompact } from '@/app/cms/(authed)/_shared/social/og-compact'
 import { PublishConfirmationDialog } from './publish-confirmation-dialog'
 import { PublishStatusBanner } from './publish-status-banner'
@@ -36,9 +37,18 @@ interface MinimalConnection {
   account_name: string | null
 }
 
+interface ComposerTemplate {
+  id: string
+  name: string
+  aspect_ratio: '9:16' | '1:1' | '16:9'
+  thumbnail_url: string | null
+  is_default: boolean
+}
+
 interface ComposerShellProps {
   connections: MinimalConnection[]
   strings: SocialStrings
+  templates?: ComposerTemplate[]
   initialMode?: ComposerMode
   initialSourceMode?: SourceMode
   preselectedContentType?: ContentType
@@ -65,6 +75,7 @@ function isValidUrl(value: string): boolean {
 export function ComposerShell({
   connections,
   strings: t,
+  templates = [],
   initialMode = 'text',
   initialSourceMode = 'cms',
   preselectedContentType,
@@ -113,6 +124,11 @@ export function ComposerShell({
 
   // OG data (derived from selected content)
   const [ogData, setOgData] = useState<OgData | null>(null)
+
+  // Template selection
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(
+    templates.find((t) => t.is_default)?.id ?? null,
+  )
 
   // Edit mode state
   const [editCaption, setEditCaption] = useState('')
@@ -711,6 +727,18 @@ export function ComposerShell({
           contentUrl={selectedContent.url ?? url}
           shortDomain={process.env.NEXT_PUBLIC_SHORT_DOMAIN ?? 'go.btf.com'}
         />
+      )}
+
+      {/* Template carousel — shown when templates are available */}
+      {templates.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-cms-text-muted">Visual template</p>
+          <TemplateCarousel
+            templates={templates}
+            selectedId={selectedTemplateId}
+            onSelect={setSelectedTemplateId}
+          />
+        </div>
       )}
 
       {/* Submit error */}

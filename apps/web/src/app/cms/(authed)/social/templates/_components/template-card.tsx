@@ -95,8 +95,13 @@ export function TemplateCard({ template, siteId, onDuplicate, onSetDefault, onDe
         <div className="relative">
           <button
             onClick={() => setMenuOpen(!menuOpen)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setMenuOpen(false)
+            }}
             className="rounded p-1 text-cms-text-dim hover:bg-cms-border hover:text-cms-text"
             aria-label="Template actions"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
           >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01" />
@@ -106,12 +111,27 @@ export function TemplateCard({ template, siteId, onDuplicate, onSetDefault, onDe
           {menuOpen && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-              <div className="absolute right-0 z-20 mt-1 w-40 rounded-md border border-cms-border bg-cms-surface py-1 shadow-lg">
+              <div
+                role="menu"
+                aria-label="Template actions"
+                className="absolute right-0 z-20 mt-1 w-40 rounded-md border border-cms-border bg-cms-surface py-1 shadow-lg"
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setMenuOpen(false)
+                }}
+              >
                 {!isSystem && (
                   <button
+                    role="menuitem"
                     onClick={() => {
                       setMenuOpen(false)
                       router.push(`/cms/social/templates/${template.id}/edit`)
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        setMenuOpen(false)
+                        router.push(`/cms/social/templates/${template.id}/edit`)
+                      }
                     }}
                     className="flex w-full items-center px-3 py-1.5 text-sm text-cms-text hover:bg-cms-border"
                   >
@@ -119,22 +139,44 @@ export function TemplateCard({ template, siteId, onDuplicate, onSetDefault, onDe
                   </button>
                 )}
                 <button
+                  role="menuitem"
                   onClick={handleDuplicate}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      handleDuplicate()
+                    }
+                  }}
                   className="flex w-full items-center px-3 py-1.5 text-sm text-cms-text hover:bg-cms-border"
                 >
                   Duplicate
                 </button>
                 <button
+                  role="menuitem"
                   onClick={handleSetDefault}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      handleSetDefault()
+                    }
+                  }}
                   className="flex w-full items-center px-3 py-1.5 text-sm text-cms-text hover:bg-cms-border"
                 >
                   Set as Default
                 </button>
                 {!isSystem && (
                   <button
+                    role="menuitem"
                     onClick={() => {
                       setMenuOpen(false)
                       setConfirmDelete(true)
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        setMenuOpen(false)
+                        setConfirmDelete(true)
+                      }
                     }}
                     className="flex w-full items-center px-3 py-1.5 text-sm text-red-400 hover:bg-cms-border"
                   >
