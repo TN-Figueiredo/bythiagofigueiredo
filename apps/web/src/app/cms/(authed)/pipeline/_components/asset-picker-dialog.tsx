@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import type { BRollAssetRow } from '@/lib/pipeline/broll-schemas'
 import type { AudioAssetRow } from '@/lib/pipeline/audio-schemas'
+import { sanitizeThumbnailUrl } from '../brolls/_helpers/broll-helpers'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -36,6 +37,7 @@ function isAudio(asset: AssetRow): asset is AudioAssetRow {
 // ─── Card sub-components ────────────────────────────────────────────────────
 
 function BRollPickerCard({ asset, selected, onClick }: { asset: BRollAssetRow; selected: boolean; onClick: () => void }) {
+  const safeThumbnail = sanitizeThumbnailUrl(asset.thumbnail_url)
   return (
     <div
       role="button"
@@ -58,8 +60,8 @@ function BRollPickerCard({ asset, selected, onClick }: { asset: BRollAssetRow; s
       <div
         style={{
           height: 80,
-          background: asset.thumbnail_url
-            ? `url(${asset.thumbnail_url}) center/cover`
+          background: safeThumbnail
+            ? `url(${safeThumbnail}) center/cover`
             : 'linear-gradient(135deg, #1e293b, #0f172a)',
           display: 'flex',
           alignItems: 'center',
@@ -67,7 +69,7 @@ function BRollPickerCard({ asset, selected, onClick }: { asset: BRollAssetRow; s
           position: 'relative',
         }}
       >
-        {!asset.thumbnail_url && (
+        {!safeThumbnail && (
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5a6b7f" strokeWidth="1.5" opacity="0.2">
             <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18" />
             <line x1="7" y1="2" x2="7" y2="22" />
@@ -153,6 +155,7 @@ export function AssetPickerDialog({ assetType, context, onSelect, onCancel, init
   const searchRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const mountedRef = useRef(true)
+  const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => () => { mountedRef.current = false }, [])
 
@@ -174,47 +177,96 @@ export function AssetPickerDialog({ assetType, context, onSelect, onCancel, init
 
   // Fetch results
   const fetchResults = useCallback(async () => {
+    // Abort any in-flight request
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
     setLoading(true)
     try {
       const params = buildParams()
-      const res = await fetch(`${apiBase}?${params.toString()}`)
+      const res = await fetch(`${apiBase}?${params.toString()}`, { signal: controller.signal })
       if (!res.ok) return
       const json = await res.json()
       if (mountedRef.current) setResults(json.data ?? [])
-    } catch {
-      // silently fail
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return
+      // silently fail other errors
     } finally {
       if (mountedRef.current) setLoading(false)
     }
   }, [apiBase, buildParams])
 
-  // Initial fetch and refetch on filter change
+  // Initial fetch and refetch on filter change; abort + debounce cleanup on unmount
   useEffect(() => {
     fetchResults()
+    return () => {
+      abortRef.current?.abort()
+      clearTimeout(debounceRef.current)
+    }
   }, [fetchResults])
 
   // Debounced search
   const handleSearchChange = useCallback((value: string) => {
     setQuery(value)
     clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => fetchResults(), 300)
+    debounceRef.current = setTimeout(() => { void fetchResults() }, 300)
   }, [fetchResults])
 
   // Focus trap + keyboard
   useEffect(() => {
-    function onKeydown(e: KeyboardEvent) {
+    const dialog = dialogRef.current
+    if (!dialog) return
+
+    // Focus first focusable element on mount
+    const focusableSelectors = [
+      'button:not([disabled])',
+      'input:not([disabled])',
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(',')
+
+    const getFocusable = () => Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelectors))
+
+    const firstFocusable = getFocusable()[0]
+    firstFocusable?.focus()
+
+    function onDialogKeydown(e: KeyboardEvent) {
       if (e.key === 'Escape') { onCancel(); return }
       if (e.key === 'Enter' && selectedId) {
         const selected = results.find(r => r.id === selectedId)
         if (selected) onSelect(selected)
+        return
+      }
+      if (e.key === 'Tab') {
+        const focusable = getFocusable()
+        if (focusable.length === 0) return
+        const first = focusable[0]
+        const last = focusable[focusable.length - 1]
+        if (e.shiftKey) {
+          if (document.activeElement === first) {
+            e.preventDefault()
+            last?.focus()
+          }
+        } else {
+          if (document.activeElement === last) {
+            e.preventDefault()
+            first?.focus()
+          }
+        }
       }
     }
-    window.addEventListener('keydown', onKeydown)
-    return () => window.removeEventListener('keydown', onKeydown)
-  }, [onCancel, onSelect, selectedId, results])
 
-  // Focus search on mount
-  useEffect(() => { searchRef.current?.focus() }, [])
+    function onWindowEscape(e: KeyboardEvent) {
+      if (e.key === 'Escape') onCancel()
+    }
+
+    dialog.addEventListener('keydown', onDialogKeydown)
+    window.addEventListener('keydown', onWindowEscape)
+    return () => {
+      dialog.removeEventListener('keydown', onDialogKeydown)
+      window.removeEventListener('keydown', onWindowEscape)
+    }
+  }, [onCancel, onSelect, selectedId, results])
 
   const toggleTag = useCallback((tag: string) => {
     setActiveTagFilters(prev => {

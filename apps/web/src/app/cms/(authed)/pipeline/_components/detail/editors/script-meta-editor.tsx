@@ -32,33 +32,56 @@ export function ScriptMetaEditor({ meta, isEditing, onChange }: ScriptMetaEditor
 
   return (
     <div
-      className="grid grid-cols-3 gap-x-5 gap-y-2 p-3 rounded-md text-[11px]"
-      style={{ background: 'var(--gem-well)', border: '1px solid var(--gem-border)' }}
+      className="grid gap-x-5 gap-y-2 p-3 rounded-md text-[11px]"
+      style={{
+        background: 'var(--gem-well)',
+        border: '1px solid var(--gem-border)',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+      }}
     >
       {(isEditing ? META_FIELDS : entries).map(({ key, label }) => (
         <div key={key} className="flex flex-col gap-0.5">
-          <label
-            className="text-[8px] font-bold uppercase tracking-wide"
-            style={{ color: 'var(--gem-dim)' }}
-            htmlFor={`meta-${key}`}
-          >
-            {label}
-          </label>
           {isEditing ? (
-            <input
-              id={`meta-${key}`}
-              type="text"
-              className="w-full bg-transparent border-b px-0 py-0.5 text-[11px] outline-none transition-colors focus:border-[var(--gem-accent)]"
-              style={{
-                color: 'var(--gem-muted)',
-                borderColor: 'var(--gem-border)',
-              }}
-              value={meta[key] ?? ''}
-              onChange={(e) => handleChange(key, e.target.value)}
-              placeholder="—"
-            />
+            <>
+              <label
+                className="text-[8px] font-bold uppercase tracking-wide"
+                style={{ color: 'var(--gem-dim)' }}
+                htmlFor={`meta-${key}`}
+              >
+                {label}
+              </label>
+              <input
+                id={`meta-${key}`}
+                type="text"
+                className="w-full bg-transparent border-b px-0 py-0.5 text-[11px] outline-none transition-colors focus:border-[var(--gem-accent)]"
+                style={{
+                  color: 'var(--gem-muted)',
+                  borderColor: 'var(--gem-border)',
+                }}
+                value={meta[key] ?? ''}
+                onChange={(e) => handleChange(key, e.target.value)}
+                placeholder="—"
+              />
+            </>
           ) : (
-            <span style={{ color: 'var(--gem-muted)' }}>{meta[key] ?? '—'}</span>
+            <>
+              <span
+                className="text-[7.5px] font-semibold uppercase tracking-widest"
+                style={{
+                  color: 'var(--gem-dim)',
+                  fontFamily: "'JetBrains Mono', monospace",
+                  letterSpacing: '0.12em',
+                }}
+              >
+                {label}
+              </span>
+              <span
+                className="text-[11px] leading-snug"
+                style={{ color: 'var(--gem-text)' }}
+              >
+                {meta[key]}
+              </span>
+            </>
           )}
         </div>
       ))}

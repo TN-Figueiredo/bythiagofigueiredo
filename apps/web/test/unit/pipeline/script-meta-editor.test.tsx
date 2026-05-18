@@ -15,8 +15,9 @@ describe('ScriptMetaEditor', () => {
     const meta = { canal: 'EN' }
     const { container } = render(<ScriptMetaEditor meta={meta} isEditing={false} onChange={vi.fn()} />)
     // Only canal label + value should render, not all 6 fields
-    const labels = container.querySelectorAll('label')
-    expect(labels).toHaveLength(1)
+    // Read mode uses <span> for labels (info-card style), not <label>
+    const fields = container.querySelectorAll('.flex.flex-col')
+    expect(fields).toHaveLength(1)
   })
 
   it('shows all 6 fields in edit mode', () => {
