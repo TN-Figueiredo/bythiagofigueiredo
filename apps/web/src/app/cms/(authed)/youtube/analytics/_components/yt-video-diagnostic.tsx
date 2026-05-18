@@ -63,11 +63,21 @@ export function YtVideoDiagnostic({ video, onCreateAbTest }: Props) {
         </div>
       )}
 
-      {/* AI Recommendation */}
-      {video.recommendation && (
-        <div className="rounded border border-cms-border bg-cms-surface p-3">
-          <p className="mb-1 text-[10px] font-medium text-cms-text-muted">Recomendação AI</p>
-          <p className="text-xs text-cms-text">{video.recommendation}</p>
+      {/* AI Diagnosis & Recommendation */}
+      {(video.diagnosis || video.recommendation) && (
+        <div className="rounded border border-cms-border bg-cms-surface p-3 space-y-2">
+          {video.diagnosis && (
+            <div>
+              <p className="mb-0.5 text-[10px] font-medium text-cms-text-muted">Diagnóstico AI</p>
+              <p className="text-xs text-cms-text">{video.diagnosis}</p>
+            </div>
+          )}
+          {video.recommendation && (
+            <div>
+              <p className="mb-0.5 text-[10px] font-medium text-cms-text-muted">Recomendação AI</p>
+              <p className="text-xs text-cms-text">{video.recommendation}</p>
+            </div>
+          )}
         </div>
       )}
 

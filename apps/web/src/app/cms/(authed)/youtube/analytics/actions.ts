@@ -94,7 +94,7 @@ export async function fetchGradesData(channelId: string) {
       ctr: video.ctr ?? 0,
       avgViewPercentage: video.avg_view_percentage ?? 0,
       impressions: video.impressions ?? 0,
-      trafficSources: (video.traffic_sources && typeof video.traffic_sources === 'object')
+      trafficSources: (video.traffic_sources && typeof video.traffic_sources === 'object' && !Array.isArray(video.traffic_sources))
         ? video.traffic_sources as VideoScoreInput['trafficSources']
         : null,
       engagementRate: totalViews > 0 ? (totalEng / totalViews) * 100 : 0,
@@ -105,7 +105,7 @@ export async function fetchGradesData(channelId: string) {
 
     const scored = scoreVideo(input, baseline)
     const weeklyScores = historyByVideo.get(video.id) ?? []
-    const trend = computeTrend(weeklyScores)
+    const trend = computeTrend([...weeklyScores].reverse())
     const intel = intelByVideo.get(video.id)
     const rec = intel?.recommendations as { reasoning?: string; suggested_variant_description?: string } | null
 

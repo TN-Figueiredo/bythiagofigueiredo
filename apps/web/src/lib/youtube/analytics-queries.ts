@@ -42,33 +42,40 @@ export async function getCachedYtDaily(siteId: string, days: number, channelId?:
   }
 }
 
-export async function getCachedYtSearchTerms(siteId: string, days: number, channelId?: string) {
+export type SearchTermsResult = { data: Awaited<ReturnType<typeof fetchYtSearchTerms>>; error?: string }
+export type DemographicsResult = { data: Awaited<ReturnType<typeof fetchYtDemographics>>; error?: string }
+
+export async function getCachedYtSearchTerms(siteId: string, days: number, channelId?: string): Promise<SearchTermsResult> {
   try {
-    return await unstable_cache(
+    const data = await unstable_cache(
       () => fetchYtSearchTerms(siteId, days, channelId),
       [`yt-search-${siteId}-${days}-${channelId ?? 'default'}`],
       { revalidate: 300 },
     )()
+    return { data }
   } catch (e) {
     if (e instanceof YouTubeAnalyticsError) {
       Sentry.captureException(e, { tags: { youtube_endpoint: 'search_terms' } })
+      return { data: [], error: e.statusCode === 403 ? 'scope' : `api_error_${e.statusCode}` }
     }
-    return []
+    return { data: [], error: 'unknown' }
   }
 }
 
-export async function getCachedYtDemographics(siteId: string, days: number, channelId?: string) {
+export async function getCachedYtDemographics(siteId: string, days: number, channelId?: string): Promise<DemographicsResult> {
   try {
-    return await unstable_cache(
+    const data = await unstable_cache(
       () => fetchYtDemographics(siteId, days, channelId),
       [`yt-demographics-${siteId}-${days}-${channelId ?? 'default'}`],
       { revalidate: 300 },
     )()
+    return { data }
   } catch (e) {
     if (e instanceof YouTubeAnalyticsError) {
       Sentry.captureException(e, { tags: { youtube_endpoint: 'demographics' } })
+      return { data: { ageGender: [], countries: [], devices: [] }, error: e.statusCode === 403 ? 'scope' : `api_error_${e.statusCode}` }
     }
-    return { ageGender: [], countries: [], devices: [] }
+    return { data: { ageGender: [], countries: [], devices: [] }, error: 'unknown' }
   }
 }
 

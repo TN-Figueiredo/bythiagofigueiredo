@@ -89,6 +89,11 @@ vi.mock('@tn-figueiredo/social/providers/meta', () => ({
   },
 }))
 
+// Mock template-renderer to throw so fallback to legacy story-generator fires
+vi.mock('@/lib/social/template-renderer', () => ({
+  renderTemplate: vi.fn().mockRejectedValue(new Error('template not found')),
+}))
+
 const mockGenerateStory = vi.fn().mockResolvedValue(Buffer.from([0x89, 0x50, 0x4e, 0x47]))
 vi.mock('@/lib/social/story-generator', () => ({
   generateStoryImage: (...args: unknown[]) => mockGenerateStory(...args),

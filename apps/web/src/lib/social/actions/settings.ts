@@ -132,3 +132,89 @@ export async function updateSocialDefaults(
     throw err
   }
 }
+
+// ---------------------------------------------------------------------------
+// Queue slots
+// ---------------------------------------------------------------------------
+
+const DAY_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const
+type DayKey = (typeof DAY_KEYS)[number]
+
+const queueSlotConfigSchema = z.record(
+  z.enum(DAY_KEYS),
+  z.array(z.number().int().min(0).max(23)),
+)
+
+export async function getQueueSlotConfig(
+  siteId: string,
+): Promise<ActionResult<Partial<Record<DayKey, number[]>>>> {
+  const parsed = z.string().uuid().safeParse(siteId)
+  if (!parsed.success) return { ok: false, error: 'Invalid site ID' }
+
+  try {
+    await requireEditAccess()
+    const supabase = getSupabaseServiceClient()
+
+    const { data, error } = await supabase
+      .from('sites')
+      .select('social_defaults')
+      .eq('id', parsed.data)
+      .single()
+
+    if (error || !data) return { ok: false, error: 'Site not found' }
+
+    const defaults = data.social_defaults as Record<string, unknown> | null
+    const slots = (defaults?.queue_slots ?? {}) as Partial<Record<DayKey, number[]>>
+    return { ok: true, data: slots }
+  } catch (err) {
+    Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'getQueueSlotConfig' } })
+    throw err
+  }
+}
+
+export async function saveQueueSlotConfig(
+  siteId: string,
+  config: Partial<Record<string, number[]>>,
+): Promise<ActionResult> {
+  const siteParsed = z.string().uuid().safeParse(siteId)
+  if (!siteParsed.success) return { ok: false, error: 'Invalid site ID' }
+  const configParsed = queueSlotConfigSchema.safeParse(config)
+  if (!configParsed.success) return { ok: false, error: zodError(configParsed.error) }
+
+  try {
+    const { siteId: authorizedSiteId } = await requireEditAccess()
+    if (siteParsed.data !== authorizedSiteId) {
+      return { ok: false, error: 'forbidden' }
+    }
+
+    const supabase = getSupabaseServiceClient()
+
+    // Fetch current social_defaults to merge
+    const { data: site, error: fetchError } = await supabase
+      .from('sites')
+      .select('social_defaults')
+      .eq('id', authorizedSiteId)
+      .single()
+
+    if (fetchError || !site) return { ok: false, error: 'Site not found' }
+
+    const current = (site.social_defaults as Record<string, unknown>) ?? {}
+    current.queue_slots = configParsed.data
+
+    const { error } = await supabase
+      .from('sites')
+      .update({ social_defaults: current })
+      .eq('id', authorizedSiteId)
+
+    if (error) {
+      Sentry.captureException(error, { tags: { ...SENTRY_TAG, action: 'saveQueueSlotConfig' } })
+      return { ok: false, error: error.message }
+    }
+
+    revalidateSocialPaths()
+    return { ok: true, data: undefined }
+  } catch (err) {
+    Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'saveQueueSlotConfig' } })
+    throw err
+  }
+}

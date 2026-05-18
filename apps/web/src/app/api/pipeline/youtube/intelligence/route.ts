@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticatePipeline, requirePermission, buildRateLimitHeaders } from '@/lib/pipeline/auth'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { z } from 'zod'
+import { getIsoWeek } from '@/lib/youtube/analytics-sync'
+import { PatchPayloadSchema } from '@/lib/youtube/intelligence-schemas'
+import * as Sentry from '@sentry/nextjs'
 
 export const dynamic = 'force-dynamic'
 
@@ -91,57 +93,6 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(response, { headers: headers ?? {} })
 }
 
-const RecommendationSchema = z.object({
-  video_id: z.string().uuid(),
-  action_type: z.enum([
-    'thumbnail_test', 'title_test', 'description_test', 'combo_test',
-    'retention_fix', 'seo_optimization', 'engagement_boost', 'distribution_expand',
-    'content_series', 'publish_timing', 'community_post', 'end_screen_optimize',
-  ]),
-  priority: z.enum(['high', 'medium', 'low']),
-  confidence: z.number().min(0).max(1),
-  reasoning: z.string().max(500),
-  suggested_variant_description: z.string().max(200).optional(),
-})
-
-const CoachingSchema = z.object({
-  summary: z.string().max(500),
-  priorities: z.array(z.object({
-    axis: z.enum(['ctr', 'retention', 'reach', 'engagement', 'growth', 'sub_impact']),
-    score: z.number().min(0).max(10),
-    diagnosis: z.string().max(300),
-    action: z.string().max(300),
-  })).max(6),
-})
-
-const NotificationSchema = z.object({
-  type: z.enum([
-    'grade_drop', 'ctr_drop', 'monitoring_alert', 'ab_test_completed',
-    'retest_suggested', 'optimization_available', 'trending_viral', 'optimization_resolved',
-  ]),
-  video_id: z.string().uuid().optional(),
-  priority: z.number().int().min(1).max(5),
-  title: z.string().max(100),
-  message: z.string().max(500),
-})
-
-const PatchPayloadSchema = z.object({
-  task_id: z.string().uuid(),
-  video_recommendations: z.array(RecommendationSchema).max(25).optional(),
-  coaching: CoachingSchema.optional(),
-  notifications: z.array(NotificationSchema).max(20).optional(),
-  channel_insights: z.object({
-    patterns_detected: z.array(z.object({
-      pattern_id: z.string(),
-      category: z.string(),
-      finding: z.string().max(300),
-      confidence: z.number().min(0).max(1),
-      sample_size: z.number().int(),
-    })).optional(),
-    analysis_text: z.string().max(2000).optional(),
-  }).optional(),
-})
-
 export async function PATCH(req: NextRequest) {
   const authResult = await authenticatePipeline(req)
   if (!authResult.ok) return NextResponse.json({ error: authResult.error }, { status: authResult.status })
@@ -192,20 +143,38 @@ export async function PATCH(req: NextRequest) {
     }
 
     for (const rec of video_recommendations) {
-      await supabase.from('youtube_intelligence').upsert({
+      const { data: existingIntel } = await supabase
+        .from('youtube_intelligence')
+        .select('id')
+        .eq('site_id', siteId)
+        .eq('channel_id', task.channel_id)
+        .eq('video_id', rec.video_id)
+        .eq('source', 'cowork')
+        .maybeSingle()
+
+      const intelPayload = {
         site_id: siteId,
         channel_id: task.channel_id,
         video_id: rec.video_id,
-        type: 'video',
+        type: 'video' as const,
         recommendations: rec,
         source: 'cowork',
         generated_at: new Date().toISOString(),
-      }, { onConflict: 'site_id,channel_id,video_id,source' })
+      }
+
+      if (existingIntel) {
+        const { error } = await supabase.from('youtube_intelligence').update(intelPayload).eq('id', existingIntel.id)
+        if (error) Sentry.captureMessage(`intelligence update failed: ${error.message}`, { extra: { videoId: rec.video_id } })
+      } else {
+        const { error } = await supabase.from('youtube_intelligence').insert(intelPayload)
+        if (error) Sentry.captureMessage(`intelligence insert failed: ${error.message}`, { extra: { videoId: rec.video_id } })
+      }
 
       const { data: cycle } = await supabase
         .from('optimization_cycles')
         .select('id, state')
         .eq('youtube_video_id', rec.video_id)
+        .eq('site_id', siteId)
         .eq('state', 'flagged')
         .single()
 
@@ -220,21 +189,38 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (coaching || channel_insights) {
-    await supabase.from('youtube_intelligence').upsert({
+    const { data: existingChannel } = await supabase
+      .from('youtube_intelligence')
+      .select('id')
+      .eq('site_id', siteId)
+      .eq('channel_id', task.channel_id)
+      .is('video_id', null)
+      .eq('source', 'cowork')
+      .maybeSingle()
+
+    const channelPayload = {
       site_id: siteId,
       channel_id: task.channel_id,
       video_id: null,
-      type: 'channel',
+      type: 'channel' as const,
       coaching: coaching ?? null,
       patterns_detected: channel_insights?.patterns_detected ?? null,
       analysis_text: channel_insights?.analysis_text ?? null,
       source: 'cowork',
       generated_at: new Date().toISOString(),
-    }, { onConflict: 'site_id,channel_id,source' })
+    }
+
+    if (existingChannel) {
+      const { error } = await supabase.from('youtube_intelligence').update(channelPayload).eq('id', existingChannel.id)
+      if (error) Sentry.captureMessage(`channel intelligence update failed: ${error.message}`)
+    } else {
+      const { error } = await supabase.from('youtube_intelligence').insert(channelPayload)
+      if (error) Sentry.captureMessage(`channel intelligence insert failed: ${error.message}`)
+    }
   }
 
   if (notifications?.length) {
-    const weekIso = new Date().toISOString().split('T')[0]!.replace(/-/g, '').slice(0, 6)
+    const weekIso = getIsoWeek(new Date())
     for (const n of notifications) {
       const dedupKey = `cowork:${n.type}:${n.video_id ?? 'channel'}:${weekIso}`
       await supabase.rpc('create_yt_notification', {

@@ -3,17 +3,29 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 const mockSelect = vi.fn()
 vi.mock('@/lib/supabase/service', () => ({
   getSupabaseServiceClient: () => ({
-    from: () => ({
-      select: () => ({
-        eq: () => ({
+    from: (table: string) => {
+      if (table === 'sites') {
+        return {
+          select: () => ({
+            eq: () => ({
+              single: () => Promise.resolve({ data: null, error: null }),
+            }),
+          }),
+        }
+      }
+      // social_posts
+      return {
+        select: () => ({
           eq: () => ({
-            gte: () => ({
-              lte: mockSelect,
+            eq: () => ({
+              gte: () => ({
+                lte: mockSelect,
+              }),
             }),
           }),
         }),
-      }),
-    }),
+      }
+    },
   }),
 }))
 

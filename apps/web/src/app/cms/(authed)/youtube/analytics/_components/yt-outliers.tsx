@@ -16,7 +16,7 @@ export function YtOutliers({ grades }: Props) {
     return (
       <div className="rounded-lg border border-dashed border-cms-border p-8 text-center">
         <p className="text-sm text-cms-text-muted">
-          No significant outliers detected in recent uploads.
+          Nenhum outlier significativo detectado nos uploads recentes.
         </p>
       </div>
     )
@@ -26,7 +26,7 @@ export function YtOutliers({ grades }: Props) {
     <div className="space-y-4">
       {positiveOutliers.length > 0 && (
         <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-cms-text">Positive Outliers</h3>
+          <h3 className="text-sm font-semibold text-cms-text">Outliers Positivos</h3>
           {positiveOutliers.map((v) => (
             <div
               key={v.videoId}
@@ -45,7 +45,7 @@ export function YtOutliers({ grades }: Props) {
       )}
       {negativeOutliers.length > 0 && (
         <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-cms-text">Underperformers</h3>
+          <h3 className="text-sm font-semibold text-cms-text">Abaixo da Média</h3>
           {negativeOutliers.map((v) => (
             <div
               key={v.videoId}

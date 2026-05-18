@@ -7,9 +7,10 @@ import type { OutlierVideo } from './types'
 
 interface Props {
   outliers: OutlierVideo[]
+  hasAnalyticsData?: boolean
 }
 
-export function YtOutliersV2({ outliers }: Props) {
+export function YtOutliersV2({ outliers, hasAnalyticsData = true }: Props) {
   const [selectedAxis, setSelectedAxis] = useState<Axis | 'all'>('all')
   const axes: Axis[] = ['ctr', 'retention', 'reach', 'engagement', 'growth', 'sub_impact']
 
@@ -19,8 +20,14 @@ export function YtOutliersV2({ outliers }: Props) {
 
   if (outliers.length === 0) {
     return (
-      <div className="flex h-40 items-center justify-center rounded border border-dashed border-cms-border">
+      <div className="flex h-40 flex-col items-center justify-center gap-2 rounded border border-dashed border-cms-border">
         <p className="text-xs text-cms-text-muted">Nenhum outlier significativo detectado.</p>
+        {!hasAnalyticsData && (
+          <p className="max-w-sm text-center text-[10px] text-cms-text-muted/70">
+            Os dados de CTR, retenção e impressões ainda não foram sincronizados. Outliers aparecerão quando
+            a YouTube Analytics API fornecer métricas detalhadas (pode levar 48-72h após a conexão).
+          </p>
+        )}
       </div>
     )
   }
@@ -74,7 +81,7 @@ export function YtOutliersV2({ outliers }: Props) {
       {/* Negative Outliers */}
       {negative.length > 0 && (
         <div className="space-y-2">
-          <h4 className="text-xs font-semibold text-[#f87171]">Underperformers</h4>
+          <h4 className="text-xs font-semibold text-[#f87171]">Abaixo da Média</h4>
           {negative.map(o => (
             <div key={`${o.videoId}-${o.axis}`} className="rounded border border-cms-border border-l-2 border-l-[#f87171] bg-cms-surface p-3">
               <div className="flex items-center justify-between">

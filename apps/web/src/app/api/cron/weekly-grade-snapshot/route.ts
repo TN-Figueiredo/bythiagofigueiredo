@@ -27,6 +27,7 @@ export async function GET(req: NextRequest) {
 
   let graded = 0
   let flagged = 0
+  let errors = 0
 
   for (const channel of channels) {
     try {
@@ -90,7 +91,7 @@ export async function GET(req: NextRequest) {
           ctr: video.ctr ?? 0,
           avgViewPercentage: video.avg_view_percentage ?? 0,
           impressions: video.impressions ?? 0,
-          trafficSources: (video.traffic_sources && typeof video.traffic_sources === 'object')
+          trafficSources: (video.traffic_sources && typeof video.traffic_sources === 'object' && !Array.isArray(video.traffic_sources))
             ? video.traffic_sources as VideoScoreInput['trafficSources']
             : null,
           engagementRate,
@@ -120,16 +121,16 @@ export async function GET(req: NextRequest) {
 
         const history = historyByVideo.get(video.id) ?? []
 
-        if (history.length >= 2) {
-          const prevGrade = history[1]!.grade
+        if (history.length >= 1) {
+          const prevGrade = history[0]!.grade
           const drop = (gradeOrder[scored.grade] ?? 0) - (gradeOrder[prevGrade] ?? 0)
           if (drop >= 2) {
             gradeDrops.push({ videoTitle: video.title ?? 'Video', oldGrade: prevGrade, newGrade: scored.grade, videoId: video.id })
           }
         }
 
-        if (history.length >= 2) {
-          let consecutiveLow = 0
+        if ((scored.grade === 'C' || scored.grade === 'D') && history.length >= 1) {
+          let consecutiveLow = 1
           for (const h of history) {
             if (h.grade === 'C' || h.grade === 'D') consecutiveLow++
             else break
@@ -208,9 +209,10 @@ export async function GET(req: NextRequest) {
       }
     } catch (e) {
       Sentry.captureException(e)
+      errors++
     }
   }
 
-  return NextResponse.json({ graded, flagged, week: weekIso })
+  return NextResponse.json({ graded, flagged, errors, week: weekIso })
 }
 

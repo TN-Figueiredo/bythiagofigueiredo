@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
-import { computeViewDeltas, detectViral, getIsoWeek } from '@/lib/youtube/analytics-sync'
+import { detectViral, getIsoWeek } from '@/lib/youtube/analytics-sync'
 import { buildNotification } from '@/lib/youtube/notification-service'
 import * as Sentry from '@sentry/nextjs'
 
@@ -66,10 +66,10 @@ export async function GET(req: NextRequest) {
 
       const { data: videos } = await supabase
         .from('youtube_videos')
-        .select('id, video_id, view_count, view_count_yesterday, view_count_delta_today')
+        .select('id, youtube_video_id, title, view_count, view_count_yesterday, view_count_delta_today')
         .eq('channel_id', channel.id)
 
-      const videoMap = new Map((videos ?? []).map(v => [v.video_id, v]))
+      const videoMap = new Map((videos ?? []).map(v => [v.youtube_video_id, v]))
 
       const channelTotalDelta = (videos ?? []).reduce((s, v) => s + (v.view_count_delta_today ?? 0), 0)
       const channelAvg48h = (videos ?? []).length > 0
@@ -92,19 +92,14 @@ export async function GET(req: NextRequest) {
         const shares = Number(row[7])
         const subsGained = Number(row[8])
 
-        const { delta_today } = computeViewDeltas(
-          views,
-          dbVideo.view_count ?? 0,
-          dbVideo.view_count_delta_today ?? 0,
-        )
+        const previousPeriod = dbVideo.view_count_delta_today ?? 0
 
         await supabase.from('youtube_videos').update({
-          view_count: views,
           impressions,
           ctr,
           avg_view_duration_seconds: avgDuration,
-          view_count_delta_today: delta_today,
-          view_count_yesterday: dbVideo.view_count_delta_today ?? 0,
+          view_count_delta_today: views,
+          view_count_yesterday: previousPeriod,
           last_analytics_sync_at: new Date().toISOString(),
         }).eq('id', dbVideo.id)
 
@@ -112,7 +107,7 @@ export async function GET(req: NextRequest) {
           youtube_video_id: dbVideo.id,
           site_id: channel.site_id,
           date: today,
-          views: delta_today,
+          views,
           impressions,
           ctr,
           avg_view_duration_seconds: avgDuration,
@@ -122,20 +117,14 @@ export async function GET(req: NextRequest) {
           subscribers_gained: subsGained,
         }, { onConflict: 'youtube_video_id,date' })
 
-        if (detectViral(delta_today, dbVideo.view_count_yesterday ?? 0, channelAvg48h)) {
-          const { data: videoRow } = await supabase
-            .from('youtube_videos')
-            .select('title')
-            .eq('id', dbVideo.id)
-            .single()
-
+        if (detectViral(views, previousPeriod, channelAvg48h)) {
           notifications.push({
             siteId: channel.site_id,
             payload: buildNotification({
               type: 'trending_viral',
               videoId: dbVideo.id,
-              videoTitle: videoRow?.title ?? 'Video',
-              views48h: delta_today + (dbVideo.view_count_yesterday ?? 0),
+              videoTitle: dbVideo.title ?? 'Video',
+              views48h: views + previousPeriod,
               channelAvg48h,
               weekIso: getIsoWeek(new Date()),
             }),

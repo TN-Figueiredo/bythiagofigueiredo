@@ -2,15 +2,41 @@ import type { YtSearchTerm } from '@/lib/youtube/analytics-types'
 
 interface Props {
   terms: YtSearchTerm[]
+  apiError?: string
 }
 
-export function YtSearchTermsView({ terms }: Props) {
+export function YtSearchTermsView({ terms, apiError }: Props) {
   if (terms.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-cms-border p-8 text-center">
-        <p className="text-sm text-cms-text-muted">
-          No search term data available yet. YouTube Analytics data may take 48-72 hours to appear.
-        </p>
+        {apiError === 'scope' ? (
+          <>
+            <p className="text-sm text-cms-text-muted">
+              Permissão insuficiente para acessar termos de busca.
+            </p>
+            <p className="mt-2 max-w-md mx-auto text-xs text-cms-text-dim">
+              O token OAuth do YouTube não tem o escopo <code className="bg-cms-border px-1 rounded">yt-analytics.readonly</code>. Reconecte o canal em Conexões para solicitar a permissão necessária.
+            </p>
+          </>
+        ) : apiError ? (
+          <>
+            <p className="text-sm text-cms-text-muted">
+              Erro ao carregar termos de busca da API do YouTube.
+            </p>
+            <p className="mt-2 max-w-md mx-auto text-xs text-cms-text-dim">
+              A API retornou um erro temporário. Tente novamente em alguns minutos.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-cms-text-muted">
+              Termos de busca não disponíveis para este canal.
+            </p>
+            <p className="mt-2 max-w-md mx-auto text-xs text-cms-text-dim">
+              O YouTube só libera dados de termos de busca quando o canal recebe um volume mínimo de tráfego de pesquisa no período. Canais menores ou com pouco tráfego orgânico podem não ter dados suficientes.
+            </p>
+          </>
+        )}
       </div>
     )
   }
@@ -24,7 +50,7 @@ export function YtSearchTermsView({ terms }: Props) {
       <div className="grid grid-cols-3 gap-3">
         <div className="rounded-lg border border-cms-border bg-cms-surface p-3">
           <p className="text-[10px] font-medium uppercase tracking-wider text-cms-text-muted">
-            Search Views
+            Views de Busca
           </p>
           <p className="mt-0.5 text-sm font-bold tabular-nums text-cms-text">
             {totalViews.toLocaleString()}
@@ -32,13 +58,13 @@ export function YtSearchTermsView({ terms }: Props) {
         </div>
         <div className="rounded-lg border border-cms-border bg-cms-surface p-3">
           <p className="text-[10px] font-medium uppercase tracking-wider text-cms-text-muted">
-            Unique Terms
+            Termos Únicos
           </p>
           <p className="mt-0.5 text-sm font-bold tabular-nums text-cms-text">{uniqueTerms}</p>
         </div>
         <div className="rounded-lg border border-cms-border bg-cms-surface p-3">
           <p className="text-[10px] font-medium uppercase tracking-wider text-cms-text-muted">
-            Watch Time
+            Tempo Assistido
           </p>
           <p className="mt-0.5 text-sm font-bold tabular-nums text-cms-text">
             {Math.round(totalWatchTime).toLocaleString()}min
@@ -47,7 +73,7 @@ export function YtSearchTermsView({ terms }: Props) {
       </div>
 
       <div className="rounded-lg border border-cms-border bg-cms-surface p-4">
-        <h3 className="mb-3 text-sm font-semibold text-cms-text">Top Search Terms</h3>
+        <h3 className="mb-3 text-sm font-semibold text-cms-text">Principais Termos de Busca</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
@@ -56,13 +82,13 @@ export function YtSearchTermsView({ terms }: Props) {
                   #
                 </th>
                 <th scope="col" className="pb-2 font-medium">
-                  Term
+                  Termo
                 </th>
                 <th scope="col" className="pb-2 text-right font-medium">
                   Views
                 </th>
                 <th scope="col" className="pb-2 text-right font-medium">
-                  Watch Time
+                  Tempo
                 </th>
               </tr>
             </thead>

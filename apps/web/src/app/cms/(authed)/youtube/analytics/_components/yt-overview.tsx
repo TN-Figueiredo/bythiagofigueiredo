@@ -6,9 +6,11 @@ import { YtRetentionCurve } from './yt-retention-curve'
 interface Props {
   metrics: YtChannelMetrics
   dailyMetrics: YtDailyMetric[]
+  intelligenceHealthScore?: number
+  intelligenceRadar?: Array<{ label: string; value: number; grade: string }>
 }
 
-function computeHealthScore(m: YtChannelMetrics): {
+function computeFallbackHealth(m: YtChannelMetrics): {
   overall: number
   axes: { label: string; value: number; grade: string }[]
 } {
@@ -22,50 +24,51 @@ function computeHealthScore(m: YtChannelMetrics): {
     m.views > 0
       ? Math.min(((m.likes + m.comments + m.shares) / m.views) * 1000, 100)
       : 0
-  const frequencyScore = 50 // placeholder until upload frequency is tracked
 
   const overall = Math.round(
-    (ctrScore + retentionScore + growthScore + engagementScore + frequencyScore) / 5,
+    (ctrScore + retentionScore + growthScore + engagementScore) / 4,
   )
 
   function grade(v: number) {
-    return v >= 80 ? 'A' : v >= 60 ? 'B' : v >= 40 ? 'C' : 'D'
+    return v >= 85 ? 'A' : v >= 65 ? 'B' : v >= 40 ? 'C' : 'D'
   }
 
   return {
     overall,
     axes: [
       { label: 'CTR', value: ctrScore, grade: grade(ctrScore) },
-      { label: 'Retention', value: retentionScore, grade: grade(retentionScore) },
-      { label: 'Growth', value: growthScore, grade: grade(growthScore) },
-      { label: 'Engagement', value: engagementScore, grade: grade(engagementScore) },
-      { label: 'Frequency', value: frequencyScore, grade: grade(frequencyScore) },
+      { label: 'Retenção', value: retentionScore, grade: grade(retentionScore) },
+      { label: 'Crescimento', value: growthScore, grade: grade(growthScore) },
+      { label: 'Engajamento', value: engagementScore, grade: grade(engagementScore) },
     ],
   }
 }
 
-export function YtOverview({ metrics, dailyMetrics: _dailyMetrics }: Props) {
-  const health = computeHealthScore(metrics)
+export function YtOverview({ metrics, dailyMetrics: _dailyMetrics, intelligenceHealthScore, intelligenceRadar }: Props) {
+  const useIntelligence = intelligenceRadar && intelligenceRadar.length > 0 && intelligenceHealthScore !== undefined
+  const health = useIntelligence
+    ? { overall: intelligenceHealthScore!, axes: intelligenceRadar! }
+    : computeFallbackHealth(metrics)
 
   const kpis = [
-    { label: 'Views', value: metrics.views.toLocaleString() },
+    { label: 'Visualizações', value: metrics.views.toLocaleString() },
     {
-      label: 'Watch Time',
+      label: 'Tempo Assistido',
       value: `${Math.round(metrics.estimatedMinutesWatched / 60)}h`,
     },
     {
-      label: 'Subs Net',
+      label: 'Subs Líquido',
       value: `+${metrics.subscribersGained - metrics.subscribersLost}`,
     },
-    { label: 'Impressions', value: metrics.impressions.toLocaleString() },
+    { label: 'Impressões', value: metrics.impressions.toLocaleString() },
     { label: 'CTR', value: `${metrics.impressionClickThroughRate.toFixed(1)}%` },
     {
-      label: 'Avg Duration',
+      label: 'Duração Média',
       value: `${Math.floor(metrics.averageViewDuration / 60)}:${String(metrics.averageViewDuration % 60).padStart(2, '0')}`,
     },
-    { label: 'Likes', value: metrics.likes.toLocaleString() },
-    { label: 'Comments', value: metrics.comments.toLocaleString() },
-    { label: 'Shares', value: metrics.shares.toLocaleString() },
+    { label: 'Curtidas', value: metrics.likes.toLocaleString() },
+    { label: 'Comentários', value: metrics.comments.toLocaleString() },
+    { label: 'Compartilhamentos', value: metrics.shares.toLocaleString() },
   ]
 
   return (
@@ -73,13 +76,18 @@ export function YtOverview({ metrics, dailyMetrics: _dailyMetrics }: Props) {
       {/* Health + Radar row */}
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-lg border border-cms-border bg-cms-surface p-4">
-          <h3 className="mb-3 text-sm font-semibold text-cms-text">Channel Health Score</h3>
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-cms-text">Saúde do Canal</h3>
+            <span className={`rounded px-1.5 py-0.5 text-[9px] ${useIntelligence ? 'bg-[#8b5cf6]/10 text-[#8b5cf6]' : 'bg-cms-border text-cms-text-muted'}`}>
+              {useIntelligence ? '6 eixos · AI' : '4 eixos · API'}
+            </span>
+          </div>
           <div className="flex items-center justify-center">
             <YtHealthRing score={health.overall} />
           </div>
         </div>
         <div className="rounded-lg border border-cms-border bg-cms-surface p-4">
-          <h3 className="mb-3 text-sm font-semibold text-cms-text">Performance Radar</h3>
+          <h3 className="mb-3 text-sm font-semibold text-cms-text">Radar de Performance</h3>
           <YtRadarChart axes={health.axes} />
         </div>
       </div>
@@ -111,7 +119,7 @@ export function YtOverview({ metrics, dailyMetrics: _dailyMetrics }: Props) {
       {/* Retention Curve */}
       <div className="rounded-lg border border-cms-border bg-cms-surface p-4">
         <h3 className="mb-3 text-sm font-semibold text-cms-text">
-          Avg Retention Curve (last 10 videos)
+          Curva de Retenção Média (últimos 10 vídeos)
         </h3>
         <YtRetentionCurve avgPercentage={metrics.averageViewPercentage} />
       </div>

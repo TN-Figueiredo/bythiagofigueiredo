@@ -189,10 +189,10 @@ ALTER TABLE public.social_connections
   ADD COLUMN IF NOT EXISTS bluesky_did TEXT;
 
 ALTER TABLE public.social_connections
-  ADD COLUMN IF NOT EXISTS bluesky_access_jwt_enc_enc TEXT;
+  ADD COLUMN IF NOT EXISTS bluesky_access_jwt_enc TEXT;
 
 ALTER TABLE public.social_connections
-  ADD COLUMN IF NOT EXISTS bluesky_refresh_jwt_enc_enc TEXT;
+  ADD COLUMN IF NOT EXISTS bluesky_refresh_jwt_enc TEXT;
 
 ALTER TABLE public.social_connections
   ADD COLUMN IF NOT EXISTS bluesky_jwt_expires_at TIMESTAMPTZ;

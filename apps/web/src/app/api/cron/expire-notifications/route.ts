@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import * as Sentry from '@sentry/nextjs'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
@@ -13,7 +14,7 @@ export async function GET(req: NextRequest) {
   const supabase = getSupabaseServiceClient()
 
   const { data: expiredCount, error } = await supabase.rpc('expire_old_yt_notifications')
-  if (error) console.error('[expire-notifications] RPC failed:', error.message)
+  if (error) Sentry.captureException(error, { extra: { context: 'expire_old_yt_notifications RPC' } })
 
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString()
   const { data: staleTasks } = await supabase

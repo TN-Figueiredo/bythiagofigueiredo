@@ -22,7 +22,7 @@ interface Props {
   videoCount: number
   lastAnalysisAt: string | null
   onRequestAnalysis?: () => void
-  analysisState: 'idle' | 'pending' | 'running' | 'cooldown'
+  analysisState: 'idle' | 'pending' | 'cooldown' | 'success'
 }
 
 export function YtHealthCoach({
@@ -89,6 +89,12 @@ export function YtHealthCoach({
       {/* Coaching Cards */}
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-cms-text">Áreas de Melhoria</h3>
+        {sortedCards.length === 0 && (
+          <div className="rounded border border-[#22c55e]/20 bg-[#22c55e]/5 p-4 text-center">
+            <p className="text-sm font-medium text-[#22c55e]">Canal saudável em todos os eixos</p>
+            <p className="mt-1 text-xs text-cms-text-muted">Todos os indicadores estão acima do benchmark. Continue monitorando.</p>
+          </div>
+        )}
         {sortedCards.map((card, i) => (
           <div key={card.axis} className="rounded border border-cms-border bg-cms-surface p-4">
             <div className="flex items-start justify-between">
@@ -119,8 +125,8 @@ export function YtHealthCoach({
             className="rounded border border-cms-border px-4 py-2 text-xs text-cms-text-muted hover:bg-cms-surface disabled:opacity-50"
           >
             {analysisState === 'pending' ? 'Em fila...' :
-             analysisState === 'running' ? 'Analisando...' :
              analysisState === 'cooldown' ? 'Disponível em breve' :
+             analysisState === 'success' ? 'Análise solicitada!' :
              'Solicitar Nova Análise'}
           </button>
         </div>

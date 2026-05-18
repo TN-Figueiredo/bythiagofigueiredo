@@ -16,7 +16,7 @@ export function YtGrades({ grades }: Props) {
     return (
       <div className="rounded-lg border border-dashed border-cms-border p-8 text-center">
         <p className="text-sm text-cms-text-muted">
-          Need at least 3 videos older than 7 days for grading.
+          Necessário pelo menos 3 vídeos com mais de 7 dias para gerar notas.
         </p>
       </div>
     )
@@ -25,7 +25,7 @@ export function YtGrades({ grades }: Props) {
   return (
     <div className="space-y-4">
       <div className="rounded-lg border border-cms-border bg-cms-surface p-4">
-        <h3 className="mb-3 text-sm font-semibold text-cms-text">Video Performance Grades</h3>
+        <h3 className="mb-3 text-sm font-semibold text-cms-text">Notas de Performance</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>

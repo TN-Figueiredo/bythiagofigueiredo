@@ -42,7 +42,7 @@ export function YtRadarChart({ axes }: Props) {
       height={160}
       className="mx-auto"
       role="img"
-      aria-label="Performance radar chart"
+      aria-label="Gráfico radar de performance"
     >
       {/* Grid rings */}
       {[20, 40, 60, 80, 100].map((pct) => {

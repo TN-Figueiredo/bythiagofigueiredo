@@ -7,8 +7,41 @@ export interface QueueSlot {
   label: string
 }
 
-const SLOT_HOURS = [9, 11, 13, 15, 17, 19, 21]
+// Day-of-week names matching JS Date.getDay() via Intl
+const DAY_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const
+type DayKey = (typeof DAY_KEYS)[number]
+
+export type QueueSlotConfig = Partial<Record<DayKey, number[]>>
+
+const DEFAULT_SLOT_HOURS = [9, 11, 13, 15, 17, 19, 21]
 const MAX_DAYS_AHEAD = 7
+
+async function loadQueueSlotConfig(
+  siteId: string,
+): Promise<QueueSlotConfig | null> {
+  const supabase = getSupabaseServiceClient()
+  const { data } = await supabase
+    .from('sites')
+    .select('social_defaults')
+    .eq('id', siteId)
+    .single()
+
+  if (!data) return null
+  const defaults = data.social_defaults as Record<string, unknown> | null
+  if (!defaults?.queue_slots) return null
+  return defaults.queue_slots as QueueSlotConfig
+}
+
+function getSlotHoursForDay(
+  config: QueueSlotConfig | null,
+  dayIndex: number,
+): number[] {
+  if (!config) return DEFAULT_SLOT_HOURS
+  const dayKey = DAY_KEYS[dayIndex]
+  if (!dayKey) return DEFAULT_SLOT_HOURS
+  const hours = config[dayKey]
+  return hours !== undefined ? hours : DEFAULT_SLOT_HOURS
+}
 
 export async function getNextQueueSlot(
   siteId: string,
@@ -16,6 +49,8 @@ export async function getNextQueueSlot(
 ): Promise<QueueSlot | null> {
   const supabase = getSupabaseServiceClient()
   const now = new Date()
+
+  const slotConfig = await loadQueueSlotConfig(siteId)
 
   const windowStart = now.toISOString()
   const windowEnd = new Date(
@@ -43,9 +78,12 @@ export async function getNextQueueSlot(
     const candidateDate = new Date(now)
     candidateDate.setDate(candidateDate.getDate() + dayOffset)
 
+    const dayIndex = candidateDate.getDay()
+    const slotHours = getSlotHoursForDay(slotConfig, dayIndex)
+
     const dateStr = formatDateInTz(candidateDate, timezone)
 
-    for (const hour of SLOT_HOURS) {
+    for (const hour of slotHours) {
       const candidateUtc = buildUtcFromLocalHour(
         candidateDate,
         hour,

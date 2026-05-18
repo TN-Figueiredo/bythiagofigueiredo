@@ -34,12 +34,12 @@ export default async function YouTubeAnalyticsPage({
   if (channels.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-cms-border p-12 text-center">
-        <p className="text-sm text-cms-text-muted">No YouTube connection found.</p>
+        <p className="text-sm text-cms-text-muted">Nenhuma conexão YouTube encontrada.</p>
         <a
           href="/cms/social?tab=connections"
           className="text-sm font-medium text-[var(--acc)] hover:underline"
         >
-          Connect YouTube →
+          Conectar YouTube →
         </a>
       </div>
     )
@@ -49,12 +49,12 @@ export default async function YouTubeAnalyticsPage({
   const activeChannel = channels.find(c => c.channelId === selectedChannelId) ?? channels[0]!
 
   const supabaseForLastAnalysis = getSupabaseServiceClient()
-  const [metrics, dailyMetrics, grades, searchTerms, demographics, intelligenceData, notifications, lastAnalysisRow] = await Promise.all([
+  const [metrics, dailyMetrics, grades, searchTermsResult, demographicsResult, intelligenceData, notifications, lastAnalysisRow] = await Promise.all([
     fetchYtChannelMetrics(siteId, 30, activeChannel.channelId),
     fetchYtDailyMetrics(siteId, 30, activeChannel.channelId),
     fetchVideoGrades(siteId, activeChannel.internalId),
-    getCachedYtSearchTerms(siteId, 30, activeChannel.channelId),
-    getCachedYtDemographics(siteId, 30, activeChannel.channelId),
+    getCachedYtSearchTerms(siteId, 90, activeChannel.channelId),
+    getCachedYtDemographics(siteId, 90, activeChannel.channelId),
     fetchGradesData(activeChannel.internalId).catch(() => ({ videos: [], outliers: [] })),
     fetchNotifications().catch(() => []),
     supabaseForLastAnalysis
@@ -73,7 +73,7 @@ export default async function YouTubeAnalyticsPage({
     return (
       <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-cms-border p-12 text-center">
         <p className="text-sm text-cms-text-muted">
-          Could not fetch analytics for this channel. The YouTube Analytics API may take 48-72 hours to provide data for newly connected channels.
+          Não foi possível carregar analytics para este canal. A API do YouTube Analytics pode levar 48-72 horas para disponibilizar dados de canais recém-conectados.
         </p>
       </div>
     )
@@ -95,8 +95,10 @@ export default async function YouTubeAnalyticsPage({
       metrics={metrics}
       dailyMetrics={dailyMetrics}
       grades={grades}
-      searchTerms={searchTerms}
-      demographics={demographics}
+      searchTerms={searchTermsResult.data}
+      demographics={demographicsResult.data}
+      searchTermsError={searchTermsResult.error}
+      demographicsError={demographicsResult.error}
       channels={channels}
       activeChannelId={activeChannel.channelId}
       channelInternalId={activeChannel.internalId}

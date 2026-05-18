@@ -27,10 +27,14 @@ export async function GET(req: NextRequest) {
     return new NextResponse(null, { status: 204 })
   }
 
-  await supabase.from('youtube_intelligence_tasks').update({
+  const { data: claimed } = await supabase.from('youtube_intelligence_tasks').update({
     status: 'running',
     started_at: new Date().toISOString(),
-  }).eq('id', task.id)
+  }).eq('id', task.id).eq('status', 'pending').select('id').maybeSingle()
+
+  if (!claimed) {
+    return new NextResponse(null, { status: 204 })
+  }
 
   const headers = buildRateLimitHeaders(authResult.auth)
   return NextResponse.json(task, { headers: headers ?? {} })

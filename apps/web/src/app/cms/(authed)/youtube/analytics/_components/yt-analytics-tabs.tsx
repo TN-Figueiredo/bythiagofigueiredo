@@ -52,6 +52,8 @@ interface Props {
   onDismissNotification?: (id: string) => Promise<void>
   onRequestAnalysis?: (channelId: string) => Promise<unknown>
   lastAnalysisAt?: string | null
+  searchTermsError?: string
+  demographicsError?: string
 }
 
 export function YtAnalyticsTabs({
@@ -72,10 +74,12 @@ export function YtAnalyticsTabs({
   onDismissNotification,
   onRequestAnalysis,
   lastAnalysisAt,
+  searchTermsError,
+  demographicsError,
 }: Props) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<TabId>('overview')
-  const [analysisState, setAnalysisState] = useState<'idle' | 'pending' | 'cooldown'>('idle')
+  const [analysisState, setAnalysisState] = useState<'idle' | 'pending' | 'cooldown' | 'success'>('idle')
   const tablistRef = useRef<HTMLDivElement>(null)
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -105,12 +109,17 @@ export function YtAnalyticsTabs({
     if (!onRequestAnalysis || !channelInternalId || analysisState !== 'idle') return
     setAnalysisState('pending')
     try {
-      const result = await onRequestAnalysis(channelInternalId) as { cooldown?: boolean } | null
-      if (result && typeof result === 'object' && 'cooldown' in result && result.cooldown) {
-        setAnalysisState('cooldown')
-        setTimeout(() => setAnalysisState('idle'), 10_000)
+      const result = await onRequestAnalysis(channelInternalId) as { error?: string; ok?: boolean } | null
+      if (result && typeof result === 'object' && 'error' in result) {
+        if (result.error === 'cooldown' || result.error === 'already_active') {
+          setAnalysisState('cooldown')
+          setTimeout(() => setAnalysisState('idle'), 10_000)
+        } else {
+          setAnalysisState('idle')
+        }
       } else {
-        setAnalysisState('idle')
+        setAnalysisState('success')
+        setTimeout(() => setAnalysisState('idle'), 5_000)
       }
     } catch {
       setAnalysisState('idle')
@@ -194,7 +203,14 @@ export function YtAnalyticsTabs({
         id={`panel-yt-${activeTab}`}
         aria-labelledby={`tab-yt-${activeTab}`}
       >
-        {activeTab === 'overview' && <YtOverview metrics={metrics} dailyMetrics={dailyMetrics} />}
+        {activeTab === 'overview' && (
+          <YtOverview
+            metrics={metrics}
+            dailyMetrics={dailyMetrics}
+            intelligenceHealthScore={healthScore}
+            intelligenceRadar={radarData.length > 0 ? radarData : undefined}
+          />
+        )}
         {activeTab === 'grades' && (
           intelligenceVideos && intelligenceVideos.length > 0
             ? <YtGradesV2 videos={intelligenceVideos} />
@@ -215,11 +231,14 @@ export function YtAnalyticsTabs({
           intelligenceOutliers && intelligenceOutliers.length > 0
             ? <YtOutliersV2 outliers={intelligenceOutliers} />
             : intelligenceVideos && intelligenceVideos.length > 0
-              ? <YtOutliersV2 outliers={[]} />
+              ? <YtOutliersV2
+                  outliers={[]}
+                  hasAnalyticsData={intelligenceVideos.some(v => v.avgViewPercentage > 0 || (v.trafficSources !== null && Object.keys(v.trafficSources).length > 0))}
+                />
               : <YtOutliers grades={grades} />
         )}
-        {activeTab === 'demographics' && <YtDemographicsView demographics={demographics} />}
-        {activeTab === 'search' && <YtSearchTermsView terms={searchTerms} />}
+        {activeTab === 'demographics' && <YtDemographicsView demographics={demographics} apiError={demographicsError} />}
+        {activeTab === 'search' && <YtSearchTermsView terms={searchTerms} apiError={searchTermsError} />}
       </div>
     </div>
   )

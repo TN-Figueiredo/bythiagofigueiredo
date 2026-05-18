@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import type { Notification } from './types'
 
 interface Props {
@@ -19,6 +20,14 @@ const PRIORITY_BORDER: Record<number, string> = {
 }
 
 export function YtNotificationsPanel({ notifications, onMarkRead, onMarkAllRead, onDismiss, pending = false }: Props) {
+  const router = useRouter()
+
+  const handleClick = (n: Notification) => {
+    if (pending) return
+    if (!n.read) onMarkRead(n.id)
+    if (n.action_href) router.push(n.action_href)
+  }
+
   if (notifications.length === 0) {
     return (
       <div className="p-6 text-center">
@@ -39,12 +48,12 @@ export function YtNotificationsPanel({ notifications, onMarkRead, onMarkAllRead,
         {notifications.slice(0, 50).map(n => (
           <div
             key={n.id}
-            role={!n.read ? 'button' : undefined}
-            tabIndex={!n.read && !pending ? 0 : undefined}
-            onClick={() => { if (!n.read && !pending) onMarkRead(n.id) }}
-            onKeyDown={(e) => { if (!n.read && !pending && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onMarkRead(n.id) } }}
+            role="button"
+            tabIndex={pending ? undefined : 0}
+            onClick={() => handleClick(n)}
+            onKeyDown={(e) => { if (!pending && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); handleClick(n) } }}
             aria-disabled={pending || undefined}
-            className={`group flex gap-2 border-l-2 ${PRIORITY_BORDER[n.priority] ?? ''} px-3 py-2.5 transition-opacity ${pending ? 'opacity-60 cursor-default' : ''} ${!n.read && !pending ? 'bg-cms-surface/50 cursor-pointer' : ''}`}
+            className={`group flex gap-2 border-l-2 ${PRIORITY_BORDER[n.priority] ?? ''} px-3 py-2.5 transition-opacity ${pending ? 'opacity-60 cursor-default' : 'cursor-pointer'} ${!n.read ? 'bg-cms-surface/50' : ''}`}
           >
             <span className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${n.read ? 'border border-cms-text-muted' : 'bg-cms-accent'}`} />
             <div className="min-w-0 flex-1">

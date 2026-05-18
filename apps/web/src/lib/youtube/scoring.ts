@@ -111,17 +111,12 @@ function getRecencyExponent(ageDays: number): number {
 
 function computeReachDiversity(sources: VideoScoreInput['trafficSources']): number {
   if (!sources) return 0
-  const values = [sources.browse, sources.search, sources.suggested, sources.external, sources.direct, sources.notifications, sources.playlists]
-  const total = values.reduce((a, b) => a + b, 0)
-  if (total === 0) return 0
-  const probs = values.map(v => v / total).filter(p => p > 0)
-  const entropy = -probs.reduce((sum, p) => sum + p * Math.log2(p), 0)
-  const maxEntropy = Math.log2(probs.length)
-  return maxEntropy > 0 ? (entropy / maxEntropy) * 100 : 0
+  return computeReachDiversityFromRecord(sources as unknown as Record<string, number>)
 }
 
 export function scoreVideo(input: VideoScoreInput, baseline: ChannelBaseline): VideoScore {
-  const ageDays = Math.floor((Date.now() - new Date(input.publishedAt).getTime()) / 86400000)
+  const rawAge = (Date.now() - new Date(input.publishedAt).getTime()) / 86400000
+  const ageDays = Number.isFinite(rawAge) && rawAge >= 0 ? Math.floor(rawAge) : 0
   const lifecycle = getLifecycle(ageDays)
   const weights = getAxisWeights(ageDays)
   const recencyExp = getRecencyExponent(ageDays)
@@ -133,10 +128,19 @@ export function scoreVideo(input: VideoScoreInput, baseline: ChannelBaseline): V
   const reachDiversity = computeReachDiversity(input.trafficSources)
   const subImpactRaw = input.impressions > 0 ? (input.subscribersGained / input.impressions) * 1000 : 0
 
+  // When traffic sources are unavailable, fall back to view_count relative performance.
+  // Log-scale the ratio so outlier detection can differentiate videos by actual views.
+  let reachRaw = reachDiversity
+  let reachMidpoint = baseline.medianReach
+  if (reachRaw === 0 && input.viewCount > 0 && baseline.medianViewCount > 0) {
+    reachRaw = Math.log2(input.viewCount + 1)
+    reachMidpoint = Math.log2(baseline.medianViewCount + 1)
+  }
+
   const axisInputs: Record<Axis, { raw: number; midpoint: number }> = {
     ctr: { raw: input.ctr, midpoint: baseline.medianCtr - tierMod.ctr },
     retention: { raw: input.avgViewPercentage, midpoint: baseline.medianRetention - tierMod.retention },
-    reach: { raw: reachDiversity, midpoint: baseline.medianReach },
+    reach: { raw: reachRaw, midpoint: reachMidpoint },
     engagement: { raw: input.engagementRate, midpoint: baseline.medianEngagement },
     growth: { raw: velocity, midpoint: prepareAxisInput('growth', baseline.medianGrowth) },
     sub_impact: { raw: subImpactRaw, midpoint: baseline.medianSubImpact },
@@ -213,19 +217,13 @@ export interface BaselineVideoInput {
   ctr: number | null
   avg_view_percentage: number | null
   traffic_sources?: unknown
+  view_count?: number | null
 }
 
-export function computeReachDiversityForBaseline(trafficSources: Record<string, number> | null): number {
-  if (!trafficSources) return 0
-  const values = [
-    trafficSources.browse ?? 0,
-    trafficSources.search ?? 0,
-    trafficSources.suggested ?? 0,
-    trafficSources.external ?? 0,
-    trafficSources.direct ?? 0,
-    trafficSources.notifications ?? 0,
-    trafficSources.playlists ?? 0,
-  ]
+export function computeReachDiversityFromRecord(sources: Record<string, number> | null): number {
+  if (!sources) return 0
+  const keys = ['browse', 'search', 'suggested', 'external', 'direct', 'notifications', 'playlists']
+  const values = keys.map(k => sources[k] ?? 0)
   const total = values.reduce((a, b) => a + b, 0)
   if (total === 0) return 0
   const probs = values.map(v => v / total).filter(p => p > 0)
@@ -233,6 +231,9 @@ export function computeReachDiversityForBaseline(trafficSources: Record<string, 
   const maxEntropy = Math.log2(probs.length)
   return maxEntropy > 0 ? (entropy / maxEntropy) * 100 : 0
 }
+
+/** @deprecated Use computeReachDiversityFromRecord instead */
+export const computeReachDiversityForBaseline = computeReachDiversityFromRecord
 
 export function computeBaseline(
   videos: BaselineVideoInput[],
@@ -242,9 +243,10 @@ export function computeBaseline(
   const ctrs = videos.map(v => v.ctr ?? 0).filter(c => c > 0).sort((a, b) => a - b)
   const retentions = videos.map(v => v.avg_view_percentage ?? 0).filter(r => r > 0).sort((a, b) => a - b)
   const reachDiversities = videos
-    .map(v => computeReachDiversityForBaseline(v.traffic_sources as Record<string, number> | null))
+    .map(v => computeReachDiversityFromRecord(v.traffic_sources as Record<string, number> | null))
     .filter(r => r > 0)
     .sort((a, b) => a - b)
+  const viewCounts = videos.map(v => v.view_count ?? 0).filter(c => c > 0).sort((a, b) => a - b)
   const allDaily = Array.from(dailyByVideo.values()).flat()
   const totalViews = allDaily.reduce((s, d) => s + d.views, 0)
   const totalDays = new Set(allDaily.map(d => d.date)).size || 1
@@ -300,6 +302,7 @@ export function computeBaseline(
     medianSubImpact: subImpacts.length > 0 ? median(subImpacts) : 0.5,
     channelDailyMean: totalViews / totalDays,
     subscriberCount,
+    medianViewCount: median(viewCounts),
   }
 }
 

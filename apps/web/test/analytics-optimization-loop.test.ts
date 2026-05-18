@@ -62,6 +62,44 @@ describe('canTransition', () => {
   it('disallows exhausted → anything', () => {
     expect(canTransition('exhausted', 'flagged')).toBe(false)
   })
+
+  // Remaining valid transitions from VALID_TRANSITIONS map
+  it('allows unmonitored → flagged', () => {
+    expect(canTransition('unmonitored', 'flagged')).toBe(true)
+  })
+  it('allows diagnosed → test_suggested', () => {
+    expect(canTransition('diagnosed', 'test_suggested')).toBe(true)
+  })
+  it('allows diagnosed → unmonitored (back-exit)', () => {
+    expect(canTransition('diagnosed', 'unmonitored')).toBe(true)
+  })
+  it('allows test_suggested → testing', () => {
+    expect(canTransition('test_suggested', 'testing')).toBe(true)
+  })
+  it('allows test_suggested → diagnosed (back-transition)', () => {
+    expect(canTransition('test_suggested', 'diagnosed')).toBe(true)
+  })
+  it('allows testing → retest_needed', () => {
+    expect(canTransition('testing', 'retest_needed')).toBe(true)
+  })
+  it('allows retest_needed → flagged', () => {
+    expect(canTransition('retest_needed', 'flagged')).toBe(true)
+  })
+  it('allows retest_needed → exhausted', () => {
+    expect(canTransition('retest_needed', 'exhausted')).toBe(true)
+  })
+  it('allows resolved → exhausted', () => {
+    expect(canTransition('resolved', 'exhausted')).toBe(true)
+  })
+  it('disallows exhausted → exhausted (self-loop)', () => {
+    expect(canTransition('exhausted', 'exhausted')).toBe(false)
+  })
+  it('disallows unmonitored → diagnosed (skip step)', () => {
+    expect(canTransition('unmonitored', 'diagnosed')).toBe(false)
+  })
+  it('disallows post_test_monitoring → flagged (skip retest_needed)', () => {
+    expect(canTransition('post_test_monitoring', 'flagged')).toBe(false)
+  })
 })
 
 describe('transitionState', () => {
@@ -156,6 +194,63 @@ describe('transitionState', () => {
       {},
     )
     expect(result.state).toBe('test_suggested')
+  })
+
+  // P0 — max_cycles enforcement: resolved → flagged at cycle_number = max_cycles_per_video
+  // transitionState internally computes nextCycle = cycle_number + 1; if nextCycle > max it
+  // auto-diverts to exhausted, so the caller never needs to check separately.
+  it('[P0] auto-exhausts when resolved → flagged and cycle_number equals max_cycles_per_video', () => {
+    const cycle = makeCycle({
+      state: 'resolved',
+      cycle_number: OPTIMIZATION_CONFIG.max_cycles_per_video,
+      resolved_at: new Date().toISOString(),
+      resolved_reason: 'grade_improved',
+    })
+    const result = transitionState(cycle, 'flagged', {})
+    expect(result.state).toBe('exhausted')
+    expect(result.resolved_reason).toBe('max_cycles_reached')
+    expect(result.resolved_at).toBeTruthy()
+    // cycle_number must not be incremented when exhausted
+    expect(result.cycle_number).toBe(OPTIMIZATION_CONFIG.max_cycles_per_video)
+  })
+
+  it('[P0] does NOT exhaust when resolved → flagged and cycle_number is below max', () => {
+    const cycle = makeCycle({
+      state: 'resolved',
+      cycle_number: OPTIMIZATION_CONFIG.max_cycles_per_video - 1,
+      resolved_at: new Date().toISOString(),
+      resolved_reason: 'grade_improved',
+    })
+    const result = transitionState(cycle, 'flagged', {})
+    expect(result.state).toBe('flagged')
+    expect(result.cycle_number).toBe(OPTIMIZATION_CONFIG.max_cycles_per_video)
+    expect(result.resolved_reason).toBeNull()
+  })
+
+  // max_cycles enforcement via the explicit exhausted transition path
+  it('[P0] explicit resolved → exhausted transition sets resolved_at and resolved_reason', () => {
+    const cycle = makeCycle({
+      state: 'resolved',
+      cycle_number: OPTIMIZATION_CONFIG.max_cycles_per_video,
+      resolved_at: new Date().toISOString(),
+      resolved_reason: 'grade_improved',
+    })
+    const result = transitionState(cycle, 'exhausted', {})
+    expect(result.state).toBe('exhausted')
+    expect(result.resolved_at).toBeTruthy()
+    expect(result.resolved_reason).toBe('max_cycles_reached')
+  })
+
+  // retest_needed path: same guard applies
+  it('[P0] auto-exhausts when retest_needed → flagged and cycle_number equals max_cycles_per_video', () => {
+    const cycle = makeCycle({
+      state: 'retest_needed',
+      cycle_number: OPTIMIZATION_CONFIG.max_cycles_per_video,
+    })
+    const result = transitionState(cycle, 'flagged', {})
+    expect(result.state).toBe('exhausted')
+    expect(result.resolved_reason).toBe('max_cycles_reached')
+    expect(result.resolved_at).toBeTruthy()
   })
 })
 

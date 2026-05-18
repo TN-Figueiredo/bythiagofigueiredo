@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   sigmoid,
   prepareAxisInput,
@@ -39,6 +39,17 @@ describe('prepareAxisInput', () => {
   })
   it('returns raw value for ctr', () => {
     expect(prepareAxisInput('ctr', 5.5)).toBe(5.5)
+  })
+  it('preserves sign for negative growth (sign-preserving log2 transform)', () => {
+    // growth uses LOG_TRANSFORM_AXES — sign must be preserved so that
+    // negative velocity (declining channel) scores below the midpoint.
+    const result = prepareAxisInput('growth', -5)
+    expect(result).toBeLessThan(0)
+    // Magnitude should equal log2(|-5| + 1) = log2(6)
+    expect(result).toBeCloseTo(-Math.log2(6), 4)
+  })
+  it('returns 0 for zero growth (log2(0+1) = 0)', () => {
+    expect(prepareAxisInput('growth', 0)).toBe(0)
   })
 })
 
@@ -88,6 +99,20 @@ describe('computeGrowthVelocity', () => {
       views: 0,
     }))
     expect(computeGrowthVelocity(daily, 1.5)).toBe(0)
+  })
+  it('returns positive with exactly 7 entries (minimum boundary)', () => {
+    const points: DailyViewPoint[] = Array.from({ length: 7 }, (_, i) => ({
+      date: `2026-05-${String(i + 1).padStart(2, '0')}`,
+      views: 100 + i * 10,
+    }))
+    expect(computeGrowthVelocity(points, 1.5)).toBeGreaterThan(0)
+  })
+  it('returns 0 for 14 entries all with views=0 (meanViews < 1 guard)', () => {
+    const points: DailyViewPoint[] = Array.from({ length: 14 }, (_, i) => ({
+      date: `2026-05-${String(i + 1).padStart(2, '0')}`,
+      views: 0,
+    }))
+    expect(computeGrowthVelocity(points, 1.5)).toBe(0)
   })
 })
 
@@ -185,6 +210,7 @@ describe('scoreVideo', () => {
     medianSubImpact: 0.5,
     channelDailyMean: 100,
     subscriberCount: 50000,
+    medianViewCount: 3000,
   }
 
   it('scores a high-performing video as A or B', () => {
@@ -289,37 +315,105 @@ describe('scoreVideo', () => {
   })
 
   it('produces deterministic output for a known input (golden test)', () => {
+    // Freeze time to 2026-05-18T00:00:00Z so ageDays is always 137 days
+    // (publishedAt = 2026-01-01 → 137d, well within the 0–180d "standard" lifecycle).
+    // Without freezing, this test becomes a time bomb when ageDays crosses 180d.
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-05-18T00:00:00Z'))
+    try {
+      const input: VideoScoreInput = {
+        videoId: 'golden-1',
+        publishedAt: '2026-01-01T00:00:00Z',
+        ctr: 5.0,
+        avgViewPercentage: 45,
+        impressions: 10000,
+        trafficSources: { browse: 40, search: 25, suggested: 20, external: 10, direct: 3, notifications: 1, playlists: 1 },
+        engagementRate: 4.0,
+        dailyViews: Array.from({ length: 28 }, (_, i) => ({ date: `2026-04-${String(i + 1).padStart(2, '0')}`, views: 500 + i * 10 })),
+        subscribersGained: 50,
+        viewCount: 15000,
+      }
+      const goldenBaseline: ChannelBaseline = {
+        medianCtr: 5.0,
+        medianRetention: 45,
+        medianReach: 50,
+        medianEngagement: 4.0,
+        medianGrowth: 0,
+        medianSubImpact: 0.5,
+        channelDailyMean: 500,
+        subscriberCount: 50000,
+        medianViewCount: 10000,
+      }
+      const result = scoreVideo(input, goldenBaseline)
+      expect(result.grade).toBe('B')
+      expect(result.overall).toBeGreaterThan(60)
+      expect(result.overall).toBeLessThan(75)
+      expect(result.axes).toHaveLength(6)
+      for (const axis of result.axes) {
+        expect(axis.normalized).toBeGreaterThanOrEqual(1)
+        expect(axis.normalized).toBeLessThanOrEqual(99)
+      }
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('reach axis has normalized > 0 when trafficSources is null and viewCount > 0 (fallback path)', () => {
     const input: VideoScoreInput = {
-      videoId: 'golden-1',
-      publishedAt: '2026-01-01T00:00:00Z',
+      videoId: 'reach-fallback',
+      publishedAt: new Date(Date.now() - 30 * 86400000).toISOString(),
+      ctr: 5.0,
+      avgViewPercentage: 45,
+      impressions: 10000,
+      trafficSources: null,
+      engagementRate: 4.0,
+      dailyViews: Array.from({ length: 14 }, (_, i) => ({ date: `2026-05-${String(i + 1).padStart(2, '0')}`, views: 100 })),
+      subscribersGained: 10,
+      viewCount: 10000,
+    }
+    const result = scoreVideo(input, baseline)
+    const reachAxis = result.axes.find(a => a.axis === 'reach')!
+    expect(Number.isNaN(reachAxis.normalized)).toBe(false)
+    expect(reachAxis.normalized).toBeGreaterThan(0)
+  })
+
+  it('returns a valid score (not NaN) when publishedAt is an invalid date (NaN ageDays guard)', () => {
+    const input: VideoScoreInput = {
+      videoId: 'invalid-date',
+      publishedAt: 'invalid-date',
       ctr: 5.0,
       avgViewPercentage: 45,
       impressions: 10000,
       trafficSources: { browse: 40, search: 25, suggested: 20, external: 10, direct: 3, notifications: 1, playlists: 1 },
       engagementRate: 4.0,
-      dailyViews: Array.from({ length: 28 }, (_, i) => ({ date: `2026-04-${String(i + 1).padStart(2, '0')}`, views: 500 + i * 10 })),
-      subscribersGained: 50,
-      viewCount: 15000,
+      dailyViews: Array.from({ length: 14 }, (_, i) => ({ date: `2026-05-${String(i + 1).padStart(2, '0')}`, views: 100 })),
+      subscribersGained: 10,
+      viewCount: 5000,
     }
-    const goldenBaseline: ChannelBaseline = {
-      medianCtr: 5.0,
-      medianRetention: 45,
-      medianReach: 50,
-      medianEngagement: 4.0,
-      medianGrowth: 0,
-      medianSubImpact: 0.5,
-      channelDailyMean: 500,
-      subscriberCount: 50000,
+    const result = scoreVideo(input, baseline)
+    expect(Number.isNaN(result.overall)).toBe(false)
+    expect(result.overall).toBeGreaterThanOrEqual(0)
+    expect(result.overall).toBeLessThanOrEqual(100)
+  })
+
+  it('produces a valid score in [1, 99] range with negative subscribersGained (sub_impact axis)', () => {
+    const input: VideoScoreInput = {
+      videoId: 'negative-subs',
+      publishedAt: new Date(Date.now() - 30 * 86400000).toISOString(),
+      ctr: 5.0,
+      avgViewPercentage: 45,
+      impressions: 10000,
+      trafficSources: { browse: 40, search: 25, suggested: 20, external: 10, direct: 3, notifications: 1, playlists: 1 },
+      engagementRate: 4.0,
+      dailyViews: Array.from({ length: 14 }, (_, i) => ({ date: `2026-05-${String(i + 1).padStart(2, '0')}`, views: 100 })),
+      subscribersGained: -50,
+      viewCount: 5000,
     }
-    const result = scoreVideo(input, goldenBaseline)
-    expect(result.grade).toBe('B')
-    expect(result.overall).toBeGreaterThan(60)
-    expect(result.overall).toBeLessThan(75)
-    expect(result.axes).toHaveLength(6)
-    for (const axis of result.axes) {
-      expect(axis.normalized).toBeGreaterThanOrEqual(1)
-      expect(axis.normalized).toBeLessThanOrEqual(99)
-    }
+    const result = scoreVideo(input, baseline)
+    const subAxis = result.axes.find(a => a.axis === 'sub_impact')!
+    expect(subAxis.normalized).toBeGreaterThanOrEqual(1)
+    expect(subAxis.normalized).toBeLessThanOrEqual(99)
+    expect(Number.isNaN(result.overall)).toBe(false)
   })
 })
 
@@ -363,6 +457,13 @@ describe('computeOutliers', () => {
     const scores = [10, 50, 50, 90].map((s, i) => ({ videoId: `v${i}`, score: s }))
     expect(computeOutliers(scores, 'ctr')).toHaveLength(0)
   })
+  it('detects at least 1 outlier with exactly 5 videos (minimum boundary)', () => {
+    // 4 normal scores clustered around 50, 1 extreme outlier at 99
+    const scores = [50, 51, 49, 50, 99].map((s, i) => ({ videoId: `v${i}`, score: s }))
+    const outliers = computeOutliers(scores, 'ctr')
+    expect(outliers.length).toBeGreaterThanOrEqual(1)
+    expect(outliers.some(o => o.videoId === 'v4' && o.direction === 'positive')).toBe(true)
+  })
 })
 
 describe('computeTrend', () => {
@@ -391,5 +492,15 @@ describe('computeTrend', () => {
   it('computes trend with exactly 3 data points', () => {
     const result = computeTrend([60, 65, 70])
     expect(result.direction).toBe('up')
+  })
+  it('returns flat and velocity 0 for 3 identical scores', () => {
+    const result = computeTrend([50, 50, 50])
+    expect(result.direction).toBe('flat')
+    expect(result.velocity).toBe(0)
+  })
+  it('returns flat and velocity 0 for an empty array', () => {
+    const result = computeTrend([])
+    expect(result.direction).toBe('flat')
+    expect(result.velocity).toBe(0)
   })
 })

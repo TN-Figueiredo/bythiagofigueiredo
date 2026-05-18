@@ -68,6 +68,7 @@ export interface ChannelBaseline {
   medianSubImpact: number
   channelDailyMean: number
   subscriberCount: number
+  medianViewCount: number
 }
 
 export interface TrendData {
