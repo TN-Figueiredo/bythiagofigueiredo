@@ -37,6 +37,22 @@ function formatDate(iso: string | null): string {
   })
 }
 
+type SlideWithBackground = {
+  background?: { type?: string; url?: string; color?: string }
+}
+
+function extractThumbnailUrl(story: StoryRow): string | undefined {
+  // Check for cover_image_url in content
+  const content = story as unknown as { content?: { cover_image_url?: string } }
+  if (content.content?.cover_image_url) return content.content.cover_image_url
+  // Check first slide for an image background
+  const firstSlide = story.story_slides?.[0] as SlideWithBackground | undefined
+  if (firstSlide?.background?.type === 'image' && firstSlide.background.url) {
+    return firstSlide.background.url
+  }
+  return undefined
+}
+
 export function StoryCard({ story }: StoryCardProps) {
   const slideCount = Array.isArray(story.story_slides) ? story.story_slides.length : 0
   const href = story.status === 'draft'
@@ -50,6 +66,8 @@ export function StoryCard({ story }: StoryCardProps) {
         ? `Publicado ${formatDate(story.published_at)}`
         : `Criado ${formatDate(story.created_at)}`
 
+  const thumbnailUrl = extractThumbnailUrl(story)
+
   return (
     <Link
       href={href}
@@ -57,10 +75,20 @@ export function StoryCard({ story }: StoryCardProps) {
     >
       {/* 9:16 thumbnail area */}
       <div className="relative w-full" style={{ paddingTop: '177.78%' }}>
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-cms-surface to-cms-border">
-          <ImageIcon className="h-8 w-8 text-cms-text-muted opacity-40" />
+        <div className="absolute inset-0 bg-gradient-to-br from-cms-surface to-cms-border">
+          {thumbnailUrl ? (
+            <img
+              src={thumbnailUrl}
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+          ) : (
+            <div className="flex h-full flex-col items-center justify-center gap-2">
+              <ImageIcon className="h-8 w-8 text-cms-text-muted opacity-40" />
+            </div>
+          )}
           {slideCount > 0 && (
-            <span className="rounded-full bg-black/30 px-2 py-0.5 text-[10px] font-medium text-white">
+            <span className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-medium text-white">
               {slideCount} slide{slideCount !== 1 ? 's' : ''}
             </span>
           )}

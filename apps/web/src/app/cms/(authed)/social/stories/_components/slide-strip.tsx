@@ -55,9 +55,10 @@ export function addEmptySlide(slides: CardComposition[]): CardComposition[] {
 
 interface SlideStripProps {
   slides: CardComposition[]
+  slideIds: string[]
   activeIndex: number
   onSelect: (index: number) => void
-  onReorder: (slides: CardComposition[]) => void
+  onReorder: (slides: CardComposition[], fromIndex: number, toIndex: number) => void
   onDuplicate: (index: number) => void
   onRemove: (index: number) => void
   onAdd: () => void
@@ -65,6 +66,7 @@ interface SlideStripProps {
 
 export function SlideStrip({
   slides,
+  slideIds,
   activeIndex,
   onSelect,
   onReorder,
@@ -81,7 +83,7 @@ export function SlideStrip({
     e.preventDefault()
     const fromIndex = Number(e.dataTransfer.getData('text/plain'))
     if (!isNaN(fromIndex) && fromIndex !== toIndex) {
-      onReorder(reorderSlides(slides, fromIndex, toIndex))
+      onReorder(reorderSlides(slides, fromIndex, toIndex), fromIndex, toIndex)
     }
   }, [slides, onReorder])
 
@@ -98,7 +100,7 @@ export function SlideStrip({
     >
       {slides.map((slide, index) => (
         <SlideThumb
-          key={index}
+          key={slideIds[index] ?? index}
           slide={slide}
           index={index}
           isActive={index === activeIndex}

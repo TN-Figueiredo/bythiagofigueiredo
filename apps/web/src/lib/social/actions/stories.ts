@@ -209,13 +209,15 @@ export async function searchSourceContent(
     const supabase = getSupabaseServiceClient()
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
+    // Escape LIKE special characters to prevent wildcard injection
+    const escapedSearch = search.replace(/%/g, '\\%').replace(/_/g, '\\_')
 
     if (typeParsed.data === 'blog') {
       const { data, error } = await supabase
         .from('blog_posts')
         .select('id, blog_translations(title, slug, locale)')
         .eq('site_id', authorizedSiteId)
-        .ilike('blog_translations.title', `%${search}%`)
+        .ilike('blog_translations.title', `%${escapedSearch}%`)
         .limit(20)
 
       if (error) return { ok: false, error: error.message }
@@ -239,7 +241,7 @@ export async function searchSourceContent(
         .from('newsletter_editions')
         .select('id, subject')
         .eq('site_id', authorizedSiteId)
-        .ilike('subject', `%${search}%`)
+        .ilike('subject', `%${escapedSearch}%`)
         .limit(20)
 
       if (error) return { ok: false, error: error.message }
@@ -260,7 +262,7 @@ export async function searchSourceContent(
         .from('campaigns')
         .select('id, campaign_translations(meta_title, slug)')
         .eq('site_id', authorizedSiteId)
-        .ilike('campaign_translations.meta_title', `%${search}%`)
+        .ilike('campaign_translations.meta_title', `%${escapedSearch}%`)
         .limit(20)
 
       if (error) return { ok: false, error: error.message }

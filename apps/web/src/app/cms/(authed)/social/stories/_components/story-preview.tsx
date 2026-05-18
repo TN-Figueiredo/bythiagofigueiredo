@@ -83,12 +83,12 @@ export function StoryPreview({ slides, shortUrl, caption, rateBudget }: StoryPre
                 <p className="text-xs font-medium text-neutral-300">
                   Slide {currentIndex + 1}
                 </p>
-                {(slides[currentIndex] as { background?: { type?: string; value?: string } })?.background?.value && (
+                {(slides[currentIndex] as { background?: { type?: string; color?: string } })?.background?.color && (
                   <div
                     className="h-8 w-8 rounded-md border border-neutral-600"
                     style={{
-                      background: (slides[currentIndex] as { background?: { type?: string; value?: string } }).background?.type === 'color'
-                        ? (slides[currentIndex] as { background?: { value?: string } }).background?.value
+                      background: (slides[currentIndex] as { background?: { type?: string; color?: string } }).background?.type === 'solid'
+                        ? (slides[currentIndex] as { background?: { color?: string } }).background?.color
                         : undefined,
                     }}
                     aria-hidden="true"

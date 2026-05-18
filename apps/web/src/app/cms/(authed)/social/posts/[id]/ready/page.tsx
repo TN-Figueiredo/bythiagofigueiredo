@@ -19,7 +19,6 @@ type SlideComposition = {
   background?: {
     type?: string
     url?: string
-    value?: string
   }
   elements?: Array<{ type?: string; src?: string }>
 }
@@ -27,7 +26,6 @@ type SlideComposition = {
 /** Extract the first usable image URL from a slide composition (background or first image element). */
 function extractSlideImageUrl(slide: SlideComposition): string | undefined {
   if (slide.background?.url) return slide.background.url
-  if (slide.background?.value && slide.background.type === 'image') return slide.background.value
   const imgEl = slide.elements?.find((el) => el.type === 'image' && el.src)
   return imgEl?.src
 }
