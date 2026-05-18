@@ -108,7 +108,7 @@ export function ScriptBeatAccordion({
       style={{
         ...sortableStyle,
         border: '1px solid var(--gem-border)',
-        borderLeft: `3px solid ${beat.status === 'DONE' ? '#22c55e' : 'var(--gem-border)'}`,
+        borderLeft: `3px solid ${beat.status === 'DONE' ? 'var(--gem-done, #22c55e)' : 'var(--gem-border)'}`,
         background: isDragging ? 'var(--gem-well)' : 'transparent',
       }}
     >
@@ -211,7 +211,7 @@ export function ScriptBeatAccordion({
             type="button"
             onClick={handleToggleStatus}
             className="p-0.5 rounded hover:bg-white/5"
-            style={{ color: beat.status === 'DONE' ? '#22c55e' : 'var(--gem-dim)' }}
+            style={{ color: beat.status === 'DONE' ? 'var(--gem-done, #22c55e)' : 'var(--gem-dim)' }}
             title={beat.status === 'DONE' ? 'Mark pending' : 'Mark done'}
             aria-label={`Status: ${beat.status}`}
           >
@@ -221,9 +221,9 @@ export function ScriptBeatAccordion({
           <span
             className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider"
             style={{
-              background: beat.status === 'DONE' ? '#22c55e18' : 'color-mix(in srgb, var(--gem-dim) 12%, transparent)',
-              color: beat.status === 'DONE' ? '#22c55e' : 'var(--gem-dim)',
-              border: `1px solid ${beat.status === 'DONE' ? '#22c55e25' : 'transparent'}`,
+              background: beat.status === 'DONE' ? 'color-mix(in srgb, var(--gem-done, #22c55e) 10%, transparent)' : 'color-mix(in srgb, var(--gem-dim) 12%, transparent)',
+              color: beat.status === 'DONE' ? 'var(--gem-done, #22c55e)' : 'var(--gem-dim)',
+              border: `1px solid ${beat.status === 'DONE' ? 'color-mix(in srgb, var(--gem-done, #22c55e) 15%, transparent)' : 'transparent'}`,
             }}
           >
             {beat.status === 'DONE' ? <Check size={10} /> : <Clock size={10} />}

@@ -134,4 +134,108 @@ describe('roundtrip', () => {
       }
     }
   })
+
+  it('full roundtrip produces identical script lines', () => {
+    const script: ScriptLine[] = [
+      { type: 'line', text: 'Opening statement.' },
+      { type: 'note', tag: 'NARRACAO', text: 'voiceover tone' },
+      { type: 'pause', duration: 2 },
+      { type: 'ref', text: 'research doc link' },
+      { type: 'line', text: 'Closing remark.', accent: '#ff0000' },
+    ]
+    const beat: RoteiroBeat = { idx: 1, name: 'Intro', status: 'DONE', script }
+    const doc = roteiroToTipTap(beat)
+    const result = tipTapToRoteiro(doc)
+    expect(result).toEqual(script)
+  })
+
+  it('empty beat roundtrips to empty array', () => {
+    const beat: RoteiroBeat = { idx: 0, name: 'Empty', status: 'PENDING', script: [] }
+    const doc = roteiroToTipTap(beat)
+    // Empty script should produce a doc with one empty paragraph
+    expect(doc).toEqual({ type: 'doc', content: [{ type: 'paragraph' }] })
+    // Converting that empty doc back should yield no script lines
+    const result = tipTapToRoteiro(doc)
+    expect(result).toEqual([])
+  })
+
+  it('pause with duration 0 serializes correctly', () => {
+    const script: ScriptLine[] = [{ type: 'pause', duration: 0 }]
+    const beat: RoteiroBeat = { idx: 0, name: 'P', status: 'PENDING', script }
+    const doc = roteiroToTipTap(beat)
+    expect(doc.content![0]).toEqual({ type: 'scriptPause', attrs: { duration: 0 } })
+    const result = tipTapToRoteiro(doc)
+    expect(result).toEqual([{ type: 'pause', duration: 0 }])
+  })
+
+  it('ref whose text starts with "REF " does not double-strip', () => {
+    const script: ScriptLine[] = [{ type: 'ref', text: 'REF internal note' }]
+    const beat: RoteiroBeat = { idx: 0, name: 'R', status: 'PENDING', script }
+    const doc = roteiroToTipTap(beat)
+    // TipTap doc should have: bold "REF " + "REF internal note"
+    const bq = doc.content![0]!
+    expect(bq.type).toBe('blockquote')
+    const paraContent = bq.content![0]!.content!
+    expect(paraContent[0]!.text).toBe('REF ')
+    expect(paraContent[1]!.text).toBe('REF internal note')
+    // tipTapToRoteiro extracts "REF REF internal note", strips first "REF " -> "REF internal note"
+    const result = tipTapToRoteiro(doc)
+    expect(result).toEqual([{ type: 'ref', text: 'REF internal note' }])
+  })
+
+  it('mixed content order [note, line, pause, line, ref] preserves order', () => {
+    const script: ScriptLine[] = [
+      { type: 'note', tag: 'VISUAL', text: 'wide shot' },
+      { type: 'line', text: 'First sentence.' },
+      { type: 'pause', duration: 1.5 },
+      { type: 'line', text: 'Second sentence.' },
+      { type: 'ref', text: 'source document' },
+    ]
+    const beat: RoteiroBeat = { idx: 0, name: 'Mix', status: 'PENDING', script }
+    const doc = roteiroToTipTap(beat)
+    const result = tipTapToRoteiro(doc)
+    expect(result).toEqual(script)
+  })
+})
+
+describe('edge cases', () => {
+  it('line with accent but no text content is skipped on deserialization', () => {
+    // roteiroToTipTap would not normally produce this (line requires text),
+    // but TipTap editor could yield an empty paragraph with a highlight mark
+    const doc = {
+      type: 'doc' as const,
+      content: [{
+        type: 'paragraph',
+        content: [{ type: 'text', text: '', marks: [{ type: 'highlight', attrs: { color: '#00ff00' } }] }],
+      }],
+    }
+    const result = tipTapToRoteiro(doc)
+    // extractText returns '' for the empty text node, so paragraph is skipped
+    expect(result).toEqual([])
+  })
+
+  it('scriptTag with missing tag attribute falls back to VISUAL', () => {
+    const doc = {
+      type: 'doc' as const,
+      content: [{
+        type: 'scriptTag',
+        attrs: {},
+        content: [{ type: 'text', text: 'some direction' }],
+      }],
+    }
+    const result = tipTapToRoteiro(doc)
+    expect(result).toEqual([{ type: 'note', tag: 'VISUAL', text: 'some direction' }])
+  })
+
+  it('scriptTag with undefined attrs falls back to VISUAL', () => {
+    const doc = {
+      type: 'doc' as const,
+      content: [{
+        type: 'scriptTag',
+        content: [{ type: 'text', text: 'no attrs at all' }],
+      }],
+    }
+    const result = tipTapToRoteiro(doc)
+    expect(result).toEqual([{ type: 'note', tag: 'VISUAL', text: 'no attrs at all' }])
+  })
 })
