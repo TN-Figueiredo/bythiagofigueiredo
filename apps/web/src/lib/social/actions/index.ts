@@ -62,3 +62,9 @@ export { getNextQueueSlotAction } from './queue'
 
 // Legacy functions not yet in a dedicated module
 export { retryPostDeliveries, markAsPosted } from './_legacy'
+
+// Story insights (per-slide metrics + drop-off analysis)
+export { getStoryInsights } from './story-metrics'
+
+// Fan scoring
+export { getTopFans, recordFanInteraction, refreshFanScores } from './fans'
