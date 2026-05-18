@@ -11,14 +11,14 @@ interface EmailNotificationInput {
   title: string
 }
 
-interface EmailResult {
+interface EmailFallbackResult {
   ok: boolean
   error?: string
 }
 
 export async function sendStoryEmailNotification(
   input: EmailNotificationInput,
-): Promise<EmailResult> {
+): Promise<EmailFallbackResult> {
   const apiKey = process.env.RESEND_API_KEY
   if (!apiKey) {
     return { ok: false, error: 'RESEND_API_KEY not configured' }
@@ -30,14 +30,14 @@ export async function sendStoryEmailNotification(
   try {
     const adapter = new ResendEmailAdapter(apiKey)
 
-    const result = await adapter.send({
+    await adapter.send({
       from: { email: `noreply@${fromDomain}`, name: 'Social Hub' },
       to: input.to,
       subject: `Story Ready: ${input.title}`,
       html: `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 480px; margin: 0 auto; padding: 24px;">
           <h2 style="color: #0a0a0a; font-size: 20px; margin-bottom: 16px;">Story Ready to Post</h2>
-          <p style="color: #525252; font-size: 14px; margin-bottom: 16px;">"${input.title}"</p>
+          <p style="color: #525252; font-size: 14px; margin-bottom: 16px;">&ldquo;${input.title}&rdquo;</p>
           <img src="${input.imageUrl}" alt="Story preview" style="width: 100%; max-width: 270px; border-radius: 12px; margin-bottom: 16px;" />
           <div style="background: #f5f5f5; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;">
             <p style="color: #525252; font-size: 12px; margin: 0 0 4px;">Link sticker URL:</p>
@@ -53,21 +53,13 @@ export async function sendStoryEmailNotification(
       `,
     })
 
-    if (!result.success) {
-      Sentry.captureMessage(
-        `Resend story email failed: ${result.error ?? 'unknown'}`,
-        {
-          level: 'warning',
-          tags: SENTRY_TAG,
-        },
-      )
-      return { ok: false, error: result.error ?? 'Email send failed' }
-    }
-
     return { ok: true }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
-    Sentry.captureException(err, { tags: SENTRY_TAG })
+    Sentry.captureMessage(`Resend story email failed: ${message}`, {
+      level: 'warning',
+      tags: SENTRY_TAG,
+    })
     return { ok: false, error: message }
   }
 }

@@ -20,16 +20,13 @@ vi.mock('@/lib/supabase/service', () => ({
   })),
 }))
 
-// Mock Resend — use virtual module since resend is consumed via @tn-figueiredo/email,
-// not installed directly in apps/web
-vi.mock('resend', () => ({
-  __esModule: true,
-  Resend: vi.fn().mockImplementation(() => ({
-    emails: {
-      send: vi
-        .fn()
-        .mockResolvedValue({ data: { id: 'email-123' }, error: null }),
-    },
+// Mock @tn-figueiredo/email — ResendEmailAdapter used by email-fallback
+vi.mock('@tn-figueiredo/email', () => ({
+  ResendEmailAdapter: vi.fn().mockImplementation(() => ({
+    send: vi.fn().mockResolvedValue({
+      messageId: 'msg-123',
+      provider: 'resend' as const,
+    }),
   })),
 }))
 
