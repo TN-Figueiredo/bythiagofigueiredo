@@ -1,6 +1,12 @@
 'use client'
 
 import { useRef, useCallback, useEffect } from 'react'
+import {
+  resolveCaption,
+  resolvedLength,
+  PLATFORM_CAPTION_DEFAULTS,
+  type CaptionContext,
+} from '@/lib/social/caption-variables'
 
 // ---------------------------------------------------------------------------
 // Variable highlighting regex — only known variables
@@ -8,79 +14,8 @@ import { useRef, useCallback, useEffect } from 'react'
 
 const VARIABLE_REGEX = /\{\{(link|title|url)\}\}/g
 
-// ---------------------------------------------------------------------------
-// Per-platform caption defaults (spec Section 2)
-// ---------------------------------------------------------------------------
-
-export const PLATFORM_CAPTION_DEFAULTS: Record<string, string> = {
-  facebook: '{{title}}\n\n{{link}}',
-  bluesky: '{{title}}\n\n{{link}}',
-  instagram: '{{title}}\n\nLink na bio',
-  youtube: '{{title}}\n\n{{link}}',
-}
-
-// ---------------------------------------------------------------------------
-// Placeholder short link length (24 chars — "go.btf.com/______" pattern)
-// ---------------------------------------------------------------------------
-
-const SHORT_LINK_PLACEHOLDER_LENGTH = 24
-
-// ---------------------------------------------------------------------------
-// Resolve caption for preview (mirrors caption-variables.ts from Phase 1)
-// ---------------------------------------------------------------------------
-
-function resolveForPreview(
-  template: string,
-  contentTitle: string,
-  contentUrl: string,
-  shortDomain: string,
-): string {
-  return template.replace(VARIABLE_REGEX, (match, varName: string) => {
-    switch (varName) {
-      case 'link':
-        return `${shortDomain}/______`
-      case 'title':
-        return contentTitle
-      case 'url':
-        return contentUrl
-      default:
-        return match
-    }
-  })
-}
-
-function resolvedLength(
-  template: string,
-  contentTitle: string,
-  contentUrl: string,
-): number {
-  let length = 0
-  let lastIndex = 0
-  const regex = new RegExp(VARIABLE_REGEX.source, 'g')
-  let m: RegExpExecArray | null
-
-  while ((m = regex.exec(template)) !== null) {
-    length += m.index - lastIndex
-    const varName = m[1]
-    switch (varName) {
-      case 'link':
-        length += SHORT_LINK_PLACEHOLDER_LENGTH
-        break
-      case 'title':
-        length += contentTitle.length
-        break
-      case 'url':
-        length += contentUrl.length
-        break
-      default:
-        length += m[0].length // literal passthrough
-    }
-    lastIndex = regex.lastIndex
-  }
-
-  length += template.length - lastIndex
-  return length
-}
+// Re-export for callers that import from this module
+export { PLATFORM_CAPTION_DEFAULTS }
 
 // ---------------------------------------------------------------------------
 // Char count color (90% = amber, 100% = red)
@@ -138,9 +73,14 @@ export function CaptionVariableTextarea({
   // Build overlay content with highlighted spans
   const overlayContent = buildOverlayContent(value)
 
-  // Resolved preview
-  const resolvedText = resolveForPreview(value, contentTitle, contentUrl, shortDomain)
-  const charCount = resolvedLength(value, contentTitle, contentUrl)
+  // Resolved preview — uses imported resolveCaption / resolvedLength from caption-variables.ts
+  const captionCtx: CaptionContext = {
+    link: `${shortDomain}/______`,
+    title: contentTitle,
+    url: contentUrl,
+  }
+  const resolvedText = resolveCaption(value, captionCtx)
+  const charCount = resolvedLength(value, captionCtx)
 
   // Soft validation: no {{link}}
   const hasLink = /\{\{link\}\}/.test(value)

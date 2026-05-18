@@ -6,6 +6,11 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { decrypt, getMasterKey } from '@tn-figueiredo/social'
 import type { SocialConfig } from '@/lib/social/types'
 import {
+  checkDuplicates,
+  getDuplicateWarnings,
+  type DuplicateWarnings,
+} from '@/lib/social/duplicate-detection'
+import {
   SENTRY_TAG,
   zodError,
   requireEditAccess,
@@ -235,6 +240,37 @@ export async function scrapeOgTags(
     return { ok: true, data: scrapeData }
   } catch (err) {
     Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'scrapeOgTags' } })
+    return { ok: false, error: err instanceof Error ? err.message : 'unknown' }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Duplicate detection
+// ---------------------------------------------------------------------------
+
+/**
+ * Checks for existing social posts linked to the same CMS content and computes
+ * duplicate warnings for the given target platforms.
+ * Called from the composer before publish to surface conflicts.
+ */
+export async function checkDuplicatesAction(
+  contentType: string,
+  contentId: string,
+  targetPlatforms: string[],
+): Promise<{ ok: true; data: DuplicateWarnings } | { ok: false; error: string }> {
+  const parsedType = contentTypeSchema.safeParse(contentType)
+  if (!parsedType.success) return { ok: false, error: 'Invalid content type' }
+  const parsedId = contentIdSchema.safeParse(contentId)
+  if (!parsedId.success) return { ok: false, error: 'Invalid content ID' }
+
+  try {
+    await requireEditAccess()
+    const supabase = getSupabaseServiceClient()
+    const { posts } = await checkDuplicates(supabase, parsedType.data, parsedId.data)
+    const warnings = getDuplicateWarnings(posts, targetPlatforms)
+    return { ok: true, data: warnings }
+  } catch (err) {
+    Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'checkDuplicatesAction' } })
     return { ok: false, error: err instanceof Error ? err.message : 'unknown' }
   }
 }

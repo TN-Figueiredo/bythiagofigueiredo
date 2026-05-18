@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { notifyStoryReady } from '@/lib/social/notifications/notify-story-ready'
 import {
   decrypt,
   encrypt,
@@ -218,6 +219,15 @@ async function prepareStoryDelivery(
       },
     )
 
+    // Non-blocking notification: fire and forget
+    notifyStoryReady({
+      userId: post.created_by,
+      postId: post.id,
+      title: post.content.title ?? '',
+      imageUrl: blob.url,
+      shortUrl: post.content.url ?? '',
+    }).catch(() => {})
+
     return {
       ...post,
       content: {
@@ -246,6 +256,16 @@ async function prepareStoryDelivery(
         access: 'public',
         addRandomSuffix: false,
       })
+
+      // Non-blocking notification for fallback path too
+      notifyStoryReady({
+        userId: post.created_by,
+        postId: post.id,
+        title: post.content.title ?? '',
+        imageUrl: blob.url,
+        shortUrl: post.content.url ?? '',
+      }).catch(() => {})
+
       return {
         ...post,
         content: { ...post.content, media_urls: [blob.url] },

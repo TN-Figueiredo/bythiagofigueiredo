@@ -23,11 +23,12 @@ export {
   editPublishedPost,
 } from './posts'
 
-// Content helpers (get content metadata, create from CMS content, OG scraping)
+// Content helpers (get content metadata, create from CMS content, OG scraping, duplicate detection)
 export {
   getContentForSocialPost,
   createFromContentAction,
   scrapeOgTags,
+  checkDuplicatesAction,
 } from './content'
 
 // Template management
