@@ -5,14 +5,23 @@ import { Kanban, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import type { EditorialTabData, BlogTag, PipelineCardItem } from '../../_hub/hub-types'
+import type { EditorialTabData, BlogTag, PipelineCardItem, PostCard } from '../../_hub/hub-types'
 import type { BlogHubStrings } from '../../_i18n/types'
 import { UnifiedBoard } from './unified-board'
 import { EmptyState } from '../../_shared/empty-state'
 import { SectionErrorBoundary } from '../../_shared/section-error-boundary'
 import { ConfirmDialog } from './confirm-dialog'
+import { AutoShareDialog } from '../../../_shared/social/auto-share-dialog'
 import { movePost, deleteHubPost, duplicatePost, createPostFromPipeline, returnToPipeline, bulkPublish, bulkArchive, bulkDelete } from '../../actions'
 import { movePipelineItemToStage } from '../../../pipeline/actions'
+import type { Provider } from '@tn-figueiredo/social'
+
+interface AutoShareState {
+  postId: string
+  title: string
+  excerpt: string | null
+  coverImage: string | null
+}
 
 interface EditorialTabProps {
   data: EditorialTabData
@@ -25,6 +34,7 @@ interface EditorialTabProps {
   siteTimezone?: string
   tags?: BlogTag[]
   defaultLocale?: string
+  connectedPlatforms?: Provider[]
 }
 
 export function EditorialTab({
@@ -38,6 +48,7 @@ export function EditorialTab({
   siteTimezone = 'America/Sao_Paulo',
   tags,
   defaultLocale = 'pt-BR',
+  connectedPlatforms = [],
 }: EditorialTabProps) {
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState('')
@@ -45,6 +56,7 @@ export function EditorialTab({
   const [, startTransition] = useTransition()
   const [deleteConfirmPostId, setDeleteConfirmPostId] = useState<string | null>(null)
   const deleteTriggerRef = useRef<string | null>(null)
+  const [autoShareState, setAutoShareState] = useState<AutoShareState | null>(null)
 
   const tagFiltered = tagId
     ? data.posts.filter((p) => p.tagId === tagId)
@@ -83,11 +95,21 @@ export function EditorialTab({
 
   const handleMovePost = useCallback(
     async (postId: string, newStatus: string, scheduledFor?: string) => {
-      const previousStatus = data.posts.find((p) => p.id === postId)?.status
+      const post = data.posts.find((p) => p.id === postId)
+      const previousStatus = post?.status
       startTransition(async () => {
         const result = await movePost(postId, newStatus, scheduledFor)
         if (result.ok) {
           router.refresh()
+          // Show auto-share dialog when publishing and social platforms are connected
+          if (newStatus === 'published' && connectedPlatforms.length > 0 && post) {
+            setAutoShareState({
+              postId,
+              title: post.title,
+              excerpt: post.excerpt ?? null,
+              coverImage: post.coverImageUrl ?? null,
+            })
+          }
           toast.success(strings?.common?.moved ?? 'Moved', {
             action: previousStatus
               ? {
@@ -112,7 +134,7 @@ export function EditorialTab({
         }
       })
     },
-    [data.posts, router, startTransition, strings],
+    [data.posts, router, startTransition, strings, connectedPlatforms],
   )
 
   const handleDeletePost = useCallback(
@@ -357,6 +379,69 @@ export function EditorialTab({
           onConfirm={handleDeleteConfirm}
           onCancel={handleDeleteCancel}
           variant="danger"
+        />
+      )}
+
+      {autoShareState && (
+        <AutoShareDialog
+          open
+          onClose={() => setAutoShareState(null)}
+          contentType="blog"
+          contentId={autoShareState.postId}
+          contentTitle={autoShareState.title}
+          contentUrl={`${typeof window !== 'undefined' ? window.location.origin : ''}/blog`}
+          contentExcerpt={autoShareState.excerpt}
+          contentImage={autoShareState.coverImage}
+          availablePlatforms={connectedPlatforms}
+          defaultPlatforms={connectedPlatforms}
+          onShareNow={async (payload) => {
+            setAutoShareState(null)
+            try {
+              const { createFromContentAction } = await import('@/lib/social/actions/content')
+              const result = await createFromContentAction({
+                contentType: 'blog',
+                contentId: autoShareState.postId,
+                config: {
+                  enabled: true,
+                  platforms: payload.platforms,
+                  captions: Object.fromEntries(
+                    payload.platforms.map((p) => [p, { default: payload.caption }]),
+                  ),
+                  hashtags: [],
+                  image_source: 'cover_image',
+                  ig_template: 'minimal',
+                  formats: {},
+                },
+                origin: 'publish_modal',
+              })
+              if (result.ok) {
+                const platformNames = payload.platforms
+                  .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+                  .join(', ')
+                toast.success(`Shared to ${platformNames}`)
+              } else {
+                toast.error(result.error)
+              }
+            } catch {
+              toast.error('Failed to create social post')
+            }
+          }}
+          onCustomize={() => {
+            const postId = autoShareState.postId
+            setAutoShareState(null)
+            router.push(`/cms/social/new?source=blog&id=${postId}`)
+          }}
+          strings={{
+            autoShare: {
+              title: defaultLocale === 'pt-BR' ? 'Compartilhar nas redes' : 'Share to Social',
+              shareNow: defaultLocale === 'pt-BR' ? 'Compartilhar' : 'Share Now',
+              customize: defaultLocale === 'pt-BR' ? 'Personalizar no Composer' : 'Customize in Composer',
+              skip: defaultLocale === 'pt-BR' ? 'Pular' : 'Skip',
+              captionLabel: defaultLocale === 'pt-BR' ? 'Legenda' : 'Caption preview',
+              undoToast: defaultLocale === 'pt-BR' ? 'Compartilhado em {platforms}' : 'Shared to {platforms}',
+              undoAction: defaultLocale === 'pt-BR' ? 'Desfazer' : 'Undo',
+            },
+          }}
         />
       )}
     </div>
