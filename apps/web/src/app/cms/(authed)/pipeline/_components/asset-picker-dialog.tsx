@@ -147,6 +147,7 @@ export function AssetPickerDialog({ assetType, context, onSelect, onCancel, init
   const [activeTagFilters, setActiveTagFilters] = useState<Set<string>>(() => new Set(context.suggestedTags))
   const [categoryFilter, setCategoryFilter] = useState<string | null>(context.suggestedCategory ?? null)
   const [resolutionFilter, setResolutionFilter] = useState<string | null>(context.suggestedResolution ?? null)
+  const [audioTypeFilter, setAudioTypeFilter] = useState<'music' | 'sfx' | null>(null)
 
   const dialogRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
@@ -166,9 +167,10 @@ export function AssetPickerDialog({ assetType, context, onSelect, onCancel, init
     if (tags.length > 0) params.set('tags', tags.join(','))
     if (categoryFilter) params.set('category', categoryFilter)
     if (assetType === 'broll' && resolutionFilter) params.set('resolution', resolutionFilter)
+    if (assetType === 'audio' && audioTypeFilter) params.set('type', audioTypeFilter)
     params.set('limit', '40')
     return params
-  }, [query, activeTagFilters, categoryFilter, resolutionFilter, assetType])
+  }, [query, activeTagFilters, categoryFilter, resolutionFilter, audioTypeFilter, assetType])
 
   // Fetch results
   const fetchResults = useCallback(async () => {
@@ -320,10 +322,9 @@ export function AssetPickerDialog({ assetType, context, onSelect, onCancel, init
                 <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gem-muted)', marginBottom: 6 }}>Type</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                   {([null, 'music', 'sfx'] as const).map(t => {
-                    // Audio type filter stored in query params
-                    const active = false // Simplified: this would need a separate state
+                    const active = audioTypeFilter === t
                     return (
-                      <button key={String(t)} type="button" aria-pressed={active}
+                      <button key={String(t)} type="button" aria-pressed={active} onClick={() => setAudioTypeFilter(t)}
                         style={{ padding: '3px 6px', fontSize: 10, borderRadius: 4, border: '1px solid var(--gem-border)', background: active ? 'var(--gem-accent)' : 'var(--gem-well)', color: active ? '#fff' : 'var(--gem-muted)', cursor: 'pointer', fontWeight: active ? 600 : 400, textAlign: 'left' }}>
                         {t === null ? 'All' : t === 'music' ? 'Music' : 'SFX'}
                       </button>

@@ -12,8 +12,9 @@ interface BRollCardProps {
 }
 
 const STATUS_LABEL: Record<string, string> = {
-  ready: 'Ready',
+  available: 'Available',
   pending: 'Pending',
+  retired: 'Retired',
 }
 
 const STATUS_BADGE_STYLE: Record<string, React.CSSProperties> = {
@@ -22,6 +23,19 @@ const STATUS_BADGE_STYLE: Record<string, React.CSSProperties> = {
     color: '#fbbf24',
     border: '1px solid rgba(234,179,8,0.25)',
   },
+}
+
+/** Validates a thumbnail URL to only allow https: and data:image/ schemes. */
+function sanitizeThumbnailUrl(url: string | null | undefined): string | null {
+  if (!url) return null
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol === 'https:') return url
+    if (parsed.protocol === 'data:' && url.startsWith('data:image/')) return url
+    return null
+  } catch {
+    return null
+  }
 }
 
 function BRollCardInner({ asset, selected, onSelect }: BRollCardProps) {
@@ -45,6 +59,7 @@ function BRollCardInner({ asset, selected, onSelect }: BRollCardProps) {
   const displayName = renamed_to ?? original_filename
   const visibleTags = tags.slice(0, 3)
   const overflowCount = tags.length - 3
+  const safeThumbnailUrl = sanitizeThumbnailUrl(thumbnail_url)
 
   const frames = Array.isArray((metadata as Record<string, unknown>)?.frame_strip)
     ? ((metadata as Record<string, unknown>).frame_strip as Array<{ url: string; timestamp: number }>)
@@ -106,7 +121,7 @@ function BRollCardInner({ asset, selected, onSelect }: BRollCardProps) {
           frames={frames}
           duration={duration_seconds}
           resolution={resolution}
-          thumbnailUrl={thumbnail_url}
+          thumbnailUrl={safeThumbnailUrl}
         />
 
         {/* Duration badge */}

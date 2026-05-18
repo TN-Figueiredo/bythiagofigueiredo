@@ -71,10 +71,11 @@ export function BRollLibrary({ initialAssets, stats }: BRollLibraryProps) {
     try {
       const qs = params instanceof URLSearchParams ? params.toString() : new URLSearchParams(params).toString()
       const res = await fetch(`/api/pipeline/broll-library${qs ? `?${qs}` : ''}`, { signal: controller.signal })
+      if (controller.signal.aborted) return
       if (!res.ok) { setFetchError('Failed to load assets'); return }
       const json = await res.json()
       if (!controller.signal.aborted) { setAssets(json.data); setHasNext(json.meta?.has_next ?? false); setNextCursor(json.meta?.next_cursor ?? null) }
-    } catch (e) { if (e instanceof DOMException && e.name === 'AbortError') return; setFetchError('Network error') }
+    } catch (e) { if (e instanceof DOMException && e.name === 'AbortError') return; if (!controller.signal.aborted) setFetchError('Network error') }
     finally { if (!controller.signal.aborted) setLoading(false) }
   }, [])
 
@@ -86,10 +87,11 @@ export function BRollLibrary({ initialAssets, stats }: BRollLibraryProps) {
     try {
       const params = serializeFilters(filters); params.set('cursor', nextCursor)
       const res = await fetch(`/api/pipeline/broll-library?${params.toString()}`, { signal: controller.signal })
+      if (controller.signal.aborted) return
       if (!res.ok) { setFetchError('Failed to load more assets'); return }
       const json = await res.json()
       if (!controller.signal.aborted) { setAssets(prev => [...prev, ...json.data]); setHasNext(json.meta?.has_next ?? false); setNextCursor(json.meta?.next_cursor ?? null) }
-    } catch (e) { if (e instanceof DOMException && e.name === 'AbortError') return; setFetchError('Network error') }
+    } catch (e) { if (e instanceof DOMException && e.name === 'AbortError') return; if (!controller.signal.aborted) setFetchError('Network error') }
     finally { if (!controller.signal.aborted) setLoadingMore(false) }
   }, [hasNext, nextCursor, loadingMore, filters])
 

@@ -85,7 +85,7 @@ export function BRollFilters({ filters, setFilters, clearAll, activeCount, asset
 
   const statusCounts = useMemo(() => ({
     all: assets.length,
-    ready: assets.filter(a => a.status === 'available').length,
+    available: assets.filter(a => a.status === 'available').length,
     pending: assets.filter(a => a.status === 'pending').length,
   }), [assets])
 
@@ -201,7 +201,7 @@ export function BRollFilters({ filters, setFilters, clearAll, activeCount, asset
             onChange={(v) => setFilters({ status: v as BRollFilterState['status'] })}
             options={[
               { value: null, label: 'All', count: statusCounts.all },
-              { value: 'ready', label: 'Ready', count: statusCounts.ready },
+              { value: 'available', label: 'Available', count: statusCounts.available },
               { value: 'pending', label: 'Pending', count: statusCounts.pending },
             ]} />
         </Section>

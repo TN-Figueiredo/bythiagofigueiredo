@@ -385,7 +385,13 @@ export function BRollDetail({ assetId, allAssets, onClose, onFilter, fullWidth }
           <div role="alert" style={{ fontSize: 11, color: '#f87171', background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 4, padding: '5px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>Asset was modified. Merge or force save?</span>
             <div style={{ display: 'flex', gap: 6 }}>
-              <button onClick={() => { setConflict(false); setEditing(false); setDraft(null); setLoading(true); fetch(`/api/pipeline/broll-library/${assetId}`).then(r => r.json() as Promise<{ data: AssetWithUsage }>).then(json => { setAsset(json.data); setLoading(false) }).catch(() => setLoading(false)) }} style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3, background: 'none', border: '1px solid #f87171', color: '#f87171', cursor: 'pointer' }}>Refresh &amp; merge</button>
+              <button onClick={() => {
+                setConflict(false); setEditing(false); setDraft(null); setLoading(true)
+                fetch(`/api/pipeline/broll-library/${assetId}`)
+                  .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() as Promise<{ data: AssetWithUsage }> })
+                  .then(json => { setAsset(json.data); setLoading(false) })
+                  .catch(() => { setSaveError('Failed to refresh. Please try again.'); setLoading(false) })
+              }} style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3, background: 'none', border: '1px solid #f87171', color: '#f87171', cursor: 'pointer' }}>Refresh &amp; merge</button>
               <button onClick={() => handleSave(true)} style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3, background: 'rgba(248,113,113,0.2)', border: '1px solid #f87171', color: '#f87171', cursor: 'pointer' }}>Force save</button>
             </div>
           </div>
