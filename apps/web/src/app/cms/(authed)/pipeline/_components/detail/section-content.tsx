@@ -13,11 +13,14 @@ import { DraftRenderer } from './renderers/draft-renderer'
 import { SeoRenderer } from './renderers/seo-renderer'
 import { ImagesRenderer } from './renderers/images-renderer'
 import { GenericRenderer } from './renderers/generic-renderer'
+import { PostProductionView } from './renderers/postprod-renderer'
 
 const REGISTRY: Record<string, React.ComponentType<RendererProps>> = {
   ideia: IdeaRenderer,
   roteiro: ScriptRenderer,
   brolls: BRollRenderer,
+  postprod: PostProductionView,
+  // Legacy sub-section keys — kept for backward compat with existing data
   postprod_scenes: SceneGuideRenderer,
   postprod_crossref: CrossRefRenderer,
   postprod_speedramps: SpeedRampRenderer,
