@@ -13,6 +13,42 @@
     "./client": {
       "import": "./src/client.ts",
       "types": "./src/client.ts"
+    },
+    "./qr-card-builder/use-card-composition": {
+      "import": "./src/components/qr-card-builder/use-card-composition.ts",
+      "types": "./src/components/qr-card-builder/use-card-composition.ts"
+    },
+    "./qr-card-builder/use-canvas-interaction": {
+      "import": "./src/components/qr-card-builder/use-canvas-interaction.ts",
+      "types": "./src/components/qr-card-builder/use-canvas-interaction.ts"
+    },
+    "./qr-card-builder/color-picker": {
+      "import": "./src/components/qr-card-builder/color-picker.tsx",
+      "types": "./src/components/qr-card-builder/color-picker.tsx"
+    },
+    "./qr-card-builder/layers-panel": {
+      "import": "./src/components/qr-card-builder/layers-panel.tsx",
+      "types": "./src/components/qr-card-builder/layers-panel.tsx"
+    },
+    "./qr-card-builder/text-inspector": {
+      "import": "./src/components/qr-card-builder/text-inspector.tsx",
+      "types": "./src/components/qr-card-builder/text-inspector.tsx"
+    },
+    "./qr-card-builder/image-inspector": {
+      "import": "./src/components/qr-card-builder/image-inspector.tsx",
+      "types": "./src/components/qr-card-builder/image-inspector.tsx"
+    },
+    "./qr-card-builder/multi-inspector": {
+      "import": "./src/components/qr-card-builder/multi-inspector.tsx",
+      "types": "./src/components/qr-card-builder/multi-inspector.tsx"
+    },
+    "./qr-card-builder/context-menu": {
+      "import": "./src/components/qr-card-builder/context-menu.tsx",
+      "types": "./src/components/qr-card-builder/context-menu.tsx"
+    },
+    "./qr-card-builder/inspector-field": {
+      "import": "./src/components/qr-card-builder/inspector-field.tsx",
+      "types": "./src/components/qr-card-builder/inspector-field.tsx"
     }
   },
   "scripts": {

@@ -1,8 +1,10 @@
 'use client'
 
+import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import type { SocialPost, Provider } from '@tn-figueiredo/social'
 import { SocialStatusBadge } from '@/app/cms/(authed)/_shared/social/social-status-badge'
+import { retrySocialDelivery } from '@/lib/social/actions'
 import type { SocialStrings } from '../_i18n/types'
 
 interface PostCardProps {
@@ -11,6 +13,8 @@ interface PostCardProps {
   selected: boolean
   onSelect: (id: string) => void
   platforms?: Provider[]
+  failedDeliveryIds?: string[]
+  metricsLine?: string | null
 }
 
 const PLATFORM_COLORS: Record<Provider, string> = {
@@ -27,13 +31,41 @@ const PLATFORM_SHORT: Record<Provider, string> = {
   youtube: 'YT',
 }
 
-export function PostCard({ post, strings: t, selected, onSelect, platforms }: PostCardProps) {
+export function PostCard({
+  post,
+  strings: t,
+  selected,
+  onSelect,
+  platforms,
+  failedDeliveryIds,
+  metricsLine,
+}: PostCardProps) {
+  const [isPending, startTransition] = useTransition()
+  const [retryError, setRetryError] = useState<string | null>(null)
+
   const contentPreview = post.content.title ?? post.content.description ?? t.posts.noContent
   const statusLabel = t.status[post.status as keyof typeof t.status] ?? post.status
   const dateStr = post.published_at ?? post.scheduled_at ?? post.created_at
+  const isFailed = post.status === 'failed' || post.status === 'partial_failure'
+
+  function handleRetryAll() {
+    if (!failedDeliveryIds || failedDeliveryIds.length === 0) return
+    setRetryError(null)
+    startTransition(async () => {
+      for (const deliveryId of failedDeliveryIds) {
+        const result = await retrySocialDelivery(deliveryId)
+        if (!result.ok) {
+          setRetryError(result.error ?? t.common.error)
+          return
+        }
+      }
+    })
+  }
 
   return (
-    <div className={`flex items-start gap-3 rounded-lg border bg-cms-surface p-4 transition-colors ${selected ? 'border-cms-accent/50 bg-cms-accent/5' : 'border-cms-border'}`}>
+    <div className={`flex items-start gap-3 rounded-lg border bg-cms-surface p-4 transition-colors ${
+      selected ? 'border-cms-accent/50 bg-cms-accent/5' : isFailed ? 'border-red-500/30' : 'border-cms-border'
+    }`}>
       <input
         type="checkbox"
         checked={selected}
@@ -65,9 +97,32 @@ export function PostCard({ post, strings: t, selected, onSelect, platforms }: Po
           <p className="text-xs text-cms-text-muted mt-0.5 truncate">{post.content.url}</p>
         )}
 
-        <p className="text-xs text-cms-text-dim mt-1">
-          {new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-        </p>
+        {metricsLine && (
+          <p className="text-xs text-cms-text-dim mt-0.5">{metricsLine}</p>
+        )}
+
+        <div className="flex items-center gap-2 mt-1">
+          <p className="text-xs text-cms-text-dim">
+            {new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+          </p>
+
+          {isFailed && failedDeliveryIds && failedDeliveryIds.length > 0 && (
+            <button
+              type="button"
+              onClick={handleRetryAll}
+              disabled={isPending}
+              className="text-xs text-cms-accent hover:underline disabled:opacity-50"
+            >
+              {t.posts.card.retry}
+            </button>
+          )}
+        </div>
+
+        {retryError && (
+          <p role="alert" className="text-xs text-red-400 mt-1">
+            {retryError}
+          </p>
+        )}
       </div>
     </div>
   )

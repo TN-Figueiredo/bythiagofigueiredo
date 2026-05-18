@@ -23,6 +23,7 @@ export default defineConfig({
           /@tn-figueiredo\/auth-nextjs/,
           /@tn-figueiredo\/cms/,
           /@tn-figueiredo\/email/,
+          /@tn-figueiredo\/links-admin/,
         ],
       },
     },
