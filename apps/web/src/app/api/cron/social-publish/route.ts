@@ -16,7 +16,7 @@ export const maxDuration = 60
 const LOCK_KEY = 'cron:social-publish'
 const JOB = 'social-publish'
 const BATCH_LIMIT = 10
-const OG_SCRAPE_WINDOW_MS = 5 * 60 * 1000
+const PREPARE_WINDOW_MS = 5 * 60 * 1000
 
 function getStepStatus(
   steps: PipelineStep[] | null | undefined,
@@ -27,16 +27,16 @@ function getStepStatus(
   return step?.status
 }
 
-function needsOgScrape(post: Record<string, unknown>): boolean {
+function needsPlatformPrepare(post: Record<string, unknown>): boolean {
   const steps = post.pipeline_steps as PipelineStep[] | null
-  const ogStatus = getStepStatus(steps, 'og_scrape')
+  const ogStatus = getStepStatus(steps, 'platform_prepare')
   return ogStatus === 'pending' || ogStatus === undefined
 }
 
 function isWithinScrapeWindow(scheduledAt: string): boolean {
   const scheduledTime = new Date(scheduledAt).getTime()
   const now = Date.now()
-  return scheduledTime - now <= OG_SCRAPE_WINDOW_MS && scheduledTime > now
+  return scheduledTime - now <= PREPARE_WINDOW_MS && scheduledTime > now
 }
 
 function isReadyForDelivery(scheduledAt: string): boolean {
@@ -60,8 +60,8 @@ async function processBatch(
     const scheduledAt = post.scheduled_at as string
 
     try {
-      if (needsOgScrape(post) && isWithinScrapeWindow(scheduledAt)) {
-        await updatePipelineStep(supabase, post.id as string, 'og_scrape', 'in_progress')
+      if (needsPlatformPrepare(post) && isWithinScrapeWindow(scheduledAt)) {
+        await updatePipelineStep(supabase, post.id as string, 'platform_prepare', 'in_progress')
 
         const contentUrl = (post.content as Record<string, unknown>)?.url as string | undefined
 
@@ -86,18 +86,18 @@ async function processBatch(
             const scrapeData = scrapeResult as unknown as Record<string, unknown>
 
             if (scrapeResult.status === 'ok') {
-              await updatePipelineStep(supabase, post.id as string, 'og_scrape', 'completed', scrapeData)
+              await updatePipelineStep(supabase, post.id as string, 'platform_prepare', 'completed', scrapeData)
             } else {
-              await updatePipelineStep(supabase, post.id as string, 'og_scrape', 'warning', scrapeData)
+              await updatePipelineStep(supabase, post.id as string, 'platform_prepare', 'warning', scrapeData)
             }
           } else {
-            await updatePipelineStep(supabase, post.id as string, 'og_scrape', 'warning', {
+            await updatePipelineStep(supabase, post.id as string, 'platform_prepare', 'warning', {
               status: 'skipped',
               error: 'no_facebook_token',
             })
           }
         } else {
-          await updatePipelineStep(supabase, post.id as string, 'og_scrape', 'warning', {
+          await updatePipelineStep(supabase, post.id as string, 'platform_prepare', 'warning', {
             status: 'skipped',
             error: 'no_content_url',
           })
@@ -144,7 +144,7 @@ export async function POST(req: NextRequest) {
   const supabase = getSupabaseServiceClient()
   const runId = newRunId()
   const fiveMinFromNow = new Date(
-    Date.now() + OG_SCRAPE_WINDOW_MS,
+    Date.now() + PREPARE_WINDOW_MS,
   ).toISOString()
 
   return withCronLock(supabase, LOCK_KEY, runId, JOB, async () => {

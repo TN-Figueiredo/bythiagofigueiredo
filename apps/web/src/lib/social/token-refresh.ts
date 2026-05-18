@@ -40,7 +40,9 @@ export async function ensureFreshToken(
 
   let query = supabase
     .from('social_connections')
-    .select('id, access_token_enc, refresh_token_enc, token_expires_at')
+    .select(
+      'id, access_token_enc, refresh_token_enc, token_expires_at, metadata, bluesky_did, bluesky_access_jwt_enc, bluesky_refresh_jwt_enc, bluesky_jwt_expires_at',
+    )
     .eq('site_id', siteId)
     .eq('provider', provider)
     .is('revoked_at', null)
@@ -57,7 +59,10 @@ export async function ensureFreshToken(
   const key = getMasterKey()
   const accessToken = decrypt(conn.access_token_enc as string, key)
 
-  const expiresAt = conn.token_expires_at ? new Date(conn.token_expires_at) : null
+  const blueskyExpiresAt = conn.bluesky_jwt_expires_at as string | null
+  const effectiveExpiry =
+    provider === 'bluesky' && blueskyExpiresAt ? blueskyExpiresAt : conn.token_expires_at
+  const expiresAt = effectiveExpiry ? new Date(effectiveExpiry as string) : null
   const isExpired = expiresAt && expiresAt.getTime() - Date.now() < 5 * 60 * 1000
 
   if (!isExpired) {
@@ -74,7 +79,7 @@ export async function ensureFreshToken(
     case 'instagram':
       return refreshMeta(supabase, accessToken, key, connectionId, oldExpiresAt, provider)
     case 'bluesky':
-      throw new Error('Bluesky token refresh not yet supported')
+      return refreshBluesky(supabase, conn, key, connectionId, oldExpiresAt)
   }
 }
 
@@ -149,6 +154,98 @@ async function refreshMeta(
   }
 
   return { accessToken: refreshed.access_token, connectionId }
+}
+
+async function refreshBluesky(
+  supabase: ReturnType<typeof getSupabaseServiceClient>,
+  conn: {
+    id: unknown
+    access_token_enc: unknown
+    bluesky_did: unknown
+    bluesky_access_jwt_enc: unknown
+    bluesky_refresh_jwt_enc: unknown
+    bluesky_jwt_expires_at: unknown
+    metadata: unknown
+    token_expires_at: unknown
+  },
+  key: Buffer,
+  connectionId: string,
+  oldExpiresAt: string,
+): Promise<FreshToken> {
+  const blueskyRefreshJwt = conn.bluesky_refresh_jwt_enc as string | null
+  const blueskyAccessJwt = conn.bluesky_access_jwt_enc as string | null
+  const did = conn.bluesky_did as string | null
+
+  // Legacy connections without JWT columns — return app password as-is
+  if (!blueskyRefreshJwt || !blueskyAccessJwt || !did) {
+    const accessToken = decrypt(conn.access_token_enc as string, key)
+    return { accessToken, connectionId }
+  }
+
+  const metadata = conn.metadata as Record<string, unknown> | null
+  const handle = metadata?.handle as string | undefined
+  const pdsUrl = metadata?.pds_url as string | undefined
+
+  if (!handle) {
+    const accessToken = decrypt(conn.access_token_enc as string, key)
+    return { accessToken, connectionId }
+  }
+
+  try {
+    const { refreshSession } = await import('@tn-figueiredo/social/providers/bluesky')
+    const decryptedAccessJwt = decrypt(blueskyAccessJwt, key)
+    const decryptedRefreshJwt = decrypt(blueskyRefreshJwt, key)
+
+    const newSession = await refreshSession(
+      {
+        did,
+        handle,
+        accessJwt: decryptedAccessJwt,
+        refreshJwt: decryptedRefreshJwt,
+      },
+      pdsUrl,
+    )
+
+    const newAccessJwtEnc = encrypt(newSession.accessJwt, key)
+    const newRefreshJwtEnc = encrypt(newSession.refreshJwt, key)
+    const newExpiresAt = new Date(Date.now() + 90 * 60 * 1000).toISOString()
+
+    const casColumn = conn.bluesky_jwt_expires_at ? 'bluesky_jwt_expires_at' : 'token_expires_at'
+
+    const { count } = await supabase
+      .from('social_connections')
+      .update(
+        {
+          bluesky_access_jwt_enc: newAccessJwtEnc,
+          bluesky_refresh_jwt_enc: newRefreshJwtEnc,
+          bluesky_jwt_expires_at: newExpiresAt,
+          updated_at: new Date().toISOString(),
+        },
+        { count: 'exact' },
+      )
+      .eq('id', connectionId)
+      .eq(casColumn, oldExpiresAt)
+
+    if (count === 0) {
+      return reReadFreshToken(supabase, connectionId, key)
+    }
+
+    return { accessToken: newSession.accessJwt, connectionId }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err)
+    const isAuthError =
+      message.includes('InvalidToken') ||
+      message.includes('ExpiredToken') ||
+      message.includes('invalid_token') ||
+      message.includes('expired_token')
+
+    if (isAuthError) {
+      await markConnectionRevoked(connectionId)
+      throw new TokenRevokedError('bluesky', connectionId)
+    }
+
+    throw new Error(`Bluesky token refresh failed: ${message}`)
+  }
 }
 
 async function reReadFreshToken(

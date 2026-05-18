@@ -33,7 +33,7 @@ export type DeliveryFormat =
 // Pipeline step tracking
 // ---------------------------------------------------------------------------
 
-export type PipelineStepName = 'post_created' | 'short_link' | 'og_scrape' | 'deliver'
+export type PipelineStepName = 'post_created' | 'short_link' | 'platform_prepare' | 'deliver'
 
 export type PipelineStepStatus = 'pending' | 'in_progress' | 'completed' | 'warning' | 'failed'
 
@@ -64,7 +64,7 @@ export interface ContentMetadata {
 }
 
 // ---------------------------------------------------------------------------
-// OG scrape result
+// Platform prepare / OG scrape result
 // ---------------------------------------------------------------------------
 
 export interface OgScrapeResult {

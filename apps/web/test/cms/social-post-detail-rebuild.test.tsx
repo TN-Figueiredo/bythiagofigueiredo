@@ -89,7 +89,7 @@ describe('PipelineCompact', () => {
   const steps = [
     { step: 'post_created', status: 'completed', at: '2026-05-12T14:22:00Z' },
     { step: 'short_link', status: 'completed', at: '2026-05-12T14:22:01Z' },
-    { step: 'og_scrape', status: 'completed', at: '2026-05-12T14:23:12Z' },
+    { step: 'platform_prepare', status: 'completed', at: '2026-05-12T14:23:12Z' },
     { step: 'deliver', status: 'completed', at: '2026-05-12T14:25:38Z' },
   ]
 
@@ -97,7 +97,7 @@ describe('PipelineCompact', () => {
     render(<PipelineCompact steps={steps} />)
     expect(screen.getByText('Post')).toBeDefined()
     expect(screen.getByText('Short Link')).toBeDefined()
-    expect(screen.getByText('OG Scrape')).toBeDefined()
+    expect(screen.getByText('Platform Prepare')).toBeDefined()
     expect(screen.getByText('Deliver')).toBeDefined()
   })
 
@@ -121,7 +121,7 @@ describe('Timeline', () => {
   const events = [
     { type: 'created', timestamp: '2026-05-12T14:22:00Z', description: 'Post criado', origin: 'auto' },
     { type: 'short_link', timestamp: '2026-05-12T14:22:01Z', description: 'Short link criado', code: 'ai-empire' },
-    { type: 'og_scrape', timestamp: '2026-05-12T14:23:12Z', description: '7 tags validadas, 1.2s, 200 OK' },
+    { type: 'platform_prepare', timestamp: '2026-05-12T14:23:12Z', description: '7 tags validadas, 1.2s, 200 OK' },
     { type: 'delivery', timestamp: '2026-05-12T14:24:00Z', description: 'Facebook Entregue', platform: 'facebook', platformPostId: '123456789' },
     { type: 'delivery', timestamp: '2026-05-12T14:24:30Z', description: 'Instagram Entregue', platform: 'instagram', platformPostId: 'ig-123' },
     { type: 'delivery', timestamp: '2026-05-12T14:25:38Z', description: 'Bluesky Entregue', platform: 'bluesky', platformPostId: 'at://did:plc:abc' },

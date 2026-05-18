@@ -133,7 +133,7 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
   const ogValidated = (socialLinksRes.data ?? []).every((p) => {
     const steps = (p as Record<string, unknown>).pipeline_steps as Array<{ step: string; status: string }> | null
     if (!steps || !Array.isArray(steps)) return false
-    const ogStep = steps.find((s) => s.step === 'og_scrape')
+    const ogStep = steps.find((s) => s.step === 'platform_prepare')
     return ogStep?.status === 'completed'
   })
 

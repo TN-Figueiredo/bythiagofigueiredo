@@ -14,7 +14,7 @@ import type { OGTags } from './link-embed.js'
 export type { BlueskySession } from './client.js'
 export type { PostImageInput } from './post.js'
 export type { OGTags, ExternalEmbed } from './link-embed.js'
-export { createSession, resumeSession } from './client.js'
+export { createSession, resumeSession, refreshSession, isJwtExpiringSoon } from './client.js'
 export { createPost, deletePost, buildPostUrl } from './post.js'
 export { fetchOGTags, buildExternalEmbed, createPostWithLinkCard } from './link-embed.js'
 
@@ -108,6 +108,39 @@ export class BlueskyProvider implements ISocialProvider {
       return true
     } catch {
       return false
+    }
+  }
+
+  async refreshToken(
+    connection: SocialConnection,
+  ): Promise<{ access_token: string; expires_at?: Date } | null> {
+    const metadata = connection.metadata as unknown as BlueskyMetadata
+    const conn = connection as unknown as Record<string, unknown>
+
+    const refreshJwt = conn.bluesky_refresh_jwt_enc as string | null
+    if (!refreshJwt) return null
+
+    const accessJwt = conn.bluesky_access_jwt_enc as string | null
+    if (!accessJwt) return null
+
+    try {
+      const { refreshSession: doRefresh } = await import('./client.js')
+      const newSession = await doRefresh(
+        {
+          did: metadata.did,
+          handle: metadata.handle,
+          accessJwt,
+          refreshJwt,
+        },
+        metadata.pds_url,
+      )
+
+      return {
+        access_token: newSession.accessJwt,
+        expires_at: new Date(Date.now() + 90 * 60 * 1000),
+      }
+    } catch {
+      return null
     }
   }
 }

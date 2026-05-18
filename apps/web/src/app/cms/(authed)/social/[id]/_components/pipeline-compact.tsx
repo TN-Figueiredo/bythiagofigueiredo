@@ -11,7 +11,7 @@ interface PipelineCompactProps {
 const STEP_LABELS: Record<string, string> = {
   post_created: 'Post',
   short_link: 'Short Link',
-  og_scrape: 'OG Scrape',
+  platform_prepare: 'Platform Prepare',
   deliver: 'Deliver',
 }
 

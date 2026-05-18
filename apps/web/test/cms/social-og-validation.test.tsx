@@ -146,7 +146,7 @@ describe('ScrapeDetails', () => {
         pipelineSteps={[
           { step: 'post_created', status: 'completed' },
           { step: 'short_link', status: 'completed' },
-          { step: 'og_scrape', status: 'completed' },
+          { step: 'platform_prepare', status: 'completed' },
           { step: 'deliver', status: 'pending' },
         ]}
       />,

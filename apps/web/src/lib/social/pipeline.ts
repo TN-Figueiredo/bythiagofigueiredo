@@ -12,7 +12,7 @@ export function createInitialPipelineSteps(): PipelineStep[] {
   return [
     { step: 'post_created', status: 'completed', at: now },
     { step: 'short_link', status: 'completed', at: now },
-    { step: 'og_scrape', status: 'pending', at: '' },
+    { step: 'platform_prepare', status: 'pending', at: '' },
     { step: 'deliver', status: 'pending', at: '' },
   ]
 }

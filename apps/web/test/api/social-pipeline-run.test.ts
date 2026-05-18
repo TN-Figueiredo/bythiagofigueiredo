@@ -92,7 +92,7 @@ describe('POST /api/social/pipeline/run', () => {
         pipeline_steps: [
           { step: 'post_created', status: 'completed', at: '2026-01-01T00:00:00Z' },
           { step: 'short_link', status: 'completed', at: '2026-01-01T00:00:01Z' },
-          { step: 'og_scrape', status: 'pending', at: '' },
+          { step: 'platform_prepare', status: 'pending', at: '' },
           { step: 'deliver', status: 'pending', at: '' },
         ],
         created_by: 'user-1',
@@ -168,13 +168,13 @@ describe('POST /api/social/pipeline/run', () => {
     expect(updatePipelineStep).toHaveBeenCalledWith(
       expect.anything(),
       '00000000-0000-0000-0000-000000000001',
-      'og_scrape',
+      'platform_prepare',
       'in_progress',
     )
     expect(updatePipelineStep).toHaveBeenCalledWith(
       expect.anything(),
       '00000000-0000-0000-0000-000000000001',
-      'og_scrape',
+      'platform_prepare',
       'completed',
       expect.objectContaining({ tags: 7 }),
     )
@@ -206,7 +206,7 @@ describe('POST /api/social/pipeline/run', () => {
     expect(updatePipelineStep).toHaveBeenCalledWith(
       expect.anything(),
       '00000000-0000-0000-0000-000000000001',
-      'og_scrape',
+      'platform_prepare',
       'warning',
       expect.objectContaining({ status: 'timeout' }),
     )

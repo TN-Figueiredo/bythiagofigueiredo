@@ -15,7 +15,7 @@ interface TimelineProps {
 const DOT_COLORS: Record<string, string> = {
   created: 'bg-purple-500',
   short_link: 'bg-blue-500',
-  og_scrape: 'bg-blue-500',
+  platform_prepare: 'bg-blue-500',
   delivery: 'bg-emerald-500',
   failed: 'bg-red-500',
 }

@@ -865,9 +865,9 @@ export async function scrapeOgTags(
     const { updatePipelineStep } = await import('@/lib/social/pipeline')
     const scrapeData = result as unknown as Record<string, unknown>
     if (result.status === 'ok') {
-      await updatePipelineStep(supabase, idParsed.data, 'og_scrape', 'completed', scrapeData)
+      await updatePipelineStep(supabase, idParsed.data, 'platform_prepare', 'completed', scrapeData)
     } else {
-      await updatePipelineStep(supabase, idParsed.data, 'og_scrape', 'warning', scrapeData)
+      await updatePipelineStep(supabase, idParsed.data, 'platform_prepare', 'warning', scrapeData)
     }
 
     return { ok: true, data: scrapeData }

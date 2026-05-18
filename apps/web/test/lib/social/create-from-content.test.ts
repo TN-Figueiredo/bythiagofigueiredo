@@ -85,7 +85,7 @@ vi.mock('@/lib/social/pipeline', () => ({
   createInitialPipelineSteps: vi.fn().mockReturnValue([
     { step: 'post_created', status: 'completed', at: '2026-01-01T00:00:00Z' },
     { step: 'short_link', status: 'completed', at: '2026-01-01T00:00:01Z' },
-    { step: 'og_scrape', status: 'pending', at: '' },
+    { step: 'platform_prepare', status: 'pending', at: '' },
     { step: 'deliver', status: 'pending', at: '' },
   ]),
 }))

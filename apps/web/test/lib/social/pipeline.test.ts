@@ -28,7 +28,7 @@ describe('createInitialPipelineSteps', () => {
     expect(steps[1]!.step).toBe('short_link')
     expect(steps[1]!.status).toBe('completed')
     expect(steps[1]!.at).toBeDefined()
-    expect(steps[2]!.step).toBe('og_scrape')
+    expect(steps[2]!.step).toBe('platform_prepare')
     expect(steps[2]!.status).toBe('pending')
     expect(steps[3]!.step).toBe('deliver')
     expect(steps[3]!.status).toBe('pending')
@@ -47,13 +47,13 @@ describe('updatePipelineStep', () => {
     )
     const supabase = { rpc: mockRpc } as never
 
-    await updatePipelineStep(supabase, 'post-123', 'og_scrape', 'in_progress')
+    await updatePipelineStep(supabase, 'post-123', 'platform_prepare', 'in_progress')
 
     expect(mockRpc).toHaveBeenCalledWith('update_pipeline_step', {
       p_post_id: 'post-123',
-      p_step_name: 'og_scrape',
+      p_step_name: 'platform_prepare',
       p_patch: expect.objectContaining({
-        step: 'og_scrape',
+        step: 'platform_prepare',
         status: 'in_progress',
         at: expect.any(String),
       }),
@@ -66,16 +66,16 @@ describe('updatePipelineStep', () => {
     )
     const supabase = { rpc: mockRpc } as never
 
-    await updatePipelineStep(supabase, 'post-123', 'og_scrape', 'completed', {
+    await updatePipelineStep(supabase, 'post-123', 'platform_prepare', 'completed', {
       tags: 7,
       latency_ms: 1200,
     })
 
     expect(mockRpc).toHaveBeenCalledWith('update_pipeline_step', {
       p_post_id: 'post-123',
-      p_step_name: 'og_scrape',
+      p_step_name: 'platform_prepare',
       p_patch: expect.objectContaining({
-        step: 'og_scrape',
+        step: 'platform_prepare',
         status: 'completed',
         data: { tags: 7, latency_ms: 1200 },
       }),
@@ -90,7 +90,7 @@ describe('updatePipelineStep', () => {
     const supabase = { rpc: mockRpc } as never
 
     await expect(
-      updatePipelineStep(supabase, 'post-123', 'og_scrape', 'in_progress')
+      updatePipelineStep(supabase, 'post-123', 'platform_prepare', 'in_progress')
     ).rejects.toThrow('Failed to update pipeline_steps for post post-123')
   })
 })
@@ -103,7 +103,7 @@ describe('getPipelineDuration', () => {
     const steps: PipelineStep[] = [
       { step: 'post_created', status: 'completed', at: '2026-01-01T00:00:00Z' },
       { step: 'short_link', status: 'completed', at: '2026-01-01T00:00:01Z' },
-      { step: 'og_scrape', status: 'completed', at: '2026-01-01T00:01:00Z' },
+      { step: 'platform_prepare', status: 'completed', at: '2026-01-01T00:01:00Z' },
       { step: 'deliver', status: 'completed', at: '2026-01-01T00:03:00Z' },
     ]
     // 3 minutes = 180_000 ms
@@ -117,7 +117,7 @@ describe('getPipelineDuration', () => {
     const steps: PipelineStep[] = [
       { step: 'post_created', status: 'completed', at: '2026-01-01T00:00:00Z' },
       { step: 'short_link', status: 'pending', at: '' },
-      { step: 'og_scrape', status: 'pending', at: '' },
+      { step: 'platform_prepare', status: 'pending', at: '' },
       { step: 'deliver', status: 'pending', at: '' },
     ]
     expect(getPipelineDuration(steps)).toBe(0)
@@ -132,7 +132,7 @@ describe('isPipelineComplete', () => {
     const steps: PipelineStep[] = [
       { step: 'post_created', status: 'completed', at: '2026-01-01T00:00:00Z' },
       { step: 'short_link', status: 'completed', at: '2026-01-01T00:00:01Z' },
-      { step: 'og_scrape', status: 'warning', at: '2026-01-01T00:01:00Z' },
+      { step: 'platform_prepare', status: 'warning', at: '2026-01-01T00:01:00Z' },
       { step: 'deliver', status: 'completed', at: '2026-01-01T00:03:00Z' },
     ]
     expect(isPipelineComplete(steps)).toBe(true)
@@ -145,7 +145,7 @@ describe('isPipelineComplete', () => {
     const steps: PipelineStep[] = [
       { step: 'post_created', status: 'completed', at: '2026-01-01T00:00:00Z' },
       { step: 'short_link', status: 'completed', at: '2026-01-01T00:00:01Z' },
-      { step: 'og_scrape', status: 'pending', at: '' },
+      { step: 'platform_prepare', status: 'pending', at: '' },
       { step: 'deliver', status: 'pending', at: '' },
     ]
     expect(isPipelineComplete(steps)).toBe(false)
@@ -158,7 +158,7 @@ describe('isPipelineComplete', () => {
     const steps: PipelineStep[] = [
       { step: 'post_created', status: 'completed', at: '2026-01-01T00:00:00Z' },
       { step: 'short_link', status: 'completed', at: '2026-01-01T00:00:01Z' },
-      { step: 'og_scrape', status: 'failed', at: '2026-01-01T00:01:00Z' },
+      { step: 'platform_prepare', status: 'failed', at: '2026-01-01T00:01:00Z' },
       { step: 'deliver', status: 'pending', at: '' },
     ]
     expect(isPipelineComplete(steps)).toBe(false)

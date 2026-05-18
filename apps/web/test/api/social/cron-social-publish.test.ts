@@ -101,7 +101,7 @@ describe('social-publish cron', () => {
       pipeline_steps: [
         { step: 'post_created', status: 'completed' },
         { step: 'short_link', status: 'completed' },
-        { step: 'og_scrape', status: 'pending' },
+        { step: 'platform_prepare', status: 'pending' },
         { step: 'deliver', status: 'pending' },
       ],
       short_link_id: 'link-1',
@@ -123,7 +123,7 @@ describe('social-publish cron', () => {
     expect(mockUpdatePipelineStep).toHaveBeenCalledWith(
       expect.anything(),
       'post-1',
-      'og_scrape',
+      'platform_prepare',
       'in_progress',
     )
   })
@@ -137,7 +137,7 @@ describe('social-publish cron', () => {
       pipeline_steps: [
         { step: 'post_created', status: 'completed' },
         { step: 'short_link', status: 'completed' },
-        { step: 'og_scrape', status: 'completed' },
+        { step: 'platform_prepare', status: 'completed' },
         { step: 'deliver', status: 'pending' },
       ],
       site_id: 'site-1',
@@ -168,7 +168,7 @@ describe('social-publish cron', () => {
       pipeline_steps: [
         { step: 'post_created', status: 'completed' },
         { step: 'short_link', status: 'completed' },
-        { step: 'og_scrape', status: 'completed' },
+        { step: 'platform_prepare', status: 'completed' },
         { step: 'deliver', status: 'pending' },
       ],
       site_id: 'site-1',

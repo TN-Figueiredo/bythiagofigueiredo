@@ -45,8 +45,8 @@ export async function POST(req: Request): Promise<NextResponse> {
       )
     }
 
-    // ----- Step 3: OG Scrape -----
-    await updatePipelineStep(supabase, postId, 'og_scrape', 'in_progress')
+    // ----- Step 3: Platform Prepare -----
+    await updatePipelineStep(supabase, postId, 'platform_prepare', 'in_progress')
 
     let scrapeResult: OgScrapeResult = { status: 'error', error: 'No Facebook connection' }
     let pageToken: string | null = null
@@ -64,7 +64,7 @@ export async function POST(req: Request): Promise<NextResponse> {
         pageToken = decrypt(fbConnections[0]!.page_token_enc as string, key)
       }
     } catch {
-      // No Facebook connection — OG scrape will be skipped with warning
+      // No Facebook connection — platform prepare will be skipped with warning
     }
 
     const content = post.content as { url?: string }
@@ -75,13 +75,13 @@ export async function POST(req: Request): Promise<NextResponse> {
     }
 
     if (scrapeResult.status === 'ok') {
-      await updatePipelineStep(supabase, postId, 'og_scrape', 'completed', {
+      await updatePipelineStep(supabase, postId, 'platform_prepare', 'completed', {
         tags: scrapeResult.tags,
         latency_ms: scrapeResult.latency_ms,
         status: scrapeResult.http_status,
       })
     } else {
-      await updatePipelineStep(supabase, postId, 'og_scrape', 'warning', {
+      await updatePipelineStep(supabase, postId, 'platform_prepare', 'warning', {
         status: scrapeResult.status,
         error: scrapeResult.error,
       })

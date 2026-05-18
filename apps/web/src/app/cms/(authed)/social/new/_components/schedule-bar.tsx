@@ -85,7 +85,7 @@ export function ScheduleBar({
           <span>Short Link</span>
           <span>&rarr;</span>
           <span className="inline-block h-2 w-2 rounded-full bg-blue-400" />
-          <span>OG Scrape</span>
+          <span>Platform Prepare</span>
           <span>&rarr;</span>
           <span className="inline-block h-2 w-2 rounded-full bg-purple-400" />
           <span>Deliver</span>

@@ -158,7 +158,7 @@ describe('SocialTab', () => {
     )
 
     expect(screen.getByText(/short link/i)).toBeDefined()
-    expect(screen.getByText(/og scrape/i)).toBeDefined()
+    expect(screen.getByText(/platform prepare/i)).toBeDefined()
     expect(screen.getByText(/deliver/i)).toBeDefined()
   })
 
