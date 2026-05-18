@@ -1,15 +1,6 @@
 'use client'
 
-interface Notification {
-  id: string
-  type: string
-  priority: number
-  title: string
-  message: string
-  read: boolean
-  action_href: string | null
-  created_at: string
-}
+import type { Notification } from './types'
 
 interface Props {
   notifications: Notification[]

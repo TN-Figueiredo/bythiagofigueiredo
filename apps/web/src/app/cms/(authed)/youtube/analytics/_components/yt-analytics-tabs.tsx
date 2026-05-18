@@ -20,8 +20,9 @@ import type {
   YtDemographics,
 } from '@/lib/youtube/analytics-types'
 import type { YtConnectedChannel } from '@/lib/youtube/analytics-client'
-import type { Axis, Grade, TrendDirection } from '@/lib/youtube/scoring-types'
 import { AXIS_LABELS } from '@/lib/youtube/scoring-types'
+import type { Axis } from '@/lib/youtube/scoring-types'
+import type { VideoGradeRow, Notification, OutlierVideo } from './types'
 
 const SUB_TABS = [
   { id: 'overview', label: 'Visão Geral' },
@@ -33,42 +34,6 @@ const SUB_TABS = [
 ] as const
 
 type TabId = (typeof SUB_TABS)[number]['id']
-
-interface VideoGradeRow {
-  videoId: string
-  title: string
-  thumbnailUrl: string
-  grade: Grade
-  score: number
-  axes: Array<{ axis: Axis; normalized: number }>
-  trend: { direction: TrendDirection; velocity: number }
-  optimizationState: string | null
-  retentionCurve: number[] | null
-  avgViewPercentage: number
-  diagnosis: string | null
-  recommendation: string | null
-  trafficSources: Record<string, number> | null
-}
-
-interface Notification {
-  id: string
-  type: string
-  priority: number
-  title: string
-  message: string
-  read: boolean
-  action_href: string | null
-  created_at: string
-}
-
-interface OutlierVideo {
-  videoId: string
-  title: string
-  score: number
-  modifiedZ: number
-  direction: 'positive' | 'negative'
-  axis: Axis
-}
 
 interface Props {
   siteId: string

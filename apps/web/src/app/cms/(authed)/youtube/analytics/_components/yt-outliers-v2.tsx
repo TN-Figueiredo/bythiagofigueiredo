@@ -3,16 +3,7 @@
 import { useState } from 'react'
 import type { Axis } from '@/lib/youtube/scoring-types'
 import { AXIS_LABELS } from '@/lib/youtube/scoring-types'
-
-interface OutlierVideo {
-  videoId: string
-  title: string
-  score: number
-  modifiedZ: number
-  direction: 'positive' | 'negative'
-  axis: Axis
-  patterns?: string[]
-}
+import type { OutlierVideo } from './types'
 
 interface Props {
   outliers: OutlierVideo[]

@@ -3,23 +3,8 @@
 import { useState } from 'react'
 import { YtScoreBar } from './yt-score-bar'
 import { YtVideoDiagnostic } from './yt-video-diagnostic'
-import type { Axis, Grade, TrendDirection } from '@/lib/youtube/scoring-types'
-
-interface VideoGradeRow {
-  videoId: string
-  title: string
-  thumbnailUrl: string
-  grade: Grade
-  score: number
-  axes: Array<{ axis: Axis; normalized: number }>
-  trend: { direction: TrendDirection; velocity: number }
-  optimizationState: string | null
-  retentionCurve: number[] | null
-  avgViewPercentage: number
-  diagnosis: string | null
-  recommendation: string | null
-  trafficSources: Record<string, number> | null
-}
+import type { VideoGradeRow } from './types'
+import type { Grade } from '@/lib/youtube/scoring-types'
 
 interface Props {
   videos: VideoGradeRow[]
