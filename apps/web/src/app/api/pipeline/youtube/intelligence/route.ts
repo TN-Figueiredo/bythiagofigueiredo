@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
 
   const { data: videos } = await supabase
     .from('youtube_videos')
-    .select('id, video_id, title, thumbnail_url, published_at, view_count, ctr, impressions, avg_view_percentage, avg_view_duration_seconds, retention_curve, traffic_sources')
+    .select('id, youtube_video_id, title, thumbnail_url, published_at, view_count, ctr, impressions, avg_view_percentage, avg_view_duration_seconds, retention_curve, traffic_sources')
     .eq('channel_id', channel.id)
     .order('published_at', { ascending: false })
     .limit(50)
@@ -70,7 +70,7 @@ export async function GET(req: NextRequest) {
     },
     videos: (videos ?? []).map(v => ({
       id: v.id,
-      video_id: v.video_id,
+      video_id: v.youtube_video_id,
       title: v.title,
       thumbnail_url: v.thumbnail_url,
       published_at: v.published_at,

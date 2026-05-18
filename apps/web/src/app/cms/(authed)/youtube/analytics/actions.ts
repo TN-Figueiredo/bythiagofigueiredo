@@ -18,7 +18,7 @@ export async function fetchGradesData(channelId: string) {
 
   const { data: videos } = await supabase
     .from('youtube_videos')
-    .select('id, video_id, title, thumbnail_url, published_at, view_count, ctr, impressions, avg_view_percentage, avg_view_duration_seconds, retention_curve, traffic_sources')
+    .select('id, youtube_video_id, title, thumbnail_url, published_at, view_count, ctr, impressions, avg_view_percentage, avg_view_duration_seconds, retention_curve, traffic_sources')
     .eq('channel_id', channelId)
     .eq('site_id', siteId)
     .order('published_at', { ascending: false })

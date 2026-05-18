@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   const { data: channels } = await supabase
     .from('youtube_channels')
     .select('id, channel_id, site_id, subscriber_count')
-    .eq('enabled', true)
+    .eq('sync_enabled', true)
 
   if (!channels || channels.length === 0) {
     return NextResponse.json({ status: 'no_channels' })
