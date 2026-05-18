@@ -1,31 +1,58 @@
+import { notFound } from 'next/navigation'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
-import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { CmsTopbar } from '@tn-figueiredo/cms-ui/client'
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { listTemplates } from '@/lib/social/actions/templates'
-import { searchSourceContent } from '@/lib/social/actions/stories'
-import {
-  createTemplate,
-  deleteTemplate,
-} from '@/lib/social/actions/templates'
-import { saveStoryDraft, publishStoryNow, scheduleStory } from '@/lib/social/actions/story-publish'
+import { createTemplate, deleteTemplate } from '@/lib/social/actions/templates'
 import { uploadMediaAction } from '@/app/cms/(authed)/media/actions'
-import { StoryComposer } from './_components/story-composer'
+import { saveStoryDraft, publishStoryNow, scheduleStory } from '@/lib/social/actions/story-publish'
+import { StoryEditorShell } from '../../_components/story-editor-shell'
+import type { CardComposition } from '@tn-figueiredo/links/qr'
 
 export const dynamic = 'force-dynamic'
 
 interface Props {
-  searchParams: Promise<{ source?: string; id?: string }>
+  params: Promise<{ id: string }>
 }
 
-export default async function NewStoryPage({ searchParams }: Props) {
+export default async function StoryEditPage({ params }: Props) {
   const ctx = await getSiteContext()
   await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
 
-  const params = await searchParams
+  const { id } = await params
 
-  // Fetch site brand data
   const supabase = getSupabaseServiceClient()
+  const { data, error } = await supabase
+    .from('social_posts')
+    .select(
+      'id, story_slides, status, content, source_content_type, site_id',
+    )
+    .eq('id', id)
+    .eq('site_id', ctx.siteId)
+    .not('story_slides', 'is', null)
+    .single()
+
+  if (error || !data) notFound()
+
+  const post = data as {
+    id: string
+    story_slides: CardComposition[]
+    status: string
+    content: Record<string, unknown>
+    source_content_type: string | null
+    site_id: string
+  }
+
+  // Only allow editing drafts (non-draft posts are read-only)
+  if (post.status !== 'draft') {
+    notFound()
+  }
+
+  const initialSlides = (post.story_slides ?? []) as CardComposition[]
+  const caption = (post.content?.description as string | undefined) ?? undefined
+
+  // Site brand
   const { data: site } = await supabase
     .from('sites')
     .select('logo_url, primary_color, default_locale, supported_locales')
@@ -39,25 +66,12 @@ export default async function NewStoryPage({ searchParams }: Props) {
     supportedLocales: (site?.supported_locales as string[] | null) ?? [ctx.defaultLocale ?? 'pt-BR'],
   }
 
-  // Fetch 9:16 templates
+  // Templates (9:16)
   const templatesResult = await listTemplates(ctx.siteId, '9:16')
   const templates = templatesResult.ok ? templatesResult.data : []
 
-  // Optionally resolve initial content from ?source=blog&id=xyz
-  let initialContent = null
-  if (params.source && params.id) {
-    const validSources = ['blog', 'newsletter', 'campaign'] as const
-    const isValid = (validSources as readonly string[]).includes(params.source)
-    if (isValid) {
-      const res = await searchSourceContent(ctx.siteId, params.source, '')
-      if (res.ok) {
-        initialContent = res.data.find((item) => item.id === params.id) ?? null
-      }
-    }
-  }
-
   // ---------------------------------------------------------------------------
-  // Server action wrappers — passed as props to avoid direct client imports
+  // Server action wrappers passed as props
   // ---------------------------------------------------------------------------
 
   const handleExport = async (
@@ -94,9 +108,9 @@ export default async function NewStoryPage({ searchParams }: Props) {
     })
   }
 
-  const handleDeleteTemplate = async (id: string) => {
+  const handleDeleteTemplate = async (templateId: string) => {
     'use server'
-    await deleteTemplate(id)
+    await deleteTemplate(templateId)
   }
 
   const handleImageUpload = async (file: File) => {
@@ -109,52 +123,53 @@ export default async function NewStoryPage({ searchParams }: Props) {
     return result.asset.blobUrl
   }
 
-  // postId is generated client-side by StoryComposer → StoryEditorShell and passed
-  // as first arg to these server action wrappers. siteId is closed over from ctx.
-  const handleSaveDraftWithId = async (
-    postId: string,
+  // Edit page: postId is the closed-over `id` — ignore the arg from the shell
+  const handleSaveDraft = async (
+    _postId: string,
     slides: unknown[],
     content?: { caption?: string },
   ) => {
     'use server'
-    return saveStoryDraft(ctx.siteId, postId, slides, content)
+    return saveStoryDraft(ctx.siteId, id, slides, content)
   }
 
-  const handlePublishNowWithId = async (
-    postId: string,
+  const handlePublishNow = async (
+    _postId: string,
     slides: unknown[],
     content?: { caption?: string },
   ) => {
     'use server'
-    return publishStoryNow(ctx.siteId, postId, slides, content)
+    return publishStoryNow(ctx.siteId, id, slides, content)
   }
 
-  const handleScheduleWithId = async (
-    postId: string,
+  const handleSchedule = async (
+    _postId: string,
     slides: unknown[],
     scheduledAt: string,
     content?: { caption?: string },
   ) => {
     'use server'
-    return scheduleStory(ctx.siteId, postId, slides, scheduledAt, content)
+    return scheduleStory(ctx.siteId, id, slides, scheduledAt, content)
   }
 
   return (
     <>
-      <CmsTopbar title="Nova Story" />
-      <StoryComposer
+      <CmsTopbar title="Editar Story" />
+      <StoryEditorShell
         siteId={ctx.siteId}
+        postId={id}
+        initialSlides={initialSlides}
+        initialCaption={caption}
         brand={brand}
         templates={templates}
-        initialContent={initialContent}
-        onSearchContent={searchSourceContent}
+        sourceContentType={post.source_content_type}
         onExport={handleExport}
         onSaveTemplate={handleSaveTemplate}
         onDeleteTemplate={handleDeleteTemplate}
         onImageUpload={handleImageUpload}
-        onSaveDraft={handleSaveDraftWithId}
-        onPublishNow={handlePublishNowWithId}
-        onSchedule={handleScheduleWithId}
+        onSaveDraft={handleSaveDraft}
+        onPublishNow={handlePublishNow}
+        onSchedule={handleSchedule}
       />
     </>
   )

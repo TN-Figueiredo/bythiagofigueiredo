@@ -1,12 +1,11 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import type { CardComposition } from '@tn-figueiredo/links/qr'
 import type { SocialTemplate } from '@/lib/social/template-schemas'
 import type { SourceContentResult } from '@/lib/social/actions/stories'
-import type { SocialPostData } from '@/lib/social/story-types'
 import { generateSlideCompositions } from '@/lib/social/story-slides'
-import { StoryEditor } from '../../_components/story-editor'
+import { StoryEditorShell } from '../../_components/story-editor-shell'
 import { ContentPickerModal } from './content-picker-modal'
 import { GenerationOptions } from './generation-options'
 import type { SlideCount, TemplateStyle } from './generation-options'
@@ -34,28 +33,10 @@ interface StoryComposerProps {
   onSaveTemplate: (name: string, composition: CardComposition, thumbnail: Blob) => Promise<void>
   onDeleteTemplate: (id: string) => Promise<void>
   onImageUpload: (file: File) => Promise<string>
-}
-
-// ---------------------------------------------------------------------------
-// Adapter: convert SocialTemplate to the format StoryEditor expects
-// ---------------------------------------------------------------------------
-
-type EditorTemplate = {
-  id: string
-  name: string
-  thumbnailUrl: string | null
-  aspectRatio: string
-  composition?: CardComposition
-}
-
-function toEditorTemplates(templates: SocialTemplate[]): EditorTemplate[] {
-  return templates.map((t) => ({
-    id: t.id,
-    name: t.name,
-    thumbnailUrl: t.thumbnail_url ?? null,
-    aspectRatio: t.aspect_ratio,
-    composition: t.composition as CardComposition | undefined,
-  }))
+  /** postId is the first arg — the page wrapper closes over siteId; shell injects postId */
+  onSaveDraft: (postId: string, slides: unknown[], content?: { caption?: string }) => Promise<{ ok: boolean; error?: string; data?: { id: string } }>
+  onPublishNow: (postId: string, slides: unknown[], content?: { caption?: string }) => Promise<{ ok: boolean; error?: string; data?: { id: string } }>
+  onSchedule: (postId: string, slides: unknown[], scheduledAt: string, content?: { caption?: string }) => Promise<{ ok: boolean; error?: string; data?: { id: string } }>
 }
 
 // ---------------------------------------------------------------------------
@@ -72,6 +53,9 @@ export function StoryComposer({
   onSaveTemplate,
   onDeleteTemplate,
   onImageUpload,
+  onSaveDraft,
+  onPublishNow,
+  onSchedule,
 }: StoryComposerProps) {
   const [mode, setMode] = useState<ComposerMode>(initialContent ? 'options' : 'choose')
   const [selectedContent, setSelectedContent] = useState<SourceContentResult | null>(
@@ -82,6 +66,9 @@ export function StoryComposer({
   const [templateStyle, setTemplateStyle] = useState<TemplateStyle>('gradient')
   const [initialSlides, setInitialSlides] = useState<CardComposition[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
+
+  // Stable post ID for this composition session (new story)
+  const postIdRef = useRef<string>(crypto.randomUUID())
 
   // ---------------------------------------------------------------------------
   // Content picker → options
@@ -131,28 +118,24 @@ export function StoryComposer({
   }, [])
 
   // ---------------------------------------------------------------------------
-  // Post data for the editor's CMS data tab
-  // ---------------------------------------------------------------------------
-  const postData: SocialPostData = {
-    title: selectedContent?.title ?? '',
-    description: selectedContent ? `Conteúdo do tipo ${selectedContent.type}` : undefined,
-    coverImageUrl: undefined,
-    logoUrl: brand.logoUrl ?? undefined,
-  }
-
-  // ---------------------------------------------------------------------------
-  // Render: editor mode (full-screen, no padding)
+  // Render: editor mode — delegates to StoryEditorShell (includes top bar)
   // ---------------------------------------------------------------------------
   if (mode === 'editor') {
     return (
-      <StoryEditor
+      <StoryEditorShell
+        siteId={siteId}
+        postId={postIdRef.current}
         initialSlides={initialSlides}
-        postData={postData}
-        templates={toEditorTemplates(templates.filter((t) => t.aspect_ratio === '9:16'))}
+        brand={brand}
+        templates={templates}
+        sourceContentType={selectedContent?.type ?? null}
         onExport={onExport}
         onSaveTemplate={onSaveTemplate}
         onDeleteTemplate={onDeleteTemplate}
         onImageUpload={onImageUpload}
+        onSaveDraft={onSaveDraft}
+        onPublishNow={onPublishNow}
+        onSchedule={onSchedule}
       />
     )
   }
