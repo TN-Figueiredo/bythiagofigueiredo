@@ -149,6 +149,13 @@ export function ScriptViewMode({ content, title, onExitView }: ScriptViewModePro
   // Keyboard shortcuts
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
+      // Don't fire shortcuts when the user is typing in an input, textarea or contenteditable
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        (e.target as HTMLElement).isContentEditable
+      ) return
+
       if (e.key === 'd' && !e.metaKey && !e.ctrlKey && !e.altKey) {
         setDark((d) => !d)
       }

@@ -30,18 +30,42 @@ interface ScriptEditModeProps {
 // Stable activation constraint — defined outside the component to avoid re-creating on every render
 const POINTER_ACTIVATION = { distance: 5 } as const
 
+/**
+ * Returns a stable key for each beat position in the array.
+ * Keys are assigned once when a beat first appears and travel with the beat
+ * through reorders, so TipTap editors never remount due to key changes.
+ *
+ * The ref holds a parallel array of UUID strings that mirrors `beats` length.
+ * On each render we grow or shrink it to match — we never replace existing
+ * entries (reorder leaves the array unchanged; delete/add adjusts length).
+ */
+function useStableBeatKeys(beatCount: number): string[] {
+  const keysRef = useRef<string[]>([])
+
+  // Grow
+  while (keysRef.current.length < beatCount) {
+    keysRef.current.push(crypto.randomUUID())
+  }
+  // Shrink (deletion)
+  if (keysRef.current.length > beatCount) {
+    keysRef.current.length = beatCount
+  }
+
+  return keysRef.current
+}
+
 export function ScriptEditMode({ content, isEditing, onChange }: ScriptEditModeProps) {
-  // Keep a stable ref to onChange so callbacks that close over it stay stable
-  const onChangeRef = useRef(onChange)
-  onChangeRef.current = onChange
+  const stableKeys = useStableBeatKeys(content.beats.length)
 
   const pointerSensor = useSensor(PointerSensor, { activationConstraint: POINTER_ACTIVATION })
   const keyboardSensor = useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   const sensors = useSensors(pointerSensor, keyboardSensor)
 
+  // DnD IDs are derived from stable keys so they survive idx reassignment
   const sortableIds = useMemo(
-    () => content.beats.map((b) => `beat-${b.idx}`),
-    [content.beats],
+    () => stableKeys.slice(0, content.beats.length),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [content.beats.length, stableKeys],
   )
 
   const handleMetaChange = useCallback(
@@ -61,12 +85,17 @@ export function ScriptEditMode({ content, isEditing, onChange }: ScriptEditModeP
 
   const handleDeleteBeat = useCallback(
     (idx: number) => {
+      const position = content.beats.findIndex((b) => b.idx === idx)
       const beats = content.beats
         .filter((b) => b.idx !== idx)
         .map((b, i) => ({ ...b, idx: i }))
+      // Remove the stable key at the deleted position so future keys stay aligned
+      if (position !== -1) {
+        stableKeys.splice(position, 1)
+      }
       onChange({ ...content, beats })
     },
-    [content, onChange],
+    [content, onChange, stableKeys],
   )
 
   const handleAddBeat = useCallback(() => {
@@ -75,6 +104,7 @@ export function ScriptEditMode({ content, isEditing, onChange }: ScriptEditModeP
       ...content,
       beats: [...content.beats, createEmptyBeat(nextIdx)],
     })
+    // New key will be appended by useStableBeatKeys on next render
   }, [content, onChange])
 
   const handleDragEnd = useCallback(
@@ -82,9 +112,13 @@ export function ScriptEditMode({ content, isEditing, onChange }: ScriptEditModeP
       const { active, over } = event
       if (!over || active.id === over.id) return
 
-      const oldIndex = content.beats.findIndex((b) => `beat-${b.idx}` === active.id)
-      const newIndex = content.beats.findIndex((b) => `beat-${b.idx}` === over.id)
+      const oldIndex = stableKeys.indexOf(active.id as string)
+      const newIndex = stableKeys.indexOf(over.id as string)
       if (oldIndex === -1 || newIndex === -1) return
+
+      // Move the stable key in lockstep with the beat
+      const [movedKey] = stableKeys.splice(oldIndex, 1)
+      stableKeys.splice(newIndex, 0, movedKey!)
 
       const reordered = [...content.beats]
       const [moved] = reordered.splice(oldIndex, 1)
@@ -93,7 +127,7 @@ export function ScriptEditMode({ content, isEditing, onChange }: ScriptEditModeP
       const beats = reordered.map((b, i) => ({ ...b, idx: i }))
       onChange({ ...content, beats })
     },
-    [content, onChange],
+    [content, onChange, stableKeys],
   )
 
   return (
@@ -113,9 +147,9 @@ export function ScriptEditMode({ content, isEditing, onChange }: ScriptEditModeP
       >
         <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
           <div className="space-y-2">
-            {content.beats.map((beat) => (
+            {content.beats.map((beat, i) => (
               <ScriptBeatAccordion
-                key={beat.idx}
+                key={stableKeys[i]}
                 beat={beat}
                 isEditing={isEditing}
                 onBeatChange={handleBeatChange}
