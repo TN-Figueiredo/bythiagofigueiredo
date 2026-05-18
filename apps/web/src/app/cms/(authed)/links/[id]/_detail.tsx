@@ -37,6 +37,12 @@ interface LinkData {
   unique_visitors: number
   last_clicked_at: string | null
   created_at: string
+  utm_id: string | null
+  activates_at: string | null
+  pass_click_ids: boolean
+  health_status: string | null
+  health_checked_at: string | null
+  launched_at: string | null
 }
 
 interface DailyClick {
@@ -60,6 +66,16 @@ const SOURCE_COLORS: Record<string, string> = {
   blog: 'bg-green-500/10 text-green-400',
   social: 'bg-pink-500/10 text-pink-400',
   print: 'bg-amber-500/10 text-amber-400',
+}
+
+function formatRelativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diff / 60_000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  return `${Math.floor(hrs / 24)}d ago`
 }
 
 function formatCompact(n: number): string {
@@ -296,7 +312,18 @@ export function LinkDetail({ link, dailyClicks, topCountry, linkId, shortUrl }: 
               <ArrowUpRight className="h-3 w-3" />
               Redirect
             </span>
-            <span className="font-mono font-medium text-foreground">{link.redirect_type}</span>
+            <div className="flex items-center gap-1.5">
+              <span className="font-mono font-medium text-foreground">{link.redirect_type}</span>
+              <span
+                className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                  link.pass_click_ids
+                    ? 'bg-green-500/10 text-green-400'
+                    : 'bg-muted text-muted-foreground'
+                }`}
+              >
+                {link.pass_click_ids ? 'click IDs on' : 'click IDs off'}
+              </span>
+            </div>
           </div>
           <div className="flex items-center justify-between text-[11px]">
             <span className="flex items-center gap-1.5 text-muted-foreground">
@@ -327,6 +354,57 @@ export function LinkDetail({ link, dailyClicks, topCountry, linkId, shortUrl }: 
               <span className="font-medium text-foreground">
                 {new Date(link.last_clicked_at).toLocaleDateString()}
               </span>
+            </div>
+          )}
+          {link.utm_id && (
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-muted-foreground">UTM ID</span>
+              <span className="font-mono font-medium text-foreground">{link.utm_id}</span>
+            </div>
+          )}
+          {link.activates_at && (
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="flex items-center gap-1.5 text-muted-foreground">
+                <Clock className="h-3 w-3" />
+                Activates
+              </span>
+              <span className="font-medium text-foreground">
+                {new Date(link.activates_at).toLocaleDateString()}
+              </span>
+            </div>
+          )}
+          {link.launched_at && (
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="flex items-center gap-1.5 text-muted-foreground">
+                <ArrowUpRight className="h-3 w-3" />
+                Launched
+              </span>
+              <span className="font-medium text-foreground">
+                {new Date(link.launched_at).toLocaleDateString()}
+              </span>
+            </div>
+          )}
+          {link.health_status && (
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-muted-foreground">Health</span>
+              <div className="flex items-center gap-1.5">
+                <span
+                  className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ${
+                    link.health_status === 'healthy'
+                      ? 'bg-green-500/10 text-green-400'
+                      : link.health_status === 'unhealthy'
+                        ? 'bg-red-500/10 text-red-400'
+                        : 'bg-yellow-500/10 text-yellow-400'
+                  }`}
+                >
+                  {link.health_status}
+                </span>
+                {link.health_checked_at && (
+                  <span className="text-muted-foreground">
+                    {formatRelativeTime(link.health_checked_at)}
+                  </span>
+                )}
+              </div>
             </div>
           )}
           {link.tags.length > 0 && (

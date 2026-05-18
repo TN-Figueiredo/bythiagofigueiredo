@@ -91,6 +91,12 @@ export default async function LinkDetailPage({ params }: Props) {
           unique_visitors: (link.unique_visitors as number) ?? 0,
           last_clicked_at: (link.last_clicked_at as string) ?? null,
           created_at: link.created_at as string,
+          utm_id: (link.utm_id as string) ?? null,
+          activates_at: (link.activates_at as string) ?? null,
+          pass_click_ids: (link.pass_click_ids as boolean) ?? false,
+          health_status: (link.health_status as string) ?? null,
+          health_checked_at: (link.health_checked_at as string) ?? null,
+          launched_at: (link.launched_at as string) ?? null,
         }}
         dailyClicks={dailyClicks}
         topCountry={topCountry}

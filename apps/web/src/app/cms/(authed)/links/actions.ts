@@ -17,11 +17,12 @@ type ActionResult<T = object> =
 
 // ─── Auth helper ────────────────────────────────────────────────────────────
 
-async function requireEditScope(siteId: string): Promise<void> {
+async function requireEditScope(siteId: string): Promise<{ userId: string }> {
   const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
   if (!res.ok) {
     throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
   }
+  return { userId: res.user.id }
 }
 
 // ─── Cache invalidation ─────────────────────────────────────────────────────
@@ -1010,7 +1011,7 @@ export async function batchUpdateLinks(
 ): Promise<ActionResult<{ updated: number }>> {
   const { siteId: ctxSiteId } = await getSiteContext()
   if (siteId !== ctxSiteId) return { ok: false, error: 'forbidden' }
-  await requireEditScope(siteId)
+  const { userId } = await requireEditScope(siteId)
   const filtersParsed = BatchFiltersSchema.safeParse(filters)
   if (!filtersParsed.success) return { ok: false, error: filtersParsed.error.message }
   const updatesParsed = BatchUpdateSchema.safeParse(updates)
@@ -1033,6 +1034,17 @@ export async function batchUpdateLinks(
   if (filtersParsed.data.active !== undefined) query = query.eq('active', filtersParsed.data.active)
   const { data: updated, error } = await query.select('id')
   if (error) return { ok: false, error: error.message }
+  if (updated && updated.length > 0) {
+    const label = `batch_update: ${Object.keys(updateObj).join(', ')}`
+    await supabase.from('link_annotations').insert(
+      updated.map((row) => ({
+        link_id: row.id,
+        site_id: siteId,
+        label,
+        created_by: userId,
+      })),
+    )
+  }
   return { ok: true, updated: updated?.length ?? 0 }
 }
 
@@ -1043,11 +1055,21 @@ export async function batchExtendExpiry(
 ): Promise<ActionResult<{ extended: number }>> {
   const { siteId: ctxSiteId } = await getSiteContext()
   if (siteId !== ctxSiteId) return { ok: false, error: 'forbidden' }
-  await requireEditScope(siteId)
+  const { userId } = await requireEditScope(siteId)
   const parsed = BatchFiltersSchema.safeParse(filters)
   if (!parsed.success) return { ok: false, error: parsed.error.message }
   if (hours < 1 || hours > 8760) return { ok: false, error: 'Hours must be 1-8760' }
   const supabase = getSupabaseServiceClient()
+  let affectedQuery = supabase
+    .from('tracked_links')
+    .select('id')
+    .eq('site_id', siteId)
+    .is('deleted_at', null)
+    .eq('active', true)
+    .not('expires_at', 'is', null)
+  if (parsed.data.utm_campaign) affectedQuery = affectedQuery.eq('utm_campaign', parsed.data.utm_campaign)
+  if (parsed.data.tags) affectedQuery = affectedQuery.overlaps('tags', parsed.data.tags)
+  const { data: affectedLinks } = await affectedQuery
   const { data: count, error } = await supabase.rpc('batch_extend_link_expiry', {
     p_site_id: siteId,
     p_campaign: parsed.data.utm_campaign ?? null,
@@ -1055,6 +1077,16 @@ export async function batchExtendExpiry(
     p_hours: hours,
   })
   if (error) return { ok: false, error: error.message }
+  if (affectedLinks && affectedLinks.length > 0) {
+    await supabase.from('link_annotations').insert(
+      affectedLinks.map((row) => ({
+        link_id: row.id,
+        site_id: siteId,
+        label: `batch_extend: +${hours}h`,
+        created_by: userId,
+      })),
+    )
+  }
   return { ok: true, extended: count ?? 0 }
 }
 

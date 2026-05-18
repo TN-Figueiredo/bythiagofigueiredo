@@ -97,7 +97,7 @@ vi.mock('@/lib/cms/site-context', () => ({
 }))
 
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
-  requireSiteScope: vi.fn().mockResolvedValue({ ok: true }),
+  requireSiteScope: vi.fn().mockResolvedValue({ ok: true, user: { id: 'test-user-id' } }),
 }))
 
 vi.mock('next/cache', () => ({
@@ -175,7 +175,7 @@ function resetMockState(opts?: {
 
 describe('createLink', () => {
   beforeEach(() => {
-    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true })
+    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true, user: { id: 'test-user-id' } })
     resetMockState({
       perTable: {
         tracked_links: [{ id: 'link-123' }],
@@ -225,7 +225,7 @@ describe('createLink', () => {
 
 describe('updateLink', () => {
   beforeEach(() => {
-    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true })
+    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true, user: { id: 'test-user-id' } })
     resetMockState()
   })
 
@@ -249,7 +249,7 @@ describe('updateLink', () => {
 
 describe('deleteLink', () => {
   beforeEach(() => {
-    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true })
+    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true, user: { id: 'test-user-id' } })
     resetMockState()
   })
 
@@ -271,7 +271,7 @@ describe('deleteLink', () => {
 
 describe('duplicateLink', () => {
   beforeEach(() => {
-    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true })
+    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true, user: { id: 'test-user-id' } })
     resetMockState({
       sequence: {
         tracked_links: [
@@ -300,7 +300,7 @@ describe('duplicateLink', () => {
 
 describe('toggleLinkActive', () => {
   beforeEach(() => {
-    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true })
+    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true, user: { id: 'test-user-id' } })
     resetMockState({
       sequence: {
         tracked_links: [
@@ -326,7 +326,7 @@ describe('toggleLinkActive', () => {
 
 describe('bulkDeleteLinks', () => {
   beforeEach(() => {
-    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true })
+    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true, user: { id: 'test-user-id' } })
     resetMockState()
   })
 
@@ -345,7 +345,7 @@ describe('bulkDeleteLinks', () => {
 
 describe('bulkToggleLinks', () => {
   beforeEach(() => {
-    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true })
+    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true, user: { id: 'test-user-id' } })
     resetMockState()
   })
 
@@ -364,7 +364,7 @@ describe('bulkToggleLinks', () => {
 
 describe('checkCodeAvailable', () => {
   beforeEach(() => {
-    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true })
+    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true, user: { id: 'test-user-id' } })
     resetMockState()
   })
 
@@ -387,7 +387,7 @@ describe('checkCodeAvailable', () => {
 
 describe('createAnnotation', () => {
   beforeEach(() => {
-    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true })
+    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true, user: { id: 'test-user-id' } })
     resetMockState({
       perTable: { link_annotations: [{ id: 'ann-1' }] },
     })
@@ -411,7 +411,7 @@ describe('createAnnotation', () => {
 
 describe('createGoal', () => {
   beforeEach(() => {
-    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true })
+    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true, user: { id: 'test-user-id' } })
     resetMockState({
       perTable: { link_goals: [{ id: 'goal-1' }] },
     })
@@ -435,7 +435,7 @@ describe('createGoal', () => {
 
 describe('createAlert', () => {
   beforeEach(() => {
-    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true })
+    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true, user: { id: 'test-user-id' } })
     resetMockState({
       perTable: { link_alerts: [{ id: 'alert-1' }] },
     })
@@ -459,7 +459,7 @@ describe('createAlert', () => {
 
 describe('saveAlertRule', () => {
   beforeEach(() => {
-    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true })
+    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true, user: { id: 'test-user-id' } })
     resetMockState({
       perTable: { link_alerts: [{ id: 'rule-1' }] },
     })
@@ -504,7 +504,7 @@ describe('saveAlertRule', () => {
 
 describe('toggleAlert', () => {
   beforeEach(() => {
-    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true })
+    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true, user: { id: 'test-user-id' } })
     resetMockState({
       sequence: {
         link_alerts: [
@@ -530,7 +530,7 @@ describe('toggleAlert', () => {
 
 describe('deleteAlertRule', () => {
   beforeEach(() => {
-    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true })
+    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true, user: { id: 'test-user-id' } })
     resetMockState()
   })
 
@@ -549,7 +549,7 @@ describe('deleteAlertRule', () => {
 
 describe('getLinks', () => {
   beforeEach(() => {
-    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true })
+    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true, user: { id: 'test-user-id' } })
     resetMockState({
       perTable: {
         tracked_links: [{ id: 'link-1', title: 'Test', code: 'abc' }],
@@ -575,7 +575,7 @@ describe('getLinks', () => {
 
 describe('getLinkDetail', () => {
   beforeEach(() => {
-    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true })
+    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true, user: { id: 'test-user-id' } })
     resetMockState({
       perTable: {
         tracked_links: [{ id: 'link-1', code: 'abc', destination_url: 'https://example.com' }],
@@ -601,7 +601,7 @@ describe('getLinkDetail', () => {
 
 describe('getAiInsights', () => {
   beforeEach(() => {
-    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true })
+    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true, user: { id: 'test-user-id' } })
     resetMockState({
       sequence: {
         tracked_links: [
@@ -630,7 +630,7 @@ describe('getAiInsights', () => {
 
 describe('generateQr', () => {
   beforeEach(() => {
-    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true })
+    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true, user: { id: 'test-user-id' } })
     resetMockState({
       sequence: {
         tracked_links: [
@@ -659,7 +659,7 @@ describe('generateQr', () => {
 
 describe('settings actions', () => {
   beforeEach(() => {
-    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true })
+    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true, user: { id: 'test-user-id' } })
     resetMockState()
   })
 
@@ -724,7 +724,7 @@ describe('settings actions', () => {
 
 describe('validateDestinationUrl', () => {
   beforeEach(() => {
-    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true })
+    vi.mocked(requireSiteScope).mockResolvedValue({ ok: true, user: { id: 'test-user-id' } })
     resetMockState()
   })
 
