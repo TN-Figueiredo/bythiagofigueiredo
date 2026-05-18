@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useMemo } from 'react'
 import type { RoteiroContent, RoteiroBeat, ScriptLine } from '@/lib/pipeline/roteiro-schemas'
 import './script-view-mode.css'
 
@@ -12,7 +12,6 @@ const MAX_SCRIPT_LINE_LENGTH = 100_000
 interface ScriptViewModeProps {
   content: RoteiroContent
   title?: string
-  onExitView: () => void
 }
 
 function fmtDur(sec: number): string {
@@ -142,30 +141,8 @@ function BeatSection({ beat }: { beat: RoteiroBeat }) {
   )
 }
 
-export function ScriptViewMode({ content, title, onExitView }: ScriptViewModeProps) {
-  const [dark, setDark] = useState(false)
+export function ScriptViewMode({ content, title }: ScriptViewModeProps) {
   const { meta, beats } = content
-
-  // Keyboard shortcuts
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      // Don't fire shortcuts when the user is typing in an input, textarea or contenteditable
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement ||
-        (e.target as HTMLElement).isContentEditable
-      ) return
-
-      if (e.key === 'd' && !e.metaKey && !e.ctrlKey && !e.altKey) {
-        setDark((d) => !d)
-      }
-      if (e.key === 'Escape') {
-        onExitView()
-      }
-    }
-    window.addEventListener('keydown', handleKey)
-    return () => window.removeEventListener('keydown', handleKey)
-  }, [onExitView])
 
   const metaEntries = useMemo(
     () =>
@@ -181,20 +158,7 @@ export function ScriptViewMode({ content, title, onExitView }: ScriptViewModePro
   )
 
   return (
-    <div className={`script-view ${dark ? 'sv-dark' : ''}`}>
-      {/* Controls bar */}
-      <div className="sv-controls">
-        <button type="button" onClick={() => setDark(!dark)} title="Toggle dark/light (D)">
-          &#9684; Tema
-        </button>
-        <button type="button" onClick={() => window.print()} title="Print">
-          &#9112; Print
-        </button>
-        <button type="button" onClick={onExitView} title="Back to edit (Esc)">
-          &#8592; Editar
-        </button>
-      </div>
-
+    <div className="script-view">
       {/* Header */}
       <header className="sv-header">
         <div className="sv-header-label">

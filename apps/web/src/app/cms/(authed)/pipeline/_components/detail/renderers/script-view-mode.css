@@ -1,5 +1,9 @@
-/* ── Script View Mode — Print CSS ──────────────────── */
-/* Matches design/Roteiro Print.html exactly */
+/* ── Script View Mode — Print-only view ─────────────── */
+/* Hidden on screen; @media print shows it full-page. */
+
+.script-print-view {
+  display: none;
+}
 
 .script-view {
   --sv-ink: #1A1410;
@@ -27,23 +31,6 @@
   padding: 28px 32px 60px;
   orphans: 2;
   widows: 2;
-}
-
-/* ── Dark mode ─────────────────────────────────────── */
-.script-view.sv-dark {
-  --sv-ink: #E8E2D6;
-  --sv-ink-80: #C0B8AA;
-  --sv-ink-50: #8A8278;
-  --sv-ink-30: #5A544C;
-  --sv-ink-15: #3A352E;
-  --sv-ink-08: #2A2520;
-  --sv-accent: #FF8240;
-  --sv-teal: #2DD4BF;
-  --sv-green: #4ADE80;
-  --sv-pink: #F472B6;
-  --sv-blue: #60A5FA;
-  --sv-bg: #14110B;
-  --sv-paper: #1E1A14;
 }
 
 .script-view .sv-mono  { font-family: 'JetBrains Mono', monospace; }
@@ -139,10 +126,7 @@
   color: var(--sv-ink-30);
 }
 
-.script-view .sv-ov-name {
-  text-align: left;
-  font-weight: 500;
-}
+.script-view .sv-ov-name { text-align: left; font-weight: 500; }
 
 .script-view .sv-ov-dur {
   font-family: 'JetBrains Mono', monospace;
@@ -191,11 +175,6 @@
   border-radius: 2px;
   padding: 1px 5px;
   flex-shrink: 0;
-}
-
-.script-view.sv-dark .sv-beat-num {
-  color: #14110B;
-  background: var(--sv-ink);
 }
 
 .script-view .sv-beat-name {
@@ -292,52 +271,45 @@
   justify-content: space-between;
 }
 
-/* ── View controls ─────────────────────────────────── */
-.script-view .sv-controls {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  background: var(--sv-paper);
-  border-bottom: 1px solid var(--sv-ink-08);
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 9px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.script-view .sv-controls button {
-  padding: 4px 10px;
-  border: 1px solid var(--sv-ink-15);
-  border-radius: 3px;
-  background: var(--sv-bg);
-  color: var(--sv-ink-50);
-  cursor: pointer;
-  font: inherit;
-}
-
-.script-view .sv-controls button:hover {
-  background: var(--sv-paper);
-  color: var(--sv-ink);
-}
-
-/* ── Print ─────────────────────────────────────────── */
+/* ══════════════════════════════════════════════════════
+   PRINT — show only the script view, hide everything else
+   ══════════════════════════════════════════════════════ */
 @page {
   size: A4;
   margin: 16mm 18mm 18mm 18mm;
 }
 
 @media print {
+  /* Hide all page content */
+  body > * {
+    visibility: hidden !important;
+  }
+
+  /* Show the print container and its children */
+  .script-print-view {
+    display: block !important;
+    visibility: visible !important;
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100%;
+    z-index: 99999;
+  }
+
+  .script-print-view * {
+    visibility: visible !important;
+  }
+
   .script-view {
     padding: 0;
     max-width: none;
     font-size: 11pt;
   }
-  .script-view .sv-controls { display: none !important; }
-  .script-view .sv-beat { break-inside: avoid; }
+
+  .script-view .sv-beat {
+    break-inside: avoid;
+  }
+
   .script-view .sv-overview,
   .script-view .sv-dir-block,
   .script-view .sv-beat-num,

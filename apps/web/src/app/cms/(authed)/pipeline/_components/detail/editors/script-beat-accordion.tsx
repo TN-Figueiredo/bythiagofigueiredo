@@ -174,14 +174,12 @@ export function ScriptBeatAccordion({
         )}
 
         {/* Word count */}
-        {expanded && (
-          <span className="text-[9px] tabular-nums shrink-0" style={{ color: 'var(--gem-dim)' }}>
-            {wordCount}w
-          </span>
-        )}
+        <span className="text-[9px] tabular-nums shrink-0" style={{ color: 'var(--gem-dim)' }}>
+          {wordCount}w
+        </span>
 
-        {/* Status toggle */}
-        {isEditing && (
+        {/* Status badge (read-only) or toggle (editing) */}
+        {isEditing ? (
           <button
             type="button"
             onClick={handleToggleStatus}
@@ -192,6 +190,18 @@ export function ScriptBeatAccordion({
           >
             {beat.status === 'DONE' ? <Check size={14} /> : <Clock size={14} />}
           </button>
+        ) : (
+          <span
+            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider"
+            style={{
+              background: beat.status === 'DONE' ? '#22c55e18' : 'color-mix(in srgb, var(--gem-dim) 12%, transparent)',
+              color: beat.status === 'DONE' ? '#22c55e' : 'var(--gem-dim)',
+              border: `1px solid ${beat.status === 'DONE' ? '#22c55e25' : 'transparent'}`,
+            }}
+          >
+            {beat.status === 'DONE' ? <Check size={10} /> : <Clock size={10} />}
+            {beat.status === 'DONE' ? 'Gravado' : 'Pendente'}
+          </span>
         )}
 
         {/* Delete */}

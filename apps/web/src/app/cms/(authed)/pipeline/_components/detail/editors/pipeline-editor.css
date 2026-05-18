@@ -331,6 +331,53 @@
   font-style: italic;
 }
 
+.script-beat-editor .ProseMirror > p {
+  padding-left: 0.75rem;
+  border-left: 2px solid color-mix(in srgb, var(--gem-accent) 15%, transparent);
+  line-height: 1.85;
+}
+
+.script-beat-editor .ProseMirror strong {
+  color: var(--gem-text);
+  font-weight: 600;
+}
+
+.script-beat-editor .ProseMirror em {
+  font-style: italic;
+  color: var(--gem-text);
+}
+
+.script-beat-editor .ProseMirror ul,
+.script-beat-editor .ProseMirror ol {
+  padding-left: 1.25rem;
+  margin: 0.375rem 0;
+}
+
+.script-beat-editor .ProseMirror li {
+  margin: 0.25rem 0;
+  color: var(--gem-muted);
+}
+
+.script-beat-editor .ProseMirror li p {
+  margin: 0;
+  border-left: none;
+  padding-left: 0;
+}
+
+.script-beat-editor .ProseMirror code {
+  background: color-mix(in srgb, var(--gem-accent) 10%, transparent);
+  color: var(--gem-accent);
+  padding: 0.1rem 0.25rem;
+  border-radius: 0.2rem;
+  font-size: 0.8em;
+}
+
+.script-beat-editor .ProseMirror a {
+  color: var(--gem-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 /* ── Script Section — Print ──────────────────────────── */
 @media print {
   .script-section {

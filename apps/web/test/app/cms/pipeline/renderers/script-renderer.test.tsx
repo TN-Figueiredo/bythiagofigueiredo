@@ -84,11 +84,13 @@ describe('ScriptRenderer — unified mode', () => {
     expect(getAllByTestId('editor-content').length).toBeGreaterThanOrEqual(1)
   })
 
-  it('does not render separate view-mode UI or toggle buttons', () => {
+  it('renders hidden print view alongside edit mode', () => {
     const { container } = render(
       <ScriptRenderer content={BEAT_WITH_TAGS} isEditing={false} lang="en" onContentChange={noop} />,
     )
-    expect(container.querySelector('.script-view')).toBeNull()
+    const printView = container.querySelector('.script-print-view')
+    expect(printView).toBeTruthy()
+    expect(printView!.querySelector('.script-view')).toBeTruthy()
     expect(screen.queryByTitle('Edit mode')).toBeNull()
     expect(screen.queryByTitle(/View mode/)).toBeNull()
   })

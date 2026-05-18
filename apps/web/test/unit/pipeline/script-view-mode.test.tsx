@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { describe, it, expect } from 'vitest'
+import { render, screen } from '@testing-library/react'
 import { ScriptViewMode } from '@/app/cms/(authed)/pipeline/_components/detail/renderers/script-view-mode'
 import type { RoteiroContent } from '@/lib/pipeline/roteiro-schemas'
 
@@ -35,7 +35,7 @@ const SAMPLE_CONTENT: RoteiroContent = {
 
 describe('ScriptViewMode', () => {
   it('renders header with meta fields', () => {
-    render(<ScriptViewMode content={SAMPLE_CONTENT} title="Test Video" onExitView={vi.fn()} />)
+    render(<ScriptViewMode content={SAMPLE_CONTENT} title="Test Video" />)
     expect(screen.getByText('Test Video')).toBeTruthy()
     expect(screen.getByText(/EN/)).toBeTruthy()
     expect(screen.getByText(/Storytelling/)).toBeTruthy()
@@ -43,27 +43,27 @@ describe('ScriptViewMode', () => {
 
   it('renders overview table with beat count', () => {
     const { container } = render(
-      <ScriptViewMode content={SAMPLE_CONTENT} onExitView={vi.fn()} />,
+      <ScriptViewMode content={SAMPLE_CONTENT} />,
     )
     const rows = container.querySelectorAll('.sv-overview tbody tr')
     expect(rows).toHaveLength(2)
   })
 
   it('renders beat sections with spoken lines', () => {
-    render(<ScriptViewMode content={SAMPLE_CONTENT} onExitView={vi.fn()} />)
+    render(<ScriptViewMode content={SAMPLE_CONTENT} />)
     expect(screen.getByText('I lived in Canada for four years.')).toBeTruthy()
     expect(screen.getByText('I chose to move back.')).toBeTruthy()
   })
 
   it('renders direction notes', () => {
-    render(<ScriptViewMode content={SAMPLE_CONTENT} onExitView={vi.fn()} />)
+    render(<ScriptViewMode content={SAMPLE_CONTENT} />)
     expect(screen.getByText(/calm delivery/)).toBeTruthy()
     expect(screen.getByText(/montage rapida/)).toBeTruthy()
   })
 
   it('renders pause markers', () => {
     const { container } = render(
-      <ScriptViewMode content={SAMPLE_CONTENT} onExitView={vi.fn()} />,
+      <ScriptViewMode content={SAMPLE_CONTENT} />,
     )
     const pauses = container.querySelectorAll('.sv-pause')
     expect(pauses).toHaveLength(1)
@@ -72,32 +72,16 @@ describe('ScriptViewMode', () => {
 
   it('renders ref blocks', () => {
     const { container } = render(
-      <ScriptViewMode content={SAMPLE_CONTENT} onExitView={vi.fn()} />,
+      <ScriptViewMode content={SAMPLE_CONTENT} />,
     )
     const refs = container.querySelectorAll('.sv-ref')
     expect(refs).toHaveLength(1)
     expect(refs[0]!.textContent).toContain('Double promise plus plan')
   })
 
-  it('calls onExitView when Escape pressed', () => {
-    const onExit = vi.fn()
-    render(<ScriptViewMode content={SAMPLE_CONTENT} onExitView={onExit} />)
-    fireEvent.keyDown(window, { key: 'Escape' })
-    expect(onExit).toHaveBeenCalled()
-  })
-
-  it('toggles dark mode when D pressed', () => {
-    const { container } = render(
-      <ScriptViewMode content={SAMPLE_CONTENT} onExitView={vi.fn()} />,
-    )
-    expect(container.querySelector('.sv-dark')).toBeNull()
-    fireEvent.keyDown(window, { key: 'd' })
-    expect(container.querySelector('.sv-dark')).toBeTruthy()
-  })
-
   it('renders footer with date', () => {
     const { container } = render(
-      <ScriptViewMode content={SAMPLE_CONTENT} onExitView={vi.fn()} />,
+      <ScriptViewMode content={SAMPLE_CONTENT} />,
     )
     const footer = container.querySelector('.sv-footer')
     expect(footer).toBeTruthy()
