@@ -50,4 +50,32 @@ describe('API_REGISTRY', () => {
     const catalog: ApiCatalog = API_REGISTRY
     expect(catalog.name).toBe('Content Pipeline API')
   })
+
+  it('has no duplicate method+path combinations', () => {
+    const seen = new Set<string>()
+    for (const cap of API_REGISTRY.capabilities) {
+      for (const ep of cap.endpoints) {
+        const key = `${ep.method}:${ep.path}`
+        expect(seen.has(key), `Duplicate endpoint: ${key}`).toBe(false)
+        seen.add(key)
+      }
+    }
+  })
+
+  it('all endpoint paths start with /api/pipeline/', () => {
+    for (const cap of API_REGISTRY.capabilities) {
+      for (const ep of cap.endpoints) {
+        expect(ep.path, `${ep.method} ${ep.path}`).toMatch(/^\/api\/pipeline\//)
+      }
+    }
+  })
+
+  it('cross_domain_workflows reference valid domains', () => {
+    const validDomains = new Set(API_REGISTRY.capabilities.map((c) => c.domain))
+    for (const workflow of API_REGISTRY.cross_domain_workflows) {
+      for (const domain of workflow.domains) {
+        expect(validDomains.has(domain), `Unknown domain "${domain}" in workflow "${workflow.name}"`).toBe(true)
+      }
+    }
+  })
 })

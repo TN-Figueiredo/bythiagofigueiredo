@@ -1,10 +1,15 @@
 'use client'
 
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
-import { upsertReference } from '../actions'
-import { REFERENCE_GROUPS, REFERENCE_USAGE, getGroupMeta } from '@/lib/pipeline/reference-groups'
+import { REFERENCE_USAGE } from '@/lib/pipeline/reference-groups'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
+
+interface GroupDef {
+  id: string
+  label: string
+  color: string
+}
 
 interface ReferenceDoc {
   key: string
@@ -71,7 +76,7 @@ function highlightMatch(text: string, query: string): React.ReactNode {
 
 // ─── Component ─────────────────────────────────────────────────────────────────
 
-export function ReferenceEditor({ docs }: { docs: ReferenceDoc[] }) {
+export function ReferenceEditor({ docs, groups, onUpsert }: { docs: ReferenceDoc[]; groups: GroupDef[]; onUpsert: (key: string, data: { title: string; content_md?: string; content_compact?: Record<string, unknown>; ref_group?: string; sort_order?: number }) => Promise<unknown> }) {
   // State
   const [selected, setSelected] = useState<string | null>(docs[0]?.key ?? null)
   const [title, setTitle] = useState(docs[0]?.title ?? '')
@@ -81,7 +86,7 @@ export function ReferenceEditor({ docs }: { docs: ReferenceDoc[] }) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
     const firstGroup = docs[0]?.ref_group ?? ''
     const initial: Record<string, boolean> = {}
-    for (const g of REFERENCE_GROUPS) {
+    for (const g of groups) {
       initial[g.id] = g.id !== firstGroup
     }
     return initial
@@ -109,7 +114,7 @@ export function ReferenceEditor({ docs }: { docs: ReferenceDoc[] }) {
   // Grouped docs (memoized)
   const grouped = useMemo(() => {
     const map = new Map<string, ReferenceDoc[]>()
-    for (const g of REFERENCE_GROUPS) {
+    for (const g of groups) {
       map.set(g.id, [])
     }
     for (const doc of docs) {
@@ -117,8 +122,7 @@ export function ReferenceEditor({ docs }: { docs: ReferenceDoc[] }) {
       if (list) {
         list.push(doc)
       } else {
-        // Unknown group — put in first group
-        map.get(REFERENCE_GROUPS[0].id)?.push(doc)
+        map.get(groups[0]?.id ?? '')?.push(doc)
       }
     }
     // Sort each group by sort_order then key
@@ -126,7 +130,7 @@ export function ReferenceEditor({ docs }: { docs: ReferenceDoc[] }) {
       list.sort((a, b) => a.sort_order - b.sort_order || a.key.localeCompare(b.key))
     }
     return map
-  }, [docs])
+  }, [docs, groups])
 
   // Filtered docs for search mode
   const filtered = useMemo(() => {
@@ -152,26 +156,30 @@ export function ReferenceEditor({ docs }: { docs: ReferenceDoc[] }) {
     if (!selected) return
     setSaveState('saving')
     try {
-      await upsertReference(selected, { title, content_md: content })
+      await onUpsert(selected, { title, content_md: content })
       setSaveState('saved')
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
       saveTimerRef.current = setTimeout(() => setSaveState('idle'), 2000)
     } catch {
       setSaveState('idle')
     }
-  }, [selected, title, content])
+  }, [selected, title, content, onUpsert])
 
   // New reference handler
   const handleNewReference = useCallback(async () => {
     const key = window.prompt('Reference API key (e.g. writer-voice-guide):')
     if (!key || !key.trim()) return
-    const trimmed = key.trim().toLowerCase().replace(/\s+/g, '-')
+    const trimmed = key.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+    if (!trimmed || !/^[a-z][a-z0-9-]{0,99}$/.test(trimmed)) {
+      window.alert('Invalid key. Must start with a letter and contain only lowercase letters, numbers, and hyphens.')
+      return
+    }
     const refTitle = trimmed
       .split('-')
       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
       .join(' ')
-    const firstGroup = REFERENCE_GROUPS[0].id
-    await upsertReference(trimmed, {
+    const firstGroup = groups[0]?.id ?? 'pessoal'
+    await onUpsert(trimmed, {
       title: refTitle,
       content_md: '',
       ref_group: firstGroup,
@@ -182,7 +190,7 @@ export function ReferenceEditor({ docs }: { docs: ReferenceDoc[] }) {
     setTitle(refTitle)
     setContent('')
     setSaveState('idle')
-  }, [])
+  }, [onUpsert, groups])
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -225,19 +233,19 @@ export function ReferenceEditor({ docs }: { docs: ReferenceDoc[] }) {
 
   const collapseAll = useCallback(() => {
     const all: Record<string, boolean> = {}
-    for (const g of REFERENCE_GROUPS) all[g.id] = true
+    for (const g of groups) all[g.id] = true
     setCollapsed(all)
-  }, [])
+  }, [groups])
 
   const expandAll = useCallback(() => {
     const all: Record<string, boolean> = {}
-    for (const g of REFERENCE_GROUPS) all[g.id] = false
+    for (const g of groups) all[g.id] = false
     setCollapsed(all)
-  }, [])
+  }, [groups])
 
   // Current doc for detail view
   const currentDoc = useMemo(() => docs.find((d) => d.key === selected), [docs, selected])
-  const currentGroup = currentDoc ? getGroupMeta(currentDoc.ref_group) : null
+  const currentGroup = currentDoc ? (groups.find((g) => g.id === currentDoc.ref_group) ?? groups[0]) : null
   const usedBy = selected ? REFERENCE_USAGE[selected] ?? [] : []
 
   return (
@@ -366,7 +374,7 @@ export function ReferenceEditor({ docs }: { docs: ReferenceDoc[] }) {
                 {filtered.length} result{filtered.length !== 1 ? 's' : ''}
               </div>
               {filtered.map((doc) => {
-                const gm = getGroupMeta(doc.ref_group)
+                const gm = groups.find((g) => g.id === doc.ref_group) ?? groups[0] ?? { id: '', label: '', color: '#888' }
                 return (
                   <button
                     key={doc.key}
@@ -419,7 +427,7 @@ export function ReferenceEditor({ docs }: { docs: ReferenceDoc[] }) {
           ) : (
             /* ── Grouped accordion ────────────────────────────────── */
             <div>
-              {REFERENCE_GROUPS.map((group) => {
+              {groups.map((group) => {
                 const groupDocs = grouped.get(group.id) ?? []
                 if (groupDocs.length === 0) return null
                 const isCollapsed = collapsed[group.id] ?? false

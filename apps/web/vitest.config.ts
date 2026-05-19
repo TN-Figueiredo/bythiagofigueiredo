@@ -100,6 +100,10 @@ export default defineConfig({
         replacement: path.resolve(__dirname, './src/app/api/pipeline/broll-library/[id]/route.ts'),
       },
       {
+        find: '@/app/api/pipeline/docs/[domain]/route',
+        replacement: path.resolve(__dirname, './src/app/api/pipeline/docs/[domain]/route.ts'),
+      },
+      {
         find: '@/app/cms/(authed)',
         replacement: path.resolve(__dirname, './src/app/cms/(authed)'),
       },

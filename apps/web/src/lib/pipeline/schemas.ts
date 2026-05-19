@@ -107,13 +107,13 @@ export const PipelineItemUpdateSchema = z.object({
   cover_image_url: z.string().url().max(2000).nullable().optional(),
 })
 
-export const REFERENCE_GROUP_VALUES = ['pessoal', 'estrategia', 'craft', 'producao', 'api', 'memoria', 'sistema'] as const
+import { REFERENCE_GROUP_IDS } from '@/lib/pipeline/reference-groups'
 
 export const ReferenceContentUpsertSchema = z.object({
   title: z.string().min(1).max(200),
   content_md: z.string().max(200_000).optional(),
   content_compact: z.record(z.unknown()).optional(),
-  ref_group: z.enum(REFERENCE_GROUP_VALUES).optional(),
+  ref_group: z.enum(REFERENCE_GROUP_IDS).optional(),
   sort_order: z.number().int().min(0).max(9999).optional(),
 })
 
