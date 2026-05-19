@@ -178,5 +178,13 @@ export {
   pollContainerStatus,
   publishContainer,
   publishInstagramMedia,
+  publishMultiSlideStory,
   deleteInstagramMedia,
+  InsufficientRateBudgetError,
 } from './instagram.js'
+
+export {
+  checkRateBudget,
+  remainingFromUsage,
+  parseAppUsageHeader,
+} from './rate-budget.js'

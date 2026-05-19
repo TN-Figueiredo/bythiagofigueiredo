@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { generateSlideCompositions } from '@/lib/social/story-slides'
+import type { TextElement } from '@tn-figueiredo/links/qr'
 
 describe('generateSlideCompositions', () => {
   it('generates 1 slide with title + cover + CTA', () => {
@@ -28,7 +29,7 @@ describe('generateSlideCompositions', () => {
     })
     expect(slides).toHaveLength(3)
     const titleEl = slides[0].elements.find(
-      (e) => e.type === 'text' && (e as any).content?.includes('Test Post')
+      (e): e is TextElement => e.type === 'text' && (e as TextElement).content.includes('Test Post')
     )
     expect(titleEl).toBeDefined()
   })

@@ -12,7 +12,7 @@ export function computeFanScore(input: FanScoreInput): number {
   const frequency = (Math.min(totalInteractions, 50) / 50) * 25
 
   // Recency: max 25 points, full score if within 7 days, decays 1pt/day after
-  const recency = lastSeenDaysAgo <= 7 ? 25 : Math.max(0, 25 - lastSeenDaysAgo)
+  const recency = lastSeenDaysAgo < 7 ? 25 : Math.max(0, 25 - lastSeenDaysAgo)
 
   // Cross-platform: max 25 points, linear with platform count (max 4)
   const crossPlatform = (Math.min(platformCount, 4) / 4) * 25

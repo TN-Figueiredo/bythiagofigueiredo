@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useTransition } from 'react'
+import { useState, useCallback, useTransition, useRef } from 'react'
 import { Search, FileText, Mail, Megaphone, X } from 'lucide-react'
 import type { SourceContentResult } from '@/lib/social/actions/stories'
 
@@ -31,6 +31,7 @@ export function ContentPickerModal({
   const [error, setError] = useState<string | null>(null)
   const [hasSearched, setHasSearched] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(null)
 
   const handleSearch = useCallback(
     (tab: ContentTab, q: string) => {
@@ -62,12 +63,15 @@ export function ContentPickerModal({
   const handleQueryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const q = e.target.value
     setQuery(q)
-    if (q.length >= 2) {
-      handleSearch(activeTab, q)
-    } else {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    if (q.length < 2) {
       setResults([])
       setHasSearched(false)
+      return
     }
+    timerRef.current = setTimeout(() => {
+      handleSearch(activeTab, q)
+    }, 300)
   }
 
   return (

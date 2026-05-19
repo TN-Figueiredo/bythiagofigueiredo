@@ -431,6 +431,28 @@ export async function publishSocialPost(
             processedPost = await prepareStoryDelivery(post, delivery)
           }
 
+          // Multi-slide Instagram Story: publish each slide individually
+          const mediaUrls = processedPost.content.media_urls ?? []
+          if (
+            delivery.format === 'story' &&
+            delivery.provider === 'instagram' &&
+            mediaUrls.length > 1
+          ) {
+            const metaMod = await import('@tn-figueiredo/social/providers/meta')
+            const token = createDecryptor()(connection.page_token_enc!)
+            const igUserId = (connection.metadata as { ig_user_id: string }).ig_user_id
+
+            // Use a conservative budget (200 = full daily headroom; real value comes from header parsing)
+            const results = await metaMod.publishMultiSlideStory(igUserId, token, mediaUrls, 200)
+            const firstResult = results[0]
+            return {
+              deliveryId: delivery.id,
+              status: 'published' as DeliveryStatus,
+              platformPostId: firstResult?.id,
+              platformUrl: firstResult?.url,
+            }
+          }
+
           const provider = await getProvider(delivery.provider)
 
           // Pass ogData to Bluesky provider
@@ -511,6 +533,43 @@ export async function publishSocialPost(
       .from('social_posts')
       .update(postPatch)
       .eq('id', post.id)
+
+    // Record fan interaction for the publishing user when at least one delivery succeeded.
+    // visitor_hash is derived from the author's user ID so it ties back to the same
+    // identity used by the links-engine click tracker and future insights polling.
+    // NOTE: interactions from actual story viewers are recorded by the social-metrics
+    // cron once Instagram Insights returns per-viewer data.
+    // Fire-and-forget — never throw into the main publish flow.
+    if (publishedCount > 0 && post.created_by) {
+      ;(async () => {
+        const encoder = new TextEncoder()
+        const userData = encoder.encode(post.created_by)
+        const hashBuffer = await crypto.subtle.digest('SHA-256', userData)
+        const hashArray = Array.from(new Uint8Array(hashBuffer))
+        const visitorHash = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
+
+        const { error } = await supabase
+          .from('fan_interactions')
+          .insert({
+            site_id: post.site_id,
+            visitor_hash: visitorHash,
+            platform: 'instagram',
+            interaction_type: 'story_publish',
+            post_id: post.id,
+            raw: { post_type: post.type, published_count: publishedCount },
+          })
+
+        if (error) {
+          Sentry.captureException(error, {
+            tags: { ...SENTRY_TAG, action: 'recordFanInteraction:story_publish', postId: post.id },
+          })
+        }
+      })().catch((fanErr: unknown) => {
+        Sentry.captureException(fanErr, {
+          tags: { ...SENTRY_TAG, action: 'recordFanInteraction:story_publish', postId: post.id },
+        })
+      })
+    }
   } catch (err) {
     Sentry.captureException(err, {
       tags: { ...SENTRY_TAG, action: 'publishSocialPost', postId: post.id },

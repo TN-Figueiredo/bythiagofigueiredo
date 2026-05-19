@@ -1,5 +1,6 @@
 'use server'
 
+import { z } from 'zod'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { requireEditAccess } from './_shared'
 import type { StoryInsights, SlideMetrics } from '../story-types'
@@ -8,12 +9,14 @@ export async function getStoryInsights(siteId: string, postId: string): Promise<
   const { siteId: authorizedSiteId } = await requireEditAccess()
   if (siteId !== authorizedSiteId) throw new Error('forbidden')
 
+  const validPostId = z.string().uuid().parse(postId)
+
   const supabase = getSupabaseServiceClient()
 
   const { data: metrics, error } = await supabase
     .from('post_metrics')
     .select('slide_index, impressions, reach, likes, comments, shares, link_clicks')
-    .eq('post_id', postId)
+    .eq('post_id', validPostId)
     .order('slide_index', { ascending: true, nullsFirst: true })
 
   if (error || !metrics || metrics.length === 0) return null

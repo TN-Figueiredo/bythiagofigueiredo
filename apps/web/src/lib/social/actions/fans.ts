@@ -5,7 +5,8 @@ import { requireEditAccess } from './_shared'
 import type { FanScore } from '../story-types'
 
 export async function getTopFans(siteId: string, limit = 20): Promise<FanScore[]> {
-  await requireEditAccess()
+  const { siteId: authorizedSiteId } = await requireEditAccess()
+  if (siteId !== authorizedSiteId) throw new Error('forbidden')
   const supabase = getSupabaseServiceClient()
 
   const { data, error } = await supabase
@@ -30,7 +31,8 @@ export async function recordFanInteraction(
     raw?: Record<string, unknown>
   },
 ): Promise<void> {
-  await requireEditAccess()
+  const { siteId: authorizedSiteId } = await requireEditAccess()
+  if (siteId !== authorizedSiteId) throw new Error('forbidden')
   const supabase = getSupabaseServiceClient()
 
   const { error } = await supabase
@@ -41,6 +43,7 @@ export async function recordFanInteraction(
 }
 
 export async function refreshFanScores(): Promise<void> {
+  await requireEditAccess()
   const supabase = getSupabaseServiceClient()
   const { error } = await supabase.rpc('refresh_fan_scores')
   if (error) {

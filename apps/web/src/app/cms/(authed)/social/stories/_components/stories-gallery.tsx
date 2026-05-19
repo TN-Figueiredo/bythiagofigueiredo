@@ -63,7 +63,10 @@ export function StoriesGallery({ siteId, initialCounts }: StoriesGalleryProps) {
     setLoading(true)
     try {
       const result = await getStories(siteId, activeTab)
-      if (result.ok) setStories(result.data)
+      if (result.ok) {
+        setStories(result.data)
+        setCounts((prev) => ({ ...prev, [activeTab]: result.data.length }))
+      }
     } finally {
       setLoading(false)
     }

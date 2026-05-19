@@ -193,31 +193,18 @@ export async function scheduleStory(
   const postIdParsed = z.string().uuid().safeParse(postId)
   if (!postIdParsed.success) return { ok: false, error: 'Invalid post ID' }
 
-  const scheduledAtParsed = z.string().datetime().safeParse(scheduledAt)
-  // Accept datetime-local format (without timezone) by coercing to ISO
-  const isoScheduledAt = scheduledAtParsed.success
-    ? scheduledAt
-    : `${scheduledAt}:00.000Z`
-
-  const isoCheck = z.string().datetime().safeParse(isoScheduledAt)
-  if (!isoCheck.success) {
-    // Try appending timezone offset if still invalid
-    const withZ = scheduledAt.endsWith('Z') ? scheduledAt : `${scheduledAt.replace('T', 'T')}:00Z`
-    const finalCheck = z.string().datetime().safeParse(withZ)
-    if (!finalCheck.success) {
-      return { ok: false, error: 'Invalid scheduled date/time. Use ISO 8601 format.' }
-    }
+  const scheduledDate = new Date(scheduledAt)
+  if (isNaN(scheduledDate.getTime())) {
+    return { ok: false, error: 'Invalid scheduled date/time. Use ISO 8601 format.' }
   }
+  if (scheduledDate <= new Date()) {
+    return { ok: false, error: 'Scheduled time must be in the future.' }
+  }
+  const isoDate = scheduledDate.toISOString()
 
   const slidesParsed = StorySlidesSchema.safeParse(slides)
   if (!slidesParsed.success) {
     return { ok: false, error: `Invalid slides: ${slidesParsed.error.issues.map((i) => i.message).join(', ')}` }
-  }
-
-  // Ensure the scheduled time is in the future
-  const scheduledDate = new Date(isoScheduledAt.endsWith('Z') ? isoScheduledAt : `${isoScheduledAt}Z`)
-  if (isNaN(scheduledDate.getTime()) || scheduledDate <= new Date()) {
-    return { ok: false, error: 'Scheduled time must be in the future.' }
   }
 
   try {
@@ -232,7 +219,7 @@ export async function scheduleStory(
       type: 'image' as const,
       status: 'scheduled' as const,
       story_slides: slidesParsed.data,
-      scheduled_at: scheduledDate.toISOString(),
+      scheduled_at: isoDate,
       content: {
         description: content?.caption ?? '',
       },

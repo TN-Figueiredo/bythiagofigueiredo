@@ -43,4 +43,16 @@ describe('computeFanScore', () => {
     const diff = computeFanScore(recent) - computeFanScore(weekOld)
     expect(diff).toBe(14)
   })
+
+  it('recency boundary: exactly 7 days ago starts decaying (matches SQL source of truth)', () => {
+    // At 6 days: full 25 points (< 7 is TRUE)
+    const sixDays: FanScoreInput = {
+      totalInteractions: 10, platformCount: 1, activeDays: 5, lastSeenDaysAgo: 6,
+    }
+    // At 7 days: decay starts (< 7 is FALSE) → 25 - 7 = 18
+    const sevenDays: FanScoreInput = { ...sixDays, lastSeenDaysAgo: 7 }
+    const diff = computeFanScore(sixDays) - computeFanScore(sevenDays)
+    // 25 - 18 = 7 points difference
+    expect(diff).toBe(7)
+  })
 })

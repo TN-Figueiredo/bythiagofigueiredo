@@ -85,6 +85,10 @@ export interface SocialPostData {
   coverImageUrl?: string
   logoUrl?: string
   shortUrl?: string
+  /** BCP-47 locale of the source content (e.g. 'pt-BR'). Stored for future localised generation. */
+  sourceLocale?: string
+  /** Visual template style selected in the options step. Stored for future use. */
+  templateStyle?: string
 }
 
 export function postDataToTemplateContext(data: SocialPostData): TemplateContext {

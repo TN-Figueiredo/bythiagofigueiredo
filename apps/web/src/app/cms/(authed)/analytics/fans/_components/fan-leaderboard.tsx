@@ -12,38 +12,6 @@ const RANK_COLORS: Record<number, string> = {
   3: 'text-amber-600',
 }
 
-function PlatformBadges({ platforms }: { platforms: string[] }) {
-  const ICONS: Record<string, string> = {
-    instagram: 'IG',
-    facebook: 'FB',
-    bluesky: 'BS',
-    link_click: 'LK',
-    newsletter: 'NL',
-  }
-
-  const COLORS: Record<string, string> = {
-    instagram: 'bg-pink-900/40 text-pink-300',
-    facebook: 'bg-blue-900/40 text-blue-300',
-    bluesky: 'bg-sky-900/40 text-sky-300',
-    link_click: 'bg-indigo-900/40 text-indigo-300',
-    newsletter: 'bg-green-900/40 text-green-300',
-  }
-
-  return (
-    <div className="flex flex-wrap gap-1">
-      {platforms.map((p) => (
-        <span
-          key={p}
-          className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${COLORS[p] ?? 'bg-gray-800 text-gray-300'}`}
-          title={p}
-        >
-          {ICONS[p] ?? p.slice(0, 2).toUpperCase()}
-        </span>
-      ))}
-    </div>
-  )
-}
-
 function formatDate(dateStr: string): string {
   try {
     return new Date(dateStr).toLocaleDateString('pt-BR', {
@@ -88,10 +56,6 @@ export function FanLeaderboard({ fans }: FanLeaderboardProps) {
           const rank = idx + 1
           const rankColor = RANK_COLORS[rank] ?? 'text-cms-text-muted'
           const identifier = fan.email ?? obfuscateHash(fan.visitor_hash)
-
-          // Infer platforms from interaction count heuristic — actual platform data stored in fan_interactions
-          // For now we use platform_count as a count; we can't know which platforms without a join
-          const platformPlaceholders: string[] = []
 
           return (
             <div
