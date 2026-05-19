@@ -16,8 +16,8 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { Plus, Printer } from 'lucide-react'
-import type { RoteiroContent, RoteiroBeat, RoteiroMeta, ScriptLine } from '@/lib/pipeline/roteiro-schemas'
-import { createEmptyBeat } from '@/lib/pipeline/roteiro-schemas'
+import type { RoteiroContent, RoteiroBeat, RoteiroMeta } from '@/lib/pipeline/roteiro-schemas'
+import { createEmptyBeat, fmtDur, beatReadTime } from '@/lib/pipeline/roteiro-schemas'
 import { ScriptMetaEditor } from './script-meta-editor'
 import { ScriptBeatAccordion } from './script-beat-accordion'
 
@@ -38,23 +38,6 @@ function useStableBeatKeys(beatCount: number): string[] {
     keysRef.current.length = beatCount
   }
   return keysRef.current
-}
-
-function fmtDur(sec: number): string {
-  if (sec < 60) return `${sec}s`
-  const m = Math.floor(sec / 60)
-  const s = sec % 60
-  return s > 0 ? `${m}m${String(s).padStart(2, '0')}s` : `${m}m`
-}
-
-function beatReadTime(beat: RoteiroBeat): number {
-  const words = beat.script
-    .filter((l): l is ScriptLine & { type: 'line' } => l.type === 'line')
-    .reduce((n, l) => n + l.text.split(/\s+/).length, 0)
-  const pauses = beat.script
-    .filter((l): l is ScriptLine & { type: 'pause' } => l.type === 'pause')
-    .reduce((n, l) => n + l.duration, 0)
-  return Math.ceil(words / 2.5 + pauses)
 }
 
 function BeatsOverview({ beats }: { beats: RoteiroBeat[] }) {
@@ -79,7 +62,7 @@ function BeatsOverview({ beats }: { beats: RoteiroBeat[] }) {
         <tbody>
           {beats.map((b) => (
             <tr key={b.idx} style={{ borderBottom: '1px solid color-mix(in srgb, var(--gem-border) 50%, transparent)' }}>
-              <td className="px-3 py-1 font-bold tabular-nums" style={{ color: 'var(--gem-accent)' }}>#{b.idx}</td>
+              <td className="px-3 py-1 font-bold tabular-nums" style={{ color: 'var(--gem-accent)' }}>#{b.idx + 1}</td>
               <td className="px-2 py-1 font-medium truncate" style={{ color: 'var(--gem-muted)' }}>{b.name}</td>
               <td className="px-2 py-1 text-center text-[8px] font-bold uppercase" style={{ color: b.status === 'DONE' ? 'var(--gem-done, #22c55e)' : 'var(--gem-dim)' }}>{b.status === 'DONE' ? '✓' : '―'}</td>
               <td className="px-2 py-1 text-right tabular-nums font-mono text-[9px]" style={{ color: 'var(--gem-dim)' }}>{b.duration ? fmtDur(b.duration) : '-'}</td>

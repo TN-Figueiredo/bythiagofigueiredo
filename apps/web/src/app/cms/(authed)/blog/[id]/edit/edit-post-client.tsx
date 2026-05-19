@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { PostEditor } from '@tn-figueiredo/cms'
 import { TipTapEditor } from '../../../_shared/editor/tiptap-editor'
 import type { JSONContent } from '@tiptap/core'
@@ -37,6 +38,7 @@ interface EditPostClientProps {
   initialHashtags: Array<{ id: string; name: string; slug: string }>
   initialContentJson: Record<string, unknown> | null
   initialContentHtml: string | null
+  hasInstagramConnection?: boolean
 }
 
 export function EditPostClient({
@@ -61,6 +63,7 @@ export function EditPostClient({
   initialHashtags,
   initialContentJson,
   initialContentHtml,
+  hasInstagramConnection,
 }: EditPostClientProps) {
   const [keyPoints, setKeyPoints] = useState(initialKeyPoints)
   const [pullQuote, setPullQuote] = useState(initialPullQuote)
@@ -157,14 +160,24 @@ export function EditPostClient({
             {saveError && (
               <p className="mt-2 text-sm text-red-400">{saveError}</p>
             )}
-            <button
-              type="button"
-              onClick={handleTipTapSave}
-              disabled={isSaving}
-              className="mt-3 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              {isSaving ? (locale === 'pt-BR' ? 'Salvando…' : 'Saving…') : (locale === 'pt-BR' ? 'Salvar' : 'Save')}
-            </button>
+            <div className="mt-3 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleTipTapSave}
+                disabled={isSaving}
+                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                {isSaving ? (locale === 'pt-BR' ? 'Salvando…' : 'Saving…') : (locale === 'pt-BR' ? 'Salvar' : 'Save')}
+              </button>
+              {hasInstagramConnection && (
+                <Link
+                  href={`/cms/social/stories/new?source=blog&id=${postId}&locale=${locale}`}
+                  className="rounded-lg bg-gradient-to-r from-[#f09433] to-[#dc2743] px-3 py-2 text-sm font-medium text-white hover:opacity-90 transition-opacity inline-flex items-center gap-1.5"
+                >
+                  Criar Story
+                </Link>
+              )}
+            </div>
           </div>
         </>
       ) : (

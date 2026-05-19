@@ -46,12 +46,12 @@ interface CtaStrings {
 const DEFAULT_LOCALE = 'pt-BR'
 
 const CTA_TEXT: { [locale: string]: CtaStrings | undefined } = {
-  'pt-BR': { readMore: 'Leia Mais', swipeUp: 'Arraste para cima', learnMore: 'Saiba Mais' },
-  'en': { readMore: 'Read More', swipeUp: 'Swipe Up', learnMore: 'Learn More' },
-  'es': { readMore: 'Leer Más', swipeUp: 'Desliza hacia arriba', learnMore: 'Saber Más' },
+  'pt-BR': { readMore: 'Leia Mais', swipeUp: 'Arraste para cima', learnMore: 'Link na bio' },
+  'en': { readMore: 'Read More', swipeUp: 'Swipe Up', learnMore: 'Link in bio' },
+  'es': { readMore: 'Leer Más', swipeUp: 'Desliza hacia arriba', learnMore: 'Enlace en bio' },
 }
 
-const DEFAULT_CTA: CtaStrings = { readMore: 'Leia Mais', swipeUp: 'Arraste para cima', learnMore: 'Saiba Mais' }
+const DEFAULT_CTA: CtaStrings = { readMore: 'Leia Mais', swipeUp: 'Arraste para cima', learnMore: 'Link na bio' }
 
 function getCta(locale: string): CtaStrings {
   return CTA_TEXT[locale] ?? DEFAULT_CTA
@@ -113,37 +113,53 @@ function buildCoverSlide(input: SlideCompositionInput): CardComposition {
 
   let background: CardComposition['background']
 
-  if (style === 'overlay') {
-    // Semi-transparent dark overlay on cover image if available, otherwise solid dark
-    background = coverImageUrl
-      ? { type: 'image', url: coverImageUrl, fallbackColor: '#0a0a0a' }
-      : { type: 'solid', color: '#0a0a0a' }
+  if (coverImageUrl) {
+    // Blurred cover image fills the entire canvas as background
+    background = { type: 'image', url: coverImageUrl, fallbackColor: '#0a0a0a', blur: 40 }
+  } else if (style === 'overlay') {
+    background = { type: 'solid', color: '#0a0a0a' }
   } else if (style === 'bold') {
-    // Pick a bold solid color from palette based on primary color hash
     background = { type: 'solid', color: boldColor(primaryColor) }
   } else {
-    // gradient (default)
-    background = coverImageUrl
-      ? { type: 'image', url: coverImageUrl, fallbackColor: primaryColor }
-      : {
-          type: 'gradient',
-          angle: 160,
-          stops: [
-            { color: primaryColor, position: 0 },
-            { color: '#0a0a0a', position: 1 },
-          ],
-        }
+    background = {
+      type: 'gradient',
+      angle: 160,
+      stops: [
+        { color: primaryColor, position: 0 },
+        { color: '#0a0a0a', position: 1 },
+      ],
+    }
   }
 
   const elements: CardComposition['elements'] = []
 
-  // Overlay gradient at bottom so text is readable
+  const COVER_IMAGE_HEIGHT = 810
+
+  // Cover image as a repositionable element (4:3 container — good for landscape sources)
+  if (coverImageUrl) {
+    elements.push(
+      makeImageElement({
+        id: crypto.randomUUID(),
+        src: coverImageUrl,
+        x: 0,
+        y: 0,
+        width: STORY_WIDTH,
+        height: COVER_IMAGE_HEIGHT,
+        objectFit: 'cover',
+        maintainAspectRatio: true,
+        borderRadius: 0,
+      }),
+    )
+  }
+
+  const titleY = coverImageUrl ? COVER_IMAGE_HEIGHT + 100 : 700
+
   elements.push(
     makeTextElement({
       id: crypto.randomUUID(),
       content: title,
       x: PADDING_X,
-      y: 1200,
+      y: titleY,
       width: CONTENT_WIDTH,
       height: 400,
       fontSize: 64,
@@ -160,7 +176,7 @@ function buildCoverSlide(input: SlideCompositionInput): CardComposition {
         id: crypto.randomUUID(),
         src: logoUrl,
         x: PADDING_X,
-        y: 120,
+        y: coverImageUrl ? COVER_IMAGE_HEIGHT + 520 : 1500,
         width: 120,
         height: 120,
         objectFit: 'contain',
@@ -274,14 +290,13 @@ function buildCtaSlide(
     }),
     makeTextElement({
       id: crypto.randomUUID(),
-      content: '{{short_url}}',
+      content: cta.learnMore,
       x: PADDING_X,
       y: 870,
       width: CONTENT_WIDTH,
       height: 80,
-      fontSize: 32,
-      fontWeight: 400,
-      fontFamily: 'monospace',
+      fontSize: 36,
+      fontWeight: 500,
       align: 'center',
       color: primaryColor,
     }),

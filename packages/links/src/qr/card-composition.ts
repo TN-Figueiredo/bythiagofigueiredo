@@ -74,6 +74,7 @@ const ImageBackgroundSchema = z.object({
   type: z.literal('image'),
   url: z.string().min(1),
   fallbackColor: HexColor,
+  blur: z.number().min(0).max(100).optional(),
 })
 
 const GradientStopSchema = z.object({

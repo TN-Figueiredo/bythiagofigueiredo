@@ -1,10 +1,18 @@
 'use client'
 
-import { useMemo, useCallback } from 'react'
+import { useMemo, useCallback, useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import type { RendererProps } from '../section-content'
 import { migrateV1toV2, type RoteiroContent } from '@/lib/pipeline/roteiro-schemas'
 import { ScriptEditMode } from '../editors/script-edit-mode'
 import { ScriptViewMode } from './script-view-mode'
+
+function PrintPortal({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
+  if (!mounted) return null
+  return createPortal(children, document.body)
+}
 
 export function ScriptRenderer({ content, isEditing, lang, onContentChange }: RendererProps) {
   const v2Content = useMemo(() => migrateV1toV2(content), [content])
@@ -23,9 +31,11 @@ export function ScriptRenderer({ content, isEditing, lang, onContentChange }: Re
         isEditing={isEditing}
         onChange={handleChange}
       />
-      <div className="script-print-view" aria-hidden="true">
-        <ScriptViewMode content={v2Content} />
-      </div>
+      <PrintPortal>
+        <div className="script-print-view" aria-hidden="true">
+          <ScriptViewMode content={v2Content} />
+        </div>
+      </PrintPortal>
     </>
   )
 }

@@ -31,10 +31,10 @@ export async function saveStoryDraft(
   content?: StoryContent,
 ): Promise<ActionResult<{ id: string }>> {
   const idParsed = z.string().uuid().safeParse(siteId)
-  if (!idParsed.success) return { ok: false, error: 'Invalid site ID' }
+  if (!idParsed.success) return { ok: false, error: 'ID do site inválido' }
 
   const postIdParsed = z.string().uuid().safeParse(postId)
-  if (!postIdParsed.success) return { ok: false, error: 'Invalid post ID' }
+  if (!postIdParsed.success) return { ok: false, error: 'ID do post inválido' }
 
   const slidesParsed = StorySlidesSchema.safeParse(slides)
   if (!slidesParsed.success) {
@@ -43,7 +43,7 @@ export async function saveStoryDraft(
 
   try {
     const { siteId: authorizedSiteId, userId } = await requireEditAccess()
-    if (idParsed.data !== authorizedSiteId) return { ok: false, error: 'forbidden' }
+    if (idParsed.data !== authorizedSiteId) return { ok: false, error: 'Sem permissão' }
 
     const supabase = getSupabaseServiceClient()
 
@@ -94,10 +94,10 @@ export async function publishStoryNow(
   content?: StoryContent,
 ): Promise<ActionResult<{ id: string }>> {
   const idParsed = z.string().uuid().safeParse(siteId)
-  if (!idParsed.success) return { ok: false, error: 'Invalid site ID' }
+  if (!idParsed.success) return { ok: false, error: 'ID do site inválido' }
 
   const postIdParsed = z.string().uuid().safeParse(postId)
-  if (!postIdParsed.success) return { ok: false, error: 'Invalid post ID' }
+  if (!postIdParsed.success) return { ok: false, error: 'ID do post inválido' }
 
   const slidesParsed = StorySlidesSchema.safeParse(slides)
   if (!slidesParsed.success) {
@@ -106,7 +106,7 @@ export async function publishStoryNow(
 
   try {
     const { siteId: authorizedSiteId, userId } = await requireEditAccess()
-    if (idParsed.data !== authorizedSiteId) return { ok: false, error: 'forbidden' }
+    if (idParsed.data !== authorizedSiteId) return { ok: false, error: 'Sem permissão' }
 
     const supabase = getSupabaseServiceClient()
 
@@ -202,17 +202,17 @@ export async function scheduleStory(
   content?: StoryContent,
 ): Promise<ActionResult<{ id: string }>> {
   const idParsed = z.string().uuid().safeParse(siteId)
-  if (!idParsed.success) return { ok: false, error: 'Invalid site ID' }
+  if (!idParsed.success) return { ok: false, error: 'ID do site inválido' }
 
   const postIdParsed = z.string().uuid().safeParse(postId)
-  if (!postIdParsed.success) return { ok: false, error: 'Invalid post ID' }
+  if (!postIdParsed.success) return { ok: false, error: 'ID do post inválido' }
 
   const scheduledDate = new Date(scheduledAt)
   if (isNaN(scheduledDate.getTime())) {
-    return { ok: false, error: 'Invalid scheduled date/time. Use ISO 8601 format.' }
+    return { ok: false, error: 'Data/hora de agendamento inválida.' }
   }
   if (scheduledDate <= new Date()) {
-    return { ok: false, error: 'Scheduled time must be in the future.' }
+    return { ok: false, error: 'O horário agendado deve ser no futuro.' }
   }
   const isoDate = scheduledDate.toISOString()
 
@@ -223,7 +223,7 @@ export async function scheduleStory(
 
   try {
     const { siteId: authorizedSiteId, userId } = await requireEditAccess()
-    if (idParsed.data !== authorizedSiteId) return { ok: false, error: 'forbidden' }
+    if (idParsed.data !== authorizedSiteId) return { ok: false, error: 'Sem permissão' }
 
     const supabase = getSupabaseServiceClient()
 

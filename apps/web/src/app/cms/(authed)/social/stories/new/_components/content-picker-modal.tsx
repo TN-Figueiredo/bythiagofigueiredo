@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useTransition, useRef } from 'react'
+import { useState, useCallback, useTransition, useRef, useEffect } from 'react'
 import { Search, FileText, Mail, Megaphone, X } from 'lucide-react'
 import type { SourceContentResult } from '@/lib/social/actions/stories'
 
@@ -29,9 +29,17 @@ export function ContentPickerModal({
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SourceContentResult[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [hasSearched, setHasSearched] = useState(false)
+  const [hasSearched, setHasSearched] = useState(true)
   const [isPending, startTransition] = useTransition()
   const timerRef = useRef<ReturnType<typeof setTimeout>>(null)
+
+  useEffect(() => {
+    startTransition(async () => {
+      const res = await onSearch(siteId, 'blog', '')
+      if (res.ok) setResults(res.data ?? [])
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleSearch = useCallback(
     (tab: ContentTab, q: string) => {
@@ -160,10 +168,18 @@ export function ContentPickerModal({
                   <button
                     type="button"
                     onClick={() => onSelect(item)}
-                    className="w-full text-left px-4 py-3 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 hover:border-neutral-500 transition-colors"
+                    className="w-full text-left px-4 py-3 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 hover:border-neutral-500 transition-colors flex gap-3 items-center"
                   >
-                    <p className="text-sm font-medium text-neutral-100 line-clamp-2">{item.title}</p>
-                    <p className="text-xs text-neutral-500 mt-1 truncate">{item.url}</p>
+                    {item.coverImageUrl && (
+                      <div
+                        className="w-12 h-12 rounded bg-neutral-700 shrink-0 bg-cover bg-center"
+                        style={{ backgroundImage: `url(${item.coverImageUrl})` }}
+                      />
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-neutral-100 line-clamp-2">{item.title}</p>
+                      <p className="text-xs text-neutral-500 mt-1 truncate">{item.url}</p>
+                    </div>
                   </button>
                 </li>
               ))}

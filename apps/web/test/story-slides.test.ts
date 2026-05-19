@@ -62,7 +62,7 @@ describe('generateSlideCompositions', () => {
   // Template style tests
   // ---------------------------------------------------------------------------
 
-  it('gradient style: cover uses image background when coverImageUrl is provided', () => {
+  it('gradient style: cover uses blurred image background when coverImageUrl is provided', () => {
     const slides = generateSlideCompositions({
       title: 'Test',
       excerpt: 'Content',
@@ -73,6 +73,12 @@ describe('generateSlideCompositions', () => {
       style: 'gradient',
     })
     expect(slides[0].background.type).toBe('image')
+    if (slides[0].background.type === 'image') {
+      expect(slides[0].background.blur).toBe(40)
+      expect(slides[0].background.url).toBe('https://example.com/cover.jpg')
+    }
+    const imgEl = slides[0].elements.find((e) => e.type === 'image')
+    expect(imgEl).toBeDefined()
   })
 
   it('gradient style: cover uses gradient when no coverImageUrl', () => {
@@ -86,9 +92,10 @@ describe('generateSlideCompositions', () => {
       style: 'gradient',
     })
     expect(slides[0].background.type).toBe('gradient')
+    expect(slides[0].elements.find((e) => e.type === 'image')).toBeUndefined()
   })
 
-  it('overlay style: cover uses image background when coverImageUrl is provided', () => {
+  it('overlay style: cover uses blurred image background when coverImageUrl is provided', () => {
     const slides = generateSlideCompositions({
       title: 'Test',
       excerpt: 'Content',
@@ -99,6 +106,12 @@ describe('generateSlideCompositions', () => {
       style: 'overlay',
     })
     expect(slides[0].background.type).toBe('image')
+    if (slides[0].background.type === 'image') {
+      expect(slides[0].background.blur).toBe(40)
+      expect(slides[0].background.url).toBe('https://example.com/cover.jpg')
+    }
+    const imgEl = slides[0].elements.find((e) => e.type === 'image')
+    expect(imgEl).toBeDefined()
   })
 
   it('overlay style: cover uses solid dark when no coverImageUrl', () => {
@@ -114,11 +127,27 @@ describe('generateSlideCompositions', () => {
     expect(slides[0].background.type).toBe('solid')
   })
 
-  it('bold style: cover uses solid background (not gradient or image)', () => {
+  it('bold style: cover uses blurred image background when coverImageUrl is provided', () => {
     const slides = generateSlideCompositions({
       title: 'Test',
       excerpt: 'Content',
       coverImageUrl: 'https://example.com/cover.jpg',
+      logoUrl: null,
+      primaryColor: '#6366f1',
+      slideCount: 3,
+      style: 'bold',
+    })
+    expect(slides[0].background.type).toBe('image')
+    if (slides[0].background.type === 'image') {
+      expect(slides[0].background.blur).toBe(40)
+    }
+  })
+
+  it('bold style: cover uses solid background when no coverImageUrl', () => {
+    const slides = generateSlideCompositions({
+      title: 'Test',
+      excerpt: 'Content',
+      coverImageUrl: null,
       logoUrl: null,
       primaryColor: '#6366f1',
       slideCount: 3,

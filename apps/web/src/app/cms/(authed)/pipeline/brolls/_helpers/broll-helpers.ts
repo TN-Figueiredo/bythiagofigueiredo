@@ -1,4 +1,17 @@
 
+/** Validates a thumbnail URL to only allow https: and data:image/ schemes. */
+export function sanitizeThumbnailUrl(url: string | null | undefined): string | null {
+  if (!url) return null
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol === 'https:') return url
+    if (parsed.protocol === 'data:' && url.startsWith('data:image/')) return url
+    return null
+  } catch {
+    return null
+  }
+}
+
 export function formatDuration(seconds: number | null | undefined): string {
   if (seconds == null) return '--'
   if (seconds < 60) return `${Math.round(seconds)}s`

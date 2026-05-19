@@ -5,8 +5,11 @@ import {
   Bold,
   Italic,
   Underline,
+  Highlighter,
   List,
   Quote,
+  Undo2,
+  Redo2,
   Mic,
   Camera,
   Navigation,
@@ -96,6 +99,13 @@ export function ScriptBeatToolbar({ editor }: ScriptBeatToolbarProps) {
       >
         <Underline size={13} />
       </Btn>
+      <Btn
+        active={editor.isActive('highlight')}
+        onClick={() => editor.chain().focus().toggleHighlight().run()}
+        title="Highlight emphasis"
+      >
+        <Highlighter size={13} />
+      </Btn>
       <Sep />
       <Btn
         active={editor.isActive('bulletList')}
@@ -138,6 +148,21 @@ export function ScriptBeatToolbar({ editor }: ScriptBeatToolbarProps) {
         title="Pause marker (Cmd+Shift+P)"
       >
         <Timer size={13} />
+      </Btn>
+      <Sep />
+      <Btn
+        disabled={!editor.can().undo()}
+        onClick={() => editor.chain().focus().undo().run()}
+        title="Undo (Ctrl+Z)"
+      >
+        <Undo2 size={13} />
+      </Btn>
+      <Btn
+        disabled={!editor.can().redo()}
+        onClick={() => editor.chain().focus().redo().run()}
+        title="Redo (Ctrl+Shift+Z)"
+      >
+        <Redo2 size={13} />
       </Btn>
     </div>
   )

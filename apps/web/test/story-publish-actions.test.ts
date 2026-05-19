@@ -66,13 +66,13 @@ beforeEach(() => {
 describe('saveStoryDraft', () => {
   it('returns { ok: false } for invalid siteId (non-UUID)', async () => {
     const result = await saveStoryDraft('bad-id', REAL_POST_UUID, [VALID_SLIDE])
-    expect(result).toEqual({ ok: false, error: 'Invalid site ID' })
+    expect(result).toEqual({ ok: false, error: 'ID do site inválido' })
     expect(requireEditAccess).not.toHaveBeenCalled()
   })
 
   it('returns { ok: false } for invalid postId (non-UUID)', async () => {
     const result = await saveStoryDraft(REAL_SITE_UUID, 'bad-post-id', [VALID_SLIDE])
-    expect(result).toEqual({ ok: false, error: 'Invalid post ID' })
+    expect(result).toEqual({ ok: false, error: 'ID do post inválido' })
     expect(requireEditAccess).not.toHaveBeenCalled()
   })
 
@@ -95,7 +95,7 @@ describe('saveStoryDraft', () => {
 
   it('returns forbidden when siteId does not match authorized site', async () => {
     const result = await saveStoryDraft(REAL_OTHER_UUID, REAL_POST_UUID, [VALID_SLIDE])
-    expect(result).toEqual({ ok: false, error: 'forbidden' })
+    expect(result).toEqual({ ok: false, error: 'Sem permissão' })
   })
 
   it('upserts with status=draft on success', async () => {
@@ -171,17 +171,17 @@ describe('saveStoryDraft', () => {
 describe('publishStoryNow', () => {
   it('returns { ok: false } for invalid siteId', async () => {
     const result = await publishStoryNow('bad-id', REAL_POST_UUID, [VALID_SLIDE])
-    expect(result).toEqual({ ok: false, error: 'Invalid site ID' })
+    expect(result).toEqual({ ok: false, error: 'ID do site inválido' })
   })
 
   it('returns { ok: false } for invalid postId', async () => {
     const result = await publishStoryNow(REAL_SITE_UUID, 'bad-post-id', [VALID_SLIDE])
-    expect(result).toEqual({ ok: false, error: 'Invalid post ID' })
+    expect(result).toEqual({ ok: false, error: 'ID do post inválido' })
   })
 
   it('returns forbidden when siteId does not match authorized site', async () => {
     const result = await publishStoryNow(REAL_OTHER_UUID, REAL_POST_UUID, [VALID_SLIDE])
-    expect(result).toEqual({ ok: false, error: 'forbidden' })
+    expect(result).toEqual({ ok: false, error: 'Sem permissão' })
   })
 
   it('upserts with status=publishing', async () => {
@@ -240,23 +240,23 @@ describe('scheduleStory', () => {
 
   it('returns { ok: false } for invalid siteId', async () => {
     const result = await scheduleStory('bad-id', REAL_POST_UUID, [VALID_SLIDE], FUTURE_DATE)
-    expect(result).toEqual({ ok: false, error: 'Invalid site ID' })
+    expect(result).toEqual({ ok: false, error: 'ID do site inválido' })
   })
 
   it('returns { ok: false } for invalid postId', async () => {
     const result = await scheduleStory(REAL_SITE_UUID, 'bad-post-id', [VALID_SLIDE], FUTURE_DATE)
-    expect(result).toEqual({ ok: false, error: 'Invalid post ID' })
+    expect(result).toEqual({ ok: false, error: 'ID do post inválido' })
   })
 
   it('returns { ok: false } for invalid date string (NaN)', async () => {
     const result = await scheduleStory(REAL_SITE_UUID, REAL_POST_UUID, [VALID_SLIDE], 'not-a-date')
-    expect(result).toEqual({ ok: false, error: 'Invalid scheduled date/time. Use ISO 8601 format.' })
+    expect(result).toEqual({ ok: false, error: 'Data/hora de agendamento inválida.' })
   })
 
   it('returns { ok: false } when scheduled date is in the past', async () => {
     const pastDate = new Date(Date.now() - 60 * 1000).toISOString() // 1 minute ago
     const result = await scheduleStory(REAL_SITE_UUID, REAL_POST_UUID, [VALID_SLIDE], pastDate)
-    expect(result).toEqual({ ok: false, error: 'Scheduled time must be in the future.' })
+    expect(result).toEqual({ ok: false, error: 'O horário agendado deve ser no futuro.' })
   })
 
   it('returns { ok: false } when scheduled date is right now (not future)', async () => {
@@ -268,7 +268,7 @@ describe('scheduleStory', () => {
 
   it('returns forbidden when siteId does not match authorized site', async () => {
     const result = await scheduleStory(REAL_OTHER_UUID, REAL_POST_UUID, [VALID_SLIDE], FUTURE_DATE)
-    expect(result).toEqual({ ok: false, error: 'forbidden' })
+    expect(result).toEqual({ ok: false, error: 'Sem permissão' })
   })
 
   it('upserts with status=scheduled and correct scheduled_at', async () => {

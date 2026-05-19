@@ -4,6 +4,7 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { PostEditionEditor } from '../../new/post-edition-editor'
 import { getPipelineItemForPost } from '@/lib/pipeline/blog-link'
+import { hasInstagramConnection } from '@/lib/social/actions/blog-story'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,7 +23,7 @@ export default async function EditPostPage({ params }: Props) {
   const existingLocales = post.translations.map(t => t.locale)
 
   const supabase = getSupabaseServiceClient()
-  const [tagsResult, siteResult, hashtagResult, txExtraResult, postExtraResult, pipelineItem] = await Promise.all([
+  const [tagsResult, siteResult, hashtagResult, txExtraResult, postExtraResult, pipelineItem, igConnected] = await Promise.all([
     supabase
       .from('blog_tags')
       .select('id, name, color, name_translations')
@@ -49,6 +50,7 @@ export default async function EditPostPage({ params }: Props) {
       .eq('id', id)
       .maybeSingle(),
     getPipelineItemForPost(id),
+    hasInstagramConnection().catch(() => false),
   ])
 
   const tags = (tagsResult.data ?? []).map((t: { id: string; name: string; color: string; name_translations?: Record<string, string> | null }) => ({
@@ -95,6 +97,7 @@ export default async function EditPostPage({ params }: Props) {
       initialStatus={(postExtra as { status?: string }).status ?? 'draft'}
       existingLocales={existingLocales}
       initialPipelineItem={pipelineItem}
+      hasInstagramConnection={igConnected}
     />
   )
 }

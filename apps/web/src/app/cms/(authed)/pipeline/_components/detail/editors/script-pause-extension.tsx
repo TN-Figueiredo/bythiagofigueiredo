@@ -22,6 +22,8 @@ function ScriptPauseNodeView({ node, updateAttributes, deleteNode }: ReactNodeVi
   return (
     <NodeViewWrapper>
       <div
+        role="button"
+        tabIndex={0}
         className="script-pause-block inline-flex items-center gap-1 my-1 px-2.5 py-1 rounded cursor-pointer select-none"
         style={{
           background: '#22c55e12',
@@ -33,7 +35,9 @@ function ScriptPauseNodeView({ node, updateAttributes, deleteNode }: ReactNodeVi
         }}
         onClick={() => setEditing(true)}
         onDoubleClick={deleteNode}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEditing(true) } if (e.key === 'Delete' || e.key === 'Backspace') deleteNode() }}
         title="Click to edit, double-click to remove"
+        aria-label={`Pause ${duration} seconds`}
       >
         <span style={{ opacity: 0.7 }}>&#9208;</span>
         {editing ? (

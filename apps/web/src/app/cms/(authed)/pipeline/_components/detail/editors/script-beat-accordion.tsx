@@ -145,10 +145,10 @@ export function ScriptBeatAccordion({
 
         {/* Beat number */}
         <span
-          className="text-[10px] font-bold tabular-nums shrink-0"
-          style={{ color: 'var(--gem-accent)', minWidth: '1.5rem' }}
+          className="text-[10px] font-bold tabular-nums shrink-0 px-1.5 py-0.5 rounded"
+          style={{ color: 'var(--gem-bg, #0f0f17)', background: 'var(--gem-accent)', minWidth: '1.5rem', textAlign: 'center' }}
         >
-          #{beat.idx}
+          #{beat.idx + 1}
         </span>
 
         {/* Beat name */}
@@ -165,9 +165,12 @@ export function ScriptBeatAccordion({
           />
         ) : (
           <span
-            className="text-[11px] font-medium flex-1 truncate"
+            className="text-[11px] font-semibold flex-1 truncate"
             style={{ color: 'var(--gem-text)', cursor: isEditing ? 'pointer' : 'default' }}
+            role={isEditing ? 'button' : undefined}
+            tabIndex={isEditing ? 0 : undefined}
             onClick={() => isEditing && setEditingName(true)}
+            onKeyDown={(e) => { if (isEditing && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setEditingName(true) } }}
             title={isEditing ? 'Click to rename' : beat.name}
           >
             {beat.name}
@@ -176,7 +179,7 @@ export function ScriptBeatAccordion({
 
         {/* Word count */}
         <span className="text-[9px] tabular-nums shrink-0" style={{ color: 'var(--gem-dim)' }}>
-          {wordCount}w
+          {wordCount}w · ~{Math.ceil(wordCount / 2.5)}s
         </span>
 
         {/* Duration input (edit mode) or display (read mode) */}
@@ -251,7 +254,7 @@ export function ScriptBeatAccordion({
         <div className="script-beat-editor">
           {isEditing && <ScriptBeatToolbar editor={editor} />}
           <div
-            className="px-3 py-2"
+            className={isEditing ? 'px-3 py-2' : 'px-4 py-3'}
             style={{ background: isEditing ? 'var(--gem-well)' : 'transparent' }}
           >
             <EditorContent editor={editor} />

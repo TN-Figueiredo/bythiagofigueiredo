@@ -87,10 +87,9 @@ export function StoryComposer({
       const title = selectedContent?.title ?? 'Nova Story'
       const slides = generateSlideCompositions({
         title,
-        excerpt: selectedContent
-          ? `Confira: ${selectedContent.title}`
-          : 'Swipe para ver mais',
-        coverImageUrl: null,
+        excerpt: selectedContent?.excerpt
+          ?? (selectedContent ? `Confira: ${selectedContent.title}` : 'Swipe para ver mais'),
+        coverImageUrl: selectedContent?.coverImageUrl ?? null,
         logoUrl: brand.logoUrl,
         primaryColor: brand.primaryColor,
         slideCount,

@@ -233,7 +233,7 @@ export function StoryEditor({
   const activeComposition = slides[activeIndex]
 
   return (
-    <div className="fixed inset-0 flex bg-neutral-950">
+    <div className="flex h-full bg-neutral-950">
       {/* Left: slide strip */}
       <SlideStrip
         slides={slides}
@@ -250,6 +250,7 @@ export function StoryEditor({
       <div className="flex-1 min-w-0 relative">
         <SocialCanvasEditor
           ref={editorRef}
+          embedded
           aspectRatio="9:16"
           templates={templates}
           postData={postData}
@@ -271,6 +272,7 @@ export function StoryEditor({
             showCmsTab ? 'text-blue-400 bg-blue-500/10' : 'text-neutral-400 hover:text-neutral-200'
           }`}
           aria-expanded={showCmsTab}
+          aria-label="Dados do CMS"
         >
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
             <rect x="1" y="1" width="10" height="10" rx="1.5" stroke="currentColor" strokeWidth="1" />
@@ -300,7 +302,7 @@ export function StoryEditor({
         {!showCmsTab && (
           <div className="flex-1 flex items-center justify-center">
             <p className="text-[10px] text-neutral-600 text-center px-2">
-              Click CMS Data to insert tokens from your post
+              Clique em CMS Data para inserir dados do seu post
             </p>
           </div>
         )}

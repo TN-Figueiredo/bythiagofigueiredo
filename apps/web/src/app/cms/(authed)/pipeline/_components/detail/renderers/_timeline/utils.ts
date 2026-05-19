@@ -23,10 +23,14 @@ export function fmtDur(sec: number): string {
 
 /**
  * Deterministic pseudo-random [0,1) for procedural generation.
+ * Uses integer-only mulberry32 to avoid Math.sin() precision
+ * differences between server (Node) and client (browser).
  */
 export function pRand(seed: number): number {
-  const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453
-  return x - Math.floor(x)
+  let t = (Math.imul(Math.round(seed * 1000), 1831565813) + 1831565813) | 0
+  t = Math.imul(t ^ (t >>> 15), t | 1)
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296
 }
 
 /**

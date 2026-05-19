@@ -99,16 +99,13 @@ export default defineConfig({
         find: '@/app/api/pipeline/broll-library/[id]/route',
         replacement: path.resolve(__dirname, './src/app/api/pipeline/broll-library/[id]/route.ts'),
       },
-      // Explicit aliases for route groups with parentheses — the catch-all regex
-      // matches these paths but the literal parentheses in the replacement confuse
-      // Vite's module resolver, causing ERR_MODULE_NOT_FOUND in tests.
       {
-        find: /^@\/app\/cms\/\(authed\)(.*)$/,
-        replacement: path.resolve(__dirname, './src/app/cms/(authed)$1'),
+        find: '@/app/cms/(authed)',
+        replacement: path.resolve(__dirname, './src/app/cms/(authed)'),
       },
       {
-        find: /^@\/app\/admin\/\(authed\)(.*)$/,
-        replacement: path.resolve(__dirname, './src/app/admin/(authed)$1'),
+        find: '@/app/admin/(authed)',
+        replacement: path.resolve(__dirname, './src/app/admin/(authed)'),
       },
       { find: /^@\/(.*)$/, replacement: path.resolve(__dirname, './src/$1') },
     ],

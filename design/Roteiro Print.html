@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Roteiro — Print Layout</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400;1,8..60,500&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ink: #1A1410;
+    --ink-80: #3D352C;
+    --ink-50: #7A7064;
+    --ink-30: #A89E92;
+    --ink-15: #D4CEC6;
+    --ink-08: #EBE7E0;
+    --accent: #C45A1C;
+    --blue: #2060A0;
+    --teal: #18806E;
+    --green: #1E7A46;
+    --pink: #A82860;
+    --bg: #FFFFFF;
+    --paper: #F6F5F2;
+  }
+
+  @page { size: A4; margin: 16mm 18mm 18mm 18mm; }
+
+  body {
+    font-family: 'Source Serif 4', Georgia, serif;
+    font-size: 11.5pt;
+    line-height: 1.55;
+    color: var(--ink);
+    background: var(--bg);
+    -webkit-font-smoothing: antialiased;
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 28px 32px 60px;
+    orphans: 2; widows: 2;
+  }
+
+  .mono { font-family: 'JetBrains Mono', monospace; }
+  .sans { font-family: 'Inter', system-ui, sans-serif; }
+  .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 7.5pt;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--ink-30);
+  }
+
+  /* ── Header ──────────────────────────────── */
+  .header {
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 14px;
+    margin-bottom: 16px;
+  }
+  .header-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 7.5pt; letter-spacing: 0.14em;
+    text-transform: uppercase; font-weight: 600;
+    color: var(--ink-30); margin-bottom: 6px;
+  }
+  .header-title {
+    font-size: 16pt; font-weight: 600;
+    line-height: 1.25; letter-spacing: -0.02em;
+    margin-bottom: 12px;
+    text-wrap: balance;
+  }
+  .header-meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 3px 20px;
+    font-family: 'Inter', sans-serif;
+    font-size: 8.5pt; color: var(--ink-50); line-height: 1.45;
+  }
+  .header-meta strong {
+    font-weight: 600; color: var(--ink-80);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 7.5pt; letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  /* ── Synopsis ────────────────────────────── */
+  .synopsis {
+    margin-bottom: 14px;
+    padding: 8px 12px;
+    background: var(--paper);
+    border-left: 3px solid var(--ink-15);
+    border-radius: 0 3px 3px 0;
+    font-family: 'Inter', sans-serif;
+    font-size: 8.5pt; color: var(--ink-50);
+    line-height: 1.5;
+  }
+  .synopsis .label { margin-bottom: 3px; display: block; }
+
+  /* ── Beat overview table ─────────────────── */
+  .overview {
+    margin-bottom: 14px;
+    padding: 10px 14px;
+    background: var(--paper);
+    border-radius: 3px;
+  }
+  .overview-head {
+    display: flex; align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+  .overview table {
+    width: 100%;
+    font-family: 'Inter', sans-serif;
+    font-size: 8.5pt;
+    border-collapse: collapse;
+    color: var(--ink-80);
+  }
+  .overview th {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 7pt; font-weight: 600;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--ink-30); padding: 0 0 3px;
+    border-bottom: 1px solid var(--ink-08);
+  }
+  .overview th.ov-name { text-align: left; }
+  .overview th.ov-dur, .overview th.ov-read { text-align: right; }
+  .overview td { padding: 2px 0; }
+  .overview .ov-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8pt; font-weight: 600;
+    width: 30px; color: var(--ink-30);
+  }
+  .overview .ov-name { font-weight: 500; }
+  .overview .ov-dur {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8pt; text-align: right; width: 50px;
+    color: var(--ink-50);
+  }
+  .overview .ov-read {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 7.5pt; text-align: right; width: 60px;
+    color: var(--ink-30);
+  }
+  .overview tfoot td {
+    padding-top: 4px;
+    border-top: 1px solid var(--ink-15);
+    font-weight: 600; font-size: 8pt;
+  }
+
+  /* ── Accent legend (inside overview) ──── */
+  .legend {
+    display: flex; gap: 14px; flex-wrap: wrap;
+    margin-top: 10px; padding-top: 8px;
+    border-top: 1px solid var(--ink-08);
+    font-family: 'Inter', sans-serif;
+    font-size: 7.5pt; color: var(--ink-30);
+    letter-spacing: 0.02em;
+  }
+  .legend-item {
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+  .legend-swatch {
+    display: inline-block; width: 3px; height: 14px;
+    border-radius: 1px;
+  }
+
+  /* ── Beat section ────────────────────────── */
+  .beat {
+    margin-bottom: 6px;
+    break-inside: avoid;
+  }
+  .beat-header {
+    display: flex; align-items: baseline;
+    gap: 8px; padding: 8px 0 5px;
+    border-top: 1.5px solid var(--ink);
+    margin-top: 20px;
+  }
+  .beat-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8.5pt; font-weight: 700;
+    color: var(--bg); background: var(--ink);
+    border-radius: 2px; padding: 1px 5px;
+    flex-shrink: 0;
+  }
+  .beat-name {
+    font-family: 'Inter', sans-serif;
+    font-size: 10pt; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.04em;
+    flex: 1;
+  }
+  .beat-info {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8pt; color: var(--ink-50);
+    flex-shrink: 0; text-align: right;
+  }
+
+  /* ── Direction notes (typographic, not badges) */
+  .dir-block {
+    margin: 4px 0 8px;
+    padding: 0 0 0 3px;
+    font-family: 'Inter', sans-serif;
+    font-size: 8.5pt; color: var(--ink-50);
+    line-height: 1.5;
+  }
+  .dir-row { margin-bottom: 1px; }
+  .dir-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 7pt; font-weight: 600;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    margin-right: 5px;
+  }
+  .dir-label.visual { color: var(--teal); }
+  .dir-label.direction { color: var(--accent); }
+
+  /* ── Spoken lines ────────────────────────── */
+  .lines { margin: 6px 0 2px; }
+  .line {
+    margin: 5px 0;
+    padding: 4px 0 4px 14px;
+    font-size: 11.5pt; line-height: 1.65;
+    font-style: italic;
+    border-left: 3px solid var(--ink-08);
+  }
+
+  /* ── Pause marker ────────────────────────── */
+  .pause {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 7.5pt; color: var(--green);
+    margin: 2px 0 2px 16px;
+    letter-spacing: 0.04em; opacity: 0.85;
+  }
+
+  /* ── REF notes ───────────────────────────── */
+  .ref {
+    font-family: 'Inter', sans-serif;
+    font-size: 8pt; color: var(--ink-30);
+    margin-top: 8px; padding-top: 6px;
+    border-top: 1px solid var(--ink-08);
+    line-height: 1.45;
+  }
+  .ref-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 7pt; font-weight: 600;
+    letter-spacing: 0.08em;
+    color: var(--accent); margin-right: 5px;
+  }
+
+  /* ── Footer ──────────────────────────────── */
+  .footer {
+    margin-top: 28px; padding-top: 10px;
+    border-top: 1.5px solid var(--ink);
+    font-family: 'Inter', sans-serif;
+    font-size: 8pt; color: var(--ink-30);
+    display: flex; justify-content: space-between;
+  }
+
+  /* ── Screen controls ─────────────────────── */
+  .screen-controls {
+    position: fixed; top: 10px; right: 10px;
+    display: flex; gap: 6px; z-index: 100;
+  }
+  .screen-controls button {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; padding: 5px 10px;
+    border: 1px solid #ccc; border-radius: 3px;
+    background: white; cursor: pointer;
+    letter-spacing: 0.06em; text-transform: uppercase;
+  }
+  .screen-controls button:hover { background: #f0f0f0; }
+
+  /* ── Print ───────────────────────────────── */
+  @media print {
+    body { padding: 0; max-width: none; font-size: 11pt; }
+    .screen-controls { display: none !important; }
+    .beat { break-inside: avoid; }
+    .overview, .dir-block, .beat-num {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .line {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+  }
+
+  /* ── Dark mode ───────────────────────────── */
+  body.dark {
+    --ink: #E8E2D6; --ink-80: #C0B8AA; --ink-50: #8A8278;
+    --ink-30: #5A544C; --ink-15: #3A352E; --ink-08: #2A2520;
+    --accent: #FF8240; --teal: #2DD4BF; --green: #4ADE80;
+    --pink: #F472B6; --blue: #60A5FA;
+    --bg: #14110B; --paper: #1E1A14;
+  }
+  body.dark .beat-num { color: #14110B; background: var(--ink); }
+  body.dark .screen-controls button {
+    background: #222; color: #ccc; border-color: #444;
+  }
+</style>
+</head>
+<body>
+
+<div class="screen-controls">
+  <button onclick="document.body.classList.toggle('dark')">◐ Tema</button>
+  <button onclick="window.print()">⎙ Print</button>
+</div>
+
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script src="timeline-data.js"></script>
+
+<script type="text/babel">
+function fmtDur(sec) {
+  if (sec < 60) return `${sec}s`;
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return s > 0 ? `${m}m${String(s).padStart(2,'0')}s` : `${m}m`;
+}
+
+function beatReadTime(beat) {
+  const words = (beat.script || []).filter(s => s.type === 'line')
+    .reduce((n, s) => n + s.text.split(/\s+/).length, 0);
+  const pauses = (beat.script || []).filter(s => s.type === 'pause')
+    .reduce((n, s) => n + s.duration, 0);
+  return Math.ceil(words / 2.5 + pauses);
+}
+
+const accentColor = (c) => {
+  if (!c || c === '#c8c4bc' || c === '#C8C4BC') return null;
+  return { '#F1C40F':'var(--accent)', '#E84393':'var(--pink)', '#3498DB':'var(--blue)' }[c] || 'var(--ink-30)';
+};
+
+const Header = ({ v, beats }) => {
+  const totalDur = beats.reduce((s,b) => s + b.duration, 0);
+  return (
+    <header className="header">
+      <div className="header-label">
+        Roteiro · v{v.version} · {v.language} · {v.duration} · {beats.length} beats · {fmtDur(totalDur)} script
+      </div>
+      <h1 className="header-title">{v.title.replace('— Agora', '—\u00A0Agora').replace('pra Ásia', 'pra\u00A0Ásia')}</h1>
+      <div className="header-meta">
+        <div><strong>Canal </strong>{v.channel}</div>
+        <div><strong>Formato </strong>{v.format}</div>
+        <div><strong>Duração </strong>{v.duration}</div>
+        <div><strong>Ângulos </strong>{v.angles}</div>
+        <div><strong>Framework </strong>{v.framework}</div>
+        <div><strong>VVS </strong>{v.vvs}</div>
+      </div>
+    </header>
+  );
+};
+
+const Synopsis = ({ v }) => (
+  <div className="synopsis">
+    <span className="label">Synopsis</span>
+    {v.synopsis}
+  </div>
+);
+
+const Overview = ({ beats }) => {
+  const totalDur = beats.reduce((s,b) => s + b.duration, 0);
+  const totalRead = beats.reduce((s,b) => s + beatReadTime(b), 0);
+  return (
+    <div className="overview">
+      <div className="overview-head">
+        <span className="label">Beats</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th className="ov-num"></th>
+            <th className="ov-name">Beat</th>
+            <th className="ov-dur">Dur</th>
+            <th className="ov-read">Leitura</th>
+          </tr>
+        </thead>
+        <tbody>
+          {beats.map(b => (
+            <tr key={b.idx}>
+              <td className="ov-num">#{b.idx}</td>
+              <td className="ov-name">{b.name}</td>
+              <td className="ov-dur">{fmtDur(b.duration)}</td>
+              <td className="ov-read">~{beatReadTime(b)}s</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td></td>
+            <td className="ov-name">Total</td>
+            <td className="ov-dur">{fmtDur(totalDur)}</td>
+            <td className="ov-read">~{totalRead}s</td>
+          </tr>
+        </tfoot>
+      </table>
+      <Legend />
+    </div>
+  );
+};
+
+const Legend = () => (
+  <div className="legend">
+    <span className="legend-item"><span className="legend-swatch" style={{background:'var(--accent)'}}></span> ênfase</span>
+    <span className="legend-item"><span className="legend-swatch" style={{background:'var(--blue)'}}></span> insight</span>
+    <span className="legend-item"><span className="legend-swatch" style={{background:'var(--pink)'}}></span> frase-chave</span>
+    <span className="legend-item"><span className="legend-swatch" style={{background:'var(--ink-15)'}}></span> narrativa</span>
+  </div>
+);
+
+const DirBlock = ({ notes }) => {
+  if (!notes || notes.length === 0) return null;
+  return (
+    <div className="dir-block">
+      {notes.map((n, i) => (
+        <div key={i} className="dir-row">
+          <span className={`dir-label ${n.tag.toLowerCase()}`}>{n.tag}:</span>
+          {n.text}
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const BeatSection = ({ beat }) => {
+  const notes = (beat.script || []).filter(s => s.type === 'note');
+  const body = (beat.script || []).filter(s => s.type !== 'note');
+  const readSec = beatReadTime(beat);
+
+  return (
+    <div className="beat">
+      <div className="beat-header">
+        <span className="beat-num">#{beat.idx}</span>
+        <span className="beat-name">{beat.name}</span>
+        <span className="beat-info">{fmtDur(beat.duration)} · ~{readSec}s</span>
+      </div>
+      <DirBlock notes={notes} />
+      <div className="lines">
+        {body.map((item, i) => {
+          if (item.type === 'line') {
+            const ac = accentColor(item.accent);
+            return <div key={i} className="line" style={ac ? { borderLeftColor: ac } : undefined}>{item.text}</div>;
+          }
+          if (item.type === 'pause') return <div key={i} className="pause">⏸ {item.duration}s</div>;
+          if (item.type === 'ref') return (
+            <div key={i} className="ref">
+              <span className="ref-tag">REF</span>{item.text}
+            </div>
+          );
+          return null;
+        })}
+      </div>
+    </div>
+  );
+};
+
+const RoteiroPrint = () => {
+  const v = window.TL_VIDEO;
+  const beats = window.TL_BEATS;
+  return (
+    <React.Fragment>
+      <Header v={v} beats={beats} />
+      <Synopsis v={v} />
+      <Overview beats={beats} />
+      {beats.map(b => <BeatSection key={b.idx} beat={b} />)}
+      <footer className="footer">
+        <span>tf ❦ Thiago Figueiredo · {v.channel}</span>
+        <span>Gravado {v.recorded} · {v.location} · v{v.version}</span>
+      </footer>
+    </React.Fragment>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<RoteiroPrint />);
+</script>
+</body>
+</html>

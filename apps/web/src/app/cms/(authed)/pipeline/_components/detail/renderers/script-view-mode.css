@@ -153,8 +153,7 @@
 
 /* ── Beat section ──────────────────────────────────── */
 .script-view .sv-beat {
-  margin-bottom: 6px;
-  break-inside: avoid;
+  margin-bottom: 12px;
 }
 
 .script-view .sv-beat-header {
@@ -196,12 +195,13 @@
 
 /* ── Direction notes ───────────────────────────────── */
 .script-view .sv-dir-block {
-  margin: 4px 0 8px;
+  margin: 4px 0 6px;
   padding: 0 0 0 3px;
   font-family: 'Inter', sans-serif;
-  font-size: 8.5pt;
+  font-size: 8pt;
   color: var(--sv-ink-50);
   line-height: 1.5;
+  opacity: 0.85;
 }
 
 .script-view .sv-dir-label {
@@ -222,11 +222,11 @@
 
 .script-view .sv-line {
   margin: 5px 0;
-  padding: 4px 0 4px 14px;
-  font-size: 11.5pt;
-  line-height: 1.65;
-  font-style: italic;
-  border-left: 3px solid var(--sv-ink-08);
+  padding: 6px 0 6px 14px;
+  font-size: 12pt;
+  line-height: 1.75;
+  border-left: 3px solid var(--sv-accent);
+  border-radius: 0 2px 2px 0;
 }
 
 /* ── Pause marker ──────────────────────────────────── */
@@ -234,7 +234,7 @@
   font-family: 'JetBrains Mono', monospace;
   font-size: 7.5pt;
   color: var(--sv-green);
-  margin: 2px 0 2px 16px;
+  margin: 4px 0 4px 16px;
   letter-spacing: 0.04em;
   opacity: 0.85;
 }
@@ -272,32 +272,21 @@
 }
 
 /* ══════════════════════════════════════════════════════
-   PRINT — show only the script view, hide everything else
+   PRINT — portal renders .script-print-view as direct
+   child of <body>, so we hide siblings and show it.
    ══════════════════════════════════════════════════════ */
 @page {
   size: A4;
-  margin: 16mm 18mm 18mm 18mm;
+  margin: 18mm 20mm 20mm 25mm;
 }
 
 @media print {
-  /* Hide all page content */
-  body > * {
-    visibility: hidden !important;
+  body > *:not(.script-print-view) {
+    display: none !important;
   }
 
-  /* Show the print container and its children */
   .script-print-view {
     display: block !important;
-    visibility: visible !important;
-    position: fixed;
-    left: 0;
-    top: 0;
-    width: 100%;
-    z-index: 99999;
-  }
-
-  .script-print-view * {
-    visibility: visible !important;
   }
 
   .script-view {
@@ -306,8 +295,9 @@
     font-size: 11pt;
   }
 
-  .script-view .sv-beat {
+  .script-view .sv-beat-header {
     break-inside: avoid;
+    break-after: avoid;
   }
 
   .script-view .sv-overview,

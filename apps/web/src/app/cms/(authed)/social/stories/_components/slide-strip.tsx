@@ -160,7 +160,19 @@ function SlideThumb({
   onDragOver,
 }: SlideThumbProps) {
   const bg = slide.background
+
+  // Determine thumbnail image: first image element > background image > none
+  const firstImageEl = slide.elements.find((el): el is Extract<typeof el, { type: 'image' }> => el.type === 'image')
+  const thumbImageUrl = firstImageEl?.src ?? (bg.type === 'image' ? bg.url : undefined)
+
+  // Fallback background color for non-image slides
   const thumbBg = bg.type === 'solid' ? bg.color : bg.type === 'gradient' ? bg.stops?.[0]?.color ?? '#0a0a0a' : '#0a0a0a'
+
+  // Text preview for text-only slides (no image)
+  const firstTextEl = !thumbImageUrl
+    ? slide.elements.find((el): el is Extract<typeof el, { type: 'text' }> => el.type === 'text')
+    : undefined
+  const previewText = firstTextEl?.content
 
   return (
     <div
@@ -179,11 +191,29 @@ function SlideThumb({
     >
       {/* Thumbnail preview */}
       <div
-        className="w-full h-full rounded overflow-hidden flex items-center justify-center"
-        style={{ background: thumbBg }}
+        className="w-full h-full rounded overflow-hidden"
+        style={thumbImageUrl
+          ? { backgroundImage: `url(${thumbImageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+          : { background: thumbBg }
+        }
       >
-        <span className="text-[10px] text-neutral-400 font-medium select-none">{index + 1}</span>
+        {/* Text preview for text-only slides */}
+        {!thumbImageUrl && previewText && (
+          <div className="w-full h-full flex items-center justify-center p-1.5">
+            <span className="text-[8px] leading-tight text-neutral-400 text-center line-clamp-4 select-none break-words">
+              {previewText}
+            </span>
+          </div>
+        )}
       </div>
+
+      {/* Slide number badge */}
+      <span
+        className="absolute bottom-0.5 right-0.5 flex items-center justify-center rounded-full bg-black/70 text-white text-[9px] font-medium select-none pointer-events-none"
+        style={{ width: '18px', height: '18px' }}
+      >
+        {index + 1}
+      </span>
 
       {/* Action buttons — shown on hover/active */}
       <div className="absolute inset-x-0 bottom-0 flex justify-between px-1 pb-1 opacity-0 group-hover:opacity-100 transition-opacity">

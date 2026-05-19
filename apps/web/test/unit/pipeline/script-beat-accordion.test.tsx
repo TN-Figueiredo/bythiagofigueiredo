@@ -13,8 +13,9 @@ vi.mock('@tiptap/react', async () => {
       setEditable: vi.fn(),
       getJSON: () => ({ type: 'doc', content: [] }),
       storage: { characterCount: { words: () => 12 } },
-      chain: () => ({ focus: () => ({ toggleBold: () => ({ run: vi.fn() }) }) }),
+      chain: () => ({ focus: () => ({ toggleBold: () => ({ run: vi.fn() }), toggleItalic: () => ({ run: vi.fn() }), toggleUnderline: () => ({ run: vi.fn() }), toggleHighlight: () => ({ run: vi.fn() }), toggleBulletList: () => ({ run: vi.fn() }), toggleBlockquote: () => ({ run: vi.fn() }), insertContent: () => ({ run: vi.fn() }), undo: () => ({ run: vi.fn() }), redo: () => ({ run: vi.fn() }) }) }),
       isActive: () => false,
+      can: () => ({ undo: () => false, redo: () => false }),
     }),
     EditorContent: ({ editor }: { editor: unknown }) => (
       <div data-testid="editor-content">Editor</div>
@@ -51,7 +52,7 @@ describe('ScriptBeatAccordion', () => {
     render(
       <ScriptBeatAccordion beat={baseBeat} isEditing={false} onBeatChange={vi.fn()} onDelete={vi.fn()} />,
     )
-    expect(screen.getByText('#0')).toBeTruthy()
+    expect(screen.getByText('#1')).toBeTruthy()
     expect(screen.getByText('HOOK')).toBeTruthy()
   })
 

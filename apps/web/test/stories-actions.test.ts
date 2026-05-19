@@ -58,14 +58,14 @@ beforeEach(() => {
 describe('getStories', () => {
   it('returns { ok: false } for invalid siteId (non-UUID)', async () => {
     const result = await getStories('not-a-uuid', 'drafts')
-    expect(result).toEqual({ ok: false, error: 'Invalid site ID' })
+    expect(result).toEqual({ ok: false, error: 'ID do site inválido' })
     expect(requireEditAccess).not.toHaveBeenCalled()
   })
 
   it('returns forbidden when siteId does not match authorized site', async () => {
     vi.mocked(requireEditAccess).mockResolvedValue({ siteId: REAL_SITE_UUID, userId: 'u1' })
     const result = await getStories(REAL_OTHER_UUID, 'drafts')
-    expect(result).toEqual({ ok: false, error: 'forbidden' })
+    expect(result).toEqual({ ok: false, error: 'Sem permissão' })
   })
 
   it('calls requireEditAccess with no args (reads from context)', async () => {
@@ -172,12 +172,12 @@ describe('getStories', () => {
 describe('getStoryCounts', () => {
   it('returns { ok: false } for invalid siteId', async () => {
     const result = await getStoryCounts('not-a-uuid')
-    expect(result).toEqual({ ok: false, error: 'Invalid site ID' })
+    expect(result).toEqual({ ok: false, error: 'ID do site inválido' })
   })
 
   it('returns forbidden when siteId does not match authorized site', async () => {
     const result = await getStoryCounts(REAL_OTHER_UUID)
-    expect(result).toEqual({ ok: false, error: 'forbidden' })
+    expect(result).toEqual({ ok: false, error: 'Sem permissão' })
   })
 
   it('returns count object with correct values', async () => {
@@ -243,17 +243,17 @@ describe('getStoryCounts', () => {
 describe('searchSourceContent', () => {
   it('returns { ok: false } for invalid siteId', async () => {
     const result = await searchSourceContent('not-a-uuid', 'blog', 'query')
-    expect(result).toEqual({ ok: false, error: 'Invalid site ID' })
+    expect(result).toEqual({ ok: false, error: 'ID do site inválido' })
   })
 
   it('returns { ok: false } for invalid content type', async () => {
     const result = await searchSourceContent(REAL_SITE_UUID, 'unknown_type', 'query')
-    expect(result).toEqual({ ok: false, error: 'Invalid content type' })
+    expect(result).toEqual({ ok: false, error: 'Tipo de conteúdo inválido' })
   })
 
   it('returns forbidden when siteId does not match authorized site', async () => {
     const result = await searchSourceContent(REAL_OTHER_UUID, 'blog', 'query')
-    expect(result).toEqual({ ok: false, error: 'forbidden' })
+    expect(result).toEqual({ ok: false, error: 'Sem permissão' })
   })
 
   it('escapes % in search query to prevent LIKE injection', async () => {

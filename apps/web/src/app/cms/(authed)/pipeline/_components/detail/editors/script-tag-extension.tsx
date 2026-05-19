@@ -22,22 +22,22 @@ function sanitiseTag(raw: unknown): ScriptTagName {
 
 function ScriptTagNodeView({ node, updateAttributes }: NodeViewProps) {
   const tag = sanitiseTag(node.attrs.tag)
-  const style = TAG_STYLE[tag]
+  const s = TAG_STYLE[tag]
 
   return (
     <NodeViewWrapper>
       <div
-        className="script-tag-block flex items-start gap-2 my-1 py-1.5 px-2 rounded"
+        className="script-tag-block flex items-start gap-2 my-0.5 py-1 px-2.5 rounded-sm"
         style={{
-          background: style.bg,
-          borderLeft: `3px solid ${style.border}`,
+          background: s.bg,
+          borderLeft: `3px solid ${s.color}`,
         }}
       >
         <select
-          className="shrink-0 text-[8px] font-bold uppercase tracking-wide rounded px-1.5 py-0.5 border-0 cursor-pointer"
+          className="shrink-0 text-[7.5px] font-bold uppercase tracking-wider rounded px-1.5 py-0.5 border-0 cursor-pointer mt-px"
           style={{
-            background: style.bg,
-            color: style.color,
+            background: `${s.color}18`,
+            color: s.color,
             outline: 'none',
           }}
           value={tag}
@@ -49,8 +49,8 @@ function ScriptTagNodeView({ node, updateAttributes }: NodeViewProps) {
           ))}
         </select>
         <NodeViewContent
-          className="flex-1 min-w-0 outline-none text-[11.5px] leading-relaxed"
-          style={{ color: style.color }}
+          className="flex-1 min-w-0 outline-none text-[11px] leading-snug"
+          style={{ color: `${s.color}cc` }}
         />
       </div>
     </NodeViewWrapper>

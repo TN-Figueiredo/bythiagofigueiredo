@@ -41,6 +41,8 @@ export interface SocialCanvasEditorProps {
   onCompositionChange?: (composition: CardComposition) => void
   /** Hide the aspect ratio selector (e.g. when parent enforces a fixed ratio like Stories 9:16) */
   hideAspectRatioSelector?: boolean
+  /** When true, fills parent container instead of using fixed positioning (for embedding in StoryEditor) */
+  embedded?: boolean
 }
 
 function getDefaultComposition(ratio: SocialAspectRatio): CardComposition {
@@ -84,6 +86,7 @@ export const SocialCanvasEditor = forwardRef<SocialCanvasEditorRef, SocialCanvas
     aspectRatio: initialRatio, templates, postData,
     onExport, onSaveTemplate, onDeleteTemplate, onImageUpload,
     initialComposition, onCompositionChange, hideAspectRatioSelector,
+    embedded,
   }: SocialCanvasEditorProps, ref) {
     const [aspectRatio, setAspectRatio] = useState<SocialAspectRatio>(initialRatio)
     const comp = useCardComposition(initialComposition ?? getDefaultComposition(initialRatio))
@@ -303,7 +306,7 @@ export const SocialCanvasEditor = forwardRef<SocialCanvasEditorRef, SocialCanvas
 
     if (viewportTooSmall) {
       return (
-        <div className="fixed inset-0 bg-neutral-950 flex items-center justify-center p-8">
+        <div className={`${embedded ? 'h-full w-full' : 'fixed inset-0'} bg-neutral-950 flex items-center justify-center p-8`}>
           <div className="text-center">
             <p className="text-[16px] text-neutral-300 font-medium mb-2">Desktop Required</p>
             <p className="text-[13px] text-neutral-500">This editor requires a desktop viewport (960px+).</p>
@@ -313,7 +316,7 @@ export const SocialCanvasEditor = forwardRef<SocialCanvasEditorRef, SocialCanvas
     }
 
     return (
-      <div className="fixed inset-0 bg-neutral-950 flex flex-col" role="application" aria-label="Social canvas editor">
+      <div className={`${embedded ? 'h-full w-full' : 'fixed inset-0'} bg-neutral-950 flex flex-col`} role="application" aria-label="Social canvas editor">
         <SocialToolbar
           aspectRatioLabel={currentPreset.label}
           canUndo={comp.canUndo}

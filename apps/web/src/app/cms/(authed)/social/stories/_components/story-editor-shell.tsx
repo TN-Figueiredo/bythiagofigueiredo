@@ -56,7 +56,9 @@ function toEditorTemplates(templates: SocialTemplate[]): EditorTemplate[] {
       name: t.name,
       thumbnailUrl: t.thumbnail_url ?? null,
       aspectRatio: t.aspect_ratio,
-      composition: t.composition as CardComposition | undefined,
+      composition: (t.composition && typeof t.composition === 'object' && 'version' in t.composition)
+        ? t.composition as CardComposition
+        : undefined,
     }))
 }
 
@@ -194,8 +196,8 @@ export function StoryEditorShell({
         </div>
       </div>
 
-      {/* StoryEditor (fixed inset-0 — the top bar floats above it) */}
-      <div style={{ paddingTop: 44 }} className="h-screen">
+      {/* StoryEditor — positioned below the floating top bar */}
+      <div className="fixed top-[44px] left-0 right-0 bottom-0">
         <StoryEditor
           initialSlides={initialSlides}
           postData={postData}

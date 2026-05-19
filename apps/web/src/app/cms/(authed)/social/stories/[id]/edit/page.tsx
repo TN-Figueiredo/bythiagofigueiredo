@@ -41,22 +41,23 @@ export default async function StoryEditPage({ params }: Props) {
 
   if (error || !data) notFound()
 
-  const post = data as {
-    id: string
-    story_slides: CardComposition[]
-    status: string
-    content: Record<string, unknown>
-    source_content_type: string | null
-    site_id: string
-  }
+  const PostSchema = z.object({
+    id: z.string(),
+    story_slides: z.array(z.unknown()),
+    status: z.string(),
+    content: z.record(z.unknown()).default({}),
+    source_content_type: z.string().nullable().default(null),
+    site_id: z.string(),
+  })
+  const post = PostSchema.parse(data)
 
   // Only allow editing drafts (non-draft posts are read-only)
   if (post.status !== 'draft') {
     notFound()
   }
 
-  const initialSlides = (post.story_slides ?? []) as CardComposition[]
-  const caption = (post.content?.description as string | undefined) ?? undefined
+  const initialSlides = (Array.isArray(post.story_slides) ? post.story_slides : []) as CardComposition[]
+  const caption = typeof post.content?.description === 'string' ? post.content.description : undefined
 
   // Site brand
   const { data: site } = await supabase

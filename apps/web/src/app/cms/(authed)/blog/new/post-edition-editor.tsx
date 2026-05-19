@@ -80,6 +80,7 @@ interface PostEditionEditorProps {
   existingLocales?: string[]
   componentNames?: string[]
   initialPipelineItem?: { id: string; code: string; title_pt: string | null; title_en: string | null; stage: string; format: string; priority: number } | null
+  hasInstagramConnection?: boolean
 }
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -490,6 +491,7 @@ export function PostEditionEditor({
   initialStatus: initStatus,
   existingLocales: initExistingLocales,
   initialPipelineItem,
+  hasInstagramConnection,
 }: PostEditionEditorProps) {
   const router = useRouter()
   const isEditMode = !!existingPostId
@@ -1118,6 +1120,14 @@ export function PostEditionEditor({
 
         {/* Right side */}
         <div className="flex items-center gap-2 shrink-0">
+          {hasInstagramConnection && !isEphemeral && postId && (
+            <Link
+              href={`/cms/social/stories/new?source=blog&id=${postId}&locale=${locale}`}
+              className="rounded-lg bg-gradient-to-r from-[#f09433] to-[#dc2743] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 transition-opacity inline-flex items-center gap-1.5"
+            >
+              Criar Story
+            </Link>
+          )}
           {!isEphemeral ? (
             <button
               type="button"

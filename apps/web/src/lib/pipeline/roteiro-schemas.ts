@@ -185,5 +185,32 @@ export function migrateV1toV2(content: unknown): RoteiroContent {
 }
 
 export function createEmptyBeat(idx: number): RoteiroBeat {
-  return { idx, name: `Beat ${idx}`, status: 'PENDING', script: [] }
+  return { idx, name: `Beat ${idx + 1}`, status: 'PENDING', script: [] }
+}
+
+export function fmtDur(sec: number): string {
+  if (sec < 60) return `${sec}s`
+  const m = Math.floor(sec / 60)
+  const s = sec % 60
+  return s > 0 ? `${m}m${String(s).padStart(2, '0')}s` : `${m}m`
+}
+
+const MAX_WORD_COUNT_LENGTH = 100_000
+
+export function beatWordCount(beat: RoteiroBeat): number {
+  return beat.script
+    .filter((l): l is ScriptLine & { type: 'line' } => l.type === 'line')
+    .reduce((n, l) => {
+      const safe = l.text.length > MAX_WORD_COUNT_LENGTH ? l.text.slice(0, MAX_WORD_COUNT_LENGTH) : l.text
+      const trimmed = safe.trim()
+      return n + (trimmed ? trimmed.split(/\s+/).length : 0)
+    }, 0)
+}
+
+export function beatReadTime(beat: RoteiroBeat): number {
+  const words = beatWordCount(beat)
+  const pauses = beat.script
+    .filter((l): l is ScriptLine & { type: 'pause' } => l.type === 'pause')
+    .reduce((n, l) => n + l.duration, 0)
+  return Math.ceil(words / 2.5 + pauses)
 }

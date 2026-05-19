@@ -1,43 +1,13 @@
 'use client'
 
-import { useMemo } from 'react'
-import type { RoteiroContent, RoteiroBeat, ScriptLine } from '@/lib/pipeline/roteiro-schemas'
+import { useMemo, useState, useEffect } from 'react'
+import type { RoteiroContent, RoteiroBeat } from '@/lib/pipeline/roteiro-schemas'
+import { fmtDur, beatReadTime } from '@/lib/pipeline/roteiro-schemas'
 import './script-view-mode.css'
-
-/** Maximum character length a single script line may contribute to word-count.
- *  Lines longer than this are truncated before splitting to prevent ReDoS on
- *  pathological whitespace-heavy strings. */
-const MAX_SCRIPT_LINE_LENGTH = 100_000
 
 interface ScriptViewModeProps {
   content: RoteiroContent
   title?: string
-}
-
-function fmtDur(sec: number): string {
-  if (sec < 60) return `${sec}s`
-  const m = Math.floor(sec / 60)
-  const s = sec % 60
-  return s > 0 ? `${m}m${String(s).padStart(2, '0')}s` : `${m}m`
-}
-
-function beatWordCount(beat: RoteiroBeat): number {
-  return beat.script
-    .filter((l): l is ScriptLine & { type: 'line' } => l.type === 'line')
-    .reduce((n, l) => {
-      const safe = l.text.length > MAX_SCRIPT_LINE_LENGTH
-        ? l.text.slice(0, MAX_SCRIPT_LINE_LENGTH)
-        : l.text
-      return n + safe.split(/\s+/).length
-    }, 0)
-}
-
-function beatReadTime(beat: RoteiroBeat): number {
-  const words = beatWordCount(beat)
-  const pauses = beat.script
-    .filter((l): l is ScriptLine & { type: 'pause' } => l.type === 'pause')
-    .reduce((n, l) => n + l.duration, 0)
-  return Math.ceil(words / 2.5 + pauses)
 }
 
 function Overview({ beats }: { beats: RoteiroBeat[] }) {
@@ -52,6 +22,7 @@ function Overview({ beats }: { beats: RoteiroBeat[] }) {
           <tr>
             <th className="sv-ov-num" />
             <th className="sv-ov-name">Beat</th>
+            <th className="sv-ov-dur">Status</th>
             <th className="sv-ov-dur">Dur</th>
             <th className="sv-ov-words">Leitura</th>
           </tr>
@@ -59,8 +30,9 @@ function Overview({ beats }: { beats: RoteiroBeat[] }) {
         <tbody>
           {beats.map((b) => (
             <tr key={b.idx}>
-              <td className="sv-ov-num">#{b.idx}</td>
+              <td className="sv-ov-num">#{b.idx + 1}</td>
               <td className="sv-ov-name">{b.name}</td>
+              <td className="sv-ov-dur" style={{ textAlign: 'center' }}>{b.status === 'DONE' ? '✓' : '—'}</td>
               <td className="sv-ov-dur">{b.duration ? fmtDur(b.duration) : '-'}</td>
               <td className="sv-ov-words">~{beatReadTime(b)}s</td>
             </tr>
@@ -70,6 +42,7 @@ function Overview({ beats }: { beats: RoteiroBeat[] }) {
           <tr>
             <td />
             <td className="sv-ov-name">Total</td>
+            <td />
             <td className="sv-ov-dur">{fmtDur(totalDur)}</td>
             <td className="sv-ov-words">~{totalRead}s</td>
           </tr>
@@ -79,70 +52,61 @@ function Overview({ beats }: { beats: RoteiroBeat[] }) {
   )
 }
 
-function DirBlock({ notes }: { notes: (ScriptLine & { type: 'note' })[] }) {
-  if (notes.length === 0) return null
-  return (
-    <div className="sv-dir-block">
-      {notes.map((n, i) => (
-        <div key={i} className="sv-dir-row">
-          <span className={`sv-dir-label sv-${n.tag.toLowerCase()}`}>{n.tag}:</span>
-          {n.text}
-        </div>
-      ))}
-    </div>
-  )
-}
 
 function BeatSection({ beat }: { beat: RoteiroBeat }) {
-  const notes = beat.script.filter(
-    (s): s is ScriptLine & { type: 'note' } => s.type === 'note',
-  )
-  const body = beat.script.filter((s) => s.type !== 'note')
   const readSec = beatReadTime(beat)
 
   return (
     <div className="sv-beat">
       <div className="sv-beat-header">
-        <span className="sv-beat-num">#{beat.idx}</span>
+        <span className="sv-beat-num">#{beat.idx + 1}</span>
         <span className="sv-beat-name">{beat.name}</span>
         <span className="sv-beat-info">
           {beat.duration ? `${fmtDur(beat.duration)} · ` : ''}~{readSec}s
         </span>
       </div>
-      <DirBlock notes={notes} />
-      <div className="sv-lines">
-        {body.map((item, i) => {
-          if (item.type === 'line') {
-            return (
-              <div key={i} className="sv-line">
-                {item.text}
-              </div>
-            )
-          }
-          if (item.type === 'pause') {
-            return (
-              <div key={i} className="sv-pause">
-                &#9208; {item.duration}s
-              </div>
-            )
-          }
-          if (item.type === 'ref') {
-            return (
-              <div key={i} className="sv-ref">
-                <span className="sv-ref-tag">REF</span>
-                {item.text}
-              </div>
-            )
-          }
-          return null
-        })}
-      </div>
+      {beat.script.map((item, i) => {
+        if (item.type === 'note') {
+          return (
+            <div key={i} className="sv-dir-block">
+              <span className={`sv-dir-label sv-${item.tag.toLowerCase()}`}>{item.tag}:</span>
+              {item.text}
+            </div>
+          )
+        }
+        if (item.type === 'line') {
+          return (
+            <div key={i} className="sv-line">
+              {item.text}
+            </div>
+          )
+        }
+        if (item.type === 'pause') {
+          return (
+            <div key={i} className="sv-pause">
+              &#9208; {item.duration}s
+            </div>
+          )
+        }
+        if (item.type === 'ref') {
+          return (
+            <div key={i} className="sv-ref">
+              <span className="sv-ref-tag">REF</span>
+              {item.text}
+            </div>
+          )
+        }
+        return null
+      })}
     </div>
   )
 }
 
 export function ScriptViewMode({ content, title }: ScriptViewModeProps) {
   const { meta, beats } = content
+
+  const [printDate, setPrintDate] = useState('')
+  useEffect(() => { setPrintDate(new Date().toLocaleDateString('pt-BR')) }, [])
 
   const metaEntries = useMemo(
     () =>
@@ -188,7 +152,7 @@ export function ScriptViewMode({ content, title }: ScriptViewModeProps) {
       {/* Footer */}
       <footer className="sv-footer">
         <span>tf &#10086; Pipeline CMS</span>
-        <span>{new Date().toLocaleDateString('pt-BR')}</span>
+        <span>{printDate}</span>
       </footer>
     </div>
   )

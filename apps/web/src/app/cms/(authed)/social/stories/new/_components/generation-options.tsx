@@ -52,10 +52,18 @@ export function GenerationOptions({
     <div className="flex flex-col gap-6 w-full max-w-xl mx-auto">
       {/* Selected content summary */}
       {selectedContent && (
-        <div className="bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3">
-          <p className="text-[11px] uppercase tracking-wider text-neutral-500 mb-1">Conteúdo selecionado</p>
-          <p className="text-sm font-medium text-neutral-100 line-clamp-2">{selectedContent.title}</p>
-          <p className="text-xs text-neutral-500 mt-0.5 capitalize">{selectedContent.type}</p>
+        <div className="bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-3 flex gap-3 items-start">
+          {selectedContent.coverImageUrl && (
+            <div
+              className="w-16 h-16 rounded bg-neutral-700 shrink-0 bg-cover bg-center"
+              style={{ backgroundImage: `url(${selectedContent.coverImageUrl})` }}
+            />
+          )}
+          <div className="min-w-0">
+            <p className="text-[11px] uppercase tracking-wider text-neutral-500 mb-1">Conteúdo selecionado</p>
+            <p className="text-sm font-medium text-neutral-100 line-clamp-2">{selectedContent.title}</p>
+            <p className="text-xs text-neutral-500 mt-0.5 capitalize">{selectedContent.type}</p>
+          </div>
         </div>
       )}
 
@@ -79,7 +87,7 @@ export function GenerationOptions({
               >
                 {loc}
                 {loc === defaultLocale && (
-                  <span className="ml-1.5 text-[10px] opacity-60">padrao</span>
+                  <span className="ml-1.5 text-[10px] opacity-60">padrão</span>
                 )}
               </button>
             ))}

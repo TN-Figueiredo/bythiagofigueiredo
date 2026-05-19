@@ -1,6 +1,7 @@
 'use client'
 import { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react'
 import { Stage, Layer, Rect, Image as KonvaImage, Text as KonvaText, Transformer, Group } from 'react-konva'
+import KonvaLib from 'konva'
 import type Konva from 'konva'
 import type { CardComposition, CardElement } from '@tn-figueiredo/links/qr'
 import type { UseCardCompositionReturn } from '@tn-figueiredo/links-admin/qr-card-builder/use-card-composition'
@@ -139,6 +140,33 @@ function ImageNode({
   )
 }
 
+function BlurredBackgroundImage({ image, width, height, blur }: {
+  image: HTMLImageElement
+  width: number
+  height: number
+  blur: number
+}) {
+  const imgRef = useRef<Konva.Image>(null)
+
+  useEffect(() => {
+    const node = imgRef.current
+    if (!node) return
+    node.cache()
+    node.getLayer()?.batchDraw()
+  }, [image, width, height, blur])
+
+  return (
+    <KonvaImage
+      ref={imgRef}
+      image={image}
+      width={width}
+      height={height}
+      filters={[KonvaLib.Filters.Blur]}
+      blurRadius={blur}
+    />
+  )
+}
+
 function BackgroundRect({ composition }: { composition: CardComposition }) {
   const { canvas, background } = composition
   const { image: bgImage } = useLoadedImage(background.type === 'image' ? background.url : null)
@@ -147,10 +175,15 @@ function BackgroundRect({ composition }: { composition: CardComposition }) {
     return <Rect width={canvas.width} height={canvas.height} fill={background.color} />
   }
   if (background.type === 'image') {
+    const blurRadius = background.blur ?? 0
     return (
       <>
         <Rect width={canvas.width} height={canvas.height} fill={background.fallbackColor} />
-        {bgImage && <KonvaImage image={bgImage} width={canvas.width} height={canvas.height} />}
+        {bgImage && blurRadius > 0 ? (
+          <BlurredBackgroundImage image={bgImage} width={canvas.width} height={canvas.height} blur={blurRadius} />
+        ) : bgImage ? (
+          <KonvaImage image={bgImage} width={canvas.width} height={canvas.height} />
+        ) : null}
       </>
     )
   }

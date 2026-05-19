@@ -42,6 +42,8 @@ export interface SourceContentResult {
   title: string
   type: string
   url: string
+  coverImageUrl: string | null
+  excerpt: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -81,13 +83,13 @@ export async function getStories(
   tab: StoryTab,
 ): Promise<ActionResult<StoryRow[]>> {
   const idParsed = z.string().uuid().safeParse(siteId)
-  if (!idParsed.success) return { ok: false, error: 'Invalid site ID' }
+  if (!idParsed.success) return { ok: false, error: 'ID do site inválido' }
   const tabParsed = z.enum(['drafts', 'live', 'expired', 'scheduled']).safeParse(tab)
   if (!tabParsed.success) return { ok: false, error: zodError(tabParsed.error) }
 
   try {
     const { siteId: authorizedSiteId } = await requireEditAccess()
-    if (idParsed.data !== authorizedSiteId) return { ok: false, error: 'forbidden' }
+    if (idParsed.data !== authorizedSiteId) return { ok: false, error: 'Sem permissão' }
     const supabase = getSupabaseServiceClient()
 
     let query = supabase
@@ -137,11 +139,11 @@ export async function getStories(
 
 export async function getStoryCounts(siteId: string): Promise<ActionResult<StoryCounts>> {
   const idParsed = z.string().uuid().safeParse(siteId)
-  if (!idParsed.success) return { ok: false, error: 'Invalid site ID' }
+  if (!idParsed.success) return { ok: false, error: 'ID do site inválido' }
 
   try {
     const { siteId: authorizedSiteId } = await requireEditAccess()
-    if (idParsed.data !== authorizedSiteId) return { ok: false, error: 'forbidden' }
+    if (idParsed.data !== authorizedSiteId) return { ok: false, error: 'Sem permissão' }
     const supabase = getSupabaseServiceClient()
 
     const threshold = ago24h()
@@ -202,13 +204,13 @@ export async function searchSourceContent(
   search: string,
 ): Promise<ActionResult<SourceContentResult[]>> {
   const idParsed = z.string().uuid().safeParse(siteId)
-  if (!idParsed.success) return { ok: false, error: 'Invalid site ID' }
+  if (!idParsed.success) return { ok: false, error: 'ID do site inválido' }
   const typeParsed = searchContentTypeSchema.safeParse(type)
-  if (!typeParsed.success) return { ok: false, error: 'Invalid content type' }
+  if (!typeParsed.success) return { ok: false, error: 'Tipo de conteúdo inválido' }
 
   try {
     const { siteId: authorizedSiteId } = await requireEditAccess()
-    if (idParsed.data !== authorizedSiteId) return { ok: false, error: 'forbidden' }
+    if (idParsed.data !== authorizedSiteId) return { ok: false, error: 'Sem permissão' }
     const supabase = getSupabaseServiceClient()
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
@@ -218,7 +220,7 @@ export async function searchSourceContent(
     if (typeParsed.data === 'blog') {
       const { data, error } = await supabase
         .from('blog_posts')
-        .select('id, blog_translations(title, slug, locale)')
+        .select('id, cover_image_url, blog_translations(title, slug, locale, cover_image_url, excerpt)')
         .eq('site_id', authorizedSiteId)
         .ilike('blog_translations.title', `%${escapedSearch}%`)
         .limit(20)
@@ -226,7 +228,11 @@ export async function searchSourceContent(
       if (error) return { ok: false, error: error.message }
 
       const results: SourceContentResult[] = []
-      for (const row of (data ?? []) as Array<{ id: string; blog_translations: Array<{ title: string; slug: string; locale: string }> | null }>) {
+      for (const row of (data ?? []) as Array<{
+        id: string
+        cover_image_url: string | null
+        blog_translations: Array<{ title: string; slug: string; locale: string; cover_image_url: string | null; excerpt: string | null }> | null
+      }>) {
         const tx = row.blog_translations?.[0]
         if (!tx) continue
         results.push({
@@ -234,6 +240,8 @@ export async function searchSourceContent(
           title: tx.title,
           type: 'blog',
           url: `${appUrl}/blog/${tx.slug}`,
+          coverImageUrl: tx.cover_image_url ?? row.cover_image_url ?? null,
+          excerpt: tx.excerpt ?? null,
         })
       }
       return { ok: true, data: results }
@@ -256,6 +264,8 @@ export async function searchSourceContent(
           title: row.subject as string,
           type: 'newsletter',
           url: `${appUrl}/newsletter/${row.id}`,
+          coverImageUrl: null,
+          excerpt: null,
         })),
       }
     }
@@ -279,12 +289,14 @@ export async function searchSourceContent(
           title: tx.meta_title,
           type: 'campaign',
           url: `${appUrl}/campaigns/${tx.slug}`,
+          coverImageUrl: null,
+          excerpt: null,
         })
       }
       return { ok: true, data: results }
     }
 
-    return { ok: false, error: 'unsupported_content_type' }
+    return { ok: false, error: 'Tipo de conteúdo não suportado' }
   } catch (err) {
     Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'searchSourceContent' } })
     throw err
