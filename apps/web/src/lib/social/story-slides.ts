@@ -4,6 +4,8 @@ import type { CardComposition, TextElement, ImageElement } from '@tn-figueiredo/
 // Types
 // ---------------------------------------------------------------------------
 
+export type TemplateStyle = 'gradient' | 'overlay' | 'bold'
+
 export interface SlideCompositionInput {
   title: string
   excerpt: string
@@ -11,6 +13,10 @@ export interface SlideCompositionInput {
   logoUrl: string | null
   primaryColor: string
   slideCount: number
+  /** Visual template style. Defaults to 'gradient'. */
+  style?: TemplateStyle
+  /** BCP-47 locale for CTA text. Defaults to 'pt-BR'. */
+  locale?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -23,6 +29,33 @@ const STORY_ASPECT_RATIO = '9:16'
 const MAX_SLIDE_COUNT = 10
 const PADDING_X = 80
 const CONTENT_WIDTH = STORY_WIDTH - PADDING_X * 2
+
+const BOLD_PALETTE = ['#FF6B35', '#004E98', '#1A936F', '#C84B31'] as const
+
+function boldColor(primaryColor: string): string {
+  const idx = primaryColor.charCodeAt(1) % BOLD_PALETTE.length
+  return BOLD_PALETTE[idx as 0 | 1 | 2 | 3]
+}
+
+interface CtaStrings {
+  readMore: string
+  swipeUp: string
+  learnMore: string
+}
+
+const DEFAULT_LOCALE = 'pt-BR'
+
+const CTA_TEXT: { [locale: string]: CtaStrings | undefined } = {
+  'pt-BR': { readMore: 'Leia Mais', swipeUp: 'Arraste para cima', learnMore: 'Saiba Mais' },
+  'en': { readMore: 'Read More', swipeUp: 'Swipe Up', learnMore: 'Learn More' },
+  'es': { readMore: 'Leer Más', swipeUp: 'Desliza hacia arriba', learnMore: 'Saber Más' },
+}
+
+const DEFAULT_CTA: CtaStrings = { readMore: 'Leia Mais', swipeUp: 'Arraste para cima', learnMore: 'Saiba Mais' }
+
+function getCta(locale: string): CtaStrings {
+  return CTA_TEXT[locale] ?? DEFAULT_CTA
+}
 
 // ---------------------------------------------------------------------------
 // Element factories
@@ -76,18 +109,31 @@ function makeImageElement(
  * Cover slide: background image or gradient, title text, optional logo.
  */
 function buildCoverSlide(input: SlideCompositionInput): CardComposition {
-  const { title, coverImageUrl, logoUrl, primaryColor } = input
+  const { title, coverImageUrl, logoUrl, primaryColor, style = 'gradient' } = input
 
-  const background: CardComposition['background'] = coverImageUrl
-    ? { type: 'image', url: coverImageUrl, fallbackColor: primaryColor }
-    : {
-        type: 'gradient',
-        angle: 160,
-        stops: [
-          { color: primaryColor, position: 0 },
-          { color: '#0a0a0a', position: 1 },
-        ],
-      }
+  let background: CardComposition['background']
+
+  if (style === 'overlay') {
+    // Semi-transparent dark overlay on cover image if available, otherwise solid dark
+    background = coverImageUrl
+      ? { type: 'image', url: coverImageUrl, fallbackColor: '#0a0a0a' }
+      : { type: 'solid', color: '#0a0a0a' }
+  } else if (style === 'bold') {
+    // Pick a bold solid color from palette based on primary color hash
+    background = { type: 'solid', color: boldColor(primaryColor) }
+  } else {
+    // gradient (default)
+    background = coverImageUrl
+      ? { type: 'image', url: coverImageUrl, fallbackColor: primaryColor }
+      : {
+          type: 'gradient',
+          angle: 160,
+          stops: [
+            { color: primaryColor, position: 0 },
+            { color: '#0a0a0a', position: 1 },
+          ],
+        }
+  }
 
   const elements: CardComposition['elements'] = []
 
@@ -139,7 +185,16 @@ function buildContentSlide(
   content: string,
   primaryColor: string,
   slideIndex: number,
+  style: TemplateStyle = 'gradient',
 ): CardComposition {
+  let accentColor = primaryColor
+  let background: CardComposition['background'] = { type: 'solid', color: '#0a0a0a' }
+
+  if (style === 'bold') {
+    background = { type: 'solid', color: boldColor(primaryColor) }
+    accentColor = '#ffffff'
+  }
+
   const elements: CardComposition['elements'] = [
     // Accent top bar
     makeTextElement({
@@ -152,7 +207,7 @@ function buildContentSlide(
       fontSize: 28,
       fontWeight: 700,
       align: 'center',
-      color: primaryColor,
+      color: accentColor,
     }),
     // Content text
     makeTextElement({
@@ -173,19 +228,41 @@ function buildContentSlide(
   return {
     version: 1,
     canvas: { width: STORY_WIDTH, height: STORY_HEIGHT, aspectRatio: STORY_ASPECT_RATIO },
-    background: { type: 'solid', color: '#0a0a0a' },
+    background,
     elements,
   }
 }
 
 /**
- * CTA slide: "Leia mais" + short_url placeholder + "Link na bio" prompt.
+ * CTA slide: locale-aware read-more + short_url placeholder + swipe-up hint.
  */
-function buildCtaSlide(primaryColor: string): CardComposition {
+function buildCtaSlide(
+  primaryColor: string,
+  style: TemplateStyle = 'gradient',
+  locale: string = DEFAULT_LOCALE,
+): CardComposition {
+  const cta = getCta(locale)
+
+  let background: CardComposition['background']
+  if (style === 'bold') {
+    background = { type: 'solid', color: boldColor(primaryColor) }
+  } else if (style === 'overlay') {
+    background = { type: 'solid', color: '#0a0a0a' }
+  } else {
+    background = {
+      type: 'gradient',
+      angle: 135,
+      stops: [
+        { color: '#0a0a0a', position: 0 },
+        { color: primaryColor, position: 1 },
+      ],
+    }
+  }
+
   const elements: CardComposition['elements'] = [
     makeTextElement({
       id: crypto.randomUUID(),
-      content: 'Leia mais',
+      content: cta.readMore,
       x: PADDING_X,
       y: 700,
       width: CONTENT_WIDTH,
@@ -210,7 +287,7 @@ function buildCtaSlide(primaryColor: string): CardComposition {
     }),
     makeTextElement({
       id: crypto.randomUUID(),
-      content: 'Link na bio',
+      content: cta.swipeUp,
       x: PADDING_X,
       y: 1000,
       width: CONTENT_WIDTH,
@@ -225,14 +302,7 @@ function buildCtaSlide(primaryColor: string): CardComposition {
   return {
     version: 1,
     canvas: { width: STORY_WIDTH, height: STORY_HEIGHT, aspectRatio: STORY_ASPECT_RATIO },
-    background: {
-      type: 'gradient',
-      angle: 135,
-      stops: [
-        { color: '#0a0a0a', position: 0 },
-        { color: primaryColor, position: 1 },
-      ],
-    },
+    background,
     elements,
   }
 }
@@ -296,6 +366,8 @@ function chunkExcerpt(excerpt: string, chunkCount: number): string[] {
  */
 export function generateSlideCompositions(input: SlideCompositionInput): CardComposition[] {
   const clampedCount = Math.min(input.slideCount, MAX_SLIDE_COUNT)
+  const style: TemplateStyle = input.style ?? 'gradient'
+  const locale = input.locale ?? DEFAULT_LOCALE
 
   if (clampedCount <= 1) {
     return [buildCoverSlide(input)]
@@ -311,12 +383,12 @@ export function generateSlideCompositions(input: SlideCompositionInput): CardCom
     const chunks = chunkExcerpt(input.excerpt, contentSlideCount)
     for (let i = 0; i < contentSlideCount; i++) {
       const chunk = chunks[i] ?? input.excerpt
-      slides.push(buildContentSlide(chunk, input.primaryColor, i))
+      slides.push(buildContentSlide(chunk, input.primaryColor, i, style))
     }
   }
 
   // Always end with CTA
-  slides.push(buildCtaSlide(input.primaryColor))
+  slides.push(buildCtaSlide(input.primaryColor, style, locale))
 
   return slides
 }

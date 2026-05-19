@@ -21,7 +21,7 @@ export const FanInteractionSchema = z.object({
   visitor_hash: z.string().min(1),
   platform: z.enum(['instagram', 'facebook', 'bluesky', 'link_click', 'newsletter']),
   interaction_type: z.enum([
-    'story_view', 'story_reply', 'like', 'comment', 'share',
+    'story_view', 'story_reply', 'story_publish', 'like', 'comment', 'share',
     'link_click', 'subscribe',
   ]),
   post_id: z.string().uuid().optional(),

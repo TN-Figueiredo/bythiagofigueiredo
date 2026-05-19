@@ -94,13 +94,15 @@ export function StoryComposer({
         logoUrl: brand.logoUrl,
         primaryColor: brand.primaryColor,
         slideCount,
+        style: templateStyle,
+        locale,
       })
       setInitialSlides(slides)
       setMode('editor')
     } finally {
       setIsGenerating(false)
     }
-  }, [selectedContent, brand.logoUrl, brand.primaryColor, slideCount])
+  }, [selectedContent, brand.logoUrl, brand.primaryColor, slideCount, templateStyle, locale])
 
   // ---------------------------------------------------------------------------
   // Blank canvas — go directly to editor with 1 empty slide
