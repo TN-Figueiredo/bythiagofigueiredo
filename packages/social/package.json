@@ -1,7 +1,9 @@
 {
   "name": "@tn-figueiredo/social",
   "version": "0.1.0-dev",
-  "private": true,
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "type": "module",
   "exports": {
     ".": {
