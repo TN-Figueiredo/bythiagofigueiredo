@@ -68,7 +68,8 @@ export function SocialLeftPanel({
     input.accept = 'image/*'
     input.onchange = async () => {
       const file = input.files?.[0]
-      if (!file || file.size > 5 * 1024 * 1024) return
+      if (!file) return
+      if (file.size > 5 * 1024 * 1024) { setUploadError('Imagem deve ter no máximo 5 MB'); return }
       setIsUploading(true)
       try {
         const localUrl = URL.createObjectURL(file)
@@ -120,7 +121,8 @@ export function SocialLeftPanel({
     input.accept = 'video/mp4,video/webm,video/quicktime'
     input.onchange = async () => {
       const file = input.files?.[0]
-      if (!file || file.size > 50 * 1024 * 1024) return
+      if (!file) return
+      if (file.size > 50 * 1024 * 1024) { setUploadError('Vídeo deve ter no máximo 50 MB'); return }
       setIsUploading(true)
       try {
         const localUrl = URL.createObjectURL(file)
@@ -170,7 +172,8 @@ export function SocialLeftPanel({
     input.accept = 'image/*'
     input.onchange = async () => {
       const file = input.files?.[0]
-      if (!file || file.size > 5 * 1024 * 1024) return
+      if (!file) return
+      if (file.size > 5 * 1024 * 1024) { setUploadError('Imagem deve ter no máximo 5 MB'); return }
       setIsUploading(true)
       try {
         const remoteUrl = await onImageUpload(file)

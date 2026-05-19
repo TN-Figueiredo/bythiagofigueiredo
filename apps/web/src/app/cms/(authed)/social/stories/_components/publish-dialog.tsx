@@ -93,6 +93,7 @@ export function PublishDialog({
   onSchedule,
 }: PublishDialogProps) {
   const [mode, setMode] = useState<'idle' | 'publishing' | 'done' | 'error'>('idle')
+  const [doneOutcome, setDoneOutcome] = useState<'draft' | 'published' | 'scheduled'>('draft')
   const [scheduledAt, setScheduledAt] = useState(() => {
     const d = new Date(Date.now() + 60 * 60 * 1000)
     d.setMinutes(Math.ceil(d.getMinutes() / 5) * 5, 0, 0)
@@ -158,6 +159,7 @@ export function PublishDialog({
 
       if (result.ok) {
         setSlideStatuses(Array.from({ length: slides.length }, () => 'done'))
+        setDoneOutcome('published')
         setMode('done')
         onSuccess?.('published')
       } else {
@@ -178,6 +180,7 @@ export function PublishDialog({
       const result = await onSchedule(slides, scheduledAt, content)
 
       if (result.ok) {
+        setDoneOutcome('scheduled')
         setMode('done')
         onSuccess?.('scheduled')
       } else {
@@ -195,6 +198,7 @@ export function PublishDialog({
       const result = await onSaveDraft(slides, content)
 
       if (result.ok) {
+        setDoneOutcome('draft')
         setMode('done')
         onSuccess?.('draft')
       } else {
@@ -245,7 +249,9 @@ export function PublishDialog({
                 <path d="M4 12l6 6L20 6" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
-            <p className="text-sm font-medium text-neutral-200">Operação concluída com sucesso!</p>
+            <p className="text-sm font-medium text-neutral-200">
+              {doneOutcome === 'published' ? 'Publicação enviada! Acompanhe o status na lista.' : doneOutcome === 'scheduled' ? 'Story agendada com sucesso!' : 'Rascunho salvo!'}
+            </p>
             <button
               type="button"
               onClick={onClose}
