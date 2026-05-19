@@ -1,39 +1,49 @@
 import { NextResponse } from 'next/server'
 import { WORKFLOWS } from '@/lib/pipeline/workflows'
+import { API_REGISTRY } from '@/lib/pipeline/api-registry'
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
+
+async function loadDirectives(siteId: string): Promise<Record<string, { version: number; value: unknown }>> {
+  const supabase = getSupabaseServiceClient()
+  const { data } = await supabase
+    .from('reference_content')
+    .select('key, content_compact, version')
+    .eq('site_id', siteId)
+    .like('key', '_system/%')
+
+  const directives: Record<string, { version: number; value: unknown }> = {}
+  for (const row of data ?? []) {
+    const shortKey = row.key.replace('_system/', '')
+    directives[shortKey] = { version: row.version, value: row.content_compact }
+  }
+  return directives
+}
 
 export async function GET() {
+  let directives: Record<string, { version: number; value: unknown }> = {}
+  try {
+    const { getSiteContext } = await import('@/lib/cms/site-context')
+    const { siteId } = await getSiteContext()
+    directives = await loadDirectives(siteId)
+  } catch {
+    // No site context (e.g., API key auth without site resolution) — return catalog without directives
+  }
+
   return NextResponse.json({
-    name: 'Content Pipeline API',
-    version: '1.0.0',
-    auth: {
-      methods: ['api_key', 'session_cookie'],
-      header: 'X-Pipeline-Key',
-      rate_limit: '100/min (api_key only)',
+    name: API_REGISTRY.name,
+    version: API_REGISTRY.version,
+    auth: API_REGISTRY.auth,
+    capabilities: API_REGISTRY.capabilities,
+    directives,
+    cross_domain_workflows: API_REGISTRY.cross_domain_workflows,
+    context: {
+      endpoint: '/api/pipeline/context',
+      filters: {
+        group: '?group={group_id}',
+        skill: '?skill={skill_name}',
+        format: '?format=md (full markdown) or default (compact JSON)',
+      },
     },
-    endpoints: [
-      { method: 'GET', path: '/api/pipeline/context', description: 'Get all reference content' },
-      { method: 'GET', path: '/api/pipeline/context/:key', description: 'Get specific reference doc' },
-      { method: 'PUT', path: '/api/pipeline/context/:key', description: 'Upsert reference doc' },
-      { method: 'DELETE', path: '/api/pipeline/context/:key', description: 'Delete reference doc' },
-      { method: 'GET', path: '/api/pipeline/items', description: 'List items (cursor pagination)' },
-      { method: 'GET', path: '/api/pipeline/items/:id', description: 'Get item detail' },
-      { method: 'POST', path: '/api/pipeline/items', description: 'Create item(s)' },
-      { method: 'PATCH', path: '/api/pipeline/items/:id', description: 'Update item (X-Expected-Version required)' },
-      { method: 'DELETE', path: '/api/pipeline/items/:id', description: 'Archive item' },
-      { method: 'POST', path: '/api/pipeline/items/:id/advance', description: 'Advance to next stage' },
-      { method: 'POST', path: '/api/pipeline/items/:id/retreat', description: 'Retreat to previous stage' },
-      { method: 'POST', path: '/api/pipeline/items/:id/checklist', description: 'Toggle checklist item' },
-      { method: 'POST', path: '/api/pipeline/items/:id/graduate', description: 'Graduate to entity' },
-      { method: 'POST', path: '/api/pipeline/items/:id/restore', description: 'Restore archived item' },
-      { method: 'GET', path: '/api/pipeline/items/:id/history', description: 'Get item audit trail' },
-      { method: 'POST', path: '/api/pipeline/items/bulk', description: 'Batch operations' },
-      { method: 'GET', path: '/api/pipeline/workflows', description: 'Get all workflow definitions' },
-      { method: 'GET', path: '/api/pipeline/search', description: 'Cross-entity search' },
-      { method: 'GET', path: '/api/pipeline/stats', description: 'Pipeline statistics' },
-      { method: 'GET', path: '/api/pipeline/topics/:code', description: 'Topic aggregation' },
-      { method: 'GET', path: '/api/pipeline/playlists', description: 'List playlists' },
-      { method: 'GET', path: '/api/pipeline/playlists/:id', description: 'Get playlist graph (items + edges)' },
-    ],
     formats: Object.keys(WORKFLOWS),
     workflows: WORKFLOWS,
   })
