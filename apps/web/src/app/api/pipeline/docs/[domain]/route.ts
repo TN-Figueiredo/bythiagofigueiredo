@@ -5,19 +5,13 @@ import { authenticatePipeline } from '@/lib/pipeline/auth'
 import { API_REGISTRY } from '@/lib/pipeline/api-registry'
 import { pipelineError, pipelineSuccess } from '@/lib/pipeline/helpers'
 
-const CONTENT_DIR = join(__dirname, '..', '_content')
-
 function loadDocs(): Map<string, string> {
-  const dirs = [CONTENT_DIR, join(process.cwd(), 'src/app/api/pipeline/docs/_content')]
+  const dir = join(process.cwd(), 'data', 'pipeline-docs')
   const docs = new Map<string, string>()
   for (const cap of API_REGISTRY.capabilities) {
-    const filename = `cowork-docs-${cap.domain}.md`
-    for (const dir of dirs) {
-      const fp = join(dir, filename)
-      if (existsSync(fp)) {
-        docs.set(cap.domain, readFileSync(fp, 'utf-8'))
-        break
-      }
+    const fp = join(dir, `cowork-docs-${cap.domain}.md`)
+    if (existsSync(fp)) {
+      docs.set(cap.domain, readFileSync(fp, 'utf-8'))
     }
   }
   return docs
