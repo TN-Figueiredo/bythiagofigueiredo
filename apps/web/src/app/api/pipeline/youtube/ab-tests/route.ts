@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
       *,
       variants:ab_test_variants!test_id(id, label, is_original, blob_url, title_text, description_text, metadata, sort_order)
     `)
+    .eq('site_id', auth.siteId)
     .order('created_at', { ascending: false })
 
   if (status) {

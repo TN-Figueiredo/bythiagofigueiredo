@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
   query = query.order('ref_group').order('sort_order').order('key')
 
   const { data, error } = await query
-  if (error) return NextResponse.json({ error: { code: 'QUERY_ERROR', message: error.message } }, { status: 400 })
+  if (error) return NextResponse.json({ error: { code: 'QUERY_ERROR', message: 'Failed to load references' } }, { status: 400 })
 
   const mapped = data?.map((d) => ({
     key: d.key,

@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
       id, name, test_type, confidence_at_completion, result_metadata,
       winner:ab_test_variants!winner_variant_id(id, label, title_text, description_text, metadata)
     `)
+    .eq('site_id', auth.siteId)
     .eq('status', 'completed')
     .not('winner_variant_id', 'is', null)
     .order('completed_at', { ascending: false })

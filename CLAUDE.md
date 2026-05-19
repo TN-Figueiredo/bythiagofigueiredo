@@ -150,7 +150,7 @@ Source of truth: `docs/roadmap/README.md`
 Consumidos via `.npmrc` → `npm.pkg.github.com`. Versões exatas (sem `^`) — pre-commit hook valida.
 
 - **api:** `auth@1.3.0`, `auth-fastify@1.1.0`, `auth-supabase@1.1.0`, `audit@0.1.0`, `lgpd@0.1.0`, `shared@0.8.0`
-- **web:** `admin@0.3.0`, `auth-nextjs@2.0.0`, `cms@0.1.0-dev`, `email@0.2.0`, `links@0.1.0-dev`, `links-admin@0.1.0-dev`, `newsletter@0.1.0`, `newsletter-admin@0.1.0`, `notifications@0.1.0`, `seo@0.1.0`, `shared@0.8.0`
+- **web:** `admin@0.3.0`, `auth-nextjs@2.0.0`, `cms@0.1.0-dev`, `email@0.2.0`, `links@0.1.0-dev`, `links-admin@0.1.0-dev`, `newsletter@0.1.0`, `newsletter-admin@0.1.0`, `notifications@0.1.0`, `seo@0.1.0`, `shared@0.8.0`, `social@0.1.0-dev`
 
 ## CI
 

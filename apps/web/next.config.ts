@@ -162,7 +162,7 @@ const sentryUploadEnabled =
 // `withMDX` registers `.mdx` compilation via `@mdx-js/loader`. It must wrap
 // before Sentry because Sentry's plugin also wraps the config.
 const withMDX = createMDX({
-  extension: /\.mdx?$/,
+  extension: /\.mdx$/,
 })
 
 const finalConfig = withMDX(nextConfig)

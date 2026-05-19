@@ -93,7 +93,7 @@ const LIBRARIES: CapabilityDomain = {
   description: 'Manage audio assets (music, SFX, ambience) and B-roll video clips for post-production.',
   suggest_when: 'Audio selection, music search, B-roll management, SFX, post-production asset workflow',
   docs: '/api/pipeline/docs/libraries',
-  endpoint_count: 14,
+  endpoint_count: 15,
   endpoints: [
     { method: 'GET', path: '/api/pipeline/audio-library', summary: 'Search/filter audio assets', auth: 'read' },
     { method: 'POST', path: '/api/pipeline/audio-library', summary: 'Create new audio asset', auth: 'write' },
@@ -109,6 +109,7 @@ const LIBRARIES: CapabilityDomain = {
     { method: 'GET', path: '/api/pipeline/broll-library/:id', summary: 'Get B-roll with usage info', auth: 'read' },
     { method: 'PATCH', path: '/api/pipeline/broll-library/:id', summary: 'Update B-roll asset', auth: 'write' },
     { method: 'DELETE', path: '/api/pipeline/broll-library/:id', summary: 'Retire B-roll asset', auth: 'write' },
+    { method: 'POST', path: '/api/pipeline/broll-library/import', summary: 'Batch import B-roll library', auth: 'write' },
   ],
 }
 
@@ -118,7 +119,7 @@ const RESEARCH: CapabilityDomain = {
   description: 'Manage research items with hierarchical topics and many-to-many pipeline links.',
   suggest_when: 'Research management, topic organization, linking research to pipeline items, knowledge base',
   docs: '/api/pipeline/docs/research',
-  endpoint_count: 11,
+  endpoint_count: 12,
   endpoints: [
     { method: 'GET', path: '/api/pipeline/research', summary: 'List research items with cursor pagination', auth: 'read' },
     { method: 'POST', path: '/api/pipeline/research', summary: 'Create research item (upsert by topic+title)', auth: 'write' },
@@ -131,6 +132,7 @@ const RESEARCH: CapabilityDomain = {
     { method: 'GET', path: '/api/pipeline/research/topics', summary: 'List research topics (hierarchical)', auth: 'read' },
     { method: 'POST', path: '/api/pipeline/research/topics', summary: 'Create research topic (max depth 3)', auth: 'write' },
     { method: 'PATCH', path: '/api/pipeline/research/topics/:id', summary: 'Update topic metadata', auth: 'write' },
+    { method: 'DELETE', path: '/api/pipeline/research/topics/:id', summary: 'Delete research topic', auth: 'write' },
   ],
 }
 

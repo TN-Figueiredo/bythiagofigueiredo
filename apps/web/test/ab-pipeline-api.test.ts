@@ -54,7 +54,7 @@ function createMockChain(finalResult: { data?: unknown; error?: unknown }) {
 function mockAuthSuccess() {
   vi.mocked(authenticateRead).mockResolvedValue({
     ok: true,
-    auth: { keyId: 'test-key' },
+    auth: { keyId: 'test-key', siteId: 'site-1' },
   } as any)
 }
 
@@ -102,8 +102,8 @@ describe('GET /api/pipeline/youtube/ab-tests', () => {
     expect(chain.from).toHaveBeenCalledWith('ab_tests')
     expect(chain.select).toHaveBeenCalled()
     expect(chain.order).toHaveBeenCalledWith('created_at', { ascending: false })
-    expect(chain.eq).not.toHaveBeenCalled()
-    expect(pipelineSuccess).toHaveBeenCalledWith(tests, 200, { keyId: 'test-key' })
+    expect(chain.eq).toHaveBeenCalledWith('site_id', 'site-1')
+    expect(pipelineSuccess).toHaveBeenCalledWith(tests, 200, { keyId: 'test-key', siteId: 'site-1' })
     expect(res.status).toBe(200)
   })
 
@@ -119,7 +119,7 @@ describe('GET /api/pipeline/youtube/ab-tests', () => {
     const res = await GET(req)
 
     expect(chain.eq).toHaveBeenCalledWith('status', 'active')
-    expect(pipelineSuccess).toHaveBeenCalledWith(tests, 200, { keyId: 'test-key' })
+    expect(pipelineSuccess).toHaveBeenCalledWith(tests, 200, { keyId: 'test-key', siteId: 'site-1' })
     expect(res.status).toBe(200)
   })
 })
@@ -147,7 +147,7 @@ describe('GET /api/pipeline/youtube/ab-tests/[id]', () => {
     const req = createRequest('/api/pipeline/youtube/ab-tests/missing-id')
     const res = await GET(req, { params: Promise.resolve({ id: 'missing-id' }) })
 
-    expect(pipelineError).toHaveBeenCalledWith('NOT_FOUND', 'Test not found', 404, { keyId: 'test-key' })
+    expect(pipelineError).toHaveBeenCalledWith('NOT_FOUND', 'Test not found', 404, { keyId: 'test-key', siteId: 'site-1' })
     expect(res.status).toBe(404)
   })
 
@@ -170,7 +170,7 @@ describe('GET /api/pipeline/youtube/ab-tests/[id]', () => {
 
     expect(chain.eq).toHaveBeenCalledWith('id', 'test-1')
     expect(chain.single).toHaveBeenCalled()
-    expect(pipelineSuccess).toHaveBeenCalledWith(test, 200, { keyId: 'test-key' })
+    expect(pipelineSuccess).toHaveBeenCalledWith(test, 200, { keyId: 'test-key', siteId: 'site-1' })
     expect(res.status).toBe(200)
   })
 })
@@ -198,7 +198,7 @@ describe('GET /api/pipeline/youtube/ab-tests/[id]/funnel', () => {
     const req = createRequest('/api/pipeline/youtube/ab-tests/missing-id/funnel')
     const res = await GET(req, { params: Promise.resolve({ id: 'missing-id' }) })
 
-    expect(pipelineError).toHaveBeenCalledWith('NOT_FOUND', 'Test not found', 404, { keyId: 'test-key' })
+    expect(pipelineError).toHaveBeenCalledWith('NOT_FOUND', 'Test not found', 404, { keyId: 'test-key', siteId: 'site-1' })
     expect(res.status).toBe(404)
   })
 
@@ -257,7 +257,7 @@ describe('GET /api/pipeline/youtube/ab-tests/[id]/funnel', () => {
         ]),
       },
       200,
-      { keyId: 'test-key' },
+      { keyId: 'test-key', siteId: 'site-1' },
     )
   })
 })
@@ -327,7 +327,7 @@ describe('GET /api/pipeline/youtube/ab-performance', () => {
         },
       },
       200,
-      { keyId: 'test-key' },
+      { keyId: 'test-key', siteId: 'site-1' },
     )
   })
 })

@@ -3,6 +3,23 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { authenticatePipeline, requirePermission, buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
 import { ResearchItemUpdateSchema } from '@/lib/pipeline/research-schemas'
 
+interface ResearchItemWithTopic {
+  id: string
+  title: string
+  topic_id: string
+  content_json: unknown
+  content_md: string | null
+  summary: string | null
+  sources: unknown
+  status: string
+  word_count: number | null
+  version: number
+  created_at: string
+  updated_at: string
+  site_id: string
+  research_topics: { path: string; name: string; icon: string | null } | null
+}
+
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   if (!UUID_REGEX.test(id)) return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid item ID' } }, { status: 400 })
@@ -21,6 +38,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   if (error || !item) return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Research item not found' } }, { status: 404 })
 
+  const typedItem = item as unknown as ResearchItemWithTopic
+
   const { data: links } = await supabase
     .from('research_links')
     .select('id, pipeline_item_id, note, created_at, content_pipeline(id, title_pt, title_en, format, stage)')
@@ -38,24 +57,24 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const headers = buildRateLimitHeaders(auth)
   return NextResponse.json({
     data: {
-      id: item.id,
-      title: item.title,
-      topic_id: item.topic_id,
-      topic_path: (item as any).research_topics?.path,
-      topic_name: (item as any).research_topics?.name,
-      topic_icon: (item as any).research_topics?.icon,
-      content_json: item.content_json,
-      content_md: item.content_md,
-      summary: item.summary,
-      sources: item.sources,
-      status: item.status,
-      word_count: item.word_count,
-      version: item.version,
-      created_at: item.created_at,
-      updated_at: item.updated_at,
+      id: typedItem.id,
+      title: typedItem.title,
+      topic_id: typedItem.topic_id,
+      topic_path: typedItem.research_topics?.path,
+      topic_name: typedItem.research_topics?.name,
+      topic_icon: typedItem.research_topics?.icon,
+      content_json: typedItem.content_json,
+      content_md: typedItem.content_md,
+      summary: typedItem.summary,
+      sources: typedItem.sources,
+      status: typedItem.status,
+      word_count: typedItem.word_count,
+      version: typedItem.version,
+      created_at: typedItem.created_at,
+      updated_at: typedItem.updated_at,
       linked_items: linkedItems,
     },
-    meta: { version: item.version, updated_at: item.updated_at },
+    meta: { version: typedItem.version, updated_at: typedItem.updated_at },
   }, { headers })
 }
 
