@@ -142,6 +142,8 @@ export function AudioLibrary({ initialAssets, stats, initialHasNext = false, ini
   useEffect(() => {
     if (isFirstRender.current) { isFirstRender.current = false; return }
     loadMoreAbortRef.current?.abort()
+    setSelectedId(null)
+    setApiTotal(null)
     setHasNext(false)
     setNextCursor(null)
     refetch(serializeFilters(filters))

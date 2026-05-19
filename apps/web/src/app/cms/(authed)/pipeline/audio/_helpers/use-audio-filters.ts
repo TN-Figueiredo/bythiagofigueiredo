@@ -39,7 +39,9 @@ export function serializeFilters(partial: Partial<AudioFilterState>): URLSearchP
 export function deserializeFilters(params: URLSearchParams): AudioFilterState {
   const numOrNull = (key: string) => {
     const v = params.get(key)
-    return v ? parseInt(v, 10) : null
+    if (!v) return null
+    const n = Number(v)
+    return Number.isFinite(n) ? Math.round(n) : null
   }
   const csvOrNull = (key: string) => {
     const v = params.get(key)

@@ -189,18 +189,18 @@ describe('GET /api/pipeline/audio-library filters', () => {
     expect(calls.some(c => c.method === 'eq' && c.args[0] === 'category')).toBe(true)
   })
 
-  it('applies tags filter with contains', async () => {
+  it('applies tags filter with overlaps (OR logic)', async () => {
     const { chain, calls } = mockChain([], 0)
     vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
     await GET(new NextRequest('http://localhost/api/pipeline/audio-library?tags=epic,cinematic'))
-    expect(calls.some(c => c.method === 'contains' && c.args[0] === 'tags')).toBe(true)
+    expect(calls.some(c => c.method === 'overlaps' && c.args[0] === 'tags')).toBe(true)
   })
 
-  it('applies mood filter with contains', async () => {
+  it('applies mood filter with overlaps (OR logic)', async () => {
     const { chain, calls } = mockChain([], 0)
     vi.mocked(getSupabaseServiceClient).mockReturnValue(chain as never)
     await GET(new NextRequest('http://localhost/api/pipeline/audio-library?mood=inspiring'))
-    expect(calls.some(c => c.method === 'contains' && c.args[0] === 'mood')).toBe(true)
+    expect(calls.some(c => c.method === 'overlaps' && c.args[0] === 'mood')).toBe(true)
   })
 
   it('applies energy range filters', async () => {

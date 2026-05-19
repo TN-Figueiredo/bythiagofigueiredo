@@ -12,7 +12,8 @@ export async function GET(req: NextRequest) {
   if (!requirePermission(auth, 'read')) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
 
   const params = req.nextUrl.searchParams
-  const limit = Math.max(1, Math.min(parseInt(params.get('limit') || '50') || 50, 200))
+  const rawLimit = Number(params.get('limit') || '50')
+  const limit = Math.max(1, Math.min(Number.isFinite(rawLimit) ? Math.round(rawLimit) : 50, 200))
   const cursor = params.get('cursor') || undefined
 
   const supabase = getSupabaseServiceClient()
@@ -33,22 +34,24 @@ export async function GET(req: NextRequest) {
   if (category) query = query.eq('category', sanitizeForFilter(category))
 
   const tags = params.get('tags')
-  if (tags) query = query.contains('tags', tags.split(',').map(t => sanitizeForFilter(t.trim())).filter(Boolean))
+  if (tags) query = query.overlaps('tags', tags.split(',').map(t => sanitizeForFilter(t.trim())).filter(Boolean))
 
   const mood = params.get('mood')
-  if (mood) query = query.contains('mood', mood.split(',').map(m => sanitizeForFilter(m.trim())).filter(Boolean))
+  if (mood) query = query.overlaps('mood', mood.split(',').map(m => sanitizeForFilter(m.trim())).filter(Boolean))
+
+  const safeInt = (v: string) => { const n = Number(v); return Number.isFinite(n) ? Math.round(n) : null }
 
   const energyMin = params.get('energy_min')
-  if (energyMin) { const n = parseInt(energyMin); if (!isNaN(n)) query = query.gte('energy', n) }
+  if (energyMin) { const n = safeInt(energyMin); if (n !== null) query = query.gte('energy', n) }
 
   const energyMax = params.get('energy_max')
-  if (energyMax) { const n = parseInt(energyMax); if (!isNaN(n)) query = query.lte('energy', n) }
+  if (energyMax) { const n = safeInt(energyMax); if (n !== null) query = query.lte('energy', n) }
 
   const bpmMin = params.get('bpm_min')
-  if (bpmMin) { const n = parseInt(bpmMin); if (!isNaN(n)) query = query.gte('bpm', n) }
+  if (bpmMin) { const n = safeInt(bpmMin); if (n !== null) query = query.gte('bpm', n) }
 
   const bpmMax = params.get('bpm_max')
-  if (bpmMax) { const n = parseInt(bpmMax); if (!isNaN(n)) query = query.lte('bpm', n) }
+  if (bpmMax) { const n = safeInt(bpmMax); if (n !== null) query = query.lte('bpm', n) }
 
   const subcategory = params.get('subcategory')
   if (subcategory) query = query.eq('subcategory', sanitizeForFilter(subcategory))
