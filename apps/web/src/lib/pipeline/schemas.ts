@@ -107,7 +107,7 @@ export const PipelineItemUpdateSchema = z.object({
   cover_image_url: z.string().url().max(2000).nullable().optional(),
 })
 
-export const REFERENCE_GROUP_VALUES = ['pessoal', 'estrategia', 'craft', 'producao', 'api', 'memoria'] as const
+export const REFERENCE_GROUP_VALUES = ['pessoal', 'estrategia', 'craft', 'producao', 'api', 'memoria', 'sistema'] as const
 
 export const ReferenceContentUpsertSchema = z.object({
   title: z.string().min(1).max(200),
