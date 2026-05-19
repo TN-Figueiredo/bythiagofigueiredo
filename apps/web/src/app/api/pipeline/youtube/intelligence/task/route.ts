@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { authenticatePipeline, requirePermission, buildRateLimitHeaders } from '@/lib/pipeline/auth'
+import { buildRateLimitHeaders } from '@/lib/pipeline/auth'
+import { authenticateRead } from '@/lib/pipeline/helpers'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: authResult.error }, { status: authResult.status })
-  if (!requirePermission(authResult.auth, 'read')) {
-    return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
-  }
+  const result = await authenticateRead(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
   const status = req.nextUrl.searchParams.get('status') ?? 'pending'
   const supabase = getSupabaseServiceClient()
@@ -17,7 +16,7 @@ export async function GET(req: NextRequest) {
   const { data: task } = await supabase
     .from('youtube_intelligence_tasks')
     .select('id, site_id, channel_id, trigger_type, requested_at')
-    .eq('site_id', authResult.auth.siteId)
+    .eq('site_id', auth.siteId)
     .eq('status', status)
     .order('requested_at', { ascending: true })
     .limit(1)
@@ -36,6 +35,6 @@ export async function GET(req: NextRequest) {
     return new NextResponse(null, { status: 204 })
   }
 
-  const headers = buildRateLimitHeaders(authResult.auth)
+  const headers = buildRateLimitHeaders(auth)
   return NextResponse.json(task, { headers: headers ?? {} })
 }

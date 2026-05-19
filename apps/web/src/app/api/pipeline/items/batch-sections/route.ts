@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { authenticatePipeline, requirePermission, buildRateLimitHeaders } from '@/lib/pipeline/auth'
+import { authenticateWrite, pipelineError, parseBody } from '@/lib/pipeline/helpers'
+import { buildRateLimitHeaders } from '@/lib/pipeline/auth'
 import { getSectionKey, BatchSectionUpdateSchema } from '@/lib/pipeline/sections'
 import type { SectionData } from '@/lib/pipeline/sections'
 
@@ -14,24 +15,16 @@ interface BatchResult {
 }
 
 export async function POST(req: NextRequest) {
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
-  if (!requirePermission(authResult.auth, 'write')) {
-    return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
-  }
+  const result = await authenticateWrite(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
-  let body: unknown
-  try {
-    body = await req.json()
-  } catch {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid JSON' } }, { status: 400 })
-  }
+  const body = await parseBody(req)
+  if (body instanceof Response) return body
 
   const parsed = BatchSectionUpdateSchema.safeParse(body)
   if (!parsed.success) {
-    return NextResponse.json({
-      error: { code: 'VALIDATION_ERROR', message: parsed.error.issues[0]?.message ?? 'Invalid request body' },
-    }, { status: 400 })
+    return pipelineError('VALIDATION_ERROR', parsed.error.issues[0]?.message ?? 'Invalid request body', 400, auth)
   }
 
   const supabase = getSupabaseServiceClient()
@@ -49,7 +42,7 @@ export async function POST(req: NextRequest) {
       .from('content_pipeline')
       .select('id, version, sections')
       .eq('id', itemId)
-      .eq('site_id', authResult.auth.siteId)
+      .eq('site_id', auth.siteId)
       .single()
 
     if (fetchError || !item) {
@@ -119,7 +112,7 @@ export async function POST(req: NextRequest) {
   const succeeded = results.filter(r => r.ok).length
   const failed = results.filter(r => !r.ok).length
 
-  const headers = buildRateLimitHeaders(authResult.auth)
+  const headers = buildRateLimitHeaders(auth)
   return NextResponse.json({
     results,
     summary: { total: results.length, succeeded, failed },

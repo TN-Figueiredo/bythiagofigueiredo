@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
   }
 
   const { data, error } = await query
-  if (error) return pipelineError('DB_ERROR', error.message, 500, auth)
+  if (error) return pipelineError('DB_ERROR', 'Failed to load tests', 500, auth)
 
   return pipelineSuccess(data, 200, auth)
 }

@@ -26,6 +26,7 @@ function elementLabel(el: CardElement): string {
     case 'qr': return 'QR Code'
     case 'text': return el.content.slice(0, 20) || 'Text'
     case 'image': return 'Image'
+    default: return 'Element'
   }
 }
 

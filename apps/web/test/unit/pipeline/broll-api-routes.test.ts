@@ -128,14 +128,14 @@ describe('GET /api/pipeline/broll-library', () => {
     expect(json.error.code).toBe('UNAUTHORIZED')
   })
 
-  it('returns 403 when read permission is denied', async () => {
-    vi.mocked(requirePermission).mockReturnValue(false)
+  it('returns 403 when auth returns forbidden', async () => {
+    vi.mocked(authenticatePipeline).mockResolvedValue({ ok: false as const, status: 403, error: 'Forbidden' })
     vi.mocked(getSupabaseServiceClient).mockReturnValue({} as ReturnType<typeof getSupabaseServiceClient>)
 
     const res = await listGET(makeListRequest())
     expect(res.status).toBe(403)
     const json = await res.json() as { error: { code: string } }
-    expect(json.error.code).toBe('FORBIDDEN')
+    expect(json.error.code).toBe('UNAUTHORIZED')
   })
 
   it('returns paginated list with meta', async () => {
@@ -430,8 +430,8 @@ describe('GET /api/pipeline/broll-library/[id]', () => {
     expect(res.status).toBe(401)
   })
 
-  it('returns 403 when read permission denied', async () => {
-    vi.mocked(requirePermission).mockReturnValue(false)
+  it('returns 403 when auth returns forbidden', async () => {
+    vi.mocked(authenticatePipeline).mockResolvedValue({ ok: false as const, status: 403, error: 'Forbidden' })
     vi.mocked(getSupabaseServiceClient).mockReturnValue({} as ReturnType<typeof getSupabaseServiceClient>)
 
     const params = Promise.resolve({ id: ASSET_UUID })

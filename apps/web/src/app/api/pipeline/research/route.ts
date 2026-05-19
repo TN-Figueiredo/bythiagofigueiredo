@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { authenticatePipeline, requirePermission, buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
+import { buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
+import { authenticateRead, authenticateWrite, pipelineError, pipelineSuccess, parseBody } from '@/lib/pipeline/helpers'
 import { ResearchItemCreateSchema } from '@/lib/pipeline/research-schemas'
 import { validateTopicSlugDepth, resolveOrCreateTopics } from '@/lib/pipeline/research-topics'
 import { sanitizeForFilter } from '@/lib/pipeline/sanitize'
 
 export async function GET(req: NextRequest) {
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
-  const { auth } = authResult
-  if (!requirePermission(auth, 'read')) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
+  const result = await authenticateRead(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
   const params = req.nextUrl.searchParams
   const limit = Math.min(parseInt(params.get('limit') || '50'), 200)
@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
   const { data, error, count } = await query
   if (error) {
     console.error('[research/GET]', error.message)
-    return NextResponse.json({ error: { code: 'DB_ERROR', message: 'Internal server error' } }, { status: 500 })
+    return pipelineError('DB_ERROR', 'Failed to load research items', 500, auth)
   }
 
   const hasNext = (data?.length ?? 0) > limit
@@ -117,31 +117,28 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
-  const { auth } = authResult
-  if (!requirePermission(auth, 'write')) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
+  const result = await authenticateWrite(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
-  let body: unknown
-  try { body = await req.json() } catch {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid JSON body' } }, { status: 400 })
-  }
+  const body = await parseBody(req)
+  if (body instanceof Response) return body
 
   const parsed = ResearchItemCreateSchema.safeParse(body)
   if (!parsed.success) {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: parsed.error.issues.map((i) => i.message).join(', ') } }, { status: 400 })
+    return pipelineError('VALIDATION_ERROR', parsed.error.issues.map((i) => i.message).join(', '), 400, auth)
   }
 
   const { title, topic_slug, content_md, summary, sources } = parsed.data
 
   if (!validateTopicSlugDepth(topic_slug)) {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Max 3 levels (e.g., "a/b/c"). Got too many segments.' } }, { status: 400 })
+    return pipelineError('VALIDATION_ERROR', 'Max 3 levels (e.g., "a/b/c"). Got too many segments.', 400, auth)
   }
 
   const supabase = getSupabaseServiceClient()
   const topicResult = await resolveOrCreateTopics(supabase, auth.siteId, topic_slug)
   if ('error' in topicResult) {
-    return NextResponse.json({ error: { code: 'DB_ERROR', message: topicResult.error } }, { status: 500 })
+    return pipelineError('DB_ERROR', 'Failed to resolve topic', 500, auth)
   }
 
   const { data: item, error } = await supabase
@@ -163,7 +160,8 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (error) {
-    return NextResponse.json({ error: { code: 'DB_ERROR', message: error.message } }, { status: 500 })
+    console.error('[research/POST]', error.message)
+    return pipelineError('DB_ERROR', 'Failed to save research item', 500, auth)
   }
 
   const isUpsert = item!.version > 1

@@ -373,7 +373,7 @@ export async function publishSocialPost(
       .eq('id', post.id)
 
     // Step 2: Get pending deliveries
-    const { data: deliveries, error: delError } = await supabase
+    let { data: deliveries, error: delError } = await supabase
       .from('social_deliveries')
       .select('*')
       .eq('post_id', post.id)
@@ -384,11 +384,49 @@ export async function publishSocialPost(
     }
 
     if (!deliveries || deliveries.length === 0) {
-      await supabase
-        .from('social_posts')
-        .update({ status: 'completed' as PostStatus, published_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-        .eq('id', post.id)
-      return
+      // Story posts with story_slides but no deliveries: auto-create Instagram delivery
+      const storyPost = post as SocialPostWithSlides
+      if (Array.isArray(storyPost.story_slides) && storyPost.story_slides.length > 0) {
+        const { data: igConn } = await supabase
+          .from('social_connections')
+          .select('id')
+          .eq('site_id', post.site_id)
+          .eq('provider', 'instagram')
+          .is('revoked_at', null)
+          .limit(1)
+          .single()
+
+        if (igConn) {
+          await supabase.from('social_deliveries').insert({
+            post_id: post.id,
+            connection_id: igConn.id,
+            provider: 'instagram',
+            format: 'story',
+            status: 'pending',
+            attempt: 0,
+            max_attempts: 3,
+            template_config: { storySlides: true },
+          })
+
+          const { data: retryDeliveries } = await supabase
+            .from('social_deliveries')
+            .select('*')
+            .eq('post_id', post.id)
+            .in('status', ['pending', 'retrying'])
+
+          if (retryDeliveries && retryDeliveries.length > 0) {
+            deliveries = retryDeliveries
+          }
+        }
+      }
+
+      if (!deliveries || deliveries.length === 0) {
+        await supabase
+          .from('social_posts')
+          .update({ status: 'completed' as PostStatus, published_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+          .eq('id', post.id)
+        return
+      }
     }
 
     // Step 3 & 4: Process each delivery in parallel
@@ -429,6 +467,12 @@ export async function publishSocialPost(
           let processedPost = post
           if (delivery.format === 'story' && delivery.provider === 'instagram') {
             processedPost = await prepareStoryDelivery(post, delivery)
+            if (processedPost.content.media_urls?.length) {
+              await supabase
+                .from('social_posts')
+                .update({ content: processedPost.content, updated_at: new Date().toISOString() })
+                .eq('id', post.id)
+            }
           }
 
           // Multi-slide Instagram Story: publish each slide individually

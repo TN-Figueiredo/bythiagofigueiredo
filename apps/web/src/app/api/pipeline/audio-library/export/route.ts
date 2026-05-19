@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { authenticatePipeline, requirePermission, buildRateLimitHeaders } from '@/lib/pipeline/auth'
+import { buildRateLimitHeaders } from '@/lib/pipeline/auth'
+import { authenticateRead, pipelineError } from '@/lib/pipeline/helpers'
 import { buildExportJson } from '@/lib/pipeline/audio-import'
 import type { AudioAssetRow } from '@/lib/pipeline/audio-schemas'
 import { pipelineLog } from '@/lib/pipeline/logger'
 
 export async function GET(req: NextRequest) {
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
-  const { auth } = authResult
-  if (!requirePermission(auth, 'read')) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
+  const result = await authenticateRead(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
   const supabase = getSupabaseServiceClient()
   const PAGE_SIZE = 1000
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
       .order('created_at', { ascending: false })
       .range(offset, offset + PAGE_SIZE - 1)
 
-    if (error) { pipelineLog('error', 'audio-library', 'export DB query failed', { error }); return NextResponse.json({ error: { code: 'DB_ERROR', message: 'Internal server error' } }, { status: 500 }) }
+    if (error) { pipelineLog('error', 'audio-library', 'export DB query failed', { error }); return pipelineError('DB_ERROR', 'Failed to export assets', 500, auth) }
     const rows = (data ?? []) as AudioAssetRow[]
     allAssets.push(...rows)
     if (allAssets.length >= MAX_EXPORT_ROWS) break

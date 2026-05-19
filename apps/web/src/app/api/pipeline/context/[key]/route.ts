@@ -1,43 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { authenticatePipeline, requirePermission, buildRateLimitHeaders } from '@/lib/pipeline/auth'
+import { buildRateLimitHeaders } from '@/lib/pipeline/auth'
+import { authenticateRead, authenticateWrite, pipelineError, parseBody } from '@/lib/pipeline/helpers'
 import { ReferenceContentUpsertSchema } from '@/lib/pipeline/schemas'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ key: string }> }) {
   const { key } = await params
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
+  const result = await authenticateRead(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
   const supabase = getSupabaseServiceClient()
   const { data, error } = await supabase
     .from('reference_content')
     .select('*')
-    .eq('site_id', authResult.auth.siteId)
+    .eq('site_id', auth.siteId)
     .eq('key', key)
     .single()
 
-  if (error || !data) return NextResponse.json({ error: { code: 'NOT_FOUND', message: `Reference "${key}" not found` } }, { status: 404 })
-  const headers = buildRateLimitHeaders(authResult.auth)
+  if (error || !data) return pipelineError('NOT_FOUND', `Reference "${key}" not found`, 404, auth)
+  const headers = buildRateLimitHeaders(auth)
   return NextResponse.json({ data }, { headers })
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ key: string }> }) {
   const { key } = await params
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
-  if (!requirePermission(authResult.auth, 'write')) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
+  const result = await authenticateWrite(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
-  let body: unknown
-  try {
-    body = await req.json()
-  } catch {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid JSON body' } }, { status: 400 })
-  }
+  const body = await parseBody(req)
+  if (body instanceof Response) return body
   const parsed = ReferenceContentUpsertSchema.safeParse(body)
-  if (!parsed.success) return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: parsed.error.issues.map((i) => i.message).join(', ') } }, { status: 400 })
+  if (!parsed.success) return pipelineError('VALIDATION_ERROR', parsed.error.issues.map((i) => i.message).join(', '), 400, auth)
 
   const upsertData: Record<string, unknown> = {
-    site_id: authResult.auth.siteId,
+    site_id: auth.siteId,
     key,
     title: parsed.data.title,
     content_md: parsed.data.content_md ?? null,
@@ -54,19 +52,19 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ key:
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: error.message } }, { status: 400 })
-  const headers = buildRateLimitHeaders(authResult.auth)
+  if (error) return pipelineError('VALIDATION_ERROR', 'Failed to save reference content', 400, auth)
+  const headers = buildRateLimitHeaders(auth)
   return NextResponse.json({ data }, { headers })
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ key: string }> }) {
   const { key } = await params
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
-  if (!requirePermission(authResult.auth, 'write')) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
+  const result = await authenticateWrite(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
   const supabase = getSupabaseServiceClient()
-  await supabase.from('reference_content').delete().eq('site_id', authResult.auth.siteId).eq('key', key)
-  const headers = buildRateLimitHeaders(authResult.auth)
+  await supabase.from('reference_content').delete().eq('site_id', auth.siteId).eq('key', key)
+  const headers = buildRateLimitHeaders(auth)
   return NextResponse.json({ data: { deleted: true } }, { headers })
 }

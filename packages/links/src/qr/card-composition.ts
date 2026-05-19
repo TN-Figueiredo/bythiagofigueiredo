@@ -59,10 +59,24 @@ const ImageElementSchema = BaseElementSchema.extend({
   maintainAspectRatio: z.boolean().default(true),
 })
 
+const VideoElementSchema = BaseElementSchema.extend({
+  type: z.literal('video'),
+  src: z.string().min(1),
+  borderRadius: z.number().min(0).max(100).default(0),
+  borderColor: HexColor.default('#000000'),
+  borderWidth: z.number().min(0).max(20).default(0),
+  maintainAspectRatio: z.boolean().default(true),
+  muted: z.boolean().default(true),
+  loop: z.boolean().default(true),
+  startTime: z.number().min(0).default(0),
+  endTime: z.number().min(0).nullable().default(null),
+})
+
 const CardElementSchema = z.discriminatedUnion('type', [
   QrElementSchema,
   TextElementSchema,
   ImageElementSchema,
+  VideoElementSchema,
 ])
 
 const SolidBackgroundSchema = z.object({
@@ -75,6 +89,10 @@ const ImageBackgroundSchema = z.object({
   url: z.string().min(1),
   fallbackColor: HexColor,
   blur: z.number().min(0).max(100).optional(),
+  offsetY: z.number().optional(),
+  mediaType: z.enum(['image', 'video']).default('image'),
+  startTime: z.number().min(0).optional(),
+  endTime: z.number().min(0).nullable().optional(),
 })
 
 const GradientStopSchema = z.object({
@@ -112,6 +130,7 @@ export type CardElement = z.infer<typeof CardElementSchema>
 export type QrElement = z.infer<typeof QrElementSchema>
 export type TextElement = z.infer<typeof TextElementSchema>
 export type ImageElement = z.infer<typeof ImageElementSchema>
+export type VideoElement = z.infer<typeof VideoElementSchema>
 export type Background = z.infer<typeof BackgroundSchema>
 export type GradientStop = z.infer<typeof GradientStopSchema>
 export type Canvas = z.infer<typeof CanvasSchema>
@@ -182,8 +201,8 @@ export const FONT_CATEGORIES: Record<FontCategory, readonly string[]> = {
   'monospace': ['JetBrains Mono', 'Fira Code', 'Source Code Pro', 'Space Mono'],
 } as const
 
-export function nextElementName(elements: CardElement[], type: 'qr' | 'text' | 'image'): string {
-  const labels: Record<string, string> = { qr: 'QR Code', text: 'Text', image: 'Image' }
+export function nextElementName(elements: CardElement[], type: 'qr' | 'text' | 'image' | 'video'): string {
+  const labels: Record<string, string> = { qr: 'QR Code', text: 'Text', image: 'Image', video: 'Video' }
   const base = labels[type]!
   const count = elements.filter(e => e.type === type).length
   return count === 0 ? base : `${base} ${count + 1}`
@@ -319,6 +338,57 @@ export function createImageElement(
     borderColor: '#000000',
     borderWidth: 0,
     maintainAspectRatio: true,
+  }
+}
+
+export function createVideoElement(
+  id: string,
+  src: string,
+  canvasWidth: number,
+  canvasHeight: number,
+  naturalWidth?: number,
+  naturalHeight?: number,
+  name?: string,
+): VideoElement {
+  let w: number
+  let h: number
+
+  if (naturalWidth && naturalHeight && naturalWidth > 0 && naturalHeight > 0) {
+    const vidRatio = naturalWidth / naturalHeight
+    const canvasRatio = canvasWidth / canvasHeight
+
+    if (vidRatio > canvasRatio) {
+      w = canvasWidth
+      h = canvasWidth / vidRatio
+    } else {
+      h = canvasHeight
+      w = canvasHeight * vidRatio
+    }
+  } else {
+    w = canvasWidth
+    h = canvasHeight
+  }
+
+  return {
+    id,
+    name,
+    type: 'video',
+    x: (canvasWidth - w) / 2,
+    y: (canvasHeight - h) / 2,
+    width: w,
+    height: h,
+    rotation: 0,
+    opacity: 1,
+    locked: false,
+    src,
+    borderRadius: 0,
+    borderColor: '#000000',
+    borderWidth: 0,
+    maintainAspectRatio: true,
+    muted: true,
+    loop: true,
+    startTime: 0,
+    endTime: null,
   }
 }
 

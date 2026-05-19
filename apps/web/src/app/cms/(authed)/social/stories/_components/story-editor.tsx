@@ -1,5 +1,5 @@
 'use client'
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useImperativeHandle, forwardRef } from 'react'
 import type { CardComposition } from '@tn-figueiredo/links/qr'
 import { SocialCanvasEditor } from '@/app/cms/(authed)/social/new/_components/canvas-editor'
 import type { SocialCanvasEditorRef, SocialCanvasEditorProps } from '@/app/cms/(authed)/social/new/_components/canvas-editor'
@@ -13,6 +13,10 @@ import type { SocialPostData } from '@/lib/social/story-types'
 
 type StoryEditorTemplates = SocialCanvasEditorProps['templates']
 
+export interface StoryEditorHandle {
+  getCommittedSlides(): CardComposition[]
+}
+
 interface StoryEditorProps {
   initialSlides: CardComposition[]
   postData: SocialPostData
@@ -21,6 +25,7 @@ interface StoryEditorProps {
   onSaveTemplate: SocialCanvasEditorProps['onSaveTemplate']
   onDeleteTemplate: SocialCanvasEditorProps['onDeleteTemplate']
   onImageUpload: SocialCanvasEditorProps['onImageUpload']
+  onVideoUpload: SocialCanvasEditorProps['onVideoUpload']
   /** Called whenever any slide is updated — useful for autosave */
   onSlidesChange?: (slides: CardComposition[]) => void
 }
@@ -39,7 +44,7 @@ interface StoryEditorProps {
 //   Ctrl+Shift+D → duplicate current slide
 // ---------------------------------------------------------------------------
 
-export function StoryEditor({
+export const StoryEditor = forwardRef<StoryEditorHandle, StoryEditorProps>(function StoryEditor({
   initialSlides,
   postData,
   templates,
@@ -47,8 +52,9 @@ export function StoryEditor({
   onSaveTemplate,
   onDeleteTemplate,
   onImageUpload,
+  onVideoUpload,
   onSlidesChange,
-}: StoryEditorProps) {
+}, ref) {
   const [slides, setSlides] = useState<CardComposition[]>(initialSlides)
   const [slideIds, setSlideIds] = useState<string[]>(() => initialSlides.map(() => crypto.randomUUID()))
   const [activeIndex, setActiveIndex] = useState(0)
@@ -69,33 +75,37 @@ export function StoryEditor({
   }, [slides, onSlidesChange])
 
   // ---------------------------------------------------------------------------
-  // Save the current editor state back into slides array before switching
+  // Flush the live canvas state into the slides array.
+  // Single implementation used by both internal navigation and the imperative handle.
   // ---------------------------------------------------------------------------
-  const commitCurrentSlide = useCallback(() => {
+  const flushActiveSlide = useCallback((): CardComposition[] => {
     const composition = editorRef.current?.getComposition()
-    if (!composition) return
-    setSlides(prev => {
-      const updated = [...prev]
-      updated[activeIndexRef.current] = composition
-      return updated
-    })
+    if (!composition) return slidesRef.current
+    const updated = [...slidesRef.current]
+    updated[activeIndexRef.current] = composition
+    setSlides(updated)
+    return updated
   }, [])
+
+  useImperativeHandle(ref, () => ({
+    getCommittedSlides: flushActiveSlide,
+  }), [flushActiveSlide])
 
   // ---------------------------------------------------------------------------
   // Navigation
   // ---------------------------------------------------------------------------
   const goToSlide = useCallback((index: number) => {
-    commitCurrentSlide()
+    flushActiveSlide()
     setActiveIndex(index)
-  }, [commitCurrentSlide])
+  }, [flushActiveSlide])
 
   // ---------------------------------------------------------------------------
   // Slide operations
   // ---------------------------------------------------------------------------
-  const handleReorder = useCallback((reordered: CardComposition[], fromIndex?: number, toIndex?: number) => {
-    commitCurrentSlide()
-    setSlides(reordered)
+  const handleReorder = useCallback((_reordered: CardComposition[], fromIndex?: number, toIndex?: number) => {
+    const committed = flushActiveSlide()
     if (fromIndex !== undefined && toIndex !== undefined) {
+      setSlides(reorderSlides(committed, fromIndex, toIndex))
       setSlideIds(prev => {
         const updated = [...prev]
         const spliced = updated.splice(fromIndex, 1)
@@ -103,13 +113,11 @@ export function StoryEditor({
         return updated
       })
     }
-    // Keep activeIndex pointing to the same logical slide after reorder is tricky
-    // — reset to 0 for simplicity (common pattern in slide editors)
     setActiveIndex(0)
-  }, [commitCurrentSlide])
+  }, [flushActiveSlide])
 
   const handleDuplicate = useCallback((index: number) => {
-    commitCurrentSlide()
+    flushActiveSlide()
     setSlides(prev => {
       const updated = duplicateSlide(prev, index)
       return updated
@@ -120,10 +128,10 @@ export function StoryEditor({
       return updated
     })
     setActiveIndex(index + 1)
-  }, [commitCurrentSlide])
+  }, [flushActiveSlide])
 
   const handleRemove = useCallback((index: number) => {
-    commitCurrentSlide()
+    flushActiveSlide()
     setSlides(prev => {
       const newSlides = removeSlide(prev, index)
       setActiveIndex(ai => Math.min(ai, Math.max(0, newSlides.length - 1)))
@@ -134,17 +142,17 @@ export function StoryEditor({
       updated.splice(index, 1)
       return updated
     })
-  }, [commitCurrentSlide])
+  }, [flushActiveSlide])
 
   const handleAdd = useCallback(() => {
-    commitCurrentSlide()
+    flushActiveSlide()
     setSlides(prev => {
       const newSlides = addEmptySlide(prev)
       setActiveIndex(newSlides.length - 1)
       return newSlides
     })
     setSlideIds(prev => [...prev, crypto.randomUUID()])
-  }, [commitCurrentSlide])
+  }, [flushActiveSlide])
 
   // ---------------------------------------------------------------------------
   // CMS data token insertion — forward to active editor
@@ -258,6 +266,7 @@ export function StoryEditor({
           onSaveTemplate={onSaveTemplate}
           onDeleteTemplate={onDeleteTemplate}
           onImageUpload={onImageUpload}
+          onVideoUpload={onVideoUpload}
           initialComposition={activeComposition}
           hideAspectRatioSelector
         />
@@ -317,7 +326,7 @@ export function StoryEditor({
       </div>
     </div>
   )
-}
+})
 
 // Re-export ref type for consumers
 export type { SocialCanvasEditorRef }

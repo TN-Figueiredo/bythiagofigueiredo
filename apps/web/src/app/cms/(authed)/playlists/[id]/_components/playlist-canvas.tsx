@@ -717,6 +717,28 @@ export function PlaylistCanvas({
     dispatch({ type: 'SET_SELECTION', itemIds: [itemId], edgeIds: [] })
   }, [])
 
+  const handleSidebarWheel = useCallback((deltaY: number) => {
+    zoomBy(deltaY > 0 ? 0.95 : 1.05)
+  }, [zoomBy])
+
+  const handleSidebarReorder = useCallback((itemIds: string[]) => {
+    pushSnapshot(state)
+    dispatch({ type: 'REORDER_ITEMS', itemIds })
+    const orderMap = new Map(itemIds.map((id, i) => [id, (i + 1) * 1000]))
+    for (const item of state.items) {
+      const newOrder = orderMap.get(item.id)
+      if (newOrder !== undefined) {
+        pendingDeltaRef.current.itemsUpserted.set(item.id, {
+          id: item.id,
+          position_x: item.position_x,
+          position_y: item.position_y,
+          sort_order: newOrder,
+        })
+      }
+    }
+    scheduleSave()
+  }, [pushSnapshot, state, scheduleSave])
+
   // ── Render ───────────────────────────────────────────────────────────
 
   const itemMap = useMemo(() => new Map(state.items.map(i => [i.id, i])), [state.items])
@@ -760,23 +782,25 @@ export function PlaylistCanvas({
           filter={filter}
           onSelectItem={handleSidebarSelectItem}
           onRemoveItem={handleRemoveItem}
+          onReorder={handleSidebarReorder}
           onAddContent={() => setShowPicker(true)}
           onSearchChange={(search) => setFilter(prev => ({ ...prev, search }))}
+          onWheel={handleSidebarWheel}
         />
 
         {/* Canvas viewport */}
         <div
           ref={containerRef}
-          className="relative flex-1 overflow-hidden"
+          className="relative flex-1 cursor-grab overflow-hidden active:cursor-grabbing"
           onWheel={handleWheel}
           onPointerDown={e => {
-            handlePanStart(e)
-            if (!isPanning.current && e.button === 0 && !e.metaKey) {
-              // Only clear selection if clicking on empty canvas
-              const target = e.target as HTMLElement
-              if (target.dataset.canvasBackground !== undefined) {
-                handleCanvasClick()
-              }
+            const target = e.target as HTMLElement
+            const isBackground = target.dataset.canvasBackground !== undefined
+            if (isBackground && e.button === 0 && !e.metaKey) {
+              handlePanStart(e, true)
+              handleCanvasClick()
+            } else {
+              handlePanStart(e)
             }
           }}
           onPointerMove={e => {
@@ -1018,9 +1042,10 @@ export function PlaylistCanvas({
 
     {/* Print view (hidden on screen, visible only when printing) */}
     <PrintView
-      playlistName={graph.playlist.name_en || graph.playlist.name_pt}
+      playlist={graph.playlist}
       filterLabel={filterLabel}
       items={state.items}
+      edges={state.edges}
       viewNumbers={viewNumbers}
     />
     </>

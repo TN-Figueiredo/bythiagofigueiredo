@@ -48,3 +48,15 @@ export async function uploadImage(file: File): Promise<string> {
   if (!result.ok) throw new Error(result.error)
   return result.asset.blobUrl
 }
+
+export async function uploadVideo(file: File): Promise<string> {
+  const maxSize = 50 * 1024 * 1024
+  if (file.size > maxSize) throw new Error('Video exceeds 50MB limit')
+  const allowed = ['video/mp4', 'video/webm', 'video/quicktime']
+  if (!allowed.includes(file.type)) throw new Error('Unsupported video format')
+  const { put } = await import('@vercel/blob')
+  const ext = file.name.split('.').pop() || 'mp4'
+  const filename = `stories/${Date.now()}-video.${ext}`
+  const result = await put(filename, file, { access: 'public', contentType: file.type })
+  return result.url
+}

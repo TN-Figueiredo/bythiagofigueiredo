@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { authenticatePipeline, requirePermission, buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
+import { authenticateWrite, pipelineError } from '@/lib/pipeline/helpers'
+import { buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   if (!UUID_REGEX.test(id)) {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid item ID format' } }, { status: 400 })
+    return pipelineError('VALIDATION_ERROR', 'Invalid item ID format', 400)
   }
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
-  const { auth } = authResult
-  if (!requirePermission(auth, 'write')) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
+  const result = await authenticateWrite(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
   const supabase = getSupabaseServiceClient()
   const { data: updated, error } = await supabase
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .select()
     .single()
 
-  if (error || !updated) return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Item not found' } }, { status: 404 })
+  if (error || !updated) return pipelineError('NOT_FOUND', 'Item not found', 404, auth)
 
   await supabase.from('content_pipeline_history').insert({
     pipeline_id: id,

@@ -1,34 +1,31 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { authenticatePipeline, requirePermission, buildRateLimitHeaders } from '@/lib/pipeline/auth'
+import { authenticateRead, pipelineSuccess, pipelineError, parseBody } from '@/lib/pipeline/helpers'
 import { ResolveQuerySchema } from '@/lib/pipeline/audio-schemas'
 import { resolveAudio } from '@/lib/pipeline/audio-resolver'
 import { pipelineLog } from '@/lib/pipeline/logger'
 
 export async function POST(req: NextRequest) {
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
-  const { auth } = authResult
-  if (!requirePermission(auth, 'read')) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
+  const result = await authenticateRead(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
-  let body: unknown
-  try { body = await req.json() } catch {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid JSON body' } }, { status: 400 })
-  }
+  const body = await parseBody(req)
+  if (body instanceof Response) return body
 
   const parsed = ResolveQuerySchema.safeParse(body)
   if (!parsed.success) {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: parsed.error.issues.map(i => i.message).join(', ') } }, { status: 400 })
+    return pipelineError('VALIDATION_ERROR', parsed.error.issues.map(i => i.message).join(', '), 400, auth)
   }
 
   const supabase = getSupabaseServiceClient()
-  let result
+  let resolveResult
   try {
-    result = await resolveAudio(supabase, auth.siteId, parsed.data)
+    resolveResult = await resolveAudio(supabase, auth.siteId, parsed.data)
   } catch (err) {
     pipelineLog('error', 'audio-library', 'resolve failed', { error: err })
-    return NextResponse.json({ error: { code: 'DB_ERROR', message: 'Internal server error' } }, { status: 500 })
+    return pipelineError('DB_ERROR', 'Failed to resolve audio', 500, auth)
   }
 
-  return NextResponse.json({ data: result }, { headers: buildRateLimitHeaders(auth) })
+  return pipelineSuccess(resolveResult, 200, auth)
 }

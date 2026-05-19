@@ -33,6 +33,7 @@ interface StoryComposerProps {
   onSaveTemplate: (name: string, composition: CardComposition, thumbnail: Blob) => Promise<void>
   onDeleteTemplate: (id: string) => Promise<void>
   onImageUpload: (file: File) => Promise<string>
+  onVideoUpload: (file: File) => Promise<string>
   /** postId is the first arg — the page wrapper closes over siteId; shell injects postId */
   onSaveDraft: (postId: string, slides: unknown[], content?: { caption?: string }) => Promise<{ ok: boolean; error?: string; data?: { id: string } }>
   onPublishNow: (postId: string, slides: unknown[], content?: { caption?: string }) => Promise<{ ok: boolean; error?: string; data?: { id: string } }>
@@ -53,6 +54,7 @@ export function StoryComposer({
   onSaveTemplate,
   onDeleteTemplate,
   onImageUpload,
+  onVideoUpload,
   onSaveDraft,
   onPublishNow,
   onSchedule,
@@ -134,6 +136,7 @@ export function StoryComposer({
         onSaveTemplate={onSaveTemplate}
         onDeleteTemplate={onDeleteTemplate}
         onImageUpload={onImageUpload}
+        onVideoUpload={onVideoUpload}
         onSaveDraft={onSaveDraft}
         onPublishNow={onPublishNow}
         onSchedule={onSchedule}

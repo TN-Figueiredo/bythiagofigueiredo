@@ -37,8 +37,8 @@ export function useCanvas(options: UseCanvasOptions = {}) {
   )
 
   const handlePanStart = useCallback(
-    (e: React.PointerEvent) => {
-      if (e.button === 1 || (e.button === 0 && e.metaKey)) {
+    (e: React.PointerEvent, forceStart = false) => {
+      if (forceStart || e.button === 1 || (e.button === 0 && e.metaKey)) {
         isPanningRef.current = true
         panStartRef.current = { x: e.clientX, y: e.clientY }
         cameraStartRef.current = { ...camera }

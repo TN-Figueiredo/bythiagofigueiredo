@@ -11,6 +11,7 @@ import {
   saveTemplate,
   removeTemplate,
   uploadImage,
+  uploadVideo,
 } from '../_actions/editor-actions'
 import { StoryComposer } from './_components/story-composer'
 
@@ -113,6 +114,7 @@ export default async function NewStoryPage({ searchParams }: Props) {
         onSaveTemplate={saveTemplate}
         onDeleteTemplate={removeTemplate}
         onImageUpload={uploadImage}
+        onVideoUpload={uploadVideo}
         onSaveDraft={handleSaveDraftWithId}
         onPublishNow={handlePublishNowWithId}
         onSchedule={handleScheduleWithId}

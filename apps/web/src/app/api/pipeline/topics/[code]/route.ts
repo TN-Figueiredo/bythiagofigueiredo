@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { authenticatePipeline, buildRateLimitHeaders } from '@/lib/pipeline/auth'
+import { buildRateLimitHeaders } from '@/lib/pipeline/auth'
+import { authenticateRead } from '@/lib/pipeline/helpers'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ code: string }> }) {
   const { code } = await params
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
-  const { auth } = authResult
+  const result = await authenticateRead(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
   const supabase = getSupabaseServiceClient()
 

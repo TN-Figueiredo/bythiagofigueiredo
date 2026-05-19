@@ -5,6 +5,7 @@ import type { CardComposition } from '@tn-figueiredo/links/qr'
 
 interface StoryPreviewProps {
   slides: CardComposition[]
+  mediaUrls?: string[]
   shortUrl?: string
   caption?: string
   rateBudget?: { remaining: number }
@@ -12,7 +13,32 @@ interface StoryPreviewProps {
 
 const BUDGET_TOTAL = 100
 
-export function StoryPreview({ slides, shortUrl, caption, rateBudget }: StoryPreviewProps) {
+type SlideComposition = {
+  background?: { type?: string; url?: string; color?: string }
+  elements?: Array<{ type?: string; src?: string }>
+}
+
+function extractSlideImageUrl(slide: CardComposition): string | undefined {
+  const s = slide as unknown as SlideComposition
+  if (s.background?.type === 'image' && s.background.url) {
+    return s.background.url
+  }
+  const imgEl = s.elements?.find(
+    (el) => el.type === 'image' && el.src && !el.src.startsWith('{{'),
+  )
+  if (imgEl?.src) return imgEl.src
+  return undefined
+}
+
+function extractSlideBgStyle(slide: CardComposition): React.CSSProperties | undefined {
+  const s = slide as unknown as SlideComposition
+  if (s.background?.type === 'solid' && s.background.color) {
+    return { backgroundColor: s.background.color }
+  }
+  return undefined
+}
+
+export function StoryPreview({ slides, mediaUrls, shortUrl, caption, rateBudget }: StoryPreviewProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
 
   const total = slides.length
@@ -31,6 +57,11 @@ export function StoryPreview({ slides, shortUrl, caption, rateBudget }: StoryPre
   const budgetColor = budgetRemaining <= 10 ? 'text-red-400' : 'text-green-400'
   const budgetBarColor = budgetRemaining <= 10 ? 'bg-red-500' : 'bg-green-500'
   const budgetPercent = Math.round((budgetRemaining / BUDGET_TOTAL) * 100)
+
+  const renderedUrl = mediaUrls?.[currentIndex]
+  const compositionUrl = slides[currentIndex] ? extractSlideImageUrl(slides[currentIndex]) : undefined
+  const imageUrl = renderedUrl ?? compositionUrl
+  const bgStyle = !imageUrl && slides[currentIndex] ? extractSlideBgStyle(slides[currentIndex]) : undefined
 
   return (
     <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
@@ -61,13 +92,18 @@ export function StoryPreview({ slides, shortUrl, caption, rateBudget }: StoryPre
         {/* Content area — 9:16 aspect ratio */}
         <div
           className="relative mx-2 overflow-hidden rounded-xl bg-neutral-800"
-          style={{ aspectRatio: '9 / 16' }}
+          style={{ aspectRatio: '9 / 16', ...bgStyle }}
         >
-          {slides[currentIndex] ? (
+          {imageUrl ? (
+            <img
+              src={imageUrl}
+              alt={`Slide ${currentIndex + 1}`}
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+          ) : slides[currentIndex] ? (
             <div className="flex h-full items-center justify-center">
-              {/* Slide thumbnail placeholder — actual canvas rendering happens in editor */}
               <div className="flex flex-col items-center gap-2 px-4 text-center">
-                <div className="rounded-full bg-neutral-700 p-3">
+                <div className="rounded-full bg-neutral-700/60 p-3">
                   <svg
                     width="24"
                     height="24"
@@ -83,17 +119,6 @@ export function StoryPreview({ slides, shortUrl, caption, rateBudget }: StoryPre
                 <p className="text-xs font-medium text-neutral-300">
                   Slide {currentIndex + 1}
                 </p>
-                {(() => {
-                  const bg = (slides[currentIndex] as { background?: { type?: string; color?: string } })?.background
-                  if (!bg?.color) return null
-                  return (
-                    <div
-                      className="h-8 w-8 rounded-md border border-neutral-600"
-                      style={{ background: bg.type === 'solid' ? bg.color : undefined }}
-                      aria-hidden="true"
-                    />
-                  )
-                })()}
               </div>
             </div>
           ) : (

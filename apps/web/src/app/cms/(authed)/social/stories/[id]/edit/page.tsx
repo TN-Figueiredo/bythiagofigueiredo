@@ -11,6 +11,7 @@ import {
   saveTemplate,
   removeTemplate,
   uploadImage,
+  uploadVideo,
 } from '../../_actions/editor-actions'
 import { StoryEditorShell } from '../../_components/story-editor-shell'
 import type { CardComposition } from '@tn-figueiredo/links/qr'
@@ -121,6 +122,7 @@ export default async function StoryEditPage({ params }: Props) {
         onSaveTemplate={saveTemplate}
         onDeleteTemplate={removeTemplate}
         onImageUpload={uploadImage}
+        onVideoUpload={uploadVideo}
         onSaveDraft={handleSaveDraft}
         onPublishNow={handlePublishNow}
         onSchedule={handleSchedule}

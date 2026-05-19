@@ -17,6 +17,7 @@ const META_SCOPES = [
   'pages_show_list',
   'pages_manage_posts',
   'instagram_basic',
+  'instagram_content_publish',
   'business_management',
 ].join(',')
 

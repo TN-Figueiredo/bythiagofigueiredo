@@ -39,6 +39,7 @@ export async function GET(
     .from('ab_tests')
     .select('id, site_id')
     .eq('id', id)
+    .eq('site_id', auth.siteId)
     .single()
 
   if (!test) return pipelineError('NOT_FOUND', 'Test not found', 404, auth)

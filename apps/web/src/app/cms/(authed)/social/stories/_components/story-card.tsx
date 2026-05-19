@@ -37,19 +37,23 @@ function formatDate(iso: string | null): string {
   })
 }
 
-type SlideWithBackground = {
+type SlideComposition = {
   background?: { type?: string; url?: string; color?: string }
+  elements?: Array<{ type?: string; src?: string }>
 }
 
 function extractThumbnailUrl(story: StoryRow): string | undefined {
-  // Check for cover_image_url in content
-  const content = story as unknown as { content?: { cover_image_url?: string } }
+  const content = story as unknown as { content?: { cover_image_url?: string; media_urls?: string[] } }
+  if (content.content?.media_urls?.[0]) return content.content.media_urls[0]
   if (content.content?.cover_image_url) return content.content.cover_image_url
-  // Check first slide for an image background
-  const firstSlide = story.story_slides?.[0] as SlideWithBackground | undefined
+  const firstSlide = story.story_slides?.[0] as SlideComposition | undefined
   if (firstSlide?.background?.type === 'image' && firstSlide.background.url) {
     return firstSlide.background.url
   }
+  const imgEl = firstSlide?.elements?.find(
+    (el) => el.type === 'image' && el.src && !el.src.startsWith('{{'),
+  )
+  if (imgEl?.src) return imgEl.src
   return undefined
 }
 

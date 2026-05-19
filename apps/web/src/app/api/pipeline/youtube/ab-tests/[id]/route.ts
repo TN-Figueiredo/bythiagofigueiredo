@@ -22,6 +22,7 @@ export async function GET(
       tracked_links:ab_test_tracked_links!ab_test_id(*)
     `)
     .eq('id', id)
+    .eq('site_id', auth.siteId)
     .single()
 
   if (error || !test) return pipelineError('NOT_FOUND', 'Test not found', 404, auth)

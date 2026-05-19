@@ -1,15 +1,16 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { authenticatePipeline, buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
+import { authenticateRead, pipelineSuccess, pipelineError } from '@/lib/pipeline/helpers'
+import { UUID_REGEX } from '@/lib/pipeline/auth'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   if (!UUID_REGEX.test(id)) {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid item ID format' } }, { status: 400 })
+    return pipelineError('VALIDATION_ERROR', 'Invalid item ID format', 400)
   }
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
-  const { auth } = authResult
+  const result = await authenticateRead(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
   const limit = Math.min(parseInt(req.nextUrl.searchParams.get('limit') || '50'), 200)
 
@@ -22,7 +23,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     .eq('site_id', auth.siteId)
     .single()
 
-  if (!item) return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Item not found' } }, { status: 404 })
+  if (!item) return pipelineError('NOT_FOUND', 'Item not found', 404, auth)
 
   const { data: history, error } = await supabase
     .from('content_pipeline_history')
@@ -31,8 +32,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     .order('changed_at', { ascending: false })
     .limit(limit)
 
-  if (error) return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: error.message } }, { status: 400 })
+  if (error) return pipelineError('DB_ERROR', 'Failed to load history', 400, auth)
 
-  const headers = buildRateLimitHeaders(auth)
-  return NextResponse.json({ data: history ?? [] }, { headers })
+  return pipelineSuccess(history ?? [], 200, auth)
 }

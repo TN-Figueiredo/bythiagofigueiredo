@@ -581,15 +581,14 @@ async function seed(): Promise<void> {
   // Step 5: Reference content (strategy docs)
   // -------------------------------------------------------------------------
   console.log('\n--- Step 5: Reference content ---')
-  const strategyDocs = [
-    { title: 'Personal Profile', file: 'skills/_shared/personal-profile.md' },
-    { title: 'Channel Profiles', file: 'skills/brainstorm/references/channel-profiles.md' },
-    { title: 'About Page', file: 'about-page.md' },
-    { title: 'Playlist Pathways v2', file: 'content-strategy/playlist-pathways-v2.md' },
-    { title: 'Text Pathways', file: 'content-strategy/text-pathways.md' },
-    { title: 'Banco de Tags', file: 'content-strategy/banco-tags.md' },
-    { title: 'Banco de Frases-Âncora', file: 'content-strategy/banco-frases-ancora.md' },
-    { title: 'Script Idea Bank', file: 'ideias-roteiros/script-idea-bank.md' },
+  const strategyDocs: Array<{ title: string; file: string; ref_group: string }> = [
+    { title: 'Personal Profile', file: 'skills/_shared/personal-profile.md', ref_group: 'pessoal' },
+    { title: 'Channel Profiles', file: 'skills/brainstorm/references/channel-profiles.md', ref_group: 'estrategia' },
+    { title: 'Playlist Pathways v2', file: 'content-strategy/playlist-pathways-v2.md', ref_group: 'estrategia' },
+    { title: 'Text Pathways', file: 'content-strategy/text-pathways.md', ref_group: 'craft' },
+    { title: 'Banco de Tags', file: 'content-strategy/banco-tags.md', ref_group: 'estrategia' },
+    { title: 'Banco de Frases-Âncora', file: 'content-strategy/banco-frases-ancora.md', ref_group: 'craft' },
+    { title: 'Script Idea Bank', file: 'ideias-roteiros/script-idea-bank.md', ref_group: 'estrategia' },
   ]
 
   let refCount = 0
@@ -607,6 +606,7 @@ async function seed(): Promise<void> {
           site_id: siteId,
           key,
           title: doc.title,
+          ref_group: doc.ref_group,
           content_md: content.slice(0, 100000),
           content_compact: { source_file: doc.file },
         },

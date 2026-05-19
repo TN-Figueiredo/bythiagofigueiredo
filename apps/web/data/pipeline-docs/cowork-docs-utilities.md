@@ -1,29 +1,196 @@
-# Utilities — Search, Context & Stats
+# Utilities — Search, Context, Stats, Topics & Catalog
 
-## Search
+Cross-cutting endpoints for discovery, reference management, and pipeline intelligence.
 
-`GET /api/pipeline/search?q={query}` — cross-entity search across pipeline items, blog posts, and newsletters.
+---
 
-Query params: `q` (search term), `type` (item|post|newsletter), `limit` (default 20, max 100).
+## Catalog — `GET /api/pipeline/`
 
-## Context (References)
+The root endpoint. Returns the full API catalog: capabilities, system directives, workflow definitions, and context filters.
 
-`GET /api/pipeline/context` — get all reference content.
+**Response shape:**
+```json
+{
+  "data": {
+    "name": "Content Pipeline API",
+    "version": "2.0.0",
+    "auth": { "header": "X-Pipeline-Key", "rateLimit": "100/min" },
+    "capabilities": [ /* 6 domain objects with endpoints */ ],
+    "directives": {
+      "groups": { "version": 3, "value": { "groups": [...] } },
+      "skill-mappings": { "version": 2, "value": { "ideator": [...], "writer": [...], ... } },
+      "onboarding": { "version": 1, "value": { "system_prompt_template": "..." } },
+      "memory-policy": { "version": 1, "value": { "max_size_kb": 100, ... } }
+    },
+    "cross_domain_workflows": [...],
+    "context": {
+      "endpoint": "/api/pipeline/context",
+      "filters": { "group": "?group={id}", "skill": "?skill={name}", "format": "?format=md" }
+    },
+    "formats": ["video", "article", "newsletter", "short", "podcast"],
+    "workflows": { /* stage definitions per format */ }
+  }
+}
+```
 
-Filters: `?group={group}`, `?skill={skill}`, `?format=md`.
+**Usage:** Call this first in any Cowork session. It provides everything needed to discover the API surface and load the right context for a skill.
 
-`PUT /api/pipeline/context/:key` — upsert reference doc.
+---
 
-`DELETE /api/pipeline/context/:key` — delete reference doc.
+## Search — `GET /api/pipeline/search`
 
-## Stats
+Cross-entity full-text search across pipeline items, blog posts, and newsletters.
 
-`GET /api/pipeline/stats` — aggregate pipeline statistics (total items by format/stage/priority, 7-day activity).
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `q` | string | *required* | Search term (min 2 chars, max 200) |
+| `limit` | number | 20 | Max pipeline results (capped at 50). Blog/newsletter always max 10 |
 
-## Topics
+**Search behavior:**
+- Pipeline items: PostgreSQL `tsvector` full-text search on `search_vector` column
+- Blog posts: ILIKE match on `title` and `slug`
+- Newsletters: ILIKE match on `subject`
 
-`GET /api/pipeline/topics/:code` — topic aggregation showing pipeline items and blog posts for a given tag/topic.
+**Response:**
+```json
+{
+  "data": {
+    "pipeline": [{ "id": "...", "code": "...", "title_pt": "...", "format": "video", "stage": "roteiro", "priority": 3, "tags": [...] }],
+    "blog_posts": [{ "id": "...", "title": "...", "slug": "...", "status": "published", "category": "tech" }],
+    "newsletters": [{ "id": "...", "subject": "...", "status": "sent" }]
+  },
+  "meta": { "query": "...", "limit": 20 }
+}
+```
 
-## Workflows
+---
 
-`GET /api/pipeline/workflows` — get all workflow definitions and default checklists per format.
+## Context (References) — `/api/pipeline/context`
+
+### List references — `GET /api/pipeline/context`
+
+Returns reference content entries filtered by group, skill, or format.
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `group` | string | Filter by ref_group (e.g., `pessoal`, `estrategia`, `craft`, `producao`, `memoria`, `sistema`) |
+| `skill` | string | Filter by skill mapping (e.g., `ideator`, `writer`, `producer`, `product_eval`, `perf_review`, `curator`, `architect`). Resolves keys from `_system/skill-mappings` |
+| `format` | `md` or `compact` | `md` = full markdown content. Default = compact JSON if available, falls back to markdown |
+
+**Behavior:**
+- Without `group` param: excludes `_system/*` entries automatically
+- With `skill` param: returns only the references mapped to that skill (via `_system/skill-mappings`)
+- Sorted by `ref_group → sort_order → key`
+
+**Response:**
+```json
+{
+  "data": [{
+    "key": "personal-profile",
+    "title": "Personal Profile",
+    "content": "# eu sou Thiago...",
+    "ref_group": "pessoal",
+    "sort_order": 0,
+    "version": 3,
+    "updated_at": "2026-05-19T..."
+  }]
+}
+```
+
+### Get single reference — `GET /api/pipeline/context/:key`
+
+Returns the full reference entry for a specific key (e.g., `personal-profile`, `writer-voice-guide`).
+
+### Upsert reference — `PUT /api/pipeline/context/:key`
+
+Create or update a reference entry. Uses `X-Expected-Version` for optimistic concurrency.
+
+**Body:**
+```json
+{
+  "title": "Reference Title",
+  "content_md": "# Markdown content...",
+  "content_compact": { "structured": "data" },
+  "ref_group": "memoria",
+  "sort_order": 10
+}
+```
+
+### Delete reference — `DELETE /api/pipeline/context/:key`
+
+Permanently removes a reference entry. **Requires explicit operator approval per system directives.**
+
+---
+
+## Stats — `GET /api/pipeline/stats`
+
+Aggregate pipeline statistics. No parameters.
+
+**Response:**
+```json
+{
+  "data": {
+    "total": 142,
+    "archived": 18,
+    "by_format": {
+      "video": { "total": 45, "byStage": { "idea": 12, "roteiro": 8, "gravacao": 5, ... } },
+      "article": { "total": 30, "byStage": { ... } }
+    },
+    "recently_updated_7d": 23,
+    "by_priority": { "critical": 3, "high": 15, "medium": 40, "low": 84 }
+  }
+}
+```
+
+**Formats tracked:** video, article, newsletter, short, podcast. Each format has its own workflow stages.
+
+---
+
+## Topics — `GET /api/pipeline/topics/:code`
+
+Aggregates pipeline items and blog posts for a given tag/topic code.
+
+**Response:**
+```json
+{
+  "data": {
+    "topic": "ai-tools",
+    "pipeline_items": [{ "id": "...", "code": "...", "title_pt": "...", "format": "video", "stage": "edicao", "priority": 4, "tags": ["ai-tools", "review"] }],
+    "blog_posts": [{ "id": "...", "title": "...", "slug": "...", "status": "published", "category": "ai-tools" }]
+  }
+}
+```
+
+**Matching:** Pipeline items matched via `tags` array containment; blog posts matched via `category` field.
+
+---
+
+## Workflows — `GET /api/pipeline/` (included in catalog)
+
+Workflow stage definitions for each content format, included in the catalog response. Each format defines ordered stages:
+
+- **video:** idea → roteiro → gravacao → edicao → pos_producao → scheduled
+- **article:** idea → outline → draft → review → published
+- **newsletter:** idea → draft → review → scheduled → sent
+- **short:** idea → script → recording → editing → published
+- **podcast:** idea → outline → recording → editing → published
+
+Items advance/retreat through stages via `POST /api/pipeline/items/:id/advance` and `POST /api/pipeline/items/:id/retreat`.
+
+---
+
+## Common Patterns
+
+**Authentication:** All endpoints require `X-Pipeline-Key` header. Rate limit: 100 req/min.
+
+**Error format:**
+```json
+{ "error": { "code": "VALIDATION_ERROR", "message": "Query must be at least 2 characters" } }
+```
+
+**Typical Cowork session flow:**
+1. `GET /api/pipeline/` — discover capabilities + directives
+2. `GET /api/pipeline/context?skill={skill}` — load references for the current task
+3. `GET /api/pipeline/docs/{domain}` — load detailed docs if needed
+4. Execute task using domain endpoints
+5. `PUT /api/pipeline/context/{skill}-memory` — persist session learnings

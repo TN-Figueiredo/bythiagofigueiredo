@@ -1,24 +1,20 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { authenticatePipeline, requirePermission, buildRateLimitHeaders } from '@/lib/pipeline/auth'
+import { authenticateWrite, pipelineSuccess, pipelineError, parseBody } from '@/lib/pipeline/helpers'
 import { BulkOperationSchema } from '@/lib/pipeline/schemas'
 import { getNextStage, getPreviousStage } from '@/lib/pipeline/workflows'
 import type { Format } from '@/lib/pipeline/schemas'
 
 export async function POST(req: NextRequest) {
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
-  const { auth } = authResult
-  if (!requirePermission(auth, 'write')) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
+  const result = await authenticateWrite(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
-  let body: unknown
-  try {
-    body = await req.json()
-  } catch {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid JSON body' } }, { status: 400 })
-  }
+  const body = await parseBody(req)
+  if (body instanceof Response) return body
+
   const parsed = BulkOperationSchema.safeParse(body)
-  if (!parsed.success) return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: parsed.error.issues.map((i) => i.message).join(', ') } }, { status: 400 })
+  if (!parsed.success) return pipelineError('VALIDATION_ERROR', parsed.error.issues.map((i) => i.message).join(', '), 400, auth)
 
   const supabase = getSupabaseServiceClient()
 
@@ -61,10 +57,7 @@ export async function POST(req: NextRequest) {
 
   // If any validation failed, reject the entire batch
   if (errors.length > 0) {
-    return NextResponse.json(
-      { error: { code: 'VALIDATION_ERROR', message: `${errors.length} operation(s) failed validation`, details: errors } },
-      { status: 400 },
-    )
+    return pipelineError('VALIDATION_ERROR', `${errors.length} operation(s) failed validation`, 400, auth)
   }
 
   // Phase 2: Execute all writes — all validations passed
@@ -80,15 +73,15 @@ export async function POST(req: NextRequest) {
         if (error || !data) { results.push({ id: op.id, ok: false, error: 'Version conflict (concurrent modification)' }); continue }
         results.push({ id: op.id, ok: true })
       }
-    } catch (err) {
-      results.push({ id: op.id, ok: false, error: err instanceof Error ? err.message : 'Unknown error' })
+    } catch {
+      results.push({ id: op.id, ok: false, error: 'Operation failed' })
     }
   }
 
   const allOk = results.every((r) => r.ok)
-  const headers = buildRateLimitHeaders(auth)
-  return NextResponse.json(
-    { data: { results, success_count: results.filter((r) => r.ok).length, failure_count: results.filter((r) => !r.ok).length } },
-    { status: allOk ? 200 : 409, headers },
+  return pipelineSuccess(
+    { results, success_count: results.filter((r) => r.ok).length, failure_count: results.filter((r) => !r.ok).length },
+    allOk ? 200 : 409,
+    auth,
   )
 }

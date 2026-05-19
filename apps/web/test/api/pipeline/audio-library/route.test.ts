@@ -86,8 +86,8 @@ describe('GET /api/pipeline/audio-library', () => {
     expect(res.status).toBe(401)
   })
 
-  it('returns 403 when forbidden', async () => {
-    vi.mocked(requirePermission).mockReturnValue(false)
+  it('returns 403 when auth returns forbidden', async () => {
+    vi.mocked(authenticatePipeline).mockResolvedValue({ ok: false, status: 403, error: 'Forbidden' } as never)
     const res = await GET(new NextRequest('http://localhost/api/pipeline/audio-library'))
     expect(res.status).toBe(403)
   })

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { authenticatePipeline, requirePermission, buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
+import { buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
+import { authenticateRead, authenticateWrite, pipelineError, pipelineSuccess, parseBody } from '@/lib/pipeline/helpers'
 import { ResearchItemUpdateSchema } from '@/lib/pipeline/research-schemas'
 
 interface ResearchItemWithTopic {
@@ -22,11 +23,11 @@ interface ResearchItemWithTopic {
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  if (!UUID_REGEX.test(id)) return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid item ID' } }, { status: 400 })
+  if (!UUID_REGEX.test(id)) return pipelineError('VALIDATION_ERROR', 'Invalid item ID', 400)
 
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
-  const { auth } = authResult
+  const result = await authenticateRead(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
   const supabase = getSupabaseServiceClient()
   const { data: item, error } = await supabase
@@ -36,7 +37,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     .eq('site_id', auth.siteId)
     .single()
 
-  if (error || !item) return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Research item not found' } }, { status: 404 })
+  if (error || !item) return pipelineError('NOT_FOUND', 'Research item not found', 404, auth)
 
   const typedItem = item as unknown as ResearchItemWithTopic
 
@@ -80,25 +81,22 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  if (!UUID_REGEX.test(id)) return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid item ID' } }, { status: 400 })
+  if (!UUID_REGEX.test(id)) return pipelineError('VALIDATION_ERROR', 'Invalid item ID', 400)
 
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
-  const { auth } = authResult
-  if (!requirePermission(auth, 'write')) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
+  const result = await authenticateWrite(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
   const expectedVersionRaw = req.headers.get('X-Expected-Version') ?? req.headers.get('If-Match')
-  if (!expectedVersionRaw) return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'X-Expected-Version header required' } }, { status: 400 })
+  if (!expectedVersionRaw) return pipelineError('VALIDATION_ERROR', 'X-Expected-Version header required', 400, auth)
   const expectedVersion = parseInt(expectedVersionRaw)
 
-  let body: unknown
-  try { body = await req.json() } catch {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid JSON body' } }, { status: 400 })
-  }
+  const body = await parseBody(req)
+  if (body instanceof Response) return body
 
   const parsed = ResearchItemUpdateSchema.safeParse(body)
   if (!parsed.success) {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: parsed.error.issues.map((i) => i.message).join(', ') } }, { status: 400 })
+    return pipelineError('VALIDATION_ERROR', parsed.error.issues.map((i) => i.message).join(', '), 400, auth)
   }
 
   const supabase = getSupabaseServiceClient()
@@ -110,7 +108,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .eq('site_id', auth.siteId)
     .single()
 
-  if (!current) return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Item not found' } }, { status: 404 })
+  if (!current) return pipelineError('NOT_FOUND', 'Item not found', 404, auth)
 
   if (current.version !== expectedVersion) {
     return NextResponse.json({
@@ -152,12 +150,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  if (!UUID_REGEX.test(id)) return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid item ID' } }, { status: 400 })
+  if (!UUID_REGEX.test(id)) return pipelineError('VALIDATION_ERROR', 'Invalid item ID', 400)
 
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
-  const { auth } = authResult
-  if (!requirePermission(auth, 'write')) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
+  const result = await authenticateWrite(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
   const supabase = getSupabaseServiceClient()
   const { error } = await supabase
@@ -166,8 +163,10 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     .eq('id', id)
     .eq('site_id', auth.siteId)
 
-  if (error) return NextResponse.json({ error: { code: 'DB_ERROR', message: error.message } }, { status: 500 })
+  if (error) {
+    console.error('[research/DELETE]', error.message)
+    return pipelineError('DB_ERROR', 'Failed to delete research item', 500, auth)
+  }
 
-  const headers = buildRateLimitHeaders(auth)
-  return NextResponse.json({ data: { deleted: true } }, { headers })
+  return pipelineSuccess({ deleted: true }, 200, auth)
 }

@@ -1,24 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { authenticatePipeline, requirePermission, buildRateLimitHeaders } from '@/lib/pipeline/auth'
+import { buildRateLimitHeaders } from '@/lib/pipeline/auth'
+import { authenticateWrite, pipelineError, parseBody } from '@/lib/pipeline/helpers'
 import { BRollImportSchema } from '@/lib/pipeline/broll-schemas'
 import { mapBRollJsonToDbRow, classifyBRollImportItem, buildBRollDiffLog } from '@/lib/pipeline/broll-import'
 import { pipelineLog } from '@/lib/pipeline/logger'
 
 export async function POST(req: NextRequest) {
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
-  const { auth } = authResult
-  if (!requirePermission(auth, 'write')) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
+  const result = await authenticateWrite(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
-  let body: unknown
-  try { body = await req.json() } catch {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid JSON body' } }, { status: 400 })
-  }
+  const body = await parseBody(req)
+  if (body instanceof Response) return body
 
   const parsed = BRollImportSchema.safeParse(body)
   if (!parsed.success) {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: parsed.error.issues.map(i => i.message).join(', ') } }, { status: 400 })
+    return pipelineError('VALIDATION_ERROR', parsed.error.issues.map(i => i.message).join(', '), 400, auth)
   }
 
   const { dry_run, schema_version, items } = parsed.data

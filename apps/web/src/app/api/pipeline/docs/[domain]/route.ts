@@ -1,9 +1,8 @@
 import { NextRequest } from 'next/server'
 import { readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { authenticatePipeline } from '@/lib/pipeline/auth'
 import { API_REGISTRY } from '@/lib/pipeline/api-registry'
-import { pipelineError, pipelineSuccess } from '@/lib/pipeline/helpers'
+import { authenticateRead, pipelineError, pipelineSuccess } from '@/lib/pipeline/helpers'
 
 function loadDocs(): Map<string, string> {
   const dir = join(process.cwd(), 'data', 'pipeline-docs')
@@ -25,8 +24,9 @@ function getDocs(): Map<string, string> {
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ domain: string }> }) {
   const { domain } = await params
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return pipelineError('UNAUTHORIZED', authResult.error, authResult.status)
+  const result = await authenticateRead(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
   const guide = getDocs().get(domain)
   const capability = API_REGISTRY.capabilities.find((c) => c.domain === domain)
@@ -37,7 +37,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ doma
       'DOC_NOT_FOUND',
       `Domain "${domain}" not found. Available: ${available.join(', ')}`,
       404,
-      authResult.auth,
+      auth,
     )
   }
 
@@ -46,5 +46,5 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ doma
     name: capability.name,
     description: capability.description,
     guide,
-  }, 200, authResult.auth)
+  }, 200, auth)
 }

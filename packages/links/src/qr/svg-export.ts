@@ -57,6 +57,8 @@ function renderElement(el: CardElement): string {
     }
     case 'image':
       return `<image${transform} href="${escapeXml(el.src)}" x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" opacity="${el.opacity}" preserveAspectRatio="xMidYMid slice" />`
+    default:
+      return ''
   }
 }
 

@@ -284,7 +284,8 @@ export async function GET(
 
       case 'meta': {
         const tokens = await exchangeMetaCode(code, redirectUri)
-        const expiresAt = new Date(Date.now() + tokens.expires_in * 1000).toISOString()
+        const expiresInMs = (tokens.expires_in ?? 5_184_000) * 1000
+        const expiresAt = new Date(Date.now() + expiresInMs).toISOString()
 
         const userAccessTokenEnc = encrypt(tokens.access_token, encKey)
 

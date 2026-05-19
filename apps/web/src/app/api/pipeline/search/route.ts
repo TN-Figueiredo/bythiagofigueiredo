@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { authenticatePipeline, buildRateLimitHeaders } from '@/lib/pipeline/auth'
+import { buildRateLimitHeaders } from '@/lib/pipeline/auth'
+import { authenticateRead, pipelineError } from '@/lib/pipeline/helpers'
 import { sanitizeForLike, sanitizeForFilter, sanitizeForTsquery } from '@/lib/pipeline/sanitize'
 
 export async function GET(req: NextRequest) {
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
-  const { auth } = authResult
+  const result = await authenticateRead(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
   const q = req.nextUrl.searchParams.get('q')
-  if (!q || q.trim().length < 2) return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Query must be at least 2 characters' } }, { status: 400 })
+  if (!q || q.trim().length < 2) return pipelineError('VALIDATION_ERROR', 'Query must be at least 2 characters', 400, auth)
 
   const trimmedQ = q.trim().slice(0, 200)
   const safeQ = sanitizeForFilter(sanitizeForLike(trimmedQ))

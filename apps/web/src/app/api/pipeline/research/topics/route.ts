@@ -1,13 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { authenticatePipeline, requirePermission, buildRateLimitHeaders } from '@/lib/pipeline/auth'
+import { authenticateRead, authenticateWrite, pipelineError, pipelineSuccess, parseBody } from '@/lib/pipeline/helpers'
 import { ResearchTopicCreateSchema } from '@/lib/pipeline/research-schemas'
 
 export async function GET(req: NextRequest) {
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
-  const { auth } = authResult
-  if (!requirePermission(auth, 'read')) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
+  const result = await authenticateRead(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
   const supabase = getSupabaseServiceClient()
   const { data: topics, error } = await supabase
@@ -17,26 +16,25 @@ export async function GET(req: NextRequest) {
     .order('depth')
     .order('sort_order')
 
-  if (error) return NextResponse.json({ error: { code: 'DB_ERROR', message: error.message } }, { status: 500 })
+  if (error) {
+    console.error('[research/topics/GET]', error.message)
+    return pipelineError('DB_ERROR', 'Failed to load topics', 500, auth)
+  }
 
-  const headers = buildRateLimitHeaders(auth)
-  return NextResponse.json({ data: topics ?? [] }, { headers })
+  return pipelineSuccess(topics ?? [], 200, auth)
 }
 
 export async function POST(req: NextRequest) {
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
-  const { auth } = authResult
-  if (!requirePermission(auth, 'write')) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
+  const result = await authenticateWrite(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
-  let body: unknown
-  try { body = await req.json() } catch {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid JSON body' } }, { status: 400 })
-  }
+  const body = await parseBody(req)
+  if (body instanceof Response) return body
 
   const parsed = ResearchTopicCreateSchema.safeParse(body)
   if (!parsed.success) {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: parsed.error.issues.map((i) => i.message).join(', ') } }, { status: 400 })
+    return pipelineError('VALIDATION_ERROR', parsed.error.issues.map((i) => i.message).join(', '), 400, auth)
   }
 
   const supabase = getSupabaseServiceClient()
@@ -53,8 +51,8 @@ export async function POST(req: NextRequest) {
       .eq('site_id', auth.siteId)
       .single()
 
-    if (!parent) return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Parent topic not found' } }, { status: 404 })
-    if (parent.depth >= 2) return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Max 3 levels (depth 0-2). Parent is already at max depth.' } }, { status: 400 })
+    if (!parent) return pipelineError('NOT_FOUND', 'Parent topic not found', 404, auth)
+    if (parent.depth >= 2) return pipelineError('VALIDATION_ERROR', 'Max 3 levels (depth 0-2). Parent is already at max depth.', 400, auth)
 
     parentPath = parent.path
     depth = parent.depth + 1
@@ -69,10 +67,10 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (error) {
-    if (error.code === '23505') return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Topic with this path already exists' } }, { status: 409 })
-    return NextResponse.json({ error: { code: 'DB_ERROR', message: error.message } }, { status: 500 })
+    if (error.code === '23505') return pipelineError('VALIDATION_ERROR', 'Topic with this path already exists', 409, auth)
+    console.error('[research/topics/POST]', error.message)
+    return pipelineError('DB_ERROR', 'Failed to create topic', 500, auth)
   }
 
-  const headers = buildRateLimitHeaders(auth)
-  return NextResponse.json({ data: topic }, { status: 201, headers })
+  return pipelineSuccess(topic, 201, auth)
 }

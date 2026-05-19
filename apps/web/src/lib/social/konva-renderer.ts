@@ -115,7 +115,6 @@ async function renderImageBackground(
     const img = new Image()
     img.src = Buffer.from(arrayBuffer)
     const konvaImage = new Konva.Image({
-      // canvas.Image is compatible at runtime — cast to satisfy TS types
       image: img as unknown as HTMLImageElement,
       x: 0,
       y: 0,
@@ -123,6 +122,12 @@ async function renderImageBackground(
       height,
     })
     layer.add(konvaImage)
+    const blurRadius = bg.blur ?? 0
+    if (blurRadius > 0) {
+      konvaImage.filters([Konva.Filters.Blur])
+      konvaImage.blurRadius(blurRadius)
+      konvaImage.cache()
+    }
   } catch {
     // Fallback solid rect already rendered by renderBackground — no-op here
   }
@@ -142,11 +147,14 @@ function renderTextElement(
   const resolvedContent = resolvePlaceholders(el.content, ctx)
   if (!resolvedContent) return // Hide empty placeholders
 
+  // Don't pass height to Konva.Text — the editor stores a minimal bounding box
+  // height (often smaller than a single line), but the client-side canvas auto-
+  // expands text visually. Omitting height lets server-side text wrap within
+  // `width` and flow downward naturally, matching the editor's visual output.
   const text = new Konva.Text({
     x: el.x * scaleX,
     y: el.y * scaleY,
     width: el.width * scaleX,
-    height: el.height * scaleY,
     text: el.uppercase ? resolvedContent.toUpperCase() : resolvedContent,
     fontFamily: el.fontFamily,
     fontSize: el.fontSize * Math.min(scaleX, scaleY),
@@ -158,7 +166,6 @@ function renderTextElement(
     opacity: el.opacity,
     rotation: el.rotation,
     wrap: 'word',
-    ellipsis: true,
   })
   layer.add(text)
 }

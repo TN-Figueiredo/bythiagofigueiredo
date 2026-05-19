@@ -6,6 +6,7 @@ import type { CardComposition } from '@tn-figueiredo/links/qr'
 import type { SocialTemplate } from '@/lib/social/template-schemas'
 import type { SocialPostData } from '@/lib/social/story-types'
 import { StoryEditor } from './story-editor'
+import type { StoryEditorHandle } from './story-editor'
 import { PublishDialog } from './publish-dialog'
 
 // ---------------------------------------------------------------------------
@@ -43,6 +44,7 @@ interface StoryEditorShellProps {
   onSaveTemplate: (name: string, composition: CardComposition, thumbnail: Blob) => Promise<void>
   onDeleteTemplate: (id: string) => Promise<void>
   onImageUpload: (file: File) => Promise<string>
+  onVideoUpload: (file: File) => Promise<string>
   onSaveDraft: (postId: string, slides: unknown[], content?: { caption?: string }) => Promise<{ ok: boolean; error?: string; data?: { id: string } }>
   onPublishNow: (postId: string, slides: unknown[], content?: { caption?: string }) => Promise<{ ok: boolean; error?: string; data?: { id: string } }>
   onSchedule: (postId: string, slides: unknown[], scheduledAt: string, content?: { caption?: string }) => Promise<{ ok: boolean; error?: string; data?: { id: string } }>
@@ -80,12 +82,14 @@ export function StoryEditorShell({
   onSaveTemplate,
   onDeleteTemplate,
   onImageUpload,
+  onVideoUpload,
   onSaveDraft,
   onPublishNow,
   onSchedule,
 }: StoryEditorShellProps) {
   const router = useRouter()
-  const [showPublish, setShowPublish] = useState(false)
+  const storyEditorRef = useRef<StoryEditorHandle>(null)
+  const [publishSlides, setPublishSlides] = useState<CardComposition[] | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
 
@@ -95,22 +99,19 @@ export function StoryEditorShell({
     logoUrl: brand.logoUrl ?? undefined,
   }
 
-  // Keep a snapshot of the latest slides so save/publish always have the current state
-  const latestSlidesRef = useRef<CardComposition[]>(initialSlides)
-  const handleSlidesChange = useCallback((updated: CardComposition[]) => {
-    latestSlidesRef.current = updated
-  }, [])
+  const getLatestSlides = useCallback((): CardComposition[] => {
+    return storyEditorRef.current?.getCommittedSlides() ?? initialSlides
+  }, [initialSlides])
 
   // ---------------------------------------------------------------------------
   // Salvar Rascunho (top bar button)
   // ---------------------------------------------------------------------------
   const handleSaveDraftClick = useCallback(async () => {
+    const slides = getLatestSlides()
     setIsSaving(true)
     setSaveMessage(null)
     try {
-      const result = await onSaveDraft(postId, latestSlidesRef.current, {
-        caption: initialCaption,
-      })
+      const result = await onSaveDraft(postId, slides, { caption: initialCaption })
       if (result.ok) {
         setSaveMessage({ type: 'ok', text: 'Rascunho salvo!' })
       } else {
@@ -120,12 +121,12 @@ export function StoryEditorShell({
       setIsSaving(false)
       setTimeout(() => setSaveMessage(null), 3000)
     }
-  }, [onSaveDraft, postId, initialCaption])
+  }, [getLatestSlides, onSaveDraft, postId, initialCaption])
 
-  function handlePublishSuccess() {
-    setShowPublish(false)
+  const handlePublishSuccess = useCallback(() => {
+    setPublishSlides(null)
     router.push('/cms/social/stories')
-  }
+  }, [router])
 
   // Bind postId into the publish dialog callbacks (dialog doesn't know postId)
   const boundOnSaveDraft = useCallback(
@@ -188,7 +189,7 @@ export function StoryEditorShell({
           </button>
           <button
             type="button"
-            onClick={() => setShowPublish(true)}
+            onClick={() => setPublishSlides(getLatestSlides())}
             className="rounded-md bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-500 transition-colors"
           >
             Publicar
@@ -199,6 +200,7 @@ export function StoryEditorShell({
       {/* StoryEditor — positioned below the floating top bar */}
       <div className="fixed top-[44px] left-0 right-0 bottom-0">
         <StoryEditor
+          ref={storyEditorRef}
           initialSlides={initialSlides}
           postData={postData}
           templates={toEditorTemplates(templates)}
@@ -206,16 +208,16 @@ export function StoryEditorShell({
           onSaveTemplate={onSaveTemplate}
           onDeleteTemplate={onDeleteTemplate}
           onImageUpload={onImageUpload}
-          onSlidesChange={handleSlidesChange}
+          onVideoUpload={onVideoUpload}
         />
       </div>
 
       {/* Publish dialog */}
-      {showPublish && (
+      {publishSlides && (
         <PublishDialog
-          slides={latestSlidesRef.current}
+          slides={publishSlides}
           caption={initialCaption}
-          onClose={() => setShowPublish(false)}
+          onClose={() => setPublishSlides(null)}
           onSuccess={handlePublishSuccess}
           onSaveDraft={boundOnSaveDraft}
           onPublishNow={boundOnPublishNow}

@@ -2,6 +2,11 @@
 
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { REFERENCE_USAGE } from '@/lib/pipeline/reference-groups'
+import { API_REGISTRY } from '@/lib/pipeline/api-registry'
+import { ApiCatalogView } from './api-catalog-view'
+import { CoworkPromptModal } from './cowork-prompt-modal'
+
+type ActiveTab = 'references' | 'catalog'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -77,6 +82,19 @@ function highlightMatch(text: string, query: string): React.ReactNode {
 // ─── Component ─────────────────────────────────────────────────────────────────
 
 export function ReferenceEditor({ docs, groups, onUpsert }: { docs: ReferenceDoc[]; groups: GroupDef[]; onUpsert: (key: string, data: { title: string; content_md?: string; content_compact?: Record<string, unknown>; ref_group?: string; sort_order?: number }) => Promise<unknown> }) {
+  // Tab + modal state
+  const [activeTab, setActiveTab] = useState<ActiveTab>('references')
+  const [showPromptModal, setShowPromptModal] = useState(false)
+
+  const totalEndpoints = useMemo(
+    () => API_REGISTRY.capabilities.reduce((s, c) => s + c.endpoint_count, 0),
+    [],
+  )
+
+  const baseUrl = typeof window !== 'undefined'
+    ? `${window.location.protocol}//${window.location.host}`
+    : 'https://bythiagofigueiredo.com'
+
   // State
   const [selected, setSelected] = useState<string | null>(docs[0]?.key ?? null)
   const [title, setTitle] = useState(docs[0]?.title ?? '')
@@ -207,6 +225,12 @@ export function ReferenceEditor({ docs, groups, onUpsert }: { docs: ReferenceDoc
         searchRef.current?.focus()
         return
       }
+      // Cmd+P: open cowork prompt modal
+      if ((e.metaKey || e.ctrlKey) && e.key === 'p') {
+        e.preventDefault()
+        setShowPromptModal(true)
+        return
+      }
       // Esc: clear search when search is focused
       if (e.key === 'Escape' && document.activeElement === searchRef.current) {
         e.preventDefault()
@@ -250,9 +274,102 @@ export function ReferenceEditor({ docs, groups, onUpsert }: { docs: ReferenceDoc
 
   return (
     <div
-      className="flex h-[calc(100vh-10rem)]"
+      className="flex flex-col h-[calc(100vh-10rem)]"
       style={{ gap: 0 }}
     >
+      {/* ─── Tab bar ───────────────────────────────────────────────────── */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-end',
+          borderBottom: '1px solid var(--gem-border)',
+          padding: '0 12px',
+          flexShrink: 0,
+        }}
+      >
+        {(['references', 'catalog'] as const).map((tab) => {
+          const isActive = activeTab === tab
+          const label = tab === 'references' ? 'References' : 'API Catalog'
+          const count = tab === 'references' ? docs.length : totalEndpoints
+          return (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab)}
+              className={`transition-colors ${isActive ? 'text-indigo-400' : 'text-[#7a8ba3] hover:text-[#c4cbda]'}`}
+              style={{
+                padding: '8px 16px',
+                fontSize: 13,
+                fontWeight: isActive ? 600 : 400,
+                backgroundColor: 'transparent',
+                borderTop: 'none',
+                borderLeft: 'none',
+                borderRight: 'none',
+                borderBottom: isActive ? '2px solid rgb(129,140,248)' : '2px solid transparent',
+                cursor: 'pointer',
+              }}
+            >
+              {label}{' '}
+              <span
+                style={{
+                  fontSize: 10,
+                  color: isActive ? 'rgb(165,180,252)' : 'var(--gem-muted)',
+                  backgroundColor: isActive ? 'rgba(99,102,241,0.12)' : 'var(--gem-well)',
+                  borderRadius: 9999,
+                  padding: '1px 7px',
+                  marginLeft: 4,
+                  transition: 'all 0.15s',
+                }}
+              >
+                {count}
+              </span>
+            </button>
+          )
+        })}
+        <div style={{ flex: 1 }} />
+        <button
+          type="button"
+          onClick={() => setShowPromptModal(true)}
+          className="transition-[filter] duration-150 hover:brightness-110"
+          style={{
+            padding: '6px 14px',
+            marginBottom: 6,
+            fontSize: 12,
+            fontWeight: 500,
+            color: '#fff',
+            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+            border: 'none',
+            borderRadius: 6,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 5,
+          }}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+            <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+          </svg>
+          Copy Cowork Prompt
+          <span style={{ opacity: 0.5, fontSize: 9, fontFamily: 'monospace', marginLeft: 2 }}>⌘P</span>
+        </button>
+      </div>
+
+      {/* ─── Prompt modal ──────────────────────────────────────────────── */}
+      {showPromptModal && (
+        <CoworkPromptModal
+          onClose={() => setShowPromptModal(false)}
+          baseUrl={baseUrl}
+        />
+      )}
+
+      {/* ─── Tab content ───────────────────────────────────────────────── */}
+      {activeTab === 'catalog' ? (
+        <div key="catalog" style={{ flex: 1, overflow: 'hidden', animation: 'fade-in 0.15s ease' }}>
+          <ApiCatalogView />
+        </div>
+      ) : (
+      <div key="references" className="flex" style={{ flex: 1, gap: 0, overflow: 'hidden', animation: 'fade-in 0.15s ease' }}>
       {/* ─── Sidebar ────────────────────────────────────────────────────── */}
       <div
         style={{
@@ -291,38 +408,42 @@ export function ReferenceEditor({ docs, groups, onUpsert }: { docs: ReferenceDoc
             </div>
             <div style={{ display: 'flex', gap: 2 }}>
               <button
-                onClick={collapseAll}
-                title="Collapse all"
-                aria-label="Collapse all reference groups"
-                type="button"
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: '2px 4px',
-                  fontSize: 11,
-                  color: 'var(--gem-muted)',
-                  borderRadius: 4,
-                }}
-              >
-                {'⊟'}
-              </button>
-              <button
                 onClick={expandAll}
                 title="Expand all"
                 aria-label="Expand all reference groups"
                 type="button"
+                className="rounded transition-colors hover:bg-white/[0.06]"
                 style={{
                   background: 'none',
                   border: 'none',
                   cursor: 'pointer',
-                  padding: '2px 4px',
-                  fontSize: 11,
+                  padding: '3px 4px',
                   color: 'var(--gem-muted)',
-                  borderRadius: 4,
                 }}
               >
-                {'⊞'}
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                  <rect x="1" y="1" width="10" height="10" rx="1.5" />
+                  <path d="M6 3.5v5M3.5 6h5" />
+                </svg>
+              </button>
+              <button
+                onClick={collapseAll}
+                title="Collapse all"
+                aria-label="Collapse all reference groups"
+                type="button"
+                className="rounded transition-colors hover:bg-white/[0.06]"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '3px 4px',
+                  color: 'var(--gem-muted)',
+                }}
+              >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                  <rect x="1" y="1" width="10" height="10" rx="1.5" />
+                  <path d="M3.5 6h5" />
+                </svg>
               </button>
             </div>
           </div>
@@ -335,6 +456,7 @@ export function ReferenceEditor({ docs, groups, onUpsert }: { docs: ReferenceDoc
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Filter..."
+              className="transition-shadow focus:ring-1 focus:ring-indigo-500/40"
               style={{
                 width: '100%',
                 padding: '5px 8px',
@@ -379,6 +501,7 @@ export function ReferenceEditor({ docs, groups, onUpsert }: { docs: ReferenceDoc
                   <button
                     key={doc.key}
                     onClick={() => selectDoc(doc.key)}
+                    className={`transition-colors ${selected !== doc.key ? 'hover:bg-white/[0.04]' : ''}`}
                     style={{
                       display: 'flex',
                       alignItems: 'flex-start',
@@ -390,7 +513,7 @@ export function ReferenceEditor({ docs, groups, onUpsert }: { docs: ReferenceDoc
                       borderRadius: 6,
                       border: 'none',
                       cursor: 'pointer',
-                      backgroundColor: selected === doc.key ? 'rgba(99,102,241,0.12)' : 'transparent',
+                      backgroundColor: selected === doc.key ? 'rgba(99,102,241,0.12)' : undefined,
                     }}
                   >
                     <div
@@ -437,6 +560,7 @@ export function ReferenceEditor({ docs, groups, onUpsert }: { docs: ReferenceDoc
                     {/* Group header */}
                     <button
                       onClick={() => toggleGroup(group.id)}
+                      className="transition-colors hover:bg-white/[0.03]"
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -446,21 +570,27 @@ export function ReferenceEditor({ docs, groups, onUpsert }: { docs: ReferenceDoc
                         padding: '6px 10px',
                         border: 'none',
                         cursor: 'pointer',
-                        backgroundColor: 'transparent',
+                        borderRadius: 4,
                       }}
                     >
-                      <span
+                      <svg
+                        width="10"
+                        height="10"
+                        viewBox="0 0 10 10"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
                         style={{
-                          fontSize: 9,
                           color: 'var(--gem-muted)',
-                          display: 'inline-block',
-                          width: 10,
+                          flexShrink: 0,
                           transition: 'transform 0.15s',
                           transform: isCollapsed ? 'rotate(0deg)' : 'rotate(90deg)',
                         }}
                       >
-                        {'▶'}
-                      </span>
+                        <path d="M3 1.5l3.5 3.5L3 8.5" />
+                      </svg>
                       <div
                         style={{
                           width: 3,
@@ -498,6 +628,7 @@ export function ReferenceEditor({ docs, groups, onUpsert }: { docs: ReferenceDoc
                             <button
                               key={doc.key}
                               onClick={() => selectDoc(doc.key)}
+                              className={`transition-colors ${!isSelected ? 'hover:bg-white/[0.04]' : ''}`}
                               style={{
                                 display: 'flex',
                                 alignItems: 'center',
@@ -509,7 +640,7 @@ export function ReferenceEditor({ docs, groups, onUpsert }: { docs: ReferenceDoc
                                 borderRadius: 5,
                                 border: 'none',
                                 cursor: 'pointer',
-                                backgroundColor: isSelected ? 'rgba(99,102,241,0.12)' : 'transparent',
+                                backgroundColor: isSelected ? 'rgba(99,102,241,0.12)' : undefined,
                                 borderLeft: isSelected ? '2px solid rgb(99,102,241)' : '2px solid transparent',
                               }}
                             >
@@ -553,15 +684,16 @@ export function ReferenceEditor({ docs, groups, onUpsert }: { docs: ReferenceDoc
         <div style={{ padding: '8px 12px', borderTop: '1px solid var(--gem-border)' }}>
           <button
             onClick={handleNewReference}
+            className="transition-colors hover:border-[#334155] hover:text-[#c4cbda]"
             style={{
               width: '100%',
               padding: '6px 0',
               fontSize: 12,
               color: 'var(--gem-muted)',
-              backgroundColor: 'transparent',
               border: '1px dashed var(--gem-border)',
               borderRadius: 6,
               cursor: 'pointer',
+              backgroundColor: 'transparent',
             }}
           >
             + New Reference
@@ -790,6 +922,8 @@ export function ReferenceEditor({ docs, groups, onUpsert }: { docs: ReferenceDoc
             ? 'No references yet. Create one to get started.'
             : 'Select a reference from the sidebar.'}
         </div>
+      )}
+    </div>
       )}
     </div>
   )

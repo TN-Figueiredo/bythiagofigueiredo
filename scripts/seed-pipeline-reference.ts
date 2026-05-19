@@ -39,12 +39,12 @@ const ENTRIES: ReferenceEntry[] = [
     filePath: null,
     inlineCompact: {
       groups: [
-        { id: 'pessoal', label: 'Pessoal', color: '#34d399', scope: 'Quem é o Thiago — biografia, valores, experiências de vida' },
-        { id: 'estrategia', label: 'Estratégia', color: '#a78bfa', scope: 'Taxonomia, calendário, ângulos de conteúdo, scoring, monetização' },
+        { id: 'pessoal', label: 'Pessoal', color: '#34d399', scope: 'Quem é o Thiago — biografia, valores, experiências pessoais que informam conteúdo' },
+        { id: 'estrategia', label: 'Estratégia', color: '#a78bfa', scope: 'Taxonomia, calendário, ângulos de conteúdo, scoring, monetização, research' },
         { id: 'craft', label: 'Craft', color: '#fbbf24', scope: 'Voz, estilo, convenções de formato, avaliação de produto' },
         { id: 'producao', label: 'Produção', color: '#22d3ee', scope: 'SEO, launch strategy, benchmarks, checklists' },
         { id: 'memoria', label: 'Memória', color: '#38bdf8', scope: 'Logs de aprendizado por skill' },
-        { id: 'sistema', label: 'Sistema', color: '#94a3b8', scope: 'Directives do sistema — regras, mapeamentos, protocolo' },
+        { id: 'sistema', label: 'Sistema', color: '#94a3b8', scope: 'Directives do sistema — regras, mapeamentos, protocolo. APIs descobertas via GET /api/pipeline/' },
       ],
     },
   },

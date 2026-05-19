@@ -7,8 +7,8 @@ import {
 } from '@/lib/pipeline/reference-groups'
 
 describe('REFERENCE_GROUPS', () => {
-  it('has 7 groups', () => {
-    expect(REFERENCE_GROUPS).toHaveLength(7)
+  it('has 6 groups', () => {
+    expect(REFERENCE_GROUPS).toHaveLength(6)
   })
 
   it('each group has id, label, and color', () => {

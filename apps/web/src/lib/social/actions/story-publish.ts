@@ -19,6 +19,53 @@ const StoryContentSchema = z.object({
 type StoryContent = z.infer<typeof StoryContentSchema>
 
 // ---------------------------------------------------------------------------
+// Ensure an Instagram delivery row exists for a story post.
+// Without this, the publish workflow finds zero deliveries and no-ops.
+// ---------------------------------------------------------------------------
+
+async function ensureStoryDelivery(
+  supabase: ReturnType<typeof getSupabaseServiceClient>,
+  postId: string,
+  siteId: string,
+): Promise<void> {
+  const { data: existing } = await supabase
+    .from('social_deliveries')
+    .select('id')
+    .eq('post_id', postId)
+    .eq('provider', 'instagram')
+    .eq('format', 'story')
+    .limit(1)
+
+  if (existing && existing.length > 0) return
+
+  const { data: igConn } = await supabase
+    .from('social_connections')
+    .select('id')
+    .eq('site_id', siteId)
+    .eq('provider', 'instagram')
+    .is('revoked_at', null)
+    .limit(1)
+    .single()
+
+  if (!igConn) {
+    throw new Error('Nenhuma conta Instagram conectada. Conecte em Accounts antes de publicar.')
+  }
+
+  const { error } = await supabase.from('social_deliveries').insert({
+    post_id: postId,
+    connection_id: igConn.id,
+    provider: 'instagram',
+    format: 'story',
+    status: 'pending',
+    attempt: 0,
+    max_attempts: 3,
+    template_config: { storySlides: true },
+  })
+
+  if (error) throw new Error(`Falha ao criar delivery: ${error.message}`)
+}
+
+// ---------------------------------------------------------------------------
 // saveStoryDraft
 //
 // Upsert a social_post with status='draft', storing story_slides.
@@ -146,6 +193,8 @@ export async function publishStoryNow(
       return { ok: false, error: upsertError.message }
     }
 
+    await ensureStoryDelivery(supabase, postIdParsed.data, authorizedSiteId)
+
     const postFields = z.object({
       user_timezone: z.string().nullable().default(null),
       template_id: z.string().nullable().default(null),
@@ -253,6 +302,8 @@ export async function scheduleStory(
       Sentry.captureException(error, { tags: { ...SENTRY_TAG, action: 'scheduleStory' } })
       return { ok: false, error: error.message }
     }
+
+    await ensureStoryDelivery(supabase, postIdParsed.data, authorizedSiteId)
 
     revalidateSocialPaths()
     return { ok: true, data: { id: z.object({ id: z.string() }).parse(data).id } }

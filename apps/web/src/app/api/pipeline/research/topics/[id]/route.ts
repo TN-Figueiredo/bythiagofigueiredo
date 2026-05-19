@@ -1,25 +1,23 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { authenticatePipeline, requirePermission, buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
+import { UUID_REGEX } from '@/lib/pipeline/auth'
+import { authenticateWrite, pipelineError, pipelineSuccess, parseBody } from '@/lib/pipeline/helpers'
 import { ResearchTopicUpdateSchema } from '@/lib/pipeline/research-schemas'
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  if (!UUID_REGEX.test(id)) return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid topic ID' } }, { status: 400 })
+  if (!UUID_REGEX.test(id)) return pipelineError('VALIDATION_ERROR', 'Invalid topic ID', 400)
 
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
-  const { auth } = authResult
-  if (!requirePermission(auth, 'write')) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
+  const result = await authenticateWrite(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
-  let body: unknown
-  try { body = await req.json() } catch {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid JSON body' } }, { status: 400 })
-  }
+  const body = await parseBody(req)
+  if (body instanceof Response) return body
 
   const parsed = ResearchTopicUpdateSchema.safeParse(body)
   if (!parsed.success) {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: parsed.error.issues.map((i) => i.message).join(', ') } }, { status: 400 })
+    return pipelineError('VALIDATION_ERROR', parsed.error.issues.map((i) => i.message).join(', '), 400, auth)
   }
 
   const supabase = getSupabaseServiceClient()
@@ -29,7 +27,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   if (Object.keys(updateData).length === 0) {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'No fields to update' } }, { status: 400 })
+    return pipelineError('VALIDATION_ERROR', 'No fields to update', 400, auth)
   }
 
   const { data: updated, error } = await supabase
@@ -40,20 +38,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .select()
     .single()
 
-  if (error || !updated) return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Topic not found' } }, { status: 404 })
+  if (error || !updated) return pipelineError('NOT_FOUND', 'Topic not found', 404, auth)
 
-  const headers = buildRateLimitHeaders(auth)
-  return NextResponse.json({ data: updated }, { headers })
+  return pipelineSuccess(updated, 200, auth)
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  if (!UUID_REGEX.test(id)) return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid topic ID' } }, { status: 400 })
+  if (!UUID_REGEX.test(id)) return pipelineError('VALIDATION_ERROR', 'Invalid topic ID', 400)
 
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
-  const { auth } = authResult
-  if (!requirePermission(auth, 'write')) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
+  const result = await authenticateWrite(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
   const supabase = getSupabaseServiceClient()
   const { error } = await supabase
@@ -62,8 +58,10 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     .eq('id', id)
     .eq('site_id', auth.siteId)
 
-  if (error) return NextResponse.json({ error: { code: 'DB_ERROR', message: error.message } }, { status: 500 })
+  if (error) {
+    console.error('[research/topics/DELETE]', error.message)
+    return pipelineError('DB_ERROR', 'Failed to delete topic', 500, auth)
+  }
 
-  const headers = buildRateLimitHeaders(auth)
-  return NextResponse.json({ data: { deleted: true } }, { headers })
+  return pipelineSuccess({ deleted: true }, 200, auth)
 }

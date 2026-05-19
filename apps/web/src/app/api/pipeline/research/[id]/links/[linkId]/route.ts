@@ -1,17 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { authenticatePipeline, requirePermission, buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
+import { UUID_REGEX } from '@/lib/pipeline/auth'
+import { authenticateWrite, pipelineError, pipelineSuccess } from '@/lib/pipeline/helpers'
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string; linkId: string }> }) {
   const { id, linkId } = await params
   if (!UUID_REGEX.test(id) || !UUID_REGEX.test(linkId)) {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid ID format' } }, { status: 400 })
+    return pipelineError('VALIDATION_ERROR', 'Invalid ID format', 400)
   }
 
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
-  const { auth } = authResult
-  if (!requirePermission(auth, 'write')) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
+  const result = await authenticateWrite(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
   const supabase = getSupabaseServiceClient()
 
@@ -22,7 +22,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     .eq('site_id', auth.siteId)
     .single()
 
-  if (!researchItem) return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Research item not found' } }, { status: 404 })
+  if (!researchItem) return pipelineError('NOT_FOUND', 'Research item not found', 404, auth)
 
   const { error } = await supabase
     .from('research_links')
@@ -30,8 +30,10 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     .eq('id', linkId)
     .eq('research_id', id)
 
-  if (error) return NextResponse.json({ error: { code: 'DB_ERROR', message: error.message } }, { status: 500 })
+  if (error) {
+    console.error('[research/links/DELETE]', error.message)
+    return pipelineError('DB_ERROR', 'Failed to delete link', 500, auth)
+  }
 
-  const headers = buildRateLimitHeaders(auth)
-  return NextResponse.json({ data: { deleted: true } }, { headers })
+  return pipelineSuccess({ deleted: true }, 200, auth)
 }

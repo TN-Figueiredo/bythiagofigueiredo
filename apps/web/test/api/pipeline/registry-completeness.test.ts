@@ -17,8 +17,10 @@ function findRouteFiles(dir: string): string[] {
   return results
 }
 
+const webRoot = process.cwd()
+
 describe('Registry completeness', () => {
-  const pipelineDir = join(process.cwd(), 'src/app/api/pipeline')
+  const pipelineDir = join(webRoot, 'src/app/api/pipeline')
   const routeFiles = findRouteFiles(pipelineDir)
     .filter((f) => !f.includes('/docs/'))
 
@@ -33,7 +35,7 @@ describe('Registry completeness', () => {
 
   it('every capability domain has a docs file', () => {
     for (const cap of API_REGISTRY.capabilities) {
-      const docPath = join(process.cwd(), 'data', 'pipeline-docs', `cowork-docs-${cap.domain}.md`)
+      const docPath = join(webRoot, 'data', 'pipeline-docs', `cowork-docs-${cap.domain}.md`)
       expect(existsSync(docPath), `Missing doc: cowork-docs-${cap.domain}.md`).toBe(true)
     }
   })

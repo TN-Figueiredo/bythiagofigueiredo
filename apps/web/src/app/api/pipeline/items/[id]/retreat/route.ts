@@ -1,18 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { authenticatePipeline, requirePermission, buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
+import { authenticateWrite, pipelineError } from '@/lib/pipeline/helpers'
+import { buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
 import { getPreviousStage } from '@/lib/pipeline/workflows'
 import type { Format } from '@/lib/pipeline/schemas'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   if (!UUID_REGEX.test(id)) {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid item ID format' } }, { status: 400 })
+    return pipelineError('VALIDATION_ERROR', 'Invalid item ID format', 400)
   }
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
-  const { auth } = authResult
-  if (!requirePermission(auth, 'write')) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
+  const result = await authenticateWrite(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
   const supabase = getSupabaseServiceClient()
   const { data: item } = await supabase
@@ -22,11 +22,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .eq('site_id', auth.siteId)
     .single()
 
-  if (!item) return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Item not found' } }, { status: 404 })
+  if (!item) return pipelineError('NOT_FOUND', 'Item not found', 404, auth)
 
   const prevStage = getPreviousStage(item.format as Format, item.stage)
   if (!prevStage) {
-    return NextResponse.json({ error: { code: 'INVALID_OPERATION', message: 'Already at first stage' } }, { status: 422 })
+    return pipelineError('INVALID_OPERATION', 'Already at first stage', 422, auth)
   }
 
   const { data: updated, error } = await supabase
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .single()
 
   if (error || !updated) {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: error?.message ?? 'Update failed' } }, { status: 400 })
+    return pipelineError('DB_ERROR', 'Failed to retreat item', 400, auth)
   }
 
   const headers = buildRateLimitHeaders(auth)

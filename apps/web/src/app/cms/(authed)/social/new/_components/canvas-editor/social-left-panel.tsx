@@ -1,15 +1,15 @@
 'use client'
 import { useState, useCallback } from 'react'
-import { Type, ImagePlus, Square, Loader2 } from 'lucide-react'
+import { Type, ImagePlus, Square, Film, Loader2 } from 'lucide-react'
 import {
   MAX_ELEMENTS,
   createTextElement,
-  createImageElement,
   nextElementName,
 } from '@tn-figueiredo/links/qr'
 import type { UseCardCompositionReturn } from '@tn-figueiredo/links-admin/qr-card-builder/use-card-composition'
 import type { UseCanvasInteractionReturn } from '@tn-figueiredo/links-admin/qr-card-builder/use-canvas-interaction'
 import { ColorPicker } from '@tn-figueiredo/links-admin/qr-card-builder/color-picker'
+import { SliderField } from '@tn-figueiredo/links-admin/qr-card-builder/inspector-field'
 import { LayersPanel } from '@tn-figueiredo/links-admin/qr-card-builder/layers-panel'
 
 export const SOCIAL_ASPECT_RATIOS = [
@@ -24,6 +24,7 @@ interface SocialLeftPanelProps {
   comp: UseCardCompositionReturn
   interaction: UseCanvasInteractionReturn
   onImageUpload: (file: File) => Promise<string>
+  onVideoUpload: (file: File) => Promise<string>
   onOpenMediaGallery: () => void
   aspectRatio: SocialAspectRatio
   onAspectRatioChange: (ratio: SocialAspectRatio) => void
@@ -35,13 +36,14 @@ interface SocialLeftPanelProps {
 type BgTab = 'solid' | 'image' | 'gradient'
 
 export function SocialLeftPanel({
-  comp, interaction, onImageUpload, onOpenMediaGallery,
+  comp, interaction, onImageUpload, onVideoUpload, onOpenMediaGallery,
   aspectRatio, onAspectRatioChange, templates, onLoadTemplate, hideAspectRatioSelector,
 }: SocialLeftPanelProps) {
   const { composition, setCanvas, setBackground, addElement } = comp
   const { selectedIds, select } = interaction
   const [bgTab, setBgTab] = useState<BgTab>(composition.background.type as BgTab)
   const [isUploading, setIsUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   const handleAspectRatio = useCallback((ratio: SocialAspectRatio) => {
     const preset = SOCIAL_ASPECT_RATIOS.find(r => r.name === ratio)
@@ -60,6 +62,7 @@ export function SocialLeftPanel({
 
   const handleAddImage = useCallback(async () => {
     if (composition.elements.length >= MAX_ELEMENTS) return
+    setUploadError(null)
     const input = document.createElement('input')
     input.type = 'file'
     input.accept = 'image/*'
@@ -80,14 +83,108 @@ export function SocialLeftPanel({
         if (!remoteUrl) return
         const id = crypto.randomUUID()
         const name = nextElementName(composition.elements, 'image')
-        addElement(createImageElement(id, remoteUrl, composition.canvas.width, composition.canvas.height, naturalWidth, naturalHeight, name))
+        const cw = composition.canvas.width
+        const ch = composition.canvas.height
+        const fitW = cw * 0.6
+        const fitH = ch * 0.5
+        let w = fitW
+        let h = fitW * (naturalHeight / naturalWidth)
+        if (h > fitH) { h = fitH; w = fitH * (naturalWidth / naturalHeight) }
+        w = Math.round(w)
+        h = Math.round(h)
+        addElement({
+          id, name, type: 'image' as const, src: remoteUrl,
+          x: Math.round((cw - w) / 2), y: Math.round((ch - h) / 2),
+          width: w, height: h,
+          rotation: 0, opacity: 1, locked: false,
+          objectFit: 'cover' as const,
+          borderRadius: 0, borderColor: '#000000', borderWidth: 0,
+          maintainAspectRatio: true,
+        })
         select(id)
+      } catch (err) {
+        console.error('[Social Canvas] Upload failed:', err)
+        setUploadError(err instanceof Error ? err.message : 'Upload failed')
       } finally {
         setIsUploading(false)
       }
     }
     input.click()
   }, [composition, addElement, select, onImageUpload])
+
+  const handleAddVideo = useCallback(async () => {
+    if (composition.elements.length >= MAX_ELEMENTS) return
+    setUploadError(null)
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'video/mp4,video/webm,video/quicktime'
+    input.onchange = async () => {
+      const file = input.files?.[0]
+      if (!file || file.size > 50 * 1024 * 1024) return
+      setIsUploading(true)
+      try {
+        const localUrl = URL.createObjectURL(file)
+        const { videoWidth, videoHeight } = await new Promise<HTMLVideoElement>((resolve, reject) => {
+          const video = document.createElement('video')
+          video.onloadedmetadata = () => resolve(video)
+          video.onerror = () => reject(new Error('Failed to load video metadata'))
+          video.src = localUrl
+        })
+        URL.revokeObjectURL(localUrl)
+        const remoteUrl = await onVideoUpload(file)
+        if (!remoteUrl) return
+        const id = crypto.randomUUID()
+        const name = nextElementName(composition.elements, 'video')
+        const cw = composition.canvas.width
+        const ch = composition.canvas.height
+        const fitW = cw * 0.6
+        const fitH = ch * 0.5
+        let w = fitW
+        let h = fitW * (videoHeight / videoWidth)
+        if (h > fitH) { h = fitH; w = fitH * (videoWidth / videoHeight) }
+        w = Math.round(w)
+        h = Math.round(h)
+        addElement({
+          id, name, type: 'video' as const, src: remoteUrl,
+          x: Math.round((cw - w) / 2), y: Math.round((ch - h) / 2),
+          width: w, height: h,
+          rotation: 0, opacity: 1, locked: false,
+          borderRadius: 0, borderColor: '#000000', borderWidth: 0,
+          maintainAspectRatio: true, muted: true, loop: true, startTime: 0, endTime: null,
+        })
+        select(id)
+      } catch (err) {
+        console.error('[Social Canvas] Upload failed:', err)
+        setUploadError(err instanceof Error ? err.message : 'Upload failed')
+      } finally {
+        setIsUploading(false)
+      }
+    }
+    input.click()
+  }, [composition, addElement, select, onVideoUpload])
+
+  const handleBgImageUpload = useCallback(async () => {
+    setUploadError(null)
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    input.onchange = async () => {
+      const file = input.files?.[0]
+      if (!file || file.size > 5 * 1024 * 1024) return
+      setIsUploading(true)
+      try {
+        const remoteUrl = await onImageUpload(file)
+        if (!remoteUrl) return
+        setBackground({ type: 'image', url: remoteUrl, fallbackColor: '#0a0a0a', blur: 20, mediaType: 'image' })
+      } catch (err) {
+        console.error('[Social Canvas] Upload failed:', err)
+        setUploadError(err instanceof Error ? err.message : 'Upload failed')
+      } finally {
+        setIsUploading(false)
+      }
+    }
+    input.click()
+  }, [onImageUpload, setBackground])
 
   const handleSolidColor = useCallback((color: string) => {
     setBackground({ type: 'solid', color })
@@ -122,6 +219,14 @@ export function SocialLeftPanel({
         </section>
       )}
 
+      {/* Upload error */}
+      {uploadError && (
+        <div className="mx-3 mt-2 rounded bg-red-900/50 border border-red-700/50 px-2 py-1.5 text-[10px] text-red-300 flex items-center justify-between">
+          <span>{uploadError}</span>
+          <button type="button" onClick={() => setUploadError(null)} className="ml-2 text-red-400 hover:text-red-200">✕</button>
+        </div>
+      )}
+
       {/* Add Elements */}
       <section className="p-3 border-b border-neutral-800">
         <h3 className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mb-2">Add to Canvas</h3>
@@ -132,6 +237,10 @@ export function SocialLeftPanel({
           <button type="button" onClick={handleAddImage} className="flex-1 flex flex-col items-center gap-1 p-2 rounded border border-neutral-700 text-neutral-300 hover:border-blue-500 hover:text-blue-300 text-[10px]" disabled={composition.elements.length >= MAX_ELEMENTS || isUploading}>
             {isUploading ? <Loader2 size={18} className="animate-spin" /> : <ImagePlus size={18} />}
             {isUploading ? 'Uploading...' : 'Image'}
+          </button>
+          <button type="button" onClick={handleAddVideo} className="flex-1 flex flex-col items-center gap-1 p-2 rounded border border-neutral-700 text-neutral-300 hover:border-blue-500 hover:text-blue-300 text-[10px]" disabled={composition.elements.length >= MAX_ELEMENTS || isUploading}>
+            {isUploading ? <Loader2 size={18} className="animate-spin" /> : <Film size={18} />}
+            {isUploading ? 'Uploading...' : 'Video'}
           </button>
           <button type="button" onClick={onOpenMediaGallery} className="flex-1 flex flex-col items-center gap-1 p-2 rounded border border-neutral-700 text-neutral-300 hover:border-blue-500 hover:text-blue-300 text-[10px]" disabled={composition.elements.length >= MAX_ELEMENTS}>
             <Square size={18} />Gallery
@@ -160,6 +269,31 @@ export function SocialLeftPanel({
         </div>
         {bgTab === 'solid' && bg.type === 'solid' && (
           <ColorPicker value={bg.color} onChange={handleSolidColor} label="Color" />
+        )}
+        {bgTab === 'image' && (
+          <div className="space-y-2">
+            {bg.type === 'image' ? (
+              <>
+                <div className="h-14 rounded bg-neutral-800 bg-cover bg-center border border-neutral-700" style={{ backgroundImage: `url(${bg.url})` }} />
+                <button type="button" onClick={handleBgImageUpload} className="w-full py-1.5 border border-dashed border-neutral-600 rounded text-[11px] text-neutral-400 hover:border-neutral-400" disabled={isUploading}>
+                  Replace image
+                </button>
+                <SliderField label="Blur" value={bg.blur ?? 0} onChange={v => setBackground({ ...bg, blur: v })} min={0} max={80} format={v => `${v}px`} />
+                <SliderField label="Position Y" value={bg.offsetY ?? 0} onChange={v => setBackground({ ...bg, offsetY: v })} min={-500} max={500} format={v => `${v}px`} />
+                <button
+                  type="button"
+                  onClick={() => { setBackground({ type: 'solid', color: '#0a0a0a' }); setBgTab('solid') }}
+                  className="w-full py-1.5 border border-dashed border-red-700/50 rounded text-[11px] text-red-400 hover:border-red-600"
+                >
+                  Remove
+                </button>
+              </>
+            ) : (
+              <button type="button" onClick={handleBgImageUpload} className="w-full py-2 border border-dashed border-neutral-600 rounded text-[11px] text-neutral-400 hover:border-neutral-400" disabled={isUploading}>
+                {isUploading ? 'Uploading...' : 'Choose image...'}
+              </button>
+            )}
+          </div>
         )}
       </section>
 

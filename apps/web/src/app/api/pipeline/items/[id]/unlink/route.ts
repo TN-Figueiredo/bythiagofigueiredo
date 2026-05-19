@@ -1,21 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { authenticatePipeline, requirePermission, buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
+import { authenticateWrite, pipelineSuccess, pipelineError } from '@/lib/pipeline/helpers'
+import { UUID_REGEX } from '@/lib/pipeline/auth'
 import { unlinkPostFromItem } from '@/lib/pipeline/blog-link'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   if (!UUID_REGEX.test(id)) {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid item ID format' } }, { status: 400 })
+    return pipelineError('VALIDATION_ERROR', 'Invalid item ID format', 400)
   }
 
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
-  const { auth } = authResult
-  if (!requirePermission(auth, 'write')) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
+  const result = await authenticateWrite(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
-  const result = await unlinkPostFromItem(id, auth.siteId, null)
-  if (!result.ok) return NextResponse.json({ error: { code: 'UNLINK_FAILED', message: result.error } }, { status: 400 })
+  const unlinkResult = await unlinkPostFromItem(id, auth.siteId, null)
+  if (!unlinkResult.ok) return NextResponse.json({ error: { code: 'UNLINK_FAILED', message: unlinkResult.error } }, { status: 400 })
 
-  const headers = buildRateLimitHeaders(auth)
-  return NextResponse.json({ data: { unlinked: true } }, { headers })
+  return pipelineSuccess({ unlinked: true }, 200, auth)
 }

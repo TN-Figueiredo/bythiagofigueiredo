@@ -77,3 +77,31 @@ curl -X DELETE https://bythiagofigueiredo.com/api/pipeline/research/<uuid> \
 ```
 
 Max 50 items. Each processed independently; partial failures don't block others.
+
+### Topics
+
+**GET /api/pipeline/research/topics** — List all research topics with item counts.
+
+Returns hierarchical topic tree with `slug`, `name`, `depth`, `parent_slug`, and `item_count`.
+
+**POST /api/pipeline/research/topics** — Create a new topic manually.
+
+```json
+{ "name": "Gaming History", "slug": "gaming-history", "parent_slug": null }
+```
+
+**PATCH /api/pipeline/research/topics/:id** — Update topic name.
+
+**DELETE /api/pipeline/research/topics/:id** — Delete a topic (must have no items).
+
+### Links — Connect research to pipeline items
+
+**POST /api/pipeline/research/:id/links** — Link a research item to a pipeline item.
+
+```json
+{ "pipeline_item_id": "<uuid>", "relationship": "informs" }
+```
+
+Relationships: `informs`, `supports`, `contradicts`, `expands`.
+
+**DELETE /api/pipeline/research/:id/links/:linkId** — Remove a link.

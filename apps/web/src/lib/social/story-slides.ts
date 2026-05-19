@@ -115,7 +115,7 @@ function buildCoverSlide(input: SlideCompositionInput): CardComposition {
 
   if (coverImageUrl) {
     // Blurred cover image fills the entire canvas as background
-    background = { type: 'image', url: coverImageUrl, fallbackColor: '#0a0a0a', blur: 40 }
+    background = { type: 'image', url: coverImageUrl, fallbackColor: '#0a0a0a', blur: 40, mediaType: 'image' }
   } else if (style === 'overlay') {
     background = { type: 'solid', color: '#0a0a0a' }
   } else if (style === 'bold') {

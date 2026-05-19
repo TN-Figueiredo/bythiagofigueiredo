@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { authenticatePipeline, requirePermission, buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
+import { authenticateRead, authenticateWrite, pipelineError, parseBody } from '@/lib/pipeline/helpers'
+import { buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
 import { getSectionKey, SectionPatchSchema } from '@/lib/pipeline/sections'
 import type { SectionData } from '@/lib/pipeline/sections'
 
@@ -9,11 +10,12 @@ type RouteParams = { params: Promise<{ id: string; section: string }> }
 export async function GET(req: NextRequest, { params }: RouteParams) {
   const { id, section } = await params
   if (!UUID_REGEX.test(id)) {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid item ID' } }, { status: 400 })
+    return pipelineError('VALIDATION_ERROR', 'Invalid item ID', 400)
   }
 
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
+  const result = await authenticateRead(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
   const lang = req.nextUrl.searchParams.get('lang') || 'en'
   const sectionKey = getSectionKey(section, lang)
@@ -23,15 +25,15 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     .from('content_pipeline')
     .select('id, format, language, version, sections')
     .eq('id', id)
-    .eq('site_id', authResult.auth.siteId)
+    .eq('site_id', auth.siteId)
     .single()
 
-  if (error || !item) return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Item not found' } }, { status: 404 })
+  if (error || !item) return pipelineError('NOT_FOUND', 'Item not found', 404, auth)
 
   const sections = (item.sections ?? {}) as Record<string, SectionData>
   const sectionData = sections[sectionKey] ?? null
 
-  const headers = buildRateLimitHeaders(authResult.auth)
+  const headers = buildRateLimitHeaders(auth)
   return NextResponse.json({
     data: sectionData,
     meta: { section_key: sectionKey, item_version: item.version, exists: sectionData !== null },
@@ -41,31 +43,25 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   const { id, section } = await params
   if (!UUID_REGEX.test(id)) {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid item ID' } }, { status: 400 })
+    return pipelineError('VALIDATION_ERROR', 'Invalid item ID', 400)
   }
 
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
-  if (!requirePermission(authResult.auth, 'write')) {
-    return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
-  }
+  const result = await authenticateWrite(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
   const expectedVersionRaw = req.headers.get('X-Expected-Version') ?? req.headers.get('If-Match')
   if (!expectedVersionRaw) {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'X-Expected-Version header required' } }, { status: 400 })
+    return pipelineError('VALIDATION_ERROR', 'X-Expected-Version header required', 400, auth)
   }
   const expectedVersion = parseInt(expectedVersionRaw)
 
-  let body: unknown
-  try {
-    body = await req.json()
-  } catch {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid JSON' } }, { status: 400 })
-  }
+  const body = await parseBody(req)
+  if (body instanceof Response) return body
 
   const parsed = SectionPatchSchema.safeParse(body)
   if (!parsed.success) {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: parsed.error.issues[0]?.message ?? 'Invalid request body' } }, { status: 400 })
+    return pipelineError('VALIDATION_ERROR', parsed.error.issues[0]?.message ?? 'Invalid request body', 400, auth)
   }
 
   const lang = req.nextUrl.searchParams.get('lang') || 'en'
@@ -77,10 +73,10 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     .from('content_pipeline')
     .select('id, version, sections')
     .eq('id', id)
-    .eq('site_id', authResult.auth.siteId)
+    .eq('site_id', auth.siteId)
     .single()
 
-  if (fetchError || !item) return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Item not found' } }, { status: 404 })
+  if (fetchError || !item) return pipelineError('NOT_FOUND', 'Item not found', 404, auth)
   if (item.version !== expectedVersion) {
     return NextResponse.json({
       error: { code: 'PRECONDITION_FAILED', message: 'Version mismatch', expected: expectedVersion, current: item.version },
@@ -118,10 +114,10 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     .single()
 
   if (updateError || !updated) {
-    return NextResponse.json({ error: { code: 'CONFLICT', message: 'Concurrent update detected' } }, { status: 409 })
+    return pipelineError('CONFLICT', 'Concurrent update detected', 409, auth)
   }
 
-  const headers = buildRateLimitHeaders(authResult.auth)
+  const headers = buildRateLimitHeaders(auth)
   return NextResponse.json({
     data: updatedSection,
     meta: { section_key: sectionKey, item_version: updated.version },

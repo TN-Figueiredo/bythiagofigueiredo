@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { authenticatePipeline, requirePermission, buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
+import { UUID_REGEX } from '@/lib/pipeline/auth'
+import { authenticateRead, authenticateWrite, pipelineSuccess, pipelineError, parseBody } from '@/lib/pipeline/helpers'
 import { BRollAssetUpdateSchema } from '@/lib/pipeline/broll-schemas'
 import { pipelineLog } from '@/lib/pipeline/logger'
 
@@ -9,12 +10,11 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
-  if (!UUID_REGEX.test(id)) return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid ID format' } }, { status: 400 })
+  if (!UUID_REGEX.test(id)) return pipelineError('VALIDATION_ERROR', 'Invalid ID format', 400)
 
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
-  const { auth } = authResult
-  if (!requirePermission(auth, 'read')) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
+  const result = await authenticateRead(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
   const supabase = getSupabaseServiceClient()
   const { data: asset, error } = await supabase
@@ -26,10 +26,10 @@ export async function GET(
 
   if (error) {
     pipelineLog('error', 'broll-library', 'GET by id failed', { error })
-    if (error.code === 'PGRST116') return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Asset not found' } }, { status: 404 })
-    return NextResponse.json({ error: { code: 'DB_ERROR', message: 'Internal server error' } }, { status: 500 })
+    if (error.code === 'PGRST116') return pipelineError('NOT_FOUND', 'Asset not found', 404, auth)
+    return pipelineError('DB_ERROR', 'Failed to load asset', 500, auth)
   }
-  if (!asset) return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Asset not found' } }, { status: 404 })
+  if (!asset) return pipelineError('NOT_FOUND', 'Asset not found', 404, auth)
 
   const { data: usage } = await supabase
     .from('broll_library_usage')
@@ -37,7 +37,7 @@ export async function GET(
     .eq('broll_asset_id', id)
     .eq('site_id', auth.siteId)
 
-  return NextResponse.json({ data: { ...asset, usage: usage ?? [] } }, { headers: buildRateLimitHeaders(auth) })
+  return pipelineSuccess({ ...asset, usage: usage ?? [] }, 200, auth)
 }
 
 export async function PATCH(
@@ -45,21 +45,18 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
-  if (!UUID_REGEX.test(id)) return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid ID format' } }, { status: 400 })
+  if (!UUID_REGEX.test(id)) return pipelineError('VALIDATION_ERROR', 'Invalid ID format', 400)
 
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
-  const { auth } = authResult
-  if (!requirePermission(auth, 'write')) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
+  const result = await authenticateWrite(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
-  let body: unknown
-  try { body = await req.json() } catch {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid JSON body' } }, { status: 400 })
-  }
+  const body = await parseBody(req)
+  if (body instanceof Response) return body
 
   const parsed = BRollAssetUpdateSchema.safeParse(body)
   if (!parsed.success) {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: parsed.error.issues.map(i => i.message).join(', ') } }, { status: 400 })
+    return pipelineError('VALIDATION_ERROR', parsed.error.issues.map(i => i.message).join(', '), 400, auth)
   }
 
   const { version, ...updates } = parsed.data
@@ -80,17 +77,17 @@ export async function PATCH(
 
   if (error) {
     pipelineLog('error', 'broll-library', 'PATCH failed', { error })
-    return NextResponse.json({ error: { code: 'DB_ERROR', message: 'Internal server error' } }, { status: 500 })
+    return pipelineError('DB_ERROR', 'Failed to update asset', 500, auth)
   }
 
   if (!data) {
     // 0 rows updated: determine whether the record is missing (404) or version-mismatched (409).
     const { data: exists } = await supabase.from('broll_library').select('id, version').eq('id', id).eq('site_id', auth.siteId).maybeSingle()
-    if (!exists) return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Asset not found' } }, { status: 404 })
-    return NextResponse.json({ error: { code: 'CONFLICT', message: `Version mismatch: expected ${version}, current ${exists.version}` } }, { status: 409 })
+    if (!exists) return pipelineError('NOT_FOUND', 'Asset not found', 404, auth)
+    return pipelineError('CONFLICT', `Version mismatch: expected ${version}, current ${exists.version}`, 409, auth)
   }
 
-  return NextResponse.json({ data }, { headers: buildRateLimitHeaders(auth) })
+  return pipelineSuccess(data, 200, auth)
 }
 
 export async function DELETE(
@@ -98,12 +95,11 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
-  if (!UUID_REGEX.test(id)) return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid ID format' } }, { status: 400 })
+  if (!UUID_REGEX.test(id)) return pipelineError('VALIDATION_ERROR', 'Invalid ID format', 400)
 
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
-  const { auth } = authResult
-  if (!requirePermission(auth, 'write')) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
+  const result = await authenticateWrite(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
   const supabase = getSupabaseServiceClient()
   const { data, error } = await supabase
@@ -114,7 +110,7 @@ export async function DELETE(
     .select('id, status')
     .single()
 
-  if (error || !data) return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Asset not found' } }, { status: 404 })
+  if (error || !data) return pipelineError('NOT_FOUND', 'Asset not found', 404, auth)
 
-  return NextResponse.json({ data }, { headers: buildRateLimitHeaders(auth) })
+  return pipelineSuccess(data, 200, auth)
 }

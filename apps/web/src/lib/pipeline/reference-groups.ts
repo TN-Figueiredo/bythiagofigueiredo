@@ -3,7 +3,6 @@ export const REFERENCE_GROUPS = [
   { id: 'estrategia', label: 'Estratégia', color: '#a78bfa' },
   { id: 'craft',      label: 'Craft',      color: '#fbbf24' },
   { id: 'producao',   label: 'Produção',   color: '#22d3ee' },
-  { id: 'api',        label: 'API',        color: '#fb7185' },
   { id: 'memoria',    label: 'Memória',    color: '#38bdf8' },
   { id: 'sistema',    label: 'Sistema',    color: '#94a3b8' },
 ] as const

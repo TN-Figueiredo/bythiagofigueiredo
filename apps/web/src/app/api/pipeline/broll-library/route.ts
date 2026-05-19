@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { authenticatePipeline, requirePermission, buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
+import { buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
+import { authenticateRead, authenticateWrite, pipelineSuccess, pipelineError, parseBody } from '@/lib/pipeline/helpers'
 import { BRollAssetCreateSchema } from '@/lib/pipeline/broll-schemas'
 import { sanitizeForFilter, sanitizeForTsquery } from '@/lib/pipeline/sanitize'
 import { pipelineLog } from '@/lib/pipeline/logger'
 
 export async function GET(req: NextRequest) {
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
-  const { auth } = authResult
-  if (!requirePermission(auth, 'read')) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
+  const result = await authenticateRead(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
   const params = req.nextUrl.searchParams
   const limit = Math.max(1, Math.min(parseInt(params.get('limit') || '50') || 50, 200))
@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
   }
 
   const { data, error, count } = await query.limit(limit + 1)
-  if (error) { pipelineLog('error', 'broll-library', 'GET failed', { error }); return NextResponse.json({ error: { code: 'DB_ERROR', message: 'Internal server error' } }, { status: 500 }) }
+  if (error) { pipelineLog('error', 'broll-library', 'GET failed', { error }); return pipelineError('DB_ERROR', 'Failed to load assets', 500, auth) }
 
   const hasNext = (data?.length ?? 0) > limit
   const items = data?.slice(0, limit) ?? []
@@ -87,19 +87,16 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
-  const { auth } = authResult
-  if (!requirePermission(auth, 'write')) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
+  const result = await authenticateWrite(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
-  let body: unknown
-  try { body = await req.json() } catch {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid JSON body' } }, { status: 400 })
-  }
+  const body = await parseBody(req)
+  if (body instanceof Response) return body
 
   const parsed = BRollAssetCreateSchema.safeParse(body)
   if (!parsed.success) {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: parsed.error.issues.map(i => i.message).join(', ') } }, { status: 400 })
+    return pipelineError('VALIDATION_ERROR', parsed.error.issues.map(i => i.message).join(', '), 400, auth)
   }
 
   const supabase = getSupabaseServiceClient()
@@ -111,11 +108,11 @@ export async function POST(req: NextRequest) {
 
   if (error) {
     if (error.code === '23505') {
-      return NextResponse.json({ error: { code: 'CONFLICT', message: 'Asset with this ID or SHA256 already exists' } }, { status: 409 })
+      return pipelineError('CONFLICT', 'Asset with this ID or SHA256 already exists', 409, auth)
     }
     pipelineLog('error', 'broll-library', 'POST failed', { error })
-    return NextResponse.json({ error: { code: 'DB_ERROR', message: 'Internal server error' } }, { status: 500 })
+    return pipelineError('DB_ERROR', 'Failed to save asset', 500, auth)
   }
 
-  return NextResponse.json({ data }, { status: 201, headers: buildRateLimitHeaders(auth) })
+  return pipelineSuccess(data, 201, auth)
 }

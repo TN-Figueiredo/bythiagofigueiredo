@@ -53,6 +53,7 @@ export default async function StoryDetailPage({ params }: Props) {
   }
 
   const slides = (post.story_slides ?? []) as CardComposition[]
+  const mediaUrls = (post.content?.media_urls as string[] | undefined) ?? undefined
   const caption = (post.content?.description as string | undefined) ?? undefined
   const isCompleted = post.status === 'completed'
   const isDraft = post.status === 'draft'
@@ -170,7 +171,7 @@ export default async function StoryDetailPage({ params }: Props) {
         {/* Story preview */}
         <section aria-label="Pré-visualização">
           <h2 className="text-sm font-semibold text-cms-text mb-3">Pré-visualização</h2>
-          <StoryPreview slides={slides} caption={caption} />
+          <StoryPreview slides={slides} mediaUrls={mediaUrls} caption={caption} />
         </section>
 
         {/* Insights — only for completed stories */}

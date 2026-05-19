@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { authenticatePipeline, requirePermission, buildRateLimitHeaders } from '@/lib/pipeline/auth'
+import { buildRateLimitHeaders } from '@/lib/pipeline/auth'
+import { authenticateRead, authenticateWrite, pipelineError, parseBody } from '@/lib/pipeline/helpers'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getIsoWeek } from '@/lib/youtube/analytics-sync'
 import { PatchPayloadSchema } from '@/lib/youtube/intelligence-schemas'
@@ -8,17 +9,15 @@ import * as Sentry from '@sentry/nextjs'
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: authResult.error }, { status: authResult.status })
-  if (!requirePermission(authResult.auth, 'read')) {
-    return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
-  }
+  const result = await authenticateRead(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
   const channelId = req.nextUrl.searchParams.get('channel_id')
-  if (!channelId) return NextResponse.json({ error: 'channel_id required' }, { status: 400 })
+  if (!channelId) return pipelineError('VALIDATION_ERROR', 'channel_id required', 400, auth)
 
   const supabase = getSupabaseServiceClient()
-  const siteId = authResult.auth.siteId
+  const siteId = auth.siteId
 
   const { data: channel } = await supabase
     .from('youtube_channels')
@@ -27,7 +26,7 @@ export async function GET(req: NextRequest) {
     .eq('site_id', siteId)
     .single()
 
-  if (!channel) return NextResponse.json({ error: 'Channel not found' }, { status: 404 })
+  if (!channel) return pipelineError('NOT_FOUND', 'Channel not found', 404, auth)
 
   const { data: videos } = await supabase
     .from('youtube_videos')
@@ -89,18 +88,18 @@ export async function GET(req: NextRequest) {
     intelligence: intelligence ?? [],
   }
 
-  const headers = buildRateLimitHeaders(authResult.auth)
+  const headers = buildRateLimitHeaders(auth)
   return NextResponse.json(response, { headers: headers ?? {} })
 }
 
 export async function PATCH(req: NextRequest) {
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: authResult.error }, { status: authResult.status })
-  if (!requirePermission(authResult.auth, 'write')) {
-    return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
-  }
+  const result = await authenticateWrite(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
-  const body = await req.json()
+  const body = await parseBody(req)
+  if (body instanceof Response) return body
+
   const parsed = PatchPayloadSchema.safeParse(body)
   if (!parsed.success) {
     return NextResponse.json({
@@ -111,7 +110,7 @@ export async function PATCH(req: NextRequest) {
 
   const { task_id, video_recommendations, coaching, notifications, channel_insights } = parsed.data
   const supabase = getSupabaseServiceClient()
-  const siteId = authResult.auth.siteId
+  const siteId = auth.siteId
 
   const { data: task } = await supabase
     .from('youtube_intelligence_tasks')
@@ -120,9 +119,9 @@ export async function PATCH(req: NextRequest) {
     .eq('site_id', siteId)
     .single()
 
-  if (!task) return NextResponse.json({ error: 'Task not found' }, { status: 404 })
+  if (!task) return pipelineError('NOT_FOUND', 'Task not found', 404, auth)
   if (task.status !== 'running') {
-    return NextResponse.json({ error: `Task status is '${task.status}', expected 'running'` }, { status: 409 })
+    return pipelineError('VERSION_CONFLICT', `Task status is '${task.status}', expected 'running'`, 409, auth)
   }
 
   if (video_recommendations?.length) {
@@ -241,6 +240,6 @@ export async function PATCH(req: NextRequest) {
     result_summary: { recommendations: video_recommendations?.length ?? 0, has_coaching: !!coaching },
   }).eq('id', task_id)
 
-  const headers = buildRateLimitHeaders(authResult.auth)
+  const headers = buildRateLimitHeaders(auth)
   return NextResponse.json({ status: 'ok', processed: true }, { headers: headers ?? {} })
 }

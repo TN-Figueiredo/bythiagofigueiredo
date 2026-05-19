@@ -222,7 +222,7 @@ export function LeftPanel({ comp, interaction, onImageUpload }: LeftPanelProps) 
                   try {
                     const remoteUrl = await onImageUpload(file)
                     if (remoteUrl) {
-                      setBackground({ type: 'image', url: remoteUrl, fallbackColor: fallback })
+                      setBackground({ type: 'image', url: remoteUrl, fallbackColor: fallback, mediaType: 'image' })
                     } else {
                       console.error('[QR Card] Background upload returned empty URL')
                     }

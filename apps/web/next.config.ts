@@ -32,7 +32,7 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ['@aws-sdk/client-sesv2', 'sharp'],
   experimental: {
     serverActions: {
-      bodySizeLimit: '5mb',
+      bodySizeLimit: '50mb',
     },
   },
   // @tn-figueiredo/cms v0.1.x ships ESM with `import.meta.url` (MDX renderer)
@@ -101,6 +101,7 @@ const nextConfig: NextConfig = {
       "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://i.ytimg.com https://yt3.ggpht.com https://*.public.blob.vercel-storage.com",
       "font-src 'self' data:",
       "connect-src 'self' https://*.supabase.co https://*.supabase.in https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://challenges.cloudflare.com https://cloudflareinsights.com https://*.public.blob.vercel-storage.com",
+      "media-src 'self' blob: https://*.public.blob.vercel-storage.com",
       "frame-src https://challenges.cloudflare.com https://www.youtube.com",
       "frame-ancestors 'none'",
       "form-action 'self'",

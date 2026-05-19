@@ -1,5 +1,5 @@
 'use client'
-import { useState, useCallback, useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
+import { useState, useCallback, useEffect, useRef, useMemo, forwardRef, useImperativeHandle } from 'react'
 import type { CardComposition } from '@tn-figueiredo/links/qr'
 import { useCardComposition } from '@tn-figueiredo/links-admin/qr-card-builder/use-card-composition'
 import { useCanvasInteraction } from '@tn-figueiredo/links-admin/qr-card-builder/use-canvas-interaction'
@@ -35,6 +35,7 @@ export interface SocialCanvasEditorProps {
   onSaveTemplate: (name: string, composition: CardComposition, thumbnail: Blob) => Promise<void>
   onDeleteTemplate: (id: string) => Promise<void>
   onImageUpload: (file: File) => Promise<string>
+  onVideoUpload: (file: File) => Promise<string>
   /** Load an existing composition into the editor (e.g. for editing drafts) */
   initialComposition?: CardComposition
   /** Called on every composition change — lets parent track current state */
@@ -84,7 +85,7 @@ function resolveTemplatePlaceholders(composition: CardComposition, postData: Soc
 export const SocialCanvasEditor = forwardRef<SocialCanvasEditorRef, SocialCanvasEditorProps>(
   function SocialCanvasEditor({
     aspectRatio: initialRatio, templates, postData,
-    onExport, onSaveTemplate, onDeleteTemplate, onImageUpload,
+    onExport, onSaveTemplate, onDeleteTemplate, onImageUpload, onVideoUpload,
     initialComposition, onCompositionChange, hideAspectRatioSelector,
     embedded,
   }: SocialCanvasEditorProps, ref) {
@@ -99,6 +100,29 @@ export const SocialCanvasEditor = forwardRef<SocialCanvasEditorRef, SocialCanvas
     const [isSaving, setIsSaving] = useState(false)
     const [viewportTooSmall, setViewportTooSmall] = useState(false)
     const [, setShowMediaGallery] = useState(false)
+    const [pan, setPan] = useState({ x: 0, y: 0 })
+    const handlePanChange = useCallback((panX: number, panY: number) => setPan({ x: panX, y: panY }), [])
+    const fittedOnMount = useRef(false)
+    const [pausedVideos, setPausedVideos] = useState<Set<string>>(() => new Set())
+    const [videoDurations, setVideoDurations] = useState<Map<string, number>>(() => new Map())
+
+    const handleToggleVideoPlay = useCallback((elementId: string) => {
+      setPausedVideos(prev => {
+        const next = new Set(prev)
+        if (next.has(elementId)) next.delete(elementId)
+        else next.add(elementId)
+        return next
+      })
+    }, [])
+
+    const handleVideoDuration = useCallback((elementId: string, duration: number) => {
+      setVideoDurations(prev => {
+        if (prev.get(elementId) === duration) return prev
+        const next = new Map(prev)
+        next.set(elementId, duration)
+        return next
+      })
+    }, [])
 
     useEffect(() => {
       function check() { setViewportTooSmall(window.innerWidth < 960) }
@@ -117,6 +141,14 @@ export const SocialCanvasEditor = forwardRef<SocialCanvasEditorRef, SocialCanvas
       ro.observe(el)
       return () => ro.disconnect()
     }, [])
+
+    useEffect(() => {
+      if (fittedOnMount.current) return
+      if (containerSize.width > 0 && containerSize.height > 0) {
+        interaction.fitToView(containerSize.width, containerSize.height, comp.composition.canvas.width, comp.composition.canvas.height)
+        fittedOnMount.current = true
+      }
+    }, [containerSize, interaction, comp.composition.canvas.width, comp.composition.canvas.height])
 
     // Expose imperative handle for parent components (e.g. Stories carousel)
     useImperativeHandle(ref, () => ({
@@ -143,9 +175,11 @@ export const SocialCanvasEditor = forwardRef<SocialCanvasEditorRef, SocialCanvas
     const compRef = useRef(comp)
     const interactionRef = useRef(interaction)
     const containerSizeRef = useRef(containerSize)
+    const toggleVideoPlayRef = useRef(handleToggleVideoPlay)
     compRef.current = comp
     interactionRef.current = interaction
     containerSizeRef.current = containerSize
+    toggleVideoPlayRef.current = handleToggleVideoPlay
 
     useEffect(() => {
       function handleKey(e: KeyboardEvent) {
@@ -157,10 +191,16 @@ export const SocialCanvasEditor = forwardRef<SocialCanvasEditorRef, SocialCanvas
         if (cmd && e.key === 'z' && !e.shiftKey) { e.preventDefault(); c.undo() }
         if (cmd && e.key === 'z' && e.shiftKey) { e.preventDefault(); c.redo() }
         if (cmd && e.key === 'g' && !e.shiftKey) { e.preventDefault(); ix.toggleGuides() }
-        if (cmd && e.key === '0') { e.preventDefault(); ix.fitToView(cs.width, cs.height, c.composition.canvas.width, c.composition.canvas.height) }
+        if (cmd && e.key === '0') { e.preventDefault(); ix.fitToView(cs.width, cs.height, c.composition.canvas.width, c.composition.canvas.height); setPan({ x: 0, y: 0 }) }
         if ((e.key === 'Delete' || e.key === 'Backspace') && !cmd) {
           e.preventDefault()
-          ix.selectedIds.forEach(id => c.removeElement(id))
+          ix.selectedIds.forEach(id => {
+            const el = c.composition.elements.find(e => e.id === id)
+            if (el && (el.type === 'image' || el.type === 'video') && c.composition.background.type === 'image' && c.composition.background.url === el.src) {
+              c.setBackground({ type: 'solid', color: '#0a0a0a' })
+            }
+            c.removeElement(id)
+          })
           ix.deselectAll()
         }
         if (cmd && e.key === 'd') {
@@ -190,6 +230,12 @@ export const SocialCanvasEditor = forwardRef<SocialCanvasEditorRef, SocialCanvas
             const idx = c.composition.elements.findIndex(e => e.id === id)
             if (idx > 0) c.reorderElements(idx, idx - 1)
           })
+        }
+        if (e.key === 'k' && !cmd && ix.selectedIds.size > 0) {
+          const videoSelected = Array.from(ix.selectedIds).find(id =>
+            c.composition.elements.find(el => el.id === id && el.type === 'video'),
+          )
+          if (videoSelected) { e.preventDefault(); toggleVideoPlayRef.current(videoSelected) }
         }
         if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && !cmd && ix.selectedIds.size > 0) {
           e.preventDefault()
@@ -222,6 +268,61 @@ export const SocialCanvasEditor = forwardRef<SocialCanvasEditorRef, SocialCanvas
       }
       input.click()
     }, [comp, onImageUpload])
+
+    const handleReplaceVideo = useCallback((elementId: string) => {
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.accept = 'video/mp4,video/webm,video/quicktime'
+      input.onchange = async () => {
+        const file = input.files?.[0]
+        if (!file || file.size > 50 * 1024 * 1024) return
+        try {
+          const remoteUrl = await onVideoUpload(file)
+          if (remoteUrl) comp.updateElement(elementId, { src: remoteUrl })
+        } catch (err) {
+          console.error('[Social Canvas] Replace video failed:', err)
+        }
+      }
+      input.click()
+    }, [comp, onVideoUpload])
+
+    const handleSplash = useCallback((elementId: string) => {
+      const el = comp.composition.elements.find(e => e.id === elementId)
+      if (!el || (el.type !== 'image' && el.type !== 'video')) return
+      const mediaType = el.type === 'video' ? 'video' : 'image'
+      const bg: Record<string, unknown> = { type: 'image', url: el.src, fallbackColor: '#0a0a0a', blur: 45, offsetY: 0, mediaType }
+      if (el.type === 'video') {
+        if (el.startTime > 0) bg.startTime = el.startTime
+        if (el.endTime != null) bg.endTime = el.endTime
+      }
+      comp.setBackground(bg as Parameters<typeof comp.setBackground>[0])
+      const cw = comp.composition.canvas.width
+      const ch = comp.composition.canvas.height
+      const ratio = el.height / el.width
+      let targetW = cw * 0.85
+      let targetH = targetW * ratio
+      if (targetH > ch * 0.75) {
+        targetH = ch * 0.75
+        targetW = targetH / ratio
+      }
+      comp.updateElement(elementId, {
+        width: Math.round(targetW),
+        height: Math.round(targetH),
+        x: Math.round((cw - targetW) / 2),
+        y: Math.round((ch - targetH) / 2),
+        borderRadius: 16,
+      })
+    }, [comp])
+
+    const handleRemoveElement = useCallback((id: string) => {
+      const el = comp.composition.elements.find(e => e.id === id)
+      if (el && (el.type === 'image' || el.type === 'video') && comp.composition.background.type === 'image' && comp.composition.background.url === el.src) {
+        comp.setBackground({ type: 'solid', color: '#0a0a0a' })
+      }
+      comp.removeElement(id)
+      setPausedVideos(prev => { if (!prev.has(id)) return prev; const n = new Set(prev); n.delete(id); return n })
+      setVideoDurations(prev => { if (!prev.has(id)) return prev; const n = new Map(prev); n.delete(id); return n })
+    }, [comp])
 
     const handlePositionElement = useCallback((position: PositionAnchor) => {
       const cw = comp.composition.canvas.width
@@ -298,9 +399,18 @@ export const SocialCanvasEditor = forwardRef<SocialCanvasEditorRef, SocialCanvas
         { label: 'Duplicate', shortcut: 'Ctrl+D', onClick: () => comp.addElement({ ...el, id: crypto.randomUUID(), x: el.x + 20, y: el.y + 20 }) },
         { label: el.locked ? 'Unlock' : 'Lock', shortcut: 'Ctrl+L', onClick: () => comp.updateElement(el.id, { locked: !el.locked }) },
         { separator: true },
-        { label: 'Delete', shortcut: 'Del', onClick: () => { comp.removeElement(el.id); interaction.deselectAll() } },
+        { label: 'Delete', shortcut: 'Del', onClick: () => { handleRemoveElement(el.id); interaction.deselectAll() } },
       ]
-    }, [interaction.contextMenu, comp, interaction])
+    }, [interaction.contextMenu, comp, interaction, handleRemoveElement])
+
+    const videoElementIds = useMemo(
+      () => comp.composition.elements.filter(el => el.type === 'video').map(el => el.id),
+      [comp.composition.elements],
+    )
+    const playingVideos = useMemo(
+      () => new Set(videoElementIds.filter(id => !pausedVideos.has(id))),
+      [videoElementIds, pausedVideos],
+    )
 
     const currentPreset = SOCIAL_ASPECT_RATIOS.find(r => r.name === aspectRatio)!
 
@@ -326,7 +436,7 @@ export const SocialCanvasEditor = forwardRef<SocialCanvasEditorRef, SocialCanvas
           zoom={interaction.zoom}
           onZoomIn={() => interaction.setZoom(interaction.zoom + 0.1)}
           onZoomOut={() => interaction.setZoom(interaction.zoom - 0.1)}
-          onFitToView={() => interaction.fitToView(containerSize.width, containerSize.height, comp.composition.canvas.width, comp.composition.canvas.height)}
+          onFitToView={() => { interaction.fitToView(containerSize.width, containerSize.height, comp.composition.canvas.width, comp.composition.canvas.height); setPan({ x: 0, y: 0 }) }}
           guidesVisible={interaction.guidesVisible}
           onToggleGuides={interaction.toggleGuides}
           gridVisible={interaction.gridVisible}
@@ -346,6 +456,7 @@ export const SocialCanvasEditor = forwardRef<SocialCanvasEditorRef, SocialCanvas
             comp={comp}
             interaction={interaction}
             onImageUpload={onImageUpload}
+            onVideoUpload={onVideoUpload}
             onOpenMediaGallery={() => setShowMediaGallery(true)}
             aspectRatio={aspectRatio}
             onAspectRatioChange={setAspectRatio}
@@ -361,6 +472,11 @@ export const SocialCanvasEditor = forwardRef<SocialCanvasEditorRef, SocialCanvas
               interaction={interaction}
               containerWidth={containerSize.width}
               containerHeight={containerSize.height}
+              panX={pan.x}
+              panY={pan.y}
+              onPanChange={handlePanChange}
+              playingVideos={playingVideos}
+              onVideoDuration={handleVideoDuration}
             />
           </div>
 
@@ -368,8 +484,13 @@ export const SocialCanvasEditor = forwardRef<SocialCanvasEditorRef, SocialCanvas
             composition={comp.composition}
             selectedIds={interaction.selectedIds}
             onUpdateElement={comp.updateElement}
-            onRemoveElement={comp.removeElement}
+            onRemoveElement={handleRemoveElement}
             onReplaceImage={handleReplaceImage}
+            onReplaceVideo={handleReplaceVideo}
+            onSplash={handleSplash}
+            playingVideos={playingVideos}
+            onToggleVideoPlay={handleToggleVideoPlay}
+            videoDurations={videoDurations}
           />
         </div>
 

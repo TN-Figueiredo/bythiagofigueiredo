@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { authenticatePipeline, requirePermission, buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
+import { authenticateRead, authenticateWrite, pipelineSuccess, pipelineError, parseBody } from '@/lib/pipeline/helpers'
+import { buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
 import { PipelineItemCreateSchema, FORMAT_METADATA_SCHEMAS } from '@/lib/pipeline/schemas'
 import { generateCode, DEFAULT_CHECKLISTS, WORKFLOWS, isValidStage } from '@/lib/pipeline/workflows'
 import { decodeCursor, encodeCursor, parseSortParam, applyPipelineFilters } from '@/lib/pipeline/queries'
@@ -8,10 +9,9 @@ import { sanitizeForFilter } from '@/lib/pipeline/sanitize'
 import type { Format } from '@/lib/pipeline/schemas'
 
 export async function GET(req: NextRequest) {
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
-  const { auth } = authResult
-  if (!requirePermission(auth, 'read')) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
+  const result = await authenticateRead(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
   const params = req.nextUrl.searchParams
   const limit = Math.min(parseInt(params.get('limit') || '50'), 200)
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
   const { data, error, count } = await query
   if (error) {
     console.error('[pipeline/items/GET]', error.message)
-    return NextResponse.json({ error: { code: 'DB_ERROR', message: 'Internal server error' } }, { status: 500 })
+    return pipelineError('DB_ERROR', 'Failed to load items', 500, auth)
   }
 
   const hasNext = (data?.length ?? 0) > limit
@@ -73,28 +73,24 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
-  const { auth } = authResult
-  if (!requirePermission(auth, 'write')) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
+  const result = await authenticateWrite(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
-  let body: unknown
-  try {
-    body = await req.json()
-  } catch {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid JSON body' } }, { status: 400 })
-  }
+  const body = await parseBody(req)
+  if (body instanceof Response) return body
+
   const isBatch = Array.isArray(body)
   const items = isBatch ? (body as unknown[]) : [body]
 
   if (items.length > 50) {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Max 50 items per batch' } }, { status: 400 })
+    return pipelineError('VALIDATION_ERROR', 'Max 50 items per batch', 400, auth)
   }
 
   const parsed = items.map((item) => PipelineItemCreateSchema.safeParse(item))
   const firstError = parsed.find((p) => !p.success)
   if (firstError && !firstError.success) {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: firstError.error.issues.map((i) => i.message).join(', ') } }, { status: 400 })
+    return pipelineError('VALIDATION_ERROR', firstError.error.issues.map((i) => i.message).join(', '), 400, auth)
   }
 
   for (const p of parsed) {
@@ -102,16 +98,12 @@ export async function POST(req: NextRequest) {
     const format = p.data.format as Format
     const stage = p.data.stage || 'idea'
     if (!isValidStage(format, stage)) {
-      return NextResponse.json({
-        error: { code: 'VALIDATION_ERROR', message: `Stage "${stage}" is not valid for format "${format}". Valid stages: ${WORKFLOWS[format].map(s => s.stage).join(', ')}` },
-      }, { status: 400 })
+      return pipelineError('VALIDATION_ERROR', `Stage "${stage}" is not valid for format "${format}". Valid stages: ${WORKFLOWS[format].map(s => s.stage).join(', ')}`, 400, auth)
     }
     if (p.data.format_metadata && Object.keys(p.data.format_metadata).length > 0) {
       const metaResult = FORMAT_METADATA_SCHEMAS[format].safeParse(p.data.format_metadata)
       if (!metaResult.success) {
-        return NextResponse.json({
-          error: { code: 'VALIDATION_ERROR', message: `Invalid format_metadata for ${format}: ${metaResult.error.issues.map(i => i.message).join(', ')}` },
-        }, { status: 400 })
+        return pipelineError('VALIDATION_ERROR', `Invalid format_metadata for ${format}: ${metaResult.error.issues.map(i => i.message).join(', ')}`, 400, auth)
       }
     }
   }
@@ -152,11 +144,10 @@ export async function POST(req: NextRequest) {
 
   if (error) {
     if (error.code === '23505') {
-      return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Duplicate code. Please use a unique code.' } }, { status: 409 })
+      return pipelineError('VALIDATION_ERROR', 'Duplicate code. Please use a unique code.', 409, auth)
     }
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: error.message } }, { status: 400 })
+    return pipelineError('VALIDATION_ERROR', 'Failed to create item', 400, auth)
   }
 
-  const headers = buildRateLimitHeaders(auth)
-  return NextResponse.json({ data: isBatch ? inserted : inserted?.[0] }, { status: 201, headers })
+  return pipelineSuccess(isBatch ? inserted : inserted?.[0], 201, auth)
 }

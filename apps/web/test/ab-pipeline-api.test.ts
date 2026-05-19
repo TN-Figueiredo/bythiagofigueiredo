@@ -169,6 +169,7 @@ describe('GET /api/pipeline/youtube/ab-tests/[id]', () => {
     const res = await GET(req, { params: Promise.resolve({ id: 'test-1' }) })
 
     expect(chain.eq).toHaveBeenCalledWith('id', 'test-1')
+    expect(chain.eq).toHaveBeenCalledWith('site_id', 'site-1')
     expect(chain.single).toHaveBeenCalled()
     expect(pipelineSuccess).toHaveBeenCalledWith(test, 200, { keyId: 'test-key', siteId: 'site-1' })
     expect(res.status).toBe(200)

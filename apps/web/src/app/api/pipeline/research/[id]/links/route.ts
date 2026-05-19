@@ -1,25 +1,23 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { authenticatePipeline, requirePermission, buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
+import { UUID_REGEX } from '@/lib/pipeline/auth'
+import { authenticateWrite, pipelineError, pipelineSuccess, parseBody } from '@/lib/pipeline/helpers'
 import { ResearchLinkSchema } from '@/lib/pipeline/research-schemas'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  if (!UUID_REGEX.test(id)) return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid research item ID' } }, { status: 400 })
+  if (!UUID_REGEX.test(id)) return pipelineError('VALIDATION_ERROR', 'Invalid research item ID', 400)
 
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
-  const { auth } = authResult
-  if (!requirePermission(auth, 'write')) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
+  const result = await authenticateWrite(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
-  let body: unknown
-  try { body = await req.json() } catch {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid JSON body' } }, { status: 400 })
-  }
+  const body = await parseBody(req)
+  if (body instanceof Response) return body
 
   const parsed = ResearchLinkSchema.safeParse(body)
   if (!parsed.success) {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: parsed.error.issues.map((i) => i.message).join(', ') } }, { status: 400 })
+    return pipelineError('VALIDATION_ERROR', parsed.error.issues.map((i) => i.message).join(', '), 400, auth)
   }
 
   const supabase = getSupabaseServiceClient()
@@ -31,7 +29,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .eq('site_id', auth.siteId)
     .single()
 
-  if (!researchItem) return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Research item not found' } }, { status: 404 })
+  if (!researchItem) return pipelineError('NOT_FOUND', 'Research item not found', 404, auth)
 
   const { data: link, error } = await supabase
     .from('research_links')
@@ -44,10 +42,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .single()
 
   if (error) {
-    if (error.code === '23505') return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Link already exists' } }, { status: 409 })
-    return NextResponse.json({ error: { code: 'DB_ERROR', message: error.message } }, { status: 500 })
+    if (error.code === '23505') return pipelineError('VALIDATION_ERROR', 'Link already exists', 409, auth)
+    console.error('[research/links/POST]', error.message)
+    return pipelineError('DB_ERROR', 'Failed to create link', 500, auth)
   }
 
-  const headers = buildRateLimitHeaders(auth)
-  return NextResponse.json({ data: link }, { status: 201, headers })
+  return pipelineSuccess(link, 201, auth)
 }

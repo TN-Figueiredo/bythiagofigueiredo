@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { WORKFLOWS } from '@/lib/pipeline/workflows'
 import { API_REGISTRY } from '@/lib/pipeline/api-registry'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { authenticatePipeline, buildRateLimitHeaders } from '@/lib/pipeline/auth'
+import { buildRateLimitHeaders } from '@/lib/pipeline/auth'
+import { authenticateRead } from '@/lib/pipeline/helpers'
 import { getSiteContext } from '@/lib/cms/site-context'
 
 async function loadDirectives(siteId: string): Promise<Record<string, { version: number; value: unknown }>> {
@@ -22,11 +23,9 @@ async function loadDirectives(siteId: string): Promise<Record<string, { version:
 }
 
 export async function GET(req: NextRequest) {
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) {
-    return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
-  }
-  const { auth } = authResult
+  const result = await authenticateRead(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
   let directives: Record<string, { version: number; value: unknown }> = {}
   try {

@@ -79,6 +79,10 @@ function SlideProgressGrid({ statuses }: { statuses: SlideStatus[] }) {
 // binding siteId/postId before passing the callbacks.
 // ---------------------------------------------------------------------------
 
+function toLocalDatetimeStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
 export function PublishDialog({
   slides,
   caption,
@@ -89,7 +93,11 @@ export function PublishDialog({
   onSchedule,
 }: PublishDialogProps) {
   const [mode, setMode] = useState<'idle' | 'publishing' | 'done' | 'error'>('idle')
-  const [scheduledAt, setScheduledAt] = useState('')
+  const [scheduledAt, setScheduledAt] = useState(() => {
+    const d = new Date(Date.now() + 60 * 60 * 1000)
+    d.setMinutes(Math.ceil(d.getMinutes() / 5) * 5, 0, 0)
+    return toLocalDatetimeStr(d)
+  })
   const [slideStatuses, setSlideStatuses] = useState<SlideStatus[]>([])
   const [errorMessage, setErrorMessage] = useState('')
   const [isPending, startTransition] = useTransition()
@@ -316,6 +324,7 @@ export function PublishDialog({
                   type="datetime-local"
                   value={scheduledAt}
                   onChange={(e) => setScheduledAt(e.target.value)}
+                  min={toLocalDatetimeStr(new Date())}
                   className="flex-1 rounded-lg border border-neutral-600 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-200 focus:border-blue-500 focus:outline-none"
                   aria-label="Data e hora de agendamento"
                 />

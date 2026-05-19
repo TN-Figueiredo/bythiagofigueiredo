@@ -40,7 +40,7 @@ const VALID_SLIDE = {
 
 function buildUpsertChain(data: unknown, error: { message: string } | null = null) {
   const chain: Record<string, unknown> = {}
-  const fluent = ['select', 'upsert', 'insert', 'update', 'eq', 'order']
+  const fluent = ['select', 'upsert', 'insert', 'update', 'eq', 'order', 'is', 'in', 'limit', 'lt', 'lte', 'gte']
   for (const m of fluent) {
     chain[m] = vi.fn(() => chain)
   }
@@ -50,7 +50,23 @@ function buildUpsertChain(data: unknown, error: { message: string } | null = nul
   return chain
 }
 
+const REAL_CONN_UUID = 'cccccccc-cccc-cccc-cccc-cccccccccccc'
+
 let mockFrom: ReturnType<typeof vi.fn>
+
+function buildDeliveryChain() {
+  const chain = buildUpsertChain(null)
+  chain.single = vi.fn(() => Promise.resolve({ data: { id: REAL_CONN_UUID }, error: null }))
+  return chain
+}
+
+function setupMockFrom(postsChain: ReturnType<typeof buildUpsertChain>) {
+  mockFrom.mockImplementation((table: string) => {
+    if (table === 'social_posts') return postsChain
+    if (table === 'social_deliveries' || table === 'social_connections') return buildDeliveryChain()
+    return postsChain
+  })
+}
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -186,7 +202,7 @@ describe('publishStoryNow', () => {
 
   it('upserts with status=publishing', async () => {
     const chain = buildUpsertChain({ id: REAL_POST_UUID, template_id: null, idempotency_key: 'k1', created_at: '2026-05-01T00:00:00Z', user_timezone: 'America/Sao_Paulo' })
-    mockFrom.mockReturnValue(chain)
+    setupMockFrom(chain)
 
     const result = await publishStoryNow(REAL_SITE_UUID, REAL_POST_UUID, [VALID_SLIDE])
 
@@ -199,7 +215,7 @@ describe('publishStoryNow', () => {
 
   it('fires publishSocialPost workflow non-blocking', async () => {
     const chain = buildUpsertChain({ id: REAL_POST_UUID, template_id: null, idempotency_key: 'k1', created_at: '2026-05-01T00:00:00Z', user_timezone: 'UTC' })
-    mockFrom.mockReturnValue(chain)
+    setupMockFrom(chain)
 
     await publishStoryNow(REAL_SITE_UUID, REAL_POST_UUID, [VALID_SLIDE])
 
@@ -273,7 +289,7 @@ describe('scheduleStory', () => {
 
   it('upserts with status=scheduled and correct scheduled_at', async () => {
     const chain = buildUpsertChain({ id: REAL_POST_UUID })
-    mockFrom.mockReturnValue(chain)
+    setupMockFrom(chain)
 
     const result = await scheduleStory(REAL_SITE_UUID, REAL_POST_UUID, [VALID_SLIDE], FUTURE_DATE)
 
@@ -306,7 +322,7 @@ describe('scheduleStory', () => {
 
   it('calls revalidateSocialPaths on success', async () => {
     const chain = buildUpsertChain({ id: REAL_POST_UUID })
-    mockFrom.mockReturnValue(chain)
+    setupMockFrom(chain)
 
     await scheduleStory(REAL_SITE_UUID, REAL_POST_UUID, [VALID_SLIDE], FUTURE_DATE)
 

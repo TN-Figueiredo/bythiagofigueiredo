@@ -1,27 +1,24 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { authenticatePipeline, requirePermission, buildRateLimitHeaders, UUID_REGEX } from '@/lib/pipeline/auth'
+import { authenticateWrite, pipelineSuccess, pipelineError, parseBody } from '@/lib/pipeline/helpers'
+import { UUID_REGEX } from '@/lib/pipeline/auth'
 import { GraduateSchema } from '@/lib/pipeline/schemas'
 import { prepareBlogTranslationPatch } from '@/lib/pipeline/draft-to-blog'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   if (!UUID_REGEX.test(id)) {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid item ID format' } }, { status: 400 })
+    return pipelineError('VALIDATION_ERROR', 'Invalid item ID format', 400)
   }
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
-  const { auth } = authResult
-  if (!requirePermission(auth, 'write')) return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 })
+  const result = await authenticateWrite(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
-  let body: unknown
-  try {
-    body = await req.json()
-  } catch {
-    return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid JSON body' } }, { status: 400 })
-  }
+  const body = await parseBody(req)
+  if (body instanceof Response) return body
+
   const parsed = GraduateSchema.safeParse(body)
-  if (!parsed.success) return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: parsed.error.issues.map((i) => i.message).join(', ') } }, { status: 400 })
+  if (!parsed.success) return pipelineError('VALIDATION_ERROR', parsed.error.issues.map((i) => i.message).join(', '), 400, auth)
 
   const { target } = parsed.data
   const supabase = getSupabaseServiceClient()
@@ -33,27 +30,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .eq('site_id', auth.siteId)
     .single()
 
-  if (!item) return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Item not found' } }, { status: 404 })
+  if (!item) return pipelineError('NOT_FOUND', 'Item not found', 404, auth)
 
   const title = item.title_pt || item.title_en
-  if (!title) return NextResponse.json({ error: { code: 'INVALID_OPERATION', message: 'Item must have a title to graduate' } }, { status: 422 })
+  if (!title) return pipelineError('INVALID_OPERATION', 'Item must have a title to graduate', 422, auth)
 
   const fkMap = { blog_post: 'blog_post_id', newsletter: 'newsletter_edition_id', campaign: 'campaign_id' } as const
   if (item[fkMap[target]]) {
-    return NextResponse.json({ error: { code: 'INVALID_OPERATION', message: `Already graduated to ${target}` } }, { status: 409 })
+    return pipelineError('INVALID_OPERATION', `Already graduated to ${target}`, 409, auth)
   }
 
   let entityId: string | null = null
   let fkField: string | null = null
 
   if (target === 'blog_post') {
-    if (!item.created_by) return NextResponse.json({ error: { code: 'INVALID_OPERATION', message: 'Item has no creator — cannot resolve author' } }, { status: 422 })
+    if (!item.created_by) return pipelineError('INVALID_OPERATION', 'Item has no creator — cannot resolve author', 422, auth)
     const { data: author } = await supabase
       .from('authors')
       .select('id')
       .eq('user_id', item.created_by)
       .single()
-    if (!author) return NextResponse.json({ error: { code: 'INVALID_OPERATION', message: 'No author profile found for this user' } }, { status: 422 })
+    if (!author) return pipelineError('INVALID_OPERATION', 'No author profile found for this user', 422, auth)
 
     const primaryLocale = item.language === 'en' ? 'en' : 'pt-br'
     const { data: post, error } = await supabase
@@ -68,7 +65,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       })
       .select('id')
       .single()
-    if (error) return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: error.message } }, { status: 400 })
+    if (error) return pipelineError('DB_ERROR', 'Failed to create blog post', 400, auth)
 
     const makeSlug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 200)
     const sections = item.sections as Record<string, unknown> | null
@@ -109,7 +106,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       })
       .select('id')
       .single()
-    if (error) return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: error.message } }, { status: 400 })
+    if (error) return pipelineError('DB_ERROR', 'Failed to create newsletter edition', 400, auth)
     entityId = edition.id
     fkField = 'newsletter_edition_id'
   } else if (target === 'campaign') {
@@ -123,7 +120,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       })
       .select('id')
       .single()
-    if (error) return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: error.message } }, { status: 400 })
+    if (error) return pipelineError('DB_ERROR', 'Failed to create campaign', 400, auth)
     entityId = campaign.id
     fkField = 'campaign_id'
   }
@@ -137,6 +134,5 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     })
   }
 
-  const headers = buildRateLimitHeaders(auth)
-  return NextResponse.json({ data: { graduated: true, target, entity_id: entityId } }, { headers })
+  return pipelineSuccess({ graduated: true, target, entity_id: entityId }, 200, auth)
 }
