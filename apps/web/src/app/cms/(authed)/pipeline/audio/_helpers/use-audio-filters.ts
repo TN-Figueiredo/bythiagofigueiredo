@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { useSearchParams, useRouter } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 
 export interface AudioFilterState {
   q: string | null
@@ -63,9 +63,15 @@ export function deserializeFilters(params: URLSearchParams): AudioFilterState {
   }
 }
 
+function replaceUrl(params: URLSearchParams): void {
+  if (typeof window === 'undefined') return
+  const qs = params.toString()
+  const url = qs ? `${window.location.pathname}?${qs}` : window.location.pathname
+  window.history.replaceState(null, '', url)
+}
+
 export function useAudioFilters() {
   const searchParams = useSearchParams()
-  const router = useRouter()
   const [filters, setFiltersLocal] = useState<AudioFilterState>(() => deserializeFilters(searchParams))
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
@@ -74,18 +80,17 @@ export function useAudioFilters() {
       const next = typeof updater === 'function' ? updater(prev) : { ...prev, ...updater }
       clearTimeout(debounceRef.current)
       debounceRef.current = setTimeout(() => {
-        const params = serializeFilters(next)
-        const qs = params.toString()
-        router.replace(qs ? `?${qs}` : '?', { scroll: false })
+        replaceUrl(serializeFilters(next))
       }, 300)
       return next
     })
-  }, [router])
+  }, [])
 
   const clearAll = useCallback(() => {
     setFiltersLocal(DEFAULTS)
-    router.replace('?', { scroll: false })
-  }, [router])
+    clearTimeout(debounceRef.current)
+    replaceUrl(new URLSearchParams())
+  }, [])
 
   useEffect(() => () => clearTimeout(debounceRef.current), [])
 

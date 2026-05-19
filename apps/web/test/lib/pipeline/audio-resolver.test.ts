@@ -159,24 +159,27 @@ describe('scoreAsset', () => {
   })
 })
 
+function mockThenableChain(resolvedValue: { data: unknown; error: unknown }) {
+  const chain: Record<string, unknown> = {}
+  const self = () => chain
+  chain.select = vi.fn(self)
+  chain.eq = vi.fn(self)
+  chain.neq = vi.fn(self)
+  chain.overlaps = vi.fn(self)
+  chain.gte = vi.fn(self)
+  chain.lte = vi.fn(self)
+  chain.textSearch = vi.fn(self)
+  chain.then = (resolve: (v: unknown) => void) => Promise.resolve(resolvedValue).then(resolve)
+  return { from: vi.fn(() => chain) }
+}
+
 describe('resolveAudio', () => {
   it('returns sorted matches with query_time_ms', async () => {
     const mockData = [
       makeAsset({ asset_id: 'low', tags: [], mood: [], instruments: [], reuse_scenarios: [], category: null, energy: null, bpm: null, duration_seconds: null }),
       makeAsset({ asset_id: 'high' }),
     ]
-    const mockSupabase = {
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        neq: vi.fn().mockReturnThis(),
-        overlaps: vi.fn().mockReturnThis(),
-        gte: vi.fn().mockReturnThis(),
-        lte: vi.fn().mockReturnThis(),
-        textSearch: vi.fn().mockReturnThis(),
-        limit: vi.fn().mockResolvedValue({ data: mockData, error: null }),
-      }),
-    }
+    const mockSupabase = mockThenableChain({ data: mockData, error: null })
 
     const result = await resolveAudio(mockSupabase as never, 'site-id', fullQuery())
     expect(result.matches.length).toBeGreaterThan(0)
@@ -185,52 +188,19 @@ describe('resolveAudio', () => {
   })
 
   it('returns empty matches when no candidates', async () => {
-    const mockSupabase = {
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        neq: vi.fn().mockReturnThis(),
-        overlaps: vi.fn().mockReturnThis(),
-        gte: vi.fn().mockReturnThis(),
-        lte: vi.fn().mockReturnThis(),
-        textSearch: vi.fn().mockReturnThis(),
-        limit: vi.fn().mockResolvedValue({ data: [], error: null }),
-      }),
-    }
+    const mockSupabase = mockThenableChain({ data: [], error: null })
     const result = await resolveAudio(mockSupabase as never, 'site-id', fullQuery())
     expect(result.matches).toHaveLength(0)
   })
 
   it('throws on supabase error', async () => {
-    const mockSupabase = {
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        neq: vi.fn().mockReturnThis(),
-        overlaps: vi.fn().mockReturnThis(),
-        gte: vi.fn().mockReturnThis(),
-        lte: vi.fn().mockReturnThis(),
-        textSearch: vi.fn().mockReturnThis(),
-        limit: vi.fn().mockResolvedValue({ data: null, error: { message: 'connection refused' } }),
-      }),
-    }
+    const mockSupabase = mockThenableChain({ data: null, error: { message: 'connection refused' } })
     await expect(resolveAudio(mockSupabase as never, 'site-id', fullQuery())).rejects.toThrow('connection refused')
   })
 
   it('filters out zero-score assets', async () => {
     const zeroScoreAsset = makeAsset({ category: 'jazz', tags: ['relaxed'], mood: ['calm'], instruments: ['piano'], reuse_scenarios: ['podcast'], energy: 2, bpm: 70, duration_seconds: 45 })
-    const mockSupabase = {
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        neq: vi.fn().mockReturnThis(),
-        overlaps: vi.fn().mockReturnThis(),
-        gte: vi.fn().mockReturnThis(),
-        lte: vi.fn().mockReturnThis(),
-        textSearch: vi.fn().mockReturnThis(),
-        limit: vi.fn().mockResolvedValue({ data: [zeroScoreAsset], error: null }),
-      }),
-    }
+    const mockSupabase = mockThenableChain({ data: [zeroScoreAsset], error: null })
     const result = await resolveAudio(mockSupabase as never, 'site-id', fullQuery())
     expect(result.matches).toHaveLength(0)
   })
@@ -255,19 +225,7 @@ function createMockSupabase(assets: Array<{ id: string; score: number; status: s
     original_filename: `${a.id}.mp3`,
   }))
 
-  return {
-    from: () => ({
-      select: () => ({
-        eq: function() { return this },
-        neq: function() { return this },
-        overlaps: function() { return this },
-        gte: function() { return this },
-        lte: function() { return this },
-        textSearch: function() { return this },
-        limit: () => Promise.resolve({ data, error: null }),
-      }),
-    }),
-  }
+  return mockThenableChain({ data, error: null })
 }
 
 describe('resolveAudioSlots', () => {

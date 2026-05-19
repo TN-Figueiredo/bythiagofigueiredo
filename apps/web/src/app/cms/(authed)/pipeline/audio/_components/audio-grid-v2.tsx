@@ -46,6 +46,8 @@ export function AudioGridV2({ assets, selectedId, onSelect }: AudioGridV2Props) 
           key={asset.id}
           data-card-animate
           style={{
+            contentVisibility: 'auto',
+            containIntrinsicSize: 'auto 200px',
             animation: 'fade-in-up 0.3s ease-out both',
             animationDelay: `${Math.min(i * 30, 300)}ms`,
             animationPlayState: 'paused',

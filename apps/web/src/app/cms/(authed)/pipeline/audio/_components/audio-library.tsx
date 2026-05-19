@@ -17,6 +17,9 @@ interface Stats { total: number; music: number; sfx: number; downloaded: number;
 interface AudioLibraryProps {
   initialAssets: AudioAssetRow[]
   stats: Stats
+  initialHasNext?: boolean
+  initialNextCursor?: string | null
+  allTags?: string[]
 }
 
 function deriveTags(assets: AudioAssetRow[]): string[] {
@@ -27,17 +30,21 @@ function deriveTags(assets: AudioAssetRow[]): string[] {
   return Array.from(seen).sort()
 }
 
-export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
+export function AudioLibrary({ initialAssets, stats, initialHasNext = false, initialNextCursor = null, allTags }: AudioLibraryProps) {
   const [assets, setAssets] = useState<AudioAssetRow[]>(initialAssets)
-  const availableTags = useMemo(() => deriveTags(assets), [assets])
+  const derivedTags = useMemo(() => deriveTags(assets), [assets])
+  const availableTags = allTags && allTags.length > 0 ? allTags : derivedTags
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid')
   const [showImport, setShowImport] = useState(false)
   const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [hasNext, setHasNext] = useState(false)
-  const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [hasNext, setHasNext] = useState(initialHasNext)
+  const [nextCursor, setNextCursor] = useState<string | null>(initialNextCursor)
+  const [apiTotal, setApiTotal] = useState<number | null>(null)
   const [fetchError, setFetchError] = useState<string | null>(null)
+  const [isAtBottom, setIsAtBottom] = useState(false)
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const loadMoreAbortRef = useRef<AbortController | null>(null)
   const gTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
@@ -91,6 +98,7 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
         setAssets(json.data)
         setHasNext(json.meta?.has_next ?? false)
         setNextCursor(json.meta?.next_cursor ?? null)
+        setApiTotal(json.meta?.total ?? null)
       }
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return
@@ -102,6 +110,7 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
 
   const loadMore = useCallback(async () => {
     if (!hasNext || !nextCursor || loadingMore) return
+    setFetchError(null)
     loadMoreAbortRef.current?.abort()
     const controller = new AbortController()
     loadMoreAbortRef.current = controller
@@ -137,6 +146,29 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
     setNextCursor(null)
     refetch(serializeFilters(filters))
   }, [filters, refetch])
+
+  const displayTotal = apiTotal ?? stats.total
+
+  const sentinelRef = useRef<HTMLDivElement | null>(null)
+  const loadMoreRef = useRef(loadMore)
+  loadMoreRef.current = loadMore
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current
+    if (!sentinel) return
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsAtBottom(entry?.isIntersecting ?? false),
+      { root: scrollContainerRef.current, rootMargin: '200px' },
+    )
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    if (isAtBottom && hasNext && !loadingMore && !fetchError) {
+      loadMoreRef.current()
+    }
+  }, [isAtBottom, hasNext, loadingMore, fetchError])
 
   const [gPressed, setGPressed] = useState(false)
 
@@ -178,7 +210,7 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
       )}
 
       {/* Center: Main content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 0 }}>
+      <div ref={scrollContainerRef} style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 0 }}>
         {/* Toolbar */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 8 }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -189,7 +221,10 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
               {showFilters ? 'Hide Filters' : 'Filters'}
             </button>
             <span style={{ fontSize: 12, color: 'var(--gem-muted)' }}>
-              {liveStats.total} track{liveStats.total !== 1 ? 's' : ''}
+              {hasNext
+                ? <>{liveStats.total} of {displayTotal} track{displayTotal !== 1 ? 's' : ''}</>
+                : <>{liveStats.total} track{liveStats.total !== 1 ? 's' : ''}</>
+              }
               {activeCount > 0 && ` (filtered)`}
             </span>
           </div>
@@ -248,22 +283,35 @@ export function AudioLibrary({ initialAssets, stats }: AudioLibraryProps) {
             : <AudioTableV2 assets={assets} selectedId={selectedId} onSelect={setSelectedId} onRefetch={() => refetch(serializeFilters(filters))} />
         )}
 
-        {/* Load more */}
+        {/* Infinite scroll sentinel */}
+        <div ref={sentinelRef} style={{ minHeight: 1 }} />
         {hasNext && (
-          <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 16 }}>
-            <button
-              onClick={loadMore}
-              disabled={loadingMore}
-              style={{ padding: '6px 20px', fontSize: 12, borderRadius: 5, border: '1px solid var(--gem-border)', background: 'var(--gem-surface-hi)', color: 'var(--gem-text)', cursor: loadingMore ? 'not-allowed' : 'pointer', opacity: loadingMore ? 0.6 : 1 }}
-            >
-              {loadingMore ? 'Loading more...' : 'Load more'}
-            </button>
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 0', gap: 12, alignItems: 'center' }}>
+            {loadingMore && <span style={{ fontSize: 12, color: 'var(--gem-muted)' }}>Loading more...</span>}
+            {!loadingMore && (
+              <button
+                onClick={loadMore}
+                style={{ padding: '6px 20px', fontSize: 12, borderRadius: 5, border: '1px solid var(--gem-border)', background: 'var(--gem-surface-hi)', color: 'var(--gem-text)', cursor: 'pointer' }}
+              >
+                Load more ({liveStats.total} of {displayTotal})
+              </button>
+            )}
           </div>
         )}
 
+        {/* Accessible loading announcements */}
+        <div aria-live="polite" aria-atomic="true" className="sr-only">
+          {loadingMore ? 'Loading more audio tracks...' : ''}
+          {!hasNext && assets.length > 0 ? `All ${displayTotal} tracks loaded.` : ''}
+        </div>
+
         {/* Stats bar */}
         <div style={{ marginTop: 'auto', paddingTop: 24, fontSize: 11, color: 'var(--gem-muted)' }}>
-          {stats.total} total · Showing {liveStats.total} · {liveStats.music} music · {liveStats.sfx} sfx · {liveStats.downloaded} ready · {liveStats.pending} pending
+          {hasNext
+            ? <>{liveStats.total} of {displayTotal} loaded</>
+            : <>{displayTotal} total</>
+          }
+          {' · '}{liveStats.music} music · {liveStats.sfx} sfx · {liveStats.downloaded} ready · {liveStats.pending} pending
         </div>
       </div>
 

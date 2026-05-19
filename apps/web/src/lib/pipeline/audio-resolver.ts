@@ -112,7 +112,7 @@ export async function resolveAudio(
   if (query.bpm_range) q = q.gte('bpm', query.bpm_range.min).lte('bpm', query.bpm_range.max)
   if (query.description) q = q.textSearch('search_vector', query.description, { type: 'websearch', config: 'english' })
 
-  const { data, error } = await q.limit((query.limit ?? 5) * 4)
+  const { data, error } = await q
   if (error) throw new Error(error.message)
 
   const matches = ((data ?? []) as AudioAssetRow[])

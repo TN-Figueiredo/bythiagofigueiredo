@@ -112,6 +112,8 @@ const AudioTableRow = memo(function AudioTableRow({
     <tr
       onClick={onSelect}
       style={{
+        contentVisibility: 'auto',
+        containIntrinsicSize: 'auto 48px',
         borderBottom: '1px solid var(--gem-border)',
         cursor: 'pointer',
         background: rowBg,

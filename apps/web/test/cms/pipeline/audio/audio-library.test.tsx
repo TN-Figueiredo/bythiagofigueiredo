@@ -198,14 +198,13 @@ describe('AudioLibrary', () => {
 
   it('shows stats bar with live counts', () => {
     renderLibrary()
-    // The stats bar text is spread across multiple nodes; query by partial text
-    const showing = screen.getByText(/Showing/)
-    expect(showing).toBeTruthy()
-    // The full stats bar is in the parent element
-    const statsBar = showing.closest('div') as HTMLElement
-    expect(statsBar.textContent).toContain('2')
+    const statsEl = screen.getByText(/total/)
+    expect(statsEl).toBeTruthy()
+    const statsBar = statsEl.closest('div') as HTMLElement
     expect(statsBar.textContent).toContain('music')
     expect(statsBar.textContent).toContain('sfx')
+    expect(statsBar.textContent).toContain('ready')
+    expect(statsBar.textContent).toContain('pending')
   })
 
   it('shows filters panel by default on wide screen', () => {
