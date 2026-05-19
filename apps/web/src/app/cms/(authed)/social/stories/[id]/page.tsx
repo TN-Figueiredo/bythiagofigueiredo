@@ -1,9 +1,12 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import { z } from 'zod'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { CmsTopbar } from '@tn-figueiredo/cms-ui/client'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { saveStoryDraft, publishStoryNow, scheduleStory } from '@/lib/social/actions/story-publish'
+import { getStoryInsights } from '@/lib/social/actions/story-metrics'
 import { StoryPreview } from '../_components/story-preview'
 import { StoryInsightsPanel } from '../_components/story-insights'
 import { HighlightsTip } from '../_components/highlights-tip'
@@ -21,6 +24,7 @@ export default async function StoryDetailPage({ params }: Props) {
   await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'view' })
 
   const { id } = await params
+  if (!z.string().uuid().safeParse(id).success) notFound()
 
   const supabase = getSupabaseServiceClient()
   const { data, error } = await supabase
@@ -71,6 +75,31 @@ export default async function StoryDetailPage({ params }: Props) {
       hour: '2-digit',
       minute: '2-digit',
     })
+  }
+
+  const handleSaveDraft = async (
+    slides: unknown[],
+    content?: { caption?: string },
+  ) => {
+    'use server'
+    return saveStoryDraft(ctx.siteId, post.id, slides, content)
+  }
+
+  const handlePublishNow = async (
+    slides: unknown[],
+    content?: { caption?: string },
+  ) => {
+    'use server'
+    return publishStoryNow(ctx.siteId, post.id, slides, content)
+  }
+
+  const handleSchedule = async (
+    slides: unknown[],
+    scheduledAt: string,
+    content?: { caption?: string },
+  ) => {
+    'use server'
+    return scheduleStory(ctx.siteId, post.id, slides, scheduledAt, content)
   }
 
   return (
@@ -127,10 +156,11 @@ export default async function StoryDetailPage({ params }: Props) {
                   Editar
                 </Link>
                 <PublishDialogClient
-                  siteId={ctx.siteId}
-                  postId={post.id}
                   slides={slides}
                   caption={caption}
+                  onSaveDraft={handleSaveDraft}
+                  onPublishNow={handlePublishNow}
+                  onSchedule={handleSchedule}
                 />
               </>
             )}
@@ -147,7 +177,7 @@ export default async function StoryDetailPage({ params }: Props) {
         {isCompleted && (
           <section aria-label="Métricas">
             <h2 className="text-sm font-semibold text-cms-text mb-3">Métricas</h2>
-            <StoryInsightsPanel siteId={ctx.siteId} postId={post.id} />
+            <StoryInsightsPanel siteId={ctx.siteId} postId={post.id} getInsights={getStoryInsights} />
           </section>
         )}
 

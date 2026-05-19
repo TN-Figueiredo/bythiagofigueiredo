@@ -3,7 +3,7 @@ import { Plus } from 'lucide-react'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { CmsTopbar } from '@tn-figueiredo/cms-ui/client'
-import { getStoryCounts } from '@/lib/social/actions/stories'
+import { getStoryCounts, getStories } from '@/lib/social/actions/stories'
 import { StoriesGallery } from './_components/stories-gallery'
 
 export const dynamic = 'force-dynamic'
@@ -37,7 +37,7 @@ export default async function StoriesPage() {
           </Link>
         </div>
 
-        <StoriesGallery siteId={ctx.siteId} initialCounts={counts} />
+        <StoriesGallery siteId={ctx.siteId} initialCounts={counts} fetchStories={getStories} />
       </div>
     </>
   )

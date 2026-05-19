@@ -1,10 +1,14 @@
 'use server'
 
+import { z } from 'zod'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { requireEditAccess } from './_shared'
+import { FanInteractionSchema } from '../story-types'
 import type { FanScore } from '../story-types'
 
 export async function getTopFans(siteId: string, limit = 20): Promise<FanScore[]> {
+  z.string().uuid().parse(siteId)
+  const clampedLimit = Math.min(Math.max(1, limit), 100)
   const { siteId: authorizedSiteId } = await requireEditAccess()
   if (siteId !== authorizedSiteId) throw new Error('forbidden')
   const supabase = getSupabaseServiceClient()
@@ -14,7 +18,7 @@ export async function getTopFans(siteId: string, limit = 20): Promise<FanScore[]
     .select('*')
     .eq('site_id', siteId)
     .order('score', { ascending: false })
-    .limit(limit)
+    .limit(clampedLimit)
 
   if (error) throw error
   return (data ?? []) as FanScore[]
@@ -31,13 +35,17 @@ export async function recordFanInteraction(
     raw?: Record<string, unknown>
   },
 ): Promise<void> {
+  const validated = FanInteractionSchema.parse({
+    site_id: siteId,
+    ...interaction,
+  })
   const { siteId: authorizedSiteId } = await requireEditAccess()
-  if (siteId !== authorizedSiteId) throw new Error('forbidden')
+  if (validated.site_id !== authorizedSiteId) throw new Error('forbidden')
   const supabase = getSupabaseServiceClient()
 
   const { error } = await supabase
     .from('fan_interactions')
-    .insert({ site_id: siteId, ...interaction })
+    .insert(validated)
 
   if (error) throw error
 }

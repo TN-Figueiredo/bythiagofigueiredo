@@ -6,6 +6,7 @@ import { requireEditAccess } from './_shared'
 import type { StoryInsights, SlideMetrics } from '../story-types'
 
 export async function getStoryInsights(siteId: string, postId: string): Promise<StoryInsights | null> {
+  z.string().uuid().parse(siteId)
   const { siteId: authorizedSiteId } = await requireEditAccess()
   if (siteId !== authorizedSiteId) throw new Error('forbidden')
 

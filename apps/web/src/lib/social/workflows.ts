@@ -442,8 +442,7 @@ export async function publishSocialPost(
             const token = createDecryptor()(connection.page_token_enc!)
             const igUserId = (connection.metadata as { ig_user_id: string }).ig_user_id
 
-            // Use a conservative budget (200 = full daily headroom; real value comes from header parsing)
-            const results = await metaMod.publishMultiSlideStory(igUserId, token, mediaUrls, 200)
+            const results = await metaMod.publishMultiSlideStory(igUserId, token, mediaUrls, 100)
             const firstResult = results[0]
             return {
               deliveryId: delivery.id,

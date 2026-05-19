@@ -2,11 +2,6 @@
 
 import { useState, useTransition } from 'react'
 import type { CardComposition } from '@tn-figueiredo/links/qr'
-import {
-  saveStoryDraft,
-  publishStoryNow,
-  scheduleStory,
-} from '@/lib/social/actions/story-publish'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -14,9 +9,13 @@ import {
 
 type SlideStatus = 'pending' | 'publishing' | 'done' | 'failed'
 
-interface PublishDialogProps {
-  siteId: string
-  postId: string
+export interface PublishDialogCallbacks {
+  onSaveDraft: (slides: unknown[], content?: { caption?: string }) => Promise<{ ok: boolean; error?: string; data?: { id: string } }>
+  onPublishNow: (slides: unknown[], content?: { caption?: string }) => Promise<{ ok: boolean; error?: string; data?: { id: string } }>
+  onSchedule: (slides: unknown[], scheduledAt: string, content?: { caption?: string }) => Promise<{ ok: boolean; error?: string; data?: { id: string } }>
+}
+
+export interface PublishDialogProps extends PublishDialogCallbacks {
   slides: CardComposition[]
   caption?: string
   onClose: () => void
@@ -30,92 +29,92 @@ interface PublishDialogProps {
 function SlideProgressGrid({ statuses }: { statuses: SlideStatus[] }) {
   if (statuses.length === 0) return null
 
+  const colors: Record<SlideStatus, string> = {
+    pending:    'bg-neutral-700 border-neutral-600 text-neutral-400',
+    publishing: 'bg-blue-500/20 border-blue-500 text-blue-300 animate-pulse',
+    done:       'bg-green-500/20 border-green-500 text-green-400',
+    failed:     'bg-red-500/20 border-red-500 text-red-400',
+  }
+  const labels: Record<SlideStatus, string> = {
+    pending:    'Pendente',
+    publishing: 'Publicando',
+    done:       'Pronto',
+    failed:     'Falhou',
+  }
+
   return (
     <div className="flex flex-wrap gap-2" role="list" aria-label="Progresso por slide">
-      {statuses.map((status, i) => {
-        const colors: Record<SlideStatus, string> = {
-          pending:    'bg-neutral-700 border-neutral-600 text-neutral-400',
-          publishing: 'bg-blue-500/20 border-blue-500 text-blue-300 animate-pulse',
-          done:       'bg-green-500/20 border-green-500 text-green-400',
-          failed:     'bg-red-500/20 border-red-500 text-red-400',
-        }
-        const labels: Record<SlideStatus, string> = {
-          pending:    'Pendente',
-          publishing: 'Publicando',
-          done:       'Pronto',
-          failed:     'Falhou',
-        }
-        return (
-          <div
-            key={i}
-            role="listitem"
-            aria-label={`Slide ${i + 1}: ${labels[status]}`}
-            className={[
-              'flex h-8 w-8 items-center justify-center rounded border text-[10px] font-bold tabular-nums transition-all',
-              colors[status],
-            ].join(' ')}
-          >
-            {status === 'done' ? (
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            ) : status === 'failed' ? (
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-            ) : (
-              i + 1
-            )}
-          </div>
-        )
-      })}
+      {statuses.map((status, i) => (
+        <div
+          key={i}
+          role="listitem"
+          aria-label={`Slide ${i + 1}: ${labels[status]}`}
+          className={[
+            'flex h-8 w-8 items-center justify-center rounded border text-[10px] font-bold tabular-nums transition-all',
+            colors[status],
+          ].join(' ')}
+        >
+          {status === 'done' ? (
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+              <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          ) : status === 'failed' ? (
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+              <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          ) : (
+            i + 1
+          )}
+        </div>
+      ))}
     </div>
   )
 }
 
 // ---------------------------------------------------------------------------
 // PublishDialog
+//
+// Receives action callbacks as props — never imports server actions directly.
+// The parent (server component page or client shell) is responsible for
+// binding siteId/postId before passing the callbacks.
 // ---------------------------------------------------------------------------
 
 export function PublishDialog({
-  siteId,
-  postId,
   slides,
   caption,
   onClose,
   onSuccess,
+  onSaveDraft,
+  onPublishNow,
+  onSchedule,
 }: PublishDialogProps) {
-  const [mode, setMode] = useState<'idle' | 'publishing' | 'scheduling' | 'done' | 'error'>('idle')
+  const [mode, setMode] = useState<'idle' | 'publishing' | 'done' | 'error'>('idle')
   const [scheduledAt, setScheduledAt] = useState('')
   const [slideStatuses, setSlideStatuses] = useState<SlideStatus[]>([])
   const [errorMessage, setErrorMessage] = useState('')
   const [isPending, startTransition] = useTransition()
 
-  function initSlideStatuses(count: number): SlideStatus[] {
-    return Array.from({ length: count }, () => 'pending')
-  }
+  const content = caption ? { caption } : undefined
 
   // ---------------------------------------------------------------------------
   // Publicar Agora
   // ---------------------------------------------------------------------------
   function handlePublishNow() {
-    const initial = initSlideStatuses(slides.length)
+    const initial: SlideStatus[] = Array.from({ length: slides.length }, () => 'pending')
     setSlideStatuses(initial)
     setMode('publishing')
 
     startTransition(async () => {
-      // Simulate per-slide progress feedback (server action publishes atomically)
       for (let i = 0; i < slides.length; i++) {
         setSlideStatuses((prev) => {
           const next = [...prev]
           next[i] = 'publishing'
           return next
         })
-        // Small delay for visual feedback between slide indicators
         await new Promise((r) => setTimeout(r, 300 + i * 150))
       }
 
-      const result = await publishStoryNow(siteId, postId, slides, caption ? { caption } : undefined)
+      const result = await onPublishNow(slides, content)
 
       if (result.ok) {
         setSlideStatuses(Array.from({ length: slides.length }, () => 'done'))
@@ -123,7 +122,7 @@ export function PublishDialog({
         onSuccess?.('published')
       } else {
         setSlideStatuses(Array.from({ length: slides.length }, () => 'failed'))
-        setErrorMessage(result.error)
+        setErrorMessage(result.error ?? 'Erro ao publicar.')
         setMode('error')
       }
     })
@@ -136,13 +135,13 @@ export function PublishDialog({
     if (!scheduledAt) return
 
     startTransition(async () => {
-      const result = await scheduleStory(siteId, postId, slides, scheduledAt, caption ? { caption } : undefined)
+      const result = await onSchedule(slides, scheduledAt, content)
 
       if (result.ok) {
         setMode('done')
         onSuccess?.('scheduled')
       } else {
-        setErrorMessage(result.error)
+        setErrorMessage(result.error ?? 'Erro ao agendar.')
         setMode('error')
       }
     })
@@ -153,13 +152,13 @@ export function PublishDialog({
   // ---------------------------------------------------------------------------
   function handleSaveDraft() {
     startTransition(async () => {
-      const result = await saveStoryDraft(siteId, postId, slides, caption ? { caption } : undefined)
+      const result = await onSaveDraft(slides, content)
 
       if (result.ok) {
         setMode('done')
         onSuccess?.('draft')
       } else {
-        setErrorMessage(result.error)
+        setErrorMessage(result.error ?? 'Erro ao salvar.')
         setMode('error')
       }
     })

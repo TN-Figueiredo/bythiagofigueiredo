@@ -2,22 +2,22 @@
 
 import { useEffect, useState } from 'react'
 import type { StoryInsights } from '@/lib/social/story-types'
-import { getStoryInsights } from '@/lib/social/actions/story-metrics'
 
 interface StoryInsightsProps {
   siteId: string
   postId: string
+  getInsights: (siteId: string, postId: string) => Promise<StoryInsights | null>
 }
 
-export function StoryInsightsPanel({ siteId, postId }: StoryInsightsProps) {
+export function StoryInsightsPanel({ siteId, postId, getInsights }: StoryInsightsProps) {
   const [insights, setInsights] = useState<StoryInsights | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    getStoryInsights(siteId, postId)
+    getInsights(siteId, postId)
       .then(setInsights)
       .finally(() => setLoading(false))
-  }, [siteId, postId])
+  }, [siteId, postId, getInsights])
 
   if (loading) return <div className="animate-pulse h-48 bg-cms-surface rounded-xl" />
   if (!insights) {

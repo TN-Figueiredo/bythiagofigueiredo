@@ -13,8 +13,9 @@ vi.mock('@tiptap/react', async () => {
       setEditable: vi.fn(),
       getJSON: () => ({ type: 'doc', content: [] }),
       storage: { characterCount: { words: () => 5 } },
-      chain: () => ({ focus: () => ({ toggleBold: () => ({ run: vi.fn() }) }) }),
+      chain: () => ({ focus: () => ({ toggleBold: () => ({ run: vi.fn() }), undo: () => ({ run: vi.fn() }), redo: () => ({ run: vi.fn() }), toggleHighlight: () => ({ run: vi.fn() }) }) }),
       isActive: () => false,
+      can: () => ({ undo: () => false, redo: () => false }),
     }),
     EditorContent: () => <div data-testid="editor-content">Editor</div>,
   }

@@ -6,7 +6,7 @@ import {
   FileText, Mail, Megaphone, Image, Link2, ListMusic,
   Kanban, Video, GraduationCap, BookOpen, Microscope, Headphones,
   Youtube, Send, Edit3, BarChart3, Users, LayoutTemplate,
-  UserPen, UsersRound,
+  UserPen, UsersRound, Heart,
   TrendingUp, Clock, Layers,
 } from 'lucide-react'
 
@@ -22,6 +22,7 @@ export function buildCmsSections(): SidebarSection[] {
         { icon: icon(LayoutDashboard), label: 'Dashboard', href: '/cms' },
         { icon: icon(Calendar), label: 'Schedule', href: '/cms/schedule' },
         { icon: icon(TrendingUp), label: 'Analytics', href: '/cms/analytics', minRole: 'editor' },
+        { icon: icon(Heart), label: 'Top Fans', href: '/cms/analytics/fans', minRole: 'editor' },
       ],
     },
     {

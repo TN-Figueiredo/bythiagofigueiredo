@@ -133,6 +133,6 @@ describe('legacyBeatToNew', () => {
 describe('createEmptyBeat', () => {
   it('creates a beat with correct defaults', () => {
     const beat = createEmptyBeat(5)
-    expect(beat).toEqual({ idx: 5, name: 'Beat 5', status: 'PENDING', script: [] })
+    expect(beat).toEqual({ idx: 5, name: 'Beat 6', status: 'PENDING', script: [] })
   })
 })

@@ -4,12 +4,13 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Plus } from 'lucide-react'
 import { StoryCard } from './story-card'
-import { getStories } from '@/lib/social/actions/stories'
+import type { ActionResult } from '@/lib/social/actions/_shared'
 import type { StoryRow, StoryTab, StoryCounts } from '@/lib/social/actions/stories'
 
 interface StoriesGalleryProps {
   siteId: string
   initialCounts: StoryCounts
+  fetchStories: (siteId: string, tab: StoryTab) => Promise<ActionResult<StoryRow[]>>
 }
 
 const TABS: Array<{ id: StoryTab; label: string }> = [
@@ -53,16 +54,16 @@ function EmptyState({ tab }: { tab: StoryTab }) {
   )
 }
 
-export function StoriesGallery({ siteId, initialCounts }: StoriesGalleryProps) {
+export function StoriesGallery({ siteId, initialCounts, fetchStories }: StoriesGalleryProps) {
   const [tab, setTab] = useState<StoryTab>('drafts')
   const [stories, setStories] = useState<StoryRow[]>([])
   const [loading, setLoading] = useState(true)
   const [counts, setCounts] = useState<StoryCounts>(initialCounts)
 
-  const fetchStories = useCallback(async (activeTab: StoryTab) => {
+  const loadStories = useCallback(async (activeTab: StoryTab) => {
     setLoading(true)
     try {
-      const result = await getStories(siteId, activeTab)
+      const result = await fetchStories(siteId, activeTab)
       if (result.ok) {
         setStories(result.data)
         setCounts((prev) => ({ ...prev, [activeTab]: result.data.length }))
@@ -70,11 +71,11 @@ export function StoriesGallery({ siteId, initialCounts }: StoriesGalleryProps) {
     } finally {
       setLoading(false)
     }
-  }, [siteId])
+  }, [siteId, fetchStories])
 
   useEffect(() => {
-    void fetchStories(tab)
-  }, [tab, fetchStories])
+    void loadStories(tab)
+  }, [tab, loadStories])
 
   return (
     <div className="space-y-6">

@@ -12,8 +12,9 @@ vi.mock('@tiptap/react', async () => {
       setEditable: vi.fn(),
       getJSON: () => ({ type: 'doc', content: [] }),
       storage: { characterCount: { words: () => 5 } },
-      chain: () => ({ focus: () => ({ toggleBold: () => ({ run: vi.fn() }) }) }),
+      chain: () => ({ focus: () => ({ toggleBold: () => ({ run: vi.fn() }), toggleItalic: () => ({ run: vi.fn() }), toggleUnderline: () => ({ run: vi.fn() }), toggleHighlight: () => ({ run: vi.fn() }), toggleBulletList: () => ({ run: vi.fn() }), toggleBlockquote: () => ({ run: vi.fn() }), insertContent: () => ({ run: vi.fn() }), undo: () => ({ run: vi.fn() }), redo: () => ({ run: vi.fn() }) }) }),
       isActive: () => false,
+      can: () => ({ undo: () => false, redo: () => false }),
     }),
     EditorContent: () => <div data-testid="editor-content">Editor</div>,
   }
@@ -64,8 +65,8 @@ describe('ScriptEditMode', () => {
 
   it('renders all beats', () => {
     render(<ScriptEditMode content={CONTENT} isEditing={false} onChange={vi.fn()} />)
-    expect(screen.getAllByText('#0').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText('#1').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('#2').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText('Hook').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText('Body').length).toBeGreaterThanOrEqual(1)
   })

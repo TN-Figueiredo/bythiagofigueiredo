@@ -3,20 +3,19 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { CardComposition } from '@tn-figueiredo/links/qr'
-import { PublishDialog } from '../../_components/publish-dialog'
+import { PublishDialog, type PublishDialogCallbacks } from '../../_components/publish-dialog'
 
-interface PublishDialogClientProps {
-  siteId: string
-  postId: string
+interface PublishDialogClientProps extends PublishDialogCallbacks {
   slides: CardComposition[]
   caption?: string
 }
 
 export function PublishDialogClient({
-  siteId,
-  postId,
   slides,
   caption,
+  onSaveDraft,
+  onPublishNow,
+  onSchedule,
 }: PublishDialogClientProps) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -38,12 +37,13 @@ export function PublishDialogClient({
 
       {open && (
         <PublishDialog
-          siteId={siteId}
-          postId={postId}
           slides={slides}
           caption={caption}
           onClose={() => setOpen(false)}
           onSuccess={handleSuccess}
+          onSaveDraft={onSaveDraft}
+          onPublishNow={onPublishNow}
+          onSchedule={onSchedule}
         />
       )}
     </>
