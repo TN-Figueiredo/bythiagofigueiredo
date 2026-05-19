@@ -5,34 +5,36 @@
     "registry": "https://npm.pkg.github.com"
   },
   "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
     },
     "./vault": {
-      "import": "./dist/core/token-vault.js",
-      "types": "./dist/core/token-vault.d.ts"
+      "import": "./src/core/token-vault.ts",
+      "types": "./src/core/token-vault.ts"
     },
     "./media": {
-      "import": "./dist/core/media-validator.js",
-      "types": "./dist/core/media-validator.d.ts"
+      "import": "./src/core/media-validator.ts",
+      "types": "./src/core/media-validator.ts"
     },
     "./adapters": {
-      "import": "./dist/core/content-adapter.js",
-      "types": "./dist/core/content-adapter.d.ts"
+      "import": "./src/core/content-adapter.ts",
+      "types": "./src/core/content-adapter.ts"
     },
     "./providers/youtube": {
-      "import": "./dist/providers/youtube.js",
-      "types": "./dist/providers/youtube.d.ts"
+      "import": "./src/providers/youtube/index.ts",
+      "types": "./src/providers/youtube/index.ts"
     },
     "./providers/meta": {
-      "import": "./dist/providers/meta.js",
-      "types": "./dist/providers/meta.d.ts"
+      "import": "./src/providers/meta/index.ts",
+      "types": "./src/providers/meta/index.ts"
     },
     "./providers/bluesky": {
-      "import": "./dist/providers/bluesky.js",
-      "types": "./dist/providers/bluesky.d.ts"
+      "import": "./src/providers/bluesky/index.ts",
+      "types": "./src/providers/bluesky/index.ts"
     }
   },
   "files": [
