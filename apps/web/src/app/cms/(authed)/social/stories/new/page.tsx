@@ -16,6 +16,7 @@ import {
 import { StoryComposer } from './_components/story-composer'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 interface Props {
   searchParams: Promise<{ source?: string; id?: string }>

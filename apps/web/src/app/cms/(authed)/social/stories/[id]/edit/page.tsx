@@ -17,6 +17,7 @@ import { StoryEditorShell } from '../../_components/story-editor-shell'
 import type { CardComposition } from '@tn-figueiredo/links/qr'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 interface Props {
   params: Promise<{ id: string }>

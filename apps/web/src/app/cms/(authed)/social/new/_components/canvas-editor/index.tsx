@@ -103,6 +103,7 @@ export const SocialCanvasEditor = forwardRef<SocialCanvasEditorRef, SocialCanvas
     const [pan, setPan] = useState({ x: 0, y: 0 })
     const handlePanChange = useCallback((panX: number, panY: number) => setPan({ x: panX, y: panY }), [])
     const fittedOnMount = useRef(false)
+    const hasMeasuredContainer = useRef(false)
     const [pausedVideos, setPausedVideos] = useState<Set<string>>(() => new Set())
     const [videoDurations, setVideoDurations] = useState<Map<string, number>>(() => new Map())
 
@@ -136,7 +137,10 @@ export const SocialCanvasEditor = forwardRef<SocialCanvasEditorRef, SocialCanvas
       if (!el) return
       const ro = new ResizeObserver(entries => {
         const entry = entries[0]
-        if (entry) setContainerSize({ width: entry.contentRect.width, height: entry.contentRect.height })
+        if (entry) {
+          hasMeasuredContainer.current = true
+          setContainerSize({ width: entry.contentRect.width, height: entry.contentRect.height })
+        }
       })
       ro.observe(el)
       return () => ro.disconnect()
@@ -144,6 +148,10 @@ export const SocialCanvasEditor = forwardRef<SocialCanvasEditorRef, SocialCanvas
 
     useEffect(() => {
       if (fittedOnMount.current) return
+      // Only fit once we have a real container measurement from ResizeObserver,
+      // not the initial fallback (800×600). This prevents the tall story canvas
+      // from being partially off-screen because the first fit used incorrect dims.
+      if (!hasMeasuredContainer.current) return
       if (containerSize.width > 0 && containerSize.height > 0) {
         interaction.fitToView(containerSize.width, containerSize.height, comp.composition.canvas.width, comp.composition.canvas.height)
         fittedOnMount.current = true

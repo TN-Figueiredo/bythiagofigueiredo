@@ -217,8 +217,15 @@ async function prepareStoryDelivery(
       const { renderMultiSlide } = await import('@/lib/social/template-renderer')
       const { CardCompositionSchema } = await import('@tn-figueiredo/links/qr')
 
-      const validSlides = storySlides.flatMap((slide) => {
+      const validSlides = storySlides.flatMap((slide, idx) => {
         const parsed = CardCompositionSchema.safeParse(slide)
+        if (!parsed.success) {
+          Sentry.captureMessage(`Story slide ${idx} failed CardComposition validation`, {
+            level: 'warning',
+            tags: { ...SENTRY_TAG, action: 'prepareStoryDelivery:validation', postId: post.id },
+            extra: { errors: parsed.error.issues, slideKeys: slide && typeof slide === 'object' ? Object.keys(slide) : 'not-object' },
+          })
+        }
         return parsed.success ? [parsed.data] : []
       })
 
@@ -421,10 +428,17 @@ export async function publishSocialPost(
       }
 
       if (!deliveries || deliveries.length === 0) {
-        await supabase
-          .from('social_posts')
-          .update({ status: 'completed' as PostStatus, published_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-          .eq('id', post.id)
+        const isStory = Array.isArray((post as SocialPostWithSlides).story_slides) && (post as SocialPostWithSlides).story_slides!.length > 0
+        const status: PostStatus = isStory ? 'failed' : 'completed'
+        const patch: Record<string, unknown> = { status, updated_at: new Date().toISOString() }
+        if (!isStory) patch.published_at = new Date().toISOString()
+        await supabase.from('social_posts').update(patch).eq('id', post.id)
+        if (isStory) {
+          Sentry.captureMessage('Story publish found zero deliveries after auto-create attempt', {
+            level: 'error',
+            tags: { ...SENTRY_TAG, action: 'publishSocialPost:noDeliveries', postId: post.id },
+          })
+        }
         return
       }
     }
@@ -477,15 +491,33 @@ export async function publishSocialPost(
 
           // Multi-slide Instagram Story: publish each slide individually
           const mediaUrls = processedPost.content.media_urls ?? []
+
+          if (delivery.format === 'story' && delivery.provider === 'instagram' && mediaUrls.length === 0) {
+            return {
+              deliveryId: delivery.id,
+              status: 'failed' as DeliveryStatus,
+              error: 'Story rendering produced zero media URLs',
+              errorType: 'permanent' as ErrorType,
+            }
+          }
+
           if (
             delivery.format === 'story' &&
             delivery.provider === 'instagram' &&
             mediaUrls.length > 1
           ) {
+            const pageToken = connection.page_token_enc
+            const igUserId = (connection.metadata as Record<string, unknown> | null)?.ig_user_id as string | undefined
+            if (!pageToken || !igUserId) {
+              return {
+                deliveryId: delivery.id,
+                status: 'failed' as DeliveryStatus,
+                error: `Missing Instagram credentials: ${!pageToken ? 'page_token' : 'ig_user_id'}`,
+                errorType: 'auth' as ErrorType,
+              }
+            }
             const metaMod = await import('@tn-figueiredo/social/providers/meta')
-            const token = createDecryptor()(connection.page_token_enc!)
-            const igUserId = (connection.metadata as { ig_user_id: string }).ig_user_id
-
+            const token = createDecryptor()(pageToken)
             const results = await metaMod.publishMultiSlideStory(igUserId, token, mediaUrls, 100)
             const firstResult = results[0]
             return {
