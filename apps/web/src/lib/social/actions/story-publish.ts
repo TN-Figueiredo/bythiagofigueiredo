@@ -74,7 +74,7 @@ export async function saveStoryDraft(
     }
 
     revalidateSocialPaths()
-    return { ok: true, data: { id: (data as { id: string }).id } }
+    return { ok: true, data: { id: z.object({ id: z.string() }).parse(data).id } }
   } catch (err) {
     Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'saveStoryDraft' } })
     throw err
@@ -110,7 +110,16 @@ export async function publishStoryNow(
 
     const supabase = getSupabaseServiceClient()
 
-    // Upsert the post first to ensure slides are persisted
+    // Reject if post is already being published (prevents rapid-fire duplicate calls)
+    const { data: existing } = await supabase
+      .from('social_posts')
+      .select('status')
+      .eq('id', postIdParsed.data)
+      .single()
+    if (existing?.status === 'publishing' || existing?.status === 'completed') {
+      return { ok: false, error: existing.status === 'publishing' ? 'Publicação já em andamento.' : 'Story já publicada.' }
+    }
+
     const upsertPatch = {
       site_id: authorizedSiteId,
       created_by: userId,
@@ -137,7 +146,12 @@ export async function publishStoryNow(
       return { ok: false, error: upsertError.message }
     }
 
-    const postRow = data as Record<string, unknown>
+    const postFields = z.object({
+      user_timezone: z.string().nullable().default(null),
+      template_id: z.string().nullable().default(null),
+      idempotency_key: z.string().nullable().default(null),
+      created_at: z.string().nullable().default(null),
+    }).parse(data)
 
     const now = new Date().toISOString()
     const socialPost: SocialPostWithSlides = {
@@ -150,11 +164,11 @@ export async function publishStoryNow(
         description: content?.caption ?? '',
       },
       scheduled_at: null,
-      user_timezone: (postRow.user_timezone as string) ?? 'America/Sao_Paulo',
+      user_timezone: postFields.user_timezone ?? 'America/Sao_Paulo',
       published_at: null,
-      template_id: (postRow.template_id as string) ?? null,
-      idempotency_key: (postRow.idempotency_key as string) ?? crypto.randomUUID(),
-      created_at: (postRow.created_at as string) ?? now,
+      template_id: postFields.template_id,
+      idempotency_key: postFields.idempotency_key ?? crypto.randomUUID(),
+      created_at: postFields.created_at ?? now,
       updated_at: now,
       story_slides: slidesParsed.data as unknown[],
     }
@@ -241,7 +255,7 @@ export async function scheduleStory(
     }
 
     revalidateSocialPaths()
-    return { ok: true, data: { id: (data as { id: string }).id } }
+    return { ok: true, data: { id: z.object({ id: z.string() }).parse(data).id } }
   } catch (err) {
     Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'scheduleStory' } })
     throw err
