@@ -53,8 +53,7 @@ export default async function StoryEditPage({ params }: Props) {
   })
   const post = PostSchema.parse(data)
 
-  // Only allow editing drafts (non-draft posts are read-only)
-  if (post.status !== 'draft') {
+  if (post.status !== 'draft' && post.status !== 'failed') {
     notFound()
   }
 

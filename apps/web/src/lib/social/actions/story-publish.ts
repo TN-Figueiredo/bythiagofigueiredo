@@ -30,13 +30,22 @@ async function ensureStoryDelivery(
 ): Promise<void> {
   const { data: existing } = await supabase
     .from('social_deliveries')
-    .select('id')
+    .select('id, status')
     .eq('post_id', postId)
     .eq('provider', 'instagram')
     .eq('format', 'story')
     .limit(1)
 
-  if (existing && existing.length > 0) return
+  if (existing && existing.length > 0) {
+    const row = existing[0]!
+    if (row.status === 'failed' || row.status === 'skipped') {
+      await supabase
+        .from('social_deliveries')
+        .update({ status: 'pending', attempt: 0, last_error: null })
+        .eq('id', row.id)
+    }
+    return
+  }
 
   const { data: igConn } = await supabase
     .from('social_connections')
