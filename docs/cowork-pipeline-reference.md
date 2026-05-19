@@ -440,7 +440,149 @@ This is the **timeline-native** format that powers the DaVinci Resolve-like time
 
 ### Field reference — `assets{}`
 
-Assets are keyed by beat index (as string). Each beat can have `music[]`, `sfx[]`, `visual[]`, `ambience[]`, `soundDesign[]`. These populate the "ASSETS" collapsible panel below each beat's timeline. See existing `MusicAsset`, `SfxAsset`, etc. types for field details.
+Assets are keyed by beat index as string (e.g. `"0"`, `"1"`). Each beat has optional arrays: `music[]`, `sfx[]`, `visual[]`, `ambience[]`, `soundDesign[]`. These populate the "ASSETS" collapsible panel below each beat's timeline.
+
+#### `assets[N].music[]` — MusicAsset
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | **Yes** | Unique identifier (UUID from audio library or generated) |
+| `name` | string | **Yes** | Track name (e.g. "Ocean Depth") |
+| `artist` | string | **Yes** | Artist name |
+| `genre` | string | **Yes** | Genre/category (e.g. "cinematic", "ambient", "electronic") |
+| `bpm` | number | No | Beats per minute |
+| `dur` | string | No | Duration string (e.g. "3:42") |
+| `match` | number | **Yes** | Match score (0-100) from resolver |
+| `local` | boolean | **Yes** | `true` if file is in local audio library |
+| `selected` | boolean | **Yes** | `true` if this is the chosen track for the beat |
+| `confirmed` | boolean | No | `true` if user confirmed the selection |
+| `tags` | string[] | No | Descriptive tags (e.g. ["dark", "ambient", "piano"]) |
+| `note` | string | No | Editorial note explaining why this track fits |
+
+#### `assets[N].sfx[]` — SfxAsset
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `tc` | string | **Yes** | Timestamp within the beat (e.g. "00:05") |
+| `type` | string | **Yes** | SFX category: `IMPACT` \| `RISER` \| `DROP` \| `TRANSITION` \| `AMBIENT` \| `FOLEY` |
+| `typeColor` | string | **Yes** | Hex color for type badge. Use: IMPACT/DROP `#E67E22`, RISER `#E67E22`, TRANSITION `#F0B27A`, AMBIENT `#7D8B5E`, FOLEY `#8E44AD` |
+| `desc` | string | **Yes** | Description of the effect |
+| `file` | object\|null | No | `{ "name": string, "local": boolean, "match": number }` — resolved file info, null if unresolved |
+| `tags` | string[] | No | Descriptive tags |
+| `altCount` | number | No | Number of alternative SFX options available |
+
+#### `assets[N].visual[]` — VisualAsset
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `tc` | string | **Yes** | Timestamp |
+| `desc` | string | **Yes** | Description of the visual element |
+| `status` | string | **Yes** | `pending` \| `resolved` |
+| `file` | string | No | Resolved filename |
+| `search` | string[] | No | Search terms for finding the asset |
+
+#### `assets[N].ambience[]` — AmbienceAsset
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | **Yes** | Ambience name (e.g. "Room Tone Quiet") |
+| `local` | boolean | **Yes** | `true` if in local library |
+| `match` | number | **Yes** | Match score (0-100) |
+| `tags` | string[] | No | Descriptive tags |
+
+#### `assets[N].soundDesign[]` — SoundDesignAsset
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `tc` | string | **Yes** | Timestamp |
+| `name` | string | **Yes** | Sound design element name |
+| `status` | string | **Yes** | `pending` \| `done` |
+| `tags` | string[] | No | Descriptive tags |
+
+### Field reference — `crossRef` (inline in `postprod`)
+
+The CrossRef data can be embedded directly in the `postprod` section alongside `beats` and `assets`:
+
+```json
+{
+  "beats": [...],
+  "assets": {...},
+  "crossRef": {
+    "summary": "Duração total estimada: 5:00. 1 beat com divergência.",
+    "beats": [
+      {
+        "name": "Hook",
+        "srt": "00:00:00",
+        "dur": "24s",
+        "estRot": "20s",
+        "status": "ON_TRACK",
+        "statusColor": "#27AE60",
+        "note": null
+      },
+      {
+        "name": "O Capítulo Canadá",
+        "srt": "00:00:24",
+        "dur": "1m33s",
+        "estRot": "1m20s",
+        "status": "OVER",
+        "statusColor": "#E74C3C",
+        "note": "13s acima do estimado — considerar cortes"
+      }
+    ],
+    "divergences": ["Beat 2 está 13s acima do estimado"]
+  }
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `summary` | string | **Yes** | One-line analysis summary |
+| `beats[].name` | string | **Yes** | Beat label |
+| `beats[].srt` | string | **Yes** | SRT timestamp (e.g. "00:00:24") |
+| `beats[].dur` | string | **Yes** | Actual duration |
+| `beats[].estRot` | string | **Yes** | Estimated duration from roteiro |
+| `beats[].status` | string | **Yes** | `ON_TRACK` \| `OVER` \| `UNDER` \| `CUT` |
+| `beats[].statusColor` | string | **Yes** | Hex color for badge: ON_TRACK `#27AE60`, OVER `#E74C3C`, UNDER `#E67E22`, CUT `#95A5A6` |
+| `beats[].note` | string | No | Optional note about divergence |
+| `divergences` | string[] | **Yes** | List of significant divergences (can be empty array) |
+
+### Field reference — `speedRamps` (inline in `postprod`)
+
+```json
+{
+  "beats": [...],
+  "speedRamps": {
+    "summary": "Ritmo editorial padrão com slow-mo em momentos-chave",
+    "base": "1.0x (24fps playback)",
+    "sections": [
+      {
+        "name": "Hook — abertura rápida",
+        "srt": "00:00-00:05",
+        "vel": "1.2x",
+        "velColor": "#E67E22",
+        "racional": "Ritmo acelerado para captar atenção"
+      },
+      {
+        "name": "Capítulo Canadá — slow-mo montage",
+        "srt": "00:30-00:38",
+        "vel": "0.6x",
+        "velColor": "#3498DB",
+        "racional": "Slow-mo para impacto dramático nas fotos"
+      }
+    ]
+  }
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `summary` | string | **Yes** | One-line editorial pacing summary |
+| `base` | string | **Yes** | Baseline playback speed (e.g. "1.0x (24fps playback)") |
+| `sections[].name` | string | **Yes** | Section description |
+| `sections[].srt` | string | **Yes** | Timecode range (e.g. "00:00-00:05") |
+| `sections[].vel` | string | **Yes** | Speed multiplier (e.g. "1.2x", "0.6x") |
+| `sections[].velColor` | string | **Yes** | Hex color for badge: fast (>1x) `#E67E22`, normal (1x) `#27AE60`, slow (<1x) `#3498DB` |
+| `sections[].racional` | string | **Yes** | Editorial rationale for this speed choice |
 
 ### Mapping from `postprod_scenes` to `postprod`
 
