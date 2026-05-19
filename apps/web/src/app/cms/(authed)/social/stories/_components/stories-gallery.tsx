@@ -77,6 +77,13 @@ export function StoriesGallery({ siteId, initialCounts, fetchStories }: StoriesG
     void loadStories(tab)
   }, [tab, loadStories])
 
+  useEffect(() => {
+    const hasPublishing = stories.some((s) => s.status === 'publishing')
+    if (!hasPublishing) return
+    const id = setInterval(() => void loadStories(tab), 5000)
+    return () => clearInterval(id)
+  }, [stories, tab, loadStories])
+
   return (
     <div className="space-y-6">
       {/* Tab bar */}

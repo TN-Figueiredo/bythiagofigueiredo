@@ -56,7 +56,20 @@ export default async function StoryDetailPage({ params }: Props) {
   const mediaUrls = (post.content?.media_urls as string[] | undefined) ?? undefined
   const caption = (post.content?.description as string | undefined) ?? undefined
   const isCompleted = post.status === 'completed'
+  const isFailed = post.status === 'failed'
   const isDraft = post.status === 'draft'
+
+  let failureReason: string | null = null
+  if (isFailed) {
+    const { data: delivery } = await supabase
+      .from('social_deliveries')
+      .select('last_error')
+      .eq('post_id', post.id)
+      .eq('status', 'failed')
+      .limit(1)
+      .single()
+    failureReason = (delivery?.last_error as string | null) ?? null
+  }
 
   const statusLabels: Record<string, string> = {
     draft: 'Rascunho',
@@ -148,7 +161,7 @@ export default async function StoryDetailPage({ params }: Props) {
             >
               Voltar
             </Link>
-            {isDraft && (
+            {(isDraft || isFailed) && (
               <>
                 <Link
                   href={`/cms/social/stories/${post.id}/edit`}
@@ -167,6 +180,15 @@ export default async function StoryDetailPage({ params }: Props) {
             )}
           </div>
         </div>
+
+        {/* Failure banner */}
+        {isFailed && (
+          <div className="rounded-lg border border-red-800 bg-red-900/20 p-4">
+            <p className="text-sm font-medium text-red-400">A publicação falhou</p>
+            {failureReason && <p className="mt-1 text-xs text-red-300">{failureReason}</p>}
+            <p className="mt-2 text-xs text-red-300/70">Edite a story e tente publicar novamente.</p>
+          </div>
+        )}
 
         {/* Story preview */}
         <section aria-label="Pré-visualização">
