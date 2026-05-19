@@ -114,11 +114,10 @@ export async function renderMultiSlide(
   slides: CardComposition[],
   context: TemplateContext,
 ): Promise<Buffer[]> {
-  const buffers: Buffer[] = []
-  for (const slide of slides) {
-    const size = { width: slide.canvas.width, height: slide.canvas.height }
-    const buffer = await renderKonva(slide, context, size)
-    buffers.push(buffer)
-  }
-  return buffers
+  return Promise.all(
+    slides.map((slide) => {
+      const size = { width: slide.canvas.width, height: slide.canvas.height }
+      return renderKonva(slide, context, size)
+    }),
+  )
 }

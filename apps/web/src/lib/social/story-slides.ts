@@ -314,7 +314,7 @@ function buildCtaSlide(
 /**
  * Splits excerpt into N roughly equal chunks.
  */
-function chunkExcerpt(excerpt: string, chunkCount: number): string[] {
+export function chunkExcerpt(excerpt: string, chunkCount: number): string[] {
   if (chunkCount <= 0) return []
   if (chunkCount === 1) return [excerpt]
 

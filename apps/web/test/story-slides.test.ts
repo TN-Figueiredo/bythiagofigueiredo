@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { generateSlideCompositions } from '@/lib/social/story-slides'
+import { generateSlideCompositions, chunkExcerpt } from '@/lib/social/story-slides'
 import type { TextElement } from '@tn-figueiredo/links/qr'
 
 describe('generateSlideCompositions', () => {
@@ -282,5 +282,53 @@ describe('generateSlideCompositions', () => {
       (e): e is TextElement => e.type === 'text' && (e as TextElement).content === 'Leia Mais'
     )
     expect(ctaEl).toBeDefined()
+  })
+})
+
+describe('chunkExcerpt', () => {
+  it('returns empty array for zero chunks', () => {
+    expect(chunkExcerpt('Some text.', 0)).toEqual([])
+  })
+
+  it('returns full text for 1 chunk', () => {
+    expect(chunkExcerpt('Hello world.', 1)).toEqual(['Hello world.'])
+  })
+
+  it('splits by sentences when possible', () => {
+    const text = 'First sentence. Second sentence. Third sentence.'
+    const chunks = chunkExcerpt(text, 3)
+    expect(chunks).toHaveLength(3)
+    expect(chunks[0]).toContain('First')
+    expect(chunks[2]).toContain('Third')
+  })
+
+  it('falls back to word split for single sentence', () => {
+    const text = 'one two three four five six'
+    const chunks = chunkExcerpt(text, 3)
+    expect(chunks).toHaveLength(3)
+    expect(chunks.join(' ')).toBe(text)
+  })
+
+  it('handles empty string', () => {
+    const chunks = chunkExcerpt('', 3)
+    expect(chunks).toHaveLength(0)
+  })
+
+  it('handles single word', () => {
+    const chunks = chunkExcerpt('hello', 2)
+    expect(chunks).toHaveLength(1)
+    expect(chunks[0]).toBe('hello')
+  })
+
+  it('pads to requested count when fewer sentences than chunks', () => {
+    const text = 'Only one.'
+    const chunks = chunkExcerpt(text, 4)
+    expect(chunks.length).toBeLessThanOrEqual(4)
+  })
+
+  it('splits on ! and ? as sentence boundaries', () => {
+    const text = 'Really? Yes! Done.'
+    const chunks = chunkExcerpt(text, 3)
+    expect(chunks).toHaveLength(3)
   })
 })

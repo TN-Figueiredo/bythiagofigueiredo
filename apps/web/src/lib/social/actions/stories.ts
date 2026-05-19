@@ -48,20 +48,22 @@ export interface SourceContentResult {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function toStoryRow(row: Record<string, unknown>): StoryRow {
-  return {
-    id: String(row.id ?? ''),
-    story_slides: (row.story_slides as unknown[]) ?? [],
-    status: String(row.status ?? 'draft'),
-    scheduled_at: (row.scheduled_at as string) ?? null,
-    published_at: (row.published_at as string) ?? null,
-    source_content_id: (row.source_content_id as string) ?? null,
-    source_content_type: (row.source_content_type as string) ?? null,
-    source_locale: (row.source_locale as string) ?? null,
-    template_id: (row.template_id as string) ?? null,
-    created_at: String(row.created_at ?? ''),
-    site_id: String(row.site_id ?? ''),
-  }
+const StoryRowSchema = z.object({
+  id: z.string(),
+  story_slides: z.array(z.unknown()).default([]),
+  status: z.string().default('draft'),
+  scheduled_at: z.string().nullable().default(null),
+  published_at: z.string().nullable().default(null),
+  source_content_id: z.string().nullable().default(null),
+  source_content_type: z.string().nullable().default(null),
+  source_locale: z.string().nullable().default(null),
+  template_id: z.string().nullable().default(null),
+  created_at: z.string(),
+  site_id: z.string(),
+})
+
+function toStoryRow(row: unknown): StoryRow {
+  return StoryRowSchema.parse(row)
 }
 
 function ago24h(): string {
@@ -94,6 +96,7 @@ export async function getStories(
       .eq('site_id', authorizedSiteId)
       .not('story_slides', 'is', null)
       .order('created_at', { ascending: false })
+      .limit(100)
 
     switch (tabParsed.data) {
       case 'drafts':
@@ -121,7 +124,7 @@ export async function getStories(
       return { ok: false, error: error.message }
     }
 
-    return { ok: true, data: (data ?? []).map((r) => toStoryRow(r as Record<string, unknown>)) }
+    return { ok: true, data: (data ?? []).map(toStoryRow) }
   } catch (err) {
     Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'getStories' } })
     throw err
@@ -209,8 +212,8 @@ export async function searchSourceContent(
     const supabase = getSupabaseServiceClient()
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
-    // Escape LIKE special characters to prevent wildcard injection
-    const escapedSearch = search.replace(/%/g, '\\%').replace(/_/g, '\\_')
+    const trimmedSearch = search.slice(0, 200)
+    const escapedSearch = trimmedSearch.replace(/%/g, '\\%').replace(/_/g, '\\_')
 
     if (typeParsed.data === 'blog') {
       const { data, error } = await supabase

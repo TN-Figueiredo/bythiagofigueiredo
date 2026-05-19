@@ -1,12 +1,17 @@
 import { notFound } from 'next/navigation'
+import { z } from 'zod'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { CmsTopbar } from '@tn-figueiredo/cms-ui/client'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { listTemplates } from '@/lib/social/actions/templates'
-import { createTemplate, deleteTemplate } from '@/lib/social/actions/templates'
-import { uploadMediaAction } from '@/app/cms/(authed)/media/actions'
 import { saveStoryDraft, publishStoryNow, scheduleStory } from '@/lib/social/actions/story-publish'
+import {
+  exportSlideToBlob,
+  saveTemplate,
+  removeTemplate,
+  uploadImage,
+} from '../../_actions/editor-actions'
 import { StoryEditorShell } from '../../_components/story-editor-shell'
 import type { CardComposition } from '@tn-figueiredo/links/qr'
 
@@ -21,6 +26,7 @@ export default async function StoryEditPage({ params }: Props) {
   await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
 
   const { id } = await params
+  if (!z.string().uuid().safeParse(id).success) notFound()
 
   const supabase = getSupabaseServiceClient()
   const { data, error } = await supabase
@@ -70,59 +76,6 @@ export default async function StoryEditPage({ params }: Props) {
   const templatesResult = await listTemplates(ctx.siteId, '9:16')
   const templates = templatesResult.ok ? templatesResult.data : []
 
-  // ---------------------------------------------------------------------------
-  // Server action wrappers passed as props
-  // ---------------------------------------------------------------------------
-
-  const handleExport = async (
-    blob: Blob,
-    metadata: { format: 'png'; scale: number; width: number; height: number },
-  ) => {
-    'use server'
-    try {
-      const { put } = await import('@vercel/blob')
-      const filename = `stories/${Date.now()}-slide.${metadata.format}`
-      const result = await put(filename, blob, {
-        access: 'public',
-        contentType: `image/${metadata.format}`,
-      })
-      return { url: result.url }
-    } catch {
-      return null
-    }
-  }
-
-  const handleSaveTemplate = async (
-    name: string,
-    composition: import('@tn-figueiredo/links/qr').CardComposition,
-    thumbnail: Blob,
-  ) => {
-    'use server'
-    const thumbnailBuffer = Buffer.from(await thumbnail.arrayBuffer())
-    const thumbnailBase64 = `data:image/png;base64,${thumbnailBuffer.toString('base64')}`
-    await createTemplate({
-      name,
-      aspectRatio: '9:16',
-      composition,
-      thumbnailBase64,
-    })
-  }
-
-  const handleDeleteTemplate = async (templateId: string) => {
-    'use server'
-    await deleteTemplate(templateId)
-  }
-
-  const handleImageUpload = async (file: File) => {
-    'use server'
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('folder', 'general')
-    const result = await uploadMediaAction(formData)
-    if (!result.ok) throw new Error(result.error)
-    return result.asset.blobUrl
-  }
-
   // Edit page: postId is the closed-over `id` — ignore the arg from the shell
   const handleSaveDraft = async (
     _postId: string,
@@ -163,10 +116,10 @@ export default async function StoryEditPage({ params }: Props) {
         brand={brand}
         templates={templates}
         sourceContentType={post.source_content_type}
-        onExport={handleExport}
-        onSaveTemplate={handleSaveTemplate}
-        onDeleteTemplate={handleDeleteTemplate}
-        onImageUpload={handleImageUpload}
+        onExport={exportSlideToBlob}
+        onSaveTemplate={saveTemplate}
+        onDeleteTemplate={removeTemplate}
+        onImageUpload={uploadImage}
         onSaveDraft={handleSaveDraft}
         onPublishNow={handlePublishNow}
         onSchedule={handleSchedule}

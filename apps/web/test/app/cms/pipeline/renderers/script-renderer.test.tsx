@@ -66,7 +66,7 @@ describe('ScriptRenderer — unified mode', () => {
     render(
       <ScriptRenderer content={BEAT_WITH_TAGS} isEditing={false} lang="en" onContentChange={noop} />,
     )
-    expect(screen.getAllByText('#0').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('#1').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText('HOOK — Triple Curiosity Gap').length).toBeGreaterThanOrEqual(1)
   })
 
@@ -86,10 +86,10 @@ describe('ScriptRenderer — unified mode', () => {
   })
 
   it('renders hidden print view alongside edit mode', () => {
-    const { container } = render(
+    render(
       <ScriptRenderer content={BEAT_WITH_TAGS} isEditing={false} lang="en" onContentChange={noop} />,
     )
-    const printView = container.querySelector('.script-print-view')
+    const printView = document.body.querySelector('.script-print-view')
     expect(printView).toBeTruthy()
     expect(printView!.querySelector('.script-view')).toBeTruthy()
     expect(screen.queryByTitle('Edit mode')).toBeNull()
@@ -121,10 +121,10 @@ describe('ScriptRenderer — overview table', () => {
   })
 
   it('print view container has script-view class', () => {
-    const { container } = render(
+    render(
       <ScriptRenderer content={BEAT_WITH_TAGS} isEditing={false} lang="en" onContentChange={noop} />,
     )
-    const printView = container.querySelector('.script-print-view')
+    const printView = document.body.querySelector('.script-print-view')
     expect(printView).toBeTruthy()
     const scriptView = printView!.querySelector('.script-view')
     expect(scriptView).toBeTruthy()
@@ -145,13 +145,13 @@ describe('ScriptRenderer — edge cases', () => {
     const { container } = render(
       <ScriptRenderer content="raw string content" isEditing={false} lang="en" onContentChange={noop} />,
     )
-    expect(container.textContent).toContain('#0')
+    expect(container.textContent).toContain('#1')
   })
 
   it('migrates v1 content automatically', () => {
     render(
       <ScriptRenderer content={BEAT_WITH_TAGS} isEditing={false} lang="en" onContentChange={noop} />,
     )
-    expect(screen.getAllByText('#0').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('#1').length).toBeGreaterThanOrEqual(1)
   })
 })

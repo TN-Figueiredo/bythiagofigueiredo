@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import type { CardComposition } from '@tn-figueiredo/links/qr'
 
 // ---------------------------------------------------------------------------
@@ -93,6 +93,38 @@ export function PublishDialog({
   const [slideStatuses, setSlideStatuses] = useState<SlideStatus[]>([])
   const [errorMessage, setErrorMessage] = useState('')
   const [isPending, startTransition] = useTransition()
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Escape' && mode !== 'publishing') {
+      onClose()
+      return
+    }
+    if (e.key !== 'Tab' || !dialogRef.current) return
+    const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    )
+    if (focusable.length === 0) return
+    const first = focusable[0]!
+    const last = focusable[focusable.length - 1]!
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault()
+      first.focus()
+    }
+  }, [mode, onClose])
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown)
+    const prev = document.activeElement as HTMLElement | null
+    dialogRef.current?.querySelector<HTMLElement>('button')?.focus()
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      prev?.focus()
+    }
+  }, [handleKeyDown])
 
   const content = caption ? { caption } : undefined
 
@@ -179,7 +211,7 @@ export function PublishDialog({
       aria-modal="true"
       aria-label="Publicar Story"
     >
-      <div className="relative w-full max-w-md rounded-2xl border border-neutral-800 bg-neutral-900 p-6 shadow-2xl">
+      <div ref={dialogRef} className="relative w-full max-w-md rounded-2xl border border-neutral-800 bg-neutral-900 p-6 shadow-2xl">
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <h2 className="text-base font-semibold text-neutral-100">Publicar Story</h2>
