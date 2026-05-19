@@ -33,7 +33,7 @@ describe('Registry completeness', () => {
 
   it('every capability domain has a docs file', () => {
     for (const cap of API_REGISTRY.capabilities) {
-      const docPath = join(process.cwd(), 'src/app/api/pipeline/docs/_content', `cowork-docs-${cap.domain}.md`)
+      const docPath = join(process.cwd(), 'data', 'pipeline-docs', `cowork-docs-${cap.domain}.md`)
       expect(existsSync(docPath), `Missing doc: cowork-docs-${cap.domain}.md`).toBe(true)
     }
   })
