@@ -93,4 +93,36 @@ describe('GET /api/pipeline/context', () => {
     const json = await res.json()
     expect(json.data.some((d: { key: string }) => d.key.startsWith('_system/'))).toBe(true)
   })
+
+  it('filters by ?skill=writer', async () => {
+    const res = await GET(makeReq('?skill=writer'))
+    const json = await res.json()
+    const keys = json.data.map((d: { key: string }) => d.key)
+    expect(keys).toContain('personal-profile')
+    expect(keys).toContain('writer-voice-guide')
+    expect(keys).not.toContain('_system/groups')
+    expect(keys).not.toContain('_system/skill-mappings')
+  })
+
+  it('returns content_md when ?format=md', async () => {
+    const res = await GET(makeReq('?format=md'))
+    const json = await res.json()
+    const item = json.data.find((d: { key: string }) => d.key === 'personal-profile')
+    expect(item).toBeDefined()
+    expect(item.content).toBe('# Profile')
+  })
+
+  it('returns 400 for invalid format parameter', async () => {
+    const res = await GET(makeReq('?format=xml'))
+    expect(res.status).toBe(400)
+    const json = await res.json()
+    expect(json.error.code).toBe('INVALID_PARAM')
+  })
+
+  it('returns 400 for invalid group format', async () => {
+    const res = await GET(makeReq('?group=_INVALID'))
+    expect(res.status).toBe(400)
+    const json = await res.json()
+    expect(json.error.code).toBe('INVALID_PARAM')
+  })
 })

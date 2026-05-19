@@ -11,6 +11,14 @@ export async function GET(req: NextRequest) {
   const group = req.nextUrl.searchParams.get('group')
   const skill = req.nextUrl.searchParams.get('skill')
 
+  if (format && format !== 'md' && format !== 'compact') {
+    return NextResponse.json({ error: { code: 'INVALID_PARAM', message: 'format must be "md" or "compact"' } }, { status: 400 })
+  }
+
+  if (group && !/^[a-z][a-z0-9_]{0,29}$/.test(group)) {
+    return NextResponse.json({ error: { code: 'INVALID_PARAM', message: 'Invalid group id format' } }, { status: 400 })
+  }
+
   const supabase = getSupabaseServiceClient()
 
   // If filtering by skill, resolve keys from _system/skill-mappings

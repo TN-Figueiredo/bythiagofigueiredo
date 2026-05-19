@@ -47,7 +47,6 @@ export const REFERENCE_USAGE: Record<string, string[]> = {
   'perf-review-feedback-templates': ['Perf Review'],
   'perf-review-analytics-guide': ['Perf Review'],
   'content-calendar-taxonomy': ['Ideator', 'Writer', 'Producer'],
-  'playlist-graph-api': ['Writer', 'Producer', 'Architect'],
   'content-curator-skill': ['Curator'],
   'curator-memory': ['Curator'],
   'curator-rules': ['Curator'],

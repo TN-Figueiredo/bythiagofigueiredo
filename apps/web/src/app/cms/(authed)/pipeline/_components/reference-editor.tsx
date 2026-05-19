@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
-import { upsertReference } from '../actions'
 import { REFERENCE_USAGE } from '@/lib/pipeline/reference-groups'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -77,7 +76,7 @@ function highlightMatch(text: string, query: string): React.ReactNode {
 
 // ─── Component ─────────────────────────────────────────────────────────────────
 
-export function ReferenceEditor({ docs, groups }: { docs: ReferenceDoc[]; groups: GroupDef[] }) {
+export function ReferenceEditor({ docs, groups, onUpsert }: { docs: ReferenceDoc[]; groups: GroupDef[]; onUpsert: (key: string, data: { title: string; content_md?: string; content_compact?: Record<string, unknown>; ref_group?: string; sort_order?: number }) => Promise<unknown> }) {
   // State
   const [selected, setSelected] = useState<string | null>(docs[0]?.key ?? null)
   const [title, setTitle] = useState(docs[0]?.title ?? '')
@@ -157,26 +156,30 @@ export function ReferenceEditor({ docs, groups }: { docs: ReferenceDoc[]; groups
     if (!selected) return
     setSaveState('saving')
     try {
-      await upsertReference(selected, { title, content_md: content })
+      await onUpsert(selected, { title, content_md: content })
       setSaveState('saved')
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
       saveTimerRef.current = setTimeout(() => setSaveState('idle'), 2000)
     } catch {
       setSaveState('idle')
     }
-  }, [selected, title, content])
+  }, [selected, title, content, onUpsert])
 
   // New reference handler
   const handleNewReference = useCallback(async () => {
     const key = window.prompt('Reference API key (e.g. writer-voice-guide):')
     if (!key || !key.trim()) return
-    const trimmed = key.trim().toLowerCase().replace(/\s+/g, '-')
+    const trimmed = key.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+    if (!trimmed || !/^[a-z][a-z0-9-]{0,99}$/.test(trimmed)) {
+      window.alert('Invalid key. Must start with a letter and contain only lowercase letters, numbers, and hyphens.')
+      return
+    }
     const refTitle = trimmed
       .split('-')
       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
       .join(' ')
     const firstGroup = groups[0]?.id ?? 'pessoal'
-    await upsertReference(trimmed, {
+    await onUpsert(trimmed, {
       title: refTitle,
       content_md: '',
       ref_group: firstGroup,
@@ -187,7 +190,7 @@ export function ReferenceEditor({ docs, groups }: { docs: ReferenceDoc[]; groups
     setTitle(refTitle)
     setContent('')
     setSaveState('idle')
-  }, [])
+  }, [onUpsert, groups])
 
   // Keyboard shortcuts
   useEffect(() => {

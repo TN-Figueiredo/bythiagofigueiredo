@@ -12,7 +12,7 @@ export interface CapabilityDomain {
   suggest_when: string
   docs: string
   endpoint_count: number
-  endpoints: ApiEndpointMeta[]
+  endpoints: readonly ApiEndpointMeta[]
 }
 
 export interface CrossDomainWorkflow {
@@ -69,7 +69,7 @@ const PLAYLISTS: CapabilityDomain = {
   description: 'Organize items into playlists with directed edges for sequencing and dependencies.',
   suggest_when: 'Organizing content into series, courses, creating dependency graphs, managing content sequences',
   docs: '/api/pipeline/docs/playlists',
-  endpoint_count: 12,
+  endpoint_count: 13,
   endpoints: [
     { method: 'GET', path: '/api/pipeline/playlists', summary: 'List playlists with item counts', auth: 'read' },
     { method: 'POST', path: '/api/pipeline/playlists', summary: 'Create new playlist', auth: 'write' },
@@ -83,6 +83,7 @@ const PLAYLISTS: CapabilityDomain = {
     { method: 'DELETE', path: '/api/pipeline/playlists/:id/edges/:edgeId', summary: 'Remove edge', auth: 'write' },
     { method: 'POST', path: '/api/pipeline/playlists/:id/edges/bulk', summary: 'Batch create edges', auth: 'write' },
     { method: 'POST', path: '/api/pipeline/playlists/:id/reorder', summary: 'Reorder items in playlist', auth: 'write' },
+    { method: 'POST', path: '/api/pipeline/playlists/:id/auto-layout', summary: 'Compute automatic layout positions', auth: 'write' },
   ],
 }
 
@@ -157,7 +158,7 @@ const UTILITIES: CapabilityDomain = {
   description: 'Cross-entity search, reference content management, pipeline statistics, and workflow definitions.',
   suggest_when: 'Searching across entities, reading/updating references, checking stats, listing workflows',
   docs: '/api/pipeline/docs/utilities',
-  endpoint_count: 9,
+  endpoint_count: 8,
   endpoints: [
     { method: 'GET', path: '/api/pipeline/context', summary: 'Get all reference content (supports ?group= ?skill= ?format=md)', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/context/:key', summary: 'Get specific reference doc', auth: 'read' },
@@ -167,7 +168,6 @@ const UTILITIES: CapabilityDomain = {
     { method: 'GET', path: '/api/pipeline/stats', summary: 'Aggregate pipeline statistics', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/topics/:code', summary: 'Topic aggregation (items + posts by tag)', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/workflows', summary: 'Get all workflow definitions and checklists', auth: 'read' },
-    { method: 'POST', path: '/api/pipeline/playlists/:id/auto-layout', summary: 'Compute automatic layout positions', auth: 'write' },
   ],
 }
 

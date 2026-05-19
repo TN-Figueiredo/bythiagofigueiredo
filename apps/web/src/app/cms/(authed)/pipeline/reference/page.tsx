@@ -4,6 +4,7 @@ import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { CmsTopbar } from '@tn-figueiredo/cms-ui/client'
 import { ReferenceEditor } from '../_components/reference-editor'
 import { REFERENCE_GROUPS } from '@/lib/pipeline/reference-groups'
+import { upsertReference } from '../actions'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,7 +36,7 @@ export default async function ReferencePage() {
     <>
       <CmsTopbar title="Pipeline — Reference" />
       <div className="p-6">
-        <ReferenceEditor docs={docs ?? []} groups={groups} />
+        <ReferenceEditor docs={docs ?? []} groups={groups} onUpsert={upsertReference} />
       </div>
     </>
   )

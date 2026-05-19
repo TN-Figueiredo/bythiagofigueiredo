@@ -169,7 +169,7 @@ async function seed(): Promise<void> {
           ref_group: entry.ref_group,
           sort_order: entry.sort_order,
           content_md: contentMd || null,
-          content_compact: entry.inlineCompact ?? {},
+          content_compact: entry.inlineCompact ?? null,
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'site_id,key' },

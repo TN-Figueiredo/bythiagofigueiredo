@@ -1,7 +1,9 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { WORKFLOWS } from '@/lib/pipeline/workflows'
 import { API_REGISTRY } from '@/lib/pipeline/api-registry'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { authenticatePipeline, buildRateLimitHeaders } from '@/lib/pipeline/auth'
+import { getSiteContext } from '@/lib/cms/site-context'
 
 async function loadDirectives(siteId: string): Promise<Record<string, { version: number; value: unknown }>> {
   const supabase = getSupabaseServiceClient()
@@ -19,32 +21,40 @@ async function loadDirectives(siteId: string): Promise<Record<string, { version:
   return directives
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const authResult = await authenticatePipeline(req)
+  if (!authResult.ok) {
+    return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: authResult.error } }, { status: authResult.status })
+  }
+  const { auth } = authResult
+
   let directives: Record<string, { version: number; value: unknown }> = {}
   try {
-    const { getSiteContext } = await import('@/lib/cms/site-context')
     const { siteId } = await getSiteContext()
     directives = await loadDirectives(siteId)
   } catch {
-    // No site context (e.g., API key auth without site resolution) — return catalog without directives
+    directives = await loadDirectives(auth.siteId)
   }
 
+  const headers = buildRateLimitHeaders(auth)
   return NextResponse.json({
-    name: API_REGISTRY.name,
-    version: API_REGISTRY.version,
-    auth: API_REGISTRY.auth,
-    capabilities: API_REGISTRY.capabilities,
-    directives,
-    cross_domain_workflows: API_REGISTRY.cross_domain_workflows,
-    context: {
-      endpoint: '/api/pipeline/context',
-      filters: {
-        group: '?group={group_id}',
-        skill: '?skill={skill_name}',
-        format: '?format=md (full markdown) or default (compact JSON)',
+    data: {
+      name: API_REGISTRY.name,
+      version: API_REGISTRY.version,
+      auth: API_REGISTRY.auth,
+      capabilities: API_REGISTRY.capabilities,
+      directives,
+      cross_domain_workflows: API_REGISTRY.cross_domain_workflows,
+      context: {
+        endpoint: '/api/pipeline/context',
+        filters: {
+          group: '?group={group_id}',
+          skill: '?skill={skill_name}',
+          format: '?format=md (full markdown) or default (compact JSON)',
+        },
       },
+      formats: Object.keys(WORKFLOWS),
+      workflows: WORKFLOWS,
     },
-    formats: Object.keys(WORKFLOWS),
-    workflows: WORKFLOWS,
-  })
+  }, { headers: headers ?? {} })
 }

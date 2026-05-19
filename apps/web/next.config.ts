@@ -1,8 +1,10 @@
 import type { NextConfig } from 'next'
 import { withSentryConfig } from '@sentry/nextjs'
 import createMDX from '@next/mdx'
+import { join } from 'node:path'
 
 const nextConfig: NextConfig = {
+  outputFileTracingRoot: join(__dirname, '..', '..'),
   images: {
     remotePatterns: [
       {
