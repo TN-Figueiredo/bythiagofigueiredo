@@ -230,6 +230,7 @@ export default async function NewsletterConfirmPage({ params }: Props) {
         .select('locale')
         .eq('site_id', result.site_id)
         .eq('email', result.email)
+        .limit(1)
         .maybeSingle()
       locale = (row2?.locale as string | null) ?? null
     } catch {

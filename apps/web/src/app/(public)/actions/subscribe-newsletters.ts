@@ -74,6 +74,7 @@ export async function subscribeToNewsletters(
         .eq('site_id', siteId)
         .eq('email', email)
         .eq('newsletter_id', newsletterId)
+        .neq('status', 'unsubscribed')
         .maybeSingle()
 
       if (existing) {

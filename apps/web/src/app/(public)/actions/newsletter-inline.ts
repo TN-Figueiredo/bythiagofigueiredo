@@ -3,6 +3,7 @@
 import crypto from 'node:crypto'
 import { headers } from 'next/headers'
 import { z } from 'zod'
+import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '../../../../lib/supabase/service'
 import { getSiteContext } from '../../../../lib/cms/site-context'
 import { getEmailService } from '../../../../lib/email/service'
@@ -23,6 +24,7 @@ export async function subscribeNewsletterInline(
   _prev: InlineState | undefined,
   formData: FormData,
 ): Promise<InlineState> {
+  try {
   const parsed = InlineSchema.safeParse({
     email: formData.get('email'),
     newsletter_id: formData.get('newsletter_id'),
@@ -47,11 +49,11 @@ export async function subscribeNewsletterInline(
 
   const db = getSupabaseServiceClient()
   const h = await headers()
-  const ip = h.get('x-forwarded-for')?.split(',')[0]?.trim() ?? ''
+  const ip = h.get('x-forwarded-for')?.split(',')[0]?.trim() || null
 
   const { data: rateAllowed } = await db.rpc('newsletter_rate_check', {
     p_site_id: siteId,
-    p_ip: ip,
+    p_ip: ip ?? '',
     p_email: email,
   })
   if (rateAllowed === false) {
@@ -72,6 +74,7 @@ export async function subscribeNewsletterInline(
     .eq('site_id', siteId)
     .eq('email', email)
     .eq('newsletter_id', newsletter_id)
+    .neq('status', 'unsubscribed')
     .maybeSingle()
 
   if (existing) {
@@ -125,7 +128,14 @@ export async function subscribeNewsletterInline(
         ${isPt ? 'Confirmar' : 'Confirm'}
       </a>
     </body></html>`,
-  }).catch(() => undefined)
+  }).catch((err) => {
+    console.error('[newsletter-inline] Email send failed:', err)
+    Sentry.captureException(err, { tags: { component: 'newsletter-inline', action: 'send-confirmation' } })
+  })
 
   return { success: true }
+  } catch (err) {
+    Sentry.captureException(err, { tags: { component: 'newsletter-inline', action: 'subscribe' } })
+    return { error: 'Erro interno. Tente novamente. / Internal error.' }
+  }
 }

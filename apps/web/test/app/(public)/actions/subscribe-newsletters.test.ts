@@ -76,7 +76,7 @@ describe('subscribeToNewsletters', () => {
     mockMaybeSingle.mockResolvedValue({ data: null, error: null })
     mockInsert.mockResolvedValue({ data: { id: 'sub-1' }, error: null })
     mockUpdate.mockResolvedValue({ data: null, error: null })
-    const eqChain = { eq: vi.fn().mockReturnThis(), maybeSingle: mockMaybeSingle }
+    const eqChain = { eq: vi.fn().mockReturnThis(), neq: vi.fn().mockReturnThis(), maybeSingle: mockMaybeSingle }
     mockFrom.mockReturnValue({
       select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue(eqChain) }),
       insert: mockInsert,

@@ -11,7 +11,7 @@ const mockMaybeSingle = vi.fn().mockResolvedValue({ data: null, error: null })
 const mockFrom = vi.fn()
 
 function buildFromReturn(overrides?: { insert?: typeof mockInsert }) {
-  const eqChain = { eq: vi.fn().mockReturnThis(), maybeSingle: mockMaybeSingle }
+  const eqChain = { eq: vi.fn().mockReturnThis(), neq: vi.fn().mockReturnThis(), maybeSingle: mockMaybeSingle }
   return {
     select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue(eqChain) }),
     insert: overrides?.insert ?? mockInsert,
@@ -37,6 +37,10 @@ vi.mock('../../../../lib/cms/site-context', () => ({
 
 vi.mock('../../../../lib/turnstile', () => ({
   verifyTurnstileToken: vi.fn().mockResolvedValue(true),
+}))
+
+vi.mock('@sentry/nextjs', () => ({
+  captureException: vi.fn(),
 }))
 
 import { subscribeNewsletterInline } from '../../../../src/app/(public)/actions/newsletter-inline'
