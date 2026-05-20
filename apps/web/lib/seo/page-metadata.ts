@@ -450,10 +450,6 @@ export function generateLinktreeMetadata(
       'apple-mobile-web-app-status-bar-style': 'black-translucent',
     },
     manifest: `${config.siteUrl}/manifest.webmanifest`,
-    icons: {
-      icon: `${config.siteUrl}/icon.svg`,
-      apple: `${config.siteUrl}/apple-icon.svg`,
-    },
   }
 }
 

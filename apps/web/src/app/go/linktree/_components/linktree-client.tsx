@@ -65,10 +65,10 @@ export function LinktreeClient({
   }
 
   function toggleTheme() {
-    const next = themePref === 'system' ? 'dark' : themePref === 'dark' ? 'light' : 'system'
+    const next = theme === 'dark' ? 'light' : 'dark'
     setThemePref(next)
     setCookie('btf_theme', next, site.primaryDomain)
-    document.documentElement.setAttribute('data-theme', resolveTheme(next))
+    document.documentElement.setAttribute('data-theme', next)
   }
 
   return (
