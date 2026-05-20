@@ -9,15 +9,15 @@ describe('getEmailStylesheet', () => {
     expect(css).toContain('background:#ff0000')
   })
 
-  it('uses default purple when no color provided', () => {
+  it('uses default branded accent when no color provided', () => {
     const css = getEmailStylesheet()
-    expect(css).toContain('#7c3aed')
+    expect(css).toContain('#FF8240')
   })
 
   it('includes all required email-safe base rules', () => {
     const css = getEmailStylesheet('#000')
-    expect(css).toContain('font-family:Arial,sans-serif')
-    expect(css).toContain('font-family:Georgia,serif')
+    expect(css).toContain('font-family:Arial,Helvetica,sans-serif')
+    expect(css).toContain("font-family:Georgia,'Times New Roman',serif")
     expect(css).toContain('max-width:600px')
     expect(css).toContain('.cta-button')
     expect(css).toContain('.cta-wrapper')

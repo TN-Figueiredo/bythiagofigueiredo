@@ -59,7 +59,7 @@ describe('sanitizeForEmail', () => {
       const html = '<p>Test paragraph</p>'
       const result = sanitizeForEmail(html, '#7c3aed')
       expect(result).toContain('font-size:16px')
-      expect(result).toContain('font-family:Georgia,serif')
+      expect(result).toContain('font-family:Georgia,')
     })
 
     it('inlines CTA button background color', () => {
