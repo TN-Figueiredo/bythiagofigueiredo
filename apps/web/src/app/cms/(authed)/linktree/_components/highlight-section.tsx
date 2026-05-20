@@ -42,6 +42,7 @@ export function HighlightSection({ config, onChange, readOnly }: Props) {
             type="button"
             role="switch"
             aria-checked={h.active}
+            aria-label="Ativar Highlight Card"
             onClick={() => updateHighlight({ active: !h.active })}
             disabled={readOnly}
             className={`relative h-5 w-9 rounded-full transition-colors ${h.active ? 'bg-primary' : 'bg-border'}`}
@@ -54,8 +55,9 @@ export function HighlightSection({ config, onChange, readOnly }: Props) {
       {h.active && (
         <div className="space-y-4">
           <div>
-            <label className="mb-1 block text-xs font-medium text-foreground">URL</label>
+            <label htmlFor="highlight-url" className="mb-1 block text-xs font-medium text-foreground">URL</label>
             <input
+              id="highlight-url"
               type="url"
               value={h.url}
               onChange={(e) => updateHighlight({ url: e.target.value })}
@@ -68,19 +70,19 @@ export function HighlightSection({ config, onChange, readOnly }: Props) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <div className="mb-1 flex items-center gap-2">
-                <label className="text-xs font-medium text-foreground">Badge</label>
+                <label htmlFor="highlight-badge-pt" className="text-xs font-medium text-foreground">Badge</label>
                 <LangBadge lang="PT" />
               </div>
-              <input type="text" value={h.badge_pt} onChange={(e) => updateHighlight({ badge_pt: e.target.value })} disabled={readOnly} maxLength={30}
+              <input id="highlight-badge-pt" type="text" value={h.badge_pt} onChange={(e) => updateHighlight({ badge_pt: e.target.value })} disabled={readOnly} maxLength={30}
                 className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
               <div className="mt-0.5 text-right"><CharCount current={h.badge_pt.length} max={30} /></div>
             </div>
             <div>
               <div className="mb-1 flex items-center gap-2">
-                <label className="text-xs font-medium text-foreground">Badge</label>
+                <label htmlFor="highlight-badge-en" className="text-xs font-medium text-foreground">Badge</label>
                 <LangBadge lang="EN" />
               </div>
-              <input type="text" value={h.badge_en} onChange={(e) => updateHighlight({ badge_en: e.target.value })} disabled={readOnly} maxLength={30}
+              <input id="highlight-badge-en" type="text" value={h.badge_en} onChange={(e) => updateHighlight({ badge_en: e.target.value })} disabled={readOnly} maxLength={30}
                 className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
               <div className="mt-0.5 text-right"><CharCount current={h.badge_en.length} max={30} /></div>
             </div>
@@ -89,19 +91,19 @@ export function HighlightSection({ config, onChange, readOnly }: Props) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <div className="mb-1 flex items-center gap-2">
-                <label className="text-xs font-medium text-foreground">Título</label>
+                <label htmlFor="highlight-title-pt" className="text-xs font-medium text-foreground">Título</label>
                 <LangBadge lang="PT" />
               </div>
-              <input type="text" value={h.title_pt} onChange={(e) => updateHighlight({ title_pt: e.target.value })} disabled={readOnly} maxLength={80}
+              <input id="highlight-title-pt" type="text" value={h.title_pt} onChange={(e) => updateHighlight({ title_pt: e.target.value })} disabled={readOnly} maxLength={80}
                 className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
               <div className="mt-0.5 text-right"><CharCount current={h.title_pt.length} max={80} /></div>
             </div>
             <div>
               <div className="mb-1 flex items-center gap-2">
-                <label className="text-xs font-medium text-foreground">Título</label>
+                <label htmlFor="highlight-title-en" className="text-xs font-medium text-foreground">Título</label>
                 <LangBadge lang="EN" />
               </div>
-              <input type="text" value={h.title_en} onChange={(e) => updateHighlight({ title_en: e.target.value })} disabled={readOnly} maxLength={80}
+              <input id="highlight-title-en" type="text" value={h.title_en} onChange={(e) => updateHighlight({ title_en: e.target.value })} disabled={readOnly} maxLength={80}
                 className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
               <div className="mt-0.5 text-right"><CharCount current={h.title_en.length} max={80} /></div>
             </div>
@@ -109,20 +111,20 @@ export function HighlightSection({ config, onChange, readOnly }: Props) {
 
           <div>
             <div className="mb-1 flex items-center gap-2">
-              <label className="text-xs font-medium text-foreground">Descrição</label>
+              <label htmlFor="highlight-desc-pt" className="text-xs font-medium text-foreground">Descrição</label>
               <LangBadge lang="PT" />
             </div>
-            <textarea value={h.desc_pt} onChange={(e) => updateHighlight({ desc_pt: e.target.value })} disabled={readOnly} maxLength={200} rows={2}
+            <textarea id="highlight-desc-pt" value={h.desc_pt} onChange={(e) => updateHighlight({ desc_pt: e.target.value })} disabled={readOnly} maxLength={200} rows={2}
               className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
             <div className="mt-0.5 text-right"><CharCount current={h.desc_pt.length} max={200} /></div>
           </div>
 
           <div>
             <div className="mb-1 flex items-center gap-2">
-              <label className="text-xs font-medium text-foreground">Descrição</label>
+              <label htmlFor="highlight-desc-en" className="text-xs font-medium text-foreground">Descrição</label>
               <LangBadge lang="EN" />
             </div>
-            <textarea value={h.desc_en} onChange={(e) => updateHighlight({ desc_en: e.target.value })} disabled={readOnly} maxLength={200} rows={2}
+            <textarea id="highlight-desc-en" value={h.desc_en} onChange={(e) => updateHighlight({ desc_en: e.target.value })} disabled={readOnly} maxLength={200} rows={2}
               className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
             <div className="mt-0.5 text-right"><CharCount current={h.desc_en.length} max={200} /></div>
           </div>
@@ -130,19 +132,19 @@ export function HighlightSection({ config, onChange, readOnly }: Props) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <div className="mb-1 flex items-center gap-2">
-                <label className="text-xs font-medium text-foreground">CTA</label>
+                <label htmlFor="highlight-cta-pt" className="text-xs font-medium text-foreground">CTA</label>
                 <LangBadge lang="PT" />
               </div>
-              <input type="text" value={h.cta_pt} onChange={(e) => updateHighlight({ cta_pt: e.target.value })} disabled={readOnly} maxLength={40}
+              <input id="highlight-cta-pt" type="text" value={h.cta_pt} onChange={(e) => updateHighlight({ cta_pt: e.target.value })} disabled={readOnly} maxLength={40}
                 className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
               <div className="mt-0.5 text-right"><CharCount current={h.cta_pt.length} max={40} /></div>
             </div>
             <div>
               <div className="mb-1 flex items-center gap-2">
-                <label className="text-xs font-medium text-foreground">CTA</label>
+                <label htmlFor="highlight-cta-en" className="text-xs font-medium text-foreground">CTA</label>
                 <LangBadge lang="EN" />
               </div>
-              <input type="text" value={h.cta_en} onChange={(e) => updateHighlight({ cta_en: e.target.value })} disabled={readOnly} maxLength={40}
+              <input id="highlight-cta-en" type="text" value={h.cta_en} onChange={(e) => updateHighlight({ cta_en: e.target.value })} disabled={readOnly} maxLength={40}
                 className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
               <div className="mt-0.5 text-right"><CharCount current={h.cta_en.length} max={40} /></div>
             </div>

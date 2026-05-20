@@ -113,23 +113,13 @@ describe('SharedLinksSection', () => {
   it('calls onChange with correct list when delete is triggered', () => {
     const onChange = vi.fn()
     render(<SharedLinksSection config={baseConfig} onChange={onChange} readOnly={false} />)
-    // Click the first trash icon (each SortableLinkCard has a delete button)
-    const deleteButtons = screen.getAllByRole('button', { name: '' }).filter((btn) => {
-      // The Trash2 icon button has no text, but it does have an SVG inside
-      const hasTrash = btn.querySelector('svg') !== null
-      // Distinguish from grip (also has svg) — the trash button has onClick, not listeners
-      return hasTrash && btn.getAttribute('disabled') === null
+    // Each SortableLinkCard has a delete button with aria-label="Remover link"
+    const deleteButtons = screen.getAllByRole('button', { name: 'Remover link' })
+    expect(deleteButtons).toHaveLength(2)
+    // Click the first delete button
+    fireEvent.click(deleteButtons[0]!)
+    expect(onChange).toHaveBeenCalledWith({
+      shared_links: [expect.objectContaining({ id: '22222222-2222-2222-2222-222222222222' })],
     })
-    // We can't easily distinguish grip from trash by aria, so target by position in DOM
-    // The trash button is the last button in each card
-    const allButtons = screen.getAllByRole('button')
-    // Structure per card: grip (1), icon-picker trigger(s), trash (last per card)
-    // Use a direct approach: fire click on buttons that aren't the add button
-    const nonAddButtons = allButtons.filter((b) => b.textContent !== 'Adicionar link')
-    // Find a button containing an svg (all icon buttons) — the trash one fires onChange
-    fireEvent.click(nonAddButtons[nonAddButtons.length - 1]!)
-    // onChange may or may not have been called (depends on which button we hit)
-    // At minimum verify the component rendered without errors
-    expect(screen.getByText('2/10 links')).toBeDefined()
   })
 })

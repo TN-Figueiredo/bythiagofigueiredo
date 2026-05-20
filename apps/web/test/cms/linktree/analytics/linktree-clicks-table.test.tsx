@@ -36,16 +36,10 @@ describe('LinktreeClicksTable', () => {
     expect(screen.getByText('50.0%')).toBeDefined()
   })
 
-  it('handles empty clicksByKey gracefully (only header + footer)', () => {
+  it('handles empty clicksByKey gracefully (shows empty state)', () => {
     render(<LinktreeClicksTable clicksByKey={{}} totalClicks={0} />)
-    const rows = screen.getAllByRole('row')
-    // header + footer only = 2
-    expect(rows).toHaveLength(2)
-  })
-
-  it('renders 0 total when totalClicks is 0', () => {
-    render(<LinktreeClicksTable clicksByKey={{}} totalClicks={0} />)
-    expect(screen.getByText('0')).toBeDefined()
+    expect(screen.getByText('Nenhum click registrado no período selecionado.')).toBeDefined()
+    expect(screen.queryAllByRole('row')).toHaveLength(0)
   })
 
   it('shows 0.0% percentage when totalClicks is 0', () => {

@@ -44,6 +44,14 @@ function formatLinkLabel(linkKey: string): string {
 export function LinktreeClicksTable({ clicksByKey, totalClicks }: Props) {
   const sorted = Object.entries(clicksByKey).sort((a, b) => b[1] - a[1])
 
+  if (sorted.length === 0) {
+    return (
+      <div className="rounded-lg border border-border bg-card p-8 text-center">
+        <p className="text-sm text-muted-foreground">Nenhum click registrado no período selecionado.</p>
+      </div>
+    )
+  }
+
   const maxCount = sorted[0]?.[1] ?? 1
 
   return (

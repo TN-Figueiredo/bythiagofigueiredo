@@ -37,7 +37,10 @@ export async function saveLinktreeConfig(
     })
     .eq('id', siteId)
 
-  if (error) return { ok: false, error: error.message }
+  if (error) {
+    console.error('[linktree] save failed:', error.message)
+    return { ok: false, error: 'Erro ao salvar configuração. Tente novamente.' }
+  }
 
   revalidateTag('linktree-config')
   revalidateTag('sidebar-badges')
@@ -61,7 +64,10 @@ export async function loadLinktreeConfig(): Promise<
     .eq('id', siteId)
     .single()
 
-  if (error) return { ok: false, error: error.message }
+  if (error) {
+    console.error('[linktree] load failed:', error.message)
+    return { ok: false, error: 'Erro ao carregar configuração.' }
+  }
 
   const config = LinktreeConfigSchema.parse(data?.linktree_config ?? {})
   return { ok: true, config }

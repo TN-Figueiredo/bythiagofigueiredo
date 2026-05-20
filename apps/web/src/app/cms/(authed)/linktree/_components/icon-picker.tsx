@@ -48,6 +48,7 @@ export function IconPicker({ value, onChange, disabled }: Props) {
         type="button"
         onClick={() => !disabled && setOpen(true)}
         disabled={disabled}
+        aria-label="Trocar ícone"
         className="flex items-center gap-2 rounded border border-border bg-background px-3 py-2 text-xs text-muted-foreground hover:border-primary disabled:opacity-50"
       >
         <selected.Icon size={14} />
@@ -76,6 +77,7 @@ export function IconPicker({ value, onChange, disabled }: Props) {
               value === name ? 'bg-primary/10 text-primary' : 'text-muted-foreground'
             }`}
             title={name}
+            aria-label={name}
           >
             <Icon size={14} />
           </button>

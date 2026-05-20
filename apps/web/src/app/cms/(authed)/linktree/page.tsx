@@ -33,7 +33,8 @@ export default async function LinktreeEditorPage() {
     .eq('id', siteId)
     .single()
 
-  const config = LinktreeConfigSchema.parse(data?.linktree_config ?? {})
+  const parsed = LinktreeConfigSchema.safeParse(data?.linktree_config ?? {})
+  const config = parsed.success ? parsed.data : LinktreeConfigSchema.parse({})
   const domain = data?.short_domain ?? data?.primary_domain ?? ''
 
   const [site, author] = await Promise.all([

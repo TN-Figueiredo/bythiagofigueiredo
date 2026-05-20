@@ -46,13 +46,13 @@ function SortableLinkCard({
     <div ref={setNodeRef} style={style} {...attributes}
       className="rounded border border-border bg-background p-3">
       <div className="mb-2 flex items-center gap-2">
-        <button type="button" {...listeners} className="cursor-grab text-muted-foreground active:cursor-grabbing" disabled={readOnly}>
+        <button type="button" {...listeners} className="cursor-grab text-muted-foreground active:cursor-grabbing" disabled={readOnly} aria-label="Arrastar para reordenar">
           <GripVertical size={14} />
         </button>
         <IconPicker value={link.icon} onChange={(icon) => onUpdate(index, { icon })} disabled={readOnly} />
         <div className="flex-1" />
         <button type="button" onClick={() => onDelete(index)} disabled={readOnly}
-          className="text-muted-foreground hover:text-red-400 disabled:opacity-50">
+          className="text-muted-foreground hover:text-red-400 disabled:opacity-50" aria-label="Remover link">
           <Trash2 size={14} />
         </button>
       </div>
@@ -63,7 +63,7 @@ function SortableLinkCard({
             <LangBadge lang="PT" />
           </div>
           <input type="text" value={link.label_pt} onChange={(e) => onUpdate(index, { label_pt: e.target.value })}
-            disabled={readOnly} className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
+            disabled={readOnly} aria-label="Label em português" className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
         </div>
         <div>
           <div className="mb-0.5 flex items-center gap-1">
@@ -71,13 +71,13 @@ function SortableLinkCard({
             <LangBadge lang="EN" />
           </div>
           <input type="text" value={link.label_en} onChange={(e) => onUpdate(index, { label_en: e.target.value })}
-            disabled={readOnly} className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
+            disabled={readOnly} aria-label="Label em inglês" className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
         </div>
       </div>
       <div>
         <span className="mb-0.5 block text-[10px] text-muted-foreground">URL</span>
         <input type="url" value={link.url} onChange={(e) => onUpdate(index, { url: e.target.value })}
-          disabled={readOnly} placeholder="https://..."
+          disabled={readOnly} placeholder="https://..." aria-label="URL do link"
           className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
       </div>
     </div>

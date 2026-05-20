@@ -52,6 +52,16 @@ export function LinktreeEditor({ initialConfig, domain, siteId: _siteId, readOnl
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleSave, hasChanges, readOnly])
 
+  useEffect(() => {
+    function handleBeforeUnload(e: BeforeUnloadEvent) {
+      if (hasChanges) {
+        e.preventDefault()
+      }
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [hasChanges])
+
   const updateConfig = useCallback((patch: Partial<Config>) => {
     setConfig((prev) => ({ ...prev, ...patch }))
   }, [])

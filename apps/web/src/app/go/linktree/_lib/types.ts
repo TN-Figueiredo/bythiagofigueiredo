@@ -2,32 +2,32 @@ import { z } from 'zod'
 
 export const HighlightSchema = z.object({
   active: z.boolean().default(false),
-  badge_pt: z.string().default(''),
-  badge_en: z.string().default(''),
-  title_pt: z.string().default(''),
-  title_en: z.string().default(''),
-  desc_pt: z.string().default(''),
-  desc_en: z.string().default(''),
-  cta_pt: z.string().default(''),
-  cta_en: z.string().default(''),
-  url: z.string().default(''),
+  badge_pt: z.string().max(30).default(''),
+  badge_en: z.string().max(30).default(''),
+  title_pt: z.string().max(80).default(''),
+  title_en: z.string().max(80).default(''),
+  desc_pt: z.string().max(200).default(''),
+  desc_en: z.string().max(200).default(''),
+  cta_pt: z.string().max(40).default(''),
+  cta_en: z.string().max(40).default(''),
+  url: z.string().max(2048).default(''),
 })
 
 export const SharedLinkSchema = z.object({
   id: z.string().uuid().default(() => crypto.randomUUID()),
-  label_pt: z.string(),
-  label_en: z.string(),
-  url: z.string(),
-  icon: z.string(),
+  label_pt: z.string().max(100),
+  label_en: z.string().max(100),
+  url: z.string().max(2048),
+  icon: z.string().max(50),
 })
 
 export const LinktreeConfigSchema = z.object({
   highlight: HighlightSchema.default({}),
-  tagline_pt: z.string().default(''),
-  tagline_en: z.string().default(''),
-  blog_desc_pt: z.string().default(''),
-  blog_desc_en: z.string().default(''),
-  shared_links: z.array(SharedLinkSchema).default([]),
+  tagline_pt: z.string().max(120).default(''),
+  tagline_en: z.string().max(120).default(''),
+  blog_desc_pt: z.string().max(300).default(''),
+  blog_desc_en: z.string().max(300).default(''),
+  shared_links: z.array(SharedLinkSchema).max(10).default([]),
 })
 
 export type LinktreeConfig = z.infer<typeof LinktreeConfigSchema>

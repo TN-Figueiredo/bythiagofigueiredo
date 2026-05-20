@@ -70,9 +70,11 @@ export default async function LinktreeAnalyticsPage({ searchParams }: Props) {
   // Per-link click aggregation
   const allClicksByKey: Record<string, number> = {}
   for (const m of dailyMetrics) {
-    const byKey = m.link_clicks_by_key as Record<string, number>
-    for (const [key, count] of Object.entries(byKey)) {
-      allClicksByKey[key] = (allClicksByKey[key] ?? 0) + count
+    const byKey = m.link_clicks_by_key as Record<string, number> | null
+    if (byKey) {
+      for (const [key, count] of Object.entries(byKey)) {
+        allClicksByKey[key] = (allClicksByKey[key] ?? 0) + count
+      }
     }
   }
 
@@ -277,6 +279,11 @@ export default async function LinktreeAnalyticsPage({ searchParams }: Props) {
             // eslint-disable-next-line react/no-danger
             dangerouslySetInnerHTML={{ __html: polyViews + polyUnique }}
           />
+        </div>
+      )}
+      {dailyMetrics.length === 0 && (
+        <div className="rounded-lg border border-border bg-card p-8 text-center">
+          <p className="text-sm text-muted-foreground">Nenhum dado de analytics disponível para o período selecionado.</p>
         </div>
       )}
 
