@@ -1,7 +1,15 @@
 // @vitest-environment happy-dom
 import React from 'react'
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeAll } from 'vitest'
 import { render } from '@testing-library/react'
+
+beforeAll(() => {
+  // sendBeacon is not available in happy-dom; stub it to prevent network errors
+  Object.defineProperty(navigator, 'sendBeacon', {
+    value: vi.fn(),
+    writable: true,
+  })
+})
 
 vi.mock('next/headers', () => ({
   cookies: async () => ({ get: () => ({ value: 'system' }), getAll: () => [] }),

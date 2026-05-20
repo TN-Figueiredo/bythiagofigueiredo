@@ -65,22 +65,49 @@ export async function subscribeNewsletterInline(
 
   const userAgent = h.get('user-agent') ?? ''
 
-  // Insert subscription
-  const { error: insertError } = await db.from('newsletter_subscriptions').insert({
-    site_id: siteId,
-    email,
-    status: 'pending_confirmation',
-    newsletter_id,
-    locale,
-    ip,
-    user_agent: userAgent,
-    consent_text_version: CONSENT_VERSION,
-    confirmation_token_hash: tokenHash,
-    confirmation_expires_at: expiresAt,
-  })
+  // Check for existing subscription — update token on re-subscribe
+  const { data: existing } = await db
+    .from('newsletter_subscriptions')
+    .select('id, status')
+    .eq('site_id', siteId)
+    .eq('email', email)
+    .eq('newsletter_id', newsletter_id)
+    .maybeSingle()
 
-  if (insertError && !insertError.message.includes('duplicate')) {
-    return { error: 'Erro interno. Tente novamente. / Internal error.' }
+  if (existing) {
+    if (existing.status === 'confirmed') {
+      return { success: true }
+    }
+    const { error: updateErr } = await db
+      .from('newsletter_subscriptions')
+      .update({
+        status: 'pending_confirmation',
+        confirmation_token_hash: tokenHash,
+        confirmation_expires_at: expiresAt,
+        consent_text_version: CONSENT_VERSION,
+        locale,
+        unsubscribed_at: null,
+      })
+      .eq('id', existing.id)
+    if (updateErr) {
+      return { error: 'Erro interno. Tente novamente. / Internal error.' }
+    }
+  } else {
+    const { error: insertError } = await db.from('newsletter_subscriptions').insert({
+      site_id: siteId,
+      email,
+      status: 'pending_confirmation',
+      newsletter_id,
+      locale,
+      ip,
+      user_agent: userAgent,
+      consent_text_version: CONSENT_VERSION,
+      confirmation_token_hash: tokenHash,
+      confirmation_expires_at: expiresAt,
+    })
+    if (insertError && !insertError.message.includes('duplicate')) {
+      return { error: 'Erro interno. Tente novamente. / Internal error.' }
+    }
   }
 
   // Send confirmation email (non-fatal)

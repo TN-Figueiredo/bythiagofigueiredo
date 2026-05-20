@@ -12,6 +12,8 @@ interface LinkRowProps {
   subscriberCount?: number
   isExternal?: boolean
   locale?: string
+  linkKey?: string
+  onTrackClick?: (key: string) => void
 }
 
 export function formatCount(n: number): string {
@@ -20,7 +22,7 @@ export function formatCount(n: number): string {
   return String(n)
 }
 
-export function LinkRow({ label, desc, url, icon, subscriberCount, isExternal = true, locale }: LinkRowProps) {
+export function LinkRow({ label, desc, url, icon, subscriberCount, isExternal = true, locale, linkKey, onTrackClick }: LinkRowProps) {
   const Icon = getIcon(icon)
   const isYouTube = icon === 'youtube'
   return (
@@ -29,6 +31,7 @@ export function LinkRow({ label, desc, url, icon, subscriberCount, isExternal = 
       target={isExternal ? '_blank' : undefined}
       rel={isExternal ? 'noopener noreferrer' : undefined}
       className="flex items-center gap-3 px-3 min-h-[48px] border-b border-[var(--pb-line)] last:border-b-0 transition-colors hover:bg-[var(--pb-paper2)]"
+      onClick={() => linkKey && onTrackClick?.(linkKey)}
     >
       <span
         className="flex-shrink-0 w-[30px] h-[30px] rounded-md flex items-center justify-center"

@@ -10,6 +10,7 @@ import { LinkRow } from './link-row'
 import { SocialBar } from './social-bar'
 import { ShareButton } from './share-button'
 import { ThemeToggle } from './theme-toggle'
+import { useLinktreeTracking } from './use-linktree-tracking'
 
 interface LinktreeClientProps extends LinktreePageData {
   initialLocale: string
@@ -41,6 +42,7 @@ export function LinktreeClient({
 }: LinktreeClientProps) {
   const [locale, setLocale] = useState(initialLocale)
   const [themePref, setThemePref] = useState(initialTheme)
+  const { trackClick } = useLinktreeTracking(site.id)
   const theme = resolveTheme(themePref)
   const siteUrl = `https://${site.primaryDomain}`
   const isPt = locale.startsWith('pt')
@@ -102,12 +104,12 @@ export function LinktreeClient({
 
         <Header site={site} author={author} config={config} locale={locale} />
 
-        <HighlightCard highlight={config.highlight} locale={locale} />
+        <HighlightCard highlight={config.highlight} locale={locale} onTrackClick={trackClick} />
 
-        <LatestSection post={latestPost} video={latestVideo} locale={locale} siteUrl={siteUrl} />
+        <LatestSection post={latestPost} video={latestVideo} locale={locale} siteUrl={siteUrl} onTrackClick={trackClick} />
 
         {sortedSections.map((section) => (
-          <LangSection key={section.locale} section={section} siteUrl={site.primaryDomain} locale={locale} />
+          <LangSection key={section.locale} section={section} siteUrl={site.primaryDomain} locale={locale} onTrackClick={trackClick} />
         ))}
 
         {/* Shared links */}
@@ -131,6 +133,8 @@ export function LinktreeClient({
                     icon={link.icon}
                     locale={locale}
                     isExternal={!link.url.startsWith('/')}
+                    linkKey={`shared:${link.url}`}
+                    onTrackClick={trackClick}
                   />
                 ))}
               </div>
@@ -138,7 +142,7 @@ export function LinktreeClient({
           </section>
         )}
 
-        <SocialBar profiles={socials} />
+        <SocialBar profiles={socials} onTrackClick={trackClick} />
 
         <ShareButton
           url={`https://go.${site.primaryDomain}`}

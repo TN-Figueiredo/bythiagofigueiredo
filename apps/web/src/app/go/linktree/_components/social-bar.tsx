@@ -15,9 +15,10 @@ const SOCIAL_ICON_MAP: Record<string, React.FC<{ color?: string; size?: number }
 
 interface SocialBarProps {
   profiles: SocialProfile[]
+  onTrackClick?: (key: string) => void
 }
 
-export function SocialBar({ profiles }: SocialBarProps) {
+export function SocialBar({ profiles, onTrackClick }: SocialBarProps) {
   if (profiles.length === 0) return null
   return (
     <nav id="social" className="flex justify-center gap-1 my-3" aria-label="Social profiles">
@@ -32,6 +33,7 @@ export function SocialBar({ profiles }: SocialBarProps) {
             rel="noopener noreferrer"
             aria-label={`${p.platform}: ${p.handle}`}
             className="w-11 h-11 rounded-lg flex items-center justify-center text-[var(--pb-faint)] transition-colors hover:text-[var(--pb-accent)] hover:bg-[var(--pb-paper2)]"
+            onClick={() => onTrackClick?.(`social:${p.platform}`)}
           >
             <Icon color="currentColor" size={18} />
           </a>

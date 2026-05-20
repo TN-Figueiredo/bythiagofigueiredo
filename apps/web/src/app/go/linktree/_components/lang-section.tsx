@@ -9,9 +9,10 @@ interface LangSectionProps {
   section: LangSectionType
   siteUrl: string
   locale?: string
+  onTrackClick?: (linkKey: string) => void
 }
 
-export function LangSection({ section, siteUrl, locale }: LangSectionProps) {
+export function LangSection({ section, siteUrl, locale, onTrackClick }: LangSectionProps) {
   const isEnglish = section.locale.startsWith('en')
   return (
     <section id={section.locale.startsWith('pt') ? 'pt' : 'en'} aria-label={section.label}>
@@ -46,6 +47,8 @@ export function LangSection({ section, siteUrl, locale }: LangSectionProps) {
               subscriberCount={item.subscriberCount}
               locale={locale ?? section.locale}
               isExternal={!item.url.startsWith(`https://${siteUrl}`)}
+              linkKey={`${item.type}:${section.locale.split('-')[0]}:${item.id}`}
+              onTrackClick={onTrackClick}
             />
           ))}
         </div>

@@ -9,6 +9,7 @@ interface LatestSectionProps {
   video: LatestVideo | null
   locale: string
   siteUrl: string
+  onTrackClick?: (key: string) => void
 }
 
 export function formatDate(dateStr: string, locale: string): string {
@@ -25,7 +26,7 @@ export function formatViews(n: number, locale: string): string {
   return `${n} ${label}`
 }
 
-export function LatestSection({ post, video, locale, siteUrl }: LatestSectionProps) {
+export function LatestSection({ post, video, locale, siteUrl, onTrackClick }: LatestSectionProps) {
   if (!post && !video) return null
   const isPt = locale.startsWith('pt')
 
@@ -54,6 +55,7 @@ export function LatestSection({ post, video, locale, siteUrl }: LatestSectionPro
             href={`${siteUrl}${locale.startsWith('pt') ? '/pt' : ''}/blog/${post.slug}`}
             className="block p-2 border-l-[3px] bg-[rgba(255,255,255,0.02)] mb-1 transition-colors hover:bg-[var(--pb-paper2)]"
             style={{ borderColor: post.tagColor ?? 'var(--pb-accent)' }}
+            onClick={() => onTrackClick?.(`latest:blog:${post.slug}`)}
           >
             <span className="block text-[10px] font-bold tracking-widest uppercase text-[var(--pb-muted)]">
               <span aria-hidden="true">▤ </span>{isPt ? 'Último post' : 'Latest post'}
@@ -76,6 +78,7 @@ export function LatestSection({ post, video, locale, siteUrl }: LatestSectionPro
             target="_blank"
             rel="noopener noreferrer"
             className="block p-2 border-l-[3px] border-[var(--pb-yt)] bg-[rgba(255,255,255,0.02)] transition-colors hover:bg-[var(--pb-paper2)]"
+            onClick={() => onTrackClick?.(`latest:youtube:${video.youtubeVideoId}`)}
           >
             <span className="block text-[10px] font-bold tracking-widest uppercase text-[var(--pb-yt)]">
               <span aria-hidden="true">▶ </span>{isPt ? 'Último vídeo' : 'Latest video'}

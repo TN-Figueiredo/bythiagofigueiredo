@@ -7,12 +7,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const {
   mockRateCheck,
   mockInsert,
+  mockUpdate,
+  mockMaybeSingle,
   mockFrom,
   mockSend,
   mockCaptureException,
 } = vi.hoisted(() => ({
   mockRateCheck: vi.fn(),
   mockInsert: vi.fn(),
+  mockUpdate: vi.fn(),
+  mockMaybeSingle: vi.fn(),
   mockFrom: vi.fn(),
   mockSend: vi.fn(),
   mockCaptureException: vi.fn(),
@@ -67,12 +71,18 @@ import { subscribeToNewsletters, getPostSubscribeSuggestions } from '../../../..
 describe('subscribeToNewsletters', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    // Restore happy-path defaults
+    // Restore happy-path defaults: new subscription (no existing row)
     mockRateCheck.mockResolvedValue({ data: true, error: null })
+    mockMaybeSingle.mockResolvedValue({ data: null, error: null })
     mockInsert.mockResolvedValue({ data: { id: 'sub-1' }, error: null })
-    mockFrom.mockReturnValue({ insert: mockInsert })
+    mockUpdate.mockResolvedValue({ data: null, error: null })
+    const eqChain = { eq: vi.fn().mockReturnThis(), maybeSingle: mockMaybeSingle }
+    mockFrom.mockReturnValue({
+      select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue(eqChain) }),
+      insert: mockInsert,
+      update: vi.fn().mockReturnValue({ eq: mockUpdate }),
+    })
     mockSend.mockResolvedValue({ messageId: 'msg-1', provider: 'ses' })
-    // Ensure Turnstile env var is NOT set by default (skip verification path)
     delete process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
     process.env.NEXT_PUBLIC_APP_URL = 'https://bythiagofigueiredo.com'
   })
@@ -191,9 +201,25 @@ describe('subscribeToNewsletters', () => {
     expect(insertArg.user_agent).toBe('TestAgent/1.0')
   })
 
-  /* ====== Duplicate insert handling ====== */
+  /* ====== Re-subscribe handling ====== */
 
-  it('treats duplicate insert as success (does not fail)', async () => {
+  it('updates token hash when existing pending subscription found', async () => {
+    mockMaybeSingle.mockResolvedValue({ data: { id: 'existing-1', status: 'pending_confirmation' }, error: null })
+    mockUpdate.mockResolvedValue({ data: null, error: null })
+    const result = await subscribeToNewsletters('user@example.com', ['nl-1'], 'en')
+    expect(result.success).toBe(true)
+    expect(result.subscribedIds).toContain('nl-1')
+    expect(mockInsert).not.toHaveBeenCalled()
+  })
+
+  it('skips already-confirmed subscriptions without re-sending email', async () => {
+    mockMaybeSingle.mockResolvedValue({ data: { id: 'existing-1', status: 'confirmed' }, error: null })
+    const result = await subscribeToNewsletters('user@example.com', ['nl-1'], 'en')
+    expect(result.success).toBe(true)
+    expect(result.subscribedIds).toContain('nl-1')
+  })
+
+  it('treats duplicate insert as success (race condition)', async () => {
     mockInsert.mockResolvedValue({
       data: null,
       error: { message: 'duplicate key value violates unique constraint "newsletter_subscriptions_pkey"', code: '23505' },
@@ -256,7 +282,7 @@ describe('subscribeToNewsletters', () => {
 
   /* ====== Insert correctness ====== */
 
-  it('inserts one row per newsletter_id', async () => {
+  it('inserts one row per newsletter_id when none exist', async () => {
     await subscribeToNewsletters('user@example.com', ['nl-1', 'nl-2', 'nl-3'], 'en')
     expect(mockInsert).toHaveBeenCalledTimes(3)
   })

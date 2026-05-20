@@ -7,9 +7,10 @@ import type { Highlight } from '../_lib/types'
 interface HighlightCardProps {
   highlight: Highlight
   locale: string
+  onTrackClick?: (key: string) => void
 }
 
-export function HighlightCard({ highlight, locale }: HighlightCardProps) {
+export function HighlightCard({ highlight, locale, onTrackClick }: HighlightCardProps) {
   if (!highlight.active) return null
   const isPt = locale.startsWith('pt')
   const badge = isPt ? highlight.badge_pt : highlight.badge_en
@@ -27,6 +28,7 @@ export function HighlightCard({ highlight, locale }: HighlightCardProps) {
         target={isExternal ? '_blank' : undefined}
         rel={isExternal ? 'noopener noreferrer' : undefined}
         className="block bg-[var(--pb-accent)] rounded-sm p-3 transition-opacity hover:opacity-95"
+        onClick={() => onTrackClick?.('highlight')}
       >
         {badge && (
           <span className="inline-block text-[10px] font-bold tracking-widest uppercase bg-[rgba(251,246,232,0.85)] text-[var(--pb-accent)] px-2 py-0.5 mb-2">

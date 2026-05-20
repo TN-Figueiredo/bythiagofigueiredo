@@ -68,20 +68,47 @@ export async function subscribeToNewsletters(
 
     const subscribedIds: string[] = []
     for (const newsletterId of parsed.data.newsletter_ids) {
-      const { error } = await db.from('newsletter_subscriptions').insert({
-        site_id: siteId,
-        email,
-        status: 'pending_confirmation',
-        newsletter_id: newsletterId,
-        locale,
-        consent_text_version: CONSENT_VERSION,
-        confirmation_token_hash: tokenHash,
-        confirmation_expires_at: expiresAt,
-        ip,
-        user_agent: userAgent,
-      })
-      if (!error || error.message.includes('duplicate')) {
-        subscribedIds.push(newsletterId)
+      const { data: existing } = await db
+        .from('newsletter_subscriptions')
+        .select('id, status')
+        .eq('site_id', siteId)
+        .eq('email', email)
+        .eq('newsletter_id', newsletterId)
+        .maybeSingle()
+
+      if (existing) {
+        if (existing.status === 'confirmed') {
+          subscribedIds.push(newsletterId)
+          continue
+        }
+        const { error: updateErr } = await db
+          .from('newsletter_subscriptions')
+          .update({
+            status: 'pending_confirmation',
+            confirmation_token_hash: tokenHash,
+            confirmation_expires_at: expiresAt,
+            consent_text_version: CONSENT_VERSION,
+            locale,
+            unsubscribed_at: null,
+          })
+          .eq('id', existing.id)
+        if (!updateErr) subscribedIds.push(newsletterId)
+      } else {
+        const { error } = await db.from('newsletter_subscriptions').insert({
+          site_id: siteId,
+          email,
+          status: 'pending_confirmation',
+          newsletter_id: newsletterId,
+          locale,
+          consent_text_version: CONSENT_VERSION,
+          confirmation_token_hash: tokenHash,
+          confirmation_expires_at: expiresAt,
+          ip,
+          user_agent: userAgent,
+        })
+        if (!error || error.message.includes('duplicate')) {
+          subscribedIds.push(newsletterId)
+        }
       }
     }
 

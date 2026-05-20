@@ -6,12 +6,23 @@ vi.mock('next/headers', () => ({
 
 const mockRateCheck = vi.fn().mockResolvedValue({ data: true, error: null })
 const mockInsert = vi.fn().mockResolvedValue({ data: { id: 'sub-1' }, error: null })
+const mockUpdate = vi.fn().mockResolvedValue({ data: null, error: null })
+const mockMaybeSingle = vi.fn().mockResolvedValue({ data: null, error: null })
 const mockFrom = vi.fn()
+
+function buildFromReturn(overrides?: { insert?: typeof mockInsert }) {
+  const eqChain = { eq: vi.fn().mockReturnThis(), maybeSingle: mockMaybeSingle }
+  return {
+    select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue(eqChain) }),
+    insert: overrides?.insert ?? mockInsert,
+    update: vi.fn().mockReturnValue({ eq: mockUpdate }),
+  }
+}
 
 vi.mock('../../../../lib/supabase/service', () => ({
   getSupabaseServiceClient: vi.fn(() => ({
     rpc: mockRateCheck,
-    from: mockFrom.mockReturnValue({ insert: mockInsert }),
+    from: mockFrom.mockImplementation(() => buildFromReturn()),
   })),
 }))
 
@@ -46,7 +57,6 @@ describe('subscribeNewsletterInline', () => {
 
   it('returns success for valid email', async () => {
     mockRateCheck.mockResolvedValueOnce({ data: true, error: null })
-    mockFrom.mockReturnValueOnce({ insert: vi.fn().mockResolvedValue({ data: { id: 'sub-1' }, error: null }) })
     const fd = new FormData()
     fd.set('email', 'user@example.com')
     fd.set('newsletter_id', 'main-en')
@@ -71,7 +81,6 @@ describe('subscribeNewsletterInline', () => {
 
   it('builds confirmation URL with /newsletter/confirm/{token} path', async () => {
     mockRateCheck.mockResolvedValueOnce({ data: true, error: null })
-    mockFrom.mockReturnValueOnce({ insert: vi.fn().mockResolvedValue({ data: { id: 'sub-1' }, error: null }) })
     mockSend.mockResolvedValueOnce({ messageId: 'x', provider: 'ses' })
 
     const fd = new FormData()
@@ -90,8 +99,6 @@ describe('subscribeNewsletterInline', () => {
 
   it('insert payload includes ip and user_agent', async () => {
     mockRateCheck.mockResolvedValueOnce({ data: true, error: null })
-    const capturedInsert = vi.fn().mockResolvedValue({ data: { id: 'sub-1' }, error: null })
-    mockFrom.mockReturnValueOnce({ insert: capturedInsert })
     mockSend.mockResolvedValueOnce({ messageId: 'x', provider: 'ses' })
 
     const fd = new FormData()
@@ -102,15 +109,14 @@ describe('subscribeNewsletterInline', () => {
 
     await subscribeNewsletterInline(undefined, fd)
 
-    expect(capturedInsert).toHaveBeenCalledOnce()
-    const payload = capturedInsert.mock.calls[0][0]
+    expect(mockInsert).toHaveBeenCalledOnce()
+    const payload = mockInsert.mock.calls[0][0]
     expect(payload).toHaveProperty('ip')
     expect(payload).toHaveProperty('user_agent')
   })
 
   it('rate check receives p_ip', async () => {
     mockRateCheck.mockResolvedValueOnce({ data: true, error: null })
-    mockFrom.mockReturnValueOnce({ insert: vi.fn().mockResolvedValue({ data: { id: 'sub-1' }, error: null }) })
     mockSend.mockResolvedValueOnce({ messageId: 'x', provider: 'ses' })
 
     const fd = new FormData()
