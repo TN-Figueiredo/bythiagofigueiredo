@@ -24,6 +24,10 @@ vi.mock('next/cache', () => ({
   revalidateTag: revalidateTagSpy,
 }))
 
+vi.mock('next/server', () => ({
+  after: (fn: () => void) => fn(),
+}))
+
 vi.mock('../../../src/lib/sentry-wrap', () => ({
   captureServerActionError: captureServerActionErrorSpy,
 }))

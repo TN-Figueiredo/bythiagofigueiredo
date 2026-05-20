@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { revalidateTag } from 'next/cache'
+import { after } from 'next/server'
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
 import { captureServerActionError } from '../../../../lib/sentry-wrap'
 
@@ -295,8 +296,7 @@ export default async function NewsletterConfirmPage({ params }: Props) {
     )
   }
 
-  // Subscriber count changed — invalidate cross-promotion suggestion cache
-  revalidateTag('newsletter-suggestions')
+  after(() => revalidateTag('newsletter-suggestions'))
 
   return (
     <ConfirmLayout
