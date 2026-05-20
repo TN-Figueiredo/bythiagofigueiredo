@@ -123,7 +123,7 @@ export async function renderMultiSlide(
   )
   const buffers: Buffer[] = []
   for (let idx = 0; idx < results.length; idx++) {
-    const r = results[idx]
+    const r = results[idx]!
     if (r.status === 'fulfilled') {
       buffers.push(r.value)
     } else {

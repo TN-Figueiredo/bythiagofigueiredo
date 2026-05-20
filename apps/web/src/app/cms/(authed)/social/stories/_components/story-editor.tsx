@@ -160,9 +160,7 @@ export const StoryEditor = forwardRef<StoryEditorHandle, StoryEditorProps>(funct
   // CMS data token insertion — forward to active editor
   // ---------------------------------------------------------------------------
   const handleInsertText = useCallback((text: string) => {
-    // The canvas editor doesn't expose an addElement imperative method,
-    // so we use a workaround: dispatch a custom event that social-canvas listens to.
-    // For now, we copy to clipboard — the template token system handles the insert
+    // Copy to clipboard — the template token system handles the insert
     // natively via the `{{token}}` template placeholders.
     void navigator.clipboard.writeText(text).then(() => {
       setCopiedToClipboard(true)
@@ -171,12 +169,11 @@ export const StoryEditor = forwardRef<StoryEditorHandle, StoryEditorProps>(funct
   }, [])
 
   const handleInsertImage = useCallback((url: string) => {
-    // Insert as an image element via custom DOM event (the canvas listens via document)
-    document.dispatchEvent(new CustomEvent('story:insert-image', { detail: { url } }))
+    editorRef.current?.addImageElement(url)
   }, [])
 
   const handleSetBackground = useCallback((url: string) => {
-    document.dispatchEvent(new CustomEvent('story:set-background', { detail: { url } }))
+    editorRef.current?.setBackground(url)
   }, [])
 
   // ---------------------------------------------------------------------------
@@ -242,20 +239,6 @@ export const StoryEditor = forwardRef<StoryEditorHandle, StoryEditorProps>(funct
   }, [goToSlide, handleDuplicate])
 
   // ---------------------------------------------------------------------------
-  // Synchronise composition when active slide changes
-  // (replaceComposition is called after the editor mounts)
-  // ---------------------------------------------------------------------------
-  useEffect(() => {
-    const composition = slides[activeIndex]
-    if (composition) {
-      editorRef.current?.replaceComposition(composition)
-    }
-    // We intentionally only react to activeIndex changes — slides mutation
-    // would cause an infinite loop here.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeIndex])
-
-  // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
   const activeComposition = slides[activeIndex]
@@ -277,6 +260,7 @@ export const StoryEditor = forwardRef<StoryEditorHandle, StoryEditorProps>(funct
       {/* Center: canvas editor (takes all remaining space) */}
       <div className="flex-1 min-w-0 relative">
         <SocialCanvasEditor
+          key={slideIds[activeIndex]}
           ref={editorRef}
           embedded
           aspectRatio="9:16"

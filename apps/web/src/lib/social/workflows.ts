@@ -240,15 +240,24 @@ async function prepareStoryDelivery(
         const buffers = await renderMultiSlide(validSlides, context)
 
         const uploadedUrls: string[] = []
-        for (let i = 0; i < buffers.length; i++) {
-          const slideBuffer = buffers[i]
-          if (!slideBuffer) continue
-          const blob = await put(
-            `stories/${post.id}-slide-${i + 1}-${Date.now()}.jpg`,
-            slideBuffer,
-            { access: 'public', addRandomSuffix: false },
-          )
-          uploadedUrls.push(blob.url)
+        try {
+          for (let i = 0; i < buffers.length; i++) {
+            const slideBuffer = buffers[i]
+            if (!slideBuffer) continue
+            const blob = await put(
+              `stories/${post.id}-slide-${i + 1}-${Date.now()}.jpg`,
+              slideBuffer,
+              { access: 'public', addRandomSuffix: false },
+            )
+            uploadedUrls.push(blob.url)
+          }
+        } catch (uploadErr) {
+          // Cleanup already-uploaded blobs to avoid orphaned storage
+          if (uploadedUrls.length > 0) {
+            const { del } = await import('@vercel/blob')
+            await del(uploadedUrls).catch(() => {})
+          }
+          throw uploadErr
         }
 
         if (uploadedUrls.length > 0) {
@@ -518,13 +527,37 @@ export async function publishSocialPost(
             }
             const metaMod = await import('@tn-figueiredo/social/providers/meta')
             const token = createDecryptor()(pageToken)
-            const results = await metaMod.publishMultiSlideStory(igUserId, token, mediaUrls, 100)
-            const firstResult = results[0]
+
+            const MAX_MULTI_RETRIES = 3
+            for (let attempt = 0; attempt < MAX_MULTI_RETRIES; attempt++) {
+              try {
+                const multiResults = await metaMod.publishMultiSlideStory(igUserId, token, mediaUrls, 100)
+                const firstResult = multiResults[0]
+                return {
+                  deliveryId: delivery.id,
+                  status: 'published' as DeliveryStatus,
+                  platformPostId: firstResult?.id,
+                  platformUrl: firstResult?.url,
+                }
+              } catch (retryErr) {
+                const errorType = classifyError(retryErr)
+                if (errorType === 'permanent' || attempt === MAX_MULTI_RETRIES - 1) {
+                  return {
+                    deliveryId: delivery.id,
+                    status: 'failed' as DeliveryStatus,
+                    error: retryErr instanceof Error ? retryErr.message : String(retryErr),
+                    errorType,
+                  }
+                }
+                await sleep(RETRY_DELAYS[attempt] ?? 5000)
+              }
+            }
+            // Unreachable — loop always returns — but satisfies TypeScript
             return {
               deliveryId: delivery.id,
-              status: 'published' as DeliveryStatus,
-              platformPostId: firstResult?.id,
-              platformUrl: firstResult?.url,
+              status: 'failed' as DeliveryStatus,
+              error: 'Max multi-slide retry attempts exceeded',
+              errorType: 'transient' as ErrorType,
             }
           }
 

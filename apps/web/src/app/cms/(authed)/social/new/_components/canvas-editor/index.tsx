@@ -24,6 +24,8 @@ export interface SocialPostData {
 export interface SocialCanvasEditorRef {
   getComposition: () => CardComposition
   replaceComposition: (composition: CardComposition) => void
+  addImageElement: (url: string) => void
+  setBackground: (url: string) => void
   exportSlide: () => Promise<Blob>
 }
 
@@ -162,6 +164,31 @@ export const SocialCanvasEditor = forwardRef<SocialCanvasEditorRef, SocialCanvas
     useImperativeHandle(ref, () => ({
       getComposition: () => comp.composition,
       replaceComposition: (c) => comp.replaceComposition(c),
+      addImageElement: (url: string) => {
+        const cw = comp.composition.canvas.width
+        const ch = comp.composition.canvas.height
+        const size = Math.min(cw, ch) * 0.6
+        comp.addElement({
+          id: crypto.randomUUID(),
+          type: 'image',
+          src: url,
+          x: (cw - size) / 2,
+          y: (ch - size) / 2,
+          width: size,
+          height: size,
+          rotation: 0,
+          opacity: 1,
+          locked: false,
+          objectFit: 'cover',
+          borderRadius: 0,
+          borderColor: '#000000',
+          borderWidth: 0,
+          maintainAspectRatio: true,
+        })
+      },
+      setBackground: (url: string) => {
+        comp.setBackground({ type: 'image', url, fallbackColor: '#0a0a0a', mediaType: 'image' })
+      },
       exportSlide: async () => {
         const stage = canvasRef.current?.getStage()
         if (!stage) throw new Error('Stage not ready')

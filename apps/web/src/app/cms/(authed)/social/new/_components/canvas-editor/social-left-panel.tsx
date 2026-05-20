@@ -1,5 +1,5 @@
 'use client'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Type, ImagePlus, Square, Film, Loader2 } from 'lucide-react'
 import {
   MAX_ELEMENTS,
@@ -42,6 +42,7 @@ export function SocialLeftPanel({
   const { composition, setCanvas, setBackground, addElement } = comp
   const { selectedIds, select } = interaction
   const [bgTab, setBgTab] = useState<BgTab>(composition.background.type as BgTab)
+  useEffect(() => setBgTab(composition.background.type as BgTab), [composition.background.type])
   const [isUploading, setIsUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
 

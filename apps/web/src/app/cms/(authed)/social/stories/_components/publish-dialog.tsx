@@ -7,8 +7,6 @@ import type { CardComposition } from '@tn-figueiredo/links/qr'
 // Types
 // ---------------------------------------------------------------------------
 
-type SlideStatus = 'pending' | 'publishing' | 'done' | 'failed'
-
 export interface PublishDialogCallbacks {
   onSaveDraft: (slides: unknown[], content?: { caption?: string }) => Promise<{ ok: boolean; error?: string; data?: { id: string } }>
   onPublishNow: (slides: unknown[], content?: { caption?: string }) => Promise<{ ok: boolean; error?: string; data?: { id: string } }>
@@ -20,55 +18,6 @@ export interface PublishDialogProps extends PublishDialogCallbacks {
   caption?: string
   onClose: () => void
   onSuccess?: (outcome: 'draft' | 'published' | 'scheduled') => void
-}
-
-// ---------------------------------------------------------------------------
-// Per-slide progress indicator
-// ---------------------------------------------------------------------------
-
-function SlideProgressGrid({ statuses }: { statuses: SlideStatus[] }) {
-  if (statuses.length === 0) return null
-
-  const colors: Record<SlideStatus, string> = {
-    pending:    'bg-neutral-700 border-neutral-600 text-neutral-400',
-    publishing: 'bg-blue-500/20 border-blue-500 text-blue-300 animate-pulse',
-    done:       'bg-green-500/20 border-green-500 text-green-400',
-    failed:     'bg-red-500/20 border-red-500 text-red-400',
-  }
-  const labels: Record<SlideStatus, string> = {
-    pending:    'Pendente',
-    publishing: 'Publicando',
-    done:       'Pronto',
-    failed:     'Falhou',
-  }
-
-  return (
-    <div className="flex flex-wrap gap-2" role="list" aria-label="Progresso por slide">
-      {statuses.map((status, i) => (
-        <div
-          key={i}
-          role="listitem"
-          aria-label={`Slide ${i + 1}: ${labels[status]}`}
-          className={[
-            'flex h-8 w-8 items-center justify-center rounded border text-[10px] font-bold tabular-nums transition-all',
-            colors[status],
-          ].join(' ')}
-        >
-          {status === 'done' ? (
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-              <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          ) : status === 'failed' ? (
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-              <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
-          ) : (
-            i + 1
-          )}
-        </div>
-      ))}
-    </div>
-  )
 }
 
 // ---------------------------------------------------------------------------
@@ -99,7 +48,6 @@ export function PublishDialog({
     d.setMinutes(Math.ceil(d.getMinutes() / 5) * 5, 0, 0)
     return toLocalDatetimeStr(d)
   })
-  const [slideStatuses, setSlideStatuses] = useState<SlideStatus[]>([])
   const [errorMessage, setErrorMessage] = useState('')
   const [isPending, startTransition] = useTransition()
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -141,29 +89,16 @@ export function PublishDialog({
   // Publicar Agora
   // ---------------------------------------------------------------------------
   function handlePublishNow() {
-    const initial: SlideStatus[] = Array.from({ length: slides.length }, () => 'pending')
-    setSlideStatuses(initial)
     setMode('publishing')
 
     startTransition(async () => {
-      for (let i = 0; i < slides.length; i++) {
-        setSlideStatuses((prev) => {
-          const next = [...prev]
-          next[i] = 'publishing'
-          return next
-        })
-        await new Promise((r) => setTimeout(r, 300 + i * 150))
-      }
-
       const result = await onPublishNow(slides, content)
 
       if (result.ok) {
-        setSlideStatuses(Array.from({ length: slides.length }, () => 'done'))
         setDoneOutcome('published')
         setMode('done')
         onSuccess?.('published')
       } else {
-        setSlideStatuses(Array.from({ length: slides.length }, () => 'failed'))
         setErrorMessage(result.error ?? 'Erro ao publicar.')
         setMode('error')
       }
@@ -270,16 +205,16 @@ export function PublishDialog({
             </div>
             <button
               type="button"
-              onClick={() => { setMode('idle'); setSlideStatuses([]) }}
+              onClick={() => setMode('idle')}
               className="rounded-lg bg-neutral-800 px-4 py-2 text-sm font-medium text-neutral-200 hover:bg-neutral-700 transition-colors"
             >
               Tentar novamente
             </button>
           </div>
         ) : isPublishing ? (
-          <div className="flex flex-col gap-4">
-            <p className="text-sm text-neutral-400">Publicando slides no Instagram...</p>
-            <SlideProgressGrid statuses={slideStatuses} />
+          <div className="flex flex-col items-center gap-4 py-6 text-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-neutral-600 border-t-blue-400" aria-hidden="true" />
+            <p className="text-sm text-neutral-400">Enviando publicação...</p>
             <p className="text-[11px] text-neutral-600">
               Não feche esta janela enquanto a publicação estiver em andamento.
             </p>

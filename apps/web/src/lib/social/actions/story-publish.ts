@@ -5,6 +5,7 @@ import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { requireEditAccess, type ActionResult, SENTRY_TAG, revalidateSocialPaths } from './_shared'
 import { StorySlidesSchema } from '@/lib/social/story-types'
+import { after } from 'next/server'
 import { publishSocialPost } from '@/lib/social/workflows'
 import type { SocialPostWithSlides } from '@/lib/social/workflows'
 
@@ -292,12 +293,16 @@ export async function publishStoryNow(
       story_slides: slidesParsed.data as unknown[],
     }
 
-    // Fire publish workflow — non-blocking so UI gets the response quickly
-    publishSocialPost(socialPost).catch((err: unknown) => {
-      Sentry.captureException(err, {
-        tags: { ...SENTRY_TAG, action: 'publishStoryNow:workflow', postId: postIdParsed.data },
-      })
-    })
+    // Schedule publish workflow to run after the response is sent.
+    // `after()` tells Vercel to keep the function alive until the promise resolves,
+    // preventing the workflow from being killed mid-execution.
+    after(
+      publishSocialPost(socialPost).catch((err: unknown) => {
+        Sentry.captureException(err, {
+          tags: { ...SENTRY_TAG, action: 'publishStoryNow:workflow', postId: postIdParsed.data },
+        })
+      }),
+    )
 
     revalidateSocialPaths()
     return { ok: true, data: { id: postIdParsed.data } }
