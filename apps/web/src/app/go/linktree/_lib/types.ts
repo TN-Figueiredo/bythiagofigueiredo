@@ -14,6 +14,7 @@ export const HighlightSchema = z.object({
 })
 
 export const SharedLinkSchema = z.object({
+  id: z.string().uuid().default(() => crypto.randomUUID()),
   label_pt: z.string(),
   label_en: z.string(),
   url: z.string(),

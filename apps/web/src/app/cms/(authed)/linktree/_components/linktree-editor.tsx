@@ -5,6 +5,8 @@ import type { z } from 'zod'
 import type { LinktreeConfigSchema, LinktreePageData } from '@/app/go/linktree/_lib/types'
 import { saveLinktreeConfig } from '../actions'
 import { GeneralSection } from './general-section'
+import { HighlightSection } from './highlight-section'
+import { SharedLinksSection } from './shared-links-section'
 
 type Config = z.infer<typeof LinktreeConfigSchema>
 
@@ -114,8 +116,8 @@ export function LinktreeEditor({ initialConfig, domain, siteId: _siteId, readOnl
         <div className="flex-1 overflow-y-auto p-6" style={{ maxWidth: '60%' }}>
           <div className="mx-auto max-w-2xl space-y-8">
             <GeneralSection config={config} onChange={updateConfig} readOnly={readOnly} />
-            {/* HighlightSection will be added in Task 8 */}
-            {/* SharedLinksSection will be added in Task 8 */}
+            <HighlightSection config={config} onChange={updateConfig} readOnly={readOnly} />
+            <SharedLinksSection config={config} onChange={updateConfig} readOnly={readOnly} />
           </div>
         </div>
 

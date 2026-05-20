@@ -126,14 +126,14 @@ export function LinktreeClient({
               <div className="pt-3">
                 {sharedLinks.map((link) => (
                   <LinkRow
-                    key={link.url}
+                    key={link.id}
                     label={isPt ? link.label_pt : link.label_en}
                     desc=""
                     url={link.url.startsWith('/') ? `${siteUrl}${isPt ? '/pt' : ''}${link.url}` : link.url}
                     icon={link.icon}
                     locale={locale}
                     isExternal={!link.url.startsWith('/')}
-                    linkKey={`shared:${link.url}`}
+                    linkKey={`shared:${link.id}`}
                     onTrackClick={trackClick}
                   />
                 ))}
