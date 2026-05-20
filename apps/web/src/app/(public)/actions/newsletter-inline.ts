@@ -1,6 +1,7 @@
 'use server'
 
 import crypto from 'node:crypto'
+import { headers } from 'next/headers'
 import { z } from 'zod'
 import { getSupabaseServiceClient } from '../../../../lib/supabase/service'
 import { getSiteContext } from '../../../../lib/cms/site-context'
@@ -45,13 +46,15 @@ export async function subscribeNewsletterInline(
   }
 
   const db = getSupabaseServiceClient()
+  const h = await headers()
+  const ip = h.get('x-forwarded-for')?.split(',')[0]?.trim() ?? ''
 
-  // Rate check (per-email, best-effort)
-  const { data: rate } = await db.rpc('newsletter_rate_check', {
+  const { data: rateAllowed } = await db.rpc('newsletter_rate_check', {
     p_site_id: siteId,
+    p_ip: ip,
     p_email: email,
   })
-  if (rate?.allowed === false) {
+  if (rateAllowed === false) {
     return { error: 'Muitas tentativas. Tente novamente em breve. / Too many attempts.' }
   }
 
@@ -60,6 +63,8 @@ export async function subscribeNewsletterInline(
   const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex')
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
 
+  const userAgent = h.get('user-agent') ?? ''
+
   // Insert subscription
   const { error: insertError } = await db.from('newsletter_subscriptions').insert({
     site_id: siteId,
@@ -67,6 +72,8 @@ export async function subscribeNewsletterInline(
     status: 'pending_confirmation',
     newsletter_id,
     locale,
+    ip,
+    user_agent: userAgent,
     consent_text_version: CONSENT_VERSION,
     confirmation_token_hash: tokenHash,
     confirmation_expires_at: expiresAt,
@@ -78,7 +85,7 @@ export async function subscribeNewsletterInline(
 
   // Send confirmation email (non-fatal)
   const localePrefix = locale === 'pt-BR' ? '/pt' : ''
-  const confirmUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}${localePrefix}/newsletter/confirm?token=${rawToken}`
+  const confirmUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}${localePrefix}/newsletter/confirm/${rawToken}`
   const isPt = locale === 'pt-BR'
   const domain = process.env.NEWSLETTER_FROM_DOMAIN ?? 'bythiagofigueiredo.com'
   await getEmailService().send({

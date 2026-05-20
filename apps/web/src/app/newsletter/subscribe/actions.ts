@@ -183,7 +183,7 @@ async function sendConfirmEmail({
   email, rawToken, locale,
 }: { email: string; rawToken: string; locale: string }) {
   const localePrefix = locale === 'pt-BR' ? '/pt' : ''
-  const confirmUrl = `${process.env.NEXT_PUBLIC_APP_URL}${localePrefix}/newsletter/confirm?token=${rawToken}`
+  const confirmUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}${localePrefix}/newsletter/confirm/${rawToken}`
   try {
     const domain = process.env.NEWSLETTER_FROM_DOMAIN ?? 'bythiagofigueiredo.com'
     await getEmailService().send({
@@ -192,7 +192,9 @@ async function sendConfirmEmail({
       subject: locale === 'pt-BR' ? 'Confirme sua inscrição' : 'Confirm your subscription',
       html: buildConfirmationHtml(confirmUrl, locale),
     })
-  } catch {
+  } catch (err) {
     // Email delivery failure is non-fatal — subscription row already created
+    console.error('[newsletter-subscribe] Email send failed:', err)
+    captureServerActionError(err, { action: 'newsletter_subscribe', branch: 'send_confirm_email' })
   }
 }

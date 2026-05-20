@@ -35,6 +35,7 @@ const COPY = {
       'Seu email já estava confirmado. Você continuará recebendo nossa newsletter.',
     ok_title: 'Inscrição confirmada!',
     ok_body: 'Obrigado por confirmar seu email. Você está inscrito na nossa newsletter.',
+    back_home: 'Voltar ao início',
   },
   en: {
     invalid_title: 'Invalid link',
@@ -54,6 +55,7 @@ const COPY = {
       'Your email was already confirmed. You will continue to receive our newsletter.',
     ok_title: 'Subscription confirmed!',
     ok_body: 'Thank you for confirming your email. You are subscribed to our newsletter.',
+    back_home: 'Back to home',
   },
 } as const
 
@@ -62,16 +64,135 @@ function pickCopy(locale: string | null | undefined) {
   return COPY[(locale && locale in COPY ? locale : 'pt-BR') as Locale]
 }
 
+/* ── State visual config ─────────────────────────────────────────────────── */
+
+type StateKind = 'success' | 'already' | 'expired' | 'not_found' | 'error' | 'invalid'
+
+const STATE_CONFIG: Record<StateKind, { accent: string; icon: string }> = {
+  success:   { accent: '#4CAF50', icon: '✔' },  // check mark
+  already:   { accent: 'var(--pb-accent, #FF8240)', icon: 'ℹ' },  // info
+  expired:   { accent: '#E5A100', icon: '⏳' },  // hourglass
+  not_found: { accent: 'var(--pb-muted, #958A75)', icon: '⁇' },  // question
+  error:     { accent: '#C14513', icon: '⚠' },   // warning
+  invalid:   { accent: '#C14513', icon: '✕' },   // x mark
+}
+
+/* ── Shared inline styles ────────────────────────────────────────────────── */
+
+const styles = {
+  wrapper: {
+    minHeight: '100vh',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '40px 24px',
+    background: 'var(--pb-bg, #1A1714)',
+  },
+  card: {
+    width: '100%',
+    maxWidth: 520,
+    textAlign: 'center' as const,
+  },
+  accentLine: (color: string) => ({
+    width: 48,
+    height: 3,
+    borderRadius: 2,
+    background: color,
+    margin: '0 auto 28px',
+  }),
+  icon: (color: string) => ({
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 56,
+    height: 56,
+    borderRadius: '50%',
+    border: `2px solid ${color}`,
+    fontSize: 24,
+    lineHeight: 1,
+    marginBottom: 20,
+    color,
+  }),
+  title: {
+    fontFamily: 'var(--font-fraunces-var), serif',
+    fontSize: 28,
+    fontWeight: 600,
+    color: 'var(--pb-ink, #F5EFE6)',
+    margin: '0 0 12px',
+    lineHeight: 1.2,
+  },
+  body: {
+    fontFamily: 'var(--font-jetbrains-var), monospace',
+    fontSize: 14,
+    lineHeight: 1.7,
+    color: 'var(--pb-muted, #958A75)',
+    margin: '0 0 32px',
+    maxWidth: 420,
+    marginLeft: 'auto',
+    marginRight: 'auto',
+  },
+  divider: {
+    width: 32,
+    height: 1,
+    background: 'var(--pb-line, #332D25)',
+    margin: '0 auto 20px',
+    border: 'none',
+  },
+  homeLink: {
+    fontFamily: 'var(--font-jetbrains-var), monospace',
+    fontSize: 12,
+    letterSpacing: '0.05em',
+    textTransform: 'uppercase' as const,
+    color: 'var(--pb-muted, #958A75)',
+    textDecoration: 'none',
+    borderBottom: '1px dashed var(--pb-line, #332D25)',
+    paddingBottom: 2,
+    transition: 'color 0.15s ease, border-color 0.15s ease',
+  },
+} as const
+
+function ConfirmLayout({
+  state,
+  title,
+  body,
+  backLabel,
+}: {
+  state: StateKind
+  title: string
+  body: string
+  backLabel: string
+}) {
+  const { accent, icon } = STATE_CONFIG[state]
+  return (
+    <main style={styles.wrapper}>
+      <div style={styles.card}>
+        <div style={styles.icon(accent)} role="img" aria-hidden="true">
+          {icon}
+        </div>
+        <div style={styles.accentLine(accent)} />
+        <h1 style={styles.title}>{title}</h1>
+        <p style={styles.body}>{body}</p>
+        <hr style={styles.divider} />
+        <a href="/" style={styles.homeLink}>
+          {backLabel}
+        </a>
+      </div>
+    </main>
+  )
+}
+
 export default async function NewsletterConfirmPage({ params }: Props) {
   const { token } = await params
 
   if (!token || typeof token !== 'string') {
     const c = pickCopy(null)
     return (
-      <main>
-        <h1>{c.invalid_title}</h1>
-        <p>{c.invalid_body}</p>
-      </main>
+      <ConfirmLayout
+        state="invalid"
+        title={c.invalid_title}
+        body={c.invalid_body}
+        backLabel={c.back_home}
+      />
     )
   }
 
@@ -122,45 +243,55 @@ export default async function NewsletterConfirmPage({ params }: Props) {
       captureServerActionError(rpcError, { action: 'confirm_newsletter' })
     }
     return (
-      <main>
-        <h1>{c.rpc_error_title}</h1>
-        <p>{c.rpc_error_body}</p>
-      </main>
+      <ConfirmLayout
+        state="error"
+        title={c.rpc_error_title}
+        body={c.rpc_error_body}
+        backLabel={c.back_home}
+      />
     )
   }
 
   if (!result.ok) {
     if (result.error === 'not_found') {
       return (
-        <main>
-          <h1>{c.not_found_title}</h1>
-          <p>{c.not_found_body}</p>
-        </main>
+        <ConfirmLayout
+          state="not_found"
+          title={c.not_found_title}
+          body={c.not_found_body}
+          backLabel={c.back_home}
+        />
       )
     }
     if (result.error === 'expired') {
       return (
-        <main>
-          <h1>{c.expired_title}</h1>
-          <p>{c.expired_body}</p>
-        </main>
+        <ConfirmLayout
+          state="expired"
+          title={c.expired_title}
+          body={c.expired_body}
+          backLabel={c.back_home}
+        />
       )
     }
     // invalid_state or unknown
     return (
-      <main>
-        <h1>{c.invalid_state_title}</h1>
-        <p>{c.invalid_state_body}</p>
-      </main>
+      <ConfirmLayout
+        state="error"
+        title={c.invalid_state_title}
+        body={c.invalid_state_body}
+        backLabel={c.back_home}
+      />
     )
   }
 
   if (result.already) {
     return (
-      <main>
-        <h1>{c.already_title}</h1>
-        <p>{c.already_body}</p>
-      </main>
+      <ConfirmLayout
+        state="already"
+        title={c.already_title}
+        body={c.already_body}
+        backLabel={c.back_home}
+      />
     )
   }
 
@@ -168,9 +299,11 @@ export default async function NewsletterConfirmPage({ params }: Props) {
   revalidateTag('newsletter-suggestions')
 
   return (
-    <main>
-      <h1>{c.ok_title}</h1>
-      <p>{c.ok_body}</p>
-    </main>
+    <ConfirmLayout
+      state="success"
+      title={c.ok_title}
+      body={c.ok_body}
+      backLabel={c.back_home}
+    />
   )
 }

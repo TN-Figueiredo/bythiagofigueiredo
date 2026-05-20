@@ -13,13 +13,11 @@ export interface AuthorRecord {
   is_default: boolean
 }
 
-/**
- * Fetches author by ID and tags the cache entry with the specific author ID
- * so CMS edits can surgically invalidate it via `revalidateTag('author:${id}')`.
- *
- * This is the only query function needed — the per-author tag enables surgical
- * cache invalidation without a generic catch-all.
- */
+export interface AuthorWithLocale extends AuthorRecord {
+  localeBio: string | null
+  localeSubtitle: string | null
+}
+
 export async function getAuthorByIdTagged(authorId: string): Promise<AuthorRecord | null> {
   const fn = unstable_cache(
     async (id: string): Promise<AuthorRecord | null> => {
@@ -40,4 +38,46 @@ export async function getAuthorByIdTagged(authorId: string): Promise<AuthorRecor
     },
   )
   return fn(authorId)
+}
+
+export async function getAuthorWithLocale(
+  authorId: string,
+  locale: 'en' | 'pt-BR',
+): Promise<AuthorWithLocale | null> {
+  const fn = unstable_cache(
+    async (id: string, loc: string): Promise<AuthorWithLocale | null> => {
+      const supabase = getSupabaseServiceClient()
+
+      const [authorResult, translationResult] = await Promise.all([
+        supabase
+          .from('authors')
+          .select('id, name, display_name, slug, bio, bio_md, avatar_url, social_links, is_default')
+          .eq('id', id)
+          .single(),
+        supabase
+          .from('author_about_translations')
+          .select('bio, subtitle')
+          .eq('author_id', id)
+          .eq('locale', loc)
+          .maybeSingle(),
+      ])
+
+      if (authorResult.error || !authorResult.data) return null
+
+      const author = authorResult.data as AuthorRecord
+      const translation = translationResult.data
+
+      return {
+        ...author,
+        localeBio: (translation?.bio as string | null) ?? null,
+        localeSubtitle: (translation?.subtitle as string | null) ?? null,
+      }
+    },
+    ['author-locale', authorId, locale],
+    {
+      tags: [`author:${authorId}`],
+      revalidate: 3600,
+    },
+  )
+  return fn(authorId, locale)
 }

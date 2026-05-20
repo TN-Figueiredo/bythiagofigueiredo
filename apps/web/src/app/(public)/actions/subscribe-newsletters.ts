@@ -90,7 +90,7 @@ export async function subscribeToNewsletters(
     }
 
     const localePrefix = locale === 'pt-BR' ? '/pt' : ''
-    const confirmUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}${localePrefix}/newsletter/confirm?token=${rawToken}`
+    const confirmUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}${localePrefix}/newsletter/confirm/${rawToken}`
     const isPt = locale === 'pt-BR'
 
     try {

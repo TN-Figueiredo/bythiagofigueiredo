@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const mockRateCheck = vi.fn().mockResolvedValue({ data: { allowed: true }, error: null })
+vi.mock('next/headers', () => ({
+  headers: vi.fn().mockResolvedValue(new Headers({ 'x-forwarded-for': '127.0.0.1' })),
+}))
+
+const mockRateCheck = vi.fn().mockResolvedValue({ data: true, error: null })
 const mockInsert = vi.fn().mockResolvedValue({ data: { id: 'sub-1' }, error: null })
 const mockFrom = vi.fn()
 
@@ -11,8 +15,9 @@ vi.mock('../../../../lib/supabase/service', () => ({
   })),
 }))
 
+const mockSend = vi.fn().mockResolvedValue({ messageId: 'x', provider: 'ses' })
 vi.mock('../../../../lib/email/service', () => ({
-  getEmailService: () => ({ send: vi.fn().mockResolvedValue({ messageId: 'x', provider: 'ses' }) }),
+  getEmailService: () => ({ send: mockSend }),
 }))
 
 vi.mock('../../../../lib/cms/site-context', () => ({
@@ -40,7 +45,7 @@ describe('subscribeNewsletterInline', () => {
   })
 
   it('returns success for valid email', async () => {
-    mockRateCheck.mockResolvedValueOnce({ data: { allowed: true }, error: null })
+    mockRateCheck.mockResolvedValueOnce({ data: true, error: null })
     mockFrom.mockReturnValueOnce({ insert: vi.fn().mockResolvedValue({ data: { id: 'sub-1' }, error: null }) })
     const fd = new FormData()
     fd.set('email', 'user@example.com')
@@ -53,7 +58,7 @@ describe('subscribeNewsletterInline', () => {
   })
 
   it('returns rate-limited error', async () => {
-    mockRateCheck.mockResolvedValueOnce({ data: { allowed: false }, error: null })
+    mockRateCheck.mockResolvedValueOnce({ data: false, error: null })
     const fd = new FormData()
     fd.set('email', 'user@example.com')
     fd.set('newsletter_id', 'main-pt')
@@ -62,5 +67,60 @@ describe('subscribeNewsletterInline', () => {
 
     const result = await subscribeNewsletterInline(undefined, fd)
     expect(result.error).toMatch(/rate|limit|tente/i)
+  })
+
+  it('builds confirmation URL with /newsletter/confirm/{token} path', async () => {
+    mockRateCheck.mockResolvedValueOnce({ data: true, error: null })
+    mockFrom.mockReturnValueOnce({ insert: vi.fn().mockResolvedValue({ data: { id: 'sub-1' }, error: null }) })
+    mockSend.mockResolvedValueOnce({ messageId: 'x', provider: 'ses' })
+
+    const fd = new FormData()
+    fd.set('email', 'user@example.com')
+    fd.set('newsletter_id', 'main-en')
+    fd.set('locale', 'en')
+    fd.set('turnstile_token', 'ok-token')
+
+    await subscribeNewsletterInline(undefined, fd)
+
+    expect(mockSend).toHaveBeenCalledOnce()
+    const html = mockSend.mock.calls[0][0].html as string
+    expect(html).toMatch(/\/newsletter\/confirm\/[a-f0-9]+/)
+    expect(html).not.toContain('?token=')
+  })
+
+  it('insert payload includes ip and user_agent', async () => {
+    mockRateCheck.mockResolvedValueOnce({ data: true, error: null })
+    const capturedInsert = vi.fn().mockResolvedValue({ data: { id: 'sub-1' }, error: null })
+    mockFrom.mockReturnValueOnce({ insert: capturedInsert })
+    mockSend.mockResolvedValueOnce({ messageId: 'x', provider: 'ses' })
+
+    const fd = new FormData()
+    fd.set('email', 'user@example.com')
+    fd.set('newsletter_id', 'main-en')
+    fd.set('locale', 'en')
+    fd.set('turnstile_token', 'ok-token')
+
+    await subscribeNewsletterInline(undefined, fd)
+
+    expect(capturedInsert).toHaveBeenCalledOnce()
+    const payload = capturedInsert.mock.calls[0][0]
+    expect(payload).toHaveProperty('ip')
+    expect(payload).toHaveProperty('user_agent')
+  })
+
+  it('rate check receives p_ip', async () => {
+    mockRateCheck.mockResolvedValueOnce({ data: true, error: null })
+    mockFrom.mockReturnValueOnce({ insert: vi.fn().mockResolvedValue({ data: { id: 'sub-1' }, error: null }) })
+    mockSend.mockResolvedValueOnce({ messageId: 'x', provider: 'ses' })
+
+    const fd = new FormData()
+    fd.set('email', 'user@example.com')
+    fd.set('newsletter_id', 'main-en')
+    fd.set('locale', 'en')
+    fd.set('turnstile_token', 'ok-token')
+
+    await subscribeNewsletterInline(undefined, fd)
+
+    expect(mockRateCheck).toHaveBeenCalledWith('newsletter_rate_check', expect.objectContaining({ p_ip: expect.any(String) }))
   })
 })

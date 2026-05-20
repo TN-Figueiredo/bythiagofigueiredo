@@ -10,7 +10,7 @@ import {
   getRecentEditions,
   getActiveTypeCount,
 } from '@/lib/newsletter/queries'
-import { getAuthorByIdTagged } from '@/lib/newsletter/author-queries'
+import { getAuthorWithLocale } from '@/lib/newsletter/author-queries'
 import {
   formatSubscriberCount,
   formatDaysAgo,
@@ -118,22 +118,26 @@ export default async function NewsletterLandingPage({ params }: PageProps) {
     const accentTextColor = resolveAccentTextColor(accentLight)
     const cadenceLabel = deriveCadenceLabel(type.cadence_label, type.cadence_days, locale, type.cadence_start_date)
     const subscriberCountStr = formatSubscriberCount(stats.subscriberCount)
-    // Dynamic author resolution with 3-tier fallback
     const profile = IDENTITY_PROFILES['bythiagofigueiredo']
     const author = type.author_id
-      ? await getAuthorByIdTagged(type.author_id)
+      ? await getAuthorWithLocale(type.author_id, locale)
       : null
 
-    const authorData = author?.bio
+    const resolvedBio = author?.localeBio ?? author?.bio ?? null
+    const resolvedSubtitle = author?.localeSubtitle ?? null
+
+    const authorData = author && resolvedBio
       ? {
           name: author.display_name ?? author.name,
-          bio: author.bio,
+          bio: resolvedBio,
+          subtitle: resolvedSubtitle,
           avatarUrl: author.avatar_url ?? null,
           socialLinks: author.social_links ?? {},
         }
       : {
           name: profile?.name ?? 'Thiago Figueiredo',
           bio: t('newsletter.landing.authorBio'),
+          subtitle: null as string | null,
           avatarUrl: (profile && 'imageUrl' in profile ? profile.imageUrl : null) as string | null,
           socialLinks: {},
         }
@@ -678,17 +682,19 @@ export default async function NewsletterLandingPage({ params }: PageProps) {
                 >
                   {authorData.name}
                 </div>
-                <div
-                  style={{
-                    fontFamily: 'var(--font-jetbrains-var), monospace',
-                    fontSize: 12,
-                    color: 'var(--pb-muted)',
-                    marginBottom: 12,
-                    letterSpacing: '0.04em',
-                  }}
-                >
-                  {t('newsletter.landing.authorRole')}
-                </div>
+                {(authorData.subtitle || t('newsletter.landing.authorRole')) && (
+                  <div
+                    style={{
+                      fontFamily: 'var(--font-jetbrains-var), monospace',
+                      fontSize: 12,
+                      color: 'var(--pb-muted)',
+                      marginBottom: 12,
+                      letterSpacing: '0.04em',
+                    }}
+                  >
+                    {authorData.subtitle ?? t('newsletter.landing.authorRole')}
+                  </div>
+                )}
                 <p
                   style={{
                     fontSize: 15,
