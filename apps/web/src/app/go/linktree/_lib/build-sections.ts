@@ -36,6 +36,7 @@ export function buildLangSections(
     }
     const siteUrl = `https://${primaryDomain}`
     const isPortuguese = locale.startsWith('pt')
+    const prefix = isPortuguese ? '/pt' : ''
     const blogDesc = isPortuguese ? config.blog_desc_pt : config.blog_desc_en
 
     const items: LangSectionItem[] = []
@@ -45,7 +46,7 @@ export function buildLangSections(
       type: 'blog',
       label: meta.blogLabel,
       desc: blogDesc || (isPortuguese ? 'Artigos' : 'Articles'),
-      url: `${siteUrl}/blog`,
+      url: `${siteUrl}${prefix}/blog`,
       icon: 'blog',
     })
 
@@ -55,7 +56,7 @@ export function buildLangSections(
         type: 'newsletter',
         label: nl.name,
         desc: nl.cadenceLabel ? `Newsletter ${nl.cadenceLabel}` : 'Newsletter',
-        url: `${siteUrl}/newsletter/${nl.slug}`,
+        url: `${siteUrl}${prefix}/newsletters/${nl.slug}`,
         icon: 'mail',
       })
     }

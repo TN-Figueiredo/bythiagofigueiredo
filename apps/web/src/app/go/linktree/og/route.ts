@@ -11,7 +11,9 @@ export const revalidate = 3600
 export async function GET(req: NextRequest): Promise<Response> {
   try {
     const host = (req.headers.get('host') ?? '').split(':')[0] ?? ''
-    const site = await resolveSiteByHost(host)
+    const siteId = req.headers.get('x-site-id')
+    const resolveHost = host.startsWith('go.') ? host.slice(3) : host
+    const site = siteId ? { id: siteId } : await resolveSiteByHost(resolveHost)
     if (!site) return notFoundOgFallback()
 
     const [seoConfig, ltConfig] = await Promise.all([

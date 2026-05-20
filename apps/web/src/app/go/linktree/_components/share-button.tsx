@@ -40,8 +40,9 @@ export function ShareButton({ url, title, locale }: ShareButtonProps) {
   return (
     <div className="flex justify-center my-1">
       <button
+        type="button"
         onClick={handleShare}
-        className="inline-flex items-center gap-1.5 text-[11px] text-[var(--pb-faint)] border border-[var(--pb-line)] px-3 py-1 rounded-full transition-colors hover:text-[var(--pb-accent)] hover:border-[var(--pb-accent)]"
+        className="inline-flex items-center gap-1.5 text-[11px] text-[var(--pb-faint)] border border-[var(--pb-line)] px-3 py-2 min-h-[36px] rounded-full transition-colors hover:text-[var(--pb-accent)] hover:border-[var(--pb-accent)]"
       >
         <ShareIcon size={12} />
         {copied ? (isPt ? 'Copiado!' : 'Copied!') : (isPt ? 'Compartilhar' : 'Share')}

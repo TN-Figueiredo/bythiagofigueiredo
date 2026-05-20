@@ -76,16 +76,17 @@ export function LinktreeClient({
       <div className="w-full max-w-[400px] flex flex-col gap-3">
         {/* Top bar: locale + theme */}
         <div className="flex justify-end items-center gap-2">
-          <div className="flex gap-1">
+          <div className="flex gap-1" role="group" aria-label="Language">
             {site.supportedLocales.map((loc) => {
               const label = loc.startsWith('pt') ? 'PT' : 'EN'
               const isActive = locale === loc
               return (
                 <button
+                  type="button"
                   key={loc}
                   onClick={() => toggleLocale(loc)}
-                  aria-current={isActive ? 'true' : undefined}
-                  className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full border transition-colors ${
+                  aria-pressed={isActive}
+                  className={`text-[10px] font-semibold px-2.5 py-1.5 min-h-[36px] rounded-full border transition-colors ${
                     isActive
                       ? 'bg-[rgba(255,130,64,0.12)] border-[var(--pb-accent)] text-[var(--pb-accent)]'
                       : 'border-[var(--pb-line)] text-[var(--pb-muted)] hover:text-[var(--pb-accent)]'
@@ -111,28 +112,30 @@ export function LinktreeClient({
 
         {/* Shared links */}
         {sharedLinks.length > 0 && (
-          <div
-            className="relative bg-[var(--pb-paper)] rounded-sm shadow-[var(--pb-shadow-card)] overflow-hidden"
-            style={{ transform: 'rotate(0.3deg)' }}
-          >
+          <section aria-label={isPt ? 'Links' : 'Links'}>
             <div
-              className="absolute -top-1 left-1/2 -ml-5 w-9 h-3 pointer-events-none motion-safe:block hidden"
-              style={{ background: 'var(--pb-marker, rgba(255,226,140,0.55))', opacity: 0.55, transform: 'rotate(-2deg)' }}
-            />
-            <div className="pt-3">
-              {sharedLinks.map((link) => (
-                <LinkRow
-                  key={link.url}
-                  label={isPt ? link.label_pt : link.label_en}
-                  desc=""
-                  url={link.url.startsWith('/') ? `${siteUrl}${link.url}` : link.url}
-                  icon={link.icon}
-                  locale={locale}
-                  isExternal={!link.url.startsWith('/')}
-                />
-              ))}
+              className="relative bg-[var(--pb-paper)] rounded-sm shadow-[var(--pb-shadow-card)] overflow-hidden"
+              style={{ transform: 'rotate(0.3deg)' }}
+            >
+              <div
+                className="absolute -top-1 left-1/2 -ml-5 w-9 h-3 pointer-events-none motion-safe:block hidden"
+                style={{ background: 'var(--pb-marker, rgba(255,226,140,0.55))', opacity: 0.55, transform: 'rotate(-2deg)' }}
+              />
+              <div className="pt-3">
+                {sharedLinks.map((link) => (
+                  <LinkRow
+                    key={link.url}
+                    label={isPt ? link.label_pt : link.label_en}
+                    desc=""
+                    url={link.url.startsWith('/') ? `${siteUrl}${isPt ? '/pt' : ''}${link.url}` : link.url}
+                    icon={link.icon}
+                    locale={locale}
+                    isExternal={!link.url.startsWith('/')}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
+          </section>
         )}
 
         <SocialBar profiles={socials} />
@@ -143,7 +146,7 @@ export function LinktreeClient({
           locale={locale}
         />
 
-        <footer className="text-center text-[10px] text-[var(--pb-faint)] opacity-35 font-mono tracking-wide mt-2">
+        <footer className="text-center text-[10px] text-[var(--pb-faint)] opacity-60 font-mono tracking-wide mt-2">
           go.{site.primaryDomain}
         </footer>
       </div>

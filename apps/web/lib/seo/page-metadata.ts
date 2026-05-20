@@ -421,7 +421,7 @@ export function generateLinktreeMetadata(
 
   const languages: Record<string, string> = { 'x-default': goUrl }
   for (const loc of config.supportedLocales) {
-    languages[loc] = goUrl
+    languages[hreflangCode(loc)] = goUrl
   }
 
   return {
@@ -436,7 +436,7 @@ export function generateLinktreeMetadata(
       url: goUrl,
       title,
       description,
-      images: [{ url: '/og/linktree', width: 1200, height: 630, alt: title }],
+      images: [{ url: `${goUrl}/og/linktree`, width: 1200, height: 630, alt: title }],
       locale: config.defaultLocale.replace('-', '_'),
       alternateLocale: config.supportedLocales
         .filter((l) => l !== config.defaultLocale)
@@ -449,10 +449,10 @@ export function generateLinktreeMetadata(
       'apple-mobile-web-app-title': 'TF Links',
       'apple-mobile-web-app-status-bar-style': 'black-translucent',
     },
-    manifest: '/manifest.webmanifest',
+    manifest: `${config.siteUrl}/manifest.webmanifest`,
     icons: {
-      icon: '/brand/favicon.svg',
-      apple: '/apple-touch-icon.png',
+      icon: `${config.siteUrl}/brand/favicon.svg`,
+      apple: `${config.siteUrl}/apple-touch-icon.png`,
     },
   }
 }

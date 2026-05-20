@@ -72,7 +72,8 @@ export async function renderLinktreeOgImage(
 }
 
 export function notFoundOgFallback(): Response {
-  return new Response(null, { status: 302, headers: { Location: '/og-default.png' } })
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? ''
+  return new Response(null, { status: 302, headers: { Location: `${base}/og-default.png` } })
 }
 
 /**

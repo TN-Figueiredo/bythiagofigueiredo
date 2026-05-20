@@ -43,12 +43,14 @@ export function Header({ site, author, config, locale }: HeaderProps) {
       </a>
       <div className="text-[9px] opacity-35 italic text-[var(--pb-ink)] font-[family-name:var(--font-fraunces)]">by</div>
       {/* Name */}
-      <a
-        href={siteUrl}
-        className="block text-sm font-medium text-[var(--pb-ink)] font-[family-name:var(--font-fraunces)] hover:underline hover:decoration-[var(--pb-accent)] hover:underline-offset-[3px]"
-      >
-        {author.displayName}
-      </a>
+      <h1 className="text-sm font-medium text-[var(--pb-ink)] font-[family-name:var(--font-fraunces)]">
+        <a
+          href={siteUrl}
+          className="hover:underline hover:decoration-[var(--pb-accent)] hover:underline-offset-[3px]"
+        >
+          {author.displayName}
+        </a>
+      </h1>
       {/* Tagline */}
       {tagline && (
         <p className="text-[11px] text-[var(--pb-muted)] font-mono mt-0.5">{tagline}</p>

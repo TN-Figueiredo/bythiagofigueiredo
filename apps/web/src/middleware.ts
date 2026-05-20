@@ -135,7 +135,12 @@ export async function middleware(
   // go.*/ → linktree page, go.*/ig → 301 redirect, go.*/{code} → short link
   const isGoSubdomain = hostname.startsWith('go.')
   if (isGoSubdomain) {
-    const baseDomain = hostname.slice(3)
+    const rawBaseDomain = hostname.slice(3)
+    const baseDomain =
+      (rawBaseDomain === 'localhost' || rawBaseDomain === '127.0.0.1') &&
+      process.env.NEXT_PUBLIC_DEV_SITE_HOSTNAME
+        ? process.env.NEXT_PUBLIC_DEV_SITE_HOSTNAME
+        : rawBaseDomain
     const code = pathname === '/' ? '' : pathname.slice(1)
 
     const ring = getRingContext()
@@ -163,6 +168,21 @@ export async function middleware(
       }
       if (!detectedLocale || !supportedLocales.includes(detectedLocale)) {
         detectedLocale = 'pt-BR'
+      }
+
+      const passthrough = ['robots.txt', 'favicon.ico', 'manifest.webmanifest', 'icon.svg']
+      if (passthrough.includes(code)) {
+        return NextResponse.next()
+      }
+
+      if (code === 'og/linktree') {
+        const rewriteUrl = request.nextUrl.clone()
+        rewriteUrl.pathname = '/go/linktree/og'
+        const res = NextResponse.rewrite(rewriteUrl)
+        res.headers.set('x-site-id', site.id)
+        res.headers.set('x-short-domain', host)
+        res.headers.set('x-locale', detectedLocale)
+        return res
       }
 
       if (!code) {

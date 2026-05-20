@@ -25,6 +25,7 @@ export default function LinktreeError({
         <h2 className="text-lg font-semibold text-[#F0E8D6] mb-2">Algo deu errado · Something went wrong</h2>
         <p className="text-sm text-[#B5A890] mb-4">Tente novamente em alguns instantes. · Please try again shortly.</p>
         <button
+          type="button"
           onClick={reset}
           className="text-sm font-medium text-[#FF8240] border border-[#FF8240] px-4 py-2 rounded hover:bg-[rgba(255,130,64,0.12)]"
         >

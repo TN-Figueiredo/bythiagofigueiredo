@@ -75,7 +75,7 @@ describe('buildLangSections', () => {
     expect(ids).toEqual(['blog-pt-BR', 'nl-diario', 'yt-bythiagofigueiredo'])
   })
 
-  it('constructs correct URLs for all item types', () => {
+  it('constructs correct URLs for EN items (no prefix)', () => {
     const newsletters: NewsletterTypeInfo[] = [
       { name: 'Journal', slug: 'journal', locale: 'en', cadenceLabel: 'weekly' },
     ]
@@ -85,7 +85,21 @@ describe('buildLangSections', () => {
     const sections = buildLangSections(['en'], newsletters, channels, baseConfig, 'bythiagofigueiredo.com')
     const items = sections[0].items
     expect(items[0].url).toBe('https://bythiagofigueiredo.com/blog')
-    expect(items[1].url).toBe('https://bythiagofigueiredo.com/newsletter/journal')
+    expect(items[1].url).toBe('https://bythiagofigueiredo.com/newsletters/journal')
     expect(items[2].url).toBe('https://youtube.com/@thiagofigueiredo')
+  })
+
+  it('constructs correct URLs for PT items (with /pt prefix)', () => {
+    const newsletters: NewsletterTypeInfo[] = [
+      { name: 'Diário', slug: 'diario', locale: 'pt-BR', cadenceLabel: 'semanal' },
+    ]
+    const channels: YouTubeChannelInfo[] = [
+      { handle: 'bythiagofigueiredo', locale: 'pt', scheduleLabel: null, subscriberCount: 2400 },
+    ]
+    const sections = buildLangSections(['pt-BR'], newsletters, channels, baseConfig, 'bythiagofigueiredo.com')
+    const items = sections[0].items
+    expect(items[0].url).toBe('https://bythiagofigueiredo.com/pt/blog')
+    expect(items[1].url).toBe('https://bythiagofigueiredo.com/pt/newsletters/diario')
+    expect(items[2].url).toBe('https://youtube.com/@bythiagofigueiredo')
   })
 })

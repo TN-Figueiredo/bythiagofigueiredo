@@ -31,7 +31,7 @@ export function SocialBar({ profiles }: SocialBarProps) {
             target="_blank"
             rel="noopener noreferrer"
             aria-label={`${p.platform}: ${p.handle}`}
-            className="w-[34px] h-[34px] rounded-lg flex items-center justify-center text-[var(--pb-faint)] transition-colors hover:text-[var(--pb-accent)] hover:bg-[var(--pb-paper2)]"
+            className="w-11 h-11 rounded-lg flex items-center justify-center text-[var(--pb-faint)] transition-colors hover:text-[var(--pb-accent)] hover:bg-[var(--pb-paper2)]"
           >
             <Icon color="currentColor" size={18} />
           </a>

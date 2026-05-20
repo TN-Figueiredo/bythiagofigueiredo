@@ -51,7 +51,7 @@ export function LatestSection({ post, video, locale, siteUrl }: LatestSectionPro
 
         {post && (
           <a
-            href={`${siteUrl}/blog/${post.slug}`}
+            href={`${siteUrl}${locale.startsWith('pt') ? '/pt' : ''}/blog/${post.slug}`}
             className="block p-2 border-l-[3px] bg-[rgba(255,255,255,0.02)] mb-1 transition-colors hover:bg-[var(--pb-paper2)]"
             style={{ borderColor: post.tagColor ?? 'var(--pb-accent)' }}
           >
