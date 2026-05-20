@@ -65,6 +65,22 @@ export function buildWebSiteNode(config: SiteSeoConfig): JsonLdNode {
   }
 }
 
+export function buildCollectionPageNode(
+  config: SiteSeoConfig,
+  goUrl: string,
+  description: string,
+): JsonLdNode {
+  return {
+    '@type': 'CollectionPage',
+    '@id': `${goUrl}/#linktree`,
+    url: goUrl,
+    name: `Links — ${config.siteName}`,
+    description,
+    mainEntity: { '@id': `${config.siteUrl}/#${config.identityType}` },
+    publisher: { '@id': `${config.siteUrl}/#website` },
+  }
+}
+
 export function buildBlogPostingNode(
   config: SiteSeoConfig, post: BlogPostInput, translations: TranslationInput[],
 ): JsonLdNode {

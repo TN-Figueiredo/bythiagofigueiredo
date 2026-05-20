@@ -1,7 +1,7 @@
 import { ImageResponse } from 'next/og'
 import { readFile } from 'node:fs/promises'
 import * as path from 'node:path'
-import { BlogOgTemplate, CampaignOgTemplate, GenericOgTemplate, NewsletterOgTemplate } from './template'
+import { BlogOgTemplate, CampaignOgTemplate, GenericOgTemplate, NewsletterOgTemplate, LinktreeOgTemplate } from './template'
 
 let fontCache: ArrayBuffer | null = null
 
@@ -56,6 +56,16 @@ export async function renderNewsletterOgImage(
 ): Promise<Response> {
   const font = await loadInterBoldSubset()
   return new ImageResponse(<NewsletterOgTemplate {...props} />, {
+    ...OG_RESPONSE_INIT,
+    fonts: [{ name: 'Inter', data: font, weight: 700, style: 'normal' }],
+  })
+}
+
+export async function renderLinktreeOgImage(
+  props: Parameters<typeof LinktreeOgTemplate>[0],
+): Promise<Response> {
+  const font = await loadInterBoldSubset()
+  return new ImageResponse(<LinktreeOgTemplate {...props} />, {
     ...OG_RESPONSE_INIT,
     fonts: [{ name: 'Inter', data: font, weight: 700, style: 'normal' }],
   })

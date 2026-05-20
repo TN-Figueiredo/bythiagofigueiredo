@@ -152,6 +152,74 @@ export function NewsletterOgTemplate({
   )
 }
 
+export function LinktreeOgTemplate({
+  name,
+  tagline,
+  domain,
+  brandColor,
+  avatarUrl,
+}: {
+  name: string
+  tagline: string
+  domain: string
+  brandColor: string
+  avatarUrl: string | null
+}) {
+  const darker = darkenHex(brandColor, 40)
+  return (
+    <div
+      style={{
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 24,
+        background: `linear-gradient(135deg, ${brandColor}, ${darker})`,
+        fontFamily: 'Inter',
+        padding: '0 80px',
+      }}
+    >
+      <div
+        style={{
+          width: 80,
+          height: 80,
+          borderRadius: '50%',
+          background: 'rgba(255,255,255,0.15)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+          border: '3px solid rgba(255,255,255,0.3)',
+          fontSize: 36,
+          fontFamily: 'Georgia, serif',
+          color: '#fff',
+        }}
+      >
+        {avatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={avatarUrl} width={74} height={74} style={{ borderRadius: '50%', objectFit: 'cover' }} alt="" />
+        ) : (
+          <span>
+            <span style={{ fontWeight: 500 }}>T</span>
+            <span style={{ fontStyle: 'italic', opacity: 0.9 }}>F</span>
+          </span>
+        )}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        <div style={{ fontSize: 48, fontWeight: 700, color: '#fff', lineHeight: 1.2 }}>
+          {truncate(name, 40)}
+        </div>
+        <div style={{ fontSize: 20, color: 'rgba(255,255,255,0.65)', marginTop: 8 }}>
+          {truncate(tagline, 60)}
+        </div>
+        <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.35)', marginTop: 12, fontFamily: 'monospace' }}>
+          {domain}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function toLinear(v: number): number {
   return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)
 }

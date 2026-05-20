@@ -132,16 +132,11 @@ export async function middleware(
   }
 
   // --- go.* short-link subdomain ---
-  // When host starts with "go.", resolve the base domain to a site,
-  // extract code from pathname, rewrite to /go/${code} internal route.
+  // go.*/ → linktree page, go.*/ig → 301 redirect, go.*/{code} → short link
   const isGoSubdomain = hostname.startsWith('go.')
   if (isGoSubdomain) {
-    const baseDomain = hostname.slice(3) // strip "go." prefix
-    const code = pathname === '/' ? '' : pathname.slice(1) // strip leading /
-
-    if (!code) {
-      return NextResponse.redirect(`https://${baseDomain}`, 302)
-    }
+    const baseDomain = hostname.slice(3)
+    const code = pathname === '/' ? '' : pathname.slice(1)
 
     const ring = getRingContext()
     try {
@@ -153,6 +148,40 @@ export async function middleware(
         res.headers.set('x-short-domain', host)
         return res
       }
+
+      // Locale detection for go.* routes
+      const localeCookie = request.cookies.get('btf_go_lang')?.value
+      const acceptLang = request.headers.get('accept-language') ?? ''
+      const supportedLocales = ['pt-BR', 'en']
+      let detectedLocale = localeCookie ?? ''
+      if (!detectedLocale) {
+        const preferred = acceptLang.split(',').map((p) => p.split(';')[0]?.trim() ?? '')
+        for (const pref of preferred) {
+          if (pref.startsWith('pt')) { detectedLocale = 'pt-BR'; break }
+          if (pref.startsWith('en')) { detectedLocale = 'en'; break }
+        }
+      }
+      if (!detectedLocale || !supportedLocales.includes(detectedLocale)) {
+        detectedLocale = 'pt-BR'
+      }
+
+      if (!code) {
+        // Root path → rewrite to linktree page
+        const rewriteUrl = request.nextUrl.clone()
+        rewriteUrl.pathname = '/go/linktree'
+        const res = NextResponse.rewrite(rewriteUrl)
+        res.headers.set('x-site-id', site.id)
+        res.headers.set('x-short-domain', host)
+        res.headers.set('x-locale', detectedLocale)
+        return res
+      }
+
+      if (code === 'ig') {
+        // Old link-in-bio page → 301 redirect to linktree root
+        return NextResponse.redirect(new URL('/', request.url), 301)
+      }
+
+      // Short link redirect
       const rewriteUrl = request.nextUrl.clone()
       rewriteUrl.pathname = `/go/${code}`
       const res = NextResponse.rewrite(rewriteUrl)

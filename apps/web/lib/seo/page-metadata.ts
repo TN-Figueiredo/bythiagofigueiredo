@@ -410,6 +410,47 @@ export function generateYoutubeMetadata(
   }
 }
 
+export function generateLinktreeMetadata(
+  config: SiteSeoConfig,
+  goDomain: string,
+  personName: string,
+): Metadata {
+  const goUrl = `https://${goDomain}`
+  const title = `Links — ${config.siteName}`
+  const description = `Todos os links de ${personName} — blog, YouTube, newsletter e mais.`
+
+  return {
+    ...baseMetadata(config),
+    metadataBase: new URL(goUrl),
+    title,
+    description,
+    openGraph: {
+      ...baseMetadata(config).openGraph,
+      type: 'website',
+      url: goUrl,
+      title,
+      description,
+      images: [{ url: '/og/linktree', width: 1200, height: 630 }],
+      locale: config.defaultLocale.replace('-', '_'),
+      alternateLocale: config.supportedLocales
+        .filter((l) => l !== config.defaultLocale)
+        .map((l) => l.replace('-', '_')),
+    },
+    robots: { index: true, follow: true },
+    other: {
+      'color-scheme': 'dark light',
+      'apple-mobile-web-app-capable': 'yes',
+      'apple-mobile-web-app-title': 'TF Links',
+      'apple-mobile-web-app-status-bar-style': 'black-translucent',
+    },
+    manifest: '/manifest.webmanifest',
+    icons: {
+      icon: '/brand/favicon.svg',
+      apple: '/apple-touch-icon.png',
+    },
+  }
+}
+
 function resolveOgImage(
   config: SiteSeoConfig,
   tx: TranslationInput,
