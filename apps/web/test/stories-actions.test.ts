@@ -181,25 +181,33 @@ describe('getStoryCounts', () => {
   })
 
   it('returns count object with correct values', async () => {
-    // Four parallel queries return different counts via the head: true path
-    const makeCounted = (count: number) => {
-      const chain: Record<string, unknown> = {}
-      const fluent = ['select', 'eq', 'neq', 'not', 'is', 'gt', 'gte', 'lte', 'lt', 'limit']
-      for (const m of fluent) {
-        chain[m] = vi.fn(() => chain)
-      }
-      // Supabase head:true queries resolve to { count, data: null, error: null }
-      chain.then = (resolve: (v: unknown) => unknown) =>
-        Promise.resolve({ count, data: null, error: null }).then(resolve)
-      return chain
-    }
+    // Single query returns all story posts; counts are computed client-side
+    const now = new Date()
+    const recentDate = new Date(now.getTime() - 6 * 60 * 60 * 1000).toISOString() // 6h ago (live)
+    const oldDate = new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString() // 48h ago (expired)
 
-    let callIndex = 0
-    mockFrom.mockImplementation(() => {
-      // Each call creates a fresh chain returning different counts
-      const counts = [3, 5, 2, 8]
-      return makeCounted(counts[callIndex++ % counts.length])
-    })
+    const rows = [
+      { status: 'draft', published_at: null },
+      { status: 'draft', published_at: null },
+      { status: 'draft', published_at: null },
+      { status: 'completed', published_at: recentDate },
+      { status: 'completed', published_at: recentDate },
+      { status: 'completed', published_at: recentDate },
+      { status: 'completed', published_at: recentDate },
+      { status: 'completed', published_at: recentDate },
+      { status: 'completed', published_at: oldDate },
+      { status: 'completed', published_at: oldDate },
+      { status: 'scheduled', published_at: null },
+      { status: 'scheduled', published_at: null },
+      { status: 'scheduled', published_at: null },
+      { status: 'scheduled', published_at: null },
+      { status: 'scheduled', published_at: null },
+      { status: 'scheduled', published_at: null },
+      { status: 'scheduled', published_at: null },
+      { status: 'scheduled', published_at: null },
+    ]
+
+    mockFrom.mockReturnValue(buildChain({ data: rows, error: null }))
 
     const result = await getStoryCounts(REAL_SITE_UUID)
 
@@ -212,19 +220,8 @@ describe('getStoryCounts', () => {
     }
   })
 
-  it('defaults null counts to 0', async () => {
-    const makeNullCounted = () => {
-      const chain: Record<string, unknown> = {}
-      const fluent = ['select', 'eq', 'not', 'gt', 'lte']
-      for (const m of fluent) {
-        chain[m] = vi.fn(() => chain)
-      }
-      chain.then = (resolve: (v: unknown) => unknown) =>
-        Promise.resolve({ count: null, data: null, error: null }).then(resolve)
-      return chain
-    }
-
-    mockFrom.mockReturnValue(makeNullCounted())
+  it('returns zeros when no rows exist', async () => {
+    mockFrom.mockReturnValue(buildChain({ data: [], error: null }))
 
     const result = await getStoryCounts(REAL_SITE_UUID)
 
@@ -232,6 +229,8 @@ describe('getStoryCounts', () => {
     if (result.ok) {
       expect(result.data.drafts).toBe(0)
       expect(result.data.live).toBe(0)
+      expect(result.data.expired).toBe(0)
+      expect(result.data.scheduled).toBe(0)
     }
   })
 })

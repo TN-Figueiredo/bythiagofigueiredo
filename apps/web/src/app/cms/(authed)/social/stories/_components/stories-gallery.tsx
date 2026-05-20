@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Plus } from 'lucide-react'
 import { StoryCard } from './story-card'
@@ -59,6 +59,8 @@ export function StoriesGallery({ siteId, initialCounts, fetchStories }: StoriesG
   const [stories, setStories] = useState<StoryRow[]>([])
   const [loading, setLoading] = useState(true)
   const [counts, setCounts] = useState<StoryCounts>(initialCounts)
+  const pollCountRef = useRef(0)
+  const [pollTimedOut, setPollTimedOut] = useState(false)
 
   const loadStories = useCallback(async (activeTab: StoryTab) => {
     setLoading(true)
@@ -77,12 +79,42 @@ export function StoriesGallery({ siteId, initialCounts, fetchStories }: StoriesG
     void loadStories(tab)
   }, [tab, loadStories])
 
+  // Auto-refresh while stories are publishing, with a 3-minute cap (36 x 5s)
   useEffect(() => {
     const hasPublishing = stories.some((s) => s.status === 'publishing')
-    if (!hasPublishing) return
-    const id = setInterval(() => void loadStories(tab), 5000)
+    if (!hasPublishing) {
+      pollCountRef.current = 0
+      setPollTimedOut(false)
+      return
+    }
+    if (pollCountRef.current >= 36) {
+      setPollTimedOut(true)
+      return
+    }
+    const id = setInterval(() => {
+      pollCountRef.current += 1
+      if (pollCountRef.current >= 36) {
+        clearInterval(id)
+        setPollTimedOut(true)
+        return
+      }
+      void loadStories(tab)
+    }, 5000)
     return () => clearInterval(id)
   }, [stories, tab, loadStories])
+
+  // Reset poll counter when the user returns to the tab
+  useEffect(() => {
+    function handleVisibility() {
+      if (document.visibilityState === 'visible') {
+        pollCountRef.current = 0
+        setPollTimedOut(false)
+        void loadStories(tab)
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [tab, loadStories])
 
   return (
     <div className="space-y-6">
@@ -120,6 +152,13 @@ export function StoriesGallery({ siteId, initialCounts, fetchStories }: StoriesG
           )
         })}
       </div>
+
+      {/* Polling timeout warning */}
+      {pollTimedOut && (
+        <div className="rounded-md border border-amber-600/40 bg-amber-950/30 px-4 py-2 text-sm text-amber-300">
+          A publicacao esta demorando mais que o esperado. Recarregue a pagina ou tente novamente.
+        </div>
+      )}
 
       {/* Grid */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">

@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import {
   renderTemplate as renderKonva,
@@ -121,8 +122,15 @@ export async function renderMultiSlide(
     }),
   )
   const buffers: Buffer[] = []
-  for (const r of results) {
-    if (r.status === 'fulfilled') buffers.push(r.value)
+  for (let idx = 0; idx < results.length; idx++) {
+    const r = results[idx]
+    if (r.status === 'fulfilled') {
+      buffers.push(r.value)
+    } else {
+      Sentry.captureException(r.reason, {
+        tags: { component: 'template-renderer', action: 'renderMultiSlide', slideIndex: idx },
+      })
+    }
   }
   return buffers
 }

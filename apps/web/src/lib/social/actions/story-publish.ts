@@ -78,6 +78,7 @@ async function ensureStoryDelivery(
 // saveStoryDraft
 //
 // Upsert a social_post with status='draft', storing story_slides.
+// Guarded: refuses to overwrite posts with status 'publishing' or 'completed'.
 // ---------------------------------------------------------------------------
 
 export async function saveStoryDraft(
@@ -115,22 +116,56 @@ export async function saveStoryDraft(
       updated_at: new Date().toISOString(),
     }
 
-    const { data, error } = await supabase
+    // Try UPDATE first with status guard — prevents overwriting publishing/completed posts
+    const { data: updated, error: updateError } = await supabase
       .from('social_posts')
-      .upsert(
-        { id: postIdParsed.data, ...patch },
-        { onConflict: 'id', ignoreDuplicates: false },
-      )
+      .update(patch)
+      .eq('id', postIdParsed.data)
+      .not('status', 'in', '("publishing","completed")')
+      .select('id')
+      .maybeSingle()
+
+    if (updateError) {
+      Sentry.captureException(updateError, { tags: { ...SENTRY_TAG, action: 'saveStoryDraft' } })
+      return { ok: false, error: updateError.message }
+    }
+
+    if (updated) {
+      revalidateSocialPaths()
+      return { ok: true, data: { id: z.object({ id: z.string() }).parse(updated).id } }
+    }
+
+    // No row updated — either post doesn't exist (new) or status is blocked
+    const { data: existing } = await supabase
+      .from('social_posts')
+      .select('status')
+      .eq('id', postIdParsed.data)
+      .maybeSingle()
+
+    if (existing) {
+      // Post exists but status is publishing/completed — reject
+      return {
+        ok: false,
+        error: existing.status === 'publishing'
+          ? 'Não é possível editar — publicação em andamento.'
+          : 'Não é possível editar — story já publicada.',
+      }
+    }
+
+    // Post doesn't exist yet — INSERT
+    const { data: inserted, error: insertError } = await supabase
+      .from('social_posts')
+      .insert({ id: postIdParsed.data, ...patch })
       .select('id')
       .single()
 
-    if (error) {
-      Sentry.captureException(error, { tags: { ...SENTRY_TAG, action: 'saveStoryDraft' } })
-      return { ok: false, error: error.message }
+    if (insertError) {
+      Sentry.captureException(insertError, { tags: { ...SENTRY_TAG, action: 'saveStoryDraft' } })
+      return { ok: false, error: insertError.message }
     }
 
     revalidateSocialPaths()
-    return { ok: true, data: { id: z.object({ id: z.string() }).parse(data).id } }
+    return { ok: true, data: { id: z.object({ id: z.string() }).parse(inserted).id } }
   } catch (err) {
     Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'saveStoryDraft' } })
     throw err
@@ -141,6 +176,7 @@ export async function saveStoryDraft(
 // publishStoryNow
 //
 // Set status='publishing' and trigger the publish workflow.
+// Guarded: atomic UPDATE with status filter prevents TOCTOU race conditions.
 // ---------------------------------------------------------------------------
 
 export async function publishStoryNow(
@@ -166,17 +202,7 @@ export async function publishStoryNow(
 
     const supabase = getSupabaseServiceClient()
 
-    // Reject if post is already being published (prevents rapid-fire duplicate calls)
-    const { data: existing } = await supabase
-      .from('social_posts')
-      .select('status')
-      .eq('id', postIdParsed.data)
-      .single()
-    if (existing?.status === 'publishing' || existing?.status === 'completed') {
-      return { ok: false, error: existing.status === 'publishing' ? 'Publicação já em andamento.' : 'Story já publicada.' }
-    }
-
-    const upsertPatch = {
+    const publishPatch = {
       site_id: authorizedSiteId,
       created_by: userId,
       type: 'image' as const,
@@ -188,18 +214,53 @@ export async function publishStoryNow(
       updated_at: new Date().toISOString(),
     }
 
-    const { data, error: upsertError } = await supabase
+    // Atomic UPDATE with status guard — prevents TOCTOU race between concurrent calls
+    const { data, error: updateError } = await supabase
       .from('social_posts')
-      .upsert(
-        { id: postIdParsed.data, ...upsertPatch },
-        { onConflict: 'id', ignoreDuplicates: false },
-      )
+      .update(publishPatch)
+      .eq('id', postIdParsed.data)
+      .not('status', 'in', '("publishing","completed")')
       .select('*')
-      .single()
+      .maybeSingle()
 
-    if (upsertError) {
-      Sentry.captureException(upsertError, { tags: { ...SENTRY_TAG, action: 'publishStoryNow' } })
-      return { ok: false, error: upsertError.message }
+    let finalData = data
+
+    if (updateError) {
+      Sentry.captureException(updateError, { tags: { ...SENTRY_TAG, action: 'publishStoryNow' } })
+      return { ok: false, error: updateError.message }
+    }
+
+    if (!finalData) {
+      // No row updated — either post doesn't exist (new) or status is blocked
+      const { data: existing } = await supabase
+        .from('social_posts')
+        .select('status')
+        .eq('id', postIdParsed.data)
+        .maybeSingle()
+
+      if (existing) {
+        // Post exists but status is publishing/completed — reject
+        return {
+          ok: false,
+          error: existing.status === 'publishing'
+            ? 'Publicação já em andamento.'
+            : 'Story já publicada.',
+        }
+      }
+
+      // Post doesn't exist yet — INSERT for new posts
+      const { data: inserted, error: insertError } = await supabase
+        .from('social_posts')
+        .insert({ id: postIdParsed.data, ...publishPatch })
+        .select('*')
+        .single()
+
+      if (insertError) {
+        Sentry.captureException(insertError, { tags: { ...SENTRY_TAG, action: 'publishStoryNow' } })
+        return { ok: false, error: insertError.message }
+      }
+
+      finalData = inserted
     }
 
     await ensureStoryDelivery(supabase, postIdParsed.data, authorizedSiteId)
@@ -209,7 +270,7 @@ export async function publishStoryNow(
       template_id: z.string().nullable().default(null),
       idempotency_key: z.string().nullable().default(null),
       created_at: z.string().nullable().default(null),
-    }).parse(data)
+    }).parse(finalData)
 
     const now = new Date().toISOString()
     const socialPost: SocialPostWithSlides = {
@@ -250,6 +311,7 @@ export async function publishStoryNow(
 // scheduleStory
 //
 // Upsert with status='scheduled' and a scheduled_at timestamp.
+// Guarded: refuses to overwrite posts with status 'publishing' or 'completed'.
 // ---------------------------------------------------------------------------
 
 export async function scheduleStory(
@@ -298,24 +360,59 @@ export async function scheduleStory(
       updated_at: new Date().toISOString(),
     }
 
-    const { data, error } = await supabase
+    // Try UPDATE first with status guard — prevents overwriting publishing/completed posts
+    const { data: updated, error: updateError } = await supabase
       .from('social_posts')
-      .upsert(
-        { id: postIdParsed.data, ...patch },
-        { onConflict: 'id', ignoreDuplicates: false },
-      )
+      .update(patch)
+      .eq('id', postIdParsed.data)
+      .not('status', 'in', '("publishing","completed")')
+      .select('id')
+      .maybeSingle()
+
+    if (updateError) {
+      Sentry.captureException(updateError, { tags: { ...SENTRY_TAG, action: 'scheduleStory' } })
+      return { ok: false, error: updateError.message }
+    }
+
+    if (updated) {
+      await ensureStoryDelivery(supabase, postIdParsed.data, authorizedSiteId)
+      revalidateSocialPaths()
+      return { ok: true, data: { id: z.object({ id: z.string() }).parse(updated).id } }
+    }
+
+    // No row updated — either post doesn't exist (new) or status is blocked
+    const { data: existing } = await supabase
+      .from('social_posts')
+      .select('status')
+      .eq('id', postIdParsed.data)
+      .maybeSingle()
+
+    if (existing) {
+      // Post exists but status is publishing/completed — reject
+      return {
+        ok: false,
+        error: existing.status === 'publishing'
+          ? 'Não é possível agendar — publicação em andamento.'
+          : 'Não é possível agendar — story já publicada.',
+      }
+    }
+
+    // Post doesn't exist yet — INSERT
+    const { data: inserted, error: insertError } = await supabase
+      .from('social_posts')
+      .insert({ id: postIdParsed.data, ...patch })
       .select('id')
       .single()
 
-    if (error) {
-      Sentry.captureException(error, { tags: { ...SENTRY_TAG, action: 'scheduleStory' } })
-      return { ok: false, error: error.message }
+    if (insertError) {
+      Sentry.captureException(insertError, { tags: { ...SENTRY_TAG, action: 'scheduleStory' } })
+      return { ok: false, error: insertError.message }
     }
 
     await ensureStoryDelivery(supabase, postIdParsed.data, authorizedSiteId)
 
     revalidateSocialPaths()
-    return { ok: true, data: { id: z.object({ id: z.string() }).parse(data).id } }
+    return { ok: true, data: { id: z.object({ id: z.string() }).parse(inserted).id } }
   } catch (err) {
     Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'scheduleStory' } })
     throw err

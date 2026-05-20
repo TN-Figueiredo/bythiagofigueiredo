@@ -148,44 +148,28 @@ export async function getStoryCounts(siteId: string): Promise<ActionResult<Story
 
     const threshold = ago24h()
 
-    const [draftsRes, liveRes, expiredRes, scheduledRes] = await Promise.all([
-      supabase
-        .from('social_posts')
-        .select('id', { count: 'exact', head: true })
-        .eq('site_id', authorizedSiteId)
-        .not('story_slides', 'is', null)
-        .eq('status', 'draft'),
-      supabase
-        .from('social_posts')
-        .select('id', { count: 'exact', head: true })
-        .eq('site_id', authorizedSiteId)
-        .not('story_slides', 'is', null)
-        .eq('status', 'completed')
-        .gt('published_at', threshold),
-      supabase
-        .from('social_posts')
-        .select('id', { count: 'exact', head: true })
-        .eq('site_id', authorizedSiteId)
-        .not('story_slides', 'is', null)
-        .eq('status', 'completed')
-        .lte('published_at', threshold),
-      supabase
-        .from('social_posts')
-        .select('id', { count: 'exact', head: true })
-        .eq('site_id', authorizedSiteId)
-        .not('story_slides', 'is', null)
-        .eq('status', 'scheduled'),
-    ])
+    const { data, error } = await supabase
+      .from('social_posts')
+      .select('status, published_at')
+      .eq('site_id', authorizedSiteId)
+      .not('story_slides', 'is', null)
 
-    return {
-      ok: true,
-      data: {
-        drafts: draftsRes.count ?? 0,
-        live: liveRes.count ?? 0,
-        expired: expiredRes.count ?? 0,
-        scheduled: scheduledRes.count ?? 0,
-      },
+    if (error) {
+      Sentry.captureException(error, { tags: { ...SENTRY_TAG, action: 'getStoryCounts' } })
+      return { ok: false, error: error.message }
     }
+
+    const counts: StoryCounts = { drafts: 0, live: 0, expired: 0, scheduled: 0 }
+    for (const row of data ?? []) {
+      if (row.status === 'draft') counts.drafts++
+      else if (row.status === 'scheduled') counts.scheduled++
+      else if (row.status === 'completed') {
+        if (row.published_at && row.published_at > threshold) counts.live++
+        else counts.expired++
+      }
+    }
+
+    return { ok: true, data: counts }
   } catch (err) {
     Sentry.captureException(err, { tags: { ...SENTRY_TAG, action: 'getStoryCounts' } })
     throw err

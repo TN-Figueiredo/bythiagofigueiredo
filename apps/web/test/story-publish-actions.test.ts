@@ -40,11 +40,12 @@ const VALID_SLIDE = {
 
 function buildUpsertChain(data: unknown, error: { message: string } | null = null) {
   const chain: Record<string, unknown> = {}
-  const fluent = ['select', 'upsert', 'insert', 'update', 'eq', 'order', 'is', 'in', 'limit', 'lt', 'lte', 'gte']
+  const fluent = ['select', 'upsert', 'insert', 'update', 'eq', 'order', 'is', 'in', 'not', 'limit', 'lt', 'lte', 'gte']
   for (const m of fluent) {
     chain[m] = vi.fn(() => chain)
   }
   chain.single = vi.fn(() => Promise.resolve({ data, error }))
+  chain.maybeSingle = vi.fn(() => Promise.resolve({ data, error }))
   chain.then = (resolve: (v: unknown) => unknown) =>
     Promise.resolve({ data: null, error: null }).then(resolve)
   return chain
@@ -114,17 +115,17 @@ describe('saveStoryDraft', () => {
     expect(result).toEqual({ ok: false, error: 'Sem permissão' })
   })
 
-  it('upserts with status=draft on success', async () => {
+  it('updates with status=draft and status guard on success', async () => {
     const chain = buildUpsertChain({ id: REAL_POST_UUID })
     mockFrom.mockReturnValue(chain)
 
     const result = await saveStoryDraft(REAL_SITE_UUID, REAL_POST_UUID, [VALID_SLIDE])
 
     expect(result).toEqual({ ok: true, data: { id: REAL_POST_UUID } })
-    expect(chain.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'draft', id: REAL_POST_UUID }),
-      expect.anything(),
+    expect(chain.update).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'draft' }),
     )
+    expect(chain.not).toHaveBeenCalledWith('status', 'in', '("publishing","completed")')
   })
 
   it('stores caption in content.description', async () => {
@@ -133,9 +134,8 @@ describe('saveStoryDraft', () => {
 
     await saveStoryDraft(REAL_SITE_UUID, REAL_POST_UUID, [VALID_SLIDE], { caption: 'Hello world' })
 
-    expect(chain.upsert).toHaveBeenCalledWith(
+    expect(chain.update).toHaveBeenCalledWith(
       expect.objectContaining({ content: { description: 'Hello world' } }),
-      expect.anything(),
     )
   })
 
@@ -145,9 +145,8 @@ describe('saveStoryDraft', () => {
 
     await saveStoryDraft(REAL_SITE_UUID, REAL_POST_UUID, [VALID_SLIDE])
 
-    expect(chain.upsert).toHaveBeenCalledWith(
+    expect(chain.update).toHaveBeenCalledWith(
       expect.objectContaining({ content: { description: '' } }),
-      expect.anything(),
     )
   })
 
@@ -160,7 +159,7 @@ describe('saveStoryDraft', () => {
     expect(revalidateSocialPaths).toHaveBeenCalledOnce()
   })
 
-  it('returns { ok: false } when DB upsert fails', async () => {
+  it('returns { ok: false } when DB update fails', async () => {
     const chain = buildUpsertChain(null, { message: 'DB constraint violation' })
     mockFrom.mockReturnValue(chain)
 
@@ -200,17 +199,17 @@ describe('publishStoryNow', () => {
     expect(result).toEqual({ ok: false, error: 'Sem permissão' })
   })
 
-  it('upserts with status=publishing', async () => {
+  it('atomically updates with status=publishing and status guard', async () => {
     const chain = buildUpsertChain({ id: REAL_POST_UUID, template_id: null, idempotency_key: 'k1', created_at: '2026-05-01T00:00:00Z', user_timezone: 'America/Sao_Paulo' })
     setupMockFrom(chain)
 
     const result = await publishStoryNow(REAL_SITE_UUID, REAL_POST_UUID, [VALID_SLIDE])
 
     expect(result).toEqual({ ok: true, data: { id: REAL_POST_UUID } })
-    expect(chain.upsert).toHaveBeenCalledWith(
+    expect(chain.update).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'publishing' }),
-      expect.anything(),
     )
+    expect(chain.not).toHaveBeenCalledWith('status', 'in', '("publishing","completed")')
   })
 
   it('fires publishSocialPost workflow non-blocking', async () => {
@@ -237,7 +236,7 @@ describe('publishStoryNow', () => {
     }
   })
 
-  it('returns { ok: false } when DB upsert fails', async () => {
+  it('returns { ok: false } when DB update fails', async () => {
     const chain = buildUpsertChain(null, { message: 'network error' })
     mockFrom.mockReturnValue(chain)
 
@@ -287,20 +286,20 @@ describe('scheduleStory', () => {
     expect(result).toEqual({ ok: false, error: 'Sem permissão' })
   })
 
-  it('upserts with status=scheduled and correct scheduled_at', async () => {
+  it('updates with status=scheduled, correct scheduled_at, and status guard', async () => {
     const chain = buildUpsertChain({ id: REAL_POST_UUID })
     setupMockFrom(chain)
 
     const result = await scheduleStory(REAL_SITE_UUID, REAL_POST_UUID, [VALID_SLIDE], FUTURE_DATE)
 
     expect(result).toEqual({ ok: true, data: { id: REAL_POST_UUID } })
-    expect(chain.upsert).toHaveBeenCalledWith(
+    expect(chain.update).toHaveBeenCalledWith(
       expect.objectContaining({
         status: 'scheduled',
         scheduled_at: new Date(FUTURE_DATE).toISOString(),
       }),
-      expect.anything(),
     )
+    expect(chain.not).toHaveBeenCalledWith('status', 'in', '("publishing","completed")')
   })
 
   it('returns { ok: false } for empty slides', async () => {
@@ -311,13 +310,13 @@ describe('scheduleStory', () => {
     }
   })
 
-  it('returns { ok: false } when DB upsert fails', async () => {
-    const chain = buildUpsertChain(null, { message: 'upsert failed' })
+  it('returns { ok: false } when DB update fails', async () => {
+    const chain = buildUpsertChain(null, { message: 'update failed' })
     mockFrom.mockReturnValue(chain)
 
     const result = await scheduleStory(REAL_SITE_UUID, REAL_POST_UUID, [VALID_SLIDE], FUTURE_DATE)
 
-    expect(result).toEqual({ ok: false, error: 'upsert failed' })
+    expect(result).toEqual({ ok: false, error: 'update failed' })
   })
 
   it('calls revalidateSocialPaths on success', async () => {

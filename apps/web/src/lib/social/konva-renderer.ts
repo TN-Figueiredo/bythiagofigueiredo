@@ -108,7 +108,7 @@ async function renderImageBackground(
 ): Promise<void> {
   if (!bg.url) return
   try {
-    const response = await fetch(bg.url)
+    const response = await fetch(bg.url, { signal: AbortSignal.timeout(8_000) })
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
     const arrayBuffer = await response.arrayBuffer()
     const { Image } = await import('canvas')
@@ -199,7 +199,7 @@ async function renderImageElement(
   }
 
   try {
-    const response = await fetch(src)
+    const response = await fetch(src, { signal: AbortSignal.timeout(8_000) })
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
     const arrayBuffer = await response.arrayBuffer()
     const { Image } = await import('canvas')

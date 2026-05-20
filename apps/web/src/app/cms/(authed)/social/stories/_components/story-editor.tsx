@@ -39,8 +39,8 @@ interface StoryEditorProps {
 //   - CmsDataTab (right sidebar tab) for inserting CMS tokens
 //
 // Keyboard shortcuts:
-//   PageDown / ArrowRight (no modifiers while not editing text) → next slide
-//   PageUp  / ArrowLeft  (no modifiers while not editing text) → prev slide
+//   PageDown / Ctrl+ArrowRight → next slide
+//   PageUp  / Ctrl+ArrowLeft  → prev slide
 //   Ctrl+Shift+D → duplicate current slide
 // ---------------------------------------------------------------------------
 
@@ -133,11 +133,13 @@ export const StoryEditor = forwardRef<StoryEditorHandle, StoryEditorProps>(funct
   const handleRemove = useCallback((index: number) => {
     flushActiveSlide()
     setSlides(prev => {
+      if (prev.length <= 1) return prev
       const newSlides = removeSlide(prev, index)
       setActiveIndex(ai => Math.min(ai, Math.max(0, newSlides.length - 1)))
       return newSlides
     })
     setSlideIds(prev => {
+      if (prev.length <= 1) return prev
       const updated = [...prev]
       updated.splice(index, 1)
       return updated
@@ -198,8 +200,8 @@ export const StoryEditor = forwardRef<StoryEditorHandle, StoryEditorProps>(funct
         return
       }
 
-      // PageDown / ArrowRight → next slide (no modifiers)
-      if (!cmd && !e.shiftKey && (e.key === 'PageDown' || e.key === 'ArrowRight')) {
+      // PageDown → next slide (no modifiers)
+      if (!cmd && !e.shiftKey && e.key === 'PageDown') {
         if (idx < slides.length - 1) {
           e.preventDefault()
           goToSlide(idx + 1)
@@ -207,8 +209,26 @@ export const StoryEditor = forwardRef<StoryEditorHandle, StoryEditorProps>(funct
         return
       }
 
-      // PageUp / ArrowLeft → prev slide (no modifiers)
-      if (!cmd && !e.shiftKey && (e.key === 'PageUp' || e.key === 'ArrowLeft')) {
+      // PageUp → prev slide (no modifiers)
+      if (!cmd && !e.shiftKey && e.key === 'PageUp') {
+        if (idx > 0) {
+          e.preventDefault()
+          goToSlide(idx - 1)
+        }
+        return
+      }
+
+      // Ctrl+ArrowRight → next slide (Ctrl required to avoid conflict with canvas element nudging)
+      if (cmd && !e.shiftKey && e.key === 'ArrowRight') {
+        if (idx < slides.length - 1) {
+          e.preventDefault()
+          goToSlide(idx + 1)
+        }
+        return
+      }
+
+      // Ctrl+ArrowLeft → prev slide
+      if (cmd && !e.shiftKey && e.key === 'ArrowLeft') {
         if (idx > 0) {
           e.preventDefault()
           goToSlide(idx - 1)
