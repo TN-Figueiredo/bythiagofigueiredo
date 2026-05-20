@@ -95,14 +95,14 @@ describe('LinktreeClient', () => {
     const { getAllByText } = render(
       <LinktreeClient initialLocale="pt-BR" initialTheme="dark" {...mockData} />,
     )
-    expect(getAllByText('dev indie · blog · YouTube').length).toBeGreaterThanOrEqual(1)
+    expect(getAllByText('dev indie · blog · YouTube').length).toBeGreaterThan(0)
   })
 
   it('renders latest post title', () => {
     const { getAllByText } = render(
       <LinktreeClient initialLocale="pt-BR" initialTheme="dark" {...mockData} />,
     )
-    expect(getAllByText('Todos os blocos do CMS').length).toBeGreaterThanOrEqual(1)
+    expect(getAllByText('Todos os blocos do CMS').length).toBeGreaterThan(0)
   })
 
   it('hides highlight when inactive', () => {
@@ -110,5 +110,34 @@ describe('LinktreeClient', () => {
       <LinktreeClient initialLocale="pt-BR" initialTheme="dark" {...mockData} />,
     )
     expect(queryByText('Em breve')).toBeNull()
+  })
+
+  it('renders social bar links with aria-labels', () => {
+    const { getByLabelText } = render(
+      <LinktreeClient initialLocale="pt-BR" initialTheme="dark" {...mockData} />,
+    )
+    expect(getByLabelText('youtube: bythiagofigueiredo')).toBeTruthy()
+    expect(getByLabelText('instagram: bythiagofigueiredo')).toBeTruthy()
+  })
+
+  it('renders shared links section with correct label', () => {
+    const { getByText } = render(
+      <LinktreeClient initialLocale="pt-BR" initialTheme="dark" {...mockData} />,
+    )
+    expect(getByText('Sobre')).toBeTruthy()
+  })
+
+  it('renders footer with domain', () => {
+    const { getByText } = render(
+      <LinktreeClient initialLocale="pt-BR" initialTheme="dark" {...mockData} />,
+    )
+    expect(getByText('go.bythiagofigueiredo.com')).toBeTruthy()
+  })
+
+  it('locale EN renders English tagline', () => {
+    const { getAllByText } = render(
+      <LinktreeClient initialLocale="en" initialTheme="dark" {...mockData} />,
+    )
+    expect(getAllByText('indie dev · blog · YouTube').length).toBeGreaterThan(0)
   })
 })

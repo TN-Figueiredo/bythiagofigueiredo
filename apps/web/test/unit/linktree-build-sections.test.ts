@@ -45,4 +45,47 @@ describe('buildLangSections', () => {
     const sections = buildLangSections([], [], [], baseConfig, 'bythiagofigueiredo.com')
     expect(sections).toHaveLength(0)
   })
+
+  it('still includes blog item when newsletters and channels are empty', () => {
+    const sections = buildLangSections(['pt-BR', 'en'], [], [], baseConfig, 'bythiagofigueiredo.com')
+    expect(sections).toHaveLength(2)
+    sections.forEach((section) => {
+      expect(section.items).toHaveLength(1)
+      expect(section.items[0].type).toBe('blog')
+    })
+  })
+
+  it('uses fallback metadata for unknown locale', () => {
+    const sections = buildLangSections(['fr'], [], [], baseConfig, 'bythiagofigueiredo.com')
+    expect(sections).toHaveLength(1)
+    expect(sections[0].flag).toBe('🌐')
+    expect(sections[0].label).toBe('fr')
+    expect(sections[0].hand).toBe('fr')
+  })
+
+  it('generates expected item IDs', () => {
+    const newsletters: NewsletterTypeInfo[] = [
+      { name: 'Diário', slug: 'diario', locale: 'pt-BR', cadenceLabel: 'semanal' },
+    ]
+    const channels: YouTubeChannelInfo[] = [
+      { handle: 'bythiagofigueiredo', locale: 'pt', scheduleLabel: 'toda quinta', subscriberCount: 2400 },
+    ]
+    const sections = buildLangSections(['pt-BR'], newsletters, channels, baseConfig, 'bythiagofigueiredo.com')
+    const ids = sections[0].items.map((i) => i.id)
+    expect(ids).toEqual(['blog-pt-BR', 'nl-diario', 'yt-bythiagofigueiredo'])
+  })
+
+  it('constructs correct URLs for all item types', () => {
+    const newsletters: NewsletterTypeInfo[] = [
+      { name: 'Journal', slug: 'journal', locale: 'en', cadenceLabel: 'weekly' },
+    ]
+    const channels: YouTubeChannelInfo[] = [
+      { handle: 'thiagofigueiredo', locale: 'en', scheduleLabel: null, subscriberCount: 500 },
+    ]
+    const sections = buildLangSections(['en'], newsletters, channels, baseConfig, 'bythiagofigueiredo.com')
+    const items = sections[0].items
+    expect(items[0].url).toBe('https://bythiagofigueiredo.com/blog')
+    expect(items[1].url).toBe('https://bythiagofigueiredo.com/newsletter/journal')
+    expect(items[2].url).toBe('https://youtube.com/@thiagofigueiredo')
+  })
 })

@@ -25,9 +25,18 @@ describe('LinktreeConfigSchema', () => {
     }
   })
 
-  it('rejects invalid highlight (missing required fields)', () => {
+  it('accepts highlight with only active (defaults fill remaining fields)', () => {
     const result = HighlightSchema.safeParse({ active: true })
     expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.badge_pt).toBe('')
+      expect(result.data.url).toBe('')
+    }
+  })
+
+  it('rejects highlight when a string field receives a number', () => {
+    const result = HighlightSchema.safeParse({ active: true, badge_pt: 42 })
+    expect(result.success).toBe(false)
   })
 
   it('accepts shared_links with valid icons', () => {
@@ -38,5 +47,33 @@ describe('LinktreeConfigSchema', () => {
   it('rejects shared_link without url', () => {
     const result = SharedLinkSchema.safeParse({ label_pt: 'Sobre', label_en: 'About', icon: 'user' })
     expect(result.success).toBe(false)
+  })
+
+  it('rejects shared_link without label_pt', () => {
+    const result = SharedLinkSchema.safeParse({ label_en: 'About', url: '/about', icon: 'user' })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects shared_link without label_en', () => {
+    const result = SharedLinkSchema.safeParse({ label_pt: 'Sobre', url: '/about', icon: 'user' })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects shared_link without icon', () => {
+    const result = SharedLinkSchema.safeParse({ label_pt: 'Sobre', label_en: 'About', url: '/about' })
+    expect(result.success).toBe(false)
+  })
+
+  it('accepts shared_link with empty strings', () => {
+    const result = SharedLinkSchema.safeParse({ label_pt: '', label_en: '', url: '', icon: '' })
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts config with extra unexpected fields (no .strict())', () => {
+    const result = LinktreeConfigSchema.safeParse({ tagline_pt: 'hello', extra_field: 'should be stripped' })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data).not.toHaveProperty('extra_field')
+    }
   })
 })
