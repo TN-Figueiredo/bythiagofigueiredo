@@ -13,7 +13,7 @@ import {
 } from './_lib/queries'
 import { buildLangSections } from './_lib/build-sections'
 
-export const revalidate = 3600
+export const dynamic = 'force-dynamic'
 
 export default async function LinktreePage() {
   const hdrs = await headers()

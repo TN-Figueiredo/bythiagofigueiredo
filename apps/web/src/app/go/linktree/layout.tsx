@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
+
+export const dynamic = 'force-dynamic'
 import { getSiteSeoConfig } from '@/lib/seo/config'
 import { generateLinktreeMetadata } from '@/lib/seo/page-metadata'
 import { buildPersonNode, buildWebSiteNode, buildCollectionPageNode } from '@/lib/seo/jsonld/builders'
