@@ -24,6 +24,7 @@ export default defineConfig({
           /@tn-figueiredo\/cms/,
           /@tn-figueiredo\/email/,
           /@tn-figueiredo\/links-admin/,
+          /@tn-figueiredo\/newsletter/,
         ],
       },
     },

@@ -6,6 +6,7 @@ import { render } from '@react-email/render'
 import { Newsletter } from '../../../../emails/newsletter'
 import * as Sentry from '@sentry/nextjs'
 import { rewriteLinksForTracking, rewriteLinksUnified } from '../../../../../lib/newsletter/link-tracking'
+import { sanitizeForEmail } from '../../../../../lib/newsletter/email-sanitizer'
 
 const JOB = 'send-scheduled-newsletters'
 const LOCK_KEY = 'cron:send-newsletters'
@@ -205,11 +206,17 @@ async function sendEdition(
         const localePrefix = subscriberLocale === 'pt-BR' ? '/pt' : ''
         const archiveUrl = `${appUrl}${localePrefix}/newsletter/archive/${edition.id}`
 
+        // Sanitize and inline-style content before rendering.
+        const sanitizedContent = sanitizeForEmail(
+          edition.content_html ?? `<p>${edition.content_mdx ?? edition.subject}</p>`,
+          typeColor,
+        )
+
         // Render the React Email template to HTML.
         let html = await render(Newsletter({
           subject: edition.subject,
           preheader: edition.preheader ?? undefined,
-          contentHtml: edition.content_html ?? `<p>${edition.content_mdx ?? edition.subject}</p>`,
+          contentHtml: sanitizedContent,
           typeName,
           typeColor,
           unsubscribeUrl,

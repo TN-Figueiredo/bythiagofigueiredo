@@ -1,7 +1,11 @@
 import DOMPurify from 'isomorphic-dompurify'
-import { Html, Head, Body, Container, Preview, Section } from '@react-email/components'
-import { EmailHeader } from './components/email-header'
+import { Section, Text } from '@react-email/components'
+import { EmailShell } from './components/email-shell'
+import { EmailMonogram } from './components/email-monogram'
+import { EmailDivider } from './components/email-divider'
+import { EmailEndMark } from './components/email-end-mark'
 import { EmailFooter } from './components/email-footer'
+import { EMAIL_COLORS, EMAIL_FONTS } from './components/email-tokens'
 
 interface NewsletterProps {
   subject: string
@@ -22,17 +26,42 @@ export function Newsletter({
   unsubscribeUrl,
   archiveUrl,
 }: NewsletterProps) {
+  void subject
   return (
-    <Html>
-      <Head />
-      {preheader && <Preview>{preheader}</Preview>}
-      <Body style={{ backgroundColor: '#f9fafb', fontFamily: 'system-ui, sans-serif' }}>
-        <Container style={{ maxWidth: 640, margin: '0 auto', padding: '32px 16px', backgroundColor: '#fff' }}>
-          <EmailHeader typeName={typeName} typeColor={typeColor} />
-          <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(contentHtml) }} />
-          <EmailFooter unsubscribeUrl={unsubscribeUrl} archiveUrl={archiveUrl} />
-        </Container>
-      </Body>
-    </Html>
+    <EmailShell preheader={preheader}>
+      <EmailMonogram />
+
+      {/* Type indicator */}
+      <Section style={{
+        borderLeft: `3px solid ${typeColor}`,
+        padding: '0 0 0 16px',
+        margin: '0 32px 24px',
+      }}>
+        <Text className="email-faint" style={{
+          fontFamily: EMAIL_FONTS.mono,
+          fontSize: 11,
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          color: EMAIL_COLORS.faint,
+          margin: 0,
+          fontWeight: 500,
+        }}>
+          {typeName}
+        </Text>
+      </Section>
+
+      {/* Content */}
+      <Section style={{ padding: '0 32px' }}>
+        <div
+          className="email-ink"
+          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(contentHtml) }}
+        />
+      </Section>
+
+      <EmailDivider />
+      <EmailEndMark />
+      <EmailDivider />
+      <EmailFooter unsubscribeUrl={unsubscribeUrl} archiveUrl={archiveUrl} />
+    </EmailShell>
   )
 }
