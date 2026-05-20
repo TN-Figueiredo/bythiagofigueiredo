@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import type { LinktreePageData } from '../_lib/types'
 import { Header } from './header'
 import { HighlightCard } from './highlight-card'
@@ -10,7 +10,6 @@ import { LinkRow } from './link-row'
 import { SocialBar } from './social-bar'
 import { ShareButton } from './share-button'
 import { ThemeToggle } from './theme-toggle'
-import { getIcon } from './icons'
 
 interface LinktreeClientProps extends LinktreePageData {
   initialLocale: string
@@ -23,8 +22,9 @@ function resolveTheme(pref: string): 'dark' | 'light' {
   return 'dark'
 }
 
-function setCookie(name: string, value: string) {
-  document.cookie = `${name}=${value}; path=/; domain=.bythiagofigueiredo.com; max-age=31536000; SameSite=Lax`
+function setCookie(name: string, value: string, domain: string) {
+  const secure = location.protocol === 'https:' ? '; Secure' : ''
+  document.cookie = `${name}=${value}; path=/; domain=.${domain}; max-age=31536000; SameSite=Lax${secure}`
 }
 
 export function LinktreeClient({
@@ -44,6 +44,11 @@ export function LinktreeClient({
   const theme = resolveTheme(themePref)
   const siteUrl = `https://${site.primaryDomain}`
   const isPt = locale.startsWith('pt')
+  const sortedSections = useMemo(() => [...sections].sort((a, b) => {
+    if (a.locale === locale) return -1
+    if (b.locale === locale) return 1
+    return 0
+  }), [sections, locale])
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -56,13 +61,13 @@ export function LinktreeClient({
 
   function toggleLocale(newLocale: string) {
     setLocale(newLocale)
-    setCookie('btf_go_lang', newLocale)
+    setCookie('btf_go_lang', newLocale, site.primaryDomain)
   }
 
   function toggleTheme() {
     const next = themePref === 'system' ? 'dark' : themePref === 'dark' ? 'light' : 'system'
     setThemePref(next)
-    setCookie('btf_theme', next)
+    setCookie('btf_theme', next, site.primaryDomain)
     document.documentElement.setAttribute('data-theme', resolveTheme(next))
   }
 
@@ -79,6 +84,7 @@ export function LinktreeClient({
                 <button
                   key={loc}
                   onClick={() => toggleLocale(loc)}
+                  aria-current={isActive ? 'true' : undefined}
                   className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full border transition-colors ${
                     isActive
                       ? 'bg-[rgba(255,130,64,0.12)] border-[var(--pb-accent)] text-[var(--pb-accent)]'
@@ -99,13 +105,8 @@ export function LinktreeClient({
 
         <LatestSection post={latestPost} video={latestVideo} locale={locale} siteUrl={siteUrl} />
 
-        {/* Language sections — show current locale first */}
-        {[...sections].sort((a, b) => {
-          if (a.locale === locale) return -1
-          if (b.locale === locale) return 1
-          return 0
-        }).map((section) => (
-          <LangSection key={section.locale} section={section} siteUrl={site.primaryDomain} />
+        {sortedSections.map((section) => (
+          <LangSection key={section.locale} section={section} siteUrl={site.primaryDomain} locale={locale} />
         ))}
 
         {/* Shared links */}
@@ -126,7 +127,8 @@ export function LinktreeClient({
                   desc=""
                   url={link.url.startsWith('/') ? `${siteUrl}${link.url}` : link.url}
                   icon={link.icon}
-                  isExternal={true}
+                  locale={locale}
+                  isExternal={!link.url.startsWith('/')}
                 />
               ))}
             </div>

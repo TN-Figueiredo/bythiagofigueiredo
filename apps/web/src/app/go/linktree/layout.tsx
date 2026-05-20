@@ -32,7 +32,7 @@ export default async function LinktreeLayout({ children }: { children: React.Rea
       nodes.push(buildPersonNode(config, config.personIdentity))
     }
     nodes.push(
-      buildCollectionPageNode(config, goUrl, `Todos os links de ${personName}`),
+      buildCollectionPageNode(config, goUrl, `All links by ${personName} — blog, YouTube, newsletter and more`),
     )
     jsonLd = composeGraph(nodes)
   }
@@ -42,8 +42,6 @@ export default async function LinktreeLayout({ children }: { children: React.Rea
       {/* Preconnect hints for social domain clicks (~100-200ms saved) */}
       <link rel="preconnect" href="https://youtube.com" />
       <link rel="preconnect" href="https://instagram.com" />
-      <link rel="dns-prefetch" href="https://youtube.com" />
-      <link rel="dns-prefetch" href="https://instagram.com" />
       {jsonLd && <JsonLdScript graph={jsonLd} />}
       {children}
     </>

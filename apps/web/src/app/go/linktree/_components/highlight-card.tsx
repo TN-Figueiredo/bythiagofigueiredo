@@ -18,11 +18,14 @@ export function HighlightCard({ highlight, locale }: HighlightCardProps) {
   const cta = isPt ? highlight.cta_pt : highlight.cta_en
 
   if (!title) return null
+  const isExternal = highlight.url.startsWith('http')
 
   return (
     <section id="highlight">
       <a
         href={highlight.url}
+        target={isExternal ? '_blank' : undefined}
+        rel={isExternal ? 'noopener noreferrer' : undefined}
         className="block bg-[var(--pb-accent)] rounded-sm p-3 transition-opacity hover:opacity-95"
       >
         {badge && (

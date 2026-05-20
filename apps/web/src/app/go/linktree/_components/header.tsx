@@ -1,8 +1,6 @@
 'use client'
 
-import React from 'react'
-
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import type { AuthorInfo, SiteInfo, LinktreeConfig } from '../_lib/types'
 
 interface HeaderProps {

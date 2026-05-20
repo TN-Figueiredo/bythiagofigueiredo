@@ -8,12 +8,13 @@ import { LinkRow } from './link-row'
 interface LangSectionProps {
   section: LangSectionType
   siteUrl: string
+  locale?: string
 }
 
-export function LangSection({ section, siteUrl }: LangSectionProps) {
+export function LangSection({ section, siteUrl, locale }: LangSectionProps) {
   const isEnglish = section.locale.startsWith('en')
   return (
-    <section id={section.locale.startsWith('pt') ? 'pt' : 'en'}>
+    <section id={section.locale.startsWith('pt') ? 'pt' : 'en'} aria-label={section.label}>
       <div
         className="relative bg-[var(--pb-paper)] rounded-sm shadow-[var(--pb-shadow-card)] overflow-hidden"
         style={{ transform: `rotate(${isEnglish ? -0.5 : 0.6}deg)` }}
@@ -29,7 +30,7 @@ export function LangSection({ section, siteUrl }: LangSectionProps) {
         />
         {/* Header */}
         <div className="flex items-center gap-1.5 px-3 pt-3 pb-2 border-b border-[var(--pb-line)]">
-          <span className="text-lg">{section.flag}</span>
+          <span className="text-lg" aria-hidden="true">{section.flag}</span>
           <span className="text-base font-bold text-[var(--pb-ink)] font-[family-name:var(--font-fraunces)]">{section.label}</span>
           <span className="ml-auto text-xs text-[var(--pb-accent)] font-[family-name:var(--font-caveat)] opacity-45">{section.hand}</span>
         </div>
@@ -43,7 +44,8 @@ export function LangSection({ section, siteUrl }: LangSectionProps) {
               url={item.url}
               icon={item.icon}
               subscriberCount={item.subscriberCount}
-              isExternal={!item.url.startsWith(`https://${siteUrl}`) || item.type === 'youtube'}
+              locale={locale ?? section.locale}
+              isExternal={!item.url.startsWith(`https://${siteUrl}`)}
             />
           ))}
         </div>

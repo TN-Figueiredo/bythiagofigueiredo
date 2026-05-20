@@ -111,6 +111,14 @@ export function SocialInstagramIcon({ color = 'currentColor', size = 20, classNa
   )
 }
 
+export function SocialBlueskyIcon({ color = 'currentColor', size = 20, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" fill={color} className={className}>
+      <path d="M5.2 3.6c2 1.5 4.1 4.6 4.8 6.2.7-1.6 2.8-4.7 4.8-6.2 1.4-1.1 3.7-1.9 3.7.8 0 .5-.3 4.5-.5 5.1-.6 2.3-3 2.9-5.1 2.5 3.7.6 4.7 2.7 2.6 4.8-4 3.9-5.7-1-6.1-2.2-.1-.2-.1-.3-.1-.3v.3c-.5 1.2-2.2 6.1-6.2 2.2-2-2.1-1-4.2 2.7-4.8-2.1.4-4.5-.2-5.1-2.5-.2-.6-.5-4.6-.5-5.1 0-2.7 2.3-1.9 3.7-.8z" />
+    </svg>
+  )
+}
+
 const ICON_MAP: Record<string, React.FC<IconProps>> = {
   blog: BlogIcon,
   mail: MailIcon,

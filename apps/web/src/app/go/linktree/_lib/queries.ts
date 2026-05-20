@@ -1,4 +1,3 @@
-// apps/web/src/app/go/linktree/_lib/queries.ts
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { LinktreeConfigSchema } from './types'
 import type {

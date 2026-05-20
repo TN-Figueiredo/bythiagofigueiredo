@@ -1,4 +1,5 @@
 import { headers, cookies } from 'next/headers'
+import { notFound } from 'next/navigation'
 import { LinktreeClient } from './_components/linktree-client'
 import {
   getLinktreeConfig,
@@ -12,7 +13,7 @@ import {
 } from './_lib/queries'
 import { buildLangSections } from './_lib/build-sections'
 
-export const revalidate = 300
+export const revalidate = 3600
 
 export default async function LinktreePage() {
   const hdrs = await headers()
@@ -20,25 +21,21 @@ export default async function LinktreePage() {
   const siteId = hdrs.get('x-site-id')
   const locale = hdrs.get('x-locale') || 'pt-BR'
 
-  if (!siteId) {
-    return (
-      <div className="min-h-dvh bg-[#14110B] flex items-center justify-center text-[#F0E8D6]">
-        <p>Site not found</p>
-      </div>
-    )
-  }
+  if (!siteId) notFound()
 
-  const [config, site, author, latestPost, latestVideo, socials, newsletters, channels] =
-    await Promise.all([
-      getLinktreeConfig(siteId),
-      getSiteInfo(siteId),
-      getDefaultAuthor(siteId),
-      getLatestPost(siteId, locale),
-      getLatestVideo(siteId),
-      getSocialProfiles(siteId),
-      getNewsletterTypes(siteId),
-      getYouTubeChannels(siteId),
-    ])
+  const [config, site, author] = await Promise.all([
+    getLinktreeConfig(siteId),
+    getSiteInfo(siteId),
+    getDefaultAuthor(siteId),
+  ])
+
+  const [latestPost, latestVideo, socials, newsletters, channels] = await Promise.all([
+    getLatestPost(siteId, locale).catch(() => null),
+    getLatestVideo(siteId).catch(() => null),
+    getSocialProfiles(siteId).catch(() => []),
+    getNewsletterTypes(siteId).catch(() => []),
+    getYouTubeChannels(siteId).catch(() => []),
+  ])
 
   const sections = buildLangSections(
     site.supportedLocales,

@@ -1,8 +1,6 @@
 'use client'
 
-import React from 'react'
-
-import { useState } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { ShareIcon } from './icons'
 
 interface ShareButtonProps {
@@ -13,21 +11,27 @@ interface ShareButtonProps {
 
 export function ShareButton({ url, title, locale }: ShareButtonProps) {
   const [copied, setCopied] = useState(false)
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(null)
   const isPt = locale.startsWith('pt')
 
+  useEffect(() => {
+    return () => { if (timerRef.current) clearTimeout(timerRef.current) }
+  }, [])
+
   async function handleShare() {
-    if (typeof navigator !== 'undefined' && navigator.share) {
+    if (navigator.share) {
       try {
         await navigator.share({ title, url })
         return
       } catch {
-        // User cancelled or not supported — fall through to clipboard
+        // User cancelled — fall through to clipboard
       }
     }
     try {
       await navigator.clipboard.writeText(url)
       setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      if (timerRef.current) clearTimeout(timerRef.current)
+      timerRef.current = setTimeout(() => setCopied(false), 2000)
     } catch {
       // Clipboard not available
     }

@@ -419,18 +419,24 @@ export function generateLinktreeMetadata(
   const title = `Links — ${config.siteName}`
   const description = `Todos os links de ${personName} — blog, YouTube, newsletter e mais.`
 
+  const languages: Record<string, string> = { 'x-default': goUrl }
+  for (const loc of config.supportedLocales) {
+    languages[loc] = goUrl
+  }
+
   return {
     ...baseMetadata(config),
     metadataBase: new URL(goUrl),
     title,
     description,
+    alternates: { canonical: goUrl, languages },
     openGraph: {
       ...baseMetadata(config).openGraph,
       type: 'website',
       url: goUrl,
       title,
       description,
-      images: [{ url: '/og/linktree', width: 1200, height: 630 }],
+      images: [{ url: '/og/linktree', width: 1200, height: 630, alt: title }],
       locale: config.defaultLocale.replace('-', '_'),
       alternateLocale: config.supportedLocales
         .filter((l) => l !== config.defaultLocale)

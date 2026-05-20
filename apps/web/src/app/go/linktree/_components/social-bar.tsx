@@ -3,13 +3,14 @@
 import React from 'react'
 
 import type { SocialProfile } from '../_lib/types'
-import { SocialYouTubeIcon, SocialGitHubIcon, SocialXIcon, SocialInstagramIcon } from './icons'
+import { SocialYouTubeIcon, SocialGitHubIcon, SocialXIcon, SocialInstagramIcon, SocialBlueskyIcon } from './icons'
 
 const SOCIAL_ICON_MAP: Record<string, React.FC<{ color?: string; size?: number }>> = {
   youtube: SocialYouTubeIcon,
   github: SocialGitHubIcon,
   x: SocialXIcon,
   instagram: SocialInstagramIcon,
+  bluesky: SocialBlueskyIcon,
 }
 
 interface SocialBarProps {
@@ -28,7 +29,7 @@ export function SocialBar({ profiles }: SocialBarProps) {
             key={p.platform + p.handle}
             href={p.url}
             target="_blank"
-            rel="noopener"
+            rel="noopener noreferrer"
             aria-label={`${p.platform}: ${p.handle}`}
             className="w-[34px] h-[34px] rounded-lg flex items-center justify-center text-[var(--pb-faint)] transition-colors hover:text-[var(--pb-accent)] hover:bg-[var(--pb-paper2)]"
           >
