@@ -451,8 +451,8 @@ export function generateLinktreeMetadata(
     },
     manifest: `${config.siteUrl}/manifest.webmanifest`,
     icons: {
-      icon: `${config.siteUrl}/brand/favicon.svg`,
-      apple: `${config.siteUrl}/apple-touch-icon.png`,
+      icon: `${config.siteUrl}/icon.svg`,
+      apple: `${config.siteUrl}/apple-icon.svg`,
     },
   }
 }
