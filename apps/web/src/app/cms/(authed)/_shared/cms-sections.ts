@@ -7,7 +7,7 @@ import {
   Kanban, Video, GraduationCap, BookOpen, Microscope, Headphones,
   Youtube, Send, Edit3, BarChart3, Users, LayoutTemplate,
   UserPen, UsersRound, Heart,
-  TrendingUp, Clock, Layers,
+  TrendingUp, Clock, Layers, Shrub,
 } from 'lucide-react'
 
 const ICON_SIZE = 16
@@ -38,6 +38,7 @@ export function buildCmsSections(): SidebarSection[] {
         { icon: icon(Microscope), label: 'Research', href: '/cms/pipeline/research', minRole: 'editor' },
         { icon: icon(Image), label: 'Media', href: '/cms/media', minRole: 'editor' },
         { icon: icon(Link2), label: 'Links', href: '/cms/links', minRole: 'editor' },
+        { icon: icon(Shrub), label: 'Linktree', href: '/cms/linktree', minRole: 'editor' },
         { icon: icon(ListMusic), label: 'Playlists', href: '/cms/playlists', minRole: 'editor' },
         { icon: icon(Kanban), label: 'Pipeline', href: '/cms/pipeline', minRole: 'editor' },
       ],

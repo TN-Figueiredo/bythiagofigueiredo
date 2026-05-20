@@ -7,6 +7,7 @@ import { saveLinktreeConfig } from '../actions'
 import { GeneralSection } from './general-section'
 import { HighlightSection } from './highlight-section'
 import { SharedLinksSection } from './shared-links-section'
+import { EditorPreview } from './editor-preview'
 
 type Config = z.infer<typeof LinktreeConfigSchema>
 
@@ -18,7 +19,7 @@ interface Props {
   pageData: LinktreePageData
 }
 
-export function LinktreeEditor({ initialConfig, domain, siteId: _siteId, readOnly, pageData: _pageData }: Props) {
+export function LinktreeEditor({ initialConfig, domain, siteId: _siteId, readOnly, pageData }: Props) {
   const [config, setConfig] = useState<Config>(initialConfig)
   const [savedConfig, setSavedConfig] = useState<Config>(initialConfig)
   const [isPending, startTransition] = useTransition()
@@ -121,9 +122,8 @@ export function LinktreeEditor({ initialConfig, domain, siteId: _siteId, readOnl
           </div>
         </div>
 
-        {/* Preview panel placeholder — real preview added in Task 9 */}
-        <div className="flex w-[400px] items-center justify-center border-l border-border bg-muted/30">
-          <p className="text-xs text-muted-foreground">Preview (Task 9)</p>
+        <div className="w-[400px] border-l border-border">
+          <EditorPreview config={config} pageData={pageData} />
         </div>
       </div>
     </div>
