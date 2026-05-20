@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const { mockSend, mockCaptureException } = vi.hoisted(() => ({
+const { mockSend, mockCaptureException, mockRender } = vi.hoisted(() => ({
   mockSend: vi.fn().mockResolvedValue({ messageId: 'msg-1', provider: 'ses' }),
   mockCaptureException: vi.fn(),
+  mockRender: vi.fn().mockResolvedValue('<html>rendered</html>'),
 }))
 
 vi.mock('../../../lib/email/service', () => ({
@@ -12,6 +13,10 @@ vi.mock('../../../lib/email/service', () => ({
 vi.mock('@sentry/nextjs', () => ({
   captureException: mockCaptureException,
   getClient: () => ({}),
+}))
+
+vi.mock('@react-email/render', () => ({
+  render: mockRender,
 }))
 
 import {
@@ -97,17 +102,18 @@ describe('confirm-email shared module', () => {
       expect(arg.subject).toBe('Confirme sua inscrição')
     })
 
-    it('HTML contains confirm URL with token', async () => {
+    it('calls render() to generate HTML', async () => {
       await sendNewsletterConfirmEmail({ to: 'user@example.com', rawToken: 'abcdef1234', locale: 'en' })
-      const html = mockSend.mock.calls[0][0].html as string
-      expect(html).toContain('/newsletter/confirm/abcdef1234')
+      expect(mockRender).toHaveBeenCalledOnce()
+      // Actual URL rendering is verified by confirm-email-render.test.ts
     })
 
-    it('HTML escapes the confirm URL', async () => {
+    it('HTML is provided by the render() call', async () => {
       await sendNewsletterConfirmEmail({ to: 'user@example.com', rawToken: 'abc', locale: 'en' })
+      expect(mockRender).toHaveBeenCalledOnce()
       const html = mockSend.mock.calls[0][0].html as string
       expect(html).not.toContain('${')
-      expect(html).toContain('<!DOCTYPE html>')
+      expect(html).toBe('<html>rendered</html>')
     })
 
     it('does not throw when email send fails', async () => {
