@@ -157,15 +157,17 @@ function ConfirmLayout({
   title,
   body,
   backLabel,
+  lang,
 }: {
   state: StateKind
   title: string
   body: string
   backLabel: string
+  lang?: string
 }) {
   const { accent, icon } = STATE_CONFIG[state]
   return (
-    <main style={styles.wrapper}>
+    <main style={styles.wrapper} lang={lang}>
       <div style={styles.card}>
         <div style={styles.icon(accent)} role="img" aria-hidden="true">
           {icon}
@@ -197,11 +199,10 @@ export default async function NewsletterConfirmPage({ params }: Props) {
     )
   }
 
+  try {
   const supabase = getSupabaseServiceClient()
   const tokenHash = createHash('sha256').update(token).digest('hex')
 
-  // Pre-fetch the locale (best-effort — ignore errors). We look up by hash
-  // before confirming so we know which language to render on success/already.
   let locale: string | null = null
   try {
     const { data: row } = await supabase
@@ -218,11 +219,8 @@ export default async function NewsletterConfirmPage({ params }: Props) {
     p_token_hash: tokenHash,
   })
 
-  // RPC returns a JSON object
   const result = (data ?? null) as ConfirmRpcResult | null
 
-  // If we didn't find a locale by hash (already-confirmed rows clear the hash),
-  // try one more lookup via the returned email/site_id.
   if (!locale && result?.email && result.site_id) {
     try {
       const { data: row2 } = await supabase
@@ -239,6 +237,7 @@ export default async function NewsletterConfirmPage({ params }: Props) {
   }
 
   const c = pickCopy(locale)
+  const lang = locale === 'en' ? 'en' : 'pt-BR'
 
   if (rpcError || !result) {
     if (rpcError) {
@@ -250,6 +249,7 @@ export default async function NewsletterConfirmPage({ params }: Props) {
         title={c.rpc_error_title}
         body={c.rpc_error_body}
         backLabel={c.back_home}
+        lang={lang}
       />
     )
   }
@@ -262,6 +262,7 @@ export default async function NewsletterConfirmPage({ params }: Props) {
           title={c.not_found_title}
           body={c.not_found_body}
           backLabel={c.back_home}
+          lang={lang}
         />
       )
     }
@@ -272,16 +273,17 @@ export default async function NewsletterConfirmPage({ params }: Props) {
           title={c.expired_title}
           body={c.expired_body}
           backLabel={c.back_home}
+          lang={lang}
         />
       )
     }
-    // invalid_state or unknown
     return (
       <ConfirmLayout
         state="error"
         title={c.invalid_state_title}
         body={c.invalid_state_body}
         backLabel={c.back_home}
+        lang={lang}
       />
     )
   }
@@ -293,6 +295,7 @@ export default async function NewsletterConfirmPage({ params }: Props) {
         title={c.already_title}
         body={c.already_body}
         backLabel={c.back_home}
+        lang={lang}
       />
     )
   }
@@ -305,6 +308,19 @@ export default async function NewsletterConfirmPage({ params }: Props) {
       title={c.ok_title}
       body={c.ok_body}
       backLabel={c.back_home}
+      lang={lang}
     />
   )
+  } catch (err) {
+    captureServerActionError(err, { action: 'confirm_newsletter', branch: 'outer_catch' })
+    const c = pickCopy(null)
+    return (
+      <ConfirmLayout
+        state="error"
+        title={c.rpc_error_title}
+        body={c.rpc_error_body}
+        backLabel={c.back_home}
+      />
+    )
+  }
 }

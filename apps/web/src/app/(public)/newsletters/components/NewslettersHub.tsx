@@ -54,12 +54,13 @@ const STRINGS = {
     pickAtLeastOne: 'pick at least one',
     yourEmail: 'your email',
     subscribe: 'subscribe',
-    ps: <>No ads, no hidden sponsorships, no &ldquo;URGENT&rdquo; triggers. One email when it&apos;s ready, about what&apos;s happening. <a style={{ textDecoration: 'underline' }}>unsubscribe is always in the footer</a>.</>,
+    ps: <>No ads, no hidden sponsorships, no &ldquo;URGENT&rdquo; triggers. One email when it&apos;s ready, about what&apos;s happening. <span style={{ textDecoration: 'underline' }}>unsubscribe is always in the footer</span>.</>,
     backHome: 'back to home',
     blog: 'blog',
     thanks: 'thanks!',
     subscribedTo: (n: number) => <>Subscribed to <span>{n}</span> newsletter{n > 1 ? 's' : ''}.</>,
     confirmSent: (email: string) => `We sent a confirmation email to ${email} — click the link and you're set.`,
+    alreadyConfirmed: "You're already subscribed — no action needed.",
     subscribed: 'subscribed!',
     suggestHeadline: 'Want a few more things?',
     suggestSubhead: (email: string) => `We'll use the same ${email}. Check what interests you, or skip — no drama.`,
@@ -90,12 +91,13 @@ const STRINGS = {
     pickAtLeastOne: 'marca pelo menos uma',
     yourEmail: 'seu email',
     subscribe: 'inscrever',
-    ps: <>Sem anúncios, sem parceria escondida, sem gatilho de &ldquo;URGENTE&rdquo;. É um email por quando der, sobre o que tá rolando. <a style={{ textDecoration: 'underline' }}>descadastro sempre no rodapé</a>.</>,
+    ps: <>Sem anúncios, sem parceria escondida, sem gatilho de &ldquo;URGENTE&rdquo;. É um email por quando der, sobre o que tá rolando. <span style={{ textDecoration: 'underline' }}>descadastro sempre no rodapé</span>.</>,
     backHome: 'voltar pra home',
     blog: 'blog',
     thanks: 'valeu!',
     subscribedTo: (n: number) => <>Inscreveu em <span>{n}</span> newsletter{n > 1 ? 's' : ''}.</>,
     confirmSent: (email: string) => `Mandamos um email de confirmação pra ${email} — clica no link e tá pronto.`,
+    alreadyConfirmed: 'Você já está inscrito — nenhuma ação necessária.',
     subscribed: 'inscrito!',
     suggestHeadline: 'Quer receber mais alguma coisa?',
     suggestSubhead: (email: string) => `Usamos o mesmo ${email}. Marca o que te interessa, ou pula — sem drama.`,
@@ -446,11 +448,12 @@ export function NewslettersHub({ locale, currentTheme, types }: Props) {
   const [email, setEmail] = useState('')
   const [phase, setPhase] = useState<'pick' | 'sent' | 'suggest'>('pick')
   const [sentTo, setSentTo] = useState<string[]>([])
+  const [confirmationSent, setConfirmationSent] = useState(false)
   const [serverError, setServerError] = useState<string | null>(null)
   const [submitting, startTransition] = useTransition()
   const [announcement, setAnnouncement] = useState('')
 
-  const isValidEmail = email.includes('@') && email.includes('.')
+  const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 
   const toggle = useCallback((id: string) => {
     setChecked(prev => {
@@ -490,6 +493,7 @@ export function NewslettersHub({ locale, currentTheme, types }: Props) {
       const result = await subscribeToNewsletters(email, ids, locale)
       if (result.error) { setServerError(result.error); return }
       setSentTo(prev => [...new Set([...prev, ...ids])])
+      setConfirmationSent(result.needsConfirmation ?? false)
       const hasMore = ids.length < types.length
       setPhase(hasMore ? 'suggest' : 'sent')
     })
@@ -534,7 +538,7 @@ export function NewslettersHub({ locale, currentTheme, types }: Props) {
   // ── Success screen ────────────────────────────────────────────────────────
   if (phase === 'sent') {
     return (
-      <div style={{ background: bg, color: ink, minHeight: '100vh', fontFamily: '"Inter", sans-serif' }}>
+      <div style={{ background: bg, color: ink, minHeight: '100vh', fontFamily: '"Inter", sans-serif' }} role="status" aria-live="polite">
         <section style={{ maxWidth: 720, margin: '0 auto', padding: '96px 28px' }}>
           <div style={{ fontFamily: '"Caveat", cursive', fontSize: 60, color: accent, lineHeight: 1, marginBottom: 16, transform: 'rotate(-2deg)', display: 'inline-block' }}>
             {strings.thanks}
@@ -543,7 +547,7 @@ export function NewslettersHub({ locale, currentTheme, types }: Props) {
             {strings.subscribedTo(sentTo.length)}
           </h1>
           <p style={{ fontSize: 16, color: muted, lineHeight: 1.6, marginBottom: 32 }}>
-            {strings.confirmSent(email)}
+            {confirmationSent ? strings.confirmSent(email) : strings.alreadyConfirmed}
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 40 }}>
             {sentTo.map(id => {

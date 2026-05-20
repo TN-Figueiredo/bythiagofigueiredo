@@ -119,6 +119,7 @@ describe('subscribeToNewsletters', () => {
     expect(result).toEqual({
       success: true,
       subscribedIds: ['nl-1', 'nl-2'],
+      needsConfirmation: true,
     })
   })
 
@@ -218,17 +219,56 @@ describe('subscribeToNewsletters', () => {
     const result = await subscribeToNewsletters('user@example.com', ['nl-1'], 'en')
     expect(result.success).toBe(true)
     expect(result.subscribedIds).toContain('nl-1')
+    expect(result.needsConfirmation).toBe(false)
     expect(mockSend).not.toHaveBeenCalled()
   })
 
-  it('treats duplicate insert as success (race condition)', async () => {
+  it('returns needsConfirmation=true for new subscriptions', async () => {
+    const result = await subscribeToNewsletters('user@example.com', ['nl-1'], 'en')
+    expect(result.success).toBe(true)
+    expect(result.needsConfirmation).toBe(true)
+    expect(mockSend).toHaveBeenCalledOnce()
+  })
+
+  it('handles mix of confirmed + new: sends email only for new, returns both ids', async () => {
+    let callCount = 0
+    mockMaybeSingle.mockImplementation(() => {
+      callCount++
+      if (callCount === 1) return Promise.resolve({ data: { id: 'existing-1', status: 'confirmed' }, error: null })
+      return Promise.resolve({ data: null, error: null })
+    })
+    const result = await subscribeToNewsletters('user@example.com', ['nl-confirmed', 'nl-new'], 'en')
+    expect(result.success).toBe(true)
+    expect(result.subscribedIds).toContain('nl-confirmed')
+    expect(result.subscribedIds).toContain('nl-new')
+    expect(result.needsConfirmation).toBe(true)
+    expect(mockInsert).toHaveBeenCalledTimes(1)
+    expect(mockSend).toHaveBeenCalledOnce()
+  })
+
+  it('treats duplicate insert as success after follow-up token update (race condition)', async () => {
     mockInsert.mockResolvedValue({
       data: null,
-      error: { message: 'duplicate key value violates unique constraint "newsletter_subscriptions_pkey"', code: '23505' },
+      error: { message: 'duplicate key value violates unique constraint', code: '23505' },
+    })
+    const mockDupUpdate = vi.fn().mockResolvedValue({ data: null, error: null })
+    const origFrom = mockFrom.getMockImplementation()
+    let insertCallDone = false
+    mockFrom.mockImplementation((...args) => {
+      if (insertCallDone) {
+        return { update: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: mockDupUpdate }) }) }) }
+      }
+      const base = origFrom ? origFrom(...args) : {
+        select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnThis(), neq: vi.fn().mockReturnThis(), maybeSingle: mockMaybeSingle }) }),
+        insert: (...a: unknown[]) => { insertCallDone = true; return mockInsert(...a) },
+        update: vi.fn().mockReturnValue({ eq: mockUpdate }),
+      }
+      return { ...base, insert: (...a: unknown[]) => { insertCallDone = true; return mockInsert(...a) } }
     })
     const result = await subscribeToNewsletters('user@example.com', ['nl-1'], 'en')
     expect(result.success).toBe(true)
     expect(result.subscribedIds).toContain('nl-1')
+    expect(result.needsConfirmation).toBe(true)
   })
 
   it('returns internal error when all inserts fail with non-duplicate error', async () => {

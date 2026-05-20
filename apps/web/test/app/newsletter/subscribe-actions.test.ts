@@ -177,7 +177,6 @@ describe('subscribeToNewsletter', () => {
     fromMock.mockReturnValueOnce({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
-      or: vi.fn().mockReturnThis(),
       maybeSingle: vi.fn().mockResolvedValue({
         data: { id: 'sub-1', status: 'confirmed', email: 'user@example.com' },
         error: null,
@@ -196,11 +195,10 @@ describe('subscribeToNewsletter', () => {
     const updateEqMock = vi.fn().mockResolvedValue({ data: null, error: null })
 
     fromMock
-      // select existing -> pending
+      // select by email -> pending found
       .mockReturnValueOnce({
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
-        or: vi.fn().mockReturnThis(),
         maybeSingle: vi.fn().mockResolvedValue({
           data: { id: 'sub-2', status: 'pending_confirmation', email: 'user@example.com' },
           error: null,
@@ -219,9 +217,64 @@ describe('subscribeToNewsletter', () => {
     expect(updateMock).toHaveBeenCalledOnce()
     expect(sendMock).toHaveBeenCalledOnce()
 
-    // Verify the update payload sets status back to pending and rotates token
     const payload = updateMock.mock.calls[0]![0] as Record<string, unknown>
     expect(payload.status).toBe('pending_confirmation')
     expect(payload.confirmation_token_hash).toEqual(expect.stringMatching(/^[a-f0-9]{64}$/))
+  })
+
+  it('returns db_error when update fails', async () => {
+    const updateMock = vi.fn().mockReturnThis()
+    const updateEqMock = vi.fn().mockResolvedValue({ data: null, error: { message: 'timeout', code: '57014' } })
+
+    fromMock
+      .mockReturnValueOnce({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue({
+          data: { id: 'sub-2', status: 'pending_confirmation', email: 'user@example.com' },
+          error: null,
+        }),
+      })
+      .mockReturnValueOnce({
+        update: updateMock,
+        eq: updateEqMock,
+      })
+
+    const fd = makeFormData(VALID_FIELDS)
+    const result = await subscribeToNewsletter(fd)
+
+    expect(result).toEqual({ status: 'error', code: 'db_error' })
+    expect(sendMock).not.toHaveBeenCalled()
+    expect(captureServerActionErrorSpy).toHaveBeenCalled()
+  })
+
+  it('returns success even when email send fails (non-fatal)', async () => {
+    const notFoundChain = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+    }
+    fromMock
+      .mockReturnValueOnce(notFoundChain)
+      .mockReturnValueOnce(notFoundChain)
+      .mockReturnValueOnce({
+        insert: vi.fn().mockResolvedValue({ data: null, error: null }),
+      })
+    sendMock.mockRejectedValueOnce(new Error('SMTP timeout'))
+
+    const fd = makeFormData(VALID_FIELDS)
+    const result = await subscribeToNewsletter(fd)
+
+    expect(result).toEqual({ status: 'ok' })
+  })
+
+  it('catches unexpected errors via outer try/catch', async () => {
+    getSiteContextMock.mockRejectedValueOnce(new Error('network failure'))
+
+    const fd = makeFormData(VALID_FIELDS)
+    const result = await subscribeToNewsletter(fd)
+
+    expect(result).toEqual({ status: 'error', code: 'internal' })
+    expect(captureServerActionErrorSpy).toHaveBeenCalled()
   })
 })

@@ -42,9 +42,14 @@ export interface SubscribeFormStrings {
 type Phase = 'idle' | 'loading' | 'pending' | 'confirmed' | 'error'
 
 const ERROR_MAP: Record<string, keyof SubscribeFormStrings> = {
-  rate: 'errorRateLimit',
-  dup: 'errorAlreadySubscribed',
-  invalid: 'errorInvalid',
+  'Too many attempts. Try again later.': 'errorRateLimit',
+  'Muitas tentativas. Tente novamente em breve.': 'errorRateLimit',
+  'Invalid email.': 'errorInvalid',
+  'E-mail inválido.': 'errorInvalid',
+  'Verification required.': 'errorServer',
+  'Verificação necessária.': 'errorServer',
+  'Verification failed.': 'errorServer',
+  'Verificação falhou.': 'errorServer',
 }
 
 export interface SubscribeFormProps {

@@ -18,9 +18,27 @@ const CATEGORY_LABEL: Record<string, string> = {
   Bastidores: 'Behind the Screens',
 }
 
+const COPY = {
+  'pt-BR': {
+    headline: 'Gostou? Recebe os próximos na caixa de entrada.',
+    success: 'Inscrição recebida! Verifique seu email para confirmar.',
+    placeholder: 'seu@email.com',
+    cta: (label: string) => `Assinar ${label}`,
+    vanity: 'cancelar é um clique',
+  },
+  en: {
+    headline: 'Liked it? Get the next ones in your inbox.',
+    success: 'Subscription received! Check your email to confirm.',
+    placeholder: 'you@email.com',
+    cta: (label: string) => `Subscribe ${label}`,
+    vanity: 'unsubscribe is one click',
+  },
+} as const
+
 export function NewsletterCta({ category, locale, newsletterId }: Props) {
   const [state, dispatch, pending] = useActionState(subscribeNewsletterInline, INITIAL)
   const ctaLabel = category ? CATEGORY_LABEL[category] ?? 'Caderno de Campo' : 'Caderno de Campo'
+  const c = COPY[locale === 'pt-BR' ? 'pt-BR' : 'en']
 
   return (
     <div className="blog-nl-cta">
@@ -33,11 +51,11 @@ export function NewsletterCta({ category, locale, newsletterId }: Props) {
         className="font-fraunces font-medium leading-[1.15] mb-4 max-w-[500px]"
         style={{ fontSize: 26, textWrap: 'balance' }}
       >
-        Gostou? Recebe os proximos na caixa de entrada.
+        {c.headline}
       </h3>
 
       {state.success ? (
-        <p className="text-pb-accent font-jetbrains text-sm py-4">Inscricao recebida! Verifique seu email para confirmar.</p>
+        <p className="text-pb-accent font-jetbrains text-sm py-4">{c.success}</p>
       ) : (
         <form action={dispatch} className="flex gap-2 flex-wrap">
           {newsletterId && <input type="hidden" name="newsletter_id" value={newsletterId} />}
@@ -46,7 +64,7 @@ export function NewsletterCta({ category, locale, newsletterId }: Props) {
             name="email"
             type="email"
             required
-            placeholder="seu@email.com"
+            placeholder={c.placeholder}
             aria-label="Email"
             className="flex-1 min-w-[200px] text-sm outline-none"
             style={{
@@ -68,13 +86,13 @@ export function NewsletterCta({ category, locale, newsletterId }: Props) {
               color: 'var(--pb-marker)',
             }}
           >
-            {pending ? '...' : `Assinar ${ctaLabel}`}
+            {pending ? '...' : c.cta(ctaLabel)}
           </button>
           {state.error && <p className="text-pb-yt font-jetbrains text-xs w-full">{state.error}</p>}
         </form>
       )}
       <div className="text-[11px] mt-2.5 font-jetbrains" style={{ opacity: 0.65 }}>
-        1.427 leitores · 62% open rate · cancelar e um clique
+        {c.vanity}
       </div>
     </div>
   )

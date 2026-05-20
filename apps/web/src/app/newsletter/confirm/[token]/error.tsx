@@ -1,8 +1,37 @@
 'use client'
 
-export default function ConfirmError() {
+const COPY = {
+  en: {
+    title: 'Something went wrong',
+    body: 'An unexpected error occurred while confirming your subscription. Please try again later.',
+    retry: 'Try again',
+    back: 'Back to home',
+  },
+  'pt-BR': {
+    title: 'Algo deu errado',
+    body: 'Ocorreu um erro inesperado ao confirmar sua inscrição. Tente novamente mais tarde.',
+    retry: 'Tentar novamente',
+    back: 'Voltar ao início',
+  },
+} as const
+
+function detectLocale(): keyof typeof COPY {
+  if (typeof window === 'undefined') return 'pt-BR'
+  if (window.location.pathname.startsWith('/pt')) return 'pt-BR'
+  return 'en'
+}
+
+export default function ConfirmError({
+  reset,
+}: {
+  error: Error & { digest?: string }
+  reset: () => void
+}) {
+  const loc = detectLocale()
+  const c = COPY[loc]
   return (
     <main
+      lang={loc === 'pt-BR' ? 'pt-BR' : 'en'}
       style={{
         minHeight: '100vh',
         display: 'flex',
@@ -30,7 +59,7 @@ export default function ConfirmError() {
           role="img"
           aria-hidden="true"
         >
-          ⚠
+          &#x26A0;
         </div>
         <div
           style={{
@@ -51,7 +80,7 @@ export default function ConfirmError() {
             lineHeight: 1.2,
           }}
         >
-          Something went wrong
+          {c.title}
         </h1>
         <p
           style={{
@@ -59,20 +88,37 @@ export default function ConfirmError() {
             fontSize: 14,
             lineHeight: 1.7,
             color: 'var(--pb-muted, #958A75)',
-            margin: '0 0 32px',
+            margin: '0 0 24px',
             maxWidth: 420,
             marginLeft: 'auto',
             marginRight: 'auto',
           }}
         >
-          An unexpected error occurred while confirming your subscription. Please try again later.
+          {c.body}
         </p>
+        <button
+          onClick={reset}
+          style={{
+            fontFamily: 'var(--font-jetbrains-var), monospace',
+            fontSize: 13,
+            padding: '10px 20px',
+            background: '#C14513',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 6,
+            cursor: 'pointer',
+            fontWeight: 600,
+            marginBottom: 16,
+          }}
+        >
+          {c.retry}
+        </button>
         <hr
           style={{
             width: 32,
             height: 1,
             background: 'var(--pb-line, #332D25)',
-            margin: '0 auto 20px',
+            margin: '16px auto 20px',
             border: 'none',
           }}
         />
@@ -89,7 +135,7 @@ export default function ConfirmError() {
             paddingBottom: 2,
           }}
         >
-          Back to home
+          {c.back}
         </a>
       </div>
     </main>

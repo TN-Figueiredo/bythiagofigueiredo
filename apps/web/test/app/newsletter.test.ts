@@ -78,7 +78,6 @@ function makeSbChain(result: { data: unknown; error: unknown }) {
   const chain = {
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
-    or: vi.fn().mockReturnThis(),
     maybeSingle: vi.fn().mockResolvedValue(result),
     insert: vi.fn().mockReturnThis(),
     update: vi.fn().mockReturnThis(),
@@ -187,7 +186,6 @@ describe('subscribeToNewsletter', () => {
     fromMock.mockReturnValueOnce({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
-      or: vi.fn().mockReturnThis(),
       maybeSingle: vi.fn().mockResolvedValue({
         data: { id: 'sub-1', status: 'confirmed' },
         error: null,
@@ -211,7 +209,6 @@ describe('subscribeToNewsletter', () => {
       // First: select existing — returns pending
       .mockReturnValueOnce({
         select: vi.fn().mockReturnThis(),
-        or: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
         maybeSingle: vi.fn().mockResolvedValue({
           data: { id: 'sub-2', status: 'pending_confirmation' },

@@ -139,4 +139,32 @@ describe('subscribeNewsletterInline', () => {
 
     expect(mockRateCheck).toHaveBeenCalledWith('newsletter_rate_check', expect.objectContaining({ p_ip: expect.any(String) }))
   })
+
+  it('returns success even when email send fails (non-fatal)', async () => {
+    mockRateCheck.mockResolvedValueOnce({ data: true, error: null })
+    mockSend.mockRejectedValueOnce(new Error('SMTP timeout'))
+
+    const fd = new FormData()
+    fd.set('email', 'user@example.com')
+    fd.set('newsletter_id', 'main-en')
+    fd.set('locale', 'en')
+    fd.set('turnstile_token', 'ok-token')
+
+    const result = await subscribeNewsletterInline(undefined, fd)
+    expect(result.success).toBe(true)
+  })
+
+  it('returns success without email for already-confirmed subscription', async () => {
+    mockMaybeSingle.mockResolvedValueOnce({ data: { id: 'existing-1', status: 'confirmed' }, error: null })
+
+    const fd = new FormData()
+    fd.set('email', 'user@example.com')
+    fd.set('newsletter_id', 'main-en')
+    fd.set('locale', 'en')
+    fd.set('turnstile_token', 'ok-token')
+
+    const result = await subscribeNewsletterInline(undefined, fd)
+    expect(result.success).toBe(true)
+    expect(mockSend).not.toHaveBeenCalled()
+  })
 })
