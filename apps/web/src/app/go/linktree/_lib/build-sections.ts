@@ -11,13 +11,13 @@ const LOCALE_META: Record<string, { flag: string; label: string; hand: string; b
   'en': { flag: '🇺🇸', label: 'English', hand: 'in english', blogLabel: 'Blog' },
 }
 
-function normalizeLocale(locale: string): string {
+export function normalizeLocale(locale: string): string {
   if (locale.startsWith('pt')) return 'pt-BR'
   if (locale.startsWith('en')) return 'en'
   return locale
 }
 
-function localeMatches(itemLocale: string, sectionLocale: string): boolean {
+export function localeMatches(itemLocale: string, sectionLocale: string): boolean {
   const normItem = normalizeLocale(itemLocale)
   const normSection = normalizeLocale(sectionLocale)
   return normItem === normSection
