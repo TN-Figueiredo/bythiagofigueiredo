@@ -65,7 +65,7 @@ export interface SubscribeFormProps {
     ids: string[],
     locale: 'en' | 'pt-BR',
     token?: string,
-  ) => Promise<{ success?: boolean; error?: string; subscribedIds?: string[] }>
+  ) => Promise<{ success?: boolean; error?: string; subscribedIds?: string[]; needsConfirmation?: boolean }>
   suggestions?: ScoredSuggestion[]
   suggestionStrings?: SuggestionStrings
   currentSlug?: string
@@ -129,7 +129,8 @@ export function SubscribeForm({
       const result = await onSubscribe(email, [newsletterId], locale)
 
       if (result.success) {
-        setPhase('pending')
+        const nextPhase = result.needsConfirmation === false ? 'confirmed' : 'pending'
+        setPhase(nextPhase)
         // Fetch suggestions filtered by subscriber's existing subscriptions
         if (suggestions && suggestions.length > 0 && onGetFilteredSuggestions && currentSlug) {
           onGetFilteredSuggestions(currentSlug, locale, email).then((filtered) => {
