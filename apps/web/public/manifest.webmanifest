@@ -1,0 +1,11 @@
+{
+  "name": "TF Links",
+  "short_name": "TF Links",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#14110B",
+  "theme_color": "#14110B",
+  "icons": [
+    { "src": "/brand/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
