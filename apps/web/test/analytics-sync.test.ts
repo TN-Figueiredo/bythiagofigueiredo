@@ -89,58 +89,50 @@ describe('detectViral', () => {
 
 describe('getIsoWeek', () => {
   it('returns correct ISO week string format', () => {
-    const result = getIsoWeek(new Date('2026-05-17'))
+    const result = getIsoWeek(new Date(2026, 4, 17))
     expect(result).toMatch(/^2026-W\d{2}$/)
   })
 
   it('returns 2026-W20 for 2026-05-17 (Sunday of ISO W20)', () => {
-    // 2026-05-11 (Mon) – 2026-05-17 (Sun) is ISO W20
-    expect(getIsoWeek(new Date('2026-05-17'))).toBe('2026-W20')
+    expect(getIsoWeek(new Date(2026, 4, 17))).toBe('2026-W20')
   })
 
-  it('returns 2026-W19 for 2026-05-11 (Monday start of W19)', () => {
-    expect(getIsoWeek(new Date('2026-05-11'))).toBe('2026-W19')
+  it('returns 2026-W20 for 2026-05-11 (Monday start of W20)', () => {
+    expect(getIsoWeek(new Date(2026, 4, 11))).toBe('2026-W20')
   })
 
-  it('returns 2026-W01 for 2026-01-05 (first full ISO week of 2026)', () => {
-    // ISO W01 2026: Jan 5 (Mon) – Jan 11 (Sun)
-    expect(getIsoWeek(new Date('2026-01-05'))).toBe('2026-W01')
+  it('returns 2026-W02 for 2026-01-05 (Monday start of W02)', () => {
+    expect(getIsoWeek(new Date(2026, 0, 5))).toBe('2026-W02')
   })
 
   it('returns 2026-W01 for 2026-01-01 (Jan 1 belongs to W01 of 2026)', () => {
-    // Jan 1 2026 is a Thursday — belongs to W01 2026
-    expect(getIsoWeek(new Date('2026-01-01'))).toBe('2026-W01')
+    expect(getIsoWeek(new Date(2026, 0, 1))).toBe('2026-W01')
   })
 
   it('Dec 31 2026 belongs to W53 of 2026', () => {
-    // Dec 31 2026 is a Thursday — belongs to W53 of 2026
-    expect(getIsoWeek(new Date('2026-12-31'))).toBe('2026-W53')
+    expect(getIsoWeek(new Date(2026, 11, 31))).toBe('2026-W53')
   })
 
   it('Jan 1 2024 belongs to W01 of 2024 (Monday starts ISO W01)', () => {
-    // Use local-time constructor to avoid UTC→local shift (São Paulo UTC-3 would make '2024-01-01' → Dec 31)
     expect(getIsoWeek(new Date(2024, 0, 1))).toBe('2024-W01')
   })
 
-  it('Dec 31 2018 belongs to W52 of 2018 (year boundary)', () => {
-    // Dec 31 2018 is a Monday but falls in the last ISO week of 2018
-    expect(getIsoWeek(new Date('2018-12-31'))).toBe('2018-W52')
+  it('Dec 31 2018 belongs to W01 of 2019 (year boundary — ISO week crosses into next year)', () => {
+    expect(getIsoWeek(new Date(2018, 11, 31))).toBe('2019-W01')
   })
 
-  it('Dec 28 2020 belongs to W52 of 2020', () => {
-    // Dec 28 2020 is a Monday in ISO week 52 of 2020
-    expect(getIsoWeek(new Date('2020-12-28'))).toBe('2020-W52')
+  it('Dec 28 2020 belongs to W53 of 2020 (leap year with 53 ISO weeks)', () => {
+    expect(getIsoWeek(new Date(2020, 11, 28))).toBe('2020-W53')
   })
 
   it('week number is zero-padded to 2 digits', () => {
-    // W01 should be "W01", not "W1"
-    const result = getIsoWeek(new Date('2026-01-05'))
+    const result = getIsoWeek(new Date(2026, 0, 5))
     expect(result).toMatch(/W\d{2}$/)
     expect(result.split('-W')[1]!.length).toBe(2)
   })
 
   it('is stable — same date always returns same string', () => {
-    const date = new Date('2026-03-15')
+    const date = new Date(2026, 2, 15)
     expect(getIsoWeek(date)).toBe(getIsoWeek(date))
   })
 })
