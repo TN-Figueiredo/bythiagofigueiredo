@@ -60,7 +60,8 @@ export async function getLinktreeInsights(
 
   const allClicksByKey: Record<string, number> = {}
   for (const m of metrics) {
-    const byKey = m.link_clicks_by_key as Record<string, number>
+    const byKey = m.link_clicks_by_key as Record<string, number> | null
+    if (!byKey) continue
     for (const [key, count] of Object.entries(byKey)) {
       allClicksByKey[key] = (allClicksByKey[key] ?? 0) + count
     }
@@ -82,7 +83,8 @@ export async function getLinktreeInsights(
 
   const allCountries: Record<string, number> = {}
   for (const m of metrics) {
-    const countries = m.countries as Record<string, number>
+    const countries = m.countries as Record<string, number> | null
+    if (!countries) continue
     for (const [c, count] of Object.entries(countries)) {
       allCountries[c] = (allCountries[c] ?? 0) + count
     }

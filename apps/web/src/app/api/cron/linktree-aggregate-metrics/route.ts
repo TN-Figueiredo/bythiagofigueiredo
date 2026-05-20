@@ -217,9 +217,14 @@ export async function GET(req: Request): Promise<Response> {
       return { status: 'error' as const, error: rpcErr.message }
     }
 
-    await supabase
+    const { error: wmErr } = await supabase
       .from('link_aggregation_watermark')
       .upsert({ id: 'linktree', last_processed_at: until })
+
+    if (wmErr) {
+      Sentry.captureException(new Error(wmErr.message), { tags: { component: JOB } })
+      return { status: 'error' as const, error: `watermark update failed: ${wmErr.message}` }
+    }
 
     return { status: 'ok' as const, aggregated: rows.length, eventsProcessed: totalProcessed }
   })

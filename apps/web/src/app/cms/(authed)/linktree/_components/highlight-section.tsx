@@ -50,6 +50,7 @@ export function HighlightSection({ config, onChange, readOnly }: Props) {
               value={h.url}
               onChange={(e) => updateHighlight({ url: e.target.value })}
               disabled={readOnly}
+              maxLength={2048}
               className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-50"
               placeholder="https://..."
             />

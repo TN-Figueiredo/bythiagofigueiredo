@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Link2, Mail, MessageCircle, Phone, Globe, Book, Code, Coffee,
   Heart, Star, Zap, Camera, Music, Video, FileText, ShoppingBag,
@@ -36,53 +36,81 @@ interface Props {
 export function IconPicker({ value, onChange, disabled }: Props) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const wrapperRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
 
   const selected = ICONS.find((i) => i.name === value) ?? ICONS[0]!
   const filtered = search
     ? ICONS.filter((i) => i.name.includes(search.toLowerCase()))
     : ICONS
 
-  if (!open) {
-    return (
+  useEffect(() => {
+    if (!open) return
+    function handleClickOutside(e: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setOpen(false)
+        setSearch('')
+        triggerRef.current?.focus()
+      }
+    }
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setOpen(false)
+        setSearch('')
+        triggerRef.current?.focus()
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [open])
+
+  return (
+    <div ref={wrapperRef} className="relative">
       <button
+        ref={triggerRef}
         type="button"
-        onClick={() => !disabled && setOpen(true)}
+        onClick={() => !disabled && setOpen(!open)}
         disabled={disabled}
         aria-label="Trocar ícone"
+        aria-expanded={open}
         className="flex items-center gap-2 rounded border border-border bg-background px-3 py-2 text-xs text-muted-foreground hover:border-primary disabled:opacity-50"
       >
         <selected.Icon size={14} />
         <span>Trocar ícone</span>
       </button>
-    )
-  }
 
-  return (
-    <div className="rounded border border-border bg-background p-2">
-      <input
-        type="text"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder="Buscar ícone..."
-        className="mb-2 w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none"
-        autoFocus
-      />
-      <div className="grid max-h-32 grid-cols-8 gap-1 overflow-y-auto">
-        {filtered.map(({ name, Icon }) => (
-          <button
-            key={name}
-            type="button"
-            onClick={() => { onChange(name); setOpen(false); setSearch('') }}
-            className={`flex h-8 w-8 items-center justify-center rounded hover:bg-accent/10 ${
-              value === name ? 'bg-primary/10 text-primary' : 'text-muted-foreground'
-            }`}
-            title={name}
-            aria-label={name}
-          >
-            <Icon size={14} />
-          </button>
-        ))}
-      </div>
+      {open && (
+        <div className="absolute left-0 top-full z-10 mt-1 rounded border border-border bg-background p-2 shadow-md">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar ícone..."
+            className="mb-2 w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none"
+            autoFocus
+          />
+          <div className="grid max-h-32 grid-cols-8 gap-1 overflow-y-auto">
+            {filtered.map(({ name, Icon }) => (
+              <button
+                key={name}
+                type="button"
+                onClick={() => { onChange(name); setOpen(false); setSearch('') }}
+                className={`flex h-8 w-8 items-center justify-center rounded hover:bg-accent/10 ${
+                  value === name ? 'bg-primary/10 text-primary' : 'text-muted-foreground'
+                }`}
+                title={name}
+                aria-label={name}
+              >
+                <Icon size={14} />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
