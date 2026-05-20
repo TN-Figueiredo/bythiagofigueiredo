@@ -3,15 +3,15 @@
 import crypto from 'node:crypto'
 import { headers } from 'next/headers'
 import { z } from 'zod'
-import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '../../../../lib/supabase/service'
 import { getSiteContext } from '../../../../lib/cms/site-context'
 import { getEmailService } from '../../../../lib/email/service'
 import { verifyTurnstileToken } from '../../../../lib/turnstile'
+import { getClientIp, isValidInet } from '../../../../lib/request-ip'
+import { captureServerActionError } from '../../../lib/sentry-wrap'
+import { NEWSLETTER_CONSENT_VERSION as CONSENT_VERSION } from '../../newsletter/consent'
 import { getFilteredSuggestionsForSubscriber } from '@/lib/newsletter/suggestions'
 import type { ScoredSuggestion } from '@/lib/newsletter/suggestions'
-
-const CONSENT_VERSION = 'newsletter-v1-2026-04'
 
 const MultiSchema = z.object({
   email: z.string().email(),
@@ -39,6 +39,7 @@ export async function subscribeToNewsletters(
       return { error: locale === 'pt-BR' ? 'E-mail inválido.' : 'Invalid email.' }
     }
 
+    const normalizedEmail = email.trim().toLowerCase()
     const { siteId } = await getSiteContext()
 
     if (process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY) {
@@ -49,14 +50,14 @@ export async function subscribeToNewsletters(
 
     const db = getSupabaseServiceClient()
     const h = await headers()
-    const rawIp = h.get('x-forwarded-for')?.split(',')[0]?.trim()
-    const ip = rawIp || null
+    const rawIp = getClientIp(h)
+    const ip = isValidInet(rawIp) ? rawIp : null
     const userAgent = h.get('user-agent') || null
 
     const { data: rateAllowed } = await db.rpc('newsletter_rate_check', {
       p_site_id: siteId,
       p_ip: rawIp ?? '',
-      p_email: email,
+      p_email: normalizedEmail,
     })
     if (rateAllowed === false) {
       return { error: locale === 'pt-BR' ? 'Muitas tentativas. Tente novamente em breve.' : 'Too many attempts. Try again later.' }
@@ -72,7 +73,7 @@ export async function subscribeToNewsletters(
         .from('newsletter_subscriptions')
         .select('id, status')
         .eq('site_id', siteId)
-        .eq('email', email)
+        .eq('email', normalizedEmail)
         .eq('newsletter_id', newsletterId)
         .neq('status', 'unsubscribed')
         .maybeSingle()
@@ -97,7 +98,7 @@ export async function subscribeToNewsletters(
       } else {
         const { error } = await db.from('newsletter_subscriptions').insert({
           site_id: siteId,
-          email,
+          email: normalizedEmail,
           status: 'pending_confirmation',
           newsletter_id: newsletterId,
           locale,
@@ -125,7 +126,7 @@ export async function subscribeToNewsletters(
       const domain = process.env.NEWSLETTER_FROM_DOMAIN ?? 'bythiagofigueiredo.com'
       await getEmailService().send({
         from: { name: 'Thiago Figueiredo', email: `no-reply@${domain}` },
-        to: email,
+        to: normalizedEmail,
         subject: isPt ? 'Confirme sua inscrição' : 'Confirm your subscription',
         html: `<!DOCTYPE html><html><body style="font-family:Georgia,serif;max-width:520px;margin:40px auto;color:#161208;line-height:1.6;">
           <h2 style="font-weight:500;letter-spacing:-0.02em;">${isPt ? 'Quase lá.' : 'Almost there.'}</h2>
@@ -141,12 +142,12 @@ export async function subscribeToNewsletters(
       })
     } catch (emailErr) {
       console.error('[subscribe-newsletters] Email send failed:', emailErr)
-      Sentry.captureException(emailErr, { tags: { component: 'newsletter-subscribe', action: 'send-confirmation' } })
+      captureServerActionError(emailErr, { action: 'newsletter_subscribe', branch: 'send_confirm_email' })
     }
 
     return { success: true, subscribedIds }
   } catch (err) {
-    Sentry.captureException(err, { tags: { component: 'newsletter-subscribe', action: 'subscribe' } })
+    captureServerActionError(err, { action: 'newsletter_subscribe', branch: 'outer_catch' })
     return { error: locale === 'pt-BR' ? 'Erro interno. Tente novamente.' : 'Internal error. Try again.' }
   }
 }

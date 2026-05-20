@@ -52,6 +52,7 @@ vi.mock('../../../../lib/turnstile', () => ({
 
 vi.mock('@sentry/nextjs', () => ({
   captureException: mockCaptureException,
+  getClient: () => ({}),
 }))
 
 vi.mock('@/lib/newsletter/suggestions', () => ({
@@ -249,12 +250,12 @@ describe('subscribeToNewsletters', () => {
     expect(result.subscribedIds).toEqual(['nl-1'])
   })
 
-  it('logs email send failure to Sentry', async () => {
+  it('logs email send failure to Sentry via captureServerActionError', async () => {
     const sendError = new Error('SMTP connection timeout')
     mockSend.mockRejectedValueOnce(sendError)
     await subscribeToNewsletters('user@example.com', ['nl-1'], 'en')
     expect(mockCaptureException).toHaveBeenCalledWith(sendError, {
-      tags: { component: 'newsletter-subscribe', action: 'send-confirmation' },
+      tags: { action: 'newsletter_subscribe', branch: 'send_confirm_email' },
     })
   })
 

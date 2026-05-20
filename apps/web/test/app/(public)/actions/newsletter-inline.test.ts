@@ -41,6 +41,12 @@ vi.mock('../../../../lib/turnstile', () => ({
 
 vi.mock('@sentry/nextjs', () => ({
   captureException: vi.fn(),
+  getClient: () => ({}),
+}))
+
+vi.mock('../../../../lib/request-ip', () => ({
+  getClientIp: vi.fn().mockReturnValue('127.0.0.1'),
+  isValidInet: vi.fn().mockReturnValue(true),
 }))
 
 import { subscribeNewsletterInline } from '../../../../src/app/(public)/actions/newsletter-inline'

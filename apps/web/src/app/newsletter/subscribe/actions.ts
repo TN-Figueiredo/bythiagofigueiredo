@@ -110,12 +110,24 @@ export async function subscribeToNewsletter(formData: FormData): Promise<Subscri
   // the hex digest (see migration 20260418000001). Without the hash branch,
   // a re-subscribe after anonymization would silently create a duplicate row.
   const emailHash = createHash('sha256').update(email).digest('hex')
-  const { data: existing } = await supabase
+  const { data: existingByEmail } = await supabase
     .from('newsletter_subscriptions')
     .select('id, status, email')
     .eq('site_id', siteId)
-    .or(`email.eq.${email},email.eq.${emailHash}`)
+    .eq('newsletter_id', newsletter_id)
+    .eq('email', email)
     .maybeSingle()
+  let existing = existingByEmail
+  if (!existing) {
+    const { data: existingByHash } = await supabase
+      .from('newsletter_subscriptions')
+      .select('id, status, email')
+      .eq('site_id', siteId)
+      .eq('newsletter_id', newsletter_id)
+      .eq('email', emailHash)
+      .maybeSingle()
+    existing = existingByHash
+  }
 
   if (existing) {
     if (existing.status === 'confirmed') {

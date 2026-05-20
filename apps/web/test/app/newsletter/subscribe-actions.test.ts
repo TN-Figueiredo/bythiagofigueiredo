@@ -113,14 +113,16 @@ describe('subscribeToNewsletter', () => {
   })
 
   it('happy path: new subscription returns ok and sends confirm email', async () => {
+    const notFoundChain = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+    }
     fromMock
-      // select existing -> not found
-      .mockReturnValueOnce({
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        or: vi.fn().mockReturnThis(),
-        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-      })
+      // select existing by email -> not found
+      .mockReturnValueOnce(notFoundChain)
+      // select existing by hash -> not found
+      .mockReturnValueOnce(notFoundChain)
       // insert -> success
       .mockReturnValueOnce({
         insert: vi.fn().mockResolvedValue({ data: null, error: null }),
@@ -140,13 +142,14 @@ describe('subscribeToNewsletter', () => {
   it('falls back to localhost:3000 when NEXT_PUBLIC_APP_URL is unset', async () => {
     delete process.env.NEXT_PUBLIC_APP_URL
 
+    const notFoundChain = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+    }
     fromMock
-      .mockReturnValueOnce({
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        or: vi.fn().mockReturnThis(),
-        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-      })
+      .mockReturnValueOnce(notFoundChain)
+      .mockReturnValueOnce(notFoundChain)
       .mockReturnValueOnce({
         insert: vi.fn().mockResolvedValue({ data: null, error: null }),
       })

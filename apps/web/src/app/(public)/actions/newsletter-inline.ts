@@ -3,13 +3,13 @@
 import crypto from 'node:crypto'
 import { headers } from 'next/headers'
 import { z } from 'zod'
-import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '../../../../lib/supabase/service'
 import { getSiteContext } from '../../../../lib/cms/site-context'
 import { getEmailService } from '../../../../lib/email/service'
 import { verifyTurnstileToken } from '../../../../lib/turnstile'
-
-const CONSENT_VERSION = 'newsletter-v1-2026-04'
+import { getClientIp, isValidInet } from '../../../../lib/request-ip'
+import { captureServerActionError } from '../../../lib/sentry-wrap'
+import { NEWSLETTER_CONSENT_VERSION as CONSENT_VERSION } from '../../newsletter/consent'
 
 const InlineSchema = z.object({
   email: z.string().email(),
@@ -35,9 +35,9 @@ export async function subscribeNewsletterInline(
     return { error: 'E-mail inválido. / Invalid email.' }
   }
 
-  const { email, newsletter_id, locale, turnstile_token } = parsed.data
+  const { email: rawEmail, newsletter_id, locale, turnstile_token } = parsed.data
+  const email = rawEmail.trim().toLowerCase()
 
-  // siteId from middleware header — same pattern as newsletter/subscribe/actions.ts
   const { siteId } = await getSiteContext()
 
   // Turnstile: required when NEXT_PUBLIC_TURNSTILE_SITE_KEY is configured
@@ -49,11 +49,12 @@ export async function subscribeNewsletterInline(
 
   const db = getSupabaseServiceClient()
   const h = await headers()
-  const ip = h.get('x-forwarded-for')?.split(',')[0]?.trim() || null
+  const rawIp = getClientIp(h)
+  const ip = isValidInet(rawIp) ? rawIp : null
 
   const { data: rateAllowed } = await db.rpc('newsletter_rate_check', {
     p_site_id: siteId,
-    p_ip: ip ?? '',
+    p_ip: rawIp ?? '',
     p_email: email,
   })
   if (rateAllowed === false) {
@@ -65,7 +66,7 @@ export async function subscribeNewsletterInline(
   const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex')
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
 
-  const userAgent = h.get('user-agent') ?? ''
+  const userAgent = h.get('user-agent') || null
 
   // Check for existing subscription — update token on re-subscribe
   const { data: existing } = await db
@@ -130,12 +131,12 @@ export async function subscribeNewsletterInline(
     </body></html>`,
   }).catch((err) => {
     console.error('[newsletter-inline] Email send failed:', err)
-    Sentry.captureException(err, { tags: { component: 'newsletter-inline', action: 'send-confirmation' } })
+    captureServerActionError(err, { action: 'newsletter_inline', branch: 'send_confirm_email' })
   })
 
   return { success: true }
   } catch (err) {
-    Sentry.captureException(err, { tags: { component: 'newsletter-inline', action: 'subscribe' } })
+    captureServerActionError(err, { action: 'newsletter_inline', branch: 'outer_catch' })
     return { error: 'Erro interno. Tente novamente. / Internal error.' }
   }
 }

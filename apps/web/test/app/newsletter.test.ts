@@ -24,6 +24,16 @@ vi.mock('../../lib/turnstile', () => ({
   verifyTurnstileToken: vi.fn(),
 }))
 
+vi.mock('../../lib/request-ip', () => ({
+  getClientIp: vi.fn().mockReturnValue(null),
+  isValidInet: vi.fn().mockReturnValue(false),
+}))
+
+vi.mock('@sentry/nextjs', () => ({
+  captureException: vi.fn(),
+  getClient: () => undefined,
+}))
+
 const { sendMock } = vi.hoisted(() => ({
   sendMock: vi.fn().mockResolvedValue({ messageId: 'test-123', provider: 'ses' }),
 }))
@@ -148,16 +158,17 @@ describe('subscribeToNewsletter', () => {
   })
 
   it('happy path: inserts new subscription and returns ok', async () => {
-    // from() is called twice: once for select (maybeSingle), once for insert
+    const notFoundChain = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+    }
     fromMock
-      // First call: select existing subscription → not found
-      .mockReturnValueOnce({
-        select: vi.fn().mockReturnThis(),
-        or: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-      })
-      // Second call: insert new subscription → success
+      // First call: select by email → not found
+      .mockReturnValueOnce(notFoundChain)
+      // Second call: select by hash → not found
+      .mockReturnValueOnce(notFoundChain)
+      // Third call: insert new subscription → success
       .mockReturnValueOnce({
         insert: vi.fn().mockResolvedValue({ data: null, error: null }),
       })
@@ -224,15 +235,17 @@ describe('subscribeToNewsletter', () => {
   })
 
   it('handles DB unique constraint race as ok (no oracle)', async () => {
+    const notFoundChain = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+    }
     fromMock
-      // First: select existing — not found
-      .mockReturnValueOnce({
-        select: vi.fn().mockReturnThis(),
-        or: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-      })
-      // Second: insert — unique violation
+      // select by email → not found
+      .mockReturnValueOnce(notFoundChain)
+      // select by hash → not found
+      .mockReturnValueOnce(notFoundChain)
+      // insert — unique violation
       .mockReturnValueOnce({
         insert: vi.fn().mockResolvedValue({ data: null, error: { code: '23505' } }),
       })
@@ -272,17 +285,22 @@ describe('subscribeToNewsletter', () => {
     const insertMock = vi.fn()
 
     fromMock
-      // First: select existing row — .or() match via hashed email
+      // First: select by raw email → not found
       .mockReturnValueOnce({
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
-        or: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+      })
+      // Second: select by hash → found (anonymized row)
+      .mockReturnValueOnce({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
         maybeSingle: vi.fn().mockResolvedValue({
           data: { id: 'sub-unsub-1', status: 'unsubscribed', email: emailHash },
           error: null,
         }),
       })
-      // Second: update in place (NOT insert)
+      // Third: update in place (NOT insert)
       .mockReturnValueOnce({
         update: updateMock,
         eq: updateEqMock,
