@@ -218,6 +218,7 @@ describe('subscribeToNewsletters', () => {
     const result = await subscribeToNewsletters('user@example.com', ['nl-1'], 'en')
     expect(result.success).toBe(true)
     expect(result.subscribedIds).toContain('nl-1')
+    expect(mockSend).not.toHaveBeenCalled()
   })
 
   it('treats duplicate insert as success (race condition)', async () => {
