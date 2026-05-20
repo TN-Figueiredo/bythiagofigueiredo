@@ -5,6 +5,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import type { DashboardKpis, DashboardActivity } from '@tn-figueiredo/links-admin'
 import { toDateStringInTz } from '@/lib/cms/format-site-datetime'
 import { LinksHub } from './_hub'
+import { LinktreeHeroCard } from './_components/linktree-hero-card'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,7 +26,7 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
   const sevenDaysAgoStr = toDateStringInTz(sevenDaysAgo, timezone)
 
-  const [totalRes, activeRes, clicksRes, dailyRes, sourceRes, socialLinksRes, socialDeliveriesRes] = await Promise.all([
+  const [totalRes, activeRes, clicksRes, dailyRes, sourceRes, socialLinksRes, socialDeliveriesRes, linktreeStatsRes, siteDataRes] = await Promise.all([
     supabase
       .from('tracked_links')
       .select('id', { count: 'exact', head: true })
@@ -64,6 +65,15 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
       .from('social_deliveries')
       .select('provider, status, post_id')
       .eq('status', 'published'),
+    supabase
+      .from('linktree_daily_metrics')
+      .select('date, pageviews, unique_visitors, countries')
+      .eq('site_id', siteId),
+    supabase
+      .from('sites')
+      .select('short_domain, primary_domain')
+      .eq('id', siteId)
+      .single(),
   ])
 
   const totalLinks = totalRes.count ?? 0
@@ -143,6 +153,30 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
     platformCounts[provider] = (platformCounts[provider] ?? 0) + 1
   }
 
+  // Compute linktree hero stats
+  const ltStats = linktreeStatsRes?.data ?? []
+  const ltTotalViews = ltStats.reduce((s, d) => s + ((d.pageviews as number) ?? 0), 0)
+  const ltUniqueVisitors = ltStats.reduce((s, d) => s + ((d.unique_visitors as number) ?? 0), 0)
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10)
+  const lt30dViews = ltStats
+    .filter((d) => (d.date as string) >= thirtyDaysAgo)
+    .reduce((s, d) => s + ((d.pageviews as number) ?? 0), 0)
+  const ltCountries = new Map<string, number>()
+  for (const d of ltStats) {
+    const countries = d.countries as Record<string, number> | null
+    if (countries && typeof countries === 'object') {
+      for (const [c, n] of Object.entries(countries)) {
+        ltCountries.set(c, (ltCountries.get(c) ?? 0) + n)
+      }
+    }
+  }
+  const ltTopCountry =
+    ltCountries.size > 0
+      ? Array.from(ltCountries.entries()).sort((a, b) => b[1] - a[1])[0]![0]
+      : null
+  const shortDomain =
+    siteDataRes?.data?.short_domain ?? siteDataRes?.data?.primary_domain ?? ''
+
   // Fetch paginated links (inline query — avoids server-action context issues)
   const page = parseInt(params.page ?? '1', 10)
   const perPage = 20
@@ -170,5 +204,24 @@ export default async function LinksDashboardPage({ searchParams }: Props) {
   const { data: linksData } = await linksQuery
   const links = linksData ?? []
 
-  return <LinksHub metrics={metrics} activity={activity} links={links} siteId={siteId} socialSummary={{ autoLinksCount, ogValidated, platformCounts }} />
+  return (
+    <div>
+      <div className="p-6 pb-0">
+        <LinktreeHeroCard
+          domain={shortDomain}
+          totalViews={ltTotalViews}
+          last30dViews={lt30dViews}
+          uniqueVisitors={ltUniqueVisitors}
+          topCountry={ltTopCountry}
+        />
+      </div>
+      <LinksHub
+        metrics={metrics}
+        activity={activity}
+        links={links}
+        siteId={siteId}
+        socialSummary={{ autoLinksCount, ogValidated, platformCounts }}
+      />
+    </div>
+  )
 }
