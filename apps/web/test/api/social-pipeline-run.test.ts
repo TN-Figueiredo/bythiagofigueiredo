@@ -59,8 +59,10 @@ vi.mock('@/lib/social/workflows', () => ({
   publishSocialPost: vi.fn(),
 }))
 
-// Mock @tn-figueiredo/social decrypt
-vi.mock('@tn-figueiredo/social', () => ({
+// Mock @tn-figueiredo/social/vault decrypt
+vi.mock('@tn-figueiredo/social', () => ({}))
+
+vi.mock('@tn-figueiredo/social/vault', () => ({
   decrypt: vi.fn().mockReturnValue('decrypted-page-token'),
   getMasterKey: vi.fn().mockReturnValue('master-key'),
 }))

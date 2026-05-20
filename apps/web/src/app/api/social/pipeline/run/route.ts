@@ -4,8 +4,8 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { scrapeOg } from '@/lib/social/og-scraper'
 import { updatePipelineStep } from '@/lib/social/pipeline'
 import { publishSocialPost } from '@/lib/social/workflows'
-import { decrypt, getMasterKey } from '@tn-figueiredo/social'
 import type { SocialPost } from '@tn-figueiredo/social'
+import { decrypt, getMasterKey } from '@tn-figueiredo/social/vault'
 import type { OgScrapeResult } from '@/lib/social/types'
 
 export async function POST(req: Request): Promise<NextResponse> {

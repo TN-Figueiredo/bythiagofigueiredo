@@ -4,7 +4,9 @@ vi.mock('@/lib/supabase/service', () => ({
   getSupabaseServiceClient: vi.fn(),
 }))
 
-vi.mock('@tn-figueiredo/social', () => ({
+vi.mock('@tn-figueiredo/social', () => ({}))
+
+vi.mock('@tn-figueiredo/social/vault', () => ({
   decrypt: vi.fn((v: string) => v),
   getMasterKey: vi.fn(() => 'test-key'),
 }))

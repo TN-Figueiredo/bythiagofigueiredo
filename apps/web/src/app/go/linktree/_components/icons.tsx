@@ -1,3 +1,5 @@
+import React from 'react'
+
 type IconProps = { color?: string; size?: number; className?: string }
 
 export function BlogIcon({ color = 'currentColor', size = 16, className }: IconProps) {

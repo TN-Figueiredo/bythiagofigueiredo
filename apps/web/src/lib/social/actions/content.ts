@@ -3,7 +3,7 @@
 import { z } from 'zod'
 import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { decrypt, getMasterKey } from '@tn-figueiredo/social'
+import { decrypt, getMasterKey } from '@tn-figueiredo/social/vault'
 import type { SocialConfig } from '@/lib/social/types'
 import {
   checkDuplicates,

@@ -2,9 +2,6 @@ import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { notifyStoryReady } from '@/lib/social/notifications/notify-story-ready'
 import {
-  decrypt,
-  encrypt,
-  getMasterKey,
   RETRY_DELAYS,
   type DeliveryStatus,
   type ErrorType,
@@ -15,6 +12,7 @@ import {
   type SocialDelivery,
   type SocialPost,
 } from '@tn-figueiredo/social'
+import { decrypt, encrypt, getMasterKey } from '@tn-figueiredo/social/vault'
 import type { OGTags } from '@tn-figueiredo/social/providers/bluesky'
 import { getSocialConfig } from './config'
 

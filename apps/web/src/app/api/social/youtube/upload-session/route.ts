@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { decrypt, getMasterKey } from '@tn-figueiredo/social'
+import { decrypt, getMasterKey } from '@tn-figueiredo/social/vault'
 
 export const runtime = 'nodejs'
 

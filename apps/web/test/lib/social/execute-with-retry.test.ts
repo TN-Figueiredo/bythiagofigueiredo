@@ -13,10 +13,13 @@ vi.mock('@tn-figueiredo/social', async () => {
   return {
     ...actual,
     RETRY_DELAYS: [10, 20],
-    encrypt: (val: string) => `encrypted-${val}`,
-    getMasterKey: () => 'test-key-32-chars-for-testing!!!',
   }
 })
+
+vi.mock('@tn-figueiredo/social/vault', () => ({
+  encrypt: (val: string) => `encrypted-${val}`,
+  getMasterKey: () => 'test-key-32-chars-for-testing!!!',
+}))
 
 vi.mock('@sentry/nextjs', () => ({
   captureException: vi.fn(),

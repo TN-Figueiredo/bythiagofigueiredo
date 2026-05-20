@@ -21,11 +21,14 @@ vi.mock('@tn-figueiredo/social', async () => {
   )
   return {
     ...actual,
-    encrypt: (val: string) => `enc:${val}`,
-    decrypt: (val: string) => val.replace(/^enc:/, ''),
-    getMasterKey: () => Buffer.from('test-master-key-32-bytes-padding!!'),
   }
 })
+
+vi.mock('@tn-figueiredo/social/vault', () => ({
+  encrypt: (val: string) => `enc:${val}`,
+  decrypt: (val: string) => val.replace(/^enc:/, ''),
+  getMasterKey: () => Buffer.from('test-master-key-32-bytes-padding!!'),
+}))
 
 // ---------------------------------------------------------------------------
 // @tn-figueiredo/social/providers/bluesky — dynamic import mock

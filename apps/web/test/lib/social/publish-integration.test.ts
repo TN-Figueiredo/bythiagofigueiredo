@@ -173,11 +173,14 @@ vi.mock('@tn-figueiredo/social', async () => {
   return {
     ...actual,
     RETRY_DELAYS: [5, 10] as const,
-    decrypt: (_enc: string) => 'decrypted-token',
-    encrypt: (_val: string) => 'encrypted-token',
-    getMasterKey: () => 'test-master-key-32-chars-padded!!!',
   }
 })
+
+vi.mock('@tn-figueiredo/social/vault', () => ({
+  decrypt: (_enc: string) => 'decrypted-token',
+  encrypt: (_val: string) => 'encrypted-token',
+  getMasterKey: () => 'test-master-key-32-chars-padded!!!',
+}))
 
 // ---------------------------------------------------------------------------
 // ── Other dependencies

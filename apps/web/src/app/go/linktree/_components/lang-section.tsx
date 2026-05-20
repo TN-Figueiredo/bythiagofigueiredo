@@ -1,5 +1,7 @@
 'use client'
 
+import React from 'react'
+
 import type { LangSection as LangSectionType } from '../_lib/types'
 import { LinkRow } from './link-row'
 

@@ -1,5 +1,7 @@
 'use client'
 
+import React from 'react'
+
 import type { SocialProfile } from '../_lib/types'
 import { SocialYouTubeIcon, SocialGitHubIcon, SocialXIcon, SocialInstagramIcon } from './icons'
 

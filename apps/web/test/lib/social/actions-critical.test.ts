@@ -81,11 +81,14 @@ vi.mock('@tn-figueiredo/social', async () => {
   const actual = await vi.importActual('@tn-figueiredo/social')
   return {
     ...actual,
-    decrypt: (enc: string) => `decrypted-${enc}`,
-    encrypt: (val: string) => `encrypted-${val}`,
-    getMasterKey: () => 'test-key-32-chars-for-testing!!!',
   }
 })
+
+vi.mock('@tn-figueiredo/social/vault', () => ({
+  decrypt: (enc: string) => `decrypted-${enc}`,
+  encrypt: (val: string) => `encrypted-${val}`,
+  getMasterKey: () => 'test-key-32-chars-for-testing!!!',
+}))
 
 import { cancelSocialPost, deleteSocialPost, retrySocialDelivery } from '@/lib/social/actions'
 

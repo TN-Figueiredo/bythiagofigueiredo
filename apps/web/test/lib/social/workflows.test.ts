@@ -32,11 +32,14 @@ vi.mock('@tn-figueiredo/social', async () => {
   return {
     ...actual,
     RETRY_DELAYS: [10, 20] as const,
-    decrypt: (_enc: string) => 'decrypted-token',
-    encrypt: (_val: string) => 'encrypted-token',
-    getMasterKey: () => 'test-master-key-32-chars-padded!!!',
   }
 })
+
+vi.mock('@tn-figueiredo/social/vault', () => ({
+  decrypt: (_enc: string) => 'decrypted-token',
+  encrypt: (_val: string) => 'encrypted-token',
+  getMasterKey: () => 'test-master-key-32-chars-padded!!!',
+}))
 
 // ---------------------------------------------------------------------------
 // Provider mocks — each provider module

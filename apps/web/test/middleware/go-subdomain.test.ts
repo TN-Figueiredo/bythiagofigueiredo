@@ -79,12 +79,11 @@ describe('middleware: go.* subdomain', () => {
     expect(res.headers.get('x-middleware-rewrite')).toContain('/go/not-found')
   })
 
-  it('redirects root path on go.* to base domain', async () => {
+  it('rewrites root path on go.* to linktree page', async () => {
     const mod = await import('../../src/middleware')
     const middleware = mod.default
     const req = makeReq('/', 'go.bythiagofigueiredo.com')
     const res = await middleware(req)
-    expect(res.status).toBe(302)
-    expect(res.headers.get('location')).toMatch(/^https:\/\/bythiagofigueiredo\.com\/?$/)
+    expect(res.headers.get('x-middleware-rewrite')).toContain('/go/linktree')
   })
 })

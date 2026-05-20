@@ -3,11 +3,8 @@
 import { z } from 'zod'
 import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import {
-  encrypt,
-  getMasterKey,
-  type Provider,
-} from '@tn-figueiredo/social'
+import { type Provider } from '@tn-figueiredo/social'
+import { encrypt, getMasterKey } from '@tn-figueiredo/social/vault'
 import {
   type ActionResult,
   type SafeConnection,

@@ -73,7 +73,9 @@ vi.mock('@/lib/social/pipeline', () => ({
   isPipelineComplete: vi.fn(),
 }))
 
-vi.mock('@tn-figueiredo/social', () => ({
+vi.mock('@tn-figueiredo/social', () => ({}))
+
+vi.mock('@tn-figueiredo/social/vault', () => ({
   decrypt: vi.fn().mockReturnValue('decrypted-token'),
   getMasterKey: vi.fn().mockReturnValue('master-key'),
 }))

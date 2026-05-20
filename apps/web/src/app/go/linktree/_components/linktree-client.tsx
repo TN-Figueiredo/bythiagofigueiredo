@@ -1,7 +1,6 @@
-// apps/web/src/app/go/linktree/_components/linktree-client.tsx
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import type { LinktreePageData } from '../_lib/types'
 import { Header } from './header'
 import { HighlightCard } from './highlight-card'

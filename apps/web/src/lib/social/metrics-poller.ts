@@ -1,6 +1,6 @@
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { decrypt, getMasterKey } from '@tn-figueiredo/social'
 import type { Provider } from '@tn-figueiredo/social'
+import { decrypt, getMasterKey } from '@tn-figueiredo/social/vault'
 import * as Sentry from '@sentry/nextjs'
 
 const SENTRY_TAG = { component: 'social-metrics-poller' }

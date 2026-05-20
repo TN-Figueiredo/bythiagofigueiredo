@@ -56,9 +56,6 @@ vi.mock('next/cache', () => ({
 vi.mock('@tn-figueiredo/social', async () => {
   const zod = await import('zod')
   return {
-    decrypt: vi.fn((v: string) => v),
-    getMasterKey: vi.fn(() => 'test-key'),
-    encrypt: vi.fn((v: string) => v),
     SocialPostContentSchema: zod.z.object({
       title: zod.z.string().optional(),
       description: zod.z.string().optional(),
@@ -70,6 +67,12 @@ vi.mock('@tn-figueiredo/social', async () => {
     RETRY_DELAYS: [5000, 30000, 120000],
   }
 })
+
+vi.mock('@tn-figueiredo/social/vault', () => ({
+  decrypt: vi.fn((v: string) => v),
+  getMasterKey: vi.fn(() => 'test-key'),
+  encrypt: vi.fn((v: string) => v),
+}))
 
 // Import after mocks are set up
 // NOTE: @/lib/social/actions is ambiguous (file .ts vs directory /) — use relative paths

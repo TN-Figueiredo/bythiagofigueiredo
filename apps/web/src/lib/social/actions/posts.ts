@@ -5,8 +5,6 @@ import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import {
-  decrypt,
-  getMasterKey,
   SocialPostContentSchema,
   type Provider,
   type PostType,
@@ -14,6 +12,7 @@ import {
   type SocialPost,
   type SocialDelivery,
 } from '@tn-figueiredo/social'
+import { decrypt, getMasterKey } from '@tn-figueiredo/social/vault'
 import {
   type ActionResult,
   SENTRY_TAG,

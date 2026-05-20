@@ -1,5 +1,7 @@
 'use client'
 
+import React from 'react'
+
 import type { Highlight } from '../_lib/types'
 
 interface HighlightCardProps {

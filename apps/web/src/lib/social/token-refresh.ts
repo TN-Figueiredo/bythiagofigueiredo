@@ -1,6 +1,6 @@
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { decrypt, encrypt, getMasterKey } from '@tn-figueiredo/social'
 import type { Provider } from '@tn-figueiredo/social'
+import { decrypt, encrypt, getMasterKey } from '@tn-figueiredo/social/vault'
 
 export class TokenRevokedError extends Error {
   public readonly provider: Provider

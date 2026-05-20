@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { encrypt, getMasterKey } from '@tn-figueiredo/social'
+import { encrypt, getMasterKey } from '@tn-figueiredo/social/vault'
 
 export const runtime = 'nodejs'
 

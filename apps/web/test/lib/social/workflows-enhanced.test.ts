@@ -127,12 +127,15 @@ vi.mock('@tn-figueiredo/social', async () => {
   const actual = await vi.importActual('@tn-figueiredo/social')
   return {
     ...actual,
-    decrypt: () => 'decrypted-token',
-    encrypt: () => 'encrypted-token',
-    getMasterKey: () => 'master-key-32-chars-for-testing!!',
     RETRY_DELAYS: [5000, 30000],
   }
 })
+
+vi.mock('@tn-figueiredo/social/vault', () => ({
+  decrypt: () => 'decrypted-token',
+  encrypt: () => 'encrypted-token',
+  getMasterKey: () => 'master-key-32-chars-for-testing!!',
+}))
 
 import { publishSocialPost } from '@/lib/social/workflows'
 

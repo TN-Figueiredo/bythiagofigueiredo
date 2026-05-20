@@ -77,7 +77,7 @@ async function processBatch(
 
           let pageToken: string | undefined
           if (fbConn?.page_token_enc) {
-            const { decrypt, getMasterKey } = await import('@tn-figueiredo/social')
+            const { decrypt, getMasterKey } = await import('@tn-figueiredo/social/vault')
             pageToken = decrypt(fbConn.page_token_enc as string, getMasterKey())
           }
 
