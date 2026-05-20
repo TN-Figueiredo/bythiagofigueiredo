@@ -4,7 +4,7 @@
 
 **Goal:** Add a CMS editor for the linktree config, full analytics with per-link click tracking, and a dashboard hero card on the links page.
 
-**Architecture:** Dedicated `linktree_events` partitioned table for tracking (pageviews + per-link clicks), `linktree_daily_metrics` for aggregation, client-side beacon for recording, watermark-based hourly cron for aggregation. CMS editor uses split form+preview layout writing to `sites.linktree_config` JSONB. Analytics page reuses `@tn-figueiredo/links-admin` components plus a new clicks-by-link table.
+**Architecture:** Dedicated `linktree_events` partitioned table for tracking (pageviews + per-link clicks), `linktree_daily_metrics` for aggregation, client-side beacon for recording, watermark-based hourly cron for aggregation. CMS editor uses split form+preview layout writing to `sites.linktree_config` JSONB -- the preview renders the real `LinktreeClient` component with form state overrides (not simplified HTML). Analytics page uses custom KPI cards (Total Views, Last 30d, Unique Visitors, Engagement) instead of `AnalyticsOverview` (which has wrong labels for linktree context), plus `AnalyticsCharts`/`ClickMap`/`AiInsightsPanel` from `@tn-figueiredo/links-admin` and a new clicks-by-link table.
 
 **Tech Stack:** Next.js 15 App Router, React 19, Tailwind 4, Supabase (PostgreSQL partitioned tables), Zod, @dnd-kit/sortable, Vitest.
 
@@ -34,6 +34,7 @@ apps/web/src/app/go/linktree/_components/
 ├── highlight-card.tsx                              # MODIFY: add onClick tracking
 ├── latest-section.tsx                              # MODIFY: add onClick tracking
 ├── social-bar.tsx                                  # MODIFY: add onClick tracking
+├── lang-section.tsx                                # MODIFY: add onClick tracking with derived linkKey
 └── use-linktree-tracking.ts                        # Client hook for beacon tracking
 
 apps/web/src/app/cms/(authed)/linktree/
@@ -61,9 +62,12 @@ apps/web/src/app/cms/(authed)/links/
 
 apps/web/test/
 ├── lib/linktree/event-recorder.test.ts
+├── lib/linktree/event-recorder-edge-cases.test.ts
 ├── lib/linktree/insights.test.ts
 ├── app/api/go/linktree/track.test.ts
-└── app/cms/linktree/actions.test.ts
+├── app/cms/linktree/actions.test.ts
+├── app/cms/linktree/analytics/linktree-clicks-table.test.ts
+└── app/cms/linktree/shared-links-section.test.ts
 ```
 
 ---
@@ -228,7 +232,158 @@ BEGIN
   RETURN 'exists';
 END;
 $$;
+
+-- 7. Additive upsert function for linktree_daily_metrics
+-- Supabase's .upsert() generates ON CONFLICT DO UPDATE SET col = EXCLUDED.col which
+-- REPLACES values. Since the cron runs hourly and only processes events since the last
+-- watermark, a naive upsert would overwrite the day's cumulative counts with only the
+-- last hour's delta. This function uses additive merging instead.
+CREATE OR REPLACE FUNCTION public.upsert_linktree_daily_metrics(
+  p_rows jsonb
+) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+  r jsonb;
+BEGIN
+  FOR r IN SELECT * FROM jsonb_array_elements(p_rows)
+  LOOP
+    INSERT INTO public.linktree_daily_metrics (
+      site_id, date, weekday,
+      pageviews, unique_visitors, link_clicks, bot_views,
+      mobile_views, desktop_views, tablet_views,
+      ref_direct, ref_search, ref_social, ref_email, ref_referral, ref_other,
+      countries, hourly_views, link_clicks_by_key
+    ) VALUES (
+      (r->>'site_id')::uuid,
+      (r->>'date')::date,
+      (r->>'weekday')::smallint,
+      (r->>'pageviews')::integer,
+      (r->>'unique_visitors')::integer,
+      (r->>'link_clicks')::integer,
+      (r->>'bot_views')::integer,
+      (r->>'mobile_views')::integer,
+      (r->>'desktop_views')::integer,
+      (r->>'tablet_views')::integer,
+      (r->>'ref_direct')::integer,
+      (r->>'ref_search')::integer,
+      (r->>'ref_social')::integer,
+      (r->>'ref_email')::integer,
+      (r->>'ref_referral')::integer,
+      (r->>'ref_other')::integer,
+      (r->'countries')::jsonb,
+      (r->'hourly_views')::jsonb,
+      (r->'link_clicks_by_key')::jsonb
+    )
+    ON CONFLICT (site_id, date) DO UPDATE SET
+      -- Additive merge for all numeric counters
+      pageviews       = linktree_daily_metrics.pageviews       + EXCLUDED.pageviews,
+      unique_visitors = EXCLUDED.unique_visitors,  -- replaced, not added (see note below)
+      link_clicks     = linktree_daily_metrics.link_clicks     + EXCLUDED.link_clicks,
+      bot_views       = linktree_daily_metrics.bot_views       + EXCLUDED.bot_views,
+      mobile_views    = linktree_daily_metrics.mobile_views    + EXCLUDED.mobile_views,
+      desktop_views   = linktree_daily_metrics.desktop_views   + EXCLUDED.desktop_views,
+      tablet_views    = linktree_daily_metrics.tablet_views    + EXCLUDED.tablet_views,
+      ref_direct      = linktree_daily_metrics.ref_direct      + EXCLUDED.ref_direct,
+      ref_search      = linktree_daily_metrics.ref_search      + EXCLUDED.ref_search,
+      ref_social      = linktree_daily_metrics.ref_social      + EXCLUDED.ref_social,
+      ref_email       = linktree_daily_metrics.ref_email       + EXCLUDED.ref_email,
+      ref_referral    = linktree_daily_metrics.ref_referral    + EXCLUDED.ref_referral,
+      ref_other       = linktree_daily_metrics.ref_other       + EXCLUDED.ref_other,
+      -- JSONB merge: add values per key for countries
+      countries       = (
+        SELECT COALESCE(jsonb_object_agg(key, val), '{}'::jsonb)
+        FROM (
+          SELECT key, SUM(val::integer) AS val
+          FROM (
+            SELECT key, value AS val FROM jsonb_each_text(linktree_daily_metrics.countries)
+            UNION ALL
+            SELECT key, value AS val FROM jsonb_each_text(EXCLUDED.countries)
+          ) combined
+          GROUP BY key
+        ) merged
+      ),
+      -- JSONB merge: element-wise addition for hourly_views (24-element array)
+      hourly_views    = (
+        SELECT jsonb_agg(
+          COALESCE((linktree_daily_metrics.hourly_views->>idx)::integer, 0)
+          + COALESCE((EXCLUDED.hourly_views->>idx)::integer, 0)
+        )
+        FROM generate_series(0, 23) AS idx
+      ),
+      -- JSONB merge: add values per key for link_clicks_by_key
+      link_clicks_by_key = (
+        SELECT COALESCE(jsonb_object_agg(key, val), '{}'::jsonb)
+        FROM (
+          SELECT key, SUM(val::integer) AS val
+          FROM (
+            SELECT key, value AS val FROM jsonb_each_text(linktree_daily_metrics.link_clicks_by_key)
+            UNION ALL
+            SELECT key, value AS val FROM jsonb_each_text(EXCLUDED.link_clicks_by_key)
+          ) combined
+          GROUP BY key
+        ) merged
+      );
+      -- NOTE on unique_visitors: This column is REPLACED (not added) because the cron
+      -- queries COUNT(DISTINCT visitor_id) for the entire day from raw events each run,
+      -- producing an accurate daily total rather than a sum of per-batch approximations.
+  END LOOP;
+END;
+$$;
+
+-- 8. Extend create_monthly_partitions() to also manage linktree_events partitions
+-- The existing function only handles link_clicks. We replace it to handle both tables.
+CREATE OR REPLACE FUNCTION public.create_monthly_partitions(p_months_ahead integer DEFAULT 3) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+  v_month      date;
+  v_start      date;
+  v_end        date;
+  v_suffix     text;
+  v_tbl        text;
+BEGIN
+  FOR i IN 0..p_months_ahead LOOP
+    v_month  := date_trunc('month', now()) + (i || ' months')::interval;
+    v_start  := v_month;
+    v_end    := v_month + interval '1 month';
+    v_suffix := to_char(v_month, 'YYYY_MM');
+
+    -- link_clicks partition (existing)
+    v_tbl := 'link_clicks_' || v_suffix;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE c.relname = v_tbl AND n.nspname = 'public'
+    ) THEN
+      EXECUTE format(
+        'CREATE TABLE public.%I PARTITION OF public.link_clicks
+           FOR VALUES FROM (%L) TO (%L)',
+        v_tbl, v_start, v_end
+      );
+    END IF;
+
+    -- linktree_events partition (NEW)
+    v_tbl := 'linktree_events_' || v_suffix;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE c.relname = v_tbl AND n.nspname = 'public'
+    ) THEN
+      EXECUTE format(
+        'CREATE TABLE public.%I PARTITION OF public.linktree_events
+           FOR VALUES FROM (%L) TO (%L)',
+        v_tbl, v_start, v_end
+      );
+    END IF;
+  END LOOP;
+END;
+$$;
 ```
+
+> **Note:** The existing `create_monthly_partitions()` function (called from the partition maintenance cron) only handled `link_clicks`. This migration replaces it to also create `linktree_events` partitions, ensuring monthly partitions are automatically created for both tables. Without this, inserts into `linktree_events` would fall through to the `DEFAULT` partition after the initial 3 months.
 
 - [ ] **Step 3: Push migration to production**
 
@@ -290,9 +445,9 @@ describe('buildLinktreeEvent', () => {
   })
 
   it('builds link_click event with link_key', () => {
-    const event = buildLinktreeEvent({ ...base, eventType: 'link_click', linkKey: 'shared:0' })
+    const event = buildLinktreeEvent({ ...base, eventType: 'link_click', linkKey: 'shared:a1b2c3d4-e5f6-7890-abcd-ef1234567890' })
     expect(event.event_type).toBe('link_click')
-    expect(event.link_key).toBe('shared:0')
+    expect(event.link_key).toBe('shared:a1b2c3d4-e5f6-7890-abcd-ef1234567890')
   })
 
   it('detects bots', () => {
@@ -337,7 +492,58 @@ import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { resolveGeo } from '../../../lib/request/geo'
 import { isBot } from '../../../lib/request/bot-patterns'
-import { classifyDevice } from '@tn-figueiredo/links/core/device-classifier'
+
+// NOTE: Device classification uses LOCAL functions (same pattern as click-recorder.ts).
+// The @tn-figueiredo/links subpath `core/device-classifier` is NOT exported from the package.
+// These functions are based on packages/links/src/core/device-classifier.ts.
+
+type DeviceType = 'mobile' | 'desktop' | 'tablet' | 'unknown'
+
+interface DeviceInfo {
+  deviceType: DeviceType
+  browser: string
+  os: string
+}
+
+function classifyDevice(userAgent: string): DeviceInfo {
+  if (!userAgent) {
+    return { deviceType: 'unknown', browser: 'Unknown', os: 'Unknown' }
+  }
+  return {
+    deviceType: classifyDeviceType(userAgent),
+    browser: classifyBrowser(userAgent),
+    os: classifyOs(userAgent),
+  }
+}
+
+function classifyDeviceType(ua: string): DeviceType {
+  if (/iPad/i.test(ua)) return 'tablet'
+  if (/Android/i.test(ua) && !/Mobile/i.test(ua)) return 'tablet'
+  if (/Mobile|iPhone|iPod|Android.*Mobile|webOS|BlackBerry|Opera Mini|IEMobile/i.test(ua)) return 'mobile'
+  if (/Windows NT|Macintosh|Linux x86_64|X11/i.test(ua)) return 'desktop'
+  return 'unknown'
+}
+
+function classifyBrowser(ua: string): string {
+  if (/Edg\//i.test(ua)) return 'Edge'
+  if (/OPR\//i.test(ua) || /Opera/i.test(ua)) return 'Opera'
+  if (/Firefox\//i.test(ua)) return 'Firefox'
+  if (/Chrome\//i.test(ua) && /Safari\//i.test(ua)) return 'Chrome'
+  if (/Safari\//i.test(ua) && /Version\//i.test(ua)) return 'Safari'
+  if (/MSIE|Trident/i.test(ua)) return 'IE'
+  return 'Unknown'
+}
+
+function classifyOs(ua: string): string {
+  if (/iPad/i.test(ua)) return 'iPadOS'
+  if (/iPhone|iPod/i.test(ua)) return 'iOS'
+  if (/Android/i.test(ua)) return 'Android'
+  if (/Windows NT/i.test(ua)) return 'Windows'
+  if (/Macintosh|Mac OS X/i.test(ua)) return 'macOS'
+  if (/Linux/i.test(ua)) return 'Linux'
+  if (/CrOS/i.test(ua)) return 'ChromeOS'
+  return 'Unknown'
+}
 
 const DEDUP_WINDOW_MS = 30_000
 
@@ -593,6 +799,7 @@ Add client-side tracking hook and wire it into all linktree components.
 - Modify: `apps/web/src/app/go/linktree/_components/highlight-card.tsx`
 - Modify: `apps/web/src/app/go/linktree/_components/latest-section.tsx`
 - Modify: `apps/web/src/app/go/linktree/_components/social-bar.tsx`
+- Modify: `apps/web/src/app/go/linktree/_components/lang-section.tsx`
 
 - [ ] **Step 1: Create the tracking hook**
 
@@ -652,7 +859,7 @@ In `link-row.tsx`, add an optional `onTrackClick` prop. In the `<a>` tag, add:
 onClick={() => onTrackClick?.(linkKey)}
 ```
 
-The `linkKey` prop should be added to `LinkRow` — the parent passes the correct key (e.g., `blog:pt:my-slug`, `shared:0`, `newsletter:en:edition-slug`).
+The `linkKey` prop should be added to `LinkRow` — the parent passes the correct key (e.g., `blog:pt:my-slug`, `shared:<uuid>`, `newsletter:en:edition-slug`). For shared links, use `shared:${link.id}` where `link.id` is the stable UUID from `SharedLinkSchema`.
 
 - [ ] **Step 4: Add onClick to HighlightCard**
 
@@ -679,7 +886,45 @@ In `social-bar.tsx`, add `onTrackClick` prop. On each social `<a>`:
 onClick={() => onTrackClick?.(`social:${profile.platform}`)}
 ```
 
-- [ ] **Step 7: Run tests**
+- [ ] **Step 7: Add onClick to LangSection**
+
+`lang-section.tsx` renders per-locale sections (blog posts, newsletters, YouTube channels) using `LinkRow`. It must pass the correct `linkKey` to each `LinkRow` based on the item type and locale.
+
+In `lang-section.tsx`, add an optional `onTrackClick` prop to the component. Then, for each `LinkRow` rendered from `section.items`, compute the `linkKey` from the item's `type`, the section's `locale`, and the item's `id`:
+
+```typescript
+interface LangSectionProps {
+  section: LangSectionType
+  siteUrl: string
+  locale?: string
+  onTrackClick?: (linkKey: string) => void  // ADD
+}
+```
+
+Then in the `LinkRow` render, pass the derived `linkKey`:
+```typescript
+{section.items.map((item) => (
+  <LinkRow
+    key={item.id}
+    label={item.label}
+    desc={item.desc}
+    url={item.url}
+    icon={item.icon}
+    subscriberCount={item.subscriberCount}
+    locale={locale ?? section.locale}
+    isExternal={!item.url.startsWith(`https://${siteUrl}`)}
+    linkKey={`${item.type}:${section.locale.split('-')[0]}:${item.id}`}
+    onTrackClick={onTrackClick}
+  />
+))}
+```
+
+This produces `linkKey` values like:
+- Blog post: `blog:pt:my-slug` / `blog:en:my-slug`
+- Newsletter: `newsletter:pt:edition-slug` / `newsletter:en:edition-slug`
+- YouTube: `youtube:pt:channel-handle` / `youtube:en:channel-handle`
+
+- [ ] **Step 8: Run tests**
 
 ```bash
 npm run test:web -- --run
@@ -687,7 +932,7 @@ npm run test:web -- --run
 
 Expected: All existing tests pass (no breaking changes — `onTrackClick` is optional everywhere).
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
 git add apps/web/src/app/go/linktree/_components/
@@ -699,6 +944,18 @@ git commit -m "feat(linktree): instrument page with pageview beacon and per-link
 ### Task 5: Aggregation Cron
 
 Hourly cron job that processes `linktree_events` into `linktree_daily_metrics` using the watermark pattern.
+
+**Critical design note:** Supabase's `.upsert()` generates `ON CONFLICT DO UPDATE SET col = EXCLUDED.col`
+which **replaces** values. Since the cron runs hourly and only processes events since the last watermark,
+a naive upsert would overwrite the day's cumulative counts with only the last hour's delta. Instead, we
+call the `upsert_linktree_daily_metrics` RPC (created in Task 1) which does additive merging for numeric
+columns and element-wise / key-wise JSONB merging for `countries`, `hourly_views`, and `link_clicks_by_key`.
+
+**Unique visitors note:** A `Set<string>` cannot be serialized across cron runs, so we cannot accumulate
+unique visitor IDs in the bucket across hourly batches. Instead, after bucketing the delta events, we
+query `COUNT(DISTINCT visitor_id)` for each affected day from the **full day's** raw events. This gives
+an accurate daily unique count that the RPC function writes as a **replacement** (not additive), since it
+already represents the complete day's total.
 
 **Files:**
 - Create: `apps/web/src/app/api/cron/linktree-aggregate-metrics/route.ts`
@@ -722,7 +979,6 @@ interface Bucket {
   date: string
   weekday: number
   pageviews: number
-  uniqueVisitors: Set<string>
   linkClicks: number
   botViews: number
   mobile: number
@@ -742,7 +998,7 @@ interface Bucket {
 function emptyBucket(siteId: string, date: string, weekday: number): Bucket {
   return {
     siteId, date, weekday,
-    pageviews: 0, uniqueVisitors: new Set(), linkClicks: 0, botViews: 0,
+    pageviews: 0, linkClicks: 0, botViews: 0,
     mobile: 0, desktop: 0, tablet: 0,
     refDirect: 0, refSearch: 0, refSocial: 0, refEmail: 0, refReferral: 0, refOther: 0,
     countries: {},
@@ -774,6 +1030,7 @@ export async function GET(request: Request): Promise<Response> {
     let cursor = since
     let totalProcessed = 0
 
+    // --- Phase 1: Bucket delta events (since last watermark) ---
     while (true) {
       const { data: events, error } = await supabase
         .from('linktree_events')
@@ -802,7 +1059,6 @@ export async function GET(request: Request): Promise<Response> {
 
         if (e.event_type === 'pageview') {
           bucket.pageviews++
-          if (e.visitor_id) bucket.uniqueVisitors.add(e.visitor_id)
           if (e.is_bot) bucket.botViews++
 
           const hour = d.getUTCHours()
@@ -841,12 +1097,34 @@ export async function GET(request: Request): Promise<Response> {
     }
 
     if (buckets.size > 0) {
-      const rows = Array.from(buckets.values()).map((b) => ({
+      // --- Phase 2: Query accurate unique_visitors per site+date ---
+      // We query COUNT(DISTINCT visitor_id) for each affected day from the FULL day's
+      // events (not just the delta). This gives an accurate daily unique count that the
+      // RPC function writes as a REPLACEMENT (not additive).
+      const uniqueVisitorsByKey = new Map<string, number>()
+
+      for (const [key, bucket] of buckets) {
+        const { data: visitorRows } = await supabase
+          .from('linktree_events')
+          .select('visitor_id')
+          .eq('site_id', bucket.siteId)
+          .eq('event_type', 'pageview')
+          .gte('created_at', `${bucket.date}T00:00:00.000Z`)
+          .lt('created_at', `${bucket.date}T23:59:59.999Z`)
+          .not('visitor_id', 'is', null)
+          .limit(10_000)
+
+        const distinctSet = new Set(visitorRows?.map((r) => r.visitor_id))
+        uniqueVisitorsByKey.set(key, distinctSet.size)
+      }
+
+      // --- Phase 3: Build rows and call the additive upsert RPC ---
+      const rows = Array.from(buckets.entries()).map(([key, b]) => ({
         site_id: b.siteId,
         date: b.date,
         weekday: b.weekday,
         pageviews: b.pageviews,
-        unique_visitors: b.uniqueVisitors.size,
+        unique_visitors: uniqueVisitorsByKey.get(key) ?? 0,
         link_clicks: b.linkClicks,
         bot_views: b.botViews,
         mobile_views: b.mobile,
@@ -863,12 +1141,18 @@ export async function GET(request: Request): Promise<Response> {
         link_clicks_by_key: b.linkClicksByKey,
       }))
 
-      const { error: upsertErr } = await supabase
-        .from('linktree_daily_metrics')
-        .upsert(rows, { onConflict: 'site_id,date' })
+      // Call the additive upsert RPC instead of supabase .upsert() —
+      // the SQL function (Task 1, step 7) uses:
+      //   ON CONFLICT DO UPDATE SET col = existing + EXCLUDED  (numeric cols)
+      //   element-wise addition for hourly_views (24-element JSONB array)
+      //   key-wise SUM merge for countries and link_clicks_by_key (JSONB objects)
+      //   direct replacement for unique_visitors (already accurate for full day)
+      const { error: rpcErr } = await supabase.rpc('upsert_linktree_daily_metrics', {
+        p_rows: rows,
+      })
 
-      if (upsertErr) {
-        Sentry.captureException(new Error(upsertErr.message), { tags: { component: JOB } })
+      if (rpcErr) {
+        Sentry.captureException(new Error(rpcErr.message), { tags: { component: JOB } })
       }
     }
 
@@ -1091,6 +1375,18 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { LinktreeConfigSchema } from '@/app/go/linktree/_lib/types'
+import type { LinktreePageData } from '@/app/go/linktree/_lib/types'
+import {
+  getLinktreeConfig,
+  getSiteInfo,
+  getDefaultAuthor,
+  getLatestPost,
+  getLatestVideo,
+  getSocialProfiles,
+  getNewsletterTypes,
+  getYouTubeChannels,
+} from '@/app/go/linktree/_lib/queries'
+import { buildLangSections } from '@/app/go/linktree/_lib/build-sections'
 import { LinktreeEditor } from './_components/linktree-editor'
 
 export const dynamic = 'force-dynamic'
@@ -1103,6 +1399,7 @@ export default async function LinktreeEditorPage() {
   const editRes = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
   const readOnly = !editRes.ok
 
+  // Fetch linktree config + site metadata
   const supabase = getSupabaseServiceClient()
   const { data } = await supabase
     .from('sites')
@@ -1113,12 +1410,47 @@ export default async function LinktreeEditorPage() {
   const config = LinktreeConfigSchema.parse(data?.linktree_config ?? {})
   const domain = data?.short_domain ?? data?.primary_domain ?? ''
 
+  // Fetch the same data used by the real linktree page so the preview is accurate
+  const [site, author] = await Promise.all([
+    getSiteInfo(siteId),
+    getDefaultAuthor(siteId),
+  ])
+
+  const defaultLocale = site.defaultLocale
+  const [latestPost, latestVideo, socials, newsletters, channels] = await Promise.all([
+    getLatestPost(siteId, defaultLocale).catch(() => null),
+    getLatestVideo(siteId).catch(() => null),
+    getSocialProfiles(siteId).catch(() => []),
+    getNewsletterTypes(siteId).catch(() => []),
+    getYouTubeChannels(siteId).catch(() => []),
+  ])
+
+  const sections = buildLangSections(
+    site.supportedLocales,
+    newsletters,
+    channels,
+    config,
+    site.primaryDomain,
+  )
+
+  const pageData: LinktreePageData = {
+    config,
+    site,
+    author,
+    latestPost,
+    latestVideo,
+    socials,
+    sections,
+    sharedLinks: config.shared_links,
+  }
+
   return (
     <LinktreeEditor
       initialConfig={config}
       domain={domain}
       siteId={siteId}
       readOnly={readOnly}
+      pageData={pageData}
     />
   )
 }
@@ -1132,7 +1464,7 @@ export default async function LinktreeEditorPage() {
 
 import { useState, useCallback, useTransition, useEffect } from 'react'
 import type { z } from 'zod'
-import type { LinktreeConfigSchema } from '@/app/go/linktree/_lib/types'
+import type { LinktreeConfigSchema, LinktreePageData } from '@/app/go/linktree/_lib/types'
 import { saveLinktreeConfig } from '../actions'
 import { GeneralSection } from './general-section'
 import { HighlightSection } from './highlight-section'
@@ -1146,9 +1478,10 @@ interface Props {
   domain: string
   siteId: string
   readOnly: boolean
+  pageData: LinktreePageData
 }
 
-export function LinktreeEditor({ initialConfig, domain, siteId, readOnly }: Props) {
+export function LinktreeEditor({ initialConfig, domain, siteId, readOnly, pageData }: Props) {
   const [config, setConfig] = useState<Config>(initialConfig)
   const [savedConfig, setSavedConfig] = useState<Config>(initialConfig)
   const [isPending, startTransition] = useTransition()
@@ -1243,9 +1576,9 @@ export function LinktreeEditor({ initialConfig, domain, siteId, readOnly }: Prop
           </div>
         </div>
 
-        {/* Preview panel */}
+        {/* Preview panel -- renders real LinktreeClient with form state override */}
         <div className="w-[400px] border-l border-border">
-          <EditorPreview config={config} siteId={siteId} />
+          <EditorPreview config={config} pageData={pageData} />
         </div>
       </div>
     </div>
@@ -1377,9 +1710,30 @@ git commit -m "feat(linktree): add CMS editor page with split form/preview layou
 Highlight card form with toggle, shared links with dnd-kit reorder, and icon picker.
 
 **Files:**
+- Modify: `apps/web/src/app/go/linktree/_lib/types.ts` (add `id` field to `SharedLinkSchema`)
 - Create: `apps/web/src/app/cms/(authed)/linktree/_components/highlight-section.tsx`
 - Create: `apps/web/src/app/cms/(authed)/linktree/_components/shared-links-section.tsx`
 - Create: `apps/web/src/app/cms/(authed)/linktree/_components/icon-picker.tsx`
+
+- [ ] **Step 0: Add stable `id` field to SharedLinkSchema**
+
+Each shared link needs a stable UUID so dnd-kit can track items across reorders and analytics can use `shared:<uuid>` as a stable tracking key. Without this, index-based IDs (`link-${i}`) break when links are reordered — dnd-kit loses track of which item is which, and analytics keys like `shared:0` shift meaning every time the user drags a link.
+
+In `apps/web/src/app/go/linktree/_lib/types.ts`, update `SharedLinkSchema`:
+
+```typescript
+export const SharedLinkSchema = z.object({
+  id: z.string().uuid().default(() => crypto.randomUUID()),
+  label_pt: z.string(),
+  label_en: z.string(),
+  url: z.string(),
+  icon: z.string(),
+})
+```
+
+**Why:** The `id` has a `.default()` so existing configs without `id` fields will get one auto-assigned when parsed through Zod. New links created in the editor will explicitly pass `id: crypto.randomUUID()`. This `id` is used as:
+- dnd-kit sortable ID (stable across reorders)
+- Analytics tracking key: `shared:<uuid>` instead of `shared:<index>` (stable even after reorder)
 
 - [ ] **Step 1: Create HighlightSection**
 
@@ -1672,13 +2026,13 @@ function LangBadge({ lang }: { lang: 'PT' | 'EN' }) {
 function SortableLinkCard({
   link, index, onUpdate, onDelete, readOnly,
 }: {
-  link: SharedLink & { _id: string }
+  link: SharedLink
   index: number
   onUpdate: (index: number, patch: Partial<SharedLink>) => void
   onDelete: (index: number) => void
   readOnly: boolean
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: link._id })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: link.id })
   const style = { transform: CSS.Translate.toString(transform), transition, opacity: isDragging ? 0.3 : 1 }
 
   return (
@@ -1724,7 +2078,7 @@ function SortableLinkCard({
 }
 
 export function SharedLinksSection({ config, onChange, readOnly }: Props) {
-  const links = config.shared_links.map((l, i) => ({ ...l, _id: `link-${i}` }))
+  const links = config.shared_links
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -1734,8 +2088,8 @@ export function SharedLinksSection({ config, onChange, readOnly }: Props) {
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event
     if (!over || active.id === over.id) return
-    const oldIndex = links.findIndex((l) => l._id === active.id)
-    const newIndex = links.findIndex((l) => l._id === over.id)
+    const oldIndex = links.findIndex((l) => l.id === active.id)
+    const newIndex = links.findIndex((l) => l.id === over.id)
     const reordered = arrayMove(config.shared_links, oldIndex, newIndex)
     onChange({ shared_links: reordered })
   }, [config.shared_links, links, onChange])
@@ -1752,7 +2106,7 @@ export function SharedLinksSection({ config, onChange, readOnly }: Props) {
   const addLink = useCallback(() => {
     if (config.shared_links.length >= 10) return
     onChange({
-      shared_links: [...config.shared_links, { label_pt: '', label_en: '', url: '', icon: 'link-2' }],
+      shared_links: [...config.shared_links, { id: crypto.randomUUID(), label_pt: '', label_en: '', url: '', icon: 'link-2' }],
     })
   }, [config.shared_links, onChange])
 
@@ -1760,10 +2114,10 @@ export function SharedLinksSection({ config, onChange, readOnly }: Props) {
     <section>
       <h2 className="mb-4 text-sm font-bold text-foreground">Shared Links</h2>
       <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis]} onDragEnd={handleDragEnd}>
-        <SortableContext items={links.map((l) => l._id)} strategy={verticalListSortingStrategy}>
+        <SortableContext items={links.map((l) => l.id)} strategy={verticalListSortingStrategy}>
           <div className="space-y-3">
             {links.map((link, i) => (
-              <SortableLinkCard key={link._id} link={link} index={i} onUpdate={updateLink} onDelete={deleteLink} readOnly={readOnly} />
+              <SortableLinkCard key={link.id} link={link} index={i} onUpdate={updateLink} onDelete={deleteLink} readOnly={readOnly} />
             ))}
           </div>
         </SortableContext>
@@ -1783,15 +2137,15 @@ export function SharedLinksSection({ config, onChange, readOnly }: Props) {
 - [ ] **Step 4: Commit**
 
 ```bash
-git add apps/web/src/app/cms/(authed)/linktree/_components/highlight-section.tsx apps/web/src/app/cms/(authed)/linktree/_components/shared-links-section.tsx apps/web/src/app/cms/(authed)/linktree/_components/icon-picker.tsx
-git commit -m "feat(linktree): add highlight section, shared links with dnd-kit reorder, and icon picker"
+git add apps/web/src/app/go/linktree/_lib/types.ts apps/web/src/app/cms/(authed)/linktree/_components/highlight-section.tsx apps/web/src/app/cms/(authed)/linktree/_components/shared-links-section.tsx apps/web/src/app/cms/(authed)/linktree/_components/icon-picker.tsx
+git commit -m "feat(linktree): add stable UUID to SharedLinkSchema, highlight section, shared links with dnd-kit reorder, and icon picker"
 ```
 
 ---
 
 ### Task 9: CMS Editor — Live Preview & Navigation
 
-Preview panel that renders the actual linktree with form state, plus CMS nav entry.
+Preview panel that renders the **actual `LinktreeClient` component** inside a scaled container, overriding only the editable fields (taglines, highlight, shared links) with current form state. This ensures the preview shows real blog posts, YouTube data, newsletters, social profiles, etc. -- not simplified placeholder HTML.
 
 **Files:**
 - Create: `apps/web/src/app/cms/(authed)/linktree/_components/editor-preview.tsx`
@@ -1799,30 +2153,40 @@ Preview panel that renders the actual linktree with form state, plus CMS nav ent
 
 - [ ] **Step 1: Create EditorPreview**
 
+The preview imports the real `LinktreeClient` from `app/go/linktree/_components/` and renders it inside a CSS-scaled container. It receives the full `LinktreePageData` (fetched server-side in the editor `page.tsx` -- see Task 7 Step 1) and merges the current form state config on top, so editable fields update live while auto-populated data (blog posts, YouTube, sections, socials) stays real.
+
 ```typescript
 // apps/web/src/app/cms/(authed)/linktree/_components/editor-preview.tsx
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import type { z } from 'zod'
-import type { LinktreeConfigSchema } from '@/app/go/linktree/_lib/types'
-import { Globe, RefreshCw, ExternalLink } from 'lucide-react'
+import type { LinktreeConfigSchema, LinktreePageData } from '@/app/go/linktree/_lib/types'
+import { LinktreeClient } from '@/app/go/linktree/_components/linktree-client'
+import { RefreshCw, ExternalLink } from 'lucide-react'
 
 type Config = z.infer<typeof LinktreeConfigSchema>
 
 interface Props {
   config: Config
-  siteId: string
+  pageData: LinktreePageData
 }
 
-export function EditorPreview({ config, siteId }: Props) {
+export function EditorPreview({ config, pageData }: Props) {
   const [locale, setLocale] = useState<'pt-BR' | 'en'>('pt-BR')
   const [refreshKey, setRefreshKey] = useState(0)
 
   const isPt = locale === 'pt-BR'
-  const tagline = isPt ? config.tagline_pt : config.tagline_en
-  const blogDesc = isPt ? config.blog_desc_pt : config.blog_desc_en
-  const h = config.highlight
+
+  // Merge current form state into the real page data:
+  // - config (taglines, highlight, blog_desc) comes from the form
+  // - sharedLinks comes from config.shared_links
+  // - everything else (site, author, latestPost, latestVideo, socials, sections) is real server-fetched data
+  const mergedPageData = useMemo(() => ({
+    ...pageData,
+    config,
+    sharedLinks: config.shared_links,
+  }), [pageData, config])
 
   return (
     <div className="flex h-full flex-col">
@@ -1848,64 +2212,21 @@ export function EditorPreview({ config, siteId }: Props) {
         </div>
       </div>
 
-      {/* Preview content */}
-      <div key={refreshKey} className="flex-1 overflow-y-auto bg-white p-4">
-        <div className="mx-auto max-w-sm space-y-4">
-          {/* Tagline */}
-          {tagline && (
-            <p className="text-center text-sm text-gray-600">{tagline}</p>
-          )}
-
-          {/* Highlight card preview */}
-          {h.active && (isPt ? h.title_pt : h.title_en) && (
-            <div className="rounded-lg border-2 border-orange-400/30 bg-orange-50 p-4">
-              {(isPt ? h.badge_pt : h.badge_en) && (
-                <span className="mb-1 inline-block rounded-full bg-orange-400/10 px-2 py-0.5 text-[9px] font-bold text-orange-600">
-                  {isPt ? h.badge_pt : h.badge_en}
-                </span>
-              )}
-              <h3 className="text-sm font-bold text-gray-900">{isPt ? h.title_pt : h.title_en}</h3>
-              {(isPt ? h.desc_pt : h.desc_en) && (
-                <p className="mt-1 text-xs text-gray-600">{isPt ? h.desc_pt : h.desc_en}</p>
-              )}
-              {(isPt ? h.cta_pt : h.cta_en) && (
-                <span className="mt-2 inline-block rounded bg-orange-500 px-3 py-1 text-xs font-medium text-white">
-                  {isPt ? h.cta_pt : h.cta_en}
-                </span>
-              )}
-              <span className="ml-2 text-[9px] text-orange-400">Editável</span>
-            </div>
-          )}
-
-          {/* Blog desc */}
-          {blogDesc && (
-            <div className="rounded border border-gray-200 p-3">
-              <span className="mb-1 block text-[9px] font-medium text-gray-400">Blog</span>
-              <p className="text-xs text-gray-600">{blogDesc}</p>
-              <span className="mt-1 text-[9px] text-blue-400">Editável</span>
-            </div>
-          )}
-
-          {/* Auto sections placeholder */}
-          <div className="rounded border border-dashed border-gray-200 p-3 text-center">
-            <span className="text-[10px] text-gray-400">Seções automáticas (blog posts, newsletters, YouTube)</span>
-            <span className="ml-1 text-[9px] text-green-500">Auto</span>
-          </div>
-
-          {/* Shared links */}
-          {config.shared_links.length > 0 && (
-            <div className="space-y-2">
-              {config.shared_links.map((link, i) => (
-                <div key={i} className="flex items-center gap-3 rounded border border-gray-200 px-3 py-2.5">
-                  <Globe size={14} className="text-gray-400" />
-                  <span className="flex-1 text-xs text-gray-700">
-                    {isPt ? link.label_pt : link.label_en || '(sem label)'}
-                  </span>
-                  <span className="text-[9px] text-purple-400">Editável</span>
-                </div>
-              ))}
-            </div>
-          )}
+      {/* Scaled preview container -- renders the actual LinktreeClient at phone width */}
+      <div key={refreshKey} className="flex-1 overflow-y-auto bg-[var(--pb-bg,#0f0f0f)]">
+        <div
+          className="origin-top"
+          style={{
+            width: '400px',
+            transform: 'scale(1)',
+            transformOrigin: 'top center',
+          }}
+        >
+          <LinktreeClient
+            initialLocale={locale}
+            initialTheme="dark"
+            {...mergedPageData}
+          />
         </div>
       </div>
     </div>
@@ -2058,6 +2379,14 @@ export async function getLinktreeInsights(
 
 - [ ] **Step 2: Create analytics page server component**
 
+**IMPORTANT:** Do NOT use `AnalyticsOverview` for the KPI cards -- it renders "Total Clicks", "Conversion Rate" with wrong labels and double-percentage math. Instead, render 4 custom KPI cards directly. Use `AnalyticsOverview` only for the daily line chart via its `dailyClicks` data, or extract the chart into its own SVG.
+
+The 4 linktree-specific KPIs are:
+- **Total de Views** -- `totalViews` formatted as number
+- **Ultimos 30 dias** -- `last30dViews` with `+X%` change vs prior 30d period
+- **Visitantes Unicos** -- `uniqueVisitors` with `X% do total` subtitle
+- **Engagement** -- `totalClicks / totalViews * 100` with subtitle "X clicks / Y views"
+
 ```typescript
 // apps/web/src/app/cms/(authed)/linktree/analytics/page.tsx
 import { redirect } from 'next/navigation'
@@ -2067,9 +2396,9 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { toDateStringInTz } from '@/lib/cms/format-site-datetime'
 import { getLinktreeInsights } from '@/lib/linktree/insights'
 import {
-  AnalyticsOverview, AnalyticsCharts, ClickMap, AiInsightsPanel,
+  AnalyticsCharts, ClickMap, AiInsightsPanel,
 } from '@tn-figueiredo/links-admin/client'
-import type { AnalyticsMetrics, DeviceData, ReferrerData, GeoDataItem, HourlyData } from '@tn-figueiredo/links-admin'
+import type { DeviceData, ReferrerData, GeoDataItem, HourlyData } from '@tn-figueiredo/links-admin'
 import { LinktreeClicksTable } from './_components/linktree-clicks-table'
 
 export const dynamic = 'force-dynamic'
@@ -2081,6 +2410,57 @@ function topN(map: Map<string, number>, n: number): Array<{ name: string; count:
     .sort((a, b) => b[1] - a[1])
     .slice(0, n)
     .map(([name, count]) => ({ name, count }))
+}
+
+function formatNumber(n: number): string {
+  return n.toLocaleString('pt-BR')
+}
+
+function KpiCard({ label, value, subtitle }: { label: string; value: string; subtitle?: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p className="mt-1 text-2xl font-bold text-foreground">{value}</p>
+      {subtitle && <p className="mt-0.5 text-[10px] text-muted-foreground">{subtitle}</p>}
+    </div>
+  )
+}
+
+function DailyChart({ data }: { data: Array<{ date: string; clicks: number; unique: number }> }) {
+  if (data.length === 0) return null
+  const max = Math.max(...data.map((d) => d.clicks), 1)
+  const width = 600
+  const height = 200
+  const padding = 20
+  const chartWidth = width - padding * 2
+  const chartHeight = height - padding * 2
+  const step = chartWidth / Math.max(data.length - 1, 1)
+
+  const viewsPoints = data
+    .map((d, i) => `${padding + i * step},${padding + chartHeight - (d.clicks / max) * chartHeight}`)
+    .join(' ')
+  const uniquePoints = data
+    .map((d, i) => `${padding + i * step},${padding + chartHeight - (d.unique / max) * chartHeight}`)
+    .join(' ')
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <div className="mb-3 flex items-center gap-4">
+        <div className="flex items-center gap-1.5">
+          <span className="h-0.5 w-3 rounded bg-blue-500" />
+          <span className="text-[10px] text-muted-foreground">Pageviews</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="h-0.5 w-3 rounded bg-emerald-500" style={{ borderStyle: 'dashed' }} />
+          <span className="text-[10px] text-muted-foreground">Unicos</span>
+        </div>
+      </div>
+      <svg viewBox={`0 0 ${width} ${height}`} className="h-48 w-full">
+        <polyline points={viewsPoints} fill="none" stroke="#3b82f6" strokeWidth="2" />
+        <polyline points={uniquePoints} fill="none" stroke="#10b981" strokeWidth="2" strokeDasharray="4" />
+      </svg>
+    </div>
+  )
 }
 
 export default async function LinktreeAnalyticsPage({
@@ -2100,7 +2480,11 @@ export default async function LinktreeAnalyticsPage({
 
   const supabase = getSupabaseServiceClient()
 
-  const [dailyRes, eventsRes, insights] = await Promise.all([
+  // Also fetch prior period for "last 30d" comparison
+  const prior30dFrom = toDateStringInTz(new Date(Date.now() - 60 * 86_400_000), timezone)
+  const prior30dTo = toDateStringInTz(new Date(Date.now() - 30 * 86_400_000), timezone)
+
+  const [dailyRes, eventsRes, prior30dRes, insights] = await Promise.all([
     supabase
       .from('linktree_daily_metrics')
       .select('*')
@@ -2116,31 +2500,46 @@ export default async function LinktreeAnalyticsPage({
       .gte('created_at', `${dateFrom}T00:00:00`)
       .lte('created_at', `${dateTo}T23:59:59`)
       .limit(5000),
+    supabase
+      .from('linktree_daily_metrics')
+      .select('pageviews')
+      .eq('site_id', siteId)
+      .gte('date', prior30dFrom)
+      .lt('date', prior30dTo),
     getLinktreeInsights(siteId, dateFrom, dateTo),
   ])
 
   const daily = dailyRes.data ?? []
   const events = eventsRes.data ?? []
+  const prior30d = prior30dRes.data ?? []
 
   // KPIs
   const totalViews = daily.reduce((s, d) => s + d.pageviews, 0)
   const uniqueVisitors = daily.reduce((s, d) => s + d.unique_visitors, 0)
   const totalClicks = daily.reduce((s, d) => s + d.link_clicks, 0)
 
+  // Last 30d views (from the selected period's last 30 days)
+  const last30dCutoff = toDateStringInTz(new Date(Date.now() - 30 * 86_400_000), timezone)
+  const last30dViews = daily
+    .filter((d) => d.date >= last30dCutoff)
+    .reduce((s, d) => s + d.pageviews, 0)
+  const prior30dViews = prior30d.reduce((s, d) => s + d.pageviews, 0)
+  const last30dChange = prior30dViews > 0
+    ? Math.round(((last30dViews - prior30dViews) / prior30dViews) * 100)
+    : null
+
+  // Engagement rate
+  const engagementRate = totalViews > 0 ? Math.round((totalClicks / totalViews) * 100) : 0
+
+  // Unique visitors % of total
+  const uniquePct = totalViews > 0 ? Math.round((uniqueVisitors / totalViews) * 100) : 0
+
   // Daily chart data
-  const dailyClicks = daily.map((d) => ({
+  const dailyChartData = daily.map((d) => ({
     date: d.date,
     clicks: d.pageviews,
     unique: d.unique_visitors,
   }))
-
-  const metrics: AnalyticsMetrics = {
-    totalClicks: totalViews,
-    uniqueVisitors,
-    conversionRate: totalViews > 0 ? Math.round((totalClicks / totalViews) * 100) : null,
-    topCountry: null,
-    dailyClicks,
-  }
 
   // Device/browser/OS breakdown from raw events
   const deviceMap = new Map<string, number>()
@@ -2177,10 +2576,6 @@ export default async function LinktreeAnalyticsPage({
     .slice(0, 20)
     .map(([country, count]) => ({ country, count }))
 
-  if (geoData.length > 0) {
-    metrics.topCountry = geoData[0]!.country
-  }
-
   // Hourly heatmap (7 days x 24 hours)
   const heatMatrix: number[][] = Array.from({ length: 7 }, () => Array.from({ length: 24 }, () => 0))
   for (const d of daily) {
@@ -2209,7 +2604,7 @@ export default async function LinktreeAnalyticsPage({
           <a href="/cms/linktree" className="text-muted-foreground hover:text-foreground">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
           </a>
-          <h1 className="text-sm font-bold text-foreground">Analytics — Linktree</h1>
+          <h1 className="text-sm font-bold text-foreground">Analytics -- Linktree</h1>
           <span className="rounded bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-400">Porta de Entrada</span>
         </div>
         <div className="flex items-center gap-2">
@@ -2233,11 +2628,30 @@ export default async function LinktreeAnalyticsPage({
       {/* Analytics content */}
       <div className="flex-1 overflow-y-auto p-6">
         <div className="mx-auto max-w-5xl space-y-8">
-          <AnalyticsOverview
-            metrics={metrics}
-            dateRange={{ from: new Date(dateFrom), to: new Date(dateTo) }}
-            onDateRangeChange={() => {}}
-          />
+          {/* Custom KPI cards -- NOT AnalyticsOverview (wrong labels for linktree context) */}
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <KpiCard label="Total de Views" value={formatNumber(totalViews)} />
+            <KpiCard
+              label="Ultimos 30 dias"
+              value={formatNumber(last30dViews)}
+              subtitle={last30dChange !== null
+                ? `${last30dChange >= 0 ? '+' : ''}${last30dChange}% vs periodo anterior`
+                : undefined}
+            />
+            <KpiCard
+              label="Visitantes Unicos"
+              value={formatNumber(uniqueVisitors)}
+              subtitle={`${uniquePct}% do total`}
+            />
+            <KpiCard
+              label="Engagement"
+              value={`${engagementRate}%`}
+              subtitle={`${formatNumber(totalClicks)} clicks / ${formatNumber(totalViews)} views`}
+            />
+          </div>
+
+          {/* Daily line chart */}
+          <DailyChart data={dailyChartData} />
 
           {totalClicks > 0 && (
             <>
@@ -2252,7 +2666,7 @@ export default async function LinktreeAnalyticsPage({
 
           <div className="flex items-center gap-3">
             <div className="h-px flex-1 bg-border" />
-            <span className="text-xs font-bold text-muted-foreground">Distribuição</span>
+            <span className="text-xs font-bold text-muted-foreground">Distribuicao</span>
             <div className="h-px flex-1 bg-border" />
           </div>
           <AnalyticsCharts
@@ -2264,7 +2678,7 @@ export default async function LinktreeAnalyticsPage({
 
           <div className="flex items-center gap-3">
             <div className="h-px flex-1 bg-border" />
-            <span className="text-xs font-bold text-muted-foreground">Geolocalização & Insights</span>
+            <span className="text-xs font-bold text-muted-foreground">Geolocalizacao & Insights</span>
             <div className="h-px flex-1 bg-border" />
           </div>
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -2326,7 +2740,7 @@ function formatLinkLabel(linkKey: string): string {
   if (linkKey === 'highlight') return 'Highlight Card'
   const parts = linkKey.split(':')
   if (parts[0] === 'social') return (parts[1] ?? '').charAt(0).toUpperCase() + (parts[1] ?? '').slice(1)
-  if (parts[0] === 'shared') return `Shared Link #${(Number(parts[1]) ?? 0) + 1}`
+  if (parts[0] === 'shared') return `Shared Link (${(parts[1] ?? '').slice(0, 8)}...)`
   if (parts[0] === 'latest') return `${parts[1] === 'blog' ? 'Blog' : 'YouTube'}: ${parts.slice(2).join(':')}`
   if (parts[0] === 'blog' || parts[0] === 'newsletter' || parts[0] === 'youtube')
     return parts.slice(2).join(':')
@@ -2540,6 +2954,9 @@ Unit and integration tests for all new code.
 **Files:**
 - Create: `apps/web/test/lib/linktree/insights.test.ts`
 - Create: `apps/web/test/app/api/go/linktree/track.test.ts`
+- Create: `apps/web/test/app/cms/linktree/analytics/linktree-clicks-table.test.ts`
+- Create: `apps/web/test/app/cms/linktree/shared-links-section.test.ts`
+- Create: `apps/web/test/lib/linktree/event-recorder-edge-cases.test.ts`
 
 - [ ] **Step 1: Write insights tests**
 
@@ -2656,7 +3073,7 @@ describe('POST /api/go/linktree/track', () => {
     const req = new Request('http://localhost/api/go/linktree/track', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-forwarded-for': '1.2.3.4' },
-      body: JSON.stringify({ type: 'link_click', key: 'shared:0', siteId: '00000000-0000-0000-0000-000000000001' }),
+      body: JSON.stringify({ type: 'link_click', key: 'shared:a1b2c3d4-e5f6-7890-abcd-ef1234567890', siteId: '00000000-0000-0000-0000-000000000001' }),
     })
     const res = await POST(req)
     expect(res.status).toBe(204)
@@ -2664,7 +3081,216 @@ describe('POST /api/go/linktree/track', () => {
 })
 ```
 
-- [ ] **Step 3: Run all tests**
+- [ ] **Step 3: Write linktree-clicks-table tests**
+
+```typescript
+// apps/web/test/app/cms/linktree/analytics/linktree-clicks-table.test.ts
+import { describe, it, expect } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import { LinktreeClicksTable } from '@/app/cms/(authed)/linktree/analytics/_components/linktree-clicks-table'
+
+describe('LinktreeClicksTable', () => {
+  const clicksByKey = {
+    'highlight': 50,
+    'blog:pt:meu-post': 30,
+    'social:instagram': 15,
+    'shared:a1b2c3d4': 5,
+  }
+
+  it('renders correct rank numbers', () => {
+    render(<LinktreeClicksTable clicksByKey={clicksByKey} totalClicks={100} />)
+    const rows = screen.getAllByRole('row')
+    // header + 4 data rows + footer = 6
+    expect(rows).toHaveLength(6)
+  })
+
+  it('renders correct section badges', () => {
+    render(<LinktreeClicksTable clicksByKey={clicksByKey} totalClicks={100} />)
+    expect(screen.getByText('Highlight')).toBeDefined()
+    expect(screen.getByText('PT')).toBeDefined()
+    expect(screen.getByText('Social')).toBeDefined()
+    expect(screen.getByText('Shared')).toBeDefined()
+  })
+
+  it('shows correct total in footer', () => {
+    render(<LinktreeClicksTable clicksByKey={clicksByKey} totalClicks={100} />)
+    expect(screen.getByText('100')).toBeDefined()
+    expect(screen.getByText('Total')).toBeDefined()
+  })
+
+  it('calculates correct percentages', () => {
+    render(<LinktreeClicksTable clicksByKey={{ 'highlight': 50 }} totalClicks={100} />)
+    expect(screen.getByText('50.0%')).toBeDefined()
+  })
+
+  it('handles empty clicksByKey gracefully', () => {
+    render(<LinktreeClicksTable clicksByKey={{}} totalClicks={0} />)
+    const rows = screen.getAllByRole('row')
+    // header + footer only
+    expect(rows).toHaveLength(2)
+  })
+})
+```
+
+- [ ] **Step 4: Write shared-links-section tests**
+
+```typescript
+// apps/web/test/app/cms/linktree/shared-links-section.test.ts
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen, fireEvent } from '@testing-library/react'
+import { SharedLinksSection } from '@/app/cms/(authed)/linktree/_components/shared-links-section'
+import type { z } from 'zod'
+import type { LinktreeConfigSchema } from '@/app/go/linktree/_lib/types'
+
+type Config = z.infer<typeof LinktreeConfigSchema>
+
+const baseConfig: Config = {
+  tagline_pt: 'tagline pt',
+  tagline_en: 'tagline en',
+  blog_desc_pt: '',
+  blog_desc_en: '',
+  highlight: { active: false, url: '', badge_pt: '', badge_en: '', title_pt: '', title_en: '', desc_pt: '', desc_en: '', cta_pt: '', cta_en: '' },
+  shared_links: [
+    { label_pt: 'Link 1', label_en: 'Link 1 EN', url: 'https://a.com', icon: 'link-2' },
+    { label_pt: 'Link 2', label_en: 'Link 2 EN', url: 'https://b.com', icon: 'star' },
+  ],
+}
+
+describe('SharedLinksSection', () => {
+  it('renders all shared links', () => {
+    render(<SharedLinksSection config={baseConfig} onChange={vi.fn()} readOnly={false} />)
+    expect(screen.getByDisplayValue('Link 1')).toBeDefined()
+    expect(screen.getByDisplayValue('Link 2')).toBeDefined()
+  })
+
+  it('calls onChange when add button is clicked', () => {
+    const onChange = vi.fn()
+    render(<SharedLinksSection config={baseConfig} onChange={onChange} readOnly={false} />)
+    const addButton = screen.getByText('Adicionar link')
+    fireEvent.click(addButton)
+    expect(onChange).toHaveBeenCalledWith({
+      shared_links: expect.arrayContaining([
+        expect.objectContaining({ label_pt: '' }),
+      ]),
+    })
+  })
+
+  it('calls onChange when delete button is clicked', () => {
+    const onChange = vi.fn()
+    render(<SharedLinksSection config={baseConfig} onChange={onChange} readOnly={false} />)
+    // Find and click the first delete button (Trash2 icon)
+    const deleteButtons = screen.getAllByRole('button').filter(btn => btn.querySelector('[data-lucide="trash-2"]') || btn.textContent === '')
+    // The delete buttons are identified by Trash2 icon presence
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('shows link count', () => {
+    render(<SharedLinksSection config={baseConfig} onChange={vi.fn()} readOnly={false} />)
+    expect(screen.getByText('2/10 links')).toBeDefined()
+  })
+
+  it('hides add button when at max (10) links', () => {
+    const maxConfig = {
+      ...baseConfig,
+      shared_links: Array.from({ length: 10 }, (_, i) => ({
+        label_pt: `Link ${i}`, label_en: `Link ${i} EN`, url: `https://${i}.com`, icon: 'link-2',
+      })),
+    }
+    render(<SharedLinksSection config={maxConfig} onChange={vi.fn()} readOnly={false} />)
+    expect(screen.queryByText('Adicionar link')).toBeNull()
+  })
+})
+```
+
+- [ ] **Step 5: Write buildLinktreeEvent edge case tests**
+
+```typescript
+// apps/web/test/lib/linktree/event-recorder-edge-cases.test.ts
+import { describe, it, expect } from 'vitest'
+import { buildLinktreeEvent, type LinktreeEventInput } from '@/lib/linktree/event-recorder'
+
+describe('buildLinktreeEvent edge cases', () => {
+  const base: LinktreeEventInput = {
+    siteId: 'site-1',
+    eventType: 'pageview',
+    linkKey: null,
+    ip: '189.1.2.3',
+    userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)',
+    referrer: null,
+    headers: new Headers(),
+  }
+
+  it('handles empty user agent string', () => {
+    const event = buildLinktreeEvent({ ...base, userAgent: '' })
+    expect(event.device_type).toBe('other') // 'unknown' maps to 'other'
+    expect(event.browser).toBe('Unknown')
+    expect(event.os).toBe('Unknown')
+    expect(event.is_bot).toBe(false)
+    expect(event.visitor_id).toMatch(/^[a-f0-9]{64}$/)
+  })
+
+  it('handles missing geo headers', () => {
+    const event = buildLinktreeEvent({
+      ...base,
+      headers: new Headers(), // no x-vercel-ip-* headers
+    })
+    expect(event.country).toBeNull()
+    expect(event.region).toBeNull()
+    expect(event.city).toBeNull()
+  })
+
+  it('handles empty referrer string', () => {
+    const event = buildLinktreeEvent({ ...base, referrer: '' })
+    // Empty string is falsy, should be classified as direct
+    expect(event.referrer_source).toBe('direct')
+    expect(event.referrer_domain).toBeNull()
+  })
+
+  it('handles malformed referrer URL', () => {
+    const event = buildLinktreeEvent({ ...base, referrer: 'not-a-valid-url' })
+    expect(event.referrer_source).toBe('other')
+    expect(event.referrer_domain).toBeNull()
+  })
+
+  it('truncates excessively long user agent', () => {
+    const longUa = 'A'.repeat(1000)
+    const event = buildLinktreeEvent({ ...base, userAgent: longUa })
+    expect(event.user_agent.length).toBe(512)
+  })
+
+  it('extracts language from accept-language header', () => {
+    const headers = new Headers({ 'accept-language': 'pt-BR,pt;q=0.9,en;q=0.8' })
+    const event = buildLinktreeEvent({ ...base, headers })
+    expect(event.language).toBe('pt-BR')
+  })
+
+  it('returns null language when accept-language header is missing', () => {
+    const event = buildLinktreeEvent({ ...base, headers: new Headers() })
+    expect(event.language).toBeNull()
+  })
+
+  it('classifies tablet user agent correctly', () => {
+    const event = buildLinktreeEvent({
+      ...base,
+      userAgent: 'Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15',
+    })
+    expect(event.device_type).toBe('tablet')
+    expect(event.os).toBe('iPadOS')
+  })
+
+  it('classifies desktop user agent correctly', () => {
+    const event = buildLinktreeEvent({
+      ...base,
+      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    })
+    expect(event.device_type).toBe('desktop')
+    expect(event.browser).toBe('Chrome')
+    expect(event.os).toBe('macOS')
+  })
+})
+```
+
+- [ ] **Step 6: Run all tests**
 
 ```bash
 npm run test:web -- --run
@@ -2672,11 +3298,11 @@ npm run test:web -- --run
 
 Expected: All tests pass (new + existing).
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add apps/web/test/lib/linktree/insights.test.ts apps/web/test/app/api/go/linktree/track.test.ts
-git commit -m "test(linktree): add unit tests for insights, tracking route, and event recorder"
+git add apps/web/test/lib/linktree/insights.test.ts apps/web/test/app/api/go/linktree/track.test.ts apps/web/test/app/cms/linktree/analytics/linktree-clicks-table.test.ts apps/web/test/app/cms/linktree/shared-links-section.test.ts apps/web/test/lib/linktree/event-recorder-edge-cases.test.ts
+git commit -m "test(linktree): add unit tests for insights, tracking route, event recorder, clicks table, and shared links"
 ```
 
 ---
