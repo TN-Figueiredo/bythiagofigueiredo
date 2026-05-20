@@ -15,6 +15,7 @@ import { restrictToVerticalAxis } from '@dnd-kit/modifiers'
 import { CSS } from '@dnd-kit/utilities'
 import { GripVertical, Trash2, Plus } from 'lucide-react'
 import { IconPicker } from './icon-picker'
+import { LangBadge } from './form-primitives'
 
 type Config = z.infer<typeof LinktreeConfigSchema>
 type SharedLink = z.infer<typeof SharedLinkSchema>
@@ -23,11 +24,6 @@ interface Props {
   config: Config
   onChange: (patch: Partial<Config>) => void
   readOnly: boolean
-}
-
-function LangBadge({ lang }: { lang: 'PT' | 'EN' }) {
-  const colors = lang === 'PT' ? 'bg-green-500/10 text-green-400' : 'bg-cyan-500/10 text-cyan-400'
-  return <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold ${colors}`}>{lang}</span>
 }
 
 function SortableLinkCard({

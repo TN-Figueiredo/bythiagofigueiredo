@@ -2,6 +2,7 @@
 
 import type { z } from 'zod'
 import type { LinktreeConfigSchema, HighlightSchema } from '@/app/go/linktree/_lib/types'
+import { CharCount, LangBadge } from './form-primitives'
 
 type Config = z.infer<typeof LinktreeConfigSchema>
 type Highlight = z.infer<typeof HighlightSchema>
@@ -10,19 +11,6 @@ interface Props {
   config: Config
   onChange: (patch: Partial<Config>) => void
   readOnly: boolean
-}
-
-function CharCount({ current, max }: { current: number; max: number }) {
-  return (
-    <span className={`text-[10px] ${current > max ? 'text-red-400' : 'text-muted-foreground'}`}>
-      {current}/{max}
-    </span>
-  )
-}
-
-function LangBadge({ lang }: { lang: 'PT' | 'EN' }) {
-  const colors = lang === 'PT' ? 'bg-green-500/10 text-green-400' : 'bg-cyan-500/10 text-cyan-400'
-  return <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold ${colors}`}>{lang}</span>
 }
 
 export function HighlightSection({ config, onChange, readOnly }: Props) {
@@ -74,8 +62,8 @@ export function HighlightSection({ config, onChange, readOnly }: Props) {
                 <LangBadge lang="PT" />
               </div>
               <input id="highlight-badge-pt" type="text" value={h.badge_pt} onChange={(e) => updateHighlight({ badge_pt: e.target.value })} disabled={readOnly} maxLength={30}
-                className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
-              <div className="mt-0.5 text-right"><CharCount current={h.badge_pt.length} max={30} /></div>
+                aria-describedby="highlight-badge-pt-count" className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
+              <div className="mt-0.5 text-right"><CharCount current={h.badge_pt.length} max={30} id="highlight-badge-pt-count" /></div>
             </div>
             <div>
               <div className="mb-1 flex items-center gap-2">
@@ -83,8 +71,8 @@ export function HighlightSection({ config, onChange, readOnly }: Props) {
                 <LangBadge lang="EN" />
               </div>
               <input id="highlight-badge-en" type="text" value={h.badge_en} onChange={(e) => updateHighlight({ badge_en: e.target.value })} disabled={readOnly} maxLength={30}
-                className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
-              <div className="mt-0.5 text-right"><CharCount current={h.badge_en.length} max={30} /></div>
+                aria-describedby="highlight-badge-en-count" className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
+              <div className="mt-0.5 text-right"><CharCount current={h.badge_en.length} max={30} id="highlight-badge-en-count" /></div>
             </div>
           </div>
 
@@ -95,8 +83,8 @@ export function HighlightSection({ config, onChange, readOnly }: Props) {
                 <LangBadge lang="PT" />
               </div>
               <input id="highlight-title-pt" type="text" value={h.title_pt} onChange={(e) => updateHighlight({ title_pt: e.target.value })} disabled={readOnly} maxLength={80}
-                className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
-              <div className="mt-0.5 text-right"><CharCount current={h.title_pt.length} max={80} /></div>
+                aria-describedby="highlight-title-pt-count" className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
+              <div className="mt-0.5 text-right"><CharCount current={h.title_pt.length} max={80} id="highlight-title-pt-count" /></div>
             </div>
             <div>
               <div className="mb-1 flex items-center gap-2">
@@ -104,8 +92,8 @@ export function HighlightSection({ config, onChange, readOnly }: Props) {
                 <LangBadge lang="EN" />
               </div>
               <input id="highlight-title-en" type="text" value={h.title_en} onChange={(e) => updateHighlight({ title_en: e.target.value })} disabled={readOnly} maxLength={80}
-                className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
-              <div className="mt-0.5 text-right"><CharCount current={h.title_en.length} max={80} /></div>
+                aria-describedby="highlight-title-en-count" className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
+              <div className="mt-0.5 text-right"><CharCount current={h.title_en.length} max={80} id="highlight-title-en-count" /></div>
             </div>
           </div>
 
@@ -115,8 +103,8 @@ export function HighlightSection({ config, onChange, readOnly }: Props) {
               <LangBadge lang="PT" />
             </div>
             <textarea id="highlight-desc-pt" value={h.desc_pt} onChange={(e) => updateHighlight({ desc_pt: e.target.value })} disabled={readOnly} maxLength={200} rows={2}
-              className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
-            <div className="mt-0.5 text-right"><CharCount current={h.desc_pt.length} max={200} /></div>
+              aria-describedby="highlight-desc-pt-count" className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
+            <div className="mt-0.5 text-right"><CharCount current={h.desc_pt.length} max={200} id="highlight-desc-pt-count" /></div>
           </div>
 
           <div>
@@ -125,8 +113,8 @@ export function HighlightSection({ config, onChange, readOnly }: Props) {
               <LangBadge lang="EN" />
             </div>
             <textarea id="highlight-desc-en" value={h.desc_en} onChange={(e) => updateHighlight({ desc_en: e.target.value })} disabled={readOnly} maxLength={200} rows={2}
-              className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
-            <div className="mt-0.5 text-right"><CharCount current={h.desc_en.length} max={200} /></div>
+              aria-describedby="highlight-desc-en-count" className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
+            <div className="mt-0.5 text-right"><CharCount current={h.desc_en.length} max={200} id="highlight-desc-en-count" /></div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -136,8 +124,8 @@ export function HighlightSection({ config, onChange, readOnly }: Props) {
                 <LangBadge lang="PT" />
               </div>
               <input id="highlight-cta-pt" type="text" value={h.cta_pt} onChange={(e) => updateHighlight({ cta_pt: e.target.value })} disabled={readOnly} maxLength={40}
-                className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
-              <div className="mt-0.5 text-right"><CharCount current={h.cta_pt.length} max={40} /></div>
+                aria-describedby="highlight-cta-pt-count" className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
+              <div className="mt-0.5 text-right"><CharCount current={h.cta_pt.length} max={40} id="highlight-cta-pt-count" /></div>
             </div>
             <div>
               <div className="mb-1 flex items-center gap-2">
@@ -145,8 +133,8 @@ export function HighlightSection({ config, onChange, readOnly }: Props) {
                 <LangBadge lang="EN" />
               </div>
               <input id="highlight-cta-en" type="text" value={h.cta_en} onChange={(e) => updateHighlight({ cta_en: e.target.value })} disabled={readOnly} maxLength={40}
-                className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
-              <div className="mt-0.5 text-right"><CharCount current={h.cta_en.length} max={40} /></div>
+                aria-describedby="highlight-cta-en-count" className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
+              <div className="mt-0.5 text-right"><CharCount current={h.cta_en.length} max={40} id="highlight-cta-en-count" /></div>
             </div>
           </div>
         </div>
