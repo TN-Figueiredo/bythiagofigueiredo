@@ -1,0 +1,77 @@
+import type {
+  LinktreeConfig,
+  NewsletterTypeInfo,
+  YouTubeChannelInfo,
+  LangSection,
+  LangSectionItem,
+} from './types'
+
+const LOCALE_META: Record<string, { flag: string; label: string; hand: string; blogLabel: string }> = {
+  'pt-BR': { flag: '🇧🇷', label: 'Português', hand: 'em português', blogLabel: 'Blog' },
+  'en': { flag: '🇺🇸', label: 'English', hand: 'in english', blogLabel: 'Blog' },
+}
+
+function normalizeLocale(locale: string): string {
+  if (locale.startsWith('pt')) return 'pt-BR'
+  if (locale.startsWith('en')) return 'en'
+  return locale
+}
+
+function localeMatches(itemLocale: string, sectionLocale: string): boolean {
+  const normItem = normalizeLocale(itemLocale)
+  const normSection = normalizeLocale(sectionLocale)
+  return normItem === normSection
+}
+
+export function buildLangSections(
+  locales: string[],
+  newsletters: NewsletterTypeInfo[],
+  channels: YouTubeChannelInfo[],
+  config: LinktreeConfig,
+  primaryDomain: string,
+): LangSection[] {
+  return locales.map((locale) => {
+    const meta = LOCALE_META[normalizeLocale(locale)] ?? {
+      flag: '🌐', label: locale, hand: locale, blogLabel: 'Blog',
+    }
+    const siteUrl = `https://${primaryDomain}`
+    const isPortuguese = locale.startsWith('pt')
+    const blogDesc = isPortuguese ? config.blog_desc_pt : config.blog_desc_en
+
+    const items: LangSectionItem[] = []
+
+    items.push({
+      id: `blog-${locale}`,
+      type: 'blog',
+      label: meta.blogLabel,
+      desc: blogDesc || (isPortuguese ? 'Artigos' : 'Articles'),
+      url: `${siteUrl}/blog`,
+      icon: 'blog',
+    })
+
+    for (const nl of newsletters.filter((n) => localeMatches(n.locale, locale))) {
+      items.push({
+        id: `nl-${nl.slug}`,
+        type: 'newsletter',
+        label: nl.name,
+        desc: nl.cadenceLabel ? `Newsletter ${nl.cadenceLabel}` : 'Newsletter',
+        url: `${siteUrl}/newsletter/${nl.slug}`,
+        icon: 'mail',
+      })
+    }
+
+    for (const ch of channels.filter((c) => localeMatches(c.locale, locale))) {
+      items.push({
+        id: `yt-${ch.handle}`,
+        type: 'youtube',
+        label: 'YouTube',
+        desc: `@${ch.handle}${ch.scheduleLabel ? ` · ${ch.scheduleLabel}` : ''}`,
+        url: `https://youtube.com/@${ch.handle}`,
+        icon: 'youtube',
+        subscriberCount: ch.subscriberCount,
+      })
+    }
+
+    return { locale, flag: meta.flag, label: meta.label, hand: meta.hand, items }
+  })
+}
