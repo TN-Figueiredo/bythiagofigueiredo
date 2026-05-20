@@ -44,7 +44,7 @@ export async function POST(req: Request): Promise<Response> {
   let sentCount = 0
 
   for (const [, subs] of grouped) {
-    const first = subs[0]
+    const first = subs[0]!  // subs always non-empty: only pushed groups enter the Map
     const typeIds = subs.map((s) => s.newsletter_id)
 
     const { data: types } = await supabase
