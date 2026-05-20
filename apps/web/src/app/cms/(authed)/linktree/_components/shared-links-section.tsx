@@ -59,7 +59,7 @@ function SortableLinkCard({
             <LangBadge lang="PT" />
           </div>
           <input type="text" value={link.label_pt} onChange={(e) => onUpdate(index, { label_pt: e.target.value })}
-            disabled={readOnly} aria-label="Label em português" className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
+            disabled={readOnly} maxLength={100} aria-label="Label em português" className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
         </div>
         <div>
           <div className="mb-0.5 flex items-center gap-1">
@@ -67,13 +67,13 @@ function SortableLinkCard({
             <LangBadge lang="EN" />
           </div>
           <input type="text" value={link.label_en} onChange={(e) => onUpdate(index, { label_en: e.target.value })}
-            disabled={readOnly} aria-label="Label em inglês" className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
+            disabled={readOnly} maxLength={100} aria-label="Label em inglês" className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
         </div>
       </div>
       <div>
         <span className="mb-0.5 block text-[10px] text-muted-foreground">URL</span>
         <input type="url" value={link.url} onChange={(e) => onUpdate(index, { url: e.target.value })}
-          disabled={readOnly} placeholder="https://..." aria-label="URL do link"
+          disabled={readOnly} maxLength={2048} placeholder="https://..." aria-label="URL do link"
           className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground focus:border-primary focus:outline-none disabled:opacity-50" />
       </div>
     </div>
