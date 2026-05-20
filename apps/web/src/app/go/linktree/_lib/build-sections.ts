@@ -62,12 +62,13 @@ export function buildLangSections(
     }
 
     for (const ch of channels.filter((c) => localeMatches(c.locale, locale))) {
+      const handle = ch.handle.replace(/^@/, '')
       items.push({
-        id: `yt-${ch.handle}`,
+        id: `yt-${handle}`,
         type: 'youtube',
         label: 'YouTube',
-        desc: `@${ch.handle}${ch.scheduleLabel ? ` · ${ch.scheduleLabel}` : ''}`,
-        url: `https://youtube.com/@${ch.handle}`,
+        desc: `@${handle}${ch.scheduleLabel ? ` · ${ch.scheduleLabel}` : ''}`,
+        url: `https://youtube.com/@${handle}`,
         icon: 'youtube',
         subscriberCount: ch.subscriberCount,
       })
