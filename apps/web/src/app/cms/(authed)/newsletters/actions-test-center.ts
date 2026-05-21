@@ -116,8 +116,8 @@ const WELCOME_SUBJECTS: Record<string, string> = {
 // ─── renderTestTemplate ────────────────────────────────────────────────────
 
 export async function renderTestTemplate(
-  template: string,
-  locale: string,
+  template: TestTemplate,
+  locale: 'en' | 'pt-BR',
   opts?: { editionId?: string },
 ): Promise<RenderResult> {
   const ctx = await getSiteContext()
@@ -126,7 +126,7 @@ export async function renderTestTemplate(
     return { ok: false, error: authRes.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden' }
   }
 
-  switch (template as TestTemplate | string) {
+  switch (template) {
     case 'confirm': {
       const urls = getMockUrls()
       const html = await render(
@@ -176,8 +176,8 @@ export async function renderTestTemplate(
 // ─── sendTestTemplate ──────────────────────────────────────────────────────
 
 export async function sendTestTemplate(
-  template: string,
-  locale: string,
+  template: TestTemplate,
+  locale: 'en' | 'pt-BR',
   opts?: { editionId?: string },
 ): Promise<SendResult> {
   const ctx = await getSiteContext()
@@ -189,11 +189,11 @@ export async function sendTestTemplate(
   // Get user email from session
   const userClient = await getUserClient()
   const { data: { user } } = await userClient.auth.getUser()
-  const toEmail = user?.email
-  if (!toEmail) return { ok: false, error: 'no_user_email' }
+  if (!user?.email) return { ok: false, error: 'no_user_email' }
+  const toEmail = user.email
 
   // Rate limit check
-  const userId = user!.id
+  const userId = user.id
   const limitError = checkRateLimit(userId)
   if (limitError) return { ok: false, error: limitError }
 
@@ -220,7 +220,7 @@ export async function sendTestTemplate(
           .select('subject')
           .eq('id', opts.editionId)
           .single()
-        subject = `[TEST] ${(edition?.subject as string) ?? 'Newsletter'}`
+        subject = `[TEST] ${edition?.subject ?? 'Newsletter'}`
       } else {
         subject = '[TEST] Newsletter'
       }
@@ -243,8 +243,8 @@ export async function sendTestTemplate(
       html: renderResult.html,
     })
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'email_send_failed'
-    return { ok: false, error: message }
+    console.error('[test-center] email send failed:', err)
+    return { ok: false, error: 'email_send_failed' }
   }
 
   // Record send for rate limiting

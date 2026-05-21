@@ -14,12 +14,11 @@ function StateChip({ state, href }: { state: string; href: string }) {
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      role="button"
-      aria-label={`Preview ${href.includes('confirm') ? 'confirm' : 'unsubscribe'} page: ${state}`}
       className="inline-flex items-center gap-1 rounded-md border border-gray-800 bg-[#0a0f1a] px-2.5 py-1.5 text-[11px] text-gray-400 hover:border-indigo-500/30 hover:text-indigo-400 transition-colors"
     >
       {state}
-      <ExternalLink className="h-2.5 w-2.5 opacity-50" />
+      <ExternalLink className="h-2.5 w-2.5 opacity-50" aria-hidden="true" />
+      <span className="sr-only">(opens in new tab)</span>
     </a>
   )
 }

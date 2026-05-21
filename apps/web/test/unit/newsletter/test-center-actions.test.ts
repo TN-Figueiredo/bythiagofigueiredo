@@ -54,8 +54,10 @@ vi.mock('@/lib/cms/auth-guards', () => ({
   requireSiteAdminForRow: () => Promise.resolve(),
 }))
 
+let mockAuthResult: { ok: boolean; user?: { id: string }; reason?: string } = { ok: true, user: { id: 'user-1' } }
+
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
-  requireSiteScope: () => Promise.resolve({ ok: true, user: { id: 'user-1' } }),
+  requireSiteScope: () => Promise.resolve(mockAuthResult),
 }))
 
 vi.mock('next/cache', () => ({
@@ -165,6 +167,7 @@ describe('Test Center Actions', () => {
     mockSend.mockResolvedValue({ ok: true })
     mockUserEmail = 'admin@test.com'
     mockUserId = 'user-1'
+    mockAuthResult = { ok: true, user: { id: 'user-1' } }
     mockSupabase = createMockSupabase()
     _resetRateLimits()
   })
@@ -212,6 +215,24 @@ describe('Test Center Actions', () => {
       expect(result.ok).toBe(false)
       if (result.ok) return
       expect(result.error).toBe('invalid_template')
+    })
+
+    it('returns unauthenticated when user is not logged in', async () => {
+      mockAuthResult = { ok: false, reason: 'unauthenticated' }
+      const result = await renderTestTemplate('confirm', 'pt-BR')
+      expect(result.ok).toBe(false)
+      if (!result.ok) {
+        expect(result.error).toBe('unauthenticated')
+      }
+    })
+
+    it('returns forbidden when user lacks edit scope', async () => {
+      mockAuthResult = { ok: false, reason: 'forbidden' }
+      const result = await renderTestTemplate('confirm', 'pt-BR')
+      expect(result.ok).toBe(false)
+      if (!result.ok) {
+        expect(result.error).toBe('forbidden')
+      }
     })
   })
 
@@ -266,13 +287,13 @@ describe('Test Center Actions', () => {
       expect(result.error).toBe('no_user_email')
     })
 
-    it('returns error when email service throws', async () => {
+    it('returns generic error code when email service throws', async () => {
       mockSend.mockRejectedValueOnce(new Error('SMTP connection refused'))
 
       const result = await sendTestTemplate('confirm', 'pt-BR')
       expect(result.ok).toBe(false)
       if (result.ok) return
-      expect(result.error).toBe('SMTP connection refused')
+      expect(result.error).toBe('email_send_failed')
     })
 
     it('returns invalid_template error for unknown template', async () => {

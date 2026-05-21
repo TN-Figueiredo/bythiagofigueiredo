@@ -8,6 +8,7 @@ interface TemplateSelectorProps {
   selected: TemplateName
   onChange: (t: TemplateName) => void
   strings: NewsletterHubStrings['testCenter']
+  hasEditions: boolean
 }
 
 export const TEMPLATE_LABELS: Record<TemplateName, string> = {
@@ -16,7 +17,7 @@ export const TEMPLATE_LABELS: Record<TemplateName, string> = {
   edition: 'Edition',
 }
 
-export function TemplateSelector({ selected, onChange, strings }: TemplateSelectorProps) {
+export function TemplateSelector({ selected, onChange, strings, hasEditions }: TemplateSelectorProps) {
   return (
     <div>
       <label className="block text-[11px] uppercase tracking-wider font-semibold text-gray-500 mb-2">
@@ -29,11 +30,15 @@ export function TemplateSelector({ selected, onChange, strings }: TemplateSelect
             role="radio"
             aria-checked={selected === id}
             onClick={() => onChange(id)}
+            disabled={id === 'edition' && !hasEditions}
             className={`w-full rounded-md border px-3 py-2 text-left text-xs transition-colors ${
               selected === id
                 ? 'bg-indigo-500/15 border-indigo-500/30 text-indigo-400 font-medium'
+                : id === 'edition' && !hasEditions
+                ? 'bg-[#0a0f1a] border-gray-800 text-gray-600 cursor-not-allowed'
                 : 'bg-[#0a0f1a] border-gray-800 text-gray-400 hover:border-gray-700'
             }`}
+            title={id === 'edition' && !hasEditions ? strings.noEditions : undefined}
           >
             {TEMPLATE_LABELS[id]}
           </button>

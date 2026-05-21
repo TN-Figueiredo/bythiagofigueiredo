@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Lock, Send, Loader2, CheckCircle2 } from 'lucide-react'
 import type { NewsletterHubStrings } from '../../_i18n/types'
 
@@ -14,6 +14,13 @@ export function TestSendCard({ userEmail, onSend, strings }: TestSendCardProps) 
   const [state, setState] = useState<'idle' | 'sending' | 'success' | 'cooldown' | 'error'>('idle')
   const [cooldownLeft, setCooldownLeft] = useState(0)
   const [errorMsg, setErrorMsg] = useState('')
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([])
+
+  useEffect(() => {
+    return () => {
+      timersRef.current.forEach(clearTimeout)
+    }
+  }, [])
 
   useEffect(() => {
     if (cooldownLeft <= 0) {
@@ -31,10 +38,10 @@ export function TestSendCard({ userEmail, onSend, strings }: TestSendCardProps) 
       const result = await onSend()
       if (result.ok) {
         setState('success')
-        setTimeout(() => {
+        timersRef.current.push(setTimeout(() => {
           setState('cooldown')
           setCooldownLeft(60)
-        }, 2000)
+        }, 2000))
       } else {
         if (result.error === 'rate_limited') {
           setState('cooldown')
@@ -42,13 +49,13 @@ export function TestSendCard({ userEmail, onSend, strings }: TestSendCardProps) 
         } else {
           setErrorMsg(result.error)
           setState('error')
-          setTimeout(() => setState('idle'), 3000)
+          timersRef.current.push(setTimeout(() => setState('idle'), 3000))
         }
       }
     } catch {
       setErrorMsg(strings.unexpectedError)
       setState('error')
-      setTimeout(() => setState('idle'), 3000)
+      timersRef.current.push(setTimeout(() => setState('idle'), 3000))
     }
   }, [onSend])
 
@@ -71,6 +78,7 @@ export function TestSendCard({ userEmail, onSend, strings }: TestSendCardProps) 
         <button
           onClick={handleSend}
           disabled={buttonDisabled}
+          aria-live="polite"
           className={`w-full flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-semibold transition-colors ${
             state === 'cooldown'
               ? 'bg-gray-800 text-gray-500 cursor-not-allowed'

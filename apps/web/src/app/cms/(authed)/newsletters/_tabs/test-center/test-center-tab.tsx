@@ -1,10 +1,9 @@
 'use client'
 
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { RefreshCw } from 'lucide-react'
 import type { NewsletterHubStrings } from '../../_i18n/types'
 import { SectionErrorBoundary } from '../../_shared/section-error-boundary'
-import { SummaryBar } from '../../_shared/summary-bar'
 import { TemplateSelector, TEMPLATE_LABELS, type TemplateName } from './template-selector'
 import { EditionControls } from './edition-controls'
 import { TestSendCard } from './test-send-card'
@@ -30,6 +29,7 @@ export function TestCenterTab({ strings, locale, userEmail, types, editions: all
   const [error, setError] = useState<string | null>(null)
   const [width, setWidth] = useState<'desktop' | 'mobile'>('desktop')
 
+  const generationRef = useRef(0)
   const tc = strings.testCenter
 
   const filteredEditions = useMemo(
@@ -38,12 +38,14 @@ export function TestCenterTab({ strings, locale, userEmail, types, editions: all
   )
 
   const loadPreview = useCallback(async () => {
+    const gen = ++generationRef.current
     setLoading(true)
     setError(null)
     try {
       const result = await renderTestTemplate(template, emailLocale, {
         editionId: selectedEditionId ?? undefined,
       })
+      if (gen !== generationRef.current) return
       if (result.ok) {
         setHtml(result.html)
         setSizeBytes(result.sizeBytes)
@@ -53,11 +55,14 @@ export function TestCenterTab({ strings, locale, userEmail, types, editions: all
         setSizeBytes(null)
       }
     } catch {
+      if (gen !== generationRef.current) return
       setError(tc.renderFailed)
       setHtml(null)
       setSizeBytes(null)
     } finally {
-      setLoading(false)
+      if (gen === generationRef.current) {
+        setLoading(false)
+      }
     }
   }, [template, emailLocale, selectedEditionId, tc.renderFailed])
 
@@ -76,7 +81,7 @@ export function TestCenterTab({ strings, locale, userEmail, types, editions: all
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[280px_1fr]">
         <SectionErrorBoundary sectionName="Test center controls">
           <div className="flex flex-col gap-4">
-            <TemplateSelector selected={template} onChange={setTemplate} strings={tc} />
+            <TemplateSelector selected={template} onChange={setTemplate} strings={tc} hasEditions={allEditions.length > 0} />
 
             <div>
               <label className="block text-[11px] uppercase tracking-wider font-semibold text-gray-500 mb-2">
@@ -191,7 +196,9 @@ export function TestCenterTab({ strings, locale, userEmail, types, editions: all
         </SectionErrorBoundary>
       </div>
 
-      <SummaryBar stats={tc.summaryStats} />
+      <div className="sticky bottom-0 flex items-center border-t border-gray-800 bg-gray-900 px-6 py-2">
+        <span className="text-[11px] text-gray-400">{tc.summaryStats}</span>
+      </div>
     </div>
   )
 }

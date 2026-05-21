@@ -1,7 +1,7 @@
 import type { NewsletterHubStrings } from './types'
 
 export const ptBR: NewsletterHubStrings = {
-  tabs: { overview: 'Visão Geral', editorial: 'Editorial', schedule: 'Agenda', automations: 'Automações', audience: 'Audiência', 'test-center': 'Test Center' },
+  tabs: { overview: 'Visão Geral', editorial: 'Editorial', schedule: 'Agenda', automations: 'Automações', audience: 'Audiência', 'test-center': 'Central de Testes' },
   kpi: { totalSubscribers: 'Total de Inscritos', editionsSent: 'Edições Enviadas', avgOpenRate: 'Taxa de Abertura', avgClickRate: 'Taxa de Cliques', bounceRate: 'Taxa de Bounce' },
   actions: { newEdition: 'Nova Edição', newIdea: 'Nova Ideia', newDraft: 'Novo Rascunho', scheduleNext: 'Agendar Próxima', viewSubscribers: 'Ver Inscritos', fullAnalytics: 'Analytics Completo', exportCsv: 'Exportar CSV', configure: 'Configurar', retry: 'Tentar novamente' },
   empty: { noData: 'Sem dados ainda', noEditions: 'Nenhuma edição encontrada', noSubscribers: 'Nenhum inscrito ainda', noActivity: 'Nenhuma atividade ainda', startPipeline: 'Comece seu pipeline editorial', addIdea: 'Adicione sua primeira ideia', configCadence: 'Configure a cadência das suas newsletters' },
