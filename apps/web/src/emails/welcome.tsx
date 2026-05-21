@@ -4,6 +4,7 @@ import { EmailMonogram } from './components/email-monogram'
 import { EmailNewsletterList, type NewsletterListItem } from './components/email-newsletter-list'
 import { EmailDivider } from './components/email-divider'
 import { EmailEndMark } from './components/email-end-mark'
+import { EmailFooter } from './components/email-footer'
 import { EMAIL_COLORS, EMAIL_FONTS } from './components/email-tokens'
 
 const COPY = {
@@ -14,6 +15,7 @@ const COPY = {
     subscribedTo: 'Suas newsletters:',
     latestLabel: 'ÚLTIMO ARTIGO',
     readMore: 'Ler artigo →',
+    thankYou: 'Obrigado por estar aqui.',
     signOff: '— Thiago',
   },
   en: {
@@ -23,6 +25,7 @@ const COPY = {
     subscribedTo: 'Your newsletters:',
     latestLabel: 'LATEST ARTICLE',
     readMore: 'Read article →',
+    thankYou: 'Thank you for being here.',
     signOff: '— Thiago',
   },
 } as const
@@ -37,14 +40,16 @@ interface WelcomeEmailProps {
   locale: string
   newsletterNames: NewsletterListItem[]
   latestArticle?: LatestArticle
+  unsubscribeUrl: string
+  archiveUrl?: string
 }
 
-export function WelcomeEmail({ locale, newsletterNames, latestArticle }: WelcomeEmailProps) {
+export function WelcomeEmail({ locale, newsletterNames, latestArticle, unsubscribeUrl, archiveUrl }: WelcomeEmailProps) {
   const isPt = locale === 'pt-BR'
   const c = isPt ? COPY['pt-BR'] : COPY.en
 
   return (
-    <EmailShell preheader={c.preheader}>
+    <EmailShell preheader={c.preheader} lang={locale}>
       <Section style={{ padding: '0 32px' }}>
         <EmailMonogram />
         <Text className="email-ink" style={{
@@ -89,7 +94,7 @@ export function WelcomeEmail({ locale, newsletterNames, latestArticle }: Welcome
             }}>
               {c.latestLabel}
             </Text>
-            <div style={{
+            <div className="email-line" style={{
               border: `1px solid ${EMAIL_COLORS.line}`,
               borderRadius: 6,
               padding: '20px 24px',
@@ -115,7 +120,7 @@ export function WelcomeEmail({ locale, newsletterNames, latestArticle }: Welcome
                   {latestArticle.excerpt}
                 </Text>
               )}
-              <Link href={latestArticle.url} style={{
+              <Link href={latestArticle.url} target="_blank" rel="noopener noreferrer" style={{
                 fontFamily: EMAIL_FONTS.sans,
                 fontSize: 13,
                 fontWeight: 600,
@@ -134,6 +139,15 @@ export function WelcomeEmail({ locale, newsletterNames, latestArticle }: Welcome
           fontFamily: EMAIL_FONTS.serif,
           fontSize: 16,
           color: EMAIL_COLORS.muted,
+          margin: '0 0 4px',
+          lineHeight: '1.6',
+        }}>
+          {c.thankYou}
+        </Text>
+        <Text className="email-muted" style={{
+          fontFamily: EMAIL_FONTS.serif,
+          fontSize: 16,
+          color: EMAIL_COLORS.muted,
           margin: 0,
           lineHeight: '1.6',
         }}>
@@ -143,6 +157,11 @@ export function WelcomeEmail({ locale, newsletterNames, latestArticle }: Welcome
 
       <EmailDivider />
       <EmailEndMark />
+      <EmailFooter
+        unsubscribeUrl={unsubscribeUrl}
+        archiveUrl={archiveUrl ?? 'https://bythiagofigueiredo.com'}
+        locale={locale}
+      />
     </EmailShell>
   )
 }

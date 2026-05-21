@@ -39,7 +39,7 @@ export function ConfirmEmail({ confirmUrl, locale, newsletterNames }: ConfirmEma
   const hasNames = newsletterNames && newsletterNames.length > 0
 
   return (
-    <EmailShell preheader={c.preheader}>
+    <EmailShell preheader={c.preheader} lang={locale}>
       <Section style={{ padding: '0 32px' }}>
         <EmailMonogram />
         <Text className="email-ink" style={{
@@ -78,16 +78,24 @@ export function ConfirmEmail({ confirmUrl, locale, newsletterNames }: ConfirmEma
             {c.listLabel}
           </Text>
           {newsletterNames.map((name, i) => (
-            <Text key={i} className="email-muted" style={{
-              fontFamily: EMAIL_FONTS.serif,
-              fontSize: 15,
-              color: EMAIL_COLORS.muted,
-              margin: '0 0 4px',
-              paddingLeft: 12,
-              lineHeight: '1.6',
+            <Section key={i} style={{
+              borderLeft: `3px solid ${EMAIL_COLORS.accent}`,
+              paddingTop: 10,
+              paddingBottom: 10,
+              paddingLeft: 16,
+              margin: '0 0 8px',
             }}>
-              {'•'} {name}
-            </Text>
+              <Text className="email-ink" style={{
+                fontFamily: EMAIL_FONTS.serif,
+                fontSize: 16,
+                fontWeight: 500,
+                color: EMAIL_COLORS.ink,
+                margin: 0,
+                lineHeight: '1.4',
+              }}>
+                {name}
+              </Text>
+            </Section>
           ))}
         </Section>
       )}
