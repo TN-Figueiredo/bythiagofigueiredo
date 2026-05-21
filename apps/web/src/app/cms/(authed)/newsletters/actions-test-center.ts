@@ -67,7 +67,7 @@ function recordSend(userId: string): void {
 }
 
 // Exported for testing — allows tests to clear rate limit state between runs
-export function _resetRateLimits(): void {
+export async function _resetRateLimits(): Promise<void> {
   lastSendMap.clear()
   hourlySendMap.clear()
 }

@@ -84,13 +84,36 @@ async function TabContent({ tab, siteId, typeFilter, locale, types, siteTimezone
       return <AudienceTab data={data} typeFilter={typeFilter} strings={strings} />
     }
     case 'test-center': {
+      const supabase = (await import('@/lib/supabase/service')).getSupabaseServiceClient()
+      const { data: editionRows } = await supabase
+        .from('newsletter_editions')
+        .select('id, subject, status, newsletter_type_id')
+        .eq('site_id', siteId)
+        .in('status', ['idea', 'draft', 'ready'])
+        .order('created_at', { ascending: false })
+        .limit(50)
+      const editions = (editionRows ?? []).map(e => ({
+        id: e.id as string,
+        subject: e.subject as string,
+        status: e.status as string,
+        typeId: e.newsletter_type_id as string | null,
+      }))
+
       const userClient = (await import('@supabase/ssr')).createServerClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
         { cookies: { async getAll() { return (await (await import('next/headers')).cookies()).getAll() }, async setAll() {} } },
       )
       const { data: { user } } = await userClient.auth.getUser()
-      return <TestCenterTab strings={strings} locale={locale} userEmail={user?.email ?? ''} types={types.map(t => ({ id: t.id, name: t.name, color: t.color }))} editions={[]} />
+      return (
+        <TestCenterTab
+          strings={strings}
+          locale={locale}
+          userEmail={user?.email ?? ''}
+          types={types.map(t => ({ id: t.id, name: t.name, color: t.color }))}
+          editions={editions}
+        />
+      )
     }
     default:
       return null
