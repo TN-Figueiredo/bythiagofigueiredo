@@ -1,6 +1,7 @@
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
 import { sendWelcomeEmail } from '../../../../../lib/newsletter/welcome-email'
 import { generateUnsubscribeToken } from '../../../../../lib/newsletter/confirm-email'
+import { deriveCadenceLabel } from '../../../../../lib/newsletter/format'
 import * as Sentry from '@sentry/nextjs'
 import type { NewsletterListItem } from '../../../../emails/components/email-newsletter-list'
 
@@ -50,18 +51,27 @@ export async function POST(req: Request): Promise<Response> {
 
     const { data: types } = await supabase
       .from('newsletter_types')
-      .select('name, tagline, color, cadence_label')
+      .select('name, tagline, color, cadence_label, cadence_days, cadence_start_date, locale')
       .in('id', typeIds)
       .eq('active', true)
 
-    const newsletterNames: NewsletterListItem[] = (types ?? []).map((t) => ({
-      name: t.name,
-      tagline:
-        t.tagline && t.cadence_label
-          ? `${t.tagline} · ${t.cadence_label}`
-          : (t.tagline ?? t.cadence_label ?? ''),
-      color: t.color ?? '#FF8240',
-    }))
+    const newsletterNames: NewsletterListItem[] = (types ?? []).map((t) => {
+      const typeLocale = (t.locale === 'pt-BR' ? 'pt-BR' : 'en') as 'en' | 'pt-BR'
+      const cadence = deriveCadenceLabel(
+        t.cadence_label,
+        t.cadence_days as number,
+        typeLocale,
+        t.cadence_start_date as string | null,
+      )
+      return {
+        name: t.name,
+        tagline:
+          t.tagline && cadence
+            ? `${t.tagline} · ${cadence}`
+            : (t.tagline ?? cadence ?? ''),
+        color: t.color ?? '#FF8240',
+      }
+    })
 
     let latestArticle: { title: string; url: string; excerpt?: string } | undefined
     try {

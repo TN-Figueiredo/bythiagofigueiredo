@@ -1,4 +1,5 @@
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { deriveCadenceLabel } from '@/lib/newsletter/format'
 import { LinktreeConfigSchema } from './types'
 import type {
   LinktreeConfig,
@@ -155,7 +156,7 @@ export async function getNewsletterTypes(siteId: string): Promise<NewsletterType
   const db = getSupabaseServiceClient()
   const { data } = await db
     .from('newsletter_types')
-    .select('name, slug, locale, cadence_label')
+    .select('name, slug, locale, cadence_label, cadence_days, cadence_start_date')
     .eq('site_id', siteId)
     .eq('active', true)
     .order('sort_order')
@@ -163,7 +164,12 @@ export async function getNewsletterTypes(siteId: string): Promise<NewsletterType
     name: d.name,
     slug: d.slug,
     locale: d.locale,
-    cadenceLabel: d.cadence_label,
+    cadenceLabel: deriveCadenceLabel(
+      d.cadence_label,
+      d.cadence_days as number,
+      (d.locale === 'pt-BR' ? 'pt-BR' : 'en') as 'en' | 'pt-BR',
+      d.cadence_start_date as string | null,
+    ),
   }))
 }
 

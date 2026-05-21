@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import { revalidateTag } from 'next/cache'
 import { after } from 'next/server'
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
+import { deriveCadenceLabel } from '../../../../../lib/newsletter/format'
 import { captureServerActionError } from '../../../../lib/sentry-wrap'
 
 export const dynamic = 'force-dynamic'
@@ -123,18 +124,26 @@ async function getSubscribedTypes(siteId: string, email: string): Promise<NlType
     const typeIds = subs.map((s) => s.newsletter_id)
     const { data: types } = await supabase
       .from('newsletter_types')
-      .select('name, tagline, color, color_dark, cadence_label')
+      .select('name, tagline, color, color_dark, cadence_label, cadence_days, cadence_start_date, locale')
       .in('id', typeIds)
       .eq('active', true)
       .order('sort_order')
 
-    return (types ?? []).map((t) => ({
-      name: t.name as string,
-      tagline: t.tagline as string | null,
-      color: (t.color as string | null) ?? '#FF8240',
-      colorDark: t.color_dark as string | null,
-      cadenceLabel: t.cadence_label as string | null,
-    }))
+    return (types ?? []).map((t) => {
+      const typeLocale = (t.locale as string) === 'pt-BR' ? 'pt-BR' : 'en'
+      return {
+        name: t.name as string,
+        tagline: t.tagline as string | null,
+        color: (t.color as string | null) ?? '#FF8240',
+        colorDark: t.color_dark as string | null,
+        cadenceLabel: deriveCadenceLabel(
+          t.cadence_label as string | null,
+          t.cadence_days as number,
+          typeLocale,
+          t.cadence_start_date as string | null,
+        ),
+      }
+    })
   } catch {
     return []
   }
@@ -143,7 +152,7 @@ async function getSubscribedTypes(siteId: string, email: string): Promise<NlType
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
 
 function localePath(locale: string | undefined): string {
-  return locale === 'pt-BR' ? '/pt' : '/'
+  return locale === 'pt-BR' ? '/pt/' : '/'
 }
 
 /* ── Shared layout component ─────────────────────────────────────────────── */

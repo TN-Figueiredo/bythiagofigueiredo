@@ -2,6 +2,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { unstable_cache } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { deriveCadenceLabel } from '@/lib/newsletter/format'
 
 const supabaseAnon = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -143,7 +144,7 @@ export const getActiveNewsletterTypesForHub = unstable_cache(
 
     let query = supabase
       .from('newsletter_types')
-      .select('id, slug, name, tagline, color, color_dark, badge, cadence_label, sort_order, locale')
+      .select('id, slug, name, tagline, color, color_dark, badge, cadence_label, cadence_days, cadence_start_date, sort_order, locale')
       .eq('site_id', siteId)
       .eq('active', true)
       .order('sort_order')
@@ -170,7 +171,12 @@ export const getActiveNewsletterTypesForHub = unstable_cache(
           color: t.color,
           colorDark: t.color_dark,
           badge: t.badge,
-          cadenceLabel: t.cadence_label,
+          cadenceLabel: deriveCadenceLabel(
+            t.cadence_label,
+            t.cadence_days as number,
+            (t.locale === 'pt-BR' ? 'pt-BR' : 'en') as 'en' | 'pt-BR',
+            t.cadence_start_date as string | null,
+          ),
           subscriberCount: stats.subscriberCount,
           editionsCount: stats.editionsCount,
           latestEditionSubject: latestEdition[0]?.subject ?? null,

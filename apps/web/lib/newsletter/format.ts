@@ -44,9 +44,10 @@ export function deriveCadenceLabel(
   locale: 'en' | 'pt-BR',
   cadenceStartDate?: string | null,
 ): string | null {
-  if (cadenceLabel) return cadenceLabel
-
   const base = CADENCE_MAP[cadenceDays]?.[locale]
+
+  // For non-standard cadences, use stored label if available
+  if (cadenceLabel && !base) return cadenceLabel
   if (!base) {
     if (cadenceDays > 0) {
       return locale === 'pt-BR' ? `a cada ${cadenceDays} dias` : `every ${cadenceDays} days`

@@ -59,8 +59,13 @@ describe('resolveAccentTextColor', () => {
 })
 
 describe('deriveCadenceLabel', () => {
-  it('returns label when cadence_label exists', () => {
-    expect(deriveCadenceLabel('1× por semana', 7, 'pt-BR')).toBe('1× por semana')
+  it('derives fresh label for standard cadences even when cadence_label exists', () => {
+    expect(deriveCadenceLabel('stale weekly label', 7, 'pt-BR')).toBe('Semanal')
+    expect(deriveCadenceLabel('stale biweekly', 14, 'en')).toBe('Bi-weekly')
+  })
+
+  it('returns stored label for non-standard cadences', () => {
+    expect(deriveCadenceLabel('custom 5-day cycle', 5, 'en')).toBe('custom 5-day cycle')
   })
 
   it('derives from cadence_days when label is null', () => {
@@ -95,7 +100,29 @@ describe('deriveCadenceLabel', () => {
     expect(deriveCadenceLabel(null, 0, 'en')).toBeNull()
   })
 
-  it('ignores cadence_start_date when label exists', () => {
-    expect(deriveCadenceLabel('custom', 7, 'en', '2026-05-01')).toBe('custom')
+  it('derives with start_date for standard cadence even when label exists', () => {
+    // 2026-05-01 is a Friday
+    expect(deriveCadenceLabel('stale', 7, 'en', '2026-05-01')).toBe('Weekly, Fridays')
+  })
+
+  it('returns stored label for non-standard cadence even with start_date', () => {
+    expect(deriveCadenceLabel('custom 5-day', 5, 'en', '2026-05-01')).toBe('custom 5-day')
+  })
+
+  it('derives monthly with day-of-week from start_date', () => {
+    // 2026-05-01 is a Friday (day 5)
+    expect(deriveCadenceLabel(null, 30, 'en', '2026-05-01')).toBe('Monthly, Fridays')
+    expect(deriveCadenceLabel(null, 30, 'pt-BR', '2026-05-01')).toBe('mensal, sextas')
+  })
+
+  it('derives biweekly Saturdays correctly (regression: stale "Weekly, Fridays" bug)', () => {
+    // 2026-05-02 is a Saturday (day 6)
+    expect(deriveCadenceLabel(null, 14, 'en', '2026-05-02')).toBe('Bi-weekly, Saturdays')
+    expect(deriveCadenceLabel(null, 14, 'pt-BR', '2026-05-02')).toBe('quinzenal, sábados')
+  })
+
+  it('derives biweekly Wednesdays correctly for pt-BR (regression: stale cadence_label)', () => {
+    // 2026-05-06 is a Wednesday (day 3)
+    expect(deriveCadenceLabel(null, 14, 'pt-BR', '2026-05-06')).toBe('quinzenal, quartas')
   })
 })

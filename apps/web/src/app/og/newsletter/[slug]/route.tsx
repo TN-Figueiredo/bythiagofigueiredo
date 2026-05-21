@@ -25,7 +25,7 @@ export async function GET(
     return await renderNewsletterOgImage({
       name: type.name,
       description: type.description,
-      cadenceLabel: deriveCadenceLabel(type.cadence_label, type.cadence_days, type.locale as 'en' | 'pt-BR'),
+      cadenceLabel: deriveCadenceLabel(type.cadence_label, type.cadence_days, type.locale as 'en' | 'pt-BR', type.cadence_start_date),
       accentColor: type.color,
       author: config.personIdentity?.name ?? config.siteName,
       domain: 'bythiagofigueiredo.com',

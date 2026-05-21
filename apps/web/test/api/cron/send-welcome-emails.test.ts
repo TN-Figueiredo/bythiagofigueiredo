@@ -94,7 +94,7 @@ describe('POST /api/cron/send-welcome-emails', () => {
           select: vi.fn().mockReturnValue({
             in: vi.fn().mockReturnValue({
               eq: vi.fn().mockResolvedValue({
-                data: [{ name: 'Weekly', tagline: 'Weekly picks', color: '#FF8240', cadence_label: 'Weekly' }],
+                data: [{ name: 'Weekly', tagline: 'Weekly picks', color: '#FF8240', cadence_label: null, cadence_days: 7, cadence_start_date: '2026-05-16', locale: 'en' }],
                 error: null,
               }),
             }),

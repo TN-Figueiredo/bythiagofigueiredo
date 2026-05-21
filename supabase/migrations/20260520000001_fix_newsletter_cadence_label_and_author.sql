@@ -1,11 +1,11 @@
--- Clear stale cadence_label so deriveCadenceLabel() auto-derives from cadence_days.
--- Both types already have cadence_days = 14 (biweekly).
+-- Clear all stale cadence_label values so deriveCadenceLabel() auto-derives
+-- from cadence_days + cadence_start_date. Covers all standard cadences (7/14/30).
 -- Scoped to ByThiagoFigueiredo site only.
 UPDATE newsletter_types
 SET cadence_label = NULL,
     updated_at = now()
 WHERE cadence_label IS NOT NULL
-  AND cadence_days = 14
+  AND cadence_days IN (7, 14, 30)
   AND site_id = (SELECT id FROM sites WHERE name = 'ByThiagoFigueiredo' LIMIT 1);
 
 -- Link author_id to the default author for newsletter types that have none.
