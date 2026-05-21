@@ -35,16 +35,11 @@ const nextConfig: NextConfig = {
       bodySizeLimit: '50mb',
     },
   },
-  // @tn-figueiredo/cms v0.1.x ships ESM with `import.meta.url` (MDX renderer)
-  // and preserved JSX. Next requires `transpilePackages` to parse both.
-  // Contract: https://github.com/TN-Figueiredo/cms/blob/main/README.md#nextjs-configuration
-  // The `/ring` subpath (used by middleware) is Edge-safe and does not need
-  // transpilation — only the root `.` subpath (server components using
-  // compileMdx, PostEditor, etc.) goes through here.
-  // `@tn-figueiredo/admin` client primitives (SiteSwitcherProvider,
-  // useSiteSwitcher) live under `./site-switcher` with `'use client'` banner
-  // — used by CMS layout only, no transpilePackages entry needed.
-  transpilePackages: ['@app/shared', '@tn-figueiredo/cms', '@tn-figueiredo/cms-reader', '@tn-figueiredo/newsletter', '@tn-figueiredo/newsletter-admin', '@tn-figueiredo/cms-admin', '@tn-figueiredo/ad-components', '@tn-figueiredo/links', '@tn-figueiredo/links-admin'],
+  // Only packages that ship raw TypeScript or preserved JSX need transpilation.
+  // @app/shared: raw TS (no build step). @tn-figueiredo/cms: ships .jsx in dist/.
+  // @tn-figueiredo/links-admin: sub-path exports (qr-card-builder/*) reference src/.
+  // All other @tn-figueiredo/* packages ship compiled JS from dist/ — no transpile needed.
+  transpilePackages: ['@app/shared', '@tn-figueiredo/cms', '@tn-figueiredo/links-admin'],
 
   webpack(config) {
     config.resolve.extensionAlias = {
