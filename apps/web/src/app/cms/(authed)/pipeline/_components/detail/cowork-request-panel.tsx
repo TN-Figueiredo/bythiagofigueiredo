@@ -1,6 +1,13 @@
 'use client'
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
+import { summarizeContent, buildPrompt } from '@/lib/pipeline/prompt-builders'
+
+// ---------------------------------------------------------------------------
+// Re-exports — keep so existing test imports don't break
+// ---------------------------------------------------------------------------
+
+export { summarizeContent, buildPrompt } from '@/lib/pipeline/prompt-builders'
 
 interface CoworkRequestPanelProps {
   isOpen: boolean
@@ -25,63 +32,6 @@ interface CoworkRequestPanelProps {
   onInsertConsumed?: () => void
 }
 
-interface TiptapNode {
-  type: string
-  text?: string
-  content?: TiptapNode[]
-}
-
-function isJSONContent(value: unknown): value is TiptapNode {
-  return typeof value === 'object' && value !== null && !Array.isArray(value) && (value as Record<string, unknown>).type === 'doc'
-}
-
-function walkText(node: TiptapNode): string[] {
-  const texts: string[] = []
-  if (node.text) texts.push(node.text)
-  if (node.content) {
-    for (const child of node.content) texts.push(...walkText(child))
-  }
-  return texts
-}
-
-function summarizeJSONContent(doc: TiptapNode): string {
-  if (!doc.content) return 'Seção vazia'
-  let headings = 0
-  let paragraphs = 0
-  for (const node of doc.content) {
-    if (node.type === 'heading') headings++
-    if (node.type === 'paragraph') paragraphs++
-  }
-  const allText = walkText(doc).join(' ')
-  const words = allText.split(/\s+/).filter(Boolean).length
-  const parts = [`${words} palavras`]
-  if (headings > 0) parts.push(`${headings} seções`)
-  if (paragraphs > 0) parts.push(`${paragraphs} parágrafos`)
-  return parts.join(' | ')
-}
-
-export function summarizeContent(content: unknown): string {
-  if (!content) return 'Seção vazia'
-  if (isJSONContent(content)) return summarizeJSONContent(content)
-  if (typeof content === 'object' && content !== null && 'body' in content) {
-    const body = (content as Record<string, unknown>).body
-    if (isJSONContent(body)) return summarizeJSONContent(body)
-    if (typeof body === 'string') return summarizeMarkdown(body)
-  }
-  const text = typeof content === 'string' ? content : JSON.stringify(content)
-  return summarizeMarkdown(text)
-}
-
-function summarizeMarkdown(text: string): string {
-  const words = text.split(/\s+/).filter(Boolean).length
-  const headings = (text.match(/^#{1,3}\s+.+$/gm) || []).length
-  const paragraphs = text.split(/\n{2,}/).filter(p => p.trim() && !/^#{1,3}\s/.test(p.trim()) && !/^-{3,}$/.test(p.trim())).length
-  const parts = [`${words} palavras`]
-  if (headings > 0) parts.push(`${headings} seções`)
-  if (paragraphs > 0) parts.push(`${paragraphs} parágrafos`)
-  return parts.join(' | ')
-}
-
 export function CoworkRequestPanel({
   isOpen, onClose, itemId, itemCode, itemTitle, sectionLabel, sectionKey, lang, rev, placeholder,
   format, stage, tags, hook, synopsis, sectionContent, references, onSendAndWait,
@@ -90,6 +40,7 @@ export function CoworkRequestPanel({
   const [instructions, setInstructions] = useState('')
   const [copied, setCopied] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [expandedCitations, setExpandedCitations] = useState<Set<number>>(new Set())
 
   // Insert text at cursor when a citation is triggered
   useEffect(() => {
@@ -156,6 +107,8 @@ export function CoworkRequestPanel({
 
   return (
     <div
+      role="region"
+      aria-label="Painel de requisição Cowork"
       className="sticky top-0 z-10 px-4 py-2.5"
       style={{
         background: 'color-mix(in srgb, var(--gem-accent) 4%, var(--gem-surface))',
@@ -169,6 +122,7 @@ export function CoworkRequestPanel({
         value={instructions}
         onChange={(e) => { setInstructions(e.target.value); setCopied(false) }}
         placeholder={placeholder}
+        aria-label="Instruções para o Cowork"
         className="w-full text-xs p-2 rounded-md resize-y font-sans"
         style={{
           background: 'var(--gem-well)',
@@ -188,14 +142,34 @@ export function CoworkRequestPanel({
           {usedCitations.map((id) => {
             const text = references.get(id) ?? ''
             const truncated = text.length > 80
+            const isExpanded = expandedCitations.has(id)
             return (
               <div key={id} className="group flex gap-1.5 items-baseline" style={{ fontSize: '9px', color: 'var(--gem-dim)', lineHeight: '1.4' }}>
                 <span className="shrink-0 font-semibold" style={{ color: 'var(--gem-accent)' }}>[{id}]</span>
                 {truncated ? (
-                  <>
-                    <span className="group-hover:hidden">{text.slice(0, 80)}...</span>
-                    <span className="hidden group-hover:inline break-words">{text}</span>
-                  </>
+                  <span
+                    tabIndex={0}
+                    role="button"
+                    aria-expanded={isExpanded}
+                    aria-label={`Citacao ${id}`}
+                    onFocus={() => setExpandedCitations(prev => { const next = new Set(prev); next.add(id); return next })}
+                    onBlur={() => setExpandedCitations(prev => { const next = new Set(prev); next.delete(id); return next })}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        setExpandedCitations(prev => {
+                          const next = new Set(prev)
+                          if (next.has(id)) next.delete(id)
+                          else next.add(id)
+                          return next
+                        })
+                      }
+                    }}
+                    className="cursor-pointer"
+                  >
+                    <span className={isExpanded ? 'hidden' : 'group-hover:hidden'}>{text.slice(0, 80)}...</span>
+                    <span className={isExpanded ? 'inline break-words' : 'hidden group-hover:inline break-words'}>{text}</span>
+                  </span>
                 ) : (
                   <span>{text}</span>
                 )}
@@ -239,50 +213,3 @@ export function CoworkRequestPanel({
   )
 }
 
-export function buildPrompt(ctx: {
-  itemCode: string; itemTitle: string; format: string; stage: string
-  tags: string[]; hook: string | null; synopsis: string | null
-  sectionLabel: string; sectionKey: string; lang: string; rev: number
-  contentSummary: string; instructions: string; itemId: string; sectionBase: string
-  references: Map<number, string>
-}): string {
-  const lines: string[] = []
-
-  // Expand citations in instructions
-  const expandedInstructions = ctx.instructions.replace(/\[citacao (\d+)\]/g, (match, idStr) => {
-    const id = Number(idStr)
-    const text = ctx.references.get(id)
-    if (text === undefined) return match
-    const truncated = text.length > 500 ? text.slice(0, 500) + '...' : text
-    return `[citacao ${id}: "${truncated}"]`
-  })
-
-  lines.push(`Pipeline item: ${ctx.itemCode} — "${ctx.itemTitle}"`)
-  lines.push(`Format: ${ctx.format} | Stage: ${ctx.stage} | Language: ${ctx.lang.toUpperCase()}`)
-  if (ctx.tags.length > 0) lines.push(`Tags: ${ctx.tags.join(', ')}`)
-  lines.push('')
-
-  if (ctx.hook) lines.push(`Hook: ${ctx.hook}`)
-  if (ctx.synopsis) lines.push(`Synopsis: ${ctx.synopsis}`)
-  if (ctx.hook || ctx.synopsis) lines.push('')
-
-  lines.push(`Section: ${ctx.sectionLabel} (${ctx.sectionKey}) — rev.${ctx.rev}`)
-  lines.push(`Current content: ${ctx.contentSummary}`)
-  lines.push('')
-
-  lines.push('Instructions:')
-  lines.push(expandedInstructions)
-  lines.push('')
-
-  lines.push('---')
-  lines.push('Use the pipeline API to:')
-  lines.push(`0. GET /api/pipeline/context/cowork-section-schemas → Section schema & formatting reference`)
-  lines.push(`1. GET /api/pipeline/items/${ctx.itemId}/sections/${ctx.sectionBase}?lang=${ctx.lang}`)
-  lines.push('   → Note the "rev" and "item_version" from the response')
-  lines.push('2. Apply the instructions above to the current content, following the schema from step 0')
-  lines.push(`3. PATCH /api/pipeline/items/${ctx.itemId}/sections/${ctx.sectionBase}?lang=${ctx.lang}`)
-  lines.push('   Headers: { "X-Expected-Version": <item_version from GET> }')
-  lines.push('   Body: { "content": <updated>, "rev": <rev from GET>, "source": "cowork" }')
-
-  return lines.join('\n')
-}

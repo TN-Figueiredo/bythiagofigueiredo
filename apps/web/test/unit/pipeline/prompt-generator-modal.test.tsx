@@ -173,4 +173,24 @@ describe('generatePrompt (pure function)', () => {
     const manualCount = result.text.split(/\s+/).filter(Boolean).length
     expect(result.wordCount).toBe(manualCount)
   })
+
+  it('references PATCH API (not server actions) for item update', () => {
+    const result = generatePrompt(baseItem, baseSections, 'en')
+    expect(result.text).toContain(`PATCH /api/pipeline/items/${baseItem.id}`)
+    expect(result.text).toContain('X-Expected-Version')
+    expect(result.text).not.toContain('server action')
+    expect(result.text).not.toContain('updatePipelineItem()')
+  })
+
+  it('references per-section PATCH endpoint for creating target locale sections', () => {
+    const result = generatePrompt(baseItem, baseSections, 'en')
+    expect(result.text).toContain(`PATCH /api/pipeline/items/${baseItem.id}/sections/<section_key>?lang=en`)
+    expect(result.text).toContain('"source": "cowork"')
+  })
+
+  it('includes initial GET step to fetch item version', () => {
+    const result = generatePrompt(baseItem, baseSections, 'en')
+    expect(result.text).toContain(`GET /api/pipeline/items/${baseItem.id}`)
+    expect(result.text).toContain('Note "version" for X-Expected-Version header')
+  })
 })

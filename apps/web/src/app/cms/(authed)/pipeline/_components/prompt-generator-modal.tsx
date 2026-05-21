@@ -1,134 +1,32 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
 import { getFormatIcon } from '@/lib/pipeline/gem-design'
+import { useFocusTrap } from './use-focus-trap'
+import { generatePrompt } from '@/lib/pipeline/prompt-builders'
+import type { PipelineItemForPrompt, SectionForPrompt } from '@/lib/pipeline/prompt-builders'
 
 // ---------------------------------------------------------------------------
-// Public types
+// Re-exports — keep so existing test imports don't break
 // ---------------------------------------------------------------------------
 
-export interface PipelineItemForPrompt {
-  id: string
-  code: string
-  format: string
-  stage: string
-  priority: number
-  language: 'pt-br' | 'en' | 'both'
-  title_pt: string | null
-  title_en: string | null
-  hook: string | null
-  synopsis: string | null
-}
+export { generatePrompt } from '@/lib/pipeline/prompt-builders'
+export type {
+  PipelineItemForPrompt,
+  SectionForPrompt,
+  GenerateResult,
+} from '@/lib/pipeline/prompt-builders'
 
-export interface SectionForPrompt {
-  section_type: string
-  language: string
-  content: string
-}
+// ---------------------------------------------------------------------------
+// Component-only types
+// ---------------------------------------------------------------------------
 
 export interface PromptGeneratorModalProps {
   item: PipelineItemForPrompt
   sections: SectionForPrompt[]
   targetLocale: 'pt-br' | 'en'
   onClose: () => void
-}
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-const SECTION_TRUNCATE_LIMIT = 500
-
-const LANG_LABELS: Record<'pt-br' | 'en', { label: string; audience: string }> = {
-  'pt-br': { label: 'Português (PT-BR)', audience: 'lusófona' },
-  en: { label: 'English', audience: 'anglófona' },
-}
-
-// ---------------------------------------------------------------------------
-// Pure prompt generator
-// ---------------------------------------------------------------------------
-
-interface GenerateResult {
-  text: string
-  wordCount: number
-  wasTruncated: boolean
-}
-
-export function generatePrompt(
-  item: PipelineItemForPrompt,
-  sections: SectionForPrompt[],
-  targetLocale: 'pt-br' | 'en',
-): GenerateResult {
-  const currentLocale: 'pt-br' | 'en' = targetLocale === 'en' ? 'pt-br' : 'en'
-  const targetSuffix = targetLocale === 'en' ? 'en' : 'pt'
-  const currentLangLabel = LANG_LABELS[currentLocale].label
-  const targetLabel = LANG_LABELS[targetLocale].label
-  const targetAudience = LANG_LABELS[targetLocale].audience
-
-  const currentTitle = currentLocale === 'pt-br' ? item.title_pt : item.title_en
-
-  let wasTruncated = false
-
-  // Build sections block
-  const sectionsLines: string[] = []
-  for (const section of sections) {
-    let content = section.content
-    if (content.length > SECTION_TRUNCATE_LIMIT) {
-      content = content.slice(0, SECTION_TRUNCATE_LIMIT) + '...'
-      wasTruncated = true
-    }
-    sectionsLines.push(`${section.section_type}: ${content}`)
-  }
-
-  // Hook and synopsis lines (skip if null)
-  const hookLine = item.hook != null ? `Hook: ${item.hook}` : null
-  const synopsisLine = item.synopsis != null ? `Synopsis: ${item.synopsis}` : null
-
-  const contentBlock = [
-    `Título: ${currentTitle ?? '(vazio)'}`,
-    hookLine,
-    synopsisLine,
-  ]
-    .filter(Boolean)
-    .join('\n')
-
-  const lines: string[] = [
-    '# Contexto',
-    `Pipeline item ${item.code} (${item.format}, stage: ${item.stage}, P${item.priority})`,
-    `Possui apenas versão ${currentLocale}.`,
-    `Item ID: ${item.id}`,
-    `title_${targetSuffix}: (vazio)`,
-    '',
-    `# Conteúdo ${currentLangLabel}`,
-    '',
-    contentBlock,
-    '',
-    `# Seções (${sections.length})`,
-    '',
-    sectionsLines.join('\n'),
-    '',
-    '# Instruções',
-    `Crie a versão ${targetLabel} deste item de ${item.format}.`,
-    `Adapte para audiência ${targetAudience} — não traduza literalmente.`,
-    'Tom narrativo e pessoal.',
-    '',
-    '# O que atualizar',
-    'Use updatePipelineItem() server action:',
-    `- title_${targetSuffix}: título adaptado`,
-    '- language: "both"',
-    '',
-    `Use PATCH /api/pipeline/items/${item.id}/sections:`,
-    `- Crie seções _${targetSuffix} (rascunho_${targetSuffix}, seo_${targetSuffix})`,
-    '- Mantenha seções _shared intactas',
-    '',
-    '[Adicione instruções extras aqui]',
-  ]
-
-  const text = lines.join('\n')
-  const wordCount = text.split(/\s+/).filter(Boolean).length
-
-  return { text, wordCount, wasTruncated }
 }
 
 // ---------------------------------------------------------------------------
@@ -144,6 +42,9 @@ export function PromptGeneratorModal({
   const { text: initialText, wasTruncated } = generatePrompt(item, sections, targetLocale)
   const [promptText, setPromptText] = useState(initialText)
   const wordCount = useMemo(() => promptText.split(/\s+/).filter(Boolean).length, [promptText])
+
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const handleTrapKeyDown = useFocusTrap(dialogRef)
 
   const formatInfo = getFormatIcon(item.format as Parameters<typeof getFormatIcon>[0])
 
@@ -174,10 +75,12 @@ export function PromptGeneratorModal({
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label={`Adicionar versão ${targetTitle} — ${item.code}`}
         className="w-full max-w-lg rounded-lg border border-[#222d40] bg-[#161d2d] p-4 shadow-xl"
+        onKeyDown={handleTrapKeyDown}
       >
         {/* Header */}
         <div className="mb-3">
@@ -201,7 +104,7 @@ export function PromptGeneratorModal({
 
         {/* Textarea */}
         <textarea
-          role="textbox"
+          aria-label="Prompt editável"
           rows={10}
           value={promptText}
           onChange={(e) => setPromptText(e.target.value)}

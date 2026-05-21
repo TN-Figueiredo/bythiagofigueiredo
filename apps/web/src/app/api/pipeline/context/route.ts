@@ -19,6 +19,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: { code: 'INVALID_PARAM', message: 'Invalid group id format' } }, { status: 400 })
   }
 
+  if (skill && !/^[a-z][a-z0-9_]{0,49}$/.test(skill)) {
+    return NextResponse.json({ error: { code: 'INVALID_PARAM', message: 'Invalid skill id format' } }, { status: 400 })
+  }
+
   const supabase = getSupabaseServiceClient()
 
   // If filtering by skill, resolve keys from _system/skill-mappings
@@ -30,8 +34,10 @@ export async function GET(req: NextRequest) {
       .eq('site_id', auth.siteId)
       .eq('key', '_system/skill-mappings')
       .single()
-    const mappings = mappingRow?.content_compact as Record<string, string[]> | null
-    skillKeys = mappings?.[skill] ?? []
+    const raw = mappingRow?.content_compact
+    const mappings = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : null
+    const resolved = mappings?.[skill]
+    skillKeys = Array.isArray(resolved) ? resolved.filter((k): k is string => typeof k === 'string') : []
   }
 
   let query = supabase
@@ -58,15 +64,25 @@ export async function GET(req: NextRequest) {
   const { data, error } = await query
   if (error) return NextResponse.json({ error: { code: 'QUERY_ERROR', message: 'Failed to load references' } }, { status: 400 })
 
-  const mapped = data?.map((d) => ({
-    key: d.key,
-    title: d.title,
-    content: format === 'md' ? d.content_md : d.content_compact ?? d.content_md,
-    ref_group: d.ref_group,
-    sort_order: d.sort_order,
-    version: d.version,
-    updated_at: d.updated_at,
-  }))
+  const mapped = (data ?? []).map((d) => {
+    let content: string | Record<string, unknown> | null
+    if (format === 'md') {
+      content = d.content_md
+    } else if (d.content_compact && typeof d.content_compact === 'object' && !Array.isArray(d.content_compact)) {
+      content = d.content_compact as Record<string, unknown>
+    } else {
+      content = d.content_md
+    }
+    return {
+      key: d.key,
+      title: d.title,
+      content,
+      ref_group: d.ref_group,
+      sort_order: d.sort_order,
+      version: d.version,
+      updated_at: d.updated_at,
+    }
+  })
 
   const headers = buildRateLimitHeaders(auth)
   return NextResponse.json({ data: mapped }, { headers: headers ?? {} })

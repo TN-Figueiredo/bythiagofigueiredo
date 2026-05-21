@@ -162,9 +162,9 @@ describe('buildPrompt', () => {
     expect(result).toContain('Instructions:\nRewrite the intro')
   })
 
-  it('includes reference doc fetch as step 0', () => {
+  it('includes docs fetch as step 0', () => {
     const result = buildPrompt(base)
-    expect(result).toContain('0. GET /api/pipeline/context/cowork-section-schemas')
+    expect(result).toContain('0. GET /api/pipeline/docs/items-and-sections')
   })
 
   it('includes correct API endpoints', () => {
@@ -223,6 +223,36 @@ describe('buildPrompt', () => {
     const result = buildPrompt({ ...base, references: refs, instructions: 'Compare [citacao 1] with [citacao 3]' })
     expect(result).toContain('[citacao 1: "First passage"]')
     expect(result).toContain('[citacao 3: "Third passage"]')
+  })
+
+  it('strips _pt/_en/_shared suffix from sectionKey for API path', () => {
+    const result = buildPrompt({ ...base, sectionKey: 'postprod_scenes_shared', sectionBase: 'postprod_scenes' })
+    expect(result).toContain('GET /api/pipeline/items/abc-123/sections/postprod_scenes?lang=pt')
+    expect(result).toContain('PATCH /api/pipeline/items/abc-123/sections/postprod_scenes?lang=pt')
+  })
+
+  it('includes step-by-step numbered API workflow', () => {
+    const result = buildPrompt(base)
+    const lines = result.split('\n')
+    const stepLines = lines.filter(l => /^\d+\.\s+(GET|PATCH)/.test(l.trim()))
+    expect(stepLines.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('references docs endpoint not removed context key', () => {
+    const result = buildPrompt(base)
+    expect(result).not.toContain('cowork-section-schemas')
+    expect(result).toContain('/api/pipeline/docs/items-and-sections')
+  })
+
+  it('handles empty instructions gracefully', () => {
+    const result = buildPrompt({ ...base, instructions: '' })
+    expect(result).toContain('Instructions:\n')
+    expect(result).toContain('PATCH /api/pipeline/items/')
+  })
+
+  it('handles special characters in item title', () => {
+    const result = buildPrompt({ ...base, itemTitle: 'Test "quoted" & <special>' })
+    expect(result).toContain('Test "quoted" & <special>')
   })
 })
 

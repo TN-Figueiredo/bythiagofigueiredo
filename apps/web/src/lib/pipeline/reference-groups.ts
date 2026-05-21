@@ -1,3 +1,24 @@
+// ---------------------------------------------------------------------------
+// Cowork skills — single source of truth for skill IDs / labels used across
+// the prompt modal, reference-usage mappings, and API context endpoint.
+// ---------------------------------------------------------------------------
+
+export const COWORK_SKILLS = [
+  { id: 'ideator', label: 'Ideator' },
+  { id: 'writer', label: 'Writer' },
+  { id: 'producer', label: 'Producer' },
+  { id: 'product_eval', label: 'Product Eval' },
+  { id: 'perf_review', label: 'Perf Review' },
+  { id: 'curator', label: 'Curator' },
+  { id: 'architect', label: 'Architect' },
+] as const
+
+export type CoworkSkillId = (typeof COWORK_SKILLS)[number]['id']
+
+// ---------------------------------------------------------------------------
+// Reference groups
+// ---------------------------------------------------------------------------
+
 export const REFERENCE_GROUPS = [
   { id: 'pessoal',    label: 'Pessoal',    color: '#34d399' },
   { id: 'estrategia', label: 'Estratégia', color: '#a78bfa' },

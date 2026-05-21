@@ -1,3 +1,5 @@
+export type DomainId = 'items-and-sections' | 'playlists' | 'libraries' | 'research' | 'youtube' | 'utilities'
+
 export interface ApiEndpointMeta {
   method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
   path: string
@@ -6,7 +8,7 @@ export interface ApiEndpointMeta {
 }
 
 export interface CapabilityDomain {
-  domain: string
+  domain: DomainId
   name: string
   description: string
   suggest_when: string
@@ -18,7 +20,7 @@ export interface CapabilityDomain {
 export interface CrossDomainWorkflow {
   name: string
   description: string
-  domains: string[]
+  domains: DomainId[]
   steps: string[]
 }
 
@@ -200,6 +202,15 @@ const CROSS_DOMAIN_WORKFLOWS: CrossDomainWorkflow[] = [
     ],
   },
 ]
+
+export const DOMAIN_LABELS: Record<DomainId, string> = {
+  'items-and-sections': 'Items',
+  playlists: 'Playlists',
+  libraries: 'Libraries',
+  research: 'Research',
+  youtube: 'YouTube',
+  utilities: 'Utilities',
+}
 
 export const API_REGISTRY: ApiCatalog = {
   name: 'Content Pipeline API',

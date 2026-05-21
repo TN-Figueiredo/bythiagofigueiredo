@@ -27,7 +27,7 @@ The root endpoint. Returns the full API catalog: capabilities, system directives
       "endpoint": "/api/pipeline/context",
       "filters": { "group": "?group={id}", "skill": "?skill={name}", "format": "?format=md" }
     },
-    "formats": ["video", "article", "newsletter", "short", "podcast"],
+    "formats": ["video", "blog_post", "newsletter", "course", "campaign"],
     "workflows": { /* stage definitions per format */ }
   }
 }
@@ -134,7 +134,7 @@ Aggregate pipeline statistics. No parameters.
     "archived": 18,
     "by_format": {
       "video": { "total": 45, "byStage": { "idea": 12, "roteiro": 8, "gravacao": 5, ... } },
-      "article": { "total": 30, "byStage": { ... } }
+      "blog_post": { "total": 30, "byStage": { ... } }
     },
     "recently_updated_7d": 23,
     "by_priority": { "critical": 3, "high": 15, "medium": 40, "low": 84 }
@@ -142,7 +142,7 @@ Aggregate pipeline statistics. No parameters.
 }
 ```
 
-**Formats tracked:** video, article, newsletter, short, podcast. Each format has its own workflow stages.
+**Formats tracked:** video, blog_post, newsletter, course, campaign. Each format has its own workflow stages.
 
 ---
 
@@ -169,11 +169,11 @@ Aggregates pipeline items and blog posts for a given tag/topic code.
 
 Workflow stage definitions for each content format, included in the catalog response. Each format defines ordered stages:
 
-- **video:** idea → roteiro → gravacao → edicao → pos_producao → scheduled
-- **article:** idea → outline → draft → review → published
-- **newsletter:** idea → draft → review → scheduled → sent
-- **short:** idea → script → recording → editing → published
-- **podcast:** idea → outline → recording → editing → published
+- **video:** idea → roteiro → gravacao → edicao → pos_producao → scheduled → published
+- **blog_post:** idea → draft → ready → scheduled → published
+- **newsletter:** idea → draft → ready → scheduled → published
+- **course:** idea → outline → modulos → review → published
+- **campaign:** idea → draft → approved → scheduled → sent
 
 Items advance/retreat through stages via `POST /api/pipeline/items/:id/advance` and `POST /api/pipeline/items/:id/retreat`.
 

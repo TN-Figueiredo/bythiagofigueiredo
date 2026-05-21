@@ -105,12 +105,12 @@ export default defineConfig({
         replacement: path.resolve(__dirname, './src/app/api/pipeline/docs/[domain]/route.ts'),
       },
       {
-        find: '@/app/cms/(authed)',
-        replacement: path.resolve(__dirname, './src/app/cms/(authed)'),
+        find: /^@\/app\/cms\/\(authed\)(.*)$/,
+        replacement: path.resolve(__dirname, './src/app/cms/(authed)$1'),
       },
       {
-        find: '@/app/admin/(authed)',
-        replacement: path.resolve(__dirname, './src/app/admin/(authed)'),
+        find: /^@\/app\/admin\/\(authed\)(.*)$/,
+        replacement: path.resolve(__dirname, './src/app/admin/(authed)$1'),
       },
       { find: /^@\/(.*)$/, replacement: path.resolve(__dirname, './src/$1') },
     ],

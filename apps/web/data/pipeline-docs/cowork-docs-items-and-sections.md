@@ -1371,10 +1371,10 @@ Estes campos são gerenciados pela UI (dropdown de categoria, galeria de mídia)
 
 ## Playlists
 
-Para referência completa da API de playlists (CRUD, edges, auto-layout, workflows), consulte a referência `playlist-graph-api` no contexto do pipeline:
+Para referência completa da API de playlists (CRUD, edges, auto-layout, workflows), consulte a documentação de playlists:
 
 ```
-GET /api/pipeline/context/playlist-graph-api
+GET /api/pipeline/docs/playlists
 ```
 
 Resumo dos endpoints disponíveis:
