@@ -93,6 +93,8 @@ Add after the `typeDrawer` section (before closing `}`):
     selectType: string
     selectEdition: string
     recipientLocked: string
+    summaryStats: string
+    deliveringViaSes: string
   }
 ```
 
@@ -154,6 +156,8 @@ Add before the closing `}` of the `en` object (after `typeDrawer` section):
     selectType: 'Select type',
     selectEdition: 'Select edition',
     recipientLocked: 'Locked to admin email',
+    summaryStats: '3 templates · 16 page states · Send locked to admin email',
+    deliveringViaSes: 'Delivering via SES',
   },
 ```
 
@@ -194,6 +198,8 @@ Add before the closing `}` of the `ptBR` object (after `typeDrawer` section):
     selectType: 'Selecionar tipo',
     selectEdition: 'Selecionar edição',
     recipientLocked: 'Destinatário fixo (email admin)',
+    summaryStats: '3 templates · 16 estados de página · Envio restrito ao email admin',
+    deliveringViaSes: 'Entregando via SES',
   },
 ```
 
@@ -284,7 +290,7 @@ interface TestCenterTabProps {
 export function TestCenterTab({ strings }: TestCenterTabProps) {
   return (
     <div className="text-gray-400 text-sm py-8 text-center">
-      {strings.tabs.testCenter} — under construction
+      {strings.tabs['test-center']} — under construction
     </div>
   )
 }
@@ -394,12 +400,7 @@ Add import at the top:
 import { ConfirmLayout, type StateKind, type NlType } from './_layouts/confirm-layout'
 ```
 
-Keep `localePath` defined locally ONLY IF it's still used elsewhere in `page.tsx` (check: it IS used in the main page component for CTA links). Actually, looking at the code, the `ConfirmLayout` itself uses `localePath` internally, and the main page component also constructs URLs with locale. So:
-
-- Move `localePath` into `confirm-layout.tsx` (ConfirmLayout uses it)
-- If `page.tsx` still needs `localePath` for the page component, either re-import it or inline the `locale === 'pt-BR' ? '/pt/' : '/'` logic there.
-
-The safest approach: **export** `localePath` from `confirm-layout.tsx` and import it in `page.tsx` too.
+`localePath` is used by both `ConfirmLayout` and the main page component. **Export** it from `confirm-layout.tsx` and import it in `page.tsx` too.
 
 - [ ] **Step 3: Verify the page still works**
 
@@ -532,7 +533,8 @@ vi.mock('../../../../lib/email/service', () => ({
   getEmailService: vi.fn().mockReturnValue({ send: vi.fn().mockResolvedValue(undefined) }),
 }))
 
-import { renderTestTemplate } from '../../../../src/app/cms/(authed)/newsletters/actions-test-center'
+import { renderTestTemplate, sendTestTemplate } from '../../../../src/app/cms/(authed)/newsletters/actions-test-center'
+import { getEmailService } from '../../../../lib/email/service'
 
 describe('renderTestTemplate', () => {
   beforeEach(() => vi.clearAllMocks())
@@ -552,6 +554,37 @@ describe('renderTestTemplate', () => {
     if (result.ok) {
       expect(result.html).toBe('<html>mock</html>')
     }
+  })
+
+  it('returns error for invalid template', async () => {
+    const result = await renderTestTemplate('invalid' as any, 'pt-BR')
+    expect(result).toEqual({ ok: false, error: 'invalid_template' })
+  })
+})
+
+describe('sendTestTemplate', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('sends confirm email to admin', async () => {
+    const result = await sendTestTemplate('confirm', 'pt-BR')
+    expect(result).toEqual({ ok: true })
+    const sentCall = (getEmailService().send as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(sentCall.subject).toContain('[TEST]')
+  })
+
+  it('returns rate_limited on rapid calls', async () => {
+    await sendTestTemplate('confirm', 'en')
+    const second = await sendTestTemplate('confirm', 'en')
+    expect(second).toEqual({ ok: false, error: 'rate_limited' })
+  })
+
+  it('returns no_user_email when user has no email', async () => {
+    const { createServerClient } = await import('@supabase/ssr')
+    vi.mocked(createServerClient).mockReturnValueOnce({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'u1' } } }) },
+    } as any)
+    const result = await sendTestTemplate('confirm', 'en')
+    expect(result).toEqual({ ok: false, error: 'no_user_email' })
   })
 })
 ```
@@ -731,7 +764,7 @@ export async function sendTestTemplate(
 
 Run: `cd apps/web && npx vitest run test/unit/newsletter/test-center-actions.test.ts --reporter=verbose 2>&1 | tail -15`
 
-Expected: PASS — 2 tests passing.
+Expected: PASS — 6 tests passing.
 
 - [ ] **Step 5: Run full test suite**
 
@@ -821,7 +854,6 @@ git commit -m "feat(test-center): template-selector segmented radio component"
 ```typescript
 'use client'
 
-import { useState, useEffect } from 'react'
 import type { NewsletterHubStrings } from '../../_i18n/types'
 
 interface EditionControlsProps {
@@ -995,7 +1027,7 @@ export function TestSendCard({ userEmail, locale, onSend, strings }: TestSendCar
         </button>
 
         {state === 'sending' && (
-          <p className="text-[10px] text-gray-600 mt-1.5 text-center">Delivering via SES</p>
+          <p className="text-[10px] text-gray-600 mt-1.5 text-center">{strings.deliveringViaSes}</p>
         )}
         {state === 'error' && errorMsg && (
           <p className="text-[10px] text-red-400 mt-1.5 text-center">{errorMsg}</p>
@@ -1290,7 +1322,7 @@ export function TestCenterTab({ strings, locale, userEmail, types }: TestCenterT
       </div>
 
       <SummaryBar
-        stats="3 templates · 16 page states · Send locked to admin email"
+        stats={tc.summaryStats}
         shortcuts={[
           { key: '60s', label: 'cooldown' },
           { key: '10/hr', label: 'limit' },
@@ -1325,7 +1357,7 @@ git commit -m "feat(test-center): full test-center-tab with 2-col layout + previ
 ### Task 12: Create confirm preview routes (8 states)
 
 **Files:**
-- Create: `apps/web/src/app/cms/(authed)/newsletters/_preview/confirm/[state]/page.tsx`
+- Create: `apps/web/src/app/cms/(authed)/newsletters/preview/confirm/[state]/page.tsx`
 
 - [ ] **Step 1: Create the preview route**
 
@@ -1411,19 +1443,7 @@ export default async function ConfirmPreviewPage({ params }: { params: Promise<{
 }
 ```
 
-Also create a client component wrapper for the error boundary (Next.js cannot pass function props from server → client). Add this at the top of the file (before the default export) or as a separate import:
-
-```typescript
-'use client'
-
-import ConfirmError from '@/app/newsletter/confirm/[token]/error'
-
-function ErrorBoundaryPreview() {
-  return <ConfirmError error={new Error('Mock error for preview')} reset={() => window.location.reload()} />
-}
-```
-
-Since the page itself is a server component, the cleanest approach is to create a separate file `apps/web/src/app/cms/(authed)/newsletters/preview/confirm/[state]/error-preview.tsx`:
+Also create `apps/web/src/app/cms/(authed)/newsletters/preview/confirm/[state]/error-preview.tsx` as a separate file:
 
 ```typescript
 'use client'
@@ -1435,15 +1455,11 @@ export function ErrorBoundaryPreview() {
 }
 ```
 
-**Note:** The import paths use `@/app/...` aliases. Verify that `loading.tsx` and `error.tsx` in the confirm directory export default components. The `error.tsx` is a client component with `reset` prop — pass a no-op function since we're in a server component (the reset button won't work in preview, which is fine).
-
-Actually, `error.tsx` is a `'use client'` component that needs `error` and `reset` props. Since we're in a server component wrapping a client component, we need to pass the props. Let's adjust: create a small client wrapper.
-
-Alternatively, since the error boundary component is a client component and we need to render it from a server page, we can just render it directly — Next.js handles client components rendered from server components fine.
+**Note:** The import paths use `@/app/...` aliases. Verify that `loading.tsx` and `error.tsx` in the confirm directory export default components.
 
 - [ ] **Step 2: Verify the route works**
 
-Run: `cd apps/web && npx tsc --noEmit 2>&1 | grep "_preview" | head -10`
+Run: `cd apps/web && npx tsc --noEmit 2>&1 | grep "preview" | head -10`
 
 Expected: No type errors (or minimal errors that can be resolved).
 
@@ -1459,11 +1475,12 @@ git commit -m "feat(test-center): confirm preview routes for 8 page states"
 ### Task 13: Create unsubscribe preview routes (8 states)
 
 **Files:**
-- Create: `apps/web/src/app/cms/(authed)/newsletters/_preview/unsubscribe/[state]/page.tsx`
+- Create: `apps/web/src/app/cms/(authed)/newsletters/preview/unsubscribe/[state]/page.tsx`
 
 - [ ] **Step 1: Create the preview route**
 
 ```typescript
+import React from 'react'
 import { notFound } from 'next/navigation'
 import { UnsubscribeLayout, type StateKind } from '@/app/unsubscribe/[token]/_layouts/unsubscribe-layout'
 import UnsubscribeLoading from '@/app/unsubscribe/[token]/loading'
@@ -1570,7 +1587,7 @@ export function ErrorBoundaryPreview() {
 
 - [ ] **Step 2: Verify TypeScript**
 
-Run: `cd apps/web && npx tsc --noEmit 2>&1 | grep "_preview" | head -10`
+Run: `cd apps/web && npx tsc --noEmit 2>&1 | grep "preview" | head -10`
 
 Expected: No type errors.
 
