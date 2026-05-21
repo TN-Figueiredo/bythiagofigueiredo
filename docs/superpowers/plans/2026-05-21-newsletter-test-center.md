@@ -156,7 +156,7 @@ Add before the closing `}` of the `en` object (after `typeDrawer` section):
     selectType: 'Select type',
     selectEdition: 'Select edition',
     recipientLocked: 'Locked to admin email',
-    summaryStats: '3 templates · 16 page states · Send locked to admin email',
+    summaryStats: '3 templates · 16 page states · Send locked to admin email · 60s cooldown · 10/hr limit',
     deliveringViaSes: 'Delivering via SES',
   },
 ```
@@ -198,7 +198,7 @@ Add before the closing `}` of the `ptBR` object (after `typeDrawer` section):
     selectType: 'Selecionar tipo',
     selectEdition: 'Selecionar edição',
     recipientLocked: 'Destinatário fixo (email admin)',
-    summaryStats: '3 templates · 16 estados de página · Envio restrito ao email admin',
+    summaryStats: '3 templates · 16 estados de página · Envio restrito ao email admin · cooldown 60s · limite 10/hr',
     deliveringViaSes: 'Entregando via SES',
   },
 ```
@@ -314,7 +314,7 @@ In the `TabContent` function switch statement (around line 84), add before `defa
         { cookies: { async getAll() { return (await (await import('next/headers')).cookies()).getAll() }, async setAll() {} } },
       )
       const { data: { user } } = await userClient.auth.getUser()
-      return <TestCenterTab strings={strings} locale={locale} userEmail={user?.email ?? ''} types={sharedData.types.map(t => ({ id: t.id, name: t.name, color: t.color }))} />
+      return <TestCenterTab strings={strings} locale={locale} userEmail={user?.email ?? ''} types={types.map(t => ({ id: t.id, name: t.name, color: t.color }))} />
     }
 ```
 
@@ -501,15 +501,15 @@ vi.mock('@supabase/ssr', () => ({
   }),
 }))
 
-vi.mock('../../../../lib/supabase/service', () => ({
+vi.mock('../../../lib/supabase/service', () => ({
   getSupabaseServiceClient: () => ({ from: vi.fn() }),
 }))
 
-vi.mock('../../../../lib/cms/site-context', () => ({
+vi.mock('../../../lib/cms/site-context', () => ({
   getSiteContext: vi.fn().mockResolvedValue({ siteId: 'site-1', defaultLocale: 'pt-BR' }),
 }))
 
-vi.mock('../../../../lib/cms/auth-guards', () => ({
+vi.mock('../../../lib/cms/auth-guards', () => ({
   requireSiteAdminForRow: vi.fn(),
 }))
 
@@ -521,20 +521,20 @@ vi.mock('@react-email/render', () => ({
   render: vi.fn().mockResolvedValue('<html>mock</html>'),
 }))
 
-vi.mock('../../../../src/emails/confirm', () => ({
+vi.mock('../../../src/emails/confirm', () => ({
   ConfirmEmail: vi.fn(() => null),
 }))
 
-vi.mock('../../../../src/emails/welcome', () => ({
+vi.mock('../../../src/emails/welcome', () => ({
   WelcomeEmail: vi.fn(() => null),
 }))
 
-vi.mock('../../../../lib/email/service', () => ({
+vi.mock('../../../lib/email/service', () => ({
   getEmailService: vi.fn().mockReturnValue({ send: vi.fn().mockResolvedValue(undefined) }),
 }))
 
-import { renderTestTemplate, sendTestTemplate } from '../../../../src/app/cms/(authed)/newsletters/actions-test-center'
-import { getEmailService } from '../../../../lib/email/service'
+import { renderTestTemplate, sendTestTemplate } from '../../../src/app/cms/(authed)/newsletters/actions-test-center'
+import { getEmailService } from '../../../lib/email/service'
 
 describe('renderTestTemplate', () => {
   beforeEach(() => vi.clearAllMocks())
@@ -573,8 +573,9 @@ describe('sendTestTemplate', () => {
   })
 
   it('returns rate_limited on rapid calls', async () => {
-    await sendTestTemplate('confirm', 'en')
-    const second = await sendTestTemplate('confirm', 'en')
+    // Both calls in same test to ensure module-level Map state is sequential
+    await sendTestTemplate('confirm', 'pt-BR')
+    const second = await sendTestTemplate('confirm', 'pt-BR')
     expect(second).toEqual({ ok: false, error: 'rate_limited' })
   })
 
@@ -1135,7 +1136,7 @@ Replace the entire file with:
 ```typescript
 'use client'
 
-import { useState, useCallback, useEffect, useTransition } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { RefreshCw } from 'lucide-react'
 import type { NewsletterHubStrings } from '../../_i18n/types'
 import { SummaryBar } from '../../_shared/summary-bar'
@@ -1321,13 +1322,7 @@ export function TestCenterTab({ strings, locale, userEmail, types }: TestCenterT
         </div>
       </div>
 
-      <SummaryBar
-        stats={tc.summaryStats}
-        shortcuts={[
-          { key: '60s', label: 'cooldown' },
-          { key: '10/hr', label: 'limit' },
-        ]}
-      />
+      <SummaryBar stats={tc.summaryStats} />
     </div>
   )
 }
@@ -1638,7 +1633,7 @@ In `page.tsx`, update the `test-center` case to fetch editions:
           strings={strings}
           locale={locale}
           userEmail={user?.email ?? ''}
-          types={sharedData.types.map(t => ({ id: t.id, name: t.name, color: t.color }))}
+          types={types.map(t => ({ id: t.id, name: t.name, color: t.color }))}
           editions={editions}
         />
       )
