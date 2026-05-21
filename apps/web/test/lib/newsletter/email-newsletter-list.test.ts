@@ -27,13 +27,6 @@ describe('EmailNewsletterList', () => {
     expect(html).toContain('#1F5F8B')
   })
 
-  it('renders label when provided', async () => {
-    const html = await render(
-      React.createElement(EmailNewsletterList, { items, label: 'Suas newsletters:' })
-    )
-    expect(html).toContain('Suas newsletters:')
-  })
-
   it('returns null for empty array', async () => {
     const html = await render(
       React.createElement(EmailNewsletterList, { items: [] })

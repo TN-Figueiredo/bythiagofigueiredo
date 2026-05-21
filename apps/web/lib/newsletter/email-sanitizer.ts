@@ -1,6 +1,10 @@
 import juice from 'juice'
 import { getEmailStylesheet } from './email-styles'
 
+function escapeVmlAttr(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
 /** Compress juice-expanded inline styles: `color: red; margin: 0` → `color:red;margin:0` */
 function compressInlineStyles(html: string): string {
   return html.replace(/style="([^"]*)"/gi, (_match, declarations: string) => {
@@ -65,12 +69,13 @@ export function sanitizeForEmail(html: string, typeColor: string): string {
     (_match, attrs: string, text: string) => {
       const hrefMatch = attrs.match(/href="([^"]*)"/)
       const href = hrefMatch?.[1] ?? '#'
+      const safeHref = escapeVmlAttr(href)
       const bgMatch = attrs.match(/background:([^;"]+)/)
-      const bg = (bgMatch?.[1] ?? typeColor).trim()
+      const bg = escapeVmlAttr((bgMatch?.[1] ?? typeColor).trim())
       const fallbackLink = `<a${attrs}>${text}</a>`
       return [
         `<!--[if mso]>`,
-        `<v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${href}" style="height:44px;v-text-anchor:middle;width:200px;" arcsize="14%" strokecolor="${bg}" fillcolor="${bg}">`,
+        `<v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${safeHref}" style="height:44px;v-text-anchor:middle;width:200px;" arcsize="14%" strokecolor="${bg}" fillcolor="${bg}">`,
         `<w:anchorlock/>`,
         `<center style="color:#ffffff;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;">${text}</center>`,
         `</v:roundrect>`,

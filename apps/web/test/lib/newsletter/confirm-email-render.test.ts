@@ -35,8 +35,8 @@ describe('ConfirmEmail React Email template', () => {
         locale: 'en',
       })
     )
-    expect(html).toContain('Confirm subscription')
-    expect(html).toContain('Almost there')
+    expect(html).toContain('Confirm Subscription')
+    expect(html).toContain('Confirm your subscription')
   })
 
   it('includes branded accent color', async () => {

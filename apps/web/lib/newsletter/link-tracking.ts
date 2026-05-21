@@ -5,6 +5,8 @@ const SKIP_PATTERNS = [
   /^#/,
   /\/newsletter\/unsubscribe/i,
   /\/newsletter\/preferences/i,
+  /\/api\/newsletters\/unsubscribe/i,
+  /\/unsubscribe\//i,
   /list-unsubscribe/i,
 ]
 

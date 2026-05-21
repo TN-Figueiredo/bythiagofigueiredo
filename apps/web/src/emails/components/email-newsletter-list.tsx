@@ -9,28 +9,15 @@ export interface NewsletterListItem {
 
 interface EmailNewsletterListProps {
   items: NewsletterListItem[]
-  label?: string
 }
 
-export function EmailNewsletterList({ items, label }: EmailNewsletterListProps) {
+export function EmailNewsletterList({ items }: EmailNewsletterListProps) {
   if (items.length === 0) return null
 
   return (
-    <Section style={{ margin: '20px 32px' }}>
-      {label && (
-        <Text className="email-muted" style={{
-          fontFamily: EMAIL_FONTS.sans,
-          fontSize: 13,
-          fontWeight: 600,
-          color: EMAIL_COLORS.muted,
-          margin: '0 0 12px',
-          lineHeight: '1.4',
-        }}>
-          {label}
-        </Text>
-      )}
+    <Section style={{ margin: '20px 48px 4px' }}>
       {items.map((item, i) => (
-        <div key={i} style={{
+        <div key={item.name} style={{
           borderLeft: `3px solid ${item.color}`,
           padding: '10px 0 10px 16px',
           marginBottom: i < items.length - 1 ? 10 : 0,

@@ -4,14 +4,11 @@ import { EMAIL_COLORS } from './email-tokens'
 export function EmailDivider() {
   return (
     <Hr
-      className="email-divider"
+      className="email-line"
       style={{
-        borderColor: EMAIL_COLORS.line,
-        borderTop: 'none',
-        borderLeft: 'none',
-        borderRight: 'none',
+        border: 'none',
         borderBottom: `1px solid ${EMAIL_COLORS.line}`,
-        margin: '32px 32px',
+        margin: '32px 48px',
       }}
     />
   )

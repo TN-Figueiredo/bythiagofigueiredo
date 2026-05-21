@@ -2,6 +2,7 @@ import { revalidateTag } from 'next/cache'
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
 import { withCronLock, newRunId } from '../../../../../lib/logger'
 import { getEmailService } from '../../../../../lib/email/service'
+import { generateUnsubscribeToken } from '../../../../../lib/newsletter/confirm-email'
 import { render } from '@react-email/render'
 import { Newsletter } from '../../../../emails/newsletter'
 import * as Sentry from '@sentry/nextjs'
@@ -131,7 +132,7 @@ async function sendEdition(
   const replyTo = type?.reply_to ?? undefined
   const maxBounceRate = type?.max_bounce_rate_pct ?? 5
   const typeName = type?.name ?? 'Newsletter'
-  const typeColor = type?.color ?? '#ea580c'
+  const typeColor = type?.color ?? '#FF8240'
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://bythiagofigueiredo.com'
   const fromDomain = process.env.NEWSLETTER_FROM_DOMAIN ?? 'bythiagofigueiredo.com'
 
@@ -144,51 +145,18 @@ async function sendEdition(
     .replace(/^-|-$/g, '')
     .slice(0, 60)
 
-  const { createHash } = await import('crypto')
-
-  // For crash recovery: read existing tokens so we reuse them instead of generating orphans
-  const subscriberEmails = unsent.map((s) => s.subscriber_email)
-  const { data: existingTokens } = await supabase
-    .from('unsubscribe_tokens')
-    .select('email, token')
-    .eq('site_id', edition.site_id)
-    .in('email', subscriberEmails)
-
-  const existingTokenMap = new Map<string, string>()
-  for (const t of existingTokens ?? []) {
-    existingTokenMap.set(t.email, t.token)
-  }
-
-  // Generate tokens only for subscribers who don't have one yet
+  const tokenRows: { site_id: string; email: string; token_hash: string }[] = []
   const tokenMap = new Map<string, string>()
-  const newTokenRows: { site_id: string; email: string; token: string }[] = []
 
   for (const send of unsent) {
-    const existingHash = existingTokenMap.get(send.subscriber_email)
-    if (existingHash) {
-      // We can't recover the raw token from the hash, but we can use a fresh token
-      // and update the existing row
-      const { randomUUID } = await import('crypto')
-      const rawToken = randomUUID() + randomUUID().replace(/-/g, '')
-      const tokenHash = createHash('sha256').update(rawToken).digest('hex')
-      tokenMap.set(send.subscriber_email, rawToken)
-      // Update existing token with new hash
-      await supabase.from('unsubscribe_tokens')
-        .update({ token: tokenHash })
-        .eq('site_id', edition.site_id)
-        .eq('email', send.subscriber_email)
-    } else {
-      const { randomUUID } = await import('crypto')
-      const rawToken = randomUUID() + randomUUID().replace(/-/g, '')
-      const tokenHash = createHash('sha256').update(rawToken).digest('hex')
-      tokenMap.set(send.subscriber_email, rawToken)
-      newTokenRows.push({ site_id: edition.site_id, email: send.subscriber_email, token: tokenHash })
-    }
+    const { raw, hash } = generateUnsubscribeToken(edition.site_id, send.subscriber_email)
+    tokenMap.set(send.subscriber_email, raw)
+    tokenRows.push({ site_id: edition.site_id, email: send.subscriber_email, token_hash: hash })
   }
 
-  if (newTokenRows.length > 0) {
+  if (tokenRows.length > 0) {
     await supabase.from('unsubscribe_tokens')
-      .upsert(newTokenRows, { onConflict: 'site_id,email', ignoreDuplicates: true })
+      .upsert(tokenRows, { onConflict: 'site_id,email', ignoreDuplicates: false })
   }
 
   const emailService = getEmailService()
@@ -221,6 +189,7 @@ async function sendEdition(
           typeColor,
           unsubscribeUrl,
           archiveUrl,
+          locale: subscriberLocale ?? undefined,
         }))
 
         // Apply link rewriting BEFORE sending.

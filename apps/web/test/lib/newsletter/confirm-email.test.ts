@@ -69,10 +69,10 @@ describe('confirm-email shared module', () => {
       delete process.env.NEXT_PUBLIC_APP_URL
     })
 
-    it('adds /pt prefix for pt-BR locale', () => {
+    it('does not add locale prefix for pt-BR (route has no locale prefix)', () => {
       process.env.NEXT_PUBLIC_APP_URL = 'https://example.com'
       const url = buildConfirmUrl('abc123', 'pt-BR')
-      expect(url).toBe('https://example.com/pt/newsletter/confirm/abc123')
+      expect(url).toBe('https://example.com/newsletter/confirm/abc123')
       delete process.env.NEXT_PUBLIC_APP_URL
     })
 
@@ -116,11 +116,17 @@ describe('confirm-email shared module', () => {
       expect(html).toBe('<html>rendered</html>')
     })
 
-    it('does not throw when email send fails', async () => {
+    it('returns false when email send fails', async () => {
       mockSend.mockRejectedValueOnce(new Error('SMTP down'))
       await expect(
         sendNewsletterConfirmEmail({ to: 'user@example.com', rawToken: 'abc', locale: 'en' }),
-      ).resolves.toBeUndefined()
+      ).resolves.toBe(false)
+    })
+
+    it('returns true on successful send', async () => {
+      await expect(
+        sendNewsletterConfirmEmail({ to: 'user@example.com', rawToken: 'abc', locale: 'en' }),
+      ).resolves.toBe(true)
     })
 
     it('captures email failure to Sentry', async () => {

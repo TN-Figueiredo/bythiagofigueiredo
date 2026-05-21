@@ -15,22 +15,32 @@ export interface WelcomeEmailOpts {
   locale: string
   newsletterNames: NewsletterListItem[]
   latestArticle?: LatestArticle
+  unsubscribeUrl: string
+  archiveUrl?: string
 }
 
-export async function sendWelcomeEmail(opts: WelcomeEmailOpts): Promise<void> {
-  const { to, locale, newsletterNames, latestArticle } = opts
+export async function sendWelcomeEmail(opts: WelcomeEmailOpts): Promise<boolean> {
+  const { to, locale, newsletterNames, latestArticle, unsubscribeUrl, archiveUrl } = opts
   const isPt = locale === 'pt-BR'
   const domain = process.env.NEWSLETTER_FROM_DOMAIN ?? 'bythiagofigueiredo.com'
 
   try {
-    const html = await render(WelcomeEmail({ locale, newsletterNames, latestArticle }))
+    const html = await render(WelcomeEmail({ locale, newsletterNames, latestArticle, unsubscribeUrl, archiveUrl }))
     await getEmailService().send({
       from: { name: 'Thiago Figueiredo', email: `no-reply@${domain}` },
       to,
       subject: isPt ? 'Bem-vindo à newsletter!' : 'Welcome to the newsletter!',
       html,
+      metadata: {
+        headers: {
+          'List-Unsubscribe': `<mailto:unsubscribe@${domain}?subject=unsubscribe>, <${unsubscribeUrl}>`,
+          'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+        },
+      },
     })
+    return true
   } catch (err) {
     captureServerActionError(err, { action: 'send_welcome_email', branch: 'send' })
+    return false
   }
 }

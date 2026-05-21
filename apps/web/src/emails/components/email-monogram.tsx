@@ -3,25 +3,26 @@ import { EMAIL_COLORS, EMAIL_FONTS } from './email-tokens'
 
 export function EmailMonogram() {
   return (
-    <Section style={{ textAlign: 'center', padding: '0 0 24px' }}>
-      <Text style={{
+    <Section aria-hidden="true" style={{ textAlign: 'center', padding: '40px 40px 28px' }}>
+      <Text className="email-ink" style={{
         fontFamily: EMAIL_FONTS.serif,
-        fontSize: 40,
+        fontSize: 44,
         fontWeight: 500,
         color: EMAIL_COLORS.ink,
-        letterSpacing: '-3px',
+        letterSpacing: '-4px',
         lineHeight: '1',
         margin: 0,
+        whiteSpace: 'nowrap' as const,
       }}>
         T<span style={{
           fontStyle: 'italic',
           color: EMAIL_COLORS.accent,
         }}>F</span><span style={{
           fontSize: 8,
+          color: EMAIL_COLORS.ink,
           verticalAlign: 'middle',
           marginLeft: 2,
-          color: EMAIL_COLORS.ink,
-        }}>●</span>
+        }}>&#9679;</span>
       </Text>
     </Section>
   )

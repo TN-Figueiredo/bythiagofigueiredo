@@ -1,4 +1,4 @@
-import crypto from 'node:crypto'
+import crypto, { createHmac } from 'node:crypto'
 import { render } from '@react-email/render'
 import { getEmailService } from '../email/service'
 import { captureServerActionError } from '../../src/lib/sentry-wrap'
@@ -12,10 +12,21 @@ export function hashConfirmToken(raw: string): string {
   return crypto.createHash('sha256').update(raw).digest('hex')
 }
 
-export function buildConfirmUrl(rawToken: string, locale: string): string {
+function getUnsubscribeKey(): Buffer {
+  const secret = process.env.CRON_SECRET ?? 'dev-fallback-key'
+  return crypto.createHash('sha256').update(`unsubscribe-token:${secret}`).digest()
+}
+
+export function generateUnsubscribeToken(siteId: string, email: string): { raw: string; hash: string } {
+  const key = getUnsubscribeKey()
+  const raw = createHmac('sha256', key).update(`${siteId}:${email.toLowerCase()}`).digest('hex')
+  const hash = crypto.createHash('sha256').update(raw).digest('hex')
+  return { raw, hash }
+}
+
+export function buildConfirmUrl(rawToken: string, _locale: string): string {
   const base = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-  const prefix = locale === 'pt-BR' ? '/pt' : ''
-  return `${base}${prefix}/newsletter/confirm/${rawToken}`
+  return `${base}/newsletter/confirm/${rawToken}`
 }
 
 export interface SendConfirmEmailOpts {
@@ -26,7 +37,7 @@ export interface SendConfirmEmailOpts {
   newsletterNames?: string[]
 }
 
-export async function sendNewsletterConfirmEmail(opts: SendConfirmEmailOpts): Promise<void> {
+export async function sendNewsletterConfirmEmail(opts: SendConfirmEmailOpts): Promise<boolean> {
   const { to, rawToken, locale, action = 'newsletter_subscribe', newsletterNames } = opts
   const confirmUrl = buildConfirmUrl(rawToken, locale)
   const isPt = locale === 'pt-BR'
@@ -39,7 +50,9 @@ export async function sendNewsletterConfirmEmail(opts: SendConfirmEmailOpts): Pr
       subject: isPt ? 'Confirme sua inscrição' : 'Confirm your subscription',
       html,
     })
+    return true
   } catch (err) {
     captureServerActionError(err, { action, branch: 'send_confirm_email' })
+    return false
   }
 }

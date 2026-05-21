@@ -453,6 +453,16 @@ textarea:focus-visible {
   .pb-tape {
     display: none !important;
   }
+  /* Disable shimmer stripe on the newsletter confirm page */
+  [style*="animation: shimmer"],
+  [style*="animation:shimmer"] {
+    animation: none !important;
+    background-position: 0 0 !important;
+  }
+  /* Disable pulse on loading skeletons */
+  .animate-pulse {
+    animation: none !important;
+  }
 }
 
 @keyframes float {

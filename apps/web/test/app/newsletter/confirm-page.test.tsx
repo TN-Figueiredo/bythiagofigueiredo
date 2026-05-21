@@ -132,4 +132,47 @@ describe('/newsletter/confirm/[token] page', () => {
       expect.objectContaining({ action: 'confirm_newsletter' }),
     )
   })
+
+  it('renders English text when locale is "en"', async () => {
+    fromMock.mockReturnValue(
+      makeSelectChain({ data: { locale: 'en' }, error: null }),
+    )
+    rpcMock.mockResolvedValueOnce({
+      data: { ok: true, site_id: 'site-1', email: 'a@b.com' },
+      error: null,
+    })
+
+    const jsx = await ConfirmPage(ctx('en-token'))
+    render(jsx as React.ReactElement)
+    expect(screen.getByText('Subscription confirmed!')).toBeTruthy()
+  })
+
+  it('renders error state when RPC returns ok=false, error=invalid_state', async () => {
+    rpcMock.mockResolvedValueOnce({
+      data: { ok: false, error: 'invalid_state' },
+      error: null,
+    })
+
+    const jsx = await ConfirmPage(ctx('invalid-state-token'))
+    render(jsx as React.ReactElement)
+    expect(screen.getByText('Não foi possível confirmar')).toBeTruthy()
+  })
+
+  it('exports metadata with robots noindex and dynamic=force-dynamic', async () => {
+    const mod = await import('../../../src/app/newsletter/confirm/[token]/page')
+    expect(mod.metadata.robots).toEqual({ index: false, follow: false })
+    expect(mod.dynamic).toBe('force-dynamic')
+  })
+
+  it('renders error state and calls captureServerActionError when RPC throws (outer catch)', async () => {
+    rpcMock.mockRejectedValueOnce(new Error('network'))
+
+    const jsx = await ConfirmPage(ctx('throw-token'))
+    render(jsx as React.ReactElement)
+    expect(screen.getByText('Erro ao confirmar')).toBeTruthy()
+    expect(captureServerActionErrorSpy).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({ action: 'confirm_newsletter', branch: 'outer_catch' }),
+    )
+  })
 })

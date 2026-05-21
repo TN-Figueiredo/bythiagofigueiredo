@@ -1,3 +1,4 @@
+import React from 'react'
 import { createHash } from 'node:crypto'
 import type { Metadata } from 'next'
 import { unsubscribeViaToken } from './actions'
@@ -16,7 +17,6 @@ export const fetchCache = 'force-no-store'
 
 export const metadata: Metadata = {
   robots: { index: false, follow: false },
-  other: { 'cache-control': 'no-store' },
 }
 
 // M3: minimal two-locale copy.
@@ -127,7 +127,7 @@ const s = {
     flexDirection: 'column' as const,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: '48px 24px 56px',
+    padding: '40px 20px',
     background: 'var(--pb-bg, #1A1714)',
     position: 'relative' as const,
     isolation: 'isolate' as const,
@@ -147,7 +147,7 @@ const s = {
     position: 'relative' as const,
     zIndex: 1,
     width: '100%',
-    maxWidth: 680,
+    maxWidth: 520,
     display: 'flex',
     flexDirection: 'column' as const,
     alignItems: 'center',
@@ -156,36 +156,11 @@ const s = {
 
   /* Monogram above the card */
   monogramWrap: {
-    marginBottom: 20,
+    marginBottom: 32,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-  } as React.CSSProperties,
-
-  monogramBox: {
-    width: 56,
-    height: 56,
-    borderRadius: '50%',
-    border: '1.5px solid var(--pb-line, #332D25)',
-    background: 'var(--pb-paper, #221E1A)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-  } as React.CSSProperties,
-
-  monogramText: {
-    fontFamily: 'var(--font-source-serif-var), serif',
-    fontSize: 22,
-    fontWeight: 500,
-    letterSpacing: '-0.06em',
-    lineHeight: 1,
-    color: 'var(--pb-ink, #F5EFE6)',
-  } as React.CSSProperties,
-
-  monogramItalic: {
-    fontStyle: 'italic',
-    color: 'var(--pb-muted, #958A75)',
+    animation: 'fadeIn 0.5s ease-out',
   } as React.CSSProperties,
 
   /* Main card */
@@ -200,14 +175,14 @@ const s = {
 
   /* Muted top stripe (departure theme — always var(--pb-line)) */
   stripe: {
-    height: 3,
+    height: 4,
     background: 'var(--pb-line, #332D25)',
     borderRadius: '6px 6px 0 0',
   } as React.CSSProperties,
 
   /* Card inner padding */
   cardInner: {
-    padding: '40px 40px 44px',
+    padding: '48px 48px 44px',
   } as React.CSSProperties,
 
   /* Farewell fleuron icon */
@@ -238,18 +213,19 @@ const s = {
   title: {
     fontFamily: 'var(--font-fraunces-var), serif',
     fontSize: 28,
-    fontWeight: 600,
+    fontWeight: 500,
     color: 'var(--pb-ink, #F5EFE6)',
-    margin: '0 0 14px',
+    margin: '0 0 16px',
     lineHeight: 1.2,
+    letterSpacing: '-0.02em',
   } as React.CSSProperties,
 
   body: {
     fontFamily: 'var(--font-source-serif-var), serif',
     fontSize: 17,
-    lineHeight: 1.7,
+    lineHeight: 1.65,
     color: 'var(--pb-muted, #958A75)',
-    margin: '0 0 28px',
+    margin: '0 0 0',
     maxWidth: 480,
     marginLeft: 'auto',
     marginRight: 'auto',
@@ -258,11 +234,11 @@ const s = {
   /* Sign-off (ok state only) */
   signoff: {
     fontFamily: 'var(--font-source-serif-var), serif',
-    fontSize: 15,
-    fontStyle: 'italic' as const,
-    color: 'var(--pb-faint, #928871)',
-    margin: '0 0 28px',
-    lineHeight: 1.5,
+    fontSize: 16,
+    color: 'var(--pb-muted, #958A75)',
+    marginTop: 24,
+    marginBottom: 0,
+    lineHeight: 1.6,
   } as React.CSSProperties,
 
   /* Outlined (departure) unsubscribe button */
@@ -288,19 +264,16 @@ const s = {
     height: 1,
     background: 'var(--pb-line, #332D25)',
     border: 'none',
-    margin: '0 0 24px',
+    margin: '32px 0',
   } as React.CSSProperties,
 
   /* Home link */
   homeLink: {
-    fontFamily: 'var(--font-jetbrains-var), monospace',
-    fontSize: 12,
-    letterSpacing: '0.06em',
-    textTransform: 'uppercase' as const,
-    color: 'var(--pb-muted, #958A75)',
+    fontFamily: 'var(--font-inter-var), Arial, sans-serif',
+    fontSize: 13,
+    fontWeight: 500,
+    color: 'var(--pb-faint, #6B634F)',
     textDecoration: 'none',
-    borderBottom: '1px dashed var(--pb-line, #332D25)',
-    paddingBottom: 2,
   } as React.CSSProperties,
 
   homeLinkArrow: {
@@ -311,39 +284,23 @@ const s = {
   endMark: {
     marginTop: 36,
     display: 'flex',
-    flexDirection: 'column' as const,
+    flexDirection: 'row' as const,
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'center',
+    gap: 14,
   } as React.CSSProperties,
 
   endLine: {
-    width: 40,
+    width: 36,
     height: 1,
     background: 'var(--pb-line, #332D25)',
   } as React.CSSProperties,
 
   endFleuron: {
-    fontFamily: 'serif',
-    fontSize: 14,
-    color: 'var(--pb-faint, #928871)',
-    opacity: 0.5,
+    fontFamily: "'Source Serif 4', Georgia, serif",
+    fontSize: 16,
+    color: 'var(--pb-accent, #FF8240)',
     lineHeight: 1,
-  } as React.CSSProperties,
-
-  signature: {
-    fontFamily: 'var(--font-source-serif-var), serif',
-    fontSize: 12,
-    color: 'var(--pb-faint, #928871)',
-    opacity: 0.6,
-    letterSpacing: '0.02em',
-    display: 'flex',
-    alignItems: 'center',
-    gap: 6,
-  } as React.CSSProperties,
-
-  sigMonogram: {
-    fontWeight: 500,
-    letterSpacing: '-0.04em',
   } as React.CSSProperties,
 }
 
@@ -352,10 +309,43 @@ const s = {
 function ResponsiveStyles() {
   return (
     <style>{`
-      @media (min-width: 640px) {
-        .unsub-title { font-size: 34px !important; }
-        .unsub-card-inner { padding: 48px 56px 52px !important; }
+      @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(16px); }
+        to { opacity: 1; transform: translateY(0); }
       }
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * { animation: none !important; }
+      }
+      @media (max-width: 560px) {
+        .unsub-card-inner { padding: 36px 28px 32px !important; }
+        .unsub-title { font-size: 24px !important; }
+        .unsub-monogram { font-size: 38px !important; margin-bottom: 24px !important; }
+      }
+      .unsub-btn:focus-visible {
+        outline: 2px solid var(--pb-accent, #FF8240);
+        outline-offset: 2px;
+      }
+      .unsub-btn:hover {
+        background: rgba(193, 69, 19, 0.1) !important;
+      }
+      .unsub-manage:hover {
+        background: var(--pb-accent, #FF8240) !important;
+        color: #1F1B17 !important;
+        transform: translateY(-1px);
+      }
+      .unsub-manage:focus-visible {
+        outline: 2px solid var(--pb-accent, #FF8240);
+        outline-offset: 3px;
+      }
+      .unsub-home-link:hover {
+        color: var(--pb-accent, #FF8240) !important;
+      }
+      .unsub-card { animation: fadeUp 0.6s ease-out both; animation-delay: 0.15s; transition: background 0.3s ease, box-shadow 0.3s ease; }
+      .unsub-icon { animation: fadeIn 0.4s ease-out both; animation-delay: 0.45s; }
     `}</style>
   )
 }
@@ -388,11 +378,17 @@ function GrainOverlay() {
 function Monogram() {
   return (
     <div style={s.monogramWrap} aria-hidden="true">
-      <div style={s.monogramBox}>
-        <span style={s.monogramText}>
-          T<span style={s.monogramItalic}>F</span>
-        </span>
-      </div>
+      <span className="unsub-monogram" style={{
+        fontFamily: 'var(--font-source-serif-var), serif',
+        fontSize: 44,
+        fontWeight: 500,
+        color: 'var(--pb-ink, #EFE6D2)',
+        letterSpacing: '-4px',
+        lineHeight: 1,
+        whiteSpace: 'nowrap' as const,
+      }}>
+        T<span style={{ fontStyle: 'italic', color: 'var(--pb-accent, #FF8240)' }}>F</span><span style={{ fontSize: 8, color: 'var(--pb-ink, #EFE6D2)', verticalAlign: 'middle', marginLeft: 2 }}>●</span>
+      </span>
     </div>
   )
 }
@@ -400,25 +396,46 @@ function Monogram() {
 /* ── End mark + signature ────────────────────────────────────────────────── */
 function EndMark() {
   return (
-    <div style={s.endMark} aria-hidden="true">
-      <div style={s.endLine} />
-      <span style={s.endFleuron}>❦</span>
-      <div style={s.endLine} />
-      <span style={s.signature}>
-        <span style={s.sigMonogram}>tf</span>
-        <span style={{ opacity: 0.45 }}>❦</span>
-        <span>Thiago Figueiredo</span>
-      </span>
-    </div>
+    <>
+      <div style={s.endMark} aria-hidden="true">
+        <div style={s.endLine} />
+        <span style={s.endFleuron}>❦</span>
+        <div style={s.endLine} />
+      </div>
+      <div style={{ marginTop: 16, textAlign: 'center' }} aria-hidden="true">
+        <p style={{
+          fontFamily: "'Source Serif 4', var(--font-source-serif-var), Georgia, serif",
+          fontSize: 13,
+          color: 'var(--pb-faint, #6B634F)',
+          lineHeight: 1.4,
+          margin: 0,
+        }}>
+          <span style={{ fontStyle: 'italic', fontWeight: 300, opacity: 0.7 }}>tf</span>
+          {' '}
+          <span style={{ color: 'var(--pb-accent, #FF8240)' }}>❦</span>
+          {' '}
+          <span style={{ fontWeight: 500 }}>Thiago Figueiredo</span>
+        </p>
+        <p style={{
+          fontFamily: "'Inter', var(--font-inter-var), Arial, sans-serif",
+          fontSize: 11,
+          color: 'var(--pb-faint, #6B634F)',
+          marginTop: 2,
+          letterSpacing: '0.02em',
+        }}>
+          <a href="https://bythiagofigueiredo.com" style={{ color: 'var(--pb-faint, #6B634F)', textDecoration: 'none' }}>
+            bythiagofigueiredo.com
+          </a>
+        </p>
+      </div>
+    </>
   )
 }
 
 /* ── Layout component ────────────────────────────────────────────────────── */
 
-import type React from 'react'
-
 function localePath(locale: string | undefined): string {
-  return locale === 'pt-BR' ? '/pt' : '/'
+  return locale === 'pt-BR' ? '/pt/' : '/'
 }
 
 function UnsubscribeLayout({
@@ -426,6 +443,7 @@ function UnsubscribeLayout({
   title,
   body,
   backLabel,
+  manageLabel,
   lang,
   locale,
   signoff,
@@ -435,12 +453,14 @@ function UnsubscribeLayout({
   title: string
   body: string
   backLabel: string
+  manageLabel?: string
   lang?: string
   locale?: string
   signoff?: string
   form?: React.ReactNode
 }) {
   const { accent, icon } = STATE_CONFIG[state]
+  const showManageLink = manageLabel && (state === 'ok' || state === 'already')
 
   return (
     <main style={s.outer} lang={lang}>
@@ -450,20 +470,33 @@ function UnsubscribeLayout({
       <div style={s.column}>
         <Monogram />
 
-        <div style={s.card}>
+        <div style={s.card} className="unsub-card">
           {/* Muted top stripe — departure theme, NOT orange */}
           <div style={s.stripe} />
 
           <div style={{ ...s.cardInner }} className="unsub-card-inner">
-            {/* Farewell fleuron icon */}
+            {/* Farewell fleuron / state icon */}
             <div>
-              <div style={s.iconWrap(accent)} role="img" aria-hidden="true">
-                {icon}
-              </div>
+              {(state === 'initial' || state === 'ok') ? (
+                <div
+                  className="unsub-icon font-source-serif"
+                  style={{ fontSize: 36, color: 'var(--pb-faint, #6B634F)', lineHeight: 1, marginBottom: 28 }}
+                  role="img"
+                  aria-hidden="true"
+                >
+                  {icon}
+                </div>
+              ) : (
+                <div style={s.iconWrap(accent)} className="unsub-icon" role="img" aria-hidden="true">
+                  {icon}
+                </div>
+              )}
             </div>
 
-            {/* Thin divider below icon */}
-            <div style={s.iconDivider(accent)} />
+            {/* Thin divider below icon (error/not_found/already/invalid states only) */}
+            {(state !== 'initial' && state !== 'ok') && (
+              <div style={s.iconDivider(accent)} />
+            )}
 
             <h1 style={s.title} className="unsub-title">{title}</h1>
             <p style={s.body}>{body}</p>
@@ -472,7 +505,7 @@ function UnsubscribeLayout({
             {signoff && (
               <p style={s.signoff}>
                 {signoff}
-                {' '}— Thiago
+                <br />— Thiago
               </p>
             )}
 
@@ -482,14 +515,38 @@ function UnsubscribeLayout({
             {/* Divider before home link */}
             <hr style={s.cardDivider} />
 
-            <a href={localePath(locale)} style={s.homeLink}>
-              {backLabel}
-              <span style={s.homeLinkArrow}>→</span>
-            </a>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+              {showManageLink && (
+                <a
+                  href={`${localePath(locale)}newsletter`}
+                  className="unsub-manage"
+                  style={{
+                    display: 'inline-block',
+                    padding: '12px 32px',
+                    border: '1.5px solid var(--pb-accent, #FF8240)',
+                    borderRadius: 4,
+                    background: 'transparent',
+                    color: 'var(--pb-accent, #FF8240)',
+                    fontFamily: 'var(--font-inter-var), Arial, sans-serif',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    letterSpacing: '0.01em',
+                    textDecoration: 'none',
+                    transition: 'background 0.2s ease, color 0.2s ease, transform 0.15s ease',
+                  }}
+                >
+                  {manageLabel}
+                </a>
+              )}
+              <a href={localePath(locale)} className="unsub-home-link" style={s.homeLink}>
+                {backLabel}
+                <span style={s.homeLinkArrow}>→</span>
+              </a>
+            </div>
+
+            <EndMark />
           </div>
         </div>
-
-        <EndMark />
       </div>
     </main>
   )
@@ -519,8 +576,15 @@ export default async function UnsubscribePage({ params, searchParams }: Props) {
   const c = pickCopy(locale)
   const lang = locale === 'en' ? 'en' : 'pt-BR'
 
+  // Validate the confirmed param against known states to prevent arbitrary values
+  // from falling through to the success/ok state without an actual unsubscribe.
+  const VALID_STATUSES = new Set(['ok', 'already', 'not_found', 'error'])
+  const validatedConfirmed =
+    typeof confirmed === 'string' && VALID_STATUSES.has(confirmed) ? confirmed : null
+
   // If the user already confirmed via POST we render the result.
-  if (confirmed) {
+  if (validatedConfirmed) {
+    const confirmed = validatedConfirmed
     if (confirmed === 'not_found') {
       return (
         <UnsubscribeLayout
@@ -552,6 +616,7 @@ export default async function UnsubscribePage({ params, searchParams }: Props) {
           title={c.already_title}
           body={c.already_body}
           backLabel={c.back_home}
+          manageLabel={c.manage}
           lang={lang}
           locale={lang}
         />
@@ -565,6 +630,7 @@ export default async function UnsubscribePage({ params, searchParams }: Props) {
         body={c.ok_body}
         signoff={c.ok_signoff}
         backLabel={c.back_home}
+        manageLabel={c.manage}
         lang={lang}
         locale={lang}
       />
@@ -587,10 +653,9 @@ export default async function UnsubscribePage({ params, searchParams }: Props) {
             'use server'
             await confirmUnsubscribe(token)
           }}
-          method="post"
           style={{ marginBottom: 28 }}
         >
-          <button type="submit" style={s.unsubBtn}>
+          <button type="submit" className="unsub-btn" style={s.unsubBtn}>
             {c.initial_button}
           </button>
         </form>

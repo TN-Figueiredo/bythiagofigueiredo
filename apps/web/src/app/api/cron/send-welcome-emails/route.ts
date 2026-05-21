@@ -1,5 +1,6 @@
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
 import { sendWelcomeEmail } from '../../../../../lib/newsletter/welcome-email'
+import { generateUnsubscribeToken } from '../../../../../lib/newsletter/confirm-email'
 import * as Sentry from '@sentry/nextjs'
 import type { NewsletterListItem } from '../../../../emails/components/email-newsletter-list'
 
@@ -87,20 +88,34 @@ export async function POST(req: Request): Promise<Response> {
     }
 
     try {
-      await sendWelcomeEmail({
+      const { raw: rawToken, hash: tokenHash } = generateUnsubscribeToken(first.site_id, first.email)
+
+      await supabase
+        .from('unsubscribe_tokens')
+        .upsert(
+          { site_id: first.site_id, email: first.email, token_hash: tokenHash },
+          { onConflict: 'site_id,email', ignoreDuplicates: false },
+        )
+
+      const unsubscribeUrl = `${appUrl}/api/newsletters/unsubscribe?token=${rawToken}`
+
+      const sent = await sendWelcomeEmail({
         to: first.email,
         locale: first.locale ?? 'pt-BR',
         newsletterNames,
         latestArticle,
+        unsubscribeUrl,
       })
 
-      const ids = subs.map((s) => s.id)
-      await supabase
-        .from('newsletter_subscriptions')
-        .update({ welcome_sent: true })
-        .in('id', ids)
+      if (sent) {
+        const ids = subs.map((s) => s.id)
+        await supabase
+          .from('newsletter_subscriptions')
+          .update({ welcome_sent: true })
+          .in('id', ids)
 
-      sentCount++
+        sentCount++
+      }
     } catch (err) {
       Sentry.captureException(err, {
         tags: { component: 'cron', job: 'send-welcome-emails' },

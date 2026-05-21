@@ -9,6 +9,7 @@ describe('WelcomeEmail React Email template', () => {
       React.createElement(WelcomeEmail, {
         locale: 'pt-BR',
         newsletterNames: [{ name: 'Diário do bythiago', tagline: 'resumo da semana', color: '#FF8240' }],
+        unsubscribeUrl: 'https://example.com/unsubscribe/token123',
       })
     )
     expect(html).toContain('Bem-vindo')
@@ -20,6 +21,7 @@ describe('WelcomeEmail React Email template', () => {
       React.createElement(WelcomeEmail, {
         locale: 'en',
         newsletterNames: [{ name: 'Weekly Digest', tagline: 'weekly', color: '#FF8240' }],
+        unsubscribeUrl: 'https://example.com/unsubscribe/token123',
       })
     )
     expect(html).toContain('Welcome')
@@ -31,6 +33,7 @@ describe('WelcomeEmail React Email template', () => {
       React.createElement(WelcomeEmail, {
         locale: 'pt-BR',
         newsletterNames: [{ name: 'Test', tagline: 'test', color: '#FF8240' }],
+        unsubscribeUrl: 'https://example.com/unsubscribe/token123',
         latestArticle: {
           title: 'Meu primeiro artigo',
           url: 'https://example.com/blog/primeiro',
@@ -47,9 +50,21 @@ describe('WelcomeEmail React Email template', () => {
       React.createElement(WelcomeEmail, {
         locale: 'pt-BR',
         newsletterNames: [{ name: 'Test', tagline: 'test', color: '#FF8240' }],
+        unsubscribeUrl: 'https://example.com/unsubscribe/token123',
       })
     )
     expect(html).toContain('#FF8240')
     expect(html).toContain('❦')
+  })
+
+  it('renders unsubscribe link in footer', async () => {
+    const html = await render(
+      React.createElement(WelcomeEmail, {
+        locale: 'pt-BR',
+        newsletterNames: [{ name: 'Test', tagline: 'test', color: '#FF8240' }],
+        unsubscribeUrl: 'https://example.com/unsubscribe/mytoken',
+      })
+    )
+    expect(html).toContain('https://example.com/unsubscribe/mytoken')
   })
 })

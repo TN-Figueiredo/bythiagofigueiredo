@@ -1,4 +1,3 @@
-import DOMPurify from 'isomorphic-dompurify'
 import { Section, Text } from '@react-email/components'
 import { EmailShell } from './components/email-shell'
 import { EmailMonogram } from './components/email-monogram'
@@ -15,6 +14,7 @@ interface NewsletterProps {
   typeColor: string
   unsubscribeUrl: string
   archiveUrl: string
+  locale?: string
 }
 
 export function Newsletter({
@@ -25,10 +25,10 @@ export function Newsletter({
   typeColor,
   unsubscribeUrl,
   archiveUrl,
+  locale,
 }: NewsletterProps) {
-  void subject
   return (
-    <EmailShell preheader={preheader}>
+    <EmailShell preheader={preheader} lang={locale} title={subject} accentColor={typeColor}>
       <EmailMonogram />
 
       {/* Type indicator */}
@@ -54,14 +54,13 @@ export function Newsletter({
       <Section style={{ padding: '0 32px' }}>
         <div
           className="email-ink"
-          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(contentHtml) }}
+          dangerouslySetInnerHTML={{ __html: contentHtml }}
         />
       </Section>
 
       <EmailDivider />
       <EmailEndMark />
-      <EmailDivider />
-      <EmailFooter unsubscribeUrl={unsubscribeUrl} archiveUrl={archiveUrl} />
+      <EmailFooter unsubscribeUrl={unsubscribeUrl} archiveUrl={archiveUrl} locale={locale} />
     </EmailShell>
   )
 }

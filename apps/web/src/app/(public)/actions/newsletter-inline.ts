@@ -118,7 +118,16 @@ export async function subscribeNewsletterInline(
       }
     }
 
-    await sendNewsletterConfirmEmail({ to: email, rawToken, locale, action: 'newsletter_inline' })
+    let newsletterNames: string[] = []
+    try {
+      const { data: nlType } = await db
+        .from('newsletter_types')
+        .select('name')
+        .eq('id', newsletter_id)
+        .maybeSingle()
+      if (nlType?.name) newsletterNames = [nlType.name as string]
+    } catch { /* best-effort */ }
+    await sendNewsletterConfirmEmail({ to: email, rawToken, locale, action: 'newsletter_inline', newsletterNames })
     return { success: true }
   } catch (err) {
     captureServerActionError(err, { action: 'newsletter_inline', branch: 'outer_catch' })

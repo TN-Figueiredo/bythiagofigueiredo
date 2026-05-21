@@ -42,4 +42,25 @@ describe('rewriteLinksForTracking', () => {
   it('returns input unchanged for empty html', () => {
     expect(rewriteLinksForTracking('', 'send-1', baseUrl)).toBe('')
   })
+
+  it('skips /api/newsletters/unsubscribe URLs', () => {
+    const html = '<a href="/api/newsletters/unsubscribe?token=abc">Unsubscribe</a>'
+    const result = rewriteLinksForTracking(html, 'send-123', baseUrl)
+    expect(result).toContain('href="/api/newsletters/unsubscribe?token=abc"')
+    expect(result).not.toContain('/api/newsletters/track/click')
+  })
+
+  it('skips /unsubscribe/ path URLs', () => {
+    const html = '<a href="/unsubscribe/some-token-here">Unsubscribe</a>'
+    const result = rewriteLinksForTracking(html, 'send-123', baseUrl)
+    expect(result).toContain('href="/unsubscribe/some-token-here"')
+    expect(result).not.toContain('/api/newsletters/track/click')
+  })
+
+  it('skips list-unsubscribe URLs', () => {
+    const html = '<a href="https://example.com/list-unsubscribe?id=123">Manage</a>'
+    const result = rewriteLinksForTracking(html, 'send-123', baseUrl)
+    expect(result).toContain('href="https://example.com/list-unsubscribe?id=123"')
+    expect(result).not.toContain('/api/newsletters/track/click')
+  })
 })

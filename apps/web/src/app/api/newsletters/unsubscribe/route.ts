@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { createHash } from 'crypto'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
+const TOKEN_PATTERN = /^[a-zA-Z0-9_-]{20,128}$/
+
 function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex')
 }
@@ -9,7 +11,9 @@ function hashToken(token: string): string {
 export async function POST(req: Request): Promise<Response> {
   const url = new URL(req.url)
   const token = url.searchParams.get('token')
-  if (!token) return NextResponse.json({ error: 'missing_token' }, { status: 400 })
+  if (!token || !TOKEN_PATTERN.test(token)) {
+    return NextResponse.json({ error: 'missing_token' }, { status: 400 })
+  }
 
   const supabase = getSupabaseServiceClient()
   const { data, error } = await supabase.rpc('unsubscribe_via_token', {
@@ -23,6 +27,8 @@ export async function POST(req: Request): Promise<Response> {
 export async function GET(req: Request): Promise<Response> {
   const url = new URL(req.url)
   const token = url.searchParams.get('token')
-  if (!token) return NextResponse.json({ error: 'missing_token' }, { status: 400 })
-  return NextResponse.redirect(new URL(`/unsubscribe/${token}`, url.origin), 302)
+  if (!token || !TOKEN_PATTERN.test(token)) {
+    return NextResponse.json({ error: 'missing_token' }, { status: 400 })
+  }
+  return NextResponse.redirect(new URL(`/unsubscribe/${encodeURIComponent(token)}`, url.origin), 302)
 }

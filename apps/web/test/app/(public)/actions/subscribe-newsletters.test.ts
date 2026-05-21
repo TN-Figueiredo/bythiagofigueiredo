@@ -78,8 +78,9 @@ describe('subscribeToNewsletters', () => {
     mockInsert.mockResolvedValue({ data: { id: 'sub-1' }, error: null })
     mockUpdate.mockResolvedValue({ data: null, error: null })
     const eqChain = { eq: vi.fn().mockReturnThis(), neq: vi.fn().mockReturnThis(), maybeSingle: mockMaybeSingle }
+    const mockIn = vi.fn().mockResolvedValue({ data: [{ id: 'nl-1', name: 'Test Newsletter' }], error: null })
     mockFrom.mockReturnValue({
-      select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue(eqChain) }),
+      select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue(eqChain), in: mockIn }),
       insert: mockInsert,
       update: vi.fn().mockReturnValue({ eq: mockUpdate }),
     })
@@ -150,10 +151,11 @@ describe('subscribeToNewsletters', () => {
     expect(html).not.toMatch(/\?token=/)
   })
 
-  it('confirmation URL includes locale prefix for pt-BR', async () => {
+  it('confirmation URL has no locale prefix for pt-BR (route has no locale prefix)', async () => {
     await subscribeToNewsletters('user@example.com', ['nl-1'], 'pt-BR')
     const html = mockSend.mock.calls[0][0].html as string
-    expect(html).toMatch(/https:\/\/bythiagofigueiredo\.com\/pt\/newsletter\/confirm\/[a-f0-9]{64}/)
+    expect(html).toMatch(/https:\/\/bythiagofigueiredo\.com\/newsletter\/confirm\/[a-f0-9]{64}/)
+    expect(html).not.toMatch(/\/pt\/newsletter\/confirm\//)
   })
 
   it('confirmation URL has no locale prefix for en', async () => {
@@ -252,14 +254,18 @@ describe('subscribeToNewsletters', () => {
       error: { message: 'duplicate key value violates unique constraint', code: '23505' },
     })
     const mockDupUpdate = vi.fn().mockResolvedValue({ data: null, error: null })
+    const mockIn = vi.fn().mockResolvedValue({ data: [{ id: 'nl-1', name: 'Test Newsletter' }], error: null })
     const origFrom = mockFrom.getMockImplementation()
     let insertCallDone = false
     mockFrom.mockImplementation((...args) => {
       if (insertCallDone) {
-        return { update: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: mockDupUpdate }) }) }) }
+        return {
+          update: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: mockDupUpdate }) }) }),
+          select: vi.fn().mockReturnValue({ in: mockIn }),
+        }
       }
       const base = origFrom ? origFrom(...args) : {
-        select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnThis(), neq: vi.fn().mockReturnThis(), maybeSingle: mockMaybeSingle }) }),
+        select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnThis(), neq: vi.fn().mockReturnThis(), maybeSingle: mockMaybeSingle }), in: mockIn }),
         insert: (...a: unknown[]) => { insertCallDone = true; return mockInsert(...a) },
         update: vi.fn().mockReturnValue({ eq: mockUpdate }),
       }

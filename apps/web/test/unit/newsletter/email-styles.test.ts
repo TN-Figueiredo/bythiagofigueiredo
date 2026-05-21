@@ -16,8 +16,8 @@ describe('getEmailStylesheet', () => {
 
   it('includes all required email-safe base rules', () => {
     const css = getEmailStylesheet('#000')
-    expect(css).toContain('font-family:Arial,Helvetica,sans-serif')
-    expect(css).toContain("font-family:Georgia,'Times New Roman',serif")
+    expect(css).toContain('font-family:Arial, Helvetica, sans-serif')
+    expect(css).toContain("font-family:Georgia, 'Times New Roman', serif")
     expect(css).toContain('max-width:600px')
     expect(css).toContain('.cta-button')
     expect(css).toContain('.cta-wrapper')

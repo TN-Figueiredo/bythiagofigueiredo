@@ -33,10 +33,11 @@ export function EmailShell({ preheader, lang = 'pt-BR', title, accentColor = EMA
         <Container
           className="email-card"
           style={{
-            maxWidth: 680,
+            maxWidth: 600,
             margin: '0 auto',
-            padding: '48px 0',
+            padding: '40px 16px',
             backgroundColor: EMAIL_COLORS.card,
+            boxShadow: '0 1px 12px rgba(31, 27, 23, 0.07)',
           }}
         >
           <Section

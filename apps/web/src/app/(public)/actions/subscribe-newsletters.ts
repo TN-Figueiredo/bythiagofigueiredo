@@ -143,7 +143,12 @@ export async function subscribeToNewsletters(
     }
 
     if (needsConfirmation) {
-      await sendNewsletterConfirmEmail({ to: normalizedEmail, rawToken, locale })
+      const { data: types } = await db
+        .from('newsletter_types')
+        .select('id, name')
+        .in('id', subscribedIds)
+      const newsletterNames = types?.map((t: { id: string; name: string }) => t.name) ?? []
+      await sendNewsletterConfirmEmail({ to: normalizedEmail, rawToken, locale, newsletterNames })
     }
 
     return { success: true, subscribedIds, needsConfirmation }

@@ -18,10 +18,10 @@ describe('EmailEndMark', () => {
     expect(html).toContain('❦')
   })
 
-  it('renders the TF signature', async () => {
+  it('renders the flanking line decoration', async () => {
     const html = await render(React.createElement(EmailEndMark))
-    expect(html).toContain('Thiago Figueiredo')
-    expect(html).toContain('bythiagofigueiredo.com')
+    expect(html).toContain('border-top')
+    expect(html).toContain('#FF8240')
   })
 })
 

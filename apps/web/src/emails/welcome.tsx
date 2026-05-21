@@ -10,9 +10,9 @@ import { EMAIL_COLORS, EMAIL_FONTS } from './components/email-tokens'
 const COPY = {
   'pt-BR': {
     preheader: 'Sua inscrição foi confirmada — bem-vindo!',
-    heading: 'Bem-vindo à newsletter.',
-    body: 'Sua inscrição está confirmada. Você receberá as próximas edições diretamente no seu email.',
-    subscribedTo: 'Suas newsletters:',
+    heading: 'Bem-vindo às newsletters',
+    body: 'Sua inscrição foi confirmada para:',
+    afterList: 'A partir de agora, cada edição vai direto para o seu email — sem algoritmo.',
     latestLabel: 'ÚLTIMO ARTIGO',
     readMore: 'Ler artigo →',
     thankYou: 'Obrigado por estar aqui.',
@@ -20,9 +20,9 @@ const COPY = {
   },
   en: {
     preheader: 'Your subscription is confirmed — welcome!',
-    heading: 'Welcome to the newsletter.',
-    body: "Your subscription is confirmed. You'll receive upcoming editions directly in your inbox.",
-    subscribedTo: 'Your newsletters:',
+    heading: 'Welcome to the newsletters',
+    body: 'Your subscription is confirmed for:',
+    afterList: 'From now on, every edition goes straight to your inbox — no algorithm.',
     latestLabel: 'LATEST ARTICLE',
     readMore: 'Read article →',
     thankYou: 'Thank you for being here.',
@@ -50,62 +50,74 @@ export function WelcomeEmail({ locale, newsletterNames, latestArticle, unsubscri
 
   return (
     <EmailShell preheader={c.preheader} lang={locale}>
-      <Section style={{ padding: '0 32px' }}>
-        <EmailMonogram />
+      <EmailMonogram />
+      <EmailDivider />
+
+      <Section style={{ padding: '40px 48px 12px' }}>
         <Text className="email-ink" style={{
           fontFamily: EMAIL_FONTS.serif,
-          fontSize: 28,
+          fontSize: 30,
           fontWeight: 500,
           color: EMAIL_COLORS.ink,
-          margin: '0 0 16px',
+          margin: '0 0 20px',
           letterSpacing: '-0.02em',
-          textAlign: 'center',
           lineHeight: '1.2',
         }}>
           {c.heading}
         </Text>
-        <Text className="email-muted" style={{
+        <Text className="email-ink" style={{
           fontFamily: EMAIL_FONTS.serif,
-          fontSize: 16,
+          fontSize: 17,
           lineHeight: '1.65',
-          color: EMAIL_COLORS.muted,
-          margin: '0 0 8px',
-          textAlign: 'center',
+          color: EMAIL_COLORS.ink,
+          margin: '0 0 4px',
         }}>
           {c.body}
         </Text>
       </Section>
 
-      <EmailNewsletterList items={newsletterNames} label={c.subscribedTo} />
+      <EmailNewsletterList items={newsletterNames} />
+
+      <Section style={{ padding: '0 48px' }}>
+        <Text className="email-ink" style={{
+          fontFamily: EMAIL_FONTS.serif,
+          fontSize: 17,
+          lineHeight: '1.65',
+          color: EMAIL_COLORS.ink,
+          margin: '16px 0 28px',
+        }}>
+          {c.afterList}
+        </Text>
+      </Section>
 
       {latestArticle && (
         <>
           <EmailDivider />
-          <Section style={{ padding: '0 32px' }}>
-            <Text className="email-faint" style={{
-              fontFamily: EMAIL_FONTS.mono,
-              fontSize: 10,
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-              color: EMAIL_COLORS.faint,
-              fontWeight: 500,
-              margin: '0 0 12px',
-              textAlign: 'center',
-            }}>
-              {c.latestLabel}
-            </Text>
+          <Section style={{ padding: '0 48px 36px' }}>
             <div className="email-line" style={{
               border: `1px solid ${EMAIL_COLORS.line}`,
-              borderRadius: 6,
-              padding: '20px 24px',
+              padding: '24px 28px',
+              backgroundColor: '#FFFFFF',
             }}>
+              <Text className="email-faint" style={{
+                fontFamily: EMAIL_FONTS.mono,
+                fontSize: 10,
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                color: EMAIL_COLORS.faint,
+                fontWeight: 500,
+                margin: '0 0 8px',
+              }}>
+                {c.latestLabel}
+              </Text>
               <Text className="email-ink" style={{
                 fontFamily: EMAIL_FONTS.serif,
-                fontSize: 18,
+                fontSize: 20,
                 fontWeight: 500,
                 color: EMAIL_COLORS.ink,
                 margin: '0 0 8px',
                 lineHeight: '1.3',
+                letterSpacing: '-0.01em',
               }}>
                 {latestArticle.title}
               </Text>
@@ -114,8 +126,8 @@ export function WelcomeEmail({ locale, newsletterNames, latestArticle, unsubscri
                   fontFamily: EMAIL_FONTS.serif,
                   fontSize: 14,
                   color: EMAIL_COLORS.muted,
-                  margin: '0 0 12px',
-                  lineHeight: '1.6',
+                  margin: '0 0 16px',
+                  lineHeight: '1.55',
                 }}>
                   {latestArticle.excerpt}
                 </Text>
@@ -134,7 +146,7 @@ export function WelcomeEmail({ locale, newsletterNames, latestArticle, unsubscri
         </>
       )}
 
-      <Section style={{ padding: '24px 32px 0', textAlign: 'center' }}>
+      <Section style={{ padding: '0 48px 40px' }}>
         <Text className="email-muted" style={{
           fontFamily: EMAIL_FONTS.serif,
           fontSize: 16,

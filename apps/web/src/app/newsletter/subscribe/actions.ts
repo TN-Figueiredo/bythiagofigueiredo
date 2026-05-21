@@ -16,6 +16,21 @@ type NewsletterLocale = z.infer<typeof LocaleSchema>
 
 const CONFIRMATION_TTL_MS = 24 * 60 * 60 * 1000
 
+type SupabaseClient = ReturnType<typeof getSupabaseServiceClient>
+
+async function fetchNewsletterName(db: SupabaseClient, newsletterId: string): Promise<string[]> {
+  try {
+    const { data } = await db
+      .from('newsletter_types')
+      .select('name')
+      .eq('id', newsletterId)
+      .maybeSingle()
+    return data?.name ? [data.name as string] : []
+  } catch {
+    return []
+  }
+}
+
 export type SubscribeResult =
   | { status: 'ok' }
   | { status: 'error'; code: string }
@@ -106,7 +121,8 @@ export async function subscribeToNewsletter(formData: FormData): Promise<Subscri
         return { status: 'error', code: 'db_error' }
       }
 
-      await sendNewsletterConfirmEmail({ to: email, rawToken, locale })
+      const names = await fetchNewsletterName(supabase, newsletter_id)
+      await sendNewsletterConfirmEmail({ to: email, rawToken, locale, newsletterNames: names })
       return { status: 'ok' }
     }
 
@@ -132,7 +148,8 @@ export async function subscribeToNewsletter(formData: FormData): Promise<Subscri
       return { status: 'error', code: 'db_error' }
     }
 
-    await sendNewsletterConfirmEmail({ to: email, rawToken, locale })
+    const names = await fetchNewsletterName(supabase, newsletter_id)
+    await sendNewsletterConfirmEmail({ to: email, rawToken, locale, newsletterNames: names })
     return { status: 'ok' }
   } catch (err) {
     captureServerActionError(err, { action: 'newsletter_subscribe', branch: 'outer_catch' })

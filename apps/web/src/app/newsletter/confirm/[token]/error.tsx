@@ -20,7 +20,9 @@ const COPY = {
 
 function detectLocale(): keyof typeof COPY {
   if (typeof window === 'undefined') return 'pt-BR'
-  if (window.location.pathname.startsWith('/pt')) return 'pt-BR'
+  const htmlLang = document.documentElement.lang
+  if (htmlLang?.startsWith('pt')) return 'pt-BR'
+  if (navigator.language?.startsWith('pt')) return 'pt-BR'
   return 'en'
 }
 
@@ -49,150 +51,175 @@ export default function ConfirmError({
         backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E")`,
       }}
     >
-      {/* TF Monogram — outside card */}
-      <div className="mb-6 flex flex-col items-center">
-        <span
-          className="inline-flex items-baseline font-source-serif select-none"
-          style={{ letterSpacing: '-0.08em', fontSize: 56 }}
-          role="img"
-          aria-label="TF"
-        >
-          <span style={{ fontWeight: 500, lineHeight: 1, color: 'var(--pb-ink)' }}>T</span>
+      <style>{`
+        @keyframes fadeUp {
+          from { opacity: 0; transform: translateY(16px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          * { animation: none !important; }
+        }
+        @media (max-width: 560px) {
+          .confirm-error-card-body { padding: 36px 28px 32px !important; }
+          .confirm-error-title { font-size: 26px !important; }
+          .confirm-error-monogram { font-size: 38px !important; margin-bottom: 24px !important; }
+        }
+      `}</style>
+
+      {/* Page wrapper — constrains all content to 520px */}
+      <div style={{ maxWidth: 520, width: '100%' }}>
+
+        {/* TF Monogram — outside card */}
+        <div className="flex justify-center" style={{ marginBottom: 32, animation: 'fadeIn 0.5s ease-out' }}>
           <span
-            style={{
-              fontWeight: 500,
-              fontStyle: 'italic',
-              lineHeight: 1,
-              color: 'var(--pb-accent)',
-              opacity: 0.95,
-            }}
-          >
-            F
-          </span>
-        </span>
-      </div>
-
-      {/* Card */}
-      <div
-        className="w-full overflow-hidden rounded-md"
-        style={{
-          maxWidth: 680,
-          background: 'var(--pb-paper)',
-          boxShadow: 'var(--pb-shadow-card)',
-        }}
-      >
-        {/* Top stripe — muted error color */}
-        <div
-          aria-hidden="true"
-          className="h-1 w-full"
-          style={{ background: '#C14513', opacity: 0.7 }}
-        />
-
-        {/* Card body */}
-        <div className="px-8 py-12 sm:px-14 sm:py-14 text-center">
-          {/* Icon */}
-          <div
-            className="inline-flex items-center justify-center w-14 h-14 rounded-full mb-5"
-            style={{
-              border: '2px solid #C14513',
-              color: '#C14513',
-              fontSize: 24,
-              lineHeight: 1,
-            }}
+            className="confirm-error-monogram font-source-serif select-none"
+            style={{ fontSize: 44, fontWeight: 500, letterSpacing: '-4px', lineHeight: 1, color: 'var(--pb-ink)', whiteSpace: 'nowrap' }}
             role="img"
+            aria-label="TF"
+          >
+            T<span style={{ fontStyle: 'italic', color: 'var(--pb-accent)' }}>F</span><span style={{ fontSize: 8, color: 'var(--pb-ink)', verticalAlign: 'middle', marginLeft: 2 }}>●</span>
+          </span>
+        </div>
+
+        {/* Card */}
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="w-full overflow-hidden rounded-md"
+          style={{
+            maxWidth: 520,
+            background: 'var(--pb-paper)',
+            boxShadow: 'var(--pb-shadow-card)',
+            animation: 'fadeUp 0.6s ease-out both',
+            animationDelay: '0.15s',
+          }}
+        >
+          {/* Top stripe — muted error color */}
+          <div
             aria-hidden="true"
-          >
-            ⚠
-          </div>
-
-          {/* Title */}
-          <h1
-            className="font-fraunces font-semibold m-0 mb-3 leading-tight"
-            style={{
-              fontSize: 'clamp(28px, 5vw, 34px)',
-              color: 'var(--pb-ink)',
-            }}
-          >
-            {c.title}
-          </h1>
-
-          {/* Body */}
-          <p
-            className="font-jetbrains text-sm leading-[1.7] mb-8 mx-auto"
-            style={{ maxWidth: 420, color: 'var(--pb-muted)' }}
-          >
-            {c.body}
-          </p>
-
-          {/* Retry button */}
-          <button
-            onClick={reset}
-            className="font-jetbrains text-sm font-semibold px-5 py-2.5 rounded cursor-pointer mb-4 transition-opacity duration-150 hover:opacity-90"
-            style={{
-              background: '#C14513',
-              color: '#fff',
-              border: 'none',
-            }}
-          >
-            {c.retry}
-          </button>
-
-          {/* Divider */}
-          <hr
-            className="border-none mx-auto mb-5"
-            style={{
-              width: 32,
-              height: 1,
-              background: 'var(--pb-line)',
-              marginTop: 16,
-            }}
+            className="w-full"
+            style={{ height: 4, background: '#C14513', opacity: 0.7 }}
           />
 
-          {/* Home link */}
-          <a
-            href={homePath}
-            className="font-jetbrains text-xs uppercase pb-0.5 transition-colors duration-150"
-            style={{
-              color: 'var(--pb-muted)',
-              textDecoration: 'none',
-              borderBottom: '1px dashed var(--pb-line)',
-              letterSpacing: '0.05em',
-            }}
-          >
-            {c.back}
-          </a>
+          {/* Card body */}
+          <div className="confirm-error-card-body text-center" style={{ padding: '48px 48px 44px' }}>
+            {/* Icon */}
+            <div
+              className="inline-flex items-center justify-center w-14 h-14 rounded-full mb-5"
+              style={{
+                border: '2px solid #C14513',
+                color: '#C14513',
+                fontSize: 24,
+                lineHeight: 1,
+                animation: 'fadeIn 0.4s ease-out both',
+                animationDelay: '0.45s',
+              }}
+              role="img"
+              aria-hidden="true"
+            >
+              ⚠
+            </div>
+
+            {/* Title */}
+            <h1
+              className="confirm-error-title font-fraunces font-medium m-0 mb-4"
+              style={{
+                fontSize: 'clamp(26px, 5vw, 30px)',
+                color: 'var(--pb-ink)',
+                lineHeight: 1.2,
+                letterSpacing: '-0.02em',
+              }}
+            >
+              {c.title}
+            </h1>
+
+            {/* Body */}
+            <p
+              className="font-source-serif leading-[1.65] mb-8 mx-auto"
+              style={{ maxWidth: 420, color: 'var(--pb-muted)', fontSize: 17 }}
+            >
+              {c.body}
+            </p>
+
+            {/* Retry button */}
+            <button
+              onClick={reset}
+              className="font-inter cursor-pointer mb-4 transition-opacity duration-150 hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--pb-accent)] focus-visible:outline-none"
+              style={{
+                display: 'inline-block',
+                padding: '15px 40px',
+                background: '#C14513',
+                color: '#fff',
+                border: 'none',
+                fontSize: 15,
+                fontWeight: 600,
+                borderRadius: 4,
+                letterSpacing: '0.01em',
+              }}
+            >
+              {c.retry}
+            </button>
+
+            {/* Divider */}
+            <hr
+              className="border-none"
+              style={{
+                width: '100%',
+                height: 1,
+                background: 'var(--pb-line)',
+                margin: '32px 0',
+              }}
+            />
+
+            {/* Home link */}
+            <a
+              href={homePath}
+              className="font-inter transition-colors duration-150"
+              style={{
+                fontSize: 13,
+                fontWeight: 500,
+                color: 'var(--pb-faint)',
+                textDecoration: 'none',
+              }}
+            >
+              {c.back} <span style={{ marginLeft: 4 }}>→</span>
+            </a>
+
+            {/* End mark — inside card */}
+            <div className="flex items-center justify-center" style={{ marginTop: 36, gap: 14 }} aria-hidden="true">
+              <span className="block" style={{ width: 36, height: 1, background: 'var(--pb-line)' }} />
+              <span className="font-source-serif" style={{ fontSize: 16, color: 'var(--pb-accent)', lineHeight: 1 }}>❦</span>
+              <span className="block" style={{ width: 36, height: 1, background: 'var(--pb-line)' }} />
+            </div>
+
+            {/* Signature — inside card */}
+            <div className="mt-4 text-center">
+              <p className="font-source-serif" style={{ fontSize: 13, color: 'var(--pb-faint)', lineHeight: 1.4, margin: 0 }}>
+                <span style={{ fontStyle: 'italic', fontWeight: 300, opacity: 0.7 }}>tf</span>
+                {' '}
+                <span style={{ color: 'var(--pb-accent)' }}>❦</span>
+                {' '}
+                <span style={{ fontWeight: 500 }}>Thiago Figueiredo</span>
+              </p>
+              <p className="font-inter" style={{ fontSize: 11, color: 'var(--pb-faint)', marginTop: 2, letterSpacing: '0.02em' }}>
+                <a
+                  href="https://bythiagofigueiredo.com"
+                  style={{ color: 'var(--pb-faint)', textDecoration: 'none' }}
+                  tabIndex={-1}
+                  aria-hidden="true"
+                >
+                  bythiagofigueiredo.com
+                </a>
+              </p>
+            </div>
+
+          </div>
         </div>
-      </div>
 
-      {/* End mark — outside card */}
-      <div className="mt-8 flex items-center gap-3" aria-hidden="true">
-        <span className="block h-px w-10" style={{ background: 'var(--pb-line)' }} />
-        <span
-          className="font-source-serif text-base"
-          style={{ color: 'var(--pb-muted)', opacity: 0.5 }}
-        >
-          ❦
-        </span>
-        <span className="block h-px w-10" style={{ background: 'var(--pb-line)' }} />
-      </div>
-
-      {/* Signature — outside card */}
-      <div className="mt-4 text-center">
-        <p
-          className="font-jetbrains text-xs"
-          style={{ color: 'var(--pb-muted)', opacity: 0.5 }}
-        >
-          tf ❦ Thiago Figueiredo
-        </p>
-        <a
-          href="https://bythiagofigueiredo.com"
-          className="font-jetbrains text-xs"
-          style={{ color: 'var(--pb-muted)', opacity: 0.4, textDecoration: 'none' }}
-          tabIndex={-1}
-          aria-hidden="true"
-        >
-          bythiagofigueiredo.com
-        </a>
       </div>
     </main>
   )

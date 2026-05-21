@@ -35,12 +35,30 @@ describe('EmailShell', () => {
     expect(html).toContain('#1A1714')
   })
 
-  it('sets max-width 640 on container', async () => {
+  it('sets max-width 600 on container', async () => {
     const html = await render(
       React.createElement(EmailShell, {},
         React.createElement(Text, null, 'Body')
       )
     )
-    expect(html).toContain('640')
+    expect(html).toContain('600')
+  })
+
+  it('renders accent stripe with default color', async () => {
+    const html = await render(
+      React.createElement(EmailShell, {},
+        React.createElement(Text, null, 'Body')
+      )
+    )
+    expect(html).toContain('background:#FF8240')
+  })
+
+  it('renders accent stripe with custom color', async () => {
+    const html = await render(
+      React.createElement(EmailShell, { accentColor: '#E53E3E' },
+        React.createElement(Text, null, 'Body')
+      )
+    )
+    expect(html).toContain('background:#E53E3E')
   })
 })

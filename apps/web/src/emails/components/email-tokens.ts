@@ -33,5 +33,11 @@ export function emailDarkStyles(): string {
   .email-faint { color: ${EMAIL_COLORS.dark.faint} !important; }
   .email-line { border-color: ${EMAIL_COLORS.dark.line} !important; }
   .email-divider { background-color: ${EMAIL_COLORS.dark.line} !important; }
+  .email-ink h1, .email-ink h2, .email-ink h3 { color: ${EMAIL_COLORS.dark.ink} !important; }
+  .email-ink p, .email-ink li, .email-ink td { color: ${EMAIL_COLORS.dark.muted} !important; }
+  .email-ink blockquote { background-color: ${EMAIL_COLORS.dark.card} !important; border-left-color: ${EMAIL_COLORS.dark.line} !important; }
+  .email-ink hr { border-color: ${EMAIL_COLORS.dark.line} !important; }
+  .email-ink a { color: #FF9D6A !important; }
+  .email-ink .drop-cap { color: ${EMAIL_COLORS.dark.ink} !important; }
 }`.trim()
 }

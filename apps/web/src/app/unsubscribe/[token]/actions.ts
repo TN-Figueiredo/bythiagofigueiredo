@@ -21,7 +21,7 @@ function hashToken(token: string): string {
 }
 
 export async function unsubscribeViaToken(token: string): Promise<UnsubscribeResult> {
-  if (!token || typeof token !== 'string') {
+  if (!token || typeof token !== 'string' || token.length > 256) {
     return { status: 'not_found' }
   }
 
